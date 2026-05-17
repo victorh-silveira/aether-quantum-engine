@@ -1,0 +1,55 @@
+# ---- AMBIENTES VIRTUAIS E SEGREDOS ----
+.env
+.venv/
+env/
+venv/
+
+# ---- CONFIGURAÇÕES DO PROJETO ----
+!config/settings.json
+
+# ---- FERRAMENTAS DE DESENVOLVIMENTO ----
+.cache/
+.pre-commit/
+
+# ---- IA E FERRAMENTAS DE AGENTES (CURSOR/MCP) ----
+.agent/
+.agents/
+.antigravity/
+.cursor/
+.gemini/
+
+# ---- IDEs E SISTEMA OPERACIONAL ----
+*.swp
+*.swo
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/settings.json
+desktop.ini
+Thumbs.db
+
+# ---- LOGS E PERSISTÊNCIA LOCAL ----
+*.log
+data/
+logs/
+
+# ---- NODE / NPM / HUSKY (ARTEFATOS LOCAIS) ----
+.husky/
+node_modules/
+npm-debug.log*
+package-lock.json
+package.json
+yarn-debug.log*
+yarn-error.log*
+
+# ---- PYTHON: CACHES E ARTEFATOS DE BUILD ----
+*$py.class
+*.egg-info/
+*.py[cod]
+.coverage
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+build/
+dist/
+htmlcov/

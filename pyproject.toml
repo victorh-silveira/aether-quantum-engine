@@ -1,0 +1,141 @@
+[project]
+name = "aether-quantum-engine"
+version = "0.0.0"
+description = "Motor asyncio Deriv Rise/Fall: modo CALL/PUT simples ou decisao via LLM (Google Gemini)."
+readme = "README.md"
+requires-python = ">=3.14,<4"
+
+[tool.ruff]
+line-length = 120
+target-version = "py314"
+exclude = [
+    ".git",
+    ".ruff_cache",
+    ".venv",
+    "venv",
+    "data",
+    "__pycache__",
+    "build",
+    "dist",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "W",
+    "F",
+    "I",
+    "B",
+    "C4",
+    "UP",
+    "N",
+    "D",
+    "S",
+    "BLE",
+    "FBT",
+    "A",
+    "COM",
+    "T20",
+    "Q",
+    "RET",
+    "SIM",
+    "ARG",
+    "PTH",
+    "ERA",
+    "PL",
+]
+ignore = [
+    "E501",
+    "D203",
+    "D213",
+    "ANN204",
+    "S101",
+    "PLR0913",
+    "PLR2004",
+    "COM812",
+    "ISC001",
+    "D1",
+    "BLE001",
+    "S105",
+]
+
+[tool.ruff.lint.pylint]
+max-statements = 50
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+force-wrap-aliases = true
+lines-after-imports = 2
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/operations/*.py" = ["T201", "E402", "S603", "S607"]
+"src/application/services/llm/trading_indicators.py" = ["E402"]
+"src/application/services/llm/gemini_decision_service.py" = ["PLC0415"]
+"src/application/services/llm/trading_indicators_*.py" = ["PLC0415"]
+"src/application/services/llm/trading_llm_bridge.py" = ["PLR0915"]
+"src/application/services/llm/trading_llm_symbol_decision.py" = ["PLR0915"]
+"src/application/services/llm/strategy_payload_config.py" = ["S106"]
+"tests/**/*.py" = ["ARG001", "ARG005", "S101"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q --strict-markers"
+filterwarnings = [
+    "ignore::DeprecationWarning:google.genai.types",
+]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.interrogate]
+ignore-init-method = true
+ignore-init-module = true
+fail-under = 100
+exclude = [
+    ".git",
+    ".venv",
+    "build",
+    "dist",
+    "scripts",
+    "tests",
+    "venv",
+]
+
+[tool.bandit]
+skips = ["B105", "B106"]
+exclude_dirs = [".git", ".venv", "tests", "venv"]
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "src/application/services/llm/ollama_decision_structured.py",
+    "src/application/services/llm/trading_llm_decision_utils.py",
+    "src/application/services/llm/trading_llm_mtf_utils.py",
+    "src/application/services/llm/trading_llm_repeat_guard.py",
+    "src/application/services/orchestrator/__init__.py",
+    "src/application/services/orchestrator/execution_manager.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 100
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    'if __name__ == "__main__":',
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "pass",
+    "raise ImportError",
+]

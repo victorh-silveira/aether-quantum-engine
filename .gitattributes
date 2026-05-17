@@ -1,0 +1,28 @@
+# ---- ARQUIVOS BINÁRIOS E ASSETS ----
+*.ico binary
+*.jpg binary
+*.png binary
+.ruff_cache/** binary
+
+# ---- CONFIGURAÇÃO E DADOS ----
+config/*.json text
+data/state.json -text
+logs/*.log text
+
+# ---- CONTROLE DE QUEBRA DE LINHA (NORMALIZAÇÃO) ----
+* text eol=lf
+*.bat text eol=crlf
+
+# ---- IDENTIFICAÇÃO DE TIPOS DE ARQUIVO ----
+*.json text
+*.md text
+*.mjs text
+*.ps1 text eol=crlf
+*.psm1 text eol=crlf
+*.py text
+*.toml text
+*.txt text
+*.yaml text
+*.yml text
+.pre-commit-config.yaml text
+.python-version text

@@ -1,0 +1,25 @@
+name: Sincronizar tags Git
+description: Remove tags locais, atualiza do remoto e apaga tags v* órfãs em relação a main
+
+inputs:
+  github_token:
+    description: Token do GitHub para git push
+    required: true
+
+runs:
+  using: composite
+
+  steps:
+    - name: Limpar tags locais, buscar remoto e apagar tags órfãs
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+      run: |
+        git tag -l | xargs -n 1 git tag -d || true
+        git fetch --tags --force --prune
+        for tag in $(git tag -l "v*"); do
+          if ! git merge-base --is-ancestor "$tag" main; then
+            git push origin --delete "$tag" || true
+            git tag -d "$tag" || true
+          fi
+        done

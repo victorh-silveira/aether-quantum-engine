@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+
+    paths:
+      - ".github/**"
+      - ".python-version"
+      - ".pre-commit-config.yaml"
+      - "README.md"
+      - "docs/**"
+      - "config/**"
+      - "pyproject.toml"
+      - "requirements*.txt"
+      - "src/**"
+      - "scripts/**"
+      - "tests/**"
+      - "tools/**"
+      - "run.py"
+
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Qualidade - Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Lint
+        uses: ./.github/actions/lint
+
+  tests:
+    name: Testes - Pytest
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Testes
+        uses: ./.github/actions/test
+
+  security:
+    name: Segurança - Auditoria
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Segurança
+        uses: ./.github/actions/security
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  release:
+    name: Release - Versão
+    needs: [quality, tests, security]
+
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      contents: write
+      issues: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Tags
+        uses: ./.github/actions/sync-tags
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release
+        uses: ./.github/actions/release
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
