@@ -1,0 +1,274 @@
+from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
+from src.domain.models.market_data import Candle
+from src.infrastructure.handlers.stream_handler import StreamHandler
+
+
+@pytest.fixture
+def mock_ws():
+    ws = MagicMock()
+    ws.send = AsyncMock(
+        return_value={"candles": [{"open": 1.1, "high": 1.2, "low": 1.0, "close": 1.15, "epoch": 1600000000}]}
+    )
+    return ws
+
+
+@pytest.fixture
+def stream_handler(mock_ws):
+    config = {"buffer_limit": 10, "fetch_count": 3, "granularity": 60}
+    symbols = ["1HZ75V", "1HZ75V"]
+    return StreamHandler(mock_ws, symbols, config)
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_on_candle(stream_handler):
+    candle_data = {
+        "ohlc": {"symbol": "1HZ75V", "open": 1.4, "high": 1.5, "low": 1.3, "close": 1.45, "open_time": 1600000000}
+    }
+    await stream_handler._on_candle(candle_data)
+    assert stream_handler.candles["1HZ75V"][-1].close == 1.45
+
+
+def test_stream_handler_get_numpy(stream_handler):
+    stream_handler.candles["1HZ75V"] = [Candle("1HZ75V", 1.0, 1.1, 0.9, 1.05, datetime.now(), 1000)]
+    series = stream_handler.get_numpy_series("1HZ75V")
+    assert series.tolist() == [1.05]
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_start_stream(stream_handler, mock_ws):
+    callback = AsyncMock()
+    await stream_handler.start_candle_stream(callback)
+    assert mock_ws.subscribe.called
+    assert mock_ws.send.called
+
+
+def test_stream_handler_unknown_symbol(stream_handler):
+    assert len(stream_handler.get_numpy_series("UNKNOWN")) == 0
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_candle_error(stream_handler):
+    await stream_handler._on_candle({"invalid": "data"})
+    assert len(stream_handler.candles["1HZ75V"]) == 0
+
+    await stream_handler._on_candle({"ohlc": {"symbol": "UNKNOWN", "open": 1.0, "open_time": 1000}})
+    assert len(stream_handler.candles["1HZ75V"]) == 0
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_candle_logic():
+    ws = MagicMock()
+    ws.send = AsyncMock(return_value={"candles": []})
+    sh = StreamHandler(ws, ["1HZ75V"], {"buffer_limit": 2})
+    callback = AsyncMock()
+    await sh.start_candle_stream(callback)
+
+    await sh._on_candle(
+        {"ohlc": {"symbol": "1HZ75V", "open": 1.0, "high": 1.1, "low": 0.9, "close": 1.0, "open_time": 1000}}
+    )
+    await sh._on_candle(
+        {"ohlc": {"symbol": "1HZ75V", "open": 1.0, "high": 1.1, "low": 0.9, "close": 1.1, "open_time": 1000}}
+    )
+    await sh._on_candle(
+        {"ohlc": {"symbol": "1HZ75V", "open": 1.1, "high": 1.2, "low": 1.0, "close": 1.1, "open_time": 1060}}
+    )
+    await sh._on_candle(
+        {"ohlc": {"symbol": "1HZ75V", "open": 1.2, "high": 1.3, "low": 1.1, "close": 1.2, "open_time": 1120}}
+    )
+
+    assert len(sh.candles["1HZ75V"]) == 2
+    assert callback.called
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_start_stream_fails_when_ws_disconnected(mock_ws):
+    config = {"buffer_limit": 10, "fetch_count": 3, "granularity": 60}
+    symbols = ["1HZ75V"]
+    sh = StreamHandler(mock_ws, symbols, config)
+    mock_ws.is_running = False
+    with pytest.raises(ConnectionError):
+        await sh.start_candle_stream(AsyncMock())
+    assert sh.is_synchronized is False
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_start_stream_fails_after_history_sync(mock_ws):
+    config = {"buffer_limit": 10, "fetch_count": 3, "granularity": 60}
+    symbols = ["1HZ75V"]
+    sh = StreamHandler(mock_ws, symbols, config)
+    mock_ws.is_running = True
+
+    async def drop_after_history(*_args, **_kwargs):
+        mock_ws.is_running = False
+        return {"candles": [{"open": 1.1, "high": 1.2, "low": 1.0, "close": 1.15, "epoch": 1600000000}]}
+
+    mock_ws.send = AsyncMock(side_effect=drop_after_history)
+    with pytest.raises(ConnectionError):
+        await sh.start_candle_stream(AsyncMock())
+    assert sh.is_synchronized is False
+
+
+@pytest.mark.asyncio
+async def test_fetch_ticks_history_parses_prices(mock_ws):
+    mock_ws.is_running = True
+    mock_ws.send = AsyncMock(return_value={"history": {"prices": ["100.1", "100.2"], "times": [1.0, 2.0]}})
+    sh = StreamHandler(mock_ws, ["1HZ75V"], {"buffer_limit": 10})
+    ticks = await sh.fetch_ticks_history("1HZ75V", 5)
+    assert len(ticks) == 2
+    assert ticks[0][1] == 100.1
+
+
+@pytest.mark.asyncio
+async def test_fetch_ticks_history_empty_on_error(mock_ws):
+    mock_ws.is_running = True
+    mock_ws.send = AsyncMock(return_value={"error": {"code": "Universe"}})
+    sh = StreamHandler(mock_ws, ["1HZ75V"], {"buffer_limit": 10})
+    assert await sh.fetch_ticks_history("1HZ75V", 3) == []
+
+
+@pytest.mark.asyncio
+async def test_fetch_ticks_history_zero_count(mock_ws):
+    sh = StreamHandler(mock_ws, ["1HZ75V"], {"buffer_limit": 10})
+    assert await sh.fetch_ticks_history("1HZ75V", 0) == []
+
+
+@pytest.mark.asyncio
+async def test_fetch_ticks_history_send_raises(mock_ws):
+    mock_ws.is_running = True
+    mock_ws.send = AsyncMock(side_effect=RuntimeError("fail"))
+    sh = StreamHandler(mock_ws, ["1HZ75V"], {"buffer_limit": 10})
+    assert await sh.fetch_ticks_history("1HZ75V", 2) == []
+
+
+@pytest.mark.asyncio
+async def test_fetch_ticks_history_skips_bad_prices(mock_ws):
+    mock_ws.is_running = True
+    mock_ws.send = AsyncMock(return_value={"history": {"prices": ["nope", "3.0"], "times": [1.0, 2.0]}})
+    sh = StreamHandler(mock_ws, ["1HZ75V"], {"buffer_limit": 10})
+    ticks = await sh.fetch_ticks_history("1HZ75V", 5)
+    assert len(ticks) == 1
+    assert ticks[0][1] == 3.0
+
+
+@pytest.mark.asyncio
+async def test_fetch_candle_closes_returns_closes(mock_ws):
+    mock_ws.is_running = True
+    mock_ws.send = AsyncMock(
+        return_value={"candles": [{"close": "100.1"}, {"close": "100.2"}, {"open": 1, "close": 100.3}]}
+    )
+    sh = StreamHandler(mock_ws, ["1HZ75V"], {"buffer_limit": 10})
+    closes = await sh.fetch_candle_closes("1HZ75V", 300, 5)
+    assert closes == [100.1, 100.2, 100.3]
+    mock_ws.send.assert_awaited_once()
+    req = mock_ws.send.await_args.args[0]
+    assert req["granularity"] == 300
+    assert req["style"] == "candles"
+
+
+@pytest.mark.asyncio
+async def test_fetch_candle_closes_unknown_symbol(mock_ws):
+    mock_ws.is_running = True
+    sh = StreamHandler(mock_ws, ["1HZ75V"], {})
+    assert await sh.fetch_candle_closes("OTHER", 300, 5) == []
+
+
+@pytest.mark.asyncio
+async def test_fetch_candle_closes_zero_or_ws_down(mock_ws):
+    mock_ws.is_running = False
+    sh = StreamHandler(mock_ws, ["1HZ75V"], {})
+    assert await sh.fetch_candle_closes("1HZ75V", 60, 3) == []
+    assert await sh.fetch_candle_closes("1HZ75V", 60, 0) == []
+
+
+@pytest.mark.asyncio
+async def test_fetch_candle_closes_api_error(mock_ws):
+    mock_ws.is_running = True
+    mock_ws.send = AsyncMock(return_value={"error": {"code": "x"}})
+    sh = StreamHandler(mock_ws, ["1HZ75V"], {})
+    assert await sh.fetch_candle_closes("1HZ75V", 300, 2) == []
+
+
+@pytest.mark.asyncio
+async def test_fetch_candle_closes_send_raises(mock_ws):
+    mock_ws.is_running = True
+    mock_ws.send = AsyncMock(side_effect=RuntimeError("x"))
+    sh = StreamHandler(mock_ws, ["1HZ75V"], {})
+    assert await sh.fetch_candle_closes("1HZ75V", 300, 2) == []
+
+
+@pytest.mark.asyncio
+async def test_fetch_candle_closes_skips_invalid_rows(mock_ws):
+    mock_ws.is_running = True
+    mock_ws.send = AsyncMock(return_value={"candles": [{"close": "10"}, {"invalid": True}, {"close": "not-float"}]})
+    sh = StreamHandler(mock_ws, ["1HZ75V"], {})
+    assert await sh.fetch_candle_closes("1HZ75V", 300, 10) == [10.0]
+
+
+@pytest.mark.asyncio
+async def test_fetch_candle_ohlc_returns_tuples(mock_ws):
+    mock_ws.is_running = True
+    mock_ws.send = AsyncMock(
+        return_value={
+            "candles": [
+                {"open": "1", "high": "2", "low": "0.5", "close": "1.5"},
+                {"open": 2, "high": 3, "low": 1, "close": 2.5},
+            ]
+        }
+    )
+    sh = StreamHandler(mock_ws, ["1HZ75V"], {"buffer_limit": 10})
+    rows = await sh.fetch_candle_ohlc("1HZ75V", 300, 5)
+    assert rows == [(1.0, 2.0, 0.5, 1.5), (2.0, 3.0, 1.0, 2.5)]
+    req = mock_ws.send.await_args.args[0]
+    assert req["granularity"] == 300
+    assert req["style"] == "candles"
+
+
+@pytest.mark.asyncio
+async def test_fetch_candle_ohlc_unknown_symbol(mock_ws):
+    mock_ws.is_running = True
+    sh = StreamHandler(mock_ws, ["1HZ75V"], {})
+    assert await sh.fetch_candle_ohlc("OTHER", 300, 5) == []
+
+
+@pytest.mark.asyncio
+async def test_fetch_candle_ohlc_zero_or_ws_down(mock_ws):
+    mock_ws.is_running = False
+    sh = StreamHandler(mock_ws, ["1HZ75V"], {})
+    assert await sh.fetch_candle_ohlc("1HZ75V", 60, 3) == []
+    assert await sh.fetch_candle_ohlc("1HZ75V", 60, 0) == []
+
+
+@pytest.mark.asyncio
+async def test_fetch_candle_ohlc_api_error(mock_ws):
+    mock_ws.is_running = True
+    mock_ws.send = AsyncMock(return_value={"error": {"code": "x"}})
+    sh = StreamHandler(mock_ws, ["1HZ75V"], {})
+    assert await sh.fetch_candle_ohlc("1HZ75V", 300, 2) == []
+
+
+@pytest.mark.asyncio
+async def test_fetch_candle_ohlc_send_raises(mock_ws):
+    mock_ws.is_running = True
+    mock_ws.send = AsyncMock(side_effect=RuntimeError("x"))
+    sh = StreamHandler(mock_ws, ["1HZ75V"], {})
+    assert await sh.fetch_candle_ohlc("1HZ75V", 300, 2) == []
+
+
+@pytest.mark.asyncio
+async def test_fetch_candle_ohlc_skips_invalid_rows(mock_ws):
+    mock_ws.is_running = True
+    mock_ws.send = AsyncMock(
+        return_value={
+            "candles": [
+                {"open": "1", "high": "2", "low": "1", "close": "1"},
+                {"invalid": True},
+                {"open": "x", "high": "1", "low": "1", "close": "1"},
+            ]
+        }
+    )
+    sh = StreamHandler(mock_ws, ["1HZ75V"], {})
+    assert await sh.fetch_candle_ohlc("1HZ75V", 300, 10) == [(1.0, 2.0, 1.0, 1.0)]

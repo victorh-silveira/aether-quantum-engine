@@ -1,0 +1,62 @@
+{
+  "branches": ["main"],
+  "plugins": [
+    [
+      "@semantic-release/commit-analyzer",
+      {
+        "preset": "conventionalcommits",
+        "releaseRules": [
+          { "breaking": true, "release": "major" },
+          { "type": "feat", "release": "minor" },
+          { "type": "fix", "release": "patch" },
+          { "type": "perf", "release": "patch" },
+          { "type": "revert", "release": "patch" },
+          { "type": "refactor", "release": false },
+          { "type": "qa", "release": false },
+          { "type": "style", "release": false },
+          { "type": "build", "release": false },
+          { "type": "test", "release": false },
+          { "type": "ci", "release": false },
+          { "type": "docs", "release": false },
+          { "type": "chore", "release": false }
+        ]
+      }
+    ],
+    [
+      "@semantic-release/release-notes-generator",
+      {
+        "preset": "conventionalcommits",
+        "presetConfig": {
+          "types": [
+            { "type": "feat", "section": "Funcionalidades", "hidden": false },
+            { "type": "fix", "section": "Correcoes de Bug", "hidden": false },
+            { "type": "perf", "section": "Melhorias de Performance", "hidden": false },
+            { "type": "refactor", "section": "Refatoracoes Tecnicas", "hidden": false },
+            { "type": "qa", "section": "Qualidade e Governanca", "hidden": false },
+            { "type": "docs", "section": "Documentacao", "hidden": false },
+            { "type": "style", "hidden": true },
+            { "type": "build", "hidden": true },
+            { "type": "test", "hidden": true },
+            { "type": "ci", "hidden": true },
+            { "type": "chore", "hidden": true }
+          ]
+        }
+      }
+    ],
+    [
+      "@semantic-release/changelog",
+      { "changelogFile": "docs/CHANGELOG.md" }
+    ],
+    [
+      "@semantic-release/git",
+      {
+        "assets": [
+          "docs/CHANGELOG.md",
+          "pyproject.toml"
+        ],
+        "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+      }
+    ],
+    "@semantic-release/github"
+  ]
+}

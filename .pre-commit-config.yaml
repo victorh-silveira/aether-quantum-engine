@@ -1,0 +1,45 @@
+minimum_pre_commit_version: "3.5.0"
+
+default_language_version:
+  python: python3.14
+
+repos:
+  - repo: local
+    hooks:
+      - id: lint
+        name: Qualidade (Ruff, Interrogate, limite de linhas)
+        entry: python scripts/operations/clean_workspace.py --stage lint
+        language: system
+        pass_filenames: false
+        types: [python]
+        stages: [pre-commit]
+
+      - id: test
+        name: Testes (pytest + cobertura 100% em src)
+        entry: python scripts/operations/clean_workspace.py --stage test
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      - id: security
+        name: Seguranca (Bandit + pip-audit)
+        entry: python scripts/operations/clean_workspace.py --stage security
+        language: system
+        pass_filenames: false
+        types: [python]
+        stages: [pre-commit]
+
+      - id: commitlint
+        name: Commitlint (Conventional Commits)
+        entry: npx --yes -p @commitlint/cli -p @commitlint/config-conventional commitlint --config tools/commitlint.config.mjs --edit
+        language: system
+        stages: [commit-msg]
+
+      - id: cleanup
+        name: Limpeza (caches e artefatos locais)
+        entry: python scripts/operations/clean_workspace.py --stage clean
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]

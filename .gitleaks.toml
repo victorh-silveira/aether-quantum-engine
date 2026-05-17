@@ -1,0 +1,9 @@
+# Gitleaks configuration file
+# For more information: https://github.com/gitleaks/gitleaks
+
+[allowlist]
+    paths = [
+        "docs/deriv-api.md",
+        "docs/arquitetura.md",
+        "README.md"
+    ]
