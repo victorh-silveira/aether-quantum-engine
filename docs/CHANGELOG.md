@@ -1,3 +1,9 @@
+## [1.0.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.0.0...v1.0.1) (2026-05-18)
+
+### Correcoes de Bug
+
+* **config:** corrige erro de decode no windows e ativa modo live ([4c9a659](https://github.com/victorh-silveira/aether-quantum-engine/commit/4c9a6590827389a29b46fa255f4b0e3d13f48190))
+
 ## 1.0.0 (2026-05-18)
 
 ### Funcionalidades
