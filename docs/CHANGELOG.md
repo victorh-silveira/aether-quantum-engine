@@ -1,3 +1,9 @@
+## [1.3.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.2.0...v1.3.0) (2026-05-18)
+
+### Funcionalidades
+
+* **llm:** adiciona exemplo de resposta valida no system prompt ([0f061a8](https://github.com/victorh-silveira/aether-quantum-engine/commit/0f061a80265222f111fc09cac50449a9c628e777))
+
 ## [1.2.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.1.0...v1.2.0) (2026-05-18)
 
 ### Funcionalidades
