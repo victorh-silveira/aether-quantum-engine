@@ -12,7 +12,7 @@ from src.presentation.terminal.logger import setup_logger
 async def main():
     """Carrega JSON, autentica e inicia o ciclo ate encerramento."""
     config_path = Path("config/settings.json")
-    with config_path.open() as f:
+    with config_path.open(encoding="utf-8") as f:
         config = json.load(f)
 
     log_file = config.get("logging", {}).get("log_file")
