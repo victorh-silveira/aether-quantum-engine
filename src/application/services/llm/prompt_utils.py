@@ -166,6 +166,9 @@ def build_sniper_trading_prompt(
         f"METRICS: H={hurst_val}, Z={zscore_val}, E={ent_txt}\n"
         f"{ib_block}{pa_block}"
         f"PERF: WR: {f'{float(wr_rolling):.1%}' if wr_rolling is not None else 'n/a'} ({int(wr_samples)})\n"
+        "=== REGRAS DE TRADING ===\n"
+        "- Em regime de reversão à média, evite operar contra a tendência se a velocidade for forte e não houver sinal de exaustão.\n"
+        "- Só valide inversões se houver desaceleração ou vela contrária recente.\n"
         "=== SÍNTESE FINAL ===\n"
         "CALL ou PUT + % confiança."
     )
