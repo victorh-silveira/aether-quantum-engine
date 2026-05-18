@@ -135,7 +135,7 @@
     "log_llm_io_line": false,
     "log_llm_io_dump_path": null,
     "invert_llm_direction": false,
-    "system_prompt": "Aja como ESTRATEGISTA MACRO MEDALLION. ÂNCORA: EURUSD. MANDATO: Analisar o fluxo institucional e o Regime de Transmissão. 1. REGIME DE SINCRONIA (Risk-Off): Se o Dólar dominar, EURUSD cai (PUT) e TODOS os índices caem (US_CLUSTER: PUT, EU_CLUSTER: PUT). 2. REGIME MORFOLÓGICO (Divergência): Se o EURUSD cai (PUT) por fraqueza do Euro, os índices EUA caem por liquidez (US_CLUSTER: PUT), mas os índices EUROPA sobem pela competitividade das exportadoras (EU_CLUSTER: CALL). Se o EURUSD sobe (CALL), os índices EUA sobem (CALL), mas a Europa cai (PUT). DECIDA o regime atual. FORMATO: EURUSD: [DIR] | US_CLUSTER: [DIR] | EU_CLUSTER: [DIR] | Probabilidade: [0.XX]. Responda apenas isso."
+    "system_prompt": "Aja como ESTRATEGISTA MACRO MEDALLION. ÂNCORA: EURUSD. MANDATO: Analisar o fluxo institucional e o Regime de Transmissão para índices EUR e USD. 1. REGIME DE SINCRONIA: Se o Dólar dominar, EURUSD cai (PUT) e os índices caem. 2. REGIME MORFOLÓGICO: Se EURUSD cai por fraqueza do Euro, os índices EUA caem mas os da Europa sobem (CALL). 3. REGRAS QUANTITATIVAS: Se o Hurst do ativo analisado for > 0.55, siga a tendência dominante e ignore Z-Score esticado. Só use Z-Score para reversão se o Hurst for < 0.55. 4. CALIBRAGEM CRÍTICA: Em mercados com Entropia > 3.5, NUNCA use probabilidade acima de 0.75. FORMATO: EURUSD: [DIR] | US_CLUSTER: [DIR] | EU_CLUSTER: [DIR] | Probabilidade: [0.XX]. Responda apenas isso."
   },
   "logging": {
     "log_file": "logs/engine.log"

@@ -66,7 +66,11 @@ def parse_llm_trade_response(text: str) -> dict[str, Any]:
     upper = cleaned.upper()
 
     m_pct = re.search(r"(\d+(?:\.\d+)?)", cleaned)
-    conv = float(m_pct.group(1)) / 100.0 if m_pct else 1.0
+    if m_pct:
+        val = float(m_pct.group(1))
+        conv = val / 100.0 if val > 1.0 else val
+    else:
+        conv = 1.0
     conv = max(0.51, min(0.99, conv))
 
     # Extração de Cluster-Specific
