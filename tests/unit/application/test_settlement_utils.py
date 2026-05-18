@@ -20,7 +20,7 @@ def test_calculate_cluster_grace_period_valid():
 
     contracts = {
         1: MockContract(1100),
-        2: MockContract(1200),  # Longest
+        2: MockContract(1200),
     }
     assert calculate_cluster_grace_period(contracts, {}, 1000) == 245.0
 

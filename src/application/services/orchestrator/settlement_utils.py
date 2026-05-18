@@ -10,7 +10,7 @@ def min_elapsed_before_stagnant_polls(risk_params: dict | None, execution_cfg: d
     p = risk_params or {}
     dur_val = p.get("duration", 1)
     if dur_val == "MULT":
-        return 3600.0  # 1 hour grace for multipliers
+        return 3600.0
     dur = max(1, int(dur_val))
     unit = str(p.get("duration_unit", "m")).lower().strip()
     if unit == "m":

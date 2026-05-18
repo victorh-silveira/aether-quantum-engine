@@ -136,7 +136,7 @@ async def test_process_contract_settlement_stop_win():
     orch.state.balance = 1000.0
     orch.risk_manager.initial_bankroll = 1000.0
     orch.risk_manager.total_session_profit = 100.0
-    orch.risk_manager.active_contract_ids = []  # Simula fim do cluster
+    orch.risk_manager.active_contract_ids = []
 
     with (
         patch("src.application.services.orchestrator.settlement_logic.resolve_stop_win_target", return_value=50.0),
