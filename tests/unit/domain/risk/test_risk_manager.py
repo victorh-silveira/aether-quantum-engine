@@ -114,10 +114,10 @@ def test_is_in_recovery_specific_symbol(kelly_config):
 def test_kelly_stop_win_zero_stake(kelly_config):
     """Verifica que a stake é zero se o stop win foi atingido."""
     kelly_config["large_account_stop_win_pct"] = 3.0
-    kelly_config["small_account_threshold"] = 0.0  # Force large account path
+    kelly_config["small_account_threshold"] = 0.0
     rm = RiskManager(kelly_config)
     rm.set_initial_bankroll(1000.0)
-    rm.total_session_profit = 35.0  # Over 3% ($30)
+    rm.total_session_profit = 35.0
 
     stake = rm.calculate_stake(1000.0, "R_100", conviction=0.8)
     assert stake == 0.0

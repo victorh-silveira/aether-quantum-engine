@@ -122,7 +122,7 @@ async def collect_symbol_llm_decision(
     if direction is None:
         z_val = float(ctx.get("zscore_value", 0.0))
         direction = TradeDirection.PUT if z_val > 0 else TradeDirection.CALL
-        conviction = 0.56  # Acima de 0.55 para garantir execução
+        conviction = 0.56
         note = f"FORCED EXEC (LLM Refused): Z={z_val:.2f}"
 
     inv_threshold = float(runtime.get("inversion_threshold", 0.0))

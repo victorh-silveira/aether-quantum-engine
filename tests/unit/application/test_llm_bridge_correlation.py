@@ -19,7 +19,7 @@ async def test_collect_llm_decisions_with_correlation_enabled():
                 "enabled": True,
                 "targets": {
                     "OTC_NDX": 0.96,
-                    "OTC_DJI": -0.5,  # Inversão para teste
+                    "OTC_DJI": -0.5,
                 },
             }
         },
@@ -64,7 +64,7 @@ async def test_collect_llm_decisions_correlation_no_direction():
         decisions = await collect_llm_decisions(orch)
 
         assert "OTC_SPC" in decisions
-        assert "OTC_NDX" not in decisions  # Não deve ter decisão para o alvo
+        assert "OTC_NDX" not in decisions
 
 
 @pytest.mark.asyncio
