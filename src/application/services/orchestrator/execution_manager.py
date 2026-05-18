@@ -177,35 +177,13 @@ class ExecutionManager:
         )
 
     async def _place_order(self, symbol, direction, stake, duration=None):
-        """Envia proposta/compra e associa contrato ao simbolo."""
+        """Compra contrato diretamente usando parâmetros para evitar rate limit de proposta."""
         cid = f"C{int(self.orch._active_cycle_id):04d}"
 
         params = self.orch.config.get("risk_management", {}).get("params", {}).copy()
         if duration:
             params["duration"] = duration
 
-        proposal = await self._get_multiplier_proposal_with_tp(symbol, direction, stake, params)
-        contract = await self.orch.trade_handler.buy_contract(proposal)
-        dur = duration or params.get("duration", 1)
-        u = params.get("duration_unit", "m")
-        self.logger.info(
-            "[%s] EXEC || %s %s $%.2f || pay=%.2f sp=%.5f cid=%s buy=$%.2f %s%s",
-            cid,
-            symbol,
-            direction.name,
-            float(stake),
-            float(proposal.payout),
-            float(proposal.spot),
-            int(contract.contract_id),
-            float(contract.buy_price),
-            str(dur),
-            str(u),
-        )
-        self.orch.risk_manager.contract_to_symbol[contract.contract_id] = symbol
-        return contract
-
-    async def _get_multiplier_proposal_with_tp(self, symbol, direction, stake, params):
-        """Calcula TP dinâmico para atingir stop win de 3% da banca."""
         if params.get("contract_type") == "MULTIPLIER":
             target_total = resolve_stop_win_target(
                 self.orch.config.get("risk_management"), self.orch.risk_manager.initial_bankroll
@@ -220,7 +198,24 @@ class ExecutionManager:
                 if "stop_loss" in params["limit_order"]:
                     del params["limit_order"]["stop_loss"]
 
-        return await self.orch.trade_handler.get_proposal(symbol, direction, stake, params=params)
+        contract = await self.orch.trade_handler.buy_with_parameters(symbol, direction, stake, params=params)
+        dur = duration or params.get("duration", 1)
+        u = params.get("duration_unit", "m")
+
+        self.logger.info(
+            "[%s] EXEC || %s %s $%.2f || pay=%.2f cid=%s buy=$%.2f %s%s",
+            cid,
+            symbol,
+            direction.name,
+            float(stake),
+            float(contract.payout),
+            int(contract.contract_id),
+            float(contract.buy_price),
+            str(dur),
+            str(u),
+        )
+        self.orch.risk_manager.contract_to_symbol[contract.contract_id] = symbol
+        return contract
 
     async def wait_for_settlement(self, timeout: int = 3600):
         """Monitora contratos ativos ate liquidacao ou timeout."""
