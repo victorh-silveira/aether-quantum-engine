@@ -1,3 +1,9 @@
+## [1.4.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.3.0...v1.4.0) (2026-05-18)
+
+### Funcionalidades
+
+* **orchestrator:** remove codigo morto e arquivo nao utilizado ([3e76c58](https://github.com/victorh-silveira/aether-quantum-engine/commit/3e76c58a7983c2d39b5175f7c59024aa16810a96))
+
 ## [1.3.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.2.0...v1.3.0) (2026-05-18)
 
 ### Funcionalidades
