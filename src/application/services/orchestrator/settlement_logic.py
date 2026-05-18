@@ -67,8 +67,7 @@ async def process_contract_settlement(orch: Any, data: dict):
                     "[C%04d] STOP_WIN | pnl_sessao=$%+.2f | alvo=$%.2f", orch._last_result_cycle_id, pnl, target
                 )
                 orch.running = False
-
-            await orch.state.set_trading(value=False)
+                await orch.state.set_trading(value=False)
 
 
 def log_cluster_summary(orch: Any):
