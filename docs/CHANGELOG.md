@@ -1,3 +1,9 @@
+## [1.1.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.0.1...v1.1.0) (2026-05-18)
+
+### Funcionalidades
+
+* **orchestrator:** resolve rate limit de proposta e otimiza clusters ([4188316](https://github.com/victorh-silveira/aether-quantum-engine/commit/4188316a976c6521c22429829767c4cac9435672))
+
 ## [1.0.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.0.0...v1.0.1) (2026-05-18)
 
 ### Correcoes de Bug
