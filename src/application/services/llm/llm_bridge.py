@@ -141,13 +141,15 @@ async def collect_llm_decisions(orch: Any) -> dict[str, dict]:
 
     if direction is not None and corr_enabled:
         propagated_tags = []
+        clusters = orch.config.get("strategy", {}).get("clusters", {})
+        us_targets = clusters.get("us", ("OTC_SPC", "OTC_NDX", "OTC_DJI"))
+        eu_targets = clusters.get("eu", ("OTC_FCHI", "OTC_GDAXI", "OTC_SSMI", "OTC_FTSE"))
+
         for target_sym in orch.symbols:
             if target_sym == anchor_sym:
                 continue
 
             coeff = targets.get(target_sym, 1.0)
-            us_targets = ("OTC_SPC", "OTC_NDX", "OTC_DJI")
-            eu_targets = ("OTC_FCHI", "OTC_GDAXI", "OTC_SSMI", "OTC_FTSE")
 
             target_direction = direction
             if target_sym in us_targets and metrics.get("us_cluster"):

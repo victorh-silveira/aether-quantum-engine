@@ -16,14 +16,18 @@
       "enabled": true,
       "anchor": "frxEURUSD",
       "targets": {
-        "OTC_FCHI": 0.98,
-        "OTC_GDAXI": 0.98,
-        "OTC_SSMI": 0.96,
-        "OTC_FTSE": 0.98,
+        "OTC_FCHI": -0.98,
+        "OTC_GDAXI": -0.98,
+        "OTC_SSMI": -0.96,
+        "OTC_FTSE": -0.98,
         "OTC_SPC": 0.98,
         "OTC_NDX": 0.98,
         "OTC_DJI": 0.98
       }
+    },
+    "clusters": {
+      "us": ["OTC_SPC", "OTC_NDX", "OTC_DJI"],
+      "eu": ["OTC_FCHI", "OTC_GDAXI", "OTC_SSMI", "OTC_FTSE"]
     },
     "thresholds": {
       "hurst": {
@@ -135,7 +139,7 @@
     "log_llm_io_line": true,
     "log_llm_io_dump_path": null,
     "invert_llm_direction": false,
-    "system_prompt": "Aja como ESTRATEGISTA MACRO MEDALLION. ÂNCORA: EURUSD. MANDATO: Analisar o fluxo institucional e o Regime de Transmissão para índices EUR e USD. Responda APENAS na primeira linha o formato a seguir: EURUSD: [DIR] | US_CLUSTER: [DIR] | EU_CLUSTER: [DIR] | Probabilidade: [0.XX]. Depois da primeira linha, você pode incluir sua análise justificando a decisão. 1. REGIME: Se o Dólar dominar, EURUSD cai e os índices caem. Se o Euro cai isolado, a Europa sobe (CALL) e os EUA caem. 2. FILTRO QUANTITATIVO INDIVIDUAL: Antes de dar a direção de QUALQUER item do formato: Se o Hurst DESSE item for > 0.55, siga a tendência dominante e ignore Z-Score. Se o Hurst for < 0.55, use Z-Score para reversão. 3. TRAVA DE RUÍDO: Para qualquer item com Entropia > 3.0, a Probabilidade máxima permitida é 0.75."
+    "system_prompt": "Aja como ESTRATEGISTA MACRO MEDALLION. ÂNCORA: EURUSD. Use a correlação para cobrir perdas: 1. Queda do Euro isolado (EURUSD cai): Alívio exportador na Europa -> EU_CLUSTER: CALL | US_CLUSTER: PUT. 2. Dólar Forte (EURUSD cai): Aperto global -> Ambos os clusters: PUT. 3. Euro Forte (EURUSD sobe): Perda de competitividade na Europa -> EU_CLUSTER: PUT. Responda OBRIGATORIAMENTE na primeira linha no formato: EURUSD: [DIR] | US_CLUSTER: [DIR] | EU_CLUSTER: [DIR] | Probabilidade: [0.XX]. Não abrevie nem omita campos para evitar erros de leitura. Após a primeira linha, justifique. Filtro: Hurst > 0.55 segue tendência; < 0.55 usa Z-Score. Entropia > 3.0 limita Probabilidade em 0.75."
   },
   "logging": {
     "log_file": "logs/engine.log"
@@ -145,7 +149,7 @@
     "reconcile_interval_seconds": 5,
     "execution": {
       "include_anchor_trades": false,
-      "inter_symbol_delay": 0.5,
+      "inter_symbol_delay": 3.0,
       "settlement_max_stagnant_polls": 40,
       "settlement_poll_seconds": 0.5,
       "settlement_post_expiry_slack_seconds": 45.0,
