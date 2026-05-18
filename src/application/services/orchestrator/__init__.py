@@ -231,8 +231,6 @@ class Orchestrator:
 
     async def _check_stop_win(self):
         """Wrapper para check de stop win (compatibilidade com testes)."""
-        # A lógica real agora reside em settlement_logic.process_contract_settlement,
-        # mas mantemos este método para os testes unitários que o chamam diretamente.
         rm = self.config.get("risk_management", {})
         pnl = self.risk_manager.total_session_profit
         target = resolve_stop_win_target(rm, self.risk_manager.initial_bankroll)

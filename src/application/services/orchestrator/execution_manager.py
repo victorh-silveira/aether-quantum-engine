@@ -79,7 +79,6 @@ class ExecutionManager:
             order_n = i + 1
             conviction = float(metrics.get("conviction", 0.60))
 
-            # Usamos o snapshot da banca para garantir consistência no cluster
             stake = self.orch.risk_manager.calculate_stake(
                 bankroll_snapshot,
                 symbol,
@@ -127,7 +126,6 @@ class ExecutionManager:
         try:
             self._start_result_buffer()
 
-            # Capturamos um snapshot da banca para evitar race condition entre ordens do mesmo cluster
             bankroll_snapshot = float(self.orch.state.balance)
 
             exec_chunk = self.orch.config.get("orchestrator", {}).get("execution", {})
@@ -216,12 +214,9 @@ class ExecutionManager:
             remaining = target_total - current_profit
 
             if remaining > 0:
-                # O limite da Deriv para TP em Multiplicadores é de 50x o valor da stake.
-                # Com stake de $10, o limite é $500, o que cobre nossa meta de $300.
                 max_tp = float(stake) * 50.0
                 tp_val = min(float(remaining), max_tp)
                 params["limit_order"] = {"take_profit": round(tp_val, 2)}
-                # Garantimos que não haja stop_loss (conforme solicitado)
                 if "stop_loss" in params["limit_order"]:
                     del params["limit_order"]["stop_loss"]
 
@@ -236,12 +231,10 @@ class ExecutionManager:
         stagnant_polls = 0
         prev_active_ids: list[int] = []
 
-        # Cálculo de carência dinâmico baseado na expiração real dos contratos do cluster
         grace = settlement_utils.calculate_cluster_grace_period(
             self.orch.state.active_contracts, execution_cfg, start_time
         )
 
-        # Fallback se o dinâmico falhar
         if grace <= 0:
             grace = settlement_utils.min_elapsed_before_stagnant_polls(
                 self.orch.config.get("risk_management", {}).get("params"),

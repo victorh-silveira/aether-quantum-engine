@@ -44,7 +44,6 @@ def _decision_from_payload(
 
     conviction = float(payload.get("_conviction_normalized", 0.0))
 
-    # Suporte a Cluster-Specific Directions
     us_dir_str = str(payload.get("us_cluster", "")).upper()
     eu_dir_str = str(payload.get("eu_cluster", "")).upper()
 
@@ -107,7 +106,6 @@ async def collect_symbol_llm_decision(
     mtf_effective = str(mtf_d or "").strip() or "-"
     direction, conviction, note, us_dir, eu_dir = _decision_from_payload(payload)
 
-    # Trava de Entropia (Loss Prevention)
     try:
         ic = runtime.get("indicator_config")
         if ic and swing_c:
@@ -121,9 +119,7 @@ async def collect_symbol_llm_decision(
     except Exception as e:  # pragma: no cover
         orch.logger.debug(f"Erro na trava de entropia: {e}")  # pragma: no cover
 
-    # FAIL-SAFE: Se a LLM teimar em dar SKIP ou falhar, o código FORÇA uma direção.
     if direction is None:
-        # Pega o Z-Score da M15 (trig_d) do contexto se disponível
         z_val = float(ctx.get("zscore_value", 0.0))
         direction = TradeDirection.PUT if z_val > 0 else TradeDirection.CALL
         conviction = 0.56  # Acima de 0.55 para garantir execução
@@ -135,12 +131,10 @@ async def collect_symbol_llm_decision(
     inverted = False
 
     if direction:
-        # Se a convicção for extremamente baixa (zona de inversão), invertemos
         if conviction < inv_threshold:
             inverted = True
             direction = TradeDirection.PUT if direction == TradeDirection.CALL else TradeDirection.CALL
             note = f"Inverted: Conviction {conviction:.2f} < {inv_threshold:.2f}"
-        # Se a convicção estiver na Zona de Ruído, seguimos o sinal original
         elif conviction < fol_threshold:
             note = f"Follow (Noise Zone): {conviction:.2f}"
 

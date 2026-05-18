@@ -24,7 +24,6 @@ async def test_collect_llm_decisions_with_dynamic_cluster_regime():
         "llm": {"max_decision_latency_seconds": 10},
     }
 
-    # Gemini decide Regime Morfológico: Euro cai, EUA cai, mas Europa SOBE
     metrics_anchor = {
         "conviction": 0.8,
         "direction": "PUT",
@@ -39,14 +38,11 @@ async def test_collect_llm_decisions_with_dynamic_cluster_regime():
 
         decisions = await collect_llm_decisions(orch)
 
-        # Âncora (Euro) -> PUT
         assert decisions["frxEURUSD"]["direction"] == TradeDirection.PUT
 
-        # EUA -> Segue us_cluster (PUT)
         assert decisions["OTC_SPC"]["direction"] == TradeDirection.PUT
         assert decisions["OTC_SPC"]["metrics"]["decision_source"] == "cluster_regime"
 
-        # Europa -> Segue eu_cluster (CALL) - DIVERGÊNCIA MORFOLÓGICA
         assert decisions["OTC_FCHI"]["direction"] == TradeDirection.CALL
         assert decisions["OTC_FCHI"]["metrics"]["decision_source"] == "cluster_regime"
         assert "CLUSTER (CALL)" in decisions["OTC_FCHI"]["metrics"]["llm_note"]

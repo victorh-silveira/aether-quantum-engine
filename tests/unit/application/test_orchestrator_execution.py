@@ -171,13 +171,11 @@ async def test_execution_manager_multiplier_tp_calculation(orch_config):
         orch.risk_manager.set_initial_bankroll(1000.0)
         orch.risk_manager.total_session_profit = 10.0  # Already made $10, need $20 more
 
-        # Mock get_proposal to check params
         orch.trade_handler.get_proposal = AsyncMock()
         orch.trade_handler.buy_contract = AsyncMock(return_value=MagicMock(contract_id=123))
 
         await orch.executor._place_order("frxEURUSD", TradeDirection.CALL, 50.0)
 
-        # Check if take_profit was set to $20.0
         args, kwargs = orch.trade_handler.get_proposal.call_args
         params = kwargs.get("params") or args[3]
         assert params["limit_order"]["take_profit"] == 20.0

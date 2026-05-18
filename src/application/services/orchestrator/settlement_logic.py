@@ -39,7 +39,6 @@ async def process_contract_settlement(orch: Any, data: dict):
         else:
             orch.logger.info(result_line)
 
-        # Atualiza Saldo (com validação anti-drift)
         api_balance = c.get("balance_after")
         orch.state.balance = (
             float(api_balance)

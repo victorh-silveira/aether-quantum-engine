@@ -73,7 +73,6 @@ def parse_llm_trade_response(text: str) -> dict[str, Any]:
         conv = 1.0
     conv = max(0.51, min(0.99, conv))
 
-    # Extração de Cluster-Specific
     m_us = re.search(r"US_CLUSTER:\s*(CALL|PUT)", upper)
     m_eu = re.search(r"EU_CLUSTER:\s*(CALL|PUT)", upper)
     m_anchor = re.search(r"EURUSD:\s*(CALL|PUT)", upper)

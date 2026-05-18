@@ -33,18 +33,14 @@ async def test_collect_llm_decisions_with_correlation_enabled():
 
         decisions = await collect_llm_decisions(orch)
 
-        # Deve chamar apenas uma vez (para a âncora)
         assert mock_dec.call_count == 1
 
-        # Âncora correta
         assert decisions["OTC_SPC"]["direction"] == TradeDirection.CALL
 
-        # Alvo com correlação positiva (segue a âncora)
         assert decisions["OTC_NDX"]["direction"] == TradeDirection.CALL
         assert decisions["OTC_NDX"]["metrics"]["decision_source"] == "cluster_regime"
         assert "CLUSTER (CALL)" in decisions["OTC_NDX"]["metrics"]["llm_note"]
 
-        # Alvo com correlação negativa (inverte a âncora)
         assert decisions["OTC_DJI"]["direction"] == TradeDirection.PUT
         assert decisions["OTC_DJI"]["metrics"]["decision_source"] == "cluster_regime"
         assert "CLUSTER (PUT)" in decisions["OTC_DJI"]["metrics"]["llm_note"]
@@ -63,7 +59,6 @@ async def test_collect_llm_decisions_correlation_no_direction():
     }
 
     with patch("src.application.services.llm.llm_bridge._collect_symbol_decision", new_callable=AsyncMock) as mock_dec:
-        # Âncora sem direção (SKIP/WAIT)
         mock_dec.return_value = (None, {"execute": False})
 
         decisions = await collect_llm_decisions(orch)
@@ -85,14 +80,11 @@ async def test_collect_llm_decisions_global_inversion():
     }
 
     with patch("src.application.services.llm.llm_bridge._collect_symbol_decision", new_callable=AsyncMock) as mock_dec:
-        # LLM diz CALL
         mock_dec.return_value = (TradeDirection.CALL, {"conviction": 0.9, "llm_note": "Bullish"})
 
         decisions = await collect_llm_decisions(orch)
 
-        # Âncora deve ser PUT (invertido)
         assert decisions["OTC_SPC"]["direction"] == TradeDirection.PUT
         assert "INVERTED" in decisions["OTC_SPC"]["metrics"]["llm_note"]
 
-        # Alvo deve ser PUT (propagação do sinal já invertido)
         assert decisions["OTC_NDX"]["direction"] == TradeDirection.PUT
