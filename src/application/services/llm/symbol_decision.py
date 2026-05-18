@@ -113,8 +113,8 @@ async def collect_symbol_llm_decision(
             ebins = int(getattr(ic, "entropy_bins", 30)) if hasattr(ic, "entropy_bins") else 30
             ewin = int(getattr(ic, "entropy_window", 20)) if hasattr(ic, "entropy_window") else 20
             entropy_val = _shannon_entropy(arr, ebins, ewin)
-            if entropy_val > 3.5 and conviction > 0.70:
-                conviction = 0.70  # pragma: no cover
+            if entropy_val > 3.0 and conviction > 0.69:
+                conviction = 0.69  # pragma: no cover
                 note += f" [ENTROPY_CAP: {entropy_val:.2f}]"  # pragma: no cover
     except Exception as e:  # pragma: no cover
         orch.logger.debug(f"Erro na trava de entropia: {e}")  # pragma: no cover
