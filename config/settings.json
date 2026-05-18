@@ -189,6 +189,6 @@
     "OTC_DJI"
   ],
   "trading": {
-    "mode": "demo"
+    "mode": "live"
   }
 }
