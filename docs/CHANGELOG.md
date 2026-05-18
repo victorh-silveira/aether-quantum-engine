@@ -1,3 +1,9 @@
+## [1.2.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.1.0...v1.2.0) (2026-05-18)
+
+### Funcionalidades
+
+* **llm:** remove SSMI do cluster e adiciona regras de trading no prompt ([e6ce56a](https://github.com/victorh-silveira/aether-quantum-engine/commit/e6ce56af7a2257005be8183f7a11861c3a9831ba))
+
 ## [1.1.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.0.1...v1.1.0) (2026-05-18)
 
 ### Funcionalidades
