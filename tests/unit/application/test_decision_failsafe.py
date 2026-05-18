@@ -16,7 +16,6 @@ async def test_collect_symbol_llm_decision_failsafe_force_direction():
     orch.symbols = ["1HZ10V"]
     orch.logger = MagicMock()
 
-    # Contexto com Z-Score positivo (deve forçar PUT)
     ctx = {"zscore_value": 2.5, "regime_label": "range"}
 
     with (

@@ -10,7 +10,6 @@ def test_calculate_cluster_grace_period_empty():
 
 
 def test_calculate_cluster_grace_period_no_expiry_fallback():
-    # Caso onde contratos existem mas não têm expiry_time (ex: mock incompleto)
     assert calculate_cluster_grace_period({1: object()}, {}, 1000) == 0.0
 
 
@@ -23,7 +22,6 @@ def test_calculate_cluster_grace_period_valid():
         1: MockContract(1100),
         2: MockContract(1200),  # Longest
     }
-    # (1200 - 1000) + 45 (default slack) = 245.0
     assert calculate_cluster_grace_period(contracts, {}, 1000) == 245.0
 
 
@@ -34,7 +32,6 @@ def test_calculate_cluster_grace_period_with_slack_override():
 
     contracts = {1: MockContract(1100)}
     cfg = {"settlement_post_expiry_slack_seconds": 10.0}
-    # (1100 - 1000) + 10 = 110.0
     assert calculate_cluster_grace_period(contracts, cfg, 1000) == 110.0
 
 

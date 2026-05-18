@@ -33,7 +33,6 @@ def mtf_confluence_line(
     h_regime = ti._market_regime_quant(h_hurst, h_zscore)
     l_regime = ti._market_regime_quant(l_hurst, l_zscore)
 
-    # Detecção de divergência frontal entre timeframes
     divergent = (h_regime == "trend_persistente" and l_zscore < -1.0) or (
         h_regime == "mean_reverting" and abs(l_zscore) > 2.0
     )

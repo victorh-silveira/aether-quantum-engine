@@ -37,11 +37,9 @@ def calculate_cluster_grace_period(active_contracts: dict, execution_cfg: dict, 
             max_expiry = max(max_expiry, int(contract.expiry_time))
 
     if max_expiry > 0:
-        # Se temos o timestamp de expiração, a carência é (expiração - início) + slack
         diff = max_expiry - int(start_time)
         return float(max(diff, 0) + slack)
 
-    # Fallback para o cálculo estático se não houver timestamps
     return 0.0
 
 

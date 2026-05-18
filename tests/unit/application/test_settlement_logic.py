@@ -97,15 +97,12 @@ async def test_process_contract_settlement_early_exits():
     orch = MagicMock()
     orch.state = AsyncMock()
 
-    # Sem proposal_open_contract
     await process_contract_settlement(orch, {})
     orch.state.finalize_contract.assert_not_called()
 
-    # Sem contract_id
     await process_contract_settlement(orch, {"proposal_open_contract": {"is_settled": 1}})
     orch.state.finalize_contract.assert_not_called()
 
-    # Contrato não encontrado
     orch.state.finalize_contract.return_value = None
     await process_contract_settlement(orch, {"proposal_open_contract": {"is_settled": 1, "contract_id": 999}})
     orch.risk_manager.register_result.assert_not_called()

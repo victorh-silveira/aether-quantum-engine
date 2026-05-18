@@ -112,7 +112,6 @@ async def collect_llm_decisions(orch: Any) -> dict[str, dict]:
     runtime = resolve_llm_runtime(orch)
     decisions: dict[str, dict] = {}
 
-    # Configuração de correlação
     corr_cfg = orch.config.get("strategy", {}).get("correlation", {})
     corr_enabled = corr_cfg.get("enabled", False)
     anchor_sym = orch.anchor
@@ -121,7 +120,6 @@ async def collect_llm_decisions(orch: Any) -> dict[str, dict]:
     budget = float(runtime["max_decision_latency_seconds"])
     cid = f"C{int(orch._active_cycle_id):04d}"
 
-    # 1. Obter decisão da ÂNCORA
     try:
         orch.logger.debug("[%s] LLM_CORR || Consultando âncora: %s", cid, anchor_sym)
         direction, metrics = await asyncio.wait_for(
@@ -130,11 +128,9 @@ async def collect_llm_decisions(orch: Any) -> dict[str, dict]:
         )
     except TimeoutError:
         orch.logger.warning("[%s] LLM_DEADLINE || âncora=%s || Falha total (Sem decisão Gemini)", cid, anchor_sym)
-        # FAIL-SAFE ABSOLUTO: Se der timeout total, força uma direção para não ficar IDLE
         direction = TradeDirection.CALL
         metrics = llm_metrics(direction, 0.56, "FORCED EXEC (LLM Timeout)")
 
-    # Inversão Global de Direção
     if direction is not None and orch.config.get("llm", {}).get("invert_llm_direction"):
         direction = TradeDirection.PUT if direction == TradeDirection.CALL else TradeDirection.CALL
         metrics = llm_metrics(direction, metrics["conviction"], f"INVERTED | {metrics.get('llm_note', '')}")
@@ -143,7 +139,6 @@ async def collect_llm_decisions(orch: Any) -> dict[str, dict]:
     store_symbol_decision(decisions, anchor_sym, direction, metrics)
     orch._last_anchor_metrics = metrics
 
-    # 2. Propagar sinal para os demais ativos via Correlação
     if direction is not None and corr_enabled:
         propagated_tags = []
         for target_sym in orch.symbols:
@@ -151,7 +146,6 @@ async def collect_llm_decisions(orch: Any) -> dict[str, dict]:
                 continue
 
             coeff = targets.get(target_sym, 1.0)
-            # Propagação dinâmica baseada em Clusters Gemini
             us_targets = ("OTC_SPC", "OTC_NDX", "OTC_DJI")
             eu_targets = ("OTC_FCHI", "OTC_GDAXI", "OTC_SSMI", "OTC_FTSE")
 
@@ -167,7 +161,6 @@ async def collect_llm_decisions(orch: Any) -> dict[str, dict]:
             target_metrics["llm_note"] = f"CLUSTER ({target_direction.name}) from {anchor_sym}"
             target_metrics["decision_source"] = "cluster_regime"
 
-            # Ajuste de duracao minima por simbolo
             target_metrics["duration"] = enforce_minimum_duration(target_sym, target_metrics.get("duration", 15))
 
             store_symbol_decision(decisions, target_sym, target_direction, target_metrics)

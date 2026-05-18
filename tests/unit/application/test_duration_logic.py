@@ -32,6 +32,5 @@ def test_calculate_adaptive_duration_multiplier():
 
 
 def test_enforce_minimum_duration():
-    # Símbolos sem restrição
     assert enforce_minimum_duration("frxEURUSD", 15) == 15
     assert enforce_minimum_duration("OTC_GDAXI", 15) == 15
