@@ -12,7 +12,7 @@ from src.application.services.orchestrator.decision_mode_banner import emit_deci
 from src.application.services.orchestrator.execution_manager import ExecutionManager
 from src.application.services.orchestrator.metrics_utils import neutral_metrics, stub_metrics
 from src.application.services.orchestrator.result_utils import api_settlement_label
-from src.application.services.orchestrator.settlement_logic import log_cluster_summary, process_contract_settlement
+from src.application.services.orchestrator.settlement_logic import process_contract_settlement
 from src.application.services.orchestrator.stop_win_target import resolve_stop_win_target
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.risk_manager import RiskManager
@@ -46,14 +46,13 @@ class Orchestrator:
 
         self.executor = ExecutionManager(self)
 
-        self.tick_count, self.running, self.is_trading, self.lock, self.last_cycle_time = (
+        self.tick_count, self.running, self.is_trading, self.lock = (
             0,
             False,
             False,
             asyncio.Lock(),
-            0.0,
         )
-        self._cluster_results, self._last_anchor_metrics = [], self._neutral_metrics()
+        self._cluster_results = []
         self._last_epoch = 0
         self._last_cluster_cycle_end = 0.0
         self._buffer_result_logs = False
@@ -202,7 +201,6 @@ class Orchestrator:
         """Monta mapa simbolo para direcao e metricas no modo simples."""
         direction = self._resolve_direction_for_cycle()
         metrics = self._stub_metrics(direction)
-        self._last_anchor_metrics = metrics
         return {sym: {"direction": direction, "metrics": metrics} for sym in self.symbols}
 
     @staticmethod
@@ -224,10 +222,6 @@ class Orchestrator:
             }
         )
         self.persistence.save(s)
-
-    def _log_summary(self):
-        """Wrapper para log de resumo (compatibilidade com testes)."""
-        log_cluster_summary(self)
 
     async def _check_stop_win(self):
         """Wrapper para check de stop win (compatibilidade com testes)."""
