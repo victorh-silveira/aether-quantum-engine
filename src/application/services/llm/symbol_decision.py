@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import numpy as np
+
 from src.application.services.llm.context_runtime import runtime_for_gemini_call
 from src.application.services.llm.duration_logic import calculate_adaptive_duration, enforce_minimum_duration
 from src.application.services.llm.llm_bridge_debug import emit_direction_debug as _emit_direction_debug
@@ -18,6 +20,7 @@ from src.application.services.llm.llm_symbol_io import last_reference_price, req
 from src.application.services.llm.prompt_utils import (
     iter_llm_prompt_audit_sections,
 )
+from src.application.services.llm.regime import _shannon_entropy
 from src.application.services.llm.symbol_decision_utils import build_symbol_prompt
 from src.domain.models.trade import TradeDirection
 
@@ -103,6 +106,20 @@ async def collect_symbol_llm_decision(
     llm_direction_from_api = bool(payload.pop("_llm_direction_from_api", False))
     mtf_effective = str(mtf_d or "").strip() or "-"
     direction, conviction, note, us_dir, eu_dir = _decision_from_payload(payload)
+
+    # Trava de Entropia (Loss Prevention)
+    try:
+        ic = runtime.get("indicator_config")
+        if ic and swing_c:
+            arr = np.array(swing_c, dtype=np.float64)
+            ebins = int(getattr(ic, "entropy_bins", 30)) if hasattr(ic, "entropy_bins") else 30
+            ewin = int(getattr(ic, "entropy_window", 20)) if hasattr(ic, "entropy_window") else 20
+            entropy_val = _shannon_entropy(arr, ebins, ewin)
+            if entropy_val > 3.5 and conviction > 0.70:
+                conviction = 0.70  # pragma: no cover
+                note += f" [ENTROPY_CAP: {entropy_val:.2f}]"  # pragma: no cover
+    except Exception as e:  # pragma: no cover
+        orch.logger.debug(f"Erro na trava de entropia: {e}")  # pragma: no cover
 
     # FAIL-SAFE: Se a LLM teimar em dar SKIP ou falhar, o código FORÇA uma direção.
     if direction is None:

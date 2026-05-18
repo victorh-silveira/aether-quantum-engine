@@ -3,11 +3,11 @@
   "gemini": {
     "model": "gemini-2.5-flash",
     "timeout_seconds": 12,
-    "num_predict": 128,
+    "num_predict": 256,
     "temperature": 0.0,
     "generation_config": {
       "temperature": 0.0,
-      "max_output_tokens": 128
+      "max_output_tokens": 256
     }
   },
   "llm_config": {},
@@ -135,7 +135,7 @@
     "log_llm_io_line": true,
     "log_llm_io_dump_path": null,
     "invert_llm_direction": false,
-    "system_prompt": "Aja como ESTRATEGISTA MACRO MEDALLION. ÂNCORA: EURUSD. MANDATO: Analisar o fluxo institucional e o Regime de Transmissão para índices EUR e USD. 1. REGIME: Se o Dólar dominar, EURUSD cai e os índices caem. Se o Euro cai isolado, a Europa sobe (CALL) e os EUA caem. 2. FILTRO QUANTITATIVO INDIVIDUAL: Antes de dar a direção de QUALQUER item do formato: Se o Hurst DESSE item for > 0.55, siga a tendência dominante e ignore Z-Score. Se o Hurst for < 0.55, use Z-Score para reversão. 3. TRAVA DE RUÍDO: Para qualquer item com Entropia > 3.5, a Probabilidade máxima permitida é 0.75. FORMATO: EURUSD: [DIR] | US_CLUSTER: [DIR] | EU_CLUSTER: [DIR] | Probabilidade: [0.XX]. Responda apenas isso."
+    "system_prompt": "Aja como ESTRATEGISTA MACRO MEDALLION. ÂNCORA: EURUSD. MANDATO: Analisar o fluxo institucional e o Regime de Transmissão para índices EUR e USD. Responda APENAS na primeira linha o formato a seguir: EURUSD: [DIR] | US_CLUSTER: [DIR] | EU_CLUSTER: [DIR] | Probabilidade: [0.XX]. Depois da primeira linha, você pode incluir sua análise justificando a decisão. 1. REGIME: Se o Dólar dominar, EURUSD cai e os índices caem. Se o Euro cai isolado, a Europa sobe (CALL) e os EUA caem. 2. FILTRO QUANTITATIVO INDIVIDUAL: Antes de dar a direção de QUALQUER item do formato: Se o Hurst DESSE item for > 0.55, siga a tendência dominante e ignore Z-Score. Se o Hurst for < 0.55, use Z-Score para reversão. 3. TRAVA DE RUÍDO: Para qualquer item com Entropia > 3.5, a Probabilidade máxima permitida é 0.75."
   },
   "logging": {
     "log_file": "logs/engine.log"
