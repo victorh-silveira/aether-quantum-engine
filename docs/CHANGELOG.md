@@ -1,3 +1,15 @@
+## [1.7.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.6.0...v1.7.0) (2026-05-19)
+
+### Funcionalidades
+
+* **llm:** empower model to predict cluster directions independently ([2c5dc3b](https://github.com/victorh-silveira/aether-quantum-engine/commit/2c5dc3ba9bf6a3a6d6a9cfb821a67835349a0538))
+
+### Refatoracoes Tecnicas
+
+* **config:** expand quality checks to scan all python files ([2acc9c3](https://github.com/victorh-silveira/aether-quantum-engine/commit/2acc9c37b0dbddb140e229cc426617c6e6f4cc57))
+* **config:** remove vulture ignored names ([a502561](https://github.com/victorh-silveira/aether-quantum-engine/commit/a50256105543ccfcfb1a141b25b54159dd5156cc))
+* **config:** update Python version to 3.14.5 ([0558196](https://github.com/victorh-silveira/aether-quantum-engine/commit/05581962b8ee846de1fa4de7b371a399639845db))
+
 ## [1.6.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.5.0...v1.6.0) (2026-05-19)
 
 ### Funcionalidades
