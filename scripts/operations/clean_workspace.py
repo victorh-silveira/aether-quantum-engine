@@ -21,6 +21,7 @@ def stage_lint():
     run_tool("ruff", ["check", "--fix", "--exit-non-zero-on-fix", "."], "Ruff Check")
     run_tool("ruff", ["format", "."], "Ruff Format")
     run_tool("interrogate", ["-vv", "."], "Interrogate Docstrings")
+    run_tool("vulture", [], "Vulture Dead Code Detection")
     stage_structure()
 
 

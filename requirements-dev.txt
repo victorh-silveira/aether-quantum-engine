@@ -2,6 +2,7 @@
 ruff>=0.9.0                  # Linter e formatador de código extremamente rápido (substitui Flake8/Isort)
 interrogate>=1.7.0           # Verifica a cobertura de docstrings no projeto
 pre-commit>=3.7.0            # Gerencia hooks para rodar verificações antes de cada commit
+vulture>=2.14                # Detecta código Python não utilizado (dead code)
 
 # ---- SEGURANÇA ----
 bandit>=1.8.0                # Analisa o código em busca de vulnerabilidades comuns de segurança

@@ -124,40 +124,6 @@ async def test_orchestrator_full_lifecycle_summary(orchestrator_config):
 
 
 @pytest.mark.asyncio
-async def test_orchestrator_check_stop_win_small_account(orchestrator_config):
-    """Stop-win fixo para banca inicial abaixo do limiar."""
-    TradingState.reset()
-    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
-        mock_ws = mock_ws_class.return_value
-        mock_ws.subscribe = MagicMock()
-        orch = Orchestrator(orchestrator_config, "token")
-        orch.running = True
-        orch.risk_manager.initial_bankroll = 50.0
-        orch.risk_manager.total_session_profit = 11.0
-        await orch._check_stop_win()
-        assert orch.running is False
-
-
-@pytest.mark.asyncio
-async def test_orchestrator_check_stop_win_large_account_pct(orchestrator_config):
-    """Stop-win percentual da banca inicial quando acima do limiar."""
-    TradingState.reset()
-    orch_config = dict(orchestrator_config)
-    rm = dict(orch_config.get("risk_management") or {})
-    rm["large_account_stop_win_pct"] = 5.0
-    orch_config["risk_management"] = rm
-    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
-        mock_ws = mock_ws_class.return_value
-        mock_ws.subscribe = MagicMock()
-        orch = Orchestrator(orch_config, "token")
-        orch.running = True
-        orch.risk_manager.initial_bankroll = 200.0
-        orch.risk_manager.total_session_profit = 10.0
-        await orch._check_stop_win()
-        assert orch.running is False
-
-
-@pytest.mark.asyncio
 async def test_orchestrator_run_early_return_when_setup_fails(orchestrator_config):
     """Cobre run() quando _setup_session falha antes do loop (linha 54)."""
     TradingState.reset()

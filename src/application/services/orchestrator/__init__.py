@@ -10,10 +10,8 @@ from src.application.services.llm.llm_config_merge import merge_execution_sectio
 from src.application.services.orchestrator.config_symbols import normalize_symbols_and_anchor
 from src.application.services.orchestrator.decision_mode_banner import emit_decision_engine_banner
 from src.application.services.orchestrator.execution_manager import ExecutionManager
-from src.application.services.orchestrator.metrics_utils import neutral_metrics, stub_metrics
-from src.application.services.orchestrator.result_utils import api_settlement_label
+from src.application.services.orchestrator.metrics_utils import stub_metrics
 from src.application.services.orchestrator.settlement_logic import process_contract_settlement
-from src.application.services.orchestrator.stop_win_target import resolve_stop_win_target
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.risk_manager import RiskManager
 from src.infrastructure.api.websocket_manager import WebSocketManager
@@ -67,10 +65,6 @@ class Orchestrator:
     def _llm_enabled(self) -> bool:
         """Retorna se o modo decisao LLM esta ativo."""
         return bool((self.config.get("llm") or {}).get("enabled"))
-
-    def _neutral_metrics(self) -> dict:
-        """Metricas neutras para decisoes stub."""
-        return neutral_metrics()
 
     def _stub_metrics(self, direction: TradeDirection) -> dict:
         """Metricas sinteticas alinhadas a uma direcao."""
@@ -202,11 +196,6 @@ class Orchestrator:
         metrics = self._stub_metrics(direction)
         return {sym: {"direction": direction, "metrics": metrics} for sym in self.symbols}
 
-    @staticmethod
-    def _api_settlement_label(status_str: str, profit: float) -> str:
-        """Rotulo legivel de resultado a partir da API e lucro."""
-        return api_settlement_label(status_str, profit)
-
     async def _on_contract_update(self, data):
         """Processa liquidacao de contrato delegando para o settlement_logic."""
         await process_contract_settlement(self, data)
@@ -221,14 +210,6 @@ class Orchestrator:
             }
         )
         self.persistence.save(s)
-
-    async def _check_stop_win(self):
-        """Wrapper para check de stop win (compatibilidade com testes)."""
-        rm = self.config.get("risk_management", {})
-        pnl = self.risk_manager.total_session_profit
-        target = resolve_stop_win_target(rm, self.risk_manager.initial_bankroll)
-        if target > 0 and pnl >= target:
-            self.running = False
 
     async def stop(self):
         """Para o loop e fecha o WebSocket."""

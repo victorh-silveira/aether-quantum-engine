@@ -7,7 +7,7 @@ repos:
   - repo: local
     hooks:
       - id: lint
-        name: Qualidade (Ruff, Interrogate, limite de linhas)
+        name: Qualidade (Ruff, Interrogate, Vulture, limite de linhas)
         entry: python scripts/operations/clean_workspace.py --stage lint
         language: system
         pass_filenames: false

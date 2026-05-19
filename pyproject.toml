@@ -139,3 +139,11 @@ exclude_lines = [
     "pass",
     "raise ImportError",
 ]
+
+[tool.vulture]
+exclude = []
+ignore_decorators = []
+ignore_names = []
+min_confidence = 70
+paths = ["src", "run.py"]
+
