@@ -157,16 +157,6 @@ class RiskManager:
         self.contract_to_symbol = {}
         self.cluster_results = {}
 
-    def get_pending_recoveries(self) -> dict[str, float]:
-        """Retorna as perdas pendentes por simbolo."""
-        return {k: v for k, v in self.pending_loss.items() if v > 0}
-
-    def is_in_recovery(self, symbol: str = "cluster") -> bool:
-        """Verifica se ha perdas a recuperar."""
-        if symbol == "cluster":
-            return any(v > 0 for v in self.pending_loss.values())
-        return self.pending_loss.get(symbol, 0.0) > 0
-
     def get_state(self) -> dict[str, Any]:
         """Estado para persistência."""
         return {
@@ -176,16 +166,6 @@ class RiskManager:
             "rolling_wins": {k: list(v) for k, v in self._rolling_wins.items()},
             "pending_loss": dict(self.pending_loss),
         }
-
-    def load_state(self, state: dict[str, Any]):
-        """Restaura estado."""
-        self.initial_bankroll = state.get("initial_bankroll", 0.0)
-        self.total_session_profit = state.get("total_session_profit", 0.0)
-        self.last_result_tick = state.get("last_result_tick", 0)
-        rw = state.get("rolling_wins") or {}
-        self._rolling_wins = {str(k): [int(x) for x in v] for k, v in rw.items()} if isinstance(rw, dict) else {}
-        pl = state.get("pending_loss") or {}
-        self.pending_loss = {str(k): float(v) for k, v in pl.items()} if isinstance(pl, dict) else {}
 
     def is_on_cooldown(self, current_tick: int) -> bool:
         """Cooldown entre operações."""

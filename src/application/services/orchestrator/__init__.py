@@ -165,7 +165,6 @@ class Orchestrator:
         """Callback de vela do ancora: atualiza estado e tenta ciclo."""
         if candle.symbol != self.anchor:
             return
-        await self.state.update_last_tick(candle)
         self.tick_count += 1
         if self._last_epoch == candle.epoch:
             return

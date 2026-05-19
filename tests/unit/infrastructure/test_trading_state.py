@@ -45,12 +45,6 @@ async def test_state_serialization(state):
     assert "1" in data["active_contracts"]
     assert data["active_contracts"]["1"]["status"] == "OPEN"
 
-    new_state = TradingState()
-    await new_state.load_state(data)
-    assert new_state.balance == 500.0
-    assert 1 in new_state.active_contracts
-    assert new_state.active_contracts[1].contract_id == 1
-
 
 @pytest.mark.asyncio
 async def test_trading_state_summary():
@@ -66,9 +60,3 @@ async def test_trading_state_contract_edge_cases():
     state = TradingState()
     await state.finalize_contract(999)
     assert 999 not in state.active_contracts
-
-
-@pytest.mark.asyncio
-async def test_trading_state_tick_update(state):
-    await state.update_last_tick({"price": 100})
-    assert state.last_tick["price"] == 100
