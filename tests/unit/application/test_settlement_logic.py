@@ -19,6 +19,7 @@ async def test_process_contract_settlement_won():
     orch._cluster_results = []
     orch._session_wins = 0
     orch._session_losses = 0
+    orch._save_full_state = AsyncMock()
 
     data = {
         "proposal_open_contract": {
@@ -54,6 +55,7 @@ async def test_process_contract_settlement_lost():
     orch._cluster_results = []
     orch._session_wins = 0
     orch._session_losses = 0
+    orch._save_full_state = AsyncMock()
 
     data = {
         "proposal_open_contract": {
@@ -120,6 +122,7 @@ async def test_process_contract_settlement_stop_win():
     orch._cluster_results = []
     orch._session_wins = 0
     orch._session_losses = 0
+    orch._save_full_state = AsyncMock()
     orch.config = {"risk_management": {"stop_win_percentage": 5.0}}
 
     data = {

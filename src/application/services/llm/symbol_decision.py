@@ -242,5 +242,7 @@ async def collect_symbol_llm_decision(
         llm_http_ms=llm_http_ms,
         llm_response_chars=llm_resp_chars,
         llm_direction_from_api=llm_direction_from_api,
+        us_cluster=us_dir.name if us_dir else None,
+        eu_cluster=eu_dir.name if eu_dir else None,
     )
     return direction, metrics

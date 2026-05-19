@@ -130,3 +130,27 @@ async def test_request_llm_payload_info_quando_http_ms_alto():
     args = lat_call[0].args
     rendered = args[0] % args[1:]
     assert "[C0009]" in rendered
+
+
+@pytest.mark.asyncio
+async def test_request_llm_payload_clusters_extraction():
+    orch = MagicMock()
+    runtime = {
+        "base_url": "http://x",
+        "model": "m",
+        "timeout": 1.0,
+        "num_predict": 64,
+        "llm_async_outer_seconds": 30.0,
+    }
+    raw_response = "EURUSD: PUT | US_CLUSTER: PUT | EU_CLUSTER: CALL | Probabilidade: 85.5%"
+    with patch(
+        "src.application.services.llm.llm_symbol_io.get_decision",
+        new_callable=AsyncMock,
+        return_value=("PUT", True, raw_response),
+    ):
+        payload = await request_llm_payload(orch, "frxEURUSD", runtime, "p", system="s")
+
+    assert payload["_direction_normalized"] == "PUT"
+    assert payload["us_cluster"] == "PUT"
+    assert payload["eu_cluster"] == "CALL"
+    assert payload["_conviction_normalized"] == 0.855
