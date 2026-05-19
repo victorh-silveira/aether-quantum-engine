@@ -1,3 +1,9 @@
+## [1.8.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.7.0...v1.8.0) (2026-05-19)
+
+### Funcionalidades
+
+* **llm:** inject realtime cluster index metrics into sniper prompt ([683e6e2](https://github.com/victorh-silveira/aether-quantum-engine/commit/683e6e2a41d0bfc7567108c181acc9cc41598465))
+
 ## [1.7.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.6.0...v1.7.0) (2026-05-19)
 
 ### Funcionalidades
