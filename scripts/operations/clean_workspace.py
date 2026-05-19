@@ -1,6 +1,6 @@
 import argparse
 import shutil
-import subprocess
+import subprocess  # nosec
 import sys
 from pathlib import Path
 
@@ -10,7 +10,7 @@ def run_tool(module, args, description):
     command = [sys.executable, "-m", module] + args
     print(f"Command: {' '.join(command)}")
     try:
-        subprocess.run(command, check=True, text=True)
+        subprocess.run(command, check=True, text=True)  # nosec
         return True
     except subprocess.CalledProcessError as e:
         print(f"Erro durante {description}: {e}")
@@ -59,7 +59,7 @@ def stage_security():
     for vuln in ignored_vulns:
         ignore_args.extend(["--ignore-vuln", vuln])
 
-    run_tool("bandit", ["-r", "src/", "-c", "pyproject.toml"], "Bandit Security Scan")
+    run_tool("bandit", ["-r", ".", "-c", "pyproject.toml"], "Bandit Security Scan")
     run_tool("pip_audit", ignore_args, "Pip-audit Vulnerability Scan")
 
 

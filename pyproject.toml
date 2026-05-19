@@ -49,7 +49,6 @@ ignore = [
     "D203",
     "D213",
     "ANN204",
-    "S101",
     "PLR0913",
     "PLR2004",
     "COM812",
@@ -72,12 +71,8 @@ section-order = ["future", "standard-library", "third-party", "first-party", "lo
 convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
-"scripts/operations/*.py" = ["T201", "E402", "S603", "S607"]
-"src/application/services/llm/trading_indicators.py" = ["E402"]
-"src/application/services/llm/gemini_decision_service.py" = ["PLC0415"]
-"src/application/services/llm/trading_indicators_*.py" = ["PLC0415"]
-"src/application/services/llm/trading_llm_bridge.py" = ["PLR0915"]
-"src/application/services/llm/trading_llm_symbol_decision.py" = ["PLR0915"]
+"scripts/**/*.py" = ["T201", "E402", "S603", "S607", "S101"]
+"run.py" = ["T201", "S101"]
 "src/application/services/llm/strategy_payload_config.py" = ["S106"]
 "tests/**/*.py" = ["ARG001", "ARG005", "S101"]
 
@@ -117,14 +112,7 @@ exclude_dirs = [".git", ".venv", "tests", "venv"]
 
 [tool.coverage.run]
 source = ["src"]
-omit = [
-    "src/application/services/llm/ollama_decision_structured.py",
-    "src/application/services/llm/trading_llm_decision_utils.py",
-    "src/application/services/llm/trading_llm_mtf_utils.py",
-    "src/application/services/llm/trading_llm_repeat_guard.py",
-    "src/application/services/orchestrator/__init__.py",
-    "src/application/services/orchestrator/execution_manager.py",
-]
+omit = []
 
 [tool.coverage.report]
 show_missing = true
@@ -145,5 +133,5 @@ exclude = []
 ignore_decorators = []
 ignore_names = []
 min_confidence = 70
-paths = ["src", "run.py"]
+paths = ["src", "run.py", "scripts"]
 
