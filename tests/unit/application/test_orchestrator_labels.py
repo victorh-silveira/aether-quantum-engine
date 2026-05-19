@@ -1,6 +1,6 @@
 """Testes para labels de liquidação do Orchestrator."""
 
-from src.application.services.orchestrator import Orchestrator
+from src.application.services.orchestrator.result_utils import api_settlement_label
 
 
 def test_api_settlement_label_maps_status_and_profit():
@@ -15,4 +15,4 @@ def test_api_settlement_label_maps_status_and_profit():
         ("expired", 0.0, "FLAT"),
     ]
     for st, pr, res in cases:
-        assert Orchestrator._api_settlement_label(st, pr) == res
+        assert api_settlement_label(st, pr) == res
