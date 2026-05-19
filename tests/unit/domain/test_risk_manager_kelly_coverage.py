@@ -12,23 +12,9 @@ def test_risk_manager_rolling_wins_cap():
     assert n == 100
 
 
-def test_risk_manager_kelly_stubs():
-    """Cobre os métodos stub mantidos para compatibilidade."""
-    rm = RiskManager({})
-    assert rm.get_pending_recoveries() == {}
-    assert rm.is_in_recovery() is False
-
-
 def test_risk_manager_cooldown_active():
     """Cobre o estado de cooldown ativo."""
     rm = RiskManager({"params": {"entry_cooldown_ticks": 10}})
     rm.last_result_tick = 100
     assert rm.is_on_cooldown(105) is True
     assert rm.is_on_cooldown(115) is False
-
-
-def test_risk_manager_load_state_empty():
-    """Cobre o carregamento de estado vazio."""
-    rm = RiskManager({})
-    rm.load_state({})
-    assert rm.initial_bankroll == 0.0

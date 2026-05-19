@@ -4,7 +4,7 @@ import asyncio
 from dataclasses import asdict
 from typing import Any
 
-from src.domain.models.trade import Contract, TradeDirection, TradeStatus
+from src.domain.models.trade import Contract
 
 
 class TradingState:
@@ -29,22 +29,13 @@ class TradingState:
         self.active_contracts: dict[int, Contract] = {}
         self.balance = 0.0
         self.is_trading = False
-        self.last_tick: Any = None
+        self.is_trading = False
 
     @classmethod
     def reset(cls):
         """Redefine a instância singleton para fins de teste."""
         if cls._instance:
             cls._instance._init_state()
-
-    async def update_last_tick(self, tick: Any):
-        """Atualiza as informações mais recentes do tick de mercado.
-
-        Args:
-            tick (Any): O modelo de tick mais recente ou pacote de dados.
-        """
-        async with self.lock:
-            self.last_tick = tick
 
     async def set_trading(self, *, value: bool):
         """Define o status atual do trading.
@@ -96,23 +87,3 @@ class TradingState:
                 contracts_serialized[str(cid)] = data
 
             return {"balance": self.balance, "is_trading": self.is_trading, "active_contracts": contracts_serialized}
-
-    async def load_state(self, state: dict[str, Any]):
-        """Restaura o estado do trading a partir de um dicionário de dados persistido.
-
-        Args:
-            state (Dict[str, Any]): Os dados de estado carregados.
-        """
-        async with self.lock:
-            self.balance = state.get("balance", 0.0)
-            self.is_trading = state.get("is_trading", False)
-
-            contracts_data = state.get("active_contracts", {})
-            for cid_str, c_data in contracts_data.items():
-                if "status" in c_data:
-                    c_data["status"] = TradeStatus[c_data["status"]]
-                if "direction" in c_data:
-                    c_data["direction"] = TradeDirection[c_data["direction"]]
-
-                contract = Contract(**c_data)
-                self.active_contracts[int(cid_str)] = contract

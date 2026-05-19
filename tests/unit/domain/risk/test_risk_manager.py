@@ -60,18 +60,6 @@ def test_kelly_respects_stake_min(kelly_config):
     assert stake == 1.0
 
 
-def test_kelly_state_persistence(kelly_config):
-    """Verifica persistência de estado do gerenciador Kelly."""
-    rm = RiskManager(kelly_config)
-    rm.record_trade_outcome("R_100", won=True)
-    state = rm.get_state()
-
-    new_rm = RiskManager(kelly_config)
-    new_rm.load_state(state)
-    assert "R_100" in new_rm._rolling_wins
-    assert new_rm._rolling_wins["R_100"] == [1]
-
-
 def test_kelly_intelligent_recovery(kelly_config):
     """Verifica se a stake aumenta para recuperar perdas em trades de alta convicção."""
     kelly_config["kelly"]["recovery_conviction_threshold"] = 0.70
@@ -101,14 +89,6 @@ def test_kelly_recovery_safety_cap(kelly_config):
 
     stake = rm.calculate_stake(1000.0, "R_100", conviction=0.8)
     assert stake == 100.0
-
-
-def test_is_in_recovery_specific_symbol(kelly_config):
-    """Verifica is_in_recovery para um símbolo específico."""
-    rm = RiskManager(kelly_config)
-    rm.pending_loss["R_100"] = 10.0
-    assert rm.is_in_recovery("R_100") is True
-    assert rm.is_in_recovery("OTHER") is False
 
 
 def test_kelly_stop_win_zero_stake(kelly_config):

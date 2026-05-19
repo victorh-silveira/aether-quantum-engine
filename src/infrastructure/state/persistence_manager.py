@@ -79,9 +79,3 @@ class PersistenceManager:
         except Exception as e:
             self.logger.error(f"PERS: Erro inesperado ao carregar estado: {e}")
             return None
-
-    def clear(self):
-        """Exclui o arquivo de estado persistido."""
-        if self.file_path.exists():
-            self.file_path.unlink()
-            self.logger.info("PERS: Estado persistido removido com sucesso.")

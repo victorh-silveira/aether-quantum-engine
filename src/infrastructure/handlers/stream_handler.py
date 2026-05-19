@@ -127,30 +127,6 @@ class StreamHandler:
             return np.array([])
         return np.array([getattr(c, field) for c in history])
 
-    async def fetch_ticks_history(self, symbol: str, count: int) -> list[tuple[float, float]]:
-        """Busca ultimos ticks via ticks_history (preco e epoch)."""
-        if count <= 0 or not self.ws.is_running:
-            return []
-        req = {"ticks_history": symbol, "adjust_start_time": 1, "count": count, "end": "latest"}
-        try:
-            res = await self.ws.send(req)
-        except Exception as e:
-            self.logger.debug("DATA: ticks_history excecao %s: %s", symbol, e)
-            return []
-        if res.get("error"):
-            return []
-        hist = res.get("history") or {}
-        prices = hist.get("prices") or []
-        times = hist.get("times") or []
-        out: list[tuple[float, float]] = []
-        for i, p in enumerate(prices):
-            try:
-                ts = float(times[i]) if i < len(times) else float(i)
-                out.append((ts, float(p)))
-            except _TYPE_VALUE_ERRORS:
-                continue
-        return out
-
     async def fetch_candle_ohlc(
         self, symbol: str, granularity: int, count: int
     ) -> list[tuple[float, float, float, float]]:

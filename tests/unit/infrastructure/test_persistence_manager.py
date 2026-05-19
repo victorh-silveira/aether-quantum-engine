@@ -28,16 +28,6 @@ def test_persistence_load_nonexistent(temp_persistence):
     assert temp_persistence.load() is None
 
 
-def test_persistence_clear(temp_persistence):
-    """Verifica se o arquivo de estado pode ser limpo."""
-    data = {"test": 1}
-    temp_persistence.save(data)
-    assert temp_persistence.file_path.exists()
-
-    temp_persistence.clear()
-    assert not temp_persistence.file_path.exists()
-
-
 def test_persistence_ensure_directory(tmp_path):
     """Verifica se os diretórios são criados automaticamente."""
     deep_path = tmp_path / "new_dir" / "subdir" / "state.json"

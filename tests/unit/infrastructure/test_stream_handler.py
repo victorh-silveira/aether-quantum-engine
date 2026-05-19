@@ -113,48 +113,6 @@ async def test_stream_handler_start_stream_fails_after_history_sync(mock_ws):
 
 
 @pytest.mark.asyncio
-async def test_fetch_ticks_history_parses_prices(mock_ws):
-    mock_ws.is_running = True
-    mock_ws.send = AsyncMock(return_value={"history": {"prices": ["100.1", "100.2"], "times": [1.0, 2.0]}})
-    sh = StreamHandler(mock_ws, ["1HZ75V"], {"buffer_limit": 10})
-    ticks = await sh.fetch_ticks_history("1HZ75V", 5)
-    assert len(ticks) == 2
-    assert ticks[0][1] == 100.1
-
-
-@pytest.mark.asyncio
-async def test_fetch_ticks_history_empty_on_error(mock_ws):
-    mock_ws.is_running = True
-    mock_ws.send = AsyncMock(return_value={"error": {"code": "Universe"}})
-    sh = StreamHandler(mock_ws, ["1HZ75V"], {"buffer_limit": 10})
-    assert await sh.fetch_ticks_history("1HZ75V", 3) == []
-
-
-@pytest.mark.asyncio
-async def test_fetch_ticks_history_zero_count(mock_ws):
-    sh = StreamHandler(mock_ws, ["1HZ75V"], {"buffer_limit": 10})
-    assert await sh.fetch_ticks_history("1HZ75V", 0) == []
-
-
-@pytest.mark.asyncio
-async def test_fetch_ticks_history_send_raises(mock_ws):
-    mock_ws.is_running = True
-    mock_ws.send = AsyncMock(side_effect=RuntimeError("fail"))
-    sh = StreamHandler(mock_ws, ["1HZ75V"], {"buffer_limit": 10})
-    assert await sh.fetch_ticks_history("1HZ75V", 2) == []
-
-
-@pytest.mark.asyncio
-async def test_fetch_ticks_history_skips_bad_prices(mock_ws):
-    mock_ws.is_running = True
-    mock_ws.send = AsyncMock(return_value={"history": {"prices": ["nope", "3.0"], "times": [1.0, 2.0]}})
-    sh = StreamHandler(mock_ws, ["1HZ75V"], {"buffer_limit": 10})
-    ticks = await sh.fetch_ticks_history("1HZ75V", 5)
-    assert len(ticks) == 1
-    assert ticks[0][1] == 3.0
-
-
-@pytest.mark.asyncio
 async def test_fetch_candle_closes_returns_closes(mock_ws):
     mock_ws.is_running = True
     mock_ws.send = AsyncMock(
