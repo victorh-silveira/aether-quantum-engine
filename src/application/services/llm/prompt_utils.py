@@ -138,6 +138,7 @@ def build_sniper_trading_prompt(
     indicator_bundle_line: str = "",
     wr_rolling: float | None = None,
     wr_samples: int = 0,
+    cluster_status: str = "",
 ) -> str:
     """Monta prompt usuario completo (Sempre Profundo)."""
     core = format_sniper_prompt_line(
@@ -164,6 +165,7 @@ def build_sniper_trading_prompt(
         f"ALIGN: {mtf_align}\n"
         f"CANDLES: {candles_txt}\n"
         f"METRICS: H={hurst_val}, Z={zscore_val}, E={ent_txt}\n"
+        f"{f'CLUSTERS REALTIME: {cluster_status}\n' if cluster_status else ''}"
         f"{ib_block}{pa_block}"
         f"PERF: WR: {f'{float(wr_rolling):.1%}' if wr_rolling is not None else 'n/a'} ({int(wr_samples)})\n"
         "=== REGRAS DE TRADING ===\n"
