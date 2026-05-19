@@ -1,3 +1,9 @@
+## [1.6.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.5.0...v1.6.0) (2026-05-19)
+
+### Funcionalidades
+
+* **llm:** implementa suporte a clusters US e EU ([5931f64](https://github.com/victorh-silveira/aether-quantum-engine/commit/5931f6415bd2da021c0bd849c9da5d32a4d88cc4))
+
 ## [1.5.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.4.0...v1.5.0) (2026-05-19)
 
 ### Funcionalidades
