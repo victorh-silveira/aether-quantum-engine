@@ -12,7 +12,7 @@ from google import genai
 from google.genai import types
 
 from src.application.services.llm.gemini_constants import GEMINI_DEFAULT_MODEL, GEMINI_HTTP_CEILING_SEC
-from src.application.services.llm.llm_bridge_utils import strict_normalize_direction
+from src.application.services.llm.llm_bridge_utils import parse_llm_trade_response
 from src.application.services.llm.response_extract import (
     extract_llm_text,
     llm_default_safety_settings,
@@ -23,7 +23,7 @@ from src.application.services.llm.sovereign_system import SOVEREIGN_SYSTEM
 
 logger = logging.getLogger("AETH")
 
-_GEMINI_RETRY_TAIL = "\n\nResponda somente com CALL ou PUT em maiusculas, exatamente uma palavra."
+_GEMINI_RETRY_TAIL = "\n\nResponda OBRIGATORIAMENTE no formato exigido: EURUSD: [DIR] | US_CLUSTER: [DIR] | EU_CLUSTER: [DIR] | Probabilidade: [0.XX]."
 
 
 def _resolved_system_instruction(runtime_system: str | None) -> str:
@@ -124,7 +124,8 @@ async def get_decision(
                 ),
                 timeout=deadline + 1.0,
             )
-            norm = strict_normalize_direction(raw)
+            parsed = parse_llm_trade_response(raw)
+            norm = parsed.get("direction")
             if norm in ("CALL", "PUT"):
                 return (norm, True, raw)
 

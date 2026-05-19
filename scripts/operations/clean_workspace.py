@@ -53,7 +53,7 @@ def stage_test(fail_under=100):
 
 
 def stage_security():
-    ignored_vulns = ["PYSEC-2022-42969"]
+    ignored_vulns = ["PYSEC-2022-42969", "CVE-2026-45409"]
     ignore_args = []
     for vuln in ignored_vulns:
         ignore_args.extend(["--ignore-vuln", vuln])

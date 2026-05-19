@@ -22,6 +22,8 @@ def _sovereign_llm_payload(
     raw_chars: int,
     llm_failed: bool,
     llm_direction_from_api: bool = False,
+    us_cluster: str | None = None,
+    eu_cluster: str | None = None,
 ) -> dict[str, Any]:
     """Payload metricas a partir do token devolvido pela API."""
     raw = (direction or "").strip().upper()
@@ -38,6 +40,10 @@ def _sovereign_llm_payload(
         "_llm_raw_chars": raw_chars,
         "_llm_direction_from_api": bool(llm_direction_from_api),
     }
+    if us_cluster:
+        out["us_cluster"] = us_cluster
+    if eu_cluster:
+        out["eu_cluster"] = eu_cluster
     if llm_failed:
         out["_llm_call_failed"] = True
     return out
@@ -121,9 +127,13 @@ async def request_llm_payload(
         )
     raw_len = len(str(raw_text or ""))
     conv_val = 1.0
+    us_c = None
+    eu_c = None
     if raw_text:
         parsed = parse_llm_trade_response(raw_text)
         conv_val = float(parsed.get("conviction", 1.0))
+        us_c = parsed.get("us_cluster")
+        eu_c = parsed.get("eu_cluster")
 
     return _sovereign_llm_payload(
         str(dir_raw or ""),
@@ -132,6 +142,8 @@ async def request_llm_payload(
         raw_chars=raw_len,
         llm_failed=False,
         llm_direction_from_api=bool(from_api),
+        us_cluster=us_c,
+        eu_cluster=eu_c,
     )
 
 

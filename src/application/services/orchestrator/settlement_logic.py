@@ -57,6 +57,8 @@ async def process_contract_settlement(orch: Any, data: dict):
         else:
             orch._session_losses += 1
 
+        await orch._save_full_state()
+
         if not orch.risk_manager.active_contract_ids and orch.running:
             log_cluster_summary(orch)
 
