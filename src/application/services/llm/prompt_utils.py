@@ -169,6 +169,7 @@ def build_sniper_trading_prompt(
         "=== REGRAS DE TRADING ===\n"
         "- Em regime de reversão à média, evite operar contra a tendência se a velocidade for forte e não houver sinal de exaustão.\n"
         "- Só valide inversões se houver desaceleração ou vela contrária recente.\n"
+        "- IMPORTANTE: Pondere as correlações! Se o Dólar está forte (EURUSD PUT), isso pode punir o US_CLUSTER (PUT) mas favorecer as exportações europeias no EU_CLUSTER (CALL). Avalie cada cenário separadamente.\n"
         "=== SÍNTESE FINAL ===\n"
         "Responda OBRIGATORIAMENTE no formato: EURUSD: [DIR] | US_CLUSTER: [DIR] | EU_CLUSTER: [DIR] | Probabilidade: [0.XX]."
     )
