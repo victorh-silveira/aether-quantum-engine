@@ -1,9 +1,15 @@
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
 from src.application.services.llm import llm_bridge as bridge
+from src.application.services.llm.indicators import IndicatorConfig
 from src.application.services.llm.llm_bridge import llm_metrics
 from src.application.services.llm.prompt_utils import (
     build_trading_prompt,
     iter_llm_prompt_audit_sections,
 )
+from src.application.services.llm.symbol_decision_utils import build_symbol_prompt
 from src.domain.models.trade import TradeDirection
 
 
@@ -116,3 +122,150 @@ def test_build_metrics_for_decision_sovereignty_ignores_sawtooth():
     )
     assert direction == TradeDirection.CALL
     assert metrics["execute"] is True
+
+
+@pytest.mark.asyncio
+async def test_build_symbol_prompt_with_real_stream_coverage():
+    orch = MagicMock()
+
+    class DummyStream:
+        async def fetch_candle_closes(self, s, _gran, _count):
+            if "SPC" in s:
+                return [100.0, 105.0]
+            if "NDX" in s:
+                return [100.0, 95.0]
+            if "DJI" in s:
+                return []
+            return [100.0, 100.0]
+
+        async def fetch_candle_ohlc(self, _s, _gran, _count):
+            return []
+
+    orch.stream = DummyStream()
+    orch._active_cycle_id = 1
+
+    runtime = {
+        "tf_macro_gran": 3600,
+        "tf_macro_bars": 10,
+        "tf_structure_gran": 900,
+        "tf_structure_bars": 10,
+        "tf_swing_gran": 300,
+        "tf_swing_bars": 10,
+        "tf_trigger_gran": 60,
+        "tf_trigger_bars": 10,
+        "indicator_config": IndicatorConfig(),
+        "payout_estimate": 0.85,
+        "min_payout_accept": 0.82,
+        "duration": 15,
+        "du": "m",
+        "strategy_payload": None,
+    }
+
+    with patch(
+        "src.application.services.llm.symbol_decision_utils.fetch_context_blocks", new_callable=AsyncMock
+    ) as mock_fetch:
+        mock_fetch.return_value = (
+            "macro",
+            "struct",
+            "swing",
+            "trigger",
+            "mtf",
+            {
+                "regime_label": "range",
+                "llm_macro_closes": [100.0, 101.0],
+                "llm_structure_closes": [100.0, 101.0],
+                "llm_swing_closes": [100.0, 101.0],
+                "llm_trigger_closes": [100.0, 101.0],
+                "atr_m5_pct": 0.01,
+                "sniper_tokens": {},
+            },
+        )
+
+        (
+            prompt,
+            ctx,
+            sniper_tok,
+            baseline,
+            ind_line,
+            pa_bundle,
+            m_d,
+            s_d,
+            sw_d,
+            t_d,
+            mtf_d,
+            sw_c,
+        ) = await build_symbol_prompt(orch, "frxEURUSD", runtime)
+
+        assert "US_CLUSTER" in prompt
+        assert "EU_CLUSTER" in prompt
+
+
+@pytest.mark.asyncio
+async def test_build_symbol_prompt_stream_exception_fallback():
+    orch = MagicMock()
+
+    class BrokenStream:
+        async def fetch_candle_closes(self, _s, _gran, _count):
+            raise ValueError("fetch failed")
+
+        async def fetch_candle_ohlc(self, _s, _gran, _count):
+            return []
+
+    orch.stream = BrokenStream()
+    orch._active_cycle_id = 1
+
+    runtime = {
+        "tf_macro_gran": 3600,
+        "tf_macro_bars": 10,
+        "tf_structure_gran": 900,
+        "tf_structure_bars": 10,
+        "tf_swing_gran": 300,
+        "tf_swing_bars": 10,
+        "tf_trigger_gran": 60,
+        "tf_trigger_bars": 10,
+        "indicator_config": IndicatorConfig(),
+        "payout_estimate": 0.85,
+        "min_payout_accept": 0.82,
+        "duration": 15,
+        "du": "m",
+        "strategy_payload": None,
+    }
+
+    with (
+        patch(
+            "src.application.services.llm.symbol_decision_utils.fetch_context_blocks", new_callable=AsyncMock
+        ) as mock_fetch,
+        patch("asyncio.gather", side_effect=ValueError("gather failed")),
+    ):
+        mock_fetch.return_value = (
+            "macro",
+            "struct",
+            "swing",
+            "trigger",
+            "mtf",
+            {
+                "regime_label": "range",
+                "llm_macro_closes": [100.0, 101.0],
+                "llm_structure_closes": [100.0, 101.0],
+                "llm_swing_closes": [100.0, 101.0],
+                "llm_trigger_closes": [100.0, 101.0],
+                "atr_m5_pct": 0.01,
+                "sniper_tokens": {},
+            },
+        )
+
+        (
+            prompt,
+            ctx,
+            sniper_tok,
+            baseline,
+            ind_line,
+            pa_bundle,
+            m_d,
+            s_d,
+            sw_d,
+            t_d,
+            mtf_d,
+            sw_c,
+        ) = await build_symbol_prompt(orch, "frxEURUSD", runtime)
+        assert "CLUSTERS REALTIME:" not in prompt

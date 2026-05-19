@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from src.application.services.llm import (
@@ -14,6 +15,56 @@ from src.application.services.llm.prompt_utils import (
     build_sniper_trading_prompt as _build_prompt_impl,
 )
 from src.application.services.llm.sniper_payload import coerce_sniper_tokens
+
+
+async def _fetch_cluster_status(orch: Any, runtime: dict[str, Any]) -> str:
+    """Fetch realtime candle data for US and EU target index clusters to compute trends."""
+    is_real = (
+        hasattr(orch, "stream")
+        and hasattr(orch.stream, "fetch_candle_closes")
+        and not hasattr(orch.stream, "mock_calls")
+        and not hasattr(orch.stream.fetch_candle_closes, "mock_calls")
+        and (
+            asyncio.iscoroutinefunction(orch.stream.fetch_candle_closes)
+            or hasattr(orch.stream.fetch_candle_closes, "_is_coroutine")
+        )
+    )
+    if not is_real:
+        return ""
+
+    try:
+        us_symbols = ["OTC_SPC", "OTC_NDX", "OTC_DJI"]
+        eu_symbols = ["OTC_FCHI", "OTC_GDAXI", "OTC_FTSE"]
+        all_syms = us_symbols + eu_symbols
+        swing_gran = int(runtime.get("tf_swing_gran", 300))
+
+        results = await asyncio.gather(
+            *[orch.stream.fetch_candle_closes(s, swing_gran, 6) for s in all_syms], return_exceptions=True
+        )
+
+        us_parts = []
+        eu_parts = []
+
+        for i, s in enumerate(all_syms):
+            closes = results[i]
+            if isinstance(closes, list) and len(closes) >= 2:
+                last_px = float(closes[-1])
+                ret = ((closes[-1] - closes[0]) / closes[0]) * 100.0
+                direction = "Up" if ret > 0.02 else ("Down" if ret < -0.02 else "Flat")
+                part = f"{s.replace('OTC_', '')}: {last_px:.2f} ({direction} {ret:+.2f}%)"
+            else:
+                part = f"{s.replace('OTC_', '')}: N/A"
+
+            if s in us_symbols:
+                us_parts.append(part)
+            else:
+                eu_parts.append(part)
+
+        return f"US_CLUSTER [{', '.join(us_parts)}] || EU_CLUSTER [{', '.join(eu_parts)}]"
+    except Exception as e:
+        if hasattr(orch, "logger") and orch.logger:
+            orch.logger.warning(f"Error fetching cluster status: {e}")
+        return ""
 
 
 async def build_symbol_prompt(
@@ -66,6 +117,8 @@ async def build_symbol_prompt(
         if isinstance(raw_wr, tuple) and len(raw_wr) == 2:
             wr_v, wr_n = raw_wr[0], int(raw_wr[1])
 
+    cluster_status = await _fetch_cluster_status(orch, runtime)
+
     prompt = _build_prompt_impl(
         sym,
         macro_d,
@@ -89,6 +142,7 @@ async def build_symbol_prompt(
         indicator_bundle_line=bundle_txt,
         wr_rolling=wr_v,
         wr_samples=wr_n,
+        cluster_status=cluster_status,
     )
     return (
         prompt,
