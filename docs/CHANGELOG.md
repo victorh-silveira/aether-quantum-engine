@@ -1,3 +1,9 @@
+## [1.11.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.10.1...v1.11.0) (2026-05-20)
+
+### Funcionalidades
+
+* **orchestrator:** desacopla clusters e aprimora liquidacao ([84b6fd9](https://github.com/victorh-silveira/aether-quantum-engine/commit/84b6fd94bc9e02c0074a965ab5939ecdb605e96c))
+
 ## [1.10.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.10.0...v1.10.1) (2026-05-20)
 
 ### Correcoes de Bug
