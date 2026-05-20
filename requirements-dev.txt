@@ -1,15 +1,16 @@
 # ---- LINTING & QUALIDADE DE CÓDIGO ----
-ruff>=0.9.0                  # Linter e formatador de código extremamente rápido (substitui Flake8/Isort)
-interrogate>=1.7.0           # Verifica a cobertura de docstrings no projeto
-pre-commit>=3.7.0            # Gerencia hooks para rodar verificações antes de cada commit
-vulture>=2.14                # Detecta código Python não utilizado (dead code)
+ruff==0.15.13               # Linter e formatador de código extremamente rápido (substitui Flake8/Isort)
+interrogate==1.7.0          # Verifica a cobertura de docstrings no projeto
+pre-commit==4.6.0           # Gerencia hooks para rodar verificações antes de cada commit
+vulture==2.16               # Detecta código Python não utilizado (dead code)
 
 # ---- SEGURANÇA ----
-bandit>=1.8.0                # Analisa o código em busca de vulnerabilidades comuns de segurança
-pip-audit>=2.8.0             # Verifica dependências em busca de vulnerabilidades conhecidas (CVEs)
+bandit==1.9.4               # Analisa o código em busca de vulnerabilidades comuns de segurança
+pip-audit==2.10.0           # Verifica dependências em busca de vulnerabilidades conhecidas (CVEs)
 
 # ---- TESTES ----
-pytest>=9.0.3                # Framework principal para escrita e execução de testes
-pytest-asyncio>=0.24.0       # Extensão para suporte a testes de funções assíncronas (async/await)
-pytest-mock>=3.14.0          # Facilita o uso de objetos Mock e Spies dentro do Pytest
-coverage>=7.6.0              # Mede a porcentagem de linhas de código cobertas pelos testes
+pytest==9.0.3               # Framework principal para escrita e execução de testes
+pytest-asyncio==1.3.0       # Extensão para suporte a testes de funções assíncronas (async/await)
+pytest-mock==3.15.1         # Facilita o uso de objetos Mock e Spies dentro do Pytest
+coverage==7.14.0             # Mede a porcentagem de linhas de código cobertas pelos testes
+
