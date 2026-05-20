@@ -1,3 +1,9 @@
+## [1.10.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.10.0...v1.10.1) (2026-05-20)
+
+### Correcoes de Bug
+
+* **llm:** isolamento do parser de decisoes e garantia de cobertura ([3e51a41](https://github.com/victorh-silveira/aether-quantum-engine/commit/3e51a41c2a8bcac483bee1f92ff4cb85d9894e7f))
+
 ## [1.10.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.9.1...v1.10.0) (2026-05-20)
 
 ### Funcionalidades
