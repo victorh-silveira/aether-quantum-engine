@@ -1,14 +1,14 @@
 # ---- COMUNICAÇÃO & REDE ----
-websockets>=13.0             # Implementação de servidor e cliente para o protocolo WebSocket
+websockets==16.0             # Implementação de servidor e cliente para o protocolo WebSocket
 
 # ---- AMBIENTE & CONFIGURAÇÃO ----
-python-dotenv>=1.0.1         # Carrega variáveis de ambiente a partir de um arquivo .env
+python-dotenv==1.2.2         # Carrega variáveis de ambiente a partir de um arquivo .env
 
 # ---- PROCESSAMENTO DE DADOS ----
-numpy>=2.0.0                 # Biblioteca fundamental para computação científica e arrays multidimensionais
+numpy==2.4.6                 # Biblioteca fundamental para computação científica e arrays multidimensionais
 
 # ---- INTERFACE & UI ----
-rich>=13.0.0                 # Formatação de texto rica e renderização de tabelas/logs no terminal
+rich==15.0.0                 # Formatação de texto rica e renderização de tabelas/logs no terminal
 
 # ---- LLM (Google Gemini) ----
-google-genai>=2.0.0          # SDK Google Gen AI (API unificada)
+google-genai==2.4.0          # SDK Google Gen AI (API unificada)
