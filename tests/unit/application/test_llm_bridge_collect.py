@@ -65,8 +65,9 @@ async def test_collect_llm_decisions_deadline_results_in_failure():
     with patch("src.application.services.llm.llm_bridge._collect_symbol_decision", side_effect=TimeoutError()):
         out = await collect_llm_decisions(orch)
 
-    assert out["frxEURUSD"]["direction"] == TradeDirection.CALL
-    assert out["frxEURUSD"]["metrics"]["execute"] is True
+    assert out["frxEURUSD"]["direction"] is None
+    assert out["frxEURUSD"]["metrics"]["execute"] is False
+    assert "LLM Timeout" in out["frxEURUSD"]["metrics"]["llm_note"]
 
 
 @pytest.mark.asyncio
