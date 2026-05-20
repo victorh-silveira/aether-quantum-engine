@@ -1,3 +1,9 @@
+## [1.9.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.8.0...v1.9.0) (2026-05-20)
+
+### Funcionalidades
+
+* **llm:** atualiza modelo para gemini-3.1-pro-preview ([04da19c](https://github.com/victorh-silveira/aether-quantum-engine/commit/04da19c8241dfc22695ab879aa2462af1099f3e6))
+
 ## [1.8.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.7.0...v1.8.0) (2026-05-19)
 
 ### Funcionalidades
