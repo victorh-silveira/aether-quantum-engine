@@ -60,7 +60,7 @@ def test_sync_generate_reads_response_text(monkeypatch):
     fake_client.models = fake_models
     with patch("google.genai.Client", return_value=fake_client):
         cfg = gem._merge_generation_config(0.0, 8, {}, system_instruction="sys")
-        out = gem._sync_generate("gemini-2.5-flash", "k", "prompt", cfg, 5.0)
+        out = gem._sync_generate("gemini-3.1-pro-preview", "k", "prompt", cfg, 5.0)
     assert out == "hi"
     fake_models.generate_content.assert_called_once()
 
@@ -80,6 +80,6 @@ def test_sync_generate_corpo_vazio_emite_warning(monkeypatch):
     fake_client.models = fake_models
     with patch("google.genai.Client", return_value=fake_client):
         cfg = gem._merge_generation_config(0.0, 8, {}, system_instruction="sys")
-        out = gem._sync_generate("gemini-2.5-flash", "k", "prompt", cfg, 5.0)
+        out = gem._sync_generate("gemini-3.1-pro-preview", "k", "prompt", cfg, 5.0)
     assert out == ""
     assert any("corpo vazio" in x for x in buf)

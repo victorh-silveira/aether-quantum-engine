@@ -12,7 +12,7 @@ from google.genai import types
 load_dotenv()
 
 API_KEY = os.getenv("GEMINI_API_KEY", "")
-MODEL = "gemini-2.5-flash"
+MODEL = "gemini-3.1-pro-preview"
 
 
 def banner(msg):
@@ -96,6 +96,12 @@ def test_generate(client):
         if text.strip():
             print(f"  [OK] Resposta recebida em {elapsed:.0f}ms")
             print(f"  Resposta: '{text.strip()}'")
+            if elapsed < 2000:
+                print("  [AVALIAÇÃO] Desempenho EXCELENTE! (Latência < 2s)")
+            elif elapsed < 5000:
+                print("  [AVALIAÇÃO] Desempenho BOM! (Latência < 5s)")
+            else:
+                print("  [AVALIAÇÃO] Desempenho LENTO! (Latência > 5s). Pode haver gargalo na rede ou na API.")
             return True
         print(f"  [AVISO] Resposta vazia em {elapsed:.0f}ms")
         print(f"  Response object: {response}")
@@ -145,11 +151,25 @@ def test_generate_with_system(client):
         if text.strip():
             print(f"  [OK] Resposta em {elapsed:.0f}ms: '{text.strip()}'")
             upper = text.strip().upper()
-            if upper in ("CALL", "PUT"):
+            is_valid = upper in ("CALL", "PUT")
+
+            if is_valid:
                 print(f"  [OK] Direcao valida recebida: {upper}")
             else:
                 print(f"  [AVISO] Resposta nao e CALL/PUT puro: '{text.strip()}'")
-            return True
+
+            if elapsed < 2000 and is_valid:
+                print("  [AVALIAÇÃO] Modelo respondeu RÁPIDO e CORRETAMENTE. Modelo EXCELENTE para operações!")
+            elif elapsed < 5000 and is_valid:
+                print("  [AVALIAÇÃO] Modelo respondeu CORRETAMENTE num tempo aceitável. Modelo BOM para operações!")
+            elif not is_valid:
+                print(
+                    "  [AVALIAÇÃO] Modelo FALHOU em seguir as instruções (não respondeu apenas CALL/PUT). NÃO RECOMENDADO para operações estritas!"
+                )
+            else:
+                print("  [AVALIAÇÃO] Modelo LENTO. Cuidado ao usar em operações de alta frequência.")
+
+            return is_valid
         print(f"  [AVISO] Resposta vazia em {elapsed:.0f}ms")
         return False
     except Exception as e:

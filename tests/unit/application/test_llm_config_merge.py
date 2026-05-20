@@ -26,9 +26,9 @@ def test_effective_llm_gemini_merges_temperature_into_generation_config():
 
 
 def test_effective_llm_gemini_overrides_model_before_llm_config():
-    root = {"llm": {"model": "base"}, "gemini": {"model": "gemini-2.5-flash"}, "llm_config": {}}
+    root = {"llm": {"model": "base"}, "gemini": {"model": "gemini-3.1-pro-preview"}, "llm_config": {}}
     eff = effective_llm_section(root)
-    assert eff["model"] == "gemini-2.5-flash"
+    assert eff["model"] == "gemini-3.1-pro-preview"
 
 
 def test_effective_llm_llm_config_generation_config_merges_over_gemini():

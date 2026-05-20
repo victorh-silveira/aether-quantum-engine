@@ -1,7 +1,7 @@
 {
   "anchor": "frxEURUSD",
   "gemini": {
-    "model": "gemini-2.5-flash",
+    "model": "gemini-3.1-pro-preview",
     "timeout_seconds": 12,
     "num_predict": 256,
     "temperature": 0.0,
@@ -85,7 +85,7 @@
   "llm": {
     "enabled": true,
     "llm_retry_attempts": 5,
-    "model": "gemini-2.5-flash",
+    "model": "gemini-3.1-pro-preview",
     "timeout_seconds": 25,
     "llm_http_outer_margin_seconds": 5,
     "llm_extra_wall_clock_seconds": 15,
