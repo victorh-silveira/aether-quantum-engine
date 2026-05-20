@@ -185,9 +185,11 @@ async def collect_llm_decisions(orch: Any) -> dict[str, dict]:
             timeout=budget,
         )
     except TimeoutError:
-        orch.logger.warning("[%s] LLM_DEADLINE || âncora=%s || Falha total (Sem decisão Gemini)", cid, anchor_sym)
-        direction = TradeDirection.CALL
-        metrics = llm_metrics(direction, 0.56, "FORCED EXEC (LLM Timeout)")
+        orch.logger.warning(
+            "[%s] LLM_DEADLINE || âncora=%s || Falha total (Timeout de Decisão Gemini)", cid, anchor_sym
+        )
+        direction = None
+        metrics = llm_metrics(direction, 0.0, "LLM Timeout (Capital Preserved)")
 
     if direction is not None and orch.config.get("llm", {}).get("invert_llm_direction"):
         direction = TradeDirection.PUT if direction == TradeDirection.CALL else TradeDirection.CALL
