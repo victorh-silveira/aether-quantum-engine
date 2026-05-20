@@ -136,7 +136,7 @@ def test_generate_with_system(client):
                 system_instruction=system,
                 temperature=0.0,
                 max_output_tokens=256,
-                thinking_config=types.ThinkingConfig(thinking_budget=0),
+                thinking_config=types.ThinkingConfig(thinking_budget=1024),
             ),
         )
         elapsed = (time.time() - t0) * 1000
