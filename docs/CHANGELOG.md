@@ -1,3 +1,9 @@
+## [1.9.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.9.0...v1.9.1) (2026-05-20)
+
+### Correcoes de Bug
+
+* **scripts:** update ping script for gemini-3.1-pro-preview ([38681a3](https://github.com/victorh-silveira/aether-quantum-engine/commit/38681a38bad3e49b5029d3b5fe72568596ccaff2))
+
 ## [1.9.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.8.0...v1.9.0) (2026-05-20)
 
 ### Funcionalidades
