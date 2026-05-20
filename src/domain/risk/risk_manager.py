@@ -24,6 +24,7 @@ class RiskManager:
         self.last_result_tick = 0
         self.base_cooldown = self.risk_params.get("entry_cooldown_ticks", 0)
         self.current_cooldown_ticks = self.base_cooldown
+        self.consecutive_losses = 0
         self.pending_loss: dict[str, float] = {}
         self.recovery_threshold = float(self.kelly_config.get("recovery_conviction_threshold", 0.60))
 
@@ -81,18 +82,23 @@ class RiskManager:
 
         kelly_f = (b * p - q) / b if b > 0 else 0.0
 
+        loss_to_recover = self.pending_loss.get(symbol, 0.0)
+        is_recovery_attempt = loss_to_recover > 0.0 and conviction >= self.recovery_threshold
+
         fractional_multiplier = float(self.kelly_config.get("fraction", 0.1))
+        if self.consecutive_losses > 0 and loss_to_recover == 0.0:
+            reduction_factor = 0.5 ** min(self.consecutive_losses, 3)
+            fractional_multiplier *= reduction_factor
+
         f_star = max(0.0, kelly_f * fractional_multiplier)
 
         max_pct = float(self.kelly_config.get("max_stake_pct", 0.05))
         base_f_star = min(f_star, max_pct)
         raw_stake = bankroll * base_f_star
 
-        loss_to_recover = self.pending_loss.get(symbol, 0.0)
         recovery_stake = 0.0
-        is_recovery_attempt = False
 
-        if loss_to_recover > 0.0 and conviction >= self.recovery_threshold:
+        if is_recovery_attempt:
             needed_extra = loss_to_recover / b
 
             max_recovery_pct = float(self.kelly_config.get("max_recovery_stake_pct", 0.15))
@@ -104,7 +110,6 @@ class RiskManager:
             else:
                 recovery_stake = needed_extra
 
-            is_recovery_attempt = True
             raw_stake += recovery_stake
 
         final_stake = math.ceil(raw_stake * 100) / 100 if is_recovery_attempt else math.floor(raw_stake * 100) / 100
@@ -153,6 +158,27 @@ class RiskManager:
 
     def _finalize_cluster(self):
         """Limpeza após ciclo."""
+        cluster_profit = sum(self.cluster_results.values())
+        if cluster_profit < 0.0:
+            self.consecutive_losses += 1
+            multiplier = 2 ** min(self.consecutive_losses, 4)
+            self.current_cooldown_ticks = int(self.base_cooldown * multiplier)
+            self.logger.info(
+                "RISK: Ciclo negativo (P&L: $%.2f). Aumentando cooldown para %d ticks (consecutive_losses=%d)",
+                cluster_profit,
+                self.current_cooldown_ticks,
+                self.consecutive_losses,
+            )
+        else:
+            if self.consecutive_losses > 0:
+                self.logger.info(
+                    "RISK: Ciclo positivo (P&L: $%.2f). Resetando cooldown para %d ticks",
+                    cluster_profit,
+                    self.base_cooldown,
+                )
+            self.consecutive_losses = 0
+            self.current_cooldown_ticks = self.base_cooldown
+
         self.active_contract_ids = []
         self.contract_to_symbol = {}
         self.cluster_results = {}
@@ -165,6 +191,8 @@ class RiskManager:
             "last_result_tick": self.last_result_tick,
             "rolling_wins": {k: list(v) for k, v in self._rolling_wins.items()},
             "pending_loss": dict(self.pending_loss),
+            "consecutive_losses": self.consecutive_losses,
+            "current_cooldown_ticks": self.current_cooldown_ticks,
         }
 
     def is_on_cooldown(self, current_tick: int) -> bool:
