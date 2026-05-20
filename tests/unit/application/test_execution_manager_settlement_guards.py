@@ -41,7 +41,7 @@ async def test_wait_for_settlement_noop_when_empty(orch_config):
 
 
 @pytest.mark.asyncio
-async def test_wait_for_settlement_keeps_stagnant_pending_ids(orch_config):
+async def test_wait_for_settlement_clears_stagnant_pending_ids(orch_config):
     TradingState.reset()
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
         mock_ws_class.return_value.subscribe = MagicMock()
@@ -70,8 +70,8 @@ async def test_wait_for_settlement_keeps_stagnant_pending_ids(orch_config):
             patch("src.application.services.orchestrator.execution_manager.asyncio.sleep", AsyncMock()),
         ):
             await orch.executor.wait_for_settlement(timeout=30)
-        assert orch.risk_manager.active_contract_ids == [202]
-        assert orch.risk_manager.contract_to_symbol[202] == "R_50"
+        assert orch.risk_manager.active_contract_ids == []
+        assert 202 not in orch.risk_manager.contract_to_symbol
 
 
 def test_clear_contract_tracking_removes_ids_and_maps():

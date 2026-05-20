@@ -115,8 +115,8 @@ class ExecutionManager:
                     executed_count += 1
             except Exception as e:
                 err_msg = str(e).lower()
-                if "trading is not available" in err_msg or "market is closed" in err_msg:
-                    self.logger.warning(f"SKIP: Sessão fechada para {symbol}: {e}")  # pragma: no cover
+                if "closed" in err_msg or "trading is not available" in err_msg:
+                    self.logger.warning(f"SKIP: Sessão fechada para {symbol}: {e}")
                 else:
                     self.logger.error(f"FAIL: EXEC: Falha critica na ordem {symbol}: {e}")
         return executed_count
@@ -258,7 +258,10 @@ class ExecutionManager:
             stagnant_polls = 0 if elapsed < grace else (stagnant_polls + 1 if current_ids == prev_active_ids else 0)
             prev_active_ids = current_ids
             if max_stagnant_polls > 0 and stagnant_polls >= max_stagnant_polls:
-                self.logger.warning("EXEC: Liquidacao estagnada; mantendo pendencias e aguardando reconciliacao.")
+                self.logger.warning("EXEC: Liquidacao estagnada; limpando pendencias restantes.")
+                settlement_utils.clear_contract_tracking(
+                    list(self.orch.risk_manager.active_contract_ids), self.orch.risk_manager
+                )
                 break
 
             await self.orch._save_full_state()
