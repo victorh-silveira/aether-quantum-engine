@@ -101,3 +101,78 @@ def test_kelly_stop_win_zero_stake(kelly_config):
 
     stake = rm.calculate_stake(1000.0, "OTC_FCHI", conviction=0.8)
     assert stake == 0.0
+
+
+def test_risk_manager_consecutive_losses_cooldown_scaling(kelly_config):
+    """Verifica se perdas consecutivas escalam o cooldown exponencialmente e se vitórias o resetam."""
+    kelly_config["params"]["entry_cooldown_ticks"] = 10
+    rm = RiskManager(kelly_config)
+
+    assert rm.consecutive_losses == 0
+    assert rm.current_cooldown_ticks == 10
+
+    # 1ª perda consecutiva
+    rm.active_contract_ids = [1]
+    rm.register_result(-5.0, 1, "OTC_FCHI")
+    assert rm.consecutive_losses == 1
+    assert rm.current_cooldown_ticks == 20  # 10 * 2^1
+
+    # 2ª perda consecutiva
+    rm.active_contract_ids = [2]
+    rm.register_result(-10.0, 2, "OTC_FCHI")
+    assert rm.consecutive_losses == 2
+    assert rm.current_cooldown_ticks == 40  # 10 * 2^2
+
+    # Vitória reseta o cooldown
+    rm.active_contract_ids = [3]
+    rm.register_result(15.0, 3, "OTC_FCHI")
+    assert rm.consecutive_losses == 0
+    assert rm.current_cooldown_ticks == 10
+
+
+def test_risk_manager_consecutive_losses_fraction_reduction(kelly_config):
+    """Verifica se a fração de Kelly é reduzida exponencialmente após perdas consecutivas."""
+    rm = RiskManager(kelly_config)
+
+    # Base stake sem perdas
+    stake_base = rm.calculate_stake(1000.0, "OTC_FCHI", conviction=0.6)
+
+    # Adiciona 1 perda no símbolo OTC_FCHI
+    rm.active_contract_ids = [1]
+    rm.register_result(-10.0, 1, "OTC_FCHI")
+
+    # Fração deve reduzir pela metade para um novo símbolo sem perdas (reduction = 0.5)
+    stake_loss_1 = rm.calculate_stake(1000.0, "OTC_GDAXI", conviction=0.6)
+    assert stake_loss_1 < stake_base
+    assert stake_loss_1 == pytest.approx(stake_base * 0.5, abs=0.5)
+
+
+def test_risk_manager_consecutive_losses_recovery_conviction(kelly_config):
+    """Verifica se a convicção exigida para recuperação permanece estável e funcional."""
+    kelly_config["kelly"]["recovery_conviction_threshold"] = 0.70
+    rm = RiskManager(kelly_config)
+
+    # 1ª perda
+    rm.active_contract_ids = [1]
+    rm.register_result(-10.0, 1, "OTC_FCHI")
+
+    # 2ª perda
+    rm.active_contract_ids = [2]
+    rm.register_result(-5.0, 2, "OTC_FCHI")
+
+    # Conviction de 0.65 (menor que o limiar 0.70) não deve acionar recuperação
+    stake_no_rec = rm.calculate_stake(1000.0, "OTC_FCHI", conviction=0.65)
+
+    # Conviction de 0.70 deve acionar recuperação bypassando a redução de tamanho
+    stake_rec = rm.calculate_stake(1000.0, "OTC_FCHI", conviction=0.70)
+    assert stake_rec > stake_no_rec
+
+
+def test_risk_manager_get_state_exports(kelly_config):
+    """Verifica se get_state exporta corretamente as novas métricas de perdas consecutivas."""
+    rm = RiskManager(kelly_config)
+    rm.consecutive_losses = 3
+    rm.current_cooldown_ticks = 80
+    state = rm.get_state()
+    assert state["consecutive_losses"] == 3
+    assert state["current_cooldown_ticks"] == 80
