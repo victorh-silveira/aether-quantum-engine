@@ -25,6 +25,10 @@ class StrategyPayloadConfig:
     velocity_pos: str
     velocity_neg: str
     velocity_na: str
+    acceleration_up: str
+    acceleration_down: str
+    acceleration_flat: str
+    acceleration_na: str
     payload_token_order: tuple[str, ...]
     field_labels: dict[str, str]
     mtf_token_key: str
@@ -49,8 +53,12 @@ DEFAULT_STRATEGY_PAYLOAD_CONFIG = StrategyPayloadConfig(
     velocity_pos="pos",
     velocity_neg="neg",
     velocity_na="na",
-    payload_token_order=("hurst", "zscore", "entropy", "velocity"),
-    field_labels={"hurst": "h", "zscore": "z", "entropy": "e", "velocity": "v"},
+    acceleration_up="accel_up",
+    acceleration_down="accel_down",
+    acceleration_flat="accel_flat",
+    acceleration_na="na",
+    payload_token_order=("hurst", "zscore", "entropy", "velocity", "acceleration"),
+    field_labels={"hurst": "h", "zscore": "z", "entropy": "e", "velocity": "v", "acceleration": "a"},
     mtf_token_key="MTF",
     sym_token_key="SYM",
     pair_separator=", ",
@@ -71,8 +79,9 @@ def resolve_strategy_payload_config(root: dict[str, Any]) -> StrategyPayloadConf
     zsc = th.get("zscore") if isinstance(th.get("zscore"), dict) else {}
     ent = th.get("entropy") if isinstance(th.get("entropy"), dict) else {}
     vel = th.get("velocity") if isinstance(th.get("velocity"), dict) else {}
+    acc = th.get("acceleration") if isinstance(th.get("acceleration"), dict) else {}
 
-    order_raw = pl.get("token_order") or ("hurst", "zscore", "entropy", "velocity")
+    order_raw = pl.get("token_order") or ("hurst", "zscore", "entropy", "velocity", "acceleration")
     order = (
         tuple(str(x).strip() for x in order_raw if str(x).strip())
         if isinstance(order_raw, list)
@@ -85,6 +94,7 @@ def resolve_strategy_payload_config(root: dict[str, Any]) -> StrategyPayloadConf
         "zscore": str(fl_raw.get("zscore", "z")).strip() or "z",
         "entropy": str(fl_raw.get("entropy", "e")).strip() or "e",
         "velocity": str(fl_raw.get("velocity", "v")).strip() or "v",
+        "acceleration": str(fl_raw.get("acceleration", "a")).strip() or "a",
     }
 
     base = DEFAULT_STRATEGY_PAYLOAD_CONFIG
@@ -104,6 +114,10 @@ def resolve_strategy_payload_config(root: dict[str, Any]) -> StrategyPayloadConf
         velocity_pos=str(vel.get("pos", base.velocity_pos)).strip() or base.velocity_pos,
         velocity_neg=str(vel.get("neg", base.velocity_neg)).strip() or base.velocity_neg,
         velocity_na=str(vel.get("na", base.velocity_na)).strip() or base.velocity_na,
+        acceleration_up=str(acc.get("up", base.acceleration_up)).strip() or base.acceleration_up,
+        acceleration_down=str(acc.get("down", base.acceleration_down)).strip() or base.acceleration_down,
+        acceleration_flat=str(acc.get("flat", base.acceleration_flat)).strip() or base.acceleration_flat,
+        acceleration_na=str(acc.get("na", base.acceleration_na)).strip() or base.acceleration_na,
         payload_token_order=order if order else base.payload_token_order,
         field_labels=field_labels,
         mtf_token_key=str(pl.get("mtf_key", base.mtf_token_key)).strip() or base.mtf_token_key,

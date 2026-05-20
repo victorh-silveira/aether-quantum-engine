@@ -7,7 +7,7 @@ from typing import Any
 
 from src.application.services.llm import (
     dual_confluence_prompt_fragment,
-    format_numeric_indicators_tight_line,
+    format_numeric_indicators_six_line,
 )
 from src.application.services.llm.context_runtime import fetch_context_blocks
 from src.application.services.llm.prompt_utils import (
@@ -87,31 +87,40 @@ async def build_symbol_prompt(
     structure_c = list(ctx.get("llm_structure_closes") or [])
     swing_c = list(ctx.get("llm_swing_closes") or ctx.get("m5_closes") or [])
     trigger_c = list(ctx.get("llm_trigger_closes") or ctx.get("m3_closes") or [])
+    micro_swing_c = list(ctx.get("llm_micro_swing_closes") or [])
+    micro_trigger_c = list(ctx.get("llm_micro_trigger_closes") or [])
     tf_tags = ctx.get("llm_tf_numeric_tags")
-    if not isinstance(tf_tags, tuple) or len(tf_tags) != 4:
-        tf_tags = ("60", "15", "5", "1")
+    if not isinstance(tf_tags, tuple) or len(tf_tags) != 6:
+        ic = runtime["indicator_config"]
+        tf_tags = tuple(ic.tf_tags) if len(ic.tf_tags) == 6 else ("1440", "240", "60", "15", "5", "1")
 
-    indicators_numeric_line = format_numeric_indicators_tight_line(
+    indicators_numeric_line = format_numeric_indicators_six_line(
         macro_c,
         structure_c,
         swing_c,
         trigger_c,
+        micro_swing_c,
+        micro_trigger_c,
         runtime["indicator_config"],
-        ctx.get("atr_m5_pct"),
+        ctx.get("entropy_swing"),
+        ctx.get("vol_range_pct"),
         mtf_d,
         line_swing_trigger,
         tf_tags=tf_tags,
+        ema_guard=str(ctx.get("ema_guard", "")),
     )
-    atr_pt = ctx.get("atr_m5_pct")
+    entropy_swing = ctx.get("entropy_swing")
     cf_dual = dual_confluence_prompt_fragment(line_macro_structure, line_swing_trigger)
 
     institutional_pa_bundle = build_institutional_pa_bundle(
         regime_label=regime_label,
-        atr_m5_pct=float(atr_pt) if atr_pt is not None else None,
+        entropy_swing=float(entropy_swing) if entropy_swing is not None else None,
+        vol_range_pct=float(ctx["vol_range_pct"]) if ctx.get("vol_range_pct") is not None else None,
         indicators_numeric_line=indicators_numeric_line,
         cf_dual=cf_dual,
         line_macro_structure=line_macro_structure,
         line_swing_trigger=line_swing_trigger,
+        ema_guard=str(ctx.get("ema_guard", "")),
         compact=False,
     )
     sniper_tok = coerce_sniper_tokens(ctx.get("sniper_tokens"))
@@ -124,6 +133,9 @@ async def build_symbol_prompt(
             wr_v, wr_n = raw_wr[0], int(raw_wr[1])
 
     cluster_status = await _fetch_cluster_status(orch, runtime)
+    tf_labels = ctx.get("llm_tf_labels")
+    if not isinstance(tf_labels, tuple) or len(tf_labels) != 6:
+        tf_labels = ("D1", "H4", "H1", "M15", "M5", "M1")
 
     prompt = _build_prompt_impl(
         sym,
@@ -136,7 +148,6 @@ async def build_symbol_prompt(
         str(ctx.get("regime_line", "")),
         str(ctx.get("session_line", "")),
         str(ctx.get("micro_line", "")),
-        ctx.get("atr_m5_pct"),
         trigger_c,
         runtime["payout_estimate"],
         runtime["min_payout_accept"],
@@ -149,6 +160,13 @@ async def build_symbol_prompt(
         wr_rolling=wr_v,
         wr_samples=wr_n,
         cluster_status=cluster_status,
+        micro_swing_desc=str(ctx.get("micro_swing_desc", "")),
+        micro_trigger_desc=str(ctx.get("micro_trigger_desc", "")),
+        mtf_matrix=str(ctx.get("mtf_matrix", "")),
+        tf_labels=tf_labels,
+        metrics_h=ctx.get("hurst_value"),
+        metrics_z=ctx.get("zscore_value"),
+        metrics_e=ctx.get("entropy_trigger"),
     )
     return (
         prompt,

@@ -27,8 +27,8 @@ class IndicatorConfig:
     confluence_mandate: str = "medallion"
     entropy_threshold: float = 4.0
     zscore_extreme_threshold: float = 3.0
-    tf_labels: tuple[str, str, str, str] = ("H4", "H1", "M15", "M5")
-    tf_tags: tuple[str, str, str, str] = ("240", "60", "15", "5")
+    tf_labels: tuple[str, ...] = ("H4", "H1", "M15", "M5")
+    tf_tags: tuple[str, ...] = ("240", "60", "15", "5")
 
 
 def resolve_indicator_config(raw: Mapping[str, object] | None) -> IndicatorConfig:
@@ -49,15 +49,15 @@ def resolve_indicator_config(raw: Mapping[str, object] | None) -> IndicatorConfi
 
     raw_labels = raw.get("tf_labels")
     tf_labels = (
-        tuple(map(str, raw_labels))
-        if isinstance(raw_labels, (list, tuple)) and len(raw_labels) == 4
+        tuple(str(x) for x in raw_labels)
+        if isinstance(raw_labels, (list, tuple)) and len(raw_labels) in (4, 6)
         else ("H4", "H1", "M15", "M5")
     )
 
     raw_tags = raw.get("tf_tags")
     tf_tags = (
-        tuple(map(str, raw_tags))
-        if isinstance(raw_tags, (list, tuple)) and len(raw_tags) == 4
+        tuple(str(x) for x in raw_tags)
+        if isinstance(raw_tags, (list, tuple)) and len(raw_tags) in (4, 6)
         else ("240", "60", "15", "5")
     )
 
@@ -231,6 +231,14 @@ def effective_indicator_config_log(cfg: IndicatorConfig) -> dict[str, Any]:
     }
 
 
+def bundle_llm_indicators_from_series(
+    series: Sequence[tuple[str, Sequence[float]]],
+    cfg: IndicatorConfig,
+) -> str:
+    """Concatena linhas compactas para cada par label/fechamentos."""
+    return " | ".join(compact_indicators_line(lbl, closes, cfg) for lbl, closes in series)
+
+
 def bundle_llm_indicators_for_log(
     macro: Sequence[float],
     structure: Sequence[float],
@@ -241,13 +249,20 @@ def bundle_llm_indicators_for_log(
     ls: str,
     lw: str,
     lt: str,
+    micro_swing: Sequence[float] | None = None,
+    micro_trigger: Sequence[float] | None = None,
+    l5: str | None = None,
+    l1: str | None = None,
 ) -> str:
     """Concatena linhas por timeframe usadas no prompt para auditoria em log."""
-    return " | ".join(
-        (
-            compact_indicators_line(lm, macro, cfg),
-            compact_indicators_line(ls, structure, cfg),
-            compact_indicators_line(lw, swing, cfg),
-            compact_indicators_line(lt, trigger, cfg),
-        )
-    )
+    rows: list[tuple[str, Sequence[float]]] = [
+        (lm, macro),
+        (ls, structure),
+        (lw, swing),
+        (lt, trigger),
+    ]
+    if micro_swing is not None and l5:
+        rows.append((l5, micro_swing))
+    if micro_trigger is not None and l1:
+        rows.append((l1, micro_trigger))
+    return bundle_llm_indicators_from_series(rows, cfg)

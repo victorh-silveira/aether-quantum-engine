@@ -167,6 +167,22 @@ def build_metrics_for_decision(
     return direction, metrics
 
 
+def _truncate_preview(text: str, cap: int | None) -> str:
+    """Normaliza texto de preview e aplica limite opcional de caracteres."""
+    raw = str(text or "").replace("\n", " ").strip()
+    if cap is None:
+        return raw
+    limit = max(64, min(16000, int(cap)))
+    return raw[:limit].rstrip() if len(raw) > limit else raw
+
+
+def _append_jsonl(path: Path, payload: dict[str, Any]) -> None:
+    """Acrescenta um registro JSONL ao arquivo de dump de IO LLM."""
+    line = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(line + "\n")
+
+
 def emit_llm_http_snapshot(
     logger_obj: Any,
     symbol: str,
@@ -177,29 +193,40 @@ def emit_llm_http_snapshot(
     sniper_tokens: dict[str, Any],
     llm_config: dict[str, Any] | None,
     leading_cycle_blank: bool = False,
+    http_system_resolved: str = "",
+    mtf_matrix: str = "",
+    indicators_numeric_line: str = "",
+    institutional_pa_bundle: str = "",
+    indicator_bundle_line: str = "",
+    tf_labels: tuple[str, ...] | list[str] = (),
 ) -> None:
     """Registra em INFO o prompt usuario e grava JSON opcional do snapshot."""
     cfg = llm_config or {}
     cid = f"C{int(cycle_id):04d}"
     if leading_cycle_blank:
         logger_obj.info("")
+    sys_resolved = (http_system_resolved or http_system or "").strip()
     if bool(cfg.get("log_llm_io_line", True)):
         raw_u = str(http_user or "").replace("\n", " ").strip()
         nu = len(raw_u)
-        raw_cap = cfg.get("log_llm_io_preview_chars")
-        if raw_cap is None:
-            preview = raw_u
-        else:
-            cap = max(64, min(16000, int(raw_cap)))
-            preview = raw_u[:cap].rstrip() if nu > cap else raw_u
-        nsys = len(str(http_system or ""))
+        raw_sys = sys_resolved.replace("\n", " ").strip()
+        nsys = len(raw_sys)
+        cap = cfg.get("log_llm_io_preview_chars")
+        preview_u = _truncate_preview(raw_u, cap)
+        preview_s = _truncate_preview(raw_sys, cap)
         logger_obj.info(
-            "[%s] LLM_IO || %s || user_ch=%s preview=%s || sys_ch=%s",
+            "[%s] LLM_IO || %s || user_ch=%s preview_user=%s",
             cid,
             symbol,
             nu,
-            preview,
+            preview_u,
+        )
+        logger_obj.info(
+            "[%s] LLM_IO || %s || sys_ch=%s preview_sys=%s",
+            cid,
+            symbol,
             nsys,
+            preview_s,
         )
     raw_path = cfg.get("log_llm_io_dump_path")
     path_txt = str(raw_path).strip() if raw_path not in (None, False) else ""
@@ -210,16 +237,22 @@ def emit_llm_http_snapshot(
         "symbol": symbol,
         "http_user": str(http_user or ""),
         "http_system": str(http_system or ""),
+        "http_system_resolved": sys_resolved,
         "sniper_tokens": dict(sniper_tokens),
+        "mtf_matrix": str(mtf_matrix or ""),
+        "indicators_numeric_line": str(indicators_numeric_line or ""),
+        "institutional_pa_bundle": str(institutional_pa_bundle or ""),
+        "indicator_bundle_line": str(indicator_bundle_line or ""),
+        "tf_labels": list(tf_labels),
     }
     try:
         p = Path(path_txt)
         if not p.is_absolute():
             p = Path.cwd() / p
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True),
-            encoding="utf-8",
-        )
+        if p.suffix.lower() == ".jsonl":
+            _append_jsonl(p, payload)
+        else:
+            p.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
     except OSError:
         logger_obj.warning("[%s] LLM_IO_DUMP_FAIL path=%s", cid, path_txt)

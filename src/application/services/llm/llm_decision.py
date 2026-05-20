@@ -26,12 +26,17 @@ logger = logging.getLogger("AETH")
 _GEMINI_RETRY_TAIL = "\n\nResponda OBRIGATORIAMENTE no formato exigido: EURUSD: [DIR] | US_CLUSTER: [DIR] | EU_CLUSTER: [DIR] | Probabilidade: [0.XX]."
 
 
-def _resolved_system_instruction(runtime_system: str | None) -> str:
+def resolved_system_instruction(runtime_system: str | None) -> str:
     """Junta a instrucao de sistema fixa com texto opcional de configuracao."""
     extra = (runtime_system or "").strip()
     if not extra:
         return SOVEREIGN_SYSTEM
     return f"{SOVEREIGN_SYSTEM}\n\n{extra}"
+
+
+def _resolved_system_instruction(runtime_system: str | None) -> str:
+    """Alias interno para resolved_system_instruction."""
+    return resolved_system_instruction(runtime_system)
 
 
 def _cycle_prefix(log_cycle_id: int | None) -> str:

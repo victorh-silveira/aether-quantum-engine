@@ -3,6 +3,8 @@ import numpy as np
 from src.application.services.llm import IndicatorConfig
 from src.application.services.llm.sniper_payload import (
     _mtf_letter,
+    acceleration_token,
+    build_mtf_metrics_matrix,
     build_sniper_tokens,
     coerce_sniper_tokens,
     entropy_token,
@@ -39,6 +41,25 @@ def test_entropy_token_variants():
     assert entropy_token(noise, ic) == "extreme"
 
 
+def test_acceleration_token_flat_and_down(monkeypatch):
+    ic = IndicatorConfig(acceleration_window=5, velocity_window=5)
+    flat = [100.0] * 30
+    assert acceleration_token(flat, ic) == "flat"
+    monkeypatch.setattr(
+        "src.application.services.llm.sniper_payload.ti._price_derivatives",
+        lambda _c, _w: (0.1, -0.01),
+    )
+    assert acceleration_token(flat, ic) == "down"
+
+
+def test_build_mtf_metrics_matrix():
+    ic = IndicatorConfig()
+    closes = list(np.linspace(100.0, 110.0, 40))
+    line = build_mtf_metrics_matrix([("M15", closes), ("M1", closes)], ic, None)
+    assert line.startswith("MTF_MATRIX:")
+    assert "M15[" in line
+
+
 def test_velocity_token_variants():
     ic = IndicatorConfig(velocity_window=5)
     up = [100, 101, 102, 103, 104, 105, 106, 107]
@@ -48,12 +69,14 @@ def test_velocity_token_variants():
 
 
 def test_coerce_sniper_tokens():
-    assert coerce_sniper_tokens(None) == {"hurst": "na", "zscore": "na", "entropy": "na", "velocity": "na"}
+    empty = {"hurst": "na", "zscore": "na", "entropy": "na", "velocity": "na", "acceleration": "na"}
+    assert coerce_sniper_tokens(None) == empty
     assert coerce_sniper_tokens({"hurst": "persist", "zscore": "high"}) == {
         "hurst": "persist",
         "zscore": "high",
         "entropy": "na",
         "velocity": "na",
+        "acceleration": "na",
     }
 
 
@@ -67,7 +90,7 @@ def test_build_and_format_sniper_line():
     ic = IndicatorConfig()
     closes = list(np.linspace(100.0, 110.0, 120))
     tok = build_sniper_tokens(closes, ic, None)
-    assert set(tok.keys()) == {"hurst", "zscore", "entropy", "velocity"}
+    assert set(tok.keys()) == {"hurst", "zscore", "entropy", "velocity", "acceleration"}
     line = format_sniper_prompt_line(
         "OTC_FCHI",
         "trend_persistente",

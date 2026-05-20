@@ -10,9 +10,9 @@ O ciclo de vida do motor é orquestrado de forma reativa à nova vela do símbol
 
 1.  **Bootstrap**: `run.py` inicializa o ambiente, carrega `settings.json` e dispara o `Orchestrator`.
 2.  **Conectividade**: O `WebSocketManager` estabelece túnel persistente com a Deriv, gerenciando autenticação e keep-alive.
-3.  **Ingestão de Dados**: O `StreamHandler` mantém buffers circulares em `numpy` para múltiplos timeframes (**D1, H4, H1, M30, M15, M5, M3, M1**), garantindo causalidade estatística.
+3.  **Ingestão de Dados**: O `StreamHandler` mantém buffers circulares em `numpy` para múltiplos timeframes. O contexto LLM usa seis camadas: **D1, H4, H1, M15, M5, M1** (macro a micro), configuráveis em `llm.*_granularity_seconds`.
 4.  **Processamento Quant**:
-    - Se `llm.enabled`: O `llm_bridge` compõe o contexto analítico. Os indicadores (Hurst, Z-Score, Entropia, Saturação) são calculados em `src/application/services/llm`.
+    - Se `llm.enabled`: O `llm_bridge` compõe o contexto analítico. Indicadores Hurst, Z-Score, Entropia Shannon, Velocidade, Aceleracao e Sigma (range %) em `src/application/services/llm`, expostos via `MTF_MATRIX`, `INDICADORES` e `LLM_DADOS_NUM`.
     - **Soberania Gemini**: A IA processa o prompt e emite uma decisão baseada no Valor Esperado (EV+).
 5.  **Gerenciamento de Ordem**:
     - O `ExecutionManager` solicita o dimensionamento ao `RiskManager` (Critério de Kelly com trava de **Stop Win de 3%**).
@@ -63,4 +63,4 @@ A arquitetura é validada por uma suíte de testes rigorosa:
 
 ## 5. Observabilidade
 
-O motor é projetado para auditoria imediata. Cada decisão da IA gera um snapshot completo no log (`LLM_AUDIT`), permitindo reconstruir o cenário de mercado exato que levou a um CALL ou PUT meses depois.
+O motor é projetado para auditoria imediata. Cada decisão da IA gera logs `LLM_AUDIT` e, quando habilitado em `llm.log_llm_io_line`, linhas `LLM_IO` com preview do prompt usuario e do system instruction resolvido (SOVEREIGN + `system_prompt`). O dump opcional `llm.log_llm_io_dump_path` grava JSONL com `mtf_matrix`, `indicators_numeric_line`, `institutional_pa_bundle` e tokens sniper por ciclo.

@@ -16,6 +16,7 @@ from src.application.services.llm.llm_bridge_telemetry import (
     emit_llm_http_snapshot,
     format_llm_runtime_thresholds,
 )
+from src.application.services.llm.llm_decision import resolved_system_instruction
 from src.application.services.llm.llm_symbol_io import last_reference_price, request_llm_payload
 from src.application.services.llm.prompt_utils import (
     iter_llm_prompt_audit_sections,
@@ -81,15 +82,22 @@ async def collect_symbol_llm_decision(
     raw_llm = cfg_root.get("llm") if isinstance(cfg_root, dict) else None
     symbols = list(getattr(orch, "symbols", ()) or ())
     leading_cycle_blank = int(orch._active_cycle_id) > 1 and (not symbols or sym == symbols[0])
+    sys_extra = str(runtime.get("llm_system") or "")
     emit_llm_http_snapshot(
         orch.logger,
         sym,
         cycle_id=orch._active_cycle_id,
         http_user=prompt,
-        http_system=str(runtime.get("llm_system") or ""),
+        http_system=sys_extra,
+        http_system_resolved=resolved_system_instruction(sys_extra),
         sniper_tokens=dict(sniper_tok),
         llm_config=raw_llm if isinstance(raw_llm, dict) else {},
         leading_cycle_blank=leading_cycle_blank,
+        mtf_matrix=str(ctx.get("mtf_matrix", "")),
+        indicators_numeric_line=indicators_numeric_line,
+        institutional_pa_bundle=institutional_pa_bundle,
+        indicator_bundle_line=str(ctx.get("llm_indicator_bundle", "")),
+        tf_labels=ctx.get("llm_tf_labels") or (),
     )
     ref_px = last_reference_price(orch.stream, sym)
     payload = await _request_payload(
@@ -198,7 +206,6 @@ async def collect_symbol_llm_decision(
         str(ctx.get("regime_line", "")),
         str(ctx.get("session_line", "")),
         str(ctx.get("micro_line", "")),
-        ctx.get("atr_m5_pct"),
         list(ctx.get("llm_trigger_closes") or []),
         runtime["payout_estimate"],
         runtime["min_payout_accept"],

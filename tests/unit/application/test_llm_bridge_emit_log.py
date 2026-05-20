@@ -1,7 +1,11 @@
 from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
-from src.application.services.llm.llm_bridge_telemetry import emit_llm_decision_log, emit_llm_http_snapshot
+from src.application.services.llm.llm_bridge_telemetry import (
+    _truncate_preview,
+    emit_llm_decision_log,
+    emit_llm_http_snapshot,
+)
 from src.domain.models.trade import TradeDirection
 
 
@@ -166,12 +170,13 @@ def test_emit_llm_http_snapshot_logs_io_and_writes_dump(tmp_path):
         llm_config={"log_llm_io_line": True, "log_llm_io_dump_path": str(dump)},
     )
     io_calls = [c for c in logger.info.call_args_list if c.args and "LLM_IO" in str(c.args[0])]
-    assert io_calls
-    ic = io_calls[0]
-    rendered = ic.args[0] % ic.args[1:] if len(ic.args) > 1 else str(ic.args[0])
-    assert "user_ch=19" in rendered
-    assert "preview=RSI=high, BB=inside" in rendered
-    assert "sys_ch=8" in rendered
+    assert len(io_calls) >= 2
+    user_rendered = io_calls[0].args[0] % io_calls[0].args[1:]
+    sys_rendered = io_calls[1].args[0] % io_calls[1].args[1:]
+    assert "user_ch=19" in user_rendered
+    assert "preview_user=RSI=high, BB=inside" in user_rendered
+    assert "sys_ch=8" in sys_rendered
+    assert "preview_sys=sys body" in sys_rendered
     text = dump.read_text(encoding="utf-8")
     assert '"cycle_id": 7' in text
     assert '"symbol": "frxEURUSD"' in text
@@ -224,7 +229,7 @@ def test_emit_llm_http_snapshot_preview_completo_sem_cap_preview(tmp_path):
     io_calls = [c for c in logger.info.call_args_list if c.args and "LLM_IO" in str(c.args[0])]
     ic = io_calls[0]
     rendered = ic.args[0] % ic.args[1:] if len(ic.args) > 1 else str(ic.args[0])
-    prev = rendered.split("preview=", 1)[1].split(" || sys_ch=", 1)[0]
+    prev = rendered.split("preview_user=", 1)[1]
     assert prev == long_u
 
 
@@ -241,11 +246,35 @@ def test_emit_llm_http_snapshot_truncates_preview_when_long(tmp_path):
         llm_config={"log_llm_io_line": True, "log_llm_io_preview_chars": 80},
     )
     io_calls = [c for c in logger.info.call_args_list if c.args and "LLM_IO" in str(c.args[0])]
-    rendered = io_calls[0].args[0] % io_calls[0].args[1:]
+    user_call = next(c for c in io_calls if "preview_user=" in (c.args[0] % c.args[1:]))
+    rendered = user_call.args[0] % user_call.args[1:]
     assert "user_ch=500" in rendered
-    prev = rendered.split("preview=", 1)[1].split(" || sys_ch=", 1)[0]
+    prev = rendered.split("preview_user=", 1)[1]
     assert len(prev) == 80
     assert prev == "Z" * 80
+
+
+def test_emit_llm_http_snapshot_jsonl_append(tmp_path):
+    logger = MagicMock()
+    dump = tmp_path / "llm_io.jsonl"
+    emit_llm_http_snapshot(
+        logger,
+        "frxEURUSD",
+        cycle_id=2,
+        http_user="u",
+        http_system="s",
+        sniper_tokens={"hurst": "persist"},
+        llm_config={"log_llm_io_line": False, "log_llm_io_dump_path": str(dump)},
+        http_system_resolved="resolved",
+        mtf_matrix="MTF_MATRIX: D1[...]",
+    )
+    lines = dump.read_text(encoding="utf-8").strip().split("\n")
+    assert len(lines) == 1
+    assert '"mtf_matrix"' in lines[0]
+
+
+def test_truncate_preview_short_under_cap():
+    assert _truncate_preview("short", 80) == "short"
 
 
 def test_emit_llm_http_snapshot_dump_fail_emits_warning(tmp_path):

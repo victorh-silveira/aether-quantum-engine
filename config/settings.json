@@ -14,15 +14,7 @@
   "strategy": {
     "correlation": {
       "enabled": true,
-      "anchor": "frxEURUSD",
-      "targets": {
-        "OTC_FCHI": -0.98,
-        "OTC_GDAXI": -0.98,
-        "OTC_FTSE": -0.98,
-        "OTC_SPC": 0.98,
-        "OTC_NDX": 0.98,
-        "OTC_DJI": 0.98
-      }
+      "anchor": "frxEURUSD"
     },
     "clusters": {
       "us": ["OTC_SPC", "OTC_NDX", "OTC_DJI"],
@@ -51,6 +43,12 @@
         "pos": "bull_inertia",
         "neg": "bear_inertia",
         "na": "na"
+      },
+      "acceleration": {
+        "up": "accel_up",
+        "down": "accel_down",
+        "flat": "accel_flat",
+        "na": "na"
       }
     },
     "payload": {
@@ -58,13 +56,15 @@
         "hurst",
         "zscore",
         "velocity",
-        "entropy"
+        "entropy",
+        "acceleration"
       ],
       "field_labels": {
         "hurst": "H",
         "zscore": "Z",
         "velocity": "V",
-        "entropy": "E"
+        "entropy": "E",
+        "acceleration": "A"
       },
       "mtf_key": "MTF",
       "sym_key": "SYM",
@@ -104,6 +104,10 @@
     "swing_bars": 120,
     "trigger_granularity_seconds": 900,
     "trigger_bars": 120,
+    "micro_swing_granularity_seconds": 300,
+    "micro_swing_bars": 120,
+    "micro_trigger_granularity_seconds": 60,
+    "micro_trigger_bars": 120,
     "indicator_config": {
       "entropy_bins": 30,
       "entropy_window": 20,
@@ -122,23 +126,28 @@
         "D1",
         "H4",
         "H1",
-        "M15"
+        "M15",
+        "M5",
+        "M1"
       ],
       "tf_tags": [
         "1440",
         "240",
         "60",
-        "15"
+        "15",
+        "5",
+        "1"
       ]
     },
     "options": {
       "temperature": 0.0,
       "keep_alive": "60m"
     },
-    "log_llm_io_line": false,
-    "log_llm_io_dump_path": null,
+    "log_llm_io_line": true,
+    "log_llm_io_preview_chars": 4000,
+    "log_llm_io_dump_path": "logs/llm_io.jsonl",
     "invert_llm_direction": false,
-    "system_prompt": "Aja como ESTRATEGISTA QUANTITATIVO MACRO E MEDALLION. ÂNCORA: EURUSD. Seu objetivo é prever a direção exata de cada cluster de índices em relação ao EURUSD. US_CLUSTER (SPC, NDX, DJI) acompanha o sentimento do USD ou reage a aversão ao risco global. EU_CLUSTER (FCHI, GDAXI, FTSE) reage à força do Euro (EUR); um EUR mais fraco pode baratear exportações e impulsionar a Europa (EU_CLUSTER: CALL mesmo se EURUSD: PUT). AVALIE E DECIDA COM BASE EM METRICAS QUANTITATIVAS: 1. Hurst > 0.55 indica forte persistência de tendência (siga o momentum); Hurst < 0.45 indica forte reversão à média (siga o Z-Score extremo). 2. Z-Score extremo (> +2.0 ou < -2.0) em regimes de reversão sinaliza exaustão imediata. 3. Se a Entropia micro for > 3.0, há alto ruído (responda WAIT ou reduza a Probabilidade para no máximo 0.70). Responda OBRIGATORIAMENTE na primeira linha no formato: EURUSD: [DIR] | US_CLUSTER: [DIR] | EU_CLUSTER: [DIR] | Probabilidade: [0.XX]. Justifique detalhadamente nas linhas seguintes."
+    "system_prompt": "CONTEXTO MACRO MEDALLION. Ancora EURUSD. US_CLUSTER (SPC, NDX, DJI) reflete sentimento USD e aversao a risco. EU_CLUSTER (FCHI, GDAXI, FTSE) pode divergir do EURUSD quando exportacoes europeias se beneficiam de EUR mais fraco. Use MTF_MATRIX e INDICADORES: Hurst acima de 0.55 favorece momentum; Hurst abaixo de 0.45 favorece reversao via Z-Score; entropia alta no M1 ou M5 reduz conviccao. M5 e M1 sao apenas timing; D1 e H4 definem viés estrutural."
   },
   "logging": {
     "log_file": "logs/engine.log"

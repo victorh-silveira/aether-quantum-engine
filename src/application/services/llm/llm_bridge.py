@@ -113,11 +113,11 @@ def _propagate_cluster_decisions(
     anchor_sym: str,
     direction: TradeDirection,
     metrics: dict[str, Any],
-    targets: dict,
     decisions: dict[str, dict],
     cid: str,
 ) -> None:
-    """Propaga decisões da âncora para clusters US/EU com direção independente."""
+    """Propaga decisoes para indices US/EU apenas via tags US_CLUSTER e EU_CLUSTER da LLM."""
+    _ = direction
     clusters = orch.config.get("strategy", {}).get("clusters", {})
     us_targets = clusters.get("us", ("OTC_SPC", "OTC_NDX", "OTC_DJI"))
     eu_targets = clusters.get("eu", ("OTC_FCHI", "OTC_GDAXI", "OTC_SSMI", "OTC_FTSE"))
@@ -129,22 +129,18 @@ def _propagate_cluster_decisions(
         if target_sym == anchor_sym:
             continue
 
-        coeff = targets.get(target_sym, 1.0)
-
         if target_sym in us_targets and not anchor_in_us:
             us_tag = metrics.get("us_cluster")
             if not us_tag:
                 continue
-            target_direction = TradeDirection[us_tag]
+            target_direction = TradeDirection[str(us_tag)]
         elif target_sym in eu_targets and not anchor_in_eu:
             eu_tag = metrics.get("eu_cluster")
             if not eu_tag:
                 continue
-            target_direction = TradeDirection[eu_tag]
-        elif coeff < 0:
-            target_direction = TradeDirection.PUT if direction == TradeDirection.CALL else TradeDirection.CALL
+            target_direction = TradeDirection[str(eu_tag)]
         else:
-            target_direction = direction
+            continue
 
         target_metrics = metrics.copy()
         target_metrics["llm_note"] = f"CLUSTER ({target_direction.name}) from {anchor_sym}"
@@ -171,9 +167,8 @@ async def collect_llm_decisions(orch: Any) -> dict[str, dict]:
     decisions: dict[str, dict] = {}
 
     corr_cfg = orch.config.get("strategy", {}).get("correlation", {})
-    corr_enabled = corr_cfg.get("enabled", False)
+    cluster_propagation_enabled = bool(corr_cfg.get("enabled", False))
     anchor_sym = orch.anchor
-    targets = corr_cfg.get("targets", {})
 
     budget = float(runtime["max_decision_latency_seconds"])
     cid = f"C{int(orch._active_cycle_id):04d}"
@@ -192,20 +187,25 @@ async def collect_llm_decisions(orch: Any) -> dict[str, dict]:
         metrics = llm_metrics(direction, 0.0, "LLM Timeout (Capital Preserved)")
 
     if direction is not None and orch.config.get("llm", {}).get("invert_llm_direction"):
+        us_cluster_tag = metrics.get("us_cluster")
+        eu_cluster_tag = metrics.get("eu_cluster")
         direction = TradeDirection.PUT if direction == TradeDirection.CALL else TradeDirection.CALL
         metrics = llm_metrics(direction, metrics["conviction"], f"INVERTED | {metrics.get('llm_note', '')}")
+        if us_cluster_tag:
+            metrics["us_cluster"] = us_cluster_tag
+        if eu_cluster_tag:
+            metrics["eu_cluster"] = eu_cluster_tag
         orch.logger.debug("[%s] LLM_INVERT || Sinal da âncora invertido globalmente para %s", cid, direction.name)
 
     store_symbol_decision(decisions, anchor_sym, direction, metrics)
     orch._last_anchor_metrics = metrics
 
-    if direction is not None and corr_enabled:
+    if direction is not None and cluster_propagation_enabled:
         _propagate_cluster_decisions(
             orch,
             anchor_sym=anchor_sym,
             direction=direction,
             metrics=metrics,
-            targets=targets,
             decisions=decisions,
             cid=cid,
         )

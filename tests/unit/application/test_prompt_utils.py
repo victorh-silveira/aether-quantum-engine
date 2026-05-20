@@ -14,7 +14,6 @@ def test_iter_llm_prompt_audit_sections_handles_empty_regime():
         regime_line="",
         session_line="",
         micro_line="",
-        atr_m5_pct=0.02,
         trigger_tail_closes=[1.0, 1.1],
         payout_estimate=0.95,
         min_payout_accept=0.85,
@@ -40,7 +39,6 @@ def test_iter_llm_prompt_audit_sections_short_body_no_ellipsis():
         regime_line="rg",
         session_line="sess",
         micro_line="micro",
-        atr_m5_pct=None,
         trigger_tail_closes=[100.0],
         payout_estimate=0.9,
         min_payout_accept=0.8,
@@ -65,7 +63,6 @@ def test_iter_llm_prompt_audit_sections_long_body_truncates():
         regime_line="rg",
         session_line="sess",
         micro_line="micro",
-        atr_m5_pct=None,
         trigger_tail_closes=[100.0],
         payout_estimate=0.9,
         min_payout_accept=0.8,
@@ -98,7 +95,6 @@ def test_build_sniper_trading_prompt_with_ohlc():
         regime_line="range",
         session_line="asia",
         micro_line="micro",
-        atr_m5_pct=0.01,
         trigger_tail_closes=[100.0, 101.0],
         payout_estimate=0.95,
         min_payout_accept=0.85,
@@ -107,15 +103,11 @@ def test_build_sniper_trading_prompt_with_ohlc():
         trigger_ohlc=[(100, 105, 95, 102)],
     )
     assert "CANDLES: (100.00000/105.00000/95.00000/102.00000)" in res
-    assert "=== SÍNTESE FINAL ===" in res
+    assert "=== SINTESE FINAL ===" in res
 
 
-def test_extract_prompt_indicator_tokens_ema():
-    """Valida extracao de Hurst e Z-Score (substituiu RSI/EMA)."""
-    desc = "Hurst: 0.62 | Z-Score: +1.5"
-    hurst, zsc, ent = tpu.extract_prompt_indicator_tokens(desc, 0.05)
-    assert hurst == "0.62"
-    assert zsc == "+1.5"
-    assert ent == "0.05"
-
-    assert ent == "0.05"
+def test_format_metrics_line():
+    line = tpu.format_metrics_line(0.62, 1.5, 2.41)
+    assert line == "H=0.62, Z=+1.50, E=2.41"
+    line_na = tpu.format_metrics_line(None, None, None)
+    assert line_na == "H=-, Z=-, E=-"
