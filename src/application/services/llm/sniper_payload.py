@@ -59,9 +59,93 @@ def velocity_token(closes: Sequence[float], ic: IndicatorConfig) -> str:
     return "pos" if v > 0 else "neg"
 
 
+def acceleration_token(closes: Sequence[float], ic: IndicatorConfig) -> str:
+    """Classifica aceleracao do preco na janela configurada."""
+    arr = np.asarray(list(closes), dtype=np.float64)
+    _, accel = ti._price_derivatives(arr, ic.acceleration_window)
+    if accel is None:
+        return "na"
+    if accel > 0:
+        return "up"
+    if accel < 0:
+        return "down"
+    return "flat"
+
+
+def _map_hurst(raw: str, cfg: StrategyPayloadConfig) -> str:
+    """Traduz token hurst bruto para o rotulo configurado na estrategia."""
+    mp = {"persist": cfg.hurst_persist, "anti": cfg.hurst_anti, "random": cfg.hurst_random, "na": cfg.hurst_na}
+    return mp.get(raw, cfg.hurst_na)
+
+
+def _map_zscore(raw: str, cfg: StrategyPayloadConfig) -> str:
+    """Traduz token z-score bruto para o rotulo configurado na estrategia."""
+    mp = {"high": cfg.zscore_high, "low": cfg.zscore_low, "neutral": cfg.zscore_neutral, "na": cfg.zscore_na}
+    return mp.get(raw, cfg.zscore_na)
+
+
+def _map_entropy(raw: str, cfg: StrategyPayloadConfig) -> str:
+    """Traduz token entropia bruto para o rotulo configurado na estrategia."""
+    mp = {"low": cfg.entropy_low, "high": cfg.entropy_high, "extreme": cfg.entropy_extreme, "na": cfg.entropy_na}
+    return mp.get(raw, cfg.entropy_na)
+
+
+def _map_velocity(raw: str, cfg: StrategyPayloadConfig) -> str:
+    """Traduz token velocidade bruto para o rotulo configurado na estrategia."""
+    mp = {"pos": cfg.velocity_pos, "neg": cfg.velocity_neg, "na": cfg.velocity_na}
+    return mp.get(raw, cfg.velocity_na)
+
+
+def _map_acceleration(raw: str, cfg: StrategyPayloadConfig) -> str:
+    """Traduz token aceleracao bruto para o rotulo configurado na estrategia."""
+    mp = {
+        "up": cfg.acceleration_up,
+        "down": cfg.acceleration_down,
+        "flat": cfg.acceleration_flat,
+        "na": cfg.acceleration_na,
+    }
+    return mp.get(raw, cfg.acceleration_na)
+
+
+def tokens_for_closes(
+    closes: Sequence[float],
+    ic: IndicatorConfig,
+    sp: StrategyPayloadConfig | None = None,
+) -> dict[str, str]:
+    """Mapa hurst/zscore/entropy/velocity/acceleration para uma serie de fechamentos."""
+    cfg = sp or DEFAULT_STRATEGY_PAYLOAD_CONFIG
+    return {
+        "hurst": _map_hurst(hurst_token(closes, ic), cfg),
+        "zscore": _map_zscore(zscore_token(closes, ic), cfg),
+        "entropy": _map_entropy(entropy_token(closes, ic), cfg),
+        "velocity": _map_velocity(velocity_token(closes, ic), cfg),
+        "acceleration": _map_acceleration(acceleration_token(closes, ic), cfg),
+    }
+
+
+def build_mtf_metrics_matrix(
+    layers: Sequence[tuple[str, Sequence[float]]],
+    ic: IndicatorConfig,
+    sp: StrategyPayloadConfig | None = None,
+) -> str:
+    """Linha MTF_MATRIX com H/Z/E/V por timeframe."""
+    cfg = sp or DEFAULT_STRATEGY_PAYLOAD_CONFIG
+    parts: list[str] = []
+    for label, closes in layers:
+        tok = tokens_for_closes(closes, ic, cfg)
+        parts.append(f"{label}[H={tok['hurst']},Z={tok['zscore']},E={tok['entropy']},V={tok['velocity']}]")
+    return "MTF_MATRIX: " + " | ".join(parts) if parts else ""
+
+
 def coerce_sniper_tokens(raw: object) -> dict[str, str]:
-    """Preenche defaults para hurst, zscore, entropy e velocity."""
-    out = {"hurst": "na", "zscore": "na", "entropy": "na", "velocity": "na"}
+    """Preenche defaults para hurst, zscore, entropy, velocity e acceleration."""
+    out = {
+        "hurst": "na",
+        "zscore": "na",
+        "entropy": "na",
+        "velocity": "na",
+        "acceleration": "na",
+    }
     if isinstance(raw, dict):
         for k in out:
             v = raw.get(k)
@@ -75,25 +159,8 @@ def build_sniper_tokens(
     ic: IndicatorConfig,
     sp: StrategyPayloadConfig | None = None,
 ) -> dict[str, str]:
-    """Monta mapa hurst, zscore, entropy, velocity com rotulos vindos da estrategia JSON."""
-    cfg = sp or DEFAULT_STRATEGY_PAYLOAD_CONFIG
-
-    h_c = hurst_token(m1_closes, ic)
-    z_c = zscore_token(m1_closes, ic)
-    e_c = entropy_token(m1_closes, ic)
-    v_c = velocity_token(m1_closes, ic)
-
-    h_map = {"persist": cfg.hurst_persist, "anti": cfg.hurst_anti, "random": cfg.hurst_random, "na": cfg.hurst_na}
-    z_map = {"high": cfg.zscore_high, "low": cfg.zscore_low, "neutral": cfg.zscore_neutral, "na": cfg.zscore_na}
-    e_map = {"low": cfg.entropy_low, "high": cfg.entropy_high, "extreme": cfg.entropy_extreme, "na": cfg.entropy_na}
-    v_map = {"pos": cfg.velocity_pos, "neg": cfg.velocity_neg, "na": cfg.velocity_na}
-
-    return {
-        "hurst": h_map.get(h_c, cfg.hurst_na),
-        "zscore": z_map.get(z_c, cfg.zscore_na),
-        "entropy": e_map.get(e_c, cfg.entropy_na),
-        "velocity": v_map.get(v_c, cfg.velocity_na),
-    }
+    """Monta mapa hurst, zscore, entropy, velocity e acceleration no gatilho."""
+    return tokens_for_closes(m1_closes, ic, sp)
 
 
 def sniper_mtf_bits_from_alignment_sentence(line: str) -> str | None:
@@ -113,6 +180,8 @@ def sniper_mtf_bits_from_alignment_sentence(line: str) -> str | None:
             parts.append("N")
         else:
             parts.append("?")
+    if len(parts) >= 6:
+        return "/".join(parts[:6])
     if len(parts) >= 4:
         return "/".join(parts[:4])
     if len(parts) >= 3:
@@ -130,10 +199,18 @@ def format_sniper_prompt_line(
     sp: StrategyPayloadConfig | None = None,
     *,
     mtf_alignment_line: str = "",
+    micro_swing_desc: str = "",
+    micro_trigger_desc: str = "",
 ) -> str:
     """Concatena tokens na ordem configurada no JSON da estrategia."""
     cfg = sp or DEFAULT_STRATEGY_PAYLOAD_CONFIG
-    defaults = {"hurst": cfg.hurst_na, "zscore": cfg.zscore_na, "entropy": cfg.entropy_na, "velocity": cfg.velocity_na}
+    defaults = {
+        "hurst": cfg.hurst_na,
+        "zscore": cfg.zscore_na,
+        "entropy": cfg.entropy_na,
+        "velocity": cfg.velocity_na,
+        "acceleration": cfg.acceleration_na,
+    }
     parts: list[str] = []
     for key in cfg.payload_token_order:
         label = cfg.field_labels.get(key, key)
@@ -141,14 +218,12 @@ def format_sniper_prompt_line(
         parts.append(f"{label}{cfg.kv_separator}{val}")
     bits = sniper_mtf_bits_from_alignment_sentence(mtf_alignment_line)
     if bits is None:
-        bits = "/".join(
-            (
-                _mtf_letter(macro_desc),
-                _mtf_letter(structure_desc),
-                _mtf_letter(swing_desc),
-                _mtf_letter(trigger_desc),
-            )
-        )
+        descs = [macro_desc, structure_desc, swing_desc, trigger_desc]
+        if micro_swing_desc:
+            descs.append(micro_swing_desc)
+        if micro_trigger_desc:
+            descs.append(micro_trigger_desc)
+        bits = "/".join(_mtf_letter(d) for d in descs)
     parts.append(f"{cfg.mtf_token_key}{cfg.kv_separator}{bits}")
     parts.append(f"{cfg.sym_token_key}{cfg.kv_separator}{symbol}")
     return cfg.pair_separator.join(parts)

@@ -113,8 +113,25 @@ async def test_collect_llm_decisions_blocks_repeated_direction_without_strict_co
     swing_s = [100.0 * (1.001**i) for i in range(120)]
     trig_s = [100.0 * (1.001**i) for i in range(120)]
     orch.stream.fetch_candle_ohlc = AsyncMock(return_value=[])
+    micro_s = [100.0 * (1.001**i) for i in range(120)]
     orch.stream.fetch_candle_closes = AsyncMock(
-        side_effect=[macro_s, struct_s, swing_s, trig_s, macro_s, struct_s, swing_s, trig_s]
+        side_effect=[
+            macro_s,
+            struct_s,
+            swing_s,
+            micro_s,
+            trig_s,
+            macro_s,
+            struct_s,
+            swing_s,
+            micro_s,
+            trig_s,
+            macro_s,
+            struct_s,
+            swing_s,
+            micro_s,
+            trig_s,
+        ]
     )
     orch._neutral_metrics = MagicMock(return_value={"direction": "NONE"})
     with patch(

@@ -17,6 +17,7 @@ from src.application.services.llm.indicators_numeric import (
     abbrev_mtf_alignment_tokens,
     extract_confluence_heuristic_tag,
     format_numeric_indicators_one_line,
+    format_numeric_indicators_six_line,
     format_numeric_indicators_tight_line,
     trend_token_from_label_word,
 )
@@ -32,6 +33,7 @@ __all__ = [
     "ema_distance_guard_line",
     "extract_confluence_heuristic_tag",
     "format_numeric_indicators_one_line",
+    "format_numeric_indicators_six_line",
     "format_numeric_indicators_tight_line",
     "min_bars_for_indicators",
     "mtf_confluence_line",

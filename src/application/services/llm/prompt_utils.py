@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import re
-
 from src.application.services.llm.sniper_payload import (
     coerce_sniper_tokens,
     format_sniper_prompt_line,
@@ -21,18 +19,16 @@ def _truncate_audit_line(text: str, max_chars: int) -> str:
     return clean[: max_chars - 3].rstrip() + "..."
 
 
-def extract_prompt_indicator_tokens(m3_desc: str, entropy_val: float | None) -> tuple[str, str, str]:
-    """Extrai Hurst e Z-Score alinhados ao texto do prompt enviado a LLM."""
-    hurst_value = "-"
-    zscore_val = "-"
-    m = re.search(r"Hurst(?:=|:)\s*([0-9]+(?:[.,][0-9]+)?)", m3_desc, flags=re.IGNORECASE)
-    if m:
-        hurst_value = m.group(1).replace(",", ".")
-    d = re.search(r"Z-Score(?:=|:)\s*([+-]?[0-9]+(?:[.,][0-9]+)?)", m3_desc, flags=re.IGNORECASE)
-    if d:
-        zscore_val = d.group(1).replace(",", ".")
-    ent_txt = f"{float(entropy_val):.2f}" if entropy_val is not None else "-"
-    return hurst_value, zscore_val, ent_txt
+def format_metrics_line(
+    hurst: float | None,
+    zscore: float | None,
+    entropy: float | None,
+) -> str:
+    """Formata METRICS com valores numericos do gatilho."""
+    h_txt = f"{float(hurst):.2f}" if hurst is not None else "-"
+    z_txt = f"{float(zscore):+.2f}" if zscore is not None else "-"
+    e_txt = f"{float(entropy):.2f}" if entropy is not None else "-"
+    return f"H={h_txt}, Z={z_txt}, E={e_txt}"
 
 
 def compact_m1_candles_csv(
@@ -46,6 +42,27 @@ def compact_m1_candles_csv(
     return ",".join(f"{x:.5f}" for x in tail) if tail else "-"
 
 
+def _maps_line(
+    lm: str,
+    macro_desc: str,
+    ls: str,
+    structure_desc: str,
+    lw: str,
+    swing_desc: str,
+    lt: str,
+    trigger_desc: str,
+    l5: str,
+    micro_swing_desc: str,
+    l1: str,
+    micro_trigger_desc: str,
+) -> str:
+    """Monta linha MAPS com rotulos dinamicos alinhados aos timeframes reais."""
+    return (
+        f"MAPS: {lm}:{macro_desc} | {ls}:{structure_desc} | {lw}:{swing_desc} | "
+        f"{lt}:{trigger_desc} | {l5}:{micro_swing_desc} | {l1}:{micro_trigger_desc}\n"
+    )
+
+
 def iter_llm_prompt_audit_sections(
     symbol: str,
     macro_desc: str,
@@ -57,7 +74,6 @@ def iter_llm_prompt_audit_sections(
     regime_line: str,
     session_line: str,
     micro_line: str,
-    atr_m5_pct: float | None,
     trigger_tail_closes: list[float],
     payout_estimate: float,
     min_payout_accept: float,
@@ -71,8 +87,16 @@ def iter_llm_prompt_audit_sections(
     strategy_payload: StrategyPayloadConfig | None = None,
     institutional_pa_bundle: str = "",
     indicator_bundle_line: str = "",
+    micro_swing_desc: str = "",
+    micro_trigger_desc: str = "",
+    mtf_matrix: str = "",
+    tf_labels: tuple[str, ...] = ("D1", "H4", "H1", "M15", "M5", "M1"),
+    metrics_h: float | None = None,
+    metrics_z: float | None = None,
+    metrics_e: float | None = None,
 ) -> list[tuple[str, str]]:
     """Lista etiquetas espelhando o prompt sniper e contexto resumido."""
+    lm, ls, lw, lt, l5, l1 = tf_labels if len(tf_labels) >= 6 else (*tf_labels, "M5", "M1")[:6]
     sniper_line = build_sniper_trading_prompt(
         symbol,
         macro_desc,
@@ -84,7 +108,6 @@ def iter_llm_prompt_audit_sections(
         regime_line,
         session_line,
         micro_line,
-        atr_m5_pct,
         trigger_tail_closes,
         payout_estimate,
         min_payout_accept,
@@ -96,10 +119,18 @@ def iter_llm_prompt_audit_sections(
         indicator_bundle_line=indicator_bundle_line,
         wr_rolling=wr_rolling,
         wr_samples=wr_samples,
+        micro_swing_desc=micro_swing_desc,
+        micro_trigger_desc=micro_trigger_desc,
+        mtf_matrix=mtf_matrix,
+        tf_labels=tf_labels,
+        metrics_h=metrics_h,
+        metrics_z=metrics_z,
+        metrics_e=metrics_e,
     )
     rows: list[tuple[str, str]] = [
         ("ATIVO", f"{symbol}"),
         ("SNIPER_INPUT", sniper_line),
+        ("MTF_MATRIX", (mtf_matrix or "-").strip() or "-"),
         ("PA_INSTITUCIONAL", (institutional_pa_bundle or "-").strip() or "-"),
         ("REGIME", regime_line),
         ("SESSAO", session_line),
@@ -125,7 +156,6 @@ def build_sniper_trading_prompt(
     regime_line: str,
     session_line: str,
     micro_line: str,
-    atr_m5_pct: float | None,
     trigger_tail_closes: list[float],
     payout_estimate: float,
     min_payout_accept: float,
@@ -139,8 +169,19 @@ def build_sniper_trading_prompt(
     wr_rolling: float | None = None,
     wr_samples: int = 0,
     cluster_status: str = "",
+    micro_swing_desc: str = "",
+    micro_trigger_desc: str = "",
+    mtf_matrix: str = "",
+    tf_labels: tuple[str, ...] = ("D1", "H4", "H1", "M15", "M5", "M1"),
+    metrics_h: float | None = None,
+    metrics_z: float | None = None,
+    metrics_e: float | None = None,
 ) -> str:
     """Monta prompt usuario completo (Sempre Profundo)."""
+    labels = tf_labels if len(tf_labels) >= 6 else ("D1", "H4", "H1", "M15", "M5", "M1")
+    lm, ls, lw, lt, l5, l1 = labels[0], labels[1], labels[2], labels[3], labels[4], labels[5]
+    ms_desc = micro_swing_desc or f"{l5} indisponivel"
+    mt_desc = micro_trigger_desc or f"{l1} indisponivel"
     core = format_sniper_prompt_line(
         symbol,
         macro_desc,
@@ -150,30 +191,36 @@ def build_sniper_trading_prompt(
         coerce_sniper_tokens(sniper_tokens),
         strategy_payload,
         mtf_alignment_line=mtf_align,
+        micro_swing_desc=ms_desc,
+        micro_trigger_desc=mt_desc,
     )
-    hurst_val, zscore_val, ent_txt = extract_prompt_indicator_tokens(trigger_desc, atr_m5_pct)
+    matrix_block = f"{mtf_matrix}\n" if (mtf_matrix or "").strip() else ""
+    metrics_txt = format_metrics_line(metrics_h, metrics_z, metrics_e)
     candles_txt = compact_m1_candles_csv(trigger_tail_closes, ohlc_rows=trigger_ohlc)
     ib = (indicator_bundle_line or "").strip()
     pa = (institutional_pa_bundle or "").strip()
     ib_block = f"INDICADORES: {ib}\n" if ib else ""
     pa_block = f"CONFLUENCIA: {pa}\n" if pa else ""
+    maps = _maps_line(lm, macro_desc, ls, structure_desc, lw, swing_desc, lt, trigger_desc, l5, ms_desc, l1, mt_desc)
     return (
         f"SNIPER: {core}\n"
+        f"{matrix_block}"
         f"DATA: {symbol} | PAYOUT: {payout_estimate} (min: {min_payout_accept}) | DUR: {duration}{duration_unit}\n"
         f"REGIME: {(regime_line or '').strip()} | {(session_line or '').strip()} | {(micro_line or '').strip()}\n"
-        f"MAPS: M30:{macro_desc} | M15:{structure_desc} | M5:{swing_desc} | M1:{trigger_desc}\n"
+        f"{maps}"
         f"ALIGN: {mtf_align}\n"
         f"CANDLES: {candles_txt}\n"
-        f"METRICS: H={hurst_val}, Z={zscore_val}, E={ent_txt}\n"
+        f"METRICS: {metrics_txt}\n"
         f"{f'CLUSTERS REALTIME: {cluster_status}\n' if cluster_status else ''}"
         f"{ib_block}{pa_block}"
         f"PERF: WR: {f'{float(wr_rolling):.1%}' if wr_rolling is not None else 'n/a'} ({int(wr_samples)})\n"
         "=== REGRAS DE TRADING ===\n"
-        "- TIMING (EVITE ATRASOS): Priorize entradas em retrações ou exaustões. Se a vela atual for excepcionalmente grande e esticada (alta aceleração no mesmo sentido da direção sem recuo), não opere a favor da expansão contínua no mesmo instante; espere exaustão (ou responda WAIT).\n"
-        "- Em regime de reversão à média, evite operar contra a tendência se a velocidade for forte e não houver sinal de exaustão.\n"
-        "- Só valide inversões se houver desaceleração ou vela contrária recente.\n"
-        "- IMPORTANTE (CLUSTERS): Avalie US_CLUSTER e EU_CLUSTER de forma independente do EURUSD. O mercado acionário pode estar subindo (CALL) mesmo com o EURUSD caindo (PUT). Não replique cegamente a direção da moeda para os índices.\n"
-        "=== SÍNTESE FINAL ===\n"
+        "- ESTRUTURA: Priorize alinhamento D1 e H4; M5 e M1 apenas para timing de entrada.\n"
+        "- HURST: Acima de 0.55 siga momentum; abaixo de 0.45 priorize reversao via Z-Score extremo.\n"
+        "- ENTROPIA: Se M1 ou M5 estiverem em extreme_sigma, reduza Probabilidade para no maximo 0.70 ou WAIT no cluster afetado.\n"
+        "- TIMING: Evite entrar na expansao continua sem exaustao; exija desaceleracao ou vela contraria em reversao.\n"
+        "- CLUSTERS: US_CLUSTER e EU_CLUSTER sao independentes do EURUSD quando os dados de cluster indicarem divergencia.\n"
+        "=== SINTESE FINAL ===\n"
         "Responda OBRIGATORIAMENTE no formato: EURUSD: [DIR] | US_CLUSTER: [DIR] | EU_CLUSTER: [DIR] | Probabilidade: [0.XX]."
     )
 
@@ -181,24 +228,31 @@ def build_sniper_trading_prompt(
 def build_institutional_pa_bundle(
     *,
     regime_label: str,
-    atr_m5_pct: float | None,
+    entropy_swing: float | None,
+    vol_range_pct: float | None,
     indicators_numeric_line: str,
     cf_dual: str,
     line_macro_structure: str,
     line_swing_trigger: str,
+    ema_guard: str = "",
     compact: bool = False,
 ) -> str:
     """Monta pacote PA para o prompt Profundo (ignora compact)."""
     _ = compact
-    atr_seg = f"atr_swing_pct={float(atr_m5_pct):.4f}" if atr_m5_pct is not None else "atr_swing_pct=-"
+    ent_seg = f"entropy_swing={float(entropy_swing):.4f}" if entropy_swing is not None else "entropy_swing=-"
+    vol_seg = f"vol_range_pct={float(vol_range_pct):.3f}" if vol_range_pct is not None else "vol_range_pct=-"
     parts: list[str] = [
         f"LLM_DADOS_NUM={indicators_numeric_line}",
         f"reg={regime_label}",
-        atr_seg,
+        ent_seg,
+        vol_seg,
         cf_dual,
         f"CONFL_MACRO_ESTRUTURA={line_macro_structure}",
         f"CONFL_SWING_GATILHO={line_swing_trigger}",
     ]
+    guard = (ema_guard or "").strip()
+    if guard and guard != "-":
+        parts.append(f"ema_guard={guard}")
     return " || ".join(parts)
 
 
@@ -219,7 +273,7 @@ def build_trading_prompt(
     duration_unit: str,
 ) -> str:
     """Monta texto do prompt V15 legacy (Atualizado Medallion)."""
-    h_val, z_val, e_txt = extract_prompt_indicator_tokens(m3_desc, entropy_val)
+    metrics_txt = format_metrics_line(None, None, entropy_val)
     candles_txt = compact_m1_candles_csv(m3_tail_closes)
     return (
         f"ATIVO: {symbol}\n"
@@ -230,7 +284,7 @@ def build_trading_prompt(
         f"GATILHO_QUANT: {m3_desc}\n"
         f"ALINHAMENTO: {mtf_align}\n"
         f"CANDLES_compact: {candles_txt}\n"
-        f"INDICADORES: Hurst={h_val}, Z-Score={z_val}, Entropy={e_txt}\n"
+        f"INDICADORES: {metrics_txt}\n"
         f"PAYOUT: {payout_estimate} | MIN_PAYOUT: {min_payout_accept}\n"
         f"CONTRATO: {duration}{duration_unit}\n"
         "MEDALLION V15: Decida com base em arbitragem estatística. "

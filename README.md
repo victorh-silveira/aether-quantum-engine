@@ -7,7 +7,7 @@
 [![Pre-commit](https://img.shields.io/badge/Pre--commit-active-FAB040?logo=pre-commit&logoColor=white)](.pre-commit-config.yaml)
 [![CI](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml)
 
-Motor de trading quantitativo assíncrono focado no mercado de **Índices EUR e USD**, utilizando o par **EURUSD** como âncora macroeconômica. A decisão é tomada via **Google Gemini (LLM)** baseada em correlação de fluxo e travas quantitativas.
+Motor de trading quantitativo assíncrono focado no mercado de **Índices EUR e USD**, utilizando o par **EURUSD** como âncora macroeconômica. A decisão é tomada via **Google Gemini (LLM)** com direções independentes por cluster (`US_CLUSTER`, `EU_CLUSTER`) e travas quantitativas.
 
 ---
 

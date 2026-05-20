@@ -128,6 +128,27 @@ def _numeric_tf_tight(tag: str, closes: Sequence[float], cfg: IndicatorConfig) -
     return f"{tag}:{hs}/{zs}/{vs}"
 
 
+def _numeric_tf_tight_v2(tag: str, closes: Sequence[float], cfg: IndicatorConfig) -> str:
+    """Hurst, Z-Score, Entropia, Velocidade e Aceleracao por timeframe."""
+    c = np.asarray(list(closes), dtype=np.float64)
+    need = ti.min_bars_for_indicators(cfg)
+    if c.size < need:
+        return f"{tag}:na"
+
+    hst = ti._hurst_exponent(c, cfg.hurst_window)
+    zsc = ti._z_score_last(c, cfg.zscore_window)
+    ent = ti._shannon_entropy(c, cfg.entropy_bins, cfg.entropy_window)
+    vel, accel = ti._price_derivatives(c, cfg.velocity_window)
+
+    hs = f"{hst:.2f}" if hst is not None else "na"
+    zs = f"{zsc:+.1f}" if zsc is not None else "na"
+    es = f"{ent:.2f}" if ent is not None else "na"
+    vs = f"{vel:+.5f}" if vel is not None else "na"
+    ac = f"{accel:+.5f}" if accel is not None else "na"
+
+    return f"{tag}:h{hs}/z{zs}/e{es}/v{vs}/a{ac}"
+
+
 def format_numeric_indicators_tight_line(
     macro: Sequence[float],
     structure: Sequence[float],
@@ -155,4 +176,44 @@ def format_numeric_indicators_tight_line(
         cf = _shrink_cf_tag(cf_raw)
         if cf not in ("-", "noDat"):
             pieces.append(f"cf={cf}")
+    return " | ".join(pieces) if pieces else "ind insuficiente"
+
+
+def format_numeric_indicators_six_line(
+    macro: Sequence[float],
+    structure: Sequence[float],
+    swing: Sequence[float],
+    trigger: Sequence[float],
+    micro_swing: Sequence[float],
+    micro_trigger: Sequence[float],
+    cfg: IndicatorConfig,
+    entropy_swing: float | None,
+    vol_range_pct: float | None,
+    mtf_align_line: str,
+    confluence_line: str,
+    *,
+    tf_tags: tuple[str, ...] | None = None,
+    ema_guard: str = "",
+) -> str:
+    """Linha numerica com seis timeframes e metricas fisicas de volatilidade."""
+    tags = tf_tags if tf_tags is not None else cfg.tf_tags
+    series = (macro, structure, swing, trigger, micro_swing, micro_trigger)
+    pieces: list[str] = []
+    for tag, data in zip(tags, series, strict=False):
+        pieces.append(_numeric_tf_tight_v2(str(tag), data, cfg))
+    if entropy_swing is not None:
+        pieces.append(f"entropy_swing={float(entropy_swing):.3f}")
+    if vol_range_pct is not None:
+        pieces.append(f"vol_range_pct={float(vol_range_pct):.3f}")
+    mt = abbrev_mtf_alignment_tokens(mtf_align_line)
+    if mt != "-":
+        pieces.append(f"mtf={mt}")
+    cf_raw = extract_confluence_heuristic_tag(confluence_line)
+    if cf_raw != "-":
+        cf = _shrink_cf_tag(cf_raw)
+        if cf not in ("-", "noDat"):
+            pieces.append(f"cf={cf}")
+    guard = (ema_guard or "").strip()
+    if guard and guard != "-":
+        pieces.append(f"ema_guard={guard}")
     return " | ".join(pieces) if pieces else "ind insuficiente"

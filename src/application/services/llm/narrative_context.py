@@ -116,6 +116,37 @@ def describe_mtf_alignment(
     return f"{lm}: {tm} | {ls}: {ts} | {lw}: {tw} | {lt}: {tt}"
 
 
+def describe_mtf_alignment_six(
+    macro_closes: list[float],
+    structure_closes: list[float],
+    swing_closes: list[float],
+    trigger_closes: list[float],
+    micro_swing_closes: list[float],
+    micro_trigger_closes: list[float],
+    cfg: IndicatorConfig,
+    lm: str,
+    ls: str,
+    lw: str,
+    lt: str,
+    l5: str,
+    l1: str,
+) -> str:
+    """Resume alinhamento quant em seis timeframes."""
+    series = (
+        (lm, macro_closes),
+        (ls, structure_closes),
+        (lw, swing_closes),
+        (lt, trigger_closes),
+        (l5, micro_swing_closes),
+        (l1, micro_trigger_closes),
+    )
+    parts: list[str] = []
+    for label, closes in series:
+        arr = _arr(closes)
+        parts.append(f"{label}: {_alignment_label_quant(arr, cfg)}")
+    return " | ".join(parts)
+
+
 def describe_volatility_regime(structure_closes: list[float], swing_closes: list[float], cfg: IndicatorConfig) -> str:
     """Texto de regime quant com classe e Sigma proxy de volatilidade."""
     cls = classify_regime(structure_closes, swing_closes, cfg)

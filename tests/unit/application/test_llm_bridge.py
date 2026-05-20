@@ -49,7 +49,6 @@ def test_iter_llm_prompt_audit_sections_covers_blocks_sent_to_llm():
         "REGIME=trend",
         "SESSAO=ny",
         "MICRO=x",
-        0.055,
         [100.0, 100.1],
         0.95,
         0.82,
