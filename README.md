@@ -52,7 +52,7 @@ O sistema utiliza logs de alta densidade para auditoria em tempo real:
 
 - **Core**: Python 3.14 + `asyncio`.
 - **Infra**: Deriv WebSocket API v3.
-- **IA**: Google Gemini (`gemini-2.5-flash`).
+- **IA**: Google Gemini (`gemini-3.1-pro-preview`).
 - **Qualidade**: Cobertura de testes de **100%** em `src`.
 
 ---
