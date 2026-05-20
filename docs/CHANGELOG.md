@@ -1,3 +1,9 @@
+## [1.10.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.9.1...v1.10.0) (2026-05-20)
+
+### Funcionalidades
+
+* **scripts:** add pylint for native duplicate code detection ([fbce041](https://github.com/victorh-silveira/aether-quantum-engine/commit/fbce041062e4e6a9ee0bb8206fd8cb31c358c99a))
+
 ## [1.9.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.9.0...v1.9.1) (2026-05-20)
 
 ### Correcoes de Bug
