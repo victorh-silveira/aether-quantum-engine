@@ -95,8 +95,8 @@ async def test_collect_llm_decisions_api_error_results_in_failure():
     ):
         out = await collect_llm_decisions(orch)
 
-    assert out["1HZ10V"]["direction"] is not None
-    assert out["1HZ10V"]["metrics"]["execute"] is True
+    assert out["1HZ10V"]["direction"] is None
+    assert out["1HZ10V"]["metrics"]["execute"] is False
 
 
 class _LlmTransportTestError(Exception):
