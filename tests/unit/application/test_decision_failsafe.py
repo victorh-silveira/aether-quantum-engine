@@ -12,7 +12,7 @@ async def test_collect_symbol_llm_decision_failsafe_force_direction():
     """Valida o fail-safe que força uma direção quando a LLM retorna None."""
     orch = MagicMock()
     orch._active_cycle_id = 1
-    orch.symbols = ["1HZ10V"]
+    orch.symbols = ["frxEURUSD"]
     orch.logger = MagicMock()
 
     ctx = {"zscore_value": 2.5, "regime_label": "range"}
@@ -43,7 +43,7 @@ async def test_collect_symbol_llm_decision_failsafe_force_direction():
         }
 
         direction, metrics = await collect_symbol_llm_decision(
-            orch, sym="1HZ10V", runtime=runtime, llm_metrics=llm_metrics
+            orch, sym="frxEURUSD", runtime=runtime, llm_metrics=llm_metrics
         )
 
         assert direction is None

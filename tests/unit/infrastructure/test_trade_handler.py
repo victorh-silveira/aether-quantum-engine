@@ -25,10 +25,10 @@ async def test_trade_handler_buy_with_parameters_success(trade_handler, mock_ws)
         "buy": {"contract_id": 999, "buy_price": 10.0, "payout": 18.5, "longcode": "Win contract"}
     }
 
-    contract = await trade_handler.buy_with_parameters("1HZ75V", TradeDirection.CALL, 10.0)
+    contract = await trade_handler.buy_with_parameters("frxEURUSD", TradeDirection.CALL, 10.0)
     assert contract.contract_id == 999
     assert contract.status == TradeStatus.OPEN
-    assert contract.symbol == "1HZ75V"
+    assert contract.symbol == "frxEURUSD"
     assert contract.direction == TradeDirection.CALL
     assert contract.stake == 10.0
 
@@ -37,7 +37,7 @@ async def test_trade_handler_buy_with_parameters_success(trade_handler, mock_ws)
 async def test_trade_handler_buy_with_parameters_error(trade_handler, mock_ws):
     mock_ws.send.return_value = {"error": {"message": "Insufficient balance"}}
     with pytest.raises(RuntimeError, match="Erro na compra direta: Insufficient balance"):
-        await trade_handler.buy_with_parameters("1HZ75V", TradeDirection.CALL, 10.0)
+        await trade_handler.buy_with_parameters("frxEURUSD", TradeDirection.CALL, 10.0)
 
 
 @pytest.mark.asyncio

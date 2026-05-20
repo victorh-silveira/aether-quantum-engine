@@ -5,8 +5,8 @@ import pytest
 def orch_config():
     return {
         "api_config": {"base_url": "ws://test", "request_timeout_seconds": 1},
-        "symbols": ["1HZ75V", "1HZ75V"],
-        "anchor": "1HZ75V",
+        "symbols": ["frxEURUSD", "OTC_SPC", "OTC_FCHI"],
+        "anchor": "frxEURUSD",
         "simple_trade": {"direction_mode": "alternate"},
         "data_handler": {"fetch_count": 100, "min_required_points": 2, "buffer_limit": 1000},
         "risk_management": {

@@ -10,7 +10,7 @@ from src.domain.models.trade import TradeDirection
 async def test_on_candle_throttling_and_cooldown(orch_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
         orch = Orchestrator(orch_config, "token")
-        candle = MagicMock(symbol="1HZ75V")
+        candle = MagicMock(symbol="frxEURUSD")
 
         orch.risk_manager.is_on_cooldown = MagicMock(return_value=False)
         await orch._on_candle(candle)
@@ -27,7 +27,7 @@ async def test_collect_decisions_same_direction_all_symbols(orch_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
         orch = Orchestrator(orch_config, "token")
         decisions = orch._collect_decisions()
-        assert set(decisions.keys()) == {"1HZ75V"}
+        assert set(decisions.keys()) == {"frxEURUSD", "OTC_SPC", "OTC_FCHI"}
         assert all(d["direction"] == TradeDirection.CALL for d in decisions.values())
 
 
@@ -37,7 +37,7 @@ async def test_collect_decisions_put_mode(orch_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
         orch = Orchestrator(orch_config, "token")
         decisions = orch._collect_decisions()
-        assert decisions["1HZ75V"]["direction"] == TradeDirection.PUT
+        assert decisions["frxEURUSD"]["direction"] == TradeDirection.PUT
 
 
 @pytest.mark.asyncio
@@ -48,8 +48,8 @@ async def test_collect_decisions_alternate_toggles(orch_config):
         orch._alternate_next_call = True
         a = orch._collect_decisions()
         b = orch._collect_decisions()
-        assert a["1HZ75V"]["direction"] == TradeDirection.CALL
-        assert b["1HZ75V"]["direction"] == TradeDirection.PUT
+        assert a["frxEURUSD"]["direction"] == TradeDirection.CALL
+        assert b["frxEURUSD"]["direction"] == TradeDirection.PUT
 
 
 @pytest.mark.asyncio
@@ -86,30 +86,30 @@ async def test_on_candle_returns_when_is_trading(orch_config):
 
 @pytest.mark.asyncio
 async def test_orchestrator_symbols_list_preserves_order_when_anchor_included(orch_config):
-    orch_config["symbols"] = ["1HZ75V", "1HZ75V", "R_50"]
-    orch_config["anchor"] = "1HZ75V"
+    orch_config["symbols"] = ["frxEURUSD", "frxEURUSD", "OTC_SPC"]
+    orch_config["anchor"] = "frxEURUSD"
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
         orch = Orchestrator(orch_config, "token")
-        assert orch.symbols == ["1HZ75V", "R_50"]
+        assert orch.symbols == ["frxEURUSD", "OTC_SPC"]
 
 
 @pytest.mark.asyncio
 async def test_orchestrator_symbols_list_prepends_anchor_when_missing(orch_config):
-    orch_config["symbols"] = ["1HZ75V", "R_50"]
-    orch_config["anchor"] = "R_100"
+    orch_config["symbols"] = ["frxEURUSD", "OTC_SPC"]
+    orch_config["anchor"] = "OTC_FCHI"
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
         orch = Orchestrator(orch_config, "token")
-        assert orch.symbols[0] == "R_100"
-        assert set(orch.symbols) == {"R_100", "1HZ75V", "R_50"}
+        assert orch.symbols[0] == "OTC_FCHI"
+        assert set(orch.symbols) == {"OTC_FCHI", "frxEURUSD", "OTC_SPC"}
 
 
 @pytest.mark.asyncio
 async def test_orchestrator_symbols_default_from_single_fallback(orch_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
         orch_config.pop("symbols", None)
-        orch_config["correlation_engine"] = {"anchor": "1HZ75V"}
+        orch_config["correlation_engine"] = {"anchor": "frxEURUSD"}
         orch = Orchestrator(orch_config, "token")
-        assert orch.symbols == ["1HZ75V"]
+        assert orch.symbols == ["frxEURUSD", "1HZ75V"]
 
 
 @pytest.mark.asyncio

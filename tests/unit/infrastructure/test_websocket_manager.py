@@ -129,7 +129,7 @@ async def test_ws_ping_loop_critical_fail(ws_manager):
 @pytest.mark.asyncio
 async def test_ws_heuristic_routing(ws_manager):
     ws_manager.ws = AsyncMock()
-    data_ohlc = json.dumps({"ohlc": {"symbol": "1HZ75V"}})
+    data_ohlc = json.dumps({"ohlc": {"symbol": "frxEURUSD"}})
     data_poc = json.dumps({"proposal_open_contract": {"id": 1}})
 
     ws_manager.ws.__aiter__.return_value = [data_ohlc, data_poc]

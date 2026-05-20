@@ -15,7 +15,7 @@ from src.domain.models.trade import TradeDirection
 
 def test_build_trading_prompt_template_v15_shape():
     p = build_trading_prompt(
-        "1HZ10V",
+        "frxEURUSD",
         "m15 mapa",
         "m5 filtro",
         "m3 gatilho",
@@ -30,7 +30,7 @@ def test_build_trading_prompt_template_v15_shape():
         1,
         "m",
     )
-    assert "ATIVO: 1HZ10V" in p
+    assert "ATIVO: frxEURUSD" in p
     assert "REGIME" in p
     assert "ESTRUTURA: m15 mapa | FILTRO: m5 filtro" in p
     assert "ALINHAMENTO: M15: trend | M5: trend | M3: trend" in p
@@ -39,7 +39,7 @@ def test_build_trading_prompt_template_v15_shape():
 
 def test_iter_llm_prompt_audit_sections_covers_blocks_sent_to_llm():
     rows = iter_llm_prompt_audit_sections(
-        "1HZ10V",
+        "frxEURUSD",
         "mapa",
         "estrutura",
         "filtro",

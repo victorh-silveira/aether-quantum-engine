@@ -33,8 +33,14 @@ async def _fetch_cluster_status(orch: Any, runtime: dict[str, Any]) -> str:
         return ""
 
     try:
-        us_symbols = ["OTC_SPC", "OTC_NDX", "OTC_DJI"]
-        eu_symbols = ["OTC_FCHI", "OTC_GDAXI", "OTC_FTSE"]
+        clusters = {}
+        if hasattr(orch, "config") and isinstance(orch.config, dict):
+            clusters = orch.config.get("strategy", {}).get("clusters", {})
+        if not isinstance(clusters, dict):
+            clusters = {}
+
+        us_symbols = list(clusters.get("us", ["OTC_SPC", "OTC_NDX", "OTC_DJI"]))
+        eu_symbols = list(clusters.get("eu", ["OTC_FCHI", "OTC_GDAXI", "OTC_SSMI", "OTC_FTSE"]))
         all_syms = us_symbols + eu_symbols
         swing_gran = int(runtime.get("tf_swing_gran", 300))
 

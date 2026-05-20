@@ -59,8 +59,8 @@ async def test_collect_symbol_llm_decision_missing_rm_and_ohlc(mocker):
     orch = MagicMock()
     orch.risk_manager = None
     orch._active_cycle_id = 1
-    orch.symbols = ["1HZ10V"]
-    orch.anchor = "1HZ10V"
+    orch.symbols = ["frxEURUSD"]
+    orch.anchor = "frxEURUSD"
     orch.logger = MagicMock()
 
     mocker.patch(
@@ -91,6 +91,8 @@ async def test_collect_symbol_llm_decision_missing_rm_and_ohlc(mocker):
         "num_predict": 10,
     }
 
-    dir_final, metrics = await collect_symbol_llm_decision(orch, sym="1HZ10V", runtime=runtime, llm_metrics=llm_metrics)
+    dir_final, metrics = await collect_symbol_llm_decision(
+        orch, sym="frxEURUSD", runtime=runtime, llm_metrics=llm_metrics
+    )
     assert dir_final is None
     assert "LLM Refused - Waiting" in metrics["llm_note"]

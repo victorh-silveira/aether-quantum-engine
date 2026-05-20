@@ -20,12 +20,12 @@ async def test_contract_update_ignores_inconsistent_balance_after(orch_config):
             status=TradeStatus.OPEN,
             buy_price=10.0,
             payout=18.0,
-            symbol="1HZ75V",
+            symbol="frxEURUSD",
             direction=TradeDirection.PUT,
             stake=10.0,
             expiry_time=0,
         )
-        orch.risk_manager.contract_to_symbol[1] = "1HZ75V"
+        orch.risk_manager.contract_to_symbol[1] = "frxEURUSD"
         data = {
             "proposal_open_contract": {
                 "contract_id": 1,

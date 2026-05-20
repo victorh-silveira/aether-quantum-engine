@@ -97,7 +97,7 @@ async def test_orchestrator_full_lifecycle_summary(orchestrator_config):
         orch.risk_manager.initial_bankroll = 100.0
         c = Contract(
             contract_id=1,
-            symbol="1HZ75V",
+            symbol="frxEURUSD",
             direction=TradeDirection.CALL,
             stake=10.0,
             payout=18.0,
@@ -108,7 +108,7 @@ async def test_orchestrator_full_lifecycle_summary(orchestrator_config):
         )
         await orch.state.add_contract(c)
         orch.risk_manager.active_contract_ids = [1]
-        orch.risk_manager.contract_to_symbol[1] = "1HZ75V"
+        orch.risk_manager.contract_to_symbol[1] = "frxEURUSD"
         await orch._on_contract_update(
             {
                 "proposal_open_contract": {
@@ -236,7 +236,7 @@ async def test_orchestrator_run_loop_persistence_and_reconcile(orchestrator_conf
             status=TradeStatus.OPEN,
             buy_price=1.0,
             payout=2.0,
-            symbol="1HZ75V",
+            symbol="frxEURUSD",
             direction=TradeDirection.CALL,
             stake=1.0,
             expiry_time=0,

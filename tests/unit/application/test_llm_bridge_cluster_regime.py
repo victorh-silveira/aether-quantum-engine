@@ -2,8 +2,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from src.application.services.llm.indicators import IndicatorConfig
 from src.application.services.llm.llm_bridge import collect_llm_decisions
 from src.application.services.llm.llm_bridge_utils import parse_llm_trade_response
+from src.application.services.llm.symbol_decision_utils import build_symbol_prompt
 from src.domain.models.trade import TradeDirection
 
 
@@ -94,3 +96,89 @@ async def test_cluster_skipped_when_no_explicit_tag():
     assert "frxEURUSD" in decisions
     assert "OTC_SPC" not in decisions
     assert "OTC_FCHI" not in decisions
+
+
+@pytest.mark.asyncio
+async def test_build_symbol_prompt_clusters_dict_and_non_dict_coverage():
+    # 1. Test dict clusters
+    orch = MagicMock()
+    orch.config = {"strategy": {"clusters": {"us": ["OTC_SPC"], "eu": ["OTC_FTSE"]}}}
+
+    class DummyStream:
+        async def fetch_candle_closes(self, _s, _gran, _count):
+            return [100.0, 105.0]
+
+        async def fetch_candle_ohlc(self, _s, _gran, _count):
+            return []
+
+    orch.stream = DummyStream()
+    orch._active_cycle_id = 1
+
+    runtime = {
+        "tf_macro_gran": 3600,
+        "tf_macro_bars": 10,
+        "tf_structure_gran": 900,
+        "tf_structure_bars": 10,
+        "tf_swing_gran": 300,
+        "tf_swing_bars": 10,
+        "tf_trigger_gran": 60,
+        "tf_trigger_bars": 10,
+        "indicator_config": IndicatorConfig(),
+        "payout_estimate": 0.85,
+        "min_payout_accept": 0.82,
+        "duration": 15,
+        "du": "m",
+        "strategy_payload": None,
+    }
+
+    with patch(
+        "src.application.services.llm.symbol_decision_utils.fetch_context_blocks", new_callable=AsyncMock
+    ) as mock_fetch:
+        mock_fetch.return_value = (
+            "macro",
+            "struct",
+            "swing",
+            "trigger",
+            "mtf",
+            {
+                "regime_label": "range",
+                "llm_macro_closes": [100.0, 101.0],
+                "llm_structure_closes": [100.0, 101.0],
+                "llm_swing_closes": [100.0, 101.0],
+                "llm_trigger_closes": [100.0, 101.0],
+                "atr_m5_pct": 0.01,
+                "sniper_tokens": {},
+            },
+        )
+
+        prompt, _, _, _, _, _, _, _, _, _, _, _ = await build_symbol_prompt(orch, "frxEURUSD", runtime)
+        assert "SPC:" in prompt
+
+    # 2. Test non-dict clusters fallback coverage
+    orch_non_dict = MagicMock()
+    orch_non_dict.config = {"strategy": {"clusters": None}}
+    orch_non_dict.stream = DummyStream()
+    orch_non_dict._active_cycle_id = 1
+
+    with patch(
+        "src.application.services.llm.symbol_decision_utils.fetch_context_blocks", new_callable=AsyncMock
+    ) as mock_fetch:
+        mock_fetch.return_value = (
+            "macro",
+            "struct",
+            "swing",
+            "trigger",
+            "mtf",
+            {
+                "regime_label": "range",
+                "llm_macro_closes": [100.0, 101.0],
+                "llm_structure_closes": [100.0, 101.0],
+                "llm_swing_closes": [100.0, 101.0],
+                "llm_trigger_closes": [100.0, 101.0],
+                "atr_m5_pct": 0.01,
+                "sniper_tokens": {},
+            },
+        )
+
+        prompt, _, _, _, _, _, _, _, _, _, _, _ = await build_symbol_prompt(orch_non_dict, "frxEURUSD", runtime)
+        assert "SPC:" in prompt

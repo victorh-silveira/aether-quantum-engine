@@ -13,7 +13,7 @@ async def test_execution_manager_log_line_contains_exec_and_direction(orch_confi
         orch = Orchestrator(orch_config, "token")
         with patch.object(orch.executor.logger, "debug") as mock_dbg:
             orch.executor._log_exec(
-                "R_100",
+                "OTC_FCHI",
                 TradeDirection.CALL,
                 1.0,
                 {"conviction": 1.0},
@@ -29,14 +29,14 @@ def test_execution_manager_collect_orders_keeps_execute_false_if_forced_in_dict(
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
-        orch.symbols = ["1HZ75V", "R_50", "R_25"]
+        orch.symbols = ["frxEURUSD", "OTC_SPC", "OTC_GDAXI"]
         decisions = {
-            "1HZ75V": {"direction": TradeDirection.CALL, "metrics": {"conviction": 0.8, "execute": False}},
-            "R_50": {"direction": TradeDirection.PUT, "metrics": {"conviction": 0.9, "execute": True}},
+            "frxEURUSD": {"direction": TradeDirection.CALL, "metrics": {"conviction": 0.8, "execute": False}},
+            "OTC_SPC": {"direction": TradeDirection.PUT, "metrics": {"conviction": 0.9, "execute": True}},
         }
         orders = orch.executor._collect_orders(decisions, include_anchor=True)
         assert len(orders) == 1
-        assert orders[0][0] == "R_50"
+        assert orders[0][0] == "OTC_SPC"
 
 
 @pytest.mark.asyncio

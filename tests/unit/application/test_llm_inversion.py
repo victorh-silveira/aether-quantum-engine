@@ -21,7 +21,7 @@ async def test_collect_symbol_llm_decision_inverts_low_conviction():
     """Valida que a inversao ocorre quando a conviccao esta abaixo do threshold de inversao."""
     orch = MagicMock()
     orch._active_cycle_id = 1
-    orch.symbols = ["1HZ10V"]
+    orch.symbols = ["frxEURUSD"]
     orch.logger = MagicMock()
 
     ctx = {"hurst_value": 0.6}
@@ -53,7 +53,7 @@ async def test_collect_symbol_llm_decision_inverts_low_conviction():
         }
 
         direction, metrics = await collect_symbol_llm_decision(
-            orch, sym="1HZ10V", runtime=runtime, llm_metrics=mock_llm_metrics
+            orch, sym="frxEURUSD", runtime=runtime, llm_metrics=mock_llm_metrics
         )
 
         assert direction == TradeDirection.PUT
@@ -65,7 +65,7 @@ async def test_collect_symbol_llm_decision_follows_noise_zone():
     """Valida que o bot SEGUE trades mesmo na zona de ruido (Sempre Operar)."""
     orch = MagicMock()
     orch._active_cycle_id = 1
-    orch.symbols = ["1HZ10V"]
+    orch.symbols = ["frxEURUSD"]
     orch.logger = MagicMock()
 
     ctx = {"hurst_value": 0.6}
@@ -97,7 +97,7 @@ async def test_collect_symbol_llm_decision_follows_noise_zone():
         }
 
         direction, metrics = await collect_symbol_llm_decision(
-            orch, sym="1HZ10V", runtime=runtime, llm_metrics=mock_llm_metrics
+            orch, sym="frxEURUSD", runtime=runtime, llm_metrics=mock_llm_metrics
         )
 
         assert direction == TradeDirection.CALL
@@ -109,7 +109,7 @@ async def test_collect_symbol_llm_decision_follows_high_conviction():
     """Valida que o sinal e seguido quando a conviccao esta acima do threshold de follow."""
     orch = MagicMock()
     orch._active_cycle_id = 1
-    orch.symbols = ["1HZ10V"]
+    orch.symbols = ["frxEURUSD"]
     orch.logger = MagicMock()
 
     ctx = {"hurst_value": 0.6}
@@ -141,7 +141,7 @@ async def test_collect_symbol_llm_decision_follows_high_conviction():
         }
 
         direction, metrics = await collect_symbol_llm_decision(
-            orch, sym="1HZ10V", runtime=runtime, llm_metrics=mock_llm_metrics
+            orch, sym="frxEURUSD", runtime=runtime, llm_metrics=mock_llm_metrics
         )
 
         assert direction == TradeDirection.CALL

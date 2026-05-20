@@ -25,7 +25,7 @@ async def test_request_payload_empty_model_response_returns_none():
         new_callable=AsyncMock,
         return_value=("", False, ""),
     ) as gen:
-        payload = await bridge._request_payload(orch, "1HZ10V", runtime, "p")
+        payload = await bridge._request_payload(orch, "frxEURUSD", runtime, "p")
     gen.assert_awaited_once()
     assert payload["_direction_normalized"] is None
 
@@ -46,7 +46,7 @@ async def test_request_payload_transporta_token_soberano():
         new_callable=AsyncMock,
         return_value=("CALL", True, "CALL"),
     ):
-        payload = await bridge._request_payload(orch, "1HZ10V", runtime, "p")
+        payload = await bridge._request_payload(orch, "frxEURUSD", runtime, "p")
     assert payload["_direction_normalized"] == "CALL"
 
 
@@ -63,8 +63,8 @@ async def test_collect_llm_decisions_keeps_execution_even_when_payout_is_low():
         },
         "risk_management": {"params": {"duration": 1, "duration_unit": "m", "payout_estimate": 0.5}},
     }
-    orch.symbols = ["1HZ10V"]
-    orch.anchor = "1HZ10V"
+    orch.symbols = ["frxEURUSD"]
+    orch.anchor = "frxEURUSD"
     series = np.array([100.0 * (1.001**i) for i in range(120)])
     orch.stream.get_numpy_series = MagicMock(return_value=series)
     orch._neutral_metrics = MagicMock(return_value={"direction": None})
@@ -77,7 +77,7 @@ async def test_collect_llm_decisions_keeps_execution_even_when_payout_is_low():
         return_value=("CALL", True, "CALL"),
     ):
         out = await collect_llm_decisions(orch)
-    assert out["1HZ10V"]["metrics"]["execute"] is True
+    assert out["frxEURUSD"]["metrics"]["execute"] is True
 
 
 @pytest.mark.asyncio
@@ -119,7 +119,7 @@ async def test_collect_symbol_decision_choppy_executes_as_ordered():
             new=AsyncMock(return_value=("CALL", True, "CALL")),
         ),
     ):
-        direction, metrics = await bridge._collect_symbol_decision(orch, sym="1HZ10V", runtime=runtime)
+        direction, metrics = await bridge._collect_symbol_decision(orch, sym="frxEURUSD", runtime=runtime)
 
     assert direction == TradeDirection.CALL
     assert metrics.get("execute") is True
