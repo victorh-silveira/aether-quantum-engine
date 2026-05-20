@@ -48,7 +48,7 @@ async def test_fetch_context_blocks_returns_narrative_strings_and_context_extra(
         "m3_max_ema_distance_pct": 0.8,
         "indicator_config": resolve_indicator_config({}),
     }
-    macro_d, struct_d, swing_d, trig_d, mtf, extra = await bridge.fetch_context_blocks(orch, "1HZ75V", runtime)
+    macro_d, struct_d, swing_d, trig_d, mtf, extra = await bridge.fetch_context_blocks(orch, "frxEURUSD", runtime)
     assert (
         isinstance(macro_d, str)
         and isinstance(struct_d, str)
@@ -83,7 +83,7 @@ async def test_fetch_context_blocks_usa_ohlc_m1_quando_disponivel():
         "m3_max_ema_distance_pct": 0.8,
         "indicator_config": resolve_indicator_config({}),
     }
-    _macro, _struct, _swing, _trig, _mtf, extra = await bridge.fetch_context_blocks(orch, "1HZ75V", runtime)
+    _macro, _struct, _swing, _trig, _mtf, extra = await bridge.fetch_context_blocks(orch, "frxEURUSD", runtime)
     assert extra.get("m3_closes") == m1_closes[-120:]
     assert extra.get("sniper_tokens", {}).get("wick") != "na"
 
@@ -91,12 +91,12 @@ async def test_fetch_context_blocks_usa_ohlc_m1_quando_disponivel():
 def test_last_reference_price_reads_close_and_empty():
     stream = MagicMock()
     stream.get_numpy_series.return_value = np.array([10.0, 10.5])
-    assert last_reference_price(stream, "1HZ75V") == 10.5
+    assert last_reference_price(stream, "frxEURUSD") == 10.5
     stream.get_numpy_series.return_value = np.array([])
-    assert last_reference_price(stream, "1HZ75V") is None
+    assert last_reference_price(stream, "frxEURUSD") is None
 
 
 def test_last_reference_price_on_error():
     stream = MagicMock()
     stream.get_numpy_series.side_effect = RuntimeError("x")
-    assert last_reference_price(stream, "1HZ75V") is None
+    assert last_reference_price(stream, "frxEURUSD") is None

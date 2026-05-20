@@ -20,12 +20,12 @@ async def test_contract_update_buffers_result_logs_during_dispatch(orch_config):
             status=TradeStatus.OPEN,
             buy_price=10.0,
             payout=18.0,
-            symbol="1HZ75V",
+            symbol="frxEURUSD",
             direction=TradeDirection.PUT,
             stake=10.0,
             expiry_time=0,
         )
-        orch.risk_manager.contract_to_symbol[1] = "1HZ75V"
+        orch.risk_manager.contract_to_symbol[1] = "frxEURUSD"
         data = {
             "proposal_open_contract": {
                 "contract_id": 1,
@@ -57,12 +57,12 @@ async def test_contract_update_increments_loss_counter(orch_config):
             status=TradeStatus.OPEN,
             buy_price=10.0,
             payout=18.0,
-            symbol="1HZ75V",
+            symbol="frxEURUSD",
             direction=TradeDirection.CALL,
             stake=10.0,
             expiry_time=0,
         )
-        orch.risk_manager.contract_to_symbol[2] = "1HZ75V"
+        orch.risk_manager.contract_to_symbol[2] = "frxEURUSD"
         data = {
             "proposal_open_contract": {
                 "contract_id": 2,

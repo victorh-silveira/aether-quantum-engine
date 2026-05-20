@@ -19,25 +19,25 @@ async def test_execute_cluster_dispatches_when_decisions_present(orch_config):
         orch = Orchestrator(orch_config, "token")
         orch.state.balance = 1000.0
         decisions = {
-            "1HZ75V": {
+            "frxEURUSD": {
                 "direction": TradeDirection.CALL,
                 "metrics": {"conviction": 1.0, "macro_bias": 0.8, "pattern_tags": ["BULL_FLAG"]},
             },
-            "R_50": {
+            "OTC_SPC": {
                 "direction": TradeDirection.CALL,
                 "metrics": {"conviction": 0.9, "macro_bias": 0.4, "pattern_tags": ["BULL_PENNANT"]},
             },
         }
 
         async def _place_order_with_buffer(symbol, direction, stake, **_kw):
-            orch._pending_result_logs = ["   | RESULT: 1HZ75V  | CALL | WIN  | P&L: $+1.00 | api=won"]
+            orch._pending_result_logs = ["   | RESULT: frxEURUSD  | CALL | WIN  | P&L: $+1.00 | api=won"]
             return Contract(
                 contract_id=1,
                 proposal_id="p1",
                 status=TradeStatus.OPEN,
                 buy_price=1.0,
                 payout=2.0,
-                symbol="1HZ75V",
+                symbol="frxEURUSD",
                 direction=TradeDirection.CALL,
                 stake=1.0,
                 expiry_time=0,
@@ -62,12 +62,12 @@ async def test_contract_update_won(orch_config):
             status=TradeStatus.OPEN,
             buy_price=10.0,
             payout=18.0,
-            symbol="1HZ75V",
+            symbol="frxEURUSD",
             direction=TradeDirection.PUT,
             stake=10.0,
             expiry_time=0,
         )
-        orch.risk_manager.contract_to_symbol[1] = "1HZ75V"
+        orch.risk_manager.contract_to_symbol[1] = "frxEURUSD"
         data = {
             "proposal_open_contract": {
                 "contract_id": 1,
@@ -88,10 +88,10 @@ async def test_execution_manager_skip_and_failure_paths(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch.state.balance = 1000.0
-        orch.symbols = ["1HZ75V", "R_50"]
+        orch.symbols = ["frxEURUSD", "OTC_SPC"]
         decisions = {
-            "1HZ75V": {"direction": None, "metrics": {"conviction": 0.0}},
-            "R_50": {
+            "frxEURUSD": {"direction": None, "metrics": {"conviction": 0.0}},
+            "OTC_SPC": {
                 "direction": TradeDirection.CALL,
                 "metrics": {"conviction": 1.0},
             },
@@ -110,7 +110,7 @@ async def test_wait_for_settlement_polls_reconcile(orch_config):
         orch = Orchestrator(orch_config, "token")
         c = Contract(
             contract_id=1,
-            symbol="1HZ75V",
+            symbol="frxEURUSD",
             direction=TradeDirection.CALL,
             stake=10.0,
             payout=18.0,
@@ -139,15 +139,15 @@ async def test_wait_for_settlement_polls_reconcile(orch_config):
 @pytest.mark.asyncio
 async def test_execution_manager_inter_symbol_delay(orch_config):
     TradingState.reset()
-    orch_config["symbols"] = ["1HZ75V", "R_50"]
+    orch_config["symbols"] = ["frxEURUSD", "OTC_SPC"]
     orch_config["orchestrator"]["execution"]["inter_symbol_delay"] = 0.25
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch.state.balance = 1000.0
         decisions = {
-            "1HZ75V": {"direction": TradeDirection.CALL, "metrics": {"conviction": 1.0}},
-            "R_50": {"direction": TradeDirection.PUT, "metrics": {"conviction": 1.0}},
+            "frxEURUSD": {"direction": TradeDirection.CALL, "metrics": {"conviction": 1.0}},
+            "OTC_SPC": {"direction": TradeDirection.PUT, "metrics": {"conviction": 1.0}},
         }
         orch.executor._place_order = AsyncMock(return_value=MagicMock(contract_id=1))
         orch.executor.wait_for_settlement = AsyncMock()

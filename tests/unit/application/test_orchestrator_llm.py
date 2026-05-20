@@ -28,8 +28,8 @@ def test_emit_decision_engine_banner_simple_mode(orch_config):
 async def test_trading_cycle_calls_llm_when_enabled(orch_config):
     orch_config["llm"] = {"enabled": True}
     fake_decisions = {
-        "1HZ75V": {"direction": TradeDirection.CALL, "metrics": {"conviction": 0.8}},
-        "R_50": {"direction": TradeDirection.CALL, "metrics": {"conviction": 0.8}},
+        "frxEURUSD": {"direction": TradeDirection.CALL, "metrics": {"conviction": 0.8}},
+        "OTC_SPC": {"direction": TradeDirection.CALL, "metrics": {"conviction": 0.8}},
     }
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
         orch = Orchestrator(orch_config, "token")
@@ -62,7 +62,7 @@ async def test_trading_cycle_waits_when_has_pending_contracts(orch_config):
             status=TradeStatus.OPEN,
             buy_price=10.0,
             payout=18.0,
-            symbol="1HZ75V",
+            symbol="frxEURUSD",
             direction=TradeDirection.CALL,
             stake=10.0,
             expiry_time=0,

@@ -18,7 +18,7 @@ def test_llm_bridge_telemetry_cluster_coverage():
     logger = MagicMock()
     emit_llm_decision_log(
         logger,
-        "1HZ10V",
+        "frxEURUSD",
         cycle_id=1,
         logic_line_max_chars=10,
         direction=TradeDirection.CALL,

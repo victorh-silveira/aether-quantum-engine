@@ -4,7 +4,7 @@ import src.application.services.llm.prompt_utils as tpu
 def test_iter_llm_prompt_audit_sections_handles_empty_regime():
     """Verifica se o auditor lida com regime/sessao vazios sem quebrar o prompt quant."""
     rows = tpu.iter_llm_prompt_audit_sections(
-        symbol="1HZ75V",
+        symbol="frxEURUSD",
         macro_desc="h=0.5",
         structure_desc="h=0.6",
         swing_desc="h=0.7",
@@ -30,7 +30,7 @@ def test_iter_llm_prompt_audit_sections_handles_empty_regime():
 
 def test_iter_llm_prompt_audit_sections_short_body_no_ellipsis():
     rows = tpu.iter_llm_prompt_audit_sections(
-        symbol="1HZ75V",
+        symbol="frxEURUSD",
         macro_desc="ab",
         structure_desc="cd",
         swing_desc="ef",
@@ -55,7 +55,7 @@ def test_iter_llm_prompt_audit_sections_short_body_no_ellipsis():
 def test_iter_llm_prompt_audit_sections_long_body_truncates():
     long_txt = "Z" * 120
     rows = tpu.iter_llm_prompt_audit_sections(
-        symbol="1HZ75V",
+        symbol="frxEURUSD",
         macro_desc=long_txt,
         structure_desc="m15",
         swing_desc="m5",
@@ -88,7 +88,7 @@ def test_compact_m1_candles_csv_with_ohlc():
 
 def test_build_sniper_trading_prompt_with_ohlc():
     res = tpu.build_sniper_trading_prompt(
-        symbol="1HZ10V",
+        symbol="frxEURUSD",
         macro_desc="M30",
         structure_desc="M15",
         swing_desc="M5",

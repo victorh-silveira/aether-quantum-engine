@@ -25,9 +25,9 @@ async def test_request_llm_payload_async_timeout_fallback_put():
     with patch("src.application.services.llm.llm_symbol_io.asyncio.wait_for", wf_timeout):
         payload = await request_llm_payload(
             orch,
-            "1HZ75V",
+            "frxEURUSD",
             runtime,
-            "MTF=B/B/B SYM=1HZ75V",
+            "MTF=B/B/B SYM=frxEURUSD",
             system="sys",
         )
     assert payload.get("_llm_call_failed") is True
@@ -52,7 +52,7 @@ async def test_request_llm_payload_async_timeout_prompt_vazio_fallback_put():
         raise TimeoutError()
 
     with patch("src.application.services.llm.llm_symbol_io.asyncio.wait_for", wf_timeout):
-        payload = await request_llm_payload(orch, "1HZ75V", runtime, "", system="sys")
+        payload = await request_llm_payload(orch, "frxEURUSD", runtime, "", system="sys")
     assert payload.get("_llm_call_failed") is True
     assert payload.get("note") == "llm_timeout"
     assert payload.get("_direction_normalized") is None
@@ -79,9 +79,9 @@ async def test_request_llm_payload_wait_api_fallback_put_majoria_b():
     ):
         payload = await request_llm_payload(
             orch,
-            "1HZ75V",
+            "frxEURUSD",
             runtime,
-            "mtf=na, RSI=50, MTF=B/B/B, SYM=1HZ75V",
+            "mtf=na, RSI=50, MTF=B/B/B, SYM=frxEURUSD",
             system="sys",
         )
     assert not payload.get("_llm_call_failed")
