@@ -75,17 +75,24 @@ def parse_llm_trade_response(text: str) -> dict[str, Any]:
 
     m_us = re.search(r"US_CLUSTER:\s*(CALL|PUT)", upper)
     m_eu = re.search(r"EU_CLUSTER:\s*(CALL|PUT)", upper)
-    m_anchor = re.search(r"EURUSD:\s*(CALL|PUT)", upper)
+    m_anchor = re.search(r"EURUSD:\s*([A-Z]+)", upper)
 
-    has_call = "CALL" in upper
-    has_put = "PUT" in upper
+    # Remove clusters from the string before doing a global search for CALL/PUT to avoid leaking cluster direction
+    upper_no_clusters = re.sub(r"(US_CLUSTER|EU_CLUSTER):\s*[A-Z]+", "", upper)
+    has_call = "CALL" in upper_no_clusters
+    has_put = "PUT" in upper_no_clusters
 
     if m_anchor:
-        direction = m_anchor.group(1)
-        note = f"EURUSD_{direction}"
+        raw_dir = m_anchor.group(1)
+        if raw_dir in ("CALL", "PUT"):
+            direction = raw_dir
+            note = f"EURUSD_{direction}"
+        else:
+            direction = None
+            note = f"EURUSD_{raw_dir}"
     elif has_call and has_put:
-        first_call = upper.find("CALL")
-        first_put = upper.find("PUT")
+        first_call = upper_no_clusters.find("CALL")
+        first_put = upper_no_clusters.find("PUT")
         direction = "CALL" if first_call < first_put else "PUT"
         note = f"{direction}_AMBIGUOUS"
     elif has_call:

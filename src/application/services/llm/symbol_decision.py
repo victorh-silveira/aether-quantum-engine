@@ -47,8 +47,8 @@ def _decision_from_payload(
     us_dir_str = str(payload.get("us_cluster", "")).upper()
     eu_dir_str = str(payload.get("eu_cluster", "")).upper()
 
-    us_dir = TradeDirection.CALL if us_dir_str == "CALL" else (TradeDirection.PUT if us_dir_str == "PUT" else direction)
-    eu_dir = TradeDirection.CALL if eu_dir_str == "CALL" else (TradeDirection.PUT if eu_dir_str == "PUT" else direction)
+    us_dir = TradeDirection.CALL if us_dir_str == "CALL" else (TradeDirection.PUT if us_dir_str == "PUT" else None)
+    eu_dir = TradeDirection.CALL if eu_dir_str == "CALL" else (TradeDirection.PUT if eu_dir_str == "PUT" else None)
 
     return direction, conviction, note, us_dir, eu_dir
 
@@ -114,16 +114,12 @@ async def collect_symbol_llm_decision(
             ewin = int(getattr(ic, "entropy_window", 20)) if hasattr(ic, "entropy_window") else 20
             entropy_val = _shannon_entropy(arr, ebins, ewin)
             if entropy_val > 3.0 and conviction > 0.75:
-                conviction = 0.75  # pragma: no cover
-                note += f" [ENTROPY_CAP: {entropy_val:.2f}]"  # pragma: no cover
+                note += f" [ENTROPY_HIGH: {entropy_val:.2f}]"  # pragma: no cover
     except Exception as e:  # pragma: no cover
         orch.logger.debug(f"Erro na trava de entropia: {e}")  # pragma: no cover
 
     if direction is None:
-        z_val = float(ctx.get("zscore_value", 0.0))
-        direction = TradeDirection.PUT if z_val > 0 else TradeDirection.CALL
-        conviction = 0.56
-        note = f"FORCED EXEC (LLM Refused): Z={z_val:.2f}"
+        note += " (LLM Refused - Waiting)"
 
     inv_threshold = float(runtime.get("inversion_threshold", 0.0))
     fol_threshold = float(runtime.get("follow_threshold", 0.0)) or inv_threshold

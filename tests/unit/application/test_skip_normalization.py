@@ -92,5 +92,5 @@ async def test_collect_symbol_llm_decision_missing_rm_and_ohlc(mocker):
     }
 
     dir_final, metrics = await collect_symbol_llm_decision(orch, sym="1HZ10V", runtime=runtime, llm_metrics=llm_metrics)
-    assert dir_final is not None
-    assert "FORCED EXEC" in metrics["llm_note"]
+    assert dir_final is None
+    assert "LLM Refused - Waiting" in metrics["llm_note"]

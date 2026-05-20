@@ -5,7 +5,6 @@ import pytest
 from src.application.services.llm import IndicatorConfig
 from src.application.services.llm.llm_bridge import llm_metrics
 from src.application.services.llm.symbol_decision import collect_symbol_llm_decision
-from src.domain.models.trade import TradeDirection
 
 
 @pytest.mark.asyncio
@@ -47,7 +46,6 @@ async def test_collect_symbol_llm_decision_failsafe_force_direction():
             orch, sym="1HZ10V", runtime=runtime, llm_metrics=llm_metrics
         )
 
-        assert direction == TradeDirection.PUT
-        assert "FORCED EXEC" in metrics["llm_note"]
-        assert metrics["conviction"] == 0.56
-        assert metrics["execute"] is True
+        assert direction is None
+        assert "LLM Refused - Waiting" in metrics["llm_note"]
+        assert metrics["execute"] is False

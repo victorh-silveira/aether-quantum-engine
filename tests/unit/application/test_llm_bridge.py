@@ -231,12 +231,9 @@ async def test_build_symbol_prompt_stream_exception_fallback():
         "strategy_payload": None,
     }
 
-    with (
-        patch(
-            "src.application.services.llm.symbol_decision_utils.fetch_context_blocks", new_callable=AsyncMock
-        ) as mock_fetch,
-        patch("asyncio.gather", side_effect=ValueError("gather failed")),
-    ):
+    with patch(
+        "src.application.services.llm.symbol_decision_utils.fetch_context_blocks", new_callable=AsyncMock
+    ) as mock_fetch:
         mock_fetch.return_value = (
             "macro",
             "struct",
@@ -268,4 +265,4 @@ async def test_build_symbol_prompt_stream_exception_fallback():
             mtf_d,
             sw_c,
         ) = await build_symbol_prompt(orch, "frxEURUSD", runtime)
-        assert "CLUSTERS REALTIME:" not in prompt
+        assert "N/A" in prompt

@@ -155,6 +155,6 @@ async def test_collect_llm_decisions_wait_api_resolve_fallback():
         return_value=("WAIT", False, "WAIT"),
     ):
         out = await collect_llm_decisions(orch)
-    assert out["1HZ75V"]["direction"] is not None
-    assert "FORCED EXEC" in out["1HZ75V"]["metrics"]["llm_note"]
-    assert out["1HZ75V"]["metrics"]["execute"] is True
+    assert out["1HZ75V"]["direction"] is None
+    assert "LLM Refused - Waiting" in out["1HZ75V"]["metrics"]["llm_note"]
+    assert out["1HZ75V"]["metrics"]["execute"] is False

@@ -169,9 +169,10 @@ def build_sniper_trading_prompt(
         f"{ib_block}{pa_block}"
         f"PERF: WR: {f'{float(wr_rolling):.1%}' if wr_rolling is not None else 'n/a'} ({int(wr_samples)})\n"
         "=== REGRAS DE TRADING ===\n"
+        "- TIMING (EVITE ATRASOS): Priorize entradas em retrações ou exaustões. Se a vela atual for excepcionalmente grande e esticada (alta aceleração no mesmo sentido da direção sem recuo), não opere a favor da expansão contínua no mesmo instante; espere exaustão (ou responda WAIT).\n"
         "- Em regime de reversão à média, evite operar contra a tendência se a velocidade for forte e não houver sinal de exaustão.\n"
         "- Só valide inversões se houver desaceleração ou vela contrária recente.\n"
-        "- IMPORTANTE: Pondere as correlações! Se o Dólar está forte (EURUSD PUT), isso pode punir o US_CLUSTER (PUT) mas favorecer as exportações europeias no EU_CLUSTER (CALL). Avalie cada cenário separadamente.\n"
+        "- IMPORTANTE (CLUSTERS): Avalie US_CLUSTER e EU_CLUSTER de forma independente do EURUSD. O mercado acionário pode estar subindo (CALL) mesmo com o EURUSD caindo (PUT). Não replique cegamente a direção da moeda para os índices.\n"
         "=== SÍNTESE FINAL ===\n"
         "Responda OBRIGATORIAMENTE no formato: EURUSD: [DIR] | US_CLUSTER: [DIR] | EU_CLUSTER: [DIR] | Probabilidade: [0.XX]."
     )
