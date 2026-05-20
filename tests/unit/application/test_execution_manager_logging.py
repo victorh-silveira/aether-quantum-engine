@@ -63,3 +63,19 @@ async def test_finalize_cluster_execution_idle_emits_compact_lines(orch_config):
         joined_dbg = "\n".join(dbg_texts)
         assert "ORDEM ENVIADA" in joined_dbg
         assert "BANCA FINAL" in joined_dbg
+
+
+@pytest.mark.asyncio
+async def test_execute_orders_market_closed_emits_warning(orch_config):
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
+        mock_ws_class.return_value.subscribe = MagicMock()
+        orch = Orchestrator(orch_config, "token")
+        orch._active_cycle_id = 1
+        orch.risk_manager.calculate_stake = MagicMock(return_value=2.0)
+        orch.executor._place_order = AsyncMock(side_effect=Exception("This market is presently closed."))
+        orders = [("OTC_SSMI", TradeDirection.CALL, {"conviction": 0.8})]
+        with patch.object(orch.executor.logger, "warning") as mock_warn:
+            count = await orch.executor._execute_orders(orders, 0.0, 100.0)
+        assert count == 0
+        mock_warn.assert_called_once()
+        assert "SKIP" in mock_warn.call_args.args[0]

@@ -107,6 +107,64 @@ async def _collect_symbol_decision(
     )
 
 
+def _propagate_cluster_decisions(
+    orch: Any,
+    *,
+    anchor_sym: str,
+    direction: TradeDirection,
+    metrics: dict[str, Any],
+    targets: dict,
+    decisions: dict[str, dict],
+    cid: str,
+) -> None:
+    """Propaga decisões da âncora para clusters US/EU com direção independente."""
+    clusters = orch.config.get("strategy", {}).get("clusters", {})
+    us_targets = clusters.get("us", ("OTC_SPC", "OTC_NDX", "OTC_DJI"))
+    eu_targets = clusters.get("eu", ("OTC_FCHI", "OTC_GDAXI", "OTC_SSMI", "OTC_FTSE"))
+    propagated_tags: list[str] = []
+    anchor_in_us = anchor_sym in us_targets
+    anchor_in_eu = anchor_sym in eu_targets
+
+    for target_sym in orch.symbols:
+        if target_sym == anchor_sym:
+            continue
+
+        coeff = targets.get(target_sym, 1.0)
+
+        if target_sym in us_targets and not anchor_in_us:
+            us_tag = metrics.get("us_cluster")
+            if not us_tag:
+                continue
+            target_direction = TradeDirection[us_tag]
+        elif target_sym in eu_targets and not anchor_in_eu:
+            eu_tag = metrics.get("eu_cluster")
+            if not eu_tag:
+                continue
+            target_direction = TradeDirection[eu_tag]
+        elif coeff < 0:
+            target_direction = TradeDirection.PUT if direction == TradeDirection.CALL else TradeDirection.CALL
+        else:
+            target_direction = direction
+
+        target_metrics = metrics.copy()
+        target_metrics["llm_note"] = f"CLUSTER ({target_direction.name}) from {anchor_sym}"
+        target_metrics["decision_source"] = "cluster_regime"
+
+        target_metrics["duration"] = enforce_minimum_duration(target_sym, target_metrics.get("duration", 15))
+
+        store_symbol_decision(decisions, target_sym, target_direction, target_metrics)
+        propagated_tags.append(f"{target_sym}[{target_direction.name[:1]}]")
+
+    if propagated_tags:
+        orch.logger.debug(
+            "[%s] CORR CLUSTER || %s [%s] >> [%s]",
+            cid,
+            anchor_sym,
+            direction.name,
+            ", ".join(propagated_tags),
+        )
+
+
 async def collect_llm_decisions(orch: Any) -> dict[str, dict]:
     """Produz mapa symbol -> {direction, metrics} usando EXCLUSIVAMENTE Gemini para a âncora."""
     runtime = resolve_llm_runtime(orch)
@@ -140,41 +198,14 @@ async def collect_llm_decisions(orch: Any) -> dict[str, dict]:
     orch._last_anchor_metrics = metrics
 
     if direction is not None and corr_enabled:
-        propagated_tags = []
-        clusters = orch.config.get("strategy", {}).get("clusters", {})
-        us_targets = clusters.get("us", ("OTC_SPC", "OTC_NDX", "OTC_DJI"))
-        eu_targets = clusters.get("eu", ("OTC_FCHI", "OTC_GDAXI", "OTC_SSMI", "OTC_FTSE"))
-
-        for target_sym in orch.symbols:
-            if target_sym == anchor_sym:
-                continue
-
-            coeff = targets.get(target_sym, 1.0)
-
-            target_direction = direction
-            if target_sym in us_targets and metrics.get("us_cluster"):
-                target_direction = TradeDirection[metrics["us_cluster"]]
-            elif target_sym in eu_targets and metrics.get("eu_cluster"):
-                target_direction = TradeDirection[metrics["eu_cluster"]]
-            elif coeff < 0:
-                target_direction = TradeDirection.PUT if direction == TradeDirection.CALL else TradeDirection.CALL
-
-            target_metrics = metrics.copy()
-            target_metrics["llm_note"] = f"CLUSTER ({target_direction.name}) from {anchor_sym}"
-            target_metrics["decision_source"] = "cluster_regime"
-
-            target_metrics["duration"] = enforce_minimum_duration(target_sym, target_metrics.get("duration", 15))
-
-            store_symbol_decision(decisions, target_sym, target_direction, target_metrics)
-            propagated_tags.append(f"{target_sym}[{target_direction.name[:1]}]")
-
-        if propagated_tags:
-            orch.logger.debug(
-                "[%s] CORR CLUSTER || %s [%s] >> [%s]",
-                cid,
-                anchor_sym,
-                direction.name,
-                ", ".join(propagated_tags),
-            )
+        _propagate_cluster_decisions(
+            orch,
+            anchor_sym=anchor_sym,
+            direction=direction,
+            metrics=metrics,
+            targets=targets,
+            decisions=decisions,
+            cid=cid,
+        )
 
     return decisions
