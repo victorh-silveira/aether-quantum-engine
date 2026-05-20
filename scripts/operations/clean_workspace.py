@@ -22,6 +22,11 @@ def stage_lint():
     run_tool("ruff", ["format", "."], "Ruff Format")
     run_tool("interrogate", ["-vv", "."], "Interrogate Docstrings")
     run_tool("vulture", [], "Vulture Dead Code Detection")
+    run_tool(
+        "pylint",
+        ["--disable=all", "--enable=duplicate-code", "--min-similarity-lines=15", "src/"],
+        "Pylint Duplicate Code Detection",
+    )
     stage_structure()
 
 
