@@ -1,3 +1,15 @@
+## [1.12.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.11.0...v1.12.0) (2026-05-20)
+
+### Funcionalidades
+
+* **llm:** prompt com seis timeframes e propagacao por cluster ([e4b4f42](https://github.com/victorh-silveira/aether-quantum-engine/commit/e4b4f4285ab98a9fd2b73763f2f12d2c0f513323))
+* **risk:** adiciona controle de perdas consecutivas e escalonamento de cooldown ([bb22d19](https://github.com/victorh-silveira/aether-quantum-engine/commit/bb22d198e0bf0695406afd43525c1a3794d27f3d))
+
+### Refatoracoes Tecnicas
+
+* **llm:** remove fallback de execucao e aprimora prompt do gemini ([4261607](https://github.com/victorh-silveira/aether-quantum-engine/commit/42616073da377a8c88af94301cbc81ff6ade1a77))
+* **test:** atualiza suite de testes unitarios para simbolos ativos ([a3d9461](https://github.com/victorh-silveira/aether-quantum-engine/commit/a3d9461afed6db8c0f937ffe3145f7c92e227f22))
+
 ## [1.11.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.10.1...v1.11.0) (2026-05-20)
 
 ### Funcionalidades
