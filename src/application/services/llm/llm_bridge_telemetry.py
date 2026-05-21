@@ -199,6 +199,9 @@ def emit_llm_http_snapshot(
     institutional_pa_bundle: str = "",
     indicator_bundle_line: str = "",
     tf_labels: tuple[str, ...] | list[str] = (),
+    macro_confluence: str = "",
+    fx_reference_line: str = "",
+    macro_sentiment: str = "",
 ) -> None:
     """Registra em INFO o prompt usuario e grava JSON opcional do snapshot."""
     cfg = llm_config or {}
@@ -244,6 +247,9 @@ def emit_llm_http_snapshot(
         "institutional_pa_bundle": str(institutional_pa_bundle or ""),
         "indicator_bundle_line": str(indicator_bundle_line or ""),
         "tf_labels": list(tf_labels),
+        "macro_confluence": str(macro_confluence or ""),
+        "fx_reference_line": str(fx_reference_line or ""),
+        "macro_sentiment": str(macro_sentiment or ""),
     }
     try:
         p = Path(path_txt)

@@ -94,6 +94,9 @@ def iter_llm_prompt_audit_sections(
     metrics_h: float | None = None,
     metrics_z: float | None = None,
     metrics_e: float | None = None,
+    macro_confluence: str = "",
+    fx_reference_line: str = "",
+    macro_sentiment: str = "",
 ) -> list[tuple[str, str]]:
     """Lista etiquetas espelhando o prompt sniper e contexto resumido."""
     lm, ls, lw, lt, l5, l1 = tf_labels if len(tf_labels) >= 6 else (*tf_labels, "M5", "M1")[:6]
@@ -126,10 +129,16 @@ def iter_llm_prompt_audit_sections(
         metrics_h=metrics_h,
         metrics_z=metrics_z,
         metrics_e=metrics_e,
+        macro_confluence=macro_confluence,
+        fx_reference_line=fx_reference_line,
+        macro_sentiment=macro_sentiment,
     )
     rows: list[tuple[str, str]] = [
         ("ATIVO", f"{symbol}"),
         ("SNIPER_INPUT", sniper_line),
+        ("MACRO_CONFLUENCIA", (macro_confluence or "-").strip() or "-"),
+        ("CONTEXTO_FX_REF", (fx_reference_line or "-").strip() or "-"),
+        ("MACRO_SENTIMENT", (macro_sentiment or "-").strip() or "-"),
         ("MTF_MATRIX", (mtf_matrix or "-").strip() or "-"),
         ("PA_INSTITUCIONAL", (institutional_pa_bundle or "-").strip() or "-"),
         ("REGIME", regime_line),
@@ -176,6 +185,9 @@ def build_sniper_trading_prompt(
     metrics_h: float | None = None,
     metrics_z: float | None = None,
     metrics_e: float | None = None,
+    macro_confluence: str = "",
+    fx_reference_line: str = "",
+    macro_sentiment: str = "",
 ) -> str:
     """Monta prompt usuario completo (Sempre Profundo)."""
     labels = tf_labels if len(tf_labels) >= 6 else ("D1", "H4", "H1", "M15", "M5", "M1")
@@ -202,91 +214,32 @@ def build_sniper_trading_prompt(
     ib_block = f"INDICADORES: {ib}\n" if ib else ""
     pa_block = f"CONFLUENCIA: {pa}\n" if pa else ""
     maps = _maps_line(lm, macro_desc, ls, structure_desc, lw, swing_desc, lt, trigger_desc, l5, ms_desc, l1, mt_desc)
+    macro_block = f"{macro_confluence}\n" if (macro_confluence or "").strip() else ""
+    fx_block = f"{fx_reference_line}\n" if (fx_reference_line or "").strip() else ""
+    sentiment_seg = f"sentiment={macro_sentiment} | " if (macro_sentiment or "").strip() else ""
     return (
         f"SNIPER: {core}\n"
         f"{matrix_block}"
+        f"{macro_block}"
+        f"{fx_block}"
         f"DATA: {symbol} | PAYOUT: {payout_estimate} (min: {min_payout_accept}) | DUR: {duration}{duration_unit}\n"
         f"REGIME: {(regime_line or '').strip()} | {(session_line or '').strip()} | {(micro_line or '').strip()}\n"
         f"{maps}"
         f"ALIGN: {mtf_align}\n"
         f"CANDLES: {candles_txt}\n"
         f"METRICS: {metrics_txt}\n"
+        f"{sentiment_seg}"
         f"{f'CLUSTERS REALTIME: {cluster_status}\n' if cluster_status else ''}"
         f"{ib_block}{pa_block}"
         f"PERF: WR: {f'{float(wr_rolling):.1%}' if wr_rolling is not None else 'n/a'} ({int(wr_samples)})\n"
         "=== REGRAS DE TRADING ===\n"
-        "- ESTRUTURA: Priorize alinhamento D1 e H4; M5 e M1 apenas para timing de entrada.\n"
-        "- HURST: Acima de 0.55 siga momentum; abaixo de 0.45 priorize reversao via Z-Score extremo.\n"
-        "- ENTROPIA: Se M1 ou M5 estiverem em extreme_sigma, reduza Probabilidade para no maximo 0.70 ou WAIT no cluster afetado.\n"
-        "- TIMING: Evite entrar na expansao continua sem exaustao; exija desaceleracao ou vela contraria em reversao.\n"
-        "- CLUSTERS: US_CLUSTER e EU_CLUSTER sao independentes do EURUSD quando os dados de cluster indicarem divergencia.\n"
+        "- MACRO: Risk-On (US+EU em RISE) favorece EURUSD CALL e clusters CALL; Risk-Off (FALL) favorece PUT.\n"
+        "- DIVERGENCIA: Se US e EU divergirem, reduza conviccao; EURUSD e clusters somente CALL ou PUT.\n"
+        "- FX_REF: USDJPY, AUDUSD, NZDUSD usam RISE/FALL como contexto macro (sem ordens nesses pares).\n"
+        "- ESTRUTURA: Priorize D1 e H4; M5 e M1 apenas timing.\n"
+        "- HURST: Acima de 0.55 momentum; abaixo de 0.45 reversao via Z-Score extremo.\n"
+        "- ENTROPIA: extreme_sigma em M1/M5 -> Probabilidade max 0.70; cluster afetado somente CALL ou PUT.\n"
+        "- YIELDS: Treasuries/Bunds altos drenam acoes (Risk-Off); mencione apenas se MACRO indicar queda conjunta.\n"
         "=== SINTESE FINAL ===\n"
         "Responda OBRIGATORIAMENTE no formato: EURUSD: [DIR] | US_CLUSTER: [DIR] | EU_CLUSTER: [DIR] | Probabilidade: [0.XX]."
-    )
-
-
-def build_institutional_pa_bundle(
-    *,
-    regime_label: str,
-    entropy_swing: float | None,
-    vol_range_pct: float | None,
-    indicators_numeric_line: str,
-    cf_dual: str,
-    line_macro_structure: str,
-    line_swing_trigger: str,
-    ema_guard: str = "",
-    compact: bool = False,
-) -> str:
-    """Monta pacote PA para o prompt Profundo (ignora compact)."""
-    _ = compact
-    ent_seg = f"entropy_swing={float(entropy_swing):.4f}" if entropy_swing is not None else "entropy_swing=-"
-    vol_seg = f"vol_range_pct={float(vol_range_pct):.3f}" if vol_range_pct is not None else "vol_range_pct=-"
-    parts: list[str] = [
-        f"LLM_DADOS_NUM={indicators_numeric_line}",
-        f"reg={regime_label}",
-        ent_seg,
-        vol_seg,
-        cf_dual,
-        f"CONFL_MACRO_ESTRUTURA={line_macro_structure}",
-        f"CONFL_SWING_GATILHO={line_swing_trigger}",
-    ]
-    guard = (ema_guard or "").strip()
-    if guard and guard != "-":
-        parts.append(f"ema_guard={guard}")
-    return " || ".join(parts)
-
-
-def build_trading_prompt(
-    symbol: str,
-    m15_desc: str,
-    m5_desc: str,
-    m3_desc: str,
-    mtf_align: str,
-    regime_line: str,
-    session_line: str,
-    micro_line: str,
-    entropy_val: float | None,
-    m3_tail_closes: list[float],
-    payout_estimate: float,
-    min_payout_accept: float,
-    duration: int | str,
-    duration_unit: str,
-) -> str:
-    """Monta texto do prompt V15 legacy (Atualizado Medallion)."""
-    metrics_txt = format_metrics_line(None, None, entropy_val)
-    candles_txt = compact_m1_candles_csv(m3_tail_closes)
-    return (
-        f"ATIVO: {symbol}\n"
-        f"{regime_line}\n"
-        f"{session_line}\n"
-        f"{micro_line}\n"
-        f"ESTRUTURA: {m15_desc} | FILTRO: {m5_desc}\n"
-        f"GATILHO_QUANT: {m3_desc}\n"
-        f"ALINHAMENTO: {mtf_align}\n"
-        f"CANDLES_compact: {candles_txt}\n"
-        f"INDICADORES: {metrics_txt}\n"
-        f"PAYOUT: {payout_estimate} | MIN_PAYOUT: {min_payout_accept}\n"
-        f"CONTRATO: {duration}{duration_unit}\n"
-        "MEDALLION V15: Decida com base em arbitragem estatística. "
-        "Responda EXCLUSIVAMENTE: CALL ou PUT."
     )

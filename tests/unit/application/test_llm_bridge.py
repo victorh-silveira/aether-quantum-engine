@@ -5,8 +5,8 @@ import pytest
 from src.application.services.llm import llm_bridge as bridge
 from src.application.services.llm.indicators import IndicatorConfig
 from src.application.services.llm.llm_bridge import llm_metrics
+from src.application.services.llm.prompt_extras import build_trading_prompt
 from src.application.services.llm.prompt_utils import (
-    build_trading_prompt,
     iter_llm_prompt_audit_sections,
 )
 from src.application.services.llm.symbol_decision_utils import build_symbol_prompt
@@ -193,9 +193,11 @@ async def test_build_symbol_prompt_with_real_stream_coverage():
             t_d,
             mtf_d,
             sw_c,
+            _macro_snap,
         ) = await build_symbol_prompt(orch, "frxEURUSD", runtime)
 
         assert "US_CLUSTER" in prompt
+        assert "MACRO_CONFLUENCIA" in prompt
         assert "EU_CLUSTER" in prompt
 
 
@@ -263,5 +265,6 @@ async def test_build_symbol_prompt_stream_exception_fallback():
             t_d,
             mtf_d,
             sw_c,
+            _macro_snap,
         ) = await build_symbol_prompt(orch, "frxEURUSD", runtime)
-        assert "N/A" in prompt
+        assert "N/A" not in prompt or "MACRO_CONFLUENCIA" in prompt

@@ -17,7 +17,7 @@ O motor opera no framework **Medallion**, analisando a transmissão de força do
 
 | Camada | Métrica | Propósito / Regra |
 |---|---|---|
-| **Macro** | Correlação (Âncora) | Define o regime (Sincronia ou Divergência) entre EURUSD e os clusters. |
+| **Macro** | Confluência transatlântica (`strategy.macro`) | Risk-On/Off a partir dos clusters US (SPC, NDX, DJI) e EU (FCHI, GDAXI, FTSE); propagação via `strategy.correlation` e tags `US_CLUSTER` / `EU_CLUSTER`. |
 | **Tendência** | Hurst (H) > 0.55 | Segue a tendência dominante do ativo/cluster e ignora Z-Score esticado. |
 | **Reversão** | Hurst (H) < 0.55 | Usa Z-Score para operar reversão à média em mercados sem tendência. |
 | **Segurança** | Entropia > 3.5 | Trava de probabilidade máxima em 0.75 para evitar excesso de confiança em ruído. |
@@ -28,6 +28,9 @@ Controle em `config/settings.json`, bloco `llm`:
 - **Modo Ativo**: `llm.enabled: true`.
 - **Gate de Convicção**: Execução apenas se `conviction >= 0.70`.
 - **Sinalização**: `EURUSD`, `US_CLUSTER` e `EU_CLUSTER`.
+- **Contexto FX (sem ordens)**: `CONTEXTO_FX_REF` para USD/JPY, AUD/USD e NZD/USD conforme o tag macro (`risk_on`, `risk_off`, divergência).
+
+Parâmetros principais em `strategy.macro`: `cluster_return_threshold_pct`, `divergence_blocks_execution`, `align_eurusd_with_confluence`. Clusters US/EU propagam somente tags `CALL`/`PUT` da LLM (sem fallback quantitativo).
 
 ---
 

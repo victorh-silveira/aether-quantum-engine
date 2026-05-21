@@ -3,8 +3,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.application.services.llm import IndicatorConfig
+from src.application.services.llm.global_macro_confluence import empty_macro_snapshot
 from src.application.services.llm.symbol_decision import collect_symbol_llm_decision
 from src.domain.models.trade import TradeDirection
+
+
+def _prompt_return(ctx):
+    return ("prompt", ctx, {}, 0.5, "line", "bundle", "m", "st", "sw", "tr", "mtf", [], empty_macro_snapshot())
 
 
 def mock_llm_metrics(direction, conviction, note):
@@ -28,7 +33,7 @@ async def test_collect_symbol_llm_decision_inverts_low_conviction():
     with (
         patch(
             "src.application.services.llm.symbol_decision.build_symbol_prompt",
-            AsyncMock(return_value=("prompt", ctx, {}, 0.5, "line", "bundle", "m", "st", "sw", "tr", "mtf", [])),
+            AsyncMock(return_value=_prompt_return(ctx)),
         ),
         patch(
             "src.application.services.llm.symbol_decision._request_payload",
@@ -72,7 +77,7 @@ async def test_collect_symbol_llm_decision_follows_noise_zone():
     with (
         patch(
             "src.application.services.llm.symbol_decision.build_symbol_prompt",
-            AsyncMock(return_value=("prompt", ctx, {}, 0.5, "line", "bundle", "m", "st", "sw", "tr", "mtf", [])),
+            AsyncMock(return_value=_prompt_return(ctx)),
         ),
         patch(
             "src.application.services.llm.symbol_decision._request_payload",
@@ -116,7 +121,7 @@ async def test_collect_symbol_llm_decision_follows_high_conviction():
     with (
         patch(
             "src.application.services.llm.symbol_decision.build_symbol_prompt",
-            AsyncMock(return_value=("prompt", ctx, {}, 0.5, "line", "bundle", "m", "st", "sw", "tr", "mtf", [])),
+            AsyncMock(return_value=_prompt_return(ctx)),
         ),
         patch(
             "src.application.services.llm.symbol_decision._request_payload",

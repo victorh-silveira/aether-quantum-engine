@@ -101,9 +101,15 @@ def test_build_sniper_trading_prompt_with_ohlc():
         duration=1,
         duration_unit="m",
         trigger_ohlc=[(100, 105, 95, 102)],
+        macro_confluence="MACRO_CONFLUENCIA: tag=risk_on",
+        fx_reference_line="CONTEXTO_FX_REF: Risk-On",
+        macro_sentiment="risk_on",
     )
     assert "CANDLES: (100.00000/105.00000/95.00000/102.00000)" in res
     assert "=== SINTESE FINAL ===" in res
+    assert "MACRO_CONFLUENCIA" in res
+    assert "CONTEXTO_FX_REF" in res
+    assert "Risk-On" in res or "RISE" in res
 
 
 def test_format_metrics_line():

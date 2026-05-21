@@ -4,7 +4,7 @@ import pytest
 
 from src.application.services.llm.llm_bridge_telemetry import emit_llm_decision_log
 from src.application.services.llm.llm_bridge_utils import parse_llm_trade_response
-from src.application.services.llm.symbol_decision_utils import _fetch_cluster_status
+from src.application.services.llm.symbol_decision_utils import fetch_macro_snapshot
 from src.domain.models.trade import TradeDirection
 
 
@@ -44,7 +44,7 @@ def test_llm_bridge_telemetry_cluster_coverage():
 
 
 @pytest.mark.asyncio
-async def test_fetch_cluster_status_exception_coverage():
+async def test_fetch_macro_snapshot_exception_coverage():
     class DummyStream:
         def fetch_candle_closes(self, *_a, **_k):
             raise RuntimeError("simulated error")
@@ -54,12 +54,10 @@ async def test_fetch_cluster_status_exception_coverage():
     class DummyOrch:
         stream = DummyStream()
         logger = MagicMock()
+        config = {"strategy": {"clusters": {"us": ["OTC_SPC"], "eu": ["OTC_FCHI"]}}}
 
     orch = DummyOrch()
-    # To force the exception inside the try block, we make the method raise directly.
-    # Actually wait, if fetch_candle_closes is just a sync function that raises RuntimeError,
-    # the list comprehension *[orch.stream.fetch_candle_closes...] will raise RuntimeError synchronously!
-    # And that is caught by `except Exception as e:` in the function!
-    res = await _fetch_cluster_status(orch, {})
-    assert res == ""
+    snap = await fetch_macro_snapshot(orch, {})
+    assert snap.tag == "indefinido"
+    assert snap.cluster_status == ""
     orch.logger.warning.assert_called()

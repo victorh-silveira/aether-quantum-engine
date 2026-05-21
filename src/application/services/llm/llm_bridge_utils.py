@@ -30,7 +30,7 @@ def canonical_direction_token(raw: str) -> str | None:
 
 
 def strict_normalize_direction(raw: str) -> str | None:
-    """Extrai um unico token CALL, PUT ou WAIT; ambiguidade vira WAIT."""
+    """Extrai um unico token CALL ou PUT; ambiguidade retorna None."""
     cleaned = preprocess_llm_response_text(raw or "").strip()
     if not cleaned:
         return None
