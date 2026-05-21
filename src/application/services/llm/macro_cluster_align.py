@@ -68,13 +68,53 @@ def _apply_unified_target(
     return out_us, out_eu, changed
 
 
+def _apply_indefinido_targets(
+    out_us: str | None,
+    out_eu: str | None,
+    snapshot: MacroSnapshot,
+) -> tuple[str | None, str | None, bool, list[str]]:
+    """Forca clusters ao voto quant regional; omite flat e bloqueia oposicao cruzada."""
+    changed = False
+    notes: list[str] = []
+    q_us = cluster_trade_direction(snapshot.us_dir)
+    q_eu = cluster_trade_direction(snapshot.eu_dir)
+
+    if snapshot.us_dir == "flat":
+        if out_us is not None:
+            out_us = None
+            changed = True
+            notes.append("MACRO_US_SKIP flat")
+    elif q_us is not None and out_us != q_us:
+        out_us = q_us
+        changed = True
+
+    if snapshot.eu_dir == "flat":
+        if out_eu is not None:
+            out_eu = None
+            changed = True
+            notes.append("MACRO_EU_SKIP flat")
+    elif q_eu is not None and out_eu != q_eu:
+        out_eu = q_eu
+        changed = True
+
+    if out_us and out_eu and out_us != out_eu:
+        if snapshot.us_strength >= snapshot.eu_strength:
+            out_eu = None
+            notes.append("MACRO_INDEF block_eu_opposing")
+        else:
+            out_us = None
+            notes.append("MACRO_INDEF block_us_opposing")
+        changed = True
+    return out_us, out_eu, changed, notes
+
+
 def _apply_divergence_targets(
     out_us: str | None,
     out_eu: str | None,
     snapshot: MacroSnapshot,
     floor: float,
 ) -> tuple[str | None, str | None, bool]:
-    """Alinha cada cluster ao voto regional quantitativo em divergencia ou indefinido."""
+    """Alinha cada cluster ao voto regional quantitativo em divergencia transatlantica."""
     changed = False
     q_us = cluster_trade_direction(snapshot.us_dir)
     q_eu = cluster_trade_direction(snapshot.eu_dir)
@@ -123,16 +163,23 @@ def reconcile_cluster_tags_with_macro(
     out_eu = eu_tag if eu_tag in ("CALL", "PUT") else None
     changed = False
 
+    notes: list[str] = []
     unified = _macro_unified_target(tag, snapshot, floor)
     if unified is not None:
         out_us, out_eu, changed = _apply_unified_target(out_us, out_eu, unified)
-    elif tag.startswith("divergence") or tag == "indefinido":
+    elif tag == "indefinido":
+        out_us, out_eu, changed, notes = _apply_indefinido_targets(out_us, out_eu, snapshot)
+        if changed and not notes:
+            notes.append(f"MACRO_CLUSTER_ALIGN tag={tag}")
+        return out_us, out_eu, changed, " | ".join(notes)
+    elif tag.startswith("divergence"):
         out_us, out_eu, changed = _apply_divergence_targets(out_us, out_eu, snapshot, floor)
     else:
         return out_us, out_eu, False, ""
 
-    out_us, out_eu, flat_changed, notes = _omit_flat_clusters(out_us, out_eu, snapshot)
+    out_us, out_eu, flat_changed, flat_notes = _omit_flat_clusters(out_us, out_eu, snapshot)
     changed = changed or flat_changed
+    notes.extend(flat_notes)
     if changed and not notes:
         notes.append(f"MACRO_CLUSTER_ALIGN tag={tag}")
     return out_us, out_eu, changed, " | ".join(notes)

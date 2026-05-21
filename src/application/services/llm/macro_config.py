@@ -30,6 +30,9 @@ class MacroSnapshot:
     fx_reference_line: str
     us_parts: tuple[str, ...]
     eu_parts: tuple[str, ...]
+    statarb_spreads: dict[str, float] = None
+    hmm_state: int = 0
+    hmm_prob: float = 1.0
 
 
 def resolve_macro_config(raw: dict[str, Any] | None) -> dict[str, Any]:
@@ -47,11 +50,19 @@ def resolve_macro_config(raw: dict[str, Any] | None) -> dict[str, Any]:
         "align_eurusd_with_confluence": bool(base.get("align_eurusd_with_confluence", True)),
         "align_clusters_with_macro_vote": bool(base.get("align_clusters_with_macro_vote", True)),
         "confluence_conviction_floor": max(0.0, min(0.99, float(base.get("confluence_conviction_floor", 0.55)))),
-        "cluster_min_move_pct": max(0.0, float(base.get("cluster_min_move_pct", 0.10))),
+        "cluster_min_move_pct": max(0.0, float(base.get("cluster_min_move_pct", 0.06))),
         "cluster_granularity_seconds": max(60, int(base.get("cluster_granularity_seconds", 900))),
         "cluster_bars": max(2, int(base.get("cluster_bars", 8))),
+        "cluster_use_m5_fallback_when_flat": bool(base.get("cluster_use_m5_fallback_when_flat", True)),
+        "cluster_fallback_granularity_seconds": max(60, int(base.get("cluster_fallback_granularity_seconds", 300))),
+        "cluster_fallback_bars": max(2, int(base.get("cluster_fallback_bars", 12))),
+        "cluster_fallback_min_move_pct": max(0.0, float(base.get("cluster_fallback_min_move_pct", 0.05))),
         "fx_reference_pairs": fx_pairs,
         "cluster_labels": labels,
+        "statarb_z_threshold": float(base.get("statarb_z_threshold", 2.5)),
+        "statarb_lookback": int(base.get("statarb_lookback", 15)),
+        "statarb_hmm_sigma_low": float(base.get("statarb_hmm_sigma_low", 0.0004)),
+        "statarb_hmm_sigma_high": float(base.get("statarb_hmm_sigma_high", 0.0016)),
     }
 
 

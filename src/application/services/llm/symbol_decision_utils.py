@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any
 
 from src.application.services.llm import (
@@ -12,12 +11,11 @@ from src.application.services.llm import (
 from src.application.services.llm.context_runtime import fetch_context_blocks
 from src.application.services.llm.global_macro_confluence import (
     MacroSnapshot,
-    build_macro_snapshot,
-    empty_macro_snapshot,
     reconcile_cluster_tags_with_macro,
     resolve_macro_config,
 )
 from src.application.services.llm.llm_bridge_guards import apply_macro_confluence_guard
+from src.application.services.llm.macro_snapshot_fetch import fetch_macro_snapshot
 from src.application.services.llm.prompt_extras import build_institutional_pa_bundle
 from src.application.services.llm.prompt_utils import (
     build_sniper_trading_prompt as _build_prompt_impl,
@@ -86,6 +84,7 @@ def apply_macro_post_parse(
     eu_dir: TradeDirection | None,
     macro_snapshot: MacroSnapshot,
     macro_cfg: dict[str, Any] | None,
+    sym: str | None = None,
 ) -> tuple[TradeDirection | None, float, str, TradeDirection | None, TradeDirection | None, bool, bool]:
     """Aplica guard macro na decisao EURUSD apos parse da LLM."""
     us_name = us_dir.name if us_dir in (TradeDirection.CALL, TradeDirection.PUT) else None
@@ -97,63 +96,20 @@ def apply_macro_post_parse(
         macro_cfg,
     )
     if cluster_changed:
-        if us_aligned in ("CALL", "PUT"):
-            us_dir = TradeDirection[us_aligned]
-        if eu_aligned in ("CALL", "PUT"):
-            eu_dir = TradeDirection[eu_aligned]
+        us_dir = TradeDirection[us_aligned] if us_aligned in ("CALL", "PUT") else None
+        eu_dir = TradeDirection[eu_aligned] if eu_aligned in ("CALL", "PUT") else None
         note = f"{note} | {cluster_note}".strip()
     direction, conviction, macro_guard, macro_note, macro_execute = apply_macro_confluence_guard(
         direction,
         conviction,
         macro_snapshot,
         macro_cfg,
+        sym=sym,
     )
     if macro_note:
         note = f"{note} | {macro_note}".strip()
     macro_guard = macro_guard or cluster_changed
     return direction, conviction, note, us_dir, eu_dir, macro_guard, macro_execute
-
-
-async def fetch_macro_snapshot(orch: Any, runtime: dict[str, Any]) -> MacroSnapshot:
-    """Busca fechamentos dos clusters US/EU e monta snapshot macro transatlantico."""
-    is_real = (
-        hasattr(orch, "stream")
-        and hasattr(orch.stream, "fetch_candle_closes")
-        and not hasattr(orch.stream, "mock_calls")
-        and not hasattr(orch.stream.fetch_candle_closes, "mock_calls")
-        and (
-            asyncio.iscoroutinefunction(orch.stream.fetch_candle_closes)
-            or hasattr(orch.stream.fetch_candle_closes, "_is_coroutine")
-        )
-    )
-    if not is_real:
-        return empty_macro_snapshot()
-
-    try:
-        strategy = orch.config.get("strategy", {}) if hasattr(orch, "config") and isinstance(orch.config, dict) else {}
-        clusters = strategy.get("clusters", {}) if isinstance(strategy.get("clusters"), dict) else {}
-        us_symbols = list(clusters.get("us", ["OTC_SPC", "OTC_NDX", "OTC_DJI"]))
-        eu_symbols = list(clusters.get("eu", ["OTC_FCHI", "OTC_GDAXI", "OTC_FTSE"]))
-        macro_cfg = strategy.get("macro")
-        cfg = resolve_macro_config(macro_cfg if isinstance(macro_cfg, dict) else None)
-        swing_gran = int(cfg.get("cluster_granularity_seconds", runtime.get("tf_swing_gran", 900)))
-        bars = int(cfg.get("cluster_bars", 8))
-        all_syms = us_symbols + eu_symbols
-
-        results = await asyncio.gather(
-            *[orch.stream.fetch_candle_closes(s, swing_gran, bars) for s in all_syms],
-            return_exceptions=True,
-        )
-        closes_map: dict[str, list[float]] = {}
-        for i, sym in enumerate(all_syms):
-            row = results[i]
-            closes_map[sym] = list(row) if isinstance(row, list) else []
-
-        return build_macro_snapshot(us_symbols, eu_symbols, closes_map, macro_cfg)
-    except Exception as e:
-        if hasattr(orch, "logger") and orch.logger:
-            orch.logger.warning("Error fetching macro snapshot: %s", e)
-        return empty_macro_snapshot()
 
 
 async def build_symbol_prompt(

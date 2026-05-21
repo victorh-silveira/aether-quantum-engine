@@ -90,3 +90,73 @@ def test_apply_macro_post_parse_aligns_us_cluster_on_risk_on():
     assert guard is True
     assert "MACRO_CLUSTER_ALIGN" in note
     assert execute_ok is True
+
+
+def test_apply_macro_post_parse_clears_us_cluster_when_quant_flat():
+    snap = build_macro_snapshot(
+        ["OTC_SPC", "OTC_NDX", "OTC_DJI"],
+        ["OTC_FCHI", "OTC_GDAXI", "OTC_FTSE"],
+        {
+            "OTC_SPC": [100.0, 100.05],
+            "OTC_NDX": [100.0, 100.04],
+            "OTC_DJI": [100.0, 100.03],
+            "OTC_FCHI": [100.0, 95.0],
+            "OTC_GDAXI": [100.0, 94.5],
+            "OTC_FTSE": [100.0, 94.0],
+        },
+        {"min_indices_for_vote": 2, "cluster_min_move_pct": 0.10, "cluster_return_threshold_pct": 0.02},
+    )
+    assert snap.tag == "indefinido"
+    assert snap.us_dir == "flat"
+    assert snap.eu_dir == "down"
+    direction, conv, note, us_dir, eu_dir, guard, _ = apply_macro_post_parse(
+        TradeDirection.CALL,
+        0.68,
+        "LLM",
+        TradeDirection.CALL,
+        TradeDirection.PUT,
+        snap,
+        {"align_clusters_with_macro_vote": True, "confluence_conviction_floor": 0.55},
+    )
+    assert us_dir is None
+    assert eu_dir == TradeDirection.PUT
+    assert guard is True
+    assert "MACRO_US_SKIP" in note or "MACRO_CLUSTER_ALIGN" in note
+
+
+def test_apply_macro_post_parse_indefinido_forces_us_put_when_quant_down():
+    snap = build_macro_snapshot(
+        ["OTC_SPC", "OTC_NDX", "OTC_DJI"],
+        ["OTC_FCHI"],
+        {
+            "OTC_SPC": [100.0, 95.0],
+            "OTC_NDX": [100.0, 94.0],
+            "OTC_DJI": [100.0, 93.5],
+            "OTC_FCHI": [100.0, 100.05],
+        },
+        {"min_indices_for_vote": 2, "cluster_min_move_pct": 0.10},
+    )
+    snap = type(snap)(
+        us_dir="down",
+        eu_dir="flat",
+        us_strength=snap.us_strength,
+        eu_strength=0.0,
+        tag="indefinido",
+        eurusd_bias=snap.eurusd_bias,
+        cluster_status=snap.cluster_status,
+        macro_block=snap.macro_block,
+        fx_reference_line=snap.fx_reference_line,
+        us_parts=snap.us_parts,
+        eu_parts=snap.eu_parts,
+    )
+    _, _, note, us_dir, eu_dir, _, _ = apply_macro_post_parse(
+        TradeDirection.CALL,
+        0.68,
+        "LLM",
+        TradeDirection.CALL,
+        TradeDirection.PUT,
+        snap,
+        {"align_clusters_with_macro_vote": True, "confluence_conviction_floor": 0.55},
+    )
+    assert us_dir == TradeDirection.PUT
+    assert eu_dir is None

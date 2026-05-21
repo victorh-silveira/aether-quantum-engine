@@ -17,6 +17,7 @@ __all__ = [
     "ClusterVote",
     "MacroSnapshot",
     "aggregate_cluster_vote",
+    "apply_m5_fallback_to_snapshot",
     "build_macro_snapshot",
     "classify_transatlantic_confluence",
     "cluster_direction_from_closes",
@@ -26,6 +27,7 @@ __all__ = [
     "expected_cluster_tags_line",
     "format_macro_confluence_block",
     "fx_reference_context_line",
+    "macro_snapshot_from_votes",
     "reconcile_cluster_tags_with_macro",
     "resolve_macro_config",
 ]
@@ -152,75 +154,6 @@ def format_macro_confluence_block(
     return f"{base} | {extra}" if extra else base
 
 
-def build_macro_snapshot(
-    us_symbols: list[str],
-    eu_symbols: list[str],
-    closes_map: dict[str, list[float]],
-    macro_cfg: dict[str, Any] | None = None,
-) -> MacroSnapshot:
-    """Monta snapshot macro completo a partir de fechamentos dos clusters."""
-    cfg = resolve_macro_config(macro_cfg)
-    threshold = float(cfg["cluster_return_threshold_pct"])
-    min_move = float(cfg["cluster_min_move_pct"])
-    min_idx = int(cfg["min_indices_for_vote"])
-    label_bundle = {"cluster_labels": cfg.get("cluster_labels", {})}
-
-    us_vote = aggregate_cluster_vote(
-        us_symbols,
-        closes_map,
-        threshold_pct=threshold,
-        min_indices=min_idx,
-        labels=label_bundle,
-        region="us",
-        min_move_pct=min_move,
-    )
-    eu_vote = aggregate_cluster_vote(
-        eu_symbols,
-        closes_map,
-        threshold_pct=threshold,
-        min_indices=min_idx,
-        labels=label_bundle,
-        region="eu",
-        min_move_pct=min_move,
-    )
-    tag = classify_transatlantic_confluence(us_vote.direction, eu_vote.direction)
-    bias = eurusd_bias_from_confluence(tag, us_dir=us_vote.direction, eu_dir=eu_vote.direction)
-    us_summary = f"US_CLUSTER [{', '.join(us_vote.parts)}]"
-    eu_summary = f"EU_CLUSTER [{', '.join(eu_vote.parts)}]"
-    fx_ref = fx_reference_context_line(tag, cfg.get("fx_reference_pairs"))
-    cluster_status = f"{us_summary} || {eu_summary}"
-    cluster_quant_line = expected_cluster_tags_line(
-        tag=tag,
-        us_dir=us_vote.direction,
-        eu_dir=eu_vote.direction,
-        us_strength=us_vote.strength,
-        eu_strength=eu_vote.strength,
-        macro_cfg=cfg,
-    )
-    macro_block = format_macro_confluence_block(
-        us_summary,
-        eu_summary,
-        tag,
-        fx_ref,
-        eurusd_bias=bias,
-        cluster_quant_line=cluster_quant_line,
-    )
-
-    return MacroSnapshot(
-        us_dir=us_vote.direction,
-        eu_dir=eu_vote.direction,
-        us_strength=us_vote.strength,
-        eu_strength=eu_vote.strength,
-        tag=tag,
-        eurusd_bias=bias,
-        cluster_status=cluster_status,
-        macro_block=macro_block,
-        fx_reference_line=fx_ref,
-        us_parts=us_vote.parts,
-        eu_parts=eu_vote.parts,
-    )
-
-
 def empty_macro_snapshot() -> MacroSnapshot:
     """Retorna snapshot vazio quando dados de cluster nao estao disponiveis."""
     fx_ref = fx_reference_context_line("indefinido", {})
@@ -237,3 +170,10 @@ def empty_macro_snapshot() -> MacroSnapshot:
         us_parts=(),
         eu_parts=(),
     )
+
+
+from src.application.services.llm.macro_snapshot_build import (  # noqa: E402
+    apply_m5_fallback_to_snapshot,
+    build_macro_snapshot,
+    macro_snapshot_from_votes,
+)
