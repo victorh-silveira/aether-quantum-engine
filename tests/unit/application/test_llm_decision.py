@@ -75,3 +75,34 @@ def test_resolved_system_instruction_appends_runtime():
     out = llm._resolved_system_instruction("extra ctx")
     assert "extra ctx" in out
     assert llm.SOVEREIGN_SYSTEM.split("\n")[0] in out
+
+
+def test_is_retryable_gemini_error_detects_transient_codes():
+    assert llm.is_retryable_gemini_error(Exception("504 DEADLINE_EXCEEDED"))
+    assert llm.is_retryable_gemini_error(Exception("503 UNAVAILABLE"))
+    assert not llm.is_retryable_gemini_error(Exception("400 INVALID_ARGUMENT"))
+
+
+@pytest.mark.asyncio
+async def test_get_decision_switches_to_fallback_on_transient_error(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "k")
+    calls: list[str] = []
+
+    async def fake_attempt(**kwargs):
+        calls.append(kwargs["model_name"])
+        if kwargs["model_name"] == "gemini-pro":
+            return (None, False, "", Exception("503 UNAVAILABLE"))
+        return ("PUT", True, "PUT", None)
+
+    with patch.object(llm, "_attempt_generate", side_effect=fake_attempt):
+        out = await llm.get_decision(
+            "",
+            "gemini-pro",
+            "p",
+            20.0,
+            safety_retry_attempts=1,
+            fallback_model="gemini-flash",
+        )
+    assert out == ("PUT", True, "PUT")
+    assert calls[0] == "gemini-pro"
+    assert "gemini-flash" in calls

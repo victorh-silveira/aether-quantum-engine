@@ -83,6 +83,7 @@ def resolve_llm_runtime(orch: Any) -> dict[str, Any]:
         "same_direction_strict_enabled": bool(cfg.get("same_direction_strict_enabled", True)),
         "max_same_direction_streak": max(0, int(cfg.get("max_same_direction_streak", 1))),
         "llm_retry_attempts": gemini_retries,
+        "llm_fallback_model": str(cfg.get("llm_fallback_model") or "").strip(),
         "llm_wait_fallback_mode": str(cfg.get("llm_wait_fallback_mode") or "").strip().lower(),
     }
 

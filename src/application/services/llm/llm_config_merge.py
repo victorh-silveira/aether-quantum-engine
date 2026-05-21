@@ -34,6 +34,8 @@ def _restore_user_llm_over_gemini(llm: dict[str, Any], user_llm: dict[str, Any])
     """Reaplica timeout, tokens, system_prompt e generation_config do bloco llm raiz apos gemini."""
     if user_llm.get("timeout_seconds") is not None:
         llm["timeout_seconds"] = float(user_llm["timeout_seconds"])
+    if user_llm.get("llm_fallback_model") is not None:
+        llm["llm_fallback_model"] = str(user_llm["llm_fallback_model"])
     if user_llm.get("max_predict_tokens") is not None:
         _maybe_set_max_predict(llm, user_llm["max_predict_tokens"])
     if user_llm.get("system_prompt") is not None:
@@ -49,6 +51,8 @@ def _apply_gemini_fields(llm: dict[str, Any], gemini: dict[str, Any]) -> None:
     """Aplica campos do bloco gemini sobre o mapa llm."""
     if gemini.get("model") is not None:
         llm["model"] = str(gemini["model"])
+    if gemini.get("llm_fallback_model") is not None:
+        llm["llm_fallback_model"] = str(gemini["llm_fallback_model"])
     if gemini.get("timeout_seconds") is not None:
         llm["timeout_seconds"] = float(gemini["timeout_seconds"])
     if gemini.get("system_prompt") is not None:
@@ -68,6 +72,8 @@ def _apply_llm_config_fields(llm: dict[str, Any], lc: dict[str, Any]) -> None:
     """Aplica campos do bloco llm_config sobre o mapa llm efetivo."""
     if lc.get("model") is not None:
         llm["model"] = str(lc["model"])
+    if lc.get("llm_fallback_model") is not None:
+        llm["llm_fallback_model"] = str(lc["llm_fallback_model"])
     if lc.get("timeout_seconds") is not None:
         llm["timeout_seconds"] = float(lc["timeout_seconds"])
     if lc.get("keep_alive") is not None:
