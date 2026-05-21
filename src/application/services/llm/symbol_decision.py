@@ -22,11 +22,10 @@ from src.application.services.llm.prompt_utils import (
 )
 from src.application.services.llm.symbol_decision_post import (
     append_entropy_high_note,
-    apply_conviction_inversion,
-    cluster_index_directions_for_orch,
     patch_final_symbol_metrics,
 )
 from src.application.services.llm.symbol_decision_utils import (
+    anchor_llm_decision_complete,
     apply_macro_post_parse,
     build_symbol_prompt,
     decision_from_payload,
@@ -191,10 +190,7 @@ async def collect_symbol_llm_decision(
     direction, conviction, note, us_dir, eu_dir = decision_from_payload(payload)
 
     note = append_entropy_high_note(note, conviction, swing_c, runtime, orch.logger)
-    if direction is None:
-        note += " (LLM Refused - Waiting)"
-
-    direction, note, inverted = apply_conviction_inversion(direction, conviction, note, runtime)
+    inverted = False
 
     macro_cfg = ctx.get("macro_cfg") if isinstance(ctx.get("macro_cfg"), dict) else None
     direction, conviction, note, us_dir, eu_dir, macro_guard, macro_execute = apply_macro_post_parse(
@@ -206,6 +202,12 @@ async def collect_symbol_llm_decision(
         macro_snapshot,
         macro_cfg,
     )
+
+    llm_ok, llm_fail_tag = anchor_llm_decision_complete(orch, sym, direction, us_dir, eu_dir)
+    if not llm_ok:
+        direction = None
+        macro_execute = False
+        note = f"{note} | {llm_fail_tag}".strip()
 
     direction, metrics = _build_metrics_for_decision_core(
         runtime,
@@ -259,7 +261,6 @@ async def collect_symbol_llm_decision(
         eu_dir=eu_dir,
         macro_snapshot=macro_snapshot,
         macro_guard=macro_guard,
-        cluster_index_directions=cluster_index_directions_for_orch(orch, macro_snapshot),
     )
     _emit_symbol_decision_audit(
         orch,

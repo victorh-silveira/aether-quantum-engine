@@ -10,8 +10,10 @@ from src.application.services.llm.symbol_decision import collect_symbol_llm_deci
 
 @pytest.mark.asyncio
 async def test_collect_symbol_llm_decision_failsafe_force_direction():
-    """Valida o fail-safe que força uma direção quando a LLM retorna None."""
+    """Bloqueia execucao quando a LLM nao devolve EURUSD CALL ou PUT."""
     orch = MagicMock()
+    orch.anchor = "frxEURUSD"
+    orch.config = {"strategy": {"correlation": {"enabled": False}}}
     orch._active_cycle_id = 1
     orch.symbols = ["frxEURUSD"]
     orch.logger = MagicMock()
@@ -64,5 +66,5 @@ async def test_collect_symbol_llm_decision_failsafe_force_direction():
         )
 
         assert direction is None
-        assert "LLM Refused - Waiting" in metrics["llm_note"]
+        assert "LLM_EURUSD_AUSENTE" in metrics["llm_note"]
         assert metrics["execute"] is False

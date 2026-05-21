@@ -14,8 +14,7 @@
   "strategy": {
     "correlation": {
       "enabled": true,
-      "anchor": "frxEURUSD",
-      "index_direction_mode": "counter_trend"
+      "anchor": "frxEURUSD"
     },
     "clusters": {
       "us": ["OTC_SPC", "OTC_NDX", "OTC_DJI"],

@@ -173,5 +173,5 @@ async def test_collect_llm_decisions_wait_api_resolve_fallback():
     ):
         out = await collect_llm_decisions(orch)
     assert out["frxEURUSD"]["direction"] is None
-    assert "LLM Refused - Waiting" in out["frxEURUSD"]["metrics"]["llm_note"]
+    assert "LLM_EURUSD_AUSENTE" in out["frxEURUSD"]["metrics"]["llm_note"]
     assert out["frxEURUSD"]["metrics"]["execute"] is False

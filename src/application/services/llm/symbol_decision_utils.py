@@ -50,6 +50,30 @@ def decision_from_payload(
     return direction, conviction, note, us_dir, eu_dir
 
 
+def anchor_llm_decision_complete(
+    orch: Any,
+    sym: str,
+    direction: TradeDirection | None,
+    us_dir: TradeDirection | None,
+    eu_dir: TradeDirection | None,
+) -> tuple[bool, str]:
+    """Exige EURUSD e tags de cluster CALL/PUT da LLM quando correlacao esta ativa."""
+    anchor = str(getattr(orch, "anchor", sym) or sym)
+    if sym != anchor:
+        return True, ""
+    if direction not in (TradeDirection.CALL, TradeDirection.PUT):
+        return False, "LLM_EURUSD_AUSENTE"
+    strategy = orch.config.get("strategy", {}) if isinstance(getattr(orch, "config", None), dict) else {}
+    corr = strategy.get("correlation", {}) if isinstance(strategy.get("correlation"), dict) else {}
+    if not bool(corr.get("enabled", False)):
+        return True, ""
+    if us_dir not in (TradeDirection.CALL, TradeDirection.PUT):
+        return False, "LLM_US_CLUSTER_AUSENTE"
+    if eu_dir not in (TradeDirection.CALL, TradeDirection.PUT):
+        return False, "LLM_EU_CLUSTER_AUSENTE"
+    return True, ""
+
+
 def apply_macro_post_parse(
     direction: TradeDirection | None,
     conviction: float,

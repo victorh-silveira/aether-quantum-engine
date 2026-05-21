@@ -65,7 +65,7 @@ async def request_llm_payload(
     system: str,
     cycle_id: int | None = None,
 ) -> dict[str, Any]:
-    """Consulta Gemini; CALL ou PUT executavel so apos texto valido da API salvo fallback explicito."""
+    """Consulta Gemini; CALL ou PUT somente quando a API devolver texto parseavel."""
     base_url = runtime["base_url"]
     model = runtime["model"]
     timeout = runtime["timeout"]

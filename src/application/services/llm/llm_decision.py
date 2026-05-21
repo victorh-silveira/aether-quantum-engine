@@ -25,8 +25,8 @@ logger = logging.getLogger("AETH")
 
 _GEMINI_RETRY_TAIL = (
     "\n\nResponda OBRIGATORIAMENTE no formato exigido: "
-    "EURUSD: [DIR] | US_CLUSTER: [DIR] | EU_CLUSTER: [DIR] | Probabilidade: [0.XX]. "
-    "Use MACRO_CONFLUENCIA (Risk-On/Risk-Off/divergencia) para alinhar EURUSD e clusters."
+    "EURUSD: CALL ou PUT | US_CLUSTER: CALL ou PUT | EU_CLUSTER: CALL ou PUT | Probabilidade: [0.XX]. "
+    "Proibido WAIT, SKIP, vazio ou omitir US_CLUSTER/EU_CLUSTER."
 )
 
 
