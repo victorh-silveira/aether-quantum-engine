@@ -122,6 +122,7 @@ def _emit_symbol_decision_audit(
         llm_direction_from_api=llm_direction_from_api,
         us_cluster=us_dir.name if us_dir else None,
         eu_cluster=eu_dir.name if eu_dir else None,
+        macro_sentiment=macro_snapshot.tag,
     )
 
 
@@ -203,7 +204,9 @@ async def collect_symbol_llm_decision(
         macro_cfg,
     )
 
-    llm_ok, llm_fail_tag = anchor_llm_decision_complete(orch, sym, direction, us_dir, eu_dir)
+    llm_ok, llm_fail_tag = anchor_llm_decision_complete(
+        orch, sym, direction, us_dir, eu_dir, macro_snapshot=macro_snapshot
+    )
     if not llm_ok:
         direction = None
         macro_execute = False

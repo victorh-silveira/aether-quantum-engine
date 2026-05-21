@@ -19,6 +19,10 @@ def test_cluster_direction_from_closes_thresholds():
     assert cluster_direction_from_closes([100.0, 103.0], 0.02) == "up"
     assert cluster_direction_from_closes([100.0, 97.0], 0.02) == "down"
     assert cluster_direction_from_closes([100.0, 100.01], 0.02) == "flat"
+    assert cluster_direction_from_closes([100.0, 99.92], 0.02, 0.10) == "flat"
+    assert cluster_direction_from_closes([100.0, 98.5], 0.02, 0.10) == "down"
+    assert cluster_direction_from_closes([100.0, 100.03], 0.05, 0.10) == "flat"
+    assert cluster_direction_from_closes([100.0, 100.04], 0.05, 0.03) == "flat"
     assert cluster_direction_from_closes([100.0], 0.02) == "flat"
     assert cluster_direction_from_closes([0.0, 1.0], 0.02) == "flat"
 
@@ -93,10 +97,64 @@ def test_format_macro_confluence_block_and_empty_snapshot():
     assert empty.tag == "indefinido"
 
 
+def test_reconcile_unknown_tag_returns_unchanged():
+    snap = build_macro_snapshot(
+        ["OTC_SPC"],
+        ["OTC_FCHI"],
+        {"OTC_SPC": [100.0, 105.0], "OTC_FCHI": [100.0, 105.0]},
+        {"min_indices_for_vote": 1},
+    )
+    snap = type(snap)(
+        us_dir="up",
+        eu_dir="up",
+        us_strength=1.0,
+        eu_strength=1.0,
+        tag="custom_unknown",
+        eurusd_bias=snap.eurusd_bias,
+        cluster_status=snap.cluster_status,
+        macro_block=snap.macro_block,
+        fx_reference_line=snap.fx_reference_line,
+        us_parts=snap.us_parts,
+        eu_parts=snap.eu_parts,
+    )
+    us, eu, changed, note = reconcile_cluster_tags_with_macro("PUT", "CALL", snap)
+    assert changed is False
+    assert us == "PUT"
+    assert note == ""
+
+
+def test_reconcile_skips_us_when_quant_flat():
+    snap = build_macro_snapshot(
+        ["OTC_SPC"],
+        ["OTC_FCHI"],
+        {"OTC_SPC": [100.0, 100.0], "OTC_FCHI": [100.0, 105.0]},
+        {"min_indices_for_vote": 1},
+    )
+    snap = type(snap)(
+        us_dir="flat",
+        eu_dir="up",
+        us_strength=0.0,
+        eu_strength=1.0,
+        tag="indefinido",
+        eurusd_bias=snap.eurusd_bias,
+        cluster_status=snap.cluster_status,
+        macro_block=snap.macro_block,
+        fx_reference_line=snap.fx_reference_line,
+        us_parts=snap.us_parts,
+        eu_parts=snap.eu_parts,
+    )
+    us, eu, changed, note = reconcile_cluster_tags_with_macro("PUT", "CALL", snap)
+    assert changed is True
+    assert us is None
+    assert eu == "CALL"
+    assert "MACRO_US_SKIP" in note
+
+
 def test_resolve_macro_config_defaults_and_upper_labels():
     cfg = resolve_macro_config({"cluster_labels": {"us": ["s&p500"], "eu": ["dax40"]}})
     assert cfg["divergence_blocks_execution"] is True
     assert cfg["align_clusters_with_macro_vote"] is True
+    assert cfg["cluster_min_move_pct"] == 0.10
     assert cfg["cluster_labels"]["us"] == ["S&P500"]
     assert cfg["cluster_labels"]["eu"] == ["DAX40"]
 

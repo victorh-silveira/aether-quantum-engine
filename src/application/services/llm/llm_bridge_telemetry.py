@@ -52,6 +52,7 @@ def emit_llm_decision_log(
     llm_direction_from_api: bool = False,
     us_cluster: str | None = None,
     eu_cluster: str | None = None,
+    macro_sentiment: str | None = None,
 ) -> None:
     """Emite logs estruturados de auditoria para a decisao da LLM."""
     _ = (
@@ -91,11 +92,10 @@ def emit_llm_decision_log(
 
     inv_flag = " [INV]" if "Inverted" in (motor_note or "") else ""
 
-    us_c = us_cluster or ""
-    eu_c = eu_cluster or ""
-    cluster_str = ""
-    if us_c or eu_c:
-        cluster_str = f" US={us_c} EU={eu_c}"
+    us_c = us_cluster or "-"
+    eu_c = eu_cluster or "-"
+    macro_part = f" macro={macro_sentiment}" if macro_sentiment else ""
+    cluster_str = f" US={us_c} EU={eu_c}{macro_part}"
 
     target_logger.info(
         f"{cid}LLM_RESPOSTA || {symbol} || [{res_tag}]{inv_flag}{cluster_str} prob={conviction:.1%} || ref={px} http_ms={int(llm_http_ms)} || gapi={gapi} model={model}"
