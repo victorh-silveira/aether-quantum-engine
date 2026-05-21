@@ -1,3 +1,9 @@
+## [1.13.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.13.1...v1.13.2) (2026-05-21)
+
+### Correcoes de Bug
+
+* **llm:** remove fallback de indices e exige CALL/PUT somente da LLM ([441b580](https://github.com/victorh-silveira/aether-quantum-engine/commit/441b580fc321eb968e2d3bc03f481a3b2f6a9a98))
+
 ## [1.13.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.13.0...v1.13.1) (2026-05-21)
 
 ### Correcoes de Bug
