@@ -7,6 +7,7 @@ from src.application.services.llm import llm_bridge as bridge
 from src.application.services.llm.indicators import resolve_indicator_config
 from src.application.services.llm.llm_bridge import collect_llm_decisions
 from src.domain.models.trade import TradeDirection
+from tests.unit.application.llm_response_fixtures import MOCK_LLM_CALL_LINE
 
 
 @pytest.mark.asyncio
@@ -44,7 +45,7 @@ async def test_request_payload_transporta_token_soberano():
     with patch(
         "src.application.services.llm.llm_symbol_io.get_decision",
         new_callable=AsyncMock,
-        return_value=("CALL", True, "CALL"),
+        return_value=("CALL", True, MOCK_LLM_CALL_LINE),
     ):
         payload = await bridge._request_payload(orch, "frxEURUSD", runtime, "p")
     assert payload["_direction_normalized"] == "CALL"
@@ -74,7 +75,7 @@ async def test_collect_llm_decisions_keeps_execution_even_when_payout_is_low():
     with patch(
         "src.application.services.llm.llm_symbol_io.get_decision",
         new_callable=AsyncMock,
-        return_value=("CALL", True, "CALL"),
+        return_value=("CALL", True, MOCK_LLM_CALL_LINE),
     ):
         out = await collect_llm_decisions(orch)
     assert out["frxEURUSD"]["metrics"]["execute"] is True
@@ -116,7 +117,7 @@ async def test_collect_symbol_decision_choppy_executes_as_ordered():
         ),
         patch(
             "src.application.services.llm.llm_symbol_io.get_decision",
-            new=AsyncMock(return_value=("CALL", True, "CALL")),
+            new=AsyncMock(return_value=("CALL", True, MOCK_LLM_CALL_LINE)),
         ),
     ):
         direction, metrics = await bridge._collect_symbol_decision(orch, sym="frxEURUSD", runtime=runtime)

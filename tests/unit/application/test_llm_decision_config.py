@@ -9,6 +9,7 @@ from src.application.services.llm import llm_decision as gem
 def test_merge_generation_config_num_predict_caps():
     cfg = gem._merge_generation_config(0.0, 5000, {"top_p": 0.5}, system_instruction="s")
     assert cfg.max_output_tokens <= 4096
+    assert cfg.max_output_tokens >= 256
     assert pytest.approx(cfg.temperature) == 0.0
 
 
@@ -20,7 +21,7 @@ def test_merge_generation_config_extra_temperature_override():
         system_instruction="z",
     )
     assert pytest.approx(cfg.temperature) == 0.2
-    assert cfg.max_output_tokens == 16
+    assert cfg.max_output_tokens >= 256
 
 
 def test_merge_generation_config_top_k_and_candidate():
@@ -34,6 +35,8 @@ def test_merge_generation_config_thinking_budget_zero_e_safety_padrao():
     assert cfg.thinking_config is None
     assert cfg.safety_settings is not None
     assert len(cfg.safety_settings) >= 4
+    assert cfg.response_mime_type == "application/json"
+    assert cfg.response_schema is not None
 
 
 def test_merge_generation_config_thinking_budget_conversion():

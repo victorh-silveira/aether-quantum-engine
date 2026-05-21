@@ -101,14 +101,14 @@
   },
   "llm": {
     "enabled": true,
-    "llm_retry_attempts": 2,
+    "llm_retry_attempts": 4,
     "model": "gemini-2.5-flash",
-    "llm_fallback_model": "gemini-2.0-flash",
+    "llm_fallback_model": "gemini-2.5-flash-lite",
     "timeout_seconds": 35,
     "llm_http_outer_margin_seconds": 8,
     "llm_extra_wall_clock_seconds": 12,
     "max_decision_latency_seconds": 50,
-    "max_predict_tokens": 128,
+    "max_predict_tokens": 256,
     "keep_alive": "60m",
     "parse_retry_attempts": 1,
     "logic_line_max_chars": 140,
@@ -165,7 +165,7 @@
     "log_llm_io_preview_chars": 4000,
     "log_llm_io_dump_path": "logs/llm_io.jsonl",
     "invert_llm_direction": false,
-    "system_prompt": "MANDATO MACRO TRANSATLANTICO. Ancora EURUSD. Risk-On: indices US e EU em RISE juntos -> EURUSD CALL, US_CLUSTER CALL, EU_CLUSTER CALL. Risk-Off: indices em FALL juntos -> EURUSD PUT, clusters PUT. Divergencia US/EU: reduza conviccao; EURUSD e clusters somente CALL ou PUT independentes. CONTEXTO_FX_REF (USDJPY, AUDUSD, NZDUSD) usa RISE/FALL, sem ordens. Hurst>0.55 momentum; Hurst<0.45 reversao Z-Score; entropia extrema M1/M5 cap 0.70. D1/H4 estrutura; M5/M1 timing."
+    "system_prompt": "MANDATO MACRO TRANSATLANTICO. Ancora EURUSD. Risk-On indices US+EU em alta -> JSON com EURUSD CALL, US_CLUSTER CALL, EU_CLUSTER CALL. Risk-Off em baixa -> PUT nos tres campos. Divergencia US/EU: conviccao menor; cada campo CALL ou PUT independente. RISE/FALL apenas no contexto FX ref, nunca na saida JSON. Saida: objeto JSON com EURUSD, US_CLUSTER, EU_CLUSTER, Probabilidade (0.01-0.99). Hurst>0.55 momentum; Hurst<0.45 reversao Z-Score; entropia extrema M1/M5 cap 0.70."
   },
   "logging": {
     "log_file": "logs/engine.log"
