@@ -1,3 +1,9 @@
+## [1.13.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.12.0...v1.13.0) (2026-05-21)
+
+### Funcionalidades
+
+* **llm:** confluencia macro transatlantica com RISE/FALL e somente CALL/PUT ([8027862](https://github.com/victorh-silveira/aether-quantum-engine/commit/80278627b84501ad8b5cec896f10bff84e0004bb))
+
 ## [1.12.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.11.0...v1.12.0) (2026-05-20)
 
 ### Funcionalidades
