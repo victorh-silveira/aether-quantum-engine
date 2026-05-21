@@ -11,6 +11,7 @@ from src.application.services.orchestrator.config_symbols import normalize_symbo
 from src.application.services.orchestrator.decision_mode_banner import emit_decision_engine_banner
 from src.application.services.orchestrator.execution_manager import ExecutionManager
 from src.application.services.orchestrator.metrics_utils import stub_metrics
+from src.application.services.orchestrator.settlement_backfill import reconcile_single_contract
 from src.application.services.orchestrator.settlement_logic import process_contract_settlement
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.risk_manager import RiskManager
@@ -125,6 +126,7 @@ class Orchestrator:
                 return False
             self.state.balance = auth["authorize"]["balance"]
             self.risk_manager.set_initial_bankroll(self.state.balance)
+            await self._subscribe_account_transactions()
             self.logger.debug(f"AUTH: Sucesso. Saldo: {self.state.balance:.2f}")
             return True
         except Exception as e:
@@ -195,6 +197,27 @@ class Orchestrator:
         direction = self._resolve_direction_for_cycle()
         metrics = self._stub_metrics(direction)
         return {sym: {"direction": direction, "metrics": metrics} for sym in self.symbols}
+
+    async def _subscribe_account_transactions(self) -> None:
+        """Inscreve notificacoes de transacao para capturar fechamento de contratos."""
+        try:
+            await self.ws.send({"transaction": 1, "subscribe": 1}, timeout=10)
+            self.ws.subscribe("transaction", self._on_transaction)
+        except Exception as e:
+            self.logger.warning("SETTLE: subscribe transaction falhou: %s", e)
+
+    async def _on_transaction(self, data: dict) -> None:
+        """Reconcilia contrato quando a Deriv emite transacao de fechamento."""
+        txn = data.get("transaction")
+        if not isinstance(txn, dict):
+            return
+        raw_id = txn.get("contract_id")
+        if raw_id is None:
+            return
+        c_id = int(raw_id)
+        if c_id not in self.state.active_contracts and c_id not in self.risk_manager.active_contract_ids:
+            return
+        await reconcile_single_contract(self, c_id)
 
     async def _on_contract_update(self, data):
         """Processa liquidacao de contrato delegando para o settlement_logic."""

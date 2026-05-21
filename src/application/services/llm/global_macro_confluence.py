@@ -2,62 +2,33 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any
 
-
-@dataclass(frozen=True)
-class ClusterVote:
-    """Resultado agregado de direcao para um cluster de indices."""
-
-    direction: str
-    strength: float
-    parts: tuple[str, ...]
-
-
-@dataclass(frozen=True)
-class MacroSnapshot:
-    """Snapshot quantitativo de sentimento macro para prompt e guardrails."""
-
-    us_dir: str
-    eu_dir: str
-    us_strength: float
-    eu_strength: float
-    tag: str
-    eurusd_bias: str
-    cluster_status: str
-    macro_block: str
-    fx_reference_line: str
-    us_parts: tuple[str, ...]
-    eu_parts: tuple[str, ...]
+from src.application.services.llm.macro_cluster_align import (
+    cluster_trade_direction,
+    expected_cluster_tags_line,
+    reconcile_cluster_tags_with_macro,
+)
+from src.application.services.llm.macro_config import ClusterVote, MacroSnapshot, resolve_macro_config
+from src.application.services.llm.macro_fx_reference import fx_reference_context_line
 
 
-def resolve_macro_config(raw: dict[str, Any] | None) -> dict[str, Any]:
-    """Normaliza configuracao strategy.macro com defaults seguros."""
-    base = raw if isinstance(raw, dict) else {}
-    fx_raw = base.get("fx_reference_pairs")
-    fx_pairs = fx_raw if isinstance(fx_raw, dict) else {}
-    labels_raw = base.get("cluster_labels")
-    labels = _normalize_cluster_labels(labels_raw if isinstance(labels_raw, dict) else {})
-    return {
-        "cluster_return_threshold_pct": float(base.get("cluster_return_threshold_pct", 0.02)),
-        "min_indices_for_vote": max(1, int(base.get("min_indices_for_vote", 2))),
-        "divergence_blocks_execution": bool(base.get("divergence_blocks_execution", True)),
-        "divergence_max_conviction": max(0.0, min(0.99, float(base.get("divergence_max_conviction", 0.65)))),
-        "align_eurusd_with_confluence": bool(base.get("align_eurusd_with_confluence", True)),
-        "confluence_conviction_floor": max(0.0, min(0.99, float(base.get("confluence_conviction_floor", 0.55)))),
-        "fx_reference_pairs": fx_pairs,
-        "cluster_labels": labels,
-    }
-
-
-def _normalize_cluster_labels(raw: dict[str, Any]) -> dict[str, list[str]]:
-    """Normaliza rotulos de cluster para maiusculas."""
-    out: dict[str, list[str]] = {}
-    for region, items in raw.items():
-        if isinstance(items, list):
-            out[str(region)] = [str(x).upper() for x in items]
-    return out
+__all__ = [
+    "ClusterVote",
+    "MacroSnapshot",
+    "aggregate_cluster_vote",
+    "build_macro_snapshot",
+    "classify_transatlantic_confluence",
+    "cluster_direction_from_closes",
+    "cluster_trade_direction",
+    "empty_macro_snapshot",
+    "eurusd_bias_from_confluence",
+    "expected_cluster_tags_line",
+    "format_macro_confluence_block",
+    "fx_reference_context_line",
+    "reconcile_cluster_tags_with_macro",
+    "resolve_macro_config",
+]
 
 
 def _display_move_token(internal_dir: str) -> str:
@@ -157,45 +128,6 @@ def eurusd_bias_from_confluence(tag: str, *, us_dir: str = "flat", eu_dir: str =
     return "PUT"
 
 
-def fx_reference_context_line(tag: str, fx_pairs: dict[str, Any] | None = None) -> str:
-    """Monta linha de contexto FX de referencia (nao negociavel) para o prompt."""
-    pairs = fx_pairs if isinstance(fx_pairs, dict) else {}
-    usdjpy = pairs.get("usdjpy") if isinstance(pairs.get("usdjpy"), dict) else {}
-    aud = pairs.get("audusd") if isinstance(pairs.get("audusd"), dict) else {}
-    nzd = pairs.get("nzdusd") if isinstance(pairs.get("nzdusd"), dict) else {}
-
-    if tag == "risk_on":
-        jpy = str(usdjpy.get("risk_on", "RISE")).upper()
-        aud_m = str(aud.get("risk_on", "RISE")).upper()
-        nzd_m = str(nzd.get("risk_on", "RISE")).upper()
-        mood = "Risk-On"
-    elif tag == "risk_off":
-        jpy = str(usdjpy.get("risk_off", "FALL")).upper()
-        aud_m = str(aud.get("risk_off", "FALL")).upper()
-        nzd_m = str(nzd.get("risk_off", "FALL")).upper()
-        mood = "Risk-Off"
-    elif tag == "divergence_us_leads":
-        mood = "Divergencia US lidera EU"
-        jpy = "RISE"
-        aud_m = "RISE"
-        nzd_m = "RISE"
-    elif tag == "divergence_eu_leads":
-        mood = "Divergencia EU lidera US"
-        jpy = "FALL"
-        aud_m = "RISE"
-        nzd_m = "RISE"
-    else:
-        mood = "Indefinido"
-        jpy = "FLAT"
-        aud_m = "FLAT"
-        nzd_m = "FLAT"
-
-    return (
-        f"CONTEXTO_FX_REF: {mood} | USDJPY {jpy} | AUDUSD {aud_m} | NZDUSD {nzd_m} "
-        "(referencia macro, sem execucao nestes pares)"
-    )
-
-
 def format_macro_confluence_block(
     us_summary: str,
     eu_summary: str,
@@ -203,19 +135,13 @@ def format_macro_confluence_block(
     fx_ref: str,
     *,
     eurusd_bias: str = "",
+    cluster_quant_line: str = "",
 ) -> str:
     """Formata bloco MACRO_CONFLUENCIA para prompt e telemetria."""
     bias = eurusd_bias or eurusd_bias_from_confluence(tag)
-    return f"MACRO_CONFLUENCIA: tag={tag} | EURUSD_bias_quant={bias} | {us_summary} | {eu_summary} | {fx_ref}"
-
-
-def cluster_trade_direction(cluster_dir: str) -> str | None:
-    """Converte direcao de cluster em CALL/PUT para indices RISE_FALL."""
-    if cluster_dir == "up":
-        return "CALL"
-    if cluster_dir == "down":
-        return "PUT"
-    return None
+    base = f"MACRO_CONFLUENCIA: tag={tag} | EURUSD_bias_quant={bias} | {us_summary} | {eu_summary} | {fx_ref}"
+    extra = (cluster_quant_line or "").strip()
+    return f"{base} | {extra}" if extra else base
 
 
 def build_macro_snapshot(
@@ -252,7 +178,22 @@ def build_macro_snapshot(
     eu_summary = f"EU_CLUSTER [{', '.join(eu_vote.parts)}]"
     fx_ref = fx_reference_context_line(tag, cfg.get("fx_reference_pairs"))
     cluster_status = f"{us_summary} || {eu_summary}"
-    macro_block = format_macro_confluence_block(us_summary, eu_summary, tag, fx_ref, eurusd_bias=bias)
+    cluster_quant_line = expected_cluster_tags_line(
+        tag=tag,
+        us_dir=us_vote.direction,
+        eu_dir=eu_vote.direction,
+        us_strength=us_vote.strength,
+        eu_strength=eu_vote.strength,
+        macro_cfg=cfg,
+    )
+    macro_block = format_macro_confluence_block(
+        us_summary,
+        eu_summary,
+        tag,
+        fx_ref,
+        eurusd_bias=bias,
+        cluster_quant_line=cluster_quant_line,
+    )
 
     return MacroSnapshot(
         us_dir=us_vote.direction,

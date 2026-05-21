@@ -1,5 +1,7 @@
 """Testes unitários para o PersistenceManager."""
 
+from pathlib import Path
+
 import pytest
 
 from src.infrastructure.state.persistence_manager import PersistenceManager
@@ -59,10 +61,7 @@ def test_persistence_load_corrupted(temp_persistence):
 def test_persistence_save_error_unlinks_temp(tmp_path, monkeypatch):
     """Verifica se os arquivos temporários são limpos se o salvamento falhar."""
     file_path = tmp_path / "fail.json"
-    temp_path = tmp_path / "fail.tmp"
     manager = PersistenceManager(file_path=str(file_path))
-
-    temp_path.touch()
 
     def mock_dump(*args, **kwargs):
         raise OSError("Relay error")
@@ -70,7 +69,8 @@ def test_persistence_save_error_unlinks_temp(tmp_path, monkeypatch):
     monkeypatch.setattr("json.dump", mock_dump)
 
     manager.save({"any": "data"})
-    assert not temp_path.exists()
+    leftovers = list(tmp_path.glob(".state.*.tmp"))
+    assert leftovers == []
 
 
 def test_persistence_load_empty(temp_persistence):
@@ -94,14 +94,16 @@ def test_persistence_load_unexpected_error(temp_persistence, monkeypatch):
 def test_persistence_save_retry_success(temp_persistence, monkeypatch):
     """Verifica se o salvamento tenta novamente após PermissionError e eventualmente tem sucesso."""
     call_count = 0
+    real_replace = Path.replace
 
-    def mock_rename(self, target):
+    def mock_replace(self, target):
         nonlocal call_count
         call_count += 1
         if call_count < 3:
             raise PermissionError("Locked")
+        return real_replace(self, target)
 
-    monkeypatch.setattr("pathlib.Path.rename", mock_rename)
+    monkeypatch.setattr(Path, "replace", mock_replace)
     monkeypatch.setattr("time.sleep", lambda x: None)
 
     temp_persistence.save({"retry": "ok"})
@@ -109,12 +111,12 @@ def test_persistence_save_retry_success(temp_persistence, monkeypatch):
 
 
 def test_persistence_save_retry_failure(temp_persistence, monkeypatch):
-    """Verifica se o salvamento falha após 5 tentativas de PermissionError."""
+    """Verifica se o salvamento falha após 8 tentativas de PermissionError."""
 
-    def mock_rename(self, target):
+    def mock_replace(self, target):
         raise PermissionError("Still locked")
 
-    monkeypatch.setattr("pathlib.Path.rename", mock_rename)
+    monkeypatch.setattr(Path, "replace", mock_replace)
     monkeypatch.setattr("time.sleep", lambda x: None)
 
     temp_persistence.save({"retry": "fail"})
@@ -126,10 +128,25 @@ def test_persistence_save_unlink_error_suppressed(temp_persistence, monkeypatch)
     def mock_dump(*args, **kwargs):
         raise OSError("Save fail")
 
-    def mock_unlink(self):
+    def mock_unlink(self, *, missing_ok=False):
         raise OSError("Unlink fail")
 
     monkeypatch.setattr("json.dump", mock_dump)
     monkeypatch.setattr("pathlib.Path.unlink", mock_unlink)
 
     temp_persistence.save({"any": "data"})
+
+
+def test_persistence_prune_skips_when_parent_not_directory(temp_persistence, tmp_path):
+    """Verifica prune quando o diretorio pai ainda nao existe como pasta."""
+    missing_parent = tmp_path / "ghost_dir" / "state.json"
+    temp_persistence.file_path = missing_parent
+    temp_persistence._prune_stale_temp_files()
+
+
+def test_persistence_prune_stale_temp_on_init(tmp_path):
+    """Verifica se temporarios antigos sao removidos na inicializacao."""
+    stale = tmp_path / ".state.9999.deadbeef.tmp"
+    stale.write_text("{}", encoding="utf-8")
+    PersistenceManager(file_path=str(tmp_path / "state.json"))
+    assert not stale.exists()

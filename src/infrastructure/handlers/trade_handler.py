@@ -64,6 +64,9 @@ class TradeHandler:
             raise RuntimeError(f"Erro na compra direta: {msg}")
 
         b = response["buy"]
+        expiry = int(b.get("date_expiry") or 0)
+        if expiry <= 0:
+            expiry = int(time.time()) + _contract_duration_seconds(parameters)
         return Contract(
             contract_id=int(b["contract_id"]),
             proposal_id="",
@@ -73,6 +76,21 @@ class TradeHandler:
             symbol=symbol,
             direction=direction,
             stake=stake,
-            expiry_time=int(time.time() + 900),
+            expiry_time=expiry,
             longcode=b.get("longcode", ""),
         )
+
+
+def _contract_duration_seconds(parameters: dict) -> int:
+    """Converte duration e duration_unit em segundos para expiry estimado."""
+    dur = max(1, int(parameters.get("duration", 5)))
+    unit = str(parameters.get("duration_unit", "m")).lower().strip()
+    if unit == "m":
+        return dur * 60
+    if unit == "s":
+        return dur
+    if unit == "t":
+        return dur * 2
+    if unit == "d":
+        return dur * 86400
+    return dur * 60

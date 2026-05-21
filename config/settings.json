@@ -26,6 +26,7 @@
       "divergence_blocks_execution": true,
       "divergence_max_conviction": 0.65,
       "align_eurusd_with_confluence": true,
+      "align_clusters_with_macro_vote": true,
       "confluence_conviction_floor": 0.55,
       "fx_reference_pairs": {
         "usdjpy": { "risk_on": "RISE", "risk_off": "FALL" },

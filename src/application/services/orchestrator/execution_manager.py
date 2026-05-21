@@ -7,6 +7,7 @@ import time
 from src.domain.models.trade import TradeDirection
 
 from . import settlement_utils
+from .settlement_backfill import backfill_pending_contracts, reconcile_single_contract, subscribe_open_contract
 from .stop_win_target import resolve_stop_win_target
 
 
@@ -114,6 +115,8 @@ class ExecutionManager:
 
             orders = self._collect_orders(decisions, include_anchor=include_anchor)
             executed_count = await self._execute_orders(orders, inter_delay, bankroll_snapshot)
+            if executed_count > 0:
+                self.orch.risk_manager.begin_cluster(executed_count)
 
             if executed_count > 0:
                 self.orch._buffer_result_logs = False
@@ -193,6 +196,15 @@ class ExecutionManager:
             str(u),
         )
         self.orch.risk_manager.contract_to_symbol[contract.contract_id] = symbol
+        req_timeout = float(
+            self.orch.config.get("orchestrator", {})
+            .get("execution", {})
+            .get("settlement_request_timeout_seconds", 30.0)
+        )
+        try:
+            await subscribe_open_contract(self.orch.ws, int(contract.contract_id), timeout=req_timeout)
+        except Exception as e:
+            self.logger.warning("[%s] SETTLE: subscribe cid=%s falhou: %s", cid, int(contract.contract_id), e)
         return contract
 
     async def wait_for_settlement(self, timeout: int = 3600):
@@ -236,10 +248,19 @@ class ExecutionManager:
             stagnant_polls = 0 if elapsed < grace else (stagnant_polls + 1 if current_ids == prev_active_ids else 0)
             prev_active_ids = current_ids
             if max_stagnant_polls > 0 and stagnant_polls >= max_stagnant_polls:
-                self.logger.warning("EXEC: Liquidacao estagnada; limpando pendencias restantes.")
-                settlement_utils.clear_contract_tracking(
-                    list(self.orch.risk_manager.active_contract_ids), self.orch.risk_manager
-                )
+                pending = list(self.orch.risk_manager.active_contract_ids)
+                if pending:
+                    recovered = await backfill_pending_contracts(self.orch, pending)
+                    if recovered:
+                        self.logger.info("SETTLE: Recuperados %d contratos via profit_table.", recovered)
+                if self.orch.risk_manager.active_contract_ids:
+                    self.logger.warning(
+                        "EXEC: Liquidacao estagnada; pendencias sem STATUS: %s",
+                        ",".join(str(x) for x in self.orch.risk_manager.active_contract_ids),
+                    )
+                    settlement_utils.clear_contract_tracking(
+                        list(self.orch.risk_manager.active_contract_ids), self.orch.risk_manager
+                    )
                 break
 
             await self.orch._save_full_state()
@@ -247,14 +268,9 @@ class ExecutionManager:
 
     async def reconcile(self):  # pragma: no cover
         """Consulta estado atualizado dos contratos ativos."""
-        req_timeout = float(
-            self.orch.config.get("orchestrator", {}).get("execution", {}).get("settlement_request_timeout_seconds", 8.0)
-        )
         for c_id in list(self.orch.state.active_contracts.keys()):
             try:
-                res = await self.orch.ws.send({"proposal_open_contract": 1, "contract_id": c_id}, timeout=req_timeout)
-                if "proposal_open_contract" in res:
-                    await self.orch._on_contract_update(res)
+                await reconcile_single_contract(self.orch, int(c_id))
                 await asyncio.sleep(0.2)
             except Exception as e:  # pragma: no cover
-                self.logger.debug(f"RECONCILE: Check {c_id} falhou: {e}")  # pragma: no cover
+                self.logger.warning("RECONCILE: cid=%s falhou: %s", c_id, e)  # pragma: no cover

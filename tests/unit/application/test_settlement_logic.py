@@ -8,6 +8,13 @@ from src.application.services.orchestrator.settlement_logic import log_cluster_s
 
 
 @pytest.mark.asyncio
+async def test_process_contract_settlement_ignores_open_contract():
+    orch = MagicMock()
+    await process_contract_settlement(orch, {"proposal_open_contract": {"status": "open", "contract_id": 1}})
+    orch.state.finalize_contract.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_process_contract_settlement_won():
     """Verifica o processamento de um contrato vencedor."""
     orch = MagicMock()

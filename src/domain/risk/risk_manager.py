@@ -31,6 +31,7 @@ class RiskManager:
         self.active_contract_ids: list[int] = []
         self.contract_to_symbol: dict[int, str] = {}
         self.cluster_results: dict[int, float] = {}
+        self.expected_cluster_settlements = 0
         self.logger = logging.getLogger("AETH")
 
     def set_initial_bankroll(self, amount: float):
@@ -137,6 +138,11 @@ class RiskManager:
 
         return final_stake
 
+    def begin_cluster(self, expected_settlements: int) -> None:
+        """Marca inicio de cluster e quantidade de liquidacoes esperadas."""
+        self.expected_cluster_settlements = max(0, int(expected_settlements))
+        self.cluster_results = {}
+
     def register_result(self, profit: float, contract_id: int, symbol: str, current_tick: int = 0):
         """Registra lucro/prejuízo e atualiza estatísticas."""
         if contract_id not in self.active_contract_ids:
@@ -153,7 +159,15 @@ class RiskManager:
             current_loss = self.pending_loss.get(symbol, 0.0)
             self.pending_loss[symbol] = max(0.0, current_loss - profit)
 
-        if len(self.cluster_results) == len(self.active_contract_ids):
+        self.active_contract_ids = [x for x in self.active_contract_ids if int(x) != int(contract_id)]
+
+        expected = self.expected_cluster_settlements
+        if (
+            expected > 0
+            and len(self.cluster_results) >= expected
+            or not self.active_contract_ids
+            and self.cluster_results
+        ):
             self._finalize_cluster()
 
     def _finalize_cluster(self):
@@ -182,6 +196,7 @@ class RiskManager:
         self.active_contract_ids = []
         self.contract_to_symbol = {}
         self.cluster_results = {}
+        self.expected_cluster_settlements = 0
 
     def get_state(self) -> dict[str, Any]:
         """Estado para persistência."""

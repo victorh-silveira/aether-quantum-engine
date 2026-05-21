@@ -2,6 +2,7 @@ import pytest
 
 from src.application.services.llm.global_macro_confluence import MacroSnapshot, build_macro_snapshot
 from src.application.services.llm.llm_bridge_guards import apply_macro_confluence_guard
+from src.application.services.llm.symbol_decision_utils import apply_macro_post_parse
 from src.domain.models.trade import TradeDirection
 
 
@@ -71,3 +72,21 @@ def test_apply_macro_guard_divergence_caps_conviction():
     assert direction == TradeDirection.CALL
     assert execute_ok is True
     assert "MACRO_DIV" in note
+
+
+def test_apply_macro_post_parse_aligns_us_cluster_on_risk_on():
+    snap = _snapshot("risk_on", "up", "up")
+    direction, conv, note, us_dir, eu_dir, guard, execute_ok = apply_macro_post_parse(
+        TradeDirection.CALL,
+        0.65,
+        "LLM",
+        TradeDirection.PUT,
+        TradeDirection.CALL,
+        snap,
+        {"align_clusters_with_macro_vote": True, "confluence_conviction_floor": 0.55},
+    )
+    assert us_dir == TradeDirection.CALL
+    assert eu_dir == TradeDirection.CALL
+    assert guard is True
+    assert "MACRO_CLUSTER_ALIGN" in note
+    assert execute_ok is True
