@@ -10,15 +10,69 @@ from src.application.services.llm import (
     format_numeric_indicators_six_line,
 )
 from src.application.services.llm.context_runtime import fetch_context_blocks
+from src.application.services.llm.global_macro_confluence import (
+    MacroSnapshot,
+    build_macro_snapshot,
+    empty_macro_snapshot,
+    resolve_macro_config,
+)
+from src.application.services.llm.llm_bridge_guards import apply_macro_confluence_guard
+from src.application.services.llm.prompt_extras import build_institutional_pa_bundle
 from src.application.services.llm.prompt_utils import (
-    build_institutional_pa_bundle,
     build_sniper_trading_prompt as _build_prompt_impl,
 )
 from src.application.services.llm.sniper_payload import coerce_sniper_tokens
+from src.domain.models.trade import TradeDirection
 
 
-async def _fetch_cluster_status(orch: Any, runtime: dict[str, Any]) -> str:
-    """Fetch realtime candle data for US and EU target index clusters to compute trends."""
+def decision_from_payload(
+    payload: dict[str, Any],
+) -> tuple[TradeDirection | None, float, str, TradeDirection | None, TradeDirection | None]:
+    """Converte payload padronizado em direcao, conviccao e nota."""
+    tag = payload.get("_direction_normalized")
+    note = " ".join(str(payload.get("note", "")).replace("\n", " ").split()).strip() or "-"
+
+    if tag == "CALL":
+        direction = TradeDirection.CALL
+    elif tag == "PUT":
+        direction = TradeDirection.PUT
+    else:
+        direction = None
+
+    conviction = float(payload.get("_conviction_normalized", 0.0))
+
+    us_dir_str = str(payload.get("us_cluster", "")).upper()
+    eu_dir_str = str(payload.get("eu_cluster", "")).upper()
+
+    us_dir = TradeDirection.CALL if us_dir_str == "CALL" else (TradeDirection.PUT if us_dir_str == "PUT" else None)
+    eu_dir = TradeDirection.CALL if eu_dir_str == "CALL" else (TradeDirection.PUT if eu_dir_str == "PUT" else None)
+
+    return direction, conviction, note, us_dir, eu_dir
+
+
+def apply_macro_post_parse(
+    direction: TradeDirection | None,
+    conviction: float,
+    note: str,
+    us_dir: TradeDirection | None,
+    eu_dir: TradeDirection | None,
+    macro_snapshot: MacroSnapshot,
+    macro_cfg: dict[str, Any] | None,
+) -> tuple[TradeDirection | None, float, str, TradeDirection | None, TradeDirection | None, bool, bool]:
+    """Aplica guard macro na decisao EURUSD apos parse da LLM."""
+    direction, conviction, macro_guard, macro_note, macro_execute = apply_macro_confluence_guard(
+        direction,
+        conviction,
+        macro_snapshot,
+        macro_cfg,
+    )
+    if macro_note:
+        note = f"{note} | {macro_note}".strip()
+    return direction, conviction, note, us_dir, eu_dir, macro_guard, macro_execute
+
+
+async def fetch_macro_snapshot(orch: Any, runtime: dict[str, Any]) -> MacroSnapshot:
+    """Busca fechamentos dos clusters US/EU e monta snapshot macro transatlantico."""
     is_real = (
         hasattr(orch, "stream")
         and hasattr(orch.stream, "fetch_candle_closes")
@@ -30,56 +84,47 @@ async def _fetch_cluster_status(orch: Any, runtime: dict[str, Any]) -> str:
         )
     )
     if not is_real:
-        return ""
+        return empty_macro_snapshot()
 
     try:
-        clusters = {}
-        if hasattr(orch, "config") and isinstance(orch.config, dict):
-            clusters = orch.config.get("strategy", {}).get("clusters", {})
-        if not isinstance(clusters, dict):
-            clusters = {}
-
+        strategy = orch.config.get("strategy", {}) if hasattr(orch, "config") and isinstance(orch.config, dict) else {}
+        clusters = strategy.get("clusters", {}) if isinstance(strategy.get("clusters"), dict) else {}
         us_symbols = list(clusters.get("us", ["OTC_SPC", "OTC_NDX", "OTC_DJI"]))
-        eu_symbols = list(clusters.get("eu", ["OTC_FCHI", "OTC_GDAXI", "OTC_SSMI", "OTC_FTSE"]))
-        all_syms = us_symbols + eu_symbols
+        eu_symbols = list(clusters.get("eu", ["OTC_FCHI", "OTC_GDAXI", "OTC_FTSE"]))
+        macro_cfg = strategy.get("macro")
         swing_gran = int(runtime.get("tf_swing_gran", 300))
+        all_syms = us_symbols + eu_symbols
 
         results = await asyncio.gather(
-            *[orch.stream.fetch_candle_closes(s, swing_gran, 6) for s in all_syms], return_exceptions=True
+            *[orch.stream.fetch_candle_closes(s, swing_gran, 6) for s in all_syms],
+            return_exceptions=True,
         )
+        closes_map: dict[str, list[float]] = {}
+        for i, sym in enumerate(all_syms):
+            row = results[i]
+            closes_map[sym] = list(row) if isinstance(row, list) else []
 
-        us_parts = []
-        eu_parts = []
-
-        for i, s in enumerate(all_syms):
-            closes = results[i]
-            if isinstance(closes, list) and len(closes) >= 2:
-                last_px = float(closes[-1])
-                ret = ((closes[-1] - closes[0]) / closes[0]) * 100.0
-                direction = "Up" if ret > 0.02 else ("Down" if ret < -0.02 else "Flat")
-                part = f"{s.replace('OTC_', '')}: {last_px:.2f} ({direction} {ret:+.2f}%)"
-            else:
-                part = f"{s.replace('OTC_', '')}: N/A"
-
-            if s in us_symbols:
-                us_parts.append(part)
-            else:
-                eu_parts.append(part)
-
-        return f"US_CLUSTER [{', '.join(us_parts)}] || EU_CLUSTER [{', '.join(eu_parts)}]"
+        return build_macro_snapshot(us_symbols, eu_symbols, closes_map, macro_cfg)
     except Exception as e:
         if hasattr(orch, "logger") and orch.logger:
-            orch.logger.warning(f"Error fetching cluster status: {e}")
-        return ""
+            orch.logger.warning("Error fetching macro snapshot: %s", e)
+        return empty_macro_snapshot()
 
 
 async def build_symbol_prompt(
     orch: Any,
     sym: str,
     runtime: dict[str, Any],
-) -> tuple[str, dict[str, Any], dict[str, Any], float, str, str, str, str, str, str, str, list[float]]:
+) -> tuple[str, dict[str, Any], dict[str, Any], float, str, str, str, str, str, str, str, list[float], MacroSnapshot]:
     """Extrai contexto e constroi o prompt final para a LLM."""
+    macro_snapshot = await fetch_macro_snapshot(orch, runtime)
     macro_d, struct_d, swing_d, trig_d, mtf_d, ctx = await fetch_context_blocks(orch, sym, runtime)
+    ctx["macro_confluence"] = macro_snapshot.macro_block
+    ctx["fx_reference_line"] = macro_snapshot.fx_reference_line
+    ctx["macro_sentiment"] = macro_snapshot.tag
+    ctx["eurusd_bias_quant"] = macro_snapshot.eurusd_bias
+    ctx["macro_us_dir"] = macro_snapshot.us_dir
+    ctx["macro_eu_dir"] = macro_snapshot.eu_dir
     regime_label = str(ctx.get("regime_label", "range"))
     line_macro_structure = str(ctx.get("llm_mtf_confluence_m30_m5") or "")
     line_swing_trigger = str(ctx.get("llm_mtf_confluence") or "")
@@ -132,10 +177,13 @@ async def build_symbol_prompt(
         if isinstance(raw_wr, tuple) and len(raw_wr) == 2:
             wr_v, wr_n = raw_wr[0], int(raw_wr[1])
 
-    cluster_status = await _fetch_cluster_status(orch, runtime)
+    cluster_status = macro_snapshot.cluster_status
     tf_labels = ctx.get("llm_tf_labels")
     if not isinstance(tf_labels, tuple) or len(tf_labels) != 6:
         tf_labels = ("D1", "H4", "H1", "M15", "M5", "M1")
+
+    strategy_cfg = orch.config.get("strategy", {}) if hasattr(orch, "config") and isinstance(orch.config, dict) else {}
+    macro_cfg = resolve_macro_config(strategy_cfg.get("macro"))
 
     prompt = _build_prompt_impl(
         sym,
@@ -167,7 +215,11 @@ async def build_symbol_prompt(
         metrics_h=ctx.get("hurst_value"),
         metrics_z=ctx.get("zscore_value"),
         metrics_e=ctx.get("entropy_trigger"),
+        macro_confluence=macro_snapshot.macro_block,
+        fx_reference_line=macro_snapshot.fx_reference_line,
+        macro_sentiment=macro_snapshot.tag,
     )
+    ctx["macro_cfg"] = macro_cfg
     return (
         prompt,
         ctx,
@@ -181,4 +233,5 @@ async def build_symbol_prompt(
         trig_d,
         mtf_d,
         swing_c,
+        macro_snapshot,
     )

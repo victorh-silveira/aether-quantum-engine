@@ -19,7 +19,8 @@ from src.application.services.llm.llm_symbol_io import (
     last_reference_price as _last_reference_price,
     request_llm_payload as _request_payload_core,
 )
-from src.application.services.llm.symbol_decision import _decision_from_payload, collect_symbol_llm_decision
+from src.application.services.llm.symbol_decision import collect_symbol_llm_decision
+from src.application.services.llm.symbol_decision_utils import decision_from_payload as _decision_from_payload
 from src.domain.models.trade import TradeDirection
 
 

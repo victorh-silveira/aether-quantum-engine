@@ -22,36 +22,15 @@ from src.application.services.llm.prompt_utils import (
     iter_llm_prompt_audit_sections,
 )
 from src.application.services.llm.regime import _shannon_entropy
-from src.application.services.llm.symbol_decision_utils import build_symbol_prompt
+from src.application.services.llm.symbol_decision_utils import (
+    apply_macro_post_parse,
+    build_symbol_prompt,
+    decision_from_payload,
+)
 from src.domain.models.trade import TradeDirection
 
 
 _request_payload = request_llm_payload
-
-
-def _decision_from_payload(
-    payload: dict[str, Any],
-) -> tuple[TradeDirection | None, float, str, TradeDirection | None, TradeDirection | None]:
-    """Converte payload padronizado em direcao, conviccao e nota."""
-    tag = payload.get("_direction_normalized")
-    note = " ".join(str(payload.get("note", "")).replace("\n", " ").split()).strip() or "-"
-
-    if tag == "CALL":
-        direction = TradeDirection.CALL
-    elif tag == "PUT":
-        direction = TradeDirection.PUT
-    else:
-        direction = None
-
-    conviction = float(payload.get("_conviction_normalized", 0.0))
-
-    us_dir_str = str(payload.get("us_cluster", "")).upper()
-    eu_dir_str = str(payload.get("eu_cluster", "")).upper()
-
-    us_dir = TradeDirection.CALL if us_dir_str == "CALL" else (TradeDirection.PUT if us_dir_str == "PUT" else None)
-    eu_dir = TradeDirection.CALL if eu_dir_str == "CALL" else (TradeDirection.PUT if eu_dir_str == "PUT" else None)
-
-    return direction, conviction, note, us_dir, eu_dir
 
 
 async def collect_symbol_llm_decision(
@@ -75,6 +54,7 @@ async def collect_symbol_llm_decision(
         trig_d,
         mtf_d,
         swing_c,
+        macro_snapshot,
     ) = await build_symbol_prompt(orch, sym, runtime)
 
     call_runtime, _ = runtime_for_gemini_call(runtime, ctx)
@@ -98,6 +78,9 @@ async def collect_symbol_llm_decision(
         institutional_pa_bundle=institutional_pa_bundle,
         indicator_bundle_line=str(ctx.get("llm_indicator_bundle", "")),
         tf_labels=ctx.get("llm_tf_labels") or (),
+        macro_confluence=macro_snapshot.macro_block,
+        fx_reference_line=macro_snapshot.fx_reference_line,
+        macro_sentiment=macro_snapshot.tag,
     )
     ref_px = last_reference_price(orch.stream, sym)
     payload = await _request_payload(
@@ -112,7 +95,7 @@ async def collect_symbol_llm_decision(
     llm_resp_chars = int(payload.pop("_llm_raw_chars", 0) or 0)
     llm_direction_from_api = bool(payload.pop("_llm_direction_from_api", False))
     mtf_effective = str(mtf_d or "").strip() or "-"
-    direction, conviction, note, us_dir, eu_dir = _decision_from_payload(payload)
+    direction, conviction, note, us_dir, eu_dir = decision_from_payload(payload)
 
     try:
         ic = runtime.get("indicator_config")
@@ -141,6 +124,17 @@ async def collect_symbol_llm_decision(
             note = f"Inverted: Conviction {conviction:.2f} < {inv_threshold:.2f}"
         elif conviction < fol_threshold:
             note = f"Follow (Noise Zone): {conviction:.2f}"
+
+    macro_cfg = ctx.get("macro_cfg") if isinstance(ctx.get("macro_cfg"), dict) else None
+    direction, conviction, note, us_dir, eu_dir, macro_guard, macro_execute = apply_macro_post_parse(
+        direction,
+        conviction,
+        note,
+        us_dir,
+        eu_dir,
+        macro_snapshot,
+        macro_cfg,
+    )
 
     direction, metrics = _build_metrics_for_decision_core(
         runtime,
@@ -183,9 +177,10 @@ async def collect_symbol_llm_decision(
         adjusted=inverted,
         exec_inverted=inverted,
     )
+    execute_flag = bool(metrics.get("execute", False)) and macro_execute
     metrics.update(
         {
-            "execute": bool(metrics.get("execute", False)),
+            "execute": execute_flag,
             "llm_exec_inverted": inverted,
             "llm_http_ms": llm_http_ms,
             "llm_response_chars": llm_resp_chars,
@@ -193,6 +188,12 @@ async def collect_symbol_llm_decision(
             "us_cluster": us_dir.name if us_dir else None,
             "eu_cluster": eu_dir.name if eu_dir else None,
             "entry_policy_tag": "",
+            "macro_sentiment": macro_snapshot.tag,
+            "macro_confluence_tag": macro_snapshot.tag,
+            "eurusd_bias_quant": macro_snapshot.eurusd_bias,
+            "macro_guard_applied": macro_guard,
+            "macro_us_dir_quant": macro_snapshot.us_dir,
+            "macro_eu_dir_quant": macro_snapshot.eu_dir,
         }
     )
     audit_sections = iter_llm_prompt_audit_sections(
@@ -217,6 +218,9 @@ async def collect_symbol_llm_decision(
         indicator_bundle_line=str(ctx.get("llm_indicator_bundle") or ""),
         wr_rolling=metrics.get("wr_rolling"),
         wr_samples=int(metrics.get("wr_samples") or 0),
+        macro_confluence=macro_snapshot.macro_block,
+        fx_reference_line=macro_snapshot.fx_reference_line,
+        macro_sentiment=macro_snapshot.tag,
     )
     emit_llm_decision_log(
         orch.logger,

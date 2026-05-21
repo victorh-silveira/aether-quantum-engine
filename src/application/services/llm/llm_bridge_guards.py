@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import re
+from typing import Any
 
 import numpy as np
 
 import src.application.services.llm.indicators as ti
+from src.application.services.llm.global_macro_confluence import MacroSnapshot, resolve_macro_config
 from src.application.services.llm.llm_bridge_utils import score_token
 from src.domain.models.trade import TradeDirection
 
@@ -113,3 +115,40 @@ def is_overextended(closes: list[float], window: int = 20) -> bool:
     if z is None:
         return False
     return abs(z) > 3.0
+
+
+def apply_macro_confluence_guard(
+    direction: TradeDirection | None,
+    conviction: float,
+    snapshot: MacroSnapshot | None,
+    macro_cfg: dict[str, Any] | None,
+) -> tuple[TradeDirection | None, float, bool, str, bool]:
+    """Aplica guardrails de confluencia macro transatlantica na decisao EURUSD."""
+    if direction is None or snapshot is None:
+        return direction, conviction, False, "", True
+
+    cfg = resolve_macro_config(macro_cfg)
+    tag = snapshot.tag
+    bias = snapshot.eurusd_bias
+    min_strength = min(float(snapshot.us_strength), float(snapshot.eu_strength))
+    note_parts: list[str] = []
+    guard_applied = False
+    execute_ok = True
+
+    if tag.startswith("divergence") and cfg["divergence_blocks_execution"]:
+        guard_applied = True
+        cap = float(cfg["divergence_max_conviction"])
+        conviction = min(conviction, cap)
+        note_parts.append(f"MACRO_DIV cap={cap:.2f}")
+
+    if cfg["align_eurusd_with_confluence"] and bias in ("CALL", "PUT"):
+        quant_dir = TradeDirection.CALL if bias == "CALL" else TradeDirection.PUT
+        floor = float(cfg["confluence_conviction_floor"])
+        if min_strength >= floor and direction != quant_dir and tag in ("risk_on", "risk_off"):
+            guard_applied = True
+            execute_ok = False
+            direction = None
+            note_parts.append(f"MACRO_ALIGN block bias={bias}")
+
+    note = " | ".join(note_parts)
+    return direction, conviction, guard_applied, note, execute_ok

@@ -23,7 +23,11 @@ from src.application.services.llm.sovereign_system import SOVEREIGN_SYSTEM
 
 logger = logging.getLogger("AETH")
 
-_GEMINI_RETRY_TAIL = "\n\nResponda OBRIGATORIAMENTE no formato exigido: EURUSD: [DIR] | US_CLUSTER: [DIR] | EU_CLUSTER: [DIR] | Probabilidade: [0.XX]."
+_GEMINI_RETRY_TAIL = (
+    "\n\nResponda OBRIGATORIAMENTE no formato exigido: "
+    "EURUSD: [DIR] | US_CLUSTER: [DIR] | EU_CLUSTER: [DIR] | Probabilidade: [0.XX]. "
+    "Use MACRO_CONFLUENCIA (Risk-On/Risk-Off/divergencia) para alinhar EURUSD e clusters."
+)
 
 
 def resolved_system_instruction(runtime_system: str | None) -> str:

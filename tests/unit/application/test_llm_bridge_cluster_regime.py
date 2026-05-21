@@ -151,7 +151,7 @@ async def test_build_symbol_prompt_clusters_dict_and_non_dict_coverage():
             },
         )
 
-        prompt, _, _, _, _, _, _, _, _, _, _, _ = await build_symbol_prompt(orch, "frxEURUSD", runtime)
+        prompt, _, _, _, _, _, _, _, _, _, _, _, _ = await build_symbol_prompt(orch, "frxEURUSD", runtime)
         assert "SPC:" in prompt
 
     # 2. Test non-dict clusters fallback coverage
@@ -180,5 +180,5 @@ async def test_build_symbol_prompt_clusters_dict_and_non_dict_coverage():
             },
         )
 
-        prompt, _, _, _, _, _, _, _, _, _, _, _ = await build_symbol_prompt(orch_non_dict, "frxEURUSD", runtime)
+        prompt, _, _, _, _, _, _, _, _, _, _, _, _ = await build_symbol_prompt(orch_non_dict, "frxEURUSD", runtime)
         assert "SPC:" in prompt

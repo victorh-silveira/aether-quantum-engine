@@ -2,8 +2,20 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from src.application.services.llm import IndicatorConfig
+from src.application.services.llm.global_macro_confluence import build_macro_snapshot
 from src.application.services.llm.llm_bridge import collect_llm_decisions
+from src.application.services.llm.symbol_decision import collect_symbol_llm_decision
 from src.domain.models.trade import TradeDirection
+
+
+def _llm_metrics(direction, conviction, note):
+    return {
+        "direction": direction.name if direction else "NONE",
+        "conviction": conviction,
+        "llm_note": note,
+        "execute": direction is not None,
+    }
 
 
 @pytest.mark.asyncio
@@ -124,3 +136,52 @@ async def test_collect_llm_decisions_skips_symbols_outside_cluster_lists():
 
     assert "OTC_SPC" in decisions
     assert "OTC_SSMI" not in decisions
+
+
+@pytest.mark.asyncio
+async def test_collect_symbol_appends_macro_guard_note():
+    snap = build_macro_snapshot(
+        ["OTC_SPC"],
+        ["OTC_FCHI"],
+        {"OTC_SPC": [100.0, 105.0], "OTC_FCHI": [100.0, 95.0]},
+        {"min_indices_for_vote": 1},
+    )
+    orch = MagicMock()
+    orch._active_cycle_id = 6
+    orch.symbols = ["frxEURUSD"]
+    orch.logger = MagicMock()
+    ctx = {"macro_cfg": {"divergence_blocks_execution": True, "divergence_max_conviction": 0.65}}
+    with (
+        patch(
+            "src.application.services.llm.symbol_decision.build_symbol_prompt",
+            AsyncMock(return_value=("prompt", ctx, {}, 0.5, "line", "bundle", "m", "st", "sw", "tr", "mtf", [], snap)),
+        ),
+        patch(
+            "src.application.services.llm.symbol_decision._request_payload",
+            AsyncMock(
+                return_value={
+                    "_direction_normalized": "CALL",
+                    "_conviction_normalized": 0.9,
+                    "note": "base",
+                }
+            ),
+        ),
+    ):
+        runtime = {
+            "inversion_threshold": 0.0,
+            "follow_threshold": 0.0,
+            "indicator_config": IndicatorConfig(),
+            "payout_estimate": 0.85,
+            "min_payout_accept": 0.80,
+            "duration": 5,
+            "du": "m",
+            "model": "m",
+            "base_url": "http://x",
+            "timeout": 10,
+            "num_predict": 64,
+            "min_conviction_execute": 0.51,
+        }
+        _dir, metrics = await collect_symbol_llm_decision(
+            orch, sym="frxEURUSD", runtime=runtime, llm_metrics=_llm_metrics
+        )
+        assert "MACRO_DIV" in metrics["llm_note"]

@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.application.services.llm import IndicatorConfig
+from src.application.services.llm.global_macro_confluence import empty_macro_snapshot
 from src.application.services.llm.llm_bridge import llm_metrics
 from src.application.services.llm.symbol_decision import collect_symbol_llm_decision
 
@@ -20,7 +21,23 @@ async def test_collect_symbol_llm_decision_failsafe_force_direction():
     with (
         patch(
             "src.application.services.llm.symbol_decision.build_symbol_prompt",
-            AsyncMock(return_value=("prompt", ctx, {}, 0.5, "line", "bundle", "m", "st", "sw", "tr", "mtf", [])),
+            AsyncMock(
+                return_value=(
+                    "prompt",
+                    ctx,
+                    {},
+                    0.5,
+                    "line",
+                    "bundle",
+                    "m",
+                    "st",
+                    "sw",
+                    "tr",
+                    "mtf",
+                    [],
+                    empty_macro_snapshot(),
+                )
+            ),
         ),
         patch(
             "src.application.services.llm.symbol_decision._request_payload",
