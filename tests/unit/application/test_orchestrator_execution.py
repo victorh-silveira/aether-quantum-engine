@@ -67,6 +67,8 @@ async def test_contract_update_won(orch_config):
             stake=10.0,
             expiry_time=0,
         )
+        orch.risk_manager.active_contract_ids = [1]
+        orch.risk_manager.begin_cluster(1)
         orch.risk_manager.contract_to_symbol[1] = "frxEURUSD"
         data = {
             "proposal_open_contract": {
@@ -180,3 +182,30 @@ async def test_execution_manager_multiplier_tp_calculation(orch_config):
         args, kwargs = orch.trade_handler.buy_with_parameters.call_args
         params = kwargs.get("params") or args[3]
         assert params["limit_order"]["take_profit"] == 20.0
+
+
+@pytest.mark.asyncio
+async def test_place_order_subscribe_failure_still_returns_contract(orch_config):
+    TradingState.reset()
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
+        mock_ws_class.return_value.subscribe = MagicMock()
+        orch = Orchestrator(orch_config, "token")
+        orch.trade_handler.buy_with_parameters = AsyncMock(
+            return_value=Contract(
+                contract_id=76258194841,
+                proposal_id="",
+                status=TradeStatus.OPEN,
+                buy_price=2.34,
+                payout=4.26,
+                symbol="OTC_SPC",
+                direction=TradeDirection.CALL,
+                stake=2.34,
+                expiry_time=int(time.time()) + 900,
+            )
+        )
+        with patch(
+            "src.application.services.orchestrator.execution_manager.subscribe_open_contract",
+            AsyncMock(side_effect=RuntimeError("sub")),
+        ):
+            res = await orch.executor._place_order("OTC_SPC", TradeDirection.CALL, 2.34)
+        assert res.contract_id == 76258194841

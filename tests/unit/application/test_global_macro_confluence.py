@@ -7,8 +7,10 @@ from src.application.services.llm.global_macro_confluence import (
     cluster_trade_direction,
     empty_macro_snapshot,
     eurusd_bias_from_confluence,
+    expected_cluster_tags_line,
     format_macro_confluence_block,
     fx_reference_context_line,
+    reconcile_cluster_tags_with_macro,
     resolve_macro_config,
 )
 
@@ -94,5 +96,105 @@ def test_format_macro_confluence_block_and_empty_snapshot():
 def test_resolve_macro_config_defaults_and_upper_labels():
     cfg = resolve_macro_config({"cluster_labels": {"us": ["s&p500"], "eu": ["dax40"]}})
     assert cfg["divergence_blocks_execution"] is True
+    assert cfg["align_clusters_with_macro_vote"] is True
     assert cfg["cluster_labels"]["us"] == ["S&P500"]
     assert cfg["cluster_labels"]["eu"] == ["DAX40"]
+
+
+def test_reconcile_cluster_tags_risk_on_forces_call_on_both():
+    snap = build_macro_snapshot(
+        ["OTC_SPC", "OTC_NDX"],
+        ["OTC_FCHI", "OTC_GDAXI"],
+        {
+            "OTC_SPC": [100.0, 105.0],
+            "OTC_NDX": [100.0, 104.0],
+            "OTC_FCHI": [100.0, 106.0],
+            "OTC_GDAXI": [100.0, 105.5],
+        },
+        {"min_indices_for_vote": 2, "confluence_conviction_floor": 0.55},
+    )
+    assert snap.tag == "risk_on"
+    us, eu, changed, note = reconcile_cluster_tags_with_macro("PUT", "CALL", snap)
+    assert changed is True
+    assert us == "CALL"
+    assert eu == "CALL"
+    assert "MACRO_CLUSTER_ALIGN" in note
+
+
+def test_reconcile_cluster_tags_divergence_aligns_per_region():
+    snap = build_macro_snapshot(
+        ["OTC_SPC"],
+        ["OTC_FCHI"],
+        {"OTC_SPC": [100.0, 105.0], "OTC_FCHI": [100.0, 95.0]},
+        {"min_indices_for_vote": 1},
+    )
+    assert snap.tag == "divergence_us_leads"
+    us, eu, changed, _ = reconcile_cluster_tags_with_macro("PUT", "CALL", snap)
+    assert changed is True
+    assert us == "CALL"
+    assert eu == "PUT"
+
+
+def test_expected_cluster_tags_line_risk_on():
+    line = expected_cluster_tags_line(
+        tag="risk_on",
+        us_dir="up",
+        eu_dir="up",
+        us_strength=1.0,
+        eu_strength=1.0,
+    )
+    assert "US_CLUSTER=CALL" in line
+    assert "EU_CLUSTER=CALL" in line
+
+
+def test_expected_cluster_tags_line_risk_off_and_partial():
+    off = expected_cluster_tags_line(
+        tag="risk_off",
+        us_dir="down",
+        eu_dir="down",
+        us_strength=0.8,
+        eu_strength=0.8,
+        macro_cfg={"confluence_conviction_floor": 0.55},
+    )
+    assert "US_CLUSTER=PUT" in off
+    us_only = expected_cluster_tags_line(
+        tag="indefinido",
+        us_dir="up",
+        eu_dir="flat",
+        us_strength=0.7,
+        eu_strength=0.1,
+        macro_cfg={"confluence_conviction_floor": 0.55},
+    )
+    assert us_only.startswith("CLUSTER_QUANT_US:")
+    eu_only = expected_cluster_tags_line(
+        tag="indefinido",
+        us_dir="flat",
+        eu_dir="down",
+        us_strength=0.1,
+        eu_strength=0.7,
+        macro_cfg={"confluence_conviction_floor": 0.55},
+    )
+    assert eu_only.startswith("CLUSTER_QUANT_EU:")
+
+
+def test_reconcile_cluster_tags_disabled_and_risk_off():
+    snap = build_macro_snapshot(
+        ["OTC_SPC"],
+        ["OTC_FCHI"],
+        {"OTC_SPC": [100.0, 95.0], "OTC_FCHI": [100.0, 94.0]},
+        {"min_indices_for_vote": 1},
+    )
+    assert snap.tag == "risk_off"
+    us, eu, changed, note = reconcile_cluster_tags_with_macro(
+        "CALL",
+        "CALL",
+        snap,
+        {"align_clusters_with_macro_vote": False},
+    )
+    assert changed is False
+    assert note == ""
+    assert us == "CALL"
+    us2, eu2, changed2, _ = reconcile_cluster_tags_with_macro("CALL", "CALL", snap)
+    assert changed2 is True
+    assert us2 == "PUT"
+    assert eu2 == "PUT"

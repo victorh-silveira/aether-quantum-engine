@@ -3,7 +3,10 @@
 import contextlib
 import json
 import logging
+import os
+import threading
 import time
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -26,11 +29,27 @@ class PersistenceManager:
         """
         self.file_path = Path(file_path)
         self.logger = logging.getLogger("AETH")
+        self._save_lock = threading.Lock()
         self._ensure_directory()
+        self._prune_stale_temp_files()
 
     def _ensure_directory(self):
         """Cria o diretório de dados se ele não existir."""
         self.file_path.parent.mkdir(parents=True, exist_ok=True)
+
+    def _unique_temp_path(self) -> Path:
+        """Gera caminho temporario unico para evitar colisao entre saves concorrentes."""
+        token = uuid.uuid4().hex
+        return self.file_path.with_name(f".state.{os.getpid()}.{token}.tmp")
+
+    def _prune_stale_temp_files(self) -> None:
+        """Remove arquivos temporarios antigos deixados por falhas anteriores."""
+        parent = self.file_path.parent
+        if not parent.is_dir():
+            return
+        for candidate in parent.glob(".state.*.tmp"):
+            with contextlib.suppress(Exception):
+                candidate.unlink()
 
     def save(self, data: dict[str, Any]):
         """Salva os dados em um arquivo JSON de forma atômica com verificação de diretório.
@@ -38,28 +57,33 @@ class PersistenceManager:
         Args:
             data (Dict[str, Any]): Os dados de estado a serem persistidos.
         """
-        self._ensure_directory()
-        temp_file = self.file_path.with_suffix(".tmp")
-        try:
-            with temp_file.open("w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2)
+        with self._save_lock:
+            self._ensure_directory()
+            temp_file = self._unique_temp_path()
+            try:
+                with temp_file.open("w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2)
+                    f.flush()
+                    os.fsync(f.fileno())
 
-            for i in range(5):
-                try:
-                    if self.file_path.exists():
-                        self.file_path.unlink()
-                    temp_file.rename(self.file_path)
-                    break
-                except _PERMISSION_OS_ERRORS:
-                    if i == 4:
-                        raise
-                    time.sleep(0.1)
+                for i in range(8):
+                    try:
+                        temp_file.replace(self.file_path)
+                        break
+                    except _PERMISSION_OS_ERRORS:
+                        if i == 7:
+                            raise
+                        time.sleep(0.05 * (i + 1))
 
-        except Exception as e:
-            self.logger.error(f"PERS: Erro critico ao salvar estado: {e}")
-            if temp_file.exists():
+            except Exception as e:
+                self.logger.error(f"PERS: Erro critico ao salvar estado: {e}")
                 with contextlib.suppress(Exception):
-                    temp_file.unlink()
+                    if temp_file.exists():
+                        temp_file.unlink()
+            finally:
+                if temp_file.exists():
+                    with contextlib.suppress(Exception):
+                        temp_file.unlink()
 
     def load(self) -> dict[str, Any] | None:
         """Carrega os dados de estado do arquivo JSON.

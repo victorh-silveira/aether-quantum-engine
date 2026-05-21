@@ -34,6 +34,20 @@ async def test_trade_handler_buy_with_parameters_success(trade_handler, mock_ws)
 
 
 @pytest.mark.asyncio
+async def test_trade_handler_buy_uses_date_expiry_from_api(trade_handler, mock_ws):
+    mock_ws.send.return_value = {
+        "buy": {
+            "contract_id": 1001,
+            "buy_price": 2.34,
+            "payout": 4.26,
+            "date_expiry": 1900000000,
+        }
+    }
+    contract = await trade_handler.buy_with_parameters("OTC_SPC", TradeDirection.CALL, 2.34)
+    assert contract.expiry_time == 1900000000
+
+
+@pytest.mark.asyncio
 async def test_trade_handler_buy_with_parameters_error(trade_handler, mock_ws):
     mock_ws.send.return_value = {"error": {"message": "Insufficient balance"}}
     with pytest.raises(RuntimeError, match="Erro na compra direta: Insufficient balance"):
