@@ -202,6 +202,7 @@ async def collect_symbol_llm_decision(
         eu_dir,
         macro_snapshot,
         macro_cfg,
+        sym=sym,
     )
 
     llm_ok, llm_fail_tag = anchor_llm_decision_complete(

@@ -4,7 +4,7 @@ import pytest
 
 from src.application.services.llm.llm_bridge_telemetry import emit_llm_decision_log
 from src.application.services.llm.llm_bridge_utils import parse_llm_trade_response
-from src.application.services.llm.symbol_decision_utils import fetch_macro_snapshot
+from src.application.services.llm.macro_snapshot_fetch import fetch_macro_snapshot
 from src.domain.models.trade import TradeDirection
 
 
@@ -61,3 +61,38 @@ async def test_fetch_macro_snapshot_exception_coverage():
     assert snap.tag == "indefinido"
     assert snap.cluster_status == ""
     orch.logger.warning.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_fetch_macro_snapshot_hmm_pacemaker():
+    class DummyStream:
+        async def fetch_candle_closes(self, sym, _gran, _bars):
+            if sym == "frxEURUSD":
+                return [1.0850, 1.0855, 1.0860, 1.0852, 1.0858]
+            return [100.0, 101.0, 102.0, 101.5, 102.5]
+
+    DummyStream.fetch_candle_closes._is_coroutine = True
+
+    class DummyOrch:
+        stream = DummyStream()
+        logger = MagicMock()
+        config = {
+            "strategy": {
+                "clusters": {"us": ["OTC_SPC"], "eu": ["OTC_FCHI"]},
+                "macro": {
+                    "min_indices_for_vote": 1,
+                    "cluster_min_move_pct": 0.01,
+                    "cluster_use_m5_fallback_when_flat": False,
+                    "statarb_hmm_sigma_low": 0.0004,
+                    "statarb_hmm_sigma_high": 0.0016,
+                    "statarb_lookback": 5,
+                },
+            }
+        }
+
+    orch = DummyOrch()
+    snap = await fetch_macro_snapshot(orch, {})
+    # HMM should have been executed on frxEURUSD, yielding hmm_state and hmm_prob
+    assert snap.hmm_state in (0, 1)
+    assert snap.hmm_prob > 0.0
+    assert "HMM_regime" in snap.macro_block
