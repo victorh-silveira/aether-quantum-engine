@@ -4,10 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-import numpy as np
-
 from src.application.services.llm.context_runtime import runtime_for_gemini_call
 from src.application.services.llm.duration_logic import calculate_adaptive_duration, enforce_minimum_duration
+from src.application.services.llm.global_macro_confluence import MacroSnapshot
 from src.application.services.llm.llm_bridge_debug import emit_direction_debug as _emit_direction_debug
 from src.application.services.llm.llm_bridge_telemetry import (
     attach_decision_telemetry,
@@ -21,7 +20,12 @@ from src.application.services.llm.llm_symbol_io import last_reference_price, req
 from src.application.services.llm.prompt_utils import (
     iter_llm_prompt_audit_sections,
 )
-from src.application.services.llm.regime import _shannon_entropy
+from src.application.services.llm.symbol_decision_post import (
+    append_entropy_high_note,
+    apply_conviction_inversion,
+    cluster_index_directions_for_orch,
+    patch_final_symbol_metrics,
+)
 from src.application.services.llm.symbol_decision_utils import (
     apply_macro_post_parse,
     build_symbol_prompt,
@@ -31,6 +35,95 @@ from src.domain.models.trade import TradeDirection
 
 
 _request_payload = request_llm_payload
+
+
+def _emit_symbol_decision_audit(
+    orch: Any,
+    *,
+    sym: str,
+    runtime: dict[str, Any],
+    prompt: str,
+    ctx: dict[str, Any],
+    direction: TradeDirection | None,
+    conviction: float,
+    note: str,
+    ref_px: float | None,
+    mtf_effective: str,
+    baseline_prob: float,
+    indicators_numeric_line: str,
+    institutional_pa_bundle: str,
+    macro_snapshot: MacroSnapshot,
+    macro_d: str,
+    struct_d: str,
+    swing_d: str,
+    trig_d: str,
+    sniper_tok: dict[str, Any],
+    mtf_d: str,
+    metrics: dict[str, Any],
+    inverted: bool,
+    llm_http_ms: float,
+    llm_resp_chars: int,
+    llm_direction_from_api: bool,
+    us_dir: TradeDirection | None,
+    eu_dir: TradeDirection | None,
+) -> None:
+    """Registra auditoria LLM_RESPOSTA apos metricas finais do simbolo."""
+    audit_sections = iter_llm_prompt_audit_sections(
+        sym,
+        macro_d,
+        struct_d,
+        swing_d,
+        trig_d,
+        sniper_tok,
+        mtf_d,
+        str(ctx.get("regime_line", "")),
+        str(ctx.get("session_line", "")),
+        str(ctx.get("micro_line", "")),
+        list(ctx.get("llm_trigger_closes") or []),
+        runtime["payout_estimate"],
+        runtime["min_payout_accept"],
+        runtime["duration"],
+        runtime["du"],
+        trigger_ohlc=ctx.get("llm_trigger_ohlc"),
+        strategy_payload=runtime.get("strategy_payload"),
+        institutional_pa_bundle=institutional_pa_bundle,
+        indicator_bundle_line=str(ctx.get("llm_indicator_bundle") or ""),
+        wr_rolling=metrics.get("wr_rolling"),
+        wr_samples=int(metrics.get("wr_samples") or 0),
+        macro_confluence=macro_snapshot.macro_block,
+        fx_reference_line=macro_snapshot.fx_reference_line,
+        macro_sentiment=macro_snapshot.tag,
+    )
+    emit_llm_decision_log(
+        orch.logger,
+        sym,
+        cycle_id=orch._active_cycle_id,
+        logic_line_max_chars=int(runtime.get("logic_line_max_chars", 140)),
+        direction=direction,
+        conviction=float(metrics.get("conviction", conviction)),
+        ref_px=ref_px,
+        model=runtime["model"],
+        mtf_alignment=mtf_effective,
+        justification=note,
+        regime_label=str(ctx.get("regime_label", "range")),
+        atr_m5_pct=ctx.get("atr_m5_pct"),
+        baseline_prob=float(baseline_prob),
+        wr_rolling=metrics.get("wr_rolling"),
+        wr_samples=int(metrics.get("wr_samples") or 0),
+        decision_source=str(metrics.get("decision_source", "llm")),
+        indicator_cfg=str(ctx.get("llm_indicator_cfg") or ""),
+        indicators_numeric_line=indicators_numeric_line,
+        runtime_thresholds=format_llm_runtime_thresholds(runtime),
+        prompt_char_count=len(prompt),
+        prompt_audit_sections=audit_sections,
+        engine_runtime=runtime,
+        motor_note=note if inverted else "",
+        llm_http_ms=llm_http_ms,
+        llm_response_chars=llm_resp_chars,
+        llm_direction_from_api=llm_direction_from_api,
+        us_cluster=us_dir.name if us_dir else None,
+        eu_cluster=eu_dir.name if eu_dir else None,
+    )
 
 
 async def collect_symbol_llm_decision(
@@ -97,33 +190,11 @@ async def collect_symbol_llm_decision(
     mtf_effective = str(mtf_d or "").strip() or "-"
     direction, conviction, note, us_dir, eu_dir = decision_from_payload(payload)
 
-    try:
-        ic = runtime.get("indicator_config")
-        if ic and swing_c:
-            arr = np.array(swing_c, dtype=np.float64)
-            ebins = int(getattr(ic, "entropy_bins", 30)) if hasattr(ic, "entropy_bins") else 30
-            ewin = int(getattr(ic, "entropy_window", 20)) if hasattr(ic, "entropy_window") else 20
-            entropy_val = _shannon_entropy(arr, ebins, ewin)
-            if entropy_val > 3.0 and conviction > 0.75:
-                note += f" [ENTROPY_HIGH: {entropy_val:.2f}]"  # pragma: no cover
-    except Exception as e:  # pragma: no cover
-        orch.logger.debug(f"Erro na trava de entropia: {e}")  # pragma: no cover
-
+    note = append_entropy_high_note(note, conviction, swing_c, runtime, orch.logger)
     if direction is None:
         note += " (LLM Refused - Waiting)"
 
-    inv_threshold = float(runtime.get("inversion_threshold", 0.0))
-    fol_threshold = float(runtime.get("follow_threshold", 0.0)) or inv_threshold
-
-    inverted = False
-
-    if direction:
-        if conviction < inv_threshold:
-            inverted = True
-            direction = TradeDirection.PUT if direction == TradeDirection.CALL else TradeDirection.CALL
-            note = f"Inverted: Conviction {conviction:.2f} < {inv_threshold:.2f}"
-        elif conviction < fol_threshold:
-            note = f"Follow (Noise Zone): {conviction:.2f}"
+    direction, note, inverted = apply_conviction_inversion(direction, conviction, note, runtime)
 
     macro_cfg = ctx.get("macro_cfg") if isinstance(ctx.get("macro_cfg"), dict) else None
     direction, conviction, note, us_dir, eu_dir, macro_guard, macro_execute = apply_macro_post_parse(
@@ -177,79 +248,46 @@ async def collect_symbol_llm_decision(
         adjusted=inverted,
         exec_inverted=inverted,
     )
-    execute_flag = bool(metrics.get("execute", False)) and macro_execute
-    metrics.update(
-        {
-            "execute": execute_flag,
-            "llm_exec_inverted": inverted,
-            "llm_http_ms": llm_http_ms,
-            "llm_response_chars": llm_resp_chars,
-            "llm_direction_from_api": llm_direction_from_api,
-            "us_cluster": us_dir.name if us_dir else None,
-            "eu_cluster": eu_dir.name if eu_dir else None,
-            "entry_policy_tag": "",
-            "macro_sentiment": macro_snapshot.tag,
-            "macro_confluence_tag": macro_snapshot.tag,
-            "eurusd_bias_quant": macro_snapshot.eurusd_bias,
-            "macro_guard_applied": macro_guard,
-            "macro_us_dir_quant": macro_snapshot.us_dir,
-            "macro_eu_dir_quant": macro_snapshot.eu_dir,
-        }
-    )
-    audit_sections = iter_llm_prompt_audit_sections(
-        sym,
-        macro_d,
-        struct_d,
-        swing_d,
-        trig_d,
-        sniper_tok,
-        mtf_d,
-        str(ctx.get("regime_line", "")),
-        str(ctx.get("session_line", "")),
-        str(ctx.get("micro_line", "")),
-        list(ctx.get("llm_trigger_closes") or []),
-        runtime["payout_estimate"],
-        runtime["min_payout_accept"],
-        runtime["duration"],
-        runtime["du"],
-        trigger_ohlc=ctx.get("llm_trigger_ohlc"),
-        strategy_payload=runtime.get("strategy_payload"),
-        institutional_pa_bundle=institutional_pa_bundle,
-        indicator_bundle_line=str(ctx.get("llm_indicator_bundle") or ""),
-        wr_rolling=metrics.get("wr_rolling"),
-        wr_samples=int(metrics.get("wr_samples") or 0),
-        macro_confluence=macro_snapshot.macro_block,
-        fx_reference_line=macro_snapshot.fx_reference_line,
-        macro_sentiment=macro_snapshot.tag,
-    )
-    emit_llm_decision_log(
-        orch.logger,
-        sym,
-        cycle_id=orch._active_cycle_id,
-        logic_line_max_chars=int(runtime.get("logic_line_max_chars", 140)),
-        direction=direction,
-        conviction=float(metrics.get("conviction", conviction)),
-        ref_px=ref_px,
-        model=runtime["model"],
-        mtf_alignment=mtf_effective,
-        justification=note,
-        regime_label=str(ctx.get("regime_label", "range")),
-        atr_m5_pct=ctx.get("atr_m5_pct"),
-        baseline_prob=float(baseline_prob),
-        wr_rolling=metrics.get("wr_rolling"),
-        wr_samples=int(metrics.get("wr_samples") or 0),
-        decision_source=str(metrics.get("decision_source", "llm")),
-        indicator_cfg=str(ctx.get("llm_indicator_cfg") or ""),
-        indicators_numeric_line=indicators_numeric_line,
-        runtime_thresholds=format_llm_runtime_thresholds(runtime),
-        prompt_char_count=len(prompt),
-        prompt_audit_sections=audit_sections,
-        engine_runtime=runtime,
-        motor_note=note if inverted else "",
+    patch_final_symbol_metrics(
+        metrics,
+        execute_flag=bool(metrics.get("execute", False)) and macro_execute,
+        inverted=inverted,
         llm_http_ms=llm_http_ms,
-        llm_response_chars=llm_resp_chars,
+        llm_resp_chars=llm_resp_chars,
         llm_direction_from_api=llm_direction_from_api,
-        us_cluster=us_dir.name if us_dir else None,
-        eu_cluster=eu_dir.name if eu_dir else None,
+        us_dir=us_dir,
+        eu_dir=eu_dir,
+        macro_snapshot=macro_snapshot,
+        macro_guard=macro_guard,
+        cluster_index_directions=cluster_index_directions_for_orch(orch, macro_snapshot),
+    )
+    _emit_symbol_decision_audit(
+        orch,
+        sym=sym,
+        runtime=runtime,
+        prompt=prompt,
+        ctx=ctx,
+        direction=direction,
+        conviction=conviction,
+        note=note,
+        ref_px=ref_px,
+        mtf_effective=mtf_effective,
+        baseline_prob=baseline_prob,
+        indicators_numeric_line=indicators_numeric_line,
+        institutional_pa_bundle=institutional_pa_bundle,
+        macro_snapshot=macro_snapshot,
+        macro_d=macro_d,
+        struct_d=struct_d,
+        swing_d=swing_d,
+        trig_d=trig_d,
+        sniper_tok=sniper_tok,
+        mtf_d=mtf_d,
+        metrics=metrics,
+        inverted=inverted,
+        llm_http_ms=llm_http_ms,
+        llm_resp_chars=llm_resp_chars,
+        llm_direction_from_api=llm_direction_from_api,
+        us_dir=us_dir,
+        eu_dir=eu_dir,
     )
     return direction, metrics

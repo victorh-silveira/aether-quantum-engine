@@ -73,8 +73,8 @@ def parse_llm_trade_response(text: str) -> dict[str, Any]:
         conv = 1.0
     conv = max(0.51, min(0.99, conv))
 
-    m_us = re.search(r"US_CLUSTER:\s*(CALL|PUT)", upper)
-    m_eu = re.search(r"EU_CLUSTER:\s*(CALL|PUT)", upper)
+    m_us = re.search(r"US(?:_CLUSTER)?\s*[=:]\s*(CALL|PUT)", upper)
+    m_eu = re.search(r"EU(?:_CLUSTER)?\s*[=:]\s*(CALL|PUT)", upper)
     m_anchor = re.search(r"EURUSD:\s*([A-Z]+)", upper)
 
     # Remove clusters from the string before doing a global search for CALL/PUT to avoid leaking cluster direction
