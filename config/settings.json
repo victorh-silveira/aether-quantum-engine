@@ -3,11 +3,11 @@
   "gemini": {
     "model": "gemini-2.5-flash",
     "timeout_seconds": 35,
-    "num_predict": 128,
+    "num_predict": 512,
     "temperature": 0.0,
     "generation_config": {
       "temperature": 0.0,
-      "max_output_tokens": 256
+      "max_output_tokens": 512
     }
   },
   "llm_config": {},
@@ -108,7 +108,7 @@
     "llm_http_outer_margin_seconds": 8,
     "llm_extra_wall_clock_seconds": 12,
     "max_decision_latency_seconds": 50,
-    "max_predict_tokens": 256,
+    "max_predict_tokens": 512,
     "keep_alive": "60m",
     "parse_retry_attempts": 1,
     "logic_line_max_chars": 140,

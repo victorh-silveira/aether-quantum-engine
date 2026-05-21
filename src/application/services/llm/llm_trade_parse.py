@@ -10,9 +10,7 @@ from src.application.services.llm.llm_response_text import extract_think_block, 
 
 
 LLM_TRADE_FORMAT_SUFFIX = (
-    "\n\nResponda SOMENTE JSON valido (sem markdown, sem texto fora do JSON):\n"
-    '{"EURUSD":"CALL","US_CLUSTER":"CALL","EU_CLUSTER":"PUT","Probabilidade":0.72}\n'
-    "EURUSD, US_CLUSTER e EU_CLUSTER: somente CALL ou PUT. Proibido RISE, FALL, WAIT, SKIP.\n"
+    "\n\nSaida: objeto JSON com chaves EURUSD, US_CLUSTER, EU_CLUSTER, Probabilidade. Comece com {"
 )
 
 _DIR_TOKEN = r"(?:CALL|PUT|RISE|FALL|UP|DOWN)"
@@ -48,12 +46,27 @@ def _conviction_from_value(raw: object) -> float:
     return max(0.51, min(0.99, conv))
 
 
+def _strip_json_preamble(text: str) -> str:
+    """Remove narrativa e cercas markdown antes do objeto JSON."""
+    cleaned = preprocess_llm_response_text(text)
+    if not cleaned:
+        return ""
+    start = cleaned.find("{")
+    end = cleaned.rfind("}")
+    if start >= 0 and end > start:
+        return cleaned[start : end + 1]
+    return cleaned.strip()
+
+
 def _parse_json_trade(text: str) -> dict[str, Any] | None:
     """Tenta extrair objeto JSON com EURUSD, US_CLUSTER e EU_CLUSTER."""
-    cleaned = preprocess_llm_response_text(text)
+    cleaned = _strip_json_preamble(text)
     if not cleaned:
         return None
     candidates = [cleaned]
+    greedy = re.search(r"\{[\s\S]*\}", cleaned)
+    if greedy:
+        candidates.insert(0, greedy.group(0))
     for block in re.findall(r"\{[\s\S]*?\}", cleaned):
         candidates.append(block)
     for chunk in candidates:

@@ -9,6 +9,7 @@ def apply_trade_json_output(cfg_base: dict[str, Any], types_module: Any) -> None
     """Forca response_mime_type application/json com campos CALL/PUT."""
     call_put = types_module.Schema(type=types_module.Type.STRING, enum=["CALL", "PUT"])
     cfg_base["response_mime_type"] = "application/json"
+    cfg_base["thinking_config"] = types_module.ThinkingConfig(thinking_budget=0)
     cfg_base["response_schema"] = types_module.Schema(
         type=types_module.Type.OBJECT,
         properties={
