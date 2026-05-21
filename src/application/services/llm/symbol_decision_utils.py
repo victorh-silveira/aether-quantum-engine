@@ -57,6 +57,7 @@ def anchor_llm_decision_complete(
     direction: TradeDirection | None,
     us_dir: TradeDirection | None,
     eu_dir: TradeDirection | None,
+    macro_snapshot: MacroSnapshot | None = None,
 ) -> tuple[bool, str]:
     """Exige EURUSD e tags de cluster CALL/PUT da LLM quando correlacao esta ativa."""
     anchor = str(getattr(orch, "anchor", sym) or sym)
@@ -68,9 +69,11 @@ def anchor_llm_decision_complete(
     corr = strategy.get("correlation", {}) if isinstance(strategy.get("correlation"), dict) else {}
     if not bool(corr.get("enabled", False)):
         return True, ""
-    if us_dir not in (TradeDirection.CALL, TradeDirection.PUT):
+    us_quant_flat = macro_snapshot is not None and macro_snapshot.us_dir == "flat"
+    eu_quant_flat = macro_snapshot is not None and macro_snapshot.eu_dir == "flat"
+    if not us_quant_flat and us_dir not in (TradeDirection.CALL, TradeDirection.PUT):
         return False, "LLM_US_CLUSTER_AUSENTE"
-    if eu_dir not in (TradeDirection.CALL, TradeDirection.PUT):
+    if not eu_quant_flat and eu_dir not in (TradeDirection.CALL, TradeDirection.PUT):
         return False, "LLM_EU_CLUSTER_AUSENTE"
     return True, ""
 
@@ -132,11 +135,13 @@ async def fetch_macro_snapshot(orch: Any, runtime: dict[str, Any]) -> MacroSnaps
         us_symbols = list(clusters.get("us", ["OTC_SPC", "OTC_NDX", "OTC_DJI"]))
         eu_symbols = list(clusters.get("eu", ["OTC_FCHI", "OTC_GDAXI", "OTC_FTSE"]))
         macro_cfg = strategy.get("macro")
-        swing_gran = int(runtime.get("tf_swing_gran", 300))
+        cfg = resolve_macro_config(macro_cfg if isinstance(macro_cfg, dict) else None)
+        swing_gran = int(cfg.get("cluster_granularity_seconds", runtime.get("tf_swing_gran", 900)))
+        bars = int(cfg.get("cluster_bars", 8))
         all_syms = us_symbols + eu_symbols
 
         results = await asyncio.gather(
-            *[orch.stream.fetch_candle_closes(s, swing_gran, 6) for s in all_syms],
+            *[orch.stream.fetch_candle_closes(s, swing_gran, bars) for s in all_syms],
             return_exceptions=True,
         )
         closes_map: dict[str, list[float]] = {}

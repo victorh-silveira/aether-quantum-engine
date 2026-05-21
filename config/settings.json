@@ -28,6 +28,9 @@
       "align_eurusd_with_confluence": true,
       "align_clusters_with_macro_vote": true,
       "confluence_conviction_floor": 0.55,
+      "cluster_min_move_pct": 0.10,
+      "cluster_granularity_seconds": 900,
+      "cluster_bars": 8,
       "fx_reference_pairs": {
         "usdjpy": { "risk_on": "RISE", "risk_off": "FALL" },
         "audusd": { "risk_on": "RISE", "risk_off": "FALL" },

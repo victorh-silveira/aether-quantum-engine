@@ -40,7 +40,11 @@ def _display_move_token(internal_dir: str) -> str:
     return "FLAT"
 
 
-def cluster_direction_from_closes(closes: list[float], threshold_pct: float) -> str:
+def cluster_direction_from_closes(
+    closes: list[float],
+    threshold_pct: float,
+    min_move_pct: float | None = None,
+) -> str:
     """Classifica direcao de um indice a partir de fechamentos recentes."""
     if len(closes) < 2:
         return "flat"
@@ -49,6 +53,9 @@ def cluster_direction_from_closes(closes: list[float], threshold_pct: float) -> 
     if start == 0:
         return "flat"
     ret = ((end - start) / start) * 100.0
+    floor = float(min_move_pct) if min_move_pct is not None else float(threshold_pct)
+    if abs(ret) < floor:
+        return "flat"
     if ret > threshold_pct:
         return "up"
     if ret < -threshold_pct:
@@ -64,6 +71,7 @@ def aggregate_cluster_vote(
     min_indices: int,
     labels: dict[str, Any] | None = None,
     region: str = "us",
+    min_move_pct: float | None = None,
 ) -> ClusterVote:
     """Agrega votos up/down/flat de um cluster e retorna direcao majoritaria."""
     parts: list[str] = []
@@ -74,7 +82,7 @@ def aggregate_cluster_vote(
 
     for i, sym in enumerate(symbols):
         closes = closes_map.get(sym, [])
-        direction = cluster_direction_from_closes(closes, threshold_pct)
+        direction = cluster_direction_from_closes(closes, threshold_pct, min_move_pct)
         votes[direction] = votes.get(direction, 0) + 1
         if isinstance(closes, list) and len(closes) >= 2 and float(closes[0]) != 0:
             last_px = float(closes[-1])
@@ -153,6 +161,7 @@ def build_macro_snapshot(
     """Monta snapshot macro completo a partir de fechamentos dos clusters."""
     cfg = resolve_macro_config(macro_cfg)
     threshold = float(cfg["cluster_return_threshold_pct"])
+    min_move = float(cfg["cluster_min_move_pct"])
     min_idx = int(cfg["min_indices_for_vote"])
     label_bundle = {"cluster_labels": cfg.get("cluster_labels", {})}
 
@@ -163,6 +172,7 @@ def build_macro_snapshot(
         min_indices=min_idx,
         labels=label_bundle,
         region="us",
+        min_move_pct=min_move,
     )
     eu_vote = aggregate_cluster_vote(
         eu_symbols,
@@ -171,6 +181,7 @@ def build_macro_snapshot(
         min_indices=min_idx,
         labels=label_bundle,
         region="eu",
+        min_move_pct=min_move,
     )
     tag = classify_transatlantic_confluence(us_vote.direction, eu_vote.direction)
     bias = eurusd_bias_from_confluence(tag, us_dir=us_vote.direction, eu_dir=eu_vote.direction)

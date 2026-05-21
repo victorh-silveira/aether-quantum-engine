@@ -47,6 +47,9 @@ def resolve_macro_config(raw: dict[str, Any] | None) -> dict[str, Any]:
         "align_eurusd_with_confluence": bool(base.get("align_eurusd_with_confluence", True)),
         "align_clusters_with_macro_vote": bool(base.get("align_clusters_with_macro_vote", True)),
         "confluence_conviction_floor": max(0.0, min(0.99, float(base.get("confluence_conviction_floor", 0.55)))),
+        "cluster_min_move_pct": max(0.0, float(base.get("cluster_min_move_pct", 0.10))),
+        "cluster_granularity_seconds": max(60, int(base.get("cluster_granularity_seconds", 900))),
+        "cluster_bars": max(2, int(base.get("cluster_bars", 8))),
         "fx_reference_pairs": fx_pairs,
         "cluster_labels": labels,
     }
