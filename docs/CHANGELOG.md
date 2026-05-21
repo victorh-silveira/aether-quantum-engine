@@ -1,3 +1,9 @@
+## [1.13.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.13.0...v1.13.1) (2026-05-21)
+
+### Correcoes de Bug
+
+* **llm:** propagacao por indice, parser US/EU compacto e log LLM_IO off ([f853c0c](https://github.com/victorh-silveira/aether-quantum-engine/commit/f853c0cbc20e4e9071018d89866bbb91f8d04f68))
+
 ## [1.13.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.12.0...v1.13.0) (2026-05-21)
 
 ### Funcionalidades
