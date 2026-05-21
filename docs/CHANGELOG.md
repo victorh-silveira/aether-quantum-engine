@@ -1,3 +1,9 @@
+## [1.13.4](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.13.3...v1.13.4) (2026-05-21)
+
+### Correcoes de Bug
+
+* **llm:** saida JSON obrigatoria CALL/PUT e fallback flash-lite ([775c79c](https://github.com/victorh-silveira/aether-quantum-engine/commit/775c79cd4a2c052ab03da91aa2c773d2e89e179f))
+
 ## [1.13.3](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.13.2...v1.13.3) (2026-05-21)
 
 ### Correcoes de Bug
