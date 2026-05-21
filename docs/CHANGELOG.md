@@ -1,3 +1,9 @@
+## [1.13.7](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.13.6...v1.13.7) (2026-05-21)
+
+### Correcoes de Bug
+
+* **llm:** ignorar ruido US em divergencia e pular cluster flat ([9e2ef21](https://github.com/victorh-silveira/aether-quantum-engine/commit/9e2ef215efca60f4cdbd9bf1d33726e0045f60a7))
+
 ## [1.13.6](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.13.5...v1.13.6) (2026-05-21)
 
 ### Correcoes de Bug
