@@ -79,6 +79,20 @@ def test_effective_llm_user_system_prompt_wins_over_gemini():
     assert eff["system_prompt"] == "user_ctx"
 
 
+def test_effective_llm_fallback_model_from_user_gemini_and_llm_config():
+    root = {
+        "llm": {"llm_fallback_model": "user-fb"},
+        "gemini": {"llm_fallback_model": "gem-fb"},
+        "llm_config": {"llm_fallback_model": "lc-fb"},
+    }
+    eff = effective_llm_section(root)
+    assert eff["llm_fallback_model"] == "lc-fb"
+    root2 = {"llm": {}, "gemini": {"llm_fallback_model": "gem-fb"}, "llm_config": {}}
+    assert effective_llm_section(root2)["llm_fallback_model"] == "gem-fb"
+    root3 = {"llm": {"llm_fallback_model": "user-fb"}, "gemini": {}, "llm_config": {}}
+    assert effective_llm_section(root3)["llm_fallback_model"] == "user-fb"
+
+
 def test_merge_execution_section_skips_when_execution_absent():
     cfg = {"orchestrator": {"cycle_interval_seconds": 9}}
     merge_execution_section(cfg)

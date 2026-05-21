@@ -1,9 +1,9 @@
 {
   "anchor": "frxEURUSD",
   "gemini": {
-    "model": "gemini-3.1-pro-preview",
-    "timeout_seconds": 12,
-    "num_predict": 256,
+    "model": "gemini-2.5-flash",
+    "timeout_seconds": 35,
+    "num_predict": 128,
     "temperature": 0.0,
     "generation_config": {
       "temperature": 0.0,
@@ -101,12 +101,13 @@
   },
   "llm": {
     "enabled": true,
-    "llm_retry_attempts": 5,
-    "model": "gemini-3.1-pro-preview",
-    "timeout_seconds": 25,
-    "llm_http_outer_margin_seconds": 5,
-    "llm_extra_wall_clock_seconds": 15,
-    "max_decision_latency_seconds": 45,
+    "llm_retry_attempts": 2,
+    "model": "gemini-2.5-flash",
+    "llm_fallback_model": "gemini-2.0-flash",
+    "timeout_seconds": 35,
+    "llm_http_outer_margin_seconds": 8,
+    "llm_extra_wall_clock_seconds": 12,
+    "max_decision_latency_seconds": 50,
     "max_predict_tokens": 128,
     "keep_alive": "60m",
     "parse_retry_attempts": 1,

@@ -1,4 +1,5 @@
 """Constantes Gemini sem dependencia do pacote google-genai."""
 
-GEMINI_DEFAULT_MODEL = "gemini-3.1-pro-preview"
-GEMINI_HTTP_CEILING_SEC = 30.0
+GEMINI_DEFAULT_MODEL = "gemini-2.5-flash"
+GEMINI_FALLBACK_MODEL = "gemini-2.0-flash"
+GEMINI_HTTP_CEILING_SEC = 45.0

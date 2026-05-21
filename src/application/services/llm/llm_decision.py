@@ -11,7 +11,11 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
-from src.application.services.llm.gemini_constants import GEMINI_DEFAULT_MODEL, GEMINI_HTTP_CEILING_SEC
+from src.application.services.llm.gemini_constants import (
+    GEMINI_DEFAULT_MODEL,
+    GEMINI_FALLBACK_MODEL,
+    GEMINI_HTTP_CEILING_SEC,
+)
 from src.application.services.llm.llm_bridge_utils import parse_llm_trade_response
 from src.application.services.llm.response_extract import (
     extract_llm_text,
@@ -48,6 +52,23 @@ def _cycle_prefix(log_cycle_id: int | None) -> str:
     if log_cycle_id is None:
         return ""
     return f"[C{int(log_cycle_id):04d}] "
+
+
+def is_retryable_gemini_error(exc: BaseException) -> bool:
+    """Indica erro transitorio da API Gemini (timeout, sobrecarga ou cancelamento)."""
+    msg = str(exc).upper()
+    markers = (
+        "DEADLINE_EXCEEDED",
+        "504",
+        "503",
+        "UNAVAILABLE",
+        "499",
+        "CANCELLED",
+        "TIMEOUT",
+        "RESOURCE_EXHAUSTED",
+        "429",
+    )
+    return any(m in msg for m in markers)
 
 
 def _merge_generation_config(
@@ -91,6 +112,42 @@ def _sync_generate(model_name: str, api_key: str, prompt: str, gen_cfg: Any, dea
     return out
 
 
+async def _attempt_generate(
+    *,
+    model_name: str,
+    api_key: str,
+    body: str,
+    gen_cfg: Any,
+    deadline: float,
+    log_cycle_id: int | None,
+) -> tuple[str | None, bool, str, BaseException | None]:
+    """Uma tentativa de geracao; retorna direcao normalizada ou erro."""
+    try:
+        raw = await asyncio.wait_for(
+            asyncio.to_thread(
+                _sync_generate,
+                model_name,
+                api_key,
+                body,
+                gen_cfg,
+                deadline,
+            ),
+            timeout=deadline + 1.0,
+        )
+        parsed = parse_llm_trade_response(raw)
+        norm = parsed.get("direction")
+        if norm in ("CALL", "PUT"):
+            return (norm, True, raw, None)
+        logger.info(
+            "%sLLM: Resposta inesperada (nao normalizou): '%s'",
+            _cycle_prefix(log_cycle_id),
+            raw[:100],
+        )
+        return (None, False, raw, None)
+    except Exception as exc:
+        return (None, False, "", exc)
+
+
 async def get_decision(
     _base_url: str,
     model: str,
@@ -104,6 +161,7 @@ async def get_decision(
     api_key: str | None = None,
     safety_retry_attempts: int = 0,
     log_cycle_id: int | None = None,
+    fallback_model: str | None = None,
 ) -> tuple[str | None, bool, str]:
     """Obtem decisao EXCLUSIVAMENTE da LLM via Google Gemini SDK."""
     load_dotenv()
@@ -114,40 +172,52 @@ async def get_decision(
 
     sys_inst = _resolved_system_instruction(system)
     gen_cfg = _merge_generation_config(temperature, num_predict, generation_config, system_instruction=sys_inst)
-    model_name = model or GEMINI_DEFAULT_MODEL
-    deadline = timeout or 15.0
+    primary = (model or GEMINI_DEFAULT_MODEL).strip() or GEMINI_DEFAULT_MODEL
+    fallback = (fallback_model or GEMINI_FALLBACK_MODEL).strip() or GEMINI_FALLBACK_MODEL
+    active_model = primary
+    deadline = min(float(timeout or 15.0), GEMINI_HTTP_CEILING_SEC)
 
-    total_tries = 1 + max(1, safety_retry_attempts)
+    total_tries = 1 + max(0, int(safety_retry_attempts))
     reminder = ""
+    switched_fallback = False
+
     for attempt in range(total_tries):
         body = f"{prompt}{reminder}"
-        try:
-            raw = await asyncio.wait_for(
-                asyncio.to_thread(
-                    _sync_generate,
-                    model_name,
-                    key,
-                    body,
-                    gen_cfg,
-                    deadline,
-                ),
-                timeout=deadline + 1.0,
-            )
-            parsed = parse_llm_trade_response(raw)
-            norm = parsed.get("direction")
-            if norm in ("CALL", "PUT"):
-                return (norm, True, raw)
+        norm, from_api, raw, err = await _attempt_generate(
+            model_name=active_model,
+            api_key=key,
+            body=body,
+            gen_cfg=gen_cfg,
+            deadline=deadline,
+            log_cycle_id=log_cycle_id,
+        )
+        if norm in ("CALL", "PUT"):
+            return (norm, from_api, raw)
 
-            logger.info("%sLLM: Resposta inesperada (nao normalizou): '%s'", _cycle_prefix(log_cycle_id), raw[:100])
-        except Exception as exc:
-            logger.info("%sLLM: Tentativa %d falhou: %s", _cycle_prefix(log_cycle_id), attempt + 1, exc)
+        if err is not None:
+            logger.info(
+                "%sLLM: Tentativa %d (%s) falhou: %s",
+                _cycle_prefix(log_cycle_id),
+                attempt + 1,
+                active_model,
+                err,
+            )
+            if not switched_fallback and active_model != fallback and is_retryable_gemini_error(err):
+                active_model = fallback
+                switched_fallback = True
+                logger.info(
+                    "%sLLM: Alternando para modelo fallback %s",
+                    _cycle_prefix(log_cycle_id),
+                    fallback,
+                )
 
         reminder = _GEMINI_RETRY_TAIL
-        backoff = min(8.0, 1.0 * (2**attempt))
-        await asyncio.sleep(backoff)
+        if attempt + 1 < total_tries:
+            backoff = min(4.0, 0.5 * (2**attempt))
+            await asyncio.sleep(backoff)
 
     logger.warning(
-        "%sLLM: Falha total após %d tentativas -> Nenhuma decisão tomada",
+        "%sLLM: Falha total apos %d tentativas -> Nenhuma decisao tomada",
         _cycle_prefix(log_cycle_id),
         total_tries,
     )

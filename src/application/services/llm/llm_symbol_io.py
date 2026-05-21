@@ -90,6 +90,7 @@ async def request_llm_payload(
                 api_key=api_key or None,
                 safety_retry_attempts=int(runtime.get("llm_retry_attempts", 1)),
                 log_cycle_id=cycle_id,
+                fallback_model=str(runtime.get("llm_fallback_model") or "").strip() or None,
             ),
             timeout=soft_cap,
         )
