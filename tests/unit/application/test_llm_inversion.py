@@ -22,9 +22,11 @@ def mock_llm_metrics(direction, conviction, note):
 
 
 @pytest.mark.asyncio
-async def test_collect_symbol_llm_decision_inverts_low_conviction():
-    """Valida que a inversao ocorre quando a conviccao esta abaixo do threshold de inversao."""
+async def test_collect_symbol_llm_decision_preserves_llm_call_without_local_inversion():
+    """Mantem CALL da LLM sem inversao local por conviccao."""
     orch = MagicMock()
+    orch.anchor = "frxEURUSD"
+    orch.config = {"strategy": {"correlation": {"enabled": False}}}
     orch._active_cycle_id = 1
     orch.symbols = ["frxEURUSD"]
     orch.logger = MagicMock()
@@ -61,14 +63,16 @@ async def test_collect_symbol_llm_decision_inverts_low_conviction():
             orch, sym="frxEURUSD", runtime=runtime, llm_metrics=mock_llm_metrics
         )
 
-        assert direction == TradeDirection.PUT
-        assert metrics["llm_exec_inverted"] is True
+        assert direction == TradeDirection.CALL
+        assert metrics["llm_exec_inverted"] is False
 
 
 @pytest.mark.asyncio
-async def test_collect_symbol_llm_decision_follows_noise_zone():
-    """Valida que o bot SEGUE trades mesmo na zona de ruido (Sempre Operar)."""
+async def test_collect_symbol_llm_decision_preserves_llm_in_noise_zone():
+    """Mantem direcao da LLM na zona de ruido sem ajuste local."""
     orch = MagicMock()
+    orch.anchor = "frxEURUSD"
+    orch.config = {"strategy": {"correlation": {"enabled": False}}}
     orch._active_cycle_id = 1
     orch.symbols = ["frxEURUSD"]
     orch.logger = MagicMock()
@@ -106,13 +110,15 @@ async def test_collect_symbol_llm_decision_follows_noise_zone():
         )
 
         assert direction == TradeDirection.CALL
-        assert "Follow (Noise Zone)" in metrics["llm_note"]
+        assert "Follow (Noise Zone)" not in metrics["llm_note"]
 
 
 @pytest.mark.asyncio
 async def test_collect_symbol_llm_decision_follows_high_conviction():
     """Valida que o sinal e seguido quando a conviccao esta acima do threshold de follow."""
     orch = MagicMock()
+    orch.anchor = "frxEURUSD"
+    orch.config = {"strategy": {"correlation": {"enabled": False}}}
     orch._active_cycle_id = 1
     orch.symbols = ["frxEURUSD"]
     orch.logger = MagicMock()

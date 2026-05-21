@@ -95,4 +95,4 @@ async def test_collect_symbol_llm_decision_missing_rm_and_ohlc(mocker):
         orch, sym="frxEURUSD", runtime=runtime, llm_metrics=llm_metrics
     )
     assert dir_final is None
-    assert "LLM Refused - Waiting" in metrics["llm_note"]
+    assert "LLM_EURUSD_AUSENTE" in metrics["llm_note"]
