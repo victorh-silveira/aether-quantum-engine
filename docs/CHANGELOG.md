@@ -1,3 +1,9 @@
+## [1.13.3](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.13.2...v1.13.3) (2026-05-21)
+
+### Correcoes de Bug
+
+* **llm:** reduz timeouts Gemini com flash, menos retries e fallback ([6575787](https://github.com/victorh-silveira/aether-quantum-engine/commit/6575787bf216fc9d53b091662ca5571560acb428))
+
 ## [1.13.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.13.1...v1.13.2) (2026-05-21)
 
 ### Correcoes de Bug
