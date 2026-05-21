@@ -1,3 +1,8 @@
+from src.application.services.llm.cluster_index_direction import (
+    build_cluster_index_directions,
+    index_trade_direction_from_move,
+    move_token_from_cluster_part,
+)
 from src.application.services.llm.global_macro_confluence import (
     MacroSnapshot,
     aggregate_cluster_vote,
@@ -89,6 +94,34 @@ def test_format_macro_confluence_block_and_empty_snapshot():
     empty = empty_macro_snapshot()
     assert isinstance(empty, MacroSnapshot)
     assert empty.tag == "indefinido"
+
+
+def test_index_trade_direction_counter_trend_and_per_symbol_map():
+    assert move_token_from_cluster_part("S&P500: 7410.10 (FALL -0.30%)") == "FALL"
+    assert move_token_from_cluster_part("S&P500: N/A") is None
+    assert index_trade_direction_from_move("FALL", mode="counter_trend") == "CALL"
+    assert index_trade_direction_from_move("RISE", mode="counter_trend") == "PUT"
+    assert index_trade_direction_from_move("FALL", mode="momentum") == "PUT"
+    assert index_trade_direction_from_move("FLAT") is None
+    assert index_trade_direction_from_move("SIDE") is None
+    dirs = build_cluster_index_directions(
+        ["OTC_SPC", "OTC_NDX"],
+        ["OTC_FCHI"],
+        ("S&P500: 1.0 (FALL -0.3%)", "NASDAQ100: 2.0 (FALL -0.2%)"),
+        ("CAC40: 3.0 (RISE +0.4%)",),
+        mode="counter_trend",
+    )
+    assert dirs["OTC_SPC"] == "CALL"
+    assert dirs["OTC_NDX"] == "CALL"
+    assert dirs["OTC_FCHI"] == "PUT"
+    skipped = build_cluster_index_directions(
+        ["OTC_SPC"],
+        ["OTC_FCHI"],
+        ("S&P500: N/A",),
+        ("CAC40: N/A",),
+        mode="counter_trend",
+    )
+    assert skipped == {}
 
 
 def test_resolve_macro_config_defaults_and_upper_labels():

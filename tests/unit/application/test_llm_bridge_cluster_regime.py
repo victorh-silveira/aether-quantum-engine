@@ -62,6 +62,41 @@ def test_parse_llm_trade_response_with_clusters():
     assert out["note"] == "EURUSD_CALL"
 
 
+def test_parse_llm_trade_response_compact_cluster_tags():
+    raw_text = "[PUT] EURUSD: PUT | US=PUT | EU=CALL | Probabilidade: 99%"
+    out = parse_llm_trade_response(raw_text)
+    assert out["direction"] == "PUT"
+    assert out["us_cluster"] == "PUT"
+    assert out["eu_cluster"] == "CALL"
+
+
+@pytest.mark.asyncio
+async def test_collect_llm_decisions_per_index_direction_overrides_cluster_tag():
+    orch = MagicMock()
+    orch.anchor = "frxEURUSD"
+    orch.symbols = ["frxEURUSD", "OTC_SPC", "OTC_FCHI"]
+    orch._active_cycle_id = 2
+    orch.config = {
+        "strategy": {"correlation": {"enabled": True}},
+        "llm": {"max_decision_latency_seconds": 10},
+    }
+    metrics_anchor = {
+        "conviction": 0.8,
+        "direction": "PUT",
+        "execute": True,
+        "us_cluster": "PUT",
+        "cluster_index_directions": {"OTC_SPC": "CALL", "OTC_FCHI": "PUT"},
+    }
+    with patch(
+        "src.application.services.llm.llm_bridge._collect_symbol_decision",
+        new_callable=AsyncMock,
+    ) as mock_dec:
+        mock_dec.return_value = (TradeDirection.PUT, metrics_anchor)
+        decisions = await collect_llm_decisions(orch)
+    assert decisions["OTC_SPC"]["direction"] == TradeDirection.CALL
+    assert decisions["OTC_FCHI"]["direction"] == TradeDirection.PUT
+
+
 @pytest.mark.asyncio
 async def test_cluster_skipped_when_no_explicit_tag():
     """Clusters US/EU sao pulados quando a LLM nao retorna tag explicita."""

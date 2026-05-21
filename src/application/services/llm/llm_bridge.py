@@ -108,6 +108,24 @@ async def _collect_symbol_decision(
     )
 
 
+def _resolve_index_propagation_direction(
+    target_sym: str,
+    metrics: dict[str, Any],
+    *,
+    region_tag_key: str,
+) -> TradeDirection | None:
+    """Prioriza direcao por indice (snapshot) e usa tag de cluster da LLM como fallback."""
+    index_dirs = metrics.get("cluster_index_directions")
+    if isinstance(index_dirs, dict):
+        per_sym = index_dirs.get(target_sym)
+        if per_sym in ("CALL", "PUT"):
+            return TradeDirection[str(per_sym)]
+    region_tag = metrics.get(region_tag_key)
+    if region_tag in ("CALL", "PUT"):
+        return TradeDirection[str(region_tag)]
+    return None
+
+
 def _propagate_cluster_decisions(
     orch: Any,
     *,
@@ -117,7 +135,7 @@ def _propagate_cluster_decisions(
     decisions: dict[str, dict],
     cid: str,
 ) -> None:
-    """Propaga decisoes para indices US/EU apenas via tags US_CLUSTER e EU_CLUSTER da LLM."""
+    """Propaga decisoes para indices US/EU por movimento realtime e tags LLM de fallback."""
     _ = direction
     clusters = orch.config.get("strategy", {}).get("clusters", {})
     us_targets = clusters.get("us", ("OTC_SPC", "OTC_NDX", "OTC_DJI"))
@@ -131,15 +149,13 @@ def _propagate_cluster_decisions(
             continue
 
         if target_sym in us_targets and not anchor_in_us:
-            us_tag = metrics.get("us_cluster")
-            if not us_tag:
+            target_direction = _resolve_index_propagation_direction(target_sym, metrics, region_tag_key="us_cluster")
+            if target_direction is None:
                 continue
-            target_direction = TradeDirection[str(us_tag)]
         elif target_sym in eu_targets and not anchor_in_eu:
-            eu_tag = metrics.get("eu_cluster")
-            if not eu_tag:
+            target_direction = _resolve_index_propagation_direction(target_sym, metrics, region_tag_key="eu_cluster")
+            if target_direction is None:
                 continue
-            target_direction = TradeDirection[str(eu_tag)]
         else:
             continue
 

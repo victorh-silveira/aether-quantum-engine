@@ -215,7 +215,10 @@ def build_sniper_trading_prompt(
     pa_block = f"CONFLUENCIA: {pa}\n" if pa else ""
     maps = _maps_line(lm, macro_desc, ls, structure_desc, lw, swing_desc, lt, trigger_desc, l5, ms_desc, l1, mt_desc)
     macro_block = f"{macro_confluence}\n" if (macro_confluence or "").strip() else ""
-    fx_block = f"{fx_reference_line}\n" if (fx_reference_line or "").strip() else ""
+    fx_line = (fx_reference_line or "").strip()
+    fx_block = ""
+    if fx_line and "CONTEXTO_FX_REF" not in (macro_confluence or ""):
+        fx_block = f"{fx_line}\n"
     sentiment_seg = f"sentiment={macro_sentiment} | " if (macro_sentiment or "").strip() else ""
     return (
         f"SNIPER: {core}\n"

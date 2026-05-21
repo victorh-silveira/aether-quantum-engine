@@ -14,7 +14,8 @@
   "strategy": {
     "correlation": {
       "enabled": true,
-      "anchor": "frxEURUSD"
+      "anchor": "frxEURUSD",
+      "index_direction_mode": "counter_trend"
     },
     "clusters": {
       "us": ["OTC_SPC", "OTC_NDX", "OTC_DJI"],
@@ -160,7 +161,7 @@
       "temperature": 0.0,
       "keep_alive": "60m"
     },
-    "log_llm_io_line": true,
+    "log_llm_io_line": false,
     "log_llm_io_preview_chars": 4000,
     "log_llm_io_dump_path": "logs/llm_io.jsonl",
     "invert_llm_direction": false,
