@@ -1,3 +1,9 @@
+## [1.13.6](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.13.5...v1.13.6) (2026-05-21)
+
+### Correcoes de Bug
+
+* **engine:** alinhar clusters ao macro e corrigir liquidacao e persistencia ([d57e91c](https://github.com/victorh-silveira/aether-quantum-engine/commit/d57e91c9da99a75126c12a11f2657f1daae1af23))
+
 ## [1.13.5](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.13.4...v1.13.5) (2026-05-21)
 
 ### Correcoes de Bug
