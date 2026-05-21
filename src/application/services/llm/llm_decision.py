@@ -25,6 +25,7 @@ from src.application.services.llm.llm_trade_parse import (
 from src.application.services.llm.llm_trade_schema import apply_trade_json_output
 from src.application.services.llm.response_extract import (
     extract_llm_text,
+    is_max_tokens_finish,
     llm_default_safety_settings,
     log_llm_empty_response,
 )
@@ -33,13 +34,10 @@ from src.application.services.llm.sovereign_system import SOVEREIGN_SYSTEM
 
 logger = logging.getLogger("AETH")
 
-_GEMINI_RETRY_TAIL = (
-    "\n\nJSON obrigatorio (sem markdown): "
-    '{"EURUSD":"CALL","US_CLUSTER":"CALL","EU_CLUSTER":"PUT","Probabilidade":0.72} '
-    "Troque valores; US_CLUSTER e EU_CLUSTER somente CALL ou PUT."
-)
+_GEMINI_RETRY_TAIL = '\n\n{"EURUSD":"CALL","US_CLUSTER":"CALL","EU_CLUSTER":"PUT","Probabilidade":0.72}'
 
-_TRADE_OUTPUT_TOKEN_FLOOR = 256
+_TRADE_OUTPUT_TOKEN_FLOOR = 512
+_TRADE_OUTPUT_TOKEN_RETRY = 1024
 
 
 def resolved_system_instruction(runtime_system: str | None) -> str:
@@ -93,11 +91,13 @@ def _merge_generation_config(
     extra: dict[str, Any] | None,
     *,
     system_instruction: str,
+    output_token_floor: int | None = None,
 ) -> Any:
     """Constroi GenerateContentConfig mesclando temperatura e limites de saida."""
-    tokens = _TRADE_OUTPUT_TOKEN_FLOOR
+    floor = int(output_token_floor or _TRADE_OUTPUT_TOKEN_FLOOR)
+    tokens = floor
     if num_predict is not None:
-        tokens = max(_TRADE_OUTPUT_TOKEN_FLOOR, min(4096, int(num_predict)))
+        tokens = max(floor, min(4096, int(num_predict)))
     cfg_base: dict[str, Any] = {
         "temperature": base_temperature,
         "max_output_tokens": tokens,
@@ -108,20 +108,23 @@ def _merge_generation_config(
         for k, v in extra.items():
             if k in ("safety_settings", "system_instruction"):
                 continue
-            if k == "thinking_config" and isinstance(v, dict):
-                budget = int(v.get("thinking_budget", 0))
-                cfg_base["thinking_config"] = types.ThinkingConfig(thinking_budget=budget)
-            else:
+            if k not in ("thinking_config",):
                 cfg_base[k] = v
     cfg_base["max_output_tokens"] = max(
-        _TRADE_OUTPUT_TOKEN_FLOOR,
-        int(cfg_base.get("max_output_tokens") or _TRADE_OUTPUT_TOKEN_FLOOR),
+        floor,
+        int(cfg_base.get("max_output_tokens") or floor),
     )
     apply_trade_json_output(cfg_base, types)
     return types.GenerateContentConfig(**cfg_base)
 
 
-def _sync_generate(model_name: str, api_key: str, prompt: str, gen_cfg: Any, deadline_sec: float) -> str:
+def _sync_generate(
+    model_name: str,
+    api_key: str,
+    prompt: str,
+    gen_cfg: Any,
+    deadline_sec: float,
+) -> tuple[str, Any]:
     """Executa generate_content de forma sincrona para uso em asyncio.to_thread."""
     timeout_ms = int(max(1000.0, min(deadline_sec, GEMINI_HTTP_CEILING_SEC) * 1000.0))
     http_opts = types.HttpOptions(timeout=timeout_ms)
@@ -130,7 +133,7 @@ def _sync_generate(model_name: str, api_key: str, prompt: str, gen_cfg: Any, dea
     out = extract_llm_text(resp)
     if not out:
         log_llm_empty_response(resp, logger)
-    return out
+    return out, resp
 
 
 async def _attempt_generate(
@@ -144,7 +147,7 @@ async def _attempt_generate(
 ) -> tuple[str | None, bool, str, BaseException | None]:
     """Uma tentativa de geracao; retorna direcao normalizada ou erro."""
     try:
-        raw = await asyncio.wait_for(
+        raw, resp = await asyncio.wait_for(
             asyncio.to_thread(
                 _sync_generate,
                 model_name,
@@ -155,6 +158,11 @@ async def _attempt_generate(
             ),
             timeout=deadline + 1.0,
         )
+        if not raw and is_max_tokens_finish(resp):
+            logger.info(
+                "%sLLM: Resposta truncada (MAX_TOKENS); aumente tokens ou desative thinking",
+                _cycle_prefix(log_cycle_id),
+            )
         parsed = parse_llm_trade_response(raw)
         if is_llm_trade_response_complete(parsed):
             return (parsed.get("direction"), True, raw, None)
@@ -193,7 +201,6 @@ async def get_decision(
         return (None, False, "")
 
     sys_inst = _resolved_system_instruction(system)
-    gen_cfg = _merge_generation_config(temperature, num_predict, generation_config, system_instruction=sys_inst)
     primary = (model or GEMINI_DEFAULT_MODEL).strip() or GEMINI_DEFAULT_MODEL
     fallback = (fallback_model or GEMINI_FALLBACK_MODEL).strip() or GEMINI_FALLBACK_MODEL
     if fallback == primary:
@@ -207,6 +214,14 @@ async def get_decision(
     fallback_disabled = False
 
     for attempt in range(total_tries):
+        token_floor = _TRADE_OUTPUT_TOKEN_RETRY if attempt > 0 else _TRADE_OUTPUT_TOKEN_FLOOR
+        gen_cfg = _merge_generation_config(
+            temperature,
+            num_predict,
+            generation_config,
+            system_instruction=sys_inst,
+            output_token_floor=token_floor,
+        )
         body = f"{prompt}{reminder}"
         norm, from_api, raw, err = await _attempt_generate(
             model_name=active_model,

@@ -1,8 +1,13 @@
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 
 from src.application.services.llm import llm_decision as llm
+
+
+def _empty_resp():
+    return SimpleNamespace(candidates=[SimpleNamespace(finish_reason="STOP")])
 
 
 @pytest.mark.asyncio
@@ -31,9 +36,31 @@ _FULL = "EURUSD: PUT | US_CLUSTER: PUT | EU_CLUSTER: CALL | Probabilidade: 0.72"
 
 
 @pytest.mark.asyncio
+async def test_attempt_generate_logs_max_tokens(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "k")
+    resp = SimpleNamespace(candidates=[SimpleNamespace(finish_reason="MAX_TOKENS")])
+
+    def fake_sync(*_a, **_k):
+        return "", resp
+
+    with patch.object(llm, "_sync_generate", side_effect=fake_sync):
+        norm, ok, raw, err = await llm._attempt_generate(
+            model_name="m",
+            api_key="k",
+            body="p",
+            gen_cfg=None,
+            deadline=10.0,
+            log_cycle_id=1,
+        )
+    assert norm is None
+    assert err is None
+    assert raw == ""
+
+
+@pytest.mark.asyncio
 async def test_get_decision_ok(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "k")
-    with patch.object(llm, "_sync_generate", return_value=_FULL):
+    with patch.object(llm, "_sync_generate", return_value=(_FULL, _empty_resp())):
         out = await llm.get_decision("", "gemini-3-flash", "p", 10.0)
     assert out == ("PUT", True, _FULL)
 
@@ -44,7 +71,7 @@ async def test_get_decision_retries_on_invalid_token(monkeypatch):
     seq = iter(["invalid", _FULL])
 
     def side(*_a, **_k):
-        return next(seq)
+        return next(seq), _empty_resp()
 
     with patch.object(llm, "_sync_generate", side_effect=side):
         out = await llm.get_decision("", "gemini-3-flash", "p", 10.0, safety_retry_attempts=1)
@@ -56,7 +83,7 @@ async def test_get_decision_retries_on_invalid_token(monkeypatch):
 async def test_get_decision_wait_is_invalid_and_continues_retries(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "k")
     seq = iter(["WAIT", _FULL])
-    with patch.object(llm, "_sync_generate", side_effect=lambda *a, **k: next(seq)):
+    with patch.object(llm, "_sync_generate", side_effect=lambda *a, **k: (next(seq), _empty_resp())):
         out = await llm.get_decision("", "gem", "p", 10.0, safety_retry_attempts=1)
     assert out[0] == "PUT"
 
@@ -65,7 +92,7 @@ async def test_get_decision_wait_is_invalid_and_continues_retries(monkeypatch):
 async def test_get_decision_unexpected_response_logs_and_retries(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "k")
     seq = iter(["MACRO_CONFLUENCIA indica misto", _FULL])
-    with patch.object(llm, "_sync_generate", side_effect=lambda *a, **k: next(seq)):
+    with patch.object(llm, "_sync_generate", side_effect=lambda *a, **k: (next(seq), _empty_resp())):
         out = await llm.get_decision("", "gem", "p", 10.0, safety_retry_attempts=1)
     assert out[0] == "PUT"
 

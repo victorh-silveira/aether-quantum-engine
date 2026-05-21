@@ -66,6 +66,13 @@ def test_conviction_from_value_invalid_and_percent_scale():
     assert ltp._conviction_from_value(85) == 0.85
 
 
+def test_parse_json_strips_preamble_and_markdown():
+    raw = 'Here is the JSON requested:\n```json\n{"EURUSD":"CALL","US_CLUSTER":"PUT","EU_CLUSTER":"CALL","Probabilidade":0.65}\n```'
+    out = parse_llm_trade_response(raw)
+    assert is_llm_trade_response_complete(out)
+    assert out["direction"] == "CALL"
+
+
 def test_parse_json_empty_and_non_object():
     assert ltp._parse_json_trade("") is None
     assert ltp._parse_json_trade("[1,2]") is None

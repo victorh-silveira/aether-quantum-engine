@@ -9,7 +9,9 @@ from src.application.services.llm import llm_decision as gem
 def test_merge_generation_config_num_predict_caps():
     cfg = gem._merge_generation_config(0.0, 5000, {"top_p": 0.5}, system_instruction="s")
     assert cfg.max_output_tokens <= 4096
-    assert cfg.max_output_tokens >= 256
+    assert cfg.max_output_tokens >= 512
+    assert cfg.thinking_config is not None
+    assert cfg.thinking_config.thinking_budget == 0
     assert pytest.approx(cfg.temperature) == 0.0
 
 
@@ -21,7 +23,9 @@ def test_merge_generation_config_extra_temperature_override():
         system_instruction="z",
     )
     assert pytest.approx(cfg.temperature) == 0.2
-    assert cfg.max_output_tokens >= 256
+    assert cfg.max_output_tokens >= 512
+    assert cfg.thinking_config is not None
+    assert cfg.thinking_config.thinking_budget == 0
 
 
 def test_merge_generation_config_top_k_and_candidate():
@@ -32,18 +36,19 @@ def test_merge_generation_config_top_k_and_candidate():
 
 def test_merge_generation_config_thinking_budget_zero_e_safety_padrao():
     cfg = gem._merge_generation_config(0.0, 10, {}, system_instruction="z")
-    assert cfg.thinking_config is None
+    assert cfg.thinking_config is not None
+    assert cfg.thinking_config.thinking_budget == 0
     assert cfg.safety_settings is not None
     assert len(cfg.safety_settings) >= 4
     assert cfg.response_mime_type == "application/json"
     assert cfg.response_schema is not None
 
 
-def test_merge_generation_config_thinking_budget_conversion():
+def test_merge_generation_config_ignora_thinking_extra_para_trade():
     extra = {"thinking_config": {"thinking_budget": 500}}
     cfg = gem._merge_generation_config(0.0, 10, extra, system_instruction="z")
     assert cfg.thinking_config is not None
-    assert cfg.thinking_config.thinking_budget == 500
+    assert cfg.thinking_config.thinking_budget == 0
 
 
 def test_merge_generation_config_protected_keys_continue():
@@ -63,7 +68,7 @@ def test_sync_generate_reads_response_text(monkeypatch):
     fake_client.models = fake_models
     with patch("google.genai.Client", return_value=fake_client):
         cfg = gem._merge_generation_config(0.0, 8, {}, system_instruction="sys")
-        out = gem._sync_generate("gemini-3.1-pro-preview", "k", "prompt", cfg, 5.0)
+        out, _resp = gem._sync_generate("gemini-3.1-pro-preview", "k", "prompt", cfg, 5.0)
     assert out == "hi"
     fake_models.generate_content.assert_called_once()
 
@@ -83,6 +88,6 @@ def test_sync_generate_corpo_vazio_emite_warning(monkeypatch):
     fake_client.models = fake_models
     with patch("google.genai.Client", return_value=fake_client):
         cfg = gem._merge_generation_config(0.0, 8, {}, system_instruction="sys")
-        out = gem._sync_generate("gemini-3.1-pro-preview", "k", "prompt", cfg, 5.0)
+        out, _resp = gem._sync_generate("gemini-3.1-pro-preview", "k", "prompt", cfg, 5.0)
     assert out == ""
     assert any("corpo vazio" in x for x in buf)
