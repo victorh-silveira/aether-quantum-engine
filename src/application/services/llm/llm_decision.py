@@ -16,7 +16,13 @@ from src.application.services.llm.gemini_constants import (
     GEMINI_FALLBACK_MODEL,
     GEMINI_HTTP_CEILING_SEC,
 )
-from src.application.services.llm.llm_bridge_utils import parse_llm_trade_response
+from src.application.services.llm.llm_trade_parse import (
+    LLM_TRADE_FORMAT_SUFFIX,
+    is_llm_trade_response_complete,
+    missing_llm_trade_fields,
+    parse_llm_trade_response,
+)
+from src.application.services.llm.llm_trade_schema import apply_trade_json_output
 from src.application.services.llm.response_extract import (
     extract_llm_text,
     llm_default_safety_settings,
@@ -28,10 +34,12 @@ from src.application.services.llm.sovereign_system import SOVEREIGN_SYSTEM
 logger = logging.getLogger("AETH")
 
 _GEMINI_RETRY_TAIL = (
-    "\n\nResponda OBRIGATORIAMENTE no formato exigido: "
-    "EURUSD: CALL ou PUT | US_CLUSTER: CALL ou PUT | EU_CLUSTER: CALL ou PUT | Probabilidade: [0.XX]. "
-    "Proibido WAIT, SKIP, vazio ou omitir US_CLUSTER/EU_CLUSTER."
+    "\n\nJSON obrigatorio (sem markdown): "
+    '{"EURUSD":"CALL","US_CLUSTER":"CALL","EU_CLUSTER":"PUT","Probabilidade":0.72} '
+    "Troque valores; US_CLUSTER e EU_CLUSTER somente CALL ou PUT."
 )
+
+_TRADE_OUTPUT_TOKEN_FLOOR = 256
 
 
 def resolved_system_instruction(runtime_system: str | None) -> str:
@@ -57,6 +65,8 @@ def _cycle_prefix(log_cycle_id: int | None) -> str:
 def is_retryable_gemini_error(exc: BaseException) -> bool:
     """Indica erro transitorio da API Gemini (timeout, sobrecarga ou cancelamento)."""
     msg = str(exc).upper()
+    if "404" in msg or "NOT_FOUND" in msg or "NO LONGER AVAILABLE" in msg:
+        return False
     markers = (
         "DEADLINE_EXCEEDED",
         "504",
@@ -71,6 +81,12 @@ def is_retryable_gemini_error(exc: BaseException) -> bool:
     return any(m in msg for m in markers)
 
 
+def is_invalid_model_gemini_error(exc: BaseException) -> bool:
+    """Indica modelo inexistente ou descontinuado na API."""
+    msg = str(exc).upper()
+    return "404" in msg or "NOT_FOUND" in msg or "NO LONGER AVAILABLE" in msg
+
+
 def _merge_generation_config(
     base_temperature: float,
     num_predict: int | None,
@@ -79,9 +95,9 @@ def _merge_generation_config(
     system_instruction: str,
 ) -> Any:
     """Constroi GenerateContentConfig mesclando temperatura e limites de saida."""
-    tokens = 48
+    tokens = _TRADE_OUTPUT_TOKEN_FLOOR
     if num_predict is not None:
-        tokens = max(8, min(4096, int(num_predict)))
+        tokens = max(_TRADE_OUTPUT_TOKEN_FLOOR, min(4096, int(num_predict)))
     cfg_base: dict[str, Any] = {
         "temperature": base_temperature,
         "max_output_tokens": tokens,
@@ -97,6 +113,11 @@ def _merge_generation_config(
                 cfg_base["thinking_config"] = types.ThinkingConfig(thinking_budget=budget)
             else:
                 cfg_base[k] = v
+    cfg_base["max_output_tokens"] = max(
+        _TRADE_OUTPUT_TOKEN_FLOOR,
+        int(cfg_base.get("max_output_tokens") or _TRADE_OUTPUT_TOKEN_FLOOR),
+    )
+    apply_trade_json_output(cfg_base, types)
     return types.GenerateContentConfig(**cfg_base)
 
 
@@ -135,13 +156,14 @@ async def _attempt_generate(
             timeout=deadline + 1.0,
         )
         parsed = parse_llm_trade_response(raw)
-        norm = parsed.get("direction")
-        if norm in ("CALL", "PUT"):
-            return (norm, True, raw, None)
+        if is_llm_trade_response_complete(parsed):
+            return (parsed.get("direction"), True, raw, None)
+        missing = missing_llm_trade_fields(parsed)
         logger.info(
-            "%sLLM: Resposta inesperada (nao normalizou): '%s'",
+            "%sLLM: Resposta incompleta (faltam %s): '%s'",
             _cycle_prefix(log_cycle_id),
-            raw[:100],
+            ",".join(missing) if missing else "?",
+            (raw or "")[:120],
         )
         return (None, False, raw, None)
     except Exception as exc:
@@ -174,12 +196,15 @@ async def get_decision(
     gen_cfg = _merge_generation_config(temperature, num_predict, generation_config, system_instruction=sys_inst)
     primary = (model or GEMINI_DEFAULT_MODEL).strip() or GEMINI_DEFAULT_MODEL
     fallback = (fallback_model or GEMINI_FALLBACK_MODEL).strip() or GEMINI_FALLBACK_MODEL
+    if fallback == primary:
+        fallback = GEMINI_FALLBACK_MODEL
     active_model = primary
     deadline = min(float(timeout or 15.0), GEMINI_HTTP_CEILING_SEC)
 
     total_tries = 1 + max(0, int(safety_retry_attempts))
-    reminder = ""
+    reminder = LLM_TRADE_FORMAT_SUFFIX
     switched_fallback = False
+    fallback_disabled = False
 
     for attempt in range(total_tries):
         body = f"{prompt}{reminder}"
@@ -202,7 +227,21 @@ async def get_decision(
                 active_model,
                 err,
             )
-            if not switched_fallback and active_model != fallback and is_retryable_gemini_error(err):
+            if is_invalid_model_gemini_error(err) and active_model == fallback:
+                fallback_disabled = True
+                active_model = primary
+                logger.info(
+                    "%sLLM: Fallback %s indisponivel; retomando %s",
+                    _cycle_prefix(log_cycle_id),
+                    fallback,
+                    primary,
+                )
+            elif (
+                not switched_fallback
+                and not fallback_disabled
+                and active_model != fallback
+                and is_retryable_gemini_error(err)
+            ):
                 active_model = fallback
                 switched_fallback = True
                 logger.info(

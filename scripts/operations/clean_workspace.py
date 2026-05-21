@@ -18,7 +18,11 @@ def run_tool(module, args, description):
 
 
 def stage_lint():
-    run_tool("ruff", ["check", "--fix", "--exit-non-zero-on-fix", "."], "Ruff Check")
+    print("\n>>> Executando: Ruff Check (auto-fix)")
+    fix_cmd = [sys.executable, "-m", "ruff", "check", "--fix", "."]
+    print(f"Command: {' '.join(fix_cmd)}")
+    subprocess.run(fix_cmd, check=True, text=True)  # nosec
+    run_tool("ruff", ["check", "."], "Ruff Check")
     run_tool("ruff", ["format", "."], "Ruff Format")
     run_tool("interrogate", ["-vv", "."], "Interrogate Docstrings")
     run_tool("vulture", [], "Vulture Dead Code Detection")

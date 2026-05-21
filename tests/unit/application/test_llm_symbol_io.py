@@ -5,6 +5,7 @@ import pytest
 
 import src.application.services.llm.llm_symbol_io as llm_io
 from src.application.services.llm.llm_symbol_io import request_llm_payload
+from tests.unit.application.llm_response_fixtures import MOCK_LLM_CALL_LINE
 
 
 @pytest.mark.asyncio
@@ -20,7 +21,7 @@ async def test_request_llm_payload_propaga_call_normalizado():
     with patch(
         "src.application.services.llm.llm_symbol_io.get_decision",
         new_callable=AsyncMock,
-        return_value=("CALL", True, "CALL"),
+        return_value=("CALL", True, MOCK_LLM_CALL_LINE),
     ) as gen:
         payload = await request_llm_payload(orch, "frxEURUSD", runtime, "p", system="s")
     gen.assert_awaited_once()
@@ -28,7 +29,9 @@ async def test_request_llm_payload_propaga_call_normalizado():
     assert payload["_direction_normalized"] == "CALL"
     assert payload["_conviction_normalized"] == pytest.approx(0.99, abs=1e-9)
     assert payload["_llm_direction_from_api"] is True
-    assert payload["_llm_raw_chars"] == 4
+    assert payload["_llm_raw_chars"] == len(MOCK_LLM_CALL_LINE)
+    assert payload.get("us_cluster") == "CALL"
+    assert payload.get("eu_cluster") == "CALL"
 
 
 @pytest.mark.asyncio
@@ -120,7 +123,7 @@ async def test_request_llm_payload_info_quando_http_ms_alto():
         patch(
             "src.application.services.llm.llm_symbol_io.get_decision",
             new_callable=AsyncMock,
-            return_value=("CALL", True, "CALL"),
+            return_value=("CALL", True, MOCK_LLM_CALL_LINE),
         ),
     ):
         await request_llm_payload(orch, "S", runtime, "p", system="s", cycle_id=9)

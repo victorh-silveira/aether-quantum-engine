@@ -11,7 +11,7 @@ from src.domain.models.trade import TradeDirection
 def test_llm_bridge_utils_coverage_put():
     out = parse_llm_trade_response("EURUSD: WAIT")
     assert out["direction"] is None
-    assert out["note"] == "EURUSD_WAIT"
+    assert out["note"] == "sniper_no_signal"
 
 
 def test_llm_bridge_telemetry_cluster_coverage():

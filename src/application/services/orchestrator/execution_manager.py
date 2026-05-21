@@ -28,26 +28,6 @@ class ExecutionManager:
             self.logger.info(line)
         self.orch._pending_result_logs = []
 
-    def _log_cycle_idle(self) -> None:
-        """Registra ciclo sem ordens executadas."""
-        self.logger.debug("CICLO | id=%04d | status=IDLE | nenhuma_ordem", self.orch._active_cycle_id)
-
-    def _emit_idle_compact_lines(self) -> None:
-        """Emite BANCA em modo compacto quando nao ha ordens."""
-        dur = self.orch.config.get("risk_management", {}).get("params", {}).get("duration", 1)
-        u = self.orch.config.get("risk_management", {}).get("params", {}).get("duration_unit", "m")
-        cid = f"C{int(self.orch._active_cycle_id):04d}"
-        self.logger.debug("[%s] ORDEM ENVIADA: $0.00 | TEMPO: %s%s | CONTRATO: -", cid, str(dur), str(u))
-        self.logger.info("[%s] STATUS: IDLE || P&L: $+0.00 || API: idle", cid)
-        self.logger.debug(
-            "[%s] BANCA FINAL: $%.2f | ACUMULADO: %dW / %dL",
-            cid,
-            self.orch.state.balance,
-            int(self.orch._session_wins),
-            int(self.orch._session_losses),
-        )
-        self.logger.debug("")
-
     def _collect_orders(self, decisions: dict, *, include_anchor: bool) -> list[tuple[str, TradeDirection, dict]]:
         """Filtra decisoes executaveis e retorna ordens normalizadas."""
         orders: list[tuple[str, TradeDirection, dict]] = []
@@ -142,8 +122,6 @@ class ExecutionManager:
             else:
                 self._flush_result_buffer()
                 self.orch._buffer_result_logs = False
-                self._log_cycle_idle()
-                self._emit_idle_compact_lines()
         finally:
             self._flush_result_buffer()
             self.orch._buffer_result_logs = False

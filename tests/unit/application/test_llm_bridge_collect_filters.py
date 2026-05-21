@@ -5,6 +5,7 @@ import pytest
 
 from src.application.services.llm.llm_bridge import collect_llm_decisions
 from src.domain.models.trade import TradeDirection
+from tests.unit.application.llm_response_fixtures import MOCK_LLM_CALL_LINE, MOCK_LLM_PUT_LINE
 
 
 def _stub_closes(head: list[float]) -> list[float]:
@@ -35,7 +36,7 @@ async def test_collect_llm_decisions_preserva_conviccao_do_payload():
     with patch(
         "src.application.services.llm.llm_symbol_io.get_decision",
         new_callable=AsyncMock,
-        return_value=("CALL", True, "CALL"),
+        return_value=("CALL", True, MOCK_LLM_CALL_LINE),
     ):
         out = await collect_llm_decisions(orch)
     assert out["frxEURUSD"]["direction"] == TradeDirection.CALL
@@ -73,7 +74,7 @@ async def test_collect_llm_decisions_blocks_repeated_same_direction_streak():
     with patch(
         "src.application.services.llm.llm_symbol_io.get_decision",
         new_callable=AsyncMock,
-        return_value=("PUT", True, "PUT"),
+        return_value=("PUT", True, MOCK_LLM_PUT_LINE),
     ):
         first = await collect_llm_decisions(orch)
         second = await collect_llm_decisions(orch)
@@ -137,7 +138,7 @@ async def test_collect_llm_decisions_blocks_repeated_direction_without_strict_co
     with patch(
         "src.application.services.llm.llm_symbol_io.get_decision",
         new_callable=AsyncMock,
-        return_value=("CALL", True, "CALL"),
+        return_value=("CALL", True, MOCK_LLM_CALL_LINE),
     ):
         first = await collect_llm_decisions(orch)
         second = await collect_llm_decisions(orch)
