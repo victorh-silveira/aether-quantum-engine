@@ -1,3 +1,9 @@
+## [1.13.5](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.13.4...v1.13.5) (2026-05-21)
+
+### Correcoes de Bug
+
+* **llm:** desativa thinking e corrige truncamento MAX_TOKENS ([ee936a8](https://github.com/victorh-silveira/aether-quantum-engine/commit/ee936a8b83a56d68e121d023dbdf551deea495a6))
+
 ## [1.13.4](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.13.3...v1.13.4) (2026-05-21)
 
 ### Correcoes de Bug
