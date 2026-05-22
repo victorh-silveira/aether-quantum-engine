@@ -1,3 +1,9 @@
+## [1.16.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.15.0...v1.16.0) (2026-05-22)
+
+### Funcionalidades
+
+* **config:** elevar limites de conviccao minima para 85% no settings.json ([8a69dcb](https://github.com/victorh-silveira/aether-quantum-engine/commit/8a69dcb6e349f8d3d41ce2f1e66f2b6dcfec9a16))
+
 ## [1.15.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.14.0...v1.15.0) (2026-05-22)
 
 ### Funcionalidades
