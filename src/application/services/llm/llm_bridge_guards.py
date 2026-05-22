@@ -137,7 +137,7 @@ def _calculate_mcs_and_conviction(
                 mcs += 0.04
         mcs = min(0.99, max(0.0, mcs))
     elif tag.startswith("divergence"):
-        mcs = 0.58 + 0.07 * avg_strength
+        mcs = 0.78 + 0.10 * avg_strength
     else:
         mcs = 0.52 + 0.08 * avg_strength
 
