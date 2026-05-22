@@ -1,3 +1,9 @@
+## [1.14.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.13.7...v1.14.0) (2026-05-22)
+
+### Funcionalidades
+
+* **llm:** implementar motor Medallion StatArb e classificador de regime HMM ([d1c3586](https://github.com/victorh-silveira/aether-quantum-engine/commit/d1c35864069cfa910fdfc81a281ef9f8cbd50ee6))
+
 ## [1.13.7](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.13.6...v1.13.7) (2026-05-21)
 
 ### Correcoes de Bug
