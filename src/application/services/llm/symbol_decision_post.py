@@ -64,5 +64,7 @@ def patch_final_symbol_metrics(
             "macro_guard_applied": macro_guard,
             "macro_us_dir_quant": macro_snapshot.us_dir,
             "macro_eu_dir_quant": macro_snapshot.eu_dir,
+            "macro_us_strength_quant": float(macro_snapshot.us_strength),
+            "macro_eu_strength_quant": float(macro_snapshot.eu_strength),
         }
     )

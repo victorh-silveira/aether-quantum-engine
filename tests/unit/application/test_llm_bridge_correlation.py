@@ -27,7 +27,7 @@ async def test_collect_llm_decisions_propagates_cluster_tags_only():
     orch._active_cycle_id = 1
     orch.config = {
         "strategy": {
-            "correlation": {"enabled": True},
+            "correlation": {"enabled": True, "exclusive_cluster_by_macro": False},
             "clusters": {
                 "us": ["OTC_SPC", "OTC_NDX"],
                 "eu": ["OTC_FCHI"],
@@ -37,7 +37,7 @@ async def test_collect_llm_decisions_propagates_cluster_tags_only():
     }
 
     metrics_anchor = {
-        "conviction": 0.8,
+        "conviction": 0.90,
         "direction": "CALL",
         "execute": True,
         "llm_note": "Strong trend",
@@ -56,6 +56,43 @@ async def test_collect_llm_decisions_propagates_cluster_tags_only():
         assert decisions["OTC_NDX"]["direction"] == TradeDirection.PUT
         assert decisions["OTC_FCHI"]["direction"] == TradeDirection.PUT
         assert decisions["OTC_SPC"]["metrics"]["decision_source"] == "cluster_regime"
+        assert decisions["OTC_SPC"]["metrics"]["llm_exec_inverted"] is False
+
+
+@pytest.mark.asyncio
+async def test_collect_llm_decisions_inverts_clusters_below_follow_threshold():
+    orch = MagicMock()
+    orch.anchor = "frxEURUSD"
+    orch.symbols = ["frxEURUSD", "OTC_SPC", "OTC_FCHI"]
+    orch._active_cycle_id = 4
+    orch.config = {
+        "strategy": {
+            "correlation": {"enabled": True, "exclusive_cluster_by_macro": True},
+            "clusters": {"us": ["OTC_SPC"], "eu": ["OTC_FCHI"]},
+        },
+        "llm": {
+            "max_decision_latency_seconds": 10,
+            "indicator_config": {"cluster_follow_conviction_threshold": 0.85},
+        },
+    }
+
+    with patch("src.application.services.llm.llm_bridge._collect_symbol_decision", new_callable=AsyncMock) as mock_dec:
+        mock_dec.return_value = (
+            TradeDirection.CALL,
+            {
+                "conviction": 0.68,
+                "llm_note": "weak",
+                "us_cluster": "CALL",
+                "eu_cluster": "CALL",
+                "macro_sentiment": "risk_on",
+            },
+        )
+        decisions = await collect_llm_decisions(orch)
+
+    assert decisions["OTC_SPC"]["direction"] == TradeDirection.PUT
+    assert "OTC_FCHI" not in decisions
+    assert decisions["OTC_SPC"]["metrics"]["llm_exec_inverted"] is True
+    assert "CLUSTER_INVERSE" in decisions["OTC_SPC"]["metrics"]["llm_note"]
 
 
 @pytest.mark.asyncio

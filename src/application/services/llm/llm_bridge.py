@@ -12,6 +12,15 @@ from src.application.services.llm.llm_bridge_telemetry import (
     build_metrics_for_decision as _build_metrics_for_decision_core,
     store_symbol_decision,
 )
+from src.application.services.llm.llm_cluster_conviction import (
+    cluster_execution_direction,
+    cluster_follow_conviction_threshold,
+)
+from src.application.services.llm.llm_cluster_exclusive import (
+    cluster_region_for_symbol,
+    exclusive_cluster_by_macro_enabled,
+    resolve_exclusive_cluster_region,
+)
 from src.application.services.llm.llm_repeat_guard import (
     choose_direction_without_wait as _choose_direction_without_wait,
 )
@@ -117,7 +126,7 @@ def _propagate_cluster_decisions(
     decisions: dict[str, dict],
     cid: str,
 ) -> None:
-    """Propaga decisoes para indices US/EU somente via tags US_CLUSTER e EU_CLUSTER da LLM."""
+    """Propaga decisoes para indices US/EU via tags de cluster; inverte se conviccao < limiar."""
     _ = direction
     clusters = orch.config.get("strategy", {}).get("clusters", {})
     us_targets = clusters.get("us", ("OTC_SPC", "OTC_NDX", "OTC_DJI"))
@@ -125,27 +134,45 @@ def _propagate_cluster_decisions(
     propagated_tags: list[str] = []
     anchor_in_us = anchor_sym in us_targets
     anchor_in_eu = anchor_sym in eu_targets
+    conviction = float(metrics.get("conviction", 0))
+    follow_thr = cluster_follow_conviction_threshold(orch)
+    cluster_inverted = conviction < follow_thr
+    exclusive = exclusive_cluster_by_macro_enabled(orch)
+    active_region = resolve_exclusive_cluster_region(metrics) if exclusive else None
+    macro_tag = str(metrics.get("macro_sentiment") or metrics.get("macro_confluence_tag") or "")
 
     for target_sym in orch.symbols:
         if target_sym == anchor_sym:
             continue
 
+        sym_region = cluster_region_for_symbol(target_sym, us_targets=us_targets, eu_targets=eu_targets)
+        if exclusive and active_region and sym_region and sym_region != active_region:
+            continue
+
         if target_sym in us_targets and not anchor_in_us:
             us_tag = metrics.get("us_cluster")
-            if us_tag not in ("CALL", "PUT"):
+            target_direction, tag_inverted = cluster_execution_direction(us_tag, conviction, follow_thr)
+            if target_direction is None:
                 continue
-            target_direction = TradeDirection[str(us_tag)]
         elif target_sym in eu_targets and not anchor_in_eu:
             eu_tag = metrics.get("eu_cluster")
-            if eu_tag not in ("CALL", "PUT"):
+            target_direction, tag_inverted = cluster_execution_direction(eu_tag, conviction, follow_thr)
+            if target_direction is None:
                 continue
-            target_direction = TradeDirection[str(eu_tag)]
         else:
             continue
 
         target_metrics = metrics.copy()
-        target_metrics["llm_note"] = f"CLUSTER ({target_direction.name}) from {anchor_sym}"
+        mode = "INVERSE" if tag_inverted else "FOLLOW"
+        region_note = f" region={active_region} macro={macro_tag}" if active_region else ""
+        target_metrics["llm_note"] = (
+            f"CLUSTER_{mode} ({target_direction.name}) conv={conviction:.1%} thr={follow_thr:.0%}{region_note} from {anchor_sym}"
+        )
         target_metrics["decision_source"] = "cluster_regime"
+        target_metrics["llm_exec_inverted"] = tag_inverted
+        target_metrics["cluster_conviction_inverted"] = cluster_inverted
+        target_metrics["cluster_active_region"] = active_region or ""
+        target_metrics["cluster_exclusive_macro"] = exclusive
 
         target_metrics["duration"] = enforce_minimum_duration(target_sym, target_metrics.get("duration", 15))
 

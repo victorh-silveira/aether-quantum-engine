@@ -29,7 +29,8 @@
       "entropy_bins": 30,
       "entropy_threshold": 5.0,
       "entropy_window": 20,
-      "follow_threshold": 0.51,
+      "cluster_follow_conviction_threshold": 0.85,
+      "follow_threshold": 0.85,
       "hurst_window": 30,
       "inversion_threshold": 0.51,
       "tf_labels": [
@@ -71,7 +72,7 @@
     "micro_swing_granularity_seconds": 300,
     "micro_trigger_bars": 120,
     "micro_trigger_granularity_seconds": 60,
-    "min_conviction_execute": 0.85,
+    "min_conviction_execute": 0.60,
     "min_payout_accept": 0.82,
     "model": "gemini-2.5-flash",
     "options": {
@@ -146,7 +147,8 @@
     },
     "correlation": {
       "anchor": "frxEURUSD",
-      "enabled": true
+      "enabled": true,
+      "exclusive_cluster_by_macro": true
     },
     "macro": {
       "macro_intelligence_only": true,
@@ -173,7 +175,7 @@
       "cluster_min_move_pct": 0.06,
       "cluster_return_threshold_pct": 0.02,
       "cluster_use_m5_fallback_when_flat": true,
-      "confluence_conviction_floor": 0.85,
+      "confluence_conviction_floor": 0.60,
       "divergence_blocks_execution": false,
       "divergence_max_conviction": 0.99,
       "fx_reference_pairs": {
