@@ -20,6 +20,7 @@ async def test_collect_llm_decisions_with_dynamic_cluster_regime():
         "strategy": {
             "correlation": {
                 "enabled": True,
+                "exclusive_cluster_by_macro": False,
                 "targets": {"OTC_SPC": 1.0, "OTC_FCHI": 1.0},
             }
         },
@@ -27,7 +28,7 @@ async def test_collect_llm_decisions_with_dynamic_cluster_regime():
     }
 
     metrics_anchor = {
-        "conviction": 0.8,
+        "conviction": 0.90,
         "direction": "PUT",
         "execute": True,
         "llm_note": "Morphological Regime",
@@ -47,7 +48,7 @@ async def test_collect_llm_decisions_with_dynamic_cluster_regime():
 
         assert decisions["OTC_FCHI"]["direction"] == TradeDirection.CALL
         assert decisions["OTC_FCHI"]["metrics"]["decision_source"] == "cluster_regime"
-        assert "CLUSTER (CALL)" in decisions["OTC_FCHI"]["metrics"]["llm_note"]
+        assert "CLUSTER_FOLLOW" in decisions["OTC_FCHI"]["metrics"]["llm_note"]
 
 
 def test_parse_llm_trade_response_with_clusters():
@@ -81,6 +82,7 @@ async def test_cluster_skipped_when_no_explicit_tag():
         "strategy": {
             "correlation": {
                 "enabled": True,
+                "exclusive_cluster_by_macro": False,
                 "targets": {"OTC_SPC": 1.0, "OTC_FCHI": 1.0},
             }
         },
