@@ -1,7 +1,10 @@
 import pytest
 
 from src.application.services.llm.global_macro_confluence import MacroSnapshot, build_macro_snapshot
-from src.application.services.llm.llm_bridge_guards import apply_macro_confluence_guard
+from src.application.services.llm.llm_macro_confluence_guards import (
+    apply_macro_confluence_guard,
+    divergence_leader_strength,
+)
 from src.application.services.llm.symbol_decision_utils import apply_macro_post_parse
 from src.domain.models.trade import TradeDirection
 
@@ -18,18 +21,23 @@ def _snapshot(tag: str, us_dir: str, eu_dir: str, us_s: float = 1.0, eu_s: float
     )
 
 
+def _legacy_cfg(**overrides) -> dict:
+    base = {"macro_intelligence_only": False, "align_eurusd_with_confluence": True}
+    base.update(overrides)
+    return base
+
+
 def test_apply_macro_guard_blocks_eurusd_put_against_risk_on():
     snap = _snapshot("risk_on", "up", "up")
     direction, conviction, applied, note, execute_ok = apply_macro_confluence_guard(
         TradeDirection.PUT,
         0.9,
         snap,
-        {
-            "align_eurusd_with_confluence": True,
-            "confluence_conviction_floor": 0.55,
-            "divergence_blocks_execution": True,
-            "divergence_max_conviction": 0.65,
-        },
+        _legacy_cfg(
+            confluence_conviction_floor=0.55,
+            divergence_blocks_execution=True,
+            divergence_max_conviction=0.65,
+        ),
     )
     assert applied is True
     assert direction is None
@@ -43,17 +51,14 @@ def test_apply_macro_guard_allows_eurusd_put_on_risk_off():
         TradeDirection.PUT,
         0.9,
         snap,
-        {
-            "align_eurusd_with_confluence": True,
-            "confluence_conviction_floor": 0.55,
-        },
+        _legacy_cfg(confluence_conviction_floor=0.55),
     )
     assert applied is False
     assert direction == TradeDirection.PUT
     assert execute_ok is True
 
 
-def test_apply_macro_guard_divergence_caps_conviction():
+def test_apply_macro_guard_divergence_caps_conviction_legacy():
     snap = build_macro_snapshot(
         ["OTC_SPC"],
         ["OTC_FCHI"],
@@ -65,7 +70,7 @@ def test_apply_macro_guard_divergence_caps_conviction():
         TradeDirection.CALL,
         0.9,
         snap,
-        {"divergence_blocks_execution": True, "divergence_max_conviction": 0.65},
+        _legacy_cfg(divergence_blocks_execution=True, divergence_max_conviction=0.65),
     )
     assert applied is True
     assert conviction == pytest.approx(0.65)
@@ -162,28 +167,7 @@ def test_apply_macro_post_parse_indefinido_forces_us_put_when_quant_down():
     assert eu_dir is None
 
 
-def test_apply_macro_guard_divergence_penalizes_and_caps_below_execute():
-    snap = build_macro_snapshot(
-        ["OTC_SPC"],
-        ["OTC_FCHI"],
-        {"OTC_SPC": [100.0, 105.0], "OTC_FCHI": [100.0, 95.0]},
-        {"min_indices_for_vote": 1},
-    )
-    assert snap.tag == "divergence_us_leads"
-    direction, conviction, applied, note, execute_ok = apply_macro_confluence_guard(
-        TradeDirection.CALL,
-        0.9,
-        snap,
-        {"divergence_blocks_execution": True, "divergence_max_conviction": 0.78},
-    )
-    assert applied is True
-    assert conviction == pytest.approx(0.704)
-    assert direction == TradeDirection.CALL
-    assert execute_ok is True
-    assert "MACRO_DIV cap=0.78" in note
-
-
-def test_apply_macro_guard_divergence_eu_leads_vetoes_put_against_leader():
+def test_apply_macro_guard_legacy_divergence_eu_leads_blends_mcs():
     snap = build_macro_snapshot(
         ["OTC_SPC"],
         ["OTC_FCHI"],
@@ -191,40 +175,86 @@ def test_apply_macro_guard_divergence_eu_leads_vetoes_put_against_leader():
         {"min_indices_for_vote": 1},
     )
     assert snap.tag == "divergence_eu_leads"
-    direction, _, applied, note, execute_ok = apply_macro_confluence_guard(
+    direction, conviction, applied, note, execute_ok = apply_macro_confluence_guard(
+        TradeDirection.CALL,
+        0.9,
+        snap,
+        _legacy_cfg(divergence_blocks_execution=False),
+    )
+    assert direction == TradeDirection.CALL
+    assert conviction > 0.75
+    assert execute_ok is True
+    assert applied is False or note == ""
+
+
+def test_divergence_leader_strength_unknown_tag_returns_zero():
+    snap = build_macro_snapshot(
+        ["OTC_SPC"],
+        ["OTC_FCHI"],
+        {"OTC_SPC": [100.0, 105.0], "OTC_FCHI": [100.0, 105.0]},
+        {"min_indices_for_vote": 1},
+    )
+    assert divergence_leader_strength(snap, "risk_on") == 0.0
+
+
+def test_apply_macro_guard_legacy_no_veto_when_align_disabled():
+    snap = _snapshot("risk_on", "up", "up")
+    direction, conviction, applied, note, execute_ok = apply_macro_confluence_guard(
         TradeDirection.PUT,
         0.9,
         snap,
-        {
-            "align_eurusd_with_confluence": True,
-            "confluence_conviction_floor": 0.85,
-            "divergence_blocks_execution": True,
-            "divergence_max_conviction": 0.78,
-        },
+        _legacy_cfg(align_eurusd_with_confluence=False, divergence_blocks_execution=False),
     )
-    assert applied is True
-    assert direction is None
-    assert execute_ok is False
-    assert "MACRO_DIV_VETO" in note
+    assert direction == TradeDirection.PUT
+    assert execute_ok is True
+    assert "MACRO_ALIGN" not in note
 
 
-def test_apply_macro_guard_divergence_vetoes_eurusd_against_leader():
+def test_apply_statarb_no_spread_and_neutral_z_legacy():
+    snap = MacroSnapshot(
+        tag="risk_on",
+        eurusd_bias="CALL",
+        us_dir="up",
+        eu_dir="up",
+        us_strength=1.0,
+        eu_strength=1.0,
+        cluster_status="active",
+        macro_block="",
+        fx_reference_line="",
+        us_parts=("OTC_SPC",),
+        eu_parts=("OTC_GDAXI",),
+        statarb_spreads={"OTC_GDAXI": 0.5},
+        hmm_state=0,
+        hmm_prob=0.9,
+    )
+    direction, conviction, applied, note, execute_ok = apply_macro_confluence_guard(
+        TradeDirection.CALL,
+        0.60,
+        snap,
+        {"macro_intelligence_only": False, "statarb_z_threshold": 2.5},
+        sym="OTC_GDAXI",
+    )
+    assert direction == TradeDirection.CALL
+    assert execute_ok is True
+    assert applied is False or note == ""
+
+
+def test_apply_macro_guard_divergence_vetoes_eurusd_against_leader_legacy():
     snap = build_macro_snapshot(
         ["OTC_SPC"],
         ["OTC_FCHI"],
         {"OTC_SPC": [100.0, 105.0], "OTC_FCHI": [100.0, 95.0]},
         {"min_indices_for_vote": 1},
     )
-    direction, conviction, applied, note, execute_ok = apply_macro_confluence_guard(
+    direction, _, applied, note, execute_ok = apply_macro_confluence_guard(
         TradeDirection.PUT,
         0.9,
         snap,
-        {
-            "align_eurusd_with_confluence": True,
-            "confluence_conviction_floor": 0.85,
-            "divergence_blocks_execution": True,
-            "divergence_max_conviction": 0.78,
-        },
+        _legacy_cfg(
+            confluence_conviction_floor=0.85,
+            divergence_blocks_execution=True,
+            divergence_max_conviction=0.78,
+        ),
     )
     assert applied is True
     assert direction is None

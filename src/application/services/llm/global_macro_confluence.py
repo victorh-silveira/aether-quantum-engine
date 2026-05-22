@@ -138,6 +138,23 @@ def eurusd_bias_from_confluence(tag: str, *, us_dir: str = "flat", eu_dir: str =
     return "PUT"
 
 
+def regional_intelligence_line(snapshot: MacroSnapshot) -> str:
+    """Linha de inteligencia regional US/EU para o prompt Medallion."""
+    us_tok = cluster_trade_direction(snapshot.us_dir) or "NEUTRO"
+    eu_tok = cluster_trade_direction(snapshot.eu_dir) or "NEUTRO"
+    if snapshot.tag == "divergence_us_leads":
+        lead = "US"
+    elif snapshot.tag == "divergence_eu_leads":
+        lead = "EU"
+    else:
+        lead = "BAL"
+    return (
+        f"US_INTEL macro={snapshot.us_dir} str={snapshot.us_strength:.2f} sinal={us_tok} | "
+        f"EU_INTEL macro={snapshot.eu_dir} str={snapshot.eu_strength:.2f} sinal={eu_tok} | "
+        f"LEAD={lead} tag={snapshot.tag} EURUSD_bias={snapshot.eurusd_bias}"
+    )
+
+
 def format_macro_confluence_block(
     us_summary: str,
     eu_summary: str,

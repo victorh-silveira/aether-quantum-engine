@@ -45,6 +45,7 @@ def resolve_macro_config(raw: dict[str, Any] | None) -> dict[str, Any]:
     return {
         "cluster_return_threshold_pct": float(base.get("cluster_return_threshold_pct", 0.02)),
         "min_indices_for_vote": max(1, int(base.get("min_indices_for_vote", 2))),
+        "macro_intelligence_only": bool(base.get("macro_intelligence_only", False)),
         "divergence_blocks_execution": bool(base.get("divergence_blocks_execution", True)),
         "divergence_max_conviction": max(0.0, min(0.99, float(base.get("divergence_max_conviction", 0.65)))),
         "align_eurusd_with_confluence": bool(base.get("align_eurusd_with_confluence", True)),

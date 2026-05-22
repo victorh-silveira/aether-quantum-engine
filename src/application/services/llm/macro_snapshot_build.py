@@ -11,6 +11,7 @@ from src.application.services.llm.global_macro_confluence import (
     expected_cluster_tags_line,
     format_macro_confluence_block,
     fx_reference_context_line,
+    regional_intelligence_line,
 )
 from src.application.services.llm.macro_config import ClusterVote, MacroSnapshot, resolve_macro_config
 
@@ -41,6 +42,22 @@ def macro_snapshot_from_votes(
         eu_strength=eu_vote.strength,
         macro_cfg=cfg,
     )
+    intel_line = regional_intelligence_line(
+        MacroSnapshot(
+            us_dir=us_vote.direction,
+            eu_dir=eu_vote.direction,
+            us_strength=us_vote.strength,
+            eu_strength=eu_vote.strength,
+            tag=tag,
+            eurusd_bias=bias,
+            cluster_status="",
+            macro_block="",
+            fx_reference_line="",
+            us_parts=us_vote.parts,
+            eu_parts=eu_vote.parts,
+        )
+    )
+    cluster_quant_line = f"{cluster_quant_line} | {intel_line}".strip(" |")
 
     # Append HMM regime information to telemetry if active
     if hmm_prob < 1.0 or hmm_state > 0:

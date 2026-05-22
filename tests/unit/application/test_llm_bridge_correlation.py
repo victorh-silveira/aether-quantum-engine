@@ -150,7 +150,7 @@ async def test_collect_symbol_appends_macro_guard_note():
     orch._active_cycle_id = 6
     orch.symbols = ["frxEURUSD"]
     orch.logger = MagicMock()
-    ctx = {"macro_cfg": {"divergence_blocks_execution": True, "divergence_max_conviction": 0.65}}
+    ctx = {"macro_cfg": {"macro_intelligence_only": True}}
     with (
         patch(
             "src.application.services.llm.symbol_decision.build_symbol_prompt",
@@ -184,4 +184,4 @@ async def test_collect_symbol_appends_macro_guard_note():
         _dir, metrics = await collect_symbol_llm_decision(
             orch, sym="frxEURUSD", runtime=runtime, llm_metrics=_llm_metrics
         )
-        assert "MACRO_DIV" in metrics["llm_note"]
+        assert "MACRO_INTEL" in metrics["llm_note"]
