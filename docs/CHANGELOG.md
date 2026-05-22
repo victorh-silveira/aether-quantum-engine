@@ -1,3 +1,9 @@
+## [1.17.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.17.0...v1.17.1) (2026-05-22)
+
+### Correcoes de Bug
+
+* **llm:** reforcar vetos e penalidades em divergencia macro ([fedea01](https://github.com/victorh-silveira/aether-quantum-engine/commit/fedea0128d8d2ce302afce157eb3bfb367b8d60a))
+
 ## [1.17.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.16.0...v1.17.0) (2026-05-22)
 
 ### Funcionalidades
