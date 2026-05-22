@@ -1,3 +1,9 @@
+## [1.19.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.18.0...v1.19.0) (2026-05-22)
+
+### Funcionalidades
+
+* **llm:** inversao de cluster e execucao exclusiva por macro ([d15b451](https://github.com/victorh-silveira/aether-quantum-engine/commit/d15b451b41e090985f852409b86377203d1284e0))
+
 ## [1.18.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.17.1...v1.18.0) (2026-05-22)
 
 ### Funcionalidades
