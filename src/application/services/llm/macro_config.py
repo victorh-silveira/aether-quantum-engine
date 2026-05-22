@@ -60,6 +60,17 @@ def resolve_macro_config(raw: dict[str, Any] | None) -> dict[str, Any]:
         "statarb_lookback": int(base.get("statarb_lookback", 15)),
         "statarb_hmm_sigma_low": float(base.get("statarb_hmm_sigma_low", 0.0004)),
         "statarb_hmm_sigma_high": float(base.get("statarb_hmm_sigma_high", 0.0016)),
+        "divergence_min_leader_strength": max(
+            0.0,
+            min(0.99, float(base.get("divergence_min_leader_strength", 0.68))),
+        ),
+        "divergence_min_strength_gap": max(0.0, float(base.get("divergence_min_strength_gap", 0.05))),
+        "indefinido_min_leader_strength": max(
+            0.0,
+            min(0.99, float(base.get("indefinido_min_leader_strength", 0.65))),
+        ),
+        "indefinido_min_strength_gap": max(0.0, float(base.get("indefinido_min_strength_gap", 0.06))),
+        "assert_min_hmm_prob": max(0.0, min(1.0, float(base.get("assert_min_hmm_prob", 0.55)))),
     }
 
 

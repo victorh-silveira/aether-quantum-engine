@@ -144,8 +144,8 @@ def test_statarb_guard_confluence_boost_call():
     assert execute_ok is True
 
 
-def test_statarb_guard_intelligence_preserves_conflicting_put():
-    """StatArb em reversao nao bloqueia PUT; apenas preserva direcao LLM."""
+def test_statarb_guard_intelligence_vetoes_conflicting_put():
+    """StatArb em reversao veta PUT quando Z favorece CALL."""
     snap = MacroSnapshot(
         tag="risk_on",
         eurusd_bias="CALL",
@@ -172,11 +172,12 @@ def test_statarb_guard_intelligence_preserves_conflicting_put():
     )
 
     assert direction == TradeDirection.PUT
-    assert execute_ok is True
+    assert execute_ok is False
+    assert "STATARB_VETO" in note
 
 
 def test_statarb_guard_intelligence_trending_caution():
-    """Regime HMM tendencia penaliza conviccao sem vetar direcao."""
+    """Regime HMM tendencia com Z extremo reduz conviccao sem vetar."""
     snap = MacroSnapshot(
         tag="risk_on",
         eurusd_bias="CALL",
@@ -203,7 +204,7 @@ def test_statarb_guard_intelligence_trending_caution():
     )
 
     assert direction == TradeDirection.PUT
-    assert conviction < 0.60
+    assert conviction == pytest.approx(0.55)
     assert applied is True
     assert execute_ok is True
     assert "STATARB_INTEL trending_caution" in note

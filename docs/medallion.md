@@ -64,3 +64,13 @@ Como o Medallion distribuiria as ordens entre os ativos com base nas variações
 | `OTC_FTSE` (FTSE 100) | EU | Misto (commodities em USD) | Reação mista (mineradoras/energia) |
 
 Execução no motor: `risk_on` → cluster US; `risk_off` → cluster EU; um índice por cluster via StatArb quando habilitado (`docs/arquitetura.md` §6).
+
+### Assertividade e drawdown (motor Aether)
+
+O Medallion no Aether prioriza **menos trades de maior qualidade** em vez de volume cego:
+
+- **Macro:** piso de força em `risk_on`/`risk_off`; divergência só com líder forte; `indefinido` bloqueado sem gap US/EU.
+- **StatArb:** Z contra a direção em HMM de reversão → veto (`STATARB_VETO`); alinhamento → boost de convicção.
+- **Risco:** Kelly fracionado (`fraction`, `max_stake_pct`), recuperação limitada e **freio de drawdown** por sessão.
+
+Parâmetros em `config/settings.json` → `strategy.macro` e `risk_management.kelly`. Backtest e live compartilham os mesmos guardrails (`llm_macro_confluence_guards.py`).

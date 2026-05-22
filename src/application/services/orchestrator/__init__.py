@@ -48,6 +48,7 @@ class Orchestrator:
         self._cluster_results = []
         self._last_epoch = 0
         self._last_cluster_cycle_end = 0.0
+        self._risk_session_day_key: int | None = None
         self._buffer_result_logs = False
         self._pending_result_logs: list[str] = []
         self._cycle_seq = 0
@@ -106,6 +107,7 @@ class Orchestrator:
                 return False
             self.state.balance = auth["authorize"]["balance"]
             self.risk_manager.set_initial_bankroll(self.state.balance)
+            self._maybe_reset_daily_risk_session(int(time.time()))
             await self._subscribe_account_transactions()
             self.logger.debug(f"AUTH: Sucesso. Saldo: {self.state.balance:.2f}")
             return True
@@ -137,6 +139,16 @@ class Orchestrator:
             self.logger.error("STRM: Falha [%s]: %s", type(e).__name__, detalhe, exc_info=True)
             return False
 
+    def _maybe_reset_daily_risk_session(self, epoch: int) -> None:
+        """Reinicia stop win e drawdown no inicio de cada dia UTC (vela ancora)."""
+        day_key = int(epoch) // 86400
+        if self._risk_session_day_key == day_key:
+            return
+        self._risk_session_day_key = day_key
+        bal = float(self.state.balance)
+        self.risk_manager.reset_daily_session(bal)
+        self.logger.info("RISK: Sessao diaria | banca=$%.2f | stop win diario ativo", bal)
+
     async def _on_candle(self, candle: Any):
         """Callback de vela do ancora: atualiza estado e tenta ciclo."""
         if candle.symbol != self.anchor:
@@ -145,6 +157,7 @@ class Orchestrator:
         if self._last_epoch == candle.epoch:
             return
         self._last_epoch = candle.epoch
+        self._maybe_reset_daily_risk_session(int(candle.epoch))
         await self._run_trading_cycle_if_ready()
 
     async def _run_trading_cycle_if_ready(self) -> None:

@@ -4,6 +4,7 @@ from src.application.services.llm.global_macro_confluence import build_macro_sna
 from src.application.services.llm.llm_macro_confluence_guards import apply_macro_confluence_guard
 from src.application.services.llm.symbol_decision_utils import apply_macro_post_parse
 from src.domain.models.trade import TradeDirection
+from tests.unit.application.macro_guard_fixtures import RELAXED_MACRO_CFG
 
 
 def _snapshot(_tag: str, us_dir: str, eu_dir: str) -> object:
@@ -29,7 +30,7 @@ def test_apply_macro_guard_intelligence_without_statarb_spread():
         TradeDirection.CALL,
         0.82,
         snap,
-        {"statarb_z_threshold": 2.5},
+        {**RELAXED_MACRO_CFG, "statarb_z_threshold": 2.5},
         sym="frxEURUSD",
     )
     assert direction == TradeDirection.CALL
@@ -50,7 +51,7 @@ def test_apply_macro_guard_intelligence_preserves_llm_divergence():
         TradeDirection.CALL,
         0.802,
         snap,
-        {"statarb_z_threshold": 2.5},
+        {**RELAXED_MACRO_CFG, "statarb_z_threshold": 2.5},
     )
     assert direction == TradeDirection.CALL
     assert conviction == pytest.approx(0.802)
@@ -69,7 +70,7 @@ def test_apply_macro_guard_intelligence_allows_put_against_us_leader():
         TradeDirection.PUT,
         0.85,
         snap,
-        {"statarb_z_threshold": 2.5},
+        {**RELAXED_MACRO_CFG, "statarb_z_threshold": 2.5},
     )
     assert direction == TradeDirection.PUT
     assert conviction == pytest.approx(0.85)

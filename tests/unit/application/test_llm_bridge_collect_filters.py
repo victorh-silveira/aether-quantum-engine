@@ -6,6 +6,7 @@ import pytest
 from src.application.services.llm.llm_bridge import collect_llm_decisions
 from src.domain.models.trade import TradeDirection
 from tests.unit.application.llm_response_fixtures import MOCK_LLM_CALL_LINE, MOCK_LLM_PUT_LINE
+from tests.unit.application.macro_guard_fixtures import merge_orch_config
 
 
 def _stub_closes(head: list[float]) -> list[float]:
@@ -15,18 +16,20 @@ def _stub_closes(head: list[float]) -> list[float]:
 @pytest.mark.asyncio
 async def test_collect_llm_decisions_preserva_conviccao_do_payload():
     orch = MagicMock()
-    orch.config = {
-        "llm": {
-            "base_url": "http://x",
-            "model": "m",
-            "timeout_seconds": 5,
-            "analysis_granularity_seconds": 300,
-            "analysis_bars": 120,
-            "ohlc_bars": 120,
-            "min_conviction_execute": 0.67,
-        },
-        "risk_management": {"params": {"duration": 1, "duration_unit": "m", "payout_estimate": 0.95}},
-    }
+    orch.config = merge_orch_config(
+        {
+            "llm": {
+                "base_url": "http://x",
+                "model": "m",
+                "timeout_seconds": 5,
+                "analysis_granularity_seconds": 300,
+                "analysis_bars": 120,
+                "ohlc_bars": 120,
+                "min_conviction_execute": 0.67,
+            },
+            "risk_management": {"params": {"duration": 1, "duration_unit": "m", "payout_estimate": 0.95}},
+        }
+    )
     orch.symbols = ["frxEURUSD"]
     orch.anchor = "frxEURUSD"
     orch.stream.get_numpy_series = MagicMock(return_value=np.array([100.0 * (1.001**i) for i in range(120)]))
@@ -48,18 +51,20 @@ async def test_collect_llm_decisions_preserva_conviccao_do_payload():
 @pytest.mark.asyncio
 async def test_collect_llm_decisions_keeps_put_on_consecutive_cycles():
     orch = MagicMock()
-    orch.config = {
-        "llm": {
-            "base_url": "http://x",
-            "model": "m",
-            "timeout_seconds": 5,
-            "analysis_granularity_seconds": 300,
-            "analysis_bars": 120,
-            "m15_bars": 120,
-            "m3_bars": 120,
-        },
-        "risk_management": {"params": {"duration": 1, "duration_unit": "m", "payout_estimate": 0.95}},
-    }
+    orch.config = merge_orch_config(
+        {
+            "llm": {
+                "base_url": "http://x",
+                "model": "m",
+                "timeout_seconds": 5,
+                "analysis_granularity_seconds": 300,
+                "analysis_bars": 120,
+                "m15_bars": 120,
+                "m3_bars": 120,
+            },
+            "risk_management": {"params": {"duration": 1, "duration_unit": "m", "payout_estimate": 0.95}},
+        }
+    )
     orch.symbols = ["frxEURUSD"]
     orch.anchor = "frxEURUSD"
     orch.stream.get_numpy_series = MagicMock(return_value=np.array([100.0 * (1.001**i) for i in range(120)]))
@@ -81,18 +86,20 @@ async def test_collect_llm_decisions_keeps_put_on_consecutive_cycles():
 @pytest.mark.asyncio
 async def test_collect_llm_decisions_keeps_call_on_consecutive_cycles():
     orch = MagicMock()
-    orch.config = {
-        "llm": {
-            "base_url": "http://x",
-            "model": "m",
-            "timeout_seconds": 5,
-            "analysis_granularity_seconds": 300,
-            "analysis_bars": 120,
-            "m15_bars": 100,
-            "m3_bars": 140,
-        },
-        "risk_management": {"params": {"duration": 1, "duration_unit": "m", "payout_estimate": 0.95}},
-    }
+    orch.config = merge_orch_config(
+        {
+            "llm": {
+                "base_url": "http://x",
+                "model": "m",
+                "timeout_seconds": 5,
+                "analysis_granularity_seconds": 300,
+                "analysis_bars": 120,
+                "m15_bars": 100,
+                "m3_bars": 140,
+            },
+            "risk_management": {"params": {"duration": 1, "duration_unit": "m", "payout_estimate": 0.95}},
+        }
+    )
     orch.symbols = ["frxEURUSD"]
     orch.anchor = "frxEURUSD"
     orch.stream.get_numpy_series = MagicMock(return_value=np.array([100.0 * (1.001**i) for i in range(200)]))

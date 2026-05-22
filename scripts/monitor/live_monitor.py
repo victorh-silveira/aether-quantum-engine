@@ -1,3 +1,5 @@
+"""Dashboard Rich em tempo real para telemetria e estado do motor Medallion."""
+
 import json
 import logging
 import time
@@ -5,6 +7,13 @@ from pathlib import Path
 from threading import Thread
 
 from rich.live import Live
+
+from scripts.monitor.monitor_ui import (
+    generate_header,
+    generate_radar,
+    generate_stats,
+    make_layout,
+)
 
 
 LOG_PATH = Path("logs/engine.log")
@@ -99,19 +108,6 @@ class LogParser:
                 self.state.balance = float(val)
             except Exception as e:
                 logger.debug(f"Balance parsing error: {e}")
-
-
-import sys
-
-
-sys.path.append(str(Path(__file__).resolve().parent))
-
-from monitor_ui import (
-    generate_header,
-    generate_radar,
-    generate_stats,
-    make_layout,
-)
 
 
 def main():
