@@ -1,3 +1,9 @@
+## [1.17.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.16.0...v1.17.0) (2026-05-22)
+
+### Funcionalidades
+
+* **llm:** elevar conviccao maxima em divergencia macro ([6598759](https://github.com/victorh-silveira/aether-quantum-engine/commit/6598759cfba6413c471c7b4a1e3170c682d2a48c))
+
 ## [1.16.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.15.0...v1.16.0) (2026-05-22)
 
 ### Funcionalidades
