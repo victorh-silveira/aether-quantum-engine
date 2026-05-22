@@ -38,8 +38,10 @@ def test_classify_transatlantic_confluence_tags():
 def test_eurusd_bias_and_cluster_trade_direction():
     assert eurusd_bias_from_confluence("risk_on") == "CALL"
     assert eurusd_bias_from_confluence("risk_off") == "PUT"
-    assert eurusd_bias_from_confluence("divergence_us_leads") == "CALL"
-    assert eurusd_bias_from_confluence("divergence_eu_leads") == "CALL"
+    assert eurusd_bias_from_confluence("divergence_us_leads", us_dir="up", eu_dir="down") == "CALL"
+    assert eurusd_bias_from_confluence("divergence_us_leads", us_dir="down", eu_dir="up") == "PUT"
+    assert eurusd_bias_from_confluence("divergence_eu_leads", us_dir="down", eu_dir="up") == "CALL"
+    assert eurusd_bias_from_confluence("divergence_eu_leads", us_dir="up", eu_dir="down") == "PUT"
     assert eurusd_bias_from_confluence("indefinido", us_dir="down", eu_dir="flat") == "PUT"
     assert eurusd_bias_from_confluence("indefinido", us_dir="up", eu_dir="flat") == "CALL"
     assert cluster_trade_direction("up") == "CALL"

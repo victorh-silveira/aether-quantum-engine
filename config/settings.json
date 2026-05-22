@@ -174,7 +174,7 @@
       "cluster_use_m5_fallback_when_flat": true,
       "confluence_conviction_floor": 0.85,
       "divergence_blocks_execution": true,
-      "divergence_max_conviction": 0.88,
+      "divergence_max_conviction": 0.78,
       "fx_reference_pairs": {
         "audusd": {
           "risk_off": "FALL",

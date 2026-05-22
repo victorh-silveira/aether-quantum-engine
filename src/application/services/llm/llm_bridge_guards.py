@@ -117,6 +117,15 @@ def is_overextended(closes: list[float], window: int = 20) -> bool:
     return abs(z) > 3.0
 
 
+def _divergence_leader_strength(snapshot: MacroSnapshot, tag: str) -> float:
+    """Retorna a forca do cluster lider em tags de divergencia transatlantica."""
+    if tag == "divergence_us_leads":
+        return float(snapshot.us_strength)
+    if tag == "divergence_eu_leads":
+        return float(snapshot.eu_strength)
+    return 0.0
+
+
 def _calculate_mcs_and_conviction(
     direction: TradeDirection,
     conviction: float,
@@ -137,7 +146,12 @@ def _calculate_mcs_and_conviction(
                 mcs += 0.04
         mcs = min(0.99, max(0.0, mcs))
     elif tag.startswith("divergence"):
-        mcs = 0.78 + 0.10 * avg_strength
+        min_strength = min(float(snapshot.us_strength), float(snapshot.eu_strength))
+        mcs = 0.48 + 0.14 * min_strength
+        if bias in ("CALL", "PUT"):
+            quant_dir = TradeDirection.CALL if bias == "CALL" else TradeDirection.PUT
+            if direction != quant_dir:
+                mcs = max(0.0, mcs - 0.08)
     else:
         mcs = 0.52 + 0.08 * avg_strength
 
@@ -240,17 +254,19 @@ def apply_macro_confluence_guard(
         quant_dir = TradeDirection.CALL if bias == "CALL" else TradeDirection.PUT
         floor = float(cfg["confluence_conviction_floor"])
         min_strength = min(us_strength, eu_strength)
-        # Only block if we haven't already blocked by StatArb
+        leader_strength = _divergence_leader_strength(snapshot, tag)
+        strength_gate = leader_strength if tag.startswith("divergence") else min_strength
         if (
-            min_strength >= floor
+            strength_gate >= floor
             and direction is not None
             and direction != quant_dir
-            and tag in ("risk_on", "risk_off")
+            and (tag in ("risk_on", "risk_off") or tag.startswith("divergence"))
         ):
             guard_applied = True
             execute_ok = False
             direction = None
-            note_parts.append(f"MACRO_ALIGN block bias={bias}")
+            veto_tag = "MACRO_DIV_VETO" if tag.startswith("divergence") else "MACRO_ALIGN"
+            note_parts.append(f"{veto_tag} block bias={bias} tag={tag}")
 
     note = " | ".join(note_parts)
     return direction, conviction_final, guard_applied, note, execute_ok
