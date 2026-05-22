@@ -1,3 +1,9 @@
+## [1.20.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.19.0...v1.20.0) (2026-05-22)
+
+### Funcionalidades
+
+* **llm:** refatorar motor Medallion puro com propagacao regional e StatArb ([efd4fba](https://github.com/victorh-silveira/aether-quantum-engine/commit/efd4fba1f777648db318326f17acc5f12a6aecfe))
+
 ## [Unreleased]
 
 ### Refatoracao Medallion
