@@ -71,7 +71,7 @@
     "micro_swing_granularity_seconds": 300,
     "micro_trigger_bars": 120,
     "micro_trigger_granularity_seconds": 60,
-    "min_conviction_execute": 0.55,
+    "min_conviction_execute": 0.85,
     "min_payout_accept": 0.82,
     "model": "gemini-2.5-flash",
     "options": {
@@ -172,7 +172,7 @@
       "cluster_min_move_pct": 0.06,
       "cluster_return_threshold_pct": 0.02,
       "cluster_use_m5_fallback_when_flat": true,
-      "confluence_conviction_floor": 0.55,
+      "confluence_conviction_floor": 0.85,
       "divergence_blocks_execution": true,
       "divergence_max_conviction": 0.65,
       "fx_reference_pairs": {
