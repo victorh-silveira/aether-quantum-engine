@@ -1,3 +1,13 @@
+## [1.21.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.20.0...v1.21.0) (2026-05-22)
+
+### Funcionalidades
+
+* **all:** backtest M15 assertivo, risco diario e guardrails macro ([7f4c096](https://github.com/victorh-silveira/aether-quantum-engine/commit/7f4c096e4ffdf25d606aae15315e8d8c68493dc2))
+
+### Documentacao
+
+* **release:** remover secao Unreleased do CHANGELOG ([cb635c7](https://github.com/victorh-silveira/aether-quantum-engine/commit/cb635c75c09cc072ee61173657c985e7139c9b75))
+
 ## [1.20.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.19.0...v1.20.0) (2026-05-22)
 
 ### Funcionalidades
