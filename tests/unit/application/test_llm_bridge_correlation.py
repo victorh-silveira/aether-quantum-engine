@@ -27,7 +27,11 @@ async def test_collect_llm_decisions_propagates_cluster_tags_only():
     orch._active_cycle_id = 1
     orch.config = {
         "strategy": {
-            "correlation": {"enabled": True, "exclusive_cluster_by_macro": False},
+            "correlation": {
+                "enabled": True,
+                "exclusive_cluster_by_macro": False,
+                "statarb_index_select_enabled": False,
+            },
             "clusters": {
                 "us": ["OTC_SPC", "OTC_NDX"],
                 "eu": ["OTC_FCHI"],
@@ -56,24 +60,22 @@ async def test_collect_llm_decisions_propagates_cluster_tags_only():
         assert decisions["OTC_NDX"]["direction"] == TradeDirection.PUT
         assert decisions["OTC_FCHI"]["direction"] == TradeDirection.PUT
         assert decisions["OTC_SPC"]["metrics"]["decision_source"] == "cluster_regime"
-        assert decisions["OTC_SPC"]["metrics"]["llm_exec_inverted"] is False
+        assert "CLUSTER_TAG" in decisions["OTC_SPC"]["metrics"]["llm_note"]
 
 
 @pytest.mark.asyncio
-async def test_collect_llm_decisions_inverts_clusters_below_follow_threshold():
+async def test_collect_llm_decisions_exclusive_risk_on_us_only():
     orch = MagicMock()
     orch.anchor = "frxEURUSD"
     orch.symbols = ["frxEURUSD", "OTC_SPC", "OTC_FCHI"]
     orch._active_cycle_id = 4
+    orch.logger = MagicMock()
     orch.config = {
         "strategy": {
             "correlation": {"enabled": True, "exclusive_cluster_by_macro": True},
             "clusters": {"us": ["OTC_SPC"], "eu": ["OTC_FCHI"]},
         },
-        "llm": {
-            "max_decision_latency_seconds": 10,
-            "indicator_config": {"cluster_follow_conviction_threshold": 0.85},
-        },
+        "llm": {"max_decision_latency_seconds": 10},
     }
 
     with patch("src.application.services.llm.llm_bridge._collect_symbol_decision", new_callable=AsyncMock) as mock_dec:
@@ -83,16 +85,86 @@ async def test_collect_llm_decisions_inverts_clusters_below_follow_threshold():
                 "conviction": 0.68,
                 "llm_note": "weak",
                 "us_cluster": "CALL",
-                "eu_cluster": "CALL",
+                "eu_cluster": "PUT",
                 "macro_sentiment": "risk_on",
             },
         )
         decisions = await collect_llm_decisions(orch)
 
-    assert decisions["OTC_SPC"]["direction"] == TradeDirection.PUT
+    assert decisions["OTC_SPC"]["direction"] == TradeDirection.CALL
     assert "OTC_FCHI" not in decisions
-    assert decisions["OTC_SPC"]["metrics"]["llm_exec_inverted"] is True
-    assert "CLUSTER_INVERSE" in decisions["OTC_SPC"]["metrics"]["llm_note"]
+
+
+@pytest.mark.asyncio
+async def test_collect_llm_decisions_skips_when_indefinido_tie_exclusive():
+    orch = MagicMock()
+    orch.anchor = "frxEURUSD"
+    orch.symbols = ["frxEURUSD", "OTC_SPC", "OTC_NDX"]
+    orch._active_cycle_id = 6
+    orch.logger = MagicMock()
+    orch.config = {
+        "strategy": {
+            "correlation": {"enabled": True, "exclusive_cluster_by_macro": True},
+            "clusters": {"us": ["OTC_SPC", "OTC_NDX"], "eu": []},
+        },
+        "llm": {"max_decision_latency_seconds": 10},
+    }
+
+    with patch("src.application.services.llm.llm_bridge._collect_symbol_decision", new_callable=AsyncMock) as mock_dec:
+        mock_dec.return_value = (
+            TradeDirection.CALL,
+            {
+                "conviction": 0.7,
+                "us_cluster": "CALL",
+                "eu_cluster": "CALL",
+                "macro_sentiment": "indefinido",
+                "macro_us_strength_quant": 0.5,
+                "macro_eu_strength_quant": 0.5,
+            },
+        )
+        decisions = await collect_llm_decisions(orch)
+
+    assert list(decisions.keys()) == ["frxEURUSD"]
+    orch.logger.debug.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_collect_llm_decisions_statarb_picks_single_us_index():
+    orch = MagicMock()
+    orch.anchor = "frxEURUSD"
+    orch.symbols = ["frxEURUSD", "OTC_SPC", "OTC_NDX"]
+    orch._active_cycle_id = 5
+    orch.logger = MagicMock()
+    orch.config = {
+        "strategy": {
+            "correlation": {
+                "enabled": True,
+                "exclusive_cluster_by_macro": False,
+                "statarb_index_select_enabled": True,
+                "statarb_index_max_per_cluster": 1,
+            },
+            "clusters": {"us": ["OTC_SPC", "OTC_NDX"], "eu": []},
+            "macro": {"statarb_z_threshold": 2.5},
+        },
+        "llm": {"max_decision_latency_seconds": 10},
+    }
+
+    with patch("src.application.services.llm.llm_bridge._collect_symbol_decision", new_callable=AsyncMock) as mock_dec:
+        mock_dec.return_value = (
+            TradeDirection.CALL,
+            {
+                "conviction": 0.9,
+                "us_cluster": "CALL",
+                "eu_cluster": "CALL",
+                "statarb_spreads": {"OTC_SPC": -2.5, "OTC_NDX": 0.3},
+                "hmm_state": 0,
+            },
+        )
+        decisions = await collect_llm_decisions(orch)
+
+    assert "OTC_SPC" in decisions
+    assert "OTC_NDX" not in decisions
+    assert "STATARB_INDEX" in decisions["OTC_SPC"]["metrics"]["llm_note"]
 
 
 @pytest.mark.asyncio
@@ -117,40 +189,6 @@ async def test_collect_llm_decisions_correlation_no_direction():
 
 
 @pytest.mark.asyncio
-async def test_collect_llm_decisions_global_inversion_does_not_flip_cluster_tags():
-    """Inversao global afeta apenas a ancora; clusters mantem tags da LLM."""
-    orch = MagicMock()
-    orch.anchor = "frxEURUSD"
-    orch.symbols = ["frxEURUSD", "OTC_SPC", "OTC_NDX"]
-    orch._active_cycle_id = 2
-    orch.config = {
-        "llm": {"invert_llm_direction": True, "max_decision_latency_seconds": 10},
-        "strategy": {
-            "correlation": {"enabled": True},
-            "clusters": {"us": ["OTC_SPC", "OTC_NDX"], "eu": []},
-        },
-    }
-
-    with patch("src.application.services.llm.llm_bridge._collect_symbol_decision", new_callable=AsyncMock) as mock_dec:
-        mock_dec.return_value = (
-            TradeDirection.CALL,
-            {
-                "conviction": 0.9,
-                "llm_note": "Bullish",
-                "us_cluster": "PUT",
-                "eu_cluster": "PUT",
-            },
-        )
-
-        decisions = await collect_llm_decisions(orch)
-
-        assert decisions["frxEURUSD"]["direction"] == TradeDirection.PUT
-        assert "INVERTED" in decisions["frxEURUSD"]["metrics"]["llm_note"]
-        assert decisions["OTC_SPC"]["direction"] == TradeDirection.PUT
-        assert decisions["OTC_NDX"]["direction"] == TradeDirection.PUT
-
-
-@pytest.mark.asyncio
 async def test_collect_llm_decisions_skips_symbols_outside_cluster_lists():
     orch = MagicMock()
     orch.anchor = "frxEURUSD"
@@ -158,7 +196,11 @@ async def test_collect_llm_decisions_skips_symbols_outside_cluster_lists():
     orch._active_cycle_id = 3
     orch.config = {
         "strategy": {
-            "correlation": {"enabled": True},
+            "correlation": {
+                "enabled": True,
+                "exclusive_cluster_by_macro": False,
+                "statarb_index_select_enabled": False,
+            },
             "clusters": {"us": ["OTC_SPC"], "eu": []},
         },
         "llm": {"max_decision_latency_seconds": 10},
@@ -205,8 +247,6 @@ async def test_collect_symbol_appends_macro_guard_note():
         ),
     ):
         runtime = {
-            "inversion_threshold": 0.0,
-            "follow_threshold": 0.0,
             "indicator_config": IndicatorConfig(),
             "payout_estimate": 0.85,
             "min_payout_accept": 0.80,

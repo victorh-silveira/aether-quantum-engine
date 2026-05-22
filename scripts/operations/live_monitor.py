@@ -26,11 +26,10 @@ class DashboardState:
         self.small_threshold = 100.0
         self.small_stop_win = 10.0
         self.active_contracts = {}
-        self.last_physics = {}
+        self.last_telemetry = {}
         self.total_profit = 0.0
-        self.direction_mode = "alternate"
+        self.llm_enabled = True
         self.trading_mode = "N/A"
-        self.initial_bankroll = 0.0
 
 
 def _safe_load_json(path: Path, retries: int = 3, delay: float = 0.05):
@@ -54,34 +53,33 @@ class LogParser:
         if not line:
             return
 
-        self._parse_physics(line)
+        self._parse_telemetry(line)
         self._parse_llm_response(line)
         self._parse_llm_dados(line)
         self._parse_balance(line)
 
-    def _parse_physics(self, line: str):
-        if "RADAR:" in line or "LLM_AUDIT" in line:
+    def _parse_telemetry(self, line: str):
+        if "LLM_AUDIT" in line:
             try:
-                prefix = "RADAR:" if "RADAR:" in line else "LLM_AUDIT"
-                content = line.split(prefix, 1)[1]
+                content = line.split("LLM_AUDIT", 1)[1]
                 parts = content.split("||") if "||" in content else content.split("|")
                 for p in parts:
                     if "=" in p:
                         k, v = p.strip().split("=")[0], p.strip().split("=")[1]
-                        self.state.last_physics[k.strip().lower()] = v.strip().split(" ")[0]
+                        self.state.last_telemetry[k.strip().lower()] = v.strip().split(" ")[0]
             except Exception as e:
-                logger.error(f"Parser Error Radar: {e}")
+                logger.error(f"Parser Error LLM_AUDIT: {e}")
 
     def _parse_llm_response(self, line: str):
         if "LLM_RESPOSTA" in line:
             try:
                 if "[CALL]" in line:
-                    self.state.last_physics["dir"] = "CALL"
+                    self.state.last_telemetry["dir"] = "CALL"
                 elif "[PUT]" in line:
-                    self.state.last_physics["dir"] = "PUT"
+                    self.state.last_telemetry["dir"] = "PUT"
                 if "prob=" in line:
                     val = line.split("prob=")[1].split("%", maxsplit=1)[0]
-                    self.state.last_physics["conv"] = f"{float(val) / 100.0:.2f}"
+                    self.state.last_telemetry["conv"] = f"{float(val) / 100.0:.2f}"
             except Exception as e:
                 logger.error(f"Parser Error LLM_RESPOSTA: {e}")
 
@@ -90,7 +88,7 @@ class LogParser:
             try:
                 tags_str = line.split("[MTF]")[1].strip()
                 tags = [t.strip() for t in tags_str.split("|") if ":" in t]
-                self.state.last_physics["patterns"] = ",".join(tags)
+                self.state.last_telemetry["patterns"] = ",".join(tags)
             except Exception as e:
                 logger.error(f"Parser Error LLM_DADOS: {e}")
 
@@ -166,9 +164,9 @@ def _refresh_config(state: DashboardState):
             if isinstance(tm, dict) and "mode" in tm:
                 state.trading_mode = str(tm["mode"])
 
-            st = cfg.get("simple_trade")
-            if isinstance(st, dict) and "direction_mode" in st:
-                state.direction_mode = str(st["direction_mode"])
+            llm = cfg.get("llm")
+            if isinstance(llm, dict):
+                state.llm_enabled = bool(llm.get("enabled", True))
         except Exception as e:
             logger.error(f"Config refresh error: {e}")
 

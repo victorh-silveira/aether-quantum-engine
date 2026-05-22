@@ -3,7 +3,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.application.services.orchestrator import Orchestrator
-from src.domain.models.trade import TradeDirection
 
 
 @pytest.mark.asyncio
@@ -22,34 +21,17 @@ async def test_on_candle_throttling_and_cooldown(orch_config):
 
 
 @pytest.mark.asyncio
-async def test_collect_decisions_same_direction_all_symbols(orch_config):
-    orch_config["simple_trade"]["direction_mode"] = "call"
+async def test_run_trading_cycle_requires_llm_enabled(orch_config):
+    orch_config["llm"] = {"enabled": False}
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
         orch = Orchestrator(orch_config, "token")
-        decisions = orch._collect_decisions()
-        assert set(decisions.keys()) == {"frxEURUSD", "OTC_SPC", "OTC_FCHI"}
-        assert all(d["direction"] == TradeDirection.CALL for d in decisions.values())
-
-
-@pytest.mark.asyncio
-async def test_collect_decisions_put_mode(orch_config):
-    orch_config["simple_trade"]["direction_mode"] = "put"
-    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
-        orch = Orchestrator(orch_config, "token")
-        decisions = orch._collect_decisions()
-        assert decisions["frxEURUSD"]["direction"] == TradeDirection.PUT
-
-
-@pytest.mark.asyncio
-async def test_collect_decisions_alternate_toggles(orch_config):
-    orch_config["simple_trade"]["direction_mode"] = "alternate"
-    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
-        orch = Orchestrator(orch_config, "token")
-        orch._alternate_next_call = True
-        a = orch._collect_decisions()
-        b = orch._collect_decisions()
-        assert a["frxEURUSD"]["direction"] == TradeDirection.CALL
-        assert b["frxEURUSD"]["direction"] == TradeDirection.PUT
+        orch.stream.is_synchronized = True
+        orch.ws.is_running = True
+        orch.logger = MagicMock()
+        orch.executor.execute_cluster = AsyncMock()
+        await orch._run_trading_cycle_if_ready()
+        orch.executor.execute_cluster.assert_not_called()
+        orch.logger.error.assert_called()
 
 
 @pytest.mark.asyncio
@@ -107,9 +89,9 @@ async def test_orchestrator_symbols_list_prepends_anchor_when_missing(orch_confi
 async def test_orchestrator_symbols_default_from_single_fallback(orch_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
         orch_config.pop("symbols", None)
-        orch_config["correlation_engine"] = {"anchor": "frxEURUSD"}
+        orch_config["anchor"] = "frxEURUSD"
         orch = Orchestrator(orch_config, "token")
-        assert orch.symbols == ["frxEURUSD", "1HZ75V"]
+        assert orch.symbols == ["frxEURUSD"]
 
 
 @pytest.mark.asyncio

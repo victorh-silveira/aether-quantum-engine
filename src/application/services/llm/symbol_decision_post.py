@@ -66,5 +66,8 @@ def patch_final_symbol_metrics(
             "macro_eu_dir_quant": macro_snapshot.eu_dir,
             "macro_us_strength_quant": float(macro_snapshot.us_strength),
             "macro_eu_strength_quant": float(macro_snapshot.eu_strength),
+            "statarb_spreads": dict(macro_snapshot.statarb_spreads or {}),
+            "hmm_state": int(getattr(macro_snapshot, "hmm_state", 0)),
+            "hmm_prob": float(getattr(macro_snapshot, "hmm_prob", 1.0)),
         }
     )

@@ -102,10 +102,9 @@ def test_resolved_system_instruction_base_only():
     assert llm._resolved_system_instruction("") == llm.SOVEREIGN_SYSTEM
 
 
-def test_resolved_system_instruction_appends_runtime():
+def test_resolved_system_instruction_uses_runtime_when_set():
     out = llm._resolved_system_instruction("extra ctx")
-    assert "extra ctx" in out
-    assert llm.SOVEREIGN_SYSTEM.split("\n")[0] in out
+    assert out == "extra ctx"
 
 
 def test_is_retryable_gemini_error_detects_transient_codes():

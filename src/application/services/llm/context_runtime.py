@@ -50,10 +50,6 @@ def resolve_llm_runtime(orch: Any) -> dict[str, Any]:
     indicator_config = resolve_indicator_config(cfg.get("indicator_config"))
     strategy_payload = resolve_strategy_payload_config(orch.config)
     tf_fields = timeframe_runtime_fields(cfg, indicator_config)
-    ind_cfg_raw = cfg.get("indicator_config") if isinstance(cfg.get("indicator_config"), dict) else {}
-    inversion_threshold = float(ind_cfg_raw.get("inversion_threshold", 0.0))
-    follow_threshold = float(ind_cfg_raw.get("follow_threshold", 0.0))
-
     return {
         "base_url": str(cfg.get("base_url", "")),
         "model": str(cfg.get("model", GEMINI_DEFAULT_MODEL)),
@@ -68,8 +64,6 @@ def resolve_llm_runtime(orch: Any) -> dict[str, Any]:
         "llm_temperature": llm_temperature,
         "strategy_payload": strategy_payload,
         "min_conviction_execute": min_conviction_execute(cfg, orch.config),
-        "inversion_threshold": inversion_threshold,
-        "follow_threshold": follow_threshold,
         **tf_fields,
         "m3_max_ema_distance_pct": 1.0,
         "min_payout_accept": max(0.8, min(0.99, float(cfg.get("min_payout_accept", 0.85)))),
@@ -80,8 +74,6 @@ def resolve_llm_runtime(orch: Any) -> dict[str, Any]:
         "max_decision_latency_seconds": max_decision_latency,
         "logic_line_max_chars": max(60, min(300, int(cfg.get("logic_line_max_chars", 140)))),
         "indicator_config": indicator_config,
-        "same_direction_strict_enabled": bool(cfg.get("same_direction_strict_enabled", True)),
-        "max_same_direction_streak": max(0, int(cfg.get("max_same_direction_streak", 1))),
         "llm_retry_attempts": gemini_retries,
         "llm_fallback_model": str(cfg.get("llm_fallback_model") or "").strip(),
         "llm_wait_fallback_mode": str(cfg.get("llm_wait_fallback_mode") or "").strip().lower(),

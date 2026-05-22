@@ -6,7 +6,6 @@ import pytest
 
 from src.application.services.llm import IndicatorConfig
 from src.application.services.llm.llm_bridge import llm_metrics
-from src.application.services.llm.llm_bridge_guards import is_sawtooth_pattern
 from src.application.services.llm.llm_bridge_utils import strict_normalize_direction
 from src.application.services.llm.symbol_decision import collect_symbol_llm_decision
 from src.domain.models.trade import TradeDirection
@@ -43,14 +42,6 @@ def test_llm_metrics_put_coverage():
     assert metrics["direction"] == "PUT"
     assert metrics["prob_put"] == 1.0
     assert metrics["prob_call"] == 0.0
-
-
-def test_is_sawtooth_pattern_coverage():
-    """Aumenta cobertura para o padrão sawtooth."""
-    assert is_sawtooth_pattern("P/M/P/M") is True
-    assert is_sawtooth_pattern("M/P/M/P") is True
-    assert is_sawtooth_pattern("P/P/P/P") is False
-    assert is_sawtooth_pattern("P/M") is False
 
 
 @pytest.mark.asyncio

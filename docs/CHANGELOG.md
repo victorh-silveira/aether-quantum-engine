@@ -1,3 +1,15 @@
+## [Unreleased]
+
+### Refatoracao Medallion
+
+- Remove modo `simple_trade`, inversao de cluster, guardrails legados e `llm_repeat_guard`.
+- Unifica propagação por tags LLM com exclusividade regional (`risk_on`→US, `risk_off`→EU).
+- Selecao de indice por StatArb dentro do cluster (`cluster_statarb_select`, default 1 indice).
+- Extrai propagacao de cluster para `llm_cluster_propagate.py`; documenta modulos em `arquitetura.md`.
+- Alinha `medallion.md` (HMM vs macro, tabela de betas); `system_prompt` unico em config quando definido.
+- Remove filtros MTF mortos do bridge; renomeia `test_cluster_direction.py`; banner `MEDALLION_LLM`.
+- Remove chaves de runtime legadas (`same_direction_*`); alinha testes e diagrama de propagacao de cluster.
+
 ## [1.19.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.18.0...v1.19.0) (2026-05-22)
 
 ### Funcionalidades

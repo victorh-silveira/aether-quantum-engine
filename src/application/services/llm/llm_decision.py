@@ -41,11 +41,11 @@ _TRADE_OUTPUT_TOKEN_RETRY = 1024
 
 
 def resolved_system_instruction(runtime_system: str | None) -> str:
-    """Junta a instrucao de sistema fixa com texto opcional de configuracao."""
+    """Usa system_prompt de config quando definido; caso contrario o fallback soberano Medallion."""
     extra = (runtime_system or "").strip()
-    if not extra:
-        return SOVEREIGN_SYSTEM
-    return f"{SOVEREIGN_SYSTEM}\n\n{extra}"
+    if extra:
+        return extra
+    return SOVEREIGN_SYSTEM
 
 
 def _resolved_system_instruction(runtime_system: str | None) -> str:

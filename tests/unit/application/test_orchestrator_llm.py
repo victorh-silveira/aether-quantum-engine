@@ -13,15 +13,15 @@ def test_emit_decision_engine_banner_llm_enabled(orch_config):
     emit_decision_engine_banner(log, orch_config, llm_enabled=True)
     assert log.debug.call_count >= 1
     joined = " ".join(str(c.args[0]) for c in log.debug.call_args_list if c.args)
-    assert "modo=LLM" in joined
+    assert "modo=MEDALLION_LLM" in joined
 
 
-def test_emit_decision_engine_banner_simple_mode(orch_config):
+def test_emit_decision_engine_banner_llm_disabled(orch_config):
     log = MagicMock()
     emit_decision_engine_banner(log, orch_config, llm_enabled=False)
     assert log.debug.call_count >= 1
     joined = " ".join(str(c.args[0]) for c in log.debug.call_args_list if c.args)
-    assert "modo=simples" in joined
+    assert "modo=INATIVO" in joined
 
 
 @pytest.mark.asyncio

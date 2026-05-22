@@ -90,14 +90,14 @@ def generate_radar(state) -> Panel:
     grid.add_column(justify="left", ratio=1)
     grid.add_column(justify="left", ratio=2)
 
-    phys = state.last_physics
+    telemetry = state.last_telemetry
 
     def get_val(key, default="N/A"):
-        return phys.get(key.lower(), default)
+        return telemetry.get(key.lower(), default)
 
-    mode = str(state.direction_mode).upper()
-    grid.add_row("[bold white]DIRECTION_MODE[/]", f"[bold cyan]{mode}[/]")
-    grid.add_row("[dim](servidor)[/]", "[dim]call | put | alternate[/]")
+    llm_on = "ON" if getattr(state, "llm_enabled", True) else "OFF"
+    grid.add_row("[bold white]DECISION_ENGINE[/]", f"[bold cyan]MEDALLION LLM {llm_on}[/]")
+    grid.add_row("[dim](ancora frxEURUSD + clusters US/EU)[/]", "")
     grid.add_row("", "")
 
     direction = get_val("dir")
@@ -116,7 +116,7 @@ def generate_radar(state) -> Panel:
         for tag in patterns[:6]:
             pat_table.add_row(f"[bold cyan]{tag.strip()}[/]")
     else:
-        pat_table.add_row("[dim]motor simples (sem padroes RADAR)[/]")
+        pat_table.add_row("[dim]aguardando telemetria LLM[/]")
 
     grid.add_row("[bold white]PATTERNS[/]", pat_table)
     grid.add_row("", "")

@@ -1,4 +1,4 @@
-# Aether Quantum Engine 2.0 (Medallion 8.0)
+# Aether Quantum Engine 2.0 (Medallion)
 
 [![Python](https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white)](.python-version)
 [![Lint](https://img.shields.io/badge/Lint-ruff%20%7C%20interrogate-3776AB?logo=ruff&logoColor=white)](.github/actions/lint/action.yml)
@@ -7,30 +7,32 @@
 [![Pre-commit](https://img.shields.io/badge/Pre--commit-active-FAB040?logo=pre-commit&logoColor=white)](.pre-commit-config.yaml)
 [![CI](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml)
 
-Motor de trading quantitativo assíncrono focado no mercado de **Índices EUR e USD**, utilizando o par **EURUSD** como âncora macroeconômica. A decisão é tomada via **Google Gemini (LLM)** com direções independentes por cluster (`US_CLUSTER`, `EU_CLUSTER`) e travas quantitativas.
+Motor quantitativo assíncrono no framework **Medallion** (estilo Renaissance Technologies): o mercado é um sistema de **sinais ruidosos**, não narrativas macro. O par **`frxEURUSD`** atua como marcapasso de liquidez global; índices US e EU são alvo preditivo em horizonte de **15 minutos**, com modelos **HMM**, **StatArb PCA** e decisão via **Google Gemini** com guardrails quantitativos.
+
+Documentação: [metodologia](docs/medallion.md) | [arquitetura](docs/arquitetura.md)
 
 ---
 
-## Estratégia: Estrategista Macro Medallion
+## Estratégia Medallion (resumo)
 
-O motor opera no framework **Medallion**, analisando a transmissão de força do EURUSD para os clusters de índices, agora blindado com regras de física de mercado:
-
-| Camada | Métrica | Propósito / Regra |
+| Camada | Componente | Função |
 |---|---|---|
-| **Macro** | Confluência transatlântica (`strategy.macro`) | Risk-On/Off a partir dos clusters US (SPC, NDX, DJI) e EU (FCHI, GDAXI, FTSE); propagação via `strategy.correlation` e tags `US_CLUSTER` / `EU_CLUSTER`. |
-| **Tendência** | Hurst (H) > 0.55 | Segue a tendência dominante do ativo/cluster e ignora Z-Score esticado. |
-| **Reversão** | Hurst (H) < 0.55 | Usa Z-Score para operar reversão à média em mercados sem tendência. |
-| **Segurança** | Entropia > 3.5 | Trava de probabilidade máxima em 0.75 para evitar excesso de confiança em ruído. |
+| **Marcapasso** | `frxEURUSD` + Kalman + HMM | Denoising e regime de volatilidade (reversão vs tendência) no EURUSD |
+| **Macro** | Confluência transatlântica | Tags `risk_on` / `risk_off` / divergência a partir dos clusters US e EU (M15) |
+| **StatArb** | PCA + Z-Score cross-asset | Resíduos de cointegração curto prazo nos índices; boost/cautela de convicção |
+| **Micro** | Hurst, Z, Entropia, MTF D1-M1 | Momentum (H>0.55) vs reversão (H<0.45); cap de convicção em ruído |
+| **Decisão** | Gemini + guardrails | `EURUSD`, `US_CLUSTER`, `EU_CLUSTER` independentes; FX ref sem ordens |
 
 ### Decisão via LLM (Google Gemini)
 
 Controle em `config/settings.json`, bloco `llm`:
-- **Modo Ativo**: `llm.enabled: true`.
-- **Gate de Convicção**: Execução apenas se `conviction >= 0.70`.
-- **Sinalização**: `EURUSD`, `US_CLUSTER` e `EU_CLUSTER`.
-- **Contexto FX (sem ordens)**: `CONTEXTO_FX_REF` para USD/JPY, AUD/USD e NZD/USD conforme o tag macro (`risk_on`, `risk_off`, divergência).
+- **Modo Ativo**: `llm.enabled: true` (obrigatório; sem modo simples legado).
+- **Mandato**: `llm.system_prompt` define o mandato Medallion enviado ao Gemini (fallback em `sovereign_system.py` se vazio).
+- **Gate de Convicção**: `llm.min_conviction_execute` (ex.: 0.60).
+- **Sinalização**: `EURUSD`, `US_CLUSTER`, `EU_CLUSTER` (CALL/PUT por cluster).
+- **Contexto FX (sem ordens)**: `CONTEXTO_FX_REF` para USD/JPY, AUD/USD e NZD/USD conforme tag macro.
 
-Parâmetros principais em `strategy.macro`: `cluster_return_threshold_pct`, `divergence_blocks_execution`, `align_eurusd_with_confluence`. Clusters US/EU propagam somente tags `CALL`/`PUT` da LLM (sem fallback quantitativo).
+Entrada regional: `risk_on` → cluster **US**; `risk_off` → cluster **EU**; divergência → líder; sem operar âncora EURUSD. Dentro do cluster ativo, por padrão opera **1 índice** com melhor Z-Score StatArb (`statarb_index_max_per_cluster`). Parâmetros: `statarb_lookback`, `statarb_z_threshold`, `statarb_hmm_sigma_*`. Detalhes em [`docs/arquitetura.md`](docs/arquitetura.md).
 
 ---
 
@@ -53,10 +55,10 @@ O sistema utiliza logs de alta densidade para auditoria em tempo real:
 
 ## Stack e Engenharia
 
-- **Core**: Python 3.14 + `asyncio`.
+- **Core**: Python 3.14 + `asyncio` + NumPy (Kalman, HMM, PCA).
 - **Infra**: Deriv WebSocket API v3.
-- **IA**: Google Gemini (`gemini-3.1-pro-preview`).
-- **Qualidade**: Cobertura de testes de **100%** em `src`.
+- **IA**: Google Gemini (`gemini-2.5-flash` em `settings.json`).
+- **Qualidade**: Cobertura de testes de **100%** em `src`; suite `test_medallion_statarb`.
 
 ---
 

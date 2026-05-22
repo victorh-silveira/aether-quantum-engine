@@ -29,10 +29,7 @@
       "entropy_bins": 30,
       "entropy_threshold": 5.0,
       "entropy_window": 20,
-      "cluster_follow_conviction_threshold": 0.85,
-      "follow_threshold": 0.85,
       "hurst_window": 30,
-      "inversion_threshold": 0.51,
       "tf_labels": [
         "D1",
         "H4",
@@ -54,7 +51,6 @@
       "zscore_extreme_threshold": 5.0,
       "zscore_window": 10
     },
-    "invert_llm_direction": false,
     "keep_alive": "60m",
     "llm_extra_wall_clock_seconds": 12,
     "llm_fallback_model": "gemini-2.5-flash-lite",
@@ -128,9 +124,6 @@
     "small_account_stop_win": 10.0,
     "small_account_threshold": 50.0
   },
-  "simple_trade": {
-    "direction_mode": "alternate"
-  },
   "strategy": {
     "clusters": {
       "eu": [
@@ -148,12 +141,12 @@
     "correlation": {
       "anchor": "frxEURUSD",
       "enabled": true,
-      "exclusive_cluster_by_macro": true
+      "exclusive_cluster_by_macro": true,
+      "statarb_index_select_enabled": true,
+      "statarb_index_max_per_cluster": 1,
+      "statarb_index_min_abs_z": 0.5
     },
     "macro": {
-      "macro_intelligence_only": true,
-      "align_clusters_with_macro_vote": false,
-      "align_eurusd_with_confluence": false,
       "cluster_bars": 8,
       "cluster_fallback_bars": 12,
       "cluster_fallback_granularity_seconds": 300,
@@ -176,7 +169,6 @@
       "cluster_return_threshold_pct": 0.02,
       "cluster_use_m5_fallback_when_flat": true,
       "confluence_conviction_floor": 0.60,
-      "divergence_blocks_execution": false,
       "divergence_max_conviction": 0.99,
       "fx_reference_pairs": {
         "audusd": {

@@ -9,11 +9,7 @@ from src.application.services.llm import (
     format_numeric_indicators_six_line,
 )
 from src.application.services.llm.context_runtime import fetch_context_blocks
-from src.application.services.llm.global_macro_confluence import (
-    MacroSnapshot,
-    reconcile_cluster_tags_with_macro,
-    resolve_macro_config,
-)
+from src.application.services.llm.global_macro_confluence import MacroSnapshot, resolve_macro_config
 from src.application.services.llm.llm_bridge_guards import apply_macro_confluence_guard
 from src.application.services.llm.macro_snapshot_fetch import fetch_macro_snapshot
 from src.application.services.llm.prompt_extras import build_institutional_pa_bundle
@@ -87,18 +83,6 @@ def apply_macro_post_parse(
     sym: str | None = None,
 ) -> tuple[TradeDirection | None, float, str, TradeDirection | None, TradeDirection | None, bool, bool]:
     """Aplica guard macro na decisao EURUSD apos parse da LLM."""
-    us_name = us_dir.name if us_dir in (TradeDirection.CALL, TradeDirection.PUT) else None
-    eu_name = eu_dir.name if eu_dir in (TradeDirection.CALL, TradeDirection.PUT) else None
-    us_aligned, eu_aligned, cluster_changed, cluster_note = reconcile_cluster_tags_with_macro(
-        us_name,
-        eu_name,
-        macro_snapshot,
-        macro_cfg,
-    )
-    if cluster_changed:
-        us_dir = TradeDirection[us_aligned] if us_aligned in ("CALL", "PUT") else None
-        eu_dir = TradeDirection[eu_aligned] if eu_aligned in ("CALL", "PUT") else None
-        note = f"{note} | {cluster_note}".strip()
     direction, conviction, macro_guard, macro_note, macro_execute = apply_macro_confluence_guard(
         direction,
         conviction,
@@ -108,7 +92,6 @@ def apply_macro_post_parse(
     )
     if macro_note:
         note = f"{note} | {macro_note}".strip()
-    macro_guard = macro_guard or cluster_changed
     return direction, conviction, note, us_dir, eu_dir, macro_guard, macro_execute
 
 

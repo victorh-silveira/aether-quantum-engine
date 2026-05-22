@@ -10,10 +10,8 @@ from src.application.services.llm.llm_config_merge import merge_execution_sectio
 from src.application.services.orchestrator.config_symbols import normalize_symbols_and_anchor
 from src.application.services.orchestrator.decision_mode_banner import emit_decision_engine_banner
 from src.application.services.orchestrator.execution_manager import ExecutionManager
-from src.application.services.orchestrator.metrics_utils import stub_metrics
 from src.application.services.orchestrator.settlement_backfill import reconcile_single_contract
 from src.application.services.orchestrator.settlement_logic import process_contract_settlement
-from src.domain.models.trade import TradeDirection
 from src.domain.risk.risk_manager import RiskManager
 from src.infrastructure.api.websocket_manager import WebSocketManager
 from src.infrastructure.handlers.stream_handler import StreamHandler
@@ -39,10 +37,6 @@ class Orchestrator:
         self.state, self.persistence = TradingState(), PersistenceManager()
         self.logger = logging.getLogger("AETH")
 
-        st = config.get("simple_trade") or {}
-        self._direction_mode = str(st.get("direction_mode", "alternate")).strip().lower()
-        self._alternate_next_call = True
-
         self.executor = ExecutionManager(self)
 
         self.tick_count, self.running, self.is_trading, self.lock = (
@@ -66,20 +60,6 @@ class Orchestrator:
     def _llm_enabled(self) -> bool:
         """Retorna se o modo decisao LLM esta ativo."""
         return bool((self.config.get("llm") or {}).get("enabled"))
-
-    def _stub_metrics(self, direction: TradeDirection) -> dict:
-        """Metricas sinteticas alinhadas a uma direcao."""
-        return stub_metrics(direction)
-
-    def _resolve_direction_for_cycle(self) -> TradeDirection:
-        """Resolve CALL/PUT conforme modo simples ou alternancia."""
-        if self._direction_mode == "call":
-            return TradeDirection.CALL
-        if self._direction_mode == "put":
-            return TradeDirection.PUT
-        direction = TradeDirection.CALL if self._alternate_next_call else TradeDirection.PUT
-        self._alternate_next_call = not self._alternate_next_call
-        return direction
 
     async def run(self):
         """Loop principal: reconexao, persistencia e ciclos por intervalo."""
@@ -182,21 +162,15 @@ class Orchestrator:
                     return
                 self._cycle_seq += 1
                 self._active_cycle_id = self._cycle_seq
-                if self._llm_enabled():
-                    decisions = await collect_llm_decisions(self)
-                else:
-                    decisions = self._collect_decisions()
+                if not self._llm_enabled():
+                    self.logger.error("CICLO: llm.enabled=false; motor Medallion exige LLM ativa.")
+                    return
+                decisions = await collect_llm_decisions(self)
                 await self.executor.execute_cluster(decisions)
             except Exception as e:
                 self.logger.error(f"FALHA: Ciclo: {e}")
             finally:
                 self.is_trading = False
-
-    def _collect_decisions(self) -> dict[str, dict]:
-        """Monta mapa simbolo para direcao e metricas no modo simples."""
-        direction = self._resolve_direction_for_cycle()
-        metrics = self._stub_metrics(direction)
-        return {sym: {"direction": direction, "metrics": metrics} for sym in self.symbols}
 
     async def _subscribe_account_transactions(self) -> None:
         """Inscreve notificacoes de transacao para capturar fechamento de contratos."""

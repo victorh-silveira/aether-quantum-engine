@@ -46,7 +46,7 @@ async def test_collect_llm_decisions_preserva_conviccao_do_payload():
 
 
 @pytest.mark.asyncio
-async def test_collect_llm_decisions_blocks_repeated_same_direction_streak():
+async def test_collect_llm_decisions_keeps_put_on_consecutive_cycles():
     orch = MagicMock()
     orch.config = {
         "llm": {
@@ -57,11 +57,6 @@ async def test_collect_llm_decisions_blocks_repeated_same_direction_streak():
             "analysis_bars": 120,
             "m15_bars": 120,
             "m3_bars": 120,
-            "wait_promotion_enabled": True,
-            "wait_promotion_min_score": 6,
-            "wait_promotion_min_conviction": 0.8,
-            "max_same_direction_streak": 1,
-            "neutral_weak_mtf_enabled": False,
         },
         "risk_management": {"params": {"duration": 1, "duration_unit": "m", "payout_estimate": 0.95}},
     }
@@ -84,7 +79,7 @@ async def test_collect_llm_decisions_blocks_repeated_same_direction_streak():
 
 
 @pytest.mark.asyncio
-async def test_collect_llm_decisions_blocks_repeated_direction_without_strict_confirmation():
+async def test_collect_llm_decisions_keeps_call_on_consecutive_cycles():
     orch = MagicMock()
     orch.config = {
         "llm": {
@@ -95,14 +90,6 @@ async def test_collect_llm_decisions_blocks_repeated_direction_without_strict_co
             "analysis_bars": 120,
             "m15_bars": 100,
             "m3_bars": 140,
-            "same_direction_strict_enabled": True,
-            "same_direction_rsi_min": 40,
-            "same_direction_rsi_max": 60,
-            "same_direction_require_m3_confirmation": True,
-            "same_direction_require_wick_confirmation": True,
-            "max_same_direction_streak": 3,
-            "llm_laws_enabled": False,
-            "rsi_exhaustion_gate_enabled": False,
         },
         "risk_management": {"params": {"duration": 1, "duration_unit": "m", "payout_estimate": 0.95}},
     }
