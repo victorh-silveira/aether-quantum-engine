@@ -186,6 +186,14 @@ async def build_symbol_prompt(
     strategy_cfg = orch.config.get("strategy", {}) if hasattr(orch, "config") and isinstance(orch.config, dict) else {}
     macro_cfg = resolve_macro_config(strategy_cfg.get("macro"))
 
+    statarb_z = (
+        float(macro_snapshot.statarb_spreads[sym])
+        if macro_snapshot.statarb_spreads and sym in macro_snapshot.statarb_spreads
+        else None
+    )
+    hmm_state = int(macro_snapshot.hmm_state) if hasattr(macro_snapshot, "hmm_state") else None
+    hmm_prob = float(macro_snapshot.hmm_prob) if hasattr(macro_snapshot, "hmm_prob") else None
+
     prompt = _build_prompt_impl(
         sym,
         macro_d,
@@ -219,6 +227,9 @@ async def build_symbol_prompt(
         macro_confluence=macro_snapshot.macro_block,
         fx_reference_line=macro_snapshot.fx_reference_line,
         macro_sentiment=macro_snapshot.tag,
+        statarb_z=statarb_z,
+        hmm_state=hmm_state,
+        hmm_prob=hmm_prob,
     )
     ctx["macro_cfg"] = macro_cfg
     return (

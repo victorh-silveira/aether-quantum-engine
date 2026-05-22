@@ -117,3 +117,82 @@ def test_format_metrics_line():
     assert line == "H=0.62, Z=+1.50, E=2.41"
     line_na = tpu.format_metrics_line(None, None, None)
     assert line_na == "H=-, Z=-, E=-"
+
+
+def test_build_sniper_trading_prompt_with_medallion():
+    res = tpu.build_sniper_trading_prompt(
+        symbol="frxEURUSD",
+        macro_desc="M30",
+        structure_desc="M15",
+        swing_desc="M5",
+        trigger_desc="M1 Hurst: 0.5",
+        sniper_tokens={"mtf": "B/B/B/B"},
+        mtf_align="B/B/B/B",
+        regime_line="range",
+        session_line="asia",
+        micro_line="micro",
+        trigger_tail_closes=[100.0, 101.0],
+        payout_estimate=0.95,
+        min_payout_accept=0.85,
+        duration=1,
+        duration_unit="m",
+        statarb_z=-2.62,
+        hmm_state=0,
+        hmm_prob=0.985,
+    )
+    assert (
+        "MEDALLION QUANT: StatArb Z-Score de Cointegração PCA=-2.62 | Regime Pacemaker HMM=MEAN_REVERSION (Confiança=98.5%)"
+        in res
+    )
+    assert "Sob Regime HMM de Reversão à Média" in res
+
+    res_trending = tpu.build_sniper_trading_prompt(
+        symbol="frxEURUSD",
+        macro_desc="M30",
+        structure_desc="M15",
+        swing_desc="M5",
+        trigger_desc="M1",
+        sniper_tokens=None,
+        mtf_align="B",
+        regime_line="",
+        session_line="",
+        micro_line="",
+        trigger_tail_closes=[100.0],
+        payout_estimate=0.9,
+        min_payout_accept=0.8,
+        duration=1,
+        duration_unit="m",
+        statarb_z=1.5,
+        hmm_state=1,
+        hmm_prob=0.85,
+    )
+    assert "PCA=+1.50" in res_trending
+    assert "HMM=TRENDING" in res_trending
+
+
+def test_iter_llm_prompt_audit_sections_with_medallion():
+    rows = tpu.iter_llm_prompt_audit_sections(
+        symbol="frxEURUSD",
+        macro_desc="ab",
+        structure_desc="cd",
+        swing_desc="ef",
+        trigger_desc="g",
+        sniper_tokens=None,
+        mtf_align="x",
+        regime_line="rg",
+        session_line="sess",
+        micro_line="micro",
+        trigger_tail_closes=[100.0],
+        payout_estimate=0.9,
+        min_payout_accept=0.8,
+        duration=2,
+        duration_unit="m",
+        statarb_z=-1.25,
+        hmm_state=0,
+        hmm_prob=0.9,
+    )
+    tags = [t for t, _ in rows]
+    assert "MEDALLION_QUANT" in tags
+    med_body = next(b for t, b in rows if t == "MEDALLION_QUANT")
+    assert "StatArb Z-Score PCA: -1.25" in med_body
+    assert "Regime HMM: MEAN_REVERSION" in med_body
