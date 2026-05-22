@@ -7,6 +7,7 @@ from src.application.services.llm.global_macro_confluence import build_macro_sna
 from src.application.services.llm.llm_bridge import collect_llm_decisions
 from src.application.services.llm.symbol_decision import collect_symbol_llm_decision
 from src.domain.models.trade import TradeDirection
+from tests.unit.application.macro_guard_fixtures import RELAXED_MACRO_CFG
 
 
 def _llm_metrics(direction, conviction, note):
@@ -229,7 +230,7 @@ async def test_collect_symbol_appends_macro_guard_note():
     orch._active_cycle_id = 6
     orch.symbols = ["frxEURUSD"]
     orch.logger = MagicMock()
-    ctx = {"macro_cfg": {"macro_intelligence_only": True}}
+    ctx = {"macro_cfg": {**RELAXED_MACRO_CFG, "macro_intelligence_only": True}}
     with (
         patch(
             "src.application.services.llm.symbol_decision.build_symbol_prompt",

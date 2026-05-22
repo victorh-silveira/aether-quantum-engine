@@ -8,6 +8,7 @@ from src.application.services.llm.indicators import resolve_indicator_config
 from src.application.services.llm.llm_bridge import collect_llm_decisions
 from src.domain.models.trade import TradeDirection
 from tests.unit.application.llm_response_fixtures import MOCK_LLM_CALL_LINE
+from tests.unit.application.macro_guard_fixtures import merge_orch_config
 
 
 @pytest.mark.asyncio
@@ -54,16 +55,18 @@ async def test_request_payload_transporta_token_soberano():
 @pytest.mark.asyncio
 async def test_collect_llm_decisions_keeps_execution_even_when_payout_is_low():
     orch = MagicMock()
-    orch.config = {
-        "llm": {
-            "base_url": "http://x",
-            "model": "m",
-            "timeout_seconds": 5,
-            "analysis_bars": 120,
-            "ohlc_bars": 120,
-        },
-        "risk_management": {"params": {"duration": 1, "duration_unit": "m", "payout_estimate": 0.5}},
-    }
+    orch.config = merge_orch_config(
+        {
+            "llm": {
+                "base_url": "http://x",
+                "model": "m",
+                "timeout_seconds": 5,
+                "analysis_bars": 120,
+                "ohlc_bars": 120,
+            },
+            "risk_management": {"params": {"duration": 1, "duration_unit": "m", "payout_estimate": 0.5}},
+        }
+    )
     orch.symbols = ["frxEURUSD"]
     orch.anchor = "frxEURUSD"
     series = np.array([100.0 * (1.001**i) for i in range(120)])
@@ -84,6 +87,7 @@ async def test_collect_llm_decisions_keeps_execution_even_when_payout_is_low():
 @pytest.mark.asyncio
 async def test_collect_symbol_decision_choppy_executes_as_ordered():
     orch = MagicMock()
+    orch.config = merge_orch_config({})
     orch._active_cycle_id = 1
     orch.logger = MagicMock()
     orch.risk_manager = MagicMock()

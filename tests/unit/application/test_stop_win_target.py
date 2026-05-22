@@ -1,6 +1,6 @@
 import pytest
 
-from src.application.services.orchestrator.stop_win_target import resolve_stop_win_target
+from src.domain.risk.stop_win_target import resolve_stop_win_target
 
 
 def test_resolve_stop_win_small_account_fixed():

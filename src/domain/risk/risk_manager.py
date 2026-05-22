@@ -4,7 +4,7 @@ import logging
 import math
 from typing import Any
 
-from src.application.services.orchestrator.stop_win_target import resolve_stop_win_target
+from src.domain.risk.stop_win_target import resolve_stop_win_target
 
 
 class RiskManager:
@@ -27,6 +27,10 @@ class RiskManager:
         self.consecutive_losses = 0
         self.pending_loss: dict[str, float] = {}
         self.recovery_threshold = float(self.kelly_config.get("recovery_conviction_threshold", 0.60))
+        self.session_max_drawdown_pct = float(
+            self.kelly_config.get("session_max_drawdown_pct", self.config.get("session_max_drawdown_pct", 15.0))
+        )
+        self.peak_bankroll = 0.0
 
         self.active_contract_ids: list[int] = []
         self.contract_to_symbol: dict[int, str] = {}
@@ -37,6 +41,14 @@ class RiskManager:
     def set_initial_bankroll(self, amount: float):
         """Define a banca inicial para rastreamento da sessão."""
         self.initial_bankroll = float(amount)
+        self.peak_bankroll = float(amount)
+
+    def reset_daily_session(self, bankroll: float) -> None:
+        """Reinicia lucro de sessao e metas para novo dia (stop win diario)."""
+        bal = float(bankroll)
+        self.total_session_profit = 0.0
+        self.initial_bankroll = bal
+        self.peak_bankroll = bal
 
     def record_trade_outcome(self, symbol: str, *, won: bool) -> None:
         """Registra o resultado para cálculo de win rate dinâmico."""
@@ -69,13 +81,37 @@ class RiskManager:
         return base_p
 
     def calculate_stake(
-        self, bankroll: float, symbol: str, conviction: float = 0.5, *, silent: bool = False, **_kwargs
+        self,
+        bankroll: float,
+        symbol: str,
+        conviction: float = 0.5,
+        *,
+        silent: bool = False,
+        apply_stop_win: bool = True,
+        **_kwargs,
     ) -> float:
         """Calcula a stake usando o Critério de Kelly com trava de Stop Win."""
-        target = resolve_stop_win_target(self.config, self.initial_bankroll)
-        if self.total_session_profit >= target:
-            self.logger.info(f"STOP WIN: Meta de ${target:.2f} atingida. Encerrando operações do dia.")
-            return 0.0
+        if apply_stop_win:
+            target = resolve_stop_win_target(self.config, self.initial_bankroll)
+            if self.total_session_profit >= target:
+                self.logger.info(f"STOP WIN: Meta de ${target:.2f} atingida. Encerrando operações do dia.")
+                return 0.0
+
+        peak = max(self.peak_bankroll, self.initial_bankroll, float(bankroll))
+        self.peak_bankroll = peak
+        max_dd = max(0.0, float(self.session_max_drawdown_pct))
+        if max_dd > 0 and peak > 0:
+            dd_pct = ((peak - float(bankroll)) / peak) * 100.0
+            if dd_pct >= max_dd:
+                if not silent:
+                    self.logger.info(
+                        "DRAWDOWN_BRAKE: pausa (dd=%.2f%% >= %.2f%%) banca=$%.2f pico=$%.2f",
+                        dd_pct,
+                        max_dd,
+                        bankroll,
+                        peak,
+                    )
+                return 0.0
 
         b = float(self.risk_params.get("payout_estimate", 0.95))
         p = self.effective_win_rate(symbol, conviction)

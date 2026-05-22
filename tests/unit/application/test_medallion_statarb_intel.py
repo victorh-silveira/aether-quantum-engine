@@ -3,6 +3,7 @@ import pytest
 from src.application.services.llm.global_macro_confluence import MacroSnapshot
 from src.application.services.llm.llm_macro_confluence_guards import apply_macro_confluence_guard
 from src.domain.models.trade import TradeDirection
+from tests.unit.application.macro_guard_fixtures import RELAXED_MACRO_CFG
 
 
 def test_statarb_guard_intelligence_boost_put_and_trending_caution():
@@ -11,7 +12,7 @@ def test_statarb_guard_intelligence_boost_put_and_trending_caution():
         eurusd_bias="CALL",
         us_dir="down",
         eu_dir="up",
-        us_strength=1.0,
+        us_strength=0.4,
         eu_strength=1.0,
         cluster_status="active",
         macro_block="",
@@ -26,11 +27,11 @@ def test_statarb_guard_intelligence_boost_put_and_trending_caution():
         TradeDirection.PUT,
         0.80,
         snap_mr,
-        {"statarb_z_threshold": 2.5, "macro_intelligence_only": True},
+        {**RELAXED_MACRO_CFG, "statarb_z_threshold": 2.5, "macro_intelligence_only": True},
         sym="frxEURUSD",
     )
     assert direction == TradeDirection.PUT
-    assert conviction == pytest.approx(0.90)
+    assert conviction == pytest.approx(0.88)
     assert "STATARB_INTEL boost PUT" in note
     assert execute_ok is True
 
@@ -54,10 +55,10 @@ def test_statarb_guard_intelligence_boost_put_and_trending_caution():
         TradeDirection.CALL,
         0.80,
         snap_tr,
-        {"statarb_z_threshold": 2.5, "macro_intelligence_only": True},
+        {**RELAXED_MACRO_CFG, "statarb_z_threshold": 2.5, "macro_intelligence_only": True},
         sym="frxEURUSD",
     )
-    assert conv2 == pytest.approx(0.77)
+    assert conv2 == pytest.approx(0.75)
     assert "STATARB_INTEL trending_caution" in note2
     assert ok2 is True
 
@@ -83,13 +84,13 @@ def test_statarb_guard_intelligence_spread_diverge():
         TradeDirection.CALL,
         0.80,
         snap,
-        {"statarb_z_threshold": 2.5, "macro_intelligence_only": True},
+        {**RELAXED_MACRO_CFG, "statarb_z_threshold": 2.5, "macro_intelligence_only": True},
         sym="frxEURUSD",
     )
     assert direction == TradeDirection.CALL
-    assert conviction == pytest.approx(0.76)
-    assert "STATARB_INTEL spread_diverge" in note
-    assert execute_ok is True
+    assert conviction == pytest.approx(0.80)
+    assert "STATARB_VETO misalign" in note
+    assert execute_ok is False
 
 
 def test_statarb_guard_intelligence_neutral_z_no_adjustment():
@@ -113,7 +114,7 @@ def test_statarb_guard_intelligence_neutral_z_no_adjustment():
         TradeDirection.CALL,
         0.80,
         snap,
-        {"statarb_z_threshold": 2.5, "macro_intelligence_only": True},
+        {**RELAXED_MACRO_CFG, "statarb_z_threshold": 2.5, "macro_intelligence_only": True},
         sym="frxEURUSD",
     )
     assert direction == TradeDirection.CALL
@@ -130,7 +131,7 @@ def test_statarb_guard_intelligence_boost_call_without_block():
         us_dir="up",
         eu_dir="down",
         us_strength=1.0,
-        eu_strength=1.0,
+        eu_strength=0.4,
         cluster_status="active",
         macro_block="",
         fx_reference_line="",
@@ -144,10 +145,10 @@ def test_statarb_guard_intelligence_boost_call_without_block():
         TradeDirection.CALL,
         0.80,
         snap,
-        {"statarb_z_threshold": 2.5, "macro_intelligence_only": True},
+        {**RELAXED_MACRO_CFG, "statarb_z_threshold": 2.5, "macro_intelligence_only": True},
         sym="frxEURUSD",
     )
     assert direction == TradeDirection.CALL
-    assert conviction == pytest.approx(0.90)
+    assert conviction == pytest.approx(0.88)
     assert execute_ok is True
     assert "STATARB_INTEL boost CALL" in note

@@ -212,9 +212,12 @@ Blocos críticos para a metodologia:
 Postura alinhada ao Medallion quantitativo:
 
 - **Zero Martingale:** sem progressão de stake em perdas.
-- **Vantagem estatística:** execução apenas com convicção e confluência acima dos limiares; StatArb/HMM modulam confiança, nunca substituem tags de cluster da LLM.
+- **Vantagem estatística:** execução apenas com convicção (`llm.min_conviction_execute`) e confluência macro acima dos pisos; StatArb/HMM podem **vetar** entradas com Z desalinhado (HMM reversão).
+- **Assertividade Medallion:** divergência exige força do líder (`divergence_min_leader_strength`); `indefinido` exige líder claro e gap US/EU; cap de convicção em divergência (`divergence_max_conviction`).
+- **Freio de drawdown:** `risk_management.kelly.session_max_drawdown_pct` pausa novas stakes quando a banca cai X% do pico da sessão (live e backtest Kelly).
+- **Stop win diário:** meta de lucro por dia UTC (`large_account_stop_win_pct` 10% se banca >= `small_account_threshold`); ao atingir, o motor para novas entradas até o dia seguinte. Live: reset em `_maybe_reset_daily_risk_session` na vela âncora; backtest: reset por bloco de 96 velas M15.
 - **Isolamento:** um ciclo por âncora; clusters propagam tags sem cópia cega por coeficiente fixo.
-- **Anti-frágil:** divergência transatlântica documenta líder regional; execução exclusiva no cluster com maior força quantitativa.
+- **Anti-frágil:** execução exclusiva no cluster macro ativo; StatArb escolhe no máximo um índice (`statarb_index_min_abs_z`).
 
 ### 6.1 Política de entrada por cluster (Medallion)
 
@@ -243,6 +246,10 @@ Implementação: `cluster_statarb_select.py`. HMM em tendência (`1`) reduz o pe
 ---
 
 ## 7. Observabilidade
+
+Dashboard Rich em `scripts/monitor/` (`live_monitor.py`, `monitor_ui.py`): lê `logs/engine.log` e `data/state.json` em tempo real. Utilitários de CI e diagnóstico permanecem em `scripts/operations/` (`clean_workspace.py`, `gemini_ping.py`).
+
+Backtest walk-forward M15 em `scripts/backtest/` (`medallion_backtest.py`): reutiliza `build_macro_snapshot`, HMM, StatArb PCA, exclusividade regional e `cluster_statarb_select`. Modo **quant surrogate** (sem Gemini). Cada run baixa OHLC na Deriv (**sem cache**). PnL com RISE_FALL 15m; banca $100, Kelly + recuperacao, stop win diario e **runtime simulado** ate a meta (velas M15 x 15 min, como sessao ao vivo).
 
 Auditoria imediata por decisão:
 

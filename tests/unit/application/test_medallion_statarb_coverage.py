@@ -99,7 +99,7 @@ def test_statarb_guard_confluence_boost_put():
     assert execute_ok is True
 
 
-def test_statarb_guard_intelligence_preserves_conflicting_call():
+def test_statarb_guard_intelligence_vetoes_conflicting_call():
     snap = MacroSnapshot(
         tag="risk_off",
         eurusd_bias="PUT",
@@ -126,7 +126,8 @@ def test_statarb_guard_intelligence_preserves_conflicting_call():
     )
 
     assert direction == TradeDirection.CALL
-    assert execute_ok is True
+    assert execute_ok is False
+    assert "STATARB_VETO" in note
 
 
 def test_macro_snapshot_build_hmm_output():

@@ -7,22 +7,25 @@ import pytest
 from src.application.services.llm.llm_bridge import collect_llm_decisions
 from src.domain.models.trade import TradeDirection
 from tests.unit.application.llm_response_fixtures import MOCK_LLM_CALL_LINE
+from tests.unit.application.macro_guard_fixtures import merge_orch_config
 
 
 @pytest.mark.asyncio
 async def test_collect_llm_decisions_success():
     orch = MagicMock()
-    orch.config = {
-        "llm": {
-            "base_url": "http://x",
-            "model": "m",
-            "timeout_seconds": 5,
-            "ohlc_bars": 4,
-            "analysis_granularity_seconds": 300,
-            "analysis_bars": 5,
-        },
-        "risk_management": {"params": {"duration": 1, "duration_unit": "m"}},
-    }
+    orch.config = merge_orch_config(
+        {
+            "llm": {
+                "base_url": "http://x",
+                "model": "m",
+                "timeout_seconds": 5,
+                "ohlc_bars": 4,
+                "analysis_granularity_seconds": 300,
+                "analysis_bars": 5,
+            },
+            "risk_management": {"params": {"duration": 1, "duration_unit": "m"}},
+        }
+    )
     orch.symbols = ["frxEURUSD"]
     orch.anchor = "frxEURUSD"
     orch.stream.get_numpy_series = MagicMock(return_value=np.linspace(100.0, 101.0, 10))

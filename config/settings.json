@@ -68,7 +68,7 @@
     "micro_swing_granularity_seconds": 300,
     "micro_trigger_bars": 120,
     "micro_trigger_granularity_seconds": 60,
-    "min_conviction_execute": 0.60,
+    "min_conviction_execute": 0.70,
     "min_payout_accept": 0.82,
     "model": "gemini-2.5-flash",
     "options": {
@@ -106,10 +106,11 @@
       "base_win_rate": 0.55,
       "dynamic_min_samples": 10,
       "dynamic_win_rate": true,
-      "fraction": 0.15,
-      "max_recovery_stake_pct": 0.1,
-      "max_stake_pct": 0.02,
-      "recovery_conviction_threshold": 0.65
+      "fraction": 0.08,
+      "max_recovery_stake_pct": 0.04,
+      "max_stake_pct": 0.01,
+      "recovery_conviction_threshold": 0.75,
+      "session_max_drawdown_pct": 12.0
     },
     "large_account_stop_win_pct": 10.0,
     "params": {
@@ -144,7 +145,7 @@
       "exclusive_cluster_by_macro": true,
       "statarb_index_select_enabled": true,
       "statarb_index_max_per_cluster": 1,
-      "statarb_index_min_abs_z": 0.5
+      "statarb_index_min_abs_z": 1.5
     },
     "macro": {
       "cluster_bars": 8,
@@ -165,11 +166,16 @@
           "DOW30"
         ]
       },
-      "cluster_min_move_pct": 0.06,
-      "cluster_return_threshold_pct": 0.02,
+      "cluster_min_move_pct": 0.08,
+      "cluster_return_threshold_pct": 0.03,
       "cluster_use_m5_fallback_when_flat": true,
-      "confluence_conviction_floor": 0.60,
-      "divergence_max_conviction": 0.99,
+      "confluence_conviction_floor": 0.65,
+      "divergence_max_conviction": 0.82,
+      "divergence_min_leader_strength": 0.74,
+      "divergence_min_strength_gap": 0.08,
+      "indefinido_min_leader_strength": 0.68,
+      "indefinido_min_strength_gap": 0.08,
+      "assert_min_hmm_prob": 0.58,
       "fx_reference_pairs": {
         "audusd": {
           "risk_off": "FALL",

@@ -67,3 +67,16 @@ O sistema utiliza logs de alta densidade para auditoria em tempo real:
 1. Clone e configure o `.env` (tokens Deriv e `GEMINI_API_KEY`).
 2. Instale dependências: `pip install -r requirements.txt`.
 3. Inicie o motor: `python run.py`.
+4. Monitor em tempo real (opcional): `python -m scripts.monitor.live_monitor` ou `scripts\batch\launch-all-live.bat`.
+
+## Backtest Medallion (M15)
+
+Backtest walk-forward do pipeline quantitativo Medallion (macro, HMM, StatArb PCA, cluster exclusivo, selecao de indice). Usa **surrogate quant** para `US_CLUSTER` / `EU_CLUSTER` (sem chamadas Gemini).
+
+Pre-requisitos: token Deriv no `.env` (`AETHER_DEMO_TOKEN` ou `AETHER_LIVE_TOKEN`).
+
+```bash
+python -m scripts.backtest.medallion_backtest --days 14 --output data/backtest/report.json
+```
+
+Cada execucao faz **download fresco** na Deriv (sem cache). Banca **$100**, Kelly + recuperacao, **stop win diario** (10% da banca do dia) e **runtime simulado** ate a meta (1 vela M15 = 15 min, ex.: 2 velas = 30m). Guardrails assertivos iguais ao live. Flags: `--days`, `--bars N`, `--bankroll`, `--stake` (fixa opcional).

@@ -28,7 +28,7 @@ echo [AETHER] Iniciando Infraestrutura Aether Engine (MODO LIVE)...
 cd /d "%APP_DIR%"
 
 :: 1. Inicia o Monitor Primeiro (Visao Geral)
-start "AETHER MONITOR" cmd /k "call "%CONDA_ACTIVATE%" %ENV_NAME% && python scripts\operations\live_monitor.py"
+start "AETHER MONITOR" cmd /k "call "%CONDA_ACTIVATE%" %ENV_NAME% && python -m scripts.monitor.live_monitor"
 timeout /t 3 /nobreak > nul
 
 :: 2. Inicia o bot (modo LIVE via trading.mode em config/settings.json e AETHER_LIVE_TOKEN no .env)
