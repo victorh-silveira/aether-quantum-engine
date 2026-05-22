@@ -1,3 +1,9 @@
+## [1.18.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.17.1...v1.18.0) (2026-05-22)
+
+### Funcionalidades
+
+* **llm:** modo inteligencia macro pura estilo Medallion ([7a1b195](https://github.com/victorh-silveira/aether-quantum-engine/commit/7a1b1959b914878ebc715bf3c2ea47d4eeeba8dd))
+
 ## [1.17.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.17.0...v1.17.1) (2026-05-22)
 
 ### Correcoes de Bug
