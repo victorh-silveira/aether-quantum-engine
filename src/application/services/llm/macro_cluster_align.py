@@ -113,9 +113,10 @@ def _apply_divergence_targets(
     out_eu: str | None,
     snapshot: MacroSnapshot,
     floor: float,
-) -> tuple[str | None, str | None, bool]:
+) -> tuple[str | None, str | None, bool, list[str]]:
     """Alinha cada cluster ao voto regional quantitativo em divergencia transatlantica."""
     changed = False
+    notes: list[str] = []
     q_us = cluster_trade_direction(snapshot.us_dir)
     q_eu = cluster_trade_direction(snapshot.eu_dir)
     if q_us and snapshot.us_strength >= floor and out_us != q_us:
@@ -124,7 +125,16 @@ def _apply_divergence_targets(
     if q_eu and snapshot.eu_strength >= floor and out_eu != q_eu:
         out_eu = q_eu
         changed = True
-    return out_us, out_eu, changed
+    if out_us and out_eu and out_us == out_eu and q_us and q_eu and q_us != q_eu:
+        if snapshot.tag == "divergence_us_leads" and snapshot.eu_strength < floor:
+            out_eu = None
+            notes.append("MACRO_DIV_CLEAR eu_flat")
+            changed = True
+        elif snapshot.tag == "divergence_eu_leads" and snapshot.us_strength < floor:
+            out_us = None
+            notes.append("MACRO_DIV_CLEAR us_flat")
+            changed = True
+    return out_us, out_eu, changed, notes
 
 
 def _omit_flat_clusters(
@@ -173,7 +183,8 @@ def reconcile_cluster_tags_with_macro(
             notes.append(f"MACRO_CLUSTER_ALIGN tag={tag}")
         return out_us, out_eu, changed, " | ".join(notes)
     elif tag.startswith("divergence"):
-        out_us, out_eu, changed = _apply_divergence_targets(out_us, out_eu, snapshot, floor)
+        out_us, out_eu, changed, div_notes = _apply_divergence_targets(out_us, out_eu, snapshot, floor)
+        notes.extend(div_notes)
     else:
         return out_us, out_eu, False, ""
 

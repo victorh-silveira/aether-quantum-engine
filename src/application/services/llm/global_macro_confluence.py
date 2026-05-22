@@ -130,9 +130,9 @@ def eurusd_bias_from_confluence(tag: str, *, us_dir: str = "flat", eu_dir: str =
     if tag == "risk_off":
         return "PUT"
     if tag == "divergence_us_leads":
-        return "CALL"
+        return cluster_trade_direction(us_dir) or "CALL"
     if tag == "divergence_eu_leads":
-        return "CALL"
+        return cluster_trade_direction(eu_dir) or "CALL"
     if us_dir == "up" or eu_dir == "up":
         return "CALL"
     return "PUT"

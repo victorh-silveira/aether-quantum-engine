@@ -128,6 +128,85 @@ def test_reconcile_cluster_tags_divergence_aligns_per_region():
     assert eu == "PUT"
 
 
+def test_reconcile_cluster_tags_divergence_clears_eu_when_weak_eu_strength():
+    snap = build_macro_snapshot(
+        ["OTC_SPC"],
+        ["OTC_FCHI"],
+        {"OTC_SPC": [100.0, 105.0], "OTC_FCHI": [100.0, 95.0]},
+        {"min_indices_for_vote": 1},
+    )
+    snap = type(snap)(
+        us_dir=snap.us_dir,
+        eu_dir=snap.eu_dir,
+        us_strength=1.0,
+        eu_strength=0.5,
+        tag=snap.tag,
+        eurusd_bias=snap.eurusd_bias,
+        cluster_status=snap.cluster_status,
+        macro_block=snap.macro_block,
+        fx_reference_line=snap.fx_reference_line,
+        us_parts=snap.us_parts,
+        eu_parts=snap.eu_parts,
+    )
+    us, eu, changed, note = reconcile_cluster_tags_with_macro(
+        "CALL",
+        "CALL",
+        snap,
+        {"confluence_conviction_floor": 0.85},
+    )
+    assert changed is True
+    assert us == "CALL"
+    assert eu is None
+    assert "MACRO_DIV_CLEAR eu_flat" in note
+
+
+def test_reconcile_cluster_tags_divergence_clears_us_when_weak_us_strength():
+    snap = build_macro_snapshot(
+        ["OTC_SPC"],
+        ["OTC_FCHI"],
+        {"OTC_SPC": [100.0, 95.0], "OTC_FCHI": [100.0, 105.0]},
+        {"min_indices_for_vote": 1},
+    )
+    assert snap.tag == "divergence_eu_leads"
+    snap = type(snap)(
+        us_dir=snap.us_dir,
+        eu_dir=snap.eu_dir,
+        us_strength=0.5,
+        eu_strength=1.0,
+        tag=snap.tag,
+        eurusd_bias=snap.eurusd_bias,
+        cluster_status=snap.cluster_status,
+        macro_block=snap.macro_block,
+        fx_reference_line=snap.fx_reference_line,
+        us_parts=snap.us_parts,
+        eu_parts=snap.eu_parts,
+    )
+    us, eu, changed, note = reconcile_cluster_tags_with_macro(
+        "CALL",
+        "CALL",
+        snap,
+        {"confluence_conviction_floor": 0.85},
+    )
+    assert changed is True
+    assert us is None
+    assert eu == "CALL"
+    assert "MACRO_DIV_CLEAR us_flat" in note
+
+
+def test_reconcile_cluster_tags_divergence_fixes_same_side_clusters():
+    snap = build_macro_snapshot(
+        ["OTC_SPC"],
+        ["OTC_FCHI"],
+        {"OTC_SPC": [100.0, 105.0], "OTC_FCHI": [100.0, 95.0]},
+        {"min_indices_for_vote": 1, "confluence_conviction_floor": 0.55},
+    )
+    us, eu, changed, note = reconcile_cluster_tags_with_macro("CALL", "CALL", snap)
+    assert changed is True
+    assert us == "CALL"
+    assert eu == "PUT"
+    assert note
+
+
 def test_reconcile_cluster_tags_disabled_and_risk_off():
     snap = build_macro_snapshot(
         ["OTC_SPC"],
