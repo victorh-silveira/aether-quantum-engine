@@ -83,7 +83,7 @@
     "structure_granularity_seconds": 14400,
     "swing_bars": 120,
     "swing_granularity_seconds": 3600,
-    "system_prompt": "MANDATO MACRO TRANSATLANTICO. Ancora EURUSD. Risk-On indices US+EU em alta -> JSON com EURUSD CALL, US_CLUSTER CALL, EU_CLUSTER CALL. Risk-Off em baixa -> PUT nos tres campos. Divergencia US/EU: conviccao menor; cada campo CALL ou PUT independente. RISE/FALL apenas no contexto FX ref, nunca na saida JSON. Saida: objeto JSON com EURUSD, US_CLUSTER, EU_CLUSTER, Probabilidade (0.01-0.99). Hurst>0.55 momentum; Hurst<0.45 reversao Z-Score; entropia extrema M1/M5 cap 0.70.",
+    "system_prompt": "MANDATO MEDALLION TRANSATLANTICO. Ancora frxEURUSD como marcapasso entre blocos US e EU. Decida com inteligencia pura: EURUSD, US_CLUSTER e EU_CLUSTER independentes (CALL ou PUT cada um), usando macro e micro de cada regiao. US_INTEL e EU_INTEL no contexto guiam sinais regionais; StatArb Z e HMM informam reversao ou tendencia sem impor veto. Divergencia US/EU: lider transatlantico no LEAD; clusters podem divergir. Obrigatorio preencher US_CLUSTER e EU_CLUSTER sempre. RISE/FALL somente em FX ref. JSON: EURUSD, US_CLUSTER, EU_CLUSTER, Probabilidade (0.01-0.99). Hurst>0.55 momentum; Hurst<0.45 reversao Z-Score; entropia extrema M1/M5 cap 0.70.",
     "timeout_seconds": 35,
     "trigger_bars": 120,
     "trigger_granularity_seconds": 900
@@ -149,8 +149,9 @@
       "enabled": true
     },
     "macro": {
-      "align_clusters_with_macro_vote": true,
-      "align_eurusd_with_confluence": true,
+      "macro_intelligence_only": true,
+      "align_clusters_with_macro_vote": false,
+      "align_eurusd_with_confluence": false,
       "cluster_bars": 8,
       "cluster_fallback_bars": 12,
       "cluster_fallback_granularity_seconds": 300,
@@ -173,8 +174,8 @@
       "cluster_return_threshold_pct": 0.02,
       "cluster_use_m5_fallback_when_flat": true,
       "confluence_conviction_floor": 0.85,
-      "divergence_blocks_execution": true,
-      "divergence_max_conviction": 0.78,
+      "divergence_blocks_execution": false,
+      "divergence_max_conviction": 0.99,
       "fx_reference_pairs": {
         "audusd": {
           "risk_off": "FALL",

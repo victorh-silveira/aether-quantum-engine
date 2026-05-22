@@ -74,6 +74,8 @@ def test_build_macro_snapshot_risk_off():
     assert snap.tag == "risk_off"
     assert snap.eurusd_bias == "PUT"
     assert "MACRO_CONFLUENCIA" in snap.macro_block
+    assert "US_INTEL" in snap.macro_block
+    assert "EU_INTEL" in snap.macro_block
 
 
 def test_fx_reference_context_line_risk_on():
@@ -100,6 +102,7 @@ def test_format_macro_confluence_block_and_empty_snapshot():
 
 def test_resolve_macro_config_defaults_and_upper_labels():
     cfg = resolve_macro_config({"cluster_labels": {"us": ["s&p500"], "eu": ["dax40"]}})
+    assert cfg["macro_intelligence_only"] is False
     assert cfg["divergence_blocks_execution"] is True
     assert cfg["align_clusters_with_macro_vote"] is True
     assert cfg["cluster_min_move_pct"] == 0.06

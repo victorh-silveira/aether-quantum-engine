@@ -89,7 +89,7 @@ def test_statarb_guard_confluence_boost_put():
         TradeDirection.PUT,
         0.60,
         snap,
-        {"statarb_z_threshold": 2.5},
+        {"statarb_z_threshold": 2.5, "macro_intelligence_only": False},
         sym="OTC_GDAXI",
     )
 
@@ -122,7 +122,7 @@ def test_statarb_guard_confluence_block_call():
         TradeDirection.CALL,
         0.60,
         snap,
-        {"statarb_z_threshold": 2.5},
+        {"statarb_z_threshold": 2.5, "macro_intelligence_only": False},
         sym="OTC_GDAXI",
     )
 

@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import re
-from typing import Any
 
 import numpy as np
 
 import src.application.services.llm.indicators as ti
-from src.application.services.llm.global_macro_confluence import MacroSnapshot, resolve_macro_config
 from src.application.services.llm.llm_bridge_utils import score_token
+from src.application.services.llm.llm_macro_confluence_guards import apply_macro_confluence_guard
 from src.domain.models.trade import TradeDirection
 
 
@@ -117,156 +116,15 @@ def is_overextended(closes: list[float], window: int = 20) -> bool:
     return abs(z) > 3.0
 
 
-def _divergence_leader_strength(snapshot: MacroSnapshot, tag: str) -> float:
-    """Retorna a forca do cluster lider em tags de divergencia transatlantica."""
-    if tag == "divergence_us_leads":
-        return float(snapshot.us_strength)
-    if tag == "divergence_eu_leads":
-        return float(snapshot.eu_strength)
-    return 0.0
-
-
-def _calculate_mcs_and_conviction(
-    direction: TradeDirection,
-    conviction: float,
-    snapshot: MacroSnapshot,
-    bias: str,
-    tag: str,
-    avg_strength: float,
-) -> float:
-    """Calcula o Macro Confluence Score (MCS) e a convicção final."""
-    if snapshot.cluster_status == "":
-        return conviction
-
-    if tag in ("risk_on", "risk_off"):
-        mcs = 0.80 + 0.15 * avg_strength
-        if bias in ("CALL", "PUT"):
-            quant_dir = TradeDirection.CALL if bias == "CALL" else TradeDirection.PUT
-            if direction == quant_dir:
-                mcs += 0.04
-        mcs = min(0.99, max(0.0, mcs))
-    elif tag.startswith("divergence"):
-        min_strength = min(float(snapshot.us_strength), float(snapshot.eu_strength))
-        mcs = 0.48 + 0.14 * min_strength
-        if bias in ("CALL", "PUT"):
-            quant_dir = TradeDirection.CALL if bias == "CALL" else TradeDirection.PUT
-            if direction != quant_dir:
-                mcs = max(0.0, mcs - 0.08)
-    else:
-        mcs = 0.52 + 0.08 * avg_strength
-
-    return (conviction * 0.3) + (mcs * 0.7)
-
-
-def _apply_statarb_guard(
-    direction: TradeDirection | None,
-    conviction: float,
-    snapshot: MacroSnapshot,
-    cfg: dict[str, Any],
-    sym: str,
-) -> tuple[TradeDirection | None, float, bool, list[str], bool]:
-    """Aplica o filtro de espalhamento StatArb e HMM de volatilidade para o ativo."""
-    note_parts: list[str] = []
-    guard_applied = False
-    execute_ok = True
-
-    if not getattr(snapshot, "statarb_spreads", None) or sym not in snapshot.statarb_spreads:
-        return direction, conviction, guard_applied, note_parts, execute_ok
-
-    z = float(snapshot.statarb_spreads[sym])
-    z_threshold = float(cfg.get("statarb_z_threshold", 2.5))
-    hmm_state = int(getattr(snapshot, "hmm_state", 0))
-
-    if hmm_state == 0:  # MEAN_REVERSION
-        if z < -z_threshold:  # Undervalued: CALL pressure
-            if direction == TradeDirection.CALL:
-                conviction = min(0.99, conviction + 0.15)
-                note_parts.append(f"STATARB_BOOST CALL (Z={z:.2f})")
-            elif direction == TradeDirection.PUT:
-                guard_applied = True
-                execute_ok = False
-                direction = None
-                note_parts.append(f"STATARB_BLOCK conflict PUT vs StatArb CALL (Z={z:.2f})")
-        elif z > z_threshold:  # Overvalued: PUT pressure
-            if direction == TradeDirection.PUT:
-                conviction = min(0.99, conviction + 0.15)
-                note_parts.append(f"STATARB_BOOST PUT (Z={z:.2f})")
-            elif direction == TradeDirection.CALL:
-                guard_applied = True
-                execute_ok = False
-                direction = None
-                note_parts.append(f"STATARB_BLOCK conflict CALL vs StatArb PUT (Z={z:.2f})")
-    elif abs(z) > z_threshold:  # TRENDING
-        guard_applied = True
-        execute_ok = False
-        direction = None
-        note_parts.append(f"STATARB_TREND_BLOCK volatility_regime=TRENDING (Z={z:.2f})")
-
-    return direction, conviction, guard_applied, note_parts, execute_ok
-
-
-def apply_macro_confluence_guard(
-    direction: TradeDirection | None,
-    conviction: float,
-    snapshot: MacroSnapshot | None,
-    macro_cfg: dict[str, Any] | None,
-    sym: str | None = None,
-) -> tuple[TradeDirection | None, float, bool, str, bool]:
-    """Aplica guardrails e calculo de confluencia macro transatlantica dinamica."""
-    if direction is None or snapshot is None:
-        return direction, conviction, False, "", True
-
-    cfg = resolve_macro_config(macro_cfg)
-    tag = snapshot.tag
-    bias = snapshot.eurusd_bias
-
-    us_strength = float(snapshot.us_strength)
-    eu_strength = float(snapshot.eu_strength)
-    avg_strength = (us_strength + eu_strength) / 2.0
-
-    # Calculate conviction
-    conviction_final = _calculate_mcs_and_conviction(direction, conviction, snapshot, bias, tag, avg_strength)
-
-    # Apply guardrails
-    note_parts: list[str] = []
-    guard_applied = False
-    execute_ok = True
-
-    # 1. StatArb Cointegration Spread and Pacemaking HMM guards
-    if sym:
-        direction, conviction_final, sa_applied, sa_notes, sa_ok = _apply_statarb_guard(
-            direction, conviction_final, snapshot, cfg, sym
-        )
-        if sa_applied:
-            guard_applied = True
-        if not sa_ok:
-            execute_ok = False
-        note_parts.extend(sa_notes)
-
-    # 2. Existing standard confluence guardrails
-    if tag.startswith("divergence") and cfg["divergence_blocks_execution"]:
-        guard_applied = True
-        cap = float(cfg["divergence_max_conviction"])
-        conviction_final = min(conviction_final, cap)
-        note_parts.append(f"MACRO_DIV cap={cap:.2f}")
-
-    if cfg["align_eurusd_with_confluence"] and bias in ("CALL", "PUT"):
-        quant_dir = TradeDirection.CALL if bias == "CALL" else TradeDirection.PUT
-        floor = float(cfg["confluence_conviction_floor"])
-        min_strength = min(us_strength, eu_strength)
-        leader_strength = _divergence_leader_strength(snapshot, tag)
-        strength_gate = leader_strength if tag.startswith("divergence") else min_strength
-        if (
-            strength_gate >= floor
-            and direction is not None
-            and direction != quant_dir
-            and (tag in ("risk_on", "risk_off") or tag.startswith("divergence"))
-        ):
-            guard_applied = True
-            execute_ok = False
-            direction = None
-            veto_tag = "MACRO_DIV_VETO" if tag.startswith("divergence") else "MACRO_ALIGN"
-            note_parts.append(f"{veto_tag} block bias={bias} tag={tag}")
-
-    note = " | ".join(note_parts)
-    return direction, conviction_final, guard_applied, note, execute_ok
+__all__ = [
+    "TREND_FOLLOWING_ACTIVE",
+    "apply_macro_confluence_guard",
+    "invert_call_put",
+    "is_highly_divergent_mtf",
+    "is_overextended",
+    "is_sawtooth_pattern",
+    "merge_mtf_scores",
+    "mtf_score",
+    "mtf_score_from_alignment",
+    "rsi_exhaustion_execution_gate",
+]
