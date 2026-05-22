@@ -160,3 +160,27 @@ def test_apply_macro_post_parse_indefinido_forces_us_put_when_quant_down():
     )
     assert us_dir == TradeDirection.PUT
     assert eu_dir is None
+
+
+def test_apply_macro_guard_divergence_new_formula_and_cap():
+    snap = build_macro_snapshot(
+        ["OTC_SPC"],
+        ["OTC_FCHI"],
+        {"OTC_SPC": [100.0, 105.0], "OTC_FCHI": [100.0, 95.0]},
+        {"min_indices_for_vote": 1},
+    )
+    assert snap.tag == "divergence_us_leads"
+    # mcs = 0.78 + 0.10 * 1.0 = 0.88
+    # blending with 0.90: (0.90 * 0.3) + (0.88 * 0.7) = 0.27 + 0.616 = 0.886
+    # with a cap of 0.88, final conviction is 0.88 (min of 0.886 and 0.88)
+    direction, conviction, applied, note, execute_ok = apply_macro_confluence_guard(
+        TradeDirection.CALL,
+        0.9,
+        snap,
+        {"divergence_blocks_execution": True, "divergence_max_conviction": 0.88},
+    )
+    assert applied is True
+    assert conviction == pytest.approx(0.88)
+    assert direction == TradeDirection.CALL
+    assert execute_ok is True
+    assert "MACRO_DIV" in note
