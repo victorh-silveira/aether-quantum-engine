@@ -10,6 +10,7 @@ from src.application.services.llm.global_macro_confluence import (
     expected_cluster_tags_line,
     format_macro_confluence_block,
     fx_reference_context_line,
+    regional_intelligence_line,
     resolve_macro_config,
 )
 
@@ -92,6 +93,53 @@ def test_fx_reference_divergence_eu_leads():
     assert "AUDUSD RISE" in line
 
 
+def test_regional_intelligence_line_divergence_leads():
+    eu_snap = MacroSnapshot(
+        us_dir="down",
+        eu_dir="up",
+        us_strength=0.4,
+        eu_strength=0.8,
+        tag="divergence_eu_leads",
+        eurusd_bias="CALL",
+        cluster_status="ok",
+        macro_block="",
+        fx_reference_line="",
+        us_parts=(),
+        eu_parts=(),
+    )
+    eu_line = regional_intelligence_line(eu_snap)
+    assert "LEAD=EU" in eu_line
+    us_snap = MacroSnapshot(
+        us_dir="up",
+        eu_dir="down",
+        us_strength=0.8,
+        eu_strength=0.4,
+        tag="divergence_us_leads",
+        eurusd_bias="CALL",
+        cluster_status="ok",
+        macro_block="",
+        fx_reference_line="",
+        us_parts=(),
+        eu_parts=(),
+    )
+    us_line = regional_intelligence_line(us_snap)
+    assert "LEAD=US" in us_line
+    bal_snap = MacroSnapshot(
+        us_dir="up",
+        eu_dir="up",
+        us_strength=0.8,
+        eu_strength=0.8,
+        tag="risk_on",
+        eurusd_bias="CALL",
+        cluster_status="ok",
+        macro_block="",
+        fx_reference_line="",
+        us_parts=(),
+        eu_parts=(),
+    )
+    assert "LEAD=BAL" in regional_intelligence_line(bal_snap)
+
+
 def test_format_macro_confluence_block_and_empty_snapshot():
     block = format_macro_confluence_block("US", "EU", "risk_on", "FX", eurusd_bias="CALL")
     assert "EURUSD_bias_quant=CALL" in block
@@ -102,9 +150,7 @@ def test_format_macro_confluence_block_and_empty_snapshot():
 
 def test_resolve_macro_config_defaults_and_upper_labels():
     cfg = resolve_macro_config({"cluster_labels": {"us": ["s&p500"], "eu": ["dax40"]}})
-    assert cfg["macro_intelligence_only"] is False
-    assert cfg["divergence_blocks_execution"] is True
-    assert cfg["align_clusters_with_macro_vote"] is True
+    assert cfg["statarb_z_threshold"] == 2.5
     assert cfg["cluster_min_move_pct"] == 0.06
     assert cfg["cluster_use_m5_fallback_when_flat"] is True
     assert cfg["cluster_labels"]["us"] == ["S&P500"]
@@ -148,7 +194,7 @@ def test_expected_cluster_tags_line_risk_off_and_partial():
         eu_strength=0.1,
         macro_cfg={"confluence_conviction_floor": 0.55},
     )
-    assert us_only.startswith("CLUSTER_QUANT_US:")
+    assert "US_CLUSTER=CALL" in us_only
     eu_only = expected_cluster_tags_line(
         tag="indefinido",
         us_dir="flat",
@@ -157,4 +203,4 @@ def test_expected_cluster_tags_line_risk_off_and_partial():
         eu_strength=0.7,
         macro_cfg={"confluence_conviction_floor": 0.55},
     )
-    assert eu_only.startswith("CLUSTER_QUANT_EU:")
+    assert "EU_CLUSTER=PUT" in eu_only

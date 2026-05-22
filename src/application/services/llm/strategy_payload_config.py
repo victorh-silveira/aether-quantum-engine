@@ -1,4 +1,4 @@
-"""Limares e rotulos do payload Sniper lidos do JSON (strategy / strategy_thresholds)."""
+"""Limares e rotulos do payload Sniper lidos do JSON (strategy)."""
 
 from __future__ import annotations
 
@@ -67,11 +67,10 @@ DEFAULT_STRATEGY_PAYLOAD_CONFIG = StrategyPayloadConfig(
 
 
 def resolve_strategy_payload_config(root: dict[str, Any]) -> StrategyPayloadConfig:
-    """Constroi config a partir de ``strategy`` ou ``strategy_thresholds`` no JSON."""
+    """Constroi config a partir de ``strategy`` no JSON."""
     st = root.get("strategy")
     if not isinstance(st, dict):
-        legacy = root.get("strategy_thresholds")
-        st = legacy if isinstance(legacy, dict) else {}
+        st = {}
     th = st.get("thresholds") if isinstance(st.get("thresholds"), dict) else {}
     pl = st.get("payload") if isinstance(st.get("payload"), dict) else {}
 

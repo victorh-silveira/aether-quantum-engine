@@ -48,7 +48,7 @@ async def test_collect_llm_decisions_with_dynamic_cluster_regime():
 
         assert decisions["OTC_FCHI"]["direction"] == TradeDirection.CALL
         assert decisions["OTC_FCHI"]["metrics"]["decision_source"] == "cluster_regime"
-        assert "CLUSTER_FOLLOW" in decisions["OTC_FCHI"]["metrics"]["llm_note"]
+        assert "CLUSTER_TAG" in decisions["OTC_FCHI"]["metrics"]["llm_note"]
 
 
 def test_parse_llm_trade_response_with_clusters():

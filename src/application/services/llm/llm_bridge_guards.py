@@ -4,15 +4,8 @@ from __future__ import annotations
 
 import re
 
-import numpy as np
-
-import src.application.services.llm.indicators as ti
 from src.application.services.llm.llm_bridge_utils import score_token
 from src.application.services.llm.llm_macro_confluence_guards import apply_macro_confluence_guard
-from src.domain.models.trade import TradeDirection
-
-
-TREND_FOLLOWING_ACTIVE = "TREND_FOLLOWING_ACTIVE"
 
 
 _TRIPLE_X = re.compile(r"\b(alta|baixa|alto|baixo)\s*x\s*(alta|baixa|alto|baixo)\s*x\s*(alta|baixa|alto|baixo)")
@@ -64,67 +57,9 @@ def mtf_score(macro_desc: str, structure_desc: str, swing_desc: str, trigger_des
     )
 
 
-def rsi_exhaustion_execution_gate(
-    direction: TradeDirection,
-    rsi_m1_last: float | None,
-    *,
-    rsi_block_call_above: float,
-    rsi_block_put_below: float,
-    gate_enabled: bool,
-) -> tuple[TradeDirection, str | None]:
-    """Aplica limiar RSI na execucao: modo operacao continua (ignora travas de WAIT)."""
-    _ = (rsi_m1_last, rsi_block_call_above, rsi_block_put_below, gate_enabled)
-    return direction, TREND_FOLLOWING_ACTIVE
-
-
-def is_sawtooth_pattern(mtf_d: str) -> bool:
-    """Detecta padrao P/M/P/M ou M/P/M/P no token compacto MTF para telemetria."""
-    raw = (mtf_d or "").strip().upper()
-    if "/" in raw:
-        parts = [p for p in raw.split("/") if p in ("P", "M")]
-        if len(parts) >= 4:
-            p1, p2, p3, p4 = parts[:4]
-            return p1 != p2 != p3 != p4
-    return False
-
-
-def is_highly_divergent_mtf(macro_d: str, struct_d: str, swing_d: str, trigger_d: str) -> bool:
-    """True se houver conflito frontal entre as camadas macro e micro para telemetria."""
-    ma = score_token(macro_d)
-    st = score_token(struct_d)
-    sw = score_token(swing_d)
-    tr = score_token(trigger_d)
-    total_score = ma + st + sw + tr
-    return abs(total_score) <= 1 and ((ma + st > 1 and sw + tr < -1) or (ma + st < -1 and sw + tr > 1))
-
-
-def invert_call_put(direction: TradeDirection) -> TradeDirection:
-    """Troca CALL por PUT e vice-versa."""
-    if direction == TradeDirection.CALL:
-        return TradeDirection.PUT
-    if direction == TradeDirection.PUT:
-        return TradeDirection.CALL
-    return direction
-
-
-def is_overextended(closes: list[float], window: int = 20) -> bool:
-    """True se o preco atual for uma anomalia estatistica (Z-Score > 3.0)."""
-    c = np.asarray(closes, dtype=np.float64)
-    z = ti._z_score_last(c, window)
-    if z is None:
-        return False
-    return abs(z) > 3.0
-
-
 __all__ = [
-    "TREND_FOLLOWING_ACTIVE",
     "apply_macro_confluence_guard",
-    "invert_call_put",
-    "is_highly_divergent_mtf",
-    "is_overextended",
-    "is_sawtooth_pattern",
     "merge_mtf_scores",
     "mtf_score",
     "mtf_score_from_alignment",
-    "rsi_exhaustion_execution_gate",
 ]

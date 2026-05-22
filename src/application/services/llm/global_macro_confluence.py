@@ -7,7 +7,6 @@ from typing import Any
 from src.application.services.llm.macro_cluster_align import (
     cluster_trade_direction,
     expected_cluster_tags_line,
-    reconcile_cluster_tags_with_macro,
 )
 from src.application.services.llm.macro_config import ClusterVote, MacroSnapshot, resolve_macro_config
 from src.application.services.llm.macro_fx_reference import fx_reference_context_line
@@ -28,7 +27,6 @@ __all__ = [
     "format_macro_confluence_block",
     "fx_reference_context_line",
     "macro_snapshot_from_votes",
-    "reconcile_cluster_tags_with_macro",
     "resolve_macro_config",
 ]
 

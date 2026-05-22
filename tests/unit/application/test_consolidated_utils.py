@@ -16,7 +16,6 @@ from src.application.services.llm.llm_bridge_utils import (
     score_token,
     trend_token,
 )
-from src.application.services.llm.llm_repeat_guard import apply_repeat_direction_guard
 from src.domain.models.trade import TradeDirection
 
 
@@ -80,24 +79,6 @@ def test_telemetry_and_storage():
     decisions = {}
     store_symbol_decision(decisions, "OTC_FCHI", TradeDirection.CALL, {"m": 1})
     assert decisions["OTC_FCHI"]["direction"] == TradeDirection.CALL
-
-
-def test_repeat_guard_logic():
-    res_dir, _, _, res_streak = apply_repeat_direction_guard(
-        None, "n", {}, "m", "r", {"max_same_direction_streak": 2}, TradeDirection.CALL, 1
-    )
-    assert res_dir is None
-    assert res_streak == 0
-
-    res_dir, _, _, res_streak = apply_repeat_direction_guard(
-        TradeDirection.CALL, "n", {}, "m", "r", {"max_same_direction_streak": 2}, TradeDirection.CALL, 1
-    )
-    assert res_streak == 2
-
-    res_dir, _, _, res_streak = apply_repeat_direction_guard(
-        TradeDirection.CALL, "n", {}, "m", "r", {"max_same_direction_streak": 1}, TradeDirection.CALL, 1
-    )
-    assert res_streak == 1
 
 
 def test_metrics_finalization():

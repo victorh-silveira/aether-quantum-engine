@@ -29,7 +29,7 @@ def test_apply_macro_guard_intelligence_without_statarb_spread():
         TradeDirection.CALL,
         0.82,
         snap,
-        {"macro_intelligence_only": True},
+        {"statarb_z_threshold": 2.5},
         sym="frxEURUSD",
     )
     assert direction == TradeDirection.CALL
@@ -43,13 +43,14 @@ def test_apply_macro_guard_intelligence_preserves_llm_divergence():
         ["OTC_SPC"],
         ["OTC_FCHI"],
         {"OTC_SPC": [100.0, 105.0], "OTC_FCHI": [100.0, 95.0]},
-        {"min_indices_for_vote": 1},
+        {"min_indices_for_vote": 1, "cluster_return_threshold_pct": 0.02},
     )
+    assert snap.tag.startswith("divergence")
     direction, conviction, applied, note, execute_ok = apply_macro_confluence_guard(
         TradeDirection.CALL,
         0.802,
         snap,
-        {"macro_intelligence_only": True},
+        {"statarb_z_threshold": 2.5},
     )
     assert direction == TradeDirection.CALL
     assert conviction == pytest.approx(0.802)
@@ -68,7 +69,7 @@ def test_apply_macro_guard_intelligence_allows_put_against_us_leader():
         TradeDirection.PUT,
         0.85,
         snap,
-        {"macro_intelligence_only": True},
+        {"statarb_z_threshold": 2.5},
     )
     assert direction == TradeDirection.PUT
     assert conviction == pytest.approx(0.85)
@@ -85,7 +86,7 @@ def test_apply_macro_post_parse_intelligence_keeps_llm_clusters():
         TradeDirection.PUT,
         TradeDirection.CALL,
         snap,
-        {"macro_intelligence_only": True, "align_clusters_with_macro_vote": False},
+        {"statarb_z_threshold": 2.5},
     )
     assert us_dir == TradeDirection.PUT
     assert eu_dir == TradeDirection.CALL

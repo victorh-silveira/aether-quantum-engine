@@ -52,6 +52,8 @@ def test_exclusive_cluster_config_sources():
     assert exclusive_cluster_by_macro_enabled(orch) is False
     orch.config = {"strategy": {"macro": {"exclusive_cluster_by_macro": True}}}
     assert exclusive_cluster_by_macro_enabled(orch) is True
+    orch.config = {"strategy": {"correlation": {}, "macro": {}}}
+    assert exclusive_cluster_by_macro_enabled(orch) is True
 
 
 def test_cluster_region_for_symbol():
@@ -71,10 +73,7 @@ async def test_collect_llm_decisions_exclusive_risk_on_us_only():
             "correlation": {"enabled": True, "exclusive_cluster_by_macro": True},
             "clusters": {"us": ["OTC_SPC"], "eu": ["OTC_FCHI"]},
         },
-        "llm": {
-            "max_decision_latency_seconds": 10,
-            "indicator_config": {"cluster_follow_conviction_threshold": 0.85},
-        },
+        "llm": {"max_decision_latency_seconds": 10},
     }
 
     with patch(
@@ -86,12 +85,12 @@ async def test_collect_llm_decisions_exclusive_risk_on_us_only():
             {
                 "conviction": 0.68,
                 "us_cluster": "CALL",
-                "eu_cluster": "CALL",
+                "eu_cluster": "PUT",
                 "macro_sentiment": "risk_on",
             },
         )
         decisions = await collect_llm_decisions(orch)
 
     assert "OTC_SPC" in decisions
-    assert decisions["OTC_SPC"]["direction"] == TradeDirection.PUT
+    assert decisions["OTC_SPC"]["direction"] == TradeDirection.CALL
     assert "OTC_FCHI" not in decisions

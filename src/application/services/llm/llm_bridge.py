@@ -6,24 +6,12 @@ import asyncio
 from typing import Any
 
 from src.application.services.llm.context_runtime import fetch_context_blocks, resolve_llm_runtime
-from src.application.services.llm.duration_logic import enforce_minimum_duration
 from src.application.services.llm.llm_bridge_debug import emit_direction_debug as _emit_direction_debug
 from src.application.services.llm.llm_bridge_telemetry import (
     build_metrics_for_decision as _build_metrics_for_decision_core,
     store_symbol_decision,
 )
-from src.application.services.llm.llm_cluster_conviction import (
-    cluster_execution_direction,
-    cluster_follow_conviction_threshold,
-)
-from src.application.services.llm.llm_cluster_exclusive import (
-    cluster_region_for_symbol,
-    exclusive_cluster_by_macro_enabled,
-    resolve_exclusive_cluster_region,
-)
-from src.application.services.llm.llm_repeat_guard import (
-    choose_direction_without_wait as _choose_direction_without_wait,
-)
+from src.application.services.llm.llm_cluster_propagate import propagate_cluster_decisions
 from src.application.services.llm.llm_symbol_io import (
     last_reference_price as _last_reference_price,
     request_llm_payload as _request_payload_core,
@@ -38,7 +26,6 @@ _BRIDGE_TEST_REEXPORTS = (
     _decision_from_payload,
     _last_reference_price,
     _build_metrics_for_decision_core,
-    _choose_direction_without_wait,
     _emit_direction_debug,
 )
 
@@ -117,78 +104,6 @@ async def _collect_symbol_decision(
     )
 
 
-def _propagate_cluster_decisions(
-    orch: Any,
-    *,
-    anchor_sym: str,
-    direction: TradeDirection,
-    metrics: dict[str, Any],
-    decisions: dict[str, dict],
-    cid: str,
-) -> None:
-    """Propaga decisoes para indices US/EU via tags de cluster; inverte se conviccao < limiar."""
-    _ = direction
-    clusters = orch.config.get("strategy", {}).get("clusters", {})
-    us_targets = clusters.get("us", ("OTC_SPC", "OTC_NDX", "OTC_DJI"))
-    eu_targets = clusters.get("eu", ("OTC_FCHI", "OTC_GDAXI", "OTC_SSMI", "OTC_FTSE"))
-    propagated_tags: list[str] = []
-    anchor_in_us = anchor_sym in us_targets
-    anchor_in_eu = anchor_sym in eu_targets
-    conviction = float(metrics.get("conviction", 0))
-    follow_thr = cluster_follow_conviction_threshold(orch)
-    cluster_inverted = conviction < follow_thr
-    exclusive = exclusive_cluster_by_macro_enabled(orch)
-    active_region = resolve_exclusive_cluster_region(metrics) if exclusive else None
-    macro_tag = str(metrics.get("macro_sentiment") or metrics.get("macro_confluence_tag") or "")
-
-    for target_sym in orch.symbols:
-        if target_sym == anchor_sym:
-            continue
-
-        sym_region = cluster_region_for_symbol(target_sym, us_targets=us_targets, eu_targets=eu_targets)
-        if exclusive and active_region and sym_region and sym_region != active_region:
-            continue
-
-        if target_sym in us_targets and not anchor_in_us:
-            us_tag = metrics.get("us_cluster")
-            target_direction, tag_inverted = cluster_execution_direction(us_tag, conviction, follow_thr)
-            if target_direction is None:
-                continue
-        elif target_sym in eu_targets and not anchor_in_eu:
-            eu_tag = metrics.get("eu_cluster")
-            target_direction, tag_inverted = cluster_execution_direction(eu_tag, conviction, follow_thr)
-            if target_direction is None:
-                continue
-        else:
-            continue
-
-        target_metrics = metrics.copy()
-        mode = "INVERSE" if tag_inverted else "FOLLOW"
-        region_note = f" region={active_region} macro={macro_tag}" if active_region else ""
-        target_metrics["llm_note"] = (
-            f"CLUSTER_{mode} ({target_direction.name}) conv={conviction:.1%} thr={follow_thr:.0%}{region_note} from {anchor_sym}"
-        )
-        target_metrics["decision_source"] = "cluster_regime"
-        target_metrics["llm_exec_inverted"] = tag_inverted
-        target_metrics["cluster_conviction_inverted"] = cluster_inverted
-        target_metrics["cluster_active_region"] = active_region or ""
-        target_metrics["cluster_exclusive_macro"] = exclusive
-
-        target_metrics["duration"] = enforce_minimum_duration(target_sym, target_metrics.get("duration", 15))
-
-        store_symbol_decision(decisions, target_sym, target_direction, target_metrics)
-        propagated_tags.append(f"{target_sym}[{target_direction.name[:1]}]")
-
-    if propagated_tags:
-        orch.logger.debug(
-            "[%s] CORR CLUSTER || %s [%s] >> [%s]",
-            cid,
-            anchor_sym,
-            direction.name,
-            ", ".join(propagated_tags),
-        )
-
-
 async def collect_llm_decisions(orch: Any) -> dict[str, dict]:
     """Produz mapa symbol -> {direction, metrics} usando EXCLUSIVAMENTE Gemini para a âncora."""
     runtime = resolve_llm_runtime(orch)
@@ -214,22 +129,11 @@ async def collect_llm_decisions(orch: Any) -> dict[str, dict]:
         direction = None
         metrics = llm_metrics(direction, 0.0, "LLM Timeout (Capital Preserved)")
 
-    if direction is not None and orch.config.get("llm", {}).get("invert_llm_direction"):
-        us_cluster_tag = metrics.get("us_cluster")
-        eu_cluster_tag = metrics.get("eu_cluster")
-        direction = TradeDirection.PUT if direction == TradeDirection.CALL else TradeDirection.CALL
-        metrics = llm_metrics(direction, metrics["conviction"], f"INVERTED | {metrics.get('llm_note', '')}")
-        if us_cluster_tag:
-            metrics["us_cluster"] = us_cluster_tag
-        if eu_cluster_tag:
-            metrics["eu_cluster"] = eu_cluster_tag
-        orch.logger.debug("[%s] LLM_INVERT || Sinal da âncora invertido globalmente para %s", cid, direction.name)
-
     store_symbol_decision(decisions, anchor_sym, direction, metrics)
     orch._last_anchor_metrics = metrics
 
     if direction is not None and cluster_propagation_enabled:
-        _propagate_cluster_decisions(
+        propagate_cluster_decisions(
             orch,
             anchor_sym=anchor_sym,
             direction=direction,

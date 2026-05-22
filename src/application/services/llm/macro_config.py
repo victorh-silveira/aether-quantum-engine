@@ -1,4 +1,4 @@
-"""Tipos e configuracao para confluencia macro transatlantica."""
+"""Tipos e configuracao para confluencia macro transatlantica Medallion."""
 
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ class MacroSnapshot:
 
 
 def resolve_macro_config(raw: dict[str, Any] | None) -> dict[str, Any]:
-    """Normaliza configuracao strategy.macro com defaults seguros."""
+    """Normaliza configuracao strategy.macro com defaults Medallion."""
     base = raw if isinstance(raw, dict) else {}
     fx_raw = base.get("fx_reference_pairs")
     fx_pairs = fx_raw if isinstance(fx_raw, dict) else {}
@@ -45,11 +45,7 @@ def resolve_macro_config(raw: dict[str, Any] | None) -> dict[str, Any]:
     return {
         "cluster_return_threshold_pct": float(base.get("cluster_return_threshold_pct", 0.02)),
         "min_indices_for_vote": max(1, int(base.get("min_indices_for_vote", 2))),
-        "macro_intelligence_only": bool(base.get("macro_intelligence_only", False)),
-        "divergence_blocks_execution": bool(base.get("divergence_blocks_execution", True)),
-        "divergence_max_conviction": max(0.0, min(0.99, float(base.get("divergence_max_conviction", 0.65)))),
-        "align_eurusd_with_confluence": bool(base.get("align_eurusd_with_confluence", True)),
-        "align_clusters_with_macro_vote": bool(base.get("align_clusters_with_macro_vote", True)),
+        "divergence_max_conviction": max(0.0, min(0.99, float(base.get("divergence_max_conviction", 0.99)))),
         "confluence_conviction_floor": max(0.0, min(0.99, float(base.get("confluence_conviction_floor", 0.55)))),
         "cluster_min_move_pct": max(0.0, float(base.get("cluster_min_move_pct", 0.06))),
         "cluster_granularity_seconds": max(60, int(base.get("cluster_granularity_seconds", 900))),

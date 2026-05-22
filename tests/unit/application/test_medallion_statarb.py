@@ -134,21 +134,18 @@ def test_statarb_guard_confluence_boost_call():
         TradeDirection.CALL,
         0.60,
         snap,
-        {"statarb_z_threshold": 2.5, "macro_intelligence_only": False},
+        {"statarb_z_threshold": 2.5},
         sym="OTC_GDAXI",
     )
 
-    # Conviction boosted! Normally MCS is 0.80 + 0.15*1.0 + 0.04 = 0.99
-    # The dynamic calculation: (0.60 * 0.3) + (0.99 * 0.7) = 0.873
-    # Boosted by +0.15 is capped at 0.99
-    assert conviction > 0.90
+    assert conviction > 0.60
     assert direction == TradeDirection.CALL
-    assert "STATARB_BOOST CALL" in note
+    assert "STATARB_INTEL boost CALL" in note
     assert execute_ok is True
 
 
-def test_statarb_guard_confluence_block_put():
-    """Test that undervalued StatArb spread blocks conflicting PUT direction."""
+def test_statarb_guard_intelligence_preserves_conflicting_put():
+    """StatArb em reversao nao bloqueia PUT; apenas preserva direcao LLM."""
     snap = MacroSnapshot(
         tag="risk_on",
         eurusd_bias="CALL",
@@ -170,18 +167,16 @@ def test_statarb_guard_confluence_block_put():
         TradeDirection.PUT,
         0.60,
         snap,
-        {"statarb_z_threshold": 2.5, "macro_intelligence_only": False},
+        {"statarb_z_threshold": 2.5},
         sym="OTC_GDAXI",
     )
 
-    assert direction is None
-    assert applied is True
-    assert execute_ok is False
-    assert "STATARB_BLOCK conflict PUT" in note
+    assert direction == TradeDirection.PUT
+    assert execute_ok is True
 
 
-def test_statarb_guard_confluence_trending_regime():
-    """Test that during a Trending regime (HMM State 1), extreme spreads block mean-reversion."""
+def test_statarb_guard_intelligence_trending_caution():
+    """Regime HMM tendencia penaliza conviccao sem vetar direcao."""
     snap = MacroSnapshot(
         tag="risk_on",
         eurusd_bias="CALL",
@@ -203,11 +198,12 @@ def test_statarb_guard_confluence_trending_regime():
         TradeDirection.PUT,
         0.60,
         snap,
-        {"statarb_z_threshold": 2.5, "macro_intelligence_only": False},
+        {"statarb_z_threshold": 2.5},
         sym="OTC_GDAXI",
     )
 
-    assert direction is None
+    assert direction == TradeDirection.PUT
+    assert conviction < 0.60
     assert applied is True
-    assert execute_ok is False
-    assert "STATARB_TREND_BLOCK" in note
+    assert execute_ok is True
+    assert "STATARB_INTEL trending_caution" in note

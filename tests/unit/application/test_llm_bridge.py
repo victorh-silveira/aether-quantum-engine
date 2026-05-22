@@ -5,7 +5,7 @@ import pytest
 from src.application.services.llm import llm_bridge as bridge
 from src.application.services.llm.indicators import IndicatorConfig
 from src.application.services.llm.llm_bridge import llm_metrics
-from src.application.services.llm.prompt_extras import build_trading_prompt
+from src.application.services.llm.prompt_extras import build_institutional_pa_bundle
 from src.application.services.llm.prompt_utils import (
     iter_llm_prompt_audit_sections,
 )
@@ -13,28 +13,19 @@ from src.application.services.llm.symbol_decision_utils import build_symbol_prom
 from src.domain.models.trade import TradeDirection
 
 
-def test_build_trading_prompt_template_v15_shape():
-    p = build_trading_prompt(
-        "frxEURUSD",
-        "m15 mapa",
-        "m5 filtro",
-        "m3 gatilho",
-        "M15: trend | M5: trend | M3: trend",
-        "REGIME=trend_persistente",
-        "SESSAO=ny",
-        "MICRO=x",
-        0.0123,
-        [100.0, 100.1],
-        0.88,
-        0.80,
-        1,
-        "m",
+def test_build_institutional_pa_bundle_medallion_shape():
+    p = build_institutional_pa_bundle(
+        regime_label="range",
+        entropy_swing=0.0123,
+        vol_range_pct=0.25,
+        indicators_numeric_line="H=0.55 Z=0.1",
+        cf_dual="CF_DUAL=ok",
+        line_macro_structure="macro",
+        line_swing_trigger="swing",
     )
-    assert "ATIVO: frxEURUSD" in p
-    assert "REGIME" in p
-    assert "ESTRUTURA: m15 mapa | FILTRO: m5 filtro" in p
-    assert "ALINHAMENTO: M15: trend | M5: trend | M3: trend" in p
-    assert "MEDALLION V15:" in p
+    assert "LLM_DADOS_NUM=" in p
+    assert "reg=range" in p
+    assert "CONFL_MACRO_ESTRUTURA=macro" in p
 
 
 def test_iter_llm_prompt_audit_sections_covers_blocks_sent_to_llm():
@@ -104,7 +95,7 @@ def test_build_metrics_for_decision_executes_even_on_low_conviction_sovereign():
     assert metrics["execute"] is False
 
 
-def test_build_metrics_for_decision_sovereignty_ignores_sawtooth():
+def test_build_metrics_for_decision_high_conviction_executes_with_mtf_tokens():
     runtime = {"min_conviction_execute": 0.5, "model": "m"}
     direction, metrics = bridge._build_metrics_for_decision_core(
         runtime,

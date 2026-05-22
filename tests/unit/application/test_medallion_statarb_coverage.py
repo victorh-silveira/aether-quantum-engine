@@ -89,18 +89,17 @@ def test_statarb_guard_confluence_boost_put():
         TradeDirection.PUT,
         0.60,
         snap,
-        {"statarb_z_threshold": 2.5, "macro_intelligence_only": False},
+        {"statarb_z_threshold": 2.5},
         sym="OTC_GDAXI",
     )
 
-    assert conviction > 0.90
+    assert conviction > 0.60
     assert direction == TradeDirection.PUT
-    assert "STATARB_BOOST PUT" in note
+    assert "STATARB_INTEL boost PUT" in note
     assert execute_ok is True
 
 
-def test_statarb_guard_confluence_block_call():
-    """Test that over-valued StatArb spread blocks conflicting CALL direction."""
+def test_statarb_guard_intelligence_preserves_conflicting_call():
     snap = MacroSnapshot(
         tag="risk_off",
         eurusd_bias="PUT",
@@ -122,14 +121,12 @@ def test_statarb_guard_confluence_block_call():
         TradeDirection.CALL,
         0.60,
         snap,
-        {"statarb_z_threshold": 2.5, "macro_intelligence_only": False},
+        {"statarb_z_threshold": 2.5},
         sym="OTC_GDAXI",
     )
 
-    assert direction is None
-    assert applied is True
-    assert execute_ok is False
-    assert "STATARB_BLOCK conflict CALL" in note
+    assert direction == TradeDirection.CALL
+    assert execute_ok is True
 
 
 def test_macro_snapshot_build_hmm_output():

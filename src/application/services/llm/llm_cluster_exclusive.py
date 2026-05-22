@@ -41,7 +41,7 @@ def _macro_strength(metrics: dict[str, Any], region: str) -> float:
 
 
 def resolve_exclusive_cluster_region(metrics: dict[str, Any]) -> str | None:
-    """Retorna us, eu ou None quando ambos os clusters podem propagar."""
+    """Retorna us, eu ou None quando nao ha cluster exclusivo (empate indefinido)."""
     tag = _macro_tag(metrics)
     mapped = _MACRO_TAG_REGION.get(tag)
     if mapped:
@@ -53,7 +53,6 @@ def resolve_exclusive_cluster_region(metrics: dict[str, Any]) -> str | None:
             return "us"
         if eu_s > us_s:
             return "eu"
-        return None
     return None
 
 
