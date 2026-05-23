@@ -1,6 +1,6 @@
 """Testes do coletor Gemini no backtest (sem rede)."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -58,10 +58,25 @@ async def test_collect_hft_orders_gemini_uses_llm_clusters(tmp_path):
         "us_cluster": "CALL",
         "eu_cluster": "PUT",
     }
-    with patch(
-        "scripts.backtest.gemini_collect_api.request_llm_payload",
-        new_callable=AsyncMock,
-        return_value=payload,
+    runtime = {
+        "gemini_api_key": "ci-test-key",
+        "llm_system": "",
+        "max_decision_latency_seconds": 30.0,
+    }
+
+    async def _payload_into_cache(_orch, *, anchor, runtime, cache, bar_index, cache_file):
+        cache[str(bar_index)] = payload
+        return payload
+
+    with (
+        patch(
+            "scripts.backtest.gemini_collect.resolve_llm_runtime",
+            return_value=runtime,
+        ),
+        patch(
+            "scripts.backtest.gemini_collect_api.gemini_payload_for_bar",
+            side_effect=_payload_into_cache,
+        ),
     ):
         orders, stats = await collect_hft_orders_gemini(
             config=config,
