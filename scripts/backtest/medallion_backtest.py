@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from scripts.backtest.data_loader import backtest_symbols, fetch_market_for_backtest, load_settings
+from scripts.backtest.gemini_collect import collect_hft_orders_gemini
 from scripts.backtest.hft_cycle import collect_hft_orders
 from scripts.backtest.report import build_report, print_summary, save_report
 from scripts.backtest.simulator import settle_orders, settle_orders_kelly
@@ -26,12 +27,17 @@ def _min_start_bar(config: dict[str, Any]) -> int:
     return max(need - 1, 0)
 
 
-def run_backtest(
+async def run_backtest(
     config: dict[str, Any],
     market: dict,
     *,
     stake: float | None,
     bankroll: float,
+    mode: str = "quant",
+    gemini_cache: Path | None = None,
+    max_llm_bars: int | None = None,
+    llm_bar_step: int = 5,
+    gemini_schedule: str = "tag_change",
 ) -> tuple[list, dict]:
     """Executa loop barra a barra e retorna trades liquidados."""
     m15 = market.get("m15", {})
@@ -50,18 +56,38 @@ def run_backtest(
     params = risk.get("params", {}) if isinstance(risk.get("params"), dict) else {}
     payout = float(params.get("payout_estimate", 0.95))
 
-    all_orders, hft_stats = collect_hft_orders(
-        config=config,
-        m15=m15,
-        m5=m5,
-        us_syms=us_syms,
-        eu_syms=eu_syms,
-        all_syms=all_syms,
-        anchor=anchor,
-        macro_cfg=macro_cfg if isinstance(macro_cfg, dict) else None,
-        start=start,
-        end=end,
-    )
+    if mode == "gemini":
+        all_orders, hft_stats = await collect_hft_orders_gemini(
+            config=config,
+            m15=m15,
+            m5=m5,
+            us_syms=us_syms,
+            eu_syms=eu_syms,
+            all_syms=all_syms,
+            anchor=anchor,
+            macro_cfg=macro_cfg if isinstance(macro_cfg, dict) else None,
+            start=start,
+            end=end,
+            cache_path=str(gemini_cache) if gemini_cache else None,
+            max_llm_bars=max_llm_bars,
+            llm_bar_step=llm_bar_step,
+            gemini_schedule=gemini_schedule,
+        )
+        run_mode = "gemini"
+    else:
+        all_orders, hft_stats = collect_hft_orders(
+            config=config,
+            m15=m15,
+            m5=m5,
+            us_syms=us_syms,
+            eu_syms=eu_syms,
+            all_syms=all_syms,
+            anchor=anchor,
+            macro_cfg=macro_cfg if isinstance(macro_cfg, dict) else None,
+            start=start,
+            end=end,
+        )
+        run_mode = "quant_surrogate"
 
     risk_cfg = config.get("risk_management", {})
     if stake is not None:
@@ -71,6 +97,7 @@ def run_backtest(
             stake=stake,
             payout=payout,
             bankroll_start=bankroll,
+            risk_config=risk_cfg if isinstance(risk_cfg, dict) else None,
         )
         sizing_mode = "fixed"
     else:
@@ -83,7 +110,7 @@ def run_backtest(
         )
         sizing_mode = "kelly_recovery"
     meta = {
-        "mode": "quant_surrogate",
+        "mode": run_mode,
         "sizing_mode": sizing_mode,
         "stop_win_backtest": "daily_reset",
         "bars_evaluated": end - start + 1,
@@ -98,11 +125,41 @@ def run_backtest(
 
 def parse_args() -> argparse.Namespace:
     """Argumentos da linha de comando."""
-    parser = argparse.ArgumentParser(description="Backtest Medallion M15 (quant surrogate)")
+    parser = argparse.ArgumentParser(description="Backtest Medallion M15 (quant ou Gemini)")
     parser.add_argument("--config", type=Path, default=Path("config/settings.json"))
     parser.add_argument("--output", type=Path, default=Path("data/backtest/report.json"))
     parser.add_argument("--days", type=int, default=14)
     parser.add_argument("--bars", type=int, default=None)
+    parser.add_argument(
+        "--mode",
+        choices=("quant", "gemini"),
+        default="quant",
+        help="quant=surrogate sem API; gemini=mesmo prompt/decisao do live (requer GEMINI_API_KEY).",
+    )
+    parser.add_argument(
+        "--gemini-cache",
+        type=Path,
+        default=Path("data/backtest/gemini_cache.jsonl"),
+        help="Cache JSONL de respostas por bar_index (modo gemini).",
+    )
+    parser.add_argument(
+        "--max-llm-bars",
+        type=int,
+        default=None,
+        help="Limita chamadas Gemini (util para teste de custo).",
+    )
+    parser.add_argument(
+        "--gemini-schedule",
+        choices=("daily", "tag_change", "bar"),
+        default="tag_change",
+        help="tag_change=quando macro muda (padrao); daily=1 API/dia sessao; bar=cada N velas.",
+    )
+    parser.add_argument(
+        "--llm-bar-step",
+        type=int,
+        default=5,
+        help="So com --gemini-schedule bar: consulta a cada N velas M15.",
+    )
     parser.add_argument(
         "--stake",
         type=float,
@@ -118,7 +175,18 @@ async def async_main() -> int:
     args = parse_args()
     config = load_settings(args.config)
     market = await fetch_market_for_backtest(config, days=args.days, bars=args.bars)
-    _, report = run_backtest(config, market, stake=args.stake, bankroll=args.bankroll)
+    cache_path = args.gemini_cache if args.mode == "gemini" else None
+    _, report = await run_backtest(
+        config,
+        market,
+        stake=args.stake,
+        bankroll=args.bankroll,
+        mode=args.mode,
+        gemini_cache=cache_path,
+        max_llm_bars=args.max_llm_bars,
+        llm_bar_step=args.llm_bar_step,
+        gemini_schedule=args.gemini_schedule,
+    )
     save_report(args.output, report)
     print_summary(report)
     print(f"Relatorio salvo em {args.output}")

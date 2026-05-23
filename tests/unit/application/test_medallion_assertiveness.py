@@ -117,6 +117,22 @@ def test_macro_hmm_prob_veto():
     assert "hmm_prob" in note
 
 
+def test_risk_on_veto_when_tag_not_allowed():
+    snap = _snap("risk_on")
+    _, _, _, note, ok = apply_macro_confluence_guard(
+        TradeDirection.CALL,
+        0.80,
+        snap,
+        {
+            "confluence_conviction_floor": 0.0,
+            "allowed_execute_tags": ("risk_off", "divergence_us_leads", "divergence_eu_leads"),
+        },
+        sym="OTC_NDX",
+    )
+    assert ok is False
+    assert "tag_not_allowed" in note
+
+
 def test_risk_on_and_off_weak_clusters():
     snap = _snap("risk_on", us_s=0.40, eu_s=0.42)
     _, _, _, note_on, ok_on = apply_macro_confluence_guard(

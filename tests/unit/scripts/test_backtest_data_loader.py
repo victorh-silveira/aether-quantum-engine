@@ -17,3 +17,9 @@ def test_align_series_lengths():
     assert n == 80
     assert len(m15_out["A"]) == 80
     assert m15_out["A"][0] == 20
+
+
+def test_align_series_lengths_all_empty_returns_zero():
+    m15 = {"A": [], "B": []}
+    _, _, n = _align_series_lengths(m15, {})
+    assert n == 0

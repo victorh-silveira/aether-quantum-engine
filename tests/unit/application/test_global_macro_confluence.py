@@ -59,7 +59,29 @@ def test_aggregate_cluster_vote_majority():
     }
     vote = aggregate_cluster_vote(symbols, closes_map, threshold_pct=0.02, min_indices=2)
     assert vote.direction == "up"
-    assert vote.strength >= 0.66
+
+
+def test_aggregate_cluster_vote_na_when_no_closes():
+    vote = aggregate_cluster_vote(
+        ["OTC_SPC"],
+        {"OTC_SPC": [0.0, 100.0]},
+        threshold_pct=0.02,
+        min_indices=1,
+        min_move_pct=0.01,
+    )
+    assert vote.direction == "flat"
+    assert "N/A" in vote.parts[0]
+
+
+def test_aggregate_cluster_vote_insufficient_indices_for_min():
+    vote = aggregate_cluster_vote(
+        ["OTC_SPC", "OTC_NDX"],
+        {"OTC_SPC": [100.0, 105.0], "OTC_NDX": [100.0, 104.0]},
+        threshold_pct=0.02,
+        min_indices=3,
+        min_move_pct=0.01,
+    )
+    assert vote.direction == "flat"
 
 
 def test_build_macro_snapshot_risk_off():

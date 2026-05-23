@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 from typing import Any
 
 from src.application.services.auth_manager import AuthManager
+from src.application.services.llm.strategy_clusters import resolve_cluster_lists
 from src.infrastructure.api.websocket_manager import WebSocketManager
 
 
@@ -23,29 +25,14 @@ def load_settings(path: Path) -> dict[str, Any]:
 def backtest_symbols(config: dict[str, Any]) -> tuple[list[str], list[str], list[str], str]:
     """Retorna listas US, EU, todos os simbolos e ancora."""
     strategy = config.get("strategy", {})
-    clusters = strategy.get("clusters", {}) if isinstance(strategy.get("clusters"), dict) else {}
-    us_syms = list(clusters.get("us", []))
-    eu_syms = list(clusters.get("eu", []))
+    us_syms, eu_syms = resolve_cluster_lists(strategy if isinstance(strategy, dict) else None)
     anchor = str(config.get("anchor", "frxEURUSD"))
     all_syms = list(dict.fromkeys([anchor, *us_syms, *eu_syms]))
     return us_syms, eu_syms, all_syms, anchor
 
 
-async def _fetch_closes(ws: WebSocketManager, symbol: str, granularity: int, count: int) -> list[float]:
-    """Busca fechamentos OHLC historicos via ticks_history."""
-    if count <= 0:
-        return []
-    req = {
-        "ticks_history": symbol,
-        "end": "latest",
-        "style": "candles",
-        "granularity": granularity,
-        "count": count,
-    }
-    try:
-        res = await ws.send(req)
-    except Exception:
-        return []
+def _parse_candle_closes(res: dict[str, Any] | None) -> list[float]:
+    """Extrai fechamentos de uma resposta ticks_history."""
     if not isinstance(res, dict) or res.get("error"):
         return []
     history = res.get("candles") or []
@@ -58,6 +45,38 @@ async def _fetch_closes(ws: WebSocketManager, symbol: str, granularity: int, cou
         except (KeyError, TypeError, ValueError):
             continue
     return out
+
+
+async def _fetch_closes(
+    ws: WebSocketManager,
+    symbol: str,
+    granularity: int,
+    count: int,
+    *,
+    retries: int = 3,
+) -> list[float]:
+    """Busca fechamentos OHLC historicos via ticks_history com retentativas."""
+    if count <= 0:
+        return []
+    req = {
+        "ticks_history": symbol,
+        "end": "latest",
+        "style": "candles",
+        "granularity": granularity,
+        "count": count,
+    }
+    last: list[float] = []
+    for attempt in range(max(1, retries)):
+        try:
+            res = await ws.send(req)
+        except Exception:
+            res = None
+        last = _parse_candle_closes(res if isinstance(res, dict) else None)
+        if last:
+            return last
+        if attempt + 1 < retries:
+            await asyncio.sleep(0.4 * (attempt + 1))
+    return last
 
 
 async def fetch_market_data(
@@ -80,12 +99,19 @@ async def fetch_market_data(
 
     await ws.connect()
     try:
-        await ws.send({"authorize": token})
+        auth = await ws.send({"authorize": token})
+        if isinstance(auth, dict) and auth.get("error"):
+            raise RuntimeError(f"Deriv authorize falhou: {auth.get('error')}")
         m15: dict[str, list[float]] = {}
         m5: dict[str, list[float]] = {}
         for sym in all_syms:
             m15[sym] = await _fetch_closes(ws, sym, M15_GRANULARITY, m15_bars)
             m5[sym] = await _fetch_closes(ws, sym, M5_GRANULARITY, m5_bars)
+            await asyncio.sleep(0.2)
+        for sym in [s for s in all_syms if not m15.get(s)]:
+            await asyncio.sleep(0.5)
+            m15[sym] = await _fetch_closes(ws, sym, M15_GRANULARITY, m15_bars, retries=4)
+            m5[sym] = await _fetch_closes(ws, sym, M5_GRANULARITY, m5_bars, retries=4)
     finally:
         await ws.close()
 
@@ -130,7 +156,10 @@ def _align_series_lengths(
     """Alinha todas as series M15 ao mesmo comprimento (cauda comum)."""
     if not m15:
         return m15, m5, 0
-    min_len = min(len(series) for series in m15.values() if series)
+    lengths = [len(series) for series in m15.values() if series]
+    if not lengths:
+        return m15, m5, 0
+    min_len = min(lengths)
     if min_len <= 0:
         return m15, m5, 0
     m15_out = {sym: series[-min_len:] for sym, series in m15.items()}
@@ -155,6 +184,13 @@ async def fetch_market_for_backtest(
         eval_bars = int(days) * 96
 
     m15_aligned, m5_aligned, aligned_len = _align_series_lengths(payload["m15"], payload["m5"])
+    if aligned_len <= 0:
+        empty = [sym for sym, series in payload.get("m15", {}).items() if not series]
+        raise RuntimeError(
+            "Deriv nao devolveu velas M15 suficientes para o backtest. "
+            f"Simbolos vazios ({len(empty)}): {', '.join(empty) or 'todos'}. "
+            "Aguarde 10-30s e execute novamente (rate limit da API)."
+        )
     meta = dict(payload.get("meta") or {})
     meta.update(
         {

@@ -69,7 +69,9 @@ Execução no motor: `risk_on` → cluster US; `risk_off` → cluster EU; um ín
 
 O Medallion no Aether prioriza **menos trades de maior qualidade** em vez de volume cego:
 
-- **Macro:** piso de força em `risk_on`/`risk_off`; divergência só com líder forte; `indefinido` bloqueado sem gap US/EU.
+- **Macro:** piso de força em `risk_on`/`risk_off`; divergência só com líder forte; `indefinido` bloqueado sem gap US/EU; `allowed_execute_tags` limita regimes executáveis.
+- **Simbolos:** `excluded_symbols` remove indices fracos do cluster (ex.: SPC, FTSE, NDX).
+- **LLM live:** `llm.refresh_schedule=tag_change` consulta Gemini só quando a tag macro muda (igual ao backtest).
 - **StatArb:** Z contra a direção em HMM de reversão → veto (`STATARB_VETO`); alinhamento → boost de convicção.
 - **Risco:** Kelly fracionado (`fraction`, `max_stake_pct`), recuperação limitada e **freio de drawdown** por sessão.
 

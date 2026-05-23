@@ -71,7 +71,18 @@ def resolve_macro_config(raw: dict[str, Any] | None) -> dict[str, Any]:
         ),
         "indefinido_min_strength_gap": max(0.0, float(base.get("indefinido_min_strength_gap", 0.06))),
         "assert_min_hmm_prob": max(0.0, min(1.0, float(base.get("assert_min_hmm_prob", 0.55)))),
+        "allowed_execute_tags": _normalize_execute_tags(base.get("allowed_execute_tags")),
     }
+
+
+def _normalize_execute_tags(raw: Any) -> tuple[str, ...] | None:
+    """Normaliza lista de tags permitidas para execucao LLM."""
+    if raw is None:
+        return None
+    if isinstance(raw, (list, tuple)):
+        tags = tuple(str(x).strip() for x in raw if str(x).strip())
+        return tags or None
+    return None
 
 
 def _normalize_cluster_labels(raw: dict[str, Any]) -> dict[str, list[str]]:

@@ -117,11 +117,29 @@ def settle_orders(
     bankroll_start: float = 100.0,
     risk_config: dict[str, Any] | None = None,
 ) -> SimulationResult:
-    """Liquida ordens com stake fixa (modo legado)."""
+    """Liquida ordens com stake fixa respeitando stop win diario."""
+    rm = RiskManager(risk_config or {})
+    rm.set_initial_bankroll(bankroll_start)
     bankroll = float(bankroll_start)
     equity = [bankroll]
     settled: list[SettledTrade] = []
+    skipped = 0
+    skipped_sw = 0
+    current_day: int | None = None
+    cfg = risk_config or {}
+
     for order in _sorted_orders(orders):
+        day = _simulated_session_day(order.bar_index)
+        if current_day is None or day != current_day:
+            rm.reset_daily_session(bankroll)
+            current_day = day
+
+        target = resolve_stop_win_target(cfg, rm.initial_bankroll)
+        if rm.total_session_profit >= target:
+            skipped += 1
+            skipped_sw += 1
+            continue
+
         series = m15_closes.get(order.symbol, [])
         ret = bar_return_pct(series, order.bar_index)
         if ret is None:
@@ -129,6 +147,7 @@ def settle_orders(
         won = direction_wins(order.direction, ret)
         pnl = stake * payout if won else -stake
         bankroll += pnl
+        _apply_trade_outcome(rm, order.symbol, pnl)
         equity.append(bankroll)
         settled.append(
             SettledTrade(
@@ -143,19 +162,19 @@ def settle_orders(
                 pnl=pnl,
                 stake=stake,
                 bankroll_after=bankroll,
-                session_day=_simulated_session_day(order.bar_index),
+                session_day=day,
             )
         )
     max_dd_abs, max_dd_pct = compute_max_drawdown(equity)
-    daily = build_daily_sessions(settled, bankroll_start=bankroll_start, risk_config=risk_config or {})
+    daily = build_daily_sessions(settled, bankroll_start=bankroll_start, risk_config=cfg)
     return SimulationResult(
         trades=settled,
         equity_curve=equity,
         max_drawdown_abs=max_dd_abs,
         max_drawdown_pct=max_dd_pct,
-        skipped_stake_zero=0,
+        skipped_stake_zero=skipped,
         skipped_drawdown_brake=0,
-        skipped_stop_win=0,
+        skipped_stop_win=skipped_sw,
         daily_sessions=daily,
     )
 

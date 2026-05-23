@@ -71,6 +71,7 @@
     "min_conviction_execute": 0.70,
     "min_payout_accept": 0.82,
     "model": "gemini-2.5-flash",
+    "refresh_schedule": "tag_change",
     "options": {
       "keep_alive": "60m",
       "temperature": 0.0
@@ -126,6 +127,11 @@
     "small_account_threshold": 50.0
   },
   "strategy": {
+    "excluded_symbols": [
+      "OTC_SPC",
+      "OTC_FTSE",
+      "OTC_NDX"
+    ],
     "clusters": {
       "eu": [
         "OTC_FCHI",
@@ -148,6 +154,11 @@
       "statarb_index_min_abs_z": 1.5
     },
     "macro": {
+      "allowed_execute_tags": [
+        "risk_off",
+        "divergence_us_leads",
+        "divergence_eu_leads"
+      ],
       "cluster_bars": 8,
       "cluster_fallback_bars": 12,
       "cluster_fallback_granularity_seconds": 300,
@@ -253,9 +264,6 @@
     "OTC_FCHI",
     "OTC_GDAXI",
     "OTC_SSMI",
-    "OTC_FTSE",
-    "OTC_SPC",
-    "OTC_NDX",
     "OTC_DJI"
   ],
   "trading": {

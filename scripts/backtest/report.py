@@ -116,7 +116,10 @@ def build_report(
 def print_summary(report: dict[str, Any]) -> None:
     """Imprime resumo legivel no terminal."""
     s = report["summary"]
-    print("=== Backtest Medallion M15 (quant surrogate) ===")
+    meta = report.get("meta", {})
+    mode = str(meta.get("mode", "quant_surrogate"))
+    mode_label = "Gemini (prompt live)" if mode == "gemini" else "surrogate quant"
+    print(f"=== Backtest Medallion M15 ({mode_label}) ===")
     print(f"Trades: {s['trades']} | Wins: {s['wins']} | Win rate: {s['win_rate']:.1%}")
     print(f"PnL total: {s['total_pnl']:.2f} | Profit factor: {s['profit_factor']:.2f} | ROI: {s['roi_pct']:.2f}%")
     print(f"Banca: ${s['bankroll_start']:.2f} -> ${s['bankroll_end']:.2f} | Sizing: {s['sizing_mode']}")
@@ -132,11 +135,18 @@ def print_summary(report: dict[str, Any]) -> None:
             f"Stop win diario: {s.get('stop_win_days_hit', 0)}/{s.get('simulated_days', 0)} dias"
             f" atingiram meta (+10% banca do dia em conta >= $50)"
         )
-    meta = report.get("meta", {})
-    if meta.get("window_days_requested") is not None or meta.get("m15_bars_loaded"):
+    if mode == "gemini":
+        print(
+            f"Gemini: chamadas={meta.get('gemini_llm_calls', 0)} "
+            f"pontos_agenda={meta.get('gemini_query_points', 0)} "
+            f"agenda={meta.get('gemini_schedule', 'daily')} "
+            f"falhas={meta.get('gemini_llm_failures', 0)} "
+            f"cache={meta.get('gemini_cache_path') or '-'}"
+        )
+    if meta.get("window_days_requested") is not None or meta.get("m15_bars_aligned"):
         print(
             f"Janela: --days={meta.get('window_days_requested')} "
-            f"| M15 carregadas={meta.get('m15_bars_loaded')} "
+            f"| M15 alinhadas={meta.get('m15_bars_aligned')} "
             f"| avaliadas={meta.get('bars_evaluated')}"
         )
     if s.get("signals_generated") is not None:
