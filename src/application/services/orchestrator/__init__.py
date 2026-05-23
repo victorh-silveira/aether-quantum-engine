@@ -12,6 +12,7 @@ from src.application.services.orchestrator.decision_mode_banner import emit_deci
 from src.application.services.orchestrator.execution_manager import ExecutionManager
 from src.application.services.orchestrator.settlement_backfill import reconcile_single_contract
 from src.application.services.orchestrator.settlement_logic import process_contract_settlement
+from src.application.services.orchestrator.trading_session import trading_session_allows_entry
 from src.domain.risk.risk_manager import RiskManager
 from src.infrastructure.api.websocket_manager import WebSocketManager
 from src.infrastructure.handlers.stream_handler import StreamHandler
@@ -59,6 +60,8 @@ class Orchestrator:
         self._session_losses = 0
         self._last_llm_macro_tag: str | None = None
         self._last_llm_decisions: dict[str, dict] | None = None
+        self._last_llm_refresh_epoch: float | None = None
+        self._stream_ready_at: float | None = None
 
     def _llm_enabled(self) -> bool:
         """Retorna se o modo decisao LLM esta ativo."""
@@ -128,6 +131,7 @@ class Orchestrator:
                 self.logger.debug("STRM: sincronizando velas...")
                 try:
                     await self.stream.start_candle_stream(self._on_candle)
+                    self._stream_ready_at = time.time()
                     return True
                 except ConnectionError as e:
                     if attempt >= retries:
@@ -168,6 +172,16 @@ class Orchestrator:
             return
         if self.state.active_contracts:
             self.logger.debug("CICLO: aguardando liquidacao de contratos pendentes.")
+            return
+        epoch = int(self._last_epoch or time.time())
+        ok_session, sess_note = trading_session_allows_entry(
+            epoch_utc=epoch,
+            stream_ready_at=self._stream_ready_at,
+            now_mono=time.time(),
+            config=self.config,
+        )
+        if not ok_session:
+            self.logger.debug("CICLO: %s", sess_note)
             return
         async with self.lock:
             self.is_trading = True

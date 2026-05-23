@@ -73,6 +73,9 @@ def build_report(
         for d in sim.daily_sessions
     ]
     stop_win_days = sum(1 for d in sim.daily_sessions if d.stop_win_hit)
+    runtimes = [d.runtime_minutes for d in sim.daily_sessions if d.runtime_minutes is not None]
+    median_runtime = sorted(runtimes)[len(runtimes) // 2] if runtimes else None
+    stop_win_rate = (stop_win_days / len(sim.daily_sessions)) if sim.daily_sessions else 0.0
 
     return {
         "meta": meta,
@@ -94,6 +97,8 @@ def build_report(
             "skipped_drawdown_brake": sim.skipped_drawdown_brake,
             "skipped_stop_win": sim.skipped_stop_win,
             "stop_win_days_hit": stop_win_days,
+            "stop_win_hit_rate": round(stop_win_rate, 4),
+            "median_runtime_minutes_to_stop_win": median_runtime,
             "simulated_days": len(sim.daily_sessions),
             "signals_generated": meta.get("signals_generated"),
             "bars_with_signal": meta.get("bars_with_signal"),
@@ -131,9 +136,11 @@ def print_summary(report: dict[str, Any]) -> None:
         f" (drawdown: {s.get('skipped_drawdown_brake', 0)}, stop win: {s.get('skipped_stop_win', 0)})"
     )
     if s.get("simulated_days"):
+        med = s.get("median_runtime_minutes_to_stop_win")
+        med_txt = f"{med:.0f} min" if med is not None else "-"
         print(
             f"Stop win diario: {s.get('stop_win_days_hit', 0)}/{s.get('simulated_days', 0)} dias"
-            f" atingiram meta (+10% banca do dia em conta >= $50)"
+            f" ({s.get('stop_win_hit_rate', 0):.1%}) | mediana ate meta: {med_txt}"
         )
     if mode == "gemini":
         print(

@@ -42,6 +42,19 @@ def test_kelly_respects_max_stake_pct(kelly_config):
     assert stake == 50.0
 
 
+def test_kelly_high_conviction_raises_stake_cap(kelly_config):
+    """Conviccao alta usa max_stake_pct_high_conviction quando configurado."""
+    kelly_config["kelly"]["fraction"] = 1.0
+    kelly_config["kelly"]["max_stake_pct"] = 0.02
+    kelly_config["kelly"]["max_stake_pct_high_conviction"] = 0.04
+    kelly_config["kelly"]["high_conviction_stake_threshold"] = 0.85
+    rm = RiskManager(kelly_config)
+    low = rm.calculate_stake(1000.0, "OTC_FCHI", conviction=0.7)
+    high = rm.calculate_stake(1000.0, "OTC_FCHI", conviction=0.9)
+    assert high > low
+    assert high == 40.0
+
+
 def test_kelly_dynamic_win_rate(kelly_config):
     """Verifica a ponderação do win rate dinâmico no cálculo de probabilidade."""
     rm = RiskManager(kelly_config)

@@ -4,6 +4,7 @@ import logging
 import math
 from typing import Any
 
+from src.domain.risk.entry_cooldown import resolve_entry_cooldown_ticks
 from src.domain.risk.stop_win_target import resolve_stop_win_target
 
 
@@ -24,6 +25,7 @@ class RiskManager:
         self.last_result_tick = 0
         self.base_cooldown = self.risk_params.get("entry_cooldown_ticks", 0)
         self.current_cooldown_ticks = self.base_cooldown
+        self._last_entry_conviction = 0.0
         self.consecutive_losses = 0
         self.pending_loss: dict[str, float] = {}
         self.recovery_threshold = float(self.kelly_config.get("recovery_conviction_threshold", 0.60))
@@ -130,6 +132,12 @@ class RiskManager:
         f_star = max(0.0, kelly_f * fractional_multiplier)
 
         max_pct = float(self.kelly_config.get("max_stake_pct", 0.05))
+        stake_thr = float(self.kelly_config.get("high_conviction_stake_threshold", 0.85))
+        if float(conviction) >= stake_thr:
+            max_pct = max(
+                max_pct,
+                float(self.kelly_config.get("max_stake_pct_high_conviction", max_pct)),
+            )
         base_f_star = min(f_star, max_pct)
         raw_stake = bankroll * base_f_star
 
@@ -246,9 +254,24 @@ class RiskManager:
             "current_cooldown_ticks": self.current_cooldown_ticks,
         }
 
+    def register_entry_conviction(self, conviction: float) -> None:
+        """Registra conviccao da ultima entrada para cooldown dinamico."""
+        self._last_entry_conviction = max(0.0, float(conviction))
+
+    def effective_cooldown_ticks(self) -> int:
+        """Cooldown efetivo apos cluster (dinamico por conviccao da ultima entrada)."""
+        target = resolve_entry_cooldown_ticks(self.config, self._last_entry_conviction)
+        active = int(self.current_cooldown_ticks)
+        if target <= 0:
+            return active
+        if active <= 0:
+            return target
+        return min(active, target)
+
     def is_on_cooldown(self, current_tick: int) -> bool:
         """Cooldown entre operações."""
-        if self.last_result_tick == 0 or self.current_cooldown_ticks == 0:
+        need = self.effective_cooldown_ticks()
+        if self.last_result_tick == 0 or need == 0:
             return False
         elapsed = current_tick - self.last_result_tick
-        return elapsed < self.current_cooldown_ticks
+        return elapsed < need

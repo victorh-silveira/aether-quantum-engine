@@ -6,6 +6,7 @@ from typing import Any
 
 from scripts.backtest.signal_engine import BacktestOrder, resolve_orders_at_bar
 from scripts.backtest.snapshot_engine import build_snapshot_at_bar
+from src.domain.risk.entry_cooldown import resolve_entry_cooldown_ticks
 
 
 M15_BAR_SECONDS = 900
@@ -18,11 +19,10 @@ def hft_slots_per_m15_bar(config: dict[str, Any]) -> int:
     return max(1, M15_BAR_SECONDS // cycle_iv)
 
 
-def cooldown_slots(config: dict[str, Any], *, slots_per_bar: int) -> int:
+def cooldown_slots(config: dict[str, Any], *, slots_per_bar: int, conviction: float = 0.0) -> int:
     """Converte entry_cooldown_ticks em slots HFT dentro da mesma barra M15."""
     risk = config.get("risk_management", {}) if isinstance(config.get("risk_management"), dict) else {}
-    params = risk.get("params", {}) if isinstance(risk.get("params"), dict) else {}
-    ticks = max(0, int(params.get("entry_cooldown_ticks", 0)))
+    ticks = resolve_entry_cooldown_ticks(risk, conviction)
     if ticks <= 0:
         return 0
     return min(slots_per_bar, ticks)
@@ -43,7 +43,7 @@ def collect_hft_orders(
 ) -> tuple[list[BacktestOrder], dict[str, Any]]:
     """Varre cada slot HFT por vela M15; no maximo 1 entrada por vela (contrato 15m)."""
     slots = hft_slots_per_m15_bar(config)
-    cool = cooldown_slots(config, slots_per_bar=slots)
+    cool = 0
 
     orders: list[BacktestOrder] = []
     bars_with_signal = 0
@@ -71,6 +71,7 @@ def collect_hft_orders(
         if not bar_orders:
             continue
         bars_with_signal += 1
+        cool = cooldown_slots(config, slots_per_bar=slots, conviction=float(bar_orders[0].conviction))
         base_slot = bar_index * slots
         for slot in range(slots):
             global_slot = base_slot + slot
