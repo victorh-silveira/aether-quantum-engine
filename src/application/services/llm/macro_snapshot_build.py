@@ -16,6 +16,15 @@ from src.application.services.llm.global_macro_confluence import (
 from src.application.services.llm.macro_config import ClusterVote, MacroSnapshot, resolve_macro_config
 
 
+def _effective_min_indices(cfg_min: int, symbols: list[str]) -> int:
+    """Reduz min_indices quando o cluster ativo tem menos indices que o piso configurado."""
+    floor = max(1, int(cfg_min))
+    n = len(symbols)
+    if n <= 0:
+        return floor
+    return max(1, min(floor, n))
+
+
 def macro_snapshot_from_votes(
     us_vote: ClusterVote,
     eu_vote: ClusterVote,
@@ -108,13 +117,15 @@ def build_macro_snapshot(
     threshold = float(cfg["cluster_return_threshold_pct"])
     min_move = float(cfg["cluster_min_move_pct"])
     min_idx = int(cfg["min_indices_for_vote"])
+    min_idx_us = _effective_min_indices(min_idx, us_symbols)
+    min_idx_eu = _effective_min_indices(min_idx, eu_symbols)
     label_bundle = {"cluster_labels": cfg.get("cluster_labels", {})}
 
     us_vote = aggregate_cluster_vote(
         us_symbols,
         closes_map,
         threshold_pct=threshold,
-        min_indices=min_idx,
+        min_indices=min_idx_us,
         labels=label_bundle,
         region="us",
         min_move_pct=min_move,
@@ -123,7 +134,7 @@ def build_macro_snapshot(
         eu_symbols,
         closes_map,
         threshold_pct=threshold,
-        min_indices=min_idx,
+        min_indices=min_idx_eu,
         labels=label_bundle,
         region="eu",
         min_move_pct=min_move,
@@ -152,6 +163,8 @@ def apply_m5_fallback_to_snapshot(
         return snapshot
     threshold = float(cfg["cluster_return_threshold_pct"])
     min_idx = int(cfg["min_indices_for_vote"])
+    min_idx_us = _effective_min_indices(min_idx, us_symbols)
+    min_idx_eu = _effective_min_indices(min_idx, eu_symbols)
     min_move_fb = float(cfg["cluster_fallback_min_move_pct"])
     label_bundle = {"cluster_labels": cfg.get("cluster_labels", {})}
 
@@ -164,7 +177,7 @@ def apply_m5_fallback_to_snapshot(
             us_symbols,
             fallback_closes,
             threshold_pct=threshold,
-            min_indices=min_idx,
+            min_indices=min_idx_us,
             labels=label_bundle,
             region="us",
             min_move_pct=min_move_fb,
@@ -177,7 +190,7 @@ def apply_m5_fallback_to_snapshot(
             eu_symbols,
             fallback_closes,
             threshold_pct=threshold,
-            min_indices=min_idx,
+            min_indices=min_idx_eu,
             labels=label_bundle,
             region="eu",
             min_move_pct=min_move_fb,

@@ -19,6 +19,7 @@ from src.application.services.llm.medallion_statarb import (
     MarketHMMClassifier,
     compute_pca_cointegration_zscores,
 )
+from src.application.services.llm.strategy_clusters import resolve_cluster_lists
 
 
 def _stream_fetch_is_async(orch: Any) -> bool:
@@ -38,9 +39,12 @@ async def fetch_macro_snapshot(orch: Any, runtime: dict[str, Any]) -> MacroSnaps
 
     try:
         strategy = orch.config.get("strategy", {}) if hasattr(orch, "config") and isinstance(orch.config, dict) else {}
-        clusters = strategy.get("clusters", {}) if isinstance(strategy.get("clusters"), dict) else {}
-        us_symbols = list(clusters.get("us", ["OTC_SPC", "OTC_NDX", "OTC_DJI"]))
-        eu_symbols = list(clusters.get("eu", ["OTC_FCHI", "OTC_GDAXI", "OTC_FTSE"]))
+        clusters = strategy.get("clusters") if isinstance(strategy.get("clusters"), dict) else None
+        if clusters is not None:
+            us_symbols, eu_symbols = resolve_cluster_lists(strategy if isinstance(strategy, dict) else None)
+        else:
+            us_symbols = ["OTC_NDX", "OTC_DJI"]
+            eu_symbols = ["OTC_FCHI", "OTC_GDAXI", "OTC_FTSE"]
         macro_cfg = strategy.get("macro")
         cfg = resolve_macro_config(macro_cfg if isinstance(macro_cfg, dict) else None)
         swing_gran = int(cfg.get("cluster_granularity_seconds", runtime.get("tf_swing_gran", 900)))

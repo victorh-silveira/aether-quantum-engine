@@ -71,12 +71,26 @@ O sistema utiliza logs de alta densidade para auditoria em tempo real:
 
 ## Backtest Medallion (M15)
 
-Backtest walk-forward do pipeline quantitativo Medallion (macro, HMM, StatArb PCA, cluster exclusivo, selecao de indice). Usa **surrogate quant** para `US_CLUSTER` / `EU_CLUSTER` (sem chamadas Gemini).
+Backtest walk-forward do pipeline Medallion (macro, HMM, StatArb PCA, cluster exclusivo, selecao de indice).
 
-Pre-requisitos: token Deriv no `.env` (`AETHER_DEMO_TOKEN` ou `AETHER_LIVE_TOKEN`).
+Pre-requisitos: token Deriv no `.env` (`AETHER_DEMO_TOKEN` ou `AETHER_LIVE_TOKEN`). Modo Gemini exige tambem `GEMINI_API_KEY`.
+
+**Surrogate quant** (rapido, sem API):
 
 ```bash
 python -m scripts.backtest.medallion_backtest --days 14 --output data/backtest/report.json
 ```
 
-Cada execucao faz **download fresco** na Deriv (sem cache). Banca **$100**, Kelly + recuperacao, **stop win diario** (10% da banca do dia) e **runtime simulado** ate a meta (1 vela M15 = 15 min, ex.: 2 velas = 30m). Guardrails assertivos iguais ao live. Flags: `--days`, `--bars N`, `--bankroll`, `--stake` (fixa opcional).
+**Gemini** (mesmo `build_symbol_prompt` e guardrails do live; 1 chamada por barra M15):
+
+```bash
+python -m scripts.backtest.medallion_backtest --mode gemini --days 14 --output data/backtest/report_gemini.json
+```
+
+Padrao: **`--gemini-schedule tag_change`** = consulta Gemini quando a tag macro muda (evita sinal desatualizado no dia). Use `--gemini-schedule daily` para 1 chamada por dia de sessao (~4 consultas em 14 dias).
+
+Outros modos: `--gemini-schedule bar --llm-bar-step 5` (cada N velas). Cache em `data/backtest/gemini_cache.jsonl` grava incrementalmente.
+
+Filtros assertivos em `config/settings.json`: `strategy.excluded_symbols` (SPC, FTSE, NDX), `strategy.macro.allowed_execute_tags` (risk_off e divergencias). Live: `llm.refresh_schedule=tag_change` (padrao) reutiliza decisao Gemini enquanto a tag macro nao mudar.
+
+Cada execucao faz **download fresco** na Deriv (sem cache de mercado). Banca **$100**, Kelly + recuperacao, **stop win diario** e **runtime simulado** ate a meta. Flags: `--days`, `--bars N`, `--bankroll`, `--stake`, `--mode quant|gemini`.

@@ -16,6 +16,7 @@ from src.application.services.llm.llm_cluster_exclusive import (
     exclusive_cluster_by_macro_enabled,
     resolve_exclusive_cluster_region,
 )
+from src.application.services.llm.strategy_clusters import resolve_cluster_lists
 from src.domain.models.trade import TradeDirection
 
 
@@ -28,11 +29,12 @@ def _strategy_blocks(orch: Any) -> tuple[dict[str, Any], dict[str, Any], dict[st
 
 
 def _cluster_targets(strategy: dict[str, Any]) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    """Resolve listas de simbolos US e EU com defaults Medallion."""
-    clusters = strategy.get("clusters", {}) if isinstance(strategy.get("clusters"), dict) else {}
-    us_targets = tuple(clusters.get("us", ("OTC_SPC", "OTC_NDX", "OTC_DJI")))
-    eu_targets = tuple(clusters.get("eu", ("OTC_FCHI", "OTC_GDAXI", "OTC_SSMI", "OTC_FTSE")))
-    return us_targets, eu_targets
+    """Resolve listas de simbolos US e EU; defaults apenas se clusters ausente."""
+    clusters = strategy.get("clusters") if isinstance(strategy.get("clusters"), dict) else None
+    if clusters is not None:
+        us_targets, eu_targets = resolve_cluster_lists(strategy)
+        return tuple(us_targets), tuple(eu_targets)
+    return ("OTC_NDX", "OTC_DJI"), ("OTC_FCHI", "OTC_GDAXI", "OTC_SSMI", "OTC_FTSE")
 
 
 def _cluster_allowed_sets(

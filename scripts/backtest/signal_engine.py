@@ -127,7 +127,7 @@ def _try_order(
     )
 
 
-def resolve_orders_at_bar(
+def resolve_orders_from_cluster_tags(
     *,
     bar_index: int,
     snapshot: MacroSnapshot,
@@ -136,8 +136,11 @@ def resolve_orders_at_bar(
     eu_symbols: list[str],
     all_symbols: list[str],
     anchor: str,
+    us_tag: str | None,
+    eu_tag: str | None,
+    conviction: float,
 ) -> list[BacktestOrder]:
-    """Gera ordens do ciclo Medallion na barra (sem EURUSD)."""
+    """Gera ordens a partir de tags US/EU (LLM ou surrogate quant)."""
     strategy = config.get("strategy", {})
     corr_cfg = strategy.get("correlation") if isinstance(strategy.get("correlation"), dict) else {}
     macro_cfg = strategy.get("macro") if isinstance(strategy.get("macro"), dict) else {}
@@ -146,8 +149,6 @@ def resolve_orders_at_bar(
 
     us_targets = tuple(us_symbols)
     eu_targets = tuple(eu_symbols)
-    us_tag, eu_tag = derive_quant_cluster_tags(snapshot, macro_cfg)
-
     metrics: dict[str, Any] = {
         "macro_sentiment": snapshot.tag,
         "macro_confluence_tag": snapshot.tag,
@@ -158,7 +159,7 @@ def resolve_orders_at_bar(
         "statarb_spreads": dict(snapshot.statarb_spreads or {}),
         "hmm_state": int(snapshot.hmm_state),
         "hmm_prob": float(snapshot.hmm_prob),
-        "conviction": _base_conviction(snapshot),
+        "conviction": conviction,
     }
 
     exclusive = _exclusive_enabled(config)
@@ -209,3 +210,30 @@ def resolve_orders_at_bar(
         if order is not None:
             return [order]
     return []
+
+
+def resolve_orders_at_bar(
+    *,
+    bar_index: int,
+    snapshot: MacroSnapshot,
+    config: dict[str, Any],
+    us_symbols: list[str],
+    eu_symbols: list[str],
+    all_symbols: list[str],
+    anchor: str,
+) -> list[BacktestOrder]:
+    """Gera ordens do ciclo Medallion na barra (surrogate quant, sem EURUSD)."""
+    macro_cfg = config.get("strategy", {}).get("macro") if isinstance(config.get("strategy"), dict) else {}
+    us_tag, eu_tag = derive_quant_cluster_tags(snapshot, macro_cfg if isinstance(macro_cfg, dict) else None)
+    return resolve_orders_from_cluster_tags(
+        bar_index=bar_index,
+        snapshot=snapshot,
+        config=config,
+        us_symbols=us_symbols,
+        eu_symbols=eu_symbols,
+        all_symbols=all_symbols,
+        anchor=anchor,
+        us_tag=us_tag,
+        eu_tag=eu_tag,
+        conviction=_base_conviction(snapshot),
+    )

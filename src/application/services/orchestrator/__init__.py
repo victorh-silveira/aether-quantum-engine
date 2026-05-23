@@ -57,6 +57,8 @@ class Orchestrator:
         self._last_result_cycle_id = 0
         self._session_wins = 0
         self._session_losses = 0
+        self._last_llm_macro_tag: str | None = None
+        self._last_llm_decisions: dict[str, dict] | None = None
 
     def _llm_enabled(self) -> bool:
         """Retorna se o modo decisao LLM esta ativo."""

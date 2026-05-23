@@ -5,8 +5,25 @@ import pytest
 from src.application.services.llm.indicators import IndicatorConfig
 from src.application.services.llm.llm_bridge import collect_llm_decisions
 from src.application.services.llm.llm_bridge_utils import parse_llm_trade_response
+from src.application.services.llm.macro_config import MacroSnapshot
 from src.application.services.llm.symbol_decision_utils import build_symbol_prompt
 from src.domain.models.trade import TradeDirection
+
+
+def _risk_off_snapshot() -> MacroSnapshot:
+    return MacroSnapshot(
+        us_dir="down",
+        eu_dir="down",
+        us_strength=0.9,
+        eu_strength=0.88,
+        tag="risk_off",
+        eurusd_bias="PUT",
+        cluster_status="",
+        macro_block="",
+        fx_reference_line="",
+        us_parts=("SPC: 105.00 (FALL -5.00%)",),
+        eu_parts=("FCHI: 95.00 (FALL -5.00%)",),
+    )
 
 
 @pytest.mark.asyncio
@@ -16,13 +33,16 @@ async def test_collect_llm_decisions_with_dynamic_cluster_regime():
     orch.anchor = "frxEURUSD"
     orch.symbols = ["frxEURUSD", "OTC_SPC", "OTC_FCHI"]
     orch._active_cycle_id = 1
+    orch._last_llm_macro_tag = None
+    orch._last_llm_decisions = None
     orch.config = {
         "strategy": {
+            "clusters": {"us": ["OTC_SPC"], "eu": ["OTC_FCHI"]},
             "correlation": {
                 "enabled": True,
                 "exclusive_cluster_by_macro": False,
                 "targets": {"OTC_SPC": 1.0, "OTC_FCHI": 1.0},
-            }
+            },
         },
         "llm": {"max_decision_latency_seconds": 10},
     }
@@ -34,20 +54,28 @@ async def test_collect_llm_decisions_with_dynamic_cluster_regime():
         "llm_note": "Morphological Regime",
         "us_cluster": "PUT",
         "eu_cluster": "CALL",
+        "macro_sentiment": "risk_off",
     }
 
-    with patch("src.application.services.llm.llm_bridge._collect_symbol_decision", new_callable=AsyncMock) as mock_dec:
-        mock_dec.return_value = (TradeDirection.PUT, metrics_anchor)
+    with patch(
+        "src.application.services.llm.llm_bridge.fetch_macro_snapshot",
+        new_callable=AsyncMock,
+        return_value=_risk_off_snapshot(),
+    ):
+        with patch(
+            "src.application.services.llm.llm_bridge._collect_symbol_decision", new_callable=AsyncMock
+        ) as mock_dec:
+            mock_dec.return_value = (TradeDirection.PUT, metrics_anchor)
 
-        decisions = await collect_llm_decisions(orch)
+            decisions = await collect_llm_decisions(orch)
 
-        assert decisions["frxEURUSD"]["direction"] == TradeDirection.PUT
+            assert decisions["frxEURUSD"]["direction"] == TradeDirection.PUT
 
-        assert decisions["OTC_SPC"]["direction"] == TradeDirection.PUT
-        assert decisions["OTC_SPC"]["metrics"]["decision_source"] == "cluster_regime"
+            assert decisions["OTC_SPC"]["direction"] == TradeDirection.PUT
+            assert decisions["OTC_SPC"]["metrics"]["decision_source"] == "cluster_regime"
 
-        assert decisions["OTC_FCHI"]["direction"] == TradeDirection.CALL
-        assert decisions["OTC_FCHI"]["metrics"]["decision_source"] == "cluster_regime"
+            assert decisions["OTC_FCHI"]["direction"] == TradeDirection.CALL
+            assert decisions["OTC_FCHI"]["metrics"]["decision_source"] == "cluster_regime"
         assert "CLUSTER_TAG" in decisions["OTC_FCHI"]["metrics"]["llm_note"]
 
 
@@ -191,4 +219,4 @@ async def test_build_symbol_prompt_clusters_dict_and_non_dict_coverage():
         )
 
         prompt, _, _, _, _, _, _, _, _, _, _, _, _ = await build_symbol_prompt(orch_non_dict, "frxEURUSD", runtime)
-        assert "SPC:" in prompt
+        assert "NDX:" in prompt or "DJI:" in prompt

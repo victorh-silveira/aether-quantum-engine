@@ -12,10 +12,16 @@ from src.application.services.llm.llm_bridge_telemetry import (
     store_symbol_decision,
 )
 from src.application.services.llm.llm_cluster_propagate import propagate_cluster_decisions
+from src.application.services.llm.llm_refresh_policy import (
+    macro_tag_allows_llm_call,
+    resolve_llm_refresh_schedule,
+    should_refresh_llm_decision,
+)
 from src.application.services.llm.llm_symbol_io import (
     last_reference_price as _last_reference_price,
     request_llm_payload as _request_payload_core,
 )
+from src.application.services.llm.macro_snapshot_fetch import fetch_macro_snapshot
 from src.application.services.llm.symbol_decision import collect_symbol_llm_decision
 from src.application.services.llm.symbol_decision_utils import decision_from_payload as _decision_from_payload
 from src.domain.models.trade import TradeDirection
@@ -115,6 +121,34 @@ async def collect_llm_decisions(orch: Any) -> dict[str, dict]:
 
     budget = float(runtime["max_decision_latency_seconds"])
     cid = f"C{int(orch._active_cycle_id):04d}"
+    schedule = resolve_llm_refresh_schedule(orch.config)
+
+    macro_snapshot = await fetch_macro_snapshot(orch, runtime)
+    strategy = orch.config.get("strategy", {}) if isinstance(orch.config.get("strategy"), dict) else {}
+    macro_cfg = strategy.get("macro") if isinstance(strategy.get("macro"), dict) else {}
+
+    macro_ok, skip_note = macro_tag_allows_llm_call(macro_snapshot, macro_cfg)
+    if not macro_ok:
+        metrics = llm_metrics(None, 0.0, skip_note)
+        metrics["macro_sentiment"] = macro_snapshot.tag
+        metrics["macro_confluence_tag"] = macro_snapshot.tag
+        store_symbol_decision(decisions, anchor_sym, None, metrics)
+        orch._last_anchor_metrics = metrics
+        orch._last_llm_macro_tag = macro_snapshot.tag
+        orch._last_llm_decisions = dict(decisions)
+        orch.logger.info("[%s] LLM_REFRESH skip (%s)", cid, skip_note)
+        return decisions
+
+    last_tag = getattr(orch, "_last_llm_macro_tag", None)
+    cached = getattr(orch, "_last_llm_decisions", None)
+    if not should_refresh_llm_decision(
+        schedule=schedule,
+        current_tag=macro_snapshot.tag,
+        last_tag=last_tag,
+        has_cached_decisions=isinstance(cached, dict) and bool(cached),
+    ):
+        orch.logger.debug("[%s] LLM_REFRESH cache tag=%s agenda=%s", cid, macro_snapshot.tag, schedule)
+        return dict(cached)
 
     try:
         orch.logger.debug("[%s] LLM_CORR || Consultando âncora: %s", cid, anchor_sym)
@@ -142,4 +176,6 @@ async def collect_llm_decisions(orch: Any) -> dict[str, dict]:
             cid=cid,
         )
 
+    orch._last_llm_macro_tag = macro_snapshot.tag
+    orch._last_llm_decisions = dict(decisions)
     return decisions

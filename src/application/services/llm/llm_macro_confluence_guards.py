@@ -117,6 +117,11 @@ def _macro_tag_allows_execute(
     hmm_min = float(cfg.get("assert_min_hmm_prob", 0.0))
     allowed = False
 
+    allowed_tags = cfg.get("allowed_execute_tags")
+    if allowed_tags and tag not in allowed_tags:
+        notes.append(f"MACRO_VETO tag_not_allowed={tag}")
+        return False, notes
+
     if float(getattr(snapshot, "hmm_prob", 1.0)) < hmm_min:
         notes.append(f"MACRO_VETO hmm_prob<{hmm_min:.2f}")
     elif tag == "risk_on":
