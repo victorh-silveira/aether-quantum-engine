@@ -9,7 +9,9 @@
 
 Motor quantitativo assíncrono no framework **Medallion** (estilo Renaissance Technologies): o mercado é um sistema de **sinais ruidosos**, não narrativas macro. O par **`frxEURUSD`** atua como marcapasso de liquidez global; índices US e EU são alvo preditivo em horizonte de **15 minutos**, com modelos **HMM**, **StatArb PCA** e decisão via **Google Gemini** com guardrails quantitativos.
 
-Documentação: [metodologia](docs/medallion.md) | [arquitetura](docs/arquitetura.md)
+Documentação: [metodologia](docs/medallion.md) | [arquitetura](docs/arquitetura.md) | [estrutura do repo](docs/structure.md)
+
+Layout: `app/` (codigo e testes), `config/`, `docs/`, `linters/` (pre-commit e release). Ver [docs/structure.md](docs/structure.md).
 
 ---
 
@@ -64,10 +66,10 @@ O sistema utiliza logs de alta densidade para auditoria em tempo real:
 
 ## Execução
 
-1. Clone e configure o `.env` (tokens Deriv e `GEMINI_API_KEY`).
-2. Instale dependências: `pip install -r requirements.txt`.
-3. Inicie o motor: `python run.py`.
-4. Monitor em tempo real (opcional): `python -m scripts.monitor.live_monitor` ou `scripts\batch\launch-all-live.bat`.
+1. Clone e configure o `.env` na raiz (tokens Deriv e `GEMINI_API_KEY`).
+2. Instale dependências: `make install` ou `pip install -r app/requirements.txt -r app/requirements-dev.txt`.
+3. Inicie o motor: `python run.py` ou `python app/run.py`.
+4. Monitor (opcional): `python app/scripts/monitor/live_monitor.py` ou `app\scripts\batch\launch-all-live.bat`.
 
 ## Backtest Medallion (M15)
 
@@ -78,13 +80,13 @@ Pre-requisitos: token Deriv no `.env` (`AETHER_DEMO_TOKEN` ou `AETHER_LIVE_TOKEN
 **Surrogate quant** (rapido, sem API):
 
 ```bash
-python -m scripts.backtest.medallion_backtest --days 14 --output data/backtest/report.json
+python app/scripts/backtest/medallion_backtest.py --days 14 --output data/backtest/report.json
 ```
 
 **Gemini** (mesmo `build_symbol_prompt` e guardrails do live; 1 chamada por barra M15):
 
 ```bash
-python -m scripts.backtest.medallion_backtest --mode gemini --days 14 --output data/backtest/report_gemini.json
+python app/scripts/backtest/medallion_backtest.py --mode gemini --days 14 --output data/backtest/report_gemini.json
 ```
 
 Padrao: **`--gemini-schedule tag_change`** = consulta Gemini quando a tag macro muda (evita sinal desatualizado no dia). Use `--gemini-schedule daily` para 1 chamada por dia de sessao (~4 consultas em 14 dias).

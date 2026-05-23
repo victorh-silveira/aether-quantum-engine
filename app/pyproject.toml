@@ -2,7 +2,7 @@
 name = "aether-quantum-engine"
 version = "0.0.0"
 description = "Motor asyncio Deriv Rise/Fall: modo CALL/PUT simples ou decisao via LLM (Google Gemini)."
-readme = "README.md"
+readme = "../README.md"
 requires-python = ">=3.14,<4"
 
 [tool.ruff]
@@ -133,5 +133,5 @@ exclude = []
 ignore_decorators = []
 ignore_names = []
 min_confidence = 70
-paths = ["src", "run.py", "scripts"]
+paths = ["src", "run.py", "scripts", "aether_paths.py"]
 

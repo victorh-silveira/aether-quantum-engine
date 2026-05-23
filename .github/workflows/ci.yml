@@ -6,17 +6,13 @@ on:
 
     paths:
       - ".github/**"
-      - ".python-version"
       - ".pre-commit-config.yaml"
+      - "linters/**"
+      - "Makefile"
       - "README.md"
       - "docs/**"
       - "config/**"
-      - "pyproject.toml"
-      - "requirements*.txt"
-      - "src/**"
-      - "scripts/**"
-      - "tests/**"
-      - "tools/**"
+      - "app/**"
       - "run.py"
 
   workflow_dispatch:

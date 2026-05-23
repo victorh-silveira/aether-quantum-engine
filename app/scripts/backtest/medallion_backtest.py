@@ -7,6 +7,7 @@ import asyncio
 from pathlib import Path
 from typing import Any
 
+from aether_paths import repo_path
 from scripts.backtest.data_loader import backtest_symbols, fetch_market_for_backtest, load_settings
 from scripts.backtest.gemini_collect import collect_hft_orders_gemini
 from scripts.backtest.hft_cycle import collect_hft_orders
@@ -126,7 +127,7 @@ async def run_backtest(
 def parse_args() -> argparse.Namespace:
     """Argumentos da linha de comando."""
     parser = argparse.ArgumentParser(description="Backtest Medallion M15 (quant ou Gemini)")
-    parser.add_argument("--config", type=Path, default=Path("config/settings.json"))
+    parser.add_argument("--config", type=Path, default=repo_path("config", "settings.json"))
     parser.add_argument("--output", type=Path, default=Path("data/backtest/report.json"))
     parser.add_argument("--days", type=int, default=14)
     parser.add_argument("--bars", type=int, default=None)

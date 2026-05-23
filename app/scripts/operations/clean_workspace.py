@@ -1,8 +1,17 @@
 import argparse
+import os
 import shutil
 import subprocess  # nosec
 import sys
 from pathlib import Path
+
+
+APP_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = APP_ROOT.parent
+
+
+def _use_app_cwd() -> None:
+    os.chdir(APP_ROOT)
 
 
 def run_tool(module, args, description):
@@ -36,10 +45,9 @@ def stage_lint():
 
 def stage_structure(max_lines=300):
     print(f"\n>>> Executando: Verificação Estrutural (Max {max_lines} linhas)")
-    root = Path()
     violations = []
 
-    for path in root.rglob("*.py"):
+    for path in APP_ROOT.rglob("*.py"):
         if ".venv" in path.parts or "venv" in path.parts or ".git" in path.parts:
             continue
 
@@ -74,7 +82,6 @@ def stage_security():
 
 def stage_clean():
     print("\n>>> Running: Limpeza de lixo e caches")
-    root = Path()
 
     def safe_remove(p: Path):
         try:
@@ -87,26 +94,23 @@ def stage_clean():
         except Exception as e:
             print(f"Erro ao remover {p}: {e}")
 
-    for path in root.rglob("__pycache__"):
-        if path.is_dir():
-            safe_remove(path)
-
-    for ext in ("*.pyc", "*.pyo", "*.pyd"):
-        for path in root.rglob(ext):
-            if path.is_file():
+    for scan_root in (APP_ROOT, REPO_ROOT):
+        for path in scan_root.rglob("__pycache__"):
+            if path.is_dir():
                 safe_remove(path)
 
-    for name in (
-        ".pytest_cache",
-        ".ruff_cache",
-        ".coverage",
-        "htmlcov",
-        "data",
-        "logs",
-        "dist",
-        "build",
-    ):
-        p = root / name
+        for ext in ("*.pyc", "*.pyo", "*.pyd"):
+            for path in scan_root.rglob(ext):
+                if path.is_file():
+                    safe_remove(path)
+
+    for name in (".pytest_cache", ".ruff_cache", ".coverage", "htmlcov", "dist", "build"):
+        p = APP_ROOT / name
+        if p.exists():
+            safe_remove(p)
+
+    for name in ("data", "logs"):
+        p = REPO_ROOT / name
         if p.exists():
             safe_remove(p)
 
@@ -122,6 +126,7 @@ def main():
     parser.add_argument("--coverage-fail-under", type=int, default=100, help="Minimum coverage percentage")
 
     args = parser.parse_args()
+    _use_app_cwd()
 
     if args.stage == "lint":
         stage_lint()

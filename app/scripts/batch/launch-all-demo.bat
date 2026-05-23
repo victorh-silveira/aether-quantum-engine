@@ -32,7 +32,7 @@ start "AETHER MONITOR" cmd /k "call "%CONDA_ACTIVATE%" %ENV_NAME% && python -m s
 timeout /t 3 /nobreak > nul
 
 :: 2. Inicia o bot em MODO DEMO (symbols em config/settings.json)
-start "AETHER DEMO" cmd /k "call "%CONDA_ACTIVATE%" %ENV_NAME% && python run.py"
+start "AETHER DEMO" cmd /k "call "%CONDA_ACTIVATE%" %ENV_NAME% && python app\run.py"
 
 echo [OK] Robotica e Monitor (DEMO) em execucao.
 timeout /t 3 /nobreak > nul
