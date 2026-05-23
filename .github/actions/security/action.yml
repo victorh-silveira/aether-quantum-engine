@@ -8,14 +8,17 @@ runs:
     - name: Configurar Python (.python-version)
       uses: actions/setup-python@v5
       with:
-        python-version-file: .python-version
+        python-version-file: app/.python-version
         cache: pip
+        cache-dependency-path: |
+          app/requirements.txt
+          app/requirements-dev.txt
 
     - name: Instalar ferramentas e dependências do projeto
       shell: bash
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt -r requirements-dev.txt
+        pip install -r app/requirements.txt -r app/requirements-dev.txt
         GITLEAKS_VERSION="8.24.2"
         curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" -o /tmp/gitleaks.tar.gz
         tar -xzf /tmp/gitleaks.tar.gz -C /tmp
@@ -24,7 +27,7 @@ runs:
 
     - name: Clean workspace — segurança
       shell: bash
-      run: python scripts/operations/clean_workspace.py --stage security
+      run: python app/scripts/operations/clean_workspace.py --stage security
 
     - name: Gitleaks — vazamento de segredos no repositório
       shell: bash

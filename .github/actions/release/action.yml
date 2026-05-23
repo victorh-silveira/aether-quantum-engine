@@ -1,5 +1,5 @@
 name: Release semântico
-description: semantic-release (tools/releaserc.json) — versao, docs/CHANGELOG.md, GitHub Release
+description: semantic-release (linters/releaserc.json) — versao, docs/CHANGELOG.md, GitHub Release
 
 inputs:
   github_token:
@@ -35,4 +35,4 @@ runs:
       run: |
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
-        npx --no-install semantic-release --extends ./tools/releaserc.json
+        npx --no-install semantic-release --extends ./linters/releaserc.json

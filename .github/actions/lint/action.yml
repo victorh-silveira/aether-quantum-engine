@@ -8,15 +8,18 @@ runs:
     - name: Configurar Python (.python-version)
       uses: actions/setup-python@v5
       with:
-        python-version-file: .python-version
+        python-version-file: app/.python-version
         cache: pip
+        cache-dependency-path: |
+          app/requirements.txt
+          app/requirements-dev.txt
 
     - name: Instalar dependências (runtime e dev)
       shell: bash
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt -r requirements-dev.txt
+        pip install -r app/requirements.txt -r app/requirements-dev.txt
 
     - name: Clean workspace — lint
       shell: bash
-      run: python scripts/operations/clean_workspace.py --stage lint
+      run: python app/scripts/operations/clean_workspace.py --stage lint

@@ -136,7 +136,7 @@ flowchart TB
 
 ### 3.1 Bootstrap e conectividade
 
-1. `run.py` carrega `config/settings.json`, autentica via `AuthManager`, instancia `Orchestrator`.
+1. `app/run.py` carrega `config/settings.json`, autentica via `AuthManager`, instancia `Orchestrator`.
 2. `WebSocketManager` mantém túnel Deriv com keep-alive.
 3. `StreamHandler` mantém buffers circulares multi-timeframe (D1, H4, H1, M15, M5, M1).
 
@@ -247,9 +247,9 @@ Implementação: `cluster_statarb_select.py`. HMM em tendência (`1`) reduz o pe
 
 ## 7. Observabilidade
 
-Dashboard Rich em `scripts/monitor/` (`live_monitor.py`, `monitor_ui.py`): lê `logs/engine.log` e `data/state.json` em tempo real. Utilitários de CI e diagnóstico permanecem em `scripts/operations/` (`clean_workspace.py`, `gemini_ping.py`).
+Dashboard Rich em `app/scripts/monitor/` (`live_monitor.py`, `monitor_ui.py`): lê `logs/engine.log` e `data/state.json` em tempo real. Utilitários de CI e diagnóstico permanecem em `app/scripts/operations/` (`clean_workspace.py`, `gemini_ping.py`).
 
-Backtest walk-forward M15 em `scripts/backtest/` (`medallion_backtest.py`): reutiliza `build_macro_snapshot`, HMM, StatArb PCA, exclusividade regional e `cluster_statarb_select`. Modo **quant surrogate** (sem Gemini). Cada run baixa OHLC na Deriv (**sem cache**). PnL com RISE_FALL 15m; banca $100, Kelly + recuperacao, stop win diario e **runtime simulado** ate a meta (velas M15 x 15 min, como sessao ao vivo).
+Backtest walk-forward M15 em `app/scripts/backtest/` (`medallion_backtest.py`): reutiliza `build_macro_snapshot`, HMM, StatArb PCA, exclusividade regional e `cluster_statarb_select`. Modo **quant surrogate** (sem Gemini). Cada run baixa OHLC na Deriv (**sem cache**). PnL com RISE_FALL 15m; banca $100, Kelly + recuperacao, stop win diario e **runtime simulado** ate a meta (velas M15 x 15 min, como sessao ao vivo).
 
 Auditoria imediata por decisão:
 

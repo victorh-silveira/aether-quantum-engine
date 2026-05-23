@@ -8,6 +8,7 @@ from threading import Thread
 
 from rich.live import Live
 
+from aether_paths import repo_path
 from scripts.monitor.monitor_ui import (
     generate_header,
     generate_radar,
@@ -16,14 +17,14 @@ from scripts.monitor.monitor_ui import (
 )
 
 
-LOG_PATH = Path("logs/engine.log")
-STATE_PATH = Path("data/state.json")
-CONFIG_PATH = Path("config/settings.json")
+LOG_PATH = repo_path("logs", "engine.log")
+STATE_PATH = repo_path("data", "state.json")
+CONFIG_PATH = repo_path("config", "settings.json")
 
-Path("logs").mkdir(parents=True, exist_ok=True)
-Path("data").mkdir(parents=True, exist_ok=True)
+repo_path("logs").mkdir(parents=True, exist_ok=True)
+repo_path("data").mkdir(parents=True, exist_ok=True)
 
-logging.basicConfig(level=logging.ERROR, filename="logs/monitor.log")
+logging.basicConfig(level=logging.ERROR, filename=str(repo_path("logs", "monitor.log")))
 logger = logging.getLogger("MONITOR")
 
 
