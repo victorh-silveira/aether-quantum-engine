@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from typing import Any
 
 from src.application.services.llm.context_runtime import fetch_context_blocks, resolve_llm_runtime
@@ -14,6 +15,7 @@ from src.application.services.llm.llm_bridge_telemetry import (
 from src.application.services.llm.llm_cluster_propagate import propagate_cluster_decisions
 from src.application.services.llm.llm_refresh_policy import (
     macro_tag_allows_llm_call,
+    resolve_llm_refresh_interval_seconds,
     resolve_llm_refresh_schedule,
     should_refresh_llm_decision,
 )
@@ -141,11 +143,16 @@ async def collect_llm_decisions(orch: Any) -> dict[str, dict]:
 
     last_tag = getattr(orch, "_last_llm_macro_tag", None)
     cached = getattr(orch, "_last_llm_decisions", None)
+    interval = resolve_llm_refresh_interval_seconds(orch.config)
+    now_epoch = time.time()
     if not should_refresh_llm_decision(
         schedule=schedule,
         current_tag=macro_snapshot.tag,
         last_tag=last_tag,
         has_cached_decisions=isinstance(cached, dict) and bool(cached),
+        last_refresh_epoch=getattr(orch, "_last_llm_refresh_epoch", None),
+        now_epoch=now_epoch,
+        refresh_interval_seconds=interval,
     ):
         orch.logger.debug("[%s] LLM_REFRESH cache tag=%s agenda=%s", cid, macro_snapshot.tag, schedule)
         return dict(cached)
@@ -178,4 +185,5 @@ async def collect_llm_decisions(orch: Any) -> dict[str, dict]:
 
     orch._last_llm_macro_tag = macro_snapshot.tag
     orch._last_llm_decisions = dict(decisions)
+    orch._last_llm_refresh_epoch = now_epoch
     return decisions

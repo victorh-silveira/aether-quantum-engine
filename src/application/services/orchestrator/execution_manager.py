@@ -76,6 +76,8 @@ class ExecutionManager:
                 )  # pragma: no cover
                 continue  # pragma: no cover
 
+            self.orch.risk_manager.register_entry_conviction(conviction)
+
             if i > 0:
                 await asyncio.sleep(inter_delay)
             try:

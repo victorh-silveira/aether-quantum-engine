@@ -3,6 +3,7 @@ from src.application.services.llm.llm_refresh_policy import (
     SCHEDULE_DAILY,
     SCHEDULE_TAG_CHANGE,
     macro_tag_allows_llm_call,
+    resolve_llm_refresh_interval_seconds,
     resolve_llm_refresh_schedule,
     should_refresh_llm_decision,
 )
@@ -107,3 +108,20 @@ def test_resolve_macro_config_empty_allowed_tags():
 def test_resolve_macro_config_invalid_allowed_tags_type():
     cfg = resolve_macro_config({"allowed_execute_tags": "risk_off"})
     assert cfg.get("allowed_execute_tags") is None
+
+
+def test_resolve_llm_refresh_interval_hours():
+    assert resolve_llm_refresh_interval_seconds({"llm": {"refresh_interval_hours": 4}}) == 14400.0
+    assert resolve_llm_refresh_interval_seconds({}) == 0.0
+
+
+def test_should_refresh_on_interval_elapsed():
+    assert should_refresh_llm_decision(
+        schedule=SCHEDULE_TAG_CHANGE,
+        current_tag="risk_off",
+        last_tag="risk_off",
+        has_cached_decisions=True,
+        last_refresh_epoch=1000.0,
+        now_epoch=20000.0,
+        refresh_interval_seconds=3600.0,
+    )

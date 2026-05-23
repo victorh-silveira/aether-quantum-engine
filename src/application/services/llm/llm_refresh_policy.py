@@ -22,6 +22,13 @@ def resolve_llm_refresh_schedule(config: dict[str, Any]) -> str:
     return SCHEDULE_TAG_CHANGE
 
 
+def resolve_llm_refresh_interval_seconds(config: dict[str, Any]) -> float:
+    """Intervalo maximo sem nova consulta Gemini (0 = desligado)."""
+    llm = config.get("llm", {}) if isinstance(config.get("llm"), dict) else {}
+    hours = float(llm.get("refresh_interval_hours", 0))
+    return max(0.0, hours * 3600.0)
+
+
 def macro_tag_allows_llm_call(snapshot: MacroSnapshot, macro_cfg: dict[str, Any] | None) -> tuple[bool, str]:
     """False quando a tag macro atual nao esta em allowed_execute_tags."""
     cfg = resolve_macro_config(macro_cfg)
@@ -37,6 +44,9 @@ def should_refresh_llm_decision(
     current_tag: str,
     last_tag: str | None,
     has_cached_decisions: bool,
+    last_refresh_epoch: float | None = None,
+    now_epoch: float | None = None,
+    refresh_interval_seconds: float = 0.0,
 ) -> bool:
     """True quando a API Gemini deve ser consultada neste ciclo."""
     sched = (schedule or SCHEDULE_TAG_CHANGE).strip().lower()
@@ -45,5 +55,13 @@ def should_refresh_llm_decision(
     if sched == SCHEDULE_DAILY:
         return True
     if not has_cached_decisions:
+        return True
+    interval = max(0.0, float(refresh_interval_seconds))
+    if (
+        interval > 0
+        and last_refresh_epoch is not None
+        and now_epoch is not None
+        and float(now_epoch) - float(last_refresh_epoch) >= interval
+    ):
         return True
     return str(current_tag) != str(last_tag or "")

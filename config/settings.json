@@ -72,6 +72,7 @@
     "min_payout_accept": 0.82,
     "model": "gemini-2.5-flash",
     "refresh_schedule": "tag_change",
+    "refresh_interval_hours": 4,
     "options": {
       "keep_alive": "60m",
       "temperature": 0.0
@@ -109,7 +110,9 @@
       "dynamic_win_rate": true,
       "fraction": 0.08,
       "max_recovery_stake_pct": 0.04,
-      "max_stake_pct": 0.01,
+      "max_stake_pct": 0.02,
+      "max_stake_pct_high_conviction": 0.03,
+      "high_conviction_stake_threshold": 0.85,
       "recovery_conviction_threshold": 0.75,
       "session_max_drawdown_pct": 12.0
     },
@@ -119,6 +122,8 @@
       "duration": 15,
       "duration_unit": "m",
       "entry_cooldown_ticks": 12,
+      "entry_cooldown_ticks_high_conviction": 6,
+      "high_conviction_cooldown_threshold": 0.85,
       "payout_estimate": 1.0,
       "stake_max": 5000.0,
       "stake_min": 1.0
@@ -150,7 +155,7 @@
       "enabled": true,
       "exclusive_cluster_by_macro": true,
       "statarb_index_select_enabled": true,
-      "statarb_index_max_per_cluster": 1,
+      "statarb_index_max_per_cluster": 2,
       "statarb_index_min_abs_z": 1.5
     },
     "macro": {
@@ -267,6 +272,13 @@
     "OTC_DJI"
   ],
   "trading": {
-    "mode": "live"
+    "mode": "live",
+    "session": {
+      "enabled": true,
+      "start_hour_utc": 7,
+      "end_hour_utc": 22,
+      "minutes_before_close_no_entry": 20,
+      "warmup_seconds_after_stream_sync": 90
+    }
   }
 }

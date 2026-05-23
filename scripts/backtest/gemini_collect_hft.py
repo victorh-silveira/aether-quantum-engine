@@ -23,7 +23,7 @@ async def collect_hft_with_resolver(
 ) -> tuple[list[BacktestOrder], dict[str, Any]]:
     """Percorre barras M15 e aplica resolver para gerar ordens HFT."""
     slots = hft_slots_per_m15_bar(config)
-    cool = cooldown_slots(config, slots_per_bar=slots)
+    cool = 0
     orders: list[BacktestOrder] = []
     bars_with_signal = 0
     open_until_bar: int | None = None
@@ -42,6 +42,7 @@ async def collect_hft_with_resolver(
         if not bar_orders:
             continue
         bars_with_signal += 1
+        cool = cooldown_slots(config, slots_per_bar=slots, conviction=float(bar_orders[0].conviction))
         base_slot = bar_index * slots
         for slot in range(slots):
             global_slot = base_slot + slot
