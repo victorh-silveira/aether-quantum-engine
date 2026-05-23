@@ -1,3 +1,10 @@
+## [1.22.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.21.0...v1.22.0) (2026-05-23)
+
+### Funcionalidades
+
+* **llm:** Medallion Gemini tag_change, filtros macro e backtest assertivo ([8ccccf2](https://github.com/victorh-silveira/aether-quantum-engine/commit/8ccccf246e3fb8ca0137656d8cfcae2e0fcd1506))
+* **risk:** sessao OTC, stake tier e refresh LLM periodico ([d85f9bb](https://github.com/victorh-silveira/aether-quantum-engine/commit/d85f9bbac6485905253d7679c34aec4d6a238157))
+
 ## [1.21.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.20.0...v1.21.0) (2026-05-22)
 
 ### Funcionalidades
