@@ -1,3 +1,13 @@
+## [1.22.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.22.0...v1.22.1) (2026-05-25)
+
+### Correcoes de Bug
+
+* **scripts:** ajustar atalho do run.py nos scripts de launch ([2e6acb5](https://github.com/victorh-silveira/aether-quantum-engine/commit/2e6acb5885e7a015c454e8db69bed1675cd4de96))
+
+### Refatoracoes Tecnicas
+
+* **repo:** layout app, docs e linters sem infra K8s ([af35c6d](https://github.com/victorh-silveira/aether-quantum-engine/commit/af35c6d1d7ea12faa74923e153502dab99349fdc))
+
 ## [1.22.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.21.0...v1.22.0) (2026-05-23)
 
 ### Funcionalidades
