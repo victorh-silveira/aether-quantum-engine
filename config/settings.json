@@ -68,7 +68,7 @@
     "micro_swing_granularity_seconds": 300,
     "micro_trigger_bars": 120,
     "micro_trigger_granularity_seconds": 60,
-    "min_conviction_execute": 0.70,
+    "min_conviction_execute": 0.60,
     "min_payout_accept": 0.82,
     "model": "gemini-2.5-flash",
     "refresh_schedule": "tag_change",
@@ -108,12 +108,12 @@
       "base_win_rate": 0.55,
       "dynamic_min_samples": 10,
       "dynamic_win_rate": true,
-      "fraction": 0.08,
-      "max_recovery_stake_pct": 0.04,
-      "max_stake_pct": 0.02,
-      "max_stake_pct_high_conviction": 0.03,
+      "fraction": 0.12,
+      "max_recovery_stake_pct": 0.12,
+      "max_stake_pct": 0.04,
+      "max_stake_pct_high_conviction": 0.06,
       "high_conviction_stake_threshold": 0.85,
-      "recovery_conviction_threshold": 0.75,
+      "recovery_conviction_threshold": 0.65,
       "session_max_drawdown_pct": 12.0
     },
     "large_account_stop_win_pct": 10.0,
@@ -121,8 +121,8 @@
       "contract_type": "RISE_FALL",
       "duration": 15,
       "duration_unit": "m",
-      "entry_cooldown_ticks": 12,
-      "entry_cooldown_ticks_high_conviction": 6,
+      "entry_cooldown_ticks": 8,
+      "entry_cooldown_ticks_high_conviction": 4,
       "high_conviction_cooldown_threshold": 0.85,
       "payout_estimate": 1.0,
       "stake_max": 5000.0,
@@ -132,11 +132,7 @@
     "small_account_threshold": 50.0
   },
   "strategy": {
-    "excluded_symbols": [
-      "OTC_SPC",
-      "OTC_FTSE",
-      "OTC_NDX"
-    ],
+    "excluded_symbols": [],
     "clusters": {
       "eu": [
         "OTC_FCHI",
@@ -155,7 +151,7 @@
       "enabled": true,
       "exclusive_cluster_by_macro": true,
       "statarb_index_select_enabled": true,
-      "statarb_index_max_per_cluster": 2,
+      "statarb_index_max_per_cluster": 3,
       "statarb_index_min_abs_z": 1.5
     },
     "macro": {
@@ -188,7 +184,7 @@
       "confluence_conviction_floor": 0.65,
       "divergence_max_conviction": 0.82,
       "divergence_min_leader_strength": 0.74,
-      "divergence_min_strength_gap": 0.08,
+      "divergence_min_strength_gap": 0.0,
       "indefinido_min_leader_strength": 0.68,
       "indefinido_min_strength_gap": 0.08,
       "assert_min_hmm_prob": 0.58,
@@ -269,7 +265,10 @@
     "OTC_FCHI",
     "OTC_GDAXI",
     "OTC_SSMI",
-    "OTC_DJI"
+    "OTC_DJI",
+    "OTC_FTSE",
+    "OTC_NDX",
+    "OTC_SPC"
   ],
   "trading": {
     "mode": "live",
