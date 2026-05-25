@@ -1,3 +1,9 @@
+## [1.23.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.22.1...v1.23.0) (2026-05-25)
+
+### Funcionalidades
+
+* **risk:** otimizar parametros do Medallion para recuperacao, frequencia e escopo de cluster ([13231df](https://github.com/victorh-silveira/aether-quantum-engine/commit/13231dff60b081bb6378275d3d64ac82d2233441))
+
 ## [1.22.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.22.0...v1.22.1) (2026-05-25)
 
 ### Correcoes de Bug
