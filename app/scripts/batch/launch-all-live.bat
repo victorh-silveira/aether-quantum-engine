@@ -32,7 +32,7 @@ start "AETHER MONITOR" cmd /k "call "%CONDA_ACTIVATE%" %ENV_NAME% && python -m s
 timeout /t 3 /nobreak > nul
 
 :: 2. Inicia o bot (modo LIVE via trading.mode em config/settings.json e AETHER_LIVE_TOKEN no .env)
-start "AETHER LIVE" cmd /k "call "%CONDA_ACTIVATE%" %ENV_NAME% && python app\run.py"
+start "AETHER LIVE" cmd /k "call "%CONDA_ACTIVATE%" %ENV_NAME% && python run.py"
 
 echo [OK] Robotica e Monitor em execucao.
 timeout /t 3 /nobreak > nul
