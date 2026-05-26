@@ -35,6 +35,8 @@ class Orchestrator:
         self.stream = StreamHandler(self.ws, self.symbols, config["data_handler"])
         self.trade_handler = TradeHandler(self.ws, config)
         self.risk_manager = RiskManager(config["risk_management"])
+        gran = int(config.get("data_handler", {}).get("granularity", 900))
+        self.risk_manager.set_candle_interval_seconds(gran)
         self.state, self.persistence = TradingState(), PersistenceManager()
         self.logger = logging.getLogger("AETH")
 
@@ -62,6 +64,7 @@ class Orchestrator:
         self._last_llm_decisions: dict[str, dict] | None = None
         self._last_llm_refresh_epoch: float | None = None
         self._stream_ready_at: float | None = None
+        self._post_settlement_task: asyncio.Task | None = None
 
     def _llm_enabled(self) -> bool:
         """Retorna se o modo decisao LLM esta ativo."""
@@ -94,14 +97,30 @@ class Orchestrator:
             await self._tick_interval_cycle_if_due()
 
     async def _tick_interval_cycle_if_due(self) -> None:
-        """Dispara ciclo se passou o intervalo configurado."""
+        """Dispara ciclo completo a cada cycle_interval_seconds (macro/StatArb/EXEC)."""
         cycle_iv = int(self.config.get("orchestrator", {}).get("cycle_interval_seconds") or 0)
-        if cycle_iv > 0 and self.stream.is_synchronized and (time.time() - self._last_cluster_cycle_end) >= cycle_iv:
+        if cycle_iv <= 0:
+            return
+        if self.stream.is_synchronized and (time.time() - self._last_cluster_cycle_end) >= cycle_iv:
             await self._run_trading_cycle_if_ready()
 
     def mark_cluster_cycle_complete(self) -> None:
         """Atualiza timestamp de fim do ultimo cluster."""
         self._last_cluster_cycle_end = time.time()
+
+    def schedule_trading_cycle_after_settlement(self) -> None:
+        """Agenda novo ciclo de decisao logo apos liquidacao do contrato."""
+        if not self.running:
+            return
+        if self.state.active_contracts:
+            return
+        if self.is_trading:
+            return
+        task = self._post_settlement_task
+        if task is not None and not task.done():
+            return
+        self._last_cluster_cycle_end = 0.0
+        self._post_settlement_task = asyncio.create_task(self._run_trading_cycle_if_ready())
 
     async def _setup_session(self) -> bool:
         """Conecta e autoriza sessao WebSocket."""
@@ -146,7 +165,7 @@ class Orchestrator:
             return False
 
     def _maybe_reset_daily_risk_session(self, epoch: int) -> None:
-        """Reinicia stop win e drawdown no inicio de cada dia UTC (vela ancora)."""
+        """Reinicia stop win no inicio de cada dia UTC (vela ancora)."""
         day_key = int(epoch) // 86400
         if self._risk_session_day_key == day_key:
             return
@@ -168,10 +187,12 @@ class Orchestrator:
 
     async def _run_trading_cycle_if_ready(self) -> None:
         """Executa um ciclo completo de decisao e cluster quando permitido."""
-        if self.risk_manager.is_on_cooldown(self.tick_count) or self.is_trading:
+        if self.is_trading:
             return
         if self.state.active_contracts:
-            self.logger.debug("CICLO: aguardando liquidacao de contratos pendentes.")
+            self.logger.info(
+                "CICLO: aguardando liquidacao (%d contrato(s) aberto(s))", len(self.state.active_contracts)
+            )
             return
         epoch = int(self._last_epoch or time.time())
         ok_session, sess_note = trading_session_allows_entry(

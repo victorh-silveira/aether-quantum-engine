@@ -116,31 +116,23 @@ def test_kelly_stop_win_zero_stake(kelly_config):
     assert stake == 0.0
 
 
-def test_risk_manager_consecutive_losses_cooldown_scaling(kelly_config):
-    """Verifica se perdas consecutivas escalam o cooldown exponencialmente e se vitórias o resetam."""
-    kelly_config["params"]["entry_cooldown_ticks"] = 10
+def test_risk_manager_consecutive_losses_reset_on_win(kelly_config):
     rm = RiskManager(kelly_config)
 
     assert rm.consecutive_losses == 0
-    assert rm.current_cooldown_ticks == 10
 
-    # 1ª perda consecutiva
     rm.active_contract_ids = [1]
     rm.register_result(-5.0, 1, "OTC_FCHI")
     assert rm.consecutive_losses == 1
-    assert rm.current_cooldown_ticks == 20  # 10 * 2^1
 
-    # 2ª perda consecutiva
     rm.active_contract_ids = [2]
     rm.register_result(-10.0, 2, "OTC_FCHI")
     assert rm.consecutive_losses == 2
-    assert rm.current_cooldown_ticks == 40  # 10 * 2^2
 
-    # Vitória reseta o cooldown
     rm.active_contract_ids = [3]
     rm.register_result(15.0, 3, "OTC_FCHI")
     assert rm.consecutive_losses == 0
-    assert rm.current_cooldown_ticks == 10
+    assert rm.is_on_cooldown(99) is False
 
 
 def test_risk_manager_consecutive_losses_fraction_reduction(kelly_config):

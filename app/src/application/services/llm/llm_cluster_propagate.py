@@ -9,13 +9,14 @@ from src.application.services.llm.cluster_statarb_select import (
     resolve_statarb_cluster_config,
     select_cluster_symbols_by_statarb,
 )
-from src.application.services.llm.duration_logic import enforce_minimum_duration
-from src.application.services.llm.llm_bridge_telemetry import store_symbol_decision
 from src.application.services.llm.llm_cluster_exclusive import (
     cluster_region_for_symbol,
     exclusive_cluster_by_macro_enabled,
     resolve_exclusive_cluster_region,
 )
+from src.application.services.llm.llm_cluster_invert import cluster_invert_on_block_enabled
+from src.application.services.llm.llm_cluster_logging import log_cluster_propagation_results
+from src.application.services.llm.llm_cluster_target import apply_cluster_target_decision
 from src.application.services.llm.strategy_clusters import resolve_cluster_lists
 from src.domain.models.trade import TradeDirection
 
@@ -35,6 +36,30 @@ def _cluster_targets(strategy: dict[str, Any]) -> tuple[tuple[str, ...], tuple[s
         us_targets, eu_targets = resolve_cluster_lists(strategy)
         return tuple(us_targets), tuple(eu_targets)
     return ("OTC_NDX", "OTC_DJI"), ("OTC_FCHI", "OTC_GDAXI", "OTC_SSMI", "OTC_FTSE")
+
+
+def _rolling_wr_scores(orch: Any, candidates: list[str], corr_cfg: dict[str, Any]) -> dict[str, float] | None:
+    """Mapa simbolo -> WR rolling quando ha amostras suficientes."""
+    if not bool(corr_cfg.get("statarb_blend_rolling_wr", True)):
+        return None
+    rm = getattr(orch, "risk_manager", None)
+    if rm is None or not hasattr(rm, "get_wr_rolling_stats"):
+        return None
+    kelly = (
+        orch.config.get("risk_management", {}).get("kelly", {})
+        if isinstance(orch.config.get("risk_management"), dict)
+        else {}
+    )
+    min_n = max(1, int(kelly.get("dynamic_min_samples", 10)))
+    scores: dict[str, float] = {}
+    for sym in candidates:
+        raw = rm.get_wr_rolling_stats(sym)
+        if not isinstance(raw, tuple) or len(raw) != 2:
+            continue
+        wr, n = raw
+        if wr is not None and int(n) >= min_n:
+            scores[str(sym)] = float(wr)
+    return scores or None
 
 
 def _cluster_allowed_sets(
@@ -61,14 +86,26 @@ def _cluster_allowed_sets(
     if us_dir is None:
         us_allowed, us_note = set(), ""
     else:
+        us_wr = _rolling_wr_scores(orch, us_candidates, corr_cfg)
         us_allowed, us_note = select_cluster_symbols_by_statarb(
-            us_candidates, us_dir, spreads_map, hmm_state=hmm_state, cfg=statarb_cfg
+            us_candidates,
+            us_dir,
+            spreads_map,
+            hmm_state=hmm_state,
+            cfg=statarb_cfg,
+            wr_scores=us_wr,
         )
     if eu_dir is None:
         eu_allowed, eu_note = set(), ""
     else:
+        eu_wr = _rolling_wr_scores(orch, eu_candidates, corr_cfg)
         eu_allowed, eu_note = select_cluster_symbols_by_statarb(
-            eu_candidates, eu_dir, spreads_map, hmm_state=hmm_state, cfg=statarb_cfg
+            eu_candidates,
+            eu_dir,
+            spreads_map,
+            hmm_state=hmm_state,
+            cfg=statarb_cfg,
+            wr_scores=eu_wr,
         )
     return us_dir, eu_dir, us_allowed, eu_allowed, us_note, eu_note
 
@@ -113,6 +150,9 @@ def propagate_cluster_decisions(
         macro_cfg=macro_cfg,
     )
     propagated_tags: list[str] = []
+    blocked_tags: list[str] = []
+    inverted_tags: list[str] = []
+    invert_on_block = cluster_invert_on_block_enabled(corr_cfg)
 
     for target_sym in orch.symbols:
         if target_sym == anchor_sym:
@@ -131,23 +171,41 @@ def propagate_cluster_decisions(
         if target_direction is None or target_sym not in allowed:
             continue
 
-        region_note = f" region={active_region} macro={macro_tag}" if active_region else ""
-        target_metrics = metrics.copy()
-        target_metrics["llm_note"] = (
-            f"CLUSTER_TAG ({target_direction.name}) conv={conviction:.1%}{region_note} | {index_note} from {anchor_sym}"
+        propagated, blocked, inverted = apply_cluster_target_decision(
+            orch,
+            target_sym=target_sym,
+            target_direction=target_direction,
+            index_note=index_note,
+            metrics=metrics,
+            decisions=decisions,
+            anchor_sym=anchor_sym,
+            conviction=conviction,
+            macro_cfg=macro_cfg,
+            corr_cfg=corr_cfg,
+            active_region=active_region,
+            exclusive=exclusive,
+            macro_tag=macro_tag,
+            invert_on_block=invert_on_block,
         )
-        target_metrics["decision_source"] = "cluster_regime"
-        target_metrics["cluster_active_region"] = active_region or ""
-        target_metrics["cluster_exclusive_macro"] = exclusive
-        target_metrics["duration"] = enforce_minimum_duration(target_sym, target_metrics.get("duration", 15))
-        store_symbol_decision(decisions, target_sym, target_direction, target_metrics)
-        propagated_tags.append(f"{target_sym}[{target_direction.name[:1]}]")
+        if propagated:
+            propagated_tags.append(propagated)
+        if blocked:
+            blocked_tags.append(blocked)
+        if inverted:
+            inverted_tags.append(inverted)
 
-    if propagated_tags:
-        orch.logger.debug(
-            "[%s] CORR CLUSTER || %s [%s] >> [%s]",
-            cid,
-            anchor_sym,
-            direction.name,
-            ", ".join(propagated_tags),
-        )
+    log_cluster_propagation_results(
+        orch,
+        cid=cid,
+        anchor_sym=anchor_sym,
+        corr_cfg=corr_cfg,
+        macro_tag=macro_tag,
+        active_region=active_region,
+        us_dir=us_dir,
+        eu_dir=eu_dir,
+        us_note=us_note,
+        eu_note=eu_note,
+        propagated_tags=propagated_tags,
+        blocked_tags=blocked_tags,
+        inverted_tags=inverted_tags,
+    )

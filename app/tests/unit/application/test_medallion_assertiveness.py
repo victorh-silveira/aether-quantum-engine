@@ -3,7 +3,10 @@
 import pytest
 
 from src.application.services.llm import llm_macro_confluence_guards as macro_guards
-from src.application.services.llm.llm_macro_confluence_guards import apply_macro_confluence_guard
+from src.application.services.llm.llm_macro_confluence_guards import (
+    _cluster_floor_ok,
+    apply_macro_confluence_guard,
+)
 from src.application.services.llm.macro_config import MacroSnapshot
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.risk_manager import RiskManager
@@ -134,7 +137,7 @@ def test_risk_on_veto_when_tag_not_allowed():
 
 
 def test_risk_on_and_off_weak_clusters():
-    snap = _snap("risk_on", us_s=0.40, eu_s=0.42)
+    snap = _snap("risk_on", us_s=0.40, eu_s=0.90)
     _, _, _, note_on, ok_on = apply_macro_confluence_guard(
         TradeDirection.CALL,
         0.80,
@@ -153,6 +156,33 @@ def test_risk_on_and_off_weak_clusters():
     )
     assert ok_off is False
     assert "risk_off_weak_clusters" in note_off
+
+
+def test_cluster_floor_ok_unknown_tag_returns_false():
+    snap = _snap("custom_tag", us_s=1.0, eu_s=1.0)
+    assert _cluster_floor_ok(snap, 0.5) is False
+
+
+def test_risk_on_allows_when_us_cluster_strong_even_if_eu_weak():
+    snap = _snap("risk_on", us_s=0.72, eu_s=0.30)
+    _, _, _, _, ok_on = apply_macro_confluence_guard(
+        TradeDirection.CALL,
+        0.80,
+        snap,
+        {"confluence_conviction_floor": 0.65},
+    )
+    assert ok_on is True
+
+
+def test_risk_off_allows_when_eu_cluster_strong_even_if_us_weak():
+    snap = _snap("risk_off", us_s=0.30, eu_s=0.72)
+    _, _, _, _, ok_off = apply_macro_confluence_guard(
+        TradeDirection.PUT,
+        0.80,
+        snap,
+        {"confluence_conviction_floor": 0.65},
+    )
+    assert ok_off is True
 
 
 def test_macro_unknown_tag_veto():
@@ -177,27 +207,14 @@ def test_statarb_spread_diverge_without_direction():
     assert any("spread_diverge" in n for n in notes)
 
 
-def test_drawdown_brake_blocks_stake():
+def test_stake_not_blocked_after_large_session_loss():
     rm = RiskManager(
         {
-            "kelly": {"fraction": 0.1, "max_stake_pct": 0.02, "session_max_drawdown_pct": 10.0},
+            "kelly": {"fraction": 0.22, "max_stake_pct": 0.09},
             "params": {"payout_estimate": 1.0, "stake_min": 1.0},
         }
     )
-    rm.set_initial_bankroll(100.0)
-    rm.peak_bankroll = 100.0
-    stake = rm.calculate_stake(88.0, "OTC_SPC", 0.8, silent=True)
-    assert stake == 0.0
-
-
-def test_drawdown_brake_logs_when_not_silent():
-    rm = RiskManager(
-        {
-            "kelly": {"fraction": 0.1, "max_stake_pct": 0.02, "session_max_drawdown_pct": 10.0},
-            "params": {"payout_estimate": 1.0, "stake_min": 1.0},
-        }
-    )
-    rm.set_initial_bankroll(100.0)
-    rm.peak_bankroll = 100.0
-    rm.logger = type("L", (), {"info": lambda *a, **k: None})()
-    assert rm.calculate_stake(88.0, "OTC_SPC", 0.8, silent=False) == 0.0
+    rm.set_initial_bankroll(50.0)
+    rm.total_session_profit = -12.0
+    stake = rm.calculate_stake(38.0, "OTC_FCHI", 0.7, silent=True)
+    assert stake > 0.0

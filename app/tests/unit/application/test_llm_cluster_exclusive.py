@@ -70,10 +70,14 @@ async def test_collect_llm_decisions_exclusive_risk_on_us_only():
     orch._active_cycle_id = 2
     orch.config = {
         "strategy": {
-            "correlation": {"enabled": True, "exclusive_cluster_by_macro": True},
+            "correlation": {
+                "enabled": True,
+                "exclusive_cluster_by_macro": True,
+                "cluster_invert_on_block": False,
+            },
             "clusters": {"us": ["OTC_SPC"], "eu": ["OTC_FCHI"]},
         },
-        "llm": {"max_decision_latency_seconds": 10},
+        "llm": {"max_decision_latency_seconds": 10, "min_conviction_execute": 0.5},
     }
 
     with patch(

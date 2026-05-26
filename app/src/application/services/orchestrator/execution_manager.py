@@ -2,12 +2,11 @@
 
 import asyncio
 import logging
-import time
 
 from src.domain.models.trade import TradeDirection
 
-from . import settlement_utils
-from .settlement_backfill import backfill_pending_contracts, reconcile_single_contract, subscribe_open_contract
+from .execution_settlement import reconcile_contracts, run_settlement_watch, wait_for_settlement
+from .settlement_backfill import subscribe_open_contract
 from .stop_win_target import resolve_stop_win_target
 
 
@@ -28,6 +27,48 @@ class ExecutionManager:
         for line in self.orch._pending_result_logs:
             self.logger.info(line)
         self.orch._pending_result_logs = []
+
+    def _cluster_stake_block(self, orders: list[tuple[str, TradeDirection, dict]], bankroll: float) -> str | None:
+        """Motivo unico quando o cluster inteiro nao pode alocar stake."""
+        if not orders:
+            return None
+        symbol, _, metrics = orders[0]
+        conviction = float(metrics.get("conviction", 0.60))
+        return self.orch.risk_manager.stake_block_reason(bankroll, symbol, conviction=conviction)
+
+    def _log_execution_blockers(self, decisions: dict, *, include_anchor: bool) -> None:
+        """Registra motivo quando nenhuma ordem foi montada apesar de decisoes no ciclo."""
+        cid = f"C{int(self.orch._active_cycle_id):04d}"
+        reasons: list[str] = []
+        bankroll_snapshot = float(self.orch.state.balance)
+        for symbol in self.orch.symbols:
+            if symbol == self.orch.anchor and not include_anchor:
+                continue
+            entry = decisions.get(symbol)
+            if not entry:
+                continue
+            metrics = entry["metrics"]
+            direction = entry["direction"]
+            if direction is None:
+                reasons.append(f"{symbol}:sem_direcao")
+                continue
+            if not metrics.get("execute", True):
+                reasons.append(f"{symbol}:execute_false")
+                continue
+            stake = self.orch.risk_manager.calculate_stake(
+                bankroll_snapshot,
+                symbol,
+                conviction=float(metrics.get("conviction", 0.60)),
+                silent=True,
+                cycle_id=int(self.orch._active_cycle_id),
+            )
+            block = self.orch.risk_manager.stake_block_reason(
+                bankroll_snapshot, symbol, conviction=float(metrics.get("conviction", 0.60))
+            )
+            if stake <= 0:
+                reasons.append(f"{symbol}:{block or 'stake_zero'}")
+        if reasons:
+            self.logger.info("[%s] EXEC_NONE || %s", cid, " | ".join(reasons))
 
     def _collect_orders(self, decisions: dict, *, include_anchor: bool) -> list[tuple[str, TradeDirection, dict]]:
         """Filtra decisoes executaveis e retorna ordens normalizadas."""
@@ -55,7 +96,6 @@ class ExecutionManager:
     ) -> int:
         """Executa ordens usando Critério de Kelly e retorna quantidade enviada."""
         executed_count = 0
-        cid = f"C{int(self.orch._active_cycle_id):04d}"
         for i, (symbol, direction, metrics) in enumerate(orders):
             order_n = i + 1
             conviction = float(metrics.get("conviction", 0.60))
@@ -69,12 +109,7 @@ class ExecutionManager:
             )
 
             if stake <= 0:
-                self.logger.debug(
-                    "[%s] KELLY: Edge negativo ou stake insuficiente para %s",
-                    cid,
-                    symbol,
-                )  # pragma: no cover
-                continue  # pragma: no cover
+                continue
 
             self.orch.risk_manager.register_entry_conviction(conviction)
 
@@ -104,8 +139,13 @@ class ExecutionManager:
                     self.logger.error(f"FAIL: EXEC: Falha critica na ordem {symbol}: {e}")
         return executed_count
 
+    async def _run_settlement_watch(self) -> None:
+        """Aguarda liquidacao em background e dispara novo ciclo ao concluir."""
+        await run_settlement_watch(self)
+
     async def execute_cluster(self, decisions: dict):
-        """Executa cluster de decisoes e aguarda liquidacao quando necessario."""
+        """Executa cluster de decisoes; liquidacao segue em background."""
+        executed_count = 0
         try:
             self._start_result_buffer()
 
@@ -116,14 +156,19 @@ class ExecutionManager:
             inter_delay = float(exec_chunk.get("inter_symbol_delay", 0.8))
 
             orders = self._collect_orders(decisions, include_anchor=include_anchor)
+            cid = f"C{int(self.orch._active_cycle_id):04d}"
+            if not orders:
+                self._log_execution_blockers(decisions, include_anchor=include_anchor)
+            else:
+                block = self._cluster_stake_block(orders, bankroll_snapshot)
+                if block:
+                    self.logger.info("[%s] EXEC_PAUSE || %s", cid, block)
+                    orders = []
             executed_count = await self._execute_orders(orders, inter_delay, bankroll_snapshot)
             if executed_count > 0:
                 self.orch.risk_manager.begin_cluster(executed_count)
-
-            if executed_count > 0:
-                self.orch._buffer_result_logs = False
                 self._flush_result_buffer()
-                await self.wait_for_settlement()
+                self.orch._buffer_result_logs = False
             else:
                 self._flush_result_buffer()
                 self.orch._buffer_result_logs = False
@@ -131,6 +176,8 @@ class ExecutionManager:
             self._flush_result_buffer()
             self.orch._buffer_result_logs = False
             self.orch.mark_cluster_cycle_complete()
+        if executed_count > 0:
+            asyncio.create_task(self._run_settlement_watch())
 
     def _log_exec(
         self,
@@ -211,68 +258,8 @@ class ExecutionManager:
 
     async def wait_for_settlement(self, timeout: int = 3600):
         """Monitora contratos ativos ate liquidacao ou timeout."""
-        start_time = time.time()
-        poll = float(self.orch.config.get("orchestrator", {}).get("execution", {}).get("settlement_poll_seconds", 5.0))
-        execution_cfg = self.orch.config.get("orchestrator", {}).get("execution", {})
-        max_stagnant_polls = int(execution_cfg.get("settlement_max_stagnant_polls", 18))
-        stagnant_polls = 0
-        prev_active_ids: list[int] = []
+        await wait_for_settlement(self, timeout=timeout)
 
-        grace = settlement_utils.calculate_cluster_grace_period(
-            self.orch.state.active_contracts, execution_cfg, start_time
-        )
-
-        if grace <= 0:
-            grace = settlement_utils.min_elapsed_before_stagnant_polls(
-                self.orch.config.get("risk_management", {}).get("params"),
-                execution_cfg,
-            )
-
-        while self.orch.risk_manager.active_contract_ids:
-            if time.time() - start_time > timeout:
-                self.logger.error("EXEC: Timeout fatal aguardando liquidacao.")  # pragma: no cover
-                settlement_utils.clear_contract_tracking(
-                    list(self.orch.risk_manager.active_contract_ids), self.orch.risk_manager
-                )  # pragma: no cover
-                break  # pragma: no cover
-            active_ids = list(self.orch.risk_manager.active_contract_ids)
-            kept_ids, orphan_ids = settlement_utils.prune_orphan_contract_ids(
-                active_ids, self.orch.state.active_contracts
-            )
-            if orphan_ids:
-                self.orch.risk_manager.active_contract_ids = kept_ids
-                settlement_utils.clear_contract_metadata(orphan_ids, self.orch.risk_manager)
-            if not self.orch.risk_manager.active_contract_ids:
-                break
-            await self.reconcile()
-            current_ids = list(self.orch.risk_manager.active_contract_ids)
-            elapsed = time.time() - start_time
-            stagnant_polls = 0 if elapsed < grace else (stagnant_polls + 1 if current_ids == prev_active_ids else 0)
-            prev_active_ids = current_ids
-            if max_stagnant_polls > 0 and stagnant_polls >= max_stagnant_polls:
-                pending = list(self.orch.risk_manager.active_contract_ids)
-                if pending:
-                    recovered = await backfill_pending_contracts(self.orch, pending)
-                    if recovered:
-                        self.logger.info("SETTLE: Recuperados %d contratos via profit_table.", recovered)
-                if self.orch.risk_manager.active_contract_ids:
-                    self.logger.warning(
-                        "EXEC: Liquidacao estagnada; pendencias sem STATUS: %s",
-                        ",".join(str(x) for x in self.orch.risk_manager.active_contract_ids),
-                    )
-                    settlement_utils.clear_contract_tracking(
-                        list(self.orch.risk_manager.active_contract_ids), self.orch.risk_manager
-                    )
-                break
-
-            await self.orch._save_full_state()
-            await asyncio.sleep(poll)
-
-    async def reconcile(self):  # pragma: no cover
+    async def reconcile(self):
         """Consulta estado atualizado dos contratos ativos."""
-        for c_id in list(self.orch.state.active_contracts.keys()):
-            try:
-                await reconcile_single_contract(self.orch, int(c_id))
-                await asyncio.sleep(0.2)
-            except Exception as e:  # pragma: no cover
-                self.logger.warning("RECONCILE: cid=%s falhou: %s", c_id, e)  # pragma: no cover
+        await reconcile_contracts(self)

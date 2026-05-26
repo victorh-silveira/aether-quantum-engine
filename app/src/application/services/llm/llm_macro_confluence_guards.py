@@ -62,8 +62,15 @@ def _apply_statarb_intelligence(
 
 
 def _cluster_floor_ok(snapshot: MacroSnapshot, floor: float) -> bool:
-    """True se ambos os clusters atingem o piso de forca."""
-    return min(float(snapshot.us_strength), float(snapshot.eu_strength)) >= floor
+    """True se o cluster ativo da tag macro atinge o piso de forca regional."""
+    us_s = float(snapshot.us_strength)
+    eu_s = float(snapshot.eu_strength)
+    tag = str(snapshot.tag)
+    if tag == "risk_on":
+        return us_s >= floor
+    if tag == "risk_off":
+        return eu_s >= floor
+    return False
 
 
 def _divergence_macro_ok(snapshot: MacroSnapshot, cfg: dict[str, Any], conviction: float) -> tuple[bool, list[str]]:

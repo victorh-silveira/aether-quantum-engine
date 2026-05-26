@@ -13,6 +13,11 @@ from src.application.services.llm.llm_bridge_telemetry import (
     store_symbol_decision,
 )
 from src.application.services.llm.llm_cluster_propagate import propagate_cluster_decisions
+from src.application.services.llm.llm_cluster_refresh import (
+    cluster_refresh_due,
+    refresh_cluster_decisions_from_cache,
+    resolve_cluster_refresh_interval_seconds,
+)
 from src.application.services.llm.llm_refresh_policy import (
     macro_tag_allows_llm_call,
     resolve_llm_refresh_interval_seconds,
@@ -145,6 +150,7 @@ async def collect_llm_decisions(orch: Any) -> dict[str, dict]:
     cached = getattr(orch, "_last_llm_decisions", None)
     interval = resolve_llm_refresh_interval_seconds(orch.config)
     now_epoch = time.time()
+    cluster_iv = resolve_cluster_refresh_interval_seconds(orch.config)
     if not should_refresh_llm_decision(
         schedule=schedule,
         current_tag=macro_snapshot.tag,
@@ -155,6 +161,10 @@ async def collect_llm_decisions(orch: Any) -> dict[str, dict]:
         refresh_interval_seconds=interval,
     ):
         orch.logger.debug("[%s] LLM_REFRESH cache tag=%s agenda=%s", cid, macro_snapshot.tag, schedule)
+        if cluster_propagation_enabled and cluster_refresh_due(orch, now_epoch=now_epoch, interval_seconds=cluster_iv):
+            refreshed = refresh_cluster_decisions_from_cache(orch, macro_snapshot, cid)
+            if refreshed is not None:
+                return refreshed
         return dict(cached)
 
     try:
@@ -186,4 +196,5 @@ async def collect_llm_decisions(orch: Any) -> dict[str, dict]:
     orch._last_llm_macro_tag = macro_snapshot.tag
     orch._last_llm_decisions = dict(decisions)
     orch._last_llm_refresh_epoch = now_epoch
+    orch._last_cluster_refresh_epoch = now_epoch
     return decisions
