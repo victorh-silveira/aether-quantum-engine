@@ -1,3 +1,9 @@
+## [1.24.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.23.0...v1.24.0) (2026-05-26)
+
+### Funcionalidades
+
+* **orchestrator:** ciclo pos-liquidacao, refresh StatArb e inversao ([e21d5f5](https://github.com/victorh-silveira/aether-quantum-engine/commit/e21d5f5c1743066217d29ca6408dedee7c6cb279))
+
 ## [1.23.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.22.1...v1.23.0) (2026-05-25)
 
 ### Funcionalidades
