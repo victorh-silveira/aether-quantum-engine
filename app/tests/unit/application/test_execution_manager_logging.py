@@ -40,6 +40,93 @@ def test_execution_manager_collect_orders_keeps_execute_false_if_forced_in_dict(
 
 
 @pytest.mark.asyncio
+async def test_execute_cluster_logs_exec_pause_on_stop_win(orch_config):
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
+        mock_ws_class.return_value.subscribe = MagicMock()
+        orch = Orchestrator(orch_config, "token")
+        orch._active_cycle_id = 2
+        orch.symbols = ["frxEURUSD", "OTC_FCHI"]
+        orch.risk_manager.stake_block_reason = MagicMock(return_value="stop_win")
+        decisions = {
+            "OTC_FCHI": {"direction": TradeDirection.PUT, "metrics": {"conviction": 0.7, "execute": True}},
+        }
+        with (
+            patch.object(orch.executor.logger, "info") as mock_info,
+            patch.object(orch.executor, "_execute_orders", new_callable=AsyncMock, return_value=0) as mock_exec,
+        ):
+            await orch.executor.execute_cluster(decisions)
+        mock_exec.assert_awaited_once()
+        assert mock_exec.await_args.args[0] == []
+        assert any("EXEC_PAUSE" in str(c) and "stop_win" in str(c) for c in mock_info.call_args_list)
+
+
+@pytest.mark.asyncio
+async def test_execute_orders_skips_zero_stake_without_logging(orch_config):
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
+        mock_ws_class.return_value.subscribe = MagicMock()
+        orch = Orchestrator(orch_config, "token")
+        orch._active_cycle_id = 9
+        orch.risk_manager.calculate_stake = MagicMock(return_value=0.0)
+        orders = [("OTC_FCHI", TradeDirection.CALL, {"conviction": 0.7})]
+        count = await orch.executor._execute_orders(orders, 0.0, 49.0)
+        assert count == 0
+
+
+def test_cluster_stake_block_empty_orders(orch_config):
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
+        orch = Orchestrator(orch_config, "token")
+        assert orch.executor._cluster_stake_block([], 50.0) is None
+
+
+def test_log_execution_blockers_stake_zero(orch_config):
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
+        mock_ws_class.return_value.subscribe = MagicMock()
+        orch = Orchestrator(orch_config, "token")
+        orch._active_cycle_id = 4
+        orch.symbols = ["frxEURUSD", "OTC_FCHI"]
+        orch.risk_manager.calculate_stake = MagicMock(return_value=0.0)
+        orch.risk_manager.stake_block_reason = MagicMock(return_value="kelly_no_edge")
+        with patch.object(orch.executor.logger, "info") as mock_info:
+            orch.executor._log_execution_blockers(
+                {"OTC_FCHI": {"direction": TradeDirection.PUT, "metrics": {"conviction": 0.7, "execute": True}}},
+                include_anchor=False,
+            )
+        assert "kelly_no_edge" in mock_info.call_args.args[2]
+
+
+def test_log_execution_blockers_sem_direcao(orch_config):
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
+        mock_ws_class.return_value.subscribe = MagicMock()
+        orch = Orchestrator(orch_config, "token")
+        orch._active_cycle_id = 3
+        orch.symbols = ["frxEURUSD", "OTC_FCHI"]
+        with patch.object(orch.executor.logger, "info") as mock_info:
+            orch.executor._log_execution_blockers(
+                {"OTC_FCHI": {"direction": None, "metrics": {"execute": True}}},
+                include_anchor=False,
+            )
+        assert "sem_direcao" in mock_info.call_args.args[2]
+
+
+@pytest.mark.asyncio
+async def test_execute_cluster_logs_exec_none_when_execute_false(orch_config):
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
+        mock_ws_class.return_value.subscribe = MagicMock()
+        orch = Orchestrator(orch_config, "token")
+        orch._active_cycle_id = 1
+        orch.symbols = ["frxEURUSD", "OTC_FCHI"]
+        decisions = {
+            "OTC_FCHI": {"direction": TradeDirection.PUT, "metrics": {"conviction": 0.7, "execute": False}},
+        }
+        with (
+            patch.object(orch.executor.logger, "info") as mock_info,
+            patch.object(orch.executor, "_execute_orders", new_callable=AsyncMock, return_value=0),
+        ):
+            await orch.executor.execute_cluster(decisions)
+        assert any("EXEC_NONE" in str(c) for c in mock_info.call_args_list)
+
+
+@pytest.mark.asyncio
 async def test_finalize_cluster_execution_without_orders_skips_idle_status_log(orch_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
         mock_ws_class.return_value.subscribe = MagicMock()
@@ -69,3 +156,22 @@ async def test_execute_orders_market_closed_emits_warning(orch_config):
         assert count == 0
         mock_warn.assert_called_once()
         assert "SKIP" in mock_warn.call_args.args[0]
+
+
+@pytest.mark.asyncio
+async def test_run_settlement_watch_schedules_cycle_and_handles_error(orch_config):
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
+        mock_ws_class.return_value.subscribe = MagicMock()
+        orch = Orchestrator(orch_config, "token")
+        orch.running = True
+        orch.state.active_contracts = {}
+        orch.schedule_trading_cycle_after_settlement = MagicMock()
+        with patch(
+            "src.application.services.orchestrator.execution_settlement.wait_for_settlement",
+            new_callable=AsyncMock,
+        ) as mock_wait:
+            mock_wait.side_effect = RuntimeError("ws down")
+            with patch.object(orch.executor.logger, "error") as mock_err:
+                await orch.executor._run_settlement_watch()
+        mock_err.assert_called_once()
+        orch.schedule_trading_cycle_after_settlement.assert_called_once()

@@ -133,7 +133,7 @@ def print_summary(report: dict[str, Any]) -> None:
     print(
         f"Max drawdown: ${s['max_drawdown_abs']:.2f} ({s['max_drawdown_pct']:.2f}%)"
         f" | Stake zero: {s.get('skipped_stake_zero', 0)}"
-        f" (drawdown: {s.get('skipped_drawdown_brake', 0)}, stop win: {s.get('skipped_stop_win', 0)})"
+        f" (stop win: {s.get('skipped_stop_win', 0)})"
     )
     if s.get("simulated_days"):
         med = s.get("median_runtime_minutes_to_stop_win")

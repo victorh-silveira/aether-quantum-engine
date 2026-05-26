@@ -1,3 +1,4 @@
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -97,6 +98,57 @@ async def test_orchestrator_symbols_default_from_single_fallback(orch_config):
 @pytest.mark.asyncio
 async def test_interval_gate_calls_run_trading_cycle_when_due(orch_config):
     orch_config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 30
+    orch_config.setdefault("llm", {})["refresh_schedule"] = "always"
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
+        orch = Orchestrator(orch_config, "token")
+        orch.stream.is_synchronized = True
+        orch.ws.is_running = True
+        orch._last_cluster_cycle_end = 0.0
+        orch._run_trading_cycle_if_ready = AsyncMock()
+        with patch("src.application.services.orchestrator.time.time", return_value=100.0):
+            await orch._tick_interval_cycle_if_due()
+        orch._run_trading_cycle_if_ready.assert_called_once()
+
+
+def test_schedule_trading_cycle_early_returns(orch_config):
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
+        orch = Orchestrator(orch_config, "token")
+        orch.running = False
+        orch.schedule_trading_cycle_after_settlement()
+
+        orch.running = True
+        orch.state.active_contracts = {1: object()}
+        orch.schedule_trading_cycle_after_settlement()
+
+        orch.state.active_contracts = {}
+        orch.is_trading = True
+        orch.schedule_trading_cycle_after_settlement()
+
+        orch.is_trading = False
+        pending = MagicMock()
+        pending.done.return_value = False
+        orch._post_settlement_task = pending
+        with patch("asyncio.create_task") as mock_create:
+            orch.schedule_trading_cycle_after_settlement()
+            mock_create.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_schedule_trading_cycle_after_settlement_spawns_task(orch_config):
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
+        orch = Orchestrator(orch_config, "token")
+        orch.running = True
+        orch.state.active_contracts = {}
+        orch._run_trading_cycle_if_ready = AsyncMock()
+        orch.schedule_trading_cycle_after_settlement()
+        await asyncio.sleep(0.05)
+        orch._run_trading_cycle_if_ready.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_interval_gate_runs_with_tag_change_schedule(orch_config):
+    orch_config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 30
+    orch_config.setdefault("llm", {})["refresh_schedule"] = "tag_change"
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
         orch = Orchestrator(orch_config, "token")
         orch.stream.is_synchronized = True

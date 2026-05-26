@@ -92,7 +92,8 @@
     "log_file": "logs/engine.log"
   },
   "orchestrator": {
-    "cycle_interval_seconds": 15,
+    "cycle_interval_seconds": 60,
+    "cluster_refresh_interval_seconds": 60,
     "execution": {
       "include_anchor_trades": false,
       "inter_symbol_delay": 3.0,
@@ -106,24 +107,23 @@
   "risk_management": {
     "kelly": {
       "base_win_rate": 0.55,
-      "dynamic_min_samples": 10,
+      "dynamic_min_samples": 8,
       "dynamic_win_rate": true,
-      "fraction": 0.12,
-      "max_recovery_stake_pct": 0.12,
-      "max_stake_pct": 0.04,
-      "max_stake_pct_high_conviction": 0.06,
-      "high_conviction_stake_threshold": 0.85,
+      "fraction": 0.22,
+      "max_recovery_stake_pct": 0.14,
+      "max_stake_pct": 0.09,
+      "max_stake_pct_high_conviction": 0.12,
+      "high_conviction_stake_threshold": 0.70,
       "recovery_conviction_threshold": 0.65,
-      "session_max_drawdown_pct": 12.0
+      "stop_win_aggressive": true,
+      "stop_win_stake_multiplier": 1.4,
+      "stop_win_stake_cap_pct": 0.12
     },
     "large_account_stop_win_pct": 10.0,
     "params": {
       "contract_type": "RISE_FALL",
       "duration": 15,
       "duration_unit": "m",
-      "entry_cooldown_ticks": 8,
-      "entry_cooldown_ticks_high_conviction": 4,
-      "high_conviction_cooldown_threshold": 0.85,
       "payout_estimate": 1.0,
       "stake_max": 5000.0,
       "stake_min": 1.0
@@ -132,13 +132,14 @@
     "small_account_threshold": 50.0
   },
   "strategy": {
-    "excluded_symbols": [],
+    "excluded_symbols": [
+      "OTC_SSMI"
+    ],
     "clusters": {
       "eu": [
         "OTC_FCHI",
         "OTC_GDAXI",
-        "OTC_FTSE",
-        "OTC_SSMI"
+        "OTC_FTSE"
       ],
       "us": [
         "OTC_SPC",
@@ -150,9 +151,16 @@
       "anchor": "frxEURUSD",
       "enabled": true,
       "exclusive_cluster_by_macro": true,
+      "best_symbol_only": true,
+      "execute_all_cluster_symbols": false,
       "statarb_index_select_enabled": true,
-      "statarb_index_max_per_cluster": 3,
-      "statarb_index_min_abs_z": 1.5
+      "statarb_blend_rolling_wr": true,
+      "statarb_wr_weight": 0.40,
+      "statarb_index_max_per_cluster": 1,
+      "statarb_index_min_abs_z": 0.85,
+      "statarb_require_z_align": true,
+      "statarb_z_align_soft_fallback": true,
+      "cluster_invert_on_block": true
     },
     "macro": {
       "allowed_execute_tags": [

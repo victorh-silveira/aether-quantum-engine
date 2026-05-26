@@ -74,6 +74,6 @@ O Medallion no Aether prioriza **menos trades de maior qualidade** em vez de vol
 - **LLM live:** `llm.refresh_schedule=tag_change` consulta Gemini quando a tag macro muda; `llm.refresh_interval_hours` força reconsulta periódica (ex.: 4h).
 - **Sessão OTC:** `trading.session` limita entradas à janela UTC, warm-up após sync de velas e bloqueio nos minutos finais antes do fechamento.
 - **StatArb:** Z contra a direção em HMM de reversão → veto (`STATARB_VETO`); alinhamento → boost de convicção; até 2 índices por cluster (`statarb_index_max_per_cluster`).
-- **Risco:** Kelly com `max_stake_pct` / `max_stake_pct_high_conviction`, cooldown menor em convicção alta e **freio de drawdown** por sessão; stop win diário 10% (conta grande) ou valor fixo (conta pequena).
+- **Risco:** Kelly com `max_stake_pct` / `max_stake_pct_high_conviction`, cooldown menor em convicção alta; stop win diário 10% (conta grande) ou valor fixo (conta pequena).
 
 Parâmetros em `config/settings.json` → `strategy.macro` e `risk_management.kelly`. Backtest e live compartilham os mesmos guardrails (`llm_macro_confluence_guards.py`).

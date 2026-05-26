@@ -4,11 +4,11 @@ import logging
 import math
 from typing import Any
 
-from src.domain.risk.entry_cooldown import resolve_entry_cooldown_ticks
+from src.domain.risk.risk_cooldown import RiskCooldownMixin
 from src.domain.risk.stop_win_target import resolve_stop_win_target
 
 
-class RiskManager:
+class RiskManager(RiskCooldownMixin):
     """Gerenciador de Risco que utiliza a fórmula de Kelly para dimensionamento de posição."""
 
     def __init__(self, config: dict[str, Any]):
@@ -29,10 +29,8 @@ class RiskManager:
         self.consecutive_losses = 0
         self.pending_loss: dict[str, float] = {}
         self.recovery_threshold = float(self.kelly_config.get("recovery_conviction_threshold", 0.60))
-        self.session_max_drawdown_pct = float(
-            self.kelly_config.get("session_max_drawdown_pct", self.config.get("session_max_drawdown_pct", 15.0))
-        )
-        self.peak_bankroll = 0.0
+        self._candle_interval_seconds = 900
+        self._cooldown_until_mono = 0.0
 
         self.active_contract_ids: list[int] = []
         self.contract_to_symbol: dict[int, str] = {}
@@ -43,14 +41,16 @@ class RiskManager:
     def set_initial_bankroll(self, amount: float):
         """Define a banca inicial para rastreamento da sessão."""
         self.initial_bankroll = float(amount)
-        self.peak_bankroll = float(amount)
+
+    def set_candle_interval_seconds(self, seconds: int) -> None:
+        """Define duracao da vela ancora para cooldown em tempo real."""
+        self._candle_interval_seconds = max(60, int(seconds))
 
     def reset_daily_session(self, bankroll: float) -> None:
         """Reinicia lucro de sessao e metas para novo dia (stop win diario)."""
         bal = float(bankroll)
         self.total_session_profit = 0.0
         self.initial_bankroll = bal
-        self.peak_bankroll = bal
 
     def record_trade_outcome(self, symbol: str, *, won: bool) -> None:
         """Registra o resultado para cálculo de win rate dinâmico."""
@@ -82,6 +82,51 @@ class RiskManager:
 
         return base_p
 
+    def _apply_stop_win_aggressive_stake(
+        self, bankroll: float, raw_stake: float, *, apply_stop_win: bool = True
+    ) -> float:
+        """Eleva stake moderadamente quando falta pouco para o stop win diario (modo ativo unico)."""
+        if not apply_stop_win or not bool(self.kelly_config.get("stop_win_aggressive", False)):
+            return raw_stake
+        target = resolve_stop_win_target(self.config, self.initial_bankroll)
+        remaining = max(0.0, target - float(self.total_session_profit))
+        if remaining <= 0 or bankroll <= 0:
+            return raw_stake
+        payout = max(0.5, float(self.risk_params.get("payout_estimate", 0.95)))
+        goal_stake = remaining / payout
+        mult = max(1.0, float(self.kelly_config.get("stop_win_stake_multiplier", 1.35)))
+        cap_pct = max(0.01, float(self.kelly_config.get("stop_win_stake_cap_pct", 0.12)))
+        cap_stake = bankroll * cap_pct
+        target = min(goal_stake, cap_stake)
+        boosted = max(raw_stake * mult, raw_stake, target)
+        return min(boosted, cap_stake)
+
+    def stake_block_reason(
+        self,
+        bankroll: float,
+        symbol: str,
+        conviction: float = 0.5,
+        *,
+        apply_stop_win: bool = True,
+    ) -> str | None:
+        """Retorna motivo quando nenhuma stake pode ser alocada."""
+        if apply_stop_win:
+            target = resolve_stop_win_target(self.config, self.initial_bankroll)
+            if self.total_session_profit >= target:
+                return "stop_win"
+        if (
+            self.calculate_stake(
+                bankroll,
+                symbol,
+                conviction=conviction,
+                silent=True,
+                apply_stop_win=apply_stop_win,
+            )
+            <= 0
+        ):
+            return "kelly_no_edge"
+        return None
+
     def calculate_stake(
         self,
         bankroll: float,
@@ -97,22 +142,6 @@ class RiskManager:
             target = resolve_stop_win_target(self.config, self.initial_bankroll)
             if self.total_session_profit >= target:
                 self.logger.info(f"STOP WIN: Meta de ${target:.2f} atingida. Encerrando operações do dia.")
-                return 0.0
-
-        peak = max(self.peak_bankroll, self.initial_bankroll, float(bankroll))
-        self.peak_bankroll = peak
-        max_dd = max(0.0, float(self.session_max_drawdown_pct))
-        if max_dd > 0 and peak > 0:
-            dd_pct = ((peak - float(bankroll)) / peak) * 100.0
-            if dd_pct >= max_dd:
-                if not silent:
-                    self.logger.info(
-                        "DRAWDOWN_BRAKE: pausa (dd=%.2f%% >= %.2f%%) banca=$%.2f pico=$%.2f",
-                        dd_pct,
-                        max_dd,
-                        bankroll,
-                        peak,
-                    )
                 return 0.0
 
         b = float(self.risk_params.get("payout_estimate", 0.95))
@@ -140,6 +169,7 @@ class RiskManager:
             )
         base_f_star = min(f_star, max_pct)
         raw_stake = bankroll * base_f_star
+        raw_stake = self._apply_stop_win_aggressive_stake(bankroll, raw_stake, apply_stop_win=apply_stop_win)
 
         recovery_stake = 0.0
 
@@ -219,24 +249,21 @@ class RiskManager:
         cluster_profit = sum(self.cluster_results.values())
         if cluster_profit < 0.0:
             self.consecutive_losses += 1
-            multiplier = 2 ** min(self.consecutive_losses, 4)
-            self.current_cooldown_ticks = int(self.base_cooldown * multiplier)
             self.logger.info(
-                "RISK: Ciclo negativo (P&L: $%.2f). Aumentando cooldown para %d ticks (consecutive_losses=%d)",
+                "RISK: Ciclo negativo (P&L: $%.2f) consecutive_losses=%d",
                 cluster_profit,
-                self.current_cooldown_ticks,
                 self.consecutive_losses,
             )
         else:
             if self.consecutive_losses > 0:
                 self.logger.info(
-                    "RISK: Ciclo positivo (P&L: $%.2f). Resetando cooldown para %d ticks",
+                    "RISK: Ciclo positivo (P&L: $%.2f). Reset perdas consecutivas",
                     cluster_profit,
-                    self.base_cooldown,
                 )
             self.consecutive_losses = 0
-            self.current_cooldown_ticks = self.base_cooldown
 
+        self._cooldown_until_mono = 0.0
+        self.current_cooldown_ticks = 0
         self.active_contract_ids = []
         self.contract_to_symbol = {}
         self.cluster_results = {}
@@ -253,25 +280,3 @@ class RiskManager:
             "consecutive_losses": self.consecutive_losses,
             "current_cooldown_ticks": self.current_cooldown_ticks,
         }
-
-    def register_entry_conviction(self, conviction: float) -> None:
-        """Registra conviccao da ultima entrada para cooldown dinamico."""
-        self._last_entry_conviction = max(0.0, float(conviction))
-
-    def effective_cooldown_ticks(self) -> int:
-        """Cooldown efetivo apos cluster (dinamico por conviccao da ultima entrada)."""
-        target = resolve_entry_cooldown_ticks(self.config, self._last_entry_conviction)
-        active = int(self.current_cooldown_ticks)
-        if target <= 0:
-            return active
-        if active <= 0:
-            return target
-        return min(active, target)
-
-    def is_on_cooldown(self, current_tick: int) -> bool:
-        """Cooldown entre operações."""
-        need = self.effective_cooldown_ticks()
-        if self.last_result_tick == 0 or need == 0:
-            return False
-        elapsed = current_tick - self.last_result_tick
-        return elapsed < need

@@ -187,7 +187,7 @@ def settle_orders_kelly(
     bankroll_start: float,
     payout: float | None = None,
 ) -> SimulationResult:
-    """Liquida ordens com Kelly, stop win e drawdown reiniciados a cada dia."""
+    """Liquida ordens com Kelly e stop win reiniciados a cada dia."""
     rm = RiskManager(risk_config)
     rm.set_initial_bankroll(bankroll_start)
     if payout is not None:
@@ -227,11 +227,7 @@ def settle_orders_kelly(
         )
         if stake <= 0:
             skipped += 1
-            if rm.session_max_drawdown_pct > 0 and rm.peak_bankroll > 0:
-                dd_pct = ((rm.peak_bankroll - bankroll) / rm.peak_bankroll) * 100.0
-                if dd_pct >= rm.session_max_drawdown_pct:
-                    skipped_dd += 1
-            elif rm.total_session_profit >= target:
+            if rm.total_session_profit >= target:
                 skipped_sw += 1
             continue
         won = direction_wins(order.direction, ret)

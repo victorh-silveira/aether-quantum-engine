@@ -20,7 +20,7 @@ async def test_wait_for_settlement_prunes_orphan_contract_ids(orch_config):
         orch.risk_manager.contract_to_symbol[101] = "frxEURUSD"
         with (
             patch.object(orch.executor, "reconcile", AsyncMock()) as mock_reconcile,
-            patch("src.application.services.orchestrator.execution_manager.asyncio.sleep", AsyncMock()),
+            patch("src.application.services.orchestrator.execution_settlement.asyncio.sleep", AsyncMock()),
         ):
             await orch.executor.wait_for_settlement(timeout=10)
         assert orch.risk_manager.active_contract_ids == []
@@ -68,10 +68,10 @@ async def test_wait_for_settlement_clears_stagnant_pending_ids(orch_config):
         with (
             patch.object(orch.executor, "reconcile", AsyncMock()),
             patch(
-                "src.application.services.orchestrator.execution_manager.backfill_pending_contracts",
+                "src.application.services.orchestrator.execution_settlement.backfill_pending_contracts",
                 AsyncMock(return_value=0),
             ),
-            patch("src.application.services.orchestrator.execution_manager.asyncio.sleep", AsyncMock()),
+            patch("src.application.services.orchestrator.execution_settlement.asyncio.sleep", AsyncMock()),
         ):
             await orch.executor.wait_for_settlement(timeout=30)
         assert orch.risk_manager.active_contract_ids == []
@@ -104,10 +104,10 @@ async def test_wait_for_settlement_backfill_recovers_before_clear(orch_config):
         with (
             patch.object(orch.executor, "reconcile", AsyncMock()),
             patch(
-                "src.application.services.orchestrator.execution_manager.backfill_pending_contracts",
+                "src.application.services.orchestrator.execution_settlement.backfill_pending_contracts",
                 AsyncMock(return_value=1),
             ),
-            patch("src.application.services.orchestrator.execution_manager.asyncio.sleep", AsyncMock()),
+            patch("src.application.services.orchestrator.execution_settlement.asyncio.sleep", AsyncMock()),
             patch.object(orch.logger, "info") as mock_info,
         ):
             await orch.executor.wait_for_settlement(timeout=3600)

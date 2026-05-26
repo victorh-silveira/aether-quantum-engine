@@ -132,7 +132,7 @@ async def test_wait_for_settlement_polls_reconcile(orch_config):
 
         with (
             patch.object(orch.executor, "reconcile", side_effect=mock_reconcile),
-            patch("src.application.services.orchestrator.execution_manager.asyncio.sleep", AsyncMock()),
+            patch("src.application.services.orchestrator.execution_settlement.asyncio.sleep", AsyncMock()),
         ):
             await orch.executor.wait_for_settlement(timeout=300)
         assert n[0] >= 1

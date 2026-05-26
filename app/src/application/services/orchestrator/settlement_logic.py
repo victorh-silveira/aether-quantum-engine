@@ -61,6 +61,8 @@ async def process_contract_settlement(orch: Any, data: dict):
 
     if not orch.risk_manager.active_contract_ids and orch.running:
         log_cluster_summary(orch)
+        if not orch.state.active_contracts:
+            orch.schedule_trading_cycle_after_settlement()
 
         pnl = orch.risk_manager.total_session_profit
         target = resolve_stop_win_target(orch.config.get("risk_management", {}), orch.risk_manager.initial_bankroll)

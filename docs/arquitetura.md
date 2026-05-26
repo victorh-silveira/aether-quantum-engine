@@ -214,7 +214,6 @@ Postura alinhada ao Medallion quantitativo:
 - **Zero Martingale:** sem progressão de stake em perdas.
 - **Vantagem estatística:** execução apenas com convicção (`llm.min_conviction_execute`) e confluência macro acima dos pisos; StatArb/HMM podem **vetar** entradas com Z desalinhado (HMM reversão).
 - **Assertividade Medallion:** divergência exige força do líder (`divergence_min_leader_strength`); `indefinido` exige líder claro e gap US/EU; cap de convicção em divergência (`divergence_max_conviction`).
-- **Freio de drawdown:** `risk_management.kelly.session_max_drawdown_pct` pausa novas stakes quando a banca cai X% do pico da sessão (live e backtest Kelly).
 - **Stop win diário:** meta de lucro por dia UTC (`large_account_stop_win_pct` 10% se banca >= `small_account_threshold`); ao atingir, o motor para novas entradas até o dia seguinte. Live: reset em `_maybe_reset_daily_risk_session` na vela âncora; backtest: reset por bloco de 96 velas M15.
 - **Isolamento:** um ciclo por âncora; clusters propagam tags sem cópia cega por coeficiente fixo.
 - **Anti-frágil:** execução exclusiva no cluster macro ativo; StatArb escolhe no máximo um índice (`statarb_index_min_abs_z`).
