@@ -1,3 +1,9 @@
+## [1.25.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.24.0...v1.25.0) (2026-05-27)
+
+### Funcionalidades
+
+* **orchestrator:** folego pos-liquidacao e inversao segura ([ccc2bde](https://github.com/victorh-silveira/aether-quantum-engine/commit/ccc2bde1ef07f57bf57eb1478f267a50ebc7cc13))
+
 ## [1.24.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.23.0...v1.24.0) (2026-05-26)
 
 ### Funcionalidades
