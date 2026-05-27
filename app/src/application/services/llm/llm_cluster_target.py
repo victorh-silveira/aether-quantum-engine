@@ -6,7 +6,7 @@ from typing import Any
 
 from src.application.services.llm.duration_logic import enforce_minimum_duration
 from src.application.services.llm.llm_bridge_telemetry import store_symbol_decision
-from src.application.services.llm.llm_cluster_guards import cluster_execute_flag
+from src.application.services.llm.llm_cluster_guards import cluster_execute_block_reason
 from src.application.services.llm.llm_cluster_invert import apply_cluster_binary_invert
 from src.domain.models.trade import TradeDirection
 
@@ -32,7 +32,7 @@ def apply_cluster_target_decision(
     region_note = f" region={active_region} macro={macro_tag}" if active_region else ""
     target_metrics = metrics.copy()
     original_direction = target_direction
-    target_metrics["execute"] = cluster_execute_flag(
+    execute_reason = cluster_execute_block_reason(
         orch,
         target_metrics,
         conviction,
@@ -43,8 +43,11 @@ def apply_cluster_target_decision(
         target_sym=target_sym,
         llm_cluster_explicit=True,
     )
+    target_metrics["execute"] = execute_reason == "allowed"
+    target_metrics["llm_block_reason"] = execute_reason
     inverted_tag = None
-    if not target_metrics["execute"] and invert_on_block:
+    can_invert = execute_reason == "statarb_z_misaligned"
+    if not target_metrics["execute"] and invert_on_block and can_invert:
         target_direction, target_metrics, did_invert = apply_cluster_binary_invert(
             target_direction,
             target_metrics,

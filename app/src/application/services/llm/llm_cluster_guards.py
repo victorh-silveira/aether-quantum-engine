@@ -89,29 +89,60 @@ def cluster_execute_flag(
     llm_cluster_explicit: bool = False,
 ) -> bool:
     """Recalcula execute nos indices; nao propaga veto macro da ancora FX."""
+    return (
+        cluster_execute_block_reason(
+            orch,
+            metrics,
+            conviction,
+            target_direction,
+            macro_cfg,
+            corr_cfg,
+            active_region=active_region,
+            target_sym=target_sym,
+            llm_cluster_explicit=llm_cluster_explicit,
+        )
+        == "allowed"
+    )
+
+
+def cluster_execute_block_reason(
+    orch: Any,
+    metrics: dict[str, Any],
+    conviction: float,
+    target_direction: TradeDirection | None,
+    macro_cfg: dict[str, Any] | None,
+    corr_cfg: dict[str, Any] | None,
+    *,
+    active_region: str | None,
+    target_sym: str,
+    llm_cluster_explicit: bool = False,
+) -> str:
+    """Retorna motivo de bloqueio de execute para decisao de cluster."""
+    reason = "allowed"
     if target_direction is None:
-        return False
-    if conviction < min_conviction_execute(orch):
-        return False
-    if not cluster_entry_allowed(
+        reason = "no_direction"
+    elif conviction < min_conviction_execute(orch):
+        reason = "low_conviction"
+    elif not cluster_entry_allowed(
         metrics,
         macro_cfg,
         active_region=active_region,
         llm_cluster_explicit=llm_cluster_explicit,
     ):
-        return False
-    c = corr_cfg if isinstance(corr_cfg, dict) else {}
-    if not bool(c.get("statarb_require_z_align", True)):
-        return True
-    spreads = metrics.get("statarb_spreads")
-    if not isinstance(spreads, dict) or target_sym not in spreads:
-        return True
-    statarb_cfg = resolve_statarb_cluster_config(c, macro_cfg if isinstance(macro_cfg, dict) else None)
-    z = float(spreads[target_sym])
-    return symbol_z_supports_direction(
-        z,
-        target_direction,
-        hmm_state=int(metrics.get("hmm_state", 0)),
-        z_threshold=float(statarb_cfg.get("z_threshold", 2.5)),
-        min_abs_z=float(statarb_cfg.get("min_abs_z", 0.0)),
-    )
+        reason = "macro_or_hmm_veto"
+    else:
+        c = corr_cfg if isinstance(corr_cfg, dict) else {}
+        if bool(c.get("statarb_require_z_align", True)):
+            spreads = metrics.get("statarb_spreads")
+            if isinstance(spreads, dict) and target_sym in spreads:
+                statarb_cfg = resolve_statarb_cluster_config(c, macro_cfg if isinstance(macro_cfg, dict) else None)
+                z = float(spreads[target_sym])
+                if not symbol_z_supports_direction(
+                    z,
+                    target_direction,
+                    hmm_state=int(metrics.get("hmm_state", 0)),
+                    z_threshold=float(statarb_cfg.get("z_threshold", 2.5)),
+                    min_abs_z=float(statarb_cfg.get("min_abs_z", 0.0)),
+                ):
+                    reason = "statarb_z_misaligned"
+    return reason

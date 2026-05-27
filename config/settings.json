@@ -94,6 +94,8 @@
   "orchestrator": {
     "cycle_interval_seconds": 60,
     "cluster_refresh_interval_seconds": 60,
+    "post_settlement_breath_seconds": 60,
+    "settlement_wait_log_interval_seconds": 15,
     "execution": {
       "include_anchor_trades": false,
       "inter_symbol_delay": 3.0,

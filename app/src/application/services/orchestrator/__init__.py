@@ -65,6 +65,7 @@ class Orchestrator:
         self._last_llm_refresh_epoch: float | None = None
         self._stream_ready_at: float | None = None
         self._post_settlement_task: asyncio.Task | None = None
+        self._settlement_wait_logged = False
 
     def _llm_enabled(self) -> bool:
         """Retorna se o modo decisao LLM esta ativo."""
@@ -119,8 +120,22 @@ class Orchestrator:
         task = self._post_settlement_task
         if task is not None and not task.done():
             return
+        self._post_settlement_task = asyncio.create_task(self._run_post_settlement_breath_and_cycle())
+
+    async def _run_post_settlement_breath_and_cycle(self) -> None:
+        """Aplica folego pos-liquidacao antes de um novo ciclo."""
+        breath = float(self.config.get("orchestrator", {}).get("post_settlement_breath_seconds", 60))
+        breath = max(0.0, breath)
+        if breath > 0:
+            await asyncio.sleep(breath)
+        if not self.running:
+            return
+        if self.state.active_contracts:
+            return
+        if self.is_trading:
+            return
         self._last_cluster_cycle_end = 0.0
-        self._post_settlement_task = asyncio.create_task(self._run_trading_cycle_if_ready())
+        await self._run_trading_cycle_if_ready()
 
     async def _setup_session(self) -> bool:
         """Conecta e autoriza sessao WebSocket."""
@@ -190,10 +205,13 @@ class Orchestrator:
         if self.is_trading:
             return
         if self.state.active_contracts:
-            self.logger.info(
-                "CICLO: aguardando liquidacao (%d contrato(s) aberto(s))", len(self.state.active_contracts)
-            )
+            if not self._settlement_wait_logged:
+                self.logger.info(
+                    "CICLO: aguardando liquidacao (%d contrato(s) aberto(s))", len(self.state.active_contracts)
+                )
+                self._settlement_wait_logged = True
             return
+        self._settlement_wait_logged = False
         epoch = int(self._last_epoch or time.time())
         ok_session, sess_note = trading_session_allows_entry(
             epoch_utc=epoch,
@@ -261,5 +279,8 @@ class Orchestrator:
     async def stop(self):
         """Para o loop e fecha o WebSocket."""
         self.running = False
+        task = self._post_settlement_task
+        if task is not None and not task.done():
+            task.cancel()
         await self.ws.close()
         self.logger.debug("STOP: encerrado.")

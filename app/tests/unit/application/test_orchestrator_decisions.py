@@ -138,6 +138,7 @@ async def test_schedule_trading_cycle_after_settlement_spawns_task(orch_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
         orch = Orchestrator(orch_config, "token")
         orch.running = True
+        orch.config.setdefault("orchestrator", {})["post_settlement_breath_seconds"] = 0
         orch.state.active_contracts = {}
         orch._run_trading_cycle_if_ready = AsyncMock()
         orch.schedule_trading_cycle_after_settlement()
@@ -166,3 +167,53 @@ def test_mark_cluster_cycle_complete_sets_timestamp(orch_config):
         with patch("src.application.services.orchestrator.time.time", return_value=42.5):
             orch.mark_cluster_cycle_complete()
         assert orch._last_cluster_cycle_end == 42.5
+
+
+@pytest.mark.asyncio
+async def test_post_settlement_breath_skips_cycle_when_stopped(orch_config):
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
+        orch = Orchestrator(orch_config, "token")
+        orch.config.setdefault("orchestrator", {})["post_settlement_breath_seconds"] = 0.01
+        orch.running = True
+        orch._run_trading_cycle_if_ready = AsyncMock()
+        with patch("src.application.services.orchestrator.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            await orch._run_post_settlement_breath_and_cycle()
+            mock_sleep.assert_awaited_once()
+        orch._run_trading_cycle_if_ready.assert_awaited_once()
+
+        orch._run_trading_cycle_if_ready.reset_mock()
+        orch.running = False
+        with patch("src.application.services.orchestrator.asyncio.sleep", new_callable=AsyncMock):
+            await orch._run_post_settlement_breath_and_cycle()
+        orch._run_trading_cycle_if_ready.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_post_settlement_breath_skips_when_contracts_or_trading(orch_config):
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
+        orch = Orchestrator(orch_config, "token")
+        orch.config.setdefault("orchestrator", {})["post_settlement_breath_seconds"] = 0
+        orch.running = True
+        orch._run_trading_cycle_if_ready = AsyncMock()
+
+        orch.state.active_contracts = {1: object()}
+        await orch._run_post_settlement_breath_and_cycle()
+        orch._run_trading_cycle_if_ready.assert_not_awaited()
+
+        orch.state.active_contracts = {}
+        orch.is_trading = True
+        await orch._run_post_settlement_breath_and_cycle()
+        orch._run_trading_cycle_if_ready.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_stop_cancels_pending_post_settlement_task(orch_config):
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
+        mock_ws = mock_ws_class.return_value
+        mock_ws.close = AsyncMock()
+        orch = Orchestrator(orch_config, "token")
+        pending = MagicMock()
+        pending.done.return_value = False
+        orch._post_settlement_task = pending
+        await orch.stop()
+        pending.cancel.assert_called_once()
