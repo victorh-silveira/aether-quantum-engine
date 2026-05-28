@@ -5,18 +5,18 @@ from __future__ import annotations
 from typing import Any
 
 from src.application.services.llm.cluster_direction import cluster_direction_from_tag
-from src.application.services.llm.cluster_statarb_select import (
-    resolve_statarb_cluster_config,
-    select_cluster_symbols_by_statarb,
-)
+from src.application.services.llm.cluster_statarb_attempt import select_cluster_symbol_attempt_order
+from src.application.services.llm.cluster_statarb_select import resolve_statarb_cluster_config_for_tag
 from src.application.services.llm.llm_cluster_exclusive import (
-    cluster_region_for_symbol,
     exclusive_cluster_by_macro_enabled,
     resolve_exclusive_cluster_region,
 )
 from src.application.services.llm.llm_cluster_invert import cluster_invert_on_block_enabled
 from src.application.services.llm.llm_cluster_logging import log_cluster_propagation_results
-from src.application.services.llm.llm_cluster_target import apply_cluster_target_decision
+from src.application.services.llm.llm_cluster_propagate_region import (
+    cluster_region_active,
+    propagate_cluster_region,
+)
 from src.application.services.llm.strategy_clusters import resolve_cluster_lists
 from src.domain.models.trade import TradeDirection
 
@@ -73,9 +73,19 @@ def _cluster_allowed_sets(
     anchor_in_eu: bool,
     corr_cfg: dict[str, Any],
     macro_cfg: dict[str, Any],
-) -> tuple[TradeDirection | None, TradeDirection | None, set[str], set[str], str, str]:
-    """Calcula direcoes e indices permitidos por cluster via tags LLM e StatArb."""
-    statarb_cfg = resolve_statarb_cluster_config(corr_cfg, macro_cfg)
+) -> tuple[
+    TradeDirection | None,
+    TradeDirection | None,
+    list[str],
+    list[str],
+    str,
+    str,
+    set[str],
+    set[str],
+]:
+    """Calcula direcoes e ordem de tentativa StatArb por cluster."""
+    macro_tag = str(metrics.get("macro_sentiment") or "")
+    statarb_cfg = resolve_statarb_cluster_config_for_tag(corr_cfg, macro_cfg, macro_tag)
     spreads_raw = metrics.get("statarb_spreads")
     spreads_map = spreads_raw if isinstance(spreads_raw, dict) else {}
     hmm_state = int(metrics.get("hmm_state", 0))
@@ -84,10 +94,10 @@ def _cluster_allowed_sets(
     us_dir, _ = cluster_direction_from_tag(metrics.get("us_cluster"))
     eu_dir, _ = cluster_direction_from_tag(metrics.get("eu_cluster"))
     if us_dir is None:
-        us_allowed, us_note = set(), ""
+        us_order, us_note, us_picked = [], "", set()
     else:
         us_wr = _rolling_wr_scores(orch, us_candidates, corr_cfg)
-        us_allowed, us_note = select_cluster_symbols_by_statarb(
+        us_order, us_note, us_picked = select_cluster_symbol_attempt_order(
             us_candidates,
             us_dir,
             spreads_map,
@@ -96,10 +106,10 @@ def _cluster_allowed_sets(
             wr_scores=us_wr,
         )
     if eu_dir is None:
-        eu_allowed, eu_note = set(), ""
+        eu_order, eu_note, eu_picked = [], "", set()
     else:
         eu_wr = _rolling_wr_scores(orch, eu_candidates, corr_cfg)
-        eu_allowed, eu_note = select_cluster_symbols_by_statarb(
+        eu_order, eu_note, eu_picked = select_cluster_symbol_attempt_order(
             eu_candidates,
             eu_dir,
             spreads_map,
@@ -107,7 +117,7 @@ def _cluster_allowed_sets(
             cfg=statarb_cfg,
             wr_scores=eu_wr,
         )
-    return us_dir, eu_dir, us_allowed, eu_allowed, us_note, eu_note
+    return us_dir, eu_dir, us_order, eu_order, us_note, eu_note, us_picked, eu_picked
 
 
 def propagate_cluster_decisions(
@@ -138,7 +148,7 @@ def propagate_cluster_decisions(
         )
         return
 
-    us_dir, eu_dir, us_allowed, eu_allowed, us_note, eu_note = _cluster_allowed_sets(
+    us_dir, eu_dir, us_order, eu_order, us_note, eu_note, us_picked, eu_picked = _cluster_allowed_sets(
         orch,
         anchor_sym=anchor_sym,
         metrics=metrics,
@@ -153,46 +163,43 @@ def propagate_cluster_decisions(
     blocked_tags: list[str] = []
     inverted_tags: list[str] = []
     invert_on_block = cluster_invert_on_block_enabled(corr_cfg)
-
-    for target_sym in orch.symbols:
-        if target_sym == anchor_sym:
-            continue
-        sym_region = cluster_region_for_symbol(target_sym, us_targets=us_targets, eu_targets=eu_targets)
-        if exclusive and active_region and sym_region and sym_region != active_region:
-            continue
-        if target_sym in us_targets and not anchor_in_us:
-            target_direction, index_note = us_dir, us_note
-            allowed = us_allowed
-        elif target_sym in eu_targets and not anchor_in_eu:
-            target_direction, index_note = eu_dir, eu_note
-            allowed = eu_allowed
-        else:
-            continue
-        if target_direction is None or target_sym not in allowed:
-            continue
-
-        propagated, blocked, inverted = apply_cluster_target_decision(
-            orch,
-            target_sym=target_sym,
-            target_direction=target_direction,
-            index_note=index_note,
-            metrics=metrics,
-            decisions=decisions,
-            anchor_sym=anchor_sym,
-            conviction=conviction,
-            macro_cfg=macro_cfg,
-            corr_cfg=corr_cfg,
-            active_region=active_region,
-            exclusive=exclusive,
-            macro_tag=macro_tag,
-            invert_on_block=invert_on_block,
+    try_alternates = bool(corr_cfg.get("statarb_try_alternate_on_block", True))
+    region_kw = {
+        "orch": orch,
+        "metrics": metrics,
+        "decisions": decisions,
+        "anchor_sym": anchor_sym,
+        "conviction": conviction,
+        "macro_cfg": macro_cfg,
+        "corr_cfg": corr_cfg,
+        "active_region": active_region,
+        "exclusive": exclusive,
+        "macro_tag": macro_tag,
+        "invert_on_block": invert_on_block,
+        "try_alternates": try_alternates,
+    }
+    if not anchor_in_us and cluster_region_active(exclusive=exclusive, active_region=active_region, region="us"):
+        p, b, i = propagate_cluster_region(
+            attempt_order=us_order,
+            picked=us_picked,
+            target_direction=us_dir,
+            index_note=us_note,
+            **region_kw,
         )
-        if propagated:
-            propagated_tags.append(propagated)
-        if blocked:
-            blocked_tags.append(blocked)
-        if inverted:
-            inverted_tags.append(inverted)
+        propagated_tags.extend(p)
+        blocked_tags.extend(b)
+        inverted_tags.extend(i)
+    if not anchor_in_eu and cluster_region_active(exclusive=exclusive, active_region=active_region, region="eu"):
+        p, b, i = propagate_cluster_region(
+            attempt_order=eu_order,
+            picked=eu_picked,
+            target_direction=eu_dir,
+            index_note=eu_note,
+            **region_kw,
+        )
+        propagated_tags.extend(p)
+        blocked_tags.extend(b)
+        inverted_tags.extend(i)
 
     log_cluster_propagation_results(
         orch,

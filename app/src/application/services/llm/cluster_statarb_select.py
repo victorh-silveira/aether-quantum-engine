@@ -4,9 +4,27 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.application.services.llm.cluster_statarb_fallback import statarb_relaxed_pick
+from src.application.services.llm.cluster_statarb_score import alignment_score, wr_blend_score
 from src.application.services.llm.llm_macro_confluence_guards import _statarb_misaligned
 from src.application.services.llm.macro_config import resolve_macro_config
 from src.domain.models.trade import TradeDirection
+
+
+def resolve_statarb_cluster_config_for_tag(
+    corr: dict[str, Any] | None,
+    macro: dict[str, Any] | None,
+    macro_tag: str,
+) -> dict[str, Any]:
+    """Mescla config StatArb com piso de |Z| especifico da tag macro ativa."""
+    statarb_cfg = resolve_statarb_cluster_config(corr, macro)
+    macro_dict = macro if isinstance(macro, dict) else {}
+    by_tag = macro_dict.get("statarb_min_abs_z_by_tag")
+    tag = str(macro_tag or "")
+    if isinstance(by_tag, dict) and tag and tag in by_tag:
+        statarb_cfg = dict(statarb_cfg)
+        statarb_cfg["min_abs_z"] = max(0.0, float(by_tag[tag]))
+    return statarb_cfg
 
 
 def resolve_statarb_cluster_config(corr: dict[str, Any] | None, macro: dict[str, Any] | None) -> dict[str, Any]:
@@ -34,21 +52,42 @@ def resolve_statarb_cluster_config(corr: dict[str, Any] | None, macro: dict[str,
         "wr_weight": max(0.0, float(c.get("statarb_wr_weight", 0.35))),
         "require_z_align": bool(c.get("statarb_require_z_align", True)),
         "z_align_soft_fallback": bool(c.get("statarb_z_align_soft_fallback", False)),
+        "soft_min_abs_ratio": max(0.1, float(c.get("statarb_soft_min_abs_ratio", 0.45))),
+        "weak_leader_on_no_align": bool(c.get("statarb_weak_leader_on_no_align", True)),
         "z_threshold": float(m["statarb_z_threshold"]),
     }
 
 
 def _alignment_score(z: float, direction: TradeDirection, hmm_state: int) -> float:
-    """Pontua alinhamento Z com direcao do cluster; HMM tendencia reduz peso."""
-    if direction == TradeDirection.CALL:
-        raw = max(0.0, -z)
-    elif direction == TradeDirection.PUT:
-        raw = max(0.0, z)
-    else:
+    """Compat: delega pontuacao de alinhamento Z para cluster_statarb_score."""
+    return alignment_score(z, direction, hmm_state)
+
+
+def _wr_blend_score(sym: str, wr_scores: dict[str, float] | None, weight: float) -> float:
+    """Compat: delega blend de win-rate rolling para cluster_statarb_score."""
+    return wr_blend_score(sym, wr_scores, weight)
+
+
+def _statarb_selection_note(note: str) -> bool:
+    """True quando a nota indica indice escolhido pelo fluxo StatArb do cluster."""
+    text = str(note or "")
+    return any(
+        token in text
+        for token in (
+            "STATARB_SOFT",
+            "STATARB_WEAK",
+            "STATARB_BEST",
+            "STATARB_INDEX",
+            "leader=",
+        )
+    )
+
+
+def statarb_execute_min_abs_z(index_note: str, statarb_cfg: dict[str, Any]) -> float:
+    """Piso de |Z| no gate de execute; zero quando a selecao StatArb ja validou o indice."""
+    if _statarb_selection_note(index_note):
         return 0.0
-    if hmm_state == 1:
-        return raw * 0.5
-    return raw
+    return float(statarb_cfg.get("min_abs_z", 0.0))
 
 
 def symbol_z_supports_direction(
@@ -73,42 +112,6 @@ def symbol_z_supports_direction(
     if _statarb_misaligned(direction, zf, float(z_threshold), int(hmm_state)):
         return False
     return _alignment_score(zf, direction, int(hmm_state)) > 0.0
-
-
-def _wr_blend_score(sym: str, wr_scores: dict[str, float] | None, weight: float) -> float:
-    """Contribuicao do win-rate rolling ao score composto do indice."""
-    if not wr_scores or weight <= 0.0:
-        return 0.0
-    raw = wr_scores.get(sym)
-    if raw is None:
-        return 0.0
-    return max(0.0, float(raw)) * weight
-
-
-def _statarb_soft_fallback_pick(
-    ranked: list[tuple[str, float, float]],
-    direction: TradeDirection,
-    *,
-    hmm_state: int,
-    z_threshold: float,
-    min_abs: float,
-    max_per_cluster: int,
-) -> tuple[set[str], str] | None:
-    """Escolhe lider via soft fallback quando o filtro estrito de Z falha."""
-    soft_rows: list[tuple[str, float, float]] = []
-    for row in ranked:
-        zf = row[1]
-        if _statarb_misaligned(direction, zf, z_threshold, hmm_state):
-            continue
-        if row[2] > 0.0 or abs(zf) >= min_abs * 0.65:
-            soft_rows.append(row)
-    if not soft_rows:
-        return None
-    leader_rows = soft_rows[:max_per_cluster]
-    picked = {row[0] for row in leader_rows}
-    leader = leader_rows[0]
-    note = f"STATARB_SOFT leader={leader[0]} z={leader[1]:.2f} score={leader[2]:.2f} n={len(picked)}"
-    return picked, note
 
 
 def _statarb_leader_pick(
@@ -181,17 +184,17 @@ def select_cluster_symbols_by_statarb(
 
     max_n = max(1, int(base_cfg.get("max_per_cluster", 1)))
     if not filtered:
-        if bool(base_cfg.get("z_align_soft_fallback", False)) and ranked:
-            soft_pick = _statarb_soft_fallback_pick(
-                ranked,
-                direction,
-                hmm_state=hmm_state,
-                z_threshold=z_threshold,
-                min_abs=min_abs,
-                max_per_cluster=max_n,
-            )
-            if soft_pick is not None:
-                return soft_pick
+        fallback = statarb_relaxed_pick(
+            ranked,
+            direction,
+            hmm_state=hmm_state,
+            z_threshold=z_threshold,
+            min_abs=min_abs,
+            max_per_cluster=max_n,
+            base_cfg=base_cfg,
+        )
+        if fallback is not None:
+            return fallback
         return set(), "STATARB_NO_Z_ALIGN"
 
     return _statarb_leader_pick(

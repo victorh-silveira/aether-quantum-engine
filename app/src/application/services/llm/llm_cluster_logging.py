@@ -42,7 +42,7 @@ def log_cluster_propagation_results(
         )
     if blocked_tags:
         orch.logger.info(
-            "[%s] CLUSTER_BLOCK || %s >> %s (conv/hmm/tag/z)",
+            "[%s] CLUSTER_BLOCK || %s >> %s",
             cid,
             anchor_sym,
             ", ".join(blocked_tags),

@@ -160,16 +160,23 @@
       "statarb_wr_weight": 0.40,
       "statarb_index_max_per_cluster": 1,
       "statarb_index_min_abs_z": 0.85,
+      "statarb_soft_min_abs_ratio": 0.45,
+      "statarb_weak_leader_on_no_align": true,
       "statarb_require_z_align": true,
       "statarb_z_align_soft_fallback": true,
+      "statarb_try_alternate_on_block": true,
       "cluster_invert_on_block": true
     },
     "macro": {
       "allowed_execute_tags": [
+        "risk_on",
         "risk_off",
         "divergence_us_leads",
         "divergence_eu_leads"
       ],
+      "statarb_min_abs_z_by_tag": {
+        "risk_on": 0.50
+      },
       "cluster_bars": 8,
       "cluster_fallback_bars": 12,
       "cluster_fallback_granularity_seconds": 300,
