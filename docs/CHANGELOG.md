@@ -1,3 +1,9 @@
+## [1.27.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.26.0...v1.27.0) (2026-05-28)
+
+### Funcionalidades
+
+* **orchestrator:** alinhar StatArb risk_on e fallback de indices ([9bc1bc8](https://github.com/victorh-silveira/aether-quantum-engine/commit/9bc1bc808126f6afa4178b8b885a407c3583d5ed))
+
 ## [1.26.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.25.0...v1.26.0) (2026-05-28)
 
 ### Funcionalidades
