@@ -46,7 +46,11 @@ def apply_cluster_target_decision(
     target_metrics["execute"] = execute_reason == "allowed"
     target_metrics["llm_block_reason"] = execute_reason
     inverted_tag = None
-    can_invert = execute_reason == "statarb_z_misaligned"
+    tag_allows_invert = str(macro_tag).startswith("divergence")
+    cycle_quarantine = bool(getattr(orch, "_invert_quarantine_active", False))
+    can_invert = execute_reason == "statarb_z_misaligned" and tag_allows_invert and not cycle_quarantine
+    if cycle_quarantine and execute_reason == "statarb_z_misaligned":
+        target_metrics["llm_block_reason"] = "invert_quarantine_after_loss"
     if not target_metrics["execute"] and invert_on_block and can_invert:
         target_direction, target_metrics, did_invert = apply_cluster_binary_invert(
             target_direction,
@@ -57,6 +61,7 @@ def apply_cluster_target_decision(
             conviction=conviction,
         )
         if did_invert:
+            target_metrics["llm_block_reason"] = "allowed_inverted"
             inverted_tag = f"{target_sym}[{original_direction.name[:1]}->{target_direction.name[:1]}]"
     if not target_metrics.get("llm_exec_inverted"):
         target_metrics["llm_note"] = (

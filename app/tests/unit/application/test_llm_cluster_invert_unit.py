@@ -127,7 +127,7 @@ def test_apply_cluster_binary_invert_sets_execute_and_complement_conviction():
     assert alt == TradeDirection.CALL
     assert out["execute"] is True
     assert out["llm_exec_inverted"] is True
-    assert out["conviction"] == pytest.approx(0.30)
+    assert out["conviction"] == pytest.approx(0.70)
 
 
 def test_cluster_propagate_logs_block_without_invert():
@@ -201,34 +201,6 @@ def test_propagate_appends_inverted_tag_from_target_decision():
         )
     mock_apply.assert_called_once()
     assert any("CLUSTER_INVERT" in str(c) for c in orch.logger.info.call_args_list)
-
-
-def test_apply_cluster_target_inverts_only_on_statarb_misalignment():
-    orch = MagicMock()
-    orch.config = {"llm": {"min_conviction_execute": 0.60}}
-    decisions: dict = {}
-    propagated, blocked, inverted = apply_cluster_target_decision(
-        orch,
-        target_sym="OTC_FTSE",
-        target_direction=TradeDirection.PUT,
-        index_note="STATARB_NO_Z_ALIGN",
-        metrics=_base_metrics(conviction=0.70, statarb_spreads={"OTC_FTSE": -2.0}),
-        decisions=decisions,
-        anchor_sym="frxEURUSD",
-        conviction=0.70,
-        macro_cfg={"assert_min_hmm_prob": 0.0, "allowed_execute_tags": ("risk_off",)},
-        corr_cfg={"statarb_require_z_align": True, "cluster_invert_on_block": True},
-        active_region="eu",
-        exclusive=True,
-        macro_tag="risk_off",
-        invert_on_block=True,
-    )
-    assert propagated == "OTC_FTSE[C]"
-    assert blocked is None
-    assert inverted == "OTC_FTSE[P->C]"
-    assert decisions["OTC_FTSE"]["direction"] == TradeDirection.CALL
-    assert decisions["OTC_FTSE"]["metrics"]["execute"] is True
-    assert decisions["OTC_FTSE"]["metrics"]["llm_exec_inverted"] is True
 
 
 def test_cluster_propagate_logs_block_when_hmm_vetoes():

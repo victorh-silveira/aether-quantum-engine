@@ -143,6 +143,7 @@ async def collect_llm_decisions(orch: Any) -> dict[str, dict]:
         orch._last_anchor_metrics = metrics
         orch._last_llm_macro_tag = macro_snapshot.tag
         orch._last_llm_decisions = dict(decisions)
+        orch.logger.info("")
         orch.logger.info("[%s] LLM_REFRESH skip (%s)", cid, skip_note)
         return decisions
 

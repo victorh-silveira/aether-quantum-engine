@@ -82,6 +82,7 @@ async def test_process_contract_settlement_lost():
 
     assert orch.state.balance == 995.0
     assert orch._session_losses == 1
+    assert orch._invert_quarantine_cycles_remaining == 1
     assert len(orch._pending_result_logs) == 1
 
 

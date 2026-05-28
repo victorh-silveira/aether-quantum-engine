@@ -170,6 +170,48 @@ def test_mark_cluster_cycle_complete_sets_timestamp(orch_config):
 
 
 @pytest.mark.asyncio
+async def test_run_trading_cycle_inserts_blank_line_between_cycles(orch_config):
+    with (
+        patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()),
+        patch(
+            "src.application.services.orchestrator.collect_llm_decisions",
+            new_callable=AsyncMock,
+            return_value={},
+        ),
+    ):
+        orch = Orchestrator(orch_config, "token")
+        orch.stream.is_synchronized = True
+        orch.ws.is_running = True
+        orch.logger = MagicMock()
+        orch.executor.execute_cluster = AsyncMock()
+        await orch._run_trading_cycle_if_ready()
+        await orch._run_trading_cycle_if_ready()
+        assert orch.logger.info.call_count == 1
+        assert orch.logger.info.call_args.args == ("",)
+
+
+@pytest.mark.asyncio
+async def test_run_trading_cycle_consumes_invert_quarantine_flag(orch_config):
+    with (
+        patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()),
+        patch(
+            "src.application.services.orchestrator.collect_llm_decisions",
+            new_callable=AsyncMock,
+            return_value={},
+        ) as mock_collect,
+    ):
+        orch = Orchestrator(orch_config, "token")
+        orch.stream.is_synchronized = True
+        orch.ws.is_running = True
+        orch.executor.execute_cluster = AsyncMock()
+        orch._invert_quarantine_cycles_remaining = 1
+        await orch._run_trading_cycle_if_ready()
+        mock_collect.assert_awaited_once()
+        assert orch._invert_quarantine_cycles_remaining == 0
+        assert orch._invert_quarantine_active is False
+
+
+@pytest.mark.asyncio
 async def test_post_settlement_breath_skips_cycle_when_stopped(orch_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
         orch = Orchestrator(orch_config, "token")

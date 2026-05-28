@@ -66,6 +66,8 @@ class Orchestrator:
         self._stream_ready_at: float | None = None
         self._post_settlement_task: asyncio.Task | None = None
         self._settlement_wait_logged = False
+        self._invert_quarantine_cycles_remaining = 0
+        self._invert_quarantine_active = False
 
     def _llm_enabled(self) -> bool:
         """Retorna se o modo decisao LLM esta ativo."""
@@ -229,7 +231,12 @@ class Orchestrator:
                     self.logger.debug("STRM: aguardando sincronia...")
                     return
                 self._cycle_seq += 1
+                if self._cycle_seq > 1:
+                    self.logger.info("")
                 self._active_cycle_id = self._cycle_seq
+                self._invert_quarantine_active = self._invert_quarantine_cycles_remaining > 0
+                if self._invert_quarantine_active:
+                    self._invert_quarantine_cycles_remaining -= 1
                 if not self._llm_enabled():
                     self.logger.error("CICLO: llm.enabled=false; motor Medallion exige LLM ativa.")
                     return
@@ -238,6 +245,7 @@ class Orchestrator:
             except Exception as e:
                 self.logger.error(f"FALHA: Ciclo: {e}")
             finally:
+                self._invert_quarantine_active = False
                 self.is_trading = False
 
     async def _subscribe_account_transactions(self) -> None:
