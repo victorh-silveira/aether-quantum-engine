@@ -34,7 +34,7 @@ def apply_cluster_binary_invert(
     alt = flip_binary_direction(target_direction)
     if alt is None:
         return target_direction, target_metrics, False
-    inv_conv = max(0.0, min(0.99, 1.0 - float(conviction)))
+    inv_conv = max(0.0, min(0.99, max(float(conviction), 1.0 - float(conviction))))
     out = dict(target_metrics)
     out["execute"] = True
     out["llm_exec_inverted"] = True

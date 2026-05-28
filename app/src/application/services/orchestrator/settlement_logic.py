@@ -56,6 +56,7 @@ async def process_contract_settlement(orch: Any, data: dict):
         orch._session_wins += 1
     else:
         orch._session_losses += 1
+        orch._invert_quarantine_cycles_remaining = 1
 
     await orch._save_full_state()
 
