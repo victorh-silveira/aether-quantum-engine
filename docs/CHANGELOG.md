@@ -1,3 +1,9 @@
+## [1.26.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.25.0...v1.26.0) (2026-05-28)
+
+### Funcionalidades
+
+* **orchestrator:** quarentena de inversao apos loss ([59d898a](https://github.com/victorh-silveira/aether-quantum-engine/commit/59d898a1bb5dbb1aa928f66af189c0ec1956d7ea))
+
 ## [1.25.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.24.0...v1.25.0) (2026-05-27)
 
 ### Funcionalidades
