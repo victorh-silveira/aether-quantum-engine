@@ -1,11 +1,16 @@
 from unittest.mock import MagicMock
 
+from src.application.services.llm.cluster_statarb_select import resolve_statarb_cluster_config_for_tag
 from src.application.services.llm.llm_cluster_guards import (
     cluster_entry_allowed,
+    cluster_execute_block_reason,
     cluster_execute_flag,
     min_conviction_execute,
 )
-from src.application.services.llm.llm_cluster_propagate import _rolling_wr_scores, propagate_cluster_decisions
+from src.application.services.llm.llm_cluster_propagate import (
+    _rolling_wr_scores,
+    propagate_cluster_decisions,
+)
 from src.domain.models.trade import TradeDirection
 
 
@@ -149,6 +154,84 @@ def test_cluster_execute_flag_skips_z_check_when_disabled():
             llm_cluster_explicit=True,
         )
         is True
+    )
+
+
+def test_statarb_cfg_for_macro_tag_overrides_min_abs():
+    corr = {"statarb_index_min_abs_z": 0.85}
+    macro = {"statarb_min_abs_z_by_tag": {"risk_on": 0.50}}
+    cfg = resolve_statarb_cluster_config_for_tag(corr, macro, "risk_on")
+    assert cfg["min_abs_z"] == 0.50
+    cfg_off = resolve_statarb_cluster_config_for_tag(corr, macro, "risk_off")
+    assert cfg_off["min_abs_z"] == 0.85
+
+
+def test_cluster_execute_statarb_best_note_uses_tag_min_abs_at_gate():
+    orch = MagicMock()
+    orch.config = {"llm": {"min_conviction_execute": 0.60}}
+    macro = {
+        "confluence_conviction_floor": 0.65,
+        "assert_min_hmm_prob": 0.0,
+        "statarb_min_abs_z_by_tag": {"risk_on": 0.50},
+    }
+    corr = {"statarb_require_z_align": True, "statarb_index_min_abs_z": 0.85}
+    metrics = _base_metrics(
+        macro_sentiment="risk_on",
+        statarb_spreads={"OTC_DJI": -0.55},
+        hmm_state=0,
+    )
+    assert (
+        cluster_execute_block_reason(
+            orch,
+            metrics,
+            0.72,
+            TradeDirection.CALL,
+            macro,
+            corr,
+            active_region="us",
+            target_sym="OTC_DJI",
+            llm_cluster_explicit=True,
+            index_note="STATARB_BEST leader=OTC_DJI z=-0.55 score=0.55",
+        )
+        == "allowed"
+    )
+
+
+def test_cluster_execute_relaxed_statarb_note_skips_min_abs_gate():
+    orch = MagicMock()
+    orch.config = {"llm": {"min_conviction_execute": 0.60}}
+    macro = {"confluence_conviction_floor": 0.65, "assert_min_hmm_prob": 0.0}
+    corr = {"statarb_require_z_align": True, "statarb_index_min_abs_z": 0.85}
+    metrics = _base_metrics(statarb_spreads={"OTC_SPC": -0.35}, hmm_state=0)
+    assert (
+        cluster_execute_block_reason(
+            orch,
+            metrics,
+            0.70,
+            TradeDirection.CALL,
+            macro,
+            corr,
+            active_region="us",
+            target_sym="OTC_SPC",
+            llm_cluster_explicit=True,
+            index_note="STATARB_WEAK leader=OTC_SPC z=-0.35",
+        )
+        == "allowed"
+    )
+    assert (
+        cluster_execute_block_reason(
+            orch,
+            metrics,
+            0.70,
+            TradeDirection.CALL,
+            macro,
+            corr,
+            active_region="us",
+            target_sym="OTC_SPC",
+            llm_cluster_explicit=True,
+            index_note="",
+        )
+        == "statarb_z_misaligned"
     )
 
 

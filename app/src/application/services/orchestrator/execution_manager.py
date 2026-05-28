@@ -53,7 +53,8 @@ class ExecutionManager:
                 reasons.append(f"{symbol}:sem_direcao")
                 continue
             if not metrics.get("execute", True):
-                reasons.append(f"{symbol}:execute_false")
+                block_reason = str(metrics.get("llm_block_reason") or "execute_false")
+                reasons.append(f"{symbol}:{block_reason}")
                 continue
             stake = self.orch.risk_manager.calculate_stake(
                 bankroll_snapshot,

@@ -41,7 +41,7 @@ def test_apply_cluster_target_does_not_invert_outside_divergence_tag():
         invert_on_block=True,
     )
     assert propagated is None
-    assert blocked == "OTC_FTSE[P]"
+    assert blocked == "OTC_FTSE[P]:statarb_z_misaligned"
     assert inverted is None
     assert decisions["OTC_FTSE"]["direction"] == TradeDirection.PUT
     assert decisions["OTC_FTSE"]["metrics"]["execute"] is False
@@ -107,7 +107,7 @@ def test_apply_cluster_target_respects_quarantine_after_loss():
         invert_on_block=True,
     )
     assert propagated is None
-    assert blocked == "OTC_FTSE[P]"
+    assert blocked == "OTC_FTSE[P]:invert_quarantine_after_loss"
     assert inverted is None
     assert decisions["OTC_FTSE"]["direction"] == TradeDirection.PUT
     assert decisions["OTC_FTSE"]["metrics"]["execute"] is False

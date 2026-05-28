@@ -42,6 +42,7 @@ def apply_cluster_target_decision(
         active_region=active_region,
         target_sym=target_sym,
         llm_cluster_explicit=True,
+        index_note=index_note,
     )
     target_metrics["execute"] = execute_reason == "allowed"
     target_metrics["llm_block_reason"] = execute_reason
@@ -72,7 +73,8 @@ def apply_cluster_target_decision(
     target_metrics["cluster_exclusive_macro"] = exclusive
     target_metrics["duration"] = enforce_minimum_duration(target_sym, target_metrics.get("duration", 15))
     store_symbol_decision(decisions, target_sym, target_direction, target_metrics)
+    reason = str(target_metrics.get("llm_block_reason") or "blocked")
     sym_tag = f"{target_sym}[{target_direction.name[:1]}]"
     if target_metrics["execute"]:
         return sym_tag, None, inverted_tag
-    return None, sym_tag, inverted_tag
+    return None, f"{sym_tag}:{reason}", inverted_tag

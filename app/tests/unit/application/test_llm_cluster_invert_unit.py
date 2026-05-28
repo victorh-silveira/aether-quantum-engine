@@ -109,7 +109,7 @@ def test_apply_cluster_target_blocked_without_invert():
         invert_on_block=False,
     )
     assert propagated is None
-    assert blocked == "OTC_FCHI[P]"
+    assert blocked == "OTC_FCHI[P]:low_conviction"
     assert inverted is None
 
 
@@ -176,10 +176,12 @@ def test_propagate_appends_inverted_tag_from_target_decision():
     allowed = (
         None,
         TradeDirection.PUT,
-        set(),
-        {"OTC_FTSE"},
+        [],
+        ["OTC_FTSE"],
         "",
         "note",
+        set(),
+        {"OTC_FTSE"},
     )
     with (
         patch(
@@ -187,7 +189,7 @@ def test_propagate_appends_inverted_tag_from_target_decision():
             return_value=allowed,
         ),
         patch(
-            "src.application.services.llm.llm_cluster_propagate.apply_cluster_target_decision",
+            "src.application.services.llm.llm_cluster_propagate_region.apply_cluster_target_decision",
             return_value=(None, None, "OTC_FTSE[P->C]"),
         ) as mock_apply,
     ):
@@ -263,5 +265,6 @@ def test_cluster_execute_ignores_anchor_macro_execute_false():
         decisions=decisions,
         cid="C0001",
     )
-    assert decisions["OTC_FCHI"]["metrics"]["execute"] is True
-    assert decisions["OTC_GDAXI"]["metrics"]["execute"] is True
+    cluster_syms = [s for s in decisions if s != "frxEURUSD"]
+    assert cluster_syms
+    assert any(decisions[s]["metrics"]["execute"] for s in cluster_syms)

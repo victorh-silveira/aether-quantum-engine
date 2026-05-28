@@ -5,7 +5,8 @@ from __future__ import annotations
 from typing import Any
 
 from src.application.services.llm.cluster_statarb_select import (
-    resolve_statarb_cluster_config,
+    resolve_statarb_cluster_config_for_tag,
+    statarb_execute_min_abs_z,
     symbol_z_supports_direction,
 )
 from src.application.services.llm.macro_config import resolve_macro_config
@@ -116,6 +117,7 @@ def cluster_execute_block_reason(
     active_region: str | None,
     target_sym: str,
     llm_cluster_explicit: bool = False,
+    index_note: str = "",
 ) -> str:
     """Retorna motivo de bloqueio de execute para decisao de cluster."""
     reason = "allowed"
@@ -135,14 +137,20 @@ def cluster_execute_block_reason(
         if bool(c.get("statarb_require_z_align", True)):
             spreads = metrics.get("statarb_spreads")
             if isinstance(spreads, dict) and target_sym in spreads:
-                statarb_cfg = resolve_statarb_cluster_config(c, macro_cfg if isinstance(macro_cfg, dict) else None)
+                macro_tag = str(metrics.get("macro_sentiment") or metrics.get("macro_confluence_tag") or "")
+                statarb_cfg = resolve_statarb_cluster_config_for_tag(
+                    c,
+                    macro_cfg if isinstance(macro_cfg, dict) else None,
+                    macro_tag,
+                )
                 z = float(spreads[target_sym])
+                min_abs_gate = statarb_execute_min_abs_z(index_note, statarb_cfg)
                 if not symbol_z_supports_direction(
                     z,
                     target_direction,
                     hmm_state=int(metrics.get("hmm_state", 0)),
                     z_threshold=float(statarb_cfg.get("z_threshold", 2.5)),
-                    min_abs_z=float(statarb_cfg.get("min_abs_z", 0.0)),
+                    min_abs_z=min_abs_gate,
                 ):
                     reason = "statarb_z_misaligned"
     return reason
