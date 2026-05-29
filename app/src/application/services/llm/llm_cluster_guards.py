@@ -4,12 +4,16 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.application.services.llm.cluster_post_loss import cluster_post_loss_block_reason
 from src.application.services.llm.cluster_statarb_select import (
     resolve_statarb_cluster_config_for_tag,
-    statarb_execute_min_abs_z,
     symbol_z_supports_direction,
 )
 from src.application.services.llm.macro_config import resolve_macro_config
+from src.application.services.llm.profitable_scenario import (
+    cluster_symbol_allowed_for_tag,
+    min_conviction_for_macro_tag,
+)
 from src.domain.models.trade import TradeDirection
 
 
@@ -70,6 +74,11 @@ def cluster_entry_allowed(
     if hmm_prob < float(cfg.get("assert_min_hmm_prob", 0.0)):
         return False
     if llm_cluster_explicit:
+        floor = float(cfg["confluence_conviction_floor"])
+        us_s = float(metrics.get("macro_us_strength_quant", 0))
+        eu_s = float(metrics.get("macro_eu_strength_quant", 0))
+        if tag in ("risk_on", "risk_off", "divergence_us_leads", "divergence_eu_leads"):
+            return cluster_tag_region_ok(tag, us_s, eu_s, floor, cfg, active_region)
         return True
     floor = float(cfg["confluence_conviction_floor"])
     us_s = float(metrics.get("macro_us_strength_quant", 0))
@@ -120,37 +129,55 @@ def cluster_execute_block_reason(
     index_note: str = "",
 ) -> str:
     """Retorna motivo de bloqueio de execute para decisao de cluster."""
+    _ = index_note
     reason = "allowed"
-    if target_direction is None:
+    post_loss = cluster_post_loss_block_reason(orch, target_sym=target_sym, target_direction=target_direction)
+    if post_loss is not None:
+        reason = post_loss
+    elif target_direction is None:
         reason = "no_direction"
-    elif conviction < min_conviction_execute(orch):
-        reason = "low_conviction"
-    elif not cluster_entry_allowed(
+    else:
+        macro_tag = str(metrics.get("macro_sentiment") or metrics.get("macro_confluence_tag") or "")
+        conv_floor = min_conviction_for_macro_tag(
+            macro_cfg if isinstance(macro_cfg, dict) else None,
+            macro_tag=macro_tag,
+            base_floor=min_conviction_execute(orch),
+        )
+        if conviction < conv_floor:
+            reason = "low_conviction"
+        elif not cluster_symbol_allowed_for_tag(
+            macro_cfg if isinstance(macro_cfg, dict) else None,
+            macro_tag=macro_tag,
+            symbol=target_sym,
+        ):
+            reason = "scenario_symbol_not_allowed"
+    if reason == "allowed" and not cluster_entry_allowed(
         metrics,
         macro_cfg,
         active_region=active_region,
         llm_cluster_explicit=llm_cluster_explicit,
     ):
         reason = "macro_or_hmm_veto"
-    else:
+    if reason == "allowed":
         c = corr_cfg if isinstance(corr_cfg, dict) else {}
-        if bool(c.get("statarb_require_z_align", True)):
-            spreads = metrics.get("statarb_spreads")
-            if isinstance(spreads, dict) and target_sym in spreads:
-                macro_tag = str(metrics.get("macro_sentiment") or metrics.get("macro_confluence_tag") or "")
-                statarb_cfg = resolve_statarb_cluster_config_for_tag(
-                    c,
-                    macro_cfg if isinstance(macro_cfg, dict) else None,
-                    macro_tag,
-                )
-                z = float(spreads[target_sym])
-                min_abs_gate = statarb_execute_min_abs_z(index_note, statarb_cfg)
-                if not symbol_z_supports_direction(
-                    z,
-                    target_direction,
-                    hmm_state=int(metrics.get("hmm_state", 0)),
-                    z_threshold=float(statarb_cfg.get("z_threshold", 2.5)),
-                    min_abs_z=min_abs_gate,
-                ):
-                    reason = "statarb_z_misaligned"
+        macro_tag = str(metrics.get("macro_sentiment") or metrics.get("macro_confluence_tag") or "")
+        spreads = metrics.get("statarb_spreads")
+        if bool(c.get("statarb_require_z_align", True)) and isinstance(spreads, dict) and target_sym in spreads:
+            statarb_cfg = resolve_statarb_cluster_config_for_tag(
+                c,
+                macro_cfg if isinstance(macro_cfg, dict) else None,
+                macro_tag,
+            )
+            z = float(spreads[target_sym])
+            hmm_state = int(metrics.get("hmm_state", 0))
+            z_threshold = float(statarb_cfg.get("z_threshold", 2.5))
+            min_abs_gate = float(statarb_cfg.get("min_abs_z", 0.0))
+            if not symbol_z_supports_direction(
+                z,
+                target_direction,
+                hmm_state=hmm_state,
+                z_threshold=z_threshold,
+                min_abs_z=min_abs_gate,
+            ):
+                reason = "statarb_z_misaligned"
     return reason

@@ -50,7 +50,7 @@ def apply_cluster_target_decision(
     tag_allows_invert = str(macro_tag).startswith("divergence")
     cycle_quarantine = bool(getattr(orch, "_invert_quarantine_active", False))
     can_invert = execute_reason == "statarb_z_misaligned" and tag_allows_invert and not cycle_quarantine
-    if cycle_quarantine and execute_reason == "statarb_z_misaligned":
+    if cycle_quarantine and not target_metrics["execute"] and execute_reason == "statarb_z_misaligned":
         target_metrics["llm_block_reason"] = "invert_quarantine_after_loss"
     if not target_metrics["execute"] and invert_on_block and can_invert:
         target_direction, target_metrics, did_invert = apply_cluster_binary_invert(

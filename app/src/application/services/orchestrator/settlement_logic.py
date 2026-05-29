@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from src.application.services.llm.cluster_post_loss import record_cluster_loss
 from src.application.services.orchestrator.metrics_utils import neutral_metrics
 from src.application.services.orchestrator.result_utils import api_settlement_label
 from src.application.services.orchestrator.settlement_detect import contract_payload_is_settled
@@ -57,6 +58,8 @@ async def process_contract_settlement(orch: Any, data: dict):
     else:
         orch._session_losses += 1
         orch._invert_quarantine_cycles_remaining = 1
+        loss_dir = getattr(contract, "direction", None)
+        record_cluster_loss(orch, symbol=sym, direction=loss_dir)
 
     await orch._save_full_state()
 

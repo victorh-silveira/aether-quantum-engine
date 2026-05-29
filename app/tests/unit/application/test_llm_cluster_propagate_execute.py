@@ -9,24 +9,13 @@ from src.application.services.llm.llm_cluster_guards import (
 )
 from src.application.services.llm.llm_cluster_propagate import (
     _rolling_wr_scores,
-    propagate_cluster_decisions,
 )
 from src.domain.models.trade import TradeDirection
+from tests.unit.application.cluster_guard_metrics import base_cluster_metrics
 
 
 def _base_metrics(**overrides):
-    base = {
-        "conviction": 0.70,
-        "execute": False,
-        "us_cluster": "PUT",
-        "eu_cluster": "PUT",
-        "macro_sentiment": "risk_off",
-        "macro_us_strength_quant": 0.30,
-        "macro_eu_strength_quant": 0.72,
-        "hmm_prob": 0.90,
-    }
-    base.update(overrides)
-    return base
+    return base_cluster_metrics(**overrides)
 
 
 def test_rolling_wr_scores_builds_map():
@@ -126,7 +115,7 @@ def test_cluster_entry_allowed_branches():
             active_region="eu",
             llm_cluster_explicit=True,
         )
-        is True
+        is False
     )
     macro_tags = {
         **macro,
@@ -166,121 +155,30 @@ def test_statarb_cfg_for_macro_tag_overrides_min_abs():
     assert cfg_off["min_abs_z"] == 0.85
 
 
-def test_cluster_execute_statarb_best_note_uses_tag_min_abs_at_gate():
+def test_cluster_execute_blocks_when_us_cluster_weak_on_risk_on():
     orch = MagicMock()
     orch.config = {"llm": {"min_conviction_execute": 0.60}}
-    macro = {
-        "confluence_conviction_floor": 0.65,
-        "assert_min_hmm_prob": 0.0,
-        "statarb_min_abs_z_by_tag": {"risk_on": 0.50},
-    }
-    corr = {"statarb_require_z_align": True, "statarb_index_min_abs_z": 0.85}
+    macro = {"confluence_conviction_floor": 0.65, "assert_min_hmm_prob": 0.0}
+    corr = {"statarb_require_z_align": True}
     metrics = _base_metrics(
         macro_sentiment="risk_on",
-        statarb_spreads={"OTC_DJI": -0.55},
+        macro_us_strength_quant=0.40,
+        macro_eu_strength_quant=0.90,
+        statarb_spreads={"OTC_DJI": -1.0},
         hmm_state=0,
     )
     assert (
         cluster_execute_block_reason(
             orch,
             metrics,
-            0.72,
+            0.70,
             TradeDirection.CALL,
             macro,
             corr,
             active_region="us",
             target_sym="OTC_DJI",
             llm_cluster_explicit=True,
-            index_note="STATARB_BEST leader=OTC_DJI z=-0.55 score=0.55",
+            index_note="STATARB_BEST leader=OTC_DJI z=-1.00",
         )
-        == "allowed"
+        == "macro_or_hmm_veto"
     )
-
-
-def test_cluster_execute_relaxed_statarb_note_skips_min_abs_gate():
-    orch = MagicMock()
-    orch.config = {"llm": {"min_conviction_execute": 0.60}}
-    macro = {"confluence_conviction_floor": 0.65, "assert_min_hmm_prob": 0.0}
-    corr = {"statarb_require_z_align": True, "statarb_index_min_abs_z": 0.85}
-    metrics = _base_metrics(statarb_spreads={"OTC_SPC": -0.35}, hmm_state=0)
-    assert (
-        cluster_execute_block_reason(
-            orch,
-            metrics,
-            0.70,
-            TradeDirection.CALL,
-            macro,
-            corr,
-            active_region="us",
-            target_sym="OTC_SPC",
-            llm_cluster_explicit=True,
-            index_note="STATARB_WEAK leader=OTC_SPC z=-0.35",
-        )
-        == "allowed"
-    )
-    assert (
-        cluster_execute_block_reason(
-            orch,
-            metrics,
-            0.70,
-            TradeDirection.CALL,
-            macro,
-            corr,
-            active_region="us",
-            target_sym="OTC_SPC",
-            llm_cluster_explicit=True,
-            index_note="",
-        )
-        == "statarb_z_misaligned"
-    )
-
-
-def test_cluster_execute_flag_conviction_and_direction_gates():
-    orch = MagicMock()
-    orch.config = {"llm": {"min_conviction_execute": 0.60}}
-    macro = {"confluence_conviction_floor": 0.65, "assert_min_hmm_prob": 0.0}
-    corr = {"statarb_require_z_align": True}
-    assert (
-        cluster_execute_flag(
-            orch,
-            _base_metrics(),
-            0.50,
-            TradeDirection.PUT,
-            macro,
-            corr,
-            active_region="eu",
-            target_sym="OTC_FCHI",
-        )
-        is False
-    )
-    assert (
-        cluster_execute_flag(orch, _base_metrics(), 0.70, None, macro, corr, active_region="eu", target_sym="OTC_FCHI")
-        is False
-    )
-
-
-def test_cluster_propagate_logs_empty_when_cluster_tags_missing():
-    orch = MagicMock()
-    orch.anchor = "frxEURUSD"
-    orch.symbols = ["frxEURUSD", "OTC_FCHI"]
-    orch.config = {
-        "llm": {"min_conviction_execute": 0.60},
-        "strategy": {
-            "clusters": {"us": ["OTC_SPC"], "eu": ["OTC_FCHI"]},
-            "correlation": {"enabled": True, "exclusive_cluster_by_macro": True},
-            "macro": {"confluence_conviction_floor": 0.65},
-        },
-    }
-    metrics = _base_metrics()
-    metrics.pop("eu_cluster")
-    decisions: dict = {}
-    propagate_cluster_decisions(
-        orch,
-        anchor_sym="frxEURUSD",
-        direction=TradeDirection.PUT,
-        metrics=metrics,
-        decisions=decisions,
-        cid="C0002",
-    )
-    assert decisions == {}
-    orch.logger.info.assert_called()

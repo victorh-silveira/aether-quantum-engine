@@ -81,7 +81,7 @@ async def collect_hft_orders_gemini(
 
     print("Gemini: simulando HFT (decisao replicada nos pontos agendados)...", flush=True)
 
-    async def _resolver(bar_index: int, snapshot) -> list[BacktestOrder]:
+    async def _resolver(bar_index: int, snapshot, runtime) -> list[BacktestOrder]:
         payload = payload_for_bar(cache, bar_index, start, schedule, step, targets)
         if not payload or payload.get("_llm_call_failed"):
             return []
@@ -102,6 +102,7 @@ async def collect_hft_orders_gemini(
             us_tag=str(us_tag) if us_tag else None,
             eu_tag=str(eu_tag) if eu_tag else None,
             conviction=conv,
+            runtime=runtime,
         )
 
     orders, stats = await collect_hft_with_resolver(
@@ -109,6 +110,8 @@ async def collect_hft_orders_gemini(
         m5=m5,
         us_syms=us_syms,
         eu_syms=eu_syms,
+        all_syms=all_syms,
+        anchor=anchor,
         macro_cfg=macro_cfg,
         start=start,
         end=end,

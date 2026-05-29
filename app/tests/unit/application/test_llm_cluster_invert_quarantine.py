@@ -23,6 +23,7 @@ def test_apply_cluster_target_does_not_invert_outside_divergence_tag():
     orch = MagicMock()
     orch.config = {"llm": {"min_conviction_execute": 0.60}}
     orch._invert_quarantine_active = False
+    orch._cluster_pause_after_loss_active = False
     decisions: dict = {}
     propagated, blocked, inverted = apply_cluster_target_decision(
         orch,
@@ -52,6 +53,7 @@ def test_apply_cluster_target_inverts_on_divergence_tag():
     orch = MagicMock()
     orch.config = {"llm": {"min_conviction_execute": 0.60}}
     orch._invert_quarantine_active = False
+    orch._cluster_pause_after_loss_active = False
     decisions: dict = {}
     propagated, blocked, inverted = apply_cluster_target_decision(
         orch,
@@ -85,6 +87,7 @@ def test_apply_cluster_target_respects_quarantine_after_loss():
     orch = MagicMock()
     orch.config = {"llm": {"min_conviction_execute": 0.60}}
     orch._invert_quarantine_active = True
+    orch._cluster_pause_after_loss_active = False
     decisions: dict = {}
     propagated, blocked, inverted = apply_cluster_target_decision(
         orch,

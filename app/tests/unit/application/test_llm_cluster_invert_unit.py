@@ -90,6 +90,7 @@ def test_log_cluster_propagation_results_blocked():
 
 def test_apply_cluster_target_blocked_without_invert():
     orch = MagicMock()
+    orch._cluster_pause_after_loss_active = False
     orch.config = {"llm": {"min_conviction_execute": 0.90}}
     decisions: dict = {}
     propagated, blocked, inverted = apply_cluster_target_decision(
@@ -207,6 +208,7 @@ def test_propagate_appends_inverted_tag_from_target_decision():
 
 def test_cluster_propagate_logs_block_when_hmm_vetoes():
     orch = MagicMock()
+    orch._cluster_pause_after_loss_active = False
     orch.anchor = "frxEURUSD"
     orch.symbols = ["frxEURUSD", "OTC_FCHI"]
     orch.config = {
@@ -256,7 +258,7 @@ def test_cluster_execute_ignores_anchor_macro_execute_false():
         },
     }
     decisions: dict = {}
-    metrics = _base_metrics(macro_eu_strength_quant=0.10)
+    metrics = _base_metrics(execute=False, macro_eu_strength_quant=0.72)
     propagate_cluster_decisions(
         orch,
         anchor_sym="frxEURUSD",

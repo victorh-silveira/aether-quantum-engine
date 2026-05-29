@@ -4,9 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from scripts.backtest.hft_cycle import cooldown_slots, hft_slots_per_m15_bar
-from scripts.backtest.signal_engine import BacktestOrder
-from scripts.backtest.snapshot_engine import build_snapshot_at_bar
+from scripts.backtest.hft_walkforward import collect_hft_orders_walkforward
 
 
 async def collect_hft_with_resolver(
@@ -15,51 +13,26 @@ async def collect_hft_with_resolver(
     m5: dict[str, list[float]],
     us_syms: list[str],
     eu_syms: list[str],
+    all_syms: list[str],
+    anchor: str,
     macro_cfg: dict[str, Any] | None,
     start: int,
     end: int,
     resolver,
     config: dict[str, Any],
-) -> tuple[list[BacktestOrder], dict[str, Any]]:
-    """Percorre barras M15 e aplica resolver para gerar ordens HFT."""
-    slots = hft_slots_per_m15_bar(config)
-    cool = 0
-    orders: list[BacktestOrder] = []
-    bars_with_signal = 0
-    open_until_bar: int | None = None
-    last_entry_slot = -10_000
-
-    for bar_index in range(start, end + 1):
-        snap = build_snapshot_at_bar(
-            bar_index=bar_index,
-            m15_closes=m15,
-            m5_closes=m5,
-            us_symbols=us_syms,
-            eu_symbols=eu_syms,
-            macro_cfg=macro_cfg,
-        )
-        bar_orders = await resolver(bar_index, snap)
-        if not bar_orders:
-            continue
-        bars_with_signal += 1
-        cool = cooldown_slots(config, slots_per_bar=slots, conviction=float(bar_orders[0].conviction))
-        base_slot = bar_index * slots
-        for slot in range(slots):
-            global_slot = base_slot + slot
-            if open_until_bar is not None and bar_index < open_until_bar:
-                break
-            if cool > 0 and global_slot - last_entry_slot < cool:
-                continue
-            orders.append(bar_orders[0])
-            open_until_bar = bar_index + 1
-            last_entry_slot = global_slot
-            break
-
-    stats = {
-        "hft_slots_per_m15_bar": slots,
-        "hft_cooldown_slots": cool,
-        "hft_contract_lock_bars": 1,
-        "bars_with_signal": bars_with_signal,
-        "signals_generated": len(orders),
-    }
-    return orders, stats
+) -> tuple[list, dict[str, Any]]:
+    risk_cfg = config.get("risk_management") if isinstance(config.get("risk_management"), dict) else None
+    return await collect_hft_orders_walkforward(
+        config=config,
+        m15=m15,
+        m5=m5,
+        us_syms=us_syms,
+        eu_syms=eu_syms,
+        all_syms=all_syms,
+        anchor=anchor,
+        macro_cfg=macro_cfg,
+        start=start,
+        end=end,
+        resolver=resolver,
+        risk_config=risk_cfg,
+    )

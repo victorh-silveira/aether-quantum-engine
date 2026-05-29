@@ -1,22 +1,13 @@
-"""Sinais Medallion quantitativos e selecao de trades para backtest."""
+"""Sinais Medallion e propagacao de cluster (mesmo pipeline do motor live)."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
 
-from src.application.services.llm.cluster_direction import cluster_direction_from_tag
-from src.application.services.llm.cluster_statarb_select import (
-    resolve_statarb_cluster_config,
-    select_cluster_symbols_by_statarb,
-)
+from scripts.backtest.backtest_cluster_runtime import BacktestClusterRuntime
 from src.application.services.llm.global_macro_confluence import MacroSnapshot
-from src.application.services.llm.llm_cluster_exclusive import (
-    cluster_region_for_symbol,
-    exclusive_cluster_by_macro_enabled,
-    resolve_exclusive_cluster_region,
-)
-from src.application.services.llm.llm_macro_confluence_guards import apply_macro_confluence_guard
+from src.application.services.llm.llm_cluster_propagate import propagate_cluster_decisions
 from src.application.services.llm.macro_cluster_align import cluster_trade_direction
 from src.application.services.llm.macro_config import resolve_macro_config
 from src.domain.models.trade import TradeDirection
@@ -38,7 +29,7 @@ class BacktestOrder:
 def derive_quant_cluster_tags(
     snapshot: MacroSnapshot, macro_cfg: dict[str, Any] | None
 ) -> tuple[str | None, str | None]:
-    """Surrogate quant para US_CLUSTER e EU_CLUSTER (sem LLM)."""
+    """Surrogate quant para US_CLUSTER e EU_CLUSTER (modo sem API Gemini)."""
     cfg = resolve_macro_config(macro_cfg if isinstance(macro_cfg, dict) else None)
     floor = float(cfg["confluence_conviction_floor"])
     tag = snapshot.tag
@@ -58,73 +49,28 @@ def derive_quant_cluster_tags(
 
 
 def _base_conviction(snapshot: MacroSnapshot) -> float:
-    """Conviccao base a partir das forcas de cluster."""
     return max(float(snapshot.us_strength), float(snapshot.eu_strength), 0.55)
 
 
-def _exclusive_enabled(config: dict[str, Any]) -> bool:
-    """Le flag exclusive_cluster_by_macro da config."""
-
-    class _Cfg:
-        def __init__(self, c: dict[str, Any]):
-            self.config = c
-
-    return exclusive_cluster_by_macro_enabled(_Cfg(config))
-
-
-def _cluster_allowed(
-    *,
-    candidates: list[str],
-    tag: str | None,
-    spreads_map: dict[str, float],
-    hmm_state: int,
-    statarb_cfg: dict[str, Any],
-) -> tuple[TradeDirection | None, set[str], str]:
-    """Direcao e indices permitidos para um cluster."""
-    direction, _ = cluster_direction_from_tag(tag)
-    if direction is None:
-        return None, set(), ""
-    allowed, note = select_cluster_symbols_by_statarb(
-        candidates, direction, spreads_map, hmm_state=hmm_state, cfg=statarb_cfg
-    )
-    return direction, allowed, note
-
-
-def _try_order(
-    *,
-    bar_index: int,
-    sym: str,
-    target_direction: TradeDirection | None,
-    allowed: set[str],
-    note: str,
+def _metrics_from_snapshot(
     snapshot: MacroSnapshot,
-    macro_cfg: dict[str, Any] | None,
-    metrics: dict[str, Any],
-    min_conv: float,
-    active_region: str,
-) -> BacktestOrder | None:
-    """Monta ordem se guardrails e conviccao permitirem."""
-    if target_direction is None or sym not in allowed:
-        return None
-    conviction = float(metrics["conviction"])
-    direction, conviction, _, _, execute = apply_macro_confluence_guard(
-        target_direction,
-        conviction,
-        snapshot,
-        macro_cfg if isinstance(macro_cfg, dict) else None,
-        sym=sym,
-    )
-    if not execute or direction is None or conviction < min_conv:
-        return None
-    return BacktestOrder(
-        bar_index=bar_index,
-        symbol=sym,
-        direction=direction,
-        conviction=conviction,
-        macro_tag=snapshot.tag,
-        active_region=active_region,
-        index_note=note,
-    )
+    *,
+    us_tag: str | None,
+    eu_tag: str | None,
+    conviction: float,
+) -> dict[str, Any]:
+    return {
+        "macro_sentiment": snapshot.tag,
+        "macro_confluence_tag": snapshot.tag,
+        "macro_us_strength_quant": snapshot.us_strength,
+        "macro_eu_strength_quant": snapshot.eu_strength,
+        "us_cluster": us_tag,
+        "eu_cluster": eu_tag,
+        "statarb_spreads": dict(snapshot.statarb_spreads or {}),
+        "hmm_state": int(snapshot.hmm_state),
+        "hmm_prob": float(snapshot.hmm_prob),
+        "conviction": conviction,
+    }
 
 
 def resolve_orders_from_cluster_tags(
@@ -139,77 +85,47 @@ def resolve_orders_from_cluster_tags(
     us_tag: str | None,
     eu_tag: str | None,
     conviction: float,
+    runtime: BacktestClusterRuntime,
 ) -> list[BacktestOrder]:
-    """Gera ordens a partir de tags US/EU (LLM ou surrogate quant)."""
-    strategy = config.get("strategy", {})
-    corr_cfg = strategy.get("correlation") if isinstance(strategy.get("correlation"), dict) else {}
-    macro_cfg = strategy.get("macro") if isinstance(strategy.get("macro"), dict) else {}
-    llm_cfg = config.get("llm") if isinstance(config.get("llm"), dict) else {}
-    min_conv = float(llm_cfg.get("min_conviction_execute", 0.60))
-
-    us_targets = tuple(us_symbols)
-    eu_targets = tuple(eu_symbols)
-    metrics: dict[str, Any] = {
-        "macro_sentiment": snapshot.tag,
-        "macro_confluence_tag": snapshot.tag,
-        "macro_us_strength_quant": snapshot.us_strength,
-        "macro_eu_strength_quant": snapshot.eu_strength,
-        "us_cluster": us_tag,
-        "eu_cluster": eu_tag,
-        "statarb_spreads": dict(snapshot.statarb_spreads or {}),
-        "hmm_state": int(snapshot.hmm_state),
-        "hmm_prob": float(snapshot.hmm_prob),
-        "conviction": conviction,
-    }
-
-    exclusive = _exclusive_enabled(config)
-    active_region = resolve_exclusive_cluster_region(metrics) if exclusive else None
-    if exclusive and active_region is None:
-        return []
-
-    statarb_cfg = resolve_statarb_cluster_config(corr_cfg, macro_cfg)
-    spreads_map = dict(snapshot.statarb_spreads or {})
-    hmm_state = int(snapshot.hmm_state)
-    anchor_in_us = anchor in us_targets
-    anchor_in_eu = anchor in eu_targets
-
-    us_cands = [s for s in all_symbols if s in us_targets and s != anchor and not anchor_in_us]
-    eu_cands = [s for s in all_symbols if s in eu_targets and s != anchor and not anchor_in_eu]
-    us_dir, us_allowed, us_note = _cluster_allowed(
-        candidates=us_cands, tag=us_tag, spreads_map=spreads_map, hmm_state=hmm_state, statarb_cfg=statarb_cfg
+    _ = (config, us_symbols, eu_symbols, all_symbols)
+    """Propaga tags US/EU com propagate_cluster_decisions (guardrails live)."""
+    metrics = _metrics_from_snapshot(snapshot, us_tag=us_tag, eu_tag=eu_tag, conviction=conviction)
+    decisions: dict[str, dict] = {}
+    propagate_cluster_decisions(
+        runtime,
+        anchor_sym=anchor,
+        direction=TradeDirection.CALL,
+        metrics=metrics,
+        decisions=decisions,
+        cid=f"C{bar_index:04d}",
     )
-    eu_dir, eu_allowed, eu_note = _cluster_allowed(
-        candidates=eu_cands, tag=eu_tag, spreads_map=spreads_map, hmm_state=hmm_state, statarb_cfg=statarb_cfg
-    )
-
-    region_label = active_region or ""
-    for sym in all_symbols:
+    region = str(metrics.get("cluster_active_region") or "")
+    orders: list[BacktestOrder] = []
+    for sym, entry in decisions.items():
         if sym == anchor:
             continue
-        sym_region = cluster_region_for_symbol(sym, us_targets=us_targets, eu_targets=eu_targets)
-        if exclusive and active_region and sym_region and sym_region != active_region:
+        m = entry.get("metrics") if isinstance(entry.get("metrics"), dict) else {}
+        if not m.get("execute"):
             continue
-        if sym in us_targets and not anchor_in_us:
-            target_direction, allowed, note = us_dir, us_allowed, us_note
-        elif sym in eu_targets and not anchor_in_eu:
-            target_direction, allowed, note = eu_dir, eu_allowed, eu_note
-        else:
+        direction = entry.get("direction")
+        if not isinstance(direction, TradeDirection):
             continue
-        order = _try_order(
-            bar_index=bar_index,
-            sym=sym,
-            target_direction=target_direction,
-            allowed=allowed,
-            note=note,
-            snapshot=snapshot,
-            macro_cfg=macro_cfg if isinstance(macro_cfg, dict) else None,
-            metrics=metrics,
-            min_conv=min_conv,
-            active_region=region_label,
+        note = str(m.get("llm_note") or "")
+        orders.append(
+            BacktestOrder(
+                bar_index=bar_index,
+                symbol=sym,
+                direction=direction,
+                conviction=float(m.get("conviction", conviction)),
+                macro_tag=snapshot.tag,
+                active_region=region,
+                index_note=note,
+            )
         )
-        if order is not None:
-            return [order]
-    return []
+    if len(orders) > 1:
+        orders.sort(key=lambda o: o.conviction, reverse=True)
+        return orders[:1]
+    return orders
 
 
 def resolve_orders_at_bar(
@@ -221,8 +137,9 @@ def resolve_orders_at_bar(
     eu_symbols: list[str],
     all_symbols: list[str],
     anchor: str,
+    runtime: BacktestClusterRuntime,
 ) -> list[BacktestOrder]:
-    """Gera ordens do ciclo Medallion na barra (surrogate quant, sem EURUSD)."""
+    """Gera ordens na barra via surrogate quant e pipeline de cluster live."""
     macro_cfg = config.get("strategy", {}).get("macro") if isinstance(config.get("strategy"), dict) else {}
     us_tag, eu_tag = derive_quant_cluster_tags(snapshot, macro_cfg if isinstance(macro_cfg, dict) else None)
     return resolve_orders_from_cluster_tags(
@@ -236,4 +153,5 @@ def resolve_orders_at_bar(
         us_tag=us_tag,
         eu_tag=eu_tag,
         conviction=_base_conviction(snapshot),
+        runtime=runtime,
     )
