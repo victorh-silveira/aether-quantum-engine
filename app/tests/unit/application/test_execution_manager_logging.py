@@ -109,6 +109,27 @@ def test_log_execution_blockers_sem_direcao(orch_config):
 
 
 @pytest.mark.asyncio
+async def test_execute_cluster_skips_on_refresh_without_llm(orch_config):
+    orch_config.setdefault("orchestrator", {})["cluster_refresh_execute_enabled"] = False
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
+        mock_ws_class.return_value.subscribe = MagicMock()
+        orch = Orchestrator(orch_config, "token")
+        orch._active_cycle_id = 4
+        orch._cluster_refresh_without_llm = True
+        orch.symbols = ["frxEURUSD", "OTC_FCHI"]
+        decisions = {
+            "OTC_FCHI": {"direction": TradeDirection.CALL, "metrics": {"conviction": 0.7, "execute": True}},
+        }
+        with (
+            patch.object(orch.executor.logger, "info") as mock_info,
+            patch.object(orch.executor, "_execute_orders", new_callable=AsyncMock) as mock_exec,
+        ):
+            await orch.executor.execute_cluster(decisions)
+        mock_exec.assert_not_awaited()
+        assert any("EXEC_SKIP" in str(c) and "cluster_refresh" in str(c) for c in mock_info.call_args_list)
+
+
+@pytest.mark.asyncio
 async def test_execute_cluster_logs_exec_none_when_execute_false(orch_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
         mock_ws_class.return_value.subscribe = MagicMock()

@@ -76,4 +76,40 @@ O Medallion no Aether prioriza **menos trades de maior qualidade** em vez de vol
 - **StatArb:** Z contra a direção em HMM de reversão → veto (`STATARB_VETO`); alinhamento → boost de convicção; até 2 índices por cluster (`statarb_index_max_per_cluster`).
 - **Risco:** Kelly com `max_stake_pct` / `max_stake_pct_high_conviction`, cooldown menor em convicção alta; stop win diário 10% (conta grande) ou valor fixo (conta pequena).
 
-Parâmetros em `config/settings.json` → `strategy.macro` e `risk_management.kelly`. Backtest e live compartilham os mesmos guardrails (`llm_macro_confluence_guards.py`).
+Parâmetros em `config/settings.json` → `strategy.macro` e `risk_management.kelly`.
+
+## Backtest alinhado ao motor live
+
+O backtest em `app/scripts/backtest/` replica o pipeline de cluster do orquestrador:
+
+- `propagate_cluster_decisions` + `cluster_execute_block_reason` (StatArb por tag, pausa pós-loss, quarentena de inversão)
+- Walk-forward barra a barra (`hft_walkforward.py`): liquida o contrato 15m antes da próxima entrada (pausa cluster e cooldown como no live)
+- Janela `trading.session` (UTC) e cadência HFT (`cycle_interval_seconds`)
+
+Comandos (WSL, na raiz do repo):
+
+```bash
+PYTHONPATH=app python app/scripts/backtest/medallion_backtest.py --config config/settings.json --days 14 --bankroll 74 --mode quant
+PYTHONPATH=app python app/scripts/backtest/medallion_backtest.py --config config/settings.json --days 14 --bankroll 74 --mode gemini --gemini-schedule tag_change
+```
+
+- `--mode quant`: surrogate US/EU a partir do snapshot macro (sem API; útil para regressão rápida).
+- `--mode gemini`: mesma decisão que o live (`GEMINI_API_KEY`); use cache em `data/backtest/gemini_cache.jsonl` para reexecuções baratas.
+
+### Cenários lucrativos (live + backtest)
+
+Calibrado em 14 dias M15 com walk-forward alinhado ao motor:
+
+| Modo | Trades | Win rate | PnL (banca $74) | Stop win/dia |
+|------|--------|----------|-----------------|--------------|
+| quant | 6 | 66,7% | +$16,16 | 80% |
+| gemini | 6 | 83,3% | +$40,73 | 100% |
+
+Filtros em `config/settings.json` → `strategy.macro`:
+
+- `allowed_execute_tags`: apenas `risk_on` e `risk_off` (sem divergências).
+- `allowed_cluster_symbols_by_tag`: `risk_on` → `OTC_DJI`; `risk_off` → `OTC_FCHI`.
+- `min_conviction_by_tag` e `statarb_min_abs_z_by_tag` elevados (0,68–0,70).
+- `excluded_symbols` e clusters reduzidos aos índices acima.
+
+O gate `scenario_symbol_not_allowed` em `profitable_scenario.py` bloqueia qualquer outro par tag+índice no live.

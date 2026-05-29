@@ -94,6 +94,8 @@
   "orchestrator": {
     "cycle_interval_seconds": 60,
     "cluster_refresh_interval_seconds": 60,
+    "cluster_refresh_execute_enabled": false,
+    "cluster_pause_after_loss_cycles": 2,
     "post_settlement_breath_seconds": 60,
     "settlement_wait_log_interval_seconds": 15,
     "execution": {
@@ -135,17 +137,17 @@
   },
   "strategy": {
     "excluded_symbols": [
-      "OTC_SSMI"
+      "OTC_SSMI",
+      "OTC_SPC",
+      "OTC_NDX",
+      "OTC_FTSE",
+      "OTC_GDAXI"
     ],
     "clusters": {
       "eu": [
-        "OTC_FCHI",
-        "OTC_GDAXI",
-        "OTC_FTSE"
+        "OTC_FCHI"
       ],
       "us": [
-        "OTC_SPC",
-        "OTC_NDX",
         "OTC_DJI"
       ]
     },
@@ -161,21 +163,32 @@
       "statarb_index_max_per_cluster": 1,
       "statarb_index_min_abs_z": 0.85,
       "statarb_soft_min_abs_ratio": 0.45,
-      "statarb_weak_leader_on_no_align": true,
+      "statarb_weak_leader_on_no_align": false,
       "statarb_require_z_align": true,
       "statarb_z_align_soft_fallback": true,
       "statarb_try_alternate_on_block": true,
-      "cluster_invert_on_block": true
+      "cluster_invert_on_block": false
     },
     "macro": {
       "allowed_execute_tags": [
         "risk_on",
-        "risk_off",
-        "divergence_us_leads",
-        "divergence_eu_leads"
+        "risk_off"
       ],
+      "allowed_cluster_symbols_by_tag": {
+        "risk_on": [
+          "OTC_DJI"
+        ],
+        "risk_off": [
+          "OTC_FCHI"
+        ]
+      },
+      "min_conviction_by_tag": {
+        "risk_on": 0.70,
+        "risk_off": 0.68
+      },
       "statarb_min_abs_z_by_tag": {
-        "risk_on": 0.50
+        "risk_on": 0.70,
+        "risk_off": 0.70
       },
       "cluster_bars": 8,
       "cluster_fallback_bars": 12,

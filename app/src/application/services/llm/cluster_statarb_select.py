@@ -68,25 +68,9 @@ def _wr_blend_score(sym: str, wr_scores: dict[str, float] | None, weight: float)
     return wr_blend_score(sym, wr_scores, weight)
 
 
-def _statarb_selection_note(note: str) -> bool:
-    """True quando a nota indica indice escolhido pelo fluxo StatArb do cluster."""
-    text = str(note or "")
-    return any(
-        token in text
-        for token in (
-            "STATARB_SOFT",
-            "STATARB_WEAK",
-            "STATARB_BEST",
-            "STATARB_INDEX",
-            "leader=",
-        )
-    )
-
-
 def statarb_execute_min_abs_z(index_note: str, statarb_cfg: dict[str, Any]) -> float:
-    """Piso de |Z| no gate de execute; zero quando a selecao StatArb ja validou o indice."""
-    if _statarb_selection_note(index_note):
-        return 0.0
+    """Piso de |Z| no gate de execute; sempre exige confirmacao StatArb estrita na entrada."""
+    _ = index_note
     return float(statarb_cfg.get("min_abs_z", 0.0))
 
 

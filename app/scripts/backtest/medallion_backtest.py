@@ -76,7 +76,7 @@ async def run_backtest(
         )
         run_mode = "gemini"
     else:
-        all_orders, hft_stats = collect_hft_orders(
+        all_orders, hft_stats = await collect_hft_orders(
             config=config,
             m15=m15,
             m5=m5,

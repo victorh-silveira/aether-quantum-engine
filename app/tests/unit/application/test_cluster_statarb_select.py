@@ -245,9 +245,9 @@ def test_select_prefers_higher_rolling_wr_when_z_similar():
     assert "wr=0.72" in note
 
 
-def test_statarb_execute_min_abs_z_zero_for_leader_notes():
+def test_statarb_execute_min_abs_z_uses_config_floor():
     cfg = {"min_abs_z": 0.85}
-    assert statarb_execute_min_abs_z("STATARB_BEST leader=OTC_DJI z=-1.10", cfg) == 0.0
+    assert statarb_execute_min_abs_z("STATARB_BEST leader=OTC_DJI z=-1.10", cfg) == 0.85
     assert statarb_execute_min_abs_z("", cfg) == 0.85
 
 

@@ -10,6 +10,10 @@ from src.application.services.llm.llm_config_merge import merge_execution_sectio
 from src.application.services.orchestrator.config_symbols import normalize_symbols_and_anchor
 from src.application.services.orchestrator.decision_mode_banner import emit_decision_engine_banner
 from src.application.services.orchestrator.execution_manager import ExecutionManager
+from src.application.services.orchestrator.post_settlement_cycle import (
+    run_post_settlement_breath_and_cycle,
+    schedule_trading_cycle_after_settlement,
+)
 from src.application.services.orchestrator.settlement_backfill import reconcile_single_contract
 from src.application.services.orchestrator.settlement_logic import process_contract_settlement
 from src.application.services.orchestrator.trading_session import trading_session_allows_entry
@@ -68,6 +72,11 @@ class Orchestrator:
         self._settlement_wait_logged = False
         self._invert_quarantine_cycles_remaining = 0
         self._invert_quarantine_active = False
+        self._cluster_pause_cycles_remaining = 0
+        self._cluster_pause_after_loss_active = False
+        self._last_loss_symbol = ""
+        self._last_loss_direction = ""
+        self._cluster_refresh_without_llm = False
 
     def _llm_enabled(self) -> bool:
         """Retorna se o modo decisao LLM esta ativo."""
@@ -113,31 +122,11 @@ class Orchestrator:
 
     def schedule_trading_cycle_after_settlement(self) -> None:
         """Agenda novo ciclo de decisao logo apos liquidacao do contrato."""
-        if not self.running:
-            return
-        if self.state.active_contracts:
-            return
-        if self.is_trading:
-            return
-        task = self._post_settlement_task
-        if task is not None and not task.done():
-            return
-        self._post_settlement_task = asyncio.create_task(self._run_post_settlement_breath_and_cycle())
+        schedule_trading_cycle_after_settlement(self)
 
     async def _run_post_settlement_breath_and_cycle(self) -> None:
         """Aplica folego pos-liquidacao antes de um novo ciclo."""
-        breath = float(self.config.get("orchestrator", {}).get("post_settlement_breath_seconds", 60))
-        breath = max(0.0, breath)
-        if breath > 0:
-            await asyncio.sleep(breath)
-        if not self.running:
-            return
-        if self.state.active_contracts:
-            return
-        if self.is_trading:
-            return
-        self._last_cluster_cycle_end = 0.0
-        await self._run_trading_cycle_if_ready()
+        await run_post_settlement_breath_and_cycle(self)
 
     async def _setup_session(self) -> bool:
         """Conecta e autoriza sessao WebSocket."""
@@ -237,6 +226,9 @@ class Orchestrator:
                 self._invert_quarantine_active = self._invert_quarantine_cycles_remaining > 0
                 if self._invert_quarantine_active:
                     self._invert_quarantine_cycles_remaining -= 1
+                self._cluster_pause_after_loss_active = self._cluster_pause_cycles_remaining > 0
+                if self._cluster_pause_after_loss_active:
+                    self._cluster_pause_cycles_remaining -= 1
                 if not self._llm_enabled():
                     self.logger.error("CICLO: llm.enabled=false; motor Medallion exige LLM ativa.")
                     return
@@ -246,6 +238,8 @@ class Orchestrator:
                 self.logger.error(f"FALHA: Ciclo: {e}")
             finally:
                 self._invert_quarantine_active = False
+                self._cluster_pause_after_loss_active = False
+                self._cluster_refresh_without_llm = False
                 self.is_trading = False
 
     async def _subscribe_account_transactions(self) -> None:

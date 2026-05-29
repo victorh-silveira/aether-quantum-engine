@@ -1,5 +1,6 @@
 """Testes do motor de sinais do backtest Medallion (sem rede)."""
 
+from scripts.backtest.backtest_cluster_runtime import BacktestClusterRuntime
 from scripts.backtest.signal_engine import derive_quant_cluster_tags, resolve_orders_at_bar
 from src.application.services.llm.macro_config import MacroSnapshot
 
@@ -53,9 +54,17 @@ def test_resolve_orders_risk_on_selects_us_index():
                 "exclusive_cluster_by_macro": True,
                 "statarb_index_select_enabled": True,
                 "statarb_index_max_per_cluster": 1,
-                "statarb_index_min_abs_z": 0.0,
+                "statarb_index_min_abs_z": 0.85,
+                "statarb_require_z_align": True,
+                "statarb_weak_leader_on_no_align": False,
             },
-            "macro": {"confluence_conviction_floor": 0.55, "statarb_z_threshold": 2.5},
+            "macro": {
+                "allowed_execute_tags": ("risk_on", "risk_off"),
+                "confluence_conviction_floor": 0.55,
+                "assert_min_hmm_prob": 0.0,
+                "statarb_z_threshold": 2.5,
+                "statarb_min_abs_z_by_tag": {"risk_on": 0.50},
+            },
         },
     }
     all_syms = [
@@ -68,6 +77,7 @@ def test_resolve_orders_risk_on_selects_us_index():
         "OTC_FTSE",
         "OTC_SSMI",
     ]
+    runtime = BacktestClusterRuntime(config, symbols=all_syms, anchor="frxEURUSD")
     orders = resolve_orders_at_bar(
         bar_index=10,
         snapshot=snap,
@@ -76,6 +86,7 @@ def test_resolve_orders_risk_on_selects_us_index():
         eu_symbols=["OTC_FCHI", "OTC_GDAXI", "OTC_FTSE", "OTC_SSMI"],
         all_symbols=all_syms,
         anchor="frxEURUSD",
+        runtime=runtime,
     )
     assert orders
     symbols = {o.symbol for o in orders}

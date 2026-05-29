@@ -124,7 +124,10 @@ def print_summary(report: dict[str, Any]) -> None:
     meta = report.get("meta", {})
     mode = str(meta.get("mode", "quant_surrogate"))
     mode_label = "Gemini (prompt live)" if mode == "gemini" else "surrogate quant"
+    arch = meta.get("architecture", "")
     print(f"=== Backtest Medallion M15 ({mode_label}) ===")
+    if arch:
+        print(f"Arquitetura: {arch}")
     print(f"Trades: {s['trades']} | Wins: {s['wins']} | Win rate: {s['win_rate']:.1%}")
     print(f"PnL total: {s['total_pnl']:.2f} | Profit factor: {s['profit_factor']:.2f} | ROI: {s['roi_pct']:.2f}%")
     print(f"Banca: ${s['bankroll_start']:.2f} -> ${s['bankroll_end']:.2f} | Sizing: {s['sizing_mode']}")

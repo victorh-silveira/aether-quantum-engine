@@ -163,6 +163,7 @@ async def collect_llm_decisions(orch: Any) -> dict[str, dict]:
     ):
         orch.logger.debug("[%s] LLM_REFRESH cache tag=%s agenda=%s", cid, macro_snapshot.tag, schedule)
         if cluster_propagation_enabled and cluster_refresh_due(orch, now_epoch=now_epoch, interval_seconds=cluster_iv):
+            orch._cluster_refresh_without_llm = True
             refreshed = refresh_cluster_decisions_from_cache(orch, macro_snapshot, cid)
             if refreshed is not None:
                 return refreshed

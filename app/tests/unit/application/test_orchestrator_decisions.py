@@ -191,6 +191,26 @@ async def test_run_trading_cycle_inserts_blank_line_between_cycles(orch_config):
 
 
 @pytest.mark.asyncio
+async def test_run_trading_cycle_decrements_cluster_pause_cycles(orch_config):
+    with (
+        patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()),
+        patch(
+            "src.application.services.orchestrator.collect_llm_decisions",
+            new_callable=AsyncMock,
+            return_value={},
+        ),
+    ):
+        orch = Orchestrator(orch_config, "token")
+        orch.stream.is_synchronized = True
+        orch.ws.is_running = True
+        orch.executor.execute_cluster = AsyncMock()
+        orch._cluster_pause_cycles_remaining = 1
+        await orch._run_trading_cycle_if_ready()
+        assert orch._cluster_pause_cycles_remaining == 0
+        assert orch._cluster_pause_after_loss_active is False
+
+
+@pytest.mark.asyncio
 async def test_run_trading_cycle_consumes_invert_quarantine_flag(orch_config):
     with (
         patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()),

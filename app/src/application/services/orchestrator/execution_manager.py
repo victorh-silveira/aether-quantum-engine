@@ -149,6 +149,16 @@ class ExecutionManager:
         executed_count = 0
         try:
             self._start_result_buffer()
+            orch_cfg = self.orch.config.get("orchestrator", {}) if isinstance(self.orch.config, dict) else {}
+            refresh_execute = bool(orch_cfg.get("cluster_refresh_execute_enabled", False))
+            if getattr(self.orch, "_cluster_refresh_without_llm", False) and not refresh_execute:
+                cid = f"C{int(self.orch._active_cycle_id):04d}"
+                self.logger.info(
+                    "[%s] EXEC_SKIP || cluster_refresh sem nova LLM (cluster_refresh_execute_enabled=false)",
+                    cid,
+                )
+                self._log_execution_blockers(decisions, include_anchor=False)
+                return
 
             bankroll_snapshot = float(self.orch.state.balance)
 
