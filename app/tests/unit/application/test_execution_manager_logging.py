@@ -118,7 +118,8 @@ async def test_execute_cluster_skips_on_refresh_without_llm(orch_config):
         orch._cluster_refresh_without_llm = True
         orch.symbols = ["frxEURUSD", "OTC_FCHI"]
         decisions = {
-            "OTC_FCHI": {"direction": TradeDirection.CALL, "metrics": {"conviction": 0.7, "execute": True}},
+            "frxEURUSD": {"direction": TradeDirection.CALL, "metrics": {"macro_sentiment": "risk_off"}},
+            "OTC_FCHI": {"direction": TradeDirection.CALL, "metrics": {"conviction": 0.7, "execute": True, "macro_sentiment": "risk_off"}},
         }
         with (
             patch.object(orch.executor.logger, "info") as mock_info,
@@ -126,7 +127,39 @@ async def test_execute_cluster_skips_on_refresh_without_llm(orch_config):
         ):
             await orch.executor.execute_cluster(decisions)
         mock_exec.assert_not_awaited()
-        assert any("EXEC_SKIP" in str(c) and "cluster_refresh" in str(c) for c in mock_info.call_args_list)
+        assert any("EXEC_SKIP" in str(c) and "risk_regime_requires_fresh_llm" in str(c) for c in mock_info.call_args_list)
+
+
+@pytest.mark.asyncio
+async def test_execute_cluster_allows_refresh_divergence_quant_validated(orch_config):
+    orch_config.setdefault("orchestrator", {})["cluster_refresh_execute_enabled"] = False
+    orch_config.setdefault("orchestrator", {})["cluster_refresh_execute_on_quant_validate"] = True
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
+        mock_ws_class.return_value.subscribe = MagicMock()
+        orch = Orchestrator(orch_config, "token")
+        orch._active_cycle_id = 5
+        orch._cluster_refresh_without_llm = True
+        orch.symbols = ["frxEURUSD", "OTC_DJI"]
+        orch.risk_manager.calculate_stake = MagicMock(return_value=2.0)
+        decisions = {
+            "frxEURUSD": {"direction": TradeDirection.CALL, "metrics": {"macro_sentiment": "divergence_us_leads"}},
+            "OTC_DJI": {
+                "direction": TradeDirection.PUT,
+                "metrics": {
+                    "conviction": 0.7,
+                    "execute": True,
+                    "macro_sentiment": "divergence_us_leads",
+                    "llm_statarb_dir_corrected": True,
+                    "cluster_target_sym": "OTC_DJI",
+                },
+            },
+        }
+        with (
+            patch.object(orch.executor.logger, "info"),
+            patch.object(orch.executor, "_execute_orders", new_callable=AsyncMock, return_value=1) as mock_exec,
+        ):
+            await orch.executor.execute_cluster(decisions)
+        mock_exec.assert_awaited_once()
 
 
 @pytest.mark.asyncio

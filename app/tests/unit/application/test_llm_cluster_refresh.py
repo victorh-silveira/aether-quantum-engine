@@ -5,6 +5,7 @@ import pytest
 from src.application.services.llm.llm_bridge import collect_llm_decisions
 from src.application.services.llm.llm_cluster_refresh import (
     cluster_refresh_due,
+    merge_macro_snapshot_into_metrics,
     refresh_cluster_decisions_from_cache,
     resolve_cluster_refresh_interval_seconds,
 )
@@ -34,6 +35,25 @@ def _snapshot() -> MacroSnapshot:
 def test_resolve_cluster_refresh_interval_falls_back_to_cycle():
     cfg = {"orchestrator": {"cycle_interval_seconds": 60}}
     assert resolve_cluster_refresh_interval_seconds(cfg) == 60
+
+
+def test_merge_macro_snapshot_into_metrics_includes_m5_map():
+    snap = MacroSnapshot(
+        us_dir="up",
+        eu_dir="down",
+        us_strength=0.7,
+        eu_strength=0.6,
+        tag="divergence_us_leads",
+        eurusd_bias="CALL",
+        cluster_status="",
+        macro_block="",
+        fx_reference_line="",
+        us_parts=(),
+        eu_parts=(),
+        index_m5_dir_by_symbol={"OTC_DJI": "down"},
+    )
+    out = merge_macro_snapshot_into_metrics({"us_cluster": "CALL"}, snap)
+    assert out["index_m5_dir_by_symbol"] == {"OTC_DJI": "down"}
 
 
 def test_cluster_refresh_due_false_when_interval_zero():

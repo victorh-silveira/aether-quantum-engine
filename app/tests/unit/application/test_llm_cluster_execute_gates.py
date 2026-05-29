@@ -66,7 +66,7 @@ def test_cluster_execute_statarb_best_note_uses_tag_min_abs_at_gate():
     )
 
 
-def test_cluster_execute_weak_note_still_requires_z_align():
+def test_cluster_execute_llm_explicit_skips_statarb_veto():
     orch = MagicMock()
     orch.config = {"llm": {"min_conviction_execute": 0.60}}
     macro = {
@@ -94,7 +94,24 @@ def test_cluster_execute_weak_note_still_requires_z_align():
             llm_cluster_explicit=True,
             index_note="STATARB_WEAK leader=OTC_SPC z=-0.35",
         )
-        == "statarb_z_misaligned"
+        == "allowed"
+    )
+
+
+def test_cluster_execute_statarb_veto_when_not_llm_explicit():
+    orch = MagicMock()
+    orch.config = {"llm": {"min_conviction_execute": 0.60}}
+    macro = {
+        "confluence_conviction_floor": 0.65,
+        "assert_min_hmm_prob": 0.0,
+        "statarb_min_abs_z_by_tag": {"risk_on": 0.65},
+    }
+    corr = {"statarb_require_z_align": True, "statarb_index_min_abs_z": 0.85}
+    metrics = base_cluster_metrics(
+        macro_sentiment="risk_on",
+        macro_us_strength_quant=0.80,
+        statarb_spreads={"OTC_SPC": -0.35},
+        hmm_state=0,
     )
     assert (
         cluster_execute_block_reason(
@@ -106,7 +123,7 @@ def test_cluster_execute_weak_note_still_requires_z_align():
             corr,
             active_region="us",
             target_sym="OTC_SPC",
-            llm_cluster_explicit=True,
+            llm_cluster_explicit=False,
             index_note="",
         )
         == "statarb_z_misaligned"

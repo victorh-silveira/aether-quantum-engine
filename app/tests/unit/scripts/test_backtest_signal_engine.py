@@ -1,8 +1,14 @@
 """Testes do motor de sinais do backtest Medallion (sem rede)."""
 
 from scripts.backtest.backtest_cluster_runtime import BacktestClusterRuntime
-from scripts.backtest.signal_engine import derive_quant_cluster_tags, resolve_orders_at_bar
+from scripts.backtest.signal_engine import (
+    apply_backtest_refresh_execute_gate,
+    derive_quant_cluster_tags,
+    resolve_orders_at_bar,
+)
+from scripts.backtest.snapshot_engine import build_snapshot_at_bar
 from src.application.services.llm.macro_config import MacroSnapshot
+from src.domain.models.trade import TradeDirection
 
 
 def test_derive_quant_cluster_tags_risk_on():
@@ -92,3 +98,42 @@ def test_resolve_orders_risk_on_selects_us_index():
     symbols = {o.symbol for o in orders}
     assert symbols.issubset({"OTC_SPC", "OTC_NDX", "OTC_DJI"})
     assert len(symbols) <= 1
+
+
+def test_build_snapshot_propagates_index_m5_dir():
+    us = ["OTC_DJI"]
+    eu: list[str] = []
+    m15 = {
+        "frxEURUSD": [1.08 + i * 0.0001 for i in range(40)],
+        "OTC_DJI": [38000.0 + i * 5.0 for i in range(40)],
+    }
+    m5 = {"OTC_DJI": [38000.0 + i * 2.0 for i in range(120)]}
+    snap = build_snapshot_at_bar(
+        bar_index=10,
+        m15_closes=m15,
+        m5_closes=m5,
+        us_symbols=us,
+        eu_symbols=eu,
+        macro_cfg={"cluster_bars": 8, "statarb_lookback": 8},
+    )
+    assert isinstance(snap.index_m5_dir_by_symbol, dict)
+    assert "OTC_DJI" in snap.index_m5_dir_by_symbol
+
+
+def test_backtest_refresh_gate_blocks_risk_off_without_llm():
+    config = {
+        "anchor": "frxEURUSD",
+        "orchestrator": {
+            "cluster_refresh_execute_enabled": False,
+            "cluster_refresh_execute_on_quant_validate": True,
+        },
+        "strategy": {"clusters": {"us": [], "eu": []}, "correlation": {}, "macro": {}},
+    }
+    runtime = BacktestClusterRuntime(config, symbols=["frxEURUSD", "OTC_DJI"], anchor="frxEURUSD")
+    runtime._cluster_refresh_without_llm = True
+    decisions = {
+        "frxEURUSD": {"direction": TradeDirection.PUT, "metrics": {"macro_sentiment": "risk_off"}},
+        "OTC_DJI": {"direction": TradeDirection.PUT, "metrics": {"execute": True, "macro_sentiment": "risk_off"}},
+    }
+    apply_backtest_refresh_execute_gate(runtime, decisions)
+    assert decisions["OTC_DJI"]["metrics"]["execute"] is False

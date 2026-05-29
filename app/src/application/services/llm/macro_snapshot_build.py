@@ -34,6 +34,7 @@ def macro_snapshot_from_votes(
     statarb_spreads: dict[str, float] | None = None,
     hmm_state: int = 0,
     hmm_prob: float = 1.0,
+    index_m5_dir_by_symbol: dict[str, str] | None = None,
 ) -> MacroSnapshot:
     """Monta MacroSnapshot a partir de votos US/EU ja agregados."""
     cfg = resolve_macro_config(macro_cfg)
@@ -99,6 +100,7 @@ def macro_snapshot_from_votes(
         statarb_spreads=statarb_spreads,
         hmm_state=hmm_state,
         hmm_prob=hmm_prob,
+        index_m5_dir_by_symbol=index_m5_dir_by_symbol,
     )
 
 
@@ -111,6 +113,7 @@ def build_macro_snapshot(
     statarb_spreads: dict[str, float] | None = None,
     hmm_state: int = 0,
     hmm_prob: float = 1.0,
+    index_m5_dir_by_symbol: dict[str, str] | None = None,
 ) -> MacroSnapshot:
     """Monta snapshot macro completo a partir de fechamentos dos clusters."""
     cfg = resolve_macro_config(macro_cfg)
@@ -146,6 +149,7 @@ def build_macro_snapshot(
         statarb_spreads=statarb_spreads,
         hmm_state=hmm_state,
         hmm_prob=hmm_prob,
+        index_m5_dir_by_symbol=index_m5_dir_by_symbol,
     )
 
 
@@ -209,4 +213,5 @@ def apply_m5_fallback_to_snapshot(
         statarb_spreads=snapshot.statarb_spreads,
         hmm_state=snapshot.hmm_state,
         hmm_prob=snapshot.hmm_prob,
+        index_m5_dir_by_symbol=snapshot.index_m5_dir_by_symbol,
     )

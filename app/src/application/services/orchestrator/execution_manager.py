@@ -2,7 +2,9 @@
 
 import asyncio
 import logging
+import time
 
+from src.application.services.llm.cluster_refresh_execute_policy import cluster_refresh_may_execute
 from src.domain.models.trade import TradeDirection
 
 from .execution_settlement import reconcile_contracts, run_settlement_watch, wait_for_settlement
@@ -149,14 +151,16 @@ class ExecutionManager:
         executed_count = 0
         try:
             self._start_result_buffer()
-            orch_cfg = self.orch.config.get("orchestrator", {}) if isinstance(self.orch.config, dict) else {}
-            refresh_execute = bool(orch_cfg.get("cluster_refresh_execute_enabled", False))
-            if getattr(self.orch, "_cluster_refresh_without_llm", False) and not refresh_execute:
+            refresh_without_llm = bool(getattr(self.orch, "_cluster_refresh_without_llm", False))
+            may_exec, refresh_reason = cluster_refresh_may_execute(
+                self.orch,
+                decisions,
+                refresh_without_llm=refresh_without_llm,
+                now_epoch=time.time(),
+            )
+            if refresh_without_llm and not may_exec:
                 cid = f"C{int(self.orch._active_cycle_id):04d}"
-                self.logger.info(
-                    "[%s] EXEC_SKIP || cluster_refresh sem nova LLM (cluster_refresh_execute_enabled=false)",
-                    cid,
-                )
+                self.logger.info("[%s] EXEC_SKIP || cluster_refresh (%s)", cid, refresh_reason)
                 self._log_execution_blockers(decisions, include_anchor=False)
                 return
 

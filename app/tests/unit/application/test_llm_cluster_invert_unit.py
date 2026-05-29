@@ -48,6 +48,27 @@ def test_apply_cluster_binary_invert_skips_non_binary_direction():
     assert out["execute"] is False
 
 
+def test_log_cluster_propagation_results_corrected():
+    orch = MagicMock()
+    log_cluster_propagation_results(
+        orch,
+        cid="C0001",
+        anchor_sym="frxEURUSD",
+        corr_cfg={},
+        macro_tag="divergence_us_leads",
+        active_region="us",
+        us_dir=TradeDirection.PUT,
+        eu_dir=TradeDirection.PUT,
+        us_note="",
+        eu_note="M5_DIR",
+        propagated_tags=["OTC_DJI[P]"],
+        blocked_tags=[],
+        inverted_tags=[],
+        corrected_tags=["OTC_DJI[C->P]"],
+    )
+    assert any("CLUSTER_CORRECT" in str(c) for c in orch.logger.info.call_args_list)
+
+
 def test_log_cluster_propagation_results_inverted():
     orch = MagicMock()
     log_cluster_propagation_results(
@@ -93,7 +114,7 @@ def test_apply_cluster_target_blocked_without_invert():
     orch._cluster_pause_after_loss_active = False
     orch.config = {"llm": {"min_conviction_execute": 0.90}}
     decisions: dict = {}
-    propagated, blocked, inverted = apply_cluster_target_decision(
+    propagated, blocked, inverted, corrected = apply_cluster_target_decision(
         orch,
         target_sym="OTC_FCHI",
         target_direction=TradeDirection.PUT,
@@ -191,7 +212,7 @@ def test_propagate_appends_inverted_tag_from_target_decision():
         ),
         patch(
             "src.application.services.llm.llm_cluster_propagate_region.apply_cluster_target_decision",
-            return_value=(None, None, "OTC_FTSE[P->C]"),
+            return_value=(None, None, "OTC_FTSE[P->C]", None),
         ) as mock_apply,
     ):
         propagate_cluster_decisions(

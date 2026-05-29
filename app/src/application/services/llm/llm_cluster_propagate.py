@@ -162,6 +162,7 @@ def propagate_cluster_decisions(
     propagated_tags: list[str] = []
     blocked_tags: list[str] = []
     inverted_tags: list[str] = []
+    corrected_tags: list[str] = []
     invert_on_block = cluster_invert_on_block_enabled(corr_cfg)
     try_alternates = bool(corr_cfg.get("statarb_try_alternate_on_block", True))
     region_kw = {
@@ -179,7 +180,7 @@ def propagate_cluster_decisions(
         "try_alternates": try_alternates,
     }
     if not anchor_in_us and cluster_region_active(exclusive=exclusive, active_region=active_region, region="us"):
-        p, b, i = propagate_cluster_region(
+        p, b, i, c = propagate_cluster_region(
             attempt_order=us_order,
             picked=us_picked,
             target_direction=us_dir,
@@ -189,8 +190,9 @@ def propagate_cluster_decisions(
         propagated_tags.extend(p)
         blocked_tags.extend(b)
         inverted_tags.extend(i)
+        corrected_tags.extend(c)
     if not anchor_in_eu and cluster_region_active(exclusive=exclusive, active_region=active_region, region="eu"):
-        p, b, i = propagate_cluster_region(
+        p, b, i, c = propagate_cluster_region(
             attempt_order=eu_order,
             picked=eu_picked,
             target_direction=eu_dir,
@@ -200,6 +202,7 @@ def propagate_cluster_decisions(
         propagated_tags.extend(p)
         blocked_tags.extend(b)
         inverted_tags.extend(i)
+        corrected_tags.extend(c)
 
     log_cluster_propagation_results(
         orch,
@@ -215,4 +218,5 @@ def propagate_cluster_decisions(
         propagated_tags=propagated_tags,
         blocked_tags=blocked_tags,
         inverted_tags=inverted_tags,
+        corrected_tags=corrected_tags,
     )

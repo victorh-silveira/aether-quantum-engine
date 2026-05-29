@@ -6,6 +6,7 @@ from typing import Any
 
 from src.application.services.llm.global_macro_confluence import MacroSnapshot
 from src.application.services.llm.macro_config import resolve_macro_config
+from src.domain.models.trade import TradeDirection
 
 
 SCHEDULE_ALWAYS = "always"
@@ -27,6 +28,33 @@ def resolve_llm_refresh_interval_seconds(config: dict[str, Any]) -> float:
     llm = config.get("llm", {}) if isinstance(config.get("llm"), dict) else {}
     hours = float(llm.get("refresh_interval_hours", 0))
     return max(0.0, hours * 3600.0)
+
+
+def anchor_cached_decision_valid(cached: dict[str, Any] | None, anchor_sym: str) -> bool:
+    if not isinstance(cached, dict):
+        return False
+    entry = cached.get(anchor_sym)
+    if not isinstance(entry, dict):
+        return False
+    return isinstance(entry.get("direction"), TradeDirection)
+
+
+def clear_cluster_execute_on_cached_decisions(cached: dict[str, dict], anchor_sym: str) -> dict[str, dict]:
+    out: dict[str, dict] = {}
+    for sym, entry in cached.items():
+        if not isinstance(entry, dict):
+            continue
+        if sym == anchor_sym:
+            out[sym] = dict(entry)
+            continue
+        e = dict(entry)
+        m = dict(e.get("metrics") or {})
+        m["execute"] = False
+        if str(m.get("llm_block_reason") or "") == "allowed":
+            m["llm_block_reason"] = "cache_no_fresh_llm"
+        e["metrics"] = m
+        out[sym] = e
+    return out
 
 
 def macro_tag_allows_llm_call(snapshot: MacroSnapshot, macro_cfg: dict[str, Any] | None) -> tuple[bool, str]:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.application.services.llm.cluster_statarb_direction import correct_cluster_direction_for_tag
 from src.application.services.llm.duration_logic import enforce_minimum_duration
 from src.application.services.llm.llm_bridge_telemetry import store_symbol_decision
 from src.application.services.llm.llm_cluster_guards import cluster_execute_block_reason
@@ -27,11 +28,28 @@ def apply_cluster_target_decision(
     exclusive: bool,
     macro_tag: str,
     invert_on_block: bool,
-) -> tuple[str | None, str | None, str | None]:
+) -> tuple[str | None, str | None, str | None, str | None]:
     """Aplica decisao em um simbolo do cluster e retorna tags de log."""
     region_note = f" region={active_region} macro={macro_tag}" if active_region else ""
     target_metrics = metrics.copy()
+    target_metrics["cluster_target_sym"] = target_sym
     original_direction = target_direction
+    corrected, did_correct, correct_note = correct_cluster_direction_for_tag(
+        target_direction,
+        macro_tag=macro_tag,
+        target_sym=target_sym,
+        metrics=target_metrics,
+        corr_cfg=corr_cfg,
+        macro_cfg=macro_cfg,
+    )
+    if did_correct:
+        target_direction = corrected
+        target_metrics["llm_statarb_dir_corrected"] = True
+        target_metrics["decision_source"] = "cluster_statarb_dir"
+        if active_region == "us":
+            target_metrics["us_cluster"] = target_direction.name
+        elif active_region == "eu":
+            target_metrics["eu_cluster"] = target_direction.name
     execute_reason = cluster_execute_block_reason(
         orch,
         target_metrics,
@@ -47,6 +65,9 @@ def apply_cluster_target_decision(
     target_metrics["execute"] = execute_reason == "allowed"
     target_metrics["llm_block_reason"] = execute_reason
     inverted_tag = None
+    corrected_tag = None
+    if did_correct:
+        corrected_tag = f"{target_sym}[{original_direction.name[:1]}->{target_direction.name[:1]}]"
     tag_allows_invert = str(macro_tag).startswith("divergence")
     cycle_quarantine = bool(getattr(orch, "_invert_quarantine_active", False))
     can_invert = execute_reason == "statarb_z_misaligned" and tag_allows_invert and not cycle_quarantine
@@ -65,10 +86,12 @@ def apply_cluster_target_decision(
             target_metrics["llm_block_reason"] = "allowed_inverted"
             inverted_tag = f"{target_sym}[{original_direction.name[:1]}->{target_direction.name[:1]}]"
     if not target_metrics.get("llm_exec_inverted"):
+        note_prefix = f"{correct_note} | " if did_correct else ""
         target_metrics["llm_note"] = (
-            f"CLUSTER_TAG ({target_direction.name}) conv={conviction:.1%}{region_note} | {index_note} from {anchor_sym}"
+            f"{note_prefix}CLUSTER_TAG ({target_direction.name}) conv={conviction:.1%}{region_note} | {index_note} from {anchor_sym}"
         )
-        target_metrics["decision_source"] = "cluster_regime"
+        if not did_correct:
+            target_metrics["decision_source"] = "cluster_regime"
     target_metrics["cluster_active_region"] = active_region or ""
     target_metrics["cluster_exclusive_macro"] = exclusive
     target_metrics["duration"] = enforce_minimum_duration(target_sym, target_metrics.get("duration", 15))
@@ -76,5 +99,5 @@ def apply_cluster_target_decision(
     reason = str(target_metrics.get("llm_block_reason") or "blocked")
     sym_tag = f"{target_sym}[{target_direction.name[:1]}]"
     if target_metrics["execute"]:
-        return sym_tag, None, inverted_tag
-    return None, f"{sym_tag}:{reason}", inverted_tag
+        return sym_tag, None, inverted_tag, corrected_tag
+    return None, f"{sym_tag}:{reason}", inverted_tag, corrected_tag

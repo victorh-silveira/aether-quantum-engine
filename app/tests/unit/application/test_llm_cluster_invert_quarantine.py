@@ -19,13 +19,13 @@ def _base_metrics(**overrides):
     return base
 
 
-def test_apply_cluster_target_does_not_invert_outside_divergence_tag():
+def test_apply_cluster_target_executes_llm_direction_despite_statarb_misalign():
     orch = MagicMock()
     orch.config = {"llm": {"min_conviction_execute": 0.60}}
     orch._invert_quarantine_active = False
     orch._cluster_pause_after_loss_active = False
     decisions: dict = {}
-    propagated, blocked, inverted = apply_cluster_target_decision(
+    propagated, blocked, inverted, corrected = apply_cluster_target_decision(
         orch,
         target_sym="OTC_FTSE",
         target_direction=TradeDirection.PUT,
@@ -35,27 +35,27 @@ def test_apply_cluster_target_does_not_invert_outside_divergence_tag():
         anchor_sym="frxEURUSD",
         conviction=0.70,
         macro_cfg={"assert_min_hmm_prob": 0.0, "allowed_execute_tags": ("risk_off",)},
-        corr_cfg={"statarb_require_z_align": True, "cluster_invert_on_block": True},
+        corr_cfg={"statarb_require_z_align": True, "cluster_invert_on_block": True, "quant_direction_stack_enabled": False},
         active_region="eu",
         exclusive=True,
         macro_tag="risk_off",
         invert_on_block=True,
     )
-    assert propagated is None
-    assert blocked == "OTC_FTSE[P]:statarb_z_misaligned"
+    assert propagated == "OTC_FTSE[P]"
+    assert blocked is None
     assert inverted is None
     assert decisions["OTC_FTSE"]["direction"] == TradeDirection.PUT
-    assert decisions["OTC_FTSE"]["metrics"]["execute"] is False
-    assert decisions["OTC_FTSE"]["metrics"]["llm_block_reason"] == "statarb_z_misaligned"
+    assert decisions["OTC_FTSE"]["metrics"]["execute"] is True
+    assert decisions["OTC_FTSE"]["metrics"]["llm_block_reason"] == "allowed"
 
 
-def test_apply_cluster_target_inverts_on_divergence_tag():
+def test_apply_cluster_target_keeps_llm_direction_on_divergence_tag():
     orch = MagicMock()
     orch.config = {"llm": {"min_conviction_execute": 0.60}}
     orch._invert_quarantine_active = False
     orch._cluster_pause_after_loss_active = False
     decisions: dict = {}
-    propagated, blocked, inverted = apply_cluster_target_decision(
+    propagated, blocked, inverted, corrected = apply_cluster_target_decision(
         orch,
         target_sym="OTC_FTSE",
         target_direction=TradeDirection.PUT,
@@ -69,27 +69,26 @@ def test_apply_cluster_target_inverts_on_divergence_tag():
         anchor_sym="frxEURUSD",
         conviction=0.70,
         macro_cfg={"assert_min_hmm_prob": 0.0, "allowed_execute_tags": ("divergence_eu_leads",)},
-        corr_cfg={"statarb_require_z_align": True, "cluster_invert_on_block": True},
+        corr_cfg={"statarb_require_z_align": True, "cluster_invert_on_block": True, "quant_direction_stack_enabled": False},
         active_region="eu",
         exclusive=True,
         macro_tag="divergence_eu_leads",
         invert_on_block=True,
     )
-    assert propagated == "OTC_FTSE[C]"
+    assert propagated == "OTC_FTSE[P]"
     assert blocked is None
-    assert inverted == "OTC_FTSE[P->C]"
-    assert decisions["OTC_FTSE"]["direction"] == TradeDirection.CALL
+    assert inverted is None
+    assert decisions["OTC_FTSE"]["direction"] == TradeDirection.PUT
     assert decisions["OTC_FTSE"]["metrics"]["execute"] is True
-    assert decisions["OTC_FTSE"]["metrics"]["llm_exec_inverted"] is True
 
 
-def test_apply_cluster_target_respects_quarantine_after_loss():
+def test_apply_cluster_target_quarantine_does_not_block_llm_execute():
     orch = MagicMock()
     orch.config = {"llm": {"min_conviction_execute": 0.60}}
     orch._invert_quarantine_active = True
     orch._cluster_pause_after_loss_active = False
     decisions: dict = {}
-    propagated, blocked, inverted = apply_cluster_target_decision(
+    propagated, blocked, inverted, corrected = apply_cluster_target_decision(
         orch,
         target_sym="OTC_FTSE",
         target_direction=TradeDirection.PUT,
@@ -103,15 +102,14 @@ def test_apply_cluster_target_respects_quarantine_after_loss():
         anchor_sym="frxEURUSD",
         conviction=0.70,
         macro_cfg={"assert_min_hmm_prob": 0.0, "allowed_execute_tags": ("divergence_eu_leads",)},
-        corr_cfg={"statarb_require_z_align": True, "cluster_invert_on_block": True},
+        corr_cfg={"statarb_require_z_align": True, "cluster_invert_on_block": True, "quant_direction_stack_enabled": False},
         active_region="eu",
         exclusive=True,
         macro_tag="divergence_eu_leads",
         invert_on_block=True,
     )
-    assert propagated is None
-    assert blocked == "OTC_FTSE[P]:invert_quarantine_after_loss"
+    assert propagated == "OTC_FTSE[P]"
+    assert blocked is None
     assert inverted is None
     assert decisions["OTC_FTSE"]["direction"] == TradeDirection.PUT
-    assert decisions["OTC_FTSE"]["metrics"]["execute"] is False
-    assert decisions["OTC_FTSE"]["metrics"]["llm_block_reason"] == "invert_quarantine_after_loss"
+    assert decisions["OTC_FTSE"]["metrics"]["execute"] is True
