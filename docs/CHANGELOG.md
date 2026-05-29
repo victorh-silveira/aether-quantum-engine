@@ -1,3 +1,9 @@
+## [1.28.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.27.0...v1.28.0) (2026-05-29)
+
+### Funcionalidades
+
+* **orchestrator:** backtest walk-forward e filtros de cenario lucrativo ([446dd01](https://github.com/victorh-silveira/aether-quantum-engine/commit/446dd015d2cb4f6500f46a6c31ec1996e3868dc5))
+
 ## [1.27.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.26.0...v1.27.0) (2026-05-28)
 
 ### Funcionalidades
