@@ -20,6 +20,60 @@ def cluster_region_active(
     return active_region == region
 
 
+def _merge_apply_result(
+    propagated_tags: list[str],
+    blocked_tags: list[str],
+    inverted_tags: list[str],
+    corrected_tags: list[str],
+    propagated: str | None,
+    blocked: str | None,
+    inverted: str | None,
+    corrected: str | None,
+) -> bool:
+    """Acumula tags de propagacao e indica se houve hit propagado ou invertido."""
+    if propagated:
+        propagated_tags.append(propagated)
+        if corrected:
+            corrected_tags.append(corrected)
+        return True
+    if inverted:
+        inverted_tags.append(inverted)
+        return True
+    if blocked:
+        blocked_tags.append(blocked)
+    return False
+
+
+def _try_symbol_batch(
+    symbols: list[str],
+    apply_symbol: Any,
+    *,
+    stop_on_first_hit: bool,
+) -> tuple[list[str], list[str], list[str], list[str], bool]:
+    """Aplica decisao em lote e retorna tags acumuladas e flag de hit."""
+    propagated_tags: list[str] = []
+    blocked_tags: list[str] = []
+    inverted_tags: list[str] = []
+    corrected_tags: list[str] = []
+    hit = False
+    for target_sym in symbols:
+        propagated, blocked, inverted, corrected = apply_symbol(target_sym)
+        if _merge_apply_result(
+            propagated_tags,
+            blocked_tags,
+            inverted_tags,
+            corrected_tags,
+            propagated,
+            blocked,
+            inverted,
+            corrected,
+        ):
+            hit = True
+            if stop_on_first_hit:
+                return propagated_tags, blocked_tags, inverted_tags, corrected_tags, hit
+    return propagated_tags, blocked_tags, inverted_tags, corrected_tags, hit
+
+
 def propagate_cluster_region(
     orch: Any,
     *,
@@ -40,17 +94,14 @@ def propagate_cluster_region(
     try_alternates: bool,
 ) -> tuple[list[str], list[str], list[str], list[str]]:
     """Propaga direcao para indices de uma regiao com fallback quando o lider bloqueia."""
-    propagated_tags: list[str] = []
-    blocked_tags: list[str] = []
-    inverted_tags: list[str] = []
-    corrected_tags: list[str] = []
+    empty: tuple[list[str], list[str], list[str], list[str]] = ([], [], [], [])
     if target_direction is None or not attempt_order:
-        return propagated_tags, blocked_tags, inverted_tags, corrected_tags
+        return empty
     leaders = [sym for sym in attempt_order if sym in picked] or list(attempt_order)
     fallbacks = [sym for sym in attempt_order if sym not in leaders]
     single_leader_mode = len(picked) <= 1
 
-    def _apply_symbol(target_sym: str) -> tuple[str | None, str | None, str | None, str | None]:
+    def apply_symbol(target_sym: str) -> tuple[str | None, str | None, str | None, str | None]:
         """Delega aplicacao da decisao de cluster para um simbolo alvo."""
         return apply_cluster_target_decision(
             orch,
@@ -69,31 +120,18 @@ def propagate_cluster_region(
             invert_on_block=invert_on_block,
         )
 
-    for target_sym in leaders:
-        propagated, blocked, inverted, corrected = _apply_symbol(target_sym)
-        if propagated:
-            propagated_tags.append(propagated)
-            if corrected:
-                corrected_tags.append(corrected)
-            if single_leader_mode:
-                return propagated_tags, blocked_tags, inverted_tags, corrected_tags
-        elif inverted:
-            inverted_tags.append(inverted)
-            if single_leader_mode:
-                return propagated_tags, blocked_tags, inverted_tags, corrected_tags
-        elif blocked:
-            blocked_tags.append(blocked)
-    if try_alternates and single_leader_mode and not propagated_tags and not inverted_tags:
-        for target_sym in fallbacks:
-            propagated, blocked, inverted, corrected = _apply_symbol(target_sym)
-            if propagated:
-                propagated_tags.append(propagated)
-                if corrected:
-                    corrected_tags.append(corrected)
-                return propagated_tags, blocked_tags, inverted_tags, corrected_tags
-            if inverted:
-                inverted_tags.append(inverted)
-                return propagated_tags, blocked_tags, inverted_tags, corrected_tags
-            if blocked:
-                blocked_tags.append(blocked)
+    propagated_tags, blocked_tags, inverted_tags, corrected_tags, hit = _try_symbol_batch(
+        leaders,
+        apply_symbol,
+        stop_on_first_hit=single_leader_mode,
+    )
+    if hit and single_leader_mode:
+        return propagated_tags, blocked_tags, inverted_tags, corrected_tags
+    if try_alternates and single_leader_mode and not propagated_tags and not inverted_tags and fallbacks:
+        alt_p, alt_b, alt_i, alt_c, _ = _try_symbol_batch(
+            fallbacks,
+            apply_symbol,
+            stop_on_first_hit=True,
+        )
+        return alt_p, alt_b, alt_i, alt_c
     return propagated_tags, blocked_tags, inverted_tags, corrected_tags

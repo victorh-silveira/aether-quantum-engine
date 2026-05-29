@@ -43,4 +43,4 @@ make run
 make backtest ARGS="--mode gemini --days 14"
 ```
 
-Pre-commit: `make pre-commit` ou `pre-commit install --config linters/pre-commit-config.yaml`.
+Pre-commit (WSL): `make pre-commit` instala hooks bash em `.git/hooks`; depois `git commit` dispara lint/test/security.

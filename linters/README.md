@@ -4,7 +4,8 @@ Configuracao centralizada de hooks e release semantico (sem infra Kubernetes/Ter
 
 | Arquivo | Uso |
 |---------|-----|
-| `pre-commit-config.yaml` | `pre-commit install --config linters/pre-commit-config.yaml` |
+| `git-hooks/` | Wrappers bash para WSL; `bash linters/git-hooks/install.sh` ou `make pre-commit` |
+| `pre-commit-config.yaml` | Config dos hooks; apontada pelos wrappers em `git-hooks/` |
 | `commitlint.config.mjs` | Mensagens de commit (Conventional Commits) |
 | `releaserc.json` | semantic-release no CI |
 

@@ -14,6 +14,7 @@ def index_m5_direction_from_closes(
     threshold_pct: float,
     min_move_pct: float,
 ) -> str:
+    """Classifica direcao up/down/flat a partir de closes M5."""
     return cluster_direction_from_closes(closes, threshold_pct, min_move_pct)
 
 
@@ -21,6 +22,7 @@ def build_index_m5_dir_map(
     closes_by_symbol: dict[str, list[float]],
     macro_cfg: dict[str, Any] | None,
 ) -> dict[str, str]:
+    """Mapa simbolo -> direcao M5 para correcao de cluster."""
     cfg = resolve_macro_config(macro_cfg)
     threshold = float(cfg["cluster_return_threshold_pct"])
     min_move = float(cfg["cluster_fallback_min_move_pct"])

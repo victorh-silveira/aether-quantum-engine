@@ -19,6 +19,7 @@ def direction_from_statarb_z(
     z_threshold: float = 2.5,
     min_abs_z: float = 0.0,
 ) -> TradeDirection | None:
+    """Infere CALL/PUT a partir do Z-Score StatArb e regime HMM."""
     zf = float(z)
     floor = max(0.0, float(min_abs_z))
     if abs(zf) < floor:
@@ -33,6 +34,7 @@ def direction_from_statarb_z(
 
 
 def _m5_implied_direction(metrics: dict[str, Any], target_sym: str) -> tuple[TradeDirection | None, str]:
+    """Retorna direcao implied pelo M5 do simbolo e label micro (up/down)."""
     raw_map = metrics.get("index_m5_dir_by_symbol")
     if not isinstance(raw_map, dict):
         return None, ""
@@ -44,6 +46,7 @@ def _m5_implied_direction(metrics: dict[str, Any], target_sym: str) -> tuple[Tra
 
 
 def quant_direction_stack_enabled(corr_cfg: dict[str, Any] | None) -> bool:
+    """True quando pilha M5/StatArb pode corrigir tag LLM do cluster."""
     c = corr_cfg if isinstance(corr_cfg, dict) else {}
     if "quant_direction_stack_enabled" in c:
         return bool(c.get("quant_direction_stack_enabled"))
@@ -59,6 +62,7 @@ def correct_cluster_direction_for_tag(
     corr_cfg: dict[str, Any] | None,
     macro_cfg: dict[str, Any] | None,
 ) -> tuple[TradeDirection, bool, str]:
+    """Aplica pilha M5 depois StatArb sobre direcao da tag LLM."""
     if not quant_direction_stack_enabled(corr_cfg):
         return direction, False, ""
     c = corr_cfg if isinstance(corr_cfg, dict) else {}
@@ -105,6 +109,7 @@ def correct_cluster_direction_for_divergence(
     corr_cfg: dict[str, Any] | None,
     macro_cfg: dict[str, Any] | None,
 ) -> tuple[TradeDirection, bool, str]:
+    """Wrapper de compatibilidade para correcao em tags de divergencia."""
     return correct_cluster_direction_for_tag(
         direction,
         macro_tag=macro_tag,

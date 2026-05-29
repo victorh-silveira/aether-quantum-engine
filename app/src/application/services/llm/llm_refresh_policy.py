@@ -31,6 +31,7 @@ def resolve_llm_refresh_interval_seconds(config: dict[str, Any]) -> float:
 
 
 def anchor_cached_decision_valid(cached: dict[str, Any] | None, anchor_sym: str) -> bool:
+    """True quando cache da ancora tem TradeDirection valida."""
     if not isinstance(cached, dict):
         return False
     entry = cached.get(anchor_sym)
@@ -40,6 +41,7 @@ def anchor_cached_decision_valid(cached: dict[str, Any] | None, anchor_sym: str)
 
 
 def clear_cluster_execute_on_cached_decisions(cached: dict[str, dict], anchor_sym: str) -> dict[str, dict]:
+    """Zera execute nos indices ao reutilizar cache sem LLM fresca."""
     out: dict[str, dict] = {}
     for sym, entry in cached.items():
         if not isinstance(entry, dict):

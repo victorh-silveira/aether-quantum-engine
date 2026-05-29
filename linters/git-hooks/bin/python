@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+if [ -f /proc/version ] && grep -qi microsoft /proc/version 2>/dev/null; then
+  for exe in \
+    "/mnt/c/Users/${USER}/AppData/Local/Programs/Python/Python313/python.exe" \
+    "/mnt/c/Users/${USER}/AppData/Local/Programs/Python/Python314/python.exe"; do
+    if [ -x "$exe" ]; then
+      exec "$exe" "$@"
+    fi
+  done
+fi
+if command -v python3 >/dev/null 2>&1; then
+  exec python3 "$@"
+fi
+exec python "$@"
