@@ -25,6 +25,7 @@ from src.application.services.llm.strategy_clusters import resolve_cluster_lists
 
 
 def _stream_fetch_is_async(orch: Any) -> bool:
+    """True quando fetch_candle_closes do stream e awaitable."""
     fetch = getattr(getattr(orch, "stream", None), "fetch_candle_closes", None)
     if fetch is None:
         return False
@@ -34,6 +35,7 @@ def _stream_fetch_is_async(orch: Any) -> bool:
 
 
 async def _fetch_m5_closes(orch: Any, symbols: list[str], gran: int, bars: int) -> dict[str, list[float]]:
+    """Busca closes M5 para simbolos em paralelo."""
     if not symbols:
         return {}
     results = await asyncio.gather(
@@ -47,18 +49,79 @@ async def _fetch_m5_closes(orch: Any, symbols: list[str], gran: int, bars: int) 
     return out
 
 
+def _resolve_cluster_symbols(strategy: dict[str, Any]) -> tuple[list[str], list[str]]:
+    """Resolve listas US/EU a partir de strategy.clusters ou defaults."""
+    clusters = strategy.get("clusters") if isinstance(strategy.get("clusters"), dict) else None
+    if clusters is not None:
+        return resolve_cluster_lists(strategy)
+    return ["OTC_NDX", "OTC_DJI"], ["OTC_FCHI", "OTC_GDAXI", "OTC_FTSE"]
+
+
+def _hmm_from_eurusd(eurusd_closes: list[float], cfg: dict[str, Any]) -> tuple[int, float]:
+    """Calcula estado e probabilidade HMM no marcapasso EURUSD."""
+    if len(eurusd_closes) < 3:
+        return 0, 1.0
+    kf = KalmanFilter(q=1e-5, r=1e-3)
+    denoised_eurusd = kf.filter_series(eurusd_closes)
+    log_returns = np.diff(np.log(denoised_eurusd))
+    hmm = MarketHMMClassifier(
+        sigma_low=float(cfg["statarb_hmm_sigma_low"]),
+        sigma_high=float(cfg["statarb_hmm_sigma_high"]),
+    )
+    state = 0
+    prob = 1.0
+    for ret in log_returns:
+        state, prob = hmm.update_regime(ret)
+    return state, prob
+
+
+async def _apply_m5_flat_fallback(
+    orch: Any,
+    snap: MacroSnapshot,
+    *,
+    us_symbols: list[str],
+    eu_symbols: list[str],
+    m5_closes: dict[str, list[float]],
+    macro_cfg: dict[str, Any] | None,
+    cfg: dict[str, Any],
+) -> MacroSnapshot:
+    """Aplica fallback M5 quando votos M15 do cluster estao flat."""
+    fb_syms: list[str] = []
+    if snap.us_dir == "flat":
+        fb_syms.extend(us_symbols)
+    if snap.eu_dir == "flat":
+        fb_syms.extend(eu_symbols)
+    fb_unique = list(dict.fromkeys(fb_syms))
+    fb_closes = dict(m5_closes)
+    extra_syms = [s for s in fb_unique if s not in fb_closes]
+    fb_gran = int(cfg["cluster_fallback_granularity_seconds"])
+    fb_bars = int(cfg["cluster_fallback_bars"])
+    extra = await _fetch_m5_closes(orch, extra_syms, fb_gran, fb_bars)
+    fb_closes.update(extra)
+    snap = apply_m5_fallback_to_snapshot(
+        snap,
+        us_symbols=us_symbols,
+        eu_symbols=eu_symbols,
+        fallback_closes=fb_closes,
+        macro_cfg=macro_cfg if isinstance(macro_cfg, dict) else None,
+    )
+    return replace(
+        snap,
+        index_m5_dir_by_symbol=build_index_m5_dir_map(
+            fb_closes,
+            macro_cfg if isinstance(macro_cfg, dict) else None,
+        ),
+    )
+
+
 async def fetch_macro_snapshot(orch: Any, runtime: dict[str, Any]) -> MacroSnapshot:
+    """Monta snapshot macro com StatArb, HMM e direcoes M5 por indice."""
     if not _stream_fetch_is_async(orch):
         return empty_macro_snapshot()
 
     try:
         strategy = orch.config.get("strategy", {}) if hasattr(orch, "config") and isinstance(orch.config, dict) else {}
-        clusters = strategy.get("clusters") if isinstance(strategy.get("clusters"), dict) else None
-        if clusters is not None:
-            us_symbols, eu_symbols = resolve_cluster_lists(strategy if isinstance(strategy, dict) else None)
-        else:
-            us_symbols = ["OTC_NDX", "OTC_DJI"]
-            eu_symbols = ["OTC_FCHI", "OTC_GDAXI", "OTC_FTSE"]
+        us_symbols, eu_symbols = _resolve_cluster_symbols(strategy if isinstance(strategy, dict) else {})
         macro_cfg = strategy.get("macro")
         cfg = resolve_macro_config(macro_cfg if isinstance(macro_cfg, dict) else None)
         swing_gran = int(cfg.get("cluster_granularity_seconds", runtime.get("tf_swing_gran", 900)))
@@ -78,20 +141,7 @@ async def fetch_macro_snapshot(orch: Any, runtime: dict[str, Any]) -> MacroSnaps
             row = results[i]
             closes_map[sym] = list(row) if isinstance(row, list) else []
 
-        eurusd_closes = closes_map.get("frxEURUSD", [])
-        hmm_state = 0
-        hmm_prob = 1.0
-        if len(eurusd_closes) >= 3:
-            kf = KalmanFilter(q=1e-5, r=1e-3)
-            denoised_eurusd = kf.filter_series(eurusd_closes)
-            log_returns = np.diff(np.log(denoised_eurusd))
-            hmm = MarketHMMClassifier(
-                sigma_low=float(cfg["statarb_hmm_sigma_low"]),
-                sigma_high=float(cfg["statarb_hmm_sigma_high"]),
-            )
-            for ret in log_returns:
-                hmm_state, hmm_prob = hmm.update_regime(ret)
-
+        hmm_state, hmm_prob = _hmm_from_eurusd(closes_map.get("frxEURUSD", []), cfg)
         all_indices = us_symbols + eu_symbols
         statarb_spreads = compute_pca_cointegration_zscores(
             closes_map,
@@ -115,28 +165,14 @@ async def fetch_macro_snapshot(orch: Any, runtime: dict[str, Any]) -> MacroSnaps
         )
 
         if (snap.us_dir == "flat" or snap.eu_dir == "flat") and cfg["cluster_use_m5_fallback_when_flat"]:
-            fb_syms: list[str] = []
-            if snap.us_dir == "flat":
-                fb_syms.extend(us_symbols)
-            if snap.eu_dir == "flat":
-                fb_syms.extend(eu_symbols)
-            fb_unique = list(dict.fromkeys(fb_syms))
-            fb_closes = dict(m5_closes)
-            extra = await _fetch_m5_closes(orch, [s for s in fb_unique if s not in fb_closes], fb_gran, fb_bars)
-            fb_closes.update(extra)
-            snap = apply_m5_fallback_to_snapshot(
+            snap = await _apply_m5_flat_fallback(
+                orch,
                 snap,
                 us_symbols=us_symbols,
                 eu_symbols=eu_symbols,
-                fallback_closes=fb_closes,
+                m5_closes=m5_closes,
                 macro_cfg=macro_cfg if isinstance(macro_cfg, dict) else None,
-            )
-            snap = replace(
-                snap,
-                index_m5_dir_by_symbol=build_index_m5_dir_map(
-                    fb_closes,
-                    macro_cfg if isinstance(macro_cfg, dict) else None,
-                ),
+                cfg=cfg,
             )
         return snap
     except Exception as e:

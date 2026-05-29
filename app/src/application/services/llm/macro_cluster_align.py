@@ -18,6 +18,7 @@ def cluster_trade_direction(cluster_dir: str) -> str | None:
 
 
 def quant_trade_direction(cluster_dir: str) -> TradeDirection | None:
+    """Converte up/down quant em TradeDirection."""
     tok = cluster_trade_direction(cluster_dir)
     if tok == "CALL":
         return TradeDirection.CALL
@@ -34,6 +35,7 @@ def align_cluster_dirs_for_divergence_tag(
     us_dir: TradeDirection | None,
     eu_dir: TradeDirection | None,
 ) -> tuple[TradeDirection | None, TradeDirection | None]:
+    """Alinha US/EU com voto quant quando tag e divergencia e LLM omitiu lado."""
     if macro_tag == "divergence_us_leads":
         leader = quant_trade_direction(us_dir_quant)
         if us_dir is None and leader is not None:

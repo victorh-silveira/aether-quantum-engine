@@ -8,6 +8,7 @@ from src.domain.models.trade import TradeDirection
 
 
 def _dir_label(entry: dict[str, Any] | None) -> str:
+    """Formata direcao executavel de uma entrada de decisao para log."""
     if not isinstance(entry, dict):
         return "-"
     direction = entry.get("direction")
@@ -23,6 +24,7 @@ def effective_cluster_refresh_line(
     metrics: dict[str, Any],
     macro_tag: str,
 ) -> str:
+    """Monta linha CLUSTER_REFRESH com direcao efetiva e cache LLM."""
     us_eff = "-"
     eu_eff = "-"
     for sym, entry in decisions.items():
@@ -39,6 +41,4 @@ def effective_cluster_refresh_line(
             eu_eff = label
     llm_us = str(metrics.get("us_cluster") or "-")
     llm_eu = str(metrics.get("eu_cluster") or "-")
-    return (
-        f"macro={macro_tag} | us_eff={us_eff} eu_eff={eu_eff} | llm_cache={llm_us}/{llm_eu}"
-    )
+    return f"macro={macro_tag} | us_eff={us_eff} eu_eff={eu_eff} | llm_cache={llm_us}/{llm_eu}"

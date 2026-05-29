@@ -23,4 +23,4 @@ backtest:
 	$(PYTHON) $(APP_DIR)/scripts/backtest/medallion_backtest.py $(ARGS)
 
 pre-commit:
-	pre-commit install --config linters/pre-commit-config.yaml
+	bash linters/git-hooks/install.sh

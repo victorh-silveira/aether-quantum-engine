@@ -119,7 +119,10 @@ async def test_execute_cluster_skips_on_refresh_without_llm(orch_config):
         orch.symbols = ["frxEURUSD", "OTC_FCHI"]
         decisions = {
             "frxEURUSD": {"direction": TradeDirection.CALL, "metrics": {"macro_sentiment": "risk_off"}},
-            "OTC_FCHI": {"direction": TradeDirection.CALL, "metrics": {"conviction": 0.7, "execute": True, "macro_sentiment": "risk_off"}},
+            "OTC_FCHI": {
+                "direction": TradeDirection.CALL,
+                "metrics": {"conviction": 0.7, "execute": True, "macro_sentiment": "risk_off"},
+            },
         }
         with (
             patch.object(orch.executor.logger, "info") as mock_info,
@@ -127,7 +130,9 @@ async def test_execute_cluster_skips_on_refresh_without_llm(orch_config):
         ):
             await orch.executor.execute_cluster(decisions)
         mock_exec.assert_not_awaited()
-        assert any("EXEC_SKIP" in str(c) and "risk_regime_requires_fresh_llm" in str(c) for c in mock_info.call_args_list)
+        assert any(
+            "EXEC_SKIP" in str(c) and "risk_regime_requires_fresh_llm" in str(c) for c in mock_info.call_args_list
+        )
 
 
 @pytest.mark.asyncio

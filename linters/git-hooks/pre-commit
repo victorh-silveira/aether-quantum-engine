@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$HERE/../.." && pwd)"
+CONFIG="$ROOT/linters/pre-commit-config.yaml"
+
+if [ -f /proc/version ] && grep -qi microsoft /proc/version 2>/dev/null; then
+  if [ -x "$ROOT/linters/git-hooks/bin/python" ]; then
+    export PATH="$ROOT/linters/git-hooks/bin:${PATH}"
+  fi
+fi
+
+run_impl() {
+  exec "$1" "${@:2}" hook-impl --config="$CONFIG" --hook-type=pre-commit --hook-dir="$HERE" -- "${ARGS[@]}"
+}
+
+ARGS=("$@")
+
+if command -v pre-commit >/dev/null 2>&1; then
+  run_impl pre-commit
+fi
+
+for py in python3.14 python3 python; do
+  if command -v "$py" >/dev/null 2>&1 && "$py" -c "import pre_commit" 2>/dev/null; then
+    run_impl "$py" -mpre_commit
+  fi
+done
+
+if [ -f /proc/version ] && grep -qi microsoft /proc/version 2>/dev/null; then
+  for win_py in \
+    "/mnt/c/Users/${USER}/AppData/Local/Programs/Python/Python314/python.exe" \
+    "/mnt/c/Users/${USER}/AppData/Local/Programs/Python/Python313/python.exe"; do
+    if [ -x "$win_py" ]; then
+      run_impl "$win_py" -mpre_commit
+    fi
+  done
+fi
+
+echo "pre-commit nao encontrado. Rode: make install && pip install pre-commit && make pre-commit" >&2
+exit 1

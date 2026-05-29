@@ -10,6 +10,7 @@ from src.domain.models.trade import TradeDirection
 
 
 def _normalize_quant_tags(raw: Any) -> tuple[str, ...]:
+    """Normaliza lista de tags elegiveis ao refresh quant-gated."""
     if isinstance(raw, (list, tuple)):
         tags = tuple(str(x).strip() for x in raw if str(x).strip())
         return tags or ("divergence_us_leads", "divergence_eu_leads")
@@ -17,6 +18,7 @@ def _normalize_quant_tags(raw: Any) -> tuple[str, ...]:
 
 
 def resolve_cluster_refresh_policy(orch_cfg: dict[str, Any] | None) -> dict[str, Any]:
+    """Resolve flags de execucao hibrida no cluster_refresh."""
     cfg = orch_cfg if isinstance(orch_cfg, dict) else {}
     breath = float(cfg.get("post_settlement_breath_seconds", 60))
     margin = float(cfg.get("cluster_refresh_entry_spacing_seconds", 30))
@@ -29,6 +31,7 @@ def resolve_cluster_refresh_policy(orch_cfg: dict[str, Any] | None) -> dict[str,
 
 
 def _m5_aligns_with_direction(metrics: dict[str, Any], symbol: str, direction: TradeDirection) -> bool:
+    """True quando M5 do simbolo implica a mesma direcao executavel."""
     raw_map = metrics.get("index_m5_dir_by_symbol")
     if not isinstance(raw_map, dict):
         return False
@@ -38,6 +41,7 @@ def _m5_aligns_with_direction(metrics: dict[str, Any], symbol: str, direction: T
 
 
 def _metrics_quant_validated(metrics: dict[str, Any], direction: TradeDirection) -> bool:
+    """True quando metricas indicam edge quant alinhado a direcao."""
     if bool(metrics.get("llm_statarb_dir_corrected")):
         return True
     if str(metrics.get("decision_source") or "") == "cluster_statarb_dir":
@@ -47,6 +51,7 @@ def _metrics_quant_validated(metrics: dict[str, Any], direction: TradeDirection)
 
 
 def entry_is_quant_validated(entry: dict[str, Any]) -> bool:
+    """True quando entrada de cluster tem execute e validacao quant."""
     if not isinstance(entry, dict):
         return False
     metrics = entry.get("metrics")
@@ -59,6 +64,7 @@ def entry_is_quant_validated(entry: dict[str, Any]) -> bool:
 
 
 def cluster_entry_spacing_allows(orch: Any, *, now_epoch: float | None = None) -> tuple[bool, str]:
+    """Verifica folego pos-liquidacao e ausencia de contrato aberto."""
     state = getattr(orch, "state", None)
     active = getattr(state, "active_contracts", None) if state is not None else None
     if active:
@@ -79,6 +85,7 @@ def cluster_entry_spacing_allows(orch: Any, *, now_epoch: float | None = None) -
 
 
 def macro_tag_from_decisions(decisions: dict[str, dict], anchor_sym: str) -> str:
+    """Extrai tag macro das decisoes em cache."""
     entry = decisions.get(anchor_sym) if isinstance(decisions, dict) else None
     if isinstance(entry, dict):
         metrics = entry.get("metrics")
@@ -100,6 +107,7 @@ def any_quant_validated_cluster_entry(
     *,
     anchor_sym: str,
 ) -> bool:
+    """True se algum indice do cluster (exceto ancora) passou validacao quant."""
     if not isinstance(decisions, dict):
         return False
     for sym, entry in decisions.items():
@@ -117,6 +125,7 @@ def _divergence_refresh_gate(
     *,
     now_epoch: float | None,
 ) -> tuple[bool, str]:
+    """Aplica gate de execucao quant em tags de divergencia no refresh."""
     anchor = str(getattr(orch, "anchor", "frxEURUSD") or "frxEURUSD")
     macro_tag = macro_tag_from_decisions(decisions, anchor)
     if macro_tag not in policy["quant_tags"]:
@@ -138,6 +147,7 @@ def cluster_refresh_may_execute(
     refresh_without_llm: bool,
     now_epoch: float | None = None,
 ) -> tuple[bool, str]:
+    """Decide se EXEC e permitido no cluster_refresh sem nova consulta LLM."""
     if not refresh_without_llm:
         return True, ""
     orch_cfg = orch.config.get("orchestrator") if isinstance(getattr(orch, "config", None), dict) else {}
