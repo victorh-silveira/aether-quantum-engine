@@ -95,6 +95,12 @@
     "cycle_interval_seconds": 60,
     "cluster_refresh_interval_seconds": 60,
     "cluster_refresh_execute_enabled": false,
+    "cluster_refresh_execute_on_quant_validate": true,
+    "cluster_refresh_quant_tags": [
+      "divergence_us_leads",
+      "divergence_eu_leads"
+    ],
+    "cluster_refresh_entry_spacing_seconds": 30,
     "cluster_pause_after_loss_cycles": 2,
     "post_settlement_breath_seconds": 60,
     "settlement_wait_log_interval_seconds": 15,
@@ -164,15 +170,19 @@
       "statarb_index_min_abs_z": 0.85,
       "statarb_soft_min_abs_ratio": 0.45,
       "statarb_weak_leader_on_no_align": false,
-      "statarb_require_z_align": true,
+      "statarb_require_z_align": false,
       "statarb_z_align_soft_fallback": true,
       "statarb_try_alternate_on_block": true,
+      "statarb_correct_llm_on_divergence": true,
+      "quant_direction_stack_enabled": true,
       "cluster_invert_on_block": false
     },
     "macro": {
       "allowed_execute_tags": [
         "risk_on",
-        "risk_off"
+        "risk_off",
+        "divergence_us_leads",
+        "divergence_eu_leads"
       ],
       "allowed_cluster_symbols_by_tag": {
         "risk_on": [
@@ -180,15 +190,25 @@
         ],
         "risk_off": [
           "OTC_FCHI"
+        ],
+        "divergence_us_leads": [
+          "OTC_DJI"
+        ],
+        "divergence_eu_leads": [
+          "OTC_FCHI"
         ]
       },
       "min_conviction_by_tag": {
         "risk_on": 0.70,
-        "risk_off": 0.68
+        "risk_off": 0.68,
+        "divergence_us_leads": 0.68,
+        "divergence_eu_leads": 0.68
       },
       "statarb_min_abs_z_by_tag": {
         "risk_on": 0.70,
-        "risk_off": 0.70
+        "risk_off": 0.70,
+        "divergence_us_leads": 0.65,
+        "divergence_eu_leads": 0.65
       },
       "cluster_bars": 8,
       "cluster_fallback_bars": 12,
@@ -213,7 +233,7 @@
       "cluster_use_m5_fallback_when_flat": true,
       "confluence_conviction_floor": 0.65,
       "divergence_max_conviction": 0.82,
-      "divergence_min_leader_strength": 0.74,
+      "divergence_min_leader_strength": 0.68,
       "divergence_min_strength_gap": 0.0,
       "indefinido_min_leader_strength": 0.68,
       "indefinido_min_strength_gap": 0.08,

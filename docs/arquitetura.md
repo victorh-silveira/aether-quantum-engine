@@ -153,8 +153,9 @@ flowchart TB
 
 - **LLM (Gemini):** emite `EURUSD`, `US_CLUSTER`, `EU_CLUSTER` (CALL/PUT independentes) com `Probabilidade`; mandato em `llm.system_prompt`.
 - **Confluência macro:** `global_macro_confluence.py` agrega votos RISE/FALL por cluster; `macro_fx_reference.py` preenche `CONTEXTO_FX_REF` (USD/JPY, AUD/USD, NZD/USD) sem ordens.
-- **Guardrails:** `apply_macro_confluence_guard` ajusta convicção via StatArb Z e HMM sem vetar direção da LLM.
-- **Propagação:** `llm_cluster_propagate.propagate_cluster_decisions` aplica tags `US_CLUSTER` / `EU_CLUSTER` sem inversão; `llm_cluster_exclusive` limita um cluster por ciclo (`risk_on`→US, `risk_off`→EU, divergência→líder, `indefinido`→força quant maior; empate→sem ordens nos índices).
+- **Guardrails:** `apply_macro_confluence_guard` ajusta convicção via StatArb Z e HMM; a pilha quant **M5 → StatArb → LLM** pode corrigir `US_CLUSTER` / `EU_CLUSTER` em qualquer tag executável quando `quant_direction_stack_enabled: true`.
+- **Propagação:** `llm_cluster_propagate.propagate_cluster_decisions` aplica tags `US_CLUSTER` / `EU_CLUSTER`; correções quant emitem `CLUSTER_CORRECT` (distinto de `CLUSTER_INVERT`); `llm_cluster_exclusive` limita um cluster por ciclo (`risk_on`→US, `risk_off`→EU, divergência→líder, `indefinido`→força quant maior; empate→sem ordens nos índices).
+- **Refresh híbrido:** `cluster_refresh_execute_policy.cluster_refresh_may_execute` — em `divergence_*`, refresh sem Gemini pode executar se edge quant validado (M5/StatArb); em `risk_on`/`risk_off` exige LLM fresca (`cluster_refresh_execute_enabled` permanece kill-switch global).
 - **Gate:** `llm.min_conviction_execute` (ex.: 0.60) e payout mínimo.
 
 ### 3.4 Execução e persistência
@@ -203,6 +204,9 @@ Blocos críticos para a metodologia:
 | `llm` | Modelo Gemini, MTF, `system_prompt` (mandato Medallion; fallback `sovereign_system.py`), convicção mínima, telemetria |
 | `llm.indicator_config` | Hurst, Z, entropia, janelas |
 | `orchestrator.cycle_interval_seconds` | Sincronização com barras M15 |
+| `orchestrator.cluster_refresh_execute_on_quant_validate` | Execução quant-gated no refresh de divergência |
+| `orchestrator.cluster_refresh_quant_tags` | Tags elegíveis ao refresh quant (`divergence_us_leads`, `divergence_eu_leads`) |
+| `strategy.correlation.quant_direction_stack_enabled` | Pilha M5 → StatArb → LLM na entrada fresca |
 | `risk_management` | Kelly, Stop Win, duração 15m |
 
 ---
@@ -241,6 +245,28 @@ Com `strategy.correlation.statarb_index_select_enabled: true` (padrão), após d
 | PUT | Z mais positivo (ativo supervalorizado) |
 
 Implementação: `cluster_statarb_select.py`. HMM em tendência (`1`) reduz o peso do score. Sem Z no snapshot, propaga todos os candidatos do cluster (`STATARB_INDEX_NO_Z_FALLBACK`).
+
+### 6.3 Pilha de direção executável (M5 → StatArb → LLM)
+
+Na entrada com LLM fresca (`apply_cluster_target_decision`), quando `quant_direction_stack_enabled: true`:
+
+| Prioridade | Fonte | Efeito |
+|------------|-------|--------|
+| 1 | `index_m5_dir_by_symbol` | Micro M5 do índice corrige CALL/PUT da tag LLM |
+| 2 | StatArb Z + HMM | Corrige quando Z implica lado oposto ao cluster |
+| 3 | Tag LLM | Mantida se quant não contradiz |
+
+Telemetria: `CLUSTER_CORRECT` (correção quant) vs `CLUSTER_INVERT` (inversão binária por bloqueio StatArb em divergência).
+
+### 6.4 Execução no cluster_refresh (política híbrida)
+
+| Tag macro | Refresh sem Gemini | Condição de EXEC |
+|-----------|-------------------|------------------|
+| `divergence_*` | Métricas macro/StatArb/M5 atualizadas | Edge quant validado + espaçamento pós-liquidação |
+| `risk_on` / `risk_off` | Só atualiza métricas | Bloqueado até nova consulta Gemini |
+| Kill-switch | `cluster_refresh_execute_enabled: true` | Libera execução global no refresh |
+
+Espaçamento: `post_settlement_breath_seconds` + `cluster_refresh_entry_spacing_seconds` evita reentrada imediata no mesmo símbolo+direção após liquidação.
 
 ---
 

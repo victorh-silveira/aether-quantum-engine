@@ -69,7 +69,9 @@ Execução no motor: `risk_on` → cluster US; `risk_off` → cluster EU; um ín
 
 O Medallion no Aether prioriza **menos trades de maior qualidade** em vez de volume cego:
 
-- **Macro:** piso de força em `risk_on`/`risk_off`; divergência só com líder forte; `indefinido` bloqueado sem gap US/EU; `allowed_execute_tags` limita regimes executáveis.
+- **Macro:** piso de força em `risk_on`/`risk_off`; divergência só com líder forte; `indefinido` bloqueado sem gap US/EU; `allowed_execute_tags` inclui `divergence_us_leads` e `divergence_eu_leads` quando habilitados.
+- **Direção executável:** pilha quant M5 → StatArb → tag LLM (`cluster_statarb_direction.py`); em divergência o micro M5 governa o lado operável quando contradiz a narrativa cacheada.
+- **Refresh híbrido:** divergência pode reexecutar no `cluster_refresh` com edge quant validado; `risk_on`/`risk_off` exigem LLM fresca.
 - **Simbolos:** `excluded_symbols` remove indices fracos do cluster (ex.: SPC, FTSE, NDX).
 - **LLM live:** `llm.refresh_schedule=tag_change` consulta Gemini quando a tag macro muda; `llm.refresh_interval_hours` força reconsulta periódica (ex.: 4h).
 - **Sessão OTC:** `trading.session` limita entradas à janela UTC, warm-up após sync de velas e bloqueio nos minutos finais antes do fechamento.
@@ -105,10 +107,11 @@ Calibrado em 14 dias M15 com walk-forward alinhado ao motor:
 | quant | 6 | 66,7% | +$16,16 | 80% |
 | gemini | 6 | 83,3% | +$40,73 | 100% |
 
-Filtros em `config/settings.json` → `strategy.macro`:
+Filtros em `config/settings.json` → `strategy.macro` e `orchestrator`:
 
-- `allowed_execute_tags`: apenas `risk_on` e `risk_off` (sem divergências).
-- `allowed_cluster_symbols_by_tag`: `risk_on` → `OTC_DJI`; `risk_off` → `OTC_FCHI`.
+- `allowed_execute_tags`: `risk_on`, `risk_off` e tags de divergência quando calibradas.
+- `orchestrator.cluster_refresh_execute_on_quant_validate`: execução quant-gated no refresh de divergência.
+- `allowed_cluster_symbols_by_tag`: restringe índices por regime (ex.: `risk_on` → `OTC_DJI`; `risk_off` → `OTC_FCHI`).
 - `min_conviction_by_tag` e `statarb_min_abs_z_by_tag` elevados (0,68–0,70).
 - `excluded_symbols` e clusters reduzidos aos índices acima.
 

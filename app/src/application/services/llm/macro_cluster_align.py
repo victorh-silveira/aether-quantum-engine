@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from src.application.services.llm.macro_config import resolve_macro_config
+from src.domain.models.trade import TradeDirection
 
 
 def cluster_trade_direction(cluster_dir: str) -> str | None:
@@ -14,6 +15,36 @@ def cluster_trade_direction(cluster_dir: str) -> str | None:
     if cluster_dir == "down":
         return "PUT"
     return None
+
+
+def quant_trade_direction(cluster_dir: str) -> TradeDirection | None:
+    tok = cluster_trade_direction(cluster_dir)
+    if tok == "CALL":
+        return TradeDirection.CALL
+    if tok == "PUT":
+        return TradeDirection.PUT
+    return None
+
+
+def align_cluster_dirs_for_divergence_tag(
+    macro_tag: str,
+    *,
+    us_dir_quant: str,
+    eu_dir_quant: str,
+    us_dir: TradeDirection | None,
+    eu_dir: TradeDirection | None,
+) -> tuple[TradeDirection | None, TradeDirection | None]:
+    if macro_tag == "divergence_us_leads":
+        leader = quant_trade_direction(us_dir_quant)
+        if us_dir is None and leader is not None:
+            return leader, eu_dir
+        return us_dir, eu_dir
+    if macro_tag == "divergence_eu_leads":
+        leader = quant_trade_direction(eu_dir_quant)
+        if eu_dir is None and leader is not None:
+            return us_dir, leader
+        return us_dir, eu_dir
+    return us_dir, eu_dir
 
 
 def expected_cluster_tags_line(

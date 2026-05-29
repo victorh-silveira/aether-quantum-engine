@@ -11,6 +11,7 @@ from src.application.services.llm import (
 from src.application.services.llm.context_runtime import fetch_context_blocks
 from src.application.services.llm.global_macro_confluence import MacroSnapshot, resolve_macro_config
 from src.application.services.llm.llm_bridge_guards import apply_macro_confluence_guard
+from src.application.services.llm.macro_cluster_align import align_cluster_dirs_for_divergence_tag
 from src.application.services.llm.macro_snapshot_fetch import fetch_macro_snapshot
 from src.application.services.llm.prompt_extras import build_institutional_pa_bundle
 from src.application.services.llm.prompt_utils import (
@@ -92,6 +93,13 @@ def apply_macro_post_parse(
     )
     if macro_note:
         note = f"{note} | {macro_note}".strip()
+    us_dir, eu_dir = align_cluster_dirs_for_divergence_tag(
+        macro_snapshot.tag,
+        us_dir_quant=macro_snapshot.us_dir,
+        eu_dir_quant=macro_snapshot.eu_dir,
+        us_dir=us_dir,
+        eu_dir=eu_dir,
+    )
     return direction, conviction, note, us_dir, eu_dir, macro_guard, macro_execute
 
 

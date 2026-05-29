@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from scripts.backtest.backtest_cluster_runtime import BacktestClusterRuntime
+from src.application.services.llm.cluster_refresh_execute_policy import cluster_refresh_may_execute
 from src.application.services.llm.global_macro_confluence import MacroSnapshot
 from src.application.services.llm.llm_cluster_propagate import propagate_cluster_decisions
 from src.application.services.llm.macro_cluster_align import cluster_trade_direction
@@ -59,7 +60,7 @@ def _metrics_from_snapshot(
     eu_tag: str | None,
     conviction: float,
 ) -> dict[str, Any]:
-    return {
+    metrics: dict[str, Any] = {
         "macro_sentiment": snapshot.tag,
         "macro_confluence_tag": snapshot.tag,
         "macro_us_strength_quant": snapshot.us_strength,
@@ -71,6 +72,31 @@ def _metrics_from_snapshot(
         "hmm_prob": float(snapshot.hmm_prob),
         "conviction": conviction,
     }
+    m5_dirs = getattr(snapshot, "index_m5_dir_by_symbol", None)
+    if isinstance(m5_dirs, dict) and m5_dirs:
+        metrics["index_m5_dir_by_symbol"] = dict(m5_dirs)
+    return metrics
+
+
+def apply_backtest_refresh_execute_gate(
+    runtime: BacktestClusterRuntime,
+    decisions: dict[str, dict],
+) -> None:
+    refresh_without_llm = bool(getattr(runtime, "_cluster_refresh_without_llm", False))
+    may_exec, _reason = cluster_refresh_may_execute(
+        runtime,
+        decisions,
+        refresh_without_llm=refresh_without_llm,
+    )
+    if refresh_without_llm and not may_exec:
+        for sym, entry in list(decisions.items()):
+            if sym == runtime.anchor:
+                continue
+            if not isinstance(entry, dict):
+                continue
+            metrics = entry.get("metrics")
+            if isinstance(metrics, dict):
+                metrics["execute"] = False
 
 
 def resolve_orders_from_cluster_tags(
@@ -99,6 +125,7 @@ def resolve_orders_from_cluster_tags(
         decisions=decisions,
         cid=f"C{bar_index:04d}",
     )
+    apply_backtest_refresh_execute_gate(runtime, decisions)
     region = str(metrics.get("cluster_active_region") or "")
     orders: list[BacktestOrder] = []
     for sym, entry in decisions.items():

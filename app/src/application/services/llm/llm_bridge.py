@@ -19,6 +19,8 @@ from src.application.services.llm.llm_cluster_refresh import (
     resolve_cluster_refresh_interval_seconds,
 )
 from src.application.services.llm.llm_refresh_policy import (
+    anchor_cached_decision_valid,
+    clear_cluster_execute_on_cached_decisions,
     macro_tag_allows_llm_call,
     resolve_llm_refresh_interval_seconds,
     resolve_llm_refresh_schedule,
@@ -156,7 +158,7 @@ async def collect_llm_decisions(orch: Any) -> dict[str, dict]:
         schedule=schedule,
         current_tag=macro_snapshot.tag,
         last_tag=last_tag,
-        has_cached_decisions=isinstance(cached, dict) and bool(cached),
+        has_cached_decisions=anchor_cached_decision_valid(cached, anchor_sym),
         last_refresh_epoch=getattr(orch, "_last_llm_refresh_epoch", None),
         now_epoch=now_epoch,
         refresh_interval_seconds=interval,
@@ -167,7 +169,7 @@ async def collect_llm_decisions(orch: Any) -> dict[str, dict]:
             refreshed = refresh_cluster_decisions_from_cache(orch, macro_snapshot, cid)
             if refreshed is not None:
                 return refreshed
-        return dict(cached)
+        return clear_cluster_execute_on_cached_decisions(dict(cached), anchor_sym)
 
     try:
         orch.logger.debug("[%s] LLM_CORR || Consultando âncora: %s", cid, anchor_sym)

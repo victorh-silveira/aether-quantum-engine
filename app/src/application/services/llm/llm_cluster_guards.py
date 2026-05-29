@@ -158,7 +158,7 @@ def cluster_execute_block_reason(
         llm_cluster_explicit=llm_cluster_explicit,
     ):
         reason = "macro_or_hmm_veto"
-    if reason == "allowed":
+    if reason == "allowed" and not llm_cluster_explicit:
         c = corr_cfg if isinstance(corr_cfg, dict) else {}
         macro_tag = str(metrics.get("macro_sentiment") or metrics.get("macro_confluence_tag") or "")
         spreads = metrics.get("statarb_spreads")

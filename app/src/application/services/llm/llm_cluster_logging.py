@@ -22,8 +22,17 @@ def log_cluster_propagation_results(
     propagated_tags: list[str],
     blocked_tags: list[str],
     inverted_tags: list[str],
+    corrected_tags: list[str] | None = None,
 ) -> None:
-    """Emite logs CLUSTER_INVERT, CLUSTER_PROP, CLUSTER_BLOCK ou vazio."""
+    """Emite logs CLUSTER_CORRECT, CLUSTER_INVERT, CLUSTER_PROP e CLUSTER_BLOCK."""
+    corrected = list(corrected_tags or [])
+    if corrected:
+        orch.logger.info(
+            "[%s] CLUSTER_CORRECT || %s >> %s",
+            cid,
+            anchor_sym,
+            ", ".join(corrected),
+        )
     if inverted_tags:
         orch.logger.info(
             "[%s] CLUSTER_INVERT || %s >> %s",

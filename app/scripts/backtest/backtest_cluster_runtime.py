@@ -24,6 +24,7 @@ class BacktestClusterRuntime:
         self._invert_quarantine_cycles_remaining = 0
         self._invert_quarantine_active = False
         self._cluster_refresh_without_llm = False
+        self._last_cluster_cycle_end = 0.0
 
     def begin_cycle(self) -> None:
         self._invert_quarantine_active = self._invert_quarantine_cycles_remaining > 0

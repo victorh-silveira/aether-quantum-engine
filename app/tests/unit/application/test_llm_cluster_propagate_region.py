@@ -55,8 +55,8 @@ def test_propagate_tries_fallback_index_when_leader_blocked():
             "metrics": {"execute": sym == "OTC_NDX"},
         }
         if sym == "OTC_SPC":
-            return None, f"{sym}[C]:statarb_z_misaligned", None
-        return f"{sym}[C]", None, None
+            return None, f"{sym}[C]:statarb_z_misaligned", None, None
+        return f"{sym}[C]", None, None, None
 
     with patch(
         "src.application.services.llm.llm_cluster_propagate_region.apply_cluster_target_decision",
@@ -107,8 +107,8 @@ def test_propagate_fallback_can_invert_on_alternate_index():
             "metrics": {"execute": False},
         }
         if sym == "OTC_SPC":
-            return None, f"{sym}[C]:statarb_z_misaligned", None
-        return None, None, f"{sym}[C->P]"
+            return None, f"{sym}[C]:statarb_z_misaligned", None, None
+        return None, None, f"{sym}[C->P]", None
 
     with patch(
         "src.application.services.llm.llm_cluster_propagate_region.apply_cluster_target_decision",
@@ -155,8 +155,8 @@ def test_propagate_fallback_records_blocked_alternate():
         sym = kwargs["target_sym"]
         kwargs["decisions"][sym] = {"direction": kwargs["target_direction"], "metrics": {"execute": False}}
         if sym == "OTC_SPC":
-            return None, f"{sym}[C]:statarb_z_misaligned", None
-        return None, f"{sym}[C]:low_conviction", None
+            return None, f"{sym}[C]:statarb_z_misaligned", None, None
+        return None, f"{sym}[C]:low_conviction", None, None
 
     with patch(
         "src.application.services.llm.llm_cluster_propagate_region.apply_cluster_target_decision",
@@ -177,3 +177,51 @@ def test_propagate_fallback_records_blocked_alternate():
         )
     assert "OTC_SPC" in decisions and "OTC_NDX" in decisions
     assert any("CLUSTER_BLOCK" in str(c) for c in orch.logger.info.call_args_list)
+
+
+def test_propagate_fallback_returns_on_corrected_alternate():
+    orch = MagicMock()
+    orch.anchor = "frxEURUSD"
+    orch.symbols = ["frxEURUSD", "OTC_SPC", "OTC_NDX"]
+    orch.config = {
+        "llm": {"min_conviction_execute": 0.60},
+        "strategy": {
+            "clusters": {"us": ["OTC_SPC", "OTC_NDX"], "eu": []},
+            "correlation": {
+                "enabled": True,
+                "exclusive_cluster_by_macro": False,
+                "best_symbol_only": True,
+                "statarb_try_alternate_on_block": True,
+                "statarb_index_select_enabled": True,
+                "statarb_index_max_per_cluster": 1,
+            },
+            "macro": {"statarb_z_threshold": 2.5},
+        },
+    }
+    decisions: dict = {}
+
+    def side_effect(*_args, **kwargs):
+        sym = kwargs["target_sym"]
+        kwargs["decisions"][sym] = {"direction": kwargs["target_direction"], "metrics": {"execute": False}}
+        if sym == "OTC_SPC":
+            return None, f"{sym}[C]:statarb_z_misaligned", None, None
+        return "OTC_NDX[P]", None, None, "OTC_NDX[C->P]"
+
+    with patch(
+        "src.application.services.llm.llm_cluster_propagate_region.apply_cluster_target_decision",
+        side_effect=side_effect,
+    ):
+        propagate_cluster_decisions(
+            orch,
+            anchor_sym="frxEURUSD",
+            direction=TradeDirection.CALL,
+            metrics=_base_metrics(
+                us_cluster="CALL",
+                eu_cluster="CALL",
+                statarb_spreads={"OTC_SPC": -2.0, "OTC_NDX": 0.2},
+                hmm_state=0,
+            ),
+            decisions=decisions,
+            cid="C0102",
+        )
+    assert any("CLUSTER_BEST" in str(c) or "CLUSTER_PROP" in str(c) for c in orch.logger.info.call_args_list)

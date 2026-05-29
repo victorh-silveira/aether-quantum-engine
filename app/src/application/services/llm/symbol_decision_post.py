@@ -71,3 +71,6 @@ def patch_final_symbol_metrics(
             "hmm_prob": float(getattr(macro_snapshot, "hmm_prob", 1.0)),
         }
     )
+    m5_dirs = getattr(macro_snapshot, "index_m5_dir_by_symbol", None)
+    if isinstance(m5_dirs, dict):
+        metrics["index_m5_dir_by_symbol"] = dict(m5_dirs)

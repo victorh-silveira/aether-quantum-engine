@@ -33,6 +33,7 @@ class MacroSnapshot:
     statarb_spreads: dict[str, float] = None
     hmm_state: int = 0
     hmm_prob: float = 1.0
+    index_m5_dir_by_symbol: dict[str, str] | None = None
 
 
 def resolve_macro_config(raw: dict[str, Any] | None) -> dict[str, Any]:

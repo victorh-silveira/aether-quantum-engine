@@ -8,6 +8,7 @@ import numpy as np
 
 from src.application.services.llm.global_macro_confluence import MacroSnapshot
 from src.application.services.llm.macro_config import resolve_macro_config
+from src.application.services.llm.macro_index_m5 import build_index_m5_dir_map
 from src.application.services.llm.macro_snapshot_build import apply_m5_fallback_to_snapshot, build_macro_snapshot
 from src.application.services.llm.medallion_statarb import (
     KalmanFilter,
@@ -83,17 +84,44 @@ def build_snapshot_at_bar(
         hmm_prob=hmm_prob,
     )
 
+    fb_gran_ratio = 3
+    m5_end = min(
+        len(m5_closes.get(us_symbols[0] if us_symbols else anchor, [])) - 1,
+        (bar_index + 1) * fb_gran_ratio,
+    )
+    m5_window = max(int(cfg.get("cluster_fallback_bars", 12)), 2)
+    m5_slice: dict[str, list[float]] = {}
+    for sym in dict.fromkeys(all_indices + [anchor]):
+        m5_slice[sym] = _window(m5_closes.get(sym, []), m5_end, m5_window)
+    index_m5_dirs = build_index_m5_dir_map(
+        m5_slice,
+        macro_cfg if isinstance(macro_cfg, dict) else None,
+    )
+    if index_m5_dirs:
+        snap = MacroSnapshot(
+            us_dir=snap.us_dir,
+            eu_dir=snap.eu_dir,
+            us_strength=snap.us_strength,
+            eu_strength=snap.eu_strength,
+            tag=snap.tag,
+            eurusd_bias=snap.eurusd_bias,
+            cluster_status=snap.cluster_status,
+            macro_block=snap.macro_block,
+            fx_reference_line=snap.fx_reference_line,
+            us_parts=snap.us_parts,
+            eu_parts=snap.eu_parts,
+            statarb_spreads=snap.statarb_spreads,
+            hmm_state=snap.hmm_state,
+            hmm_prob=snap.hmm_prob,
+            index_m5_dir_by_symbol=index_m5_dirs,
+        )
+
     if not cfg["cluster_use_m5_fallback_when_flat"]:
         return snap
     if snap.us_dir != "flat" and snap.eu_dir != "flat":
         return snap
 
-    fb_gran_ratio = 3
     fb_bars = int(cfg.get("cluster_fallback_bars", 12))
-    m5_end = min(
-        len(m5_closes.get(us_symbols[0] if us_symbols else anchor, [])) - 1,
-        (bar_index + 1) * fb_gran_ratio,
-    )
     fb_closes: dict[str, list[float]] = {}
     fb_syms: list[str] = []
     if snap.us_dir == "flat":
