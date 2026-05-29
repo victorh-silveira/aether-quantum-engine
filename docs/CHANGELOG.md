@@ -1,3 +1,13 @@
+## [1.29.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.28.0...v1.29.0) (2026-05-29)
+
+### Funcionalidades
+
+* **llm:** execucao hibrida no cluster refresh e pilha quant M5 ([35491bd](https://github.com/victorh-silveira/aether-quantum-engine/commit/35491bdbb67525d1512a053ec01ca1dc466928d6))
+
+### Correcoes de Bug
+
+* **tools:** hooks WSL, refator lint e docstrings Medallion ([f949620](https://github.com/victorh-silveira/aether-quantum-engine/commit/f9496208cf5e457148ffffdb112ba2d404b9368c))
+
 ## [1.28.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.27.0...v1.28.0) (2026-05-29)
 
 ### Funcionalidades
