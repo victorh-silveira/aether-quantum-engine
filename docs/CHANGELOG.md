@@ -1,3 +1,13 @@
+## [1.30.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.29.7...v1.30.0) (2026-05-30)
+
+### Funcionalidades
+
+* **llm:** otimizar sinteticos M1 pos-win e log de inversao ([ce96e88](https://github.com/victorh-silveira/aether-quantum-engine/commit/ce96e88f3c2b844f6fbdb1f87d1161190005bf73))
+
+### Documentacao
+
+* indicar branch sinteticos no README main ([add25b9](https://github.com/victorh-silveira/aether-quantum-engine/commit/add25b99b84430cd53f4039704a8a168dc2a0fe8))
+
 ## [1.29.7](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.29.6...v1.29.7) (2026-05-30)
 
 ### Correcoes de Bug
