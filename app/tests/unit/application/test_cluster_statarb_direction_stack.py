@@ -5,8 +5,14 @@ from src.application.services.llm.cluster_statarb_direction import (
     correct_cluster_direction_for_tag,
     quant_direction_stack_enabled,
 )
+from src.application.services.llm.llm_cluster_invert import cluster_invert_llm_side_enabled
 from src.application.services.llm.llm_cluster_target import apply_cluster_target_decision
 from src.domain.models.trade import TradeDirection
+
+
+def test_cluster_invert_llm_side_enabled_reads_corr_flag():
+    assert cluster_invert_llm_side_enabled({"cluster_invert_llm_side": True}) is True
+    assert cluster_invert_llm_side_enabled({}) is False
 
 
 def test_quant_direction_stack_enabled_reads_corr_flag():
@@ -165,7 +171,7 @@ def test_apply_cluster_target_updates_us_cluster_on_risk_on_correct():
             "statarb_z_threshold": 2.5,
             "confluence_conviction_floor": 0.60,
         },
-        corr_cfg={"quant_direction_stack_enabled": True},
+        corr_cfg={"quant_direction_stack_enabled": True, "cluster_invert_llm_side": False},
         active_region="us",
         exclusive=True,
         macro_tag="risk_on",
@@ -202,7 +208,7 @@ def test_apply_cluster_target_updates_eu_cluster_on_risk_off_correct():
             "allowed_execute_tags": ("risk_off",),
             "confluence_conviction_floor": 0.60,
         },
-        corr_cfg={"quant_direction_stack_enabled": True},
+        corr_cfg={"quant_direction_stack_enabled": True, "cluster_invert_llm_side": False},
         active_region="eu",
         exclusive=True,
         macro_tag="risk_off",

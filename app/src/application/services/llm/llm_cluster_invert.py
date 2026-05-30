@@ -21,6 +21,11 @@ def cluster_invert_on_block_enabled(corr_cfg: dict[str, Any]) -> bool:
     return bool(corr_cfg.get("cluster_invert_on_block", True))
 
 
+def cluster_invert_llm_side_enabled(corr_cfg: dict[str, Any]) -> bool:
+    """Indica se executa o lado oposto ao CALL/PUT propagado da LLM."""
+    return bool(corr_cfg.get("cluster_invert_llm_side", False))
+
+
 def apply_cluster_binary_invert(
     target_direction: TradeDirection,
     target_metrics: dict[str, Any],

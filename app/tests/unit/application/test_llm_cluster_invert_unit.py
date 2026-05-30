@@ -124,7 +124,11 @@ def test_apply_cluster_target_blocked_without_invert():
         anchor_sym="frxEURUSD",
         conviction=0.50,
         macro_cfg={"assert_min_hmm_prob": 0.0, "allowed_execute_tags": ("risk_off",)},
-        corr_cfg={"statarb_require_z_align": False, "cluster_invert_on_block": False},
+        corr_cfg={
+            "statarb_require_z_align": False,
+            "cluster_invert_on_block": False,
+            "cluster_invert_llm_side": False,
+        },
         active_region="eu",
         exclusive=True,
         macro_tag="risk_off",

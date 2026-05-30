@@ -38,6 +38,7 @@ def test_apply_cluster_target_executes_llm_direction_despite_statarb_misalign():
         corr_cfg={
             "statarb_require_z_align": True,
             "cluster_invert_on_block": True,
+            "cluster_invert_llm_side": False,
             "quant_direction_stack_enabled": False,
         },
         active_region="eu",
@@ -76,6 +77,7 @@ def test_apply_cluster_target_keeps_llm_direction_on_divergence_tag():
         corr_cfg={
             "statarb_require_z_align": True,
             "cluster_invert_on_block": True,
+            "cluster_invert_llm_side": False,
             "quant_direction_stack_enabled": False,
         },
         active_region="eu",
@@ -113,6 +115,7 @@ def test_apply_cluster_target_quarantine_does_not_block_llm_execute():
         corr_cfg={
             "statarb_require_z_align": True,
             "cluster_invert_on_block": True,
+            "cluster_invert_llm_side": False,
             "quant_direction_stack_enabled": False,
         },
         active_region="eu",

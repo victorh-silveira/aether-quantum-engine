@@ -17,7 +17,7 @@ def test_direction_from_statarb_z_trending():
     assert direction_from_statarb_z(-0.70, hmm_state=1, z_threshold=2.5, min_abs_z=0.65) == TradeDirection.PUT
 
 
-def test_apply_cluster_target_keeps_llm_direction_on_divergence():
+def test_apply_cluster_target_inverts_llm_side_on_divergence():
     orch = MagicMock()
     orch.config = {"llm": {"min_conviction_execute": 0.60}}
     orch._invert_quarantine_active = False
@@ -47,22 +47,26 @@ def test_apply_cluster_target_keeps_llm_direction_on_divergence():
             "statarb_z_threshold": 2.5,
             "confluence_conviction_floor": 0.60,
         },
-        corr_cfg={"statarb_correct_llm_on_divergence": True, "quant_direction_stack_enabled": True},
+        corr_cfg={
+            "statarb_correct_llm_on_divergence": True,
+            "quant_direction_stack_enabled": True,
+            "cluster_invert_llm_side": True,
+        },
         active_region="eu",
         exclusive=True,
         macro_tag="divergence_eu_leads",
         invert_on_block=False,
     )
-    assert propagated == "1HZ50V[C]"
+    assert propagated == "1HZ50V[P]"
     assert blocked is None
     assert corrected is None
-    assert inverted is None
-    assert decisions["1HZ50V"]["direction"] == TradeDirection.CALL
+    assert inverted == "1HZ50V[C->P]"
+    assert decisions["1HZ50V"]["direction"] == TradeDirection.PUT
     assert decisions["1HZ50V"]["metrics"]["execute"] is True
-    assert not decisions["1HZ50V"]["metrics"].get("llm_statarb_dir_corrected")
+    assert decisions["1HZ50V"]["metrics"].get("llm_exec_inverted")
 
 
-def test_apply_cluster_target_inverts_on_divergence_statarb_block():
+def test_apply_cluster_target_inverts_on_block_when_not_llm_side_invert():
     orch = MagicMock()
     orch.config = {"llm": {"min_conviction_execute": 0.60}}
     orch._invert_quarantine_active = False
@@ -87,7 +91,43 @@ def test_apply_cluster_target_inverts_on_divergence_statarb_block():
             anchor_sym="frxEURUSD",
             conviction=0.70,
             macro_cfg={"assert_min_hmm_prob": 0.0, "allowed_execute_tags": ("divergence_us_leads",)},
-            corr_cfg={"cluster_invert_on_block": True},
+            corr_cfg={"cluster_invert_llm_side": False, "cluster_invert_on_block": True},
+            active_region="us",
+            exclusive=True,
+            macro_tag="divergence_us_leads",
+            invert_on_block=True,
+        )
+    assert propagated == "OTC_DJI[P]"
+    assert inverted == "OTC_DJI[C->P]"
+    assert decisions["OTC_DJI"]["metrics"]["llm_block_reason"] == "allowed_inverted"
+
+
+def test_apply_cluster_target_inverts_on_divergence_statarb_block():
+    orch = MagicMock()
+    orch.config = {"llm": {"min_conviction_execute": 0.60}}
+    orch._invert_quarantine_active = False
+    orch._cluster_pause_after_loss_active = False
+    decisions: dict = {}
+    with patch(
+        "src.application.services.llm.llm_cluster_target.cluster_execute_block_reason",
+        return_value="allowed",
+    ):
+        propagated, blocked, inverted, corrected = apply_cluster_target_decision(
+            orch,
+            target_sym="OTC_DJI",
+            target_direction=TradeDirection.CALL,
+            index_note="STATARB_BEST leader=OTC_DJI z=2.90",
+            metrics={
+                "conviction": 0.70,
+                "macro_sentiment": "divergence_us_leads",
+                "hmm_prob": 0.90,
+                "hmm_state": 0,
+            },
+            decisions=decisions,
+            anchor_sym="frxEURUSD",
+            conviction=0.70,
+            macro_cfg={"assert_min_hmm_prob": 0.0, "allowed_execute_tags": ("divergence_us_leads",)},
+            corr_cfg={"cluster_invert_llm_side": True, "cluster_invert_on_block": True},
             active_region="us",
             exclusive=True,
             macro_tag="divergence_us_leads",
@@ -123,14 +163,14 @@ def test_apply_cluster_target_quarantine_sets_invert_block_reason():
             anchor_sym="frxEURUSD",
             conviction=0.70,
             macro_cfg={"assert_min_hmm_prob": 0.0, "allowed_execute_tags": ("divergence_us_leads",)},
-            corr_cfg={"cluster_invert_on_block": True},
+            corr_cfg={"cluster_invert_llm_side": True, "cluster_invert_on_block": True},
             active_region="eu",
             exclusive=True,
             macro_tag="divergence_us_leads",
             invert_on_block=True,
         )
     assert blocked is not None
-    assert decisions["OTC_DJI"]["metrics"]["llm_block_reason"] == "invert_quarantine_after_loss"
+    assert decisions["OTC_DJI"]["direction"] == TradeDirection.PUT
 
 
 def test_apply_cluster_target_keeps_eu_cluster_llm_on_divergence():
@@ -161,7 +201,7 @@ def test_apply_cluster_target_keeps_eu_cluster_llm_on_divergence():
             "allowed_execute_tags": ("divergence_eu_leads",),
             "statarb_z_threshold": 2.5,
         },
-        corr_cfg={"quant_direction_stack_enabled": True},
+        corr_cfg={"quant_direction_stack_enabled": True, "cluster_invert_llm_side": False},
         active_region="eu",
         exclusive=True,
         macro_tag="divergence_eu_leads",
