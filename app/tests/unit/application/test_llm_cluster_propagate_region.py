@@ -30,13 +30,13 @@ def test_merge_apply_result_keeps_invert_tag_when_propagated():
         blocked,
         inverted,
         corrected,
-        "R_25[P]",
+        "OTC_SPC[P]",
         None,
-        "R_25[C->P]",
+        "OTC_SPC[C->P]",
         None,
     )
-    assert propagated == ["R_25[P]"]
-    assert inverted == ["R_25[C->P]"]
+    assert propagated == ["OTC_SPC[P]"]
+    assert inverted == ["OTC_SPC[C->P]"]
 
 
 def test_cluster_region_active_respects_exclusive_macro():

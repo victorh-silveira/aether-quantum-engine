@@ -40,3 +40,16 @@ def test_normalize_symbols_from_clusters():
     assert anchor == "frxEURUSD"
     assert "OTC_SPC" not in symbols
     assert "OTC_DJI" in symbols
+
+
+def test_normalize_symbols_from_symbols_list_without_clusters():
+    cfg = {
+        "anchor": "frxEURUSD",
+        "symbols": ["OTC_DJI", "OTC_SPC", "frxEURUSD"],
+        "strategy": {"excluded_symbols": ["OTC_SPC"]},
+    }
+    anchor, symbols = normalize_symbols_and_anchor(cfg)
+    assert anchor == "frxEURUSD"
+    assert "frxEURUSD" in symbols
+    assert "OTC_SPC" not in symbols
+    assert "OTC_DJI" in symbols

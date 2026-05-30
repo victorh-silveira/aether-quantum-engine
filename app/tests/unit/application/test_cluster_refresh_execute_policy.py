@@ -103,7 +103,7 @@ def test_any_cluster_entry_helpers():
     assert any_cluster_entry_marked_execute("bad", anchor_sym="frxEURUSD") is False
     decisions = {
         "frxEURUSD": {"direction": TradeDirection.CALL, "metrics": {"execute": False}},
-        "1HZ100V": {
+        "OTC_GDAXI": {
             "direction": TradeDirection.CALL,
             "metrics": {"execute": True, "macro_sentiment": "divergence_eu_leads"},
         },
@@ -152,13 +152,13 @@ def test_refresh_risk_off_with_quant_correction_allows():
     )
     decisions = {
         "frxEURUSD": {"direction": TradeDirection.PUT, "metrics": {"macro_sentiment": "risk_off"}},
-        "1HZ100V": {
+        "OTC_GDAXI": {
             "direction": TradeDirection.CALL,
             "metrics": {
                 "execute": True,
                 "macro_sentiment": "risk_off",
                 "llm_statarb_dir_corrected": True,
-                "cluster_target_sym": "1HZ100V",
+                "cluster_target_sym": "OTC_GDAXI",
             },
         },
     }

@@ -19,7 +19,7 @@ def test_cluster_pause_after_loss_does_not_block_llm_explicit():
     metrics = base_cluster_metrics(
         macro_sentiment="divergence_eu_leads",
         macro_eu_strength_quant=0.70,
-        statarb_spreads={"1HZ50V": -1.5},
+        statarb_spreads={"OTC_FCHI": -1.5},
         hmm_state=0,
     )
     assert (
@@ -31,9 +31,9 @@ def test_cluster_pause_after_loss_does_not_block_llm_explicit():
             macro,
             corr,
             active_region="eu",
-            target_sym="1HZ50V",
+            target_sym="OTC_FCHI",
             llm_cluster_explicit=True,
-            index_note="STATARB_BEST leader=1HZ50V z=-1.50",
+            index_note="STATARB_BEST leader=OTC_FCHI z=-1.50",
         )
         == "allowed"
     )
@@ -120,7 +120,7 @@ def test_cluster_execute_repeat_loss_setup_blocks():
     orch = MagicMock()
     orch.config = {"llm": {"min_conviction_execute": 0.60}}
     orch._cluster_pause_after_loss_active = False
-    orch._last_loss_symbol = "1HZ50V"
+    orch._last_loss_symbol = "OTC_FCHI"
     orch._last_loss_direction = "PUT"
     macro = {"confluence_conviction_floor": 0.60, "assert_min_hmm_prob": 0.0}
     corr = {"statarb_require_z_align": False}
@@ -134,7 +134,7 @@ def test_cluster_execute_repeat_loss_setup_blocks():
             macro,
             corr,
             active_region="eu",
-            target_sym="1HZ50V",
+            target_sym="OTC_FCHI",
             llm_cluster_explicit=True,
         )
         == "repeat_loss_setup"
@@ -164,7 +164,7 @@ def test_cluster_execute_llm_explicit_divergence_uses_global_conviction_floor():
             macro,
             corr,
             active_region="eu",
-            target_sym="1HZ50V",
+            target_sym="OTC_FCHI",
             llm_cluster_explicit=True,
         )
         == "allowed"

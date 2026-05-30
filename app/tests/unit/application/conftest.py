@@ -1,14 +1,20 @@
 import pytest
 
+from tests.market_symbols import ALL_SYMBOLS, ANCHOR, EU_CLUSTER, US_CLUSTER
+
 
 @pytest.fixture
 def orch_config():
     return {
         "api_config": {"base_url": "ws://test", "request_timeout_seconds": 1},
-        "symbols": ["frxEURUSD", "OTC_SPC", "OTC_FCHI"],
-        "anchor": "frxEURUSD",
-        "llm": {"enabled": True},
+        "symbols": list(ALL_SYMBOLS),
+        "anchor": ANCHOR,
+        "llm": {"enabled": True, "min_conviction_execute": 0.60},
         "data_handler": {"fetch_count": 100, "min_required_points": 2, "buffer_limit": 1000},
+        "strategy": {
+            "clusters": {"us": list(US_CLUSTER), "eu": list(EU_CLUSTER)},
+            "correlation": {"anchor": ANCHOR},
+        },
         "risk_management": {
             "small_account_threshold": 100.0,
             "small_account_stake": 1.0,

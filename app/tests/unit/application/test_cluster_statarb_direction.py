@@ -25,9 +25,9 @@ def test_apply_cluster_target_inverts_llm_side_on_divergence():
     decisions: dict = {}
     propagated, blocked, inverted, corrected = apply_cluster_target_decision(
         orch,
-        target_sym="1HZ50V",
+        target_sym="OTC_FCHI",
         target_direction=TradeDirection.CALL,
-        index_note="STATARB_BEST leader=1HZ50V z=2.90",
+        index_note="STATARB_BEST leader=OTC_FCHI z=2.90",
         metrics={
             "conviction": 0.70,
             "macro_sentiment": "divergence_eu_leads",
@@ -35,11 +35,11 @@ def test_apply_cluster_target_inverts_llm_side_on_divergence():
             "macro_eu_strength_quant": 0.80,
             "hmm_prob": 0.90,
             "hmm_state": 0,
-            "index_m5_dir_by_symbol": {"1HZ50V": "down"},
-            "statarb_spreads": {"1HZ50V": 2.9},
+            "index_m5_dir_by_symbol": {"OTC_FCHI": "down"},
+            "statarb_spreads": {"OTC_FCHI": 2.9},
         },
         decisions=decisions,
-        anchor_sym="R_100",
+        anchor_sym="frxEURUSD",
         conviction=0.70,
         macro_cfg={
             "assert_min_hmm_prob": 0.0,
@@ -57,13 +57,13 @@ def test_apply_cluster_target_inverts_llm_side_on_divergence():
         macro_tag="divergence_eu_leads",
         invert_on_block=False,
     )
-    assert propagated == "1HZ50V[P]"
+    assert propagated == "OTC_FCHI[P]"
     assert blocked is None
     assert corrected is None
-    assert inverted == "1HZ50V[C->P]"
-    assert decisions["1HZ50V"]["direction"] == TradeDirection.PUT
-    assert decisions["1HZ50V"]["metrics"]["execute"] is True
-    assert decisions["1HZ50V"]["metrics"].get("llm_exec_inverted")
+    assert inverted == "OTC_FCHI[C->P]"
+    assert decisions["OTC_FCHI"]["direction"] == TradeDirection.PUT
+    assert decisions["OTC_FCHI"]["metrics"]["execute"] is True
+    assert decisions["OTC_FCHI"]["metrics"].get("llm_exec_inverted")
 
 
 def test_apply_cluster_target_inverts_on_block_when_not_llm_side_invert():

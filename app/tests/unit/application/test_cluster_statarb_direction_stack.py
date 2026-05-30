@@ -65,10 +65,10 @@ def test_correct_cluster_direction_keeps_llm_on_divergence_tags():
     direction, corrected, note = correct_cluster_direction_for_divergence(
         TradeDirection.CALL,
         macro_tag="divergence_eu_leads",
-        target_sym="1HZ50V",
+        target_sym="OTC_FCHI",
         metrics={
-            "index_m5_dir_by_symbol": {"1HZ50V": "down"},
-            "statarb_spreads": {"1HZ50V": 2.9},
+            "index_m5_dir_by_symbol": {"OTC_FCHI": "down"},
+            "statarb_spreads": {"OTC_FCHI": 2.9},
             "hmm_state": 0,
         },
         corr_cfg={"statarb_correct_llm_on_divergence": True, "quant_direction_stack_enabled": True},

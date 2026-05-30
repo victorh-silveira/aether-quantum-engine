@@ -44,3 +44,12 @@ make backtest ARGS="--mode gemini --days 14"
 ```
 
 Pre-commit (WSL): `make pre-commit` instala hooks bash em `.git/hooks`; depois `git commit` dispara lint/test/security.
+
+## Branches por mercado
+
+| Branch | Mercado | Config / docs |
+|--------|---------|----------------|
+| `main` | OTC transatlantico (`frxEURUSD` + indices `OTC_*`) | `config/settings.json`, `docs/medallion.md`, `docs/arquitetura.md` |
+| `feat/synthetic-indices-m5` | Indices sinteticos Deriv M1 (`R_100` + volatilidade) | Perfil sintetico em `config/settings.json`; `docs/medallion-synthetic.md`, `docs/arquitetura-synthetic.md` |
+
+Politica de merge: nao integrar `app/src/application/services/llm/**` nem `orchestrator/**` entre essas branches. Cherry-pick permitido em `domain/`, `infrastructure/`, `presentation/` e `auth_manager.py`.

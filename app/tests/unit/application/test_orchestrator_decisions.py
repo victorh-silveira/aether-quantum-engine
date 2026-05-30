@@ -69,6 +69,7 @@ async def test_on_candle_returns_when_is_trading(orch_config):
 
 @pytest.mark.asyncio
 async def test_orchestrator_symbols_list_preserves_order_when_anchor_included(orch_config):
+    orch_config.pop("strategy", None)
     orch_config["symbols"] = ["frxEURUSD", "frxEURUSD", "OTC_SPC"]
     orch_config["anchor"] = "frxEURUSD"
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
@@ -78,6 +79,7 @@ async def test_orchestrator_symbols_list_preserves_order_when_anchor_included(or
 
 @pytest.mark.asyncio
 async def test_orchestrator_symbols_list_prepends_anchor_when_missing(orch_config):
+    orch_config.pop("strategy", None)
     orch_config["symbols"] = ["frxEURUSD", "OTC_SPC"]
     orch_config["anchor"] = "OTC_FCHI"
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
@@ -89,6 +91,7 @@ async def test_orchestrator_symbols_list_prepends_anchor_when_missing(orch_confi
 @pytest.mark.asyncio
 async def test_orchestrator_symbols_default_from_single_fallback(orch_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
+        orch_config.pop("strategy", None)
         orch_config.pop("symbols", None)
         orch_config["anchor"] = "frxEURUSD"
         orch = Orchestrator(orch_config, "token")
