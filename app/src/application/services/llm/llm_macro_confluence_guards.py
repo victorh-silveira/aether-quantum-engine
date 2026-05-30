@@ -98,22 +98,6 @@ def _divergence_macro_ok(snapshot: MacroSnapshot, cfg: dict[str, Any], convictio
     return True, notes
 
 
-def _indefinido_macro_ok(snapshot: MacroSnapshot, cfg: dict[str, Any]) -> tuple[bool, list[str]]:
-    """Valida tag indefinido com lider regional claro."""
-    notes: list[str] = []
-    floor = float(cfg["confluence_conviction_floor"])
-    indef_min = float(cfg.get("indefinido_min_leader_strength", floor + 0.03))
-    gap_min = float(cfg.get("indefinido_min_strength_gap", 0.06))
-    us_s = float(snapshot.us_strength)
-    eu_s = float(snapshot.eu_strength)
-    leader = max(us_s, eu_s)
-    gap = abs(us_s - eu_s)
-    if leader < indef_min or gap < gap_min:
-        notes.append("MACRO_VETO indefinido_no_leader")
-        return False, notes
-    return True, notes
-
-
 def _macro_tag_allows_execute(
     snapshot: MacroSnapshot, cfg: dict[str, Any], conviction: float
 ) -> tuple[bool, list[str]]:
@@ -143,7 +127,8 @@ def _macro_tag_allows_execute(
     elif tag.startswith("divergence"):
         allowed, notes = _divergence_macro_ok(snapshot, cfg, conviction)
     elif tag == "indefinido":
-        allowed, notes = _indefinido_macro_ok(snapshot, cfg)
+        notes.append("MACRO_INTEL indefinido_llm")
+        allowed = True
     else:
         notes.append(f"MACRO_VETO unknown_tag={tag}")
 

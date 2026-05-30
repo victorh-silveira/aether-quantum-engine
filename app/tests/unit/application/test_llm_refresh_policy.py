@@ -115,6 +115,24 @@ def test_resolve_llm_refresh_interval_hours():
     assert resolve_llm_refresh_interval_seconds({}) == 0.0
 
 
+def test_macro_tag_allows_indefinido_llm_call():
+    ok, note = macro_tag_allows_llm_call(
+        _snap("indefinido"),
+        {"allowed_execute_tags": ["risk_off"]},
+    )
+    assert ok is True
+    assert note == ""
+
+
+def test_should_refresh_when_macro_indefinido():
+    assert should_refresh_llm_decision(
+        schedule=SCHEDULE_TAG_CHANGE,
+        current_tag="indefinido",
+        last_tag="indefinido",
+        has_cached_decisions=True,
+    )
+
+
 def test_should_refresh_on_interval_elapsed():
     assert should_refresh_llm_decision(
         schedule=SCHEDULE_TAG_CHANGE,

@@ -120,7 +120,7 @@ async def test_execute_cluster_skips_on_refresh_without_llm(orch_config):
         decisions = {
             "frxEURUSD": {"direction": TradeDirection.CALL, "metrics": {"macro_sentiment": "risk_off"}},
             "OTC_FCHI": {
-                "direction": TradeDirection.CALL,
+                "direction": None,
                 "metrics": {"conviction": 0.7, "execute": False, "macro_sentiment": "risk_off"},
             },
         }
