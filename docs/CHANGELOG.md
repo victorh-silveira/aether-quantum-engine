@@ -1,3 +1,9 @@
+## [1.29.4](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.29.3...v1.29.4) (2026-05-30)
+
+### Correcoes de Bug
+
+* **llm:** aceitar conviccao LLM em divergencia sem piso por tag ([0f9baaf](https://github.com/victorh-silveira/aether-quantum-engine/commit/0f9baaf650526b48c2062ca6e907306c0de3d886))
+
 ## [1.29.3](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.29.2...v1.29.3) (2026-05-30)
 
 ### Correcoes de Bug
