@@ -123,9 +123,9 @@ def test_statarb_guard_confluence_boost_call():
         cluster_status="active",
         macro_block="",
         fx_reference_line="",
-        us_parts=("OTC_SPC",),
-        eu_parts=("OTC_GDAXI",),
-        statarb_spreads={"OTC_GDAXI": -3.0},  # Under-valued relative to PCA spread (Z = -3.0)
+        us_parts=("R_25",),
+        eu_parts=("1HZ100V",),
+        statarb_spreads={"1HZ100V": -3.0},  # Under-valued relative to PCA spread (Z = -3.0)
         hmm_state=0,  # MEAN_REVERSION
         hmm_prob=0.9,
     )
@@ -135,7 +135,7 @@ def test_statarb_guard_confluence_boost_call():
         0.60,
         snap,
         {"statarb_z_threshold": 2.5},
-        sym="OTC_GDAXI",
+        sym="1HZ100V",
     )
 
     assert conviction > 0.60
@@ -156,9 +156,9 @@ def test_statarb_guard_intelligence_vetoes_conflicting_put():
         cluster_status="active",
         macro_block="",
         fx_reference_line="",
-        us_parts=("OTC_SPC",),
-        eu_parts=("OTC_GDAXI",),
-        statarb_spreads={"OTC_GDAXI": -3.0},  # Under-valued relative to PCA spread (Z = -3.0)
+        us_parts=("R_25",),
+        eu_parts=("1HZ100V",),
+        statarb_spreads={"1HZ100V": -3.0},  # Under-valued relative to PCA spread (Z = -3.0)
         hmm_state=0,  # MEAN_REVERSION
         hmm_prob=0.9,
     )
@@ -168,7 +168,7 @@ def test_statarb_guard_intelligence_vetoes_conflicting_put():
         0.60,
         snap,
         {"statarb_z_threshold": 2.5},
-        sym="OTC_GDAXI",
+        sym="1HZ100V",
     )
 
     assert direction == TradeDirection.PUT
@@ -188,9 +188,9 @@ def test_statarb_guard_intelligence_trending_caution():
         cluster_status="active",
         macro_block="",
         fx_reference_line="",
-        us_parts=("OTC_SPC",),
-        eu_parts=("OTC_GDAXI",),
-        statarb_spreads={"OTC_GDAXI": 3.0},  # Over-valued relative to PCA spread (Z = 3.0)
+        us_parts=("R_25",),
+        eu_parts=("1HZ100V",),
+        statarb_spreads={"1HZ100V": 3.0},  # Over-valued relative to PCA spread (Z = 3.0)
         hmm_state=1,  # TRENDING
         hmm_prob=0.9,
     )
@@ -200,7 +200,7 @@ def test_statarb_guard_intelligence_trending_caution():
         0.60,
         snap,
         {"statarb_z_threshold": 2.5},
-        sym="OTC_GDAXI",
+        sym="1HZ100V",
     )
 
     assert direction == TradeDirection.PUT

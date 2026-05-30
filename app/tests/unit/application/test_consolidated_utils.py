@@ -73,12 +73,12 @@ def test_telemetry_and_storage():
         _active_cycle_id = 1
 
     metrics = {}
-    attach_decision_telemetry(metrics, {}, "range", 0.5, "src", MockOrch(), "OTC_FCHI")
+    attach_decision_telemetry(metrics, {}, "range", 0.5, "src", MockOrch(), "R_75")
     assert metrics["regime_label"] == "range"
 
     decisions = {}
-    store_symbol_decision(decisions, "OTC_FCHI", TradeDirection.CALL, {"m": 1})
-    assert decisions["OTC_FCHI"]["direction"] == TradeDirection.CALL
+    store_symbol_decision(decisions, "R_75", TradeDirection.CALL, {"m": 1})
+    assert decisions["R_75"]["direction"] == TradeDirection.CALL
 
 
 def test_metrics_finalization():

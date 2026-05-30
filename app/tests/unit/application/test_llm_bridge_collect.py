@@ -27,8 +27,8 @@ async def test_collect_llm_decisions_success():
             "risk_management": {"params": {"duration": 1, "duration_unit": "m"}},
         }
     )
-    orch.symbols = ["frxEURUSD"]
-    orch.anchor = "frxEURUSD"
+    orch.symbols = ["R_100"]
+    orch.anchor = "R_100"
     orch.stream.get_numpy_series = MagicMock(return_value=np.linspace(100.0, 101.0, 10))
     orch.stream.fetch_candle_ohlc = AsyncMock(return_value=[])
     orch.stream.fetch_candle_closes = AsyncMock(return_value=[99.0, 99.5, 100.0])
@@ -41,9 +41,9 @@ async def test_collect_llm_decisions_success():
     ):
         out = await collect_llm_decisions(orch)
 
-    assert out["frxEURUSD"]["direction"] == TradeDirection.CALL
-    assert out["frxEURUSD"]["metrics"]["execute"] is True
-    assert out["frxEURUSD"]["metrics"]["decision_source"] == "llm"
+    assert out["R_100"]["direction"] == TradeDirection.CALL
+    assert out["R_100"]["metrics"]["execute"] is True
+    assert out["R_100"]["metrics"]["decision_source"] == "llm"
 
 
 @pytest.mark.asyncio
@@ -59,8 +59,8 @@ async def test_collect_llm_decisions_deadline_results_in_failure():
         },
         "risk_management": {"params": {"duration": 1, "duration_unit": "m"}},
     }
-    orch.symbols = ["frxEURUSD"]
-    orch.anchor = "frxEURUSD"
+    orch.symbols = ["R_100"]
+    orch.anchor = "R_100"
     orch._neutral_metrics = MagicMock(return_value={"direction": None})
 
     async def slow(*_a, **_k):
@@ -70,9 +70,9 @@ async def test_collect_llm_decisions_deadline_results_in_failure():
     with patch("src.application.services.llm.llm_bridge._collect_symbol_decision", side_effect=TimeoutError()):
         out = await collect_llm_decisions(orch)
 
-    assert out["frxEURUSD"]["direction"] is None
-    assert out["frxEURUSD"]["metrics"]["execute"] is False
-    assert "LLM Timeout" in out["frxEURUSD"]["metrics"]["llm_note"]
+    assert out["R_100"]["direction"] is None
+    assert out["R_100"]["metrics"]["execute"] is False
+    assert "LLM Timeout" in out["R_100"]["metrics"]["llm_note"]
 
 
 @pytest.mark.asyncio
@@ -87,8 +87,8 @@ async def test_collect_llm_decisions_api_error_results_in_failure():
         },
         "risk_management": {"params": {"duration": 1, "duration_unit": "m"}},
     }
-    orch.symbols = ["frxEURUSD"]
-    orch.anchor = "frxEURUSD"
+    orch.symbols = ["R_100"]
+    orch.anchor = "R_100"
     orch._neutral_metrics = MagicMock(return_value={"direction": None})
     orch.stream.get_numpy_series = MagicMock(return_value=np.linspace(100.0, 101.0, 10))
     orch.stream.fetch_candle_ohlc = AsyncMock(return_value=[])
@@ -101,8 +101,8 @@ async def test_collect_llm_decisions_api_error_results_in_failure():
     ):
         out = await collect_llm_decisions(orch)
 
-    assert out["frxEURUSD"]["direction"] is None
-    assert out["frxEURUSD"]["metrics"]["execute"] is False
+    assert out["R_100"]["direction"] is None
+    assert out["R_100"]["metrics"]["execute"] is False
 
 
 class _LlmTransportTestError(Exception):
@@ -116,8 +116,8 @@ async def test_collect_llm_decisions_raises_on_critical_failure():
         "llm": {"base_url": "http://x", "model": "m", "timeout_seconds": 1},
         "risk_management": {"params": {"duration": 1, "duration_unit": "t"}},
     }
-    orch.symbols = ["frxEURUSD"]
-    orch.anchor = "frxEURUSD"
+    orch.symbols = ["R_100"]
+    orch.anchor = "R_100"
     orch.stream.get_numpy_series = MagicMock(return_value=np.array([1.0, 2.0]))
     orch.stream.fetch_candle_ohlc = AsyncMock(return_value=[])
     orch.stream.fetch_candle_closes = AsyncMock(return_value=[])
@@ -150,7 +150,7 @@ async def test_collect_llm_decisions_skips_llm_when_macro_tag_blocked():
         eu_parts=(),
     )
     orch = MagicMock()
-    orch.anchor = "frxEURUSD"
+    orch.anchor = "R_100"
     orch._active_cycle_id = 1
     orch.config = {
         "strategy": {"macro": {"allowed_execute_tags": ["risk_off"]}},
@@ -164,8 +164,8 @@ async def test_collect_llm_decisions_skips_llm_when_macro_tag_blocked():
     ):
         out = await collect_llm_decisions(orch)
 
-    assert out["frxEURUSD"]["direction"] is None
-    assert "MACRO_SKIP" in out["frxEURUSD"]["metrics"]["llm_note"]
+    assert out["R_100"]["direction"] is None
+    assert "MACRO_SKIP" in out["R_100"]["metrics"]["llm_note"]
 
 
 @pytest.mark.asyncio
@@ -184,13 +184,13 @@ async def test_collect_llm_decisions_reuses_cached_decisions_same_tag():
         eu_parts=(),
     )
     cached = {
-        "frxEURUSD": {
+        "R_100": {
             "direction": TradeDirection.CALL,
             "metrics": {"execute": True, "decision_source": "llm"},
         }
     }
     orch = MagicMock()
-    orch.anchor = "frxEURUSD"
+    orch.anchor = "R_100"
     orch._active_cycle_id = 2
     orch._last_llm_macro_tag = "risk_off"
     orch._last_llm_decisions = dict(cached)
@@ -210,4 +210,4 @@ async def test_collect_llm_decisions_reuses_cached_decisions_same_tag():
         out = await collect_llm_decisions(orch)
         mock_dec.assert_not_called()
 
-    assert out["frxEURUSD"]["direction"] == TradeDirection.CALL
+    assert out["R_100"]["direction"] == TradeDirection.CALL

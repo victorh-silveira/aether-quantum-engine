@@ -30,8 +30,8 @@ async def test_collect_llm_decisions_preserva_conviccao_do_payload():
             "risk_management": {"params": {"duration": 1, "duration_unit": "m", "payout_estimate": 0.95}},
         }
     )
-    orch.symbols = ["frxEURUSD"]
-    orch.anchor = "frxEURUSD"
+    orch.symbols = ["R_100"]
+    orch.anchor = "R_100"
     orch.stream.get_numpy_series = MagicMock(return_value=np.array([100.0 * (1.001**i) for i in range(120)]))
     orch.stream.fetch_candle_ohlc = AsyncMock(return_value=[])
     orch.stream.fetch_candle_closes = AsyncMock(return_value=_stub_closes([99.0, 99.5, 100.0]))
@@ -42,10 +42,10 @@ async def test_collect_llm_decisions_preserva_conviccao_do_payload():
         return_value=("CALL", True, MOCK_LLM_CALL_LINE),
     ):
         out = await collect_llm_decisions(orch)
-    assert out["frxEURUSD"]["direction"] == TradeDirection.CALL
-    assert out["frxEURUSD"]["metrics"]["decision_source"] == "llm"
-    assert out["frxEURUSD"]["metrics"]["execute"] is True
-    assert out["frxEURUSD"]["metrics"]["conviction"] == pytest.approx(0.99, abs=1e-6)
+    assert out["R_100"]["direction"] == TradeDirection.CALL
+    assert out["R_100"]["metrics"]["decision_source"] == "llm"
+    assert out["R_100"]["metrics"]["execute"] is True
+    assert out["R_100"]["metrics"]["conviction"] == pytest.approx(0.99, abs=1e-6)
 
 
 @pytest.mark.asyncio
@@ -65,8 +65,8 @@ async def test_collect_llm_decisions_keeps_put_on_consecutive_cycles():
             "risk_management": {"params": {"duration": 1, "duration_unit": "m", "payout_estimate": 0.95}},
         }
     )
-    orch.symbols = ["frxEURUSD"]
-    orch.anchor = "frxEURUSD"
+    orch.symbols = ["R_100"]
+    orch.anchor = "R_100"
     orch.stream.get_numpy_series = MagicMock(return_value=np.array([100.0 * (1.001**i) for i in range(120)]))
     orch.stream.fetch_candle_ohlc = AsyncMock(return_value=[])
     orch.stream.fetch_candle_closes = AsyncMock(return_value=_stub_closes([100.0, 99.0, 98.0, 97.0, 96.0]))
@@ -78,9 +78,9 @@ async def test_collect_llm_decisions_keeps_put_on_consecutive_cycles():
     ):
         first = await collect_llm_decisions(orch)
         second = await collect_llm_decisions(orch)
-    assert first["frxEURUSD"]["direction"] == TradeDirection.PUT
-    assert second["frxEURUSD"]["direction"] == TradeDirection.PUT
-    assert second["frxEURUSD"]["metrics"]["execute"] is True
+    assert first["R_100"]["direction"] == TradeDirection.PUT
+    assert second["R_100"]["direction"] == TradeDirection.PUT
+    assert second["R_100"]["metrics"]["execute"] is True
 
 
 @pytest.mark.asyncio
@@ -100,8 +100,8 @@ async def test_collect_llm_decisions_keeps_call_on_consecutive_cycles():
             "risk_management": {"params": {"duration": 1, "duration_unit": "m", "payout_estimate": 0.95}},
         }
     )
-    orch.symbols = ["frxEURUSD"]
-    orch.anchor = "frxEURUSD"
+    orch.symbols = ["R_100"]
+    orch.anchor = "R_100"
     orch.stream.get_numpy_series = MagicMock(return_value=np.array([100.0 * (1.001**i) for i in range(200)]))
     macro_s = [100.0 * (1.001**i) for i in range(120)]
     struct_s = [100.0 * (1.001**i) for i in range(120)]
@@ -136,9 +136,9 @@ async def test_collect_llm_decisions_keeps_call_on_consecutive_cycles():
     ):
         first = await collect_llm_decisions(orch)
         second = await collect_llm_decisions(orch)
-    assert first["frxEURUSD"]["direction"] == TradeDirection.CALL
-    assert second["frxEURUSD"]["direction"] == TradeDirection.CALL
-    assert second["frxEURUSD"]["metrics"]["execute"] is True
+    assert first["R_100"]["direction"] == TradeDirection.CALL
+    assert second["R_100"]["direction"] == TradeDirection.CALL
+    assert second["R_100"]["metrics"]["execute"] is True
 
 
 @pytest.mark.asyncio
@@ -155,8 +155,8 @@ async def test_collect_llm_decisions_wait_api_resolve_fallback():
         },
         "risk_management": {"params": {"duration": 1, "duration_unit": "m", "payout_estimate": 0.95}},
     }
-    orch.symbols = ["frxEURUSD"]
-    orch.anchor = "frxEURUSD"
+    orch.symbols = ["R_100"]
+    orch.anchor = "R_100"
     orch.stream.get_numpy_series = MagicMock(return_value=np.array([100.0 * (1.001**i) for i in range(120)]))
     orch.stream.fetch_candle_ohlc = AsyncMock(return_value=[])
     orch.stream.fetch_candle_closes = AsyncMock(return_value=_stub_closes([99.0, 99.5, 100.0]))
@@ -167,6 +167,6 @@ async def test_collect_llm_decisions_wait_api_resolve_fallback():
         return_value=("WAIT", False, "WAIT"),
     ):
         out = await collect_llm_decisions(orch)
-    assert out["frxEURUSD"]["direction"] is None
-    assert "LLM_EURUSD_AUSENTE" in out["frxEURUSD"]["metrics"]["llm_note"]
-    assert out["frxEURUSD"]["metrics"]["execute"] is False
+    assert out["R_100"]["direction"] is None
+    assert "LLM_EURUSD_AUSENTE" in out["R_100"]["metrics"]["llm_note"]
+    assert out["R_100"]["metrics"]["execute"] is False

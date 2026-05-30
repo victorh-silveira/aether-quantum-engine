@@ -39,7 +39,7 @@ def test_apply_cluster_binary_invert_skips_non_binary_direction():
         TradeDirection.MULTUP,
         metrics,
         index_note="x",
-        anchor_sym="frxEURUSD",
+        anchor_sym="R_100",
         region_note="",
         conviction=0.7,
     )
@@ -53,7 +53,7 @@ def test_log_cluster_propagation_results_corrected():
     log_cluster_propagation_results(
         orch,
         cid="C0001",
-        anchor_sym="frxEURUSD",
+        anchor_sym="R_100",
         corr_cfg={},
         macro_tag="divergence_us_leads",
         active_region="us",
@@ -61,10 +61,10 @@ def test_log_cluster_propagation_results_corrected():
         eu_dir=TradeDirection.PUT,
         us_note="",
         eu_note="M5_DIR",
-        propagated_tags=["OTC_DJI[P]"],
+        propagated_tags=["R_50[P]"],
         blocked_tags=[],
         inverted_tags=[],
-        corrected_tags=["OTC_DJI[C->P]"],
+        corrected_tags=["R_50[C->P]"],
     )
     assert any("CLUSTER_CORRECT" in str(c) for c in orch.logger.info.call_args_list)
 
@@ -74,7 +74,7 @@ def test_log_cluster_propagation_results_inverted():
     log_cluster_propagation_results(
         orch,
         cid="C0002",
-        anchor_sym="frxEURUSD",
+        anchor_sym="R_100",
         corr_cfg={},
         macro_tag="risk_off",
         active_region="eu",
@@ -84,7 +84,7 @@ def test_log_cluster_propagation_results_inverted():
         eu_note="",
         propagated_tags=[],
         blocked_tags=[],
-        inverted_tags=["OTC_FTSE[P->C]"],
+        inverted_tags=["1HZ100V[P->C]"],
     )
     assert any("CLUSTER_INVERT" in str(c) for c in orch.logger.info.call_args_list)
 
@@ -94,7 +94,7 @@ def test_log_cluster_propagation_results_blocked():
     log_cluster_propagation_results(
         orch,
         cid="C0001",
-        anchor_sym="frxEURUSD",
+        anchor_sym="R_100",
         corr_cfg={},
         macro_tag="risk_off",
         active_region="eu",
@@ -103,7 +103,7 @@ def test_log_cluster_propagation_results_blocked():
         us_note="",
         eu_note="STATARB_NO_Z_ALIGN",
         propagated_tags=[],
-        blocked_tags=["OTC_FCHI[P]"],
+        blocked_tags=["R_75[P]"],
         inverted_tags=[],
     )
     assert any("CLUSTER_BLOCK" in str(c) for c in orch.logger.info.call_args_list)
@@ -116,12 +116,12 @@ def test_apply_cluster_target_blocked_without_invert():
     decisions: dict = {}
     propagated, blocked, inverted, corrected = apply_cluster_target_decision(
         orch,
-        target_sym="OTC_FCHI",
+        target_sym="R_75",
         target_direction=TradeDirection.PUT,
         index_note="note",
         metrics=_base_metrics(conviction=0.50),
         decisions=decisions,
-        anchor_sym="frxEURUSD",
+        anchor_sym="R_100",
         conviction=0.50,
         macro_cfg={"assert_min_hmm_prob": 0.0, "allowed_execute_tags": ("risk_off",)},
         corr_cfg={
@@ -135,7 +135,7 @@ def test_apply_cluster_target_blocked_without_invert():
         invert_on_block=False,
     )
     assert propagated is None
-    assert blocked == "OTC_FCHI[P]:low_conviction"
+    assert blocked == "R_75[P]:low_conviction"
     assert inverted is None
 
 
@@ -145,7 +145,7 @@ def test_apply_cluster_binary_invert_sets_execute_and_complement_conviction():
         TradeDirection.PUT,
         metrics,
         index_note="STATARB_BEST",
-        anchor_sym="frxEURUSD",
+        anchor_sym="R_100",
         region_note="",
         conviction=0.70,
     )
@@ -158,12 +158,12 @@ def test_apply_cluster_binary_invert_sets_execute_and_complement_conviction():
 
 def test_cluster_propagate_logs_block_without_invert():
     orch = MagicMock()
-    orch.anchor = "frxEURUSD"
-    orch.symbols = ["frxEURUSD", "OTC_FCHI"]
+    orch.anchor = "R_100"
+    orch.symbols = ["R_100", "R_75"]
     orch.config = {
         "llm": {"min_conviction_execute": 0.90},
         "strategy": {
-            "clusters": {"us": [], "eu": ["OTC_FCHI"]},
+            "clusters": {"us": [], "eu": ["R_75"]},
             "correlation": {
                 "enabled": True,
                 "exclusive_cluster_by_macro": True,
@@ -176,24 +176,24 @@ def test_cluster_propagate_logs_block_without_invert():
     decisions: dict = {}
     propagate_cluster_decisions(
         orch,
-        anchor_sym="frxEURUSD",
+        anchor_sym="R_100",
         direction=TradeDirection.PUT,
         metrics=_base_metrics(conviction=0.50, macro_eu_strength_quant=0.72),
         decisions=decisions,
         cid="C0011",
     )
-    assert decisions["OTC_FCHI"]["metrics"]["execute"] is False
+    assert decisions["R_75"]["metrics"]["execute"] is False
     lines = [str(c) for c in orch.logger.info.call_args_list]
     assert any("CLUSTER_BLOCK" in line for line in lines)
 
 
 def test_propagate_appends_inverted_tag_from_target_decision():
     orch = MagicMock()
-    orch.anchor = "frxEURUSD"
-    orch.symbols = ["frxEURUSD", "OTC_FTSE"]
+    orch.anchor = "R_100"
+    orch.symbols = ["R_100", "1HZ100V"]
     orch.config = {
         "strategy": {
-            "clusters": {"us": ["OTC_SPC"], "eu": ["OTC_FTSE"]},
+            "clusters": {"us": ["R_25"], "eu": ["1HZ100V"]},
             "correlation": {"enabled": True, "exclusive_cluster_by_macro": True},
             "macro": {},
         }
@@ -203,11 +203,11 @@ def test_propagate_appends_inverted_tag_from_target_decision():
         None,
         TradeDirection.PUT,
         [],
-        ["OTC_FTSE"],
+        ["1HZ100V"],
         "",
         "note",
         set(),
-        {"OTC_FTSE"},
+        {"1HZ100V"},
     )
     with (
         patch(
@@ -216,12 +216,12 @@ def test_propagate_appends_inverted_tag_from_target_decision():
         ),
         patch(
             "src.application.services.llm.llm_cluster_propagate_region.apply_cluster_target_decision",
-            return_value=(None, None, "OTC_FTSE[P->C]", None),
+            return_value=(None, None, "1HZ100V[P->C]", None),
         ) as mock_apply,
     ):
         propagate_cluster_decisions(
             orch,
-            anchor_sym="frxEURUSD",
+            anchor_sym="R_100",
             direction=TradeDirection.PUT,
             metrics=_base_metrics(),
             decisions=decisions,
@@ -234,12 +234,12 @@ def test_propagate_appends_inverted_tag_from_target_decision():
 def test_cluster_propagate_logs_block_when_risk_off_weak_eu():
     orch = MagicMock()
     orch._cluster_pause_after_loss_active = False
-    orch.anchor = "frxEURUSD"
-    orch.symbols = ["frxEURUSD", "OTC_FCHI"]
+    orch.anchor = "R_100"
+    orch.symbols = ["R_100", "R_75"]
     orch.config = {
         "llm": {"min_conviction_execute": 0.60},
         "strategy": {
-            "clusters": {"us": ["OTC_SPC"], "eu": ["OTC_FCHI"]},
+            "clusters": {"us": ["R_25"], "eu": ["R_75"]},
             "correlation": {"enabled": True, "exclusive_cluster_by_macro": True},
             "macro": {"assert_min_hmm_prob": 0.0, "allowed_execute_tags": ("risk_off",)},
         },
@@ -247,27 +247,27 @@ def test_cluster_propagate_logs_block_when_risk_off_weak_eu():
     decisions: dict = {}
     propagate_cluster_decisions(
         orch,
-        anchor_sym="frxEURUSD",
+        anchor_sym="R_100",
         direction=TradeDirection.PUT,
         metrics=_base_metrics(macro_eu_strength_quant=0.40),
         decisions=decisions,
         cid="C0003",
     )
-    assert decisions["OTC_FCHI"]["direction"] == TradeDirection.PUT
-    assert decisions["OTC_FCHI"]["metrics"]["execute"] is False
-    assert decisions["OTC_FCHI"]["metrics"]["llm_block_reason"] == "macro_or_hmm_veto"
+    assert decisions["R_75"]["direction"] == TradeDirection.PUT
+    assert decisions["R_75"]["metrics"]["execute"] is False
+    assert decisions["R_75"]["metrics"]["llm_block_reason"] == "macro_or_hmm_veto"
     lines = [str(c) for c in orch.logger.info.call_args_list]
     assert any("CLUSTER_BLOCK" in line for line in lines)
 
 
 def test_cluster_execute_ignores_anchor_macro_execute_false():
     orch = MagicMock()
-    orch.anchor = "frxEURUSD"
-    orch.symbols = ["frxEURUSD", "OTC_FCHI", "OTC_GDAXI"]
+    orch.anchor = "R_100"
+    orch.symbols = ["R_100", "R_75", "1HZ100V"]
     orch.config = {
         "llm": {"min_conviction_execute": 0.60},
         "strategy": {
-            "clusters": {"us": ["OTC_SPC"], "eu": ["OTC_FCHI", "OTC_GDAXI"]},
+            "clusters": {"us": ["R_25"], "eu": ["R_75", "1HZ100V"]},
             "correlation": {
                 "enabled": True,
                 "exclusive_cluster_by_macro": True,
@@ -286,12 +286,12 @@ def test_cluster_execute_ignores_anchor_macro_execute_false():
     metrics = _base_metrics(execute=False, macro_eu_strength_quant=0.72)
     propagate_cluster_decisions(
         orch,
-        anchor_sym="frxEURUSD",
+        anchor_sym="R_100",
         direction=TradeDirection.PUT,
         metrics=metrics,
         decisions=decisions,
         cid="C0001",
     )
-    cluster_syms = [s for s in decisions if s != "frxEURUSD"]
+    cluster_syms = [s for s in decisions if s != "R_100"]
     assert cluster_syms
     assert any(decisions[s]["metrics"]["execute"] for s in cluster_syms)

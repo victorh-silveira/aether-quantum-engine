@@ -18,7 +18,7 @@ def test_llm_bridge_telemetry_cluster_coverage():
     logger = MagicMock()
     emit_llm_decision_log(
         logger,
-        "frxEURUSD",
+        "R_100",
         cycle_id=1,
         logic_line_max_chars=10,
         direction=TradeDirection.CALL,
@@ -54,7 +54,7 @@ async def test_fetch_macro_snapshot_exception_coverage():
     class DummyOrch:
         stream = DummyStream()
         logger = MagicMock()
-        config = {"strategy": {"clusters": {"us": ["OTC_SPC"], "eu": ["OTC_FCHI"]}}}
+        config = {"strategy": {"clusters": {"us": ["R_25"], "eu": ["R_75"]}}}
 
     orch = DummyOrch()
     snap = await fetch_macro_snapshot(orch, {})
@@ -67,7 +67,7 @@ async def test_fetch_macro_snapshot_exception_coverage():
 async def test_fetch_macro_snapshot_hmm_pacemaker():
     class DummyStream:
         async def fetch_candle_closes(self, sym, _gran, _bars):
-            if sym == "frxEURUSD":
+            if sym == "R_100":
                 return [1.0850, 1.0855, 1.0860, 1.0852, 1.0858]
             return [100.0, 101.0, 102.0, 101.5, 102.5]
 
@@ -78,7 +78,7 @@ async def test_fetch_macro_snapshot_hmm_pacemaker():
         logger = MagicMock()
         config = {
             "strategy": {
-                "clusters": {"us": ["OTC_SPC"], "eu": ["OTC_FCHI"]},
+                "clusters": {"us": ["R_25"], "eu": ["R_75"]},
                 "macro": {
                     "min_indices_for_vote": 1,
                     "cluster_min_move_pct": 0.01,
@@ -92,7 +92,7 @@ async def test_fetch_macro_snapshot_hmm_pacemaker():
 
     orch = DummyOrch()
     snap = await fetch_macro_snapshot(orch, {})
-    # HMM should have been executed on frxEURUSD, yielding hmm_state and hmm_prob
+    # HMM should have been executed on R_100, yielding hmm_state and hmm_prob
     assert snap.hmm_state in (0, 1)
     assert snap.hmm_prob > 0.0
     assert "HMM_regime" in snap.macro_block

@@ -1,57 +1,25 @@
 import pytest
 
+from tests.market_symbols import ALL_SYMBOLS, ANCHOR, EU_CLUSTER, US_CLUSTER
+
 
 @pytest.fixture
 def orch_config():
     return {
         "api_config": {"base_url": "ws://test", "request_timeout_seconds": 1},
-        "symbols": ["frxEURUSD", "OTC_SPC", "OTC_FCHI"],
-        "anchor": "frxEURUSD",
-        "llm": {"enabled": True},
-        "data_handler": {"fetch_count": 100, "min_required_points": 2, "buffer_limit": 1000},
-        "risk_management": {
-            "small_account_threshold": 100.0,
-            "small_account_stake": 1.0,
-            "small_account_stop_win": 10.0,
-            "large_account_stake_pct": 2.0,
-            "large_account_stop_win_pct": 15.0,
-            "params": {
-                "duration": 2,
-                "duration_unit": "m",
-                "payout_estimate": 0.85,
-                "entry_cooldown_ticks": 60,
-                "stake_min": 0.5,
-                "base_stake_min_pct": 0.01,
-                "base_stake_max_pct": 0.02,
-            },
-            "kelly": {"fraction": 0.5, "base_win_rate": 0.55},
-        },
-        "orchestrator": {
-            "reconcile_interval_seconds": 1,
-            "cycle_interval_seconds": 0,
-            "execution": {"include_anchor_trades": True, "inter_symbol_delay": 0.25},
-        },
-        "trading": {"mode": "live", "session": {"enabled": False}},
-    }
-
-
-@pytest.fixture
-def synthetic_orch_config():
-    return {
-        "api_config": {"base_url": "ws://test", "request_timeout_seconds": 1},
-        "symbols": ["R_100", "R_10", "R_50", "R_75"],
-        "anchor": "R_100",
+        "symbols": list(ALL_SYMBOLS),
+        "anchor": ANCHOR,
         "data_handler": {
-            "granularity": 300,
+            "granularity": 60,
             "fetch_count": 100,
             "min_required_points": 2,
             "buffer_limit": 1000,
         },
         "strategy": {
-            "clusters": {"us": ["R_10", "R_50"], "eu": ["R_75"]},
-            "correlation": {"anchor": "R_100"},
+            "clusters": {"us": list(US_CLUSTER), "eu": list(EU_CLUSTER)},
+            "correlation": {"anchor": ANCHOR},
         },
-        "llm": {"enabled": True},
+        "llm": {"enabled": True, "min_conviction_execute": 0.60},
         "risk_management": {
             "small_account_threshold": 100.0,
             "small_account_stake": 1.0,
@@ -59,7 +27,7 @@ def synthetic_orch_config():
             "large_account_stake_pct": 2.0,
             "large_account_stop_win_pct": 15.0,
             "params": {
-                "duration": 5,
+                "duration": 1,
                 "duration_unit": "m",
                 "payout_estimate": 0.85,
                 "entry_cooldown_ticks": 60,
@@ -71,7 +39,9 @@ def synthetic_orch_config():
         },
         "orchestrator": {
             "reconcile_interval_seconds": 1,
-            "cycle_interval_seconds": 60,
+            "cycle_interval_seconds": 45,
+            "cluster_block_repeat_loss_setup": True,
+            "cluster_repeat_loss_block_cycles": 2,
             "execution": {"include_anchor_trades": False, "inter_symbol_delay": 0.25},
         },
         "trading": {"mode": "live", "session": {"enabled": False}},

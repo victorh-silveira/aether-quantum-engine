@@ -43,17 +43,17 @@ def test_resolve_orders_risk_on_selects_us_index():
         fx_reference_line="",
         us_parts=(),
         eu_parts=(),
-        statarb_spreads={"OTC_SPC": -2.5, "OTC_NDX": -1.0, "OTC_DJI": -0.5},
+        statarb_spreads={"R_25": -2.5, "R_50": -1.0, "R_50": -0.5},
         hmm_state=0,
         hmm_prob=0.9,
     )
     config = {
-        "anchor": "frxEURUSD",
+        "anchor": "R_100",
         "llm": {"min_conviction_execute": 0.55},
         "strategy": {
             "clusters": {
-                "us": ["OTC_SPC", "OTC_NDX", "OTC_DJI"],
-                "eu": ["OTC_FCHI", "OTC_GDAXI", "OTC_FTSE", "OTC_SSMI"],
+                "us": ["R_25", "R_50", "R_50"],
+                "eu": ["R_75", "1HZ100V", "1HZ100V", "1HZ50V"],
             },
             "correlation": {
                 "enabled": True,
@@ -74,29 +74,29 @@ def test_resolve_orders_risk_on_selects_us_index():
         },
     }
     all_syms = [
-        "frxEURUSD",
-        "OTC_SPC",
-        "OTC_NDX",
-        "OTC_DJI",
-        "OTC_FCHI",
-        "OTC_GDAXI",
-        "OTC_FTSE",
-        "OTC_SSMI",
+        "R_100",
+        "R_25",
+        "R_50",
+        "R_50",
+        "R_75",
+        "1HZ100V",
+        "1HZ100V",
+        "1HZ50V",
     ]
-    runtime = BacktestClusterRuntime(config, symbols=all_syms, anchor="frxEURUSD")
+    runtime = BacktestClusterRuntime(config, symbols=all_syms, anchor="R_100")
     orders = resolve_orders_at_bar(
         bar_index=10,
         snapshot=snap,
         config=config,
-        us_symbols=["OTC_SPC", "OTC_NDX", "OTC_DJI"],
-        eu_symbols=["OTC_FCHI", "OTC_GDAXI", "OTC_FTSE", "OTC_SSMI"],
+        us_symbols=["R_25", "R_50", "R_50"],
+        eu_symbols=["R_75", "1HZ100V", "1HZ100V", "1HZ50V"],
         all_symbols=all_syms,
-        anchor="frxEURUSD",
+        anchor="R_100",
         runtime=runtime,
     )
     assert orders
     symbols = {o.symbol for o in orders}
-    assert symbols.issubset({"OTC_SPC", "OTC_NDX", "OTC_DJI"})
+    assert symbols.issubset({"R_25", "R_50", "R_50"})
     assert len(symbols) <= 1
 
 
@@ -123,18 +123,18 @@ def test_build_snapshot_propagates_index_m5_dir():
 
 def test_backtest_refresh_gate_blocks_risk_off_without_llm():
     config = {
-        "anchor": "frxEURUSD",
+        "anchor": "R_100",
         "orchestrator": {
             "cluster_refresh_execute_enabled": False,
             "cluster_refresh_execute_on_quant_validate": True,
         },
         "strategy": {"clusters": {"us": [], "eu": []}, "correlation": {}, "macro": {}},
     }
-    runtime = BacktestClusterRuntime(config, symbols=["frxEURUSD", "OTC_DJI"], anchor="frxEURUSD")
+    runtime = BacktestClusterRuntime(config, symbols=["R_100", "R_50"], anchor="R_100")
     runtime._cluster_refresh_without_llm = True
     decisions = {
-        "frxEURUSD": {"direction": TradeDirection.PUT, "metrics": {"macro_sentiment": "risk_off"}},
-        "OTC_DJI": {"direction": TradeDirection.PUT, "metrics": {"execute": False, "macro_sentiment": "risk_off"}},
+        "R_100": {"direction": TradeDirection.PUT, "metrics": {"macro_sentiment": "risk_off"}},
+        "R_50": {"direction": TradeDirection.PUT, "metrics": {"execute": False, "macro_sentiment": "risk_off"}},
     }
     apply_backtest_refresh_execute_gate(runtime, decisions)
-    assert decisions["OTC_DJI"]["metrics"]["execute"] is False
+    assert decisions["R_50"]["metrics"]["execute"] is False

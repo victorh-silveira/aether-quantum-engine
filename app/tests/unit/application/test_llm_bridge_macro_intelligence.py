@@ -9,11 +9,11 @@ from tests.unit.application.macro_guard_fixtures import RELAXED_MACRO_CFG
 
 def _snapshot(_tag: str, us_dir: str, eu_dir: str) -> object:
     return build_macro_snapshot(
-        ["OTC_SPC"],
-        ["OTC_FCHI"],
+        ["R_25"],
+        ["R_75"],
         {
-            "OTC_SPC": [100.0, 105.0] if us_dir == "up" else [100.0, 95.0],
-            "OTC_FCHI": [100.0, 105.0] if eu_dir == "up" else [100.0, 95.0],
+            "R_25": [100.0, 105.0] if us_dir == "up" else [100.0, 95.0],
+            "R_75": [100.0, 105.0] if eu_dir == "up" else [100.0, 95.0],
         },
         {"min_indices_for_vote": 1, "cluster_return_threshold_pct": 0.02},
     )
@@ -21,9 +21,9 @@ def _snapshot(_tag: str, us_dir: str, eu_dir: str) -> object:
 
 def test_apply_macro_guard_intelligence_without_statarb_spread():
     snap = build_macro_snapshot(
-        ["OTC_SPC"],
-        ["OTC_FCHI"],
-        {"OTC_SPC": [100.0, 105.0], "OTC_FCHI": [100.0, 95.0]},
+        ["R_25"],
+        ["R_75"],
+        {"R_25": [100.0, 105.0], "R_75": [100.0, 95.0]},
         {"min_indices_for_vote": 1},
     )
     direction, conviction, applied, note, execute_ok = apply_macro_confluence_guard(
@@ -31,7 +31,7 @@ def test_apply_macro_guard_intelligence_without_statarb_spread():
         0.82,
         snap,
         {**RELAXED_MACRO_CFG, "statarb_z_threshold": 2.5},
-        sym="frxEURUSD",
+        sym="R_100",
     )
     assert direction == TradeDirection.CALL
     assert conviction == pytest.approx(0.82)
@@ -41,9 +41,9 @@ def test_apply_macro_guard_intelligence_without_statarb_spread():
 
 def test_apply_macro_guard_intelligence_preserves_llm_divergence():
     snap = build_macro_snapshot(
-        ["OTC_SPC"],
-        ["OTC_FCHI"],
-        {"OTC_SPC": [100.0, 105.0], "OTC_FCHI": [100.0, 95.0]},
+        ["R_25"],
+        ["R_75"],
+        {"R_25": [100.0, 105.0], "R_75": [100.0, 95.0]},
         {"min_indices_for_vote": 1, "cluster_return_threshold_pct": 0.02},
     )
     assert snap.tag.startswith("divergence")
@@ -61,9 +61,9 @@ def test_apply_macro_guard_intelligence_preserves_llm_divergence():
 
 def test_apply_macro_guard_intelligence_allows_put_against_us_leader():
     snap = build_macro_snapshot(
-        ["OTC_SPC"],
-        ["OTC_FCHI"],
-        {"OTC_SPC": [100.0, 105.0], "OTC_FCHI": [100.0, 95.0]},
+        ["R_25"],
+        ["R_75"],
+        {"R_25": [100.0, 105.0], "R_75": [100.0, 95.0]},
         {"min_indices_for_vote": 1},
     )
     direction, conviction, applied, note, execute_ok = apply_macro_confluence_guard(

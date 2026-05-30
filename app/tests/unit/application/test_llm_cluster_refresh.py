@@ -26,7 +26,7 @@ def _snapshot() -> MacroSnapshot:
         fx_reference_line="",
         us_parts=(),
         eu_parts=(),
-        statarb_spreads={"OTC_FCHI": 1.1, "OTC_GDAXI": 0.6},
+        statarb_spreads={"R_75": 1.1, "1HZ100V": 0.6},
         hmm_state=0,
         hmm_prob=0.9,
     )
@@ -50,10 +50,10 @@ def test_merge_macro_snapshot_into_metrics_includes_m5_map():
         fx_reference_line="",
         us_parts=(),
         eu_parts=(),
-        index_m5_dir_by_symbol={"OTC_DJI": "down"},
+        index_m5_dir_by_symbol={"R_50": "down"},
     )
     out = merge_macro_snapshot_into_metrics({"us_cluster": "CALL"}, snap)
-    assert out["index_m5_dir_by_symbol"] == {"OTC_DJI": "down"}
+    assert out["index_m5_dir_by_symbol"] == {"R_50": "down"}
 
 
 def test_cluster_refresh_due_false_when_interval_zero():
@@ -68,25 +68,25 @@ def test_resolve_cluster_refresh_interval_explicit():
 
 def test_refresh_returns_none_when_cache_empty():
     orch = MagicMock()
-    orch.anchor = "frxEURUSD"
+    orch.anchor = "R_100"
     orch._last_llm_decisions = {}
     assert refresh_cluster_decisions_from_cache(orch, _snapshot(), "C1") is None
 
 
 def test_refresh_returns_cached_when_anchor_entry_invalid():
     orch = MagicMock()
-    orch.anchor = "frxEURUSD"
-    orch._last_llm_decisions = {"frxEURUSD": "bad"}
+    orch.anchor = "R_100"
+    orch._last_llm_decisions = {"R_100": "bad"}
     out = refresh_cluster_decisions_from_cache(orch, _snapshot(), "C1")
-    assert out == {"frxEURUSD": "bad"}
+    assert out == {"R_100": "bad"}
 
 
 def test_refresh_returns_cached_when_direction_missing():
     orch = MagicMock()
-    orch.anchor = "frxEURUSD"
-    orch._last_llm_decisions = {"frxEURUSD": {"direction": "PUT", "metrics": {}}}
+    orch.anchor = "R_100"
+    orch._last_llm_decisions = {"R_100": {"direction": "PUT", "metrics": {}}}
     out = refresh_cluster_decisions_from_cache(orch, _snapshot(), "C1")
-    assert "frxEURUSD" in out
+    assert "R_100" in out
 
 
 def test_cluster_refresh_due_when_never_refreshed():
@@ -104,11 +104,11 @@ def test_cluster_refresh_not_due_within_window():
 @pytest.mark.asyncio
 async def test_refresh_cluster_decisions_from_cache_repropagates():
     orch = MagicMock()
-    orch.anchor = "frxEURUSD"
-    orch.symbols = ["frxEURUSD", "OTC_FCHI", "OTC_GDAXI"]
+    orch.anchor = "R_100"
+    orch.symbols = ["R_100", "R_75", "1HZ100V"]
     orch.config = {
         "strategy": {
-            "clusters": {"us": [], "eu": ["OTC_FCHI", "OTC_GDAXI"]},
+            "clusters": {"us": [], "eu": ["R_75", "1HZ100V"]},
             "correlation": {"enabled": True, "best_symbol_only": True},
             "macro": {},
         },
@@ -121,22 +121,22 @@ async def test_refresh_cluster_decisions_from_cache_repropagates():
         "us_cluster": "PUT",
         "eu_cluster": "PUT",
         "macro_sentiment": "risk_off",
-        "statarb_spreads": {"OTC_FCHI": 0.2},
+        "statarb_spreads": {"R_75": 0.2},
     }
     orch._last_llm_decisions = {
-        "frxEURUSD": {"direction": TradeDirection.PUT, "metrics": dict(metrics)},
+        "R_100": {"direction": TradeDirection.PUT, "metrics": dict(metrics)},
     }
     out = refresh_cluster_decisions_from_cache(orch, _snapshot(), "C0001")
     assert out is not None
-    assert "OTC_FCHI" in out or "OTC_GDAXI" in out
+    assert "R_75" in out or "1HZ100V" in out
     orch.logger.info.assert_called()
 
 
 @pytest.mark.asyncio
 async def test_collect_llm_decisions_refreshes_cluster_from_cache():
     orch = MagicMock()
-    orch.anchor = "frxEURUSD"
-    orch.symbols = ["frxEURUSD", "OTC_FCHI"]
+    orch.anchor = "R_100"
+    orch.symbols = ["R_100", "R_75"]
     orch._active_cycle_id = 3
     orch._last_llm_macro_tag = "risk_off"
     orch._last_cluster_refresh_epoch = None
@@ -144,13 +144,13 @@ async def test_collect_llm_decisions_refreshes_cluster_from_cache():
         "orchestrator": {"cluster_refresh_interval_seconds": 60},
         "strategy": {
             "correlation": {"enabled": True, "cluster_invert_on_block": False},
-            "clusters": {"us": [], "eu": ["OTC_FCHI"]},
+            "clusters": {"us": [], "eu": ["R_75"]},
             "macro": {"allowed_execute_tags": ("risk_off",)},
         },
         "llm": {"max_decision_latency_seconds": 10, "min_conviction_execute": 0.5},
     }
     orch._last_llm_decisions = {
-        "frxEURUSD": {
+        "R_100": {
             "direction": TradeDirection.PUT,
             "metrics": {
                 "conviction": 0.7,
@@ -172,4 +172,4 @@ async def test_collect_llm_decisions_refreshes_cluster_from_cache():
         mock_macro.return_value = snap
         out = await collect_llm_decisions(orch)
 
-    assert "OTC_FCHI" in out or "frxEURUSD" in out
+    assert "R_75" in out or "R_100" in out

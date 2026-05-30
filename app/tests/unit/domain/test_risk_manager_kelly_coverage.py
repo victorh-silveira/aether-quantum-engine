@@ -118,7 +118,7 @@ def test_stake_block_reason_stop_win():
     rm = RiskManager({"small_account_stop_win": 5.0, "small_account_threshold": 100.0, "params": {"stake_min": 1.0}})
     rm.set_initial_bankroll(50.0)
     rm.total_session_profit = 10.0
-    assert rm.stake_block_reason(50.0, "OTC_FCHI") == "stop_win"
+    assert rm.stake_block_reason(50.0, "R_75") == "stop_win"
 
 
 def test_arm_cooldown_zero_ticks_clears_timer():
@@ -170,7 +170,7 @@ def test_stake_block_reason_kelly_no_edge():
         }
     )
     rm.set_initial_bankroll(100.0)
-    assert rm.stake_block_reason(100.0, "OTC_FCHI", conviction=0.05) == "kelly_no_edge"
+    assert rm.stake_block_reason(100.0, "R_75", conviction=0.05) == "kelly_no_edge"
 
 
 def test_cooldown_mono_expiry_falls_back_to_ticks():

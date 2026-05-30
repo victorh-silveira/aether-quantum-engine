@@ -97,7 +97,7 @@ def generate_radar(state) -> Panel:
 
     llm_on = "ON" if getattr(state, "llm_enabled", True) else "OFF"
     grid.add_row("[bold white]DECISION_ENGINE[/]", f"[bold cyan]MEDALLION LLM {llm_on}[/]")
-    grid.add_row("[dim](ancora frxEURUSD + clusters US/EU)[/]", "")
+    grid.add_row("[dim](ancora R_100 + clusters VOL US/EU)[/]", "")
     grid.add_row("", "")
 
     direction = get_val("dir")

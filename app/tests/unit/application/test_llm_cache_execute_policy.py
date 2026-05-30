@@ -4,18 +4,18 @@ from src.domain.models.trade import TradeDirection
 
 def test_clear_cluster_execute_on_cached_decisions():
     cached = {
-        "frxEURUSD": {"direction": TradeDirection.CALL, "metrics": {"execute": True}},
-        "OTC_DJI": {
+        "R_100": {"direction": TradeDirection.CALL, "metrics": {"execute": True}},
+        "R_50": {
             "direction": TradeDirection.CALL,
             "metrics": {"execute": True, "llm_block_reason": "allowed"},
         },
     }
-    out = clear_cluster_execute_on_cached_decisions(cached, "frxEURUSD")
-    assert out["frxEURUSD"]["metrics"]["execute"] is True
-    assert out["OTC_DJI"]["metrics"]["execute"] is False
-    assert out["OTC_DJI"]["metrics"]["llm_block_reason"] == "cache_no_fresh_llm"
+    out = clear_cluster_execute_on_cached_decisions(cached, "R_100")
+    assert out["R_100"]["metrics"]["execute"] is True
+    assert out["R_50"]["metrics"]["execute"] is False
+    assert out["R_50"]["metrics"]["llm_block_reason"] == "cache_no_fresh_llm"
 
 
 def test_clear_cluster_execute_skips_non_dict_entries():
-    out = clear_cluster_execute_on_cached_decisions({"OTC_DJI": "bad"}, "frxEURUSD")
+    out = clear_cluster_execute_on_cached_decisions({"R_50": "bad"}, "R_100")
     assert out == {}

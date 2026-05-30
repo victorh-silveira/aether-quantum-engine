@@ -5,27 +5,26 @@ from src.application.services.orchestrator.config_symbols import normalize_symbo
 
 def test_resolve_cluster_lists_excludes_symbols():
     strategy = {
-        "excluded_symbols": ["OTC_SPC"],
-        "clusters": {"us": ["OTC_SPC", "OTC_NDX"], "eu": ["OTC_FCHI"]},
+        "excluded_symbols": ["R_25"],
+        "clusters": {"us": ["R_25", "R_50"], "eu": ["R_75"]},
     }
     us, eu = resolve_cluster_lists(strategy)
-    assert us == ["OTC_NDX"]
-    assert eu == ["OTC_FCHI"]
+    assert us == ["R_50"]
+    assert eu == ["R_75"]
 
 
 def test_backtest_symbols_honors_excluded():
     cfg = {
-        "anchor": "frxEURUSD",
+        "anchor": "R_100",
         "strategy": {
-            "excluded_symbols": ["OTC_SPC", "OTC_NDX"],
-            "clusters": {"us": ["OTC_SPC", "OTC_NDX", "OTC_DJI"], "eu": ["OTC_FCHI"]},
+            "excluded_symbols": ["R_25"],
+            "clusters": {"us": ["R_10", "R_25", "R_50"], "eu": ["R_75"]},
         },
     }
     us, eu, all_syms, anchor = backtest_symbols(cfg)
-    assert "OTC_SPC" not in us
-    assert "OTC_NDX" not in us
-    assert "OTC_DJI" in us
-    assert anchor == "frxEURUSD"
+    assert "R_25" not in us
+    assert "R_50" in us
+    assert anchor == "R_100"
 
 
 def test_normalize_symbols_from_clusters():

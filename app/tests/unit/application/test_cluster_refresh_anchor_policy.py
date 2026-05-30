@@ -6,7 +6,7 @@ from src.domain.models.trade import TradeDirection
 
 def _orch(**overrides):
     orch = MagicMock()
-    orch.anchor = "frxEURUSD"
+    orch.anchor = "R_100"
     orch.config = {
         "orchestrator": {
             "cluster_refresh_execute_enabled": False,

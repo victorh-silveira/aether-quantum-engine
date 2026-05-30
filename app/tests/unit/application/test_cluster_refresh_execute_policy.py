@@ -15,7 +15,7 @@ from src.domain.models.trade import TradeDirection
 
 def _orch(**overrides):
     orch = MagicMock()
-    orch.anchor = "frxEURUSD"
+    orch.anchor = "R_100"
     orch.config = {
         "orchestrator": {
             "cluster_refresh_execute_enabled": False,
@@ -32,7 +32,7 @@ def _orch(**overrides):
 
 
 def test_any_cluster_entry_with_direction_rejects_non_dict():
-    assert any_cluster_entry_with_direction("bad", anchor_sym="frxEURUSD") is False
+    assert any_cluster_entry_with_direction("bad", anchor_sym="R_100") is False
 
 
 def test_resolve_cluster_refresh_policy_defaults_quant_tags():
@@ -52,7 +52,7 @@ def test_entry_is_quant_validated_statarb_source():
         "metrics": {
             "execute": True,
             "decision_source": "cluster_statarb_dir",
-            "cluster_target_sym": "OTC_DJI",
+            "cluster_target_sym": "R_50",
         },
     }
     assert entry_is_quant_validated(entry) is True
@@ -63,8 +63,8 @@ def test_entry_is_quant_validated_m5_aligned():
         "direction": TradeDirection.PUT,
         "metrics": {
             "execute": True,
-            "cluster_target_sym": "OTC_DJI",
-            "index_m5_dir_by_symbol": {"OTC_DJI": "down"},
+            "cluster_target_sym": "R_50",
+            "index_m5_dir_by_symbol": {"R_50": "down"},
         },
     }
     assert entry_is_quant_validated(entry) is True
@@ -75,7 +75,7 @@ def test_entry_is_quant_validated_rejects_bad_m5_map():
         "direction": TradeDirection.PUT,
         "metrics": {
             "execute": True,
-            "cluster_target_sym": "OTC_DJI",
+            "cluster_target_sym": "R_50",
             "index_m5_dir_by_symbol": "bad",
         },
     }
@@ -84,31 +84,31 @@ def test_entry_is_quant_validated_rejects_bad_m5_map():
 
 def test_macro_tag_from_decisions_scans_cluster_entries():
     tag = macro_tag_from_decisions(
-        {"OTC_DJI": {"metrics": {"macro_confluence_tag": "divergence_eu_leads"}}},
-        "frxEURUSD",
+        {"R_50": {"metrics": {"macro_confluence_tag": "divergence_eu_leads"}}},
+        "R_100",
     )
     assert tag == "divergence_eu_leads"
 
 
 def test_macro_tag_from_decisions_skips_invalid_and_empty():
     tag = macro_tag_from_decisions(
-        {"bad": "x", "OTC_DJI": {"metrics": {"macro_sentiment": ""}}},
-        "frxEURUSD",
+        {"bad": "x", "R_50": {"metrics": {"macro_sentiment": ""}}},
+        "R_100",
     )
     assert tag == ""
 
 
 def test_any_cluster_entry_helpers():
-    assert any_quant_validated_cluster_entry("bad", anchor_sym="frxEURUSD") is False
-    assert any_cluster_entry_marked_execute("bad", anchor_sym="frxEURUSD") is False
+    assert any_quant_validated_cluster_entry("bad", anchor_sym="R_100") is False
+    assert any_cluster_entry_marked_execute("bad", anchor_sym="R_100") is False
     decisions = {
-        "frxEURUSD": {"direction": TradeDirection.CALL, "metrics": {"execute": False}},
+        "R_100": {"direction": TradeDirection.CALL, "metrics": {"execute": False}},
         "1HZ100V": {
             "direction": TradeDirection.CALL,
             "metrics": {"execute": True, "macro_sentiment": "divergence_eu_leads"},
         },
     }
-    assert any_cluster_entry_marked_execute(decisions, anchor_sym="frxEURUSD") is True
+    assert any_cluster_entry_marked_execute(decisions, anchor_sym="R_100") is True
 
 
 def test_refresh_not_required_when_llm_fresh():
@@ -128,14 +128,14 @@ def test_refresh_global_execute_enabled():
 def test_refresh_divergence_quant_validated_allows_execute():
     orch = _orch()
     decisions = {
-        "frxEURUSD": {"direction": TradeDirection.CALL, "metrics": {"macro_sentiment": "divergence_us_leads"}},
-        "OTC_DJI": {
+        "R_100": {"direction": TradeDirection.CALL, "metrics": {"macro_sentiment": "divergence_us_leads"}},
+        "R_50": {
             "direction": TradeDirection.PUT,
             "metrics": {
                 "execute": True,
                 "macro_sentiment": "divergence_us_leads",
                 "llm_statarb_dir_corrected": True,
-                "cluster_target_sym": "OTC_DJI",
+                "cluster_target_sym": "R_50",
             },
         },
     }
@@ -151,7 +151,7 @@ def test_refresh_risk_off_with_quant_correction_allows():
         }
     )
     decisions = {
-        "frxEURUSD": {"direction": TradeDirection.PUT, "metrics": {"macro_sentiment": "risk_off"}},
+        "R_100": {"direction": TradeDirection.PUT, "metrics": {"macro_sentiment": "risk_off"}},
         "1HZ100V": {
             "direction": TradeDirection.CALL,
             "metrics": {
@@ -170,10 +170,10 @@ def test_refresh_risk_off_with_quant_correction_allows():
 def test_refresh_risk_on_without_llm_blocks():
     orch = _orch()
     decisions = {
-        "frxEURUSD": {"direction": TradeDirection.CALL, "metrics": {"macro_sentiment": "risk_on"}},
-        "OTC_DJI": {
+        "R_100": {"direction": TradeDirection.CALL, "metrics": {"macro_sentiment": "risk_on"}},
+        "R_50": {
             "direction": TradeDirection.CALL,
-            "metrics": {"execute": True, "macro_sentiment": "risk_on", "cluster_target_sym": "OTC_DJI"},
+            "metrics": {"execute": True, "macro_sentiment": "risk_on", "cluster_target_sym": "R_50"},
         },
     }
     ok, reason = cluster_refresh_may_execute(orch, decisions, refresh_without_llm=True, now_epoch=1000.0)
@@ -184,12 +184,12 @@ def test_refresh_risk_on_without_llm_blocks():
 def test_refresh_divergence_without_cluster_direction_blocks():
     orch = _orch()
     decisions = {
-        "frxEURUSD": {"direction": TradeDirection.CALL, "metrics": {"macro_sentiment": "divergence_us_leads"}},
-        "OTC_DJI": {
+        "R_100": {"direction": TradeDirection.CALL, "metrics": {"macro_sentiment": "divergence_us_leads"}},
+        "R_50": {
             "metrics": {
                 "execute": False,
                 "macro_sentiment": "divergence_us_leads",
-                "cluster_target_sym": "OTC_DJI",
+                "cluster_target_sym": "R_50",
             },
         },
     }
@@ -201,13 +201,13 @@ def test_refresh_divergence_without_cluster_direction_blocks():
 def test_refresh_divergence_with_cached_direction_allows():
     orch = _orch()
     decisions = {
-        "frxEURUSD": {"direction": TradeDirection.CALL, "metrics": {"macro_sentiment": "divergence_us_leads"}},
-        "OTC_DJI": {
+        "R_100": {"direction": TradeDirection.CALL, "metrics": {"macro_sentiment": "divergence_us_leads"}},
+        "R_50": {
             "direction": TradeDirection.CALL,
             "metrics": {
                 "execute": False,
                 "macro_sentiment": "divergence_us_leads",
-                "cluster_target_sym": "OTC_DJI",
+                "cluster_target_sym": "R_50",
             },
         },
     }
@@ -219,7 +219,7 @@ def test_refresh_divergence_with_cached_direction_allows():
 def test_refresh_execute_disabled_on_divergence():
     orch = _orch(orchestrator={"cluster_refresh_execute_on_quant_validate": False})
     decisions = {
-        "OTC_DJI": {
+        "R_50": {
             "direction": TradeDirection.PUT,
             "metrics": {
                 "execute": True,
@@ -236,14 +236,14 @@ def test_refresh_execute_disabled_on_divergence():
 def test_refresh_spacing_blocks_after_settlement():
     orch = _orch(last_cluster_cycle_end=990.0)
     decisions = {
-        "frxEURUSD": {"direction": TradeDirection.CALL, "metrics": {"macro_sentiment": "divergence_us_leads"}},
-        "OTC_DJI": {
+        "R_100": {"direction": TradeDirection.CALL, "metrics": {"macro_sentiment": "divergence_us_leads"}},
+        "R_50": {
             "direction": TradeDirection.PUT,
             "metrics": {
                 "execute": True,
                 "macro_sentiment": "divergence_us_leads",
                 "llm_statarb_dir_corrected": True,
-                "cluster_target_sym": "OTC_DJI",
+                "cluster_target_sym": "R_50",
             },
         },
     }

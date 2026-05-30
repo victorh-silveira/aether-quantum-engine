@@ -92,7 +92,7 @@ def test_build_and_format_sniper_line():
     tok = build_sniper_tokens(closes, ic, None)
     assert set(tok.keys()) == {"hurst", "zscore", "entropy", "velocity", "acceleration"}
     line = format_sniper_prompt_line(
-        "OTC_FCHI",
+        "R_75",
         "trend_persistente",
         "random_walk",
         "mean_reverting",
@@ -102,7 +102,7 @@ def test_build_and_format_sniper_line():
     )
     assert "h=" in line
     assert "MTF=P/N/M/N" in line
-    assert "SYM=OTC_FCHI" in line
+    assert "SYM=R_75" in line
 
 
 def test_sniper_mtf_bits_from_alignment_sentence():

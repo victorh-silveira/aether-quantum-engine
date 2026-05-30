@@ -36,7 +36,7 @@ def _cluster_targets(strategy: dict[str, Any]) -> tuple[tuple[str, ...], tuple[s
     if clusters is not None:
         us_targets, eu_targets = resolve_cluster_lists(strategy)
         return tuple(us_targets), tuple(eu_targets)
-    return ("OTC_NDX", "OTC_DJI"), ("OTC_FCHI", "OTC_GDAXI", "OTC_SSMI", "OTC_FTSE")
+    return ("R_10", "R_25", "R_50"), ("R_75", "1HZ50V", "1HZ100V")
 
 
 def _rolling_wr_scores(orch: Any, candidates: list[str], corr_cfg: dict[str, Any]) -> dict[str, float] | None:

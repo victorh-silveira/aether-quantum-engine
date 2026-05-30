@@ -8,7 +8,7 @@ def test_emit_llm_decision_log_skip_branch():
 
     emit_llm_decision_log(
         logger,
-        "OTC_FCHI",
+        "R_75",
         cycle_id=1,
         logic_line_max_chars=100,
         direction=None,

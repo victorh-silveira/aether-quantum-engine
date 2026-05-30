@@ -19,22 +19,22 @@ def mock_ws():
 @pytest.fixture
 def stream_handler(mock_ws):
     config = {"buffer_limit": 10, "fetch_count": 3, "granularity": 60}
-    symbols = ["frxEURUSD", "frxEURUSD"]
+    symbols = ["R_100", "R_100"]
     return StreamHandler(mock_ws, symbols, config)
 
 
 @pytest.mark.asyncio
 async def test_stream_handler_on_candle(stream_handler):
     candle_data = {
-        "ohlc": {"symbol": "frxEURUSD", "open": 1.4, "high": 1.5, "low": 1.3, "close": 1.45, "open_time": 1600000000}
+        "ohlc": {"symbol": "R_100", "open": 1.4, "high": 1.5, "low": 1.3, "close": 1.45, "open_time": 1600000000}
     }
     await stream_handler._on_candle(candle_data)
-    assert stream_handler.candles["frxEURUSD"][-1].close == 1.45
+    assert stream_handler.candles["R_100"][-1].close == 1.45
 
 
 def test_stream_handler_get_numpy(stream_handler):
-    stream_handler.candles["frxEURUSD"] = [Candle("frxEURUSD", 1.0, 1.1, 0.9, 1.05, datetime.now(), 1000)]
-    series = stream_handler.get_numpy_series("frxEURUSD")
+    stream_handler.candles["R_100"] = [Candle("R_100", 1.0, 1.1, 0.9, 1.05, datetime.now(), 1000)]
+    series = stream_handler.get_numpy_series("R_100")
     assert series.tolist() == [1.05]
 
 
@@ -53,41 +53,41 @@ def test_stream_handler_unknown_symbol(stream_handler):
 @pytest.mark.asyncio
 async def test_stream_handler_candle_error(stream_handler):
     await stream_handler._on_candle({"invalid": "data"})
-    assert len(stream_handler.candles["frxEURUSD"]) == 0
+    assert len(stream_handler.candles["R_100"]) == 0
 
     await stream_handler._on_candle({"ohlc": {"symbol": "UNKNOWN", "open": 1.0, "open_time": 1000}})
-    assert len(stream_handler.candles["frxEURUSD"]) == 0
+    assert len(stream_handler.candles["R_100"]) == 0
 
 
 @pytest.mark.asyncio
 async def test_stream_handler_candle_logic():
     ws = MagicMock()
     ws.send = AsyncMock(return_value={"candles": []})
-    sh = StreamHandler(ws, ["frxEURUSD"], {"buffer_limit": 2})
+    sh = StreamHandler(ws, ["R_100"], {"buffer_limit": 2})
     callback = AsyncMock()
     await sh.start_candle_stream(callback)
 
     await sh._on_candle(
-        {"ohlc": {"symbol": "frxEURUSD", "open": 1.0, "high": 1.1, "low": 0.9, "close": 1.0, "open_time": 1000}}
+        {"ohlc": {"symbol": "R_100", "open": 1.0, "high": 1.1, "low": 0.9, "close": 1.0, "open_time": 1000}}
     )
     await sh._on_candle(
-        {"ohlc": {"symbol": "frxEURUSD", "open": 1.0, "high": 1.1, "low": 0.9, "close": 1.1, "open_time": 1000}}
+        {"ohlc": {"symbol": "R_100", "open": 1.0, "high": 1.1, "low": 0.9, "close": 1.1, "open_time": 1000}}
     )
     await sh._on_candle(
-        {"ohlc": {"symbol": "frxEURUSD", "open": 1.1, "high": 1.2, "low": 1.0, "close": 1.1, "open_time": 1060}}
+        {"ohlc": {"symbol": "R_100", "open": 1.1, "high": 1.2, "low": 1.0, "close": 1.1, "open_time": 1060}}
     )
     await sh._on_candle(
-        {"ohlc": {"symbol": "frxEURUSD", "open": 1.2, "high": 1.3, "low": 1.1, "close": 1.2, "open_time": 1120}}
+        {"ohlc": {"symbol": "R_100", "open": 1.2, "high": 1.3, "low": 1.1, "close": 1.2, "open_time": 1120}}
     )
 
-    assert len(sh.candles["frxEURUSD"]) == 2
+    assert len(sh.candles["R_100"]) == 2
     assert callback.called
 
 
 @pytest.mark.asyncio
 async def test_stream_handler_start_stream_fails_when_ws_disconnected(mock_ws):
     config = {"buffer_limit": 10, "fetch_count": 3, "granularity": 60}
-    symbols = ["frxEURUSD"]
+    symbols = ["R_100"]
     sh = StreamHandler(mock_ws, symbols, config)
     mock_ws.is_running = False
     with pytest.raises(ConnectionError):
@@ -98,7 +98,7 @@ async def test_stream_handler_start_stream_fails_when_ws_disconnected(mock_ws):
 @pytest.mark.asyncio
 async def test_stream_handler_start_stream_fails_after_history_sync(mock_ws):
     config = {"buffer_limit": 10, "fetch_count": 3, "granularity": 60}
-    symbols = ["frxEURUSD"]
+    symbols = ["R_100"]
     sh = StreamHandler(mock_ws, symbols, config)
     mock_ws.is_running = True
 
@@ -118,8 +118,8 @@ async def test_fetch_candle_closes_returns_closes(mock_ws):
     mock_ws.send = AsyncMock(
         return_value={"candles": [{"close": "100.1"}, {"close": "100.2"}, {"open": 1, "close": 100.3}]}
     )
-    sh = StreamHandler(mock_ws, ["frxEURUSD"], {"buffer_limit": 10})
-    closes = await sh.fetch_candle_closes("frxEURUSD", 300, 5)
+    sh = StreamHandler(mock_ws, ["R_100"], {"buffer_limit": 10})
+    closes = await sh.fetch_candle_closes("R_100", 300, 5)
     assert closes == [100.1, 100.2, 100.3]
     mock_ws.send.assert_awaited_once()
     req = mock_ws.send.await_args.args[0]
@@ -130,40 +130,40 @@ async def test_fetch_candle_closes_returns_closes(mock_ws):
 @pytest.mark.asyncio
 async def test_fetch_candle_closes_unknown_symbol(mock_ws):
     mock_ws.is_running = True
-    sh = StreamHandler(mock_ws, ["frxEURUSD"], {})
+    sh = StreamHandler(mock_ws, ["R_100"], {})
     assert await sh.fetch_candle_closes("OTHER", 300, 5) == []
 
 
 @pytest.mark.asyncio
 async def test_fetch_candle_closes_zero_or_ws_down(mock_ws):
     mock_ws.is_running = False
-    sh = StreamHandler(mock_ws, ["frxEURUSD"], {})
-    assert await sh.fetch_candle_closes("frxEURUSD", 60, 3) == []
-    assert await sh.fetch_candle_closes("frxEURUSD", 60, 0) == []
+    sh = StreamHandler(mock_ws, ["R_100"], {})
+    assert await sh.fetch_candle_closes("R_100", 60, 3) == []
+    assert await sh.fetch_candle_closes("R_100", 60, 0) == []
 
 
 @pytest.mark.asyncio
 async def test_fetch_candle_closes_api_error(mock_ws):
     mock_ws.is_running = True
     mock_ws.send = AsyncMock(return_value={"error": {"code": "x"}})
-    sh = StreamHandler(mock_ws, ["frxEURUSD"], {})
-    assert await sh.fetch_candle_closes("frxEURUSD", 300, 2) == []
+    sh = StreamHandler(mock_ws, ["R_100"], {})
+    assert await sh.fetch_candle_closes("R_100", 300, 2) == []
 
 
 @pytest.mark.asyncio
 async def test_fetch_candle_closes_send_raises(mock_ws):
     mock_ws.is_running = True
     mock_ws.send = AsyncMock(side_effect=RuntimeError("x"))
-    sh = StreamHandler(mock_ws, ["frxEURUSD"], {})
-    assert await sh.fetch_candle_closes("frxEURUSD", 300, 2) == []
+    sh = StreamHandler(mock_ws, ["R_100"], {})
+    assert await sh.fetch_candle_closes("R_100", 300, 2) == []
 
 
 @pytest.mark.asyncio
 async def test_fetch_candle_closes_skips_invalid_rows(mock_ws):
     mock_ws.is_running = True
     mock_ws.send = AsyncMock(return_value={"candles": [{"close": "10"}, {"invalid": True}, {"close": "not-float"}]})
-    sh = StreamHandler(mock_ws, ["frxEURUSD"], {})
-    assert await sh.fetch_candle_closes("frxEURUSD", 300, 10) == [10.0]
+    sh = StreamHandler(mock_ws, ["R_100"], {})
+    assert await sh.fetch_candle_closes("R_100", 300, 10) == [10.0]
 
 
 @pytest.mark.asyncio
@@ -177,8 +177,8 @@ async def test_fetch_candle_ohlc_returns_tuples(mock_ws):
             ]
         }
     )
-    sh = StreamHandler(mock_ws, ["frxEURUSD"], {"buffer_limit": 10})
-    rows = await sh.fetch_candle_ohlc("frxEURUSD", 300, 5)
+    sh = StreamHandler(mock_ws, ["R_100"], {"buffer_limit": 10})
+    rows = await sh.fetch_candle_ohlc("R_100", 300, 5)
     assert rows == [(1.0, 2.0, 0.5, 1.5), (2.0, 3.0, 1.0, 2.5)]
     req = mock_ws.send.await_args.args[0]
     assert req["granularity"] == 300
@@ -188,32 +188,32 @@ async def test_fetch_candle_ohlc_returns_tuples(mock_ws):
 @pytest.mark.asyncio
 async def test_fetch_candle_ohlc_unknown_symbol(mock_ws):
     mock_ws.is_running = True
-    sh = StreamHandler(mock_ws, ["frxEURUSD"], {})
+    sh = StreamHandler(mock_ws, ["R_100"], {})
     assert await sh.fetch_candle_ohlc("OTHER", 300, 5) == []
 
 
 @pytest.mark.asyncio
 async def test_fetch_candle_ohlc_zero_or_ws_down(mock_ws):
     mock_ws.is_running = False
-    sh = StreamHandler(mock_ws, ["frxEURUSD"], {})
-    assert await sh.fetch_candle_ohlc("frxEURUSD", 60, 3) == []
-    assert await sh.fetch_candle_ohlc("frxEURUSD", 60, 0) == []
+    sh = StreamHandler(mock_ws, ["R_100"], {})
+    assert await sh.fetch_candle_ohlc("R_100", 60, 3) == []
+    assert await sh.fetch_candle_ohlc("R_100", 60, 0) == []
 
 
 @pytest.mark.asyncio
 async def test_fetch_candle_ohlc_api_error(mock_ws):
     mock_ws.is_running = True
     mock_ws.send = AsyncMock(return_value={"error": {"code": "x"}})
-    sh = StreamHandler(mock_ws, ["frxEURUSD"], {})
-    assert await sh.fetch_candle_ohlc("frxEURUSD", 300, 2) == []
+    sh = StreamHandler(mock_ws, ["R_100"], {})
+    assert await sh.fetch_candle_ohlc("R_100", 300, 2) == []
 
 
 @pytest.mark.asyncio
 async def test_fetch_candle_ohlc_send_raises(mock_ws):
     mock_ws.is_running = True
     mock_ws.send = AsyncMock(side_effect=RuntimeError("x"))
-    sh = StreamHandler(mock_ws, ["frxEURUSD"], {})
-    assert await sh.fetch_candle_ohlc("frxEURUSD", 300, 2) == []
+    sh = StreamHandler(mock_ws, ["R_100"], {})
+    assert await sh.fetch_candle_ohlc("R_100", 300, 2) == []
 
 
 @pytest.mark.asyncio
@@ -228,5 +228,5 @@ async def test_fetch_candle_ohlc_skips_invalid_rows(mock_ws):
             ]
         }
     )
-    sh = StreamHandler(mock_ws, ["frxEURUSD"], {})
-    assert await sh.fetch_candle_ohlc("frxEURUSD", 300, 10) == [(1.0, 2.0, 1.0, 1.0)]
+    sh = StreamHandler(mock_ws, ["R_100"], {})
+    assert await sh.fetch_candle_ohlc("R_100", 300, 10) == [(1.0, 2.0, 1.0, 1.0)]

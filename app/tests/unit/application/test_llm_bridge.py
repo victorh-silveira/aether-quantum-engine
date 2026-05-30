@@ -30,7 +30,7 @@ def test_build_institutional_pa_bundle_medallion_shape():
 
 def test_iter_llm_prompt_audit_sections_covers_blocks_sent_to_llm():
     rows = iter_llm_prompt_audit_sections(
-        "frxEURUSD",
+        "R_100",
         "mapa",
         "estrutura",
         "filtro",
@@ -185,7 +185,7 @@ async def test_build_symbol_prompt_with_real_stream_coverage():
             mtf_d,
             sw_c,
             _macro_snap,
-        ) = await build_symbol_prompt(orch, "frxEURUSD", runtime)
+        ) = await build_symbol_prompt(orch, "R_100", runtime)
 
         assert "US_CLUSTER" in prompt
         assert "MACRO_CONFLUENCIA" in prompt
@@ -257,5 +257,5 @@ async def test_build_symbol_prompt_stream_exception_fallback():
             mtf_d,
             sw_c,
             _macro_snap,
-        ) = await build_symbol_prompt(orch, "frxEURUSD", runtime)
+        ) = await build_symbol_prompt(orch, "R_100", runtime)
         assert "N/A" not in prompt or "MACRO_CONFLUENCIA" in prompt

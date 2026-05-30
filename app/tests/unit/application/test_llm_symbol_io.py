@@ -23,7 +23,7 @@ async def test_request_llm_payload_propaga_call_normalizado():
         new_callable=AsyncMock,
         return_value=("CALL", True, MOCK_LLM_CALL_LINE),
     ) as gen:
-        payload = await request_llm_payload(orch, "frxEURUSD", runtime, "p", system="s")
+        payload = await request_llm_payload(orch, "R_100", runtime, "p", system="s")
     gen.assert_awaited_once()
     assert "allow_payload_fallback" not in gen.await_args.kwargs
     assert payload["_direction_normalized"] == "CALL"
@@ -49,7 +49,7 @@ async def test_request_llm_payload_sem_token_valido_fallback_put():
         new_callable=AsyncMock,
         return_value=("WAIT", True, "WAIT"),
     ):
-        payload = await request_llm_payload(orch, "frxEURUSD", runtime, "p", system="s")
+        payload = await request_llm_payload(orch, "R_100", runtime, "p", system="s")
     assert payload["_direction_normalized"] is None
     assert payload["_llm_direction_from_api"] is True
 
@@ -72,7 +72,7 @@ async def test_request_llm_payload_wait_api_usa_cf30_fallback():
         new_callable=AsyncMock,
         return_value=("WAIT", True, "WAIT"),
     ):
-        payload = await request_llm_payload(orch, "frxEURUSD", runtime, pr, system="s")
+        payload = await request_llm_payload(orch, "R_100", runtime, pr, system="s")
     assert payload["_direction_normalized"] is None
     assert payload["_llm_direction_from_api"] is True
 
@@ -151,7 +151,7 @@ async def test_request_llm_payload_clusters_extraction():
         new_callable=AsyncMock,
         return_value=("PUT", True, raw_response),
     ):
-        payload = await request_llm_payload(orch, "frxEURUSD", runtime, "p", system="s")
+        payload = await request_llm_payload(orch, "R_100", runtime, "p", system="s")
 
     assert payload["_direction_normalized"] == "PUT"
     assert payload["us_cluster"] == "PUT"

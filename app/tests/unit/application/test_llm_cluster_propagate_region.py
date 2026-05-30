@@ -47,12 +47,12 @@ def test_cluster_region_active_respects_exclusive_macro():
 
 def test_propagate_tries_fallback_index_when_leader_blocked():
     orch = MagicMock()
-    orch.anchor = "frxEURUSD"
-    orch.symbols = ["frxEURUSD", "OTC_SPC", "OTC_NDX"]
+    orch.anchor = "R_100"
+    orch.symbols = ["R_100", "R_25", "R_50"]
     orch.config = {
         "llm": {"min_conviction_execute": 0.60},
         "strategy": {
-            "clusters": {"us": ["OTC_SPC", "OTC_NDX"], "eu": []},
+            "clusters": {"us": ["R_25", "R_50"], "eu": []},
             "correlation": {
                 "enabled": True,
                 "exclusive_cluster_by_macro": False,
@@ -71,9 +71,9 @@ def test_propagate_tries_fallback_index_when_leader_blocked():
         direction = kwargs["target_direction"]
         kwargs["decisions"][sym] = {
             "direction": direction,
-            "metrics": {"execute": sym == "OTC_NDX"},
+            "metrics": {"execute": sym == "R_50"},
         }
-        if sym == "OTC_SPC":
+        if sym == "R_25":
             return None, f"{sym}[C]:statarb_z_misaligned", None, None
         return f"{sym}[C]", None, None, None
 
@@ -83,29 +83,29 @@ def test_propagate_tries_fallback_index_when_leader_blocked():
     ):
         propagate_cluster_decisions(
             orch,
-            anchor_sym="frxEURUSD",
+            anchor_sym="R_100",
             direction=TradeDirection.CALL,
             metrics=_base_metrics(
                 us_cluster="CALL",
                 eu_cluster="CALL",
-                statarb_spreads={"OTC_SPC": -2.0, "OTC_NDX": 0.2},
+                statarb_spreads={"R_25": -2.0, "R_50": 0.2},
                 hmm_state=0,
             ),
             decisions=decisions,
             cid="C0099",
         )
-    assert "OTC_NDX" in decisions
-    assert decisions["OTC_NDX"]["metrics"]["execute"] is True
+    assert "R_50" in decisions
+    assert decisions["R_50"]["metrics"]["execute"] is True
 
 
 def test_propagate_fallback_can_invert_on_alternate_index():
     orch = MagicMock()
-    orch.anchor = "frxEURUSD"
-    orch.symbols = ["frxEURUSD", "OTC_SPC", "OTC_NDX"]
+    orch.anchor = "R_100"
+    orch.symbols = ["R_100", "R_25", "R_50"]
     orch.config = {
         "llm": {"min_conviction_execute": 0.60},
         "strategy": {
-            "clusters": {"us": ["OTC_SPC", "OTC_NDX"], "eu": []},
+            "clusters": {"us": ["R_25", "R_50"], "eu": []},
             "correlation": {
                 "enabled": True,
                 "exclusive_cluster_by_macro": False,
@@ -125,7 +125,7 @@ def test_propagate_fallback_can_invert_on_alternate_index():
             "direction": kwargs["target_direction"],
             "metrics": {"execute": False},
         }
-        if sym == "OTC_SPC":
+        if sym == "R_25":
             return None, f"{sym}[C]:statarb_z_misaligned", None, None
         return None, None, f"{sym}[C->P]", None
 
@@ -135,12 +135,12 @@ def test_propagate_fallback_can_invert_on_alternate_index():
     ):
         propagate_cluster_decisions(
             orch,
-            anchor_sym="frxEURUSD",
+            anchor_sym="R_100",
             direction=TradeDirection.CALL,
             metrics=_base_metrics(
                 us_cluster="CALL",
                 eu_cluster="CALL",
-                statarb_spreads={"OTC_SPC": -2.0, "OTC_NDX": 0.2},
+                statarb_spreads={"R_25": -2.0, "R_50": 0.2},
                 hmm_state=0,
             ),
             decisions=decisions,
@@ -210,12 +210,12 @@ def test_propagate_tries_fallback_when_leader_repeat_loss_with_invert():
 
 def test_propagate_fallback_records_blocked_alternate():
     orch = MagicMock()
-    orch.anchor = "frxEURUSD"
-    orch.symbols = ["frxEURUSD", "OTC_SPC", "OTC_NDX"]
+    orch.anchor = "R_100"
+    orch.symbols = ["R_100", "R_25", "R_50"]
     orch.config = {
         "llm": {"min_conviction_execute": 0.60},
         "strategy": {
-            "clusters": {"us": ["OTC_SPC", "OTC_NDX"], "eu": []},
+            "clusters": {"us": ["R_25", "R_50"], "eu": []},
             "correlation": {
                 "enabled": True,
                 "exclusive_cluster_by_macro": False,
@@ -232,7 +232,7 @@ def test_propagate_fallback_records_blocked_alternate():
     def side_effect(*_args, **kwargs):
         sym = kwargs["target_sym"]
         kwargs["decisions"][sym] = {"direction": kwargs["target_direction"], "metrics": {"execute": False}}
-        if sym == "OTC_SPC":
+        if sym == "R_25":
             return None, f"{sym}[C]:statarb_z_misaligned", None, None
         return None, f"{sym}[C]:low_conviction", None, None
 
@@ -242,29 +242,29 @@ def test_propagate_fallback_records_blocked_alternate():
     ):
         propagate_cluster_decisions(
             orch,
-            anchor_sym="frxEURUSD",
+            anchor_sym="R_100",
             direction=TradeDirection.CALL,
             metrics=_base_metrics(
                 us_cluster="CALL",
                 eu_cluster="CALL",
-                statarb_spreads={"OTC_SPC": -2.0, "OTC_NDX": 0.2},
+                statarb_spreads={"R_25": -2.0, "R_50": 0.2},
                 hmm_state=0,
             ),
             decisions=decisions,
             cid="C0101",
         )
-    assert "OTC_SPC" in decisions and "OTC_NDX" in decisions
+    assert "R_25" in decisions and "R_50" in decisions
     assert any("CLUSTER_BLOCK" in str(c) for c in orch.logger.info.call_args_list)
 
 
 def test_propagate_fallback_returns_on_corrected_alternate():
     orch = MagicMock()
-    orch.anchor = "frxEURUSD"
-    orch.symbols = ["frxEURUSD", "OTC_SPC", "OTC_NDX"]
+    orch.anchor = "R_100"
+    orch.symbols = ["R_100", "R_25", "R_50"]
     orch.config = {
         "llm": {"min_conviction_execute": 0.60},
         "strategy": {
-            "clusters": {"us": ["OTC_SPC", "OTC_NDX"], "eu": []},
+            "clusters": {"us": ["R_25", "R_50"], "eu": []},
             "correlation": {
                 "enabled": True,
                 "exclusive_cluster_by_macro": False,
@@ -281,9 +281,9 @@ def test_propagate_fallback_returns_on_corrected_alternate():
     def side_effect(*_args, **kwargs):
         sym = kwargs["target_sym"]
         kwargs["decisions"][sym] = {"direction": kwargs["target_direction"], "metrics": {"execute": False}}
-        if sym == "OTC_SPC":
+        if sym == "R_25":
             return None, f"{sym}[C]:statarb_z_misaligned", None, None
-        return "OTC_NDX[P]", None, None, "OTC_NDX[C->P]"
+        return "R_50[P]", None, None, "R_50[C->P]"
 
     with patch(
         "src.application.services.llm.llm_cluster_propagate_region.apply_cluster_target_decision",
@@ -291,12 +291,12 @@ def test_propagate_fallback_returns_on_corrected_alternate():
     ):
         propagate_cluster_decisions(
             orch,
-            anchor_sym="frxEURUSD",
+            anchor_sym="R_100",
             direction=TradeDirection.CALL,
             metrics=_base_metrics(
                 us_cluster="CALL",
                 eu_cluster="CALL",
-                statarb_spreads={"OTC_SPC": -2.0, "OTC_NDX": 0.2},
+                statarb_spreads={"R_25": -2.0, "R_50": 0.2},
                 hmm_state=0,
             ),
             decisions=decisions,

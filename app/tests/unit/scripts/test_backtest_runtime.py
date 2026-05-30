@@ -8,7 +8,7 @@ from src.domain.models.trade import TradeDirection
 def _trade(bar: int, pnl: float):
     return SettledTrade(
         bar_index=bar,
-        symbol="OTC_SPC",
+        symbol="R_25",
         direction=TradeDirection.CALL,
         conviction=0.8,
         macro_tag="risk_on",

@@ -22,19 +22,19 @@ def test_rolling_wr_scores_builds_map():
     orch = MagicMock()
     orch.config = {"risk_management": {"kelly": {"dynamic_min_samples": 2}}}
     orch.risk_manager.get_wr_rolling_stats = MagicMock(side_effect=[(0.6, 3), (0.4, 1)])
-    scores = _rolling_wr_scores(orch, ["OTC_FCHI", "OTC_GDAXI"], {"statarb_blend_rolling_wr": True})
-    assert scores == {"OTC_FCHI": 0.6}
+    scores = _rolling_wr_scores(orch, ["R_75", "1HZ100V"], {"statarb_blend_rolling_wr": True})
+    assert scores == {"R_75": 0.6}
 
 
 def test_rolling_wr_scores_disabled_returns_none():
     orch = MagicMock()
-    assert _rolling_wr_scores(orch, ["OTC_FCHI"], {"statarb_blend_rolling_wr": False}) is None
+    assert _rolling_wr_scores(orch, ["R_75"], {"statarb_blend_rolling_wr": False}) is None
 
 
 def test_rolling_wr_scores_without_risk_manager():
     orch = MagicMock()
     orch.risk_manager = None
-    assert _rolling_wr_scores(orch, ["OTC_FCHI"], {"statarb_blend_rolling_wr": True}) is None
+    assert _rolling_wr_scores(orch, ["R_75"], {"statarb_blend_rolling_wr": True}) is None
 
 
 def test_min_conviction_execute_reads_risk_limits():
@@ -139,7 +139,7 @@ def test_cluster_execute_flag_skips_z_check_when_disabled():
             macro,
             corr,
             active_region="eu",
-            target_sym="OTC_FCHI",
+            target_sym="R_75",
             llm_cluster_explicit=True,
         )
         is True
@@ -164,7 +164,7 @@ def test_cluster_execute_blocks_when_us_cluster_weak_on_risk_on():
         macro_sentiment="risk_on",
         macro_us_strength_quant=0.40,
         macro_eu_strength_quant=0.90,
-        statarb_spreads={"OTC_DJI": -1.0},
+        statarb_spreads={"R_50": -1.0},
         hmm_state=0,
     )
     assert (
@@ -176,9 +176,9 @@ def test_cluster_execute_blocks_when_us_cluster_weak_on_risk_on():
             macro,
             corr,
             active_region="us",
-            target_sym="OTC_DJI",
+            target_sym="R_50",
             llm_cluster_explicit=True,
-            index_note="STATARB_BEST leader=OTC_DJI z=-1.00",
+            index_note="STATARB_BEST leader=R_50 z=-1.00",
         )
         == "macro_or_hmm_veto"
     )

@@ -50,8 +50,8 @@ async def test_collect_symbol_llm_decision_missing_rm_and_ohlc(mocker):
     orch = MagicMock()
     orch.risk_manager = None
     orch._active_cycle_id = 1
-    orch.symbols = ["frxEURUSD"]
-    orch.anchor = "frxEURUSD"
+    orch.symbols = ["R_100"]
+    orch.anchor = "R_100"
     orch.logger = MagicMock()
 
     mocker.patch(
@@ -83,7 +83,7 @@ async def test_collect_symbol_llm_decision_missing_rm_and_ohlc(mocker):
     }
 
     dir_final, metrics = await collect_symbol_llm_decision(
-        orch, sym="frxEURUSD", runtime=runtime, llm_metrics=llm_metrics
+        orch, sym="R_100", runtime=runtime, llm_metrics=llm_metrics
     )
     assert dir_final is None
     assert "LLM_EURUSD_AUSENTE" in metrics["llm_note"]

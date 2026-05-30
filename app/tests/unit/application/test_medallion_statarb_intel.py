@@ -17,9 +17,9 @@ def test_statarb_guard_intelligence_boost_put_and_trending_caution():
         cluster_status="active",
         macro_block="",
         fx_reference_line="",
-        us_parts=("OTC_SPC",),
-        eu_parts=("OTC_GDAXI",),
-        statarb_spreads={"frxEURUSD": 3.0},
+        us_parts=("R_25",),
+        eu_parts=("1HZ100V",),
+        statarb_spreads={"R_100": 3.0},
         hmm_state=0,
         hmm_prob=0.9,
     )
@@ -28,7 +28,7 @@ def test_statarb_guard_intelligence_boost_put_and_trending_caution():
         0.80,
         snap_mr,
         {**RELAXED_MACRO_CFG, "statarb_z_threshold": 2.5, "macro_intelligence_only": True},
-        sym="frxEURUSD",
+        sym="R_100",
     )
     assert direction == TradeDirection.PUT
     assert conviction == pytest.approx(0.88)
@@ -45,9 +45,9 @@ def test_statarb_guard_intelligence_boost_put_and_trending_caution():
         cluster_status="active",
         macro_block="",
         fx_reference_line="",
-        us_parts=("OTC_SPC",),
-        eu_parts=("OTC_GDAXI",),
-        statarb_spreads={"frxEURUSD": 3.0},
+        us_parts=("R_25",),
+        eu_parts=("1HZ100V",),
+        statarb_spreads={"R_100": 3.0},
         hmm_state=1,
         hmm_prob=0.9,
     )
@@ -56,7 +56,7 @@ def test_statarb_guard_intelligence_boost_put_and_trending_caution():
         0.80,
         snap_tr,
         {**RELAXED_MACRO_CFG, "statarb_z_threshold": 2.5, "macro_intelligence_only": True},
-        sym="frxEURUSD",
+        sym="R_100",
     )
     assert conv2 == pytest.approx(0.75)
     assert "STATARB_INTEL trending_caution" in note2
@@ -74,9 +74,9 @@ def test_statarb_guard_intelligence_spread_diverge():
         cluster_status="active",
         macro_block="",
         fx_reference_line="",
-        us_parts=("OTC_SPC",),
-        eu_parts=("OTC_GDAXI",),
-        statarb_spreads={"frxEURUSD": 3.0},
+        us_parts=("R_25",),
+        eu_parts=("1HZ100V",),
+        statarb_spreads={"R_100": 3.0},
         hmm_state=0,
         hmm_prob=0.9,
     )
@@ -85,7 +85,7 @@ def test_statarb_guard_intelligence_spread_diverge():
         0.80,
         snap,
         {**RELAXED_MACRO_CFG, "statarb_z_threshold": 2.5, "macro_intelligence_only": True},
-        sym="frxEURUSD",
+        sym="R_100",
     )
     assert direction == TradeDirection.CALL
     assert conviction == pytest.approx(0.80)
@@ -104,9 +104,9 @@ def test_statarb_guard_intelligence_neutral_z_no_adjustment():
         cluster_status="active",
         macro_block="",
         fx_reference_line="",
-        us_parts=("OTC_SPC",),
-        eu_parts=("OTC_GDAXI",),
-        statarb_spreads={"frxEURUSD": 0.5},
+        us_parts=("R_25",),
+        eu_parts=("1HZ100V",),
+        statarb_spreads={"R_100": 0.5},
         hmm_state=0,
         hmm_prob=0.9,
     )
@@ -115,7 +115,7 @@ def test_statarb_guard_intelligence_neutral_z_no_adjustment():
         0.80,
         snap,
         {**RELAXED_MACRO_CFG, "statarb_z_threshold": 2.5, "macro_intelligence_only": True},
-        sym="frxEURUSD",
+        sym="R_100",
     )
     assert direction == TradeDirection.CALL
     assert conviction == pytest.approx(0.80)
@@ -135,9 +135,9 @@ def test_statarb_guard_intelligence_boost_call_without_block():
         cluster_status="active",
         macro_block="",
         fx_reference_line="",
-        us_parts=("OTC_SPC",),
-        eu_parts=("OTC_GDAXI",),
-        statarb_spreads={"frxEURUSD": -3.0},
+        us_parts=("R_25",),
+        eu_parts=("1HZ100V",),
+        statarb_spreads={"R_100": -3.0},
         hmm_state=0,
         hmm_prob=0.9,
     )
@@ -146,7 +146,7 @@ def test_statarb_guard_intelligence_boost_call_without_block():
         0.80,
         snap,
         {**RELAXED_MACRO_CFG, "statarb_z_threshold": 2.5, "macro_intelligence_only": True},
-        sym="frxEURUSD",
+        sym="R_100",
     )
     assert direction == TradeDirection.CALL
     assert conviction == pytest.approx(0.88)

@@ -9,26 +9,26 @@ from src.application.services.llm.macro_snapshot_fetch import fetch_macro_snapsh
 
 def test_apply_m5_fallback_upgrades_flat_us_to_down():
     m15 = {
-        "OTC_SPC": [100.0, 100.03],
-        "OTC_NDX": [100.0, 100.02],
-        "OTC_FCHI": [100.0, 95.0],
-        "OTC_GDAXI": [100.0, 94.5],
+        "R_25": [100.0, 100.03],
+        "R_50": [100.0, 100.02],
+        "R_75": [100.0, 95.0],
+        "1HZ100V": [100.0, 94.5],
     }
     snap = build_macro_snapshot(
-        ["OTC_SPC", "OTC_NDX"],
-        ["OTC_FCHI", "OTC_GDAXI"],
+        ["R_25", "R_50"],
+        ["R_75", "1HZ100V"],
         m15,
         {"min_indices_for_vote": 2, "cluster_min_move_pct": 0.10},
     )
     assert snap.us_dir == "flat"
     m5 = {
-        "OTC_SPC": [100.0, 99.0, 98.5, 98.0],
-        "OTC_NDX": [100.0, 99.2, 98.8, 98.3],
+        "R_25": [100.0, 99.0, 98.5, 98.0],
+        "R_50": [100.0, 99.2, 98.8, 98.3],
     }
     out = apply_m5_fallback_to_snapshot(
         snap,
-        us_symbols=["OTC_SPC", "OTC_NDX"],
-        eu_symbols=["OTC_FCHI", "OTC_GDAXI"],
+        us_symbols=["R_25", "R_50"],
+        eu_symbols=["R_75", "1HZ100V"],
         fallback_closes=m5,
         macro_cfg={"cluster_fallback_min_move_pct": 0.05, "min_indices_for_vote": 2},
     )
@@ -41,9 +41,9 @@ def test_apply_m5_fallback_no_change_when_disabled():
     snap = empty_macro_snapshot()
     out = apply_m5_fallback_to_snapshot(
         snap,
-        us_symbols=["OTC_SPC"],
-        eu_symbols=["OTC_FCHI"],
-        fallback_closes={"OTC_SPC": [100.0, 95.0]},
+        us_symbols=["R_25"],
+        eu_symbols=["R_75"],
+        fallback_closes={"R_25": [100.0, 95.0]},
         macro_cfg={"cluster_use_m5_fallback_when_flat": False},
     )
     assert out is snap
@@ -51,26 +51,26 @@ def test_apply_m5_fallback_no_change_when_disabled():
 
 def test_apply_m5_fallback_upgrades_flat_eu_to_down():
     m15 = {
-        "OTC_SPC": [100.0, 105.0],
-        "OTC_NDX": [100.0, 104.0],
-        "OTC_FCHI": [100.0, 100.02],
-        "OTC_GDAXI": [100.0, 100.01],
+        "R_25": [100.0, 105.0],
+        "R_50": [100.0, 104.0],
+        "R_75": [100.0, 100.02],
+        "1HZ100V": [100.0, 100.01],
     }
     snap = build_macro_snapshot(
-        ["OTC_SPC", "OTC_NDX"],
-        ["OTC_FCHI", "OTC_GDAXI"],
+        ["R_25", "R_50"],
+        ["R_75", "1HZ100V"],
         m15,
         {"min_indices_for_vote": 2, "cluster_min_move_pct": 0.10},
     )
     assert snap.eu_dir == "flat"
     m5 = {
-        "OTC_FCHI": [100.0, 99.0, 98.5, 98.0],
-        "OTC_GDAXI": [100.0, 99.2, 98.8, 98.3],
+        "R_75": [100.0, 99.0, 98.5, 98.0],
+        "1HZ100V": [100.0, 99.2, 98.8, 98.3],
     }
     out = apply_m5_fallback_to_snapshot(
         snap,
-        us_symbols=["OTC_SPC", "OTC_NDX"],
-        eu_symbols=["OTC_FCHI", "OTC_GDAXI"],
+        us_symbols=["R_25", "R_50"],
+        eu_symbols=["R_75", "1HZ100V"],
         fallback_closes=m5,
         macro_cfg={"cluster_fallback_min_move_pct": 0.05, "min_indices_for_vote": 2},
     )
@@ -85,7 +85,7 @@ async def test_fetch_macro_snapshot_applies_m5_when_m15_flat():
         async def fetch_candle_closes(sym, gran, _bars):
             if gran == 900:
                 return [100.0, 100.03]
-            return [100.0, 99.0, 98.5, 98.0, 97.5] if sym == "OTC_SPC" else [100.0, 98.8, 98.2, 97.8, 97.2]
+            return [100.0, 99.0, 98.5, 98.0, 97.5] if sym == "R_25" else [100.0, 98.8, 98.2, 97.8, 97.2]
 
     DummyStream.fetch_candle_closes._is_coroutine = True
 
@@ -94,7 +94,7 @@ async def test_fetch_macro_snapshot_applies_m5_when_m15_flat():
         logger = MagicMock()
         config = {
             "strategy": {
-                "clusters": {"us": ["OTC_SPC", "OTC_NDX"], "eu": ["OTC_FCHI"]},
+                "clusters": {"us": ["R_25", "R_50"], "eu": ["R_75"]},
                 "macro": {
                     "min_indices_for_vote": 2,
                     "cluster_min_move_pct": 0.10,

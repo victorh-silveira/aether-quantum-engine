@@ -57,16 +57,16 @@ def test_exclusive_cluster_config_sources():
 
 
 def test_cluster_region_for_symbol():
-    assert cluster_region_for_symbol("OTC_SPC", us_targets=["OTC_SPC"], eu_targets=["OTC_FCHI"]) == "us"
-    assert cluster_region_for_symbol("OTC_FCHI", us_targets=["OTC_SPC"], eu_targets=["OTC_FCHI"]) == "eu"
-    assert cluster_region_for_symbol("frxEURUSD", us_targets=["OTC_SPC"], eu_targets=["OTC_FCHI"]) is None
+    assert cluster_region_for_symbol("R_25", us_targets=["R_25"], eu_targets=["R_75"]) == "us"
+    assert cluster_region_for_symbol("R_75", us_targets=["R_25"], eu_targets=["R_75"]) == "eu"
+    assert cluster_region_for_symbol("R_100", us_targets=["R_25"], eu_targets=["R_75"]) is None
 
 
 @pytest.mark.asyncio
 async def test_collect_llm_decisions_exclusive_risk_on_us_only():
     orch = MagicMock()
-    orch.anchor = "frxEURUSD"
-    orch.symbols = ["frxEURUSD", "OTC_SPC", "OTC_FCHI"]
+    orch.anchor = "R_100"
+    orch.symbols = ["R_100", "R_25", "R_75"]
     orch._active_cycle_id = 2
     orch.config = {
         "strategy": {
@@ -75,7 +75,7 @@ async def test_collect_llm_decisions_exclusive_risk_on_us_only():
                 "exclusive_cluster_by_macro": True,
                 "cluster_invert_on_block": False,
             },
-            "clusters": {"us": ["OTC_SPC"], "eu": ["OTC_FCHI"]},
+            "clusters": {"us": ["R_25"], "eu": ["R_75"]},
         },
         "llm": {"max_decision_latency_seconds": 10, "min_conviction_execute": 0.5},
     }
@@ -95,6 +95,6 @@ async def test_collect_llm_decisions_exclusive_risk_on_us_only():
         )
         decisions = await collect_llm_decisions(orch)
 
-    assert "OTC_SPC" in decisions
-    assert decisions["OTC_SPC"]["direction"] == TradeDirection.CALL
-    assert "OTC_FCHI" not in decisions
+    assert "R_25" in decisions
+    assert decisions["R_25"]["direction"] == TradeDirection.CALL
+    assert "R_75" not in decisions

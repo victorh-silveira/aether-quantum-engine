@@ -13,7 +13,7 @@ async def test_execution_manager_log_line_contains_exec_and_direction(orch_confi
         orch = Orchestrator(orch_config, "token")
         with patch.object(orch.executor.logger, "debug") as mock_dbg:
             orch.executor._log_exec(
-                "OTC_FCHI",
+                "R_75",
                 TradeDirection.CALL,
                 1.0,
                 {"conviction": 1.0},
@@ -29,14 +29,28 @@ def test_execution_manager_collect_orders_keeps_execute_false_if_forced_in_dict(
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
-        orch.symbols = ["frxEURUSD", "OTC_SPC", "OTC_GDAXI"]
+        orch.symbols = ["R_100", "R_25", "1HZ100V"]
         decisions = {
-            "frxEURUSD": {"direction": TradeDirection.CALL, "metrics": {"conviction": 0.8, "execute": False}},
-            "OTC_SPC": {"direction": TradeDirection.PUT, "metrics": {"conviction": 0.9, "execute": True}},
+            "R_100": {"direction": TradeDirection.CALL, "metrics": {"conviction": 0.8, "execute": False}},
+            "R_25": {"direction": TradeDirection.PUT, "metrics": {"conviction": 0.9, "execute": True}},
         }
         orders = orch.executor._collect_orders(decisions, include_anchor=True)
         assert len(orders) == 1
-        assert orders[0][0] == "OTC_SPC"
+        assert orders[0][0] == "R_25"
+
+
+def test_execution_manager_collect_orders_skips_none_direction(orch_config):
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
+        mock_ws_class.return_value.subscribe = MagicMock()
+        orch = Orchestrator(orch_config, "token")
+        orch.symbols = ["R_100", "R_25"]
+        decisions = {
+            "R_100": {"direction": None, "metrics": {"conviction": 0.9, "execute": True}},
+            "R_25": {"direction": TradeDirection.PUT, "metrics": {"conviction": 0.9, "execute": True}},
+        }
+        orders = orch.executor._collect_orders(decisions, include_anchor=True)
+        assert len(orders) == 1
+        assert orders[0][0] == "R_25"
 
 
 @pytest.mark.asyncio
@@ -45,10 +59,10 @@ async def test_execute_cluster_logs_exec_pause_on_stop_win(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 2
-        orch.symbols = ["frxEURUSD", "OTC_FCHI"]
+        orch.symbols = ["R_100", "R_75"]
         orch.risk_manager.stake_block_reason = MagicMock(return_value="stop_win")
         decisions = {
-            "OTC_FCHI": {"direction": TradeDirection.PUT, "metrics": {"conviction": 0.7, "execute": True}},
+            "R_75": {"direction": TradeDirection.PUT, "metrics": {"conviction": 0.7, "execute": True}},
         }
         with (
             patch.object(orch.executor.logger, "info") as mock_info,
@@ -67,7 +81,7 @@ async def test_execute_orders_skips_zero_stake_without_logging(orch_config):
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 9
         orch.risk_manager.calculate_stake = MagicMock(return_value=0.0)
-        orders = [("OTC_FCHI", TradeDirection.CALL, {"conviction": 0.7})]
+        orders = [("R_75", TradeDirection.CALL, {"conviction": 0.7})]
         count = await orch.executor._execute_orders(orders, 0.0, 49.0)
         assert count == 0
 
@@ -83,12 +97,12 @@ def test_log_execution_blockers_stake_zero(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 4
-        orch.symbols = ["frxEURUSD", "OTC_FCHI"]
+        orch.symbols = ["R_100", "R_75"]
         orch.risk_manager.calculate_stake = MagicMock(return_value=0.0)
         orch.risk_manager.stake_block_reason = MagicMock(return_value="kelly_no_edge")
         with patch.object(orch.executor.logger, "info") as mock_info:
             orch.executor._log_execution_blockers(
-                {"OTC_FCHI": {"direction": TradeDirection.PUT, "metrics": {"conviction": 0.7, "execute": True}}},
+                {"R_75": {"direction": TradeDirection.PUT, "metrics": {"conviction": 0.7, "execute": True}}},
                 include_anchor=False,
             )
         assert "kelly_no_edge" in mock_info.call_args.args[2]
@@ -99,10 +113,10 @@ def test_log_execution_blockers_sem_direcao(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 3
-        orch.symbols = ["frxEURUSD", "OTC_FCHI"]
+        orch.symbols = ["R_100", "R_75"]
         with patch.object(orch.executor.logger, "info") as mock_info:
             orch.executor._log_execution_blockers(
-                {"OTC_FCHI": {"direction": None, "metrics": {"execute": True}}},
+                {"R_75": {"direction": None, "metrics": {"execute": True}}},
                 include_anchor=False,
             )
         assert "sem_direcao" in mock_info.call_args.args[2]
@@ -116,10 +130,10 @@ async def test_execute_cluster_skips_on_refresh_without_llm(orch_config):
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 4
         orch._cluster_refresh_without_llm = True
-        orch.symbols = ["frxEURUSD", "OTC_FCHI"]
+        orch.symbols = ["R_100", "R_75"]
         decisions = {
-            "frxEURUSD": {"direction": TradeDirection.CALL, "metrics": {"macro_sentiment": "risk_off"}},
-            "OTC_FCHI": {
+            "R_100": {"direction": TradeDirection.CALL, "metrics": {"macro_sentiment": "risk_off"}},
+            "R_75": {
                 "direction": None,
                 "metrics": {"conviction": 0.7, "execute": False, "macro_sentiment": "risk_off"},
             },
@@ -144,18 +158,18 @@ async def test_execute_cluster_allows_refresh_divergence_quant_validated(orch_co
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 5
         orch._cluster_refresh_without_llm = True
-        orch.symbols = ["frxEURUSD", "OTC_DJI"]
+        orch.symbols = ["R_100", "R_50"]
         orch.risk_manager.calculate_stake = MagicMock(return_value=2.0)
         decisions = {
-            "frxEURUSD": {"direction": TradeDirection.CALL, "metrics": {"macro_sentiment": "divergence_us_leads"}},
-            "OTC_DJI": {
+            "R_100": {"direction": TradeDirection.CALL, "metrics": {"macro_sentiment": "divergence_us_leads"}},
+            "R_50": {
                 "direction": TradeDirection.PUT,
                 "metrics": {
                     "conviction": 0.7,
                     "execute": True,
                     "macro_sentiment": "divergence_us_leads",
                     "llm_statarb_dir_corrected": True,
-                    "cluster_target_sym": "OTC_DJI",
+                    "cluster_target_sym": "R_50",
                 },
             },
         }
@@ -173,9 +187,9 @@ async def test_execute_cluster_logs_exec_none_when_execute_false(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 1
-        orch.symbols = ["frxEURUSD", "OTC_FCHI"]
+        orch.symbols = ["R_100", "R_75"]
         decisions = {
-            "OTC_FCHI": {"direction": TradeDirection.PUT, "metrics": {"conviction": 0.7, "execute": False}},
+            "R_75": {"direction": TradeDirection.PUT, "metrics": {"conviction": 0.7, "execute": False}},
         }
         with (
             patch.object(orch.executor.logger, "info") as mock_info,
@@ -209,7 +223,7 @@ async def test_execute_orders_market_closed_emits_warning(orch_config):
         orch._active_cycle_id = 1
         orch.risk_manager.calculate_stake = MagicMock(return_value=2.0)
         orch.executor._place_order = AsyncMock(side_effect=Exception("This market is presently closed."))
-        orders = [("OTC_SSMI", TradeDirection.CALL, {"conviction": 0.8})]
+        orders = [("1HZ50V", TradeDirection.CALL, {"conviction": 0.8})]
         with patch.object(orch.executor.logger, "warning") as mock_warn:
             count = await orch.executor._execute_orders(orders, 0.0, 100.0)
         assert count == 0

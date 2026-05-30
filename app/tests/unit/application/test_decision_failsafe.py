@@ -12,10 +12,10 @@ from src.application.services.llm.symbol_decision import collect_symbol_llm_deci
 async def test_collect_symbol_llm_decision_failsafe_force_direction():
     """Bloqueia execucao quando a LLM nao devolve EURUSD CALL ou PUT."""
     orch = MagicMock()
-    orch.anchor = "frxEURUSD"
+    orch.anchor = "R_100"
     orch.config = {"strategy": {"correlation": {"enabled": False}}}
     orch._active_cycle_id = 1
-    orch.symbols = ["frxEURUSD"]
+    orch.symbols = ["R_100"]
     orch.logger = MagicMock()
 
     ctx = {"zscore_value": 2.5, "regime_label": "range"}
@@ -62,7 +62,7 @@ async def test_collect_symbol_llm_decision_failsafe_force_direction():
         }
 
         direction, metrics = await collect_symbol_llm_decision(
-            orch, sym="frxEURUSD", runtime=runtime, llm_metrics=llm_metrics
+            orch, sym="R_100", runtime=runtime, llm_metrics=llm_metrics
         )
 
         assert direction is None

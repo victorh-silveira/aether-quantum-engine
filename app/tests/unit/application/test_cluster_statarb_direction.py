@@ -78,9 +78,9 @@ def test_apply_cluster_target_inverts_on_block_when_not_llm_side_invert():
     ):
         propagated, blocked, inverted, corrected = apply_cluster_target_decision(
             orch,
-            target_sym="OTC_DJI",
+            target_sym="R_50",
             target_direction=TradeDirection.CALL,
-            index_note="STATARB_BEST leader=OTC_DJI z=2.90",
+            index_note="STATARB_BEST leader=R_50 z=2.90",
             metrics={
                 "conviction": 0.70,
                 "macro_sentiment": "divergence_us_leads",
@@ -88,7 +88,7 @@ def test_apply_cluster_target_inverts_on_block_when_not_llm_side_invert():
                 "hmm_state": 0,
             },
             decisions=decisions,
-            anchor_sym="frxEURUSD",
+            anchor_sym="R_100",
             conviction=0.70,
             macro_cfg={"assert_min_hmm_prob": 0.0, "allowed_execute_tags": ("divergence_us_leads",)},
             corr_cfg={"cluster_invert_llm_side": False, "cluster_invert_on_block": True},
@@ -97,9 +97,9 @@ def test_apply_cluster_target_inverts_on_block_when_not_llm_side_invert():
             macro_tag="divergence_us_leads",
             invert_on_block=True,
         )
-    assert propagated == "OTC_DJI[P]"
-    assert inverted == "OTC_DJI[C->P]"
-    assert decisions["OTC_DJI"]["metrics"]["llm_block_reason"] == "allowed_inverted"
+    assert propagated == "R_50[P]"
+    assert inverted == "R_50[C->P]"
+    assert decisions["R_50"]["metrics"]["llm_block_reason"] == "allowed_inverted"
 
 
 def test_apply_cluster_target_inverts_on_divergence_statarb_block():
@@ -114,9 +114,9 @@ def test_apply_cluster_target_inverts_on_divergence_statarb_block():
     ):
         propagated, blocked, inverted, corrected = apply_cluster_target_decision(
             orch,
-            target_sym="OTC_DJI",
+            target_sym="R_50",
             target_direction=TradeDirection.CALL,
-            index_note="STATARB_BEST leader=OTC_DJI z=2.90",
+            index_note="STATARB_BEST leader=R_50 z=2.90",
             metrics={
                 "conviction": 0.70,
                 "macro_sentiment": "divergence_us_leads",
@@ -124,7 +124,7 @@ def test_apply_cluster_target_inverts_on_divergence_statarb_block():
                 "hmm_state": 0,
             },
             decisions=decisions,
-            anchor_sym="frxEURUSD",
+            anchor_sym="R_100",
             conviction=0.70,
             macro_cfg={"assert_min_hmm_prob": 0.0, "allowed_execute_tags": ("divergence_us_leads",)},
             corr_cfg={"cluster_invert_llm_side": True, "cluster_invert_on_block": True},
@@ -133,8 +133,8 @@ def test_apply_cluster_target_inverts_on_divergence_statarb_block():
             macro_tag="divergence_us_leads",
             invert_on_block=True,
         )
-    assert propagated == "OTC_DJI[P]"
-    assert inverted == "OTC_DJI[C->P]"
+    assert propagated == "R_50[P]"
+    assert inverted == "R_50[C->P]"
     assert corrected is None
 
 
@@ -150,7 +150,7 @@ def test_apply_cluster_target_quarantine_sets_invert_block_reason():
     ):
         _, blocked, _, _ = apply_cluster_target_decision(
             orch,
-            target_sym="OTC_DJI",
+            target_sym="R_50",
             target_direction=TradeDirection.CALL,
             index_note="STATARB_BEST",
             metrics={
@@ -160,7 +160,7 @@ def test_apply_cluster_target_quarantine_sets_invert_block_reason():
                 "hmm_state": 0,
             },
             decisions=decisions,
-            anchor_sym="frxEURUSD",
+            anchor_sym="R_100",
             conviction=0.70,
             macro_cfg={"assert_min_hmm_prob": 0.0, "allowed_execute_tags": ("divergence_us_leads",)},
             corr_cfg={"cluster_invert_llm_side": True, "cluster_invert_on_block": True},
@@ -170,7 +170,7 @@ def test_apply_cluster_target_quarantine_sets_invert_block_reason():
             invert_on_block=True,
         )
     assert blocked is not None
-    assert decisions["OTC_DJI"]["direction"] == TradeDirection.PUT
+    assert decisions["R_50"]["direction"] == TradeDirection.PUT
 
 
 def test_apply_cluster_target_keeps_eu_cluster_llm_on_divergence():
@@ -181,20 +181,20 @@ def test_apply_cluster_target_keeps_eu_cluster_llm_on_divergence():
     decisions: dict = {}
     apply_cluster_target_decision(
         orch,
-        target_sym="OTC_FCHI",
+        target_sym="R_75",
         target_direction=TradeDirection.CALL,
         index_note="M5",
         metrics={
             "conviction": 0.70,
             "macro_sentiment": "divergence_eu_leads",
             "eu_cluster": "CALL",
-            "index_m5_dir_by_symbol": {"OTC_FCHI": "down"},
-            "statarb_spreads": {"OTC_FCHI": 0.2},
+            "index_m5_dir_by_symbol": {"R_75": "down"},
+            "statarb_spreads": {"R_75": 0.2},
             "hmm_state": 0,
             "hmm_prob": 0.90,
         },
         decisions=decisions,
-        anchor_sym="frxEURUSD",
+        anchor_sym="R_100",
         conviction=0.70,
         macro_cfg={
             "assert_min_hmm_prob": 0.0,
@@ -207,5 +207,5 @@ def test_apply_cluster_target_keeps_eu_cluster_llm_on_divergence():
         macro_tag="divergence_eu_leads",
         invert_on_block=False,
     )
-    assert decisions["OTC_FCHI"]["direction"] == TradeDirection.CALL
-    assert decisions["OTC_FCHI"]["metrics"].get("eu_cluster") != "PUT"
+    assert decisions["R_75"]["direction"] == TradeDirection.CALL
+    assert decisions["R_75"]["metrics"].get("eu_cluster") != "PUT"

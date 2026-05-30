@@ -10,7 +10,7 @@ from src.application.services.orchestrator import Orchestrator
 async def test_on_candle_throttling_and_cooldown(orch_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
         orch = Orchestrator(orch_config, "token")
-        candle = MagicMock(symbol="frxEURUSD")
+        candle = MagicMock(symbol="R_100")
 
         orch.risk_manager.is_on_cooldown = MagicMock(return_value=False)
         await orch._on_candle(candle)
@@ -69,30 +69,33 @@ async def test_on_candle_returns_when_is_trading(orch_config):
 
 @pytest.mark.asyncio
 async def test_orchestrator_symbols_list_preserves_order_when_anchor_included(orch_config):
-    orch_config["symbols"] = ["frxEURUSD", "frxEURUSD", "OTC_SPC"]
-    orch_config["anchor"] = "frxEURUSD"
+    orch_config.pop("strategy", None)
+    orch_config["symbols"] = ["R_100", "R_100", "R_25"]
+    orch_config["anchor"] = "R_100"
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
         orch = Orchestrator(orch_config, "token")
-        assert orch.symbols == ["frxEURUSD", "OTC_SPC"]
+        assert orch.symbols == ["R_100", "R_25"]
 
 
 @pytest.mark.asyncio
 async def test_orchestrator_symbols_list_prepends_anchor_when_missing(orch_config):
-    orch_config["symbols"] = ["frxEURUSD", "OTC_SPC"]
-    orch_config["anchor"] = "OTC_FCHI"
+    orch_config.pop("strategy", None)
+    orch_config["symbols"] = ["R_100", "R_25"]
+    orch_config["anchor"] = "R_75"
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
         orch = Orchestrator(orch_config, "token")
-        assert orch.symbols[0] == "OTC_FCHI"
-        assert set(orch.symbols) == {"OTC_FCHI", "frxEURUSD", "OTC_SPC"}
+        assert orch.symbols[0] == "R_75"
+        assert set(orch.symbols) == {"R_75", "R_100", "R_25"}
 
 
 @pytest.mark.asyncio
 async def test_orchestrator_symbols_default_from_single_fallback(orch_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
+        orch_config.pop("strategy", None)
         orch_config.pop("symbols", None)
-        orch_config["anchor"] = "frxEURUSD"
+        orch_config["anchor"] = "R_100"
         orch = Orchestrator(orch_config, "token")
-        assert orch.symbols == ["frxEURUSD"]
+        assert orch.symbols == ["R_100"]
 
 
 @pytest.mark.asyncio

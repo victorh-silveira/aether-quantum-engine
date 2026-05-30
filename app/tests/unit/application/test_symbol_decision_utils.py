@@ -18,29 +18,29 @@ def test_append_entropy_high_note_when_threshold_met():
 
 def test_anchor_llm_decision_complete_requires_all_tags():
     orch = MagicMock()
-    orch.anchor = "frxEURUSD"
+    orch.anchor = "R_100"
     orch.config = {"strategy": {"correlation": {"enabled": True}}}
-    ok, tag = anchor_llm_decision_complete(orch, "frxEURUSD", TradeDirection.PUT, TradeDirection.PUT, None)
+    ok, tag = anchor_llm_decision_complete(orch, "R_100", TradeDirection.PUT, TradeDirection.PUT, None)
     assert ok is False
     assert tag == "LLM_EU_CLUSTER_AUSENTE"
     ok2, _ = anchor_llm_decision_complete(
-        orch, "frxEURUSD", TradeDirection.PUT, TradeDirection.PUT, TradeDirection.CALL
+        orch, "R_100", TradeDirection.PUT, TradeDirection.PUT, TradeDirection.CALL
     )
     assert ok2 is True
-    ok3, tag3 = anchor_llm_decision_complete(orch, "frxEURUSD", None, None, None)
+    ok3, tag3 = anchor_llm_decision_complete(orch, "R_100", None, None, None)
     assert ok3 is False
     assert tag3 == "LLM_EURUSD_AUSENTE"
-    ok_us, tag_us = anchor_llm_decision_complete(orch, "frxEURUSD", TradeDirection.CALL, None, TradeDirection.PUT)
+    ok_us, tag_us = anchor_llm_decision_complete(orch, "R_100", TradeDirection.CALL, None, TradeDirection.PUT)
     assert ok_us is False
     assert tag_us == "LLM_US_CLUSTER_AUSENTE"
     orch.config = {"strategy": {"correlation": {"enabled": False}}}
-    ok4, _ = anchor_llm_decision_complete(orch, "frxEURUSD", TradeDirection.CALL, None, None)
+    ok4, _ = anchor_llm_decision_complete(orch, "R_100", TradeDirection.CALL, None, None)
     assert ok4 is True
 
 
 def test_anchor_allows_missing_us_when_quant_flat():
     orch = MagicMock()
-    orch.anchor = "frxEURUSD"
+    orch.anchor = "R_100"
     orch.config = {"strategy": {"correlation": {"enabled": True}}}
     snap = empty_macro_snapshot()
     snap = type(snap)(
@@ -58,7 +58,7 @@ def test_anchor_allows_missing_us_when_quant_flat():
     )
     ok, tag = anchor_llm_decision_complete(
         orch,
-        "frxEURUSD",
+        "R_100",
         TradeDirection.CALL,
         None,
         TradeDirection.CALL,

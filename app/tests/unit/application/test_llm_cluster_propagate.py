@@ -6,18 +6,18 @@ from src.domain.models.trade import TradeDirection
 
 def test_propagate_skips_when_exclusive_macro_tie():
     orch = MagicMock()
-    orch.anchor = "frxEURUSD"
-    orch.symbols = ["frxEURUSD", "OTC_SPC", "OTC_NDX"]
+    orch.anchor = "R_100"
+    orch.symbols = ["R_100", "R_25", "R_50"]
     orch.config = {
         "strategy": {
             "correlation": {"exclusive_cluster_by_macro": True},
-            "clusters": {"us": ["OTC_SPC", "OTC_NDX"], "eu": []},
+            "clusters": {"us": ["R_25", "R_50"], "eu": []},
         },
     }
     decisions: dict = {}
     propagate_cluster_decisions(
         orch,
-        anchor_sym="frxEURUSD",
+        anchor_sym="R_100",
         direction=TradeDirection.CALL,
         metrics={
             "macro_sentiment": "indefinido",

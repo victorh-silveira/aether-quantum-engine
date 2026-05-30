@@ -27,7 +27,7 @@ async def test_request_payload_empty_model_response_returns_none():
         new_callable=AsyncMock,
         return_value=("", False, ""),
     ) as gen:
-        payload = await bridge._request_payload(orch, "frxEURUSD", runtime, "p")
+        payload = await bridge._request_payload(orch, "R_100", runtime, "p")
     gen.assert_awaited_once()
     assert payload["_direction_normalized"] is None
 
@@ -48,7 +48,7 @@ async def test_request_payload_transporta_token_soberano():
         new_callable=AsyncMock,
         return_value=("CALL", True, MOCK_LLM_CALL_LINE),
     ):
-        payload = await bridge._request_payload(orch, "frxEURUSD", runtime, "p")
+        payload = await bridge._request_payload(orch, "R_100", runtime, "p")
     assert payload["_direction_normalized"] == "CALL"
 
 
@@ -67,8 +67,8 @@ async def test_collect_llm_decisions_keeps_execution_even_when_payout_is_low():
             "risk_management": {"params": {"duration": 1, "duration_unit": "m", "payout_estimate": 0.5}},
         }
     )
-    orch.symbols = ["frxEURUSD"]
-    orch.anchor = "frxEURUSD"
+    orch.symbols = ["R_100"]
+    orch.anchor = "R_100"
     series = np.array([100.0 * (1.001**i) for i in range(120)])
     orch.stream.get_numpy_series = MagicMock(return_value=series)
     orch._neutral_metrics = MagicMock(return_value={"direction": None})
@@ -81,7 +81,7 @@ async def test_collect_llm_decisions_keeps_execution_even_when_payout_is_low():
         return_value=("CALL", True, MOCK_LLM_CALL_LINE),
     ):
         out = await collect_llm_decisions(orch)
-    assert out["frxEURUSD"]["metrics"]["execute"] is True
+    assert out["R_100"]["metrics"]["execute"] is True
 
 
 @pytest.mark.asyncio
@@ -124,7 +124,7 @@ async def test_collect_symbol_decision_choppy_executes_as_ordered():
             new=AsyncMock(return_value=("CALL", True, MOCK_LLM_CALL_LINE)),
         ),
     ):
-        direction, metrics = await bridge._collect_symbol_decision(orch, sym="frxEURUSD", runtime=runtime)
+        direction, metrics = await bridge._collect_symbol_decision(orch, sym="R_100", runtime=runtime)
 
     assert direction == TradeDirection.CALL
     assert metrics.get("execute") is True

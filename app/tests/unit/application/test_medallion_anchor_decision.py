@@ -24,10 +24,10 @@ def mock_llm_metrics(direction, conviction, note):
 @pytest.mark.asyncio
 async def test_collect_symbol_llm_decision_preserves_llm_call_without_local_inversion():
     orch = MagicMock()
-    orch.anchor = "frxEURUSD"
+    orch.anchor = "R_100"
     orch.config = {"strategy": {"correlation": {"enabled": False}}}
     orch._active_cycle_id = 1
-    orch.symbols = ["frxEURUSD"]
+    orch.symbols = ["R_100"]
     orch.logger = MagicMock()
 
     ctx = {"hurst_value": 0.6}
@@ -57,7 +57,7 @@ async def test_collect_symbol_llm_decision_preserves_llm_call_without_local_inve
         }
 
         direction, metrics = await collect_symbol_llm_decision(
-            orch, sym="frxEURUSD", runtime=runtime, llm_metrics=mock_llm_metrics
+            orch, sym="R_100", runtime=runtime, llm_metrics=mock_llm_metrics
         )
 
         assert direction == TradeDirection.CALL

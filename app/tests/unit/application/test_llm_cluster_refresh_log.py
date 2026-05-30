@@ -12,15 +12,15 @@ def test_dir_label_invalid_entry():
 
 def test_effective_cluster_refresh_line_shows_eff_and_cache():
     decisions = {
-        "OTC_DJI": {
+        "R_50": {
             "direction": TradeDirection.PUT,
             "metrics": {"cluster_active_region": "us"},
         },
-        "OTC_FCHI": {
+        "R_75": {
             "direction": TradeDirection.CALL,
             "metrics": {"cluster_active_region": "eu"},
         },
-        "frxEURUSD": {
+        "R_100": {
             "direction": TradeDirection.PUT,
             "metrics": {"cluster_active_region": "us"},
         },
@@ -28,7 +28,7 @@ def test_effective_cluster_refresh_line_shows_eff_and_cache():
     metrics = {"us_cluster": "CALL", "eu_cluster": "PUT"}
     line = effective_cluster_refresh_line(
         decisions,
-        anchor_sym="frxEURUSD",
+        anchor_sym="R_100",
         metrics=metrics,
         macro_tag="divergence_us_leads",
     )
@@ -40,8 +40,8 @@ def test_effective_cluster_refresh_line_shows_eff_and_cache():
 
 def test_effective_cluster_refresh_line_skips_non_dict_entry():
     line = effective_cluster_refresh_line(
-        {"OTC_DJI": "bad"},
-        anchor_sym="frxEURUSD",
+        {"R_50": "bad"},
+        anchor_sym="R_100",
         metrics={},
         macro_tag="risk_off",
     )

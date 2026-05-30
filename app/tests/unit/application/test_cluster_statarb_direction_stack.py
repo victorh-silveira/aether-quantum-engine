@@ -24,8 +24,8 @@ def test_correct_cluster_direction_disabled_stack():
     direction, corrected, note = correct_cluster_direction_for_tag(
         TradeDirection.CALL,
         macro_tag="risk_on",
-        target_sym="OTC_DJI",
-        metrics={"statarb_spreads": {"OTC_DJI": 2.9}, "hmm_state": 0},
+        target_sym="R_50",
+        metrics={"statarb_spreads": {"R_50": 2.9}, "hmm_state": 0},
         corr_cfg={"quant_direction_stack_enabled": False},
         macro_cfg={},
     )
@@ -38,7 +38,7 @@ def test_correct_cluster_direction_no_statarb_spreads():
     direction, corrected, note = correct_cluster_direction_for_tag(
         TradeDirection.CALL,
         macro_tag="risk_on",
-        target_sym="OTC_DJI",
+        target_sym="R_50",
         metrics={"hmm_state": 0},
         corr_cfg={"quant_direction_stack_enabled": True},
         macro_cfg={},
@@ -51,8 +51,8 @@ def test_correct_cluster_direction_keeps_when_z_supports_direction():
     direction, corrected, note = correct_cluster_direction_for_tag(
         TradeDirection.PUT,
         macro_tag="risk_on",
-        target_sym="OTC_DJI",
-        metrics={"statarb_spreads": {"OTC_DJI": 2.9}, "hmm_state": 0},
+        target_sym="R_50",
+        metrics={"statarb_spreads": {"R_50": 2.9}, "hmm_state": 0},
         corr_cfg={"quant_direction_stack_enabled": True},
         macro_cfg={"statarb_z_threshold": 2.5, "statarb_min_abs_z_by_tag": {"risk_on": 0.65}},
     )
@@ -83,8 +83,8 @@ def test_correct_cluster_direction_keeps_when_statarb_implied_matches_llm():
     direction, corrected, note = correct_cluster_direction_for_tag(
         TradeDirection.CALL,
         macro_tag="risk_on",
-        target_sym="OTC_DJI",
-        metrics={"statarb_spreads": {"OTC_DJI": -2.8}, "hmm_state": 0},
+        target_sym="R_50",
+        metrics={"statarb_spreads": {"R_50": -2.8}, "hmm_state": 0},
         corr_cfg={"quant_direction_stack_enabled": True},
         macro_cfg={"statarb_z_threshold": 2.5, "statarb_min_abs_z_by_tag": {"risk_on": 0.65}},
     )
@@ -96,8 +96,8 @@ def test_correct_cluster_direction_statarb_on_risk_on():
     direction, corrected, note = correct_cluster_direction_for_tag(
         TradeDirection.CALL,
         macro_tag="risk_on",
-        target_sym="OTC_DJI",
-        metrics={"statarb_spreads": {"OTC_DJI": 2.9}, "hmm_state": 0},
+        target_sym="R_50",
+        metrics={"statarb_spreads": {"R_50": 2.9}, "hmm_state": 0},
         corr_cfg={"quant_direction_stack_enabled": True},
         macro_cfg={"statarb_z_threshold": 2.5, "statarb_min_abs_z_by_tag": {"risk_on": 0.65}},
     )
@@ -110,10 +110,10 @@ def test_correct_cluster_direction_m5_overrides_llm_on_risk_on():
     direction, corrected, note = correct_cluster_direction_for_tag(
         TradeDirection.CALL,
         macro_tag="risk_on",
-        target_sym="OTC_DJI",
+        target_sym="R_50",
         metrics={
-            "index_m5_dir_by_symbol": {"OTC_DJI": "down"},
-            "statarb_spreads": {"OTC_DJI": 0.2},
+            "index_m5_dir_by_symbol": {"R_50": "down"},
+            "statarb_spreads": {"R_50": 0.2},
             "hmm_state": 0,
         },
         corr_cfg={"quant_direction_stack_enabled": True},
@@ -128,10 +128,10 @@ def test_correct_cluster_direction_ignores_flat_m5_micro():
     direction, corrected, note = correct_cluster_direction_for_tag(
         TradeDirection.CALL,
         macro_tag="risk_on",
-        target_sym="OTC_DJI",
+        target_sym="R_50",
         metrics={
-            "index_m5_dir_by_symbol": {"OTC_DJI": "flat"},
-            "statarb_spreads": {"OTC_DJI": 0.2},
+            "index_m5_dir_by_symbol": {"R_50": "flat"},
+            "statarb_spreads": {"R_50": 0.2},
             "hmm_state": 0,
         },
         corr_cfg={"quant_direction_stack_enabled": True},
@@ -150,20 +150,20 @@ def test_apply_cluster_target_updates_us_cluster_on_risk_on_correct():
     decisions: dict = {}
     apply_cluster_target_decision(
         orch,
-        target_sym="OTC_DJI",
+        target_sym="R_50",
         target_direction=TradeDirection.CALL,
         index_note="M5",
         metrics={
             "conviction": 0.70,
             "macro_sentiment": "risk_on",
             "us_cluster": "CALL",
-            "index_m5_dir_by_symbol": {"OTC_DJI": "down"},
-            "statarb_spreads": {"OTC_DJI": 0.2},
+            "index_m5_dir_by_symbol": {"R_50": "down"},
+            "statarb_spreads": {"R_50": 0.2},
             "hmm_state": 0,
             "hmm_prob": 0.90,
         },
         decisions=decisions,
-        anchor_sym="frxEURUSD",
+        anchor_sym="R_100",
         conviction=0.70,
         macro_cfg={
             "assert_min_hmm_prob": 0.0,
@@ -177,7 +177,7 @@ def test_apply_cluster_target_updates_us_cluster_on_risk_on_correct():
         macro_tag="risk_on",
         invert_on_block=False,
     )
-    assert decisions["OTC_DJI"]["metrics"]["us_cluster"] == "PUT"
+    assert decisions["R_50"]["metrics"]["us_cluster"] == "PUT"
 
 
 def test_apply_cluster_target_updates_eu_cluster_on_risk_off_correct():
@@ -188,20 +188,20 @@ def test_apply_cluster_target_updates_eu_cluster_on_risk_off_correct():
     decisions: dict = {}
     apply_cluster_target_decision(
         orch,
-        target_sym="OTC_FCHI",
+        target_sym="R_75",
         target_direction=TradeDirection.CALL,
         index_note="M5",
         metrics={
             "conviction": 0.70,
             "macro_sentiment": "risk_off",
             "eu_cluster": "CALL",
-            "index_m5_dir_by_symbol": {"OTC_FCHI": "down"},
-            "statarb_spreads": {"OTC_FCHI": 0.2},
+            "index_m5_dir_by_symbol": {"R_75": "down"},
+            "statarb_spreads": {"R_75": 0.2},
             "hmm_state": 0,
             "hmm_prob": 0.90,
         },
         decisions=decisions,
-        anchor_sym="frxEURUSD",
+        anchor_sym="R_100",
         conviction=0.70,
         macro_cfg={
             "assert_min_hmm_prob": 0.0,
@@ -214,4 +214,4 @@ def test_apply_cluster_target_updates_eu_cluster_on_risk_off_correct():
         macro_tag="risk_off",
         invert_on_block=False,
     )
-    assert decisions["OTC_FCHI"]["metrics"]["eu_cluster"] == "PUT"
+    assert decisions["R_75"]["metrics"]["eu_cluster"] == "PUT"

@@ -10,11 +10,11 @@ from src.domain.models.trade import TradeDirection
 
 def _snapshot(tag: str, us_dir: str, eu_dir: str) -> MacroSnapshot:
     return build_macro_snapshot(
-        ["OTC_SPC"],
-        ["OTC_FCHI"],
+        ["R_25"],
+        ["R_75"],
         {
-            "OTC_SPC": [100.0, 105.0] if us_dir == "up" else [100.0, 95.0],
-            "OTC_FCHI": [100.0, 105.0] if eu_dir == "up" else [100.0, 95.0],
+            "R_25": [100.0, 105.0] if us_dir == "up" else [100.0, 95.0],
+            "R_75": [100.0, 105.0] if eu_dir == "up" else [100.0, 95.0],
         },
         {"min_indices_for_vote": 1, "cluster_return_threshold_pct": 0.02},
     )
@@ -35,11 +35,11 @@ def test_apply_macro_guard_preserves_llm_direction():
 
 def test_apply_macro_guard_statarb_boost_call():
     snap = build_macro_snapshot(
-        ["OTC_SPC"],
-        ["OTC_FCHI"],
-        {"OTC_SPC": [100.0, 95.0], "OTC_FCHI": [100.0, 95.0]},
+        ["R_25"],
+        ["R_75"],
+        {"R_25": [100.0, 95.0], "R_75": [100.0, 95.0]},
         {"min_indices_for_vote": 1},
-        statarb_spreads={"OTC_SPC": -3.0},
+        statarb_spreads={"R_25": -3.0},
         hmm_state=0,
     )
     direction, conviction, applied, note, execute_ok = apply_macro_confluence_guard(
@@ -47,7 +47,7 @@ def test_apply_macro_guard_statarb_boost_call():
         0.7,
         snap,
         {"statarb_z_threshold": 2.5},
-        sym="OTC_SPC",
+        sym="R_25",
     )
     assert direction == TradeDirection.CALL
     assert execute_ok is True

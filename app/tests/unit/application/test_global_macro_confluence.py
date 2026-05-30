@@ -51,11 +51,11 @@ def test_eurusd_bias_and_cluster_trade_direction():
 
 
 def test_aggregate_cluster_vote_majority():
-    symbols = ["OTC_SPC", "OTC_NDX", "OTC_DJI"]
+    symbols = ["R_25", "R_50", "R_50"]
     closes_map = {
-        "OTC_SPC": [100.0, 105.0],
-        "OTC_NDX": [100.0, 104.0],
-        "OTC_DJI": [100.0, 103.0],
+        "R_25": [100.0, 105.0],
+        "R_50": [100.0, 104.0],
+        "R_50": [100.0, 103.0],
     }
     vote = aggregate_cluster_vote(symbols, closes_map, threshold_pct=0.02, min_indices=2)
     assert vote.direction == "up"
@@ -63,8 +63,8 @@ def test_aggregate_cluster_vote_majority():
 
 def test_aggregate_cluster_vote_na_when_no_closes():
     vote = aggregate_cluster_vote(
-        ["OTC_SPC"],
-        {"OTC_SPC": [0.0, 100.0]},
+        ["R_25"],
+        {"R_25": [0.0, 100.0]},
         threshold_pct=0.02,
         min_indices=1,
         min_move_pct=0.01,
@@ -74,11 +74,11 @@ def test_aggregate_cluster_vote_na_when_no_closes():
 
 
 def test_aggregate_cluster_vote_split_no_majority():
-    symbols = ["OTC_SPC", "OTC_NDX", "OTC_DJI"]
+    symbols = ["R_25", "R_50", "R_50"]
     closes_map = {
-        "OTC_SPC": [100.0, 105.0],
-        "OTC_NDX": [100.0, 95.0],
-        "OTC_DJI": [100.0, 100.01],
+        "R_25": [100.0, 105.0],
+        "R_50": [100.0, 95.0],
+        "R_50": [100.0, 100.01],
     }
     vote = aggregate_cluster_vote(symbols, closes_map, threshold_pct=0.02, min_indices=2)
     assert vote.direction == "flat"
@@ -86,8 +86,23 @@ def test_aggregate_cluster_vote_split_no_majority():
 
 def test_aggregate_cluster_vote_insufficient_indices_for_min():
     vote = aggregate_cluster_vote(
-        ["OTC_SPC", "OTC_NDX"],
-        {"OTC_SPC": [100.0, 105.0], "OTC_NDX": [100.0, 104.0]},
+        ["R_25", "R_50"],
+        {"R_25": [100.0, 105.0], "R_50": [100.0, 104.0]},
+        threshold_pct=0.02,
+        min_indices=3,
+        min_move_pct=0.01,
+    )
+    assert vote.direction == "flat"
+
+
+def test_aggregate_cluster_vote_best_direction_below_min_indices():
+    vote = aggregate_cluster_vote(
+        ["R_25", "R_50", "R_75"],
+        {
+            "R_25": [100.0, 105.0],
+            "R_50": [100.0, 105.0],
+            "R_75": [100.0, 95.0],
+        },
         threshold_pct=0.02,
         min_indices=3,
         min_move_pct=0.01,
@@ -96,13 +111,13 @@ def test_aggregate_cluster_vote_insufficient_indices_for_min():
 
 
 def test_build_macro_snapshot_risk_off():
-    us = ["OTC_SPC", "OTC_NDX"]
-    eu = ["OTC_FCHI", "OTC_GDAXI"]
+    us = ["R_25", "R_50"]
+    eu = ["R_75", "1HZ100V"]
     closes = {
-        "OTC_SPC": [100.0, 95.0],
-        "OTC_NDX": [100.0, 94.0],
-        "OTC_FCHI": [100.0, 96.0],
-        "OTC_GDAXI": [100.0, 95.5],
+        "R_25": [100.0, 95.0],
+        "R_50": [100.0, 94.0],
+        "R_75": [100.0, 96.0],
+        "1HZ100V": [100.0, 95.5],
     }
     snap = build_macro_snapshot(us, eu, closes, {"min_indices_for_vote": 2})
     assert snap.tag == "risk_off"

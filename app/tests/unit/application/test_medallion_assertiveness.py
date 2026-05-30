@@ -25,7 +25,7 @@ def _snap(tag: str, *, us_s: float = 0.9, eu_s: float = 0.88) -> MacroSnapshot:
         fx_reference_line="",
         us_parts=(),
         eu_parts=(),
-        statarb_spreads={"OTC_SPC": -2.8},
+        statarb_spreads={"R_25": -2.8},
         hmm_state=0,
         hmm_prob=0.9,
     )
@@ -38,7 +38,7 @@ def test_divergence_veto_weak_leader():
         0.75,
         snap,
         {"divergence_min_leader_strength": 0.70, "confluence_conviction_floor": 0.65},
-        sym="OTC_SPC",
+        sym="R_25",
     )
     assert ok is False
     assert "divergence_leader" in note
@@ -130,7 +130,7 @@ def test_risk_on_veto_when_tag_not_allowed():
             "confluence_conviction_floor": 0.0,
             "allowed_execute_tags": ("risk_off", "divergence_us_leads", "divergence_eu_leads"),
         },
-        sym="OTC_NDX",
+        sym="R_50",
     )
     assert ok is False
     assert "tag_not_allowed" in note
@@ -216,5 +216,5 @@ def test_stake_not_blocked_after_large_session_loss():
     )
     rm.set_initial_bankroll(50.0)
     rm.total_session_profit = -12.0
-    stake = rm.calculate_stake(38.0, "OTC_FCHI", 0.7, silent=True)
+    stake = rm.calculate_stake(38.0, "R_75", 0.7, silent=True)
     assert stake > 0.0

@@ -30,18 +30,18 @@ def _risk_off_snapshot() -> MacroSnapshot:
 async def test_collect_llm_decisions_with_dynamic_cluster_regime():
     """Verifica se o robô segue as direções específicas dos clusters enviadas pela Gemini."""
     orch = MagicMock()
-    orch.anchor = "frxEURUSD"
-    orch.symbols = ["frxEURUSD", "OTC_SPC", "OTC_FCHI"]
+    orch.anchor = "R_100"
+    orch.symbols = ["R_100", "R_25", "R_75"]
     orch._active_cycle_id = 1
     orch._last_llm_macro_tag = None
     orch._last_llm_decisions = None
     orch.config = {
         "strategy": {
-            "clusters": {"us": ["OTC_SPC"], "eu": ["OTC_FCHI"]},
+            "clusters": {"us": ["R_25"], "eu": ["R_75"]},
             "correlation": {
                 "enabled": True,
                 "exclusive_cluster_by_macro": False,
-                "targets": {"OTC_SPC": 1.0, "OTC_FCHI": 1.0},
+                "targets": {"R_25": 1.0, "R_75": 1.0},
             },
         },
         "llm": {"max_decision_latency_seconds": 10},
@@ -69,14 +69,14 @@ async def test_collect_llm_decisions_with_dynamic_cluster_regime():
 
             decisions = await collect_llm_decisions(orch)
 
-            assert decisions["frxEURUSD"]["direction"] == TradeDirection.PUT
+            assert decisions["R_100"]["direction"] == TradeDirection.PUT
 
-            assert decisions["OTC_SPC"]["direction"] == TradeDirection.PUT
-            assert decisions["OTC_SPC"]["metrics"]["decision_source"] == "cluster_regime"
+            assert decisions["R_25"]["direction"] == TradeDirection.PUT
+            assert decisions["R_25"]["metrics"]["decision_source"] == "cluster_regime"
 
-            assert decisions["OTC_FCHI"]["direction"] == TradeDirection.CALL
-            assert decisions["OTC_FCHI"]["metrics"]["decision_source"] == "cluster_regime"
-        assert "CLUSTER_TAG" in decisions["OTC_FCHI"]["metrics"]["llm_note"]
+            assert decisions["R_75"]["direction"] == TradeDirection.CALL
+            assert decisions["R_75"]["metrics"]["decision_source"] == "cluster_regime"
+        assert "CLUSTER_TAG" in decisions["R_75"]["metrics"]["llm_note"]
 
 
 def test_parse_llm_trade_response_with_clusters():
@@ -103,15 +103,15 @@ def test_parse_llm_trade_response_compact_cluster_tags():
 async def test_cluster_skipped_when_no_explicit_tag():
     """Clusters US/EU sao pulados quando a LLM nao retorna tag explicita."""
     orch = MagicMock()
-    orch.anchor = "frxEURUSD"
-    orch.symbols = ["frxEURUSD", "OTC_SPC", "OTC_FCHI"]
+    orch.anchor = "R_100"
+    orch.symbols = ["R_100", "R_25", "R_75"]
     orch._active_cycle_id = 1
     orch.config = {
         "strategy": {
             "correlation": {
                 "enabled": True,
                 "exclusive_cluster_by_macro": False,
-                "targets": {"OTC_SPC": 1.0, "OTC_FCHI": 1.0},
+                "targets": {"R_25": 1.0, "R_75": 1.0},
             }
         },
         "llm": {"max_decision_latency_seconds": 10},
@@ -131,16 +131,26 @@ async def test_cluster_skipped_when_no_explicit_tag():
         mock_dec.return_value = (TradeDirection.PUT, metrics_no_tags)
         decisions = await collect_llm_decisions(orch)
 
-    assert "frxEURUSD" in decisions
-    assert "OTC_SPC" not in decisions
-    assert "OTC_FCHI" not in decisions
+    assert "R_100" in decisions
+    assert "R_25" not in decisions
+    assert "R_75" not in decisions
 
 
 @pytest.mark.asyncio
 async def test_build_symbol_prompt_clusters_dict_and_non_dict_coverage():
     # 1. Test dict clusters
     orch = MagicMock()
-    orch.config = {"strategy": {"clusters": {"us": ["OTC_SPC"], "eu": ["OTC_FTSE"]}}}
+    orch.config = {
+        "strategy": {
+            "clusters": {"us": ["R_25"], "eu": ["1HZ100V"]},
+            "macro": {
+                "cluster_labels": {
+                    "us": ["VOL10", "VOL25", "VOL50"],
+                    "eu": ["VOL75", "VOL50_1S", "VOL100_1S"],
+                }
+            },
+        }
+    }
 
     class DummyStream:
         async def fetch_candle_closes(self, _s, _gran, _count):
@@ -189,8 +199,8 @@ async def test_build_symbol_prompt_clusters_dict_and_non_dict_coverage():
             },
         )
 
-        prompt, _, _, _, _, _, _, _, _, _, _, _, _ = await build_symbol_prompt(orch, "frxEURUSD", runtime)
-        assert "SPC:" in prompt
+        prompt, _, _, _, _, _, _, _, _, _, _, _, _ = await build_symbol_prompt(orch, "R_100", runtime)
+        assert "VOL10:" in prompt
 
     # 2. Test non-dict clusters fallback coverage
     orch_non_dict = MagicMock()
@@ -218,5 +228,5 @@ async def test_build_symbol_prompt_clusters_dict_and_non_dict_coverage():
             },
         )
 
-        prompt, _, _, _, _, _, _, _, _, _, _, _, _ = await build_symbol_prompt(orch_non_dict, "frxEURUSD", runtime)
+        prompt, _, _, _, _, _, _, _, _, _, _, _, _ = await build_symbol_prompt(orch_non_dict, "R_100", runtime)
         assert "NDX:" in prompt or "DJI:" in prompt or "R_10:" in prompt or "VOL10:" in prompt

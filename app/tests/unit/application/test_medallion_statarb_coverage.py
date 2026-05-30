@@ -78,9 +78,9 @@ def test_statarb_guard_confluence_boost_put():
         cluster_status="active",
         macro_block="",
         fx_reference_line="",
-        us_parts=("OTC_SPC",),
-        eu_parts=("OTC_GDAXI",),
-        statarb_spreads={"OTC_GDAXI": 3.0},  # Over-valued relative to PCA spread (Z = 3.0)
+        us_parts=("R_25",),
+        eu_parts=("1HZ100V",),
+        statarb_spreads={"1HZ100V": 3.0},  # Over-valued relative to PCA spread (Z = 3.0)
         hmm_state=0,  # MEAN_REVERSION
         hmm_prob=0.9,
     )
@@ -90,7 +90,7 @@ def test_statarb_guard_confluence_boost_put():
         0.60,
         snap,
         {"statarb_z_threshold": 2.5},
-        sym="OTC_GDAXI",
+        sym="1HZ100V",
     )
 
     assert conviction > 0.60
@@ -110,9 +110,9 @@ def test_statarb_guard_intelligence_vetoes_conflicting_call():
         cluster_status="active",
         macro_block="",
         fx_reference_line="",
-        us_parts=("OTC_SPC",),
-        eu_parts=("OTC_GDAXI",),
-        statarb_spreads={"OTC_GDAXI": 3.0},  # Over-valued (Z = 3.0)
+        us_parts=("R_25",),
+        eu_parts=("1HZ100V",),
+        statarb_spreads={"1HZ100V": 3.0},  # Over-valued (Z = 3.0)
         hmm_state=0,  # MEAN_REVERSION
         hmm_prob=0.9,
     )
@@ -122,7 +122,7 @@ def test_statarb_guard_intelligence_vetoes_conflicting_call():
         0.60,
         snap,
         {"statarb_z_threshold": 2.5},
-        sym="OTC_GDAXI",
+        sym="1HZ100V",
     )
 
     assert direction == TradeDirection.CALL
@@ -133,13 +133,13 @@ def test_statarb_guard_intelligence_vetoes_conflicting_call():
 def test_macro_snapshot_build_hmm_output():
     """Test that HMM regime information is correctly printed in macro snapshot formatting."""
     m15 = {
-        "OTC_SPC": [100.0, 101.0],
-        "OTC_FCHI": [100.0, 101.0],
+        "R_25": [100.0, 101.0],
+        "R_75": [100.0, 101.0],
     }
     # When hmm_prob < 1.0 or hmm_state > 0, it should output HMM regime details
     snap = build_macro_snapshot(
-        ["OTC_SPC"],
-        ["OTC_FCHI"],
+        ["R_25"],
+        ["R_75"],
         m15,
         {"min_indices_for_vote": 1},
         hmm_state=1,  # TRENDING
@@ -149,8 +149,8 @@ def test_macro_snapshot_build_hmm_output():
     assert "85.0%" in snap.macro_block
 
     snap2 = build_macro_snapshot(
-        ["OTC_SPC"],
-        ["OTC_FCHI"],
+        ["R_25"],
+        ["R_75"],
         m15,
         {"min_indices_for_vote": 1},
         hmm_state=0,  # MEAN_REVERSION

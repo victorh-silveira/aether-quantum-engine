@@ -14,32 +14,32 @@ from src.domain.models.trade import TradeDirection
 
 
 def test_wr_blend_score_missing_symbol():
-    assert _wr_blend_score("OTC_X", {"OTC_FCHI": 0.5}, 0.4) == 0.0
+    assert _wr_blend_score("R_99", {"R_75": 0.5}, 0.4) == 0.0
 
 
 def test_select_call_picks_most_negative_z():
-    spreads = {"OTC_SPC": -2.8, "OTC_NDX": -0.4, "OTC_DJI": 1.2}
+    spreads = {"R_25": -2.8, "R_50": -0.4, "R_50": 1.2}
     picked, note = select_cluster_symbols_by_statarb(
-        ["OTC_SPC", "OTC_NDX", "OTC_DJI"],
+        ["R_25", "R_50", "R_50"],
         TradeDirection.CALL,
         spreads,
         hmm_state=0,
         cfg={"enabled": True, "max_per_cluster": 1, "min_abs_z": 0.0},
     )
-    assert picked == {"OTC_SPC"}
-    assert "leader=OTC_SPC" in note
+    assert picked == {"R_25"}
+    assert "leader=R_25" in note
 
 
 def test_select_put_picks_most_positive_z():
-    spreads = {"OTC_FCHI": 0.2, "OTC_GDAXI": 3.1}
+    spreads = {"R_75": 0.2, "1HZ100V": 3.1}
     picked, _ = select_cluster_symbols_by_statarb(
-        ["OTC_FCHI", "OTC_GDAXI"],
+        ["R_75", "1HZ100V"],
         TradeDirection.PUT,
         spreads,
         hmm_state=0,
         cfg={"enabled": True, "max_per_cluster": 1, "min_abs_z": 0.0},
     )
-    assert picked == {"OTC_GDAXI"}
+    assert picked == {"1HZ100V"}
 
 
 def test_alignment_score_hmm_trending_and_invalid_direction():
@@ -50,9 +50,9 @@ def test_alignment_score_hmm_trending_and_invalid_direction():
 
 
 def test_soft_fallback_skips_misaligned_and_keeps_valid_row():
-    spreads = {"OTC_FCHI": 3.5, "OTC_GDAXI": 0.85}
+    spreads = {"R_75": 3.5, "1HZ100V": 0.85}
     picked, note = select_cluster_symbols_by_statarb(
-        ["OTC_FCHI", "OTC_GDAXI"],
+        ["R_75", "1HZ100V"],
         TradeDirection.CALL,
         spreads,
         hmm_state=0,
@@ -64,13 +64,13 @@ def test_soft_fallback_skips_misaligned_and_keeps_valid_row():
             "z_align_soft_fallback": True,
         },
     )
-    assert picked == {"OTC_GDAXI"}
+    assert picked == {"1HZ100V"}
     assert "STATARB_SOFT" in note
 
 
 def test_relaxed_pick_returns_none_when_fallbacks_disabled():
     result = statarb_relaxed_pick(
-        [("OTC_SPC", 0.1, 0.0)],
+        [("R_25", 0.1, 0.0)],
         TradeDirection.CALL,
         hmm_state=0,
         z_threshold=2.5,
@@ -82,9 +82,9 @@ def test_relaxed_pick_returns_none_when_fallbacks_disabled():
 
 
 def test_weak_leader_picks_best_alignment_below_min_abs():
-    spreads = {"OTC_SPC": -0.35, "OTC_NDX": 0.15}
+    spreads = {"R_25": -0.35, "R_50": 0.15}
     picked, note = select_cluster_symbols_by_statarb(
-        ["OTC_SPC", "OTC_NDX"],
+        ["R_25", "R_50"],
         TradeDirection.CALL,
         spreads,
         hmm_state=0,
@@ -97,14 +97,14 @@ def test_weak_leader_picks_best_alignment_below_min_abs():
             "weak_leader_on_no_align": True,
         },
     )
-    assert picked == {"OTC_SPC"}
+    assert picked == {"R_25"}
     assert "STATARB_WEAK" in note
 
 
 def test_soft_fallback_returns_no_align_when_only_misaligned_rows():
-    spreads = {"OTC_FCHI": 3.5}
+    spreads = {"R_75": 3.5}
     picked, note = select_cluster_symbols_by_statarb(
-        ["OTC_FCHI"],
+        ["R_75"],
         TradeDirection.CALL,
         spreads,
         hmm_state=0,
@@ -122,18 +122,18 @@ def test_soft_fallback_returns_no_align_when_only_misaligned_rows():
 
 def test_statarb_leader_pick_includes_wr_in_note():
     picked, note = _statarb_leader_pick(
-        [("OTC_GDAXI", -2.0, 2.5)],
-        wr_scores={"OTC_GDAXI": 0.81},
+        [("1HZ100V", -2.0, 2.5)],
+        wr_scores={"1HZ100V": 0.81},
         best_symbol_only=True,
     )
-    assert picked == {"OTC_GDAXI"}
+    assert picked == {"1HZ100V"}
     assert "wr=0.81" in note
 
 
 def test_select_soft_fallback_when_strict_align_empty():
-    spreads = {"OTC_FCHI": 0.95, "OTC_GDAXI": 0.70}
+    spreads = {"R_75": 0.95, "1HZ100V": 0.70}
     picked, note = select_cluster_symbols_by_statarb(
-        ["OTC_FCHI", "OTC_GDAXI"],
+        ["R_75", "1HZ100V"],
         TradeDirection.PUT,
         spreads,
         hmm_state=0,
@@ -145,14 +145,14 @@ def test_select_soft_fallback_when_strict_align_empty():
             "z_align_soft_fallback": True,
         },
     )
-    assert picked == {"OTC_FCHI"}
+    assert picked == {"R_75"}
     assert "STATARB_SOFT" in note
 
 
 def test_select_min_abs_z_skips_when_z_too_weak():
-    spreads = {"OTC_SPC": 0.1, "OTC_NDX": 0.2}
+    spreads = {"R_25": 0.1, "R_50": 0.2}
     picked, note = select_cluster_symbols_by_statarb(
-        ["OTC_SPC", "OTC_NDX"],
+        ["R_25", "R_50"],
         TradeDirection.CALL,
         spreads,
         hmm_state=0,
@@ -185,9 +185,9 @@ def test_symbol_z_supports_vetoes_mean_reversion_misalign():
 
 
 def test_select_without_z_align_uses_legacy_filter():
-    spreads = {"OTC_SPC": 0.1, "OTC_NDX": 0.2}
+    spreads = {"R_25": 0.1, "R_50": 0.2}
     picked, note = select_cluster_symbols_by_statarb(
-        ["OTC_SPC", "OTC_NDX"],
+        ["R_25", "R_50"],
         TradeDirection.CALL,
         spreads,
         cfg={"enabled": True, "max_per_cluster": 1, "min_abs_z": 0.0, "require_z_align": False},
@@ -198,12 +198,12 @@ def test_select_without_z_align_uses_legacy_filter():
 
 def test_select_disabled_returns_all_candidates():
     picked, note = select_cluster_symbols_by_statarb(
-        ["OTC_SPC", "OTC_NDX"],
+        ["R_25", "R_50"],
         TradeDirection.CALL,
-        {"OTC_SPC": -1.0, "OTC_NDX": 2.0},
+        {"R_25": -1.0, "R_50": 2.0},
         cfg={"enabled": False, "max_per_cluster": 1},
     )
-    assert picked == {"OTC_SPC", "OTC_NDX"}
+    assert picked == {"R_25", "R_50"}
     assert note == "CLUSTER_ALL_SYMBOLS"
 
 
@@ -232,37 +232,37 @@ def test_resolve_best_symbol_only_forces_single_leader():
 
 
 def test_select_prefers_higher_rolling_wr_when_z_similar():
-    spreads = {"OTC_FCHI": -2.5, "OTC_GDAXI": -2.4}
+    spreads = {"R_75": -2.5, "1HZ100V": -2.4}
     picked, note = select_cluster_symbols_by_statarb(
-        ["OTC_FCHI", "OTC_GDAXI"],
+        ["R_75", "1HZ100V"],
         TradeDirection.CALL,
         spreads,
         cfg={"enabled": True, "max_per_cluster": 1, "min_abs_z": 0.0, "wr_weight": 0.5, "best_symbol_only": True},
-        wr_scores={"OTC_FCHI": 0.45, "OTC_GDAXI": 0.72},
+        wr_scores={"R_75": 0.45, "1HZ100V": 0.72},
     )
-    assert picked == {"OTC_GDAXI"}
+    assert picked == {"1HZ100V"}
     assert "STATARB_BEST" in note
     assert "wr=0.72" in note
 
 
 def test_statarb_execute_min_abs_z_uses_config_floor():
     cfg = {"min_abs_z": 0.85}
-    assert statarb_execute_min_abs_z("STATARB_BEST leader=OTC_DJI z=-1.10", cfg) == 0.85
+    assert statarb_execute_min_abs_z("STATARB_BEST leader=R_50 z=-1.10", cfg) == 0.85
     assert statarb_execute_min_abs_z("", cfg) == 0.85
 
 
 def test_select_cluster_symbol_attempt_order_puts_leader_first():
-    spreads = {"OTC_SPC": -2.0, "OTC_NDX": -0.3, "OTC_DJI": 0.5}
+    spreads = {"R_25": -2.0, "R_50": -0.3, "R_50": 0.5}
     order, note, picked = select_cluster_symbol_attempt_order(
-        ["OTC_SPC", "OTC_NDX", "OTC_DJI"],
+        ["R_25", "R_50", "R_50"],
         TradeDirection.CALL,
         spreads,
         hmm_state=0,
         cfg={"enabled": True, "max_per_cluster": 1, "min_abs_z": 0.0, "best_symbol_only": True},
     )
-    assert picked == {"OTC_SPC"}
-    assert order[0] == "OTC_SPC"
-    assert "leader=OTC_SPC" in note
+    assert picked == {"R_25"}
+    assert order[0] == "R_25"
+    assert "leader=R_25" in note
 
 
 def test_resolve_statarb_cluster_config_for_tag():
@@ -276,10 +276,10 @@ def test_resolve_statarb_cluster_config_for_tag():
 
 def test_execute_all_cluster_symbols_returns_every_candidate():
     picked, note = select_cluster_symbols_by_statarb(
-        ["OTC_FCHI", "OTC_GDAXI", "OTC_SSMI"],
+        ["R_75", "1HZ100V", "1HZ50V"],
         TradeDirection.PUT,
-        {"OTC_FCHI": 0.1},
+        {"R_75": 0.1},
         cfg={"execute_all": True, "enabled": True, "max_per_cluster": 1},
     )
-    assert picked == {"OTC_FCHI", "OTC_GDAXI", "OTC_SSMI"}
+    assert picked == {"R_75", "1HZ100V", "1HZ50V"}
     assert note == "CLUSTER_ALL_SYMBOLS"

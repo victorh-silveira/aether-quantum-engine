@@ -45,7 +45,7 @@ def test_emit_llm_decision_log_emits_llm_audit_compact_when_audit_present():
     ]
     emit_llm_decision_log(
         logger,
-        "frxEURUSD",
+        "R_100",
         **_base_kwargs(
             cycle_id=5,
             logic_line_max_chars=100,
@@ -71,7 +71,7 @@ def test_emit_llm_decision_log_inclui_wr_quando_rolling_definido():
     logger = MagicMock()
     emit_llm_decision_log(
         logger,
-        "frxEURUSD",
+        "R_100",
         **_base_kwargs(
             wr_rolling=0.412,
             wr_samples=4,
@@ -86,7 +86,7 @@ def test_emit_llm_decision_log_llm_dados_omite_placeholders_traco():
     logger = MagicMock()
     emit_llm_decision_log(
         logger,
-        "frxEURUSD",
+        "R_100",
         **_base_kwargs(
             direction=None,
             ref_px=None,
@@ -106,7 +106,7 @@ def test_emit_llm_decision_log_emits_llm_perf_when_http_latency_positive():
     logger = MagicMock()
     emit_llm_decision_log(
         logger,
-        "frxEURUSD",
+        "R_100",
         **_base_kwargs(
             cycle_id=2,
             conviction=0.85,
@@ -127,7 +127,7 @@ def test_emit_llm_decision_log_includes_entry_policy_tag():
     logger = MagicMock()
     emit_llm_decision_log(
         logger,
-        "frxEURUSD",
+        "R_100",
         **_base_kwargs(
             cycle_id=3,
             direction=TradeDirection.PUT,
@@ -146,7 +146,7 @@ def test_emit_llm_http_snapshot_leading_cycle_blank_before_llm_io():
     logger = MagicMock()
     emit_llm_http_snapshot(
         logger,
-        "frxEURUSD",
+        "R_100",
         cycle_id=2,
         http_user="rsi=x",
         http_system="",
@@ -162,7 +162,7 @@ def test_emit_llm_http_snapshot_logs_io_and_writes_dump(tmp_path):
     dump = tmp_path / "llm_http.json"
     emit_llm_http_snapshot(
         logger,
-        "frxEURUSD",
+        "R_100",
         cycle_id=7,
         http_user="RSI=high, BB=inside",
         http_system="sys body",
@@ -179,7 +179,7 @@ def test_emit_llm_http_snapshot_logs_io_and_writes_dump(tmp_path):
     assert "preview_sys=sys body" in sys_rendered
     text = dump.read_text(encoding="utf-8")
     assert '"cycle_id": 7' in text
-    assert '"symbol": "frxEURUSD"' in text
+    assert '"symbol": "R_100"' in text
     assert '"rsi": "high"' in text
 
 
@@ -219,7 +219,7 @@ def test_emit_llm_http_snapshot_preview_completo_sem_cap_preview(tmp_path):
     long_u = "Z" * 500
     emit_llm_http_snapshot(
         logger,
-        "frxEURUSD",
+        "R_100",
         cycle_id=3,
         http_user=long_u,
         http_system="",
@@ -238,7 +238,7 @@ def test_emit_llm_http_snapshot_truncates_preview_when_long(tmp_path):
     long_u = "Z" * 500
     emit_llm_http_snapshot(
         logger,
-        "frxEURUSD",
+        "R_100",
         cycle_id=1,
         http_user=long_u,
         http_system="",
@@ -259,7 +259,7 @@ def test_emit_llm_http_snapshot_jsonl_append(tmp_path):
     dump = tmp_path / "llm_io.jsonl"
     emit_llm_http_snapshot(
         logger,
-        "frxEURUSD",
+        "R_100",
         cycle_id=2,
         http_user="u",
         http_system="s",

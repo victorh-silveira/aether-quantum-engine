@@ -6,6 +6,18 @@ from src.application.services.orchestrator import Orchestrator
 
 
 @pytest.mark.asyncio
+async def test_tick_interval_cycle_skipped_when_interval_zero(orch_config):
+    orch_config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 0
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
+        orch = Orchestrator(orch_config, "token")
+        orch.stream.is_synchronized = True
+        orch._last_cluster_cycle_end = 0.0
+        orch._run_trading_cycle_if_ready = AsyncMock()
+        await orch._tick_interval_cycle_if_due()
+        orch._run_trading_cycle_if_ready.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_run_trading_cycle_blocked_by_session(orch_config):
     orch_config["trading"] = {
         "session": {

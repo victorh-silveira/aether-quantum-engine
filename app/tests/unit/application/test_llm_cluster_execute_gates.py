@@ -52,7 +52,7 @@ def test_cluster_execute_statarb_best_note_uses_tag_min_abs_at_gate():
         macro_sentiment="risk_on",
         macro_us_strength_quant=0.80,
         macro_eu_strength_quant=0.30,
-        statarb_spreads={"OTC_DJI": -0.55},
+        statarb_spreads={"R_50": -0.55},
         hmm_state=0,
     )
     assert (
@@ -64,9 +64,9 @@ def test_cluster_execute_statarb_best_note_uses_tag_min_abs_at_gate():
             macro,
             corr,
             active_region="us",
-            target_sym="OTC_DJI",
+            target_sym="R_50",
             llm_cluster_explicit=True,
-            index_note="STATARB_BEST leader=OTC_DJI z=-0.55 score=0.55",
+            index_note="STATARB_BEST leader=R_50 z=-0.55 score=0.55",
         )
         == "allowed"
     )
@@ -84,7 +84,7 @@ def test_cluster_execute_llm_explicit_skips_statarb_veto():
     metrics = base_cluster_metrics(
         macro_sentiment="risk_on",
         macro_us_strength_quant=0.80,
-        statarb_spreads={"OTC_SPC": -0.35},
+        statarb_spreads={"R_25": -0.35},
         hmm_state=0,
     )
     assert (
@@ -96,9 +96,9 @@ def test_cluster_execute_llm_explicit_skips_statarb_veto():
             macro,
             corr,
             active_region="us",
-            target_sym="OTC_SPC",
+            target_sym="R_25",
             llm_cluster_explicit=True,
-            index_note="STATARB_WEAK leader=OTC_SPC z=-0.35",
+            index_note="STATARB_WEAK leader=R_25 z=-0.35",
         )
         == "allowed"
     )
@@ -213,7 +213,7 @@ def test_cluster_execute_statarb_veto_when_not_llm_explicit():
     metrics = base_cluster_metrics(
         macro_sentiment="risk_on",
         macro_us_strength_quant=0.80,
-        statarb_spreads={"OTC_SPC": -0.35},
+        statarb_spreads={"R_25": -0.35},
         hmm_state=0,
     )
     assert (
@@ -225,7 +225,7 @@ def test_cluster_execute_statarb_veto_when_not_llm_explicit():
             macro,
             corr,
             active_region="us",
-            target_sym="OTC_SPC",
+            target_sym="R_25",
             llm_cluster_explicit=False,
             index_note="",
         )
@@ -247,13 +247,13 @@ def test_cluster_execute_flag_conviction_and_direction_gates():
             macro,
             corr,
             active_region="eu",
-            target_sym="OTC_FCHI",
+            target_sym="R_75",
         )
         is False
     )
     assert (
         cluster_execute_flag(
-            orch, base_cluster_metrics(), 0.70, None, macro, corr, active_region="eu", target_sym="OTC_FCHI"
+            orch, base_cluster_metrics(), 0.70, None, macro, corr, active_region="eu", target_sym="R_75"
         )
         is False
     )
@@ -261,12 +261,12 @@ def test_cluster_execute_flag_conviction_and_direction_gates():
 
 def test_cluster_propagate_logs_empty_when_cluster_tags_missing():
     orch = MagicMock()
-    orch.anchor = "frxEURUSD"
-    orch.symbols = ["frxEURUSD", "OTC_FCHI"]
+    orch.anchor = "R_100"
+    orch.symbols = ["R_100", "R_75"]
     orch.config = {
         "llm": {"min_conviction_execute": 0.60},
         "strategy": {
-            "clusters": {"us": ["OTC_SPC"], "eu": ["OTC_FCHI"]},
+            "clusters": {"us": ["R_25"], "eu": ["R_75"]},
             "correlation": {"enabled": True, "exclusive_cluster_by_macro": True},
             "macro": {"confluence_conviction_floor": 0.65},
         },
@@ -276,7 +276,7 @@ def test_cluster_propagate_logs_empty_when_cluster_tags_missing():
     decisions: dict = {}
     propagate_cluster_decisions(
         orch,
-        anchor_sym="frxEURUSD",
+        anchor_sym="R_100",
         direction=TradeDirection.PUT,
         metrics=metrics,
         decisions=decisions,

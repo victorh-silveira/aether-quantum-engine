@@ -29,14 +29,14 @@ def test_settle_orders_kelly_updates_bankroll():
     }
     order = BacktestOrder(
         bar_index=0,
-        symbol="OTC_SPC",
+        symbol="R_25",
         direction=TradeDirection.CALL,
         conviction=0.7,
         macro_tag="risk_on",
         active_region="US",
         index_note="",
     )
-    m15 = {"OTC_SPC": [100.0, 101.0]}
+    m15 = {"R_25": [100.0, 101.0]}
     sim = settle_orders_kelly([order], m15, risk_cfg, bankroll_start=100.0)
     assert len(sim.trades) == 1
     assert sim.trades[0].won
@@ -59,7 +59,7 @@ def test_kelly_backtest_ignores_stop_win():
         "small_account_stop_win": 5.0,
         "large_account_stop_win_pct": 5.0,
     }
-    rm_profit_orders = [BacktestOrder(i, "OTC_SPC", TradeDirection.CALL, 0.9, "risk_on", "US", "") for i in range(20)]
-    m15 = {"OTC_SPC": [100.0] + [101.0] * 30}
+    rm_profit_orders = [BacktestOrder(i, "R_25", TradeDirection.CALL, 0.9, "risk_on", "US", "") for i in range(20)]
+    m15 = {"R_25": [100.0] + [101.0] * 30}
     sim = settle_orders_kelly(rm_profit_orders, m15, risk_cfg, bankroll_start=100.0)
     assert len(sim.trades) <= 20

@@ -9,7 +9,7 @@ from scripts.backtest.gemini_collect import collect_hft_orders_gemini
 
 def _config():
     return {
-        "anchor": "frxEURUSD",
+        "anchor": "R_100",
         "orchestrator": {"cycle_interval_seconds": 15},
         "llm": {
             "min_conviction_execute": 0.55,
@@ -19,8 +19,8 @@ def _config():
         "risk_management": {"params": {"entry_cooldown_ticks": 0, "payout_estimate": 0.95}},
         "strategy": {
             "clusters": {
-                "us": ["OTC_SPC"],
-                "eu": ["OTC_GDAXI"],
+                "us": ["R_25"],
+                "eu": ["1HZ100V"],
             },
             "correlation": {
                 "enabled": True,
@@ -44,7 +44,7 @@ def _config():
 
 def _market():
     closes = [100.0 * (1.012**i) for i in range(40)]
-    syms = {"frxEURUSD": closes, "OTC_SPC": closes, "OTC_GDAXI": closes}
+    syms = {"R_100": closes, "R_25": closes, "1HZ100V": closes}
     return {"m15": syms, "m5": syms}
 
 
@@ -82,10 +82,10 @@ async def test_collect_hft_orders_gemini_uses_llm_clusters(tmp_path):
             config=config,
             m15=market["m15"],
             m5=market["m5"],
-            us_syms=["OTC_SPC"],
-            eu_syms=["OTC_GDAXI"],
-            all_syms=["frxEURUSD", "OTC_SPC", "OTC_GDAXI"],
-            anchor="frxEURUSD",
+            us_syms=["R_25"],
+            eu_syms=["1HZ100V"],
+            all_syms=["R_100", "R_25", "1HZ100V"],
+            anchor="R_100",
             macro_cfg=config["strategy"]["macro"],
             start=10,
             end=12,

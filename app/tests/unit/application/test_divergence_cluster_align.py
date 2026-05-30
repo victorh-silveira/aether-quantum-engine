@@ -63,9 +63,9 @@ def test_quant_trade_direction_flat_returns_none():
 
 def test_apply_macro_post_parse_keeps_llm_cluster_on_divergence():
     snap = build_macro_snapshot(
-        ["OTC_DJI"],
-        ["OTC_FCHI"],
-        {"OTC_DJI": [100.0, 105.0], "OTC_FCHI": [100.0, 95.0]},
+        ["R_50"],
+        ["R_75"],
+        {"R_50": [100.0, 105.0], "R_75": [100.0, 95.0]},
         {"min_indices_for_vote": 1, "cluster_return_threshold_pct": 0.02},
     )
     assert snap.tag == "divergence_us_leads"
@@ -83,13 +83,13 @@ def test_apply_macro_post_parse_keeps_llm_cluster_on_divergence():
 
 
 def test_anchor_cached_decision_valid():
-    assert anchor_cached_decision_valid(None, "frxEURUSD") is False
-    assert anchor_cached_decision_valid({"frxEURUSD": {"direction": None}}, "frxEURUSD") is False
-    assert anchor_cached_decision_valid({"frxEURUSD": "bad"}, "frxEURUSD") is False
+    assert anchor_cached_decision_valid(None, "R_100") is False
+    assert anchor_cached_decision_valid({"R_100": {"direction": None}}, "R_100") is False
+    assert anchor_cached_decision_valid({"R_100": "bad"}, "R_100") is False
     assert (
         anchor_cached_decision_valid(
-            {"frxEURUSD": {"direction": TradeDirection.CALL}},
-            "frxEURUSD",
+            {"R_100": {"direction": TradeDirection.CALL}},
+            "R_100",
         )
         is True
     )

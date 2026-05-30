@@ -27,12 +27,12 @@ def test_apply_cluster_target_executes_llm_direction_despite_statarb_misalign():
     decisions: dict = {}
     propagated, blocked, inverted, corrected = apply_cluster_target_decision(
         orch,
-        target_sym="OTC_FTSE",
+        target_sym="1HZ100V",
         target_direction=TradeDirection.PUT,
         index_note="STATARB_NO_Z_ALIGN",
-        metrics=_base_metrics(conviction=0.70, statarb_spreads={"OTC_FTSE": -2.0}),
+        metrics=_base_metrics(conviction=0.70, statarb_spreads={"1HZ100V": -2.0}),
         decisions=decisions,
-        anchor_sym="frxEURUSD",
+        anchor_sym="R_100",
         conviction=0.70,
         macro_cfg={"assert_min_hmm_prob": 0.0, "allowed_execute_tags": ("risk_off",)},
         corr_cfg={
@@ -46,12 +46,12 @@ def test_apply_cluster_target_executes_llm_direction_despite_statarb_misalign():
         macro_tag="risk_off",
         invert_on_block=True,
     )
-    assert propagated == "OTC_FTSE[P]"
+    assert propagated == "1HZ100V[P]"
     assert blocked is None
     assert inverted is None
-    assert decisions["OTC_FTSE"]["direction"] == TradeDirection.PUT
-    assert decisions["OTC_FTSE"]["metrics"]["execute"] is True
-    assert decisions["OTC_FTSE"]["metrics"]["llm_block_reason"] == "allowed"
+    assert decisions["1HZ100V"]["direction"] == TradeDirection.PUT
+    assert decisions["1HZ100V"]["metrics"]["execute"] is True
+    assert decisions["1HZ100V"]["metrics"]["llm_block_reason"] == "allowed"
 
 
 def test_apply_cluster_target_keeps_llm_direction_on_divergence_tag():
@@ -62,16 +62,16 @@ def test_apply_cluster_target_keeps_llm_direction_on_divergence_tag():
     decisions: dict = {}
     propagated, blocked, inverted, corrected = apply_cluster_target_decision(
         orch,
-        target_sym="OTC_FTSE",
+        target_sym="1HZ100V",
         target_direction=TradeDirection.PUT,
         index_note="STATARB_NO_Z_ALIGN",
         metrics=_base_metrics(
             conviction=0.70,
             macro_sentiment="divergence_eu_leads",
-            statarb_spreads={"OTC_FTSE": -2.0},
+            statarb_spreads={"1HZ100V": -2.0},
         ),
         decisions=decisions,
-        anchor_sym="frxEURUSD",
+        anchor_sym="R_100",
         conviction=0.70,
         macro_cfg={"assert_min_hmm_prob": 0.0, "allowed_execute_tags": ("divergence_eu_leads",)},
         corr_cfg={
@@ -85,11 +85,11 @@ def test_apply_cluster_target_keeps_llm_direction_on_divergence_tag():
         macro_tag="divergence_eu_leads",
         invert_on_block=True,
     )
-    assert propagated == "OTC_FTSE[P]"
+    assert propagated == "1HZ100V[P]"
     assert blocked is None
     assert inverted is None
-    assert decisions["OTC_FTSE"]["direction"] == TradeDirection.PUT
-    assert decisions["OTC_FTSE"]["metrics"]["execute"] is True
+    assert decisions["1HZ100V"]["direction"] == TradeDirection.PUT
+    assert decisions["1HZ100V"]["metrics"]["execute"] is True
 
 
 def test_apply_cluster_target_quarantine_does_not_block_llm_execute():
@@ -100,16 +100,16 @@ def test_apply_cluster_target_quarantine_does_not_block_llm_execute():
     decisions: dict = {}
     propagated, blocked, inverted, corrected = apply_cluster_target_decision(
         orch,
-        target_sym="OTC_FTSE",
+        target_sym="1HZ100V",
         target_direction=TradeDirection.PUT,
         index_note="STATARB_NO_Z_ALIGN",
         metrics=_base_metrics(
             conviction=0.70,
             macro_sentiment="divergence_eu_leads",
-            statarb_spreads={"OTC_FTSE": -2.0},
+            statarb_spreads={"1HZ100V": -2.0},
         ),
         decisions=decisions,
-        anchor_sym="frxEURUSD",
+        anchor_sym="R_100",
         conviction=0.70,
         macro_cfg={"assert_min_hmm_prob": 0.0, "allowed_execute_tags": ("divergence_eu_leads",)},
         corr_cfg={
@@ -123,8 +123,8 @@ def test_apply_cluster_target_quarantine_does_not_block_llm_execute():
         macro_tag="divergence_eu_leads",
         invert_on_block=True,
     )
-    assert propagated == "OTC_FTSE[P]"
+    assert propagated == "1HZ100V[P]"
     assert blocked is None
     assert inverted is None
-    assert decisions["OTC_FTSE"]["direction"] == TradeDirection.PUT
-    assert decisions["OTC_FTSE"]["metrics"]["execute"] is True
+    assert decisions["1HZ100V"]["direction"] == TradeDirection.PUT
+    assert decisions["1HZ100V"]["metrics"]["execute"] is True
