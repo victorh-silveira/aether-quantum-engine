@@ -11,6 +11,8 @@ Motor quantitativo assíncrono no framework **Medallion** (estilo Renaissance Te
 
 Documentação: [metodologia](docs/medallion.md) | [arquitetura](docs/arquitetura.md) | [estrutura do repo](docs/structure.md)
 
+**Branch:** `main` — mercado OTC transatlantico (`frxEURUSD` + indices `OTC_*`). Para indices sinteticos Deriv M1 (`R_100`), use a branch **`feat/synthetic-indices-m5`**.
+
 Layout: `app/` (codigo e testes), `config/`, `docs/`, `linters/` (pre-commit e release). Ver [docs/structure.md](docs/structure.md).
 
 ---
