@@ -92,8 +92,11 @@
     "log_file": "logs/engine.log"
   },
   "orchestrator": {
-    "cycle_interval_seconds": 60,
-    "cluster_refresh_interval_seconds": 60,
+    "cycle_interval_seconds": 45,
+    "cluster_refresh_interval_seconds": 45,
+    "entry_spacing_follows_contract": true,
+    "breath_follows_contract": true,
+    "cluster_refresh_spacing_cap_seconds": 72,
     "cluster_refresh_execute_enabled": false,
     "cluster_refresh_execute_on_quant_validate": true,
     "cluster_refresh_quant_tags": [
@@ -103,16 +106,16 @@
       "divergence_eu_leads",
       "indefinido"
     ],
-    "cluster_refresh_entry_spacing_seconds": 30,
+    "cluster_refresh_entry_spacing_seconds": 5,
     "cluster_pause_after_loss_cycles": 0,
-    "post_settlement_breath_seconds": 60,
+    "post_settlement_breath_seconds": 8,
     "settlement_wait_log_interval_seconds": 15,
     "execution": {
       "include_anchor_trades": false,
       "inter_symbol_delay": 3.0,
       "settlement_max_stagnant_polls": 40,
       "settlement_poll_seconds": 0.5,
-      "settlement_post_expiry_slack_seconds": 45.0,
+      "settlement_post_expiry_slack_seconds": 12.0,
       "settlement_request_timeout_seconds": 30.0
     },
     "reconcile_interval_seconds": 5

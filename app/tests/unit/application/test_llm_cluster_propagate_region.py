@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 from src.application.services.llm.llm_cluster_propagate import propagate_cluster_decisions
-from src.application.services.llm.llm_cluster_propagate_region import cluster_region_active
+from src.application.services.llm.llm_cluster_propagate_region import _merge_apply_result, cluster_region_active
 from src.domain.models.trade import TradeDirection
 
 
@@ -18,6 +18,25 @@ def _base_metrics(**overrides):
     }
     base.update(overrides)
     return base
+
+
+def test_merge_apply_result_keeps_invert_tag_when_propagated():
+    propagated: list[str] = []
+    blocked: list[str] = []
+    inverted: list[str] = []
+    corrected: list[str] = []
+    assert _merge_apply_result(
+        propagated,
+        blocked,
+        inverted,
+        corrected,
+        "R_25[P]",
+        None,
+        "R_25[C->P]",
+        None,
+    )
+    assert propagated == ["R_25[P]"]
+    assert inverted == ["R_25[C->P]"]
 
 
 def test_cluster_region_active_respects_exclusive_macro():

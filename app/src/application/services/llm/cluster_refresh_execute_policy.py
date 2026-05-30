@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from src.application.services.llm.contract_timing import resolve_refresh_entry_spacing_seconds
 from src.application.services.llm.macro_cluster_align import quant_trade_direction
 from src.domain.models.trade import TradeDirection
 
@@ -37,16 +38,18 @@ def _normalize_quant_tags(raw: Any) -> tuple[str, ...]:
     return ("risk_on", "risk_off", "divergence_us_leads", "divergence_eu_leads")
 
 
-def resolve_cluster_refresh_policy(orch_cfg: dict[str, Any] | None) -> dict[str, Any]:
+def resolve_cluster_refresh_policy(
+    orch_cfg: dict[str, Any] | None,
+    *,
+    full_config: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Resolve flags de execucao hibrida no cluster_refresh."""
     cfg = orch_cfg if isinstance(orch_cfg, dict) else {}
-    breath = float(cfg.get("post_settlement_breath_seconds", 60))
-    margin = float(cfg.get("cluster_refresh_entry_spacing_seconds", 30))
     return {
         "global_refresh_execute": bool(cfg.get("cluster_refresh_execute_enabled", False)),
         "quant_refresh_execute": bool(cfg.get("cluster_refresh_execute_on_quant_validate", True)),
         "quant_tags": _normalize_quant_tags(cfg.get("cluster_refresh_quant_tags")),
-        "entry_spacing_seconds": max(0.0, breath + margin),
+        "entry_spacing_seconds": resolve_refresh_entry_spacing_seconds(cfg, full_config),
     }
 
 
@@ -89,9 +92,9 @@ def cluster_entry_spacing_allows(orch: Any, *, now_epoch: float | None = None) -
     active = getattr(state, "active_contracts", None) if state is not None else None
     if active:
         return False, "active_contract_open"
-    cfg = resolve_cluster_refresh_policy(
-        orch.config.get("orchestrator") if isinstance(getattr(orch, "config", None), dict) else None
-    )
+    orch_cfg = orch.config.get("orchestrator") if isinstance(getattr(orch, "config", None), dict) else None
+    full_cfg = orch.config if isinstance(getattr(orch, "config", None), dict) else None
+    cfg = resolve_cluster_refresh_policy(orch_cfg, full_config=full_cfg)
     spacing = float(cfg["entry_spacing_seconds"])
     if spacing <= 0:
         return True, ""
@@ -215,7 +218,8 @@ def cluster_refresh_may_execute(
     if not refresh_without_llm:
         return True, ""
     orch_cfg = orch.config.get("orchestrator") if isinstance(getattr(orch, "config", None), dict) else {}
-    policy = resolve_cluster_refresh_policy(orch_cfg)
+    full_cfg = orch.config if isinstance(getattr(orch, "config", None), dict) else None
+    policy = resolve_cluster_refresh_policy(orch_cfg, full_config=full_cfg)
     if policy["global_refresh_execute"]:
         return True, "global_refresh_execute"
     return _divergence_refresh_gate(orch, decisions, policy, now_epoch=now_epoch)
