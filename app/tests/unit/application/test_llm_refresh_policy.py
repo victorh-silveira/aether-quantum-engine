@@ -2,12 +2,14 @@ from src.application.services.llm.llm_refresh_policy import (
     SCHEDULE_ALWAYS,
     SCHEDULE_DAILY,
     SCHEDULE_TAG_CHANGE,
+    cached_anchor_conviction_below_execute_floor,
     macro_tag_allows_llm_call,
     resolve_llm_refresh_interval_seconds,
     resolve_llm_refresh_schedule,
     should_refresh_llm_decision,
 )
 from src.application.services.llm.macro_config import MacroSnapshot, resolve_macro_config
+from src.domain.models.trade import TradeDirection
 
 
 def _snap(tag: str) -> MacroSnapshot:
@@ -130,6 +132,51 @@ def test_should_refresh_when_macro_indefinido():
         current_tag="indefinido",
         last_tag="indefinido",
         has_cached_decisions=True,
+    )
+
+
+def test_cached_anchor_conviction_below_execute_floor_when_tag_piso_above_conviction():
+    cached = {
+        "R_100": {
+            "direction": TradeDirection.PUT,
+            "metrics": {"conviction": 0.65},
+        }
+    }
+    macro = {"min_conviction_by_tag": {"custom_regime": 0.68}}
+    assert cached_anchor_conviction_below_execute_floor(
+        cached,
+        "R_100",
+        "custom_regime",
+        macro,
+        0.60,
+    )
+
+
+def test_cached_anchor_conviction_below_execute_floor_invalid_entry():
+    assert not cached_anchor_conviction_below_execute_floor({"R_100": "x"}, "R_100", "risk_off", {}, 0.60)
+    assert not cached_anchor_conviction_below_execute_floor(
+        {"R_100": {"direction": TradeDirection.PUT, "metrics": {"conviction": "bad"}}},
+        "R_100",
+        "risk_off",
+        {},
+        0.60,
+    )
+
+
+def test_cached_anchor_conviction_below_execute_floor_explicit_uses_global():
+    cached = {
+        "R_100": {
+            "direction": TradeDirection.PUT,
+            "metrics": {"conviction": 0.65},
+        }
+    }
+    macro = {"min_conviction_by_tag": {"risk_off": 0.68}}
+    assert not cached_anchor_conviction_below_execute_floor(
+        cached,
+        "R_100",
+        "risk_off",
+        macro,
+        0.60,
     )
 
 

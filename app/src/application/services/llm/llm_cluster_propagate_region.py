@@ -40,7 +40,6 @@ def _merge_apply_result(
         return True
     if inverted:
         inverted_tags.append(inverted)
-        return True
     if blocked:
         blocked_tags.append(blocked)
     return False
@@ -122,18 +121,21 @@ def propagate_cluster_region(
             invert_on_block=invert_on_block,
         )
 
-    propagated_tags, blocked_tags, inverted_tags, corrected_tags, hit = _try_symbol_batch(
+    propagated_tags, blocked_tags, inverted_tags, corrected_tags, _hit = _try_symbol_batch(
         leaders,
         apply_symbol,
         stop_on_first_hit=single_leader_mode,
     )
-    if hit and single_leader_mode:
+    if propagated_tags and single_leader_mode:
         return propagated_tags, blocked_tags, inverted_tags, corrected_tags
-    if try_alternates and single_leader_mode and not propagated_tags and not inverted_tags and fallbacks:
+    if try_alternates and single_leader_mode and not propagated_tags and fallbacks:
         alt_p, alt_b, alt_i, alt_c, _ = _try_symbol_batch(
             fallbacks,
             apply_symbol,
             stop_on_first_hit=True,
         )
-        return alt_p, alt_b, alt_i, alt_c
+        propagated_tags.extend(alt_p)
+        blocked_tags.extend(alt_b)
+        inverted_tags.extend(alt_i)
+        corrected_tags.extend(alt_c)
     return propagated_tags, blocked_tags, inverted_tags, corrected_tags

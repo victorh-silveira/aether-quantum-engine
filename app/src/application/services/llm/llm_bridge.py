@@ -12,6 +12,7 @@ from src.application.services.llm.llm_bridge_telemetry import (
     build_metrics_for_decision as _build_metrics_for_decision_core,
     store_symbol_decision,
 )
+from src.application.services.llm.llm_cluster_guards import min_conviction_execute
 from src.application.services.llm.llm_cluster_propagate import propagate_cluster_decisions
 from src.application.services.llm.llm_cluster_refresh import (
     refresh_cluster_decisions_from_cache,
@@ -22,6 +23,7 @@ from src.application.services.llm.llm_refresh_policy import (
     macro_tag_allows_llm_call,
     resolve_llm_refresh_interval_seconds,
     resolve_llm_refresh_schedule,
+    cached_anchor_conviction_below_execute_floor,
     should_refresh_llm_decision,
 )
 from src.application.services.llm.llm_symbol_io import (
@@ -151,7 +153,8 @@ async def collect_llm_decisions(orch: Any) -> dict[str, dict]:
     cached = getattr(orch, "_last_llm_decisions", None)
     interval = resolve_llm_refresh_interval_seconds(orch.config)
     now_epoch = time.time()
-    if not should_refresh_llm_decision(
+    base_conviction_floor = min_conviction_execute(orch)
+    refresh_due = should_refresh_llm_decision(
         schedule=schedule,
         current_tag=macro_snapshot.tag,
         last_tag=last_tag,
@@ -159,7 +162,15 @@ async def collect_llm_decisions(orch: Any) -> dict[str, dict]:
         last_refresh_epoch=getattr(orch, "_last_llm_refresh_epoch", None),
         now_epoch=now_epoch,
         refresh_interval_seconds=interval,
-    ):
+    )
+    conviction_stale = cached_anchor_conviction_below_execute_floor(
+        cached,
+        anchor_sym,
+        macro_snapshot.tag,
+        macro_cfg,
+        base_conviction_floor,
+    )
+    if not refresh_due and not conviction_stale:
         orch.logger.debug("[%s] LLM_REFRESH cache tag=%s agenda=%s", cid, macro_snapshot.tag, schedule)
         if cluster_propagation_enabled:
             orch._cluster_refresh_without_llm = True

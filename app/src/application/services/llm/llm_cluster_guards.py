@@ -24,8 +24,11 @@ def cluster_conviction_floor(
     base_floor: float,
     llm_cluster_explicit: bool = False,
 ) -> float:
-    """Piso de conviccao do cluster; divergencia LLM usa apenas o piso global."""
-    if llm_cluster_explicit and str(macro_tag).startswith("divergence"):
+    """Piso de conviccao do cluster; tags com US/EU LLM usam o piso global do motor."""
+    tag = str(macro_tag).strip()
+    if llm_cluster_explicit and (
+        tag.startswith("divergence") or tag in ("", "indefinido", "risk_on", "risk_off")
+    ):
         return base_floor
     return min_conviction_for_macro_tag(
         macro_cfg,

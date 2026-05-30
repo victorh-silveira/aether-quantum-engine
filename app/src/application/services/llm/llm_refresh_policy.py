@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from src.application.services.llm.global_macro_confluence import MacroSnapshot
+from src.application.services.llm.llm_cluster_guards import cluster_conviction_floor
 from src.application.services.llm.macro_config import resolve_macro_config
 from src.domain.models.trade import TradeDirection
 
@@ -69,6 +70,35 @@ def macro_tag_allows_llm_call(snapshot: MacroSnapshot, macro_cfg: dict[str, Any]
     if allowed and tag not in allowed:
         return False, f"MACRO_SKIP tag={snapshot.tag}"
     return True, ""
+
+
+def cached_anchor_conviction_below_execute_floor(
+    cached: dict[str, Any] | None,
+    anchor_sym: str,
+    macro_tag: str,
+    macro_cfg: dict[str, Any] | None,
+    base_floor: float,
+) -> bool:
+    """True quando cache da ancora tem conviccao abaixo do piso de entrada do cluster."""
+    if not isinstance(cached, dict):
+        return False
+    entry = cached.get(anchor_sym)
+    if not isinstance(entry, dict):
+        return False
+    metrics = entry.get("metrics") if isinstance(entry.get("metrics"), dict) else {}
+    try:
+        conviction = float(metrics.get("conviction", 0))
+    except (TypeError, ValueError):
+        return False
+    if conviction <= 0:
+        return False
+    floor = cluster_conviction_floor(
+        macro_cfg,
+        macro_tag=macro_tag,
+        base_floor=base_floor,
+        llm_cluster_explicit=True,
+    )
+    return conviction < floor
 
 
 def should_refresh_llm_decision(

@@ -55,6 +55,9 @@ async def process_contract_settlement(orch: Any, data: dict):
 
     if profit >= 0:
         orch._session_wins += 1
+        orch._last_loss_symbol = ""
+        orch._last_loss_direction = ""
+        orch._repeat_loss_block_cycles_remaining = None
     else:
         orch._session_losses += 1
         orch._invert_quarantine_cycles_remaining = 1

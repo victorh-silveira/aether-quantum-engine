@@ -17,6 +17,7 @@ from src.application.services.llm.llm_cluster_propagate_region import (
     cluster_region_active,
     propagate_cluster_region,
 )
+from src.application.services.llm.profitable_scenario import cluster_symbol_allowed_for_tag
 from src.application.services.llm.strategy_clusters import resolve_cluster_lists
 from src.domain.models.trade import TradeDirection
 
@@ -91,6 +92,12 @@ def _cluster_allowed_sets(
     hmm_state = int(metrics.get("hmm_state", 0))
     us_candidates = [s for s in orch.symbols if s in us_targets and s != anchor_sym and not anchor_in_us]
     eu_candidates = [s for s in orch.symbols if s in eu_targets and s != anchor_sym and not anchor_in_eu]
+    us_candidates = [
+        s for s in us_candidates if cluster_symbol_allowed_for_tag(macro_cfg, macro_tag=macro_tag, symbol=s)
+    ]
+    eu_candidates = [
+        s for s in eu_candidates if cluster_symbol_allowed_for_tag(macro_cfg, macro_tag=macro_tag, symbol=s)
+    ]
     us_dir, _ = cluster_direction_from_tag(metrics.get("us_cluster"))
     eu_dir, _ = cluster_direction_from_tag(metrics.get("eu_cluster"))
     if us_dir is None:

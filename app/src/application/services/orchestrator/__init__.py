@@ -5,6 +5,7 @@ import logging
 import time
 from typing import Any
 
+from src.application.services.llm.cluster_post_loss import tick_cluster_repeat_loss_cooldown
 from src.application.services.llm.llm_bridge import collect_llm_decisions
 from src.application.services.llm.llm_config_merge import merge_execution_section
 from src.application.services.orchestrator.config_symbols import normalize_symbols_and_anchor
@@ -76,6 +77,7 @@ class Orchestrator:
         self._cluster_pause_after_loss_active = False
         self._last_loss_symbol = ""
         self._last_loss_direction = ""
+        self._repeat_loss_block_cycles_remaining = None
         self._cluster_refresh_without_llm = False
 
     def _llm_enabled(self) -> bool:
@@ -223,6 +225,7 @@ class Orchestrator:
                 if self._cycle_seq > 1:
                     self.logger.info("")
                 self._active_cycle_id = self._cycle_seq
+                tick_cluster_repeat_loss_cooldown(self)
                 self._invert_quarantine_active = self._invert_quarantine_cycles_remaining > 0
                 if self._invert_quarantine_active:
                     self._invert_quarantine_cycles_remaining -= 1
