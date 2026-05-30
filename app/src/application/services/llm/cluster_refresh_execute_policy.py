@@ -5,12 +5,9 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from src.application.services.llm.contract_timing import resolve_refresh_entry_spacing_seconds
 from src.application.services.llm.macro_cluster_align import quant_trade_direction
-from src.application.services.llm.synthetic_universe import (
-    DEFAULT_ANCHOR,
-    resolve_anchor,
-    resolve_refresh_entry_spacing_seconds,
-)
+from src.application.services.llm.synthetic_universe import DEFAULT_ANCHOR, resolve_anchor
 from src.domain.models.trade import TradeDirection
 
 

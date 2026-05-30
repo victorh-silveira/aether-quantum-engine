@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from src.application.services.llm.synthetic_universe import resolve_post_settlement_breath_seconds
+from src.application.services.llm.contract_timing import resolve_post_settlement_breath_seconds
 
 
 def schedule_trading_cycle_after_settlement(orch: Any) -> None:
