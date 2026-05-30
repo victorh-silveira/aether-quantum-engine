@@ -1,3 +1,9 @@
+## [1.29.3](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.29.2...v1.29.3) (2026-05-30)
+
+### Correcoes de Bug
+
+* **llm:** trocar vetos HMM por inteligencia e liberar divergencia LLM ([f3e4a61](https://github.com/victorh-silveira/aether-quantum-engine/commit/f3e4a6119837b96f8c8279e05ec522862dd54b7c))
+
 ## [1.29.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.29.1...v1.29.2) (2026-05-30)
 
 ### Correcoes de Bug
