@@ -1,3 +1,9 @@
+## [1.29.6](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.29.5...v1.29.6) (2026-05-30)
+
+### Correcoes de Bug
+
+* **llm:** preservar direcao Gemini em tags de divergencia ([7469752](https://github.com/victorh-silveira/aether-quantum-engine/commit/7469752091a8fb610f59489844c6668907379ea9))
+
 ## [1.29.5](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.29.4...v1.29.5) (2026-05-30)
 
 ### Correcoes de Bug
