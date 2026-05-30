@@ -1,3 +1,9 @@
+## [1.29.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.29.0...v1.29.1) (2026-05-30)
+
+### Correcoes de Bug
+
+* **risk:** suavizar Kelly e desativar stop-win agressivo ([7c40611](https://github.com/victorh-silveira/aether-quantum-engine/commit/7c40611337ad8c0e934072e221b2dafe31879067))
+
 ## [1.29.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.28.0...v1.29.0) (2026-05-29)
 
 ### Funcionalidades
