@@ -229,8 +229,8 @@
       "min_conviction_by_tag": {
         "risk_on": 0.70,
         "risk_off": 0.68,
-        "divergence_us_leads": 0.68,
-        "divergence_eu_leads": 0.68
+        "divergence_us_leads": 0.60,
+        "divergence_eu_leads": 0.60
       },
       "statarb_min_abs_z_by_tag": {
         "risk_on": 0.70,
