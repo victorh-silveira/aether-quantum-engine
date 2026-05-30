@@ -97,11 +97,13 @@
     "cluster_refresh_execute_enabled": false,
     "cluster_refresh_execute_on_quant_validate": true,
     "cluster_refresh_quant_tags": [
+      "risk_on",
+      "risk_off",
       "divergence_us_leads",
       "divergence_eu_leads"
     ],
     "cluster_refresh_entry_spacing_seconds": 30,
-    "cluster_pause_after_loss_cycles": 2,
+    "cluster_pause_after_loss_cycles": 1,
     "post_settlement_breath_seconds": 60,
     "settlement_wait_log_interval_seconds": 15,
     "execution": {

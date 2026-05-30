@@ -31,7 +31,7 @@ def _orch(**overrides):
 
 def test_resolve_cluster_refresh_policy_defaults_quant_tags():
     policy = resolve_cluster_refresh_policy({})
-    assert policy["quant_tags"] == ("divergence_us_leads", "divergence_eu_leads")
+    assert policy["quant_tags"] == ("risk_on", "risk_off", "divergence_us_leads", "divergence_eu_leads")
 
 
 def test_entry_is_quant_validated_rejects_invalid_entry():
@@ -125,6 +125,34 @@ def test_refresh_divergence_quant_validated_allows_execute():
         },
     }
     ok, reason = cluster_refresh_may_execute(orch, decisions, refresh_without_llm=True, now_epoch=1000.0)
+    assert ok is True
+    assert reason == "quant_refresh_ok"
+
+
+def test_refresh_risk_off_with_quant_correction_allows():
+    orch = _orch(
+        orchestrator={
+            "cluster_refresh_quant_tags": [
+                "risk_on",
+                "risk_off",
+                "divergence_us_leads",
+                "divergence_eu_leads",
+            ],
+        }
+    )
+    decisions = {
+        "frxEURUSD": {"direction": TradeDirection.PUT, "metrics": {"macro_sentiment": "risk_off"}},
+        "1HZ100V": {
+            "direction": TradeDirection.CALL,
+            "metrics": {
+                "execute": True,
+                "macro_sentiment": "risk_off",
+                "llm_statarb_dir_corrected": True,
+                "cluster_target_sym": "1HZ100V",
+            },
+        },
+    }
+    ok, reason = cluster_refresh_may_execute(orch, decisions, refresh_without_llm=True, now_epoch=2000.0)
     assert ok is True
     assert reason == "quant_refresh_ok"
 
@@ -267,7 +295,5 @@ def test_entry_spacing_zero_disables_wait():
 
 
 def test_entry_spacing_allows_after_breath():
-    orch = _orch(last_cluster_cycle_end=900.0)
-    ok, reason = cluster_entry_spacing_allows(orch, now_epoch=1000.0)
-    assert ok is True
-    assert reason == ""
+    ok, reason = cluster_entry_spacing_allows(_orch(last_cluster_cycle_end=900.0), now_epoch=1000.0)
+    assert ok is True and reason == ""
