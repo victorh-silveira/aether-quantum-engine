@@ -2,6 +2,7 @@ from unittest.mock import MagicMock
 
 from src.application.services.llm.cluster_refresh_execute_policy import (
     any_cluster_entry_marked_execute,
+    any_cluster_entry_with_direction,
     any_quant_validated_cluster_entry,
     cluster_entry_spacing_allows,
     cluster_refresh_may_execute,
@@ -28,6 +29,10 @@ def _orch(**overrides):
     orch.state.active_contracts = overrides.get("active_contracts", {})
     orch._last_cluster_cycle_end = overrides.get("last_cluster_cycle_end", 0.0)
     return orch
+
+
+def test_any_cluster_entry_with_direction_rejects_non_dict():
+    assert any_cluster_entry_with_direction("bad", anchor_sym="frxEURUSD") is False
 
 
 def test_resolve_cluster_refresh_policy_defaults_quant_tags():
@@ -176,7 +181,24 @@ def test_refresh_risk_on_without_llm_blocks():
     assert reason == "risk_regime_requires_fresh_llm"
 
 
-def test_refresh_divergence_without_quant_edge_blocks():
+def test_refresh_divergence_without_cluster_direction_blocks():
+    orch = _orch()
+    decisions = {
+        "frxEURUSD": {"direction": TradeDirection.CALL, "metrics": {"macro_sentiment": "divergence_us_leads"}},
+        "OTC_DJI": {
+            "metrics": {
+                "execute": False,
+                "macro_sentiment": "divergence_us_leads",
+                "cluster_target_sym": "OTC_DJI",
+            },
+        },
+    }
+    ok, reason = cluster_refresh_may_execute(orch, decisions, refresh_without_llm=True, now_epoch=1000.0)
+    assert ok is False
+    assert reason == "divergence_refresh_no_quant_edge"
+
+
+def test_refresh_divergence_with_cached_direction_allows():
     orch = _orch()
     decisions = {
         "frxEURUSD": {"direction": TradeDirection.CALL, "metrics": {"macro_sentiment": "divergence_us_leads"}},
@@ -186,13 +208,12 @@ def test_refresh_divergence_without_quant_edge_blocks():
                 "execute": False,
                 "macro_sentiment": "divergence_us_leads",
                 "cluster_target_sym": "OTC_DJI",
-                "index_m5_dir_by_symbol": {"OTC_DJI": "down"},
             },
         },
     }
     ok, reason = cluster_refresh_may_execute(orch, decisions, refresh_without_llm=True, now_epoch=1000.0)
-    assert ok is False
-    assert reason == "divergence_refresh_no_quant_edge"
+    assert ok is True
+    assert reason == "quant_refresh_ok"
 
 
 def test_refresh_execute_disabled_on_divergence():

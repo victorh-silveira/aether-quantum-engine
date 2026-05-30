@@ -60,10 +60,13 @@ def clear_cluster_execute_on_cached_decisions(cached: dict[str, dict], anchor_sy
 
 
 def macro_tag_allows_llm_call(snapshot: MacroSnapshot, macro_cfg: dict[str, Any] | None) -> tuple[bool, str]:
-    """False quando a tag macro atual nao esta em allowed_execute_tags."""
+    """False quando a tag macro bloqueia consulta; indefinido sempre consulta Gemini."""
+    tag = str(snapshot.tag or "").strip()
+    if tag in ("", "indefinido"):
+        return True, ""
     cfg = resolve_macro_config(macro_cfg)
     allowed = cfg.get("allowed_execute_tags")
-    if allowed and snapshot.tag not in allowed:
+    if allowed and tag not in allowed:
         return False, f"MACRO_SKIP tag={snapshot.tag}"
     return True, ""
 
@@ -93,5 +96,7 @@ def should_refresh_llm_decision(
         and now_epoch is not None
         and float(now_epoch) - float(last_refresh_epoch) >= interval
     ):
+        return True
+    if str(current_tag).strip() in ("", "indefinido"):
         return True
     return str(current_tag) != str(last_tag or "")

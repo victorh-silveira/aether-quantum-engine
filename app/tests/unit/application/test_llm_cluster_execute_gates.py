@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock
 
 from src.application.services.llm.llm_cluster_guards import (
+    cluster_entry_allowed,
     cluster_execute_block_reason,
     cluster_execute_flag,
 )
@@ -9,27 +10,32 @@ from src.domain.models.trade import TradeDirection
 from tests.unit.application.cluster_guard_metrics import base_cluster_metrics
 
 
-def test_cluster_pause_after_loss_blocks_execute():
+def test_cluster_pause_after_loss_does_not_block_llm_explicit():
     orch = MagicMock()
     orch.config = {"llm": {"min_conviction_execute": 0.60}}
     orch._cluster_pause_after_loss_active = True
     macro = {"confluence_conviction_floor": 0.65, "assert_min_hmm_prob": 0.0}
     corr = {"statarb_require_z_align": True}
-    metrics = base_cluster_metrics(statarb_spreads={"OTC_DJI": -1.5}, hmm_state=0)
+    metrics = base_cluster_metrics(
+        macro_sentiment="divergence_eu_leads",
+        macro_eu_strength_quant=0.70,
+        statarb_spreads={"1HZ50V": -1.5},
+        hmm_state=0,
+    )
     assert (
         cluster_execute_block_reason(
             orch,
             metrics,
             0.70,
-            TradeDirection.CALL,
+            TradeDirection.PUT,
             macro,
             corr,
-            active_region="us",
-            target_sym="OTC_DJI",
+            active_region="eu",
+            target_sym="1HZ50V",
             llm_cluster_explicit=True,
-            index_note="STATARB_BEST leader=OTC_DJI z=-1.50",
+            index_note="STATARB_BEST leader=1HZ50V z=-1.50",
         )
-        == "cluster_pause_after_loss"
+        == "allowed"
     )
 
 
@@ -95,6 +101,43 @@ def test_cluster_execute_llm_explicit_skips_statarb_veto():
             index_note="STATARB_WEAK leader=OTC_SPC z=-0.35",
         )
         == "allowed"
+    )
+
+
+def test_cluster_entry_allowed_indefinido_llm_explicit():
+    macro = {"confluence_conviction_floor": 0.60, "allowed_execute_tags": ["indefinido"]}
+    metrics = base_cluster_metrics(macro_sentiment="indefinido")
+    assert cluster_entry_allowed(metrics, macro, active_region="eu", llm_cluster_explicit=True) is True
+
+
+def test_cluster_entry_allowed_unknown_tag_llm_explicit_returns_true():
+    macro = {"confluence_conviction_floor": 0.60}
+    metrics = base_cluster_metrics(macro_sentiment="custom_regime")
+    assert cluster_entry_allowed(metrics, macro, active_region="us", llm_cluster_explicit=True) is True
+
+
+def test_cluster_execute_repeat_loss_setup_blocks():
+    orch = MagicMock()
+    orch.config = {"llm": {"min_conviction_execute": 0.60}}
+    orch._cluster_pause_after_loss_active = False
+    orch._last_loss_symbol = "1HZ50V"
+    orch._last_loss_direction = "PUT"
+    macro = {"confluence_conviction_floor": 0.60, "assert_min_hmm_prob": 0.0}
+    corr = {"statarb_require_z_align": False}
+    metrics = base_cluster_metrics(macro_sentiment="divergence_eu_leads")
+    assert (
+        cluster_execute_block_reason(
+            orch,
+            metrics,
+            0.75,
+            TradeDirection.PUT,
+            macro,
+            corr,
+            active_region="eu",
+            target_sym="1HZ50V",
+            llm_cluster_explicit=True,
+        )
+        == "repeat_loss_setup"
     )
 
 

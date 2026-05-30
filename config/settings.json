@@ -100,10 +100,11 @@
       "risk_on",
       "risk_off",
       "divergence_us_leads",
-      "divergence_eu_leads"
+      "divergence_eu_leads",
+      "indefinido"
     ],
     "cluster_refresh_entry_spacing_seconds": 30,
-    "cluster_pause_after_loss_cycles": 1,
+    "cluster_pause_after_loss_cycles": 0,
     "post_settlement_breath_seconds": 60,
     "settlement_wait_log_interval_seconds": 15,
     "execution": {
@@ -184,7 +185,8 @@
         "risk_on",
         "risk_off",
         "divergence_us_leads",
-        "divergence_eu_leads"
+        "divergence_eu_leads",
+        "indefinido"
       ],
       "allowed_cluster_symbols_by_tag": {
         "risk_on": [

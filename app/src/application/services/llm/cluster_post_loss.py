@@ -23,8 +23,6 @@ def cluster_post_loss_block_reason(
     target_direction: TradeDirection | None,
 ) -> str | None:
     """Motivo de bloqueio por pausa pos-loss ou repeticao do ultimo loss; None se liberado."""
-    if getattr(orch, "_cluster_pause_after_loss_active", False) is True:
-        return "cluster_pause_after_loss"
     last_sym = str(getattr(orch, "_last_loss_symbol", "") or "")
     last_dir = str(getattr(orch, "_last_loss_direction", "") or "")
     if (

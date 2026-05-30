@@ -88,7 +88,7 @@ def cluster_entry_allowed(
     if allowed_tags and tag not in allowed_tags:
         return False
     if llm_cluster_explicit:
-        if str(tag).startswith("divergence"):
+        if str(tag).startswith("divergence") or tag in ("", "indefinido"):
             return True
         floor = float(cfg["confluence_conviction_floor"])
         us_s = float(metrics.get("macro_us_strength_quant", 0))

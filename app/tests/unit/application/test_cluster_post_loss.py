@@ -13,9 +13,9 @@ def test_record_cluster_loss_sets_pause_and_last_setup():
     assert orch._last_loss_direction == "CALL"
 
 
-def test_pause_active_only_when_strict_true():
+def test_pause_active_does_not_block_cluster_entries():
     orch = MagicMock()
-    orch._cluster_pause_after_loss_active = MagicMock()
+    orch._cluster_pause_after_loss_active = True
     reason = cluster_post_loss_block_reason(
         orch,
         target_sym="OTC_SPC",
