@@ -101,7 +101,7 @@ def apply_cluster_target_decision(
         target_metrics["llm_note"] = (
             f"{note_prefix}CLUSTER_TAG ({target_direction.name}) conv={conviction:.1%}{region_note} | {index_note} from {anchor_sym}"
         )
-        if not did_correct:
+        if not did_correct and not target_metrics.get("llm_exec_inverted"):
             target_metrics["decision_source"] = "cluster_regime"
     target_metrics["cluster_active_region"] = active_region or ""
     target_metrics["cluster_exclusive_macro"] = exclusive

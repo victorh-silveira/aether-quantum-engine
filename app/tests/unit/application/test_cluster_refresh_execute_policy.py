@@ -259,6 +259,24 @@ def test_entry_spacing_blocks_active_contract():
     assert reason == "active_contract_open"
 
 
+def test_refresh_spacing_allows_after_m1_settlement_window():
+    orch = _orch(
+        last_cluster_cycle_end=990.0,
+        orchestrator={
+            "entry_spacing_follows_contract": True,
+            "post_settlement_breath_seconds": 8,
+            "cluster_refresh_entry_spacing_seconds": 5,
+        },
+    )
+    orch.config = {
+        "orchestrator": orch.config["orchestrator"],
+        "risk_management": {"params": {"duration": 1, "duration_unit": "m"}},
+    }
+    ok, reason = cluster_entry_spacing_allows(orch, now_epoch=1004.0)
+    assert ok is True
+    assert reason == ""
+
+
 def test_entry_spacing_zero_disables_wait():
     orch = _orch(
         orchestrator={

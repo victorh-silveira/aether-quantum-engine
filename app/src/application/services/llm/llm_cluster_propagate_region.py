@@ -33,6 +33,8 @@ def _merge_apply_result(
     """Acumula tags de propagacao e indica se houve hit propagado ou invertido."""
     if propagated:
         propagated_tags.append(propagated)
+        if inverted:
+            inverted_tags.append(inverted)
         if corrected:
             corrected_tags.append(corrected)
         return True
