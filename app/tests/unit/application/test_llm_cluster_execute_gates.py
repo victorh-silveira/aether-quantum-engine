@@ -98,6 +98,36 @@ def test_cluster_execute_llm_explicit_skips_statarb_veto():
     )
 
 
+def test_cluster_execute_llm_explicit_divergence_uses_global_conviction_floor():
+    orch = MagicMock()
+    orch.config = {"llm": {"min_conviction_execute": 0.60}}
+    macro = {
+        "confluence_conviction_floor": 0.60,
+        "assert_min_hmm_prob": 0.0,
+        "min_conviction_by_tag": {"divergence_eu_leads": 0.68},
+    }
+    corr = {"statarb_require_z_align": False}
+    metrics = base_cluster_metrics(
+        macro_sentiment="divergence_eu_leads",
+        macro_us_strength_quant=0.40,
+        macro_eu_strength_quant=0.70,
+    )
+    assert (
+        cluster_execute_block_reason(
+            orch,
+            metrics,
+            0.65,
+            TradeDirection.CALL,
+            macro,
+            corr,
+            active_region="eu",
+            target_sym="1HZ50V",
+            llm_cluster_explicit=True,
+        )
+        == "allowed"
+    )
+
+
 def test_cluster_execute_statarb_veto_when_not_llm_explicit():
     orch = MagicMock()
     orch.config = {"llm": {"min_conviction_execute": 0.60}}

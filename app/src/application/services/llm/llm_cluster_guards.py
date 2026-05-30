@@ -17,6 +17,23 @@ from src.application.services.llm.profitable_scenario import (
 from src.domain.models.trade import TradeDirection
 
 
+def cluster_conviction_floor(
+    macro_cfg: dict[str, Any] | None,
+    *,
+    macro_tag: str,
+    base_floor: float,
+    llm_cluster_explicit: bool = False,
+) -> float:
+    """Piso de conviccao do cluster; divergencia LLM usa apenas o piso global."""
+    if llm_cluster_explicit and str(macro_tag).startswith("divergence"):
+        return base_floor
+    return min_conviction_for_macro_tag(
+        macro_cfg,
+        macro_tag=macro_tag,
+        base_floor=base_floor,
+    )
+
+
 def min_conviction_execute(orch: Any) -> float:
     """Le piso de conviccao para entrada a partir de llm e risk_management."""
     llm_cfg = orch.config.get("llm", {}) if isinstance(getattr(orch, "config", None), dict) else {}
@@ -137,10 +154,11 @@ def cluster_execute_block_reason(
         reason = "no_direction"
     else:
         macro_tag = str(metrics.get("macro_sentiment") or metrics.get("macro_confluence_tag") or "")
-        conv_floor = min_conviction_for_macro_tag(
+        conv_floor = cluster_conviction_floor(
             macro_cfg if isinstance(macro_cfg, dict) else None,
             macro_tag=macro_tag,
             base_floor=min_conviction_execute(orch),
+            llm_cluster_explicit=llm_cluster_explicit,
         )
         if conviction < conv_floor:
             reason = "low_conviction"
