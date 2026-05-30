@@ -1,3 +1,9 @@
+## [1.29.5](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.29.4...v1.29.5) (2026-05-30)
+
+### Correcoes de Bug
+
+* **llm:** manter Gemini ativo em indefinido e sem pausa pos-loss ([24d573f](https://github.com/victorh-silveira/aether-quantum-engine/commit/24d573fc0983a2459dc8c197558cbe6c0ee4aa33))
+
 ## [1.29.4](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.29.3...v1.29.4) (2026-05-30)
 
 ### Correcoes de Bug
