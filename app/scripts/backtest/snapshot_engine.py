@@ -15,6 +15,7 @@ from src.application.services.llm.medallion_statarb import (
     MarketHMMClassifier,
     compute_pca_cointegration_zscores,
 )
+from src.application.services.llm.synthetic_universe import DEFAULT_ANCHOR
 
 
 def _window(series: list[float], end_index: int, max_len: int) -> list[float]:
@@ -27,12 +28,12 @@ def _window(series: list[float], end_index: int, max_len: int) -> list[float]:
     return chunk
 
 
-def _hmm_from_eurusd(eurusd_closes: list[float], cfg: dict[str, Any]) -> tuple[int, float]:
+def _hmm_from_anchor(anchor_closes: list[float], cfg: dict[str, Any]) -> tuple[int, float]:
     """Replica HMM do marcapasso em macro_snapshot_fetch."""
-    if len(eurusd_closes) < 3:
+    if len(anchor_closes) < 3:
         return 0, 1.0
     kf = KalmanFilter(q=1e-5, r=1e-3)
-    denoised = kf.filter_series(eurusd_closes)
+    denoised = kf.filter_series(anchor_closes)
     log_returns = np.diff(np.log(denoised))
     hmm = MarketHMMClassifier(
         sigma_low=float(cfg["statarb_hmm_sigma_low"]),
@@ -53,20 +54,21 @@ def build_snapshot_at_bar(
     us_symbols: list[str],
     eu_symbols: list[str],
     macro_cfg: dict[str, Any] | None,
+    anchor: str = DEFAULT_ANCHOR,
 ) -> MacroSnapshot:
-    """Monta MacroSnapshot no fechamento M15 da barra bar_index."""
+    """Monta MacroSnapshot no fechamento da barra primaria bar_index."""
     cfg = resolve_macro_config(macro_cfg if isinstance(macro_cfg, dict) else None)
     bars = int(cfg.get("cluster_bars", 8))
     statarb_lookback = int(cfg.get("statarb_lookback", 30))
     window_len = max(bars, statarb_lookback)
 
     closes_map: dict[str, list[float]] = {}
-    anchor = "frxEURUSD"
-    all_syms = list(dict.fromkeys(us_symbols + eu_symbols + [anchor]))
+    anchor_sym = str(anchor or DEFAULT_ANCHOR)
+    all_syms = list(dict.fromkeys(us_symbols + eu_symbols + [anchor_sym]))
     for sym in all_syms:
         closes_map[sym] = _window(m15_closes.get(sym, []), bar_index, window_len)
 
-    hmm_state, hmm_prob = _hmm_from_eurusd(closes_map.get(anchor, []), cfg)
+    hmm_state, hmm_prob = _hmm_from_anchor(closes_map.get(anchor_sym, []), cfg)
     all_indices = us_symbols + eu_symbols
     statarb_spreads = compute_pca_cointegration_zscores(
         closes_map,

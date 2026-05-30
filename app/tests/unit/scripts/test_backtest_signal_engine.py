@@ -101,13 +101,13 @@ def test_resolve_orders_risk_on_selects_us_index():
 
 
 def test_build_snapshot_propagates_index_m5_dir():
-    us = ["OTC_DJI"]
+    us = ["R_50"]
     eu: list[str] = []
     m15 = {
-        "frxEURUSD": [1.08 + i * 0.0001 for i in range(40)],
-        "OTC_DJI": [38000.0 + i * 5.0 for i in range(40)],
+        "R_100": [100.0 + i * 0.1 for i in range(40)],
+        "R_50": [50.0 + i * 0.2 for i in range(40)],
     }
-    m5 = {"OTC_DJI": [38000.0 + i * 2.0 for i in range(120)]}
+    m5 = {"R_50": [50.0 + i * 0.05 for i in range(120)]}
     snap = build_snapshot_at_bar(
         bar_index=10,
         m15_closes=m15,
@@ -115,9 +115,10 @@ def test_build_snapshot_propagates_index_m5_dir():
         us_symbols=us,
         eu_symbols=eu,
         macro_cfg={"cluster_bars": 8, "statarb_lookback": 8},
+        anchor="R_100",
     )
     assert isinstance(snap.index_m5_dir_by_symbol, dict)
-    assert "OTC_DJI" in snap.index_m5_dir_by_symbol
+    assert "R_50" in snap.index_m5_dir_by_symbol
 
 
 def test_backtest_refresh_gate_blocks_risk_off_without_llm():

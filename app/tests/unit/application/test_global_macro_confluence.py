@@ -73,6 +73,17 @@ def test_aggregate_cluster_vote_na_when_no_closes():
     assert "N/A" in vote.parts[0]
 
 
+def test_aggregate_cluster_vote_split_no_majority():
+    symbols = ["OTC_SPC", "OTC_NDX", "OTC_DJI"]
+    closes_map = {
+        "OTC_SPC": [100.0, 105.0],
+        "OTC_NDX": [100.0, 95.0],
+        "OTC_DJI": [100.0, 100.01],
+    }
+    vote = aggregate_cluster_vote(symbols, closes_map, threshold_pct=0.02, min_indices=2)
+    assert vote.direction == "flat"
+
+
 def test_aggregate_cluster_vote_insufficient_indices_for_min():
     vote = aggregate_cluster_vote(
         ["OTC_SPC", "OTC_NDX"],

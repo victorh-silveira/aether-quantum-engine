@@ -1,11 +1,12 @@
 """Normalizacao de lista de simbolos e ancora a partir do JSON de configuracao."""
 
 from src.application.services.llm.strategy_clusters import resolve_cluster_lists
+from src.application.services.llm.synthetic_universe import resolve_anchor
 
 
 def normalize_symbols_and_anchor(config: dict) -> tuple[str, list[str]]:
     """Deriva ancora e simbolos ativos (clusters menos excluded_symbols)."""
-    anchor = str(config.get("anchor", "frxEURUSD"))
+    anchor = resolve_anchor(config)
     strategy = config.get("strategy", {})
     us, eu = resolve_cluster_lists(strategy if isinstance(strategy, dict) else None)
     if us or eu:

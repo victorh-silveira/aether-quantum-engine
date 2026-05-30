@@ -12,6 +12,7 @@ from scripts.backtest.hft_slots import cooldown_slots, hft_slots_per_m15_bar
 from scripts.backtest.signal_engine import BacktestOrder
 from scripts.backtest.simulator import bar_return_pct, direction_wins
 from scripts.backtest.snapshot_engine import build_snapshot_at_bar
+from scripts.backtest.timeframe import bar_minutes, bars_per_day, primary_granularity_seconds
 from src.application.services.orchestrator.trading_session import trading_session_allows_entry
 from src.domain.risk.risk_manager import RiskManager
 
@@ -27,11 +28,14 @@ class _WalkforwardCounters:
     cool: int = 0
 
 
-def _bar_epoch_utc(bar_index: int) -> int:
-    slot = int(bar_index) % 96
-    day = int(bar_index) // 96
-    hour = 7 + (slot * 15) // 60
-    minute = (slot * 15) % 60
+def _bar_epoch_utc(bar_index: int, config: dict[str, Any]) -> int:
+    gran = primary_granularity_seconds(config)
+    per_day = bars_per_day(gran)
+    minutes = bar_minutes(gran)
+    slot = int(bar_index) % per_day
+    day = int(bar_index) // per_day
+    hour = 7 + (slot * minutes) // 60
+    minute = (slot * minutes) % 60
     return day * 86400 + hour * 3600 + minute * 60
 
 
@@ -132,7 +136,7 @@ async def collect_hft_orders_walkforward(
 
     for bar_index in range(start, end + 1):
         runtime.begin_cycle()
-        epoch = _bar_epoch_utc(bar_index)
+        epoch = _bar_epoch_utc(bar_index, config)
         allowed_sess, _ = trading_session_allows_entry(
             epoch_utc=epoch,
             stream_ready_at=None,
@@ -151,6 +155,7 @@ async def collect_hft_orders_walkforward(
             us_symbols=us_syms,
             eu_symbols=eu_syms,
             macro_cfg=macro_cfg,
+            anchor=anchor,
         )
         bar_orders = await _resolve_bar_orders(resolver, bar_index, snap, runtime)
         if not bar_orders:

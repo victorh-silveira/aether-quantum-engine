@@ -1,5 +1,5 @@
 {
-  "anchor": "frxEURUSD",
+  "anchor": "R_100",
   "api_config": {
     "base_url": "wss://ws.derivws.com/websockets/v3?app_id=1089",
     "request_timeout_seconds": 60
@@ -7,7 +7,7 @@
   "data_handler": {
     "buffer_limit": 120,
     "fetch_count": 120,
-    "granularity": 900,
+    "granularity": 300,
     "min_required_points": 10
   },
   "gemini": {
@@ -82,10 +82,10 @@
     "structure_granularity_seconds": 14400,
     "swing_bars": 120,
     "swing_granularity_seconds": 3600,
-    "system_prompt": "MANDATO MEDALLION TRANSATLANTICO. Ancora frxEURUSD como marcapasso entre blocos US e EU. Decida com inteligencia pura: EURUSD, US_CLUSTER e EU_CLUSTER independentes (CALL ou PUT cada um), usando macro e micro de cada regiao. US_INTEL e EU_INTEL no contexto guiam sinais regionais; StatArb Z e HMM informam reversao ou tendencia sem impor veto. Divergencia US/EU: lider transatlantico no LEAD; clusters podem divergir. Obrigatorio preencher US_CLUSTER e EU_CLUSTER sempre. RISE/FALL somente em FX ref. JSON: EURUSD, US_CLUSTER, EU_CLUSTER, Probabilidade (0.01-0.99). Hurst>0.55 momentum; Hurst<0.45 reversao Z-Score; entropia extrema M1/M5 cap 0.70.",
+    "system_prompt": "MANDATO MEDALLION SINTETICOS M5. Ancora R_100 (Volatility 100) como marcapasso entre blocos VOL_BAIXA (US_CLUSTER) e VOL_ALTA (EU_CLUSTER). Decida com inteligencia pura: EURUSD (ancora R_100), US_CLUSTER e EU_CLUSTER independentes (CALL ou PUT cada um), usando macro e micro de cada bloco de volatilidade. US_INTEL e EU_INTEL no contexto guiam sinais regionais; StatArb Z e HMM informam reversao ou tendencia sem impor veto. Divergencia entre blocos: lider no LEAD; clusters podem divergir. Obrigatorio preencher US_CLUSTER e EU_CLUSTER sempre. RISE/FALL na ancora. JSON: EURUSD, US_CLUSTER, EU_CLUSTER, Probabilidade (0.01-0.99). Hurst>0.55 momentum; Hurst<0.45 reversao Z-Score; entropia extrema M1/M5 cap 0.70.",
     "timeout_seconds": 35,
     "trigger_bars": 120,
-    "trigger_granularity_seconds": 900
+    "trigger_granularity_seconds": 300
   },
   "llm_config": {},
   "logging": {
@@ -132,7 +132,7 @@
     "large_account_stop_win_pct": 10.0,
     "params": {
       "contract_type": "RISE_FALL",
-      "duration": 15,
+      "duration": 5,
       "duration_unit": "m",
       "payout_estimate": 1.0,
       "stake_max": 5000.0,
@@ -143,22 +143,41 @@
   },
   "strategy": {
     "excluded_symbols": [
-      "OTC_SSMI",
-      "OTC_SPC",
-      "OTC_NDX",
-      "OTC_FTSE",
-      "OTC_GDAXI"
+      "BOOM1000",
+      "BOOM500",
+      "BOOM600",
+      "BOOM900",
+      "CRASH1000",
+      "CRASH500",
+      "CRASH600",
+      "CRASH900",
+      "JD10",
+      "JD100",
+      "JD25",
+      "JD50",
+      "JD75",
+      "RDBEAR",
+      "RDBULL",
+      "stpRNG",
+      "stpRNG2",
+      "stpRNG3",
+      "stpRNG4",
+      "stpRNG5"
     ],
     "clusters": {
       "eu": [
-        "OTC_FCHI"
+        "R_75",
+        "1HZ50V",
+        "1HZ100V"
       ],
       "us": [
-        "OTC_DJI"
+        "R_10",
+        "R_25",
+        "R_50"
       ]
     },
     "correlation": {
-      "anchor": "frxEURUSD",
+      "anchor": "R_100",
       "enabled": true,
       "exclusive_cluster_by_macro": true,
       "best_symbol_only": true,
@@ -186,16 +205,23 @@
       ],
       "allowed_cluster_symbols_by_tag": {
         "risk_on": [
-          "OTC_DJI"
+          "R_10",
+          "R_25",
+          "R_50"
         ],
         "risk_off": [
-          "OTC_FCHI"
+          "1HZ50V",
+          "1HZ100V"
         ],
         "divergence_us_leads": [
-          "OTC_DJI"
+          "R_10",
+          "R_25",
+          "R_50"
         ],
         "divergence_eu_leads": [
-          "OTC_FCHI"
+          "R_75",
+          "1HZ50V",
+          "1HZ100V"
         ]
       },
       "min_conviction_by_tag": {
@@ -212,20 +238,19 @@
       },
       "cluster_bars": 8,
       "cluster_fallback_bars": 12,
-      "cluster_fallback_granularity_seconds": 300,
+      "cluster_fallback_granularity_seconds": 60,
       "cluster_fallback_min_move_pct": 0.05,
-      "cluster_granularity_seconds": 900,
+      "cluster_granularity_seconds": 300,
       "cluster_labels": {
         "eu": [
-          "CAC40",
-          "DAX40",
-          "FTSE100",
-          "SMI"
+          "VOL75",
+          "VOL50_1S",
+          "VOL100_1S"
         ],
         "us": [
-          "S&P500",
-          "NASDAQ100",
-          "DOW30"
+          "VOL10",
+          "VOL25",
+          "VOL50"
         ]
       },
       "cluster_min_move_pct": 0.08,
@@ -238,20 +263,7 @@
       "indefinido_min_leader_strength": 0.68,
       "indefinido_min_strength_gap": 0.08,
       "assert_min_hmm_prob": 0.58,
-      "fx_reference_pairs": {
-        "audusd": {
-          "risk_off": "FALL",
-          "risk_on": "RISE"
-        },
-        "nzdusd": {
-          "risk_off": "FALL",
-          "risk_on": "RISE"
-        },
-        "usdjpy": {
-          "risk_off": "FALL",
-          "risk_on": "RISE"
-        }
-      },
+      "fx_reference_pairs": {},
       "min_indices_for_vote": 2,
       "statarb_hmm_sigma_high": 0.0016,
       "statarb_hmm_sigma_low": 0.0004,
@@ -311,22 +323,21 @@
     }
   },
   "symbols": [
-    "frxEURUSD",
-    "OTC_FCHI",
-    "OTC_GDAXI",
-    "OTC_SSMI",
-    "OTC_DJI",
-    "OTC_FTSE",
-    "OTC_NDX",
-    "OTC_SPC"
+    "R_100",
+    "R_10",
+    "R_25",
+    "R_50",
+    "R_75",
+    "1HZ50V",
+    "1HZ100V"
   ],
   "trading": {
     "mode": "live",
     "session": {
-      "enabled": true,
-      "start_hour_utc": 7,
-      "end_hour_utc": 22,
-      "minutes_before_close_no_entry": 20,
+      "enabled": false,
+      "start_hour_utc": 0,
+      "end_hour_utc": 24,
+      "minutes_before_close_no_entry": 0,
       "warmup_seconds_after_stream_sync": 90
     }
   }

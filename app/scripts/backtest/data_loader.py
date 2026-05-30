@@ -7,13 +7,11 @@ import json
 from pathlib import Path
 from typing import Any
 
+from scripts.backtest.timeframe import bars_per_day, micro_granularity_seconds, primary_granularity_seconds
 from src.application.services.auth_manager import AuthManager
 from src.application.services.llm.strategy_clusters import resolve_cluster_lists
+from src.application.services.llm.synthetic_universe import resolve_anchor
 from src.infrastructure.api.websocket_manager import WebSocketManager
-
-
-M15_GRANULARITY = 900
-M5_GRANULARITY = 300
 
 
 def load_settings(path: Path) -> dict[str, Any]:
@@ -26,7 +24,7 @@ def backtest_symbols(config: dict[str, Any]) -> tuple[list[str], list[str], list
     """Retorna listas US, EU, todos os simbolos e ancora."""
     strategy = config.get("strategy", {})
     us_syms, eu_syms = resolve_cluster_lists(strategy if isinstance(strategy, dict) else None)
-    anchor = str(config.get("anchor", "frxEURUSD"))
+    anchor = resolve_anchor(config)
     all_syms = list(dict.fromkeys([anchor, *us_syms, *eu_syms]))
     return us_syms, eu_syms, all_syms, anchor
 
@@ -85,8 +83,10 @@ async def fetch_market_data(
     m15_bars: int,
     m5_bars: int,
 ) -> dict[str, Any]:
-    """Baixa series M15 e M5 para o universo configurado."""
+    """Baixa series primarias (M5) e micro para o universo configurado."""
     _, _, all_syms, _ = backtest_symbols(config)
+    primary_gran = primary_granularity_seconds(config)
+    micro_gran = micro_granularity_seconds(config)
     api = config.get("api_config", {})
     ws = WebSocketManager(
         api.get("base_url", "wss://ws.derivws.com/websockets/v3?app_id=1089"),
@@ -105,13 +105,13 @@ async def fetch_market_data(
         m15: dict[str, list[float]] = {}
         m5: dict[str, list[float]] = {}
         for sym in all_syms:
-            m15[sym] = await _fetch_closes(ws, sym, M15_GRANULARITY, m15_bars)
-            m5[sym] = await _fetch_closes(ws, sym, M5_GRANULARITY, m5_bars)
+            m15[sym] = await _fetch_closes(ws, sym, primary_gran, m15_bars)
+            m5[sym] = await _fetch_closes(ws, sym, micro_gran, m5_bars)
             await asyncio.sleep(0.2)
         for sym in [s for s in all_syms if not m15.get(s)]:
             await asyncio.sleep(0.5)
-            m15[sym] = await _fetch_closes(ws, sym, M15_GRANULARITY, m15_bars, retries=4)
-            m5[sym] = await _fetch_closes(ws, sym, M5_GRANULARITY, m5_bars, retries=4)
+            m15[sym] = await _fetch_closes(ws, sym, primary_gran, m15_bars, retries=4)
+            m5[sym] = await _fetch_closes(ws, sym, micro_gran, m5_bars, retries=4)
     finally:
         await ws.close()
 
@@ -119,8 +119,8 @@ async def fetch_market_data(
         "m15": m15,
         "m5": m5,
         "meta": {
-            "granularity_m15": M15_GRANULARITY,
-            "granularity_m5": M5_GRANULARITY,
+            "granularity_m15": primary_gran,
+            "granularity_m5": micro_gran,
             "m15_bars": m15_bars,
             "m5_bars": m5_bars,
             "symbols": all_syms,
@@ -130,8 +130,12 @@ async def fetch_market_data(
 
 
 def resolve_bar_counts(config: dict[str, Any], *, days: int | None, bars: int | None) -> tuple[int, int]:
-    """Calcula quantidade de velas M15 e M5 a buscar."""
+    """Calcula quantidade de velas primarias e micro a buscar."""
     macro = config.get("strategy", {}).get("macro", {})
+    primary_gran = primary_granularity_seconds(config)
+    per_day = bars_per_day(primary_gran)
+    micro_gran = micro_granularity_seconds(config)
+    micro_ratio = max(1, primary_gran // micro_gran)
     if isinstance(macro, dict):
         lookback = max(
             int(macro.get("statarb_lookback", 30)),
@@ -143,10 +147,10 @@ def resolve_bar_counts(config: dict[str, Any], *, days: int | None, bars: int | 
     if bars is not None and bars > 0:
         m15_count = bars + lookback + 5
     elif days is not None and days > 0:
-        m15_count = days * 96 + lookback + 5
+        m15_count = days * per_day + lookback + 5
     else:
-        m15_count = 14 * 96 + lookback + 5
-    m5_count = m15_count * 3 + int(macro.get("cluster_fallback_bars", 12) if isinstance(macro, dict) else 12)
+        m15_count = 14 * per_day + lookback + 5
+    m5_count = m15_count * micro_ratio + int(macro.get("cluster_fallback_bars", 12) if isinstance(macro, dict) else 12)
     return m15_count, m5_count
 
 
@@ -181,7 +185,7 @@ async def fetch_market_for_backtest(
     if bars is not None and bars > 0:
         eval_bars = int(bars)
     elif days is not None and days > 0:
-        eval_bars = int(days) * 96
+        eval_bars = int(days) * bars_per_day(primary_granularity_seconds(config))
 
     m15_aligned, m5_aligned, aligned_len = _align_series_lengths(payload["m15"], payload["m5"])
     if aligned_len <= 0:

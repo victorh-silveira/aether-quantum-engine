@@ -6,6 +6,7 @@ import time
 from typing import Any
 
 from src.application.services.llm.macro_cluster_align import quant_trade_direction
+from src.application.services.llm.synthetic_universe import DEFAULT_ANCHOR, resolve_anchor
 from src.domain.models.trade import TradeDirection
 
 
@@ -126,7 +127,11 @@ def _divergence_refresh_gate(
     now_epoch: float | None,
 ) -> tuple[bool, str]:
     """Aplica gate de execucao quant em tags de divergencia no refresh."""
-    anchor = str(getattr(orch, "anchor", "frxEURUSD") or "frxEURUSD")
+    anchor = str(getattr(orch, "anchor", "") or "")
+    if not anchor and hasattr(orch, "config") and isinstance(orch.config, dict):
+        anchor = resolve_anchor(orch.config)
+    if not anchor:
+        anchor = DEFAULT_ANCHOR
     macro_tag = macro_tag_from_decisions(decisions, anchor)
     if macro_tag not in policy["quant_tags"]:
         return False, "risk_regime_requires_fresh_llm"

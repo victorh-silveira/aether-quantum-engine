@@ -22,6 +22,11 @@ from src.application.services.llm.medallion_statarb import (
     compute_pca_cointegration_zscores,
 )
 from src.application.services.llm.strategy_clusters import resolve_cluster_lists
+from src.application.services.llm.synthetic_universe import (
+    DEFAULT_ANCHOR,
+    default_strategy_clusters,
+    resolve_anchor as resolve_config_anchor,
+)
 
 
 def _stream_fetch_is_async(orch: Any) -> bool:
@@ -50,19 +55,22 @@ async def _fetch_m5_closes(orch: Any, symbols: list[str], gran: int, bars: int) 
 
 
 def _resolve_cluster_symbols(strategy: dict[str, Any]) -> tuple[list[str], list[str]]:
-    """Resolve listas US/EU a partir de strategy.clusters ou defaults."""
+    """Resolve listas US/EU a partir de strategy.clusters ou defaults sinteticos."""
     clusters = strategy.get("clusters") if isinstance(strategy.get("clusters"), dict) else None
     if clusters is not None:
-        return resolve_cluster_lists(strategy)
-    return ["OTC_NDX", "OTC_DJI"], ["OTC_FCHI", "OTC_GDAXI", "OTC_FTSE"]
+        us, eu = resolve_cluster_lists(strategy)
+        if us or eu:
+            return us, eu
+    defaults = default_strategy_clusters()
+    return list(defaults["us"]), list(defaults["eu"])
 
 
-def _hmm_from_eurusd(eurusd_closes: list[float], cfg: dict[str, Any]) -> tuple[int, float]:
-    """Calcula estado e probabilidade HMM no marcapasso EURUSD."""
-    if len(eurusd_closes) < 3:
+def _hmm_from_anchor(anchor_closes: list[float], cfg: dict[str, Any]) -> tuple[int, float]:
+    """Calcula estado e probabilidade HMM no simbolo ancora."""
+    if len(anchor_closes) < 3:
         return 0, 1.0
     kf = KalmanFilter(q=1e-5, r=1e-3)
-    denoised_eurusd = kf.filter_series(eurusd_closes)
+    denoised_eurusd = kf.filter_series(anchor_closes)
     log_returns = np.diff(np.log(denoised_eurusd))
     hmm = MarketHMMClassifier(
         sigma_low=float(cfg["statarb_hmm_sigma_low"]),
@@ -131,7 +139,12 @@ async def fetch_macro_snapshot(orch: Any, runtime: dict[str, Any]) -> MacroSnaps
         fb_gran = int(cfg["cluster_fallback_granularity_seconds"])
         fb_bars = int(cfg["cluster_fallback_bars"])
 
-        all_syms = us_symbols + eu_symbols + ["frxEURUSD"]
+        anchor = DEFAULT_ANCHOR
+        if hasattr(orch, "anchor") and orch.anchor:
+            anchor = str(orch.anchor)
+        elif hasattr(orch, "config") and isinstance(orch.config, dict):
+            anchor = resolve_config_anchor(orch.config)
+        all_syms = list(dict.fromkeys(us_symbols + eu_symbols + [anchor]))
         results = await asyncio.gather(
             *[orch.stream.fetch_candle_closes(s, swing_gran, bars_to_fetch) for s in all_syms],
             return_exceptions=True,
@@ -141,7 +154,7 @@ async def fetch_macro_snapshot(orch: Any, runtime: dict[str, Any]) -> MacroSnaps
             row = results[i]
             closes_map[sym] = list(row) if isinstance(row, list) else []
 
-        hmm_state, hmm_prob = _hmm_from_eurusd(closes_map.get("frxEURUSD", []), cfg)
+        hmm_state, hmm_prob = _hmm_from_anchor(closes_map.get(anchor, []), cfg)
         all_indices = us_symbols + eu_symbols
         statarb_spreads = compute_pca_cointegration_zscores(
             closes_map,

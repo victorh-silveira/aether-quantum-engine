@@ -5,9 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 from scripts.backtest.snapshot_engine import build_snapshot_at_bar
+from scripts.backtest.timeframe import bars_per_day, primary_granularity_seconds
 
 
-M15_BARS_PER_DAY = 96
 SCHEDULE_DAILY = "daily"
 SCHEDULE_BAR = "bar"
 SCHEDULE_TAG_CHANGE = "tag_change"
@@ -24,15 +24,18 @@ def gemini_query_points(
     us_syms: list[str] | None = None,
     eu_syms: list[str] | None = None,
     macro_cfg: dict[str, Any] | None = None,
+    config: dict[str, Any] | None = None,
+    anchor: str | None = None,
 ) -> list[int]:
-    """Pontos M15 onde a API Gemini e chamada (nao todas as velas)."""
+    """Pontos de barra primaria onde a API Gemini e chamada (nao todas as velas)."""
+    per_day = bars_per_day(primary_granularity_seconds(config or {}))
     sched = (schedule or SCHEDULE_DAILY).strip().lower()
     if sched == SCHEDULE_DAILY:
         points: list[int] = []
         day_bar = start
         while day_bar <= end:
             points.append(day_bar)
-            day_bar += M15_BARS_PER_DAY
+            day_bar += per_day
         return points
     if sched == SCHEDULE_BAR:
         s = max(1, int(step))
@@ -50,6 +53,7 @@ def gemini_query_points(
                 us_symbols=us_syms,
                 eu_symbols=eu_syms,
                 macro_cfg=macro_cfg,
+                anchor=anchor or "",
             )
             if snap.tag != last_tag:
                 points.append(bar_index)
@@ -65,11 +69,14 @@ def payload_for_bar(
     schedule: str,
     step: int,
     query_points: list[int],
+    *,
+    config: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     """Payload Gemini vigente na barra (replica decisao do ponto de agenda)."""
+    per_day = bars_per_day(primary_granularity_seconds(config or {}))
     sched = (schedule or SCHEDULE_DAILY).strip().lower()
     if sched == SCHEDULE_DAILY:
-        day_start = start + ((bar_index - start) // M15_BARS_PER_DAY) * M15_BARS_PER_DAY
+        day_start = start + ((bar_index - start) // per_day) * per_day
         return cache.get(str(day_start))
     if sched == SCHEDULE_BAR:
         if (bar_index - start) % max(1, int(step)) != 0:
@@ -83,11 +90,12 @@ def payload_for_bar(
     return None
 
 
-def schedule_label(schedule: str) -> str:
+def schedule_label(schedule: str, *, config: dict[str, Any] | None = None) -> str:
     """Rotulo legivel para logs."""
+    per_day = bars_per_day(primary_granularity_seconds(config or {}))
     sched = (schedule or SCHEDULE_DAILY).strip().lower()
     if sched == SCHEDULE_DAILY:
-        return "1 consulta por dia de sessao (96 velas M15)"
+        return f"1 consulta por dia de sessao ({per_day} velas primarias)"
     if sched == SCHEDULE_BAR:
         return "consulta a cada N velas (--llm-bar-step)"
     if sched == SCHEDULE_TAG_CHANGE:

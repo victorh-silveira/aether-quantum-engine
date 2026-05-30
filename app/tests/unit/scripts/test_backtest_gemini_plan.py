@@ -1,21 +1,20 @@
 import pytest
 
 from scripts.backtest.gemini_collect import estimate_gemini_minutes
-from scripts.backtest.gemini_schedule import (
-    M15_BARS_PER_DAY,
-    gemini_query_points,
-    payload_for_bar,
-)
+from scripts.backtest.gemini_schedule import gemini_query_points, payload_for_bar
+from scripts.backtest.timeframe import bars_per_day, primary_granularity_seconds
 
 
 def test_gemini_query_points_daily():
-    points = gemini_query_points(10, 10 + M15_BARS_PER_DAY * 2, "daily", 1)
-    assert points == [10, 10 + M15_BARS_PER_DAY, 10 + M15_BARS_PER_DAY * 2]
+    per_day = bars_per_day(primary_granularity_seconds({}))
+    points = gemini_query_points(10, 10 + per_day * 2, "daily", 1)
+    assert points == [10, 10 + per_day, 10 + per_day * 2]
 
 
 def test_payload_for_bar_daily_reuses_day_decision():
+    per_day = bars_per_day(primary_granularity_seconds({}))
     start = 100
-    day2 = start + M15_BARS_PER_DAY
+    day2 = start + per_day
     cache = {
         str(day2): {
             "_direction_normalized": "CALL",

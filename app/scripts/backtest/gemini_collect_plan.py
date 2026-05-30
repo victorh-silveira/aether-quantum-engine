@@ -28,6 +28,8 @@ def print_gemini_plan(
     us_syms: list[str],
     eu_syms: list[str],
     macro_cfg: dict[str, Any] | None,
+    config: dict[str, Any] | None = None,
+    anchor: str | None = None,
 ) -> list[int]:
     """Exibe plano no terminal e retorna pontos de consulta API."""
     targets = gemini_query_points(
@@ -40,6 +42,8 @@ def print_gemini_plan(
         us_syms=us_syms,
         eu_syms=eu_syms,
         macro_cfg=macro_cfg,
+        config=config,
+        anchor=anchor,
     )
     if max_llm_bars is not None:
         targets = targets[: max(0, int(max_llm_bars))]
@@ -50,8 +54,8 @@ def print_gemini_plan(
     pending = len(targets) - cached
     eta_min = estimate_gemini_minutes(len(targets), cached=cached)
     print(
-        f"Gemini ({schedule_label(schedule)}): {len(targets)} consultas API"
-        f" | {end - start + 1} velas M15 simuladas"
+        f"Gemini ({schedule_label(schedule, config=config)}): {len(targets)} consultas API"
+        f" | {end - start + 1} velas primarias simuladas"
         f" | cache: {cached} prontas, {pending} pendentes | ~{eta_min:.0f} min",
         flush=True,
     )

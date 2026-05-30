@@ -30,13 +30,29 @@ def test_backtest_symbols_honors_excluded():
 
 def test_normalize_symbols_from_clusters():
     cfg = {
-        "anchor": "frxEURUSD",
+        "anchor": "R_100",
         "strategy": {
-            "excluded_symbols": ["OTC_SPC"],
-            "clusters": {"us": ["OTC_SPC", "OTC_DJI"], "eu": ["OTC_FCHI"]},
+            "excluded_symbols": ["R_25"],
+            "clusters": {"us": ["R_10", "R_25", "R_50"], "eu": ["R_75"]},
         },
     }
     anchor, symbols = normalize_symbols_and_anchor(cfg)
-    assert anchor == "frxEURUSD"
-    assert "OTC_SPC" not in symbols
-    assert "OTC_DJI" in symbols
+    assert anchor == "R_100"
+    assert "R_25" not in symbols
+    assert "R_50" in symbols
+
+
+def test_backtest_symbols_synthetic():
+    cfg = {
+        "anchor": "R_100",
+        "strategy": {
+            "excluded_symbols": ["R_25"],
+            "clusters": {"us": ["R_10", "R_25", "R_50"], "eu": ["R_75", "1HZ50V"]},
+        },
+    }
+    us, eu, all_syms, anchor = backtest_symbols(cfg)
+    assert anchor == "R_100"
+    assert "R_25" not in us
+    assert "R_50" in us
+    assert "1HZ50V" in eu
+    assert "R_100" in all_syms

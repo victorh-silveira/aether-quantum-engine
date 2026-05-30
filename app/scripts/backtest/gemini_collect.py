@@ -13,6 +13,7 @@ from scripts.backtest.gemini_collect_plan import estimate_gemini_minutes, print_
 from scripts.backtest.gemini_schedule import SCHEDULE_DAILY, payload_for_bar
 from scripts.backtest.historical_stream import HistoricalStream
 from scripts.backtest.signal_engine import BacktestOrder, resolve_orders_from_cluster_tags
+from scripts.backtest.timeframe import micro_granularity_seconds, primary_granularity_seconds
 from src.application.services.llm.context_runtime import resolve_llm_runtime
 from src.application.services.llm.symbol_decision_utils import decision_from_payload
 
@@ -38,7 +39,13 @@ async def collect_hft_orders_gemini(
     gemini_schedule: str = SCHEDULE_DAILY,
 ) -> tuple[list[BacktestOrder], dict[str, Any]]:
     """Agenda poucas consultas Gemini; HFT usa a mesma decisao ate o proximo ponto."""
-    stream = HistoricalStream(m15, m5, bar_index=start)
+    stream = HistoricalStream(
+        m15,
+        m5,
+        bar_index=start,
+        primary_seconds=primary_granularity_seconds(config),
+        micro_seconds=micro_granularity_seconds(config),
+    )
     orch = BacktestOrchestrator(config, stream=stream, anchor=anchor, symbols=all_syms)
     runtime = resolve_llm_runtime(orch)
     cache_file = Path(cache_path) if cache_path else None
@@ -58,6 +65,8 @@ async def collect_hft_orders_gemini(
         us_syms=us_syms,
         eu_syms=eu_syms,
         macro_cfg=macro_cfg,
+        config=config,
+        anchor=anchor,
     )
     sys.stdout.flush()
 
@@ -82,7 +91,7 @@ async def collect_hft_orders_gemini(
     print("Gemini: simulando HFT (decisao replicada nos pontos agendados)...", flush=True)
 
     async def _resolver(bar_index: int, snapshot, runtime) -> list[BacktestOrder]:
-        payload = payload_for_bar(cache, bar_index, start, schedule, step, targets)
+        payload = payload_for_bar(cache, bar_index, start, schedule, step, targets, config=config)
         if not payload or payload.get("_llm_call_failed"):
             return []
         direction, conviction, _, us_dir, eu_dir = decision_from_payload(payload)

@@ -143,6 +143,54 @@ def test_refresh_risk_on_without_llm_blocks():
     assert reason == "risk_regime_requires_fresh_llm"
 
 
+def test_refresh_resolves_anchor_from_config_when_missing():
+    orch = _orch()
+    orch.anchor = ""
+    orch.config = {
+        "anchor": "R_100",
+        "strategy": {"correlation": {"anchor": "R_100"}},
+        "orchestrator": orch.config["orchestrator"],
+    }
+    decisions = {
+        "R_100": {"direction": TradeDirection.PUT, "metrics": {"macro_sentiment": "divergence_us_leads"}},
+        "R_50": {
+            "direction": TradeDirection.PUT,
+            "metrics": {
+                "execute": True,
+                "macro_sentiment": "divergence_us_leads",
+                "llm_statarb_dir_corrected": True,
+                "cluster_target_sym": "R_50",
+            },
+        },
+    }
+    ok, _ = cluster_refresh_may_execute(orch, decisions, refresh_without_llm=True, now_epoch=2000.0)
+    assert ok is True
+
+
+def test_refresh_uses_default_anchor_when_empty(monkeypatch):
+    monkeypatch.setattr(
+        "src.application.services.llm.cluster_refresh_execute_policy.resolve_anchor",
+        lambda _cfg: "",
+    )
+    orch = _orch()
+    orch.anchor = ""
+    orch.config = {"orchestrator": orch.config["orchestrator"]}
+    decisions = {
+        "R_100": {"direction": TradeDirection.PUT, "metrics": {"macro_sentiment": "divergence_us_leads"}},
+        "R_50": {
+            "direction": TradeDirection.PUT,
+            "metrics": {
+                "execute": True,
+                "macro_sentiment": "divergence_us_leads",
+                "llm_statarb_dir_corrected": True,
+                "cluster_target_sym": "R_50",
+            },
+        },
+    }
+    ok, _ = cluster_refresh_may_execute(orch, decisions, refresh_without_llm=True, now_epoch=2000.0)
+    assert ok is True
+
+
 def test_refresh_divergence_without_quant_edge_blocks():
     orch = _orch()
     decisions = {

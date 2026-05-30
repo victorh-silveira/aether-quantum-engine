@@ -117,6 +117,7 @@ async def warm_gemini_cache(
             us_symbols=us_syms,
             eu_symbols=eu_syms,
             macro_cfg=macro_cfg,
+            anchor=anchor,
         )
         orch._bt_snapshot = snap
         stream.set_bar_index(bar_index)
