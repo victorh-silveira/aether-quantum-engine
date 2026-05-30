@@ -1,3 +1,9 @@
+## [1.29.7](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.29.6...v1.29.7) (2026-05-30)
+
+### Correcoes de Bug
+
+* **llm:** inverter lado LLM e contratos M1 nos sinteticos ([7d917ed](https://github.com/victorh-silveira/aether-quantum-engine/commit/7d917ed38832e32dbecc4a8d36d1edf6a2e94487))
+
 ## [1.29.6](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.29.5...v1.29.6) (2026-05-30)
 
 ### Correcoes de Bug
