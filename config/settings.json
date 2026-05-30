@@ -135,7 +135,7 @@
     "large_account_stop_win_pct": 10.0,
     "params": {
       "contract_type": "RISE_FALL",
-      "duration": 15,
+      "duration": 1,
       "duration_unit": "m",
       "payout_estimate": 1.0,
       "stake_max": 5000.0,
@@ -178,7 +178,8 @@
       "statarb_try_alternate_on_block": true,
       "statarb_correct_llm_on_divergence": false,
       "quant_direction_stack_enabled": false,
-      "cluster_invert_on_block": false
+      "cluster_invert_on_block": false,
+      "cluster_invert_llm_side": true
     },
     "macro": {
       "allowed_execute_tags": [
