@@ -1,3 +1,9 @@
+## [1.29.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.29.1...v1.29.2) (2026-05-30)
+
+### Correcoes de Bug
+
+* **llm:** liberar trades apos loss com cluster refresh risk_off ([13c68f1](https://github.com/victorh-silveira/aether-quantum-engine/commit/13c68f1de6bfc73fb334e4587c500cbaa93e026b))
+
 ## [1.29.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.29.0...v1.29.1) (2026-05-30)
 
 ### Correcoes de Bug
