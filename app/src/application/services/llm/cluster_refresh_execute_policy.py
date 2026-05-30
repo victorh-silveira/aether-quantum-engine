@@ -9,6 +9,26 @@ from src.application.services.llm.macro_cluster_align import quant_trade_directi
 from src.domain.models.trade import TradeDirection
 
 
+DEFAULT_REFRESH_ANCHOR = "frxEURUSD"
+
+
+def resolve_anchor(cfg: dict[str, Any] | None) -> str:
+    """Le ancora FX do config (top-level ou strategy.correlation)."""
+    if not isinstance(cfg, dict):
+        return ""
+    direct = str(cfg.get("anchor") or "").strip()
+    if direct:
+        return direct
+    strategy = cfg.get("strategy")
+    if isinstance(strategy, dict):
+        correlation = strategy.get("correlation")
+        if isinstance(correlation, dict):
+            nested = str(correlation.get("anchor") or "").strip()
+            if nested:
+                return nested
+    return ""
+
+
 def _normalize_quant_tags(raw: Any) -> tuple[str, ...]:
     """Normaliza lista de tags elegiveis ao refresh quant-gated."""
     if isinstance(raw, (list, tuple)):
@@ -118,6 +138,25 @@ def any_quant_validated_cluster_entry(
     return False
 
 
+def any_cluster_entry_marked_execute(
+    decisions: dict[str, dict],
+    *,
+    anchor_sym: str,
+) -> bool:
+    """True se algum indice do cluster ficou com execute apos propagacao."""
+    if not isinstance(decisions, dict):
+        return False
+    for sym, entry in decisions.items():
+        if sym == anchor_sym or not isinstance(entry, dict):
+            continue
+        metrics = entry.get("metrics")
+        if not isinstance(metrics, dict) or not metrics.get("execute"):
+            continue
+        if isinstance(entry.get("direction"), TradeDirection):
+            return True
+    return False
+
+
 def _divergence_refresh_gate(
     orch: Any,
     decisions: dict[str, dict],
@@ -126,13 +165,19 @@ def _divergence_refresh_gate(
     now_epoch: float | None,
 ) -> tuple[bool, str]:
     """Aplica gate de execucao quant em tags de divergencia no refresh."""
-    anchor = str(getattr(orch, "anchor", "frxEURUSD") or "frxEURUSD")
+    anchor = str(getattr(orch, "anchor", "") or "")
+    if not anchor and hasattr(orch, "config") and isinstance(orch.config, dict):
+        anchor = resolve_anchor(orch.config)
+    if not anchor:
+        anchor = DEFAULT_REFRESH_ANCHOR
     macro_tag = macro_tag_from_decisions(decisions, anchor)
     if macro_tag not in policy["quant_tags"]:
         return False, "risk_regime_requires_fresh_llm"
     if not policy["quant_refresh_execute"]:
         return False, "cluster_refresh_execute_disabled"
-    if not any_quant_validated_cluster_entry(decisions, anchor_sym=anchor):
+    if not any_quant_validated_cluster_entry(decisions, anchor_sym=anchor) and not any_cluster_entry_marked_execute(
+        decisions, anchor_sym=anchor
+    ):
         return False, "divergence_refresh_no_quant_edge"
     spacing_ok, spacing_reason = cluster_entry_spacing_allows(orch, now_epoch=now_epoch)
     if not spacing_ok:
