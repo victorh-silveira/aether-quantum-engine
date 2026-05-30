@@ -119,6 +119,25 @@ def any_quant_validated_cluster_entry(
     return False
 
 
+def any_cluster_entry_marked_execute(
+    decisions: dict[str, dict],
+    *,
+    anchor_sym: str,
+) -> bool:
+    """True se algum indice do cluster ficou com execute apos propagacao."""
+    if not isinstance(decisions, dict):
+        return False
+    for sym, entry in decisions.items():
+        if sym == anchor_sym or not isinstance(entry, dict):
+            continue
+        metrics = entry.get("metrics")
+        if not isinstance(metrics, dict) or not metrics.get("execute"):
+            continue
+        if isinstance(entry.get("direction"), TradeDirection):
+            return True
+    return False
+
+
 def _divergence_refresh_gate(
     orch: Any,
     decisions: dict[str, dict],
@@ -137,7 +156,9 @@ def _divergence_refresh_gate(
         return False, "risk_regime_requires_fresh_llm"
     if not policy["quant_refresh_execute"]:
         return False, "cluster_refresh_execute_disabled"
-    if not any_quant_validated_cluster_entry(decisions, anchor_sym=anchor):
+    if not any_quant_validated_cluster_entry(decisions, anchor_sym=anchor) and not any_cluster_entry_marked_execute(
+        decisions, anchor_sym=anchor
+    ):
         return False, "divergence_refresh_no_quant_edge"
     spacing_ok, spacing_reason = cluster_entry_spacing_allows(orch, now_epoch=now_epoch)
     if not spacing_ok:

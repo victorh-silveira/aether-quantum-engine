@@ -116,8 +116,8 @@ def test_macro_hmm_prob_veto():
         snap,
         {"assert_min_hmm_prob": 0.55, "confluence_conviction_floor": 0.0},
     )
-    assert ok is False
-    assert "hmm_prob" in note
+    assert ok is True
+    assert "MACRO_INTEL hmm_soft" in note
 
 
 def test_risk_on_veto_when_tag_not_allowed():

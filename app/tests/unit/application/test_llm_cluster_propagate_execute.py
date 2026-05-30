@@ -49,7 +49,7 @@ def test_min_conviction_execute_reads_risk_limits():
 def test_cluster_entry_allowed_branches():
     macro = {"confluence_conviction_floor": 0.65, "assert_min_hmm_prob": 0.5}
     assert cluster_entry_allowed(_base_metrics(), macro, active_region="eu") is True
-    assert cluster_entry_allowed(_base_metrics(hmm_prob=0.2), macro, active_region="eu") is False
+    assert cluster_entry_allowed(_base_metrics(hmm_prob=0.2), macro, active_region="eu") is True
     assert (
         cluster_entry_allowed(
             _base_metrics(macro_sentiment="risk_on", macro_us_strength_quant=0.80),

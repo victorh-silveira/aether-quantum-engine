@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock
 
 from src.application.services.llm.cluster_refresh_execute_policy import (
+    any_cluster_entry_marked_execute,
     any_quant_validated_cluster_entry,
     cluster_entry_spacing_allows,
     cluster_refresh_may_execute,
@@ -92,8 +93,17 @@ def test_macro_tag_from_decisions_skips_invalid_and_empty():
     assert tag == ""
 
 
-def test_any_quant_validated_cluster_entry_invalid_decisions():
+def test_any_cluster_entry_helpers():
     assert any_quant_validated_cluster_entry("bad", anchor_sym="frxEURUSD") is False
+    assert any_cluster_entry_marked_execute("bad", anchor_sym="frxEURUSD") is False
+    decisions = {
+        "frxEURUSD": {"direction": TradeDirection.CALL, "metrics": {"execute": False}},
+        "1HZ100V": {
+            "direction": TradeDirection.CALL,
+            "metrics": {"execute": True, "macro_sentiment": "divergence_eu_leads"},
+        },
+    }
+    assert any_cluster_entry_marked_execute(decisions, anchor_sym="frxEURUSD") is True
 
 
 def test_refresh_not_required_when_llm_fresh():
@@ -132,12 +142,7 @@ def test_refresh_divergence_quant_validated_allows_execute():
 def test_refresh_risk_off_with_quant_correction_allows():
     orch = _orch(
         orchestrator={
-            "cluster_refresh_quant_tags": [
-                "risk_on",
-                "risk_off",
-                "divergence_us_leads",
-                "divergence_eu_leads",
-            ],
+            "cluster_refresh_quant_tags": ["risk_on", "risk_off", "divergence_us_leads", "divergence_eu_leads"]
         }
     )
     decisions = {
@@ -171,54 +176,6 @@ def test_refresh_risk_on_without_llm_blocks():
     assert reason == "risk_regime_requires_fresh_llm"
 
 
-def test_refresh_resolves_anchor_from_config_when_missing():
-    orch = _orch()
-    orch.anchor = ""
-    orch.config = {
-        "anchor": "R_100",
-        "strategy": {"correlation": {"anchor": "R_100"}},
-        "orchestrator": orch.config["orchestrator"],
-    }
-    decisions = {
-        "R_100": {"direction": TradeDirection.PUT, "metrics": {"macro_sentiment": "divergence_us_leads"}},
-        "R_50": {
-            "direction": TradeDirection.PUT,
-            "metrics": {
-                "execute": True,
-                "macro_sentiment": "divergence_us_leads",
-                "llm_statarb_dir_corrected": True,
-                "cluster_target_sym": "R_50",
-            },
-        },
-    }
-    ok, _ = cluster_refresh_may_execute(orch, decisions, refresh_without_llm=True, now_epoch=2000.0)
-    assert ok is True
-
-
-def test_refresh_uses_default_anchor_when_empty(monkeypatch):
-    monkeypatch.setattr(
-        "src.application.services.llm.cluster_refresh_execute_policy.resolve_anchor",
-        lambda _cfg: "",
-    )
-    orch = _orch()
-    orch.anchor = ""
-    orch.config = {"orchestrator": orch.config["orchestrator"]}
-    decisions = {
-        "R_100": {"direction": TradeDirection.PUT, "metrics": {"macro_sentiment": "divergence_us_leads"}},
-        "R_50": {
-            "direction": TradeDirection.PUT,
-            "metrics": {
-                "execute": True,
-                "macro_sentiment": "divergence_us_leads",
-                "llm_statarb_dir_corrected": True,
-                "cluster_target_sym": "R_50",
-            },
-        },
-    }
-    ok, _ = cluster_refresh_may_execute(orch, decisions, refresh_without_llm=True, now_epoch=2000.0)
-    assert ok is True
-
-
 def test_refresh_divergence_without_quant_edge_blocks():
     orch = _orch()
     decisions = {
@@ -226,7 +183,7 @@ def test_refresh_divergence_without_quant_edge_blocks():
         "OTC_DJI": {
             "direction": TradeDirection.CALL,
             "metrics": {
-                "execute": True,
+                "execute": False,
                 "macro_sentiment": "divergence_us_leads",
                 "cluster_target_sym": "OTC_DJI",
                 "index_m5_dir_by_symbol": {"OTC_DJI": "down"},

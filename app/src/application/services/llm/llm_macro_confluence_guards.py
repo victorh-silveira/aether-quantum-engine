@@ -123,15 +123,16 @@ def _macro_tag_allows_execute(
     floor = float(cfg["confluence_conviction_floor"])
     hmm_min = float(cfg.get("assert_min_hmm_prob", 0.0))
     allowed = False
+    hmm_prob = float(getattr(snapshot, "hmm_prob", 1.0))
 
     allowed_tags = cfg.get("allowed_execute_tags")
     if allowed_tags and tag not in allowed_tags:
         notes.append(f"MACRO_VETO tag_not_allowed={tag}")
         return False, notes
 
-    if float(getattr(snapshot, "hmm_prob", 1.0)) < hmm_min:
-        notes.append(f"MACRO_VETO hmm_prob<{hmm_min:.2f}")
-    elif tag == "risk_on":
+    if hmm_min > 0 and hmm_prob < hmm_min:
+        notes.append(f"MACRO_INTEL hmm_soft (p={hmm_prob:.2f}<{hmm_min:.2f})")
+    if tag == "risk_on":
         allowed = _cluster_floor_ok(snapshot, floor)
         if not allowed:
             notes.append("MACRO_VETO risk_on_weak_clusters")

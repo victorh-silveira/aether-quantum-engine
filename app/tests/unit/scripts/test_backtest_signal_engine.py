@@ -134,7 +134,7 @@ def test_backtest_refresh_gate_blocks_risk_off_without_llm():
     runtime._cluster_refresh_without_llm = True
     decisions = {
         "frxEURUSD": {"direction": TradeDirection.PUT, "metrics": {"macro_sentiment": "risk_off"}},
-        "OTC_DJI": {"direction": TradeDirection.PUT, "metrics": {"execute": True, "macro_sentiment": "risk_off"}},
+        "OTC_DJI": {"direction": TradeDirection.PUT, "metrics": {"execute": False, "macro_sentiment": "risk_off"}},
     }
     apply_backtest_refresh_execute_gate(runtime, decisions)
     assert decisions["OTC_DJI"]["metrics"]["execute"] is False

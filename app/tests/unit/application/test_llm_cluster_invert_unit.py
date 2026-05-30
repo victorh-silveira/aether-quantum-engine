@@ -227,7 +227,7 @@ def test_propagate_appends_inverted_tag_from_target_decision():
     assert any("CLUSTER_INVERT" in str(c) for c in orch.logger.info.call_args_list)
 
 
-def test_cluster_propagate_logs_block_when_hmm_vetoes():
+def test_cluster_propagate_logs_block_when_risk_off_weak_eu():
     orch = MagicMock()
     orch._cluster_pause_after_loss_active = False
     orch.anchor = "frxEURUSD"
@@ -237,7 +237,7 @@ def test_cluster_propagate_logs_block_when_hmm_vetoes():
         "strategy": {
             "clusters": {"us": ["OTC_SPC"], "eu": ["OTC_FCHI"]},
             "correlation": {"enabled": True, "exclusive_cluster_by_macro": True},
-            "macro": {"assert_min_hmm_prob": 0.58, "allowed_execute_tags": ("risk_off",)},
+            "macro": {"assert_min_hmm_prob": 0.0, "allowed_execute_tags": ("risk_off",)},
         },
     }
     decisions: dict = {}
@@ -245,7 +245,7 @@ def test_cluster_propagate_logs_block_when_hmm_vetoes():
         orch,
         anchor_sym="frxEURUSD",
         direction=TradeDirection.PUT,
-        metrics=_base_metrics(hmm_prob=0.20),
+        metrics=_base_metrics(macro_eu_strength_quant=0.40),
         decisions=decisions,
         cid="C0003",
     )

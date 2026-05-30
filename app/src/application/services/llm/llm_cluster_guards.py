@@ -70,14 +70,13 @@ def cluster_entry_allowed(
     allowed_tags = cfg.get("allowed_execute_tags")
     if allowed_tags and tag not in allowed_tags:
         return False
-    hmm_prob = float(metrics.get("hmm_prob", 1.0))
-    if hmm_prob < float(cfg.get("assert_min_hmm_prob", 0.0)):
-        return False
     if llm_cluster_explicit:
+        if str(tag).startswith("divergence"):
+            return True
         floor = float(cfg["confluence_conviction_floor"])
         us_s = float(metrics.get("macro_us_strength_quant", 0))
         eu_s = float(metrics.get("macro_eu_strength_quant", 0))
-        if tag in ("risk_on", "risk_off", "divergence_us_leads", "divergence_eu_leads"):
+        if tag in ("risk_on", "risk_off"):
             return cluster_tag_region_ok(tag, us_s, eu_s, floor, cfg, active_region)
         return True
     floor = float(cfg["confluence_conviction_floor"])
