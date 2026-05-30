@@ -131,7 +131,7 @@ async def test_execute_cluster_skips_on_refresh_without_llm(orch_config):
             await orch.executor.execute_cluster(decisions)
         mock_exec.assert_not_awaited()
         assert any(
-            "EXEC_SKIP" in str(c) and "risk_regime_requires_fresh_llm" in str(c) for c in mock_info.call_args_list
+            "EXEC_SKIP" in str(c) and "divergence_refresh_no_quant_edge" in str(c) for c in mock_info.call_args_list
         )
 
 

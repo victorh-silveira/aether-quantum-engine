@@ -13,8 +13,8 @@ def _normalize_quant_tags(raw: Any) -> tuple[str, ...]:
     """Normaliza lista de tags elegiveis ao refresh quant-gated."""
     if isinstance(raw, (list, tuple)):
         tags = tuple(str(x).strip() for x in raw if str(x).strip())
-        return tags or ("divergence_us_leads", "divergence_eu_leads")
-    return ("divergence_us_leads", "divergence_eu_leads")
+        return tags or ("risk_on", "risk_off", "divergence_us_leads", "divergence_eu_leads")
+    return ("risk_on", "risk_off", "divergence_us_leads", "divergence_eu_leads")
 
 
 def resolve_cluster_refresh_policy(orch_cfg: dict[str, Any] | None) -> dict[str, Any]:
