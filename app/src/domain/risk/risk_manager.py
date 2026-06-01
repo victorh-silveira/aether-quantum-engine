@@ -160,6 +160,30 @@ class RiskManager(RiskCooldownMixin):
         raw_stake = bankroll * f_star
         raw_stake = self._apply_stop_win_aggressive_stake(bankroll, raw_stake, apply_stop_win=apply_stop_win)
 
+        # Lógica Cirúrgica "Single Strike" (Uma Tacada Só - 09h às 14h BRT / 12h às 17h UTC)
+        # Se for o horário nobre, tiver alta convicção (>= 75%), e nenhum contrato aberto (ou primeira entrada)
+        if apply_stop_win:
+            import datetime
+            now_utc = datetime.datetime.now(datetime.timezone.utc)
+            # Janela de Alta Liquidez: 12:00 às 17:00 UTC (09:00 às 14:00 BRT)
+            in_window = 12 <= now_utc.hour < 17
+            target = resolve_stop_win_target(self.config, self.initial_bankroll)
+            remaining = max(0.0, target - float(self.total_session_profit))
+            
+            if in_window and conviction >= 0.75 and remaining > 0 and not self.active_contract_ids:
+                goal_stake = remaining / b
+                # Limite prudente de drawdown (no máximo 25% da banca por entrada única)
+                max_allowed_drawdown = bankroll * 0.25
+                single_strike_stake = min(goal_stake, max_allowed_drawdown)
+                if single_strike_stake > raw_stake:
+                    self.logger.info(
+                        "RISK: Ativando modo SINGLE STRIKE (Uma Tacada Só)! Sizing boost de $%.2f para $%.2f",
+                        raw_stake,
+                        single_strike_stake,
+                    )
+                    raw_stake = single_strike_stake
+
+
         recovery_stake = 0.0
 
         if is_recovery_attempt:

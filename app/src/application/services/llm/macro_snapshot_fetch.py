@@ -71,8 +71,9 @@ def _hmm_from_eurusd(eurusd_closes: list[float], cfg: dict[str, Any]) -> tuple[i
     state = 0
     prob = 1.0
     for ret in log_returns:
-        state, prob = hmm.update_regime(ret)
+        state, prob = hmm.update_regime(ret, recent_returns=list(log_returns))
     return state, prob
+
 
 
 async def _apply_m5_flat_fallback(

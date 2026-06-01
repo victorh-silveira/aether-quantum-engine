@@ -67,12 +67,18 @@ class MarketHMMClassifier:
         self.sigma_high = sigma_high
         self.prior = np.array([0.7, 0.3])  # Inicia com preferência por Reversão à Média
 
-    def update_regime(self, log_return: float) -> tuple[int, float]:
+    def update_regime(self, log_return: float, recent_returns: list[float] | None = None) -> tuple[int, float]:
         """Atualiza a probabilidade posterior do estado de Markov com o último retorno logarítmico.
 
-        Retorna:
-            tuple[int, float]: (Estado ativo [0 ou 1], Probabilidade do estado ativo)
+        Permite calibração dinâmica da volatilidade se uma lista de retornos recentes for fornecida.
         """
+        # Calibração adaptativa de volatilidade baseada em lookback dinâmico
+        if recent_returns and len(recent_returns) >= 5:
+            std = float(np.std(recent_returns))
+            if std > 1e-6:
+                self.sigma_low = std * 0.5
+                self.sigma_high = std * 2.0
+
         # Predição de estado
         pred = self.A.T @ self.prior
 
@@ -89,6 +95,7 @@ class MarketHMMClassifier:
         self.prior = posterior
         active_state = int(np.argmax(posterior))
         return active_state, float(posterior[active_state])
+
 
 
 def compute_pca_cointegration_zscores(

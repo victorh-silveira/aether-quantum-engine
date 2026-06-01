@@ -182,3 +182,31 @@ def test_risk_manager_get_state_exports(kelly_config):
     state = rm.get_state()
     assert state["consecutive_losses"] == 3
     assert state["current_cooldown_ticks"] == 80
+
+
+def test_single_strike_stake_boost_in_window(kelly_config):
+    """Verifica se a stake de Single Strike é aplicada na janela BRT com alta convicção."""
+    import datetime
+    from unittest.mock import patch
+    
+    # Configura a meta diária e stop win
+    kelly_config["small_account_stop_win"] = 10.0
+    kelly_config["small_account_threshold"] = 100.0
+    kelly_config["kelly"]["stop_win_aggressive"] = True
+    rm = RiskManager(kelly_config)
+    rm.set_initial_bankroll(50.0)
+    rm.total_session_profit = 0.0
+    
+    # Simula horário nobre BRT (14:00 UTC / 11:00 BRT)
+    mock_now = datetime.datetime(2026, 6, 1, 14, 0, 0, tzinfo=datetime.timezone.utc)
+    
+    with patch("datetime.datetime") as mock_dt:
+        mock_dt.now.return_value = mock_now
+        mock_dt.timezone = datetime.timezone
+        
+        # Sob alta convicção, deve buscar os $10 em uma só tacada limitada a 25% da banca ($12.50)
+        stake = rm.calculate_stake(50.0, "OTC_FCHI", conviction=0.85)
+        # Meta restante = $10. Payout = 0.95. Goal stake = 10 / 0.95 = 10.52. Max drawdown (25% de 50) = 12.50.
+        # Deve aplicar os 10.52 (com arredondamento de piso para a stake normal, ou teto do payout)
+        assert stake == pytest.approx(10.52, abs=0.1)
+

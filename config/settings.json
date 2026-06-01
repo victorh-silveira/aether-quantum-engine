@@ -181,6 +181,7 @@
       "statarb_z_align_soft_fallback": true,
       "statarb_try_alternate_on_block": true,
       "statarb_correct_llm_on_divergence": false,
+      "statarb_allow_high_conviction_on_divergence": true,
       "quant_direction_stack_enabled": true,
       "cluster_invert_on_block": false,
       "cluster_invert_llm_side": false

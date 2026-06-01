@@ -157,8 +157,11 @@ def apply_macro_confluence_guard(
         return direction, conviction_final, True, " | ".join(note_parts), False
 
     if snapshot.tag.startswith("divergence"):
-        div_cap = float(cfg["divergence_max_conviction"])
-        conviction_final = min(conviction_final, div_cap)
+        div_cap = float(cfg.get("divergence_max_conviction", 0.82))
+        allow_high_conv = bool(cfg.get("statarb_allow_high_conviction_on_divergence", False))
+        if not allow_high_conv:
+            conviction_final = min(conviction_final, div_cap)
+            note_parts.append(f"MACRO_CAP divergence_conviction>{div_cap:.2f}")
         guard_applied = True
 
     if sym:

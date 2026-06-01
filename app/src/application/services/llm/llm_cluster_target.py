@@ -79,23 +79,9 @@ def apply_cluster_target_decision(
     corrected_tag = None
     if did_correct:
         corrected_tag = f"{target_sym}[{original_direction.name[:1]}->{target_direction.name[:1]}]"
-    tag_allows_invert = str(macro_tag).startswith("divergence")
-    cycle_quarantine = bool(getattr(orch, "_invert_quarantine_active", False))
-    can_invert = execute_reason == "statarb_z_misaligned" and tag_allows_invert and not cycle_quarantine
-    if cycle_quarantine and not target_metrics["execute"] and execute_reason == "statarb_z_misaligned":
-        target_metrics["llm_block_reason"] = "invert_quarantine_after_loss"
-    if not target_metrics.get("llm_exec_inverted") and not target_metrics["execute"] and invert_on_block and can_invert:
-        target_direction, target_metrics, did_invert = apply_cluster_binary_invert(
-            target_direction,
-            target_metrics,
-            index_note=index_note,
-            anchor_sym=anchor_sym,
-            region_note=region_note,
-            conviction=conviction,
-        )
-        if did_invert:
-            target_metrics["llm_block_reason"] = "allowed_inverted"
-            inverted_tag = f"{target_sym}[{original_direction.name[:1]}->{target_direction.name[:1]}]"
+    # Remoção total da inversão lateral em clusters para garantir a direcionalidade gerada pela LLM
+    can_invert = False
+
     if not target_metrics.get("llm_exec_inverted"):
         note_prefix = f"{correct_note} | " if did_correct else ""
         target_metrics["llm_note"] = (
