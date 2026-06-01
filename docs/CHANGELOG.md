@@ -1,3 +1,9 @@
+## [1.35.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.34.0...v1.35.0) (2026-06-01)
+
+### Funcionalidades
+
+* **risk:** otimiza modelo de entrada unica para stop win em 30m e ajusta prompts e inversao ([017bd93](https://github.com/victorh-silveira/aether-quantum-engine/commit/017bd9321cbc5142204d486ef93ef635d50e8742))
+
 ## [1.34.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.33.0...v1.34.0) (2026-06-01)
 
 ### Funcionalidades
