@@ -95,11 +95,8 @@ class RiskManager(RiskCooldownMixin):
         payout = max(0.5, float(self.risk_params.get("payout_estimate", 0.95)))
         goal_stake = remaining / payout
         mult = max(1.0, float(self.kelly_config.get("stop_win_stake_multiplier", 1.35)))
-        cap_pct = max(0.01, float(self.kelly_config.get("stop_win_stake_cap_pct", 0.12)))
-        cap_stake = bankroll * cap_pct
-        target = min(goal_stake, cap_stake)
-        boosted = max(raw_stake * mult, raw_stake, target)
-        return min(boosted, cap_stake)
+        boosted = max(raw_stake * mult, raw_stake, goal_stake)
+        return boosted
 
     def stake_block_reason(
         self,
@@ -153,38 +150,23 @@ class RiskManager(RiskCooldownMixin):
         loss_to_recover = self.pending_loss.get(symbol, 0.0)
         is_recovery_attempt = loss_to_recover > 0.0 and conviction >= self.recovery_threshold
 
-        fractional_multiplier = float(self.kelly_config.get("fraction", 0.1))
+        fractional_multiplier = float(self.kelly_config.get("fraction", 0.03))  # Reduzida a agressividade padrão
         if self.consecutive_losses > 0 and loss_to_recover == 0.0:
             reduction_factor = 0.5 ** min(self.consecutive_losses, 3)
             fractional_multiplier *= reduction_factor
 
         f_star = max(0.0, kelly_f * fractional_multiplier)
 
-        max_pct = float(self.kelly_config.get("max_stake_pct", 0.05))
-        stake_thr = float(self.kelly_config.get("high_conviction_stake_threshold", 0.85))
-        if float(conviction) >= stake_thr:
-            max_pct = max(
-                max_pct,
-                float(self.kelly_config.get("max_stake_pct_high_conviction", max_pct)),
-            )
-        base_f_star = min(f_star, max_pct)
-        raw_stake = bankroll * base_f_star
+        # Retiramos totalmente as limitações/teto de max_pct / base_f_star!
+        raw_stake = bankroll * f_star
         raw_stake = self._apply_stop_win_aggressive_stake(bankroll, raw_stake, apply_stop_win=apply_stop_win)
 
         recovery_stake = 0.0
 
         if is_recovery_attempt:
+            # Retiramos totalmente o teto/Safety Cap de max_recovery_stake_pct!
             needed_extra = loss_to_recover / b
-
-            max_recovery_pct = float(self.kelly_config.get("max_recovery_stake_pct", 0.15))
-
-            potential_total = raw_stake + needed_extra
-            if potential_total / bankroll > max_recovery_pct:
-                recovery_stake = (bankroll * max_recovery_pct) - raw_stake
-                recovery_stake = max(0.0, recovery_stake)
-            else:
-                recovery_stake = needed_extra
-
+            recovery_stake = needed_extra
             raw_stake += recovery_stake
 
         final_stake = math.ceil(raw_stake * 100) / 100 if is_recovery_attempt else math.floor(raw_stake * 100) / 100
@@ -193,7 +175,7 @@ class RiskManager(RiskCooldownMixin):
         if (conviction >= 0.50 or is_recovery_attempt) and final_stake < stake_min:
             final_stake = stake_min if bankroll >= stake_min else 0.0
 
-        final_stake = min(final_stake, self.stake_max)
+        # Retiramos totalmente o teto de stake_max!
 
         cycle_id = _kwargs.get("cycle_id", 0)
         rec_info = f" | RECOVERY: ${recovery_stake:.2f}/{loss_to_recover:.2f}" if loss_to_recover > 0 else ""
@@ -202,7 +184,7 @@ class RiskManager(RiskCooldownMixin):
                 "[C%04d] KELLY: stake=$%.2f (f*=%.4f) | p=%.2f | b=%.2f | banca=$%.2f | sym=%s%s",
                 int(cycle_id),
                 final_stake,
-                base_f_star,
+                f_star,
                 p,
                 b,
                 bankroll,
