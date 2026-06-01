@@ -1,3 +1,9 @@
+## [1.32.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.31.0...v1.32.0) (2026-06-01)
+
+### Funcionalidades
+
+* **config:** exclui indice OTC_GDAXI por requerer duracao minima de M30 ([024dd0b](https://github.com/victorh-silveira/aether-quantum-engine/commit/024dd0b340815449d3a0aa904dd1806e2e4f0aa7))
+
 ## [1.31.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.30.0...v1.31.0) (2026-06-01)
 
 ### Funcionalidades
