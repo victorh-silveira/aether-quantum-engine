@@ -150,11 +150,11 @@
   "strategy": {
     "excluded_symbols": [
       "OTC_SSMI",
-      "OTC_GDAXI"
+      "OTC_GDAXI",
+      "OTC_FCHI"
     ],
     "clusters": {
       "eu": [
-        "OTC_FCHI",
         "OTC_FTSE"
       ],
       "us": [
@@ -199,7 +199,6 @@
           "OTC_NDX"
         ],
         "risk_off": [
-          "OTC_FCHI",
           "OTC_FTSE"
         ],
         "divergence_us_leads": [
@@ -208,7 +207,6 @@
           "OTC_NDX"
         ],
         "divergence_eu_leads": [
-          "OTC_FCHI",
           "OTC_FTSE"
         ]
       },
