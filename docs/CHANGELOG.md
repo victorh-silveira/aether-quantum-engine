@@ -1,3 +1,14 @@
+## [1.36.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.35.0...v1.36.0) (2026-06-01)
+
+### Funcionalidades
+
+* **risk:** implementa logica cirurgica do single strike e volatilidade dinamica HMM ([1ebb07a](https://github.com/victorh-silveira/aether-quantum-engine/commit/1ebb07a0f63abb9cf324f8ff2639849fcef73ca7))
+
+### Refatoracoes Tecnicas
+
+* **llm:** refina diretrizes quant do system_prompt para reversao de zscore extremo ([9c15dbd](https://github.com/victorh-silveira/aether-quantum-engine/commit/9c15dbd1f7e556c6669a8b8b282f143afb41a39e))
+* **llm:** remove inactive config keys and add websocket checks ([9eb8f49](https://github.com/victorh-silveira/aether-quantum-engine/commit/9eb8f49f50d09e7944d1269a522bded5cc1a9959))
+
 ## [1.35.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.34.0...v1.35.0) (2026-06-01)
 
 ### Funcionalidades
