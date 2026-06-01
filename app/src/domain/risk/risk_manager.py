@@ -95,8 +95,7 @@ class RiskManager(RiskCooldownMixin):
         payout = max(0.5, float(self.risk_params.get("payout_estimate", 0.95)))
         goal_stake = remaining / payout
         mult = max(1.0, float(self.kelly_config.get("stop_win_stake_multiplier", 1.35)))
-        boosted = max(raw_stake * mult, raw_stake, goal_stake)
-        return boosted
+        return max(raw_stake * mult, raw_stake, goal_stake)
 
     def stake_block_reason(
         self,
