@@ -1,3 +1,13 @@
+## [1.31.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.30.0...v1.31.0) (2026-06-01)
+
+### Funcionalidades
+
+* **risk-statarb:** otimizacao do medallion, remocao de limites de kelly/recuperacao e ativacao de clusters transatlanticos ([d46584a](https://github.com/victorh-silveira/aether-quantum-engine/commit/d46584a5dccdf25b574045bd699e1ffef9b6003b))
+
+### Documentacao
+
+* remove referencias a branch de indices sinteticos ([ceb2fc0](https://github.com/victorh-silveira/aether-quantum-engine/commit/ceb2fc0152f09ec59fca31541ea14b07ea681779))
+
 ## [1.30.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.29.7...v1.30.0) (2026-05-30)
 
 ### Funcionalidades
