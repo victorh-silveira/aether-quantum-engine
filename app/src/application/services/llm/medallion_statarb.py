@@ -97,7 +97,6 @@ class MarketHMMClassifier:
         return active_state, float(posterior[active_state])
 
 
-
 def compute_pca_cointegration_zscores(
     closes_map: dict[str, list[float]],
     symbols: list[str],

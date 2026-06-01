@@ -167,15 +167,6 @@ def build_metrics_for_decision(
     return direction, metrics
 
 
-def _truncate_preview(text: str, cap: int | None) -> str:
-    """Normaliza texto de preview e aplica limite opcional de caracteres."""
-    raw = str(text or "").replace("\n", " ").strip()
-    if cap is None:
-        return raw
-    limit = max(64, min(16000, int(cap)))
-    return raw[:limit].rstrip() if len(raw) > limit else raw
-
-
 def _append_jsonl(path: Path, payload: dict[str, Any]) -> None:
     """Acrescenta um registro JSONL ao arquivo de dump de IO LLM."""
     line = json.dumps(payload, ensure_ascii=False, sort_keys=True)
@@ -209,28 +200,6 @@ def emit_llm_http_snapshot(
     if leading_cycle_blank:
         logger_obj.info("")
     sys_resolved = (http_system_resolved or http_system or "").strip()
-    if bool(cfg.get("log_llm_io_line", True)):
-        raw_u = str(http_user or "").replace("\n", " ").strip()
-        nu = len(raw_u)
-        raw_sys = sys_resolved.replace("\n", " ").strip()
-        nsys = len(raw_sys)
-        cap = cfg.get("log_llm_io_preview_chars")
-        preview_u = _truncate_preview(raw_u, cap)
-        preview_s = _truncate_preview(raw_sys, cap)
-        logger_obj.info(
-            "[%s] LLM_IO || %s || user_ch=%s preview_user=%s",
-            cid,
-            symbol,
-            nu,
-            preview_u,
-        )
-        logger_obj.info(
-            "[%s] LLM_IO || %s || sys_ch=%s preview_sys=%s",
-            cid,
-            symbol,
-            nsys,
-            preview_s,
-        )
     raw_path = cfg.get("log_llm_io_dump_path")
     path_txt = str(raw_path).strip() if raw_path not in (None, False) else ""
     if not path_txt:

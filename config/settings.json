@@ -57,7 +57,6 @@
     "llm_http_outer_margin_seconds": 8,
     "llm_retry_attempts": 4,
     "log_llm_io_dump_path": "logs/llm_io.jsonl",
-    "log_llm_io_line": false,
     "log_llm_io_preview_chars": 4000,
     "logic_line_max_chars": 140,
     "macro_bars": 120,
@@ -112,7 +111,6 @@
     "post_settlement_breath_seconds": 8,
     "settlement_wait_log_interval_seconds": 15,
     "execution": {
-      "include_anchor_trades": false,
       "inter_symbol_delay": 3.0,
       "settlement_max_stagnant_polls": 40,
       "settlement_poll_seconds": 0.5,
@@ -170,22 +168,16 @@
       "enabled": true,
       "exclusive_cluster_by_macro": true,
       "best_symbol_only": true,
-      "execute_all_cluster_symbols": false,
       "statarb_index_select_enabled": true,
       "statarb_blend_rolling_wr": true,
       "statarb_wr_weight": 0.40,
       "statarb_index_max_per_cluster": 1,
       "statarb_index_min_abs_z": 0.85,
       "statarb_soft_min_abs_ratio": 0.45,
-      "statarb_weak_leader_on_no_align": false,
-      "statarb_require_z_align": false,
       "statarb_z_align_soft_fallback": true,
       "statarb_try_alternate_on_block": true,
-      "statarb_correct_llm_on_divergence": false,
       "statarb_allow_high_conviction_on_divergence": true,
-      "quant_direction_stack_enabled": true,
-      "cluster_invert_on_block": false,
-      "cluster_invert_llm_side": false
+      "quant_direction_stack_enabled": true
     },
     "macro": {
       "allowed_execute_tags": [
@@ -352,7 +344,7 @@
   "trading": {
     "mode": "live",
     "session": {
-      "enabled": true,
+      "enabled": false,
       "start_hour_utc": 12,
       "end_hour_utc": 17,
       "minutes_before_close_no_entry": 20,

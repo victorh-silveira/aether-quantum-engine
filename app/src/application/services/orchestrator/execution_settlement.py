@@ -87,6 +87,8 @@ async def wait_for_settlement(exec_mgr: "ExecutionManager", timeout: int = 3600)
 async def reconcile_contracts(exec_mgr: "ExecutionManager") -> None:  # pragma: no cover
     """Consulta estado atualizado dos contratos ativos."""
     logger = logging.getLogger("AETH")
+    if not exec_mgr.orch.ws or not exec_mgr.orch.ws.is_running:
+        return
     for c_id in list(exec_mgr.orch.state.active_contracts.keys()):
         try:
             await reconcile_single_contract(exec_mgr.orch, int(c_id))

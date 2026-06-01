@@ -94,20 +94,36 @@ def stage_clean():
         except Exception as e:
             print(f"Erro ao remover {p}: {e}")
 
+    cache_names = (
+        ".pytest_cache",
+        ".ruff_cache",
+        ".coverage",
+        "htmlcov",
+        "dist",
+        "build",
+        ".mypy_cache",
+    )
+
     for scan_root in (APP_ROOT, REPO_ROOT):
-        for path in scan_root.rglob("__pycache__"):
-            if path.is_dir():
-                safe_remove(path)
+        # 1. Remover caches comuns no topo
+        for name in cache_names:
+            p = scan_root / name
+            if p.exists():
+                safe_remove(p)
 
-        for ext in ("*.pyc", "*.pyo", "*.pyd"):
-            for path in scan_root.rglob(ext):
-                if path.is_file():
-                    safe_remove(path)
+        # 2. Varredura inteligente de __pycache__ e bytecodes
+        for root, dirs, files in os.walk(scan_root):
+            # Ignora pastas pesadas ou do ambiente virtual
+            dirs[:] = [d for d in dirs if d not in (".venv", "venv", ".git", ".idea", ".vscode")]
 
-    for name in (".pytest_cache", ".ruff_cache", ".coverage", "htmlcov", "dist", "build"):
-        p = APP_ROOT / name
-        if p.exists():
-            safe_remove(p)
+            for d in list(dirs):
+                if d == "__pycache__":
+                    safe_remove(Path(root) / d)
+                    dirs.remove(d)
+
+            for f in files:
+                if f.endswith((".pyc", ".pyo", ".pyd")):
+                    safe_remove(Path(root) / f)
 
     for name in ("data", "logs"):
         p = REPO_ROOT / name

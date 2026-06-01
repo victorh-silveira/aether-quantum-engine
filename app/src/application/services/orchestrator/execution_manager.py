@@ -38,13 +38,13 @@ class ExecutionManager:
         conviction = float(metrics.get("conviction", 0.60))
         return self.orch.risk_manager.stake_block_reason(bankroll, symbol, conviction=conviction)
 
-    def _log_execution_blockers(self, decisions: dict, *, include_anchor: bool) -> None:
+    def _log_execution_blockers(self, decisions: dict) -> None:
         """Registra motivo quando nenhuma ordem foi montada apesar de decisoes no ciclo."""
         cid = f"C{int(self.orch._active_cycle_id):04d}"
         reasons: list[str] = []
         bankroll_snapshot = float(self.orch.state.balance)
         for symbol in self.orch.symbols:
-            if symbol == self.orch.anchor and not include_anchor:
+            if symbol == self.orch.anchor:
                 continue
             entry = decisions.get(symbol)
             if not entry:
@@ -73,13 +73,13 @@ class ExecutionManager:
         if reasons:
             self.logger.info("[%s] EXEC_NONE || %s", cid, " | ".join(reasons))
 
-    def _collect_orders(self, decisions: dict, *, include_anchor: bool) -> list[tuple[str, TradeDirection, dict]]:
+    def _collect_orders(self, decisions: dict) -> list[tuple[str, TradeDirection, dict]]:
         """Filtra decisoes executaveis e retorna ordens normalizadas."""
         orders: list[tuple[str, TradeDirection, dict]] = []
         cid = f"C{int(self.orch._active_cycle_id):04d}"
         for symbol in self.orch.symbols:
-            if symbol == self.orch.anchor and not include_anchor:
-                continue  # pragma: no cover
+            if symbol == self.orch.anchor:
+                continue
             entry = decisions.get(symbol)
             if not entry:
                 continue
@@ -161,19 +161,18 @@ class ExecutionManager:
             if refresh_without_llm and not may_exec:
                 cid = f"C{int(self.orch._active_cycle_id):04d}"
                 self.logger.info("[%s] EXEC_SKIP || cluster_refresh (%s)", cid, refresh_reason)
-                self._log_execution_blockers(decisions, include_anchor=False)
+                self._log_execution_blockers(decisions)
                 return
 
             bankroll_snapshot = float(self.orch.state.balance)
 
             exec_chunk = self.orch.config.get("orchestrator", {}).get("execution", {})
-            include_anchor = bool(exec_chunk.get("include_anchor_trades", True))
             inter_delay = float(exec_chunk.get("inter_symbol_delay", 0.8))
 
-            orders = self._collect_orders(decisions, include_anchor=include_anchor)
+            orders = self._collect_orders(decisions)
             cid = f"C{int(self.orch._active_cycle_id):04d}"
             if not orders:
-                self._log_execution_blockers(decisions, include_anchor=include_anchor)
+                self._log_execution_blockers(decisions)
             else:
                 block = self._cluster_stake_block(orders, bankroll_snapshot)
                 if block:

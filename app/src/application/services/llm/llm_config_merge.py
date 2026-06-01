@@ -115,7 +115,6 @@ def merge_execution_section(root: dict[str, Any]) -> None:
     orch = root.setdefault("orchestrator", {})
     inner = orch.setdefault("execution", {})
     nested = {
-        "include_anchor_trades",
         "inter_symbol_delay",
         "settlement_max_stagnant_polls",
         "settlement_poll_seconds",

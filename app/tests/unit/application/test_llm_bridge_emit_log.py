@@ -2,7 +2,6 @@ from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
 from src.application.services.llm.llm_bridge_telemetry import (
-    _truncate_preview,
     emit_llm_decision_log,
     emit_llm_http_snapshot,
 )
@@ -151,7 +150,7 @@ def test_emit_llm_http_snapshot_leading_cycle_blank_before_llm_io():
         http_user="rsi=x",
         http_system="",
         sniper_tokens={},
-        llm_config={"log_llm_io_line": True},
+        llm_config={},
         leading_cycle_blank=True,
     )
     assert logger.info.call_args_list[0] == call("")
@@ -167,16 +166,8 @@ def test_emit_llm_http_snapshot_logs_io_and_writes_dump(tmp_path):
         http_user="RSI=high, BB=inside",
         http_system="sys body",
         sniper_tokens={"rsi": "high", "bb": "inside"},
-        llm_config={"log_llm_io_line": True, "log_llm_io_dump_path": str(dump)},
+        llm_config={"log_llm_io_dump_path": str(dump)},
     )
-    io_calls = [c for c in logger.info.call_args_list if c.args and "LLM_IO" in str(c.args[0])]
-    assert len(io_calls) >= 2
-    user_rendered = io_calls[0].args[0] % io_calls[0].args[1:]
-    sys_rendered = io_calls[1].args[0] % io_calls[1].args[1:]
-    assert "user_ch=19" in user_rendered
-    assert "preview_user=RSI=high, BB=inside" in user_rendered
-    assert "sys_ch=8" in sys_rendered
-    assert "preview_sys=sys body" in sys_rendered
     text = dump.read_text(encoding="utf-8")
     assert '"cycle_id": 7' in text
     assert '"symbol": "frxEURUSD"' in text
@@ -192,9 +183,9 @@ def test_emit_llm_http_snapshot_skips_info_when_disabled(tmp_path):
         http_user="u",
         http_system="",
         sniper_tokens={},
-        llm_config={"log_llm_io_line": False, "log_llm_io_dump_path": str(tmp_path / "n.json")},
+        llm_config={"log_llm_io_dump_path": ""},
     )
-    assert not any(c.args and "LLM_IO" in str(c.args[0]) for c in logger.info.call_args_list)
+    assert not (tmp_path / "n.json").exists()
 
 
 def test_emit_llm_http_snapshot_relative_dump_resolves_to_cwd(tmp_path, monkeypatch):
@@ -207,51 +198,11 @@ def test_emit_llm_http_snapshot_relative_dump_resolves_to_cwd(tmp_path, monkeypa
         http_user="x",
         http_system="",
         sniper_tokens={"rsi": "na"},
-        llm_config={"log_llm_io_line": False, "log_llm_io_dump_path": "snap/rel.json"},
+        llm_config={"log_llm_io_dump_path": "snap/rel.json"},
     )
     target = tmp_path / "snap" / "rel.json"
     assert target.is_file()
     assert '"cycle_id": 9' in target.read_text(encoding="utf-8")
-
-
-def test_emit_llm_http_snapshot_preview_completo_sem_cap_preview(tmp_path):
-    logger = MagicMock()
-    long_u = "Z" * 500
-    emit_llm_http_snapshot(
-        logger,
-        "frxEURUSD",
-        cycle_id=3,
-        http_user=long_u,
-        http_system="",
-        sniper_tokens={},
-        llm_config={"log_llm_io_line": True},
-    )
-    io_calls = [c for c in logger.info.call_args_list if c.args and "LLM_IO" in str(c.args[0])]
-    ic = io_calls[0]
-    rendered = ic.args[0] % ic.args[1:] if len(ic.args) > 1 else str(ic.args[0])
-    prev = rendered.split("preview_user=", 1)[1]
-    assert prev == long_u
-
-
-def test_emit_llm_http_snapshot_truncates_preview_when_long(tmp_path):
-    logger = MagicMock()
-    long_u = "Z" * 500
-    emit_llm_http_snapshot(
-        logger,
-        "frxEURUSD",
-        cycle_id=1,
-        http_user=long_u,
-        http_system="",
-        sniper_tokens={},
-        llm_config={"log_llm_io_line": True, "log_llm_io_preview_chars": 80},
-    )
-    io_calls = [c for c in logger.info.call_args_list if c.args and "LLM_IO" in str(c.args[0])]
-    user_call = next(c for c in io_calls if "preview_user=" in (c.args[0] % c.args[1:]))
-    rendered = user_call.args[0] % user_call.args[1:]
-    assert "user_ch=500" in rendered
-    prev = rendered.split("preview_user=", 1)[1]
-    assert len(prev) == 80
-    assert prev == "Z" * 80
 
 
 def test_emit_llm_http_snapshot_jsonl_append(tmp_path):
@@ -271,10 +222,6 @@ def test_emit_llm_http_snapshot_jsonl_append(tmp_path):
     lines = dump.read_text(encoding="utf-8").strip().split("\n")
     assert len(lines) == 1
     assert '"mtf_matrix"' in lines[0]
-
-
-def test_truncate_preview_short_under_cap():
-    assert _truncate_preview("short", 80) == "short"
 
 
 def test_emit_llm_http_snapshot_dump_fail_emits_warning(tmp_path):

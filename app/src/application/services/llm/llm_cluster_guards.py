@@ -5,10 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 from src.application.services.llm.cluster_post_loss import cluster_post_loss_block_reason
-from src.application.services.llm.cluster_statarb_select import (
-    resolve_statarb_cluster_config_for_tag,
-    symbol_z_supports_direction,
-)
 from src.application.services.llm.macro_config import resolve_macro_config
 from src.application.services.llm.profitable_scenario import (
     cluster_symbol_allowed_for_tag,
@@ -145,7 +141,7 @@ def cluster_execute_block_reason(
     index_note: str = "",
 ) -> str:
     """Retorna motivo de bloqueio de execute para decisao de cluster."""
-    _ = index_note
+    _ = (index_note, corr_cfg)
     reason = "allowed"
     post_loss = cluster_post_loss_block_reason(orch, target_sym=target_sym, target_direction=target_direction)
     if post_loss is not None:
@@ -175,26 +171,5 @@ def cluster_execute_block_reason(
         llm_cluster_explicit=llm_cluster_explicit,
     ):
         reason = "macro_or_hmm_veto"
-    if reason == "allowed" and not llm_cluster_explicit:
-        c = corr_cfg if isinstance(corr_cfg, dict) else {}
-        macro_tag = str(metrics.get("macro_sentiment") or metrics.get("macro_confluence_tag") or "")
-        spreads = metrics.get("statarb_spreads")
-        if bool(c.get("statarb_require_z_align", True)) and isinstance(spreads, dict) and target_sym in spreads:
-            statarb_cfg = resolve_statarb_cluster_config_for_tag(
-                c,
-                macro_cfg if isinstance(macro_cfg, dict) else None,
-                macro_tag,
-            )
-            z = float(spreads[target_sym])
-            hmm_state = int(metrics.get("hmm_state", 0))
-            z_threshold = float(statarb_cfg.get("z_threshold", 2.5))
-            min_abs_gate = float(statarb_cfg.get("min_abs_z", 0.0))
-            if not symbol_z_supports_direction(
-                z,
-                target_direction,
-                hmm_state=hmm_state,
-                z_threshold=z_threshold,
-                min_abs_z=min_abs_gate,
-            ):
-                reason = "statarb_z_misaligned"
+
     return reason

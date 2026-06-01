@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.application.services.llm.cluster_statarb_fallback import statarb_relaxed_pick
 from src.application.services.llm.cluster_statarb_score import alignment_score, wr_blend_score
 from src.application.services.llm.llm_macro_confluence_guards import _statarb_misaligned
 from src.application.services.llm.macro_config import resolve_macro_config
@@ -31,29 +30,17 @@ def resolve_statarb_cluster_config(corr: dict[str, Any] | None, macro: dict[str,
     """Mescla flags de selecao por indice em correlation e strategy.macro."""
     c = corr if isinstance(corr, dict) else {}
     m = resolve_macro_config(macro if isinstance(macro, dict) else None)
-    best_only = bool(c.get("best_symbol_only", False))
-    execute_all = bool(c.get("execute_all_cluster_symbols", False))
-    if best_only:
-        execute_all = False
-    enabled = bool(c.get("statarb_index_select_enabled", c.get("statarb_index_select", True)))
-    if execute_all:
-        enabled = False
-    if best_only:
-        enabled = True
-    max_per = int(c.get("statarb_index_max_per_cluster", c.get("statarb_index_max", 1)))
-    if best_only:
-        max_per = 1
     return {
-        "enabled": enabled,
-        "execute_all": execute_all,
-        "best_symbol_only": best_only,
-        "max_per_cluster": max(1, max_per),
+        "enabled": True,
+        "execute_all": False,
+        "best_symbol_only": True,
+        "max_per_cluster": 1,
         "min_abs_z": max(0.0, float(c.get("statarb_index_min_abs_z", 0.0))),
         "wr_weight": max(0.0, float(c.get("statarb_wr_weight", 0.35))),
-        "require_z_align": bool(c.get("statarb_require_z_align", True)),
+        "require_z_align": False,
         "z_align_soft_fallback": bool(c.get("statarb_z_align_soft_fallback", False)),
         "soft_min_abs_ratio": max(0.1, float(c.get("statarb_soft_min_abs_ratio", 0.45))),
-        "weak_leader_on_no_align": bool(c.get("statarb_weak_leader_on_no_align", True)),
+        "weak_leader_on_no_align": False,
         "z_threshold": float(m["statarb_z_threshold"]),
     }
 
@@ -126,7 +113,7 @@ def select_cluster_symbols_by_statarb(
 ) -> tuple[set[str], str]:
     """Retorna subconjunto de indices com melhor alinhamento StatArb ao cluster."""
     base_cfg = cfg if isinstance(cfg, dict) else {}
-    if base_cfg.get("execute_all") or not base_cfg.get("enabled", True):
+    if not base_cfg.get("enabled", True):
         return set(candidates), "CLUSTER_ALL_SYMBOLS"
 
     spreads = statarb_spreads or {}
@@ -148,41 +135,15 @@ def select_cluster_symbols_by_statarb(
         return set(candidates), "STATARB_INDEX_NO_Z_FALLBACK"
 
     min_abs = float(base_cfg.get("min_abs_z", 0.0))
-    z_threshold = float(base_cfg.get("z_threshold", 2.5))
-    require_align = bool(base_cfg.get("require_z_align", True))
     ranked = sorted(scored, key=lambda row: (row[2], abs(row[1])), reverse=True)
-    if require_align:
-        filtered = [
-            row
-            for row in ranked
-            if symbol_z_supports_direction(
-                row[1],
-                direction,
-                hmm_state=hmm_state,
-                z_threshold=z_threshold,
-                min_abs_z=min_abs,
-            )
-        ]
-    else:
-        filtered = [row for row in ranked if row[2] > 0.0 or abs(row[1]) >= min_abs]
+    filtered = [row for row in ranked if row[2] > 0.0 or abs(row[1]) >= min_abs]
 
-    max_n = max(1, int(base_cfg.get("max_per_cluster", 1)))
+    max_n = 1
     if not filtered:
-        fallback = statarb_relaxed_pick(
-            ranked,
-            direction,
-            hmm_state=hmm_state,
-            z_threshold=z_threshold,
-            min_abs=min_abs,
-            max_per_cluster=max_n,
-            base_cfg=base_cfg,
-        )
-        if fallback is not None:
-            return fallback
         return set(), "STATARB_NO_Z_ALIGN"
 
     return _statarb_leader_pick(
         filtered[:max_n],
         wr_scores=wr_scores,
-        best_symbol_only=bool(base_cfg.get("best_symbol_only")),
+        best_symbol_only=True,
     )

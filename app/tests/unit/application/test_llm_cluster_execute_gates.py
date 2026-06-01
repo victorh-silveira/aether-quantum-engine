@@ -171,43 +171,11 @@ def test_cluster_execute_llm_explicit_divergence_uses_global_conviction_floor():
     )
 
 
-def test_cluster_execute_statarb_veto_when_not_llm_explicit():
-    orch = MagicMock()
-    orch.config = {"llm": {"min_conviction_execute": 0.60}}
-    macro = {
-        "confluence_conviction_floor": 0.65,
-        "assert_min_hmm_prob": 0.0,
-        "statarb_min_abs_z_by_tag": {"risk_on": 0.65},
-    }
-    corr = {"statarb_require_z_align": True, "statarb_index_min_abs_z": 0.85}
-    metrics = base_cluster_metrics(
-        macro_sentiment="risk_on",
-        macro_us_strength_quant=0.80,
-        statarb_spreads={"OTC_SPC": -0.35},
-        hmm_state=0,
-    )
-    assert (
-        cluster_execute_block_reason(
-            orch,
-            metrics,
-            0.70,
-            TradeDirection.CALL,
-            macro,
-            corr,
-            active_region="us",
-            target_sym="OTC_SPC",
-            llm_cluster_explicit=False,
-            index_note="",
-        )
-        == "statarb_z_misaligned"
-    )
-
-
 def test_cluster_execute_flag_conviction_and_direction_gates():
     orch = MagicMock()
     orch.config = {"llm": {"min_conviction_execute": 0.60}}
     macro = {"confluence_conviction_floor": 0.65, "assert_min_hmm_prob": 0.0}
-    corr = {"statarb_require_z_align": True}
+    corr = {}
     assert (
         cluster_execute_flag(
             orch,

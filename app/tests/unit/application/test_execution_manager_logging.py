@@ -34,7 +34,7 @@ def test_execution_manager_collect_orders_keeps_execute_false_if_forced_in_dict(
             "frxEURUSD": {"direction": TradeDirection.CALL, "metrics": {"conviction": 0.8, "execute": False}},
             "OTC_SPC": {"direction": TradeDirection.PUT, "metrics": {"conviction": 0.9, "execute": True}},
         }
-        orders = orch.executor._collect_orders(decisions, include_anchor=True)
+        orders = orch.executor._collect_orders(decisions)
         assert len(orders) == 1
         assert orders[0][0] == "OTC_SPC"
 
@@ -89,7 +89,6 @@ def test_log_execution_blockers_stake_zero(orch_config):
         with patch.object(orch.executor.logger, "info") as mock_info:
             orch.executor._log_execution_blockers(
                 {"OTC_FCHI": {"direction": TradeDirection.PUT, "metrics": {"conviction": 0.7, "execute": True}}},
-                include_anchor=False,
             )
         assert "kelly_no_edge" in mock_info.call_args.args[2]
 
@@ -103,7 +102,6 @@ def test_log_execution_blockers_sem_direcao(orch_config):
         with patch.object(orch.executor.logger, "info") as mock_info:
             orch.executor._log_execution_blockers(
                 {"OTC_FCHI": {"direction": None, "metrics": {"execute": True}}},
-                include_anchor=False,
             )
         assert "sem_direcao" in mock_info.call_args.args[2]
 

@@ -22,15 +22,14 @@ def test_hmm_classifier_custom_matrix():
 def test_hmm_classifier_dynamic_volatility():
     """Test dynamic volatility calibration inside MarketHMMClassifier."""
     hmm = MarketHMMClassifier(sigma_low=0.0005, sigma_high=0.005)
-    
+
     # Simula retornos recentes com alta volatilidade
     recent_rets = [0.02, -0.015, 0.03, -0.025, 0.01]
     state, prob = hmm.update_regime(0.01, recent_returns=recent_rets)
-    
+
     # As volatilidades devem ser atualizadas dinamicamente
     assert hmm.sigma_low > 0.0005
     assert hmm.sigma_high > 0.005
-
 
 
 def test_pca_cointegration_zscores_short_closes():

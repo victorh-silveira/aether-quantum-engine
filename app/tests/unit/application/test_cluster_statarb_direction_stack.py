@@ -1,23 +1,16 @@
 from unittest.mock import MagicMock
 
 from src.application.services.llm.cluster_statarb_direction import (
-    correct_cluster_direction_for_divergence,
     correct_cluster_direction_for_tag,
     quant_direction_stack_enabled,
 )
-from src.application.services.llm.llm_cluster_invert import cluster_invert_llm_side_enabled
 from src.application.services.llm.llm_cluster_target import apply_cluster_target_decision
 from src.domain.models.trade import TradeDirection
 
 
-def test_cluster_invert_llm_side_enabled_reads_corr_flag():
-    assert cluster_invert_llm_side_enabled({"cluster_invert_llm_side": True}) is True
-    assert cluster_invert_llm_side_enabled({}) is False
-
-
 def test_quant_direction_stack_enabled_reads_corr_flag():
     assert quant_direction_stack_enabled({"quant_direction_stack_enabled": False}) is False
-    assert quant_direction_stack_enabled({"statarb_correct_llm_on_divergence": True}) is True
+    assert quant_direction_stack_enabled({}) is True
 
 
 def test_correct_cluster_direction_disabled_stack():
@@ -62,7 +55,7 @@ def test_correct_cluster_direction_keeps_when_z_supports_direction():
 
 
 def test_correct_cluster_direction_keeps_llm_on_divergence_tags():
-    direction, corrected, note = correct_cluster_direction_for_divergence(
+    direction, corrected, note = correct_cluster_direction_for_tag(
         TradeDirection.CALL,
         macro_tag="divergence_eu_leads",
         target_sym="OTC_FCHI",
@@ -71,7 +64,7 @@ def test_correct_cluster_direction_keeps_llm_on_divergence_tags():
             "statarb_spreads": {"OTC_FCHI": 2.9},
             "hmm_state": 0,
         },
-        corr_cfg={"statarb_correct_llm_on_divergence": True, "quant_direction_stack_enabled": True},
+        corr_cfg={"quant_direction_stack_enabled": True},
         macro_cfg={"statarb_z_threshold": 2.5},
     )
     assert corrected is False
@@ -175,7 +168,6 @@ def test_apply_cluster_target_updates_us_cluster_on_risk_on_correct():
         active_region="us",
         exclusive=True,
         macro_tag="risk_on",
-        invert_on_block=False,
     )
     assert decisions["OTC_DJI"]["metrics"]["us_cluster"] == "PUT"
 
@@ -212,6 +204,5 @@ def test_apply_cluster_target_updates_eu_cluster_on_risk_off_correct():
         active_region="eu",
         exclusive=True,
         macro_tag="risk_off",
-        invert_on_block=False,
     )
     assert decisions["OTC_FCHI"]["metrics"]["eu_cluster"] == "PUT"

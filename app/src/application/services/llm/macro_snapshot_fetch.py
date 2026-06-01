@@ -75,7 +75,6 @@ def _hmm_from_eurusd(eurusd_closes: list[float], cfg: dict[str, Any]) -> tuple[i
     return state, prob
 
 
-
 async def _apply_m5_flat_fallback(
     orch: Any,
     snap: MacroSnapshot,

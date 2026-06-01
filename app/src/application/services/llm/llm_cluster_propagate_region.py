@@ -92,7 +92,6 @@ def propagate_cluster_region(
     active_region: str | None,
     exclusive: bool,
     macro_tag: str,
-    invert_on_block: bool,
     try_alternates: bool,
 ) -> tuple[list[str], list[str], list[str], list[str]]:
     """Propaga direcao para indices de uma regiao com fallback quando o lider bloqueia."""
@@ -119,7 +118,6 @@ def propagate_cluster_region(
             active_region=active_region,
             exclusive=exclusive,
             macro_tag=macro_tag,
-            invert_on_block=invert_on_block,
         )
 
     propagated_tags, blocked_tags, inverted_tags, corrected_tags, hit = _try_symbol_batch(

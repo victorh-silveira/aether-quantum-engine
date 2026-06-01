@@ -48,9 +48,7 @@ def _m5_implied_direction(metrics: dict[str, Any], target_sym: str) -> tuple[Tra
 def quant_direction_stack_enabled(corr_cfg: dict[str, Any] | None) -> bool:
     """True quando pilha M5/StatArb pode corrigir tag LLM do cluster."""
     c = corr_cfg if isinstance(corr_cfg, dict) else {}
-    if "quant_direction_stack_enabled" in c:
-        return bool(c.get("quant_direction_stack_enabled"))
-    return bool(c.get("statarb_correct_llm_on_divergence", True))
+    return bool(c.get("quant_direction_stack_enabled", True))
 
 
 def correct_cluster_direction_for_tag(
@@ -98,23 +96,3 @@ def correct_cluster_direction_for_tag(
         return direction, False, ""
     note = f"STATARB_DIR {direction.name}->{implied.name} z={z:.2f} hmm={hmm_state}"
     return implied, True, note
-
-
-def correct_cluster_direction_for_divergence(
-    direction: TradeDirection,
-    *,
-    macro_tag: str,
-    target_sym: str,
-    metrics: dict[str, Any],
-    corr_cfg: dict[str, Any] | None,
-    macro_cfg: dict[str, Any] | None,
-) -> tuple[TradeDirection, bool, str]:
-    """Wrapper de compatibilidade para correcao em tags de divergencia."""
-    return correct_cluster_direction_for_tag(
-        direction,
-        macro_tag=macro_tag,
-        target_sym=target_sym,
-        metrics=metrics,
-        corr_cfg=corr_cfg,
-        macro_cfg=macro_cfg,
-    )

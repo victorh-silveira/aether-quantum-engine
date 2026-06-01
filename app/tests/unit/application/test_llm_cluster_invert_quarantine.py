@@ -44,7 +44,6 @@ def test_apply_cluster_target_executes_llm_direction_despite_statarb_misalign():
         active_region="eu",
         exclusive=True,
         macro_tag="risk_off",
-        invert_on_block=True,
     )
     assert propagated == "OTC_FTSE[P]"
     assert blocked is None
@@ -83,7 +82,6 @@ def test_apply_cluster_target_keeps_llm_direction_on_divergence_tag():
         active_region="eu",
         exclusive=True,
         macro_tag="divergence_eu_leads",
-        invert_on_block=True,
     )
     assert propagated == "OTC_FTSE[P]"
     assert blocked is None
@@ -121,7 +119,6 @@ def test_apply_cluster_target_quarantine_does_not_block_llm_execute():
         active_region="eu",
         exclusive=True,
         macro_tag="divergence_eu_leads",
-        invert_on_block=True,
     )
     assert propagated == "OTC_FTSE[P]"
     assert blocked is None

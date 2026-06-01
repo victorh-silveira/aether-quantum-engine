@@ -11,7 +11,6 @@ from src.application.services.llm.llm_cluster_exclusive import (
     exclusive_cluster_by_macro_enabled,
     resolve_exclusive_cluster_region,
 )
-from src.application.services.llm.llm_cluster_invert import cluster_invert_on_block_enabled
 from src.application.services.llm.llm_cluster_logging import log_cluster_propagation_results
 from src.application.services.llm.llm_cluster_propagate_region import (
     cluster_region_active,
@@ -163,7 +162,6 @@ def propagate_cluster_decisions(
     blocked_tags: list[str] = []
     inverted_tags: list[str] = []
     corrected_tags: list[str] = []
-    invert_on_block = cluster_invert_on_block_enabled(corr_cfg)
     try_alternates = bool(corr_cfg.get("statarb_try_alternate_on_block", True))
     region_kw = {
         "orch": orch,
@@ -176,7 +174,6 @@ def propagate_cluster_decisions(
         "active_region": active_region,
         "exclusive": exclusive,
         "macro_tag": macro_tag,
-        "invert_on_block": invert_on_block,
         "try_alternates": try_alternates,
     }
     if not anchor_in_us and cluster_region_active(exclusive=exclusive, active_region=active_region, region="us"):

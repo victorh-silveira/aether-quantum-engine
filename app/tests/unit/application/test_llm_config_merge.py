@@ -104,12 +104,10 @@ def test_merge_execution_section_writes_orchestrator():
     cfg["execution"] = {
         "cycle_interval_seconds": 7,
         "settlement_poll_seconds": 2.0,
-        "include_anchor_trades": False,
     }
     merge_execution_section(cfg)
     assert cfg["orchestrator"]["cycle_interval_seconds"] == 7
     assert cfg["orchestrator"]["execution"]["settlement_poll_seconds"] == 2.0
-    assert cfg["orchestrator"]["execution"]["include_anchor_trades"] is False
 
 
 def test_merge_execution_section_creates_orchestrator():

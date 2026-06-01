@@ -169,7 +169,7 @@ async def test_collect_llm_decisions_statarb_picks_single_us_index():
 
     assert "OTC_SPC" in decisions
     assert "OTC_NDX" not in decisions
-    assert "STATARB_INDEX" in decisions["OTC_SPC"]["metrics"]["llm_note"]
+    assert "STATARB_BEST" in decisions["OTC_SPC"]["metrics"]["llm_note"]
 
 
 @pytest.mark.asyncio
