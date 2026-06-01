@@ -1,3 +1,9 @@
+## [1.33.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.32.0...v1.33.0) (2026-06-01)
+
+### Funcionalidades
+
+* **config:** exclui indice OTC_FCHI por requerer duracao de M30 no broker ([5a66d58](https://github.com/victorh-silveira/aether-quantum-engine/commit/5a66d5894bd14a21dcbae2417d459d954496e292))
+
 ## [1.32.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.31.0...v1.32.0) (2026-06-01)
 
 ### Funcionalidades
