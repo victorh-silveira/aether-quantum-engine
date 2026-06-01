@@ -138,7 +138,7 @@
     "large_account_stop_win_pct": 10.0,
     "params": {
       "contract_type": "RISE_FALL",
-      "duration": 1,
+      "duration": 30,
       "duration_unit": "m",
       "payout_estimate": 1.0,
       "stake_max": 5000.0,
@@ -148,14 +148,15 @@
     "small_account_threshold": 50.0
   },
   "strategy": {
-    "excluded_symbols": [
-      "OTC_SSMI",
-      "OTC_GDAXI",
-      "OTC_FCHI"
-    ],
+    "excluded_symbols": [],
     "clusters": {
       "eu": [
-        "OTC_FTSE"
+        "OTC_FCHI",
+        "OTC_GDAXI",
+        "OTC_FTSE",
+        "OTC_SSMI",
+        "OTC_SX5E",
+        "OTC_AEX"
       ],
       "us": [
         "OTC_DJI",
@@ -199,7 +200,12 @@
           "OTC_NDX"
         ],
         "risk_off": [
-          "OTC_FTSE"
+          "OTC_FCHI",
+          "OTC_GDAXI",
+          "OTC_FTSE",
+          "OTC_SSMI",
+          "OTC_SX5E",
+          "OTC_AEX"
         ],
         "divergence_us_leads": [
           "OTC_DJI",
@@ -207,7 +213,12 @@
           "OTC_NDX"
         ],
         "divergence_eu_leads": [
-          "OTC_FTSE"
+          "OTC_FCHI",
+          "OTC_GDAXI",
+          "OTC_FTSE",
+          "OTC_SSMI",
+          "OTC_SX5E",
+          "OTC_AEX"
         ]
       },
       "min_conviction_by_tag": {
@@ -232,7 +243,9 @@
           "CAC40",
           "DAX40",
           "FTSE100",
-          "SMI"
+          "SMI",
+          "EURO50",
+          "AEX25"
         ],
         "us": [
           "S&P500",
@@ -330,7 +343,9 @@
     "OTC_DJI",
     "OTC_FTSE",
     "OTC_NDX",
-    "OTC_SPC"
+    "OTC_SPC",
+    "OTC_SX5E",
+    "OTC_AEX"
   ],
   "trading": {
     "mode": "live",
