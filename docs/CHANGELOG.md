@@ -1,3 +1,9 @@
+## [1.34.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.33.0...v1.34.0) (2026-06-01)
+
+### Funcionalidades
+
+* **config:** altera duracao padrao de trade para M30 e reativa todos os indices ([521a7e6](https://github.com/victorh-silveira/aether-quantum-engine/commit/521a7e6af38fa42c9e8a4fd315a7d3890fb80c56))
+
 ## [1.33.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.32.0...v1.33.0) (2026-06-01)
 
 ### Funcionalidades
