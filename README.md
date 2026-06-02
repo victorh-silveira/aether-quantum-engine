@@ -1,6 +1,6 @@
 # Aether Quantum Engine 2.0 (Medallion)
 
-[![Python](https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white)](.python-version)
+[![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)](app/.python-version)
 [![Lint](https://img.shields.io/badge/Lint-ruff%20%7C%20interrogate-3776AB?logo=ruff&logoColor=white)](.github/actions/lint/action.yml)
 [![Tests](https://img.shields.io/badge/Tests-pytest-0F9D58?logo=pytest&logoColor=white)](tests/unit)
 [![Coverage](https://img.shields.io/badge/Coverage-100%25-0F9D58?logo=codecov&logoColor=white)](tests/unit)
@@ -59,7 +59,7 @@ O sistema utiliza logs de alta densidade para auditoria em tempo real:
 
 ## Stack e Engenharia
 
-- **Core**: Python 3.14 + `asyncio` + NumPy (Kalman, HMM, PCA).
+- **Core**: Python 3.13 + `asyncio` + NumPy (Kalman, HMM, PCA).
 - **Infra**: Deriv WebSocket API v3.
 - **IA**: Google Gemini (`gemini-2.5-flash` em `settings.json`).
 - **Qualidade**: Cobertura de testes de **100%** em `src`; suite `test_medallion_statarb`.

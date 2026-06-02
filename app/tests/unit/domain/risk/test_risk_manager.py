@@ -37,16 +37,16 @@ def test_kelly_negative_edge_returns_min_stake(kelly_config):
     assert stake == 1.0
 
 
-def test_kelly_does_not_cap_stake(kelly_config):
-    """Verifica que a stake Kelly não é limitada por nenhuma porcentagem máxima fictícia."""
+def test_kelly_caps_stake_by_max_pct(kelly_config):
+    """Verifica que a stake Kelly respeita max_stake_pct da configuracao."""
     kelly_config["kelly"]["fraction"] = 1.0
     rm = RiskManager(kelly_config)
     stake = rm.calculate_stake(1000.0, "OTC_FCHI", conviction=0.8)
-    assert stake == pytest.approx(589.47, abs=0.1)
+    assert stake == pytest.approx(50.0, abs=0.1)
 
 
-def test_kelly_no_high_conviction_cap(kelly_config):
-    """Verifica que convicções altas não possuem limites artificiais no código."""
+def test_kelly_high_conviction_cap(kelly_config):
+    """Verifica que conviccoes altas usam max_stake_pct_high_conviction."""
     kelly_config["kelly"]["fraction"] = 1.0
     kelly_config["kelly"]["max_stake_pct"] = 0.02
     kelly_config["kelly"]["max_stake_pct_high_conviction"] = 0.04
@@ -55,8 +55,8 @@ def test_kelly_no_high_conviction_cap(kelly_config):
     low = rm.calculate_stake(1000.0, "OTC_FCHI", conviction=0.7)
     high = rm.calculate_stake(1000.0, "OTC_FCHI", conviction=0.9)
     assert high > low
-    assert low == pytest.approx(384.21, abs=0.1)
-    assert high == pytest.approx(794.73, abs=0.1)
+    assert low == pytest.approx(20.0, abs=0.1)
+    assert high == pytest.approx(40.0, abs=0.1)
 
 
 def test_kelly_dynamic_win_rate(kelly_config):
@@ -92,22 +92,22 @@ def test_kelly_intelligent_recovery(kelly_config):
     )  # Nova regra: reduz pela metade por perdas consecutivas se não for tentativa de recuperação
 
     stake_high = rm.calculate_stake(1000.0, "OTC_FCHI", conviction=0.8)
-    assert stake_high == pytest.approx(69.47, abs=0.1)  # Recuperação total (58.94 + 10.52)
+    assert stake_high == pytest.approx(50.0, abs=0.1)
 
     rm.active_contract_ids = [2]
     rm.register_result(57.49, 2, "OTC_FCHI")
     assert rm.pending_loss["OTC_FCHI"] == 0.0
 
 
-def test_kelly_recovery_has_no_safety_cap(kelly_config):
-    """Verifica se a recuperação é ilimitada (retorna exatamente needed_extra)."""
+def test_kelly_recovery_respects_safety_cap(kelly_config):
+    """Verifica se a recuperacao respeita max_recovery_stake_pct."""
     kelly_config["kelly"]["max_recovery_stake_pct"] = 0.10
     rm = RiskManager(kelly_config)
 
     rm.pending_loss["OTC_FCHI"] = 500.0
 
     stake = rm.calculate_stake(1000.0, "OTC_FCHI", conviction=0.8)
-    assert stake == pytest.approx(585.26, abs=0.1)
+    assert stake == pytest.approx(100.0, abs=0.1)
 
 
 def test_kelly_stop_win_zero_stake(kelly_config):
@@ -191,16 +191,15 @@ def test_risk_manager_get_state_exports(kelly_config):
 
 
 def test_single_strike_stake_boost_in_window(kelly_config):
-    """Verifica se a stake de Single Strike é aplicada na janela BRT com alta convicção."""
-    # Configura a meta diária e stop win
-    kelly_config["small_account_stop_win"] = 10.0
+    """Verifica se a stake de Single Strike e aplicada na janela com alta conviccao."""
+    kelly_config["small_account_stop_win"] = 100.0
     kelly_config["small_account_threshold"] = 100.0
     kelly_config["kelly"]["stop_win_aggressive"] = False
+    kelly_config["kelly"]["fraction"] = 0.001
     rm = RiskManager(kelly_config)
-    rm.set_initial_bankroll(50.0)
+    rm.set_initial_bankroll(1000.0)
     rm.total_session_profit = 0.0
 
-    # Simula horário nobre BRT (14:00 UTC / 11:00 BRT)
     mock_now = datetime.datetime(2026, 6, 1, 14, 0, 0, tzinfo=datetime.UTC)
 
     with patch("datetime.datetime") as mock_dt:
@@ -208,11 +207,8 @@ def test_single_strike_stake_boost_in_window(kelly_config):
         mock_dt.timezone = datetime.timezone
         mock_dt.UTC = datetime.UTC
 
-        # Sob alta convicção, deve buscar os $10 em uma só tacada limitada a 25% da banca ($12.50)
-        stake = rm.calculate_stake(50.0, "OTC_FCHI", conviction=0.85)
-        # Meta restante = $10. Payout = 0.95. Goal stake = 10 / 0.95 = 10.52. Max drawdown (25% de 50) = 12.50.
-        # Deve aplicar os 10.52
-        assert stake == pytest.approx(10.52, abs=0.1)
+        stake = rm.calculate_stake(1000.0, "OTC_FCHI", conviction=0.85)
+        assert stake == pytest.approx(50.0, abs=0.1)
 
 
 def test_cross_symbol_recovery(kelly_config):
@@ -227,8 +223,7 @@ def test_cross_symbol_recovery(kelly_config):
 
     # Tenta calcular stake com alta convicção no símbolo B
     stake_b_high = rm.calculate_stake(1000.0, "OTC_GDAXI", conviction=0.8)
-    # Deve incluir a recuperação da perda de OTC_FCHI (58.94 Kelly + 10.52 Recuperação = 69.47)
-    assert stake_b_high == pytest.approx(69.47, abs=0.1)
+    assert stake_b_high == pytest.approx(50.0, abs=0.1)
 
     # Se ganhar no símbolo B, o lucro reduz a perda pendente globalmente
     rm.active_contract_ids = [2]

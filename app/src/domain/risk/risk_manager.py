@@ -6,7 +6,7 @@ import math
 from typing import Any
 
 from src.domain.risk.risk_cooldown import RiskCooldownMixin
-from src.domain.risk.stop_win_target import resolve_stop_win_target
+from src.domain.risk.stop_win_target import resolve_max_stake_pct, resolve_stop_win_target
 
 
 class RiskManager(RiskCooldownMixin):
@@ -96,7 +96,9 @@ class RiskManager(RiskCooldownMixin):
         payout = max(0.5, float(self.risk_params.get("payout_estimate", 0.95)))
         goal_stake = remaining / payout
         mult = max(1.0, float(self.kelly_config.get("stop_win_stake_multiplier", 1.35)))
-        return max(raw_stake * mult, raw_stake, goal_stake)
+        boosted = max(raw_stake * mult, raw_stake, goal_stake)
+        cap_pct = float(self.kelly_config.get("stop_win_stake_cap_pct", 0.01))
+        return min(boosted, bankroll * cap_pct)
 
     def stake_block_reason(
         self,
@@ -150,22 +152,18 @@ class RiskManager(RiskCooldownMixin):
         loss_to_recover = sum(self.pending_loss.values())
         is_recovery_attempt = loss_to_recover > 0.0 and conviction >= self.recovery_threshold
 
-        fractional_multiplier = float(self.kelly_config.get("fraction", 0.03))  # Reduzida a agressividade padrão
+        fractional_multiplier = float(self.kelly_config.get("fraction", 0.03))
         if self.consecutive_losses > 0 and not is_recovery_attempt:
             reduction_factor = 0.5 ** min(self.consecutive_losses, 3)
             fractional_multiplier *= reduction_factor
 
         f_star = max(0.0, kelly_f * fractional_multiplier)
 
-        # Retiramos totalmente as limitações/teto de max_pct / base_f_star!
         raw_stake = bankroll * f_star
         raw_stake = self._apply_stop_win_aggressive_stake(bankroll, raw_stake, apply_stop_win=apply_stop_win)
 
-        # Lógica Cirúrgica "Single Strike" (Uma Tacada Só - 09h às 14h BRT / 12h às 17h UTC)
-        # Se for o horário nobre, tiver alta convicção (>= 75%), e nenhum contrato aberto (ou primeira entrada)
         if apply_stop_win:
             now_utc = datetime.datetime.now(datetime.UTC)
-            # Janela de Alta Liquidez: 12:00 às 17:00 UTC (09:00 às 14:00 BRT)
 
             in_window = 12 <= now_utc.hour < 17
             target = resolve_stop_win_target(self.config, self.initial_bankroll)
@@ -173,8 +171,7 @@ class RiskManager(RiskCooldownMixin):
 
             if in_window and conviction >= 0.75 and remaining > 0 and not self.active_contract_ids:
                 goal_stake = remaining / b
-                # Limite prudente de drawdown (no máximo 25% da banca por entrada única)
-                max_allowed_drawdown = bankroll * 0.25
+                max_allowed_drawdown = bankroll * resolve_max_stake_pct(self.kelly_config, conviction)
                 single_strike_stake = min(goal_stake, max_allowed_drawdown)
                 if single_strike_stake > raw_stake:
                     self.logger.info(
@@ -187,18 +184,18 @@ class RiskManager(RiskCooldownMixin):
         recovery_stake = 0.0
 
         if is_recovery_attempt:
-            # Retiramos totalmente o teto/Safety Cap de max_recovery_stake_pct!
             needed_extra = loss_to_recover / b
             recovery_stake = needed_extra
             raw_stake += recovery_stake
 
         final_stake = math.ceil(raw_stake * 100) / 100 if is_recovery_attempt else math.floor(raw_stake * 100) / 100
 
+        max_pct = resolve_max_stake_pct(self.kelly_config, conviction, is_recovery=is_recovery_attempt)
+        final_stake = min(final_stake, bankroll * max_pct, self.stake_max)
+
         stake_min = float(self.risk_params.get("stake_min", 1.0))
         if (conviction >= 0.50 or is_recovery_attempt) and final_stake < stake_min:
             final_stake = stake_min if bankroll >= stake_min else 0.0
-
-        # Retiramos totalmente o teto de stake_max!
 
         cycle_id = _kwargs.get("cycle_id", 0)
         rec_info = f" | RECOVERY: ${recovery_stake:.2f}/{loss_to_recover:.2f}" if loss_to_recover > 0 else ""

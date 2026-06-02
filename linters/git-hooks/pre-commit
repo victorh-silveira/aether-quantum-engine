@@ -21,7 +21,7 @@ if command -v pre-commit >/dev/null 2>&1; then
   run_impl pre-commit
 fi
 
-for py in python3.14 python3 python; do
+for py in python3.13 python3 python; do
   if command -v "$py" >/dev/null 2>&1 && "$py" -c "import pre_commit" 2>/dev/null; then
     run_impl "$py" -mpre_commit
   fi
@@ -29,8 +29,8 @@ done
 
 if [ -f /proc/version ] && grep -qi microsoft /proc/version 2>/dev/null; then
   for win_py in \
-    "/mnt/c/Users/${USER}/AppData/Local/Programs/Python/Python314/python.exe" \
-    "/mnt/c/Users/${USER}/AppData/Local/Programs/Python/Python313/python.exe"; do
+    "/mnt/c/Users/${USER}/AppData/Local/Programs/Python/Python313/python.exe" \
+    "/mnt/c/Users/${USER}/AppData/Local/Programs/Python/Python314/python.exe"; do
     if [ -x "$win_py" ]; then
       run_impl "$win_py" -mpre_commit
     fi

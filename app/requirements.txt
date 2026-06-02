@@ -11,6 +11,6 @@ numpy==2.4.6                 # Biblioteca fundamental para computação científ
 rich==15.0.0                 # Formatação de texto rica e renderização de tabelas/logs no terminal
 
 # ---- PROCESSAMENTO DE DADOS & DEEP LEARNING ----
-pandas==2.2.3                # Manipulação e análise de dados estruturados através de DataFrames
+pandas==2.3.3                # Manipulação e análise de dados estruturados através de DataFrames
 polars==1.23.0               # DataFrame de alta performance focado em velocidade e processamento paralelo
-torch==2.6.0                 # Framework de Deep Learning para computação de tensores e redes neurais com aceleração GPU
+torch==2.9.0                 # Framework de Deep Learning para computação de tensores e redes neurais com aceleração GPU

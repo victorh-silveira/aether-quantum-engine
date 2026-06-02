@@ -3,7 +3,7 @@ name = "aether-quantum-engine"
 version = "0.0.0"
 description = "Motor asyncio Deriv Rise/Fall: modo CALL/PUT simples ou decisao via LLM (Google Gemini)."
 readme = "../README.md"
-requires-python = ">=3.14,<4"
+requires-python = ">=3.13,<4"
 
 [tool.ruff]
 line-length = 120

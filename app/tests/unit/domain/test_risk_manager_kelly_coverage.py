@@ -158,7 +158,7 @@ def test_stop_win_aggressive_stake_boost():
     rm.set_initial_bankroll(50.0)
     rm.total_session_profit = 2.0
     boosted = rm._apply_stop_win_aggressive_stake(48.0, 1.0)
-    assert boosted == 8.0
+    assert abs(boosted - 5.76) < 0.1
 
 
 def test_stake_block_reason_kelly_no_edge():
