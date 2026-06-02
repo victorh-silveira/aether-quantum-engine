@@ -98,6 +98,8 @@ def propagate_cluster_region(
     empty: tuple[list[str], list[str], list[str], list[str]] = ([], [], [], [])
     if target_direction is None or not attempt_order:
         return empty
+    if bool(corr_cfg.get("statarb_require_z_align", False)) and not picked:
+        return empty
     leaders = [sym for sym in attempt_order if sym in picked] or list(attempt_order)
     fallbacks = [sym for sym in attempt_order if sym not in leaders]
     single_leader_mode = len(picked) <= 1

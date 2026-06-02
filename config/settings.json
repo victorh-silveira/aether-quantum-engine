@@ -137,7 +137,7 @@
     "large_account_stop_win_pct": 10.0,
     "params": {
       "contract_type": "RISE_FALL",
-      "duration": 30,
+      "duration": 15,
       "duration_unit": "m",
       "payout_estimate": 1.0,
       "stake_max": 5000.0,
@@ -172,11 +172,14 @@
       "statarb_blend_rolling_wr": true,
       "statarb_wr_weight": 0.40,
       "statarb_index_max_per_cluster": 1,
-      "statarb_index_min_abs_z": 0.85,
+      "statarb_index_min_abs_z": 1.20,
       "statarb_soft_min_abs_ratio": 0.45,
       "statarb_z_align_soft_fallback": true,
       "statarb_try_alternate_on_block": true,
       "statarb_allow_high_conviction_on_divergence": true,
+      "statarb_require_z_align": true,
+      "statarb_require_m5_trend_align": true,
+      "statarb_allow_correction_on_divergence": true,
       "quant_direction_stack_enabled": true
     },
     "macro": {
@@ -191,9 +194,18 @@
         "risk_on": [
           "OTC_DJI",
           "OTC_SPC",
-          "OTC_NDX"
+          "OTC_NDX",
+          "OTC_FCHI",
+          "OTC_GDAXI",
+          "OTC_FTSE",
+          "OTC_SSMI",
+          "OTC_SX5E",
+          "OTC_AEX"
         ],
         "risk_off": [
+          "OTC_DJI",
+          "OTC_SPC",
+          "OTC_NDX",
           "OTC_FCHI",
           "OTC_GDAXI",
           "OTC_FTSE",
@@ -204,9 +216,18 @@
         "divergence_us_leads": [
           "OTC_DJI",
           "OTC_SPC",
-          "OTC_NDX"
+          "OTC_NDX",
+          "OTC_FCHI",
+          "OTC_GDAXI",
+          "OTC_FTSE",
+          "OTC_SSMI",
+          "OTC_SX5E",
+          "OTC_AEX"
         ],
         "divergence_eu_leads": [
+          "OTC_DJI",
+          "OTC_SPC",
+          "OTC_NDX",
           "OTC_FCHI",
           "OTC_GDAXI",
           "OTC_FTSE",
@@ -222,10 +243,10 @@
         "divergence_eu_leads": 0.60
       },
       "statarb_min_abs_z_by_tag": {
-        "risk_on": 0.70,
-        "risk_off": 0.70,
-        "divergence_us_leads": 0.65,
-        "divergence_eu_leads": 0.65
+        "risk_on": 1.20,
+        "risk_off": 1.20,
+        "divergence_us_leads": 1.15,
+        "divergence_eu_leads": 1.15
       },
       "cluster_bars": 8,
       "cluster_fallback_bars": 12,

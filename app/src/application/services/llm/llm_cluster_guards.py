@@ -141,7 +141,7 @@ def cluster_execute_block_reason(
     index_note: str = "",
 ) -> str:
     """Retorna motivo de bloqueio de execute para decisao de cluster."""
-    _ = (index_note, corr_cfg)
+    _ = index_note
     reason = "allowed"
     post_loss = cluster_post_loss_block_reason(orch, target_sym=target_sym, target_direction=target_direction)
     if post_loss is not None:
@@ -171,5 +171,30 @@ def cluster_execute_block_reason(
         llm_cluster_explicit=llm_cluster_explicit,
     ):
         reason = "macro_or_hmm_veto"
+
+    if reason == "allowed":
+        c = corr_cfg if isinstance(corr_cfg, dict) else {}
+        if bool(c.get("statarb_require_m5_trend_align", False)):
+            m5_dirs = metrics.get("index_m5_dir_by_symbol")
+            if isinstance(m5_dirs, dict):
+                m5_dir = m5_dirs.get(target_sym)
+                hmm_state = int(metrics.get("hmm_state", 0))
+                if hmm_state == 1:
+                    # In trending regime, require strict alignment (CALL requires up, PUT requires down)
+                    if (
+                        target_direction == TradeDirection.CALL
+                        and m5_dir != "up"
+                        or target_direction == TradeDirection.PUT
+                        and m5_dir != "down"
+                    ):
+                        reason = "m5_trend_misaligned"
+                # In mean reversion regime, prevent trading against the micro-trend
+                elif (
+                    target_direction == TradeDirection.CALL
+                    and m5_dir == "down"
+                    or target_direction == TradeDirection.PUT
+                    and m5_dir == "up"
+                ):
+                    reason = "m5_trend_misaligned"
 
     return reason

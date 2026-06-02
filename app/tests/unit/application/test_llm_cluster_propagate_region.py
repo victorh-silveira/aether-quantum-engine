@@ -1,7 +1,11 @@
 from unittest.mock import MagicMock, patch
 
 from src.application.services.llm.llm_cluster_propagate import propagate_cluster_decisions
-from src.application.services.llm.llm_cluster_propagate_region import _merge_apply_result, cluster_region_active
+from src.application.services.llm.llm_cluster_propagate_region import (
+    _merge_apply_result,
+    cluster_region_active,
+    propagate_cluster_region,
+)
 from src.domain.models.trade import TradeDirection
 
 
@@ -244,3 +248,24 @@ def test_propagate_fallback_returns_on_corrected_alternate():
             cid="C0102",
         )
     assert any("CLUSTER_BEST" in str(c) or "CLUSTER_PROP" in str(c) for c in orch.logger.info.call_args_list)
+
+
+def test_propagate_cluster_region_returns_empty_when_require_z_align_and_picked_empty():
+    res = propagate_cluster_region(
+        orch=MagicMock(),
+        attempt_order=["OTC_NDX"],
+        picked=set(),
+        target_direction=TradeDirection.CALL,
+        index_note="some note",
+        metrics={},
+        decisions={},
+        anchor_sym="frxEURUSD",
+        conviction=0.80,
+        macro_cfg={},
+        corr_cfg={"statarb_require_z_align": True},
+        active_region="us",
+        exclusive=True,
+        macro_tag="divergence_us_leads",
+        try_alternates=True,
+    )
+    assert res == ([], [], [], [])

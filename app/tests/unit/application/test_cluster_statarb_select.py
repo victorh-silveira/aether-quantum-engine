@@ -205,3 +205,37 @@ def test_select_cluster_symbol_attempt_order_disabled_or_execute_all():
         cfg={"enabled": True, "execute_all": True},
     )
     assert order2 == ["OTC_SPC"]
+
+
+def test_select_require_z_align_filtering():
+    # OTC_SPC has Z=1.0, which does NOT support CALL in MR. So it gets filtered out by require_z_align.
+    picked, note = select_cluster_symbols_by_statarb(
+        ["OTC_SPC"],
+        TradeDirection.CALL,
+        {"OTC_SPC": 1.0},
+        hmm_state=0,
+        cfg={"enabled": True, "require_z_align": True, "min_abs_z": 0.5},
+    )
+    assert picked == set()
+    assert note == "STATARB_NO_Z_ALIGN"
+
+
+def test_select_soft_fallback_success():
+    # min_abs_z=1.0. OTC_SPC has Z=-0.6. It is aligned (negative for CALL in MR) but too small for min_abs_z.
+    # With soft_fallback=True and soft_min_abs_ratio=0.5, the soft threshold is 0.5.
+    # Since |-0.6| >= 0.5, it gets selected via soft fallback!
+    picked, note = select_cluster_symbols_by_statarb(
+        ["OTC_SPC"],
+        TradeDirection.CALL,
+        {"OTC_SPC": -0.6},
+        hmm_state=0,
+        cfg={
+            "enabled": True,
+            "require_z_align": True,
+            "min_abs_z": 1.0,
+            "z_align_soft_fallback": True,
+            "soft_min_abs_ratio": 0.5,
+        },
+    )
+    assert picked == {"OTC_SPC"}
+    assert "leader=OTC_SPC" in note

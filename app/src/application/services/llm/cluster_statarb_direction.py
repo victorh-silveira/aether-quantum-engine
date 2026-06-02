@@ -61,9 +61,11 @@ def correct_cluster_direction_for_tag(
     macro_cfg: dict[str, Any] | None,
 ) -> tuple[TradeDirection, bool, str]:
     """Aplica pilha M5 depois StatArb sobre direcao da tag LLM."""
-    if str(macro_tag or "").startswith("divergence") or not quant_direction_stack_enabled(corr_cfg):
-        return direction, False, ""
     c = corr_cfg if isinstance(corr_cfg, dict) else {}
+    allow_on_div = bool(c.get("statarb_allow_correction_on_divergence", False))
+    is_div = str(macro_tag or "").startswith("divergence")
+    if (is_div and not allow_on_div) or not quant_direction_stack_enabled(corr_cfg):
+        return direction, False, ""
 
     m5_dir, micro = _m5_implied_direction(metrics, target_sym)
     if m5_dir is not None and m5_dir != direction:

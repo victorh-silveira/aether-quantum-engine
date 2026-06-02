@@ -37,7 +37,7 @@ def resolve_statarb_cluster_config(corr: dict[str, Any] | None, macro: dict[str,
         "max_per_cluster": 1,
         "min_abs_z": max(0.0, float(c.get("statarb_index_min_abs_z", 0.0))),
         "wr_weight": max(0.0, float(c.get("statarb_wr_weight", 0.35))),
-        "require_z_align": False,
+        "require_z_align": bool(c.get("statarb_require_z_align", False)),
         "z_align_soft_fallback": bool(c.get("statarb_z_align_soft_fallback", False)),
         "soft_min_abs_ratio": max(0.1, float(c.get("statarb_soft_min_abs_ratio", 0.45))),
         "weak_leader_on_no_align": False,
@@ -121,20 +121,42 @@ def select_cluster_symbols_by_statarb(
         return set(), "STATARB_INDEX_EMPTY"
 
     wr_weight = float(base_cfg.get("wr_weight", 0.0))
-    scored: list[tuple[str, float, float]] = []
-    for sym in candidates:
-        z = spreads.get(sym)
-        if z is None:
-            continue
-        zf = float(z)
-        align = _alignment_score(zf, direction, hmm_state)
-        composite = align + _wr_blend_score(sym, wr_scores, wr_weight)
-        scored.append((sym, zf, composite))
+    min_abs = float(base_cfg.get("min_abs_z", 0.0))
+    require_align = bool(base_cfg.get("require_z_align", False))
+    z_threshold = float(base_cfg.get("z_threshold", 2.5))
+    soft_fallback = bool(base_cfg.get("z_align_soft_fallback", False))
+    soft_ratio = float(base_cfg.get("soft_min_abs_ratio", 0.45))
+
+    def run_selection(floor_z: float) -> list[tuple[str, float, float]]:
+        """Filtra e pontua os candidatos de acordo com o piso de Z-Score especificado."""
+        res = []
+        for sym in candidates:
+            z = spreads.get(sym)
+            if z is None:
+                continue
+            zf = float(z)
+            if require_align and not symbol_z_supports_direction(
+                zf,
+                direction,
+                hmm_state=hmm_state,
+                z_threshold=z_threshold,
+                min_abs_z=floor_z,
+            ):
+                continue
+            align = _alignment_score(zf, direction, hmm_state)
+            composite = align + _wr_blend_score(sym, wr_scores, wr_weight)
+            res.append((sym, zf, composite))
+        return res
+
+    scored = run_selection(min_abs)
+    if not scored and require_align and soft_fallback:
+        scored = run_selection(min_abs * soft_ratio)
 
     if not scored:
+        if require_align:
+            return set(), "STATARB_NO_Z_ALIGN"
         return set(candidates), "STATARB_INDEX_NO_Z_FALLBACK"
 
-    min_abs = float(base_cfg.get("min_abs_z", 0.0))
     ranked = sorted(scored, key=lambda row: (row[2], abs(row[1])), reverse=True)
     filtered = [row for row in ranked if row[2] > 0.0 or abs(row[1]) >= min_abs]
 

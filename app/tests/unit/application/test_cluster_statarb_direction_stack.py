@@ -206,3 +206,21 @@ def test_apply_cluster_target_updates_eu_cluster_on_risk_off_correct():
         macro_tag="risk_off",
     )
     assert decisions["OTC_FCHI"]["metrics"]["eu_cluster"] == "PUT"
+
+
+def test_correct_cluster_direction_allows_correction_on_divergence_when_configured():
+    direction, corrected, note = correct_cluster_direction_for_tag(
+        TradeDirection.CALL,
+        macro_tag="divergence_eu_leads",
+        target_sym="OTC_FCHI",
+        metrics={
+            "index_m5_dir_by_symbol": {"OTC_FCHI": "down"},
+            "statarb_spreads": {"OTC_FCHI": 2.9},
+            "hmm_state": 0,
+        },
+        corr_cfg={"quant_direction_stack_enabled": True, "statarb_allow_correction_on_divergence": True},
+        macro_cfg={"statarb_z_threshold": 2.5},
+    )
+    assert corrected is True
+    assert direction == TradeDirection.PUT
+    assert "M5_DIR" in note

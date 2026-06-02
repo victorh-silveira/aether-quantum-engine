@@ -222,3 +222,65 @@ def test_cluster_propagate_logs_empty_when_cluster_tags_missing():
     )
     assert decisions == {}
     orch.logger.info.assert_called()
+
+
+def test_cluster_execute_m5_trend_misaligned_mr_regime():
+    orch = MagicMock()
+    orch.config = {"llm": {"min_conviction_execute": 0.60}}
+    macro = {"confluence_conviction_floor": 0.60, "assert_min_hmm_prob": 0.0}
+    corr = {"statarb_require_m5_trend_align": True}
+
+    # MR Regime: hmm_state = 0. We buy CALL, but M5 trend is "down" -> should block
+    metrics = base_cluster_metrics(
+        macro_sentiment="risk_on",
+        macro_us_strength_quant=0.80,
+        statarb_spreads={"OTC_DJI": -1.5},
+        hmm_state=0,
+    )
+    metrics["index_m5_dir_by_symbol"] = {"OTC_DJI": "down"}
+
+    assert (
+        cluster_execute_block_reason(
+            orch,
+            metrics,
+            0.70,
+            TradeDirection.CALL,
+            macro,
+            corr,
+            active_region="us",
+            target_sym="OTC_DJI",
+            llm_cluster_explicit=True,
+        )
+        == "m5_trend_misaligned"
+    )
+
+
+def test_cluster_execute_m5_trend_misaligned_trending_regime():
+    orch = MagicMock()
+    orch.config = {"llm": {"min_conviction_execute": 0.60}}
+    macro = {"confluence_conviction_floor": 0.60, "assert_min_hmm_prob": 0.0}
+    corr = {"statarb_require_m5_trend_align": True}
+
+    # Trending Regime: hmm_state = 1. We buy CALL, but M5 trend is "flat" (not "up") -> should block
+    metrics = base_cluster_metrics(
+        macro_sentiment="risk_on",
+        macro_us_strength_quant=0.80,
+        statarb_spreads={"OTC_DJI": 1.5},
+        hmm_state=1,
+    )
+    metrics["index_m5_dir_by_symbol"] = {"OTC_DJI": "flat"}
+
+    assert (
+        cluster_execute_block_reason(
+            orch,
+            metrics,
+            0.70,
+            TradeDirection.CALL,
+            macro,
+            corr,
+            active_region="us",
+            target_sym="OTC_DJI",
+            llm_cluster_explicit=True,
+        )
+        == "m5_trend_misaligned"
+    )
