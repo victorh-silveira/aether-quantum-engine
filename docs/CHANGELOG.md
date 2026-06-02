@@ -1,3 +1,103 @@
+## 1.0.0 (2026-06-02)
+
+### ⚠ BREAKING CHANGES
+
+* migração para 100% deep learning PyTorch e recuperação Martingale cross-symbol em mercado único
+
+### Funcionalidades
+
+* **all:** backtest M15 assertivo, risco diario e guardrails macro ([7f4c096](https://github.com/victorh-silveira/aether-quantum-engine/commit/7f4c096e4ffdf25d606aae15315e8d8c68493dc2))
+* **config:** altera duracao padrao de trade para M30 e reativa todos os indices ([521a7e6](https://github.com/victorh-silveira/aether-quantum-engine/commit/521a7e6af38fa42c9e8a4fd315a7d3890fb80c56))
+* **config:** ativa logs detalhados LLM_IO na main ([be1b1e9](https://github.com/victorh-silveira/aether-quantum-engine/commit/be1b1e9993d645be29399df9f713e3860834fd84))
+* **config:** elevar limites de conviccao minima para 85% no settings.json ([8a69dcb](https://github.com/victorh-silveira/aether-quantum-engine/commit/8a69dcb6e349f8d3d41ce2f1e66f2b6dcfec9a16))
+* **config:** elevar limites de conviccao minima para 85% no settings.json ([907f93c](https://github.com/victorh-silveira/aether-quantum-engine/commit/907f93ce5c261e7cde384573c1f6122f15970171))
+* **config:** exclui indice OTC_FCHI por requerer duracao de M30 no broker ([5a66d58](https://github.com/victorh-silveira/aether-quantum-engine/commit/5a66d5894bd14a21dcbae2417d459d954496e292))
+* **config:** exclui indice OTC_GDAXI por requerer duracao minima de M30 ([024dd0b](https://github.com/victorh-silveira/aether-quantum-engine/commit/024dd0b340815449d3a0aa904dd1806e2e4f0aa7))
+* **config:** refina prompt medallion na main ([86756a9](https://github.com/victorh-silveira/aether-quantum-engine/commit/86756a9764b3b5d465536ade1770f01e1dfda651))
+* **llm:** adiciona exemplo de resposta valida no system prompt ([0f061a8](https://github.com/victorh-silveira/aether-quantum-engine/commit/0f061a80265222f111fc09cac50449a9c628e777))
+* **llm:** adiciona trava de entropia e melhora prompt na main ([9318468](https://github.com/victorh-silveira/aether-quantum-engine/commit/9318468f24737264f442157f386fee4b903ff182))
+* **llm:** aplica melhorias de prompt e parser na main ([7d295aa](https://github.com/victorh-silveira/aether-quantum-engine/commit/7d295aaa3f3d235160b9e869dbfdfce4858f4902))
+* **llm:** atualiza modelo para gemini-3.1-pro-preview ([04da19c](https://github.com/victorh-silveira/aether-quantum-engine/commit/04da19c8241dfc22695ab879aa2462af1099f3e6))
+* **llm:** aumenta teto de probabilidade para 0.75 em mercados ruidosos na main ([c9aaaa5](https://github.com/victorh-silveira/aether-quantum-engine/commit/c9aaaa5f47c5228bbc203ad2dd37704875056c8e))
+* **llm:** confluencia macro transatlantica com RISE/FALL e somente CALL/PUT ([8027862](https://github.com/victorh-silveira/aether-quantum-engine/commit/80278627b84501ad8b5cec896f10bff84e0004bb))
+* **llm:** elevar conviccao maxima em divergencia macro ([6598759](https://github.com/victorh-silveira/aether-quantum-engine/commit/6598759cfba6413c471c7b4a1e3170c682d2a48c))
+* **llm:** empower model to predict cluster directions independently ([2c5dc3b](https://github.com/victorh-silveira/aether-quantum-engine/commit/2c5dc3ba9bf6a3a6d6a9cfb821a67835349a0538))
+* **llm:** execucao hibrida no cluster refresh e pilha quant M5 ([35491bd](https://github.com/victorh-silveira/aether-quantum-engine/commit/35491bdbb67525d1512a053ec01ca1dc466928d6))
+* **llm:** implementa suporte a clusters US e EU ([5931f64](https://github.com/victorh-silveira/aether-quantum-engine/commit/5931f6415bd2da021c0bd849c9da5d32a4d88cc4))
+* **llm:** implementa suporte a clusters US e EU ([565f46a](https://github.com/victorh-silveira/aether-quantum-engine/commit/565f46a4642b13faedd9d662a6109ecc61263998))
+* **llm:** implementar motor Medallion StatArb e classificador de regime HMM ([d1c3586](https://github.com/victorh-silveira/aether-quantum-engine/commit/d1c35864069cfa910fdfc81a281ef9f8cbd50ee6))
+* **llm:** inject realtime cluster index metrics into sniper prompt ([683e6e2](https://github.com/victorh-silveira/aether-quantum-engine/commit/683e6e2a41d0bfc7567108c181acc9cc41598465))
+* **llm:** inversao de cluster e execucao exclusiva por macro ([d15b451](https://github.com/victorh-silveira/aether-quantum-engine/commit/d15b451b41e090985f852409b86377203d1284e0))
+* **llm:** Medallion Gemini tag_change, filtros macro e backtest assertivo ([8ccccf2](https://github.com/victorh-silveira/aether-quantum-engine/commit/8ccccf246e3fb8ca0137656d8cfcae2e0fcd1506))
+* **llm:** modo inteligencia macro pura estilo Medallion ([7a1b195](https://github.com/victorh-silveira/aether-quantum-engine/commit/7a1b1959b914878ebc715bf3c2ea47d4eeeba8dd))
+* **llm:** otimizar sinteticos M1 pos-win e log de inversao ([ce96e88](https://github.com/victorh-silveira/aether-quantum-engine/commit/ce96e88f3c2b844f6fbdb1f87d1161190005bf73))
+* **llm:** prompt com seis timeframes e propagacao por cluster ([e4b4f42](https://github.com/victorh-silveira/aether-quantum-engine/commit/e4b4f4285ab98a9fd2b73763f2f12d2c0f513323))
+* **llm:** reduz limite de entropia para 3.0 e trava para 0.69 na main ([91f6b34](https://github.com/victorh-silveira/aether-quantum-engine/commit/91f6b3455e6ae357d8ffeacc6a348bf9a604bd3a))
+* **llm:** refatorar motor Medallion puro com propagacao regional e StatArb ([efd4fba](https://github.com/victorh-silveira/aether-quantum-engine/commit/efd4fba1f777648db318326f17acc5f12a6aecfe))
+* **llm:** remove SSMI do cluster e adiciona regras de trading no prompt ([e6ce56a](https://github.com/victorh-silveira/aether-quantum-engine/commit/e6ce56af7a2257005be8183f7a11861c3a9831ba))
+* migração para 100% deep learning PyTorch e recuperação Martingale cross-symbol em mercado único ([9e522e8](https://github.com/victorh-silveira/aether-quantum-engine/commit/9e522e869724d88f9eed4d1c62e24fa8a8e7cbab))
+* **orchestrator:** alinhar StatArb risk_on e fallback de indices ([9bc1bc8](https://github.com/victorh-silveira/aether-quantum-engine/commit/9bc1bc808126f6afa4178b8b885a407c3583d5ed))
+* **orchestrator:** backtest walk-forward e filtros de cenario lucrativo ([446dd01](https://github.com/victorh-silveira/aether-quantum-engine/commit/446dd015d2cb4f6500f46a6c31ec1996e3868dc5))
+* **orchestrator:** ciclo pos-liquidacao, refresh StatArb e inversao ([e21d5f5](https://github.com/victorh-silveira/aether-quantum-engine/commit/e21d5f5c1743066217d29ca6408dedee7c6cb279))
+* **orchestrator:** desacopla clusters e aprimora liquidacao ([84b6fd9](https://github.com/victorh-silveira/aether-quantum-engine/commit/84b6fd94bc9e02c0074a965ab5939ecdb605e96c))
+* **orchestrator:** folego pos-liquidacao e inversao segura ([ccc2bde](https://github.com/victorh-silveira/aether-quantum-engine/commit/ccc2bde1ef07f57bf57eb1478f267a50ebc7cc13))
+* **orchestrator:** quarentena de inversao apos loss ([59d898a](https://github.com/victorh-silveira/aether-quantum-engine/commit/59d898a1bb5dbb1aa928f66af189c0ec1956d7ea))
+* **orchestrator:** remove codigo morto e arquivo nao utilizado ([3e76c58](https://github.com/victorh-silveira/aether-quantum-engine/commit/3e76c58a7983c2d39b5175f7c59024aa16810a96))
+* **orchestrator:** resolve rate limit de proposta e otimiza clusters ([4188316](https://github.com/victorh-silveira/aether-quantum-engine/commit/4188316a976c6521c22429829767c4cac9435672))
+* **repo:** commit inicial do projeto ([0f10d2f](https://github.com/victorh-silveira/aether-quantum-engine/commit/0f10d2f9815bea3115552c056c32af6bef4daf7c))
+* **repo:** remove arquivo de changelog ([0f398d5](https://github.com/victorh-silveira/aether-quantum-engine/commit/0f398d51d03f8faad1713fb85e0974f858408e05))
+* **risk-statarb:** otimizacao do medallion, remocao de limites de kelly/recuperacao e ativacao de clusters transatlanticos ([d46584a](https://github.com/victorh-silveira/aether-quantum-engine/commit/d46584a5dccdf25b574045bd699e1ffef9b6003b))
+* **risk:** adiciona controle de perdas consecutivas e escalonamento de cooldown ([bb22d19](https://github.com/victorh-silveira/aether-quantum-engine/commit/bb22d198e0bf0695406afd43525c1a3794d27f3d))
+* **risk:** implementa logica cirurgica do single strike e volatilidade dinamica HMM ([1ebb07a](https://github.com/victorh-silveira/aether-quantum-engine/commit/1ebb07a0f63abb9cf324f8ff2639849fcef73ca7))
+* **risk:** otimiza modelo de entrada unica para stop win em 30m e ajusta prompts e inversao ([017bd93](https://github.com/victorh-silveira/aether-quantum-engine/commit/017bd9321cbc5142204d486ef93ef635d50e8742))
+* **risk:** otimizar parametros do Medallion para recuperacao, frequencia e escopo de cluster ([13231df](https://github.com/victorh-silveira/aether-quantum-engine/commit/13231dff60b081bb6378275d3d64ac82d2233441))
+* **risk:** sessao OTC, stake tier e refresh LLM periodico ([d85f9bb](https://github.com/victorh-silveira/aether-quantum-engine/commit/d85f9bbac6485905253d7679c34aec4d6a238157))
+* **scripts:** add pylint for native duplicate code detection ([fbce041](https://github.com/victorh-silveira/aether-quantum-engine/commit/fbce041062e4e6a9ee0bb8206fd8cb31c358c99a))
+
+### Correcoes de Bug
+
+* **config:** corrige erro de decode no windows e ativa modo live ([4c9a659](https://github.com/victorh-silveira/aether-quantum-engine/commit/4c9a6590827389a29b46fa255f4b0e3d13f48190))
+* **engine:** alinhar clusters ao macro e corrigir liquidacao e persistencia ([d57e91c](https://github.com/victorh-silveira/aether-quantum-engine/commit/d57e91c9da99a75126c12a11f2657f1daae1af23))
+* **llm:** aceitar conviccao LLM em divergencia sem piso por tag ([0f9baaf](https://github.com/victorh-silveira/aether-quantum-engine/commit/0f9baaf650526b48c2062ca6e907306c0de3d886))
+* **llm:** desativa thinking e corrige truncamento MAX_TOKENS ([ee936a8](https://github.com/victorh-silveira/aether-quantum-engine/commit/ee936a8b83a56d68e121d023dbdf551deea495a6))
+* **llm:** ignorar ruido US em divergencia e pular cluster flat ([9e2ef21](https://github.com/victorh-silveira/aether-quantum-engine/commit/9e2ef215efca60f4cdbd9bf1d33726e0045f60a7))
+* **llm:** inverter lado LLM e contratos M1 nos sinteticos ([7d917ed](https://github.com/victorh-silveira/aether-quantum-engine/commit/7d917ed38832e32dbecc4a8d36d1edf6a2e94487))
+* **llm:** isolamento do parser de decisoes e garantia de cobertura ([3e51a41](https://github.com/victorh-silveira/aether-quantum-engine/commit/3e51a41c2a8bcac483bee1f92ff4cb85d9894e7f))
+* **llm:** liberar trades apos loss com cluster refresh risk_off ([13c68f1](https://github.com/victorh-silveira/aether-quantum-engine/commit/13c68f1de6bfc73fb334e4587c500cbaa93e026b))
+* **llm:** manter Gemini ativo em indefinido e sem pausa pos-loss ([24d573f](https://github.com/victorh-silveira/aether-quantum-engine/commit/24d573fc0983a2459dc8c197558cbe6c0ee4aa33))
+* **llm:** preservar direcao Gemini em tags de divergencia ([7469752](https://github.com/victorh-silveira/aether-quantum-engine/commit/7469752091a8fb610f59489844c6668907379ea9))
+* **llm:** propagacao por indice, parser US/EU compacto e log LLM_IO off ([f853c0c](https://github.com/victorh-silveira/aether-quantum-engine/commit/f853c0cbc20e4e9071018d89866bbb91f8d04f68))
+* **llm:** reduz timeouts Gemini com flash, menos retries e fallback ([6575787](https://github.com/victorh-silveira/aether-quantum-engine/commit/6575787bf216fc9d53b091662ca5571560acb428))
+* **llm:** reforcar vetos e penalidades em divergencia macro ([fedea01](https://github.com/victorh-silveira/aether-quantum-engine/commit/fedea0128d8d2ce302afce157eb3bfb367b8d60a))
+* **llm:** remove fallback de indices e exige CALL/PUT somente da LLM ([441b580](https://github.com/victorh-silveira/aether-quantum-engine/commit/441b580fc321eb968e2d3bc03f481a3b2f6a9a98))
+* **llm:** saida JSON obrigatoria CALL/PUT e fallback flash-lite ([775c79c](https://github.com/victorh-silveira/aether-quantum-engine/commit/775c79cd4a2c052ab03da91aa2c773d2e89e179f))
+* **llm:** trocar vetos HMM por inteligencia e liberar divergencia LLM ([f3e4a61](https://github.com/victorh-silveira/aether-quantum-engine/commit/f3e4a6119837b96f8c8279e05ec522862dd54b7c))
+* **orchestrator:** move set_trading(False) para dentro do bloco de stop win na main ([95aba1d](https://github.com/victorh-silveira/aether-quantum-engine/commit/95aba1dfa576b1c6df814ae9df8e216182676120))
+* **risk:** suavizar Kelly e desativar stop-win agressivo ([7c40611](https://github.com/victorh-silveira/aether-quantum-engine/commit/7c40611337ad8c0e934072e221b2dafe31879067))
+* **scripts:** ajustar atalho do run.py nos scripts de launch ([2e6acb5](https://github.com/victorh-silveira/aether-quantum-engine/commit/2e6acb5885e7a015c454e8db69bed1675cd4de96))
+* **scripts:** resolve project venv python for quality gates ([77804b3](https://github.com/victorh-silveira/aether-quantum-engine/commit/77804b327116eac1ea36f78836837ea0b87496ec))
+* **scripts:** update ping script for gemini-3.1-pro-preview ([38681a3](https://github.com/victorh-silveira/aether-quantum-engine/commit/38681a38bad3e49b5029d3b5fe72568596ccaff2))
+* **tools:** hooks WSL, refator lint e docstrings Medallion ([f949620](https://github.com/victorh-silveira/aether-quantum-engine/commit/f9496208cf5e457148ffffdb112ba2d404b9368c))
+
+### Refatoracoes Tecnicas
+
+* **config:** adiciona filtro m5 e aumenta thresholds ([91fe2de](https://github.com/victorh-silveira/aether-quantum-engine/commit/91fe2de6b0aca4af1693b59b83b3b64fb3c44d72))
+* **config:** expand quality checks to scan all python files ([2acc9c3](https://github.com/victorh-silveira/aether-quantum-engine/commit/2acc9c37b0dbddb140e229cc426617c6e6f4cc57))
+* **config:** remove vulture ignored names ([a502561](https://github.com/victorh-silveira/aether-quantum-engine/commit/a50256105543ccfcfb1a141b25b54159dd5156cc))
+* **config:** update Python version to 3.14.5 ([0558196](https://github.com/victorh-silveira/aether-quantum-engine/commit/05581962b8ee846de1fa4de7b371a399639845db))
+* **llm:** refina diretrizes quant do system_prompt para reversao de zscore extremo ([9c15dbd](https://github.com/victorh-silveira/aether-quantum-engine/commit/9c15dbd1f7e556c6669a8b8b282f143afb41a39e))
+* **llm:** remove fallback de execucao e aprimora prompt do gemini ([4261607](https://github.com/victorh-silveira/aether-quantum-engine/commit/42616073da377a8c88af94301cbc81ff6ade1a77))
+* **llm:** remove inactive config keys and add websocket checks ([9eb8f49](https://github.com/victorh-silveira/aether-quantum-engine/commit/9eb8f49f50d09e7944d1269a522bded5cc1a9959))
+* **repo:** layout app, docs e linters sem infra K8s ([af35c6d](https://github.com/victorh-silveira/aether-quantum-engine/commit/af35c6d1d7ea12faa74923e153502dab99349fdc))
+* **test:** atualiza suite de testes unitarios para simbolos ativos ([a3d9461](https://github.com/victorh-silveira/aether-quantum-engine/commit/a3d9461afed6db8c0f937ffe3145f7c92e227f22))
+
+### Documentacao
+
+* indicar branch sinteticos no README main ([add25b9](https://github.com/victorh-silveira/aether-quantum-engine/commit/add25b99b84430cd53f4039704a8a168dc2a0fe8))
+* **release:** remover secao Unreleased do CHANGELOG ([cb635c7](https://github.com/victorh-silveira/aether-quantum-engine/commit/cb635c75c09cc072ee61173657c985e7139c9b75))
+* remove referencias a branch de indices sinteticos ([ceb2fc0](https://github.com/victorh-silveira/aether-quantum-engine/commit/ceb2fc0152f09ec59fca31541ea14b07ea681779))
+* **repo:** atualiza README.md para modelo medallion na main ([aafe3d7](https://github.com/victorh-silveira/aether-quantum-engine/commit/aafe3d7fd33d4afa8d7cdfb0d3b8a0ea1d64b5b2))
+
 ## [1.36.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.35.0...v1.36.0) (2026-06-01)
 
 ### Funcionalidades
