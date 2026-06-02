@@ -147,11 +147,11 @@ class RiskManager(RiskCooldownMixin):
 
         kelly_f = (b * p - q) / b if b > 0 else 0.0
 
-        loss_to_recover = self.pending_loss.get(symbol, 0.0)
+        loss_to_recover = sum(self.pending_loss.values())
         is_recovery_attempt = loss_to_recover > 0.0 and conviction >= self.recovery_threshold
 
         fractional_multiplier = float(self.kelly_config.get("fraction", 0.03))  # Reduzida a agressividade padrão
-        if self.consecutive_losses > 0 and loss_to_recover == 0.0:
+        if self.consecutive_losses > 0 and not is_recovery_attempt:
             reduction_factor = 0.5 ** min(self.consecutive_losses, 3)
             fractional_multiplier *= reduction_factor
 
@@ -235,8 +235,17 @@ class RiskManager(RiskCooldownMixin):
         if profit < 0:
             self.pending_loss[symbol] = self.pending_loss.get(symbol, 0.0) + abs(profit)
         else:
-            current_loss = self.pending_loss.get(symbol, 0.0)
-            self.pending_loss[symbol] = max(0.0, current_loss - profit)
+            remaining_profit = profit
+            for sym in list(self.pending_loss.keys()):
+                if remaining_profit <= 0:
+                    break
+                current_loss = self.pending_loss[sym]
+                if current_loss <= remaining_profit:
+                    remaining_profit -= current_loss
+                    self.pending_loss[sym] = 0.0
+                else:
+                    self.pending_loss[sym] = current_loss - remaining_profit
+                    remaining_profit = 0.0
 
         self.active_contract_ids = [x for x in self.active_contract_ids if int(x) != int(contract_id)]
 

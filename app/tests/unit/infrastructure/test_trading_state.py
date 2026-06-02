@@ -60,3 +60,23 @@ async def test_trading_state_contract_edge_cases():
     state = TradingState()
     await state.finalize_contract(999)
     assert 999 not in state.active_contracts
+
+
+@pytest.mark.asyncio
+async def test_trading_state_finalize_success(state):
+    c = Contract(
+        contract_id=456,
+        symbol="s",
+        direction=TradeDirection.CALL,
+        stake=1,
+        payout=2,
+        status=TradeStatus.OPEN,
+        buy_price=1.0,
+        proposal_id="p1",
+        expiry_time=1700000000,
+    )
+    await state.add_contract(c)
+    finalized = await state.finalize_contract(456)
+    assert finalized is not None
+    assert finalized.contract_id == 456
+    assert 456 not in state.active_contracts

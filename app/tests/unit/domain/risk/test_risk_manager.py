@@ -87,7 +87,9 @@ def test_kelly_intelligent_recovery(kelly_config):
     assert rm.pending_loss["OTC_FCHI"] == 10.0
 
     stake_low = rm.calculate_stake(1000.0, "OTC_FCHI", conviction=0.6)
-    assert stake_low == pytest.approx(17.89, abs=0.1)  # Usando fração do fixture sem redução normal
+    assert stake_low == pytest.approx(
+        8.94, abs=0.1
+    )  # Nova regra: reduz pela metade por perdas consecutivas se não for tentativa de recuperação
 
     stake_high = rm.calculate_stake(1000.0, "OTC_FCHI", conviction=0.8)
     assert stake_high == pytest.approx(69.47, abs=0.1)  # Recuperação total (58.94 + 10.52)
@@ -141,6 +143,7 @@ def test_risk_manager_consecutive_losses_reset_on_win(kelly_config):
 
 def test_risk_manager_consecutive_losses_fraction_reduction(kelly_config):
     """Verifica se a fração de Kelly é reduzida exponencialmente após perdas consecutivas."""
+    kelly_config["kelly"]["recovery_conviction_threshold"] = 0.70
     rm = RiskManager(kelly_config)
 
     # Base stake sem perdas
@@ -210,3 +213,42 @@ def test_single_strike_stake_boost_in_window(kelly_config):
         # Meta restante = $10. Payout = 0.95. Goal stake = 10 / 0.95 = 10.52. Max drawdown (25% de 50) = 12.50.
         # Deve aplicar os 10.52
         assert stake == pytest.approx(10.52, abs=0.1)
+
+
+def test_cross_symbol_recovery(kelly_config):
+    """Verifica se uma perda em um símbolo pode ser recuperada em outro símbolo com alta convicção."""
+    kelly_config["kelly"]["recovery_conviction_threshold"] = 0.70
+    rm = RiskManager(kelly_config)
+
+    # Registra uma perda no símbolo A
+    rm.active_contract_ids = [1]
+    rm.register_result(-10.0, 1, "OTC_FCHI")
+    assert sum(rm.pending_loss.values()) == 10.0
+
+    # Tenta calcular stake com alta convicção no símbolo B
+    stake_b_high = rm.calculate_stake(1000.0, "OTC_GDAXI", conviction=0.8)
+    # Deve incluir a recuperação da perda de OTC_FCHI (58.94 Kelly + 10.52 Recuperação = 69.47)
+    assert stake_b_high == pytest.approx(69.47, abs=0.1)
+
+    # Se ganhar no símbolo B, o lucro reduz a perda pendente globalmente
+    rm.active_contract_ids = [2]
+    rm.register_result(12.0, 2, "OTC_GDAXI")
+    assert sum(rm.pending_loss.values()) == 0.0
+
+
+def test_partial_loss_recovery_and_break(kelly_config):
+    """Verifica a redução parcial da perda pendente e o fluxo de break no loop de lucros."""
+    rm = RiskManager(kelly_config)
+    rm.active_contract_ids = [1, 2]
+    rm.register_result(-5.0, 1, "OTC_FCHI")
+    rm.register_result(-5.0, 2, "OTC_GDAXI")
+    assert sum(rm.pending_loss.values()) == 10.0
+
+    # Registrar ganho de 3.0 (menor que a primeira perda de 5.0)
+    rm.active_contract_ids = [3]
+    rm.register_result(3.0, 3, "OTC_GDAXI")
+
+    # Deve executar a ramificação else para OTC_FCHI (reduzindo a 2.0)
+    # E o lucro restante zera, fazendo o break acontecer na próxima chave (OTC_GDAXI continua 5.0)
+    assert rm.pending_loss["OTC_FCHI"] == 2.0
+    assert rm.pending_loss["OTC_GDAXI"] == 5.0

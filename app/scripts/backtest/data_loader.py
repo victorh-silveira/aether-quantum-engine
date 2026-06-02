@@ -7,8 +7,9 @@ import json
 from pathlib import Path
 from typing import Any
 
-from src.application.services.auth_manager import AuthManager
 from src.application.services.llm.strategy_clusters import resolve_cluster_lists
+
+from src.application.services.auth_manager import AuthManager
 from src.infrastructure.api.websocket_manager import WebSocketManager
 
 

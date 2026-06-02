@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
-
 from src.application.services.llm.context_runtime_support import tail_closes
 
 

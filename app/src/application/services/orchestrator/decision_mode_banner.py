@@ -6,15 +6,16 @@ import logging
 from typing import Any
 
 
-def emit_decision_engine_banner(logger: logging.Logger, config: dict[str, Any], *, llm_enabled: bool) -> None:
-    """Emite uma linha CFG informando se o ciclo Medallion usara Gemini."""
-    llm_cfg = config.get("llm") or {}
-    if llm_enabled:
-        logger.debug(
-            "CFG decisao | modo=MEDALLION_LLM | gemini_modelo=%s | gemini_api_key_env=GEMINI_API_KEY",
-            llm_cfg.get("model", ""),
+def emit_decision_engine_banner(logger: logging.Logger, config: dict[str, Any], *, dl_enabled: bool) -> None:
+    """Emite uma linha CFG informando se o ciclo usara PyTorch Deep Learning."""
+    dl_cfg = config.get("deep_learning") or {}
+    if dl_enabled:
+        logger.info(
+            "CFG decisao | modo=DEEP_LEARNING_PYTORCH | model_path=%s | lookback=%s",
+            dl_cfg.get("model_path", ""),
+            dl_cfg.get("lookback", ""),
         )
     else:
         logger.debug(
-            "CFG decisao | modo=INATIVO | motor Medallion exige llm.enabled=true em config/settings.json",
+            "CFG decisao | modo=INATIVO | motor exige deep_learning.enabled=true em config/settings.json",
         )

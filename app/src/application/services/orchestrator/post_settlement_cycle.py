@@ -1,15 +1,13 @@
-"""Agendamento de ciclo apos liquidacao com folego configuravel."""
+"""Agendamento de ciclo após liquidação com fôlego configurável."""
 
 from __future__ import annotations
 
 import asyncio
 from typing import Any
 
-from src.application.services.llm.contract_timing import resolve_post_settlement_breath_seconds
-
 
 def schedule_trading_cycle_after_settlement(orch: Any) -> None:
-    """Agenda novo ciclo de decisao logo apos liquidacao do contrato."""
+    """Agenda novo ciclo de decisão logo após liquidação do contrato."""
     if not orch.running:
         return
     if orch.state.active_contracts:
@@ -23,10 +21,9 @@ def schedule_trading_cycle_after_settlement(orch: Any) -> None:
 
 
 async def run_post_settlement_breath_and_cycle(orch: Any) -> None:
-    """Aplica folego pos-liquidacao antes de um novo ciclo."""
+    """Aplica fôlego pós-liquidação antes de um novo ciclo."""
     orch_cfg = orch.config.get("orchestrator") if isinstance(getattr(orch, "config", None), dict) else {}
-    full_cfg = orch.config if isinstance(getattr(orch, "config", None), dict) else {}
-    breath = resolve_post_settlement_breath_seconds(orch_cfg, full_cfg)
+    breath = float(orch_cfg.get("post_settlement_breath_seconds", 8.0))
     if breath > 0:
         await asyncio.sleep(breath)
     if not orch.running:

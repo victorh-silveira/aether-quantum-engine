@@ -6,6 +6,7 @@ import logging
 from typing import Any
 
 from src.application.services.llm.cluster_post_loss import record_cluster_loss
+
 from src.domain.models.trade import TradeDirection
 
 

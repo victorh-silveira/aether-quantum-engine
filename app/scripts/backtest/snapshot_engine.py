@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
-
 from src.application.services.llm.global_macro_confluence import MacroSnapshot
 from src.application.services.llm.macro_config import resolve_macro_config
 from src.application.services.llm.macro_index_m5 import build_index_m5_dir_map

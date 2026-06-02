@@ -9,7 +9,7 @@ def orch_config():
         "api_config": {"base_url": "ws://test", "request_timeout_seconds": 1},
         "symbols": list(ALL_SYMBOLS),
         "anchor": ANCHOR,
-        "llm": {"enabled": True, "min_conviction_execute": 0.60},
+        "deep_learning": {"enabled": True, "min_conviction_execute": 0.53},
         "data_handler": {"fetch_count": 100, "min_required_points": 2, "buffer_limit": 1000},
         "strategy": {
             "clusters": {"us": list(US_CLUSTER), "eu": list(EU_CLUSTER)},

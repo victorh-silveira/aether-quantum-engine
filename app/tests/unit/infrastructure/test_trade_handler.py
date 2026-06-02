@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from src.domain.models.trade import TradeDirection, TradeStatus
-from src.infrastructure.handlers.trade_handler import TradeHandler
+from src.infrastructure.handlers.trade_handler import TradeHandler, _contract_duration_seconds
 
 
 @pytest.fixture
@@ -74,3 +74,10 @@ async def test_trade_handler_buy_with_parameters_multiplier(trade_handler, mock_
     assert args[0]["parameters"]["contract_type"] == "MULTUP"
     assert args[0]["parameters"]["multiplier"] == 100
     assert args[0]["parameters"]["barrier"] == "+0.1"
+
+
+def test_contract_duration_seconds_units():
+    assert _contract_duration_seconds({"duration": 10, "duration_unit": "s"}) == 10
+    assert _contract_duration_seconds({"duration": 10, "duration_unit": "t"}) == 20
+    assert _contract_duration_seconds({"duration": 1, "duration_unit": "d"}) == 86400
+    assert _contract_duration_seconds({"duration": 5, "duration_unit": "invalid"}) == 300

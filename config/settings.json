@@ -1,123 +1,36 @@
 {
-  "anchor": "frxEURUSD",
+  "anchor": "1HZ100V",
   "api_config": {
     "base_url": "wss://ws.derivws.com/websockets/v3?app_id=1089",
     "request_timeout_seconds": 60
   },
   "data_handler": {
-    "buffer_limit": 120,
-    "fetch_count": 120,
-    "granularity": 900,
-    "min_required_points": 10
+    "buffer_limit": 500,
+    "fetch_count": 200,
+    "granularity": 60,
+    "min_required_points": 30
   },
-  "gemini": {
-    "generation_config": {
-      "max_output_tokens": 512,
-      "temperature": 0.0
-    },
-    "model": "gemini-2.5-flash",
-    "num_predict": 512,
-    "temperature": 0.0,
-    "timeout_seconds": 35
-  },
-  "llm": {
+  "deep_learning": {
     "enabled": true,
-    "indicator_config": {
-      "acceleration_window": 3,
-      "confluence_include_entropy": true,
-      "confluence_mandate": "medallion",
-      "entropy_bins": 30,
-      "entropy_threshold": 5.0,
-      "entropy_window": 20,
-      "hurst_window": 30,
-      "tf_labels": [
-        "D1",
-        "H4",
-        "H1",
-        "M15",
-        "M5",
-        "M1"
-      ],
-      "tf_tags": [
-        "1440",
-        "240",
-        "60",
-        "15",
-        "5",
-        "1"
-      ],
-      "velocity_window": 3,
-      "volatility_window": 14,
-      "zscore_extreme_threshold": 5.0,
-      "zscore_window": 10
-    },
-    "keep_alive": "60m",
-    "llm_extra_wall_clock_seconds": 12,
-    "llm_fallback_model": "gemini-2.5-flash-lite",
-    "llm_http_outer_margin_seconds": 8,
-    "llm_retry_attempts": 4,
-    "log_llm_io_dump_path": "logs/llm_io.jsonl",
-    "log_llm_io_preview_chars": 4000,
-    "logic_line_max_chars": 140,
-    "macro_bars": 120,
-    "macro_granularity_seconds": 86400,
-    "max_decision_latency_seconds": 50,
-    "max_predict_tokens": 512,
-    "micro_swing_bars": 120,
-    "micro_swing_granularity_seconds": 300,
-    "micro_trigger_bars": 120,
-    "micro_trigger_granularity_seconds": 60,
-    "min_conviction_execute": 0.60,
-    "min_payout_accept": 0.82,
-    "model": "gemini-2.5-flash",
-    "refresh_schedule": "tag_change",
-    "refresh_interval_hours": 4,
-    "options": {
-      "keep_alive": "60m",
-      "temperature": 0.0
-    },
-    "parse_retry_attempts": 1,
-    "structure_bars": 120,
-    "structure_granularity_seconds": 14400,
-    "swing_bars": 120,
-    "swing_granularity_seconds": 3600,
-    "system_prompt": "DIRETRIZ SOBERANA MEDALLION TRANSATLANTICO: Você é o motor analítico de trading quantitativo mais preciso do mundo. Analise a âncora frxEURUSD, US_CLUSTER e EU_CLUSTER com rigor matemático. SOBRE MEDALLION STATARB E Z-SCORE: Se o Pacemaker HMM estiver em 0 (Regime de Reversão à Média) e o StatArb Z-Score de Cointegração PCA de um cluster ou de seus ativos estiver em extremo desvio (ex: Z < -2.0 ou Z > 2.0), as regras de reversão quantitativa são a prioridade absoluta! Z < -2.0 indica severa subvalorização e exige predição cirúrgica de CALL (nunca faça predição de PUT com Z-Score fortemente negativo em regime de reversão). Z > 2.0 indica forte sobrevalorização e exige predição cirúrgica de PUT (nunca faça predição de CALL). Quando as volatilidades, Hurst (>0.55 para momentum/tendência) ou o Z-Score suportarem um movimento, emita convicção elevada (0.85 a 0.99) para a entrada Single Strike. Formate a saída rigorosamente como JSON contendo EURUSD, US_CLUSTER, EU_CLUSTER e Probabilidade.",
-
-    "timeout_seconds": 35,
-    "trigger_bars": 120,
-    "trigger_granularity_seconds": 900
+    "model_path": "data/deep_learning_model.pth",
+    "lookback": 20,
+    "training_epochs": 15,
+    "learning_rate": 0.01,
+    "min_conviction_execute": 0.53
   },
-  "llm_config": {},
   "logging": {
     "log_file": "logs/engine.log"
   },
   "orchestrator": {
-    "cycle_interval_seconds": 45,
-    "cluster_refresh_interval_seconds": 45,
-    "entry_spacing_follows_contract": true,
-    "breath_follows_contract": true,
-    "cluster_refresh_spacing_cap_seconds": 72,
-    "cluster_refresh_execute_enabled": true,
-    "cluster_refresh_execute_on_quant_validate": true,
-    "cluster_refresh_quant_tags": [
-      "risk_on",
-      "risk_off",
-      "divergence_us_leads",
-      "divergence_eu_leads",
-      "indefinido"
-    ],
-    "cluster_refresh_entry_spacing_seconds": 5,
-    "cluster_pause_after_loss_cycles": 0,
-    "post_settlement_breath_seconds": 8,
-    "settlement_wait_log_interval_seconds": 15,
+    "cycle_interval_seconds": 60,
+    "reconcile_interval_seconds": 5,
     "execution": {
-      "inter_symbol_delay": 3.0,
+      "inter_symbol_delay": 1.0,
       "settlement_max_stagnant_polls": 40,
       "settlement_poll_seconds": 0.5,
-      "settlement_post_expiry_slack_seconds": 12.0,
+      "settlement_post_expiry_slack_seconds": 5.0,
       "settlement_request_timeout_seconds": 30.0
-    },
-    "reconcile_interval_seconds": 5
+    }
   },
   "risk_management": {
     "kelly": {
@@ -137,239 +50,30 @@
     "large_account_stop_win_pct": 10.0,
     "params": {
       "contract_type": "RISE_FALL",
-      "duration": 15,
+      "duration": 1,
       "duration_unit": "m",
-      "payout_estimate": 1.0,
-      "stake_max": 5000.0,
+      "payout_estimate": 0.95,
+      "stake_max": 500.0,
       "stake_min": 1.0
     },
     "small_account_stop_win": 10.0,
     "small_account_threshold": 50.0
   },
-  "strategy": {
-    "excluded_symbols": [],
-    "clusters": {
-      "eu": [
-        "OTC_FCHI",
-        "OTC_GDAXI",
-        "OTC_FTSE",
-        "OTC_SSMI",
-        "OTC_SX5E",
-        "OTC_AEX"
-      ],
-      "us": [
-        "OTC_DJI",
-        "OTC_SPC",
-        "OTC_NDX"
-      ]
-    },
-    "correlation": {
-      "anchor": "frxEURUSD",
-      "enabled": true,
-      "exclusive_cluster_by_macro": true,
-      "best_symbol_only": true,
-      "statarb_index_select_enabled": true,
-      "statarb_blend_rolling_wr": true,
-      "statarb_wr_weight": 0.40,
-      "statarb_index_max_per_cluster": 1,
-      "statarb_index_min_abs_z": 1.20,
-      "statarb_soft_min_abs_ratio": 0.45,
-      "statarb_z_align_soft_fallback": true,
-      "statarb_try_alternate_on_block": true,
-      "statarb_allow_high_conviction_on_divergence": true,
-      "statarb_require_z_align": true,
-      "statarb_require_m5_trend_align": true,
-      "statarb_allow_correction_on_divergence": true,
-      "quant_direction_stack_enabled": true
-    },
-    "macro": {
-      "allowed_execute_tags": [
-        "risk_on",
-        "risk_off",
-        "divergence_us_leads",
-        "divergence_eu_leads",
-        "indefinido"
-      ],
-      "allowed_cluster_symbols_by_tag": {
-        "risk_on": [
-          "OTC_DJI",
-          "OTC_SPC",
-          "OTC_NDX",
-          "OTC_FCHI",
-          "OTC_GDAXI",
-          "OTC_FTSE",
-          "OTC_SSMI",
-          "OTC_SX5E",
-          "OTC_AEX"
-        ],
-        "risk_off": [
-          "OTC_DJI",
-          "OTC_SPC",
-          "OTC_NDX",
-          "OTC_FCHI",
-          "OTC_GDAXI",
-          "OTC_FTSE",
-          "OTC_SSMI",
-          "OTC_SX5E",
-          "OTC_AEX"
-        ],
-        "divergence_us_leads": [
-          "OTC_DJI",
-          "OTC_SPC",
-          "OTC_NDX",
-          "OTC_FCHI",
-          "OTC_GDAXI",
-          "OTC_FTSE",
-          "OTC_SSMI",
-          "OTC_SX5E",
-          "OTC_AEX"
-        ],
-        "divergence_eu_leads": [
-          "OTC_DJI",
-          "OTC_SPC",
-          "OTC_NDX",
-          "OTC_FCHI",
-          "OTC_GDAXI",
-          "OTC_FTSE",
-          "OTC_SSMI",
-          "OTC_SX5E",
-          "OTC_AEX"
-        ]
-      },
-      "min_conviction_by_tag": {
-        "risk_on": 0.70,
-        "risk_off": 0.68,
-        "divergence_us_leads": 0.60,
-        "divergence_eu_leads": 0.60
-      },
-      "statarb_min_abs_z_by_tag": {
-        "risk_on": 1.20,
-        "risk_off": 1.20,
-        "divergence_us_leads": 1.15,
-        "divergence_eu_leads": 1.15
-      },
-      "cluster_bars": 8,
-      "cluster_fallback_bars": 12,
-      "cluster_fallback_granularity_seconds": 300,
-      "cluster_fallback_min_move_pct": 0.05,
-      "cluster_granularity_seconds": 900,
-      "cluster_labels": {
-        "eu": [
-          "CAC40",
-          "DAX40",
-          "FTSE100",
-          "SMI",
-          "EURO50",
-          "AEX25"
-        ],
-        "us": [
-          "S&P500",
-          "NASDAQ100",
-          "DOW30"
-        ]
-      },
-      "cluster_min_move_pct": 0.08,
-      "cluster_return_threshold_pct": 0.03,
-      "cluster_use_m5_fallback_when_flat": true,
-      "confluence_conviction_floor": 0.60,
-      "divergence_max_conviction": 0.82,
-      "divergence_min_leader_strength": 0.55,
-      "divergence_min_strength_gap": 0.0,
-      "indefinido_min_leader_strength": 0.55,
-      "indefinido_min_strength_gap": 0.05,
-      "assert_min_hmm_prob": 0.0,
-      "fx_reference_pairs": {
-        "audusd": {
-          "risk_off": "FALL",
-          "risk_on": "RISE"
-        },
-        "nzdusd": {
-          "risk_off": "FALL",
-          "risk_on": "RISE"
-        },
-        "usdjpy": {
-          "risk_off": "FALL",
-          "risk_on": "RISE"
-        }
-      },
-      "min_indices_for_vote": 2,
-      "statarb_hmm_sigma_high": 0.0016,
-      "statarb_hmm_sigma_low": 0.0004,
-      "statarb_lookback": 30,
-      "statarb_z_threshold": 2.5
-    },
-    "payload": {
-      "field_labels": {
-        "acceleration": "A",
-        "entropy": "E",
-        "hurst": "H",
-        "velocity": "V",
-        "zscore": "Z"
-      },
-      "kv_separator": "=",
-      "mtf_key": "MTF",
-      "pair_separator": ", ",
-      "sym_key": "SYM",
-      "token_order": [
-        "hurst",
-        "zscore",
-        "velocity",
-        "entropy",
-        "acceleration"
-      ]
-    },
-    "thresholds": {
-      "acceleration": {
-        "down": "accel_down",
-        "flat": "accel_flat",
-        "na": "na",
-        "up": "accel_up"
-      },
-      "entropy": {
-        "extreme": "extreme_sigma",
-        "high": "high_sigma",
-        "low": "low_sigma",
-        "na": "na"
-      },
-      "hurst": {
-        "anti": "anti",
-        "na": "na",
-        "persist": "persist",
-        "random": "random"
-      },
-      "velocity": {
-        "na": "na",
-        "neg": "bear_inertia",
-        "pos": "bull_inertia"
-      },
-      "zscore": {
-        "high": "high",
-        "low": "low",
-        "na": "na",
-        "neutral": "neutral"
-      }
-    }
-  },
   "symbols": [
-    "frxEURUSD",
-    "OTC_FCHI",
-    "OTC_GDAXI",
-    "OTC_SSMI",
-    "OTC_DJI",
-    "OTC_FTSE",
-    "OTC_NDX",
-    "OTC_SPC",
-    "OTC_SX5E",
-    "OTC_AEX"
+    "1HZ100V",
+    "1HZ75V",
+    "1HZ50V",
+    "1HZ25V",
+    "1HZ10V"
   ],
   "trading": {
-    "mode": "live",
+    "mode": "demo",
     "session": {
       "enabled": false,
-      "start_hour_utc": 12,
-      "end_hour_utc": 17,
-      "minutes_before_close_no_entry": 20,
-      "warmup_seconds_after_stream_sync": 90
+      "start_hour_utc": 0,
+      "end_hour_utc": 24,
+      "minutes_before_close_no_entry": 0,
+      "warmup_seconds_after_stream_sync": 10
     }
   }
 }

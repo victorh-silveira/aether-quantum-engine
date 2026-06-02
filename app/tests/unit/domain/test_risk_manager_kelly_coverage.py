@@ -189,3 +189,22 @@ def test_is_on_cooldown_clears_expired_mono_timer():
     with patch("src.domain.risk.risk_cooldown.time.monotonic", return_value=1.0):
         assert rm.is_on_cooldown(0) is False
     assert rm._cooldown_until_mono == 0.0
+
+
+def test_risk_manager_missing_coverage():
+    rm = RiskManager({"params": {"stake_min": 1.0}})
+    rm.reset_daily_session(500.0)
+    assert rm.initial_bankroll == 500.0
+    assert rm.total_session_profit == 0.0
+
+    rm.kelly_config = {"fraction": 0.5}
+    rm.risk_params = {"payout_estimate": 1.0}
+    assert rm.stake_block_reason(100.0, "SYM", conviction=0.9) is None
+
+    rm.begin_cluster(3)
+    assert rm.expected_cluster_settlements == 3
+    assert rm.cluster_results == {}
+
+    rm.active_contract_ids = [100]
+    rm.register_result(10.0, 999, "SYM")
+    assert rm.total_session_profit == 0.0

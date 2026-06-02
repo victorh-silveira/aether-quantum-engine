@@ -5,8 +5,7 @@ import logging
 import time
 from typing import Any
 
-from src.application.services.llm.llm_bridge import collect_llm_decisions
-from src.application.services.llm.llm_config_merge import merge_execution_section
+from src.application.services.deep_learning.decision_bridge import collect_deep_learning_decisions
 from src.application.services.orchestrator.config_symbols import normalize_symbols_and_anchor
 from src.application.services.orchestrator.decision_mode_banner import emit_decision_engine_banner
 from src.application.services.orchestrator.execution_manager import ExecutionManager
@@ -29,7 +28,6 @@ class Orchestrator:
     """Coordena WebSocket, estado, risco e execucao por ciclo."""
 
     def __init__(self, config: dict, token: str):
-        merge_execution_section(config)
         self.config, self.token = config, token
         self.ws = WebSocketManager(
             config["api_config"]["base_url"], request_timeout=config["api_config"]["request_timeout_seconds"]
@@ -78,9 +76,9 @@ class Orchestrator:
         self._last_loss_direction = ""
         self._cluster_refresh_without_llm = False
 
-    def _llm_enabled(self) -> bool:
-        """Retorna se o modo decisao LLM esta ativo."""
-        return bool((self.config.get("llm") or {}).get("enabled"))
+    def _dl_enabled(self) -> bool:
+        """Retorna se o modo decisao Deep Learning esta ativo."""
+        return bool((self.config.get("deep_learning") or {}).get("enabled"))
 
     async def run(self):
         """Loop principal: reconexao, persistencia e ciclos por intervalo."""
@@ -88,7 +86,7 @@ class Orchestrator:
             return
         self._last_cluster_cycle_end = time.time()
         self.running = True
-        emit_decision_engine_banner(self.logger, self.config, llm_enabled=self._llm_enabled())
+        emit_decision_engine_banner(self.logger, self.config, dl_enabled=self._dl_enabled())
         reconcile_counter = 0
         while self.running:
             await asyncio.sleep(1)
@@ -229,10 +227,10 @@ class Orchestrator:
                 self._cluster_pause_after_loss_active = self._cluster_pause_cycles_remaining > 0
                 if self._cluster_pause_after_loss_active:
                     self._cluster_pause_cycles_remaining -= 1
-                if not self._llm_enabled():
-                    self.logger.error("CICLO: llm.enabled=false; motor Medallion exige LLM ativa.")
+                if not self._dl_enabled():
+                    self.logger.error("CICLO: deep_learning.enabled=false; motor exige Deep Learning ativo.")
                     return
-                decisions = await collect_llm_decisions(self)
+                decisions = await collect_deep_learning_decisions(self)
                 await self.executor.execute_cluster(decisions)
             except Exception as e:
                 self.logger.error(f"FALHA: Ciclo: {e}")

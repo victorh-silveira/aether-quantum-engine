@@ -2,9 +2,7 @@
 
 import asyncio
 import logging
-import time
 
-from src.application.services.llm.cluster_refresh_execute_policy import cluster_refresh_may_execute
 from src.domain.models.trade import TradeDirection
 
 from .execution_settlement import reconcile_contracts, run_settlement_watch, wait_for_settlement
@@ -74,8 +72,8 @@ class ExecutionManager:
             self.logger.info("[%s] EXEC_NONE || %s", cid, " | ".join(reasons))
 
     def _collect_orders(self, decisions: dict) -> list[tuple[str, TradeDirection, dict]]:
-        """Filtra decisoes executaveis e retorna ordens normalizadas."""
-        orders: list[tuple[str, TradeDirection, dict]] = []
+        """Filtra decisoes executaveis e retorna apenas a ordem com maior conviccao."""
+        candidates: list[tuple[str, TradeDirection, dict]] = []
         cid = f"C{int(self.orch._active_cycle_id):04d}"
         for symbol in self.orch.symbols:
             if symbol == self.orch.anchor:
@@ -91,8 +89,22 @@ class ExecutionManager:
             direction = entry["direction"]
             if direction is None:
                 continue
-            orders.append((symbol, direction, metrics))
-        return orders
+            candidates.append((symbol, direction, metrics))
+
+        if not candidates:
+            return []
+
+        # Ordena candidatos por conviccao decrescente
+        candidates.sort(key=lambda x: float(x[2].get("conviction", 0.0)), reverse=True)
+        best = candidates[0]
+        self.logger.info(
+            "[%s] CANDIDATOS: %s | SELECIONADO: %s (conviccao=%s)",
+            cid,
+            ", ".join([f"{c[0]}({c[2].get('conviction', 0.0):.2f})" for c in candidates]),
+            best[0],
+            best[2].get("conviction", 0.0),
+        )
+        return [best]
 
     async def _execute_orders(
         self, orders: list[tuple[str, TradeDirection, dict]], inter_delay: float, bankroll_snapshot: float
@@ -151,18 +163,6 @@ class ExecutionManager:
         executed_count = 0
         try:
             self._start_result_buffer()
-            refresh_without_llm = bool(getattr(self.orch, "_cluster_refresh_without_llm", False))
-            may_exec, refresh_reason = cluster_refresh_may_execute(
-                self.orch,
-                decisions,
-                refresh_without_llm=refresh_without_llm,
-                now_epoch=time.time(),
-            )
-            if refresh_without_llm and not may_exec:
-                cid = f"C{int(self.orch._active_cycle_id):04d}"
-                self.logger.info("[%s] EXEC_SKIP || cluster_refresh (%s)", cid, refresh_reason)
-                self._log_execution_blockers(decisions)
-                return
 
             bankroll_snapshot = float(self.orch.state.balance)
 

@@ -7,13 +7,14 @@ import asyncio
 from pathlib import Path
 from typing import Any
 
+from src.application.services.llm.macro_config import resolve_macro_config
+
 from aether_paths import repo_path
 from scripts.backtest.data_loader import backtest_symbols, fetch_market_for_backtest, load_settings
 from scripts.backtest.gemini_collect import collect_hft_orders_gemini
 from scripts.backtest.hft_cycle import collect_hft_orders
 from scripts.backtest.report import build_report, print_summary, save_report
 from scripts.backtest.simulator import settle_orders, settle_orders_kelly
-from src.application.services.llm.macro_config import resolve_macro_config
 
 
 def _min_start_bar(config: dict[str, Any]) -> int:
