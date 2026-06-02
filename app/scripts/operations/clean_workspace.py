@@ -9,6 +9,84 @@ from pathlib import Path
 APP_ROOT = Path(__file__).resolve().parents[2]
 REPO_ROOT = APP_ROOT.parent
 
+_STAGE_MODULES: dict[str, tuple[str, ...]] = {
+    "lint": ("ruff", "interrogate", "vulture", "pylint"),
+    "test": ("torch", "coverage", "pytest"),
+    "pytest": ("torch", "coverage", "pytest"),
+    "security": ("bandit", "pip_audit"),
+    "clean": (),
+}
+
+
+def _project_python_candidates() -> list[Path]:
+    if os.name == "nt":
+        venv_names = (".venv-win", ".venv")
+        layouts = (("Scripts", "python.exe"),)
+    else:
+        venv_names = (".venv-wsl", ".venv")
+        layouts = (("bin", "python"),)
+    roots = (APP_ROOT, REPO_ROOT)
+    candidates: list[Path] = []
+    seen: set[str] = set()
+    for root in roots:
+        for name in venv_names:
+            for folder, exe in layouts:
+                path = root / name / folder / exe
+                key = str(path)
+                if key not in seen:
+                    seen.add(key)
+                    candidates.append(path)
+    return candidates
+
+
+def _imports_available(python: Path, modules: tuple[str, ...]) -> bool:
+    if not modules:
+        return True
+    try:
+        if not python.exists():
+            return False
+    except OSError:
+        return False
+    imports = "; ".join(f"import {module}" for module in modules)
+    result = subprocess.run(
+        [str(python), "-c", imports],
+        capture_output=True,
+        text=True,
+        check=False,
+    )  # nosec B603
+    return result.returncode == 0
+
+
+def _same_interpreter(left: Path, right: Path) -> bool:
+    left_key = os.path.normcase(str(left))
+    right_key = os.path.normcase(str(right))
+    return left_key == right_key
+
+
+def _ensure_project_python(stage: str) -> None:
+    modules = _STAGE_MODULES.get(stage, ())
+    current = Path(sys.executable)
+    if _imports_available(current, modules):
+        return
+    for candidate in _project_python_candidates():
+        try:
+            candidate_exists = candidate.exists()
+        except OSError:
+            continue
+        if not candidate_exists:
+            continue
+        if _same_interpreter(candidate, current):
+            continue
+        if _imports_available(candidate, modules):
+            completed = subprocess.run([str(candidate), *sys.argv], check=False)  # nosec B603
+            sys.exit(completed.returncode)
+    if modules:
+        missing = ", ".join(modules)
+        print(f"\n[ERRO] Dependencias ausentes para o estagio '{stage}': {missing}")
+        print("Instale com: make install")
+        print(f"Venvs esperados: {APP_ROOT / '.venv-wsl'} (WSL) ou {APP_ROOT / '.venv-win'} (Windows)")
+    sys.exit(1)
+
 
 def _use_app_cwd() -> None:
     os.chdir(APP_ROOT)
@@ -170,6 +248,7 @@ def main():
     parser.add_argument("--coverage-fail-under", type=int, default=100, help="Minimum coverage percentage")
 
     args = parser.parse_args()
+    _ensure_project_python(args.stage)
     _use_app_cwd()
 
     if args.stage == "lint":
