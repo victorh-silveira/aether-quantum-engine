@@ -12,12 +12,12 @@
 | WebSocket ao vivo | URL retornada pelo OTP (`wss://api.derivws.com/trading/v1/options/ws/demo?otp=...`) |
 | Dados publicos / backtest | `api_config.public_ws_url` (sem OTP) |
 | Histórico OHLC | `ticks_history` com `style: candles`, `granularity` de `data_handler` (300 s) |
-| Stream ao vivo | `subscribe` OHLC por símbolo (`RDBULL`, `RDBEAR`) |
+| Stream ao vivo | `subscribe` OHLC por símbolo (`R_10`, `R_25`, `R_50`, `R_75`, `R_100`) |
 | Proposta / compra | `proposal` + `buy` via `TradeHandler` (RISE_FALL, stake, duração 1m) |
 | Contratos abertos | `proposal_open_contract`, `profit_table` (reconciliação e settlement) |
 | Keep-alive | Loop de ping no `WebSocketManager` |
 
-Símbolos ativos do motor: **Range Break** (`RDBULL`, `RDBEAR`), não os exemplos genéricos `1HZ100V` / OTC deste documento.
+Símbolos ativos do motor: **Range Break** (`R_10`, `R_25`, `R_50`, `R_75`, `R_100`), não os exemplos genéricos `1HZ100V` / OTC deste documento.
 
 Para fluxo completo (DL, risco, ciclo), ver [arquitetura.md](arquitetura.md).
 

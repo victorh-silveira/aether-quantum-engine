@@ -1,6 +1,6 @@
 # Metodologia quantitativa
 
-O Aether Quantum Engine herda a postura **Medallion** no sentido operacional: o mercado é um **sistema de sinais ruidosos**, não uma narrativa macro discricionária. A implementação atual concentra-se no par sintético **Range Break** (`RDBULL` / `RDBEAR`) com **Deep Learning** online, não em clusters OTC transatlânticos nem LLM.
+O Aether Quantum Engine herda a postura **Medallion** no sentido operacional: o mercado é um **sistema de sinais ruidosos**, não uma narrativa macro discricionária. A implementação atual concentra-se nos símbolos de **Range Break** (`R_10`, `R_25`, `R_50`, `R_75`, `R_100`) com **Deep Learning** online, não em clusters OTC transatlânticos nem LLM.
 
 Para arquitetura de código, ver [`arquitetura.md`](arquitetura.md).
 
@@ -18,14 +18,14 @@ Para arquitetura de código, ver [`arquitetura.md`](arquitetura.md).
 
 ---
 
-## 2. Par Range Break (RDBULL / RDBEAR)
+## 2. Universo Range Break (R_10, R_25, R_50, R_75, R_100)
 
-Dois índices sintéticos correlacionados: o modelo usa **features de par** (spread, confirmação de direção) além de indicadores por símbolo.
+Índices sintéticos correlacionados no eixo de barreiras: o modelo usa **features de par** (spread, confirmação de direção) além de indicadores por símbolo.
 
 | Símbolo | Papel típico |
 |---------|----------------|
-| `RDBULL` | Âncora configurável; referência de cluster |
-| `RDBEAR` | Par complementar; seleção competitiva por `trade_score` |
+| `R_50` | Âncora padrão configurável; referência de cluster |
+| `R_25`, `R_75`, etc. | Símbolos complementares; seleção competitiva por `trade_score` |
 
 Operação: contratos **RISE_FALL** (CALL = alta no período, PUT = queda).
 

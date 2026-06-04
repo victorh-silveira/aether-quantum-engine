@@ -1,6 +1,6 @@
 # Arquitetura — Aether Quantum Engine
 
-Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (classificador TCN) no par sintético **Range Break** (`RDBULL`, `RDBEAR`). A metodologia de negócio quantitativa está em [`medallion.md`](medallion.md); este documento descreve o software.
+Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (classificador TCN) nos símbolos **Range Break** (`R_10`, `R_25`, `R_50`, `R_75`, `R_100`). A metodologia de negócio quantitativa está em [`medallion.md`](medallion.md); este documento descreve o software.
 
 ---
 
@@ -8,7 +8,7 @@ Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (clas
 
 | Aspecto | Valor atual (settings padrão) |
 |---------|-------------------------------|
-| Símbolos | `RDBULL`, `RDBEAR` (âncora `RDBULL`) |
+| Símbolos | `R_10`, `R_25`, `R_50`, `R_75`, `R_100` (âncora `R_50`) |
 | Granularidade OHLC | 300 s (5 min) |
 | Histórico para treino | 288 barras (~1 dia) |
 | Janela do modelo (lookback) | 96 barras por sequência |
@@ -60,7 +60,7 @@ flowchart LR
 
 - `buffer_limit` limita velas em memória por símbolo.
 - `history_bars` / `training_history_bars` definem recorte para treino e predição (últimas N barras, padrão 288).
-- Features de par: spread e confirmação entre RDBULL e RDBEAR (`dl_pair_features.py`).
+- Features de par: spread e confirmação entre o símbolo e seu respectivo par de hedge (`dl_pair_features.py`).
 
 ---
 
@@ -117,7 +117,7 @@ Saída por símbolo: `{ direction, metrics }` consumida pelo orquestrador.
 
 ### 4.1 Seleção e direção
 
-- `execution_symbols.py` — filtra candidatos, escolhe melhor score entre RDBULL/RDBEAR.
+- `execution_symbols.py` — filtra candidatos, escolhe melhor score entre os símbolos do par de hedge.
 - `execution_direction.py` — `infer_dl_direction`, inversão opcional (`invert_dl_direction`).
 - `mandatory_trade_each_cycle` — força operação CALL ou PUT quando habilitado.
 

@@ -7,7 +7,7 @@
 [![Pre-commit](https://img.shields.io/badge/Pre--commit-active-FAB040?logo=pre-commit&logoColor=white)](.pre-commit-config.yaml)
 [![CI](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml)
 
-Motor quantitativo assíncrono para a Deriv: decisão por **Deep Learning (TCN PyTorch)** no par **Range Break** `RDBULL` / `RDBEAR`, velas de **5 minutos**, contratos **RISE_FALL** de **1 minuto**, dimensionamento **Kelly** com recuperação **martingale** condicionada e gates de qualidade pós-treino.
+Motor quantitativo assíncrono para a Deriv: decisão por **Deep Learning (TCN PyTorch)** nos símbolos **Range Break** (`R_10`, `R_25`, `R_50`, `R_75`, `R_100`), velas de **5 minutos**, contratos **RISE_FALL** de **1 minuto**, dimensionamento **Kelly** com recuperação **martingale** condicionada e gates de qualidade pós-treino.
 
 Documentação: [arquitetura](docs/arquitetura.md) | [metodologia quant](docs/medallion.md) | [estrutura do repo](docs/structure.md) | [Deriv API](docs/deriv-api.md)
 
@@ -20,7 +20,7 @@ Layout: `app/` (código e testes), `config/settings.json`, `docs/`, `linters/`. 
 | Etapa | Componente | Descrição |
 |-------|------------|-----------|
 | Dados | `StreamHandler` | WebSocket Deriv, histórico OHLC 5m, buffer configurável (padrão ~1 dia = 288 barras) |
-| Decisão | `decision_bridge` + TCN | Treino walk-forward online, calibração, gating e seleção entre RDBULL/RDBEAR |
+| Decisão | `decision_bridge` + TCN | Treino walk-forward online, calibração, gating e seleção competitiva entre os símbolos do par de hedge |
 | Execução | `ExecutionManager` | Ordens RISE_FALL, cluster opcional, logs `EXEC` / `EXEC_SEL` |
 | Risco | `RiskManager` | Kelly fracionário, stop win diário, martingale em recovery |
 | Estado | `PersistenceManager` | `data/state.json`, checkpoints `data/dl/{symbol}.pth` |
@@ -35,7 +35,7 @@ Arquivo: [`config/settings.json`](config/settings.json)
 
 | Bloco | Função |
 |-------|--------|
-| `symbols` / `anchor` | Universo (`RDBULL`, `RDBEAR`; âncora `RDBULL`) |
+| `symbols` / `anchor` | Universo (`R_10`, `R_25`, `R_50`, `R_75`, `R_100`; âncora `R_50`) |
 | `data_handler` | `granularity: 300`, `history_bars: 288`, `fetch_count`, `buffer_limit` |
 | `deep_learning` | TCN, `lookback`, `training_history_bars`, gating, `deploy_gate` |
 | `orchestrator.execution` | `mandatory_trade_each_cycle`, `invert_dl_direction` |
@@ -136,8 +136,8 @@ Antes de operar com dinheiro real ou demo prolongado:
 
 ```bash
 cd app
-python scripts/backtest/dl_walkforward.py --symbol RDBULL
-python scripts/backtest/dl_walkforward.py --symbol RDBEAR
+python scripts/backtest/dl_walkforward.py --symbol R_50
+python scripts/backtest/dl_walkforward.py --symbol R_25
 ```
 
 3. Só confie no live se `deploy_ok` e métricas do relatório estiverem dentro de `deploy_gate` em `settings.json`.

@@ -1,4 +1,9 @@
-"""Series de preco e tensores de features para o TCN."""
+"""Séries de preço e tensores de features para o TCN.
+
+Estas features são projetadas especificamente para contornar a imprevisibilidade matemática
+do gerador CSPRNG da Deriv, focando em propriedades estatísticas estáveis do modelo de índices sintéticos,
+como volatilidade relativa e reversão à média (mean reversion).
+"""
 
 import math
 

@@ -50,7 +50,7 @@ Não há pacote `application/services/llm` no motor ao vivo atual; decisão é e
 | Caminho | Uso |
 |---------|-----|
 | `data/state.json` | Estado de contratos e banca (via `repo_path`) |
-| `data/dl/RDBULL.pth`, `RDBEAR.pth` | Checkpoints PyTorch + calibrador + métricas |
+| `data/dl/{symbol}.pth` | Checkpoints PyTorch + calibrador + métricas (e.g., `R_50.pth`) |
 | `logs/engine.log` | Auditoria operacional |
 
 Caminhos resolvidos por `aether_paths.repo_path()` e `APP_ROOT`.
@@ -72,5 +72,5 @@ Pre-commit: `make pre-commit` instala hooks; `git commit` dispara lint, testes e
 Walk-forward DL:
 
 ```bash
-cd app && conda run -n deriv-api python scripts/backtest/dl_walkforward.py --symbol RDBULL
+cd app && conda run -n deriv-api python scripts/backtest/dl_walkforward.py --symbol R_50
 ```
