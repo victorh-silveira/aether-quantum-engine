@@ -25,7 +25,7 @@ async def test_run_trading_cycle_waits_for_open_contract_settlement(orch_config)
 async def test_on_candle_throttling_and_cooldown(orch_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
         orch = Orchestrator(orch_config, "token")
-        candle = MagicMock(symbol="RDBULL")
+        candle = MagicMock(symbol="R_50")
 
         orch.risk_manager.is_on_cooldown = MagicMock(return_value=False)
         await orch._on_candle(candle)
@@ -85,22 +85,22 @@ async def test_on_candle_returns_when_is_trading(orch_config):
 @pytest.mark.asyncio
 async def test_orchestrator_symbols_list_preserves_order_when_anchor_included(orch_config):
     orch_config.pop("strategy", None)
-    orch_config["symbols"] = ["RDBULL", "RDBULL", "RDBEAR"]
-    orch_config["anchor"] = "RDBULL"
+    orch_config["symbols"] = ["R_50", "R_50", "R_75"]
+    orch_config["anchor"] = "R_50"
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
         orch = Orchestrator(orch_config, "token")
-        assert orch.symbols == ["RDBULL", "RDBEAR"]
+        assert orch.symbols == ["R_50", "R_75"]
 
 
 @pytest.mark.asyncio
 async def test_orchestrator_symbols_list_prepends_anchor_when_missing(orch_config):
     orch_config.pop("strategy", None)
-    orch_config["symbols"] = ["RDBULL", "RDBEAR"]
-    orch_config["anchor"] = "RDBULL"
+    orch_config["symbols"] = ["R_50", "R_75"]
+    orch_config["anchor"] = "R_50"
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
         orch = Orchestrator(orch_config, "token")
-        assert orch.symbols[0] == "RDBULL"
-        assert set(orch.symbols) == {"RDBULL", "RDBEAR"}
+        assert orch.symbols[0] == "R_50"
+        assert set(orch.symbols) == {"R_50", "R_75"}
 
 
 @pytest.mark.asyncio
@@ -108,9 +108,9 @@ async def test_orchestrator_symbols_default_from_single_fallback(orch_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
         orch_config.pop("strategy", None)
         orch_config.pop("symbols", None)
-        orch_config["anchor"] = "RDBULL"
+        orch_config["anchor"] = "R_50"
         orch = Orchestrator(orch_config, "token")
-        assert orch.symbols == ["RDBULL"]
+        assert orch.symbols == ["R_50"]
 
 
 @pytest.mark.asyncio

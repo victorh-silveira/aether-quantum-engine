@@ -217,6 +217,9 @@ def predict_next_direction(
     granularity: int = 300,
     pair_prices: np.ndarray | None = None,
     deploy_ok: bool = False,
+    open_: np.ndarray | None = None,
+    high: np.ndarray | None = None,
+    low: np.ndarray | None = None,
 ) -> tuple[TradeDirection | None, float, float, float]:
     """Prediz direcao a partir do raw com margem minima; score calibrado do lado escolhido."""
     n = len(prices)
@@ -228,6 +231,9 @@ def predict_next_direction(
         n - 1,
         granularity=granularity,
         pair_prices=pair_prices,
+        open_=open_,
+        high=high,
+        low=low,
     ).reshape(1, lookback, FEATURE_DIM)
     if norm_stats is None:
         norm_stats = fit_norm_stats(seq)

@@ -40,11 +40,19 @@ class DlBacktestResult:
     deploy_ok: bool
 
 
-def direction_wins(direction: TradeDirection, prices: np.ndarray, index: int) -> bool:
-    """Indica se a direcao prevista venceu na barra seguinte."""
-    if index + 1 >= len(prices):
+def direction_wins(
+    direction: TradeDirection,
+    prices: np.ndarray,
+    index: int,
+    *,
+    label_horizon_bars: int = 1,
+) -> bool:
+    """Indica se a direcao prevista venceu no horizonte de label do contrato."""
+    step = max(1, int(label_horizon_bars))
+    j = index + step
+    if j >= len(prices):
         return False
-    up = prices[index + 1] > prices[index]
+    up = prices[j] > prices[index]
     return up if direction == TradeDirection.CALL else not up
 
 
@@ -74,8 +82,9 @@ def run_dl_walkforward(prices: np.ndarray, params: dict[str, Any], *, retrain_ev
     orch = type("_DlBacktestOrch", (), {"config": {"deep_learning": {}}})()
     trades: list[DlTrade] = []
     equity = peak = max_dd = wins = gross_win = gross_loss = 0.0
+    horizon = max(1, int(params.get("label_horizon_bars", 1)))
     start = min_len
-    end = len(prices) - 2
+    end = len(prices) - horizon - 1
     step = max(30, retrain_every)
     for bar in range(start, end + 1):
         window = prices[: bar + 1]
@@ -93,6 +102,7 @@ def run_dl_walkforward(prices: np.ndarray, params: dict[str, Any], *, retrain_ev
                 early_stopping_patience=params["early_stopping_patience"],
                 focal_gamma=params["focal_gamma"],
                 calib_ratio=params["calib_ratio"],
+                label_horizon_bars=horizon,
             )
             if result is not None:
                 norm_stats = result.norm_stats
@@ -111,7 +121,7 @@ def run_dl_walkforward(prices: np.ndarray, params: dict[str, Any], *, retrain_ev
         if not entry["metrics"].get("execute") or entry["direction"] is None:
             continue
         direction = entry["direction"]
-        won = direction_wins(direction, prices, bar)
+        won = direction_wins(direction, prices, bar, label_horizon_bars=horizon)
         score = float(entry["metrics"].get("trade_score", entry["metrics"].get("conviction", 0.5)))
         trades.append(DlTrade(bar_index=bar, direction=direction, won=won, trade_score=score))
         pnl = 1.0 if won else -1.0

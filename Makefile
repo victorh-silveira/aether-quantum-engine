@@ -1,7 +1,9 @@
-# Configurações do projeto
+# Configuracoes do projeto
 SHELL := /bin/bash
 APP_DIR=app
-PYTHON=python
+CONDA_ENV ?= deriv-api
+RESOLVE_PY := $(shell bash linters/git-hooks/bin/resolve_conda_python.sh 2>/dev/null || echo python)
+PYTHON := $(RESOLVE_PY)
 
 # Cores para o terminal (ANSI)
 GREEN  := \033[1;32m
@@ -12,7 +14,7 @@ RESET  := \033[0m
 
 .DEFAULT_GOAL := help
 
-.PHONY: install lint test security run backtest pre-commit clean help helpo
+.PHONY: install lint test security run backtest pre-commit pre-commit-run clean help helpo
 
 help:
 	@echo -e "$(BLUE)========================================================================$(RESET)"
@@ -20,14 +22,17 @@ help:
 	@echo -e "$(BLUE)========================================================================$(RESET)"
 	@echo -e "Uso: $(CYAN)make <comando>$(RESET)"
 	@echo -e ""
-	@echo -e "$(YELLOW)Comandos Disponíveis:$(RESET)"
-	@echo -e "  $(GREEN)install$(RESET)     - Atualiza o pip e instala as dependências do projeto"
-	@echo -e "  $(GREEN)lint$(RESET)        - Roda os linters e verificadores de formatação (Ruff, pylint, etc.)"
-	@echo -e "  $(GREEN)test$(RESET)        - Roda os testes unitários com pytest e gera cobertura de código"
+	@echo -e "$(YELLOW)Python:$(RESET) Conda $(CONDA_ENV) ($(PYTHON))"
+	@echo -e ""
+	@echo -e "$(YELLOW)Comandos Disponiveis:$(RESET)"
+	@echo -e "  $(GREEN)install$(RESET)         - Instala dependencias no Conda $(CONDA_ENV)"
+	@echo -e "  $(GREEN)lint$(RESET)        - Roda os linters e verificadores de formatacao (Ruff, pylint, etc.)"
+	@echo -e "  $(GREEN)test$(RESET)        - Roda os testes unitarios com pytest e gera cobertura de codigo"
 	@echo -e "  $(GREEN)security$(RESET)    - Varre o projeto em busca de vulnerabilidades (bandit/pip-audit)"
-	@echo -e "  $(GREEN)run$(RESET)         - Inicia a execução principal do motor quântico (run.py)"
-	@echo -e "  $(GREEN)backtest$(RESET)    - Executa simulações históricas (use: ARGS=\"...\")"
-	@echo -e "  $(GREEN)pre-commit$(RESET)  - Instala e configura os git hooks locais de pre-commit"
+	@echo -e "  $(GREEN)run$(RESET)         - Inicia a execucao principal do motor quantico (run.py)"
+	@echo -e "  $(GREEN)backtest$(RESET)    - Executa simulacoes historicas (use: ARGS=\"...\")"
+	@echo -e "  $(GREEN)pre-commit$(RESET)      - Instala e configura os git hooks locais de pre-commit"
+	@echo -e "  $(GREEN)pre-commit-run$(RESET)  - Roda todos os hooks (equivalente a pre-commit run --all-files)"
 	@echo -e "  $(GREEN)clean$(RESET)       - Limpa lixo, caches do Python/Pytest e logs do workspace"
 	@echo -e "  $(GREEN)help / helpo$(RESET) - Exibe este menu de ajuda interativo"
 	@echo -e "$(BLUE)========================================================================$(RESET)"
@@ -55,6 +60,10 @@ backtest:
 
 pre-commit:
 	bash linters/git-hooks/install.sh
+	chmod +x linters/git-hooks/bin/resolve_conda_python.sh linters/git-hooks/bin/python
+
+pre-commit-run:
+	$(PYTHON) -m pre_commit run --all-files -c .pre-commit-config.yaml
 
 clean:
 	$(PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --stage clean

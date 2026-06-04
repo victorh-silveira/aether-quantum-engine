@@ -13,7 +13,7 @@ async def test_execution_manager_log_line_contains_exec_and_direction(orch_confi
         orch = Orchestrator(orch_config, "token")
         with patch.object(orch.executor.logger, "debug") as mock_dbg:
             orch.executor._log_exec(
-                "RDBULL",
+                "R_50",
                 TradeDirection.CALL,
                 1.0,
                 {"conviction": 1.0},
@@ -31,14 +31,14 @@ def test_execution_manager_collect_orders_mandatory_includes_execute_false(orch_
         orch = Orchestrator(orch_config, "token")
         orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = True
         orch.config["orchestrator"]["execution"]["invert_dl_direction"] = False
-        orch.symbols = ["RDBULL", "RDBEAR"]
+        orch.symbols = ["R_50", "R_75"]
         decisions = {
-            "RDBULL": {"direction": TradeDirection.CALL, "metrics": {"conviction": 0.8, "execute": False}},
-            "RDBEAR": {"direction": TradeDirection.PUT, "metrics": {"conviction": 0.9, "execute": True}},
+            "R_50": {"direction": TradeDirection.CALL, "metrics": {"conviction": 0.8, "execute": False}},
+            "R_75": {"direction": TradeDirection.PUT, "metrics": {"conviction": 0.9, "execute": True}},
         }
         orders = orch.executor._collect_orders(decisions)
         assert len(orders) == 1
-        assert orders[0][0] in ("RDBULL", "RDBEAR")
+        assert orders[0][0] in ("R_50", "R_75")
 
 
 def test_collect_orders_mandatory_bypasses_selection_filter(orch_config):
@@ -54,11 +54,11 @@ def test_collect_orders_mandatory_bypasses_selection_filter(orch_config):
                 "strong_edge": 0.99,
             }
         }
-        orch.symbols = ["RDBULL"]
+        orch.symbols = ["R_50"]
         orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["include_anchor_trades"] = True
         orch.config["orchestrator"]["execution"]["mandatory_trade_each_cycle"] = True
         decisions = {
-            "RDBULL": {
+            "R_50": {
                 "direction": TradeDirection.CALL,
                 "metrics": {
                     "execute": True,
@@ -80,10 +80,10 @@ async def test_execute_cluster_logs_exec_pause_on_stop_win(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 2
-        orch.symbols = ["RDBULL", "RDBULL"]
+        orch.symbols = ["R_50", "R_50"]
         orch.risk_manager.stake_block_reason = MagicMock(return_value="stop_win")
         decisions = {
-            "RDBULL": {"direction": TradeDirection.PUT, "metrics": {"conviction": 0.7, "execute": True}},
+            "R_50": {"direction": TradeDirection.PUT, "metrics": {"conviction": 0.7, "execute": True}},
         }
         with (
             patch.object(orch.executor.logger, "info") as mock_info,
@@ -102,7 +102,7 @@ async def test_execute_orders_skips_zero_stake_without_logging(orch_config):
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 9
         orch.risk_manager.calculate_stake = MagicMock(return_value=0.0)
-        orders = [("RDBULL", TradeDirection.CALL, {"conviction": 0.7})]
+        orders = [("R_50", TradeDirection.CALL, {"conviction": 0.7})]
         count = await orch.executor._execute_orders(orders, 0.0, 49.0)
         assert count == 0
 
@@ -118,12 +118,12 @@ def test_log_execution_blockers_stake_zero(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 4
-        orch.symbols = ["RDBULL", "RDBULL"]
+        orch.symbols = ["R_50", "R_50"]
         orch.risk_manager.calculate_stake = MagicMock(return_value=0.0)
         orch.risk_manager.stake_block_reason = MagicMock(return_value="kelly_no_edge")
         with patch.object(orch.executor.logger, "info") as mock_info:
             orch.executor._log_execution_blockers(
-                {"RDBULL": {"direction": TradeDirection.PUT, "metrics": {"conviction": 0.7, "execute": True}}},
+                {"R_50": {"direction": TradeDirection.PUT, "metrics": {"conviction": 0.7, "execute": True}}},
             )
         assert "kelly_no_edge" in mock_info.call_args.args[2]
 
@@ -133,10 +133,10 @@ def test_log_execution_blockers_sem_direcao(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 3
-        orch.symbols = ["RDBULL", "RDBULL"]
+        orch.symbols = ["R_50", "R_50"]
         with patch.object(orch.executor.logger, "info") as mock_info:
             orch.executor._log_execution_blockers(
-                {"RDBULL": {"direction": None, "metrics": {"execute": True}}},
+                {"R_50": {"direction": None, "metrics": {"execute": True}}},
             )
         assert "sem_direcao" in mock_info.call_args.args[2]
 
@@ -147,9 +147,9 @@ async def test_execute_cluster_runs_with_dl_decisions(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 4
-        orch.symbols = ["RDBULL", "RDBULL"]
+        orch.symbols = ["R_50", "R_50"]
         decisions = {
-            "RDBULL": {"direction": TradeDirection.PUT, "metrics": {"conviction": 0.7, "execute": True}},
+            "R_50": {"direction": TradeDirection.PUT, "metrics": {"conviction": 0.7, "execute": True}},
         }
         with patch.object(orch.executor, "_execute_orders", new_callable=AsyncMock, return_value=0) as mock_exec:
             await orch.executor.execute_cluster(decisions)
@@ -162,10 +162,10 @@ async def test_execute_cluster_executes_when_stake_available(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 5
-        orch.symbols = ["RDBULL", "RDBEAR"]
+        orch.symbols = ["R_50", "R_75"]
         orch.risk_manager.calculate_stake = MagicMock(return_value=2.0)
         decisions = {
-            "RDBEAR": {
+            "R_75": {
                 "direction": TradeDirection.PUT,
                 "metrics": {"conviction": 0.7, "execute": True},
             },

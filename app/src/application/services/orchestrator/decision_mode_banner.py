@@ -17,9 +17,11 @@ def emit_decision_engine_banner(logger: logging.Logger, config: dict[str, Any], 
         if hist is None:
             data_cfg = config.get("data_handler") or {}
             hist = data_cfg.get("history_bars", "")
+        mhi = bool(dl_cfg.get("mhi_mode", False))
         logger.info(
-            "CFG decisao | modo=DEEP_LEARNING_PYTORCH | model_path=%s | lookback=%s | "
+            "CFG decisao | modo=DEEP_LEARNING_PYTORCH | mhi=%s | model_path=%s | lookback=%s | "
             "hist_treino=%s | exec_obrigatoria=%s | invert_dl=%s",
+            mhi,
             dl_cfg.get("model_path", ""),
             dl_cfg.get("lookback", ""),
             hist,

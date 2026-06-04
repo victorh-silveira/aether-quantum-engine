@@ -11,11 +11,11 @@ from src.application.services.deep_learning.dl_retrain import (
 
 def test_force_retrain_and_clear():
     orch = SimpleNamespace()
-    mark_force_retrain(orch, "RDBULL")
-    ok, reason = should_retrain_symbol(orch, "RDBULL", {}, {"train_on_new_candle": False}, 1)
+    mark_force_retrain(orch, "R_50")
+    ok, reason = should_retrain_symbol(orch, "R_50", {}, {"train_on_new_candle": False}, 1)
     assert ok and reason == "loss_retrain"
-    clear_force_retrain(orch, "RDBULL")
-    assert not (getattr(orch, "_dl_force_retrain", None) or {}).get("RDBULL")
+    clear_force_retrain(orch, "R_50")
+    assert not (getattr(orch, "_dl_force_retrain", None) or {}).get("R_50")
 
 
 def test_rolling_retrain_trigger():

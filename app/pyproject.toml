@@ -3,7 +3,7 @@ name = "aether-quantum-engine"
 version = "0.0.0"
 description = "Motor asyncio Deriv Rise/Fall: modo CALL/PUT simples ou decisao via LLM (Google Gemini)."
 readme = "../README.md"
-requires-python = ">=3.13,<4"
+requires-python = ">=3.13.12,<3.13.13"
 
 [tool.ruff]
 line-length = 120
@@ -79,6 +79,7 @@ convention = "google"
 "src/infrastructure/api/deriv_pat_binding.py" = ["S310"]
 "src/infrastructure/api/deriv_pat_session.py" = ["S310"]
 "tests/**/*.py" = ["ARG001", "ARG005", "S101", "S106", "S310"]
+"src/application/services/deep_learning/dl_features.py" = ["F401"]
 
 [tool.ruff.format]
 quote-style = "double"

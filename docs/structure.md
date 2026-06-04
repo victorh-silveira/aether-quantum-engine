@@ -70,5 +70,6 @@ Pre-commit: `make pre-commit` instala hooks; `git commit` dispara lint, testes e
 Walk-forward DL:
 
 ```bash
-cd app && ../app/.venv-wsl/bin/python scripts/backtest/dl_walkforward.py --symbol RDBULL
+conda activate deriv-api
+cd app && python scripts/backtest/dl_walkforward.py --symbol RDBULL
 ```

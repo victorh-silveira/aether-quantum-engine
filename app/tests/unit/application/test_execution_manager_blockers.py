@@ -8,10 +8,10 @@ def test_log_execution_blockers_data_gate(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 2
-        orch.symbols = ["RDBULL"]
+        orch.symbols = ["R_50"]
         with patch.object(orch.executor.logger, "info") as mock_info:
             orch.executor._log_execution_blockers(
-                {"RDBULL": {"direction": None, "metrics": {"gate_reason": "data", "execute": False}}},
+                {"R_50": {"direction": None, "metrics": {"gate_reason": "data", "execute": False}}},
             )
         assert "dados" in mock_info.call_args.args[2]
 
@@ -21,17 +21,17 @@ def test_log_execution_blockers_direction_margin_no_raw(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 2
-        orch.symbols = ["RDBULL"]
+        orch.symbols = ["R_50"]
         with patch.object(orch.executor.logger, "info") as mock_info:
             orch.executor._log_execution_blockers(
                 {
-                    "RDBULL": {
+                    "R_50": {
                         "direction": None,
                         "metrics": {"gate_reason": "direction_margin", "execute": False},
                     }
                 },
             )
-        assert mock_info.call_args.args[2] == "RDBULL:sem_direcao"
+        assert mock_info.call_args.args[2] == "R_50:sem_direcao"
 
 
 def test_log_execution_blockers_direction_margin_raw(orch_config):
@@ -39,11 +39,11 @@ def test_log_execution_blockers_direction_margin_raw(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 2
-        orch.symbols = ["RDBULL"]
+        orch.symbols = ["R_50"]
         with patch.object(orch.executor.logger, "info") as mock_info:
             orch.executor._log_execution_blockers(
                 {
-                    "RDBULL": {
+                    "R_50": {
                         "direction": None,
                         "metrics": {"gate_reason": "direction_margin", "raw_prob": 0.51, "execute": False},
                     }
@@ -57,10 +57,10 @@ def test_log_execution_blockers_skips_symbol_without_decision_entry(orch_config)
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 4
-        orch.symbols = ["RDBULL", "RDBEAR"]
+        orch.symbols = ["R_50", "R_75"]
         with patch.object(orch.executor.logger, "info") as mock_info:
             orch.executor._log_execution_blockers(
-                {"RDBULL": {"direction": None, "metrics": {"gate_reason": "data", "execute": False}}},
+                {"R_50": {"direction": None, "metrics": {"gate_reason": "data", "execute": False}}},
             )
         assert "dados" in mock_info.call_args.args[2]
 
@@ -70,9 +70,9 @@ def test_log_execution_blockers_sem_direcao_generic_gate(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 3
-        orch.symbols = ["RDBULL"]
+        orch.symbols = ["R_50"]
         with patch.object(orch.executor.logger, "info") as mock_info:
             orch.executor._log_execution_blockers(
-                {"RDBULL": {"direction": None, "metrics": {"gate_reason": "conviction", "execute": False}}},
+                {"R_50": {"direction": None, "metrics": {"gate_reason": "conviction", "execute": False}}},
             )
-        assert "RDBULL:sem_direcao" in mock_info.call_args.args[2]
+        assert "R_50:sem_direcao" in mock_info.call_args.args[2]

@@ -1,6 +1,7 @@
 """Resolucao e inversao de direcao CALL/PUT para execucao."""
 
 from src.domain.models.trade import TradeDirection
+from src.domain.symbols.range_symbols import HEDGE_PEER, hedge_peer, is_high_side
 
 
 def infer_dl_direction(entry: dict) -> TradeDirection | None:
@@ -22,6 +23,26 @@ def invert_direction(direction: TradeDirection) -> TradeDirection:
     return TradeDirection.CALL
 
 
+def recovery_hedge_target(
+    last_loss_symbol: str | None,
+    last_loss_direction: str | None,
+) -> tuple[str, TradeDirection] | None:
+    """Define simbolo par e direcao de hedge apos loss em contratos Range R_*."""
+    if not last_loss_symbol or last_loss_symbol not in HEDGE_PEER:
+        return None
+    if not last_loss_direction:
+        return None
+    peer = hedge_peer(last_loss_symbol)
+    if peer is None:
+        return None
+    ld = str(last_loss_direction or "").upper()
+    if is_high_side(last_loss_symbol):
+        hedge_dir = TradeDirection.CALL if ld == "PUT" else TradeDirection.PUT
+    else:
+        hedge_dir = TradeDirection.PUT if ld == "CALL" else TradeDirection.CALL
+    return peer, hedge_dir
+
+
 def build_execution_candidate(
     symbol: str,
     entry: dict,
@@ -38,3 +59,20 @@ def build_execution_candidate(
     metrics["exec_direction"] = exec_dir.name
     metrics["direction_inverted"] = bool(invert_dl_direction)
     return symbol, exec_dir, metrics
+
+
+def build_forced_direction_candidate(
+    symbol: str,
+    entry: dict,
+    forced_dir: TradeDirection,
+) -> tuple[str, TradeDirection, dict] | None:
+    """Monta candidato com direcao de hedge forcada para recovery no par Range."""
+    dl_dir = infer_dl_direction(entry)
+    if dl_dir is None:
+        return None
+    metrics = dict(entry.get("metrics") or {})
+    metrics["dl_direction"] = dl_dir.name
+    metrics["exec_direction"] = forced_dir.name
+    metrics["direction_inverted"] = dl_dir != forced_dir
+    metrics["recovery_hedge_forced"] = True
+    return symbol, forced_dir, metrics

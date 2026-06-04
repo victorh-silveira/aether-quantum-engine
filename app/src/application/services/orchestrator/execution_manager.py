@@ -3,19 +3,12 @@
 import asyncio
 import logging
 
-from src.application.services.execution_direction import build_execution_candidate
-from src.application.services.execution_symbols import (
-    filter_execution_candidates,
-    format_execution_alternates,
-    pending_recovery_active,
-    select_best_execution_candidate,
-    select_mandatory_execution_candidate,
-    symbols_eligible_for_execution,
-)
+from src.application.services.execution_symbols import symbols_eligible_for_execution
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.stop_win_target import resolve_stop_win_target
 
 from .execution_blockers import log_execution_blockers
+from .execution_collect import collect_cluster_orders
 from .execution_orders import place_order
 from .execution_settlement import reconcile_contracts, run_settlement_watch, wait_for_settlement
 
@@ -78,70 +71,7 @@ class ExecutionManager:
 
     def _collect_orders(self, decisions: dict) -> list[tuple[str, TradeDirection, dict]]:
         """Seleciona uma ordem por ciclo; modo obrigatorio ignora gate execute=false."""
-        mandatory, invert = self._execution_flags()
-        candidates: list[tuple[str, TradeDirection, dict]] = []
-        cid = f"C{int(self.orch._active_cycle_id):04d}"
-        for symbol in self._trade_symbols():
-            entry = decisions.get(symbol)
-            if not entry:
-                continue
-            if not mandatory and not entry.get("metrics", {}).get("execute", True):
-                self.logger.debug("[%s] SKIP: Conviccao insuficiente para %s (Metrics Gate)", cid, symbol)
-                continue
-            built = build_execution_candidate(symbol, entry, invert_dl_direction=invert)
-            if built is None:
-                continue
-            candidates.append(built)
-
-        if not candidates:
-            return []
-
-        if not mandatory:
-            dl_cfg = self.orch.config.get("deep_learning", {})
-            selection = dl_cfg.get("selection", {}) if isinstance(dl_cfg, dict) else {}
-            filtered = filter_execution_candidates(candidates, selection=selection)
-            if not filtered:
-                return []
-            candidates = filtered
-
-        recovery_active = pending_recovery_active(getattr(self.orch.risk_manager, "pending_loss", {}))
-        exec_cfg = self.orch.config.get("orchestrator", {}).get("execution", {})
-        margin = float(exec_cfg.get("diversify_after_loss_margin", 0.08))
-        last_loss = getattr(self.orch.risk_manager, "last_loss_symbol", None)
-        dl_cfg = self.orch.config.get("deep_learning", {})
-        flip_raw_min = float(dl_cfg.get("post_loss_flip_raw_min", 0.58)) if isinstance(dl_cfg, dict) else 0.58
-        if mandatory:
-            best = select_mandatory_execution_candidate(
-                self.orch,
-                candidates,
-                last_loss_symbol=last_loss,
-                diversify_margin=margin,
-                recovery_active=recovery_active,
-                flip_raw_min=flip_raw_min,
-            )
-        else:
-            best = select_best_execution_candidate(
-                candidates,
-                last_loss_symbol=last_loss,
-                diversify_margin=margin,
-                recovery_active=recovery_active,
-            )
-        metrics = best[2]
-        inv_tag = " inv" if metrics.get("direction_inverted") else ""
-        dl_name = metrics.get("dl_direction", best[1].name)
-        self.logger.info(
-            "[%s] EXEC_SEL | %s ord=%s dl=%s%s s=%.2f v=%.2f r=%.2f | alt=%s",
-            cid,
-            best[0],
-            best[1].name,
-            dl_name,
-            inv_tag,
-            float(metrics.get("trade_score", metrics.get("conviction", 0.0))),
-            float(metrics.get("val_accuracy", 0.0)),
-            float(metrics.get("raw_prob", metrics.get("raw_conviction", 0.0))),
-            format_execution_alternates(candidates, exclude_symbol=best[0]),
-        )
-        return [best]
+        return collect_cluster_orders(self, decisions)
 
     async def _execute_orders(
         self, orders: list[tuple[str, TradeDirection, dict]], inter_delay: float, bankroll_snapshot: float
@@ -154,6 +84,7 @@ class ExecutionManager:
 
             dl_cfg = self.orch.config.get("deep_learning", {})
             pending = sum(self.orch.risk_manager.pending_loss.values())
+            mandatory, _ = self._execution_flags()
             stake = self.orch.risk_manager.calculate_stake(
                 bankroll_snapshot,
                 symbol,
@@ -163,6 +94,7 @@ class ExecutionManager:
                 dl_metrics=metrics,
                 order_direction=direction.name,
                 max_val_brier=float(dl_cfg.get("max_val_brier_execute", 0.28)),
+                mandatory_weak_cap=mandatory and not metrics.get("execute", True),
             )
 
             if stake <= 0:

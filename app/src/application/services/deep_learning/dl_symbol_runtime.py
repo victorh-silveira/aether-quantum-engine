@@ -9,7 +9,7 @@ from aether_paths import APP_ROOT
 from src.application.services.deep_learning.dl_calibration import CalibratorState
 from src.application.services.deep_learning.dl_deploy import apply_deploy_to_runtime
 from src.application.services.deep_learning.dl_deploy_eval import evaluate_mini_deploy
-from src.application.services.deep_learning.dl_features import FEATURE_DIM
+from src.application.services.deep_learning.dl_features import FEATURE_DIM, extract_sequences
 from src.application.services.deep_learning.dl_gate_config import parse_deploy_gate_config, resolve_deploy_ok
 from src.application.services.deep_learning.dl_outcomes import sample_weights_for_symbol
 from src.application.services.deep_learning.dl_retrain import clear_force_retrain, reset_bars_since_train
@@ -20,6 +20,7 @@ from src.application.services.deep_learning.model import (
     load_model_checkpoint,
     save_model_checkpoint,
 )
+from src.domain.symbols.range_symbols import hedge_peer, sym_is_low_barrier
 
 
 logger = logging.getLogger("AETH")
@@ -41,11 +42,11 @@ def granularity_seconds(orch) -> int:
 
 
 def pair_prices_for_symbol(orch, symbol: str) -> np.ndarray | None:
-    """Retorna serie do simbolo par RDBULL/RDBEAR quando aplicavel."""
-    symbols = [str(s) for s in getattr(orch, "symbols", [])]
-    if "RDBULL" not in symbols or "RDBEAR" not in symbols:
+    """Retorna serie do simbolo par hedge R_* quando aplicavel."""
+    symbols = {str(s) for s in getattr(orch, "symbols", [])}
+    peer = hedge_peer(str(symbol))
+    if peer is None or peer not in symbols:
         return None
-    peer = "RDBEAR" if str(symbol) == "RDBULL" else "RDBULL"
     return orch.stream.get_numpy_series(peer, "close")
 
 
@@ -116,6 +117,9 @@ def run_symbol_training(
     *,
     pair_prices: np.ndarray | None,
     granularity: int,
+    open_: np.ndarray | None = None,
+    high: np.ndarray | None = None,
+    low: np.ndarray | None = None,
 ) -> tuple[object, float | None]:
     """Executa treino walk-forward, deploy gate e persiste checkpoint."""
     model = runtime["model"]
@@ -123,10 +127,30 @@ def run_symbol_training(
     train_loss = None
     gate_cfg = parse_deploy_gate_config(dl_config)
     try:
-        train_count = max(0, len(prices) - params["lookback"] - params["validation_bars"] - 20)
-        weights = sample_weights_for_symbol(orch, symbol, train_count)
         pair_label = pair_prices is not None and len(pair_prices) >= len(prices)
-        sym_is_bull = str(symbol) == "RDBULL"
+        peer_sym = hedge_peer(str(symbol))
+        sym_is_bull = sym_is_low_barrier(str(symbol), peer_sym) if peer_sym else False
+        horizon = int(params.get("label_horizon_bars", 1))
+        x_preview, y_preview, _ = extract_sequences(
+            prices,
+            params["lookback"],
+            label_min_move_pct=params["label_min_move_pct"],
+            granularity=granularity,
+            pair_prices=pair_prices,
+            require_pair_label=pair_label,
+            sym_is_bull=sym_is_bull,
+            label_horizon_bars=horizon,
+            open_=open_,
+            high=high,
+            low=low,
+            compact_mhi=bool(params.get("compact_mhi")),
+        )
+        weights = sample_weights_for_symbol(
+            orch,
+            symbol,
+            len(y_preview),
+            targets=list(y_preview) if len(y_preview) else None,
+        )
         train_result = train_model_walkforward(
             model,
             prices,
@@ -145,6 +169,11 @@ def run_symbol_training(
             pair_prices=pair_prices,
             require_pair_label=pair_label,
             sym_is_bull=sym_is_bull,
+            label_horizon_bars=int(params.get("label_horizon_bars", 1)),
+            open_=open_,
+            high=high,
+            low=low,
+            compact_mhi=bool(params.get("compact_mhi")),
         )
         if train_result is not None:
             runtime["norm_stats"] = train_result.norm_stats
@@ -195,7 +224,7 @@ def run_symbol_training(
             )
             clear_force_retrain(orch, symbol)
             reset_bars_since_train(orch, symbol)
-            logger.info(
+            logger.debug(
                 "DL: Treino %s concluido | loss=%.4f val_acc=%.2f deploy=%s",
                 symbol,
                 float(train_loss or 0.0),
@@ -206,7 +235,7 @@ def run_symbol_training(
             runtime["val_accuracy"] = 0.0
             runtime["val_brier"] = 1.0
             runtime["deploy_ok"] = False
-            logger.info(
+            logger.debug(
                 "DL: Treino indisponivel para %s (%d velas); usando checkpoint ou predicao direta.",
                 symbol,
                 len(prices),

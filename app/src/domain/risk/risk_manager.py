@@ -31,13 +31,13 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
         self._last_entry_conviction = 0.0
         self.consecutive_losses = 0
         self.pending_loss: dict[str, float] = {}
+        self.last_martingale_stake = 0.0
+        self.last_loss_stake = 0.0
+        self._prev_martingale_stake = 0.0
         self.init_symbol_loss_cooldown()
+        self.martingale_native = bool(self.kelly_config.get("martingale_native", True))
+        self.martingale_block_repeat_loss = bool(self.kelly_config.get("martingale_block_repeat_loss", False))
         self.recovery_threshold = float(self.kelly_config.get("recovery_conviction_threshold", 0.60))
-        self.recovery_martingale_min_conviction = float(
-            self.kelly_config.get("recovery_martingale_min_conviction", 0.45)
-        )
-        self.recovery_martingale_min_raw = float(self.kelly_config.get("recovery_martingale_min_raw", 0.0))
-        self.martingale_force_on_pending_loss = bool(self.kelly_config.get("martingale_force_on_pending_loss", True))
         self._candle_interval_seconds = 900
         self._cooldown_until_mono = 0.0
 
@@ -137,20 +137,16 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
         return None
 
     def _martingale_allowed(self, symbol: str, conviction: float, **kwargs) -> bool:
-        """Martingale so com recovery valido, metricas DL e sem repeat symbol+direction."""
+        """Martingale ativo sempre que houver perda pendente (modo nativo)."""
+        _ = (conviction, kwargs)
         return martingale_allowed(
             pending_loss=self.pending_loss,
-            recovery_threshold=self.recovery_threshold,
-            conviction=conviction,
+            martingale_native=self.martingale_native,
+            block_repeat_loss=self.martingale_block_repeat_loss,
             symbol=symbol,
-            dl_metrics=kwargs.get("dl_metrics"),
-            max_val_brier=float(kwargs.get("max_val_brier", 0.28)),
             order_direction=kwargs.get("order_direction"),
             last_loss_symbol=self.last_loss_symbol,
             last_loss_direction=self.last_loss_direction,
-            recovery_martingale_min_conviction=self.recovery_martingale_min_conviction,
-            recovery_martingale_min_raw=self.recovery_martingale_min_raw,
-            force_on_pending_loss=self.martingale_force_on_pending_loss,
         )
 
     def calculate_stake(
@@ -198,10 +194,15 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
         self.record_trade_outcome(symbol, won=profit >= 0.0)
 
         if profit < 0:
-            self.pending_loss[symbol] = self.pending_loss.get(symbol, 0.0) + abs(profit)
+            loss_amt = abs(profit)
+            self.pending_loss[symbol] = self.pending_loss.get(symbol, 0.0) + loss_amt
+            self.last_loss_stake = loss_amt
             self.register_symbol_loss_cooldown(symbol, direction=direction)
         else:
             apply_win_to_pending_loss(self.pending_loss, profit)
+            if sum(self.pending_loss.values()) <= 0.0:
+                self.last_martingale_stake = 0.0
+                self.last_loss_stake = 0.0
 
         self.active_contract_ids = [x for x in self.active_contract_ids if int(x) != int(contract_id)]
 
@@ -223,6 +224,8 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
             "last_result_tick": self.last_result_tick,
             "rolling_wins": {k: list(v) for k, v in self._rolling_wins.items()},
             "pending_loss": dict(self.pending_loss),
+            "last_martingale_stake": self.last_martingale_stake,
+            "last_loss_stake": self.last_loss_stake,
             "consecutive_losses": self.consecutive_losses,
             "current_cooldown_ticks": self.current_cooldown_ticks,
             **self.symbol_cooldown_state(),

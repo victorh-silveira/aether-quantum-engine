@@ -80,7 +80,7 @@ async def test_process_contract_settlement_lost():
     orch.state.finalize_contract.return_value = contract
     orch.state.balance = 1000.0
     orch.config = {"orchestrator": {"cluster_pause_after_loss_cycles": 2}}
-    orch.risk_manager.contract_to_symbol = {456: "RDBEAR"}
+    orch.risk_manager.contract_to_symbol = {456: "R_75"}
 
     with patch("src.application.services.orchestrator.settlement_logic.api_settlement_label", return_value="LOSS"):
         await process_contract_settlement(orch, data)
@@ -88,7 +88,7 @@ async def test_process_contract_settlement_lost():
     assert orch.state.balance == 995.0
     assert orch._session_losses == 1
     assert orch._invert_quarantine_cycles_remaining == 1
-    assert orch._last_loss_symbol == "RDBEAR"
+    assert orch._last_loss_symbol == "R_75"
     assert orch._last_loss_direction == "CALL"
     assert len(orch._pending_result_logs) == 1
 

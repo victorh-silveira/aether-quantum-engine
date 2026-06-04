@@ -11,8 +11,8 @@ from tests.unit.application.dl_collect_fixtures import MockOrchestrator
 @pytest.mark.asyncio
 async def test_collect_blocks_execute_when_deploy_not_ok():
     prices = np.sin(np.linspace(0, 10, 90)) + 10.0
-    orch = MockOrchestrator(["RDBULL"], prices)
-    orch.symbols = ["RDBULL"]
+    orch = MockOrchestrator(["R_50"], prices)
+    orch.symbols = ["R_50"]
     orch.config["deep_learning"]["deploy_gate"] = {"enabled": True, "soft_min_val_accuracy": 0.99}
     entry = {
         "direction": TradeDirection.CALL,
@@ -43,5 +43,5 @@ async def test_collect_blocks_execute_when_deploy_not_ok():
             "last_candle_epoch": 0,
         }
         decisions = await collect_deep_learning_decisions(orch)
-    assert decisions["RDBULL"]["metrics"]["execute"] is False
-    assert decisions["RDBULL"]["metrics"]["gate_reason"] == "deploy"
+    assert decisions["R_50"]["metrics"]["execute"] is False
+    assert decisions["R_50"]["metrics"]["gate_reason"] == "deploy"

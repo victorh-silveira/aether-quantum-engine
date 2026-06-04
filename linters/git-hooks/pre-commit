@@ -4,6 +4,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 CONFIG="$ROOT/linters/pre-commit-config.yaml"
+RESOLVE="$ROOT/linters/git-hooks/bin/resolve_conda_python.sh"
 
 if [ -f /proc/version ] && grep -qi microsoft /proc/version 2>/dev/null; then
   if [ -x "$ROOT/linters/git-hooks/bin/python" ]; then
@@ -21,21 +22,18 @@ if command -v pre-commit >/dev/null 2>&1; then
   run_impl pre-commit
 fi
 
+if [ -x "$RESOLVE" ]; then
+  CONDA_PY="$("$RESOLVE")" || true
+  if [ -n "${CONDA_PY:-}" ] && "$CONDA_PY" -c "import pre_commit" 2>/dev/null; then
+    run_impl "$CONDA_PY" -mpre_commit
+  fi
+fi
+
 for py in python3.13 python3 python; do
   if command -v "$py" >/dev/null 2>&1 && "$py" -c "import pre_commit" 2>/dev/null; then
     run_impl "$py" -mpre_commit
   fi
 done
 
-if [ -f /proc/version ] && grep -qi microsoft /proc/version 2>/dev/null; then
-  for win_py in \
-    "/mnt/c/Users/${USER}/AppData/Local/Programs/Python/Python313/python.exe" \
-    "/mnt/c/Users/${USER}/AppData/Local/Programs/Python/Python314/python.exe"; do
-    if [ -x "$win_py" ]; then
-      run_impl "$win_py" -mpre_commit
-    fi
-  done
-fi
-
-echo "pre-commit nao encontrado. Rode: make install && pip install pre-commit && make pre-commit" >&2
+echo "pre-commit nao encontrado. Rode: conda activate deriv-api && pip install pre-commit && make pre-commit" >&2
 exit 1

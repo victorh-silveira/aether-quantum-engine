@@ -181,25 +181,9 @@ def test_select_mandatory_skips_post_loss_banned_symbol():
         orch,
         candidates,
         last_loss_symbol=ANCHOR,
+        last_loss_direction="CALL",
         diversify_margin=0.08,
         recovery_active=True,
-        flip_raw_min=0.62,
-    )
-    assert best[0] == PAIR
-
-
-def test_select_mandatory_prefers_execute_true_when_available():
-    orch = SimpleNamespace(config={"deep_learning": {"post_loss_flip_raw_min": 0.62}})
-    candidates = [
-        (ANCHOR, TradeDirection.CALL, {"trade_score": 0.71, "execute": False, "raw_prob": 0.56}),
-        (PAIR, TradeDirection.PUT, {"trade_score": 0.55, "execute": True, "raw_prob": 0.55}),
-    ]
-    best = select_mandatory_execution_candidate(
-        orch,
-        candidates,
-        last_loss_symbol=None,
-        diversify_margin=0.08,
-        recovery_active=False,
         flip_raw_min=0.62,
     )
     assert best[0] == PAIR

@@ -1,0 +1,116 @@
+import logging
+from unittest.mock import MagicMock, patch
+
+import numpy as np
+import pytest
+
+from src.application.services.deep_learning.decision_bridge import (
+    _apply_deploy_gate,
+    _collect_symbol_decision,
+    _insufficient_data_entry,
+    _log_retrain_batch,
+    _min_dl_history_len,
+)
+from src.domain.models.trade import TradeDirection
+from tests.unit.application.dl_collect_fixtures import MockOrchestrator
+
+
+def test_min_dl_history_len_mhi_and_standard():
+    assert _min_dl_history_len({"mhi_mode": True, "lookback": 5, "training_history_bars": 5}) == 6
+    assert (
+        _min_dl_history_len({"mhi_mode": False, "lookback": 32, "validation_bars": 10, "training_history_bars": 100})
+        == 100
+    )
+
+
+def test_insufficient_data_entry_gate_reason():
+    entry = _insufficient_data_entry()
+    assert entry["metrics"]["gate_reason"] == "data"
+    assert entry["direction"] is None
+
+
+def test_apply_deploy_gate_blocks_when_not_ok():
+    entry = {"metrics": {"execute": True}}
+    runtime = {"deploy_ok": False}
+    out = _apply_deploy_gate(entry, runtime, {"deploy_gate": {"enabled": True}})
+    assert out["metrics"]["execute"] is False
+    assert out["metrics"]["gate_reason"] == "deploy"
+    assert out["metrics"]["deploy_ok"] is False
+
+
+def test_log_retrain_batch_empty_and_nonempty(caplog):
+    _log_retrain_batch([], "bootstrap", {"training_history_bars": 5})
+    with caplog.at_level(logging.DEBUG):
+        _log_retrain_batch(["R_10", "R_25"], "new_candle", {"training_history_bars": 5})
+    assert "retreino" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_collect_symbol_decision_insufficient_history():
+    orch = MagicMock()
+    orch.stream.get_numpy_series = MagicMock(return_value=np.array([1.0, 2.0]))
+    entry, reason = await _collect_symbol_decision(
+        orch,
+        "R_50",
+        dl_config={},
+        params={"training_history_bars": 32},
+        min_len=10,
+        granularity=60,
+        recovery_active=False,
+    )
+    assert entry["metrics"]["gate_reason"] == "data"
+    assert reason is None
+
+
+@pytest.mark.asyncio
+async def test_collect_symbol_decision_full_path():
+    prices = np.sin(np.linspace(0, 10, 90)) + 10.0
+    orch = MockOrchestrator(["R_50"], prices)
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {"execute": True, "conviction": 0.62, "trade_score": 0.62, "val_accuracy": 0.52},
+    }
+    runtime = {
+        "model": MagicMock(),
+        "norm_stats": MagicMock(),
+        "val_accuracy": 0.52,
+        "val_brier": 0.25,
+        "calibrator": None,
+        "lookback": 32,
+        "deploy_ok": True,
+        "deploy_win_rate": 0.5,
+        "last_candle_epoch": 0,
+    }
+    with (
+        patch(
+            "src.application.services.deep_learning.decision_bridge.should_retrain_symbol",
+            return_value=(True, "bootstrap"),
+        ),
+        patch(
+            "src.application.services.deep_learning.decision_bridge.run_symbol_training",
+            return_value=(MagicMock(), 0.1),
+        ),
+        patch(
+            "src.application.services.deep_learning.decision_bridge.predict_symbol_decision",
+            return_value=entry,
+        ),
+        patch(
+            "src.application.services.deep_learning.decision_bridge.get_symbol_runtime",
+            return_value=runtime,
+        ),
+        patch(
+            "src.application.services.deep_learning.decision_bridge.candle_epoch",
+            return_value=1000,
+        ),
+    ):
+        out, reason = await _collect_symbol_decision(
+            orch,
+            "R_50",
+            dl_config={"deploy_gate": {"enabled": False}},
+            params={"training_history_bars": 60, "lookback": 32},
+            min_len=30,
+            granularity=60,
+            recovery_active=False,
+        )
+    assert reason == "bootstrap"
+    assert out["direction"] == TradeDirection.CALL

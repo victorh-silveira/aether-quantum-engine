@@ -1,6 +1,6 @@
 # Aether Quantum Engine 2.0
 
-[![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)](app/.python-version)
+[![Python](https://img.shields.io/badge/Python-3.13.12-3776AB?logo=python&logoColor=white)](app/.python-version)
 [![Lint](https://img.shields.io/badge/Lint-ruff%20%7C%20interrogate-3776AB?logo=ruff&logoColor=white)](.github/actions/lint/action.yml)
 [![Tests](https://img.shields.io/badge/Tests-pytest-0F9D58?logo=pytest&logoColor=white)](app/tests/unit)
 [![Coverage](https://img.shields.io/badge/Coverage-100%25-0F9D58?logo=codecov&logoColor=white)](app/tests/unit)
@@ -71,30 +71,53 @@ Monitor opcional: `python app/scripts/monitor/live_monitor.py`
 
 ## Stack e qualidade
 
-- **Python 3.13**, `asyncio`, NumPy, Polars, PyTorch (TCN)
+- **Python 3.13.12**, `asyncio`, NumPy, Polars, PyTorch (TCN)
 - **Deriv** PAT + REST OTP + WebSocket (`api_config` em settings; ver `docs/deriv-api.md`)
 - **CI / pre-commit**: Ruff, Interrogate, Vulture, limite 300 linhas/arquivo, pytest com **100%** de cobertura em `app/src`
 
-Comandos (WSL recomendado):
+Requisito local: ambiente Conda **`deriv-api`** (Python 3.13.12) com dependências instaladas. Configuração em [`config/python.json`](config/python.json). O CI continua usando Python 3.13.12 via GitHub Actions.
+
+Windows: abra **Anaconda PowerShell Prompt**, `conda activate deriv-api`, depois `make install` nao aplica no Win — use:
+
+```powershell
+conda activate deriv-api
+pip install -r app/requirements.txt -r app/requirements-dev.txt
+python app/scripts/deriv_pat_connect.py
+python run.py
+```
+
+Sem `conda` no PATH, use o executavel direto:
+
+```powershell
+& "$env:USERPROFILE\anaconda3\envs\deriv-api\python.exe" -m pip install -r app/requirements.txt -r app/requirements-dev.txt
+```
+
+WSL (usa o mesmo Conda em `/mnt/c/Users/.../anaconda3/envs/deriv-api`):
 
 ```bash
+conda activate deriv-api
 make install
 make test
 make lint
-python app/scripts/deriv_pat_connect.py
-make run
 ```
 
-Pre-commit: `pre-commit run --all-files` (na raiz do repo).
+Pre-commit (na raiz do repo, com `deriv-api` ativo):
+
+```powershell
+conda activate deriv-api
+python -m pre_commit run --all-files
+```
+
+WSL: `make pre-commit-run`
 
 ---
 
 ## Execução ao vivo
 
 1. Configure `.env` com PAT e App ID (app PAT em developers.deriv.com).
-2. `make install`
-3. Valide checkpoints DL (seção abaixo).
-4. `make run` ou `python run.py`
+2. `conda activate deriv-api` e `make install` (se ainda nao instalou as deps no env).
+3. Valide checkpoints DL (secao abaixo).
+4. `make run` ou `launch-all-demo.bat` / `launch-all-live.bat`
 
 O motor exige `deep_learning.enabled: true`. Não há modo de decisão por LLM no pipeline ao vivo atual.
 
@@ -109,8 +132,8 @@ Antes de operar com dinheiro real ou demo prolongado:
 
 ```bash
 cd app
-../app/.venv-wsl/bin/python scripts/backtest/dl_walkforward.py --symbol RDBULL
-../app/.venv-wsl/bin/python scripts/backtest/dl_walkforward.py --symbol RDBEAR
+python scripts/backtest/dl_walkforward.py --symbol RDBULL
+python scripts/backtest/dl_walkforward.py --symbol RDBEAR
 ```
 
 3. Só confie no live se `deploy_ok` e métricas do relatório estiverem dentro de `deploy_gate` em `settings.json`.

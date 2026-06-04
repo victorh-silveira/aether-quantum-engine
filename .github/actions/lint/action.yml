@@ -5,9 +5,10 @@ runs:
   using: composite
 
   steps:
-    - name: Configurar Python (.python-version)
+    - name: Configurar Python 3.13.12
       uses: actions/setup-python@v5
       with:
+        python-version: "3.13.12"
         python-version-file: app/.python-version
         cache: pip
         cache-dependency-path: |

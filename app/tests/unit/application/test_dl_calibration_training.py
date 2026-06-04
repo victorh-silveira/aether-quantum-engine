@@ -43,12 +43,12 @@ def test_calibration_helpers():
 
 def test_outcome_weights():
     orch = type("O", (), {})()
-    record_symbol_outcome(orch, "RDBULL", won=True, candle_epoch=100)
+    record_symbol_outcome(orch, "R_50", won=True, candle_epoch=100)
     assert hasattr(orch, "_dl_outcome_flags")
-    assert sample_weights_for_symbol(orch, "RDBULL", 0) == []
-    record_symbol_outcome(orch, "RDBULL", won=False, candle_epoch=101)
-    record_symbol_outcome(orch, "RDBULL", won=False, candle_epoch=102)
-    weights = sample_weights_for_symbol(orch, "RDBULL", 10)
+    assert sample_weights_for_symbol(orch, "R_50", 0) == []
+    record_symbol_outcome(orch, "R_50", won=False, candle_epoch=101)
+    record_symbol_outcome(orch, "R_50", won=False, candle_epoch=102)
+    weights = sample_weights_for_symbol(orch, "R_50", 10)
     assert len(weights) == 10
     assert max(weights) > 1.0
 
@@ -56,9 +56,9 @@ def test_outcome_weights():
 def test_outcome_history_caps_at_eighty():
     orch = type("O", (), {})()
     for i in range(85):
-        record_symbol_outcome(orch, "RDBULL", won=bool(i % 2), candle_epoch=i)
-    assert len(orch._dl_outcome_flags["RDBULL"]) == 80
-    assert len(orch._dl_outcome_epochs["RDBULL"]) == 80
+        record_symbol_outcome(orch, "R_50", won=bool(i % 2), candle_epoch=i)
+    assert len(orch._dl_outcome_flags["R_50"]) == 80
+    assert len(orch._dl_outcome_epochs["R_50"]) == 80
 
 
 def test_train_model_walkforward_weighted():

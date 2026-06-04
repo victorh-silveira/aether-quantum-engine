@@ -113,7 +113,12 @@ def record_symbol_outcome(orch, symbol: str, *, won: bool, candle_epoch: int | N
         )
 
 
-def sample_weights_for_symbol(orch, symbol: str, sample_count: int) -> list[float]:
+def sample_weights_for_symbol(
+    orch,
+    symbol: str,
+    sample_count: int,
+    targets: list[float] | None = None,
+) -> list[float]:
     """Gera pesos alinhados ao tail de treino com boost apos losses recentes."""
     if sample_count <= 0:
         return []
@@ -123,7 +128,7 @@ def sample_weights_for_symbol(orch, symbol: str, sample_count: int) -> list[floa
         return weights
     tail = flags[-min(16, len(flags)) :]
     loss_ratio = 1.0 - (sum(1 for x in tail if x) / float(len(tail)))
-    boost = 1.0 + loss_ratio * 1.2
+    boost = 1.0 + loss_ratio * 1.35
     focus = min(sample_count, max(4, len(tail) * 3))
     for idx in range(sample_count - focus, sample_count):
         weights[idx] = boost
@@ -132,4 +137,12 @@ def sample_weights_for_symbol(orch, symbol: str, sample_count: int) -> list[floa
         dampen = max(0.75, 1.0 - wins / float(len(tail) + 1))
         for idx in range(sample_count - focus, sample_count):
             weights[idx] *= dampen
+    last_dir = getattr(orch, "_last_loss_direction", None)
+    if last_dir and targets and len(targets) == sample_count and tail and not tail[-1]:
+        want_label = 1.0 if str(last_dir).upper() == "CALL" else 0.0
+        for idx in range(sample_count):
+            if float(targets[idx]) == want_label:
+                weights[idx] *= 1.25
+            else:
+                weights[idx] *= 1.55
     return weights

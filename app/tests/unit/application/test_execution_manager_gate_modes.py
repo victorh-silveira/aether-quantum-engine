@@ -12,10 +12,10 @@ async def test_execute_cluster_logs_exec_none_when_not_mandatory(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 1
-        orch.symbols = ["RDBULL"]
+        orch.symbols = ["R_50"]
         orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = False
         decisions = {
-            "RDBULL": {"direction": TradeDirection.PUT, "metrics": {"conviction": 0.7, "execute": False}},
+            "R_50": {"direction": TradeDirection.PUT, "metrics": {"conviction": 0.7, "execute": False}},
         }
         with (
             patch.object(orch.executor.logger, "info") as mock_info,
@@ -31,13 +31,13 @@ async def test_execute_cluster_mandatory_skips_exec_none_when_execute_false(orch
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 1
-        orch.symbols = ["RDBULL"]
+        orch.symbols = ["R_50"]
         orch.risk_manager.calculate_stake = MagicMock(return_value=2.0)
         orch.risk_manager.stake_block_reason = MagicMock(return_value=None)
         orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = True
         orch.config["orchestrator"]["execution"]["invert_dl_direction"] = True
         decisions = {
-            "RDBULL": {
+            "R_50": {
                 "direction": TradeDirection.CALL,
                 "metrics": {"conviction": 0.7, "execute": False, "raw_prob": 0.52},
             },
@@ -60,14 +60,14 @@ def test_log_execution_blockers_when_gating_disabled(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 2
-        orch.symbols = ["RDBULL"]
+        orch.symbols = ["R_50"]
         orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = False
         orch.risk_manager.calculate_stake = MagicMock(return_value=0.0)
         orch.risk_manager.stake_block_reason = MagicMock(return_value="kelly_no_edge")
         with patch.object(orch.executor.logger, "info") as mock_info:
             orch.executor._log_execution_blockers(
                 {
-                    "RDBULL": {
+                    "R_50": {
                         "direction": TradeDirection.CALL,
                         "metrics": {"execute": False, "gate_reason": "conviction", "conviction": 0.5},
                     },
@@ -81,9 +81,9 @@ def test_collect_orders_non_mandatory_skips_execute_false(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = False
-        orch.symbols = ["RDBULL"]
+        orch.symbols = ["R_50"]
         decisions = {
-            "RDBULL": {"direction": TradeDirection.CALL, "metrics": {"execute": False, "conviction": 0.9}},
+            "R_50": {"direction": TradeDirection.CALL, "metrics": {"execute": False, "conviction": 0.9}},
         }
         assert orch.executor._collect_orders(decisions) == []
 
@@ -93,12 +93,12 @@ def test_collect_orders_non_mandatory_applies_selection_filter(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = False
-        orch.symbols = ["RDBULL"]
+        orch.symbols = ["R_50"]
         orch.config["deep_learning"] = {
             "selection": {"min_conviction_execute": 0.99, "min_edge_margin": 0.99, "min_val_accuracy": 0.99}
         }
         decisions = {
-            "RDBULL": {
+            "R_50": {
                 "direction": TradeDirection.CALL,
                 "metrics": {
                     "execute": True,
@@ -118,10 +118,10 @@ def test_collect_orders_non_mandatory_keeps_filtered_candidate(orch_config):
         orch = Orchestrator(orch_config, "token")
         orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = False
         orch.config["orchestrator"]["execution"]["invert_dl_direction"] = False
-        orch.symbols = ["RDBULL"]
+        orch.symbols = ["R_50"]
         orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["include_anchor_trades"] = True
         decisions = {
-            "RDBULL": {
+            "R_50": {
                 "direction": TradeDirection.CALL,
                 "metrics": {
                     "execute": True,
@@ -144,13 +144,13 @@ async def test_execute_cluster_exec_skip_when_no_direction(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 3
-        orch.symbols = ["RDBULL"]
+        orch.symbols = ["R_50"]
         orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = True
         with (
             patch.object(orch.executor.logger, "warning") as mock_warn,
             patch.object(orch.executor, "_execute_orders", new_callable=AsyncMock, return_value=0),
         ):
-            await orch.executor.execute_cluster({"RDBULL": {"direction": None, "metrics": {}}})
+            await orch.executor.execute_cluster({"R_50": {"direction": None, "metrics": {}}})
         assert any("EXEC_SKIP" in str(c) for c in mock_warn.call_args_list)
 
 
@@ -178,7 +178,7 @@ async def test_execute_orders_market_closed_emits_warning(orch_config):
         orch._active_cycle_id = 1
         orch.risk_manager.calculate_stake = MagicMock(return_value=2.0)
         orch.executor._place_order = AsyncMock(side_effect=Exception("This market is presently closed."))
-        orders = [("RDBEAR", TradeDirection.CALL, {"conviction": 0.8})]
+        orders = [("R_75", TradeDirection.CALL, {"conviction": 0.8})]
         with patch.object(orch.executor.logger, "warning") as mock_warn:
             count = await orch.executor._execute_orders(orders, 0.0, 100.0)
         assert count == 0

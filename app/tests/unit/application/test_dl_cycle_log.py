@@ -1,12 +1,16 @@
 import logging
 
-from src.application.services.deep_learning.dl_cycle_log import build_dl_cycle_summary, log_dl_cycle_summary
+from src.application.services.deep_learning.dl_cycle_log import (
+    build_dl_cycle_brief,
+    build_dl_cycle_summary,
+    log_dl_cycle_summary,
+)
 from src.domain.models.trade import TradeDirection
 
 
 def test_build_dl_cycle_summary_direction_margin_raw():
     decisions = {
-        "RDBULL": {
+        "R_50": {
             "direction": None,
             "metrics": {"gate_reason": "direction_margin", "raw_prob": 0.52, "execute": False},
         },
@@ -17,7 +21,7 @@ def test_build_dl_cycle_summary_direction_margin_raw():
 
 def test_build_dl_cycle_summary_normal():
     decisions = {
-        "RDBULL": {
+        "R_50": {
             "direction": TradeDirection.PUT,
             "metrics": {
                 "conviction": 0.71,
@@ -26,7 +30,7 @@ def test_build_dl_cycle_summary_normal():
                 "bypass_val_acc": True,
             },
         },
-        "RDBEAR": {
+        "R_75": {
             "direction": TradeDirection.CALL,
             "metrics": {
                 "conviction": 0.53,
@@ -40,8 +44,8 @@ def test_build_dl_cycle_summary_normal():
     }
     line = build_dl_cycle_summary(decisions, recovery_active=False, pending_loss_total=0.0)
     assert "DL | NORMAL" in line
-    assert "RDBULL:PUT:0.71:v0.50:bypass" in line
-    assert "RDBEAR:conviction:r0.54:c0.53:e0.03:v0.43:b0.00:x0.00" in line
+    assert "R_50:PUT:0.71:v0.50:bypass" in line
+    assert "R_75:conviction:r0.54:c0.53:e0.03:v0.43:b0.00:x0.00" in line
 
 
 def test_build_dl_cycle_summary_recovery_and_truncation():
@@ -59,7 +63,7 @@ def test_build_dl_cycle_summary_recovery_and_truncation():
 
 def test_build_dl_cycle_summary_recovery_exec_token():
     decisions = {
-        "RDBEAR": {
+        "R_75": {
             "direction": TradeDirection.CALL,
             "metrics": {
                 "conviction": 0.55,
@@ -73,14 +77,29 @@ def test_build_dl_cycle_summary_recovery_exec_token():
     assert ":rec" in line
 
 
+def test_build_dl_cycle_brief_exec_and_blocked():
+    decisions = {
+        "R_100": {
+            "direction": TradeDirection.PUT,
+            "metrics": {"conviction": 0.75, "execute": True, "val_accuracy": 1.0},
+        },
+        "R_50": {"direction": None, "metrics": {"gate_reason": "direction_margin", "execute": False}},
+    }
+    line = build_dl_cycle_brief(decisions, recovery_active=False)
+    assert "R_100:PUT c=0.75" in line
+    assert "1 bloq" in line
+
+
 def test_log_dl_cycle_summary(caplog):
     logger = logging.getLogger("test_dl_cycle_log")
+    logger.setLevel(logging.DEBUG)
     decisions = {
-        "RDBULL": {
+        "R_50": {
             "direction": None,
             "metrics": {"conviction": 0.0, "execute": False},
         }
     }
-    with caplog.at_level(logging.INFO):
+    with caplog.at_level(logging.DEBUG):
         log_dl_cycle_summary(logger, decisions, recovery_active=False, pending_loss_total=0.0)
     assert "DL | NORMAL" in caplog.text
+    assert "sem exec" in caplog.text

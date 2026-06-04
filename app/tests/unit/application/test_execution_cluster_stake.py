@@ -11,12 +11,17 @@ def test_cluster_stake_block_passes_dl_metrics_to_stake_reason(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 7
-        orch.risk_manager.pending_loss["RDBULL"] = 100.0
+        orch.risk_manager.pending_loss["R_50"] = 100.0
         orders = [
             (
-                "RDBULL",
+                "R_50",
                 TradeDirection.PUT,
-                {"conviction": 0.45, "val_brier": 0.35, "gate_reason": "brier"},
+                {
+                    "conviction": 0.60,
+                    "raw_prob": 0.58,
+                    "val_brier": 0.12,
+                    "deploy_ok": True,
+                },
             ),
         ]
         with patch.object(
@@ -27,7 +32,7 @@ def test_cluster_stake_block_passes_dl_metrics_to_stake_reason(orch_config):
         mock_reason.assert_called_once()
         call_kw = mock_reason.call_args.kwargs
         assert call_kw["order_direction"] == "PUT"
-        assert call_kw["dl_metrics"]["val_brier"] == 0.35
+        assert call_kw["dl_metrics"]["val_brier"] == 0.12
         assert call_kw["cycle_id"] == 7
 
 
@@ -37,7 +42,7 @@ async def test_execute_cluster_logs_recovery_banner(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 12
-        orch.risk_manager.pending_loss["RDBULL"] = 50.0
+        orch.risk_manager.pending_loss["R_50"] = 50.0
         orch.risk_manager.initial_bankroll = 10000.0
         with (
             patch.object(orch.executor.logger, "info") as mock_info,

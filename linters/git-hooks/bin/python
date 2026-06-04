@@ -1,27 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-if [ -f /proc/version ] && grep -qi microsoft /proc/version 2>/dev/null; then
-  for exe in \
-    "$ROOT/app/.venv-wsl/bin/python" \
-    "$ROOT/app/.venv-win/Scripts/python.exe" \
-    "/mnt/c/Users/${USER}/AppData/Local/Programs/Python/Python313/python.exe" \
-    "/mnt/c/Users/${USER}/AppData/Local/Programs/Python/Python314/python.exe"; do
-    if [ -x "$exe" ]; then
-      exec "$exe" "$@"
-    fi
-  done
-fi
-if [ -x "$ROOT/app/.venv-win/Scripts/python.exe" ]; then
-  exec "$ROOT/app/.venv-win/Scripts/python.exe" "$@"
-fi
-if [ -x "$ROOT/app/.venv-wsl/bin/python" ]; then
-  exec "$ROOT/app/.venv-wsl/bin/python" "$@"
-fi
-if command -v python3.13 >/dev/null 2>&1; then
-  exec python3.13 "$@"
-fi
-if command -v python3 >/dev/null 2>&1; then
-  exec python3 "$@"
-fi
-exec python "$@"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+PY="$("$HERE/resolve_conda_python.sh")" || {
+  echo "Conda deriv-api nao encontrado. Rode: conda activate deriv-api" >&2
+  exit 1
+}
+exec "$PY" "$@"

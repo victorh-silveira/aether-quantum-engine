@@ -50,6 +50,13 @@ class StreamHandler:
         self.logger.debug(f"DATA: Sincronizando Enxame Aegis ({len(self.symbols)} pares - OHLC {self.granularity}s)...")
         tasks = [self._fetch_symbol_history(s, fetch_count) for s in self.symbols]
         await asyncio.gather(*tasks)
+        if self.symbols:
+            bars = len(self.candles.get(self.symbols[0], []))
+            self.logger.info(
+                "DATA: Buffer pronto | %d simbolos | %d velas",
+                len(self.symbols),
+                bars,
+            )
         if not self.ws.is_running:
             raise ConnectionError("STREAM: WebSocket desconectado após sincronização histórica.")
 
@@ -115,7 +122,7 @@ class StreamHandler:
         if len(merged) > target:
             merged = merged[-target:]
         self.candles[symbol] = merged
-        self.logger.info("DATA: Historico %s | %d velas (alvo %d)", symbol, len(merged), target)
+        self.logger.debug("DATA: Historico %s | %d velas (alvo %d)", symbol, len(merged), target)
 
     async def _on_candle(self, data):
         """Processa atualizações de OHLC recebidas."""

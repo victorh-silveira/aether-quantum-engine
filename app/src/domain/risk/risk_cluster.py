@@ -18,6 +18,9 @@ def finalize_risk_cluster(risk_manager) -> None:
                 cluster_profit,
             )
         risk_manager.consecutive_losses = 0
+        if sum(risk_manager.pending_loss.values()) <= 0.0:
+            risk_manager.last_martingale_stake = 0.0
+            risk_manager.last_loss_stake = 0.0
 
     risk_manager._cooldown_until_mono = 0.0
     risk_manager.current_cooldown_ticks = 0

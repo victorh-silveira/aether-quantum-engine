@@ -120,6 +120,11 @@ def train_model_walkforward(
     pair_prices: np.ndarray | None = None,
     require_pair_label: bool = False,
     sym_is_bull: bool = True,
+    label_horizon_bars: int = 1,
+    open_: np.ndarray | None = None,
+    high: np.ndarray | None = None,
+    low: np.ndarray | None = None,
+    compact_mhi: bool = False,
 ) -> TrainResult | None:
     """Treina TCN com split purged, early stopping e calibrador Platt."""
     x_all, y_all, mask_all = extract_sequences(
@@ -130,9 +135,16 @@ def train_model_walkforward(
         pair_prices=pair_prices,
         require_pair_label=require_pair_label,
         sym_is_bull=sym_is_bull,
+        label_horizon_bars=label_horizon_bars,
+        open_=open_,
+        high=high,
+        low=low,
+        compact_mhi=compact_mhi,
     )
     if require_pair_label and len(mask_all) > 0 and float(mask_all.mean()) < 0.08:
-        logger.info("DL_TRAIN: pair label ativo em %.1f%%; retreino sem filtro de par.", 100.0 * float(mask_all.mean()))
+        logger.debug(
+            "DL_TRAIN: pair label ativo em %.1f%%; retreino sem filtro de par.", 100.0 * float(mask_all.mean())
+        )
         x_all, y_all, mask_all = extract_sequences(
             prices,
             lookback,
@@ -141,10 +153,20 @@ def train_model_walkforward(
             pair_prices=pair_prices,
             require_pair_label=False,
             sym_is_bull=sym_is_bull,
+            label_horizon_bars=label_horizon_bars,
+            open_=open_,
+            high=high,
+            low=low,
+            compact_mhi=compact_mhi,
         )
-    splits = purged_temporal_splits(len(x_all), validation_bars, calib_ratio=calib_ratio)
+    splits = purged_temporal_splits(
+        len(x_all),
+        validation_bars,
+        calib_ratio=calib_ratio,
+        compact_mhi=compact_mhi,
+    )
     if splits is None:
-        logger.info(
+        logger.debug(
             "DL_TRAIN: amostras insuficientes para split (n=%d lookback=%d val=%d).",
             len(x_all),
             lookback,

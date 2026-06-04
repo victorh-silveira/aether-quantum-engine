@@ -5,6 +5,7 @@ from typing import Any
 import numpy as np
 
 from src.application.services.deep_learning.dl_gate_config import parse_deploy_gate_config
+from src.application.services.deep_learning.dl_horizon import resolve_label_horizon_bars
 
 
 def bars_per_day(granularity_seconds: int) -> int:
@@ -53,18 +54,31 @@ def optional_float(section: dict, key: str) -> float | None:
     return float(section[key])
 
 
-def parse_dl_params(dl_config: dict, data_config: dict | None = None) -> dict[str, Any]:
+def parse_dl_params(
+    dl_config: dict,
+    data_config: dict | None = None,
+    risk_params: dict | None = None,
+) -> dict[str, Any]:
     """Extrai parametros de treino, validacao e gating do bloco deep_learning."""
     data_config = data_config or {}
+    risk_params = risk_params or {}
     selection = dl_config.get("selection", {})
     gran = int(data_config.get("granularity") or dl_config.get("granularity") or 300)
+    mhi_mode = bool(dl_config.get("mhi_mode", False))
+    lookback = int(dl_config.get("lookback", 5 if mhi_mode else 32))
     training_history_bars = resolve_training_history_bars(dl_config, data_config)
+    if mhi_mode:
+        training_history_bars = max(lookback, int(dl_config.get("training_history_bars", lookback)))
+    label_horizon_bars = resolve_label_horizon_bars(gran, risk_params, dl_config)
+    validation_bars = int(dl_config.get("validation_bars", 1 if mhi_mode else 60))
     base = {
         "arch": str(dl_config.get("arch", "tcn")),
-        "lookback": int(dl_config.get("lookback", 32)),
+        "lookback": lookback,
+        "mhi_mode": mhi_mode,
+        "compact_mhi": mhi_mode,
         "epochs": int(dl_config.get("training_epochs", 20)),
         "lr": float(dl_config.get("learning_rate", 0.001)),
-        "validation_bars": int(dl_config.get("validation_bars", 60)),
+        "validation_bars": validation_bars,
         "label_min_move_pct": float(dl_config.get("label_min_move_pct", 0.0002)),
         "early_stopping_patience": int(dl_config.get("early_stopping_patience", 3)),
         "focal_gamma": float(dl_config.get("focal_gamma", 0.0)),
@@ -116,10 +130,10 @@ def parse_dl_params(dl_config: dict, data_config: dict | None = None) -> dict[st
         "retrain_min_bars": int(dl_config.get("retrain_min_bars", 0)),
         "training_history_bars": training_history_bars,
         "bars_per_day": bars_per_day(gran),
+        "label_horizon_bars": label_horizon_bars,
     }
     gate = parse_deploy_gate_config(dl_config)
-    lookback = int(dl_config.get("lookback", 32))
-    min_eval_bars = lookback + 5
+    min_eval_bars = lookback + (2 if mhi_mode else 5)
     gate = {**gate, "mini_bars": max(min_eval_bars, int(gate.get("mini_bars", 80)))}
     base["deploy_gate"] = gate
     return base

@@ -35,6 +35,9 @@ def predict_symbol_decision(
     recovery_active: bool,
     granularity: int = 300,
     pair_prices=None,
+    open_=None,
+    high=None,
+    low=None,
 ) -> dict:
     """Gera predicao e gating de execucao com score calibrado unificado."""
     val_accuracy = blended_val_accuracy(
@@ -66,6 +69,9 @@ def predict_symbol_decision(
             granularity=gran,
             pair_prices=pair_prices,
             deploy_ok=deploy_ok,
+            open_=open_,
+            high=high,
+            low=low,
         )
         if direction is None:
             entry = build_decision_entry(

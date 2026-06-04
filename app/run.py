@@ -44,6 +44,10 @@ async def main():
         KeyboardInterrupt,
     ):
         await orchestrator.stop()
+    if getattr(orchestrator, "shutdown_reason", None) == "stop_win":
+        target = orchestrator.risk_manager.total_session_profit
+        logger.info("STOP_WIN: meta diaria atingida (pnl_sessao=$%+.2f). Motor encerrado.", target)
+        raise SystemExit(0)
     if not orchestrator.running:
         logger.error(
             "Motor encerrou antes do loop principal. Veja INIT (PAT, OTP, stream) e %s",

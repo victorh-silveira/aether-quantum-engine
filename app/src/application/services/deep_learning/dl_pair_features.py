@@ -1,4 +1,4 @@
-"""Features de par RDBULL/RDBEAR para tensor Deep Learning."""
+"""Features de par Range R_* para tensor Deep Learning."""
 
 import numpy as np
 
@@ -53,13 +53,16 @@ def spread_confirms_direction(
     *,
     target_up: bool,
     sym_is_bull: bool,
+    horizon_bars: int = 1,
 ) -> bool:
     """Confirma label quando movimento do spread log(bull/bear) alinha ao simbolo treinado."""
-    if index + 1 >= len(prices_sym) or index + 1 >= len(prices_peer):
+    step = max(1, int(horizon_bars))
+    j = index + step
+    if j >= len(prices_sym) or j >= len(prices_peer):
         return True
     bull, bear = (prices_sym, prices_peer) if sym_is_bull else (prices_peer, prices_sym)
     spread_i = np.log((bull[index] + 1e-10) / (bear[index] + 1e-10))
-    spread_j = np.log((bull[index + 1] + 1e-10) / (bear[index + 1] + 1e-10))
+    spread_j = np.log((bull[j] + 1e-10) / (bear[j] + 1e-10))
     spread_up = spread_j > spread_i
     want_spread_up = bool(target_up) if sym_is_bull else not bool(target_up)
     return spread_up == want_spread_up

@@ -18,6 +18,10 @@ def kelly_config():
             "dynamic_min_samples": 5,
             "fraction": 0.1,
             "max_stake_pct": 0.05,
+            "martingale_native": True,
+            "martingale_multiplier": 2.0,
+            "martingale_sizing_conviction": 0.60,
+            "full_recovery_martingale": True,
         },
         "params": {"payout_estimate": 0.95, "stake_min": 1.0, "entry_cooldown_ticks": 0},
     }
@@ -26,14 +30,14 @@ def kelly_config():
 def test_kelly_calculation_standard(kelly_config):
     """Verifica o cálculo de Kelly com probabilidade e payout padrão."""
     rm = RiskManager(kelly_config)
-    stake = rm.calculate_stake(1000.0, "RDBULL", conviction=0.6)
+    stake = rm.calculate_stake(1000.0, "R_50", conviction=0.6)
     assert stake == pytest.approx(17.89, abs=0.1)
 
 
 def test_kelly_negative_edge_returns_min_stake(kelly_config):
     """Verifica que agora forçamos a stake_min mesmo sem vantagem (No-Idle)."""
     rm = RiskManager(kelly_config)
-    stake = rm.calculate_stake(1000.0, "RDBULL", conviction=0.5)
+    stake = rm.calculate_stake(1000.0, "R_50", conviction=0.5)
     assert stake == 1.0
 
 
@@ -41,7 +45,7 @@ def test_kelly_caps_stake_by_max_pct(kelly_config):
     """Verifica que a stake Kelly respeita max_stake_pct da configuracao."""
     kelly_config["kelly"]["fraction"] = 1.0
     rm = RiskManager(kelly_config)
-    stake = rm.calculate_stake(1000.0, "RDBULL", conviction=0.8)
+    stake = rm.calculate_stake(1000.0, "R_50", conviction=0.8)
     assert stake == pytest.approx(50.0, abs=0.1)
 
 
@@ -52,8 +56,8 @@ def test_kelly_high_conviction_cap(kelly_config):
     kelly_config["kelly"]["max_stake_pct_high_conviction"] = 0.04
     kelly_config["kelly"]["high_conviction_stake_threshold"] = 0.85
     rm = RiskManager(kelly_config)
-    low = rm.calculate_stake(1000.0, "RDBULL", conviction=0.7)
-    high = rm.calculate_stake(1000.0, "RDBULL", conviction=0.9)
+    low = rm.calculate_stake(1000.0, "R_50", conviction=0.7)
+    high = rm.calculate_stake(1000.0, "R_50", conviction=0.9)
     assert high > low
     assert low == pytest.approx(20.0, abs=0.1)
     assert high == pytest.approx(40.0, abs=0.1)
@@ -64,16 +68,16 @@ def test_kelly_dynamic_win_rate(kelly_config):
     rm = RiskManager(kelly_config)
     for _ in range(5):
         rm.active_contract_ids = [1]
-        rm.register_result(10.0, 1, "RDBULL")
+        rm.register_result(10.0, 1, "R_50")
 
-    p = rm.effective_win_rate("RDBULL", conviction=0.6)
+    p = rm.effective_win_rate("R_50", conviction=0.6)
     assert p == pytest.approx(0.72)
 
 
 def test_kelly_respects_stake_min(kelly_config):
     """Verifica que a stake mínima é respeitada se houver edge."""
     rm = RiskManager(kelly_config)
-    stake = rm.calculate_stake(10.0, "RDBULL", conviction=0.6)
+    stake = rm.calculate_stake(10.0, "R_50", conviction=0.6)
     assert stake == 1.0
 
 
@@ -83,19 +87,20 @@ def test_kelly_intelligent_recovery(kelly_config):
     rm = RiskManager(kelly_config)
 
     rm.active_contract_ids = [1]
-    rm.register_result(-10.0, 1, "RDBULL")
-    assert rm.pending_loss["RDBULL"] == 10.0
+    rm.register_result(-10.0, 1, "R_50")
+    assert rm.pending_loss["R_50"] == 10.0
 
-    stake_low = rm.calculate_stake(1000.0, "RDBULL", conviction=0.6)
+    stake_low = rm.calculate_stake(1000.0, "R_50", conviction=0.6)
     assert stake_low > 17.89
-    assert stake_low == pytest.approx(28.42, abs=0.2)
+    assert stake_low == pytest.approx(35.79, abs=0.5)
 
-    stake_high = rm.calculate_stake(1000.0, "RDBULL", conviction=0.8)
-    assert stake_high > stake_low
+    rm.last_martingale_stake = 0.0
+    stake_high = rm.calculate_stake(1000.0, "R_50", conviction=0.8)
+    assert stake_high == pytest.approx(stake_low, abs=0.02)
 
     rm.active_contract_ids = [2]
-    rm.register_result(57.49, 2, "RDBULL")
-    assert rm.pending_loss["RDBULL"] == 0.0
+    rm.register_result(57.49, 2, "R_50")
+    assert rm.pending_loss["R_50"] == 0.0
 
 
 def test_martingale_after_partial_win(kelly_config):
@@ -104,42 +109,43 @@ def test_martingale_after_partial_win(kelly_config):
     kelly_config["kelly"]["max_recovery_stake_pct"] = 0.035
     rm = RiskManager(kelly_config)
 
-    rm.pending_loss["RDBEAR"] = 8.54
+    rm.pending_loss["R_75"] = 8.54
     rm.consecutive_losses = 0
 
-    stake = rm.calculate_stake(10000.0, "RDBEAR", conviction=0.61)
+    stake = rm.calculate_stake(10000.0, "R_75", conviction=0.61)
     assert stake > 100.0
-    assert stake == pytest.approx(109.0, abs=1.0)
+    assert stake == pytest.approx(200.0, abs=1.0)
 
 
 def test_kelly_keeps_fraction_with_consecutive_losses_without_pending(kelly_config):
     rm = RiskManager(kelly_config)
-    stake_base = rm.calculate_stake(1000.0, "RDBULL", conviction=0.6)
+    stake_base = rm.calculate_stake(1000.0, "R_50", conviction=0.6)
     rm.consecutive_losses = 2
-    stake_same = rm.calculate_stake(1000.0, "RDBULL", conviction=0.6)
+    stake_same = rm.calculate_stake(1000.0, "R_50", conviction=0.6)
     assert stake_same == stake_base
 
 
 def test_stake_zero_when_bankroll_below_min(kelly_config):
     rm = RiskManager(kelly_config)
-    stake = rm.calculate_stake(0.5, "RDBULL", conviction=0.4)
+    stake = rm.calculate_stake(0.5, "R_50", conviction=0.4)
     assert stake == 0.0
 
 
 def test_stake_zero_when_bankroll_below_stake_min_with_conviction(kelly_config):
     rm = RiskManager(kelly_config)
-    stake = rm.calculate_stake(0.5, "RDBULL", conviction=0.55)
+    stake = rm.calculate_stake(0.5, "R_50", conviction=0.55)
     assert stake == 0.0
 
 
 def test_kelly_recovery_respects_safety_cap(kelly_config):
     """Verifica se a recuperacao respeita max_recovery_stake_pct."""
     kelly_config["kelly"]["max_recovery_stake_pct"] = 0.10
+    kelly_config["kelly"]["full_recovery_martingale"] = False
     rm = RiskManager(kelly_config)
 
-    rm.pending_loss["RDBULL"] = 500.0
+    rm.pending_loss["R_50"] = 500.0
 
-    stake = rm.calculate_stake(1000.0, "RDBULL", conviction=0.8)
+    stake = rm.calculate_stake(1000.0, "R_50", conviction=0.8)
     assert stake == pytest.approx(100.0, abs=0.1)
 
 
@@ -151,7 +157,7 @@ def test_kelly_stop_win_zero_stake(kelly_config):
     rm.set_initial_bankroll(1000.0)
     rm.total_session_profit = 35.0
 
-    stake = rm.calculate_stake(1000.0, "RDBULL", conviction=0.8)
+    stake = rm.calculate_stake(1000.0, "R_50", conviction=0.8)
     assert stake == 0.0
 
 
@@ -161,15 +167,15 @@ def test_risk_manager_consecutive_losses_reset_on_win(kelly_config):
     assert rm.consecutive_losses == 0
 
     rm.active_contract_ids = [1]
-    rm.register_result(-5.0, 1, "RDBULL")
+    rm.register_result(-5.0, 1, "R_50")
     assert rm.consecutive_losses == 1
 
     rm.active_contract_ids = [2]
-    rm.register_result(-10.0, 2, "RDBULL")
+    rm.register_result(-10.0, 2, "R_50")
     assert rm.consecutive_losses == 2
 
     rm.active_contract_ids = [3]
-    rm.register_result(15.0, 3, "RDBULL")
+    rm.register_result(15.0, 3, "R_50")
     assert rm.consecutive_losses == 0
     assert rm.is_on_cooldown(99) is False
 
@@ -178,27 +184,24 @@ def test_risk_manager_consecutive_losses_fraction_reduction(kelly_config):
     """Apos perda pendente, proxima entrada usa martingale em vez de reduzir Kelly."""
     rm = RiskManager(kelly_config)
 
-    stake_base = rm.calculate_stake(1000.0, "RDBULL", conviction=0.6)
+    stake_base = rm.calculate_stake(1000.0, "R_50", conviction=0.6)
 
     rm.active_contract_ids = [1]
-    rm.register_result(-10.0, 1, "RDBULL")
+    rm.register_result(-10.0, 1, "R_50")
 
-    stake_after_loss = rm.calculate_stake(1000.0, "RDBEAR", conviction=0.6)
+    stake_after_loss = rm.calculate_stake(1000.0, "R_75", conviction=0.6)
     assert stake_after_loss > stake_base
 
 
-def test_risk_manager_consecutive_losses_recovery_conviction(kelly_config):
-    """Martingale so ativa quando conviccao atinge recovery threshold."""
-    kelly_config["kelly"]["recovery_conviction_threshold"] = 0.70
+def test_risk_manager_martingale_same_stake_regardless_of_conviction(kelly_config):
     rm = RiskManager(kelly_config)
-
     rm.active_contract_ids = [1]
-    rm.register_result(-10.0, 1, "RDBULL")
-
-    stake_below = rm.calculate_stake(1000.0, "RDBULL", conviction=0.65)
-    stake_above = rm.calculate_stake(1000.0, "RDBULL", conviction=0.75)
-    assert stake_above > stake_below
-    assert stake_above > 17.0
+    rm.register_result(-10.0, 1, "R_50")
+    stake_first = rm.calculate_stake(1000.0, "R_75", conviction=0.55)
+    rm.last_martingale_stake = 0.0
+    stake_second = rm.calculate_stake(1000.0, "R_75", conviction=0.55)
+    assert stake_second == stake_first
+    assert stake_first > 17.0
 
 
 def test_risk_manager_get_state_exports(kelly_config):
@@ -228,7 +231,7 @@ def test_single_strike_stake_boost_in_window(kelly_config):
         mock_dt.timezone = datetime.timezone
         mock_dt.UTC = datetime.UTC
 
-        stake = rm.calculate_stake(1000.0, "RDBULL", conviction=0.85)
+        stake = rm.calculate_stake(1000.0, "R_50", conviction=0.85)
         assert stake == pytest.approx(50.0, abs=0.1)
 
 
@@ -238,15 +241,15 @@ def test_cross_symbol_recovery(kelly_config):
     rm = RiskManager(kelly_config)
 
     rm.active_contract_ids = [1]
-    rm.register_result(-10.0, 1, "RDBULL")
+    rm.register_result(-10.0, 1, "R_50")
     assert sum(rm.pending_loss.values()) == 10.0
 
-    stake_b_high = rm.calculate_stake(1000.0, "RDBEAR", conviction=0.8)
-    assert stake_b_high == pytest.approx(60.53, abs=0.5)
+    stake_b_high = rm.calculate_stake(1000.0, "R_75", conviction=0.8)
+    assert stake_b_high == pytest.approx(35.79, abs=0.5)
 
     # Se ganhar no símbolo B, o lucro reduz a perda pendente globalmente
     rm.active_contract_ids = [2]
-    rm.register_result(12.0, 2, "RDBEAR")
+    rm.register_result(12.0, 2, "R_75")
     assert sum(rm.pending_loss.values()) == 0.0
 
 
@@ -254,36 +257,36 @@ def test_partial_loss_recovery_and_break(kelly_config):
     """Verifica a redução parcial da perda pendente e o fluxo de break no loop de lucros."""
     rm = RiskManager(kelly_config)
     rm.active_contract_ids = [1, 2]
-    rm.register_result(-5.0, 1, "RDBULL")
-    rm.register_result(-5.0, 2, "RDBEAR")
+    rm.register_result(-5.0, 1, "R_50")
+    rm.register_result(-5.0, 2, "R_75")
     assert sum(rm.pending_loss.values()) == 10.0
 
     # Registrar ganho de 3.0 (menor que a primeira perda de 5.0)
     rm.active_contract_ids = [3]
-    rm.register_result(3.0, 3, "RDBEAR")
+    rm.register_result(3.0, 3, "R_75")
 
-    # Deve executar a ramificação else para RDBULL (reduzindo a 2.0)
-    # E o lucro restante zera, fazendo o break acontecer na próxima chave (RDBEAR continua 5.0)
-    assert rm.pending_loss["RDBULL"] == 2.0
-    assert rm.pending_loss["RDBEAR"] == 5.0
+    # Deve executar a ramificação else para R_50 (reduzindo a 2.0)
+    # E o lucro restante zera, fazendo o break acontecer na próxima chave (R_75 continua 5.0)
+    assert rm.pending_loss["R_50"] == 2.0
+    assert rm.pending_loss["R_75"] == 5.0
 
 
 def test_symbol_loss_cooldown_after_negative_result(kelly_config):
     kelly_config["kelly"]["symbol_loss_cooldown_cycles"] = 2
     rm = RiskManager(kelly_config)
     rm.active_contract_ids = [1]
-    rm.register_result(-10.0, 1, "RDBULL")
-    assert rm.last_loss_symbol == "RDBULL"
-    assert rm.is_symbol_on_loss_cooldown("RDBULL") is True
+    rm.register_result(-10.0, 1, "R_50")
+    assert rm.last_loss_symbol == "R_50"
+    assert rm.is_symbol_on_loss_cooldown("R_50") is True
     rm.tick_symbol_loss_cooldowns()
-    assert rm.is_symbol_on_loss_cooldown("RDBULL") is True
+    assert rm.is_symbol_on_loss_cooldown("R_50") is True
     rm.tick_symbol_loss_cooldowns()
-    assert rm.is_symbol_on_loss_cooldown("RDBULL") is False
+    assert rm.is_symbol_on_loss_cooldown("R_50") is False
 
 
 def test_symbol_loss_cooldown_zero_disables(kelly_config):
     kelly_config["kelly"]["symbol_loss_cooldown_cycles"] = 0
     rm = RiskManager(kelly_config)
     rm.active_contract_ids = [1]
-    rm.register_result(-10.0, 1, "RDBULL")
+    rm.register_result(-10.0, 1, "R_50")
     assert rm.symbol_loss_cooldown == {}

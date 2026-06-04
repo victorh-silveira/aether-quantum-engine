@@ -59,6 +59,7 @@ class Orchestrator:
             False,
             asyncio.Lock(),
         )
+        self.shutdown_reason: str | None = None
         self._cluster_results = []
         self._last_epoch = 0
         self._last_cluster_cycle_end = 0.0

@@ -49,9 +49,21 @@ def test_calibrate_conviction_legacy():
 def test_outcome_weights_dampen_after_win_streak():
     orch = type("O", (), {})()
     for _ in range(6):
-        record_symbol_outcome(orch, "RDBULL", won=True)
-    weights = sample_weights_for_symbol(orch, "RDBULL", 12)
+        record_symbol_outcome(orch, "R_50", won=True)
+    weights = sample_weights_for_symbol(orch, "R_50", 12)
     assert min(weights[-4:]) < 1.0
+
+
+def test_sample_weights_boost_labels_after_loss_direction():
+    orch = type("O", (), {"_last_loss_direction": "CALL"})()
+    orch._dl_outcome_flags = {"R_75": [False]}
+    targets = [1.0, 0.0, 1.0]
+    weights = sample_weights_for_symbol(orch, "R_75", 3, targets=targets)
+    assert weights[1] > weights[0]
+    orch_put = type("O", (), {"_last_loss_direction": "PUT"})()
+    orch_put._dl_outcome_flags = {"R_75": [False]}
+    weights_put = sample_weights_for_symbol(orch_put, "R_75", 2, targets=[0.0, 1.0])
+    assert weights_put[1] > weights_put[0]
 
 
 def test_purged_splits_edge_cases():
@@ -159,7 +171,7 @@ def test_run_symbol_training_when_walkforward_unavailable():
         return_value=None,
     ):
         stats, loss = run_symbol_training(
-            "RDBULL",
+            "R_50",
             runtime,
             prices,
             dl_config,
@@ -202,7 +214,7 @@ def test_run_symbol_training_handles_training_exception():
         side_effect=RuntimeError("fail"),
     ):
         stats, loss = run_symbol_training(
-            "RDBULL",
+            "R_50",
             runtime,
             prices,
             dl_config,

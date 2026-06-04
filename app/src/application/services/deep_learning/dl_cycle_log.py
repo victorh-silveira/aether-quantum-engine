@@ -55,6 +55,39 @@ def build_dl_cycle_summary(
     return f"DL | {mode} | exec=[{exec_part}] | skip=[{skip_part}{extra}]"
 
 
+def build_dl_cycle_brief(
+    decisions: dict[str, dict],
+    *,
+    recovery_active: bool,
+) -> str:
+    """Linha curta para o console com execucao ativa e contagem de bloqueios."""
+    exec_tokens: list[str] = []
+    blocked = 0
+    no_data = 0
+    for symbol, entry in decisions.items():
+        direction = entry.get("direction")
+        metrics = entry.get("metrics") or {}
+        if direction is None:
+            blocked += 1
+            if metrics.get("gate_reason") == "data":
+                no_data += 1
+            continue
+        if not metrics.get("execute"):
+            blocked += 1
+            continue
+        conv = float(metrics.get("trade_score", metrics.get("conviction", 0.0)))
+        exec_tokens.append(f"{symbol}:{direction.name} c={conv:.2f}")
+    tag = "REC " if recovery_active else ""
+    if exec_tokens:
+        head = ",".join(exec_tokens[:2])
+        more = f" +{len(exec_tokens) - 2}" if len(exec_tokens) > 2 else ""
+        tail = f" | {blocked} bloq" if blocked else ""
+        return f"DL {tag}| exec {head}{more}{tail}"
+    if no_data:
+        return f"DL {tag}| sem exec | {no_data} sem dados"
+    return f"DL {tag}| sem exec | {blocked} bloq"
+
+
 def log_dl_cycle_summary(
     logger,
     decisions: dict[str, dict],
@@ -62,11 +95,17 @@ def log_dl_cycle_summary(
     recovery_active: bool,
     pending_loss_total: float,
 ) -> None:
-    """Registra resumo compacto do ciclo Deep Learning."""
-    logger.info(
+    """Registra resumo detalhado em DEBUG e linha curta em INFO."""
+    logger.debug(
         build_dl_cycle_summary(
             decisions,
             recovery_active=recovery_active,
             pending_loss_total=pending_loss_total,
+        )
+    )
+    logger.info(
+        build_dl_cycle_brief(
+            decisions,
+            recovery_active=recovery_active,
         )
     )

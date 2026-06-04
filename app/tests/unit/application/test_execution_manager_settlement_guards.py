@@ -17,7 +17,7 @@ async def test_wait_for_settlement_prunes_orphan_contract_ids(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch.risk_manager.active_contract_ids = [101]
-        orch.risk_manager.contract_to_symbol[101] = "RDBULL"
+        orch.risk_manager.contract_to_symbol[101] = "R_50"
         with (
             patch.object(orch.executor, "reconcile", AsyncMock()) as mock_reconcile,
             patch("src.application.services.orchestrator.execution_settlement.asyncio.sleep", AsyncMock()),
@@ -51,7 +51,7 @@ async def test_wait_for_settlement_clears_stagnant_pending_ids(orch_config):
         ex["settlement_stagnant_grace_seconds"] = 0.0
         ex["settlement_post_expiry_slack_seconds"] = 0.0
         orch.risk_manager.active_contract_ids = [202]
-        orch.risk_manager.contract_to_symbol[202] = "RDBEAR"
+        orch.risk_manager.contract_to_symbol[202] = "R_75"
         await orch.state.add_contract(
             Contract(
                 contract_id=202,
@@ -59,7 +59,7 @@ async def test_wait_for_settlement_clears_stagnant_pending_ids(orch_config):
                 status=TradeStatus.OPEN,
                 buy_price=40.0,
                 payout=76.0,
-                symbol="RDBEAR",
+                symbol="R_75",
                 direction=TradeDirection.PUT,
                 stake=40.0,
                 expiry_time=1,
@@ -95,7 +95,7 @@ async def test_wait_for_settlement_backfill_recovers_before_clear(orch_config):
                 status=TradeStatus.OPEN,
                 buy_price=2.0,
                 payout=4.0,
-                symbol="RDBEAR",
+                symbol="R_75",
                 direction=TradeDirection.CALL,
                 stake=2.0,
                 expiry_time=1,
@@ -118,7 +118,7 @@ async def test_wait_for_settlement_backfill_recovers_before_clear(orch_config):
 def test_clear_contract_tracking_removes_ids_and_maps():
     risk = MagicMock()
     risk.active_contract_ids = [10, 11]
-    risk.contract_to_symbol = {10: "RDBULL", 11: "RDBEAR"}
+    risk.contract_to_symbol = {10: "R_50", 11: "R_75"}
     risk.cluster_results = {10: "x", 11: "y"}
     clear_contract_tracking([10, 11], risk)
     assert risk.active_contract_ids == []
@@ -129,7 +129,7 @@ def test_clear_contract_tracking_removes_ids_and_maps():
 def test_clear_contract_metadata_removes_only_maps():
     risk = MagicMock()
     risk.active_contract_ids = [10, 11]
-    risk.contract_to_symbol = {10: "RDBULL", 11: "RDBEAR"}
+    risk.contract_to_symbol = {10: "R_50", 11: "R_75"}
     risk.cluster_results = {10: "x", 11: "y"}
     clear_contract_metadata([10, 11], risk)
     assert risk.active_contract_ids == [10, 11]

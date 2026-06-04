@@ -67,10 +67,10 @@ def test_regime_call_requires_positive_momentum():
 def test_blended_val_accuracy_drops_after_losses():
     orch = type("O", (), {"config": {"deep_learning": {}}})()
     for _ in range(6):
-        record_symbol_outcome(orch, "RDBEAR", won=False)
-    blended = blended_val_accuracy(orch, "RDBEAR", 0.80, live_weight=0.55)
+        record_symbol_outcome(orch, "R_75", won=False)
+    blended = blended_val_accuracy(orch, "R_75", 0.80, live_weight=0.55)
     assert blended < 0.55
-    assert live_win_rate(orch, "RDBEAR") == 0.0
+    assert live_win_rate(orch, "R_75") == 0.0
 
 
 def test_latest_momentum_and_regime_strength_short_history():
@@ -85,15 +85,15 @@ def test_put_aligns_on_downtrend():
 
 def test_maybe_pause_disabled_when_cycles_zero():
     orch = type("O", (), {"config": {"deep_learning": {}}})()
-    record_symbol_outcome(orch, "RDBEAR", won=False)
-    maybe_pause_symbol_session(orch, "RDBEAR", max_losses_in_window=1, window_trades=3, pause_cycles=0)
+    record_symbol_outcome(orch, "R_75", won=False)
+    maybe_pause_symbol_session(orch, "R_75", max_losses_in_window=1, window_trades=3, pause_cycles=0)
     assert not hasattr(orch, "_dl_session_pause")
 
 
 def test_apply_symbol_session_pause_gate():
-    orch = type("O", (), {"_dl_session_pause": {"RDBEAR": 2}, "risk_manager": None})()
+    orch = type("O", (), {"_dl_session_pause": {"R_75": 2}, "risk_manager": None})()
     entry = {"metrics": {"execute": True}}
-    out = apply_symbol_loss_cooldown(orch, "RDBEAR", entry)
+    out = apply_symbol_loss_cooldown(orch, "R_75", entry)
     assert out["metrics"]["execute"] is False
     assert out["metrics"]["gate_reason"] == "session_pause"
 
@@ -109,7 +109,7 @@ def test_predict_blocks_regime_and_live_wr():
             "min_live_win_rate": 0.50,
         }
     )
-    orch = type("O", (), {"config": {"deep_learning": {}}, "_dl_outcome_flags": {"RDBEAR": [False] * 6}})()
+    orch = type("O", (), {"config": {"deep_learning": {}}, "_dl_outcome_flags": {"R_75": [False] * 6}})()
     runtime = {"val_accuracy": 0.7, "calibrator": None, "val_brier": 0.2, "val_ece": 0.1, "lookback": 15}
     down = np.linspace(110.0, 100.0, 80)
     with patch(
@@ -118,7 +118,7 @@ def test_predict_blocks_regime_and_live_wr():
     ):
         entry = predict_symbol_decision(
             orch,
-            "RDBEAR",
+            "R_75",
             TemporalDirectionClassifier(input_dim=INPUT_DIM),
             down,
             fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32)),
@@ -136,7 +136,7 @@ def test_predict_blocks_regime_and_live_wr():
     ):
         entry_wr = predict_symbol_decision(
             orch,
-            "RDBEAR",
+            "R_75",
             TemporalDirectionClassifier(input_dim=INPUT_DIM),
             up,
             fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32)),
@@ -159,7 +159,7 @@ def test_predict_handles_model_failure():
     ):
         entry = predict_symbol_decision(
             orch,
-            "RDBEAR",
+            "R_75",
             TemporalDirectionClassifier(input_dim=INPUT_DIM),
             np.linspace(100.0, 110.0, 80),
             fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32)),
@@ -194,7 +194,7 @@ def test_predict_moderate_bypass_flag():
     ):
         entry = predict_symbol_decision(
             orch,
-            "RDBEAR",
+            "R_75",
             TemporalDirectionClassifier(input_dim=INPUT_DIM),
             np.linspace(100.0, 110.0, 80),
             fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32)),
@@ -217,7 +217,7 @@ def test_predict_direction_margin_early_exit():
     ):
         entry = predict_symbol_decision(
             orch,
-            "RDBEAR",
+            "R_75",
             TemporalDirectionClassifier(input_dim=INPUT_DIM),
             np.linspace(100.0, 110.0, 80),
             fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32)),
@@ -244,10 +244,10 @@ def test_session_pause_after_loss_streak():
         },
     )()
     for _ in range(3):
-        record_symbol_outcome(orch, "RDBEAR", won=False)
-    assert is_symbol_session_paused(orch, "RDBEAR") is True
+        record_symbol_outcome(orch, "R_75", won=False)
+    assert is_symbol_session_paused(orch, "R_75") is True
     tick_dl_session_pauses(orch)
     tick_dl_session_pauses(orch)
     tick_dl_session_pauses(orch)
     tick_dl_session_pauses(orch)
-    assert is_symbol_session_paused(orch, "RDBEAR") is False
+    assert is_symbol_session_paused(orch, "R_75") is False

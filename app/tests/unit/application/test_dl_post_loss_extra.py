@@ -36,6 +36,6 @@ def test_last_post_loss_pair_strips_empty():
 
 def test_last_post_loss_pair_from_risk_manager():
     orch = SimpleNamespace()
-    orch.risk_manager = SimpleNamespace(last_loss_symbol="RDBEAR", last_loss_direction="PUT")
+    orch.risk_manager = SimpleNamespace(last_loss_symbol="R_75", last_loss_direction="PUT")
     sym, direction = last_post_loss_pair(orch)
-    assert sym == "RDBEAR" and direction == "PUT"
+    assert sym == "R_75" and direction == "PUT"

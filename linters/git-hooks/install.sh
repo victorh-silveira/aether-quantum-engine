@@ -13,6 +13,6 @@ fi
 for name in pre-commit commit-msg; do
   install -m 755 "$SRC/$name" "$DEST/$name"
 done
-chmod +x "$SRC/bin/python"
+chmod +x "$SRC/bin/python" "$SRC/bin/resolve_conda_python.sh"
 
 echo "Hooks instalados em .git/hooks (pre-commit, commit-msg)"

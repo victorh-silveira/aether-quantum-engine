@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 import shutil
 import subprocess  # nosec
@@ -18,24 +19,50 @@ _STAGE_MODULES: dict[str, tuple[str, ...]] = {
 }
 
 
-def _project_python_candidates() -> list[Path]:
-    if os.name == "nt":
-        venv_names = (".venv-win", ".venv")
-        layouts = (("Scripts", "python.exe"),)
-    else:
-        venv_names = (".venv-wsl", ".venv")
-        layouts = (("bin", "python"),)
-    roots = (APP_ROOT, REPO_ROOT)
+def _conda_env_name() -> str:
+    override = os.environ.get("AETHER_CONDA_ENV")
+    if override:
+        return override
+    cfg = REPO_ROOT / "config" / "python.json"
+    if cfg.is_file():
+        data = json.loads(cfg.read_text(encoding="utf-8"))
+        name = data.get("conda_env")
+        if isinstance(name, str) and name:
+            return name
+    return "deriv-api"
+
+
+def _conda_python_candidates() -> list[Path]:
+    env_name = _conda_env_name()
     candidates: list[Path] = []
     seen: set[str] = set()
-    for root in roots:
-        for name in venv_names:
-            for folder, exe in layouts:
-                path = root / name / folder / exe
-                key = str(path)
-                if key not in seen:
-                    seen.add(key)
-                    candidates.append(path)
+
+    def add(path: Path) -> None:
+        key = str(path)
+        if key not in seen:
+            seen.add(key)
+            candidates.append(path)
+
+    prefix = os.environ.get("CONDA_PREFIX")
+    if prefix and Path(prefix).name == env_name:
+        add(Path(prefix) / "python.exe")
+        add(Path(prefix) / "bin" / "python")
+
+    home = Path.home()
+    for root in (home / "anaconda3", home / "miniconda3", Path("C:/ProgramData/anaconda3")):
+        add(root / "envs" / env_name / "python.exe")
+        add(root / "envs" / env_name / "bin" / "python")
+
+    if os.name != "nt":
+        user = os.environ.get("USER", "")
+        if user:
+            for root in (
+                Path(f"/mnt/c/Users/{user}/anaconda3"),
+                Path(f"/mnt/c/Users/{user}/miniconda3"),
+            ):
+                add(root / "envs" / env_name / "python.exe")
+                add(root / "envs" / env_name / "bin" / "python")
+
     return candidates
 
 
@@ -58,9 +85,7 @@ def _imports_available(python: Path, modules: tuple[str, ...]) -> bool:
 
 
 def _same_interpreter(left: Path, right: Path) -> bool:
-    left_key = os.path.normcase(str(left))
-    right_key = os.path.normcase(str(right))
-    return left_key == right_key
+    return os.path.normcase(str(left)) == os.path.normcase(str(right))
 
 
 def _ensure_project_python(stage: str) -> None:
@@ -68,14 +93,13 @@ def _ensure_project_python(stage: str) -> None:
     current = Path(sys.executable)
     if _imports_available(current, modules):
         return
-    for candidate in _project_python_candidates():
+    env_name = _conda_env_name()
+    for candidate in _conda_python_candidates():
         try:
-            candidate_exists = candidate.exists()
+            exists = candidate.exists()
         except OSError:
             continue
-        if not candidate_exists:
-            continue
-        if _same_interpreter(candidate, current):
+        if not exists or _same_interpreter(candidate, current):
             continue
         if _imports_available(candidate, modules):
             completed = subprocess.run([str(candidate), *sys.argv], check=False)  # nosec B603
@@ -83,8 +107,7 @@ def _ensure_project_python(stage: str) -> None:
     if modules:
         missing = ", ".join(modules)
         print(f"\n[ERRO] Dependencias ausentes para o estagio '{stage}': {missing}")
-        print("Instale com: make install")
-        print(f"Venvs esperados: {APP_ROOT / '.venv-wsl'} (WSL) ou {APP_ROOT / '.venv-win'} (Windows)")
+        print(f"Ative o Conda e instale com: conda activate {env_name} && make install")
     sys.exit(1)
 
 
@@ -126,13 +149,7 @@ def stage_structure(max_lines=300):
     violations = []
 
     for path in APP_ROOT.rglob("*.py"):
-        if (
-            ".venv" in path.parts
-            or "venv" in path.parts
-            or ".git" in path.parts
-            or ".venv-win" in path.parts
-            or ".venv-wsl" in path.parts
-        ):
+        if ".venv" in path.parts or "venv" in path.parts or ".git" in path.parts:
             continue
 
         with path.open("r", encoding="utf-8") as f:
@@ -150,6 +167,9 @@ def stage_structure(max_lines=300):
 
 
 def stage_test(fail_under=100):
+    data_file = APP_ROOT / ".coverage"
+    if data_file.exists():
+        data_file.unlink()
     run_tool("coverage", ["run", "-m", "pytest"], "Pytest execution")
     run_tool("coverage", ["report", f"--fail-under={fail_under}"], f"Coverage report (min {fail_under}%)")
 
@@ -218,9 +238,7 @@ def stage_clean():
         # 2. Varredura inteligente de __pycache__ e bytecodes
         for root, dirs, files in os.walk(scan_root):
             # Ignora pastas pesadas ou do ambiente virtual
-            dirs[:] = [
-                d for d in dirs if d not in (".venv", "venv", ".venv-win", ".venv-wsl", ".git", ".idea", ".vscode")
-            ]
+            dirs[:] = [d for d in dirs if d not in (".venv", "venv", ".git", ".idea", ".vscode")]
 
             for d in list(dirs):
                 if d == "__pycache__":

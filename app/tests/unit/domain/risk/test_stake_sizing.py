@@ -47,8 +47,36 @@ def test_martingale_log_suffix():
     assert "100.00" in suffix
 
 
-def test_martingale_full_recovery_uses_bankroll_cap():
-    cfg = {"full_recovery_martingale": True, "max_recovery_bankroll_pct": 0.95, "min_stake_pct": 0.0}
-    stake = martingale_stake(10000.0, 800.0, 100.0, 0.95, cfg, 0.7, 1.0, 12000.0)
-    raw = (800.0 + 100.0 * 0.95) / 0.95
-    assert stake == pytest.approx(raw, abs=0.01)
+def test_martingale_native_doubles_from_last_stake():
+    cfg = {"martingale_multiplier": 2.0, "max_recovery_stake_pct": 0.10, "min_stake_pct": 0.0}
+    stake = martingale_stake(
+        10000.0,
+        30.0,
+        10.0,
+        0.95,
+        cfg,
+        0.7,
+        1.0,
+        12000.0,
+        consecutive_losses=2,
+        last_martingale_stake=20.46,
+    )
+    cover = (30.0 + 10.0 * 0.95) / 0.95
+    assert stake == pytest.approx(max(20.46 * 2.0, cover), abs=0.02)
+
+
+def test_martingale_native_base_power_when_no_last_stake():
+    cfg = {"martingale_multiplier": 2.0, "max_recovery_stake_pct": 0.10, "min_stake_pct": 0.0}
+    stake = martingale_stake(
+        10000.0,
+        10.0,
+        10.0,
+        0.95,
+        cfg,
+        0.7,
+        1.0,
+        12000.0,
+        consecutive_losses=1,
+        last_martingale_stake=0.0,
+    )
+    assert stake >= 20.0

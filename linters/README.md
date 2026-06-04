@@ -9,4 +9,4 @@ Configuracao centralizada de hooks e release semantico (sem infra Kubernetes/Ter
 | `commitlint.config.mjs` | Mensagens de commit (Conventional Commits) |
 | `releaserc.json` | semantic-release no CI |
 
-Os gates executam `app/scripts/operations/clean_workspace.py` com `cwd` implicito em `app/` (Ruff, pytest, bandit, interrogate).
+Os gates executam `app/scripts/operations/clean_workspace.py` com `cwd` implicito em `app/` (Ruff, pytest, bandit, interrogate), usando o Conda `deriv-api` (`linters/git-hooks/bin/python` no WSL).
