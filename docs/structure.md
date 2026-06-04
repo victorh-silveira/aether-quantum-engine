@@ -57,6 +57,8 @@ Caminhos resolvidos por `aether_paths.repo_path()` e `APP_ROOT`.
 
 ## Comandos úteis (WSL)
 
+Primeira vez no WSL: `make setup-wsl` (Git, Conda no `~/.bashrc`, hooks).
+
 ```bash
 make install
 make test
@@ -70,6 +72,5 @@ Pre-commit: `make pre-commit` instala hooks; `git commit` dispara lint, testes e
 Walk-forward DL:
 
 ```bash
-conda activate deriv-api
-cd app && python scripts/backtest/dl_walkforward.py --symbol RDBULL
+cd app && conda run -n deriv-api python scripts/backtest/dl_walkforward.py --symbol RDBULL
 ```

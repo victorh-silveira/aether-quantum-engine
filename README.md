@@ -95,11 +95,15 @@ Sem `conda` no PATH, use o executavel direto:
 WSL (usa o mesmo Conda em `/mnt/c/Users/.../anaconda3/envs/deriv-api`):
 
 ```bash
-conda activate deriv-api
+cd /mnt/c/Users/<seu-usuario>/Desktop/aether-quantum-engine
+make setup-wsl
+source ~/.bashrc
 make install
 make test
 make lint
 ```
+
+`make setup-wsl` copia `user.name`/`user.email` do `.gitconfig` do Windows, adiciona alias `conda` (conda.exe) e `aether-py` no `~/.bashrc`, e reinstala os hooks. O `make` ja resolve o Python do env `deriv-api` sem `conda activate` (o activate do Anaconda Windows nao funciona no bash nativo do WSL). Para scripts avulsos: `conda run -n deriv-api python ...`.
 
 Pre-commit (na raiz do repo, com `deriv-api` ativo):
 

@@ -91,8 +91,7 @@ def test_kelly_intelligent_recovery(kelly_config):
     assert rm.pending_loss["R_50"] == 10.0
 
     stake_low = rm.calculate_stake(1000.0, "R_50", conviction=0.6)
-    assert stake_low > 17.89
-    assert stake_low == pytest.approx(35.79, abs=0.5)
+    assert stake_low == pytest.approx(20.53, abs=0.5)
 
     rm.last_martingale_stake = 0.0
     stake_high = rm.calculate_stake(1000.0, "R_50", conviction=0.8)
@@ -241,11 +240,12 @@ def test_cross_symbol_recovery(kelly_config):
     rm = RiskManager(kelly_config)
 
     rm.active_contract_ids = [1]
+    rm.record_contract_stake(1, 10.0)
     rm.register_result(-10.0, 1, "R_50")
     assert sum(rm.pending_loss.values()) == 10.0
 
     stake_b_high = rm.calculate_stake(1000.0, "R_75", conviction=0.8)
-    assert stake_b_high == pytest.approx(35.79, abs=0.5)
+    assert stake_b_high == pytest.approx(20.53, abs=0.5)
 
     # Se ganhar no símbolo B, o lucro reduz a perda pendente globalmente
     rm.active_contract_ids = [2]

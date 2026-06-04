@@ -108,6 +108,7 @@ class ExecutionManager:
                 custom_dur = metrics.get("duration")
                 res = await self._place_order(symbol, direction, stake, duration=custom_dur, metrics=metrics)
                 if res:
+                    self.orch.risk_manager.record_contract_stake(int(res.contract_id), stake)
                     self.orch.risk_manager.active_contract_ids.append(res.contract_id)
                     await self.orch.state.add_contract(res)
                     self.orch._contract_cycle[int(res.contract_id)] = int(self.orch._active_cycle_id)

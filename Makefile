@@ -14,7 +14,7 @@ RESET  := \033[0m
 
 .DEFAULT_GOAL := help
 
-.PHONY: install lint test security run backtest pre-commit pre-commit-run clean help helpo
+.PHONY: install lint test security run backtest pre-commit pre-commit-run setup-wsl clean help helpo
 
 help:
 	@echo -e "$(BLUE)========================================================================$(RESET)"
@@ -33,6 +33,7 @@ help:
 	@echo -e "  $(GREEN)backtest$(RESET)    - Executa simulacoes historicas (use: ARGS=\"...\")"
 	@echo -e "  $(GREEN)pre-commit$(RESET)      - Instala e configura os git hooks locais de pre-commit"
 	@echo -e "  $(GREEN)pre-commit-run$(RESET)  - Roda todos os hooks (equivalente a pre-commit run --all-files)"
+	@echo -e "  $(GREEN)setup-wsl$(RESET)     - Configura Git, Conda e hooks no WSL (bash scripts/wsl/setup.sh)"
 	@echo -e "  $(GREEN)clean$(RESET)       - Limpa lixo, caches do Python/Pytest e logs do workspace"
 	@echo -e "  $(GREEN)help / helpo$(RESET) - Exibe este menu de ajuda interativo"
 	@echo -e "$(BLUE)========================================================================$(RESET)"
@@ -64,6 +65,9 @@ pre-commit:
 
 pre-commit-run:
 	$(PYTHON) -m pre_commit run --all-files -c .pre-commit-config.yaml
+
+setup-wsl:
+	bash scripts/wsl/setup.sh
 
 clean:
 	$(PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --stage clean

@@ -1,4 +1,17 @@
+import pytest
+
 from src.domain.risk.risk_manager import RiskManager
+
+
+def test_martingale_doubles_recorded_entry_stake_not_kelly_cap(kelly_config):
+    kelly_config["kelly"]["full_recovery_martingale"] = False
+    rm = RiskManager(kelly_config)
+    rm.active_contract_ids = [1]
+    rm.record_contract_stake(1, 10.83)
+    rm.register_result(-10.83, 1, "R_100")
+    stake = rm.calculate_stake(10820.0, "R_10", conviction=0.0)
+    assert stake == pytest.approx(21.66, abs=0.5)
+    assert stake < 50.0
 
 
 def test_martingale_native_always_on_with_pending(kelly_config):

@@ -34,6 +34,7 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
         self.last_martingale_stake = 0.0
         self.last_loss_stake = 0.0
         self._prev_martingale_stake = 0.0
+        self.contract_stakes: dict[int, float] = {}
         self.init_symbol_loss_cooldown()
         self.martingale_native = bool(self.kelly_config.get("martingale_native", True))
         self.martingale_block_repeat_loss = bool(self.kelly_config.get("martingale_block_repeat_loss", False))
@@ -175,6 +176,10 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
         self.expected_cluster_settlements = max(0, int(expected_settlements))
         self.cluster_results = {}
 
+    def record_contract_stake(self, contract_id: int, stake: float) -> None:
+        """Associa stake enviada ao contrato para progressao martingale."""
+        self.contract_stakes[int(contract_id)] = float(stake)
+
     def register_result(
         self,
         profit: float,
@@ -188,6 +193,7 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
         if contract_id not in self.active_contract_ids:
             return
 
+        self.contract_stakes.pop(int(contract_id), None)
         self.cluster_results[contract_id] = profit
         self.total_session_profit += profit
         self.last_result_tick = current_tick
@@ -196,7 +202,7 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
         if profit < 0:
             loss_amt = abs(profit)
             self.pending_loss[symbol] = self.pending_loss.get(symbol, 0.0) + loss_amt
-            self.last_loss_stake = loss_amt
+            self.last_loss_stake = self.contract_stakes.pop(int(contract_id), loss_amt)
             self.register_symbol_loss_cooldown(symbol, direction=direction)
         else:
             apply_win_to_pending_loss(self.pending_loss, profit)

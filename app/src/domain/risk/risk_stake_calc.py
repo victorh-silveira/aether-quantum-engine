@@ -80,19 +80,11 @@ def calculate_stake_for_manager(
             )
         kelly_base = boosted
 
-    stake_base_for_mode = kelly_base
-    if martingale_active:
-        ref_conv = float(rm.kelly_config.get("martingale_sizing_conviction", 0.60))
-        p_mg = rm.effective_win_rate(symbol, ref_conv)
-        f_mg = max(0.0, (b * p_mg - (1.0 - p_mg)) / b) if b > 0 else 0.0
-        mg_raw = bankroll * f_mg * float(rm.kelly_config.get("fraction", 0.03))
-        stake_base_for_mode = clamp_kelly_stake(bankroll, mg_raw, rm.kelly_config, ref_conv)
-
     final_stake, recovery_stake, mode_tag = resolve_mode_stake(
         martingale_active=martingale_active,
         bankroll=bankroll,
         loss_to_recover=loss_to_recover,
-        kelly_base=stake_base_for_mode,
+        kelly_base=kelly_base,
         payout=b,
         kelly_config=rm.kelly_config,
         conviction=conviction,
@@ -117,6 +109,7 @@ def calculate_stake_for_manager(
         b,
         consecutive_losses=int(rm.consecutive_losses),
         last_martingale_stake=float(getattr(rm, "_prev_martingale_stake", 0.0)),
+        last_loss_stake=float(getattr(rm, "last_loss_stake", 0.0)),
         martingale_multiplier=mult,
     )
     if cycle_id > 0 and not silent:

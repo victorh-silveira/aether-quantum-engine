@@ -128,7 +128,7 @@
       "martingale_multiplier": 2.0,
       "martingale_sizing_conviction": 0.60,
       "martingale_block_repeat_loss": false,
-      "full_recovery_martingale": true,
+      "full_recovery_martingale": false,
       "max_recovery_bankroll_pct": 0.12,
       "max_recovery_stake_pct": 0.08,
       "mandatory_weak_max_stake_pct": 0.004,

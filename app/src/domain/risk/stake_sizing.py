@@ -36,14 +36,19 @@ def martingale_stake(
     last_martingale_stake: float = 0.0,
     last_loss_stake: float = 0.0,
 ) -> float:
-    """Calcula stake de recuperacao com progressao nativa (multiplicador sobre ultima entrada)."""
+    """Calcula stake de recuperacao dobrando a ultima entrada (2, 4, 8...)."""
+    _ = consecutive_losses
     multiplier = max(1.0, float(kelly_config.get("martingale_multiplier", 2.0)))
-    reference = max(float(kelly_base), float(last_loss_stake), float(stake_min))
-    profit_target = reference * payout
-    cover = (loss_to_recover + profit_target) / payout if payout > 0 else 0.0
-    step = max(1, int(consecutive_losses))
-    progressive = last_martingale_stake * multiplier if last_martingale_stake > 0.0 else reference * (multiplier**step)
-    raw = max(progressive, cover)
+    seed = float(last_loss_stake) if last_loss_stake > 0.0 else float(kelly_base)
+    seed = max(seed, float(stake_min))
+    progressive = last_martingale_stake * multiplier if last_martingale_stake > 0.0 else seed * multiplier
+    full_recovery = bool(kelly_config.get("full_recovery_martingale", False))
+    if full_recovery and payout > 0:
+        profit_target = seed * payout
+        cover = (loss_to_recover + profit_target) / payout
+        raw = max(progressive, cover)
+    else:
+        raw = progressive
     cap_conviction = float(kelly_config.get("martingale_cap_conviction", 0.5))
     max_pct = resolve_max_stake_pct(kelly_config, cap_conviction, is_recovery=True)
     cap_stake = min(bankroll * max_pct, stake_max)
@@ -145,14 +150,16 @@ def martingale_log_suffix(
     *,
     consecutive_losses: int = 0,
     last_martingale_stake: float = 0.0,
+    last_loss_stake: float = 0.0,
     martingale_multiplier: float = 2.0,
 ) -> str:
     """Monta sufixo de log com detalhes da stake de recuperacao Martingale."""
     if mode_tag != "MARTINGALE":
         return ""
     step = max(1, int(consecutive_losses))
-    prev = f"${last_martingale_stake:.2f}" if last_martingale_stake > 0 else f"base=${kelly_base:.2f}"
+    seed = last_loss_stake if last_loss_stake > 0.0 else kelly_base
+    prev = f"${last_martingale_stake:.2f}" if last_martingale_stake > 0.0 else f"entrada=${seed:.2f}"
     return (
         f" | MARTINGALE x{martingale_multiplier:.2f} passo={step} {prev}"
-        f" -> ${recovery_stake:.2f} (pend=${loss_to_recover:.2f}+alvo=${kelly_base * payout:.2f})"
+        f" -> ${recovery_stake:.2f} (pend=${loss_to_recover:.2f}+alvo=${seed * payout:.2f})"
     )

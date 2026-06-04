@@ -61,11 +61,27 @@ def test_martingale_native_doubles_from_last_stake():
         consecutive_losses=2,
         last_martingale_stake=20.46,
     )
-    cover = (30.0 + 10.0 * 0.95) / 0.95
-    assert stake == pytest.approx(max(20.46 * 2.0, cover), abs=0.02)
+    assert stake == pytest.approx(40.92, abs=0.02)
 
 
-def test_martingale_native_base_power_when_no_last_stake():
+def test_martingale_native_doubles_lost_entry_stake():
+    cfg = {"martingale_multiplier": 2.0, "max_recovery_stake_pct": 0.10, "min_stake_pct": 0.0}
+    stake = martingale_stake(
+        10000.0,
+        10.83,
+        86.0,
+        0.95,
+        cfg,
+        0.7,
+        1.0,
+        12000.0,
+        last_martingale_stake=0.0,
+        last_loss_stake=10.83,
+    )
+    assert stake == pytest.approx(21.66, abs=0.02)
+
+
+def test_martingale_native_base_doubles_kelly_when_no_last_stake():
     cfg = {"martingale_multiplier": 2.0, "max_recovery_stake_pct": 0.10, "min_stake_pct": 0.0}
     stake = martingale_stake(
         10000.0,
@@ -78,5 +94,6 @@ def test_martingale_native_base_power_when_no_last_stake():
         12000.0,
         consecutive_losses=1,
         last_martingale_stake=0.0,
+        last_loss_stake=0.0,
     )
-    assert stake >= 20.0
+    assert stake == pytest.approx(20.0, abs=0.02)
