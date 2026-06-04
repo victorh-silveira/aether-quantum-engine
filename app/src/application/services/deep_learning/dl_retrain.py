@@ -47,11 +47,16 @@ def should_retrain_symbol(
     if forced.get(str(symbol)):
         return True, "loss_retrain"
     last_epoch = int(runtime.get("last_candle_epoch", 0))
-    if not params.get("train_on_new_candle", True) or candle_epoch != last_epoch:
+    if last_epoch == 0:
+        return True, "bootstrap"
+    min_interval = int(params.get("retrain_min_bars", 0))
+    state = getattr(orch, "_dl_bars_since_train", None) or {}
+    bars_since = int(state.get(str(symbol), 0))
+    if min_interval > 0 and bars_since < min_interval:
+        return False, ""
+    if params.get("train_on_new_candle", True) and candle_epoch != last_epoch:
         return True, "new_candle"
     rolling = int(params.get("rolling_retrain_bars", 0))
-    if rolling > 0:
-        state = getattr(orch, "_dl_bars_since_train", None) or {}
-        if int(state.get(str(symbol), 0)) >= rolling:
-            return True, "rolling"
+    if rolling > 0 and bars_since >= rolling:
+        return True, "rolling"
     return False, ""

@@ -5,6 +5,7 @@ import logging
 import time
 from typing import Any
 
+from src.application.services.auth_manager import AuthManager
 from src.application.services.deep_learning.decision_bridge import collect_deep_learning_decisions
 from src.application.services.deep_learning.dl_post_loss import tick_post_loss_bans
 from src.application.services.deep_learning.dl_retrain import tick_bars_since_train
@@ -18,6 +19,11 @@ from src.application.services.orchestrator.post_settlement_cycle import (
 from src.application.services.orchestrator.settlement_backfill import reconcile_single_contract
 from src.application.services.orchestrator.settlement_logic import process_contract_settlement
 from src.application.services.orchestrator.trading_session import trading_session_allows_entry
+from src.application.services.orchestrator.ws_bootstrap import (
+    setup_trading_session,
+    start_orchestrator_streams,
+    subscribe_account_transactions,
+)
 from src.domain.risk.risk_manager import RiskManager
 from src.infrastructure.api.websocket_manager import WebSocketManager
 from src.infrastructure.handlers.stream_handler import StreamHandler
@@ -29,11 +35,12 @@ from src.infrastructure.state.trading_state import TradingState
 class Orchestrator:
     """Coordena WebSocket, estado, risco e execucao por ciclo."""
 
-    def __init__(self, config: dict, token: str):
-        self.config, self.token = config, token
-        self.ws = WebSocketManager(
-            config["api_config"]["base_url"], request_timeout=config["api_config"]["request_timeout_seconds"]
-        )
+    def __init__(self, config: dict, auth: AuthManager | None = None):
+        self.config = config
+        mode = str(config.get("trading", {}).get("mode", "demo"))
+        self.auth = auth if isinstance(auth, AuthManager) else AuthManager(mode=mode, config=config)
+        timeout = int(config["api_config"]["request_timeout_seconds"])
+        self.ws = WebSocketManager("", request_timeout=timeout)
         self.anchor, self.symbols = normalize_symbols_and_anchor(config)
 
         self.stream = StreamHandler(self.ws, self.symbols, config["data_handler"])
@@ -84,7 +91,11 @@ class Orchestrator:
 
     async def run(self):
         """Loop principal: reconexao, persistencia e ciclos por intervalo."""
-        if not await self._setup_session() or not await self._start_streams():
+        if not await self._setup_session():
+            self.logger.error("INIT: Abortando motor (falha em PAT, OTP ou WebSocket).")
+            return
+        if not await self._start_streams():
+            self.logger.error("INIT: Abortando motor (falha ao sincronizar velas OHLC).")
             return
         self._last_cluster_cycle_end = time.time()
         self.running = True
@@ -129,46 +140,11 @@ class Orchestrator:
         await run_post_settlement_breath_and_cycle(self)
 
     async def _setup_session(self) -> bool:
-        """Conecta e autoriza sessao WebSocket."""
-        try:
-            await self.ws.connect()
-            auth = await self.ws.send({"authorize": self.token})
-            if "error" in auth:
-                return False
-            self.state.balance = auth["authorize"]["balance"]
-            self.risk_manager.set_initial_bankroll(self.state.balance)
-            self._maybe_reset_daily_risk_session(int(time.time()))
-            await self._subscribe_account_transactions()
-            self.logger.debug(f"AUTH: Sucesso. Saldo: {self.state.balance:.2f}")
-            return True
-        except Exception as e:
-            detalhe = str(e).strip() or repr(e)
-            self.logger.error("INIT: Erro no setup [%s]: %s", type(e).__name__, detalhe, exc_info=True)
-            return False
+        return await setup_trading_session(self)
 
     async def _start_streams(self) -> bool:
-        """Inscreve atualizacoes de contrato e inicia stream de velas."""
-        self.ws.subscribe("proposal_open_contract", self._on_contract_update)
-        retries = 2
-        delay = 1.0
-        try:
-            for attempt in range(1, retries + 1):
-                self.logger.debug("STRM: sincronizando velas...")
-                try:
-                    await self.stream.start_candle_stream(self._on_candle)
-                    self._stream_ready_at = time.time()
-                    return True
-                except ConnectionError as e:
-                    if attempt >= retries:
-                        raise e
-                    self.logger.debug(f"STRM: reconexao durante startup ({attempt}/{retries}): {e}")
-                    await asyncio.sleep(delay)
-                    if not self.ws.is_running:
-                        await self.ws.connect()
-        except Exception as e:
-            detalhe = str(e).strip() or repr(e)
-            self.logger.error("STRM: Falha [%s]: %s", type(e).__name__, detalhe, exc_info=True)
-            return False
+        """Compatibilidade de testes: delega para start_orchestrator_streams."""
+        return await start_orchestrator_streams(self)
 
     def _maybe_reset_daily_risk_session(self, epoch: int) -> None:
         """Reinicia stop win no inicio de cada dia UTC (vela ancora)."""
@@ -246,12 +222,8 @@ class Orchestrator:
                 self.is_trading = False
 
     async def _subscribe_account_transactions(self) -> None:
-        """Inscreve notificacoes de transacao para capturar fechamento de contratos."""
-        try:
-            await self.ws.send({"transaction": 1, "subscribe": 1}, timeout=10)
-            self.ws.subscribe("transaction", self._on_transaction)
-        except Exception as e:
-            self.logger.warning("SETTLE: subscribe transaction falhou: %s", e)
+        """Compatibilidade de testes: delega para subscribe_account_transactions."""
+        await subscribe_account_transactions(self)
 
     async def _on_transaction(self, data: dict) -> None:
         """Reconcilia contrato quando a Deriv emite transacao de fechamento."""

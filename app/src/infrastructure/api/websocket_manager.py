@@ -34,8 +34,12 @@ class WebSocketManager:
         self.is_running = False
         self.logger = logging.getLogger("AETH")
 
-    async def connect(self):
+    async def connect(self, uri: str | None = None):
         """Estabelece a conexão WebSocket e inicia as tarefas de segundo plano."""
+        if uri:
+            self.uri = uri
+        if not self.uri:
+            raise ConnectionError("WSS: URI nao definida.")
         self.ws = await websockets.connect(self.uri)
         self.is_running = True
         self.logger.debug("WSS: Conexão estabelecida com sucesso.")

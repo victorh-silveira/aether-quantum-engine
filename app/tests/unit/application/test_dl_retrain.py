@@ -21,9 +21,36 @@ def test_force_retrain_and_clear():
 def test_rolling_retrain_trigger():
     orch = SimpleNamespace(_dl_bars_since_train={"X": 12})
     runtime = {"last_candle_epoch": 5}
-    params = {"train_on_new_candle": True, "rolling_retrain_bars": 12}
+    params = {"train_on_new_candle": True, "rolling_retrain_bars": 12, "retrain_min_bars": 0}
     ok, reason = should_retrain_symbol(orch, "X", runtime, params, 5)
     assert ok and reason == "rolling"
+
+
+def test_retrain_min_bars_defers_scheduled_retrain():
+    orch = SimpleNamespace(_dl_bars_since_train={"X": 3})
+    runtime = {"last_candle_epoch": 100}
+    params = {"train_on_new_candle": True, "retrain_min_bars": 12, "rolling_retrain_bars": 48}
+    ok, reason = should_retrain_symbol(orch, "X", runtime, params, 200)
+    assert not ok and reason == ""
+
+
+def test_new_candle_retrain_after_min_interval():
+    orch = SimpleNamespace(_dl_bars_since_train={"X": 12})
+    runtime = {"last_candle_epoch": 100}
+    params = {"train_on_new_candle": True, "retrain_min_bars": 12, "rolling_retrain_bars": 48}
+    ok, reason = should_retrain_symbol(orch, "X", runtime, params, 200)
+    assert ok and reason == "new_candle"
+
+
+def test_bootstrap_retrain_when_never_trained():
+    ok, reason = should_retrain_symbol(
+        SimpleNamespace(),
+        "X",
+        {"last_candle_epoch": 0},
+        {"retrain_min_bars": 12},
+        5,
+    )
+    assert ok and reason == "bootstrap"
 
 
 def test_tick_bars_initializes():

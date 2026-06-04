@@ -9,7 +9,6 @@ from typing import Any
 
 from src.application.services.llm.strategy_clusters import resolve_cluster_lists
 
-from src.application.services.auth_manager import AuthManager
 from src.infrastructure.api.websocket_manager import WebSocketManager
 
 
@@ -89,20 +88,14 @@ async def fetch_market_data(
     """Baixa series M15 e M5 para o universo configurado."""
     _, _, all_syms, _ = backtest_symbols(config)
     api = config.get("api_config", {})
-    ws = WebSocketManager(
-        api.get("base_url", "wss://ws.derivws.com/websockets/v3?app_id=1089"),
-        request_timeout=int(api.get("request_timeout_seconds", 60)),
+    public_ws = api.get(
+        "public_ws_url",
+        "wss://api.derivws.com/trading/v1/options/ws/public",
     )
-    mode = str(config.get("trading", {}).get("mode", "demo"))
-    token = AuthManager(mode=mode).get_token()
-    if not token:
-        raise RuntimeError("Token Deriv ausente no .env (AETHER_DEMO_TOKEN ou AETHER_LIVE_TOKEN)")
+    ws = WebSocketManager(public_ws, request_timeout=int(api.get("request_timeout_seconds", 60)))
 
     await ws.connect()
     try:
-        auth = await ws.send({"authorize": token})
-        if isinstance(auth, dict) and auth.get("error"):
-            raise RuntimeError(f"Deriv authorize falhou: {auth.get('error')}")
         m15: dict[str, list[float]] = {}
         m5: dict[str, list[float]] = {}
         for sym in all_syms:

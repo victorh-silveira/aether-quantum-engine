@@ -28,11 +28,11 @@ echo [AETHER] Iniciando Infraestrutura Aether Engine (MODO DEMO)...
 cd /d "%APP_DIR%"
 
 :: 1. Inicia o Monitor Primeiro (Visao Geral)
-start "AETHER MONITOR" cmd /k "call "%CONDA_ACTIVATE%" %ENV_NAME% && python -m scripts.monitor.live_monitor"
+start "AETHER MONITOR" cmd /k ""%~dp0_run_monitor.bat" "%CONDA_ACTIVATE%""
 timeout /t 3 /nobreak > nul
 
 :: 2. Inicia o bot em MODO DEMO (symbols em config/settings.json)
-start "AETHER DEMO" cmd /k "call "%CONDA_ACTIVATE%" %ENV_NAME% && python run.py"
+start "AETHER DEMO" cmd /k ""%~dp0_run_engine.bat" "%CONDA_ACTIVATE%""
 
 echo [OK] Robotica e Monitor (DEMO) em execucao.
 timeout /t 3 /nobreak > nul

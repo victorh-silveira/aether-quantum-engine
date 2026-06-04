@@ -7,6 +7,7 @@ import pytest
 
 from src.application.services.orchestrator import Orchestrator
 from src.domain.models.trade import Contract, TradeDirection, TradeStatus
+from src.infrastructure.api.deriv_rest_client import DerivRestError, DerivTradingSession
 from src.infrastructure.state.trading_state import TradingState
 
 
@@ -27,7 +28,9 @@ async def test_orchestrator_setup_and_auth(orchestrator_config):
         mock_ws.connect.side_effect = Exception("ConnectFail")
         assert await orch._setup_session() is False
         mock_ws.connect.side_effect = None
-        mock_ws.send.return_value = {"authorize": {"balance": 1000.0}}
+        orch.auth.open_trading_session = AsyncMock(
+            return_value=DerivTradingSession(ws_url="wss://test/ws?otp=x", balance=1000.0, account_id="DOT1")
+        )
         assert await orch._setup_session() is True
 
 
@@ -69,8 +72,19 @@ async def test_orchestrator_setup_session_auth_error(orchestrator_config):
     TradingState.reset()
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_cls:
         mock_ws_cls.return_value.subscribe = MagicMock()
-        mock_ws_cls.return_value.send.return_value = {"error": "AUTH_FAILED"}
         orch = Orchestrator(orchestrator_config, "token")
+        orch.auth.open_trading_session = AsyncMock(side_effect=DerivRestError("token invalid"))
+        assert await orch._setup_session() is False
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_setup_session_generic_error(orchestrator_config):
+    """Cobre excecao generica no setup (nao DerivRestError)."""
+    TradingState.reset()
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_cls:
+        mock_ws_cls.return_value.subscribe = MagicMock()
+        orch = Orchestrator(orchestrator_config, "token")
+        orch.auth.open_trading_session = AsyncMock(side_effect=RuntimeError("ws down"))
         assert await orch._setup_session() is False
 
 

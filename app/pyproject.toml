@@ -74,7 +74,11 @@ convention = "google"
 "scripts/**/*.py" = ["T201", "E402", "S603", "S607", "S101"]
 "run.py" = ["T201", "S101"]
 "src/application/services/llm/strategy_payload_config.py" = ["S106"]
-"tests/**/*.py" = ["ARG001", "ARG005", "S101"]
+"src/infrastructure/api/deriv_http.py" = ["S310"]
+"src/infrastructure/api/deriv_rest_client.py" = ["S310"]
+"src/infrastructure/api/deriv_pat_binding.py" = ["S310"]
+"src/infrastructure/api/deriv_pat_session.py" = ["S310"]
+"tests/**/*.py" = ["ARG001", "ARG005", "S101", "S106", "S310"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -105,7 +109,7 @@ exclude = [
 ]
 
 [tool.bandit]
-skips = ["B105", "B106"]
+skips = ["B105", "B106", "B310"]
 exclude_dirs = [".git", ".venv", "tests", "venv"]
 
 [tool.coverage.run]

@@ -1,13 +1,16 @@
 # Deriv API
 
-> Referência da API Deriv (WebSocket e REST). O motor ao vivo do Aether usa um subconjunto via **WebSocket v3** legado configurado em `config/settings.json`.
+> Referência da API Deriv (WebSocket e REST). O motor ao vivo do Aether usa **PAT + App ID**, REST para contas/OTP e WebSocket autenticado via URL OTP.
 
 ## Uso no Aether Quantum Engine
 
 | Aspecto | Implementação no projeto |
 |---------|-------------------------|
-| Conexão | `WebSocketManager` → `api_config.base_url` (ex.: `wss://ws.derivws.com/websockets/v3?app_id=...`) |
-| Autenticação | `authorize` com token do `.env` (`AETHER_DEMO_TOKEN` / `AETHER_LIVE_TOKEN`) |
+| Credenciais | `.env`: `AETHER_DERIV_PAT`, `AETHER_DERIV_APP_ID`; opcional `AETHER_DERIV_ACCOUNT_ID` |
+| Validação | `python app/scripts/deriv_pat_connect.py` |
+| REST | `DerivRestClient` → `GET /trading/v1/options/accounts`, `POST .../otp` |
+| WebSocket ao vivo | URL retornada pelo OTP (`wss://api.derivws.com/trading/v1/options/ws/demo?otp=...`) |
+| Dados publicos / backtest | `api_config.public_ws_url` (sem OTP) |
 | Histórico OHLC | `ticks_history` com `style: candles`, `granularity` de `data_handler` (300 s) |
 | Stream ao vivo | `subscribe` OHLC por símbolo (`RDBULL`, `RDBEAR`) |
 | Proposta / compra | `proposal` + `buy` via `TradeHandler` (RISE_FALL, stake, duração 1m) |
@@ -18,7 +21,7 @@ Símbolos ativos do motor: **Range Break** (`RDBULL`, `RDBEAR`), não os exemplo
 
 Para fluxo completo (DL, risco, ciclo), ver [arquitetura.md](arquitetura.md).
 
-A documentação abaixo descreve a API Deriv de forma ampla (inclui OAuth2 REST e endpoints novos). Nem todos os fluxos são usados pelo Aether.
+A documentação abaixo descreve a API Deriv de forma ampla (referência geral). O Aether usa apenas o fluxo PAT documentado acima.
 
 ---
 
@@ -41,7 +44,7 @@ Deriv API is a WebSocket-based API that allows developers to:
 
 ### 1. Authentication
 
-Use the OAuth 2.0 Authorization Code flow with PKCE to obtain an access token (see **Authentication (OAuth 2.0)** section below). Then call `POST /trading/v1/options/accounts/{accountId}/otp` to get a one-time password (OTP). The response contains a ready-to-use WebSocket URL. For unauthenticated public data, connect directly to `wss://api.derivws.com/trading/v1/options/ws/public` without an OTP.
+No Aether, use PAT + App ID no header `Deriv-App-ID` (ver secao **Uso no Aether** acima). Em seguida chame `POST /trading/v1/options/accounts/{accountId}/otp` para obter a URL WebSocket com OTP. Dados publicos: `wss://api.derivws.com/trading/v1/options/ws/public` sem OTP. A secao OAuth abaixo e referencia da Deriv, nao usada pelo motor.
 
 ### 2. Your First API Call
 

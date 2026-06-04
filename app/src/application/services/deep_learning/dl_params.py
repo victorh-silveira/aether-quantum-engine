@@ -113,6 +113,7 @@ def parse_dl_params(dl_config: dict, data_config: dict | None = None) -> dict[st
         "label_smoothing": float(dl_config.get("label_smoothing", 0.02)),
         "granularity": gran,
         "rolling_retrain_bars": int(dl_config.get("rolling_retrain_bars", 12)),
+        "retrain_min_bars": int(dl_config.get("retrain_min_bars", 0)),
         "training_history_bars": training_history_bars,
         "bars_per_day": bars_per_day(gran),
     }

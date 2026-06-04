@@ -20,14 +20,23 @@ async def main():
     log_file = config.get("logging", {}).get("log_file")
     logger = setup_logger("AETH", log_file=log_file)
 
-    auth = AuthManager(mode=config["trading"]["mode"])
-    token = auth.get_token()
+    mode = str(config.get("trading", {}).get("mode", "demo"))
+    auth = AuthManager(mode=mode, config=config)
+    token = auth.get_pat()
 
     if not token:
-        logger.error("Token nao encontrado no .env")
-        return
+        logger.error(
+            "Token Deriv ausente. Defina AETHER_DERIV_PAT no .env (ou pat_...|APP_ID). "
+            "Valide: python app/scripts/deriv_pat_connect.py"
+        )
+        raise SystemExit(1)
+    try:
+        auth.rest_client()
+    except Exception as exc:
+        logger.error("%s", exc)
+        raise SystemExit(1) from exc
 
-    orchestrator = Orchestrator(config, token)
+    orchestrator = Orchestrator(config, auth)
     try:
         await orchestrator.run()
     except (
@@ -35,7 +44,19 @@ async def main():
         KeyboardInterrupt,
     ):
         await orchestrator.stop()
+    if not orchestrator.running:
+        logger.error(
+            "Motor encerrou antes do loop principal. Veja INIT (PAT, OTP, stream) e %s",
+            REPO_ROOT / ".env",
+        )
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except SystemExit:
+        raise
+    except Exception as exc:
+        print(f"ERRO fatal ao iniciar motor: {exc}", flush=True)
+        raise SystemExit(1) from exc

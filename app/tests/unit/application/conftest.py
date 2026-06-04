@@ -6,7 +6,12 @@ from tests.market_symbols import ALL_SYMBOLS, ANCHOR, PAIR
 @pytest.fixture
 def orch_config():
     return {
-        "api_config": {"base_url": "ws://test", "request_timeout_seconds": 1},
+        "api_config": {
+            "rest_base_url": "https://api.derivws.com",
+            "deriv_app_id": "test-app-id",
+            "public_ws_url": "ws://test",
+            "request_timeout_seconds": 1,
+        },
         "symbols": list(ALL_SYMBOLS),
         "anchor": ANCHOR,
         "deep_learning": {"enabled": True, "min_conviction_execute": 0.53},

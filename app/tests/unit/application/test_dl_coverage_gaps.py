@@ -1,3 +1,5 @@
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pytest
 import torch
@@ -14,6 +16,7 @@ from src.application.services.deep_learning.dl_calibration import (
 from src.application.services.deep_learning.dl_outcomes import record_symbol_outcome, sample_weights_for_symbol
 from src.application.services.deep_learning.dl_sim_backtest import direction_wins, run_dl_walkforward
 from src.application.services.deep_learning.dl_splits import purged_temporal_splits, splits_valid
+from src.application.services.deep_learning.dl_symbol_runtime import run_symbol_training
 from src.application.services.deep_learning.dl_tcn import TemporalDirectionClassifier, _Chomp1d
 from src.application.services.deep_learning.dl_training import train_model_walkforward
 from src.application.services.deep_learning.model import (
@@ -29,10 +32,10 @@ from src.application.services.deep_learning.model import (
 from src.domain.models.trade import TradeDirection
 
 
-def test_auth_manager_live_mode(monkeypatch):
-    monkeypatch.setenv("AETHER_LIVE_TOKEN", "live-token")
+def test_auth_manager_get_pat(monkeypatch):
+    monkeypatch.setenv("AETHER_DERIV_PAT", "pat_live_test")
     auth = AuthManager(mode="live")
-    assert auth.get_token() == "live-token"
+    assert auth.get_pat() == "pat_live_test"
 
 
 def test_calibrate_conviction_legacy():
@@ -127,3 +130,88 @@ def test_load_corrupted_checkpoint(tmp_path):
     bad = tmp_path / "corrupt.pth"
     bad.write_bytes(b"not-a-checkpoint")
     assert load_model_checkpoint(bad) is None
+
+
+def test_run_symbol_training_when_walkforward_unavailable():
+    orch = MagicMock()
+    runtime = {
+        "model": create_direction_model(arch="tcn"),
+        "norm_stats": MagicMock(),
+        "calibrator": MagicMock(),
+    }
+    dl_config = {"deploy_gate": {"enabled": False}}
+    params = {
+        "lookback": 96,
+        "validation_bars": 72,
+        "epochs": 2,
+        "arch": "tcn",
+        "lr": 0.001,
+        "weight_decay": 0.0001,
+        "label_smoothing": 0.02,
+        "label_min_move_pct": 0.00015,
+        "early_stopping_patience": 3,
+        "focal_gamma": 0.0,
+        "calib_ratio": 0.15,
+    }
+    prices = np.linspace(1.0, 2.0, 80)
+    with patch(
+        "src.application.services.deep_learning.dl_symbol_runtime.train_model_walkforward",
+        return_value=None,
+    ):
+        stats, loss = run_symbol_training(
+            "RDBULL",
+            runtime,
+            prices,
+            dl_config,
+            params,
+            100,
+            orch,
+            pair_prices=None,
+            granularity=300,
+        )
+    assert stats is runtime["norm_stats"]
+    assert loss is None
+    assert runtime["deploy_ok"] is False
+    assert runtime["val_accuracy"] == 0.0
+
+
+def test_run_symbol_training_handles_training_exception():
+    orch = MagicMock()
+    runtime = {
+        "model": create_direction_model(arch="tcn"),
+        "norm_stats": MagicMock(),
+        "calibrator": MagicMock(),
+    }
+    dl_config = {"deploy_gate": {"enabled": False}}
+    params = {
+        "lookback": 96,
+        "validation_bars": 72,
+        "epochs": 2,
+        "arch": "tcn",
+        "lr": 0.001,
+        "weight_decay": 0.0001,
+        "label_smoothing": 0.02,
+        "label_min_move_pct": 0.00015,
+        "early_stopping_patience": 3,
+        "focal_gamma": 0.0,
+        "calib_ratio": 0.15,
+    }
+    prices = np.linspace(1.0, 2.0, 80)
+    with patch(
+        "src.application.services.deep_learning.dl_symbol_runtime.train_model_walkforward",
+        side_effect=RuntimeError("fail"),
+    ):
+        stats, loss = run_symbol_training(
+            "RDBULL",
+            runtime,
+            prices,
+            dl_config,
+            params,
+            100,
+            orch,
+            pair_prices=None,
+            granularity=300,
+        )
+    assert stats is runtime["norm_stats"]
+    assert loss is None
+    assert runtime["deploy_ok"] is False

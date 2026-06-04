@@ -14,6 +14,22 @@ def ws_manager():
 
 
 @pytest.mark.asyncio
+async def test_ws_connect_requires_uri():
+    mgr = WebSocketManager("")
+    with pytest.raises(ConnectionError):
+        await mgr.connect()
+
+
+@pytest.mark.asyncio
+async def test_ws_connect_sets_uri_argument():
+    mgr = WebSocketManager("")
+    with patch("websockets.connect", new_callable=AsyncMock) as mock_connect:
+        mock_connect.return_value = AsyncMock()
+        await mgr.connect(uri="wss://api.derivws.com/ws/demo?otp=x")
+    assert mgr.uri == "wss://api.derivws.com/ws/demo?otp=x"
+
+
+@pytest.mark.asyncio
 async def test_ws_connect_and_close(ws_manager):
     with patch("websockets.connect", new_callable=AsyncMock) as mock_connect:
         mock_connect.return_value = AsyncMock()

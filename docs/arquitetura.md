@@ -51,8 +51,8 @@ flowchart LR
 
 ### 2.1 Bootstrap
 
-1. `app/run.py` carrega `config/settings.json` e token do `.env`.
-2. `AuthManager` autoriza na Deriv (`authorize`).
+1. `app/run.py` carrega `config/settings.json` e PAT do `.env` (`AETHER_DERIV_PAT` + `AETHER_DERIV_APP_ID`).
+2. `AuthManager` lista contas REST, obtém OTP e abre WebSocket autenticado via URL OTP.
 3. `Orchestrator` instancia stream, risco, executor e persistência.
 4. `StreamHandler.start_candle_stream` busca histórico (`fetch_count`, padrão 320 velas) e assina OHLC.
 

@@ -42,7 +42,7 @@ Arquivo: [`config/settings.json`](config/settings.json)
 | `risk_management` | Kelly, martingale, stop win, stakes |
 | `trading` | `demo` / `live`, janela de sessão UTC (opcional) |
 
-Variáveis de ambiente na raiz (`.env`): token Deriv (`AETHER_DEMO_TOKEN` ou `AETHER_LIVE_TOKEN`).
+Variáveis na raiz (`.env`): `AETHER_DERIV_PAT`, `AETHER_DERIV_APP_ID`, `AETHER_DERIV_ACCOUNT_ID` (opcional, ex. `DOT92912876`). Validação: `python app/scripts/deriv_pat_connect.py`.
 
 ---
 
@@ -72,7 +72,7 @@ Monitor opcional: `python app/scripts/monitor/live_monitor.py`
 ## Stack e qualidade
 
 - **Python 3.13**, `asyncio`, NumPy, Polars, PyTorch (TCN)
-- **Deriv** WebSocket API v3 (`api_config.base_url` em settings)
+- **Deriv** PAT + REST OTP + WebSocket (`api_config` em settings; ver `docs/deriv-api.md`)
 - **CI / pre-commit**: Ruff, Interrogate, Vulture, limite 300 linhas/arquivo, pytest com **100%** de cobertura em `app/src`
 
 Comandos (WSL recomendado):
@@ -81,6 +81,7 @@ Comandos (WSL recomendado):
 make install
 make test
 make lint
+python app/scripts/deriv_pat_connect.py
 make run
 ```
 
@@ -90,7 +91,7 @@ Pre-commit: `pre-commit run --all-files` (na raiz do repo).
 
 ## Execução ao vivo
 
-1. Configure `.env` com o token Deriv.
+1. Configure `.env` com PAT e App ID (app PAT em developers.deriv.com).
 2. `make install`
 3. Valide checkpoints DL (seção abaixo).
 4. `make run` ou `python run.py`
