@@ -1,48 +1,74 @@
-# Estrutura do repositorio
+# Estrutura do repositório
 
-Layout de software (sem Kubernetes/Terraform). Infra de nuvem fica fora deste escopo.
+Layout de software (sem infraestrutura de nuvem neste repo).
 
 ```
 aether-quantum-engine/
-├── app/                    # Codigo Python, testes e scripts operacionais
-│   ├── src/                # Dominio, aplicacao, infraestrutura, apresentacao
-│   ├── tests/              # Pytest (unit)
-│   ├── scripts/            # backtest, monitor, operations, batch
-│   ├── aether_paths.py     # Raiz app/ e repo/ (config, data, logs)
-│   ├── run.py              # Entrada do motor ao vivo
-│   ├── pyproject.toml
-│   └── requirements*.txt
-├── config/                 # settings.json (versionado)
-├── docs/                   # Documentacao
-├── linters/                # pre-commit, commitlint, semantic-release
-├── .github/                # CI (lint, test, security, release)
-├── run.py                  # Atalho para app/run.py
-└── Makefile                # install, lint, test, run
+├── app/
+│   ├── src/
+│   │   ├── application/services/
+│   │   │   ├── deep_learning/     # TCN, treino, gating, deploy, decision_bridge
+│   │   │   ├── orchestrator/      # Ciclo, execução, settlement
+│   │   │   ├── execution_*.py     # Direção e seleção de símbolos
+│   │   │   └── auth_manager.py
+│   │   ├── domain/                # Modelos, risk_manager, martingale, stake
+│   │   ├── infrastructure/        # WebSocket, stream, trade, persistência
+│   │   └── presentation/          # Logger terminal
+│   ├── tests/unit/                # Pytest (cobertura 100% em src)
+│   ├── scripts/
+│   │   ├── backtest/              # dl_walkforward, medallion (legado)
+│   │   ├── monitor/               # live_monitor
+│   │   └── operations/            # clean_workspace (lint/test CI local)
+│   ├── data/dl/                   # Checkpoints .pth por símbolo
+│   ├── aether_paths.py
+│   └── run.py
+├── config/settings.json           # Configuração versionada
+├── data/                          # state.json (runtime)
+├── logs/                          # engine.log
+├── docs/
+├── linters/                       # pre-commit, commitlint, release
+├── .github/workflows/             # CI
+├── run.py                         # Atalho para app/run.py
+└── Makefile
 ```
 
 ## Camadas em `app/src`
 
 | Pasta | Responsabilidade |
 |-------|------------------|
-| `application/services/llm` | Medallion, Gemini, macro, indicadores |
-| `application/services/orchestrator` | Ciclo ao vivo, execucao, settlement |
-| `domain` | Modelos e `risk_manager` |
-| `infrastructure` | WebSocket Deriv, persistencia, handlers |
-| `presentation` | Logger terminal |
+| `application/services/deep_learning` | Features, TCN, treino walk-forward, calibração, predição, deploy gate |
+| `application/services/orchestrator` | `Orchestrator`, `ExecutionManager`, settlement, sessão de trading |
+| `application/services` | `execution_direction`, `execution_symbols`, `auth_manager` |
+| `domain` | `Candle`, `Trade`, `RiskManager`, Kelly, martingale, cooldowns |
+| `infrastructure` | `WebSocketManager`, `StreamHandler`, `TradeHandler`, `PersistenceManager` |
+| `presentation/terminal` | `setup_logger`, formatação de logs |
 
-## Dados e logs
+Não há pacote `application/services/llm` no motor ao vivo atual; decisão é exclusivamente Deep Learning quando `deep_learning.enabled` é verdadeiro.
 
-Persistidos na raiz do repo (`data/`, `logs/`), referenciados via `aether_paths.repo_path()`.
+## Dados e artefatos
 
-## Comandos
+| Caminho | Uso |
+|---------|-----|
+| `data/state.json` | Estado de contratos e banca (via `repo_path`) |
+| `data/dl/RDBULL.pth`, `RDBEAR.pth` | Checkpoints PyTorch + calibrador + métricas |
+| `logs/engine.log` | Auditoria operacional |
+
+Caminhos resolvidos por `aether_paths.repo_path()` e `APP_ROOT`.
+
+## Comandos úteis (WSL)
 
 ```bash
 make install
 make test
+make lint
 make run
-make backtest ARGS="--mode gemini --days 14"
+make clean
 ```
 
-Pre-commit (WSL): `make pre-commit` instala hooks bash em `.git/hooks`; depois `git commit` dispara lint/test/security.
+Pre-commit: `make pre-commit` instala hooks; `git commit` dispara lint, testes e segurança.
 
+Walk-forward DL:
 
+```bash
+cd app && ../app/.venv-wsl/bin/python scripts/backtest/dl_walkforward.py --symbol RDBULL
+```

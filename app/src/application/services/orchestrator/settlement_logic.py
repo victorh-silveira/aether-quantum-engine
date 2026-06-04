@@ -2,6 +2,9 @@
 
 from typing import Any
 
+from src.application.services.deep_learning.dl_outcomes import record_symbol_outcome
+from src.application.services.deep_learning.dl_post_loss import register_post_loss_ban
+from src.application.services.deep_learning.dl_retrain import mark_force_retrain
 from src.application.services.orchestrator.metrics_utils import neutral_metrics
 from src.application.services.orchestrator.result_utils import api_settlement_label
 from src.application.services.orchestrator.settlement_detect import contract_payload_is_settled
@@ -48,7 +51,10 @@ async def process_contract_settlement(orch: Any, data: dict):
     )
 
     sym = orch.risk_manager.contract_to_symbol.get(c_id, c.get("underlying", "UNK"))
-    orch.risk_manager.register_result(profit, c_id, symbol=sym, current_tick=orch.tick_count)
+    loss_dir = getattr(contract, "direction", None)
+    dir_name = loss_dir.name if loss_dir is not None else None
+    record_symbol_outcome(orch, sym, won=profit >= 0.0)
+    orch.risk_manager.register_result(profit, c_id, symbol=sym, current_tick=orch.tick_count, direction=dir_name)
     orch._cluster_results.append({"symbol": sym, "profit": profit})
     orch._last_result_cycle_id = orch._contract_cycle.pop(c_id, 0)
 
@@ -57,9 +63,13 @@ async def process_contract_settlement(orch: Any, data: dict):
     else:
         orch._session_losses += 1
         orch._invert_quarantine_cycles_remaining = 1
-        loss_dir = getattr(contract, "direction", None)
         orch._last_loss_symbol = sym
-        orch._last_loss_direction = loss_dir.name if loss_dir else ""
+        orch._last_loss_direction = dir_name or ""
+        dl_cfg = orch.config.get("deep_learning", {})
+        ban_candles = int(dl_cfg.get("post_loss_ban_candles", 3))
+        if loss_dir is not None and ban_candles > 0:
+            register_post_loss_ban(orch, sym, loss_dir, candle_cycles=ban_candles)
+        mark_force_retrain(orch, sym)
 
     await orch._save_full_state()
 

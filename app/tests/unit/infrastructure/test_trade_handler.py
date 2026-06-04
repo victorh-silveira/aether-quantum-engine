@@ -25,10 +25,10 @@ async def test_trade_handler_buy_with_parameters_success(trade_handler, mock_ws)
         "buy": {"contract_id": 999, "buy_price": 10.0, "payout": 18.5, "longcode": "Win contract"}
     }
 
-    contract = await trade_handler.buy_with_parameters("frxEURUSD", TradeDirection.CALL, 10.0)
+    contract = await trade_handler.buy_with_parameters("RDBULL", TradeDirection.CALL, 10.0)
     assert contract.contract_id == 999
     assert contract.status == TradeStatus.OPEN
-    assert contract.symbol == "frxEURUSD"
+    assert contract.symbol == "RDBULL"
     assert contract.direction == TradeDirection.CALL
     assert contract.stake == 10.0
 
@@ -43,7 +43,7 @@ async def test_trade_handler_buy_uses_date_expiry_from_api(trade_handler, mock_w
             "date_expiry": 1900000000,
         }
     }
-    contract = await trade_handler.buy_with_parameters("OTC_SPC", TradeDirection.CALL, 2.34)
+    contract = await trade_handler.buy_with_parameters("RDBEAR", TradeDirection.CALL, 2.34)
     assert contract.expiry_time == 1900000000
 
 
@@ -51,7 +51,7 @@ async def test_trade_handler_buy_uses_date_expiry_from_api(trade_handler, mock_w
 async def test_trade_handler_buy_with_parameters_error(trade_handler, mock_ws):
     mock_ws.send.return_value = {"error": {"message": "Insufficient balance"}}
     with pytest.raises(RuntimeError, match="Erro na compra direta: Insufficient balance"):
-        await trade_handler.buy_with_parameters("frxEURUSD", TradeDirection.CALL, 10.0)
+        await trade_handler.buy_with_parameters("RDBULL", TradeDirection.CALL, 10.0)
 
 
 @pytest.mark.asyncio
@@ -67,7 +67,7 @@ async def test_trade_handler_buy_with_parameters_multiplier(trade_handler, mock_
         "buy": {"contract_id": 999, "buy_price": 10.0, "payout": 0.0, "longcode": "Multiplier contract"}
     }
 
-    contract = await trade_handler.buy_with_parameters("frxEURUSD", TradeDirection.CALL, 10.0, params=params)
+    contract = await trade_handler.buy_with_parameters("RDBULL", TradeDirection.CALL, 10.0, params=params)
     assert contract.contract_id == 999
 
     args, _ = mock_ws.send.call_args

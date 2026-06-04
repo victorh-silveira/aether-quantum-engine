@@ -1,118 +1,129 @@
-Para entender como Jim Simons e a equipe da Renaissance Technologies (RenTec) abordariam esse cenário específico por meio do fundo **Medallion**, é preciso primeiro desmistificar a narrativa tradicional de Wall Street. Jim Simons nunca operaria com base em narrativas macroeconômicas discricionárias do tipo _"o EURUSD subiu, então vou comprar ações porque é Risk-On"_.
+# Metodologia quantitativa
 
-A RenTec aborda o mercado estritamente como um **sistema de processamento de sinais ruidosos**. O Medallion buscaria anomalias estatísticas, microestruturais e matemáticas escondidas na dinâmica de preços desse conjunto específico de ativos em um horizonte de tempo estrito de 15 minutos.
+O Aether Quantum Engine herda a postura **Medallion** no sentido operacional: o mercado é um **sistema de sinais ruidosos**, não uma narrativa macro discricionária. A implementação atual concentra-se no par sintético **Range Break** (`RDBULL` / `RDBEAR`) com **Deep Learning** online, não em clusters OTC transatlânticos nem LLM.
 
-Abaixo está o detalhamento metodológico e matemático de como o Medallion estruturaria esse modelo preditivo cross-asset (inter-mercados) utilizando o par frxEURUSD como a variável preditora primária para os índices americanos (OTC\_SPC, OTC\_NDX, OTC\_DJI) e europeus (OTC\_FCHI, OTC\_GDAXI, OTC\_SSMI, OTC\_FTSE).
+Para arquitetura de código, ver [`arquitetura.md`](arquitetura.md).
 
-1\. A Lógica Quantitativa: O EURUSD como Proxy de Liquidez Global
------------------------------------------------------------------
+---
 
-No framework quantitativo, o par frxEURUSD não é apenas uma taxa de câmbio; ele funciona como o principal termômetro de liquidez global e diferencial de taxa de juros de curto prazo entre o Federal Reserve (Fed) e o Banco Central Europeu (BCE).
+## 1. Princípios
 
-*   **Regime de Risk-On (Apetite ao Risco):** Tradicionalmente correlacionado com o enfraquecimento do Dólar Americano ($USD$). Em momentos de otimismo, o capital sai de ativos de refúgio (como os títulos do Tesouro dos EUA e o próprio dólar) e migra para ativos globais. Isso gera um fluxo comprador no Euro, empurrando o frxEURUSD para cima.
-    
-*   **Regime de Risk-Off (Aversão ao Risco):** Ocorre a repatriação de capital para o $USD$ ("flight to safety"). O Euro se desvaloriza frente ao dólar, derrubando o frxEURUSD.
-    
+| Princípio | No motor atual |
+|-----------|----------------|
+| Sinais, não histórias | Direção CALL/PUT a partir de features de preço e par; gating numérico |
+| Horizonte curto | Velas 5m; contrato 1m; ciclo 300s |
+| Regime e ruído | Meta-labels filtram movimentos irrelevantes; Brier e ECE no treino |
+| Poucas operações de qualidade | `deploy_gate`, convicção mínima, pausa após losses |
+| Feedback real | Win rate live misturado em `val_accuracy`; retreino após loss |
 
-O Medallion não operaria essa correlação de forma linear ou estática. O fundo exploraria o **descompasso temporal** (lead-lag effect) em barras de altíssima frequência e horizontes de 15 minutos.
+---
 
-2\. Modelagem Matemática e Arquitetura do Sinal
------------------------------------------------
+## 2. Par Range Break (RDBULL / RDBEAR)
 
-Para prever a direção dos próximos 15 minutos, o Medallion decomporia as séries temporais dos ativos usando técnicas avançadas de processamento de sinais e aprendizado estatístico.
+Dois índices sintéticos correlacionados: o modelo usa **features de par** (spread, confirmação de direção) além de indicadores por símbolo.
 
-### Cadeias Ocultas de Markov (Hidden Markov Models - HMM)
+| Símbolo | Papel típico |
+|---------|----------------|
+| `RDBULL` | Âncora configurável; referência de cluster |
+| `RDBEAR` | Par complementar; seleção competitiva por `trade_score` |
 
-Na literatura RenTec, HMM com Baum-Welch identifica estados ocultos que alteram a dinâmica dos retornos. No horizonte de 15 minutos do Aether, **duas camadas** coexistem sem se confundir:
+Operação: contratos **RISE_FALL** (CALL = alta no período, PUT = queda).
 
-| Camada | O que modela | Origem no motor |
-|--------|----------------|-----------------|
-| **Macro transatlântico** | Risk-On / Risk-Off / divergência US-EU | Voto quantitativo dos índices US e EU em M15 (`classify_transatlantic_confluence`) |
-| **HMM no marcapasso** | Volatilidade e persistência de regime no `frxEURUSD` | `MarketHMMClassifier`: estado 0 = reversão à média, estado 1 = tendência/rompimento |
+---
 
-O EURUSD permanece variável observável central; o HMM **não** substitui as tags `US_CLUSTER` / `EU_CLUSTER` da LLM. Ele modula convicção via StatArb (`llm_macro_confluence_guards`). Detalhes em [`arquitetura.md`](arquitetura.md).
+## 3. Janela temporal de treino
 
-### Arbitragem Estatística Cross-Asset e Cointegração
+Com `granularity: 300` (5 minutos):
 
-Em vez de olhar apenas para o preço bruto, o Medallion calcularia os resíduos de modelos de regressão dinâmicos. Embora moedas e índices de ações não sejam perfeitamente cointegrados no longo prazo devido a fatores estruturais diferentes, eles compartilham componentes estocásticos comuns no curto prazo (janelas móveis de volatilidade).
+| Conceito | Barras | Tempo aproximado |
+|----------|--------|------------------|
+| 1 dia civil | 288 | 24 h |
+| Lookback do TCN | 96 (padrão) | 8 h de contexto por sequência |
+| Validação holdout | 48 (padrão) | 4 h |
+| Histórico usado no treino | `training_history_bars: 288` | 1 dia |
 
-O modelo estimaria uma função de transição onde o retorno esperado de um índice europeu (ex: OTC\_GDAXI) ou americano (ex: OTC\_SPC) no período $t + 15\\text{min}$ é uma função dos desvios da média móvel do frxEURUSD e do próprio índice:
+Configuração: `data_handler.history_bars`, `deep_learning.training_history_bars` ou `training_history_days`.
 
-$$\\Delta \\text{Índice}\_{t \\to t+15} = \\alpha + \\sum\_{i=0}^{k} \\beta\_i \\Delta \\text{EURUSD}\_{t-i} + \\gamma (\\text{Índice}\_t - \\theta \\text{EURUSD}\_t) + \\epsilon\_t$$
+O motor recorta as últimas N barras antes de treinar e predizer (`slice_dl_price_window` em `dl_params.py`).
 
-Onde:
+---
 
-*   $\\theta$ é o coeficiente de hedge dinâmico.
-    
-*   $\\gamma$ é a velocidade de reversão à média do desequilíbrio gerado pelo fluxo de ordens.
+## 4. Camadas de decisão (qualidade)
 
-**Implementação no Aether:** a equação acima é aproximada por `compute_pca_cointegration_zscores` (fator comum PC1 + resíduo por índice em janela M15). A seleção do índice no cluster ativo usa o Z-Score alinhado à tag LLM (`cluster_statarb_select.py`).
+Ordem lógica de uma entrada:
 
-3\. Matriz de Correlação Dinâmica e Execução nos Índices
---------------------------------------------------------
+1. **Dados** — histórico suficiente (`gate_reason=data`).
+2. **Modelo** — direção com margem (`direction_margin`).
+3. **Deploy** — mini walk-forward pós-treino (`deploy`).
+4. **Gating** — convicção, edge, val_acc, Brier, gap calibrado, saturação.
+5. **Pós-loss** — ban temporário symbol+direção; cooldown de símbolo.
+6. **Seleção** — melhor candidato entre RDBULL/RDBEAR.
+7. **Risco** — Kelly ou martingale; stop win; stake mínima/máxima.
 
-Como o Medallion distribuiria as ordens entre os ativos com base nas variações do frxEURUSD em 15 minutos? O fundo aproveitaria assimetrias geográficas e de sensibilidade ao risco ("Beta").
+Perfil **qualidade** em `config/settings.json` (valores podem evoluir):
 
-| Ativo | Região | `frxEURUSD` ↑ (Risk-On) | `frxEURUSD` ↓ (Risk-Off) |
-|-------|--------|-------------------------|---------------------------|
-| `OTC_SPC` (S&P 500) | US | Alta moderada (beta de mercado) | Queda sistemática |
-| `OTC_NDX` (Nasdaq 100) | US | Alta agressiva (juros/liquidez) | Queda acentuada |
-| `OTC_DJI` (Dow Jones) | US | Alta defensiva (valor/industriais) | Queda moderada |
-| `OTC_GDAXI` (DAX) | EU | Alta forte (exportador) | Queda severa |
-| `OTC_FCHI` (CAC 40) | EU | Alta consumo/luxo | Queda correlacionada Europa |
-| `OTC_SSMI` (SMI) | EU | Alta limitada (CHF refúgio) | Desempenho relativo defensivo |
-| `OTC_FTSE` (FTSE 100) | EU | Misto (commodities em USD) | Reação mista (mineradoras/energia) |
+- `min_conviction_execute`, `min_edge_margin`, `min_val_accuracy`
+- `max_val_brier_execute`, `max_calib_gap_execute`
+- `recovery_gating` mais rígido que o modo normal
+- `post_loss_ban_candles`, `session_max_losses_in_window`
+- `deploy_gate`: `min_win_rate`, `max_brier`, `mini_bars` alinhado ao dia de histórico
 
-Execução no motor: `risk_on` → cluster US; `risk_off` → cluster EU; um índice por cluster via StatArb quando habilitado (`docs/arquitetura.md` §6).
+---
 
-### Assertividade e drawdown (motor Aether)
+## 5. Recovery e martingale
 
-O Medallion no Aether prioriza **menos trades de maior qualidade** em vez de volume cego:
+Após perda no cluster, `pending_loss` acumula valor a recuperar.
 
-- **Macro:** piso de força em `risk_on`/`risk_off`; divergência só com líder forte; `indefinido` bloqueado sem gap US/EU; `allowed_execute_tags` inclui `divergence_us_leads` e `divergence_eu_leads` quando habilitados.
-- **Direção executável:** pilha quant M5 → StatArb → tag LLM (`cluster_statarb_direction.py`); em divergência o micro M5 governa o lado operável quando contradiz a narrativa cacheada.
-- **Refresh híbrido:** divergência pode reexecutar no `cluster_refresh` com edge quant validado; `risk_on`/`risk_off` exigem LLM fresca.
-- **Simbolos:** `excluded_symbols` remove indices fracos do cluster (ex.: SPC, FTSE, NDX).
-- **LLM live:** `llm.refresh_schedule=tag_change` consulta Gemini quando a tag macro muda; `llm.refresh_interval_hours` força reconsulta periódica (ex.: 4h).
-- **Sessão OTC:** `trading.session` limita entradas à janela UTC, warm-up após sync de velas e bloqueio nos minutos finais antes do fechamento.
-- **StatArb:** Z contra a direção em HMM de reversão → veto (`STATARB_VETO`); alinhamento → boost de convicção; até 2 índices por cluster (`statarb_index_max_per_cluster`).
-- **Risco:** Kelly com `max_stake_pct` / `max_stake_pct_high_conviction`, cooldown menor em convicção alta; stop win diário 10% (conta grande) ou valor fixo (conta pequena).
+| Comportamento | Config |
+|---------------|--------|
+| Martingale ativo em recovery | `full_recovery_martingale`, `martingale_force_on_pending_loss` |
+| Bloqueio por métricas DL | `martingale_dl_metrics_block` (Brier, `gate_reason`, `deploy_ok`) |
+| Não repetir mesmo symbol+direção da última loss | `martingale_repeat_loss_blocked` |
+| Convicção mínima em recovery (se force desligado) | `recovery_martingale_min_conviction` |
 
-Parâmetros em `config/settings.json` → `strategy.macro` e `risk_management.kelly`.
+Stake de recovery cobre perda pendente + lucro alvo derivado do Kelly base.
 
-## Backtest alinhado ao motor live
+---
 
-O backtest em `app/scripts/backtest/` replica o pipeline de cluster do orquestrador:
+## 6. Execução obrigatória e inversão
 
-- `propagate_cluster_decisions` + `cluster_execute_block_reason` (StatArb por tag, pausa pós-loss, quarentena de inversão)
-- Walk-forward barra a barra (`hft_walkforward.py`): liquida o contrato 15m antes da próxima entrada (pausa cluster e cooldown como no live)
-- Janela `trading.session` (UTC) e cadência HFT (`cycle_interval_seconds`)
+| Flag | Efeito |
+|------|--------|
+| `mandatory_trade_each_cycle` | Sempre envia ordem CALL ou PUT no ciclo (após seleção) |
+| `invert_dl_direction` | Executa lado oposto ao previsto pelo DL (default: `false`) |
+| `include_anchor_trades` | Inclui âncora nas ordens do cluster |
 
-Comandos (WSL, na raiz do repo):
+Logs: `ord=` (execução), `dl=` (previsto), `inv` quando invertido.
 
-```bash
-PYTHONPATH=app python app/scripts/backtest/medallion_backtest.py --config config/settings.json --days 14 --bankroll 74 --mode quant
-PYTHONPATH=app python app/scripts/backtest/medallion_backtest.py --config config/settings.json --days 14 --bankroll 74 --mode gemini --gemini-schedule tag_change
-```
+---
 
-- `--mode quant`: surrogate US/EU a partir do snapshot macro (sem API; útil para regressão rápida).
-- `--mode gemini`: mesma decisão que o live (`GEMINI_API_KEY`); use cache em `data/backtest/gemini_cache.jsonl` para reexecuções baratas.
+## 7. Risco e stop win
 
-### Cenários lucrativos (live + backtest)
+- **Kelly fracionário** com win rate dinâmico após amostras mínimas.
+- **Stop win diário**: percentual da banca inicial (conta grande) ou valor fixo (conta pequena); novas entradas zeradas até o dia seguinte.
+- **Sem martingale cego**: progressão só no modo recovery autorizado e sem bloqueio de gate.
 
-Calibrado em 14 dias M15 com walk-forward alinhado ao motor:
+---
 
-| Modo | Trades | Win rate | PnL (banca $74) | Stop win/dia |
-|------|--------|----------|-----------------|--------------|
-| quant | 6 | 66,7% | +$16,16 | 80% |
-| gemini | 6 | 83,3% | +$40,73 | 100% |
+## 8. Validação antes do live
 
-Filtros em `config/settings.json` → `strategy.macro` e `orchestrator`:
+1. Walk-forward: `dl_walkforward.py` por símbolo.
+2. Verificar `deploy_ok`, win rate e Brier no relatório.
+3. Apagar checkpoints antigos se a dimensão de features mudou.
+4. Reiniciar o processo após alterar `settings.json`.
 
-- `allowed_execute_tags`: `risk_on`, `risk_off` e tags de divergência quando calibradas.
-- `orchestrator.cluster_refresh_execute_on_quant_validate`: execução quant-gated no refresh de divergência.
-- `allowed_cluster_symbols_by_tag`: restringe índices por regime (ex.: `risk_on` → `OTC_DJI`; `risk_off` → `OTC_FCHI`).
-- `min_conviction_by_tag` e `statarb_min_abs_z_by_tag` elevados (0,68–0,70).
-- `excluded_symbols` e clusters reduzidos aos índices acima.
+---
 
-O gate `scenario_symbol_not_allowed` em `profitable_scenario.py` bloqueia qualquer outro par tag+índice no live.
+## 9. Legado Medallion (OTC / EURUSD / Gemini)
+
+O repositório ainda contém scripts de backtest **Medallion** (`medallion_backtest.py`, HFT, coleta Gemini) para o universo histórico **frxEURUSD + índices OTC** com decisão LLM. Esse pipeline **não** alimenta o `Orchestrator` ao vivo na branch atual.
+
+Use `dl_walkforward.py` como referência de validação para o par RD.
+
+---
+
+## 10. Referências internas
+
+- [arquitetura.md](arquitetura.md)
+- [README.md](../README.md)
+- [CHANGELOG.md](CHANGELOG.md)

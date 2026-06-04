@@ -7,14 +7,19 @@ import asyncio
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 from src.application.services.llm.macro_config import resolve_macro_config
 
 from aether_paths import repo_path
 from scripts.backtest.data_loader import backtest_symbols, fetch_market_for_backtest, load_settings
+from scripts.backtest.dl_walkforward import print_dl_summary
+from scripts.backtest.dl_walkforward_fetch import fetch_m1_closes
 from scripts.backtest.gemini_collect import collect_hft_orders_gemini
 from scripts.backtest.hft_cycle import collect_hft_orders
 from scripts.backtest.report import build_report, print_summary, save_report
 from scripts.backtest.simulator import settle_orders, settle_orders_kelly
+from src.application.services.deep_learning.dl_bridge_helpers import parse_dl_params
+from src.application.services.deep_learning.dl_sim_backtest import run_dl_walkforward
 
 
 def _min_start_bar(config: dict[str, Any]) -> int:
@@ -169,12 +174,29 @@ def parse_args() -> argparse.Namespace:
         help="Stake fixa (opcional). Omitir para Kelly + recuperacao de risk_management.",
     )
     parser.add_argument("--bankroll", type=float, default=100.0)
+    parser.add_argument(
+        "--engine",
+        choices=("medallion", "dl"),
+        default="medallion",
+        help="medallion=HFT M15; dl=walk-forward TCN M1 (--symbol obrigatorio no modo dl).",
+    )
+    parser.add_argument("--symbol", type=str, default="1HZ100V", help="Simbolo para backtest DL.")
     return parser.parse_args()
 
 
 async def async_main() -> int:
     """Ponto de entrada assincrono."""
     args = parse_args()
+    if args.engine == "dl":
+        config = load_settings(args.config)
+        params = parse_dl_params(config.get("deep_learning", {}))
+        bar_count = int(args.bars) if args.bars else 3000
+        prices_list = await fetch_m1_closes(args.symbol, bar_count, config)
+        if len(prices_list) < 100:
+            raise RuntimeError(f"Serie M1 insuficiente para {args.symbol}: {len(prices_list)} velas")
+        result = run_dl_walkforward(np.asarray(prices_list, dtype=np.float64), params)
+        print_dl_summary(result, symbol=args.symbol)
+        return 0
     config = load_settings(args.config)
     market = await fetch_market_for_backtest(config, days=args.days, bars=args.bars)
     cache_path = args.gemini_cache if args.mode == "gemini" else None

@@ -1,8 +1,28 @@
 # Deriv API
 
-> Comprehensive documentation for the Deriv API, including WebSocket and REST APIs for building trading applications.
+> Referência da API Deriv (WebSocket e REST). O motor ao vivo do Aether usa um subconjunto via **WebSocket v3** legado configurado em `config/settings.json`.
 
-**API Version:** This documents the Deriv API (the current production API).
+## Uso no Aether Quantum Engine
+
+| Aspecto | Implementação no projeto |
+|---------|-------------------------|
+| Conexão | `WebSocketManager` → `api_config.base_url` (ex.: `wss://ws.derivws.com/websockets/v3?app_id=...`) |
+| Autenticação | `authorize` com token do `.env` (`AETHER_DEMO_TOKEN` / `AETHER_LIVE_TOKEN`) |
+| Histórico OHLC | `ticks_history` com `style: candles`, `granularity` de `data_handler` (300 s) |
+| Stream ao vivo | `subscribe` OHLC por símbolo (`RDBULL`, `RDBEAR`) |
+| Proposta / compra | `proposal` + `buy` via `TradeHandler` (RISE_FALL, stake, duração 1m) |
+| Contratos abertos | `proposal_open_contract`, `profit_table` (reconciliação e settlement) |
+| Keep-alive | Loop de ping no `WebSocketManager` |
+
+Símbolos ativos do motor: **Range Break** (`RDBULL`, `RDBEAR`), não os exemplos genéricos `1HZ100V` / OTC deste documento.
+
+Para fluxo completo (DL, risco, ciclo), ver [arquitetura.md](arquitetura.md).
+
+A documentação abaixo descreve a API Deriv de forma ampla (inclui OAuth2 REST e endpoints novos). Nem todos os fluxos são usados pelo Aether.
+
+---
+
+**API Version:** Referência geral da Deriv API.
 
 ## Overview
 

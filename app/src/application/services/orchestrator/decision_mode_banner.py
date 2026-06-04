@@ -10,10 +10,21 @@ def emit_decision_engine_banner(logger: logging.Logger, config: dict[str, Any], 
     """Emite uma linha CFG informando se o ciclo usara PyTorch Deep Learning."""
     dl_cfg = config.get("deep_learning") or {}
     if dl_enabled:
+        exec_cfg = config.get("orchestrator", {}).get("execution", {})
+        invert = bool(exec_cfg.get("invert_dl_direction", False))
+        mandatory = bool(exec_cfg.get("mandatory_trade_each_cycle", True))
+        hist = dl_cfg.get("training_history_bars")
+        if hist is None:
+            data_cfg = config.get("data_handler") or {}
+            hist = data_cfg.get("history_bars", "")
         logger.info(
-            "CFG decisao | modo=DEEP_LEARNING_PYTORCH | model_path=%s | lookback=%s",
+            "CFG decisao | modo=DEEP_LEARNING_PYTORCH | model_path=%s | lookback=%s | "
+            "hist_treino=%s | exec_obrigatoria=%s | invert_dl=%s",
             dl_cfg.get("model_path", ""),
             dl_cfg.get("lookback", ""),
+            hist,
+            mandatory,
+            invert,
         )
     else:
         logger.debug(

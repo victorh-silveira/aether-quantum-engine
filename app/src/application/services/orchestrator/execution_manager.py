@@ -3,11 +3,21 @@
 import asyncio
 import logging
 
+from src.application.services.execution_direction import build_execution_candidate
+from src.application.services.execution_symbols import (
+    filter_execution_candidates,
+    format_execution_alternates,
+    pending_recovery_active,
+    select_best_execution_candidate,
+    select_mandatory_execution_candidate,
+    symbols_eligible_for_execution,
+)
 from src.domain.models.trade import TradeDirection
+from src.domain.risk.stop_win_target import resolve_stop_win_target
 
+from .execution_blockers import log_execution_blockers
+from .execution_orders import place_order
 from .execution_settlement import reconcile_contracts, run_settlement_watch, wait_for_settlement
-from .settlement_backfill import subscribe_open_contract
-from .stop_win_target import resolve_stop_win_target
 
 
 class ExecutionManager:
@@ -17,6 +27,16 @@ class ExecutionManager:
         """Inicializa dependencias do executor."""
         self.orch = orchestrator
         self.logger = logging.getLogger("AETH")
+
+    def _include_anchor_trades(self) -> bool:
+        """Indica se o simbolo ancora pode ser operado neste ciclo."""
+        return bool(self.orch.config.get("orchestrator", {}).get("execution", {}).get("include_anchor_trades", False))
+
+    def _trade_symbols(self) -> list[str]:
+        """Lista simbolos elegiveis para envio de ordens no cluster."""
+        return symbols_eligible_for_execution(
+            self.orch.anchor, self.orch.symbols, include_anchor=self._include_anchor_trades()
+        )
 
     def _start_result_buffer(self) -> None:
         """Ativa buffer temporario para logs de resultado."""
@@ -32,77 +52,94 @@ class ExecutionManager:
         """Motivo unico quando o cluster inteiro nao pode alocar stake."""
         if not orders:
             return None
-        symbol, _, metrics = orders[0]
-        conviction = float(metrics.get("conviction", 0.60))
-        return self.orch.risk_manager.stake_block_reason(bankroll, symbol, conviction=conviction)
+        symbol, direction, metrics = orders[0]
+        conviction = float(metrics.get("trade_score", metrics.get("conviction", 0.60)))
+        dl_cfg = self.orch.config.get("deep_learning", {})
+        return self.orch.risk_manager.stake_block_reason(
+            bankroll,
+            symbol,
+            conviction=conviction,
+            cycle_id=int(self.orch._active_cycle_id),
+            dl_metrics=metrics,
+            order_direction=direction.name,
+            max_val_brier=float(dl_cfg.get("max_val_brier_execute", 0.28)),
+        )
 
     def _log_execution_blockers(self, decisions: dict) -> None:
         """Registra motivo quando nenhuma ordem foi montada apesar de decisoes no ciclo."""
-        cid = f"C{int(self.orch._active_cycle_id):04d}"
-        reasons: list[str] = []
-        bankroll_snapshot = float(self.orch.state.balance)
-        for symbol in self.orch.symbols:
-            if symbol == self.orch.anchor:
-                continue
-            entry = decisions.get(symbol)
-            if not entry:
-                continue
-            metrics = entry["metrics"]
-            direction = entry["direction"]
-            if direction is None:
-                reasons.append(f"{symbol}:sem_direcao")
-                continue
-            if not metrics.get("execute", True):
-                block_reason = str(metrics.get("llm_block_reason") or "execute_false")
-                reasons.append(f"{symbol}:{block_reason}")
-                continue
-            stake = self.orch.risk_manager.calculate_stake(
-                bankroll_snapshot,
-                symbol,
-                conviction=float(metrics.get("conviction", 0.60)),
-                silent=True,
-                cycle_id=int(self.orch._active_cycle_id),
-            )
-            block = self.orch.risk_manager.stake_block_reason(
-                bankroll_snapshot, symbol, conviction=float(metrics.get("conviction", 0.60))
-            )
-            if stake <= 0:
-                reasons.append(f"{symbol}:{block or 'stake_zero'}")
-        if reasons:
-            self.logger.info("[%s] EXEC_NONE || %s", cid, " | ".join(reasons))
+        log_execution_blockers(self, decisions)
+
+    def _execution_flags(self) -> tuple[bool, bool]:
+        """Retorna (mandatory_trade_each_cycle, invert_dl_direction)."""
+        exec_cfg = self.orch.config.get("orchestrator", {}).get("execution", {})
+        mandatory = bool(exec_cfg.get("mandatory_trade_each_cycle", True))
+        invert = bool(exec_cfg.get("invert_dl_direction", False))
+        return mandatory, invert
 
     def _collect_orders(self, decisions: dict) -> list[tuple[str, TradeDirection, dict]]:
-        """Filtra decisoes executaveis e retorna apenas a ordem com maior conviccao."""
+        """Seleciona uma ordem por ciclo; modo obrigatorio ignora gate execute=false."""
+        mandatory, invert = self._execution_flags()
         candidates: list[tuple[str, TradeDirection, dict]] = []
         cid = f"C{int(self.orch._active_cycle_id):04d}"
-        for symbol in self.orch.symbols:
-            if symbol == self.orch.anchor:
-                continue
+        for symbol in self._trade_symbols():
             entry = decisions.get(symbol)
             if not entry:
                 continue
-            metrics = entry["metrics"]
-            if not metrics.get("execute", True):
+            if not mandatory and not entry.get("metrics", {}).get("execute", True):
                 self.logger.debug("[%s] SKIP: Conviccao insuficiente para %s (Metrics Gate)", cid, symbol)
                 continue
-
-            direction = entry["direction"]
-            if direction is None:
+            built = build_execution_candidate(symbol, entry, invert_dl_direction=invert)
+            if built is None:
                 continue
-            candidates.append((symbol, direction, metrics))
+            candidates.append(built)
 
         if not candidates:
             return []
 
-        # Ordena candidatos por conviccao decrescente
-        candidates.sort(key=lambda x: float(x[2].get("conviction", 0.0)), reverse=True)
-        best = candidates[0]
+        if not mandatory:
+            dl_cfg = self.orch.config.get("deep_learning", {})
+            selection = dl_cfg.get("selection", {}) if isinstance(dl_cfg, dict) else {}
+            filtered = filter_execution_candidates(candidates, selection=selection)
+            if not filtered:
+                return []
+            candidates = filtered
+
+        recovery_active = pending_recovery_active(getattr(self.orch.risk_manager, "pending_loss", {}))
+        exec_cfg = self.orch.config.get("orchestrator", {}).get("execution", {})
+        margin = float(exec_cfg.get("diversify_after_loss_margin", 0.08))
+        last_loss = getattr(self.orch.risk_manager, "last_loss_symbol", None)
+        dl_cfg = self.orch.config.get("deep_learning", {})
+        flip_raw_min = float(dl_cfg.get("post_loss_flip_raw_min", 0.58)) if isinstance(dl_cfg, dict) else 0.58
+        if mandatory:
+            best = select_mandatory_execution_candidate(
+                self.orch,
+                candidates,
+                last_loss_symbol=last_loss,
+                diversify_margin=margin,
+                recovery_active=recovery_active,
+                flip_raw_min=flip_raw_min,
+            )
+        else:
+            best = select_best_execution_candidate(
+                candidates,
+                last_loss_symbol=last_loss,
+                diversify_margin=margin,
+                recovery_active=recovery_active,
+            )
+        metrics = best[2]
+        inv_tag = " inv" if metrics.get("direction_inverted") else ""
+        dl_name = metrics.get("dl_direction", best[1].name)
         self.logger.info(
-            "[%s] CANDIDATOS: %s | SELECIONADO: %s (conviccao=%s)",
+            "[%s] EXEC_SEL | %s ord=%s dl=%s%s s=%.2f v=%.2f r=%.2f | alt=%s",
             cid,
-            ", ".join([f"{c[0]}({c[2].get('conviction', 0.0):.2f})" for c in candidates]),
             best[0],
-            best[2].get("conviction", 0.0),
+            best[1].name,
+            dl_name,
+            inv_tag,
+            float(metrics.get("trade_score", metrics.get("conviction", 0.0))),
+            float(metrics.get("val_accuracy", 0.0)),
+            float(metrics.get("raw_prob", metrics.get("raw_conviction", 0.0))),
+            format_execution_alternates(candidates, exclude_symbol=best[0]),
         )
         return [best]
 
@@ -113,14 +150,19 @@ class ExecutionManager:
         executed_count = 0
         for i, (symbol, direction, metrics) in enumerate(orders):
             order_n = i + 1
-            conviction = float(metrics.get("conviction", 0.60))
+            conviction = float(metrics.get("trade_score", metrics.get("conviction", 0.60)))
 
+            dl_cfg = self.orch.config.get("deep_learning", {})
+            pending = sum(self.orch.risk_manager.pending_loss.values())
             stake = self.orch.risk_manager.calculate_stake(
                 bankroll_snapshot,
                 symbol,
                 conviction=conviction,
-                silent=True,
+                silent=pending <= 0.0,
                 cycle_id=int(self.orch._active_cycle_id),
+                dl_metrics=metrics,
+                order_direction=direction.name,
+                max_val_brier=float(dl_cfg.get("max_val_brier_execute", 0.28)),
             )
 
             if stake <= 0:
@@ -132,7 +174,7 @@ class ExecutionManager:
                 await asyncio.sleep(inter_delay)
             try:
                 custom_dur = metrics.get("duration")
-                res = await self._place_order(symbol, direction, stake, duration=custom_dur)
+                res = await self._place_order(symbol, direction, stake, duration=custom_dur, metrics=metrics)
                 if res:
                     self.orch.risk_manager.active_contract_ids.append(res.contract_id)
                     await self.orch.state.add_contract(res)
@@ -171,8 +213,25 @@ class ExecutionManager:
 
             orders = self._collect_orders(decisions)
             cid = f"C{int(self.orch._active_cycle_id):04d}"
-            if not orders:
+            mandatory, _ = self._execution_flags()
+            pending = sum(self.orch.risk_manager.pending_loss.values())
+            if pending > 0.0:
+                sw = resolve_stop_win_target(
+                    self.orch.config.get("risk_management", {}),
+                    self.orch.risk_manager.initial_bankroll,
+                )
+                pnl = float(self.orch.risk_manager.total_session_profit)
+                self.logger.info(
+                    "[%s] RISK: RECOVERY | pend=$%.2f | pnl_sessao=$%+.2f | stop_win=$%.2f",
+                    cid,
+                    pending,
+                    pnl,
+                    sw,
+                )
+            if not orders and not mandatory:
                 self._log_execution_blockers(decisions)
+            elif not orders:
+                self.logger.warning("[%s] EXEC_SKIP | sem direcao inferivel em nenhum simbolo", cid)
             else:
                 block = self._cluster_stake_block(orders, bankroll_snapshot)
                 if block:
@@ -220,55 +279,9 @@ class ExecutionManager:
             c_txt,
         )
 
-    async def _place_order(self, symbol, direction, stake, duration=None):
-        """Compra contrato diretamente usando parâmetros para evitar rate limit de proposta."""
-        cid = f"C{int(self.orch._active_cycle_id):04d}"
-
-        params = self.orch.config.get("risk_management", {}).get("params", {}).copy()
-        if duration:
-            params["duration"] = duration  # pragma: no cover
-
-        if params.get("contract_type") == "MULTIPLIER":
-            target_total = resolve_stop_win_target(
-                self.orch.config.get("risk_management"), self.orch.risk_manager.initial_bankroll
-            )
-            current_profit = self.orch.risk_manager.total_session_profit
-            remaining = target_total - current_profit
-
-            if remaining > 0:
-                max_tp = float(stake) * 50.0
-                tp_val = min(float(remaining), max_tp)
-                params["limit_order"] = {"take_profit": round(tp_val, 2)}
-                if "stop_loss" in params["limit_order"]:
-                    del params["limit_order"]["stop_loss"]  # pragma: no cover
-
-        contract = await self.orch.trade_handler.buy_with_parameters(symbol, direction, stake, params=params)
-        dur = duration or params.get("duration", 1)
-        u = params.get("duration_unit", "m")
-
-        self.logger.info(
-            "[%s] EXEC || %s %s $%.2f || pay=%.2f cid=%s buy=$%.2f %s%s",
-            cid,
-            symbol,
-            direction.name,
-            float(stake),
-            float(contract.payout),
-            int(contract.contract_id),
-            float(contract.buy_price),
-            str(dur),
-            str(u),
-        )
-        self.orch.risk_manager.contract_to_symbol[contract.contract_id] = symbol
-        req_timeout = float(
-            self.orch.config.get("orchestrator", {})
-            .get("execution", {})
-            .get("settlement_request_timeout_seconds", 30.0)
-        )
-        try:
-            await subscribe_open_contract(self.orch.ws, int(contract.contract_id), timeout=req_timeout)
-        except Exception as e:
-            self.logger.warning("[%s] SETTLE: subscribe cid=%s falhou: %s", cid, int(contract.contract_id), e)
-        return contract
+    async def _place_order(self, symbol, direction, stake, duration=None, metrics=None):
+        """Delega compra de contrato ao modulo de ordens."""
+        return await place_order(self, symbol, direction, stake, duration=duration, metrics=metrics)
 
     async def wait_for_settlement(self, timeout: int = 3600):
         """Monitora contratos ativos ate liquidacao ou timeout."""

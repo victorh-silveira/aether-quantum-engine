@@ -1,94 +1,123 @@
-"""Ponte de decisão do Deep Learning para o Orquestrador."""
+"""Ponte de decisao do Deep Learning para o Orquestrador."""
 
+import asyncio
 import logging
-from pathlib import Path
 
-import torch
-
-from src.application.services.deep_learning.model import (
-    MarketDirectionClassifier,
-    predict_next_direction,
-    train_model_online,
+from src.application.services.deep_learning.dl_bridge_helpers import (
+    apply_symbol_loss_cooldown,
+    build_decision_entry,
+    parse_dl_params,
+    pending_loss_total,
+    recovery_gating_active,
+)
+from src.application.services.deep_learning.dl_cycle_log import log_dl_cycle_summary
+from src.application.services.deep_learning.dl_gate_config import parse_deploy_gate_config
+from src.application.services.deep_learning.dl_outcomes import tick_dl_session_pauses
+from src.application.services.deep_learning.dl_params import slice_dl_price_window
+from src.application.services.deep_learning.dl_predict import predict_symbol_decision
+from src.application.services.deep_learning.dl_retrain import should_retrain_symbol
+from src.application.services.deep_learning.dl_symbol_runtime import (
+    candle_epoch,
+    get_symbol_runtime,
+    granularity_seconds,
+    pair_prices_for_symbol,
+    resolve_dl_model_path,
+    run_symbol_training,
 )
 
 
+__all__ = [
+    "collect_deep_learning_decisions",
+    "resolve_dl_model_path",
+]
+
 logger = logging.getLogger("AETH")
+
+_pair_prices_for_symbol = pair_prices_for_symbol
+_get_symbol_runtime = get_symbol_runtime
+_candle_epoch = candle_epoch
+_granularity_seconds = granularity_seconds
+_run_symbol_training = run_symbol_training
 
 
 async def collect_deep_learning_decisions(orch) -> dict[str, dict]:
-    """Retorna um mapa de decisões de direção para cada símbolo utilizando modelos PyTorch."""
+    """Coleta decisoes Deep Learning para todos os simbolos do orquestrador."""
     decisions = {}
     dl_config = orch.config.get("deep_learning", {})
     if not dl_config.get("enabled", True):
-        logger.warning("DL: Deep learning está desativado na configuração.")
+        logger.warning("DL: Deep learning esta desativado na configuracao.")
         return decisions
 
-    lookback = dl_config.get("lookback", 20)
-    epochs = dl_config.get("training_epochs", 10)
-    lr = dl_config.get("learning_rate", 0.01)
-    min_conviction = dl_config.get("min_conviction_execute", 0.53)
-
-    if not hasattr(orch, "_dl_models"):
-        orch._dl_models = {}
+    data_config = orch.config.get("data_handler", {})
+    params = parse_dl_params(dl_config, data_config)
+    min_operational = params["lookback"] + params["validation_bars"] + 20
+    min_len = max(min_operational, int(params["training_history_bars"]))
+    granularity = granularity_seconds(orch)
+    tick_dl_session_pauses(orch)
+    recovery_active = recovery_gating_active(orch)
+    pending_total = pending_loss_total(orch)
 
     for symbol in orch.symbols:
-        # Pega a série temporal do histórico de velas para o par correspondente
         prices = orch.stream.get_numpy_series(symbol, "close")
-
-        if len(prices) < lookback + 10:
-            logger.debug(f"DL: Histórico insuficiente para {symbol} ({len(prices)}/{lookback + 10} velas). Pulando.")
-            decisions[symbol] = {
-                "direction": None,
-                "metrics": {
-                    "conviction": 0.0,
-                    "execute": False,
-                    "duration": 1,
-                    "llm_note": "Insufficient historical data",
-                },
-            }
+        if len(prices) < min_len:
+            logger.info("DL: Historico insuficiente para %s (%d/%d velas).", symbol, len(prices), min_len)
+            entry = build_decision_entry(None, 0.0, execute=False, val_accuracy=0.0, edge=0.0, train_loss=None)
+            entry["metrics"]["gate_reason"] = "data"
+            decisions[symbol] = entry
             continue
 
-        # Instancia modelo se não existir
-        if symbol not in orch._dl_models:
-            input_dim = 4  # returns, RSI, volatility, ema_spread
-            model = MarketDirectionClassifier(input_dim)
-            # Tenta carregar pesos salvos se existirem
-            model_path = dl_config.get("model_path", "data/deep_learning_model.pth")
-            if Path(model_path).exists():
-                try:
-                    # nosec B614 (Segurança: weights_only=True adicionado para evitar deserialização arbitrária)
-                    model.load_state_dict(torch.load(model_path, map_location=torch.device("cpu"), weights_only=True))
-                    logger.info(f"DL: Pesos carregados com sucesso para {symbol} a partir de {model_path}.")
-                except Exception as e:
-                    logger.warning(f"DL: Falha ao carregar pesos salvos: {e}. Inicializando novo modelo.")
-            orch._dl_models[symbol] = model
+        pair_prices = pair_prices_for_symbol(orch, symbol)
+        prices, pair_prices = slice_dl_price_window(
+            prices,
+            pair_prices,
+            training_history_bars=int(params["training_history_bars"]),
+        )
 
-        model = orch._dl_models[symbol]
-
-        # Treinamento incremental/online
-        try:
-            train_model_online(model, prices, lookback=lookback, epochs=epochs, lr=lr)
-        except Exception as e:
-            logger.error(f"DL: Erro no treinamento incremental para {symbol}: {e}")
-
-        # Predição de direção
-        try:
-            direction, prob = predict_next_direction(model, prices, lookback=lookback)
-            execute = prob >= min_conviction
-
-            note = f"DL Predict: {direction.name if direction else 'NONE'} (Prob={prob:.2f})"
-            decisions[symbol] = {
-                "direction": direction,
-                "metrics": {"conviction": prob, "execute": execute, "duration": 1, "llm_note": note},
-            }
-            logger.info(
-                f"DL: Símbolo {symbol} | Direção: {direction.name if direction else 'NONE'} | Confiança: {prob:.2f} | Executar: {execute}"
+        runtime = get_symbol_runtime(orch, symbol, dl_config, params)
+        epoch = candle_epoch(orch, symbol)
+        train_loss = None
+        do_train, reason = should_retrain_symbol(orch, symbol, runtime, params, epoch)
+        if do_train:
+            logger.info("DL: Treinando %s | %d velas | motivo=%s", symbol, len(prices), reason)
+            norm_stats, train_loss = await asyncio.to_thread(
+                run_symbol_training,
+                symbol,
+                runtime,
+                prices,
+                dl_config,
+                params,
+                epoch,
+                orch,
+                pair_prices=pair_prices,
+                granularity=granularity,
             )
-        except Exception as e:
-            logger.error(f"DL: Falha na predição para {symbol}: {e}")
-            decisions[symbol] = {
-                "direction": None,
-                "metrics": {"conviction": 0.0, "execute": False, "duration": 1, "llm_note": f"Inference failure: {e}"},
-            }
+        else:
+            norm_stats = runtime["norm_stats"]
 
+        entry = predict_symbol_decision(
+            orch,
+            symbol,
+            runtime["model"],
+            prices,
+            norm_stats,
+            runtime,
+            params,
+            train_loss,
+            recovery_active=recovery_active,
+            granularity=granularity,
+            pair_prices=pair_prices,
+        )
+        gate_cfg = parse_deploy_gate_config(dl_config)
+        if not runtime.get("deploy_ok", False) and gate_cfg.get("enabled", True) and entry["metrics"].get("execute"):
+            entry["metrics"]["execute"] = False
+            entry["metrics"]["gate_reason"] = "deploy"
+        entry["metrics"]["deploy_ok"] = bool(runtime.get("deploy_ok", False))
+        decisions[symbol] = apply_symbol_loss_cooldown(orch, symbol, entry)
+
+    log_dl_cycle_summary(
+        logger,
+        decisions,
+        recovery_active=recovery_active,
+        pending_loss_total=pending_total,
+    )
     return decisions

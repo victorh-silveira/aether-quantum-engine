@@ -1,0 +1,120 @@
+from types import SimpleNamespace
+from unittest.mock import patch
+
+import numpy as np
+
+from src.application.services.deep_learning.dl_deploy import apply_deploy_to_runtime, direction_wins
+from src.application.services.deep_learning.dl_deploy_eval import evaluate_mini_deploy
+from src.application.services.deep_learning.dl_features import FEATURE_DIM
+from src.application.services.deep_learning.dl_gate_config import parse_deploy_gate_config
+from src.application.services.deep_learning.model import create_direction_model, fit_norm_stats
+from src.domain.models.trade import TradeDirection
+
+
+def test_direction_wins_boundary():
+    prices = np.array([10.0, 11.0])
+    assert direction_wins(TradeDirection.CALL, prices, 1) is False
+
+
+def test_deploy_gate_disabled():
+    runtime = {"val_accuracy": 0.55, "val_brier": 0.2, "lookback": 20}
+    ok, wr, b = evaluate_mini_deploy(
+        SimpleNamespace(),
+        "X",
+        None,
+        np.linspace(1.0, 2.0, 100),
+        None,
+        runtime,
+        {},
+        gate_cfg={"enabled": False},
+    )
+    assert ok is True
+
+
+def test_apply_deploy_to_runtime_updates_brier():
+    runtime = {"val_brier": 0.5}
+    apply_deploy_to_runtime(runtime, deploy_ok=True, deploy_win_rate=0.6, val_brier=0.18)
+    assert runtime["deploy_ok"] is True
+    assert runtime["val_brier"] == 0.18
+
+
+def test_evaluate_mini_deploy_passes_with_mock_predict():
+    prices = np.linspace(100.0, 130.0, 120)
+    model = create_direction_model(input_dim=FEATURE_DIM)
+    stats = fit_norm_stats(np.zeros((2, 20, FEATURE_DIM), dtype=np.float32))
+    runtime = {"lookback": 20, "val_accuracy": 0.55, "val_brier": 0.2, "calibrator": None}
+    params = {"lookback": 20}
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {"execute": True, "trade_score": 0.7},
+    }
+
+    def always_exec(*_a, **_k):
+        return entry
+
+    orch = SimpleNamespace(config={"deep_learning": {}})
+    with patch(
+        "src.application.services.deep_learning.dl_deploy_eval.predict_symbol_decision",
+        side_effect=always_exec,
+    ):
+        ok, wr, brier = evaluate_mini_deploy(
+            orch,
+            "X",
+            model,
+            prices,
+            stats,
+            runtime,
+            params,
+            gate_cfg={
+                "enabled": True,
+                "mini_bars": 40,
+                "min_trades": 5,
+                "max_brier": 0.5,
+                "min_win_rate": 0.4,
+            },
+        )
+    assert ok is True
+    assert wr > 0.4
+    assert parse_deploy_gate_config({"deploy_gate": {"enabled": False}})["enabled"] is False
+
+
+def test_evaluate_mini_deploy_skips_non_execute_and_put_label():
+    prices = np.linspace(100.0, 130.0, 120)
+    model = create_direction_model(input_dim=FEATURE_DIM)
+    stats = fit_norm_stats(np.zeros((2, 20, FEATURE_DIM), dtype=np.float32))
+    runtime = {"lookback": 20, "val_accuracy": 0.55, "val_brier": 0.2, "calibrator": None}
+    params = {"lookback": 20}
+    calls = {"n": 0}
+
+    def alternating(*_a, **_k):
+        calls["n"] += 1
+        if calls["n"] % 2 == 0:
+            return {"direction": None, "metrics": {"execute": False}}
+        return {
+            "direction": TradeDirection.PUT,
+            "metrics": {"execute": True, "trade_score": 0.4},
+        }
+
+    orch = SimpleNamespace(config={"deep_learning": {}})
+    with patch(
+        "src.application.services.deep_learning.dl_deploy_eval.predict_symbol_decision",
+        side_effect=alternating,
+    ):
+        ok, wr, _ = evaluate_mini_deploy(
+            orch,
+            "X",
+            model,
+            prices,
+            stats,
+            runtime,
+            params,
+            gate_cfg={
+                "enabled": True,
+                "mini_bars": 40,
+                "min_trades": 100,
+                "max_brier": 0.5,
+                "min_win_rate": 0.0,
+            },
+        )
+    assert ok is False
+    assert wr == 0.0

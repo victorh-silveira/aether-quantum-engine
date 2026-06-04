@@ -1,15 +1,17 @@
 """Gerenciamento de Risco baseado no Critério de Kelly (Estratégia Profissional)."""
 
-import datetime
 import logging
-import math
 from typing import Any
 
+from src.domain.risk.martingale_gate import apply_win_to_pending_loss, martingale_allowed
+from src.domain.risk.risk_cluster import finalize_risk_cluster
 from src.domain.risk.risk_cooldown import RiskCooldownMixin
-from src.domain.risk.stop_win_target import resolve_max_stake_pct, resolve_stop_win_target
+from src.domain.risk.risk_stake_calc import calculate_stake_for_manager
+from src.domain.risk.stop_win_target import resolve_stop_win_target
+from src.domain.risk.symbol_loss_cooldown import SymbolLossCooldownMixin
 
 
-class RiskManager(RiskCooldownMixin):
+class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
     """Gerenciador de Risco que utiliza a fórmula de Kelly para dimensionamento de posição."""
 
     def __init__(self, config: dict[str, Any]):
@@ -29,7 +31,13 @@ class RiskManager(RiskCooldownMixin):
         self._last_entry_conviction = 0.0
         self.consecutive_losses = 0
         self.pending_loss: dict[str, float] = {}
+        self.init_symbol_loss_cooldown()
         self.recovery_threshold = float(self.kelly_config.get("recovery_conviction_threshold", 0.60))
+        self.recovery_martingale_min_conviction = float(
+            self.kelly_config.get("recovery_martingale_min_conviction", 0.45)
+        )
+        self.recovery_martingale_min_raw = float(self.kelly_config.get("recovery_martingale_min_raw", 0.0))
+        self.martingale_force_on_pending_loss = bool(self.kelly_config.get("martingale_force_on_pending_loss", True))
         self._candle_interval_seconds = 900
         self._cooldown_until_mono = 0.0
 
@@ -107,6 +115,7 @@ class RiskManager(RiskCooldownMixin):
         conviction: float = 0.5,
         *,
         apply_stop_win: bool = True,
+        **kwargs,
     ) -> str | None:
         """Retorna motivo quando nenhuma stake pode ser alocada."""
         if apply_stop_win:
@@ -120,11 +129,29 @@ class RiskManager(RiskCooldownMixin):
                 conviction=conviction,
                 silent=True,
                 apply_stop_win=apply_stop_win,
+                **kwargs,
             )
             <= 0
         ):
             return "kelly_no_edge"
         return None
+
+    def _martingale_allowed(self, symbol: str, conviction: float, **kwargs) -> bool:
+        """Martingale so com recovery valido, metricas DL e sem repeat symbol+direction."""
+        return martingale_allowed(
+            pending_loss=self.pending_loss,
+            recovery_threshold=self.recovery_threshold,
+            conviction=conviction,
+            symbol=symbol,
+            dl_metrics=kwargs.get("dl_metrics"),
+            max_val_brier=float(kwargs.get("max_val_brier", 0.28)),
+            order_direction=kwargs.get("order_direction"),
+            last_loss_symbol=self.last_loss_symbol,
+            last_loss_direction=self.last_loss_direction,
+            recovery_martingale_min_conviction=self.recovery_martingale_min_conviction,
+            recovery_martingale_min_raw=self.recovery_martingale_min_raw,
+            force_on_pending_loss=self.martingale_force_on_pending_loss,
+        )
 
     def calculate_stake(
         self,
@@ -137,89 +164,30 @@ class RiskManager(RiskCooldownMixin):
         **_kwargs,
     ) -> float:
         """Calcula a stake usando o Critério de Kelly com trava de Stop Win."""
-        if apply_stop_win:
-            target = resolve_stop_win_target(self.config, self.initial_bankroll)
-            if self.total_session_profit >= target:
-                self.logger.info(f"STOP WIN: Meta de ${target:.2f} atingida. Encerrando operações do dia.")
-                return 0.0
-
-        b = float(self.risk_params.get("payout_estimate", 0.95))
-        p = self.effective_win_rate(symbol, conviction)
-        q = 1.0 - p
-
-        kelly_f = (b * p - q) / b if b > 0 else 0.0
-
-        loss_to_recover = sum(self.pending_loss.values())
-        is_recovery_attempt = loss_to_recover > 0.0 and conviction >= self.recovery_threshold
-
-        fractional_multiplier = float(self.kelly_config.get("fraction", 0.03))
-        if self.consecutive_losses > 0 and not is_recovery_attempt:
-            reduction_factor = 0.5 ** min(self.consecutive_losses, 3)
-            fractional_multiplier *= reduction_factor
-
-        f_star = max(0.0, kelly_f * fractional_multiplier)
-
-        raw_stake = bankroll * f_star
-        raw_stake = self._apply_stop_win_aggressive_stake(bankroll, raw_stake, apply_stop_win=apply_stop_win)
-
-        if apply_stop_win:
-            now_utc = datetime.datetime.now(datetime.UTC)
-
-            in_window = 12 <= now_utc.hour < 17
-            target = resolve_stop_win_target(self.config, self.initial_bankroll)
-            remaining = max(0.0, target - float(self.total_session_profit))
-
-            if in_window and conviction >= 0.75 and remaining > 0 and not self.active_contract_ids:
-                goal_stake = remaining / b
-                max_allowed_drawdown = bankroll * resolve_max_stake_pct(self.kelly_config, conviction)
-                single_strike_stake = min(goal_stake, max_allowed_drawdown)
-                if single_strike_stake > raw_stake:
-                    self.logger.info(
-                        "RISK: Ativando modo SINGLE STRIKE (Uma Tacada Só)! Sizing boost de $%.2f para $%.2f",
-                        raw_stake,
-                        single_strike_stake,
-                    )
-                    raw_stake = single_strike_stake
-
-        recovery_stake = 0.0
-
-        if is_recovery_attempt:
-            needed_extra = loss_to_recover / b
-            recovery_stake = needed_extra
-            raw_stake += recovery_stake
-
-        final_stake = math.ceil(raw_stake * 100) / 100 if is_recovery_attempt else math.floor(raw_stake * 100) / 100
-
-        max_pct = resolve_max_stake_pct(self.kelly_config, conviction, is_recovery=is_recovery_attempt)
-        final_stake = min(final_stake, bankroll * max_pct, self.stake_max)
-
-        stake_min = float(self.risk_params.get("stake_min", 1.0))
-        if (conviction >= 0.50 or is_recovery_attempt) and final_stake < stake_min:
-            final_stake = stake_min if bankroll >= stake_min else 0.0
-
-        cycle_id = _kwargs.get("cycle_id", 0)
-        rec_info = f" | RECOVERY: ${recovery_stake:.2f}/{loss_to_recover:.2f}" if loss_to_recover > 0 else ""
-        if not silent:
-            self.logger.info(
-                "[C%04d] KELLY: stake=$%.2f (f*=%.4f) | p=%.2f | b=%.2f | banca=$%.2f | sym=%s%s",
-                int(cycle_id),
-                final_stake,
-                f_star,
-                p,
-                b,
-                bankroll,
-                symbol,
-                rec_info,
-            )
-
-        return final_stake
+        return calculate_stake_for_manager(
+            self,
+            bankroll,
+            symbol,
+            conviction,
+            silent=silent,
+            apply_stop_win=apply_stop_win,
+            kwargs=_kwargs,
+        )
 
     def begin_cluster(self, expected_settlements: int) -> None:
         """Marca inicio de cluster e quantidade de liquidacoes esperadas."""
         self.expected_cluster_settlements = max(0, int(expected_settlements))
         self.cluster_results = {}
 
-    def register_result(self, profit: float, contract_id: int, symbol: str, current_tick: int = 0):
+    def register_result(
+        self,
+        profit: float,
+        contract_id: int,
+        symbol: str,
+        current_tick: int = 0,
+        *,
+        direction: str | None = None,
+    ):
         """Registra lucro/prejuízo e atualiza estatísticas."""
         if contract_id not in self.active_contract_ids:
             return
@@ -231,54 +199,21 @@ class RiskManager(RiskCooldownMixin):
 
         if profit < 0:
             self.pending_loss[symbol] = self.pending_loss.get(symbol, 0.0) + abs(profit)
+            self.register_symbol_loss_cooldown(symbol, direction=direction)
         else:
-            remaining_profit = profit
-            for sym in list(self.pending_loss.keys()):
-                if remaining_profit <= 0:
-                    break
-                current_loss = self.pending_loss[sym]
-                if current_loss <= remaining_profit:
-                    remaining_profit -= current_loss
-                    self.pending_loss[sym] = 0.0
-                else:
-                    self.pending_loss[sym] = current_loss - remaining_profit
-                    remaining_profit = 0.0
+            apply_win_to_pending_loss(self.pending_loss, profit)
 
         self.active_contract_ids = [x for x in self.active_contract_ids if int(x) != int(contract_id)]
 
         expected = self.expected_cluster_settlements
-        if (
-            expected > 0
-            and len(self.cluster_results) >= expected
-            or not self.active_contract_ids
-            and self.cluster_results
-        ):
+        cluster_done = expected > 0 and len(self.cluster_results) >= expected
+        idle_done = not self.active_contract_ids and self.cluster_results
+        if cluster_done or idle_done:
             self._finalize_cluster()
 
     def _finalize_cluster(self):
         """Limpeza após ciclo."""
-        cluster_profit = sum(self.cluster_results.values())
-        if cluster_profit < 0.0:
-            self.consecutive_losses += 1
-            self.logger.info(
-                "RISK: Ciclo negativo (P&L: $%.2f) consecutive_losses=%d",
-                cluster_profit,
-                self.consecutive_losses,
-            )
-        else:
-            if self.consecutive_losses > 0:
-                self.logger.info(
-                    "RISK: Ciclo positivo (P&L: $%.2f). Reset perdas consecutivas",
-                    cluster_profit,
-                )
-            self.consecutive_losses = 0
-
-        self._cooldown_until_mono = 0.0
-        self.current_cooldown_ticks = 0
-        self.active_contract_ids = []
-        self.contract_to_symbol = {}
-        self.cluster_results = {}
-        self.expected_cluster_settlements = 0
+        finalize_risk_cluster(self)
 
     def get_state(self) -> dict[str, Any]:
         """Estado para persistência."""
@@ -290,4 +225,5 @@ class RiskManager(RiskCooldownMixin):
             "pending_loss": dict(self.pending_loss),
             "consecutive_losses": self.consecutive_losses,
             "current_cooldown_ticks": self.current_cooldown_ticks,
+            **self.symbol_cooldown_state(),
         }

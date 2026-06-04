@@ -6,166 +6,183 @@ import numpy as np
 import pytest
 import torch
 
-from src.application.services.deep_learning.decision_bridge import collect_deep_learning_decisions
-from src.application.services.deep_learning.model import (
-    MarketDirectionClassifier,
+from src.application.services.deep_learning.dl_calibration import CalibratorState
+from src.application.services.deep_learning.dl_features import (
+    FEATURE_DIM,
+    build_feature_row,
+    build_sequence_tensor,
     calculate_rsi,
     extract_features,
+    extract_sequences,
+)
+from src.application.services.deep_learning.dl_splits import purged_temporal_splits
+from src.application.services.deep_learning.dl_tcn import TemporalDirectionClassifier
+from src.application.services.deep_learning.dl_training import train_model_online, train_model_walkforward
+from src.application.services.deep_learning.model import (
+    INPUT_DIM,
+    MarketDirectionClassifier,
+    _accuracy,
+    _precompute_price_series,
+    create_direction_model,
+    fit_norm_stats,
+    load_model_checkpoint,
+    model_accuracy,
+    normalize_features,
     predict_next_direction,
-    train_model_online,
+    save_model_checkpoint,
 )
 from src.domain.models.trade import TradeDirection
 
 
 def test_model_initialization():
-    model = MarketDirectionClassifier(input_dim=4)
-    x = torch.randn(2, 4)
+    model = TemporalDirectionClassifier(input_dim=FEATURE_DIM)
+    x = torch.randn(2, 24, FEATURE_DIM)
     out = model(x)
     assert out.shape == (2, 1)
     assert torch.all(out >= 0.0) and torch.all(out <= 1.0)
 
 
 def test_calculate_rsi():
-    prices = np.linspace(10, 20, 30)  # Preço subindo uniformemente
+    prices = np.linspace(10, 20, 30)
     rsi = calculate_rsi(prices, period=14)
     assert len(rsi) == 30
-    assert rsi[-1] > 70.0  # RSI deve ser alto para tendência de alta constante
-
-    # Cobertura: Linha 32 em model.py (preços menores que período)
+    assert rsi[-1] > 70.0
     rsi_short = calculate_rsi(np.array([1.0, 2.0]), period=14)
     assert len(rsi_short) == 2
     assert np.all(rsi_short == 50.0)
 
 
-def test_extract_features():
-    prices = np.sin(np.linspace(0, 10, 50)) + 10.0
+def test_extract_features_and_sequences():
+    prices = np.sin(np.linspace(0, 10, 120)) + 10.0
     features, targets = extract_features(prices, lookback=20)
+    seqs, labels, masks = extract_sequences(prices, lookback=20)
     assert features.shape[0] == targets.shape[0]
-    if features.shape[0] > 0:
-        assert features.shape[1] == 4
-
-    # Cobertura: Linha 59 em model.py (preços insuficientes para features)
+    assert seqs.shape[1:] == (20, FEATURE_DIM)
+    assert len(labels) == len(masks)
     f, t = extract_features(np.array([10.0, 11.0]), lookback=20)
     assert len(f) == 0
     assert len(t) == 0
 
 
-def test_train_and_predict():
-    prices = np.sin(np.linspace(0, 10, 60)) + 10.0
-    model = MarketDirectionClassifier(input_dim=4)
-    loss = train_model_online(model, prices, lookback=20, epochs=2, lr=0.01)
-    assert isinstance(loss, float)
+def test_build_sequence_tensor_shape():
+    prices = np.sin(np.linspace(0, 10, 80)) + 10.0
+    tensor = build_sequence_tensor(prices, 16, len(prices) - 1)
+    assert tensor.shape == (16, FEATURE_DIM)
 
-    # Cobertura: Linha 91 em model.py (preços insuficientes para treino)
+
+def test_train_predict_features_aligned():
+    prices = np.sin(np.linspace(0, 10, 120)) + 10.0
+    series = _precompute_price_series(prices)
+    features, _ = extract_features(prices, lookback=20)
+    last_train_idx = len(prices) - 2
+    assert np.allclose(build_feature_row(series, last_train_idx), features[-1], atol=1e-5)
+    infer_row = build_feature_row(series, len(prices) - 1)
+    assert infer_row.shape == (FEATURE_DIM,)
+
+
+def test_train_and_predict():
+    prices = np.sin(np.linspace(0, 10, 120)) + 10.0
+    model = create_direction_model(arch="tcn", input_dim=INPUT_DIM)
+    result = train_model_walkforward(model, prices, lookback=20, epochs=2, lr=0.001, validation_bars=15)
+    assert result is not None
+    loss = train_model_online(model, prices, lookback=20, epochs=2, lr=0.001, validation_bars=15)
+    assert isinstance(loss, float)
     loss_short = train_model_online(model, np.sin(np.linspace(0, 10, 25)) + 10.0, lookback=20, epochs=2, lr=0.01)
     assert loss_short == 0.0
-
-    # Cobertura: Garantir execução de ambas as ramificações de probabilidade (CALL e PUT)
+    norm = result.norm_stats if result else fit_norm_stats(np.zeros((2, 20, INPUT_DIM), dtype=np.float32))
+    calibrator = CalibratorState(temperature=1.0)
     with patch.object(model, "forward", return_value=torch.tensor([[0.8]])):
-        direction, prob = predict_next_direction(model, prices, lookback=20)
+        direction, prob, trade_score, raw_prob = predict_next_direction(
+            model, prices, lookback=20, norm_stats=norm, val_accuracy=0.75, calibrator=calibrator
+        )
         assert direction == TradeDirection.CALL
-        assert prob == pytest.approx(0.8)
-
+        assert trade_score > 0.5
+        assert raw_prob == pytest.approx(0.8)
     with patch.object(model, "forward", return_value=torch.tensor([[0.3]])):
-        direction, prob = predict_next_direction(model, prices, lookback=20)
+        direction, prob, trade_score, raw_prob = predict_next_direction(
+            model, prices, lookback=20, norm_stats=norm, val_accuracy=0.75, calibrator=calibrator
+        )
         assert direction == TradeDirection.PUT
-        assert prob == pytest.approx(0.7)
-
-    # Cobertura: Linha 117 em model.py (preços insuficientes para predição)
-    dir_short, prob_short = predict_next_direction(model, np.array([10.0]), lookback=20)
+        assert trade_score > 0.5
+        assert raw_prob == pytest.approx(0.3)
+    dir_short, prob_short, score_short, raw_short = predict_next_direction(model, np.array([10.0]), lookback=20)
     assert dir_short is None
     assert prob_short == 0.5
+    assert score_short == 0.5
+    assert raw_short == 1.0
 
 
-class MockStreamHandler:
-    def __init__(self, prices):
-        self.prices = prices
-
-    def get_numpy_series(self, _symbol, _field):
-        return self.prices
-
-
-class MockOrchestrator:
-    def __init__(self, symbols, prices, *, dl_enabled=True):
-        self.symbols = symbols
-        self.config = {
-            "deep_learning": {
-                "enabled": dl_enabled,
-                "lookback": 15,
-                "training_epochs": 1,
-                "learning_rate": 0.01,
-                "min_conviction_execute": 0.50,
-                "model_path": "nonexistent_model.pth",
-            }
-        }
-        self.stream = MockStreamHandler(prices)
+def test_purged_splits():
+    splits = purged_temporal_splits(200, 20, calib_ratio=0.15)
+    assert splits is not None
+    train_sl, val_sl, calib_sl = splits
+    assert train_sl.stop < val_sl.start
+    assert val_sl.stop <= calib_sl.start
+    assert purged_temporal_splits(10, 5) is None
 
 
-@pytest.mark.asyncio
-async def test_collect_deep_learning_decisions():
-    prices = np.sin(np.linspace(0, 10, 50)) + 10.0
-    orch = MockOrchestrator(["1HZ100V", "1HZ75V"], prices)
-    decisions = await collect_deep_learning_decisions(orch)
-    assert "1HZ100V" in decisions
-    assert "1HZ75V" in decisions
-    assert "direction" in decisions["1HZ100V"]
-    assert "metrics" in decisions["1HZ100V"]
-    assert "conviction" in decisions["1HZ100V"]["metrics"]
-
-    # Cobertura: Linhas 20-21 em decision_bridge.py (deep_learning disabled)
-    orch_disabled = MockOrchestrator(["1HZ100V"], prices, dl_enabled=False)
-    dec_disabled = await collect_deep_learning_decisions(orch_disabled)
-    assert dec_disabled == {}
-
-    # Cobertura: Linhas 36-46 em decision_bridge.py (insufficient prices)
-    orch_short = MockOrchestrator(["1HZ100V"], np.array([1.0, 2.0]), dl_enabled=True)
-    dec_short = await collect_deep_learning_decisions(orch_short)
-    assert dec_short["1HZ100V"]["direction"] is None
-    assert dec_short["1HZ100V"]["metrics"]["conviction"] == 0.0
+def test_accuracy_wrapper_delegates_to_model_accuracy():
+    model = create_direction_model(arch="tcn")
+    x = np.random.randn(3, 8, INPUT_DIM).astype(np.float32)
+    y = np.array([1.0, 0.0, 1.0], dtype=np.float32)
+    assert _accuracy(model, x, y) == model_accuracy(model, x, y)
 
 
-@pytest.mark.asyncio
-async def test_collect_decisions_exceptions_and_load():
-    prices = np.sin(np.linspace(0, 10, 50)) + 10.0
-    orch = MockOrchestrator(["1HZ100V"], prices)
+def test_accuracy_empty_and_legacy_checkpoint():
+    model = MarketDirectionClassifier(input_dim=INPUT_DIM)
+    assert _accuracy(model, np.array([]), np.array([])) == 0.0
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "legacy_only.pth"
+        torch.save(model.state_dict(), path)
+        assert load_model_checkpoint(path) is None
+        bad = Path(tmp) / "bad.pth"
+        torch.save("invalid", bad)
+        assert load_model_checkpoint(bad) is None
 
-    # 1. Testar carregamento de pesos com sucesso
-    with tempfile.NamedTemporaryFile(suffix=".pth", delete=False) as tmp:
-        tmp_path = tmp.name
-    try:
-        model = MarketDirectionClassifier(input_dim=4)
-        torch.save(model.state_dict(), tmp_path)
-        orch.config["deep_learning"]["model_path"] = tmp_path
 
-        # Garante que recria o modelo para passar pela rotina de carregamento
-        if hasattr(orch, "_dl_models"):
-            orch._dl_models.clear()
+def test_predict_without_norm_stats():
+    prices = np.sin(np.linspace(0, 10, 120)) + 10.0
+    model = create_direction_model(arch="tcn")
+    direction, prob, trade_score, raw_prob = predict_next_direction(
+        model, prices, lookback=20, norm_stats=None, min_direction_margin=0.0
+    )
+    assert direction in (TradeDirection.CALL, TradeDirection.PUT)
+    assert 0.0 <= prob <= 1.0
+    assert 0.0 <= raw_prob <= 1.0
+    assert trade_score >= 0.5 - 0.01
 
-        decisions = await collect_deep_learning_decisions(orch)
-        assert "1HZ100V" in decisions
-    finally:
-        Path(tmp_path).unlink(missing_ok=True)
 
-    # 2. Testar falha de carregamento de pesos (arquivo existe mas é inválido)
-    orch.config["deep_learning"]["model_path"] = __file__
-    if hasattr(orch, "_dl_models"):
-        orch._dl_models.clear()
-    decisions = await collect_deep_learning_decisions(orch)
-    assert "1HZ100V" in decisions
+def test_checkpoint_save_load():
+    model = create_direction_model(arch="tcn")
+    stats = fit_norm_stats(np.random.randn(5, 20, INPUT_DIM).astype(np.float32))
+    calibrator = CalibratorState(temperature=1.25)
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "sym.pth"
+        save_model_checkpoint(
+            path,
+            model,
+            stats,
+            last_candle_epoch=12345,
+            lookback=32,
+            calibrator=calibrator,
+            arch="tcn",
+        )
+        loaded = load_model_checkpoint(path)
+        assert loaded is not None
+        m2, s2, epoch, cal, lookback, val_acc, val_brier, val_ece, deploy_ok, deploy_wr = loaded
+        assert epoch == 12345
+        assert cal.temperature == pytest.approx(1.25)
+        assert lookback == 32
+        assert val_acc == 0.0
+        assert val_brier == pytest.approx(1.0)
+        assert val_ece == pytest.approx(1.0)
+        assert np.allclose(s2.mean, stats.mean)
+        assert load_model_checkpoint(Path(tmp) / "missing.pth") is None
 
-    # Cobertura: Linhas 67-68 em decision_bridge.py (train exception)
-    with patch(
-        "src.application.services.deep_learning.decision_bridge.train_model_online",
-        side_effect=ValueError("Train failed"),
-    ):
-        dec = await collect_deep_learning_decisions(orch)
-        assert "1HZ100V" in dec
 
-    # Cobertura: Linhas 86-88 em decision_bridge.py (predict exception)
-    with patch(
-        "src.application.services.deep_learning.decision_bridge.predict_next_direction",
-        side_effect=ValueError("Predict failed"),
-    ):
-        dec = await collect_deep_learning_decisions(orch)
-        assert dec["1HZ100V"]["direction"] is None
-        assert dec["1HZ100V"]["metrics"]["conviction"] == 0.0
+def test_normalize_features():
+    raw = np.random.randn(4, 20, INPUT_DIM).astype(np.float32)
+    stats = fit_norm_stats(raw)
+    normed = normalize_features(raw.reshape(-1, INPUT_DIM), stats)
+    assert normed.shape[0] == raw.shape[0] * raw.shape[1]
+    assert np.all(normed <= 5.0)

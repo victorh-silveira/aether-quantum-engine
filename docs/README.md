@@ -1,9 +1,11 @@
-# Documentacao
+# Documentação
 
-| Documento | Conteudo |
+| Documento | Conteúdo |
 |-----------|----------|
-| [structure.md](structure.md) | Layout do repositorio (`app/`, `linters/`, `config/`) |
-| [arquitetura.md](arquitetura.md) | Fluxos ao vivo, LLM, orchestrator |
-| [medallion.md](medallion.md) | Metodologia quantitativa |
-| [deriv-api.md](deriv-api.md) | Integracao WebSocket Deriv |
-| [CHANGELOG.md](CHANGELOG.md) | Historico de versoes |
+| [structure.md](structure.md) | Layout do repositório (`app/`, `config/`, `linters/`) |
+| [arquitetura.md](arquitetura.md) | Fluxo ao vivo: WebSocket, DL, execução, risco, settlement |
+| [medallion.md](medallion.md) | Filosofia quantitativa e perfil de qualidade (gating, recovery) |
+| [deriv-api.md](deriv-api.md) | Referência Deriv + integração usada pelo motor |
+| [CHANGELOG.md](CHANGELOG.md) | Histórico de versões |
+
+Ponto de entrada do projeto: [README.md](../README.md).

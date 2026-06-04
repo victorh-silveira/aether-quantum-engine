@@ -6,6 +6,8 @@ import time
 from typing import Any
 
 from src.application.services.deep_learning.decision_bridge import collect_deep_learning_decisions
+from src.application.services.deep_learning.dl_post_loss import tick_post_loss_bans
+from src.application.services.deep_learning.dl_retrain import tick_bars_since_train
 from src.application.services.orchestrator.config_symbols import normalize_symbols_and_anchor
 from src.application.services.orchestrator.decision_mode_banner import emit_decision_engine_banner
 from src.application.services.orchestrator.execution_manager import ExecutionManager
@@ -187,6 +189,9 @@ class Orchestrator:
             return
         self._last_epoch = candle.epoch
         self._maybe_reset_daily_risk_session(int(candle.epoch))
+        tick_post_loss_bans(self)
+        tick_bars_since_train(self, self.symbols)
+        self.risk_manager.tick_symbol_loss_cooldowns()
         await self._run_trading_cycle_if_ready()
 
     async def _run_trading_cycle_if_ready(self) -> None:

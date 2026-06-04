@@ -1,6 +1,6 @@
 import pytest
 
-from tests.market_symbols import ALL_SYMBOLS, ANCHOR, EU_CLUSTER, US_CLUSTER
+from tests.market_symbols import ALL_SYMBOLS, ANCHOR, PAIR
 
 
 @pytest.fixture
@@ -12,7 +12,7 @@ def orch_config():
         "deep_learning": {"enabled": True, "min_conviction_execute": 0.53},
         "data_handler": {"fetch_count": 100, "min_required_points": 2, "buffer_limit": 1000},
         "strategy": {
-            "clusters": {"us": list(US_CLUSTER), "eu": list(EU_CLUSTER)},
+            "clusters": {"rd": [ANCHOR, PAIR]},
             "correlation": {"anchor": ANCHOR},
         },
         "risk_management": {
@@ -24,7 +24,7 @@ def orch_config():
             "params": {
                 "duration": 2,
                 "duration_unit": "m",
-                "payout_estimate": 0.85,
+                "payout_estimate": 0.95,
                 "entry_cooldown_ticks": 60,
                 "stake_min": 0.5,
                 "base_stake_min_pct": 0.01,
@@ -37,5 +37,5 @@ def orch_config():
             "cycle_interval_seconds": 0,
             "execution": {"include_anchor_trades": True, "inter_symbol_delay": 0.25},
         },
-        "trading": {"mode": "live", "session": {"enabled": False}},
+        "trading": {"mode": "demo", "session": {"enabled": False}},
     }

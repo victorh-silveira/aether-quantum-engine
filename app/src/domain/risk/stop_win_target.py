@@ -23,6 +23,8 @@ def resolve_max_stake_pct(
     is_recovery: bool = False,
 ) -> float:
     """Retorna o teto percentual da banca conforme conviccao e modo de recuperacao."""
+    if is_recovery and bool(kelly_config.get("full_recovery_martingale", False)):
+        return float(kelly_config.get("max_recovery_bankroll_pct", 0.98))
     base = float(kelly_config.get("max_stake_pct", 0.01))
     if is_recovery:
         return float(kelly_config.get("max_recovery_stake_pct", base))

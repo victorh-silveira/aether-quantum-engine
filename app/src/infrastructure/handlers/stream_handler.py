@@ -29,9 +29,19 @@ class StreamHandler:
         self.candle_callback = None
         self.is_synchronized = False
 
+    def _resolve_fetch_count(self) -> int:
+        """Define quantas velas buscar na sincronizacao inicial."""
+        if "fetch_count" in self.config:
+            return max(1, int(self.config["fetch_count"]))
+        history_bars = int(self.config.get("history_bars", 0))
+        if history_bars > 0:
+            warmup = int(self.config.get("history_warmup_bars", 32))
+            return history_bars + warmup
+        return 500
+
     async def start_candle_stream(self, callback):
         """Ativa subscrições do cluster e busca histórico paralelo."""
-        fetch_count = self.config.get("fetch_count", 500)
+        fetch_count = self._resolve_fetch_count()
         self.is_synchronized = False
 
         if not self.ws.is_running:
@@ -65,28 +75,47 @@ class StreamHandler:
         self.logger.debug("DATA: Sincronia concluída. Buffer histórico em conformidade.")
 
     async def _fetch_symbol_history(self, symbol: str, count: int):
-        """Trabalhador interno para busca paralela de histórico."""
-        request = {
-            "ticks_history": symbol,
-            "end": "latest",
-            "style": "candles",
-            "granularity": self.granularity,
-            "count": count,
-        }
-        res = await self.ws.send(request)
-        history = res.get("candles", [])
-        self.candles[symbol] = [
-            Candle(
-                symbol=symbol,
-                open=float(c["open"]),
-                high=float(c["high"]),
-                low=float(c["low"]),
-                close=float(c["close"]),
-                time=datetime.fromtimestamp(c["epoch"]),
-                epoch=c["epoch"],
-            )
-            for c in history
-        ]
+        """Trabalhador interno para busca paralela de historico com paginacao."""
+        chunk_size = max(1, int(self.config.get("history_fetch_chunk", 500)))
+        target = max(1, int(count))
+        merged: list[Candle] = []
+        end: str | int = "latest"
+        while len(merged) < target:
+            need = min(chunk_size, target - len(merged))
+            request = {
+                "ticks_history": symbol,
+                "end": end,
+                "style": "candles",
+                "granularity": self.granularity,
+                "count": need,
+            }
+            res = await self.ws.send(request)
+            history = res.get("candles", [])
+            if not history:
+                break
+            batch = [
+                Candle(
+                    symbol=symbol,
+                    open=float(c["open"]),
+                    high=float(c["high"]),
+                    low=float(c["low"]),
+                    close=float(c["close"]),
+                    time=datetime.fromtimestamp(c["epoch"]),
+                    epoch=c["epoch"],
+                )
+                for c in history
+            ]
+            if merged:
+                oldest_new = batch[0].epoch
+                merged = [c for c in merged if c.epoch > oldest_new]
+            merged = batch + merged
+            if len(history) < need:
+                break
+            end = int(history[0]["epoch"]) - 1
+        if len(merged) > target:
+            merged = merged[-target:]
+        self.candles[symbol] = merged
+        self.logger.info("DATA: Historico %s | %d velas (alvo %d)", symbol, len(merged), target)
 
     async def _on_candle(self, data):
         """Processa atualizações de OHLC recebidas."""
@@ -126,6 +155,13 @@ class StreamHandler:
         if not history:
             return np.array([])
         return np.array([getattr(c, field) for c in history])
+
+    def get_last_candle_epoch(self, symbol: str) -> int | None:
+        """Retorna o epoch da ultima vela M1 armazenada para o simbolo."""
+        history = self.candles.get(symbol, [])
+        if not history:
+            return None
+        return int(history[-1].epoch)
 
     async def fetch_candle_ohlc(
         self, symbol: str, granularity: int, count: int
