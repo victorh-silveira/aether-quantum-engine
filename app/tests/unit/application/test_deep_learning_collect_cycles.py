@@ -108,7 +108,7 @@ async def test_collect_train_returns_none_resets_val_accuracy():
             return_value=(True, "bootstrap"),
         ),
         patch(
-            "src.application.services.deep_learning.dl_training.train_model_walkforward",
+            "src.application.services.deep_learning.dl_symbol_runtime.train_model_walkforward",
             return_value=None,
         ),
     ):
