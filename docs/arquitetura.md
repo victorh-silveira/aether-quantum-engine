@@ -191,15 +191,12 @@ Banner de startup: `decision_mode_banner.emit_decision_engine_banner` (modo DL, 
 | Infrastructure | `websocket_manager`, `stream_handler`, `trade_handler`, `persistence_manager` |
 | Presentation | `logger` |
 
----
-
-## 9. Observabilidade e backtest
+## 9. Observabilidade
 
 | Ferramenta | Caminho |
 |------------|---------|
 | Log ao vivo | `logs/engine.log` |
 | Monitor Rich | `app/scripts/monitor/live_monitor.py` |
-| Walk-forward DL | `app/scripts/backtest/dl_walkforward.py` |
 | CI local | `app/scripts/operations/clean_workspace.py` |
 
 ---

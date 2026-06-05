@@ -16,7 +16,6 @@ aether-quantum-engine/
 │   │   └── presentation/          # Logger terminal
 │   ├── tests/unit/                # Pytest (cobertura 100% em src)
 │   ├── scripts/
-│   │   ├── backtest/              # dl_walkforward, medallion (legado)
 │   │   ├── monitor/               # live_monitor
 │   │   └── operations/            # clean_workspace (lint/test CI local)
 │   ├── data/dl/                   # Checkpoints .pth por símbolo
@@ -68,9 +67,3 @@ make clean
 ```
 
 Pre-commit: `make pre-commit` instala hooks; `git commit` dispara lint, testes e segurança.
-
-Walk-forward DL:
-
-```bash
-cd app && conda run -n deriv-api python scripts/backtest/dl_walkforward.py --symbol R_50
-```

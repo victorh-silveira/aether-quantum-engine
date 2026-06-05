@@ -105,24 +105,7 @@ Logs: `ord=` (execução), `dl=` (previsto), `inv` quando invertido.
 
 ---
 
-## 8. Validação antes do live
-
-1. Walk-forward: `dl_walkforward.py` por símbolo.
-2. Verificar `deploy_ok`, win rate e Brier no relatório.
-3. Apagar checkpoints antigos se a dimensão de features mudou.
-4. Reiniciar o processo após alterar `settings.json`.
-
----
-
-## 9. Legado Medallion (OTC / EURUSD / Gemini)
-
-O repositório ainda contém scripts de backtest **Medallion** (`medallion_backtest.py`, HFT, coleta Gemini) para o universo histórico **frxEURUSD + índices OTC** com decisão LLM. Esse pipeline **não** alimenta o `Orchestrator` ao vivo na branch atual.
-
-Use `dl_walkforward.py` como referência de validação para o par RD.
-
----
-
-## 10. Referências internas
+## 8. Referências internas
 
 - [arquitetura.md](arquitetura.md)
 - [README.md](../README.md)

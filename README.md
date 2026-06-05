@@ -127,33 +127,6 @@ O motor exige `deep_learning.enabled: true`. Não há modo de decisão por LLM n
 
 ---
 
-## Deep Learning — validação pré-live
-
-Antes de operar com dinheiro real ou demo prolongado:
-
-1. Remova checkpoints incompatíveis com a versão atual de features (`FEATURE_DIM` v3), se necessário.
-2. Walk-forward offline por símbolo:
-
-```bash
-cd app
-python scripts/backtest/dl_walkforward.py --symbol R_50
-python scripts/backtest/dl_walkforward.py --symbol R_25
-```
-
-3. Só confie no live se `deploy_ok` e métricas do relatório estiverem dentro de `deploy_gate` em `settings.json`.
-
-Com `deploy_gate.enabled: true`, execução bloqueada com `gate_reason=deploy` quando o mini walk-forward pós-treino reprova o modelo.
-
-**Janela de treino padrão:** 288 barras (1 dia em velas de 5m), configurável via `training_history_bars` ou `training_history_days`.
-
----
-
-## Backtest legado (Medallion OTC / Gemini)
-
-Scripts em `app/scripts/backtest/` (`medallion_backtest.py`, coleta Gemini, HFT) referem-se ao pipeline histórico **EURUSD + índices OTC + LLM**. Não são o caminho de decisão do motor ao vivo atual. Use `dl_walkforward.py` para validar o par RD.
-
----
-
 ## Referências
 
 - [docs/arquitetura.md](docs/arquitetura.md) — fluxos técnicos

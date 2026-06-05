@@ -1,11 +1,9 @@
 from unittest.mock import MagicMock, patch
 
 import numpy as np
-import pytest
 import torch
 
 from src.application.services.auth_manager import AuthManager
-from src.application.services.deep_learning.dl_bridge_helpers import parse_dl_params
 from src.application.services.deep_learning.dl_calibration import (
     brier_score,
     calibrate_conviction,
@@ -14,7 +12,6 @@ from src.application.services.deep_learning.dl_calibration import (
     fit_platt,
 )
 from src.application.services.deep_learning.dl_outcomes import record_symbol_outcome, sample_weights_for_symbol
-from src.application.services.deep_learning.dl_sim_backtest import direction_wins, run_dl_walkforward
 from src.application.services.deep_learning.dl_splits import purged_temporal_splits, splits_valid
 from src.application.services.deep_learning.dl_symbol_runtime import run_symbol_training
 from src.application.services.deep_learning.dl_tcn import TemporalDirectionClassifier, _Chomp1d
@@ -29,7 +26,6 @@ from src.application.services.deep_learning.model import (
     normalize_features,
     normalize_sequences,
 )
-from src.domain.models.trade import TradeDirection
 
 
 def test_auth_manager_get_pat(monkeypatch):
@@ -84,14 +80,6 @@ def test_purged_splits_rejects_invalid_slice_ranges(monkeypatch):
         lambda *_args: False,
     )
     assert purged_temporal_splits(120, 20) is None
-
-
-def test_dl_sim_backtest_edge_paths():
-    prices = np.array([10.0, 11.0])
-    assert not direction_wins(TradeDirection.CALL, prices, 1)
-    params = parse_dl_params({"lookback": 20, "validation_bars": 15})
-    with pytest.raises(RuntimeError):
-        run_dl_walkforward(prices, params)
 
 
 def test_tcn_chomp_and_2d_input():
