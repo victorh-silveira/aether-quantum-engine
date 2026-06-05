@@ -216,3 +216,26 @@ def test_run_symbol_training_handles_training_exception():
     assert stats is runtime["norm_stats"]
     assert loss is None
     assert runtime["deploy_ok"] is False
+
+
+def test_early_stopping_trigger():
+    prices = np.sin(np.linspace(0, 12, 130)) + 10.0
+    model = create_direction_model(arch="tcn")
+    accuracies = [1.0, 0.0, 0.0, 0.0]
+
+    def mock_acc(*args, **kwargs):
+        if accuracies:
+            return accuracies.pop(0)
+        return 0.0
+
+    with patch("src.application.services.deep_learning.dl_training.model_accuracy", side_effect=mock_acc):
+        result = train_model_walkforward(
+            model,
+            prices,
+            lookback=18,
+            epochs=5,
+            lr=0.001,
+            validation_bars=14,
+            early_stopping_patience=1,
+        )
+    assert result is not None

@@ -14,14 +14,15 @@ if [ -n "${CONDA_PREFIX:-}" ] && [ "$(basename "${CONDA_PREFIX}")" = "${CONDA_EN
   fi
 fi
 
-home="${HOME:-/home/${USER}}"
+user="${USER:-${USERNAME:-}}"
+home="${HOME:-/home/${user}}"
 for root in \
   "${home}/anaconda3" \
   "${home}/miniconda3" \
-  "/mnt/c/Users/${USER}/anaconda3" \
-  "/mnt/c/Users/${USER}/miniconda3" \
-  "/c/Users/${USER}/anaconda3" \
-  "/c/Users/${USER}/miniconda3"; do
+  "/mnt/c/Users/${user}/anaconda3" \
+  "/mnt/c/Users/${user}/miniconda3" \
+  "/c/Users/${user}/anaconda3" \
+  "/c/Users/${user}/miniconda3"; do
   for py in \
     "${root}/envs/${CONDA_ENV}/python.exe" \
     "${root}/envs/${CONDA_ENV}/bin/python"; do
