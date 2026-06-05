@@ -1,3 +1,13 @@
+## [1.1.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.0.0...v1.1.0) (2026-06-05)
+
+### Funcionalidades
+
+* **config:** aumenta filtros de gating e ativa deploy gate para alta seletividade ([39ff06c](https://github.com/victorh-silveira/aether-quantum-engine/commit/39ff06cf09f1521aed1fb7d6669a1aa782e2d30b))
+
+### Documentacao
+
+* **repo:** mantem apenas tags existentes no changelog ([3413305](https://github.com/victorh-silveira/aether-quantum-engine/commit/3413305e3a7a3036894388a356e4860353f662c7))
+
 ## 1.0.0 (2026-06-05)
 
 ### ⚠ BREAKING CHANGES
