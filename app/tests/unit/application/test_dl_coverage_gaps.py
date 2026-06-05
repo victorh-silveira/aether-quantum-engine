@@ -102,10 +102,11 @@ def test_train_with_focal_loss():
         model,
         prices,
         lookback=18,
-        epochs=2,
+        epochs=10,
         lr=0.001,
         validation_bars=14,
         focal_gamma=2.0,
+        early_stopping_patience=1,
     )
     assert result is not None
 
