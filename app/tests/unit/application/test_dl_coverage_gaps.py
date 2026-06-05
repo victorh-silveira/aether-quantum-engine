@@ -239,3 +239,12 @@ def test_early_stopping_trigger():
             early_stopping_patience=1,
         )
     assert result is not None
+
+
+def test_auth_manager_loads_dotenv_if_file_exists():
+    with (
+        patch("pathlib.Path.is_file", return_value=True),
+        patch("src.application.services.auth_manager.load_dotenv") as mock_load,
+    ):
+        AuthManager(mode="live")
+        mock_load.assert_called()
