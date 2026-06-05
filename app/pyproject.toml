@@ -1,7 +1,7 @@
 [project]
 name = "aether-quantum-engine"
 version = "0.0.0"
-description = "Motor asyncio Deriv Rise/Fall: modo CALL/PUT simples ou decisao via LLM (Google Gemini)."
+description = "Motor quantitativo assíncrono para a Deriv usando Deep Learning (TCN PyTorch) e controle de risco Kelly/martingale."
 readme = "../README.md"
 requires-python = ">=3.13.12,<3.13.13"
 
@@ -73,7 +73,6 @@ convention = "google"
 [tool.ruff.lint.per-file-ignores]
 "scripts/**/*.py" = ["T201", "E402", "S603", "S607", "S101"]
 "run.py" = ["T201", "S101"]
-"src/application/services/llm/strategy_payload_config.py" = ["S106"]
 "src/infrastructure/api/deriv_http.py" = ["S310"]
 "src/infrastructure/api/deriv_rest_client.py" = ["S310"]
 "src/infrastructure/api/deriv_pat_binding.py" = ["S310"]

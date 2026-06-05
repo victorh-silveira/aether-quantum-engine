@@ -54,7 +54,7 @@ def _conda_python_candidates() -> list[Path]:
         add(root / "envs" / env_name / "bin" / "python")
 
     if os.name != "nt":
-        user = os.environ.get("USER", "")
+        user = os.environ.get("USER") or os.environ.get("USERNAME") or ""
         if user:
             for root in (
                 Path(f"/mnt/c/Users/{user}/anaconda3"),
@@ -176,25 +176,8 @@ def stage_test(fail_under=100):
 
 def stage_security():
     ignored_vulns = [
-        "PYSEC-2022-42969",
-        "CVE-2026-45409",
-        "CVE-2026-3219",
-        "CVE-2026-6357",
-        "PYSEC-2025-205",
-        "PYSEC-2025-206",
-        "PYSEC-2025-200",
-        "PYSEC-2025-207",
-        "PYSEC-2025-201",
-        "PYSEC-2025-204",
-        "PYSEC-2026-139",
-        "PYSEC-2025-209",
-        "PYSEC-2025-208",
-        "PYSEC-2025-191",
-        "PYSEC-2025-199",
-        "PYSEC-2025-202",
-        "PYSEC-2025-198",
-        "PYSEC-2025-203",
-        "CVE-2025-3730",
+        "PYSEC-2022-42969",  # py: pacote obsoleto/sem manutencao, sem correcao disponivel
+        "PYSEC-2026-139",  # torch: vulnerabilidade ativa na versao 2.9.0 sem correcao publicada
     ]
     ignore_args = []
     for vuln in ignored_vulns:
