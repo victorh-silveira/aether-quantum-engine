@@ -1,3 +1,9 @@
+## [1.1.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.1.1...v1.1.2) (2026-06-07)
+
+### Correcoes de Bug
+
+* **orchestrator:** descartar candidatos execute=False durante recovery ([715d949](https://github.com/victorh-silveira/aether-quantum-engine/commit/715d94924fa9b82e591d2907a21d372a214e2de9))
+
 ## [1.1.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.1.0...v1.1.1) (2026-06-07)
 
 ### Correcoes de Bug
