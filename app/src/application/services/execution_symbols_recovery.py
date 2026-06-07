@@ -58,7 +58,7 @@ def inject_recovery_hedge_candidates(
         return candidates
     peer = hedge_peer(last_loss_symbol)
     entry = decisions.get(peer) if peer else None
-    if not entry:
+    if not entry or not entry.get("metrics", {}).get("execute", True):
         return candidates
     dl_dir = infer_dl_direction(entry)
     if dl_dir is None:

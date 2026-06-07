@@ -230,3 +230,14 @@ def test_has_recovery_hedge_candidate_no_peer():
         )
         is True
     )
+
+
+def test_inject_recovery_hedge_skips_when_peer_execute_false():
+    candidates = [(PAIR, TradeDirection.CALL, {"execute": True})]
+    out = inject_recovery_hedge_candidates(
+        candidates,
+        {HEDGE_PEER_SYMBOL: {"direction": TradeDirection.CALL, "metrics": {"execute": False}}},
+        last_loss_symbol=PAIR,
+        last_loss_direction="CALL",
+    )
+    assert out == candidates
