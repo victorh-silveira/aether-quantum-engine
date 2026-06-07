@@ -2,7 +2,6 @@
 
 from src.application.services.deep_learning.dl_gating import calibration_gap
 from src.application.services.deep_learning.dl_post_loss import post_loss_block_reason
-from src.application.services.execution_direction import recovery_hedge_target
 from src.application.services.execution_symbols_recovery import (
     has_recovery_hedge_candidate,
     inject_recovery_hedge_candidates,
@@ -10,6 +9,7 @@ from src.application.services.execution_symbols_recovery import (
     recovery_candidate_pool,
 )
 from src.domain.models.trade import TradeDirection
+from src.domain.symbols.range_symbols import hedge_peer
 
 
 __all__ = [
@@ -160,7 +160,14 @@ def select_best_execution_candidate(
         last_loss_direction=last_loss_direction,
         recovery_active=recovery_active,
     )
-    hedge = recovery_hedge_target(last_loss_symbol, last_loss_direction) if recovery_active else None
+    hedge = None
+    if recovery_active and last_loss_symbol:
+        peer = hedge_peer(last_loss_symbol)
+        if peer:
+            for item in candidates:
+                if item[0] == peer:
+                    hedge = (peer, item[1])
+                    break
     rank_key = (
         (lambda item: recovery_rank_score(item, hedge))
         if recovery_active

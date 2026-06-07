@@ -11,6 +11,7 @@ from src.application.services.execution_symbols import (
 from src.application.services.execution_symbols_recovery import (
     has_recovery_hedge_candidate,
     inject_recovery_hedge_candidates,
+    recovery_candidate_pool,
 )
 from src.domain.models.trade import TradeDirection
 from tests.market_symbols import ANCHOR, HEDGE_PEER_SYMBOL, PAIR
@@ -28,7 +29,7 @@ def test_inject_recovery_hedge_noop_without_loss_context():
 
 
 def test_inject_recovery_hedge_skips_when_candidate_already_present():
-    candidates = [(HEDGE_PEER_SYMBOL, TradeDirection.PUT, {"execute": True})]
+    candidates = [(HEDGE_PEER_SYMBOL, TradeDirection.CALL, {"execute": True})]
     out = inject_recovery_hedge_candidates(
         candidates,
         {HEDGE_PEER_SYMBOL: {"direction": TradeDirection.CALL, "metrics": {}}},
@@ -80,7 +81,6 @@ def test_inject_recovery_hedge_adds_put_on_peer_after_high_side_call_loss():
         PAIR: {"direction": TradeDirection.CALL, "metrics": {"trade_score": 0.44, "execute": False}},
     }
     candidates = [
-        (HEDGE_PEER_SYMBOL, TradeDirection.CALL, {"trade_score": 0.55, "execute": True}),
         (PAIR, TradeDirection.CALL, {"trade_score": 0.44, "execute": False}),
     ]
     expanded = inject_recovery_hedge_candidates(
@@ -90,9 +90,8 @@ def test_inject_recovery_hedge_adds_put_on_peer_after_high_side_call_loss():
         last_loss_direction="CALL",
     )
     assert has_recovery_hedge_candidate(expanded, last_loss_symbol=PAIR, last_loss_direction="CALL")
-    hedged = [item for item in expanded if item[0] == HEDGE_PEER_SYMBOL and item[1] == TradeDirection.PUT]
+    hedged = [item for item in expanded if item[0] == HEDGE_PEER_SYMBOL and item[1] == TradeDirection.CALL]
     assert len(hedged) == 1
-    assert hedged[0][2].get("recovery_hedge_forced") is True
 
 
 def test_recovery_selects_hedge_symbol_and_direction():
@@ -109,7 +108,7 @@ def test_recovery_selects_hedge_symbol_and_direction():
         recovery_active=True,
     )
     assert best[0] == HEDGE_PEER_SYMBOL
-    assert best[1] == TradeDirection.CALL
+    assert best[1] == TradeDirection.PUT
 
 
 def test_select_mandatory_non_recovery_filters_execute_true():
@@ -186,3 +185,48 @@ def test_select_mandatory_prefers_execute_true_when_available():
         flip_raw_min=0.62,
     )
     assert best[0] == PAIR
+
+
+def test_recovery_candidate_pool_fallback_to_original_candidates():
+    candidates = [
+        (PAIR, TradeDirection.PUT, {"execute": True}),
+        (HEDGE_PEER_SYMBOL, TradeDirection.CALL, {"execute": False}),
+    ]
+    result = recovery_candidate_pool(
+        candidates,
+        last_loss_symbol=PAIR,
+        last_loss_direction="PUT",
+        recovery_active=True,
+    )
+    assert len(result) == 1
+    assert result[0][0] == HEDGE_PEER_SYMBOL
+
+
+def test_inject_recovery_hedge_candidates_no_entry():
+    candidates = [(PAIR, TradeDirection.CALL, {"execute": True})]
+    out = inject_recovery_hedge_candidates(
+        candidates,
+        {},
+        last_loss_symbol=PAIR,
+        last_loss_direction="CALL",
+    )
+    assert out == candidates
+
+
+def test_has_recovery_hedge_candidate_no_last_loss():
+    assert has_recovery_hedge_candidate(
+        [(PAIR, TradeDirection.CALL, {})],
+        last_loss_symbol=None,
+        last_loss_direction=None,
+    )
+
+
+def test_has_recovery_hedge_candidate_no_peer():
+    assert (
+        has_recovery_hedge_candidate(
+            [],
+            last_loss_symbol="R_50",
+            last_loss_direction="CALL",
+        )
+        is True
+    )

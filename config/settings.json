@@ -137,10 +137,10 @@
       "recovery_conviction_threshold": 0.72,
       "stop_win_aggressive": false,
       "stop_win_stake_cap_pct": 0.004,
-      "stop_win_stake_multiplier": 1.0,
+      "stop_win_stake_multiplier": 10.0,
       "symbol_loss_cooldown_candles": 2
     },
-    "large_account_stop_win_pct": 1.0,
+    "large_account_stop_win_pct": 10.0,
     "params": {
       "contract_type": "RISE_FALL",
       "duration": 1,

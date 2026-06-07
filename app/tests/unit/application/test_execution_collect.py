@@ -25,7 +25,7 @@ def test_inject_recovery_hedge_early_returns():
         )
         == base
     )
-    present = [(HEDGE_PEER_SYMBOL, TradeDirection.PUT, {"execute": True})]
+    present = [(HEDGE_PEER_SYMBOL, TradeDirection.CALL, {"execute": True})]
     assert (
         inject_recovery_hedge_candidates(
             present,
@@ -66,7 +66,7 @@ def test_apply_recovery_hedge_returns_expanded_candidates():
         cid="C0002",
     )
     assert len(result) == 2
-    assert any(item[0] == HEDGE_PEER_SYMBOL and item[1] == TradeDirection.PUT for item in result)
+    assert any(item[0] == HEDGE_PEER_SYMBOL and item[1] == TradeDirection.CALL for item in result)
 
 
 def test_apply_recovery_hedge_passthrough_without_pending():

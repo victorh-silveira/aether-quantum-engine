@@ -49,9 +49,8 @@ def martingale_stake(
         raw = max(progressive, cover)
     else:
         raw = progressive
-    cap_conviction = float(kelly_config.get("martingale_cap_conviction", 0.5))
-    max_pct = resolve_max_stake_pct(kelly_config, cap_conviction, is_recovery=True)
-    cap_stake = min(bankroll * max_pct, stake_max)
+    # Recuperacao sem teto de porcentagem de banca: limita apenas pela stake maxima ou banca disponivel.
+    cap_stake = min(bankroll, stake_max)
     floor_stake = max(stake_min, bankroll * float(kelly_config.get("min_stake_pct", 0.0)))
     return max(floor_stake, min(raw, cap_stake))
 
