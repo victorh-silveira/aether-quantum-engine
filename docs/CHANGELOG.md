@@ -1,3 +1,9 @@
+## [1.1.3](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.1.2...v1.1.3) (2026-06-07)
+
+### Correcoes de Bug
+
+* **risk:** nao injetar ou forcar par de recovery se execute=False ([c7b6a99](https://github.com/victorh-silveira/aether-quantum-engine/commit/c7b6a9981dd025d77637397d9071fc29b59d597a))
+
 ## [1.1.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.1.1...v1.1.2) (2026-06-07)
 
 ### Correcoes de Bug
