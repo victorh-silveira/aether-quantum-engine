@@ -1,3 +1,9 @@
+## [1.1.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.1.0...v1.1.1) (2026-06-07)
+
+### Correcoes de Bug
+
+* **risk:** remover teto de martingale e alinhar direcao de recovery ([de97a25](https://github.com/victorh-silveira/aether-quantum-engine/commit/de97a25e807f1635f39980ed478c55d8b69681ea))
+
 ## [1.1.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.0.0...v1.1.0) (2026-06-05)
 
 ### Funcionalidades
