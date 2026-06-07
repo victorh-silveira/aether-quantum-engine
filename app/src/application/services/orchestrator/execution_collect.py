@@ -52,13 +52,14 @@ def apply_recovery_hedge_to_candidates(
 def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDirection, dict]]:
     """Seleciona uma ordem por ciclo; modo obrigatorio ignora gate execute=false."""
     mandatory, invert = exec_mgr._execution_flags()
+    recovery_active = pending_recovery_active(getattr(exec_mgr.orch.risk_manager, "pending_loss", {}))
     candidates: list[tuple[str, TradeDirection, dict]] = []
     cid = f"C{int(exec_mgr.orch._active_cycle_id):04d}"
     for symbol in exec_mgr._trade_symbols():
         entry = decisions.get(symbol)
         if not entry:
             continue
-        if not mandatory and not entry.get("metrics", {}).get("execute", True):
+        if (recovery_active or not mandatory) and not entry.get("metrics", {}).get("execute", True):
             exec_mgr.logger.debug("[%s] SKIP: Conviccao insuficiente para %s (Metrics Gate)", cid, symbol)
             continue
         built = build_execution_candidate(symbol, entry, invert_dl_direction=invert)

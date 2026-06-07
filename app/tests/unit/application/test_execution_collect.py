@@ -164,3 +164,30 @@ def test_select_mandatory_recovery_uses_hedge_pool():
     )
     assert best[0] == HEDGE_PEER_SYMBOL
     assert best[1] == TradeDirection.PUT
+
+
+def test_collect_cluster_orders_skips_execute_false_in_recovery():
+    orch = SimpleNamespace(
+        anchor=ANCHOR,
+        symbols=[ANCHOR, PAIR],
+        config={
+            "orchestrator": {"execution": {"include_anchor_trades": False, "recovery_require_hedge": True}},
+            "deep_learning": {"post_loss_flip_raw_min": 0.62},
+        },
+        risk_manager=SimpleNamespace(
+            pending_loss={PAIR: 10.0},
+            last_loss_symbol=PAIR,
+            last_loss_direction="CALL",
+        ),
+        _active_cycle_id=9,
+    )
+    exec_mgr = SimpleNamespace(
+        orch=orch,
+        logger=MagicMock(),
+        _execution_flags=lambda: (True, False),
+        _trade_symbols=lambda: [PAIR],
+    )
+    decisions = {
+        PAIR: {"direction": TradeDirection.CALL, "metrics": {"raw_prob": 0.4, "execute": False}},
+    }
+    assert collect_cluster_orders(exec_mgr, decisions) == []
