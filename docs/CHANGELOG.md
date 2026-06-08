@@ -1,3 +1,9 @@
+## [1.4.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.4.0...v1.4.1) (2026-06-08)
+
+### Correcoes de Bug
+
+* **app:** limitar threads de cpu do pytorch para evitar deadlock assincrono ([1808e01](https://github.com/victorh-silveira/aether-quantum-engine/commit/1808e01afc8619f71dbad10039873710a2e95713))
+
 ## [1.4.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.3.0...v1.4.0) (2026-06-08)
 
 ### Funcionalidades
