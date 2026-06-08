@@ -28,6 +28,19 @@ async def setup_trading_session(orch: Orchestrator) -> bool:
         if orch.ws.ws:
             await orch.ws.close()
         session = await orch.auth.open_trading_session()
+        if orch.auth.mode == "demo" and session.balance <= 0.0:
+            orch.logger.warning("AUTH: Saldo da conta demo e 0.0. Tentando resetar saldo...")
+            try:
+                client = orch.auth.rest_client()
+                path = f"/trading/v1/options/accounts/{session.account_id}/reset-demo-balance"
+                res = await asyncio.to_thread(client._request, "POST", path)
+                new_bal = float(res.get("data", {}).get("balance", 0.0))
+                if new_bal > 0.0:
+                    orch.logger.info("AUTH: Saldo demo resetado com sucesso para $%.2f", new_bal)
+                    session = await orch.auth.open_trading_session()
+            except Exception as reset_err:
+                orch.logger.error("AUTH: Falha ao resetar saldo demo: %s", reset_err)
+
         await orch.ws.connect(session.ws_url)
         orch.state.balance = session.balance
         orch.risk_manager.set_initial_bankroll(orch.state.balance)
