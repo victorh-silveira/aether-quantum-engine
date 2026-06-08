@@ -26,6 +26,8 @@ from src.application.services.deep_learning.dl_tcn import TemporalDirectionClass
 from src.domain.models.trade import TradeDirection
 
 
+torch.set_num_threads(1)
+
 logger = logging.getLogger("AETH")
 
 INPUT_DIM = FEATURE_DIM
