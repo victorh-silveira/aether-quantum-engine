@@ -1,3 +1,9 @@
+## [1.4.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.3.0...v1.4.0) (2026-06-08)
+
+### Funcionalidades
+
+* **config:** desativar mhi_mode e expandir buffers ohlc ([f4dcc93](https://github.com/victorh-silveira/aether-quantum-engine/commit/f4dcc930d80e2ef7d6c44cab025c34d1a81dbb33))
+
 ## [1.3.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.2.0...v1.3.0) (2026-06-08)
 
 ### Funcionalidades
