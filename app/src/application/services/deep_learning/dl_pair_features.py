@@ -13,13 +13,17 @@ def align_pair_lengths(prices_a: np.ndarray, prices_b: np.ndarray) -> tuple[np.n
 
 def precompute_pair_series(prices_bull: np.ndarray, prices_bear: np.ndarray) -> dict[str, np.ndarray]:
     """Precomputa spread, z-score e correlacao rolling bull/bear."""
+    prices_len = len(prices_bull)
     bull, bear = align_pair_lengths(prices_bull, prices_bear)
     n = len(bull)
     spread = np.zeros(n, dtype=np.float64)
     z_spread = np.zeros(n, dtype=np.float64)
     corr = np.zeros(n, dtype=np.float64)
     if n < 2:
-        return {"spread": spread, "z_spread": z_spread, "corr": corr}
+        padded_spread = np.zeros(prices_len, dtype=np.float64)
+        padded_z_spread = np.zeros(prices_len, dtype=np.float64)
+        padded_corr = np.zeros(prices_len, dtype=np.float64)
+        return {"spread": padded_spread, "z_spread": padded_z_spread, "corr": padded_corr}
     spread[1:] = np.log((bull[1:] + 1e-10) / (bear[1:] + 1e-10))
     window = 20
     for i in range(window, n):
@@ -31,7 +35,21 @@ def precompute_pair_series(prices_bull: np.ndarray, prices_bear: np.ndarray) -> 
         rk = bear[max(0, i - window) : i + 1]
         if len(rb) > 2 and np.std(rb) > 1e-12 and np.std(rk) > 1e-12:
             corr[i] = float(np.corrcoef(rb, rk)[0, 1])
-    return {"spread": spread, "z_spread": z_spread, "corr": corr}
+
+    padded_spread = np.zeros(prices_len, dtype=np.float64)
+    padded_spread[prices_len - n :] = spread
+
+    padded_z_spread = np.zeros(prices_len, dtype=np.float64)
+    padded_z_spread[prices_len - n :] = z_spread
+
+    padded_corr = np.zeros(prices_len, dtype=np.float64)
+    padded_corr[prices_len - n :] = corr
+
+    res = {"spread": padded_spread, "z_spread": padded_z_spread, "corr": padded_corr}
+    for k, v in res.items():
+        res[k] = np.nan_to_num(v, nan=0.0, posinf=0.0, neginf=0.0)
+
+    return res
 
 
 def pair_feature_row(pair_series: dict[str, np.ndarray], index: int) -> np.ndarray:

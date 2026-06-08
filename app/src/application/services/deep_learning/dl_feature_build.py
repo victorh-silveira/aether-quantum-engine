@@ -140,6 +140,10 @@ def precompute_price_series(
         "bar_cos": bar_cos,
     }
     _attach_deriv_ohlc(series, prices, open_=open_, high=high, low=low)
+
+    for k, v in series.items():
+        series[k] = np.nan_to_num(v, nan=0.0, posinf=0.0, neginf=0.0)
+
     return series
 
 

@@ -58,9 +58,9 @@ def post_loss_block_reason(
         return None
     if raw_prob is not None:
         p = float(raw_prob)
-        if direction == TradeDirection.CALL and p + 1e-9 <= 1.0 - float(flip_raw_min):
+        if direction == TradeDirection.CALL and p + 1e-9 >= float(flip_raw_min):
             return None
-        if direction == TradeDirection.PUT and p + 1e-9 >= float(flip_raw_min):
+        if direction == TradeDirection.PUT and p + 1e-9 <= 1.0 - float(flip_raw_min):
             return None
     return "repeat_loss"
 

@@ -20,12 +20,26 @@ def direction_aligns_with_regime(
     prices: np.ndarray,
     *,
     min_strength: float = 0.0,
+    rsi_overbought: float = 1.01,
+    rsi_oversold: float = -0.01,
 ) -> bool:
-    """Exige momentum de curto prazo coerente com CALL ou PUT."""
+    """Exige momentum de curto prazo coerente com CALL ou PUT e previne exaustão por RSI."""
+    if len(prices) < 6:
+        return False
     ema_spread, ret_5 = latest_momentum(prices)
     strength = max(0.0, float(min_strength))
+
+    # Análise profissional de exaustão estatística (RSI) para índices sintéticos
+    series = precompute_price_series(prices)
+    idx = len(prices) - 1
+    rsi = float(series["rsi"][idx])
+
     if direction == TradeDirection.CALL:
+        if rsi >= float(rsi_overbought):
+            return False
         return ema_spread >= strength and ret_5 >= strength
+    if rsi <= float(rsi_oversold):
+        return False
     return ema_spread <= -strength and ret_5 <= -strength
 
 

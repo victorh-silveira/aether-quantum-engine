@@ -12,9 +12,8 @@ from src.application.services.deep_learning.dl_bridge_helpers import (
 )
 from src.application.services.deep_learning.dl_cycle_log import log_dl_cycle_summary
 from src.application.services.deep_learning.dl_gate_config import parse_deploy_gate_config
-from src.application.services.deep_learning.dl_market_data import load_symbol_close_ohlc, slice_ohlc_window
+from src.application.services.deep_learning.dl_market_data import load_symbol_close_ohlc
 from src.application.services.deep_learning.dl_outcomes import tick_dl_session_pauses
-from src.application.services.deep_learning.dl_params import slice_dl_price_window
 from src.application.services.deep_learning.dl_predict import predict_symbol_decision
 from src.application.services.deep_learning.dl_retrain import should_retrain_symbol
 from src.application.services.deep_learning.dl_symbol_runtime import (
@@ -97,10 +96,6 @@ async def _collect_symbol_decision(
         return _insufficient_data_entry(), None
 
     pair_prices = pair_prices_for_symbol(orch, symbol)
-    hist_bars = int(params["training_history_bars"])
-    start = max(0, len(prices) - hist_bars)
-    prices, open_, high, low = slice_ohlc_window(prices, open_, high, low, start=start)
-    prices, pair_prices = slice_dl_price_window(prices, pair_prices, training_history_bars=hist_bars)
 
     runtime = get_symbol_runtime(orch, symbol, dl_config, params)
     epoch = candle_epoch(orch, symbol)

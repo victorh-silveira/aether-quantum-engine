@@ -97,3 +97,21 @@ def test_martingale_native_base_doubles_kelly_when_no_last_stake():
         last_loss_stake=0.0,
     )
     assert stake == pytest.approx(20.0, abs=0.02)
+
+
+def test_martingale_stake_caps_at_max_payout():
+    cfg = {"martingale_multiplier": 2.0, "max_recovery_stake_pct": 0.10, "min_stake_pct": 0.0}
+    stake = martingale_stake(
+        10000.0,
+        4000.0,
+        4000.0,
+        0.95,
+        cfg,
+        0.7,
+        1.0,
+        12000.0,
+        consecutive_losses=1,
+        last_martingale_stake=4000.0,
+        last_loss_stake=0.0,
+    )
+    assert stake == pytest.approx(5128.20, abs=0.02)

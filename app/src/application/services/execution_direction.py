@@ -75,4 +75,5 @@ def build_forced_direction_candidate(
     metrics["exec_direction"] = forced_dir.name
     metrics["direction_inverted"] = dl_dir != forced_dir
     metrics["recovery_hedge_forced"] = True
+    metrics["execute"] = True
     return symbol, forced_dir, metrics

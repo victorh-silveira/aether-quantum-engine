@@ -11,13 +11,13 @@ from src.domain.models.trade import TradeDirection
 def test_post_loss_flip_unblocks_call():
     orch = SimpleNamespace(config={"deep_learning": {}})
     register_post_loss_ban(orch, "X", TradeDirection.CALL, candle_cycles=2)
-    assert post_loss_block_reason(orch, "X", TradeDirection.CALL, raw_prob=0.40, flip_raw_min=0.58) is None
+    assert post_loss_block_reason(orch, "X", TradeDirection.CALL, raw_prob=0.62, flip_raw_min=0.58) is None
 
 
 def test_post_loss_flip_unblocks_put():
     orch = SimpleNamespace(config={"deep_learning": {}})
     register_post_loss_ban(orch, "X", TradeDirection.PUT, candle_cycles=2)
-    assert post_loss_block_reason(orch, "X", TradeDirection.PUT, raw_prob=0.62, flip_raw_min=0.58) is None
+    assert post_loss_block_reason(orch, "X", TradeDirection.PUT, raw_prob=0.40, flip_raw_min=0.58) is None
 
 
 def test_register_zero_cycles_noop():

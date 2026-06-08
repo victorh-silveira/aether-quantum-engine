@@ -51,6 +51,9 @@ def martingale_stake(
         raw = progressive
     # Recuperacao sem teto de porcentagem de banca: limita apenas pela stake maxima ou banca disponivel.
     cap_stake = min(bankroll, stake_max)
+    if payout > 0:
+        max_payout_stake = 10000.00 / (1.0 + payout)
+        cap_stake = min(cap_stake, max_payout_stake)
     floor_stake = max(stake_min, bankroll * float(kelly_config.get("min_stake_pct", 0.0)))
     return max(floor_stake, min(raw, cap_stake))
 

@@ -50,6 +50,8 @@
     "min_raw_conviction_execute": 0.51,
     "min_regime_strength": 0.0,
     "min_val_accuracy": 0.54,
+    "rsi_overbought_threshold": 0.78,
+    "rsi_oversold_threshold": 0.22,
     "model_path_template": "data/dl/{symbol}.pth",
     "moderate_signal_bypass": {
       "min_conviction_execute": 0.62,

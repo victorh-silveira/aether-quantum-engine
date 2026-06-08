@@ -246,9 +246,9 @@ def predict_next_direction(
     cal = calibrator or CalibratorState(temperature=temperature)
     gap_kw = {"max_calibrated_raw_gap": max_calibrated_raw_gap, "deploy_ok": deploy_ok}
     if raw_prob > 0.5:
-        side_score = calibrate_trade_score(raw_prob, val_accuracy, cal, **gap_kw)
+        side_score = calibrate_trade_score(raw_prob, val_accuracy, cal, is_put=False, **gap_kw)
         return TradeDirection.CALL, side_score, side_score, raw_prob
-    side_score = calibrate_trade_score(1.0 - raw_prob, val_accuracy, cal, **gap_kw)
+    side_score = calibrate_trade_score(1.0 - raw_prob, val_accuracy, cal, is_put=True, **gap_kw)
     return TradeDirection.PUT, side_score, side_score, raw_prob
 
 

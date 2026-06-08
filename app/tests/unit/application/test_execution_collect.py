@@ -25,7 +25,7 @@ def test_inject_recovery_hedge_early_returns():
         )
         == base
     )
-    present = [(HEDGE_PEER_SYMBOL, TradeDirection.CALL, {"execute": True})]
+    present = [(HEDGE_PEER_SYMBOL, TradeDirection.PUT, {"execute": True})]
     assert (
         inject_recovery_hedge_candidates(
             present,
@@ -66,7 +66,7 @@ def test_apply_recovery_hedge_returns_expanded_candidates():
         cid="C0002",
     )
     assert len(result) == 2
-    assert any(item[0] == HEDGE_PEER_SYMBOL and item[1] == TradeDirection.CALL for item in result)
+    assert any(item[0] == HEDGE_PEER_SYMBOL and item[1] == TradeDirection.PUT for item in result)
 
 
 def test_apply_recovery_hedge_passthrough_without_pending():
@@ -98,7 +98,7 @@ def test_collect_cluster_orders_empty_after_recovery_skip():
     exec_mgr = SimpleNamespace(
         orch=orch,
         logger=MagicMock(),
-        _execution_flags=lambda: (True, False),
+        _execution_flags=lambda: (False, False),
         _trade_symbols=lambda: [PAIR],
     )
     decisions = {
@@ -184,10 +184,68 @@ def test_collect_cluster_orders_skips_execute_false_in_recovery():
     exec_mgr = SimpleNamespace(
         orch=orch,
         logger=MagicMock(),
-        _execution_flags=lambda: (True, False),
+        _execution_flags=lambda: (False, False),
         _trade_symbols=lambda: [PAIR],
     )
     decisions = {
         PAIR: {"direction": TradeDirection.CALL, "metrics": {"raw_prob": 0.4, "execute": False}},
     }
     assert collect_cluster_orders(exec_mgr, decisions) == []
+
+
+def test_collect_cluster_orders_mandatory_does_not_skip_recovery_without_hedge():
+    orch = SimpleNamespace(
+        anchor=ANCHOR,
+        symbols=[ANCHOR, PAIR],
+        config={
+            "orchestrator": {"execution": {"include_anchor_trades": False, "recovery_require_hedge": True}},
+            "deep_learning": {"post_loss_flip_raw_min": 0.62},
+        },
+        risk_manager=SimpleNamespace(
+            pending_loss={PAIR: 10.0},
+            last_loss_symbol=PAIR,
+            last_loss_direction="CALL",
+        ),
+        _active_cycle_id=9,
+    )
+    exec_mgr = SimpleNamespace(
+        orch=orch,
+        logger=MagicMock(),
+        _execution_flags=lambda: (True, False),
+        _trade_symbols=lambda: [PAIR],
+    )
+    decisions = {
+        PAIR: {"direction": TradeDirection.CALL, "metrics": {"raw_prob": 0.4, "execute": True}},
+    }
+    orders = collect_cluster_orders(exec_mgr, decisions)
+    assert len(orders) == 1
+    assert orders[0][0] == PAIR
+
+
+def test_collect_cluster_orders_mandatory_does_not_skip_execute_false_in_recovery():
+    orch = SimpleNamespace(
+        anchor=ANCHOR,
+        symbols=[ANCHOR, PAIR],
+        config={
+            "orchestrator": {"execution": {"include_anchor_trades": False, "recovery_require_hedge": True}},
+            "deep_learning": {"post_loss_flip_raw_min": 0.62},
+        },
+        risk_manager=SimpleNamespace(
+            pending_loss={PAIR: 10.0},
+            last_loss_symbol=PAIR,
+            last_loss_direction="CALL",
+        ),
+        _active_cycle_id=9,
+    )
+    exec_mgr = SimpleNamespace(
+        orch=orch,
+        logger=MagicMock(),
+        _execution_flags=lambda: (True, False),
+        _trade_symbols=lambda: [PAIR],
+    )
+    decisions = {
+        PAIR: {"direction": TradeDirection.CALL, "metrics": {"raw_prob": 0.4, "execute": False}},
+    }
+    orders = collect_cluster_orders(exec_mgr, decisions)
+    assert len(orders) == 1
+    assert orders[0][0] == PAIR

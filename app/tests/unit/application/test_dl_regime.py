@@ -75,6 +75,7 @@ def test_blended_val_accuracy_drops_after_losses():
 
 def test_latest_momentum_and_regime_strength_short_history():
     assert latest_momentum(np.array([1.0, 2.0, 3.0])) == (0.0, 0.0)
+    assert direction_aligns_with_regime(TradeDirection.CALL, np.array([1.0, 2.0, 3.0])) is False
     assert regime_strength(np.linspace(100.0, 110.0, 40)) > 0.0
 
 
@@ -251,3 +252,10 @@ def test_session_pause_after_loss_streak():
     tick_dl_session_pauses(orch)
     tick_dl_session_pauses(orch)
     assert is_symbol_session_paused(orch, "R_75") is False
+
+
+def test_direction_aligns_with_regime_rsi_exhaustion():
+    up_extreme = np.linspace(100.0, 200.0, 50)
+    assert direction_aligns_with_regime(TradeDirection.CALL, up_extreme, rsi_overbought=0.78) is False
+    down_extreme = np.linspace(200.0, 100.0, 50)
+    assert direction_aligns_with_regime(TradeDirection.PUT, down_extreme, rsi_oversold=0.22) is False

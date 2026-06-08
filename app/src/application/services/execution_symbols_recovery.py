@@ -1,8 +1,8 @@
 """Pool de recovery, hedge forcado e candidatos de recuperacao no par."""
 
 from src.application.services.execution_direction import (
-    build_execution_candidate,
-    infer_dl_direction,
+    build_forced_direction_candidate,
+    recovery_hedge_target,
 )
 from src.domain.models.trade import TradeDirection
 from src.domain.symbols.range_symbols import hedge_peer
@@ -52,21 +52,23 @@ def inject_recovery_hedge_candidates(
     last_loss_symbol: str | None,
     last_loss_direction: str | None,
 ) -> list[tuple[str, TradeDirection, dict]]:
-    """Acrescenta candidato com a direcao prevista pelo DL para o par (peer) do ultimo loss."""
-    _ = last_loss_direction
-    if not last_loss_symbol:
+    """Acrescenta candidato com a direcao de hedge do ultimo loss para o par (peer)."""
+    if not last_loss_symbol or not last_loss_direction:
         return candidates
-    peer = hedge_peer(last_loss_symbol)
+    target = recovery_hedge_target(last_loss_symbol, last_loss_direction)
+    if target is None:
+        return candidates
+    peer, forced_dir = target
     entry = decisions.get(peer) if peer else None
-    if not entry or not entry.get("metrics", {}).get("execute", True):
+    if not entry:
         return candidates
-    dl_dir = infer_dl_direction(entry)
-    if dl_dir is None:
+    if any(item[0] == peer and item[1] == forced_dir for item in candidates):
         return candidates
-    if any(item[0] == peer and item[1] == dl_dir for item in candidates):
+    built = build_forced_direction_candidate(peer, entry, forced_dir)
+    if built is None:
         return candidates
-    built = build_execution_candidate(peer, entry, invert_dl_direction=False)
-    return list(candidates) + [built]
+    clean_candidates = [item for item in candidates if item[0] != peer]
+    return clean_candidates + [built]
 
 
 def has_recovery_hedge_candidate(

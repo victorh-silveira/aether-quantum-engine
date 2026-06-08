@@ -121,6 +121,8 @@ def predict_symbol_decision(
             direction,
             prices,
             min_strength=float(params.get("min_regime_strength", 0.0)),
+            rsi_overbought=float(params.get("rsi_overbought_threshold", 1.01)),
+            rsi_oversold=float(params.get("rsi_oversold_threshold", -0.01)),
         )
         if execute and regime_required and not regime_ok:
             execute = False

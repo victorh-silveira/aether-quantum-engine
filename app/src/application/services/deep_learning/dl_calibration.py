@@ -85,14 +85,18 @@ def calibrate_trade_score(
     *,
     max_calibrated_raw_gap: float = 0.25,
     deploy_ok: bool = True,
+    is_put: bool = False,
 ) -> float:
     """Retorna score calibrado do lado vencedor para gating e stake."""
-    calibrated = apply_calibrator(raw_prob, calibrator)
+    if is_put:
+        calibrated = 1.0 - apply_calibrator(1.0 - raw_prob, calibrator)
+    else:
+        calibrated = apply_calibrator(raw_prob, calibrator)
     shrunk = shrink_toward_fifty(calibrated, val_accuracy)
     capped = cap_calibrated_to_raw_band(raw_prob, shrunk, max_calibrated_raw_gap)
     if not deploy_ok:
         return capped
-    raw_side = raw_side_conviction(raw_prob)
+    raw_side = raw_prob
     floor = raw_side - float(max_calibrated_raw_gap)
     return max(capped, floor)
 

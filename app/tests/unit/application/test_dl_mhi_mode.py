@@ -5,6 +5,7 @@ import pytest
 
 from src.application.services.deep_learning.decision_bridge import collect_deep_learning_decisions
 from src.application.services.deep_learning.dl_features import _extract_single_mhi_window, extract_sequences
+from src.application.services.deep_learning.dl_pair_features import precompute_pair_series
 from src.application.services.deep_learning.dl_params import parse_dl_params
 from src.application.services.deep_learning.dl_splits import (
     _purged_temporal_splits_mhi,
@@ -112,7 +113,7 @@ async def test_collect_decisions_mhi_with_five_bars():
         "risk_management": {"params": {"duration": 1, "duration_unit": "m"}},
     }
     orch.risk_manager.pending_loss = {}
-    prices = np.linspace(100.0, 104.0, 5, dtype=np.float64)
+    prices = np.linspace(100.0, 105.0, 6, dtype=np.float64)
     orch.stream.get_numpy_series = MagicMock(return_value=prices.copy())
     orch.stream.get_last_candle_epoch = MagicMock(return_value=1000)
     orch.stream.candles = {"R_50": []}
@@ -157,3 +158,13 @@ def test_purged_splits_mhi_invalid_slice_returns_none():
         return_value=False,
     ):
         assert _purged_temporal_splits_mhi(6, 1) is None
+
+
+def test_precompute_pair_series_length_mismatch():
+    prices_bull = np.linspace(100.0, 105.0, 10, dtype=np.float64)
+    prices_bear = np.linspace(100.0, 103.0, 6, dtype=np.float64)
+    res = precompute_pair_series(prices_bull, prices_bear)
+    assert len(res["spread"]) == 10
+    assert len(res["z_spread"]) == 10
+    assert len(res["corr"]) == 10
+    assert np.all(res["spread"][:4] == 0.0)

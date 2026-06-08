@@ -47,3 +47,8 @@ Em ativos puramente aleatórios sob desvio padrão fixo, desvios extremos tendem
 Sem o gerenciamento adequado de banca, qualquer vantagem estatística (edge) se perde na ruína do jogador.
 - **Fração de Kelly**: Ajustamos o tamanho do lote com base na probabilidade calibrada da previsão (`trade_score`) e na taxa de vitória ao vivo (`win rate live`).
 - **Gating de Segurança**: Várias camadas barram execuções de baixa convicção (e.g., Brier score ruim no treino, gap grande entre probabilidade bruta e calibrada).
+
+### 2.4 Filtro de Exaustão por RSI Extremo (Filtro do Trader Sênior)
+Sob as condições de volatilidade ininterrupta dos índices sintéticos da Deriv, tendências prolongadas esticam o RSI a patamares de exaustão estatística. Para mitigar o risco de comprar no topo ou vender no fundo antes de reversões súbitas:
+- **Exaustão de Compra**: Se o RSI atual do ativo estiver acima de `rsi_overbought_threshold` (padrão `0.78`), novas ordens do tipo `CALL` são preventivamente bloqueadas pelo filtro de regime, antecipando uma provável exaustão de momentum.
+- **Exaustão de Venda**: Se o RSI atual do ativo estiver abaixo de `rsi_oversold_threshold` (padrão `0.22`), novas ordens do tipo `PUT` são preventivamente bloqueadas pelo filtro de regime, evitando vender em suportes extremos de exaustão.
