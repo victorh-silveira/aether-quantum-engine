@@ -7,13 +7,13 @@
     "rest_base_url": "https://api.derivws.com"
   },
   "data_handler": {
-    "buffer_limit": 64,
-    "fetch_count": 32,
+    "buffer_limit": 2000,
+    "fetch_count": 1500,
     "granularity": 60,
-    "history_bars": 32,
-    "history_fetch_chunk": 32,
-    "history_warmup_bars": 8,
-    "min_required_points": 5
+    "history_bars": 1440,
+    "history_fetch_chunk": 500,
+    "history_warmup_bars": 32,
+    "min_required_points": 32
   },
   "deep_learning": {
     "arch": "tcn",
@@ -26,7 +26,7 @@
       "max_eval_steps": 12,
       "min_trades": 1,
       "min_win_rate": 0.5,
-      "mini_bars": 6,
+      "mini_bars": 80,
       "soft_max_brier": 0.32,
       "soft_min_val_accuracy": 0.52
     },
@@ -37,12 +37,12 @@
     "label_min_move_pct": 0.00015,
     "label_smoothing": 0.02,
     "learning_rate": 0.001,
-    "lookback": 5,
+    "lookback": 32,
     "max_calib_gap_execute": 0.12,
     "max_calibrated_raw_gap": 0.12,
     "max_raw_saturation": 0.97,
     "max_val_brier_execute": 0.28,
-    "mhi_mode": true,
+    "mhi_mode": false,
     "min_conviction_execute": 0.6,
     "min_direction_margin": 0.008,
     "min_edge_margin": 0.08,
@@ -92,10 +92,10 @@
     },
     "train_on_new_candle_only": true,
     "training_epochs": 6,
-    "training_history_bars": 5,
+    "training_history_bars": 1440,
     "training_history_days": 2.0,
     "val_acc_live_blend": 0.35,
-    "validation_bars": 1,
+    "validation_bars": 60,
     "weight_decay": 0.0001
   },
   "logging": {
