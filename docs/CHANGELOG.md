@@ -1,3 +1,9 @@
+## [1.2.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.1.3...v1.2.0) (2026-06-08)
+
+### Funcionalidades
+
+* **app:** ajustar direcao em recovery e adicionar filtro rsi ([7dc8e3d](https://github.com/victorh-silveira/aether-quantum-engine/commit/7dc8e3d8c8f07fc5e40619e84def3e114aef9067))
+
 ## [1.1.3](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.1.2...v1.1.3) (2026-06-07)
 
 ### Correcoes de Bug
