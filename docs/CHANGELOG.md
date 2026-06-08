@@ -1,3 +1,9 @@
+## [1.3.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.2.0...v1.3.0) (2026-06-08)
+
+### Funcionalidades
+
+* **app:** resetar saldo demo automaticamente se zerado ([7184869](https://github.com/victorh-silveira/aether-quantum-engine/commit/7184869b9025a5c5eaf3709263e090d4d122aed5))
+
 ## [1.2.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.1.3...v1.2.0) (2026-06-08)
 
 ### Funcionalidades
