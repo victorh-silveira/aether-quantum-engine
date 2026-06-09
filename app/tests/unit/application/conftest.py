@@ -1,5 +1,9 @@
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 
+from src.application.services.orchestrator import Orchestrator
+from src.infrastructure.state.trading_state import TradingState
 from tests.market_symbols import ALL_SYMBOLS, ANCHOR, PAIR
 
 
@@ -44,3 +48,25 @@ def orch_config():
         },
         "trading": {"mode": "demo", "session": {"enabled": False}},
     }
+
+
+@pytest.fixture
+def orch_ready(orch_config):
+    TradingState.reset()
+    ws_patch = patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock())
+    mock_ws_class = ws_patch.start()
+    mock_ws = mock_ws_class.return_value
+    mock_ws.subscribe = MagicMock()
+    orch = Orchestrator(orch_config, "token")
+    orch.stream.is_synchronized = True
+    orch.ws.is_running = True
+    orch.running = True
+    orch.state.balance = 1000.0
+    orch.risk_manager.set_initial_bankroll(1000.0)
+    orch._stream_ready_at = 0.0
+    orch.config.setdefault("orchestrator", {})["post_settlement_breath_seconds"] = 0
+    yield orch
+    pending = orch._post_settlement_task
+    if pending is not None and not pending.done():
+        pending.cancel()
+    ws_patch.stop()

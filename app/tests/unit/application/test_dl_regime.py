@@ -9,6 +9,7 @@ from src.application.services.deep_learning.dl_outcomes import (
     is_symbol_session_paused,
     live_win_rate,
     maybe_pause_symbol_session,
+    recent_loss_count,
     record_symbol_outcome,
     tick_dl_session_pauses,
 )
@@ -62,6 +63,11 @@ def test_regime_call_requires_positive_momentum():
     down = np.linspace(110.0, 100.0, 40)
     assert direction_aligns_with_regime(TradeDirection.CALL, up) is True
     assert direction_aligns_with_regime(TradeDirection.CALL, down) is False
+
+
+def test_recent_loss_count_empty_history():
+    orch = type("O", (), {})()
+    assert recent_loss_count(orch, "R_50") == 0
 
 
 def test_blended_val_accuracy_drops_after_losses():
