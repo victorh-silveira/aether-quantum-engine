@@ -1,3 +1,9 @@
+## [1.4.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.4.1...v1.4.2) (2026-06-09)
+
+### Correcoes de Bug
+
+* **orchestrator:** retomar ciclo apos liquidacao sem congelar o motor ([25ddb84](https://github.com/victorh-silveira/aether-quantum-engine/commit/25ddb84b0c9e74f91ac09530c9cfc2852d6ac666))
+
 ## [1.4.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.4.0...v1.4.1) (2026-06-08)
 
 ### Correcoes de Bug
