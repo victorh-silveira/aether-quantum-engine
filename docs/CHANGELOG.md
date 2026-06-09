@@ -1,3 +1,9 @@
+## [1.5.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.5.0...v1.5.1) (2026-06-09)
+
+### Correcoes de Bug
+
+* **orchestrator:** garantir recovery obrigatorio sem EXEC_SKIP ([82ff00b](https://github.com/victorh-silveira/aether-quantum-engine/commit/82ff00bfb26d3f764e7c313e567dab01ab1e1c9c))
+
 ## [1.5.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.4.2...v1.5.0) (2026-06-09)
 
 ### Funcionalidades
