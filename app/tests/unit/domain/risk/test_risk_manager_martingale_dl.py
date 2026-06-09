@@ -10,7 +10,12 @@ def test_martingale_uses_recorded_loss_stake_as_seed(kelly_config):
     rm.active_contract_ids = [1]
     rm.record_contract_stake(1, 10.83)
     rm.register_result(-10.83, 1, "R_100")
-    stake = rm.calculate_stake(10820.0, "R_10", conviction=0.0)
+    stake = rm.calculate_stake(
+        10820.0,
+        "R_10",
+        conviction=0.62,
+        dl_metrics={"execute": True, "trade_score": 0.62, "val_accuracy": 0.55},
+    )
     cover = (10.83 + 10.83 * 0.95) / 0.95
     assert stake == pytest.approx(math.ceil(cover * 100) / 100, abs=0.5)
 
@@ -18,19 +23,52 @@ def test_martingale_uses_recorded_loss_stake_as_seed(kelly_config):
 def test_martingale_always_on_with_pending(kelly_config):
     rm = RiskManager(kelly_config)
     rm.pending_loss["R_50"] = 50.0
-    assert rm._martingale_allowed(
+    assert not rm._martingale_allowed(
         "R_50",
         0.40,
-        dl_metrics={"gate_reason": "deploy", "val_brier": 0.35, "deploy_ok": False},
+        dl_metrics={
+            "gate_reason": "deploy",
+            "val_brier": 0.35,
+            "deploy_ok": False,
+            "val_accuracy": 0.40,
+            "trade_score": 0.40,
+            "execute": False,
+        },
         order_direction="PUT",
     )
     assert rm._martingale_allowed(
         "R_75",
         0.56,
-        dl_metrics={"gate_reason": "brier", "val_brier": 0.40},
+        dl_metrics={
+            "gate_reason": "brier",
+            "val_brier": 0.40,
+            "val_accuracy": 0.55,
+            "trade_score": 0.60,
+            "execute": True,
+        },
         order_direction="CALL",
         last_loss_symbol="R_50",
         last_loss_direction="CALL",
+    )
+
+
+def test_martingale_blocked_on_weak_non_execute_signal(kelly_config):
+    rm = RiskManager(kelly_config)
+    rm.pending_loss["R_50"] = 10.0
+    assert not rm._martingale_allowed(
+        "R_25",
+        0.52,
+        dl_metrics={"execute": False, "trade_score": 0.52, "val_accuracy": 0.55},
+    )
+
+
+def test_martingale_blocked_on_low_score(kelly_config):
+    rm = RiskManager(kelly_config)
+    rm.pending_loss["R_50"] = 10.0
+    assert not rm._martingale_allowed(
+        "R_25",
+        0.50,
+        dl_metrics={"execute": True, "trade_score": 0.50, "val_accuracy": 0.55},
     )
 
 
@@ -38,10 +76,11 @@ def test_martingale_stake_grows_with_pending_loss(kelly_config):
     rm = RiskManager(kelly_config)
     rm.active_contract_ids = [1]
     rm.register_result(-10.0, 1, "R_50")
-    first = rm.calculate_stake(1000.0, "R_75", conviction=0.56)
+    dl_metrics = {"execute": True, "trade_score": 0.60, "val_accuracy": 0.55}
+    first = rm.calculate_stake(1000.0, "R_75", conviction=0.56, dl_metrics=dl_metrics)
     rm.active_contract_ids = [2]
     rm.register_result(-20.0, 2, "R_75")
-    second = rm.calculate_stake(970.0, "R_75", conviction=0.56)
+    second = rm.calculate_stake(970.0, "R_75", conviction=0.56, dl_metrics=dl_metrics)
     assert second > first
 
 

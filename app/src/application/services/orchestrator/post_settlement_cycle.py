@@ -68,7 +68,6 @@ def schedule_trading_cycle_after_settlement(orch: Any) -> None:
     if task is not None and not task.done():
         orch._post_settlement_wake.set()
         return
-    orch.logger.info("CICLO: agendado pos-liquidacao")
     new_task = asyncio.create_task(run_post_settlement_breath_and_cycle(orch))
     orch._post_settlement_task = new_task
     new_task.add_done_callback(lambda done: _release_post_settlement_task(orch, done))
@@ -77,7 +76,6 @@ def schedule_trading_cycle_after_settlement(orch: Any) -> None:
 async def _attempt_post_settlement_trading_cycle(orch: Any, orch_cfg: dict) -> bool:
     """Executa um ciclo pos-liquidacao; True quando concluido."""
     orch._last_cluster_cycle_end = 0.0
-    orch.logger.info("CICLO: retomada pos-liquidacao")
     orch._dl_fast_cycle = True
     cycle_timeout = float(orch_cfg.get("post_settlement_cycle_timeout_seconds", 90.0))
     try:

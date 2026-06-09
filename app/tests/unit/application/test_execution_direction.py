@@ -3,7 +3,10 @@ from unittest.mock import patch
 from src.application.services.execution_direction import (
     build_execution_candidate,
     build_forced_direction_candidate,
+    build_forced_recovery_candidate,
     infer_dl_direction,
+    mandatory_execution_eligible,
+    recovery_execution_eligible,
     recovery_hedge_target,
 )
 from src.domain.models.trade import TradeDirection
@@ -12,6 +15,96 @@ from src.domain.models.trade import TradeDirection
 def test_infer_dl_direction_from_raw():
     entry = {"direction": None, "metrics": {"raw_prob": 0.62}}
     assert infer_dl_direction(entry) == TradeDirection.CALL
+
+
+def test_mandatory_execution_eligible_rejects_hard_blocks():
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {
+            "execute": False,
+            "gate_reason": "deploy",
+            "conviction": 0.7,
+            "raw_prob": 0.6,
+            "deploy_ok": True,
+            "val_accuracy": 0.55,
+        },
+    }
+    assert mandatory_execution_eligible(entry) is False
+
+
+def test_mandatory_execution_eligible_accepts_weak_signal():
+    entry = {
+        "direction": TradeDirection.PUT,
+        "metrics": {
+            "execute": False,
+            "gate_reason": "candle_reject",
+            "conviction": 0.58,
+            "raw_prob": 0.45,
+            "deploy_ok": True,
+            "val_accuracy": 0.52,
+        },
+    }
+    assert mandatory_execution_eligible(entry) is True
+
+
+def test_mandatory_execution_eligible_rejects_missing_direction():
+    entry = {"direction": None, "metrics": {"deploy_ok": True, "val_accuracy": 0.55}}
+    assert mandatory_execution_eligible(entry) is False
+
+
+def test_mandatory_execution_eligible_rejects_low_val_accuracy():
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {"deploy_ok": True, "val_accuracy": 0.40, "conviction": 0.60, "raw_prob": 0.6},
+    }
+    assert mandatory_execution_eligible(entry) is False
+
+
+def test_recovery_execution_eligible_rejects_hard_block():
+    entry = {
+        "direction": TradeDirection.PUT,
+        "metrics": {"execute": False, "gate_reason": "deploy", "trade_score": 0.65, "val_accuracy": 0.55},
+    }
+    assert recovery_execution_eligible(entry) is False
+
+
+def test_recovery_execution_eligible_accepts_execute_true():
+    entry = {
+        "direction": TradeDirection.PUT,
+        "metrics": {"execute": True, "trade_score": 0.40, "val_accuracy": 0.40},
+    }
+    assert recovery_execution_eligible(entry) is True
+
+
+def test_recovery_execution_eligible_rejects_missing_direction():
+    entry = {"direction": None, "metrics": {"trade_score": 0.60, "val_accuracy": 0.55}}
+    assert recovery_execution_eligible(entry) is False
+
+
+def test_recovery_execution_eligible_accepts_quality_signal():
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {"execute": False, "trade_score": 0.60, "val_accuracy": 0.55, "raw_prob": 0.58},
+    }
+    assert recovery_execution_eligible(entry) is True
+
+
+def test_recovery_execution_eligible_requires_quality_when_not_execute():
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {
+            "execute": False,
+            "trade_score": 0.52,
+            "val_accuracy": 0.47,
+            "raw_prob": 0.51,
+        },
+    }
+    assert recovery_execution_eligible(entry) is False
+
+
+def test_build_execution_candidate_returns_none_without_direction():
+    entry = {"direction": None, "metrics": {"execute": True}}
+    assert build_execution_candidate("R_50", entry) is None
 
 
 def test_build_candidate_uses_dl_direction():
@@ -59,3 +152,26 @@ def test_recovery_hedge_target_when_peer_lookup_empty():
         return_value=None,
     ):
         assert recovery_hedge_target("R_10", "CALL") is None
+
+
+def test_mandatory_execution_eligible_accepts_direction_margin_with_raw():
+    entry = {
+        "direction": None,
+        "metrics": {
+            "execute": False,
+            "gate_reason": "direction_margin",
+            "deploy_ok": True,
+            "val_accuracy": 0.52,
+            "conviction": 0.58,
+            "raw_prob": 0.47,
+        },
+    }
+    assert mandatory_execution_eligible(entry) is True
+
+
+def test_build_forced_recovery_candidate_without_dl_direction():
+    entry = {"direction": None, "metrics": {"trade_score": 0.55}}
+    sym, side, metrics = build_forced_recovery_candidate("R_75", entry, TradeDirection.PUT)
+    assert sym == "R_75"
+    assert side == TradeDirection.PUT
+    assert metrics["recovery_forced"] is True

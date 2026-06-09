@@ -96,10 +96,9 @@ async def test_collect_predict_runs_each_cycle_same_candle():
 
 
 @pytest.mark.asyncio
-async def test_collect_train_returns_none_resets_val_accuracy():
+async def test_collect_bootstrap_defers_training_without_blocking():
     prices = np.sin(np.linspace(0, 10, 90)) + 10.0
     orch = MockOrchestrator(["R_50"], prices)
-    orch.config["deep_learning"]["train_on_new_candle_only"] = False
     if hasattr(orch, "_dl_runtime"):
         orch._dl_runtime.clear()
     with (
@@ -108,12 +107,12 @@ async def test_collect_train_returns_none_resets_val_accuracy():
             return_value=(True, "bootstrap"),
         ),
         patch(
-            "src.application.services.deep_learning.dl_symbol_runtime.train_model_walkforward",
-            return_value=None,
-        ),
+            "src.application.services.deep_learning.decision_bridge.enqueue_deferred_symbol_training"
+        ) as mock_enqueue,
     ):
         decisions = await collect_deep_learning_decisions(orch)
-    assert decisions["R_50"]["metrics"]["val_accuracy"] == 0.0
+    mock_enqueue.assert_called_once()
+    assert "R_50" in decisions
 
 
 @pytest.mark.asyncio
@@ -141,6 +140,11 @@ async def test_collect_applies_symbol_loss_cooldown():
     orch.risk_manager.is_symbol_on_loss_cooldown = MagicMock(return_value=True)
     orch.config["deep_learning"]["max_val_brier_execute"] = 1.0
     orch.config["deep_learning"]["deploy_gate"] = {"enabled": False}
+    orch.config["deep_learning"]["binary_signal"] = {
+        "require_candle_confirm": False,
+        "rsi_block_call": 1.01,
+        "rsi_block_put": -0.01,
+    }
     stats = fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32))
     with (
         patch(

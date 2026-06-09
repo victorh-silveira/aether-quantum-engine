@@ -37,7 +37,7 @@ def test_execution_manager_collect_orders_mandatory_includes_execute_false(orch_
         }
         orders = orch.executor._collect_orders(decisions)
         assert len(orders) == 1
-        assert orders[0][0] in ("R_50", "R_75")
+        assert orders[0][0] == "R_75"
 
 
 def test_collect_orders_mandatory_bypasses_selection_filter(orch_config):

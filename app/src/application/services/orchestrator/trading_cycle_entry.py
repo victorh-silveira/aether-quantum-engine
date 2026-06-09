@@ -11,10 +11,6 @@ def trading_cycle_entry_allowed(orch: Any) -> bool:
         return False
     if orch.state.active_contracts:
         if not orch._settlement_wait_logged:
-            orch.logger.info(
-                "CICLO: aguardando liquidacao (%d contrato(s) aberto(s))",
-                len(orch.state.active_contracts),
-            )
             orch._settlement_wait_logged = True
         return False
     orch._settlement_wait_logged = False

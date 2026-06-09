@@ -116,9 +116,20 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
             return "kelly_no_edge"
         return None
 
-    def _martingale_allowed(self, _symbol: str, _conviction: float, **_kwargs) -> bool:
-        """Martingale ativo sempre que houver perda pendente (modo nativo)."""
-        return martingale_allowed(pending_loss=self.pending_loss)
+    def _martingale_allowed(self, _symbol: str, conviction: float, **kwargs) -> bool:
+        """Martingale ativo com perda pendente e conviccao minima do sinal."""
+        if not martingale_allowed(pending_loss=self.pending_loss):
+            return False
+        dl_metrics = kwargs.get("dl_metrics") or {}
+        min_conv = float(self.kelly_config.get("martingale_sizing_conviction", 0.60))
+        score = float(dl_metrics.get("trade_score", dl_metrics.get("conviction", conviction)))
+        min_val = float(self.kelly_config.get("martingale_min_val_accuracy", 0.50))
+        val = float(dl_metrics.get("val_accuracy", conviction))
+        if val + 1e-9 < min_val:
+            return False
+        if not dl_metrics.get("execute", False) and score + 1e-9 < min_conv:
+            return False
+        return score + 1e-9 >= min_conv * 0.9
 
     def calculate_stake(
         self,

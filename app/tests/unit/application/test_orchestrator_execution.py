@@ -20,11 +20,11 @@ async def test_execute_cluster_dispatches_when_decisions_present(orch_config):
         decisions = {
             "R_50": {
                 "direction": TradeDirection.CALL,
-                "metrics": {"conviction": 1.0, "macro_bias": 0.8, "pattern_tags": ["BULL_FLAG"]},
+                "metrics": {"conviction": 1.0, "execute": True, "macro_bias": 0.8, "pattern_tags": ["BULL_FLAG"]},
             },
             "R_75": {
                 "direction": TradeDirection.CALL,
-                "metrics": {"conviction": 0.9, "macro_bias": 0.4, "pattern_tags": ["BULL_PENNANT"]},
+                "metrics": {"conviction": 0.9, "execute": True, "macro_bias": 0.4, "pattern_tags": ["BULL_PENNANT"]},
             },
         }
 
@@ -94,7 +94,7 @@ async def test_execution_manager_skip_and_failure_paths(orch_config):
             "R_50": {"direction": None, "metrics": {"conviction": 0.0}},
             "R_75": {
                 "direction": TradeDirection.CALL,
-                "metrics": {"conviction": 1.0},
+                "metrics": {"conviction": 1.0, "execute": True},
             },
         }
         orch.executor._place_order = AsyncMock(side_effect=Exception("API ERROR"))

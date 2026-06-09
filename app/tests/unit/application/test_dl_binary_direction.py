@@ -135,6 +135,54 @@ def test_binary_veto_mean_reversion_call():
     assert binary_direction_veto(TradeDirection.CALL, ctx, params, sym_is_bull=True) == "mean_reversion"
 
 
+def test_binary_veto_candle_reject_call():
+    params = {"binary_signal": parse_binary_signal_params({})}
+    ctx = {
+        "rel_vol": 1.0,
+        "sma_z": 0.0,
+        "variance_ratio": 1.0,
+        "has_pair": 0.0,
+        "body": -0.002,
+        "upper_wick": 0.0,
+        "lower_wick": 0.0,
+        "close_loc": 0.3,
+        "rsi": 0.5,
+    }
+    assert binary_direction_veto(TradeDirection.CALL, ctx, params, sym_is_bull=True) == "candle_reject"
+
+
+def test_binary_veto_rsi_exhaust_call():
+    params = {"binary_signal": parse_binary_signal_params({})}
+    ctx = {
+        "rel_vol": 1.0,
+        "sma_z": 0.0,
+        "variance_ratio": 1.0,
+        "has_pair": 0.0,
+        "body": 0.002,
+        "upper_wick": 0.0,
+        "lower_wick": 0.0,
+        "close_loc": 0.6,
+        "rsi": 0.8,
+    }
+    assert binary_direction_veto(TradeDirection.CALL, ctx, params, sym_is_bull=True) == "rsi_exhaust"
+
+
+def test_binary_veto_rsi_exhaust_put():
+    params = {"binary_signal": parse_binary_signal_params({})}
+    ctx = {
+        "rel_vol": 1.0,
+        "sma_z": 0.0,
+        "variance_ratio": 1.0,
+        "has_pair": 0.0,
+        "body": -0.002,
+        "upper_wick": 0.0,
+        "lower_wick": 0.0,
+        "close_loc": 0.4,
+        "rsi": 0.2,
+    }
+    assert binary_direction_veto(TradeDirection.PUT, ctx, params, sym_is_bull=True) == "rsi_exhaust"
+
+
 def test_binary_veto_random_walk_call():
     params = {"binary_signal": parse_binary_signal_params({})}
     ctx = {

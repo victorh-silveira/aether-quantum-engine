@@ -38,7 +38,13 @@ async def test_execute_cluster_mandatory_skips_exec_none_when_execute_false(orch
         decisions = {
             "R_50": {
                 "direction": TradeDirection.CALL,
-                "metrics": {"conviction": 0.7, "execute": False, "raw_prob": 0.52},
+                "metrics": {
+                    "conviction": 0.7,
+                    "execute": False,
+                    "raw_prob": 0.52,
+                    "deploy_ok": True,
+                    "val_accuracy": 0.55,
+                },
             },
         }
         with (
@@ -46,12 +52,9 @@ async def test_execute_cluster_mandatory_skips_exec_none_when_execute_false(orch
             patch.object(orch.executor, "_execute_orders", new_callable=AsyncMock, return_value=1) as mock_exec,
         ):
             await orch.executor.execute_cluster(decisions)
-        assert not any("EXEC_NONE" in str(c) for c in mock_info.call_args_list)
+        assert any("EXEC_SEL" in str(c) for c in mock_info.call_args_list)
         mock_exec.assert_awaited_once()
-        orders = mock_exec.await_args[0][0]
-        assert len(orders) == 1
-        assert orders[0][1] == TradeDirection.CALL
-        assert orders[0][2]["dl_direction"] == "CALL"
+        assert len(mock_exec.await_args.args[0]) == 1
 
 
 def test_log_execution_blockers_when_gating_disabled(orch_config):
@@ -137,7 +140,7 @@ def test_collect_orders_non_mandatory_keeps_filtered_candidate(orch_config):
 
 
 @pytest.mark.asyncio
-async def test_execute_cluster_exec_skip_when_no_direction(orch_config):
+async def test_execute_cluster_mandatory_never_exec_skip_without_direction(orch_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
@@ -146,10 +149,11 @@ async def test_execute_cluster_exec_skip_when_no_direction(orch_config):
         orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = True
         with (
             patch.object(orch.executor.logger, "warning") as mock_warn,
-            patch.object(orch.executor, "_execute_orders", new_callable=AsyncMock, return_value=0),
+            patch.object(orch.executor, "_execute_orders", new_callable=AsyncMock, return_value=1) as mock_exec,
         ):
             await orch.executor.execute_cluster({"R_50": {"direction": None, "metrics": {}}})
-        assert any("EXEC_SKIP" in str(c) for c in mock_warn.call_args_list)
+        assert not any("EXEC_SKIP" in str(c) for c in mock_warn.call_args_list)
+        assert mock_exec.call_count == 1
 
 
 @pytest.mark.asyncio

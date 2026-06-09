@@ -19,8 +19,8 @@ def test_trading_cycle_entry_waits_for_settlement(orch_ready):
     orch.state.active_contracts = {1: object()}
     orch.logger = MagicMock()
     assert trading_cycle_entry_allowed(orch) is False
-    orch.logger.info.assert_called_once()
     assert orch._settlement_wait_logged is True
+    orch.logger.info.assert_not_called()
 
 
 def test_trading_cycle_entry_allowed(orch_ready):

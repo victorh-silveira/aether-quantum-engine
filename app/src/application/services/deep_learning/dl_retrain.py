@@ -35,6 +35,13 @@ def reset_bars_since_train(orch, symbol: str) -> None:
         state[str(symbol)] = 0
 
 
+def _deferred_train_pending(orch, symbol: str) -> bool:
+    """Indica se o simbolo ja possui retreino deferido em andamento."""
+    tasks = getattr(orch, "_dl_deferred_tasks", None) or {}
+    task = tasks.get(str(symbol))
+    return task is not None and not task.done()
+
+
 def should_retrain_symbol(
     orch,
     symbol: str,
@@ -43,6 +50,8 @@ def should_retrain_symbol(
     candle_epoch: int,
 ) -> tuple[bool, str]:
     """Indica se o simbolo deve treinar neste ciclo e o motivo."""
+    if _deferred_train_pending(orch, symbol):
+        return False, ""
     forced = getattr(orch, "_dl_force_retrain", None) or {}
     if forced.get(str(symbol)):
         return True, "loss_retrain"
@@ -54,9 +63,11 @@ def should_retrain_symbol(
     bars_since = int(state.get(str(symbol), 0))
     if min_interval > 0 and bars_since < min_interval:
         return False, ""
+    reason = ""
     if params.get("train_on_new_candle", True) and candle_epoch != last_epoch:
-        return True, "new_candle"
-    rolling = int(params.get("rolling_retrain_bars", 0))
-    if rolling > 0 and bars_since >= rolling:
-        return True, "rolling"
-    return False, ""
+        reason = "new_candle"
+    else:
+        rolling = int(params.get("rolling_retrain_bars", 0))
+        if rolling > 0 and bars_since >= rolling:
+            reason = "rolling"
+    return bool(reason), reason

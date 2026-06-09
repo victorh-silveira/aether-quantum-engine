@@ -119,6 +119,9 @@ def test_predict_blocks_regime_and_live_wr():
                 "sma_z_block_call": 99.0,
                 "sma_z_block_put": -99.0,
                 "variance_ratio_mean_rev_max": 0.0,
+                "require_candle_confirm": False,
+                "rsi_block_call": 1.01,
+                "rsi_block_put": -0.01,
             },
         }
     )
@@ -202,6 +205,9 @@ def test_predict_moderate_bypass_flag():
                 "sma_z_block_call": 99.0,
                 "sma_z_block_put": -99.0,
                 "variance_ratio_mean_rev_max": 0.0,
+                "require_candle_confirm": False,
+                "rsi_block_call": 1.01,
+                "rsi_block_put": -0.01,
             },
         }
     )

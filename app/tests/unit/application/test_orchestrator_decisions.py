@@ -16,8 +16,7 @@ async def test_run_trading_cycle_waits_for_open_contract_settlement(orch_config)
         orch.executor.execute_cluster = AsyncMock()
         await orch._run_trading_cycle_if_ready()
         orch.executor.execute_cluster.assert_not_called()
-        orch.logger.info.assert_called_once()
-        assert "aguardando liquidacao" in orch.logger.info.call_args.args[0]
+        assert orch._settlement_wait_logged is True
 
 
 @pytest.mark.asyncio
@@ -183,8 +182,8 @@ async def test_run_trading_cycle_inserts_blank_line_between_cycles(orch_config):
         orch.executor.execute_cluster = AsyncMock()
         await orch._run_trading_cycle_if_ready()
         await orch._run_trading_cycle_if_ready()
-        assert orch.logger.info.call_count == 1
-        assert orch.logger.info.call_args.args == ("",)
+        blank_calls = [c for c in orch.logger.info.call_args_list if c.args == ("",)]
+        assert len(blank_calls) == 1
 
 
 @pytest.mark.asyncio

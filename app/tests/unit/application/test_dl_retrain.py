@@ -42,6 +42,19 @@ def test_new_candle_retrain_after_min_interval():
     assert ok and reason == "new_candle"
 
 
+def test_deferred_train_pending_skips_retrain():
+    pending = SimpleNamespace(done=lambda: False)
+    orch = SimpleNamespace(_dl_deferred_tasks={"R_50": pending})
+    ok, reason = should_retrain_symbol(
+        orch,
+        "R_50",
+        {"last_candle_epoch": 0},
+        {"retrain_min_bars": 0},
+        5,
+    )
+    assert not ok and reason == ""
+
+
 def test_bootstrap_retrain_when_never_trained():
     ok, reason = should_retrain_symbol(
         SimpleNamespace(),

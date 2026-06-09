@@ -181,9 +181,10 @@ def test_risk_manager_martingale_same_stake_regardless_of_conviction(kelly_confi
     rm = RiskManager(kelly_config)
     rm.active_contract_ids = [1]
     rm.register_result(-10.0, 1, "R_50")
-    stake_first = rm.calculate_stake(1000.0, "R_75", conviction=0.55)
+    dl_metrics = {"execute": True, "trade_score": 0.60, "val_accuracy": 0.55}
+    stake_first = rm.calculate_stake(1000.0, "R_75", conviction=0.55, dl_metrics=dl_metrics)
     rm.last_martingale_stake = 0.0
-    stake_second = rm.calculate_stake(1000.0, "R_75", conviction=0.55)
+    stake_second = rm.calculate_stake(1000.0, "R_75", conviction=0.55, dl_metrics=dl_metrics)
     assert stake_second == stake_first
     assert stake_first > 17.0
 

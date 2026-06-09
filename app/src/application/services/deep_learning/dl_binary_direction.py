@@ -153,4 +153,26 @@ def binary_direction_veto(
         direction == TradeDirection.PUT and body < 0.0 and lower > wick_ratio * body_abs
     ):
         reason = "wick_reject"
+    elif bool(bs.get("require_candle_confirm", True)):
+        close_loc = float(context.get("close_loc", 0.5))
+        min_call_loc = float(bs.get("min_close_loc_call", 0.48))
+        max_put_loc = float(bs.get("max_close_loc_put", 0.52))
+        if (
+            direction == TradeDirection.CALL
+            and (body <= 0.0 or close_loc < min_call_loc)
+            or direction == TradeDirection.PUT
+            and (body >= 0.0 or close_loc > max_put_loc)
+        ):
+            reason = "candle_reject"
+    if reason is None:
+        rsi = float(context.get("rsi", 0.5))
+        rsi_block_call = float(bs.get("rsi_block_call", 0.72))
+        rsi_block_put = float(bs.get("rsi_block_put", 0.28))
+        if (
+            direction == TradeDirection.CALL
+            and rsi >= rsi_block_call
+            or direction == TradeDirection.PUT
+            and rsi <= rsi_block_put
+        ):
+            reason = "rsi_exhaust"
     return reason

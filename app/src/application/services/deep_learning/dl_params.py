@@ -67,6 +67,11 @@ def parse_binary_signal_params(dl_config: dict) -> dict[str, Any]:
         "variance_ratio_mean_rev_max": float(bs.get("variance_ratio_mean_rev_max", 0.88)),
         "wick_rejection_ratio": float(bs.get("wick_rejection_ratio", 1.8)),
         "require_pair_spread_confirm": bool(bs.get("require_pair_spread_confirm", True)),
+        "require_candle_confirm": bool(bs.get("require_candle_confirm", True)),
+        "min_close_loc_call": float(bs.get("min_close_loc_call", 0.48)),
+        "max_close_loc_put": float(bs.get("max_close_loc_put", 0.52)),
+        "rsi_block_call": float(bs.get("rsi_block_call", 0.72)),
+        "rsi_block_put": float(bs.get("rsi_block_put", 0.28)),
     }
 
 

@@ -1,16 +1,25 @@
-"""Pool de recovery, hedge forcado e candidatos de recuperacao no par."""
+"""Pool de recovery e candidatos na mesma direcao do cluster."""
 
-from src.application.services.execution_direction import (
-    build_forced_direction_candidate,
-    recovery_hedge_target,
-)
+from src.application.services.execution_direction import recovery_execution_eligible
 from src.domain.models.trade import TradeDirection
-from src.domain.symbols.range_symbols import hedge_peer
+
+
+_CLUSTER_CORE = frozenset({"R_50", "R_75"})
 
 
 def pending_recovery_active(pending_loss: dict) -> bool:
     """Indica se ha perda pendente ativando modo de recuperacao na selecao."""
     return sum(float(v) for v in pending_loss.values()) > 0.0
+
+
+def _matches_loss_direction(
+    item: tuple[str, TradeDirection, dict],
+    last_loss_direction: str | None,
+) -> bool:
+    """Indica se a direcao do candidato coincide com a do ultimo loss."""
+    if not last_loss_direction:
+        return True
+    return item[1].name == str(last_loss_direction).upper()
 
 
 def recovery_candidate_pool(
@@ -20,55 +29,42 @@ def recovery_candidate_pool(
     last_loss_direction: str | None,
     recovery_active: bool,
 ) -> list[tuple[str, TradeDirection, dict]]:
-    """Restringe candidatos em recovery priorizando hedge no par apos loss."""
-    _ = last_loss_direction
+    """Restringe recovery a mesma direcao CALL/PUT e simbolos centrais do cluster."""
     pool = list(candidates)
     if not recovery_active:
         return pool
+    if last_loss_direction:
+        aligned = [item for item in pool if _matches_loss_direction(item, last_loss_direction)]
+        if not aligned:
+            return []
+        pool = aligned
     approved = [item for item in pool if item[2].get("execute")]
     if approved:
         pool = approved
+    else:
+        quality = [item for item in pool if recovery_execution_eligible({"direction": item[1], "metrics": item[2]})]
+        if quality:
+            pool = quality
+    core = [item for item in pool if item[0] in _CLUSTER_CORE]
+    if core:
+        pool = core
     if last_loss_symbol:
-        peer = hedge_peer(last_loss_symbol)
-        if peer:
-            peered = [item for item in pool if item[0] == peer]
-            if peered:
-                pool = peered
-            else:
-                peered = [item for item in candidates if item[0] == peer]
-                if peered:
-                    pool = peered
-    if last_loss_symbol:
-        filtered = [item for item in pool if item[0] != last_loss_symbol]
-        if filtered:
-            pool = filtered
+        alt = [item for item in pool if item[0] != last_loss_symbol]
+        if alt:
+            pool = alt
     return pool
 
 
 def inject_recovery_hedge_candidates(
     candidates: list[tuple[str, TradeDirection, dict]],
-    decisions: dict,
+    _decisions: dict,
     *,
     last_loss_symbol: str | None,
     last_loss_direction: str | None,
 ) -> list[tuple[str, TradeDirection, dict]]:
-    """Acrescenta candidato com a direcao de hedge do ultimo loss para o par (peer)."""
-    if not last_loss_symbol or not last_loss_direction:
-        return candidates
-    target = recovery_hedge_target(last_loss_symbol, last_loss_direction)
-    if target is None:
-        return candidates
-    peer, forced_dir = target
-    entry = decisions.get(peer) if peer else None
-    if not entry:
-        return candidates
-    if any(item[0] == peer and item[1] == forced_dir for item in candidates):
-        return candidates
-    built = build_forced_direction_candidate(peer, entry, forced_dir)
-    if built is None:
-        return candidates
-    clean_candidates = [item for item in candidates if item[0] != peer]
-    return clean_candidates + [built]
+    """Mantem candidatos sem injetar hedge oposto no par Range."""
+    _ = (last_loss_symbol, last_loss_direction)
+    return candidates
 
 
 def has_recovery_hedge_candidate(
@@ -77,11 +73,9 @@ def has_recovery_hedge_candidate(
     last_loss_symbol: str | None,
     last_loss_direction: str | None,
 ) -> bool:
-    """True se existe candidato do par (peer) correspondente ao ultimo loss."""
-    _ = last_loss_direction
-    if not last_loss_symbol:
+    """True se existe candidato na mesma direcao do ultimo loss."""
+    _ = last_loss_symbol
+    if not last_loss_direction:
         return True
-    peer = hedge_peer(last_loss_symbol)
-    if not peer:
-        return True
-    return any(item[0] == peer for item in candidates)
+    target = str(last_loss_direction).upper()
+    return any(item[1].name == target for item in candidates)

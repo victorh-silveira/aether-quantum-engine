@@ -72,16 +72,17 @@ def test_select_best_execution_candidate_diversify_margin_picks_alt():
 
 def test_select_best_execution_candidate_diversifies_last_loss_symbol():
     candidates = [
-        (ANCHOR, TradeDirection.PUT, {"trade_score": 0.70, "val_accuracy": 0.50, "edge": 0.20}),
-        (PAIR, TradeDirection.CALL, {"trade_score": 0.69, "val_accuracy": 0.48, "edge": 0.19}),
+        (ANCHOR, TradeDirection.PUT, {"trade_score": 0.70, "val_accuracy": 0.50, "edge": 0.20, "execute": True}),
+        (PAIR, TradeDirection.PUT, {"trade_score": 0.69, "val_accuracy": 0.48, "edge": 0.19, "execute": True}),
     ]
     best = select_best_execution_candidate(
         candidates,
         last_loss_symbol=ANCHOR,
+        last_loss_direction="PUT",
         diversify_margin=0.10,
         recovery_active=True,
     )
-    assert best[0] != ANCHOR
+    assert best[0] == PAIR
 
 
 def test_select_best_candidate_prefers_high_val_in_recovery():
@@ -150,14 +151,15 @@ def test_select_mandatory_falls_back_when_pool_empty():
         diversify_margin=0.08,
         recovery_active=False,
     )
+    assert best is not None
     assert best[0] == ANCHOR
 
 
-def test_select_mandatory_recovery_prefers_hedge_peer():
+def test_select_mandatory_recovery_prefers_same_direction_on_core():
     orch = SimpleNamespace(config={})
     candidates = [
         (ANCHOR, TradeDirection.CALL, {"trade_score": 0.71, "execute": False}),
-        (PAIR, TradeDirection.PUT, {"trade_score": 0.43, "execute": True}),
+        (PAIR, TradeDirection.CALL, {"trade_score": 0.63, "execute": True}),
     ]
     best = select_mandatory_execution_candidate(
         orch,
@@ -168,3 +170,4 @@ def test_select_mandatory_recovery_prefers_hedge_peer():
         recovery_active=True,
     )
     assert best[0] == PAIR
+    assert best[1] == TradeDirection.CALL

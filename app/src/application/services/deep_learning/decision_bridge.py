@@ -1,6 +1,5 @@
 """Ponte de decisao do Deep Learning para o Orquestrador."""
 
-import asyncio
 import logging
 
 from src.application.services.deep_learning.dl_bridge_helpers import (
@@ -102,15 +101,13 @@ async def _collect_symbol_decision(
     do_train, reason = should_retrain_symbol(orch, symbol, runtime, params, epoch)
     if do_train:
         train_reason = reason
-        fast_cycle = bool(getattr(orch, "_dl_fast_cycle", False))
-        if fast_cycle and reason == "new_candle":
-            norm_stats = runtime["norm_stats"]
+        skip_train = reason == "new_candle" and bool(getattr(orch, "_dl_fast_cycle", False))
+        if skip_train:
             train_reason = None
-        elif fast_cycle and reason != "bootstrap":
+        else:
             enqueue_deferred_symbol_training(
                 orch,
                 symbol,
-                reason=reason,
                 train_fn=run_symbol_training,
                 train_args=(symbol, runtime, prices, dl_config, params, epoch, orch),
                 train_kwargs={
@@ -121,25 +118,7 @@ async def _collect_symbol_decision(
                     "low": low,
                 },
             )
-            norm_stats = runtime["norm_stats"]
-        else:
-            norm_stats, train_loss = await asyncio.to_thread(
-                run_symbol_training,
-                symbol,
-                runtime,
-                prices,
-                dl_config,
-                params,
-                epoch,
-                orch,
-                pair_prices=pair_prices,
-                granularity=granularity,
-                open_=open_,
-                high=high,
-                low=low,
-            )
-    else:
-        norm_stats = runtime["norm_stats"]
+    norm_stats = runtime["norm_stats"]
 
     entry = predict_symbol_decision(
         orch,

@@ -8,7 +8,6 @@ from src.application.services.execution_symbols_recovery import (
     recovery_candidate_pool,
 )
 from src.domain.models.trade import TradeDirection
-from src.domain.symbols.range_symbols import hedge_peer
 
 
 __all__ = [
@@ -122,12 +121,15 @@ def _passes_selection_gate(metrics: dict, cfg: dict) -> bool:
 
 def recovery_rank_score(
     item: tuple[str, TradeDirection, dict],
-    hedge: tuple[str, TradeDirection] | None,
+    *,
+    last_loss_direction: str | None = None,
 ) -> float:
-    """Pontua candidato em recovery com bonus para hedge no par."""
+    """Pontua candidato em recovery com bonus para direcao e simbolos centrais."""
     score = candidate_execution_score(item[2], recovery_active=True)
-    if hedge is not None and item[0] == hedge[0] and item[1] == hedge[1]:
-        score += 0.25
+    if item[0] in ("R_50", "R_75"):
+        score += 0.04
+    if last_loss_direction and item[1].name == str(last_loss_direction).upper():
+        score += 0.08
     metrics = item[2]
     raw = metrics.get("raw_prob")
     if raw is not None and item[1] == TradeDirection.CALL and float(raw) > 0.5:
@@ -162,16 +164,8 @@ def select_best_execution_candidate(
         last_loss_direction=last_loss_direction,
         recovery_active=recovery_active,
     )
-    hedge = None
-    if recovery_active and last_loss_symbol:
-        peer = hedge_peer(last_loss_symbol)
-        if peer:
-            for item in candidates:
-                if item[0] == peer:
-                    hedge = (peer, item[1])
-                    break
     rank_key = (
-        (lambda item: recovery_rank_score(item, hedge))
+        (lambda item: recovery_rank_score(item, last_loss_direction=last_loss_direction))
         if recovery_active
         else (lambda item: candidate_execution_score(item[2], recovery_active=False))
     )
@@ -193,9 +187,10 @@ def select_mandatory_execution_candidate(
     last_loss_direction: str | None = None,
     diversify_margin: float,
     recovery_active: bool,
-) -> tuple[str, TradeDirection, dict]:
-    """Escolhe candidato em modo obrigatorio preferindo execute=true."""
+) -> tuple[str, TradeDirection, dict] | None:
+    """Escolhe candidato em modo obrigatorio; prioriza execute=true com fallback fraco."""
     pool = list(candidates)
+    recovery_pool_applied = False
     if recovery_active:
         narrowed = recovery_candidate_pool(
             pool,
@@ -205,20 +200,21 @@ def select_mandatory_execution_candidate(
         )
         if narrowed:
             pool = narrowed
-        elif not narrowed:
-            pool = list(candidates)
-    else:
-        approved = [item for item in pool if item[2].get("execute")]
-        if approved:
-            pool = approved
+            recovery_pool_applied = True
+    approved = [item for item in pool if item[2].get("execute")]
+    if approved:
+        pool = approved
     if not pool:
-        return candidates[0]
+        pool = list(candidates)
+        recovery_pool_applied = False
+    if not pool:
+        return None
     return select_best_execution_candidate(
         pool,
         last_loss_symbol=last_loss_symbol,
         last_loss_direction=last_loss_direction,
         diversify_margin=diversify_margin,
-        recovery_active=recovery_active,
+        recovery_active=recovery_active and recovery_pool_applied,
     )
 
 

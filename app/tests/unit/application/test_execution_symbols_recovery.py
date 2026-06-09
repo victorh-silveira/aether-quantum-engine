@@ -1,5 +1,4 @@
 from types import SimpleNamespace
-from unittest.mock import patch
 
 from src.application.services.execution_direction import recovery_hedge_target
 from src.application.services.execution_symbols import (
@@ -9,6 +8,7 @@ from src.application.services.execution_symbols import (
     select_mandatory_execution_candidate,
 )
 from src.application.services.execution_symbols_recovery import (
+    _matches_loss_direction,
     has_recovery_hedge_candidate,
     inject_recovery_hedge_candidates,
     recovery_candidate_pool,
@@ -28,46 +28,47 @@ def test_inject_recovery_hedge_noop_without_loss_context():
     assert out == candidates
 
 
-def test_inject_recovery_hedge_skips_when_candidate_already_present():
-    candidates = [(HEDGE_PEER_SYMBOL, TradeDirection.PUT, {"execute": True})]
+def test_inject_recovery_hedge_never_adds_opposite_direction():
+    candidates = [(PAIR, TradeDirection.CALL, {"execute": True})]
     out = inject_recovery_hedge_candidates(
         candidates,
-        {HEDGE_PEER_SYMBOL: {"direction": TradeDirection.CALL, "metrics": {}}},
+        {
+            HEDGE_PEER_SYMBOL: {
+                "direction": TradeDirection.CALL,
+                "metrics": {
+                    "execute": False,
+                    "trade_score": 0.60,
+                    "val_accuracy": 0.55,
+                    "raw_prob": 0.58,
+                },
+            }
+        },
         last_loss_symbol=PAIR,
         last_loss_direction="CALL",
     )
     assert out == candidates
 
 
-def test_inject_recovery_hedge_skips_when_forced_build_fails():
-    candidates = [(PAIR, TradeDirection.CALL, {"execute": False})]
-    out = inject_recovery_hedge_candidates(
-        candidates,
-        {HEDGE_PEER_SYMBOL: {"direction": None, "metrics": {"execute": False}}},
-        last_loss_symbol=PAIR,
-        last_loss_direction="CALL",
-    )
-    assert out == candidates
-
-
-def test_has_recovery_hedge_true_when_hedge_not_applicable():
+def test_has_recovery_direction_true_when_same_direction_present():
     assert has_recovery_hedge_candidate(
-        [(ANCHOR, TradeDirection.CALL, {})],
-        last_loss_symbol=None,
-        last_loss_direction=None,
+        [(PAIR, TradeDirection.PUT, {})],
+        last_loss_symbol=PAIR,
+        last_loss_direction="PUT",
     )
 
 
-def test_recovery_rank_score_call_and_put_raw_bonus():
-    hedge = recovery_hedge_target(PAIR, "PUT")
-    call_item = (HEDGE_PEER_SYMBOL, TradeDirection.CALL, {"trade_score": 0.55, "val_accuracy": 0.5, "raw_prob": 0.58})
+def test_has_recovery_direction_false_when_direction_missing():
+    assert not has_recovery_hedge_candidate(
+        [(HEDGE_PEER_SYMBOL, TradeDirection.CALL, {})],
+        last_loss_symbol=PAIR,
+        last_loss_direction="PUT",
+    )
+
+
+def test_recovery_rank_score_bonus_for_matching_direction():
     put_item = (PAIR, TradeDirection.PUT, {"trade_score": 0.55, "val_accuracy": 0.5, "raw_prob": 0.42})
-    call_score = recovery_rank_score(call_item, hedge)
-    put_score = recovery_rank_score(put_item, hedge)
-    base_call = candidate_execution_score(call_item[2], recovery_active=True)
     base_put = candidate_execution_score(put_item[2], recovery_active=True)
-    assert call_score >= base_call + 0.26
-    assert put_score >= base_put + 0.01
+    assert recovery_rank_score(put_item, last_loss_direction="PUT") >= base_put + 0.08
 
 
 def test_recovery_hedge_target_after_high_side_put_loss():
@@ -75,30 +76,11 @@ def test_recovery_hedge_target_after_high_side_put_loss():
     assert target == (HEDGE_PEER_SYMBOL, TradeDirection.CALL)
 
 
-def test_inject_recovery_hedge_adds_put_on_peer_after_high_side_call_loss():
-    decisions = {
-        HEDGE_PEER_SYMBOL: {"direction": TradeDirection.CALL, "metrics": {"trade_score": 0.55, "execute": True}},
-        PAIR: {"direction": TradeDirection.CALL, "metrics": {"trade_score": 0.44, "execute": False}},
-    }
-    candidates = [
-        (PAIR, TradeDirection.CALL, {"trade_score": 0.44, "execute": False}),
-    ]
-    expanded = inject_recovery_hedge_candidates(
-        candidates,
-        decisions,
-        last_loss_symbol=PAIR,
-        last_loss_direction="CALL",
-    )
-    assert has_recovery_hedge_candidate(expanded, last_loss_symbol=PAIR, last_loss_direction="CALL")
-    hedged = [item for item in expanded if item[0] == HEDGE_PEER_SYMBOL and item[1] == TradeDirection.PUT]
-    assert len(hedged) == 1
-
-
-def test_recovery_selects_hedge_symbol_and_direction():
+def test_recovery_selects_same_direction_on_core_symbol():
     candidates = [
         (PAIR, TradeDirection.PUT, {"trade_score": 0.70, "val_accuracy": 0.55, "execute": False}),
-        (HEDGE_PEER_SYMBOL, TradeDirection.PUT, {"trade_score": 0.55, "val_accuracy": 0.60, "execute": True}),
-        (HEDGE_PEER_SYMBOL, TradeDirection.CALL, {"trade_score": 0.52, "val_accuracy": 0.58, "execute": True}),
+        (HEDGE_PEER_SYMBOL, TradeDirection.CALL, {"trade_score": 0.72, "val_accuracy": 0.58, "execute": True}),
+        (ANCHOR, TradeDirection.PUT, {"trade_score": 0.68, "val_accuracy": 0.56, "execute": True}),
     ]
     best = select_best_execution_candidate(
         candidates,
@@ -107,7 +89,7 @@ def test_recovery_selects_hedge_symbol_and_direction():
         diversify_margin=0.08,
         recovery_active=True,
     )
-    assert best[0] == HEDGE_PEER_SYMBOL
+    assert best[0] == ANCHOR
     assert best[1] == TradeDirection.PUT
 
 
@@ -127,7 +109,7 @@ def test_select_mandatory_non_recovery_filters_execute_true():
     assert best[0] == PAIR
 
 
-def test_select_mandatory_recovery_restores_pool_when_narrowed_empty():
+def test_select_mandatory_recovery_keeps_same_direction_candidate():
     orch = SimpleNamespace(config={})
     candidates = [
         (PAIR, TradeDirection.CALL, {"trade_score": 0.30, "execute": False}),
@@ -140,53 +122,68 @@ def test_select_mandatory_recovery_restores_pool_when_narrowed_empty():
         diversify_margin=0.08,
         recovery_active=True,
     )
+    assert best is not None
     assert best[0] == PAIR
+    assert best[1] == TradeDirection.CALL
 
 
-def test_select_mandatory_returns_first_candidate_when_pool_empty():
+def test_select_mandatory_returns_none_for_empty_candidates():
     orch = SimpleNamespace(config={})
-    candidates = [(ANCHOR, TradeDirection.CALL, {"execute": False})]
-    with (
-        patch(
-            "src.application.services.execution_symbols.recovery_candidate_pool",
-            return_value=[],
-        ),
-        patch(
-            "src.application.services.execution_symbols.list",
-            side_effect=lambda seq: [] if seq is candidates else list(seq),
-        ),
-    ):
-        best = select_mandatory_execution_candidate(
+    assert (
+        select_mandatory_execution_candidate(
             orch,
-            candidates,
-            last_loss_symbol=PAIR,
-            last_loss_direction="CALL",
+            [],
+            last_loss_symbol=None,
+            last_loss_direction=None,
             diversify_margin=0.08,
-            recovery_active=True,
+            recovery_active=False,
         )
-    assert best == candidates[0]
+        is None
+    )
 
 
-def test_select_mandatory_prefers_execute_true_when_available():
+def test_select_mandatory_empty_pool_fallback():
     orch = SimpleNamespace(config={})
     candidates = [
-        (ANCHOR, TradeDirection.CALL, {"trade_score": 0.71, "execute": False, "raw_prob": 0.56}),
-        (PAIR, TradeDirection.PUT, {"trade_score": 0.55, "execute": True, "raw_prob": 0.55}),
+        (ANCHOR, TradeDirection.CALL, {"trade_score": 0.70, "execute": False}),
+        (PAIR, TradeDirection.CALL, {"trade_score": 0.40, "execute": False}),
     ]
     best = select_mandatory_execution_candidate(
         orch,
         candidates,
-        last_loss_symbol=None,
+        last_loss_symbol=PAIR,
+        last_loss_direction="CALL",
         diversify_margin=0.08,
-        recovery_active=False,
+        recovery_active=True,
     )
-    assert best[0] == PAIR
+    assert best is not None
+    assert best[0] == ANCHOR
 
 
-def test_recovery_candidate_pool_fallback_to_original_candidates():
+def test_select_mandatory_recovery_uses_same_direction_pool():
+    orch = SimpleNamespace(config={})
+    candidates = [
+        (HEDGE_PEER_SYMBOL, TradeDirection.PUT, {"trade_score": 0.55, "val_accuracy": 0.60, "execute": True}),
+        (ANCHOR, TradeDirection.CALL, {"trade_score": 0.62, "val_accuracy": 0.58, "execute": True}),
+        (PAIR, TradeDirection.CALL, {"trade_score": 0.40, "execute": False}),
+    ]
+    best = select_mandatory_execution_candidate(
+        orch,
+        candidates,
+        last_loss_symbol=PAIR,
+        last_loss_direction="CALL",
+        diversify_margin=0.08,
+        recovery_active=True,
+    )
+    assert best[0] == ANCHOR
+    assert best[1] == TradeDirection.CALL
+
+
+def test_recovery_candidate_pool_prefers_core_same_direction():
     candidates = [
         (PAIR, TradeDirection.PUT, {"execute": True}),
-        (HEDGE_PEER_SYMBOL, TradeDirection.CALL, {"execute": False}),
+        (ANCHOR, TradeDirection.PUT, {"execute": True}),
+        (HEDGE_PEER_SYMBOL, TradeDirection.CALL, {"execute": False, "val_accuracy": 0.47}),
     ]
     result = recovery_candidate_pool(
         candidates,
@@ -195,59 +192,61 @@ def test_recovery_candidate_pool_fallback_to_original_candidates():
         recovery_active=True,
     )
     assert len(result) == 1
-    assert result[0][0] == HEDGE_PEER_SYMBOL
+    assert result[0][0] == ANCHOR
+    assert result[0][1] == TradeDirection.PUT
 
 
-def test_inject_recovery_hedge_candidates_no_entry():
-    candidates = [(PAIR, TradeDirection.CALL, {"execute": True})]
-    out = inject_recovery_hedge_candidates(
+def test_recovery_candidate_pool_excludes_opposite_direction():
+    candidates = [
+        (PAIR, TradeDirection.PUT, {"execute": True}),
+        (HEDGE_PEER_SYMBOL, TradeDirection.CALL, {"execute": True}),
+    ]
+    result = recovery_candidate_pool(
         candidates,
-        {},
         last_loss_symbol=PAIR,
-        last_loss_direction="CALL",
+        last_loss_direction="PUT",
+        recovery_active=True,
     )
-    assert out == candidates
+    assert len(result) == 1
+    assert result[0][1] == TradeDirection.PUT
 
 
-def test_has_recovery_hedge_candidate_no_last_loss():
-    assert has_recovery_hedge_candidate(
-        [(PAIR, TradeDirection.CALL, {})],
-        last_loss_symbol=None,
+def test_recovery_candidate_pool_without_direction_filter_when_inactive():
+    candidates = [(PAIR, TradeDirection.PUT, {"execute": True})]
+    result = recovery_candidate_pool(
+        candidates,
+        last_loss_symbol=PAIR,
         last_loss_direction=None,
+        recovery_active=False,
     )
+    assert result == candidates
 
 
-def test_has_recovery_hedge_candidate_no_peer():
-    assert (
-        has_recovery_hedge_candidate(
-            [],
-            last_loss_symbol="R_50",
-            last_loss_direction="CALL",
-        )
-        is True
-    )
+def test_matches_loss_direction_without_target():
+    item = (PAIR, TradeDirection.PUT, {})
+    assert _matches_loss_direction(item, None) is True
 
 
-def test_inject_recovery_hedge_injects_when_peer_execute_false():
-    candidates = [(PAIR, TradeDirection.CALL, {"execute": True})]
-    out = inject_recovery_hedge_candidates(
+def test_recovery_rank_score_call_raw_bonus():
+    item = (PAIR, TradeDirection.CALL, {"trade_score": 0.55, "val_accuracy": 0.5, "raw_prob": 0.58})
+    base = candidate_execution_score(item[2], recovery_active=True)
+    assert recovery_rank_score(item, last_loss_direction="CALL") >= base + 0.10
+
+
+def test_recovery_rank_score_put_raw_bonus():
+    item = (PAIR, TradeDirection.PUT, {"trade_score": 0.55, "val_accuracy": 0.5, "raw_prob": 0.42})
+    base = candidate_execution_score(item[2], recovery_active=True)
+    assert recovery_rank_score(item, last_loss_direction="PUT") >= base + 0.10
+
+
+def test_recovery_candidate_pool_empty_when_no_same_direction():
+    candidates = [
+        (HEDGE_PEER_SYMBOL, TradeDirection.CALL, {"execute": True}),
+    ]
+    result = recovery_candidate_pool(
         candidates,
-        {HEDGE_PEER_SYMBOL: {"direction": TradeDirection.CALL, "metrics": {"execute": False}}},
         last_loss_symbol=PAIR,
-        last_loss_direction="CALL",
+        last_loss_direction="PUT",
+        recovery_active=True,
     )
-    assert len(out) == 2
-    assert out[1][0] == HEDGE_PEER_SYMBOL
-    assert out[1][1] == TradeDirection.PUT
-    assert out[1][2]["execute"] is True
-
-
-def test_inject_recovery_hedge_returns_noop_when_target_is_none():
-    candidates = [(PAIR, TradeDirection.CALL, {"execute": True})]
-    out = inject_recovery_hedge_candidates(
-        candidates,
-        {},
-        last_loss_symbol="R_50",
-        last_loss_direction="CALL",
-    )
-    assert out == candidates
+    assert result == []

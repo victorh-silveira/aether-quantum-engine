@@ -52,7 +52,6 @@ def enqueue_deferred_symbol_training(
     orch,
     symbol: str,
     *,
-    reason: str,
     train_fn: Callable[..., Any],
     train_args: tuple,
     train_kwargs: dict,
@@ -65,9 +64,7 @@ def enqueue_deferred_symbol_training(
         return
     for pending in tasks.values():
         if pending is not None and not pending.done():
-            logger.info("DL: retreino deferido %s adiado | fila ocupada | motivo=%s", sym, reason)
             return
-    logger.info("DL: retreino deferido %s | motivo=%s", sym, reason)
     tasks[sym] = asyncio.create_task(_run_deferred_training(orch, sym, train_fn, train_args, train_kwargs))
 
 

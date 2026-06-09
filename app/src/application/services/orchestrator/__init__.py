@@ -99,6 +99,7 @@ class Orchestrator:
         self._last_cluster_cycle_end = time.time()
         self.running = True
         emit_decision_engine_banner(self.logger, self.config, dl_enabled=self._dl_enabled())
+        await self._run_trading_cycle_if_ready()
         reconcile_counter = 0
         while self.running:
             await asyncio.sleep(1)
@@ -206,6 +207,11 @@ class Orchestrator:
                     self.logger.info("")
                 self._active_cycle_id = self._cycle_seq
                 ran = True
+                self.logger.info(
+                    "[C%04d] CICLO: coletando decisoes DL (%d simbolos)",
+                    self._active_cycle_id,
+                    len(self.symbols),
+                )
                 decisions = await collect_deep_learning_decisions(self)
                 await self.executor.execute_cluster(decisions)
         except Exception as e:

@@ -23,7 +23,6 @@ async def test_enqueue_runs_training_in_background():
         enqueue_deferred_symbol_training(
             orch,
             "R_75",
-            reason="loss_retrain",
             train_fn=train_fn,
             train_args=("R_75",),
             train_kwargs={"granularity": 60},
@@ -47,7 +46,6 @@ async def test_enqueue_skips_when_task_pending():
         enqueue_deferred_symbol_training(
             orch,
             "R_50",
-            reason="rolling",
             train_fn=train_fn,
             train_args=(),
             train_kwargs={},
@@ -72,7 +70,6 @@ async def test_enqueue_logs_training_failure():
         enqueue_deferred_symbol_training(
             orch,
             "R_25",
-            reason="loss_retrain",
             train_fn=train_fn,
             train_args=(),
             train_kwargs={},
@@ -107,7 +104,6 @@ async def test_enqueue_defers_when_another_symbol_training():
         enqueue_deferred_symbol_training(
             orch,
             "R_75",
-            reason="loss_retrain",
             train_fn=MagicMock(),
             train_args=(),
             train_kwargs={},
@@ -115,7 +111,6 @@ async def test_enqueue_defers_when_another_symbol_training():
         enqueue_deferred_symbol_training(
             orch,
             "R_50",
-            reason="loss_retrain",
             train_fn=MagicMock(),
             train_args=(),
             train_kwargs={},
@@ -134,7 +129,6 @@ async def test_enqueue_skips_duplicate_pending_symbol():
         enqueue_deferred_symbol_training(
             orch,
             "R_75",
-            reason="loss_retrain",
             train_fn=MagicMock(),
             train_args=(),
             train_kwargs={},

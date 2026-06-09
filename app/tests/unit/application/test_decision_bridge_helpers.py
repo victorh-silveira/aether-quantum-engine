@@ -11,6 +11,7 @@ from src.application.services.deep_learning.decision_bridge import (
     _log_retrain_batch,
     _min_dl_history_len,
 )
+from src.application.services.deep_learning.dl_bridge_helpers import build_decision_entry
 from src.domain.models.trade import TradeDirection
 from tests.unit.application.dl_collect_fixtures import MockOrchestrator
 
@@ -23,6 +24,18 @@ def test_insufficient_data_entry_gate_reason():
     entry = _insufficient_data_entry()
     assert entry["metrics"]["gate_reason"] == "data"
     assert entry["direction"] is None
+
+
+def test_build_decision_entry_includes_train_loss():
+    entry = build_decision_entry(
+        TradeDirection.CALL,
+        0.6,
+        execute=True,
+        val_accuracy=0.55,
+        edge=0.08,
+        train_loss=0.1234,
+    )
+    assert "loss=0.1234" in entry["metrics"]["llm_note"]
 
 
 def test_apply_deploy_gate_blocks_when_not_ok():
@@ -83,9 +96,8 @@ async def test_collect_symbol_decision_full_path():
             return_value=(True, "bootstrap"),
         ),
         patch(
-            "src.application.services.deep_learning.decision_bridge.run_symbol_training",
-            return_value=(MagicMock(), 0.1),
-        ),
+            "src.application.services.deep_learning.decision_bridge.enqueue_deferred_symbol_training"
+        ) as mock_enqueue,
         patch(
             "src.application.services.deep_learning.decision_bridge.predict_symbol_decision",
             return_value=entry,
@@ -110,3 +122,4 @@ async def test_collect_symbol_decision_full_path():
         )
     assert reason == "bootstrap"
     assert out["direction"] == TradeDirection.CALL
+    mock_enqueue.assert_called_once()
