@@ -1,3 +1,9 @@
+## [1.5.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.4.2...v1.5.0) (2026-06-09)
+
+### Funcionalidades
+
+* **engine:** filtros binarios CALL/PUT e simplificacao do pipeline ([5c23269](https://github.com/victorh-silveira/aether-quantum-engine/commit/5c232699e51edceb6673e77afd3731dfeabe6000))
+
 ## [1.4.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.4.1...v1.4.2) (2026-06-09)
 
 ### Correcoes de Bug
