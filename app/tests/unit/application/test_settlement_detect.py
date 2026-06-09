@@ -8,3 +8,8 @@ def test_contract_payload_is_settled_flags():
     assert contract_payload_is_settled({"status": "open"}) is False
     assert contract_payload_is_settled({"status": "LOST"}) is True
     assert contract_payload_is_settled({"status": "EXPIRED"}) is True
+
+
+def test_contract_payload_is_settled_rejects_open_with_is_settled_flag():
+    assert contract_payload_is_settled({"is_settled": 1, "status": "open", "profit": -5.85}) is False
+    assert contract_payload_is_settled({"is_settled": 1, "status": "ACTIVE"}) is False

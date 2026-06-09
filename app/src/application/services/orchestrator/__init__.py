@@ -7,18 +7,22 @@ from typing import Any
 
 from src.application.services.auth_manager import AuthManager
 from src.application.services.deep_learning.decision_bridge import collect_deep_learning_decisions
-from src.application.services.deep_learning.dl_post_loss import tick_post_loss_bans
+from src.application.services.deep_learning.dl_deferred_train import cancel_deferred_symbol_training
 from src.application.services.deep_learning.dl_retrain import tick_bars_since_train
 from src.application.services.orchestrator.config_symbols import normalize_symbols_and_anchor
 from src.application.services.orchestrator.decision_mode_banner import emit_decision_engine_banner
 from src.application.services.orchestrator.execution_manager import ExecutionManager
 from src.application.services.orchestrator.post_settlement_cycle import (
+    post_settlement_cycle_pending,
     run_post_settlement_breath_and_cycle,
     schedule_trading_cycle_after_settlement,
 )
 from src.application.services.orchestrator.settlement_backfill import reconcile_single_contract
 from src.application.services.orchestrator.settlement_logic import process_contract_settlement
-from src.application.services.orchestrator.trading_session import trading_session_allows_entry
+from src.application.services.orchestrator.trading_cycle_entry import (
+    acquire_trading_cycle_lock,
+    trading_cycle_entry_allowed,
+)
 from src.application.services.orchestrator.ws_bootstrap import (
     setup_trading_session,
     start_orchestrator_streams,
@@ -72,19 +76,13 @@ class Orchestrator:
         self._last_result_cycle_id = 0
         self._session_wins = 0
         self._session_losses = 0
-        self._last_llm_macro_tag: str | None = None
-        self._last_llm_decisions: dict[str, dict] | None = None
-        self._last_llm_refresh_epoch: float | None = None
         self._stream_ready_at: float | None = None
         self._post_settlement_task: asyncio.Task | None = None
+        self._post_settlement_wake = asyncio.Event()
         self._settlement_wait_logged = False
-        self._invert_quarantine_cycles_remaining = 0
-        self._invert_quarantine_active = False
-        self._cluster_pause_cycles_remaining = 0
-        self._cluster_pause_after_loss_active = False
         self._last_loss_symbol = ""
         self._last_loss_direction = ""
-        self._cluster_refresh_without_llm = False
+        self._last_idle_watchdog_attempt = 0.0
 
     def _dl_enabled(self) -> bool:
         """Retorna se o modo decisao Deep Learning esta ativo."""
@@ -119,11 +117,30 @@ class Orchestrator:
                 reconcile_counter = 0
 
             await self._tick_interval_cycle_if_due()
+            await self._tick_idle_cycle_watchdog()
+
+    async def _tick_idle_cycle_watchdog(self) -> None:
+        if not self.stream.is_synchronized or self.state.active_contracts or self.is_trading:
+            return
+        task = self._post_settlement_task
+        if task is not None and not task.done():
+            return
+        orch_cfg = self.config.get("orchestrator") if isinstance(self.config.get("orchestrator"), dict) else {}
+        interval = float(orch_cfg.get("idle_cycle_watchdog_seconds", 15.0))
+        if interval <= 0:
+            return
+        now = time.time()
+        if now - self._last_idle_watchdog_attempt < interval:
+            return
+        self._last_idle_watchdog_attempt = now
+        await self._run_trading_cycle_if_ready()
 
     async def _tick_interval_cycle_if_due(self) -> None:
         """Dispara ciclo completo a cada cycle_interval_seconds (macro/StatArb/EXEC)."""
         cycle_iv = int(self.config.get("orchestrator", {}).get("cycle_interval_seconds") or 0)
         if cycle_iv <= 0:
+            return
+        if post_settlement_cycle_pending(self):
             return
         if self.stream.is_synchronized and (time.time() - self._last_cluster_cycle_end) >= cycle_iv:
             await self._run_trading_cycle_if_ready()
@@ -166,61 +183,37 @@ class Orchestrator:
             return
         self._last_epoch = candle.epoch
         self._maybe_reset_daily_risk_session(int(candle.epoch))
-        tick_post_loss_bans(self)
         tick_bars_since_train(self, self.symbols)
         self.risk_manager.tick_symbol_loss_cooldowns()
+        if post_settlement_cycle_pending(self):
+            return
         await self._run_trading_cycle_if_ready()
 
-    async def _run_trading_cycle_if_ready(self) -> None:
+    async def _run_trading_cycle_if_ready(self) -> bool:
         """Executa um ciclo completo de decisao e cluster quando permitido."""
-        if self.is_trading:
-            return
-        if self.state.active_contracts:
-            if not self._settlement_wait_logged:
-                self.logger.info(
-                    "CICLO: aguardando liquidacao (%d contrato(s) aberto(s))", len(self.state.active_contracts)
-                )
-                self._settlement_wait_logged = True
-            return
-        self._settlement_wait_logged = False
-        epoch = int(self._last_epoch or time.time())
-        ok_session, sess_note = trading_session_allows_entry(
-            epoch_utc=epoch,
-            stream_ready_at=self._stream_ready_at,
-            now_mono=time.time(),
-            config=self.config,
-        )
-        if not ok_session:
-            self.logger.debug("CICLO: %s", sess_note)
-            return
-        async with self.lock:
-            self.is_trading = True
-            try:
-                if not self.ws.is_running or not self.stream.is_synchronized:
-                    self.logger.debug("STRM: aguardando sincronia...")
-                    return
+        if not trading_cycle_entry_allowed(self) or not await acquire_trading_cycle_lock(self):
+            return False
+        ran = False
+        try:
+            if not self.ws.is_running or not self.stream.is_synchronized:
+                self.logger.debug("STRM: aguardando sincronia...")
+            elif not self._dl_enabled():
+                self.logger.error("CICLO: deep_learning.enabled=false; motor exige Deep Learning ativo.")
+                ran = True
+            else:
                 self._cycle_seq += 1
                 if self._cycle_seq > 1:
                     self.logger.info("")
                 self._active_cycle_id = self._cycle_seq
-                self._invert_quarantine_active = self._invert_quarantine_cycles_remaining > 0
-                if self._invert_quarantine_active:
-                    self._invert_quarantine_cycles_remaining -= 1
-                self._cluster_pause_after_loss_active = self._cluster_pause_cycles_remaining > 0
-                if self._cluster_pause_after_loss_active:
-                    self._cluster_pause_cycles_remaining -= 1
-                if not self._dl_enabled():
-                    self.logger.error("CICLO: deep_learning.enabled=false; motor exige Deep Learning ativo.")
-                    return
+                ran = True
                 decisions = await collect_deep_learning_decisions(self)
                 await self.executor.execute_cluster(decisions)
-            except Exception as e:
-                self.logger.error(f"FALHA: Ciclo: {e}")
-            finally:
-                self._invert_quarantine_active = False
-                self._cluster_pause_after_loss_active = False
-                self._cluster_refresh_without_llm = False
-                self.is_trading = False
+        except Exception as e:
+            self.logger.error(f"FALHA: Ciclo: {e}")
+            ran = True
+        finally:
+            self.is_trading = False
+        return ran
 
     async def _subscribe_account_transactions(self) -> None:
         """Compatibilidade de testes: delega para subscribe_account_transactions."""
@@ -260,5 +253,6 @@ class Orchestrator:
         task = self._post_settlement_task
         if task is not None and not task.done():
             task.cancel()
+        cancel_deferred_symbol_training(self)
         await self.ws.close()
         self.logger.debug("STOP: encerrado.")

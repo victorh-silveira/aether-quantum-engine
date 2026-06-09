@@ -8,8 +8,8 @@ aether-quantum-engine/
 │   ├── src/
 │   │   ├── application/services/
 │   │   │   ├── deep_learning/     # TCN, treino, gating, deploy, decision_bridge
-│   │   │   ├── orchestrator/      # Ciclo, execução, settlement
-│   │   │   ├── execution_*.py     # Direção e seleção de símbolos
+│   │   │   ├── orchestrator/      # Ciclo, execução, settlement, pós-liquidação
+│   │   │   ├── execution_*.py     # Direção, seleção e recovery no par
 │   │   │   └── auth_manager.py
 │   │   ├── domain/                # Modelos, risk_manager, martingale, stake
 │   │   ├── infrastructure/        # WebSocket, stream, trade, persistência
@@ -36,7 +36,7 @@ aether-quantum-engine/
 | Pasta | Responsabilidade |
 |-------|------------------|
 | `application/services/deep_learning` | Features, TCN, treino walk-forward, calibração, predição, deploy gate |
-| `application/services/orchestrator` | `Orchestrator`, `ExecutionManager`, settlement, sessão de trading |
+| `application/services/orchestrator` | `Orchestrator`, `ExecutionManager`, settlement, `post_settlement_cycle` |
 | `application/services` | `execution_direction`, `execution_symbols`, `auth_manager` |
 | `domain` | `Candle`, `Trade`, `RiskManager`, Kelly, martingale, cooldowns |
 | `infrastructure` | `WebSocketManager`, `StreamHandler`, `TradeHandler`, `PersistenceManager` |

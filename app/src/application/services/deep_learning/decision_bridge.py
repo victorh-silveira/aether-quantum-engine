@@ -11,6 +11,7 @@ from src.application.services.deep_learning.dl_bridge_helpers import (
     recovery_gating_active,
 )
 from src.application.services.deep_learning.dl_cycle_log import log_dl_cycle_summary
+from src.application.services.deep_learning.dl_deferred_train import enqueue_deferred_symbol_training
 from src.application.services.deep_learning.dl_gate_config import parse_deploy_gate_config
 from src.application.services.deep_learning.dl_market_data import load_symbol_close_ohlc
 from src.application.services.deep_learning.dl_outcomes import tick_dl_session_pauses
@@ -42,10 +43,7 @@ _run_symbol_training = run_symbol_training
 
 def _min_dl_history_len(params: dict) -> int:
     """Calcula o minimo de velas OHLC exigidas para treino e inferencia DL."""
-    if params.get("mhi_mode"):
-        min_operational = params["lookback"] + 1
-    else:
-        min_operational = params["lookback"] + params["validation_bars"] + 20
+    min_operational = params["lookback"] + params["validation_bars"] + 20
     return max(min_operational, int(params["training_history_bars"]))
 
 
@@ -104,21 +102,42 @@ async def _collect_symbol_decision(
     do_train, reason = should_retrain_symbol(orch, symbol, runtime, params, epoch)
     if do_train:
         train_reason = reason
-        norm_stats, train_loss = await asyncio.to_thread(
-            run_symbol_training,
-            symbol,
-            runtime,
-            prices,
-            dl_config,
-            params,
-            epoch,
-            orch,
-            pair_prices=pair_prices,
-            granularity=granularity,
-            open_=open_,
-            high=high,
-            low=low,
-        )
+        fast_cycle = bool(getattr(orch, "_dl_fast_cycle", False))
+        if fast_cycle and reason == "new_candle":
+            norm_stats = runtime["norm_stats"]
+            train_reason = None
+        elif fast_cycle and reason != "bootstrap":
+            enqueue_deferred_symbol_training(
+                orch,
+                symbol,
+                reason=reason,
+                train_fn=run_symbol_training,
+                train_args=(symbol, runtime, prices, dl_config, params, epoch, orch),
+                train_kwargs={
+                    "pair_prices": pair_prices,
+                    "granularity": granularity,
+                    "open_": open_,
+                    "high": high,
+                    "low": low,
+                },
+            )
+            norm_stats = runtime["norm_stats"]
+        else:
+            norm_stats, train_loss = await asyncio.to_thread(
+                run_symbol_training,
+                symbol,
+                runtime,
+                prices,
+                dl_config,
+                params,
+                epoch,
+                orch,
+                pair_prices=pair_prices,
+                granularity=granularity,
+                open_=open_,
+                high=high,
+                low=low,
+            )
     else:
         norm_stats = runtime["norm_stats"]
 

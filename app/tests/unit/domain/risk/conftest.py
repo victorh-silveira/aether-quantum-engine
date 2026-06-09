@@ -10,10 +10,7 @@ def kelly_config():
             "dynamic_min_samples": 5,
             "fraction": 0.1,
             "max_stake_pct": 0.05,
-            "martingale_native": True,
-            "martingale_multiplier": 2.0,
             "martingale_sizing_conviction": 0.60,
-            "full_recovery_martingale": True,
         },
         "params": {"payout_estimate": 0.95, "stake_min": 1.0, "entry_cooldown_ticks": 0},
     }

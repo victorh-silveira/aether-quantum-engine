@@ -16,13 +16,6 @@ def infer_dl_direction(entry: dict) -> TradeDirection | None:
     return TradeDirection.CALL if float(raw) > 0.5 else TradeDirection.PUT
 
 
-def invert_direction(direction: TradeDirection) -> TradeDirection:
-    """Inverte CALL para PUT e vice-versa."""
-    if direction == TradeDirection.CALL:
-        return TradeDirection.PUT
-    return TradeDirection.CALL
-
-
 def recovery_hedge_target(
     last_loss_symbol: str | None,
     last_loss_direction: str | None,
@@ -46,19 +39,16 @@ def recovery_hedge_target(
 def build_execution_candidate(
     symbol: str,
     entry: dict,
-    *,
-    invert_dl_direction: bool,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Monta candidato de ordem com metricas de direcao DL e de execucao."""
     dl_dir = infer_dl_direction(entry)
     if dl_dir is None:
         return None
-    exec_dir = invert_direction(dl_dir) if invert_dl_direction else dl_dir
     metrics = dict(entry.get("metrics") or {})
     metrics["dl_direction"] = dl_dir.name
-    metrics["exec_direction"] = exec_dir.name
-    metrics["direction_inverted"] = bool(invert_dl_direction)
-    return symbol, exec_dir, metrics
+    metrics["exec_direction"] = dl_dir.name
+    metrics["direction_inverted"] = False
+    return symbol, dl_dir, metrics
 
 
 def build_forced_direction_candidate(

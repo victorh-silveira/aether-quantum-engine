@@ -1,3 +1,5 @@
+import asyncio
+import contextlib
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -51,7 +53,7 @@ def orch_config():
 
 
 @pytest.fixture
-def orch_ready(orch_config):
+async def orch_ready(orch_config):
     TradingState.reset()
     ws_patch = patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock())
     mock_ws_class = ws_patch.start()
@@ -67,6 +69,8 @@ def orch_ready(orch_config):
     orch.config.setdefault("orchestrator", {})["post_settlement_breath_seconds"] = 0
     yield orch
     pending = orch._post_settlement_task
-    if pending is not None and not pending.done():
+    if isinstance(pending, asyncio.Task) and not pending.done():
         pending.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await pending
     ws_patch.stop()

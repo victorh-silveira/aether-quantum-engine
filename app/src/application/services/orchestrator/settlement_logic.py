@@ -3,7 +3,6 @@
 from typing import Any
 
 from src.application.services.deep_learning.dl_outcomes import record_symbol_outcome
-from src.application.services.deep_learning.dl_post_loss import register_post_loss_ban
 from src.application.services.deep_learning.dl_retrain import mark_force_retrain
 from src.application.services.orchestrator.metrics_utils import neutral_metrics
 from src.application.services.orchestrator.result_utils import api_settlement_label
@@ -62,31 +61,24 @@ async def process_contract_settlement(orch: Any, data: dict):
         orch._session_wins += 1
     else:
         orch._session_losses += 1
-        orch._invert_quarantine_cycles_remaining = 1
         orch._last_loss_symbol = sym
         orch._last_loss_direction = dir_name or ""
-        dl_cfg = orch.config.get("deep_learning", {})
-        ban_candles = int(dl_cfg.get("post_loss_ban_candles", 3))
-        if loss_dir is not None and ban_candles > 0:
-            register_post_loss_ban(orch, sym, loss_dir, candle_cycles=ban_candles)
         mark_force_retrain(orch, sym)
 
-    await orch._save_full_state()
-
-    if not orch.risk_manager.active_contract_ids and orch.running:
+    if not orch.risk_manager.active_contract_ids:
         log_cluster_summary(orch)
-        if not orch.state.active_contracts:
-            orch.schedule_trading_cycle_after_settlement()
 
-        pnl = orch.risk_manager.total_session_profit
-        target = resolve_stop_win_target(orch.config.get("risk_management", {}), orch.risk_manager.initial_bankroll)
-        if target > 0 and pnl >= target:
-            orch.logger.debug(
-                "[C%04d] STOP_WIN | pnl_sessao=$%+.2f | alvo=$%.2f", orch._last_result_cycle_id, pnl, target
-            )
-            orch.shutdown_reason = "stop_win"
-            orch.running = False
-            await orch.state.set_trading(value=False)
+    pnl = orch.risk_manager.total_session_profit
+    target = resolve_stop_win_target(orch.config.get("risk_management", {}), orch.risk_manager.initial_bankroll)
+    if target > 0 and pnl >= target:
+        orch.logger.debug("[C%04d] STOP_WIN | pnl_sessao=$%+.2f | alvo=$%.2f", orch._last_result_cycle_id, pnl, target)
+        orch.shutdown_reason = "stop_win"
+        orch.running = False
+        await orch.state.set_trading(value=False)
+    elif not orch.state.active_contracts and orch.running:
+        orch.schedule_trading_cycle_after_settlement()
+
+    await orch._save_full_state()
 
 
 def log_cluster_summary(orch: Any):

@@ -8,6 +8,7 @@ from src.application.services.orchestrator import Orchestrator
 from src.application.services.orchestrator.settlement_utils import clear_contract_metadata, clear_contract_tracking
 from src.domain.models.trade import Contract, TradeDirection, TradeStatus
 from src.infrastructure.state.trading_state import TradingState
+from tests.unit.application.post_settlement_helpers import patch_instant_settlement_poll
 
 
 @pytest.mark.asyncio
@@ -20,7 +21,7 @@ async def test_wait_for_settlement_prunes_orphan_contract_ids(orch_config):
         orch.risk_manager.contract_to_symbol[101] = "R_50"
         with (
             patch.object(orch.executor, "reconcile", AsyncMock()) as mock_reconcile,
-            patch("src.application.services.orchestrator.execution_settlement.asyncio.sleep", AsyncMock()),
+            patch_instant_settlement_poll(),
         ):
             await orch.executor.wait_for_settlement(timeout=10)
         assert orch.risk_manager.active_contract_ids == []
@@ -71,7 +72,7 @@ async def test_wait_for_settlement_clears_stagnant_pending_ids(orch_config):
                 "src.application.services.orchestrator.execution_settlement.backfill_pending_contracts",
                 AsyncMock(return_value=0),
             ),
-            patch("src.application.services.orchestrator.execution_settlement.asyncio.sleep", AsyncMock()),
+            patch_instant_settlement_poll(),
         ):
             await orch.executor.wait_for_settlement(timeout=30)
         assert orch.risk_manager.active_contract_ids == []
@@ -107,7 +108,7 @@ async def test_wait_for_settlement_backfill_recovers_before_clear(orch_config):
                 "src.application.services.orchestrator.execution_settlement.backfill_pending_contracts",
                 AsyncMock(return_value=1),
             ),
-            patch("src.application.services.orchestrator.execution_settlement.asyncio.sleep", AsyncMock()),
+            patch_instant_settlement_poll(),
             patch.object(orch.logger, "info") as mock_info,
         ):
             await orch.executor.wait_for_settlement(timeout=3600)

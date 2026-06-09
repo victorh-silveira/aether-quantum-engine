@@ -35,16 +35,10 @@ def apply_recovery_hedge_to_candidates(
         last_loss_symbol=last_loss,
         last_loss_direction=last_loss_dir,
     )
-    exec_cfg = exec_mgr.orch.config.get("orchestrator", {}).get("execution", {})
-    require_hedge = bool(exec_cfg.get("recovery_require_hedge", True))
-    if (
-        require_hedge
-        and not mandatory
-        and not has_recovery_hedge_candidate(
-            candidates,
-            last_loss_symbol=last_loss,
-            last_loss_direction=last_loss_dir,
-        )
+    if not mandatory and not has_recovery_hedge_candidate(
+        candidates,
+        last_loss_symbol=last_loss,
+        last_loss_direction=last_loss_dir,
     ):
         exec_mgr.logger.warning(
             "[%s] RECOVERY_SKIP | sem candidato de hedge no par apos loss",
@@ -56,7 +50,7 @@ def apply_recovery_hedge_to_candidates(
 
 def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDirection, dict]]:
     """Seleciona uma ordem por ciclo; modo obrigatorio ignora gate execute=false."""
-    mandatory, invert = exec_mgr._execution_flags()
+    mandatory = exec_mgr._mandatory_trade_each_cycle()
     candidates: list[tuple[str, TradeDirection, dict]] = []
     cid = f"C{int(exec_mgr.orch._active_cycle_id):04d}"
     for symbol in exec_mgr._trade_symbols():
@@ -66,7 +60,7 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
         if not mandatory and not entry.get("metrics", {}).get("execute", True):
             exec_mgr.logger.debug("[%s] SKIP: Conviccao insuficiente para %s (Metrics Gate)", cid, symbol)
             continue
-        built = build_execution_candidate(symbol, entry, invert_dl_direction=invert)
+        built = build_execution_candidate(symbol, entry)
         if built is None:
             continue
         candidates.append(built)
@@ -92,8 +86,6 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
 
     exec_cfg = exec_mgr.orch.config.get("orchestrator", {}).get("execution", {})
     margin = float(exec_cfg.get("diversify_after_loss_margin", 0.08))
-    dl_cfg = exec_mgr.orch.config.get("deep_learning", {})
-    flip_raw_min = float(dl_cfg.get("post_loss_flip_raw_min", 0.58)) if isinstance(dl_cfg, dict) else 0.58
     if mandatory:
         best = select_mandatory_execution_candidate(
             exec_mgr.orch,
@@ -102,7 +94,6 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
             last_loss_direction=last_loss_dir,
             diversify_margin=margin,
             recovery_active=recovery_active,
-            flip_raw_min=flip_raw_min,
         )
     else:
         best = select_best_execution_candidate(

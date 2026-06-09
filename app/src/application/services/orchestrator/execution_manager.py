@@ -62,12 +62,10 @@ class ExecutionManager:
         """Registra motivo quando nenhuma ordem foi montada apesar de decisoes no ciclo."""
         log_execution_blockers(self, decisions)
 
-    def _execution_flags(self) -> tuple[bool, bool]:
-        """Retorna (mandatory_trade_each_cycle, invert_dl_direction)."""
+    def _mandatory_trade_each_cycle(self) -> bool:
+        """Indica se cada ciclo deve executar ao menos uma ordem."""
         exec_cfg = self.orch.config.get("orchestrator", {}).get("execution", {})
-        mandatory = bool(exec_cfg.get("mandatory_trade_each_cycle", True))
-        invert = bool(exec_cfg.get("invert_dl_direction", False))
-        return mandatory, invert
+        return bool(exec_cfg.get("mandatory_trade_each_cycle", True))
 
     def _collect_orders(self, decisions: dict) -> list[tuple[str, TradeDirection, dict]]:
         """Seleciona uma ordem por ciclo; modo obrigatorio ignora gate execute=false."""
@@ -84,7 +82,7 @@ class ExecutionManager:
 
             dl_cfg = self.orch.config.get("deep_learning", {})
             pending = sum(self.orch.risk_manager.pending_loss.values())
-            mandatory, _ = self._execution_flags()
+            mandatory = self._mandatory_trade_each_cycle()
             stake = self.orch.risk_manager.calculate_stake(
                 bankroll_snapshot,
                 symbol,
@@ -146,7 +144,7 @@ class ExecutionManager:
 
             orders = self._collect_orders(decisions)
             cid = f"C{int(self.orch._active_cycle_id):04d}"
-            mandatory, _ = self._execution_flags()
+            mandatory = self._mandatory_trade_each_cycle()
             pending = sum(self.orch.risk_manager.pending_loss.values())
             if pending > 0.0:
                 sw = resolve_stop_win_target(

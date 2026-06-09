@@ -9,52 +9,6 @@ from src.application.services.deep_learning.dl_feature_build import (
 from src.application.services.deep_learning.dl_pair_features import spread_confirms_direction
 
 
-def _extract_single_mhi_window(
-    prices: np.ndarray,
-    lookback: int,
-    *,
-    label_min_move_pct: float,
-    granularity: int,
-    pair_prices: np.ndarray | None,
-    require_pair_label: bool,
-    sym_is_bull: bool,
-    open_: np.ndarray | None,
-    high: np.ndarray | None,
-    low: np.ndarray | None,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Monta uma unica amostra TCN quando o historico tem exatamente lookback velas (modo MHI)."""
-    end_index = len(prices) - 1
-    seq = build_sequence_tensor(
-        prices,
-        lookback,
-        end_index,
-        granularity=granularity,
-        pair_prices=pair_prices,
-        open_=open_,
-        high=high,
-        low=low,
-    )
-    threshold = max(0.0, float(label_min_move_pct))
-    target_up = prices[-1] > prices[-2]
-    move = abs(prices[-1] - prices[-2]) / (prices[-2] + 1e-10)
-    pair_ok = True
-    if require_pair_label and pair_prices is not None and len(pair_prices) >= len(prices):
-        pair_ok = spread_confirms_direction(
-            prices,
-            pair_prices,
-            end_index - 1,
-            target_up=target_up,
-            sym_is_bull=sym_is_bull,
-            horizon_bars=1,
-        )
-    mask = 1.0 if move >= threshold and pair_ok else 0.0
-    return (
-        seq.reshape(1, lookback, FEATURE_DIM),
-        np.array([1.0 if target_up else 0.0], dtype=np.float32),
-        np.array([mask], dtype=np.float32),
-    )
-
-
 def extract_sequences(
     prices: np.ndarray,
     lookback: int,
@@ -68,24 +22,10 @@ def extract_sequences(
     open_: np.ndarray | None = None,
     high: np.ndarray | None = None,
     low: np.ndarray | None = None,
-    compact_mhi: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Extrai tensores (N, L, F), rotulos binarios e mascara meta-label."""
     n = len(prices)
     horizon = max(1, int(label_horizon_bars))
-    if compact_mhi and n >= lookback and n < lookback + horizon + 2:
-        return _extract_single_mhi_window(
-            prices,
-            lookback,
-            label_min_move_pct=label_min_move_pct,
-            granularity=granularity,
-            pair_prices=pair_prices,
-            require_pair_label=require_pair_label,
-            sym_is_bull=sym_is_bull,
-            open_=open_,
-            high=high,
-            low=low,
-        )
     min_tail = horizon + 2
     if n < lookback + min_tail:
         return np.empty((0, lookback, FEATURE_DIM)), np.empty((0,)), np.empty((0,))

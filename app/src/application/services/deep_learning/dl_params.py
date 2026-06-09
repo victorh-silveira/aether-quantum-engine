@@ -54,6 +54,22 @@ def optional_float(section: dict, key: str) -> float | None:
     return float(section[key])
 
 
+def parse_binary_signal_params(dl_config: dict) -> dict[str, Any]:
+    """Extrai thresholds do bloco binary_signal para gating CALL/PUT."""
+    bs = dl_config.get("binary_signal", {})
+    return {
+        "min_rel_vol_execute": float(bs.get("min_rel_vol_execute", 0.28)),
+        "sma_z_block_call": float(bs.get("sma_z_block_call", 0.003)),
+        "sma_z_block_put": float(bs.get("sma_z_block_put", -0.003)),
+        "sma_z_extreme": float(bs.get("sma_z_extreme", 0.005)),
+        "weak_dl_override_margin": float(bs.get("weak_dl_override_margin", 0.05)),
+        "pair_z_against_limit": float(bs.get("pair_z_against_limit", 1.0)),
+        "variance_ratio_mean_rev_max": float(bs.get("variance_ratio_mean_rev_max", 0.88)),
+        "wick_rejection_ratio": float(bs.get("wick_rejection_ratio", 1.8)),
+        "require_pair_spread_confirm": bool(bs.get("require_pair_spread_confirm", True)),
+    }
+
+
 def parse_dl_params(
     dl_config: dict,
     data_config: dict | None = None,
@@ -64,18 +80,13 @@ def parse_dl_params(
     risk_params = risk_params or {}
     selection = dl_config.get("selection", {})
     gran = int(data_config.get("granularity") or dl_config.get("granularity") or 300)
-    mhi_mode = bool(dl_config.get("mhi_mode", False))
-    lookback = int(dl_config.get("lookback", 5 if mhi_mode else 32))
+    lookback = int(dl_config.get("lookback", 32))
     training_history_bars = resolve_training_history_bars(dl_config, data_config)
-    if mhi_mode:
-        training_history_bars = max(lookback, int(dl_config.get("training_history_bars", lookback)))
     label_horizon_bars = resolve_label_horizon_bars(gran, risk_params, dl_config)
-    validation_bars = int(dl_config.get("validation_bars", 1 if mhi_mode else 60))
+    validation_bars = int(dl_config.get("validation_bars", 60))
     base = {
         "arch": str(dl_config.get("arch", "tcn")),
         "lookback": lookback,
-        "mhi_mode": mhi_mode,
-        "compact_mhi": mhi_mode,
         "epochs": int(dl_config.get("training_epochs", 20)),
         "lr": float(dl_config.get("learning_rate", 0.001)),
         "validation_bars": validation_bars,
@@ -133,7 +144,8 @@ def parse_dl_params(
         "label_horizon_bars": label_horizon_bars,
     }
     gate = parse_deploy_gate_config(dl_config)
-    min_eval_bars = lookback + (2 if mhi_mode else 5)
+    min_eval_bars = lookback + 5
     gate = {**gate, "mini_bars": max(min_eval_bars, int(gate.get("mini_bars", 80)))}
     base["deploy_gate"] = gate
+    base["binary_signal"] = parse_binary_signal_params(dl_config)
     return base

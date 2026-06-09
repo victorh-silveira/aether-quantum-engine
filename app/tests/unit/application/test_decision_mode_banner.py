@@ -14,16 +14,6 @@ def test_emit_decision_engine_banner_dl_enabled():
     assert "DEEP_LEARNING_PYTORCH" in logger.info.call_args.args[0]
 
 
-def test_emit_decision_engine_banner_mhi_flag():
-    logger = MagicMock()
-    emit_decision_engine_banner(
-        logger,
-        {"deep_learning": {"mhi_mode": True, "lookback": 5, "training_history_bars": 5}},
-        dl_enabled=True,
-    )
-    assert logger.info.call_args.args[1] is True
-
-
 def test_emit_decision_engine_banner_dl_disabled():
     logger = MagicMock()
     emit_decision_engine_banner(logger, {}, dl_enabled=False)

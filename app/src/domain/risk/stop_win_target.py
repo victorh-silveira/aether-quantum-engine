@@ -19,15 +19,9 @@ def resolve_stop_win_target(risk_management: dict[str, Any], initial_bankroll: f
 def resolve_max_stake_pct(
     kelly_config: dict[str, Any],
     conviction: float,
-    *,
-    is_recovery: bool = False,
 ) -> float:
-    """Retorna o teto percentual da banca conforme conviccao e modo de recuperacao."""
-    if is_recovery and bool(kelly_config.get("full_recovery_martingale", False)):
-        return float(kelly_config.get("max_recovery_bankroll_pct", 0.98))
+    """Retorna o teto percentual da banca conforme conviccao."""
     base = float(kelly_config.get("max_stake_pct", 0.01))
-    if is_recovery:
-        return float(kelly_config.get("max_recovery_stake_pct", base))
     threshold = float(kelly_config.get("high_conviction_stake_threshold", 0.75))
     if conviction >= threshold:
         return float(kelly_config.get("max_stake_pct_high_conviction", base))

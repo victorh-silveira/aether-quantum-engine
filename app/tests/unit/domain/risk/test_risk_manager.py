@@ -1,6 +1,7 @@
 """Testes unitários para o sistema RiskManager baseado em Critério de Kelly."""
 
 import datetime
+import math
 from unittest.mock import patch
 
 import pytest
@@ -18,10 +19,7 @@ def kelly_config():
             "dynamic_min_samples": 5,
             "fraction": 0.1,
             "max_stake_pct": 0.05,
-            "martingale_native": True,
-            "martingale_multiplier": 2.0,
             "martingale_sizing_conviction": 0.60,
-            "full_recovery_martingale": True,
         },
         "params": {"payout_estimate": 0.95, "stake_min": 1.0, "entry_cooldown_ticks": 0},
     }
@@ -83,7 +81,6 @@ def test_kelly_respects_stake_min(kelly_config):
 
 def test_kelly_intelligent_recovery(kelly_config):
     """Verifica martingale apos perda: recupera loss + lucro alvo Kelly."""
-    kelly_config["kelly"]["max_recovery_stake_pct"] = 0.10
     rm = RiskManager(kelly_config)
 
     rm.active_contract_ids = [1]
@@ -105,15 +102,15 @@ def test_kelly_intelligent_recovery(kelly_config):
 def test_martingale_after_partial_win(kelly_config):
     """Mantem martingale enquanto houver perda pendente apos win parcial."""
     kelly_config["kelly"]["max_stake_pct"] = 0.01
-    kelly_config["kelly"]["max_recovery_stake_pct"] = 0.035
     rm = RiskManager(kelly_config)
 
     rm.pending_loss["R_75"] = 8.54
+    rm.last_loss_stake = 100.0
     rm.consecutive_losses = 0
 
     stake = rm.calculate_stake(10000.0, "R_75", conviction=0.61)
-    assert stake > 100.0
-    assert stake == pytest.approx(200.0, abs=1.0)
+    cover = (8.54 + 100.0 * 0.95) / 0.95
+    assert stake == pytest.approx(math.ceil(cover * 100) / 100, abs=0.02)
 
 
 def test_kelly_keeps_fraction_with_consecutive_losses_without_pending(kelly_config):
@@ -134,18 +131,6 @@ def test_stake_zero_when_bankroll_below_stake_min_with_conviction(kelly_config):
     rm = RiskManager(kelly_config)
     stake = rm.calculate_stake(0.5, "R_50", conviction=0.55)
     assert stake == 0.0
-
-
-def test_kelly_recovery_respects_safety_cap(kelly_config):
-    """Verifica se a recuperacao respeita max_recovery_stake_pct."""
-    kelly_config["kelly"]["max_recovery_stake_pct"] = 0.10
-    kelly_config["kelly"]["full_recovery_martingale"] = False
-    rm = RiskManager(kelly_config)
-
-    rm.pending_loss["R_50"] = 500.0
-
-    stake = rm.calculate_stake(1000.0, "R_50", conviction=0.8)
-    assert stake == pytest.approx(100.0, abs=0.1)
 
 
 def test_kelly_stop_win_zero_stake(kelly_config):
@@ -217,7 +202,6 @@ def test_single_strike_stake_boost_in_window(kelly_config):
     """Verifica se a stake de Single Strike e aplicada na janela com alta conviccao."""
     kelly_config["small_account_stop_win"] = 100.0
     kelly_config["small_account_threshold"] = 100.0
-    kelly_config["kelly"]["stop_win_aggressive"] = False
     kelly_config["kelly"]["fraction"] = 0.001
     rm = RiskManager(kelly_config)
     rm.set_initial_bankroll(1000.0)
@@ -236,7 +220,6 @@ def test_single_strike_stake_boost_in_window(kelly_config):
 
 def test_cross_symbol_recovery(kelly_config):
     """Recupera perda de um simbolo em operacao em outro via martingale."""
-    kelly_config["kelly"]["max_recovery_stake_pct"] = 0.10
     rm = RiskManager(kelly_config)
 
     rm.active_contract_ids = [1]

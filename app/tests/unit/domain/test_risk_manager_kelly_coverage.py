@@ -129,38 +129,6 @@ def test_arm_cooldown_zero_ticks_clears_timer():
     assert rm.is_on_cooldown(99) is False
 
 
-def test_stop_win_aggressive_stake_no_boost_when_target_hit():
-    rm = RiskManager(
-        {
-            "small_account_stop_win": 10.0,
-            "kelly": {"stop_win_aggressive": True},
-            "params": {"payout_estimate": 1.0},
-        }
-    )
-    rm.set_initial_bankroll(50.0)
-    rm.total_session_profit = 12.0
-    assert rm._apply_stop_win_aggressive_stake(48.0, 2.0) == 2.0
-
-
-def test_stop_win_aggressive_stake_boost():
-    rm = RiskManager(
-        {
-            "small_account_stop_win": 10.0,
-            "small_account_threshold": 100.0,
-            "kelly": {
-                "stop_win_aggressive": True,
-                "stop_win_stake_multiplier": 1.5,
-                "stop_win_stake_cap_pct": 0.12,
-            },
-            "params": {"payout_estimate": 1.0, "stake_min": 1.0},
-        }
-    )
-    rm.set_initial_bankroll(50.0)
-    rm.total_session_profit = 2.0
-    boosted = rm._apply_stop_win_aggressive_stake(48.0, 1.0)
-    assert abs(boosted - 5.76) < 0.1
-
-
 def test_stake_block_reason_kelly_no_edge():
     rm = RiskManager(
         {

@@ -112,7 +112,7 @@ def test_recovery_selects_hedge_symbol_and_direction():
 
 
 def test_select_mandatory_non_recovery_filters_execute_true():
-    orch = SimpleNamespace(config={"deep_learning": {"post_loss_flip_raw_min": 0.62}})
+    orch = SimpleNamespace(config={})
     candidates = [
         (ANCHOR, TradeDirection.CALL, {"trade_score": 0.71, "execute": False}),
         (PAIR, TradeDirection.PUT, {"trade_score": 0.55, "execute": True}),
@@ -123,13 +123,12 @@ def test_select_mandatory_non_recovery_filters_execute_true():
         last_loss_symbol=None,
         diversify_margin=0.08,
         recovery_active=False,
-        flip_raw_min=0.62,
     )
     assert best[0] == PAIR
 
 
 def test_select_mandatory_recovery_restores_pool_when_narrowed_empty():
-    orch = SimpleNamespace(config={"deep_learning": {"post_loss_flip_raw_min": 0.99}})
+    orch = SimpleNamespace(config={})
     candidates = [
         (PAIR, TradeDirection.CALL, {"trade_score": 0.30, "execute": False}),
     ]
@@ -140,13 +139,12 @@ def test_select_mandatory_recovery_restores_pool_when_narrowed_empty():
         last_loss_direction="CALL",
         diversify_margin=0.08,
         recovery_active=True,
-        flip_raw_min=0.99,
     )
     assert best[0] == PAIR
 
 
 def test_select_mandatory_returns_first_candidate_when_pool_empty():
-    orch = SimpleNamespace(config={"deep_learning": {"post_loss_flip_raw_min": 0.99}})
+    orch = SimpleNamespace(config={})
     candidates = [(ANCHOR, TradeDirection.CALL, {"execute": False})]
     with (
         patch(
@@ -165,13 +163,12 @@ def test_select_mandatory_returns_first_candidate_when_pool_empty():
             last_loss_direction="CALL",
             diversify_margin=0.08,
             recovery_active=True,
-            flip_raw_min=0.99,
         )
     assert best == candidates[0]
 
 
 def test_select_mandatory_prefers_execute_true_when_available():
-    orch = SimpleNamespace(config={"deep_learning": {"post_loss_flip_raw_min": 0.62}})
+    orch = SimpleNamespace(config={})
     candidates = [
         (ANCHOR, TradeDirection.CALL, {"trade_score": 0.71, "execute": False, "raw_prob": 0.56}),
         (PAIR, TradeDirection.PUT, {"trade_score": 0.55, "execute": True, "raw_prob": 0.55}),
@@ -182,7 +179,6 @@ def test_select_mandatory_prefers_execute_true_when_available():
         last_loss_symbol=None,
         diversify_margin=0.08,
         recovery_active=False,
-        flip_raw_min=0.62,
     )
     assert best[0] == PAIR
 

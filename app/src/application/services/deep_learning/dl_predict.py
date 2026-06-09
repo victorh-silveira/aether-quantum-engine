@@ -9,13 +9,13 @@ from src.application.services.deep_learning.dl_gating import (
     gating_block_reason,
     resolve_edge,
     resolve_gating_thresholds,
-    strong_signal_bypasses_val_acc,
 )
-from src.application.services.deep_learning.dl_outcomes import (
-    blended_val_accuracy,
-    live_win_rate,
+from src.application.services.deep_learning.dl_outcomes import blended_val_accuracy
+from src.application.services.deep_learning.dl_predict_helpers import (
+    prepare_binary_direction,
+    resolve_execution_gates,
+    val_accuracy_bypass_flag,
 )
-from src.application.services.deep_learning.dl_regime import direction_aligns_with_regime
 from src.application.services.deep_learning.model import predict_next_direction
 
 
@@ -85,6 +85,19 @@ def predict_symbol_decision(
             )
             entry["metrics"]["gate_reason"] = "direction_margin"
             return entry
+        direction, stat_override, raw_prob, trade_score, sym_is_bull, binary_ctx = prepare_binary_direction(
+            symbol,
+            direction,
+            raw_prob,
+            trade_score,
+            prices,
+            gran,
+            pair_prices,
+            open_,
+            high,
+            low,
+            params,
+        )
         edge = resolve_edge(trade_score)
         raw_side = max(float(raw_prob), 1.0 - float(raw_prob))
         allow_bypass = bool(params.get("recovery_allow_bypass", False)) or not recovery_active
@@ -116,47 +129,26 @@ def predict_symbol_decision(
             min_conviction_for_raw_bypass=min_conviction,
         )
         execute = block is None
-        regime_required = bool(params.get("require_regime_alignment", True))
-        regime_ok = direction_aligns_with_regime(
-            direction,
-            prices,
-            min_strength=float(params.get("min_regime_strength", 0.0)),
-            rsi_overbought=float(params.get("rsi_overbought_threshold", 1.01)),
-            rsi_oversold=float(params.get("rsi_oversold_threshold", -0.01)),
+        execute, block, live_wr = resolve_execution_gates(
+            execute=execute,
+            block=block,
+            direction=direction,
+            prices=prices,
+            binary_ctx=binary_ctx,
+            params=params,
+            sym_is_bull=sym_is_bull,
+            orch=orch,
+            symbol=symbol,
         )
-        if execute and regime_required and not regime_ok:
-            execute = False
-            block = "regime"
-        live_wr = live_win_rate(orch, symbol)
-        if execute and live_wr is not None and live_wr + 1e-9 < float(params.get("min_live_win_rate", 0.42)):
-            execute = False
-            block = "live_wr"
-        bypass_used = False
-        if execute and val_accuracy + 1e-9 < min_val_accuracy:
-            strong = (
-                params.get("bypass_min_conviction") is not None
-                and params.get("bypass_min_edge") is not None
-                and allow_bypass
-                and strong_signal_bypasses_val_acc(
-                    raw_side,
-                    edge,
-                    bypass_min_conviction=params["bypass_min_conviction"],
-                    bypass_min_edge=params["bypass_min_edge"],
-                )
-            )
-            moderate = (
-                params.get("moderate_min_conviction") is not None
-                and params.get("moderate_min_edge") is not None
-                and allow_bypass
-                and strong_signal_bypasses_val_acc(
-                    raw_side,
-                    edge,
-                    bypass_min_conviction=params["moderate_min_conviction"],
-                    bypass_min_edge=params["moderate_min_edge"],
-                )
-            )
-            if strong or moderate:
-                bypass_used = True
+        bypass_used = val_accuracy_bypass_flag(
+            execute=execute,
+            val_accuracy=val_accuracy,
+            min_val_accuracy=min_val_accuracy,
+            allow_bypass=allow_bypass,
+            raw_side=raw_side,
+            edge=edge,
+            params=params,
+        )
         entry = build_decision_entry(
             direction,
             prob,
@@ -171,6 +163,7 @@ def predict_symbol_decision(
         )
         entry["metrics"]["gate_reason"] = block
         entry["metrics"]["bypass_val_acc"] = bypass_used
+        entry["metrics"]["stat_override"] = stat_override
         entry["metrics"]["val_accuracy"] = val_accuracy
         if live_wr is not None:
             entry["metrics"]["live_win_rate"] = float(live_wr)

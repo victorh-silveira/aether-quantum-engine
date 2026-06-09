@@ -114,6 +114,12 @@ def test_predict_blocks_regime_and_live_wr():
             "require_regime_alignment": True,
             "min_direction_margin": 0.01,
             "min_live_win_rate": 0.50,
+            "binary_signal": {
+                "min_rel_vol_execute": 0.0,
+                "sma_z_block_call": 99.0,
+                "sma_z_block_put": -99.0,
+                "variance_ratio_mean_rev_max": 0.0,
+            },
         }
     )
     orch = type("O", (), {"config": {"deep_learning": {}}, "_dl_outcome_flags": {"R_75": [False] * 6}})()
@@ -191,6 +197,12 @@ def test_predict_moderate_bypass_flag():
             },
             "require_regime_alignment": False,
             "min_direction_margin": 0.01,
+            "binary_signal": {
+                "min_rel_vol_execute": 0.0,
+                "sma_z_block_call": 99.0,
+                "sma_z_block_put": -99.0,
+                "variance_ratio_mean_rev_max": 0.0,
+            },
         }
     )
     orch = type("O", (), {"config": {"deep_learning": {}}})()

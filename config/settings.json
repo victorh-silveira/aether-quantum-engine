@@ -17,6 +17,17 @@
   },
   "deep_learning": {
     "arch": "tcn",
+    "binary_signal": {
+      "min_rel_vol_execute": 0.28,
+      "pair_z_against_limit": 1.0,
+      "require_pair_spread_confirm": true,
+      "sma_z_block_call": 0.003,
+      "sma_z_block_put": -0.003,
+      "sma_z_extreme": 0.005,
+      "variance_ratio_mean_rev_max": 0.88,
+      "weak_dl_override_margin": 0.05,
+      "wick_rejection_ratio": 1.8
+    },
     "brier_untrained_floor": 0.99,
     "calib_ratio": 0.15,
     "deploy_gate": {
@@ -42,13 +53,11 @@
     "max_calibrated_raw_gap": 0.12,
     "max_raw_saturation": 0.97,
     "max_val_brier_execute": 0.28,
-    "mhi_mode": false,
     "min_conviction_execute": 0.6,
     "min_direction_margin": 0.008,
     "min_edge_margin": 0.08,
     "min_live_win_rate": 0.5,
     "min_raw_conviction_execute": 0.51,
-    "min_regime_strength": 0.0,
     "min_val_accuracy": 0.54,
     "rsi_overbought_threshold": 0.78,
     "rsi_oversold_threshold": 0.22,
@@ -58,8 +67,6 @@
       "min_edge_margin": 0.08,
       "min_val_accuracy": 0.48
     },
-    "post_loss_ban_candles": 0,
-    "post_loss_flip_raw_min": 0.62,
     "recovery_allow_bypass": true,
     "recovery_gating": {
       "min_conviction_execute": 0.5,
@@ -107,9 +114,8 @@
       "diversify_after_loss_margin": 0.08,
       "include_anchor_trades": true,
       "inter_symbol_delay": 1.0,
-      "invert_dl_direction": false,
       "mandatory_trade_each_cycle": true,
-      "recovery_require_hedge": true,
+      "post_settlement_cycle_timeout_seconds": 90,
       "settlement_max_stagnant_polls": 40,
       "settlement_poll_seconds": 0.5,
       "settlement_post_expiry_slack_seconds": 5.0,
@@ -123,23 +129,13 @@
       "dynamic_min_samples": 12,
       "dynamic_win_rate": true,
       "fraction": 0.04,
-      "full_recovery_martingale": false,
       "high_conviction_stake_threshold": 0.75,
       "mandatory_weak_conviction_cap": 0.55,
       "mandatory_weak_max_stake_pct": 0.004,
-      "martingale_block_repeat_loss": false,
-      "martingale_multiplier": 2.0,
-      "martingale_native": true,
       "martingale_sizing_conviction": 0.6,
-      "max_recovery_bankroll_pct": 0.12,
-      "max_recovery_stake_pct": 0.08,
       "max_stake_pct": 0.004,
       "max_stake_pct_high_conviction": 0.005,
       "min_stake_pct": 0.001,
-      "recovery_conviction_threshold": 0.72,
-      "stop_win_aggressive": false,
-      "stop_win_stake_cap_pct": 0.004,
-      "stop_win_stake_multiplier": 10.0,
       "symbol_loss_cooldown_candles": 2
     },
     "large_account_stop_win_pct": 10.0,
@@ -162,13 +158,6 @@
     "R_100"
   ],
   "trading": {
-    "mode": "demo",
-    "session": {
-      "enabled": false,
-      "end_hour_utc": 24,
-      "minutes_before_close_no_entry": 0,
-      "start_hour_utc": 0,
-      "warmup_seconds_after_stream_sync": 30
-    }
+    "mode": "demo"
   }
 }

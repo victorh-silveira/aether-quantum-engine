@@ -13,6 +13,11 @@ if TYPE_CHECKING:
     from .execution_manager import ExecutionManager
 
 
+async def _settlement_poll_delay(seconds: float) -> None:
+    """Aguarda intervalo de polling entre reconciliacoes de liquidacao."""
+    await asyncio.sleep(seconds)
+
+
 async def run_settlement_watch(exec_mgr: "ExecutionManager") -> None:
     """Aguarda liquidacao em background e dispara novo ciclo ao concluir."""
     try:
@@ -81,7 +86,7 @@ async def wait_for_settlement(exec_mgr: "ExecutionManager", timeout: int = 3600)
             break
 
         await exec_mgr.orch._save_full_state()
-        await asyncio.sleep(poll)
+        await _settlement_poll_delay(poll)
 
 
 async def reconcile_contracts(exec_mgr: "ExecutionManager") -> None:  # pragma: no cover

@@ -15,12 +15,8 @@ from src.domain.models.trade import TradeDirection
 from tests.unit.application.dl_collect_fixtures import MockOrchestrator
 
 
-def test_min_dl_history_len_mhi_and_standard():
-    assert _min_dl_history_len({"mhi_mode": True, "lookback": 5, "training_history_bars": 5}) == 6
-    assert (
-        _min_dl_history_len({"mhi_mode": False, "lookback": 32, "validation_bars": 10, "training_history_bars": 100})
-        == 100
-    )
+def test_min_dl_history_len_standard():
+    assert _min_dl_history_len({"lookback": 32, "validation_bars": 10, "training_history_bars": 100}) == 100
 
 
 def test_insufficient_data_entry_gate_reason():

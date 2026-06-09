@@ -6,12 +6,50 @@ import pytest
 
 from src.application.services.orchestrator.settlement_logic import log_cluster_summary, process_contract_settlement
 from src.domain.models.trade import Contract, TradeDirection, TradeStatus
+from tests.unit.application.post_settlement_helpers import patch_instant_post_settlement_poll
 
 
 @pytest.mark.asyncio
 async def test_process_contract_settlement_ignores_open_contract(orch_ready):
     await process_contract_settlement(orch_ready, {"proposal_open_contract": {"status": "open", "contract_id": 1}})
     assert orch_ready.state.active_contracts == {}
+
+
+@pytest.mark.asyncio
+async def test_process_contract_settlement_ignores_premature_open_with_is_settled(orch_ready):
+    orch = orch_ready
+    contract = Contract(
+        contract_id=1694702639,
+        proposal_id="p1",
+        status=TradeStatus.OPEN,
+        buy_price=5.85,
+        payout=10.63,
+        symbol="R_75",
+        direction=TradeDirection.PUT,
+        stake=5.85,
+        expiry_time=0,
+    )
+    await orch.state.add_contract(contract)
+    orch.risk_manager.active_contract_ids = [1694702639]
+    orch.risk_manager.contract_to_symbol[1694702639] = "R_75"
+    orch.risk_manager.begin_cluster(1)
+
+    with patch("src.application.services.orchestrator.post_settlement_cycle.asyncio.create_task") as mock_create:
+        await process_contract_settlement(
+            orch,
+            {
+                "proposal_open_contract": {
+                    "contract_id": 1694702639,
+                    "is_settled": 1,
+                    "status": "open",
+                    "profit": -5.85,
+                }
+            },
+        )
+        mock_create.assert_not_called()
+
+    assert 1694702639 in orch.state.active_contracts
+    assert 1694702639 in orch.risk_manager.active_contract_ids
 
 
 @pytest.mark.asyncio
@@ -50,7 +88,7 @@ async def test_process_contract_settlement_won(orch_ready):
             new_callable=AsyncMock,
             return_value={},
         ),
-        patch("src.application.services.orchestrator.post_settlement_cycle.asyncio.sleep", new_callable=AsyncMock),
+        patch_instant_post_settlement_poll(),
     ):
         orch.executor.execute_cluster = AsyncMock()
         await process_contract_settlement(orch, data)
@@ -86,8 +124,6 @@ async def test_process_contract_settlement_lost(orch_ready):
     orch.risk_manager.active_contract_ids = [456]
     orch.risk_manager.contract_to_symbol[456] = "R_75"
     orch.risk_manager.begin_cluster(1)
-    orch.config.setdefault("deep_learning", {})["post_loss_ban_candles"] = 3
-
     data = {
         "proposal_open_contract": {
             "status": "lost",
@@ -104,7 +140,7 @@ async def test_process_contract_settlement_lost(orch_ready):
             new_callable=AsyncMock,
             return_value={},
         ),
-        patch("src.application.services.orchestrator.post_settlement_cycle.asyncio.sleep", new_callable=AsyncMock),
+        patch_instant_post_settlement_poll(),
     ):
         orch.executor.execute_cluster = AsyncMock()
         await process_contract_settlement(orch, data)
@@ -113,7 +149,6 @@ async def test_process_contract_settlement_lost(orch_ready):
 
     assert orch.state.balance == 995.0
     assert orch._session_losses == 1
-    assert orch._invert_quarantine_cycles_remaining == 0
     assert orch._last_loss_symbol == "R_75"
     assert orch._last_loss_direction == "CALL"
     assert len(orch._pending_result_logs) == 1
@@ -184,7 +219,7 @@ async def test_process_contract_settlement_stop_win(orch_ready):
 
     with (
         patch("src.application.services.orchestrator.settlement_logic.resolve_stop_win_target", return_value=50.0),
-        patch("src.application.services.orchestrator.post_settlement_cycle.asyncio.sleep", new_callable=AsyncMock),
+        patch_instant_post_settlement_poll(),
     ):
         await process_contract_settlement(orch, data)
         if orch._post_settlement_task is not None:

@@ -82,6 +82,12 @@ def test_predict_symbol_decision_gates_on_trade_score():
             "min_val_accuracy": 0.48,
             "require_regime_alignment": False,
             "min_direction_margin": 0.02,
+            "binary_signal": {
+                "min_rel_vol_execute": 0.0,
+                "sma_z_block_call": 99.0,
+                "sma_z_block_put": -99.0,
+                "variance_ratio_mean_rev_max": 0.0,
+            },
         }
     )
     runtime = {

@@ -1,7 +1,6 @@
 """Simbolos elegiveis e ranking de candidatos para execucao."""
 
 from src.application.services.deep_learning.dl_gating import calibration_gap
-from src.application.services.deep_learning.dl_post_loss import post_loss_block_reason
 from src.application.services.execution_symbols_recovery import (
     has_recovery_hedge_candidate,
     inject_recovery_hedge_candidates,
@@ -17,7 +16,6 @@ __all__ = [
     "candidate_execution_score",
     "filter_execution_candidates",
     "select_best_execution_candidate",
-    "filter_post_loss_banned_candidates",
     "select_mandatory_execution_candidate",
     "pending_recovery_active",
     "inject_recovery_hedge_candidates",
@@ -122,12 +120,16 @@ def _passes_selection_gate(metrics: dict, cfg: dict) -> bool:
     return raw_side + 1e-9 >= strong_raw and edge + 1e-9 >= strong_edge
 
 
-def recovery_rank_score(item: tuple[str, TradeDirection, dict], hedge: tuple[str, TradeDirection] | None) -> float:
-    """Pontua candidato em recovery com bonus para alinhamento de hedge."""
+def recovery_rank_score(
+    item: tuple[str, TradeDirection, dict],
+    hedge: tuple[str, TradeDirection] | None,
+) -> float:
+    """Pontua candidato em recovery com bonus para hedge no par."""
     score = candidate_execution_score(item[2], recovery_active=True)
     if hedge is not None and item[0] == hedge[0] and item[1] == hedge[1]:
         score += 0.25
-    raw = item[2].get("raw_prob")
+    metrics = item[2]
+    raw = metrics.get("raw_prob")
     if raw is not None and item[1] == TradeDirection.CALL and float(raw) > 0.5:
         score += 0.02
     if raw is not None and item[1] == TradeDirection.PUT and float(raw) <= 0.5:
@@ -183,36 +185,17 @@ def select_best_execution_candidate(
     return best
 
 
-def filter_post_loss_banned_candidates(
-    orch,
-    candidates: list[tuple[str, TradeDirection, dict]],
-    *,
-    flip_raw_min: float,
-) -> list[tuple[str, TradeDirection, dict]]:
-    """Remove candidatos ainda vetados por post_loss na combinacao simbolo+direcao."""
-    kept: list[tuple[str, TradeDirection, dict]] = []
-    for symbol, direction, metrics in candidates:
-        raw = metrics.get("raw_prob")
-        raw_prob = float(raw) if raw is not None else None
-        if post_loss_block_reason(orch, symbol, direction, raw_prob=raw_prob, flip_raw_min=flip_raw_min):
-            continue
-        kept.append((symbol, direction, metrics))
-    return kept
-
-
 def select_mandatory_execution_candidate(
-    orch,
+    _orch,
     candidates: list[tuple[str, TradeDirection, dict]],
     *,
     last_loss_symbol: str | None,
     last_loss_direction: str | None = None,
     diversify_margin: float,
     recovery_active: bool,
-    flip_raw_min: float,
 ) -> tuple[str, TradeDirection, dict]:
-    """Escolhe candidato em modo obrigatorio respeitando post_loss e preferindo execute=true."""
-    unbanned = filter_post_loss_banned_candidates(orch, candidates, flip_raw_min=flip_raw_min)
-    pool = unbanned if unbanned else list(candidates)
+    """Escolhe candidato em modo obrigatorio preferindo execute=true."""
+    pool = list(candidates)
     if recovery_active:
         narrowed = recovery_candidate_pool(
             pool,

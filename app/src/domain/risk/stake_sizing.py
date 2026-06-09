@@ -14,7 +14,7 @@ def clamp_kelly_stake(
     conviction: float,
 ) -> float:
     """Limita a stake Kelly entre piso e teto percentuais da banca."""
-    max_pct = resolve_max_stake_pct(kelly_config, conviction, is_recovery=False)
+    max_pct = resolve_max_stake_pct(kelly_config, conviction)
     min_pct = float(kelly_config.get("min_stake_pct", 0.0))
     floor_stake = bankroll * min_pct if min_pct > 0 else 0.0
     ceiling = bankroll * max_pct
@@ -28,28 +28,15 @@ def martingale_stake(
     kelly_base: float,
     payout: float,
     kelly_config: dict[str, Any],
-    _conviction: float,
     stake_min: float,
     stake_max: float,
     *,
-    consecutive_losses: int = 0,
-    last_martingale_stake: float = 0.0,
     last_loss_stake: float = 0.0,
 ) -> float:
-    """Calcula stake de recuperacao dobrando a ultima entrada (2, 4, 8...)."""
-    _ = consecutive_losses
-    multiplier = max(1.0, float(kelly_config.get("martingale_multiplier", 2.0)))
+    """Calcula stake de recuperacao integral da perda pendente mais lucro alvo."""
     seed = float(last_loss_stake) if last_loss_stake > 0.0 else float(kelly_base)
     seed = max(seed, float(stake_min))
-    progressive = last_martingale_stake * multiplier if last_martingale_stake > 0.0 else seed * multiplier
-    full_recovery = bool(kelly_config.get("full_recovery_martingale", False))
-    if full_recovery and payout > 0:
-        profit_target = seed * payout
-        cover = (loss_to_recover + profit_target) / payout
-        raw = max(progressive, cover)
-    else:
-        raw = progressive
-    # Recuperacao sem teto de porcentagem de banca: limita apenas pela stake maxima ou banca disponivel.
+    raw = (loss_to_recover + seed * payout) / payout if payout > 0 and loss_to_recover > 0 else seed
     cap_stake = min(bankroll, stake_max)
     if payout > 0:
         max_payout_stake = 10000.00 / (1.0 + payout)
@@ -117,11 +104,8 @@ def resolve_mode_stake(
     kelly_base: float,
     payout: float,
     kelly_config: dict[str, Any],
-    conviction: float,
     stake_min: float,
     stake_max: float,
-    consecutive_losses: int = 0,
-    last_martingale_stake: float = 0.0,
     last_loss_stake: float = 0.0,
 ) -> tuple[float, float, str]:
     """Resolve stake final, valor bruto de recuperacao e modo Kelly ou Martingale."""
@@ -132,11 +116,8 @@ def resolve_mode_stake(
             kelly_base,
             payout,
             kelly_config,
-            conviction,
             stake_min,
             stake_max,
-            consecutive_losses=consecutive_losses,
-            last_martingale_stake=last_martingale_stake,
             last_loss_stake=last_loss_stake,
         )
         return round_stake(recovery, martingale=True), recovery, "MARTINGALE"
@@ -150,18 +131,10 @@ def martingale_log_suffix(
     kelly_base: float,
     payout: float,
     *,
-    consecutive_losses: int = 0,
-    last_martingale_stake: float = 0.0,
     last_loss_stake: float = 0.0,
-    martingale_multiplier: float = 2.0,
 ) -> str:
     """Monta sufixo de log com detalhes da stake de recuperacao Martingale."""
     if mode_tag != "MARTINGALE":
         return ""
-    step = max(1, int(consecutive_losses))
     seed = last_loss_stake if last_loss_stake > 0.0 else kelly_base
-    prev = f"${last_martingale_stake:.2f}" if last_martingale_stake > 0.0 else f"entrada=${seed:.2f}"
-    return (
-        f" | MARTINGALE x{martingale_multiplier:.2f} passo={step} {prev}"
-        f" -> ${recovery_stake:.2f} (pend=${loss_to_recover:.2f}+alvo=${seed * payout:.2f})"
-    )
+    return f" | MARTINGALE ${recovery_stake:.2f} (pend=${loss_to_recover:.2f}+alvo=${seed * payout:.2f})"

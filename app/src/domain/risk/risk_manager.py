@@ -33,12 +33,8 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
         self.pending_loss: dict[str, float] = {}
         self.last_martingale_stake = 0.0
         self.last_loss_stake = 0.0
-        self._prev_martingale_stake = 0.0
         self.contract_stakes: dict[int, float] = {}
         self.init_symbol_loss_cooldown()
-        self.martingale_native = bool(self.kelly_config.get("martingale_native", True))
-        self.martingale_block_repeat_loss = bool(self.kelly_config.get("martingale_block_repeat_loss", False))
-        self.recovery_threshold = float(self.kelly_config.get("recovery_conviction_threshold", 0.60))
         self._candle_interval_seconds = 900
         self._cooldown_until_mono = 0.0
 
@@ -92,23 +88,6 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
 
         return base_p
 
-    def _apply_stop_win_aggressive_stake(
-        self, bankroll: float, raw_stake: float, *, apply_stop_win: bool = True
-    ) -> float:
-        """Eleva stake moderadamente quando falta pouco para o stop win diario (modo ativo unico)."""
-        if not apply_stop_win or not bool(self.kelly_config.get("stop_win_aggressive", False)):
-            return raw_stake
-        target = resolve_stop_win_target(self.config, self.initial_bankroll)
-        remaining = max(0.0, target - float(self.total_session_profit))
-        if remaining <= 0 or bankroll <= 0:
-            return raw_stake
-        payout = max(0.5, float(self.risk_params.get("payout_estimate", 0.95)))
-        goal_stake = remaining / payout
-        mult = max(1.0, float(self.kelly_config.get("stop_win_stake_multiplier", 1.35)))
-        boosted = max(raw_stake * mult, raw_stake, goal_stake)
-        cap_pct = float(self.kelly_config.get("stop_win_stake_cap_pct", 0.01))
-        return min(boosted, bankroll * cap_pct)
-
     def stake_block_reason(
         self,
         bankroll: float,
@@ -137,18 +116,9 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
             return "kelly_no_edge"
         return None
 
-    def _martingale_allowed(self, symbol: str, conviction: float, **kwargs) -> bool:
+    def _martingale_allowed(self, _symbol: str, _conviction: float, **_kwargs) -> bool:
         """Martingale ativo sempre que houver perda pendente (modo nativo)."""
-        _ = (conviction, kwargs)
-        return martingale_allowed(
-            pending_loss=self.pending_loss,
-            martingale_native=self.martingale_native,
-            block_repeat_loss=self.martingale_block_repeat_loss,
-            symbol=symbol,
-            order_direction=kwargs.get("order_direction"),
-            last_loss_symbol=self.last_loss_symbol,
-            last_loss_direction=self.last_loss_direction,
-        )
+        return martingale_allowed(pending_loss=self.pending_loss)
 
     def calculate_stake(
         self,

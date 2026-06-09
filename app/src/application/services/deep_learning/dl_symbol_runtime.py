@@ -143,7 +143,6 @@ def run_symbol_training(
             open_=open_,
             high=high,
             low=low,
-            compact_mhi=bool(params.get("compact_mhi")),
         )
         weights = sample_weights_for_symbol(
             orch,
@@ -173,7 +172,6 @@ def run_symbol_training(
             open_=open_,
             high=high,
             low=low,
-            compact_mhi=bool(params.get("compact_mhi")),
         )
         if train_result is not None:
             runtime["norm_stats"] = train_result.norm_stats

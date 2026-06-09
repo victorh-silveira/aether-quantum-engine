@@ -1,6 +1,6 @@
 # Metodologia quantitativa
 
-O Aether Quantum Engine herda a postura **Medallion** no sentido operacional: o mercado é um **sistema de sinais ruidosos**, não uma narrativa macro discricionária. A implementação atual concentra-se nos símbolos de **Range Break** (`R_10`, `R_25`, `R_50`, `R_75`, `R_100`) com **Deep Learning** online, não em clusters OTC transatlânticos nem LLM.
+O Aether Quantum Engine herda a postura **Medallion** no sentido operacional: o mercado é um **sistema de sinais ruidosos**, não uma narrativa macro discricionária. A implementação atual concentra-se nos símbolos de **Range Break** (`R_10`, `R_25`, `R_50`, `R_75`, `R_100`) com **Deep Learning** online.
 
 Para arquitetura de código, ver [`arquitetura.md`](arquitetura.md).
 
@@ -11,21 +11,21 @@ Para arquitetura de código, ver [`arquitetura.md`](arquitetura.md).
 | Princípio | No motor atual |
 |-----------|----------------|
 | Sinais, não histórias | Direção CALL/PUT a partir de features de preço e par; gating numérico |
-| Horizonte curto | Velas 5m; contrato 1m; ciclo 300s |
+| Horizonte curto | Velas configuráveis (`granularity`); contrato 1m; ciclo 300s |
 | Regime e ruído | Meta-labels filtram movimentos irrelevantes; Brier e ECE no treino |
 | Poucas operações de qualidade | `deploy_gate`, convicção mínima, pausa após losses |
 | Feedback real | Win rate live misturado em `val_accuracy`; retreino após loss |
 
 ---
 
-## 2. Universo Range Break (R_10, R_25, R_50, R_75, R_100)
+## 2. Universo Range Break
 
 Índices sintéticos correlacionados no eixo de barreiras: o modelo usa **features de par** (spread, confirmação de direção) além de indicadores por símbolo.
 
 | Símbolo | Papel típico |
 |---------|----------------|
-| `R_50` | Âncora padrão configurável; referência de cluster |
-| `R_25`, `R_75`, etc. | Símbolos complementares; seleção competitiva por `trade_score` |
+| `R_50` | Âncora padrão; referência de cluster |
+| `R_10` / `R_100`, `R_25` / `R_75` | Pares de hedge para recovery |
 
 Operação: contratos **RISE_FALL** (CALL = alta no período, PUT = queda).
 
@@ -33,18 +33,15 @@ Operação: contratos **RISE_FALL** (CALL = alta no período, PUT = queda).
 
 ## 3. Janela temporal de treino
 
-Com `granularity: 300` (5 minutos):
+Com `granularity: 60` (1 minuto) e `training_history_bars: 1440`:
 
 | Conceito | Barras | Tempo aproximado |
 |----------|--------|------------------|
-| 1 dia civil | 288 | 24 h |
-| Lookback do TCN | 96 (padrão) | 8 h de contexto por sequência |
-| Validação holdout | 48 (padrão) | 4 h |
-| Histórico usado no treino | `training_history_bars: 288` | 1 dia |
+| Histórico de treino | 1440 | 24 h |
+| Lookback TCN | 32 | 32 min de contexto por sequência |
+| Validação holdout | 60 | 1 h |
 
 Configuração: `data_handler.history_bars`, `deep_learning.training_history_bars` ou `training_history_days`.
-
-O motor recorta as últimas N barras antes de treinar e predizer (`slice_dl_price_window` em `dl_params.py`).
 
 ---
 
@@ -56,17 +53,18 @@ Ordem lógica de uma entrada:
 2. **Modelo** — direção com margem (`direction_margin`).
 3. **Deploy** — mini walk-forward pós-treino (`deploy`).
 4. **Gating** — convicção, edge, val_acc, Brier, gap calibrado, saturação.
-5. **Pós-loss** — ban temporário symbol+direção; cooldown de símbolo.
-6. **Seleção** — melhor candidato entre RDBULL/RDBEAR.
-7. **Risco** — Kelly ou martingale; stop win; stake mínima/máxima.
+5. **Regime** — alinhamento de momentum/RSI quando `require_regime_alignment` está ativo.
+6. **Cooldown** — pausa por símbolo após losses (`symbol_loss_cooldown`, `session_pause_cycles`).
+7. **Seleção** — melhor candidato entre símbolos elegíveis; em recovery, hedge no par.
+8. **Risco** — Kelly ou martingale; stop win; stake mínima/máxima.
 
-Perfil **qualidade** em `config/settings.json` (valores podem evoluir):
+Perfil em `config/settings.json`:
 
 - `min_conviction_execute`, `min_edge_margin`, `min_val_accuracy`
 - `max_val_brier_execute`, `max_calib_gap_execute`
-- `recovery_gating` mais rígido que o modo normal
-- `post_loss_ban_candles`, `session_max_losses_in_window`
-- `deploy_gate`: `min_win_rate`, `max_brier`, `mini_bars` alinhado ao dia de histórico
+- `recovery_gating` (modo recovery)
+- `session_max_losses_in_window`, `session_pause_cycles`
+- `deploy_gate`: `min_win_rate`, `max_brier`, `mini_bars`
 
 ---
 
@@ -74,34 +72,34 @@ Perfil **qualidade** em `config/settings.json` (valores podem evoluir):
 
 Após perda no cluster, `pending_loss` acumula valor a recuperar.
 
-| Comportamento | Config |
-|---------------|--------|
-| Martingale ativo em recovery | `full_recovery_martingale`, `martingale_force_on_pending_loss` |
-| Bloqueio por métricas DL | `martingale_dl_metrics_block` (Brier, `gate_reason`, `deploy_ok`) |
-| Não repetir mesmo symbol+direção da última loss | `martingale_repeat_loss_blocked` |
-| Convicção mínima em recovery (se force desligado) | `recovery_martingale_min_conviction` |
+| Comportamento | Implementação |
+|---------------|-----------------|
+| Martingale em recovery | Ativo sempre que `pending_loss > 0` |
+| Fórmula de stake | `(perda pendente + seed × payout) / payout`, limitada por banca e `stake_max` |
+| Seleção de direção | Hedge no par oposto à última loss (`execution_symbols_recovery`) |
+| Gating DL em recovery | `recovery_gating` + `recovery_allow_bypass` |
 
-Stake de recovery cobre perda pendente + lucro alvo derivado do Kelly base.
+Não há teto de passos de martingale nem bloqueio por repetir symbol+direção da última loss.
 
 ---
 
-## 6. Execução obrigatória e inversão
+## 6. Execução
 
 | Flag | Efeito |
 |------|--------|
-| `mandatory_trade_each_cycle` | Sempre envia ordem CALL ou PUT no ciclo (após seleção) |
-| `invert_dl_direction` | Executa lado oposto ao previsto pelo DL (default: `false`) |
+| `mandatory_trade_each_cycle` | Envia ordem a cada ciclo elegível (stake cap para sinais fracos) |
 | `include_anchor_trades` | Inclui âncora nas ordens do cluster |
+| `diversify_after_loss_margin` | Prefere símbolo alternativo quando scores são próximos |
 
-Logs: `ord=` (execução), `dl=` (previsto), `inv` quando invertido.
+Direção de execução = direção prevista pelo DL. Logs: `ord=` (ordem enviada), `dl=` (previsto pelo modelo).
 
 ---
 
 ## 7. Risco e stop win
 
 - **Kelly fracionário** com win rate dinâmico após amostras mínimas.
-- **Stop win diário**: percentual da banca inicial (conta grande) ou valor fixo (conta pequena); novas entradas zeradas até o dia seguinte.
-- **Sem martingale cego**: progressão só no modo recovery autorizado e sem bloqueio de gate.
+- **Stop win diário**: percentual da banca inicial (conta grande) ou valor fixo (conta pequena).
+- **Martingale** apenas em recovery, com recuperação integral da perda pendente.
 
 ---
 

@@ -30,7 +30,6 @@ def test_execution_manager_collect_orders_mandatory_includes_execute_false(orch_
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = True
-        orch.config["orchestrator"]["execution"]["invert_dl_direction"] = False
         orch.symbols = ["R_50", "R_75"]
         decisions = {
             "R_50": {"direction": TradeDirection.CALL, "metrics": {"conviction": 0.8, "execute": False}},

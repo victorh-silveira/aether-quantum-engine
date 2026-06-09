@@ -124,7 +124,6 @@ def train_model_walkforward(
     open_: np.ndarray | None = None,
     high: np.ndarray | None = None,
     low: np.ndarray | None = None,
-    compact_mhi: bool = False,
 ) -> TrainResult | None:
     """Treina TCN com split purged, early stopping e calibrador Platt."""
     x_all, y_all, mask_all = extract_sequences(
@@ -139,7 +138,6 @@ def train_model_walkforward(
         open_=open_,
         high=high,
         low=low,
-        compact_mhi=compact_mhi,
     )
     if require_pair_label and len(mask_all) > 0 and float(mask_all.mean()) < 0.08:
         logger.debug(
@@ -157,13 +155,11 @@ def train_model_walkforward(
             open_=open_,
             high=high,
             low=low,
-            compact_mhi=compact_mhi,
         )
     splits = purged_temporal_splits(
         len(x_all),
         validation_bars,
         calib_ratio=calib_ratio,
-        compact_mhi=compact_mhi,
     )
     if splits is None:
         logger.debug(

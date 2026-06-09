@@ -128,6 +128,22 @@ async def test_interval_gate_calls_run_trading_cycle_when_due(orch_config):
 
 
 @pytest.mark.asyncio
+async def test_interval_gate_skips_when_post_settlement_pending(orch_config):
+    orch_config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 30
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
+        orch = Orchestrator(orch_config, "token")
+        orch.stream.is_synchronized = True
+        orch._last_cluster_cycle_end = 0.0
+        pending = MagicMock()
+        pending.done.return_value = False
+        orch._post_settlement_task = pending
+        orch._run_trading_cycle_if_ready = AsyncMock()
+        with patch("src.application.services.orchestrator.time.time", return_value=100.0):
+            await orch._tick_interval_cycle_if_due()
+        orch._run_trading_cycle_if_ready.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_interval_gate_runs_with_tag_change_schedule(orch_config):
     orch_config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 30
     orch_config.setdefault("llm", {})["refresh_schedule"] = "tag_change"
@@ -172,41 +188,19 @@ async def test_run_trading_cycle_inserts_blank_line_between_cycles(orch_config):
 
 
 @pytest.mark.asyncio
-async def test_run_trading_cycle_decrements_cluster_pause_cycles(orch_config):
+async def test_run_trading_cycle_lock_recheck_is_trading(orch_config):
     with (
         patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()),
         patch(
-            "src.application.services.orchestrator.collect_deep_learning_decisions",
+            "src.application.services.orchestrator.acquire_trading_cycle_lock",
             new_callable=AsyncMock,
-            return_value={},
+            return_value=False,
         ),
     ):
         orch = Orchestrator(orch_config, "token")
         orch.stream.is_synchronized = True
         orch.ws.is_running = True
         orch.executor.execute_cluster = AsyncMock()
-        orch._cluster_pause_cycles_remaining = 1
-        await orch._run_trading_cycle_if_ready()
-        assert orch._cluster_pause_cycles_remaining == 0
-        assert orch._cluster_pause_after_loss_active is False
-
-
-@pytest.mark.asyncio
-async def test_run_trading_cycle_consumes_invert_quarantine_flag(orch_config):
-    with (
-        patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()),
-        patch(
-            "src.application.services.orchestrator.collect_deep_learning_decisions",
-            new_callable=AsyncMock,
-            return_value={},
-        ) as mock_collect,
-    ):
-        orch = Orchestrator(orch_config, "token")
-        orch.stream.is_synchronized = True
-        orch.ws.is_running = True
-        orch.executor.execute_cluster = AsyncMock()
-        orch._invert_quarantine_cycles_remaining = 1
-        await orch._run_trading_cycle_if_ready()
-        mock_collect.assert_awaited_once()
-        assert orch._invert_quarantine_cycles_remaining == 0
-        assert orch._invert_quarantine_active is False
+        result = await orch._run_trading_cycle_if_ready()
+        assert result is False
+        orch.executor.execute_cluster.assert_not_awaited()

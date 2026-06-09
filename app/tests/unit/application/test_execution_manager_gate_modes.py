@@ -35,7 +35,6 @@ async def test_execute_cluster_mandatory_skips_exec_none_when_execute_false(orch
         orch.risk_manager.calculate_stake = MagicMock(return_value=2.0)
         orch.risk_manager.stake_block_reason = MagicMock(return_value=None)
         orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = True
-        orch.config["orchestrator"]["execution"]["invert_dl_direction"] = True
         decisions = {
             "R_50": {
                 "direction": TradeDirection.CALL,
@@ -51,7 +50,7 @@ async def test_execute_cluster_mandatory_skips_exec_none_when_execute_false(orch
         mock_exec.assert_awaited_once()
         orders = mock_exec.await_args[0][0]
         assert len(orders) == 1
-        assert orders[0][1] == TradeDirection.PUT
+        assert orders[0][1] == TradeDirection.CALL
         assert orders[0][2]["dl_direction"] == "CALL"
 
 
@@ -117,7 +116,6 @@ def test_collect_orders_non_mandatory_keeps_filtered_candidate(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = False
-        orch.config["orchestrator"]["execution"]["invert_dl_direction"] = False
         orch.symbols = ["R_50"]
         orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["include_anchor_trades"] = True
         decisions = {

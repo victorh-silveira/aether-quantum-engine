@@ -20,7 +20,7 @@ def recovery_candidate_pool(
     last_loss_direction: str | None,
     recovery_active: bool,
 ) -> list[tuple[str, TradeDirection, dict]]:
-    """Restringe candidatos em recovery: execute=true, par (peer) do ultimo loss e sem repetir loss."""
+    """Restringe candidatos em recovery priorizando hedge no par apos loss."""
     _ = last_loss_direction
     pool = list(candidates)
     if not recovery_active:

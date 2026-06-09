@@ -1,12 +1,10 @@
 from types import SimpleNamespace
 
-from src.application.services.deep_learning.dl_post_loss import register_post_loss_ban
 from src.application.services.execution_symbols import (
     _calib_gap_penalty,
     _trade_score,
     candidate_execution_score,
     filter_execution_candidates,
-    filter_post_loss_banned_candidates,
     format_execution_alternates,
     pending_recovery_active,
     select_best_execution_candidate,
@@ -139,25 +137,11 @@ def test_candidate_execution_score_recovery_weights_val_accuracy():
     assert recovery != normal
 
 
-def test_filter_post_loss_banned_candidates():
-    orch = SimpleNamespace(config={"deep_learning": {"post_loss_flip_raw_min": 0.62}})
-    register_post_loss_ban(orch, ANCHOR, TradeDirection.CALL, candle_cycles=2)
+def test_select_mandatory_falls_back_when_pool_empty():
+    orch = SimpleNamespace(config={})
     candidates = [
-        (ANCHOR, TradeDirection.CALL, {"raw_prob": 0.56}),
-        (PAIR, TradeDirection.PUT, {"raw_prob": 0.43}),
-    ]
-    kept = filter_post_loss_banned_candidates(orch, candidates, flip_raw_min=0.62)
-    assert len(kept) == 1
-    assert kept[0][0] == PAIR
-
-
-def test_select_mandatory_falls_back_when_all_banned():
-    orch = SimpleNamespace(config={"deep_learning": {"post_loss_flip_raw_min": 0.99}})
-    register_post_loss_ban(orch, ANCHOR, TradeDirection.CALL, candle_cycles=2)
-    register_post_loss_ban(orch, PAIR, TradeDirection.PUT, candle_cycles=2)
-    candidates = [
-        (ANCHOR, TradeDirection.CALL, {"trade_score": 0.71, "execute": True, "raw_prob": 0.56}),
-        (PAIR, TradeDirection.PUT, {"trade_score": 0.43, "execute": True, "raw_prob": 0.43}),
+        (ANCHOR, TradeDirection.CALL, {"trade_score": 0.71, "execute": False}),
+        (PAIR, TradeDirection.PUT, {"trade_score": 0.43, "execute": False}),
     ]
     best = select_mandatory_execution_candidate(
         orch,
@@ -165,17 +149,15 @@ def test_select_mandatory_falls_back_when_all_banned():
         last_loss_symbol=None,
         diversify_margin=0.08,
         recovery_active=False,
-        flip_raw_min=0.99,
     )
     assert best[0] == ANCHOR
 
 
-def test_select_mandatory_skips_post_loss_banned_symbol():
-    orch = SimpleNamespace(config={"deep_learning": {"post_loss_flip_raw_min": 0.62}})
-    register_post_loss_ban(orch, ANCHOR, TradeDirection.CALL, candle_cycles=2)
+def test_select_mandatory_recovery_prefers_hedge_peer():
+    orch = SimpleNamespace(config={})
     candidates = [
-        (ANCHOR, TradeDirection.CALL, {"trade_score": 0.71, "execute": False, "raw_prob": 0.56}),
-        (PAIR, TradeDirection.PUT, {"trade_score": 0.43, "execute": True, "raw_prob": 0.43}),
+        (ANCHOR, TradeDirection.CALL, {"trade_score": 0.71, "execute": False}),
+        (PAIR, TradeDirection.PUT, {"trade_score": 0.43, "execute": True}),
     ]
     best = select_mandatory_execution_candidate(
         orch,
@@ -184,6 +166,5 @@ def test_select_mandatory_skips_post_loss_banned_symbol():
         last_loss_direction="CALL",
         diversify_margin=0.08,
         recovery_active=True,
-        flip_raw_min=0.62,
     )
     assert best[0] == PAIR

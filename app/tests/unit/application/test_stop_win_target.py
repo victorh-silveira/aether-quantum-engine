@@ -28,16 +28,11 @@ def test_resolve_stop_win_pct_clamped():
     assert resolve_stop_win_target(rm, 200.0) == pytest.approx(200.0)
 
 
-def test_resolve_max_stake_pct_recovery():
+def test_resolve_max_stake_pct_high_conviction():
     cfg = {
-        "full_recovery_martingale": True,
-        "max_recovery_bankroll_pct": 0.50,
-        "max_recovery_stake_pct": 0.20,
+        "max_stake_pct": 0.02,
+        "max_stake_pct_high_conviction": 0.04,
+        "high_conviction_stake_threshold": 0.85,
     }
-    assert resolve_max_stake_pct(cfg, 0.50, is_recovery=True) == 0.50
-
-    cfg_no_full = {
-        "full_recovery_martingale": False,
-        "max_recovery_stake_pct": 0.25,
-    }
-    assert resolve_max_stake_pct(cfg_no_full, 0.50, is_recovery=True) == 0.25
+    assert resolve_max_stake_pct(cfg, 0.70) == 0.02
+    assert resolve_max_stake_pct(cfg, 0.90) == 0.04

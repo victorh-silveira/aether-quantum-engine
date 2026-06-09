@@ -14,6 +14,5 @@ build_feature_row = _dl_feature_build.build_feature_row
 build_sequence_tensor = _dl_feature_build.build_sequence_tensor
 calculate_rsi = _dl_feature_build.calculate_rsi
 precompute_price_series = _dl_feature_build.precompute_price_series
-_extract_single_mhi_window = _dl_sequence_extract._extract_single_mhi_window
 extract_features = _dl_sequence_extract.extract_features
 extract_sequences = _dl_sequence_extract.extract_sequences
