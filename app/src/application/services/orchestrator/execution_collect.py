@@ -261,7 +261,6 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
                 recovery_active=recovery_active,
                 last_loss_symbol=last_loss,
                 last_loss_direction=last_loss_dir,
-                min_signal=min_signal,
             )
         if ultimate is not None:
             best = ultimate

@@ -97,6 +97,14 @@ def test_mandatory_execution_eligible_rejects_deploy_not_ok():
     assert mandatory_execution_eligible(entry) is False
 
 
+def test_mandatory_execution_eligible_accepts_low_trade_score():
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {"deploy_ok": True, "val_accuracy": 0.40, "conviction": 0.40, "raw_prob": 0.6},
+    }
+    assert mandatory_execution_eligible(entry, min_signal=0.53) is True
+
+
 def test_recovery_execution_eligible_rejects_deploy_not_ok():
     entry = {
         "direction": TradeDirection.PUT,
@@ -225,7 +233,7 @@ def test_build_forced_recovery_candidate_without_dl_direction():
     assert sym == "R_75"
     assert side == TradeDirection.PUT
     assert metrics["recovery_forced"] is True
-    assert metrics["trade_score"] == 0.58
+    assert metrics["trade_score"] == 0.55
 
 
 def test_build_forced_recovery_candidate_uses_raw_side_floor():

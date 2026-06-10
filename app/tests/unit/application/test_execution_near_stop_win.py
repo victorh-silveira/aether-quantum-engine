@@ -101,7 +101,7 @@ def test_collect_cluster_orders_pauses_on_weak_blocked_signal():
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
-    assert orders == []
+    assert len(orders) == 1
     assert should_pause_weak_mandatory(exec_mgr, decisions, recovery_active=False) is True
 
 

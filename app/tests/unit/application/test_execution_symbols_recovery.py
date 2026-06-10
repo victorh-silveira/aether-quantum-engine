@@ -83,7 +83,7 @@ def test_recovery_hedge_target_after_high_side_put_loss():
     assert target == (HEDGE_PEER_SYMBOL, TradeDirection.CALL)
 
 
-def test_recovery_selects_same_direction_on_core_symbol():
+def test_recovery_prefers_opposite_direction_after_loss():
     candidates = [
         (PAIR, TradeDirection.PUT, {"trade_score": 0.70, "val_accuracy": 0.55, "execute": False}),
         (HEDGE_PEER_SYMBOL, TradeDirection.CALL, {"trade_score": 0.72, "val_accuracy": 0.58, "execute": True}),
@@ -96,8 +96,8 @@ def test_recovery_selects_same_direction_on_core_symbol():
         diversify_margin=0.08,
         recovery_active=True,
     )
-    assert best[0] == ANCHOR
-    assert best[1] == TradeDirection.PUT
+    assert best[0] == HEDGE_PEER_SYMBOL
+    assert best[1] == TradeDirection.CALL
 
 
 def test_select_mandatory_non_recovery_filters_execute_true():
@@ -167,7 +167,7 @@ def test_select_mandatory_empty_pool_fallback():
     assert best[0] == ANCHOR
 
 
-def test_select_mandatory_recovery_uses_same_direction_pool():
+def test_select_mandatory_recovery_prefers_opposite_direction():
     orch = SimpleNamespace(config={})
     candidates = [
         (HEDGE_PEER_SYMBOL, TradeDirection.PUT, {"trade_score": 0.55, "val_accuracy": 0.60, "execute": True}),
@@ -182,8 +182,8 @@ def test_select_mandatory_recovery_uses_same_direction_pool():
         diversify_margin=0.08,
         recovery_active=True,
     )
-    assert best[0] == ANCHOR
-    assert best[1] == TradeDirection.CALL
+    assert best[0] == HEDGE_PEER_SYMBOL
+    assert best[1] == TradeDirection.PUT
 
 
 def test_recovery_candidate_pool_keeps_opposite_direction_candidates():

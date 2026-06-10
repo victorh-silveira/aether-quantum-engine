@@ -1,6 +1,11 @@
 """Selecao obrigatoria de candidatos por ranking de mercado."""
 
-from src.application.services.execution_direction import build_forced_recovery_candidate
+from src.application.services.execution_direction import (
+    _entry_gate_blocked,
+    build_forced_direction_candidate,
+    build_forced_recovery_candidate,
+    recovery_hedge_target,
+)
 from src.application.services.execution_market_rank import (
     _trade_score,
     build_market_execution_candidate,
@@ -29,6 +34,32 @@ def _symbol_order(
     return core + tail
 
 
+def _recovery_hedge_pick(
+    decisions: dict,
+    *,
+    last_loss_symbol: str | None,
+    last_loss_direction: str | None,
+    skip_symbols: frozenset[str],
+) -> tuple[str, TradeDirection, dict] | None:
+    """Prioriza par Range com direcao estrutural oposta ao ultimo loss."""
+    target = recovery_hedge_target(last_loss_symbol, last_loss_direction)
+    if target is None:
+        return None
+    peer, hedge_dir = target
+    if peer in skip_symbols:
+        return None
+    entry = decisions.get(peer)
+    if not entry or _entry_gate_blocked(entry.get("metrics") or {}):
+        return None
+    built = build_forced_direction_candidate(peer, entry, hedge_dir)
+    if built is not None:
+        return built
+    direction = resolve_market_direction(entry)
+    if direction is None:
+        return None
+    return build_forced_recovery_candidate(peer, entry, hedge_dir)
+
+
 def _rank_eligible_candidates(
     order: list[str],
     decisions: dict,
@@ -37,8 +68,6 @@ def _rank_eligible_candidates(
     last_loss_symbol: str | None,
     last_loss_direction: str | None,
     min_signal: float,
-    min_val: float,
-    aligned_dir: TradeDirection | None,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Rankeia candidatos elegiveis e retorna o melhor por score de mercado."""
     best = None
@@ -49,16 +78,12 @@ def _rank_eligible_candidates(
             continue
         metrics = entry.get("metrics") or {}
         score = _trade_score(metrics)
-        val = float(metrics.get("val_accuracy", 0.0))
-        if score + 1e-9 < min_signal:
-            continue
-        if aligned_dir is not None:
-            direction = resolve_market_direction(entry)
-            if direction != aligned_dir:
-                continue
-            if val + 1e-9 < min_val:
-                continue
         candidate = build_market_execution_candidate(symbol, entry)
+        if candidate is None:
+            direction = resolve_market_direction(entry)
+            if direction is None:
+                continue
+            candidate = build_forced_recovery_candidate(symbol, entry, direction)
         rank = market_decision_score(
             candidate[2],
             exec_direction=candidate[1],
@@ -67,6 +92,8 @@ def _rank_eligible_candidates(
             last_loss_symbol=last_loss_symbol,
             last_loss_direction=last_loss_direction,
         )
+        if score + 1e-9 >= min_signal:
+            rank += 0.08
         if rank > best_score:
             best_score = rank
             best = candidate
@@ -85,28 +112,18 @@ def pick_best_mandatory_candidate(
     min_val: float = 0.0,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Escolhe melhor candidato obrigatorio por score de mercado."""
+    _ = min_val
     skip = skip_symbols or frozenset()
-    order = _symbol_order(trade_symbols, last_loss_symbol, skip_symbols=skip)
-    aligned_dir = None
-    if recovery_active and last_loss_direction:
-        name = str(last_loss_direction).upper()
-        if name == "CALL":
-            aligned_dir = TradeDirection.CALL
-        elif name == "PUT":
-            aligned_dir = TradeDirection.PUT
-    if aligned_dir is not None:
-        aligned = _rank_eligible_candidates(
-            order,
+    if recovery_active:
+        hedge = _recovery_hedge_pick(
             decisions,
-            recovery_active=recovery_active,
             last_loss_symbol=last_loss_symbol,
             last_loss_direction=last_loss_direction,
-            min_signal=min_signal,
-            min_val=min_val,
-            aligned_dir=aligned_dir,
+            skip_symbols=skip,
         )
-        if aligned is not None:
-            return aligned
+        if hedge is not None:
+            return hedge
+    order = _symbol_order(trade_symbols, last_loss_symbol, skip_symbols=skip)
     ranked = _rank_eligible_candidates(
         order,
         decisions,
@@ -114,8 +131,6 @@ def pick_best_mandatory_candidate(
         last_loss_symbol=last_loss_symbol,
         last_loss_direction=last_loss_direction,
         min_signal=min_signal,
-        min_val=0.0,
-        aligned_dir=None,
     )
     if ranked is not None:
         return ranked
@@ -125,7 +140,6 @@ def pick_best_mandatory_candidate(
         recovery_active=recovery_active,
         last_loss_symbol=last_loss_symbol,
         last_loss_direction=last_loss_direction,
-        min_signal=min_signal,
     )
 
 
@@ -136,7 +150,6 @@ def pick_absolute_mandatory_candidate(
     recovery_active: bool,
     last_loss_symbol: str | None,
     last_loss_direction: str | None,
-    min_signal: float = 0.0,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Garante ordem quando filtros de recovery esgotam o pool."""
     order = _symbol_order(trade_symbols, last_loss_symbol, skip_symbols=frozenset())
@@ -146,13 +159,15 @@ def pick_absolute_mandatory_candidate(
         entry = decisions.get(symbol)
         if not entry or not mandatory_pool_eligible(entry):
             continue
-        if _trade_score(entry.get("metrics") or {}) + 1e-9 < min_signal:
-            continue
-        direction = resolve_market_direction(entry)
-        metrics = dict(entry.get("metrics") or {})
+        candidate = build_market_execution_candidate(symbol, entry)
+        if candidate is None:
+            direction = resolve_market_direction(entry)
+            if direction is None:
+                continue
+            candidate = build_forced_recovery_candidate(symbol, entry, direction)
         rank = market_decision_score(
-            metrics,
-            exec_direction=direction,
+            candidate[2],
+            exec_direction=candidate[1],
             recovery_active=recovery_active,
             symbol=symbol,
             last_loss_symbol=last_loss_symbol,
@@ -160,5 +175,5 @@ def pick_absolute_mandatory_candidate(
         )
         if rank > best_score:
             best_score = rank
-            best = build_forced_recovery_candidate(symbol, entry, direction)
+            best = candidate
     return best

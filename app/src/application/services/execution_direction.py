@@ -55,15 +55,12 @@ def mandatory_execution_eligible(
     min_val_accuracy: float = 0.50,
 ) -> bool:
     """Indica se o modo obrigatorio pode operar apesar de execute=false no gating DL."""
-    _ = min_val_accuracy
+    _ = (min_signal, min_val_accuracy)
     metrics = entry.get("metrics") or {}
     gate = str(metrics.get("gate_reason") or "")
     if gate in _MANDATORY_POOL_HARD_BLOCKS:
         return False
     if metrics.get("deploy_ok") is False:
-        return False
-    score = float(metrics.get("trade_score", metrics.get("conviction", 0.0)))
-    if score + 1e-9 < min_signal:
         return False
     return infer_dl_direction(entry) is not None
 
@@ -154,13 +151,14 @@ def build_forced_recovery_candidate(
     metrics["dl_direction"] = dl_dir.name if dl_dir else forced_dir.name
     metrics["exec_direction"] = forced_dir.name
     metrics["recovery_forced"] = True
-    metrics["direction_inverted"] = False
+    metrics["direction_inverted"] = dl_dir is not None and dl_dir != forced_dir
     raw = metrics.get("raw_prob")
     raw_side = max(float(raw), 1.0 - float(raw)) if raw is not None else 0.0
     score = float(metrics.get("trade_score", metrics.get("conviction", 0.0)))
-    floor = max(score, raw_side, 0.58)
-    metrics["trade_score"] = floor
-    metrics["conviction"] = floor
+    floor = max(score, raw_side)
+    if floor + 1e-9 >= 0.01:
+        metrics["trade_score"] = floor
+        metrics["conviction"] = floor
     return symbol, forced_dir, metrics
 
 

@@ -4,6 +4,7 @@ from typing import Any
 
 import numpy as np
 
+from src.application.services.deep_learning.dl_candle_flow import augment_binary_context
 from src.application.services.deep_learning.dl_features import precompute_price_series
 from src.application.services.deep_learning.dl_pair_features import precompute_pair_series
 from src.domain.models.trade import TradeDirection
@@ -43,6 +44,7 @@ def build_binary_context(
         high=high,
         low=low,
     )
+    series["_prices_ref"] = prices
     idx = len(prices) - 1
     ctx: dict[str, float] = {
         "sma_z": float(series["sma_dist"][idx]),
@@ -66,7 +68,7 @@ def build_binary_context(
         pair_series = precompute_pair_series(bull, bear)
         ctx["z_spread"] = float(pair_series["z_spread"][idx])
         ctx["has_pair"] = 1.0
-    return ctx
+    return augment_binary_context(ctx, series, idx)
 
 
 def pair_spread_supports_direction(

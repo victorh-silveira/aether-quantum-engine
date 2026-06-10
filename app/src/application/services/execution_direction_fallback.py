@@ -8,6 +8,7 @@ from src.application.services.execution_direction import (
     infer_dl_direction,
 )
 from src.application.services.execution_mandatory_pick import pick_best_mandatory_candidate
+from src.application.services.execution_market_rank import build_market_execution_candidate, resolve_market_direction
 from src.domain.models.trade import TradeDirection
 
 
@@ -105,7 +106,9 @@ def _scored_fallback_pick(
         score, _raw_side = _entry_signal_strength(metrics)
         if score + 1e-9 < min_signal:
             continue
-        candidate = build_execution_candidate(symbol, entry)
+        candidate = build_market_execution_candidate(symbol, entry)
+        if candidate is None:
+            candidate = build_execution_candidate(symbol, entry)
         if candidate is None or score < best_score:
             continue
         best_score = score
@@ -133,8 +136,11 @@ def _last_resort_fallback_pick(
         if score + 1e-9 < min_signal:
             continue
         raw = metrics.get("raw_prob")
-        side = TradeDirection.CALL if raw is None or float(raw) > 0.5 else TradeDirection.PUT
-        return build_forced_recovery_candidate(symbol, entry, side)
+        direction = resolve_market_direction(entry)
+        if direction is None:
+            side = TradeDirection.CALL if raw is None or float(raw) > 0.5 else TradeDirection.PUT
+            direction = side
+        return build_forced_recovery_candidate(symbol, entry, direction)
     return None
 
 
@@ -162,25 +168,10 @@ def build_mandatory_fallback_candidate(
     )
     if ranked is not None:
         return ranked
-    forced_dir = _loss_direction(last_loss_direction) if recovery_active else None
-    order = _symbol_priority(
-        trade_symbols,
-        last_loss_symbol,
-        skip_symbols=skip_symbols,
-        recovery_core_only=False,
-    )
-    if forced_dir is not None:
-        aligned = _forced_recovery_pick(
-            order,
-            decisions,
-            forced_dir,
-            skip_symbols=skip_symbols,
-            min_signal=min_signal,
-            min_val=min_val,
-        )
-        if aligned is not None:
-            return aligned
     scored = _scored_fallback_pick(trade_symbols, decisions, skip_symbols=skip_symbols, min_signal=min_signal)
     if scored is not None:
         return scored
-    return _last_resort_fallback_pick(trade_symbols, decisions, skip_symbols=skip_symbols, min_signal=min_signal)
+    last = _last_resort_fallback_pick(trade_symbols, decisions, skip_symbols=skip_symbols, min_signal=min_signal)
+    if last is not None:
+        return last
+    return _last_resort_fallback_pick(trade_symbols, decisions, skip_symbols=skip_symbols, min_signal=0.0)
