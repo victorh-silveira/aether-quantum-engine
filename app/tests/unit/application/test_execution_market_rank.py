@@ -102,6 +102,14 @@ def test_mandatory_pool_eligible_rejects_training_cooldown_and_pause():
         assert mandatory_pool_eligible(entry) is False
 
 
+def test_mandatory_pool_eligible_rejects_deploy_not_ok():
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {"deploy_ok": False, "raw_prob": 0.62, "trade_score": 0.70},
+    }
+    assert mandatory_pool_eligible(entry) is False
+
+
 def test_pick_absolute_mandatory_skips_training_symbols():
     decisions = {
         "R_50": {
@@ -174,6 +182,26 @@ def test_pick_best_mandatory_recovery_aligned_then_market_rank():
     )
     assert aligned is not None
     assert aligned[1] == TradeDirection.CALL
+
+
+def test_pick_best_mandatory_aligned_skips_low_val_accuracy():
+    decisions = {
+        "R_50": {
+            "direction": TradeDirection.CALL,
+            "metrics": {"trade_score": 0.62, "val_accuracy": 0.40, "raw_prob": 0.58},
+        },
+    }
+    picked = pick_best_mandatory_candidate(
+        ["R_50"],
+        decisions,
+        recovery_active=True,
+        last_loss_symbol="R_10",
+        last_loss_direction="CALL",
+        min_signal=0.45,
+        min_val=0.50,
+    )
+    assert picked is not None
+    assert picked[0] == "R_50"
 
 
 def test_pick_absolute_mandatory_always_returns_when_direction_inferable():

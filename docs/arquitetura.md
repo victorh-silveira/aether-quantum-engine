@@ -16,7 +16,7 @@ Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (clas
 | Ciclo do orquestrador | 60 s (`cycle_interval_seconds`) |
 | Decisão | `collect_deep_learning_decisions` |
 | Fases | `FASE TREINO` (operação suspensa) → `FASE OPERACAO` (um trade por ciclo) |
-| Execução | Obrigatória por ranking de mercado (`mandatory_trade_each_cycle: true`) |
+| Execução | Obrigatória por ranking de mercado com piso `mandatory_min_trade_score` (`mandatory_trade_each_cycle: true`) |
 
 O mercado é tratado como **série temporal ruidosa**: o modelo estima probabilidade da próxima vela subir; camadas de **gating** e **risco** decidem se e quanto operar.
 
@@ -74,6 +74,8 @@ Por barra, **13 features** (`FEATURE_DIM`): retornos, volatilidade, RSI, EMA spr
 
 **Meta-labels:** amostras de treino só entram se o movimento da próxima vela superar `label_min_move_pct` e, quando aplicável, o spread do par confirmar a direção (`extract_sequences`).
 
+**Extração otimizada:** `precompute_price_series` + `build_feature_matrix` montam a matriz de features uma única vez; cada janela de lookback é um fatiamento dessa matriz (evita recomputar indicadores por amostra).
+
 ### 3.2 Modelo
 
 - Arquitetura: **TCN** dilatada (`dl_tcn.py` / `TemporalDirectionClassifier`).
@@ -86,17 +88,19 @@ Por barra, **13 features** (`FEATURE_DIM`): retornos, volatilidade, RSI, EMA spr
 
 - Splits temporais com embargo (`dl_splits.py`): treino / validação / calibração.
 - Early stopping em score composto (val accuracy + anti-Brier).
+- Callback de progresso por época (`progress_cb`) registrado em `run_symbol_training` como `DL TREINO | epoca X/Y`.
 - Checkpoint em `data/dl/{symbol}.pth`.
 
 **Retreino** (`dl_retrain.py`):
 
+- **Bootstrap de sessão** — todo símbolo retreina ao menos uma vez por sessão (`session_trained`), mesmo com checkpoint carregado do disco
 - Nova vela (`train_on_new_candle_only`)
 - Rolling (`rolling_retrain_bars`)
 - Forçado após loss (`mark_force_retrain`)
 
-**Treino deferido** (`dl_deferred_train.py`): o treino roda em background (thread) com **slot único** serializado por semáforo, sem bloquear o ciclo de execução. Enquanto existir símbolo sem primeiro treino válido (`runtime_in_training`, piso `brier_untrained_floor`), o slot é exclusivo desses símbolos (`training_priority_symbols`) — modelos prontos adiam o retreino por vela até todos estarem treinados.
+**Treino deferido** (`dl_deferred_train.py`): o treino roda em background (thread) com **slot único** serializado por semáforo, sem bloquear o ciclo de execução. Enquanto existir símbolo sem treino da sessão (`runtime_in_training` via `session_trained`), o slot é exclusivo desses símbolos (`training_priority_symbols`) — modelos prontos adiam o retreino por vela até todos estarem treinados.
 
-**Deploy gate** (`dl_deploy_eval.py`): mini simulação nas últimas barras; `deploy_ok` bloqueia execução se reprovar.
+**Deploy gate** (`dl_deploy_eval.py`): mini simulação nas últimas barras; `deploy_ok=false` bloqueia execução e **também** impede entrada no pool obrigatório e recovery forçado.
 
 **Gate de treinamento** (`_apply_training_gate`): símbolo sem primeiro treino válido recebe `gate_reason: training` e nunca opera, nem no modo obrigatório.
 
@@ -125,26 +129,26 @@ Saída por símbolo: `{ direction, metrics }` consumida pelo orquestrador.
 
 `ExecutionManager._training_phase_gate` separa o motor em duas fases:
 
-- **FASE TREINO** — enquanto `collect_deep_learning_decisions` reportar símbolos sem primeiro treino válido (`orch._dl_training_symbols`), nenhuma ordem é enviada. Log deduplicado: `FASE TREINO || <símbolos> | aguardando primeiro treino | operacao suspensa`.
-- **FASE OPERACAO** — quando o último modelo conclui o treino, a transição é registrada uma única vez (`FASE OPERACAO || todos os modelos treinados | operacao liberada`) e o fluxo obrigatório assume.
+- **FASE TREINO** — enquanto `collect_deep_learning_decisions` reportar símbolos sem treino da sessão (`orch._dl_training_symbols`, flag `session_trained`), nenhuma ordem é enviada. Log deduplicado: `FASE TREINO || <símbolos> | aguardando primeiro treino | operacao suspensa`.
+- **FASE OPERACAO** — quando o último modelo conclui o treino da sessão, a transição é registrada uma única vez (`FASE OPERACAO || todos os modelos treinados | operacao liberada`) e o fluxo obrigatório assume.
 
-Se um modelo regredir a estado não treinado (retreino inválido), o motor volta automaticamente para a fase de treino.
+Se um modelo regredir a estado não treinado (retreino inválido ou `brier_untrained_floor`), o motor volta automaticamente para a fase de treino.
 
 ### 4.1 Seleção e direção
 
 - `execution_symbols.py` — filtra candidatos, escolhe melhor score; em recovery restringe ao par de hedge.
 - `execution_symbols_recovery.py` — injeta candidato de hedge forçado após loss.
-- `execution_direction.py` — `infer_dl_direction`, `recovery_hedge_target`, candidatos de ordem e bloqueios duros (`training`, `cooldown`, `session_pause`, `data`, `predict_error`).
-- `execution_market_rank.py` — `resolve_market_direction` (DL + raw_prob + contexto binário da última vela; reversão à média em extremos `sma_z` quando o sinal bruto é fraco) e `market_decision_score` (score composto com bônus de alinhamento, deploy e diversificação em recovery).
-- `execution_mandatory_pick.py` / `execution_direction_fallback.py` — ranking obrigatório: primeiro candidatos alinhados à direção do último loss com pisos de qualidade, depois melhor score de mercado, por fim fallback de último recurso (sempre respeitando os bloqueios duros).
-- `mandatory_trade_each_cycle: true` — garante uma ordem por ciclo na fase de operação, com stake cap para sinais fracos.
+- `execution_direction.py` — `infer_dl_direction`, `recovery_hedge_target`, candidatos de ordem e bloqueios duros (`training`, `cooldown`, `session_pause`, `data`, `predict_error`, **`deploy_ok=false`**).
+- `execution_market_rank.py` — `resolve_market_direction` (DL + raw_prob + contexto binário da última vela; reversão à média em extremos `sma_z` quando o sinal bruto é fraco) e `market_decision_score` (score composto com bônus de alinhamento, deploy e diversificação em recovery). `mandatory_pool_eligible` rejeita `deploy_ok=false`.
+- `execution_mandatory_pick.py` / `execution_direction_fallback.py` — ranking obrigatório com piso `mandatory_min_trade_score` em **todos** os caminhos (pool, ranking, fallback e último recurso). Sem tentativa com piso zero: ciclo é pulado se ninguém qualificar.
+- `mandatory_trade_each_cycle: true` — tenta uma ordem por ciclo na fase de operação; stake cap para sinais fracos abaixo do piso de convicção forte.
 
 ### 4.2 ExecutionManager
 
 - Monta ordens com stake de `RiskManager.calculate_stake` (passa `dl_metrics` para alinhar preview e execução).
 - `execution_blockers.py` — logs `EXEC_NONE` (com métricas `s`/`r`/`v`/`b`) e `DL_TREINO` por ciclo.
 - `log_dedupe.py` — mensagens repetidas (`EXEC_NONE`, `RISK: RECOVERY`, `FASE TREINO`, brief DL) só retornam ao `INFO` quando o conteúdo muda.
-- Ciclos que executaram ordem são separados por linha em branco no log.
+- Cada ciclo é separado por linha em branco no log; cada bloco de treino de par também (`DL TREINO` com linhas antes/depois). `BlankLineSquasher` no logger colapsa brancos consecutivos.
 - Settlement assíncrono; reentrada via `post_settlement_cycle` após liquidação.
 
 ### 4.3 Contratos
@@ -195,7 +199,7 @@ Banner de startup: `decision_mode_banner.emit_decision_engine_banner`.
 | `data_handler` | `granularity`, `history_bars`, `fetch_count`, `buffer_limit` |
 | `deep_learning` | `lookback`, `training_history_bars`, `validation_bars`, `deploy_gate`, gating, `selection`, `recovery_gating` |
 | `orchestrator` | `cycle_interval_seconds`, `execution.*`, `post_settlement_*` |
-| `risk_management` | `kelly`, `params`, stop win |
+| `risk_management` | `kelly` (incl. `mandatory_min_trade_score`), `params`, stop win |
 | `symbols` / `anchor` | Universo Range Break |
 | `trading` | `mode` (`demo` / `live`) |
 

@@ -201,7 +201,6 @@ class ExecutionManager:
                     orders = []
             executed_count = await self._execute_orders(orders, inter_delay, bankroll_snapshot)
             if executed_count > 0:
-                self.orch._last_cycle_traded = True
                 self.orch.risk_manager.begin_cluster(executed_count)
                 self._flush_result_buffer()
                 self.orch._buffer_result_logs = False

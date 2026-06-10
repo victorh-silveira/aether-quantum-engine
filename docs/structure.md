@@ -36,12 +36,12 @@ aether-quantum-engine/
 
 | Pasta | Responsabilidade |
 |-------|------------------|
-| `application/services/deep_learning` | Features, TCN, treino walk-forward deferido (prioridade bootstrap), calibração, predição, deploy gate, gate de treinamento |
+| `application/services/deep_learning` | Features (matriz pré-computada), TCN, treino walk-forward deferido (prioridade bootstrap por sessão), calibração, predição, deploy gate, gate de treinamento, progresso por época |
 | `application/services/orchestrator` | `Orchestrator`, `ExecutionManager` (fases treino/operação), `execution_collect`, `execution_blockers`, settlement, `post_settlement_cycle` |
 | `application/services` | `execution_direction`, `execution_direction_fallback`, `execution_market_rank`, `execution_mandatory_pick`, `execution_symbols`, `execution_symbols_recovery`, `log_dedupe`, `auth_manager` |
 | `domain` | `Candle`, `Trade`, `RiskManager`, Kelly, martingale, cooldowns, `stake_sizing` |
 | `infrastructure` | `WebSocketManager`, `StreamHandler`, `TradeHandler`, `PersistenceManager` |
-| `presentation/terminal` | `setup_logger`, formatação de logs |
+| `presentation/terminal` | `setup_logger`, `BlankLineSquasher`, formatação de logs |
 
 Não há pacote `application/services/llm` no motor ao vivo atual; decisão é exclusivamente Deep Learning quando `deep_learning.enabled` é verdadeiro.
 

@@ -14,6 +14,23 @@ class _FlushStreamHandler(logging.StreamHandler):
         self.flush()
 
 
+class BlankLineSquasher(logging.Filter):
+    """Filtro que descarta linhas em branco consecutivas ou no inicio da sessao."""
+
+    def __init__(self) -> None:
+        """Inicializa o filtro considerando o inicio da sessao como linha em branco."""
+        super().__init__()
+        self._last_blank = True
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Permite linha em branco apenas apos uma linha com conteudo."""
+        blank = not str(record.getMessage() or "").strip()
+        if blank and self._last_blank:
+            return False
+        self._last_blank = blank
+        return True
+
+
 class AetherFormatter(logging.Formatter):
     """Formatador personalizado para impor níveis de 4 letras."""
 
@@ -46,6 +63,7 @@ def setup_logger(name: str, log_file: str = None):
     """
     logger = logging.getLogger(name)
     logger.setLevel(logging.INFO)
+    logger.addFilter(BlankLineSquasher())
 
     formatter = AetherFormatter("%(asctime)s | %(levelname)s | %(message)s", datefmt="%H:%M:%S")
 

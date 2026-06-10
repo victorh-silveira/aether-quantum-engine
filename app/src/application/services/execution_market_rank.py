@@ -29,6 +29,8 @@ def mandatory_pool_eligible(entry: dict) -> bool:
     gate = str(metrics.get("gate_reason") or "")
     if gate in _ABSOLUTE_HARD_BLOCKS:
         return False
+    if metrics.get("deploy_ok") is False:
+        return False
     return resolve_market_direction(entry) is not None
 
 

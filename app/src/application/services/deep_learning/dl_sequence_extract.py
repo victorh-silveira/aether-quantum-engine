@@ -4,9 +4,13 @@ import numpy as np
 
 from src.application.services.deep_learning.dl_feature_build import (
     FEATURE_DIM,
-    build_sequence_tensor,
+    build_feature_matrix,
+    precompute_price_series,
 )
-from src.application.services.deep_learning.dl_pair_features import spread_confirms_direction
+from src.application.services.deep_learning.dl_pair_features import (
+    precompute_pair_series,
+    spread_confirms_direction,
+)
 
 
 def extract_sequences(
@@ -30,6 +34,17 @@ def extract_sequences(
     if n < lookback + min_tail:
         return np.empty((0, lookback, FEATURE_DIM)), np.empty((0,)), np.empty((0,))
     threshold = max(0.0, float(label_min_move_pct))
+    series = precompute_price_series(
+        prices,
+        granularity=granularity,
+        open_=open_,
+        high=high,
+        low=low,
+    )
+    pair_series = (
+        precompute_pair_series(prices, pair_prices) if pair_prices is not None and len(pair_prices) > 0 else None
+    )
+    feature_matrix = build_feature_matrix(series, pair_series=pair_series)
     sequences = []
     targets = []
     masks = []
@@ -49,18 +64,7 @@ def extract_sequences(
                 horizon_bars=horizon,
             )
         active = move >= threshold and pair_ok
-        sequences.append(
-            build_sequence_tensor(
-                prices,
-                lookback,
-                i,
-                granularity=granularity,
-                pair_prices=pair_prices,
-                open_=open_,
-                high=high,
-                low=low,
-            )
-        )
+        sequences.append(feature_matrix[i - lookback + 1 : i + 1])
         targets.append(1.0 if target_up else 0.0)
         masks.append(1.0 if active else 0.0)
     return (

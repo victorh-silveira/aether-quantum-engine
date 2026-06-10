@@ -50,9 +50,10 @@ Sem o gerenciamento adequado de banca, qualquer vantagem estatística (edge) se 
 
 ### 2.4 Fases de Treinamento e Operação
 O motor nunca opera com modelo cru:
-- **FASE TREINO**: ao iniciar a sessão, nenhuma ordem é enviada até que todos os símbolos concluam o primeiro treino walk-forward válido. O slot de treino em background é dedicado aos modelos pendentes.
-- **FASE OPERACAO**: com todos os modelos prontos, o motor executa um trade por ciclo, escolhido por ranking de mercado que combina score calibrado, convicção bruta, acurácia de validação, Brier e alinhamento com o contexto binário da última vela.
+- **FASE TREINO**: ao iniciar a sessão, todos os símbolos retreinam pelo menos uma vez (`session_trained`), mesmo com checkpoint em disco. Nenhuma ordem é enviada até concluir. O slot de treino em background é dedicado aos modelos pendentes, com logs `DL TREINO` por época e blocos separados por linha em branco.
+- **FASE OPERACAO**: com todos os modelos prontos, o motor tenta um trade por ciclo, escolhido por ranking de mercado que combina score calibrado, convicção bruta, acurácia de validação, Brier, deploy e alinhamento com o contexto binário da última vela. Ciclos sem candidato acima de `mandatory_min_trade_score` (0.53) são pulados.
 - **Direção refinada**: quando a convicção bruta do modelo é fraca, extremos estatísticos da vela (`sma_z`) aplicam reversão à média na direção final, explorando a propriedade 2.2 acima.
+- **Deploy gate**: modelos com `deploy_ok=false` não entram no pool obrigatório nem em recovery forçado.
 
 ### 2.5 Filtro de Exaustão por RSI Extremo (Filtro do Trader Sênior)
 Sob as condições de volatilidade ininterrupta dos índices sintéticos da Deriv, tendências prolongadas esticam o RSI a patamares de exaustão estatística. Para mitigar o risco de comprar no topo ou vender no fundo antes de reversões súbitas:

@@ -44,6 +44,7 @@ async def test_collect_blocks_execute_when_deploy_not_ok():
             "deploy_ok": False,
             "deploy_win_rate": 0.0,
             "last_candle_epoch": 0,
+            "session_trained": True,
         }
         decisions = await collect_deep_learning_decisions(orch)
     assert decisions["R_50"]["metrics"]["execute"] is False
@@ -70,6 +71,7 @@ async def test_collect_gives_training_slot_priority_to_untrained_symbols():
             "deploy_ok": True,
             "deploy_win_rate": 0.6,
             "last_candle_epoch": 900,
+            "session_trained": True,
         },
         "R_75": {
             "model": MagicMock(),
@@ -124,6 +126,7 @@ async def test_collect_enqueues_all_symbols_when_none_in_training():
         "deploy_ok": True,
         "deploy_win_rate": 0.6,
         "last_candle_epoch": 900,
+        "session_trained": True,
     }
     with (
         patch(
@@ -149,10 +152,16 @@ async def test_collect_enqueues_all_symbols_when_none_in_training():
 
 def test_runtime_in_training_uses_brier_floor():
     params = {"brier_untrained_floor": 0.99}
-    assert runtime_in_training({"val_brier": 1.0}, params) is True
-    assert runtime_in_training({"val_brier": 0.99}, params) is True
-    assert runtime_in_training({"val_brier": 0.25}, params) is False
-    assert runtime_in_training({}, params) is False
+    assert runtime_in_training({"val_brier": 1.0, "session_trained": True}, params) is True
+    assert runtime_in_training({"val_brier": 0.99, "session_trained": True}, params) is True
+    assert runtime_in_training({"val_brier": 0.25, "session_trained": True}, params) is False
+    assert runtime_in_training({"session_trained": True}, params) is False
+
+
+def test_runtime_in_training_requires_session_training():
+    params = {"brier_untrained_floor": 0.99}
+    assert runtime_in_training({"val_brier": 0.25}, params) is True
+    assert runtime_in_training({"val_brier": 0.25, "session_trained": False}, params) is True
 
 
 @pytest.mark.asyncio

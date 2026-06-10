@@ -13,8 +13,8 @@ Para arquitetura de código, ver [`arquitetura.md`](arquitetura.md).
 | Sinais, não histórias | Direção CALL/PUT a partir de features de preço e par; gating numérico |
 | Horizonte curto | Velas de 1 minuto (`granularity: 60`); contrato 1m; ciclo de 60 s |
 | Regime e ruído | Meta-labels filtram movimentos irrelevantes; Brier e ECE no treino |
-| Modelo pronto antes de operar | `FASE TREINO` suspende ordens até todos os modelos terem o primeiro treino válido |
-| Operação constante e de qualidade | Um trade por ciclo via ranking de mercado; bloqueios duros nunca são forçados |
+| Modelo pronto antes de operar | `FASE TREINO` suspende ordens até todos os modelos concluírem o treino da sessão (`session_trained`) |
+| Operação inteligente e seletiva | Até um trade por ciclo via ranking de mercado; ciclo pulado se nenhum candidato atinge `mandatory_min_trade_score` (0.53) |
 | Feedback real | Win rate live misturado em `val_accuracy`; retreino após loss |
 
 ---
@@ -50,15 +50,15 @@ Configuração: `data_handler.history_bars`, `deep_learning.training_history_bar
 
 Ordem lógica de uma entrada:
 
-1. **Fase** — todos os modelos com primeiro treino válido (`FASE TREINO` suspende a operação inteira).
+1. **Fase** — todos os modelos com treino da sessão concluído (`FASE TREINO` suspende a operação inteira).
 2. **Dados** — histórico suficiente (`gate_reason=data`).
-3. **Treinamento** — modelo do símbolo treinado (`gate_reason=training` nunca é forçado).
+3. **Treinamento** — modelo do símbolo treinado na sessão (`gate_reason=training` nunca é forçado).
 4. **Modelo** — direção com margem (`direction_margin`).
-5. **Deploy** — mini walk-forward pós-treino (`deploy`).
+5. **Deploy** — mini walk-forward pós-treino (`deploy_ok=false` bloqueia execução e pool obrigatório).
 6. **Gating** — convicção, edge, val_acc, Brier, gap calibrado, saturação.
 7. **Regime** — alinhamento de momentum/RSI quando `require_regime_alignment` está ativo.
 8. **Cooldown** — pausa por símbolo após losses (`symbol_loss_cooldown`, `session_pause_cycles`); símbolo em cooldown não entra nem no modo obrigatório.
-9. **Seleção** — ranking de mercado entre símbolos elegíveis (`market_decision_score`); em recovery, direção alinhada e diversificação de símbolo.
+9. **Seleção** — ranking de mercado entre símbolos elegíveis (`market_decision_score`) com piso `mandatory_min_trade_score`; em recovery, direção alinhada e diversificação de símbolo.
 10. **Risco** — Kelly ou martingale; stop win; stake mínima/máxima.
 
 Perfil em `config/settings.json`:
@@ -66,6 +66,7 @@ Perfil em `config/settings.json`:
 - `min_conviction_execute`, `min_edge_margin`, `min_val_accuracy`
 - `max_val_brier_execute`, `max_calib_gap_execute`
 - `recovery_gating` (modo recovery)
+- `mandatory_min_trade_score` (piso de trade_score na execução obrigatória, padrão 0.53)
 - `session_max_losses_in_window`, `session_pause_cycles`
 - `deploy_gate`: `min_win_rate`, `max_brier`, `mini_bars`
 
@@ -90,7 +91,8 @@ Após perda no cluster, `pending_loss` acumula valor a recuperar.
 
 | Flag | Efeito |
 |------|--------|
-| `mandatory_trade_each_cycle` | Envia uma ordem por ciclo na fase de operação, escolhida por ranking de mercado (stake cap para sinais fracos) |
+| `mandatory_trade_each_cycle` | Tenta uma ordem por ciclo na fase de operação, escolhida por ranking de mercado; pula o ciclo se nenhum candidato atinge `mandatory_min_trade_score` |
+| `mandatory_min_trade_score` | Piso mínimo de `trade_score` em todos os caminhos obrigatórios (pool, ranking, fallback) |
 | `include_anchor_trades` | Inclui âncora nas ordens do cluster |
 | `diversify_after_loss_margin` | Prefere símbolo alternativo quando scores são próximos |
 

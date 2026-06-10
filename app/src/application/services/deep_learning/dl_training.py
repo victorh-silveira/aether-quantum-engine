@@ -63,6 +63,7 @@ def _fit_epochs(
     label_smoothing: float,
     focal_gamma: float,
     early_stopping_patience: int,
+    progress_cb=None,
 ) -> tuple[float, None | dict]:
     """Executa epocas de treino com early stopping em val loss composto."""
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=max(0.0, weight_decay))
@@ -71,7 +72,8 @@ def _fit_epochs(
     best_state = None
     best_score = -1.0
     patience_left = max(1, int(early_stopping_patience))
-    for _ in range(max(1, epochs)):
+    total_epochs = max(1, epochs)
+    for epoch_idx in range(total_epochs):
         optimizer.zero_grad()
         loss = _masked_loss(
             model,
@@ -87,6 +89,8 @@ def _fit_epochs(
         optimizer.step()
         total_loss += float(loss.item())
         val_acc = model_accuracy(model, x_val, y_val, mask_val)
+        if progress_cb is not None:
+            progress_cb(epoch_idx + 1, total_epochs, float(loss.item()), float(val_acc))
         val_probs = model(torch.tensor(x_val)).squeeze(-1).detach().numpy()
         val_brier = float(np.mean((val_probs - y_val) ** 2)) if len(y_val) else 1.0
         score = 0.6 * val_acc + 0.4 * (1.0 - val_brier)
@@ -124,6 +128,7 @@ def train_model_walkforward(
     open_: np.ndarray | None = None,
     high: np.ndarray | None = None,
     low: np.ndarray | None = None,
+    progress_cb=None,
 ) -> TrainResult | None:
     """Treina TCN com split purged, early stopping e calibrador Platt."""
     x_all, y_all, mask_all = extract_sequences(
@@ -192,6 +197,7 @@ def train_model_walkforward(
         label_smoothing=label_smoothing,
         focal_gamma=focal_gamma,
         early_stopping_patience=early_stopping_patience,
+        progress_cb=progress_cb,
     )
     if best_state is not None:
         model.load_state_dict(best_state)

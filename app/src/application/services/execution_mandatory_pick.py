@@ -2,7 +2,6 @@
 
 from src.application.services.execution_direction import build_forced_recovery_candidate
 from src.application.services.execution_market_rank import (
-    _raw_side,
     _trade_score,
     build_market_execution_candidate,
     mandatory_pool_eligible,
@@ -50,13 +49,12 @@ def _rank_eligible_candidates(
             continue
         metrics = entry.get("metrics") or {}
         score = _trade_score(metrics)
-        raw_side = _raw_side(metrics)
         val = float(metrics.get("val_accuracy", 0.0))
+        if score + 1e-9 < min_signal:
+            continue
         if aligned_dir is not None:
             direction = resolve_market_direction(entry)
             if direction != aligned_dir:
-                continue
-            if score + 1e-9 < min_signal and raw_side + 1e-9 < min_signal:
                 continue
             if val + 1e-9 < min_val:
                 continue
@@ -115,7 +113,7 @@ def pick_best_mandatory_candidate(
         recovery_active=recovery_active,
         last_loss_symbol=last_loss_symbol,
         last_loss_direction=last_loss_direction,
-        min_signal=0.0,
+        min_signal=min_signal,
         min_val=0.0,
         aligned_dir=None,
     )
@@ -127,6 +125,7 @@ def pick_best_mandatory_candidate(
         recovery_active=recovery_active,
         last_loss_symbol=last_loss_symbol,
         last_loss_direction=last_loss_direction,
+        min_signal=min_signal,
     )
 
 
@@ -137,6 +136,7 @@ def pick_absolute_mandatory_candidate(
     recovery_active: bool,
     last_loss_symbol: str | None,
     last_loss_direction: str | None,
+    min_signal: float = 0.0,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Garante ordem quando filtros de recovery esgotam o pool."""
     order = _symbol_order(trade_symbols, last_loss_symbol, skip_symbols=frozenset())
@@ -145,6 +145,8 @@ def pick_absolute_mandatory_candidate(
     for symbol in order:
         entry = decisions.get(symbol)
         if not entry or not mandatory_pool_eligible(entry):
+            continue
+        if _trade_score(entry.get("metrics") or {}) + 1e-9 < min_signal:
             continue
         direction = resolve_market_direction(entry)
         metrics = dict(entry.get("metrics") or {})

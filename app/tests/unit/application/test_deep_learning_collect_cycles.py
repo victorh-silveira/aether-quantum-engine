@@ -158,6 +158,7 @@ async def test_collect_applies_symbol_loss_cooldown():
             "lookback": 15,
             "deploy_ok": True,
             "deploy_win_rate": 0.6,
+            "session_trained": True,
         }
     }
     with (

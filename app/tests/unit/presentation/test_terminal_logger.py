@@ -38,3 +38,22 @@ def test_setup_logger_keeps_real_blank_line_for_empty_message():
     out = buf.getvalue()
     assert "antes" in out and "depois" in out
     assert "\n\n" in out
+
+
+def test_setup_logger_squashes_consecutive_and_leading_blank_lines():
+    buf = io.StringIO()
+    name = f"AETH_utest_{uuid.uuid4().hex}"
+    with patch("src.presentation.terminal.logger.sys.stdout", buf):
+        log = setup_logger(name, log_file=None)
+        log.info("")
+        log.info("primeira")
+        log.info("")
+        log.info("")
+        log.info("")
+        log.info("segunda")
+    out = buf.getvalue()
+    lines = out.splitlines()
+    assert lines[0].endswith("primeira")
+    assert lines[1] == ""
+    assert lines[2].endswith("segunda")
+    assert len(lines) == 3

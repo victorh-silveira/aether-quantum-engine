@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 from src.application.services.execution_direction import (
+    _entry_gate_blocked,
     build_execution_candidate,
     build_forced_direction_candidate,
     build_forced_recovery_candidate,
@@ -42,7 +43,7 @@ def test_mandatory_execution_eligible_rejects_hard_blocks():
             "val_accuracy": 0.55,
         },
     }
-    assert mandatory_execution_eligible(deploy_entry) is True
+    assert mandatory_execution_eligible(deploy_entry) is False
 
 
 def test_mandatory_execution_eligible_rejects_training_cooldown_and_pause():
@@ -83,9 +84,30 @@ def test_mandatory_execution_eligible_rejects_missing_direction():
 def test_mandatory_execution_eligible_accepts_low_val_accuracy():
     entry = {
         "direction": TradeDirection.CALL,
-        "metrics": {"deploy_ok": False, "val_accuracy": 0.40, "conviction": 0.60, "raw_prob": 0.6},
+        "metrics": {"deploy_ok": True, "val_accuracy": 0.40, "conviction": 0.60, "raw_prob": 0.6},
     }
     assert mandatory_execution_eligible(entry) is True
+
+
+def test_mandatory_execution_eligible_rejects_deploy_not_ok():
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {"deploy_ok": False, "val_accuracy": 0.55, "conviction": 0.60, "raw_prob": 0.6},
+    }
+    assert mandatory_execution_eligible(entry) is False
+
+
+def test_recovery_execution_eligible_rejects_deploy_not_ok():
+    entry = {
+        "direction": TradeDirection.PUT,
+        "metrics": {"execute": False, "deploy_ok": False, "trade_score": 0.70, "val_accuracy": 0.60},
+    }
+    assert recovery_execution_eligible(entry) is False
+
+
+def test_entry_gate_blocked_rejects_deploy_not_ok():
+    assert _entry_gate_blocked({"deploy_ok": False, "gate_reason": ""}) is True
+    assert _entry_gate_blocked({"deploy_ok": True, "gate_reason": ""}) is False
 
 
 def test_recovery_execution_eligible_rejects_hard_block():

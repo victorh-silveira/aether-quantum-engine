@@ -182,13 +182,12 @@ async def test_run_trading_cycle_inserts_blank_line_between_cycles(orch_config):
         orch.executor.execute_cluster = AsyncMock()
         await orch._run_trading_cycle_if_ready()
         assert not any(c.args == ("",) for c in orch.logger.info.call_args_list)
-        orch._last_cycle_traded = True
         await orch._run_trading_cycle_if_ready()
         blank_calls = [c for c in orch.logger.info.call_args_list if c.args == ("",)]
         assert len(blank_calls) == 1
         await orch._run_trading_cycle_if_ready()
         blank_calls = [c for c in orch.logger.info.call_args_list if c.args == ("",)]
-        assert len(blank_calls) == 1
+        assert len(blank_calls) == 2
 
 
 @pytest.mark.asyncio

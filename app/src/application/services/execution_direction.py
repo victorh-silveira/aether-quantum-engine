@@ -55,10 +55,15 @@ def mandatory_execution_eligible(
     min_val_accuracy: float = 0.50,
 ) -> bool:
     """Indica se o modo obrigatorio pode operar apesar de execute=false no gating DL."""
-    _ = (min_signal, min_val_accuracy)
+    _ = min_val_accuracy
     metrics = entry.get("metrics") or {}
     gate = str(metrics.get("gate_reason") or "")
     if gate in _MANDATORY_POOL_HARD_BLOCKS:
+        return False
+    if metrics.get("deploy_ok") is False:
+        return False
+    score = float(metrics.get("trade_score", metrics.get("conviction", 0.0)))
+    if score + 1e-9 < min_signal:
         return False
     return infer_dl_direction(entry) is not None
 
@@ -68,6 +73,8 @@ def recovery_execution_eligible(entry: dict, recovery_cfg: dict | None = None) -
     metrics = entry.get("metrics") or {}
     if metrics.get("execute", False):
         return True
+    if metrics.get("deploy_ok") is False:
+        return False
     gate = str(metrics.get("gate_reason") or "")
     if _gate_blocks_eligibility(gate, entry):
         return False
@@ -159,5 +166,7 @@ def build_forced_recovery_candidate(
 
 def _entry_gate_blocked(metrics: dict) -> bool:
     """Indica bloqueio absoluto para fallback obrigatorio de execucao."""
+    if metrics.get("deploy_ok") is False:
+        return True
     gate = str(metrics.get("gate_reason") or "")
     return gate in _FORCED_ENTRY_HARD_BLOCKS

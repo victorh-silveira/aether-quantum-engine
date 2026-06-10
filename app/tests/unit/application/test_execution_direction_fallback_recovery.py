@@ -60,7 +60,7 @@ def test_forced_recovery_pick_rejects_low_val_accuracy():
     )
 
 
-def test_build_mandatory_fallback_last_resort_below_min_signal():
+def test_build_mandatory_fallback_returns_none_below_min_signal():
     decisions = {
         "R_50": {
             "direction": TradeDirection.CALL,
@@ -75,5 +75,4 @@ def test_build_mandatory_fallback_last_resort_below_min_signal():
         last_loss_direction=None,
         min_signal=0.45,
     )
-    assert best is not None
-    assert best[0] == "R_50"
+    assert best is None

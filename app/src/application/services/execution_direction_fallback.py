@@ -183,7 +183,4 @@ def build_mandatory_fallback_candidate(
     scored = _scored_fallback_pick(trade_symbols, decisions, skip_symbols=skip_symbols, min_signal=min_signal)
     if scored is not None:
         return scored
-    last = _last_resort_fallback_pick(trade_symbols, decisions, skip_symbols=skip_symbols, min_signal=min_signal)
-    if last is not None:
-        return last
-    return _last_resort_fallback_pick(trade_symbols, decisions, skip_symbols=skip_symbols, min_signal=0.0)
+    return _last_resort_fallback_pick(trade_symbols, decisions, skip_symbols=skip_symbols, min_signal=min_signal)

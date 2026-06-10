@@ -64,7 +64,9 @@ def _apply_deploy_gate(entry: dict, runtime: dict, dl_config: dict) -> dict:
 
 
 def runtime_in_training(runtime: dict, params: dict) -> bool:
-    """Indica se o modelo do simbolo ainda nao concluiu o primeiro treino valido."""
+    """Indica se o modelo do simbolo ainda nao concluiu o primeiro treino valido da sessao."""
+    if not runtime.get("session_trained", False):
+        return True
     brier = float(runtime.get("val_brier", 0.0))
     return brier + 1e-9 >= float(params.get("brier_untrained_floor", 0.99))
 

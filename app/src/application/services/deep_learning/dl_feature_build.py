@@ -184,6 +184,17 @@ def build_feature_row(
     return np.concatenate([base, deriv, extra], axis=0).astype(np.float32)
 
 
+def build_feature_matrix(
+    series: dict[str, np.ndarray],
+    *,
+    pair_series: dict[str, np.ndarray] | None = None,
+) -> np.ndarray:
+    """Monta matriz (N, FEATURE_DIM) com uma linha de features por barra."""
+    n = len(series["returns"])
+    rows = [build_feature_row(series, i, pair_series=pair_series) for i in range(n)]
+    return np.stack(rows, axis=0).astype(np.float32)
+
+
 def build_sequence_tensor(
     prices: np.ndarray,
     lookback: int,

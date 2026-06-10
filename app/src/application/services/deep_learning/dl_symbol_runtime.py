@@ -1,6 +1,7 @@
 """Runtime de modelo, treino walk-forward e checkpoints por simbolo."""
 
 import logging
+import time
 from pathlib import Path
 
 import numpy as np
@@ -93,6 +94,7 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
             "lookback": lookback,
             "deploy_ok": deploy_ok,
             "deploy_win_rate": deploy_win_rate,
+            "session_trained": False,
         }
     return orch._dl_runtime[symbol]
 
@@ -126,6 +128,32 @@ def run_symbol_training(
     norm_stats = runtime["norm_stats"]
     train_loss = None
     gate_cfg = parse_deploy_gate_config(dl_config)
+    bootstrap = not runtime.get("session_trained", False) or float(runtime.get("val_brier", 1.0)) + 1e-9 >= float(
+        params.get("brier_untrained_floor", 0.99)
+    )
+    level = logging.INFO if bootstrap else logging.DEBUG
+    started = time.monotonic()
+    logger.log(level, "")
+    logger.log(
+        level,
+        "DL TREINO | %s | iniciado | %d velas | %d epocas",
+        symbol,
+        len(prices),
+        int(params["epochs"]),
+    )
+
+    def _progress(epoch: int, total: int, loss_value: float, val_acc: float) -> None:
+        """Registra progresso por epoca do treino do simbolo."""
+        logger.log(
+            level,
+            "DL TREINO | %s | epoca %d/%d | loss=%.4f | val_acc=%.2f",
+            symbol,
+            epoch,
+            total,
+            loss_value,
+            val_acc,
+        )
+
     try:
         pair_label = pair_prices is not None and len(pair_prices) >= len(prices)
         peer_sym = hedge_peer(str(symbol))
@@ -172,6 +200,7 @@ def run_symbol_training(
             open_=open_,
             high=high,
             low=low,
+            progress_cb=_progress,
         )
         if train_result is not None:
             runtime["norm_stats"] = train_result.norm_stats
@@ -220,24 +249,31 @@ def run_symbol_training(
                 deploy_win_rate=runtime["deploy_win_rate"],
                 granularity=granularity,
             )
+            runtime["session_trained"] = True
             clear_force_retrain(orch, symbol)
             reset_bars_since_train(orch, symbol)
-            logger.debug(
-                "DL: Treino %s concluido | loss=%.4f val_acc=%.2f deploy=%s",
+            logger.log(
+                level,
+                "DL TREINO | %s | concluido em %.0fs | loss=%.4f | val_acc=%.2f | brier=%.3f | deploy=%s",
                 symbol,
+                time.monotonic() - started,
                 float(train_loss or 0.0),
                 float(runtime.get("val_accuracy", 0.0)),
+                float(runtime.get("val_brier", 1.0)),
                 bool(runtime.get("deploy_ok", False)),
             )
+            logger.log(level, "")
         else:
             runtime["val_accuracy"] = 0.0
             runtime["val_brier"] = 1.0
             runtime["deploy_ok"] = False
-            logger.debug(
-                "DL: Treino indisponivel para %s (%d velas); usando checkpoint ou predicao direta.",
+            logger.log(
+                level,
+                "DL TREINO | %s | dados insuficientes (%d velas) | aguardando proximo ciclo",
                 symbol,
                 len(prices),
             )
+            logger.log(level, "")
     except Exception as e:
         logger.error("DL: Erro no treinamento walk-forward para %s: %s", symbol, e)
         runtime["deploy_ok"] = False

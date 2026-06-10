@@ -20,7 +20,7 @@ def test_force_retrain_and_clear():
 
 def test_rolling_retrain_trigger():
     orch = SimpleNamespace(_dl_bars_since_train={"X": 12})
-    runtime = {"last_candle_epoch": 5}
+    runtime = {"last_candle_epoch": 5, "session_trained": True}
     params = {"train_on_new_candle": True, "rolling_retrain_bars": 12, "retrain_min_bars": 0}
     ok, reason = should_retrain_symbol(orch, "X", runtime, params, 5)
     assert ok and reason == "rolling"
@@ -28,7 +28,7 @@ def test_rolling_retrain_trigger():
 
 def test_retrain_min_bars_defers_scheduled_retrain():
     orch = SimpleNamespace(_dl_bars_since_train={"X": 3})
-    runtime = {"last_candle_epoch": 100}
+    runtime = {"last_candle_epoch": 100, "session_trained": True}
     params = {"train_on_new_candle": True, "retrain_min_bars": 12, "rolling_retrain_bars": 48}
     ok, reason = should_retrain_symbol(orch, "X", runtime, params, 200)
     assert not ok and reason == ""
@@ -36,10 +36,18 @@ def test_retrain_min_bars_defers_scheduled_retrain():
 
 def test_new_candle_retrain_after_min_interval():
     orch = SimpleNamespace(_dl_bars_since_train={"X": 12})
-    runtime = {"last_candle_epoch": 100}
+    runtime = {"last_candle_epoch": 100, "session_trained": True}
     params = {"train_on_new_candle": True, "retrain_min_bars": 12, "rolling_retrain_bars": 48}
     ok, reason = should_retrain_symbol(orch, "X", runtime, params, 200)
     assert ok and reason == "new_candle"
+
+
+def test_bootstrap_retrain_when_checkpoint_loaded_but_not_trained_in_session():
+    orch = SimpleNamespace(_dl_bars_since_train={"X": 0})
+    runtime = {"last_candle_epoch": 100, "session_trained": False}
+    params = {"train_on_new_candle": True, "retrain_min_bars": 12, "rolling_retrain_bars": 48}
+    ok, reason = should_retrain_symbol(orch, "X", runtime, params, 100)
+    assert ok and reason == "bootstrap"
 
 
 def test_deferred_train_pending_skips_retrain():
@@ -60,6 +68,17 @@ def test_bootstrap_retrain_when_never_trained():
         SimpleNamespace(),
         "X",
         {"last_candle_epoch": 0},
+        {"retrain_min_bars": 12},
+        5,
+    )
+    assert ok and reason == "bootstrap"
+
+
+def test_bootstrap_retrain_when_no_checkpoint_epoch():
+    ok, reason = should_retrain_symbol(
+        SimpleNamespace(),
+        "X",
+        {"last_candle_epoch": 0, "session_trained": True},
         {"retrain_min_bars": 12},
         5,
     )
