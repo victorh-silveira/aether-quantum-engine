@@ -165,6 +165,8 @@ def predict_symbol_decision(
         entry["metrics"]["bypass_val_acc"] = bypass_used
         entry["metrics"]["stat_override"] = stat_override
         entry["metrics"]["val_accuracy"] = val_accuracy
+        if binary_ctx:
+            entry["metrics"]["binary_ctx"] = dict(binary_ctx)
         if live_wr is not None:
             entry["metrics"]["live_win_rate"] = float(live_wr)
         return entry

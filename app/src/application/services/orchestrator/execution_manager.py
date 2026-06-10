@@ -4,6 +4,7 @@ import asyncio
 import logging
 
 from src.application.services.execution_symbols import symbols_eligible_for_execution
+from src.application.services.log_dedupe import clear_log_channel, log_info_if_changed
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.stop_win_target import resolve_stop_win_target
 
@@ -134,11 +135,37 @@ class ExecutionManager:
         """Aguarda liquidacao em background e dispara novo ciclo ao concluir."""
         await run_settlement_watch(self)
 
+    def _training_phase_gate(self) -> bool:
+        """Suspende operacao enquanto algum modelo nao concluiu o primeiro treino."""
+        cid = f"C{int(self.orch._active_cycle_id):04d}"
+        train_syms = getattr(self.orch, "_dl_training_symbols", frozenset())
+        was_training = bool(getattr(self.orch, "_dl_training_phase", False))
+        self.orch._dl_training_phase = bool(train_syms)
+        if train_syms:
+            ordered = [s for s in self.orch.symbols if s in train_syms] or sorted(train_syms)
+            log_info_if_changed(
+                self.orch,
+                self.logger,
+                "training_phase",
+                ",".join(ordered),
+                "[%s] FASE TREINO || %s | aguardando primeiro treino | operacao suspensa",
+                cid,
+                " ".join(ordered),
+            )
+            return True
+        if was_training:
+            clear_log_channel(self.orch, "training_phase")
+            self.logger.info("[%s] FASE OPERACAO || todos os modelos treinados | operacao liberada", cid)
+        return False
+
     async def execute_cluster(self, decisions: dict):
         """Executa cluster de decisoes; liquidacao segue em background."""
         executed_count = 0
         try:
             self._start_result_buffer()
+
+            if self._training_phase_gate():
+                return
 
             bankroll_snapshot = float(self.orch.state.balance)
 
@@ -147,7 +174,6 @@ class ExecutionManager:
 
             orders = self._collect_orders(decisions)
             cid = f"C{int(self.orch._active_cycle_id):04d}"
-            mandatory = self._mandatory_trade_each_cycle()
             pending = sum(self.orch.risk_manager.pending_loss.values())
             if pending > 0.0:
                 sw = resolve_stop_win_target(
@@ -155,17 +181,19 @@ class ExecutionManager:
                     self.orch.risk_manager.initial_bankroll,
                 )
                 pnl = float(self.orch.risk_manager.total_session_profit)
-                self.logger.info(
+                log_info_if_changed(
+                    self.orch,
+                    self.logger,
+                    "recovery_status",
+                    f"{pending:.2f}|{pnl:+.2f}|{sw:.2f}",
                     "[%s] RISK: RECOVERY | pend=$%.2f | pnl_sessao=$%+.2f | stop_win=$%.2f",
                     cid,
                     pending,
                     pnl,
                     sw,
                 )
-            if not orders and not mandatory:
+            if not orders:
                 self._log_execution_blockers(decisions)
-            elif not orders:
-                self.logger.warning("[%s] EXEC_SKIP | sem direcao inferivel em nenhum simbolo", cid)
             else:
                 block = self._cluster_stake_block(orders, bankroll_snapshot)
                 if block:
@@ -173,6 +201,7 @@ class ExecutionManager:
                     orders = []
             executed_count = await self._execute_orders(orders, inter_delay, bankroll_snapshot)
             if executed_count > 0:
+                self.orch._last_cycle_traded = True
                 self.orch.risk_manager.begin_cluster(executed_count)
                 self._flush_result_buffer()
                 self.orch._buffer_result_logs = False

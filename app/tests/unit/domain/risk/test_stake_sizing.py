@@ -162,7 +162,6 @@ def test_martingale_covers_pending_loss_and_profit_target():
         0.95,
         cfg,
         1.0,
-        12000.0,
         last_loss_stake=10.83,
     )
     expected = (10.83 + 10.83 * 0.95) / 0.95
@@ -171,8 +170,8 @@ def test_martingale_covers_pending_loss_and_profit_target():
 
 def test_martingale_scales_with_pending_loss():
     cfg = {"min_stake_pct": 0.0}
-    low = martingale_stake(10000.0, 10.0, 10.0, 0.95, cfg, 1.0, 12000.0)
-    high = martingale_stake(10000.0, 500.0, 10.0, 0.95, cfg, 1.0, 12000.0, last_loss_stake=50.0)
+    low = martingale_stake(10000.0, 10.0, 10.0, 0.95, cfg, 1.0)
+    high = martingale_stake(10000.0, 500.0, 10.0, 0.95, cfg, 1.0, last_loss_stake=50.0)
     assert high > low
 
 
@@ -195,7 +194,6 @@ def test_martingale_stop_win_floor_raises_recovery_stake():
         payout=0.95,
         kelly_config=cfg,
         stake_min=1.0,
-        stake_max=12000.0,
         last_loss_stake=1.17,
         conviction=0.58,
         risk_config=risk,
@@ -211,7 +209,6 @@ def test_martingale_stop_win_floor_raises_recovery_stake():
         cfg,
         1168.0,
         -1.17,
-        12000.0,
     )
     assert recovery >= floor
     assert stake > 2.5
@@ -232,7 +229,6 @@ def test_martingale_stop_win_floor_zero_when_conviction_low():
         cfg,
         1168.0,
         0.0,
-        12000.0,
     )
     assert floor == 0.0
 
@@ -255,13 +251,12 @@ def test_martingale_stop_win_floor_zero_when_target_reached():
         cfg,
         1168.0,
         50.0,
-        12000.0,
     )
     assert floor == 0.0
 
 
-def test_martingale_capped_by_max_stake_pct():
-    cfg = {"min_stake_pct": 0.0, "martingale_max_stake_pct": 0.04}
+def test_martingale_recovery_without_pct_cap():
+    cfg = {"min_stake_pct": 0.0}
     stake = martingale_stake(
         1300.0,
         82.0,
@@ -269,10 +264,10 @@ def test_martingale_capped_by_max_stake_pct():
         0.95,
         cfg,
         1.0,
-        12000.0,
         last_loss_stake=50.0,
     )
-    assert stake == pytest.approx(52.0, abs=0.02)
+    expected = (82.0 + 50.0 * 0.95) / 0.95
+    assert stake == pytest.approx(expected, abs=0.02)
 
 
 def test_martingale_limited_by_bankroll():
@@ -284,7 +279,6 @@ def test_martingale_limited_by_bankroll():
         0.95,
         cfg,
         1.0,
-        12000.0,
         last_loss_stake=50.0,
     )
     assert stake == pytest.approx(100.0, abs=0.02)

@@ -74,6 +74,9 @@ async def process_contract_settlement(orch: Any, data: dict):
         orch.logger.debug("[C%04d] STOP_WIN | pnl_sessao=$%+.2f | alvo=$%.2f", orch._last_result_cycle_id, pnl, target)
         orch.shutdown_reason = "stop_win"
         orch.running = False
+        post_task = getattr(orch, "_post_settlement_task", None)
+        if post_task is not None and not post_task.done():
+            post_task.cancel()
         await orch.state.set_trading(value=False)
     elif not orch.state.active_contracts and orch.running:
         orch.schedule_trading_cycle_after_settlement()

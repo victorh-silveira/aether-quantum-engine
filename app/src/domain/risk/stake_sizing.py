@@ -28,7 +28,6 @@ def martingale_stake(
     payout: float,
     kelly_config: dict[str, Any],
     stake_min: float,
-    stake_max: float,
     *,
     last_loss_stake: float = 0.0,
 ) -> float:
@@ -36,10 +35,7 @@ def martingale_stake(
     seed = float(last_loss_stake) if last_loss_stake > 0.0 else float(kelly_base)
     seed = max(seed, float(stake_min))
     raw = (loss_to_recover + seed * payout) / payout if payout > 0 and loss_to_recover > 0 else seed
-    cap_stake = min(bankroll, stake_max)
-    martingale_cap_pct = float(kelly_config.get("martingale_max_stake_pct", 0.0))
-    if martingale_cap_pct > 0.0:
-        cap_stake = min(cap_stake, bankroll * martingale_cap_pct)
+    cap_stake = bankroll
     if payout > 0:
         max_payout_stake = 10000.00 / (1.0 + payout)
         cap_stake = min(cap_stake, max_payout_stake)
@@ -142,7 +138,6 @@ def martingale_stop_win_floor(
     kelly_config: dict[str, Any],
     initial_bankroll: float,
     total_session_profit: float,
-    stake_max: float,
 ) -> float:
     """Piso de martingale alinhado ao progresso restante do stop win diario."""
     if not kelly_config.get("stop_win_kelly_enabled", True):
@@ -158,7 +153,7 @@ def martingale_stop_win_floor(
     if remaining <= 0.0:
         return 0.0
     floor_stake = (remaining / payout) * progress_frac * weight
-    cap_stake = min(bankroll, stake_max)
+    cap_stake = bankroll
     max_payout_stake = 10000.00 / (1.0 + payout)
     return min(floor_stake, cap_stake, max_payout_stake)
 
@@ -172,7 +167,6 @@ def resolve_mode_stake(
     payout: float,
     kelly_config: dict[str, Any],
     stake_min: float,
-    stake_max: float,
     last_loss_stake: float = 0.0,
     conviction: float = 0.0,
     risk_config: dict[str, Any] | None = None,
@@ -188,7 +182,6 @@ def resolve_mode_stake(
             payout,
             kelly_config,
             stake_min,
-            stake_max,
             last_loss_stake=last_loss_stake,
         )
         floor_stake = martingale_stop_win_floor(
@@ -199,7 +192,6 @@ def resolve_mode_stake(
             kelly_config,
             initial_bankroll,
             total_session_profit,
-            stake_max,
         )
         recovery = max(recovery, floor_stake)
         return round_stake(recovery, martingale=True), recovery, "MARTINGALE"

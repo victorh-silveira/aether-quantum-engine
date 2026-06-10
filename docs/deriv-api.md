@@ -11,7 +11,7 @@
 | REST | `DerivRestClient` → `GET /trading/v1/options/accounts`, `POST .../otp` |
 | WebSocket ao vivo | URL retornada pelo OTP (`wss://api.derivws.com/trading/v1/options/ws/demo?otp=...`) |
 | Dados publicos / backtest | `api_config.public_ws_url` (sem OTP) |
-| Histórico OHLC | `ticks_history` com `style: candles`, `granularity` de `data_handler` (300 s) |
+| Histórico OHLC | `ticks_history` com `style: candles`, `granularity` de `data_handler` (60 s) |
 | Stream ao vivo | `subscribe` OHLC por símbolo (`R_10`, `R_25`, `R_50`, `R_75`, `R_100`) |
 | Proposta / compra | `proposal` + `buy` via `TradeHandler` (RISE_FALL, stake, duração 1m) |
 | Contratos abertos | `proposal_open_contract`, `profit_table` (reconciliação e settlement) |

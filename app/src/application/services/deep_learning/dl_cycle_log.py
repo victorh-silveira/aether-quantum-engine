@@ -1,6 +1,7 @@
 """Formatacao compacta de logs do ciclo Deep Learning."""
 
 from src.application.services.deep_learning.dl_gating import calibration_gap
+from src.application.services.log_dedupe import log_info_if_changed
 
 
 def build_dl_cycle_summary(
@@ -12,9 +13,13 @@ def build_dl_cycle_summary(
     """Monta uma unica linha resumo com candidatos e bloqueios do ciclo DL."""
     exec_tokens: list[str] = []
     skip_tokens: list[str] = []
+    train_tokens: list[str] = []
     for symbol, entry in decisions.items():
         direction = entry.get("direction")
         metrics = entry.get("metrics") or {}
+        if metrics.get("gate_reason") == "training":
+            train_tokens.append(symbol)
+            continue
         if direction is None:
             gate = metrics.get("gate_reason")
             raw = metrics.get("raw_prob")
@@ -52,7 +57,8 @@ def build_dl_cycle_summary(
     exec_part = ",".join(exec_tokens) if exec_tokens else "none"
     skip_part = ",".join(skip_tokens[:5]) if skip_tokens else "-"
     extra = f" +{len(skip_tokens) - 5}" if len(skip_tokens) > 5 else ""
-    return f"DL | {mode} | exec=[{exec_part}] | skip=[{skip_part}{extra}]"
+    train_part = f" | treino=[{','.join(train_tokens)}]" if train_tokens else ""
+    return f"DL | {mode} | exec=[{exec_part}] | skip=[{skip_part}{extra}]{train_part}"
 
 
 def build_dl_cycle_brief(
@@ -64,9 +70,13 @@ def build_dl_cycle_brief(
     exec_tokens: list[str] = []
     blocked = 0
     no_data = 0
+    training = 0
     for symbol, entry in decisions.items():
         direction = entry.get("direction")
         metrics = entry.get("metrics") or {}
+        if metrics.get("gate_reason") == "training":
+            training += 1
+            continue
         if direction is None:
             blocked += 1
             if metrics.get("gate_reason") == "data":
@@ -78,14 +88,17 @@ def build_dl_cycle_brief(
         conv = float(metrics.get("trade_score", metrics.get("conviction", 0.0)))
         exec_tokens.append(f"{symbol}:{direction.name} c={conv:.2f}")
     tag = "REC " if recovery_active else ""
+    train_part = f" | {training} treinando" if training else ""
     if exec_tokens:
         head = ",".join(exec_tokens[:2])
         more = f" +{len(exec_tokens) - 2}" if len(exec_tokens) > 2 else ""
         tail = f" | {blocked} bloq" if blocked else ""
-        return f"DL {tag}| exec {head}{more}{tail}"
+        return f"DL {tag}| exec {head}{more}{tail}{train_part}"
+    if training and training == len(decisions):
+        return f"DL {tag}| TREINO INICIAL | {training} modelo(s) em treinamento | trades suspensos"
     if no_data:
-        return f"DL {tag}| sem exec | {no_data} sem dados"
-    return f"DL {tag}| sem exec | {blocked} bloq"
+        return f"DL {tag}| sem exec | {no_data} sem dados{train_part}"
+    return f"DL {tag}| sem exec | {blocked} bloq{train_part}"
 
 
 def log_dl_cycle_summary(
@@ -94,8 +107,9 @@ def log_dl_cycle_summary(
     *,
     recovery_active: bool,
     pending_loss_total: float,
+    orch=None,
 ) -> None:
-    """Registra resumo detalhado em DEBUG e linha curta em INFO."""
+    """Registra resumo detalhado em DEBUG e linha curta em INFO sem repetir conteudo."""
     logger.debug(
         build_dl_cycle_summary(
             decisions,
@@ -103,9 +117,11 @@ def log_dl_cycle_summary(
             pending_loss_total=pending_loss_total,
         )
     )
-    logger.info(
-        build_dl_cycle_brief(
-            decisions,
-            recovery_active=recovery_active,
-        )
+    brief = build_dl_cycle_brief(
+        decisions,
+        recovery_active=recovery_active,
     )
+    if orch is None:
+        logger.info(brief)
+        return
+    log_info_if_changed(orch, logger, "dl_brief", brief, "%s", brief)

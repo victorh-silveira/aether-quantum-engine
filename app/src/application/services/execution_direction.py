@@ -12,10 +12,13 @@ _MANDATORY_HARD_BLOCKS = frozenset(
         "deploy",
         "cooldown",
         "session_pause",
+        "training",
     }
 )
 
-_FORCED_ENTRY_HARD_BLOCKS = frozenset({"data", "predict_error", "deploy"})
+_MANDATORY_POOL_HARD_BLOCKS = frozenset({"data", "predict_error", "training", "cooldown", "session_pause"})
+
+_FORCED_ENTRY_HARD_BLOCKS = frozenset({"data", "predict_error", "deploy", "training", "cooldown", "session_pause"})
 
 
 def _gate_blocks_eligibility(gate: str, entry: dict) -> bool:
@@ -52,20 +55,12 @@ def mandatory_execution_eligible(
     min_val_accuracy: float = 0.50,
 ) -> bool:
     """Indica se o modo obrigatorio pode operar apesar de execute=false no gating DL."""
+    _ = (min_signal, min_val_accuracy)
     metrics = entry.get("metrics") or {}
     gate = str(metrics.get("gate_reason") or "")
-    if _gate_blocks_eligibility(gate, entry):
+    if gate in _MANDATORY_POOL_HARD_BLOCKS:
         return False
-    if not metrics.get("deploy_ok", False):
-        return False
-    if infer_dl_direction(entry) is None:
-        return False
-    val = float(metrics.get("val_accuracy", 0.0))
-    if val + 1e-9 < float(min_val_accuracy):
-        return False
-    score, raw_side = _entry_signal_strength(metrics)
-    floor = float(min_signal)
-    return score + 1e-9 >= floor or raw_side + 1e-9 >= floor
+    return infer_dl_direction(entry) is not None
 
 
 def recovery_execution_eligible(entry: dict, recovery_cfg: dict | None = None) -> bool:
@@ -162,118 +157,7 @@ def build_forced_recovery_candidate(
     return symbol, forced_dir, metrics
 
 
-def _loss_direction(value: str | None) -> TradeDirection | None:
-    """Converte direcao textual do ultimo loss para TradeDirection."""
-    if not value:
-        return None
-    name = str(value).upper()
-    if name == "CALL":
-        return TradeDirection.CALL
-    if name == "PUT":
-        return TradeDirection.PUT
-    return None
-
-
-def _symbol_priority(symbols: list[str], last_loss_symbol: str | None) -> list[str]:
-    """Ordena simbolos priorizando R_75 e R_50 e evitando repetir o ultimo loss."""
-    core_order = ("R_75", "R_50")
-    core = [symbol for symbol in core_order if symbol in symbols]
-    alt = [symbol for symbol in core if symbol != last_loss_symbol]
-    if alt:
-        core = alt + [symbol for symbol in core if symbol not in alt]
-    tail = [symbol for symbol in symbols if symbol not in core and symbol != last_loss_symbol]
-    if not tail:
-        tail = [symbol for symbol in symbols if symbol not in core]
-    return core + tail
-
-
 def _entry_gate_blocked(metrics: dict) -> bool:
     """Indica bloqueio absoluto para fallback obrigatorio de execucao."""
     gate = str(metrics.get("gate_reason") or "")
     return gate in _FORCED_ENTRY_HARD_BLOCKS
-
-
-def _forced_recovery_pick(
-    order: list[str],
-    decisions: dict,
-    forced_dir: TradeDirection,
-) -> tuple[str, TradeDirection, dict] | None:
-    """Seleciona simbolo elegivel priorizando DL alinhado a direcao do loss."""
-    aligned: list[tuple[str, TradeDirection, dict]] = []
-    fallback: list[tuple[str, TradeDirection, dict]] = []
-    for symbol in order:
-        entry = decisions.get(symbol)
-        if not entry or _entry_gate_blocked(entry.get("metrics") or {}):
-            continue
-        candidate = build_forced_recovery_candidate(symbol, entry, forced_dir)
-        dl_dir = infer_dl_direction(entry)
-        if dl_dir == forced_dir:
-            aligned.append(candidate)
-        else:
-            fallback.append(candidate)
-    if aligned:
-        return aligned[0]
-    if fallback:
-        return fallback[0]
-    return None
-
-
-def _scored_fallback_pick(
-    order: list[str],
-    decisions: dict,
-) -> tuple[str, TradeDirection, dict] | None:
-    """Escolhe candidato inferivel com maior trade_score no modo obrigatorio."""
-    best = None
-    best_score = -1.0
-    for symbol in order:
-        entry = decisions.get(symbol)
-        if not entry or _entry_gate_blocked(entry.get("metrics") or {}):
-            continue
-        metrics = entry.get("metrics") or {}
-        score = float(metrics.get("trade_score", metrics.get("conviction", 0.0)))
-        candidate = build_execution_candidate(symbol, entry)
-        if candidate is None or score < best_score:
-            continue
-        best_score = score
-        best = candidate
-    return best
-
-
-def _last_resort_fallback_pick(
-    trade_symbols: list[str],
-    decisions: dict,
-) -> tuple[str, TradeDirection, dict] | None:
-    """Ultimo recurso de execucao obrigatoria usando raw_prob ou CALL padrao."""
-    for symbol in trade_symbols:
-        entry = decisions.get(symbol)
-        if not entry or _entry_gate_blocked(entry.get("metrics") or {}):
-            continue
-        metrics = entry.get("metrics") or {}
-        raw = metrics.get("raw_prob")
-        side = TradeDirection.CALL if raw is None or float(raw) > 0.5 else TradeDirection.PUT
-        return build_forced_recovery_candidate(symbol, entry, side)
-    return None
-
-
-def build_mandatory_fallback_candidate(
-    trade_symbols: list[str],
-    decisions: dict,
-    *,
-    recovery_active: bool,
-    last_loss_symbol: str | None,
-    last_loss_direction: str | None,
-) -> tuple[str, TradeDirection, dict] | None:
-    """Garante ordem em modo obrigatorio quando o pool DL fica vazio."""
-    forced_dir = _loss_direction(last_loss_direction) if recovery_active else None
-    order = _symbol_priority(trade_symbols, last_loss_symbol)
-    if forced_dir is not None:
-        forced = _forced_recovery_pick(order, decisions, forced_dir)
-        if forced is not None:
-            return forced
-        if order:
-            entry = decisions.get(order[0]) or {"metrics": {}}
-            return build_forced_recovery_candidate(order[0], entry, forced_dir)
-    scored = _scored_fallback_pick(order, decisions)
-    if scored is not None:
-        return scored
-    return _last_resort_fallback_pick(trade_symbols, decisions)

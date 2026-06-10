@@ -1,7 +1,6 @@
 from unittest.mock import patch
 
 from src.application.services.execution_direction import (
-    _forced_recovery_pick,
     build_execution_candidate,
     build_forced_direction_candidate,
     build_forced_recovery_candidate,
@@ -10,6 +9,7 @@ from src.application.services.execution_direction import (
     recovery_execution_eligible,
     recovery_hedge_target,
 )
+from src.application.services.execution_direction_fallback import _forced_recovery_pick
 from src.domain.models.trade import TradeDirection
 
 
@@ -23,7 +23,7 @@ def test_mandatory_execution_eligible_rejects_hard_blocks():
         "direction": TradeDirection.CALL,
         "metrics": {
             "execute": False,
-            "gate_reason": "deploy",
+            "gate_reason": "data",
             "conviction": 0.7,
             "raw_prob": 0.6,
             "deploy_ok": True,
@@ -31,6 +31,33 @@ def test_mandatory_execution_eligible_rejects_hard_blocks():
         },
     }
     assert mandatory_execution_eligible(entry) is False
+    deploy_entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {
+            "execute": False,
+            "gate_reason": "deploy",
+            "conviction": 0.7,
+            "raw_prob": 0.6,
+            "deploy_ok": False,
+            "val_accuracy": 0.55,
+        },
+    }
+    assert mandatory_execution_eligible(deploy_entry) is True
+
+
+def test_mandatory_execution_eligible_rejects_training_cooldown_and_pause():
+    for gate in ("training", "cooldown", "session_pause"):
+        entry = {
+            "direction": TradeDirection.CALL,
+            "metrics": {
+                "execute": False,
+                "gate_reason": gate,
+                "conviction": 0.7,
+                "raw_prob": 0.62,
+                "val_accuracy": 0.60,
+            },
+        }
+        assert mandatory_execution_eligible(entry) is False
 
 
 def test_mandatory_execution_eligible_accepts_weak_signal():
@@ -53,12 +80,12 @@ def test_mandatory_execution_eligible_rejects_missing_direction():
     assert mandatory_execution_eligible(entry) is False
 
 
-def test_mandatory_execution_eligible_rejects_low_val_accuracy():
+def test_mandatory_execution_eligible_accepts_low_val_accuracy():
     entry = {
         "direction": TradeDirection.CALL,
-        "metrics": {"deploy_ok": True, "val_accuracy": 0.40, "conviction": 0.60, "raw_prob": 0.6},
+        "metrics": {"deploy_ok": False, "val_accuracy": 0.40, "conviction": 0.60, "raw_prob": 0.6},
     }
-    assert mandatory_execution_eligible(entry) is False
+    assert mandatory_execution_eligible(entry) is True
 
 
 def test_recovery_execution_eligible_rejects_hard_block():

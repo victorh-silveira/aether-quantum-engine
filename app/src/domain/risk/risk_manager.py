@@ -33,6 +33,7 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
         self.pending_loss: dict[str, float] = {}
         self.last_martingale_stake = 0.0
         self.last_loss_stake = 0.0
+        self.recovery_symbol_loss_streak: dict[str, int] = {}
         self.contract_stakes: dict[int, float] = {}
         self.init_symbol_loss_cooldown()
         self._candle_interval_seconds = 900
@@ -176,16 +177,22 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
         self.last_result_tick = current_tick
         self.record_trade_outcome(symbol, won=profit >= 0.0)
 
+        had_pending = sum(self.pending_loss.values()) > 0.0
         if profit < 0:
             loss_amt = abs(profit)
             self.pending_loss[symbol] = self.pending_loss.get(symbol, 0.0) + loss_amt
             self.last_loss_stake = float(recorded_stake) if recorded_stake else loss_amt
             self.register_symbol_loss_cooldown(symbol, direction=direction)
+            if had_pending:
+                streak = int(self.recovery_symbol_loss_streak.get(symbol, 0)) + 1
+                self.recovery_symbol_loss_streak[symbol] = streak
         else:
             apply_win_to_pending_loss(self.pending_loss, profit)
+            self.recovery_symbol_loss_streak.pop(symbol, None)
             if sum(self.pending_loss.values()) <= 0.0:
                 self.last_martingale_stake = 0.0
                 self.last_loss_stake = 0.0
+                self.recovery_symbol_loss_streak = {}
 
         self.active_contract_ids = [x for x in self.active_contract_ids if int(x) != int(contract_id)]
 
@@ -211,5 +218,6 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
             "last_loss_stake": self.last_loss_stake,
             "consecutive_losses": self.consecutive_losses,
             "current_cooldown_ticks": self.current_cooldown_ticks,
+            "recovery_symbol_loss_streak": dict(self.recovery_symbol_loss_streak),
             **self.symbol_cooldown_state(),
         }

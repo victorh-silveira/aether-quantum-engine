@@ -54,8 +54,9 @@ async def setup_trading_session(orch: Orchestrator) -> bool:
 
         await orch.ws.connect(session.ws_url, **ws_connect_options(orch))
         orch.state.balance = session.balance
-        orch.risk_manager.set_initial_bankroll(orch.state.balance)
         orch._maybe_reset_daily_risk_session(int(time.time()))
+        if orch.risk_manager.initial_bankroll <= 0.0:
+            orch.risk_manager.set_initial_bankroll(orch.state.balance)
         await subscribe_account_transactions(orch)
         orch.logger.debug(
             "AUTH: PAT+OTP ok conta=%s saldo=%.2f",

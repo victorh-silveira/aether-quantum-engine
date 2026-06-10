@@ -1,6 +1,7 @@
-"""Pool de recovery e candidatos na mesma direcao do cluster."""
+"""Pool de recovery e ranking de candidatos do cluster."""
 
-from src.application.services.execution_direction import recovery_execution_eligible
+from typing import Any
+
 from src.domain.models.trade import TradeDirection
 
 
@@ -12,14 +13,19 @@ def pending_recovery_active(pending_loss: dict) -> bool:
     return sum(float(v) for v in pending_loss.values()) > 0.0
 
 
-def _matches_loss_direction(
-    item: tuple[str, TradeDirection, dict],
-    last_loss_direction: str | None,
-) -> bool:
-    """Indica se a direcao do candidato coincide com a do ultimo loss."""
-    if not last_loss_direction:
-        return True
-    return item[1].name == str(last_loss_direction).upper()
+def recovery_blocked_symbols(risk_manager: Any, kelly_config: dict) -> frozenset[str]:
+    """Simbolos excluidos do recovery por cooldown ou sequencia de losses em martingale."""
+    blocked: set[str] = set()
+    max_streak = int(kelly_config.get("recovery_martingale_max_losses_per_symbol", 2))
+    streaks = getattr(risk_manager, "recovery_symbol_loss_streak", {}) or {}
+    for symbol, count in streaks.items():
+        if int(count) >= max_streak:
+            blocked.add(str(symbol))
+    cooldowns = getattr(risk_manager, "symbol_loss_cooldown", {}) or {}
+    for symbol, remaining in cooldowns.items():
+        if int(remaining) > 0:
+            blocked.add(str(symbol))
+    return frozenset(blocked)
 
 
 def recovery_candidate_pool(
@@ -28,31 +34,43 @@ def recovery_candidate_pool(
     last_loss_symbol: str | None,
     last_loss_direction: str | None,
     recovery_active: bool,
+    skip_symbols: frozenset[str] | None = None,
 ) -> list[tuple[str, TradeDirection, dict]]:
-    """Restringe recovery a mesma direcao CALL/PUT e simbolos centrais do cluster."""
+    """Aplica apenas bloqueios duros; ranking define direcao e simbolo."""
+    _ = (last_loss_symbol, last_loss_direction)
     pool = list(candidates)
     if not recovery_active:
         return pool
-    if last_loss_direction:
-        aligned = [item for item in pool if _matches_loss_direction(item, last_loss_direction)]
-        if not aligned:
-            return []
-        pool = aligned
-    approved = [item for item in pool if item[2].get("execute")]
-    if approved:
-        pool = approved
-    else:
-        quality = [item for item in pool if recovery_execution_eligible({"direction": item[1], "metrics": item[2]})]
-        if quality:
-            pool = quality
-    core = [item for item in pool if item[0] in _CLUSTER_CORE]
-    if core:
-        pool = core
-    if last_loss_symbol:
-        alt = [item for item in pool if item[0] != last_loss_symbol]
-        if alt:
-            pool = alt
+    skip = skip_symbols or frozenset()
+    if skip:
+        pool = [item for item in pool if item[0] not in skip]
     return pool
+
+
+def recovery_rank_score(
+    item: tuple[str, TradeDirection, dict],
+    *,
+    last_loss_symbol: str | None = None,
+    last_loss_direction: str | None = None,
+    base_score: float,
+) -> float:
+    """Pontua candidato em recovery com preferencia suave por core, diversificacao e direcao."""
+    score = float(base_score)
+    if item[0] in _CLUSTER_CORE:
+        score += 0.04
+    if last_loss_symbol and item[0] != last_loss_symbol:
+        score += 0.05
+    if last_loss_direction and item[1].name == str(last_loss_direction).upper():
+        score += 0.06
+    metrics = item[2]
+    raw = metrics.get("raw_prob")
+    if raw is not None and item[1] == TradeDirection.CALL and float(raw) > 0.5:
+        score += 0.02
+    if raw is not None and item[1] == TradeDirection.PUT and float(raw) <= 0.5:
+        score += 0.02
+    if metrics.get("execute"):
+        score += 0.03
+    return score
 
 
 def inject_recovery_hedge_candidates(
@@ -73,7 +91,7 @@ def has_recovery_hedge_candidate(
     last_loss_symbol: str | None,
     last_loss_direction: str | None,
 ) -> bool:
-    """True se existe candidato na mesma direcao do ultimo loss."""
+    """Indica se existe candidato na mesma direcao do ultimo loss."""
     _ = last_loss_symbol
     if not last_loss_direction:
         return True

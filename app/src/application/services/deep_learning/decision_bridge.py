@@ -63,6 +63,31 @@ def _apply_deploy_gate(entry: dict, runtime: dict, dl_config: dict) -> dict:
     return entry
 
 
+def runtime_in_training(runtime: dict, params: dict) -> bool:
+    """Indica se o modelo do simbolo ainda nao concluiu o primeiro treino valido."""
+    brier = float(runtime.get("val_brier", 0.0))
+    return brier + 1e-9 >= float(params.get("brier_untrained_floor", 0.99))
+
+
+def _apply_training_gate(entry: dict, runtime: dict, params: dict) -> dict:
+    """Suspende execucao e marca o simbolo como em treinamento ate o primeiro treino valido."""
+    if not runtime_in_training(runtime, params):
+        return entry
+    entry["metrics"]["execute"] = False
+    entry["metrics"]["gate_reason"] = "training"
+    return entry
+
+
+def training_priority_symbols(orch, dl_config: dict, params: dict) -> frozenset[str]:
+    """Lista simbolos sem primeiro treino valido que tem prioridade no slot de treino."""
+    pending = []
+    for symbol in orch.symbols:
+        runtime = get_symbol_runtime(orch, symbol, dl_config, params)
+        if runtime_in_training(runtime, params):
+            pending.append(str(symbol))
+    return frozenset(pending)
+
+
 def _log_retrain_batch(trained: list[str], train_reason: str, params: dict) -> None:
     """Registra resumo de retreino em lote no nivel DEBUG."""
     if not trained:
@@ -85,6 +110,7 @@ async def _collect_symbol_decision(
     min_len: int,
     granularity: int,
     recovery_active: bool,
+    train_priority: frozenset[str] = frozenset(),
 ) -> tuple[dict, str | None]:
     """Treina (se necessario), prediz e aplica gates para um simbolo."""
     prices, open_, high, low = load_symbol_close_ohlc(orch, symbol)
@@ -99,6 +125,8 @@ async def _collect_symbol_decision(
     train_loss = None
     train_reason = None
     do_train, reason = should_retrain_symbol(orch, symbol, runtime, params, epoch)
+    if do_train and train_priority and str(symbol) not in train_priority:
+        do_train, reason = False, ""
     if do_train:
         train_reason = reason
         skip_train = reason == "new_candle" and bool(getattr(orch, "_dl_fast_cycle", False))
@@ -137,6 +165,7 @@ async def _collect_symbol_decision(
         low=low,
     )
     entry = _apply_deploy_gate(entry, runtime, dl_config)
+    entry = _apply_training_gate(entry, runtime, params)
     return apply_symbol_loss_cooldown(orch, symbol, entry), train_reason
 
 
@@ -158,6 +187,8 @@ async def collect_deep_learning_decisions(orch) -> dict[str, dict]:
     pending_total = pending_loss_total(orch)
     trained: list[str] = []
     train_reason = ""
+    train_priority = training_priority_symbols(orch, dl_config, params)
+    orch._dl_training_symbols = train_priority
 
     for symbol in orch.symbols:
         entry, reason = await _collect_symbol_decision(
@@ -168,6 +199,7 @@ async def collect_deep_learning_decisions(orch) -> dict[str, dict]:
             min_len=min_len,
             granularity=granularity,
             recovery_active=recovery_active,
+            train_priority=train_priority,
         )
         decisions[symbol] = entry
         if reason:
@@ -180,5 +212,6 @@ async def collect_deep_learning_decisions(orch) -> dict[str, dict]:
         decisions,
         recovery_active=recovery_active,
         pending_loss_total=pending_total,
+        orch=orch,
     )
     return decisions

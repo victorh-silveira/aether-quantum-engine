@@ -51,7 +51,8 @@ def calculate_stake_for_manager(
         )
         kelly_base = min(kelly_base, bankroll * weak_pct)
 
-    if apply_stop_win and not martingale_active:
+    dl_approved = not isinstance(dl_metrics, dict) or bool(dl_metrics.get("execute", True))
+    if apply_stop_win and not martingale_active and dl_approved:
         boosted = compute_single_strike_kelly_base(
             kelly_base,
             bankroll,
@@ -79,7 +80,6 @@ def calculate_stake_for_manager(
         payout=b,
         kelly_config=rm.kelly_config,
         stake_min=stake_min,
-        stake_max=rm.stake_max,
         last_loss_stake=float(getattr(rm, "last_loss_stake", 0.0)),
         conviction=conviction,
         risk_config=rm.config,

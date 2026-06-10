@@ -283,3 +283,12 @@ def test_direction_aligns_with_regime_rsi_exhaustion():
     assert direction_aligns_with_regime(TradeDirection.CALL, up_extreme, rsi_overbought=0.78) is False
     down_extreme = np.linspace(200.0, 100.0, 50)
     assert direction_aligns_with_regime(TradeDirection.PUT, down_extreme, rsi_oversold=0.22) is False
+
+
+def test_parse_dl_params_propagates_rsi_exhaustion_thresholds():
+    params = parse_dl_params({"rsi_overbought_threshold": 0.78, "rsi_oversold_threshold": 0.22})
+    assert params["rsi_overbought_threshold"] == 0.78
+    assert params["rsi_oversold_threshold"] == 0.22
+    defaults = parse_dl_params({})
+    assert defaults["rsi_overbought_threshold"] == 1.01
+    assert defaults["rsi_oversold_threshold"] == -0.01

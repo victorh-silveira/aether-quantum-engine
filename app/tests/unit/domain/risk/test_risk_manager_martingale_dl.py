@@ -89,3 +89,25 @@ def test_symbol_loss_cooldown_records_direction(kelly_config):
     rm.active_contract_ids = [1]
     rm.register_result(-5.0, 1, "R_50", direction="PUT")
     assert rm.last_loss_direction == "PUT"
+
+
+def test_recovery_symbol_loss_streak_increments_on_martingale_loss(kelly_config):
+    rm = RiskManager(kelly_config)
+    rm.pending_loss["R_50"] = 5.0
+    rm.active_contract_ids = [101]
+    rm.register_result(-5.0, 101, symbol="R_50", current_tick=1, direction="CALL")
+    assert rm.recovery_symbol_loss_streak.get("R_50") == 1
+    rm.pending_loss["R_50"] = 5.0
+    rm.active_contract_ids = [102]
+    rm.register_result(-8.0, 102, symbol="R_50", current_tick=2, direction="CALL")
+    assert rm.recovery_symbol_loss_streak.get("R_50") == 2
+
+
+def test_recovery_symbol_loss_streak_resets_after_full_recovery(kelly_config):
+    rm = RiskManager(kelly_config)
+    rm.pending_loss["R_50"] = 5.0
+    rm.active_contract_ids = [101]
+    rm.register_result(-5.0, 101, symbol="R_50", current_tick=1, direction="CALL")
+    rm.active_contract_ids = [102]
+    rm.register_result(12.0, 102, symbol="R_75", current_tick=2, direction="CALL")
+    assert rm.recovery_symbol_loss_streak == {}

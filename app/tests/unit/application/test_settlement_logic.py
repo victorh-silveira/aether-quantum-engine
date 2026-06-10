@@ -1,5 +1,7 @@
 """Testes unitários para o módulo settlement_logic."""
 
+import asyncio
+import contextlib
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -217,14 +219,19 @@ async def test_process_contract_settlement_stop_win(orch_ready):
         }
     }
 
+    pending_task = asyncio.create_task(asyncio.sleep(60))
+    orch._post_settlement_task = pending_task
     with (
         patch("src.application.services.orchestrator.settlement_logic.resolve_stop_win_target", return_value=50.0),
         patch_instant_post_settlement_poll(),
     ):
         await process_contract_settlement(orch, data)
-        if orch._post_settlement_task is not None:
+        if orch._post_settlement_task is not None and orch._post_settlement_task is not pending_task:
             await orch._post_settlement_task
 
+    with contextlib.suppress(asyncio.CancelledError):
+        await pending_task
+    assert pending_task.cancelled()
     assert orch.running is False
     assert orch.shutdown_reason == "stop_win"
     assert orch.risk_manager.total_session_profit == 150.0

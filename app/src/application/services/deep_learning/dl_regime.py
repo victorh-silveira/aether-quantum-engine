@@ -28,8 +28,6 @@ def direction_aligns_with_regime(
         return False
     ema_spread, ret_5 = latest_momentum(prices)
     strength = max(0.0, float(min_strength))
-
-    # Análise profissional de exaustão estatística (RSI) para índices sintéticos
     series = precompute_price_series(prices)
     idx = len(prices) - 1
     rsi = float(series["rsi"][idx])

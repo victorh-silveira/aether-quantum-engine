@@ -7,9 +7,10 @@ aether-quantum-engine/
 ├── app/
 │   ├── src/
 │   │   ├── application/services/
-│   │   │   ├── deep_learning/     # TCN, treino, gating, deploy, decision_bridge
-│   │   │   ├── orchestrator/      # Ciclo, execução, settlement, pós-liquidação
-│   │   │   ├── execution_*.py     # Direção, seleção e recovery no par
+│   │   │   ├── deep_learning/     # TCN, treino deferido, gating, deploy, decision_bridge
+│   │   │   ├── orchestrator/      # Ciclo, fases treino/operação, execução, settlement
+│   │   │   ├── execution_*.py     # Direção, ranking de mercado, seleção obrigatória e recovery
+│   │   │   ├── log_dedupe.py      # Deduplicação de logs repetidos
 │   │   │   └── auth_manager.py
 │   │   ├── domain/                # Modelos, risk_manager, martingale, stake
 │   │   ├── infrastructure/        # WebSocket, stream, trade, persistência
@@ -35,10 +36,10 @@ aether-quantum-engine/
 
 | Pasta | Responsabilidade |
 |-------|------------------|
-| `application/services/deep_learning` | Features, TCN, treino walk-forward, calibração, predição, deploy gate |
-| `application/services/orchestrator` | `Orchestrator`, `ExecutionManager`, settlement, `post_settlement_cycle` |
-| `application/services` | `execution_direction`, `execution_symbols`, `auth_manager` |
-| `domain` | `Candle`, `Trade`, `RiskManager`, Kelly, martingale, cooldowns |
+| `application/services/deep_learning` | Features, TCN, treino walk-forward deferido (prioridade bootstrap), calibração, predição, deploy gate, gate de treinamento |
+| `application/services/orchestrator` | `Orchestrator`, `ExecutionManager` (fases treino/operação), `execution_collect`, `execution_blockers`, settlement, `post_settlement_cycle` |
+| `application/services` | `execution_direction`, `execution_direction_fallback`, `execution_market_rank`, `execution_mandatory_pick`, `execution_symbols`, `execution_symbols_recovery`, `log_dedupe`, `auth_manager` |
+| `domain` | `Candle`, `Trade`, `RiskManager`, Kelly, martingale, cooldowns, `stake_sizing` |
 | `infrastructure` | `WebSocketManager`, `StreamHandler`, `TradeHandler`, `PersistenceManager` |
 | `presentation/terminal` | `setup_logger`, formatação de logs |
 

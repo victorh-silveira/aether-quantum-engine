@@ -90,6 +90,50 @@ def test_build_dl_cycle_brief_exec_and_blocked():
     assert "1 bloq" in line
 
 
+def test_build_dl_cycle_brief_all_training():
+    decisions = {
+        "R_50": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}},
+        "R_75": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}},
+    }
+    line = build_dl_cycle_brief(decisions, recovery_active=False)
+    assert line == "DL | TREINO INICIAL | 2 modelo(s) em treinamento | trades suspensos"
+
+
+def test_build_dl_cycle_brief_mixed_training_and_blocked():
+    decisions = {
+        "R_50": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}},
+        "R_75": {
+            "direction": TradeDirection.CALL,
+            "metrics": {"conviction": 0.53, "execute": False, "gate_reason": "conviction"},
+        },
+    }
+    line = build_dl_cycle_brief(decisions, recovery_active=False)
+    assert "1 bloq" in line
+    assert "1 treinando" in line
+
+
+def test_build_dl_cycle_brief_exec_with_training():
+    decisions = {
+        "R_50": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}},
+        "R_100": {
+            "direction": TradeDirection.PUT,
+            "metrics": {"conviction": 0.75, "execute": True, "val_accuracy": 1.0},
+        },
+    }
+    line = build_dl_cycle_brief(decisions, recovery_active=False)
+    assert "R_100:PUT c=0.75" in line
+    assert "1 treinando" in line
+
+
+def test_build_dl_cycle_summary_training_tokens():
+    decisions = {
+        "R_50": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}},
+        "R_75": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}},
+    }
+    line = build_dl_cycle_summary(decisions, recovery_active=False, pending_loss_total=0.0)
+    assert "treino=[R_50,R_75]" in line
+
+
 def test_log_dl_cycle_summary(caplog):
     logger = logging.getLogger("test_dl_cycle_log")
     logger.setLevel(logging.DEBUG)

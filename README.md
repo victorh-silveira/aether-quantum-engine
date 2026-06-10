@@ -9,6 +9,8 @@
 
 Motor quantitativo assíncrono para a Deriv: decisão por **Deep Learning (TCN PyTorch)** nos símbolos **Range Break** (`R_10`, `R_25`, `R_50`, `R_75`, `R_100`), contratos **RISE_FALL** de **1 minuto**, dimensionamento **Kelly** e recuperação **martingale** integral quando há perda pendente.
 
+A operação é dividida em duas fases: **FASE TREINO** (nenhuma ordem é enviada até que todos os modelos concluam o primeiro treino válido) e **FASE OPERACAO** (um trade por ciclo via ranking de mercado, com recovery inteligente).
+
 Documentação: [arquitetura](docs/arquitetura.md) | [metodologia quant](docs/medallion.md) | [estrutura do repo](docs/structure.md) | [Deriv API](docs/deriv-api.md)
 
 Layout: `app/` (código e testes), `config/settings.json`, `docs/`, `linters/`. Ver [docs/structure.md](docs/structure.md).
@@ -20,12 +22,13 @@ Layout: `app/` (código e testes), `config/settings.json`, `docs/`, `linters/`. 
 | Etapa | Componente | Descrição |
 |-------|------------|-----------|
 | Dados | `StreamHandler` | WebSocket Deriv, histórico OHLC, buffer configurável |
-| Decisão | `decision_bridge` + TCN | Treino walk-forward online, calibração, gating e seleção competitiva entre símbolos do par de hedge |
-| Execução | `ExecutionManager` | Ordens RISE_FALL, uma ordem por ciclo, logs `EXEC` / `EXEC_SEL` |
-| Risco | `RiskManager` | Kelly fracionário, stop win diário, martingale em recovery |
+| Fases | `_training_phase_gate` | Suspende a operação até todos os modelos concluírem o primeiro treino (`FASE TREINO` → `FASE OPERACAO`) |
+| Decisão | `decision_bridge` + TCN | Treino walk-forward em background (slot único com prioridade para modelos não treinados), calibração, gating |
+| Execução | `ExecutionManager` | Modo obrigatório: uma ordem por ciclo escolhida por ranking de mercado (`execution_market_rank`); logs `EXEC` / `EXEC_SEL` |
+| Risco | `RiskManager` | Kelly fracionário, stop win diário, martingale em recovery, cooldown por símbolo |
 | Estado | `PersistenceManager` | `data/state.json`, checkpoints `data/dl/{symbol}.pth` |
 
-Ciclo do orquestrador: `orchestrator.cycle_interval_seconds` (padrão 300 s). Granularidade OHLC: `data_handler.granularity` (padrão 60 s).
+Ciclo do orquestrador: `orchestrator.cycle_interval_seconds` (padrão 60 s). Granularidade OHLC: `data_handler.granularity` (padrão 60 s).
 
 ---
 
@@ -55,11 +58,13 @@ Variáveis na raiz (`.env`): `AETHER_DERIV_PAT`, `AETHER_DERIV_APP_ID`, `AETHER_
 
 ---
 
-## Recovery e execução
+## Fases, recovery e execução
 
-- Em recovery, a seleção **prioriza hedge no par** (símbolo oposto ao da última loss).
-- `mandatory_trade_each_cycle: true` — o motor envia ordem a cada ciclo elegível, mesmo com gating DL fraco (stake reduzida via `mandatory_weak_*`).
-- Direção de execução segue o sinal DL (`CALL`/`PUT` previsto pelo modelo).
+- **FASE TREINO**: enquanto qualquer modelo não tiver o primeiro treino válido (`val_brier` acima de `brier_untrained_floor`), nenhuma ordem é enviada e o slot de treino em background fica exclusivo para os modelos pendentes. A transição é registrada uma única vez (`FASE OPERACAO || todos os modelos treinados`).
+- **FASE OPERACAO** com `mandatory_trade_each_cycle: true`: o motor envia uma ordem por ciclo, escolhida por ranking de mercado (score calibrado, convicção bruta, val_accuracy, edge, Brier, deploy e alinhamento com o contexto binário da última vela).
+- Direção de execução: sinal DL refinado por `resolve_market_direction` — quando a convicção bruta é fraca, extremos estatísticos da vela (`sma_z`) aplicam reversão à média.
+- **Recovery**: prioriza direção alinhada ao último loss com pisos de qualidade (`recovery_gating`), diversifica o símbolo (bônus por não repetir o par perdedor) e usa o núcleo `R_75`/`R_50`.
+- Bloqueios duros nunca são forçados, nem no modo obrigatório: `training`, `cooldown`, `session_pause`, `data` e `predict_error`.
 
 ---
 
@@ -68,10 +73,13 @@ Variáveis na raiz (`.env`): `AETHER_DERIV_PAT`, `AETHER_DERIV_APP_ID`, `AETHER_
 Logs em `logs/engine.log` (formato `AetherFormatter`):
 
 - `CFG decisao` — modo DL, lookback, histórico de treino, execução obrigatória
-- `DL` / `DL_TRAIN` — treino, deploy, bloqueios
-- `EXEC`, `EXEC_SEL`, `EXEC_NONE` — decisão e stake por ciclo
-- `MARTINGALE`, `RISK` — sizing e recovery
+- `FASE TREINO` / `FASE OPERACAO` — transição entre fase de treinamento e fase de operação
+- `DL` / `DL_TREINO` — resumo de decisões por ciclo, modelos em primeiro treino
+- `EXEC`, `EXEC_SEL`, `EXEC_NONE` — decisão, alternativas e stake por ciclo (com métricas `s`/`v`/`r`/`b`)
+- `MARTINGALE`, `RISK: RECOVERY` — sizing e recovery
 - Liquidação e resumo de cluster após settlement
+
+Mensagens repetidas são deduplicadas (`log_dedupe`): só voltam ao nível `INFO` quando o conteúdo muda. Ciclos com trade são separados por linha em branco.
 
 Monitor opcional: `python app/scripts/monitor/live_monitor.py`
 

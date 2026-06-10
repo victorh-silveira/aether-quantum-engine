@@ -211,11 +211,12 @@ class Orchestrator:
                 ran = True
             else:
                 self._cycle_seq += 1
-                if self._cycle_seq > 1:
+                if self._cycle_seq > 1 and getattr(self, "_last_cycle_traded", False):
                     self.logger.info("")
+                self._last_cycle_traded = False
                 self._active_cycle_id = self._cycle_seq
                 ran = True
-                self.logger.info(
+                self.logger.debug(
                     "[C%04d] CICLO: coletando decisoes DL (%d simbolos)",
                     self._active_cycle_id,
                     len(self.symbols),

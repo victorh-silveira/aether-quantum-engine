@@ -48,7 +48,13 @@ Sem o gerenciamento adequado de banca, qualquer vantagem estatística (edge) se 
 - **Fração de Kelly**: Ajustamos o tamanho do lote com base na probabilidade calibrada da previsão (`trade_score`) e na taxa de vitória ao vivo (`win rate live`).
 - **Gating de Segurança**: Várias camadas barram execuções de baixa convicção (e.g., Brier score ruim no treino, gap grande entre probabilidade bruta e calibrada).
 
-### 2.4 Filtro de Exaustão por RSI Extremo (Filtro do Trader Sênior)
+### 2.4 Fases de Treinamento e Operação
+O motor nunca opera com modelo cru:
+- **FASE TREINO**: ao iniciar a sessão, nenhuma ordem é enviada até que todos os símbolos concluam o primeiro treino walk-forward válido. O slot de treino em background é dedicado aos modelos pendentes.
+- **FASE OPERACAO**: com todos os modelos prontos, o motor executa um trade por ciclo, escolhido por ranking de mercado que combina score calibrado, convicção bruta, acurácia de validação, Brier e alinhamento com o contexto binário da última vela.
+- **Direção refinada**: quando a convicção bruta do modelo é fraca, extremos estatísticos da vela (`sma_z`) aplicam reversão à média na direção final, explorando a propriedade 2.2 acima.
+
+### 2.5 Filtro de Exaustão por RSI Extremo (Filtro do Trader Sênior)
 Sob as condições de volatilidade ininterrupta dos índices sintéticos da Deriv, tendências prolongadas esticam o RSI a patamares de exaustão estatística. Para mitigar o risco de comprar no topo ou vender no fundo antes de reversões súbitas:
 - **Exaustão de Compra**: Se o RSI atual do ativo estiver acima de `rsi_overbought_threshold` (padrão `0.78`), novas ordens do tipo `CALL` são preventivamente bloqueadas pelo filtro de regime, antecipando uma provável exaustão de momentum.
 - **Exaustão de Venda**: Se o RSI atual do ativo estiver abaixo de `rsi_oversold_threshold` (padrão `0.22`), novas ordens do tipo `PUT` são preventivamente bloqueadas pelo filtro de regime, evitando vender em suportes extremos de exaustão.

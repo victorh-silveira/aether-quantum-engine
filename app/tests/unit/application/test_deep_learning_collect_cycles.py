@@ -146,6 +146,20 @@ async def test_collect_applies_symbol_loss_cooldown():
         "rsi_block_put": -0.01,
     }
     stats = fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32))
+    orch._dl_runtime = {
+        "R_50": {
+            "model": MarketDirectionClassifier(input_dim=INPUT_DIM),
+            "norm_stats": stats,
+            "last_candle_epoch": 1000,
+            "val_accuracy": 0.6,
+            "calibrator": None,
+            "val_brier": 0.2,
+            "val_ece": 0.1,
+            "lookback": 15,
+            "deploy_ok": True,
+            "deploy_win_rate": 0.6,
+        }
+    }
     with (
         patch(
             "src.application.services.deep_learning.dl_predict.predict_next_direction",

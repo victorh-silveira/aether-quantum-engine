@@ -1,6 +1,7 @@
 """Simbolos elegiveis e ranking de candidatos para execucao."""
 
 from src.application.services.deep_learning.dl_gating import calibration_gap
+from src.application.services.execution_market_rank import market_decision_score
 from src.application.services.execution_symbols_recovery import (
     has_recovery_hedge_candidate,
     inject_recovery_hedge_candidates,
@@ -68,16 +69,27 @@ def candidate_execution_score(
     *,
     recovery_active: bool,
     selection: dict | None = None,
+    symbol: str | None = None,
+    exec_direction: TradeDirection | None = None,
+    last_loss_symbol: str | None = None,
+    last_loss_direction: str | None = None,
 ) -> float:
     """Pontua candidato com score calibrado unificado, val_acc e edge."""
     cfg = {**_DEFAULT_SELECTION, **(selection or {})}
-    score = _trade_score(metrics)
-    val = float(metrics.get("val_accuracy", 0.0))
-    edge = float(metrics.get("edge", abs(score - 0.5)))
     penalty = _calib_gap_penalty(metrics, cfg)
-    if recovery_active:
-        return score * 0.35 + val * 0.50 + edge * 0.15 - penalty
-    return score * 0.40 + val * 0.45 + edge * 0.15 - penalty
+    direction = exec_direction
+    if direction is None and metrics.get("exec_direction"):
+        name = str(metrics["exec_direction"]).upper()
+        direction = TradeDirection.CALL if name == "CALL" else TradeDirection.PUT
+    base = market_decision_score(
+        metrics,
+        exec_direction=direction,
+        recovery_active=recovery_active,
+        symbol=symbol,
+        last_loss_symbol=last_loss_symbol,
+        last_loss_direction=last_loss_direction,
+    )
+    return base - penalty
 
 
 def _selection_hard_reject(metrics: dict, cfg: dict, score: float, raw_side: float) -> bool:
@@ -119,26 +131,6 @@ def _passes_selection_gate(metrics: dict, cfg: dict) -> bool:
     return raw_side + 1e-9 >= strong_raw and edge + 1e-9 >= strong_edge
 
 
-def recovery_rank_score(
-    item: tuple[str, TradeDirection, dict],
-    *,
-    last_loss_direction: str | None = None,
-) -> float:
-    """Pontua candidato em recovery com bonus para direcao e simbolos centrais."""
-    score = candidate_execution_score(item[2], recovery_active=True)
-    if item[0] in ("R_50", "R_75"):
-        score += 0.04
-    if last_loss_direction and item[1].name == str(last_loss_direction).upper():
-        score += 0.08
-    metrics = item[2]
-    raw = metrics.get("raw_prob")
-    if raw is not None and item[1] == TradeDirection.CALL and float(raw) > 0.5:
-        score += 0.02
-    if raw is not None and item[1] == TradeDirection.PUT and float(raw) <= 0.5:
-        score += 0.02
-    return score
-
-
 def filter_execution_candidates(
     candidates: list[tuple[str, TradeDirection, dict]],
     *,
@@ -156,24 +148,35 @@ def select_best_execution_candidate(
     last_loss_direction: str | None = None,
     diversify_margin: float,
     recovery_active: bool,
-) -> tuple[str, TradeDirection, dict]:
-    """Escolhe melhor candidato por score e evita repetir simbolo da ultima loss."""
+    skip_symbols: frozenset[str] | None = None,
+) -> tuple[str, TradeDirection, dict] | None:
+    """Escolhe melhor candidato por score de mercado com diversificacao suave."""
     pool = recovery_candidate_pool(
         candidates,
         last_loss_symbol=last_loss_symbol,
         last_loss_direction=last_loss_direction,
         recovery_active=recovery_active,
+        skip_symbols=skip_symbols,
     )
-    rank_key = (
-        (lambda item: recovery_rank_score(item, last_loss_direction=last_loss_direction))
-        if recovery_active
-        else (lambda item: candidate_execution_score(item[2], recovery_active=False))
-    )
+    if not pool:
+        return None
+
+    def rank_key(item: tuple[str, TradeDirection, dict]) -> float:
+        """Retorna score de ranking para ordenar candidatos de execucao."""
+        return candidate_execution_score(
+            item[2],
+            recovery_active=recovery_active,
+            symbol=item[0],
+            exec_direction=item[1],
+            last_loss_symbol=last_loss_symbol,
+            last_loss_direction=last_loss_direction,
+        )
+
     ranked = sorted(pool, key=rank_key, reverse=True)
     best = ranked[0]
-    if len(ranked) >= 2 and last_loss_symbol and best[0] == last_loss_symbol and not recovery_active:
-        top_score = candidate_execution_score(best[2], recovery_active=recovery_active)
-        alt_score = candidate_execution_score(ranked[1][2], recovery_active=recovery_active)
+    if len(ranked) >= 2 and last_loss_symbol and best[0] == last_loss_symbol:
+        top_score = rank_key(best)
+        alt_score = rank_key(ranked[1])
         if top_score - alt_score <= diversify_margin:
             return ranked[1]
     return best
@@ -187,34 +190,27 @@ def select_mandatory_execution_candidate(
     last_loss_direction: str | None = None,
     diversify_margin: float,
     recovery_active: bool,
+    skip_symbols: frozenset[str] | None = None,
 ) -> tuple[str, TradeDirection, dict] | None:
-    """Escolhe candidato em modo obrigatorio; prioriza execute=true com fallback fraco."""
-    pool = list(candidates)
-    recovery_pool_applied = False
-    if recovery_active:
-        narrowed = recovery_candidate_pool(
-            pool,
-            last_loss_symbol=last_loss_symbol,
-            last_loss_direction=last_loss_direction,
-            recovery_active=True,
-        )
-        if narrowed:
-            pool = narrowed
-            recovery_pool_applied = True
-    approved = [item for item in pool if item[2].get("execute")]
-    if approved:
-        pool = approved
-    if not pool:
-        pool = list(candidates)
-        recovery_pool_applied = False
+    """Escolhe candidato em modo obrigatorio priorizando execute=true e melhor score."""
+    pool = recovery_candidate_pool(
+        candidates,
+        last_loss_symbol=last_loss_symbol,
+        last_loss_direction=last_loss_direction,
+        recovery_active=recovery_active,
+        skip_symbols=skip_symbols,
+    )
     if not pool:
         return None
+    approved = [item for item in pool if item[2].get("execute")]
+    ranked_pool = approved if approved else pool
     return select_best_execution_candidate(
-        pool,
+        ranked_pool,
         last_loss_symbol=last_loss_symbol,
         last_loss_direction=last_loss_direction,
         diversify_margin=diversify_margin,
-        recovery_active=recovery_active and recovery_pool_applied,
+        recovery_active=recovery_active,
+        skip_symbols=skip_symbols,
     )
 
 

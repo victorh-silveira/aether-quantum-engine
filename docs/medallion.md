@@ -11,9 +11,10 @@ Para arquitetura de código, ver [`arquitetura.md`](arquitetura.md).
 | Princípio | No motor atual |
 |-----------|----------------|
 | Sinais, não histórias | Direção CALL/PUT a partir de features de preço e par; gating numérico |
-| Horizonte curto | Velas configuráveis (`granularity`); contrato 1m; ciclo 300s |
+| Horizonte curto | Velas de 1 minuto (`granularity: 60`); contrato 1m; ciclo de 60 s |
 | Regime e ruído | Meta-labels filtram movimentos irrelevantes; Brier e ECE no treino |
-| Poucas operações de qualidade | `deploy_gate`, convicção mínima, pausa após losses |
+| Modelo pronto antes de operar | `FASE TREINO` suspende ordens até todos os modelos terem o primeiro treino válido |
+| Operação constante e de qualidade | Um trade por ciclo via ranking de mercado; bloqueios duros nunca são forçados |
 | Feedback real | Win rate live misturado em `val_accuracy`; retreino após loss |
 
 ---
@@ -49,14 +50,16 @@ Configuração: `data_handler.history_bars`, `deep_learning.training_history_bar
 
 Ordem lógica de uma entrada:
 
-1. **Dados** — histórico suficiente (`gate_reason=data`).
-2. **Modelo** — direção com margem (`direction_margin`).
-3. **Deploy** — mini walk-forward pós-treino (`deploy`).
-4. **Gating** — convicção, edge, val_acc, Brier, gap calibrado, saturação.
-5. **Regime** — alinhamento de momentum/RSI quando `require_regime_alignment` está ativo.
-6. **Cooldown** — pausa por símbolo após losses (`symbol_loss_cooldown`, `session_pause_cycles`).
-7. **Seleção** — melhor candidato entre símbolos elegíveis; em recovery, hedge no par.
-8. **Risco** — Kelly ou martingale; stop win; stake mínima/máxima.
+1. **Fase** — todos os modelos com primeiro treino válido (`FASE TREINO` suspende a operação inteira).
+2. **Dados** — histórico suficiente (`gate_reason=data`).
+3. **Treinamento** — modelo do símbolo treinado (`gate_reason=training` nunca é forçado).
+4. **Modelo** — direção com margem (`direction_margin`).
+5. **Deploy** — mini walk-forward pós-treino (`deploy`).
+6. **Gating** — convicção, edge, val_acc, Brier, gap calibrado, saturação.
+7. **Regime** — alinhamento de momentum/RSI quando `require_regime_alignment` está ativo.
+8. **Cooldown** — pausa por símbolo após losses (`symbol_loss_cooldown`, `session_pause_cycles`); símbolo em cooldown não entra nem no modo obrigatório.
+9. **Seleção** — ranking de mercado entre símbolos elegíveis (`market_decision_score`); em recovery, direção alinhada e diversificação de símbolo.
+10. **Risco** — Kelly ou martingale; stop win; stake mínima/máxima.
 
 Perfil em `config/settings.json`:
 
@@ -76,10 +79,10 @@ Após perda no cluster, `pending_loss` acumula valor a recuperar.
 |---------------|-----------------|
 | Martingale em recovery | Ativo sempre que `pending_loss > 0` |
 | Fórmula de stake | `(perda pendente + seed × payout) / payout`, limitada por banca e `stake_max` |
-| Seleção de direção | Hedge no par oposto à última loss (`execution_symbols_recovery`) |
+| Seleção de símbolo | Ranking de mercado com bônus de diversificação (evita repetir o símbolo perdedor) e núcleo `R_75`/`R_50` |
+| Seleção de direção | Alinhada ao último loss com pisos de qualidade; fallback por hedge no par (`execution_symbols_recovery`) |
 | Gating DL em recovery | `recovery_gating` + `recovery_allow_bypass` |
-
-Não há teto de passos de martingale nem bloqueio por repetir symbol+direção da última loss.
+| Limites | `recovery_martingale_max_losses_per_symbol` (símbolo sai do pool de recovery após sequência de losses) e cooldown por símbolo (`symbol_loss_cooldown_candles`) impedem reentrada cega no mesmo par |
 
 ---
 
@@ -87,11 +90,11 @@ Não há teto de passos de martingale nem bloqueio por repetir symbol+direção 
 
 | Flag | Efeito |
 |------|--------|
-| `mandatory_trade_each_cycle` | Envia ordem a cada ciclo elegível (stake cap para sinais fracos) |
+| `mandatory_trade_each_cycle` | Envia uma ordem por ciclo na fase de operação, escolhida por ranking de mercado (stake cap para sinais fracos) |
 | `include_anchor_trades` | Inclui âncora nas ordens do cluster |
 | `diversify_after_loss_margin` | Prefere símbolo alternativo quando scores são próximos |
 
-Direção de execução = direção prevista pelo DL. Logs: `ord=` (ordem enviada), `dl=` (previsto pelo modelo).
+Direção de execução = direção DL refinada por `resolve_market_direction`: com convicção bruta fraca, extremos estatísticos da vela (`sma_z`) aplicam reversão à média. Logs: `ord=` (ordem enviada), `dl=` (previsto pelo modelo); `direction_inverted` marca divergência.
 
 ---
 

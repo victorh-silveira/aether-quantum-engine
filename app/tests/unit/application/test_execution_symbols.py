@@ -127,15 +127,26 @@ def test_calib_gap_penalty_reduces_ranking():
 
 
 def test_candidate_execution_score_recovery_weights_val_accuracy():
-    normal = candidate_execution_score({"trade_score": 0.55, "val_accuracy": 0.40, "edge": 0.05}, recovery_active=False)
+    metrics = {"trade_score": 0.55, "val_accuracy": 0.40, "edge": 0.05, "raw_prob": 0.55}
+    normal = candidate_execution_score(metrics, recovery_active=False, symbol="R_50")
     recovery = candidate_execution_score(
-        {"trade_score": 0.55, "val_accuracy": 0.40, "edge": 0.05}, recovery_active=True
+        metrics,
+        recovery_active=True,
+        symbol="R_50",
+        exec_direction=TradeDirection.CALL,
+        last_loss_symbol="R_10",
+        last_loss_direction="CALL",
     )
     high_val = candidate_execution_score(
-        {"trade_score": 0.55, "val_accuracy": 0.60, "edge": 0.05}, recovery_active=True
+        {"trade_score": 0.55, "val_accuracy": 0.60, "edge": 0.05, "raw_prob": 0.55},
+        recovery_active=True,
+        symbol="R_50",
+        exec_direction=TradeDirection.CALL,
+        last_loss_symbol="R_10",
+        last_loss_direction="CALL",
     )
     assert high_val > recovery
-    assert recovery != normal
+    assert recovery > normal
 
 
 def test_select_mandatory_falls_back_when_pool_empty():

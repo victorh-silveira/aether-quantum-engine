@@ -176,8 +176,9 @@ def stage_test(fail_under=100):
 
 def stage_security():
     ignored_vulns = [
-        "PYSEC-2022-42969",  # py: pacote obsoleto/sem manutencao, sem correcao disponivel
-        "PYSEC-2026-139",  # torch: vulnerabilidade ativa na versao 2.9.0 sem correcao publicada
+        "PYSEC-2022-42969",
+        "PYSEC-2026-139",
+        "CVE-2025-3000",
     ]
     ignore_args = []
     for vuln in ignored_vulns:

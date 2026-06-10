@@ -132,6 +132,8 @@ def parse_dl_params(
         "max_raw_saturation": float(dl_config.get("max_raw_saturation", 0.97)),
         "saturation_min_trade_score": float(dl_config.get("saturation_min_trade_score", 0.58)),
         "require_regime_alignment": bool(dl_config.get("require_regime_alignment", False)),
+        "rsi_overbought_threshold": float(dl_config.get("rsi_overbought_threshold", 1.01)),
+        "rsi_oversold_threshold": float(dl_config.get("rsi_oversold_threshold", -0.01)),
         "high_val_acc_relax": float(dl_config.get("high_val_acc_relax", 0.68)),
         "relaxed_conviction": float(dl_config.get("relaxed_conviction", 0.54)),
         "brier_untrained_floor": float(dl_config.get("brier_untrained_floor", 0.99)),
