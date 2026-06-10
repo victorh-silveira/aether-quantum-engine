@@ -1,3 +1,9 @@
+## [1.8.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.7.0...v1.8.0) (2026-06-10)
+
+### Funcionalidades
+
+* **engine:** direcao DL guiada por fluxo de velas e mercado ([720bbcf](https://github.com/victorh-silveira/aether-quantum-engine/commit/720bbcfd24de56e5f8ee3d7600f6b1ce016f0e7c))
+
 ## [1.7.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.6.0...v1.7.0) (2026-06-10)
 
 ### Funcionalidades
