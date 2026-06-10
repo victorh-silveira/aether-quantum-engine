@@ -1,3 +1,9 @@
+## [1.6.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.5.2...v1.6.0) (2026-06-10)
+
+### Funcionalidades
+
+* **engine:** fases de treino/operacao e execucao obrigatoria por ranking de mercado ([0f670a3](https://github.com/victorh-silveira/aether-quantum-engine/commit/0f670a3570fb40b1b9c66494db1cd2abf22ba9a7))
+
 ## [1.5.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.5.1...v1.5.2) (2026-06-10)
 
 ### Correcoes de Bug
