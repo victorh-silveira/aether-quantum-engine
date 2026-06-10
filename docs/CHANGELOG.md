@@ -1,3 +1,9 @@
+## [1.7.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.6.0...v1.7.0) (2026-06-10)
+
+### Funcionalidades
+
+* **engine:** treino por sessao, piso de score e logs estruturados ([7796548](https://github.com/victorh-silveira/aether-quantum-engine/commit/779654821583bf59f2e67b3648a3dd12512dc552))
+
 ## [1.6.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.5.2...v1.6.0) (2026-06-10)
 
 ### Funcionalidades
