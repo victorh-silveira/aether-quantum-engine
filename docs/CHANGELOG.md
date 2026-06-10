@@ -1,3 +1,9 @@
+## [1.5.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.5.1...v1.5.2) (2026-06-10)
+
+### Correcoes de Bug
+
+* **engine:** Kelly conservador, liquidacao resiliente e reconexao WS ([44d0988](https://github.com/victorh-silveira/aether-quantum-engine/commit/44d09882e11e3a58e0edbacbef62344d2fd3d20d))
+
 ## [1.5.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.5.0...v1.5.1) (2026-06-09)
 
 ### Correcoes de Bug
