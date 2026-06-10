@@ -203,14 +203,14 @@ async def test_orchestrator_start_streams_fails_after_retry_limit(orchestrator_c
 
 
 @pytest.mark.asyncio
-async def test_orchestrator_run_reconnect_fails_sleeps_five(orchestrator_config):
-    """Cobre run() com ws inativo e reconexão falhando (await asyncio.sleep(5), linha 63)."""
+async def test_orchestrator_run_reconnect_fails_sleeps_backoff(orchestrator_config):
+    """Cobre run() com ws inativo e reconexao falhando com backoff."""
     TradingState.reset()
     sleeps: list[float] = []
 
     async def track_sleep(delay: float) -> None:
         sleeps.append(delay)
-        if delay == 5:
+        if delay == 8.0:
             orch.ws.is_running = True
         if len(sleeps) >= 12:
             orch.running = False
@@ -224,7 +224,7 @@ async def test_orchestrator_run_reconnect_fails_sleeps_five(orchestrator_config)
         orch.running = True
         with patch("src.application.services.orchestrator.asyncio.sleep", side_effect=track_sleep):
             await asyncio.wait_for(orch.run(), timeout=5.0)
-    assert 5 in sleeps
+    assert 8.0 in sleeps
 
 
 @pytest.mark.asyncio

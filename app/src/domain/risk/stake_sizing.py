@@ -1,6 +1,5 @@
 """Calculo de stake Kelly e Martingale."""
 
-import datetime
 import math
 from typing import Any
 
@@ -38,6 +37,9 @@ def martingale_stake(
     seed = max(seed, float(stake_min))
     raw = (loss_to_recover + seed * payout) / payout if payout > 0 and loss_to_recover > 0 else seed
     cap_stake = min(bankroll, stake_max)
+    martingale_cap_pct = float(kelly_config.get("martingale_max_stake_pct", 0.0))
+    if martingale_cap_pct > 0.0:
+        cap_stake = min(cap_stake, bankroll * martingale_cap_pct)
     if payout > 0:
         max_payout_stake = 10000.00 / (1.0 + payout)
         cap_stake = min(cap_stake, max_payout_stake)
@@ -52,6 +54,36 @@ def round_stake(value: float, *, martingale: bool) -> float:
     return math.floor(value * 100) / 100
 
 
+def conviction_stop_win_weight(conviction: float, kelly_config: dict[str, Any]) -> float:
+    """Interpola fracao do alvo stop win conforme conviccao do sinal."""
+    min_conv = float(kelly_config.get("stop_win_kelly_min_conviction", 0.50))
+    strong = float(kelly_config.get("stop_win_kelly_conviction_strong", 0.82))
+    lo_frac = float(kelly_config.get("stop_win_kelly_min_fraction", 0.12))
+    hi_frac = float(kelly_config.get("stop_win_kelly_max_fraction", 0.38))
+    if conviction + 1e-9 < min_conv:
+        return 0.0
+    if conviction >= strong:
+        return hi_frac
+    span = max(strong - min_conv, 1e-9)
+    t = (conviction - min_conv) / span
+    return lo_frac + t * (hi_frac - lo_frac)
+
+
+def _resolve_stop_win_max_stake_pct(
+    risk_config: dict[str, Any],
+    kelly_config: dict[str, Any],
+    payout: float,
+) -> float:
+    """Deriva teto de stake Kelly para uma tacada atingir o stop win percentual."""
+    explicit = float(kelly_config.get("stop_win_max_stake_pct", 0.0))
+    if explicit > 0.0:
+        return explicit
+    stop_pct = float((risk_config or {}).get("large_account_stop_win_pct", 15.0)) / 100.0
+    if payout > 0.0:
+        return stop_pct / payout
+    return stop_pct
+
+
 def compute_single_strike_kelly_base(
     kelly_base: float,
     bankroll: float,
@@ -64,18 +96,24 @@ def compute_single_strike_kelly_base(
     *,
     has_active_contracts: bool,
 ) -> float:
-    """Aplica boost de single strike quando stop win e janela permitem."""
-    now_utc = datetime.datetime.now(datetime.UTC)
-    in_window = 12 <= now_utc.hour < 17
+    """Escala stake Kelly para lucro restante do stop win diario."""
+    if not kelly_config.get("stop_win_kelly_enabled", True):
+        return kelly_base
     target = resolve_stop_win_target(risk_config, initial_bankroll)
     remaining = max(0.0, target - float(total_session_profit))
-    if not (in_window and conviction >= 0.75 and remaining > 0 and not has_active_contracts):
+    if remaining <= 0.0 or has_active_contracts:
         return kelly_base
-    goal_stake = remaining / payout
-    max_allowed = bankroll * resolve_max_stake_pct(kelly_config, conviction)
-    single_strike_stake = min(goal_stake, max_allowed)
-    if single_strike_stake > kelly_base:
-        return single_strike_stake
+    weight = conviction_stop_win_weight(conviction, kelly_config)
+    if weight <= 0.0:
+        return kelly_base
+    cycles_target = max(1.0, float(kelly_config.get("stop_win_kelly_cycles_target", 1.0)))
+    goal_stake = (remaining / payout) * weight / cycles_target if payout > 0.0 else kelly_base
+    stop_cap = _resolve_stop_win_max_stake_pct(risk_config, kelly_config, payout)
+    kelly_cap = resolve_max_stake_pct(kelly_config, conviction)
+    max_allowed = bankroll * max(stop_cap, kelly_cap)
+    stop_win_stake = min(goal_stake, max_allowed)
+    if stop_win_stake > kelly_base:
+        return stop_win_stake
     return kelly_base
 
 
@@ -96,6 +134,35 @@ def finalize_stake_with_min(
     return final_stake
 
 
+def martingale_stop_win_floor(
+    bankroll: float,
+    payout: float,
+    conviction: float,
+    risk_config: dict[str, Any],
+    kelly_config: dict[str, Any],
+    initial_bankroll: float,
+    total_session_profit: float,
+    stake_max: float,
+) -> float:
+    """Piso de martingale alinhado ao progresso restante do stop win diario."""
+    if not kelly_config.get("stop_win_kelly_enabled", True):
+        return 0.0
+    progress_frac = float(kelly_config.get("stop_win_martingale_progress_fraction", 0.0))
+    if progress_frac <= 0.0 or payout <= 0.0:
+        return 0.0
+    weight = conviction_stop_win_weight(conviction, kelly_config)
+    if weight <= 0.0:
+        return 0.0
+    target = resolve_stop_win_target(risk_config, initial_bankroll)
+    remaining = max(0.0, target - float(total_session_profit))
+    if remaining <= 0.0:
+        return 0.0
+    floor_stake = (remaining / payout) * progress_frac * weight
+    cap_stake = min(bankroll, stake_max)
+    max_payout_stake = 10000.00 / (1.0 + payout)
+    return min(floor_stake, cap_stake, max_payout_stake)
+
+
 def resolve_mode_stake(
     *,
     martingale_active: bool,
@@ -107,6 +174,10 @@ def resolve_mode_stake(
     stake_min: float,
     stake_max: float,
     last_loss_stake: float = 0.0,
+    conviction: float = 0.0,
+    risk_config: dict[str, Any] | None = None,
+    initial_bankroll: float = 0.0,
+    total_session_profit: float = 0.0,
 ) -> tuple[float, float, str]:
     """Resolve stake final, valor bruto de recuperacao e modo Kelly ou Martingale."""
     if martingale_active:
@@ -120,6 +191,17 @@ def resolve_mode_stake(
             stake_max,
             last_loss_stake=last_loss_stake,
         )
+        floor_stake = martingale_stop_win_floor(
+            bankroll,
+            payout,
+            conviction,
+            risk_config or {},
+            kelly_config,
+            initial_bankroll,
+            total_session_profit,
+            stake_max,
+        )
+        recovery = max(recovery, floor_stake)
         return round_stake(recovery, martingale=True), recovery, "MARTINGALE"
     return round_stake(kelly_base, martingale=False), 0.0, "KELLY"
 

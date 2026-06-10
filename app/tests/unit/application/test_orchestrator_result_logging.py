@@ -26,6 +26,7 @@ async def test_contract_update_buffers_result_logs_during_dispatch(orch_config):
             expiry_time=0,
         )
         orch.risk_manager.contract_to_symbol[1] = "R_50"
+        orch.risk_manager.active_contract_ids = [1]
         data = {
             "proposal_open_contract": {
                 "contract_id": 1,

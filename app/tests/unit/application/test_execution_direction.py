@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 from src.application.services.execution_direction import (
+    _forced_recovery_pick,
     build_execution_candidate,
     build_forced_direction_candidate,
     build_forced_recovery_candidate,
@@ -175,3 +176,21 @@ def test_build_forced_recovery_candidate_without_dl_direction():
     assert sym == "R_75"
     assert side == TradeDirection.PUT
     assert metrics["recovery_forced"] is True
+    assert metrics["trade_score"] == 0.58
+
+
+def test_build_forced_recovery_candidate_uses_raw_side_floor():
+    entry = {"direction": None, "metrics": {"raw_prob": 0.62, "trade_score": 0.0}}
+    _, _, metrics = build_forced_recovery_candidate("R_75", entry, TradeDirection.CALL)
+    assert metrics["trade_score"] == 0.62
+    assert metrics["direction_inverted"] is False
+
+
+def test_forced_recovery_pick_prefers_dl_aligned_symbol():
+    decisions = {
+        "R_50": {"direction": None, "metrics": {"raw_prob": 0.40, "trade_score": 0.58, "val_accuracy": 0.55}},
+        "R_75": {"direction": None, "metrics": {"raw_prob": 0.62, "trade_score": 0.58, "val_accuracy": 0.55}},
+    }
+    picked = _forced_recovery_pick(["R_50", "R_75"], decisions, TradeDirection.CALL)
+    assert picked is not None
+    assert picked[0] == "R_75"

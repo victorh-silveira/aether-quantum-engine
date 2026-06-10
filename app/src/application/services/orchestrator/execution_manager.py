@@ -83,16 +83,19 @@ class ExecutionManager:
             dl_cfg = self.orch.config.get("deep_learning", {})
             pending = sum(self.orch.risk_manager.pending_loss.values())
             mandatory = self._mandatory_trade_each_cycle()
+            stop_win_kelly = bool(self.orch.risk_manager.kelly_config.get("stop_win_kelly_enabled", True))
             stake = self.orch.risk_manager.calculate_stake(
                 bankroll_snapshot,
                 symbol,
                 conviction=conviction,
-                silent=pending <= 0.0,
+                silent=False,
                 cycle_id=int(self.orch._active_cycle_id),
                 dl_metrics=metrics,
                 order_direction=direction.name,
                 max_val_brier=float(dl_cfg.get("max_val_brier_execute", 0.28)),
-                mandatory_weak_cap=mandatory and not metrics.get("execute", True),
+                mandatory_weak_cap=(
+                    mandatory and not metrics.get("execute", True) and pending <= 0.0 and not stop_win_kelly
+                ),
             )
 
             if stake <= 0:
@@ -220,4 +223,4 @@ class ExecutionManager:
 
     async def reconcile(self):
         """Consulta estado atualizado dos contratos ativos."""
-        await reconcile_contracts(self)
+        return await reconcile_contracts(self)

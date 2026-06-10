@@ -31,7 +31,7 @@ async def place_order(executor, symbol, direction, stake, duration=None, metrics
     u = params.get("duration_unit", "m")
     meta = metrics if isinstance(metrics, dict) else {}
     dl_dir = meta.get("dl_direction")
-    inv = bool(meta.get("direction_inverted"))
+    inv = bool(meta.get("direction_inverted")) and not meta.get("recovery_forced")
     inv_part = f" || ord={direction.name} dl={dl_dir} inv" if inv and dl_dir else f" || ord={direction.name}"
     logger.info(
         "[%s] EXEC || %s $%.2f%s || pay=%.2f cid=%s buy=$%.2f %s%s",

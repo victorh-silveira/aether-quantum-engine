@@ -1,8 +1,6 @@
 """Testes unitários para o sistema RiskManager baseado em Critério de Kelly."""
 
-import datetime
 import math
-from unittest.mock import patch
 
 import pytest
 
@@ -20,6 +18,7 @@ def kelly_config():
             "fraction": 0.1,
             "max_stake_pct": 0.05,
             "martingale_sizing_conviction": 0.60,
+            "stop_win_kelly_enabled": False,
         },
         "params": {"payout_estimate": 0.95, "stake_min": 1.0, "entry_cooldown_ticks": 0},
     }
@@ -199,24 +198,37 @@ def test_risk_manager_get_state_exports(kelly_config):
     assert state["current_cooldown_ticks"] == 80
 
 
-def test_single_strike_stake_boost_in_window(kelly_config):
-    """Verifica se a stake de Single Strike e aplicada na janela com alta conviccao."""
-    kelly_config["small_account_stop_win"] = 100.0
-    kelly_config["small_account_threshold"] = 100.0
+def test_single_strike_stake_boost_toward_stop_win(kelly_config):
+    """Verifica se Kelly escala para o lucro restante do stop win diario."""
+    kelly_config["large_account_stop_win_pct"] = 10.0
+    kelly_config["small_account_threshold"] = 50.0
     kelly_config["kelly"]["fraction"] = 0.001
+    kelly_config["kelly"]["max_stake_pct"] = 0.05
+    kelly_config["kelly"]["stop_win_kelly_enabled"] = True
+    kelly_config["kelly"]["stop_win_kelly_max_fraction"] = 0.72
+    kelly_config["kelly"]["stop_win_kelly_cycles_target"] = 1.0
     rm = RiskManager(kelly_config)
     rm.set_initial_bankroll(1000.0)
     rm.total_session_profit = 0.0
+    stake = rm.calculate_stake(1000.0, "R_50", conviction=0.85)
+    assert stake == pytest.approx((100.0 / 0.95) * 0.72, abs=0.1)
 
-    mock_now = datetime.datetime(2026, 6, 1, 14, 0, 0, tzinfo=datetime.UTC)
 
-    with patch("datetime.datetime") as mock_dt:
-        mock_dt.now.return_value = mock_now
-        mock_dt.timezone = datetime.timezone
-        mock_dt.UTC = datetime.UTC
+def test_register_result_late_settlement_clears_pending(kelly_config):
+    rm = RiskManager(kelly_config)
+    rm.contract_to_symbol[999] = "R_75"
+    rm.pending_loss = {"R_75": 10.99}
+    rm.register_result(15.17, 999, "R_75")
+    assert sum(rm.pending_loss.values()) == pytest.approx(0.0, abs=0.01)
+    assert rm.total_session_profit == pytest.approx(15.17, abs=0.01)
 
-        stake = rm.calculate_stake(1000.0, "R_50", conviction=0.85)
-        assert stake == pytest.approx(50.0, abs=0.1)
+
+def test_register_result_ignores_duplicate_settlement(kelly_config):
+    rm = RiskManager(kelly_config)
+    rm.cluster_results = {1: 5.0}
+    rm.active_contract_ids = [1]
+    rm.register_result(5.0, 1, "R_50")
+    assert rm.total_session_profit == pytest.approx(0.0, abs=0.01)
 
 
 def test_cross_symbol_recovery(kelly_config):

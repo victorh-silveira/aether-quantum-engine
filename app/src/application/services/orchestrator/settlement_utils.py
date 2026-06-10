@@ -1,4 +1,20 @@
-"""Utilitários para reconciliação de liquidação."""
+"""Utilitarios para reconciliacao de liquidacao."""
+
+from typing import Any
+
+
+def is_transient_broker_error(exc: BaseException) -> bool:
+    """Indica falha temporaria de rede ou broker."""
+    name = type(exc).__name__
+    if name in {"ConnectionClosed", "ConnectionClosedError", "ConnectionClosedOK"}:
+        return True
+    return isinstance(exc, (TimeoutError, ConnectionError, OSError))
+
+
+def mark_ws_offline(ws: Any) -> None:
+    """Marca WebSocket como desconectado para forcar reconexao."""
+    if ws is not None:
+        ws.is_running = False
 
 
 def min_elapsed_before_stagnant_polls(risk_params: dict | None, execution_cfg: dict | None) -> float:

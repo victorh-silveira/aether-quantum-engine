@@ -116,20 +116,9 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
             return "kelly_no_edge"
         return None
 
-    def _martingale_allowed(self, _symbol: str, conviction: float, **kwargs) -> bool:
-        """Martingale ativo com perda pendente e conviccao minima do sinal."""
-        if not martingale_allowed(pending_loss=self.pending_loss):
-            return False
-        dl_metrics = kwargs.get("dl_metrics") or {}
-        min_conv = float(self.kelly_config.get("martingale_sizing_conviction", 0.60))
-        score = float(dl_metrics.get("trade_score", dl_metrics.get("conviction", conviction)))
-        min_val = float(self.kelly_config.get("martingale_min_val_accuracy", 0.50))
-        val = float(dl_metrics.get("val_accuracy", conviction))
-        if val + 1e-9 < min_val:
-            return False
-        if not dl_metrics.get("execute", False) and score + 1e-9 < min_conv:
-            return False
-        return score + 1e-9 >= min_conv * 0.9
+    def _martingale_allowed(self, _symbol: str, _conviction: float, **_kwargs) -> bool:
+        """Martingale ativo sempre que houver perda pendente de recuperacao."""
+        return martingale_allowed(pending_loss=self.pending_loss)
 
     def calculate_stake(
         self,
@@ -171,10 +160,17 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
         direction: str | None = None,
     ):
         """Registra lucro/prejuízo e atualiza estatísticas."""
-        if contract_id not in self.active_contract_ids:
+        if contract_id in self.cluster_results:
             return
 
-        self.contract_stakes.pop(int(contract_id), None)
+        tracked = int(contract_id) in self.active_contract_ids
+        late = not tracked and int(contract_id) in self.contract_to_symbol
+        if not tracked and not late:
+            return
+        if late:
+            self.logger.debug("RISK: Liquidacao tardia cid=%s aplicada ao pending.", contract_id)
+
+        recorded_stake = self.contract_stakes.pop(int(contract_id), None)
         self.cluster_results[contract_id] = profit
         self.total_session_profit += profit
         self.last_result_tick = current_tick
@@ -183,7 +179,7 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
         if profit < 0:
             loss_amt = abs(profit)
             self.pending_loss[symbol] = self.pending_loss.get(symbol, 0.0) + loss_amt
-            self.last_loss_stake = self.contract_stakes.pop(int(contract_id), loss_amt)
+            self.last_loss_stake = float(recorded_stake) if recorded_stake else loss_amt
             self.register_symbol_loss_cooldown(symbol, direction=direction)
         else:
             apply_win_to_pending_loss(self.pending_loss, profit)

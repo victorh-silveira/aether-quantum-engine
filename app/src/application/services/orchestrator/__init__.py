@@ -101,13 +101,21 @@ class Orchestrator:
         emit_decision_engine_banner(self.logger, self.config, dl_enabled=self._dl_enabled())
         await self._run_trading_cycle_if_ready()
         reconcile_counter = 0
+        orch_cfg = self.config.get("orchestrator") if isinstance(self.config.get("orchestrator"), dict) else {}
+        reconnect_delay = float(orch_cfg.get("ws_reconnect_delay_seconds", 8.0))
         while self.running:
             await asyncio.sleep(1)
             if not self.ws.is_running:
                 if await self._setup_session() and await self._start_streams():
-                    self.logger.debug("RECOV: Sucesso.")
+                    self.logger.info("RECOV: WebSocket restaurado.")
+                    reconnect_delay = float(orch_cfg.get("ws_reconnect_delay_seconds", 8.0))
                 else:
-                    await asyncio.sleep(5)
+                    self.logger.warning(
+                        "RECOV: broker indisponivel; nova tentativa em %.0fs.",
+                        reconnect_delay,
+                    )
+                    await asyncio.sleep(reconnect_delay)
+                    reconnect_delay = min(reconnect_delay * 1.5, 60.0)
                 continue
             reconcile_counter += 1
             await self._save_full_state()
@@ -234,7 +242,12 @@ class Orchestrator:
         if raw_id is None:
             return
         c_id = int(raw_id)
-        if c_id not in self.state.active_contracts and c_id not in self.risk_manager.active_contract_ids:
+        known = (
+            c_id in self.state.active_contracts
+            or c_id in self.risk_manager.active_contract_ids
+            or c_id in self.risk_manager.contract_to_symbol
+        )
+        if not known:
             return
         await reconcile_single_contract(self, c_id)
 

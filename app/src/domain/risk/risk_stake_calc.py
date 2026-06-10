@@ -44,7 +44,8 @@ def calculate_stake_for_manager(
     stake_min = float(rm.risk_params.get("stake_min", 1.0))
     kelly_raw = bankroll * f_star
     kelly_base = clamp_kelly_stake(bankroll, kelly_raw, rm.kelly_config, sizing_conviction)
-    if kwargs.get("mandatory_weak_cap"):
+    stop_win_kelly = bool(rm.kelly_config.get("stop_win_kelly_enabled", True))
+    if kwargs.get("mandatory_weak_cap") and not martingale_active and not stop_win_kelly:
         weak_pct = float(
             rm.kelly_config.get("mandatory_weak_max_stake_pct", rm.kelly_config.get("max_stake_pct", 0.004))
         )
@@ -62,9 +63,9 @@ def calculate_stake_for_manager(
             rm.total_session_profit,
             has_active_contracts=bool(rm.active_contract_ids),
         )
-        if boosted > kelly_base:
+        if boosted > kelly_base and not silent:
             rm.logger.info(
-                "RISK: Ativando modo SINGLE STRIKE (Uma Tacada Só)! Sizing boost de $%.2f para $%.2f",
+                "RISK: STOP WIN KELLY | stake $%.2f -> $%.2f (meta sessao)",
                 kelly_base,
                 boosted,
             )
@@ -80,6 +81,10 @@ def calculate_stake_for_manager(
         stake_min=stake_min,
         stake_max=rm.stake_max,
         last_loss_stake=float(getattr(rm, "last_loss_stake", 0.0)),
+        conviction=conviction,
+        risk_config=rm.config,
+        initial_bankroll=rm.initial_bankroll,
+        total_session_profit=rm.total_session_profit,
     )
     final_stake = finalize_stake_with_min(
         final_stake, stake_min, bankroll, conviction, martingale_active=martingale_active

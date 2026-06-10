@@ -13,6 +13,17 @@ if TYPE_CHECKING:
     from src.application.services.orchestrator import Orchestrator
 
 
+def ws_connect_options(orch: Orchestrator) -> dict[str, float | int]:
+    """Parametros de reconexao WebSocket a partir da configuracao."""
+    api = orch.config.get("api_config") or {}
+    return {
+        "max_attempts": int(api.get("ws_connect_max_attempts", 5)),
+        "open_timeout": float(api.get("ws_connect_open_timeout_seconds", 25)),
+        "retry_delay": float(api.get("ws_connect_retry_delay_seconds", 4.0)),
+        "retry_backoff": float(api.get("ws_connect_retry_backoff", 1.5)),
+    }
+
+
 async def subscribe_account_transactions(orch: Orchestrator) -> None:
     """Inscreve no stream de transacoes da conta para liquidacao."""
     try:
@@ -41,7 +52,7 @@ async def setup_trading_session(orch: Orchestrator) -> bool:
             except Exception as reset_err:
                 orch.logger.error("AUTH: Falha ao resetar saldo demo: %s", reset_err)
 
-        await orch.ws.connect(session.ws_url)
+        await orch.ws.connect(session.ws_url, **ws_connect_options(orch))
         orch.state.balance = session.balance
         orch.risk_manager.set_initial_bankroll(orch.state.balance)
         orch._maybe_reset_daily_risk_session(int(time.time()))
@@ -54,6 +65,10 @@ async def setup_trading_session(orch: Orchestrator) -> bool:
         return True
     except DerivRestError as e:
         orch.logger.error("INIT: Deriv REST falhou: %s", e)
+        return False
+    except (ConnectionError, TimeoutError, OSError) as e:
+        detalhe = str(e).strip() or repr(e)
+        orch.logger.warning("INIT: broker indisponivel [%s]: %s", type(e).__name__, detalhe)
         return False
     except Exception as e:
         detalhe = str(e).strip() or repr(e)
@@ -79,7 +94,7 @@ async def start_orchestrator_streams(orch: Orchestrator) -> bool:
                 orch.logger.debug(f"STRM: reconexao durante startup ({attempt}/{retries}): {e}")
                 await asyncio.sleep(delay)
                 if not orch.ws.is_running:
-                    await orch.ws.connect()
+                    await orch.ws.connect(**ws_connect_options(orch))
     except Exception as e:
         detalhe = str(e).strip() or repr(e)
         orch.logger.error("STRM: Falha [%s]: %s", type(e).__name__, detalhe, exc_info=True)

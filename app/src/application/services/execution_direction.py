@@ -151,8 +151,14 @@ def build_forced_recovery_candidate(
     dl_dir = infer_dl_direction(entry)
     metrics["dl_direction"] = dl_dir.name if dl_dir else forced_dir.name
     metrics["exec_direction"] = forced_dir.name
-    metrics["direction_inverted"] = dl_dir is not None and dl_dir != forced_dir
     metrics["recovery_forced"] = True
+    metrics["direction_inverted"] = False
+    raw = metrics.get("raw_prob")
+    raw_side = max(float(raw), 1.0 - float(raw)) if raw is not None else 0.0
+    score = float(metrics.get("trade_score", metrics.get("conviction", 0.0)))
+    floor = max(score, raw_side, 0.58)
+    metrics["trade_score"] = floor
+    metrics["conviction"] = floor
     return symbol, forced_dir, metrics
 
 
@@ -192,12 +198,23 @@ def _forced_recovery_pick(
     decisions: dict,
     forced_dir: TradeDirection,
 ) -> tuple[str, TradeDirection, dict] | None:
-    """Seleciona primeiro simbolo elegivel com direcao forcada do recovery."""
+    """Seleciona simbolo elegivel priorizando DL alinhado a direcao do loss."""
+    aligned: list[tuple[str, TradeDirection, dict]] = []
+    fallback: list[tuple[str, TradeDirection, dict]] = []
     for symbol in order:
         entry = decisions.get(symbol)
         if not entry or _entry_gate_blocked(entry.get("metrics") or {}):
             continue
-        return build_forced_recovery_candidate(symbol, entry, forced_dir)
+        candidate = build_forced_recovery_candidate(symbol, entry, forced_dir)
+        dl_dir = infer_dl_direction(entry)
+        if dl_dir == forced_dir:
+            aligned.append(candidate)
+        else:
+            fallback.append(candidate)
+    if aligned:
+        return aligned[0]
+    if fallback:
+        return fallback[0]
     return None
 
 

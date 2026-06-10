@@ -4,6 +4,7 @@ import pytest
 
 from src.application.services.orchestrator.settlement_backfill import (
     backfill_contract_from_profit_table,
+    reconcile_single_contract,
     settlement_payload_from_profit_row,
 )
 
@@ -14,6 +15,35 @@ def test_settlement_payload_from_profit_row():
     assert poc["contract_id"] == 99
     assert poc["is_settled"] == 1
     assert poc["profit"] == 1.92
+
+
+@pytest.mark.asyncio
+async def test_reconcile_single_contract_marks_ws_offline_on_timeout():
+    orch = MagicMock()
+    orch.config = {"orchestrator": {"execution": {"settlement_request_timeout_seconds": 1.0}}}
+    orch.ws = MagicMock()
+    orch.ws.is_running = True
+    with (
+        patch(
+            "src.application.services.orchestrator.settlement_backfill.fetch_open_contract",
+            AsyncMock(side_effect=TimeoutError("timeout")),
+        ),
+        pytest.raises(TimeoutError),
+    ):
+        await reconcile_single_contract(orch, 42)
+    assert orch.ws.is_running is False
+
+
+@pytest.mark.asyncio
+async def test_backfill_contract_from_profit_table_transient_error():
+    orch = MagicMock()
+    orch.config = {"orchestrator": {"execution": {"settlement_profit_table_limit": 10}}}
+    orch.ws = MagicMock()
+    orch.ws.is_running = True
+    orch.ws.send = AsyncMock(side_effect=ConnectionError("offline"))
+    ok = await backfill_contract_from_profit_table(orch, 1)
+    assert ok is False
+    assert orch.ws.is_running is False
 
 
 @pytest.mark.asyncio

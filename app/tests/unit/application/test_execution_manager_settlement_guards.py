@@ -5,10 +5,34 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.application.services.orchestrator import Orchestrator
+from src.application.services.orchestrator.execution_settlement import _next_stagnant_poll_count
 from src.application.services.orchestrator.settlement_utils import clear_contract_metadata, clear_contract_tracking
 from src.domain.models.trade import Contract, TradeDirection, TradeStatus
 from src.infrastructure.state.trading_state import TradingState
-from tests.unit.application.post_settlement_helpers import patch_instant_settlement_poll
+from tests.unit.application.post_settlement_helpers import (
+    patch_instant_settlement_poll,
+    patch_settlement_poll_clear_after,
+)
+
+
+def test_next_stagnant_poll_count_resets_during_grace():
+    assert _next_stagnant_poll_count(3, 2.0, 10.0, [1], [1]) == 0
+
+
+@pytest.mark.asyncio
+async def test_wait_for_settlement_breaks_on_timeout(orch_config):
+    TradingState.reset()
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
+        mock_ws_class.return_value.subscribe = MagicMock()
+        orch = Orchestrator(orch_config, "token")
+        orch.risk_manager.active_contract_ids = [404]
+        with patch(
+            "src.application.services.orchestrator.execution_settlement._settlement_timed_out",
+            return_value=True,
+        ) as mock_timed_out:
+            await orch.executor.wait_for_settlement(timeout=1)
+        mock_timed_out.assert_called()
+        assert orch.risk_manager.active_contract_ids == [404]
 
 
 @pytest.mark.asyncio
@@ -42,7 +66,7 @@ async def test_wait_for_settlement_noop_when_empty(orch_config):
 
 
 @pytest.mark.asyncio
-async def test_wait_for_settlement_clears_stagnant_pending_ids(orch_config):
+async def test_wait_for_settlement_keeps_stagnant_pending_ids(orch_config):
     TradingState.reset()
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
         mock_ws_class.return_value.subscribe = MagicMock()
@@ -67,16 +91,16 @@ async def test_wait_for_settlement_clears_stagnant_pending_ids(orch_config):
             )
         )
         with (
-            patch.object(orch.executor, "reconcile", AsyncMock()),
+            patch.object(orch.executor, "reconcile", AsyncMock(return_value=True)),
             patch(
                 "src.application.services.orchestrator.execution_settlement.backfill_pending_contracts",
                 AsyncMock(return_value=0),
             ),
-            patch_instant_settlement_poll(),
+            patch.object(orch, "_save_full_state", AsyncMock()),
+            patch_settlement_poll_clear_after(orch.risk_manager, 8),
         ):
-            await orch.executor.wait_for_settlement(timeout=30)
-        assert orch.risk_manager.active_contract_ids == []
-        assert 202 not in orch.risk_manager.contract_to_symbol
+            await orch.executor.wait_for_settlement(timeout=5)
+        assert 202 in orch.risk_manager.contract_to_symbol
 
 
 @pytest.mark.asyncio
@@ -88,6 +112,8 @@ async def test_wait_for_settlement_backfill_recovers_before_clear(orch_config):
         ex = orch.config.setdefault("orchestrator", {}).setdefault("execution", {})
         ex["settlement_max_stagnant_polls"] = 1
         ex["settlement_stagnant_grace_seconds"] = 0.0
+        ex["settlement_post_expiry_slack_seconds"] = 0.0
+        orch.ws.is_running = True
         orch.risk_manager.active_contract_ids = [303]
         await orch.state.add_contract(
             Contract(
@@ -102,16 +128,22 @@ async def test_wait_for_settlement_backfill_recovers_before_clear(orch_config):
                 expiry_time=1,
             )
         )
+
+        async def mock_backfill(_orch, _pending):
+            orch.risk_manager.active_contract_ids = []
+            return 1
+
         with (
-            patch.object(orch.executor, "reconcile", AsyncMock()),
+            patch.object(orch.executor, "reconcile", AsyncMock(return_value=True)),
             patch(
                 "src.application.services.orchestrator.execution_settlement.backfill_pending_contracts",
-                AsyncMock(return_value=1),
+                side_effect=mock_backfill,
             ),
             patch_instant_settlement_poll(),
             patch.object(orch.logger, "info") as mock_info,
+            patch.object(orch, "_save_full_state", AsyncMock()),
         ):
-            await orch.executor.wait_for_settlement(timeout=3600)
+            await orch.executor.wait_for_settlement(timeout=5)
         assert orch.risk_manager.active_contract_ids == []
         assert any("Recuperados" in str(c) for c in mock_info.call_args_list)
 

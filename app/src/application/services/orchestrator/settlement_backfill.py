@@ -6,6 +6,7 @@ from typing import Any
 
 from src.application.services.orchestrator.settlement_detect import contract_payload_is_settled
 from src.application.services.orchestrator.settlement_logic import process_contract_settlement
+from src.application.services.orchestrator.settlement_utils import is_transient_broker_error, mark_ws_offline
 
 
 def _profit_from_row(row: dict) -> float:
@@ -65,7 +66,12 @@ async def reconcile_single_contract(orch: Any, contract_id: int) -> bool:
     """Tenta liquidar um contrato via poll; retorna True se processou settlement."""
     ex = orch.config.get("orchestrator", {}).get("execution", {})
     timeout = float(ex.get("settlement_request_timeout_seconds", 30.0))
-    poc = await fetch_open_contract(orch.ws, contract_id, timeout=timeout, subscribe=True)
+    try:
+        poc = await fetch_open_contract(orch.ws, contract_id, timeout=timeout, subscribe=True)
+    except Exception as exc:
+        if is_transient_broker_error(exc):
+            mark_ws_offline(orch.ws)
+        raise
     if poc and contract_payload_is_settled(poc):
         await process_contract_settlement(orch, {"proposal_open_contract": poc})
         return True
@@ -80,7 +86,9 @@ async def backfill_contract_from_profit_table(orch: Any, contract_id: int) -> bo
     limit = int(orch.config.get("orchestrator", {}).get("execution", {}).get("settlement_profit_table_limit", 60))
     try:
         res = await orch.ws.send({"profit_table": 1, "description": 1, "limit": limit, "offset": 0}, timeout=30.0)
-    except Exception:
+    except Exception as exc:
+        if is_transient_broker_error(exc):
+            mark_ws_offline(orch.ws)
         return False
     if "error" in res:
         return False

@@ -21,6 +21,17 @@ async def test_ws_connect_requires_uri():
 
 
 @pytest.mark.asyncio
+async def test_ws_connect_retries_then_raises():
+    mgr = WebSocketManager("wss://api.derivws.com/ws/demo?otp=x")
+    with patch("websockets.connect", new_callable=AsyncMock) as mock_connect:
+        mock_connect.side_effect = TimeoutError("timed out during opening handshake")
+        with pytest.raises(ConnectionError, match="esgotada"):
+            await mgr.connect(max_attempts=3, retry_delay=0.01, open_timeout=1.0)
+    assert mock_connect.await_count == 3
+    assert mgr.is_running is False
+
+
+@pytest.mark.asyncio
 async def test_ws_connect_sets_uri_argument():
     mgr = WebSocketManager("")
     with patch("websockets.connect", new_callable=AsyncMock) as mock_connect:

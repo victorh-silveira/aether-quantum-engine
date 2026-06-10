@@ -23,7 +23,7 @@ def test_martingale_uses_recorded_loss_stake_as_seed(kelly_config):
 def test_martingale_always_on_with_pending(kelly_config):
     rm = RiskManager(kelly_config)
     rm.pending_loss["R_50"] = 50.0
-    assert not rm._martingale_allowed(
+    assert rm._martingale_allowed(
         "R_50",
         0.40,
         dl_metrics={
@@ -52,24 +52,23 @@ def test_martingale_always_on_with_pending(kelly_config):
     )
 
 
-def test_martingale_blocked_on_weak_non_execute_signal(kelly_config):
+def test_martingale_allowed_on_weak_recovery_signal(kelly_config):
     rm = RiskManager(kelly_config)
     rm.pending_loss["R_50"] = 10.0
-    assert not rm._martingale_allowed(
-        "R_25",
-        0.52,
-        dl_metrics={"execute": False, "trade_score": 0.52, "val_accuracy": 0.55},
+    rm.last_loss_stake = 4.62
+    stake = rm.calculate_stake(
+        1150.0,
+        "R_75",
+        conviction=0.0,
+        cycle_id=5,
+        dl_metrics={"execute": False, "trade_score": 0.0, "val_accuracy": 0.51, "recovery_forced": True},
     )
+    assert stake > 10.0
 
 
-def test_martingale_blocked_on_low_score(kelly_config):
+def test_martingale_allowed_without_pending(kelly_config):
     rm = RiskManager(kelly_config)
-    rm.pending_loss["R_50"] = 10.0
-    assert not rm._martingale_allowed(
-        "R_25",
-        0.50,
-        dl_metrics={"execute": True, "trade_score": 0.50, "val_accuracy": 0.55},
-    )
+    assert not rm._martingale_allowed("R_25", 0.50, dl_metrics={"execute": True, "trade_score": 0.60})
 
 
 def test_martingale_stake_grows_with_pending_loss(kelly_config):

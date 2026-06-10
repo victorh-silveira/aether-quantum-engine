@@ -4,7 +4,11 @@
     "deriv_app_id": "",
     "public_ws_url": "wss://api.derivws.com/trading/v1/options/ws/public",
     "request_timeout_seconds": 60,
-    "rest_base_url": "https://api.derivws.com"
+    "rest_base_url": "https://api.derivws.com",
+    "ws_connect_max_attempts": 6,
+    "ws_connect_open_timeout_seconds": 25,
+    "ws_connect_retry_backoff": 1.5,
+    "ws_connect_retry_delay_seconds": 4
   },
   "data_handler": {
     "buffer_limit": 2000,
@@ -128,7 +132,8 @@
       "settlement_post_expiry_slack_seconds": 5.0,
       "settlement_request_timeout_seconds": 30.0
     },
-    "reconcile_interval_seconds": 5
+    "reconcile_interval_seconds": 5,
+    "ws_reconnect_delay_seconds": 8
   },
   "risk_management": {
     "kelly": {
@@ -140,13 +145,21 @@
       "mandatory_weak_conviction_cap": 0.55,
       "mandatory_weak_max_stake_pct": 0.004,
       "martingale_sizing_conviction": 0.58,
+      "martingale_max_stake_pct": 0.04,
       "martingale_min_val_accuracy": 0.5,
       "max_stake_pct": 0.004,
       "max_stake_pct_high_conviction": 0.005,
       "min_stake_pct": 0.001,
+      "stop_win_kelly_conviction_strong": 0.82,
+      "stop_win_kelly_cycles_target": 2.75,
+      "stop_win_kelly_enabled": true,
+      "stop_win_kelly_max_fraction": 0.38,
+      "stop_win_kelly_min_conviction": 0.45,
+      "stop_win_kelly_min_fraction": 0.12,
+      "stop_win_martingale_progress_fraction": 0.12,
       "symbol_loss_cooldown_candles": 2
     },
-    "large_account_stop_win_pct": 10.0,
+    "large_account_stop_win_pct": 4.0,
     "params": {
       "contract_type": "RISE_FALL",
       "duration": 1,

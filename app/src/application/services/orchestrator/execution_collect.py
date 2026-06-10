@@ -192,7 +192,7 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
             recovery_active=recovery_active,
         )
     metrics = best[2]
-    inv_tag = " inv" if metrics.get("direction_inverted") else ""
+    inv_tag = " inv" if metrics.get("direction_inverted") and not metrics.get("recovery_forced") else ""
     dl_name = metrics.get("dl_direction", best[1].name)
     exec_mgr.logger.info(
         "[%s] EXEC_SEL | %s ord=%s dl=%s%s s=%.2f v=%.2f r=%.2f | alt=%s",

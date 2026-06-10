@@ -1,4 +1,4 @@
-"""Gerencia conexões WebSocket assíncronas e ciclos de vida de subscrição."""
+"""Gerencia conexoes WebSocket assincronas e ciclos de vida de subscricao."""
 
 import asyncio
 import json
@@ -10,19 +10,19 @@ import websockets
 
 
 class WebSocketManager:
-    """Orquestra a conexão WebSocket com a API da Deriv.
+    """Orquestra a conexao WebSocket com a API da Deriv.
 
-    Fornece uma interface robusta para enviar solicitações, gerenciar subscrições,
-    ping automático e lidar com respostas assíncronas via futures.
+    Fornece uma interface robusta para enviar solicitacoes, gerenciar subscricoes,
+    ping automatico e lidar com respostas assincronas via futures.
     """
 
     def __init__(self, uri: str, ping_interval: int = 15, request_timeout: int = 30):
-        """Inicializa o gerenciador com a URI e os parâmetros de conexão.
+        """Inicializa o gerenciador com a URI e os parametros de conexao.
 
         Args:
             uri (str): A URI completa do WebSocket.
-            ping_interval (int): Segundos entre pings de manutenção de conexão.
-            request_timeout (int): Tempo limite padrão para solicitações em segundos.
+            ping_interval (int): Segundos entre pings de manutencao de conexao.
+            request_timeout (int): Tempo limite padrao para solicitacoes em segundos.
         """
         self.uri = uri
         self.ping_interval = ping_interval
@@ -34,24 +34,57 @@ class WebSocketManager:
         self.is_running = False
         self.logger = logging.getLogger("AETH")
 
-    async def connect(self, uri: str | None = None):
-        """Estabelece a conexão WebSocket e inicia as tarefas de segundo plano."""
+    async def connect(
+        self,
+        uri: str | None = None,
+        *,
+        max_attempts: int = 1,
+        open_timeout: float = 20.0,
+        retry_delay: float = 3.0,
+        retry_backoff: float = 1.5,
+    ):
+        """Estabelece a conexao WebSocket com retentativas e inicia tarefas de segundo plano."""
         if uri:
             self.uri = uri
         if not self.uri:
             raise ConnectionError("WSS: URI nao definida.")
-        self.ws = await websockets.connect(self.uri)
-        self.is_running = True
-        self.logger.debug("WSS: Conexão estabelecida com sucesso.")
-        asyncio.create_task(self._listen())
-        asyncio.create_task(self._ping_loop())
+        attempts = max(1, int(max_attempts))
+        delay = max(0.5, float(retry_delay))
+        last_err: BaseException | None = None
+        for attempt in range(1, attempts + 1):
+            self.is_running = False
+            try:
+                self.ws = await websockets.connect(
+                    self.uri,
+                    open_timeout=float(open_timeout),
+                    close_timeout=10.0,
+                )
+                self.is_running = True
+                self.logger.debug("WSS: Conexao estabelecida com sucesso.")
+                asyncio.create_task(self._listen())
+                asyncio.create_task(self._ping_loop())
+                return
+            except (TimeoutError, ConnectionError, OSError, websockets.WebSocketException) as exc:
+                last_err = exc
+                if attempt >= attempts:
+                    break
+                self.logger.warning(
+                    "WSS: conexao falhou (%d/%d): %s",
+                    attempt,
+                    attempts,
+                    exc,
+                )
+                await asyncio.sleep(delay)
+                delay = min(delay * float(retry_backoff), 60.0)
+        detail = str(last_err).strip() if last_err else "erro desconhecido"
+        raise ConnectionError(f"WSS: conexao esgotada apos {attempts} tentativas: {detail}") from last_err
 
     async def close(self):
-        """Encerra a conexão WebSocket de forma graciosa."""
+        """Encerra a conexao WebSocket de forma graciosa."""
         self.is_running = False
         if self.ws:
             await self.ws.close()
-            self.logger.debug("WSS: Conexão encerrada.")
+            self.logger.debug("WSS: Conexao encerrada.")
 
     async def _listen(self):
         """Loop interno que escuta as mensagens WebSocket recebidas e as roteia."""
@@ -78,7 +111,7 @@ class WebSocketManager:
                 if msg_type in self.subscriptions:
 
                     async def safe_callback(d, m=msg_type):
-                        """Executa o callback de forma segura capturando exceções."""
+                        """Executa o callback de forma segura capturando excecoes."""
                         try:
                             await self.subscriptions[m](d)
                         except Exception as e:
@@ -86,14 +119,14 @@ class WebSocketManager:
 
                     asyncio.create_task(safe_callback(data))
         except websockets.ConnectionClosed:
-            self.logger.debug("WSS: Conexão fechada pelo broker.")
+            self.logger.debug("WSS: Conexao fechada pelo broker.")
             self.is_running = False
         except Exception as e:
             self.logger.error(f"WSS: Erro inesperado: {e}")
             self.is_running = False
 
     async def _ping_loop(self):
-        """Loop interno que envia pings periódicos para manter a conexão ativa com timeout estrito."""
+        """Loop interno que envia pings periodicos para manter a conexao ativa com timeout estrito."""
         try:
             while self.is_running:
                 await asyncio.sleep(self.ping_interval)
@@ -106,26 +139,26 @@ class WebSocketManager:
                         if self.ws:
                             await self.ws.close()
         except Exception as e:
-            self.logger.error(f"WSS: Falha crítica no loop de ping: {e}")
+            self.logger.error(f"WSS: Falha critica no loop de ping: {e}")
             self.is_running = False
             if self.ws:
                 asyncio.create_task(self.ws.close())
 
     async def send(self, request: dict[str, Any], timeout: int | None = None) -> dict[str, Any]:
-        """Envia uma solicitação JSON e aguarda sua resposta correspondente.
+        """Envia uma solicitacao JSON e aguarda sua resposta correspondente.
 
         Args:
             request (Dict[str, Any]): O payload a ser enviado.
-            timeout (int): Tempo máximo para aguardar uma resposta (substitui o padrão).
+            timeout (int): Tempo maximo para aguardar uma resposta (substitui o padrao).
 
         Returns:
             Dict[str, Any]: A resposta do servidor.
 
         Raises:
-            asyncio.TimeoutError: Se o servidor não responder a tempo.
+            asyncio.TimeoutError: Se o servidor nao responder a tempo.
         """
         if not self.ws or not self.is_running:
-            raise ConnectionError("WSS: Impossível enviar comando. WebSocket não está conectado.")
+            raise ConnectionError("WSS: Impossivel enviar comando. WebSocket nao esta conectado.")
 
         self.req_id_counter += 1
         request["req_id"] = self.req_id_counter
@@ -139,15 +172,15 @@ class WebSocketManager:
             return await asyncio.wait_for(future, timeout=actual_timeout)
         except TimeoutError:
             if cmd != "ping":
-                self.logger.debug(f"WSS: Timeout na requisição {self.req_id_counter} ({cmd}) após {actual_timeout}s")
+                self.logger.debug(f"WSS: Timeout na requisicao {self.req_id_counter} ({cmd}) apos {actual_timeout}s")
             self.callbacks.pop(self.req_id_counter, None)
             raise
 
     def subscribe(self, msg_type: str, callback: Callable):
-        """Registra um callback para tipos específicos de mensagens do fluxo.
+        """Registra um callback para tipos especificos de mensagens do fluxo.
 
         Args:
             msg_type (str): O valor do campo 'msg_type' para filtrar.
-            callback (Callable): Função assíncrona a ser chamada com os dados da mensagem.
+            callback (Callable): Funcao assincrona a ser chamada com os dados da mensagem.
         """
         self.subscriptions[msg_type] = callback
