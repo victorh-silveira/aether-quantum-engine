@@ -100,7 +100,7 @@ def test_recovery_prefers_opposite_direction_after_loss():
     assert best[1] == TradeDirection.CALL
 
 
-def test_select_mandatory_non_recovery_filters_execute_true():
+def test_select_mandatory_non_recovery_prefers_highest_score():
     orch = SimpleNamespace(config={})
     candidates = [
         (ANCHOR, TradeDirection.CALL, {"trade_score": 0.71, "execute": False}),
@@ -113,7 +113,7 @@ def test_select_mandatory_non_recovery_filters_execute_true():
         diversify_margin=0.08,
         recovery_active=False,
     )
-    assert best[0] == PAIR
+    assert best[0] == ANCHOR
 
 
 def test_select_mandatory_recovery_keeps_same_direction_candidate():

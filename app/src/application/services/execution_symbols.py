@@ -202,10 +202,8 @@ def select_mandatory_execution_candidate(
     )
     if not pool:
         return None
-    approved = [item for item in pool if item[2].get("execute")]
-    ranked_pool = approved if approved else pool
     return select_best_execution_candidate(
-        ranked_pool,
+        pool,
         last_loss_symbol=last_loss_symbol,
         last_loss_direction=last_loss_direction,
         diversify_margin=diversify_margin,

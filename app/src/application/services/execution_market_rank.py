@@ -17,7 +17,9 @@ _STRONG_RAW_SIDE = 0.58
 _MIN_CLOSE_LOC_CALL = 0.48
 _MAX_CLOSE_LOC_PUT = 0.52
 _STRONG_DL_SCORE = 0.68
-_FLOW_OVERRIDE_MIN = 0.50
+_FLOW_OVERRIDE_MIN = 0.55
+_MANDATORY_TRUST_SCORE = 0.55
+_MANDATORY_TRUST_RAW = 0.52
 _WEAK_GATES = frozenset(
     {
         "raw_conviction",
@@ -79,7 +81,10 @@ def _candle_implied_direction(ctx: dict) -> TradeDirection | None:
 def _strong_dl_signal(metrics: dict) -> bool:
     """Indica predicao DL forte o suficiente para confiar sem fluxo oposto extremo."""
     score = _trade_score(metrics)
-    return score + 1e-9 >= _STRONG_DL_SCORE and bool(metrics.get("execute")) and metrics.get("deploy_ok") is not False
+    raw_side = _raw_side(metrics)
+    if metrics.get("deploy_ok") is False:
+        return False
+    return score + 1e-9 >= _STRONG_DL_SCORE and raw_side + 1e-9 >= _STRONG_RAW_SIDE
 
 
 def _resolve_mandatory_weak_direction(dl: TradeDirection, ctx: dict) -> TradeDirection:
@@ -99,11 +104,17 @@ def _resolve_mandatory_weak_direction(dl: TradeDirection, ctx: dict) -> TradeDir
 
 def _flow_overrides_dl(direction: TradeDirection, flow_dir: TradeDirection, strength: float, metrics: dict) -> bool:
     """Indica se o fluxo de mercado deve substituir a direcao prevista pelo DL."""
-    if _strong_dl_signal(metrics) and _raw_side(metrics) + 1e-9 >= _STRONG_RAW_SIDE:
-        return flow_dir != direction and strength + 1e-9 >= _FLOW_OVERRIDE_MIN
-    if (_weak_execution_signal(metrics) or strength + 1e-9 >= 0.20) and strength + 1e-9 >= 0.18:
-        return True
-    return flow_dir != direction and strength + 1e-9 >= 0.32
+    if flow_dir == direction:
+        return False
+    if _strong_dl_signal(metrics):
+        return strength + 1e-9 >= _FLOW_OVERRIDE_MIN
+    score = _trade_score(metrics)
+    raw_side = _raw_side(metrics)
+    if score + 1e-9 >= _MANDATORY_TRUST_SCORE and raw_side + 1e-9 >= _MANDATORY_TRUST_RAW:
+        return False
+    if _weak_execution_signal(metrics):
+        return strength + 1e-9 >= 0.22
+    return strength + 1e-9 >= 0.32
 
 
 def _resolve_flow_aware_direction(direction: TradeDirection, ctx: dict, metrics: dict) -> TradeDirection:
@@ -239,6 +250,11 @@ def market_decision_score(
     if exec_direction is not None and ctx:
         composite += flow_alignment_bonus(exec_direction, ctx)
         composite += _binary_alignment_bonus(exec_direction, ctx)
+    if metrics.get("direction_inverted"):
+        if score + 1e-9 >= 0.68:
+            composite -= 0.14
+        elif score + 1e-9 >= 0.55:
+            composite -= 0.08
     composite *= _weak_signal_multiplier(score, raw_side, exec_direction, ctx)
     return _recovery_score_adjustment(
         composite,

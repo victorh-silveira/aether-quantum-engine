@@ -166,7 +166,7 @@ def test_select_mandatory_falls_back_when_pool_empty():
     assert best[0] == ANCHOR
 
 
-def test_select_mandatory_recovery_prefers_same_direction_on_core():
+def test_select_mandatory_recovery_diversifies_from_last_loss_symbol():
     orch = SimpleNamespace(config={})
     candidates = [
         (ANCHOR, TradeDirection.CALL, {"trade_score": 0.71, "execute": False}),
