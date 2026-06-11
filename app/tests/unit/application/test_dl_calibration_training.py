@@ -4,10 +4,13 @@ import pytest
 from src.application.services.deep_learning.dl_calibration import (
     apply_calibrator,
     brier_score,
+    calibrate_conviction,
     calibrate_trade_score,
+    calibrator_from_dict,
     cap_calibrated_to_raw_band,
     expected_calibration_error,
     fit_calibrator,
+    fit_platt,
     fit_temperature,
     logit_to_prob,
     raw_side_conviction,
@@ -15,6 +18,7 @@ from src.application.services.deep_learning.dl_calibration import (
     shrink_toward_fifty,
 )
 from src.application.services.deep_learning.dl_outcomes import record_symbol_outcome, sample_weights_for_symbol
+from src.application.services.deep_learning.dl_splits import purged_temporal_splits, splits_valid
 from src.application.services.deep_learning.dl_training import train_model_online, train_model_walkforward
 from src.application.services.deep_learning.model import INPUT_DIM, create_direction_model
 
@@ -85,3 +89,51 @@ def test_train_model_online_returns_zero_without_samples():
     model = create_direction_model(arch="tcn", input_dim=INPUT_DIM)
     loss = train_model_online(model, np.array([10.0, 11.0]), lookback=20, epochs=2, lr=0.01)
     assert loss == 0.0
+
+
+def test_calibrate_conviction_legacy():
+    assert calibrate_conviction(0.8, 0.6, 1.0) > 0.5
+    assert calibrator_from_dict(None).temperature == 1.0
+    assert expected_calibration_error([], []) == 1.0
+    assert brier_score([], []) == 1.0
+    assert fit_platt([], []) == (1.0, 0.0)
+
+
+def test_outcome_weights_dampen_after_win_streak():
+    orch = type("O", (), {})()
+    for _ in range(6):
+        record_symbol_outcome(orch, "R_50", won=True)
+    weights = sample_weights_for_symbol(orch, "R_50", 12)
+    assert min(weights[-4:]) < 1.0
+
+
+def test_sample_weights_boost_labels_after_loss_direction():
+    orch = type("O", (), {"_last_loss_direction": "CALL"})()
+    orch._dl_outcome_flags = {"R_75": [False]}
+    targets = [1.0, 0.0, 1.0]
+    weights = sample_weights_for_symbol(orch, "R_75", 3, targets=targets)
+    assert weights[1] > weights[0]
+    orch_put = type("O", (), {"_last_loss_direction": "PUT"})()
+    orch_put._dl_outcome_flags = {"R_75": [False]}
+    weights_put = sample_weights_for_symbol(orch_put, "R_75", 2, targets=[0.0, 1.0])
+    assert weights_put[1] > weights_put[0]
+
+
+def test_purged_splits_edge_cases():
+    assert purged_temporal_splits(15, 5) is None
+    splits = purged_temporal_splits(500, 30, calib_ratio=0.1)
+    assert splits is not None
+
+
+def test_purged_splits_invalid_holdout_returns_none():
+    assert purged_temporal_splits(26, 10) is not None
+    assert purged_temporal_splits(30, 28, calib_ratio=0.5) is None
+    assert splits_valid(10, 12, 20, 20) is False
+
+
+def test_purged_splits_rejects_invalid_slice_ranges(monkeypatch):
+    monkeypatch.setattr(
+        "src.application.services.deep_learning.dl_splits.splits_valid",
+        lambda *_args: False,
+    )
+    assert purged_temporal_splits(120, 20) is None

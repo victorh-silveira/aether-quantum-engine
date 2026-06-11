@@ -86,6 +86,13 @@ def calculate_stake_for_manager(
         initial_bankroll=rm.initial_bankroll,
         total_session_profit=rm.total_session_profit,
     )
+    if martingale_active and isinstance(dl_metrics, dict):
+        trade_score = float(dl_metrics.get("trade_score", conviction))
+        consensus = float(dl_metrics.get("consensus_strength", 1.0))
+        weak_recovery = trade_score + 1e-9 < 0.55 or consensus + 1e-9 < 0.35
+        if weak_recovery:
+            final_stake = min(final_stake, bankroll * 0.03)
+    final_stake = min(final_stake, bankroll * 0.92)
     final_stake = finalize_stake_with_min(
         final_stake, stake_min, bankroll, conviction, martingale_active=martingale_active
     )

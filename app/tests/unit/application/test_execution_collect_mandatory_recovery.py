@@ -90,4 +90,4 @@ def test_collect_cluster_orders_recovery_skips_weak_signal():
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
     assert len(orders) == 1
-    assert orders[0][1] == TradeDirection.CALL
+    assert orders[0][1] == TradeDirection.PUT

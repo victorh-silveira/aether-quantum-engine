@@ -3,7 +3,7 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
-CONFIG="$ROOT/linters/pre-commit-config.yaml"
+CONFIG="$ROOT/.pre-commit-config.yaml"
 RESOLVE="$ROOT/linters/git-hooks/bin/resolve_conda_python.sh"
 
 if [ -f /proc/version ] && grep -qi microsoft /proc/version 2>/dev/null; then

@@ -87,3 +87,64 @@ def test_run_symbol_training_forwards_progress_callback():
             granularity=300,
         )
     assert "progress_cb" in mock_train_trained.call_args.kwargs
+
+
+def test_run_symbol_training_when_walkforward_unavailable():
+    orch = MagicMock()
+    runtime = {
+        "model": create_direction_model(arch="tcn"),
+        "norm_stats": MagicMock(),
+        "calibrator": MagicMock(),
+    }
+    dl_config = {"deploy_gate": {"enabled": False}}
+    params = _training_params()
+    prices = np.linspace(1.0, 2.0, 80)
+    with patch(
+        "src.application.services.deep_learning.dl_symbol_runtime.train_model_walkforward",
+        return_value=None,
+    ):
+        stats, loss = run_symbol_training(
+            "R_50",
+            runtime,
+            prices,
+            dl_config,
+            params,
+            100,
+            orch,
+            pair_prices=None,
+            granularity=300,
+        )
+    assert stats is runtime["norm_stats"]
+    assert loss is None
+    assert runtime["deploy_ok"] is False
+    assert runtime["val_accuracy"] == 0.0
+
+
+def test_run_symbol_training_handles_training_exception():
+    orch = MagicMock()
+    runtime = {
+        "model": create_direction_model(arch="tcn"),
+        "norm_stats": MagicMock(),
+        "calibrator": MagicMock(),
+    }
+    dl_config = {"deploy_gate": {"enabled": False}}
+    params = _training_params()
+    prices = np.linspace(1.0, 2.0, 80)
+    with patch(
+        "src.application.services.deep_learning.dl_symbol_runtime.train_model_walkforward",
+        side_effect=RuntimeError("fail"),
+    ):
+        stats, loss = run_symbol_training(
+            "R_50",
+            runtime,
+            prices,
+            dl_config,
+            params,
+            100,
+            orch,
+            pair_prices=None,
+            granularity=300,
+        )
+    assert stats is runtime["norm_stats"]
+    assert loss is None
+    assert runtime["deploy_ok"] is False

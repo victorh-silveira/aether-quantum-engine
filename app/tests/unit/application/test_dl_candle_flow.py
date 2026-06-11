@@ -173,6 +173,61 @@ def test_augment_binary_context_body_streak_breaks_on_reversal():
     assert augment_binary_context(dict(ctx), series, 3)["body_streak"] == 1.0
 
 
+def test_flow_implied_direction_trending_negative_ret3():
+    ctx = {
+        "body": 0.0,
+        "body_sum_3": 0.0,
+        "ema_spread": 0.0,
+        "ret_5": 0.0,
+        "ret_3": -0.001,
+        "close_loc": 0.5,
+        "variance_ratio": 0.95,
+        "sma_z": 0.0,
+        "body_streak": 0.0,
+        "rsi_slope": 0.0,
+    }
+    assert flow_implied_direction(ctx) == TradeDirection.PUT
+
+
+def test_flow_implied_direction_negative_rsi_slope():
+    ctx = {
+        "body": 0.0,
+        "body_sum_3": 0.0,
+        "ema_spread": 0.0,
+        "ret_5": 0.0,
+        "ret_3": 0.0,
+        "close_loc": 0.5,
+        "variance_ratio": 0.85,
+        "sma_z": 0.0,
+        "body_streak": 0.0,
+        "rsi_slope": -0.02,
+    }
+    assert flow_implied_direction(ctx) == TradeDirection.PUT
+
+
+def test_apply_candle_flow_override_keeps_strong_dl():
+    ctx = {
+        "body": 0.003,
+        "body_sum_3": 0.008,
+        "ema_spread": 0.002,
+        "ret_5": 0.003,
+        "close_loc": 0.62,
+        "variance_ratio": 0.95,
+        "rel_vol": 0.35,
+        "body_streak": 3.0,
+        "rsi_slope": 0.02,
+    }
+    direction, overridden, raw = apply_candle_flow_override(
+        TradeDirection.PUT,
+        0.62,
+        ctx,
+        {"binary_signal": {"weak_dl_override_margin": 0.08}},
+    )
+    assert overridden is False
+    assert direction == TradeDirection.PUT
+    assert raw == 0.62
+
+
 def test_apply_candle_flow_override_keeps_direction_when_flow_weak():
     direction, overridden, raw = apply_candle_flow_override(
         TradeDirection.PUT,

@@ -238,6 +238,13 @@ def stage_clean():
         if p.exists():
             safe_remove(p)
 
+    app_data = APP_ROOT / "data"
+    if app_data.exists():
+        safe_remove(app_data)
+
+    for stray in APP_ROOT.glob("pytest-cache-files-*"):
+        safe_remove(stray)
+
 
 def main():
     parser = argparse.ArgumentParser(description="Aether Engine Quality Gate")

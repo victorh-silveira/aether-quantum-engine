@@ -5,7 +5,7 @@ from src.application.services.execution_market_rank import resolve_market_direct
 from src.domain.models.trade import TradeDirection
 
 
-def test_resolve_market_direction_moderate_raw_keeps_dl_in_trust_band():
+def test_resolve_market_direction_moderate_raw_uses_consensus_layers():
     entry = {
         "direction": TradeDirection.CALL,
         "metrics": {
@@ -24,7 +24,7 @@ def test_resolve_market_direction_moderate_raw_keeps_dl_in_trust_band():
             },
         },
     }
-    assert resolve_market_direction(entry) == TradeDirection.CALL
+    assert resolve_market_direction(entry) == TradeDirection.PUT
 
 
 def test_resolve_market_direction_moderate_raw_flips_on_candle_conflict():

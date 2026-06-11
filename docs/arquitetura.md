@@ -164,7 +164,7 @@ Se um modelo regredir a estado não treinado (retreino inválido ou `brier_untra
 | Mecanismo | Módulo / config |
 |-----------|-----------------|
 | Kelly fracionário | `stake_sizing.py`, `kelly.fraction` |
-| Stop win diário | `stop_win_target.py` |
+| Stop win diário | `domain/risk/stop_win_target.py` |
 | Martingale recovery | `martingale_gate.py` (ativo com `pending_loss > 0`) |
 | Cooldown entrada | `risk_cooldown.py` |
 | Cooldown por loss no símbolo | `symbol_loss_cooldown.py` |

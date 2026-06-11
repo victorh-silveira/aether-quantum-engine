@@ -7,7 +7,6 @@ from src.application.services.deep_learning.dl_binary_direction import (
     binary_direction_veto,
     build_binary_context,
 )
-from src.application.services.deep_learning.dl_candle_flow import apply_candle_flow_override
 from src.application.services.deep_learning.dl_gating import strong_signal_bypasses_val_acc
 from src.application.services.deep_learning.dl_outcomes import live_win_rate
 from src.application.services.deep_learning.dl_regime import direction_aligns_with_regime
@@ -45,14 +44,6 @@ def prepare_binary_direction(
         binary_ctx,
         params,
     )
-    if not stat_override:
-        direction, flow_override, raw_prob = apply_candle_flow_override(
-            direction,
-            raw_prob,
-            binary_ctx,
-            params,
-        )
-        stat_override = flow_override
     if stat_override:
         trade_score = max(float(raw_prob), 1.0 - float(raw_prob))
     return direction, stat_override, raw_prob, trade_score, sym_is_bull, binary_ctx

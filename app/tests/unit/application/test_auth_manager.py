@@ -60,3 +60,12 @@ async def test_auth_manager_open_trading_session(monkeypatch):
     ):
         out = await auth.open_trading_session()
     assert out.account_id == "DOT"
+
+
+def test_auth_manager_loads_dotenv_if_file_exists():
+    with (
+        patch("pathlib.Path.is_file", return_value=True),
+        patch("src.application.services.auth_manager.load_dotenv") as mock_load,
+    ):
+        AuthManager(mode="live")
+        mock_load.assert_called()

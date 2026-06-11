@@ -7,7 +7,7 @@ from src.application.services.deep_learning.dl_retrain import mark_force_retrain
 from src.application.services.orchestrator.metrics_utils import neutral_metrics
 from src.application.services.orchestrator.result_utils import api_settlement_label
 from src.application.services.orchestrator.settlement_detect import contract_payload_is_settled
-from src.application.services.orchestrator.stop_win_target import resolve_stop_win_target
+from src.domain.risk.stop_win_target import resolve_stop_win_target
 
 
 async def process_contract_settlement(orch: Any, data: dict):

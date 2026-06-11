@@ -2,8 +2,9 @@
 
 import logging
 
+from src.domain.risk.stop_win_target import resolve_stop_win_target
+
 from .settlement_backfill import subscribe_open_contract
-from .stop_win_target import resolve_stop_win_target
 
 
 async def place_order(executor, symbol, direction, stake, duration=None, metrics=None):

@@ -14,7 +14,7 @@ RESET  := \033[0m
 
 .DEFAULT_GOAL := help
 
-.PHONY: install lint test security run backtest pre-commit pre-commit-run setup-wsl clean help helpo
+.PHONY: install lint test security run pre-commit pre-commit-run setup-wsl clean help helpo
 
 help:
 	@echo -e "$(BLUE)========================================================================$(RESET)"
@@ -30,7 +30,6 @@ help:
 	@echo -e "  $(GREEN)test$(RESET)        - Roda os testes unitarios com pytest e gera cobertura de codigo"
 	@echo -e "  $(GREEN)security$(RESET)    - Varre o projeto em busca de vulnerabilidades (bandit/pip-audit)"
 	@echo -e "  $(GREEN)run$(RESET)         - Inicia a execucao principal do motor quantico (run.py)"
-	@echo -e "  $(GREEN)backtest$(RESET)    - Executa simulacoes historicas (use: ARGS=\"...\")"
 	@echo -e "  $(GREEN)pre-commit$(RESET)      - Instala e configura os git hooks locais de pre-commit"
 	@echo -e "  $(GREEN)pre-commit-run$(RESET)  - Roda todos os hooks (equivalente a pre-commit run --all-files)"
 	@echo -e "  $(GREEN)setup-wsl$(RESET)     - Configura Git, Conda e hooks no WSL (bash scripts/wsl/setup.sh)"
@@ -55,9 +54,6 @@ security:
 
 run:
 	$(PYTHON) run.py
-
-backtest:
-	$(PYTHON) $(APP_DIR)/scripts/backtest/medallion_backtest.py $(ARGS)
 
 pre-commit:
 	bash linters/git-hooks/install.sh

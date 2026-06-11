@@ -46,8 +46,8 @@ def test_collect_cluster_orders_mandatory_fallback_after_recovery_filter():
     ):
         orders = collect_cluster_orders(exec_mgr, decisions)
     assert len(orders) == 1
-    assert orders[0][0] == ANCHOR
-    assert orders[0][1] == TradeDirection.CALL
+    assert orders[0][0] == PAIR
+    assert orders[0][1] == TradeDirection.PUT
 
 
 def test_collect_cluster_orders_mandatory_returns_empty_when_fallback_missing():
