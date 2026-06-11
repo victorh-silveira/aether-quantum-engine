@@ -1,3 +1,9 @@
+## [1.8.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.8.0...v1.8.1) (2026-06-11)
+
+### Correcoes de Bug
+
+* **engine:** protege direcao DL forte e ranqueia por score no modo obrigatorio ([0db7825](https://github.com/victorh-silveira/aether-quantum-engine/commit/0db7825416524d1d9a8d192e1e4bb4c08ae28b4d))
+
 ## [1.8.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.7.0...v1.8.0) (2026-06-10)
 
 ### Funcionalidades
