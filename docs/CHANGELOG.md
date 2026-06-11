@@ -1,3 +1,9 @@
+## [1.9.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.8.1...v1.9.0) (2026-06-11)
+
+### Funcionalidades
+
+* **engine:** consenso CALL/PUT unificado e limpeza do repositorio ([cdfee24](https://github.com/victorh-silveira/aether-quantum-engine/commit/cdfee241ffe5b652a04eb46d01c11b4c16451b4a))
+
 ## [1.8.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.8.0...v1.8.1) (2026-06-11)
 
 ### Correcoes de Bug
