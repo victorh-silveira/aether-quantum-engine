@@ -1,3 +1,9 @@
+## [1.13.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.12.0...v1.13.0) (2026-06-14)
+
+### Funcionalidades
+
+* **engine:** M5 ma_trend e vol implicita para R_100 ([720461c](https://github.com/victorh-silveira/aether-quantum-engine/commit/720461c9f984ab7988fee6b90f9b0b1ed963b97a))
+
 ## [1.12.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.11.0...v1.12.0) (2026-06-14)
 
 ### Funcionalidades
