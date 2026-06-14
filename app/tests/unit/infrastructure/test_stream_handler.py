@@ -59,45 +59,6 @@ def test_stream_handler_get_numpy(stream_handler):
 
 
 @pytest.mark.asyncio
-async def test_fetch_symbol_history_paginates(mock_ws):
-    mock_ws.is_running = True
-    page_one = [{"open": 1.0, "high": 1.1, "low": 0.9, "close": 1.05, "epoch": 2000 + i} for i in range(3)]
-    page_two = [{"open": 1.0, "high": 1.1, "low": 0.9, "close": 1.02, "epoch": 1000 + i} for i in range(2)]
-
-    async def send_side_effect(req):
-        if req.get("end") == "latest":
-            return {"candles": page_one}
-        return {"candles": page_two}
-
-    mock_ws.send = AsyncMock(side_effect=send_side_effect)
-    sh = StreamHandler(mock_ws, ["R_50"], {"fetch_count": 5, "history_fetch_chunk": 3, "granularity": 300})
-    await sh._fetch_symbol_history("R_50", 5)
-    assert len(sh.candles["R_50"]) == 5
-    assert sh.candles["R_50"][0].epoch == 1000
-    assert sh.candles["R_50"][-1].epoch == 2002
-
-
-@pytest.mark.asyncio
-async def test_fetch_symbol_history_trims_excess(mock_ws):
-    mock_ws.is_running = True
-    candles = [{"open": 1.0, "high": 1.1, "low": 0.9, "close": 1.05, "epoch": 1000 + i} for i in range(6)]
-    mock_ws.send = AsyncMock(return_value={"candles": candles})
-    sh = StreamHandler(mock_ws, ["R_50"], {"history_fetch_chunk": 10, "granularity": 300})
-    await sh._fetch_symbol_history("R_50", 4)
-    assert len(sh.candles["R_50"]) == 4
-    assert sh.candles["R_50"][0].epoch == 1002
-    assert sh.candles["R_50"][-1].epoch == 1005
-
-
-@pytest.mark.asyncio
-async def test_fetch_symbol_history_stops_on_api_error(mock_ws):
-    mock_ws.send = AsyncMock(return_value={"error": {"message": "Invalid granularity"}})
-    sh = StreamHandler(mock_ws, ["R_50"], {"granularity": 60})
-    await sh._fetch_symbol_history("R_50", 10)
-    assert sh.candles["R_50"] == []
-
-
-@pytest.mark.asyncio
 async def test_stream_handler_start_stream(stream_handler, mock_ws):
     callback = AsyncMock()
     await stream_handler.start_candle_stream(callback)

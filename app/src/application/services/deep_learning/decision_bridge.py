@@ -29,6 +29,7 @@ from src.application.services.deep_learning.dl_training_gate import (
     runtime_in_training,
     training_priority_symbols,
 )
+from src.application.services.orchestrator.engine_mode import training_enabled
 
 
 __all__ = [
@@ -119,32 +120,33 @@ async def _collect_symbol_decision(
     epoch = candle_epoch(orch, symbol)
     train_loss = None
     train_reason = None
-    do_train, reason = should_retrain_symbol(orch, symbol, runtime, params, epoch)
-    if do_train and train_priority and str(symbol) not in train_priority:
-        do_train, reason = False, ""
-    if do_train and reason == "bootstrap":
-        first_pending = next((str(s) for s in orch.symbols if str(s) in train_priority), None)
-        if first_pending is not None and str(symbol) != first_pending:
+    if training_enabled(orch):
+        do_train, reason = should_retrain_symbol(orch, symbol, runtime, params, epoch)
+        if do_train and train_priority and str(symbol) not in train_priority:
             do_train, reason = False, ""
-    if do_train:
-        train_reason = reason
-        skip_train = reason == "new_candle" and bool(getattr(orch, "_dl_fast_cycle", False))
-        if skip_train or reason == "bootstrap" and getattr(orch, "_dl_bootstrap_completed", False):
-            train_reason = None
-        else:
-            enqueue_deferred_symbol_training(
-                orch,
-                symbol,
-                train_fn=run_symbol_training,
-                train_args=(symbol, runtime, prices, dl_config, params, epoch, orch),
-                train_kwargs={
-                    "granularity": granularity,
-                    "open_": open_,
-                    "high": high,
-                    "low": low,
-                    "micro": micro,
-                },
-            )
+        if do_train and reason == "bootstrap":
+            first_pending = next((str(s) for s in orch.symbols if str(s) in train_priority), None)
+            if first_pending is not None and str(symbol) != first_pending:
+                do_train, reason = False, ""
+        if do_train:
+            train_reason = reason
+            skip_train = reason == "new_candle" and bool(getattr(orch, "_dl_fast_cycle", False))
+            if skip_train or reason == "bootstrap" and getattr(orch, "_dl_bootstrap_completed", False):
+                train_reason = None
+            else:
+                enqueue_deferred_symbol_training(
+                    orch,
+                    symbol,
+                    train_fn=run_symbol_training,
+                    train_args=(symbol, runtime, prices, dl_config, params, epoch, orch),
+                    train_kwargs={
+                        "granularity": granularity,
+                        "open_": open_,
+                        "high": high,
+                        "low": low,
+                        "micro": micro,
+                    },
+                )
     norm_stats = runtime["norm_stats"]
 
     entry = predict_symbol_decision(

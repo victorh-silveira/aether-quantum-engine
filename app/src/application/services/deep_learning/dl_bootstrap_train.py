@@ -122,9 +122,49 @@ async def run_initial_bootstrap_training(orch) -> None:
             break
         if not progress:
             wait_rounds += 1
+            _, params, min_len, _, _, _, _, _, _, _ = _bootstrap_training_context(orch, pending[0])
+            await orch.stream.ensure_cluster_history(min_len)
             if wait_rounds >= max_wait_rounds:
                 logger.warning(
                     "DL TREINO | bootstrap | limite de %d ciclos aguardando historico",
+                    max_wait_rounds,
+                )
+                break
+            await asyncio.sleep(float(gran))
+
+
+async def run_dl_training_session(orch) -> None:
+    """Treina todos os simbolos em sequencia ate concluir ou esgotar espera de historico."""
+    symbols = [str(symbol) for symbol in orch.symbols]
+    if not symbols:
+        return
+    logger.info("")
+    logger.info(
+        "DL | SESSAO TREINO | %d simbolo(s) | sequencial",
+        len(symbols),
+    )
+    gran = max(1, granularity_seconds(orch))
+    dl_config = orch.config.get("deep_learning", {})
+    max_wait_rounds = max(1, int(dl_config.get("bootstrap_max_wait_rounds", 120)))
+    wait_rounds = 0
+    completed: set[str] = set()
+    while len(completed) < len(symbols):
+        progress = False
+        for symbol in symbols:
+            if symbol in completed:
+                continue
+            if await _train_bootstrap_symbol(orch, symbol):
+                completed.add(symbol)
+                progress = True
+        if len(completed) >= len(symbols):
+            break
+        if not progress:
+            wait_rounds += 1
+            _, params, min_len, _, _, _, _, _, _, _ = _bootstrap_training_context(orch, symbols[0])
+            await orch.stream.ensure_cluster_history(min_len)
+            if wait_rounds >= max_wait_rounds:
+                logger.warning(
+                    "DL TREINO | sessao | limite de %d ciclos aguardando historico",
                     max_wait_rounds,
                 )
                 break

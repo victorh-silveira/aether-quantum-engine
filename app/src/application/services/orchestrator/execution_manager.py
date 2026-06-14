@@ -5,6 +5,7 @@ import logging
 
 from src.application.services.execution_symbols import symbols_eligible_for_execution
 from src.application.services.log_dedupe import clear_log_channel, log_info_if_changed
+from src.application.services.orchestrator.engine_mode import training_enabled
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.stake_sizing import resolve_stake_conviction
 from src.domain.risk.stop_win_target import resolve_stop_win_target
@@ -152,15 +153,26 @@ class ExecutionManager:
         self.orch._dl_training_phase = bool(train_syms)
         if train_syms:
             ordered = [s for s in self.orch.symbols if s in train_syms] or sorted(train_syms)
-            log_info_if_changed(
-                self.orch,
-                self.logger,
-                "training_phase",
-                ",".join(ordered),
-                "[%s] FASE TREINO || %s | aguardando primeiro treino | operacao suspensa",
-                cid,
-                " ".join(ordered),
-            )
+            if training_enabled(self.orch):
+                log_info_if_changed(
+                    self.orch,
+                    self.logger,
+                    "training_phase",
+                    ",".join(ordered),
+                    "[%s] FASE TREINO || %s | aguardando primeiro treino | operacao suspensa",
+                    cid,
+                    " ".join(ordered),
+                )
+            else:
+                log_info_if_changed(
+                    self.orch,
+                    self.logger,
+                    "training_phase",
+                    ",".join(ordered),
+                    "[%s] MODELO AUSENTE || %s | execute python train.py | operacao suspensa",
+                    cid,
+                    " ".join(ordered),
+                )
             return True
         if was_training:
             clear_log_channel(self.orch, "training_phase")

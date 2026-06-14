@@ -45,7 +45,7 @@ def parse_deriv_pat(value: str) -> tuple[str, str | None]:
 
 def binding_path(repo_root: Path) -> Path:
     """Caminho do arquivo JSON de bindings PAT para App ID."""
-    return repo_root / "app" / "data" / "deriv" / "pat_bindings.json"
+    return repo_root / "data" / "deriv" / "pat_bindings.json"
 
 
 def load_binding(repo_root: Path, pat: str) -> str | None:

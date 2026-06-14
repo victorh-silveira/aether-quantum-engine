@@ -1,14 +1,11 @@
 @echo off
 TITLE Aether Engine - Master Launcher (LIVE)
 
-:: Configurações de Ambiente
-:: Configurações de Ambiente (Detecta a raiz automaticamente)
-pushd "%~dp0..\.."
-SET "APP_DIR=%CD%"
+pushd "%~dp0..\..\.."
+SET "REPO_ROOT=%CD%"
 popd
 SET "ENV_NAME=deriv-api"
 
-:: Tenta localizar o script de ativação do Anaconda automaticamente
 set "CONDA_ACTIVATE="
 if exist "%USERPROFILE%\anaconda3\Scripts\activate.bat" (
     set "CONDA_ACTIVATE=%USERPROFILE%\anaconda3\Scripts\activate.bat"
@@ -25,13 +22,11 @@ if "%CONDA_ACTIVATE%"=="" (
 )
 
 echo [AETHER] Iniciando Infraestrutura Aether Engine (MODO LIVE)...
-cd /d "%APP_DIR%"
+cd /d "%REPO_ROOT%"
 
-:: 1. Inicia o Monitor Primeiro (Visao Geral)
 start "AETHER MONITOR" cmd /k ""%~dp0_run_monitor.bat" "%CONDA_ACTIVATE%""
 timeout /t 3 /nobreak > nul
 
-:: 2. Inicia o bot (modo LIVE via trading.mode e AETHER_DERIV_PAT no .env)
 start "AETHER LIVE" cmd /k ""%~dp0_run_engine.bat" "%CONDA_ACTIVATE%""
 
 echo [OK] Robotica e Monitor em execucao.

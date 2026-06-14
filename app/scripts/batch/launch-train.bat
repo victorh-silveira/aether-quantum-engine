@@ -1,5 +1,5 @@
 @echo off
-TITLE Aether Engine - Master Launcher (DEMO)
+TITLE Aether Engine - Treino Deep Learning
 
 pushd "%~dp0..\..\.."
 SET "REPO_ROOT=%CD%"
@@ -21,14 +21,9 @@ if "%CONDA_ACTIVATE%"=="" (
     exit /b 1
 )
 
-echo [AETHER] Iniciando Infraestrutura Aether Engine (MODO DEMO)...
+echo [AETHER] Iniciando treino Deep Learning...
 cd /d "%REPO_ROOT%"
-
-start "AETHER MONITOR" cmd /k ""%~dp0_run_monitor.bat" "%CONDA_ACTIVATE%""
-timeout /t 3 /nobreak > nul
-
-start "AETHER DEMO" cmd /k ""%~dp0_run_engine.bat" "%CONDA_ACTIVATE%""
-
-echo [OK] Robotica e Monitor (DEMO) em execucao.
+start "AETHER TRAIN" cmd /k ""%~dp0_run_train.bat" "%CONDA_ACTIVATE%""
+echo [OK] Treino em execucao.
 timeout /t 3 /nobreak > nul
 exit /b 0

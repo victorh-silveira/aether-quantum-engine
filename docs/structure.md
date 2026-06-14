@@ -8,7 +8,7 @@ aether-quantum-engine/
 │   ├── src/
 │   │   ├── application/services/
 │   │   │   ├── deep_learning/     # TCN/LSTM/GRU, labels, Hurst, gating, deploy, decision_bridge
-│   │   │   ├── orchestrator/      # Ciclo, fases treino/operação, execução, settlement
+│   │   │   ├── orchestrator/      # Ciclo, execução, settlement, engine_session, engine_mode
 │   │   │   ├── execution_*.py     # Direção, ranking de mercado, seleção e recovery
 │   │   │   ├── log_dedupe.py      # Deduplicação de logs repetidos
 │   │   │   └── auth_manager.py
@@ -17,56 +17,47 @@ aether-quantum-engine/
 │   │   └── presentation/          # Logger terminal
 │   ├── tests/unit/                # Pytest (cobertura 100% em src)
 │   ├── scripts/
+│   │   ├── batch/                 # launch-all-demo, launch-train, _run_engine
 │   │   ├── monitor/               # live_monitor
-│   │   └── operations/            # clean_workspace (lint/test CI local)
-│   ├── data/dl/                   # Checkpoints .pth e TorchScript _ts.pt por símbolo
+│   │   ├── operations/            # clean_workspace (lint/test CI local)
+│   │   └── wsl/                   # setup.sh (WSL)
 │   ├── aether_paths.py
-│   └── run.py
+│   ├── run.py                     # Entrada de execução (modo execute)
+│   └── train.py                   # Entrada de treino DL (modo train)
 ├── config/settings.json           # Configuração versionada
-├── data/                          # state.json (runtime)
-├── logs/                          # engine.log
+├── data/                          # state.json, dl/, deriv/ (runtime)
+├── logs/                          # engine.log, monitor.log
 ├── docs/
 ├── linters/                       # pre-commit, commitlint, release
 ├── .github/workflows/             # CI
 ├── run.py                         # Atalho para app/run.py
-└── Makefile
+└── train.py                       # Atalho para app/train.py
 ```
 
 ## Camadas em `app/src`
 
 | Pasta | Responsabilidade |
 |-------|------------------|
-| `application/services/deep_learning` | `dl_labels`, `dl_hurst`, `dl_feature_build` (19D), TCN/LSTM/GRU, treino walk-forward deferido, gating por threshold 0.75/0.25, deploy gate, TorchScript |
-| `application/services/orchestrator` | `Orchestrator`, `ExecutionManager` (fases treino/operação), `execution_collect`, settlement, `post_settlement_cycle` |
+| `application/services/deep_learning` | `dl_labels`, `dl_hurst`, `dl_feature_build` (19D), TCN/LSTM/GRU, gating por threshold 0.75/0.25, deploy gate, TorchScript |
+| `application/services/orchestrator` | `Orchestrator`, `ExecutionManager`, `engine_session`, `engine_mode`, settlement, `post_settlement_cycle` |
 | `application/services` | `execution_direction`, `execution_market_rank`, `execution_mandatory_pick`, `execution_symbols`, `execution_symbols_recovery`, `log_dedupe`, `auth_manager` |
 | `domain` | `Candle`, `Trade`, `RiskManager`, Kelly, martingale, cooldowns, `stake_sizing` |
 | `infrastructure` | `WebSocketManager`, `StreamHandler`, `TickBuffer`, `TradeHandler`, `PersistenceManager` |
 | `presentation/terminal` | `setup_logger`, `BlankLineSquasher`, formatação de logs |
 
-Decisão exclusivamente Deep Learning quando `deep_learning.enabled` é verdadeiro. Estratégia TREND_FIBO e módulos legados (consensus, regime, pair features, binary_signal) foram removidos.
-
-## Módulos DL principais
-
-| Arquivo | Função |
-|---------|--------|
-| `dl_labels.py` | Rótulos binários alinhados ao contrato (horizon = 1 barra) |
-| `dl_hurst.py` | Hurst exponent e variance ratio |
-| `dl_feature_build.py` | 19 features (micro + tradicionais + vol + persistência) |
-| `dl_tcn.py` / `dl_lstm.py` | Arquiteturas de rede |
-| `model.py` | Factory TCN/LSTM/GRU, checkpoint v4, TorchScript |
-| `dl_gating.py` / `dl_predict.py` | Threshold 0.75/0.25 e predição |
-| `tick_buffer.py` | Agregação de microestrutura por barra |
+Decisão exclusivamente Deep Learning quando `deep_learning.enabled` é verdadeiro. Treino e execução são processos separados (`train.py` / `run.py`).
 
 ## Dados e artefatos
 
 | Caminho | Uso |
 |---------|-----|
-| `data/state.json` | Estado de contratos e banca (via `repo_path`) |
+| `data/state.json` | Estado de contratos e banca |
 | `data/dl/{symbol}.pth` | Checkpoints PyTorch + calibrador + métricas |
 | `data/dl/{symbol}_ts.pt` | TorchScript trace para inferência rápida |
+| `data/deriv/pat_bindings.json` | Cache PAT → App ID |
 | `logs/engine.log` | Auditoria operacional |
 
-Caminhos resolvidos por `aether_paths.repo_path()` e `APP_ROOT`.
+Caminhos resolvidos por `aether_paths.repo_path()` a partir da raiz do repositório.
 
 ## Comandos úteis (WSL)
 
@@ -76,6 +67,7 @@ Primeira vez no WSL: `make setup-wsl` (Git, Conda no `~/.bashrc`, hooks).
 make install
 make test
 make lint
+make train
 make run
 make clean
 ```

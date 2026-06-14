@@ -20,7 +20,7 @@ class MockStreamHandler:
 
 
 class MockOrchestrator:
-    def __init__(self, symbols, prices, *, dl_enabled=True, epoch=1000):
+    def __init__(self, symbols, prices, *, dl_enabled=True, epoch=1000, train_mode=False):
         self.symbols = symbols
         self.config = {
             "data_handler": {"granularity": 300},
@@ -38,6 +38,7 @@ class MockOrchestrator:
                 "model_path_template": "data/dl/{symbol}.pth",
                 "deploy_gate": {"enabled": False, "mini_bars": 40},
             },
+            "orchestrator": {"engine_mode": "train" if train_mode else "execute"},
         }
         self.stream = MockStreamHandler(prices, epoch=epoch)
 

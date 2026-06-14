@@ -16,6 +16,11 @@
     "granularity": 60,
     "history_bars": 130000,
     "history_fetch_chunk": 1000,
+    "history_fetch_delay_seconds": 0.35,
+    "history_fetch_symbol_delay_seconds": 2.0,
+    "history_fetch_rate_limit_retries": 12,
+    "history_fetch_rate_limit_backoff": 2.0,
+    "history_fetch_rate_limit_max_delay": 45.0,
     "history_warmup_bars": 64,
     "min_required_points": 64
   },

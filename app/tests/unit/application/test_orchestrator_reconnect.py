@@ -26,13 +26,7 @@ async def test_orchestrator_run_reconnect_fails_sleeps_backoff(orch_config):
         orch._setup_session = AsyncMock(side_effect=[True, False, True])
         orch._start_streams = AsyncMock(return_value=True)
         orch.running = True
-        with (
-            patch(
-                "src.application.services.orchestrator.run_initial_bootstrap_training",
-                new_callable=AsyncMock,
-            ),
-            patch("src.application.services.orchestrator.asyncio.sleep", side_effect=track_sleep),
-        ):
+        with patch("src.application.services.orchestrator.asyncio.sleep", side_effect=track_sleep):
             await asyncio.wait_for(orch.run(), timeout=5.0)
     assert 8.0 in sleeps
 
@@ -63,10 +57,6 @@ async def test_orchestrator_run_reconnect_success_logs_recovery(orch_config):
                 orch.running = False
 
         with (
-            patch(
-                "src.application.services.orchestrator.run_initial_bootstrap_training",
-                new_callable=AsyncMock,
-            ),
             patch(
                 "src.application.services.orchestrator.asyncio.sleep",
                 side_effect=stop_after_recovery_sleep,

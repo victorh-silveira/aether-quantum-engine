@@ -14,7 +14,7 @@ RESET  := \033[0m
 
 .DEFAULT_GOAL := help
 
-.PHONY: install lint test security run pre-commit pre-commit-run setup-wsl clean help helpo
+.PHONY: install lint test security run train pre-commit pre-commit-run setup-wsl clean help helpo
 
 help:
 	@echo -e "$(BLUE)========================================================================$(RESET)"
@@ -30,9 +30,10 @@ help:
 	@echo -e "  $(GREEN)test$(RESET)        - Roda os testes unitarios com pytest e gera cobertura de codigo"
 	@echo -e "  $(GREEN)security$(RESET)    - Varre o projeto em busca de vulnerabilidades (bandit/pip-audit)"
 	@echo -e "  $(GREEN)run$(RESET)         - Inicia a execucao principal do motor quantico (run.py)"
+	@echo -e "  $(GREEN)train$(RESET)       - Treina modelos Deep Learning (train.py)"
 	@echo -e "  $(GREEN)pre-commit$(RESET)      - Instala e configura os git hooks locais de pre-commit"
 	@echo -e "  $(GREEN)pre-commit-run$(RESET)  - Roda todos os hooks (equivalente a pre-commit run --all-files)"
-	@echo -e "  $(GREEN)setup-wsl$(RESET)     - Configura Git, Conda e hooks no WSL (bash scripts/wsl/setup.sh)"
+	@echo -e "  $(GREEN)setup-wsl$(RESET)     - Configura Git, Conda e hooks no WSL (bash app/scripts/wsl/setup.sh)"
 	@echo -e "  $(GREEN)clean$(RESET)       - Limpa lixo, caches do Python/Pytest e logs do workspace"
 	@echo -e "  $(GREEN)help / helpo$(RESET) - Exibe este menu de ajuda interativo"
 	@echo -e "$(BLUE)========================================================================$(RESET)"
@@ -55,6 +56,9 @@ security:
 run:
 	$(PYTHON) run.py
 
+train:
+	$(PYTHON) train.py
+
 pre-commit:
 	bash linters/git-hooks/install.sh
 	chmod +x linters/git-hooks/bin/resolve_conda_python.sh linters/git-hooks/bin/python
@@ -63,7 +67,7 @@ pre-commit-run:
 	$(PYTHON) -m pre_commit run --all-files -c .pre-commit-config.yaml
 
 setup-wsl:
-	bash scripts/wsl/setup.sh
+	bash app/scripts/wsl/setup.sh
 
 clean:
 	$(PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --stage clean

@@ -10,6 +10,8 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from aether_paths import repo_path
+
 
 _PERMISSION_OS_ERRORS = (PermissionError, OSError)
 
@@ -21,13 +23,8 @@ class PersistenceManager:
     e possam ser recuperados após um reinício ou falha do sistema.
     """
 
-    def __init__(self, file_path: str = "data/state.json"):
-        """Inicializa o gerenciador com o caminho de armazenamento de destino.
-
-        Args:
-            file_path (str): Caminho para o arquivo de estado JSON.
-        """
-        self.file_path = Path(file_path)
+    def __init__(self, file_path: str | Path | None = None):
+        self.file_path = Path(file_path) if file_path is not None else repo_path("data", "state.json")
         self.logger = logging.getLogger("AETH")
         self._save_lock = threading.Lock()
         self._ensure_directory()

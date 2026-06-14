@@ -9,6 +9,7 @@ import numpy as np
 from src.domain.models.market_data import Candle
 from src.infrastructure.api.deriv_granularity import normalize_granularity_seconds
 from src.infrastructure.api.websocket_manager import WebSocketManager
+from src.infrastructure.handlers.history_fetch import fetch_paginated_candle_history, parse_history_fetch_config
 from src.infrastructure.handlers.tick_buffer import TickBuffer
 
 
@@ -59,8 +60,12 @@ class StreamHandler:
             raise ConnectionError("STREAM: WebSocket desconectado antes da sincronização.")
 
         self.logger.debug(f"DATA: Sincronizando Enxame Aegis ({len(self.symbols)} pares - OHLC {self.granularity}s)...")
-        tasks = [self._fetch_symbol_history(s, fetch_count) for s in self.symbols]
-        await asyncio.gather(*tasks)
+        fetch_cfg = parse_history_fetch_config(self.config)
+        for symbol in self.symbols:
+            await self._fetch_symbol_history(symbol, fetch_count, fetch_cfg=fetch_cfg)
+            symbol_delay = float(fetch_cfg["symbol_delay"])
+            if symbol_delay > 0:
+                await asyncio.sleep(symbol_delay)
         if self.symbols:
             bars = len(self.candles.get(self.symbols[0], []))
             self.logger.info(
@@ -106,56 +111,49 @@ class StreamHandler:
         self.is_synchronized = True
         self.logger.debug("DATA: Sincronia concluída. Buffer histórico em conformidade.")
 
-    async def _fetch_symbol_history(self, symbol: str, count: int):
-        """Trabalhador interno para busca paralela de historico com paginacao."""
-        chunk_size = max(1, int(self.config.get("history_fetch_chunk", 500)))
-        target = max(1, int(count))
-        merged: list[Candle] = []
-        end: str | int = "latest"
-        while len(merged) < target:
-            need = min(chunk_size, target - len(merged))
-            request = {
-                "ticks_history": symbol,
-                "end": end,
-                "style": "candles",
-                "granularity": self.granularity,
-                "count": need,
-            }
-            res = await self.ws.send(request)
-            if res.get("error"):
-                self.logger.error(
-                    "DATA: Historico %s falhou | granularity=%ss | %s",
-                    symbol,
-                    self.granularity,
-                    res["error"].get("message", res["error"]),
-                )
-                break
-            history = res.get("candles", [])
-            if not history:
-                break
-            batch = [
-                Candle(
-                    symbol=symbol,
-                    open=float(c["open"]),
-                    high=float(c["high"]),
-                    low=float(c["low"]),
-                    close=float(c["close"]),
-                    time=datetime.fromtimestamp(c["epoch"]),
-                    epoch=c["epoch"],
-                )
-                for c in history
-            ]
-            if merged:
-                oldest_new = batch[0].epoch
-                merged = [c for c in merged if c.epoch > oldest_new]
-            merged = batch + merged
-            if len(history) < need:
-                break
-            end = int(history[0]["epoch"]) - 1
-        if len(merged) > target:
-            merged = merged[-target:]
+    async def _fetch_symbol_history(
+        self,
+        symbol: str,
+        count: int,
+        *,
+        fetch_cfg: dict | None = None,
+    ) -> int:
+        """Busca historico paginado para um simbolo e retorna quantidade armazenada."""
+        cfg = fetch_cfg or parse_history_fetch_config(self.config)
+        existing = self.candles.get(symbol, [])
+        merged = await fetch_paginated_candle_history(
+            self.ws,
+            symbol=symbol,
+            granularity=self.granularity,
+            target=count,
+            fetch_cfg=cfg,
+            logger=self.logger,
+            existing=existing,
+        )
         self.candles[symbol] = merged
-        self.logger.debug("DATA: Historico %s | %d velas (alvo %d)", symbol, len(merged), target)
+        self.logger.debug("DATA: Historico %s | %d velas (alvo %d)", symbol, len(merged), count)
+        return len(merged)
+
+    async def ensure_cluster_history(self, target: int) -> None:
+        """Continua backfill sequencial ate atingir o alvo de velas por simbolo."""
+        goal = max(1, int(target))
+        fetch_cfg = parse_history_fetch_config(self.config)
+        for symbol in self.symbols:
+            before = len(self.candles.get(symbol, []))
+            if before >= goal:
+                continue
+            after = await self._fetch_symbol_history(symbol, goal, fetch_cfg=fetch_cfg)
+            if after > before:
+                self.logger.info(
+                    "DATA: Backfill %s | %d -> %d velas (alvo %d)",
+                    symbol,
+                    before,
+                    after,
+                    goal,
+                )
+            symbol_delay = float(fetch_cfg["symbol_delay"])
+            if symbol_delay > 0:
+                await asyncio.sleep(symbol_delay)
 
     async def _on_candle(self, data):
         """Processa atualizações de OHLC recebidas."""

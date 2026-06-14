@@ -98,7 +98,7 @@ async def test_collect_symbol_decision_insufficient_after_slice():
 @pytest.mark.asyncio
 async def test_collect_symbol_decision_full_path():
     prices = np.sin(np.linspace(0, 10, 90)) + 10.0
-    orch = MockOrchestrator(["R_50"], prices)
+    orch = MockOrchestrator(["R_50"], prices, train_mode=True)
     entry = {
         "direction": TradeDirection.CALL,
         "metrics": {"execute": True, "conviction": 0.62, "trade_score": 0.62, "val_accuracy": 0.52},

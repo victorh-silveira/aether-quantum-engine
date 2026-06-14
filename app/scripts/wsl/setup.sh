@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 CONDA_ENV="deriv-api"
 
 if [ ! -f /proc/version ] || ! grep -qi microsoft /proc/version; then

@@ -100,6 +100,7 @@ Windows: abra **Anaconda PowerShell Prompt**, `conda activate deriv-api`:
 conda activate deriv-api
 pip install -r app/requirements.txt -r app/requirements-dev.txt
 python app/scripts/deriv_pat_connect.py
+python train.py
 python run.py
 ```
 
@@ -129,10 +130,11 @@ WSL: `make pre-commit-run`
 
 1. Configure `.env` com PAT e App ID (app PAT em developers.deriv.com).
 2. `conda activate deriv-api` e instale dependências.
-3. Valide checkpoints DL em `app/data/dl/`.
-4. `make run` ou `launch-all-demo.bat` / `launch-all-live.bat`
+3. Treine os modelos: `python train.py` ou `app/scripts/batch/launch-train.bat`.
+4. Valide checkpoints DL em `data/dl/`.
+5. Execute o motor: `python run.py`, `make run` ou `launch-all-demo.bat` / `launch-all-live.bat`.
 
-O motor exige `deep_learning.enabled: true`. Checkpoints antigos (FEATURE_DIM diferente de 19 ou versão < 4) são invalidados — o bootstrap retreina na primeira execução. Não há modo de decisão alternativo no pipeline ao vivo.
+O motor exige `deep_learning.enabled: true` e checkpoints válidos em `data/dl/`. Treino e execução são processos separados — `train.py` grava os modelos; `run.py` só opera.
 
 ---
 

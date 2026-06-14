@@ -1,40 +1,22 @@
 """Ponto de entrada: carrega configuracao e executa o orquestrador."""
 
 import asyncio
-import json
-import os
 
-from aether_paths import REPO_ROOT, repo_path
-from src.application.services.auth_manager import AuthManager
+from aether_paths import REPO_ROOT
 from src.application.services.orchestrator import Orchestrator
-from src.presentation.terminal.logger import setup_logger
+from src.application.services.orchestrator.engine_mode import ENGINE_MODE_EXECUTE
+from src.application.services.orchestrator.engine_session import (
+    create_authenticated_auth,
+    load_engine_config,
+)
 
 
 async def main():
-    """Carrega JSON, autentica e inicia o ciclo ate encerramento."""
-    os.chdir(REPO_ROOT)
-    config_path = repo_path("config", "settings.json")
-    with config_path.open(encoding="utf-8") as f:
-        config = json.load(f)
-
-    log_file = config.get("logging", {}).get("log_file")
-    logger = setup_logger("AETH", log_file=log_file)
-
-    mode = str(config.get("trading", {}).get("mode", "demo"))
-    auth = AuthManager(mode=mode, config=config)
-    token = auth.get_pat()
-
-    if not token:
-        logger.error(
-            "Token Deriv ausente. Defina AETHER_DERIV_PAT no .env (ou pat_...|APP_ID). "
-            "Valide: python app/scripts/deriv_pat_connect.py"
-        )
+    """Carrega configuracao, autentica e executa o loop principal do motor."""
+    config, logger = load_engine_config(engine_mode=ENGINE_MODE_EXECUTE)
+    auth = create_authenticated_auth(config, logger)
+    if auth is None:
         raise SystemExit(1)
-    try:
-        auth.rest_client()
-    except Exception as exc:
-        logger.error("%s", exc)
-        raise SystemExit(1) from exc
 
     orchestrator = Orchestrator(config, auth)
     try:

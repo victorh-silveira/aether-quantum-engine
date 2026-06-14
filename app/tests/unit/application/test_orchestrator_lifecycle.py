@@ -139,32 +139,6 @@ async def test_orchestrator_full_lifecycle_summary(orchestrator_config):
 
 
 @pytest.mark.asyncio
-async def test_orchestrator_run_bootstrap_before_first_cycle(orchestrator_config):
-    TradingState.reset()
-
-    async def stop_loop_after_first_sleep(_seconds):
-        orch.running = False
-
-    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
-        mock_ws_class.return_value.subscribe = MagicMock()
-        mock_ws_class.return_value.is_running = True
-        orch = Orchestrator(orchestrator_config, "token")
-        orch._setup_session = AsyncMock(return_value=True)
-        orch._start_streams = AsyncMock(return_value=True)
-        orch._run_trading_cycle_if_ready = AsyncMock(return_value=True)
-        with (
-            patch(
-                "src.application.services.orchestrator.run_initial_bootstrap_training",
-                new_callable=AsyncMock,
-            ) as mock_bootstrap,
-            patch("asyncio.sleep", side_effect=stop_loop_after_first_sleep),
-        ):
-            await orch.run()
-        mock_bootstrap.assert_awaited_once()
-        assert orch._dl_bootstrap_completed is True
-
-
-@pytest.mark.asyncio
 async def test_orchestrator_run_early_return_when_setup_fails(orchestrator_config):
     """Cobre run() quando _setup_session falha antes do loop (linha 54)."""
     TradingState.reset()

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import numpy as np
 
-from aether_paths import APP_ROOT
+from aether_paths import repo_path
 from src.application.services.deep_learning.dl_calibration import CalibratorState
 from src.application.services.deep_learning.dl_device import log_device_once, place_model, resolve_torch_device
 from src.application.services.deep_learning.dl_features import FEATURE_DIM
@@ -37,9 +37,9 @@ def resolve_dl_model_path(dl_config: dict, symbol: str) -> Path:
     template = dl_config.get("model_path_template")
     if template:
         rel = str(template).format(symbol=symbol)
-        return (APP_ROOT / rel).resolve()
+        return repo_path(rel).resolve()
     legacy = dl_config.get("model_path", "data/deep_learning_model.pth")
-    return (APP_ROOT / legacy).resolve()
+    return repo_path(legacy).resolve()
 
 
 def granularity_seconds(orch) -> int:

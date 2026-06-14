@@ -8,8 +8,8 @@ from src.application.services.deep_learning.dl_retrain import mark_force_retrain
 
 
 @pytest.mark.asyncio
-async def test_collect_skips_new_candle_train_on_fast_cycle(orch_ready):
-    orch = orch_ready
+async def test_collect_skips_new_candle_train_on_fast_cycle(orch_ready_train):
+    orch = orch_ready_train
     orch._dl_fast_cycle = True
     n = 1500
     ohlc = (np.linspace(1.0, 2.0, n), np.linspace(1.0, 2.0, n), np.linspace(1.0, 2.0, n), np.linspace(1.0, 2.0, n))
@@ -40,8 +40,8 @@ async def test_collect_skips_new_candle_train_on_fast_cycle(orch_ready):
 
 
 @pytest.mark.asyncio
-async def test_collect_defers_bootstrap_without_fast_cycle(orch_ready):
-    orch = orch_ready
+async def test_collect_defers_bootstrap_without_fast_cycle(orch_ready_train):
+    orch = orch_ready_train
     n = 1500
     ohlc = (np.linspace(1.0, 2.0, n), np.linspace(1.0, 2.0, n), np.linspace(1.0, 2.0, n), np.linspace(1.0, 2.0, n))
     runtime = {
@@ -71,8 +71,8 @@ async def test_collect_defers_bootstrap_without_fast_cycle(orch_ready):
 
 
 @pytest.mark.asyncio
-async def test_collect_bootstrap_only_enqueues_first_pending_symbol(orch_ready):
-    orch = orch_ready
+async def test_collect_bootstrap_only_enqueues_first_pending_symbol(orch_ready_train):
+    orch = orch_ready_train
     n = 3000
     ohlc = (np.linspace(1.0, 2.0, n), np.linspace(1.0, 2.0, n), np.linspace(1.0, 2.0, n), np.linspace(1.0, 2.0, n))
     runtime = {
@@ -107,8 +107,8 @@ async def test_collect_bootstrap_only_enqueues_first_pending_symbol(orch_ready):
 
 
 @pytest.mark.asyncio
-async def test_collect_skips_bootstrap_defer_after_initial_bootstrap(orch_ready):
-    orch = orch_ready
+async def test_collect_skips_bootstrap_defer_after_initial_bootstrap(orch_ready_train):
+    orch = orch_ready_train
     orch._dl_bootstrap_completed = True
     n = 3000
     ohlc = (np.linspace(1.0, 2.0, n), np.linspace(1.0, 2.0, n), np.linspace(1.0, 2.0, n), np.linspace(1.0, 2.0, n))
@@ -139,8 +139,8 @@ async def test_collect_skips_bootstrap_defer_after_initial_bootstrap(orch_ready)
 
 
 @pytest.mark.asyncio
-async def test_collect_defers_retrain_when_fast_cycle(orch_ready):
-    orch = orch_ready
+async def test_collect_defers_retrain_when_fast_cycle(orch_ready_train):
+    orch = orch_ready_train
     orch._dl_fast_cycle = True
     symbol = orch.symbols[0]
     mark_force_retrain(orch, symbol)

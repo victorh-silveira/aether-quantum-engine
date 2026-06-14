@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableExtensions
-pushd "%~dp0..\.."
-set "APP_ROOT=%CD%"
+pushd "%~dp0..\..\.."
+set "REPO_ROOT=%CD%"
 popd
 set "ENV_NAME=deriv-api"
 set "PYTHON_EXE=%USERPROFILE%\anaconda3\envs\%ENV_NAME%\python.exe"
@@ -21,7 +21,7 @@ if not exist "%PYTHON_EXE%" (
         exit /b 1
     )
 )
-cd /d "%APP_ROOT%"
+cd /d "%REPO_ROOT%"
 echo [AETHER] Motor - conda=%ENV_NAME% python=%PYTHON_EXE% dir=%CD%
 "%PYTHON_EXE%" run.py
 set "RC=%ERRORLEVEL%"

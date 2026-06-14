@@ -52,7 +52,7 @@ async def test_collect_deep_learning_decisions():
 @pytest.mark.asyncio
 async def test_collect_skips_train_on_same_candle():
     prices = np.sin(np.linspace(0, 10, 80)) + 10.0
-    orch = MockOrchestrator(["R_50"], prices, epoch=5000)
+    orch = MockOrchestrator(["R_50"], prices, epoch=5000, train_mode=True)
     orch.config["deep_learning"]["train_on_new_candle_only"] = True
     orch.config["deep_learning"]["min_val_accuracy"] = 0.0
     first = await collect_deep_learning_decisions(orch)
@@ -75,7 +75,7 @@ async def test_collect_skips_train_on_same_candle():
 @pytest.mark.asyncio
 async def test_collect_predict_runs_each_cycle_same_candle():
     prices = np.sin(np.linspace(0, 10, 80)) + 10.0
-    orch = MockOrchestrator(["R_50"], prices, epoch=5000)
+    orch = MockOrchestrator(["R_50"], prices, epoch=5000, train_mode=True)
     orch.config["deep_learning"]["train_on_new_candle_only"] = True
     orch.config["deep_learning"]["min_val_accuracy"] = 0.0
     await collect_deep_learning_decisions(orch)
@@ -98,7 +98,7 @@ async def test_collect_predict_runs_each_cycle_same_candle():
 @pytest.mark.asyncio
 async def test_collect_bootstrap_defers_training_without_blocking():
     prices = np.sin(np.linspace(0, 10, 90)) + 10.0
-    orch = MockOrchestrator(["R_50"], prices)
+    orch = MockOrchestrator(["R_50"], prices, train_mode=True)
     if hasattr(orch, "_dl_runtime"):
         orch._dl_runtime.clear()
     with (

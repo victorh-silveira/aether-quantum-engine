@@ -21,12 +21,14 @@ if not exist "%PYTHON_EXE%" (
         exit /b 1
     )
 )
-cd /d "%REPO_ROOT%\app"
-echo [AETHER] Monitor - conda=%ENV_NAME% python=%PYTHON_EXE% dir=%CD%
-"%PYTHON_EXE%" -m scripts.monitor.live_monitor
-if errorlevel 1 (
+cd /d "%REPO_ROOT%"
+echo [AETHER] Treino DL - conda=%ENV_NAME% python=%PYTHON_EXE% dir=%CD%
+"%PYTHON_EXE%" train.py
+set "RC=%ERRORLEVEL%"
+if not "%RC%"=="0" (
     echo.
-    echo [ERRO] Monitor encerrou com erro.
+    echo [ERRO] Treino encerrou com codigo %RC%.
     pause
 )
 endlocal
+exit /b %RC%

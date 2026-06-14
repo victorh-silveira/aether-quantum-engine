@@ -52,7 +52,7 @@ def _prompt_app_id(pat: str) -> str | None:
         print("App ID rejeitado pela API (401). Confira se e o header do mesmo app da PAT.", file=sys.stderr)
         return None
     save_binding(REPO_ROOT, pat, entered)
-    print("App ID validado e salvo em app/data/deriv/pat_bindings.json")
+    print("App ID validado e salvo em data/deriv/pat_bindings.json")
     return entered
 
 
@@ -117,7 +117,7 @@ def main() -> int:
     parser.add_argument("--app-id", default=None, help="App ID do app PAT (ou use pat_...|APP_ID)")
     parser.add_argument("--account", default=None, help="Conta ex.: DOT92912876")
     parser.add_argument("--mode", default="demo", choices=("demo", "live"))
-    parser.add_argument("--save-binding", action="store_true", help="Grava app_id em app/data/deriv/pat_bindings.json")
+    parser.add_argument("--save-binding", action="store_true", help="Grava app_id em data/deriv/pat_bindings.json")
     parser.add_argument("--no-prompt", action="store_true", help="Nao pergunta App ID no terminal")
     args = parser.parse_args()
     return asyncio.run(_run(args))

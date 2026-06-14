@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.application.services.orchestrator import Orchestrator
+from src.application.services.orchestrator.engine_mode import ENGINE_MODE_TRAIN, apply_engine_mode
 from src.infrastructure.state.trading_state import TradingState
 from tests.market_symbols import ALL_SYMBOLS, ANCHOR, PAIR
 
@@ -63,12 +64,19 @@ def orch_config():
             "kelly": {"fraction": 0.5, "base_win_rate": 0.55},
         },
         "orchestrator": {
+            "engine_mode": "execute",
             "reconcile_interval_seconds": 1,
             "cycle_interval_seconds": 0,
             "execution": {"include_anchor_trades": True, "inter_symbol_delay": 0.25},
         },
         "trading": {"mode": "demo", "session": {"enabled": False}},
     }
+
+
+@pytest.fixture
+def orch_config_train(orch_config):
+    apply_engine_mode(orch_config, ENGINE_MODE_TRAIN)
+    return orch_config
 
 
 @pytest.fixture
@@ -79,6 +87,38 @@ async def orch_ready(orch_config):
     mock_ws = mock_ws_class.return_value
     mock_ws.subscribe = MagicMock()
     orch = Orchestrator(orch_config, "token")
+    orch.stream.is_synchronized = True
+    orch.ws.is_running = True
+    orch.running = True
+    orch.state.balance = 1000.0
+    orch.risk_manager.set_initial_bankroll(1000.0)
+    orch._stream_ready_at = 0.0
+    orch.config.setdefault("orchestrator", {})["post_settlement_breath_seconds"] = 0
+    yield orch
+    deferred = getattr(orch, "_dl_deferred_tasks", None)
+    if isinstance(deferred, dict):
+        for task in list(deferred.values()):
+            if isinstance(task, asyncio.Task) and not task.done():
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
+        deferred.clear()
+    pending = orch._post_settlement_task
+    if isinstance(pending, asyncio.Task) and not pending.done():
+        pending.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await pending
+    ws_patch.stop()
+
+
+@pytest.fixture
+async def orch_ready_train(orch_config_train):
+    TradingState.reset()
+    ws_patch = patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock())
+    mock_ws_class = ws_patch.start()
+    mock_ws = mock_ws_class.return_value
+    mock_ws.subscribe = MagicMock()
+    orch = Orchestrator(orch_config_train, "token")
     orch.stream.is_synchronized = True
     orch.ws.is_running = True
     orch.running = True

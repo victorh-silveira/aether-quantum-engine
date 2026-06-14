@@ -7,11 +7,11 @@ from typing import Any
 
 from src.application.services.auth_manager import AuthManager
 from src.application.services.deep_learning.decision_bridge import collect_deep_learning_decisions
-from src.application.services.deep_learning.dl_bootstrap_train import run_initial_bootstrap_training
 from src.application.services.deep_learning.dl_deferred_train import cancel_deferred_symbol_training
 from src.application.services.deep_learning.dl_retrain import tick_bars_since_train
 from src.application.services.orchestrator.config_symbols import normalize_symbols_and_anchor
 from src.application.services.orchestrator.decision_mode_banner import emit_decision_engine_banner
+from src.application.services.orchestrator.engine_mode import training_enabled
 from src.application.services.orchestrator.execution_manager import ExecutionManager
 from src.application.services.orchestrator.post_settlement_cycle import (
     post_settlement_cycle_pending,
@@ -24,6 +24,7 @@ from src.application.services.orchestrator.trading_cycle_entry import (
     acquire_trading_cycle_lock,
     trading_cycle_entry_allowed,
 )
+from src.application.services.orchestrator.training_run import run_orchestrator_training
 from src.application.services.orchestrator.ws_bootstrap import (
     setup_trading_session,
     start_orchestrator_streams,
@@ -94,6 +95,10 @@ class Orchestrator:
         """Retorna o modo de decisao configurado para o ciclo."""
         return resolve_decision_mode(self.config)
 
+    async def run_training(self) -> bool:
+        """Executa sessao dedicada de treino DL e encerra."""
+        return await run_orchestrator_training(self)
+
     async def run(self):
         """Loop principal: reconexao, persistencia e ciclos por intervalo."""
         if not await self._setup_session():
@@ -104,10 +109,8 @@ class Orchestrator:
             return
         self._last_cluster_cycle_end = time.time()
         self.running = True
+        self._dl_bootstrap_completed = True
         emit_decision_engine_banner(self.logger, self.config, decision_mode=self._decision_mode())
-        if self._decision_mode() == "deep_learning":
-            await run_initial_bootstrap_training(self)
-            self._dl_bootstrap_completed = True
         await self._run_trading_cycle_if_ready()
         reconcile_counter = 0
         orch_cfg = self.config.get("orchestrator") if isinstance(self.config.get("orchestrator"), dict) else {}
@@ -201,7 +204,8 @@ class Orchestrator:
             return
         self._last_epoch = candle.epoch
         self._maybe_reset_daily_risk_session(int(candle.epoch))
-        tick_bars_since_train(self, self.symbols)
+        if training_enabled(self):
+            tick_bars_since_train(self, self.symbols)
         self.risk_manager.tick_symbol_loss_cooldowns()
         self.risk_manager.decay_proposal_skip_cycles()
         if post_settlement_cycle_pending(self):
