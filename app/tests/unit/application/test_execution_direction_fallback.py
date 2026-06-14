@@ -246,7 +246,7 @@ def test_scored_fallback_pick_skips_blocked_and_weak_symbols():
         },
         "R_75": {
             "direction": TradeDirection.CALL,
-            "metrics": {"execute": False, "trade_score": 0.20, "raw_prob": 0.52},
+            "metrics": {"execute": False, "trade_score": 0.20},
         },
     }
     assert (
@@ -264,7 +264,7 @@ def test_last_resort_fallback_pick_skips_below_min_signal():
     decisions = {
         "R_50": {
             "direction": TradeDirection.PUT,
-            "metrics": {"execute": False, "trade_score": 0.20, "raw_prob": 0.44},
+            "metrics": {"execute": False, "trade_score": 0.20},
         },
     }
     assert _last_resort_fallback_pick(["R_50"], decisions, min_signal=0.45) is None

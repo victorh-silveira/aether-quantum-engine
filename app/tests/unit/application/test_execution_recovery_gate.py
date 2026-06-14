@@ -10,5 +10,11 @@ def test_recovery_min_signal_uses_mandatory_floor():
     assert recovery_min_signal(cfg, recovery_active=False) == 0.45
 
 
+def test_recovery_min_signal_uses_higher_of_mandatory_and_recovery_floor():
+    cfg = {"mandatory_min_trade_score": 0.53, "recovery_min_trade_score": 0.50}
+    assert recovery_min_signal(cfg, recovery_active=True) == 0.53
+    assert recovery_min_signal(cfg, recovery_active=False) == 0.53
+
+
 def test_recovery_min_val_accuracy_default():
     assert recovery_min_val_accuracy({}) == 0.50

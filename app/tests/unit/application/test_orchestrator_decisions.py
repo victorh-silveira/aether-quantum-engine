@@ -35,8 +35,9 @@ async def test_on_candle_throttling_and_cooldown(orch_config):
 
 
 @pytest.mark.asyncio
-async def test_run_trading_cycle_requires_dl_enabled(orch_config):
+async def test_run_trading_cycle_inactive_without_decision_mode(orch_config):
     orch_config["deep_learning"] = {"enabled": False}
+    orch_config.pop("strategy", None)
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
         orch = Orchestrator(orch_config, "token")
         orch.stream.is_synchronized = True
@@ -207,3 +208,11 @@ async def test_run_trading_cycle_lock_recheck_is_trading(orch_config):
         result = await orch._run_trading_cycle_if_ready()
         assert result is False
         orch.executor.execute_cluster.assert_not_awaited()
+
+
+def test_orchestrator_dl_enabled_reflects_config(orch_config):
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
+        orch = Orchestrator(orch_config, "token")
+        assert orch._dl_enabled() is True
+        orch.config["deep_learning"] = {"enabled": False}
+        assert orch._dl_enabled() is False

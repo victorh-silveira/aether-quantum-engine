@@ -112,22 +112,20 @@ def test_cluster_stake_block_empty_orders(orch_config):
         assert orch.executor._cluster_stake_block([], 50.0) is None
 
 
-def test_log_execution_blockers_stake_zero(orch_config):
+def test_log_execution_blockers_silent_on_stake_zero(orch_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 4
         orch.symbols = ["R_50", "R_50"]
-        orch.risk_manager.calculate_stake = MagicMock(return_value=0.0)
-        orch.risk_manager.stake_block_reason = MagicMock(return_value="kelly_no_edge")
         with patch.object(orch.executor.logger, "info") as mock_info:
             orch.executor._log_execution_blockers(
                 {"R_50": {"direction": TradeDirection.PUT, "metrics": {"conviction": 0.7, "execute": True}}},
             )
-        assert "kelly_no_edge" in mock_info.call_args.args[2]
+        assert mock_info.call_args_list == []
 
 
-def test_log_execution_blockers_sem_direcao(orch_config):
+def test_log_execution_blockers_silent_without_direction(orch_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
@@ -137,7 +135,7 @@ def test_log_execution_blockers_sem_direcao(orch_config):
             orch.executor._log_execution_blockers(
                 {"R_50": {"direction": None, "metrics": {"execute": True}}},
             )
-        assert "sem_direcao" in mock_info.call_args.args[2]
+        assert mock_info.call_args_list == []
 
 
 @pytest.mark.asyncio

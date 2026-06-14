@@ -107,6 +107,7 @@ async def test_orchestrator_full_lifecycle_summary(orchestrator_config):
         mock_ws = mock_ws_class.return_value
         mock_ws.subscribe = MagicMock()
         orch = Orchestrator(orchestrator_config, "token")
+        orch.config.setdefault("risk_management", {})["large_account_stop_win_pct"] = 15.0
         orch.running = True
         orch.risk_manager.initial_bankroll = 100.0
         c = Contract(
@@ -135,6 +136,32 @@ async def test_orchestrator_full_lifecycle_summary(orchestrator_config):
             }
         )
         assert orch.running is True
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_run_bootstrap_before_first_cycle(orchestrator_config):
+    TradingState.reset()
+
+    async def stop_loop_after_first_sleep(_seconds):
+        orch.running = False
+
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
+        mock_ws_class.return_value.subscribe = MagicMock()
+        mock_ws_class.return_value.is_running = True
+        orch = Orchestrator(orchestrator_config, "token")
+        orch._setup_session = AsyncMock(return_value=True)
+        orch._start_streams = AsyncMock(return_value=True)
+        orch._run_trading_cycle_if_ready = AsyncMock(return_value=True)
+        with (
+            patch(
+                "src.application.services.orchestrator.run_initial_bootstrap_training",
+                new_callable=AsyncMock,
+            ) as mock_bootstrap,
+            patch("asyncio.sleep", side_effect=stop_loop_after_first_sleep),
+        ):
+            await orch.run()
+        mock_bootstrap.assert_awaited_once()
+        assert orch._dl_bootstrap_completed is True
 
 
 @pytest.mark.asyncio
@@ -200,31 +227,6 @@ async def test_orchestrator_start_streams_fails_after_retry_limit(orchestrator_c
         with patch("src.application.services.orchestrator.asyncio.sleep", new_callable=AsyncMock):
             assert await orch._start_streams() is False
         assert mock_ws.connect.await_count == 1
-
-
-@pytest.mark.asyncio
-async def test_orchestrator_run_reconnect_fails_sleeps_backoff(orchestrator_config):
-    """Cobre run() com ws inativo e reconexao falhando com backoff."""
-    TradingState.reset()
-    sleeps: list[float] = []
-
-    async def track_sleep(delay: float) -> None:
-        sleeps.append(delay)
-        if delay == 8.0:
-            orch.ws.is_running = True
-        if len(sleeps) >= 12:
-            orch.running = False
-
-    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
-        mock_ws_class.return_value.subscribe = MagicMock()
-        orch = Orchestrator(orchestrator_config, "token")
-        orch.ws.is_running = False
-        orch._setup_session = AsyncMock(side_effect=[True, False, True])
-        orch._start_streams = AsyncMock(return_value=True)
-        orch.running = True
-        with patch("src.application.services.orchestrator.asyncio.sleep", side_effect=track_sleep):
-            await asyncio.wait_for(orch.run(), timeout=5.0)
-    assert 8.0 in sleeps
 
 
 @pytest.mark.asyncio

@@ -1,6 +1,7 @@
 """Resolucao e inversao de direcao CALL/PUT para execucao."""
 
 from src.domain.models.trade import TradeDirection
+from src.domain.risk.stake_sizing import enrich_metrics_conviction, raw_side_from_metrics
 from src.domain.symbols.range_symbols import HEDGE_PEER, hedge_peer, is_high_side
 
 
@@ -8,7 +9,7 @@ _MANDATORY_HARD_BLOCKS = frozenset(
     {
         "data",
         "predict_error",
-        "direction_margin",
+        "confidence",
         "deploy",
         "cooldown",
         "session_pause",
@@ -25,7 +26,7 @@ def _gate_blocks_eligibility(gate: str, entry: dict) -> bool:
     """Indica se o gate impede elegibilidade mesmo com raw_prob inferivel."""
     if gate not in _MANDATORY_HARD_BLOCKS:
         return False
-    return not (gate == "direction_margin" and infer_dl_direction(entry) is not None)
+    return not (gate == "confidence" and infer_dl_direction(entry) is not None)
 
 
 def infer_dl_direction(entry: dict) -> TradeDirection | None:
@@ -43,9 +44,16 @@ def infer_dl_direction(entry: dict) -> TradeDirection | None:
 def _entry_signal_strength(metrics: dict) -> tuple[float, float]:
     """Extrai score calibrado e conviccao bruta lateralizada do candidato."""
     score = float(metrics.get("trade_score", metrics.get("conviction", 0.0)))
-    raw = metrics.get("raw_prob")
-    raw_side = max(float(raw), 1.0 - float(raw)) if raw is not None else 0.0
+    raw_side = raw_side_from_metrics(metrics)
     return score, raw_side
+
+
+def meets_mandatory_signal_floor(metrics: dict, *, min_signal: float, min_val: float) -> bool:
+    """Verifica se metricas atendem piso minimo de sinal e val_accuracy."""
+    score, raw_side = _entry_signal_strength(metrics)
+    if max(score, raw_side) + 1e-9 < min_signal:
+        return False
+    return not (min_val > 0.0 and float(metrics.get("val_accuracy", 0.0)) + 1e-9 < min_val)
 
 
 def mandatory_execution_eligible(
@@ -55,14 +63,15 @@ def mandatory_execution_eligible(
     min_val_accuracy: float = 0.50,
 ) -> bool:
     """Indica se o modo obrigatorio pode operar apesar de execute=false no gating DL."""
-    _ = (min_signal, min_val_accuracy)
     metrics = entry.get("metrics") or {}
     gate = str(metrics.get("gate_reason") or "")
     if gate in _MANDATORY_POOL_HARD_BLOCKS:
         return False
     if metrics.get("deploy_ok") is False:
         return False
-    return infer_dl_direction(entry) is not None
+    if infer_dl_direction(entry) is None:
+        return False
+    return meets_mandatory_signal_floor(metrics, min_signal=min_signal, min_val=min_val_accuracy)
 
 
 def recovery_execution_eligible(entry: dict, recovery_cfg: dict | None = None) -> bool:
@@ -78,7 +87,7 @@ def recovery_execution_eligible(entry: dict, recovery_cfg: dict | None = None) -
     if infer_dl_direction(entry) is None:
         return False
     cfg = recovery_cfg or {}
-    min_conv = float(cfg.get("min_conviction_execute", 0.58))
+    min_conv = float(cfg.get("min_conviction_execute", 0.53))
     min_val = float(cfg.get("min_val_accuracy", 0.50))
     score, raw_side = _entry_signal_strength(metrics)
     val = float(metrics.get("val_accuracy", 0.0))
@@ -152,13 +161,7 @@ def build_forced_recovery_candidate(
     metrics["exec_direction"] = forced_dir.name
     metrics["recovery_forced"] = True
     metrics["direction_inverted"] = dl_dir is not None and dl_dir != forced_dir
-    raw = metrics.get("raw_prob")
-    raw_side = max(float(raw), 1.0 - float(raw)) if raw is not None else 0.0
-    score = float(metrics.get("trade_score", metrics.get("conviction", 0.0)))
-    floor = max(score, raw_side)
-    if floor + 1e-9 >= 0.01:
-        metrics["trade_score"] = floor
-        metrics["conviction"] = floor
+    enrich_metrics_conviction(metrics)
     return symbol, forced_dir, metrics
 
 

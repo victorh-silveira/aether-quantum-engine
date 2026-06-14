@@ -99,6 +99,10 @@ async def test_collect_gives_training_slot_priority_to_untrained_symbols():
             side_effect=lambda _orch, symbol, _cfg, _params: runtimes[symbol],
         ),
         patch(
+            "src.application.services.deep_learning.decision_bridge.training_priority_symbols",
+            return_value=frozenset({"R_75"}),
+        ),
+        patch(
             "src.application.services.deep_learning.decision_bridge.enqueue_deferred_symbol_training",
         ) as mock_enqueue,
     ):

@@ -188,6 +188,16 @@ def test_risk_manager_martingale_same_stake_regardless_of_conviction(kelly_confi
     assert stake_first > 17.0
 
 
+def test_proposal_skip_cycles_expire(kelly_config):
+    rm = RiskManager(kelly_config)
+    rm.register_proposal_failure("R_10", cycles=2)
+    assert "R_10" in rm.proposal_skip_symbols()
+    rm.decay_proposal_skip_cycles()
+    assert "R_10" in rm.proposal_skip_symbols()
+    rm.decay_proposal_skip_cycles()
+    assert "R_10" not in rm.proposal_skip_symbols()
+
+
 def test_risk_manager_get_state_exports(kelly_config):
     """Verifica se get_state exporta corretamente as novas métricas de perdas consecutivas."""
     rm = RiskManager(kelly_config)

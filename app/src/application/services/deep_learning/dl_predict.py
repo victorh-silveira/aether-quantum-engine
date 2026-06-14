@@ -4,18 +4,13 @@ import logging
 from typing import Any
 
 from src.application.services.deep_learning.dl_bridge_helpers import build_decision_entry
-from src.application.services.deep_learning.dl_calibration import CalibratorState
 from src.application.services.deep_learning.dl_gating import (
     gating_block_reason,
+    resolve_confidence_thresholds,
     resolve_edge,
-    resolve_gating_thresholds,
 )
 from src.application.services.deep_learning.dl_outcomes import blended_val_accuracy
-from src.application.services.deep_learning.dl_predict_helpers import (
-    prepare_binary_direction,
-    resolve_execution_gates,
-    val_accuracy_bypass_flag,
-)
+from src.application.services.deep_learning.dl_symbol_runtime import guard_symbol_model
 from src.application.services.deep_learning.model import predict_next_direction
 
 
@@ -33,122 +28,62 @@ def predict_symbol_decision(
     train_loss: float | None,
     *,
     recovery_active: bool,
-    granularity: int = 300,
-    pair_prices=None,
+    granularity: int = 60,
     open_=None,
     high=None,
     low=None,
+    micro=None,
 ) -> dict:
-    """Gera predicao e gating de execucao com score calibrado unificado."""
+    """Gera predicao e gating de execucao com threshold de confianca."""
+    _ = recovery_active
     val_accuracy = blended_val_accuracy(
         orch,
         symbol,
         float(runtime["val_accuracy"]),
-        live_weight=float(params.get("val_acc_live_blend", 0.55)),
+        live_weight=float(params.get("val_acc_live_blend", 0.35)),
     )
-    calibrator = runtime.get("calibrator") or CalibratorState()
-    min_conviction, min_edge_margin, min_val_accuracy = resolve_gating_thresholds(
-        params, recovery_active=recovery_active
-    )
+    call_threshold, put_threshold = resolve_confidence_thresholds(params)
+    min_val_accuracy = float(params.get("min_val_accuracy", 0.53))
     try:
-        gap = float(params.get("max_calibrated_raw_gap", 0.18))
-        min_raw = float(params.get("min_raw_conviction_execute", 0.52))
-        if recovery_active:
-            min_raw = max(min_raw, float(params.get("recovery_min_raw_conviction", 0.58)))
-        deploy_ok = bool(runtime.get("deploy_ok", False))
-        gran = int(granularity or params.get("granularity", 300))
-        direction, prob, trade_score, raw_prob = predict_next_direction(
-            model,
-            prices,
-            lookback=int(runtime.get("lookback", params["lookback"])),
-            norm_stats=norm_stats,
-            val_accuracy=val_accuracy,
-            calibrator=calibrator,
-            max_calibrated_raw_gap=gap,
-            min_direction_margin=float(params.get("min_direction_margin", 0.10)),
-            granularity=gran,
-            pair_prices=pair_prices,
-            deploy_ok=deploy_ok,
-            open_=open_,
-            high=high,
-            low=low,
-        )
+        gran = int(granularity or params.get("granularity", 60))
+        with guard_symbol_model(runtime):
+            direction, prob, raw_prob = predict_next_direction(
+                model,
+                prices,
+                lookback=int(runtime.get("lookback", params["lookback"])),
+                norm_stats=norm_stats,
+                granularity=gran,
+                symbol=str(symbol),
+                open_=open_,
+                high=high,
+                low=low,
+                micro=micro,
+                call_threshold=call_threshold,
+                put_threshold=put_threshold,
+            )
         if direction is None:
             entry = build_decision_entry(
                 None,
-                0.0,
+                float(raw_prob),
                 execute=False,
                 val_accuracy=val_accuracy,
-                edge=0.0,
+                edge=resolve_edge(raw_prob),
                 train_loss=train_loss,
                 raw_prob=raw_prob,
+                trade_score=float(raw_prob),
+                contract_duration=int(params.get("contract_duration", 60)),
             )
-            entry["metrics"]["gate_reason"] = "direction_margin"
+            entry["metrics"]["gate_reason"] = "confidence"
             return entry
-        direction, stat_override, raw_prob, trade_score, sym_is_bull, binary_ctx = prepare_binary_direction(
-            symbol,
-            direction,
-            raw_prob,
-            trade_score,
-            prices,
-            gran,
-            pair_prices,
-            open_,
-            high,
-            low,
-            params,
-        )
-        edge = resolve_edge(trade_score)
-        raw_side = max(float(raw_prob), 1.0 - float(raw_prob))
-        allow_bypass = bool(params.get("recovery_allow_bypass", False)) or not recovery_active
         block = gating_block_reason(
-            trade_score,
+            raw_prob,
             val_accuracy,
-            min_conviction,
-            min_edge_margin,
-            min_val_accuracy,
-            raw_prob=raw_prob,
-            max_calib_gap=float(params.get("max_calib_gap_execute", gap)),
-            min_raw_conviction=min_raw,
-            max_val_brier=float(params.get("max_val_brier_execute", 0.26)),
-            val_brier=float(runtime.get("val_brier", 1.0)),
-            max_raw_saturation=float(params.get("max_raw_saturation", 0.97)),
-            saturation_min_trade_score=float(params.get("saturation_min_trade_score", 0.58)),
-            high_val_acc_relax=float(params.get("high_val_acc_relax", 0.68)),
-            relaxed_conviction=float(params.get("relaxed_conviction", 0.54)),
-            brier_untrained_floor=float(params.get("brier_untrained_floor", 0.99)),
-            bypass_min_conviction=params.get("bypass_min_conviction"),
-            bypass_min_edge=params.get("bypass_min_edge"),
-            bypass_min_val_accuracy=float(params.get("bypass_min_val_accuracy", 0.48)),
-            moderate_min_conviction=params.get("moderate_min_conviction"),
-            moderate_min_edge=params.get("moderate_min_edge"),
-            moderate_min_val_accuracy=params.get("moderate_min_val_accuracy"),
-            allow_bypass=allow_bypass,
-            deploy_ok=deploy_ok,
-            recovery_active=recovery_active,
-            min_conviction_for_raw_bypass=min_conviction,
+            min_val_accuracy=min_val_accuracy,
+            call_threshold=call_threshold,
+            put_threshold=put_threshold,
         )
         execute = block is None
-        execute, block, live_wr = resolve_execution_gates(
-            execute=execute,
-            block=block,
-            direction=direction,
-            prices=prices,
-            binary_ctx=binary_ctx,
-            params=params,
-            sym_is_bull=sym_is_bull,
-            orch=orch,
-            symbol=symbol,
-        )
-        bypass_used = val_accuracy_bypass_flag(
-            execute=execute,
-            val_accuracy=val_accuracy,
-            min_val_accuracy=min_val_accuracy,
-            allow_bypass=allow_bypass,
-            raw_side=raw_side,
-            edge=edge,
-            params=params,
-        )
+        edge = resolve_edge(raw_prob)
         entry = build_decision_entry(
             direction,
             prob,
@@ -156,19 +91,13 @@ def predict_symbol_decision(
             val_accuracy=val_accuracy,
             edge=edge,
             train_loss=train_loss,
-            trade_score=trade_score,
+            trade_score=float(raw_prob),
             raw_prob=raw_prob,
             val_brier=float(runtime.get("val_brier", 1.0)),
             val_ece=float(runtime.get("val_ece", 1.0)),
+            contract_duration=int(params.get("contract_duration", 60)),
         )
         entry["metrics"]["gate_reason"] = block
-        entry["metrics"]["bypass_val_acc"] = bypass_used
-        entry["metrics"]["stat_override"] = stat_override
-        entry["metrics"]["val_accuracy"] = val_accuracy
-        if binary_ctx:
-            entry["metrics"]["binary_ctx"] = dict(binary_ctx)
-        if live_wr is not None:
-            entry["metrics"]["live_win_rate"] = float(live_wr)
         return entry
     except Exception as e:
         logger.error("DL: Falha na predicao para %s: %s", symbol, e)
@@ -179,6 +108,7 @@ def predict_symbol_decision(
             val_accuracy=val_accuracy,
             edge=0.0,
             train_loss=train_loss,
+            contract_duration=int(params.get("contract_duration", 60)),
         )
         entry["metrics"]["gate_reason"] = "predict_error"
         return entry

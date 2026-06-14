@@ -7,7 +7,7 @@ from src.domain.models.trade import TradeDirection
 
 
 @pytest.mark.asyncio
-async def test_execute_cluster_logs_exec_none_when_not_mandatory(orch_config):
+async def test_execute_cluster_silent_when_not_mandatory_and_execute_false(orch_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
@@ -22,7 +22,7 @@ async def test_execute_cluster_logs_exec_none_when_not_mandatory(orch_config):
             patch.object(orch.executor, "_execute_orders", new_callable=AsyncMock, return_value=0),
         ):
             await orch.executor.execute_cluster(decisions)
-        assert any("EXEC_NONE" in str(c) for c in mock_info.call_args_list)
+        assert not any("EXEC_NONE" in str(c) for c in mock_info.call_args_list)
 
 
 @pytest.mark.asyncio
@@ -57,15 +57,13 @@ async def test_execute_cluster_mandatory_skips_exec_none_when_execute_false(orch
         assert len(mock_exec.await_args.args[0]) == 1
 
 
-def test_log_execution_blockers_when_gating_disabled(orch_config):
+def test_log_execution_blockers_silent_when_gating_blocks(orch_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 2
         orch.symbols = ["R_50"]
         orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = False
-        orch.risk_manager.calculate_stake = MagicMock(return_value=0.0)
-        orch.risk_manager.stake_block_reason = MagicMock(return_value="kelly_no_edge")
         with patch.object(orch.executor.logger, "info") as mock_info:
             orch.executor._log_execution_blockers(
                 {
@@ -75,7 +73,7 @@ def test_log_execution_blockers_when_gating_disabled(orch_config):
                     },
                 }
             )
-        assert any("EXEC_NONE" in str(c) for c in mock_info.call_args_list)
+        assert not any("EXEC_NONE" in str(c) for c in mock_info.call_args_list)
 
 
 def test_collect_orders_non_mandatory_skips_execute_false(orch_config):
@@ -126,11 +124,11 @@ def test_collect_orders_non_mandatory_keeps_filtered_candidate(orch_config):
                 "direction": TradeDirection.CALL,
                 "metrics": {
                     "execute": True,
-                    "conviction": 0.60,
-                    "trade_score": 0.60,
+                    "conviction": 0.80,
+                    "trade_score": 0.80,
                     "val_accuracy": 0.55,
                     "edge": 0.10,
-                    "raw_prob": 0.58,
+                    "raw_prob": 0.80,
                 },
             },
         }
@@ -191,6 +189,7 @@ async def test_execute_orders_market_closed_emits_warning(orch_config):
 
 
 @pytest.mark.asyncio
+@pytest.mark.real_settlement_watch
 async def test_run_settlement_watch_schedules_cycle_and_handles_error(orch_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
         mock_ws_class.return_value.subscribe = MagicMock()

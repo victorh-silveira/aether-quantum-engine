@@ -73,6 +73,16 @@ async def test_breath_interrupts_on_wake(orch_ready):
     await task
 
 
+@pytest.mark.asyncio
+async def test_breath_returns_when_wake_completes_before_timeout(orch_ready):
+    orch = orch_ready
+    with patch(
+        "src.application.services.orchestrator.post_settlement_cycle.asyncio.wait_for",
+        new_callable=AsyncMock,
+    ):
+        await _await_post_settlement_breath(orch, 1.0, 0.5)
+
+
 def test_schedule_skips_when_not_running(orch_ready):
     orch_ready.running = False
     with patch("src.application.services.orchestrator.post_settlement_cycle.asyncio.create_task") as mock_create:

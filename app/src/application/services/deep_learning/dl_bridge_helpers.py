@@ -16,6 +16,7 @@ def build_decision_entry(
     raw_prob: float | None = None,
     val_brier: float | None = None,
     val_ece: float | None = None,
+    contract_duration: int | None = None,
 ) -> dict:
     """Monta entrada de decisao com metricas de conviccao e gating."""
     score = float(trade_score if trade_score is not None else prob)
@@ -28,7 +29,6 @@ def build_decision_entry(
         "conviction": score,
         "trade_score": score,
         "execute": execute,
-        "duration": 1,
         "llm_note": note,
         "val_accuracy": val_accuracy,
         "edge": edge,
@@ -40,6 +40,8 @@ def build_decision_entry(
         metrics["val_brier"] = float(val_brier)
     if val_ece is not None:
         metrics["val_ece"] = float(val_ece)
+    if contract_duration is not None:
+        metrics["duration"] = int(contract_duration)
     return {"direction": direction, "metrics": metrics}
 
 

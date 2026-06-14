@@ -17,7 +17,7 @@ from tests.unit.application.dl_collect_fixtures import MockOrchestrator
 
 
 def test_min_dl_history_len_standard():
-    assert _min_dl_history_len({"lookback": 32, "validation_bars": 10, "training_history_bars": 100}) == 100
+    assert _min_dl_history_len({"lookback": 32, "validation_bars": 10, "training_history_bars": 100}) == 62
 
 
 def test_insufficient_data_entry_gate_reason():
@@ -34,8 +34,10 @@ def test_build_decision_entry_includes_train_loss():
         val_accuracy=0.55,
         edge=0.08,
         train_loss=0.1234,
+        contract_duration=5,
     )
     assert "loss=0.1234" in entry["metrics"]["llm_note"]
+    assert entry["metrics"]["duration"] == 5
 
 
 def test_apply_deploy_gate_blocks_when_not_ok():
@@ -67,6 +69,28 @@ async def test_collect_symbol_decision_insufficient_history():
         granularity=60,
         recovery_active=False,
     )
+    assert entry["metrics"]["gate_reason"] == "data"
+    assert reason is None
+
+
+@pytest.mark.asyncio
+async def test_collect_symbol_decision_insufficient_after_slice():
+    prices = np.linspace(1.0, 2.0, 120)
+    orch = MagicMock()
+    orch.stream.get_numpy_series = MagicMock(return_value=prices)
+    with patch(
+        "src.application.services.deep_learning.decision_bridge.slice_dl_ohlc_window",
+        return_value=(prices[:5], None, None, None),
+    ):
+        entry, reason = await _collect_symbol_decision(
+            orch,
+            "R_50",
+            dl_config={},
+            params={"training_history_bars": 32, "lookback": 32, "validation_bars": 10},
+            min_len=100,
+            granularity=60,
+            recovery_active=False,
+        )
     assert entry["metrics"]["gate_reason"] == "data"
     assert reason is None
 

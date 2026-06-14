@@ -1,14 +1,21 @@
-"""Treino walk-forward TCN com split purged, early stopping e calibracao."""
+"""Treino walk-forward TCN com split purged e calibracao."""
 
 import logging
 
 import numpy as np
 import torch
-from torch import nn, optim
 
 from src.application.services.deep_learning.dl_calibration import fit_calibrator
+from src.application.services.deep_learning.dl_device import (
+    device_label,
+    log_device_once,
+    place_model,
+    resolve_torch_device,
+    tensor_from_numpy,
+)
 from src.application.services.deep_learning.dl_features import extract_sequences
 from src.application.services.deep_learning.dl_splits import purged_temporal_splits
+from src.application.services.deep_learning.dl_training_epochs import fit_training_epochs
 from src.application.services.deep_learning.model import (
     TrainResult,
     evaluate_calibrated_metrics,
@@ -21,90 +28,6 @@ from src.application.services.deep_learning.model import (
 logger = logging.getLogger("AETH")
 
 
-def _masked_loss(
-    model,
-    x_batch: np.ndarray,
-    y_batch: np.ndarray,
-    mask_batch: np.ndarray,
-    weights: list[float],
-    *,
-    label_smoothing: float,
-    focal_gamma: float,
-) -> torch.Tensor:
-    """Calcula BCE mascarada com pesos e focal loss opcional."""
-    smooth = max(0.0, min(0.2, float(label_smoothing)))
-    targets = y_batch * (1.0 - smooth) + 0.5 * smooth
-    preds = model(torch.tensor(x_batch)).squeeze(-1)
-    target_t = torch.tensor(targets, dtype=torch.float32)
-    mask_t = torch.tensor(mask_batch, dtype=torch.float32)
-    loss_vec = nn.functional.binary_cross_entropy(preds, target_t, reduction="none")
-    if focal_gamma > 0.0:
-        pt = torch.where(target_t >= 0.5, preds, 1.0 - preds)
-        loss_vec = loss_vec * torch.pow(1.0 - pt, float(focal_gamma))
-    w = torch.tensor(weights, dtype=torch.float32)
-    weighted = loss_vec * mask_t * w
-    denom = (mask_t * w).sum().clamp(min=1e-6)
-    return weighted.sum() / denom
-
-
-def _fit_epochs(
-    model,
-    x_train: np.ndarray,
-    y_train: np.ndarray,
-    mask_train: np.ndarray,
-    weights: list[float],
-    x_val: np.ndarray,
-    y_val: np.ndarray,
-    mask_val: np.ndarray,
-    *,
-    epochs: int,
-    lr: float,
-    weight_decay: float,
-    label_smoothing: float,
-    focal_gamma: float,
-    early_stopping_patience: int,
-    progress_cb=None,
-) -> tuple[float, None | dict]:
-    """Executa epocas de treino com early stopping em val loss composto."""
-    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=max(0.0, weight_decay))
-    model.train()
-    total_loss = 0.0
-    best_state = None
-    best_score = -1.0
-    patience_left = max(1, int(early_stopping_patience))
-    total_epochs = max(1, epochs)
-    for epoch_idx in range(total_epochs):
-        optimizer.zero_grad()
-        loss = _masked_loss(
-            model,
-            x_train,
-            y_train,
-            mask_train,
-            weights,
-            label_smoothing=label_smoothing,
-            focal_gamma=focal_gamma,
-        )
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-        optimizer.step()
-        total_loss += float(loss.item())
-        val_acc = model_accuracy(model, x_val, y_val, mask_val)
-        if progress_cb is not None:
-            progress_cb(epoch_idx + 1, total_epochs, float(loss.item()), float(val_acc))
-        val_probs = model(torch.tensor(x_val)).squeeze(-1).detach().numpy()
-        val_brier = float(np.mean((val_probs - y_val) ** 2)) if len(y_val) else 1.0
-        score = 0.6 * val_acc + 0.4 * (1.0 - val_brier)
-        if score >= best_score:
-            best_score = score
-            best_state = {k: v.detach().clone() for k, v in model.state_dict().items()}
-            patience_left = max(1, int(early_stopping_patience))
-        else:
-            patience_left -= 1
-            if patience_left <= 0:
-                break
-    return total_loss / max(epochs, 1), best_state
-
-
 def train_model_walkforward(
     model,
     prices: np.ndarray,
@@ -115,52 +38,33 @@ def train_model_walkforward(
     *,
     sample_weights: list[float] | None = None,
     weight_decay: float = 0.0,
-    label_smoothing: float = 0.05,
-    label_min_move_pct: float = 0.0002,
-    early_stopping_patience: int = 3,
-    focal_gamma: float = 0.0,
     calib_ratio: float = 0.15,
-    granularity: int = 300,
-    pair_prices: np.ndarray | None = None,
-    require_pair_label: bool = False,
-    sym_is_bull: bool = True,
+    granularity: int = 60,
     label_horizon_bars: int = 1,
+    symbol: str = "R_50",
     open_: np.ndarray | None = None,
     high: np.ndarray | None = None,
     low: np.ndarray | None = None,
+    micro: dict[str, np.ndarray] | None = None,
+    batch_size: int = 128,
+    dl_config: dict | None = None,
     progress_cb=None,
 ) -> TrainResult | None:
-    """Treina TCN com split purged, early stopping e calibrador Platt."""
+    """Treina classificador com split purged e calibrador Platt."""
+    device = resolve_torch_device(dl_config or {}, kind="training")
+    place_model(model, device)
+    log_device_once(device, context="treino")
     x_all, y_all, mask_all = extract_sequences(
         prices,
         lookback,
-        label_min_move_pct=label_min_move_pct,
         granularity=granularity,
-        pair_prices=pair_prices,
-        require_pair_label=require_pair_label,
-        sym_is_bull=sym_is_bull,
         label_horizon_bars=label_horizon_bars,
+        symbol=symbol,
         open_=open_,
         high=high,
         low=low,
+        micro=micro,
     )
-    if require_pair_label and len(mask_all) > 0 and float(mask_all.mean()) < 0.08:
-        logger.debug(
-            "DL_TRAIN: pair label ativo em %.1f%%; retreino sem filtro de par.", 100.0 * float(mask_all.mean())
-        )
-        x_all, y_all, mask_all = extract_sequences(
-            prices,
-            lookback,
-            label_min_move_pct=label_min_move_pct,
-            granularity=granularity,
-            pair_prices=pair_prices,
-            require_pair_label=False,
-            sym_is_bull=sym_is_bull,
-            label_horizon_bars=label_horizon_bars,
-            open_=open_,
-            high=high,
-            low=low,
-        )
     splits = purged_temporal_splits(
         len(x_all),
         validation_bars,
@@ -182,7 +86,7 @@ def train_model_walkforward(
     y_val, mask_val = y_all[val_sl], mask_all[val_sl]
     y_calib = y_all[calib_sl]
     weights = sample_weights if sample_weights and len(sample_weights) == len(y_train) else [1.0] * len(y_train)
-    avg_loss, best_state = _fit_epochs(
+    avg_loss, best_state, epochs_ran = fit_training_epochs(
         model,
         x_train,
         y_train,
@@ -191,23 +95,36 @@ def train_model_walkforward(
         x_val,
         y_val,
         mask_val,
+        device,
         epochs=epochs,
+        batch_size=batch_size,
         lr=lr,
         weight_decay=weight_decay,
-        label_smoothing=label_smoothing,
-        focal_gamma=focal_gamma,
-        early_stopping_patience=early_stopping_patience,
+        label_smoothing=0.0,
+        focal_gamma=0.0,
         progress_cb=progress_cb,
     )
     if best_state is not None:
         model.load_state_dict(best_state)
+        place_model(model, device)
     val_accuracy = model_accuracy(model, x_val, y_val, mask_val)
     model.eval()
-    raw_calib = model(torch.tensor(normalize_sequences(x_all[calib_sl], norm_stats))).squeeze(-1).detach().numpy()
+    with torch.no_grad():
+        raw_calib = (
+            model(tensor_from_numpy(normalize_sequences(x_all[calib_sl], norm_stats), device))
+            .squeeze(-1)
+            .detach()
+            .cpu()
+            .numpy()
+        )
     calibrator = fit_calibrator([float(p) for p in raw_calib], [float(y) for y in y_calib])
     val_brier, val_ece = evaluate_calibrated_metrics(model, x_val, y_val, calibrator)
     logger.debug(
-        "DL_TRAIN: loss=%.4f val_acc=%.3f brier=%.3f ece=%.3f samples=%d",
+        "DL_TRAIN: device=%s batch=%d epocas=%d/%d loss=%.4f val_acc=%.3f brier=%.3f ece=%.3f samples=%d",
+        device_label(device),
+        max(1, int(batch_size)),
+        epochs_ran,
+        max(1, epochs),
         avg_loss,
         val_accuracy,
         val_brier,

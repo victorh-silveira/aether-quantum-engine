@@ -78,9 +78,9 @@ def test_collect_cluster_orders_recovery_skips_weak_signal():
     )
     decisions = {
         PAIR: {
-            "direction": TradeDirection.CALL,
+            "direction": None,
             "metrics": {
-                "raw_prob": 0.4,
+                "raw_prob": 0.40,
                 "execute": False,
                 "val_accuracy": 0.52,
                 "trade_score": 0.48,

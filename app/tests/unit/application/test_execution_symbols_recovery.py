@@ -28,25 +28,27 @@ def test_inject_recovery_hedge_noop_without_loss_context():
     assert out == candidates
 
 
-def test_inject_recovery_hedge_never_adds_opposite_direction():
+def test_inject_recovery_hedge_adds_structural_peer():
     candidates = [(PAIR, TradeDirection.CALL, {"execute": True})]
     out = inject_recovery_hedge_candidates(
         candidates,
         {
             HEDGE_PEER_SYMBOL: {
-                "direction": TradeDirection.CALL,
+                "direction": TradeDirection.PUT,
                 "metrics": {
-                    "execute": False,
-                    "trade_score": 0.60,
+                    "execute": True,
+                    "trade_score": 0.72,
                     "val_accuracy": 0.55,
-                    "raw_prob": 0.58,
+                    "raw_prob": 0.28,
+                    "trend_sep_pct": 0.01,
                 },
             }
         },
         last_loss_symbol=PAIR,
         last_loss_direction="CALL",
     )
-    assert out == candidates
+    assert len(out) == 2
+    assert any(item[0] == HEDGE_PEER_SYMBOL and item[1] == TradeDirection.PUT for item in out)
 
 
 def test_has_recovery_direction_true_when_same_direction_present():
@@ -65,17 +67,17 @@ def test_has_recovery_direction_false_when_direction_missing():
     )
 
 
-def test_recovery_rank_score_bonus_for_matching_direction():
+def test_recovery_rank_score_penalizes_matching_direction():
     put_item = (PAIR, TradeDirection.PUT, {"trade_score": 0.55, "val_accuracy": 0.5, "raw_prob": 0.42})
     base_put = candidate_execution_score(put_item[2], recovery_active=True)
-    assert recovery_rank_score(put_item, last_loss_direction="PUT", base_score=base_put) >= base_put + 0.06
+    assert recovery_rank_score(put_item, last_loss_direction="PUT", base_score=base_put) <= base_put
 
 
 def test_recovery_rank_score_bonus_for_different_symbol():
     item = (ANCHOR, TradeDirection.CALL, {"trade_score": 0.55, "execute": True, "raw_prob": 0.58})
     base = candidate_execution_score(item[2], recovery_active=True)
     ranked = recovery_rank_score(item, last_loss_symbol=PAIR, last_loss_direction="CALL", base_score=base)
-    assert ranked >= base + 0.12
+    assert ranked >= base + 0.05
 
 
 def test_recovery_hedge_target_after_high_side_put_loss():
@@ -103,8 +105,8 @@ def test_recovery_prefers_opposite_direction_after_loss():
 def test_select_mandatory_non_recovery_prefers_highest_score():
     orch = SimpleNamespace(config={})
     candidates = [
-        (ANCHOR, TradeDirection.CALL, {"trade_score": 0.71, "execute": False}),
-        (PAIR, TradeDirection.PUT, {"trade_score": 0.55, "execute": True}),
+        (ANCHOR, TradeDirection.CALL, {"trade_score": 0.81, "raw_prob": 0.81, "execute": True}),
+        (PAIR, TradeDirection.PUT, {"trade_score": 0.55, "raw_prob": 0.20, "execute": False}),
     ]
     best = select_mandatory_execution_candidate(
         orch,
@@ -211,16 +213,32 @@ def test_recovery_candidate_pool_without_direction_filter_when_inactive():
     assert result == candidates
 
 
-def test_recovery_rank_score_call_raw_bonus():
-    item = (PAIR, TradeDirection.CALL, {"trade_score": 0.55, "val_accuracy": 0.5, "raw_prob": 0.58})
+def test_recovery_rank_score_call_raw_bonus_for_opposite_direction():
+    item = (ANCHOR, TradeDirection.PUT, {"trade_score": 0.55, "val_accuracy": 0.5, "raw_prob": 0.42})
     base = candidate_execution_score(item[2], recovery_active=True)
-    assert recovery_rank_score(item, last_loss_direction="CALL", base_score=base) >= base + 0.08
+    assert (
+        recovery_rank_score(
+            item,
+            last_loss_symbol=PAIR,
+            last_loss_direction="CALL",
+            base_score=base,
+        )
+        >= base + 0.05
+    )
 
 
-def test_recovery_rank_score_put_raw_bonus():
-    item = (PAIR, TradeDirection.PUT, {"trade_score": 0.55, "val_accuracy": 0.5, "raw_prob": 0.42})
+def test_recovery_rank_score_put_raw_bonus_for_opposite_direction():
+    item = (ANCHOR, TradeDirection.CALL, {"trade_score": 0.55, "val_accuracy": 0.5, "raw_prob": 0.58})
     base = candidate_execution_score(item[2], recovery_active=True)
-    assert recovery_rank_score(item, last_loss_direction="PUT", base_score=base) >= base + 0.08
+    assert (
+        recovery_rank_score(
+            item,
+            last_loss_symbol=PAIR,
+            last_loss_direction="PUT",
+            base_score=base,
+        )
+        >= base + 0.05
+    )
 
 
 def test_recovery_blocked_symbols_excludes_streak_and_cooldown():

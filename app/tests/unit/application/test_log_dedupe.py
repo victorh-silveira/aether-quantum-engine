@@ -2,6 +2,7 @@ from unittest.mock import MagicMock
 
 from src.application.services.deep_learning.dl_cycle_log import log_dl_cycle_summary
 from src.application.services.log_dedupe import clear_log_channel, log_info_if_changed
+from src.domain.models.trade import TradeDirection
 
 
 class Owner:
@@ -29,7 +30,12 @@ def test_clear_log_channel_returns_last_content():
 def test_log_dl_cycle_summary_dedupes_with_orch():
     logger = MagicMock()
     orch = Owner()
-    decisions = {"R_50": {"direction": None, "metrics": {"conviction": 0.0, "execute": False}}}
+    decisions = {
+        "R_50": {
+            "direction": TradeDirection.CALL,
+            "metrics": {"conviction": 0.70, "execute": True, "val_accuracy": 0.55},
+        },
+    }
     log_dl_cycle_summary(logger, decisions, recovery_active=False, pending_loss_total=0.0, orch=orch)
     log_dl_cycle_summary(logger, decisions, recovery_active=False, pending_loss_total=0.0, orch=orch)
     assert logger.info.call_count == 1

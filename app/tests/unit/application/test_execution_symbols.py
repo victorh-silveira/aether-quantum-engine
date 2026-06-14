@@ -1,7 +1,6 @@
 from types import SimpleNamespace
 
 from src.application.services.execution_symbols import (
-    _calib_gap_penalty,
     _trade_score,
     candidate_execution_score,
     filter_execution_candidates,
@@ -16,11 +15,9 @@ from tests.market_symbols import ANCHOR, PAIR
 
 
 _SELECTION = {
-    "min_conviction_execute": 0.58,
-    "min_edge_margin": 0.06,
     "min_val_accuracy": 0.50,
-    "strong_raw": 0.65,
-    "strong_edge": 0.12,
+    "confidence_call_threshold": 0.75,
+    "confidence_put_threshold": 0.25,
 }
 
 
@@ -32,10 +29,10 @@ def test_symbols_eligible_for_execution():
 
 def test_format_execution_alternates_excludes_selected():
     candidates = [
-        (ANCHOR, TradeDirection.PUT, {"trade_score": 0.57, "conviction": 0.57, "val_accuracy": 0.60}),
-        (PAIR, TradeDirection.CALL, {"trade_score": 0.52, "conviction": 0.52, "val_accuracy": 0.50}),
+        (ANCHOR, TradeDirection.PUT, {"trade_score": 0.80, "raw_prob": 0.80, "val_accuracy": 0.60, "execute": True}),
+        (PAIR, TradeDirection.CALL, {"trade_score": 0.78, "raw_prob": 0.78, "val_accuracy": 0.50, "execute": True}),
     ]
-    assert format_execution_alternates(candidates, exclude_symbol=ANCHOR) == f"{PAIR}(0.52)"
+    assert format_execution_alternates(candidates, exclude_symbol=ANCHOR) == f"{PAIR}(0.78)"
 
 
 def test_pending_recovery_active():
@@ -43,23 +40,18 @@ def test_pending_recovery_active():
     assert pending_recovery_active({ANCHOR: 100.0}) is True
 
 
-def test_filter_execution_candidates_requires_val_or_strong_signal():
-    weak = (PAIR, TradeDirection.CALL, {"trade_score": 0.54, "val_accuracy": 0.33, "edge": 0.04})
-    solid = (PAIR, TradeDirection.CALL, {"trade_score": 0.59, "val_accuracy": 0.50, "edge": 0.09})
-    strong = (
-        ANCHOR,
-        TradeDirection.PUT,
-        {"trade_score": 0.55, "raw_prob": 0.66, "val_accuracy": 0.35, "edge": 0.16},
-    )
-    filtered = filter_execution_candidates([weak, solid, strong], selection=_SELECTION)
+def test_filter_execution_candidates_requires_confidence():
+    weak = (PAIR, TradeDirection.CALL, {"execute": True, "raw_prob": 0.52, "val_accuracy": 0.55})
+    strong = (ANCHOR, TradeDirection.PUT, {"execute": True, "raw_prob": 0.80, "val_accuracy": 0.55})
+    filtered = filter_execution_candidates([weak, strong], selection=_SELECTION)
     symbols = {item[0] for item in filtered}
-    assert symbols == {ANCHOR, PAIR}
+    assert symbols == {ANCHOR}
 
 
 def test_select_best_execution_candidate_diversify_margin_picks_alt():
     candidates = [
-        (ANCHOR, TradeDirection.PUT, {"trade_score": 0.70, "val_accuracy": 0.50, "edge": 0.20}),
-        (PAIR, TradeDirection.CALL, {"trade_score": 0.69, "val_accuracy": 0.48, "edge": 0.19}),
+        (ANCHOR, TradeDirection.PUT, {"trade_score": 0.80, "raw_prob": 0.80, "val_accuracy": 0.50, "execute": True}),
+        (PAIR, TradeDirection.CALL, {"trade_score": 0.79, "raw_prob": 0.79, "val_accuracy": 0.48, "execute": True}),
     ]
     best = select_best_execution_candidate(
         candidates,
@@ -70,64 +62,12 @@ def test_select_best_execution_candidate_diversify_margin_picks_alt():
     assert best[0] == PAIR
 
 
-def test_select_best_execution_candidate_diversifies_last_loss_symbol():
-    candidates = [
-        (ANCHOR, TradeDirection.PUT, {"trade_score": 0.70, "val_accuracy": 0.50, "edge": 0.20, "execute": True}),
-        (PAIR, TradeDirection.PUT, {"trade_score": 0.69, "val_accuracy": 0.48, "edge": 0.19, "execute": True}),
-    ]
-    best = select_best_execution_candidate(
-        candidates,
-        last_loss_symbol=ANCHOR,
-        last_loss_direction="PUT",
-        diversify_margin=0.10,
-        recovery_active=True,
-    )
-    assert best[0] == PAIR
-
-
-def test_select_best_candidate_prefers_high_val_in_recovery():
-    candidates = [
-        (PAIR, TradeDirection.PUT, {"trade_score": 0.57, "val_accuracy": 0.60, "edge": 0.07}),
-        (
-            ANCHOR,
-            TradeDirection.CALL,
-            {"trade_score": 0.59, "val_accuracy": 0.42, "edge": 0.09},
-        ),
-    ]
-    best = select_best_execution_candidate(
-        candidates,
-        last_loss_symbol=None,
-        diversify_margin=0.10,
-        recovery_active=True,
-    )
-    assert best[0] == PAIR
-
-
 def test_trade_score_falls_back_to_conviction():
     assert _trade_score({"conviction": 0.61}) == 0.61
 
 
-def test_filter_keeps_strong_raw_when_below_conviction_threshold():
-    strong_only = (
-        ANCHOR,
-        TradeDirection.PUT,
-        {"conviction": 0.52, "raw_prob": 0.68, "val_accuracy": 0.35, "edge": 0.18},
-    )
-    filtered = filter_execution_candidates([strong_only], selection=_SELECTION)
-    assert len(filtered) == 1
-
-
-def test_calib_gap_penalty_reduces_ranking():
-    cfg = {"max_calib_gap": 0.10}
-    metrics = {"trade_score": 0.85, "raw_prob": 0.55}
-    assert _calib_gap_penalty(metrics, cfg) > 0.0
-    assert _calib_gap_penalty({"trade_score": 0.6}, cfg) == 0.0
-    small_gap = {"trade_score": 0.62, "raw_prob": 0.58}
-    assert _calib_gap_penalty(small_gap, {"max_calib_gap": 0.18}) == 0.0
-
-
 def test_candidate_execution_score_recovery_weights_val_accuracy():
-    metrics = {"trade_score": 0.55, "val_accuracy": 0.40, "edge": 0.05, "raw_prob": 0.55}
+    metrics = {"trade_score": 0.80, "raw_prob": 0.80, "val_accuracy": 0.40, "execute": True}
     normal = candidate_execution_score(metrics, recovery_active=False, symbol="R_50")
     recovery = candidate_execution_score(
         metrics,
@@ -138,7 +78,7 @@ def test_candidate_execution_score_recovery_weights_val_accuracy():
         last_loss_direction="CALL",
     )
     high_val = candidate_execution_score(
-        {"trade_score": 0.55, "val_accuracy": 0.60, "edge": 0.05, "raw_prob": 0.55},
+        {"trade_score": 0.80, "raw_prob": 0.80, "val_accuracy": 0.60, "execute": True},
         recovery_active=True,
         symbol="R_50",
         exec_direction=TradeDirection.CALL,
@@ -152,7 +92,7 @@ def test_candidate_execution_score_recovery_weights_val_accuracy():
 def test_select_mandatory_falls_back_when_pool_empty():
     orch = SimpleNamespace(config={})
     candidates = [
-        (ANCHOR, TradeDirection.CALL, {"trade_score": 0.71, "execute": False}),
+        (ANCHOR, TradeDirection.CALL, {"trade_score": 0.80, "execute": False}),
         (PAIR, TradeDirection.PUT, {"trade_score": 0.43, "execute": False}),
     ]
     best = select_mandatory_execution_candidate(
@@ -164,21 +104,3 @@ def test_select_mandatory_falls_back_when_pool_empty():
     )
     assert best is not None
     assert best[0] == ANCHOR
-
-
-def test_select_mandatory_recovery_diversifies_from_last_loss_symbol():
-    orch = SimpleNamespace(config={})
-    candidates = [
-        (ANCHOR, TradeDirection.CALL, {"trade_score": 0.71, "execute": False}),
-        (PAIR, TradeDirection.CALL, {"trade_score": 0.63, "execute": True}),
-    ]
-    best = select_mandatory_execution_candidate(
-        orch,
-        candidates,
-        last_loss_symbol=ANCHOR,
-        last_loss_direction="CALL",
-        diversify_margin=0.08,
-        recovery_active=True,
-    )
-    assert best[0] == PAIR
-    assert best[1] == TradeDirection.CALL

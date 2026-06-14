@@ -5,9 +5,9 @@ import numpy as np
 from src.application.services.deep_learning.dl_bridge_helpers import recovery_gating_active
 from src.application.services.deep_learning.dl_params import (
     bars_per_day,
-    optional_float,
     parse_dl_params,
     resolve_training_history_bars,
+    slice_dl_ohlc_window,
     slice_dl_price_window,
 )
 from src.application.services.deep_learning.dl_predict import predict_symbol_decision
@@ -21,42 +21,40 @@ from src.domain.models.trade import TradeDirection
 
 
 def test_bars_per_day_and_training_history_window():
-    assert bars_per_day(300) == 288
-    assert resolve_training_history_bars({}, {"granularity": 300}) == 288
+    assert bars_per_day(60) == 1440
+    assert resolve_training_history_bars({}, {"granularity": 60}) == 2880
     assert resolve_training_history_bars({"training_history_bars": 120}, {}) == 120
-    assert resolve_training_history_bars({}, {"history_bars": 100}) == 100
     prices = np.arange(400, dtype=np.float64)
-    pair = np.arange(400, dtype=np.float64)
-    trimmed, peer = slice_dl_price_window(prices, pair, training_history_bars=288)
+    trimmed = slice_dl_price_window(prices, training_history_bars=288)
     assert len(trimmed) == 288
-    assert len(peer) == 288
     assert float(trimmed[0]) == 112.0
-    long_prices = np.arange(500, dtype=np.float64)
-    short_peer = np.arange(400, dtype=np.float64)
-    _, peer_tail = slice_dl_price_window(long_prices, short_peer, training_history_bars=288)
-    assert len(peer_tail) == 288
     short = np.arange(50, dtype=np.float64)
-    kept, no_peer = slice_dl_price_window(short, None, training_history_bars=288)
+    kept = slice_dl_price_window(short, training_history_bars=288)
     assert len(kept) == 50
-    assert no_peer is None
+    ohlc_prices = np.arange(400, dtype=np.float64)
+    ohlc_open = ohlc_prices - 0.1
+    ohlc_high = ohlc_prices + 0.2
+    ohlc_low = ohlc_prices - 0.2
+    p2, o2, h2, l2 = slice_dl_ohlc_window(
+        ohlc_prices,
+        training_history_bars=288,
+        open_=ohlc_open,
+        high=ohlc_high,
+        low=ohlc_low,
+    )
+    assert len(p2) == 288
+    assert len(o2) == len(h2) == len(l2) == 288
 
 
-def test_parse_dl_params_and_optional_float():
-    params = parse_dl_params(
-        {
-            "strong_signal_bypass": {"min_conviction_execute": 0.65, "min_edge_margin": 0.12},
-        }
-    )
-    assert params["bypass_min_conviction"] == 0.65
-    assert optional_float({}, "missing") is None
-    full = parse_dl_params({"lookback": 32}, {"granularity": 300})
-    assert full["training_history_bars"] == 288
-    assert full["bars_per_day"] == 288
-    bumped = parse_dl_params(
-        {"lookback": 32, "deploy_gate": {"enabled": True, "mini_bars": 10}},
-        {"granularity": 300},
-    )
-    assert bumped["deploy_gate"]["mini_bars"] == 37
+def test_parse_dl_params():
+    full = parse_dl_params({"lookback": 48}, {"granularity": 60}, {"duration": 60, "duration_unit": "s"})
+    assert full["training_history_bars"] == 2880
+    assert full["label_horizon_bars"] == 1
+    assert full["confidence_call_threshold"] == 0.75
+    assert full["confidence_put_threshold"] == 0.25
+    tcn = parse_dl_params({"tcn": {"channels": [64, 32, 16], "dropout": 0.2}})
+    assert tcn["tcn_channels"] == (64, 32, 16)
+    assert tcn["tcn_dropout"] == 0.2
 
 
 def test_recovery_gating_active_when_pending_loss():
@@ -74,33 +72,23 @@ def test_resolve_dl_model_path_legacy():
     assert templated.name == "R_50.pth"
 
 
-def test_predict_symbol_decision_gates_on_trade_score():
+def test_predict_symbol_decision_executes_on_confidence():
     params = parse_dl_params(
         {
-            "min_conviction_execute": 0.56,
-            "min_edge_margin": 0.06,
-            "min_val_accuracy": 0.48,
-            "require_regime_alignment": False,
-            "min_direction_margin": 0.02,
-            "binary_signal": {
-                "min_rel_vol_execute": 0.0,
-                "sma_z_block_call": 99.0,
-                "sma_z_block_put": -99.0,
-                "variance_ratio_mean_rev_max": 0.0,
-                "require_candle_confirm": False,
-            },
+            "confidence_call_threshold": 0.75,
+            "confidence_put_threshold": 0.25,
+            "min_val_accuracy": 0.53,
         }
     )
     runtime = {
         "val_accuracy": 0.55,
-        "calibrator": None,
         "val_brier": 0.2,
         "val_ece": 0.1,
         "lookback": 15,
     }
     with patch(
         "src.application.services.deep_learning.dl_predict.predict_next_direction",
-        return_value=(TradeDirection.CALL, 0.58, 0.58, 0.72),
+        return_value=(TradeDirection.CALL, 0.80, 0.80),
     ):
         orch = type("O", (), {"config": {"deep_learning": {}}})()
         entry = predict_symbol_decision(
@@ -115,6 +103,5 @@ def test_predict_symbol_decision_gates_on_trade_score():
             recovery_active=False,
         )
     assert entry["metrics"]["execute"] is True
-    assert entry["metrics"]["trade_score"] == 0.58
-    assert entry["metrics"]["conviction"] == 0.58
-    assert entry["metrics"]["raw_prob"] == 0.72
+    assert entry["metrics"]["trade_score"] == 0.80
+    assert entry["metrics"]["raw_prob"] == 0.80

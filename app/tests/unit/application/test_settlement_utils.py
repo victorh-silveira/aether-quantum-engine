@@ -69,6 +69,14 @@ def test_min_elapsed_ticks():
     assert g == 25.0
 
 
+def test_min_elapsed_single_tick():
+    g = min_elapsed_before_stagnant_polls(
+        {"duration": 1, "duration_unit": "t"},
+        {"settlement_tick_seconds_estimate": 1.0, "settlement_post_expiry_slack_seconds": 2.0},
+    )
+    assert g == 3.0
+
+
 def test_min_elapsed_seconds_unit():
     g = min_elapsed_before_stagnant_polls(
         {"duration": 15, "duration_unit": "s"}, {"settlement_post_expiry_slack_seconds": 5.0}

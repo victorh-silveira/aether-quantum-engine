@@ -7,10 +7,50 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from src.application.services.deep_learning.dl_retrain import clear_force_retrain, reset_bars_since_train
+from src.application.services.deep_learning.dl_bootstrap_train import (
+    _bootstrap_training_context,
+    _ordered_bootstrap_symbols,
+)
+from src.application.services.deep_learning.dl_retrain import (
+    clear_force_retrain,
+    reset_bars_since_train,
+    should_retrain_symbol,
+)
+from src.application.services.deep_learning.dl_symbol_runtime import candle_epoch
+from src.application.services.deep_learning.dl_symbol_train import run_symbol_training
+from src.application.services.deep_learning.dl_training_gate import runtime_in_training
 
 
 logger = logging.getLogger("AETH")
+
+
+def try_enqueue_next_bootstrap_training(orch) -> None:
+    """Agenda o proximo simbolo de bootstrap quando o treino deferido anterior termina."""
+    for symbol in _ordered_bootstrap_symbols(orch):
+        dl_config, params, min_len, granularity, runtime, prices, open_, high, low, micro = _bootstrap_training_context(
+            orch, symbol
+        )
+        if not runtime_in_training(runtime, params):
+            continue
+        do_train, reason = should_retrain_symbol(orch, symbol, runtime, params, candle_epoch(orch, symbol))
+        if not do_train or reason != "bootstrap":
+            continue
+        if len(prices) < min_len:
+            return
+        enqueue_deferred_symbol_training(
+            orch,
+            symbol,
+            train_fn=run_symbol_training,
+            train_args=(symbol, runtime, prices, dl_config, params, candle_epoch(orch, symbol), orch),
+            train_kwargs={
+                "granularity": granularity,
+                "open_": open_,
+                "high": high,
+                "low": low,
+                "micro": micro,
+            },
+        )
+        return
 
 
 def _deferred_tasks(orch) -> dict[str, asyncio.Task]:
@@ -44,6 +84,7 @@ async def _run_deferred_training(
             await asyncio.to_thread(train_fn, *train_args, **train_kwargs)
         clear_force_retrain(orch, symbol)
         reset_bars_since_train(orch, symbol)
+        try_enqueue_next_bootstrap_training(orch)
     except Exception as exc:
         logger.error("DL: retreino deferido %s falhou: %s", symbol, exc)
 

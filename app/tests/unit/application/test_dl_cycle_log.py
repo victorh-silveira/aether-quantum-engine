@@ -1,6 +1,7 @@
 import logging
 
 from src.application.services.deep_learning.dl_cycle_log import (
+    _best_directional_signal,
     build_dl_cycle_brief,
     build_dl_cycle_summary,
     log_dl_cycle_summary,
@@ -8,11 +9,11 @@ from src.application.services.deep_learning.dl_cycle_log import (
 from src.domain.models.trade import TradeDirection
 
 
-def test_build_dl_cycle_summary_direction_margin_raw():
+def test_build_dl_cycle_summary_confidence_raw():
     decisions = {
         "R_50": {
             "direction": None,
-            "metrics": {"gate_reason": "direction_margin", "raw_prob": 0.52, "execute": False},
+            "metrics": {"gate_reason": "confidence", "raw_prob": 0.52, "execute": False},
         },
     }
     line = build_dl_cycle_summary(decisions, recovery_active=False, pending_loss_total=0.0)
@@ -83,7 +84,7 @@ def test_build_dl_cycle_brief_exec_and_blocked():
             "direction": TradeDirection.PUT,
             "metrics": {"conviction": 0.75, "execute": True, "val_accuracy": 1.0},
         },
-        "R_50": {"direction": None, "metrics": {"gate_reason": "direction_margin", "execute": False}},
+        "R_50": {"direction": None, "metrics": {"gate_reason": "confidence", "execute": False}},
     }
     line = build_dl_cycle_brief(decisions, recovery_active=False)
     assert "R_100:PUT c=0.75" in line
@@ -134,6 +135,99 @@ def test_build_dl_cycle_summary_training_tokens():
     assert "treino=[R_50,R_75]" in line
 
 
+def test_build_dl_cycle_brief_recovery_all_blocked_silent():
+    decisions = {
+        "R_50": {"direction": None, "metrics": {"gate_reason": "conviction", "execute": False}},
+        "R_75": {"direction": None, "metrics": {"gate_reason": "edge", "execute": False}},
+    }
+    line = build_dl_cycle_brief(decisions, recovery_active=True)
+    assert line == ""
+
+
+def test_best_directional_signal_skips_training():
+    decisions = {
+        "R_50": {"direction": TradeDirection.CALL, "metrics": {"gate_reason": "training", "trade_score": 0.9}},
+        "R_75": {
+            "direction": TradeDirection.PUT,
+            "metrics": {"execute": False, "trade_score": 0.61, "raw_prob": 0.39},
+        },
+    }
+    assert _best_directional_signal(decisions) == ("R_75", 0.61)
+
+
+def test_best_directional_signal_skips_without_dl_direction():
+    decisions = {
+        "R_50": {"direction": None, "metrics": {"gate_reason": "data", "execute": False}},
+        "R_75": {
+            "direction": TradeDirection.PUT,
+            "metrics": {"execute": False, "trade_score": 0.61, "raw_prob": 0.39},
+        },
+    }
+    assert _best_directional_signal(decisions) == ("R_75", 0.61)
+
+
+def test_best_directional_signal_returns_none_when_all_skipped():
+    decisions = {
+        "R_50": {"direction": None, "metrics": {"gate_reason": "data", "execute": False}},
+        "R_75": {"direction": None, "metrics": {"gate_reason": "conviction", "execute": False}},
+    }
+    assert _best_directional_signal(decisions) is None
+
+
+def test_build_dl_cycle_brief_recovery_all_blocked_returns_empty():
+    decisions = {
+        "R_75": {
+            "direction": TradeDirection.CALL,
+            "metrics": {"execute": False, "trade_score": 0.55, "raw_prob": 0.53, "val_accuracy": 0.67},
+        },
+    }
+    line = build_dl_cycle_brief(decisions, recovery_active=True)
+    assert line == ""
+
+
+def test_build_dl_cycle_brief_partial_no_data():
+    decisions = {
+        "R_50": {"direction": None, "metrics": {"gate_reason": "data", "execute": False}},
+        "R_75": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}},
+    }
+    line = build_dl_cycle_brief(decisions, recovery_active=False)
+    assert line == "DL | sem exec | 1 sem dados | 1 treinando"
+
+
+def test_log_dl_cycle_summary_logs_info_without_orch(caplog):
+    logger = logging.getLogger("test_dl_cycle_log_no_orch")
+    logger.setLevel(logging.DEBUG)
+    decisions = {
+        "R_50": {
+            "direction": TradeDirection.CALL,
+            "metrics": {"conviction": 0.70, "execute": True, "val_accuracy": 0.55},
+        },
+    }
+    with caplog.at_level(logging.DEBUG):
+        log_dl_cycle_summary(logger, decisions, recovery_active=False, pending_loss_total=0.0)
+    assert any(r.levelname == "INFO" and "exec R_50:CALL" in r.message for r in caplog.records)
+
+
+def test_build_dl_cycle_brief_normal_all_blocked_silent():
+    decisions = {
+        "R_50": {"direction": TradeDirection.CALL, "metrics": {"gate_reason": "edge", "execute": False}},
+        "R_75": {"direction": TradeDirection.PUT, "metrics": {"gate_reason": "brier", "execute": False}},
+    }
+    line = build_dl_cycle_brief(decisions, recovery_active=False)
+    assert line == ""
+
+
+def test_log_dl_cycle_summary_skips_info_when_recovery_brief_empty(caplog):
+    logger = logging.getLogger("test_dl_cycle_log_recovery_empty")
+    logger.setLevel(logging.DEBUG)
+    decisions = {
+        "R_50": {"direction": None, "metrics": {"gate_reason": "conviction", "execute": False}},
+    }
+    with caplog.at_level(logging.DEBUG):
+        log_dl_cycle_summary(logger, decisions, recovery_active=True, pending_loss_total=10.0)
+    assert not any(r.levelname == "INFO" for r in caplog.records)
+
+
 def test_log_dl_cycle_summary(caplog):
     logger = logging.getLogger("test_dl_cycle_log")
     logger.setLevel(logging.DEBUG)
@@ -146,4 +240,4 @@ def test_log_dl_cycle_summary(caplog):
     with caplog.at_level(logging.DEBUG):
         log_dl_cycle_summary(logger, decisions, recovery_active=False, pending_loss_total=0.0)
     assert "DL | NORMAL" in caplog.text
-    assert "sem exec" in caplog.text
+    assert not any(r.levelname == "INFO" and "sem exec" in r.message for r in caplog.records)

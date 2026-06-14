@@ -7,7 +7,9 @@ from datetime import datetime
 import numpy as np
 
 from src.domain.models.market_data import Candle
+from src.infrastructure.api.deriv_granularity import normalize_granularity_seconds
 from src.infrastructure.api.websocket_manager import WebSocketManager
+from src.infrastructure.handlers.tick_buffer import TickBuffer
 
 
 _TYPE_VALUE_ERRORS = (TypeError, ValueError)
@@ -24,10 +26,19 @@ class StreamHandler:
         self.candles = {s: [] for s in symbols}
         self.config = data_config
         self.history_limit = self.config.get("buffer_limit", 1000)
-        self.granularity = self.config.get("granularity", 60)
         self.logger = logging.getLogger("AETH")
+        requested = int(self.config.get("granularity", 60))
+        self.granularity = normalize_granularity_seconds(requested)
+        if self.granularity != requested:
+            self.logger.warning(
+                "DATA: granularity %ss nao suportada pela Deriv; usando %ss",
+                requested,
+                self.granularity,
+            )
         self.candle_callback = None
         self.is_synchronized = False
+        self.tick_buffer = TickBuffer(symbols)
+        self._last_bar_epoch: dict[str, int | None] = dict.fromkeys(symbols)
 
     def _resolve_fetch_count(self) -> int:
         """Define quantas velas buscar na sincronizacao inicial."""
@@ -61,6 +72,7 @@ class StreamHandler:
             raise ConnectionError("STREAM: WebSocket desconectado após sincronização histórica.")
 
         self.ws.subscribe("ohlc", self._on_candle)
+        self.ws.subscribe("tick", self._on_tick)
         self.candle_callback = callback
 
         self.logger.debug(f"STRM: Ativando fluxo de velas ({self.granularity}s) do Enxame...")
@@ -78,6 +90,19 @@ class StreamHandler:
             for s in self.symbols
         ]
         await asyncio.gather(*sub_tasks)
+        tick_tasks = [
+            self.ws.send(
+                {
+                    "ticks_history": s,
+                    "style": "ticks",
+                    "subscribe": 1,
+                    "end": "latest",
+                    "count": 1,
+                }
+            )
+            for s in self.symbols
+        ]
+        await asyncio.gather(*tick_tasks)
         self.is_synchronized = True
         self.logger.debug("DATA: Sincronia concluída. Buffer histórico em conformidade.")
 
@@ -97,6 +122,14 @@ class StreamHandler:
                 "count": need,
             }
             res = await self.ws.send(request)
+            if res.get("error"):
+                self.logger.error(
+                    "DATA: Historico %s falhou | granularity=%ss | %s",
+                    symbol,
+                    self.granularity,
+                    res["error"].get("message", res["error"]),
+                )
+                break
             history = res.get("candles", [])
             if not history:
                 break
@@ -146,14 +179,39 @@ class StreamHandler:
 
         if self.candles[symbol] and self.candles[symbol][-1].epoch == candle.epoch:
             self.candles[symbol][-1] = candle
+            self.tick_buffer.on_bar_update(symbol, candle.epoch)
         else:
+            prev_epoch = self._last_bar_epoch.get(symbol)
+            if prev_epoch is not None and prev_epoch != candle.epoch:
+                self.tick_buffer.on_bar_close(symbol, prev_epoch)
             self.candles[symbol].append(candle)
+            self._last_bar_epoch[symbol] = candle.epoch
+            self.tick_buffer.on_bar_update(symbol, candle.epoch)
 
         if len(self.candles[symbol]) > self.history_limit:
             self.candles[symbol].pop(0)
 
         if self.candle_callback:
             await self.candle_callback(candle)
+
+    async def _on_tick(self, data):
+        """Processa ticks recebidos para microestrutura."""
+        tick = data.get("tick")
+        if not isinstance(tick, dict):
+            return
+        symbol = tick.get("symbol")
+        if symbol not in self.tick_buffer.symbols:
+            return
+        epoch = tick.get("epoch")
+        quote = tick.get("quote")
+        if epoch is None or quote is None:
+            return
+        try:
+            epoch_ms = int(float(epoch) * 1000)
+            price = float(quote)
+        except _TYPE_VALUE_ERRORS:
+            return
+        self.tick_buffer.record_tick(symbol, epoch_ms, price)
 
     def get_numpy_series(self, symbol: str, field: str = "close") -> np.ndarray:
         """Retorna uma série numpy de um campo específico para o timeframe M1."""

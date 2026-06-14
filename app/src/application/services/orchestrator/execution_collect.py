@@ -23,6 +23,7 @@ from src.application.services.orchestrator.execution_recovery_gate import (
     recovery_min_val_accuracy,
 )
 from src.domain.models.trade import TradeDirection
+from src.domain.risk.stake_sizing import enrich_metrics_conviction, raw_side_from_metrics
 
 
 def apply_recovery_hedge_to_candidates(
@@ -45,16 +46,15 @@ def _cluster_entry_eligible(
     recovery_active: bool,
     recovery_cfg: dict,
     min_signal: float,
+    min_val: float,
 ) -> bool:
     """Indica se entrada DL pode entrar no pool de candidatos do ciclo."""
     may_execute = bool(entry.get("metrics", {}).get("execute", False))
     if may_execute:
         return True
-    if mandatory and mandatory_execution_eligible(entry, min_signal=min_signal):
-        return True
     if recovery_active:
         return recovery_execution_eligible(entry, recovery_cfg)
-    return False
+    return mandatory and mandatory_execution_eligible(entry, min_signal=min_signal, min_val_accuracy=min_val)
 
 
 def _mandatory_fallback_candidates(
@@ -91,6 +91,7 @@ def _gather_cluster_candidates(
     recovery_cfg: dict,
     cid: str,
     min_signal: float,
+    min_val: float,
 ) -> list[tuple[str, TradeDirection, dict]]:
     """Coleta candidatos DL elegiveis para o ciclo atual."""
     candidates: list[tuple[str, TradeDirection, dict]] = []
@@ -104,6 +105,7 @@ def _gather_cluster_candidates(
             recovery_active=recovery_active,
             recovery_cfg=recovery_cfg,
             min_signal=min_signal,
+            min_val=min_val,
         ):
             exec_mgr.logger.debug("[%s] SKIP: Conviccao insuficiente para %s (Metrics Gate)", cid, symbol)
             continue
@@ -190,7 +192,10 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
     recovery_cfg = dl_cfg.get("recovery_gating", {}) if isinstance(dl_cfg, dict) else {}
     risk_cfg = exec_mgr.orch.config.get("risk_management", {}) if isinstance(exec_mgr.orch.config, dict) else {}
     kelly_cfg = risk_cfg.get("kelly", {}) if isinstance(risk_cfg, dict) else {}
-    skip_symbols = recovery_blocked_symbols(exec_mgr.orch.risk_manager, kelly_cfg) if recovery_active else frozenset()
+    proposal_skip_fn = getattr(exec_mgr.orch.risk_manager, "proposal_skip_symbols", None)
+    proposal_skip = proposal_skip_fn() if callable(proposal_skip_fn) else frozenset()
+    recovery_skip = recovery_blocked_symbols(exec_mgr.orch.risk_manager, kelly_cfg) if recovery_active else frozenset()
+    skip_symbols = proposal_skip | recovery_skip
     min_signal = recovery_min_signal(kelly_cfg, recovery_active=recovery_active)
     min_val = recovery_min_val_accuracy(kelly_cfg) if recovery_active else 0.0
     cid = f"C{int(exec_mgr.orch._active_cycle_id):04d}"
@@ -205,6 +210,7 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
         recovery_cfg=recovery_cfg,
         cid=cid,
         min_signal=min_signal,
+        min_val=min_val,
     )
     candidates = _mandatory_fallback_if_empty(
         exec_mgr,
@@ -261,14 +267,21 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
                 recovery_active=recovery_active,
                 last_loss_symbol=last_loss,
                 last_loss_direction=last_loss_dir,
+                min_signal=min_signal,
+                min_val=min_val,
             )
         if ultimate is not None:
             best = ultimate
             candidates = [ultimate]
     if best is not None:
         metrics = best[2]
+        min_raw = float(kelly_cfg.get("stake_conviction_min_raw", 0.51))
+        enrich_metrics_conviction(metrics, min_raw=min_raw)
         inv_tag = " inv" if metrics.get("direction_inverted") and not metrics.get("recovery_forced") else ""
         dl_name = metrics.get("dl_direction", best[1].name)
+        calibrated = float(metrics.get("trade_score", metrics.get("conviction", 0.0)))
+        raw_side = raw_side_from_metrics(metrics)
+        effective_signal = max(calibrated, raw_side)
         exec_mgr.logger.info(
             "[%s] EXEC_SEL | %s ord=%s dl=%s%s s=%.2f v=%.2f r=%.2f | alt=%s",
             cid,
@@ -276,7 +289,7 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
             best[1].name,
             dl_name,
             inv_tag,
-            float(metrics.get("trade_score", metrics.get("conviction", 0.0))),
+            effective_signal,
             float(metrics.get("val_accuracy", 0.0)),
             float(metrics.get("raw_prob", metrics.get("raw_conviction", 0.0))),
             format_execution_alternates(candidates, exclude_symbol=best[0]),

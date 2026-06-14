@@ -14,8 +14,8 @@ from src.domain.models.trade import TradeDirection
 
 def _recovery_metrics_eligible(metrics: dict, *, min_signal: float, min_val: float) -> bool:
     """Indica se metricas atendem pisos de recovery para execucao alinhada."""
-    score, _raw_side = _entry_signal_strength(metrics)
-    if score + 1e-9 < min_signal:
+    score, raw_side = _entry_signal_strength(metrics)
+    if score + 1e-9 < min_signal and raw_side + 1e-9 < min_signal:
         return False
     return float(metrics.get("val_accuracy", 0.0)) + 1e-9 >= min_val
 
@@ -103,8 +103,8 @@ def _scored_fallback_pick(
         if not entry or _entry_gate_blocked(entry.get("metrics") or {}):
             continue
         metrics = entry.get("metrics") or {}
-        score, _raw_side = _entry_signal_strength(metrics)
-        if score + 1e-9 < min_signal:
+        score, raw_side = _entry_signal_strength(metrics)
+        if max(score, raw_side) + 1e-9 < min_signal:
             continue
         candidate = build_market_execution_candidate(symbol, entry)
         if candidate is None:
@@ -132,8 +132,8 @@ def _last_resort_fallback_pick(
         if not entry or _entry_gate_blocked(entry.get("metrics") or {}):
             continue
         metrics = entry.get("metrics") or {}
-        score, _raw_side = _entry_signal_strength(metrics)
-        if score + 1e-9 < min_signal:
+        score, raw_side = _entry_signal_strength(metrics)
+        if max(score, raw_side) + 1e-9 < min_signal:
             continue
         raw = metrics.get("raw_prob")
         direction = resolve_market_direction(entry)
@@ -171,7 +171,4 @@ def build_mandatory_fallback_candidate(
     scored = _scored_fallback_pick(trade_symbols, decisions, skip_symbols=skip_symbols, min_signal=min_signal)
     if scored is not None:
         return scored
-    last = _last_resort_fallback_pick(trade_symbols, decisions, skip_symbols=skip_symbols, min_signal=min_signal)
-    if last is not None:
-        return last
-    return _last_resort_fallback_pick(trade_symbols, decisions, skip_symbols=skip_symbols, min_signal=0.0)
+    return _last_resort_fallback_pick(trade_symbols, decisions, skip_symbols=skip_symbols, min_signal=min_signal)

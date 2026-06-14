@@ -25,13 +25,13 @@ def test_recovery_candidate_pool_keeps_all_directions():
     assert len(result) == 3
 
 
-def test_recovery_rank_score_bonus_for_same_direction():
+def test_recovery_rank_score_penalizes_same_direction():
     item = (PAIR, TradeDirection.PUT, {"trade_score": 0.55, "raw_prob": 0.42})
     base = candidate_execution_score(item[2], recovery_active=True)
-    assert recovery_rank_score(item, last_loss_direction="PUT", base_score=base) >= base + 0.06
+    assert recovery_rank_score(item, last_loss_direction="PUT", base_score=base) <= base
 
 
-def test_recovery_select_prefers_put_after_put_loss():
+def test_recovery_select_prefers_different_symbol_after_put_loss():
     candidates = [
         (PAIR, TradeDirection.PUT, {"execute": False}),
         (ANCHOR, TradeDirection.PUT, {"execute": True, "trade_score": 0.65, "val_accuracy": 0.55, "raw_prob": 0.45}),

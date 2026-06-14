@@ -71,6 +71,74 @@ async def test_collect_defers_bootstrap_without_fast_cycle(orch_ready):
 
 
 @pytest.mark.asyncio
+async def test_collect_bootstrap_only_enqueues_first_pending_symbol(orch_ready):
+    orch = orch_ready
+    n = 3000
+    ohlc = (np.linspace(1.0, 2.0, n), np.linspace(1.0, 2.0, n), np.linspace(1.0, 2.0, n), np.linspace(1.0, 2.0, n))
+    runtime = {
+        "model": MagicMock(),
+        "norm_stats": object(),
+        "last_candle_epoch": 0,
+        "deploy_ok": False,
+    }
+    entry = {"direction": None, "metrics": {"gate_reason": "training", "execute": False}}
+
+    with (
+        patch("src.application.services.deep_learning.decision_bridge.load_symbol_close_ohlc", return_value=ohlc),
+        patch("src.application.services.deep_learning.decision_bridge.get_symbol_runtime", return_value=runtime),
+        patch("src.application.services.deep_learning.decision_bridge.candle_epoch", return_value=100),
+        patch(
+            "src.application.services.deep_learning.decision_bridge.should_retrain_symbol",
+            return_value=(True, "bootstrap"),
+        ),
+        patch("src.application.services.deep_learning.decision_bridge.predict_symbol_decision", return_value=entry),
+        patch(
+            "src.application.services.deep_learning.decision_bridge.training_priority_symbols",
+            return_value=frozenset(orch.symbols),
+        ),
+        patch(
+            "src.application.services.deep_learning.decision_bridge.enqueue_deferred_symbol_training"
+        ) as mock_enqueue,
+    ):
+        await collect_deep_learning_decisions(orch)
+
+    assert mock_enqueue.call_count == 1
+    assert mock_enqueue.call_args.args[1] == orch.symbols[0]
+
+
+@pytest.mark.asyncio
+async def test_collect_skips_bootstrap_defer_after_initial_bootstrap(orch_ready):
+    orch = orch_ready
+    orch._dl_bootstrap_completed = True
+    n = 3000
+    ohlc = (np.linspace(1.0, 2.0, n), np.linspace(1.0, 2.0, n), np.linspace(1.0, 2.0, n), np.linspace(1.0, 2.0, n))
+    runtime = {
+        "model": MagicMock(),
+        "norm_stats": object(),
+        "last_candle_epoch": 0,
+        "deploy_ok": False,
+    }
+    entry = {"direction": None, "metrics": {"gate_reason": "training", "execute": False}}
+
+    with (
+        patch("src.application.services.deep_learning.decision_bridge.load_symbol_close_ohlc", return_value=ohlc),
+        patch("src.application.services.deep_learning.decision_bridge.get_symbol_runtime", return_value=runtime),
+        patch("src.application.services.deep_learning.decision_bridge.candle_epoch", return_value=100),
+        patch(
+            "src.application.services.deep_learning.decision_bridge.should_retrain_symbol",
+            return_value=(True, "bootstrap"),
+        ),
+        patch("src.application.services.deep_learning.decision_bridge.predict_symbol_decision", return_value=entry),
+        patch(
+            "src.application.services.deep_learning.decision_bridge.enqueue_deferred_symbol_training"
+        ) as mock_enqueue,
+    ):
+        await collect_deep_learning_decisions(orch)
+
+    mock_enqueue.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_collect_defers_retrain_when_fast_cycle(orch_ready):
     orch = orch_ready
     orch._dl_fast_cycle = True

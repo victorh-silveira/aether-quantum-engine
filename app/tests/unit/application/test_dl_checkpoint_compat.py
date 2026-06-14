@@ -17,7 +17,7 @@ def test_load_model_checkpoint_rejects_incompatible_architecture():
                 **legacy,
                 "norm_mean": [0.0] * FEATURE_DIM,
                 "norm_std": [1.0] * FEATURE_DIM,
-                "feature_dim": FEATURE_DIM,
+                "feature_dim": FEATURE_DIM - 1,
                 "arch": "mlp",
                 "last_candle_epoch": 1,
                 "lookback": 32,

@@ -4,6 +4,7 @@ from src.application.services.execution_direction import (
     _entry_gate_blocked,
     build_forced_direction_candidate,
     build_forced_recovery_candidate,
+    meets_mandatory_signal_floor,
     recovery_hedge_target,
 )
 from src.application.services.execution_market_rank import (
@@ -68,6 +69,7 @@ def _rank_eligible_candidates(
     last_loss_symbol: str | None,
     last_loss_direction: str | None,
     min_signal: float,
+    min_val: float,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Rankeia candidatos elegiveis e retorna o melhor por score de mercado."""
     best = None
@@ -77,6 +79,10 @@ def _rank_eligible_candidates(
         if not entry or not mandatory_pool_eligible(entry):
             continue
         metrics = entry.get("metrics") or {}
+        if (min_signal > 0.0 or min_val > 0.0) and not meets_mandatory_signal_floor(
+            metrics, min_signal=min_signal, min_val=min_val
+        ):
+            continue
         score = _trade_score(metrics)
         candidate = build_market_execution_candidate(symbol, entry)
         if candidate is None:
@@ -112,7 +118,6 @@ def pick_best_mandatory_candidate(
     min_val: float = 0.0,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Escolhe melhor candidato obrigatorio por score de mercado."""
-    _ = min_val
     skip = skip_symbols or frozenset()
     if recovery_active:
         hedge = _recovery_hedge_pick(
@@ -121,7 +126,7 @@ def pick_best_mandatory_candidate(
             last_loss_direction=last_loss_direction,
             skip_symbols=skip,
         )
-        if hedge is not None:
+        if hedge is not None and meets_mandatory_signal_floor(hedge[2], min_signal=min_signal, min_val=min_val):
             return hedge
     order = _symbol_order(trade_symbols, last_loss_symbol, skip_symbols=skip)
     ranked = _rank_eligible_candidates(
@@ -131,6 +136,7 @@ def pick_best_mandatory_candidate(
         last_loss_symbol=last_loss_symbol,
         last_loss_direction=last_loss_direction,
         min_signal=min_signal,
+        min_val=min_val,
     )
     if ranked is not None:
         return ranked
@@ -140,6 +146,8 @@ def pick_best_mandatory_candidate(
         recovery_active=recovery_active,
         last_loss_symbol=last_loss_symbol,
         last_loss_direction=last_loss_direction,
+        min_signal=min_signal,
+        min_val=min_val,
     )
 
 
@@ -150,6 +158,8 @@ def pick_absolute_mandatory_candidate(
     recovery_active: bool,
     last_loss_symbol: str | None,
     last_loss_direction: str | None,
+    min_signal: float = 0.0,
+    min_val: float = 0.0,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Garante ordem quando filtros de recovery esgotam o pool."""
     order = _symbol_order(trade_symbols, last_loss_symbol, skip_symbols=frozenset())
@@ -158,6 +168,11 @@ def pick_absolute_mandatory_candidate(
     for symbol in order:
         entry = decisions.get(symbol)
         if not entry or not mandatory_pool_eligible(entry):
+            continue
+        metrics = entry.get("metrics") or {}
+        if (min_signal > 0.0 or min_val > 0.0) and not meets_mandatory_signal_floor(
+            metrics, min_signal=min_signal, min_val=min_val
+        ):
             continue
         candidate = build_market_execution_candidate(symbol, entry)
         if candidate is None:

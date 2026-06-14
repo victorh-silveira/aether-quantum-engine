@@ -1,16 +1,19 @@
 """Gate de deploy: helpers e persistencia de resultado no runtime."""
 
-import numpy as np
-
+from src.application.services.deep_learning.dl_labels import binary_label_at_index
 from src.domain.models.trade import TradeDirection
 
 
-def direction_wins(direction: TradeDirection, prices: np.ndarray, index: int) -> bool:
-    """Indica se a direcao prevista venceu na barra seguinte."""
-    if index + 1 >= len(prices):
-        return False
-    up = prices[index + 1] > prices[index]
-    return up if direction == TradeDirection.CALL else not up
+def direction_wins(
+    direction: TradeDirection,
+    prices,
+    index: int,
+    *,
+    label_horizon_bars: int = 1,
+) -> bool:
+    """Indica se a direcao prevista venceu no horizonte de label configurado."""
+    target_up = binary_label_at_index(prices, index, label_horizon_bars)
+    return target_up if direction == TradeDirection.CALL else not target_up
 
 
 def apply_deploy_to_runtime(

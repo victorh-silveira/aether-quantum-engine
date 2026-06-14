@@ -22,3 +22,15 @@ def test_label_horizon_explicit_override():
 def test_contract_duration_seconds_and_hours():
     assert contract_duration_seconds({"duration": 45, "duration_unit": "seconds"}) == 45
     assert contract_duration_seconds({"duration": 2, "duration_unit": "hour"}) == 7200
+
+
+def test_contract_duration_seconds_ticks():
+    assert contract_duration_seconds({"duration": 1, "duration_unit": "t"}) == 2
+    assert contract_duration_seconds({"duration": 10, "duration_unit": "t"}) == 20
+    assert contract_duration_seconds({"duration": 1, "duration_unit": "d"}) == 86400
+
+
+def test_label_horizon_bars_for_tick_contract():
+    risk = {"duration": 1, "duration_unit": "t"}
+    assert resolve_label_horizon_bars(60, risk, {}) == 1
+    assert resolve_label_horizon_bars(10, risk, {}) == 1

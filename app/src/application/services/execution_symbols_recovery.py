@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from src.application.services.execution_direction import build_forced_direction_candidate, recovery_hedge_target
 from src.domain.models.trade import TradeDirection
 
 
@@ -54,15 +55,21 @@ def recovery_rank_score(
     last_loss_direction: str | None = None,
     base_score: float,
 ) -> float:
-    """Pontua candidato em recovery com preferencia suave por core, diversificacao e direcao."""
+    """Pontua candidato em recovery priorizando melhor tendencia e diversificacao."""
     score = float(base_score)
+    metrics = item[2]
     if item[0] in _CLUSTER_CORE:
         score += 0.04
-    if last_loss_symbol and item[0] != last_loss_symbol:
+    if last_loss_symbol and item[0] == last_loss_symbol:
+        score -= 0.12
+    elif last_loss_symbol and item[0] != last_loss_symbol:
         score += 0.05
-    if last_loss_direction and item[1].name == str(last_loss_direction).upper():
-        score += 0.06
-    metrics = item[2]
+    if last_loss_direction:
+        ld = str(last_loss_direction).upper()
+        if item[1].name == ld:
+            score -= 0.08
+        else:
+            score += 0.07
     raw = metrics.get("raw_prob")
     if raw is not None and item[1] == TradeDirection.CALL and float(raw) > 0.5:
         score += 0.02
@@ -75,14 +82,25 @@ def recovery_rank_score(
 
 def inject_recovery_hedge_candidates(
     candidates: list[tuple[str, TradeDirection, dict]],
-    _decisions: dict,
+    decisions: dict,
     *,
     last_loss_symbol: str | None,
     last_loss_direction: str | None,
 ) -> list[tuple[str, TradeDirection, dict]]:
-    """Mantem candidatos sem injetar hedge oposto no par Range."""
-    _ = (last_loss_symbol, last_loss_direction)
-    return candidates
+    """Inclui candidato hedge estrutural do par Range quando ausente no pool."""
+    target = recovery_hedge_target(last_loss_symbol, last_loss_direction)
+    if target is None:
+        return candidates
+    peer, hedge_dir = target
+    if any(item[0] == peer and item[1] == hedge_dir for item in candidates):
+        return candidates
+    entry = decisions.get(peer)
+    if not entry:
+        return candidates
+    built = build_forced_direction_candidate(peer, entry, hedge_dir)
+    if built is None:
+        return candidates
+    return list(candidates) + [built]
 
 
 def has_recovery_hedge_candidate(

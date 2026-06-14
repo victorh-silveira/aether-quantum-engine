@@ -7,6 +7,7 @@ from src.domain.risk.martingale_gate import apply_win_to_pending_loss, martingal
 from src.domain.risk.risk_cluster import finalize_risk_cluster
 from src.domain.risk.risk_cooldown import RiskCooldownMixin
 from src.domain.risk.risk_stake_calc import calculate_stake_for_manager
+from src.domain.risk.stake_sizing import raw_side_from_metrics
 from src.domain.risk.stop_win_target import resolve_stop_win_target
 from src.domain.risk.symbol_loss_cooldown import SymbolLossCooldownMixin
 
@@ -34,6 +35,7 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
         self.last_martingale_stake = 0.0
         self.last_loss_stake = 0.0
         self.recovery_symbol_loss_streak: dict[str, int] = {}
+        self.proposal_skip_cycles: dict[str, int] = {}
         self.contract_stakes: dict[int, float] = {}
         self.init_symbol_loss_cooldown()
         self._candle_interval_seconds = 900
@@ -51,7 +53,28 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
 
     def set_candle_interval_seconds(self, seconds: int) -> None:
         """Define duracao da vela ancora para cooldown em tempo real."""
-        self._candle_interval_seconds = max(60, int(seconds))
+        self._candle_interval_seconds = max(1, int(seconds))
+
+    def register_proposal_failure(self, symbol: str, *, cycles: int = 6) -> None:
+        """Marca simbolo para pular selecao apos falha de proposta na Deriv."""
+        hold = max(int(cycles), int(self.proposal_skip_cycles.get(str(symbol), 0)))
+        self.proposal_skip_cycles[str(symbol)] = hold
+
+    def decay_proposal_skip_cycles(self) -> None:
+        """Reduz cooldown de simbolos com proposta rejeitada."""
+        expired: list[str] = []
+        for symbol, remaining in self.proposal_skip_cycles.items():
+            left = int(remaining) - 1
+            if left <= 0:
+                expired.append(symbol)
+            else:
+                self.proposal_skip_cycles[symbol] = left
+        for symbol in expired:
+            self.proposal_skip_cycles.pop(symbol, None)
+
+    def proposal_skip_symbols(self) -> frozenset[str]:
+        """Simbolos temporariamente excluidos apos falha de proposta."""
+        return frozenset(s for s, n in self.proposal_skip_cycles.items() if int(n) > 0)
 
     def reset_daily_session(self, bankroll: float) -> None:
         """Reinicia lucro de sessao e metas para novo dia (stop win diario)."""
@@ -117,9 +140,29 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
             return "kelly_no_edge"
         return None
 
-    def _martingale_allowed(self, _symbol: str, _conviction: float, **_kwargs) -> bool:
-        """Martingale ativo sempre que houver perda pendente de recuperacao."""
-        return martingale_allowed(pending_loss=self.pending_loss)
+    def _martingale_dl_conviction_ok(self, dl_metrics: dict) -> bool:
+        """Exige piso de sinal e val_accuracy para martingale com metricas DL."""
+        if dl_metrics.get("deploy_ok") is False:
+            return False
+        min_conv = float(self.kelly_config.get("martingale_sizing_conviction", 0.58))
+        min_val = float(self.kelly_config.get("martingale_min_val_accuracy", 0.50))
+        score = float(dl_metrics.get("trade_score", dl_metrics.get("conviction", 0.0)))
+        raw_side = raw_side_from_metrics(dl_metrics)
+        val = float(dl_metrics.get("val_accuracy", 0.0))
+        if min_val > 0.0 and val + 1e-9 < min_val:
+            return False
+        if score + 1e-9 >= min_conv:
+            return True
+        return score < 1e-9 and raw_side + 1e-9 >= min_conv
+
+    def _martingale_allowed(self, _symbol: str, _conviction: float, **kwargs) -> bool:
+        """Martingale ativo com perda pendente e conviccao minima nas metricas DL."""
+        if not martingale_allowed(pending_loss=self.pending_loss):
+            return False
+        dl_metrics = kwargs.get("dl_metrics")
+        if isinstance(dl_metrics, dict):
+            return self._martingale_dl_conviction_ok(dl_metrics)
+        return True
 
     def calculate_stake(
         self,

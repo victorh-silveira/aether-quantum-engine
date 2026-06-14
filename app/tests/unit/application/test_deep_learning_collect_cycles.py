@@ -58,7 +58,7 @@ async def test_collect_skips_train_on_same_candle():
     first = await collect_deep_learning_decisions(orch)
     assert "R_50" in first
     with patch(
-        "src.application.services.deep_learning.dl_symbol_runtime.train_model_walkforward",
+        "src.application.services.deep_learning.dl_symbol_train.train_model_walkforward",
         side_effect=AssertionError("should not train"),
     ) as mock_train:
         second = await collect_deep_learning_decisions(orch)
@@ -81,7 +81,7 @@ async def test_collect_predict_runs_each_cycle_same_candle():
     await collect_deep_learning_decisions(orch)
     with (
         patch(
-            "src.application.services.deep_learning.dl_symbol_runtime.train_model_walkforward",
+            "src.application.services.deep_learning.dl_symbol_train.train_model_walkforward",
             side_effect=AssertionError("should not train"),
         ) as mock_train,
         patch(
@@ -131,20 +131,12 @@ async def test_collect_applies_symbol_loss_cooldown():
     prices = np.sin(np.linspace(0, 10, 80)) + 10.0
     orch = MockOrchestrator(["R_50"], prices)
     orch.config["deep_learning"]["min_val_accuracy"] = 0.0
-    orch.config["deep_learning"]["min_conviction_execute"] = 0.50
-    orch.config["deep_learning"]["min_edge_margin"] = 0.01
-    orch.config["deep_learning"]["min_direction_margin"] = 0.01
-    orch.config["deep_learning"]["require_regime_alignment"] = False
+    orch.config["deep_learning"]["confidence_call_threshold"] = 0.75
+    orch.config["deep_learning"]["confidence_put_threshold"] = 0.25
+    orch.config["deep_learning"]["deploy_gate"] = {"enabled": False}
     orch.risk_manager = MagicMock()
     orch.risk_manager.pending_loss = {}
     orch.risk_manager.is_symbol_on_loss_cooldown = MagicMock(return_value=True)
-    orch.config["deep_learning"]["max_val_brier_execute"] = 1.0
-    orch.config["deep_learning"]["deploy_gate"] = {"enabled": False}
-    orch.config["deep_learning"]["binary_signal"] = {
-        "require_candle_confirm": False,
-        "rsi_block_call": 1.01,
-        "rsi_block_put": -0.01,
-    }
     stats = fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32))
     orch._dl_runtime = {
         "R_50": {
@@ -164,10 +156,10 @@ async def test_collect_applies_symbol_loss_cooldown():
     with (
         patch(
             "src.application.services.deep_learning.dl_predict.predict_next_direction",
-            return_value=(TradeDirection.CALL, 0.62, 0.62, 0.72),
+            return_value=(TradeDirection.CALL, 0.80, 0.80),
         ),
         patch(
-            "src.application.services.deep_learning.dl_symbol_runtime.run_symbol_training",
+            "src.application.services.deep_learning.dl_symbol_train.run_symbol_training",
             return_value=(stats, None),
         ),
     ):
@@ -199,7 +191,7 @@ async def test_collect_decisions_exceptions_and_load():
         decisions = await collect_deep_learning_decisions(orch)
         assert "R_50" in decisions
     with patch(
-        "src.application.services.deep_learning.dl_symbol_runtime.train_model_walkforward",
+        "src.application.services.deep_learning.dl_symbol_train.train_model_walkforward",
         side_effect=ValueError("Train failed"),
     ):
         if hasattr(orch, "_dl_runtime"):

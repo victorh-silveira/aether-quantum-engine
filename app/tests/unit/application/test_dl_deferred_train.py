@@ -1,4 +1,3 @@
-import asyncio
 import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -9,6 +8,32 @@ from src.application.services.deep_learning.dl_deferred_train import (
     cancel_deferred_symbol_training,
     enqueue_deferred_symbol_training,
 )
+
+
+@pytest.mark.asyncio
+async def test_deferred_training_chains_next_bootstrap_symbol():
+    orch = SimpleNamespace()
+    train_fn = MagicMock(return_value=(object(), 0.1))
+
+    with (
+        patch(
+            "src.application.services.deep_learning.dl_deferred_train.asyncio.to_thread",
+            new_callable=AsyncMock,
+        ),
+        patch(
+            "src.application.services.deep_learning.dl_deferred_train.try_enqueue_next_bootstrap_training"
+        ) as mock_chain,
+    ):
+        enqueue_deferred_symbol_training(
+            orch,
+            "R_75",
+            train_fn=train_fn,
+            train_args=("R_75",),
+            train_kwargs={"granularity": 60},
+        )
+        await orch._dl_deferred_tasks["R_75"]
+
+    mock_chain.assert_called_once_with(orch)
 
 
 @pytest.mark.asyncio
@@ -122,7 +147,8 @@ async def test_enqueue_defers_when_another_symbol_training():
 @pytest.mark.asyncio
 async def test_enqueue_skips_duplicate_pending_symbol():
     orch = SimpleNamespace()
-    pending = asyncio.create_task(asyncio.sleep(60))
+    pending = MagicMock()
+    pending.done.return_value = False
     orch._dl_deferred_tasks = {"R_75": pending}
 
     with patch("src.application.services.deep_learning.dl_deferred_train.asyncio.create_task") as mock_create:
@@ -134,8 +160,6 @@ async def test_enqueue_skips_duplicate_pending_symbol():
             train_kwargs={},
         )
         mock_create.assert_not_called()
-
-    pending.cancel()
 
 
 def test_cancel_noop_without_tasks():

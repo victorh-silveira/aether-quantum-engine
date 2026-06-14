@@ -32,7 +32,7 @@ class DashboardState:
     def __init__(self):
         self.balance = 0.0
         self.initial_bankroll = 0.0
-        self.stop_win_pct = 15.0
+        self.stop_win_pct = 1.0
         self.small_threshold = 100.0
         self.small_stop_win = 10.0
         self.active_contracts = {}

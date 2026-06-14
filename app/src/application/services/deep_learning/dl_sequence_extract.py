@@ -1,4 +1,4 @@
-"""Extracao de sequencias TCN e meta-labels a partir de precos OHLC."""
+"""Extracao de sequencias TCN e rotulos binarios a partir de precos OHLC."""
 
 import numpy as np
 
@@ -7,70 +7,48 @@ from src.application.services.deep_learning.dl_feature_build import (
     build_feature_matrix,
     precompute_price_series,
 )
-from src.application.services.deep_learning.dl_pair_features import (
-    precompute_pair_series,
-    spread_confirms_direction,
-)
+from src.application.services.deep_learning.dl_labels import sequence_labels
 
 
 def extract_sequences(
     prices: np.ndarray,
     lookback: int,
     *,
-    label_min_move_pct: float = 0.0002,
-    granularity: int = 300,
-    pair_prices: np.ndarray | None = None,
-    require_pair_label: bool = False,
-    sym_is_bull: bool = True,
+    granularity: int = 60,
     label_horizon_bars: int = 1,
+    symbol: str = "R_50",
     open_: np.ndarray | None = None,
     high: np.ndarray | None = None,
     low: np.ndarray | None = None,
+    micro: dict[str, np.ndarray] | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Extrai tensores (N, L, F), rotulos binarios e mascara meta-label."""
+    """Extrai tensores (N, L, F), rotulos binarios e mascara ativa."""
     n = len(prices)
     horizon = max(1, int(label_horizon_bars))
-    min_tail = horizon + 2
-    if n < lookback + min_tail:
+    if n < lookback + horizon + 1:
         return np.empty((0, lookback, FEATURE_DIM)), np.empty((0,)), np.empty((0,))
-    threshold = max(0.0, float(label_min_move_pct))
     series = precompute_price_series(
         prices,
         granularity=granularity,
+        symbol=symbol,
         open_=open_,
         high=high,
         low=low,
+        micro=micro,
     )
-    pair_series = (
-        precompute_pair_series(prices, pair_prices) if pair_prices is not None and len(pair_prices) > 0 else None
-    )
-    feature_matrix = build_feature_matrix(series, pair_series=pair_series)
+    feature_matrix = build_feature_matrix(series)
+    targets, masks = sequence_labels(prices, lookback, horizon)
+    count = len(targets)
+    if count == 0:
+        return np.empty((0, lookback, FEATURE_DIM)), np.empty((0,)), np.empty((0,))
     sequences = []
-    targets = []
-    masks = []
-    last_i = n - horizon - 1
-    for i in range(lookback, last_i + 1):
-        j = i + horizon
-        move = abs(prices[j] - prices[i]) / (prices[i] + 1e-10)
-        target_up = prices[j] > prices[i]
-        pair_ok = True
-        if require_pair_label and pair_prices is not None and len(pair_prices) >= n:
-            pair_ok = spread_confirms_direction(
-                prices,
-                pair_prices,
-                i,
-                target_up=target_up,
-                sym_is_bull=sym_is_bull,
-                horizon_bars=horizon,
-            )
-        active = move >= threshold and pair_ok
+    for offset, i in enumerate(range(lookback, lookback + count)):
         sequences.append(feature_matrix[i - lookback + 1 : i + 1])
-        targets.append(1.0 if target_up else 0.0)
-        masks.append(1.0 if active else 0.0)
+        _ = offset
     return (
         np.array(sequences, dtype=np.float32),
-        np.array(targets, dtype=np.float32),
-        np.array(masks, dtype=np.float32),
+        targets,
+        masks,
     )
 
 

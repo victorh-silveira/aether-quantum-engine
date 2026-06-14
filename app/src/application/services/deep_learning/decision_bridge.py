@@ -12,17 +12,22 @@ from src.application.services.deep_learning.dl_bridge_helpers import (
 from src.application.services.deep_learning.dl_cycle_log import log_dl_cycle_summary
 from src.application.services.deep_learning.dl_deferred_train import enqueue_deferred_symbol_training
 from src.application.services.deep_learning.dl_gate_config import parse_deploy_gate_config
-from src.application.services.deep_learning.dl_market_data import load_symbol_close_ohlc
+from src.application.services.deep_learning.dl_market_data import load_symbol_close_ohlc, load_symbol_microstructure
 from src.application.services.deep_learning.dl_outcomes import tick_dl_session_pauses
+from src.application.services.deep_learning.dl_params import slice_dl_ohlc_window
 from src.application.services.deep_learning.dl_predict import predict_symbol_decision
 from src.application.services.deep_learning.dl_retrain import should_retrain_symbol
 from src.application.services.deep_learning.dl_symbol_runtime import (
     candle_epoch,
     get_symbol_runtime,
     granularity_seconds,
-    pair_prices_for_symbol,
     resolve_dl_model_path,
-    run_symbol_training,
+)
+from src.application.services.deep_learning.dl_symbol_train import run_symbol_training
+from src.application.services.deep_learning.dl_training_gate import (
+    min_dl_history_len as _min_dl_history_len,
+    runtime_in_training,
+    training_priority_symbols,
 )
 
 
@@ -33,17 +38,10 @@ __all__ = [
 
 logger = logging.getLogger("AETH")
 
-_pair_prices_for_symbol = pair_prices_for_symbol
 _get_symbol_runtime = get_symbol_runtime
 _candle_epoch = candle_epoch
 _granularity_seconds = granularity_seconds
 _run_symbol_training = run_symbol_training
-
-
-def _min_dl_history_len(params: dict) -> int:
-    """Calcula o minimo de velas OHLC exigidas para treino e inferencia DL."""
-    min_operational = params["lookback"] + params["validation_bars"] + 20
-    return max(min_operational, int(params["training_history_bars"]))
 
 
 def _insufficient_data_entry() -> dict:
@@ -63,14 +61,6 @@ def _apply_deploy_gate(entry: dict, runtime: dict, dl_config: dict) -> dict:
     return entry
 
 
-def runtime_in_training(runtime: dict, params: dict) -> bool:
-    """Indica se o modelo do simbolo ainda nao concluiu o primeiro treino valido da sessao."""
-    if not runtime.get("session_trained", False):
-        return True
-    brier = float(runtime.get("val_brier", 0.0))
-    return brier + 1e-9 >= float(params.get("brier_untrained_floor", 0.99))
-
-
 def _apply_training_gate(entry: dict, runtime: dict, params: dict) -> dict:
     """Suspende execucao e marca o simbolo como em treinamento ate o primeiro treino valido."""
     if not runtime_in_training(runtime, params):
@@ -78,16 +68,6 @@ def _apply_training_gate(entry: dict, runtime: dict, params: dict) -> dict:
     entry["metrics"]["execute"] = False
     entry["metrics"]["gate_reason"] = "training"
     return entry
-
-
-def training_priority_symbols(orch, dl_config: dict, params: dict) -> frozenset[str]:
-    """Lista simbolos sem primeiro treino valido que tem prioridade no slot de treino."""
-    pending = []
-    for symbol in orch.symbols:
-        runtime = get_symbol_runtime(orch, symbol, dl_config, params)
-        if runtime_in_training(runtime, params):
-            pending.append(str(symbol))
-    return frozenset(pending)
 
 
 def _log_retrain_batch(trained: list[str], train_reason: str, params: dict) -> None:
@@ -120,7 +100,20 @@ async def _collect_symbol_decision(
         logger.debug("DL: Historico insuficiente para %s (%d/%d velas).", symbol, len(prices), min_len)
         return _insufficient_data_entry(), None
 
-    pair_prices = pair_prices_for_symbol(orch, symbol)
+    micro_full = load_symbol_microstructure(orch, symbol, len(prices))
+    prices, open_, high, low = slice_dl_ohlc_window(
+        prices,
+        training_history_bars=int(params["training_history_bars"]),
+        open_=open_,
+        high=high,
+        low=low,
+    )
+    micro = None
+    if micro_full is not None:
+        micro = {k: v[-len(prices) :] for k, v in micro_full.items()}
+    if len(prices) < min_len:
+        logger.debug("DL: Historico insuficiente apos recorte para %s (%d/%d).", symbol, len(prices), min_len)
+        return _insufficient_data_entry(), None
 
     runtime = get_symbol_runtime(orch, symbol, dl_config, params)
     epoch = candle_epoch(orch, symbol)
@@ -129,10 +122,14 @@ async def _collect_symbol_decision(
     do_train, reason = should_retrain_symbol(orch, symbol, runtime, params, epoch)
     if do_train and train_priority and str(symbol) not in train_priority:
         do_train, reason = False, ""
+    if do_train and reason == "bootstrap":
+        first_pending = next((str(s) for s in orch.symbols if str(s) in train_priority), None)
+        if first_pending is not None and str(symbol) != first_pending:
+            do_train, reason = False, ""
     if do_train:
         train_reason = reason
         skip_train = reason == "new_candle" and bool(getattr(orch, "_dl_fast_cycle", False))
-        if skip_train:
+        if skip_train or reason == "bootstrap" and getattr(orch, "_dl_bootstrap_completed", False):
             train_reason = None
         else:
             enqueue_deferred_symbol_training(
@@ -141,11 +138,11 @@ async def _collect_symbol_decision(
                 train_fn=run_symbol_training,
                 train_args=(symbol, runtime, prices, dl_config, params, epoch, orch),
                 train_kwargs={
-                    "pair_prices": pair_prices,
                     "granularity": granularity,
                     "open_": open_,
                     "high": high,
                     "low": low,
+                    "micro": micro,
                 },
             )
     norm_stats = runtime["norm_stats"]
@@ -161,10 +158,10 @@ async def _collect_symbol_decision(
         train_loss,
         recovery_active=recovery_active,
         granularity=granularity,
-        pair_prices=pair_prices,
         open_=open_,
         high=high,
         low=low,
+        micro=micro,
     )
     entry = _apply_deploy_gate(entry, runtime, dl_config)
     entry = _apply_training_gate(entry, runtime, params)

@@ -77,8 +77,6 @@ def test_train_model_walkforward_weighted():
         validation_bars=12,
         sample_weights=[2.0] * 80,
         weight_decay=0.0001,
-        label_smoothing=0.05,
-        early_stopping_patience=2,
     )
     assert result is not None
     assert result.calibrator is not None

@@ -1,30 +1,35 @@
-"""Runtime de modelo, treino walk-forward e checkpoints por simbolo."""
+"""Runtime de modelo e checkpoints por simbolo."""
 
 import logging
-import time
+import threading
+from contextlib import contextmanager
 from pathlib import Path
 
 import numpy as np
 
 from aether_paths import APP_ROOT
 from src.application.services.deep_learning.dl_calibration import CalibratorState
-from src.application.services.deep_learning.dl_deploy import apply_deploy_to_runtime
-from src.application.services.deep_learning.dl_deploy_eval import evaluate_mini_deploy
-from src.application.services.deep_learning.dl_features import FEATURE_DIM, extract_sequences
-from src.application.services.deep_learning.dl_gate_config import parse_deploy_gate_config, resolve_deploy_ok
-from src.application.services.deep_learning.dl_outcomes import sample_weights_for_symbol
-from src.application.services.deep_learning.dl_retrain import clear_force_retrain, reset_bars_since_train
-from src.application.services.deep_learning.dl_training import train_model_walkforward
+from src.application.services.deep_learning.dl_device import log_device_once, place_model, resolve_torch_device
+from src.application.services.deep_learning.dl_features import FEATURE_DIM
 from src.application.services.deep_learning.model import (
     create_direction_model,
     fit_norm_stats,
     load_model_checkpoint,
-    save_model_checkpoint,
 )
-from src.domain.symbols.range_symbols import hedge_peer, sym_is_low_barrier
 
 
 logger = logging.getLogger("AETH")
+
+
+@contextmanager
+def guard_symbol_model(runtime: dict):
+    """Serializa treino e inferencia no mesmo modulo por simbolo."""
+    lock = runtime.get("model_lock")
+    if lock is None:
+        yield
+        return
+    with lock:
+        yield
 
 
 def resolve_dl_model_path(dl_config: dict, symbol: str) -> Path:
@@ -39,16 +44,7 @@ def resolve_dl_model_path(dl_config: dict, symbol: str) -> Path:
 
 def granularity_seconds(orch) -> int:
     """Retorna granularidade OHLC em segundos."""
-    return int(orch.config.get("data_handler", {}).get("granularity", 300))
-
-
-def pair_prices_for_symbol(orch, symbol: str) -> np.ndarray | None:
-    """Retorna serie do simbolo par hedge R_* quando aplicavel."""
-    symbols = {str(s) for s in getattr(orch, "symbols", [])}
-    peer = hedge_peer(str(symbol))
-    if peer is None or peer not in symbols:
-        return None
-    return orch.stream.get_numpy_series(peer, "close")
+    return int(orch.config.get("data_handler", {}).get("granularity", 60))
 
 
 def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict:
@@ -57,7 +53,7 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
         orch._dl_runtime = {}
     if symbol not in orch._dl_runtime:
         path = resolve_dl_model_path(dl_config, symbol)
-        loaded = load_model_checkpoint(path)
+        loaded = load_model_checkpoint(path, params=params)
         calibrator = CalibratorState()
         lookback = int(params["lookback"])
         deploy_ok = False
@@ -75,14 +71,25 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
                 deploy_ok,
                 deploy_win_rate,
             ) = loaded
-            logger.debug("DL: Checkpoint TCN carregado para %s em %s", symbol, path)
+            logger.debug("DL: Checkpoint carregado para %s em %s", symbol, path)
         else:
-            model = create_direction_model(arch=params["arch"], input_dim=FEATURE_DIM)
+            model = create_direction_model(
+                arch=params["arch"],
+                input_dim=FEATURE_DIM,
+                tcn_channels=params.get("tcn_channels"),
+                tcn_dropout=float(params.get("tcn_dropout", 0.2)),
+                rnn_hidden_size=int(params.get("rnn_hidden_size", 64)),
+                rnn_num_layers=int(params.get("rnn_num_layers", 2)),
+                rnn_dropout=float(params.get("rnn_dropout", 0.2)),
+            )
             norm_stats = fit_norm_stats(np.zeros((1, lookback, FEATURE_DIM), dtype=np.float32))
             last_epoch = 0
             val_accuracy = 0.0
             val_brier = 1.0
             val_ece = 1.0
+        inference_device = resolve_torch_device(dl_config, kind="inference")
+        place_model(model, inference_device)
+        log_device_once(inference_device, context="inferencia")
         orch._dl_runtime[symbol] = {
             "model": model,
             "norm_stats": norm_stats,
@@ -95,7 +102,10 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
             "deploy_ok": deploy_ok,
             "deploy_win_rate": deploy_win_rate,
             "session_trained": False,
+            "model_lock": threading.RLock(),
         }
+    elif "model_lock" not in orch._dl_runtime[symbol]:
+        orch._dl_runtime[symbol]["model_lock"] = threading.RLock()
     return orch._dl_runtime[symbol]
 
 
@@ -106,175 +116,3 @@ def candle_epoch(orch, symbol: str) -> int:
         epoch = getter(symbol)
         return int(epoch) if epoch is not None else 0
     return 0
-
-
-def run_symbol_training(
-    symbol: str,
-    runtime: dict,
-    prices: np.ndarray,
-    dl_config: dict,
-    params: dict,
-    candle_epoch_value: int,
-    orch,
-    *,
-    pair_prices: np.ndarray | None,
-    granularity: int,
-    open_: np.ndarray | None = None,
-    high: np.ndarray | None = None,
-    low: np.ndarray | None = None,
-) -> tuple[object, float | None]:
-    """Executa treino walk-forward, deploy gate e persiste checkpoint."""
-    model = runtime["model"]
-    norm_stats = runtime["norm_stats"]
-    train_loss = None
-    gate_cfg = parse_deploy_gate_config(dl_config)
-    bootstrap = not runtime.get("session_trained", False) or float(runtime.get("val_brier", 1.0)) + 1e-9 >= float(
-        params.get("brier_untrained_floor", 0.99)
-    )
-    level = logging.INFO if bootstrap else logging.DEBUG
-    started = time.monotonic()
-    logger.log(level, "")
-    logger.log(
-        level,
-        "DL TREINO | %s | iniciado | %d velas | %d epocas",
-        symbol,
-        len(prices),
-        int(params["epochs"]),
-    )
-
-    def _progress(epoch: int, total: int, loss_value: float, val_acc: float) -> None:
-        """Registra progresso por epoca do treino do simbolo."""
-        logger.log(
-            level,
-            "DL TREINO | %s | epoca %d/%d | loss=%.4f | val_acc=%.2f",
-            symbol,
-            epoch,
-            total,
-            loss_value,
-            val_acc,
-        )
-
-    try:
-        pair_label = pair_prices is not None and len(pair_prices) >= len(prices)
-        peer_sym = hedge_peer(str(symbol))
-        sym_is_bull = sym_is_low_barrier(str(symbol), peer_sym) if peer_sym else False
-        horizon = int(params.get("label_horizon_bars", 1))
-        x_preview, y_preview, _ = extract_sequences(
-            prices,
-            params["lookback"],
-            label_min_move_pct=params["label_min_move_pct"],
-            granularity=granularity,
-            pair_prices=pair_prices,
-            require_pair_label=pair_label,
-            sym_is_bull=sym_is_bull,
-            label_horizon_bars=horizon,
-            open_=open_,
-            high=high,
-            low=low,
-        )
-        weights = sample_weights_for_symbol(
-            orch,
-            symbol,
-            len(y_preview),
-            targets=list(y_preview) if len(y_preview) else None,
-        )
-        train_result = train_model_walkforward(
-            model,
-            prices,
-            params["lookback"],
-            params["epochs"],
-            params["lr"],
-            params["validation_bars"],
-            sample_weights=weights,
-            weight_decay=params["weight_decay"],
-            label_smoothing=params["label_smoothing"],
-            label_min_move_pct=params["label_min_move_pct"],
-            early_stopping_patience=params["early_stopping_patience"],
-            focal_gamma=params["focal_gamma"],
-            calib_ratio=params["calib_ratio"],
-            granularity=granularity,
-            pair_prices=pair_prices,
-            require_pair_label=pair_label,
-            sym_is_bull=sym_is_bull,
-            label_horizon_bars=int(params.get("label_horizon_bars", 1)),
-            open_=open_,
-            high=high,
-            low=low,
-            progress_cb=_progress,
-        )
-        if train_result is not None:
-            runtime["norm_stats"] = train_result.norm_stats
-            norm_stats = train_result.norm_stats
-            runtime["val_accuracy"] = train_result.val_accuracy
-            runtime["calibrator"] = train_result.calibrator or CalibratorState()
-            runtime["val_brier"] = train_result.val_brier
-            runtime["val_ece"] = train_result.val_ece
-            train_loss = train_result.avg_loss
-            runtime["last_candle_epoch"] = candle_epoch_value
-            mini_ok, deploy_wr, mini_brier = evaluate_mini_deploy(
-                orch,
-                symbol,
-                model,
-                prices,
-                norm_stats,
-                runtime,
-                params,
-                gate_cfg=gate_cfg,
-            )
-            deploy_ok = resolve_deploy_ok(
-                mini_ok=mini_ok,
-                val_accuracy=float(train_result.val_accuracy),
-                val_brier=float(train_result.val_brier),
-                gate_cfg=gate_cfg,
-            )
-            apply_deploy_to_runtime(
-                runtime,
-                deploy_ok=deploy_ok,
-                deploy_win_rate=deploy_wr,
-                val_brier=mini_brier if mini_ok else float(train_result.val_brier),
-            )
-            path = resolve_dl_model_path(dl_config, symbol)
-            save_model_checkpoint(
-                path,
-                model,
-                norm_stats,
-                candle_epoch_value,
-                lookback=params["lookback"],
-                calibrator=runtime["calibrator"],
-                arch=params["arch"],
-                val_accuracy=runtime["val_accuracy"],
-                val_brier=runtime["val_brier"],
-                val_ece=runtime["val_ece"],
-                deploy_ok=runtime["deploy_ok"],
-                deploy_win_rate=runtime["deploy_win_rate"],
-                granularity=granularity,
-            )
-            runtime["session_trained"] = True
-            clear_force_retrain(orch, symbol)
-            reset_bars_since_train(orch, symbol)
-            logger.log(
-                level,
-                "DL TREINO | %s | concluido em %.0fs | loss=%.4f | val_acc=%.2f | brier=%.3f | deploy=%s",
-                symbol,
-                time.monotonic() - started,
-                float(train_loss or 0.0),
-                float(runtime.get("val_accuracy", 0.0)),
-                float(runtime.get("val_brier", 1.0)),
-                bool(runtime.get("deploy_ok", False)),
-            )
-            logger.log(level, "")
-        else:
-            runtime["val_accuracy"] = 0.0
-            runtime["val_brier"] = 1.0
-            runtime["deploy_ok"] = False
-            logger.log(
-                level,
-                "DL TREINO | %s | dados insuficientes (%d velas) | aguardando proximo ciclo",
-                symbol,
-                len(prices),
-            )
-            logger.log(level, "")
-    except Exception as e:
-        logger.error("DL: Erro no treinamento walk-forward para %s: %s", symbol, e)
-        runtime["deploy_ok"] = False
-    return norm_stats, train_loss

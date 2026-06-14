@@ -2,12 +2,9 @@
 
 from typing import Any
 
-import numpy as np
-
 from src.application.services.deep_learning.dl_deploy import direction_wins
 from src.application.services.deep_learning.dl_gate_config import deploy_params_for_eval, parse_deploy_gate_config
 from src.application.services.deep_learning.dl_predict import predict_symbol_decision
-from src.domain.models.trade import TradeDirection
 
 
 def _deploy_eval_bar_indices(start: int, end: int, max_steps: int) -> list[int]:
@@ -24,12 +21,16 @@ def evaluate_mini_deploy(
     orch,
     symbol: str,
     model,
-    prices: np.ndarray,
+    prices,
     norm_stats,
     runtime: dict,
     params: dict[str, Any],
     *,
     gate_cfg: dict[str, Any] | None = None,
+    open_=None,
+    high=None,
+    low=None,
+    micro=None,
 ) -> tuple[bool, float, float]:
     """Simula ultimas barras com gating atual e retorna deploy_ok, win_rate, brier."""
     cfg = gate_cfg or parse_deploy_gate_config(params if "deploy_gate" in params else {})
@@ -46,10 +47,17 @@ def evaluate_mini_deploy(
     eval_params = deploy_params_for_eval(params, cfg)
     sim_runtime = dict(runtime)
     sim_runtime["deploy_ok"] = True
-    max_steps = int(cfg.get("max_eval_steps", 160))
+    max_steps = int(cfg.get("max_eval_steps", 24))
+    horizon = int(params.get("label_horizon_bars", 1))
     bars = _deploy_eval_bar_indices(start, len(prices) - 1, max_steps)
     for bar in bars:
         window = prices[: bar + 1]
+        win_open = open_[: bar + 1] if open_ is not None else None
+        win_high = high[: bar + 1] if high is not None else None
+        win_low = low[: bar + 1] if low is not None else None
+        win_micro = None
+        if micro:
+            win_micro = {k: v[: bar + 1] for k, v in micro.items()}
         entry = predict_symbol_decision(
             orch,
             symbol,
@@ -60,18 +68,20 @@ def evaluate_mini_deploy(
             eval_params,
             None,
             recovery_active=False,
+            open_=win_open,
+            high=win_high,
+            low=win_low,
+            micro=win_micro,
         )
         if not entry["metrics"].get("execute") or entry["direction"] is None:
             continue
         direction = entry["direction"]
-        won = direction_wins(direction, prices, bar)
+        won = direction_wins(direction, prices, bar, label_horizon_bars=horizon)
         total += 1
         if won:
             wins += 1
-        score = float(entry["metrics"].get("trade_score", 0.5))
-        label = 1.0 if prices[bar + 1] > prices[bar] else 0.0
-        if direction == TradeDirection.PUT:
-            label = 1.0 - label
+        score = float(entry["metrics"].get("raw_prob", 0.5))
+        label = 1.0 if won else 0.0
         brier_acc += (score - label) ** 2
     if total < int(cfg["min_trades"]):
         return False, 0.0, float(runtime.get("val_brier", 1.0))

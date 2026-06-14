@@ -4,6 +4,11 @@ import logging
 
 from src.domain.risk.stop_win_target import resolve_stop_win_target
 
+from .execution_proposal import (
+    is_retriable_proposal_error,
+    proposal_retry_scales,
+    proposal_stake_attempts,
+)
 from .settlement_backfill import subscribe_open_contract
 
 
@@ -27,7 +32,32 @@ async def place_order(executor, symbol, direction, stake, duration=None, metrics
             lo["take_profit"] = round(tp_val, 2)
             lo.pop("stop_loss", None)
             params["limit_order"] = lo
-    contract = await executor.orch.trade_handler.buy_with_parameters(symbol, direction, stake, params=params)
+    exec_cfg = executor.orch.config.get("orchestrator", {}).get("execution", {})
+    stake_min = float(params.get("stake_min", 1.0))
+    attempts = proposal_stake_attempts(float(stake), stake_min, proposal_retry_scales(exec_cfg))
+    contract = None
+    last_error: Exception | None = None
+    for attempt_stake in attempts:
+        try:
+            contract = await executor.orch.trade_handler.buy_with_parameters(
+                symbol, direction, attempt_stake, params=params
+            )
+            if attempt_stake + 1e-9 < float(stake):
+                logger.info(
+                    "[%s] PROPOSAL_RETRY | %s stake $%.2f -> $%.2f",
+                    cid,
+                    symbol,
+                    float(stake),
+                    float(attempt_stake),
+                )
+            stake = float(attempt_stake)
+            break
+        except RuntimeError as exc:
+            last_error = exc
+            if not is_retriable_proposal_error(exc) or attempt_stake == attempts[-1]:
+                raise
+    if contract is None:
+        raise last_error or RuntimeError("Erro na proposta: falha desconhecida")
     dur = duration or params.get("duration", 1)
     u = params.get("duration_unit", "m")
     meta = metrics if isinstance(metrics, dict) else {}

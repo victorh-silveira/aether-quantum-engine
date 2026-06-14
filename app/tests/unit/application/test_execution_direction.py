@@ -81,12 +81,28 @@ def test_mandatory_execution_eligible_rejects_missing_direction():
     assert mandatory_execution_eligible(entry) is False
 
 
-def test_mandatory_execution_eligible_accepts_low_val_accuracy():
+def test_mandatory_execution_eligible_rejects_low_val_accuracy():
     entry = {
         "direction": TradeDirection.CALL,
         "metrics": {"deploy_ok": True, "val_accuracy": 0.40, "conviction": 0.60, "raw_prob": 0.6},
     }
-    assert mandatory_execution_eligible(entry) is True
+    assert mandatory_execution_eligible(entry) is False
+
+
+def test_mandatory_execution_eligible_accepts_low_val_when_floor_disabled():
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {"deploy_ok": True, "val_accuracy": 0.40, "conviction": 0.60, "raw_prob": 0.6},
+    }
+    assert mandatory_execution_eligible(entry, min_val_accuracy=0.0) is True
+
+
+def test_mandatory_execution_eligible_rejects_zero_signal():
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {"deploy_ok": True, "val_accuracy": 0.55, "conviction": 0.0},
+    }
+    assert mandatory_execution_eligible(entry) is False
 
 
 def test_mandatory_execution_eligible_rejects_deploy_not_ok():
@@ -102,7 +118,7 @@ def test_mandatory_execution_eligible_accepts_low_trade_score():
         "direction": TradeDirection.CALL,
         "metrics": {"deploy_ok": True, "val_accuracy": 0.40, "conviction": 0.40, "raw_prob": 0.6},
     }
-    assert mandatory_execution_eligible(entry, min_signal=0.53) is True
+    assert mandatory_execution_eligible(entry, min_signal=0.53, min_val_accuracy=0.0) is True
 
 
 def test_recovery_execution_eligible_rejects_deploy_not_ok():

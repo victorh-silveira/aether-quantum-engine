@@ -89,10 +89,14 @@ line-ending = "auto"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-addopts = "-q --strict-markers"
+addopts = "-q --strict-markers --timeout=90"
 filterwarnings = []
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "torch_cuda: testes que exigem resolucao real de dispositivo CUDA",
+    "real_settlement_watch: testes que executam _run_settlement_watch real",
+]
 
 [tool.interrogate]
 ignore-init-method = true

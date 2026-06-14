@@ -1,25 +1,9 @@
-from src.application.services.deep_learning.dl_gating import gating_block_reason, unified_execution_score
+from src.application.services.deep_learning.dl_gating import gating_block_reason, should_execute
 
 
-def test_unified_execution_score_raises_floor_when_deploy_ok():
-    score = unified_execution_score(0.51, 0.65, deploy_ok=True, max_calibrated_raw_gap=0.12)
-    assert score >= 0.53
+def test_should_execute_with_confidence_threshold():
+    assert should_execute(0.80, 0.55, min_val_accuracy=0.53) is True
 
 
-def test_recovery_requires_brier_not_untrained_skip():
-    assert (
-        gating_block_reason(
-            0.62,
-            0.0,
-            0.58,
-            0.06,
-            0.52,
-            raw_prob=0.65,
-            val_brier=1.0,
-            max_val_brier=0.28,
-            brier_untrained_floor=0.99,
-            recovery_active=True,
-            deploy_ok=True,
-        )
-        == "brier"
-    )
+def test_gating_blocks_untrained_val_accuracy():
+    assert gating_block_reason(0.80, 0.50, min_val_accuracy=0.53) == "val_acc"

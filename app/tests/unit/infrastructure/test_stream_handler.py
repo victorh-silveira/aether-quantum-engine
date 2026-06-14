@@ -38,6 +38,11 @@ def test_resolve_fetch_count_default(mock_ws):
     assert sh._resolve_fetch_count() == 500
 
 
+def test_stream_handler_normalizes_unsupported_granularity(mock_ws):
+    sh = StreamHandler(mock_ws, ["R_50"], {"granularity": 10})
+    assert sh.granularity == 60
+
+
 @pytest.mark.asyncio
 async def test_stream_handler_on_candle(stream_handler):
     candle_data = {
@@ -82,6 +87,14 @@ async def test_fetch_symbol_history_trims_excess(mock_ws):
     assert len(sh.candles["R_50"]) == 4
     assert sh.candles["R_50"][0].epoch == 1002
     assert sh.candles["R_50"][-1].epoch == 1005
+
+
+@pytest.mark.asyncio
+async def test_fetch_symbol_history_stops_on_api_error(mock_ws):
+    mock_ws.send = AsyncMock(return_value={"error": {"message": "Invalid granularity"}})
+    sh = StreamHandler(mock_ws, ["R_50"], {"granularity": 60})
+    await sh._fetch_symbol_history("R_50", 10)
+    assert sh.candles["R_50"] == []
 
 
 @pytest.mark.asyncio

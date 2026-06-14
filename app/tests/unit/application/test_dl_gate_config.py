@@ -14,15 +14,19 @@ def test_resolve_deploy_ok_soft_fallback():
 
 
 def test_deploy_params_for_eval_relaxes_thresholds():
-    params = {"min_conviction": 0.58, "min_edge_margin": 0.06, "min_val_accuracy": 0.52, "max_val_brier_execute": 0.28}
+    params = {
+        "confidence_call_threshold": 0.75,
+        "confidence_put_threshold": 0.25,
+        "min_val_accuracy": 0.52,
+    }
     cfg = {"eval_relaxed_gating": True}
     out = deploy_params_for_eval(params, cfg)
     assert out["min_val_accuracy"] == 0.0
-    assert out["min_conviction"] <= 0.52
+    assert out["confidence_call_threshold"] <= 0.65
 
 
 def test_deploy_params_passthrough_when_not_relaxed():
-    params = {"min_conviction": 0.58}
+    params = {"confidence_call_threshold": 0.75}
     assert deploy_params_for_eval(params, {"eval_relaxed_gating": False}) == params
 
 

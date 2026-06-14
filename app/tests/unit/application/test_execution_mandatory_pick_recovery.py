@@ -26,13 +26,12 @@ def test_recovery_hedge_skips_blocked_peer():
     assert picked[0] != "R_10"
 
 
-def test_recovery_hedge_resolves_direction_without_raw_prob():
+def test_recovery_hedge_returns_none_without_raw_prob():
     decisions = {
         "R_10": {
             "direction": None,
             "metrics": {
                 "deploy_ok": True,
-                "binary_ctx": {"body": 0.001, "close_loc": 0.55, "sma_z": 0.0},
             },
         },
     }
@@ -43,9 +42,7 @@ def test_recovery_hedge_resolves_direction_without_raw_prob():
         last_loss_symbol="R_100",
         last_loss_direction="PUT",
     )
-    assert picked is not None
-    assert picked[0] == "R_10"
-    assert picked[1] == TradeDirection.CALL
+    assert picked is None
 
 
 def test_recovery_hedge_pick_returns_none_without_resolvable_direction():

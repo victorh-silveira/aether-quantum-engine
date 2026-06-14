@@ -17,10 +17,15 @@ def test_resolve_stop_win_large_account_pct():
     rm = {
         "small_account_threshold": 100.0,
         "small_account_stop_win": 10.0,
-        "large_account_stop_win_pct": 15.0,
+        "large_account_stop_win_pct": 1.0,
     }
-    assert resolve_stop_win_target(rm, 100.0) == pytest.approx(15.0)
-    assert resolve_stop_win_target(rm, 1000.0) == pytest.approx(150.0)
+    assert resolve_stop_win_target(rm, 100.0) == pytest.approx(1.0)
+    assert resolve_stop_win_target(rm, 1000.0) == pytest.approx(10.0)
+
+
+def test_resolve_stop_win_default_pct_one_percent():
+    rm = {"small_account_threshold": 100.0}
+    assert resolve_stop_win_target(rm, 10127.63) == pytest.approx(101.27)
 
 
 def test_resolve_stop_win_pct_clamped():

@@ -170,7 +170,7 @@ def stage_test(fail_under=100):
     data_file = APP_ROOT / ".coverage"
     if data_file.exists():
         data_file.unlink()
-    run_tool("coverage", ["run", "-m", "pytest"], "Pytest execution")
+    run_tool("coverage", ["run", "-m", "pytest", "--timeout=90"], "Pytest execution")
     run_tool("coverage", ["report", f"--fail-under={fail_under}"], f"Coverage report (min {fail_under}%)")
 
 

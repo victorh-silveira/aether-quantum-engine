@@ -1,4 +1,4 @@
-"""Leitura de series OHLC do stream Deriv para treino e inferencia."""
+"""Leitura de series OHLC e microestrutura do stream Deriv."""
 
 import numpy as np
 
@@ -18,6 +18,14 @@ def load_symbol_close_ohlc(
     if len(open_) != n or len(high) != n or len(low) != n:
         return close, None, None, None
     return close, open_, high, low
+
+
+def load_symbol_microstructure(orch, symbol: str, length: int) -> dict[str, np.ndarray] | None:
+    """Retorna arrays de microestrutura alinhados ao historico de velas."""
+    buffer = getattr(orch.stream, "tick_buffer", None)
+    if buffer is None:
+        return None
+    return buffer.microstructure_arrays(symbol, length)
 
 
 def slice_ohlc_window(

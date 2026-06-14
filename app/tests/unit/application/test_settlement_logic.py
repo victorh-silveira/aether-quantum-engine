@@ -1,8 +1,6 @@
 """Testes unitários para o módulo settlement_logic."""
 
-import asyncio
-import contextlib
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -57,6 +55,7 @@ async def test_process_contract_settlement_ignores_premature_open_with_is_settle
 @pytest.mark.asyncio
 async def test_process_contract_settlement_won(orch_ready):
     orch = orch_ready
+    orch.config.setdefault("risk_management", {})["large_account_stop_win_pct"] = 4.0
     orch._contract_cycle = {123: 1}
     contract = Contract(
         contract_id=123,
@@ -219,7 +218,8 @@ async def test_process_contract_settlement_stop_win(orch_ready):
         }
     }
 
-    pending_task = asyncio.create_task(asyncio.sleep(60))
+    pending_task = MagicMock()
+    pending_task.done.return_value = False
     orch._post_settlement_task = pending_task
     with (
         patch("src.application.services.orchestrator.settlement_logic.resolve_stop_win_target", return_value=50.0),
@@ -229,9 +229,7 @@ async def test_process_contract_settlement_stop_win(orch_ready):
         if orch._post_settlement_task is not None and orch._post_settlement_task is not pending_task:
             await orch._post_settlement_task
 
-    with contextlib.suppress(asyncio.CancelledError):
-        await pending_task
-    assert pending_task.cancelled()
+    assert pending_task.cancel.called
     assert orch.running is False
     assert orch.shutdown_reason == "stop_win"
     assert orch.risk_manager.total_session_profit == 150.0

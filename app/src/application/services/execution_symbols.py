@@ -1,6 +1,5 @@
 """Simbolos elegiveis e ranking de candidatos para execucao."""
 
-from src.application.services.deep_learning.dl_gating import calibration_gap
 from src.application.services.execution_market_rank import market_decision_score
 from src.application.services.execution_symbols_recovery import (
     has_recovery_hedge_candidate,
@@ -24,15 +23,9 @@ __all__ = [
 ]
 
 _DEFAULT_SELECTION = {
-    "min_conviction_execute": 0.56,
-    "min_edge_margin": 0.06,
-    "min_val_accuracy": 0.50,
-    "strong_raw": 0.65,
-    "strong_edge": 0.12,
-    "max_calib_gap": 0.18,
-    "min_raw": 0.52,
-    "max_raw_saturation": 0.97,
-    "saturation_min_trade_score": 0.58,
+    "min_val_accuracy": 0.53,
+    "confidence_call_threshold": 0.75,
+    "confidence_put_threshold": 0.25,
 }
 
 
@@ -48,40 +41,24 @@ def symbols_eligible_for_execution(anchor: str, symbols: list[str], *, include_a
 
 def _trade_score(metrics: dict) -> float:
     """Le score unificado de conviccao usado em selecao e ranking."""
-    return float(metrics.get("trade_score", metrics.get("conviction", 0.0)))
-
-
-def _calib_gap_penalty(metrics: dict, cfg: dict) -> float:
-    """Penaliza ranking quando o gap entre score calibrado e raw excede o limite."""
-    score = _trade_score(metrics)
-    raw = metrics.get("raw_prob")
-    if raw is None:
-        return 0.0
-    gap = calibration_gap(score, float(raw))
-    limit = float(cfg.get("max_calib_gap", 0.18))
-    if gap <= limit:
-        return 0.0
-    return min(0.15, (gap - limit) * 0.5)
+    return float(metrics.get("trade_score", metrics.get("raw_prob", metrics.get("conviction", 0.0))))
 
 
 def candidate_execution_score(
     metrics: dict,
     *,
     recovery_active: bool,
-    selection: dict | None = None,
     symbol: str | None = None,
     exec_direction: TradeDirection | None = None,
     last_loss_symbol: str | None = None,
     last_loss_direction: str | None = None,
 ) -> float:
-    """Pontua candidato com score calibrado unificado, val_acc e edge."""
-    cfg = {**_DEFAULT_SELECTION, **(selection or {})}
-    penalty = _calib_gap_penalty(metrics, cfg)
+    """Pontua candidato com score bruto, val_acc e edge."""
     direction = exec_direction
     if direction is None and metrics.get("exec_direction"):
         name = str(metrics["exec_direction"]).upper()
         direction = TradeDirection.CALL if name == "CALL" else TradeDirection.PUT
-    base = market_decision_score(
+    return market_decision_score(
         metrics,
         exec_direction=direction,
         recovery_active=recovery_active,
@@ -89,46 +66,23 @@ def candidate_execution_score(
         last_loss_symbol=last_loss_symbol,
         last_loss_direction=last_loss_direction,
     )
-    return base - penalty
-
-
-def _selection_hard_reject(metrics: dict, cfg: dict, score: float, raw_side: float) -> bool:
-    """Indica rejeicao imediata por gap, raw fraco, live_wr ou saturacao."""
-    max_gap = float(cfg.get("max_calib_gap", 0.18))
-    min_raw = float(cfg.get("min_raw", 0.52))
-    gap_fail = (
-        "raw_prob" in metrics
-        and calibration_gap(score, float(metrics["raw_prob"])) > max_gap + 1e-9
-        and float(metrics.get("val_accuracy", 0.0)) + 1e-9 < 0.65
-    )
-    live_wr = metrics.get("live_win_rate")
-    live_fail = live_wr is not None and float(live_wr) + 1e-9 < 0.42
-    sat_min_score = float(cfg.get("saturation_min_trade_score", 0.58))
-    sat_max_raw = float(cfg.get("max_raw_saturation", 0.97))
-    sat_fail = "raw_prob" in metrics and raw_side + 1e-9 > sat_max_raw and score + 1e-9 >= sat_min_score
-    return gap_fail or raw_side + 1e-9 < min_raw or live_fail or sat_fail
 
 
 def _passes_selection_gate(metrics: dict, cfg: dict) -> bool:
-    """Verifica se metricas do candidato passam limiares de selecao de precisao."""
-    score = _trade_score(metrics)
-    val = float(metrics.get("val_accuracy", 0.0))
-    edge = float(metrics.get("edge", abs(score - 0.5)))
-    raw_side = float(metrics.get("raw_conviction", metrics.get("raw_prob", score)))
-    if "raw_prob" in metrics:
-        raw_side = max(float(metrics["raw_prob"]), 1.0 - float(metrics["raw_prob"]))
-    min_conv = float(cfg["min_conviction_execute"])
-    min_edge = float(cfg["min_edge_margin"])
-    min_val = float(cfg["min_val_accuracy"])
-    strong_raw = float(cfg["strong_raw"])
-    strong_edge = float(cfg["strong_edge"])
-    if _selection_hard_reject(metrics, cfg, score, raw_side):
+    """Verifica se metricas do candidato passam limiares de selecao."""
+    if not metrics.get("execute"):
         return False
-    if score + 1e-9 >= min_conv and edge + 1e-9 >= min_edge:
-        return True
-    if val + 1e-9 >= min_val:
-        return True
-    return raw_side + 1e-9 >= strong_raw and edge + 1e-9 >= strong_edge
+    val = float(metrics.get("val_accuracy", 0.0))
+    raw = metrics.get("raw_prob")
+    if raw is None:
+        return False
+    prob = float(raw)
+    call_thr = float(cfg.get("confidence_call_threshold", 0.75))
+    put_thr = float(cfg.get("confidence_put_threshold", 0.25))
+    min_val = float(cfg.get("min_val_accuracy", 0.53))
+    if val + 1e-9 < min_val:
+        return False
+    return prob + 1e-9 >= call_thr or prob - 1e-9 <= put_thr
 
 
 def filter_execution_candidates(
@@ -136,7 +90,7 @@ def filter_execution_candidates(
     *,
     selection: dict | None = None,
 ) -> list[tuple[str, TradeDirection, dict]]:
-    """Mantem candidatos que passam os mesmos limiares do gating de precisao."""
+    """Mantem candidatos que passam os mesmos limiares do gating de confianca."""
     cfg = {**_DEFAULT_SELECTION, **(selection or {})}
     return [item for item in candidates if _passes_selection_gate(item[2], cfg)]
 
@@ -226,5 +180,5 @@ def format_execution_alternates(
     )
     alts = [item for item in ranked if item[0] != exclude_symbol][:limit]
     return ", ".join(
-        f"{symbol}({metrics.get('trade_score', metrics.get('conviction', 0.0)):.2f})" for symbol, _, metrics in alts
+        f"{symbol}({metrics.get('trade_score', metrics.get('raw_prob', 0.0)):.2f})" for symbol, _, metrics in alts
     )

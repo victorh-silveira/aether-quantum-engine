@@ -5,8 +5,11 @@ from __future__ import annotations
 
 def recovery_min_signal(kelly_config: dict, *, recovery_active: bool) -> float:
     """Piso de trade_score para pool e fallback obrigatorio."""
-    _ = recovery_active
-    return float(kelly_config.get("mandatory_min_trade_score", 0.45))
+    floor = float(kelly_config.get("mandatory_min_trade_score", 0.45))
+    if not recovery_active:
+        return floor
+    recovery_floor = float(kelly_config.get("recovery_min_trade_score", floor))
+    return max(floor, recovery_floor)
 
 
 def recovery_min_val_accuracy(kelly_config: dict) -> float:

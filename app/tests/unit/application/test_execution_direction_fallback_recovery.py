@@ -103,7 +103,6 @@ def test_build_mandatory_fallback_last_resort_below_min_signal():
                 "execute": False,
                 "trade_score": 0.20,
                 "val_accuracy": 0.50,
-                "raw_prob": 0.55,
                 "deploy_ok": True,
             },
         },
@@ -116,8 +115,7 @@ def test_build_mandatory_fallback_last_resort_below_min_signal():
         last_loss_direction=None,
         min_signal=0.45,
     )
-    assert best is not None
-    assert best[0] == "R_50"
+    assert best is None
 
 
 def test_scored_fallback_pick_returns_highest_score():

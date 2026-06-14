@@ -9,6 +9,16 @@ from src.infrastructure.state.trading_state import TradingState
 from tests.market_symbols import ALL_SYMBOLS, ANCHOR, PAIR
 
 
+@pytest.fixture(autouse=True)
+def fast_bootstrap_sleep():
+    """Evita asyncio.sleep real no bootstrap durante a suíte de testes."""
+    with patch(
+        "src.application.services.deep_learning.dl_bootstrap_train.asyncio.sleep",
+        new_callable=AsyncMock,
+    ):
+        yield
+
+
 @pytest.fixture
 def orch_config():
     return {
@@ -20,7 +30,13 @@ def orch_config():
         },
         "symbols": list(ALL_SYMBOLS),
         "anchor": ANCHOR,
-        "deep_learning": {"enabled": True, "min_conviction_execute": 0.53},
+        "deep_learning": {
+            "enabled": True,
+            "confidence_call_threshold": 0.75,
+            "confidence_put_threshold": 0.25,
+            "min_val_accuracy": 0.53,
+            "lookback": 48,
+        },
         "data_handler": {"fetch_count": 100, "min_required_points": 2, "buffer_limit": 1000},
         "strategy": {
             "clusters": {"rd": [ANCHOR, PAIR]},
@@ -31,7 +47,7 @@ def orch_config():
             "small_account_stake": 1.0,
             "small_account_stop_win": 10.0,
             "large_account_stake_pct": 2.0,
-            "large_account_stop_win_pct": 15.0,
+            "large_account_stop_win_pct": 1.0,
             "params": {
                 "duration": 2,
                 "duration_unit": "m",
@@ -68,6 +84,14 @@ async def orch_ready(orch_config):
     orch._stream_ready_at = 0.0
     orch.config.setdefault("orchestrator", {})["post_settlement_breath_seconds"] = 0
     yield orch
+    deferred = getattr(orch, "_dl_deferred_tasks", None)
+    if isinstance(deferred, dict):
+        for task in list(deferred.values()):
+            if isinstance(task, asyncio.Task) and not task.done():
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
+        deferred.clear()
     pending = orch._post_settlement_task
     if isinstance(pending, asyncio.Task) and not pending.done():
         pending.cancel()

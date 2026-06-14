@@ -1,3 +1,17 @@
+## [Unreleased]
+
+### Breaking Changes
+
+* **engine:** refatoracao completa Deep Learning — metodologia Rise/Fall
+  * Removida estrategia TREND_FIBO e modulos DL legados (consensus, regime, pair features, binary_signal)
+  * Labels binarios alinhados ao contrato 60 s (horizon = 1 barra)
+  * 18 features: microestrutura (TickBuffer), RSI/BB/ATR/EMA, Hurst, volatilidade
+  * Arquiteturas TCN (padrao), LSTM e GRU configuravel via `deep_learning.arch`
+  * Gating simplificado: threshold 0.75 CALL / 0.25 PUT (abstencao no meio)
+  * `mandatory_trade_each_cycle: false` — operacao seletiva
+  * TorchScript (`_ts.pt`) para inferencia rapida
+  * Checkpoints v3 invalidam modelos anteriores
+
 ## [1.9.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.8.1...v1.9.0) (2026-06-11)
 
 ### Funcionalidades

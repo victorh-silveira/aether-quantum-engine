@@ -1,7 +1,9 @@
 """Formatacao compacta de logs do ciclo Deep Learning."""
 
-from src.application.services.deep_learning.dl_gating import calibration_gap
+from src.application.services.deep_learning.dl_gating import resolve_edge
+from src.application.services.execution_direction import infer_dl_direction
 from src.application.services.log_dedupe import log_info_if_changed
+from src.domain.risk.stake_sizing import raw_side_from_metrics
 
 
 def build_dl_cycle_summary(
@@ -25,7 +27,7 @@ def build_dl_cycle_summary(
             raw = metrics.get("raw_prob")
             if gate == "data":
                 skip_tokens.append(f"{symbol}:data")
-            elif gate == "direction_margin" and raw is not None:
+            elif gate == "confidence" and raw is not None:
                 skip_tokens.append(f"{symbol}:sem_dir:r{float(raw):.2f}")
             else:
                 skip_tokens.append(f"{symbol}:sem_dir")
@@ -35,7 +37,7 @@ def build_dl_cycle_summary(
         raw = metrics.get("raw_prob")
         gap_s = ""
         if raw is not None:
-            gap_s = f":g{calibration_gap(conv, float(raw)):.2f}"
+            gap_s = f":e{resolve_edge(float(raw)):.2f}"
         label = f"{symbol}:{direction.name}:{conv:.2f}:v{val_acc:.2f}{gap_s}"
         if metrics.get("execute"):
             suffix = ""
@@ -59,6 +61,27 @@ def build_dl_cycle_summary(
     extra = f" +{len(skip_tokens) - 5}" if len(skip_tokens) > 5 else ""
     train_part = f" | treino=[{','.join(train_tokens)}]" if train_tokens else ""
     return f"DL | {mode} | exec=[{exec_part}] | skip=[{skip_part}{extra}]{train_part}"
+
+
+def _best_directional_signal(decisions: dict[str, dict]) -> tuple[str, float] | None:
+    """Retorna simbolo e sinal efetivo mais forte entre candidatos com direcao DL."""
+    best_symbol = None
+    best_score = -1.0
+    for symbol, entry in decisions.items():
+        metrics = entry.get("metrics") or {}
+        if metrics.get("gate_reason") == "training":
+            continue
+        if infer_dl_direction(entry) is None:
+            continue
+        score = float(metrics.get("trade_score", metrics.get("conviction", 0.0)))
+        raw_side = raw_side_from_metrics(metrics)
+        effective = max(score, raw_side)
+        if effective > best_score:
+            best_score = effective
+            best_symbol = symbol
+    if best_symbol is None:
+        return None
+    return best_symbol, best_score
 
 
 def build_dl_cycle_brief(
@@ -94,8 +117,10 @@ def build_dl_cycle_brief(
         more = f" +{len(exec_tokens) - 2}" if len(exec_tokens) > 2 else ""
         tail = f" | {blocked} bloq" if blocked else ""
         return f"DL {tag}| exec {head}{more}{tail}{train_part}"
-    if training and training == len(decisions):
+    if training == len(decisions):
         return f"DL {tag}| TREINO INICIAL | {training} modelo(s) em treinamento | trades suspensos"
+    if blocked == len(decisions):
+        return ""
     if no_data:
         return f"DL {tag}| sem exec | {no_data} sem dados{train_part}"
     return f"DL {tag}| sem exec | {blocked} bloq{train_part}"
@@ -121,6 +146,8 @@ def log_dl_cycle_summary(
         decisions,
         recovery_active=recovery_active,
     )
+    if not brief:
+        return
     if orch is None:
         logger.info(brief)
         return

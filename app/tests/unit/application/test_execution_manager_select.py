@@ -5,8 +5,8 @@ from tests.market_symbols import ANCHOR, PAIR
 
 def test_select_best_candidate_keeps_top_when_clear_lead():
     candidates = [
-        (ANCHOR, TradeDirection.PUT, {"conviction": 0.81, "raw_conviction": 0.82, "val_accuracy": 0.50}),
-        (PAIR, TradeDirection.CALL, {"conviction": 0.64, "raw_conviction": 0.60, "val_accuracy": 0.45}),
+        (ANCHOR, TradeDirection.PUT, {"trade_score": 0.81, "raw_prob": 0.19, "val_accuracy": 0.50}),
+        (PAIR, TradeDirection.CALL, {"trade_score": 0.64, "raw_prob": 0.64, "val_accuracy": 0.45}),
     ]
     best = select_best_execution_candidate(
         candidates,

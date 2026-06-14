@@ -7,9 +7,9 @@
 [![Pre-commit](https://img.shields.io/badge/Pre--commit-active-FAB040?logo=pre-commit&logoColor=white)](.pre-commit-config.yaml)
 [![CI](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml)
 
-Motor quantitativo assíncrono para a Deriv: decisão por **Deep Learning (TCN PyTorch)** nos símbolos **Range Break** (`R_10`, `R_25`, `R_50`, `R_75`, `R_100`), contratos **RISE_FALL** de **1 minuto**, dimensionamento **Kelly** e recuperação **martingale** integral quando há perda pendente.
+Motor quantitativo assíncrono para a Deriv: decisão exclusiva por **Deep Learning** (TCN, LSTM ou GRU via PyTorch) nos símbolos **Range Break** (`R_10`, `R_25`, `R_50`, `R_75`, `R_100`), contratos **RISE_FALL** de **60 segundos**, classificação binária Rise/Fall com threshold **0.75 / 0.25**, dimensionamento **Kelly** e recuperação **martingale** integral quando há perda pendente.
 
-A operação é dividida em duas fases: **FASE TREINO** (nenhuma ordem é enviada até que todos os modelos concluam o treino da sessão) e **FASE OPERACAO** (até um trade por ciclo via ranking de mercado, com recovery inteligente e piso mínimo de qualidade).
+A operação é dividida em duas fases: **FASE TREINO** (nenhuma ordem é enviada até que todos os modelos concluam o treino da sessão) e **FASE OPERACAO** (operação seletiva — só entra quando o modelo atinge alta confiança; sem trade obrigatório por ciclo).
 
 Documentação: [arquitetura](docs/arquitetura.md) | [metodologia quant](docs/medallion.md) | [estrutura do repo](docs/structure.md) | [Deriv API](docs/deriv-api.md)
 
@@ -21,14 +21,14 @@ Layout: `app/` (código e testes), `config/settings.json`, `docs/`, `linters/`. 
 
 | Etapa | Componente | Descrição |
 |-------|------------|-----------|
-| Dados | `StreamHandler` | WebSocket Deriv, histórico OHLC, buffer configurável |
-| Fases | `_training_phase_gate` | Suspende a operação até todos os modelos concluírem o treino da sessão (`FASE TREINO` → `FASE OPERACAO`) |
-| Decisão | `decision_bridge` + TCN | Treino walk-forward em background (slot único com prioridade bootstrap), calibração, gating, progresso por época |
-| Execução | `ExecutionManager` | Modo obrigatório: melhor candidato por ranking de mercado com piso `mandatory_min_trade_score`; ciclo é pulado se ninguém qualificar |
+| Dados | `StreamHandler` + `TickBuffer` | WebSocket Deriv, OHLC 60 s, ticks agregados por barra (microestrutura) |
+| Fases | `_training_phase_gate` | Suspende a operação até todos os modelos concluírem o treino da sessão |
+| Decisão | `decision_bridge` + TCN/LSTM/GRU | 18 features, labels binários (horizon 1 barra), treino walk-forward deferido, gating 0.75/0.25 |
+| Execução | `ExecutionManager` | Operação seletiva: só entra com `raw_prob >= 0.75` ou `<= 0.25`; ranking entre candidatos elegíveis |
 | Risco | `RiskManager` | Kelly fracionário, stop win diário, martingale em recovery, cooldown por símbolo |
-| Estado | `PersistenceManager` | `data/state.json`, checkpoints `data/dl/{symbol}.pth` |
+| Estado | `PersistenceManager` | `data/state.json`, checkpoints `data/dl/{symbol}.pth` + TorchScript `_ts.pt` |
 
-Ciclo do orquestrador: `orchestrator.cycle_interval_seconds` (padrão 60 s). Granularidade OHLC: `data_handler.granularity` (padrão 60 s).
+Ciclo do orquestrador: `orchestrator.cycle_interval_seconds` (padrão 3 s). Granularidade OHLC: `data_handler.granularity` (60 s). Contrato: `risk_management.params.duration` (60 s).
 
 ---
 
@@ -40,10 +40,10 @@ Arquivo: [`config/settings.json`](config/settings.json)
 |-------|--------|
 | `symbols` / `anchor` | Universo (`R_10` … `R_100`; âncora `R_50`) |
 | `data_handler` | `granularity`, `history_bars`, `fetch_count`, `buffer_limit` |
-| `deep_learning` | TCN, `lookback`, `training_history_bars`, gating, `deploy_gate`, `recovery_gating` |
-| `orchestrator.execution` | `mandatory_trade_each_cycle`, `diversify_after_loss_margin`, settlement |
-| `risk_management.kelly` | Kelly, martingale, `mandatory_min_trade_score` (piso de score na execução obrigatória) |
-| `risk_management` | Stop win, stakes |
+| `deep_learning` | `arch` (tcn/lstm/gru), `lookback`, `confidence_call_threshold`, `confidence_put_threshold`, `min_val_accuracy`, `deploy_gate` |
+| `orchestrator.execution` | `mandatory_trade_each_cycle` (false), `diversify_after_loss_margin`, settlement |
+| `risk_management.kelly` | Kelly, martingale |
+| `risk_management.params` | `duration: 60`, stakes |
 | `trading` | `demo` / `live` |
 
 Variáveis na raiz (`.env`): `AETHER_DERIV_PAT`, `AETHER_DERIV_APP_ID`, `AETHER_DERIV_ACCOUNT_ID` (opcional). Validação: `python app/scripts/deriv_pat_connect.py`.
@@ -61,11 +61,11 @@ Variáveis na raiz (`.env`): `AETHER_DERIV_PAT`, `AETHER_DERIV_APP_ID`, `AETHER_
 
 ## Fases, recovery e execução
 
-- **FASE TREINO**: ao iniciar a sessão, todo símbolo retreina pelo menos uma vez (`session_trained`), mesmo com checkpoint em disco. Enquanto qualquer modelo não concluir esse treino, nenhuma ordem é enviada e o slot de background fica exclusivo para os pendentes. Transição única: `FASE OPERACAO || todos os modelos treinados`.
-- **FASE OPERACAO** com `mandatory_trade_each_cycle: true`: o motor tenta enviar uma ordem por ciclo, escolhida por ranking de mercado (score calibrado, convicção bruta, val_accuracy, edge, Brier, deploy e contexto binário). Se nenhum candidato atinge `mandatory_min_trade_score` (padrão **0.53**), o ciclo é **pulado** em vez de forçar entrada fraca.
-- Direção de execução: sinal DL refinado por `resolve_market_direction` — quando a convicção bruta é fraca, extremos estatísticos da vela (`sma_z`) aplicam reversão à média.
-- **Recovery**: prioriza direção alinhada ao último loss com pisos de qualidade (`recovery_gating`), diversifica o símbolo (bônus por não repetir o par perdedor) e usa o núcleo `R_75`/`R_50`. Mesmo piso de score e bloqueio de `deploy_ok=false` se aplicam.
-- Bloqueios duros nunca são forçados: `training`, `cooldown`, `session_pause`, `data`, `predict_error` e **`deploy`** (modelo reprovado no deploy gate).
+- **FASE TREINO**: ao iniciar a sessão, todo símbolo retreina pelo menos uma vez. Enquanto qualquer modelo não concluir esse treino, nenhuma ordem é enviada.
+- **FASE OPERACAO** com `mandatory_trade_each_cycle: false`: o motor opera apenas quando `raw_prob >= 0.75` (CALL) ou `<= 0.25` (PUT). Ciclos sem sinal forte são pulados.
+- **Threshold de confiança**: piso de deploy `min_val_accuracy: 0.53` (lucratividade mínima vs payout ~95%).
+- **Recovery**: ranking de mercado com diversificação de símbolo e hedge no par Range quando aplicável.
+- Bloqueios duros: `training`, `cooldown`, `session_pause`, `data`, `predict_error`, `deploy`.
 
 ---
 
@@ -88,7 +88,7 @@ Monitor opcional: `python app/scripts/monitor/live_monitor.py`
 
 ## Stack e qualidade
 
-- **Python 3.13.12**, `asyncio`, NumPy, Polars, PyTorch (TCN)
+- **Python 3.13.12**, `asyncio`, NumPy, Polars, PyTorch (TCN / LSTM / GRU)
 - **Deriv** PAT + REST OTP + WebSocket (`api_config` em settings; ver `docs/deriv-api.md`)
 - **CI / pre-commit**: Ruff, Interrogate, Vulture, limite 300 linhas/arquivo, pytest com **100%** de cobertura em `app/src`
 
@@ -132,7 +132,7 @@ WSL: `make pre-commit-run`
 3. Valide checkpoints DL em `app/data/dl/`.
 4. `make run` ou `launch-all-demo.bat` / `launch-all-live.bat`
 
-O motor exige `deep_learning.enabled: true`. Não há modo de decisão por LLM no pipeline ao vivo.
+O motor exige `deep_learning.enabled: true`. Checkpoints antigos (FEATURE_DIM 19) são invalidados — o bootstrap retreina na primeira execução. Não há modo de decisão alternativo no pipeline ao vivo.
 
 ---
 

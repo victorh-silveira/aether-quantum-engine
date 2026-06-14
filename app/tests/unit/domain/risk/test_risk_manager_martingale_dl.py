@@ -20,10 +20,10 @@ def test_martingale_uses_recorded_loss_stake_as_seed(kelly_config):
     assert stake == pytest.approx(math.ceil(cover * 100) / 100, abs=0.5)
 
 
-def test_martingale_always_on_with_pending(kelly_config):
+def test_martingale_requires_conviction_floor_with_pending(kelly_config):
     rm = RiskManager(kelly_config)
     rm.pending_loss["R_50"] = 50.0
-    assert rm._martingale_allowed(
+    assert not rm._martingale_allowed(
         "R_50",
         0.40,
         dl_metrics={
@@ -52,7 +52,7 @@ def test_martingale_always_on_with_pending(kelly_config):
     )
 
 
-def test_martingale_allowed_on_weak_recovery_signal(kelly_config):
+def test_martingale_skips_weak_recovery_signal(kelly_config):
     rm = RiskManager(kelly_config)
     rm.pending_loss["R_50"] = 10.0
     rm.last_loss_stake = 4.62
@@ -63,7 +63,38 @@ def test_martingale_allowed_on_weak_recovery_signal(kelly_config):
         cycle_id=5,
         dl_metrics={"execute": False, "trade_score": 0.0, "val_accuracy": 0.51, "recovery_forced": True},
     )
-    assert stake > 10.0
+    assert stake == 0.0
+
+
+def test_martingale_rejects_marginal_raw_side_below_sizing_conviction(kelly_config):
+    rm = RiskManager(kelly_config)
+    rm.pending_loss["R_50"] = 10.0
+    assert not rm._martingale_allowed(
+        "R_75",
+        0.51,
+        dl_metrics={
+            "execute": False,
+            "trade_score": 0.0,
+            "raw_prob": 0.49,
+            "val_accuracy": 0.59,
+        },
+    )
+
+
+def test_martingale_allowed_on_strong_raw_side_with_zero_score(kelly_config):
+    rm = RiskManager(kelly_config)
+    rm.pending_loss["R_50"] = 10.0
+    rm.last_loss_stake = 4.62
+    assert rm._martingale_allowed(
+        "R_75",
+        0.0,
+        dl_metrics={
+            "execute": False,
+            "trade_score": 0.0,
+            "raw_prob": 0.62,
+            "val_accuracy": 0.55,
+        },
+    )
 
 
 def test_martingale_allowed_without_pending(kelly_config):

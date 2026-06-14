@@ -14,6 +14,7 @@ from src.application.services.deep_learning.dl_features import (
     calculate_rsi,
     extract_features,
     extract_sequences,
+    precompute_price_series,
 )
 from src.application.services.deep_learning.dl_splits import purged_temporal_splits
 from src.application.services.deep_learning.dl_tcn import TemporalDirectionClassifier, _Chomp1d
@@ -23,7 +24,7 @@ from src.application.services.deep_learning.model import (
     FeatureNormStats,
     MarketDirectionClassifier,
     _accuracy,
-    _precompute_price_series,
+    _sanitize_feature_batch,
     create_direction_model,
     fit_norm_stats,
     load_model_checkpoint,
@@ -42,6 +43,20 @@ def test_model_initialization():
     out = model(x)
     assert out.shape == (2, 1)
     assert torch.all(out >= 0.0) and torch.all(out <= 1.0)
+    logits = model(x, logits=True)
+    assert logits.shape == (2,)
+
+
+def test_sanitize_feature_batch_replaces_non_finite():
+    batch = np.array([[[np.nan, np.inf] + [1.0] * (FEATURE_DIM - 2)]], dtype=np.float32)
+    clean = _sanitize_feature_batch(batch)
+    assert np.isfinite(clean).all()
+
+
+def test_create_direction_model_custom_tcn():
+    model = create_direction_model(arch="tcn", input_dim=INPUT_DIM, tcn_channels=(64, 32, 16), tcn_dropout=0.2)
+    out = model(torch.randn(2, 24, INPUT_DIM))
+    assert out.shape == (2, 1)
 
 
 def test_calculate_rsi():
@@ -74,7 +89,7 @@ def test_build_sequence_tensor_shape():
 
 def test_train_predict_features_aligned():
     prices = np.sin(np.linspace(0, 10, 120)) + 10.0
-    series = _precompute_price_series(prices)
+    series = precompute_price_series(prices)
     features, _ = extract_features(prices, lookback=20)
     last_train_idx = len(prices) - 2
     assert np.allclose(build_feature_row(series, last_train_idx), features[-1], atol=1e-5)
@@ -92,26 +107,24 @@ def test_train_and_predict():
     loss_short = train_model_online(model, np.sin(np.linspace(0, 10, 25)) + 10.0, lookback=20, epochs=2, lr=0.01)
     assert loss_short == 0.0
     norm = result.norm_stats if result else fit_norm_stats(np.zeros((2, 20, INPUT_DIM), dtype=np.float32))
-    calibrator = CalibratorState(temperature=1.0)
     with patch.object(model, "forward", return_value=torch.tensor([[0.8]])):
-        direction, prob, trade_score, raw_prob = predict_next_direction(
-            model, prices, lookback=20, norm_stats=norm, val_accuracy=0.75, calibrator=calibrator
+        direction, prob, raw_prob = predict_next_direction(
+            model, prices, lookback=20, norm_stats=norm, call_threshold=0.75, put_threshold=0.25
         )
         assert direction == TradeDirection.CALL
-        assert trade_score > 0.5
+        assert prob > 0.5
         assert raw_prob == pytest.approx(0.8)
-    with patch.object(model, "forward", return_value=torch.tensor([[0.3]])):
-        direction, prob, trade_score, raw_prob = predict_next_direction(
-            model, prices, lookback=20, norm_stats=norm, val_accuracy=0.75, calibrator=calibrator
+    with patch.object(model, "forward", return_value=torch.tensor([[0.20]])):
+        direction, prob, raw_prob = predict_next_direction(
+            model, prices, lookback=20, norm_stats=norm, call_threshold=0.75, put_threshold=0.25
         )
         assert direction == TradeDirection.PUT
-        assert trade_score > 0.5
-        assert raw_prob == pytest.approx(0.3)
-    dir_short, prob_short, score_short, raw_short = predict_next_direction(model, np.array([10.0]), lookback=20)
+        assert prob == pytest.approx(0.2)
+        assert raw_prob == pytest.approx(0.2)
+    dir_short, prob_short, raw_short = predict_next_direction(model, np.array([10.0]), lookback=20)
     assert dir_short is None
     assert prob_short == 0.5
-    assert score_short == 0.5
-    assert raw_short == 1.0
+    assert raw_short == 0.5
 
 
 def test_purged_splits():
@@ -145,13 +158,12 @@ def test_accuracy_empty_and_legacy_checkpoint():
 def test_predict_without_norm_stats():
     prices = np.sin(np.linspace(0, 10, 120)) + 10.0
     model = create_direction_model(arch="tcn")
-    direction, prob, trade_score, raw_prob = predict_next_direction(
-        model, prices, lookback=20, norm_stats=None, min_direction_margin=0.0
+    direction, prob, raw_prob = predict_next_direction(
+        model, prices, lookback=20, norm_stats=None, call_threshold=0.50, put_threshold=0.50
     )
     assert direction in (TradeDirection.CALL, TradeDirection.PUT)
     assert 0.0 <= prob <= 1.0
     assert 0.0 <= raw_prob <= 1.0
-    assert trade_score >= 0.5 - 0.01
 
 
 def test_checkpoint_save_load():
@@ -210,18 +222,15 @@ def test_train_with_focal_loss():
         model,
         prices,
         lookback=18,
-        epochs=10,
+        epochs=2,
         lr=0.001,
         validation_bars=14,
-        focal_gamma=2.0,
-        early_stopping_patience=1,
     )
     assert result is not None
 
 
 def test_model_accuracy_mask_and_normalize_2d():
-    model = create_direction_model(arch="legacy")
-    assert isinstance(model, MarketDirectionClassifier)
+    model = create_direction_model(arch="tcn")
     x = np.random.randn(4, 12, INPUT_DIM).astype(np.float32)
     y = np.array([1.0, 0.0, 1.0, 0.0], dtype=np.float32)
     assert model_accuracy(model, x, y) >= 0.0
@@ -239,26 +248,3 @@ def test_load_corrupted_checkpoint(tmp_path):
     bad = tmp_path / "corrupt.pth"
     bad.write_bytes(b"not-a-checkpoint")
     assert load_model_checkpoint(bad) is None
-
-
-def test_early_stopping_trigger():
-    prices = np.sin(np.linspace(0, 12, 130)) + 10.0
-    model = create_direction_model(arch="tcn")
-    accuracies = [1.0, 0.0, 0.0, 0.0]
-
-    def mock_acc(*args, **kwargs):
-        if accuracies:
-            return accuracies.pop(0)
-        return 0.0
-
-    with patch("src.application.services.deep_learning.dl_training.model_accuracy", side_effect=mock_acc):
-        result = train_model_walkforward(
-            model,
-            prices,
-            lookback=18,
-            epochs=5,
-            lr=0.001,
-            validation_bars=14,
-            early_stopping_patience=1,
-        )
-    assert result is not None

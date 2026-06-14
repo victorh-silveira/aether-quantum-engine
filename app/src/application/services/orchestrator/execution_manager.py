@@ -6,11 +6,13 @@ import logging
 from src.application.services.execution_symbols import symbols_eligible_for_execution
 from src.application.services.log_dedupe import clear_log_channel, log_info_if_changed
 from src.domain.models.trade import TradeDirection
+from src.domain.risk.stake_sizing import resolve_stake_conviction
 from src.domain.risk.stop_win_target import resolve_stop_win_target
 
 from .execution_blockers import log_execution_blockers
 from .execution_collect import collect_cluster_orders
 from .execution_orders import place_order
+from .execution_proposal import is_proposal_runtime_error
 from .execution_settlement import reconcile_contracts, run_settlement_watch, wait_for_settlement
 
 
@@ -47,7 +49,7 @@ class ExecutionManager:
         if not orders:
             return None
         symbol, direction, metrics = orders[0]
-        conviction = float(metrics.get("trade_score", metrics.get("conviction", 0.60)))
+        conviction = resolve_stake_conviction(metrics, self.orch.risk_manager.kelly_config)
         dl_cfg = self.orch.config.get("deep_learning", {})
         return self.orch.risk_manager.stake_block_reason(
             bankroll,
@@ -79,7 +81,7 @@ class ExecutionManager:
         executed_count = 0
         for i, (symbol, direction, metrics) in enumerate(orders):
             order_n = i + 1
-            conviction = float(metrics.get("trade_score", metrics.get("conviction", 0.60)))
+            conviction = resolve_stake_conviction(metrics, self.orch.risk_manager.kelly_config)
 
             dl_cfg = self.orch.config.get("deep_learning", {})
             pending = sum(self.orch.risk_manager.pending_loss.values())
@@ -128,6 +130,13 @@ class ExecutionManager:
                 if "closed" in err_msg or "trading is not available" in err_msg:
                     self.logger.warning(f"SKIP: Sessão fechada para {symbol}: {e}")
                 else:
+                    if is_proposal_runtime_error(e):
+                        hold = int(
+                            self.orch.config.get("orchestrator", {})
+                            .get("execution", {})
+                            .get("proposal_failure_skip_cycles", 6)
+                        )
+                        self.orch.risk_manager.register_proposal_failure(symbol, cycles=hold)
                     self.logger.error(f"FAIL: EXEC: Falha critica na ordem {symbol}: {e}")
         return executed_count
 
@@ -162,6 +171,7 @@ class ExecutionManager:
         """Executa cluster de decisoes; liquidacao segue em background."""
         executed_count = 0
         try:
+            self.orch.risk_manager.decay_proposal_skip_cycles()
             self._start_result_buffer()
 
             if self._training_phase_gate():

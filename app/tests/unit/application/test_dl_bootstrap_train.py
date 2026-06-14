@@ -1,0 +1,200 @@
+from unittest.mock import AsyncMock, patch
+
+import numpy as np
+import pytest
+
+from src.application.services.deep_learning.dl_bootstrap_train import (
+    _ordered_bootstrap_symbols,
+    _train_bootstrap_symbol,
+    run_initial_bootstrap_training,
+)
+from tests.market_symbols import ALL_SYMBOLS
+
+
+@pytest.mark.asyncio
+async def test_run_initial_bootstrap_training_sequences_symbols(orch_ready):
+    orch = orch_ready
+    trained: list[str] = []
+
+    async def fake_train(_orch, symbol: str) -> bool:
+        trained.append(symbol)
+        return True
+
+    with (
+        patch(
+            "src.application.services.deep_learning.dl_bootstrap_train._ordered_bootstrap_symbols",
+            side_effect=lambda _orch: [] if len(trained) >= 3 else list(ALL_SYMBOLS[:3]),
+        ),
+        patch(
+            "src.application.services.deep_learning.dl_bootstrap_train._train_bootstrap_symbol",
+            side_effect=fake_train,
+        ) as mock_train,
+        patch(
+            "src.application.services.deep_learning.dl_bootstrap_train.runtime_in_training",
+            return_value=True,
+        ),
+    ):
+        await run_initial_bootstrap_training(orch)
+
+    assert trained == list(ALL_SYMBOLS[:3])
+    assert mock_train.await_count == 3
+
+
+def test_ordered_bootstrap_symbols_empty_when_none_pending(orch_ready):
+    orch = orch_ready
+    with patch(
+        "src.application.services.deep_learning.dl_bootstrap_train.training_priority_symbols",
+        return_value=frozenset(),
+    ):
+        assert _ordered_bootstrap_symbols(orch) == []
+
+
+@pytest.mark.asyncio
+async def test_train_bootstrap_symbol_runs_training_in_thread(orch_ready):
+    orch = orch_ready
+    n = 3000
+    ohlc = tuple(np.linspace(1.0, 2.0, n) for _ in range(4))
+    with (
+        patch(
+            "src.application.services.deep_learning.dl_bootstrap_train._bootstrap_training_context",
+            return_value=(
+                {},
+                {"lookback": 32},
+                100,
+                60,
+                {},
+                ohlc[0],
+                ohlc[1],
+                ohlc[2],
+                ohlc[3],
+                None,
+            ),
+        ),
+        patch(
+            "src.application.services.deep_learning.dl_bootstrap_train.asyncio.to_thread",
+            new_callable=AsyncMock,
+        ) as mock_thread,
+    ):
+        ok = await _train_bootstrap_symbol(orch, "R_10")
+    assert ok is True
+    mock_thread.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_run_initial_bootstrap_training_skips_trained_runtime(orch_ready):
+    orch = orch_ready
+    with (
+        patch(
+            "src.application.services.deep_learning.dl_bootstrap_train._ordered_bootstrap_symbols",
+            return_value=["R_10"],
+        ),
+        patch(
+            "src.application.services.deep_learning.dl_bootstrap_train.runtime_in_training",
+            return_value=False,
+        ),
+        patch(
+            "src.application.services.deep_learning.dl_bootstrap_train._train_bootstrap_symbol",
+            new_callable=AsyncMock,
+        ) as mock_train,
+    ):
+        await run_initial_bootstrap_training(orch)
+    mock_train.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_run_initial_bootstrap_training_waits_for_history(orch_ready):
+    orch = orch_ready
+    calls = {"n": 0}
+
+    async def fake_train(_orch, symbol: str) -> bool:
+        calls["n"] += 1
+        return calls["n"] >= 2
+
+    with (
+        patch(
+            "src.application.services.deep_learning.dl_bootstrap_train._ordered_bootstrap_symbols",
+            side_effect=[["R_10"], ["R_10"], []],
+        ),
+        patch(
+            "src.application.services.deep_learning.dl_bootstrap_train._train_bootstrap_symbol",
+            side_effect=fake_train,
+        ),
+        patch(
+            "src.application.services.deep_learning.dl_bootstrap_train.runtime_in_training",
+            return_value=True,
+        ),
+        patch(
+            "src.application.services.deep_learning.dl_bootstrap_train.asyncio.sleep",
+            new_callable=AsyncMock,
+        ) as mock_sleep,
+    ):
+        await run_initial_bootstrap_training(orch)
+
+    mock_sleep.assert_awaited_once()
+    assert calls["n"] == 2
+
+
+@pytest.mark.asyncio
+async def test_run_initial_bootstrap_training_stops_after_max_wait_rounds(orch_ready):
+    orch = orch_ready
+    orch.config.setdefault("deep_learning", {})["bootstrap_max_wait_rounds"] = 2
+    with (
+        patch(
+            "src.application.services.deep_learning.dl_bootstrap_train._ordered_bootstrap_symbols",
+            return_value=["R_10"],
+        ),
+        patch(
+            "src.application.services.deep_learning.dl_bootstrap_train._train_bootstrap_symbol",
+            new_callable=AsyncMock,
+            return_value=False,
+        ),
+        patch(
+            "src.application.services.deep_learning.dl_bootstrap_train.runtime_in_training",
+            return_value=True,
+        ),
+        patch(
+            "src.application.services.deep_learning.dl_bootstrap_train.asyncio.sleep",
+            new_callable=AsyncMock,
+        ) as mock_sleep,
+    ):
+        await run_initial_bootstrap_training(orch)
+    assert mock_sleep.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_run_initial_bootstrap_training_noop_when_nothing_pending(orch_ready):
+    orch = orch_ready
+    with (
+        patch(
+            "src.application.services.deep_learning.dl_bootstrap_train._ordered_bootstrap_symbols",
+            return_value=[],
+        ),
+        patch(
+            "src.application.services.deep_learning.dl_bootstrap_train._train_bootstrap_symbol",
+            new_callable=AsyncMock,
+        ) as mock_train,
+    ):
+        await run_initial_bootstrap_training(orch)
+    mock_train.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_train_bootstrap_symbol_returns_false_when_history_short(orch_ready):
+    orch = orch_ready
+    with patch(
+        "src.application.services.deep_learning.dl_bootstrap_train._bootstrap_training_context",
+        return_value=(
+            {},
+            {"lookback": 32},
+            3000,
+            60,
+            {},
+            np.linspace(1.0, 2.0, 100),
+            None,
+            None,
+            None,
+            None,
+        ),
+    ):
+        ok = await _train_bootstrap_symbol(orch, "R_10")
+    assert ok is False

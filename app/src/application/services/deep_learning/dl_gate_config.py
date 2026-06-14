@@ -24,10 +24,9 @@ def deploy_params_for_eval(params: dict[str, Any], gate_cfg: dict[str, Any]) -> 
     if not gate_cfg.get("eval_relaxed_gating", True):
         return params
     out = dict(params)
-    out["min_conviction"] = min(float(params.get("min_conviction", 0.58)), 0.52)
-    out["min_edge_margin"] = min(float(params.get("min_edge_margin", 0.06)), 0.04)
     out["min_val_accuracy"] = 0.0
-    out["max_val_brier_execute"] = max(float(params.get("max_val_brier_execute", 0.28)), 0.35)
+    out["confidence_call_threshold"] = min(float(params.get("confidence_call_threshold", 0.75)), 0.65)
+    out["confidence_put_threshold"] = max(float(params.get("confidence_put_threshold", 0.25)), 0.35)
     return out
 
 

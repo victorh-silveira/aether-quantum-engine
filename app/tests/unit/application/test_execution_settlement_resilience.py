@@ -76,6 +76,43 @@ async def test_reconcile_contracts_logs_non_transient_error(orch_config):
 
 
 @pytest.mark.asyncio
+async def test_reconcile_contracts_sleeps_between_contracts(orch_config):
+    TradingState.reset()
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
+        mock_ws_class.return_value.subscribe = MagicMock()
+        orch = Orchestrator(orch_config, "token")
+        orch.ws.is_running = True
+        for cid in (801, 802):
+            await orch.state.add_contract(
+                Contract(
+                    contract_id=cid,
+                    proposal_id=f"p{cid}",
+                    status=TradeStatus.OPEN,
+                    buy_price=2.0,
+                    payout=4.0,
+                    symbol="R_75",
+                    direction=TradeDirection.CALL,
+                    stake=2.0,
+                    expiry_time=1,
+                )
+            )
+        with (
+            patch(
+                "src.application.services.orchestrator.execution_settlement.reconcile_single_contract",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "src.application.services.orchestrator.execution_settlement.asyncio.sleep",
+                new_callable=AsyncMock,
+            ) as mock_sleep,
+        ):
+            ok = await reconcile_contracts(orch.executor)
+        assert ok is True
+        assert mock_sleep.await_count == 2
+        mock_sleep.assert_awaited_with(0.2)
+
+
+@pytest.mark.asyncio
 async def test_reconcile_contracts_marks_ws_offline_on_timeout(orch_config):
     TradingState.reset()
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
