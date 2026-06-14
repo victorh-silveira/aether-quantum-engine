@@ -1,3 +1,9 @@
+## [1.11.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.10.0...v1.11.0) (2026-06-14)
+
+### Funcionalidades
+
+* **engine:** melhora features DL e treino M1 Rise/Fall ([0d63878](https://github.com/victorh-silveira/aether-quantum-engine/commit/0d63878ccd9823e52712c247a973ef838e6679b8))
+
 ## [1.10.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.9.0...v1.10.0) (2026-06-14)
 
 ### Funcionalidades
