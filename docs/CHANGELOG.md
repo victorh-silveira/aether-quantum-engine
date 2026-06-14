@@ -1,3 +1,9 @@
+## [1.10.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.9.0...v1.10.0) (2026-06-14)
+
+### Funcionalidades
+
+* **engine:** refatora pipeline binario 60s e remove modulos legados ([5aa6830](https://github.com/victorh-silveira/aether-quantum-engine/commit/5aa6830836fcbe42bd927683f822d4f9d8546285))
+
 ## [Unreleased]
 
 ### Breaking Changes
