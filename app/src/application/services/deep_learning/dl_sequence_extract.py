@@ -16,6 +16,10 @@ def extract_sequences(
     *,
     granularity: int = 60,
     label_horizon_bars: int = 1,
+    label_smooth_bars: int = 1,
+    label_mode: str = "ma_trend",
+    label_ma_window: int = 5,
+    implied_vol_bars: int = 60,
     symbol: str = "R_50",
     open_: np.ndarray | None = None,
     high: np.ndarray | None = None,
@@ -25,7 +29,9 @@ def extract_sequences(
     """Extrai tensores (N, L, F), rotulos binarios e mascara ativa."""
     n = len(prices)
     horizon = max(1, int(label_horizon_bars))
-    if n < lookback + horizon + 1:
+    smooth = max(1, int(label_smooth_bars))
+    tail = horizon + smooth
+    if n < lookback + tail:
         return np.empty((0, lookback, FEATURE_DIM)), np.empty((0,)), np.empty((0,))
     series = precompute_price_series(
         prices,
@@ -35,9 +41,17 @@ def extract_sequences(
         high=high,
         low=low,
         micro=micro,
+        implied_vol_bars=implied_vol_bars,
     )
     feature_matrix = build_feature_matrix(series)
-    targets, masks = sequence_labels(prices, lookback, horizon)
+    targets, masks = sequence_labels(
+        prices,
+        lookback,
+        horizon,
+        smooth_bars=smooth,
+        label_mode=label_mode,
+        ma_window=label_ma_window,
+    )
     count = len(targets)
     if count == 0:
         return np.empty((0, lookback, FEATURE_DIM)), np.empty((0,)), np.empty((0,))

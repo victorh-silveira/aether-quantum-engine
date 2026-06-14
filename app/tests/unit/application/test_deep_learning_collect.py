@@ -30,6 +30,7 @@ def test_bars_per_day_and_training_history_window():
         training_history_bars=130000,
         lookback=30,
         label_horizon_bars=1,
+        label_smooth_bars=1,
     )
     assert ratio_val == 19495
     prices = np.arange(400, dtype=np.float64)

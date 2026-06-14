@@ -10,7 +10,9 @@ from src.application.services.deep_learning.dl_feature_indicators import (
     ema_distances,
     feature_windows,
     log_returns,
+    price_zscore,
     rate_of_change,
+    rolling_realized_vol_ratio,
 )
 from src.application.services.deep_learning.dl_hurst import hurst_exponent, variance_ratio
 
@@ -19,8 +21,8 @@ _feature_windows = feature_windows
 
 
 MICRO_FEATURE_DIM = 5
-TRADITIONAL_FEATURE_DIM = 9
-VOLATILITY_FEATURE_DIM = 3
+TRADITIONAL_FEATURE_DIM = 10
+VOLATILITY_FEATURE_DIM = 4
 PERSISTENCE_FEATURE_DIM = 2
 FEATURE_DIM = MICRO_FEATURE_DIM + TRADITIONAL_FEATURE_DIM + VOLATILITY_FEATURE_DIM + PERSISTENCE_FEATURE_DIM
 
@@ -79,6 +81,7 @@ def precompute_price_series(
     high: np.ndarray | None = None,
     low: np.ndarray | None = None,
     micro: dict[str, np.ndarray] | None = None,
+    implied_vol_bars: int = 60,
 ) -> dict[str, np.ndarray]:
     """Precomputa series auxiliares usadas na montagem de features."""
     win = feature_windows(granularity)
@@ -116,6 +119,8 @@ def precompute_price_series(
         vol_z[i] = (vol[i] - base) / base
     hurst = hurst_exponent(prices, window=int(win["hurst_window"]))
     vr = variance_ratio(prices, short=int(win["vr_short"]), long=int(win["vr_long"]))
+    zscore = price_zscore(close, int(win["bb_window"]))
+    implied_vol = rolling_realized_vol_ratio(log_return, target_vol, implied_vol_bars)
     series = {
         "log_return": log_return,
         "vol": vol,
@@ -131,6 +136,8 @@ def precompute_price_series(
         "vol_z": vol_z,
         "hurst": hurst,
         "variance_ratio": vr,
+        "price_zscore": zscore,
+        "implied_vol_ratio": implied_vol,
     }
     attach_microstructure(series, micro)
     for k, v in series.items():
@@ -161,6 +168,7 @@ def build_feature_row(series: dict[str, np.ndarray], index: int) -> np.ndarray:
             series["ema_dist_50"][index],
             series["log_return"][index],
             series["roc"][index],
+            series["price_zscore"][index],
         ],
         dtype=np.float32,
     )
@@ -169,6 +177,7 @@ def build_feature_row(series: dict[str, np.ndarray], index: int) -> np.ndarray:
             series["vol"][index],
             series["vol_vs_target"][index],
             series["vol_z"][index],
+            series["implied_vol_ratio"][index],
         ],
         dtype=np.float32,
     )
@@ -202,6 +211,7 @@ def build_sequence_tensor(
     high: np.ndarray | None = None,
     low: np.ndarray | None = None,
     micro: dict[str, np.ndarray] | None = None,
+    implied_vol_bars: int = 60,
 ) -> np.ndarray:
     """Monta janela (lookback, FEATURE_DIM) terminando em end_index inclusive."""
     series = precompute_price_series(
@@ -212,6 +222,7 @@ def build_sequence_tensor(
         high=high,
         low=low,
         micro=micro,
+        implied_vol_bars=implied_vol_bars,
     )
     start = end_index - lookback + 1
     rows = [build_feature_row(series, i) for i in range(start, end_index + 1)]

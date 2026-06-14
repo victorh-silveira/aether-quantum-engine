@@ -22,12 +22,18 @@ def emit_decision_engine_banner(
             data_cfg = config.get("data_handler") or {}
             hist = data_cfg.get("history_bars", "")
         risk_params = (config.get("risk_management") or {}).get("params") or {}
+        data_cfg = config.get("data_handler") or {}
+        ohlc_sec = data_cfg.get("granularity", 60)
         logger.info(
-            "CFG decisao | modo=DEEP_LEARNING | arch=%s | lookback=%s | hist_treino=%s | "
-            "threshold=%s/%s | contrato=%s%s | exec_obrigatoria=%s",
+            "CFG decisao | modo=DEEP_LEARNING | arch=%s | ohlc=%ss | lookback=%s | hist_treino=%s | "
+            "label=%s | ma=%s | smooth=%s | threshold=%s/%s | contrato=%s%s | exec_obrigatoria=%s",
             dl_cfg.get("arch", "tcn"),
+            ohlc_sec,
             dl_cfg.get("lookback", ""),
             hist,
+            dl_cfg.get("label_mode", "ma_trend"),
+            dl_cfg.get("label_ma_window", 5),
+            dl_cfg.get("label_smooth_bars", 1),
             dl_cfg.get("confidence_call_threshold", 0.75),
             dl_cfg.get("confidence_put_threshold", 0.25),
             risk_params.get("duration", 60),

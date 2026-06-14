@@ -18,6 +18,33 @@ def contract_duration_seconds(risk_params: dict[str, Any]) -> int:
     return duration * 60
 
 
+def resolve_label_smooth_bars(dl_config: dict[str, Any] | None) -> int:
+    """Barras forward usadas na media movel do alvo (suaviza ruido do label)."""
+    dl_config = dl_config or {}
+    return max(1, int(dl_config.get("label_smooth_bars", 1)))
+
+
+def resolve_label_ma_window(dl_config: dict[str, Any] | None) -> int:
+    """Janela da media movel atual usada no modo ma_trend."""
+    dl_config = dl_config or {}
+    return max(1, int(dl_config.get("label_ma_window", 5)))
+
+
+def resolve_label_mode(dl_config: dict[str, Any] | None) -> str:
+    """Modo do rotulo: spot_forward ou ma_trend."""
+    dl_config = dl_config or {}
+    raw = str(dl_config.get("label_mode", "ma_trend")).strip().lower()
+    if raw in ("spot", "spot_forward", "next_candle"):
+        return "spot_forward"
+    return "ma_trend"
+
+
+def resolve_implied_vol_bars(dl_config: dict[str, Any] | None) -> int:
+    """Barras para volatilidade realizada relativa ao alvo sintetico."""
+    dl_config = dl_config or {}
+    return max(12, int(dl_config.get("implied_vol_bars", 60)))
+
+
 def resolve_label_horizon_bars(
     granularity_seconds: int,
     risk_params: dict[str, Any],

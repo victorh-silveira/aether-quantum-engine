@@ -112,6 +112,32 @@ def delta_series(values: np.ndarray) -> np.ndarray:
     return out
 
 
+def rolling_realized_vol_ratio(log_return: np.ndarray, target_vol: float, window: int) -> np.ndarray:
+    """Desvio padrao rolling dos retornos log normalizado pela vol alvo do indice."""
+    n = len(log_return)
+    out = np.zeros(n, dtype=np.float64)
+    span = max(2, int(window))
+    scale = max(float(target_vol), 1e-10)
+    for i in range(span, n):
+        segment = log_return[max(0, i - span + 1) : i + 1]
+        out[i] = float(np.std(segment)) / scale
+    return out
+
+
+def price_zscore(prices: np.ndarray, window: int) -> np.ndarray:
+    """Z-score do close em relacao a media movel e desvio na janela."""
+    n = len(prices)
+    out = np.zeros(n, dtype=np.float64)
+    w = max(2, int(window))
+    for i in range(n):
+        start = max(0, i - w + 1)
+        segment = prices[start : i + 1]
+        mean = float(np.mean(segment))
+        std = float(np.std(segment))
+        out[i] = (float(prices[i]) - mean) / (std + 1e-10)
+    return out
+
+
 def ema_distances(prices: np.ndarray, span_20: int, span_50: int) -> tuple[np.ndarray, np.ndarray]:
     """Distancia percentual do close para EMA20 e EMA50."""
     df = pl.DataFrame({"close": prices})

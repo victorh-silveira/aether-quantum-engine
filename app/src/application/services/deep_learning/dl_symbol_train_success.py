@@ -94,9 +94,10 @@ def apply_successful_symbol_train(
     reset_bars_since_train(orch, symbol)
     logger.log(
         level,
-        "DL TREINO | %s | concluido em %.0fs | loss=%.4f | val_acc=%.2f | brier=%.3f | deploy=%s",
+        "DL TREINO | %s | concluido em %.0fs | epocas=%d | loss=%.4f | val_acc=%.2f | brier=%.3f | deploy=%s",
         symbol,
         time.monotonic() - started,
+        int(getattr(train_result, "epochs_ran", 0)),
         float(train_loss or 0.0),
         float(runtime.get("val_accuracy", 0.0)),
         float(runtime.get("val_brier", 1.0)),

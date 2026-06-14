@@ -9,9 +9,9 @@ from src.application.services.deep_learning.dl_feature_build import (
 )
 
 
-def test_feature_dim_is_nineteen():
-    assert TRADITIONAL_FEATURE_DIM == 9
-    assert FEATURE_DIM == 19
+def test_feature_dim_is_twenty_one():
+    assert TRADITIONAL_FEATURE_DIM == 10
+    assert FEATURE_DIM == 21
 
 
 def test_log_return_and_ema_distances():
@@ -22,6 +22,8 @@ def test_log_return_and_ema_distances():
     assert "ema_dist_50" in series
     assert "delta_rsi" in series
     assert "roc" in series
+    assert "price_zscore" in series
+    assert "implied_vol_ratio" in series
     assert np.isclose(series["log_return"][1], np.log(101.0 / 100.0), rtol=1e-5)
     assert np.isfinite(series["ema_dist_50"]).all()
     assert np.isfinite(series["roc"]).all()

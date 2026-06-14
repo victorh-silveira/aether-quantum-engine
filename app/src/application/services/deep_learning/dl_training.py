@@ -41,6 +41,10 @@ def train_model_walkforward(
     calib_ratio: float = 0.15,
     granularity: int = 60,
     label_horizon_bars: int = 1,
+    label_smooth_bars: int = 1,
+    label_mode: str = "ma_trend",
+    label_ma_window: int = 5,
+    implied_vol_bars: int = 60,
     symbol: str = "R_50",
     open_: np.ndarray | None = None,
     high: np.ndarray | None = None,
@@ -59,6 +63,10 @@ def train_model_walkforward(
         lookback,
         granularity=granularity,
         label_horizon_bars=label_horizon_bars,
+        label_smooth_bars=label_smooth_bars,
+        label_mode=label_mode,
+        label_ma_window=label_ma_window,
+        implied_vol_bars=implied_vol_bars,
         symbol=symbol,
         open_=open_,
         high=high,
@@ -87,8 +95,14 @@ def train_model_walkforward(
     y_calib = y_all[calib_sl]
     weights = sample_weights if sample_weights and len(sample_weights) == len(y_train) else [1.0] * len(y_train)
     patience = 6
+    label_smoothing = 0.0
+    focal_gamma = 0.0
+    lr_scheduler = "cosine"
     if dl_config is not None:
         patience = max(1, int(dl_config.get("early_stopping_patience", 6)))
+        label_smoothing = float(dl_config.get("label_smoothing", 0.0))
+        focal_gamma = float(dl_config.get("focal_gamma", 0.0))
+        lr_scheduler = str(dl_config.get("lr_scheduler", "cosine")).strip().lower()
     avg_loss, best_state, epochs_ran = fit_training_epochs(
         model,
         x_train,
@@ -103,8 +117,9 @@ def train_model_walkforward(
         batch_size=batch_size,
         lr=lr,
         weight_decay=weight_decay,
-        label_smoothing=0.0,
-        focal_gamma=0.0,
+        label_smoothing=label_smoothing,
+        focal_gamma=focal_gamma,
+        lr_scheduler=lr_scheduler,
         early_stopping_patience=patience,
         progress_cb=progress_cb,
     )
@@ -143,6 +158,7 @@ def train_model_walkforward(
         calibrator=calibrator,
         val_brier=val_brier,
         val_ece=val_ece,
+        epochs_ran=epochs_ran,
     )
 
 

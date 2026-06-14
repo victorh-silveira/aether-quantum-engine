@@ -106,12 +106,26 @@ def run_symbol_training(
                 params["lookback"],
                 granularity=granularity,
                 label_horizon_bars=int(params.get("label_horizon_bars", 1)),
+                label_smooth_bars=int(params.get("label_smooth_bars", 1)),
+                label_mode=str(params.get("label_mode", "ma_trend")),
+                label_ma_window=int(params.get("label_ma_window", 5)),
+                implied_vol_bars=int(params.get("implied_vol_bars", 60)),
                 symbol=str(symbol),
                 open_=open_,
                 high=high,
                 low=low,
                 micro=micro,
             )
+            if len(y_preview):
+                up_pct = float(y_preview.mean()) * 100.0
+                logger.log(
+                    level,
+                    "DL TREINO | %s | amostras=%d | labels up=%.1f%% | label=%s",
+                    symbol,
+                    len(y_preview),
+                    up_pct,
+                    params.get("label_mode", "ma_trend"),
+                )
             weights = sample_weights_for_symbol(
                 orch,
                 symbol,
@@ -130,6 +144,10 @@ def run_symbol_training(
                 calib_ratio=params["calib_ratio"],
                 granularity=granularity,
                 label_horizon_bars=int(params.get("label_horizon_bars", 1)),
+                label_smooth_bars=int(params.get("label_smooth_bars", 1)),
+                label_mode=str(params.get("label_mode", "ma_trend")),
+                label_ma_window=int(params.get("label_ma_window", 5)),
+                implied_vol_bars=int(params.get("implied_vol_bars", 60)),
                 symbol=str(symbol),
                 open_=open_,
                 high=high,

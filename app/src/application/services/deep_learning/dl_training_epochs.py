@@ -73,6 +73,93 @@ def _validation_loss(
     return value if math.isfinite(value) else float("inf")
 
 
+def _build_lr_scheduler(
+    optimizer: optim.Optimizer,
+    lr_scheduler: str,
+    *,
+    epochs: int,
+    early_stopping_patience: int,
+    lr: float,
+):
+    """Instancia scheduler cosine ou reduce_on_plateau."""
+    scheduler_mode = str(lr_scheduler).strip().lower()
+    if scheduler_mode == "reduce_on_plateau":
+        return scheduler_mode, optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            mode="min",
+            factor=0.5,
+            patience=max(2, early_stopping_patience // 3),
+            min_lr=max(lr * 0.02, 1e-6),
+        )
+    return scheduler_mode, optim.lr_scheduler.CosineAnnealingLR(
+        optimizer,
+        T_max=max(1, epochs),
+        eta_min=max(lr * 0.05, 1e-6),
+    )
+
+
+def _mean_epoch_loss(
+    model,
+    x_train: np.ndarray,
+    y_train: np.ndarray,
+    mask_train: np.ndarray,
+    weight_arr: np.ndarray,
+    device: torch.device,
+    *,
+    batch_size: int,
+    label_smoothing: float,
+    focal_gamma: float,
+    optimizer: optim.Optimizer,
+) -> tuple[float, int]:
+    """Executa uma epoca completa e retorna loss media e contagem de batches."""
+    epoch_loss = 0.0
+    batch_count = 0
+    for batch_idx in _shuffled_batch_indices(len(x_train), batch_size):
+        optimizer.zero_grad()
+        batch_w = weight_arr[batch_idx].tolist()
+        loss = _masked_loss(
+            model,
+            x_train[batch_idx],
+            y_train[batch_idx],
+            mask_train[batch_idx],
+            batch_w,
+            device,
+            label_smoothing=label_smoothing,
+            focal_gamma=focal_gamma,
+        )
+        loss_value = float(loss.item())
+        if not math.isfinite(loss_value):
+            optimizer.zero_grad()
+            continue
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        optimizer.step()
+        epoch_loss += loss_value
+        batch_count += 1
+    return epoch_loss / max(batch_count, 1), batch_count
+
+
+def _checkpoint_if_improved(
+    model,
+    *,
+    val_loss: float,
+    val_acc: float,
+    best_val_loss: float,
+    best_val_acc: float,
+) -> tuple[float, float, dict | None, bool]:
+    """Atualiza melhor checkpoint quando loss ou val_acc melhoram."""
+    loss_improved = val_loss + 1e-9 < best_val_loss
+    acc_improved = val_acc > best_val_acc + 1e-6
+    if not loss_improved and not acc_improved:
+        return best_val_loss, best_val_acc, None, False
+    if loss_improved:
+        best_val_loss = val_loss
+    if acc_improved:
+        best_val_acc = val_acc
+    best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+    return best_val_loss, best_val_acc, best_state, True
+
+
 def fit_training_epochs(
     model,
     x_train: np.ndarray,
@@ -91,19 +178,23 @@ def fit_training_epochs(
     label_smoothing: float,
     focal_gamma: float,
     early_stopping_patience: int = 6,
+    lr_scheduler: str = "cosine",
     progress_cb=None,
 ) -> tuple[float, None | dict, int]:
     """Executa epocas de treino com early stopping pela perda de validacao."""
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=max(0.0, weight_decay))
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(
+    scheduler_mode, scheduler = _build_lr_scheduler(
         optimizer,
-        T_max=max(1, epochs),
-        eta_min=max(lr * 0.05, 1e-6),
+        lr_scheduler,
+        epochs=max(1, epochs),
+        early_stopping_patience=early_stopping_patience,
+        lr=lr,
     )
     model.train()
     total_loss = 0.0
     best_state = None
     best_val_loss = float("inf")
+    best_val_acc = -1.0
     patience = max(1, int(early_stopping_patience))
     patience_counter = 0
     total_epochs = max(1, epochs)
@@ -111,31 +202,18 @@ def fit_training_epochs(
     weight_arr = np.asarray(weights, dtype=np.float32)
     for epoch_idx in range(total_epochs):
         epochs_ran = epoch_idx + 1
-        epoch_loss = 0.0
-        batch_count = 0
-        for batch_idx in _shuffled_batch_indices(len(x_train), batch_size):
-            optimizer.zero_grad()
-            batch_w = weight_arr[batch_idx].tolist()
-            loss = _masked_loss(
-                model,
-                x_train[batch_idx],
-                y_train[batch_idx],
-                mask_train[batch_idx],
-                batch_w,
-                device,
-                label_smoothing=label_smoothing,
-                focal_gamma=focal_gamma,
-            )
-            loss_value = float(loss.item())
-            if not math.isfinite(loss_value):
-                optimizer.zero_grad()
-                continue
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            optimizer.step()
-            epoch_loss += loss_value
-            batch_count += 1
-        mean_epoch_loss = epoch_loss / max(batch_count, 1)
+        mean_epoch_loss, batch_count = _mean_epoch_loss(
+            model,
+            x_train,
+            y_train,
+            mask_train,
+            weight_arr,
+            device,
+            batch_size=batch_size,
+            label_smoothing=label_smoothing,
+            focal_gamma=focal_gamma,
+            optimizer=optimizer,
+        )
         if batch_count == 0 or not math.isfinite(mean_epoch_loss):
             if best_state is not None:
                 model.load_state_dict(best_state)
@@ -145,14 +223,23 @@ def fit_training_epochs(
         val_loss = _validation_loss(model, x_val, y_val, mask_val, device)
         if progress_cb is not None:
             progress_cb(epochs_ran, total_epochs, mean_epoch_loss, float(val_acc))
-        if val_loss + 1e-9 < best_val_loss:
-            best_val_loss = val_loss
-            best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+        best_val_loss, best_val_acc, improved_state, improved = _checkpoint_if_improved(
+            model,
+            val_loss=val_loss,
+            val_acc=float(val_acc),
+            best_val_loss=best_val_loss,
+            best_val_acc=best_val_acc,
+        )
+        if improved:
+            best_state = improved_state
             patience_counter = 0
         else:
             patience_counter += 1
             if patience_counter >= patience:
                 break
-        scheduler.step()
+        if scheduler_mode == "reduce_on_plateau":
+            scheduler.step(val_loss)
+        else:
+            scheduler.step()
     avg = total_loss / max(epochs_ran, 1)
     return avg, best_state, epochs_ran

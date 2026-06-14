@@ -132,6 +132,7 @@ def predict_next_direction(
     high: np.ndarray | None = None,
     low: np.ndarray | None = None,
     micro: dict[str, np.ndarray] | None = None,
+    implied_vol_bars: int = 60,
     call_threshold: float = 0.75,
     put_threshold: float = 0.25,
 ) -> tuple[TradeDirection | None, float, float]:
@@ -149,6 +150,7 @@ def predict_next_direction(
         high=high,
         low=low,
         micro=micro,
+        implied_vol_bars=implied_vol_bars,
     ).reshape(1, lookback, FEATURE_DIM)
     if norm_stats is None:
         norm_stats = fit_norm_stats(seq)

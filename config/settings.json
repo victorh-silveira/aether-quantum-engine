@@ -1,5 +1,5 @@
 {
-  "anchor": "R_50",
+  "anchor": "R_100",
   "api_config": {
     "deriv_app_id": "",
     "public_ws_url": "wss://api.derivws.com/trading/v1/options/ws/public",
@@ -11,10 +11,10 @@
     "ws_connect_retry_delay_seconds": 4
   },
   "data_handler": {
-    "buffer_limit": 131072,
-    "fetch_count": 130064,
-    "granularity": 60,
-    "history_bars": 130000,
+    "buffer_limit": 65536,
+    "fetch_count": 25984,
+    "granularity": 300,
+    "history_bars": 25920,
     "history_fetch_chunk": 1000,
     "history_fetch_delay_seconds": 0.35,
     "history_fetch_symbol_delay_seconds": 2.0,
@@ -43,9 +43,13 @@
       "soft_min_val_accuracy": 0.52
     },
     "inference_device": "auto",
-    "learning_rate": 0.0012,
-    "lookback": 30,
-    "early_stopping_patience": 6,
+    "learning_rate": 0.001,
+    "lookback": 48,
+    "label_mode": "ma_trend",
+    "label_ma_window": 5,
+    "label_smooth_bars": 5,
+    "implied_vol_bars": 60,
+    "early_stopping_patience": 15,
     "min_val_accuracy": 0.53,
     "model_path_template": "data/dl/{symbol}.pth",
     "retrain_min_bars": 1,
@@ -53,21 +57,24 @@
     "train_on_new_candle_only": true,
     "tcn": {
       "channels": [64, 64, 32],
-      "dropout": 0.2
+      "dropout": 0.25
     },
     "lstm": {
       "hidden_size": 64,
       "num_layers": 2,
       "dropout": 0.2
     },
-    "training_batch_size": 512,
+    "training_batch_size": 256,
     "training_device": "auto",
     "training_epochs": 50,
     "training_log_every_n_epochs": 5,
-    "training_history_bars": 130000,
+    "training_history_bars": 25920,
     "training_history_days": 90,
     "val_acc_live_blend": 0.35,
     "validation_ratio": 0.15,
+    "label_smoothing": 0.02,
+    "focal_gamma": 1.5,
+    "lr_scheduler": "reduce_on_plateau",
     "weight_decay": 0.0002
   },
   "logging": {
@@ -131,7 +138,7 @@
     "large_account_stop_win_pct": 1.0,
     "params": {
       "contract_type": "RISE_FALL",
-      "duration": 60,
+      "duration": 300,
       "duration_unit": "s",
       "payout_estimate": 0.95,
       "stake_max": 12000.0,
@@ -141,10 +148,6 @@
     "small_account_threshold": 50.0
   },
   "symbols": [
-    "R_10",
-    "R_25",
-    "R_50",
-    "R_75",
     "R_100"
   ],
   "trading": {

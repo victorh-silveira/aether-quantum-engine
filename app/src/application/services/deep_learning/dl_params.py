@@ -5,7 +5,14 @@ from typing import Any
 import numpy as np
 
 from src.application.services.deep_learning.dl_gate_config import parse_deploy_gate_config
-from src.application.services.deep_learning.dl_horizon import contract_duration_seconds, resolve_label_horizon_bars
+from src.application.services.deep_learning.dl_horizon import (
+    contract_duration_seconds,
+    resolve_implied_vol_bars,
+    resolve_label_horizon_bars,
+    resolve_label_ma_window,
+    resolve_label_mode,
+    resolve_label_smooth_bars,
+)
 
 
 def bars_per_day(granularity_seconds: int) -> int:
@@ -32,11 +39,12 @@ def resolve_validation_bars(
     training_history_bars: int,
     lookback: int,
     label_horizon_bars: int,
+    label_smooth_bars: int,
 ) -> int:
     """Resolve tamanho da fatia de validacao temporal (fixo ou proporcional)."""
     if "validation_ratio" in dl_config:
         ratio = max(0.05, min(0.4, float(dl_config["validation_ratio"])))
-        estimated_samples = max(20, training_history_bars - lookback - label_horizon_bars)
+        estimated_samples = max(20, training_history_bars - lookback - label_horizon_bars - label_smooth_bars)
         return max(5, int(estimated_samples * ratio))
     return max(5, int(dl_config.get("validation_bars", 96)))
 
@@ -129,11 +137,16 @@ def parse_dl_params(
     lookback = int(dl_config.get("lookback", 30))
     training_history_bars = resolve_training_history_bars(dl_config, data_config)
     label_horizon_bars = resolve_label_horizon_bars(gran, risk_params, dl_config)
+    label_smooth_bars = resolve_label_smooth_bars(dl_config)
+    label_ma_window = resolve_label_ma_window(dl_config)
+    label_mode = resolve_label_mode(dl_config)
+    implied_vol_bars = resolve_implied_vol_bars(dl_config)
     validation_bars = resolve_validation_bars(
         dl_config,
         training_history_bars=training_history_bars,
         lookback=lookback,
         label_horizon_bars=label_horizon_bars,
+        label_smooth_bars=label_smooth_bars,
     )
     rnn = parse_rnn_config(dl_config)
     base = {
@@ -151,6 +164,9 @@ def parse_dl_params(
         "training_device": str(dl_config.get("training_device", "auto")).strip().lower(),
         "inference_device": str(dl_config.get("inference_device", "auto")).strip().lower(),
         "lr": float(dl_config.get("learning_rate", 0.0012)),
+        "label_smoothing": float(dl_config.get("label_smoothing", 0.0)),
+        "focal_gamma": float(dl_config.get("focal_gamma", 0.0)),
+        "lr_scheduler": str(dl_config.get("lr_scheduler", "cosine")).strip().lower(),
         "validation_bars": validation_bars,
         "validation_ratio": float(dl_config.get("validation_ratio", 0.15)),
         "calib_ratio": float(dl_config.get("calib_ratio", 0.15)),
@@ -166,6 +182,10 @@ def parse_dl_params(
         "training_history_bars": training_history_bars,
         "bars_per_day": bars_per_day(gran),
         "label_horizon_bars": label_horizon_bars,
+        "label_smooth_bars": label_smooth_bars,
+        "label_ma_window": label_ma_window,
+        "label_mode": label_mode,
+        "implied_vol_bars": implied_vol_bars,
         "contract_seconds": contract_duration_seconds(risk_params),
         "val_acc_live_blend": float(dl_config.get("val_acc_live_blend", 0.35)),
     }

@@ -58,6 +58,7 @@ def predict_symbol_decision(
                 high=high,
                 low=low,
                 micro=micro,
+                implied_vol_bars=int(params.get("implied_vol_bars", 60)),
                 call_threshold=call_threshold,
                 put_threshold=put_threshold,
             )

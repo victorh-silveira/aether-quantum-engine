@@ -10,7 +10,7 @@ from src.application.services.deep_learning.dl_features import FEATURE_DIM
 
 INPUT_DIM = FEATURE_DIM
 DEFAULT_ARCH = "tcn"
-CHECKPOINT_VERSION = 4
+CHECKPOINT_VERSION = 7
 
 
 @dataclass
@@ -32,3 +32,4 @@ class TrainResult:
     calibrator: CalibratorState | None = None
     val_brier: float = 1.0
     val_ece: float = 1.0
+    epochs_ran: int = 0
