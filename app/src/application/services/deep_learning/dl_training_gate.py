@@ -5,7 +5,9 @@ from src.application.services.deep_learning.dl_symbol_runtime import get_symbol_
 
 def min_dl_history_len(params: dict) -> int:
     """Calcula o minimo de velas OHLC exigidas para treino e inferencia DL."""
-    return int(params["lookback"]) + int(params["validation_bars"]) + 20
+    split_floor = int(params["lookback"]) + int(params["validation_bars"]) + 20
+    train_window = int(params.get("training_history_bars", 0))
+    return max(split_floor, train_window) if train_window > 0 else split_floor
 
 
 def runtime_in_training(runtime: dict, params: dict) -> bool:

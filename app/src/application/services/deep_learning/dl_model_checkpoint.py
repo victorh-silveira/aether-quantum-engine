@@ -131,7 +131,7 @@ def load_model_checkpoint(
     )
     epoch = int(payload.get("last_candle_epoch", 0))
     calibrator = calibrator_from_dict(payload.get("calibrator"))
-    lookback = int(payload.get("lookback", 48))
+    lookback = int(payload.get("lookback", 30))
     val_accuracy = float(payload.get("val_accuracy", 0.0))
     val_brier = float(payload.get("val_brier", 1.0))
     val_ece = float(payload.get("val_ece", 1.0))

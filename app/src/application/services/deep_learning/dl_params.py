@@ -22,8 +22,23 @@ def resolve_training_history_bars(dl_config: dict, data_config: dict | None = No
     if "history_bars" in data_config:
         return max(1, int(data_config["history_bars"]))
     gran = int(data_config.get("granularity") or dl_config.get("granularity") or 60)
-    days = float(dl_config.get("training_history_days", 2.0))
+    days = float(dl_config.get("training_history_days", 90.0))
     return max(1, int(bars_per_day(gran) * days))
+
+
+def resolve_validation_bars(
+    dl_config: dict,
+    *,
+    training_history_bars: int,
+    lookback: int,
+    label_horizon_bars: int,
+) -> int:
+    """Resolve tamanho da fatia de validacao temporal (fixo ou proporcional)."""
+    if "validation_ratio" in dl_config:
+        ratio = max(0.05, min(0.4, float(dl_config["validation_ratio"])))
+        estimated_samples = max(20, training_history_bars - lookback - label_horizon_bars)
+        return max(5, int(estimated_samples * ratio))
+    return max(5, int(dl_config.get("validation_bars", 96)))
 
 
 def slice_dl_price_window(
@@ -111,9 +126,15 @@ def parse_dl_params(
     data_config = data_config or {}
     risk_params = risk_params or {}
     gran = int(data_config.get("granularity") or dl_config.get("granularity") or 60)
-    lookback = int(dl_config.get("lookback", 48))
+    lookback = int(dl_config.get("lookback", 30))
     training_history_bars = resolve_training_history_bars(dl_config, data_config)
     label_horizon_bars = resolve_label_horizon_bars(gran, risk_params, dl_config)
+    validation_bars = resolve_validation_bars(
+        dl_config,
+        training_history_bars=training_history_bars,
+        lookback=lookback,
+        label_horizon_bars=label_horizon_bars,
+    )
     rnn = parse_rnn_config(dl_config)
     base = {
         "arch": str(dl_config.get("arch", "tcn")).strip().lower(),
@@ -123,13 +144,15 @@ def parse_dl_params(
         "rnn_num_layers": rnn["num_layers"],
         "rnn_dropout": rnn["dropout"],
         "lookback": lookback,
-        "epochs": int(dl_config.get("training_epochs", 128)),
+        "epochs": int(dl_config.get("training_epochs", 50)),
+        "early_stopping_patience": max(1, int(dl_config.get("early_stopping_patience", 6))),
         "training_batch_size": int(dl_config.get("training_batch_size", 512)),
-        "training_log_every_n_epochs": max(1, int(dl_config.get("training_log_every_n_epochs", 16))),
+        "training_log_every_n_epochs": max(1, int(dl_config.get("training_log_every_n_epochs", 5))),
         "training_device": str(dl_config.get("training_device", "auto")).strip().lower(),
         "inference_device": str(dl_config.get("inference_device", "auto")).strip().lower(),
         "lr": float(dl_config.get("learning_rate", 0.0012)),
-        "validation_bars": int(dl_config.get("validation_bars", 96)),
+        "validation_bars": validation_bars,
+        "validation_ratio": float(dl_config.get("validation_ratio", 0.15)),
         "calib_ratio": float(dl_config.get("calib_ratio", 0.15)),
         "min_val_accuracy": float(dl_config.get("min_val_accuracy", 0.53)),
         "confidence_call_threshold": float(dl_config.get("confidence_call_threshold", 0.75)),

@@ -122,7 +122,7 @@ def test_load_checkpoint_invalid_torchscript(tmp_path):
 
 
 def test_attach_microstructure_valid_arrays():
-    series = {"returns": np.zeros(3)}
+    series = {"log_return": np.zeros(3)}
     micro = {
         k: np.arange(3, dtype=np.float64)
         for k in (

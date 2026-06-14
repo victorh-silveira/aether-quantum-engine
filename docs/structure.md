@@ -36,7 +36,7 @@ aether-quantum-engine/
 
 | Pasta | Responsabilidade |
 |-------|------------------|
-| `application/services/deep_learning` | `dl_labels`, `dl_hurst`, `dl_feature_build` (18D), TCN/LSTM/GRU, treino walk-forward deferido, gating por threshold 0.75/0.25, deploy gate, TorchScript |
+| `application/services/deep_learning` | `dl_labels`, `dl_hurst`, `dl_feature_build` (19D), TCN/LSTM/GRU, treino walk-forward deferido, gating por threshold 0.75/0.25, deploy gate, TorchScript |
 | `application/services/orchestrator` | `Orchestrator`, `ExecutionManager` (fases treino/operação), `execution_collect`, settlement, `post_settlement_cycle` |
 | `application/services` | `execution_direction`, `execution_market_rank`, `execution_mandatory_pick`, `execution_symbols`, `execution_symbols_recovery`, `log_dedupe`, `auth_manager` |
 | `domain` | `Candle`, `Trade`, `RiskManager`, Kelly, martingale, cooldowns, `stake_sizing` |
@@ -51,9 +51,9 @@ Decisão exclusivamente Deep Learning quando `deep_learning.enabled` é verdadei
 |---------|--------|
 | `dl_labels.py` | Rótulos binários alinhados ao contrato (horizon = 1 barra) |
 | `dl_hurst.py` | Hurst exponent e variance ratio |
-| `dl_feature_build.py` | 18 features (micro + tradicionais + vol + persistência) |
+| `dl_feature_build.py` | 19 features (micro + tradicionais + vol + persistência) |
 | `dl_tcn.py` / `dl_lstm.py` | Arquiteturas de rede |
-| `model.py` | Factory TCN/LSTM/GRU, checkpoint v3, TorchScript |
+| `model.py` | Factory TCN/LSTM/GRU, checkpoint v4, TorchScript |
 | `dl_gating.py` / `dl_predict.py` | Threshold 0.75/0.25 e predição |
 | `tick_buffer.py` | Agregação de microestrutura por barra |
 

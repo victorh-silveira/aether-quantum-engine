@@ -38,7 +38,7 @@ def test_symbol_vol_target_invalid_suffix():
 
 
 def test_attach_microstructure_partial_arrays():
-    series = {"returns": np.zeros(4)}
+    series = {"log_return": np.zeros(4)}
     attach_microstructure(series, {"tick_count": np.ones(2)})
     assert len(series["tick_count"]) == 4
     attach_microstructure(series, None)

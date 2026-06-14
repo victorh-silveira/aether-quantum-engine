@@ -86,6 +86,9 @@ def train_model_walkforward(
     y_val, mask_val = y_all[val_sl], mask_all[val_sl]
     y_calib = y_all[calib_sl]
     weights = sample_weights if sample_weights and len(sample_weights) == len(y_train) else [1.0] * len(y_train)
+    patience = 6
+    if dl_config is not None:
+        patience = max(1, int(dl_config.get("early_stopping_patience", 6)))
     avg_loss, best_state, epochs_ran = fit_training_epochs(
         model,
         x_train,
@@ -102,6 +105,7 @@ def train_model_walkforward(
         weight_decay=weight_decay,
         label_smoothing=0.0,
         focal_gamma=0.0,
+        early_stopping_patience=patience,
         progress_cb=progress_cb,
     )
     if best_state is not None:

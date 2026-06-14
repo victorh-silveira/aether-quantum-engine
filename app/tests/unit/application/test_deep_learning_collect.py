@@ -7,6 +7,7 @@ from src.application.services.deep_learning.dl_params import (
     bars_per_day,
     parse_dl_params,
     resolve_training_history_bars,
+    resolve_validation_bars,
     slice_dl_ohlc_window,
     slice_dl_price_window,
 )
@@ -22,8 +23,15 @@ from src.domain.models.trade import TradeDirection
 
 def test_bars_per_day_and_training_history_window():
     assert bars_per_day(60) == 1440
-    assert resolve_training_history_bars({}, {"granularity": 60}) == 2880
+    assert resolve_training_history_bars({}, {"granularity": 60}) == 129600
     assert resolve_training_history_bars({"training_history_bars": 120}, {}) == 120
+    ratio_val = resolve_validation_bars(
+        {"validation_ratio": 0.15},
+        training_history_bars=130000,
+        lookback=30,
+        label_horizon_bars=1,
+    )
+    assert ratio_val == 19495
     prices = np.arange(400, dtype=np.float64)
     trimmed = slice_dl_price_window(prices, training_history_bars=288)
     assert len(trimmed) == 288
@@ -47,8 +55,15 @@ def test_bars_per_day_and_training_history_window():
 
 
 def test_parse_dl_params():
-    full = parse_dl_params({"lookback": 48}, {"granularity": 60}, {"duration": 60, "duration_unit": "s"})
-    assert full["training_history_bars"] == 2880
+    full = parse_dl_params(
+        {"lookback": 30, "validation_ratio": 0.15, "training_history_bars": 130000},
+        {"granularity": 60},
+        {"duration": 60, "duration_unit": "s"},
+    )
+    assert full["training_history_bars"] == 130000
+    assert full["validation_bars"] == 19495
+    assert full["epochs"] == 50
+    assert full["early_stopping_patience"] == 6
     assert full["label_horizon_bars"] == 1
     assert full["confidence_call_threshold"] == 0.75
     assert full["confidence_put_threshold"] == 0.25

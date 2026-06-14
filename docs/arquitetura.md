@@ -32,7 +32,7 @@ flowchart LR
     TB[TickBuffer]
   end
   subgraph dl
-    FEAT[dl_features 18D]
+    FEAT[dl_features 19D]
     MODEL[TCN ou LSTM/GRU]
     CAL[dl_calibration opcional]
     GATE[dl_gating threshold 0.75/0.25]
@@ -84,13 +84,13 @@ horizon = duration / granularity  →  60 s / 60 s = 1 barra
 
 Treino BCE puro em todas as amostras válidas (sem meta-labeling).
 
-**18 features** (`FEATURE_DIM` em `dl_feature_build.py`):
+**19 features** (`FEATURE_DIM` em `dl_feature_build.py`):
 
 | Grupo | Dim | Conteúdo |
 |-------|-----|----------|
 | Microestrutura | 5 | diff consecutiva, velocidade, aceleração, std diffs, ticks/barra |
-| Tradicionais | 8 | RSI, Bollinger %B e width, ATR norm, spreads EMA, distância SMA |
-| Volatilidade | 3 | vol rolling, vol vs alvo do símbolo, z-score |
+| Tradicionais | 9 | RSI, delta-RSI, BB %B e width, ATR norm, distância EMA20/50, log-return, ROC |
+| Volatilidade | 3 | vol rolling (log-return), vol vs alvo do símbolo, z-score |
 | Persistência | 2 | Hurst (R/S, janela 64), variance ratio |
 
 `dl_hurst.py` implementa `hurst_exponent` com fallback estável para séries curtas.
@@ -105,7 +105,7 @@ Treino BCE puro em todas as amostras válidas (sem meta-labeling).
 - TCN dilatada (`dl_tcn.py` / `TemporalDirectionClassifier`).
 - LSTM/GRU bidirecional leve (`dl_lstm.py`) + head sigmoid.
 - Saída: probabilidade bruta de alta (`raw_prob`).
-- Checkpoint v3 em `data/dl/{symbol}.pth` com trace **TorchScript** (`{symbol}_ts.pt`) para inferência rápida.
+- Checkpoint v4 em `data/dl/{symbol}.pth` com trace **TorchScript** (`{symbol}_ts.pt`) para inferência rápida.
 - `dl_symbol_runtime.py` prefere modelo scripted; fallback eager.
 
 ### 3.3 Treino walk-forward
@@ -113,7 +113,7 @@ Treino BCE puro em todas as amostras válidas (sem meta-labeling).
 `train_model_walkforward` (`dl_training.py`):
 
 - Splits temporais com embargo (`dl_splits.py`): treino / validação / calibração.
-- Early stopping em score composto (val accuracy + anti-Brier).
+- Early stopping pela perda de validação (patience configurável).
 - Calibrador Platt opcional (logging); execução usa **prob raw** no threshold.
 - Callback de progresso por época (`progress_cb`) registrado em `run_symbol_training` como `DL TREINO | epoca X/Y`.
 - Checkpoint em `data/dl/{symbol}.pth`.

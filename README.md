@@ -23,7 +23,7 @@ Layout: `app/` (código e testes), `config/settings.json`, `docs/`, `linters/`. 
 |-------|------------|-----------|
 | Dados | `StreamHandler` + `TickBuffer` | WebSocket Deriv, OHLC 60 s, ticks agregados por barra (microestrutura) |
 | Fases | `_training_phase_gate` | Suspende a operação até todos os modelos concluírem o treino da sessão |
-| Decisão | `decision_bridge` + TCN/LSTM/GRU | 18 features, labels binários (horizon 1 barra), treino walk-forward deferido, gating 0.75/0.25 |
+| Decisão | `decision_bridge` + TCN/LSTM/GRU | 19 features, labels binários (horizon 1 barra), treino walk-forward deferido, gating 0.75/0.25 |
 | Execução | `ExecutionManager` | Operação seletiva: só entra com `raw_prob >= 0.75` ou `<= 0.25`; ranking entre candidatos elegíveis |
 | Risco | `RiskManager` | Kelly fracionário, stop win diário, martingale em recovery, cooldown por símbolo |
 | Estado | `PersistenceManager` | `data/state.json`, checkpoints `data/dl/{symbol}.pth` + TorchScript `_ts.pt` |
@@ -132,7 +132,7 @@ WSL: `make pre-commit-run`
 3. Valide checkpoints DL em `app/data/dl/`.
 4. `make run` ou `launch-all-demo.bat` / `launch-all-live.bat`
 
-O motor exige `deep_learning.enabled: true`. Checkpoints antigos (FEATURE_DIM 19) são invalidados — o bootstrap retreina na primeira execução. Não há modo de decisão alternativo no pipeline ao vivo.
+O motor exige `deep_learning.enabled: true`. Checkpoints antigos (FEATURE_DIM diferente de 19 ou versão < 4) são invalidados — o bootstrap retreina na primeira execução. Não há modo de decisão alternativo no pipeline ao vivo.
 
 ---
 

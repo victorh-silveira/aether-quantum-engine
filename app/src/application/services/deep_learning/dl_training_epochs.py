@@ -47,6 +47,32 @@ def _shuffled_batch_indices(n: int, batch_size: int) -> list[np.ndarray]:
     return [order[i : i + size] for i in range(0, n, size)]
 
 
+def _validation_loss(
+    model,
+    x_val: np.ndarray,
+    y_val: np.ndarray,
+    mask_val: np.ndarray,
+    device: torch.device,
+) -> float:
+    """Calcula perda de validacao mascarada sem gradiente."""
+    model.eval()
+    with torch.no_grad():
+        weights = [1.0] * len(y_val)
+        loss = _masked_loss(
+            model,
+            x_val,
+            y_val,
+            mask_val,
+            weights,
+            device,
+            label_smoothing=0.0,
+            focal_gamma=0.0,
+        )
+        value = float(loss.item())
+    model.train()
+    return value if math.isfinite(value) else float("inf")
+
+
 def fit_training_epochs(
     model,
     x_train: np.ndarray,
@@ -64,9 +90,10 @@ def fit_training_epochs(
     weight_decay: float,
     label_smoothing: float,
     focal_gamma: float,
+    early_stopping_patience: int = 6,
     progress_cb=None,
 ) -> tuple[float, None | dict, int]:
-    """Executa epocas de treino e guarda o melhor estado pela validacao."""
+    """Executa epocas de treino com early stopping pela perda de validacao."""
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=max(0.0, weight_decay))
     scheduler = optim.lr_scheduler.CosineAnnealingLR(
         optimizer,
@@ -76,7 +103,9 @@ def fit_training_epochs(
     model.train()
     total_loss = 0.0
     best_state = None
-    best_score = -1.0
+    best_val_loss = float("inf")
+    patience = max(1, int(early_stopping_patience))
+    patience_counter = 0
     total_epochs = max(1, epochs)
     epochs_ran = 0
     weight_arr = np.asarray(weights, dtype=np.float32)
@@ -113,15 +142,17 @@ def fit_training_epochs(
             continue
         total_loss += mean_epoch_loss
         val_acc = model_accuracy(model, x_val, y_val, mask_val)
+        val_loss = _validation_loss(model, x_val, y_val, mask_val, device)
         if progress_cb is not None:
             progress_cb(epochs_ran, total_epochs, mean_epoch_loss, float(val_acc))
-        with torch.no_grad():
-            val_probs = model(tensor_from_numpy(x_val, device)).squeeze(-1).detach().cpu().numpy()
-        val_brier = float(np.mean((val_probs - y_val) ** 2)) if len(y_val) else 1.0
-        score = 0.6 * val_acc + 0.4 * (1.0 - val_brier)
-        if score >= best_score:
-            best_score = score
+        if val_loss + 1e-9 < best_val_loss:
+            best_val_loss = val_loss
             best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+            patience_counter = 0
+        else:
+            patience_counter += 1
+            if patience_counter >= patience:
+                break
         scheduler.step()
     avg = total_loss / max(epochs_ran, 1)
     return avg, best_state, epochs_ran

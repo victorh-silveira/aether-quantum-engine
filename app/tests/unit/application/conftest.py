@@ -35,7 +35,10 @@ def orch_config():
             "confidence_call_threshold": 0.75,
             "confidence_put_threshold": 0.25,
             "min_val_accuracy": 0.53,
-            "lookback": 48,
+            "lookback": 30,
+            "training_history_bars": 120,
+            "validation_bars": 10,
+            "training_epochs": 2,
         },
         "data_handler": {"fetch_count": 100, "min_required_points": 2, "buffer_limit": 1000},
         "strategy": {

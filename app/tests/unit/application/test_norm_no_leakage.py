@@ -1,10 +1,11 @@
 import numpy as np
 
+from src.application.services.deep_learning.dl_features import FEATURE_DIM
 from src.application.services.deep_learning.model import fit_norm_stats, normalize_sequences
 
 
 def test_norm_fit_only_on_train_slice():
-    x = np.random.default_rng(0).normal(size=(100, 48, 18)).astype(np.float32)
+    x = np.random.default_rng(0).normal(size=(100, 48, FEATURE_DIM)).astype(np.float32)
     train_sl = slice(0, 70)
     val_sl = slice(70, 100)
     stats = fit_norm_stats(x[train_sl])

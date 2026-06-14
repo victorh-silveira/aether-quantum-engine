@@ -17,7 +17,7 @@ from tests.unit.application.dl_collect_fixtures import MockOrchestrator
 
 
 def test_min_dl_history_len_standard():
-    assert _min_dl_history_len({"lookback": 32, "validation_bars": 10, "training_history_bars": 100}) == 62
+    assert _min_dl_history_len({"lookback": 32, "validation_bars": 10, "training_history_bars": 100}) == 100
 
 
 def test_insufficient_data_entry_gate_reason():

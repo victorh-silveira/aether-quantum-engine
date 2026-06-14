@@ -10,7 +10,7 @@ from src.application.services.deep_learning.dl_features import FEATURE_DIM
 
 INPUT_DIM = FEATURE_DIM
 DEFAULT_ARCH = "tcn"
-CHECKPOINT_VERSION = 3
+CHECKPOINT_VERSION = 4
 
 
 @dataclass
