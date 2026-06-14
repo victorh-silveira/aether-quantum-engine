@@ -1,3 +1,9 @@
+## [1.12.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.11.0...v1.12.0) (2026-06-14)
+
+### Funcionalidades
+
+* **engine:** separa treino e execucao e reorganiza layout do repo ([de1494d](https://github.com/victorh-silveira/aether-quantum-engine/commit/de1494dc5d6b33a9ac264c17d1b3b9a8b9421be6))
+
 ## [1.11.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.10.0...v1.11.0) (2026-06-14)
 
 ### Funcionalidades
