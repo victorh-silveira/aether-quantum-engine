@@ -17,6 +17,7 @@ async def main() -> int:
     if auth is None:
         return 1
     orchestrator = Orchestrator(config, auth)
+    logger.info("Treino DL iniciado | simbolos=%d", len(orchestrator.symbols))
     try:
         ok = await orchestrator.run_training()
     except (asyncio.CancelledError, KeyboardInterrupt):

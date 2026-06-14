@@ -91,8 +91,10 @@ async def fetch_paginated_candle_history(
     max_retries = int(fetch_cfg["max_retries"])
     backoff_base = float(fetch_cfg["backoff_base"])
     backoff_cap = float(fetch_cfg["backoff_cap"])
+    chunk_index = 0
 
     while len(merged) < goal:
+        chunk_index += 1
         need = min(chunk_size, goal - len(merged))
         request = {
             "ticks_history": symbol,
@@ -130,6 +132,8 @@ async def fetch_paginated_candle_history(
             break
         batch = candles_from_payload(symbol, history)
         merged = merge_candle_pages(merged, batch)
+        if chunk_index == 1 or chunk_index % 25 == 0 or len(merged) >= goal:
+            logger.info("DATA: %s | %d/%d velas", symbol, len(merged), goal)
         if len(history) < need:
             break
         end = int(history[0]["epoch"]) - 1

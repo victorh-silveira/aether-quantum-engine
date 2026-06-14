@@ -19,7 +19,7 @@ aether-quantum-engine/
 │   ├── scripts/
 │   │   ├── batch/                 # launch-all-demo, launch-train, _run_engine
 │   │   ├── monitor/               # live_monitor
-│   │   ├── operations/            # clean_workspace (lint/test CI local)
+│   │   ├── operations/            # clean_workspace, deriv_pat_connect, reset_demo_balance
 │   │   └── wsl/                   # setup.sh (WSL)
 │   ├── aether_paths.py
 │   ├── run.py                     # Entrada de execução (modo execute)

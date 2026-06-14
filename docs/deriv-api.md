@@ -7,7 +7,7 @@
 | Aspecto | Implementação no projeto |
 |---------|-------------------------|
 | Credenciais | `.env`: `AETHER_DERIV_PAT`, `AETHER_DERIV_APP_ID`; opcional `AETHER_DERIV_ACCOUNT_ID` |
-| Validação | `python app/scripts/deriv_pat_connect.py` |
+| Validação | `python app/scripts/operations/deriv_pat_connect.py` |
 | REST | `DerivRestClient` → `GET /trading/v1/options/accounts`, `POST .../otp` |
 | WebSocket ao vivo | URL retornada pelo OTP (`wss://api.derivws.com/trading/v1/options/ws/demo?otp=...`) |
 | Dados publicos / backtest | `api_config.public_ws_url` (sem OTP) |

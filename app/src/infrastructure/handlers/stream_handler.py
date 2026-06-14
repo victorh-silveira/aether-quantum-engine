@@ -59,10 +59,18 @@ class StreamHandler:
         if not self.ws.is_running:
             raise ConnectionError("STREAM: WebSocket desconectado antes da sincronização.")
 
-        self.logger.debug(f"DATA: Sincronizando Enxame Aegis ({len(self.symbols)} pares - OHLC {self.granularity}s)...")
+        self.logger.info(
+            "DATA: Sincronizando historico | %d simbolos | alvo %d velas | aguarde",
+            len(self.symbols),
+            fetch_count,
+        )
         fetch_cfg = parse_history_fetch_config(self.config)
-        for symbol in self.symbols:
+        total = len(self.symbols)
+        for index, symbol in enumerate(self.symbols, start=1):
+            self.logger.info("DATA: Historico %s (%d/%d) | iniciando", symbol, index, total)
             await self._fetch_symbol_history(symbol, fetch_count, fetch_cfg=fetch_cfg)
+            bars = len(self.candles.get(symbol, []))
+            self.logger.info("DATA: Historico %s (%d/%d) | %d velas", symbol, index, total, bars)
             symbol_delay = float(fetch_cfg["symbol_delay"])
             if symbol_delay > 0:
                 await asyncio.sleep(symbol_delay)

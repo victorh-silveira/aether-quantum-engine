@@ -166,5 +166,5 @@ def discover_app_id_for_pat(
         "App ID nao encontrado para esta PAT. A Deriv exige PAT + App ID do mesmo app em developers.deriv.com. "
         "Opcoes organicas: (1) AETHER_DERIV_PAT=pat_...|SEU_APP_ID no .env; "
         "(2) arquivo config/deriv_pat_app_id com uma linha; "
-        "(3) python app/scripts/deriv_pat_connect.py --app-id SEU_ID --save-binding"
+        "(3) python app/scripts/operations/deriv_pat_connect.py --app-id SEU_ID --save-binding"
     )

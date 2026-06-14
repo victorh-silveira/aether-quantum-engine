@@ -53,7 +53,9 @@ class AuthManager:
         """Monta cliente REST autenticado com PAT e App ID validos."""
         token = self.get_pat()
         if not token:
-            raise DerivRestError("AETHER_DERIV_PAT ausente. Valide com: python app/scripts/deriv_pat_connect.py")
+            raise DerivRestError(
+                "AETHER_DERIV_PAT ausente. Valide com: python app/scripts/operations/deriv_pat_connect.py"
+            )
         app_id = self._ensure_deriv_app_id()
         if not app_id:
             raise DerivRestError("AETHER_DERIV_APP_ID ausente (config/deriv_pat_app_id ou pat_...|APP_ID no .env)")

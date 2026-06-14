@@ -250,6 +250,8 @@ Banner de startup: `decision_mode_banner.emit_decision_engine_banner` (DL ou ina
 | Log ao vivo | `logs/engine.log` |
 | Monitor Rich | `app/scripts/monitor/live_monitor.py` |
 | CI local | `app/scripts/operations/clean_workspace.py` |
+| PAT Deriv | `app/scripts/operations/deriv_pat_connect.py` |
+| Reset demo | `app/scripts/operations/reset_demo_balance.py` |
 
 ---
 

@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 
-_APP = Path(__file__).resolve().parents[1]
+_APP = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_APP))
 
 from dotenv import load_dotenv
@@ -34,7 +34,7 @@ def _print_app_id_help() -> None:
         "  3. Endpoint: GET /trading/v1/options/accounts > Send\n"
         "  4. Se status 200: F12 > Rede > request accounts > header Deriv-App-ID\n"
         "  5. Rode de novo este script e cole o valor quando pedido,\n"
-        "     ou: python app/scripts/deriv_pat_connect.py --app-id VALOR --save-binding\n"
+        "     ou: python app/scripts/operations/deriv_pat_connect.py --app-id VALOR --save-binding\n"
     )
 
 

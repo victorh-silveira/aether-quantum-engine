@@ -34,7 +34,7 @@ def create_authenticated_auth(config: dict[str, Any], logger: logging.Logger) ->
     if not token:
         logger.error(
             "Token Deriv ausente. Defina AETHER_DERIV_PAT no .env (ou pat_...|APP_ID). "
-            "Valide: python app/scripts/deriv_pat_connect.py"
+            "Valide: python app/scripts/operations/deriv_pat_connect.py"
         )
         return None
     try:

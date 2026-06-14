@@ -46,7 +46,7 @@ Arquivo: [`config/settings.json`](config/settings.json)
 | `risk_management.params` | `duration: 60`, stakes |
 | `trading` | `demo` / `live` |
 
-Variáveis na raiz (`.env`): `AETHER_DERIV_PAT`, `AETHER_DERIV_APP_ID`, `AETHER_DERIV_ACCOUNT_ID` (opcional). Validação: `python app/scripts/deriv_pat_connect.py`.
+Variáveis na raiz (`.env`): `AETHER_DERIV_PAT`, `AETHER_DERIV_APP_ID`, `AETHER_DERIV_ACCOUNT_ID` (opcional). Validação: `python app/scripts/operations/deriv_pat_connect.py`.
 
 ---
 
@@ -99,7 +99,7 @@ Windows: abra **Anaconda PowerShell Prompt**, `conda activate deriv-api`:
 ```powershell
 conda activate deriv-api
 pip install -r app/requirements.txt -r app/requirements-dev.txt
-python app/scripts/deriv_pat_connect.py
+python app/scripts/operations/deriv_pat_connect.py
 python train.py
 python run.py
 ```

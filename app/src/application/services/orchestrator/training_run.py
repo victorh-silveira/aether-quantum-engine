@@ -6,9 +6,16 @@ from src.application.services.orchestrator.decision_mode_banner import emit_deci
 
 async def run_orchestrator_training(orch) -> bool:
     """Conecta, sincroniza velas, treina modelos DL e encerra a sessao."""
+    orch.logger.info("INIT: Treino DL | conectando Deriv")
     if not await orch._setup_session():
         orch.logger.error("INIT: Abortando treino (falha em PAT, OTP ou WebSocket).")
         return False
+    fetch_count = orch.stream._resolve_fetch_count()
+    orch.logger.info(
+        "INIT: Treino DL | sincronizando %d simbolos | alvo %d velas",
+        len(orch.symbols),
+        fetch_count,
+    )
     if not await orch._start_streams():
         orch.logger.error("INIT: Abortando treino (falha ao sincronizar velas OHLC).")
         return False
