@@ -68,6 +68,14 @@ def test_parse_dl_params():
     assert full["label_horizon_bars"] == 1
     assert full["confidence_call_threshold"] == 0.75
     assert full["confidence_put_threshold"] == 0.25
+    assert full["inference_history_bars"] < full["training_history_bars"]
+    assert full["inference_history_bars"] >= full["lookback"] + 16
+    explicit = parse_dl_params(
+        {"lookback": 30, "training_history_bars": 500, "inference_history_bars": 80},
+        {"granularity": 300},
+        {},
+    )
+    assert explicit["inference_history_bars"] == 80
     tcn = parse_dl_params({"tcn": {"channels": [64, 32, 16], "dropout": 0.2}})
     assert tcn["tcn_channels"] == (64, 32, 16)
     assert tcn["tcn_dropout"] == 0.2

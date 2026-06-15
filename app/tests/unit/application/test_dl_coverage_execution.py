@@ -117,7 +117,29 @@ def test_load_checkpoint_invalid_torchscript(tmp_path):
     )
     bad_ts = path.with_name(path.stem + "_ts.pt")
     bad_ts.write_bytes(b"not-script")
-    loaded = load_model_checkpoint(path)
+    loaded = load_model_checkpoint(path, params={"use_torchscript": True})
+    assert loaded is not None
+
+
+def test_load_checkpoint_uses_torchscript_when_enabled(tmp_path):
+    model = create_direction_model(arch="tcn", input_dim=INPUT_DIM)
+    path = tmp_path / "m.pth"
+    save_model_checkpoint(
+        path,
+        model,
+        FeatureNormStats(
+            mean=np.zeros(INPUT_DIM, dtype=np.float32),
+            std=np.ones(INPUT_DIM, dtype=np.float32),
+        ),
+        1,
+        lookback=8,
+        val_accuracy=0.55,
+        val_brier=0.2,
+        val_ece=0.1,
+        deploy_ok=True,
+        deploy_win_rate=0.6,
+    )
+    loaded = load_model_checkpoint(path, params={"use_torchscript": True})
     assert loaded is not None
 
 

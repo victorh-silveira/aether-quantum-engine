@@ -84,6 +84,40 @@ def _best_directional_signal(decisions: dict[str, dict]) -> tuple[str, float] | 
     return best_symbol, best_score
 
 
+def _abstain_detail(decisions: dict[str, dict]) -> str:
+    """Resume simbolos bloqueados com probabilidade bruta quando disponivel."""
+    tokens: list[str] = []
+    for symbol, entry in decisions.items():
+        metrics = entry.get("metrics") or {}
+        if metrics.get("gate_reason") == "training":
+            continue
+        raw = metrics.get("raw_prob")
+        gate = metrics.get("gate_reason") or "block"
+        if raw is not None:
+            tokens.append(f"{symbol}:r{float(raw):.2f}:{gate}")
+        else:
+            tokens.append(f"{symbol}:{gate}")
+    return ",".join(tokens[:4])
+
+
+def _all_blocked_brief(
+    tag: str,
+    *,
+    blocked: int,
+    no_data: int,
+    decisions: dict[str, dict],
+    train_part: str,
+) -> str | None:
+    """Monta linha quando todos os simbolos foram bloqueados no ciclo."""
+    if blocked != len(decisions) or not decisions:
+        return None
+    if no_data == len(decisions):
+        return f"DL {tag}| sem exec | {no_data} sem dados{train_part}"
+    detail = _abstain_detail(decisions)
+    suffix = f"aguardando sinal | [{detail}]" if detail else f"{blocked} bloq"
+    return f"DL {tag}| sem exec | {suffix}{train_part}"
+
+
 def build_dl_cycle_brief(
     decisions: dict[str, dict],
     *,
@@ -119,8 +153,15 @@ def build_dl_cycle_brief(
         return f"DL {tag}| exec {head}{more}{tail}{train_part}"
     if training == len(decisions):
         return f"DL {tag}| TREINO INICIAL | {training} modelo(s) em treinamento | trades suspensos"
-    if blocked == len(decisions):
-        return ""
+    blocked_msg = _all_blocked_brief(
+        tag,
+        blocked=blocked,
+        no_data=no_data,
+        decisions=decisions,
+        train_part=train_part,
+    )
+    if blocked_msg is not None:
+        return blocked_msg
     if no_data:
         return f"DL {tag}| sem exec | {no_data} sem dados{train_part}"
     return f"DL {tag}| sem exec | {blocked} bloq{train_part}"
@@ -146,8 +187,6 @@ def log_dl_cycle_summary(
         decisions,
         recovery_active=recovery_active,
     )
-    if not brief:
-        return
     if orch is None:
         logger.info(brief)
         return

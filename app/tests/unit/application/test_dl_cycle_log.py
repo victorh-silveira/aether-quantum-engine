@@ -1,6 +1,7 @@
 import logging
 
 from src.application.services.deep_learning.dl_cycle_log import (
+    _abstain_detail,
     _best_directional_signal,
     build_dl_cycle_brief,
     build_dl_cycle_summary,
@@ -135,13 +136,30 @@ def test_build_dl_cycle_summary_training_tokens():
     assert "treino=[R_50,R_75]" in line
 
 
-def test_build_dl_cycle_brief_recovery_all_blocked_silent():
+def test_abstain_detail_skips_training_symbols():
     decisions = {
-        "R_50": {"direction": None, "metrics": {"gate_reason": "conviction", "execute": False}},
-        "R_75": {"direction": None, "metrics": {"gate_reason": "edge", "execute": False}},
+        "R_50": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}},
+        "R_75": {"direction": None, "metrics": {"gate_reason": "confidence", "raw_prob": 0.52}},
+    }
+    detail = _abstain_detail(decisions)
+    assert detail == "R_75:r0.52:confidence"
+
+
+def test_build_dl_cycle_brief_all_blocked_without_raw_prob():
+    decisions = {
+        "R_50": {"direction": TradeDirection.CALL, "metrics": {"gate_reason": "edge", "execute": False}},
+    }
+    line = build_dl_cycle_brief(decisions, recovery_active=False)
+    assert "R_50:edge" in line
+
+
+def test_build_dl_cycle_brief_recovery_all_blocked_shows_abstain():
+    decisions = {
+        "R_50": {"direction": None, "metrics": {"gate_reason": "conviction", "execute": False, "raw_prob": 0.52}},
+        "R_75": {"direction": None, "metrics": {"gate_reason": "edge", "execute": False, "raw_prob": 0.48}},
     }
     line = build_dl_cycle_brief(decisions, recovery_active=True)
-    assert line == ""
+    assert "aguardando sinal" in line
 
 
 def test_best_directional_signal_skips_training():
@@ -174,15 +192,21 @@ def test_best_directional_signal_returns_none_when_all_skipped():
     assert _best_directional_signal(decisions) is None
 
 
-def test_build_dl_cycle_brief_recovery_all_blocked_returns_empty():
+def test_build_dl_cycle_brief_recovery_all_blocked_returns_detail():
     decisions = {
         "R_75": {
             "direction": TradeDirection.CALL,
-            "metrics": {"execute": False, "trade_score": 0.55, "raw_prob": 0.53, "val_accuracy": 0.67},
+            "metrics": {
+                "execute": False,
+                "trade_score": 0.55,
+                "raw_prob": 0.53,
+                "val_accuracy": 0.67,
+                "gate_reason": "confidence",
+            },
         },
     }
     line = build_dl_cycle_brief(decisions, recovery_active=True)
-    assert line == ""
+    assert "R_75:r0.53" in line
 
 
 def test_build_dl_cycle_brief_partial_no_data():
@@ -208,24 +232,31 @@ def test_log_dl_cycle_summary_logs_info_without_orch(caplog):
     assert any(r.levelname == "INFO" and "exec R_50:CALL" in r.message for r in caplog.records)
 
 
-def test_build_dl_cycle_brief_normal_all_blocked_silent():
+def test_build_dl_cycle_brief_normal_all_blocked_shows_abstain():
     decisions = {
-        "R_50": {"direction": TradeDirection.CALL, "metrics": {"gate_reason": "edge", "execute": False}},
-        "R_75": {"direction": TradeDirection.PUT, "metrics": {"gate_reason": "brier", "execute": False}},
+        "R_50": {
+            "direction": TradeDirection.CALL,
+            "metrics": {"gate_reason": "edge", "execute": False, "raw_prob": 0.58},
+        },
+        "R_75": {
+            "direction": TradeDirection.PUT,
+            "metrics": {"gate_reason": "brier", "execute": False, "raw_prob": 0.42},
+        },
     }
     line = build_dl_cycle_brief(decisions, recovery_active=False)
-    assert line == ""
+    assert "aguardando sinal" in line
+    assert "R_50:r0.58" in line
 
 
 def test_log_dl_cycle_summary_skips_info_when_recovery_brief_empty(caplog):
     logger = logging.getLogger("test_dl_cycle_log_recovery_empty")
     logger.setLevel(logging.DEBUG)
     decisions = {
-        "R_50": {"direction": None, "metrics": {"gate_reason": "conviction", "execute": False}},
+        "R_50": {"direction": None, "metrics": {"gate_reason": "conviction", "execute": False, "raw_prob": 0.52}},
     }
     with caplog.at_level(logging.DEBUG):
         log_dl_cycle_summary(logger, decisions, recovery_active=True, pending_loss_total=10.0)
-    assert not any(r.levelname == "INFO" for r in caplog.records)
+    assert any(r.levelname == "INFO" and "aguardando sinal" in r.message for r in caplog.records)
 
 
 def test_log_dl_cycle_summary(caplog):
@@ -240,4 +271,4 @@ def test_log_dl_cycle_summary(caplog):
     with caplog.at_level(logging.DEBUG):
         log_dl_cycle_summary(logger, decisions, recovery_active=False, pending_loss_total=0.0)
     assert "DL | NORMAL" in caplog.text
-    assert not any(r.levelname == "INFO" and "sem exec" in r.message for r in caplog.records)
+    assert any(r.levelname == "INFO" and "aguardando sinal" in r.message for r in caplog.records)

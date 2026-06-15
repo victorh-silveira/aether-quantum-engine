@@ -1,5 +1,6 @@
 """Ponte de decisao do Deep Learning para o Orquestrador."""
 
+import asyncio
 import logging
 
 from src.application.services.deep_learning.dl_bridge_helpers import (
@@ -96,42 +97,57 @@ async def _collect_symbol_decision(
     train_priority: frozenset[str] = frozenset(),
 ) -> tuple[dict, str | None]:
     """Treina (se necessario), prediz e aplica gates para um simbolo."""
-    prices, open_, high, low = load_symbol_close_ohlc(orch, symbol)
-    if len(prices) < min_len:
-        logger.debug("DL: Historico insuficiente para %s (%d/%d velas).", symbol, len(prices), min_len)
+    prices_raw, open_raw, high_raw, low_raw = load_symbol_close_ohlc(orch, symbol)
+    if len(prices_raw) < min_len:
+        logger.debug("DL: Historico insuficiente para %s (%d/%d velas).", symbol, len(prices_raw), min_len)
         return _insufficient_data_entry(), None
 
-    micro_full = load_symbol_microstructure(orch, symbol, len(prices))
+    micro_full = load_symbol_microstructure(orch, symbol, len(prices_raw))
+    train_bars = int(params["training_history_bars"])
     prices, open_, high, low = slice_dl_ohlc_window(
-        prices,
-        training_history_bars=int(params["training_history_bars"]),
-        open_=open_,
-        high=high,
-        low=low,
+        prices_raw,
+        training_history_bars=train_bars,
+        open_=open_raw,
+        high=high_raw,
+        low=low_raw,
     )
     micro = None
     if micro_full is not None:
         micro = {k: v[-len(prices) :] for k, v in micro_full.items()}
-    if len(prices) < min_len:
-        logger.debug("DL: Historico insuficiente apos recorte para %s (%d/%d).", symbol, len(prices), min_len)
+    infer_bars = int(params.get("inference_history_bars", train_bars))
+    prices_inf, open_inf, high_inf, low_inf = slice_dl_ohlc_window(
+        prices_raw,
+        training_history_bars=infer_bars,
+        open_=open_raw,
+        high=high_raw,
+        low=low_raw,
+    )
+    micro_inf = None
+    if micro_full is not None:
+        micro_inf = {k: v[-len(prices_inf) :] for k, v in micro_full.items()}
+    infer_min = max(int(params["lookback"]) + 5, infer_bars)
+    if len(prices_inf) < infer_min:
+        logger.debug("DL: Historico insuficiente para inferencia %s (%d/%d).", symbol, len(prices_inf), infer_min)
         return _insufficient_data_entry(), None
 
     runtime = get_symbol_runtime(orch, symbol, dl_config, params)
     epoch = candle_epoch(orch, symbol)
     train_loss = None
     train_reason = None
-    if training_enabled(orch):
-        do_train, reason = should_retrain_symbol(orch, symbol, runtime, params, epoch)
+    do_train, reason = should_retrain_symbol(orch, symbol, runtime, params, epoch)
+    bootstrap_train = reason == "bootstrap"
+    may_schedule_train = training_enabled(orch) or bootstrap_train
+    if may_schedule_train:
         if do_train and train_priority and str(symbol) not in train_priority:
             do_train, reason = False, ""
-        if do_train and reason == "bootstrap":
+        if do_train and bootstrap_train:
             first_pending = next((str(s) for s in orch.symbols if str(s) in train_priority), None)
             if first_pending is not None and str(symbol) != first_pending:
                 do_train, reason = False, ""
         if do_train:
             train_reason = reason
             skip_train = reason == "new_candle" and bool(getattr(orch, "_dl_fast_cycle", False))
-            if skip_train or reason == "bootstrap" and getattr(orch, "_dl_bootstrap_completed", False):
+            if skip_train or bootstrap_train and getattr(orch, "_dl_bootstrap_completed", False):
                 train_reason = None
             else:
                 enqueue_deferred_symbol_training(
@@ -149,21 +165,22 @@ async def _collect_symbol_decision(
                 )
     norm_stats = runtime["norm_stats"]
 
-    entry = predict_symbol_decision(
+    entry = await asyncio.to_thread(
+        predict_symbol_decision,
         orch,
         symbol,
         runtime["model"],
-        prices,
+        prices_inf,
         norm_stats,
         runtime,
         params,
         train_loss,
         recovery_active=recovery_active,
         granularity=granularity,
-        open_=open_,
-        high=high,
-        low=low,
-        micro=micro,
+        open_=open_inf,
+        high=high_inf,
+        low=low_inf,
+        micro=micro_inf,
     )
     entry = _apply_deploy_gate(entry, runtime, dl_config)
     entry = _apply_training_gate(entry, runtime, params)

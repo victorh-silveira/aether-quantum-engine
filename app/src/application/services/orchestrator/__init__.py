@@ -10,7 +10,6 @@ from src.application.services.deep_learning.decision_bridge import collect_deep_
 from src.application.services.deep_learning.dl_deferred_train import cancel_deferred_symbol_training
 from src.application.services.deep_learning.dl_retrain import tick_bars_since_train
 from src.application.services.orchestrator.config_symbols import normalize_symbols_and_anchor
-from src.application.services.orchestrator.decision_mode_banner import emit_decision_engine_banner
 from src.application.services.orchestrator.engine_mode import training_enabled
 from src.application.services.orchestrator.execution_manager import ExecutionManager
 from src.application.services.orchestrator.post_settlement_cycle import (
@@ -22,6 +21,7 @@ from src.application.services.orchestrator.settlement_backfill import reconcile_
 from src.application.services.orchestrator.settlement_logic import process_contract_settlement
 from src.application.services.orchestrator.trading_cycle_entry import (
     acquire_trading_cycle_lock,
+    prepare_orchestrator_run_loop,
     trading_cycle_entry_allowed,
 )
 from src.application.services.orchestrator.training_run import run_orchestrator_training
@@ -107,10 +107,7 @@ class Orchestrator:
         if not await self._start_streams():
             self.logger.error("INIT: Abortando motor (falha ao sincronizar velas OHLC).")
             return
-        self._last_cluster_cycle_end = time.time()
-        self.running = True
-        self._dl_bootstrap_completed = True
-        emit_decision_engine_banner(self.logger, self.config, decision_mode=self._decision_mode())
+        prepare_orchestrator_run_loop(self)
         await self._run_trading_cycle_if_ready()
         reconcile_counter = 0
         orch_cfg = self.config.get("orchestrator") if isinstance(self.config.get("orchestrator"), dict) else {}

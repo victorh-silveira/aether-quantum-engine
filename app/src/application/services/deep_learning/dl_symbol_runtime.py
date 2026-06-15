@@ -58,6 +58,7 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
         lookback = int(params["lookback"])
         deploy_ok = False
         deploy_win_rate = 0.0
+        session_trained = False
         if loaded is not None:
             (
                 model,
@@ -71,6 +72,7 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
                 deploy_ok,
                 deploy_win_rate,
             ) = loaded
+            session_trained = bool(deploy_ok) and float(val_brier) + 1e-9 < 0.99
             logger.debug("DL: Checkpoint carregado para %s em %s", symbol, path)
         else:
             model = create_direction_model(
@@ -101,7 +103,7 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
             "lookback": lookback,
             "deploy_ok": deploy_ok,
             "deploy_win_rate": deploy_win_rate,
-            "session_trained": False,
+            "session_trained": session_trained,
             "model_lock": threading.RLock(),
         }
     elif "model_lock" not in orch._dl_runtime[symbol]:

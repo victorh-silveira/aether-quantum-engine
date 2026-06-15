@@ -28,6 +28,7 @@ class MockOrchestrator:
                 "enabled": dl_enabled,
                 "lookback": 15,
                 "training_history_bars": 60,
+                "inference_history_bars": 35,
                 "training_epochs": 2,
                 "learning_rate": 0.001,
                 "validation_bars": 10,

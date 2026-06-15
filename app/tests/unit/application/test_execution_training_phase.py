@@ -57,7 +57,7 @@ async def test_execute_cluster_logs_operation_phase_once_after_training(orch_con
 
 
 @pytest.mark.asyncio
-async def test_execute_cluster_logs_missing_model_in_execute_mode(orch_config):
+async def test_execute_cluster_logs_training_phase_when_models_pending(orch_config):
     orch = _build_orch(orch_config)
     orch._active_cycle_id = 6
     orch._dl_training_symbols = frozenset(ALL_SYMBOLS[:1])
@@ -67,7 +67,8 @@ async def test_execute_cluster_logs_missing_model_in_execute_mode(orch_config):
     ):
         await orch.executor.execute_cluster({})
     mock_collect.assert_not_called()
-    assert any("MODELO AUSENTE" in str(c) for c in mock_info.call_args_list)
+    assert any("FASE TREINO" in str(c) for c in mock_info.call_args_list)
+    assert not any("MODELO AUSENTE" in str(c) for c in mock_info.call_args_list)
 
 
 @pytest.mark.asyncio

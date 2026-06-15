@@ -120,7 +120,8 @@ def load_model_checkpoint(
         logger.debug("DL: state_dict incompativel em %s; sera reiniciado.", path)
         return None
     scripted = _scripted_path(path)
-    if scripted.exists():
+    use_torchscript = bool((params or {}).get("use_torchscript", False))
+    if scripted.exists() and use_torchscript:
         try:
             model = torch.jit.load(str(scripted), map_location=torch.device("cpu"))
         except Exception:

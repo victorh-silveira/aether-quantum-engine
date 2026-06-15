@@ -8,7 +8,7 @@ from src.infrastructure.state.trading_state import TradingState
 
 
 @pytest.mark.asyncio
-async def test_orchestrator_run_skips_bootstrap_in_execute_mode(orch_config):
+async def test_orchestrator_run_schedules_bootstrap_in_execute_mode(orch_config):
     TradingState.reset()
 
     async def stop_loop_after_first_sleep(_seconds):
@@ -26,11 +26,15 @@ async def test_orchestrator_run_skips_bootstrap_in_execute_mode(orch_config):
                 "src.application.services.orchestrator.run_orchestrator_training",
                 new_callable=AsyncMock,
             ) as mock_train,
+            patch(
+                "src.application.services.orchestrator.trading_cycle_entry.try_enqueue_next_bootstrap_training",
+            ) as mock_enqueue,
             patch("asyncio.sleep", side_effect=stop_loop_after_first_sleep),
         ):
             await orch.run()
         mock_train.assert_not_called()
-        assert orch._dl_bootstrap_completed is True
+        mock_enqueue.assert_called_once()
+        assert orch._dl_bootstrap_completed is False
 
 
 @pytest.mark.asyncio

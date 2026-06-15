@@ -4,6 +4,7 @@ from typing import Any
 
 import numpy as np
 
+from src.application.services.deep_learning.dl_feature_indicators import feature_windows
 from src.application.services.deep_learning.dl_gate_config import parse_deploy_gate_config
 from src.application.services.deep_learning.dl_horizon import (
     contract_duration_seconds,
@@ -125,6 +126,29 @@ def parse_rnn_config(dl_config: dict) -> dict[str, Any]:
     }
 
 
+def resolve_inference_history_bars(
+    params: dict[str, Any],
+    *,
+    granularity: int | None = None,
+) -> int:
+    """Barras minimas de OHLC para montar features na inferencia (nao no treino)."""
+    lookback = max(1, int(params.get("lookback", 30)))
+    gran = max(1, int(granularity or params.get("granularity") or 60))
+    implied = max(1, int(params.get("implied_vol_bars", 60)))
+    win = feature_windows(gran)
+    warmup = max(
+        lookback,
+        implied,
+        int(win["hurst_window"]),
+        int(win["ema_50"]),
+        int(win["rel_vol_span"]),
+        int(win["bb_window"]),
+        int(win["atr_window"]),
+        int(win["rsi_period"]),
+    )
+    return warmup + lookback + 16
+
+
 def parse_dl_params(
     dl_config: dict,
     data_config: dict | None = None,
@@ -180,6 +204,18 @@ def parse_dl_params(
         "rolling_retrain_bars": int(dl_config.get("rolling_retrain_bars", 3)),
         "retrain_min_bars": int(dl_config.get("retrain_min_bars", 1)),
         "training_history_bars": training_history_bars,
+        "inference_history_bars": (
+            max(1, int(dl_config["inference_history_bars"]))
+            if "inference_history_bars" in dl_config
+            else resolve_inference_history_bars(
+                {
+                    "lookback": lookback,
+                    "granularity": gran,
+                    "implied_vol_bars": implied_vol_bars,
+                },
+                granularity=gran,
+            )
+        ),
         "bars_per_day": bars_per_day(gran),
         "label_horizon_bars": label_horizon_bars,
         "label_smooth_bars": label_smooth_bars,
