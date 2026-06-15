@@ -1,3 +1,9 @@
+## [1.14.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.13.4...v1.14.0) (2026-06-15)
+
+### Funcionalidades
+
+* **engine:** startup rapido em inferencia sem retreinar ([40f605a](https://github.com/victorh-silveira/aether-quantum-engine/commit/40f605a89c710d2a1b6ca6c35a91b1e43697e2e3))
+
 ## [1.13.4](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.13.3...v1.13.4) (2026-06-15)
 
 ### Correcoes de Bug
