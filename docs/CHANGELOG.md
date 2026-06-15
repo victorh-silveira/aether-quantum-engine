@@ -1,3 +1,9 @@
+## [1.13.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.13.1...v1.13.2) (2026-06-15)
+
+### Correcoes de Bug
+
+* **engine:** desbloqueia trades pos-loss, recalibra Kelly M5 e reduz spam de liquidacao ([d47ff2b](https://github.com/victorh-silveira/aether-quantum-engine/commit/d47ff2bc45693105198ee28fd829c6fad35676c3))
+
 ## [1.13.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.13.0...v1.13.1) (2026-06-15)
 
 ### Correcoes de Bug
