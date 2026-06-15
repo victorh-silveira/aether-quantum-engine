@@ -1,3 +1,9 @@
+## [1.13.4](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.13.3...v1.13.4) (2026-06-15)
+
+### Correcoes de Bug
+
+* **engine:** opera M1 com modelo M5 sem retreino e endurece gates ([c3d13ab](https://github.com/victorh-silveira/aether-quantum-engine/commit/c3d13abe8e8e78993c4d997d1334225d7f34c4da))
+
 ## [1.13.3](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.13.2...v1.13.3) (2026-06-15)
 
 ### Correcoes de Bug
