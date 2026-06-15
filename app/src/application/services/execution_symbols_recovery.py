@@ -15,16 +15,12 @@ def pending_recovery_active(pending_loss: dict) -> bool:
 
 
 def recovery_blocked_symbols(risk_manager: Any, kelly_config: dict) -> frozenset[str]:
-    """Simbolos excluidos do recovery por cooldown ou sequencia de losses em martingale."""
+    """Simbolos excluidos do recovery por sequencia de losses em martingale."""
     blocked: set[str] = set()
     max_streak = int(kelly_config.get("recovery_martingale_max_losses_per_symbol", 2))
     streaks = getattr(risk_manager, "recovery_symbol_loss_streak", {}) or {}
     for symbol, count in streaks.items():
         if int(count) >= max_streak:
-            blocked.add(str(symbol))
-    cooldowns = getattr(risk_manager, "symbol_loss_cooldown", {}) or {}
-    for symbol, remaining in cooldowns.items():
-        if int(remaining) > 0:
             blocked.add(str(symbol))
     return frozenset(blocked)
 

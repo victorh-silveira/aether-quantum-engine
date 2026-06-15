@@ -63,18 +63,37 @@ def round_stake(value: float, *, martingale: bool) -> float:
 
 
 def resolve_cycle_stake_scale(kelly_config: dict[str, Any], risk_config: dict[str, Any]) -> float:
-    """Escala stake pelo intervalo de ciclo quando timeframe e maior que o baseline."""
+    """Escala stake pelo tempo de rodada (contrato M5 ou ciclo do orquestrador)."""
     if not kelly_config.get("cycle_stake_scale_enabled", True):
         return 1.0
     baseline = float(kelly_config.get("cycle_stake_baseline_seconds", 60))
     if baseline <= 0.0:
         return 1.0
-    orch = (risk_config or {}).get("orchestrator") or {}
-    interval = float(orch.get("cycle_interval_seconds", baseline))
+    if kelly_config.get("cycle_stake_use_contract_duration", False):
+        params = (risk_config or {}).get("params") or {}
+        interval = _contract_duration_seconds(params)
+    else:
+        orch = (risk_config or {}).get("orchestrator") or {}
+        interval = float(orch.get("cycle_interval_seconds", baseline))
     if interval <= baseline:
         return 1.0
     exponent = float(kelly_config.get("cycle_stake_exponent", 0.55))
     return (interval / baseline) ** exponent
+
+
+def _contract_duration_seconds(params: dict[str, Any]) -> float:
+    """Converte duracao do contrato em segundos para escala de stake."""
+    dur = max(1, int(params.get("duration", 60)))
+    unit = str(params.get("duration_unit", "s")).lower().strip()
+    if unit == "m":
+        return float(dur * 60)
+    if unit == "t":
+        return float(dur * 2)
+    if unit == "s":
+        return float(dur)
+    if unit == "d":
+        return float(dur * 86400)
+    return float(dur * 60)
 
 
 def conviction_stop_win_weight(conviction: float, kelly_config: dict[str, Any]) -> float:

@@ -3,8 +3,16 @@
 import logging
 
 
-def log_info_if_changed(owner, logger: logging.Logger, channel: str, content: str, message: str, *args) -> None:
-    """Loga INFO quando o conteudo do canal muda; repeticoes identicas vao para DEBUG."""
+def _log_if_changed(
+    owner,
+    logger: logging.Logger,
+    level: str,
+    channel: str,
+    content: str,
+    message: str,
+    *args,
+) -> None:
+    """Emite log no nivel indicado quando o conteudo do canal muda."""
     cache = getattr(owner, "_log_dedupe", None)
     if cache is None:
         cache = {}
@@ -13,7 +21,17 @@ def log_info_if_changed(owner, logger: logging.Logger, channel: str, content: st
         logger.debug(message, *args)
         return
     cache[channel] = content
-    logger.info(message, *args)
+    getattr(logger, level)(message, *args)
+
+
+def log_info_if_changed(owner, logger: logging.Logger, channel: str, content: str, message: str, *args) -> None:
+    """Loga INFO quando o conteudo do canal muda; repeticoes identicas vao para DEBUG."""
+    _log_if_changed(owner, logger, "info", channel, content, message, *args)
+
+
+def log_warning_if_changed(owner, logger: logging.Logger, channel: str, content: str, message: str, *args) -> None:
+    """Loga WARNING quando o conteudo do canal muda; repeticoes identicas vao para DEBUG."""
+    _log_if_changed(owner, logger, "warning", channel, content, message, *args)
 
 
 def clear_log_channel(owner, channel: str) -> str | None:

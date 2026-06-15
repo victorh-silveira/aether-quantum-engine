@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock
 
 from src.application.services.deep_learning.dl_cycle_log import log_dl_cycle_summary
-from src.application.services.log_dedupe import clear_log_channel, log_info_if_changed
+from src.application.services.log_dedupe import clear_log_channel, log_info_if_changed, log_warning_if_changed
 from src.domain.models.trade import TradeDirection
 
 
@@ -16,6 +16,16 @@ def test_log_info_if_changed_dedupes_repeats():
     log_info_if_changed(owner, logger, "ch", "a", "%s", "a")
     log_info_if_changed(owner, logger, "ch", "b", "%s", "b")
     assert logger.info.call_count == 2
+    assert logger.debug.call_count == 1
+
+
+def test_log_warning_if_changed_dedupes_repeats():
+    owner = Owner()
+    logger = MagicMock()
+    log_warning_if_changed(owner, logger, "ch", "pend=1", "EXEC: pend=%s", "1")
+    log_warning_if_changed(owner, logger, "ch", "pend=1", "EXEC: pend=%s", "1")
+    log_warning_if_changed(owner, logger, "ch", "pend=2", "EXEC: pend=%s", "2")
+    assert logger.warning.call_count == 2
     assert logger.debug.call_count == 1
 
 

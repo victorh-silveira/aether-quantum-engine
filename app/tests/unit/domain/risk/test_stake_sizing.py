@@ -107,6 +107,34 @@ def test_resolve_cycle_stake_scale_m5():
         {"orchestrator": {"cycle_interval_seconds": 300}},
     )
     assert scale == pytest.approx((300 / 60) ** 0.55, rel=1e-6)
+    contract_scale = resolve_cycle_stake_scale(
+        {
+            "cycle_stake_baseline_seconds": 60,
+            "cycle_stake_exponent": 0.55,
+            "cycle_stake_use_contract_duration": True,
+        },
+        {"params": {"duration": 300, "duration_unit": "s"}},
+    )
+    assert contract_scale == pytest.approx((300 / 60) ** 0.55, rel=1e-6)
+    assert resolve_cycle_stake_scale(
+        {
+            "cycle_stake_baseline_seconds": 60,
+            "cycle_stake_use_contract_duration": True,
+        },
+        {"params": {"duration": 5, "duration_unit": "m"}},
+    ) == pytest.approx((300 / 60) ** 0.55, rel=1e-6)
+    assert resolve_cycle_stake_scale(
+        {"cycle_stake_baseline_seconds": 60, "cycle_stake_use_contract_duration": True},
+        {"params": {"duration": 40, "duration_unit": "t"}},
+    ) == pytest.approx((80 / 60) ** 0.55, rel=1e-6)
+    assert resolve_cycle_stake_scale(
+        {"cycle_stake_baseline_seconds": 60, "cycle_stake_use_contract_duration": True},
+        {"params": {"duration": 1, "duration_unit": "d"}},
+    ) == pytest.approx((86400 / 60) ** 0.55, rel=1e-6)
+    assert resolve_cycle_stake_scale(
+        {"cycle_stake_baseline_seconds": 60, "cycle_stake_use_contract_duration": True},
+        {"params": {"duration": 15, "duration_unit": "x"}},
+    ) == pytest.approx((900 / 60) ** 0.55, rel=1e-6)
     assert resolve_cycle_stake_scale({}, {"orchestrator": {"cycle_interval_seconds": 60}}) == 1.0
     assert (
         resolve_cycle_stake_scale(

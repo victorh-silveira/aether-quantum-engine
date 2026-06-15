@@ -46,8 +46,8 @@ def test_mandatory_execution_eligible_rejects_hard_blocks():
     assert mandatory_execution_eligible(deploy_entry) is False
 
 
-def test_mandatory_execution_eligible_rejects_training_cooldown_and_pause():
-    for gate in ("training", "cooldown", "session_pause"):
+def test_mandatory_execution_eligible_rejects_training_and_pause():
+    for gate in ("training", "session_pause"):
         entry = {
             "direction": TradeDirection.CALL,
             "metrics": {
@@ -140,6 +140,20 @@ def test_recovery_execution_eligible_rejects_hard_block():
         "metrics": {"execute": False, "gate_reason": "deploy", "trade_score": 0.65, "val_accuracy": 0.55},
     }
     assert recovery_execution_eligible(entry) is False
+
+
+def test_recovery_execution_eligible_accepts_cooldown_gate():
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {
+            "execute": False,
+            "gate_reason": "cooldown",
+            "trade_score": 0.58,
+            "val_accuracy": 0.55,
+            "raw_prob": 0.58,
+        },
+    }
+    assert recovery_execution_eligible(entry) is True
 
 
 def test_recovery_execution_eligible_accepts_execute_true():

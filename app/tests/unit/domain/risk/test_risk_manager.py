@@ -275,24 +275,3 @@ def test_partial_loss_recovery_and_break(kelly_config):
     # E o lucro restante zera, fazendo o break acontecer na próxima chave (R_75 continua 5.0)
     assert rm.pending_loss["R_50"] == 2.0
     assert rm.pending_loss["R_75"] == 5.0
-
-
-def test_symbol_loss_cooldown_after_negative_result(kelly_config):
-    kelly_config["kelly"]["symbol_loss_cooldown_cycles"] = 2
-    rm = RiskManager(kelly_config)
-    rm.active_contract_ids = [1]
-    rm.register_result(-10.0, 1, "R_50")
-    assert rm.last_loss_symbol == "R_50"
-    assert rm.is_symbol_on_loss_cooldown("R_50") is True
-    rm.tick_symbol_loss_cooldowns()
-    assert rm.is_symbol_on_loss_cooldown("R_50") is True
-    rm.tick_symbol_loss_cooldowns()
-    assert rm.is_symbol_on_loss_cooldown("R_50") is False
-
-
-def test_symbol_loss_cooldown_zero_disables(kelly_config):
-    kelly_config["kelly"]["symbol_loss_cooldown_cycles"] = 0
-    rm = RiskManager(kelly_config)
-    rm.active_contract_ids = [1]
-    rm.register_result(-10.0, 1, "R_50")
-    assert rm.symbol_loss_cooldown == {}

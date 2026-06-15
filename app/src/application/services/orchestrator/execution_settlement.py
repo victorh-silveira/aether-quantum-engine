@@ -5,6 +5,8 @@ import logging
 import time
 from typing import TYPE_CHECKING
 
+from src.application.services.log_dedupe import clear_log_channel, log_warning_if_changed
+
 from . import settlement_utils
 from .settlement_backfill import backfill_pending_contracts, reconcile_single_contract
 
@@ -20,15 +22,16 @@ async def _settlement_poll_delay(seconds: float) -> None:
 
 def _settlement_grace_period(exec_mgr: "ExecutionManager", execution_cfg: dict, start_time: float) -> float:
     """Calcula periodo de carencia antes de contar polls estagnados."""
-    grace = settlement_utils.calculate_cluster_grace_period(
+    static = settlement_utils.min_elapsed_before_stagnant_polls(
+        exec_mgr.orch.config.get("risk_management", {}).get("params"),
+        execution_cfg,
+    )
+    dynamic = settlement_utils.calculate_cluster_grace_period(
         exec_mgr.orch.state.active_contracts, execution_cfg, start_time
     )
-    if grace <= 0:
-        return settlement_utils.min_elapsed_before_stagnant_polls(
-            exec_mgr.orch.config.get("risk_management", {}).get("params"),
-            execution_cfg,
-        )
-    return grace
+    if dynamic <= 0:
+        return static
+    return max(dynamic, static)
 
 
 def _settlement_timed_out(exec_mgr: "ExecutionManager", start_time: float, timeout: int) -> bool:
@@ -97,9 +100,14 @@ async def _handle_stagnant_settlement(
         if recovered:
             exec_mgr.logger.info("SETTLE: Recuperados %d contratos via profit_table.", recovered)
     if exec_mgr.orch.risk_manager.active_contract_ids:
-        exec_mgr.logger.warning(
+        pending_key = ",".join(str(x) for x in exec_mgr.orch.risk_manager.active_contract_ids)
+        log_warning_if_changed(
+            exec_mgr.orch,
+            exec_mgr.logger,
+            "settle_stagnant",
+            pending_key,
             "EXEC: Liquidacao estagnada; aguardando profit_table (pend=%s)",
-            ",".join(str(x) for x in exec_mgr.orch.risk_manager.active_contract_ids),
+            pending_key,
         )
         await _settlement_poll_delay(max(poll, 5.0))
         return "continue"
@@ -152,6 +160,7 @@ async def wait_for_settlement(exec_mgr: "ExecutionManager", timeout: int = 3600)
             break
         await exec_mgr.orch._save_full_state()
         await _settlement_poll_delay(poll)
+    clear_log_channel(exec_mgr.orch, "settle_stagnant")
 
 
 async def reconcile_contracts(exec_mgr: "ExecutionManager") -> bool:

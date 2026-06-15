@@ -241,13 +241,13 @@ def test_recovery_rank_score_put_raw_bonus_for_opposite_direction():
     )
 
 
-def test_recovery_blocked_symbols_excludes_streak_and_cooldown():
+def test_recovery_blocked_symbols_excludes_streak_only():
     rm = SimpleNamespace(
         recovery_symbol_loss_streak={PAIR: 2},
         symbol_loss_cooldown={HEDGE_PEER_SYMBOL: 1},
     )
     blocked = recovery_blocked_symbols(rm, {"recovery_martingale_max_losses_per_symbol": 2})
-    assert blocked == frozenset({PAIR, HEDGE_PEER_SYMBOL})
+    assert blocked == frozenset({PAIR})
 
 
 def test_recovery_candidate_pool_skips_blocked_symbols():

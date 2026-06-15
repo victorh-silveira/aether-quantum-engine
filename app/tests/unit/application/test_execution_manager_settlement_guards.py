@@ -5,7 +5,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.application.services.orchestrator import Orchestrator
-from src.application.services.orchestrator.execution_settlement import _next_stagnant_poll_count
+from src.application.services.orchestrator.execution_settlement import (
+    _next_stagnant_poll_count,
+    _settlement_grace_period,
+)
 from src.application.services.orchestrator.settlement_utils import clear_contract_metadata, clear_contract_tracking
 from src.domain.models.trade import Contract, TradeDirection, TradeStatus
 from src.infrastructure.state.trading_state import TradingState
@@ -17,6 +20,25 @@ from tests.unit.application.post_settlement_helpers import (
 
 def test_next_stagnant_poll_count_resets_during_grace():
     assert _next_stagnant_poll_count(3, 2.0, 10.0, [1], [1]) == 0
+
+
+def test_settlement_grace_period_uses_max_of_dynamic_and_static():
+    exec_mgr = MagicMock()
+    exec_mgr.orch.config = {"risk_management": {"params": {"duration": 300, "duration_unit": "s"}}}
+    exec_mgr.orch.state.active_contracts = []
+    execution_cfg = {"settlement_post_expiry_slack_seconds": 2.0}
+    with (
+        patch(
+            "src.application.services.orchestrator.execution_settlement.settlement_utils.min_elapsed_before_stagnant_polls",
+            return_value=302.0,
+        ),
+        patch(
+            "src.application.services.orchestrator.execution_settlement.settlement_utils.calculate_cluster_grace_period",
+            return_value=21.0,
+        ),
+    ):
+        grace = _settlement_grace_period(exec_mgr, execution_cfg, start_time=0.0)
+    assert grace == 302.0
 
 
 @pytest.mark.asyncio
