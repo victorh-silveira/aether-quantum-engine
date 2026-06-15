@@ -6,11 +6,11 @@ from src.application.services.execution_symbols import (
     inject_recovery_hedge_candidates,
 )
 from src.application.services.orchestrator.execution_collect import (
-    _cluster_entry_eligible,
     _gather_cluster_candidates,
     apply_recovery_hedge_to_candidates,
     collect_cluster_orders,
 )
+from src.application.services.orchestrator.execution_recovery_gate import cluster_entry_eligible
 from src.domain.models.trade import TradeDirection
 from tests.market_symbols import ANCHOR, HEDGE_PEER_SYMBOL, PAIR
 
@@ -263,7 +263,7 @@ def test_cluster_entry_recovery_rejects_mandatory_weak_bypass():
             "deploy_ok": True,
         },
     }
-    assert not _cluster_entry_eligible(
+    assert not cluster_entry_eligible(
         entry,
         mandatory=True,
         recovery_active=True,

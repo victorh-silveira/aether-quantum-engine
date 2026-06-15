@@ -111,3 +111,31 @@ def has_recovery_hedge_candidate(
         return True
     target = str(last_loss_direction).upper()
     return any(item[1].name == target for item in candidates)
+
+
+def apply_recovery_direction_flip(
+    best: tuple[str, TradeDirection, dict] | None,
+    decisions: dict,
+    *,
+    recovery_active: bool,
+    last_loss_symbol: str | None,
+    last_loss_direction: str | None,
+    flip_enabled: bool,
+) -> tuple[str, TradeDirection, dict] | None:
+    """Inverte direcao no mesmo simbolo apos loss quando recovery esta ativo."""
+    if best is None or not recovery_active or not flip_enabled:
+        return best
+    if not last_loss_symbol or not last_loss_direction:
+        return best
+    symbol, direction, _metrics = best
+    if symbol != last_loss_symbol:
+        return best
+    ld = str(last_loss_direction).upper()
+    if direction.name != ld:
+        return best
+    opposite = TradeDirection.PUT if ld == "CALL" else TradeDirection.CALL
+    entry = decisions.get(symbol)
+    if not entry:
+        return best
+    flipped = build_forced_direction_candidate(symbol, entry, opposite)
+    return flipped if flipped is not None else best

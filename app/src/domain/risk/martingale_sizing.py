@@ -25,6 +25,8 @@ def martingale_stake(
     effective_loss = float(loss_to_recover) * step_frac
     profit_target = seed * payout * target_frac
     raw = (effective_loss + profit_target) / payout if payout > 0 and effective_loss > 0 else seed
+    if payout > 0 and effective_loss > 0:
+        raw = max(raw, effective_loss / payout)
     max_mult = float(kelly_config.get("martingale_max_stake_multiplier", 0.0))
     if max_mult > 0.0:
         raw = min(raw, seed * max_mult)

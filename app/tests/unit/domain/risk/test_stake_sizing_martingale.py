@@ -159,6 +159,17 @@ def test_martingale_recovery_without_pct_cap():
     assert stake == pytest.approx(expected, abs=0.02)
 
 
+def test_martingale_recovery_covers_effective_loss_floor():
+    cfg = {
+        "min_stake_pct": 0.0,
+        "martingale_target_fraction": 0.0,
+        "martingale_recovery_step_fraction": 0.40,
+        "martingale_max_stake_multiplier": 10.0,
+    }
+    stake = martingale_stake(10000.0, 100.0, 7.0, 0.95, cfg, 1.0, last_loss_stake=7.0)
+    assert stake == pytest.approx(100.0 * 0.40 / 0.95, abs=0.02)
+
+
 def test_martingale_recovery_step_fraction_limits_stake():
     cfg = {
         "min_stake_pct": 0.0,

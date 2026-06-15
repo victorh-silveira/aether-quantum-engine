@@ -53,6 +53,50 @@ def test_collect_cluster_orders_recovery_picks_dl_put_after_call_loss():
     assert orders[0][1] == TradeDirection.PUT
 
 
+def test_collect_cluster_orders_recovery_flips_r100_put_after_call_loss():
+    orch = SimpleNamespace(
+        anchor="R_100",
+        symbols=["R_100"],
+        config={
+            "orchestrator": {"execution": {"include_anchor_trades": True, "recovery_flip_direction_after_loss": True}},
+            "risk_management": {"kelly": {}},
+            "deep_learning": {"recovery_gating": {}},
+        },
+        risk_manager=SimpleNamespace(
+            pending_loss={"R_100": 14.32},
+            last_loss_symbol="R_100",
+            last_loss_direction="CALL",
+            consecutive_losses=1,
+            recovery_symbol_loss_streak={},
+            symbol_loss_cooldown={},
+        ),
+        _active_cycle_id=4,
+    )
+    exec_mgr = SimpleNamespace(
+        orch=orch,
+        logger=MagicMock(),
+        _mandatory_trade_each_cycle=lambda: True,
+        _trade_symbols=lambda: ["R_100"],
+    )
+    decisions = {
+        "R_100": {
+            "direction": TradeDirection.CALL,
+            "metrics": {
+                "execute": True,
+                "trade_score": 0.62,
+                "val_accuracy": 0.63,
+                "raw_prob": 0.62,
+                "deploy_ok": True,
+            },
+        },
+    }
+    orders = collect_cluster_orders(exec_mgr, decisions)
+    assert len(orders) == 1
+    assert orders[0][0] == "R_100"
+    assert orders[0][1] == TradeDirection.PUT
+    assert orders[0][2].get("direction_inverted") is True
+
+
 def test_collect_cluster_orders_recovery_skips_weak_signal():
     orch = SimpleNamespace(
         anchor=ANCHOR,

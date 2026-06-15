@@ -56,7 +56,7 @@ def _recovery_score_adjustment(
         composite += 0.04
     if last_loss_direction and exec_direction is not None:
         ld = str(last_loss_direction).upper()
-        composite += 0.03 if exec_direction.name != ld else -0.04
+        composite += 0.03 if exec_direction.name != ld else -0.12
     return composite
 
 

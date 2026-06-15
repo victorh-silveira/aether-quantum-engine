@@ -2,8 +2,6 @@
 
 from src.application.services.execution_direction import (
     build_execution_candidate,
-    mandatory_execution_eligible,
-    recovery_execution_eligible,
 )
 from src.application.services.execution_direction_fallback import build_mandatory_fallback_candidate
 from src.application.services.execution_mandatory_pick import pick_absolute_mandatory_candidate
@@ -15,10 +13,12 @@ from src.application.services.execution_symbols import (
     select_mandatory_execution_candidate,
 )
 from src.application.services.execution_symbols_recovery import (
+    apply_recovery_direction_flip,
     pending_recovery_active,
     recovery_blocked_symbols,
 )
 from src.application.services.orchestrator.execution_recovery_gate import (
+    cluster_entry_eligible,
     recovery_min_signal,
     recovery_min_val_accuracy,
 )
@@ -37,24 +37,6 @@ def apply_recovery_hedge_to_candidates(
     """Mantem pool de candidatos; ranking de recovery escolhe direcao e simbolo."""
     _ = (exec_mgr, cid, mandatory)
     return candidates
-
-
-def _cluster_entry_eligible(
-    entry: dict,
-    *,
-    mandatory: bool,
-    recovery_active: bool,
-    recovery_cfg: dict,
-    min_signal: float,
-    min_val: float,
-) -> bool:
-    """Indica se entrada DL pode entrar no pool de candidatos do ciclo."""
-    may_execute = bool(entry.get("metrics", {}).get("execute", False))
-    if may_execute:
-        return True
-    if recovery_active:
-        return recovery_execution_eligible(entry, recovery_cfg)
-    return mandatory and mandatory_execution_eligible(entry, min_signal=min_signal, min_val_accuracy=min_val)
 
 
 def _mandatory_fallback_candidates(
@@ -99,7 +81,7 @@ def _gather_cluster_candidates(
         entry = decisions.get(symbol)
         if not entry:
             continue
-        if not _cluster_entry_eligible(
+        if not cluster_entry_eligible(
             entry,
             mandatory=mandatory,
             recovery_active=recovery_active,
@@ -273,6 +255,16 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
         if ultimate is not None:
             best = ultimate
             candidates = [ultimate]
+    exec_cfg = exec_mgr.orch.config.get("orchestrator", {}).get("execution", {})
+    flip_recovery = bool(exec_cfg.get("recovery_flip_direction_after_loss", True))
+    best = apply_recovery_direction_flip(
+        best,
+        decisions,
+        recovery_active=recovery_active,
+        last_loss_symbol=last_loss,
+        last_loss_direction=last_loss_dir,
+        flip_enabled=flip_recovery,
+    )
     if best is not None:
         metrics = best[2]
         min_raw = float(kelly_cfg.get("stake_conviction_min_raw", 0.51))

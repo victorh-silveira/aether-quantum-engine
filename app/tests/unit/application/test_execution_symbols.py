@@ -86,7 +86,7 @@ def test_candidate_execution_score_recovery_weights_val_accuracy():
         last_loss_direction="CALL",
     )
     assert high_val > recovery
-    assert recovery > normal
+    assert recovery < normal
 
 
 def test_select_mandatory_falls_back_when_pool_empty():
