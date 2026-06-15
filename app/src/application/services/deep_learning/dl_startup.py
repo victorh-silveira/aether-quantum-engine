@@ -1,0 +1,55 @@
+"""Resolucao de fetch inicial e prontidao de checkpoint para execucao DL."""
+
+from __future__ import annotations
+
+from typing import Any
+
+from src.application.services.deep_learning.dl_params import parse_dl_params
+from src.application.services.deep_learning.dl_symbol_runtime import resolve_dl_model_path
+
+
+def inference_startup_enabled(dl_config: dict[str, Any] | None) -> bool:
+    """Indica se o motor deve iniciar em modo inferencia sem retreino."""
+    dl_config = dl_config or {}
+    return not bool(dl_config.get("online_training", True))
+
+
+def all_symbols_have_checkpoints(symbols: list[str], dl_config: dict[str, Any]) -> bool:
+    """Verifica se todos os simbolos possuem checkpoint PyTorch no disco."""
+    for symbol in symbols:
+        path = resolve_dl_model_path(dl_config, str(symbol))
+        if not path.is_file():
+            return False
+    return bool(symbols)
+
+
+def resolve_startup_fetch_bars(config: dict[str, Any], symbols: list[str]) -> tuple[int, str]:
+    """Retorna barras a buscar no startup e rotulo do modo (inferencia ou treino)."""
+    data_config = config.get("data_handler") or {}
+    dl_config = config.get("deep_learning") or {}
+    warmup = int(data_config.get("history_warmup_bars", 64))
+    if not inference_startup_enabled(dl_config) or not all_symbols_have_checkpoints(symbols, dl_config):
+        if "fetch_count" in data_config:
+            return max(1, int(data_config["fetch_count"])), "treino"
+        history_bars = int(data_config.get("history_bars", 0))
+        if history_bars > 0:
+            return max(1, history_bars + warmup), "treino"
+        return 500, "treino"
+    if "startup_fetch_bars" in data_config:
+        return max(1, int(data_config["startup_fetch_bars"])), "inferencia"
+    risk_params = (config.get("risk_management") or {}).get("params") or {}
+    params = parse_dl_params(dl_config, data_config, risk_params)
+    infer_bars = max(1, int(params.get("inference_history_bars", 128)))
+    floor = int(params["lookback"]) + 20
+    return max(floor, infer_bars) + warmup, "inferencia"
+
+
+def prepare_inference_run_loop(orch: Any) -> bool:
+    """Marca bootstrap concluido quando modelos em disco estao prontos para operar."""
+    dl_config = orch.config.get("deep_learning") or {}
+    if not inference_startup_enabled(dl_config):
+        return False
+    if not all_symbols_have_checkpoints(orch.symbols, dl_config):
+        return False
+    orch._dl_bootstrap_completed = True
+    return True

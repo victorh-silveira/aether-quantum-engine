@@ -6,6 +6,9 @@ from src.application.services.deep_learning.dl_symbol_runtime import get_symbol_
 def min_dl_history_len(params: dict) -> int:
     """Calcula o minimo de velas OHLC exigidas para treino e inferencia DL."""
     split_floor = int(params["lookback"]) + int(params["validation_bars"]) + 20
+    if not params.get("online_training", True):
+        infer_window = int(params.get("inference_history_bars", split_floor))
+        return max(split_floor, infer_window)
     train_window = int(params.get("training_history_bars", 0))
     return max(split_floor, train_window) if train_window > 0 else split_floor
 

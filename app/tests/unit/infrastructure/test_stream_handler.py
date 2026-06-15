@@ -38,6 +38,13 @@ def test_resolve_fetch_count_default(mock_ws):
     assert sh._resolve_fetch_count() == 500
 
 
+def test_resolve_fetch_count_startup_override(mock_ws):
+    sh = StreamHandler(mock_ws, ["R_50"], {"fetch_count": 25984, "_startup_fetch_count": 192})
+    assert sh._resolve_fetch_count() == 192
+    sh.config.pop("_startup_fetch_count", None)
+    assert sh._resolve_fetch_count() == 25984
+
+
 def test_stream_handler_normalizes_unsupported_granularity(mock_ws):
     sh = StreamHandler(mock_ws, ["R_50"], {"granularity": 10})
     assert sh.granularity == 60

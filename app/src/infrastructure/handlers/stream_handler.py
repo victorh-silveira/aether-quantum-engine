@@ -43,6 +43,9 @@ class StreamHandler:
 
     def _resolve_fetch_count(self) -> int:
         """Define quantas velas buscar na sincronizacao inicial."""
+        startup = self.config.get("_startup_fetch_count")
+        if startup is not None:
+            return max(1, int(startup))
         if "fetch_count" in self.config:
             return max(1, int(self.config["fetch_count"]))
         history_bars = int(self.config.get("history_bars", 0))

@@ -3,11 +3,18 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from src.application.services.orchestrator.engine_mode import ENGINE_MODE_TRAIN, apply_engine_mode
 from src.application.services.orchestrator.trading_cycle_entry import (
     _stop_win_blocks_cycle,
     acquire_trading_cycle_lock,
     trading_cycle_entry_allowed,
 )
+
+
+def test_trading_cycle_entry_blocked_in_train_engine_mode(orch_ready):
+    orch = orch_ready
+    apply_engine_mode(orch.config, ENGINE_MODE_TRAIN)
+    assert trading_cycle_entry_allowed(orch) is False
 
 
 def test_trading_cycle_entry_blocked_when_is_trading(orch_ready):
