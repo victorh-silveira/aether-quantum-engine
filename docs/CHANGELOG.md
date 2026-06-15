@@ -1,3 +1,9 @@
+## [1.13.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.13.0...v1.13.1) (2026-06-15)
+
+### Correcoes de Bug
+
+* **engine:** corrige bootstrap DL no run.py e acelera inferencia ([f9a758d](https://github.com/victorh-silveira/aether-quantum-engine/commit/f9a758d0166378d8b723d9d9614e4e5d1664937e))
+
 ## [1.13.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.12.0...v1.13.0) (2026-06-14)
 
 ### Funcionalidades
