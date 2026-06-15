@@ -31,6 +31,13 @@ def test_gating_blocks_weak_signal():
     assert gating_block_reason(0.52, 0.55) == "confidence"
 
 
+def test_gating_blocks_low_edge():
+    assert (
+        gating_block_reason(0.56, 0.55, min_val_accuracy=0.53, call_threshold=0.55, put_threshold=0.45, min_edge=0.08)
+        == "edge"
+    )
+
+
 def test_gating_blocks_low_val_accuracy():
     assert gating_block_reason(0.80, 0.50, min_val_accuracy=0.53) == "val_acc"
 

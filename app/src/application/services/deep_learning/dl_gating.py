@@ -38,10 +38,13 @@ def gating_block_reason(
     min_val_accuracy: float = 0.53,
     call_threshold: float = 0.75,
     put_threshold: float = 0.25,
+    min_edge: float = 0.0,
 ) -> str | None:
     """Retorna motivo de bloqueio ou None se executavel."""
     if val_accuracy + 1e-9 < float(min_val_accuracy):
         return "val_acc"
+    if resolve_edge(raw_prob) + 1e-9 < float(min_edge):
+        return "edge"
     if (
         direction_from_raw_prob(
             raw_prob,
@@ -61,6 +64,7 @@ def should_execute(
     min_val_accuracy: float = 0.53,
     call_threshold: float = 0.75,
     put_threshold: float = 0.25,
+    min_edge: float = 0.0,
 ) -> bool:
     """Indica se o candidato pode executar sob os limiares atuais."""
     return (
@@ -70,6 +74,7 @@ def should_execute(
             min_val_accuracy=min_val_accuracy,
             call_threshold=call_threshold,
             put_threshold=put_threshold,
+            min_edge=min_edge,
         )
         is None
     )

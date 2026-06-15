@@ -44,6 +44,7 @@ def predict_symbol_decision(
     )
     call_threshold, put_threshold = resolve_confidence_thresholds(params)
     min_val_accuracy = float(params.get("min_val_accuracy", 0.53))
+    min_edge = float(params.get("min_edge_execute", 0.0))
     try:
         gran = int(granularity or params.get("granularity", 60))
         with guard_symbol_model(runtime):
@@ -82,9 +83,12 @@ def predict_symbol_decision(
             min_val_accuracy=min_val_accuracy,
             call_threshold=call_threshold,
             put_threshold=put_threshold,
+            min_edge=min_edge,
         )
         execute = block is None
         edge = resolve_edge(raw_prob)
+        raw = float(raw_prob)
+        side_score = max(raw, 1.0 - raw)
         entry = build_decision_entry(
             direction,
             prob,
@@ -92,7 +96,7 @@ def predict_symbol_decision(
             val_accuracy=val_accuracy,
             edge=edge,
             train_loss=train_loss,
-            trade_score=float(raw_prob),
+            trade_score=side_score,
             raw_prob=raw_prob,
             val_brier=float(runtime.get("val_brier", 1.0)),
             val_ece=float(runtime.get("val_ece", 1.0)),

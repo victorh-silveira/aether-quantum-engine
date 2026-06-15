@@ -72,7 +72,10 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
                 deploy_ok,
                 deploy_win_rate,
             ) = loaded
-            session_trained = bool(deploy_ok) and float(val_brier) + 1e-9 < 0.99
+            if bool(dl_config.get("online_training", True)):
+                session_trained = bool(deploy_ok) and float(val_brier) + 1e-9 < 0.99
+            else:
+                session_trained = float(val_brier) + 1e-9 < 0.99
             logger.debug("DL: Checkpoint carregado para %s em %s", symbol, path)
         else:
             model = create_direction_model(

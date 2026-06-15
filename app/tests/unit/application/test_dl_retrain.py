@@ -18,6 +18,14 @@ def test_force_retrain_and_clear():
     assert not (getattr(orch, "_dl_force_retrain", None) or {}).get("R_50")
 
 
+def test_online_training_disabled_skips_retrain():
+    orch = SimpleNamespace(_dl_force_retrain={"R_50": True}, _dl_bars_since_train={"R_50": 99})
+    runtime = {"last_candle_epoch": 0, "session_trained": False}
+    params = {"online_training": False, "train_on_new_candle": True, "retrain_min_bars": 0}
+    ok, reason = should_retrain_symbol(orch, "R_50", runtime, params, 1)
+    assert not ok and reason == ""
+
+
 def test_rolling_retrain_trigger():
     orch = SimpleNamespace(_dl_bars_since_train={"X": 12})
     runtime = {"last_candle_epoch": 5, "session_trained": True}

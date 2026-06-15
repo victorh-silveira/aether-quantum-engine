@@ -4,6 +4,7 @@ from typing import Any
 
 from src.application.services.execution_direction import build_forced_direction_candidate, recovery_hedge_target
 from src.domain.models.trade import TradeDirection
+from src.domain.risk.stake_sizing import raw_side_from_metrics
 
 
 _CLUSTER_CORE = frozenset({"R_50", "R_75"})
@@ -121,17 +122,18 @@ def apply_recovery_direction_flip(
     last_loss_symbol: str | None,
     last_loss_direction: str | None,
     flip_enabled: bool,
+    flip_max_conviction: float = 0.56,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Inverte direcao no mesmo simbolo apos loss quando recovery esta ativo."""
-    if best is None or not recovery_active or not flip_enabled:
+    if best is None or not recovery_active or not flip_enabled or not last_loss_symbol or not last_loss_direction:
         return best
-    if not last_loss_symbol or not last_loss_direction:
-        return best
-    symbol, direction, _metrics = best
-    if symbol != last_loss_symbol:
-        return best
+    symbol, direction, metrics = best
     ld = str(last_loss_direction).upper()
-    if direction.name != ld:
+    if (
+        symbol != last_loss_symbol
+        or direction.name != ld
+        or raw_side_from_metrics(metrics) + 1e-9 >= float(flip_max_conviction)
+    ):
         return best
     opposite = TradeDirection.PUT if ld == "CALL" else TradeDirection.CALL
     entry = decisions.get(symbol)

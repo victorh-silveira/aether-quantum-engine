@@ -83,9 +83,9 @@ def test_collect_cluster_orders_recovery_flips_r100_put_after_call_loss():
             "direction": TradeDirection.CALL,
             "metrics": {
                 "execute": True,
-                "trade_score": 0.62,
+                "trade_score": 0.54,
                 "val_accuracy": 0.63,
-                "raw_prob": 0.62,
+                "raw_prob": 0.54,
                 "deploy_ok": True,
             },
         },

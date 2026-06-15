@@ -24,9 +24,10 @@ def emit_decision_engine_banner(
         risk_params = (config.get("risk_management") or {}).get("params") or {}
         data_cfg = config.get("data_handler") or {}
         ohlc_sec = data_cfg.get("granularity", 60)
+        online = bool(dl_cfg.get("online_training", True))
         logger.info(
             "CFG decisao | modo=DEEP_LEARNING | arch=%s | ohlc=%ss | lookback=%s | hist_treino=%s | "
-            "label=%s | ma=%s | smooth=%s | threshold=%s/%s | contrato=%s%s | exec_obrigatoria=%s",
+            "label=%s | ma=%s | smooth=%s | threshold=%s/%s | contrato=%s%s | treino_online=%s | exec_obrigatoria=%s",
             dl_cfg.get("arch", "tcn"),
             ohlc_sec,
             dl_cfg.get("lookback", ""),
@@ -38,6 +39,7 @@ def emit_decision_engine_banner(
             dl_cfg.get("confidence_put_threshold", 0.25),
             risk_params.get("duration", 60),
             risk_params.get("duration_unit", "s"),
+            online,
             mandatory,
         )
     else:

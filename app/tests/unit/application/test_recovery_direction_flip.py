@@ -7,7 +7,7 @@ def test_apply_recovery_direction_flip_inverts_same_symbol():
     decisions = {
         PAIR: {
             "direction": TradeDirection.CALL,
-            "metrics": {"raw_prob": 0.62, "trade_score": 0.62, "deploy_ok": True},
+            "metrics": {"raw_prob": 0.54, "trade_score": 0.54, "deploy_ok": True},
         },
     }
     best = (PAIR, TradeDirection.CALL, decisions[PAIR]["metrics"])
@@ -22,6 +22,27 @@ def test_apply_recovery_direction_flip_inverts_same_symbol():
     assert flipped is not None
     assert flipped[1] == TradeDirection.PUT
     assert flipped[2].get("direction_inverted") is True
+
+
+def test_apply_recovery_direction_flip_skips_when_conviction_strong():
+    decisions = {
+        PAIR: {
+            "direction": TradeDirection.CALL,
+            "metrics": {"raw_prob": 0.62, "trade_score": 0.62, "deploy_ok": True},
+        },
+    }
+    best = (PAIR, TradeDirection.CALL, decisions[PAIR]["metrics"])
+    flipped = apply_recovery_direction_flip(
+        best,
+        decisions,
+        recovery_active=True,
+        last_loss_symbol=PAIR,
+        last_loss_direction="CALL",
+        flip_enabled=True,
+        flip_max_conviction=0.56,
+    )
+    assert flipped == best
+    assert flipped[1] == TradeDirection.CALL
 
 
 def test_apply_recovery_direction_flip_noop_branches():
