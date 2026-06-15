@@ -1,3 +1,9 @@
+## [1.13.3](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.13.2...v1.13.3) (2026-06-15)
+
+### Correcoes de Bug
+
+* **engine:** aumenta Kelly, martingale integral e inverte direcao no recovery ([b7e8348](https://github.com/victorh-silveira/aether-quantum-engine/commit/b7e8348cc11aafb7943a7a1cfe8b700b929321a2))
+
 ## [1.13.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.13.1...v1.13.2) (2026-06-15)
 
 ### Correcoes de Bug
