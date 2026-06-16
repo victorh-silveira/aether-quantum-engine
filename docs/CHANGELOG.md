@@ -1,3 +1,13 @@
+## [1.16.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.15.2...v1.16.0) (2026-06-16)
+
+### Funcionalidades
+
+* **engine:** adicionar novos indicadores tecnicos as features ([f51073c](https://github.com/victorh-silveira/aether-quantum-engine/commit/f51073c40e419f1d4e4d2162d4ed78c53d5428e8))
+
+### Refatoracoes Tecnicas
+
+* **repo:** preservar o diretorio de dados no cleanup ([d65e31c](https://github.com/victorh-silveira/aether-quantum-engine/commit/d65e31ca5bc629b46910bda06f73f380d29d7cde))
+
 ## [1.15.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.15.1...v1.15.2) (2026-06-16)
 
 ### Correcoes de Bug
