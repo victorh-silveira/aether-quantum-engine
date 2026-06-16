@@ -1,3 +1,9 @@
+## [1.15.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.14.1...v1.15.0) (2026-06-16)
+
+### Funcionalidades
+
+* **engine:** optimize hyperparameters and selectivity ([721b6c7](https://github.com/victorh-silveira/aether-quantum-engine/commit/721b6c7908c969a921e2f93c0681c247676a573f))
+
 ## [1.14.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.14.0...v1.14.1) (2026-06-16)
 
 ### Correcoes de Bug
