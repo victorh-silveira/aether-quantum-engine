@@ -12,26 +12,24 @@ def resample_m1_to_m5(
     high: np.ndarray | None,
     low: np.ndarray | None,
 ) -> tuple[np.ndarray, np.ndarray | None, np.ndarray | None, np.ndarray | None]:
-    """Resamples M1 (60s) arrays to rolling M5 (300s) arrays."""
+    """Resamples M1 (60s) arrays to non-overlapping M5 (300s) arrays ending at current candle."""
     n = len(prices)
     if n < 5:
         return prices, open_, high, low
 
-    out_len = n - 4
-    resampled_close = prices[4:]
-    resampled_open = open_[:-4] if open_ is not None else None
+    # Choose indices ending at n - 1, spaced by 5
+    indices = list(range(n - 1, 3, -5))[::-1]
+
+    resampled_close = prices[indices]
+    resampled_open = open_[np.array(indices) - 4] if open_ is not None else None
 
     if high is not None:
-        resampled_high = np.zeros(out_len, dtype=np.float64)
-        for i in range(out_len):
-            resampled_high[i] = np.max(high[i : i + 5])
+        resampled_high = np.array([np.max(high[idx - 4 : idx + 1]) for idx in indices], dtype=np.float64)
     else:
         resampled_high = None
 
     if low is not None:
-        resampled_low = np.zeros(out_len, dtype=np.float64)
-        for i in range(out_len):
-            resampled_low[i] = np.min(low[i : i + 5])
+        resampled_low = np.array([np.min(low[idx - 4 : idx + 1]) for idx in indices], dtype=np.float64)
     else:
         resampled_low = None
 

@@ -161,12 +161,14 @@ def test_resample_m1_to_m5():
     high_val = np.linspace(1.5, 10.5, 10)
     low_val = np.linspace(0.5, 9.5, 10)
     res_p, res_o, res_h, res_l = resample_m1_to_m5(prices, open_val, high_val, low_val)
-    assert len(res_p) == 6
-    assert len(res_o) == 6
-    assert len(res_h) == 6
-    assert len(res_l) == 6
+    assert len(res_p) == 2
+    assert len(res_o) == 2
+    assert len(res_h) == 2
+    assert len(res_l) == 2
+    # indices chosen: range(9, 3, -5)[::-1] = [4, 9]
+    # index 4 high_val range: [0:5], index 9 high_val range: [5:10]
     assert res_h[0] == np.max(high_val[0:5])
-    assert res_l[0] == np.min(low_val[0:5])
+    assert res_h[1] == np.max(high_val[5:10])
 
     # Test resampling with None high/low (covers else blocks)
     res_p, res_o, res_h, res_l = resample_m1_to_m5(prices, open_val, None, None)
@@ -176,7 +178,7 @@ def test_resample_m1_to_m5():
 
 @pytest.mark.asyncio
 async def test_collect_symbol_decision_resamples_m1_to_m5():
-    prices = np.linspace(1.0, 10.0, 120)
+    prices = np.linspace(1.0, 10.0, 600)
     orch = MockOrchestrator(["R_50"], prices, train_mode=True)
     entry = {
         "direction": TradeDirection.CALL,
