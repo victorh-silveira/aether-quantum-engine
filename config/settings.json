@@ -33,6 +33,11 @@
     "confidence_call_threshold": 0.60,
     "confidence_put_threshold": 0.40,
     "min_edge_execute": 0.05,
+    "selection": {
+      "min_val_accuracy": 0.52,
+      "confidence_call_threshold": 0.60,
+      "confidence_put_threshold": 0.40
+    },
     "recovery_gating": {
       "min_conviction_execute": 0.52,
       "min_val_accuracy": 0.48,
