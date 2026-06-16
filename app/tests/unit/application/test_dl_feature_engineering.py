@@ -7,11 +7,12 @@ from src.application.services.deep_learning.dl_feature_build import (
     build_feature_row,
     precompute_price_series,
 )
+from src.application.services.deep_learning.dl_feature_indicators import calculate_stochastic
 
 
 def test_feature_dim_is_twenty_one():
-    assert TRADITIONAL_FEATURE_DIM == 10
-    assert FEATURE_DIM == 21
+    assert TRADITIONAL_FEATURE_DIM == 15
+    assert FEATURE_DIM == 26
 
 
 def test_log_return_and_ema_distances():
@@ -24,6 +25,9 @@ def test_log_return_and_ema_distances():
     assert "roc" in series
     assert "price_zscore" in series
     assert "implied_vol_ratio" in series
+    assert "macd" in series
+    assert "stoch_k" in series
+    assert "cci" in series
     assert np.isclose(series["log_return"][1], np.log(101.0 / 100.0), rtol=1e-5)
     assert np.isfinite(series["ema_dist_50"]).all()
     assert np.isfinite(series["roc"]).all()
@@ -36,3 +40,9 @@ def test_build_feature_row_shape():
     assert row.shape == (FEATURE_DIM,)
     matrix = build_feature_matrix(series)
     assert matrix.shape == (len(prices), FEATURE_DIM)
+
+
+def test_calculate_stochastic_flat_prices():
+    prices = np.full(50, 100.0)
+    k, d = calculate_stochastic(prices, prices, prices, period=14)
+    assert (k == 0.5).all()

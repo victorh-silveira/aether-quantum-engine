@@ -45,6 +45,12 @@ def feature_windows(granularity: int) -> dict[str, int]:
         "vr_short": 2,
         "vr_long": 8,
         "rel_vol_span": 50,
+        "macd_fast": 12,
+        "macd_slow": 26,
+        "macd_signal": 9,
+        "stoch_period": 14,
+        "stoch_smooth": 3,
+        "cci_period": 20,
     }
 
 
@@ -146,3 +152,69 @@ def ema_distances(prices: np.ndarray, span_20: int, span_50: int) -> tuple[np.nd
     dist_20 = (prices - ema_20) / (ema_20 + 1e-10)
     dist_50 = (prices - ema_50) / (ema_50 + 1e-10)
     return dist_20, dist_50
+
+
+def calculate_macd(
+    prices: np.ndarray,
+    fast_period: int = 12,
+    slow_period: int = 26,
+    signal_period: int = 9,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Calcula a linha MACD e a linha de sinal (normalizadas pelo preco)."""
+    df = pl.DataFrame({"close": prices})
+    ema_fast = df.select(pl.col("close").ewm_mean(span=int(fast_period))).to_numpy().flatten()
+    ema_slow = df.select(pl.col("close").ewm_mean(span=int(slow_period))).to_numpy().flatten()
+    macd = ema_fast - ema_slow
+    df_macd = pl.DataFrame({"macd": macd})
+    macd_signal = df_macd.select(pl.col("macd").ewm_mean(span=int(signal_period))).to_numpy().flatten()
+    return macd / (prices + 1e-10), macd_signal / (prices + 1e-10)
+
+
+def calculate_stochastic(
+    high: np.ndarray,
+    low: np.ndarray,
+    close: np.ndarray,
+    period: int = 14,
+    smooth_k: int = 3,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Calcula Stochastic Oscillator %K e %D normalizados (escala de 0.0 a 1.0)."""
+    n = len(close)
+    k_line = np.full(n, 0.5, dtype=np.float64)
+    if n < period:
+        return k_line, k_line
+    for i in range(period - 1, n):
+        start = i - period + 1
+        h_val = np.max(high[start : i + 1])
+        l_val = np.min(low[start : i + 1])
+        denom = h_val - l_val
+        if denom > 1e-10:
+            k_line[i] = (close[i] - l_val) / denom
+        else:
+            k_line[i] = 0.5
+    df_k = pl.DataFrame({"k": k_line})
+    smooth_k_arr = df_k.select(pl.col("k").rolling_mean(window_size=smooth_k, min_samples=1)).to_numpy().flatten()
+    d_arr = (
+        pl.DataFrame({"sk": smooth_k_arr})
+        .select(pl.col("sk").rolling_mean(window_size=smooth_k, min_samples=1))
+        .to_numpy()
+        .flatten()
+    )
+    return smooth_k_arr, d_arr
+
+
+def calculate_cci(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int = 20) -> np.ndarray:
+    """Calcula Commodity Channel Index (CCI) normalizado (dividido por 100)."""
+    n = len(close)
+    tp = (high + low + close) / 3.0
+    cci = np.zeros(n, dtype=np.float64)
+    w = max(2, int(period))
+    for i in range(n):
+        start = max(0, i - w + 1)
+        segment = tp[start : i + 1]
+        ma = float(np.mean(segment))
+        mad = float(np.mean(np.abs(segment - ma)))
+        if mad > 1e-10:
+            cci[i] = (tp[i] - ma) / (0.015 * mad)
+        else:
+            cci[i] = 0.0
+    return cci / 100.0

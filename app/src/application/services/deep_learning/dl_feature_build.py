@@ -5,7 +5,10 @@ import numpy as np
 from src.application.services.deep_learning.dl_feature_indicators import (
     atr_norm,
     bollinger,
+    calculate_cci,
+    calculate_macd,
     calculate_rsi,
+    calculate_stochastic,
     delta_series,
     ema_distances,
     feature_windows,
@@ -21,7 +24,7 @@ _feature_windows = feature_windows
 
 
 MICRO_FEATURE_DIM = 5
-TRADITIONAL_FEATURE_DIM = 10
+TRADITIONAL_FEATURE_DIM = 15
 VOLATILITY_FEATURE_DIM = 4
 PERSISTENCE_FEATURE_DIM = 2
 FEATURE_DIM = MICRO_FEATURE_DIM + TRADITIONAL_FEATURE_DIM + VOLATILITY_FEATURE_DIM + PERSISTENCE_FEATURE_DIM
@@ -121,6 +124,23 @@ def precompute_price_series(
     vr = variance_ratio(prices, short=int(win["vr_short"]), long=int(win["vr_long"]))
     zscore = price_zscore(close, int(win["bb_window"]))
     implied_vol = rolling_realized_vol_ratio(log_return, target_vol, implied_vol_bars)
+
+    # Computar novos indicadores
+    macd, macd_signal = calculate_macd(
+        close,
+        fast_period=int(win["macd_fast"]),
+        slow_period=int(win["macd_slow"]),
+        signal_period=int(win["macd_signal"]),
+    )
+    stoch_k, stoch_d = calculate_stochastic(
+        h,
+        low_px,
+        close,
+        period=int(win["stoch_period"]),
+        smooth_k=int(win["stoch_smooth"]),
+    )
+    cci = calculate_cci(h, low_px, close, period=int(win["cci_period"]))
+
     series = {
         "log_return": log_return,
         "vol": vol,
@@ -138,6 +158,11 @@ def precompute_price_series(
         "variance_ratio": vr,
         "price_zscore": zscore,
         "implied_vol_ratio": implied_vol,
+        "macd": macd,
+        "macd_signal": macd_signal,
+        "stoch_k": stoch_k,
+        "stoch_d": stoch_d,
+        "cci": cci,
     }
     attach_microstructure(series, micro)
     for k, v in series.items():
@@ -169,6 +194,11 @@ def build_feature_row(series: dict[str, np.ndarray], index: int) -> np.ndarray:
             series["log_return"][index],
             series["roc"][index],
             series["price_zscore"][index],
+            series["macd"][index],
+            series["macd_signal"][index],
+            series["stoch_k"][index],
+            series["stoch_d"][index],
+            series["cci"][index],
         ],
         dtype=np.float32,
     )

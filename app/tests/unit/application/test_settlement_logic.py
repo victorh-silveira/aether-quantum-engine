@@ -226,8 +226,6 @@ async def test_process_contract_settlement_stop_win(orch_ready):
         patch_instant_post_settlement_poll(),
     ):
         await process_contract_settlement(orch, data)
-        if orch._post_settlement_task is not None and orch._post_settlement_task is not pending_task:
-            await orch._post_settlement_task
 
     assert pending_task.cancel.called
     assert orch.running is False
