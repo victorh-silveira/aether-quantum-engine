@@ -23,7 +23,7 @@
     "history_fetch_rate_limit_max_delay": 45.0,
     "history_warmup_bars": 64,
     "min_required_points": 64,
-    "startup_fetch_bars": 512
+    "startup_fetch_bars": 1024
   },
   "deep_learning": {
     "arch": "tcn",
