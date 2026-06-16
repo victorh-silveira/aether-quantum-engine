@@ -17,8 +17,10 @@ def pending_recovery_active(pending_loss: dict) -> bool:
 
 def recovery_blocked_symbols(risk_manager: Any, kelly_config: dict) -> frozenset[str]:
     """Simbolos excluidos do recovery por sequencia de losses em martingale."""
-    blocked: set[str] = set()
     max_streak = int(kelly_config.get("recovery_martingale_max_losses_per_symbol", 2))
+    if max_streak <= 0:
+        return frozenset()
+    blocked: set[str] = set()
     streaks = getattr(risk_manager, "recovery_symbol_loss_streak", {}) or {}
     for symbol, count in streaks.items():
         if int(count) >= max_streak:
@@ -132,6 +134,7 @@ def apply_recovery_direction_flip(
     if (
         symbol != last_loss_symbol
         or direction.name != ld
+        or float(flip_max_conviction) <= 0.0
         or raw_side_from_metrics(metrics) + 1e-9 >= float(flip_max_conviction)
     ):
         return best

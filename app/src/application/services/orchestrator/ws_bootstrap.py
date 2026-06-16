@@ -89,12 +89,12 @@ async def start_orchestrator_streams(orch: Orchestrator) -> bool:
             try:
                 bars, mode = resolve_startup_fetch_bars(orch.config, orch.symbols)
                 orch.stream.config["_startup_fetch_count"] = bars
-                orch.logger.info(
-                    "DATA: Startup %s | %d simbolos | alvo %d velas",
-                    mode,
-                    len(orch.symbols),
-                    bars,
-                )
+                if mode != "inferencia":
+                    orch.logger.info(
+                        "DATA: Startup treino | %d simbolos | alvo %d velas",
+                        len(orch.symbols),
+                        bars,
+                    )
                 await orch.stream.start_candle_stream(orch._on_candle)
                 orch.stream.config.pop("_startup_fetch_count", None)
                 orch._stream_ready_at = time.time()

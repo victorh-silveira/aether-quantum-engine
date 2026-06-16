@@ -80,20 +80,25 @@ def recovery_execution_eligible(entry: dict, recovery_cfg: dict | None = None) -
         return True
     if metrics.get("deploy_ok") is False:
         return False
+    cfg = recovery_cfg or {}
     gate = str(metrics.get("gate_reason") or "")
+    score, raw_side = _entry_signal_strength(metrics)
+    val_acc_bypass = False
+    if gate == "val_acc":
+        bypass_raw = float(cfg.get("val_acc_bypass_min_raw", 0.0))
+        if bypass_raw > 0.0 and raw_side + 1e-9 >= bypass_raw:
+            gate = ""
+            val_acc_bypass = True
     if _gate_blocks_eligibility(gate, entry):
         return False
     if infer_dl_direction(entry) is None:
         return False
-    cfg = recovery_cfg or {}
     min_conv = float(cfg.get("min_conviction_execute", 0.53))
     min_val = float(cfg.get("min_val_accuracy", 0.50))
-    score, raw_side = _entry_signal_strength(metrics)
     val = float(metrics.get("val_accuracy", 0.0))
     min_raw = float(cfg.get("min_raw_conviction_execute", 0.55))
-    return (
-        score + 1e-9 >= min_conv and val + 1e-9 >= min_val and (raw_side + 1e-9 >= min_raw or score + 1e-9 >= min_conv)
-    )
+    val_ok = val_acc_bypass or val + 1e-9 >= min_val
+    return score + 1e-9 >= min_conv and val_ok and (raw_side + 1e-9 >= min_raw or score + 1e-9 >= min_conv)
 
 
 def recovery_hedge_target(

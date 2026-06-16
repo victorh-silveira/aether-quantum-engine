@@ -52,7 +52,34 @@ def test_martingale_requires_conviction_floor_with_pending(kelly_config):
     )
 
 
-def test_martingale_skips_weak_recovery_signal(kelly_config):
+def test_martingale_conviction_rejects_when_deploy_not_ok(kelly_config):
+    rm = RiskManager(kelly_config)
+    rm.pending_loss["R_50"] = 20.0
+    assert not rm._martingale_dl_conviction_ok(
+        {
+            "deploy_ok": False,
+            "trade_score": 0.90,
+            "val_accuracy": 0.90,
+            "raw_prob": 0.90,
+        }
+    )
+
+
+def test_martingale_conviction_rejects_low_val_accuracy(kelly_config):
+    kelly_config["kelly"]["martingale_min_val_accuracy"] = 0.60
+    rm = RiskManager(kelly_config)
+    rm.pending_loss["R_50"] = 20.0
+    assert not rm._martingale_dl_conviction_ok(
+        {
+            "deploy_ok": True,
+            "trade_score": 0.90,
+            "val_accuracy": 0.50,
+            "raw_prob": 0.90,
+        }
+    )
+
+
+def test_martingale_always_on_pending_weak_signal(kelly_config):
     rm = RiskManager(kelly_config)
     rm.pending_loss["R_50"] = 10.0
     rm.last_loss_stake = 4.62
@@ -63,13 +90,29 @@ def test_martingale_skips_weak_recovery_signal(kelly_config):
         cycle_id=5,
         dl_metrics={"execute": False, "trade_score": 0.0, "val_accuracy": 0.51, "recovery_forced": True},
     )
-    assert stake == 0.0
+    assert stake > 0.0
 
 
-def test_martingale_rejects_marginal_raw_side_below_sizing_conviction(kelly_config):
+def test_martingale_rejects_marginal_raw_side_when_always_disabled(kelly_config):
+    kelly_config["kelly"]["recovery_martingale_always"] = False
     rm = RiskManager(kelly_config)
     rm.pending_loss["R_50"] = 10.0
     assert not rm._martingale_allowed(
+        "R_75",
+        0.51,
+        dl_metrics={
+            "execute": False,
+            "trade_score": 0.0,
+            "raw_prob": 0.49,
+            "val_accuracy": 0.59,
+        },
+    )
+
+
+def test_martingale_allows_marginal_raw_side_with_pending_always(kelly_config):
+    rm = RiskManager(kelly_config)
+    rm.pending_loss["R_50"] = 10.0
+    assert rm._martingale_allowed(
         "R_75",
         0.51,
         dl_metrics={
@@ -92,6 +135,25 @@ def test_martingale_allowed_on_strong_raw_side_with_zero_score(kelly_config):
             "execute": False,
             "trade_score": 0.0,
             "raw_prob": 0.62,
+            "val_accuracy": 0.55,
+        },
+    )
+
+
+def test_martingale_lowers_conviction_floor_when_pending_high(kelly_config):
+    kelly_config["kelly"]["martingale_sizing_conviction"] = 0.58
+    kelly_config["kelly"]["recovery_martingale_min_conviction"] = 0.46
+    kelly_config["kelly"]["recovery_force_pending_min"] = 150.0
+    kelly_config["kelly"]["recovery_martingale_always"] = False
+    rm = RiskManager(kelly_config)
+    rm.pending_loss["R_100"] = 200.0
+    assert rm._martingale_allowed(
+        "R_100",
+        0.50,
+        dl_metrics={
+            "execute": False,
+            "trade_score": 0.47,
+            "raw_prob": 0.47,
             "val_accuracy": 0.55,
         },
     )

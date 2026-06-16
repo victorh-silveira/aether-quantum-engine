@@ -139,10 +139,13 @@ def build_dl_cycle_brief(
             if metrics.get("gate_reason") == "data":
                 no_data += 1
             continue
-        if not metrics.get("execute"):
-            blocked += 1
-            continue
         conv = float(metrics.get("trade_score", metrics.get("conviction", 0.0)))
+        if not metrics.get("execute"):
+            if infer_dl_direction(entry) is not None:
+                exec_tokens.append(f"{symbol}:{direction.name} c={conv:.2f}")
+            else:
+                blocked += 1
+            continue
         exec_tokens.append(f"{symbol}:{direction.name} c={conv:.2f}")
     tag = "REC " if recovery_active else ""
     train_part = f" | {training} treinando" if training else ""

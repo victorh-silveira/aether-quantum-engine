@@ -79,6 +79,7 @@ async def fetch_paginated_candle_history(
     fetch_cfg: dict[str, float | int],
     logger: logging.Logger,
     existing: list[Candle] | None = None,
+    quiet: bool = False,
 ) -> list[Candle]:
     """Busca historico OHLC paginado com delay entre paginas e retry em rate limit."""
     merged = list(existing or [])
@@ -92,6 +93,7 @@ async def fetch_paginated_candle_history(
     backoff_base = float(fetch_cfg["backoff_base"])
     backoff_cap = float(fetch_cfg["backoff_cap"])
     chunk_index = 0
+    progress_log = logger.debug if quiet else logger.info
 
     while len(merged) < goal:
         chunk_index += 1
@@ -133,7 +135,7 @@ async def fetch_paginated_candle_history(
         batch = candles_from_payload(symbol, history)
         merged = merge_candle_pages(merged, batch)
         if chunk_index == 1 or chunk_index % 25 == 0 or len(merged) >= goal:
-            logger.info("DATA: %s | %d/%d velas", symbol, len(merged), goal)
+            progress_log("DATA: %s | %d/%d velas", symbol, len(merged), goal)
         if len(history) < need:
             break
         end = int(history[0]["epoch"]) - 1

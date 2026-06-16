@@ -101,7 +101,7 @@ def test_build_dl_cycle_brief_all_training():
     assert line == "DL | TREINO INICIAL | 2 modelo(s) em treinamento | trades suspensos"
 
 
-def test_build_dl_cycle_brief_mixed_training_and_blocked():
+def test_build_dl_cycle_brief_mixed_training_and_weak_exec():
     decisions = {
         "R_50": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}},
         "R_75": {
@@ -110,7 +110,7 @@ def test_build_dl_cycle_brief_mixed_training_and_blocked():
         },
     }
     line = build_dl_cycle_brief(decisions, recovery_active=False)
-    assert "1 bloq" in line
+    assert "exec R_75:CALL c=0.53" in line
     assert "1 treinando" in line
 
 
@@ -145,12 +145,34 @@ def test_abstain_detail_skips_training_symbols():
     assert detail == "R_75:r0.52:confidence"
 
 
+def test_build_dl_cycle_brief_weak_signal_shows_candidate():
+    decisions = {
+        "R_100": {
+            "direction": TradeDirection.PUT,
+            "metrics": {"gate_reason": "confidence", "execute": False, "trade_score": 0.50, "raw_prob": 0.50},
+        },
+    }
+    line = build_dl_cycle_brief(decisions, recovery_active=False)
+    assert "exec R_100:PUT c=0.50" in line
+
+
 def test_build_dl_cycle_brief_all_blocked_without_raw_prob():
     decisions = {
-        "R_50": {"direction": TradeDirection.CALL, "metrics": {"gate_reason": "edge", "execute": False}},
+        "R_50": {"direction": None, "metrics": {"gate_reason": "edge", "execute": False}},
     }
     line = build_dl_cycle_brief(decisions, recovery_active=False)
     assert "R_50:edge" in line
+
+
+def test_build_dl_cycle_brief_recovery_weak_signal_shows_candidate():
+    decisions = {
+        "R_100": {
+            "direction": TradeDirection.PUT,
+            "metrics": {"gate_reason": "confidence", "execute": False, "trade_score": 0.50, "raw_prob": 0.50},
+        },
+    }
+    line = build_dl_cycle_brief(decisions, recovery_active=True)
+    assert "exec R_100:PUT c=0.50" in line
 
 
 def test_build_dl_cycle_brief_recovery_all_blocked_shows_abstain():
@@ -206,7 +228,7 @@ def test_build_dl_cycle_brief_recovery_all_blocked_returns_detail():
         },
     }
     line = build_dl_cycle_brief(decisions, recovery_active=True)
-    assert "R_75:r0.53" in line
+    assert "exec R_75:CALL c=0.55" in line
 
 
 def test_build_dl_cycle_brief_partial_no_data():
@@ -235,11 +257,11 @@ def test_log_dl_cycle_summary_logs_info_without_orch(caplog):
 def test_build_dl_cycle_brief_normal_all_blocked_shows_abstain():
     decisions = {
         "R_50": {
-            "direction": TradeDirection.CALL,
+            "direction": None,
             "metrics": {"gate_reason": "edge", "execute": False, "raw_prob": 0.58},
         },
         "R_75": {
-            "direction": TradeDirection.PUT,
+            "direction": None,
             "metrics": {"gate_reason": "brier", "execute": False, "raw_prob": 0.42},
         },
     }

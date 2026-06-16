@@ -45,6 +45,14 @@ def test_resolve_fetch_count_startup_override(mock_ws):
     assert sh._resolve_fetch_count() == 25984
 
 
+def test_history_sync_quiet_for_small_fetch_goal(mock_ws):
+    sh = StreamHandler(mock_ws, ["R_50"], {"fetch_count": 256})
+    assert sh._history_sync_quiet(256) is True
+    assert sh._history_sync_quiet(1000) is False
+    sh.config["_startup_fetch_count"] = 25984
+    assert sh._history_sync_quiet(25984) is True
+
+
 def test_stream_handler_normalizes_unsupported_granularity(mock_ws):
     sh = StreamHandler(mock_ws, ["R_50"], {"granularity": 10})
     assert sh.granularity == 60

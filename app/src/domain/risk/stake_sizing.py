@@ -50,8 +50,11 @@ def clamp_kelly_stake(
     max_pct = resolve_max_stake_pct(kelly_config, conviction)
     min_pct = float(kelly_config.get("min_stake_pct", 0.0))
     floor_stake = bankroll * min_pct if min_pct > 0 else 0.0
-    ceiling = bankroll * max_pct
-    bounded = max(floor_stake, min(raw_stake, ceiling))
+    if max_pct > 0.0:
+        ceiling = bankroll * max_pct
+        bounded = max(floor_stake, min(raw_stake, ceiling))
+    else:
+        bounded = max(floor_stake, raw_stake)
     return bounded if bounded > 0 else 0.0
 
 
@@ -117,9 +120,8 @@ def _resolve_stop_win_max_stake_pct(
     payout: float,
 ) -> float:
     """Deriva teto de stake Kelly para uma tacada atingir o stop win percentual."""
-    explicit = float(kelly_config.get("stop_win_max_stake_pct", 0.0))
-    if explicit > 0.0:
-        return explicit
+    if "stop_win_max_stake_pct" in kelly_config:
+        return max(0.0, float(kelly_config["stop_win_max_stake_pct"]))
     stop_pct = float((risk_config or {}).get("large_account_stop_win_pct", 1.0)) / 100.0
     if payout > 0.0:
         return stop_pct / payout
@@ -153,7 +155,13 @@ def compute_single_strike_kelly_base(
     goal_stake = (remaining / payout) * weight / cycles_target * cycle_scale if payout > 0.0 else kelly_base
     stop_cap = _resolve_stop_win_max_stake_pct(risk_config, kelly_config, payout)
     kelly_cap = resolve_max_stake_pct(kelly_config, conviction)
-    max_allowed = bankroll * max(stop_cap, kelly_cap)
+    if kelly_cap > 0.0:
+        cap_pct = max(stop_cap, kelly_cap)
+    elif stop_cap > 0.0:
+        cap_pct = stop_cap
+    else:
+        cap_pct = 0.0
+    max_allowed = bankroll * cap_pct if cap_pct > 0.0 else bankroll
     stop_win_stake = min(goal_stake, max_allowed)
     if stop_win_stake > kelly_base:
         return stop_win_stake

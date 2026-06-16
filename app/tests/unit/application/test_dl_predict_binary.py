@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 import numpy as np
+import pytest
 
 from src.application.services.deep_learning.dl_params import parse_dl_params
 from src.application.services.deep_learning.dl_predict import predict_symbol_decision
@@ -36,6 +37,8 @@ def test_predict_abstains_on_low_confidence():
         )
     assert entry["metrics"]["execute"] is False
     assert entry["metrics"]["gate_reason"] == "confidence"
+    assert entry["direction"] == TradeDirection.CALL
+    assert entry["metrics"]["trade_score"] == pytest.approx(0.52, abs=1e-6)
 
 
 def test_predict_executes_on_strong_call():
@@ -65,3 +68,34 @@ def test_predict_executes_on_strong_call():
         )
     assert entry["metrics"]["execute"] is True
     assert entry["direction"] == TradeDirection.CALL
+
+
+def test_predict_weak_direction_on_neutral_zone():
+    params = parse_dl_params(
+        {
+            "confidence_call_threshold": 0.57,
+            "confidence_put_threshold": 0.43,
+            "min_val_accuracy": 0.53,
+        }
+    )
+    orch = type("O", (), {"config": {"deep_learning": {}}})()
+    runtime = {"val_accuracy": 0.55, "val_brier": 0.2, "val_ece": 0.1, "lookback": 15}
+    with patch(
+        "src.application.services.deep_learning.dl_predict.predict_next_direction",
+        return_value=(None, 0.47, 0.47),
+    ):
+        entry = predict_symbol_decision(
+            orch,
+            "R_100",
+            TemporalDirectionClassifier(input_dim=INPUT_DIM),
+            np.zeros(80),
+            fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32)),
+            runtime,
+            params,
+            None,
+            recovery_active=False,
+        )
+    assert entry["direction"] == TradeDirection.PUT
+    assert entry["metrics"]["trade_score"] == pytest.approx(0.53, abs=1e-6)
+    assert entry["metrics"]["execute"] is False
+    assert entry["metrics"]["gate_reason"] == "confidence"

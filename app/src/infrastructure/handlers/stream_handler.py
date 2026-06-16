@@ -10,6 +10,7 @@ from src.domain.models.market_data import Candle
 from src.infrastructure.api.deriv_granularity import normalize_granularity_seconds
 from src.infrastructure.api.websocket_manager import WebSocketManager
 from src.infrastructure.handlers.history_fetch import fetch_paginated_candle_history, parse_history_fetch_config
+from src.infrastructure.handlers.stream_ohlc_fetch import fetch_candle_close_rows, fetch_candle_ohlc_rows
 from src.infrastructure.handlers.tick_buffer import TickBuffer
 
 
@@ -54,15 +55,23 @@ class StreamHandler:
             return history_bars + warmup
         return 500
 
+    def _history_sync_quiet(self, goal: int) -> bool:
+        """Indica sync inicial curto (inferencia) com logs reduzidos."""
+        if self.config.get("_startup_fetch_count") is not None:
+            return True
+        return int(goal) <= 512
+
     async def start_candle_stream(self, callback):
         """Ativa subscrições do cluster e busca histórico paralelo."""
         fetch_count = self._resolve_fetch_count()
+        quiet = self._history_sync_quiet(fetch_count)
         self.is_synchronized = False
 
         if not self.ws.is_running:
             raise ConnectionError("STREAM: WebSocket desconectado antes da sincronização.")
 
-        self.logger.info(
+        sync_log = self.logger.debug if quiet else self.logger.info
+        sync_log(
             "DATA: Sincronizando historico | %d simbolos | alvo %d velas | aguarde",
             len(self.symbols),
             fetch_count,
@@ -70,20 +79,17 @@ class StreamHandler:
         fetch_cfg = parse_history_fetch_config(self.config)
         total = len(self.symbols)
         for index, symbol in enumerate(self.symbols, start=1):
-            self.logger.info("DATA: Historico %s (%d/%d) | iniciando", symbol, index, total)
-            await self._fetch_symbol_history(symbol, fetch_count, fetch_cfg=fetch_cfg)
+            sync_log("DATA: Historico %s (%d/%d) | iniciando", symbol, index, total)
+            await self._fetch_symbol_history(symbol, fetch_count, fetch_cfg=fetch_cfg, quiet=quiet)
             bars = len(self.candles.get(symbol, []))
-            self.logger.info("DATA: Historico %s (%d/%d) | %d velas", symbol, index, total, bars)
+            sync_log("DATA: Historico %s (%d/%d) | %d velas", symbol, index, total, bars)
             symbol_delay = float(fetch_cfg["symbol_delay"])
             if symbol_delay > 0:
                 await asyncio.sleep(symbol_delay)
         if self.symbols:
             bars = len(self.candles.get(self.symbols[0], []))
-            self.logger.info(
-                "DATA: Buffer pronto | %d simbolos | %d velas",
-                len(self.symbols),
-                bars,
-            )
+            label = self.symbols[0] if len(self.symbols) == 1 else f"{len(self.symbols)} simbolos"
+            self.logger.info("DATA: Buffer pronto | %s | %d velas", label, bars)
         if not self.ws.is_running:
             raise ConnectionError("STREAM: WebSocket desconectado após sincronização histórica.")
 
@@ -128,6 +134,7 @@ class StreamHandler:
         count: int,
         *,
         fetch_cfg: dict | None = None,
+        quiet: bool = False,
     ) -> int:
         """Busca historico paginado para um simbolo e retorna quantidade armazenada."""
         cfg = fetch_cfg or parse_history_fetch_config(self.config)
@@ -140,6 +147,7 @@ class StreamHandler:
             fetch_cfg=cfg,
             logger=self.logger,
             existing=existing,
+            quiet=quiet,
         )
         self.candles[symbol] = merged
         self.logger.debug("DATA: Historico %s | %d velas (alvo %d)", symbol, len(merged), count)
@@ -241,58 +249,12 @@ class StreamHandler:
         self, symbol: str, granularity: int, count: int
     ) -> list[tuple[float, float, float, float]]:
         """Busca velas OHLC (open, high, low, close) por granularidade sem alterar o buffer local."""
-        if count <= 0 or not self.ws.is_running:
-            return []
         if symbol not in self.symbols:
             return []
-        req = {
-            "ticks_history": symbol,
-            "end": "latest",
-            "style": "candles",
-            "granularity": granularity,
-            "count": count,
-        }
-        try:
-            res = await self.ws.send(req)
-        except Exception as e:
-            self.logger.debug("DATA: OHLC completo %s g=%s: %s", symbol, granularity, e)
-            return []
-        if res.get("error"):
-            return []
-        history = res.get("candles") or []
-        out: list[tuple[float, float, float, float]] = []
-        for c in history:
-            try:
-                out.append((float(c["open"]), float(c["high"]), float(c["low"]), float(c["close"])))
-            except _KEY_TYPE_VALUE_ERRORS:
-                continue
-        return out
+        return await fetch_candle_ohlc_rows(self.ws, symbol, granularity, count, self.logger)
 
     async def fetch_candle_closes(self, symbol: str, granularity: int, count: int) -> list[float]:
         """Busca fechamentos OHLC para outra granularidade (ex. M5=300s) sem mudar o buffer local."""
-        if count <= 0 or not self.ws.is_running:
-            return []
         if symbol not in self.symbols:
             return []
-        req = {
-            "ticks_history": symbol,
-            "end": "latest",
-            "style": "candles",
-            "granularity": granularity,
-            "count": count,
-        }
-        try:
-            res = await self.ws.send(req)
-        except Exception as e:
-            self.logger.debug("DATA: OHLC historia extra %s g=%s: %s", symbol, granularity, e)
-            return []
-        if res.get("error"):
-            return []
-        history = res.get("candles") or []
-        out: list[float] = []
-        for c in history:
-            try:
-                out.append(float(c["close"]))
-            except _KEY_TYPE_VALUE_ERRORS:
-                continue
-        return out
+        return await fetch_candle_close_rows(self.ws, symbol, granularity, count, self.logger)

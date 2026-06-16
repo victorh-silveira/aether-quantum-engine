@@ -12,6 +12,7 @@ from src.application.services.deep_learning.dl_gating import (
 from src.application.services.deep_learning.dl_outcomes import blended_val_accuracy
 from src.application.services.deep_learning.dl_symbol_runtime import guard_symbol_model
 from src.application.services.deep_learning.model import predict_next_direction
+from src.domain.models.trade import TradeDirection
 
 
 logger = logging.getLogger("AETH")
@@ -64,15 +65,18 @@ def predict_symbol_decision(
                 put_threshold=put_threshold,
             )
         if direction is None:
+            raw = float(raw_prob)
+            side_score = max(raw, 1.0 - raw)
+            weak_dir = TradeDirection.CALL if raw > 0.5 else TradeDirection.PUT
             entry = build_decision_entry(
-                None,
-                float(raw_prob),
+                weak_dir,
+                raw,
                 execute=False,
                 val_accuracy=val_accuracy,
                 edge=resolve_edge(raw_prob),
                 train_loss=train_loss,
                 raw_prob=raw_prob,
-                trade_score=float(raw_prob),
+                trade_score=side_score,
                 contract_duration=int(params.get("contract_duration", 60)),
             )
             entry["metrics"]["gate_reason"] = "confidence"

@@ -99,7 +99,7 @@ def train_model_walkforward(
     focal_gamma = 0.0
     lr_scheduler = "cosine"
     if dl_config is not None:
-        patience = max(1, int(dl_config.get("early_stopping_patience", 6)))
+        patience = max(0, int(dl_config.get("early_stopping_patience", 6)))
         label_smoothing = float(dl_config.get("label_smoothing", 0.0))
         focal_gamma = float(dl_config.get("focal_gamma", 0.0))
         lr_scheduler = str(dl_config.get("lr_scheduler", "cosine")).strip().lower()

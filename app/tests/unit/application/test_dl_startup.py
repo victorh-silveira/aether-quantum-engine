@@ -131,4 +131,14 @@ def test_min_dl_history_len_uses_inference_window_when_online_training_off():
         "inference_history_bars": 128,
         "online_training": False,
     }
-    assert min_dl_history_len(params) == 164
+    assert min_dl_history_len(params) == 128
+
+
+def test_min_dl_history_len_ignores_training_validation_bars_in_inference_mode():
+    params = {
+        "lookback": 48,
+        "validation_bars": 3879,
+        "inference_history_bars": 128,
+        "online_training": False,
+    }
+    assert min_dl_history_len(params) == 128

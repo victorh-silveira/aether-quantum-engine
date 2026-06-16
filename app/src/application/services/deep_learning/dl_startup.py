@@ -6,6 +6,7 @@ from typing import Any
 
 from src.application.services.deep_learning.dl_params import parse_dl_params
 from src.application.services.deep_learning.dl_symbol_runtime import resolve_dl_model_path
+from src.application.services.deep_learning.dl_training_gate import min_dl_inference_len
 
 
 def inference_startup_enabled(dl_config: dict[str, Any] | None) -> bool:
@@ -39,9 +40,7 @@ def resolve_startup_fetch_bars(config: dict[str, Any], symbols: list[str]) -> tu
         return max(1, int(data_config["startup_fetch_bars"])), "inferencia"
     risk_params = (config.get("risk_management") or {}).get("params") or {}
     params = parse_dl_params(dl_config, data_config, risk_params)
-    infer_bars = max(1, int(params.get("inference_history_bars", 128)))
-    floor = int(params["lookback"]) + 20
-    return max(floor, infer_bars) + warmup, "inferencia"
+    return min_dl_inference_len(params) + warmup, "inferencia"
 
 
 def prepare_inference_run_loop(orch: Any) -> bool:

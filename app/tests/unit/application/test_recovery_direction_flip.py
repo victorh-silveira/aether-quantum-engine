@@ -45,6 +45,27 @@ def test_apply_recovery_direction_flip_skips_when_conviction_strong():
     assert flipped[1] == TradeDirection.CALL
 
 
+def test_apply_recovery_direction_flip_disabled_when_max_zero():
+    decisions = {
+        PAIR: {
+            "direction": TradeDirection.CALL,
+            "metrics": {"raw_prob": 0.54, "trade_score": 0.54, "deploy_ok": True},
+        },
+    }
+    best = (PAIR, TradeDirection.CALL, decisions[PAIR]["metrics"])
+    flipped = apply_recovery_direction_flip(
+        best,
+        decisions,
+        recovery_active=True,
+        last_loss_symbol=PAIR,
+        last_loss_direction="CALL",
+        flip_enabled=True,
+        flip_max_conviction=0.0,
+    )
+    assert flipped == best
+    assert flipped[1] == TradeDirection.CALL
+
+
 def test_apply_recovery_direction_flip_noop_branches():
     base = (PAIR, TradeDirection.CALL, {"raw_prob": 0.62})
     assert (

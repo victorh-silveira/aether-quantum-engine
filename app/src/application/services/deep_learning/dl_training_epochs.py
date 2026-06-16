@@ -195,7 +195,7 @@ def fit_training_epochs(
     best_state = None
     best_val_loss = float("inf")
     best_val_acc = -1.0
-    patience = max(1, int(early_stopping_patience))
+    patience = max(0, int(early_stopping_patience))
     patience_counter = 0
     total_epochs = max(1, epochs)
     epochs_ran = 0
@@ -235,7 +235,7 @@ def fit_training_epochs(
             patience_counter = 0
         else:
             patience_counter += 1
-            if patience_counter >= patience:
+            if patience > 0 and patience_counter >= patience:
                 break
         if scheduler_mode == "reduce_on_plateau":
             scheduler.step(val_loss)

@@ -113,7 +113,8 @@ def calculate_stake_for_manager(
         weak_pct = float(
             rm.kelly_config.get("mandatory_weak_max_stake_pct", rm.kelly_config.get("max_stake_pct", 0.004))
         )
-        kelly_base = min(kelly_base, bankroll * weak_pct)
+        if weak_pct > 0.0:
+            kelly_base = min(kelly_base, bankroll * weak_pct)
 
     final_stake, recovery_stake, mode_tag = resolve_mode_stake(
         martingale_active=martingale_active,
@@ -134,7 +135,9 @@ def calculate_stake_for_manager(
     stake_max = float(getattr(rm, "stake_max", 0.0))
     if martingale_active and stake_max > 0.0:
         final_stake = min(final_stake, stake_max)
-    final_stake = min(final_stake, bankroll * 0.92)
+    bankroll_cap = float(rm.kelly_config.get("max_bankroll_stake_fraction", 0.92))
+    if bankroll_cap > 0.0:
+        final_stake = min(final_stake, bankroll * bankroll_cap)
     final_stake = finalize_stake_with_min(
         final_stake, stake_min, bankroll, conviction, martingale_active=martingale_active
     )

@@ -250,6 +250,12 @@ def test_recovery_blocked_symbols_excludes_streak_only():
     assert blocked == frozenset({PAIR})
 
 
+def test_recovery_blocked_symbols_unlimited_when_max_streak_zero():
+    rm = SimpleNamespace(recovery_symbol_loss_streak={PAIR: 5})
+    blocked = recovery_blocked_symbols(rm, {"recovery_martingale_max_losses_per_symbol": 0})
+    assert blocked == frozenset()
+
+
 def test_recovery_candidate_pool_skips_blocked_symbols():
     candidates = [
         (PAIR, TradeDirection.CALL, {"execute": True, "trade_score": 0.60}),

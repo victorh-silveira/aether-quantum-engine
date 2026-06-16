@@ -145,13 +145,18 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
         if dl_metrics.get("deploy_ok") is False:
             return False
         min_conv = float(self.kelly_config.get("martingale_sizing_conviction", 0.58))
+        pending = sum(float(v) for v in self.pending_loss.values())
+        force_min = float(self.kelly_config.get("recovery_martingale_min_conviction", min_conv))
+        force_pending = float(self.kelly_config.get("recovery_force_pending_min", 0.0))
+        if force_pending > 0.0 and pending + 1e-9 >= force_pending:
+            min_conv = min(min_conv, force_min)
         min_val = float(self.kelly_config.get("martingale_min_val_accuracy", 0.50))
         score = float(dl_metrics.get("trade_score", dl_metrics.get("conviction", 0.0)))
         raw_side = raw_side_from_metrics(dl_metrics)
         val = float(dl_metrics.get("val_accuracy", 0.0))
         if min_val > 0.0 and val + 1e-9 < min_val:
             return False
-        if score + 1e-9 >= min_conv:
+        if max(score, raw_side) + 1e-9 >= min_conv:
             return True
         return score < 1e-9 and raw_side + 1e-9 >= min_conv
 
@@ -161,6 +166,11 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
             return False
         dl_metrics = kwargs.get("dl_metrics")
         if isinstance(dl_metrics, dict):
+            if dl_metrics.get("deploy_ok") is False:
+                return False
+            pending = sum(float(v) for v in self.pending_loss.values())
+            if pending > 0.0 and bool(self.kelly_config.get("recovery_martingale_always", True)):
+                return True
             return self._martingale_dl_conviction_ok(dl_metrics)
         return True
 

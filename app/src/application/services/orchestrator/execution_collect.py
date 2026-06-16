@@ -178,7 +178,8 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
     proposal_skip = proposal_skip_fn() if callable(proposal_skip_fn) else frozenset()
     recovery_skip = recovery_blocked_symbols(exec_mgr.orch.risk_manager, kelly_cfg) if recovery_active else frozenset()
     skip_symbols = proposal_skip | recovery_skip
-    min_signal = recovery_min_signal(kelly_cfg, recovery_active=recovery_active)
+    pending_total = sum(float(v) for v in getattr(exec_mgr.orch.risk_manager, "pending_loss", {}).values())
+    min_signal = recovery_min_signal(kelly_cfg, recovery_active=recovery_active, pending_total=pending_total)
     min_val = recovery_min_val_accuracy(kelly_cfg) if recovery_active else 0.0
     cid = f"C{int(exec_mgr.orch._active_cycle_id):04d}"
     last_loss = getattr(exec_mgr.orch.risk_manager, "last_loss_symbol", None)

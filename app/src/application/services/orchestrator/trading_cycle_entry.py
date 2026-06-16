@@ -56,12 +56,9 @@ def prepare_orchestrator_run_loop(orch: Any) -> None:
     if mode == "deep_learning" and not orch._dl_bootstrap_completed:
         try_enqueue_next_bootstrap_training(orch)
     orch_cfg = orch.config.get("orchestrator") if isinstance(orch.config.get("orchestrator"), dict) else {}
-    dl = orch.config.get("deep_learning", {}) if isinstance(orch.config.get("deep_learning"), dict) else {}
-    orch.logger.info(
-        "INIT: Motor ativo | ciclo=%ds | threshold=%.2f/%.2f",
+    orch.logger.debug(
+        "INIT: loop ativo | ciclo=%ds",
         int(orch_cfg.get("cycle_interval_seconds") or 0),
-        float(dl.get("confidence_call_threshold", 0.75)),
-        float(dl.get("confidence_put_threshold", 0.25)),
     )
 
 

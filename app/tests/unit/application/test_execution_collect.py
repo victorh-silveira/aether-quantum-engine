@@ -252,7 +252,7 @@ def test_collect_cluster_orders_mandatory_does_not_skip_recovery_without_hedge()
     assert orders[0][0] == PAIR
 
 
-def test_cluster_entry_recovery_rejects_mandatory_weak_bypass():
+def test_cluster_entry_recovery_accepts_mandatory_weak_with_pending_loss():
     entry = {
         "direction": TradeDirection.PUT,
         "metrics": {
@@ -263,7 +263,7 @@ def test_cluster_entry_recovery_rejects_mandatory_weak_bypass():
             "deploy_ok": True,
         },
     }
-    assert not cluster_entry_eligible(
+    assert cluster_entry_eligible(
         entry,
         mandatory=True,
         recovery_active=True,
