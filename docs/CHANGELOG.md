@@ -2,6 +2,13 @@
 
 ### Funcionalidades
 
+* **config:** alinhar limiares de seleção do deep learning ([f4755fe](https://github.com/victorh-silveira/aether-quantum-engine/commit/f4755feaf856ea5c2f364c6f5baa2d78897924c3))
+* **engine:** otimizar hiperparâmetros e seletividade ([2b24396](https://github.com/victorh-silveira/aether-quantum-engine/commit/2b24396a7f1c5c2c00821fd17e0b03286eb0bca5))
+
+## [1.15.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.14.1...v1.15.0) (2026-06-16)
+
+### Funcionalidades
+
 * **engine:** optimize hyperparameters and selectivity ([721b6c7](https://github.com/victorh-silveira/aether-quantum-engine/commit/721b6c7908c969a921e2f93c0681c247676a573f))
 
 ## [1.14.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.14.0...v1.14.1) (2026-06-16)
