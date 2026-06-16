@@ -233,7 +233,7 @@ def stage_clean():
                 if f.endswith((".pyc", ".pyo", ".pyd")):
                     safe_remove(Path(root) / f)
 
-    for name in ("data", "logs"):
+    for name in ("logs",):
         p = REPO_ROOT / name
         if p.exists():
             safe_remove(p)
