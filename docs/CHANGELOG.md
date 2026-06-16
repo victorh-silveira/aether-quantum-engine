@@ -1,3 +1,9 @@
+## [1.15.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.15.1...v1.15.2) (2026-06-16)
+
+### Correcoes de Bug
+
+* **config:** aumentar velas de inicializacao de 512 para 1024 ([ca2f4ad](https://github.com/victorh-silveira/aether-quantum-engine/commit/ca2f4ad8ebe791a82e99b54352da42c2529fb4a7))
+
 ## [1.15.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.15.0...v1.15.1) (2026-06-16)
 
 ### Correcoes de Bug
