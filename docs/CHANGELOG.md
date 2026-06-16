@@ -1,3 +1,9 @@
+## [1.14.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.14.0...v1.14.1) (2026-06-16)
+
+### Correcoes de Bug
+
+* **engine:** fortalecer recovery obrigatório e sizing sem teto ([b831c4a](https://github.com/victorh-silveira/aether-quantum-engine/commit/b831c4a9beb0289136fe393d589d6f9f3bee468b))
+
 ## [1.14.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.13.4...v1.14.0) (2026-06-15)
 
 ### Funcionalidades
