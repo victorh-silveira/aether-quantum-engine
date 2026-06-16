@@ -63,3 +63,21 @@ def test_get_symbol_runtime_reuses_checkpoint_when_online_training_disabled():
         runtime = get_symbol_runtime(orch, "R_100", dl_config, params)
     assert runtime["session_trained"] is True
     assert runtime["deploy_ok"] is False
+
+
+def test_get_symbol_runtime_exception_on_torch_load():
+    orch = MagicMock()
+    orch._dl_runtime = {}
+    dl_config = {"model_path_template": "data/dl/{symbol}.pth"}
+    params = {"lookback": 48, "arch": "tcn"}
+    with (
+        patch("pathlib.Path.exists", return_value=True),
+        patch("torch.load", side_effect=Exception("Corrupted file")),
+        patch(
+            "src.application.services.deep_learning.dl_symbol_runtime.load_model_checkpoint",
+            return_value=_loaded_checkpoint(deploy_ok=True),
+        ),
+    ):
+        runtime = get_symbol_runtime(orch, "R_100", dl_config, params)
+    assert runtime["trained_granularity"] == 60
+    assert runtime["deploy_ok"] is True

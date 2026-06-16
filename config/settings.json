@@ -1,5 +1,5 @@
 {
-  "anchor": "R_100",
+  "anchor": "R_10",
   "api_config": {
     "deriv_app_id": "",
     "public_ws_url": "wss://api.derivws.com/trading/v1/options/ws/public",
@@ -13,7 +13,7 @@
   "data_handler": {
     "buffer_limit": 65536,
     "fetch_count": 25984,
-    "granularity": 300,
+    "granularity": 60,
     "history_bars": 25920,
     "history_fetch_chunk": 1000,
     "history_fetch_delay_seconds": 0.35,
@@ -23,15 +23,15 @@
     "history_fetch_rate_limit_max_delay": 45.0,
     "history_warmup_bars": 64,
     "min_required_points": 64,
-    "startup_fetch_bars": 256
+    "startup_fetch_bars": 512
   },
   "deep_learning": {
     "arch": "tcn",
     "enabled": true,
     "bootstrap_max_wait_rounds": 240,
     "calib_ratio": 0.15,
-    "confidence_call_threshold": 0.57,
-    "confidence_put_threshold": 0.43,
+    "confidence_call_threshold": 0.60,
+    "confidence_put_threshold": 0.40,
     "min_edge_execute": 0.05,
     "recovery_gating": {
       "min_conviction_execute": 0.52,
@@ -61,7 +61,7 @@
     "label_ma_window": 5,
     "label_smooth_bars": 5,
     "implied_vol_bars": 60,
-    "early_stopping_patience": 0,
+    "early_stopping_patience": 15,
     "min_val_accuracy": 0.52,
     "model_path_template": "data/dl/{symbol}.pth",
     "online_training": false,
@@ -69,7 +69,11 @@
     "rolling_retrain_bars": 3,
     "train_on_new_candle_only": true,
     "tcn": {
-      "channels": [64, 64, 32],
+      "channels": [
+        64,
+        64,
+        32
+      ],
       "dropout": 0.25
     },
     "lstm": {
@@ -88,7 +92,7 @@
     "label_smoothing": 0.02,
     "focal_gamma": 1.5,
     "lr_scheduler": "reduce_on_plateau",
-    "weight_decay": 0.0002
+    "weight_decay": 0.0005
   },
   "logging": {
     "log_file": "logs/engine.log"
@@ -101,9 +105,14 @@
       "diversify_after_loss_margin": 0.08,
       "include_anchor_trades": true,
       "inter_symbol_delay": 0.2,
-      "mandatory_trade_each_cycle": true,
+      "mandatory_trade_each_cycle": false,
       "proposal_failure_skip_cycles": 3,
-      "proposal_retry_scales": [0.85, 0.7, 0.55, 0.4],
+      "proposal_retry_scales": [
+        0.85,
+        0.7,
+        0.55,
+        0.4
+      ],
       "post_settlement_cycle_timeout_seconds": 30,
       "recovery_flip_direction_after_loss": false,
       "recovery_flip_max_conviction": 0,
@@ -132,15 +141,15 @@
       "martingale_target_fraction": 0.45,
       "martingale_recovery_step_fraction": 1.0,
       "martingale_max_stake_multiplier": 0,
-      "mandatory_min_trade_score": 0.52,
-      "recovery_min_trade_score": 0.50,
+      "mandatory_min_trade_score": 0.58,
+      "recovery_min_trade_score": 0.58,
       "recovery_force_min_trade_score": 0.46,
       "recovery_force_pending_min": 1,
       "recovery_min_val_accuracy": 0,
-      "recovery_martingale_always": true,
+      "recovery_martingale_always": false,
       "recovery_martingale_max_losses_per_symbol": 0,
-      "martingale_sizing_conviction": 0.46,
-      "recovery_martingale_min_conviction": 0.46,
+      "martingale_sizing_conviction": 0.58,
+      "recovery_martingale_min_conviction": 0.58,
       "martingale_min_val_accuracy": 0.0,
       "stake_conviction_min_raw": 0.0,
       "max_stake_pct": 0,
@@ -155,8 +164,8 @@
       "stop_win_kelly_min_conviction": 0.54,
       "stop_win_kelly_min_fraction": 0.2,
       "stop_win_martingale_progress_fraction": 0.06,
-      "symbol_loss_cooldown_candles": 0,
-      "symbol_loss_cooldown_cycles": 0
+      "symbol_loss_cooldown_candles": 2,
+      "symbol_loss_cooldown_cycles": 2
     },
     "large_account_stop_win_pct": 4.0,
     "params": {
@@ -171,7 +180,7 @@
     "small_account_threshold": 50.0
   },
   "symbols": [
-    "R_100"
+    "R_10"
   ],
   "trading": {
     "mode": "demo"

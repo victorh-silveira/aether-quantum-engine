@@ -11,7 +11,7 @@ from src.application.services.deep_learning.decision_bridge import (
     _log_retrain_batch,
     _min_dl_history_len,
 )
-from src.application.services.deep_learning.dl_bridge_helpers import build_decision_entry
+from src.application.services.deep_learning.dl_bridge_helpers import build_decision_entry, resample_m1_to_m5
 from src.domain.models.trade import TradeDirection
 from tests.unit.application.dl_collect_fixtures import MockOrchestrator
 
@@ -147,3 +147,78 @@ async def test_collect_symbol_decision_full_path():
     assert reason == "bootstrap"
     assert out["direction"] == TradeDirection.CALL
     mock_enqueue.assert_called_once()
+
+
+def test_resample_m1_to_m5():
+    # Test short input
+    prices = np.array([1.0, 2.0])
+    res_p, res_o, res_h, res_l = resample_m1_to_m5(prices, None, None, None)
+    assert np.array_equal(res_p, prices)
+
+    # Test full resampling
+    prices = np.linspace(1.0, 10.0, 10)
+    open_val = np.linspace(1.0, 10.0, 10)
+    high_val = np.linspace(1.5, 10.5, 10)
+    low_val = np.linspace(0.5, 9.5, 10)
+    res_p, res_o, res_h, res_l = resample_m1_to_m5(prices, open_val, high_val, low_val)
+    assert len(res_p) == 6
+    assert len(res_o) == 6
+    assert len(res_h) == 6
+    assert len(res_l) == 6
+    assert res_h[0] == np.max(high_val[0:5])
+    assert res_l[0] == np.min(low_val[0:5])
+
+    # Test resampling with None high/low (covers else blocks)
+    res_p, res_o, res_h, res_l = resample_m1_to_m5(prices, open_val, None, None)
+    assert res_h is None
+    assert res_l is None
+
+
+@pytest.mark.asyncio
+async def test_collect_symbol_decision_resamples_m1_to_m5():
+    prices = np.linspace(1.0, 10.0, 120)
+    orch = MockOrchestrator(["R_50"], prices, train_mode=True)
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {"execute": True, "conviction": 0.62, "trade_score": 0.62, "val_accuracy": 0.52},
+    }
+    runtime = {
+        "model": MagicMock(),
+        "norm_stats": MagicMock(),
+        "val_accuracy": 0.52,
+        "val_brier": 0.25,
+        "calibrator": None,
+        "lookback": 32,
+        "deploy_ok": True,
+        "deploy_win_rate": 0.5,
+        "last_candle_epoch": 0,
+        "trained_granularity": 300,
+    }
+    with (
+        patch(
+            "src.application.services.deep_learning.decision_bridge.should_retrain_symbol",
+            return_value=(False, ""),
+        ),
+        patch(
+            "src.application.services.deep_learning.decision_bridge.predict_symbol_decision",
+            return_value=entry,
+        ),
+        patch(
+            "src.application.services.deep_learning.decision_bridge.get_symbol_runtime",
+            return_value=runtime,
+        ),
+        patch(
+            "src.application.services.deep_learning.decision_bridge.candle_epoch",
+            return_value=1000,
+        ),
+    ):
+        out, reason = await _collect_symbol_decision(
+            orch,
+            "R_50",
+            dl_config={"deploy_gate": {"enabled": False}},
+            params={"training_history_bars": 60, "lookback": 32},
+            min_len=30,
+            granularity=60,
+            recovery_active=False,
+        )
+    assert out["direction"] == TradeDirection.CALL

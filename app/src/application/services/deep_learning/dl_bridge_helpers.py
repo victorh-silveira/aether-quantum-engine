@@ -1,7 +1,41 @@
 """Entradas de decisao, cooldown e reexportes do bridge Deep Learning."""
 
+import numpy as np
+
 from src.application.services.deep_learning.dl_outcomes import is_symbol_session_paused
 from src.application.services.deep_learning.dl_params import optional_float, parse_dl_params
+
+
+def resample_m1_to_m5(
+    prices: np.ndarray,
+    open_: np.ndarray | None,
+    high: np.ndarray | None,
+    low: np.ndarray | None,
+) -> tuple[np.ndarray, np.ndarray | None, np.ndarray | None, np.ndarray | None]:
+    """Resamples M1 (60s) arrays to rolling M5 (300s) arrays."""
+    n = len(prices)
+    if n < 5:
+        return prices, open_, high, low
+
+    out_len = n - 4
+    resampled_close = prices[4:]
+    resampled_open = open_[:-4] if open_ is not None else None
+
+    if high is not None:
+        resampled_high = np.zeros(out_len, dtype=np.float64)
+        for i in range(out_len):
+            resampled_high[i] = np.max(high[i : i + 5])
+    else:
+        resampled_high = None
+
+    if low is not None:
+        resampled_low = np.zeros(out_len, dtype=np.float64)
+        for i in range(out_len):
+            resampled_low[i] = np.min(low[i : i + 5])
+    else:
+        resampled_low = None
+
+    return resampled_close, resampled_open, resampled_high, resampled_low
 
 
 def build_decision_entry(
@@ -80,4 +114,5 @@ __all__ = [
     "parse_dl_params",
     "pending_loss_total",
     "recovery_gating_active",
+    "resample_m1_to_m5",
 ]

@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import numpy as np
+import torch
 
 from aether_paths import repo_path
 from src.application.services.deep_learning.dl_calibration import CalibratorState
@@ -55,10 +56,18 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
         path = resolve_dl_model_path(dl_config, symbol)
         loaded = load_model_checkpoint(path, params=params)
         calibrator = CalibratorState()
-        lookback = int(params["lookback"])
+        lookback = int(params.get("lookback", 30))
         deploy_ok = False
         deploy_win_rate = 0.0
         session_trained = False
+        checkpoint_granularity = 60
+        if path.exists():
+            try:
+                payload = torch.load(path, map_location=torch.device("cpu"), weights_only=False)  # nosec B614
+                if isinstance(payload, dict) and "granularity" in payload:
+                    checkpoint_granularity = int(payload["granularity"])
+            except Exception:  # nosec B110  # noqa: S110
+                pass
         if loaded is not None:
             (
                 model,
@@ -79,7 +88,7 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
             logger.debug("DL: Checkpoint carregado para %s em %s", symbol, path)
         else:
             model = create_direction_model(
-                arch=params["arch"],
+                arch=params.get("arch", "tcn"),
                 input_dim=FEATURE_DIM,
                 tcn_channels=params.get("tcn_channels"),
                 tcn_dropout=float(params.get("tcn_dropout", 0.2)),
@@ -108,6 +117,7 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
             "deploy_win_rate": deploy_win_rate,
             "session_trained": session_trained,
             "model_lock": threading.RLock(),
+            "trained_granularity": checkpoint_granularity,
         }
     elif "model_lock" not in orch._dl_runtime[symbol]:
         orch._dl_runtime[symbol]["model_lock"] = threading.RLock()

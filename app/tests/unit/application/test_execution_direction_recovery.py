@@ -18,7 +18,7 @@ def test_recovery_execution_eligible_rejects_hard_block():
     assert recovery_execution_eligible(entry) is False
 
 
-def test_recovery_execution_eligible_accepts_cooldown_gate():
+def test_recovery_execution_eligible_rejects_cooldown_gate():
     entry = {
         "direction": TradeDirection.CALL,
         "metrics": {
@@ -29,7 +29,7 @@ def test_recovery_execution_eligible_accepts_cooldown_gate():
             "raw_prob": 0.58,
         },
     }
-    assert recovery_execution_eligible(entry) is True
+    assert recovery_execution_eligible(entry) is False
 
 
 def test_recovery_execution_eligible_accepts_execute_true():

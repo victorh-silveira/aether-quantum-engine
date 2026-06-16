@@ -13,12 +13,13 @@ _MANDATORY_HARD_BLOCKS = frozenset(
         "deploy",
         "session_pause",
         "training",
+        "cooldown",
     }
 )
 
-_MANDATORY_POOL_HARD_BLOCKS = frozenset({"data", "predict_error", "training", "session_pause"})
+_MANDATORY_POOL_HARD_BLOCKS = frozenset({"data", "predict_error", "training", "session_pause", "cooldown"})
 
-_FORCED_ENTRY_HARD_BLOCKS = frozenset({"data", "predict_error", "deploy", "training", "session_pause"})
+_FORCED_ENTRY_HARD_BLOCKS = frozenset({"data", "predict_error", "deploy", "training", "session_pause", "cooldown"})
 
 
 def _gate_blocks_eligibility(gate: str, entry: dict) -> bool:

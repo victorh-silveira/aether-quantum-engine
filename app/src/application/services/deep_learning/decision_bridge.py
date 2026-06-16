@@ -3,12 +3,15 @@
 import asyncio
 import logging
 
+import numpy as np
+
 from src.application.services.deep_learning.dl_bridge_helpers import (
     apply_symbol_loss_cooldown,
     build_decision_entry,
     parse_dl_params,
     pending_loss_total,
     recovery_gating_active,
+    resample_m1_to_m5,
 )
 from src.application.services.deep_learning.dl_cycle_log import log_dl_cycle_summary
 from src.application.services.deep_learning.dl_deferred_train import enqueue_deferred_symbol_training
@@ -85,6 +88,58 @@ def _log_retrain_batch(trained: list[str], train_reason: str, params: dict) -> N
     )
 
 
+def _maybe_schedule_training(
+    orch,
+    symbol: str,
+    runtime: dict,
+    prices: np.ndarray,
+    dl_config: dict,
+    params: dict,
+    epoch: int,
+    current_granularity: int,
+    train_priority: frozenset[str],
+    open_: np.ndarray | None,
+    high: np.ndarray | None,
+    low: np.ndarray | None,
+    micro: dict[str, np.ndarray] | None,
+) -> str | None:
+    """Decide se agenda treino deferred para o simbolo e retorna o motivo."""
+    do_train, reason = should_retrain_symbol(orch, symbol, runtime, params, epoch)
+    bootstrap_train = reason == "bootstrap"
+    may_schedule_train = training_enabled(orch) or bootstrap_train
+    if not may_schedule_train:
+        return None
+
+    if do_train and train_priority and str(symbol) not in train_priority:
+        do_train, reason = False, ""
+    if do_train and bootstrap_train:
+        first_pending = next((str(s) for s in orch.symbols if str(s) in train_priority), None)
+        if first_pending is not None and str(symbol) != first_pending:
+            do_train, reason = False, ""
+
+    if not do_train:
+        return None
+
+    skip_train = reason == "new_candle" and bool(getattr(orch, "_dl_fast_cycle", False))
+    if skip_train or (bootstrap_train and getattr(orch, "_dl_bootstrap_completed", False)):
+        return None
+
+    enqueue_deferred_symbol_training(
+        orch,
+        symbol,
+        train_fn=run_symbol_training,
+        train_args=(symbol, runtime, prices, dl_config, params, epoch, orch),
+        train_kwargs={
+            "granularity": current_granularity,
+            "open_": open_,
+            "high": high,
+            "low": low,
+            "micro": micro,
+        },
+    )
+    return reason
+
+
 async def _collect_symbol_decision(
     orch,
     symbol: str,
@@ -98,11 +153,21 @@ async def _collect_symbol_decision(
 ) -> tuple[dict, str | None]:
     """Treina (se necessario), prediz e aplica gates para um simbolo."""
     prices_raw, open_raw, high_raw, low_raw = load_symbol_close_ohlc(orch, symbol)
+    runtime = get_symbol_runtime(orch, symbol, dl_config, params)
+    trained_granularity = runtime.get("trained_granularity", 60)
+    current_granularity = granularity
+
+    # Apply M1 to M5 resampling if model was trained on M5 but engine runs on M1
+    if trained_granularity == 300 and current_granularity == 60:
+        prices_raw, open_raw, high_raw, low_raw = resample_m1_to_m5(prices_raw, open_raw, high_raw, low_raw)
+        micro_full = None
+    else:
+        micro_full = load_symbol_microstructure(orch, symbol, len(prices_raw))
+
     if len(prices_raw) < min_len:
         logger.debug("DL: Historico insuficiente para %s (%d/%d velas).", symbol, len(prices_raw), min_len)
         return _insufficient_data_entry(), None
 
-    micro_full = load_symbol_microstructure(orch, symbol, len(prices_raw))
     train_bars = int(params["training_history_bars"])
     prices, open_, high, low = slice_dl_ohlc_window(
         prices_raw,
@@ -130,39 +195,23 @@ async def _collect_symbol_decision(
         logger.debug("DL: Historico insuficiente para inferencia %s (%d/%d).", symbol, len(prices_inf), infer_min)
         return _insufficient_data_entry(), None
 
-    runtime = get_symbol_runtime(orch, symbol, dl_config, params)
     epoch = candle_epoch(orch, symbol)
     train_loss = None
-    train_reason = None
-    do_train, reason = should_retrain_symbol(orch, symbol, runtime, params, epoch)
-    bootstrap_train = reason == "bootstrap"
-    may_schedule_train = training_enabled(orch) or bootstrap_train
-    if may_schedule_train:
-        if do_train and train_priority and str(symbol) not in train_priority:
-            do_train, reason = False, ""
-        if do_train and bootstrap_train:
-            first_pending = next((str(s) for s in orch.symbols if str(s) in train_priority), None)
-            if first_pending is not None and str(symbol) != first_pending:
-                do_train, reason = False, ""
-        if do_train:
-            train_reason = reason
-            skip_train = reason == "new_candle" and bool(getattr(orch, "_dl_fast_cycle", False))
-            if skip_train or bootstrap_train and getattr(orch, "_dl_bootstrap_completed", False):
-                train_reason = None
-            else:
-                enqueue_deferred_symbol_training(
-                    orch,
-                    symbol,
-                    train_fn=run_symbol_training,
-                    train_args=(symbol, runtime, prices, dl_config, params, epoch, orch),
-                    train_kwargs={
-                        "granularity": granularity,
-                        "open_": open_,
-                        "high": high,
-                        "low": low,
-                        "micro": micro,
-                    },
-                )
+    train_reason = _maybe_schedule_training(
+        orch,
+        symbol,
+        runtime,
+        prices,
+        dl_config,
+        params,
+        epoch,
+        current_granularity,
+        train_priority,
+        open_,
+        high,
+        low,
+        micro,
+    )
     norm_stats = runtime["norm_stats"]
 
     entry = await asyncio.to_thread(
@@ -176,7 +225,7 @@ async def _collect_symbol_decision(
         params,
         train_loss,
         recovery_active=recovery_active,
-        granularity=granularity,
+        granularity=trained_granularity,
         open_=open_inf,
         high=high_inf,
         low=low_inf,
