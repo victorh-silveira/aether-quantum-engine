@@ -1,3 +1,9 @@
+## [1.15.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.15.0...v1.15.1) (2026-06-16)
+
+### Correcoes de Bug
+
+* **engine:** corrigir amostragem no redimensionamento de M1 para M5 ([7a36089](https://github.com/victorh-silveira/aether-quantum-engine/commit/7a360890a10b1ea8f3c80bdd893ca8be6eb6571f))
+
 ## [1.15.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.14.1...v1.15.0) (2026-06-16)
 
 ### Funcionalidades
