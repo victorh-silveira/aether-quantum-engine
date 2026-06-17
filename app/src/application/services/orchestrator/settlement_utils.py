@@ -27,7 +27,10 @@ def min_elapsed_before_stagnant_polls(risk_params: dict | None, execution_cfg: d
     dur_val = p.get("duration", 1)
     if dur_val == "MULT":
         return 3600.0
-    dur = max(1, int(dur_val))
+    try:
+        dur = max(1, int(dur_val))
+    except (ValueError, TypeError):
+        dur = 1
     unit = str(p.get("duration_unit", "m")).lower().strip()
     if unit == "m":
         return float(dur * 60 + slack)

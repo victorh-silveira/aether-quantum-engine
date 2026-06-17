@@ -94,3 +94,10 @@ def test_min_elapsed_unknown_unit_falls_back_to_minutes():
 def test_min_elapsed_multiplier():
     g = min_elapsed_before_stagnant_polls({"duration": "MULT"}, {})
     assert g == 3600.0
+
+
+def test_min_elapsed_invalid_duration():
+    g = min_elapsed_before_stagnant_polls(
+        {"duration": "invalid", "duration_unit": "s"}, {"settlement_post_expiry_slack_seconds": 5.0}
+    )
+    assert g == 6.0

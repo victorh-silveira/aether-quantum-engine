@@ -148,6 +148,7 @@ async def wait_for_settlement(exec_mgr: "ExecutionManager", timeout: int = 3600)
             await _settlement_poll_delay(max(poll, 3.0))
             continue
         current_ids = list(exec_mgr.orch.risk_manager.active_contract_ids)
+        grace = _settlement_grace_period(exec_mgr, execution_cfg, start_time)
         stagnant_polls = _next_stagnant_poll_count(
             stagnant_polls, time.time() - start_time, grace, current_ids, prev_active_ids
         )
