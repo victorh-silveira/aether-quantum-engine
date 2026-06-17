@@ -155,3 +155,56 @@ def calculate_ema_crossover(
     ema_slow = df.select(pl.col("close").ewm_mean(span=int(slow))).to_numpy().flatten()
     dist = (ema_fast - ema_slow) / (prices + 1e-10)
     return np.nan_to_num(dist, nan=0.0, posinf=0.0, neginf=0.0)
+
+
+def calculate_cmo(prices: np.ndarray, period: int = 14) -> np.ndarray:
+    """Calcula Chande Momentum Oscillator (CMO) normalizado na escala -1.0 a 1.0."""
+    n = len(prices)
+    out = np.zeros(n, dtype=np.float64)
+    if n < period + 1:
+        return out
+    deltas = np.diff(prices)
+    for i in range(period, n):
+        segment = deltas[i - period : i]
+        gains = float(segment[segment > 0].sum())
+        losses = float(-segment[segment < 0].sum())
+        denom = gains + losses
+        if denom > 1e-10:
+            out[i] = (gains - losses) / denom
+        else:
+            out[i] = 0.0
+    return out
+
+
+def calculate_keltner_channel_pct_b(
+    high: np.ndarray,
+    low: np.ndarray,
+    close: np.ndarray,
+    period: int = 20,
+    atr_period: int = 10,
+) -> np.ndarray:
+    """Calcula Keltner Channel %b: (close - lower) / (upper - lower)."""
+    n = len(close)
+    out = np.full(n, 0.5, dtype=np.float64)
+    if n < max(period, atr_period):
+        return out
+    df = pl.DataFrame({"close": close})
+    ema = df.select(pl.col("close").ewm_mean(span=int(period))).to_numpy().flatten()
+
+    tr = np.zeros(n, dtype=np.float64)
+    tr[0] = high[0] - low[0]
+    for i in range(1, n):
+        tr[i] = max(high[i] - low[i], abs(high[i] - close[i - 1]), abs(low[i] - close[i - 1]))
+    df_tr = pl.DataFrame({"tr": tr})
+    atr = df_tr.select(pl.col("tr").ewm_mean(span=int(atr_period))).to_numpy().flatten()
+
+    upper = ema + 2.0 * atr
+    lower = ema - 2.0 * atr
+
+    for i in range(n):
+        denom = upper[i] - lower[i]
+        if denom > 1e-10:
+            out[i] = (close[i] - lower[i]) / denom
+        else:
+            out[i] = 0.5
+    return out

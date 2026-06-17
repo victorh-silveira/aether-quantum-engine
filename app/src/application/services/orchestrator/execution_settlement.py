@@ -58,10 +58,16 @@ def _prune_orphan_settlement_ids(exec_mgr: "ExecutionManager") -> bool:
 async def _wait_broker_offline_settlement(exec_mgr: "ExecutionManager", poll: float) -> bool:
     """Pausa liquidacao enquanto o broker estiver offline."""
     if exec_mgr.orch.ws.is_running:
+        clear_log_channel(exec_mgr.orch, "settle_offline")
         return False
-    exec_mgr.logger.warning(
+    pending_key = ",".join(str(x) for x in exec_mgr.orch.risk_manager.active_contract_ids)
+    log_warning_if_changed(
+        exec_mgr.orch,
+        exec_mgr.logger,
+        "settle_offline",
+        pending_key,
         "SETTLE: broker offline; aguardando reconexao (pend=%s)",
-        ",".join(str(x) for x in exec_mgr.orch.risk_manager.active_contract_ids),
+        pending_key,
     )
     await _settlement_poll_delay(max(poll, 5.0))
     return True

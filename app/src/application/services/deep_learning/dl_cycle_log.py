@@ -170,6 +170,67 @@ def build_dl_cycle_brief(
     return f"DL {tag}| sem exec | {blocked} bloq{train_part}"
 
 
+def _brief_key_token(symbol: str, entry: dict) -> tuple[str | None, int, int, int]:
+    """Retorna (token, blocked_delta, no_data_delta, training_delta) para a chave de log."""
+    metrics = entry.get("metrics") or {}
+    if metrics.get("gate_reason") == "training":
+        return None, 0, 0, 1
+    direction = entry.get("direction")
+    if direction is None:
+        nd = 1 if metrics.get("gate_reason") == "data" else 0
+        return None, 1, nd, 0
+    if not metrics.get("execute"):
+        if infer_dl_direction(entry) is not None:
+            return f"{symbol}:{direction.name}", 0, 0, 0
+        return None, 1, 0, 0
+    return f"{symbol}:{direction.name}", 0, 0, 0
+
+
+def build_dl_cycle_brief_key(
+    decisions: dict[str, dict],
+    *,
+    recovery_active: bool,
+) -> str:
+    """Chave para deduplicacao de logs curtos desconsiderando scores volateis."""
+    exec_tokens: list[str] = []
+    blocked = 0
+    no_data = 0
+    training = 0
+    for symbol, entry in decisions.items():
+        token, b_d, nd_d, t_d = _brief_key_token(symbol, entry)
+        if token:
+            exec_tokens.append(token)
+        blocked += b_d
+        no_data += nd_d
+        training += t_d
+    tag = "REC " if recovery_active else ""
+    train_part = f" | {training} treinando" if training else ""
+    if exec_tokens:
+        head = ",".join(exec_tokens[:2])
+        more = f" +{len(exec_tokens) - 2}" if len(exec_tokens) > 2 else ""
+        tail = f" | {blocked} bloq" if blocked else ""
+        return f"DL {tag}| exec {head}{more}{tail}{train_part}"
+    if training == len(decisions):
+        return f"DL {tag}| TREINO INICIAL | {training} modelo(s) em treinamento | trades suspensos"
+    blocked_msg = _all_blocked_brief(
+        tag,
+        blocked=blocked,
+        no_data=no_data,
+        decisions=decisions,
+        train_part=train_part,
+    )
+    if blocked_msg is not None:
+        for _, entry in decisions.items():
+            metrics = entry.get("metrics") or {}
+            raw = metrics.get("raw_prob")
+            if raw is not None:
+                blocked_msg = blocked_msg.replace(f":r{float(raw):.2f}", "")
+        return blocked_msg
+    if no_data:
+        return f"DL {tag}| sem exec | {no_data} sem dados{train_part}"
+    return f"DL {tag}| sem exec | {blocked} bloq{train_part}"
+
+
 def log_dl_cycle_summary(
     logger,
     decisions: dict[str, dict],
@@ -193,4 +254,8 @@ def log_dl_cycle_summary(
     if orch is None:
         logger.info(brief)
         return
-    log_info_if_changed(orch, logger, "dl_brief", brief, "%s", brief)
+    key_brief = build_dl_cycle_brief_key(
+        decisions,
+        recovery_active=recovery_active,
+    )
+    log_info_if_changed(orch, logger, "dl_brief", key_brief, "%s", brief)

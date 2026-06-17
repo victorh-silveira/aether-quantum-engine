@@ -3,6 +3,7 @@ from types import SimpleNamespace
 import pytest
 import torch
 
+from src.application.services.deep_learning.dl_features import FEATURE_DIM
 from src.application.services.deep_learning.dl_startup import (
     all_symbols_have_checkpoints,
     inference_startup_enabled,
@@ -14,7 +15,7 @@ from src.application.services.deep_learning.dl_training_gate import min_dl_histo
 
 @pytest.fixture(autouse=True)
 def mock_torch_load(monkeypatch):
-    monkeypatch.setattr(torch, "load", lambda *args, **kwargs: {"feature_dim": 32})
+    monkeypatch.setattr(torch, "load", lambda *args, **kwargs: {"feature_dim": FEATURE_DIM})
 
 
 def test_inference_startup_enabled_when_online_training_false():

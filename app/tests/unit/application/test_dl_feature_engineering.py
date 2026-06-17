@@ -3,13 +3,18 @@ import numpy as np
 from src.application.services.deep_learning.dl_feature_build import (
     FEATURE_DIM,
     TRADITIONAL_FEATURE_DIM,
+    attach_microstructure,
     build_feature_matrix,
     build_feature_row,
+    build_sequence_tensor,
     precompute_price_series,
+    symbol_vol_target,
 )
 from src.application.services.deep_learning.dl_feature_indicators import (
     calculate_adx,
+    calculate_cmo,
     calculate_ema_crossover,
+    calculate_keltner_channel_pct_b,
     calculate_stochastic,
     calculate_volatility_ratio,
     calculate_williams_r,
@@ -17,8 +22,8 @@ from src.application.services.deep_learning.dl_feature_indicators import (
 
 
 def test_feature_dim_is_thirty_two():
-    assert TRADITIONAL_FEATURE_DIM == 20
-    assert FEATURE_DIM == 32
+    assert TRADITIONAL_FEATURE_DIM == 22
+    assert FEATURE_DIM == 34
 
 
 def test_log_return_and_ema_distances():
@@ -40,6 +45,8 @@ def test_log_return_and_ema_distances():
     assert "ema_9_21_dist" in series
     assert "roc_rsi" in series
     assert "vol_ratio_short_long" in series
+    assert "cmo" in series
+    assert "keltner_pct_b" in series
     assert np.isclose(series["log_return"][1], np.log(101.0 / 100.0), rtol=1e-5)
     assert np.isfinite(series["ema_dist_50"]).all()
     assert np.isfinite(series["roc"]).all()
@@ -91,3 +98,43 @@ def test_new_indicators_edge_cases():
     # EMA crossover
     dist = calculate_ema_crossover(prices, fast=9, slow=21)
     assert (dist == 0.0).all()
+
+    # CMO edge cases
+    short_prices = np.array([100.0, 101.0])
+    cmo_short = calculate_cmo(short_prices, period=14)
+    assert (cmo_short == 0.0).all()
+
+    flat_cmo = calculate_cmo(prices, period=14)
+    assert (flat_cmo == 0.0).all()
+
+    # Keltner Channel %b edge cases
+    kc_short = calculate_keltner_channel_pct_b(short_prices, short_prices, short_prices, period=20, atr_period=10)
+    assert (kc_short == 0.5).all()
+
+    flat_kc = calculate_keltner_channel_pct_b(prices, prices, prices, period=20, atr_period=10)
+    assert (flat_kc == 0.5).all()
+
+
+def test_dl_feature_build_coverage_booster():
+    # Test symbol_vol_target edge cases
+    assert symbol_vol_target("INVALID") == 0.50
+    assert symbol_vol_target("R_INVALID") == 0.50
+
+    # Test attach_microstructure with None micro
+    series = {"log_return": np.zeros(10)}
+    attach_microstructure(series, None)
+    assert "tick_count" in series
+
+    # Test attach_microstructure with invalid keys
+    series2 = {"log_return": np.zeros(10)}
+    attach_microstructure(series2, {"tick_count": np.zeros(5)})
+    assert "tick_count" in series2
+
+    # Test precompute_price_series with high/low/open None
+    prices = np.linspace(100.0, 110.0, 80)
+    series_none = precompute_price_series(prices, symbol="R_50")
+    assert "bb_pct_b" in series_none
+
+    # Test build_sequence_tensor
+    seq = build_sequence_tensor(prices, lookback=10, end_index=70, symbol="R_50")
+    assert seq.shape == (10, FEATURE_DIM)

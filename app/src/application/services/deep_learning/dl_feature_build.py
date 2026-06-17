@@ -7,7 +7,9 @@ from src.application.services.deep_learning.dl_feature_indicators import (
     bollinger,
     calculate_adx,
     calculate_cci,
+    calculate_cmo,
     calculate_ema_crossover,
+    calculate_keltner_channel_pct_b,
     calculate_macd,
     calculate_rsi,
     calculate_stochastic,
@@ -28,7 +30,7 @@ _feature_windows = feature_windows
 
 
 MICRO_FEATURE_DIM = 5
-TRADITIONAL_FEATURE_DIM = 20
+TRADITIONAL_FEATURE_DIM = 22
 VOLATILITY_FEATURE_DIM = 5
 PERSISTENCE_FEATURE_DIM = 2
 FEATURE_DIM = MICRO_FEATURE_DIM + TRADITIONAL_FEATURE_DIM + VOLATILITY_FEATURE_DIM + PERSISTENCE_FEATURE_DIM
@@ -37,23 +39,16 @@ FEATURE_DIM = MICRO_FEATURE_DIM + TRADITIONAL_FEATURE_DIM + VOLATILITY_FEATURE_D
 def symbol_vol_target(symbol: str) -> float:
     """Volatilidade anualizada alvo do indice sintetico Deriv (ex. R_75 -> 0.75)."""
     parts = str(symbol).split("_")
-    if len(parts) >= 2:
-        try:
-            return float(parts[-1]) / 100.0
-        except ValueError:
-            pass
-    return 0.50
+    try:
+        return float(parts[-1]) / 100.0 if len(parts) >= 2 else 0.50
+    except ValueError:
+        return 0.50
 
 
 def _default_micro(n: int) -> dict[str, np.ndarray]:
     """Microestrutura neutra quando ticks ainda nao foram agregados."""
-    return {
-        "tick_count": np.zeros(n, dtype=np.float64),
-        "mean_inter_tick_ms": np.zeros(n, dtype=np.float64),
-        "price_velocity": np.zeros(n, dtype=np.float64),
-        "price_acceleration": np.zeros(n, dtype=np.float64),
-        "consecutive_diff_std": np.zeros(n, dtype=np.float64),
-    }
+    keys = ("tick_count", "mean_inter_tick_ms", "price_velocity", "price_acceleration", "consecutive_diff_std")
+    return {k: np.zeros(n, dtype=np.float64) for k in keys}
 
 
 def attach_microstructure(
@@ -65,16 +60,11 @@ def attach_microstructure(
     if not micro:
         series.update(_default_micro(n))
         return
-    for key in (
-        "tick_count",
-        "mean_inter_tick_ms",
-        "price_velocity",
-        "price_acceleration",
-        "consecutive_diff_std",
-    ):
+    defaults = _default_micro(n)
+    for key in defaults:
         arr = micro.get(key)
         if arr is None or len(arr) != n:
-            series[key] = _default_micro(n)[key]
+            series[key] = defaults[key]
         else:
             series[key] = np.asarray(arr[:n], dtype=np.float64)
 
@@ -157,6 +147,14 @@ def precompute_price_series(
         short=int(win["vol_ratio_short"]),
         long=int(win["vol_ratio_long"]),
     )
+    cmo = calculate_cmo(close, period=int(win["cmo_period"]))
+    keltner_pct_b = calculate_keltner_channel_pct_b(
+        h,
+        low_px,
+        close,
+        period=int(win["kc_period"]),
+        atr_period=int(win["kc_atr_period"]),
+    )
 
     series = {
         "adx": adx,
@@ -186,6 +184,8 @@ def precompute_price_series(
         "vol_vs_target": vol_vs_target,
         "vol_z": vol_z,
         "williams_r": williams_r,
+        "cmo": cmo,
+        "keltner_pct_b": keltner_pct_b,
     }
     attach_microstructure(series, micro)
     for k, v in series.items():
@@ -227,6 +227,8 @@ def build_feature_row(series: dict[str, np.ndarray], index: int) -> np.ndarray:
             series["williams_r"][index],
             series["ema_9_21_dist"][index],
             series["roc_rsi"][index],
+            series["cmo"][index],
+            series["keltner_pct_b"][index],
         ],
         dtype=np.float32,
     )

@@ -5,7 +5,9 @@ import polars as pl
 
 from src.application.services.deep_learning.dl_feature_indicators_advanced import (
     calculate_adx,
+    calculate_cmo,
     calculate_ema_crossover,
+    calculate_keltner_channel_pct_b,
     calculate_volatility_ratio,
     calculate_williams_r,
 )
@@ -29,6 +31,8 @@ __all__ = [
     "calculate_williams_r",
     "calculate_volatility_ratio",
     "calculate_ema_crossover",
+    "calculate_cmo",
+    "calculate_keltner_channel_pct_b",
 ]
 
 
@@ -85,6 +89,9 @@ def feature_windows(granularity: int) -> dict[str, int]:
         "williams_period": 14,
         "vr_long": 8,
         "vr_short": 2,
+        "cmo_period": 14,
+        "kc_period": 20,
+        "kc_atr_period": 10,
     }
 
 
