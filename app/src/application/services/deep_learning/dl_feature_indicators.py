@@ -3,6 +3,34 @@
 import numpy as np
 import polars as pl
 
+from src.application.services.deep_learning.dl_feature_indicators_advanced import (
+    calculate_adx,
+    calculate_ema_crossover,
+    calculate_volatility_ratio,
+    calculate_williams_r,
+)
+
+
+__all__ = [
+    "calculate_rsi",
+    "feature_windows",
+    "bollinger",
+    "atr_norm",
+    "log_returns",
+    "rate_of_change",
+    "delta_series",
+    "rolling_realized_vol_ratio",
+    "price_zscore",
+    "ema_distances",
+    "calculate_macd",
+    "calculate_stochastic",
+    "calculate_cci",
+    "calculate_adx",
+    "calculate_williams_r",
+    "calculate_volatility_ratio",
+    "calculate_ema_crossover",
+]
+
 
 def calculate_rsi(prices: np.ndarray, period: int = 14) -> np.ndarray:
     """Calcula RSI por barra para a serie de precos informada."""
@@ -51,6 +79,12 @@ def feature_windows(granularity: int) -> dict[str, int]:
         "stoch_period": 14,
         "stoch_smooth": 3,
         "cci_period": 20,
+        "adx_period": 14,
+        "williams_period": 14,
+        "ema_fast_crossover": 9,
+        "ema_slow_crossover": 21,
+        "vol_ratio_short": 5,
+        "vol_ratio_long": 20,
     }
 
 

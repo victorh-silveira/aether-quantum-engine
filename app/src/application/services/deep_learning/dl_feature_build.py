@@ -5,10 +5,14 @@ import numpy as np
 from src.application.services.deep_learning.dl_feature_indicators import (
     atr_norm,
     bollinger,
+    calculate_adx,
     calculate_cci,
+    calculate_ema_crossover,
     calculate_macd,
     calculate_rsi,
     calculate_stochastic,
+    calculate_volatility_ratio,
+    calculate_williams_r,
     delta_series,
     ema_distances,
     feature_windows,
@@ -24,8 +28,8 @@ _feature_windows = feature_windows
 
 
 MICRO_FEATURE_DIM = 5
-TRADITIONAL_FEATURE_DIM = 15
-VOLATILITY_FEATURE_DIM = 4
+TRADITIONAL_FEATURE_DIM = 20
+VOLATILITY_FEATURE_DIM = 5
 PERSISTENCE_FEATURE_DIM = 2
 FEATURE_DIM = MICRO_FEATURE_DIM + TRADITIONAL_FEATURE_DIM + VOLATILITY_FEATURE_DIM + PERSISTENCE_FEATURE_DIM
 
@@ -140,6 +144,19 @@ def precompute_price_series(
         smooth_k=int(win["stoch_smooth"]),
     )
     cci = calculate_cci(h, low_px, close, period=int(win["cci_period"]))
+    adx, di_diff = calculate_adx(h, low_px, close, period=int(win["adx_period"]))
+    williams_r = calculate_williams_r(h, low_px, close, period=int(win["williams_period"]))
+    ema_9_21_dist = calculate_ema_crossover(
+        close,
+        fast=int(win["ema_fast_crossover"]),
+        slow=int(win["ema_slow_crossover"]),
+    )
+    roc_rsi = rate_of_change(rsi, period=int(win["roc_period"]))
+    vol_ratio_short_long = calculate_volatility_ratio(
+        log_return,
+        short=int(win["vol_ratio_short"]),
+        long=int(win["vol_ratio_long"]),
+    )
 
     series = {
         "log_return": log_return,
@@ -163,6 +180,12 @@ def precompute_price_series(
         "stoch_k": stoch_k,
         "stoch_d": stoch_d,
         "cci": cci,
+        "adx": adx,
+        "di_diff": di_diff,
+        "williams_r": williams_r,
+        "ema_9_21_dist": ema_9_21_dist,
+        "roc_rsi": roc_rsi,
+        "vol_ratio_short_long": vol_ratio_short_long,
     }
     attach_microstructure(series, micro)
     for k, v in series.items():
@@ -199,6 +222,11 @@ def build_feature_row(series: dict[str, np.ndarray], index: int) -> np.ndarray:
             series["stoch_k"][index],
             series["stoch_d"][index],
             series["cci"][index],
+            series["adx"][index],
+            series["di_diff"][index],
+            series["williams_r"][index],
+            series["ema_9_21_dist"][index],
+            series["roc_rsi"][index],
         ],
         dtype=np.float32,
     )
@@ -208,6 +236,7 @@ def build_feature_row(series: dict[str, np.ndarray], index: int) -> np.ndarray:
             series["vol_vs_target"][index],
             series["vol_z"][index],
             series["implied_vol_ratio"][index],
+            series["vol_ratio_short_long"][index],
         ],
         dtype=np.float32,
     )
