@@ -221,6 +221,8 @@ class ExecutionManager:
             self._flush_result_buffer()
             self.orch._buffer_result_logs = False
             self.orch.mark_cluster_cycle_complete()
+            if executed_count == 0 and getattr(self.orch, "running", False):
+                self.orch.schedule_trading_cycle_after_settlement()
         if executed_count > 0:
             asyncio.create_task(self._run_settlement_watch())
 
