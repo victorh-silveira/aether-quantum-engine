@@ -25,7 +25,7 @@ def apply_engine_mode(config: dict, mode: str) -> dict:
 
     if mode == ENGINE_MODE_TRAIN:
         if "data_handler" in config:
-            config["data_handler"]["granularity"] = 300
+            config["data_handler"]["granularity"] = config["data_handler"].get("granularity", 60)
         if "deep_learning" in config:
             config["deep_learning"]["label_horizon_bars"] = 1
     return config
