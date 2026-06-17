@@ -150,12 +150,10 @@ async def test_collect_symbol_decision_full_path():
 
 
 def test_resample_m1_to_m5():
-    # Test short input
     prices = np.array([1.0, 2.0])
     res_p, res_o, res_h, res_l = resample_m1_to_m5(prices, None, None, None)
     assert np.array_equal(res_p, prices)
 
-    # Test full resampling
     prices = np.linspace(1.0, 10.0, 10)
     open_val = np.linspace(1.0, 10.0, 10)
     high_val = np.linspace(1.5, 10.5, 10)
@@ -165,12 +163,9 @@ def test_resample_m1_to_m5():
     assert len(res_o) == 2
     assert len(res_h) == 2
     assert len(res_l) == 2
-    # indices chosen: range(9, 3, -5)[::-1] = [4, 9]
-    # index 4 high_val range: [0:5], index 9 high_val range: [5:10]
     assert res_h[0] == np.max(high_val[0:5])
     assert res_h[1] == np.max(high_val[5:10])
 
-    # Test resampling with None high/low (covers else blocks)
     res_p, res_o, res_h, res_l = resample_m1_to_m5(prices, open_val, None, None)
     assert res_h is None
     assert res_l is None

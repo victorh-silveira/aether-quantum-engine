@@ -211,6 +211,7 @@ async def test_run_dl_training_session_sequences_all_symbols(orch_ready):
 async def test_run_dl_training_session_noop_without_symbols(orch_ready):
     orch = orch_ready
     orch.symbols = []
+    orch.config.setdefault("deep_learning", {})["train_symbols"] = []
     with patch(
         "src.application.services.deep_learning.dl_bootstrap_train._train_bootstrap_symbol",
         new_callable=AsyncMock,
@@ -223,6 +224,7 @@ async def test_run_dl_training_session_noop_without_symbols(orch_ready):
 async def test_run_dl_training_session_waits_for_history(orch_ready):
     orch = orch_ready
     orch.symbols = ["R_10", "R_25"]
+    orch.config.setdefault("deep_learning", {})["train_symbols"] = ["R_10", "R_25"]
     attempts = {"R_10": 0, "R_25": 0}
 
     async def fake_train(_orch, symbol):

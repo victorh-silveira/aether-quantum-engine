@@ -51,7 +51,8 @@ Decisão exclusivamente Deep Learning quando `deep_learning.enabled` é verdadei
 
 | Caminho | Uso |
 |---------|-----|
-| `data/state.json` | Estado de contratos e banca |
+| `data/state.json` | Estado geral de contratos e banca |
+| `data/session_state.json` | Métricas diárias da sessão de trading e limites de Stop Win |
 | `data/dl/{symbol}.pth` | Checkpoints PyTorch + calibrador + métricas |
 | `data/dl/{symbol}_ts.pt` | TorchScript trace para inferência rápida |
 | `data/deriv/pat_bindings.json` | Cache PAT → App ID |

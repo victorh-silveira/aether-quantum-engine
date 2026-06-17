@@ -3,6 +3,14 @@
 import asyncio
 import logging
 
+
+try:
+    import torch
+
+    HAS_TORCH = True
+except ImportError:  # pragma: no cover
+    HAS_TORCH = False  # pragma: no cover
+
 from src.application.services.execution_symbols import symbols_eligible_for_execution
 from src.application.services.log_dedupe import clear_log_channel, log_info_if_changed
 from src.domain.models.trade import TradeDirection
@@ -204,25 +212,27 @@ class ExecutionManager:
                 )
             if not orders:
                 self._log_execution_blockers(decisions)
+                if HAS_TORCH and torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                self.orch.is_trading = False
+                self.logger.info("[%s] EXEC_HOLD || bypass ciclo | escutando proximo evento", cid)
             else:
                 block = self._cluster_stake_block(orders, bankroll_snapshot)
                 if block:
                     self.logger.info("[%s] EXEC_PAUSE || %s", cid, block)
                     orders = []
-            executed_count = await self._execute_orders(orders, inter_delay, bankroll_snapshot)
-            if executed_count > 0:
-                self.orch.risk_manager.begin_cluster(executed_count)
-                self._flush_result_buffer()
-                self.orch._buffer_result_logs = False
-            else:
-                self._flush_result_buffer()
-                self.orch._buffer_result_logs = False
+                executed_count = await self._execute_orders(orders, inter_delay, bankroll_snapshot)
+                if executed_count > 0:
+                    self.orch.risk_manager.begin_cluster(executed_count)
+                    self._flush_result_buffer()
+                    self.orch._buffer_result_logs = False
+                else:
+                    self._flush_result_buffer()
+                    self.orch._buffer_result_logs = False
         finally:
             self._flush_result_buffer()
             self.orch._buffer_result_logs = False
             self.orch.mark_cluster_cycle_complete()
-            if executed_count == 0 and getattr(self.orch, "running", False):
-                self.orch.schedule_trading_cycle_after_settlement()
         if executed_count > 0:
             asyncio.create_task(self._run_settlement_watch())
 

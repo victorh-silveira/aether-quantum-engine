@@ -1,6 +1,7 @@
 """Gates de treino inicial e historico minimo para Deep Learning."""
 
 from src.application.services.deep_learning.dl_symbol_runtime import get_symbol_runtime
+from src.application.services.orchestrator.config_symbols import resolve_dl_train_symbols
 
 
 def min_dl_inference_len(params: dict) -> int:
@@ -30,7 +31,7 @@ def runtime_in_training(runtime: dict, params: dict) -> bool:
 def training_priority_symbols(orch, dl_config: dict, params: dict) -> frozenset[str]:
     """Lista simbolos sem primeiro treino valido que tem prioridade no slot de treino."""
     pending = []
-    for symbol in orch.symbols:
+    for symbol in resolve_dl_train_symbols(orch.config):
         runtime = get_symbol_runtime(orch, symbol, dl_config, params)
         if runtime_in_training(runtime, params):
             pending.append(str(symbol))

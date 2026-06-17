@@ -119,7 +119,6 @@ def precompute_price_series(
     zscore = price_zscore(close, int(win["bb_window"]))
     implied_vol = rolling_realized_vol_ratio(log_return, target_vol, implied_vol_bars)
 
-    # Computar novos indicadores
     macd, macd_signal = calculate_macd(
         close,
         fast_period=int(win["macd_fast"]),

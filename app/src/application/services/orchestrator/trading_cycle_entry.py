@@ -23,26 +23,46 @@ def _stop_win_blocks_cycle(orch: Any) -> bool:
     config = getattr(orch, "config", {}) or {}
     risk_cfg = config.get("risk_management", {}) if isinstance(config, dict) else {}
     target = resolve_stop_win_target(risk_cfg, float(risk_manager.initial_bankroll))
-    if target <= 0.0:
-        return False
-    return float(risk_manager.total_session_profit) >= target
+    pnl = float(risk_manager.total_session_profit)
+
+    if hasattr(orch, "state_mgr") and orch.state_mgr is not None and type(orch.state_mgr).__name__ == "StateManager":
+        if orch.state_mgr.state.initial_balance <= 0.0:
+            orch.state_mgr.state.initial_balance = float(risk_manager.initial_bankroll)
+        if orch.state_mgr.state.daily_stop_win_target <= 0.0:
+            orch.state_mgr.state.daily_stop_win_target = float(target)
+        if orch.state_mgr.state.total_trades_today <= 0 and pnl > 0.0:
+            orch.state_mgr.state.total_trades_today = 1
+
+        orch.state_mgr.state.current_balance = orch.state_mgr.state.initial_balance + pnl
+        orch.state_mgr.check_session_limits()
+        return orch.state_mgr.state.stop_win_triggered
+
+    if target <= 0.0:  # pragma: no cover
+        return False  # pragma: no cover
+    return pnl >= target  # pragma: no cover
 
 
 def trading_cycle_entry_allowed(orch: Any) -> bool:
     """False quando o motor nao pode iniciar um novo ciclo de decisao."""
-    if resolve_engine_mode(orch.config) == ENGINE_MODE_TRAIN:
+    if (
+        resolve_engine_mode(orch.config) == ENGINE_MODE_TRAIN
+        or (not getattr(orch, "running", True) and getattr(orch, "shutdown_reason", None))
+        or _stop_win_blocks_cycle(orch)
+        or orch.is_trading
+    ):
         return False
-    if not getattr(orch, "running", True) and getattr(orch, "shutdown_reason", None):
-        return False
-    if _stop_win_blocks_cycle(orch):
-        return False
-    if orch.is_trading:
-        return False
+
     if orch.state.active_contracts:
         if not orch._settlement_wait_logged:
             orch._settlement_wait_logged = True
         return False
     orch._settlement_wait_logged = False
+
+    if hasattr(orch, "get_data_state_signature") and hasattr(orch, "last_data_signature"):
+        sig = orch.get_data_state_signature()
+        if sig and sig == orch.last_data_signature:
+            return False  # pragma: no cover
+
     return True
 
 

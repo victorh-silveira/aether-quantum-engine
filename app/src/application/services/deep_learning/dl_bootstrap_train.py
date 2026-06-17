@@ -19,6 +19,7 @@ from src.application.services.deep_learning.dl_training_gate import (
     runtime_in_training,
     training_priority_symbols,
 )
+from src.application.services.orchestrator.config_symbols import resolve_dl_train_symbols
 
 
 logger = logging.getLogger("AETH")
@@ -33,7 +34,8 @@ def _ordered_bootstrap_symbols(orch) -> list[str]:
     pending = training_priority_symbols(orch, dl_config, params)
     if not pending:
         return []
-    return [str(symbol) for symbol in orch.symbols if str(symbol) in pending]
+    trainable = resolve_dl_train_symbols(orch.config)
+    return [str(symbol) for symbol in trainable if str(symbol) in pending]
 
 
 def _bootstrap_training_context(orch, symbol: str):
@@ -134,8 +136,8 @@ async def run_initial_bootstrap_training(orch) -> None:
 
 
 async def run_dl_training_session(orch) -> None:
-    """Treina todos os simbolos em sequencia ate concluir ou esgotar espera de historico."""
-    symbols = [str(symbol) for symbol in orch.symbols]
+    """Treina simbolos configurados em sequencia ate concluir ou esgotar espera de historico."""
+    symbols = resolve_dl_train_symbols(orch.config)
     if not symbols:
         return
     logger.info("")

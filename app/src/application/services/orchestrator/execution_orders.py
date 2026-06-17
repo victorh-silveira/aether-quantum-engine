@@ -1,5 +1,6 @@
 """Envio de ordens e inscricao em atualizacoes de contrato aberto."""
 
+import asyncio
 import logging
 
 from src.domain.risk.stop_win_target import resolve_stop_win_target
@@ -10,6 +11,15 @@ from .execution_proposal import (
     proposal_stake_attempts,
 )
 from .settlement_backfill import subscribe_open_contract
+
+
+async def _subscribe_open_contract_background(ws, contract_id: int, *, timeout: float, cid: str) -> None:
+    """Inscreve liquidacao em background para nao bloquear o ciclo de execucao."""
+    logger = logging.getLogger("AETH")
+    try:
+        await subscribe_open_contract(ws, int(contract_id), timeout=timeout)
+    except Exception as e:
+        logger.warning("[%s] SETTLE: subscribe cid=%s falhou: %s", cid, int(contract_id), e)
 
 
 async def place_order(executor, symbol, direction, stake, duration=None, metrics=None):
@@ -82,8 +92,12 @@ async def place_order(executor, symbol, direction, stake, duration=None, metrics
         .get("execution", {})
         .get("settlement_request_timeout_seconds", 30.0)
     )
-    try:
-        await subscribe_open_contract(executor.orch.ws, int(contract.contract_id), timeout=req_timeout)
-    except Exception as e:
-        logger.warning("[%s] SETTLE: subscribe cid=%s falhou: %s", cid, int(contract.contract_id), e)
+    asyncio.create_task(
+        _subscribe_open_contract_background(
+            executor.orch.ws,
+            int(contract.contract_id),
+            timeout=req_timeout,
+            cid=cid,
+        )
+    )
     return contract

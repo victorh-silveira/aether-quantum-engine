@@ -253,7 +253,6 @@ def test_cross_symbol_recovery(kelly_config):
     stake_b_high = rm.calculate_stake(1000.0, "R_75", conviction=0.8)
     assert stake_b_high == pytest.approx(20.53, abs=0.5)
 
-    # Se ganhar no símbolo B, o lucro reduz a perda pendente globalmente
     rm.active_contract_ids = [2]
     rm.register_result(12.0, 2, "R_75")
     assert sum(rm.pending_loss.values()) == 0.0
@@ -267,11 +266,8 @@ def test_partial_loss_recovery_and_break(kelly_config):
     rm.register_result(-5.0, 2, "R_75")
     assert sum(rm.pending_loss.values()) == 10.0
 
-    # Registrar ganho de 3.0 (menor que a primeira perda de 5.0)
     rm.active_contract_ids = [3]
     rm.register_result(3.0, 3, "R_75")
 
-    # Deve executar a ramificação else para R_50 (reduzindo a 2.0)
-    # E o lucro restante zera, fazendo o break acontecer na próxima chave (R_75 continua 5.0)
     assert rm.pending_loss["R_50"] == 2.0
     assert rm.pending_loss["R_75"] == 5.0

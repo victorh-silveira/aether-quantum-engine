@@ -10,6 +10,52 @@ from src.application.services.orchestrator.settlement_detect import contract_pay
 from src.domain.risk.stop_win_target import resolve_stop_win_target
 
 
+def _process_contract_outcome(orch: Any, c: dict, contract: Any, c_id: int, profit: float):
+    """Atualiza o saldo da conta, registra o resultado no risk manager e computa estatísticas da sessão."""
+    api_balance = c.get("balance_after")
+    orch.state.balance = (
+        float(api_balance)
+        if api_balance is not None
+        and (orch.state.balance <= 0 or abs(float(api_balance) - (orch.state.balance + profit)) <= 2.0)
+        else float(orch.state.balance + profit)
+    )
+
+    sym = orch.risk_manager.contract_to_symbol.get(c_id, c.get("underlying", "UNK"))
+    loss_dir = getattr(contract, "direction", None)
+    dir_name = loss_dir.name if loss_dir is not None else None
+    record_symbol_outcome(orch, sym, won=profit >= 0.0)
+    orch.risk_manager.register_result(profit, c_id, symbol=sym, current_tick=orch.tick_count, direction=dir_name)
+    orch._cluster_results.append({"symbol": sym, "profit": profit})
+    orch._last_result_cycle_id = orch._contract_cycle.pop(c_id, 0)
+
+    if profit >= 0:
+        orch._session_wins += 1
+    else:
+        orch._session_losses += 1
+        orch._last_loss_symbol = sym
+        orch._last_loss_direction = dir_name or ""
+        mark_force_retrain(orch, sym)
+
+    if not orch.risk_manager.active_contract_ids:
+        log_cluster_summary(orch)
+
+
+def _update_state_manager_and_check_stop_win(orch: Any, target: float, pnl: float) -> bool:
+    """Atualiza o StateManager se disponível e retorna se o Stop Win foi ativado."""
+    state_mgr = getattr(orch, "state_mgr", None)
+    if state_mgr is not None and type(state_mgr).__name__ == "StateManager":
+        state_mgr.state.current_balance = float(orch.state.balance)
+        if state_mgr.state.initial_balance <= 0.0:
+            state_mgr.state.initial_balance = float(orch.risk_manager.initial_bankroll)
+        if state_mgr.state.daily_stop_win_target <= 0.0:
+            state_mgr.state.daily_stop_win_target = float(target)
+        state_mgr.state.total_trades_today += 1
+        state_mgr.check_session_limits()
+        state_mgr.save_state()
+        return bool(state_mgr.state.stop_win_triggered)
+    return target > 0 and pnl >= target  # pragma: no cover
+
+
 async def process_contract_settlement(orch: Any, data: dict):
     """Lida com a mensagem de liquidação, atualiza saldo, risco e logs."""
     if "proposal_open_contract" not in data:
@@ -41,36 +87,14 @@ async def process_contract_settlement(orch: Any, data: dict):
     else:
         orch.logger.info(result_line)
 
-    api_balance = c.get("balance_after")
-    orch.state.balance = (
-        float(api_balance)
-        if api_balance is not None
-        and (orch.state.balance <= 0 or abs(float(api_balance) - (orch.state.balance + profit)) <= 2.0)
-        else float(orch.state.balance + profit)
-    )
-
-    sym = orch.risk_manager.contract_to_symbol.get(c_id, c.get("underlying", "UNK"))
-    loss_dir = getattr(contract, "direction", None)
-    dir_name = loss_dir.name if loss_dir is not None else None
-    record_symbol_outcome(orch, sym, won=profit >= 0.0)
-    orch.risk_manager.register_result(profit, c_id, symbol=sym, current_tick=orch.tick_count, direction=dir_name)
-    orch._cluster_results.append({"symbol": sym, "profit": profit})
-    orch._last_result_cycle_id = orch._contract_cycle.pop(c_id, 0)
-
-    if profit >= 0:
-        orch._session_wins += 1
-    else:
-        orch._session_losses += 1
-        orch._last_loss_symbol = sym
-        orch._last_loss_direction = dir_name or ""
-        mark_force_retrain(orch, sym)
-
-    if not orch.risk_manager.active_contract_ids:
-        log_cluster_summary(orch)
+    _process_contract_outcome(orch, c, contract, c_id, profit)
 
     pnl = orch.risk_manager.total_session_profit
     target = resolve_stop_win_target(orch.config.get("risk_management", {}), orch.risk_manager.initial_bankroll)
-    if target > 0 and pnl >= target:
+
+    stop_win_triggered = _update_state_manager_and_check_stop_win(orch, target, pnl)
+
+    if stop_win_triggered:
         orch.logger.debug("[C%04d] STOP_WIN | pnl_sessao=$%+.2f | alvo=$%.2f", orch._last_result_cycle_id, pnl, target)
         orch.shutdown_reason = "stop_win"
         orch.running = False

@@ -32,7 +32,8 @@ class TradeHandler:
         """Compra um contrato via proposal e buy (API Deriv atual)."""
         p_cfg = params if params is not None else self.config["risk_management"]["params"]
         proposal_req = build_proposal_request(symbol, direction, stake, p_cfg)
-        proposal_resp = await self.ws.send(proposal_req)
+        timeout = int(self.ws.request_timeout)
+        proposal_resp = await self.ws.send(proposal_req, timeout=timeout)
         if "error" in proposal_resp:
             msg = proposal_resp["error"].get("message", "Erro desconhecido")
             raise RuntimeError(f"Erro na proposta: {msg}")
@@ -46,7 +47,7 @@ class TradeHandler:
             raise RuntimeError("Erro na proposta: id ausente")
 
         ask_price = float(proposal.get("ask_price") or stake)
-        buy_resp = await self.ws.send({"buy": str(prop_id), "price": ask_price, "subscribe": 1})
+        buy_resp = await self.ws.send({"buy": str(prop_id), "price": ask_price}, timeout=timeout)
         if "error" in buy_resp:
             msg = buy_resp["error"].get("message", "Erro desconhecido")
             raise RuntimeError(f"Erro na compra direta: {msg}")

@@ -118,13 +118,18 @@ def _all_blocked_brief(
     return f"DL {tag}| sem exec | {suffix}{train_part}"
 
 
-def build_dl_cycle_brief(
-    decisions: dict[str, dict],
-    *,
-    recovery_active: bool,
-) -> str:
-    """Linha curta para o console com execucao ativa e contagem de bloqueios."""
+def _format_brief_token(symbol: str, direction, conv: float, *, gate: str | None = None) -> str:
+    """Formata token de simbolo para linha curta do ciclo DL."""
+    token = f"{symbol}:{direction.name} c={conv:.2f}"
+    if gate:
+        return f"{token}:{gate}"
+    return token
+
+
+def _brief_cycle_counts(decisions: dict[str, dict]) -> tuple[list[str], list[str], int, int, int]:
+    """Separa candidatos aprovados, sinais fracos e contadores de bloqueio."""
     exec_tokens: list[str] = []
+    signal_tokens: list[str] = []
     blocked = 0
     no_data = 0
     training = 0
@@ -140,20 +145,40 @@ def build_dl_cycle_brief(
                 no_data += 1
             continue
         conv = float(metrics.get("trade_score", metrics.get("conviction", 0.0)))
-        if not metrics.get("execute"):
-            if infer_dl_direction(entry) is not None:
-                exec_tokens.append(f"{symbol}:{direction.name} c={conv:.2f}")
-            else:
-                blocked += 1
+        if metrics.get("execute"):
+            exec_tokens.append(_format_brief_token(symbol, direction, conv))
             continue
-        exec_tokens.append(f"{symbol}:{direction.name} c={conv:.2f}")
+        if infer_dl_direction(entry) is not None:
+            gate = str(metrics.get("gate_reason") or "block")
+            signal_tokens.append(_format_brief_token(symbol, direction, conv, gate=gate))
+        else:
+            blocked += 1
+    return exec_tokens, signal_tokens, blocked, no_data, training
+
+
+def _join_brief_tokens(tokens: list[str], label: str, *, limit: int = 2) -> str:
+    """Junta tokens rotulados para a linha curta do ciclo."""
+    if not tokens:
+        return ""
+    head = ",".join(tokens[:limit])
+    more = f" +{len(tokens) - limit}" if len(tokens) > limit else ""
+    return f"{label} {head}{more}"
+
+
+def build_dl_cycle_brief(
+    decisions: dict[str, dict],
+    *,
+    recovery_active: bool,
+) -> str:
+    """Linha curta para o console com execucao ativa e contagem de bloqueios."""
+    exec_tokens, signal_tokens, blocked, no_data, training = _brief_cycle_counts(decisions)
     tag = "REC " if recovery_active else ""
     train_part = f" | {training} treinando" if training else ""
-    if exec_tokens:
-        head = ",".join(exec_tokens[:2])
-        more = f" +{len(exec_tokens) - 2}" if len(exec_tokens) > 2 else ""
+    if exec_tokens or signal_tokens:
+        parts = [_join_brief_tokens(exec_tokens, "exec"), _join_brief_tokens(signal_tokens, "sinal")]
+        body = " | ".join(part for part in parts if part)
         tail = f" | {blocked} bloq" if blocked else ""
-        return f"DL {tag}| exec {head}{more}{tail}{train_part}"
+        return f"DL {tag}| {body}{tail}{train_part}"
     if training == len(decisions):
         return f"DL {tag}| TREINO INICIAL | {training} modelo(s) em treinamento | trades suspensos"
     blocked_msg = _all_blocked_brief(
@@ -179,11 +204,12 @@ def _brief_key_token(symbol: str, entry: dict) -> tuple[str | None, int, int, in
     if direction is None:
         nd = 1 if metrics.get("gate_reason") == "data" else 0
         return None, 1, nd, 0
-    if not metrics.get("execute"):
-        if infer_dl_direction(entry) is not None:
-            return f"{symbol}:{direction.name}", 0, 0, 0
-        return None, 1, 0, 0
-    return f"{symbol}:{direction.name}", 0, 0, 0
+    if metrics.get("execute"):
+        return f"exec:{symbol}:{direction.name}", 0, 0, 0
+    if infer_dl_direction(entry) is not None:
+        gate = str(metrics.get("gate_reason") or "block")
+        return f"sinal:{symbol}:{direction.name}:{gate}", 0, 0, 0
+    return None, 1, 0, 0
 
 
 def build_dl_cycle_brief_key(
@@ -193,23 +219,27 @@ def build_dl_cycle_brief_key(
 ) -> str:
     """Chave para deduplicacao de logs curtos desconsiderando scores volateis."""
     exec_tokens: list[str] = []
+    signal_tokens: list[str] = []
     blocked = 0
     no_data = 0
     training = 0
     for symbol, entry in decisions.items():
         token, b_d, nd_d, t_d = _brief_key_token(symbol, entry)
         if token:
-            exec_tokens.append(token)
+            if token.startswith("exec:"):
+                exec_tokens.append(token[5:])
+            elif token.startswith("sinal:"):
+                signal_tokens.append(token[6:])
         blocked += b_d
         no_data += nd_d
         training += t_d
     tag = "REC " if recovery_active else ""
     train_part = f" | {training} treinando" if training else ""
-    if exec_tokens:
-        head = ",".join(exec_tokens[:2])
-        more = f" +{len(exec_tokens) - 2}" if len(exec_tokens) > 2 else ""
+    if exec_tokens or signal_tokens:
+        parts = [_join_brief_tokens(exec_tokens, "exec"), _join_brief_tokens(signal_tokens, "sinal")]
+        body = " | ".join(part for part in parts if part)
         tail = f" | {blocked} bloq" if blocked else ""
-        return f"DL {tag}| exec {head}{more}{tail}{train_part}"
+        return f"DL {tag}| {body}{tail}{train_part}"
     if training == len(decisions):
         return f"DL {tag}| TREINO INICIAL | {training} modelo(s) em treinamento | trades suspensos"
     blocked_msg = _all_blocked_brief(

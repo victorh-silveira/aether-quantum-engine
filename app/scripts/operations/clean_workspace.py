@@ -2,7 +2,7 @@ import argparse
 import json
 import os
 import shutil
-import subprocess  # nosec
+import subprocess
 import sys
 from pathlib import Path
 
@@ -75,12 +75,14 @@ def _imports_available(python: Path, modules: tuple[str, ...]) -> bool:
     except OSError:
         return False
     imports = "; ".join(f"import {module}" for module in modules)
+    cmd = [str(python), "-c", str(imports)]
     result = subprocess.run(
-        [str(python), "-c", imports],
+        cmd,
         capture_output=True,
         text=True,
         check=False,
-    )  # nosec B603
+        shell=False,
+    )
     return result.returncode == 0
 
 
@@ -102,7 +104,8 @@ def _ensure_project_python(stage: str) -> None:
         if not exists or _same_interpreter(candidate, current):
             continue
         if _imports_available(candidate, modules):
-            completed = subprocess.run([str(candidate), *sys.argv], check=False)  # nosec B603
+            cmd = [str(candidate)] + [str(arg) for arg in sys.argv]
+            completed = subprocess.run(cmd, check=False, shell=False)
             sys.exit(completed.returncode)
     if modules:
         missing = ", ".join(modules)
@@ -119,8 +122,9 @@ def run_tool(module, args, description):
     print(f"\n>>> Executando: {description}")
     command = [sys.executable, "-m", module] + args
     print(f"Command: {' '.join(command)}")
+    cmd = [str(c) for c in command]
     try:
-        subprocess.run(command, check=True, text=True)  # nosec
+        subprocess.run(cmd, check=True, text=True, shell=False)
         return True
     except subprocess.CalledProcessError as e:
         print(f"Erro durante {description}: {e}")
@@ -131,7 +135,8 @@ def stage_lint():
     print("\n>>> Executando: Ruff Check (auto-fix)")
     fix_cmd = [sys.executable, "-m", "ruff", "check", "--fix", "."]
     print(f"Command: {' '.join(fix_cmd)}")
-    subprocess.run(fix_cmd, check=True, text=True)  # nosec
+    cmd = [str(c) for c in fix_cmd]
+    subprocess.run(cmd, check=True, text=True, shell=False)
     run_tool("ruff", ["check", "."], "Ruff Check")
     run_tool("ruff", ["format", "."], "Ruff Format")
     run_tool("interrogate", ["-vv", "."], "Interrogate Docstrings")
@@ -213,15 +218,12 @@ def stage_clean():
     )
 
     for scan_root in (APP_ROOT, REPO_ROOT):
-        # 1. Remover caches comuns no topo
         for name in cache_names:
             p = scan_root / name
             if p.exists():
                 safe_remove(p)
 
-        # 2. Varredura inteligente de __pycache__ e bytecodes
         for root, dirs, files in os.walk(scan_root):
-            # Ignora pastas pesadas ou do ambiente virtual
             dirs[:] = [d for d in dirs if d not in (".venv", "venv", ".git", ".idea", ".vscode")]
 
             for d in list(dirs):

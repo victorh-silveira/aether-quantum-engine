@@ -69,6 +69,14 @@ flowchart LR
 - `TickBuffer` (`infrastructure/handlers/tick_buffer.py`) agrega por barra fechada: contagem de ticks, intervalo médio, velocidade, aceleração e desvio padrão de diffs consecutivas.
 - Stats de microestrutura são persistidas junto ao candle no fechamento da barra.
 
+### 2.3 Sincronismo e Assinatura de Dados (Prevenção de Corrida de Borda)
+
+Para evitar duplicidade de inferências na GPU e chamadas de predição repetidas na virada de vela (onde flutuações de milissegundos no timestamp ou a chegada de múltiplos ticks na borda do candle podem disparar ciclos falsos), o motor implementa uma **assinatura de estado de dados** (`last_data_signature`).
+
+1. A cada iteração do loop principal do `Orchestrator`, é chamada a função `get_data_state_signature()`.
+2. Essa assinatura concatena, para todos os símbolos ativos, o epoch do último candle fechado e seus respectivos valores de OHLC (`close`, `high`, `low`).
+3. Se a assinatura resultante for idêntica à do ciclo anterior (`last_data_signature`), o motor imediatamente ignora o ciclo e aguarda (sleep), eliminando de forma reativa a duplicidade sem bloquear a thread assíncrona.
+
 ---
 
 ## 3. Deep Learning
@@ -112,7 +120,7 @@ Treino BCE puro em todas as amostras válidas (sem meta-labeling).
 
 `train_model_walkforward` (`dl_training.py`):
 
-- Splits temporais com embargo (`dl_splits.py`): treino / validação / calibração.
+- **Splits temporais com embargo** (`dl_splits.py`): Divide as amostras de dados em subconjuntos de treino, validação e calibração de forma purgada. Para evitar o vazamento de dados (*data leakage*) inerente a séries temporais e ao cálculo de labels futuros (onde a resposta de um candle depende do fechamento do candle seguinte), é aplicado um **embargo** (`embargo=label_horizon_bars`) imediatamente após a transição entre as partições.
 - Early stopping pela perda de validação (patience configurável).
 - Calibrador Platt opcional (logging); execução usa **prob raw** no threshold.
 - Callback de progresso por época (`progress_cb`) registrado em `run_symbol_training` como `DL TREINO | epoca X/Y`.
@@ -198,6 +206,13 @@ Com `mandatory_trade_each_cycle: false` (padrão atual), o motor **abstém** qua
 | Martingale recovery | `martingale_gate.py` (ativo com `pending_loss > 0`) |
 | Cooldown entrada | `risk_cooldown.py` |
 | Cooldown por loss no símbolo | `symbol_loss_cooldown.py` |
+
+### 5.1 Persistência e Proteção contra Falso Stop Win
+
+O estado de execução do trading e as métricas diárias são gerenciados pelo `StateManager` (`src/infrastructure/state/state_manager.py`) que manipula um modelo de domínio de estado de sessão `SessionState`.
+
+- **Persistência física:** As métricas financeiras acumuladas (como banca inicial, saldo atual e meta de Stop Win) são salvas em `data/session_state.json`. As demais informações gerais persistem em `data/state.json`.
+- **Prevenção de Falso Stop Win no Boot:** No boot do bot, se a banca lida do arquivo for maior que a banca inicial devido a resquícios de sessões passadas ou leituras frias de estado corrompido, o sistema poderia disparar um falso Stop Win e bloquear a operação. Para evitar essa vulnerabilidade de concorrência/carga, o `StateManager` valida que o Stop Win diário só pode ser considerado ativo se o lucro do dia for maior ou igual à meta estabelecida **E o número de trades realizados hoje for estritamente maior que zero** (`total_trades_today > 0`).
 
 ---
 

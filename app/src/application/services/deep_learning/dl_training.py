@@ -77,6 +77,7 @@ def train_model_walkforward(
         len(x_all),
         validation_bars,
         calib_ratio=calib_ratio,
+        embargo=label_horizon_bars,
     )
     if splits is None:
         logger.debug(

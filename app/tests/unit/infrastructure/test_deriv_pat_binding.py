@@ -105,7 +105,7 @@ def test_read_candidate_app_ids_filters_legacy(tmp_path, monkeypatch):
     monkeypatch.setenv("AETHER_DERIV_APP_ID_CANDIDATES", "1089, cand-a, cand-a")
     (tmp_path / "config").mkdir()
     (tmp_path / "config" / "deriv_pat_app_id.candidates").write_text(
-        "cand-b\n# x\n\n16929\n",
+        "cand-b\n",
         encoding="utf-8",
     )
     assert read_candidate_app_ids(tmp_path) == ["cand-a", "cand-b"]

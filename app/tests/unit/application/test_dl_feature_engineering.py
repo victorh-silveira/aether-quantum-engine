@@ -68,7 +68,6 @@ def test_calculate_stochastic_flat_prices():
 
 
 def test_new_indicators_edge_cases():
-    # Empty / too short arrays
     prices = np.array([100.0, 100.0])
     adx, di_diff = calculate_adx(prices, prices, prices, period=14)
     assert (adx == 0.0).all()
@@ -80,7 +79,6 @@ def test_new_indicators_edge_cases():
     vr = calculate_volatility_ratio(prices, short=5, long=20)
     assert (vr == 0.0).all()
 
-    # Flat prices
     prices = np.full(50, 100.0)
     adx, di_diff = calculate_adx(prices, prices, prices, period=14)
     assert np.isfinite(adx).all()
@@ -89,17 +87,14 @@ def test_new_indicators_edge_cases():
     wr = calculate_williams_r(prices, prices, prices, period=14)
     assert (wr == 0.5).all()
 
-    # Vol ratio flat prices / zero std
     log_ret = np.zeros(50)
     vr = calculate_volatility_ratio(log_ret, short=5, long=20)
     assert (vr[:19] == 0.0).all()
     assert (vr[19:] == 1.0).all()
 
-    # EMA crossover
     dist = calculate_ema_crossover(prices, fast=9, slow=21)
     assert (dist == 0.0).all()
 
-    # CMO edge cases
     short_prices = np.array([100.0, 101.0])
     cmo_short = calculate_cmo(short_prices, period=14)
     assert (cmo_short == 0.0).all()
@@ -107,7 +102,6 @@ def test_new_indicators_edge_cases():
     flat_cmo = calculate_cmo(prices, period=14)
     assert (flat_cmo == 0.0).all()
 
-    # Keltner Channel %b edge cases
     kc_short = calculate_keltner_channel_pct_b(short_prices, short_prices, short_prices, period=20, atr_period=10)
     assert (kc_short == 0.5).all()
 
@@ -116,25 +110,20 @@ def test_new_indicators_edge_cases():
 
 
 def test_dl_feature_build_coverage_booster():
-    # Test symbol_vol_target edge cases
     assert symbol_vol_target("INVALID") == 0.50
     assert symbol_vol_target("R_INVALID") == 0.50
 
-    # Test attach_microstructure with None micro
     series = {"log_return": np.zeros(10)}
     attach_microstructure(series, None)
     assert "tick_count" in series
 
-    # Test attach_microstructure with invalid keys
     series2 = {"log_return": np.zeros(10)}
     attach_microstructure(series2, {"tick_count": np.zeros(5)})
     assert "tick_count" in series2
 
-    # Test precompute_price_series with high/low/open None
     prices = np.linspace(100.0, 110.0, 80)
     series_none = precompute_price_series(prices, symbol="R_50")
     assert "bb_pct_b" in series_none
 
-    # Test build_sequence_tensor
     seq = build_sequence_tensor(prices, lookback=10, end_index=70, symbol="R_50")
     assert seq.shape == (10, FEATURE_DIM)

@@ -157,7 +157,6 @@ async def _collect_symbol_decision(
     trained_granularity = runtime.get("trained_granularity", 60)
     current_granularity = granularity
 
-    # Apply M1 to M5 resampling if model was trained on M5 but engine runs on M1
     if trained_granularity == 300 and current_granularity == 60:
         prices_raw, open_raw, high_raw, low_raw = resample_m1_to_m5(prices_raw, open_raw, high_raw, low_raw)
         micro_full = None

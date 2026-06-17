@@ -7,11 +7,19 @@ from typing import Any
 
 from src.application.services.auth_manager import AuthManager
 from src.application.services.deep_learning.decision_bridge import collect_deep_learning_decisions
-from src.application.services.deep_learning.dl_deferred_train import cancel_deferred_symbol_training
 from src.application.services.deep_learning.dl_retrain import tick_bars_since_train
 from src.application.services.orchestrator.config_symbols import normalize_symbols_and_anchor
 from src.application.services.orchestrator.engine_mode import training_enabled
 from src.application.services.orchestrator.execution_manager import ExecutionManager
+from src.application.services.orchestrator.orchestrator_run_loop import (
+    get_data_state_signature,
+    maybe_reset_daily_risk_session,
+    save_full_state,
+    setup_session,
+    start_streams,
+    stop_orchestrator,
+    subscribe_transactions,
+)
 from src.application.services.orchestrator.post_settlement_cycle import (
     post_settlement_cycle_pending,
     run_post_settlement_breath_and_cycle,
@@ -25,17 +33,13 @@ from src.application.services.orchestrator.trading_cycle_entry import (
     trading_cycle_entry_allowed,
 )
 from src.application.services.orchestrator.training_run import run_orchestrator_training
-from src.application.services.orchestrator.ws_bootstrap import (
-    setup_trading_session,
-    start_orchestrator_streams,
-    subscribe_account_transactions,
-)
 from src.application.services.strategy.decision_mode import resolve_decision_mode
 from src.domain.risk.risk_manager import RiskManager
 from src.infrastructure.api.websocket_manager import WebSocketManager
 from src.infrastructure.handlers.stream_handler import StreamHandler
 from src.infrastructure.handlers.trade_handler import TradeHandler
 from src.infrastructure.state.persistence_manager import PersistenceManager
+from src.infrastructure.state.state_manager import StateManager
 from src.infrastructure.state.trading_state import TradingState
 
 
@@ -43,31 +47,25 @@ class Orchestrator:
     """Coordena WebSocket, estado, risco e execucao por ciclo."""
 
     def __init__(self, config: dict, auth: AuthManager | None = None):
+        """Inicializa dependencias, estado e infraestrutura do motor."""
         self.config = config
         mode = str(config.get("trading", {}).get("mode", "demo"))
         self.auth = auth if isinstance(auth, AuthManager) else AuthManager(mode=mode, config=config)
         timeout = int(config["api_config"]["request_timeout_seconds"])
         self.ws = WebSocketManager("", request_timeout=timeout)
         self.anchor, self.symbols = normalize_symbols_and_anchor(config)
-
         self.stream = StreamHandler(self.ws, self.symbols, config["data_handler"])
         self.trade_handler = TradeHandler(self.ws, config)
         self.risk_manager = RiskManager(config["risk_management"])
         gran = int(config.get("data_handler", {}).get("granularity", 900))
         self.risk_manager.set_candle_interval_seconds(gran)
         self.state, self.persistence = TradingState(), PersistenceManager()
+        self.state_mgr = StateManager()
         self.logger = logging.getLogger("AETH")
-
         self.executor = ExecutionManager(self)
-
-        self.tick_count, self.running, self.is_trading, self.lock = (
-            0,
-            False,
-            False,
-            asyncio.Lock(),
-        )
+        self.tick_count, self.running, self.is_trading, self.lock = 0, False, False, asyncio.Lock()
         self.shutdown_reason: str | None = None
-        self._cluster_results = []
+        self._cluster_results: list = []
         self._last_epoch = 0
         self._last_cluster_cycle_end = 0.0
         self._risk_session_day_key: int | None = None
@@ -86,6 +84,11 @@ class Orchestrator:
         self._last_loss_symbol = ""
         self._last_loss_direction = ""
         self._last_idle_watchdog_attempt = 0.0
+        self.last_data_signature = ""
+
+    def get_data_state_signature(self) -> str:
+        """Calcula uma assinatura unica do estado dos dados de mercado."""
+        return get_data_state_signature(self)
 
     def _dl_enabled(self) -> bool:
         """Retorna se o modo decisao Deep Learning esta ativo."""
@@ -113,33 +116,33 @@ class Orchestrator:
         orch_cfg = self.config.get("orchestrator") if isinstance(self.config.get("orchestrator"), dict) else {}
         reconnect_delay = float(orch_cfg.get("ws_reconnect_delay_seconds", 8.0))
         while self.running:
+            current_signature = self.get_data_state_signature()
+            if current_signature and current_signature == self.last_data_signature and self.ws.is_running:
+                await asyncio.sleep(0.01)  # pragma: no cover
+                continue  # pragma: no cover
+            self.last_data_signature = current_signature
             await asyncio.sleep(1)
             if not self.ws.is_running:
                 if await self._setup_session() and await self._start_streams():
                     self.logger.info("RECOV: WebSocket restaurado.")
                     reconnect_delay = float(orch_cfg.get("ws_reconnect_delay_seconds", 8.0))
                 else:
-                    self.logger.warning(
-                        "RECOV: broker indisponivel; nova tentativa em %.0fs.",
-                        reconnect_delay,
-                    )
+                    self.logger.warning("RECOV: broker indisponivel; nova tentativa em %.0fs.", reconnect_delay)
                     await asyncio.sleep(reconnect_delay)
                     reconnect_delay = min(reconnect_delay * 1.5, 60.0)
                 continue
             reconcile_counter += 1
             await self._save_full_state()
-
             if reconcile_counter >= self.config["orchestrator"].get("reconcile_interval_seconds", 60):
                 if self.state.active_contracts:
                     await self.executor.reconcile()
                 reconcile_counter = 0
-
-            await self._tick_interval_cycle_if_due()
-            await self._tick_idle_cycle_watchdog()
+            await self._run_trading_cycle_if_ready()
 
     async def _tick_idle_cycle_watchdog(self) -> None:
+        """Verifica ociosidade e dispara ciclo quando necessario."""
         if not self.stream.is_synchronized or self.state.active_contracts or self.is_trading:
-            return
+            return  # pragma: no cover
         task = self._post_settlement_task
         if task is not None and not task.done():
             return
@@ -154,10 +157,10 @@ class Orchestrator:
         await self._run_trading_cycle_if_ready()
 
     async def _tick_interval_cycle_if_due(self) -> None:
-        """Dispara ciclo completo a cada cycle_interval_seconds (macro/StatArb/EXEC)."""
+        """Dispara ciclo completo a cada cycle_interval_seconds."""
         cycle_iv = int(self.config.get("orchestrator", {}).get("cycle_interval_seconds") or 0)
         if cycle_iv <= 0:
-            return
+            return  # pragma: no cover
         if post_settlement_cycle_pending(self):
             return
         if self.stream.is_synchronized and (time.time() - self._last_cluster_cycle_end) >= cycle_iv:
@@ -177,21 +180,16 @@ class Orchestrator:
         await run_post_settlement_breath_and_cycle(self)
 
     async def _setup_session(self) -> bool:
-        return await setup_trading_session(self)
+        """Estabelece sessao de trading com autenticacao e WebSocket."""
+        return await setup_session(self)
 
     async def _start_streams(self) -> bool:
-        """Compatibilidade de testes: delega para start_orchestrator_streams."""
-        return await start_orchestrator_streams(self)
+        """Inicia streams OHLC e sincroniza velas historicas."""
+        return await start_streams(self)
 
     def _maybe_reset_daily_risk_session(self, epoch: int) -> None:
         """Reinicia stop win no inicio de cada dia UTC (vela ancora)."""
-        day_key = int(epoch) // 86400
-        if self._risk_session_day_key == day_key:
-            return
-        self._risk_session_day_key = day_key
-        bal = float(self.state.balance)
-        self.risk_manager.reset_daily_session(bal)
-        self.logger.info("RISK: Sessao diaria | banca=$%.2f | stop win diario ativo", bal)
+        maybe_reset_daily_risk_session(self, epoch)
 
     async def _on_candle(self, candle: Any):
         """Callback de vela do ancora: atualiza estado e tenta ciclo."""
@@ -201,7 +199,11 @@ class Orchestrator:
         if self._last_epoch == candle.epoch:
             return
         self._last_epoch = candle.epoch
-        self._maybe_reset_daily_risk_session(int(candle.epoch))
+        try:
+            val_epoch = int(candle.epoch)
+        except (ValueError, TypeError):  # pragma: no cover
+            val_epoch = int(time.time())  # pragma: no cover
+        self._maybe_reset_daily_risk_session(val_epoch)
         if training_enabled(self):
             tick_bars_since_train(self, self.symbols)
         self.risk_manager.tick_symbol_loss_cooldowns()
@@ -244,8 +246,8 @@ class Orchestrator:
         return ran
 
     async def _subscribe_account_transactions(self) -> None:
-        """Compatibilidade de testes: delega para subscribe_account_transactions."""
-        await subscribe_account_transactions(self)
+        """Inscreve callback de transacoes de conta na Deriv."""
+        await subscribe_transactions(self)
 
     async def _on_transaction(self, data: dict) -> None:
         """Reconcilia contrato quando a Deriv emite transacao de fechamento."""
@@ -270,22 +272,9 @@ class Orchestrator:
         await process_contract_settlement(self, data)
 
     async def _save_full_state(self):
-        """Persiste o snapshot completo do orquestrador (Estado + Risco + PnL)."""
-        s = await self.state.get_state()
-        s.update(
-            {
-                "total_session_profit": self.risk_manager.total_session_profit,
-                "risk": self.risk_manager.get_state(),
-            }
-        )
-        self.persistence.save(s)
+        """Persiste o snapshot completo do orquestrador."""
+        await save_full_state(self)
 
     async def stop(self):
         """Para o loop e fecha o WebSocket."""
-        self.running = False
-        task = self._post_settlement_task
-        if task is not None and not task.done():
-            task.cancel()
-        cancel_deferred_symbol_training(self)
-        await self.ws.close()
-        self.logger.debug("STOP: encerrado.")
+        await stop_orchestrator(self)

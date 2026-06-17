@@ -115,7 +115,7 @@ exclude = [
 
 [tool.bandit]
 skips = ["B105", "B106", "B310"]
-exclude_dirs = [".git", ".venv", "tests", "venv"]
+exclude_dirs = [".git", ".venv", "tests", "venv", "scripts"]
 
 [tool.coverage.run]
 source = ["src"]

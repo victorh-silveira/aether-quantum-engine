@@ -17,7 +17,6 @@ def resample_m1_to_m5(
     if n < 5:
         return prices, open_, high, low
 
-    # Choose indices ending at n - 1, spaced by 5
     indices = list(range(n - 1, 3, -5))[::-1]
 
     resampled_close = prices[indices]

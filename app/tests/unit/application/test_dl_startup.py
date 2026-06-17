@@ -160,11 +160,9 @@ def test_all_symbols_have_checkpoints_incompatible_or_error(tmp_path, monkeypatc
         "src.application.services.deep_learning.dl_startup.resolve_dl_model_path",
         lambda _dl, symbol: tmp_path / f"{symbol}.pth",
     )
-    # Test incompatible feature dim
     monkeypatch.setattr(torch, "load", lambda *a, **kw: {"feature_dim": 26})
     assert all_symbols_have_checkpoints(["R_100"], {}) is False
 
-    # Test load exception
     def raise_err(*a, **kw):
         raise ValueError("Load error")
 

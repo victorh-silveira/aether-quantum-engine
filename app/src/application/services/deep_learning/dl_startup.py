@@ -25,7 +25,7 @@ def all_symbols_have_checkpoints(symbols: list[str], dl_config: dict[str, Any]) 
         if not path.is_file():
             return False
         try:
-            payload = torch.load(path, map_location=torch.device("cpu"), weights_only=False)  # nosec B614
+            payload = torch.load(path, map_location=torch.device("cpu"), weights_only=True)
             feat_dim = int(payload.get("feature_dim", payload.get("input_dim", 0)))
             if feat_dim != FEATURE_DIM:
                 return False

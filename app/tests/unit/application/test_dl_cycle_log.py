@@ -110,7 +110,7 @@ def test_build_dl_cycle_brief_mixed_training_and_weak_exec():
         },
     }
     line = build_dl_cycle_brief(decisions, recovery_active=False)
-    assert "exec R_75:CALL c=0.53" in line
+    assert "sinal R_75:CALL c=0.53" in line
     assert "1 treinando" in line
 
 
@@ -153,7 +153,7 @@ def test_build_dl_cycle_brief_weak_signal_shows_candidate():
         },
     }
     line = build_dl_cycle_brief(decisions, recovery_active=False)
-    assert "exec R_100:PUT c=0.50" in line
+    assert "sinal R_100:PUT c=0.50" in line
 
 
 def test_build_dl_cycle_brief_all_blocked_without_raw_prob():
@@ -172,7 +172,7 @@ def test_build_dl_cycle_brief_recovery_weak_signal_shows_candidate():
         },
     }
     line = build_dl_cycle_brief(decisions, recovery_active=True)
-    assert "exec R_100:PUT c=0.50" in line
+    assert "sinal R_100:PUT c=0.50" in line
 
 
 def test_build_dl_cycle_brief_recovery_all_blocked_shows_abstain():
@@ -228,7 +228,7 @@ def test_build_dl_cycle_brief_recovery_all_blocked_returns_detail():
         },
     }
     line = build_dl_cycle_brief(decisions, recovery_active=True)
-    assert "exec R_75:CALL c=0.55" in line
+    assert "sinal R_75:CALL c=0.55" in line
 
 
 def test_build_dl_cycle_brief_partial_no_data():

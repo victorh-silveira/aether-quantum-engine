@@ -61,8 +61,8 @@ def save_model_checkpoint(
         "version": CHECKPOINT_VERSION,
         "arch": arch,
         "state_dict": {k: v.detach().cpu() for k, v in model.state_dict().items()},
-        "norm_mean": norm_stats.mean,
-        "norm_std": norm_stats.std,
+        "norm_mean": norm_stats.mean.tolist() if hasattr(norm_stats.mean, "tolist") else norm_stats.mean,
+        "norm_std": norm_stats.std.tolist() if hasattr(norm_stats.std, "tolist") else norm_stats.std,
         "feature_dim": FEATURE_DIM,
         "lookback": int(lookback),
         "last_candle_epoch": last_candle_epoch,
@@ -93,9 +93,9 @@ def load_model_checkpoint(
     if not path.exists():
         return None
     try:
-        payload = torch.load(path, map_location=torch.device("cpu"), weights_only=False)  # nosec B614
-    except Exception:
-        logger.debug("DL: Checkpoint corrompido em %s; sera reiniciado.", path)
+        payload = torch.load(path, map_location=torch.device("cpu"), weights_only=True)
+    except Exception as exc:
+        logger.debug("DL: Checkpoint corrompido em %s; sera reiniciado. Erro: %s", path, exc)
         return None
     if not isinstance(payload, dict) or "state_dict" not in payload:
         return None

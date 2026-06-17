@@ -63,11 +63,11 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
         checkpoint_granularity = 60
         if path.exists():
             try:
-                payload = torch.load(path, map_location=torch.device("cpu"), weights_only=False)  # nosec B614
+                payload = torch.load(path, map_location=torch.device("cpu"), weights_only=True)
                 if isinstance(payload, dict) and "granularity" in payload:
                     checkpoint_granularity = int(payload["granularity"])
-            except Exception:  # nosec B110  # noqa: S110
-                pass
+            except Exception as exc:
+                logger.debug("DL: Nao foi possivel carregar a granularidade do checkpoint em %s: %s", path, exc)
         if loaded is not None:
             (
                 model,

@@ -26,7 +26,7 @@ Layout: `app/` (código e testes), `config/settings.json`, `docs/`, `linters/`. 
 | Decisão | `decision_bridge` + TCN/LSTM/GRU | 19 features, labels binários (horizon 1 barra), treino walk-forward deferido, gating 0.75/0.25 |
 | Execução | `ExecutionManager` | Operação seletiva: só entra com `raw_prob >= 0.75` ou `<= 0.25`; ranking entre candidatos elegíveis |
 | Risco | `RiskManager` | Kelly fracionário, stop win diário, martingale em recovery, cooldown por símbolo |
-| Estado | `PersistenceManager` | `data/state.json`, checkpoints `data/dl/{symbol}.pth` + TorchScript `_ts.pt` |
+| Estado | `StateManager` + `PersistenceManager` | `data/session_state.json` (limites e sessão), `data/state.json` (contratos), checkpoints `data/dl/{symbol}.pth` + TorchScript `_ts.pt` |
 
 Ciclo do orquestrador: `orchestrator.cycle_interval_seconds` (padrão 3 s). Granularidade OHLC: `data_handler.granularity` (60 s). Contrato: `risk_management.params.duration` (60 s).
 
