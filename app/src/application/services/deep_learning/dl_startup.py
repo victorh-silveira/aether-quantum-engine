@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
+import torch
+
+from src.application.services.deep_learning.dl_features import FEATURE_DIM
 from src.application.services.deep_learning.dl_params import parse_dl_params
 from src.application.services.deep_learning.dl_symbol_runtime import resolve_dl_model_path
 from src.application.services.deep_learning.dl_training_gate import min_dl_inference_len
@@ -16,10 +19,17 @@ def inference_startup_enabled(dl_config: dict[str, Any] | None) -> bool:
 
 
 def all_symbols_have_checkpoints(symbols: list[str], dl_config: dict[str, Any]) -> bool:
-    """Verifica se todos os simbolos possuem checkpoint PyTorch no disco."""
+    """Verifica se todos os simbolos possuem checkpoint PyTorch compativel no disco."""
     for symbol in symbols:
         path = resolve_dl_model_path(dl_config, str(symbol))
         if not path.is_file():
+            return False
+        try:
+            payload = torch.load(path, map_location=torch.device("cpu"), weights_only=False)  # nosec B614
+            feat_dim = int(payload.get("feature_dim", payload.get("input_dim", 0)))
+            if feat_dim != FEATURE_DIM:
+                return False
+        except Exception:
             return False
     return bool(symbols)
 

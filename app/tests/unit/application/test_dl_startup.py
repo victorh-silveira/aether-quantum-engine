@@ -1,5 +1,8 @@
 from types import SimpleNamespace
 
+import pytest
+import torch
+
 from src.application.services.deep_learning.dl_startup import (
     all_symbols_have_checkpoints,
     inference_startup_enabled,
@@ -7,6 +10,11 @@ from src.application.services.deep_learning.dl_startup import (
     resolve_startup_fetch_bars,
 )
 from src.application.services.deep_learning.dl_training_gate import min_dl_history_len
+
+
+@pytest.fixture(autouse=True)
+def mock_torch_load(monkeypatch):
+    monkeypatch.setattr(torch, "load", lambda *args, **kwargs: {"feature_dim": 32})
 
 
 def test_inference_startup_enabled_when_online_training_false():
@@ -142,3 +150,22 @@ def test_min_dl_history_len_ignores_training_validation_bars_in_inference_mode()
         "online_training": False,
     }
     assert min_dl_history_len(params) == 128
+
+
+def test_all_symbols_have_checkpoints_incompatible_or_error(tmp_path, monkeypatch):
+    path = tmp_path / "R_100.pth"
+    path.write_bytes(b"1")
+    monkeypatch.setattr(
+        "src.application.services.deep_learning.dl_startup.resolve_dl_model_path",
+        lambda _dl, symbol: tmp_path / f"{symbol}.pth",
+    )
+    # Test incompatible feature dim
+    monkeypatch.setattr(torch, "load", lambda *a, **kw: {"feature_dim": 26})
+    assert all_symbols_have_checkpoints(["R_100"], {}) is False
+
+    # Test load exception
+    def raise_err(*a, **kw):
+        raise ValueError("Load error")
+
+    monkeypatch.setattr(torch, "load", raise_err)
+    assert all_symbols_have_checkpoints(["R_100"], {}) is False
