@@ -1,3 +1,9 @@
+## [1.17.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.16.0...v1.17.0) (2026-06-17)
+
+### Funcionalidades
+
+* **engine:** adicionar novos indicadores tecnicos ([95b8413](https://github.com/victorh-silveira/aether-quantum-engine/commit/95b8413337baef7fcd312345e433638d03a8a95e))
+
 ## [1.16.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.15.2...v1.16.0) (2026-06-16)
 
 ### Funcionalidades
