@@ -1,3 +1,20 @@
+## [1.18.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.17.1...v1.18.0) (2026-06-18)
+
+### Funcionalidades
+
+* **risk:** remover limites de martingale e travas de stake no settings ([083b962](https://github.com/victorh-silveira/aether-quantum-engine/commit/083b962dbd796fdc6c57cc4fc678321350e53c2a))
+
+### Correcoes de Bug
+
+* **engine:** recalculacao dinamica de grace period ([9d7cf80](https://github.com/victorh-silveira/aether-quantum-engine/commit/9d7cf805595cb2a164f0ccf8682a2eb086b764a3))
+* **orchestrator:** agendar proximo ciclo de decisao quando nenhuma ordem e executada ([55b2b99](https://github.com/victorh-silveira/aether-quantum-engine/commit/55b2b992d5c13e6e7cea72423390400f883102ce))
+* **orchestrator:** respeita a granularidade configurada em modo treino ([f910513](https://github.com/victorh-silveira/aether-quantum-engine/commit/f9105133998ecc1c50dadbb45ab94c93aac64dfc))
+
+### Refatoracoes Tecnicas
+
+* **app:** reorganiza indicadores e testes para limite de 300 linhas ([d32399a](https://github.com/victorh-silveira/aether-quantum-engine/commit/d32399a3cb8419f2bf2ea45d7fdf5168f876baf2))
+* **orchestrator:** otimiza camadas de software e ajusta conformidade do codigo ([c9c3392](https://github.com/victorh-silveira/aether-quantum-engine/commit/c9c33927896d9543e0b73d3cf6b3f983dc0a6341))
+
 ## [1.17.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.17.0...v1.17.1) (2026-06-17)
 
 ### Correcoes de Bug
