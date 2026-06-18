@@ -1,3 +1,9 @@
+## [1.18.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.18.0...v1.18.1) (2026-06-18)
+
+### Correcoes de Bug
+
+* **orchestrator:** corrigir exec hold e processamento duplicado no mesmo candle ([ad70042](https://github.com/victorh-silveira/aether-quantum-engine/commit/ad70042281029eedf0a3e7753d9e397172ab7ea1))
+
 ## [1.18.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.17.1...v1.18.0) (2026-06-18)
 
 ### Funcionalidades
