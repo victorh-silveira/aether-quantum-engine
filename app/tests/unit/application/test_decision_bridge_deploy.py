@@ -116,6 +116,7 @@ async def test_collect_enqueues_all_symbols_when_none_in_training():
     prices = np.sin(np.linspace(0, 10, 90)) + 10.0
     orch = MockOrchestrator(["R_50", "R_75"], prices, train_mode=True)
     orch.symbols = ["R_50", "R_75"]
+    orch.config["symbols"] = ["R_50", "R_75"]
     entry = {
         "direction": TradeDirection.CALL,
         "metrics": {"execute": True, "conviction": 0.62, "trade_score": 0.62, "val_accuracy": 0.55},
