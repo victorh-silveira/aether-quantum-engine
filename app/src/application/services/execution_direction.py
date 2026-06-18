@@ -5,28 +5,9 @@ from src.domain.risk.stake_sizing import enrich_metrics_conviction, raw_side_fro
 from src.domain.symbols.range_symbols import HEDGE_PEER, hedge_peer, is_high_side
 
 
-_MANDATORY_HARD_BLOCKS = frozenset(
-    {
-        "data",
-        "predict_error",
-        "confidence",
-        "deploy",
-        "session_pause",
-        "training",
-        "cooldown",
-    }
-)
-
-_MANDATORY_POOL_HARD_BLOCKS = frozenset({"data", "predict_error", "training", "session_pause", "cooldown"})
-
-_FORCED_ENTRY_HARD_BLOCKS = frozenset({"data", "predict_error", "deploy", "training", "session_pause", "cooldown"})
-
-
-def _gate_blocks_eligibility(gate: str, entry: dict) -> bool:
-    """Indica se o gate impede elegibilidade mesmo com raw_prob inferivel."""
-    if gate not in _MANDATORY_HARD_BLOCKS:
-        return False
-    return not (gate == "confidence" and infer_dl_direction(entry) is not None)
+_MANDATORY_HARD_BLOCKS = frozenset()
+_MANDATORY_POOL_HARD_BLOCKS = frozenset()
+_FORCED_ENTRY_HARD_BLOCKS = frozenset()
 
 
 def infer_dl_direction(entry: dict) -> TradeDirection | None:
@@ -64,9 +45,6 @@ def mandatory_execution_eligible(
 ) -> bool:
     """Indica se o modo obrigatorio pode operar apesar de execute=false no gating DL."""
     metrics = entry.get("metrics") or {}
-    gate = str(metrics.get("gate_reason") or "")
-    if gate in _MANDATORY_POOL_HARD_BLOCKS:
-        return False
     if metrics.get("deploy_ok") is False:
         return False
     if infer_dl_direction(entry) is None:
@@ -90,8 +68,6 @@ def recovery_execution_eligible(entry: dict, recovery_cfg: dict | None = None) -
         if bypass_raw > 0.0 and raw_side + 1e-9 >= bypass_raw:
             gate = ""
             val_acc_bypass = True
-    if _gate_blocks_eligibility(gate, entry):
-        return False
     if infer_dl_direction(entry) is None:
         return False
     min_conv = float(cfg.get("min_conviction_execute", 0.53))

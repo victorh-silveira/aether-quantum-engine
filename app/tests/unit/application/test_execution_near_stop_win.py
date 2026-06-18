@@ -53,7 +53,7 @@ def test_near_stop_win_mandatory_pause_ignores_recovery():
 def test_best_blocked_signal_strength_ignores_hard_blocked():
     strength = best_blocked_signal_strength(
         {
-            ANCHOR: {"metrics": {"execute": False, "gate_reason": "data", "trade_score": 0.9}},
+            ANCHOR: {"metrics": {"execute": False, "deploy_ok": False, "trade_score": 0.9}},
             PAIR: {"metrics": {"execute": False, "trade_score": 0.52, "raw_prob": 0.51}},
         }
     )

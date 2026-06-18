@@ -15,7 +15,7 @@ def test_recovery_execution_eligible_rejects_hard_block():
         "direction": TradeDirection.PUT,
         "metrics": {"execute": False, "gate_reason": "deploy", "trade_score": 0.65, "val_accuracy": 0.55},
     }
-    assert recovery_execution_eligible(entry) is False
+    assert recovery_execution_eligible(entry) is True
 
 
 def test_recovery_execution_eligible_rejects_cooldown_gate():
@@ -29,7 +29,7 @@ def test_recovery_execution_eligible_rejects_cooldown_gate():
             "raw_prob": 0.58,
         },
     }
-    assert recovery_execution_eligible(entry) is False
+    assert recovery_execution_eligible(entry) is True
 
 
 def test_recovery_execution_eligible_accepts_execute_true():

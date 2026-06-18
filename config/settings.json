@@ -172,8 +172,8 @@
       "stop_win_kelly_min_conviction": 0.0,
       "stop_win_kelly_min_fraction": 0.0,
       "stop_win_martingale_progress_fraction": 0.0,
-      "symbol_loss_cooldown_candles": 2,
-      "symbol_loss_cooldown_cycles": 2
+      "symbol_loss_cooldown_candles": 0,
+      "symbol_loss_cooldown_cycles": 0
     },
     "large_account_stop_win_pct": 4.0,
     "params": {

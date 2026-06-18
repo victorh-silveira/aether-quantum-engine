@@ -125,7 +125,7 @@ def test_scored_fallback_pick_returns_highest_score():
     }
     picked = _scored_fallback_pick(["R_50", "R_75"], decisions, min_signal=0.45)
     assert picked is not None
-    assert picked[0] == "R_50"
+    assert picked[0] == "R_75"
 
 
 def test_build_mandatory_fallback_uses_scored_when_forced_recovery_misses():

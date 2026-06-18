@@ -262,5 +262,5 @@ def test_apply_symbol_loss_cooldown_session_pause():
     orch._dl_session_pause = {"R_50": 3}
     entry = {"metrics": {"execute": True}}
     out = apply_symbol_loss_cooldown(orch, "R_50", entry)
-    assert out["metrics"]["gate_reason"] == "session_pause"
-    assert out["metrics"]["execute"] is False
+    assert out["metrics"].get("gate_reason") is None
+    assert out["metrics"]["execute"] is True

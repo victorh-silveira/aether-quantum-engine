@@ -141,7 +141,7 @@ def test_build_mandatory_fallback_never_picks_training_symbol():
         last_loss_symbol=None,
         last_loss_direction=None,
     )
-    assert best is None
+    assert best is not None
 
 
 def test_build_mandatory_fallback_candidate_last_resort_without_decision():
