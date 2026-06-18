@@ -99,3 +99,57 @@ def test_predict_weak_direction_on_neutral_zone():
     assert entry["metrics"]["trade_score"] == pytest.approx(0.53, abs=1e-6)
     assert entry["metrics"]["execute"] is False
     assert entry["metrics"]["gate_reason"] == "confidence"
+
+
+def test_predict_mandatory_trend_fallback():
+    params = parse_dl_params(
+        {
+            "confidence_call_threshold": 0.75,
+            "confidence_put_threshold": 0.25,
+            "min_val_accuracy": 0.53,
+        }
+    )
+    orch = type("O", (), {"config": {"orchestrator": {"execution": {"mandatory_trade_each_cycle": True}}}})()
+    runtime = {"val_accuracy": 0.55, "val_brier": 0.2, "val_ece": 0.1, "lookback": 15}
+
+    # Test CALL trend fallback (last price > average)
+    prices_call = np.array([10.0] * 79 + [12.0])
+    with patch(
+        "src.application.services.deep_learning.dl_predict.predict_next_direction",
+        return_value=(None, 0.52, 0.52),
+    ):
+        entry = predict_symbol_decision(
+            orch,
+            "R_50",
+            TemporalDirectionClassifier(input_dim=INPUT_DIM),
+            prices_call,
+            fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32)),
+            runtime,
+            params,
+            None,
+            recovery_active=False,
+        )
+    assert entry["direction"] == TradeDirection.CALL
+    assert entry["metrics"]["execute"] is True
+    assert entry["metrics"]["trend_fallback"] is True
+
+    # Test PUT trend fallback (last price < average)
+    prices_put = np.array([10.0] * 79 + [8.0])
+    with patch(
+        "src.application.services.deep_learning.dl_predict.predict_next_direction",
+        return_value=(None, 0.52, 0.52),
+    ):
+        entry = predict_symbol_decision(
+            orch,
+            "R_50",
+            TemporalDirectionClassifier(input_dim=INPUT_DIM),
+            prices_put,
+            fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32)),
+            runtime,
+            params,
+            None,
+            recovery_active=False,
+        )
+    assert entry["direction"] == TradeDirection.PUT
+    assert entry["metrics"]["execute"] is True
+    assert entry["metrics"]["trend_fallback"] is True

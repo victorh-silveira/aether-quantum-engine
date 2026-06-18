@@ -3,6 +3,8 @@
 import logging
 from typing import Any
 
+import numpy as np
+
 from src.application.services.deep_learning.dl_bridge_helpers import build_decision_entry
 from src.application.services.deep_learning.dl_gating import (
     gating_block_reason,
@@ -65,6 +67,32 @@ def predict_symbol_decision(
                 put_threshold=put_threshold,
             )
         if direction is None:
+            exec_cfg = orch.config.get("orchestrator", {}).get("execution", {}) if hasattr(orch, "config") else {}
+            mandatory = bool(exec_cfg.get("mandatory_trade_each_cycle", False))
+            if mandatory:
+                close_prices = prices.astype(np.float64)
+                sma_len = min(20, len(close_prices))
+                sma = np.mean(close_prices[-sma_len:]) if sma_len > 0 else close_prices[-1]
+                trend_dir = TradeDirection.CALL if close_prices[-1] >= sma else TradeDirection.PUT
+                raw = float(raw_prob)
+                side_score = max(raw, 1.0 - raw)
+                edge = resolve_edge(raw_prob)
+                entry = build_decision_entry(
+                    trend_dir,
+                    raw,
+                    execute=True,
+                    val_accuracy=val_accuracy,
+                    edge=edge,
+                    train_loss=train_loss,
+                    raw_prob=raw_prob,
+                    trade_score=side_score,
+                    contract_duration=int(params.get("contract_duration", 60)),
+                )
+                entry["metrics"]["gate_reason"] = None
+                entry["metrics"]["trend_fallback"] = True
+                entry["metrics"]["llm_note"] += f" (Trend Fallback: SMA-20 {trend_dir.name})"
+                return entry
+
             raw = float(raw_prob)
             side_score = max(raw, 1.0 - raw)
             weak_dir = TradeDirection.CALL if raw > 0.5 else TradeDirection.PUT
