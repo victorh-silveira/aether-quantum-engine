@@ -33,6 +33,7 @@ def test_kelly_calculation_standard(kelly_config):
 
 def test_kelly_negative_edge_returns_min_stake(kelly_config):
     """Verifica que agora forçamos a stake_min mesmo sem vantagem (No-Idle)."""
+    kelly_config["params"]["payout_estimate"] = 0.01
     rm = RiskManager(kelly_config)
     stake = rm.calculate_stake(1000.0, "R_50", conviction=0.5)
     assert stake == 1.0

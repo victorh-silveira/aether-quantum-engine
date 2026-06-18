@@ -58,12 +58,11 @@ def trading_cycle_entry_allowed(orch: Any) -> bool:
         return False
     orch._settlement_wait_logged = False
 
-    if hasattr(orch, "get_data_state_signature") and hasattr(orch, "last_data_signature"):
-        sig = orch.get_data_state_signature()
-        if sig and sig == orch.last_data_signature:
-            return False  # pragma: no cover
-
     if not getattr(orch, "_dl_fast_cycle", False):
+        if hasattr(orch, "get_data_state_signature") and hasattr(orch, "last_data_signature"):
+            sig = orch.get_data_state_signature()
+            if sig and sig == orch.last_data_signature:
+                return False  # pragma: no cover
         last_epoch = getattr(orch, "_last_epoch", 0)
         last_processed = getattr(orch, "_last_processed_epoch", 0)
         if (

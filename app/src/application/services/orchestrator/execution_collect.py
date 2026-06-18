@@ -273,6 +273,7 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
         last_loss_direction=last_loss_dir,
         flip_enabled=flip_recovery,
         flip_max_conviction=flip_max_conviction,
+        consecutive_losses=getattr(exec_mgr.orch.risk_manager, "consecutive_losses", 0),
     )
     if best is not None:
         metrics = best[2]

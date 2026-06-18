@@ -122,8 +122,8 @@
         0.4
       ],
       "post_settlement_cycle_timeout_seconds": 30,
-      "recovery_flip_direction_after_loss": false,
-      "recovery_flip_max_conviction": 0,
+      "recovery_flip_direction_after_loss": true,
+      "recovery_flip_max_conviction": 0.56,
       "settlement_max_stagnant_polls": 24,
       "settlement_poll_seconds": 0.25,
       "settlement_post_expiry_slack_seconds": 2.0,

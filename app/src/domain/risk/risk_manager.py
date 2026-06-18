@@ -101,6 +101,9 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
     def effective_win_rate(self, symbol: str, conviction: float = 0.5) -> float:
         """Define a probabilidade (p) baseada na convicção da IA ou histórico."""
         base_p = conviction
+        if 0.50 <= base_p <= 0.55:
+            base_p = 0.56 + (base_p - 0.50) * 0.6
+
         if not self.kelly_config.get("dynamic_win_rate", False):
             return base_p
 

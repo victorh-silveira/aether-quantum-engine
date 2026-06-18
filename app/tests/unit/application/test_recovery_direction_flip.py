@@ -119,3 +119,24 @@ def test_apply_recovery_direction_flip_noop_branches():
         last_loss_direction="CALL",
         flip_enabled=True,
     ) == (PAIR, TradeDirection.CALL, {})
+
+
+def test_apply_recovery_direction_flip_consecutive_losses_gt_1():
+    decisions = {
+        PAIR: {
+            "direction": TradeDirection.CALL,
+            "metrics": {"raw_prob": 0.54, "trade_score": 0.54, "deploy_ok": True},
+        },
+    }
+    best = (PAIR, TradeDirection.CALL, decisions[PAIR]["metrics"])
+    flipped = apply_recovery_direction_flip(
+        best,
+        decisions,
+        recovery_active=True,
+        last_loss_symbol=PAIR,
+        last_loss_direction="CALL",
+        flip_enabled=True,
+        consecutive_losses=2,
+    )
+    assert flipped == best
+    assert flipped[1] == TradeDirection.CALL
