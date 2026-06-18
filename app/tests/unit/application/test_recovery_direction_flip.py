@@ -140,3 +140,89 @@ def test_apply_recovery_direction_flip_consecutive_losses_gt_1():
     )
     assert flipped == best
     assert flipped[1] == TradeDirection.CALL
+
+
+def test_apply_recovery_direction_flip_with_trend_confirmation():
+    # Caso 1: Tendencia confirma o flip (opposite.name == trend_direction)
+    # Direcao original CALL -> Opposite seria PUT. Tendencia PUT confirma o flip.
+    decisions_confirmed = {
+        PAIR: {
+            "direction": TradeDirection.CALL,
+            "metrics": {"raw_prob": 0.54, "trade_score": 0.54, "deploy_ok": True, "trend_direction": "PUT"},
+        },
+    }
+    best_confirmed = (PAIR, TradeDirection.CALL, decisions_confirmed[PAIR]["metrics"])
+    flipped_confirmed = apply_recovery_direction_flip(
+        best_confirmed,
+        decisions_confirmed,
+        recovery_active=True,
+        last_loss_symbol=PAIR,
+        last_loss_direction="CALL",
+        flip_enabled=True,
+    )
+    assert flipped_confirmed is not None
+    assert flipped_confirmed[1] == TradeDirection.PUT
+
+    # Caso 2: Tendencia nao confirma o flip (opposite.name != trend_direction)
+    # Direcao original CALL -> Opposite seria PUT. Tendencia CALL nao confirma o flip.
+    decisions_rejected = {
+        PAIR: {
+            "direction": TradeDirection.CALL,
+            "metrics": {"raw_prob": 0.54, "trade_score": 0.54, "deploy_ok": True, "trend_direction": "CALL"},
+        },
+    }
+    best_rejected = (PAIR, TradeDirection.CALL, decisions_rejected[PAIR]["metrics"])
+    flipped_rejected = apply_recovery_direction_flip(
+        best_rejected,
+        decisions_rejected,
+        recovery_active=True,
+        last_loss_symbol=PAIR,
+        last_loss_direction="CALL",
+        flip_enabled=True,
+    )
+    assert flipped_rejected == best_rejected
+    assert flipped_rejected[1] == TradeDirection.CALL
+
+
+def test_apply_recovery_direction_flip_coverage_branches():
+    # Caso best is None
+    assert (
+        apply_recovery_direction_flip(
+            None,
+            {},
+            recovery_active=True,
+            last_loss_symbol=PAIR,
+            last_loss_direction="CALL",
+            flip_enabled=True,
+        )
+        is None
+    )
+
+    # Caso symbol nao esta em decisions (linha 155-156)
+    decisions_missing = {}
+    best = (PAIR, TradeDirection.CALL, {"raw_prob": 0.54, "trade_score": 0.54, "deploy_ok": True})
+    assert (
+        apply_recovery_direction_flip(
+            best,
+            decisions_missing,
+            recovery_active=True,
+            last_loss_symbol=PAIR,
+            last_loss_direction="CALL",
+            flip_enabled=True,
+        )
+        == best
+    )
+
+    # Caso flipped is None (linha 158)
+    decisions_no_dir = {PAIR: {"metrics": {"trade_score": 0.54, "deploy_ok": True}}}
+    assert (
+        apply_recovery_direction_flip(
+            best,
+            decisions_no_dir,
+            recovery_active=True,
+            last_loss_symbol=PAIR,
+            last_loss_direction="CALL",
+            flip_enabled=True,
+        )
+        == best
+    )

@@ -66,14 +66,15 @@ def predict_symbol_decision(
                 call_threshold=call_threshold,
                 put_threshold=put_threshold,
             )
+        close_prices = prices.astype(np.float64)
+        sma_len = min(20, len(close_prices))
+        sma = np.mean(close_prices[-sma_len:]) if sma_len > 0 else close_prices[-1]
+        trend_dir = TradeDirection.CALL if close_prices[-1] >= sma else TradeDirection.PUT
+
         if direction is None:
             exec_cfg = orch.config.get("orchestrator", {}).get("execution", {}) if hasattr(orch, "config") else {}
             mandatory = bool(exec_cfg.get("mandatory_trade_each_cycle", False))
             if mandatory:
-                close_prices = prices.astype(np.float64)
-                sma_len = min(20, len(close_prices))
-                sma = np.mean(close_prices[-sma_len:]) if sma_len > 0 else close_prices[-1]
-                trend_dir = TradeDirection.CALL if close_prices[-1] >= sma else TradeDirection.PUT
                 raw = float(raw_prob)
                 side_score = max(raw, 1.0 - raw)
                 edge = resolve_edge(raw_prob)
@@ -90,6 +91,7 @@ def predict_symbol_decision(
                 )
                 entry["metrics"]["gate_reason"] = None
                 entry["metrics"]["trend_fallback"] = True
+                entry["metrics"]["trend_direction"] = trend_dir.name
                 entry["metrics"]["llm_note"] += f" (Trend Fallback: SMA-20 {trend_dir.name})"
                 return entry
 
@@ -108,6 +110,7 @@ def predict_symbol_decision(
                 contract_duration=int(params.get("contract_duration", 60)),
             )
             entry["metrics"]["gate_reason"] = "confidence"
+            entry["metrics"]["trend_direction"] = trend_dir.name
             return entry
         block = gating_block_reason(
             raw_prob,
@@ -135,6 +138,7 @@ def predict_symbol_decision(
             contract_duration=int(params.get("contract_duration", 60)),
         )
         entry["metrics"]["gate_reason"] = block
+        entry["metrics"]["trend_direction"] = trend_dir.name
         return entry
     except Exception as e:
         logger.error("DL: Falha na predicao para %s: %s", symbol, e)
