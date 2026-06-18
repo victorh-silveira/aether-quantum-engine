@@ -63,6 +63,17 @@ def trading_cycle_entry_allowed(orch: Any) -> bool:
         if sig and sig == orch.last_data_signature:
             return False  # pragma: no cover
 
+    if not getattr(orch, "_dl_fast_cycle", False):
+        last_epoch = getattr(orch, "_last_epoch", 0)
+        last_processed = getattr(orch, "_last_processed_epoch", 0)
+        if (
+            isinstance(last_epoch, (int, float))
+            and isinstance(last_processed, (int, float))
+            and last_epoch > 0
+            and last_processed == last_epoch
+        ):
+            return False  # pragma: no cover
+
     return True
 
 

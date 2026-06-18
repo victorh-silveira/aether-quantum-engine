@@ -17,6 +17,7 @@ from src.application.services.execution_symbols_recovery import (
     pending_recovery_active,
     recovery_blocked_symbols,
 )
+from src.application.services.orchestrator.execution_near_stop_win import should_pause_weak_mandatory
 from src.application.services.orchestrator.execution_recovery_gate import (
     cluster_entry_eligible,
     recovery_min_signal,
@@ -27,12 +28,7 @@ from src.domain.risk.stake_sizing import enrich_metrics_conviction, raw_side_fro
 
 
 def apply_recovery_hedge_to_candidates(
-    exec_mgr,
-    candidates: list[tuple[str, TradeDirection, dict]],
-    _decisions: dict,
-    *,
-    cid: str,
-    mandatory: bool = False,
+    exec_mgr, candidates: list[tuple[str, TradeDirection, dict]], _decisions: dict, *, cid: str, mandatory: bool = False
 ) -> list[tuple[str, TradeDirection, dict]]:
     """Mantem pool de candidatos; ranking de recovery escolhe direcao e simbolo."""
     _ = (exec_mgr, cid, mandatory)
@@ -252,6 +248,16 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
                 last_loss_direction=last_loss_dir,
                 min_signal=min_signal,
                 min_val=min_val,
+            )
+        if ultimate is None and not should_pause_weak_mandatory(exec_mgr, decisions, recovery_active=recovery_active):
+            ultimate = pick_absolute_mandatory_candidate(
+                exec_mgr._trade_symbols(),
+                decisions,
+                recovery_active=recovery_active,
+                last_loss_symbol=last_loss,
+                last_loss_direction=last_loss_dir,
+                min_signal=0.0,
+                min_val=0.0,
             )
         if ultimate is not None:
             best = ultimate

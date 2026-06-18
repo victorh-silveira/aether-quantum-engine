@@ -67,6 +67,7 @@ class Orchestrator:
         self.shutdown_reason: str | None = None
         self._cluster_results: list = []
         self._last_epoch = 0
+        self._last_processed_epoch = 0
         self._last_cluster_cycle_end = 0.0
         self._risk_session_day_key: int | None = None
         self._buffer_result_logs = False
@@ -230,6 +231,7 @@ class Orchestrator:
                 if self._cycle_seq > 1:
                     self.logger.info("")
                 self._active_cycle_id = self._cycle_seq
+                self._last_processed_epoch = self._last_epoch
                 ran = True
                 self.logger.debug(
                     "[C%04d] CICLO: coletando decisoes DL (%d simbolos)",
