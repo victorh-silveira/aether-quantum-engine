@@ -1,3 +1,14 @@
+## [1.19.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.18.1...v1.19.0) (2026-06-18)
+
+### Funcionalidades
+
+* **app:** adiciona confirmacao de tendencia SMA-20 no flip de recuperacao ([76bbdd4](https://github.com/victorh-silveira/aether-quantum-engine/commit/76bbdd4015257a3d8075fdacc2cc588202e97c9a))
+* **app:** adiciona fallback de tendencia SMA-20 em execucao ([ad9e3f5](https://github.com/victorh-silveira/aether-quantum-engine/commit/ad9e3f5df5f11f0d8d493630dcc555acb8351a3e))
+* **app:** remove bloqueios de cooldown e session pause para eliminar holds ([94b525b](https://github.com/victorh-silveira/aether-quantum-engine/commit/94b525b70fbec64f7cbbae1091f169382621265a))
+* **risk:** aumenta limiares de confianca e score minimo de execucao ([79410f5](https://github.com/victorh-silveira/aether-quantum-engine/commit/79410f56b00bad0a0a57cfab56d99d8ed8a1d737))
+* **risk:** reduz fracao de lucro alvo do martingale para zero ([1c3f11b](https://github.com/victorh-silveira/aether-quantum-engine/commit/1c3f11b2c84ae7393088d7bf1429ba5186a39d38))
+* **risk:** refina gerenciamento de risco e logica de inversao de direcao na recuperacao ([aabe2c6](https://github.com/victorh-silveira/aether-quantum-engine/commit/aabe2c62fb15d88569566d3ddedfb8c23b364f21))
+
 ## [1.18.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.18.0...v1.18.1) (2026-06-18)
 
 ### Correcoes de Bug
