@@ -56,7 +56,7 @@ def noop_background_settlement_watch(request):
         yield
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 async def cancel_leftover_async_tasks():
     """Cancela tasks asyncio orfas (ex.: settlement watch) ao final de cada teste."""
     yield
@@ -66,3 +66,10 @@ async def cancel_leftover_async_tasks():
         task.cancel()
     if pending:
         await asyncio.gather(*pending, return_exceptions=True)
+
+
+def pytest_runtest_setup(item):
+    """Injeta cancel_leftover_async_tasks apenas em testes assincronos."""
+    is_async = "asyncio" in item.keywords or asyncio.iscoroutinefunction(item.obj)
+    if is_async and "cancel_leftover_async_tasks" not in item.fixturenames:
+        item.fixturenames.append("cancel_leftover_async_tasks")
