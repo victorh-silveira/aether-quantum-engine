@@ -1,3 +1,13 @@
+## [1.1.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.0.0...v1.1.0) (2026-06-19)
+
+### Funcionalidades
+
+* **config:** elevar os filtros de seguranca de recuperacao e martingale ([6b7f301](https://github.com/victorh-silveira/aether-quantum-engine/commit/6b7f301952e45189e9592d81d3b359616f064f05))
+* **config:** forcar operacao obrigatoria a cada ciclo para garantir atividade ([f3be7d1](https://github.com/victorh-silveira/aether-quantum-engine/commit/f3be7d1844225f5d258c9db441ead936fb432364))
+* **config:** reduzir a fracao de kelly para diminuir o tamanho das entradas ([527269b](https://github.com/victorh-silveira/aether-quantum-engine/commit/527269b4bba75941f33bf8a0cb0dfdb96e153635))
+* **config:** reduzir ainda mais a fracao de kelly para dimensionamento conservador ([857ca76](https://github.com/victorh-silveira/aether-quantum-engine/commit/857ca76c001248fc009df9c71510bad3fc3a792c))
+* **config:** reduzir limites de confianca para equilibrar qualidade e quantidade ([89f2317](https://github.com/victorh-silveira/aether-quantum-engine/commit/89f2317aefbb284ecd6aa1528bb76bef74cda4c4))
+
 ## 2026-06-19 (f011613a)
 
 * chore(repo): limpa o changelog para regeneracao completa via ci
