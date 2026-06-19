@@ -113,7 +113,7 @@
       "diversify_after_loss_margin": 0.08,
       "include_anchor_trades": true,
       "inter_symbol_delay": 0.2,
-      "mandatory_trade_each_cycle": true,
+      "mandatory_trade_each_cycle": false,
       "proposal_failure_skip_cycles": 3,
       "proposal_retry_scales": [
         0.85,
