@@ -24,6 +24,7 @@ def _calculate_trend_direction(prices, exec_cfg: dict) -> tuple[TradeDirection, 
     """Calcula a direcao da tendencia usando SMA ou EMA com periodo configurado."""
     trend_period = int(exec_cfg.get("trend_period", 5))
     trend_use_ema = bool(exec_cfg.get("trend_use_ema", True))
+    trend_use_slope = bool(exec_cfg.get("trend_use_slope", True))
     close_prices = prices.astype(np.float64)
     t_len = min(trend_period, len(close_prices))
     if t_len > 0:
@@ -38,8 +39,22 @@ def _calculate_trend_direction(prices, exec_cfg: dict) -> tuple[TradeDirection, 
     else:
         trend_val = close_prices[-1] if len(close_prices) > 0 else 0.0
 
-    last_val = close_prices[-1] if len(close_prices) > 0 else 0.0
-    trend_dir = TradeDirection.CALL if last_val >= trend_val else TradeDirection.PUT
+    if trend_use_slope and len(close_prices) > 1:
+        prev_prices = close_prices[:-1]
+        prev_len = min(trend_period, len(prev_prices))
+        if trend_use_ema and prev_len > 1:
+            alpha = 2.0 / (prev_len + 1)
+            prev_ema = prev_prices[-prev_len]
+            for price in prev_prices[-prev_len + 1 :]:
+                prev_ema = alpha * price + (1.0 - alpha) * prev_ema
+            prev_trend_val = prev_ema
+        else:
+            prev_trend_val = np.mean(prev_prices[-prev_len:])
+        trend_dir = TradeDirection.CALL if trend_val >= prev_trend_val else TradeDirection.PUT
+    else:
+        last_val = close_prices[-1] if len(close_prices) > 0 else 0.0
+        trend_dir = TradeDirection.CALL if last_val >= trend_val else TradeDirection.PUT
+
     trend_type = "EMA" if trend_use_ema else "SMA"
     return trend_dir, trend_type, trend_period
 
