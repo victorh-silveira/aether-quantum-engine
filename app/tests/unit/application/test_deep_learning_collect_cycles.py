@@ -9,6 +9,7 @@ from src.application.services.deep_learning.decision_bridge import collect_deep_
 from src.application.services.deep_learning.model import (
     INPUT_DIM,
     MarketDirectionClassifier,
+    create_direction_model,
     fit_norm_stats,
     save_model_checkpoint,
 )
@@ -53,6 +54,21 @@ async def test_collect_deep_learning_decisions():
 async def test_collect_skips_train_on_same_candle():
     prices = np.sin(np.linspace(0, 10, 80)) + 10.0
     orch = MockOrchestrator(["R_50"], prices, epoch=5000, train_mode=True)
+    path = Path(orch.temp_dir) / "R_50.pth"
+    model = create_direction_model(arch="tcn", input_dim=INPUT_DIM)
+    stats = fit_norm_stats(np.zeros((5, INPUT_DIM), dtype=np.float32))
+    save_model_checkpoint(
+        path,
+        model,
+        stats,
+        last_candle_epoch=5000,
+        lookback=15,
+        arch="tcn",
+        val_accuracy=0.6,
+        val_brier=0.2,
+        deploy_ok=True,
+        granularity=60,
+    )
     orch.config["deep_learning"]["train_on_new_candle_only"] = True
     orch.config["deep_learning"]["min_val_accuracy"] = 0.0
     first = await collect_deep_learning_decisions(orch)
@@ -76,6 +92,21 @@ async def test_collect_skips_train_on_same_candle():
 async def test_collect_predict_runs_each_cycle_same_candle():
     prices = np.sin(np.linspace(0, 10, 80)) + 10.0
     orch = MockOrchestrator(["R_50"], prices, epoch=5000, train_mode=True)
+    path = Path(orch.temp_dir) / "R_50.pth"
+    model = create_direction_model(arch="tcn", input_dim=INPUT_DIM)
+    stats = fit_norm_stats(np.zeros((5, INPUT_DIM), dtype=np.float32))
+    save_model_checkpoint(
+        path,
+        model,
+        stats,
+        last_candle_epoch=5000,
+        lookback=15,
+        arch="tcn",
+        val_accuracy=0.6,
+        val_brier=0.2,
+        deploy_ok=True,
+        granularity=60,
+    )
     orch.config["deep_learning"]["train_on_new_candle_only"] = True
     orch.config["deep_learning"]["min_val_accuracy"] = 0.0
     await collect_deep_learning_decisions(orch)
@@ -86,7 +117,7 @@ async def test_collect_predict_runs_each_cycle_same_candle():
         ) as mock_train,
         patch(
             "src.application.services.deep_learning.dl_predict.predict_next_direction",
-            return_value=(TradeDirection.CALL, 0.55, 0.58, 0.56),
+            return_value=(TradeDirection.CALL, 0.55, 0.58),
         ) as mock_predict,
     ):
         second = await collect_deep_learning_decisions(orch)
@@ -176,7 +207,7 @@ async def test_collect_decisions_exceptions_and_load():
         path = Path(tmp) / "R_50.pth"
         model = MarketDirectionClassifier(input_dim=INPUT_DIM)
         stats = fit_norm_stats(np.zeros((5, INPUT_DIM), dtype=np.float32))
-        save_model_checkpoint(path, model, stats, last_candle_epoch=99, lookback=15, arch="tcn")
+        save_model_checkpoint(path, model, stats, last_candle_epoch=99, lookback=15, arch="tcn", granularity=60)
         orch.config["deep_learning"]["model_path_template"] = f"{tmp}/{{symbol}}.pth"
         if hasattr(orch, "_dl_runtime"):
             orch._dl_runtime.clear()

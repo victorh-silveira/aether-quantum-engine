@@ -1,4 +1,6 @@
+import tempfile
 from datetime import UTC, datetime
+from pathlib import Path
 
 from src.domain.models.market_data import Candle
 from tests.market_symbols import ANCHOR
@@ -22,6 +24,7 @@ class MockStreamHandler:
 class MockOrchestrator:
     def __init__(self, symbols, prices, *, dl_enabled=True, epoch=1000, train_mode=False):
         self.symbols = symbols
+        self.temp_dir = tempfile.mkdtemp()
         self.config = {
             "data_handler": {"granularity": 300},
             "deep_learning": {
@@ -36,7 +39,7 @@ class MockOrchestrator:
                 "confidence_call_threshold": 0.75,
                 "confidence_put_threshold": 0.25,
                 "train_on_new_candle_only": False,
-                "model_path_template": "data/dl/{symbol}.pth",
+                "model_path_template": str(Path(self.temp_dir) / "{symbol}.pth"),
                 "deploy_gate": {"enabled": False, "mini_bars": 40},
             },
             "orchestrator": {"engine_mode": "train" if train_mode else "execute"},
