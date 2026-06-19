@@ -20,6 +20,30 @@ from src.domain.models.trade import TradeDirection
 logger = logging.getLogger("AETH")
 
 
+def _calculate_trend_direction(prices, exec_cfg: dict) -> tuple[TradeDirection, str, int]:
+    """Calcula a direcao da tendencia usando SMA ou EMA com periodo configurado."""
+    trend_period = int(exec_cfg.get("trend_period", 5))
+    trend_use_ema = bool(exec_cfg.get("trend_use_ema", True))
+    close_prices = prices.astype(np.float64)
+    t_len = min(trend_period, len(close_prices))
+    if t_len > 0:
+        if trend_use_ema and t_len > 1:
+            alpha = 2.0 / (t_len + 1)
+            ema = close_prices[-t_len]
+            for price in close_prices[-t_len + 1 :]:
+                ema = alpha * price + (1.0 - alpha) * ema
+            trend_val = ema
+        else:
+            trend_val = np.mean(close_prices[-t_len:])
+    else:
+        trend_val = close_prices[-1] if len(close_prices) > 0 else 0.0
+
+    last_val = close_prices[-1] if len(close_prices) > 0 else 0.0
+    trend_dir = TradeDirection.CALL if last_val >= trend_val else TradeDirection.PUT
+    trend_type = "EMA" if trend_use_ema else "SMA"
+    return trend_dir, trend_type, trend_period
+
+
 def predict_symbol_decision(
     orch,
     symbol: str,
@@ -66,13 +90,10 @@ def predict_symbol_decision(
                 call_threshold=call_threshold,
                 put_threshold=put_threshold,
             )
-        close_prices = prices.astype(np.float64)
-        sma_len = min(20, len(close_prices))
-        sma = np.mean(close_prices[-sma_len:]) if sma_len > 0 else close_prices[-1]
-        trend_dir = TradeDirection.CALL if close_prices[-1] >= sma else TradeDirection.PUT
+        exec_cfg = orch.config.get("orchestrator", {}).get("execution", {}) if hasattr(orch, "config") else {}
+        trend_dir, trend_type, trend_period = _calculate_trend_direction(prices, exec_cfg)
 
         if direction is None:
-            exec_cfg = orch.config.get("orchestrator", {}).get("execution", {}) if hasattr(orch, "config") else {}
             mandatory = bool(exec_cfg.get("mandatory_trade_each_cycle", False))
             if mandatory:
                 raw = float(raw_prob)
@@ -92,7 +113,7 @@ def predict_symbol_decision(
                 entry["metrics"]["gate_reason"] = None
                 entry["metrics"]["trend_fallback"] = True
                 entry["metrics"]["trend_direction"] = trend_dir.name
-                entry["metrics"]["llm_note"] += f" (Trend Fallback: SMA-20 {trend_dir.name})"
+                entry["metrics"]["llm_note"] += f" (Trend Fallback: {trend_type}-{trend_period} {trend_dir.name})"
                 return entry
 
             raw = float(raw_prob)
