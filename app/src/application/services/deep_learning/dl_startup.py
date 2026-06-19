@@ -10,6 +10,7 @@ from src.application.services.deep_learning.dl_features import FEATURE_DIM
 from src.application.services.deep_learning.dl_params import parse_dl_params
 from src.application.services.deep_learning.dl_symbol_runtime import resolve_dl_model_path
 from src.application.services.deep_learning.dl_training_gate import min_dl_inference_len
+from src.application.services.orchestrator.engine_mode import ENGINE_MODE_TRAIN, resolve_engine_mode
 
 
 def inference_startup_enabled(dl_config: dict[str, Any] | None) -> bool:
@@ -39,7 +40,12 @@ def resolve_startup_fetch_bars(config: dict[str, Any], symbols: list[str]) -> tu
     data_config = config.get("data_handler") or {}
     dl_config = config.get("deep_learning") or {}
     warmup = int(data_config.get("history_warmup_bars", 64))
-    if not inference_startup_enabled(dl_config) or not all_symbols_have_checkpoints(symbols, dl_config):
+    is_training_mode = resolve_engine_mode(config) == ENGINE_MODE_TRAIN
+    if (
+        is_training_mode
+        or not inference_startup_enabled(dl_config)
+        or not all_symbols_have_checkpoints(symbols, dl_config)
+    ):
         if "fetch_count" in data_config:
             return max(1, int(data_config["fetch_count"])), "treino"
         history_bars = int(data_config.get("history_bars", 0))
