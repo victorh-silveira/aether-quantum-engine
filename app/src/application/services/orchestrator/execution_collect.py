@@ -263,17 +263,16 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
             best = ultimate
             candidates = [ultimate]
     exec_cfg = exec_mgr.orch.config.get("orchestrator", {}).get("execution", {})
-    flip_recovery = bool(exec_cfg.get("recovery_flip_direction_after_loss", True))
-    flip_max_conviction = float(exec_cfg.get("recovery_flip_max_conviction", 0.56))
     best = apply_recovery_direction_flip(
         best,
         decisions,
         recovery_active=recovery_active,
         last_loss_symbol=last_loss,
         last_loss_direction=last_loss_dir,
-        flip_enabled=flip_recovery,
-        flip_max_conviction=flip_max_conviction,
+        flip_enabled=bool(exec_cfg.get("recovery_flip_direction_after_loss", True)),
+        flip_max_conviction=float(exec_cfg.get("recovery_flip_max_conviction", 0.56)),
         consecutive_losses=getattr(exec_mgr.orch.risk_manager, "consecutive_losses", 0),
+        flip_use_trend=bool(exec_cfg.get("recovery_flip_use_trend_confirmation", False)),
     )
     if best is not None:
         metrics = best[2]

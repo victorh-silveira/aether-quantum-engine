@@ -159,6 +159,7 @@ def test_apply_recovery_direction_flip_with_trend_confirmation():
         last_loss_symbol=PAIR,
         last_loss_direction="CALL",
         flip_enabled=True,
+        flip_use_trend=True,
     )
     assert flipped_confirmed is not None
     assert flipped_confirmed[1] == TradeDirection.PUT
@@ -179,6 +180,7 @@ def test_apply_recovery_direction_flip_with_trend_confirmation():
         last_loss_symbol=PAIR,
         last_loss_direction="CALL",
         flip_enabled=True,
+        flip_use_trend=True,
     )
     assert flipped_rejected == best_rejected
     assert flipped_rejected[1] == TradeDirection.CALL
