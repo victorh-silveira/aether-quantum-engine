@@ -149,6 +149,23 @@ def resolve_inference_history_bars(
     return warmup + lookback + 16
 
 
+def parse_indicator_gating_config(dl_config: dict) -> dict[str, Any]:
+    """Extrai configuracao do bloco indicator_gating."""
+    raw = dl_config.get("indicator_gating", {}) if isinstance(dl_config.get("indicator_gating"), dict) else {}
+    return {
+        "enabled": bool(raw.get("enabled", False)),
+        "hurst_min": float(raw.get("hurst_min", 0.0)),
+        "hurst_max": float(raw.get("hurst_max", 1.0)),
+        "adx_min": float(raw.get("adx_min", 0.0)),
+        "vol_ratio_min": float(raw.get("vol_ratio_min", 0.0)),
+        "vol_ratio_max": float(raw.get("vol_ratio_max", 999.0)),
+        "cmo_min": float(raw.get("cmo_min", -1.0)),
+        "cmo_max": float(raw.get("cmo_max", 1.0)),
+        "keltner_pct_b_min": float(raw.get("keltner_pct_b_min", -999.0)),
+        "keltner_pct_b_max": float(raw.get("keltner_pct_b_max", 999.0)),
+    }
+
+
 def parse_dl_params(
     dl_config: dict,
     data_config: dict | None = None,
@@ -231,4 +248,5 @@ def parse_dl_params(
     min_eval_bars = lookback + 5
     gate = {**gate, "mini_bars": max(min_eval_bars, int(gate.get("mini_bars", 120)))}
     base["deploy_gate"] = gate
+    base["indicator_gating"] = parse_indicator_gating_config(dl_config)
     return base

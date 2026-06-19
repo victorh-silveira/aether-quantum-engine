@@ -135,6 +135,7 @@ def predict_next_direction(
     implied_vol_bars: int = 60,
     call_threshold: float = 0.75,
     put_threshold: float = 0.25,
+    calibrator: CalibratorState | None = None,
 ) -> tuple[TradeDirection | None, float, float]:
     """Prediz direcao via threshold de confianca sobre probabilidade bruta."""
     n = len(prices)
@@ -156,11 +157,12 @@ def predict_next_direction(
         norm_stats = fit_norm_stats(seq)
     feat = normalize_sequences(seq, norm_stats)
     raw_prob = float(_model_raw_prob(model, feat)[0])
-    if raw_prob + 1e-9 >= float(call_threshold):
-        return TradeDirection.CALL, raw_prob, raw_prob
-    if raw_prob - 1e-9 <= float(put_threshold):
-        return TradeDirection.PUT, raw_prob, raw_prob
-    return None, raw_prob, raw_prob
+    prob = apply_calibrator(raw_prob, calibrator) if calibrator is not None else raw_prob
+    if prob + 1e-9 >= float(call_threshold):
+        return TradeDirection.CALL, prob, raw_prob
+    if prob - 1e-9 <= float(put_threshold):
+        return TradeDirection.PUT, prob, raw_prob
+    return None, prob, raw_prob
 
 
 def evaluate_calibrated_metrics(

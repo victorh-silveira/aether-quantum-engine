@@ -100,7 +100,19 @@
     "label_smoothing": 0.02,
     "focal_gamma": 1.5,
     "lr_scheduler": "reduce_on_plateau",
-    "weight_decay": 0.0005
+    "weight_decay": 0.0005,
+    "indicator_gating": {
+      "enabled": false,
+      "hurst_min": 0.0,
+      "hurst_max": 1.0,
+      "adx_min": 0.0,
+      "vol_ratio_min": 0.0,
+      "vol_ratio_max": 999.0,
+      "cmo_min": -1.0,
+      "cmo_max": 1.0,
+      "keltner_pct_b_min": -999.0,
+      "keltner_pct_b_max": 999.0
+    }
   },
   "logging": {
     "log_file": "logs/engine.log"

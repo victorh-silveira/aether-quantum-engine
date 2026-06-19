@@ -6,7 +6,10 @@ from typing import Any
 import numpy as np
 
 from src.application.services.deep_learning.dl_bridge_helpers import build_decision_entry
+from src.application.services.deep_learning.dl_calibration import CalibratorState, calibrate_trade_score
+from src.application.services.deep_learning.dl_feature_build import precompute_price_series
 from src.application.services.deep_learning.dl_gating import (
+    check_indicator_gating_bounds,
     gating_block_reason,
     resolve_confidence_thresholds,
     resolve_edge,
@@ -89,6 +92,7 @@ def predict_symbol_decision(
     min_edge = float(params.get("min_edge_execute", 0.0))
     try:
         gran = int(granularity or params.get("granularity", 60))
+        calibrator = runtime.get("calibrator") or CalibratorState()
         with guard_symbol_model(runtime):
             direction, prob, raw_prob = predict_next_direction(
                 model,
@@ -104,6 +108,7 @@ def predict_symbol_decision(
                 implied_vol_bars=int(params.get("implied_vol_bars", 60)),
                 call_threshold=call_threshold,
                 put_threshold=put_threshold,
+                calibrator=calibrator,
             )
         exec_cfg = orch.config.get("orchestrator", {}).get("execution", {}) if hasattr(orch, "config") else {}
         trend_dir, trend_type, trend_period = _calculate_trend_direction(prices, exec_cfg)
@@ -112,7 +117,13 @@ def predict_symbol_decision(
             mandatory = bool(exec_cfg.get("mandatory_trade_each_cycle", False))
             if mandatory:
                 raw = float(raw_prob)
-                side_score = max(raw, 1.0 - raw)
+                side_score = calibrate_trade_score(
+                    raw_prob,
+                    val_accuracy,
+                    calibrator,
+                    deploy_ok=runtime.get("deploy_ok", True),
+                    is_put=trend_dir == TradeDirection.PUT,
+                )
                 edge = resolve_edge(raw_prob)
                 entry = build_decision_entry(
                     trend_dir,
@@ -132,8 +143,8 @@ def predict_symbol_decision(
                 return entry
 
             raw = float(raw_prob)
-            side_score = max(raw, 1.0 - raw)
             weak_dir = TradeDirection.CALL if raw > 0.5 else TradeDirection.PUT
+            side_score = max(raw, 1.0 - raw)
             entry = build_decision_entry(
                 weak_dir,
                 raw,
@@ -156,10 +167,36 @@ def predict_symbol_decision(
             put_threshold=put_threshold,
             min_edge=min_edge,
         )
+        if block is None:
+            indicator_cfg = params.get("indicator_gating", {})
+            if indicator_cfg.get("enabled", False):
+                series = precompute_price_series(
+                    prices,
+                    granularity=gran,
+                    symbol=str(symbol),
+                    open_=open_,
+                    high=high,
+                    low=low,
+                    micro=micro,
+                    implied_vol_bars=int(params.get("implied_vol_bars", 60)),
+                )
+                indicators = {
+                    "hurst": float(series["hurst"][-1]),
+                    "adx": float(series["adx"][-1]),
+                    "vol_ratio_short_long": float(series["vol_ratio_short_long"][-1]),
+                    "cmo": float(series["cmo"][-1]),
+                    "keltner_pct_b": float(series["keltner_pct_b"][-1]),
+                }
+                block = check_indicator_gating_bounds(indicators, indicator_cfg)
         execute = block is None
         edge = resolve_edge(raw_prob)
-        raw = float(raw_prob)
-        side_score = max(raw, 1.0 - raw)
+        side_score = calibrate_trade_score(
+            raw_prob,
+            val_accuracy,
+            calibrator,
+            deploy_ok=runtime.get("deploy_ok", True),
+            is_put=direction == TradeDirection.PUT,
+        )
         entry = build_decision_entry(
             direction,
             prob,
