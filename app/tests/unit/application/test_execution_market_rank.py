@@ -42,3 +42,60 @@ def test_build_market_execution_candidate():
     built = build_market_execution_candidate("R_25", entry)
     assert built is not None
     assert built[1] == TradeDirection.PUT
+
+
+def test_resolve_market_direction_low_accuracy_inverts():
+    # Acurácia de validação < 50% inverte CALL para PUT
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {"val_accuracy": 0.45, "raw_prob": 0.80},
+    }
+    assert resolve_market_direction(entry) == TradeDirection.PUT
+    assert entry["metrics"]["direction_inverted"] is True
+
+    # Acurácia de validação < 50% inverte PUT para CALL
+    entry = {
+        "direction": TradeDirection.PUT,
+        "metrics": {"val_accuracy": 0.40, "raw_prob": 0.20},
+    }
+    assert resolve_market_direction(entry) == TradeDirection.CALL
+    assert entry["metrics"]["direction_inverted"] is True
+
+
+def test_resolve_market_direction_follows_trend_on_gate_blocked():
+    # Com acurácia >= 50% e execute=False, se houver trend_direction, deve seguir a tendência
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {
+            "val_accuracy": 0.52,
+            "raw_prob": 0.80,
+            "execute": False,
+            "trend_direction": "PUT",
+        },
+    }
+    assert resolve_market_direction(entry) == TradeDirection.PUT
+
+
+def test_build_market_execution_candidate_preserves_inverted_flag():
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {"val_accuracy": 0.45, "raw_prob": 0.80, "execute": True},
+    }
+    built = build_market_execution_candidate("R_25", entry)
+    assert built is not None
+    assert built[1] == TradeDirection.PUT
+    assert built[2]["direction_inverted"] is True
+
+
+def test_resolve_market_direction_invalid_trend_direction():
+    # Com acurácia >= 50% e execute=False, se houver trend_direction inválida, deve ignorar e retornar dl_dir
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {
+            "val_accuracy": 0.52,
+            "raw_prob": 0.80,
+            "execute": False,
+            "trend_direction": "INVALID_TREND_NAME",
+        },
+    }
+    assert resolve_market_direction(entry) == TradeDirection.CALL

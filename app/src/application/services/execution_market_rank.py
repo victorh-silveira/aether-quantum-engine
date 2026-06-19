@@ -34,8 +34,22 @@ def mandatory_pool_eligible(entry: dict) -> bool:
 
 
 def resolve_market_direction(entry: dict) -> TradeDirection | None:
-    """Resolve CALL/PUT a partir da predicao DL."""
-    return infer_dl_direction(entry)
+    """Resolve CALL/PUT a partir da predicao DL com inversao inteligente e tendencia."""
+    dl_dir = infer_dl_direction(entry)
+    if dl_dir is None:
+        return None
+    metrics = entry.get("metrics") or {}
+    val_acc = float(metrics.get("val_accuracy", 0.50))
+    if val_acc < 0.50:
+        metrics["direction_inverted"] = True
+        return TradeDirection.PUT if dl_dir == TradeDirection.CALL else TradeDirection.CALL
+    trend_str = metrics.get("trend_direction")
+    if trend_str and not metrics.get("execute", True):
+        try:
+            return TradeDirection[trend_str.upper()]
+        except (KeyError, ValueError):
+            pass
+    return dl_dir
 
 
 def _recovery_score_adjustment(
@@ -96,12 +110,13 @@ def build_market_execution_candidate(
     entry: dict,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Monta candidato com direcao resolvida pelo ranking de mercado."""
-    metrics = dict(entry.get("metrics") or {})
     direction = resolve_market_direction(entry)
     if direction is None:
         return None
+    metrics = dict(entry.get("metrics") or {})
     enrich_metrics_conviction(metrics)
     metrics["dl_direction"] = direction.name
     metrics["exec_direction"] = direction.name
-    metrics["direction_inverted"] = False
+    if "direction_inverted" not in metrics:
+        metrics["direction_inverted"] = False
     return symbol, direction, metrics

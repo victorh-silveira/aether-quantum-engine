@@ -56,26 +56,11 @@ def should_pause_weak_mandatory(
     recovery_active: bool,
 ) -> bool:
     """Indica pausa de fallback obrigatorio com todos os simbolos bloqueados pelo DL."""
+    if recovery_active:
+        return False
     orch = exec_mgr.orch
     risk_cfg = orch.config.get("risk_management", {}) if isinstance(orch.config, dict) else {}
     kelly_cfg = risk_cfg.get("kelly", {}) if isinstance(risk_cfg, dict) else {}
-    if recovery_active:
-        if decisions:
-            min_val = float(kelly_cfg.get("recovery_min_val_accuracy", 0.50))
-            if min_val > 0.0:
-                all_below = True
-                for entry in decisions.values():
-                    val = float(entry.get("metrics", {}).get("val_accuracy", 0.0))
-                    if val >= min_val:
-                        all_below = False
-                        break
-                if all_below:
-                    exec_mgr.logger.warning(
-                        "RISK REC PAUSE: Todos os simbolos com val_accuracy abaixo de recovery_min_val_accuracy=%.2f",
-                        min_val,
-                    )
-                    return True
-        return False
     if not decisions_all_dl_blocked(decisions):
         return False
     min_signal = float(kelly_cfg.get("mandatory_min_trade_score", 0.45))
