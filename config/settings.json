@@ -124,7 +124,7 @@
       "post_settlement_cycle_timeout_seconds": 30,
       "recovery_flip_direction_after_loss": true,
       "recovery_flip_max_conviction": 0.56,
-      "trend_period": 5,
+      "trend_period": 15,
       "trend_use_ema": true,
       "trend_use_slope": true,
       "settlement_max_stagnant_polls": 24,
