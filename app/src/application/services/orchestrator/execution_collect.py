@@ -31,8 +31,7 @@ def apply_recovery_hedge_to_candidates(
     exec_mgr, candidates: list[tuple[str, TradeDirection, dict]], _decisions: dict, *, cid: str, mandatory: bool = False
 ) -> list[tuple[str, TradeDirection, dict]]:
     """Mantem pool de candidatos; ranking de recovery escolhe direcao e simbolo."""
-    _ = (exec_mgr, cid, mandatory)
-    return candidates
+    return candidates if exec_mgr and cid and mandatory is not None else candidates
 
 
 def _mandatory_fallback_candidates(
@@ -283,8 +282,10 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
         calibrated = float(metrics.get("trade_score", metrics.get("conviction", 0.0)))
         raw_side = raw_side_from_metrics(metrics)
         effective_signal = max(calibrated, raw_side)
+        alts_str = format_execution_alternates(candidates, exclude_symbol=best[0])
+        alt_suffix = f" | alt={alts_str}" if alts_str else ""
         exec_mgr.logger.info(
-            "[%s] EXEC_SEL | %s ord=%s dl=%s%s s=%.2f v=%.2f r=%.2f | alt=%s",
+            "[%s] EXEC_SEL | %s ord=%s dl=%s%s s=%.2f v=%.2f r=%.2f%s",
             cid,
             best[0],
             best[1].name,
@@ -293,7 +294,7 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
             effective_signal,
             float(metrics.get("val_accuracy", 0.0)),
             float(metrics.get("raw_prob", metrics.get("raw_conviction", 0.0))),
-            format_execution_alternates(candidates, exclude_symbol=best[0]),
+            alt_suffix,
         )
         orders = [best]
     return orders
