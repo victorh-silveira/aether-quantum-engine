@@ -1,3 +1,10 @@
+## [1.20.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.19.0...v1.20.0) (2026-06-19)
+
+### Funcionalidades
+
+* **app:** adiciona filtro de tendencia curto configuravel ([e94b130](https://github.com/victorh-silveira/aether-quantum-engine/commit/e94b1301f9df44fbbb8680c9f1b7235be5b05f36))
+* **app:** adiciona inclinacao no calculo de tendencia ([f147dcb](https://github.com/victorh-silveira/aether-quantum-engine/commit/f147dcbb6b4ec63506e57c2d152db044320f6e2c))
+
 ## [1.19.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.18.1...v1.19.0) (2026-06-18)
 
 ### Funcionalidades
