@@ -1,3 +1,10 @@
+## [1.2.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.1.0...v1.2.0) (2026-06-19)
+
+### Funcionalidades
+
+* **risk:** restaurar martingale e impor trava de seguranca ([14fe257](https://github.com/victorh-silveira/aether-quantum-engine/commit/14fe257276dd7beccdf9ccff9ed83421999f09e7))
+* **risk:** tornar confirmacao de tendencia opcional no flip ([da35ee4](https://github.com/victorh-silveira/aether-quantum-engine/commit/da35ee42ffa00d97915acd6355ad8fd7a510eea0))
+
 ## [1.1.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.0.0...v1.1.0) (2026-06-19)
 
 ### Funcionalidades
