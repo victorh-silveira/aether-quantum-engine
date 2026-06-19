@@ -30,16 +30,16 @@
     "enabled": true,
     "bootstrap_max_wait_rounds": 240,
     "calib_ratio": 0.15,
-    "confidence_call_threshold": 0.54,
-    "confidence_put_threshold": 0.46,
-    "min_edge_execute": 0.04,
+    "confidence_call_threshold": 0.52,
+    "confidence_put_threshold": 0.48,
+    "min_edge_execute": 0.02,
     "train_symbols": [
       "R_10"
     ],
     "selection": {
       "min_val_accuracy": 0.52,
-      "confidence_call_threshold": 0.54,
-      "confidence_put_threshold": 0.46
+      "confidence_call_threshold": 0.52,
+      "confidence_put_threshold": 0.48
     },
     "recovery_gating": {
       "min_conviction_execute": 0.0,
@@ -113,7 +113,7 @@
       "diversify_after_loss_margin": 0.08,
       "include_anchor_trades": true,
       "inter_symbol_delay": 0.2,
-      "mandatory_trade_each_cycle": false,
+      "mandatory_trade_each_cycle": true,
       "proposal_failure_skip_cycles": 3,
       "proposal_retry_scales": [
         0.85,
@@ -152,9 +152,9 @@
       "martingale_target_fraction": 1.0,
       "martingale_recovery_step_fraction": 1.0,
       "martingale_max_stake_multiplier": 0.0,
-      "mandatory_min_trade_score": 0.54,
-      "recovery_min_trade_score": 0.54,
-      "recovery_force_min_trade_score": 0.54,
+      "mandatory_min_trade_score": 0.50,
+      "recovery_min_trade_score": 0.50,
+      "recovery_force_min_trade_score": 0.50,
       "recovery_force_pending_min": 0,
       "recovery_min_val_accuracy": 0,
       "recovery_martingale_always": true,
