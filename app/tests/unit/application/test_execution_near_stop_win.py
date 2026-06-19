@@ -29,6 +29,22 @@ def test_should_pause_false_when_recovery_active():
     assert should_pause_weak_mandatory(exec_mgr, {}, recovery_active=True) is False
 
 
+def test_should_pause_recovery_low_accuracy():
+    orch = SimpleNamespace(
+        config={"risk_management": {"kelly": {"recovery_min_val_accuracy": 0.50}}},
+        risk_manager=SimpleNamespace(pending_loss={ANCHOR: 1.0}),
+    )
+    exec_mgr = SimpleNamespace(orch=orch, logger=MagicMock())
+    decisions = {
+        ANCHOR: {"metrics": {"val_accuracy": 0.45}},
+        PAIR: {"metrics": {"val_accuracy": 0.40}},
+    }
+    assert should_pause_weak_mandatory(exec_mgr, decisions, recovery_active=True) is True
+
+    decisions[PAIR]["metrics"]["val_accuracy"] = 0.51
+    assert should_pause_weak_mandatory(exec_mgr, decisions, recovery_active=True) is False
+
+
 def test_should_pause_false_when_dl_has_executable_symbol():
     orch = SimpleNamespace(
         config={"risk_management": {"kelly": {"mandatory_min_trade_score": 0.45}}},
