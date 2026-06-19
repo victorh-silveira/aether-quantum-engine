@@ -59,10 +59,11 @@ def _insufficient_data_entry() -> dict:
 def _apply_deploy_gate(entry: dict, runtime: dict, dl_config: dict) -> dict:
     """Aplica bloqueio de execucao quando o mini-deploy gate reprova o modelo."""
     gate_cfg = parse_deploy_gate_config(dl_config)
-    if not runtime.get("deploy_ok", False) and gate_cfg.get("enabled", True) and entry["metrics"].get("execute"):
+    enabled = gate_cfg.get("enabled", True)
+    if not runtime.get("deploy_ok", False) and enabled and entry["metrics"].get("execute"):
         entry["metrics"]["execute"] = False
         entry["metrics"]["gate_reason"] = "deploy"
-    entry["metrics"]["deploy_ok"] = bool(runtime.get("deploy_ok", False))
+    entry["metrics"]["deploy_ok"] = bool(runtime.get("deploy_ok", False)) or not enabled
     return entry
 
 
