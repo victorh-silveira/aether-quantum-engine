@@ -91,6 +91,8 @@ def _scored_fallback_pick(
     *,
     skip_symbols: frozenset[str] | None = None,
     min_signal: float = 0.0,
+    recovery_active: bool = False,
+    consecutive_losses: int = 0,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Escolhe candidato inferivel com maior trade_score no modo obrigatorio."""
     skip = skip_symbols or frozenset()
@@ -106,7 +108,9 @@ def _scored_fallback_pick(
         score, raw_side = _entry_signal_strength(metrics)
         if max(score, raw_side) + 1e-9 < min_signal:
             continue
-        candidate = build_market_execution_candidate(symbol, entry)
+        candidate = build_market_execution_candidate(
+            symbol, entry, recovery_active=recovery_active, consecutive_losses=consecutive_losses
+        )
         if candidate is None:
             candidate = build_execution_candidate(symbol, entry)
         if candidate is None or score < best_score:
@@ -122,6 +126,8 @@ def _last_resort_fallback_pick(
     *,
     skip_symbols: frozenset[str] | None = None,
     min_signal: float = 0.0,
+    recovery_active: bool = False,
+    consecutive_losses: int = 0,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Ultimo recurso de execucao obrigatoria usando raw_prob ou CALL padrao."""
     skip = skip_symbols or frozenset()
@@ -136,7 +142,9 @@ def _last_resort_fallback_pick(
         if max(score, raw_side) + 1e-9 < min_signal:
             continue
         raw = metrics.get("raw_prob")
-        direction = resolve_market_direction(entry)
+        direction = resolve_market_direction(
+            entry, recovery_active=recovery_active, consecutive_losses=consecutive_losses
+        )
         if direction is None:
             side = TradeDirection.CALL if raw is None or float(raw) > 0.5 else TradeDirection.PUT
             direction = side
@@ -154,6 +162,7 @@ def build_mandatory_fallback_candidate(
     skip_symbols: frozenset[str] | None = None,
     min_signal: float = 0.0,
     min_val: float = 0.0,
+    consecutive_losses: int = 0,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Garante ordem em modo obrigatorio quando o pool DL fica vazio."""
     ranked = pick_best_mandatory_candidate(
@@ -165,10 +174,25 @@ def build_mandatory_fallback_candidate(
         skip_symbols=skip_symbols,
         min_signal=min_signal,
         min_val=min_val,
+        consecutive_losses=consecutive_losses,
     )
     if ranked is not None:
         return ranked
-    scored = _scored_fallback_pick(trade_symbols, decisions, skip_symbols=skip_symbols, min_signal=min_signal)
+    scored = _scored_fallback_pick(
+        trade_symbols,
+        decisions,
+        skip_symbols=skip_symbols,
+        min_signal=min_signal,
+        recovery_active=recovery_active,
+        consecutive_losses=consecutive_losses,
+    )
     if scored is not None:
         return scored
-    return _last_resort_fallback_pick(trade_symbols, decisions, skip_symbols=skip_symbols, min_signal=min_signal)
+    return _last_resort_fallback_pick(
+        trade_symbols,
+        decisions,
+        skip_symbols=skip_symbols,
+        min_signal=min_signal,
+        recovery_active=recovery_active,
+        consecutive_losses=consecutive_losses,
+    )

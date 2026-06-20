@@ -41,6 +41,7 @@ def _recovery_hedge_pick(
     last_loss_symbol: str | None,
     last_loss_direction: str | None,
     skip_symbols: frozenset[str],
+    consecutive_losses: int = 0,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Prioriza par Range com direcao estrutural oposta ao ultimo loss."""
     target = recovery_hedge_target(last_loss_symbol, last_loss_direction)
@@ -55,7 +56,7 @@ def _recovery_hedge_pick(
     built = build_forced_direction_candidate(peer, entry, hedge_dir)
     if built is not None:
         return built
-    direction = resolve_market_direction(entry)
+    direction = resolve_market_direction(entry, recovery_active=True, consecutive_losses=consecutive_losses)
     if direction is None:
         return None
     return build_forced_recovery_candidate(peer, entry, hedge_dir)
@@ -70,6 +71,7 @@ def _rank_eligible_candidates(
     last_loss_direction: str | None,
     min_signal: float,
     min_val: float,
+    consecutive_losses: int = 0,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Rankeia candidatos elegiveis e retorna o melhor por score de mercado."""
     best = None
@@ -84,9 +86,13 @@ def _rank_eligible_candidates(
         ):
             continue
         score = _trade_score(metrics)
-        candidate = build_market_execution_candidate(symbol, entry)
+        candidate = build_market_execution_candidate(
+            symbol, entry, recovery_active=recovery_active, consecutive_losses=consecutive_losses
+        )
         if candidate is None:
-            direction = resolve_market_direction(entry)
+            direction = resolve_market_direction(
+                entry, recovery_active=recovery_active, consecutive_losses=consecutive_losses
+            )
             if direction is None:
                 continue
             candidate = build_forced_recovery_candidate(symbol, entry, direction)
@@ -116,6 +122,7 @@ def pick_best_mandatory_candidate(
     skip_symbols: frozenset[str] | None = None,
     min_signal: float = 0.0,
     min_val: float = 0.0,
+    consecutive_losses: int = 0,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Escolhe melhor candidato obrigatorio por score de mercado."""
     skip = skip_symbols or frozenset()
@@ -125,6 +132,7 @@ def pick_best_mandatory_candidate(
             last_loss_symbol=last_loss_symbol,
             last_loss_direction=last_loss_direction,
             skip_symbols=skip,
+            consecutive_losses=consecutive_losses,
         )
         if hedge is not None and meets_mandatory_signal_floor(hedge[2], min_signal=min_signal, min_val=min_val):
             return hedge
@@ -137,6 +145,7 @@ def pick_best_mandatory_candidate(
         last_loss_direction=last_loss_direction,
         min_signal=min_signal,
         min_val=min_val,
+        consecutive_losses=consecutive_losses,
     )
     if ranked is not None:
         return ranked
@@ -148,6 +157,7 @@ def pick_best_mandatory_candidate(
         last_loss_direction=last_loss_direction,
         min_signal=min_signal,
         min_val=min_val,
+        consecutive_losses=consecutive_losses,
     )
 
 
@@ -160,6 +170,7 @@ def pick_absolute_mandatory_candidate(
     last_loss_direction: str | None,
     min_signal: float = 0.0,
     min_val: float = 0.0,
+    consecutive_losses: int = 0,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Garante ordem quando filtros de recovery esgotam o pool."""
     order = _symbol_order(trade_symbols, last_loss_symbol, skip_symbols=frozenset())
@@ -174,9 +185,13 @@ def pick_absolute_mandatory_candidate(
             metrics, min_signal=min_signal, min_val=min_val
         ):
             continue
-        candidate = build_market_execution_candidate(symbol, entry)
+        candidate = build_market_execution_candidate(
+            symbol, entry, recovery_active=recovery_active, consecutive_losses=consecutive_losses
+        )
         if candidate is None:
-            direction = resolve_market_direction(entry)
+            direction = resolve_market_direction(
+                entry, recovery_active=recovery_active, consecutive_losses=consecutive_losses
+            )
             if direction is None:
                 continue
             candidate = build_forced_recovery_candidate(symbol, entry, direction)

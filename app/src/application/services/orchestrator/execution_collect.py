@@ -55,6 +55,7 @@ def _mandatory_fallback_candidates(
         skip_symbols=skip_symbols,
         min_signal=min_signal,
         min_val=min_val,
+        consecutive_losses=getattr(exec_mgr.orch.risk_manager, "consecutive_losses", 0),
     )
     return [fallback] if fallback else []
 
@@ -87,7 +88,14 @@ def _gather_cluster_candidates(
             exec_mgr.logger.debug("[%s] SKIP: Conviccao insuficiente para %s (Metrics Gate)", cid, symbol)
             continue
         built = (
-            build_market_execution_candidate(symbol, entry) if mandatory else build_execution_candidate(symbol, entry)
+            build_market_execution_candidate(
+                symbol,
+                entry,
+                recovery_active=recovery_active,
+                consecutive_losses=getattr(exec_mgr.orch.risk_manager, "consecutive_losses", 0),
+            )
+            if mandatory
+            else build_execution_candidate(symbol, entry)
         )
         if built is None:
             continue
@@ -238,16 +246,7 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
             min_signal=min_signal,
             min_val=min_val,
         )
-        if ultimate is None:
-            ultimate = pick_absolute_mandatory_candidate(
-                exec_mgr._trade_symbols(),
-                decisions,
-                recovery_active=recovery_active,
-                last_loss_symbol=last_loss,
-                last_loss_direction=last_loss_dir,
-                min_signal=min_signal,
-                min_val=min_val,
-            )
+
         if ultimate is None and not should_pause_weak_mandatory(exec_mgr, decisions, recovery_active=recovery_active):
             ultimate = pick_absolute_mandatory_candidate(
                 exec_mgr._trade_symbols(),

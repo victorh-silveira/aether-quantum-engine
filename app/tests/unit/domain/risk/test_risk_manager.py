@@ -272,3 +272,22 @@ def test_partial_loss_recovery_and_break(kelly_config):
 
     assert rm.pending_loss["R_50"] == 2.0
     assert rm.pending_loss["R_75"] == 5.0
+
+
+def test_martingale_allowed_bypasses_low_val_accuracy_if_recovery_martingale_always(kelly_config):
+    kelly_config["kelly"]["martingale_min_val_accuracy"] = 0.50
+    kelly_config["kelly"]["recovery_martingale_always"] = True
+    rm = RiskManager(kelly_config)
+    rm.pending_loss["R_50"] = 10.0
+    # Val accuracy = 0.40, mas recovery_martingale_always é True
+    dl_metrics = {"deploy_ok": True, "val_accuracy": 0.40, "trade_score": 0.50, "raw_prob": 0.50}
+    assert rm._martingale_allowed("R_50", 0.50, dl_metrics=dl_metrics) is True
+
+
+def test_martingale_allowed_fails_on_low_val_accuracy_without_always(kelly_config):
+    kelly_config["kelly"]["martingale_min_val_accuracy"] = 0.50
+    kelly_config["kelly"]["recovery_martingale_always"] = False
+    rm = RiskManager(kelly_config)
+    rm.pending_loss["R_50"] = 10.0
+    dl_metrics = {"deploy_ok": True, "val_accuracy": 0.40, "trade_score": 0.50, "raw_prob": 0.50}
+    assert rm._martingale_allowed("R_50", 0.50, dl_metrics=dl_metrics) is False

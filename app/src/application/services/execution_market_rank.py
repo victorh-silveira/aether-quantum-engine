@@ -33,17 +33,42 @@ def mandatory_pool_eligible(entry: dict) -> bool:
     return resolve_market_direction(entry) is not None
 
 
-def resolve_market_direction(entry: dict) -> TradeDirection | None:
+def resolve_market_direction(
+    entry: dict,
+    *,
+    recovery_active: bool = False,
+    consecutive_losses: int = 0,
+) -> TradeDirection | None:
     """Resolve CALL/PUT a partir da predicao DL com inversao inteligente e tendencia."""
     dl_dir = infer_dl_direction(entry)
     if dl_dir is None:
         return None
     metrics = entry.get("metrics") or {}
     val_acc = float(metrics.get("val_accuracy", 0.50))
+    trend_str = metrics.get("trend_direction")
+
+    # Inversão inteligente se val_accuracy < 0.50
     if val_acc < 0.50:
+        if trend_str:
+            try:
+                trend_dir = TradeDirection[trend_str.upper()]
+                metrics["direction_inverted"] = dl_dir != trend_dir
+                return trend_dir
+            except (KeyError, ValueError):
+                pass
         metrics["direction_inverted"] = True
         return TradeDirection.PUT if dl_dir == TradeDirection.CALL else TradeDirection.CALL
-    trend_str = metrics.get("trend_direction")
+
+    # Alinhamento com tendência no recovery com perdas consecutivas
+    if recovery_active and consecutive_losses >= 1 and trend_str:
+        try:
+            trend_dir = TradeDirection[trend_str.upper()]
+            metrics["direction_inverted"] = dl_dir != trend_dir
+            return trend_dir
+        except (KeyError, ValueError):
+            pass
+
+    # Fallback para tendência em gating bloqueado
     if trend_str and not metrics.get("execute", True):
         try:
             return TradeDirection[trend_str.upper()]
@@ -108,14 +133,18 @@ def market_decision_score(
 def build_market_execution_candidate(
     symbol: str,
     entry: dict,
+    *,
+    recovery_active: bool = False,
+    consecutive_losses: int = 0,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Monta candidato com direcao resolvida pelo ranking de mercado."""
-    direction = resolve_market_direction(entry)
+    direction = resolve_market_direction(entry, recovery_active=recovery_active, consecutive_losses=consecutive_losses)
     if direction is None:
         return None
     metrics = dict(entry.get("metrics") or {})
     enrich_metrics_conviction(metrics)
-    metrics["dl_direction"] = direction.name
+    dl_dir = infer_dl_direction(entry)
+    metrics["dl_direction"] = dl_dir.name if dl_dir else direction.name
     metrics["exec_direction"] = direction.name
     if "direction_inverted" not in metrics:
         metrics["direction_inverted"] = False

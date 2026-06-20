@@ -99,3 +99,72 @@ def test_resolve_market_direction_invalid_trend_direction():
         },
     }
     assert resolve_market_direction(entry) == TradeDirection.CALL
+
+
+def test_resolve_market_direction_recovery_trend_alignment():
+    # Em recuperação com perdas consecutivas, deve usar a tendência SMA se disponível
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {
+            "val_accuracy": 0.55,
+            "raw_prob": 0.80,
+            "execute": True,
+            "trend_direction": "PUT",
+        },
+    }
+    assert resolve_market_direction(entry, recovery_active=True, consecutive_losses=1) == TradeDirection.PUT
+    assert entry["metrics"]["direction_inverted"] is True
+
+
+def test_resolve_market_direction_low_accuracy_uses_trend_if_available():
+    # Baixa acurácia (< 0.50) com tendência disponível deve usar a tendência diretamente
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {
+            "val_accuracy": 0.45,
+            "raw_prob": 0.80,
+            "execute": True,
+            "trend_direction": "PUT",
+        },
+    }
+    assert resolve_market_direction(entry) == TradeDirection.PUT
+    assert entry["metrics"]["direction_inverted"] is True
+
+
+def test_build_market_execution_candidate_preserves_dl_and_exec_directions():
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {"val_accuracy": 0.45, "raw_prob": 0.80, "execute": True},
+    }
+    built = build_market_execution_candidate("R_25", entry)
+    assert built is not None
+    assert built[2]["dl_direction"] == "CALL"
+    assert built[2]["exec_direction"] == "PUT"
+    assert built[2]["direction_inverted"] is True
+
+
+def test_resolve_market_direction_invalid_trend_low_accuracy():
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {
+            "val_accuracy": 0.45,
+            "raw_prob": 0.80,
+            "trend_direction": "INVALID_VAL",
+        },
+    }
+    # Deve capturar a exceção e fazer a inversão padrão (CALL -> PUT)
+    assert resolve_market_direction(entry) == TradeDirection.PUT
+    assert entry["metrics"]["direction_inverted"] is True
+
+
+def test_resolve_market_direction_invalid_trend_recovery():
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {
+            "val_accuracy": 0.55,
+            "raw_prob": 0.80,
+            "trend_direction": "INVALID_VAL",
+        },
+    }
+    # Deve capturar a exceção e retornar o dl_dir (CALL)
+    assert resolve_market_direction(entry, recovery_active=True, consecutive_losses=1) == TradeDirection.CALL

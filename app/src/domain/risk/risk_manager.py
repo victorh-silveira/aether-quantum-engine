@@ -171,13 +171,13 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
         if isinstance(dl_metrics, dict):
             if dl_metrics.get("deploy_ok") is False:
                 return False
+            pending = sum(float(v) for v in self.pending_loss.values())
+            if pending > 0.0 and bool(self.kelly_config.get("recovery_martingale_always", True)):
+                return True
             min_val = float(self.kelly_config.get("martingale_min_val_accuracy", 0.50))
             val = float(dl_metrics.get("val_accuracy", 0.0))
             if min_val > 0.0 and val + 1e-9 < min_val:
                 return False
-            pending = sum(float(v) for v in self.pending_loss.values())
-            if pending > 0.0 and bool(self.kelly_config.get("recovery_martingale_always", True)):
-                return True
             return self._martingale_dl_conviction_ok(dl_metrics)
         return True
 
