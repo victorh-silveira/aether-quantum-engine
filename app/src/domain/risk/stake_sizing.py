@@ -33,11 +33,14 @@ def resolve_stake_conviction(metrics: dict, kelly_config: dict[str, Any] | None 
     min_stop = float(cfg.get("stop_win_kelly_min_conviction", 0.45))
     score = float(metrics.get("trade_score", metrics.get("conviction", 0.0)))
     raw_side = raw_side_from_metrics(metrics)
-    if score + 1e-9 >= min_stop:
-        return score
+
+    resolved = max(score, raw_side) if raw_side >= min_raw else score
+
+    if resolved + 1e-9 >= min_stop:
+        return resolved
     if raw_side + 1e-9 >= min_raw:
-        return max(score, raw_side)
-    return score
+        return max(resolved, raw_side)
+    return resolved
 
 
 def clamp_kelly_stake(

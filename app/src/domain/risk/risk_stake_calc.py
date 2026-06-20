@@ -82,6 +82,11 @@ def calculate_stake_for_manager(
     dl_metrics = kwargs.get("dl_metrics")
     conviction = resolve_stake_conviction(_metrics_for_conviction(dl_metrics, conviction), rm.kelly_config)
 
+    mandatory = bool(kwargs.get("mandatory_trade_each_cycle", False))
+    is_execute = isinstance(dl_metrics, dict) and bool(dl_metrics.get("execute", True))
+    if mandatory or is_execute:
+        conviction = max(conviction, 0.50)
+
     b = float(rm.risk_params.get("payout_estimate", 0.95))
     p = rm.effective_win_rate(symbol, conviction)
     kelly_f = (b * p - (1.0 - p)) / b if b > 0 else 0.0
