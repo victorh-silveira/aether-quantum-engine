@@ -37,13 +37,13 @@
       "R_10"
     ],
     "selection": {
-      "min_val_accuracy": 0.53,
+      "min_val_accuracy": 0.54,
       "confidence_call_threshold": 0.53,
       "confidence_put_threshold": 0.47
     },
     "recovery_gating": {
       "min_conviction_execute": 0.53,
-      "min_val_accuracy": 0.53,
+      "min_val_accuracy": 0.54,
       "min_raw_conviction_execute": 0.52,
       "val_acc_bypass_min_raw": 0.55
     },
@@ -70,7 +70,7 @@
     "label_smooth_bars": 1,
     "implied_vol_bars": 60,
     "early_stopping_patience": 15,
-    "min_val_accuracy": 0.53,
+    "min_val_accuracy": 0.54,
     "model_path_template": "data/dl/{symbol}.pth",
     "online_training": false,
     "retrain_min_bars": 1,
@@ -103,15 +103,15 @@
     "weight_decay": 0.0005,
     "indicator_gating": {
       "enabled": true,
-      "hurst_min": 0.52,
+      "hurst_min": 0.55,
       "hurst_max": 0.95,
-      "adx_min": 25.0,
-      "vol_ratio_min": 0.85,
+      "adx_min": 30.0,
+      "vol_ratio_min": 1.0,
       "vol_ratio_max": 3.0,
-      "cmo_min": -0.75,
-      "cmo_max": 0.75,
-      "keltner_pct_b_min": -0.15,
-      "keltner_pct_b_max": 1.15
+      "cmo_min": -0.50,
+      "cmo_max": 0.50,
+      "keltner_pct_b_min": 0.10,
+      "keltner_pct_b_max": 0.90
     },
     "trend_alignment_required": true
   },
@@ -166,11 +166,11 @@
       "martingale_target_fraction": 1.0,
       "martingale_recovery_step_fraction": 1.0,
       "martingale_max_stake_multiplier": 0.0,
-      "mandatory_min_trade_score": 0.52,
-      "recovery_min_trade_score": 0.52,
-      "recovery_force_min_trade_score": 0.52,
+      "mandatory_min_trade_score": 0.54,
+      "recovery_min_trade_score": 0.54,
+      "recovery_force_min_trade_score": 0.54,
       "recovery_force_pending_min": 0,
-      "recovery_min_val_accuracy": 0.50,
+      "recovery_min_val_accuracy": 0.53,
       "recovery_martingale_always": true,
       "recovery_martingale_max_losses_per_symbol": 0,
       "martingale_sizing_conviction": 0.0,
