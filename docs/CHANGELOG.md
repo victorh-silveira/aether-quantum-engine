@@ -1,3 +1,9 @@
+## [1.3.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.3.0...v1.3.1) (2026-06-20)
+
+### Correcoes de Bug
+
+* **orchestrator:** remove restricao de perdas consecutivas no flip ([4157bee](https://github.com/victorh-silveira/aether-quantum-engine/commit/4157bee3a75c1fdad932cf3bd0236f34f43c7428))
+
 ## [1.3.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.2.0...v1.3.0) (2026-06-20)
 
 ### Funcionalidades
