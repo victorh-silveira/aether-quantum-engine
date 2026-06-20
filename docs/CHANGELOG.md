@@ -1,3 +1,9 @@
+## [1.3.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.3.1...v1.3.2) (2026-06-20)
+
+### Correcoes de Bug
+
+* **risk:** garante stake_min sob execucao obrigatoria ([4909def](https://github.com/victorh-silveira/aether-quantum-engine/commit/4909def066892f1375bd15eb2187cda5ec8c2e65))
+
 ## [1.3.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.3.0...v1.3.1) (2026-06-20)
 
 ### Correcoes de Bug
