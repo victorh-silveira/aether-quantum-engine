@@ -121,7 +121,7 @@ def test_apply_recovery_direction_flip_noop_branches():
     ) == (PAIR, TradeDirection.CALL, {})
 
 
-def test_apply_recovery_direction_flip_consecutive_losses_gt_1():
+def test_apply_recovery_direction_flip_allows_flip_when_consecutive_losses_gt_1():
     decisions = {
         PAIR: {
             "direction": TradeDirection.CALL,
@@ -138,8 +138,9 @@ def test_apply_recovery_direction_flip_consecutive_losses_gt_1():
         flip_enabled=True,
         consecutive_losses=2,
     )
-    assert flipped == best
-    assert flipped[1] == TradeDirection.CALL
+    assert flipped is not None
+    assert flipped[1] == TradeDirection.PUT
+    assert flipped[2].get("direction_inverted") is True
 
 
 def test_apply_recovery_direction_flip_with_trend_confirmation():

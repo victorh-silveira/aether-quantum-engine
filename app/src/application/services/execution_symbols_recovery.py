@@ -128,15 +128,9 @@ def apply_recovery_direction_flip(
     consecutive_losses: int = 0,
     flip_use_trend: bool = False,
 ) -> tuple[str, TradeDirection, dict] | None:
-    """Inverte direcao no mesmo simbolo apenas no primeiro loss de recuperação."""
-    if (
-        best is None
-        or not recovery_active
-        or not flip_enabled
-        or not last_loss_symbol
-        or not last_loss_direction
-        or consecutive_losses > 1
-    ):
+    """Inverte direcao no mesmo simbolo se a nova predição coincidir com a do ultimo loss na recuperacao."""
+    _ = consecutive_losses
+    if best is None or not recovery_active or not flip_enabled or not last_loss_symbol or not last_loss_direction:
         return best
     symbol, direction, metrics = best
     ld = str(last_loss_direction).upper()
