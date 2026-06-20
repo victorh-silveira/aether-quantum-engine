@@ -135,7 +135,12 @@ def test_build_mandatory_fallback_uses_scored_when_forced_recovery_misses():
     ):
         best = build_mandatory_fallback_candidate(
             ["R_50"],
-            {"R_50": {"direction": TradeDirection.CALL, "metrics": {"trade_score": 0.55, "raw_prob": 0.58}}},
+            {
+                "R_50": {
+                    "direction": TradeDirection.CALL,
+                    "metrics": {"trade_score": 0.55, "raw_prob": 0.58, "val_accuracy": 0.55},
+                }
+            },
             recovery_active=True,
             last_loss_symbol="R_10",
             last_loss_direction="PUT",
@@ -162,3 +167,25 @@ def test_build_mandatory_fallback_uses_forced_recovery_when_market_rank_empty():
         )
     assert best is not None
     assert best[1] == TradeDirection.PUT
+
+
+def test_scored_fallback_pick_skips_low_val_accuracy():
+    decisions = {
+        "R_50": {
+            "direction": TradeDirection.CALL,
+            "metrics": {"trade_score": 0.55, "raw_prob": 0.58, "val_accuracy": 0.40},
+        },
+    }
+    picked = _scored_fallback_pick(["R_50"], decisions, min_signal=0.45, min_val=0.50)
+    assert picked is None
+
+
+def test_last_resort_fallback_pick_skips_low_val_accuracy():
+    decisions = {
+        "R_50": {
+            "direction": None,
+            "metrics": {"trade_score": 0.55, "raw_prob": 0.58, "val_accuracy": 0.40, "deploy_ok": True},
+        },
+    }
+    picked = _last_resort_fallback_pick(["R_50"], decisions, min_signal=0.45, min_val=0.50)
+    assert picked is None

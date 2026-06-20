@@ -150,7 +150,7 @@ async def test_execute_cluster_mandatory_never_exec_skip_without_direction(orch_
             patch.object(orch.executor, "_execute_orders", new_callable=AsyncMock, return_value=1) as mock_exec,
         ):
             await orch.executor.execute_cluster(
-                {"R_50": {"direction": None, "metrics": {"raw_prob": 0.58, "trade_score": 0.55}}}
+                {"R_50": {"direction": None, "metrics": {"raw_prob": 0.58, "trade_score": 0.55, "val_accuracy": 0.55}}}
             )
         assert not any("EXEC_SKIP" in str(c) for c in mock_warn.call_args_list)
         assert mock_exec.call_count == 1

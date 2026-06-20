@@ -157,8 +157,11 @@ def test_collect_cluster_orders_returns_empty_when_only_blocked_symbols_remain()
     )
     blocked_candidate = (ANCHOR, TradeDirection.CALL, {"execute": False, "trade_score": 0.58})
     decisions = {
-        ANCHOR: {"direction": TradeDirection.CALL, "metrics": {"trade_score": 0.58}},
-        PAIR: {"direction": TradeDirection.PUT, "metrics": {"trade_score": 0.62, "raw_prob": 0.44}},
+        ANCHOR: {"direction": TradeDirection.CALL, "metrics": {"trade_score": 0.58, "val_accuracy": 0.55}},
+        PAIR: {
+            "direction": TradeDirection.PUT,
+            "metrics": {"trade_score": 0.62, "raw_prob": 0.44, "val_accuracy": 0.55},
+        },
     }
     with (
         patch(

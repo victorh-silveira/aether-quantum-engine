@@ -91,6 +91,7 @@ def _scored_fallback_pick(
     *,
     skip_symbols: frozenset[str] | None = None,
     min_signal: float = 0.0,
+    min_val: float = 0.0,
     recovery_active: bool = False,
     consecutive_losses: int = 0,
 ) -> tuple[str, TradeDirection, dict] | None:
@@ -107,6 +108,8 @@ def _scored_fallback_pick(
         metrics = entry.get("metrics") or {}
         score, raw_side = _entry_signal_strength(metrics)
         if max(score, raw_side) + 1e-9 < min_signal:
+            continue
+        if min_val > 0.0 and float(metrics.get("val_accuracy", 0.0)) + 1e-9 < min_val:
             continue
         candidate = build_market_execution_candidate(
             symbol, entry, recovery_active=recovery_active, consecutive_losses=consecutive_losses
@@ -126,6 +129,7 @@ def _last_resort_fallback_pick(
     *,
     skip_symbols: frozenset[str] | None = None,
     min_signal: float = 0.0,
+    min_val: float = 0.0,
     recovery_active: bool = False,
     consecutive_losses: int = 0,
 ) -> tuple[str, TradeDirection, dict] | None:
@@ -140,6 +144,8 @@ def _last_resort_fallback_pick(
         metrics = entry.get("metrics") or {}
         score, raw_side = _entry_signal_strength(metrics)
         if max(score, raw_side) + 1e-9 < min_signal:
+            continue
+        if min_val > 0.0 and float(metrics.get("val_accuracy", 0.0)) + 1e-9 < min_val:
             continue
         raw = metrics.get("raw_prob")
         direction = resolve_market_direction(
@@ -183,6 +189,7 @@ def build_mandatory_fallback_candidate(
         decisions,
         skip_symbols=skip_symbols,
         min_signal=min_signal,
+        min_val=min_val,
         recovery_active=recovery_active,
         consecutive_losses=consecutive_losses,
     )
@@ -193,6 +200,7 @@ def build_mandatory_fallback_candidate(
         decisions,
         skip_symbols=skip_symbols,
         min_signal=min_signal,
+        min_val=min_val,
         recovery_active=recovery_active,
         consecutive_losses=consecutive_losses,
     )
