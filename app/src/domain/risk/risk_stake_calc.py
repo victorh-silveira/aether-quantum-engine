@@ -138,8 +138,10 @@ def calculate_stake_for_manager(
     bankroll_cap = float(rm.kelly_config.get("max_bankroll_stake_fraction", 0.92))
     if bankroll_cap > 0.0:
         final_stake = min(final_stake, bankroll * bankroll_cap)
-    mandatory = bool(kwargs.get("mandatory_weak_cap")) or bool(
-        rm.config.get("orchestrator", {}).get("execution", {}).get("mandatory_trade_each_cycle", False)
+    mandatory = (
+        bool(kwargs.get("mandatory_weak_cap"))
+        or bool(kwargs.get("mandatory_trade_each_cycle"))
+        or bool(rm.config.get("orchestrator", {}).get("execution", {}).get("mandatory_trade_each_cycle", False))
     )
     final_stake = finalize_stake_with_min(
         final_stake,

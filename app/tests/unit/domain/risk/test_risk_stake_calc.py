@@ -136,10 +136,7 @@ def test_calculate_stake_stop_win_kelly_skips_boost_when_conviction_low(kelly_co
 
 def test_calculate_stake_mandatory_trade_each_cycle(kelly_config):
     rm = MagicMock()
-    rm.config = {
-        **kelly_config,
-        "orchestrator": {"execution": {"mandatory_trade_each_cycle": True}},
-    }
+    rm.config = kelly_config
     rm.kelly_config = {
         **kelly_config["kelly"],
         "fraction": 0.05,
@@ -163,7 +160,10 @@ def test_calculate_stake_mandatory_trade_each_cycle(kelly_config):
         0.30,  # Baixa convicção
         silent=True,
         apply_stop_win=True,
-        kwargs={"dl_metrics": {"execute": False, "raw_prob": 0.30}},
+        kwargs={
+            "dl_metrics": {"execute": False, "raw_prob": 0.30},
+            "mandatory_trade_each_cycle": True,
+        },
     )
     # Mesmo sem edge de Kelly e com baixa convicção, deve alocar stake_min (1.5) por ser execução mandatória
     assert stake == 1.5

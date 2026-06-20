@@ -67,6 +67,7 @@ class ExecutionManager:
             dl_metrics=metrics,
             order_direction=direction.name,
             max_val_brier=float(dl_cfg.get("max_val_brier_execute", 0.28)),
+            mandatory_trade_each_cycle=self._mandatory_trade_each_cycle(),
         )
 
     def _log_execution_blockers(self, decisions: dict) -> None:
@@ -107,6 +108,7 @@ class ExecutionManager:
                 mandatory_weak_cap=(
                     mandatory and not metrics.get("execute", True) and pending <= 0.0 and not stop_win_kelly
                 ),
+                mandatory_trade_each_cycle=mandatory,
             )
 
             if stake <= 0:
