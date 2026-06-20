@@ -129,10 +129,13 @@ def apply_recovery_direction_flip(
     flip_use_trend: bool = False,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Inverte direcao no mesmo simbolo se a nova predição coincidir com a do ultimo loss na recuperacao."""
-    _ = consecutive_losses
+    _ = (consecutive_losses, flip_use_trend)
     if best is None or not recovery_active or not flip_enabled or not last_loss_symbol or not last_loss_direction:
         return best
     symbol, direction, metrics = best
+    trend_dir_name = metrics.get("trend_direction")
+    if trend_dir_name:
+        return best
     ld = str(last_loss_direction).upper()
     if (
         symbol != last_loss_symbol
@@ -142,10 +145,6 @@ def apply_recovery_direction_flip(
     ):
         return best
     opposite = TradeDirection.PUT if ld == "CALL" else TradeDirection.CALL
-    # Confirmacao com a tendencia SMA-20 para evitar whipsaw contra a tendencia
-    trend_dir_name = metrics.get("trend_direction")
-    if flip_use_trend and trend_dir_name and trend_dir_name != opposite.name:
-        return best
     entry = decisions.get(symbol)
     if not entry:
         return best

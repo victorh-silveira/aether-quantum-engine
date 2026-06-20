@@ -40,6 +40,7 @@ def resolve_market_direction(
     consecutive_losses: int = 0,
 ) -> TradeDirection | None:
     """Resolve CALL/PUT a partir da predicao DL com inversao inteligente e tendencia."""
+    _ = consecutive_losses
     dl_dir = infer_dl_direction(entry)
     if dl_dir is None:
         return None
@@ -59,8 +60,8 @@ def resolve_market_direction(
         metrics["direction_inverted"] = True
         return TradeDirection.PUT if dl_dir == TradeDirection.CALL else TradeDirection.CALL
 
-    # Alinhamento com tendência no recovery com perdas consecutivas
-    if recovery_active and consecutive_losses >= 1 and trend_str:
+    # Alinhamento com tendência no recovery
+    if recovery_active and trend_str:
         try:
             trend_dir = TradeDirection[trend_str.upper()]
             metrics["direction_inverted"] = dl_dir != trend_dir

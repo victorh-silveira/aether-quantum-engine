@@ -143,48 +143,24 @@ def test_apply_recovery_direction_flip_allows_flip_when_consecutive_losses_gt_1(
     assert flipped[2].get("direction_inverted") is True
 
 
-def test_apply_recovery_direction_flip_with_trend_confirmation():
-    # Caso 1: Tendencia confirma o flip (opposite.name == trend_direction)
-    # Direcao original CALL -> Opposite seria PUT. Tendencia PUT confirma o flip.
-    decisions_confirmed = {
+def test_apply_recovery_direction_flip_bypasses_when_trend_present():
+    decisions = {
         PAIR: {
             "direction": TradeDirection.CALL,
             "metrics": {"raw_prob": 0.54, "trade_score": 0.54, "deploy_ok": True, "trend_direction": "PUT"},
         },
     }
-    best_confirmed = (PAIR, TradeDirection.CALL, decisions_confirmed[PAIR]["metrics"])
-    flipped_confirmed = apply_recovery_direction_flip(
-        best_confirmed,
-        decisions_confirmed,
+    best = (PAIR, TradeDirection.CALL, decisions[PAIR]["metrics"])
+    flipped = apply_recovery_direction_flip(
+        best,
+        decisions,
         recovery_active=True,
         last_loss_symbol=PAIR,
         last_loss_direction="CALL",
         flip_enabled=True,
-        flip_use_trend=True,
     )
-    assert flipped_confirmed is not None
-    assert flipped_confirmed[1] == TradeDirection.PUT
-
-    # Caso 2: Tendencia nao confirma o flip (opposite.name != trend_direction)
-    # Direcao original CALL -> Opposite seria PUT. Tendencia CALL nao confirma o flip.
-    decisions_rejected = {
-        PAIR: {
-            "direction": TradeDirection.CALL,
-            "metrics": {"raw_prob": 0.54, "trade_score": 0.54, "deploy_ok": True, "trend_direction": "CALL"},
-        },
-    }
-    best_rejected = (PAIR, TradeDirection.CALL, decisions_rejected[PAIR]["metrics"])
-    flipped_rejected = apply_recovery_direction_flip(
-        best_rejected,
-        decisions_rejected,
-        recovery_active=True,
-        last_loss_symbol=PAIR,
-        last_loss_direction="CALL",
-        flip_enabled=True,
-        flip_use_trend=True,
-    )
-    assert flipped_rejected == best_rejected
-    assert flipped_rejected[1] == TradeDirection.CALL
+    assert flipped == best
+    assert flipped[1] == TradeDirection.CALL
 
 
 def test_apply_recovery_direction_flip_coverage_branches():

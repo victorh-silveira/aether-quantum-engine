@@ -102,7 +102,7 @@ def test_resolve_market_direction_invalid_trend_direction():
 
 
 def test_resolve_market_direction_recovery_trend_alignment():
-    # Em recuperação com perdas consecutivas, deve usar a tendência SMA se disponível
+    # Em recuperação, deve usar a tendência SMA se disponível desde o primeiro trade (consecutive_losses=0)
     entry = {
         "direction": TradeDirection.CALL,
         "metrics": {
@@ -112,7 +112,7 @@ def test_resolve_market_direction_recovery_trend_alignment():
             "trend_direction": "PUT",
         },
     }
-    assert resolve_market_direction(entry, recovery_active=True, consecutive_losses=1) == TradeDirection.PUT
+    assert resolve_market_direction(entry, recovery_active=True, consecutive_losses=0) == TradeDirection.PUT
     assert entry["metrics"]["direction_inverted"] is True
 
 
@@ -167,4 +167,4 @@ def test_resolve_market_direction_invalid_trend_recovery():
         },
     }
     # Deve capturar a exceção e retornar o dl_dir (CALL)
-    assert resolve_market_direction(entry, recovery_active=True, consecutive_losses=1) == TradeDirection.CALL
+    assert resolve_market_direction(entry, recovery_active=True, consecutive_losses=0) == TradeDirection.CALL
