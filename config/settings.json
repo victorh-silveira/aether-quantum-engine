@@ -30,21 +30,21 @@
     "enabled": true,
     "bootstrap_max_wait_rounds": 240,
     "calib_ratio": 0.15,
-    "confidence_call_threshold": 0.52,
-    "confidence_put_threshold": 0.48,
-    "min_edge_execute": 0.02,
+    "confidence_call_threshold": 0.53,
+    "confidence_put_threshold": 0.47,
+    "min_edge_execute": 0.03,
     "train_symbols": [
       "R_10"
     ],
     "selection": {
-      "min_val_accuracy": 0.52,
-      "confidence_call_threshold": 0.52,
-      "confidence_put_threshold": 0.48
+      "min_val_accuracy": 0.53,
+      "confidence_call_threshold": 0.53,
+      "confidence_put_threshold": 0.47
     },
     "recovery_gating": {
-      "min_conviction_execute": 0.52,
-      "min_val_accuracy": 0.52,
-      "min_raw_conviction_execute": 0.51,
+      "min_conviction_execute": 0.53,
+      "min_val_accuracy": 0.53,
+      "min_raw_conviction_execute": 0.52,
       "val_acc_bypass_min_raw": 0.55
     },
     "session_max_losses_in_window": 0,
@@ -59,7 +59,7 @@
       "min_win_rate": 0.5,
       "mini_bars": 120,
       "soft_max_brier": 0.32,
-      "soft_min_val_accuracy": 0.52
+      "soft_min_val_accuracy": 0.53
     },
     "inference_device": "auto",
     "learning_rate": 0.001,
@@ -70,7 +70,7 @@
     "label_smooth_bars": 1,
     "implied_vol_bars": 60,
     "early_stopping_patience": 15,
-    "min_val_accuracy": 0.52,
+    "min_val_accuracy": 0.53,
     "model_path_template": "data/dl/{symbol}.pth",
     "online_training": false,
     "retrain_min_bars": 1,
@@ -102,16 +102,16 @@
     "lr_scheduler": "reduce_on_plateau",
     "weight_decay": 0.0005,
     "indicator_gating": {
-      "enabled": false,
-      "hurst_min": 0.0,
-      "hurst_max": 1.0,
-      "adx_min": 0.0,
-      "vol_ratio_min": 0.0,
-      "vol_ratio_max": 999.0,
-      "cmo_min": -1.0,
-      "cmo_max": 1.0,
-      "keltner_pct_b_min": -999.0,
-      "keltner_pct_b_max": 999.0
+      "enabled": true,
+      "hurst_min": 0.52,
+      "hurst_max": 0.95,
+      "adx_min": 25.0,
+      "vol_ratio_min": 0.85,
+      "vol_ratio_max": 3.0,
+      "cmo_min": -0.75,
+      "cmo_max": 0.75,
+      "keltner_pct_b_min": -0.15,
+      "keltner_pct_b_max": 1.15
     }
   },
   "logging": {
