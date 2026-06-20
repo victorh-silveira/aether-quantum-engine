@@ -1,3 +1,9 @@
+## [1.3.4](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.3.3...v1.3.4) (2026-06-20)
+
+### Correcoes de Bug
+
+* **risk:** alinha recuperacao com tendencia e desativa dynamic_win_rate ([21c3e67](https://github.com/victorh-silveira/aether-quantum-engine/commit/21c3e67074f3f11904fc757ce2ddd2ec634f703e))
+
 ## [1.3.3](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.3.2...v1.3.3) (2026-06-20)
 
 ### Correcoes de Bug
