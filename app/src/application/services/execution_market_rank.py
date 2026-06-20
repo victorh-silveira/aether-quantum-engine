@@ -5,7 +5,7 @@ from src.domain.models.trade import TradeDirection
 from src.domain.risk.stake_sizing import enrich_metrics_conviction
 
 
-_ABSOLUTE_HARD_BLOCKS = frozenset({"data", "predict_error", "training", "cooldown", "session_pause"})
+_ABSOLUTE_HARD_BLOCKS = frozenset({"data", "predict_error", "training", "cooldown", "session_pause", "trend_conflict"})
 _CLUSTER_CORE = frozenset({"R_50", "R_75"})
 
 
