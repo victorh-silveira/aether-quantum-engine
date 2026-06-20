@@ -1,3 +1,14 @@
+## [1.3.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.2.0...v1.3.0) (2026-06-20)
+
+### Funcionalidades
+
+* **engine:** adicionar gating por indicadores no trading live ([a70d31e](https://github.com/victorh-silveira/aether-quantum-engine/commit/a70d31e5a82ec5853128a9a20a4b0185306a0771))
+* **orchestrator:** inversao de decisao com acuracia baixa ([02a7b76](https://github.com/victorh-silveira/aether-quantum-engine/commit/02a7b764c2b5de07af4dd1839675d78f29a98d0f))
+* **orchestrator:** ocultar sufixo alt no log se nao houver alternativas ([48cf59f](https://github.com/victorh-silveira/aether-quantum-engine/commit/48cf59f4f2f21cfee017e94b91260dcf77bf8c00))
+* **orchestrator:** respeitar recovery_min_val_accuracy no modo recovery ([ffdc8b9](https://github.com/victorh-silveira/aether-quantum-engine/commit/ffdc8b9157e906f9882e1e8662e5f919bbd8655e))
+* **risk:** ajustar acuracia minima de martingale para 0.50 ([e159e8d](https://github.com/victorh-silveira/aether-quantum-engine/commit/e159e8d4955ed1b4b0c459fd824ea9543c01d195))
+* **risk:** corrige martingale em recuperacao e melhora direcao ([bc8e4b6](https://github.com/victorh-silveira/aether-quantum-engine/commit/bc8e4b6b4c9fc079551e94cd4f6105fe27335884))
+
 ## [1.2.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.1.0...v1.2.0) (2026-06-19)
 
 ### Funcionalidades
