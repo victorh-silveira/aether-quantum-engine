@@ -1,3 +1,9 @@
+## [1.3.3](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.3.2...v1.3.3) (2026-06-20)
+
+### Correcoes de Bug
+
+* **orchestrator:** repassa flag de execucao obrigatoria no bloco do cluster ([704ab3b](https://github.com/victorh-silveira/aether-quantum-engine/commit/704ab3b1139ef54e0329cb46f39f7eab2ed3d2c8))
+
 ## [1.3.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.3.1...v1.3.2) (2026-06-20)
 
 ### Correcoes de Bug
