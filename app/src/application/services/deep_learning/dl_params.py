@@ -243,6 +243,7 @@ def parse_dl_params(
         "implied_vol_bars": implied_vol_bars,
         "contract_seconds": contract_duration_seconds(risk_params),
         "val_acc_live_blend": float(dl_config.get("val_acc_live_blend", 0.35)),
+        "trend_alignment_required": bool(dl_config.get("trend_alignment_required", False)),
     }
     gate = parse_deploy_gate_config(dl_config)
     min_eval_bars = lookback + 5

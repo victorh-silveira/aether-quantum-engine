@@ -213,6 +213,8 @@ def predict_symbol_decision(
             put_threshold=put_threshold,
             min_edge=min_edge,
         )
+        if block is None and bool(params.get("trend_alignment_required", False)) and direction != trend_dir:
+            block = "trend_conflict"
         if block is None:
             indicator_cfg = params.get("indicator_gating", {})
             if indicator_cfg.get("enabled", False):

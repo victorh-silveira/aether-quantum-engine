@@ -112,7 +112,8 @@
       "cmo_max": 0.75,
       "keltner_pct_b_min": -0.15,
       "keltner_pct_b_max": 1.15
-    }
+    },
+    "trend_alignment_required": true
   },
   "logging": {
     "log_file": "logs/engine.log"
@@ -125,7 +126,7 @@
       "diversify_after_loss_margin": 0.08,
       "include_anchor_trades": true,
       "inter_symbol_delay": 0.2,
-      "mandatory_trade_each_cycle": true,
+      "mandatory_trade_each_cycle": false,
       "proposal_failure_skip_cycles": 3,
       "proposal_retry_scales": [
         0.85,

@@ -146,3 +146,61 @@ def test_predict_symbol_decision_indicator_gating():
         )
     assert entry["metrics"]["execute"] is True
     assert entry["metrics"]["gate_reason"] is None
+
+
+def test_predict_symbol_decision_trend_conflict():
+    params = parse_dl_params(
+        {
+            "confidence_call_threshold": 0.75,
+            "confidence_put_threshold": 0.25,
+            "min_val_accuracy": 0.53,
+            "trend_alignment_required": True,
+        }
+    )
+    orch = type(
+        "O",
+        (),
+        {
+            "config": {
+                "deep_learning": {},
+                "orchestrator": {
+                    "execution": {
+                        "trend_period": 5,
+                        "trend_use_ema": True,
+                        "trend_use_slope": True,
+                    }
+                },
+            }
+        },
+    )()
+    runtime = {"val_accuracy": 0.55, "val_brier": 0.2, "val_ece": 0.1, "lookback": 15}
+    mock_series = {
+        "hurst": np.array([0.60]),
+        "adx": np.array([0.25]),
+        "vol_ratio_short_long": np.array([1.0]),
+        "cmo": np.array([-0.5]),
+        "keltner_pct_b": np.array([0.1]),
+    }
+    with (
+        patch(
+            "src.application.services.deep_learning.dl_predict.predict_next_direction",
+            return_value=(TradeDirection.CALL, 0.80, 0.80),
+        ),
+        patch(
+            "src.application.services.deep_learning.dl_predict.precompute_price_series",
+            return_value=mock_series,
+        ),
+    ):
+        entry = predict_symbol_decision(
+            orch,
+            "R_50",
+            TemporalDirectionClassifier(input_dim=INPUT_DIM),
+            np.zeros(80),
+            fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32)),
+            runtime,
+            params,
+            None,
+            recovery_active=False,
+        )
+    assert entry["metrics"]["execute"] is False
+    assert entry["metrics"]["gate_reason"] == "trend_conflict"
