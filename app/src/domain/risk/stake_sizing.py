@@ -191,9 +191,10 @@ def finalize_stake_with_min(
     conviction: float,
     *,
     martingale_active: bool,
+    mandatory: bool = False,
 ) -> float:
-    """Garante stake minima ou zero quando conviccao ou martingale exigem entrada."""
-    if conviction >= 0.50 or martingale_active:
+    """Garante stake minima ou zero quando conviccao, martingale ou execucao obrigatoria exigem entrada."""
+    if conviction >= 0.50 or martingale_active or mandatory:
         if final_stake < stake_min and bankroll >= stake_min:
             return stake_min
         if final_stake < stake_min:
