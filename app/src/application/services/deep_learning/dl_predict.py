@@ -23,8 +23,39 @@ from src.domain.models.trade import TradeDirection
 logger = logging.getLogger("AETH")
 
 
-def _calculate_trend_direction(prices, exec_cfg: dict) -> tuple[TradeDirection, str, int]:
-    """Calcula a direcao da tendencia usando SMA ou EMA com periodo configurado."""
+def _consensus_trend_direction(price_dir: TradeDirection, series: dict) -> TradeDirection:
+    """Votacao por consenso dos indicadores e features."""
+    call_votes = 1 if price_dir == TradeDirection.CALL else 0
+    put_votes = 1 if price_dir != TradeDirection.CALL else 0
+
+    indicators = [
+        ("di_diff", lambda x: float(x) > 0.0),
+        (
+            "macd",
+            lambda x: (
+                float(x) > float(series["macd_signal"][-1])
+                if "macd_signal" in series and len(series["macd_signal"]) > 0
+                else False
+            ),
+        ),
+        ("rsi", lambda x: float(x) > 0.5),
+        ("cmo", lambda x: float(x) > 0.0),
+        ("keltner_pct_b", lambda x: float(x) > 0.5),
+    ]
+
+    for key, check in indicators:
+        val = series.get(key)
+        if val is not None and len(val) > 0:
+            if check(val[-1]):
+                call_votes += 1
+            else:
+                put_votes += 1
+
+    return TradeDirection.CALL if call_votes >= put_votes else TradeDirection.PUT
+
+
+def _calculate_trend_direction(prices, series: dict, exec_cfg: dict) -> tuple[TradeDirection, str, int]:
+    """Calcula a direcao da tendencia usando um consenso de multiplos indicadores tecnicos."""
     trend_period = int(exec_cfg.get("trend_period", 5))
     trend_use_ema = bool(exec_cfg.get("trend_use_ema", True))
     trend_use_slope = bool(exec_cfg.get("trend_use_slope", True))
@@ -53,12 +84,17 @@ def _calculate_trend_direction(prices, exec_cfg: dict) -> tuple[TradeDirection, 
             prev_trend_val = prev_ema
         else:
             prev_trend_val = np.mean(prev_prices[-prev_len:])
-        trend_dir = TradeDirection.CALL if trend_val >= prev_trend_val else TradeDirection.PUT
+        price_dir = TradeDirection.CALL if trend_val >= prev_trend_val else TradeDirection.PUT
     else:
         last_val = close_prices[-1] if len(close_prices) > 0 else 0.0
-        trend_dir = TradeDirection.CALL if last_val >= trend_val else TradeDirection.PUT
+        price_dir = TradeDirection.CALL if last_val >= trend_val else TradeDirection.PUT
 
-    trend_type = "EMA" if trend_use_ema else "SMA"
+    if len(close_prices) >= 30:
+        trend_dir = _consensus_trend_direction(price_dir, series)
+        trend_type = "CONSENSUS"
+    else:
+        trend_dir = price_dir
+        trend_type = "EMA" if trend_use_ema else "SMA"
     return trend_dir, trend_type, trend_period
 
 
@@ -93,6 +129,16 @@ def predict_symbol_decision(
     try:
         gran = int(granularity or params.get("granularity", 60))
         calibrator = runtime.get("calibrator") or CalibratorState()
+        series = precompute_price_series(
+            prices,
+            granularity=gran,
+            symbol=str(symbol),
+            open_=open_,
+            high=high,
+            low=low,
+            micro=micro,
+            implied_vol_bars=int(params.get("implied_vol_bars", 60)),
+        )
         with guard_symbol_model(runtime):
             direction, prob, raw_prob = predict_next_direction(
                 model,
@@ -111,7 +157,7 @@ def predict_symbol_decision(
                 calibrator=calibrator,
             )
         exec_cfg = orch.config.get("orchestrator", {}).get("execution", {}) if hasattr(orch, "config") else {}
-        trend_dir, trend_type, trend_period = _calculate_trend_direction(prices, exec_cfg)
+        trend_dir, trend_type, trend_period = _calculate_trend_direction(prices, series, exec_cfg)
 
         if direction is None:
             mandatory = bool(exec_cfg.get("mandatory_trade_each_cycle", False))
@@ -170,16 +216,6 @@ def predict_symbol_decision(
         if block is None:
             indicator_cfg = params.get("indicator_gating", {})
             if indicator_cfg.get("enabled", False):
-                series = precompute_price_series(
-                    prices,
-                    granularity=gran,
-                    symbol=str(symbol),
-                    open_=open_,
-                    high=high,
-                    low=low,
-                    micro=micro,
-                    implied_vol_bars=int(params.get("implied_vol_bars", 60)),
-                )
                 indicators = {
                     "hurst": float(series["hurst"][-1]),
                     "adx": float(series["adx"][-1]),
