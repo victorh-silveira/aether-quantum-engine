@@ -183,7 +183,7 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
     skip_symbols = proposal_skip | recovery_skip
     pending_total = sum(float(v) for v in getattr(exec_mgr.orch.risk_manager, "pending_loss", {}).values())
     min_signal = recovery_min_signal(kelly_cfg, recovery_active=recovery_active, pending_total=pending_total)
-    min_val = recovery_min_val_accuracy(kelly_cfg) if recovery_active else 0.0
+    min_val = recovery_min_val_accuracy(kelly_cfg) if recovery_active else float(dl_cfg.get("min_val_accuracy", 0.54))
     cid = f"C{int(exec_mgr.orch._active_cycle_id):04d}"
     last_loss = getattr(exec_mgr.orch.risk_manager, "last_loss_symbol", None)
     last_loss_dir = getattr(exec_mgr.orch.risk_manager, "last_loss_direction", None)
@@ -254,8 +254,8 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
                 recovery_active=recovery_active,
                 last_loss_symbol=last_loss,
                 last_loss_direction=last_loss_dir,
-                min_signal=0.0,
-                min_val=0.0,
+                min_signal=min_signal,
+                min_val=min_val,
             )
         if ultimate is not None:
             best = ultimate
