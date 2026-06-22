@@ -1,3 +1,21 @@
+## [1.4.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.3.4...v1.4.0) (2026-06-22)
+
+### Funcionalidades
+
+* **app:** adiciona inversao por reversao a media e altera timeframe para 3m ([93dfc64](https://github.com/victorh-silveira/aether-quantum-engine/commit/93dfc6439b722d7b7d08521c03ce085dfd2bc19c))
+
+### Refatoracoes Tecnicas
+
+* **app:** melhora logs de execucao e indicadores ([98865df](https://github.com/victorh-silveira/aether-quantum-engine/commit/98865df8db1d8c5d85043909759aef0f488070ed))
+* **app:** remove trend fallback e ajusta thresholds ([bd56faa](https://github.com/victorh-silveira/aether-quantum-engine/commit/bd56faa5d93b42154cb94189d32a38405af8df8b))
+* **app:** restringe acuracia em fallbacks de execucao ([612a3c3](https://github.com/victorh-silveira/aether-quantum-engine/commit/612a3c3415a288b404c42ab77b2e697fd5aaf229))
+* **config:** reativa trade obrigatorio e bloqueia trend_conflict ([d755c46](https://github.com/victorh-silveira/aether-quantum-engine/commit/d755c460c301f5e2a2189472844f93d23870097a))
+* **config:** refina limites de gating e indicadores ([7c4c022](https://github.com/victorh-silveira/aether-quantum-engine/commit/7c4c02276d9d7b6d927a081c9aaa65a1d79a2ab5))
+* **orchestrator:** respeita pisos em fallback absoluto ([83fe811](https://github.com/victorh-silveira/aether-quantum-engine/commit/83fe8110b47c9598a6d11dd18512475c61885ad7))
+* **risk:** corrige calibrate_trade_score para retornar probabilidade do lado vencedor ([c6d241b](https://github.com/victorh-silveira/aether-quantum-engine/commit/c6d241bacc72a54e5507be8556078835807aaf9b))
+* **risk:** garante piso de conviccao em execucao para evitar Kelly de stake minimo ([a6abafa](https://github.com/victorh-silveira/aether-quantum-engine/commit/a6abafad0f54247c1ff2eb540a3f4a9a0c7589da))
+* **risk:** refatora votacao por consenso para resolver complexidade ruff ([6d37539](https://github.com/victorh-silveira/aether-quantum-engine/commit/6d3753908ea8a69ab8c0826052ec55472e504130))
+
 ## [1.3.4](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.3.3...v1.3.4) (2026-06-20)
 
 ### Correcoes de Bug
