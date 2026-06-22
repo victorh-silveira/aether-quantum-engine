@@ -23,7 +23,7 @@ from src.domain.models.trade import TradeDirection
 logger = logging.getLogger("AETH")
 
 
-def _consensus_trend_direction(price_dir: TradeDirection, series: dict) -> TradeDirection:
+def _consensus_trend_direction(price_dir: TradeDirection, series: dict) -> tuple[TradeDirection, int, int]:
     """Votacao por consenso dos indicadores e features."""
     call_votes = 1 if price_dir == TradeDirection.CALL else 0
     put_votes = 1 if price_dir != TradeDirection.CALL else 0
@@ -51,10 +51,10 @@ def _consensus_trend_direction(price_dir: TradeDirection, series: dict) -> Trade
             else:
                 put_votes += 1
 
-    return TradeDirection.CALL if call_votes >= put_votes else TradeDirection.PUT
+    return TradeDirection.CALL if call_votes >= put_votes else TradeDirection.PUT, call_votes, put_votes
 
 
-def _calculate_trend_direction(prices, series: dict, exec_cfg: dict) -> tuple[TradeDirection, str, int]:
+def _calculate_trend_direction(prices, series: dict, exec_cfg: dict) -> tuple[TradeDirection, str, int, int, int]:
     """Calcula a direcao da tendencia usando um consenso de multiplos indicadores tecnicos."""
     trend_period = int(exec_cfg.get("trend_period", 5))
     trend_use_ema = bool(exec_cfg.get("trend_use_ema", True))
@@ -90,12 +90,14 @@ def _calculate_trend_direction(prices, series: dict, exec_cfg: dict) -> tuple[Tr
         price_dir = TradeDirection.CALL if last_val >= trend_val else TradeDirection.PUT
 
     if len(close_prices) >= 30:
-        trend_dir = _consensus_trend_direction(price_dir, series)
+        trend_dir, call_votes, put_votes = _consensus_trend_direction(price_dir, series)
         trend_type = "CONSENSUS"
     else:
         trend_dir = price_dir
         trend_type = "EMA" if trend_use_ema else "SMA"
-    return trend_dir, trend_type, trend_period
+        call_votes = 1 if price_dir == TradeDirection.CALL else 0
+        put_votes = 1 if price_dir != TradeDirection.CALL else 0
+    return trend_dir, trend_type, trend_period, call_votes, put_votes
 
 
 def predict_symbol_decision(
@@ -157,7 +159,27 @@ def predict_symbol_decision(
                 calibrator=calibrator,
             )
         exec_cfg = orch.config.get("orchestrator", {}).get("execution", {}) if hasattr(orch, "config") else {}
-        trend_dir, trend_type, trend_period = _calculate_trend_direction(prices, series, exec_cfg)
+        trend_dir, trend_type, trend_period, call_votes, put_votes = _calculate_trend_direction(
+            prices, series, exec_cfg
+        )
+
+        indicators_data = {
+            "hurst": float(series["hurst"][-1]) if "hurst" in series and len(series["hurst"]) > 0 else 0.0,
+            "adx": float(series["adx"][-1]) if "adx" in series and len(series["adx"]) > 0 else 0.0,
+            "vol_ratio": float(series["vol_ratio_short_long"][-1])
+            if "vol_ratio_short_long" in series and len(series["vol_ratio_short_long"]) > 0
+            else 0.0,
+            "cmo": float(series["cmo"][-1]) if "cmo" in series and len(series["cmo"]) > 0 else 0.0,
+            "keltner": float(series["keltner_pct_b"][-1])
+            if "keltner_pct_b" in series and len(series["keltner_pct_b"]) > 0
+            else 0.0,
+            "rsi": float(series["rsi"][-1]) if "rsi" in series and len(series["rsi"]) > 0 else 0.0,
+            "macd": float(series["macd"][-1]) if "macd" in series and len(series["macd"]) > 0 else 0.0,
+            "macd_sig": float(series["macd_signal"][-1])
+            if "macd_signal" in series and len(series["macd_signal"]) > 0
+            else 0.0,
+            "di_diff": float(series["di_diff"][-1]) if "di_diff" in series and len(series["di_diff"]) > 0 else 0.0,
+        }
 
         if direction is None:
             raw = float(raw_prob)
@@ -176,6 +198,9 @@ def predict_symbol_decision(
             )
             entry["metrics"]["gate_reason"] = "confidence"
             entry["metrics"]["trend_direction"] = trend_dir.name
+            entry["metrics"]["call_votes"] = call_votes
+            entry["metrics"]["put_votes"] = put_votes
+            entry["metrics"]["indicators"] = indicators_data
             return entry
         block = gating_block_reason(
             raw_prob,
@@ -222,6 +247,9 @@ def predict_symbol_decision(
         )
         entry["metrics"]["gate_reason"] = block
         entry["metrics"]["trend_direction"] = trend_dir.name
+        entry["metrics"]["call_votes"] = call_votes
+        entry["metrics"]["put_votes"] = put_votes
+        entry["metrics"]["indicators"] = indicators_data
         return entry
     except Exception as e:
         logger.error("DL: Falha na predicao para %s: %s", symbol, e)

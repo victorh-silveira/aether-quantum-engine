@@ -1,8 +1,6 @@
 """Montagem e selecao de ordens do cluster para o ExecutionManager."""
 
-from src.application.services.execution_direction import (
-    build_execution_candidate,
-)
+from src.application.services.execution_direction import build_execution_candidate
 from src.application.services.execution_direction_fallback import build_mandatory_fallback_candidate
 from src.application.services.execution_mandatory_pick import pick_absolute_mandatory_candidate
 from src.application.services.execution_market_rank import build_market_execution_candidate
@@ -27,24 +25,14 @@ from src.domain.models.trade import TradeDirection
 from src.domain.risk.stake_sizing import enrich_metrics_conviction, raw_side_from_metrics
 
 
-def apply_recovery_hedge_to_candidates(
-    exec_mgr, candidates: list[tuple[str, TradeDirection, dict]], _decisions: dict, *, cid: str, mandatory: bool = False
-) -> list[tuple[str, TradeDirection, dict]]:
+def apply_recovery_hedge_to_candidates(exec_mgr, candidates, _decisions, *, cid, mandatory=False):
     """Mantem pool de candidatos; ranking de recovery escolhe direcao e simbolo."""
     return candidates if exec_mgr and cid and mandatory is not None else candidates
 
 
 def _mandatory_fallback_candidates(
-    exec_mgr,
-    decisions: dict,
-    *,
-    recovery_active: bool,
-    last_loss_symbol: str | None,
-    last_loss_direction: str | None,
-    skip_symbols: frozenset[str],
-    min_signal: float,
-    min_val: float,
-) -> list[tuple[str, TradeDirection, dict]]:
+    exec_mgr, decisions, *, recovery_active, last_loss_symbol, last_loss_direction, skip_symbols, min_signal, min_val
+):
     """Monta lista com candidato forcado quando o pool DL fica vazio."""
     fallback = build_mandatory_fallback_candidate(
         exec_mgr._trade_symbols(),
@@ -61,18 +49,10 @@ def _mandatory_fallback_candidates(
 
 
 def _gather_cluster_candidates(
-    exec_mgr,
-    decisions: dict,
-    *,
-    mandatory: bool,
-    recovery_active: bool,
-    recovery_cfg: dict,
-    cid: str,
-    min_signal: float,
-    min_val: float,
-) -> list[tuple[str, TradeDirection, dict]]:
+    exec_mgr, decisions, *, mandatory, recovery_active, recovery_cfg, cid, min_signal, min_val
+):
     """Coleta candidatos DL elegiveis para o ciclo atual."""
-    candidates: list[tuple[str, TradeDirection, dict]] = []
+    candidates = []
     for symbol in exec_mgr._trade_symbols():
         entry = decisions.get(symbol)
         if not entry:
@@ -97,25 +77,24 @@ def _gather_cluster_candidates(
             if mandatory
             else build_execution_candidate(symbol, entry)
         )
-        if built is None:
-            continue
-        candidates.append(built)
+        if built is not None:
+            candidates.append(built)
     return candidates
 
 
 def _mandatory_fallback_if_empty(
     exec_mgr,
-    decisions: dict,
-    candidates: list[tuple[str, TradeDirection, dict]],
+    decisions,
+    candidates,
     *,
-    mandatory: bool,
-    recovery_active: bool,
-    last_loss: str | None,
-    last_loss_dir: str | None,
-    skip_symbols: frozenset[str],
-    min_signal: float,
-    min_val: float,
-) -> list[tuple[str, TradeDirection, dict]]:
+    mandatory,
+    recovery_active,
+    last_loss,
+    last_loss_dir,
+    skip_symbols,
+    min_signal,
+    min_val,
+):
     """Aplica fallback obrigatorio quando o pool de candidatos DL fica vazio."""
     if candidates or not mandatory:
         return candidates
@@ -131,16 +110,7 @@ def _mandatory_fallback_if_empty(
     )
 
 
-def _select_cluster_best(
-    exec_mgr,
-    candidates: list[tuple[str, TradeDirection, dict]],
-    *,
-    mandatory: bool,
-    last_loss: str | None,
-    last_loss_dir: str | None,
-    recovery_active: bool,
-    skip_symbols: frozenset[str],
-) -> tuple[str, TradeDirection, dict] | None:
+def _select_cluster_best(exec_mgr, candidates, *, mandatory, last_loss, last_loss_dir, recovery_active, skip_symbols):
     """Filtra e escolhe o melhor candidato do cluster para execucao no ciclo."""
     if not mandatory:
         dl_cfg = exec_mgr.orch.config.get("deep_learning", {})
@@ -169,6 +139,34 @@ def _select_cluster_best(
     )
 
 
+def _log_execution_decision(exec_mgr, cid: str, best: tuple, candidates: list, effective_signal: float) -> None:
+    """Registra log detalhado da decisao de execucao e indicadores."""
+    metrics = best[2]
+    alts_str = format_execution_alternates(candidates, exclude_symbol=best[0])
+    alt_suffix = f" | alt={alts_str}" if alts_str else ""
+    indicators = metrics.get("indicators", {})
+    ind_str = " | ".join(f"{k}={v:.2f}" if isinstance(v, float) else f"{k}={v}" for k, v in indicators.items())
+    raw_val = float(metrics.get("raw_prob", 0.5))
+    exec_mgr.logger.info(
+        "[%s] EXEC_SEL | %s ord=%s dl=%s s=%.2f v=%.2f r=%.2f | P(CALL)=%.2f P(PUT)=%.2f | Acc=%.2f Score=%.2f | Votes: CALL=%d PUT=%d | %s%s",
+        cid,
+        best[0],
+        best[1].name,
+        metrics.get("dl_direction", best[1].name),
+        effective_signal,
+        float(metrics.get("val_accuracy", 0.0)),
+        raw_val if best[1] == TradeDirection.CALL else 1.0 - raw_val,
+        raw_val,
+        1.0 - raw_val,
+        float(metrics.get("val_accuracy", 0.0)),
+        effective_signal,
+        metrics.get("call_votes", 0),
+        metrics.get("put_votes", 0),
+        ind_str,
+        alt_suffix,
+    )
+
+
 def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDirection, dict]]:
     """Seleciona uma ordem por ciclo; modo obrigatorio ignora gate execute=false."""
     mandatory = exec_mgr._mandatory_trade_each_cycle()
@@ -187,7 +185,6 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
     cid = f"C{int(exec_mgr.orch._active_cycle_id):04d}"
     last_loss = getattr(exec_mgr.orch.risk_manager, "last_loss_symbol", None)
     last_loss_dir = getattr(exec_mgr.orch.risk_manager, "last_loss_direction", None)
-    orders: list[tuple[str, TradeDirection, dict]] = []
     candidates = _gather_cluster_candidates(
         exec_mgr,
         decisions,
@@ -246,7 +243,6 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
             min_signal=min_signal,
             min_val=min_val,
         )
-
         if ultimate is None and not should_pause_weak_mandatory(exec_mgr, decisions, recovery_active=recovery_active):
             ultimate = pick_absolute_mandatory_candidate(
                 exec_mgr._trade_symbols(),
@@ -276,24 +272,9 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
         metrics = best[2]
         min_raw = float(kelly_cfg.get("stake_conviction_min_raw", 0.51))
         enrich_metrics_conviction(metrics, min_raw=min_raw)
-        inv_tag = " inv" if metrics.get("direction_inverted") and not metrics.get("recovery_forced") else ""
-        dl_name = metrics.get("dl_direction", best[1].name)
         calibrated = float(metrics.get("trade_score", metrics.get("conviction", 0.0)))
         raw_side = raw_side_from_metrics(metrics)
         effective_signal = max(calibrated, raw_side)
-        alts_str = format_execution_alternates(candidates, exclude_symbol=best[0])
-        alt_suffix = f" | alt={alts_str}" if alts_str else ""
-        exec_mgr.logger.info(
-            "[%s] EXEC_SEL | %s ord=%s dl=%s%s s=%.2f v=%.2f r=%.2f%s",
-            cid,
-            best[0],
-            best[1].name,
-            dl_name,
-            inv_tag,
-            effective_signal,
-            float(metrics.get("val_accuracy", 0.0)),
-            float(metrics.get("raw_prob", metrics.get("raw_conviction", 0.0))),
-            alt_suffix,
-        )
-        orders = [best]
-    return orders
+        _log_execution_decision(exec_mgr, cid, best, candidates, effective_signal)
+        return [best]
+    return []
