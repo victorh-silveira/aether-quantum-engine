@@ -160,34 +160,6 @@ def predict_symbol_decision(
         trend_dir, trend_type, trend_period = _calculate_trend_direction(prices, series, exec_cfg)
 
         if direction is None:
-            mandatory = bool(exec_cfg.get("mandatory_trade_each_cycle", False))
-            if mandatory:
-                raw = float(raw_prob)
-                side_score = calibrate_trade_score(
-                    raw_prob,
-                    val_accuracy,
-                    calibrator,
-                    deploy_ok=runtime.get("deploy_ok", True),
-                    is_put=trend_dir == TradeDirection.PUT,
-                )
-                edge = resolve_edge(raw_prob)
-                entry = build_decision_entry(
-                    trend_dir,
-                    raw,
-                    execute=True,
-                    val_accuracy=val_accuracy,
-                    edge=edge,
-                    train_loss=train_loss,
-                    raw_prob=raw_prob,
-                    trade_score=side_score,
-                    contract_duration=int(params.get("contract_duration", 60)),
-                )
-                entry["metrics"]["gate_reason"] = None
-                entry["metrics"]["trend_fallback"] = True
-                entry["metrics"]["trend_direction"] = trend_dir.name
-                entry["metrics"]["llm_note"] += f" (Trend Fallback: {trend_type}-{trend_period} {trend_dir.name})"
-                return entry
-
             raw = float(raw_prob)
             weak_dir = TradeDirection.CALL if raw > 0.5 else TradeDirection.PUT
             side_score = max(raw, 1.0 - raw)
