@@ -1,3 +1,9 @@
+## [1.7.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.6.0...v1.7.0) (2026-06-22)
+
+### Funcionalidades
+
+* **risk:** evita alinhamento de tendencia em exaustao de mercado ([8040ed0](https://github.com/victorh-silveira/aether-quantum-engine/commit/8040ed0471e3f389395dba4a4f3c786480101a5b))
+
 ## [1.6.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.5.0...v1.6.0) (2026-06-22)
 
 ### Funcionalidades
