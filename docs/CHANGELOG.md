@@ -1,3 +1,9 @@
+## [1.6.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.5.0...v1.6.0) (2026-06-22)
+
+### Funcionalidades
+
+* **risk:** calibracao de indicadores e eliminacao de EXEC_HOLD ([0b2ed74](https://github.com/victorh-silveira/aether-quantum-engine/commit/0b2ed74042b9c01ae692e2accba9b7c298f7ddac))
+
 ## [1.5.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.4.0...v1.5.0) (2026-06-22)
 
 ### Funcionalidades
