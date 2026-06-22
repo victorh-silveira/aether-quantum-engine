@@ -1,3 +1,9 @@
+## [1.5.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.4.0...v1.5.0) (2026-06-22)
+
+### Funcionalidades
+
+* **app:** ativa trades obrigatorios para evitar bypass de ciclo ([eeb0808](https://github.com/victorh-silveira/aether-quantum-engine/commit/eeb0808e42d5cfec19693ae0305b5adfb0237358))
+
 ## [1.4.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.3.4...v1.4.0) (2026-06-22)
 
 ### Funcionalidades
