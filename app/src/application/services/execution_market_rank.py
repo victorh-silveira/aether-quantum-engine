@@ -1,5 +1,7 @@
 """Ranking de mercado e resolucao de direcao para execucao."""
 
+import contextlib
+
 from src.application.services.execution_direction import infer_dl_direction
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.stake_sizing import enrich_metrics_conviction
@@ -33,6 +35,39 @@ def mandatory_pool_eligible(entry: dict) -> bool:
     return resolve_market_direction(entry) is not None
 
 
+def _resolve_low_accuracy(
+    dl_dir: TradeDirection, metrics: dict, trend_str: str | None, val_acc: float
+) -> TradeDirection | None:
+    """Aplica inversao inteligente se val_accuracy < 0.50."""
+    if val_acc >= 0.50:
+        return None
+    if trend_str:
+        with contextlib.suppress(KeyError, ValueError):
+            trend_dir = TradeDirection[trend_str.upper()]
+            metrics["direction_inverted"] = dl_dir != trend_dir
+            return trend_dir
+    metrics["direction_inverted"] = True
+    return TradeDirection.PUT if dl_dir == TradeDirection.CALL else TradeDirection.CALL
+
+
+def _resolve_mean_reversion(dl_dir: TradeDirection, metrics: dict) -> TradeDirection | None:
+    """Aplica inversao por reversao a media."""
+    indicators = metrics.get("indicators") or {}
+    hurst = float(indicators.get("hurst", 0.5))
+    adx = float(indicators.get("adx", 0.5))
+    vol_ratio = float(indicators.get("vol_ratio", 1.0))
+    rsi = float(indicators.get("rsi", 0.5))
+
+    if hurst < 0.48 and adx < 0.25 and vol_ratio < 1.0:
+        if dl_dir == TradeDirection.PUT and rsi < 0.45:
+            metrics["direction_inverted"] = True
+            return TradeDirection.CALL
+        if dl_dir == TradeDirection.CALL and rsi > 0.55:
+            metrics["direction_inverted"] = True
+            return TradeDirection.PUT
+    return None
+
+
 def resolve_market_direction(
     entry: dict,
     *,
@@ -48,33 +83,26 @@ def resolve_market_direction(
     val_acc = float(metrics.get("val_accuracy", 0.50))
     trend_str = metrics.get("trend_direction")
 
-    # Inversão inteligente se val_accuracy < 0.50
-    if val_acc < 0.50:
-        if trend_str:
-            try:
-                trend_dir = TradeDirection[trend_str.upper()]
-                metrics["direction_inverted"] = dl_dir != trend_dir
-                return trend_dir
-            except (KeyError, ValueError):
-                pass
-        metrics["direction_inverted"] = True
-        return TradeDirection.PUT if dl_dir == TradeDirection.CALL else TradeDirection.CALL
+    resolved = _resolve_low_accuracy(dl_dir, metrics, trend_str, val_acc)
+    if resolved is not None:
+        return resolved
+
+    resolved = _resolve_mean_reversion(dl_dir, metrics)
+    if resolved is not None:
+        return resolved
 
     # Alinhamento com tendência no recovery
     if recovery_active and trend_str:
-        try:
+        with contextlib.suppress(KeyError, ValueError):
             trend_dir = TradeDirection[trend_str.upper()]
             metrics["direction_inverted"] = dl_dir != trend_dir
             return trend_dir
-        except (KeyError, ValueError):
-            pass
 
     # Fallback para tendência em gating bloqueado
     if trend_str and not metrics.get("execute", True):
-        try:
+        with contextlib.suppress(KeyError, ValueError):
             return TradeDirection[trend_str.upper()]
-        except (KeyError, ValueError):
-            pass
+
     return dl_dir
 
 

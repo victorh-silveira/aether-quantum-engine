@@ -13,7 +13,7 @@
   "data_handler": {
     "buffer_limit": 65536,
     "fetch_count": 25984,
-    "granularity": 300,
+    "granularity": 180,
     "history_bars": 25920,
     "history_fetch_chunk": 1000,
     "history_fetch_delay_seconds": 0.35,
@@ -195,7 +195,7 @@
     "large_account_stop_win_pct": 4.0,
     "params": {
       "contract_type": "RISE_FALL",
-      "duration": 300,
+      "duration": 180,
       "duration_unit": "s",
       "payout_estimate": 0.95,
       "stake_max": 0,
