@@ -217,7 +217,6 @@ class ExecutionManager:
                 if HAS_TORCH and torch.cuda.is_available():
                     torch.cuda.empty_cache()
                 self.orch.is_trading = False
-                self.logger.info("[%s] EXEC_HOLD || bypass ciclo | escutando proximo evento", cid)
             else:
                 block = self._cluster_stake_block(orders, bankroll_snapshot)
                 if block:

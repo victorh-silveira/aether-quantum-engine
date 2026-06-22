@@ -15,7 +15,6 @@ from src.application.services.execution_symbols_recovery import (
     pending_recovery_active,
     recovery_blocked_symbols,
 )
-from src.application.services.orchestrator.execution_near_stop_win import should_pause_weak_mandatory
 from src.application.services.orchestrator.execution_recovery_gate import (
     cluster_entry_eligible,
     recovery_min_signal,
@@ -243,7 +242,7 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
             min_signal=min_signal,
             min_val=min_val,
         )
-        if ultimate is None and not should_pause_weak_mandatory(exec_mgr, decisions, recovery_active=recovery_active):
+        if ultimate is None:
             ultimate = pick_absolute_mandatory_candidate(
                 exec_mgr._trade_symbols(),
                 decisions,
