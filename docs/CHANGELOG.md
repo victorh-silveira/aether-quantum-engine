@@ -1,3 +1,9 @@
+## [1.8.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.7.0...v1.8.0) (2026-06-22)
+
+### Funcionalidades
+
+* **risk:** remove completamente exec hold e bypass ciclo ([1763174](https://github.com/victorh-silveira/aether-quantum-engine/commit/1763174f221330e68094644ab1218fe524861042))
+
 ## [1.7.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.6.0...v1.7.0) (2026-06-22)
 
 ### Funcionalidades
