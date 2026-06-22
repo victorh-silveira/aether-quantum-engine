@@ -253,6 +253,16 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
                 min_signal=min_signal,
                 min_val=min_val,
             )
+            if ultimate is None:
+                ultimate = pick_absolute_mandatory_candidate(
+                    exec_mgr._trade_symbols(),
+                    decisions,
+                    recovery_active=recovery_active,
+                    last_loss_symbol=last_loss,
+                    last_loss_direction=last_loss_dir,
+                    min_signal=0.0,
+                    min_val=0.0,
+                )
         if ultimate is not None:
             best = ultimate
             candidates = [ultimate]
