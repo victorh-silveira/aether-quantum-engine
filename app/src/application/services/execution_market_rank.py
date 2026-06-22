@@ -91,23 +91,42 @@ def resolve_market_direction(
     if resolved is not None:
         return resolved
 
-    # Verifica se a tendência é forte
+    # Verifica se a tendência é forte e se há exaustão por osciladores
     indicators = metrics.get("indicators") or {}
     vol_ratio = float(indicators.get("vol_ratio", 1.0))
     adx = float(indicators.get("adx", 0.5))
     trend_strong = vol_ratio >= 0.85 or adx >= 0.25
+    rsi = float(indicators.get("rsi", 0.5))
+    keltner = float(indicators.get("keltner", 0.5))
 
     # Alinhamento com tendência no recovery
     if recovery_active and trend_str and trend_strong:
         with contextlib.suppress(KeyError, ValueError):
             trend_dir = TradeDirection[trend_str.upper()]
-            metrics["direction_inverted"] = dl_dir != trend_dir
-            return trend_dir
+            if (
+                trend_dir == TradeDirection.PUT
+                and (rsi < 0.45 or keltner < 0.30)
+                or trend_dir == TradeDirection.CALL
+                and (rsi > 0.55 or keltner > 0.70)
+            ):
+                pass
+            else:
+                metrics["direction_inverted"] = dl_dir != trend_dir
+                return trend_dir
 
     # Fallback para tendência em gating bloqueado
     if trend_str and not metrics.get("execute", True) and trend_strong:
         with contextlib.suppress(KeyError, ValueError):
-            return TradeDirection[trend_str.upper()]
+            trend_dir = TradeDirection[trend_str.upper()]
+            if (
+                trend_dir == TradeDirection.PUT
+                and (rsi < 0.45 or keltner < 0.30)
+                or trend_dir == TradeDirection.CALL
+                and (rsi > 0.55 or keltner > 0.70)
+            ):
+                pass
+            else:
+                return trend_dir
 
     return dl_dir
 
