@@ -7,6 +7,7 @@ from src.application.services.execution_direction import (
     build_forced_recovery_candidate,
     infer_dl_direction,
     mandatory_execution_eligible,
+    recovery_execution_eligible,
     recovery_hedge_target,
 )
 from src.application.services.execution_direction_fallback import _forced_recovery_pick
@@ -216,3 +217,35 @@ def test_forced_recovery_pick_prefers_dl_aligned_symbol():
     picked = _forced_recovery_pick(["R_50", "R_75"], decisions, TradeDirection.CALL)
     assert picked is not None
     assert picked[0] == "R_75"
+
+
+def test_mandatory_execution_eligible_rejects_hard_blockers():
+    for gate in ("trend_conflict", "exhaustion_conflict"):
+        entry = {
+            "direction": TradeDirection.CALL,
+            "metrics": {
+                "execute": False,
+                "gate_reason": gate,
+                "conviction": 0.7,
+                "raw_prob": 0.62,
+                "val_accuracy": 0.60,
+                "deploy_ok": True,
+            },
+        }
+        assert mandatory_execution_eligible(entry) is False
+
+
+def test_recovery_execution_eligible_rejects_hard_blockers():
+    for gate in ("trend_conflict", "exhaustion_conflict"):
+        entry = {
+            "direction": TradeDirection.CALL,
+            "metrics": {
+                "execute": False,
+                "gate_reason": gate,
+                "conviction": 0.7,
+                "raw_prob": 0.62,
+                "val_accuracy": 0.60,
+                "deploy_ok": True,
+            },
+        }
+        assert recovery_execution_eligible(entry, {}) is False

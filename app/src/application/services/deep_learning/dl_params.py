@@ -244,6 +244,11 @@ def parse_dl_params(
         "contract_seconds": contract_duration_seconds(risk_params),
         "val_acc_live_blend": float(dl_config.get("val_acc_live_blend", 0.35)),
         "trend_alignment_required": bool(dl_config.get("trend_alignment_required", False)),
+        "exhaustion_filter_enabled": bool(dl_config.get("exhaustion_filter_enabled", False)),
+        "exhaustion_rsi_lower": float(dl_config.get("exhaustion_rsi_lower", 0.28)),
+        "exhaustion_rsi_upper": float(dl_config.get("exhaustion_rsi_upper", 0.72)),
+        "exhaustion_keltner_lower": float(dl_config.get("exhaustion_keltner_lower", 0.0)),
+        "exhaustion_keltner_upper": float(dl_config.get("exhaustion_keltner_upper", 1.0)),
     }
     gate = parse_deploy_gate_config(dl_config)
     min_eval_bars = lookback + 5

@@ -1,4 +1,5 @@
-from src.application.services.execution_market_rank import resolve_market_direction
+from src.application.services.execution_direction import _entry_gate_blocked
+from src.application.services.execution_market_rank import mandatory_pool_eligible, resolve_market_direction
 from src.domain.models.trade import TradeDirection
 
 
@@ -92,3 +93,81 @@ def test_resolve_market_direction_trend_exhaustion_call_ignored():
     }
     # A tendência seria CALL, mas como está overbought (rsi > 0.55, keltner > 0.70), ignora e retorna dl_dir (PUT)
     assert resolve_market_direction(entry) == TradeDirection.PUT
+
+
+def test_resolve_market_direction_unreliable_accuracy_no_inversion():
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {
+            "val_accuracy": 0.49,
+            "raw_prob": 0.80,
+            "execute": True,
+        },
+    }
+    # Acurácia de 0.49 está na zona cinza (não confiável), não inverte, deve seguir dl_dir (CALL)
+    assert resolve_market_direction(entry) == TradeDirection.CALL
+    assert entry["metrics"].get("direction_inverted") is not True
+
+
+def test_mandatory_pool_eligible_grey_zone():
+    entry_grey = {
+        "direction": TradeDirection.CALL,
+        "metrics": {"val_accuracy": 0.49, "raw_prob": 0.80, "execute": False},
+    }
+    entry_good = {
+        "direction": TradeDirection.CALL,
+        "metrics": {"val_accuracy": 0.55, "raw_prob": 0.80, "execute": True},
+    }
+    entry_inverted = {
+        "direction": TradeDirection.CALL,
+        "metrics": {"val_accuracy": 0.42, "raw_prob": 0.80, "execute": False},
+    }
+    assert mandatory_pool_eligible(entry_grey) is False
+    assert mandatory_pool_eligible(entry_good) is True
+    assert mandatory_pool_eligible(entry_inverted) is True
+
+
+def test_entry_gate_blocked_grey_zone():
+    metrics_grey = {"val_accuracy": 0.49, "raw_prob": 0.80, "execute": False}
+    metrics_good = {"val_accuracy": 0.55, "raw_prob": 0.80, "execute": True}
+    metrics_inverted = {"val_accuracy": 0.42, "raw_prob": 0.80, "execute": False}
+    assert _entry_gate_blocked(metrics_grey) is True
+    assert _entry_gate_blocked(metrics_good) is False
+    assert _entry_gate_blocked(metrics_inverted) is False
+
+
+def test_resolve_market_direction_mean_reversion_disabled():
+    entry = {
+        "direction": TradeDirection.PUT,
+        "metrics": {
+            "val_accuracy": 0.52,
+            "raw_prob": 0.35,
+            "indicators": {
+                "hurst": 0.45,
+                "adx": 0.22,
+                "vol_ratio": 0.80,
+                "rsi": 0.38,
+            },
+        },
+    }
+    # With mean reversion disabled, it should not invert PUT to CALL
+    assert resolve_market_direction(entry, mean_reversion_enabled=False) == TradeDirection.PUT
+    assert entry["metrics"].get("direction_inverted") is not True
+
+
+def test_resolve_market_direction_low_accuracy_disabled():
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {
+            "val_accuracy": 0.42,
+            "raw_prob": 0.80,
+            "trend_direction": "PUT",
+            "indicators": {
+                "rsi": 0.50,
+                "keltner": 0.50,
+            },
+        },
+    }
+    # With low accuracy inversion disabled, it should not invert CALL to PUT
+    assert resolve_market_direction(entry, low_accuracy_enabled=False) == TradeDirection.CALL
+    assert entry["metrics"].get("direction_inverted") is not True

@@ -6,7 +6,6 @@ from src.application.services.execution_symbols import (
     inject_recovery_hedge_candidates,
 )
 from src.application.services.orchestrator.execution_collect import (
-    _gather_cluster_candidates,
     apply_recovery_hedge_to_candidates,
     collect_cluster_orders,
 )
@@ -271,28 +270,3 @@ def test_cluster_entry_recovery_accepts_mandatory_weak_with_pending_loss():
         min_signal=0.50,
         min_val=0.50,
     )
-
-
-def test_gather_cluster_candidates_skips_unbuildable_direction():
-    orch = SimpleNamespace(
-        anchor=ANCHOR,
-        symbols=[PAIR],
-        _active_cycle_id=1,
-    )
-    exec_mgr = SimpleNamespace(
-        orch=orch,
-        logger=MagicMock(),
-        _trade_symbols=lambda: [PAIR],
-    )
-    decisions = {PAIR: {"direction": None, "metrics": {"execute": True}}}
-    candidates = _gather_cluster_candidates(
-        exec_mgr,
-        decisions,
-        mandatory=False,
-        recovery_active=False,
-        recovery_cfg={},
-        cid="C0001",
-        min_signal=0.45,
-        min_val=0.0,
-    )
-    assert candidates == []

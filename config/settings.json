@@ -34,7 +34,11 @@
     "confidence_put_threshold": 0.50,
     "min_edge_execute": 0.00,
     "train_symbols": [
-      "R_10"
+      "R_10",
+      "R_25",
+      "R_50",
+      "R_75",
+      "R_100"
     ],
     "selection": {
       "min_val_accuracy": 0.50,
@@ -113,7 +117,12 @@
       "keltner_pct_b_min": 0.10,
       "keltner_pct_b_max": 0.90
     },
-    "trend_alignment_required": true
+    "trend_alignment_required": true,
+    "exhaustion_filter_enabled": true,
+    "exhaustion_rsi_lower": 0.28,
+    "exhaustion_rsi_upper": 0.72,
+    "exhaustion_keltner_lower": 0.0,
+    "exhaustion_keltner_upper": 1.0
   },
   "logging": {
     "log_file": "logs/engine.log"
@@ -138,6 +147,8 @@
       "recovery_flip_direction_after_loss": true,
       "recovery_flip_max_conviction": 0.56,
       "recovery_flip_use_trend_confirmation": false,
+      "mean_reversion_inversion_enabled": false,
+      "low_accuracy_inversion_enabled": false,
       "trend_period": 15,
       "trend_use_ema": true,
       "trend_use_slope": true,
@@ -205,7 +216,11 @@
     "small_account_threshold": 50.0
   },
   "symbols": [
-    "R_10"
+    "R_10",
+    "R_25",
+    "R_50",
+    "R_75",
+    "R_100"
   ],
   "trading": {
     "mode": "demo"

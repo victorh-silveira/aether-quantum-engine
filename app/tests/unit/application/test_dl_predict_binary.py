@@ -232,3 +232,51 @@ def test_predict_dynamic_trend_ema_vs_sma():
             recovery_active=False,
         )
     assert entry["metrics"]["trend_direction"] == "CALL"
+
+
+def test_predict_abstains_on_low_confidence_with_trend_conflict():
+    params = parse_dl_params(
+        {
+            "confidence_call_threshold": 0.75,
+            "confidence_put_threshold": 0.25,
+            "min_val_accuracy": 0.53,
+            "trend_alignment_required": True,
+        }
+    )
+    orch = type(
+        "O",
+        (),
+        {
+            "config": {
+                "orchestrator": {
+                    "execution": {
+                        "trend_period": 3,
+                        "trend_use_ema": False,
+                    }
+                }
+            }
+        },
+    )()
+    runtime = {"val_accuracy": 0.55, "val_brier": 0.2, "val_ece": 0.1, "lookback": 15}
+    # Prices where trend is CALL (recode current 9 > SMA of last 3: (5+6+1)/3 = 4)
+    prices = np.array([5.0, 5.0, 6.0, 9.0])
+    # Weak prediction is PUT (raw_prob = 0.45 < 0.5)
+    with patch(
+        "src.application.services.deep_learning.dl_predict.predict_next_direction",
+        return_value=(None, 0.45, 0.45),
+    ):
+        entry = predict_symbol_decision(
+            orch,
+            "R_50",
+            TemporalDirectionClassifier(input_dim=INPUT_DIM),
+            prices,
+            fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32)),
+            runtime,
+            params,
+            None,
+            recovery_active=False,
+        )
+    # Weak prediction PUT conflicts with trend CALL, so gate_reason must be trend_conflict
+    assert entry["metrics"]["execute"] is False
+    assert entry["metrics"]["gate_reason"] == "trend_conflict"
+    assert entry["direction"] == TradeDirection.PUT

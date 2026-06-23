@@ -117,11 +117,12 @@ class Orchestrator:
         orch_cfg = self.config.get("orchestrator") if isinstance(self.config.get("orchestrator"), dict) else {}
         reconnect_delay = float(orch_cfg.get("ws_reconnect_delay_seconds", 8.0))
         while self.running:
+            await self._tick_idle_cycle_watchdog()
+            await self._tick_interval_cycle_if_due()
             current_signature = self.get_data_state_signature()
             if current_signature and current_signature == self.last_data_signature and self.ws.is_running:
-                await asyncio.sleep(0.01)  # pragma: no cover
+                await asyncio.sleep(0.1)  # pragma: no cover
                 continue  # pragma: no cover
-            self.last_data_signature = current_signature
             await asyncio.sleep(1)
             if not self.ws.is_running:
                 if await self._setup_session() and await self._start_streams():

@@ -42,6 +42,8 @@ def _recovery_hedge_pick(
     last_loss_direction: str | None,
     skip_symbols: frozenset[str],
     consecutive_losses: int = 0,
+    mean_reversion_enabled: bool = True,
+    low_accuracy_enabled: bool = True,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Prioriza par Range com direcao estrutural oposta ao ultimo loss."""
     target = recovery_hedge_target(last_loss_symbol, last_loss_direction)
@@ -56,7 +58,13 @@ def _recovery_hedge_pick(
     built = build_forced_direction_candidate(peer, entry, hedge_dir)
     if built is not None:
         return built
-    direction = resolve_market_direction(entry, recovery_active=True, consecutive_losses=consecutive_losses)
+    direction = resolve_market_direction(
+        entry,
+        recovery_active=True,
+        consecutive_losses=consecutive_losses,
+        mean_reversion_enabled=mean_reversion_enabled,
+        low_accuracy_enabled=low_accuracy_enabled,
+    )
     if direction is None:
         return None
     return build_forced_recovery_candidate(peer, entry, hedge_dir)
@@ -72,13 +80,19 @@ def _rank_eligible_candidates(
     min_signal: float,
     min_val: float,
     consecutive_losses: int = 0,
+    mean_reversion_enabled: bool = True,
+    low_accuracy_enabled: bool = True,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Rankeia candidatos elegiveis e retorna o melhor por score de mercado."""
     best = None
     best_score = -1.0
     for symbol in order:
         entry = decisions.get(symbol)
-        if not entry or not mandatory_pool_eligible(entry):
+        if not entry or not mandatory_pool_eligible(
+            entry,
+            mean_reversion_enabled=mean_reversion_enabled,
+            low_accuracy_enabled=low_accuracy_enabled,
+        ):
             continue
         metrics = entry.get("metrics") or {}
         if (min_signal > 0.0 or min_val > 0.0) and not meets_mandatory_signal_floor(
@@ -87,11 +101,20 @@ def _rank_eligible_candidates(
             continue
         score = _trade_score(metrics)
         candidate = build_market_execution_candidate(
-            symbol, entry, recovery_active=recovery_active, consecutive_losses=consecutive_losses
+            symbol,
+            entry,
+            recovery_active=recovery_active,
+            consecutive_losses=consecutive_losses,
+            mean_reversion_enabled=mean_reversion_enabled,
+            low_accuracy_enabled=low_accuracy_enabled,
         )
         if candidate is None:
             direction = resolve_market_direction(
-                entry, recovery_active=recovery_active, consecutive_losses=consecutive_losses
+                entry,
+                recovery_active=recovery_active,
+                consecutive_losses=consecutive_losses,
+                mean_reversion_enabled=mean_reversion_enabled,
+                low_accuracy_enabled=low_accuracy_enabled,
             )
             if direction is None:
                 continue
@@ -123,6 +146,8 @@ def pick_best_mandatory_candidate(
     min_signal: float = 0.0,
     min_val: float = 0.0,
     consecutive_losses: int = 0,
+    mean_reversion_enabled: bool = True,
+    low_accuracy_enabled: bool = True,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Escolhe melhor candidato obrigatorio por score de mercado."""
     skip = skip_symbols or frozenset()
@@ -133,6 +158,8 @@ def pick_best_mandatory_candidate(
             last_loss_direction=last_loss_direction,
             skip_symbols=skip,
             consecutive_losses=consecutive_losses,
+            mean_reversion_enabled=mean_reversion_enabled,
+            low_accuracy_enabled=low_accuracy_enabled,
         )
         if hedge is not None and meets_mandatory_signal_floor(hedge[2], min_signal=min_signal, min_val=min_val):
             return hedge
@@ -146,6 +173,8 @@ def pick_best_mandatory_candidate(
         min_signal=min_signal,
         min_val=min_val,
         consecutive_losses=consecutive_losses,
+        mean_reversion_enabled=mean_reversion_enabled,
+        low_accuracy_enabled=low_accuracy_enabled,
     )
     if ranked is not None:
         return ranked
@@ -158,6 +187,8 @@ def pick_best_mandatory_candidate(
         min_signal=min_signal,
         min_val=min_val,
         consecutive_losses=consecutive_losses,
+        mean_reversion_enabled=mean_reversion_enabled,
+        low_accuracy_enabled=low_accuracy_enabled,
     )
 
 
@@ -171,6 +202,8 @@ def pick_absolute_mandatory_candidate(
     min_signal: float = 0.0,
     min_val: float = 0.0,
     consecutive_losses: int = 0,
+    mean_reversion_enabled: bool = True,
+    low_accuracy_enabled: bool = True,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Garante ordem quando filtros de recovery esgotam o pool."""
     order = _symbol_order(trade_symbols, last_loss_symbol, skip_symbols=frozenset())
@@ -178,7 +211,11 @@ def pick_absolute_mandatory_candidate(
     best_score = -1.0
     for symbol in order:
         entry = decisions.get(symbol)
-        if not entry or not mandatory_pool_eligible(entry):
+        if not entry or not mandatory_pool_eligible(
+            entry,
+            mean_reversion_enabled=mean_reversion_enabled,
+            low_accuracy_enabled=low_accuracy_enabled,
+        ):
             continue
         metrics = entry.get("metrics") or {}
         if (min_signal > 0.0 or min_val > 0.0) and not meets_mandatory_signal_floor(
@@ -186,11 +223,20 @@ def pick_absolute_mandatory_candidate(
         ):
             continue
         candidate = build_market_execution_candidate(
-            symbol, entry, recovery_active=recovery_active, consecutive_losses=consecutive_losses
+            symbol,
+            entry,
+            recovery_active=recovery_active,
+            consecutive_losses=consecutive_losses,
+            mean_reversion_enabled=mean_reversion_enabled,
+            low_accuracy_enabled=low_accuracy_enabled,
         )
         if candidate is None:
             direction = resolve_market_direction(
-                entry, recovery_active=recovery_active, consecutive_losses=consecutive_losses
+                entry,
+                recovery_active=recovery_active,
+                consecutive_losses=consecutive_losses,
+                mean_reversion_enabled=mean_reversion_enabled,
+                low_accuracy_enabled=low_accuracy_enabled,
             )
             if direction is None:
                 continue

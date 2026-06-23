@@ -1,7 +1,8 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-from src.application.services.orchestrator.execution_collect import _log_execution_decision, collect_cluster_orders
+from src.application.services.orchestrator.execution_collect import collect_cluster_orders
+from src.application.services.orchestrator.execution_collect_helpers import log_execution_decision
 from src.domain.models.trade import TradeDirection
 from tests.market_symbols import ANCHOR, PAIR
 
@@ -19,7 +20,7 @@ def test_log_execution_decision_direct():
             "put_votes": 2,
         },
     )
-    _log_execution_decision(exec_mgr, "C0001", best, [best], 0.55)
+    log_execution_decision(exec_mgr, "C0001", best, [best], 0.55)
     assert exec_mgr.logger.info.called
 
 

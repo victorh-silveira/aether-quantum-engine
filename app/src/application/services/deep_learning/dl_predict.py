@@ -3,8 +3,6 @@
 import logging
 from typing import Any
 
-import numpy as np
-
 from src.application.services.deep_learning.dl_bridge_helpers import build_decision_entry
 from src.application.services.deep_learning.dl_calibration import CalibratorState, calibrate_trade_score
 from src.application.services.deep_learning.dl_feature_build import precompute_price_series
@@ -16,6 +14,7 @@ from src.application.services.deep_learning.dl_gating import (
 )
 from src.application.services.deep_learning.dl_outcomes import blended_val_accuracy
 from src.application.services.deep_learning.dl_symbol_runtime import guard_symbol_model
+from src.application.services.deep_learning.dl_trend import calculate_trend_direction
 from src.application.services.deep_learning.model import predict_next_direction
 from src.domain.models.trade import TradeDirection
 
@@ -23,81 +22,53 @@ from src.domain.models.trade import TradeDirection
 logger = logging.getLogger("AETH")
 
 
-def _consensus_trend_direction(price_dir: TradeDirection, series: dict) -> tuple[TradeDirection, int, int]:
-    """Votacao por consenso dos indicadores e features."""
-    call_votes = 1 if price_dir == TradeDirection.CALL else 0
-    put_votes = 1 if price_dir != TradeDirection.CALL else 0
-
-    indicators = [
-        ("di_diff", lambda x: float(x) > 0.0),
-        (
-            "macd",
-            lambda x: (
-                float(x) > float(series["macd_signal"][-1])
-                if "macd_signal" in series and len(series["macd_signal"]) > 0
-                else False
-            ),
-        ),
-        ("rsi", lambda x: float(x) > 0.5),
-        ("cmo", lambda x: float(x) > 0.0),
-        ("keltner_pct_b", lambda x: float(x) > 0.5),
-    ]
-
-    for key, check in indicators:
-        val = series.get(key)
-        if val is not None and len(val) > 0:
-            if check(val[-1]):
-                call_votes += 1
-            else:
-                put_votes += 1
-
-    return TradeDirection.CALL if call_votes >= put_votes else TradeDirection.PUT, call_votes, put_votes
-
-
-def _calculate_trend_direction(prices, series: dict, exec_cfg: dict) -> tuple[TradeDirection, str, int, int, int]:
-    """Calcula a direcao da tendencia usando um consenso de multiplos indicadores tecnicos."""
-    trend_period = int(exec_cfg.get("trend_period", 5))
-    trend_use_ema = bool(exec_cfg.get("trend_use_ema", True))
-    trend_use_slope = bool(exec_cfg.get("trend_use_slope", True))
-    close_prices = prices.astype(np.float64)
-    t_len = min(trend_period, len(close_prices))
-    if t_len > 0:
-        if trend_use_ema and t_len > 1:
-            alpha = 2.0 / (t_len + 1)
-            ema = close_prices[-t_len]
-            for price in close_prices[-t_len + 1 :]:
-                ema = alpha * price + (1.0 - alpha) * ema
-            trend_val = ema
-        else:
-            trend_val = np.mean(close_prices[-t_len:])
-    else:
-        trend_val = close_prices[-1] if len(close_prices) > 0 else 0.0
-
-    if trend_use_slope and len(close_prices) > 1:
-        prev_prices = close_prices[:-1]
-        prev_len = min(trend_period, len(prev_prices))
-        if trend_use_ema and prev_len > 1:
-            alpha = 2.0 / (prev_len + 1)
-            prev_ema = prev_prices[-prev_len]
-            for price in prev_prices[-prev_len + 1 :]:
-                prev_ema = alpha * price + (1.0 - alpha) * prev_ema
-            prev_trend_val = prev_ema
-        else:
-            prev_trend_val = np.mean(prev_prices[-prev_len:])
-        price_dir = TradeDirection.CALL if trend_val >= prev_trend_val else TradeDirection.PUT
-    else:
-        last_val = close_prices[-1] if len(close_prices) > 0 else 0.0
-        price_dir = TradeDirection.CALL if last_val >= trend_val else TradeDirection.PUT
-
-    if len(close_prices) >= 30:
-        trend_dir, call_votes, put_votes = _consensus_trend_direction(price_dir, series)
-        trend_type = "CONSENSUS"
-    else:
-        trend_dir = price_dir
-        trend_type = "EMA" if trend_use_ema else "SMA"
-        call_votes = 1 if price_dir == TradeDirection.CALL else 0
-        put_votes = 1 if price_dir != TradeDirection.CALL else 0
-    return trend_dir, trend_type, trend_period, call_votes, put_votes
+def _handle_neutral_decision(
+    raw_prob: float,
+    val_accuracy: float,
+    train_loss: float | None,
+    params: dict,
+    indicators_data: dict,
+    *,
+    exhaustion_enabled: bool,
+    rsi_lower: float,
+    rsi_upper: float,
+    keltner_lower: float,
+    keltner_upper: float,
+    trend_dir: TradeDirection,
+    call_votes: int,
+    put_votes: int,
+) -> dict:
+    """Retorna a decisao quando o modelo nao tem direcao definida (None)."""
+    raw = float(raw_prob)
+    weak_dir = TradeDirection.CALL if raw > 0.5 else TradeDirection.PUT
+    side_score = max(raw, 1.0 - raw)
+    entry = build_decision_entry(
+        weak_dir,
+        raw,
+        execute=False,
+        val_accuracy=val_accuracy,
+        edge=resolve_edge(raw_prob),
+        train_loss=train_loss,
+        raw_prob=raw_prob,
+        trade_score=side_score,
+        contract_duration=int(params.get("contract_duration", 60)),
+    )
+    gate = "confidence"
+    rsi = indicators_data.get("rsi", 0.5)
+    keltner = indicators_data.get("keltner", 0.5)
+    if exhaustion_enabled and (
+        (weak_dir == TradeDirection.PUT and (rsi < rsi_lower or keltner < keltner_lower))
+        or (weak_dir == TradeDirection.CALL and (rsi > rsi_upper or keltner > keltner_upper))
+    ):
+        gate = "exhaustion_conflict"
+    elif bool(params.get("trend_alignment_required", False)) and weak_dir != trend_dir:
+        gate = "trend_conflict"
+    entry["metrics"]["gate_reason"] = gate
+    entry["metrics"]["trend_direction"] = trend_dir.name
+    entry["metrics"]["call_votes"] = call_votes
+    entry["metrics"]["put_votes"] = put_votes
+    entry["metrics"]["indicators"] = indicators_data
+    return entry
 
 
 def predict_symbol_decision(
@@ -159,9 +130,7 @@ def predict_symbol_decision(
                 calibrator=calibrator,
             )
         exec_cfg = orch.config.get("orchestrator", {}).get("execution", {}) if hasattr(orch, "config") else {}
-        trend_dir, trend_type, trend_period, call_votes, put_votes = _calculate_trend_direction(
-            prices, series, exec_cfg
-        )
+        trend_dir, trend_type, trend_period, call_votes, put_votes = calculate_trend_direction(prices, series, exec_cfg)
 
         indicators_data = {
             "hurst": float(series["hurst"][-1]) if "hurst" in series and len(series["hurst"]) > 0 else 0.0,
@@ -181,27 +150,28 @@ def predict_symbol_decision(
             "di_diff": float(series["di_diff"][-1]) if "di_diff" in series and len(series["di_diff"]) > 0 else 0.0,
         }
 
+        exhaustion_enabled = bool(params.get("exhaustion_filter_enabled", False))
+        rsi_lower = float(params.get("exhaustion_rsi_lower", 0.28))
+        rsi_upper = float(params.get("exhaustion_rsi_upper", 0.72))
+        keltner_lower = float(params.get("exhaustion_keltner_lower", 0.0))
+        keltner_upper = float(params.get("exhaustion_keltner_upper", 1.0))
+
         if direction is None:
-            raw = float(raw_prob)
-            weak_dir = TradeDirection.CALL if raw > 0.5 else TradeDirection.PUT
-            side_score = max(raw, 1.0 - raw)
-            entry = build_decision_entry(
-                weak_dir,
-                raw,
-                execute=False,
-                val_accuracy=val_accuracy,
-                edge=resolve_edge(raw_prob),
-                train_loss=train_loss,
-                raw_prob=raw_prob,
-                trade_score=side_score,
-                contract_duration=int(params.get("contract_duration", 60)),
+            return _handle_neutral_decision(
+                raw_prob,
+                val_accuracy,
+                train_loss,
+                params,
+                indicators_data,
+                exhaustion_enabled=exhaustion_enabled,
+                rsi_lower=rsi_lower,
+                rsi_upper=rsi_upper,
+                keltner_lower=keltner_lower,
+                keltner_upper=keltner_upper,
+                trend_dir=trend_dir,
+                call_votes=call_votes,
+                put_votes=put_votes,
             )
-            entry["metrics"]["gate_reason"] = "confidence"
-            entry["metrics"]["trend_direction"] = trend_dir.name
-            entry["metrics"]["call_votes"] = call_votes
-            entry["metrics"]["put_votes"] = put_votes
-            entry["metrics"]["indicators"] = indicators_data
-            return entry
         block = gating_block_reason(
             raw_prob,
             val_accuracy,
@@ -210,7 +180,14 @@ def predict_symbol_decision(
             put_threshold=put_threshold,
             min_edge=min_edge,
         )
-        if block is None and bool(params.get("trend_alignment_required", False)) and direction != trend_dir:
+        rsi = indicators_data.get("rsi", 0.5)
+        keltner = indicators_data.get("keltner", 0.5)
+        if exhaustion_enabled and (
+            (direction == TradeDirection.PUT and (rsi < rsi_lower or keltner < keltner_lower))
+            or (direction == TradeDirection.CALL and (rsi > rsi_upper or keltner > keltner_upper))
+        ):
+            block = "exhaustion_conflict"
+        elif bool(params.get("trend_alignment_required", False)) and direction != trend_dir:
             block = "trend_conflict"
         if block is None:
             indicator_cfg = params.get("indicator_gating", {})

@@ -5,9 +5,9 @@ from src.domain.risk.stake_sizing import enrich_metrics_conviction, raw_side_fro
 from src.domain.symbols.range_symbols import HEDGE_PEER, hedge_peer, is_high_side
 
 
-_MANDATORY_HARD_BLOCKS = frozenset({"trend_conflict"})
-_MANDATORY_POOL_HARD_BLOCKS = frozenset({"trend_conflict"})
-_FORCED_ENTRY_HARD_BLOCKS = frozenset({"trend_conflict"})
+_MANDATORY_HARD_BLOCKS = frozenset({"trend_conflict", "exhaustion_conflict"})
+_MANDATORY_POOL_HARD_BLOCKS = frozenset({"trend_conflict", "exhaustion_conflict"})
+_FORCED_ENTRY_HARD_BLOCKS = frozenset({"trend_conflict", "exhaustion_conflict"})
 
 
 def infer_dl_direction(entry: dict) -> TradeDirection | None:
@@ -47,6 +47,8 @@ def mandatory_execution_eligible(
     metrics = entry.get("metrics") or {}
     if metrics.get("deploy_ok") is False:
         return False
+    if metrics.get("gate_reason") in _MANDATORY_HARD_BLOCKS:
+        return False
     if infer_dl_direction(entry) is None:
         return False
     return meets_mandatory_signal_floor(metrics, min_signal=min_signal, min_val=min_val_accuracy)
@@ -55,6 +57,8 @@ def mandatory_execution_eligible(
 def recovery_execution_eligible(entry: dict, recovery_cfg: dict | None = None) -> bool:
     """Indica se candidato tem qualidade minima para recovery sem martingale cego."""
     metrics = entry.get("metrics") or {}
+    if metrics.get("gate_reason") in _MANDATORY_HARD_BLOCKS:
+        return False
     if metrics.get("execute", False):
         return True
     if metrics.get("deploy_ok") is False:
@@ -149,6 +153,9 @@ def build_forced_recovery_candidate(
 def _entry_gate_blocked(metrics: dict) -> bool:
     """Indica bloqueio absoluto para fallback obrigatorio de execucao."""
     if metrics.get("deploy_ok") is False:
+        return True
+    val_acc = float(metrics.get("val_accuracy", 0.50))
+    if 0.46 <= val_acc < 0.50:
         return True
     gate = str(metrics.get("gate_reason") or "")
     return gate in _FORCED_ENTRY_HARD_BLOCKS

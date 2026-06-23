@@ -1,4 +1,6 @@
-"""Montagem e selecao de ordens do cluster para o ExecutionManager."""
+"""Orchestrator service for collecting and selecting cluster execution candidates."""
+
+__all__ = ["collect_cluster_orders", "_mandatory_fallback_candidates"]
 
 from src.application.services.execution_direction import build_execution_candidate
 from src.application.services.execution_direction_fallback import build_mandatory_fallback_candidate
@@ -6,49 +8,40 @@ from src.application.services.execution_mandatory_pick import pick_absolute_mand
 from src.application.services.execution_market_rank import build_market_execution_candidate
 from src.application.services.execution_symbols import (
     filter_execution_candidates,
-    format_execution_alternates,
     select_best_execution_candidate,
     select_mandatory_execution_candidate,
 )
 from src.application.services.execution_symbols_recovery import (
     apply_recovery_direction_flip,
     pending_recovery_active,
-    recovery_blocked_symbols,
+)
+from src.application.services.log_dedupe import log_info_if_changed
+from src.application.services.orchestrator.execution_collect_helpers import (
+    apply_recovery_hedge_to_candidates,
+    extract_collect_params,
+    log_execution_decision,
+    mandatory_fallback_candidates as _mandatory_fallback_candidates,  # noqa: F401
+    mandatory_fallback_if_empty,
 )
 from src.application.services.orchestrator.execution_recovery_gate import (
     cluster_entry_eligible,
-    recovery_min_signal,
-    recovery_min_val_accuracy,
 )
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.stake_sizing import enrich_metrics_conviction, raw_side_from_metrics
 
 
-def apply_recovery_hedge_to_candidates(exec_mgr, candidates, _decisions, *, cid, mandatory=False):
-    """Mantem pool de candidatos; ranking de recovery escolhe direcao e simbolo."""
-    return candidates if exec_mgr and cid and mandatory is not None else candidates
-
-
-def _mandatory_fallback_candidates(
-    exec_mgr, decisions, *, recovery_active, last_loss_symbol, last_loss_direction, skip_symbols, min_signal, min_val
-):
-    """Monta lista com candidato forcado quando o pool DL fica vazio."""
-    fallback = build_mandatory_fallback_candidate(
-        exec_mgr._trade_symbols(),
-        decisions,
-        recovery_active=recovery_active,
-        last_loss_symbol=last_loss_symbol,
-        last_loss_direction=last_loss_direction,
-        skip_symbols=skip_symbols,
-        min_signal=min_signal,
-        min_val=min_val,
-        consecutive_losses=getattr(exec_mgr.orch.risk_manager, "consecutive_losses", 0),
-    )
-    return [fallback] if fallback else []
-
-
 def _gather_cluster_candidates(
-    exec_mgr, decisions, *, mandatory, recovery_active, recovery_cfg, cid, min_signal, min_val
+    exec_mgr,
+    decisions,
+    *,
+    mandatory,
+    recovery_active,
+    recovery_cfg,
+    cid,
+    min_signal,
+    min_val,
+    mean_reversion=True,
+    low_accuracy=True,
 ):
     """Coleta candidatos DL elegiveis para o ciclo atual."""
     candidates = []
@@ -72,6 +65,8 @@ def _gather_cluster_candidates(
                 entry,
                 recovery_active=recovery_active,
                 consecutive_losses=getattr(exec_mgr.orch.risk_manager, "consecutive_losses", 0),
+                mean_reversion_enabled=mean_reversion,
+                low_accuracy_enabled=low_accuracy,
             )
             if mandatory
             else build_execution_candidate(symbol, entry)
@@ -79,34 +74,6 @@ def _gather_cluster_candidates(
         if built is not None:
             candidates.append(built)
     return candidates
-
-
-def _mandatory_fallback_if_empty(
-    exec_mgr,
-    decisions,
-    candidates,
-    *,
-    mandatory,
-    recovery_active,
-    last_loss,
-    last_loss_dir,
-    skip_symbols,
-    min_signal,
-    min_val,
-):
-    """Aplica fallback obrigatorio quando o pool de candidatos DL fica vazio."""
-    if candidates or not mandatory:
-        return candidates
-    return _mandatory_fallback_candidates(
-        exec_mgr,
-        decisions,
-        recovery_active=recovery_active,
-        last_loss_symbol=last_loss,
-        last_loss_direction=last_loss_dir,
-        skip_symbols=skip_symbols,
-        min_signal=min_signal,
-        min_val=min_val,
-    )
 
 
 def _select_cluster_best(exec_mgr, candidates, *, mandatory, last_loss, last_loss_dir, recovery_active, skip_symbols):
@@ -138,52 +105,25 @@ def _select_cluster_best(exec_mgr, candidates, *, mandatory, last_loss, last_los
     )
 
 
-def _log_execution_decision(exec_mgr, cid: str, best: tuple, candidates: list, effective_signal: float) -> None:
-    """Registra log detalhado da decisao de execucao e indicadores."""
-    metrics = best[2]
-    alts_str = format_execution_alternates(candidates, exclude_symbol=best[0])
-    alt_suffix = f" | alt={alts_str}" if alts_str else ""
-    indicators = metrics.get("indicators", {})
-    ind_str = " | ".join(f"{k}={v:.2f}" if isinstance(v, float) else f"{k}={v}" for k, v in indicators.items())
-    raw_val = float(metrics.get("raw_prob", 0.5))
-    exec_mgr.logger.info(
-        "[%s] EXEC_SEL | %s ord=%s dl=%s s=%.2f v=%.2f r=%.2f | P(CALL)=%.2f P(PUT)=%.2f | Acc=%.2f Score=%.2f | Votes: CALL=%d PUT=%d | %s%s",
-        cid,
-        best[0],
-        best[1].name,
-        metrics.get("dl_direction", best[1].name),
-        effective_signal,
-        float(metrics.get("val_accuracy", 0.0)),
-        raw_val if best[1] == TradeDirection.CALL else 1.0 - raw_val,
-        raw_val,
-        1.0 - raw_val,
-        float(metrics.get("val_accuracy", 0.0)),
-        effective_signal,
-        metrics.get("call_votes", 0),
-        metrics.get("put_votes", 0),
-        ind_str,
-        alt_suffix,
-    )
-
-
 def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDirection, dict]]:
     """Seleciona uma ordem por ciclo; modo obrigatorio ignora gate execute=false."""
     mandatory = exec_mgr._mandatory_trade_each_cycle()
     recovery_active = pending_recovery_active(getattr(exec_mgr.orch.risk_manager, "pending_loss", {}))
     dl_cfg = exec_mgr.orch.config.get("deep_learning", {})
-    recovery_cfg = dl_cfg.get("recovery_gating", {}) if isinstance(dl_cfg, dict) else {}
-    risk_cfg = exec_mgr.orch.config.get("risk_management", {}) if isinstance(exec_mgr.orch.config, dict) else {}
-    kelly_cfg = risk_cfg.get("kelly", {}) if isinstance(risk_cfg, dict) else {}
-    proposal_skip_fn = getattr(exec_mgr.orch.risk_manager, "proposal_skip_symbols", None)
-    proposal_skip = proposal_skip_fn() if callable(proposal_skip_fn) else frozenset()
-    recovery_skip = recovery_blocked_symbols(exec_mgr.orch.risk_manager, kelly_cfg) if recovery_active else frozenset()
-    skip_symbols = proposal_skip | recovery_skip
-    pending_total = sum(float(v) for v in getattr(exec_mgr.orch.risk_manager, "pending_loss", {}).values())
-    min_signal = recovery_min_signal(kelly_cfg, recovery_active=recovery_active, pending_total=pending_total)
-    min_val = recovery_min_val_accuracy(kelly_cfg) if recovery_active else float(dl_cfg.get("min_val_accuracy", 0.54))
+    (
+        recovery_cfg,
+        kelly_cfg,
+        skip_symbols,
+        min_signal,
+        min_val,
+        last_loss,
+        last_loss_dir,
+        mean_reversion,
+        low_accuracy,
+        exec_cfg,
+    ) = extract_collect_params(exec_mgr, dl_cfg, recovery_active=recovery_active)
     cid = f"C{int(exec_mgr.orch._active_cycle_id):04d}"
-    last_loss = getattr(exec_mgr.orch.risk_manager, "last_loss_symbol", None)
-    last_loss_dir = getattr(exec_mgr.orch.risk_manager, "last_loss_direction", None)
+
     candidates = _gather_cluster_candidates(
         exec_mgr,
         decisions,
@@ -193,8 +133,10 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
         cid=cid,
         min_signal=min_signal,
         min_val=min_val,
+        mean_reversion=mean_reversion,
+        low_accuracy=low_accuracy,
     )
-    candidates = _mandatory_fallback_if_empty(
+    candidates = mandatory_fallback_if_empty(
         exec_mgr,
         decisions,
         candidates,
@@ -205,12 +147,14 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
         skip_symbols=skip_symbols,
         min_signal=min_signal,
         min_val=min_val,
+        mean_reversion=mean_reversion,
+        low_accuracy=low_accuracy,
     )
     if candidates and skip_symbols:
         candidates = [item for item in candidates if item[0] not in skip_symbols]
     if candidates:
         candidates = apply_recovery_hedge_to_candidates(exec_mgr, candidates, decisions, cid=cid, mandatory=mandatory)
-        candidates = _mandatory_fallback_if_empty(
+        candidates = mandatory_fallback_if_empty(
             exec_mgr,
             decisions,
             candidates,
@@ -221,6 +165,8 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
             skip_symbols=skip_symbols,
             min_signal=min_signal,
             min_val=min_val,
+            mean_reversion=mean_reversion,
+            low_accuracy=low_accuracy,
         )
     best = _select_cluster_best(
         exec_mgr,
@@ -241,6 +187,9 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
             skip_symbols=skip_symbols,
             min_signal=min_signal,
             min_val=min_val,
+            consecutive_losses=getattr(exec_mgr.orch.risk_manager, "consecutive_losses", 0),
+            mean_reversion_enabled=mean_reversion,
+            low_accuracy_enabled=low_accuracy,
         )
         if ultimate is None:
             ultimate = pick_absolute_mandatory_candidate(
@@ -251,6 +200,8 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
                 last_loss_direction=last_loss_dir,
                 min_signal=min_signal,
                 min_val=min_val,
+                mean_reversion_enabled=mean_reversion,
+                low_accuracy_enabled=low_accuracy,
             )
             if ultimate is None:
                 ultimate = pick_absolute_mandatory_candidate(
@@ -261,6 +212,8 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
                     last_loss_direction=last_loss_dir,
                     min_signal=0.0,
                     min_val=0.0,
+                    mean_reversion_enabled=mean_reversion,
+                    low_accuracy_enabled=low_accuracy,
                 )
         if ultimate is not None:
             best = ultimate
@@ -284,6 +237,23 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
         calibrated = float(metrics.get("trade_score", metrics.get("conviction", 0.0)))
         raw_side = raw_side_from_metrics(metrics)
         effective_signal = max(calibrated, raw_side)
-        _log_execution_decision(exec_mgr, cid, best, candidates, effective_signal)
+        log_execution_decision(exec_mgr, cid, best, candidates, effective_signal)
         return [best]
+
+    grey_zone_symbols = []
+    for symbol, entry in decisions.items():
+        metrics = entry.get("metrics") or {}
+        val = float(metrics.get("val_accuracy", 0.50))
+        if 0.46 <= val < 0.50:
+            grey_zone_symbols.append(f"{symbol}(v={val:.2f})")
+    if grey_zone_symbols:
+        log_info_if_changed(
+            exec_mgr.orch,
+            exec_mgr.logger,
+            "exec_skip_grey",
+            ", ".join(grey_zone_symbols),
+            "[%s] EXEC_SKIP || %s | acuracia na zona cinza [0.46, 0.50) | ignorando execucao obrigatoria por seguranca",
+            cid,
+            ", ".join(grey_zone_symbols),
+        )
     return []

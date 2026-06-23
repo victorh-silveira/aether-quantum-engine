@@ -94,6 +94,8 @@ def _scored_fallback_pick(
     min_val: float = 0.0,
     recovery_active: bool = False,
     consecutive_losses: int = 0,
+    mean_reversion_enabled: bool = True,
+    low_accuracy_enabled: bool = True,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Escolhe candidato inferivel com maior trade_score no modo obrigatorio."""
     skip = skip_symbols or frozenset()
@@ -112,7 +114,12 @@ def _scored_fallback_pick(
         if min_val > 0.0 and float(metrics.get("val_accuracy", 0.0)) + 1e-9 < min_val:
             continue
         candidate = build_market_execution_candidate(
-            symbol, entry, recovery_active=recovery_active, consecutive_losses=consecutive_losses
+            symbol,
+            entry,
+            recovery_active=recovery_active,
+            consecutive_losses=consecutive_losses,
+            mean_reversion_enabled=mean_reversion_enabled,
+            low_accuracy_enabled=low_accuracy_enabled,
         )
         if candidate is None:
             candidate = build_execution_candidate(symbol, entry)
@@ -132,6 +139,8 @@ def _last_resort_fallback_pick(
     min_val: float = 0.0,
     recovery_active: bool = False,
     consecutive_losses: int = 0,
+    mean_reversion_enabled: bool = True,
+    low_accuracy_enabled: bool = True,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Ultimo recurso de execucao obrigatoria usando raw_prob ou CALL padrao."""
     skip = skip_symbols or frozenset()
@@ -149,7 +158,11 @@ def _last_resort_fallback_pick(
             continue
         raw = metrics.get("raw_prob")
         direction = resolve_market_direction(
-            entry, recovery_active=recovery_active, consecutive_losses=consecutive_losses
+            entry,
+            recovery_active=recovery_active,
+            consecutive_losses=consecutive_losses,
+            mean_reversion_enabled=mean_reversion_enabled,
+            low_accuracy_enabled=low_accuracy_enabled,
         )
         if direction is None:
             side = TradeDirection.CALL if raw is None or float(raw) > 0.5 else TradeDirection.PUT
@@ -169,6 +182,8 @@ def build_mandatory_fallback_candidate(
     min_signal: float = 0.0,
     min_val: float = 0.0,
     consecutive_losses: int = 0,
+    mean_reversion_enabled: bool = True,
+    low_accuracy_enabled: bool = True,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Garante ordem em modo obrigatorio quando o pool DL fica vazio."""
     ranked = pick_best_mandatory_candidate(
@@ -181,6 +196,8 @@ def build_mandatory_fallback_candidate(
         min_signal=min_signal,
         min_val=min_val,
         consecutive_losses=consecutive_losses,
+        mean_reversion_enabled=mean_reversion_enabled,
+        low_accuracy_enabled=low_accuracy_enabled,
     )
     if ranked is not None:
         return ranked
@@ -192,6 +209,8 @@ def build_mandatory_fallback_candidate(
         min_val=min_val,
         recovery_active=recovery_active,
         consecutive_losses=consecutive_losses,
+        mean_reversion_enabled=mean_reversion_enabled,
+        low_accuracy_enabled=low_accuracy_enabled,
     )
     if scored is not None:
         return scored
@@ -203,4 +222,6 @@ def build_mandatory_fallback_candidate(
         min_val=min_val,
         recovery_active=recovery_active,
         consecutive_losses=consecutive_losses,
+        mean_reversion_enabled=mean_reversion_enabled,
+        low_accuracy_enabled=low_accuracy_enabled,
     )
