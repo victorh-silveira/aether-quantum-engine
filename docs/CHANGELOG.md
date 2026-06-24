@@ -1,3 +1,14 @@
+## [1.9.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.8.0...v1.9.0) (2026-06-24)
+
+### Funcionalidades
+
+* **risk:** adiciona filtro de qualidade dinamico pos-loss ([dc06ba5](https://github.com/victorh-silveira/aether-quantum-engine/commit/dc06ba53eb9e61716f71ca86e3c10efafee0dc61))
+
+### Refatoracoes Tecnicas
+
+* **orchestrator:** corrige problemas do linter e limites de linhas ([7141de8](https://github.com/victorh-silveira/aether-quantum-engine/commit/7141de811129a5f562b6c23ca2245e295dec0764))
+* **risk:** remove martingale fracionado adaptativo ([78fa3c5](https://github.com/victorh-silveira/aether-quantum-engine/commit/78fa3c596aaa18d6ed2ff230163168de8b8404a9))
+
 ## [1.8.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.7.0...v1.8.0) (2026-06-22)
 
 ### Funcionalidades
