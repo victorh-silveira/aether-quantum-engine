@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 
 from src.application.services.orchestrator.execution_collect import (
     _gather_cluster_candidates,
+    cluster_entry_eligible,
     collect_cluster_orders,
 )
 from src.domain.models.trade import TradeDirection
@@ -74,3 +75,68 @@ def test_collect_cluster_orders_warns_on_grey_zone():
     orders = collect_cluster_orders(exec_mgr, decisions)
     assert orders == []
     assert any("zona cinza" in str(call.args[0]) for call in logger_mock.info.call_args_list)
+
+
+def test_cluster_entry_recovery_accepts_mandatory_weak_with_pending_loss():
+    entry = {
+        "direction": TradeDirection.PUT,
+        "metrics": {
+            "execute": False,
+            "trade_score": 0.51,
+            "val_accuracy": 0.59,
+            "raw_prob": 0.49,
+            "deploy_ok": True,
+        },
+    }
+    assert cluster_entry_eligible(
+        entry,
+        mandatory=True,
+        recovery_active=True,
+        recovery_cfg={},
+        min_signal=0.50,
+        min_val=0.50,
+    )
+
+
+def test_collect_cluster_orders_disables_absolute_zero_fallback_in_recovery():
+    orch = SimpleNamespace(
+        anchor=ANCHOR,
+        symbols=[ANCHOR, PAIR],
+        config={
+            "orchestrator": {"execution": {"include_anchor_trades": False}},
+            "risk_management": {
+                "kelly": {
+                    "max_consecutive_losses": 0,
+                }
+            },
+        },
+        risk_manager=SimpleNamespace(
+            pending_loss={PAIR: 100.0},
+            last_loss_symbol=PAIR,
+            last_loss_direction="CALL",
+            consecutive_losses=0,
+            risk_params={"payout_estimate": 0.95},
+            kelly_config={"max_consecutive_losses": 0},
+            proposal_skip_symbols=frozenset,
+        ),
+        _active_cycle_id=9,
+    )
+    exec_mgr = SimpleNamespace(
+        orch=orch,
+        logger=MagicMock(),
+        _mandatory_trade_each_cycle=lambda: True,
+        _trade_symbols=lambda: [PAIR],
+    )
+    decisions = {
+        PAIR: {
+            "direction": TradeDirection.CALL,
+            "metrics": {
+                "execute": False,
+                "trade_score": 0.20,
+                "val_accuracy": 0.30,
+                "raw_prob": 0.52,
+                "deploy_ok": True,
+            },
+        },
+    }
+    assert collect_cluster_orders(exec_mgr, decisions) == []

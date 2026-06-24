@@ -95,7 +95,12 @@ async def process_contract_settlement(orch: Any, data: dict):
     stop_win_triggered = _update_state_manager_and_check_stop_win(orch, target, pnl)
 
     if stop_win_triggered:
-        orch.logger.debug("[C%04d] STOP_WIN | pnl_sessao=$%+.2f | alvo=$%.2f", orch._last_result_cycle_id, pnl, target)
+        orch.logger.debug(
+            "[C%04d] STOP_WIN | pnl_sessao=$%+.2f | alvo=$%.2f",
+            orch._last_result_cycle_id,
+            pnl,
+            target,
+        )
         orch.shutdown_reason = "stop_win"
         orch.running = False
         post_task = getattr(orch, "_post_settlement_task", None)

@@ -129,6 +129,7 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
             target = resolve_stop_win_target(self.config, self.initial_bankroll)
             if self.total_session_profit >= target:
                 return "stop_win"
+
         if (
             self.calculate_stake(
                 bankroll,

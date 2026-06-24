@@ -9,7 +9,6 @@ from src.application.services.orchestrator.execution_collect import (
     apply_recovery_hedge_to_candidates,
     collect_cluster_orders,
 )
-from src.application.services.orchestrator.execution_recovery_gate import cluster_entry_eligible
 from src.domain.models.trade import TradeDirection
 from tests.market_symbols import ANCHOR, HEDGE_PEER_SYMBOL, PAIR
 
@@ -244,29 +243,17 @@ def test_collect_cluster_orders_mandatory_does_not_skip_recovery_without_hedge()
         _trade_symbols=lambda: [PAIR],
     )
     decisions = {
-        PAIR: {"direction": TradeDirection.CALL, "metrics": {"raw_prob": 0.4, "execute": True}},
+        PAIR: {
+            "direction": TradeDirection.CALL,
+            "metrics": {
+                "raw_prob": 0.4,
+                "execute": True,
+                "trade_score": 0.55,
+                "val_accuracy": 0.52,
+                "deploy_ok": True,
+            },
+        },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
     assert len(orders) == 1
     assert orders[0][0] == PAIR
-
-
-def test_cluster_entry_recovery_accepts_mandatory_weak_with_pending_loss():
-    entry = {
-        "direction": TradeDirection.PUT,
-        "metrics": {
-            "execute": False,
-            "trade_score": 0.51,
-            "val_accuracy": 0.59,
-            "raw_prob": 0.49,
-            "deploy_ok": True,
-        },
-    }
-    assert cluster_entry_eligible(
-        entry,
-        mandatory=True,
-        recovery_active=True,
-        recovery_cfg={},
-        min_signal=0.50,
-        min_val=0.50,
-    )

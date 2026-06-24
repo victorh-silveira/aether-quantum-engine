@@ -26,7 +26,8 @@ async def main():
         KeyboardInterrupt,
     ):
         await orchestrator.stop()
-    if getattr(orchestrator, "shutdown_reason", None) == "stop_win":
+    reason = getattr(orchestrator, "shutdown_reason", None)
+    if reason == "stop_win":
         target = orchestrator.risk_manager.total_session_profit
         logger.info("STOP_WIN: meta diaria atingida (pnl_sessao=$%+.2f). Motor encerrado.", target)
         raise SystemExit(0)
