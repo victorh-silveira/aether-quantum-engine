@@ -5,9 +5,9 @@ from src.domain.risk.stake_sizing import enrich_metrics_conviction, raw_side_fro
 from src.domain.symbols.range_symbols import HEDGE_PEER, hedge_peer, is_high_side
 
 
-_MANDATORY_HARD_BLOCKS = frozenset({"trend_conflict", "exhaustion_conflict"})
-_MANDATORY_POOL_HARD_BLOCKS = frozenset({"trend_conflict", "exhaustion_conflict"})
-_FORCED_ENTRY_HARD_BLOCKS = frozenset({"trend_conflict", "exhaustion_conflict"})
+_MANDATORY_HARD_BLOCKS = frozenset({"trend_conflict", "exhaustion_conflict", "symbol_cooldown", "session_pause"})
+_MANDATORY_POOL_HARD_BLOCKS = frozenset({"trend_conflict", "exhaustion_conflict", "symbol_cooldown", "session_pause"})
+_FORCED_ENTRY_HARD_BLOCKS = frozenset({"trend_conflict", "exhaustion_conflict", "symbol_cooldown", "session_pause"})
 
 
 def infer_dl_direction(entry: dict) -> TradeDirection | None:

@@ -183,7 +183,7 @@
       "recovery_force_pending_min": 0,
       "recovery_min_val_accuracy": 0.50,
       "recovery_martingale_always": true,
-      "recovery_martingale_max_losses_per_symbol": 0,
+      "recovery_martingale_max_losses_per_symbol": 3,
       "martingale_sizing_conviction": 0.0,
       "recovery_martingale_min_conviction": 0.0,
       "martingale_min_val_accuracy": 0.50,
@@ -201,7 +201,7 @@
       "stop_win_kelly_min_fraction": 0.0,
       "stop_win_martingale_progress_fraction": 0.0,
       "symbol_loss_cooldown_candles": 0,
-      "symbol_loss_cooldown_cycles": 0
+      "symbol_loss_cooldown_cycles": 2
     },
     "large_account_stop_win_pct": 4.0,
     "params": {

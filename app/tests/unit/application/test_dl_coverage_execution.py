@@ -262,5 +262,11 @@ def test_apply_symbol_loss_cooldown_session_pause():
     orch._dl_session_pause = {"R_50": 3}
     entry = {"metrics": {"execute": True}}
     out = apply_symbol_loss_cooldown(orch, "R_50", entry)
-    assert out["metrics"].get("gate_reason") is None
-    assert out["metrics"]["execute"] is True
+    assert out["metrics"].get("gate_reason") == "session_pause"
+    assert out["metrics"]["execute"] is False
+
+
+def test_apply_symbol_loss_cooldown_empty_entry():
+    orch = SimpleNamespace(risk_manager=MagicMock())
+    assert apply_symbol_loss_cooldown(orch, "R_50", {}) == {}
+    assert apply_symbol_loss_cooldown(orch, "R_50", None) is None

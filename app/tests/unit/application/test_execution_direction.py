@@ -47,8 +47,22 @@ def test_mandatory_execution_eligible_rejects_hard_blocks():
 
 
 def test_mandatory_execution_eligible_rejects_training_and_pause():
-    for gate in ("training", "session_pause"):
-        entry = {
+    # 'training' is not a hard block, so it should be eligible (True)
+    entry_training = {
+        "direction": TradeDirection.CALL,
+        "metrics": {
+            "execute": False,
+            "gate_reason": "training",
+            "conviction": 0.7,
+            "raw_prob": 0.62,
+            "val_accuracy": 0.60,
+        },
+    }
+    assert mandatory_execution_eligible(entry_training) is True
+
+    # 'session_pause' and 'symbol_cooldown' are hard blocks, so they should NOT be eligible (False)
+    for gate in ("session_pause", "symbol_cooldown"):
+        entry_blocked = {
             "direction": TradeDirection.CALL,
             "metrics": {
                 "execute": False,
@@ -58,7 +72,7 @@ def test_mandatory_execution_eligible_rejects_training_and_pause():
                 "val_accuracy": 0.60,
             },
         }
-        assert mandatory_execution_eligible(entry) is True
+        assert mandatory_execution_eligible(entry_blocked) is False
 
 
 def test_mandatory_execution_eligible_accepts_weak_signal():

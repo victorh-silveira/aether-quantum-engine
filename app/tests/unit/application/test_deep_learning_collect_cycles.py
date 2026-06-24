@@ -195,8 +195,8 @@ async def test_collect_applies_symbol_loss_cooldown():
         ),
     ):
         decisions = await collect_deep_learning_decisions(orch)
-    assert decisions["R_50"]["metrics"]["execute"] is True
-    assert decisions["R_50"]["metrics"].get("gate_reason") is None
+    assert decisions["R_50"]["metrics"]["execute"] is False
+    assert decisions["R_50"]["metrics"].get("gate_reason") == "symbol_cooldown"
 
 
 @pytest.mark.asyncio
