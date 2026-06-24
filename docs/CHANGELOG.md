@@ -1,3 +1,9 @@
+## [1.10.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.9.0...v1.10.0) (2026-06-24)
+
+### Funcionalidades
+
+* **risk:** remove limitacoes e disjuntores de martingale ([3912cbd](https://github.com/victorh-silveira/aether-quantum-engine/commit/3912cbd5d39d73449d9e2c147926338f42a1ee7e))
+
 ## [1.9.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.8.0...v1.9.0) (2026-06-24)
 
 ### Funcionalidades
