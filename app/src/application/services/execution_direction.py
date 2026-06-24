@@ -154,8 +154,5 @@ def _entry_gate_blocked(metrics: dict) -> bool:
     """Indica bloqueio absoluto para fallback obrigatorio de execucao."""
     if metrics.get("deploy_ok") is False:
         return True
-    val_acc = float(metrics.get("val_accuracy", 0.50))
-    if 0.46 <= val_acc < 0.50:
-        return True
     gate = str(metrics.get("gate_reason") or "")
     return gate in _FORCED_ENTRY_HARD_BLOCKS

@@ -39,9 +39,6 @@ def mandatory_pool_eligible(
         return False
     if metrics.get("deploy_ok") is False:
         return False
-    val_acc = float(metrics.get("val_accuracy", 0.50))
-    if 0.46 <= val_acc < 0.50:
-        return False
     return (
         resolve_market_direction(
             entry,
@@ -60,8 +57,8 @@ def _resolve_low_accuracy(
     rsi: float,
     keltner: float,
 ) -> TradeDirection | None:
-    """Aplica inversao inteligente se val_accuracy < 0.46."""
-    if val_acc >= 0.46:
+    """Aplica inversao inteligente se val_accuracy < 0.50."""
+    if val_acc >= 0.50:
         return None
     if trend_str:
         with contextlib.suppress(KeyError, ValueError):
@@ -200,7 +197,7 @@ def market_decision_score(
     raw_side = _raw_side(metrics)
     val = float(metrics.get("val_accuracy", 0.0))
     edge = float(metrics.get("edge", abs(raw_side - 0.5)))
-    composite = raw_side * 0.55 + val * 0.25 + edge * 0.20
+    composite = raw_side * 0.45 + val * 0.35 + edge * 0.20
     if metrics.get("execute"):
         composite += 0.05
     if metrics.get("deploy_ok"):

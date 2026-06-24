@@ -35,19 +35,21 @@ def test_gather_cluster_candidates_skips_unbuildable_direction():
     assert candidates == []
 
 
-def test_collect_cluster_orders_warns_on_grey_zone():
+def test_collect_cluster_orders_inverts_on_grey_zone():
     orch = SimpleNamespace(
         anchor=ANCHOR,
         symbols=[PAIR],
         config={
             "orchestrator": {"execution": {"include_anchor_trades": False}},
             "deep_learning": {"recovery_gating": {}},
+            "risk_management": {"kelly": {}},
         },
         risk_manager=SimpleNamespace(
             pending_loss={},
             last_loss_symbol=None,
             last_loss_direction=None,
             consecutive_losses=0,
+            kelly_config={},
         ),
         _active_cycle_id=15,
         _dl_brief_last_logged=None,
@@ -73,8 +75,9 @@ def test_collect_cluster_orders_warns_on_grey_zone():
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
-    assert orders == []
-    assert any("zona cinza" in str(call.args[0]) for call in logger_mock.info.call_args_list)
+    assert len(orders) == 1
+    assert orders[0][0] == PAIR
+    assert orders[0][1] == TradeDirection.PUT  # Invertido de CALL para PUT
 
 
 def test_cluster_entry_recovery_accepts_mandatory_weak_with_pending_loss():
@@ -98,7 +101,7 @@ def test_cluster_entry_recovery_accepts_mandatory_weak_with_pending_loss():
     )
 
 
-def test_collect_cluster_orders_disables_absolute_zero_fallback_in_recovery():
+def test_collect_cluster_orders_allows_absolute_zero_fallback_in_recovery():
     orch = SimpleNamespace(
         anchor=ANCHOR,
         symbols=[ANCHOR, PAIR],
@@ -139,4 +142,6 @@ def test_collect_cluster_orders_disables_absolute_zero_fallback_in_recovery():
             },
         },
     }
-    assert collect_cluster_orders(exec_mgr, decisions) == []
+    orders = collect_cluster_orders(exec_mgr, decisions)
+    assert len(orders) == 1
+    assert orders[0][0] == PAIR

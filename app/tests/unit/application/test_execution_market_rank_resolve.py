@@ -104,9 +104,9 @@ def test_resolve_market_direction_unreliable_accuracy_no_inversion():
             "execute": True,
         },
     }
-    # Acurácia de 0.49 está na zona cinza (não confiável), não inverte, deve seguir dl_dir (CALL)
-    assert resolve_market_direction(entry) == TradeDirection.CALL
-    assert entry["metrics"].get("direction_inverted") is not True
+    # Acurácia de 0.49 está abaixo de 0.50, portanto DEVE inverter (inverte CALL para PUT)
+    assert resolve_market_direction(entry) == TradeDirection.PUT
+    assert entry["metrics"].get("direction_inverted") is True
 
 
 def test_mandatory_pool_eligible_grey_zone():
@@ -122,7 +122,7 @@ def test_mandatory_pool_eligible_grey_zone():
         "direction": TradeDirection.CALL,
         "metrics": {"val_accuracy": 0.42, "raw_prob": 0.80, "execute": False},
     }
-    assert mandatory_pool_eligible(entry_grey) is False
+    assert mandatory_pool_eligible(entry_grey) is True
     assert mandatory_pool_eligible(entry_good) is True
     assert mandatory_pool_eligible(entry_inverted) is True
 
@@ -131,7 +131,7 @@ def test_entry_gate_blocked_grey_zone():
     metrics_grey = {"val_accuracy": 0.49, "raw_prob": 0.80, "execute": False}
     metrics_good = {"val_accuracy": 0.55, "raw_prob": 0.80, "execute": True}
     metrics_inverted = {"val_accuracy": 0.42, "raw_prob": 0.80, "execute": False}
-    assert _entry_gate_blocked(metrics_grey) is True
+    assert _entry_gate_blocked(metrics_grey) is False
     assert _entry_gate_blocked(metrics_good) is False
     assert _entry_gate_blocked(metrics_inverted) is False
 

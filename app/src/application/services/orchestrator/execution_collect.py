@@ -15,7 +15,6 @@ from src.application.services.execution_symbols_recovery import (
     apply_recovery_direction_flip,
     pending_recovery_active,
 )
-from src.application.services.log_dedupe import log_info_if_changed
 from src.application.services.orchestrator.execution_collect_helpers import (
     apply_recovery_hedge_to_candidates,
     extract_collect_params,
@@ -203,7 +202,7 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
                 mean_reversion_enabled=mean_reversion,
                 low_accuracy_enabled=low_accuracy,
             )
-            if ultimate is None and not recovery_active:
+            if ultimate is None:
                 ultimate = pick_absolute_mandatory_candidate(
                     exec_mgr._trade_symbols(),
                     decisions,
@@ -240,20 +239,4 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
         log_execution_decision(exec_mgr, cid, best, candidates, effective_signal)
         return [best]
 
-    grey_zone_symbols = []
-    for symbol, entry in decisions.items():
-        metrics = entry.get("metrics") or {}
-        val = float(metrics.get("val_accuracy", 0.50))
-        if 0.46 <= val < 0.50:
-            grey_zone_symbols.append(f"{symbol}(v={val:.2f})")
-    if grey_zone_symbols:
-        log_info_if_changed(
-            exec_mgr.orch,
-            exec_mgr.logger,
-            "exec_skip_grey",
-            ", ".join(grey_zone_symbols),
-            "[%s] EXEC_SKIP || %s | acuracia na zona cinza [0.46, 0.50) | ignorando execucao obrigatoria por seguranca",
-            cid,
-            ", ".join(grey_zone_symbols),
-        )
     return []
