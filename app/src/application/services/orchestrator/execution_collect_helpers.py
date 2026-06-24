@@ -90,8 +90,18 @@ def extract_collect_params(exec_mgr, dl_cfg: dict, *, recovery_active: bool) -> 
     recovery_skip = recovery_blocked_symbols(exec_mgr.orch.risk_manager, kelly_cfg) if recovery_active else frozenset()
     skip_symbols = proposal_skip | recovery_skip
     pending_total = sum(float(v) for v in getattr(exec_mgr.orch.risk_manager, "pending_loss", {}).values())
-    min_signal = recovery_min_signal(kelly_cfg, recovery_active=recovery_active, pending_total=pending_total)
-    min_val = recovery_min_val_accuracy(kelly_cfg) if recovery_active else float(dl_cfg.get("min_val_accuracy", 0.54))
+    consecutive_losses = getattr(exec_mgr.orch.risk_manager, "consecutive_losses", 0)
+    min_signal = recovery_min_signal(
+        kelly_cfg,
+        recovery_active=recovery_active,
+        pending_total=pending_total,
+        consecutive_losses=consecutive_losses,
+    )
+    min_val = (
+        recovery_min_val_accuracy(kelly_cfg, consecutive_losses=consecutive_losses)
+        if recovery_active
+        else float(dl_cfg.get("min_val_accuracy", 0.54))
+    )
     last_loss = getattr(exec_mgr.orch.risk_manager, "last_loss_symbol", None)
     last_loss_dir = getattr(exec_mgr.orch.risk_manager, "last_loss_direction", None)
     exec_cfg = exec_mgr.orch.config.get("orchestrator", {}).get("execution", {})
