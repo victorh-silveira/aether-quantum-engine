@@ -170,6 +170,7 @@ def _recovery_score_adjustment(
     exec_direction: TradeDirection | None,
     last_loss_symbol: str | None,
     last_loss_direction: str | None,
+    metrics: dict | None = None,
 ) -> float:
     """Aplica bonus e penalidades de recovery ao score composto."""
     if not recovery_active:
@@ -181,6 +182,28 @@ def _recovery_score_adjustment(
     if last_loss_direction and exec_direction is not None:
         ld = str(last_loss_direction).upper()
         composite += 0.03 if exec_direction.name != ld else -0.12
+
+    # Smart Recovery Gating por Volatilidade & Tendência
+    if metrics:
+        indicators = metrics.get("indicators") or {}
+        adx = float(indicators.get("adx", 0.20))
+        vol_ratio = float(indicators.get("vol_ratio", 0.90))
+        hurst = float(indicators.get("hurst", 0.50))
+
+        # 1. Penalidade de Sem Tendência
+        if adx < 0.18:
+            composite -= 0.08
+        # 2. Bônus de Tendência Saudável
+        elif adx >= 0.24 and vol_ratio >= 1.0:
+            composite += 0.05
+
+        # 3. Bônus de Consistência
+        if hurst > 0.58:
+            composite += 0.03
+        # 4. Penalidade de Ruído Errático
+        elif hurst < 0.45:
+            composite -= 0.04
+
     return composite
 
 
@@ -212,6 +235,7 @@ def market_decision_score(
         exec_direction=exec_direction,
         last_loss_symbol=last_loss_symbol,
         last_loss_direction=last_loss_direction,
+        metrics=metrics,
     )
 
 

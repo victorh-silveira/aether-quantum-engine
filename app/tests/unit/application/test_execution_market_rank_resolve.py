@@ -1,5 +1,9 @@
 from src.application.services.execution_direction import _entry_gate_blocked
-from src.application.services.execution_market_rank import mandatory_pool_eligible, resolve_market_direction
+from src.application.services.execution_market_rank import (
+    mandatory_pool_eligible,
+    market_decision_score,
+    resolve_market_direction,
+)
 from src.domain.models.trade import TradeDirection
 
 
@@ -171,3 +175,88 @@ def test_resolve_market_direction_low_accuracy_disabled():
     # With low accuracy inversion disabled, it should not invert CALL to PUT
     assert resolve_market_direction(entry, low_accuracy_enabled=False) == TradeDirection.CALL
     assert entry["metrics"].get("direction_inverted") is not True
+
+
+def test_market_decision_score_smart_recovery_gating():
+    # Caso 1: Sem recovery_active, pontuação padrão
+    metrics = {
+        "val_accuracy": 0.55,
+        "raw_prob": 0.80,
+        "edge": 0.30,
+        "execute": True,
+        "deploy_ok": True,
+        "indicators": {
+            "adx": 0.15,  # Sem tendência
+            "vol_ratio": 0.60,
+            "hurst": 0.50,
+        },
+    }
+    # composite calculado com base nos pesos de raw_prob, val_accuracy e edge
+    # o valor esperado final e de 0.6925
+    score_normal = market_decision_score(metrics, recovery_active=False)
+    assert abs(score_normal - 0.6925) < 1e-6
+
+    # Caso 2: Em recovery_active, mas com ADX baixo (< 0.18) -> Aplica penalidade -0.08
+    # indicadores: adx=0.15 (< 0.18) -> -0.08
+    # mesma direção -> -0.12
+    score_recovery_flat = market_decision_score(
+        metrics,
+        recovery_active=True,
+        symbol="R_10",
+        exec_direction=TradeDirection.CALL,
+        last_loss_symbol="R_10",
+        last_loss_direction="CALL",
+    )
+    # composite_rec = 0.6925 - 0.12 (mesma dir) - 0.08 (flatline ADX) = 0.4925
+    assert abs(score_recovery_flat - 0.4925) < 1e-6
+
+    # Caso 3: Em recovery_active, com ADX alto (>= 0.24) e Vol Ratio alto (>= 1.0) -> Bônus +0.05
+    # Hurst > 0.58 -> Bônus +0.03
+    metrics_trending = {
+        "val_accuracy": 0.55,
+        "raw_prob": 0.80,
+        "edge": 0.30,
+        "execute": True,
+        "deploy_ok": True,
+        "indicators": {
+            "adx": 0.28,  # Forte tendência -> +0.05
+            "vol_ratio": 1.10,
+            "hurst": 0.62,  # Persistente -> +0.03
+        },
+    }
+    # o valor esperado sob condicoes normais e de 0.6925
+    score_recovery_trending = market_decision_score(
+        metrics_trending,
+        recovery_active=True,
+        symbol="R_50",  # Cluster core -> +0.03
+        exec_direction=TradeDirection.PUT,
+        last_loss_symbol="R_10",  # Diversificação -> +0.04
+        last_loss_direction="CALL",  # Direção dif -> +0.03
+    )
+    # composite_rec = 0.6925 + 0.03 (core) + 0.04 (symbol diff) + 0.03 (dir diff) + 0.05 (ADX/Vol) + 0.03 (Hurst)
+    # composite_rec = 0.6925 + 0.18 = 0.8725
+    assert abs(score_recovery_trending - 0.8725) < 1e-6
+
+    # Caso 4: Hurst < 0.45 -> Penalidade -0.04
+    metrics_erratic = {
+        "val_accuracy": 0.55,
+        "raw_prob": 0.80,
+        "edge": 0.30,
+        "execute": True,
+        "deploy_ok": True,
+        "indicators": {
+            "adx": 0.20,
+            "vol_ratio": 0.90,
+            "hurst": 0.42,  # Ruído errático -> -0.04
+        },
+    }
+    score_recovery_erratic = market_decision_score(
+        metrics_erratic,
+        recovery_active=True,
+        symbol="R_10",
+        exec_direction=TradeDirection.PUT,
+        last_loss_symbol="R_10",
+        last_loss_direction="CALL",  # Direção dif -> +0.03
+    )
+    # composite_rec = 0.6925 + 0.03 (dir diff) - 0.04 (Hurst) = 0.6825
+    assert abs(score_recovery_erratic - 0.6825) < 1e-6

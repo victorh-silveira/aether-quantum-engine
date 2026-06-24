@@ -30,8 +30,8 @@
     "enabled": true,
     "bootstrap_max_wait_rounds": 240,
     "calib_ratio": 0.15,
-    "confidence_call_threshold": 0.50,
-    "confidence_put_threshold": 0.50,
+    "confidence_call_threshold": 0.53,
+    "confidence_put_threshold": 0.47,
     "min_edge_execute": 0.00,
     "train_symbols": [
       "R_10",
@@ -42,8 +42,8 @@
     ],
     "selection": {
       "min_val_accuracy": 0.50,
-      "confidence_call_threshold": 0.50,
-      "confidence_put_threshold": 0.50
+      "confidence_call_threshold": 0.53,
+      "confidence_put_threshold": 0.47
     },
     "recovery_gating": {
       "min_conviction_execute": 0.50,
