@@ -1,3 +1,9 @@
+## [1.11.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.10.0...v1.11.0) (2026-06-24)
+
+### Funcionalidades
+
+* **orchestrator:** unifica inversao inteligente e habilita operacao continua ([819872b](https://github.com/victorh-silveira/aether-quantum-engine/commit/819872bf1bfb0e16f20a0db01595f7d855c48eed))
+
 ## [1.10.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.9.0...v1.10.0) (2026-06-24)
 
 ### Funcionalidades
