@@ -1,3 +1,13 @@
+## [1.12.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.11.0...v1.12.0) (2026-06-25)
+
+### Funcionalidades
+
+* **orchestrator:** adiciona smart recovery gating por volatilidade ([36a0852](https://github.com/victorh-silveira/aether-quantum-engine/commit/36a0852ea1466f0c0abfc9d8c743b67e10c657d5))
+
+### Correcoes de Bug
+
+* **orchestrator:** impede fallback de qualidade zero em modo recuperacao ([6dbe094](https://github.com/victorh-silveira/aether-quantum-engine/commit/6dbe094e35d0e1044cdade1ab065c93c3cc215be))
+
 ## [1.11.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.10.0...v1.11.0) (2026-06-24)
 
 ### Funcionalidades
