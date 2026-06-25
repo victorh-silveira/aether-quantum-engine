@@ -101,7 +101,7 @@ def test_cluster_entry_recovery_accepts_mandatory_weak_with_pending_loss():
     )
 
 
-def test_collect_cluster_orders_allows_absolute_zero_fallback_in_recovery():
+def test_collect_cluster_orders_disallows_absolute_zero_fallback_in_recovery():
     orch = SimpleNamespace(
         anchor=ANCHOR,
         symbols=[ANCHOR, PAIR],
@@ -143,5 +143,4 @@ def test_collect_cluster_orders_allows_absolute_zero_fallback_in_recovery():
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
-    assert len(orders) == 1
-    assert orders[0][0] == PAIR
+    assert orders == []

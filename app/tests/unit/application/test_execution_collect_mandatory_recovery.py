@@ -135,3 +135,41 @@ def test_collect_cluster_orders_recovery_skips_weak_signal():
     orders = collect_cluster_orders(exec_mgr, decisions)
     assert len(orders) == 1
     assert orders[0][1] == TradeDirection.PUT
+
+
+def test_collect_cluster_orders_mandatory_skips_in_recovery_if_quality_below_threshold():
+    orch = SimpleNamespace(
+        anchor=ANCHOR,
+        symbols=[ANCHOR],
+        config={"orchestrator": {"execution": {}}},
+        risk_manager=SimpleNamespace(
+            pending_loss={ANCHOR: 4.0},
+            last_loss_symbol=ANCHOR,
+            last_loss_direction="PUT",
+            consecutive_losses=1,
+            recovery_symbol_loss_streak={},
+            symbol_loss_cooldown={},
+        ),
+        _active_cycle_id=15,
+    )
+    exec_mgr = SimpleNamespace(
+        orch=orch,
+        logger=MagicMock(),
+        _mandatory_trade_each_cycle=lambda: True,
+        _trade_symbols=lambda: [ANCHOR],
+    )
+    decisions = {
+        ANCHOR: {
+            "direction": TradeDirection.CALL,
+            "metrics": {
+                "execute": False,
+                "deploy_ok": True,
+                "trade_score": 0.40,
+                "val_accuracy": 0.45,
+                "raw_prob": 0.51,
+            },
+        },
+    }
+    # Em recuperacao, nao deve executar o fallback com qualidade zero (retorna [] - abster-se)
+    orders = collect_cluster_orders(exec_mgr, decisions)
+    assert orders == []

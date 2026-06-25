@@ -202,7 +202,7 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
                 mean_reversion_enabled=mean_reversion,
                 low_accuracy_enabled=low_accuracy,
             )
-            if ultimate is None:
+            if ultimate is None and not recovery_active:
                 ultimate = pick_absolute_mandatory_candidate(
                     exec_mgr._trade_symbols(),
                     decisions,
