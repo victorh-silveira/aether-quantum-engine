@@ -1,8 +1,5 @@
 """Testes de cobertura para RiskManager Kelly."""
 
-import time
-from unittest.mock import patch
-
 from src.domain.risk.risk_manager import RiskManager
 
 
@@ -15,15 +12,15 @@ def test_risk_manager_rolling_wins_cap():
     assert n == 100
 
 
-def test_risk_manager_cooldown_active():
-    """Cobre o estado de cooldown ativo."""
+def test_risk_manager_cooldown_always_inactive():
+    """Garante que o cooldown de ticks permanece inativo."""
     rm = RiskManager({"params": {"entry_cooldown_ticks": 10}})
     rm.last_result_tick = 100
-    assert rm.is_on_cooldown(105) is True
+    assert rm.is_on_cooldown(105) is False
     assert rm.is_on_cooldown(115) is False
 
 
-def test_risk_manager_high_conviction_shorter_cooldown():
+def test_risk_manager_high_conviction_no_cooldown():
     rm = RiskManager(
         {
             "params": {
@@ -36,8 +33,8 @@ def test_risk_manager_high_conviction_shorter_cooldown():
     rm.current_cooldown_ticks = 12
     rm.register_entry_conviction(0.9)
     rm.last_result_tick = 100
-    assert rm.effective_cooldown_ticks() == 6
-    assert rm.is_on_cooldown(105) is True
+    assert rm.effective_cooldown_ticks() == 0
+    assert rm.is_on_cooldown(105) is False
     assert rm.is_on_cooldown(107) is False
 
 
@@ -59,31 +56,31 @@ def test_risk_manager_effective_cooldown_when_active_zero():
 def test_risk_manager_effective_cooldown_target_zero():
     rm = RiskManager({"params": {"entry_cooldown_ticks": 0}})
     rm.current_cooldown_ticks = 8
-    assert rm.effective_cooldown_ticks() == 8
+    assert rm.effective_cooldown_ticks() == 0
 
 
-def test_risk_manager_seconds_cooldown_active():
+def test_risk_manager_seconds_cooldown_inactive():
     rm = RiskManager({"params": {"entry_cooldown_seconds": 30}})
     rm.register_entry_conviction(0.7)
     rm._arm_cooldown_timer()
-    assert rm._uses_seconds_cooldown() is True
-    assert rm.is_on_cooldown(1) is True
+    assert rm._uses_seconds_cooldown() is False
+    assert rm.is_on_cooldown(1) is False
 
 
-def test_cooldown_span_uses_candle_interval_without_tick_seconds_override():
+def test_cooldown_span_seconds_always_zero():
     rm = RiskManager({"params": {"entry_cooldown_ticks": 3}})
     rm.set_candle_interval_seconds(120)
     rm.current_cooldown_ticks = 3
-    assert rm._cooldown_span_seconds() == 360.0
+    assert rm._cooldown_span_seconds() == 0.0
 
 
-def test_is_on_cooldown_true_while_mono_timer_active():
+def test_is_on_cooldown_always_false_with_mono_timer():
     rm = RiskManager({"params": {"entry_cooldown_ticks": 5}})
-    rm._cooldown_until_mono = time.monotonic() + 120.0
-    assert rm.is_on_cooldown(0) is True
+    rm._cooldown_until_mono = 120.0
+    assert rm.is_on_cooldown(0) is False
 
 
-def test_cooldown_span_uses_tick_seconds_override():
+def test_cooldown_span_with_override_always_zero():
     rm = RiskManager(
         {
             "params": {
@@ -93,7 +90,7 @@ def test_cooldown_span_uses_tick_seconds_override():
         }
     )
     rm.current_cooldown_ticks = 4
-    assert rm._cooldown_span_seconds() == 60.0
+    assert rm._cooldown_span_seconds() == 0.0
 
 
 def test_risk_manager_no_cooldown_after_cluster_finalize():
@@ -121,11 +118,11 @@ def test_stake_block_reason_stop_win():
     assert rm.stake_block_reason(50.0, "R_50") == "stop_win"
 
 
-def test_arm_cooldown_zero_ticks_clears_timer():
+def test_arm_cooldown_timer_no_op():
     rm = RiskManager({"params": {"entry_cooldown_ticks": 0}})
     rm._cooldown_until_mono = 999.0
     rm._arm_cooldown_timer()
-    assert rm._cooldown_until_mono == 0.0
+    assert rm._cooldown_until_mono == 999.0
     assert rm.is_on_cooldown(99) is False
 
 
@@ -140,23 +137,22 @@ def test_stake_block_reason_kelly_no_edge():
     assert rm.stake_block_reason(100.0, "R_50", conviction=0.05) == "kelly_no_edge"
 
 
-def test_cooldown_mono_expiry_falls_back_to_ticks():
+def test_cooldown_mono_expiry_fallback_no_op():
     rm = RiskManager({"params": {"entry_cooldown_ticks": 10}})
     rm.set_candle_interval_seconds(60)
     rm._cooldown_until_mono = 0.0
     rm.last_result_tick = 100
     rm.current_cooldown_ticks = 10
-    assert rm.is_on_cooldown(105) is True
+    assert rm.is_on_cooldown(105) is False
     assert rm.cooldown_remaining_seconds() == 0.0
 
 
-def test_is_on_cooldown_clears_expired_mono_timer():
+def test_is_on_cooldown_expired_mono_timer_no_op():
     rm = RiskManager({"params": {"entry_cooldown_ticks": 10}})
     rm._cooldown_until_mono = 0.01
     rm.last_result_tick = 0
-    with patch("src.domain.risk.risk_cooldown.time.monotonic", return_value=1.0):
-        assert rm.is_on_cooldown(0) is False
-    assert rm._cooldown_until_mono == 0.0
+    assert rm.is_on_cooldown(0) is False
+    assert rm._cooldown_until_mono == 0.01
 
 
 def test_risk_manager_missing_coverage():

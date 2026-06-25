@@ -14,7 +14,6 @@ from src.application.services.deep_learning.dl_outcomes import (
     is_symbol_session_paused,
     live_win_rate,
     maybe_pause_symbol_session,
-    recent_loss_count,
     tick_dl_session_pauses,
 )
 from src.application.services.deep_learning.dl_params import (
@@ -158,10 +157,9 @@ def test_live_win_rate_and_blended():
 
 def test_session_pause_helpers():
     orch = SimpleNamespace(_dl_session_pause={"R_50": 2})
-    assert is_symbol_session_paused(orch, "R_50")
+    # Sempre deve retornar False agora que as pausas estao desativadas
+    assert is_symbol_session_paused(orch, "R_50") is False
     tick_dl_session_pauses(orch)
-    assert orch._dl_session_pause["R_50"] == 1
-    assert recent_loss_count(SimpleNamespace(_dl_outcome_flags={}), "R_50") == 0
 
 
 def test_maybe_pause_symbol_session():
@@ -171,5 +169,6 @@ def test_maybe_pause_symbol_session():
             "deep_learning": {"session_max_losses_in_window": 2, "session_window_trades": 3, "session_pause_cycles": 4}
         },
     )
+    # Nao deve criar nenhuma entrada de pausa (no-op)
     maybe_pause_symbol_session(orch, "R_50", max_losses_in_window=2, window_trades=3, pause_cycles=4)
-    assert orch._dl_session_pause["R_50"] == 4
+    assert not hasattr(orch, "_dl_session_pause")

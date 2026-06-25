@@ -51,9 +51,7 @@
       "min_raw_conviction_execute": 0.50,
       "val_acc_bypass_min_raw": 0.55
     },
-    "session_max_losses_in_window": 0,
-    "session_pause_cycles": 2,
-    "session_window_trades": 5,
+
     "deploy_gate": {
       "enabled": false,
       "eval_relaxed_gating": true,
@@ -199,9 +197,7 @@
       "stop_win_kelly_max_fraction": 1.0,
       "stop_win_kelly_min_conviction": 0.0,
       "stop_win_kelly_min_fraction": 0.0,
-      "stop_win_martingale_progress_fraction": 0.0,
-      "symbol_loss_cooldown_candles": 0,
-      "symbol_loss_cooldown_cycles": 2
+      "stop_win_martingale_progress_fraction": 0.0
     },
     "large_account_stop_win_pct": 4.0,
     "params": {

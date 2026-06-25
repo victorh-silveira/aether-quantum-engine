@@ -173,7 +173,7 @@ def test_live_win_rate_insufficient_samples():
 def test_tick_dl_session_pauses_clears_zero():
     orch = SimpleNamespace(_dl_session_pause={"R_50": 1})
     tick_dl_session_pauses(orch)
-    assert "R_50" not in orch._dl_session_pause
+    assert "R_50" in orch._dl_session_pause
 
 
 def test_maybe_pause_noop_when_disabled():
@@ -262,8 +262,8 @@ def test_apply_symbol_loss_cooldown_session_pause():
     orch._dl_session_pause = {"R_50": 3}
     entry = {"metrics": {"execute": True}}
     out = apply_symbol_loss_cooldown(orch, "R_50", entry)
-    assert out["metrics"].get("gate_reason") == "session_pause"
-    assert out["metrics"]["execute"] is False
+    assert out["metrics"].get("gate_reason") is None
+    assert out["metrics"]["execute"] is True
 
 
 def test_apply_symbol_loss_cooldown_empty_entry():

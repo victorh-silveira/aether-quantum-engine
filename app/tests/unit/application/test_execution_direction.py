@@ -60,7 +60,7 @@ def test_mandatory_execution_eligible_rejects_training_and_pause():
     }
     assert mandatory_execution_eligible(entry_training) is True
 
-    # 'session_pause' and 'symbol_cooldown' are hard blocks, so they should NOT be eligible (False)
+    # 'session_pause' e 'symbol_cooldown' nao sao mais hard blocks, entao devem ser elegiveis (True)
     for gate in ("session_pause", "symbol_cooldown"):
         entry_blocked = {
             "direction": TradeDirection.CALL,
@@ -72,7 +72,7 @@ def test_mandatory_execution_eligible_rejects_training_and_pause():
                 "val_accuracy": 0.60,
             },
         }
-        assert mandatory_execution_eligible(entry_blocked) is False
+        assert mandatory_execution_eligible(entry_blocked) is True
 
 
 def test_mandatory_execution_eligible_accepts_weak_signal():

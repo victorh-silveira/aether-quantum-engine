@@ -42,30 +42,16 @@ def blended_val_accuracy(
     return out
 
 
-def recent_loss_count(orch, symbol: str, *, window: int = 5) -> int:
-    """Conta losses no tail de resultados do simbolo."""
-    history = _symbol_history(orch, symbol)
-    if not history:
-        return 0
-    tail = history[-min(window, len(history)) :]
-    return sum(1 for x in tail if not x)
-
-
 def tick_dl_session_pauses(orch) -> None:
-    """Decrementa pausas de sessao por simbolo apos sequencia de losses."""
-    pauses = getattr(orch, "_dl_session_pause", None)
-    if not pauses:
-        return
-    for sym in list(pauses.keys()):
-        pauses[sym] = int(pauses[sym]) - 1
-        if pauses[sym] <= 0:
-            del pauses[sym]
+    """Decrementa pausas de sessao por simbolo (desativado)."""
+    pass
 
 
 def is_symbol_session_paused(orch, symbol: str) -> bool:
-    """Indica pausa longa apos sequencia de losses no simbolo."""
-    pauses = getattr(orch, "_dl_session_pause", {})
-    return int(pauses.get(str(symbol), 0)) > 0
+    """Indica pausa longa apos sequencia de losses no simbolo (sempre False)."""
+    _ = orch
+    _ = symbol
+    return False
 
 
 def maybe_pause_symbol_session(
@@ -76,14 +62,12 @@ def maybe_pause_symbol_session(
     window_trades: int,
     pause_cycles: int,
 ) -> None:
-    """Ativa pausa quando losses no tail excedem limiar configurado."""
-    if pause_cycles <= 0 or max_losses_in_window <= 0:
-        return
-    if recent_loss_count(orch, symbol, window=window_trades) < max_losses_in_window:
-        return
-    if not hasattr(orch, "_dl_session_pause"):
-        orch._dl_session_pause = {}
-    orch._dl_session_pause[str(symbol)] = int(pause_cycles)
+    """Ativa pausa quando losses no tail excedem limiar (desativado)."""
+    _ = orch
+    _ = symbol
+    _ = max_losses_in_window
+    _ = window_trades
+    _ = pause_cycles
 
 
 def record_symbol_outcome(orch, symbol: str, *, won: bool, candle_epoch: int | None = None) -> None:

@@ -2,7 +2,6 @@
 
 import numpy as np
 
-from src.application.services.deep_learning.dl_outcomes import is_symbol_session_paused
 from src.application.services.deep_learning.dl_params import optional_float, parse_dl_params
 
 
@@ -93,24 +92,9 @@ def pending_loss_total(orch) -> float:
 
 
 def apply_symbol_loss_cooldown(orch, symbol: str, entry: dict) -> dict:
-    """Bloqueia execucao por cooldown ou pausa de sessao por simbolo."""
-    if not entry:
-        return entry
-    is_paused = False
-    block_reason = None
-    if is_symbol_session_paused(orch, symbol):
-        is_paused = True
-        block_reason = "session_pause"
-    elif getattr(orch, "risk_manager", None) and orch.risk_manager.is_symbol_on_loss_cooldown(symbol):
-        is_paused = True
-        block_reason = "symbol_cooldown"
-    if is_paused:
-        entry = dict(entry)
-        entry["metrics"] = dict(entry.get("metrics", {}))
-        entry["metrics"]["execute"] = False
-        entry["metrics"]["gate_reason"] = block_reason
-        entry["metrics"]["block_reason"] = block_reason
-        entry["metrics"]["llm_note"] = f"Bloqueado por {block_reason} pos-loss do simbolo"
+    """Retorna a entrada sem aplicar cooldown ou pausa (desativado)."""
+    _ = orch
+    _ = symbol
     return entry
 
 

@@ -159,7 +159,7 @@ def test_build_mandatory_fallback_recovery_uses_dl_when_loss_direction_missing()
     decisions = {
         "R_50": {
             "direction": TradeDirection.CALL,
-            "metrics": {"execute": False, "gate_reason": "cooldown", "trade_score": 0.65, "val_accuracy": 0.55},
+            "metrics": {"execute": False, "gate_reason": "trend_conflict", "trade_score": 0.65, "val_accuracy": 0.55},
         },
         "R_75": {
             "direction": TradeDirection.CALL,
