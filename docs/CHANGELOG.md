@@ -1,3 +1,9 @@
+## [1.13.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.12.0...v1.13.0) (2026-06-25)
+
+### Funcionalidades
+
+* **risk:** remove por completo cooldowns, pausas e esperas ([d8ac76b](https://github.com/victorh-silveira/aether-quantum-engine/commit/d8ac76b7daa99c97652675634d69a976f08cac11))
+
 ## [1.12.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.11.0...v1.12.0) (2026-06-25)
 
 ### Funcionalidades
