@@ -38,13 +38,28 @@ def test_collect_cluster_orders_recovery_picks_dl_put_after_call_loss():
                 "execute": True,
                 "trade_score": 0.64,
                 "val_accuracy": 0.80,
-                "raw_prob": 0.48,
+                "raw_prob": 0.38,
                 "deploy_ok": True,
+                "trend_direction": "PUT",
+                "indicators": {
+                    "hurst": 0.55,
+                    "adx": 0.30,
+                    "vol_ratio": 1.10,
+                    "rsi": 0.50,
+                    "keltner": 0.50,
+                    "cmo": 0.0,
+                },
             },
         },
         LOW_SIDE_SYMBOL: {
             "direction": TradeDirection.CALL,
-            "metrics": {"execute": False, "trade_score": 0.49, "val_accuracy": 0.67, "deploy_ok": True},
+            "metrics": {
+                "execute": False,
+                "trade_score": 0.49,
+                "val_accuracy": 0.67,
+                "raw_prob": 0.51,
+                "deploy_ok": True,
+            },
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
@@ -170,6 +185,6 @@ def test_collect_cluster_orders_mandatory_skips_in_recovery_if_quality_below_thr
             },
         },
     }
-    # Em recuperacao, nao deve executar o fallback com qualidade zero (retorna [] - abster-se)
+    # Em recuperacao, candidatos tecnicos entram no pool mesmo com sinal fraco
     orders = collect_cluster_orders(exec_mgr, decisions)
-    assert orders == []
+    assert len(orders) == 1

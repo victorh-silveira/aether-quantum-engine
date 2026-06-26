@@ -2,10 +2,8 @@ import pytest
 
 from src.application.services.deep_learning.dl_gating import (
     direction_from_raw_prob,
-    gating_block_reason,
     resolve_confidence_thresholds,
     resolve_edge,
-    should_execute,
 )
 from src.domain.models.trade import TradeDirection
 
@@ -23,24 +21,13 @@ def test_confidence_thresholds_from_params():
     assert put_thr == 0.20
 
 
-def test_should_execute_strong_call():
-    assert should_execute(0.80, 0.55, min_val_accuracy=0.53) is True
-
-
-def test_gating_blocks_weak_signal():
-    assert gating_block_reason(0.52, 0.55) == "confidence"
-
-
-def test_gating_blocks_low_edge():
-    assert (
-        gating_block_reason(0.56, 0.55, min_val_accuracy=0.53, call_threshold=0.55, put_threshold=0.45, min_edge=0.08)
-        == "edge"
-    )
-
-
-def test_gating_blocks_low_val_accuracy():
-    assert gating_block_reason(0.80, 0.50, min_val_accuracy=0.53) == "val_acc"
+def test_direction_from_raw_prob_call():
+    assert direction_from_raw_prob(0.80) == TradeDirection.CALL
 
 
 def test_direction_from_raw_prob_put():
     assert direction_from_raw_prob(0.20) == TradeDirection.PUT
+
+
+def test_direction_from_raw_prob_gray_zone():
+    assert direction_from_raw_prob(0.52, call_threshold=0.75, put_threshold=0.25) is None

@@ -1,118 +1,196 @@
-from src.application.services.execution_mandatory_pick import _recovery_hedge_pick, pick_best_mandatory_candidate
-from src.application.services.execution_market_rank import resolve_market_direction
+from types import SimpleNamespace
+from unittest.mock import MagicMock
+
+from src.application.services.execution_direction_resolver import resolve_execution_direction
+from src.application.services.execution_mandatory_pick import (
+    _recovery_hedge_pick,
+    pick_best_mandatory_candidate,
+)
+from src.application.services.orchestrator.execution_collect import collect_cluster_orders
 from src.domain.models.trade import TradeDirection
+from tests.market_symbols import ANCHOR, LOW_SIDE_SYMBOL, PAIR
 
 
-def test_recovery_hedge_skips_blocked_peer():
-    decisions = {
-        "R_10": {
-            "direction": TradeDirection.CALL,
-            "metrics": {"trade_score": 0.62, "raw_prob": 0.58, "deploy_ok": True},
+def test_collect_cluster_orders_recovery_picks_dl_put_after_call_loss():
+    orch = SimpleNamespace(
+        anchor=ANCHOR,
+        symbols=[LOW_SIDE_SYMBOL, PAIR, ANCHOR],
+        config={
+            "orchestrator": {"execution": {"include_anchor_trades": True}},
+            "risk_management": {"kelly": {"mandatory_min_trade_score": 0.45}},
         },
-        "R_50": {
-            "direction": TradeDirection.PUT,
-            "metrics": {"trade_score": 0.70, "raw_prob": 0.42, "deploy_ok": True},
-        },
-    }
-    picked = pick_best_mandatory_candidate(
-        ["R_10", "R_50"],
-        decisions,
-        recovery_active=True,
-        last_loss_symbol="R_100",
-        last_loss_direction="PUT",
-        skip_symbols=frozenset({"R_10"}),
+        risk_manager=SimpleNamespace(
+            pending_loss={LOW_SIDE_SYMBOL: 1.37},
+            last_loss_symbol=LOW_SIDE_SYMBOL,
+            last_loss_direction="CALL",
+            consecutive_losses=1,
+            recovery_symbol_loss_streak={},
+            symbol_loss_cooldown={},
+        ),
+        _active_cycle_id=2,
     )
-    assert picked is not None
-    assert picked[0] != "R_10"
-
-
-def test_recovery_hedge_returns_none_without_raw_prob():
+    exec_mgr = SimpleNamespace(
+        orch=orch,
+        logger=MagicMock(),
+        _mandatory_trade_each_cycle=lambda: True,
+        _trade_symbols=lambda: [LOW_SIDE_SYMBOL, PAIR, ANCHOR],
+    )
     decisions = {
-        "R_10": {
-            "direction": None,
+        ANCHOR: {
+            "direction": TradeDirection.PUT,
             "metrics": {
+                "execute": True,
+                "trade_score": 0.64,
+                "val_accuracy": 0.80,
+                "raw_prob": 0.38,
+                "deploy_ok": True,
+                "trend_direction": "PUT",
+                "indicators": {
+                    "hurst": 0.55,
+                    "adx": 0.30,
+                    "vol_ratio": 1.10,
+                    "rsi": 0.50,
+                    "keltner": 0.50,
+                    "cmo": 0.0,
+                },
+            },
+        },
+        LOW_SIDE_SYMBOL: {
+            "direction": TradeDirection.CALL,
+            "metrics": {
+                "execute": False,
+                "trade_score": 0.49,
+                "val_accuracy": 0.67,
+                "raw_prob": 0.51,
                 "deploy_ok": True,
             },
         },
     }
-    picked = pick_best_mandatory_candidate(
-        ["R_10"],
-        decisions,
-        recovery_active=True,
-        last_loss_symbol="R_100",
-        last_loss_direction="PUT",
+    orders = collect_cluster_orders(exec_mgr, decisions)
+    assert len(orders) == 1
+    assert orders[0][0] == ANCHOR
+    assert orders[0][1] == TradeDirection.PUT
+
+
+def test_collect_cluster_orders_mandatory_keeps_weak_recovery_candidate():
+    orch = SimpleNamespace(
+        anchor=ANCHOR,
+        symbols=[ANCHOR],
+        config={"orchestrator": {"execution": {}}},
+        risk_manager=SimpleNamespace(
+            pending_loss={ANCHOR: 4.0},
+            last_loss_symbol=ANCHOR,
+            last_loss_direction="PUT",
+            consecutive_losses=1,
+            recovery_symbol_loss_streak={},
+            symbol_loss_cooldown={},
+        ),
+        _active_cycle_id=15,
     )
-    assert picked is None
-
-
-def test_recovery_hedge_pick_returns_none_without_resolvable_direction():
+    exec_mgr = SimpleNamespace(
+        orch=orch,
+        logger=MagicMock(),
+        _mandatory_trade_each_cycle=lambda: True,
+        _trade_symbols=lambda: [ANCHOR],
+    )
     decisions = {
-        "R_10": {
-            "direction": None,
-            "metrics": {"deploy_ok": True},
+        ANCHOR: {
+            "direction": TradeDirection.CALL,
+            "metrics": {
+                "execute": False,
+                "deploy_ok": True,
+                "trade_score": 0.40,
+                "val_accuracy": 0.45,
+                "raw_prob": 0.51,
+            },
         },
     }
-    picked = _recovery_hedge_pick(
-        decisions,
-        last_loss_symbol="R_100",
-        last_loss_direction="PUT",
-        skip_symbols=frozenset(),
-    )
-    assert picked is None
+    orders = collect_cluster_orders(exec_mgr, decisions)
+    assert len(orders) == 1
 
 
-def test_recovery_hedge_returns_none_when_peer_has_no_direction():
+def test_pick_best_mandatory_returns_hedge_when_quality_ok():
     decisions = {
-        "R_10": {
-            "direction": None,
-            "metrics": {"deploy_ok": True},
-        },
-        "R_50": {
-            "direction": TradeDirection.PUT,
-            "metrics": {"trade_score": 0.70, "raw_prob": 0.42, "deploy_ok": True},
-        },
-    }
-    picked = pick_best_mandatory_candidate(
-        ["R_10", "R_50"],
-        decisions,
-        recovery_active=True,
-        last_loss_symbol="R_100",
-        last_loss_direction="PUT",
-    )
-    assert picked is not None
-    assert picked[0] == "R_50"
-
-
-def test_pick_best_recovery_uses_range_hedge_peer():
-    decisions = {
-        "R_10": {
-            "direction": TradeDirection.PUT,
-            "metrics": {"trade_score": 0.62, "raw_prob": 0.44, "deploy_ok": True, "execute": True},
-        },
         "R_100": {
-            "direction": TradeDirection.PUT,
-            "metrics": {"trade_score": 0.70, "raw_prob": 0.42, "deploy_ok": True, "execute": True},
+            "direction": TradeDirection.CALL,
+            "metrics": {
+                "trade_score": 0.62,
+                "raw_prob": 0.62,
+                "val_accuracy": 0.60,
+                "deploy_ok": True,
+            },
         },
     }
     picked = pick_best_mandatory_candidate(
         ["R_10", "R_100"],
         decisions,
         recovery_active=True,
-        last_loss_symbol="R_100",
-        last_loss_direction="PUT",
+        last_loss_symbol="R_10",
+        last_loss_direction="CALL",
+        min_signal=0.45,
+        min_val=0.50,
     )
     assert picked is not None
-    assert picked[0] == "R_10"
-    assert picked[1] == TradeDirection.CALL
+    assert picked[0] == "R_100"
 
 
-def test_resolve_market_direction_weak_without_ctx_keeps_dl():
+def test_pick_best_mandatory_skips_hedge_when_peer_blocked():
+    decisions = {
+        "R_100": {
+            "direction": TradeDirection.CALL,
+            "metrics": {"trade_score": 0.60, "raw_prob": 0.62, "deploy_ok": True, "val_accuracy": 0.60},
+        },
+    }
+    picked = pick_best_mandatory_candidate(
+        ["R_10", "R_100"],
+        decisions,
+        recovery_active=True,
+        last_loss_symbol="R_10",
+        last_loss_direction="CALL",
+        skip_symbols=frozenset({"R_100"}),
+        min_signal=0.45,
+        min_val=0.50,
+    )
+    assert picked is not None
+    assert picked[0] == "R_100"
+
+
+def test_recovery_hedge_pick_returns_forced_candidate():
+    decisions = {
+        "R_100": {
+            "direction": TradeDirection.CALL,
+            "metrics": {"raw_prob": 0.62, "trade_score": 0.62, "deploy_ok": True},
+        },
+    }
+    hedge = _recovery_hedge_pick(
+        decisions,
+        last_loss_symbol="R_10",
+        last_loss_direction="CALL",
+        skip_symbols=frozenset(),
+    )
+    assert hedge is not None
+    assert hedge[0] == "R_100"
+
+
+def test_resolve_weak_without_ctx_keeps_dl_side():
     entry = {
         "direction": TradeDirection.PUT,
         "metrics": {
-            "trade_score": 0.0,
-            "raw_prob": 0.49,
-            "gate_reason": "raw_conviction",
+            "raw_prob": 0.42,
+            "trade_score": 0.58,
+            "val_accuracy": 0.60,
+            "deploy_ok": True,
+            "trend_direction": "PUT",
+            "indicators": {
+                "hurst": 0.55,
+                "adx": 0.30,
+                "vol_ratio": 1.10,
+                "rsi": 0.50,
+                "keltner": 0.50,
+                "cmo": 0.0,
+            },
         },
     }
-    assert resolve_market_direction(entry) == TradeDirection.PUT
+    result = resolve_execution_direction(entry)
+    assert result is not None
+    assert result[0] == TradeDirection.PUT

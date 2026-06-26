@@ -1,9 +1,14 @@
-from src.application.services.deep_learning.dl_gating import gating_block_reason, should_execute
+from src.application.services.deep_learning.dl_gating import direction_from_raw_prob, resolve_edge
+from src.domain.models.trade import TradeDirection
 
 
-def test_gating_allows_at_threshold_boundary():
-    assert should_execute(0.75, 0.53, min_val_accuracy=0.53, call_threshold=0.75, put_threshold=0.25)
+def test_direction_from_raw_prob_at_call_threshold():
+    assert direction_from_raw_prob(0.75, call_threshold=0.75, put_threshold=0.25) == TradeDirection.CALL
 
 
-def test_gating_blocks_just_below_call_threshold():
-    assert gating_block_reason(0.749, 0.60, call_threshold=0.75, put_threshold=0.25) == "confidence"
+def test_direction_from_raw_prob_below_call_threshold():
+    assert direction_from_raw_prob(0.749, call_threshold=0.75, put_threshold=0.25) is None
+
+
+def test_resolve_edge_symmetric():
+    assert resolve_edge(0.25) == resolve_edge(0.75)

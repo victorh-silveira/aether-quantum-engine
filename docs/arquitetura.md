@@ -8,17 +8,17 @@ Motor assíncrono para trading na Deriv com decisão exclusiva por **Deep Learni
 
 | Aspecto | Valor atual (`config/settings.json`) |
 |---------|--------------------------------------|
-| Símbolos | `R_10`, `R_25`, `R_50`, `R_75`, `R_100` (âncora `R_50`) |
-| Granularidade OHLC | 60 s (`data_handler.granularity`) |
-| Histórico para treino | 2880 barras (`training_history_bars`) |
+| Símbolos | `R_10`, `R_25`, `R_50`, `R_75`, `R_100` (âncora `R_10`) |
+| Granularidade OHLC | 180 s (`data_handler.granularity`) |
+| Histórico para treino | 25920 barras (`training_history_bars`) |
 | Lookback | 48 barras por sequência |
-| Contrato | `RISE_FALL`, duração 60 s (1 barra) |
-| Ciclo do orquestrador | 3 s (`cycle_interval_seconds`) |
+| Contrato | `RISE_FALL`, duração 180 s |
+| Ciclo do orquestrador | 60 s (`cycle_interval_seconds`) |
 | Decisão | `collect_deep_learning_decisions` |
-| Fases | `FASE TREINO` (operação suspensa) → `FASE OPERACAO` |
-| Execução | Seletiva: opera apenas quando `raw_prob >= 0.75` (CALL) ou `<= 0.25` (PUT); `mandatory_trade_each_cycle: false` |
+| Fases | `FASE TREINO` → `FASE OPERACAO` |
+| Execução | Seletiva com gate de qualidade; `mandatory_trade_each_cycle: false` |
 
-O mercado é tratado como **série temporal ruidosa**: o modelo estima probabilidade de alta na próxima barra; um **threshold de confiança** (0.75 / 0.25) e camadas de **risco** decidem se e quanto operar.
+O mercado é tratado como **série temporal ruidosa**: o modelo estima probabilidade de alta; um **motor de direção** composto e um **gate de qualidade** decidem CALL, PUT ou skip do ciclo.
 
 ---
 
@@ -34,10 +34,14 @@ flowchart LR
   subgraph dl
     FEAT[dl_features 19D]
     MODEL[TCN ou LSTM/GRU]
-    CAL[dl_calibration opcional]
-    GATE[dl_gating threshold 0.75/0.25]
+    PRED[dl_predict]
+  end
+  subgraph direcao
+    RES[execution_direction_resolver]
+    QG[execution_quality_gate]
   end
   subgraph exec
+    COL[execution_collect]
     SEL[execution_symbols]
     EM[ExecutionManager]
     TH[TradeHandler]
@@ -49,8 +53,7 @@ flowchart LR
   end
   WS --> SH
   SH --> TB
-  SH --> FEAT --> MODEL --> GATE --> SEL --> EM --> TH
-  CAL -.-> GATE
+  SH --> FEAT --> MODEL --> PRED --> RES --> QG --> COL --> SEL --> EM --> TH
   TH --> ST --> RM
   ST --> PM
 ```
@@ -66,16 +69,11 @@ flowchart LR
 
 - `buffer_limit` limita velas em memória por símbolo.
 - `history_bars` / `training_history_bars` definem recorte para treino e predição.
-- `TickBuffer` (`infrastructure/handlers/tick_buffer.py`) agrega por barra fechada: contagem de ticks, intervalo médio, velocidade, aceleração e desvio padrão de diffs consecutivas.
-- Stats de microestrutura são persistidas junto ao candle no fechamento da barra.
+- `TickBuffer` agrega por barra fechada: contagem de ticks, intervalo médio, velocidade, aceleração e desvio padrão de diffs consecutivas.
 
-### 2.3 Sincronismo e Assinatura de Dados (Prevenção de Corrida de Borda)
+### 2.3 Assinatura de estado de dados
 
-Para evitar duplicidade de inferências na GPU e chamadas de predição repetidas na virada de vela (onde flutuações de milissegundos no timestamp ou a chegada de múltiplos ticks na borda do candle podem disparar ciclos falsos), o motor implementa uma **assinatura de estado de dados** (`last_data_signature`).
-
-1. A cada iteração do loop principal do `Orchestrator`, é chamada a função `get_data_state_signature()`.
-2. Essa assinatura concatena, para todos os símbolos ativos, o epoch do último candle fechado e seus respectivos valores de OHLC (`close`, `high`, `low`).
-3. Se a assinatura resultante for idêntica à do ciclo anterior (`last_data_signature`), o motor imediatamente ignora o ciclo e aguarda (sleep), eliminando de forma reativa a duplicidade sem bloquear a thread assíncrona.
+Para evitar inferências duplicadas na virada de vela, o orquestrador usa `get_data_state_signature()`: concatena epoch e OHLC do último candle fechado por símbolo. Se a assinatura for idêntica ao ciclo anterior, o motor aguarda sem reprocessar.
 
 ---
 
@@ -83,14 +81,12 @@ Para evitar duplicidade de inferências na GPU e chamadas de predição repetida
 
 ### 3.1 Labels e features
 
-**Rótulo binário** (`dl_labels.py`):
+**Rótulo** (`dl_labels.py`, modo `ma_trend`):
 
 ```
-Y[i] = 1.0 se close[i + horizon] > close[i], senão 0.0
-horizon = duration / granularity  →  60 s / 60 s = 1 barra
+Y[i] = 1.0 se média móvel suavizada indica alta na barra i + horizon
+horizon = label_horizon_bars (padrão 1)
 ```
-
-Treino BCE puro em todas as amostras válidas (sem meta-labeling).
 
 **19 features** (`FEATURE_DIM` em `dl_feature_build.py`):
 
@@ -98,125 +94,124 @@ Treino BCE puro em todas as amostras válidas (sem meta-labeling).
 |-------|-----|----------|
 | Microestrutura | 5 | diff consecutiva, velocidade, aceleração, std diffs, ticks/barra |
 | Tradicionais | 9 | RSI, delta-RSI, BB %B e width, ATR norm, distância EMA20/50, log-return, ROC |
-| Volatilidade | 3 | vol rolling (log-return), vol vs alvo do símbolo, z-score |
-| Persistência | 2 | Hurst (R/S, janela 64), variance ratio |
+| Volatilidade | 3 | vol rolling, vol vs alvo do símbolo, z-score |
+| Persistência | 2 | Hurst (R/S), variance ratio |
 
-`dl_hurst.py` implementa `hurst_exponent` com fallback estável para séries curtas.
-
-**Extração otimizada:** `precompute_price_series` + `build_feature_matrix` montam a matriz uma única vez; cada janela de lookback é um fatiamento (sem recomputar indicadores por amostra).
-
-**Normalização anti-leakage:** `fit_norm_stats` somente no split de treino walk-forward (`dl_splits.py`); val/calib/test apenas aplicam stats já ajustados.
+Normalização anti-leakage: `fit_norm_stats` somente no split de treino walk-forward.
 
 ### 3.2 Modelo
 
-- Arquitetura configurável via `deep_learning.arch`: **`tcn`** (padrão), **`lstm`** ou **`gru`**.
-- TCN dilatada (`dl_tcn.py` / `TemporalDirectionClassifier`).
-- LSTM/GRU bidirecional leve (`dl_lstm.py`) + head sigmoid.
+- Arquitetura: **`tcn`** (padrão), **`lstm`** ou **`gru`** via `deep_learning.arch`.
 - Saída: probabilidade bruta de alta (`raw_prob`).
-- Checkpoint v4 em `data/dl/{symbol}.pth` com trace **TorchScript** (`{symbol}_ts.pt`) para inferência rápida.
+- Checkpoint v4 em `data/dl/{symbol}.pth` + TorchScript `{symbol}_ts.pt`.
 - `dl_symbol_runtime.py` prefere modelo scripted; fallback eager.
 
 ### 3.3 Treino walk-forward
 
-`train_model_walkforward` (`dl_training.py`):
+- Splits temporais com embargo (`dl_splits.py`).
+- Early stopping pela perda de validação.
+- Retreino: bootstrap de sessão, nova vela, rolling, forçado após loss.
+- Treino deferido (`dl_deferred_train.py`): thread em background serializada.
+- Deploy gate opcional (`dl_deploy_eval.py`): `deploy_ok=false` bloqueia execução.
+- Gate de treinamento: símbolo sem treino da sessão recebe `gate_reason: training`.
 
-- **Splits temporais com embargo** (`dl_splits.py`): Divide as amostras de dados em subconjuntos de treino, validação e calibração de forma purgada. Para evitar o vazamento de dados (*data leakage*) inerente a séries temporais e ao cálculo de labels futuros (onde a resposta de um candle depende do fechamento do candle seguinte), é aplicado um **embargo** (`embargo=label_horizon_bars`) imediatamente após a transição entre as partições.
-- Early stopping pela perda de validação (patience configurável).
-- Calibrador Platt opcional (logging); execução usa **prob raw** no threshold.
-- Callback de progresso por época (`progress_cb`) registrado em `run_symbol_training` como `DL TREINO | epoca X/Y`.
-- Checkpoint em `data/dl/{symbol}.pth`.
+### 3.4 Predição
 
-**Retreino** (`dl_retrain.py`):
+`predict_symbol_decision` (`dl_predict.py`):
 
-- Bootstrap de sessão — todo símbolo retreina ao menos uma vez por sessão (`session_trained`)
-- Nova vela (`train_on_new_candle_only`)
-- Rolling (`rolling_retrain_bars`)
-- Forçado após loss (`mark_force_retrain`)
+- Sempre `execute=True` quando a predição técnica é bem-sucedida.
+- Calcula indicadores, trend (`dl_trend.py`) e enriquece métricas para o resolver.
+- `gate_reason=None` após predição OK; bloqueio só em exceção (`predict_error`).
+- Thresholds `confidence_call/put` (0.53/0.47) são referência de calibração, não veto de execução.
 
-**Treino deferido** (`dl_deferred_train.py`): thread em background com slot único serializado; prioridade para símbolos sem treino da sessão.
-
-**Deploy gate** (`dl_deploy_eval.py`): mini simulação nas últimas barras; `deploy_ok=false` bloqueia execução.
-
-**Gate de treinamento** (`_apply_training_gate`): símbolo sem primeiro treino válido recebe `gate_reason: training` e nunca opera.
-
-### 3.4 Predição e gating
-
-`predict_symbol_decision` (`dl_predict.py` + `dl_gating.py`):
-
-```
-raw_prob >= confidence_call_threshold (0.75)  →  CALL
-raw_prob <= confidence_put_threshold (0.25)   →  PUT
-caso contrário                                 →  abstém (direction=None)
-```
-
-Bloqueios adicionais: `min_val_accuracy` (0.53), `deploy_ok`, Brier elevado, cooldown, dados insuficientes.
-
-Recovery (perda pendente): thresholds relaxados via `recovery_gating` quando configurado.
-
-Saída por símbolo: `{ direction, metrics }` consumida pelo orquestrador.
-
-### 3.5 Feedback pós-trade
-
-- `record_symbol_outcome` — histórico win/loss por símbolo.
-- Pesos de amostra no próximo treino (`dl_outcomes.py`).
-- Pausa de sessão por símbolo após sequência de losses.
-- Cooldown por símbolo (`symbol_loss_cooldown` no risk manager).
+`dl_gating.py` mantém utilitários: `resolve_edge`, `direction_from_raw_prob`, `resolve_confidence_thresholds`.
 
 ---
 
-## 4. Execução
+## 4. Direção e qualidade
 
-### 4.0 Fases de treinamento e operação
+### 4.1 Motor de direção (`execution_direction_resolver.py`)
 
-`ExecutionManager._training_phase_gate` separa o motor em duas fases:
+Substitui travas binárias por scoring composto CALL vs PUT:
 
-- **FASE TREINO** — enquanto existir símbolo sem treino da sessão, nenhuma ordem é enviada.
-- **FASE OPERACAO** — quando todos os modelos concluem o treino da sessão, a operação seletiva assume.
+| Sinal | Comportamento |
+|-------|---------------|
+| `raw_prob` | Peso principal (`dl_raw_weight`) |
+| `val_accuracy` | Bias lateral |
+| `trend_direction` + votos | `trend_bias` |
+| RSI/Keltner extremos | `exhaustion_flip` (mean-reversion) |
+| Hurst, ADX, vol_ratio, CMO | `indicator_regime` / `mean_reversion` |
+| `val_accuracy` baixa | `low_val_flip` |
 
-### 4.1 Seleção e direção
+Retorna `(CALL|PUT, metrics)` com `direction_inverted`, `direction_margin`, `direction_hints`. Retorna `None` apenas em bloqueio técnico ou sem `raw_prob`.
 
-- `execution_symbols.py` — filtra candidatos com `execute=true` (passa threshold de confiança), escolhe melhor score.
-- `execution_symbols_recovery.py` — candidatos de recovery com diversificação de símbolo.
-- `execution_direction.py` — `infer_dl_direction` a partir de `direction` ou `raw_prob`; `recovery_hedge_target` para pares Range.
-- `execution_market_rank.py` — `resolve_market_direction` e `market_decision_score` (raw_side, val_acc, edge, bônus recovery).
-- `execution_mandatory_pick.py` / `execution_direction_fallback.py` — ranking quando `mandatory_trade_each_cycle: true`.
+Pesos configuráveis em `orchestrator.execution.direction_scoring`.
 
-Com `mandatory_trade_each_cycle: false` (padrão atual), o motor **abstém** quando nenhum símbolo atinge o threshold de confiança.
+### 4.2 Gate de qualidade (`execution_quality_gate.py`)
 
-### 4.2 ExecutionManager
+Aplicado **após** resolução direcional em `_gather_cluster_candidates` e na validação final de `collect_cluster_orders`:
+
+| Piso | Valor padrão | Efeito |
+|------|--------------|--------|
+| `mandatory_min_trade_score` | 0.68 | Score efetivo mínimo (modo normal) |
+| `recovery_min_trade_score` | 0.64 | Piso em recovery (escala com perdas consecutivas) |
+| `min_edge_execute` | 0.04 | Edge mínimo de `raw_prob` |
+| `min_direction_margin` | 0.05 | Clareza CALL vs PUT no resolver |
+| `inverted_min_score` | 0.74 | Score extra quando `direction_inverted=true` |
+| `min_adx_normal` | 0.18 | ADX mínimo fora de recovery |
+
+Ciclo sem candidato elegível → nenhuma ordem (qualidade > quantidade).
+
+### 4.3 Pool e seleção
+
+- `execution_recovery_gate.cluster_entry_eligible` — bloqueio **somente técnico** + exige `raw_prob` ou direção.
+- `execution_direction.build_execution_candidate` — delega ao resolver.
+- `execution_symbols.select_best_execution_candidate` — ranking por `market_decision_score` (penaliza inversão e margem baixa).
+- `execution_mandatory_pick` / `execution_direction_fallback` — fallbacks quando `mandatory_trade_each_cycle: true`.
+
+### 4.4 Logs DL (`dl_cycle_brief.py`, `dl_cycle_log.py`)
+
+Linha curta por ciclo:
+
+```
+DL | exec R_10:CALL c=0.86 | bias R_50:PUT c=0.62→CALL(trend) | 1 bloq
+DL REC | exec R_25:PUT c=0.68 +2
+```
+
+Resumo detalhado em DEBUG; deduplicação via `build_dl_cycle_brief_key`.
+
+---
+
+## 5. Execução
+
+### 5.1 Fases
+
+- **FASE TREINO** — `_training_phase_gate` suspende ordens até `session_trained` em todos os símbolos.
+- **FASE OPERACAO** — `collect_cluster_orders` seleciona melhor candidato ou retorna lista vazia.
+
+### 5.2 ExecutionManager
 
 - Monta ordens com stake de `RiskManager.calculate_stake`.
-- `execution_blockers.py` — logs `EXEC_NONE` e `DL_TREINO` por ciclo.
-- Settlement assíncrono; reentrada via `post_settlement_cycle` após liquidação.
-
-### 4.3 Contratos
-
-`TradeHandler.buy_with_parameters`: `contract_type` RISE_FALL, duração 60 s de `risk_management.params`.
+- Settlement assíncrono; reentrada via `post_settlement_cycle`.
+- Contratos via `TradeHandler.buy_with_parameters`: RISE_FALL, 180 s.
 
 ---
 
-## 5. Gerenciamento de risco
-
-`RiskManager` (`domain/risk/`):
+## 6. Gerenciamento de risco
 
 | Mecanismo | Módulo / config |
 |-----------|-----------------|
 | Kelly fracionário | `stake_sizing.py`, `kelly.fraction` |
-| Stop win diário | `domain/risk/stop_win_target.py` |
-| Martingale recovery | `martingale_gate.py` (ativo com `pending_loss > 0`) |
+| Stop win diário | `stop_win_target.py` |
+| Martingale recovery | `martingale_gate.py`, `martingale_conviction.py` |
 | Cooldown entrada | `risk_cooldown.py` |
 | Cooldown por loss no símbolo | `symbol_loss_cooldown.py` |
 
-### 5.1 Persistência e Proteção contra Falso Stop Win
-
-O estado de execução do trading e as métricas diárias são gerenciados pelo `StateManager` (`src/infrastructure/state/state_manager.py`) que manipula um modelo de domínio de estado de sessão `SessionState`.
-
-- **Persistência física:** As métricas financeiras acumuladas (como banca inicial, saldo atual e meta de Stop Win) são salvas em `data/session_state.json`. As demais informações gerais persistem em `data/state.json`.
-- **Prevenção de Falso Stop Win no Boot:** No boot do bot, se a banca lida do arquivo for maior que a banca inicial devido a resquícios de sessões passadas ou leituras frias de estado corrompido, o sistema poderia disparar um falso Stop Win e bloquear a operação. Para evitar essa vulnerabilidade de concorrência/carga, o `StateManager` valida que o Stop Win diário só pode ser considerado ativo se o lucro do dia for maior ou igual à meta estabelecida **E o número de trades realizados hoje for estritamente maior que zero** (`total_trades_today > 0`).
+Persistência: `data/session_state.json` (métricas diárias), `data/state.json` (contratos). Stop win no boot exige `total_trades_today > 0` para evitar falso positivo.
 
 ---
 
-## 6. Orquestrador
+## 7. Orquestrador
 
 `Orchestrator` (`orchestrator/__init__.py`):
 
@@ -228,37 +223,39 @@ O estado de execução do trading e as métricas diárias são gerenciados pelo 
 3. Reconciliação periódica de contratos abertos.
 4. Após liquidação: `post_settlement_cycle`.
 
-Banner de startup: `decision_mode_banner.emit_decision_engine_banner` (DL ou inativo).
+Banner: `decision_mode_banner.emit_decision_engine_banner`.
 
 ---
 
-## 7. Configuração crítica
+## 8. Configuração crítica
 
 | Bloco | Chaves relevantes |
 |-------|-------------------|
 | `data_handler` | `granularity`, `history_bars`, `fetch_count`, `buffer_limit` |
-| `deep_learning` | `arch`, `lookback`, `confidence_call_threshold`, `confidence_put_threshold`, `min_val_accuracy`, `deploy_gate`, `tcn`, `lstm` |
-| `orchestrator` | `cycle_interval_seconds`, `execution.mandatory_trade_each_cycle`, `post_settlement_*` |
-| `risk_management` | `kelly`, `params.duration` (60), stop win |
+| `deep_learning` | `arch`, `lookback`, `confidence_*`, `min_val_accuracy`, `min_edge_execute`, `deploy_gate` |
+| `orchestrator.execution` | `direction_scoring`, `quality_gate`, `mandatory_trade_each_cycle`, settlement |
+| `risk_management.kelly` | `mandatory_min_trade_score`, `recovery_min_trade_score`, martingale |
+| `risk_management.params` | `duration` (180), stakes |
 | `symbols` / `anchor` | Universo Range Break |
 | `trading` | `mode` (`demo` / `live`) |
 
 ---
 
-## 8. Camadas de software
+## 9. Camadas de software
 
 | Camada | Módulos principais |
 |--------|-------------------|
-| Application / DL | `decision_bridge`, `dl_labels`, `dl_hurst`, `dl_feature_build`, `dl_tcn`, `dl_lstm`, `dl_*`, `model` |
-| Application / Orchestrator | `Orchestrator`, `execution_manager`, `execution_collect`, `settlement_*`, `post_settlement_cycle` |
-| Application | `execution_direction`, `execution_market_rank`, `execution_mandatory_pick`, `execution_symbols`, `log_dedupe` |
-| Domain | `trade`, `market_data`, `risk_manager`, `martingale_gate`, `stake_sizing` |
+| Application / DL | `decision_bridge`, `dl_predict`, `dl_gating`, `dl_trend`, `dl_cycle_*`, `model` |
+| Application / Direção | `execution_direction_resolver`, `execution_direction`, `execution_quality_gate` |
+| Application / Execução | `execution_collect`, `execution_market_rank`, `execution_symbols`, `execution_mandatory_pick`, `execution_direction_fallback` |
+| Application / Orchestrator | `Orchestrator`, `execution_manager`, `execution_recovery_gate`, `settlement_*`, `post_settlement_cycle` |
+| Domain | `trade`, `market_data`, `risk_manager`, `martingale_*`, `stake_sizing` |
 | Infrastructure | `websocket_manager`, `stream_handler`, `tick_buffer`, `trade_handler`, `persistence_manager` |
-| Presentation | `logger` |
+| Presentation | `logger`, `log_dedupe` |
 
 ---
 
-## 9. Observabilidade
+## 10. Observabilidade
 
 | Ferramenta | Caminho |
 |------------|---------|
@@ -270,14 +267,14 @@ Banner de startup: `decision_mode_banner.emit_decision_engine_banner` (DL ou ina
 
 ---
 
-## 10. Garantia de qualidade
+## 11. Garantia de qualidade
 
 - Cobertura **100%** em `app/src` (pytest + coverage).
 - Pre-commit: Ruff, Interrogate, Vulture, pylint duplicate-code, máximo **300 linhas** por arquivo em `app/src`.
 
 ---
 
-## 11. Referências
+## 12. Referências
 
 - [medallion.md](medallion.md) — princípios quant e perfil de qualidade
 - [README.md](../README.md) — execução e pré-requisitos

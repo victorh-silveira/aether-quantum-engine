@@ -13,6 +13,26 @@ from src.application.services.strategy.decision_mode import resolve_decision_mod
 from src.domain.risk.stop_win_target import resolve_stop_win_target
 
 
+def _orchestrator_cfg(orch: Any) -> dict:
+    """Retorna o bloco orchestrator da configuracao do motor."""
+    chunk = orch.config.get("orchestrator") if isinstance(orch.config, dict) else {}
+    return chunk if isinstance(chunk, dict) else {}
+
+
+def _cycle_cadence_seconds(orch: Any) -> int:
+    """Intervalo alvo entre ciclos de decisao em segundos."""
+    return int(_orchestrator_cfg(orch).get("cycle_interval_seconds") or 0)
+
+
+def _cycle_cadence_elapsed(orch: Any) -> bool:
+    """True quando o tempo desde o ultimo ciclo atingiu o intervalo configurado."""
+    cadence = _cycle_cadence_seconds(orch)
+    if cadence <= 0:
+        return False
+    last_end = float(getattr(orch, "_last_cluster_cycle_end", 0.0))
+    return last_end > 0.0 and (time.time() - last_end) >= cadence
+
+
 def _stop_win_blocks_cycle(orch: Any) -> bool:
     """True quando a meta diaria de lucro ja foi atingida ou o motor encerrou por stop win."""
     if getattr(orch, "shutdown_reason", None) == "stop_win":
@@ -58,7 +78,7 @@ def trading_cycle_entry_allowed(orch: Any) -> bool:
         return False
     orch._settlement_wait_logged = False
 
-    if not getattr(orch, "_dl_fast_cycle", False):
+    if not getattr(orch, "_dl_fast_cycle", False) and not _cycle_cadence_elapsed(orch):
         sig = None
         if hasattr(orch, "get_data_state_signature") and hasattr(orch, "last_data_signature"):
             sig = orch.get_data_state_signature()
@@ -88,10 +108,9 @@ def prepare_orchestrator_run_loop(orch: Any) -> None:
     emit_decision_engine_banner(orch.logger, orch.config, decision_mode=mode)
     if mode == "deep_learning" and not orch._dl_bootstrap_completed:
         try_enqueue_next_bootstrap_training(orch)
-    orch_cfg = orch.config.get("orchestrator") if isinstance(orch.config.get("orchestrator"), dict) else {}
     orch.logger.debug(
         "INIT: loop ativo | ciclo=%ds",
-        int(orch_cfg.get("cycle_interval_seconds") or 0),
+        _cycle_cadence_seconds(orch),
     )
 
 

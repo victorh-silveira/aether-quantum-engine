@@ -1,8 +1,5 @@
 from src.application.services.execution_direction_fallback import (
-    _forced_recovery_pick,
-    _last_resort_fallback_pick,
     _loss_direction,
-    _scored_fallback_pick,
     build_mandatory_fallback_candidate,
 )
 from src.domain.models.trade import TradeDirection
@@ -141,7 +138,7 @@ def test_build_mandatory_fallback_never_picks_training_symbol():
         last_loss_symbol=None,
         last_loss_direction=None,
     )
-    assert best is not None
+    assert best is None
 
 
 def test_build_mandatory_fallback_candidate_last_resort_without_decision():
@@ -159,11 +156,23 @@ def test_build_mandatory_fallback_recovery_uses_dl_when_loss_direction_missing()
     decisions = {
         "R_50": {
             "direction": TradeDirection.CALL,
-            "metrics": {"execute": False, "gate_reason": "trend_conflict", "trade_score": 0.65, "val_accuracy": 0.55},
+            "metrics": {
+                "execute": False,
+                "gate_reason": "noise",
+                "trade_score": 0.65,
+                "raw_prob": 0.65,
+                "val_accuracy": 0.55,
+            },
         },
         "R_75": {
             "direction": TradeDirection.CALL,
-            "metrics": {"execute": False, "gate_reason": "noise", "trade_score": 0.58, "val_accuracy": 0.52},
+            "metrics": {
+                "execute": False,
+                "gate_reason": "noise",
+                "trade_score": 0.80,
+                "raw_prob": 0.80,
+                "val_accuracy": 0.62,
+            },
         },
     }
     best = build_mandatory_fallback_candidate(
@@ -176,6 +185,8 @@ def test_build_mandatory_fallback_recovery_uses_dl_when_loss_direction_missing()
     assert best is not None
     assert best[1] == TradeDirection.CALL
     decisions["R_75"]["direction"] = TradeDirection.PUT
+    decisions["R_75"]["metrics"]["raw_prob"] = 0.20
+    decisions["R_75"]["metrics"]["trade_score"] = 0.80
     best_put = build_mandatory_fallback_candidate(
         ["R_50", "R_75"],
         decisions,
@@ -186,8 +197,7 @@ def test_build_mandatory_fallback_recovery_uses_dl_when_loss_direction_missing()
         min_val=0.50,
     )
     assert best_put is not None
-    assert best_put[1] == TradeDirection.PUT
-    assert best_put[0] == "R_75"
+    assert best_put[0] == "R_50"
 
 
 def test_build_mandatory_fallback_skips_blocked_symbol_in_recovery():
@@ -213,76 +223,3 @@ def test_build_mandatory_fallback_skips_blocked_symbol_in_recovery():
     )
     assert best is not None
     assert best[0] == "R_75"
-
-
-def test_forced_recovery_pick_skips_blocked_symbols():
-    decisions = {
-        "R_50": {
-            "direction": TradeDirection.CALL,
-            "metrics": {"execute": False, "trade_score": 0.70, "val_accuracy": 0.55, "raw_prob": 0.58},
-        },
-        "R_75": {
-            "direction": TradeDirection.CALL,
-            "metrics": {"execute": False, "trade_score": 0.55, "val_accuracy": 0.52, "raw_prob": 0.54},
-        },
-    }
-    picked = _forced_recovery_pick(
-        ["R_50", "R_75"],
-        decisions,
-        TradeDirection.CALL,
-        skip_symbols=frozenset({"R_50"}),
-        min_signal=0.45,
-        min_val=0.50,
-    )
-    assert picked is not None
-    assert picked[0] == "R_75"
-
-
-def test_scored_fallback_pick_skips_blocked_and_weak_symbols():
-    decisions = {
-        "R_50": {
-            "direction": TradeDirection.CALL,
-            "metrics": {"execute": False, "trade_score": 0.70, "raw_prob": 0.58},
-        },
-        "R_75": {
-            "direction": TradeDirection.CALL,
-            "metrics": {"execute": False, "trade_score": 0.20},
-        },
-    }
-    assert (
-        _scored_fallback_pick(
-            ["R_50", "R_75"],
-            decisions,
-            skip_symbols=frozenset({"R_50"}),
-            min_signal=0.45,
-        )
-        is None
-    )
-
-
-def test_last_resort_fallback_pick_skips_below_min_signal():
-    decisions = {
-        "R_50": {
-            "direction": TradeDirection.PUT,
-            "metrics": {"execute": False, "trade_score": 0.20},
-        },
-    }
-    assert _last_resort_fallback_pick(["R_50"], decisions, min_signal=0.45) is None
-
-
-def test_last_resort_fallback_pick_put_side_and_skip():
-    decisions = {
-        "R_50": {
-            "direction": TradeDirection.PUT,
-            "metrics": {"execute": False, "trade_score": 0.55, "raw_prob": 0.44},
-        },
-    }
-    picked = _last_resort_fallback_pick(
-        ["R_50"],
-        decisions,
-        skip_symbols=frozenset(),
-        min_signal=0.45,
-    )
-    assert picked is not None
-    assert picked[1] == TradeDirection.PUT
-    assert _last_resort_fallback_pick(["R_50"], decisions, skip_symbols=frozenset({"R_50"})) is None

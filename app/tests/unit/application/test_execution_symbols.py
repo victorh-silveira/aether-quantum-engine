@@ -1,9 +1,7 @@
 from types import SimpleNamespace
 
 from src.application.services.execution_symbols import (
-    _trade_score,
     candidate_execution_score,
-    filter_execution_candidates,
     format_execution_alternates,
     pending_recovery_active,
     select_best_execution_candidate,
@@ -12,13 +10,6 @@ from src.application.services.execution_symbols import (
 )
 from src.domain.models.trade import TradeDirection
 from tests.market_symbols import ANCHOR, PAIR
-
-
-_SELECTION = {
-    "min_val_accuracy": 0.50,
-    "confidence_call_threshold": 0.75,
-    "confidence_put_threshold": 0.25,
-}
 
 
 def test_symbols_eligible_for_execution():
@@ -40,14 +31,6 @@ def test_pending_recovery_active():
     assert pending_recovery_active({ANCHOR: 100.0}) is True
 
 
-def test_filter_execution_candidates_requires_confidence():
-    weak = (PAIR, TradeDirection.CALL, {"execute": True, "raw_prob": 0.52, "val_accuracy": 0.55})
-    strong = (ANCHOR, TradeDirection.PUT, {"execute": True, "raw_prob": 0.80, "val_accuracy": 0.55})
-    filtered = filter_execution_candidates([weak, strong], selection=_SELECTION)
-    symbols = {item[0] for item in filtered}
-    assert symbols == {ANCHOR}
-
-
 def test_select_best_execution_candidate_diversify_margin_picks_alt():
     candidates = [
         (ANCHOR, TradeDirection.PUT, {"trade_score": 0.80, "raw_prob": 0.80, "val_accuracy": 0.50, "execute": True}),
@@ -60,10 +43,6 @@ def test_select_best_execution_candidate_diversify_margin_picks_alt():
         recovery_active=False,
     )
     assert best[0] == PAIR
-
-
-def test_trade_score_falls_back_to_conviction():
-    assert _trade_score({"conviction": 0.61}) == 0.61
 
 
 def test_candidate_execution_score_recovery_weights_val_accuracy():

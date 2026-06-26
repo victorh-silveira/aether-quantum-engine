@@ -149,17 +149,20 @@ def test_collect_cluster_orders_recovery_executes_best_available_signal():
     assert orders[0][1] == TradeDirection.CALL
 
 
-def test_collect_cluster_orders_empty_after_recovery_skip():
+def test_collect_cluster_orders_includes_recovery_candidate_with_raw_prob():
     orch = SimpleNamespace(
         anchor=ANCHOR,
         symbols=[ANCHOR, PAIR],
         config={
             "orchestrator": {"execution": {"include_anchor_trades": False}},
+            "deep_learning": {"min_edge_execute": 0.04},
+            "risk_management": {"kelly": {"mandatory_min_trade_score": 0.68, "recovery_min_trade_score": 0.64}},
         },
         risk_manager=SimpleNamespace(
             pending_loss={PAIR: 10.0},
             last_loss_symbol=PAIR,
             last_loss_direction="CALL",
+            consecutive_losses=0,
         ),
         _active_cycle_id=9,
     )
@@ -170,9 +173,23 @@ def test_collect_cluster_orders_empty_after_recovery_skip():
         _trade_symbols=lambda: [PAIR],
     )
     decisions = {
-        PAIR: {"direction": TradeDirection.CALL, "metrics": {"raw_prob": 0.4, "execute": True}},
+        PAIR: {
+            "direction": TradeDirection.CALL,
+            "metrics": {
+                "raw_prob": 0.82,
+                "execute": True,
+                "deploy_ok": True,
+                "trade_score": 0.82,
+                "val_accuracy": 0.70,
+                "edge": 0.12,
+                "trend_direction": "CALL",
+                "indicators": {"adx": 0.28, "hurst": 0.55, "vol_ratio": 1.1, "rsi": 0.52, "keltner": 0.55, "cmo": 0.05},
+            },
+        },
     }
-    assert collect_cluster_orders(exec_mgr, decisions) == []
+    orders = collect_cluster_orders(exec_mgr, decisions)
+    assert len(orders) == 1
+    assert orders[0][0] == PAIR
 
 
 def test_apply_recovery_hedge_keeps_pool_when_direction_differs_from_loss():
@@ -196,17 +213,20 @@ def test_apply_recovery_hedge_keeps_pool_when_direction_differs_from_loss():
     assert result == candidates
 
 
-def test_collect_cluster_orders_skips_execute_false_in_recovery():
+def test_collect_cluster_orders_skips_weak_signal_when_execute_false():
     orch = SimpleNamespace(
         anchor=ANCHOR,
         symbols=[ANCHOR, PAIR],
         config={
             "orchestrator": {"execution": {"include_anchor_trades": False}},
+            "deep_learning": {"min_edge_execute": 0.04},
+            "risk_management": {"kelly": {"mandatory_min_trade_score": 0.68, "recovery_min_trade_score": 0.64}},
         },
         risk_manager=SimpleNamespace(
             pending_loss={PAIR: 10.0},
             last_loss_symbol=PAIR,
             last_loss_direction="CALL",
+            consecutive_losses=0,
         ),
         _active_cycle_id=9,
     )
@@ -217,9 +237,10 @@ def test_collect_cluster_orders_skips_execute_false_in_recovery():
         _trade_symbols=lambda: [PAIR],
     )
     decisions = {
-        PAIR: {"direction": TradeDirection.CALL, "metrics": {"raw_prob": 0.4, "execute": False}},
+        PAIR: {"direction": TradeDirection.CALL, "metrics": {"raw_prob": 0.4, "execute": False, "deploy_ok": True}},
     }
-    assert collect_cluster_orders(exec_mgr, decisions) == []
+    orders = collect_cluster_orders(exec_mgr, decisions)
+    assert len(orders) == 0
 
 
 def test_collect_cluster_orders_mandatory_does_not_skip_recovery_without_hedge():

@@ -20,49 +20,8 @@ def test_infer_dl_direction_from_raw():
 
 
 def test_mandatory_execution_eligible_rejects_hard_blocks():
-    entry = {
-        "direction": TradeDirection.CALL,
-        "metrics": {
-            "execute": False,
-            "gate_reason": "data",
-            "conviction": 0.7,
-            "raw_prob": 0.6,
-            "deploy_ok": True,
-            "val_accuracy": 0.55,
-        },
-    }
-    assert mandatory_execution_eligible(entry) is True
-    deploy_entry = {
-        "direction": TradeDirection.CALL,
-        "metrics": {
-            "execute": False,
-            "gate_reason": "deploy",
-            "conviction": 0.7,
-            "raw_prob": 0.6,
-            "deploy_ok": False,
-            "val_accuracy": 0.55,
-        },
-    }
-    assert mandatory_execution_eligible(deploy_entry) is False
-
-
-def test_mandatory_execution_eligible_rejects_training_and_pause():
-    # 'training' is not a hard block, so it should be eligible (True)
-    entry_training = {
-        "direction": TradeDirection.CALL,
-        "metrics": {
-            "execute": False,
-            "gate_reason": "training",
-            "conviction": 0.7,
-            "raw_prob": 0.62,
-            "val_accuracy": 0.60,
-        },
-    }
-    assert mandatory_execution_eligible(entry_training) is True
-
-    # 'session_pause' e 'symbol_cooldown' nao sao mais hard blocks, entao devem ser elegiveis (True)
-    for gate in ("session_pause", "symbol_cooldown"):
-        entry_blocked = {
+    for gate in ("predict_error", "data", "training"):
+        entry = {
             "direction": TradeDirection.CALL,
             "metrics": {
                 "execute": False,
@@ -70,9 +29,26 @@ def test_mandatory_execution_eligible_rejects_training_and_pause():
                 "conviction": 0.7,
                 "raw_prob": 0.62,
                 "val_accuracy": 0.60,
+                "deploy_ok": True,
             },
         }
-        assert mandatory_execution_eligible(entry_blocked) is True
+        assert mandatory_execution_eligible(entry) is False
+
+
+def test_mandatory_execution_eligible_accepts_soft_gate_reasons():
+    for gate in ("trend_conflict", "exhaustion_conflict"):
+        entry = {
+            "direction": TradeDirection.CALL,
+            "metrics": {
+                "execute": False,
+                "gate_reason": gate,
+                "conviction": 0.7,
+                "raw_prob": 0.62,
+                "val_accuracy": 0.60,
+                "deploy_ok": True,
+            },
+        }
+        assert mandatory_execution_eligible(entry) is True
 
 
 def test_mandatory_execution_eligible_accepts_weak_signal():
@@ -233,33 +209,14 @@ def test_forced_recovery_pick_prefers_dl_aligned_symbol():
     assert picked[0] == "R_75"
 
 
-def test_mandatory_execution_eligible_rejects_hard_blockers():
-    for gate in ("trend_conflict", "exhaustion_conflict"):
-        entry = {
-            "direction": TradeDirection.CALL,
-            "metrics": {
-                "execute": False,
-                "gate_reason": gate,
-                "conviction": 0.7,
-                "raw_prob": 0.62,
-                "val_accuracy": 0.60,
-                "deploy_ok": True,
-            },
-        }
-        assert mandatory_execution_eligible(entry) is False
-
-
-def test_recovery_execution_eligible_rejects_hard_blockers():
-    for gate in ("trend_conflict", "exhaustion_conflict"):
-        entry = {
-            "direction": TradeDirection.CALL,
-            "metrics": {
-                "execute": False,
-                "gate_reason": gate,
-                "conviction": 0.7,
-                "raw_prob": 0.62,
-                "val_accuracy": 0.60,
-                "deploy_ok": True,
-            },
-        }
-        assert recovery_execution_eligible(entry, {}) is False
+def test_recovery_execution_eligible_rejects_technical_blocks():
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {
+            "execute": False,
+            "gate_reason": "predict_error",
+            "raw_prob": 0.62,
+            "deploy_ok": True,
+        },
+    }
+    assert recovery_execution_eligible(entry, {}) is False

@@ -10,7 +10,7 @@ from src.application.services.deep_learning.model import INPUT_DIM, fit_norm_sta
 from src.domain.models.trade import TradeDirection
 
 
-def test_predict_abstains_on_low_confidence():
+def test_predict_executes_on_gray_zone_raw_prob():
     params = parse_dl_params(
         {
             "confidence_call_threshold": 0.75,
@@ -18,8 +18,8 @@ def test_predict_abstains_on_low_confidence():
             "min_val_accuracy": 0.53,
         }
     )
-    orch = type("O", (), {"config": {"deep_learning": {}}})()
-    runtime = {"val_accuracy": 0.55, "val_brier": 0.2, "val_ece": 0.1, "lookback": 15}
+    orch = type("O", (), {"config": {"deep_learning": {}, "orchestrator": {"execution": {}}}})()
+    runtime = {"val_accuracy": 0.55, "val_brier": 0.2, "val_ece": 0.1, "lookback": 15, "deploy_ok": True}
     with patch(
         "src.application.services.deep_learning.dl_predict.predict_next_direction",
         return_value=(None, 0.52, 0.52),
@@ -35,8 +35,8 @@ def test_predict_abstains_on_low_confidence():
             None,
             recovery_active=False,
         )
-    assert entry["metrics"]["execute"] is False
-    assert entry["metrics"]["gate_reason"] == "confidence"
+    assert entry["metrics"]["execute"] is True
+    assert entry["metrics"]["gate_reason"] is None
     assert entry["direction"] == TradeDirection.CALL
     assert entry["metrics"]["trade_score"] == pytest.approx(0.52, abs=1e-6)
 
@@ -49,8 +49,8 @@ def test_predict_executes_on_strong_call():
             "min_val_accuracy": 0.53,
         }
     )
-    orch = type("O", (), {"config": {"deep_learning": {}}})()
-    runtime = {"val_accuracy": 0.55, "val_brier": 0.2, "val_ece": 0.1, "lookback": 15}
+    orch = type("O", (), {"config": {"deep_learning": {}, "orchestrator": {"execution": {}}}})()
+    runtime = {"val_accuracy": 0.55, "val_brier": 0.2, "val_ece": 0.1, "lookback": 15, "deploy_ok": True}
     with patch(
         "src.application.services.deep_learning.dl_predict.predict_next_direction",
         return_value=(TradeDirection.CALL, 0.80, 0.80),
@@ -70,7 +70,7 @@ def test_predict_executes_on_strong_call():
     assert entry["direction"] == TradeDirection.CALL
 
 
-def test_predict_weak_direction_on_neutral_zone():
+def test_predict_weak_direction_still_executes():
     params = parse_dl_params(
         {
             "confidence_call_threshold": 0.57,
@@ -78,8 +78,8 @@ def test_predict_weak_direction_on_neutral_zone():
             "min_val_accuracy": 0.53,
         }
     )
-    orch = type("O", (), {"config": {"deep_learning": {}}})()
-    runtime = {"val_accuracy": 0.55, "val_brier": 0.2, "val_ece": 0.1, "lookback": 15}
+    orch = type("O", (), {"config": {"deep_learning": {}, "orchestrator": {"execution": {}}}})()
+    runtime = {"val_accuracy": 0.55, "val_brier": 0.2, "val_ece": 0.1, "lookback": 15, "deploy_ok": True}
     with patch(
         "src.application.services.deep_learning.dl_predict.predict_next_direction",
         return_value=(None, 0.47, 0.47),
@@ -97,150 +97,16 @@ def test_predict_weak_direction_on_neutral_zone():
         )
     assert entry["direction"] == TradeDirection.PUT
     assert entry["metrics"]["trade_score"] == pytest.approx(0.53, abs=1e-6)
-    assert entry["metrics"]["execute"] is False
-    assert entry["metrics"]["gate_reason"] == "confidence"
+    assert entry["metrics"]["execute"] is True
+    assert entry["metrics"]["gate_reason"] is None
 
 
-def test_predict_mandatory_no_trend_fallback():
+def test_predict_includes_trend_metrics():
     params = parse_dl_params(
         {
             "confidence_call_threshold": 0.75,
             "confidence_put_threshold": 0.25,
             "min_val_accuracy": 0.53,
-        }
-    )
-    orch = type("O", (), {"config": {"orchestrator": {"execution": {"mandatory_trade_each_cycle": True}}}})()
-    runtime = {"val_accuracy": 0.55, "val_brier": 0.2, "val_ece": 0.1, "lookback": 15}
-
-    prices_call = np.array([10.0] * 79 + [12.0])
-    with patch(
-        "src.application.services.deep_learning.dl_predict.predict_next_direction",
-        return_value=(None, 0.52, 0.52),
-    ):
-        entry = predict_symbol_decision(
-            orch,
-            "R_50",
-            TemporalDirectionClassifier(input_dim=INPUT_DIM),
-            prices_call,
-            fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32)),
-            runtime,
-            params,
-            None,
-            recovery_active=False,
-        )
-    assert entry["direction"] == TradeDirection.CALL
-    assert entry["metrics"]["execute"] is False
-    assert entry["metrics"].get("trend_fallback") is None
-    assert entry["metrics"]["gate_reason"] == "confidence"
-
-
-def test_predict_dynamic_trend_ema_vs_sma():
-    params = parse_dl_params(
-        {
-            "confidence_call_threshold": 0.75,
-            "confidence_put_threshold": 0.25,
-            "min_val_accuracy": 0.53,
-        }
-    )
-    runtime = {"val_accuracy": 0.55, "val_brier": 0.2, "val_ece": 0.1, "lookback": 15}
-
-    # Caso 1: EMA com trend_period = 3
-    orch_ema = type(
-        "O",
-        (),
-        {
-            "config": {
-                "orchestrator": {
-                    "execution": {
-                        "mandatory_trade_each_cycle": True,
-                        "trend_period": 3,
-                        "trend_use_ema": True,
-                    }
-                }
-            }
-        },
-    )()
-    # Precos onde a EMA-3 vai dar CALL (recente subindo rapido)
-    prices = np.array([10.0, 5.0, 6.0, 9.0])
-    with patch(
-        "src.application.services.deep_learning.dl_predict.predict_next_direction",
-        return_value=(None, 0.52, 0.52),
-    ):
-        entry = predict_symbol_decision(
-            orch_ema,
-            "R_50",
-            TemporalDirectionClassifier(input_dim=INPUT_DIM),
-            prices,
-            fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32)),
-            runtime,
-            params,
-            None,
-            recovery_active=False,
-        )
-    assert entry["metrics"]["trend_direction"] == "CALL"
-
-    # Caso 2: SMA com trend_period = 3
-    orch_sma = type(
-        "O",
-        (),
-        {
-            "config": {
-                "orchestrator": {
-                    "execution": {
-                        "mandatory_trade_each_cycle": True,
-                        "trend_period": 3,
-                        "trend_use_ema": False,
-                    }
-                }
-            }
-        },
-    )()
-    # Precos onde a SMA-3 vai dar PUT (media dos ultimos 3: (5+6+1)/3 = 4, preco atual 3 < 4)
-    prices_sma = np.array([10.0, 5.0, 6.0, 3.0])
-    with patch(
-        "src.application.services.deep_learning.dl_predict.predict_next_direction",
-        return_value=(None, 0.52, 0.52),
-    ):
-        entry = predict_symbol_decision(
-            orch_sma,
-            "R_50",
-            TemporalDirectionClassifier(input_dim=INPUT_DIM),
-            prices_sma,
-            fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32)),
-            runtime,
-            params,
-            None,
-            recovery_active=False,
-        )
-    assert entry["metrics"]["trend_direction"] == "PUT"
-
-    # Caso 3: prices vazio (t_len <= 0)
-    prices_empty = np.array([], dtype=np.float64)
-    with patch(
-        "src.application.services.deep_learning.dl_predict.predict_next_direction",
-        return_value=(None, 0.52, 0.52),
-    ):
-        entry = predict_symbol_decision(
-            orch_sma,
-            "R_50",
-            TemporalDirectionClassifier(input_dim=INPUT_DIM),
-            prices_empty,
-            fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32)),
-            runtime,
-            params,
-            None,
-            recovery_active=False,
-        )
-    assert entry["metrics"]["trend_direction"] == "CALL"
-
-
-def test_predict_abstains_on_low_confidence_with_trend_conflict():
-    params = parse_dl_params(
-        {
-            "confidence_call_threshold": 0.75,
-            "confidence_put_threshold": 0.25,
-            "min_val_accuracy": 0.53,
-            "trend_alignment_required": True,
         }
     )
     orch = type(
@@ -250,6 +116,7 @@ def test_predict_abstains_on_low_confidence_with_trend_conflict():
             "config": {
                 "orchestrator": {
                     "execution": {
+                        "mandatory_trade_each_cycle": True,
                         "trend_period": 3,
                         "trend_use_ema": False,
                     }
@@ -257,10 +124,36 @@ def test_predict_abstains_on_low_confidence_with_trend_conflict():
             }
         },
     )()
-    runtime = {"val_accuracy": 0.55, "val_brier": 0.2, "val_ece": 0.1, "lookback": 15}
-    # Prices where trend is CALL (recode current 9 > SMA of last 3: (5+6+1)/3 = 4)
+    runtime = {"val_accuracy": 0.55, "val_brier": 0.2, "val_ece": 0.1, "lookback": 15, "deploy_ok": True}
+    prices = np.array([10.0, 5.0, 6.0, 3.0])
+    with patch(
+        "src.application.services.deep_learning.dl_predict.predict_next_direction",
+        return_value=(None, 0.52, 0.52),
+    ):
+        entry = predict_symbol_decision(
+            orch,
+            "R_50",
+            TemporalDirectionClassifier(input_dim=INPUT_DIM),
+            prices,
+            fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32)),
+            runtime,
+            params,
+            None,
+            recovery_active=False,
+        )
+    assert entry["metrics"]["trend_direction"] == "PUT"
+    assert entry["metrics"]["execute"] is True
+
+
+def test_predict_trend_conflict_does_not_block():
+    params = parse_dl_params({"confidence_call_threshold": 0.75, "confidence_put_threshold": 0.25})
+    orch = type(
+        "O",
+        (),
+        {"config": {"orchestrator": {"execution": {"trend_period": 3, "trend_use_ema": False}}}},
+    )()
+    runtime = {"val_accuracy": 0.55, "val_brier": 0.2, "val_ece": 0.1, "lookback": 15, "deploy_ok": True}
     prices = np.array([5.0, 5.0, 6.0, 9.0])
-    # Weak prediction is PUT (raw_prob = 0.45 < 0.5)
     with patch(
         "src.application.services.deep_learning.dl_predict.predict_next_direction",
         return_value=(None, 0.45, 0.45),
@@ -276,7 +169,6 @@ def test_predict_abstains_on_low_confidence_with_trend_conflict():
             None,
             recovery_active=False,
         )
-    # Weak prediction PUT conflicts with trend CALL, so gate_reason must be trend_conflict
-    assert entry["metrics"]["execute"] is False
-    assert entry["metrics"]["gate_reason"] == "trend_conflict"
+    assert entry["metrics"]["execute"] is True
+    assert entry["metrics"]["gate_reason"] is None
     assert entry["direction"] == TradeDirection.PUT

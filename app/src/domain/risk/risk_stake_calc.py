@@ -62,6 +62,23 @@ def _apply_stop_win_kelly_boost(
     return boosted
 
 
+def _apply_mandatory_weak_cap(
+    kelly_base: float,
+    bankroll: float,
+    kelly_config: dict,
+    kwargs: dict,
+    *,
+    martingale_active: bool,
+) -> float:
+    """Limita stake para entradas fracas de execucao obrigatoria."""
+    if not kwargs.get("mandatory_weak_cap") or martingale_active:
+        return kelly_base
+    weak_pct = float(kelly_config.get("mandatory_weak_max_stake_pct", kelly_config.get("max_stake_pct", 0.004)))
+    if weak_pct > 0.0:
+        return min(kelly_base, bankroll * weak_pct)
+    return kelly_base
+
+
 def calculate_stake_for_manager(
     rm: Any,
     bankroll: float,
@@ -114,12 +131,13 @@ def calculate_stake_for_manager(
         silent=silent,
     )
 
-    if kwargs.get("mandatory_weak_cap") and not martingale_active:
-        weak_pct = float(
-            rm.kelly_config.get("mandatory_weak_max_stake_pct", rm.kelly_config.get("max_stake_pct", 0.004))
-        )
-        if weak_pct > 0.0:
-            kelly_base = min(kelly_base, bankroll * weak_pct)
+    kelly_base = _apply_mandatory_weak_cap(
+        kelly_base,
+        bankroll,
+        rm.kelly_config,
+        kwargs,
+        martingale_active=martingale_active,
+    )
 
     final_stake, recovery_stake, mode_tag = resolve_mode_stake(
         martingale_active=martingale_active,

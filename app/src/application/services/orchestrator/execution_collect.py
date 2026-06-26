@@ -5,9 +5,8 @@ __all__ = ["collect_cluster_orders", "_mandatory_fallback_candidates"]
 from src.application.services.execution_direction import build_execution_candidate
 from src.application.services.execution_direction_fallback import build_mandatory_fallback_candidate
 from src.application.services.execution_mandatory_pick import pick_absolute_mandatory_candidate
-from src.application.services.execution_market_rank import build_market_execution_candidate
+from src.application.services.execution_quality_gate import passes_execution_quality, quality_gate_params
 from src.application.services.execution_symbols import (
-    filter_execution_candidates,
     select_best_execution_candidate,
     select_mandatory_execution_candidate,
 )
@@ -39,10 +38,14 @@ def _gather_cluster_candidates(
     cid,
     min_signal,
     min_val,
+    min_edge=0.0,
     mean_reversion=True,
     low_accuracy=True,
 ):
     """Coleta candidatos DL elegiveis para o ciclo atual."""
+    _ = (mean_reversion, low_accuracy, recovery_cfg)
+    exec_cfg = exec_mgr.orch.config.get("orchestrator", {}).get("execution", {})
+    qparams = quality_gate_params(exec_cfg)
     candidates = []
     for symbol in exec_mgr._trade_symbols():
         entry = decisions.get(symbol)
@@ -55,34 +58,40 @@ def _gather_cluster_candidates(
             recovery_cfg=recovery_cfg,
             min_signal=min_signal,
             min_val=min_val,
+            min_edge=min_edge,
         ):
             exec_mgr.logger.debug("[%s] SKIP: Conviccao insuficiente para %s (Metrics Gate)", cid, symbol)
             continue
-        built = (
-            build_market_execution_candidate(
-                symbol,
-                entry,
-                recovery_active=recovery_active,
-                consecutive_losses=getattr(exec_mgr.orch.risk_manager, "consecutive_losses", 0),
-                mean_reversion_enabled=mean_reversion,
-                low_accuracy_enabled=low_accuracy,
-            )
-            if mandatory
-            else build_execution_candidate(symbol, entry)
+        built = build_execution_candidate(
+            symbol,
+            entry,
+            exec_cfg=exec_cfg,
+            recovery_active=recovery_active,
         )
-        if built is not None:
+        if built is None:
+            continue
+        if mandatory:
             candidates.append(built)
+            continue
+        _, _, metrics = built
+        if not passes_execution_quality(
+            metrics,
+            min_signal=min_signal,
+            min_val=min_val,
+            min_edge=min_edge,
+            recovery_active=recovery_active,
+            **qparams,
+        ):
+            exec_mgr.logger.debug("[%s] SKIP: Qualidade insuficiente para %s", cid, symbol)
+            continue
+        candidates.append(built)
     return candidates
 
 
 def _select_cluster_best(exec_mgr, candidates, *, mandatory, last_loss, last_loss_dir, recovery_active, skip_symbols):
-    """Filtra e escolhe o melhor candidato do cluster para execucao no ciclo."""
-    if not mandatory:
-        dl_cfg = exec_mgr.orch.config.get("deep_learning", {})
-        selection = dl_cfg.get("selection", {}) if isinstance(dl_cfg, dict) else {}
-        candidates = filter_execution_candidates(candidates, selection=selection)
-        if not candidates:
-            return None
+    """Escolhe o melhor candidato do cluster para execucao no ciclo."""
+    if not candidates:
+        return None
     exec_cfg = exec_mgr.orch.config.get("orchestrator", {}).get("execution", {})
     margin = float(exec_cfg.get("diversify_after_loss_margin", 0.08))
     if mandatory:
@@ -115,6 +124,7 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
         skip_symbols,
         min_signal,
         min_val,
+        min_edge,
         last_loss,
         last_loss_dir,
         mean_reversion,
@@ -132,6 +142,7 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
         cid=cid,
         min_signal=min_signal,
         min_val=min_val,
+        min_edge=min_edge,
         mean_reversion=mean_reversion,
         low_accuracy=low_accuracy,
     )
@@ -236,6 +247,21 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
         calibrated = float(metrics.get("trade_score", metrics.get("conviction", 0.0)))
         raw_side = raw_side_from_metrics(metrics)
         effective_signal = max(calibrated, raw_side)
+        if not mandatory and not passes_execution_quality(
+            metrics,
+            min_signal=min_signal,
+            min_val=min_val,
+            min_edge=min_edge,
+            recovery_active=recovery_active,
+            **quality_gate_params(exec_cfg),
+        ):
+            exec_mgr.logger.info(
+                "[%s] SKIP: Melhor candidato abaixo do piso de qualidade (s=%.2f min=%.2f)",
+                cid,
+                effective_signal,
+                min_signal,
+            )
+            return []
         log_execution_decision(exec_mgr, cid, best, candidates, effective_signal)
         return [best]
 

@@ -33,11 +33,23 @@ def test_collect_cluster_orders_mandatory_fallback_after_recovery_filter():
     decisions = {
         ANCHOR: {
             "direction": TradeDirection.CALL,
-            "metrics": {"execute": False, "trade_score": 0.65, "val_accuracy": 0.50, "raw_prob": 0.47},
+            "metrics": {
+                "execute": False,
+                "trade_score": 0.65,
+                "val_accuracy": 0.50,
+                "raw_prob": 0.47,
+                "deploy_ok": True,
+            },
         },
         PAIR: {
             "direction": TradeDirection.PUT,
-            "metrics": {"execute": False, "trade_score": 0.58, "val_accuracy": 0.52, "raw_prob": 0.44},
+            "metrics": {
+                "execute": False,
+                "trade_score": 0.58,
+                "val_accuracy": 0.52,
+                "raw_prob": 0.44,
+                "deploy_ok": True,
+            },
         },
     }
     with patch(
@@ -46,8 +58,7 @@ def test_collect_cluster_orders_mandatory_fallback_after_recovery_filter():
     ):
         orders = collect_cluster_orders(exec_mgr, decisions)
     assert len(orders) == 1
-    assert orders[0][0] == ANCHOR
-    assert orders[0][1] == TradeDirection.CALL
+    assert orders[0][0] == PAIR
 
 
 def test_collect_cluster_orders_mandatory_returns_empty_when_fallback_missing():

@@ -2,6 +2,7 @@ import math
 
 import pytest
 
+from src.domain.risk.martingale_conviction import martingale_min_conviction
 from src.domain.risk.risk_manager import RiskManager
 
 
@@ -109,10 +110,11 @@ def test_martingale_rejects_marginal_raw_side_when_always_disabled(kelly_config)
     )
 
 
-def test_martingale_allows_marginal_raw_side_with_pending_always(kelly_config):
+def test_martingale_rejects_marginal_raw_side_with_pending_always(kelly_config):
+    kelly_config["kelly"]["martingale_sizing_conviction"] = 0.58
     rm = RiskManager(kelly_config)
     rm.pending_loss["R_50"] = 10.0
-    assert rm._martingale_allowed(
+    assert not rm._martingale_allowed(
         "R_75",
         0.51,
         dl_metrics={
@@ -156,6 +158,26 @@ def test_martingale_lowers_conviction_floor_when_pending_high(kelly_config):
             "raw_prob": 0.47,
             "val_accuracy": 0.55,
         },
+    )
+
+
+def test_martingale_min_conviction_defaults_when_config_zero(kelly_config):
+    kelly_config["kelly"]["martingale_sizing_conviction"] = 0.0
+    kelly_config["kelly"]["recovery_martingale_min_conviction"] = 0.0
+    assert martingale_min_conviction(kelly_config["kelly"], pending_loss={}, consecutive_losses=4) == 0.64
+
+
+def test_martingale_allows_conflict_with_conviction_floor(kelly_config):
+    rm = RiskManager(kelly_config)
+    rm.pending_loss["R_50"] = 10.0
+    assert rm._martingale_dl_conviction_ok(
+        {
+            "deploy_ok": True,
+            "gate_reason": "trend_conflict",
+            "trade_score": 0.65,
+            "raw_prob": 0.65,
+            "val_accuracy": 0.62,
+        }
     )
 
 

@@ -76,40 +76,66 @@ def test_log_execution_blockers_silent_when_gating_blocks(orch_config):
         assert not any("EXEC_NONE" in str(c) for c in mock_info.call_args_list)
 
 
-def test_collect_orders_non_mandatory_skips_execute_false(orch_config):
+def test_collect_orders_non_mandatory_includes_candidate_with_raw_prob(orch_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = False
+        orch.config.setdefault("deep_learning", {})["min_edge_execute"] = 0.04
         orch.symbols = ["R_50"]
         decisions = {
-            "R_50": {"direction": TradeDirection.CALL, "metrics": {"execute": False, "conviction": 0.9}},
+            "R_50": {
+                "direction": TradeDirection.CALL,
+                "metrics": {
+                    "execute": True,
+                    "deploy_ok": True,
+                    "conviction": 0.82,
+                    "trade_score": 0.82,
+                    "val_accuracy": 0.70,
+                    "edge": 0.12,
+                    "raw_prob": 0.82,
+                    "trend_direction": "CALL",
+                    "indicators": {
+                        "adx": 0.28,
+                        "hurst": 0.55,
+                        "vol_ratio": 1.1,
+                        "rsi": 0.52,
+                        "keltner": 0.55,
+                        "cmo": 0.05,
+                    },
+                },
+            },
         }
-        assert orch.executor._collect_orders(decisions) == []
+        orders = orch.executor._collect_orders(decisions)
+        assert len(orders) == 1
 
 
-def test_collect_orders_non_mandatory_applies_selection_filter(orch_config):
+def test_collect_orders_non_mandatory_skips_weak_technically_valid_candidate(orch_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = False
         orch.symbols = ["R_50"]
         orch.config["deep_learning"] = {
-            "selection": {"min_conviction_execute": 0.99, "min_edge_margin": 0.99, "min_val_accuracy": 0.99}
+            "min_edge_execute": 0.04,
+            "selection": {"min_conviction_execute": 0.99, "min_edge_margin": 0.99, "min_val_accuracy": 0.99},
         }
         decisions = {
             "R_50": {
                 "direction": TradeDirection.CALL,
                 "metrics": {
                     "execute": True,
+                    "deploy_ok": True,
                     "conviction": 0.55,
                     "trade_score": 0.55,
-                    "val_accuracy": 0.4,
+                    "val_accuracy": 0.40,
                     "edge": 0.05,
+                    "raw_prob": 0.55,
                 },
             },
         }
-        assert orch.executor._collect_orders(decisions) == []
+        orders = orch.executor._collect_orders(decisions)
+        assert len(orders) == 0
 
 
 def test_collect_orders_non_mandatory_keeps_filtered_candidate(orch_config):
@@ -117,6 +143,7 @@ def test_collect_orders_non_mandatory_keeps_filtered_candidate(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = False
+        orch.config.setdefault("deep_learning", {})["min_edge_execute"] = 0.04
         orch.symbols = ["R_50"]
         orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["include_anchor_trades"] = True
         decisions = {
@@ -124,11 +151,21 @@ def test_collect_orders_non_mandatory_keeps_filtered_candidate(orch_config):
                 "direction": TradeDirection.CALL,
                 "metrics": {
                     "execute": True,
+                    "deploy_ok": True,
                     "conviction": 0.80,
                     "trade_score": 0.80,
-                    "val_accuracy": 0.55,
+                    "val_accuracy": 0.70,
                     "edge": 0.10,
                     "raw_prob": 0.80,
+                    "trend_direction": "CALL",
+                    "indicators": {
+                        "adx": 0.28,
+                        "hurst": 0.55,
+                        "vol_ratio": 1.1,
+                        "rsi": 0.52,
+                        "keltner": 0.55,
+                        "cmo": 0.05,
+                    },
                 },
             },
         }

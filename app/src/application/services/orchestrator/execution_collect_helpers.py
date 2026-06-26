@@ -102,6 +102,7 @@ def extract_collect_params(exec_mgr, dl_cfg: dict, *, recovery_active: bool) -> 
         if recovery_active
         else float(dl_cfg.get("min_val_accuracy", 0.54))
     )
+    min_edge = float(dl_cfg.get("min_edge_execute", 0.0))
     last_loss = getattr(exec_mgr.orch.risk_manager, "last_loss_symbol", None)
     last_loss_dir = getattr(exec_mgr.orch.risk_manager, "last_loss_direction", None)
     exec_cfg = exec_mgr.orch.config.get("orchestrator", {}).get("execution", {})
@@ -113,6 +114,7 @@ def extract_collect_params(exec_mgr, dl_cfg: dict, *, recovery_active: bool) -> 
         skip_symbols,
         min_signal,
         min_val,
+        min_edge,
         last_loss,
         last_loss_dir,
         mean_reversion,

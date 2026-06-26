@@ -1,12 +1,30 @@
 # Linters e qualidade
 
-Configuracao centralizada de hooks e release semantico (sem infra Kubernetes/Terraform).
+Configuração centralizada de hooks e release semântico (sem infra Kubernetes/Terraform).
 
 | Arquivo | Uso |
 |---------|-----|
 | `git-hooks/` | Wrappers bash para WSL; `bash linters/git-hooks/install.sh` ou `make pre-commit` |
-| `../.pre-commit-config.yaml` | Config unica dos hooks (raiz do repo) |
+| `../.pre-commit-config.yaml` | Config única dos hooks (raiz do repo) |
 | `commitlint.config.mjs` | Mensagens de commit (Conventional Commits) |
 | `releaserc.json` | semantic-release no CI |
 
-Os gates executam `app/scripts/operations/clean_workspace.py` com `cwd` implicito em `app/` (Ruff, pytest, bandit, interrogate), usando o Conda `deriv-api` (`linters/git-hooks/bin/python` no WSL).
+## Gates do pre-commit
+
+| Hook | Ferramenta | Escopo |
+|------|------------|--------|
+| Qualidade | Ruff, Interrogate, Vulture, limite 300 linhas | `app/src`, `app/tests` |
+| Testes | pytest + coverage | 100% em `app/src` |
+| Segurança | Bandit, pip-audit | dependências e código |
+| Limpeza | caches e artefatos locais | workspace |
+
+Os gates executam `app/scripts/operations/clean_workspace.py` com `cwd` em `app/`, usando o Conda `deriv-api` (`linters/git-hooks/bin/python` no WSL).
+
+Comandos:
+
+```bash
+make lint          # estágio lint
+make test          # pytest + cobertura
+make pre-commit    # instala hooks
+make pre-commit-run  # roda todos os hooks
+```

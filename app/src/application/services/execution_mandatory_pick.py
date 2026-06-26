@@ -2,6 +2,7 @@
 
 from src.application.services.execution_direction import (
     _entry_gate_blocked,
+    build_execution_candidate,
     build_forced_direction_candidate,
     build_forced_recovery_candidate,
     meets_mandatory_signal_floor,
@@ -12,7 +13,6 @@ from src.application.services.execution_market_rank import (
     build_market_execution_candidate,
     mandatory_pool_eligible,
     market_decision_score,
-    resolve_market_direction,
 )
 from src.domain.models.trade import TradeDirection
 
@@ -46,6 +46,7 @@ def _recovery_hedge_pick(
     low_accuracy_enabled: bool = True,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Prioriza par Range com direcao estrutural oposta ao ultimo loss."""
+    _ = (consecutive_losses, mean_reversion_enabled, low_accuracy_enabled)
     target = recovery_hedge_target(last_loss_symbol, last_loss_direction)
     if target is None:
         return None
@@ -58,15 +59,6 @@ def _recovery_hedge_pick(
     built = build_forced_direction_candidate(peer, entry, hedge_dir)
     if built is not None:
         return built
-    direction = resolve_market_direction(
-        entry,
-        recovery_active=True,
-        consecutive_losses=consecutive_losses,
-        mean_reversion_enabled=mean_reversion_enabled,
-        low_accuracy_enabled=low_accuracy_enabled,
-    )
-    if direction is None:
-        return None
     return build_forced_recovery_candidate(peer, entry, hedge_dir)
 
 
@@ -88,11 +80,7 @@ def _rank_eligible_candidates(
     best_score = -1.0
     for symbol in order:
         entry = decisions.get(symbol)
-        if not entry or not mandatory_pool_eligible(
-            entry,
-            mean_reversion_enabled=mean_reversion_enabled,
-            low_accuracy_enabled=low_accuracy_enabled,
-        ):
+        if not entry or not mandatory_pool_eligible(entry):
             continue
         metrics = entry.get("metrics") or {}
         if (min_signal > 0.0 or min_val > 0.0) and not meets_mandatory_signal_floor(
@@ -109,16 +97,13 @@ def _rank_eligible_candidates(
             low_accuracy_enabled=low_accuracy_enabled,
         )
         if candidate is None:
-            direction = resolve_market_direction(
+            candidate = build_execution_candidate(
+                symbol,
                 entry,
                 recovery_active=recovery_active,
-                consecutive_losses=consecutive_losses,
-                mean_reversion_enabled=mean_reversion_enabled,
-                low_accuracy_enabled=low_accuracy_enabled,
             )
-            if direction is None:
-                continue
-            candidate = build_forced_recovery_candidate(symbol, entry, direction)
+        if candidate is None:
+            continue
         rank = market_decision_score(
             candidate[2],
             exec_direction=candidate[1],
@@ -211,11 +196,7 @@ def pick_absolute_mandatory_candidate(
     best_score = -1.0
     for symbol in order:
         entry = decisions.get(symbol)
-        if not entry or not mandatory_pool_eligible(
-            entry,
-            mean_reversion_enabled=mean_reversion_enabled,
-            low_accuracy_enabled=low_accuracy_enabled,
-        ):
+        if not entry or not mandatory_pool_eligible(entry):
             continue
         metrics = entry.get("metrics") or {}
         if (min_signal > 0.0 or min_val > 0.0) and not meets_mandatory_signal_floor(
@@ -231,16 +212,13 @@ def pick_absolute_mandatory_candidate(
             low_accuracy_enabled=low_accuracy_enabled,
         )
         if candidate is None:
-            direction = resolve_market_direction(
+            candidate = build_execution_candidate(
+                symbol,
                 entry,
                 recovery_active=recovery_active,
-                consecutive_losses=consecutive_losses,
-                mean_reversion_enabled=mean_reversion_enabled,
-                low_accuracy_enabled=low_accuracy_enabled,
             )
-            if direction is None:
-                continue
-            candidate = build_forced_recovery_candidate(symbol, entry, direction)
+        if candidate is None:
+            continue
         rank = market_decision_score(
             candidate[2],
             exec_direction=candidate[1],

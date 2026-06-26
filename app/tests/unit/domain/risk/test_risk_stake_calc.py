@@ -1,6 +1,9 @@
 from unittest.mock import MagicMock
 
-from src.domain.risk.risk_stake_calc import calculate_stake_for_manager
+from src.domain.risk.risk_stake_calc import (
+    _apply_mandatory_weak_cap,
+    calculate_stake_for_manager,
+)
 
 
 def test_calculate_stake_silent_skips_martingale_log(kelly_config):
@@ -167,3 +170,14 @@ def test_calculate_stake_mandatory_trade_each_cycle(kelly_config):
     )
     # Mesmo sem edge de Kelly e com baixa convicção, deve alocar stake_min (1.5) por ser execução mandatória
     assert stake == 1.5
+
+
+def test_apply_mandatory_weak_cap_zero_pct():
+    result = _apply_mandatory_weak_cap(
+        50.0,
+        10000.0,
+        {"mandatory_weak_max_stake_pct": 0.0, "max_stake_pct": 0.0},
+        {"mandatory_weak_cap": True},
+        martingale_active=False,
+    )
+    assert result == 50.0

@@ -3,11 +3,11 @@
 import logging
 from typing import Any
 
+from src.domain.risk.martingale_conviction import martingale_dl_conviction_ok, martingale_dl_entry_allowed
 from src.domain.risk.martingale_gate import apply_win_to_pending_loss, martingale_allowed
 from src.domain.risk.risk_cluster import finalize_risk_cluster
 from src.domain.risk.risk_cooldown import RiskCooldownMixin
 from src.domain.risk.risk_stake_calc import calculate_stake_for_manager
-from src.domain.risk.stake_sizing import raw_side_from_metrics
 from src.domain.risk.stop_win_target import resolve_stop_win_target
 from src.domain.risk.symbol_loss_cooldown import SymbolLossCooldownMixin
 
@@ -146,23 +146,12 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
 
     def _martingale_dl_conviction_ok(self, dl_metrics: dict) -> bool:
         """Exige piso de sinal e val_accuracy para martingale com metricas DL."""
-        if dl_metrics.get("deploy_ok") is False:
-            return False
-        min_conv = float(self.kelly_config.get("martingale_sizing_conviction", 0.58))
-        pending = sum(float(v) for v in self.pending_loss.values())
-        force_min = float(self.kelly_config.get("recovery_martingale_min_conviction", min_conv))
-        force_pending = float(self.kelly_config.get("recovery_force_pending_min", 0.0))
-        if force_pending > 0.0 and pending + 1e-9 >= force_pending:
-            min_conv = min(min_conv, force_min)
-        min_val = float(self.kelly_config.get("martingale_min_val_accuracy", 0.50))
-        score = float(dl_metrics.get("trade_score", dl_metrics.get("conviction", 0.0)))
-        raw_side = raw_side_from_metrics(dl_metrics)
-        val = float(dl_metrics.get("val_accuracy", 0.0))
-        if min_val > 0.0 and val + 1e-9 < min_val:
-            return False
-        if max(score, raw_side) + 1e-9 >= min_conv:
-            return True
-        return score < 1e-9 and raw_side + 1e-9 >= min_conv
+        return martingale_dl_conviction_ok(
+            dl_metrics,
+            self.kelly_config,
+            pending_loss=self.pending_loss,
+            consecutive_losses=int(getattr(self, "consecutive_losses", 0)),
+        )
 
     def _martingale_allowed(self, _symbol: str, _conviction: float, **kwargs) -> bool:
         """Martingale ativo com perda pendente e conviccao minima nas metricas DL."""
@@ -170,16 +159,13 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
             return False
         dl_metrics = kwargs.get("dl_metrics")
         if isinstance(dl_metrics, dict):
-            if dl_metrics.get("deploy_ok") is False:
-                return False
-            pending = sum(float(v) for v in self.pending_loss.values())
-            if pending > 0.0 and bool(self.kelly_config.get("recovery_martingale_always", True)):
-                return True
-            min_val = float(self.kelly_config.get("martingale_min_val_accuracy", 0.50))
-            val = float(dl_metrics.get("val_accuracy", 0.0))
-            if min_val > 0.0 and val + 1e-9 < min_val:
-                return False
-            return self._martingale_dl_conviction_ok(dl_metrics)
+            return martingale_dl_entry_allowed(
+                dl_metrics,
+                self.kelly_config,
+                pending_loss=self.pending_loss,
+                consecutive_losses=int(getattr(self, "consecutive_losses", 0)),
+                recovery_forced=bool(kwargs.get("recovery_forced")),
+            )
         return True
 
     def calculate_stake(

@@ -8,7 +8,7 @@ from src.application.services.execution_direction import (
     infer_dl_direction,
 )
 from src.application.services.execution_mandatory_pick import pick_best_mandatory_candidate
-from src.application.services.execution_market_rank import build_market_execution_candidate, resolve_market_direction
+from src.application.services.execution_market_rank import build_market_execution_candidate
 from src.domain.models.trade import TradeDirection
 
 
@@ -156,18 +156,19 @@ def _last_resort_fallback_pick(
             continue
         if min_val > 0.0 and float(metrics.get("val_accuracy", 0.0)) + 1e-9 < min_val:
             continue
-        raw = metrics.get("raw_prob")
-        direction = resolve_market_direction(
+        candidate = build_market_execution_candidate(
+            symbol,
             entry,
             recovery_active=recovery_active,
             consecutive_losses=consecutive_losses,
             mean_reversion_enabled=mean_reversion_enabled,
             low_accuracy_enabled=low_accuracy_enabled,
         )
-        if direction is None:
-            side = TradeDirection.CALL if raw is None or float(raw) > 0.5 else TradeDirection.PUT
-            direction = side
-        return build_forced_recovery_candidate(symbol, entry, direction)
+        if candidate is None:
+            candidate = build_execution_candidate(symbol, entry, recovery_active=recovery_active)
+        if candidate is None:
+            continue
+        return candidate
     return None
 
 

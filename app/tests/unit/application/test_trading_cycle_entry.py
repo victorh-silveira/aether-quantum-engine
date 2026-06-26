@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -37,6 +37,26 @@ def test_trading_cycle_entry_allowed(orch_ready):
     orch._settlement_wait_logged = True
     assert trading_cycle_entry_allowed(orch) is True
     assert orch._settlement_wait_logged is False
+
+
+def test_trading_cycle_entry_allowed_when_cadence_elapsed_same_epoch(orch_ready):
+    orch = orch_ready
+    orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 60
+    orch._last_epoch = 1000
+    orch._last_processed_epoch = 1000
+    orch._last_cluster_cycle_end = 10.0
+    with patch("src.application.services.orchestrator.trading_cycle_entry.time.time", return_value=80.0):
+        assert trading_cycle_entry_allowed(orch) is True
+
+
+def test_trading_cycle_entry_blocked_same_epoch_before_cadence(orch_ready):
+    orch = orch_ready
+    orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 60
+    orch._last_epoch = 1000
+    orch._last_processed_epoch = 1000
+    orch._last_cluster_cycle_end = 50.0
+    with patch("src.application.services.orchestrator.trading_cycle_entry.time.time", return_value=80.0):
+        assert trading_cycle_entry_allowed(orch) is False
 
 
 def test_trading_cycle_entry_blocked_after_shutdown(orch_ready):

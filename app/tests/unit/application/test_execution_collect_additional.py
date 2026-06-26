@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from src.application.services.orchestrator.execution_collect import (
     _gather_cluster_candidates,
@@ -15,6 +15,7 @@ def test_gather_cluster_candidates_skips_unbuildable_direction():
         anchor=ANCHOR,
         symbols=[PAIR],
         _active_cycle_id=1,
+        config={"orchestrator": {"execution": {}}},
     )
     exec_mgr = SimpleNamespace(
         orch=orch,
@@ -33,6 +34,88 @@ def test_gather_cluster_candidates_skips_unbuildable_direction():
         min_val=0.0,
     )
     assert candidates == []
+
+
+def test_gather_cluster_candidates_skips_when_build_returns_none():
+    orch = SimpleNamespace(
+        anchor=ANCHOR,
+        symbols=[PAIR],
+        _active_cycle_id=1,
+        config={"orchestrator": {"execution": {}}},
+    )
+    exec_mgr = SimpleNamespace(
+        orch=orch,
+        logger=MagicMock(),
+        _trade_symbols=lambda: [PAIR],
+    )
+    decisions = {
+        PAIR: {
+            "direction": TradeDirection.CALL,
+            "metrics": {"execute": True, "raw_prob": 0.82, "deploy_ok": True},
+        },
+    }
+    with patch(
+        "src.application.services.orchestrator.execution_collect.build_execution_candidate",
+        return_value=None,
+    ):
+        candidates = _gather_cluster_candidates(
+            exec_mgr,
+            decisions,
+            mandatory=False,
+            recovery_active=False,
+            recovery_cfg={},
+            cid="C0001",
+            min_signal=0.45,
+            min_val=0.0,
+        )
+    assert candidates == []
+
+
+def test_collect_cluster_orders_skips_best_below_final_quality_floor():
+    orch = SimpleNamespace(
+        anchor=ANCHOR,
+        symbols=[PAIR],
+        config={
+            "orchestrator": {"execution": {"include_anchor_trades": False}},
+            "deep_learning": {"min_edge_execute": 0.04},
+            "risk_management": {"kelly": {"mandatory_min_trade_score": 0.68}},
+        },
+        risk_manager=SimpleNamespace(
+            pending_loss={},
+            last_loss_symbol=None,
+            last_loss_direction=None,
+            consecutive_losses=0,
+        ),
+        _active_cycle_id=12,
+    )
+    exec_mgr = SimpleNamespace(
+        orch=orch,
+        logger=MagicMock(),
+        _mandatory_trade_each_cycle=lambda: False,
+        _trade_symbols=lambda: [PAIR],
+    )
+    decisions = {
+        PAIR: {
+            "direction": TradeDirection.CALL,
+            "metrics": {
+                "execute": True,
+                "deploy_ok": True,
+                "trade_score": 0.82,
+                "val_accuracy": 0.70,
+                "edge": 0.12,
+                "raw_prob": 0.82,
+                "trend_direction": "CALL",
+                "indicators": {"adx": 0.28, "hurst": 0.55, "vol_ratio": 1.1, "rsi": 0.52, "keltner": 0.55, "cmo": 0.05},
+            },
+        },
+    }
+    with patch(
+        "src.application.services.orchestrator.execution_collect.passes_execution_quality",
+        side_effect=[True, False],
+    ):
+        orders = collect_cluster_orders(exec_mgr, decisions)
+    assert orders == []
+    assert exec_mgr.logger.info.called
 
 
 def test_collect_cluster_orders_inverts_on_grey_zone():
@@ -101,7 +184,7 @@ def test_cluster_entry_recovery_accepts_mandatory_weak_with_pending_loss():
     )
 
 
-def test_collect_cluster_orders_disallows_absolute_zero_fallback_in_recovery():
+def test_collect_cluster_orders_allows_weak_fallback_in_recovery():
     orch = SimpleNamespace(
         anchor=ANCHOR,
         symbols=[ANCHOR, PAIR],
@@ -143,4 +226,4 @@ def test_collect_cluster_orders_disallows_absolute_zero_fallback_in_recovery():
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
-    assert orders == []
+    assert len(orders) == 1

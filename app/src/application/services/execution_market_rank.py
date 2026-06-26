@@ -1,14 +1,16 @@
 """Ranking de mercado e resolucao de direcao para execucao."""
 
-import contextlib
-
-from src.application.services.execution_direction import infer_dl_direction
+from src.application.services.execution_direction import build_execution_candidate
+from src.application.services.execution_direction_resolver import infer_dl_direction, is_technically_blocked
 from src.domain.models.trade import TradeDirection
-from src.domain.risk.stake_sizing import enrich_metrics_conviction
 
 
-_ABSOLUTE_HARD_BLOCKS = frozenset({"data", "predict_error", "training", "trend_conflict", "exhaustion_conflict"})
 _CLUSTER_CORE = frozenset({"R_50", "R_75"})
+
+
+def _trade_score(metrics: dict) -> float:
+    """Le score unificado de conviccao usado em selecao e ranking."""
+    return float(metrics.get("trade_score", metrics.get("raw_prob", metrics.get("conviction", 0.0))))
 
 
 def _raw_side(metrics: dict) -> float:
@@ -19,145 +21,11 @@ def _raw_side(metrics: dict) -> float:
     return max(float(raw), 1.0 - float(raw))
 
 
-def _trade_score(metrics: dict) -> float:
-    """Score unificado do candidato."""
-    return float(metrics.get("trade_score", metrics.get("conviction", metrics.get("raw_prob", 0.0))))
-
-
-def mandatory_pool_eligible(
-    entry: dict,
-    *,
-    mean_reversion_enabled: bool = True,
-    low_accuracy_enabled: bool = True,
-) -> bool:
+def mandatory_pool_eligible(entry: dict, **_) -> bool:
     """Indica se simbolo pode entrar no pool com direcao inferivel."""
-    metrics = entry.get("metrics") or {}
-    gate = str(metrics.get("gate_reason") or "")
-    if gate in _ABSOLUTE_HARD_BLOCKS:
+    if is_technically_blocked(entry):
         return False
-    if metrics.get("deploy_ok") is False:
-        return False
-    return (
-        resolve_market_direction(
-            entry,
-            mean_reversion_enabled=mean_reversion_enabled,
-            low_accuracy_enabled=low_accuracy_enabled,
-        )
-        is not None
-    )
-
-
-def _resolve_low_accuracy(
-    dl_dir: TradeDirection,
-    metrics: dict,
-    trend_str: str | None,
-    val_acc: float,
-    rsi: float,
-    keltner: float,
-) -> TradeDirection | None:
-    """Aplica inversao inteligente se val_accuracy < 0.50."""
-    if val_acc >= 0.50:
-        return None
-    if trend_str:
-        with contextlib.suppress(KeyError, ValueError):
-            trend_dir = TradeDirection[trend_str.upper()]
-            if (
-                trend_dir == TradeDirection.PUT
-                and (rsi < 0.45 or keltner < 0.30)
-                or trend_dir == TradeDirection.CALL
-                and (rsi > 0.55 or keltner > 0.70)
-            ):
-                pass
-            else:
-                metrics["direction_inverted"] = dl_dir != trend_dir
-                return trend_dir
-    metrics["direction_inverted"] = True
-    return TradeDirection.PUT if dl_dir == TradeDirection.CALL else TradeDirection.CALL
-
-
-def _resolve_mean_reversion(dl_dir: TradeDirection, metrics: dict) -> TradeDirection | None:
-    """Aplica inversao por reversao a media."""
-    indicators = metrics.get("indicators") or {}
-    hurst = float(indicators.get("hurst", 0.5))
-    adx = float(indicators.get("adx", 0.5))
-    vol_ratio = float(indicators.get("vol_ratio", 1.0))
-    rsi = float(indicators.get("rsi", 0.5))
-
-    if hurst < 0.48 and adx < 0.25 and vol_ratio < 1.0:
-        if dl_dir == TradeDirection.PUT and rsi < 0.45:
-            metrics["direction_inverted"] = True
-            return TradeDirection.CALL
-        if dl_dir == TradeDirection.CALL and rsi > 0.55:
-            metrics["direction_inverted"] = True
-            return TradeDirection.PUT
-    return None
-
-
-def resolve_market_direction(
-    entry: dict,
-    *,
-    recovery_active: bool = False,
-    consecutive_losses: int = 0,
-    mean_reversion_enabled: bool = True,
-    low_accuracy_enabled: bool = True,
-) -> TradeDirection | None:
-    """Resolve CALL/PUT a partir da predicao DL com inversao inteligente e tendencia."""
-    _ = consecutive_losses
-    dl_dir = infer_dl_direction(entry)
-    if dl_dir is None:
-        return None
-    metrics = entry.get("metrics") or {}
-    val_acc = float(metrics.get("val_accuracy", 0.50))
-    trend_str = metrics.get("trend_direction")
-
-    # Verifica se a tendência é forte e se há exaustão por osciladores
-    indicators = metrics.get("indicators") or {}
-    vol_ratio = float(indicators.get("vol_ratio", 1.0))
-    adx = float(indicators.get("adx", 0.5))
-    trend_strong = vol_ratio >= 0.85 or adx >= 0.25
-    rsi = float(indicators.get("rsi", 0.5))
-    keltner = float(indicators.get("keltner", 0.5))
-
-    if low_accuracy_enabled:
-        resolved = _resolve_low_accuracy(dl_dir, metrics, trend_str, val_acc, rsi, keltner)
-        if resolved is not None:
-            return resolved
-
-    if mean_reversion_enabled:
-        resolved = _resolve_mean_reversion(dl_dir, metrics)
-        if resolved is not None:
-            return resolved
-
-    # Alinhamento com tendência no recovery
-    if recovery_active and trend_str and trend_strong:
-        with contextlib.suppress(KeyError, ValueError):
-            trend_dir = TradeDirection[trend_str.upper()]
-            if (
-                trend_dir == TradeDirection.PUT
-                and (rsi < 0.45 or keltner < 0.30)
-                or trend_dir == TradeDirection.CALL
-                and (rsi > 0.55 or keltner > 0.70)
-            ):
-                pass
-            else:
-                metrics["direction_inverted"] = dl_dir != trend_dir
-                return trend_dir
-
-    # Fallback para tendência em gating bloqueado
-    if trend_str and not metrics.get("execute", True) and trend_strong:
-        with contextlib.suppress(KeyError, ValueError):
-            trend_dir = TradeDirection[trend_str.upper()]
-            if (
-                trend_dir == TradeDirection.PUT
-                and (rsi < 0.45 or keltner < 0.30)
-                or trend_dir == TradeDirection.CALL
-                and (rsi > 0.55 or keltner > 0.70)
-            ):
-                pass
-            else:
-                return trend_dir
-
-    return dl_dir
+    return infer_dl_direction(entry) is not None
 
 
 def _recovery_score_adjustment(
@@ -181,24 +49,19 @@ def _recovery_score_adjustment(
         ld = str(last_loss_direction).upper()
         composite += 0.03 if exec_direction.name != ld else -0.12
 
-    # Smart Recovery Gating por Volatilidade & Tendência
     if metrics:
         indicators = metrics.get("indicators") or {}
         adx = float(indicators.get("adx", 0.20))
         vol_ratio = float(indicators.get("vol_ratio", 0.90))
         hurst = float(indicators.get("hurst", 0.50))
 
-        # 1. Penalidade de Sem Tendência
         if adx < 0.18:
             composite -= 0.08
-        # 2. Bônus de Tendência Saudável
         elif adx >= 0.24 and vol_ratio >= 1.0:
             composite += 0.05
 
-        # 3. Bônus de Consistência
         if hurst > 0.58:
             composite += 0.03
-        # 4. Penalidade de Ruído Errático
         elif hurst < 0.45:
             composite -= 0.04
 
@@ -219,6 +82,9 @@ def market_decision_score(
     val = float(metrics.get("val_accuracy", 0.0))
     edge = float(metrics.get("edge", abs(raw_side - 0.5)))
     composite = raw_side * 0.45 + val * 0.35 + edge * 0.20
+    resolved = float(metrics.get("resolved_conviction", 0.0))
+    if resolved > 0.0:
+        composite = composite * 0.6 + resolved * 0.4
     if metrics.get("execute"):
         composite += 0.05
     if metrics.get("deploy_ok"):
@@ -226,6 +92,11 @@ def market_decision_score(
     brier = metrics.get("val_brier")
     if brier is not None and float(brier) > 0.28:
         composite -= 0.04
+    if metrics.get("direction_inverted"):
+        composite -= 0.10
+    margin = float(metrics.get("direction_margin", 0.0))
+    if margin + 1e-9 < 0.05:
+        composite -= 0.08
     return _recovery_score_adjustment(
         composite,
         recovery_active=recovery_active,
@@ -245,22 +116,13 @@ def build_market_execution_candidate(
     consecutive_losses: int = 0,
     mean_reversion_enabled: bool = True,
     low_accuracy_enabled: bool = True,
+    exec_cfg: dict | None = None,
 ) -> tuple[str, TradeDirection, dict] | None:
-    """Monta candidato com direcao resolvida pelo ranking de mercado."""
-    direction = resolve_market_direction(
+    """Monta candidato com direcao resolvida pelo motor unificado."""
+    _ = (consecutive_losses, mean_reversion_enabled, low_accuracy_enabled)
+    return build_execution_candidate(
+        symbol,
         entry,
+        exec_cfg=exec_cfg,
         recovery_active=recovery_active,
-        consecutive_losses=consecutive_losses,
-        mean_reversion_enabled=mean_reversion_enabled,
-        low_accuracy_enabled=low_accuracy_enabled,
     )
-    if direction is None:
-        return None
-    metrics = dict(entry.get("metrics") or {})
-    enrich_metrics_conviction(metrics)
-    dl_dir = infer_dl_direction(entry)
-    metrics["dl_direction"] = dl_dir.name if dl_dir else direction.name
-    metrics["exec_direction"] = direction.name
-    if "direction_inverted" not in metrics:
-        metrics["direction_inverted"] = False
-    return symbol, direction, metrics

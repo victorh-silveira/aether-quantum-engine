@@ -9,35 +9,22 @@ from src.application.services.deep_learning.model import INPUT_DIM, fit_norm_sta
 from src.domain.models.trade import TradeDirection
 
 
-def test_predict_abstains_on_exhaustion_conflict():
+def test_predict_exhaustion_does_not_block_execution():
     params = parse_dl_params(
         {
             "confidence_call_threshold": 0.55,
             "confidence_put_threshold": 0.45,
             "min_val_accuracy": 0.50,
-            "exhaustion_filter_enabled": True,
-            "exhaustion_rsi_lower": 0.28,
-            "exhaustion_rsi_upper": 0.72,
         }
     )
     orch = type(
         "O",
         (),
-        {
-            "config": {
-                "orchestrator": {
-                    "execution": {
-                        "trend_period": 3,
-                        "trend_use_ema": False,
-                    }
-                }
-            }
-        },
+        {"config": {"orchestrator": {"execution": {"trend_period": 3, "trend_use_ema": False}}}},
     )()
-    runtime = {"val_accuracy": 0.55, "val_brier": 0.2, "val_ece": 0.1, "lookback": 15}
+    runtime = {"val_accuracy": 0.55, "val_brier": 0.2, "val_ece": 0.1, "lookback": 15, "deploy_ok": True}
     prices = np.array([5.0, 5.0, 6.0, 9.0])
 
-    # Test case 1: Strong PUT direction, but RSI is extremely oversold (e.g. 0.25)
     with (
         patch(
             "src.application.services.deep_learning.dl_predict.predict_next_direction",
@@ -45,7 +32,17 @@ def test_predict_abstains_on_exhaustion_conflict():
         ),
         patch(
             "src.application.services.deep_learning.dl_predict.precompute_price_series",
-            return_value={"rsi": [0.25], "adx": [0.15], "hurst": [0.5]},
+            return_value={
+                "rsi": [0.25],
+                "adx": [0.15],
+                "hurst": [0.5],
+                "vol_ratio_short_long": [1.0],
+                "cmo": [0.0],
+                "keltner_pct_b": [0.5],
+                "macd": [0.0],
+                "macd_signal": [0.0],
+                "di_diff": [0.0],
+            },
         ),
     ):
         entry = predict_symbol_decision(
@@ -59,55 +56,6 @@ def test_predict_abstains_on_exhaustion_conflict():
             None,
             recovery_active=False,
         )
-    assert entry["metrics"]["execute"] is False
-    assert entry["metrics"]["gate_reason"] == "exhaustion_conflict"
-
-    # Test case 2: Strong CALL direction, but Keltner pct b is overbought (e.g. 1.2)
-    with (
-        patch(
-            "src.application.services.deep_learning.dl_predict.predict_next_direction",
-            return_value=(TradeDirection.CALL, 0.70, 0.70),
-        ),
-        patch(
-            "src.application.services.deep_learning.dl_predict.precompute_price_series",
-            return_value={"rsi": [0.50], "keltner_pct_b": [1.2], "adx": [0.15], "hurst": [0.5]},
-        ),
-    ):
-        entry = predict_symbol_decision(
-            orch,
-            "R_50",
-            TemporalDirectionClassifier(input_dim=INPUT_DIM),
-            prices,
-            fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32)),
-            runtime,
-            params,
-            None,
-            recovery_active=False,
-        )
-    assert entry["metrics"]["execute"] is False
-    assert entry["metrics"]["gate_reason"] == "exhaustion_conflict"
-
-    # Test case 3: Neutral direction (None), weak direction PUT, but RSI is extremely oversold (e.g. 0.25)
-    with (
-        patch(
-            "src.application.services.deep_learning.dl_predict.predict_next_direction",
-            return_value=(None, 0.40, 0.40),
-        ),
-        patch(
-            "src.application.services.deep_learning.dl_predict.precompute_price_series",
-            return_value={"rsi": [0.25], "adx": [0.15], "hurst": [0.5]},
-        ),
-    ):
-        entry = predict_symbol_decision(
-            orch,
-            "R_50",
-            TemporalDirectionClassifier(input_dim=INPUT_DIM),
-            prices,
-            fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32)),
-            runtime,
-            params,
-            None,
-            recovery_active=False,
-        )
-    assert entry["metrics"]["execute"] is False
-    assert entry["metrics"]["gate_reason"] == "exhaustion_conflict"
+    assert entry["metrics"]["execute"] is True
+    assert entry["metrics"]["gate_reason"] is None
+    assert "rsi" in entry["metrics"]["indicators"]

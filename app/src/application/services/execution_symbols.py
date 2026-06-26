@@ -13,7 +13,6 @@ from src.domain.models.trade import TradeDirection
 __all__ = [
     "symbols_eligible_for_execution",
     "candidate_execution_score",
-    "filter_execution_candidates",
     "select_best_execution_candidate",
     "select_mandatory_execution_candidate",
     "pending_recovery_active",
@@ -21,12 +20,6 @@ __all__ = [
     "has_recovery_hedge_candidate",
     "format_execution_alternates",
 ]
-
-_DEFAULT_SELECTION = {
-    "min_val_accuracy": 0.53,
-    "confidence_call_threshold": 0.75,
-    "confidence_put_threshold": 0.25,
-}
 
 
 def symbols_eligible_for_execution(anchor: str, symbols: list[str], *, include_anchor: bool) -> list[str]:
@@ -37,11 +30,6 @@ def symbols_eligible_for_execution(anchor: str, symbols: list[str], *, include_a
             continue
         eligible.append(symbol)
     return eligible
-
-
-def _trade_score(metrics: dict) -> float:
-    """Le score unificado de conviccao usado em selecao e ranking."""
-    return float(metrics.get("trade_score", metrics.get("raw_prob", metrics.get("conviction", 0.0))))
 
 
 def candidate_execution_score(
@@ -66,33 +54,6 @@ def candidate_execution_score(
         last_loss_symbol=last_loss_symbol,
         last_loss_direction=last_loss_direction,
     )
-
-
-def _passes_selection_gate(metrics: dict, cfg: dict) -> bool:
-    """Verifica se metricas do candidato passam limiares de selecao."""
-    if not metrics.get("execute"):
-        return False
-    val = float(metrics.get("val_accuracy", 0.0))
-    raw = metrics.get("raw_prob")
-    if raw is None:
-        return False
-    prob = float(raw)
-    call_thr = float(cfg.get("confidence_call_threshold", 0.75))
-    put_thr = float(cfg.get("confidence_put_threshold", 0.25))
-    min_val = float(cfg.get("min_val_accuracy", 0.53))
-    if val + 1e-9 < min_val:
-        return False
-    return prob + 1e-9 >= call_thr or prob - 1e-9 <= put_thr
-
-
-def filter_execution_candidates(
-    candidates: list[tuple[str, TradeDirection, dict]],
-    *,
-    selection: dict | None = None,
-) -> list[tuple[str, TradeDirection, dict]]:
-    """Mantem candidatos que passam os mesmos limiares do gating de confianca."""
-    cfg = {**_DEFAULT_SELECTION, **(selection or {})}
-    return [item for item in candidates if _passes_selection_gate(item[2], cfg)]
 
 
 def select_best_execution_candidate(
@@ -146,7 +107,7 @@ def select_mandatory_execution_candidate(
     recovery_active: bool,
     skip_symbols: frozenset[str] | None = None,
 ) -> tuple[str, TradeDirection, dict] | None:
-    """Escolhe candidato em modo obrigatorio priorizando execute=true e melhor score."""
+    """Escolhe candidato em modo obrigatorio priorizando melhor score."""
     pool = recovery_candidate_pool(
         candidates,
         last_loss_symbol=last_loss_symbol,
