@@ -1,6 +1,6 @@
 """Testes de entropia binaria e penalizacao."""
 
-from src.domain.math.probability_entropy import binary_entropy, entropy_penalty_factor
+from src.domain.math.probability_entropy import adaptive_entropy_ceiling, binary_entropy, entropy_penalty_factor
 
 
 def test_binary_entropy_symmetry():
@@ -14,3 +14,8 @@ def test_entropy_penalty_factor_bounds():
     assert entropy_penalty_factor(0.5, ceiling=0.1, floor=0.0) == 1.0
     mid = entropy_penalty_factor(0.7, ceiling=1.0, floor=0.0)
     assert 0.0 < mid < 1.0
+
+
+def test_adaptive_entropy_ceiling_clamped():
+    lo = adaptive_entropy_ceiling(0.92, 0.5, squeeze_tighten=0.35, entropy_floor=0.1)
+    assert 0.1 <= lo <= 0.92

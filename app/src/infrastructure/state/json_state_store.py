@@ -23,6 +23,28 @@ class JsonStateStore:
         with self._path.open("w", encoding="utf-8") as handle:
             json.dump(payload, handle, indent=2)
 
+    async def save_state_bundle(
+        self,
+        *,
+        snapshot: dict[str, Any],
+        session: dict[str, Any] | None = None,
+        market_sig: str | None = None,
+    ) -> None:
+        """Compativel com RedisStateStore; persiste snapshot e hashes em memoria."""
+        await self.save_snapshot(snapshot)
+        risk = snapshot.get("risk")
+        if isinstance(risk, dict):
+            flat = {str(k): str(v) for k, v in risk.items() if not isinstance(v, (dict, list))}
+            if flat:
+                await self.set_hash("state:risk", flat)
+            pending = risk.get("pending_loss")
+            if isinstance(pending, dict):
+                await self.set_hash("state:pending_loss", pending)
+        if session:
+            await self.set_hash("session:daily", session)
+        if market_sig:
+            await self.set_string("market_sig", market_sig)
+
     async def load_snapshot(self) -> dict[str, Any] | None:
         """Carrega snapshot do arquivo JSON."""
         if not self._path.exists() or self._path.stat().st_size == 0:

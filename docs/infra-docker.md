@@ -13,10 +13,36 @@ Stack local para o modo hibrido: motor no host, persistencia em containers.
 ## Subir
 
 ```bash
+make docker-up
+```
+
+Ou manualmente:
+
+```bash
 cd infra/docker
 cp .env.example .env
 docker compose up -d
 docker compose ps
+```
+
+## Host WSL e Redis
+
+`make docker-up` executa `infra/docker/host-prereq.sh`, que tenta definir `vm.overcommit_memory=1` no kernel WSL (evita warning do Redis). O `make setup-wsl` tambem invoca esse script.
+
+Persistencia Redis: AOF com `appendfsync everysec` via `infra/docker/redis.conf` (RDB desabilitado).
+
+Validacao:
+
+```bash
+docker exec -it aether-redis redis-cli CONFIG GET appendonly
+docker exec -it aether-redis redis-cli CONFIG GET appendfsync
+```
+
+Persistencia manual do sysctl (opcional):
+
+```bash
+echo 'vm.overcommit_memory=1' | sudo tee /etc/sysctl.d/99-aether-redis.conf
+sudo sysctl --system
 ```
 
 ## Configuracao do motor

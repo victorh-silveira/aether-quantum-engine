@@ -73,8 +73,8 @@ def test_resolve_flips_put_to_call_on_exhaustion():
             "hurst": 0.50,
             "adx": 0.30,
             "vol_ratio": 1.10,
-            "rsi": 0.30,
-            "keltner": 0.20,
+            "rsi": 0.25,
+            "keltner": -0.20,
             "cmo": -0.10,
         },
     )
@@ -159,8 +159,8 @@ def test_resolve_exhaustion_overbought_bias_put():
             "hurst": 0.55,
             "adx": 0.30,
             "vol_ratio": 1.10,
-            "rsi": 0.70,
-            "keltner": 0.80,
+            "rsi": 0.74,
+            "keltner": 1.20,
             "cmo": -0.12,
         },
     )

@@ -20,6 +20,38 @@ docker compose ps
 | MinIO API | 9000 |
 | MinIO Console | 9001 |
 
+## Pre-requisito do host (WSL)
+
+Antes de subir o Redis, aplique `vm.overcommit_memory=1` no kernel WSL:
+
+```bash
+make docker-up
+```
+
+O target executa `infra/docker/host-prereq.sh` automaticamente. No setup inicial do WSL:
+
+```bash
+make setup-wsl
+```
+
+Persistencia manual (opcional):
+
+```bash
+echo 'vm.overcommit_memory=1' | sudo tee /etc/sysctl.d/99-aether-redis.conf
+sudo sysctl --system
+```
+
+Validacao Redis apos `docker compose up -d`:
+
+```bash
+docker exec -it aether-redis redis-cli CONFIG GET appendonly
+docker exec -it aether-redis redis-cli CONFIG GET appendfsync
+```
+
+## Redis AOF
+
+O servico usa `redis.conf` com `appendonly yes` e `appendfsync everysec` (RDB desabilitado via `save ""`).
+
 ## Pre-requisito do motor
 
 Com `infra.enabled: true` em `config/settings.json`, o motor aborta o startup se algum servico estiver indisponivel (fail-fast).

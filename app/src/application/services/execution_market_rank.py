@@ -94,6 +94,7 @@ def market_decision_score(
         composite -= 0.04
     if metrics.get("direction_inverted"):
         composite -= 0.10
+    composite -= float(metrics.get("exhaustion_penalty", 0.0))
     margin = float(metrics.get("direction_margin", 0.0))
     if margin + 1e-9 < 0.05:
         composite -= 0.08
@@ -117,6 +118,7 @@ def build_market_execution_candidate(
     mean_reversion_enabled: bool = True,
     low_accuracy_enabled: bool = True,
     exec_cfg: dict | None = None,
+    calibration_cfg: dict | None = None,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Monta candidato com direcao resolvida pelo motor unificado."""
     _ = (consecutive_losses, mean_reversion_enabled, low_accuracy_enabled)
@@ -124,5 +126,6 @@ def build_market_execution_candidate(
         symbol,
         entry,
         exec_cfg=exec_cfg,
+        calibration_cfg=calibration_cfg,
         recovery_active=recovery_active,
     )

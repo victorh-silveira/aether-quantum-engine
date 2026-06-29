@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 from src.application.services.deep_learning.dl_feature_build import symbol_vol_target
 
 
@@ -62,6 +64,17 @@ def squeeze_extreme_regime(
     extreme = effective < p10 and float(vol_ratio) < 0.9
     norm = 0.0 if p10 <= 0 else min(1.0, effective / max(p10, 1e-9))
     return extreme, norm
+
+
+def squeeze_exponential_min_edge(
+    *,
+    base_edge: float,
+    bb_norm: float,
+    squeeze_k: float,
+) -> float:
+    """Sobe edge exponencialmente em squeeze severo."""
+    compression = max(0.0, 1.0 - float(bb_norm))
+    return float(base_edge) * math.exp(float(squeeze_k) * compression)
 
 
 def squeeze_dynamic_min_edge(

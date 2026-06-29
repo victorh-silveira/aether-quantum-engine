@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 
 from src.application.services.execution_volatility_bb import (
-    squeeze_dynamic_min_edge,
+    squeeze_exponential_min_edge,
     squeeze_extreme_regime,
 )
 
@@ -174,10 +174,10 @@ def resolve_dynamic_threshold_bundle(
         cfg=chunk,
     )
     if squeeze:
-        edge = squeeze_dynamic_min_edge(
+        edge = squeeze_exponential_min_edge(
             base_edge=thresholds.min_edge,
             bb_norm=bb_norm,
-            squeeze_slope=float(chunk.get("squeeze_edge_slope", 0.025)),
+            squeeze_k=float(chunk.get("squeeze_edge_exponential_k", 2.5)),
         )
         return DynamicThresholds(
             call_threshold=thresholds.call_threshold,

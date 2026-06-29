@@ -84,6 +84,7 @@ clean:
 	$(PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --stage clean
 
 docker-up:
+	@bash infra/docker/host-prereq.sh || true
 	@test -f $(DOCKER_DIR)/.env || cp $(DOCKER_DIR)/.env.example $(DOCKER_DIR)/.env
 	$(DOCKER_COMPOSE) up -d
 	@$(DOCKER_COMPOSE) ps

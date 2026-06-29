@@ -78,11 +78,17 @@ class MinioModelStore:
         return await asyncio.to_thread(_do_download)
 
     async def head(self) -> bool:
-        """Verifica existencia do bucket configurado."""
+        """Valida conectividade com MinIO e garante bucket configurado."""
 
         def _check() -> bool:
-            """Executa HeadBucket sincrono na thread pool."""
-            return self._client.bucket_exists(self._bucket)
+            """Verifica bucket e cria quando ausente no thread pool."""
+            try:
+                if not self._client.bucket_exists(self._bucket):
+                    self._client.make_bucket(self._bucket)
+                return True
+            except Exception as exc:
+                self.logger.debug("MINIO: head falhou: %s", exc)
+                return False
 
         return await asyncio.to_thread(_check)
 

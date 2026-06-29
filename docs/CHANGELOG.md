@@ -1,3 +1,12 @@
+## [Unreleased]
+
+### Funcionalidades
+
+* **execution:** hard gate de exaustao RSI+CMO+Keltner com atenuacao 80% do peso DL e SKIP via quality gate
+* **execution:** entropia adaptativa no peso DL, conflito soft RSI+CMO e squeeze exponencial de edge em BB
+* **risk:** trava Hurst em recovery martingale N2+ (piso logaritmico e SKIP de ciclo sem persistencia)
+* **infra:** pipeline Redis atomico, AOF `everysec`, `host-prereq.sh` para WSL (`vm.overcommit_memory`)
+
 ## [1.16.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.15.0...v1.16.0) (2026-06-29)
 
 ## [1.15.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.14.0...v1.15.0) (2026-06-29)

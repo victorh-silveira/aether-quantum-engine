@@ -7,6 +7,7 @@ from src.application.services.orchestrator.execution_recovery_gate import (
     recovery_min_val_accuracy,
 )
 from src.domain.models.trade import TradeDirection
+from src.domain.risk.recovery_hurst_gate import recovery_pool_has_persistence
 
 
 def apply_recovery_hedge_to_candidates(exec_mgr, candidates, _decisions, *, cid, mandatory=False):
@@ -121,6 +122,36 @@ def extract_collect_params(exec_mgr, dl_cfg: dict, *, recovery_active: bool) -> 
         low_accuracy,
         exec_cfg,
     )
+
+
+def recovery_hurst_blocks_collect(
+    exec_mgr,
+    candidates,
+    *,
+    recovery_active: bool,
+    consecutive_losses: int,
+    kelly_cfg: dict,
+    cid: str,
+) -> bool:
+    """True quando recovery martingale N2+ deve pular o ciclo por falta de Hurst persistente."""
+    hurst_min = float(kelly_cfg.get("recovery_hurst_persistence_min", 0.58))
+    if (
+        recovery_active
+        and consecutive_losses >= 2
+        and candidates
+        and not recovery_pool_has_persistence(
+            candidates,
+            consecutive_losses=consecutive_losses,
+            hurst_min=hurst_min,
+        )
+    ):
+        exec_mgr.logger.info(
+            "[%s] SKIP: Recovery sem Hurst persistente (losses=%d)",
+            cid,
+            consecutive_losses,
+        )
+        return True
+    return False
 
 
 def log_execution_decision(exec_mgr, cid: str, best: tuple, candidates: list, effective_signal: float) -> None:

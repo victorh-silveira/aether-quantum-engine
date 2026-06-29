@@ -117,11 +117,16 @@ async def test_redis_load_invalid_json():
 @pytest.mark.asyncio
 async def test_redis_close_flushes():
     client = AsyncMock()
+    pipe = MagicMock()
+    pipe.__aenter__ = AsyncMock(return_value=pipe)
+    pipe.__aexit__ = AsyncMock(return_value=None)
+    pipe.execute = AsyncMock()
+    client.pipeline = MagicMock(return_value=pipe)
     store = RedisStateStore(url="redis://localhost/0", debounce_seconds=1.0)
     store._pending_snapshot = {"a": 1}
     with patch.object(store, "_redis", AsyncMock(return_value=client)):
         await store.close()
-    client.set.assert_called()
+    pipe.execute.assert_awaited()
 
 
 @pytest.mark.asyncio

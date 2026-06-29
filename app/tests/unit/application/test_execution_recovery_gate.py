@@ -71,6 +71,19 @@ def test_recovery_min_signal_scaling_consecutive_losses():
     assert recovery_min_signal(cfg, recovery_active=True, consecutive_losses=5) == 0.58
 
 
+def test_recovery_min_signal_hurst_log_adjustment():
+    cfg = {
+        "mandatory_min_trade_score": 0.45,
+        "recovery_min_trade_score": 0.64,
+        "recovery_hurst_persistence_min": 0.58,
+        "recovery_hurst_log_scale": 0.08,
+    }
+    base = recovery_min_signal(cfg, recovery_active=True, consecutive_losses=2, hurst=0.60)
+    raised = recovery_min_signal(cfg, recovery_active=True, consecutive_losses=2, hurst=0.45)
+    assert base == 0.64
+    assert raised > base
+
+
 def test_recovery_min_val_accuracy_scaling_consecutive_losses():
     cfg = {
         "recovery_min_val_accuracy": 0.50,

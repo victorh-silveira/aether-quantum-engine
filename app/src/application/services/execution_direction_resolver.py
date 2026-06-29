@@ -3,11 +3,17 @@
 from __future__ import annotations
 
 import contextlib
+from functools import partial
 
-from src.application.services.deep_learning.dl_calibration_fit import entropy_weight_penalty
 from src.application.services.execution_direction_scoring import (
     accumulate_direction_scores,
     finalize_direction_metrics,
+)
+from src.application.services.execution_entropy_adaptive import resolve_dl_entropy_penalty
+from src.application.services.execution_exhaustion_conflict import exhaustion_conflict_penalty
+from src.application.services.execution_exhaustion_hard_gate import (
+    dl_weight_retention,
+    hard_gate_score_penalty,
 )
 from src.domain.models.trade import TradeDirection
 
@@ -81,24 +87,42 @@ def _clamp01(value: float) -> float:
     return max(0.0, min(1.0, float(value)))
 
 
-def _dl_call_put_scores(entry: dict, weights: dict) -> tuple[float, float]:
+def _dl_call_put_scores(
+    entry: dict,
+    weights: dict,
+    *,
+    calibration_cfg: dict | None = None,
+    dynamic_cfg: dict | None = None,
+    exec_cfg: dict | None = None,
+) -> tuple[float, float]:
     """Calcula contribuicao lateralizada da probabilidade calibrada no score CALL/PUT."""
     metrics = entry.get("metrics") or {}
     prob = _direction_prob(entry)
+    dl_dir = infer_dl_direction(entry)
     if prob is None:
-        dl_dir = infer_dl_direction(entry)
         if dl_dir is None:
             return 0.5, 0.5
         prob = 0.55 if dl_dir == TradeDirection.CALL else 0.45
     prob_f = _clamp01(float(prob))
     pivot = _direction_pivot(metrics)
     w = float(weights["dl_raw_weight"])
-    penalty = entropy_weight_penalty(prob_f)
+    penalty, ent, ceiling_eff = resolve_dl_entropy_penalty(
+        prob_f,
+        metrics,
+        calibration_cfg=calibration_cfg,
+        dynamic_cfg=dynamic_cfg,
+    )
     if metrics.get("entropy_violation"):
-        penalty = max(penalty, entropy_weight_penalty(prob_f))
+        penalty = min(1.0, max(penalty, 0.5))
     w_eff = w * (1.0 - penalty * penalty)
+    if dl_dir is not None:
+        retention = dl_weight_retention(metrics, dl_dir, cfg=exec_cfg)
+        w_eff *= retention
+        metrics["exhaustion_dl_retention"] = retention
+        metrics["exhaustion_hard_gate"] = retention < 1.0
     metrics["dl_weight_penalty"] = penalty
-    metrics["direction_entropy"] = float(metrics.get("calibrated_entropy", 0.0))
+    metrics["direction_entropy"] = ent
+    metrics["entropy_ceiling_effective"] = ceiling_eff
     return 0.5 + (prob_f - pivot) * w_eff, 0.5 + (pivot - prob_f) * w_eff
 
 
@@ -129,15 +153,26 @@ def _trend_bias(metrics: dict, weights: dict) -> tuple[float, float, str | None]
     return 0.5, 0.5, None
 
 
-def _exhaustion_bias(metrics: dict, weights: dict) -> tuple[float, float, str | None]:
-    """Empurra direcao oposta em extremos de RSI/Keltner."""
+def _exhaustion_bias(
+    metrics: dict,
+    weights: dict,
+    *,
+    cfg: dict | None = None,
+) -> tuple[float, float, str | None]:
+    """Empurra direcao oposta em extremos de RSI/Keltner configuraveis."""
+    gate = (cfg or {}).get("exhaustion_gate") if isinstance(cfg, dict) else {}
+    gate = gate if isinstance(gate, dict) else {}
     indicators = metrics.get("indicators") or {}
     rsi = float(indicators.get("rsi", 0.5))
     keltner = float(indicators.get("keltner", 0.5))
+    rsi_os = float(gate.get("rsi_oversold", 0.28))
+    rsi_ob = float(gate.get("rsi_overbought", 0.73))
+    k_os = float(gate.get("keltner_oversold", -0.15))
+    k_ob = float(gate.get("keltner_overbought", 1.15))
     w = float(weights["exhaustion_weight"])
-    if rsi < 0.45 or keltner < 0.30:
+    if rsi < rsi_os or keltner < k_os:
         return 0.5 + w, 0.5 - w, "exhaustion_flip"
-    if rsi > 0.55 or keltner > 0.70:
+    if rsi > rsi_ob or keltner > k_ob:
         return 0.5 - w, 0.5 + w, "exhaustion_flip"
     return 0.5, 0.5, None
 
@@ -182,6 +217,7 @@ def resolve_execution_direction(
     entry: dict,
     *,
     exec_cfg: dict | None = None,
+    calibration_cfg: dict | None = None,
     recovery_active: bool = False,
 ) -> tuple[TradeDirection, dict] | None:
     """Resolve CALL ou PUT por score composto; retorna None apenas se sem probabilidade."""
@@ -191,15 +227,25 @@ def resolve_execution_direction(
     if dl_dir is None:
         return None
     metrics = dict(entry.get("metrics") or {})
+    entry = {**entry, "metrics": metrics}
     cfg = exec_cfg if isinstance(exec_cfg, dict) else {}
+    cal_cfg = calibration_cfg if isinstance(calibration_cfg, dict) else {}
+    dynamic_cfg = cfg.get("dynamic_threshold") if isinstance(cfg.get("dynamic_threshold"), dict) else {}
     weights = _scoring_weights(cfg)
+    dl_scores_fn = partial(
+        _dl_call_put_scores,
+        calibration_cfg=cal_cfg,
+        dynamic_cfg=dynamic_cfg,
+        exec_cfg=cfg,
+    )
+    exhaustion_bias_fn = partial(_exhaustion_bias, cfg=cfg)
     call_score, put_score, hints = accumulate_direction_scores(
         entry,
         metrics,
         weights,
         recovery_active=recovery_active,
-        bias_fns=(_trend_bias, _exhaustion_bias, _indicator_regime_bias),
-        dl_scores_fn=_dl_call_put_scores,
+        bias_fns=(_trend_bias, exhaustion_bias_fn, _indicator_regime_bias),
+        dl_scores_fn=dl_scores_fn,
         val_bias_fn=_val_accuracy_bias,
         low_val_fn=_low_val_accuracy_bias,
     )
@@ -213,4 +259,13 @@ def resolve_execution_direction(
         exec_dir=exec_dir,
         clamp01=_clamp01,
     )
+    conflict, penalty = exhaustion_conflict_penalty(metrics, dl_dir, cfg=cfg)
+    if metrics.get("exhaustion_hard_gate"):
+        penalty = max(penalty, hard_gate_score_penalty(cfg=cfg))
+        conflict = True
+        if "exhaustion_hard_gate" not in hints:
+            hints.append("exhaustion_hard_gate")
+    metrics["exhaustion_conflict"] = conflict
+    metrics["exhaustion_penalty"] = penalty
+    metrics["direction_hints"] = hints
     return exec_dir, metrics

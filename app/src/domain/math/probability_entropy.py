@@ -29,3 +29,18 @@ def entropy_penalty_factor(
     if ent >= hi:
         return 1.0
     return (ent - lo) / (hi - lo)
+
+
+def adaptive_entropy_ceiling(
+    base_ceiling: float,
+    regime_score: float,
+    *,
+    squeeze_tighten: float,
+    entropy_floor: float = 0.0,
+) -> float:
+    """Reduz teto de entropia quando regime de volatilidade indica compressao."""
+    base = max(float(entropy_floor) + 1e-9, float(base_ceiling))
+    tighten = max(0.0, min(1.0, float(squeeze_tighten)))
+    regime = max(0.0, min(1.0, float(regime_score)))
+    effective = base * (1.0 - tighten * regime)
+    return max(float(entropy_floor), min(base, effective))

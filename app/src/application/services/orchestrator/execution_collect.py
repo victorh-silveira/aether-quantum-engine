@@ -21,6 +21,7 @@ from src.application.services.orchestrator.execution_collect_helpers import (
     log_execution_decision,
     mandatory_fallback_candidates as _mandatory_fallback_candidates,  # noqa: F401
     mandatory_fallback_if_empty,
+    recovery_hurst_blocks_collect,
 )
 from src.application.services.orchestrator.execution_recovery_gate import (
     cluster_entry_eligible,
@@ -42,12 +43,17 @@ def _gather_cluster_candidates(
     min_edge=0.0,
     mean_reversion=True,
     low_accuracy=True,
+    kelly_cfg=None,
+    consecutive_losses=0,
 ):
     """Coleta candidatos DL elegiveis para o ciclo atual."""
     _ = (mean_reversion, low_accuracy, recovery_cfg)
     exec_cfg = exec_mgr.orch.config.get("orchestrator", {}).get("execution", {})
+    calibration_cfg = exec_mgr.orch.config.get("deep_learning", {}).get("calibration")
+    kelly = kelly_cfg if isinstance(kelly_cfg, dict) else {}
     qparams = quality_gate_params(exec_cfg)
     dynamic_cfg = parse_dynamic_threshold_config(exec_cfg if isinstance(exec_cfg, dict) else {})
+    exhaustion_gate = exec_cfg.get("exhaustion_gate") if isinstance(exec_cfg.get("exhaustion_gate"), dict) else {}
     candidates = []
     for symbol in exec_mgr._trade_symbols():
         entry = decisions.get(symbol)
@@ -68,6 +74,7 @@ def _gather_cluster_candidates(
             symbol,
             entry,
             exec_cfg=exec_cfg,
+            calibration_cfg=calibration_cfg,
             recovery_active=recovery_active,
         )
         if built is None:
@@ -83,6 +90,9 @@ def _gather_cluster_candidates(
             min_edge=min_edge,
             recovery_active=recovery_active,
             dynamic_threshold_cfg=dynamic_cfg,
+            exhaustion_gate_cfg=exhaustion_gate,
+            recovery_kelly_cfg=kelly if recovery_active else None,
+            consecutive_losses=consecutive_losses,
             **qparams,
         ):
             exec_mgr.logger.debug("[%s] SKIP: Qualidade insuficiente para %s", cid, symbol)
@@ -135,6 +145,7 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
         exec_cfg,
     ) = extract_collect_params(exec_mgr, dl_cfg, recovery_active=recovery_active)
     cid = f"C{int(exec_mgr.orch._active_cycle_id):04d}"
+    consecutive = getattr(exec_mgr.orch.risk_manager, "consecutive_losses", 0)
 
     candidates = _gather_cluster_candidates(
         exec_mgr,
@@ -148,6 +159,8 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
         min_edge=min_edge,
         mean_reversion=mean_reversion,
         low_accuracy=low_accuracy,
+        kelly_cfg=kelly_cfg,
+        consecutive_losses=consecutive,
     )
     candidates = mandatory_fallback_if_empty(
         exec_mgr,
@@ -163,6 +176,15 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
         mean_reversion=mean_reversion,
         low_accuracy=low_accuracy,
     )
+    if recovery_hurst_blocks_collect(
+        exec_mgr,
+        candidates,
+        recovery_active=recovery_active,
+        consecutive_losses=consecutive,
+        kelly_cfg=kelly_cfg,
+        cid=cid,
+    ):
+        return []
     if candidates and skip_symbols:
         candidates = [item for item in candidates if item[0] not in skip_symbols]
     if candidates:
@@ -257,6 +279,11 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
             min_edge=min_edge,
             recovery_active=recovery_active,
             dynamic_threshold_cfg=parse_dynamic_threshold_config(exec_cfg if isinstance(exec_cfg, dict) else {}),
+            exhaustion_gate_cfg=exec_cfg.get("exhaustion_gate")
+            if isinstance(exec_cfg.get("exhaustion_gate"), dict)
+            else {},
+            recovery_kelly_cfg=kelly_cfg if recovery_active else None,
+            consecutive_losses=consecutive,
             **quality_gate_params(exec_cfg),
         ):
             exec_mgr.logger.info(

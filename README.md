@@ -24,11 +24,12 @@ Layout: `app/` (código e testes), `config/settings.json`, `docs/`, `linters/`. 
 | Dados | `StreamHandler` + `TickBuffer` | WebSocket Deriv, OHLC 180 s, ticks agregados por barra (microestrutura) |
 | Fases | `_training_phase_gate` | Suspende a operação até todos os modelos concluírem o treino da sessão |
 | Predição DL | `decision_bridge` + TCN/LSTM/GRU | 19 features, labels `ma_trend`, treino walk-forward deferido; predição sempre técnica OK quando dados válidos |
-| Direção | `execution_direction_resolver` | Scoring composto CALL vs PUT (DL, trend, exaustão, regime); nunca abstém por conflito de indicador |
-| Qualidade | `execution_quality_gate` | Filtra candidatos por score, edge, margem direcional, ADX e inversão |
-| Execução | `ExecutionManager` + `execution_collect` | Ranking por `market_decision_score`; pula ciclo se nenhum candidato passa no piso |
-| Risco | `RiskManager` | Kelly fracionário, stop win diário, martingale em recovery, cooldown por símbolo |
-| Estado | `StateStore` (Redis) + `PersistenceManager` local | Snapshot de risco, sessao diaria, assinaturas `bar_sig` / `market_sig` |
+| Direção | `execution_direction_resolver` + `execution_entropy_adaptive` | Scoring CALL/PUT; comprime peso DL por entropia; hard gate de exaustao RSI+CMO+Keltner |
+| Exaustao | `execution_exhaustion_conflict` + `execution_exhaustion_hard_gate` | Penalidade soft pos-resolucao; atenuacao 80% do peso DL e SKIP em tripla extrema |
+| Qualidade | `execution_quality_gate` | Filtra por score, edge, margem, ADX; piso Hurst por candidato em recovery N2+ |
+| Execução | `ExecutionManager` + `execution_collect` | Ranking por `market_decision_score`; SKIP de ciclo se pool sem Hurst persistente |
+| Risco | `RiskManager` + `recovery_hurst_gate` | Kelly, stop win, martingale; piso logaritmico por Hurst em recovery |
+| Estado | `redis_state_pipeline` + `StateStore` | Snapshot atomico (risco, sessao, assinaturas) no Redis |
 | Mercado TS | `TimescaleMarketWriter` | Ticks e barras OHLC 180s para backtest |
 | Modelos | `MinioModelStore` + cache `data/dl/` | Checkpoints DL como source of truth remoto |
 
@@ -56,9 +57,14 @@ Arquivo: [`config/settings.json`](config/settings.json)
 O motor (`run.py` / `train.py`) roda no host Conda/WSL. Redis, TimescaleDB e MinIO sobem via Docker em `localhost`:
 
 ```bash
-cd infra/docker
-cp .env.example .env
-docker compose up -d
+make docker-up
+```
+
+O target aplica `host-prereq.sh` (`vm.overcommit_memory=1` no WSL) e sobe Redis com AOF `everysec`. Validacao:
+
+```bash
+docker exec -it aether-redis redis-cli CONFIG GET appendonly
+docker exec -it aether-redis redis-cli CONFIG GET appendfsync
 ```
 
 Com `infra.enabled: true`, o startup valida os tres servicos (fail-fast). Detalhes em [docs/infra-docker.md](docs/infra-docker.md).
@@ -79,9 +85,11 @@ Variáveis na raiz (`.env`): `AETHER_DERIV_PAT`, `AETHER_DERIV_APP_ID`, `AETHER_
 ## Fases, recovery e execução
 
 - **FASE TREINO**: ao iniciar a sessão, todo símbolo retreina pelo menos uma vez. Enquanto qualquer modelo não concluir, nenhuma ordem é enviada.
-- **FASE OPERACAO** com `mandatory_trade_each_cycle: false`: o motor opera apenas quando o melhor candidato passa no **gate de qualidade** (score ≥ 0.68 normal, pisos recovery mais altos com perdas consecutivas).
+- **FASE OPERACAO** com `mandatory_trade_each_cycle: false`: o motor opera apenas quando o melhor candidato passa no **gate de qualidade** (score >= 0.68 normal, pisos recovery mais altos com perdas consecutivas).
+- **Hard gate de exaustao**: RSI > 0.73, CMO > 0.48 e Keltner `%B` > 1.15 atenuam o peso DL em 80% e forcam SKIP — exceto super-tendencia (ADX > 0.40).
+- **Trava Hurst em recovery N2+**: com `consecutive_losses >= 2`, piso de score elevado logaritmicamente para Hurst baixo; ciclo inteiro pulado se nenhum candidato tiver Hurst > 0.58.
 - **Bloqueio absoluto** somente para falhas técnicas: `data`, `predict_error`, `training`, `deploy_ok=false`.
-- **Recovery**: ranking de mercado com diversificação de símbolo; martingale com convicção mínima 0.64 e `val_accuracy` ≥ 0.62.
+- **Recovery**: ranking de mercado com diversificação de símbolo; martingale com convicção mínima 0.64 e `val_accuracy` >= 0.62.
 
 ---
 
@@ -93,7 +101,7 @@ Logs em `logs/engine.log` (formato `AetherFormatter`):
 - `FASE TREINO` / `FASE OPERACAO` — transição entre fases
 - `DL` / `DL REC` — linha curta: `exec`, `bias` (ajuste direcional), `skip` (bloqueio técnico)
 - `EXEC_SEL` — símbolo escolhido com `ord=`, `dl=`, métricas `s`/`v`/`r`, indicadores e alternativas
-- `SKIP` — ciclo pulado por piso de qualidade
+- `SKIP` — ciclo pulado por piso de qualidade ou recovery sem Hurst persistente
 - `MARTINGALE`, `RISK: RECOVERY` — sizing e recovery
 - Liquidação e resumo de cluster após settlement
 

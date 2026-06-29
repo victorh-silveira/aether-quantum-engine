@@ -12,6 +12,15 @@ class StateStore(Protocol):
     async def save_snapshot(self, payload: dict[str, Any]) -> None:
         """Persiste snapshot completo do orquestrador."""
 
+    async def save_state_bundle(
+        self,
+        *,
+        snapshot: dict[str, Any],
+        session: dict[str, Any] | None = None,
+        market_sig: str | None = None,
+    ) -> None:
+        """Persiste snapshot, hashes e assinatura em transacao unica."""
+
     async def load_snapshot(self) -> dict[str, Any] | None:
         """Carrega snapshot completo ou None."""
 

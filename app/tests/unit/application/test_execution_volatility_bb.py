@@ -3,6 +3,7 @@
 from src.application.services.execution_volatility_bb import (
     bb_effective_width,
     squeeze_dynamic_min_edge,
+    squeeze_exponential_min_edge,
     squeeze_extreme_regime,
 )
 
@@ -26,3 +27,11 @@ def test_squeeze_extreme_and_edge():
     assert 0.0 <= norm <= 1.0
     edge = squeeze_dynamic_min_edge(base_edge=0.04, bb_norm=norm, squeeze_slope=0.025)
     assert edge >= 0.04
+
+
+def test_squeeze_exponential_edge_grows_faster_than_linear():
+    bb_norm = 0.1
+    linear = squeeze_dynamic_min_edge(base_edge=0.04, bb_norm=bb_norm, squeeze_slope=0.025)
+    exponential = squeeze_exponential_min_edge(base_edge=0.04, bb_norm=bb_norm, squeeze_k=2.5)
+    assert exponential > linear
+    assert exponential > 0.04

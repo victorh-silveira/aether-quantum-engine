@@ -4,16 +4,16 @@ Layout de software com infraestrutura Docker local opcional (`infra/docker/`).
 
 ```
 aether-quantum-engine/
-├── infra/docker/                       # Redis, TimescaleDB, MinIO (compose)
+├── infra/docker/                       # Redis (AOF), TimescaleDB, MinIO, host-prereq.sh
 ├── app/
 │   ├── src/
 │   │   ├── application/services/
 │   │   │   ├── deep_learning/          # TCN/LSTM/GRU, labels, predict, logs DL
 │   │   │   ├── orchestrator/           # Ciclo, execução, settlement, recovery gate
-│   │   │   ├── execution_*.py          # Direção, resolver, qualidade, ranking, recovery
+│   │   │   ├── execution_*.py          # Direção, resolver, qualidade, exaustão, entropia, ranking
 │   │   │   ├── log_dedupe.py
 │   │   │   └── auth_manager.py
-│   │   ├── domain/                     # Modelos, risk_manager, martingale, stake
+│   │   ├── domain/                     # Modelos, risk_manager, recovery_hurst_gate, martingale
 │   │   ├── infrastructure/             # WebSocket, stream, tick_buffer, trade, persistência
 │   │   └── presentation/               # Logger terminal
 │   ├── tests/unit/                     # Pytest (cobertura 100% em src)
@@ -41,9 +41,9 @@ aether-quantum-engine/
 |-------|------------------|
 | `application/services/deep_learning` | Features 19D, TCN/LSTM/GRU, `dl_predict`, `dl_trend`, `dl_cycle_brief`, `dl_cycle_log`, deploy gate, TorchScript |
 | `application/services/orchestrator` | `Orchestrator`, `ExecutionManager`, `execution_collect`, `execution_recovery_gate`, settlement, `post_settlement_cycle` |
-| `application/services` | `execution_direction_resolver`, `execution_quality_gate`, `execution_direction`, `execution_market_rank`, `execution_symbols`, `execution_mandatory_pick`, `execution_direction_fallback`, `log_dedupe`, `auth_manager` |
-| `domain` | `Candle`, `Trade`, `RiskManager`, Kelly, martingale, cooldowns, `stake_sizing` |
-| `infrastructure` | `WebSocketManager`, `StreamHandler`, `TickBuffer`, `TradeHandler`, ports `StateStore` / `MarketSeriesWriter` / `ModelArtifactStore`, Redis, Timescale, MinIO |
+| `application/services` | `execution_direction_resolver`, `execution_entropy_adaptive`, `execution_exhaustion_conflict`, `execution_exhaustion_hard_gate`, `execution_quality_gate`, `execution_volatility_bb`, `execution_direction`, `execution_market_rank`, `execution_symbols`, `execution_mandatory_pick`, `execution_direction_fallback`, `log_dedupe`, `auth_manager` |
+| `domain` | `Candle`, `Trade`, `RiskManager`, `recovery_hurst_gate`, `probability_entropy`, Kelly, martingale, cooldowns, `stake_sizing` |
+| `infrastructure` | `WebSocketManager`, `StreamHandler`, `TickBuffer`, `TradeHandler`, `redis_state_pipeline`, ports `StateStore` / `MarketSeriesWriter` / `ModelArtifactStore`, Redis, Timescale, MinIO |
 | `presentation/terminal` | `setup_logger`, `BlankLineSquasher`, formatação de logs |
 
 Decisão exclusivamente Deep Learning quando `deep_learning.enabled` é verdadeiro. Treino e execução são processos separados (`train.py` / `run.py`).
@@ -53,8 +53,10 @@ Decisão exclusivamente Deep Learning quando `deep_learning.enabled` é verdadei
 ```mermaid
 flowchart TD
   BR[decision_bridge] --> PRED[dl_predict]
-  PRED --> RES[execution_direction_resolver]
-  RES --> QG[execution_quality_gate]
+  PRED --> ENT[execution_entropy_adaptive]
+  ENT --> RES[execution_direction_resolver]
+  RES --> HG[execution_exhaustion_hard_gate]
+  HG --> QG[execution_quality_gate]
   QG --> COL[execution_collect]
   COL --> RANK[execution_market_rank / execution_symbols]
   RANK --> EM[ExecutionManager]
@@ -62,14 +64,18 @@ flowchart TD
 
 | Arquivo | Papel |
 |---------|-------|
+| `execution_entropy_adaptive.py` | Comprime peso DL via entropia de probabilidade (`entropy_regime_tighten`) |
 | `execution_direction_resolver.py` | Scoring CALL/PUT unificado; `direction_margin`, `direction_inverted` |
-| `execution_quality_gate.py` | Pisos de score, edge, ADX, inversão |
+| `execution_exhaustion_conflict.py` | Penalidade soft RSI+CMO vs lado DL |
+| `execution_exhaustion_hard_gate.py` | Tripla RSI+CMO+Keltner; atenuacao 80% do peso DL; isencao ADX |
+| `execution_quality_gate.py` | Pisos de score, edge, ADX, inversao; piso Hurst por candidato em recovery |
+| `execution_volatility_bb.py` | Edge minimo exponencial em squeeze de Bollinger |
 | `execution_direction.py` | `build_execution_candidate`, hedge recovery |
-| `execution_recovery_gate.py` | Pool técnico; floors de recovery para martingale |
-| `execution_collect.py` | Coleta, seleção e skip de ciclo |
-| `execution_market_rank.py` | `market_decision_score`, ranking |
-| `execution_symbols.py` | Seleção do melhor candidato do cluster |
-| `execution_direction_fallback.py` | Fallbacks em modo mandatory |
+| `execution_recovery_gate.py` | Pool tecnico; floors de recovery com ajuste Hurst |
+| `execution_collect_helpers.py` | `recovery_hurst_blocks_collect`, fallback mandatory, logs EXEC_SEL |
+| `execution_collect.py` | Coleta, selecao e skip de ciclo |
+| `recovery_hurst_gate.py` (domain) | Piso logaritmico e filtro de persistencia do pool |
+| `redis_state_pipeline.py` | Escrita atomica de snapshot + hashes no Redis |
 
 ## Dados e artefatos
 

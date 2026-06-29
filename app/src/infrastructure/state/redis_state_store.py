@@ -9,6 +9,8 @@ from typing import Any
 
 import redis.asyncio as aioredis
 
+from src.infrastructure.state.redis_state_pipeline import write_state_bundle
+
 
 class RedisStateStore:
     """Persistencia de estado e assinaturas em Redis."""
@@ -45,13 +47,30 @@ class RedisStateStore:
     async def _write_snapshot(self, payload: dict[str, Any]) -> None:
         """Grava snapshot JSON e hash de risco no Redis."""
         client = await self._redis()
-        key = self._full_key("state:snapshot")
-        risk = payload.get("risk")
-        if isinstance(risk, dict):
-            flat = {str(k): str(v) for k, v in risk.items() if not isinstance(v, (dict, list))}
-            if flat:
-                await client.hset(self._full_key("state:risk"), mapping=flat)
-        await client.set(key, json.dumps(payload))
+        await write_state_bundle(
+            client,
+            prefix=self._prefix,
+            snapshot=payload,
+        )
+
+    async def save_state_bundle(
+        self,
+        *,
+        snapshot: dict[str, Any],
+        session: dict[str, Any] | None = None,
+        market_sig: str | None = None,
+    ) -> None:
+        """Persiste snapshot, hashes e assinatura em uma transacao Redis."""
+        client = await self._redis()
+        await write_state_bundle(
+            client,
+            prefix=self._prefix,
+            snapshot=snapshot,
+            session_hash=session,
+            market_sig=market_sig,
+        )
+        self._last_snapshot_at = time.monotonic()
+        self._pending_snapshot = None
 
     async def flush_snapshot(self) -> None:
         """Forca gravacao de snapshot pendente por debounce."""

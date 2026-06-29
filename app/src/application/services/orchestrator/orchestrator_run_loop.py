@@ -5,6 +5,7 @@ from typing import Any
 from src.application.services.deep_learning.dl_deferred_train import cancel_deferred_symbol_training
 from src.application.services.orchestrator.orchestrator_state_restore import (
     persist_session_hash,
+    session_hash_payload,
     sync_market_signature,
 )
 from src.application.services.orchestrator.ws_bootstrap import (
@@ -56,11 +57,16 @@ async def save_full_state(orch: Any) -> None:
             "risk": orch.risk_manager.get_state(),
         }
     )
-    await orch.state_store.save_snapshot(s)
-    await persist_session_hash(orch)
     sig = orch.get_data_state_signature()
-    if sig:
-        await sync_market_signature(orch, sig)
+    session = session_hash_payload(orch)
+    save_bundle = getattr(orch.state_store, "save_state_bundle", None)
+    if callable(save_bundle):
+        await save_bundle(snapshot=s, session=session, market_sig=sig or None)
+    else:
+        await orch.state_store.save_snapshot(s)
+        await persist_session_hash(orch)
+        if sig:
+            await sync_market_signature(orch, sig)
     if hasattr(orch.persistence, "save"):
         orch.persistence.save(s)
 

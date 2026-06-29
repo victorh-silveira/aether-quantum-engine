@@ -66,6 +66,47 @@ async def test_minio_model_store_upload_download(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_minio_head_creates_missing_bucket():
+    store = MinioModelStore(
+        endpoint="localhost:9000",
+        bucket="dl-models",
+        access_key="a",
+        secret_key="b",
+        secure=False,
+    )
+    client = MagicMock()
+    client.bucket_exists.return_value = False
+    store._client = client
+
+    def _thread_run(fn):
+        return fn()
+
+    with patch("asyncio.to_thread", side_effect=_thread_run):
+        assert await store.head() is True
+    client.make_bucket.assert_called_once_with("dl-models")
+
+
+@pytest.mark.asyncio
+async def test_minio_head_inner_exception_returns_false():
+    store = MinioModelStore(
+        endpoint="localhost:9000",
+        bucket="b",
+        access_key="a",
+        secret_key="s",
+        secure=False,
+    )
+    client = MagicMock()
+    client.bucket_exists.side_effect = RuntimeError("minio down")
+    store._client = client
+
+    def _thread_run(fn):
+        return fn()
+
+    with patch("asyncio.to_thread", side_effect=_thread_run):
+        assert await store.head() is False
+
+
+@pytest.mark.asyncio
 async def test_close_infra_services():
     services = create_infra_services({"infra": {"enabled": False}})
     services.state_store.close = AsyncMock()

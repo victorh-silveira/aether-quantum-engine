@@ -51,6 +51,35 @@ async def test_save_full_state_writes_legacy_persistence(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_save_full_state_legacy_store_without_bundle():
+    class LegacyStore:
+        save_snapshot = AsyncMock()
+
+    orch = MagicMock()
+    orch.state.get_state = AsyncMock(return_value={"balance": 1.0})
+    orch.risk_manager.get_state = MagicMock(return_value={})
+    orch.risk_manager.total_session_profit = 0.0
+    orch.get_data_state_signature = MagicMock(return_value="sig-legacy")
+    store = LegacyStore()
+    orch.state_store = store
+    orch.persistence = MagicMock()
+    with (
+        patch(
+            "src.application.services.orchestrator.orchestrator_run_loop.persist_session_hash",
+            AsyncMock(),
+        ) as persist_mock,
+        patch(
+            "src.application.services.orchestrator.orchestrator_run_loop.sync_market_signature",
+            AsyncMock(),
+        ) as sync_mock,
+    ):
+        await save_full_state(orch)
+    store.save_snapshot.assert_awaited_once()
+    persist_mock.assert_awaited_once()
+    sync_mock.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_orchestrator_skips_processed_bar():
     config = {
         "api_config": {"request_timeout_seconds": 1},
@@ -141,7 +170,7 @@ def test_squeeze_dynamic_threshold_bundle():
         implied_vol_ratio=0.25,
         cfg={
             "enabled": True,
-            "squeeze_edge_slope": 0.025,
+            "squeeze_edge_exponential_k": 2.5,
             "implied_vol_bb_scale": True,
         },
     )

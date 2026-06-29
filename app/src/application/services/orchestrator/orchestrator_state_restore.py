@@ -19,6 +19,11 @@ async def restore_orchestrator_state(orch: Any) -> None:
     snapshot = await store.load_snapshot()
     if isinstance(snapshot, dict):
         risk = snapshot.get("risk")
+        pending_hash = await store.get_hash("state:pending_loss")
+        if pending_hash:
+            merged = dict(risk) if isinstance(risk, dict) else {}
+            merged["pending_loss"] = {str(k): float(v) for k, v in pending_hash.items()}
+            risk = merged
         if isinstance(risk, dict) and hasattr(orch.risk_manager, "restore_state"):
             orch.risk_manager.restore_state(risk)
         profit = snapshot.get("total_session_profit")
@@ -28,23 +33,25 @@ async def restore_orchestrator_state(orch: Any) -> None:
     await restore_market_signatures(orch, store)
 
 
+def session_hash_payload(orch: Any) -> dict[str, float | int | bool]:
+    """Monta dict de sessao diaria para persistencia."""
+    mgr = orch.state_mgr.state
+    return {
+        "initial_balance": mgr.initial_balance,
+        "current_balance": mgr.current_balance,
+        "daily_stop_win_target": mgr.daily_stop_win_target,
+        "total_trades_today": mgr.total_trades_today,
+        "stop_win_triggered": mgr.stop_win_triggered,
+        "day_key": mgr.day_key,
+    }
+
+
 async def persist_session_hash(orch: Any) -> None:
     """Grava campos de sessao diaria no Redis."""
     store = getattr(orch, "state_store", None)
     if store is None:
         return
-    mgr = orch.state_mgr.state
-    await store.set_hash(
-        "session:daily",
-        {
-            "initial_balance": mgr.initial_balance,
-            "current_balance": mgr.current_balance,
-            "daily_stop_win_target": mgr.daily_stop_win_target,
-            "total_trades_today": mgr.total_trades_today,
-            "stop_win_triggered": mgr.stop_win_triggered,
-            "day_key": mgr.day_key,
-        },
-    )
+    await store.set_hash("session:daily", session_hash_payload(orch))
 
 
 async def bar_epoch_already_processed(orch: Any, symbol: str, epoch: int) -> bool:

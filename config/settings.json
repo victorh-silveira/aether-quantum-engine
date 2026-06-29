@@ -36,7 +36,8 @@
       "auto_select_by_brier": true,
       "entropy_ceiling": 0.92,
       "entropy_penalty_strength": 1.0,
-      "entropy_floor": 0.0
+      "entropy_floor": 0.0,
+      "entropy_regime_tighten": 0.35
     },
     "confidence_call_threshold": 0.53,
     "confidence_put_threshold": 0.47,
@@ -146,6 +147,7 @@
         "directional_adx_min": 0.22,
         "baseline_lookback": 48,
         "squeeze_edge_slope": 0.025,
+        "squeeze_edge_exponential_k": 2.5,
         "squeeze_min_margin": 0.12,
         "require_indicator_consensus": true,
         "implied_vol_bb_scale": true
@@ -154,6 +156,20 @@
         "min_direction_margin": 0.05,
         "inverted_min_score": 0.74,
         "min_adx_normal": 0.18
+      },
+      "exhaustion_gate": {
+        "enabled": true,
+        "hard_gate_enabled": true,
+        "rsi_overbought": 0.73,
+        "rsi_oversold": 0.27,
+        "cmo_bull": 0.48,
+        "cmo_bear": -0.48,
+        "keltner_overbought": 1.15,
+        "keltner_oversold": -0.15,
+        "dl_weight_retention": 0.20,
+        "adx_super_trend_min": 0.40,
+        "hard_gate_score_penalty": 0.25,
+        "min_penalty_skip": 0.12
       },
       "trend_period": 15,
       "trend_use_ema": true,
@@ -188,6 +204,8 @@
       "recovery_force_min_trade_score": 0.60,
       "recovery_force_pending_min": 0,
       "recovery_min_val_accuracy": 0.62,
+      "recovery_hurst_persistence_min": 0.58,
+      "recovery_hurst_log_scale": 0.08,
       "recovery_martingale_always": true,
       "recovery_martingale_max_losses_per_symbol": 3,
       "martingale_sizing_conviction": 0.62,

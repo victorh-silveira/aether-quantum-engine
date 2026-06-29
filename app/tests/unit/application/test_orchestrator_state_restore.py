@@ -20,12 +20,16 @@ async def test_restore_orchestrator_state():
         "risk": {"consecutive_losses": 3, "pending_loss": {"R_10": 2.0}},
         "total_session_profit": 5.0,
     }
-    orch.state_store.get_hash.return_value = {"initial_balance": "100.0", "day_key": "1"}
+    orch.state_store.get_hash.side_effect = [
+        {"R_10": "2.0"},
+        {"initial_balance": "100.0", "day_key": "1"},
+    ]
     orch.state_store.get_string.side_effect = ["sig", "99"]
     orch.risk_manager = RiskManager({"params": {}, "kelly": {}, "limits": {}})
     orch.anchor = "R_10"
     await restore_orchestrator_state(orch)
     assert orch.risk_manager.consecutive_losses == 3
+    assert orch.risk_manager.pending_loss["R_10"] == 2.0
     assert orch.last_data_signature == "sig"
 
 

@@ -22,7 +22,7 @@ def attach_dynamic_metrics(
         metrics["dynamic_put_threshold"] = dynamic.put_threshold
         metrics["dynamic_min_edge"] = dynamic.min_edge
         metrics["volatility_regime"] = dynamic.regime_score
-        squeeze, _ = squeeze_extreme_regime(
+        squeeze, bb_norm = squeeze_extreme_regime(
             bb_effective=bb_width,
             bb_width_history=bb_history,
             vol_ratio=vol_ratio,
@@ -31,6 +31,7 @@ def attach_dynamic_metrics(
             scale_enabled=scale_enabled,
         )
         metrics["squeeze_extreme"] = squeeze
+        metrics["bb_norm"] = bb_norm
     runtime_entropy = runtime.get("calibrated_entropy")
     if runtime_entropy is not None:
         metrics["calibrated_entropy"] = float(runtime_entropy)
