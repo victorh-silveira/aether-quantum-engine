@@ -16,13 +16,12 @@ Stack local para o modo hibrido: motor no host, persistencia em containers.
 make docker-up
 ```
 
-Ou manualmente:
+Ou manualmente (na raiz do repo):
 
 ```bash
-cd infra/docker
 cp .env.example .env
-docker compose up -d
-docker compose ps
+docker compose -f infra/docker/docker-compose.yml --project-directory infra/docker --env-file .env up -d
+docker compose -f infra/docker/docker-compose.yml --project-directory infra/docker ps
 ```
 
 ## Host WSL e Redis
@@ -59,10 +58,13 @@ Bloco `infra` em `config/settings.json`:
 }
 ```
 
-Variaveis no `.env` da raiz:
+Variaveis no `.env` da raiz (unico arquivo para motor e Docker):
 
-- `AETHER_MINIO_ACCESS_KEY`
-- `AETHER_MINIO_SECRET_KEY`
+| Variavel | Uso |
+|----------|-----|
+| `AETHER_DERIV_PAT`, `AETHER_DERIV_APP_ID`, `AETHER_DERIV_ACCOUNT_ID` | API Deriv |
+| `AETHER_PG_USER`, `AETHER_PG_PASSWORD`, `AETHER_PG_DB` | TimescaleDB |
+| `AETHER_MINIO_ACCESS_KEY`, `AETHER_MINIO_SECRET_KEY` | MinIO |
 
 ## Fail-fast
 

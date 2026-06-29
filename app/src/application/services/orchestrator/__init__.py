@@ -30,6 +30,7 @@ from src.application.services.orchestrator.post_settlement_cycle import (
 )
 from src.application.services.orchestrator.settlement_backfill import reconcile_single_contract
 from src.application.services.orchestrator.settlement_logic import process_contract_settlement
+from src.application.services.orchestrator.settlement_reconciliation import reconcile_after_ws_recovery
 from src.application.services.orchestrator.trading_cycle_entry import (
     prepare_orchestrator_run_loop,
     run_trading_cycle_if_ready,
@@ -93,6 +94,8 @@ class Orchestrator:
         self._session_wins = 0
         self._session_losses = 0
         self._stream_ready_at: float | None = None
+        self._recovery_skip_counter = 0
+        self._reconciliation_pending = False
         self._post_settlement_task: asyncio.Task | None = None
         self._post_settlement_wake = asyncio.Event()
         self._settlement_wait_logged = False
@@ -141,6 +144,7 @@ class Orchestrator:
             if not self.ws.is_running:
                 if await self._setup_session() and await self._start_streams():
                     self.logger.info("RECOV: WebSocket restaurado.")
+                    await reconcile_after_ws_recovery(self)
                     reconnect_delay = float(orch_cfg.get("ws_reconnect_delay_seconds", 8.0))
                 else:
                     self.logger.warning("RECOV: broker indisponivel; nova tentativa em %.0fs.", reconnect_delay)

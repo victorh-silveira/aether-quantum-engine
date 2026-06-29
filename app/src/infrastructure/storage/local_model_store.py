@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import json
+import logging
 import shutil
 from pathlib import Path
 from typing import Any
 
 from aether_paths import repo_path
+from src.infrastructure.storage.torchscript_sanity import verify_torchscript_artifact
+
+
+logger = logging.getLogger("AETH")
 
 
 class LocalModelStore:
@@ -46,6 +51,28 @@ class LocalModelStore:
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, dest)
         return True
+
+    async def download_torchscript(self, symbol: str, *, arch: str, dest: Path) -> bool:
+        """Copia latest_ts.pt local para destino de inferencia."""
+        src = self._object_dir(symbol, arch) / "latest_ts.pt"
+        if not src.is_file():
+            return False
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dest)
+        return True
+
+    async def sanity_check_torchscript(
+        self,
+        dest_ts: Path,
+        *,
+        lookback: int,
+        feature_dim: int,
+        symbol: str = "",
+    ) -> None:
+        """Valida forward pass do TorchScript local."""
+        verify_torchscript_artifact(dest_ts, lookback=lookback, feature_dim=feature_dim)
+        label = symbol or dest_ts.stem
+        logger.debug("LOCAL: sanity ok %s", label)
 
     async def head(self) -> bool:
         """Verifica se diretorio base existe."""

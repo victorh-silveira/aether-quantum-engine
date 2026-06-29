@@ -12,8 +12,10 @@ except ImportError:  # pragma: no cover
     HAS_TORCH = False  # pragma: no cover
 
 from src.application.services.execution_symbols import symbols_eligible_for_execution
+from src.application.services.execution_symbols_recovery import pending_recovery_active
 from src.application.services.log_dedupe import clear_log_channel, log_info_if_changed
 from src.domain.models.trade import TradeDirection
+from src.domain.risk.recovery_hurst_decay import prepare_recovery_skip_counter, reset_recovery_skip_counter_for_orch
 from src.domain.risk.stake_sizing import resolve_stake_conviction
 from src.domain.risk.stop_win_target import resolve_stop_win_target
 
@@ -188,6 +190,8 @@ class ExecutionManager:
                 return
 
             bankroll_snapshot = float(self.orch.state.balance)
+            recovery_active = pending_recovery_active(self.orch.risk_manager.pending_loss)
+            await prepare_recovery_skip_counter(self.orch, recovery_active=recovery_active)
 
             exec_chunk = self.orch.config.get("orchestrator", {}).get("execution", {})
             inter_delay = float(exec_chunk.get("inter_symbol_delay", 0.8))
@@ -224,6 +228,7 @@ class ExecutionManager:
                     orders = []
                 executed_count = await self._execute_orders(orders, inter_delay, bankroll_snapshot)
                 if executed_count > 0:
+                    await reset_recovery_skip_counter_for_orch(self.orch)
                     self.orch.risk_manager.begin_cluster(executed_count)
                     self._flush_result_buffer()
                     self.orch._buffer_result_logs = False

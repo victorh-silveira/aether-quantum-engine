@@ -3,7 +3,7 @@ SHELL := /bin/bash
 APP_DIR=app
 CONDA_ENV ?= deriv-api
 DOCKER_DIR=infra/docker
-DOCKER_COMPOSE=docker compose -f $(DOCKER_DIR)/docker-compose.yml --project-directory $(DOCKER_DIR)
+DOCKER_COMPOSE=docker compose -f $(DOCKER_DIR)/docker-compose.yml --project-directory $(DOCKER_DIR) --env-file .env
 DOCKER_SERVICE ?= timescaledb
 RESOLVE_PY := $(shell bash linters/git-hooks/bin/resolve_conda_python.sh 2>/dev/null || echo python)
 PYTHON := $(RESOLVE_PY)
@@ -85,7 +85,7 @@ clean:
 
 docker-up:
 	@bash infra/docker/host-prereq.sh || true
-	@test -f $(DOCKER_DIR)/.env || cp $(DOCKER_DIR)/.env.example $(DOCKER_DIR)/.env
+	@test -f .env || cp .env.example .env
 	$(DOCKER_COMPOSE) up -d
 	@$(DOCKER_COMPOSE) ps
 

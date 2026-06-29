@@ -69,7 +69,15 @@ docker exec -it aether-redis redis-cli CONFIG GET appendfsync
 
 Com `infra.enabled: true`, o startup valida os tres servicos (fail-fast). Detalhes em [docs/infra-docker.md](docs/infra-docker.md).
 
-Variáveis na raiz (`.env`): `AETHER_DERIV_PAT`, `AETHER_DERIV_APP_ID`, `AETHER_DERIV_ACCOUNT_ID` (opcional). Validação: `python app/scripts/operations/deriv_pat_connect.py`.
+Variáveis na raiz (`.env` único — Deriv + infra Docker):
+
+| Variável | Uso |
+|----------|-----|
+| `AETHER_DERIV_PAT`, `AETHER_DERIV_APP_ID`, `AETHER_DERIV_ACCOUNT_ID` | Conta Deriv |
+| `AETHER_PG_USER`, `AETHER_PG_PASSWORD`, `AETHER_PG_DB` | TimescaleDB |
+| `AETHER_MINIO_ACCESS_KEY`, `AETHER_MINIO_SECRET_KEY` | MinIO |
+
+Copie `cp .env.example .env` e preencha o PAT. Validação Deriv: `python app/scripts/operations/deriv_pat_connect.py`.
 
 ---
 

@@ -66,7 +66,7 @@ flowchart LR
 
 ### 2.4 Infraestrutura hibrida
 
-Com `infra.enabled: true`, o motor valida Redis, TimescaleDB e MinIO em `localhost` antes do WebSocket (fail-fast). Estado de risco e sessao persistem em Redis via pipeline atomico (`redis_state_pipeline.write_state_bundle`); ticks e barras vao para Timescale; checkpoints DL sincronizam com MinIO mantendo cache local em `data/dl/`. Ver [`infra-docker.md`](infra-docker.md).
+Com `infra.enabled: true`, o motor valida Redis, TimescaleDB e MinIO em `localhost` antes do WebSocket (fail-fast). Estado de risco e sessao persistem em Redis via pipeline atomico (`redis_state_pipeline.write_state_bundle`); ticks e barras vao para Timescale; checkpoints DL sincronizam com MinIO mantendo cache local em `data/dl/`. Antes de abrir o WebSocket Deriv, `bootstrap_and_validate_models` baixa `{symbol}.pth` e `latest_ts.pt`, executa forward pass de sanidade em TorchScript (`torchscript_sanity.verify_torchscript_artifact`) e falha rapido se o artefato estiver corrompido. Ver [`infra-docker.md`](infra-docker.md).
 
 Redis local usa AOF `appendfsync everysec` (`infra/docker/redis.conf`). `make docker-up` aplica `host-prereq.sh` (`vm.overcommit_memory=1` no WSL).
 
@@ -75,9 +75,10 @@ Redis local usa AOF `appendfsync everysec` (`infra/docker/redis.conf`). `make do
 ### 2.1 Bootstrap
 
 1. `app/run.py` carrega `config/settings.json` e PAT do `.env` (`AETHER_DERIV_PAT` + `AETHER_DERIV_APP_ID`).
-2. `AuthManager` lista contas REST, obtém OTP e abre WebSocket autenticado via URL OTP.
-3. `Orchestrator` instancia stream, risco, executor e persistência.
-4. `StreamHandler.start_candle_stream` busca histórico OHLC e assina velas (`style: candles`) e ticks (`style: ticks`).
+2. `validate_infra_services` (quando `infra.enabled`) e `bootstrap_and_validate_models` (checkpoint + TorchScript + sanity).
+3. `restore_orchestrator_state` e `AuthManager` abrem sessao REST/WebSocket via OTP PAT.
+4. `Orchestrator` instancia stream, risco, executor e persistência.
+5. `StreamHandler.start_candle_stream` busca histórico OHLC e assina velas (`style: candles`) e ticks (`style: ticks`).
 
 ### 2.2 Buffer e microestrutura
 
@@ -117,8 +118,8 @@ Normalização anti-leakage: `fit_norm_stats` somente no split de treino walk-fo
 
 - Arquitetura: **`tcn`** (padrão), **`lstm`** ou **`gru`** via `deep_learning.arch`.
 - Saída: probabilidade bruta de alta (`raw_prob`).
-- Checkpoint v4 em `data/dl/{symbol}.pth` + TorchScript `{symbol}_ts.pt`.
-- `dl_symbol_runtime.py` prefere modelo scripted; fallback eager.
+- Checkpoint v4 em `data/dl/{symbol}.pth` + TorchScript `{symbol}_ts.pt` (espelho MinIO `latest_ts.pt`).
+- `dl_symbol_runtime.py` prefere modelo scripted; fallback eager quando `_ts.pt` ausente.
 
 ### 3.3 Treino walk-forward
 
@@ -169,7 +170,7 @@ Pesos configuráveis em `orchestrator.execution.direction_scoring`.
 
 `execution_volatility_threshold.py` calcula `volatility_regime` e ajusta thresholds/edge por símbolo.
 
-`execution_volatility_bb.py` aplica squeeze exponencial no edge minimo quando BB esta comprimido (`squeeze_edge_exponential_k`).
+`execution_volatility_bb.py` aplica squeeze exponencial no edge minimo quando BB esta comprimido (`squeeze_edge_exponential_k`). Com `vol_ratio` abaixo de `vol_compression_threshold` (padrao 0.50), `vol_compression_hyperbolic_edge` eleva o edge por termos parabolico e hiperbolico (cap 0.12) para forcar SKIP em compressao extrema de volatilidade.
 
 #### Camadas de exaustao
 
@@ -213,7 +214,7 @@ Aplicado **após** resolução direcional em `_gather_cluster_candidates` e na v
 
 Ciclo sem candidato elegível → nenhuma ordem (qualidade > quantidade).
 
-Em **recovery ativo** com `consecutive_losses >= 2`, o piso de `trade_score` e ajustado **por candidato** via `recovery_min_signal(..., hurst=indicators.hurst)` usando `recovery_hurst_adjusted_floor`. Se nenhum candidato do pool tiver Hurst > 0.58, `execution_collect` retorna lista vazia (SKIP do ciclo inteiro).
+Em **recovery ativo** com `consecutive_losses >= 2`, o piso de `trade_score` e ajustado **por candidato** via `recovery_min_signal(..., hurst=indicators.hurst)` usando `recovery_hurst_adjusted_floor`. Apos SKIPs consecutivos por Hurst persistente, `recovery_skip_counter` no Redis reduz o limiar `recovery_hurst_persistence_min` linearmente (0.01/ciclo, piso 0.50). Se nenhum candidato do pool tiver Hurst acima do limiar efetivo, `execution_collect` retorna lista vazia (SKIP do ciclo inteiro).
 
 ### 4.3 Pool e seleção
 
@@ -256,9 +257,11 @@ Resumo detalhado em DEBUG; deduplicação via `build_dl_cycle_brief_key`.
 | Mecanismo | Módulo / config |
 |-----------|-----------------|
 | Kelly fracionário | `stake_sizing.py`, `kelly.fraction` |
+| Penalidade consenso Kelly | `consensus_stake_penalty.py` — reduz `f*` quando `order_direction` diverge da maioria de votos tecnicos (`call_votes`/`put_votes`), ponderando `di_diff` e `cmo` opostos |
 | Stop win diário | `stop_win_target.py` |
 | Martingale recovery | `martingale_gate.py`, `martingale_conviction.py` |
 | Trava Hurst N2+ | `recovery_hurst_gate.py` — piso logaritmico e filtro de pool |
+| Decaimento Hurst em inanição | `recovery_hurst_decay.py` — `recovery_skip_counter` no Redis reduz `recovery_hurst_persistence_min` 0.01/ciclo ate 0.50 |
 | Cooldown entrada | `risk_cooldown.py` |
 | Cooldown por loss no símbolo | `symbol_loss_cooldown.py` |
 
@@ -276,7 +279,8 @@ Persistência: `data/session_state.json` (métricas diárias), `data/state.json`
    - `collect_deep_learning_decisions`
    - `executor.execute_cluster`
 3. Reconciliação periódica de contratos abertos.
-4. Após liquidação: `post_settlement_cycle`.
+4. Após `RECOV: WebSocket restaurado`, `reconcile_after_ws_recovery` audita portfolio/profit_table, persiste estado e bloqueia ciclo DL enquanto `_reconciliation_pending`.
+5. Após liquidação: `post_settlement_cycle`.
 
 Banner: `decision_mode_banner.emit_decision_engine_banner`.
 
@@ -289,7 +293,7 @@ Banner: `decision_mode_banner.emit_decision_engine_banner`.
 | `data_handler` | `granularity`, `history_bars`, `fetch_count`, `buffer_limit` |
 | `deep_learning` | `arch`, `lookback`, `confidence_*`, `min_val_accuracy`, `min_edge_execute`, `deploy_gate` |
 | `orchestrator.execution` | `direction_scoring`, `quality_gate`, `exhaustion_gate`, `dynamic_threshold`, `mandatory_trade_each_cycle`, settlement |
-| `risk_management.kelly` | `mandatory_min_trade_score`, `recovery_min_trade_score`, `recovery_hurst_*`, martingale |
+| `risk_management.kelly` | `fraction`, `consensus_penalty_*`, martingale |
 | `risk_management.params` | `duration` (180), stakes |
 | `symbols` / `anchor` | Universo Range Break |
 | `trading` | `mode` (`demo` / `live`) |
@@ -304,8 +308,8 @@ Banner: `decision_mode_banner.emit_decision_engine_banner`.
 | Application / Direção | `execution_direction_resolver`, `execution_entropy_adaptive`, `execution_exhaustion_conflict`, `execution_exhaustion_hard_gate`, `execution_direction`, `execution_quality_gate`, `execution_volatility_bb` |
 | Application / Execução | `execution_collect`, `execution_collect_helpers`, `execution_market_rank`, `execution_symbols`, `execution_mandatory_pick`, `execution_direction_fallback` |
 | Application / Orchestrator | `Orchestrator`, `execution_manager`, `execution_recovery_gate`, `settlement_*`, `post_settlement_cycle` |
-| Domain | `trade`, `market_data`, `probability_entropy`, `risk_manager`, `recovery_hurst_gate`, `martingale_*`, `stake_sizing` |
-| Infrastructure | `websocket_manager`, `stream_handler`, `tick_buffer`, `trade_handler`, `redis_state_pipeline`, `persistence_manager` |
+| Domain | `trade`, `market_data`, `probability_entropy`, `risk_manager`, `consensus_stake_penalty`, `recovery_hurst_gate`, `martingale_*`, `stake_sizing` |
+| Infrastructure | `websocket_manager`, `stream_handler`, `tick_buffer`, `trade_handler`, `minio_model_store`, `torchscript_sanity`, `redis_state_pipeline`, `persistence_manager` |
 | Presentation | `logger`, `log_dedupe` |
 
 ---

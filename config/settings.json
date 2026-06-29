@@ -149,6 +149,9 @@
         "squeeze_edge_slope": 0.025,
         "squeeze_edge_exponential_k": 2.5,
         "squeeze_min_margin": 0.12,
+        "vol_compression_threshold": 0.50,
+        "vol_compression_k_parabolic": 4.0,
+        "vol_compression_k_hyperbolic": 0.15,
         "require_indicator_consensus": true,
         "implied_vol_bb_scale": true
       },
@@ -178,7 +181,9 @@
       "settlement_poll_seconds": 0.25,
       "settlement_post_expiry_slack_seconds": 2.0,
       "settlement_tick_seconds_estimate": 1.0,
-      "settlement_request_timeout_seconds": 30.0
+      "settlement_request_timeout_seconds": 30.0,
+      "settlement_reconcile_profit_table_limit": 120,
+      "settlement_reconcile_timeout_seconds": 45
     },
     "reconcile_interval_seconds": 5,
     "ws_reconnect_delay_seconds": 8
@@ -206,6 +211,9 @@
       "recovery_min_val_accuracy": 0.62,
       "recovery_hurst_persistence_min": 0.58,
       "recovery_hurst_log_scale": 0.08,
+      "recovery_hurst_decay_enabled": true,
+      "recovery_hurst_decay_per_skip": 0.01,
+      "recovery_hurst_decay_floor": 0.50,
       "recovery_martingale_always": true,
       "recovery_martingale_max_losses_per_symbol": 3,
       "martingale_sizing_conviction": 0.62,
@@ -223,7 +231,11 @@
       "stop_win_kelly_max_fraction": 1.0,
       "stop_win_kelly_min_conviction": 0.0,
       "stop_win_kelly_min_fraction": 0.0,
-      "stop_win_martingale_progress_fraction": 0.0
+      "stop_win_martingale_progress_fraction": 0.0,
+      "consensus_penalty_enabled": true,
+      "consensus_max_cut": 0.50,
+      "consensus_di_weight": 0.35,
+      "consensus_cmo_weight": 0.40
     },
     "large_account_stop_win_pct": 4.0,
     "params": {

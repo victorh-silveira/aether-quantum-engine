@@ -235,6 +235,28 @@ def test_resolve_dynamic_threshold_bundle_disabled():
     )
 
 
+def test_resolve_dynamic_threshold_bundle_vol_compression():
+    bundle = resolve_dynamic_threshold_bundle(
+        base_call=0.53,
+        base_put=0.47,
+        base_edge=0.04,
+        bb_width=0.001,
+        atr_norm=0.01,
+        adx=0.19,
+        vol_ratio=0.41,
+        bb_width_history=[0.05, 0.04, 0.03],
+        cfg={
+            "enabled": True,
+            "vol_compression_threshold": 0.50,
+            "vol_compression_k_parabolic": 4.0,
+            "vol_compression_k_hyperbolic": 0.15,
+        },
+        symbol="R_10",
+    )
+    assert bundle is not None
+    assert bundle.min_edge > 0.04
+
+
 def test_resolve_dynamic_threshold_bundle_enabled():
     bundle = resolve_dynamic_threshold_bundle(
         base_call=0.53,

@@ -61,6 +61,10 @@ async def test_orchestrator_run_reconnect_success_logs_recovery(orch_config):
                 "src.application.services.orchestrator.asyncio.sleep",
                 side_effect=stop_after_recovery_sleep,
             ),
+            patch(
+                "src.application.services.orchestrator.reconcile_after_ws_recovery",
+                new=AsyncMock(),
+            ),
             patch.object(orch.logger, "info") as mock_info,
         ):
             await asyncio.wait_for(orch.run(), timeout=5.0)

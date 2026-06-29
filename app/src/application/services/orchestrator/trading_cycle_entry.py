@@ -66,6 +66,8 @@ def _stop_win_blocks_cycle(orch: Any) -> bool:
 
 def trading_cycle_entry_allowed(orch: Any) -> bool:
     """False quando o motor nao pode iniciar um novo ciclo de decisao."""
+    if getattr(orch, "_reconciliation_pending", False):
+        return False
     if (
         resolve_engine_mode(orch.config) == ENGINE_MODE_TRAIN
         or (not getattr(orch, "running", True) and getattr(orch, "shutdown_reason", None))

@@ -2,6 +2,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from src.application.services.orchestrator.execution_collect import collect_cluster_orders
+from src.application.services.orchestrator.execution_collect_helpers import resolve_mandatory_ultimate_candidate
 from src.domain.models.trade import TradeDirection
 from tests.market_symbols import ANCHOR, PAIR
 
@@ -97,15 +98,37 @@ def test_collect_cluster_orders_mandatory_returns_empty_when_fallback_missing():
             return_value=[],
         ),
         patch(
-            "src.application.services.orchestrator.execution_collect.build_mandatory_fallback_candidate",
+            "src.application.services.orchestrator.execution_collect_helpers.build_mandatory_fallback_candidate",
             return_value=None,
         ),
         patch(
-            "src.application.services.orchestrator.execution_collect.pick_absolute_mandatory_candidate",
+            "src.application.services.orchestrator.execution_collect_helpers.pick_absolute_mandatory_candidate",
             return_value=None,
         ),
     ):
         assert collect_cluster_orders(exec_mgr, decisions) == []
+
+
+def test_resolve_mandatory_ultimate_candidate_skips_when_not_mandatory():
+    exec_mgr = SimpleNamespace(
+        orch=SimpleNamespace(risk_manager=SimpleNamespace(consecutive_losses=0)),
+        _trade_symbols=lambda: [ANCHOR],
+    )
+    best, pool = resolve_mandatory_ultimate_candidate(
+        exec_mgr,
+        {},
+        mandatory=False,
+        recovery_active=False,
+        last_loss=None,
+        last_loss_dir=None,
+        skip_symbols=frozenset(),
+        min_signal=0.5,
+        min_val=0.5,
+        mean_reversion=True,
+        low_accuracy=True,
+    )
+    assert best is None
+    assert pool is None
 
 
 def test_collect_cluster_orders_skips_entry_without_inferable_direction():
@@ -224,7 +247,7 @@ def test_collect_cluster_orders_uses_ultimate_fallback_when_select_empty():
             return_value=None,
         ),
         patch(
-            "src.application.services.orchestrator.execution_collect.build_mandatory_fallback_candidate",
+            "src.application.services.orchestrator.execution_collect_helpers.build_mandatory_fallback_candidate",
             return_value=fallback,
         ),
     ):
@@ -261,11 +284,11 @@ def test_collect_cluster_orders_mandatory_returns_empty_when_select_none():
             return_value=None,
         ),
         patch(
-            "src.application.services.orchestrator.execution_collect.build_mandatory_fallback_candidate",
+            "src.application.services.orchestrator.execution_collect_helpers.build_mandatory_fallback_candidate",
             return_value=None,
         ),
         patch(
-            "src.application.services.orchestrator.execution_collect.pick_absolute_mandatory_candidate",
+            "src.application.services.orchestrator.execution_collect_helpers.pick_absolute_mandatory_candidate",
             return_value=None,
         ),
     ):

@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from src.domain.risk.consensus_stake_penalty import consensus_kelly_retention
 from src.domain.risk.martingale_sizing import martingale_log_suffix, resolve_mode_stake
 from src.domain.risk.stake_sizing import (
     apply_symbol_stake_cap,
@@ -115,6 +116,21 @@ def calculate_stake_for_manager(
         cap_conv = float(rm.kelly_config.get("mandatory_weak_conviction_cap", 0.55))
         sizing_conviction = min(conviction, cap_conv)
     f_star = max(0.0, kelly_f * float(rm.kelly_config.get("fraction", 0.03)))
+    if isinstance(dl_metrics, dict):
+        retention = consensus_kelly_retention(
+            dl_metrics,
+            kwargs.get("order_direction"),
+            kelly_config=rm.kelly_config,
+        )
+        if retention < 1.0 and not silent:
+            rm.logger.debug(
+                "KELLY: consensus retention=%.2f ord=%s votes=%d/%d",
+                retention,
+                kwargs.get("order_direction"),
+                int(dl_metrics.get("call_votes", 0)),
+                int(dl_metrics.get("put_votes", 0)),
+            )
+        f_star *= retention
     stake_min = float(rm.risk_params.get("stake_min", 1.0))
     kelly_base = clamp_kelly_stake(bankroll, bankroll * f_star, rm.kelly_config, sizing_conviction)
     dl_execute = not isinstance(dl_metrics, dict) or bool(dl_metrics.get("execute", True))

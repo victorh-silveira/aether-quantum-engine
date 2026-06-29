@@ -7,6 +7,7 @@ from src.application.services.deep_learning.dl_retrain import mark_force_retrain
 from src.application.services.orchestrator.metrics_utils import neutral_metrics
 from src.application.services.orchestrator.result_utils import api_settlement_label
 from src.application.services.orchestrator.settlement_detect import contract_payload_is_settled
+from src.domain.risk.recovery_hurst_decay import reset_recovery_skip_counter_for_orch
 from src.domain.risk.stop_win_target import resolve_stop_win_target
 
 
@@ -56,6 +57,32 @@ def _update_state_manager_and_check_stop_win(orch: Any, target: float, pnl: floa
     return target > 0 and pnl >= target  # pragma: no cover
 
 
+async def process_late_settlement_from_payload(orch: Any, poc: dict) -> None:
+    """Liquida contrato ausente de active_contracts mas rastreado em risco."""
+    if not contract_payload_is_settled(poc):
+        return
+    c_id = poc.get("contract_id")
+    if c_id is None:
+        return
+    c_id = int(c_id)
+    profit = float(poc.get("profit", 0.0))
+    api_status_raw = (poc.get("status") or "").strip()
+    outcome = api_settlement_label(api_status_raw, profit)
+    orch.logger.info(
+        "[C%04d] STATUS: %s || P&L: $%+.2f || API: %s (late)",
+        orch._contract_cycle.get(c_id, 0),
+        outcome,
+        profit,
+        api_status_raw.lower() or "-",
+    )
+    _process_contract_outcome(orch, poc, None, c_id, profit)
+    if profit >= 0.0 and sum(orch.risk_manager.pending_loss.values()) <= 0.0:
+        await reset_recovery_skip_counter_for_orch(orch)
+    if not orch.state.active_contracts and orch.running:
+        orch.schedule_trading_cycle_after_settlement()
+    await orch._save_full_state()
+
+
 async def process_contract_settlement(orch: Any, data: dict):
     """Lida com a mensagem de liquidação, atualiza saldo, risco e logs."""
     if "proposal_open_contract" not in data:
@@ -88,6 +115,9 @@ async def process_contract_settlement(orch: Any, data: dict):
         orch.logger.info(result_line)
 
     _process_contract_outcome(orch, c, contract, c_id, profit)
+
+    if profit >= 0.0 and sum(orch.risk_manager.pending_loss.values()) <= 0.0:
+        await reset_recovery_skip_counter_for_orch(orch)
 
     pnl = orch.risk_manager.total_session_profit
     target = resolve_stop_win_target(orch.config.get("risk_management", {}), orch.risk_manager.initial_bankroll)

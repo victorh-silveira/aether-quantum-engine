@@ -5,6 +5,7 @@ from src.application.services.execution_volatility_bb import (
     squeeze_dynamic_min_edge,
     squeeze_exponential_min_edge,
     squeeze_extreme_regime,
+    vol_compression_hyperbolic_edge,
 )
 
 
@@ -35,3 +36,11 @@ def test_squeeze_exponential_edge_grows_faster_than_linear():
     exponential = squeeze_exponential_min_edge(base_edge=0.04, bb_norm=bb_norm, squeeze_k=2.5)
     assert exponential > linear
     assert exponential > 0.04
+
+
+def test_vol_compression_hyperbolic_edge_c0011_like():
+    edge = vol_compression_hyperbolic_edge(base_edge=0.04, vol_ratio=0.41)
+    assert edge > 0.04
+    assert edge <= 0.12
+    normal = vol_compression_hyperbolic_edge(base_edge=0.04, vol_ratio=0.70)
+    assert normal == 0.04

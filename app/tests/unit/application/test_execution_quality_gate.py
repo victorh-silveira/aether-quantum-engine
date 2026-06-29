@@ -215,3 +215,44 @@ def test_passes_execution_quality_recovery_uses_hurst_floor():
         recovery_kelly_cfg=kelly,
         consecutive_losses=2,
     )
+
+
+def test_passes_execution_quality_recovery_decay_counter_relaxes_floor():
+    metrics = {
+        "trade_score": 0.64,
+        "val_accuracy": 0.70,
+        "edge": 0.10,
+        "direction_margin": 0.08,
+        "indicators": {"adx": 0.25, "hurst": 0.55},
+    }
+    kelly = {
+        "recovery_min_trade_score": 0.64,
+        "recovery_hurst_persistence_min": 0.58,
+        "recovery_hurst_log_scale": 0.08,
+        "recovery_hurst_decay_enabled": True,
+        "recovery_hurst_decay_per_skip": 0.01,
+        "recovery_hurst_decay_floor": 0.50,
+    }
+    assert passes_execution_quality(
+        metrics,
+        min_signal=0.64,
+        min_val=0.60,
+        min_edge=0.04,
+        recovery_active=True,
+        recovery_kelly_cfg=kelly,
+        consecutive_losses=2,
+        recovery_skip_counter=8,
+    )
+
+
+def test_passes_execution_quality_rejects_c0011_like_vol_compression_edge():
+    metrics = {
+        "trade_score": 0.80,
+        "val_accuracy": 0.70,
+        "edge": 0.05,
+        "calibrated_edge": 0.05,
+        "dynamic_min_edge": 0.10,
+        "direction_margin": 0.08,
+        "indicators": {"adx": 0.19, "vol_ratio": 0.41},
+    }
+    assert not passes_execution_quality(metrics, min_signal=0.68, min_val=0.60, min_edge=0.04)

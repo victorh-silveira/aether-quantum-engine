@@ -77,6 +77,27 @@ def squeeze_exponential_min_edge(
     return float(base_edge) * math.exp(float(squeeze_k) * compression)
 
 
+def vol_compression_hyperbolic_edge(
+    *,
+    base_edge: float,
+    vol_ratio: float,
+    threshold: float = 0.50,
+    k_parabolic: float = 4.0,
+    k_hyperbolic: float = 0.15,
+    edge_cap: float = 0.12,
+) -> float:
+    """Eleva edge quando vol_ratio indica compressao extrema abaixo do limiar."""
+    ratio = float(vol_ratio)
+    target = float(threshold)
+    if ratio + 1e-9 >= target:
+        return float(base_edge)
+    deficit = max(0.0, target - ratio)
+    parabolic = float(k_parabolic) * deficit * deficit
+    hyperbolic = float(k_hyperbolic) * (1.0 / max(ratio, 0.05) - 1.0 / max(target, 1e-6))
+    boosted = float(base_edge) * (1.0 + parabolic + hyperbolic)
+    return min(float(edge_cap), max(float(base_edge), boosted))
+
+
 def squeeze_dynamic_min_edge(
     *,
     base_edge: float,

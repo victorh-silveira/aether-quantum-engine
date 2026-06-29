@@ -23,6 +23,19 @@ class ModelArtifactStore(Protocol):
     async def download_latest(self, symbol: str, *, arch: str, dest: Path) -> bool:
         """Baixa ultimo checkpoint para destino local; False se ausente."""
 
+    async def download_torchscript(self, symbol: str, *, arch: str, dest: Path) -> bool:
+        """Baixa TorchScript para destino local; False se ausente."""
+
+    async def sanity_check_torchscript(
+        self,
+        dest_ts: Path,
+        *,
+        lookback: int,
+        feature_dim: int,
+        symbol: str = "",
+    ) -> None:
+        """Valida artefato TorchScript com forward pass dummy."""
+
     async def head(self) -> bool:
         """Valida bucket ou diretorio base."""
 

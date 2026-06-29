@@ -11,6 +11,8 @@ from typing import Any
 
 from minio import Minio
 
+from src.infrastructure.storage.torchscript_sanity import verify_torchscript_artifact
+
 
 class MinioModelStore:
     """Upload e download de checkpoints via SDK MinIO."""
@@ -44,12 +46,16 @@ class MinioModelStore:
         """Envia checkpoint e manifest para MinIO."""
         key = self._object_key(symbol, arch, "latest.pth")
         manifest_key = f"{symbol}/manifest.json"
+        ts_path = local_path.with_name(f"{local_path.stem}_ts.pt")
 
         def _do_upload() -> None:
-            """Executa upload sincrono na thread pool."""
+            """Executa upload sincrono no thread pool."""
             if not self._client.bucket_exists(self._bucket):
                 self._client.make_bucket(self._bucket)
             self._client.fput_object(self._bucket, key, str(local_path))
+            if ts_path.is_file():
+                ts_key = self._object_key(symbol, arch, "latest_ts.pt")
+                self._client.fput_object(self._bucket, ts_key, str(ts_path))
             payload = dict(metadata or {})
             data = json.dumps(payload).encode("utf-8")
             self._client.put_object(
@@ -67,7 +73,7 @@ class MinioModelStore:
         key = self._object_key(symbol, arch, "latest.pth")
 
         def _do_download() -> bool:
-            """Executa download sincrono na thread pool."""
+            """Baixa latest.pth para destino local."""
             try:
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 self._client.fget_object(self._bucket, key, str(dest))
@@ -77,11 +83,44 @@ class MinioModelStore:
 
         return await asyncio.to_thread(_do_download)
 
+    async def download_torchscript(self, symbol: str, *, arch: str, dest: Path) -> bool:
+        """Baixa latest_ts.pt do MinIO para cache local."""
+        key = self._object_key(symbol, arch, "latest_ts.pt")
+
+        def _do_download() -> bool:
+            """Baixa latest_ts.pt para destino local."""
+            try:
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                self._client.fget_object(self._bucket, key, str(dest))
+                return True
+            except Exception:
+                return False
+
+        return await asyncio.to_thread(_do_download)
+
+    async def sanity_check_torchscript(
+        self,
+        dest_ts: Path,
+        *,
+        lookback: int,
+        feature_dim: int,
+        symbol: str = "",
+    ) -> None:
+        """Executa forward pass de sanidade no artefato TorchScript."""
+
+        def _run() -> None:
+            """Executa forward pass de sanidade no thread pool."""
+            verify_torchscript_artifact(dest_ts, lookback=lookback, feature_dim=feature_dim)
+
+        await asyncio.to_thread(_run)
+        label = symbol or dest_ts.stem
+        self.logger.info("MINIO: sanity ok %s", label)
+
     async def head(self) -> bool:
         """Valida conectividade com MinIO e garante bucket configurado."""
 
         def _check() -> bool:
-            """Verifica bucket e cria quando ausente no thread pool."""
+            """Verifica bucket MinIO no thread pool."""
             try:
                 if not self._client.bucket_exists(self._bucket):
                     self._client.make_bucket(self._bucket)

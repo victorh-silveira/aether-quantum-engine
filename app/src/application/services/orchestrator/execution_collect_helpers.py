@@ -1,5 +1,9 @@
 """Helper functions for collect_cluster_orders in execution_collect."""
 
+import asyncio
+
+from src.application.services.execution_direction_fallback import build_mandatory_fallback_candidate
+from src.application.services.execution_mandatory_pick import pick_absolute_mandatory_candidate
 from src.application.services.execution_symbols import format_execution_alternates
 from src.application.services.execution_symbols_recovery import recovery_blocked_symbols
 from src.application.services.orchestrator.execution_recovery_gate import (
@@ -7,6 +11,10 @@ from src.application.services.orchestrator.execution_recovery_gate import (
     recovery_min_val_accuracy,
 )
 from src.domain.models.trade import TradeDirection
+from src.domain.risk.recovery_hurst_decay import (
+    increment_recovery_skip_counter,
+    resolve_effective_hurst_min,
+)
 from src.domain.risk.recovery_hurst_gate import recovery_pool_has_persistence
 
 
@@ -29,10 +37,6 @@ def mandatory_fallback_candidates(
     low_accuracy=True,
 ):
     """Monta lista com candidato forcado quando o pool DL fica vazio."""
-    from src.application.services.orchestrator.execution_collect import (  # noqa: PLC0415
-        build_mandatory_fallback_candidate,
-    )
-
     fallback = build_mandatory_fallback_candidate(
         exec_mgr._trade_symbols(),
         decisions,
@@ -124,6 +128,65 @@ def extract_collect_params(exec_mgr, dl_cfg: dict, *, recovery_active: bool) -> 
     )
 
 
+def resolve_mandatory_ultimate_candidate(
+    exec_mgr,
+    decisions,
+    *,
+    mandatory,
+    recovery_active,
+    last_loss,
+    last_loss_dir,
+    skip_symbols,
+    min_signal,
+    min_val,
+    mean_reversion,
+    low_accuracy,
+):
+    """Ultimo recurso de candidato quando modo obrigatorio nao encontrou best."""
+    if not mandatory:
+        return None, None
+    ultimate = build_mandatory_fallback_candidate(
+        exec_mgr._trade_symbols(),
+        decisions,
+        recovery_active=recovery_active,
+        last_loss_symbol=last_loss,
+        last_loss_direction=last_loss_dir,
+        skip_symbols=skip_symbols,
+        min_signal=min_signal,
+        min_val=min_val,
+        consecutive_losses=getattr(exec_mgr.orch.risk_manager, "consecutive_losses", 0),
+        mean_reversion_enabled=mean_reversion,
+        low_accuracy_enabled=low_accuracy,
+    )
+    if ultimate is None:
+        ultimate = pick_absolute_mandatory_candidate(
+            exec_mgr._trade_symbols(),
+            decisions,
+            recovery_active=recovery_active,
+            last_loss_symbol=last_loss,
+            last_loss_direction=last_loss_dir,
+            min_signal=min_signal,
+            min_val=min_val,
+            mean_reversion_enabled=mean_reversion,
+            low_accuracy_enabled=low_accuracy,
+        )
+        if ultimate is None and not recovery_active:
+            ultimate = pick_absolute_mandatory_candidate(
+                exec_mgr._trade_symbols(),
+                decisions,
+                recovery_active=recovery_active,
+                last_loss_symbol=last_loss,
+                last_loss_direction=last_loss_dir,
+                min_signal=0.0,
+                min_val=0.0,
+                mean_reversion_enabled=mean_reversion,
+                low_accuracy_enabled=low_accuracy,
+            )
+    if ultimate is None:
+        return None, None
+    return ultimate, [ultimate]
+
+
 def recovery_hurst_blocks_collect(
     exec_mgr,
     candidates,
@@ -132,9 +195,10 @@ def recovery_hurst_blocks_collect(
     consecutive_losses: int,
     kelly_cfg: dict,
     cid: str,
+    recovery_skip_counter: int = 0,
 ) -> bool:
     """True quando recovery martingale N2+ deve pular o ciclo por falta de Hurst persistente."""
-    hurst_min = float(kelly_cfg.get("recovery_hurst_persistence_min", 0.58))
+    hurst_min = resolve_effective_hurst_min(kelly_cfg, recovery_skip_counter)
     if (
         recovery_active
         and consecutive_losses >= 2
@@ -145,13 +209,35 @@ def recovery_hurst_blocks_collect(
             hurst_min=hurst_min,
         )
     ):
+        schedule_recovery_skip_counter_increment(exec_mgr.orch)
+        new_count = recovery_skip_counter + 1
         exec_mgr.logger.info(
             "[%s] SKIP: Recovery sem Hurst persistente (losses=%d)",
             cid,
             consecutive_losses,
         )
+        exec_mgr.logger.debug(
+            "KELLY: recovery_skip_counter=%d effective_hurst_min=%.2f",
+            new_count,
+            hurst_min,
+        )
         return True
     return False
+
+
+def schedule_recovery_skip_counter_increment(orch) -> None:
+    """Persiste incremento do contador Hurst de forma assincrona."""
+    store = getattr(orch, "state_store", None)
+
+    async def _persist() -> None:
+        """Grava contador Hurst no Redis e atualiza cache local."""
+        orch._recovery_skip_counter = await increment_recovery_skip_counter(store)
+
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(_persist())
+    except RuntimeError:
+        orch._recovery_skip_counter = int(getattr(orch, "_recovery_skip_counter", 0)) + 1
 
 
 def log_execution_decision(exec_mgr, cid: str, best: tuple, candidates: list, effective_signal: float) -> None:

@@ -6,8 +6,13 @@
 
 * **execution:** hard gate de exaustao RSI+CMO+Keltner com atenuacao 80% do peso DL e SKIP via quality gate
 * **execution:** entropia adaptativa no peso DL, conflito soft RSI+CMO e squeeze exponencial de edge em BB
+* **execution:** compressao extrema de volatilidade (`vol_ratio` < 0.50) eleva edge minimo parabolico-hiperbolico ate cap 0.12
+* **risk:** penalidade Kelly por divergencia entre direcao da ordem e consenso tecnico (`call_votes`/`put_votes`)
 * **risk:** trava Hurst em recovery martingale N2+ (piso logaritmico e SKIP de ciclo sem persistencia)
 * **infra:** pipeline Redis atomico, AOF `everysec`, `host-prereq.sh` para WSL (`vm.overcommit_memory`)
+* **infra:** bootstrap MinIO baixa TorchScript, sanity forward pass antes do WebSocket Deriv; upload de `latest_ts.pt`
+* **risk:** decaimento temporal do piso Hurst em recovery via `recovery_skip_counter` no Redis
+* **orchestrator:** reconciliacao atomica pos-reconexao WebSocket (`settlement_reconciliation`) antes do proximo ciclo DL
 
 ## [1.16.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.15.0...v1.16.0) (2026-06-29)
 

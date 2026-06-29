@@ -14,6 +14,7 @@ def recovery_min_signal(
     pending_total: float = 0.0,
     consecutive_losses: int = 0,
     hurst: float | None = None,
+    hurst_persistence_min: float | None = None,
 ) -> float:
     """Piso de trade_score para martingale e sizing em recovery."""
     floor = float(kelly_config.get("mandatory_min_trade_score", 0.45))
@@ -37,11 +38,16 @@ def recovery_min_signal(
         sig_floor = max(sig_floor, 0.58)
 
     if hurst is not None:
+        persistence_min = (
+            float(hurst_persistence_min)
+            if hurst_persistence_min is not None
+            else float(kelly_config.get("recovery_hurst_persistence_min", 0.58))
+        )
         sig_floor = recovery_hurst_adjusted_floor(
             sig_floor,
             float(hurst),
             consecutive_losses=losses,
-            hurst_persistence_min=float(kelly_config.get("recovery_hurst_persistence_min", 0.58)),
+            hurst_persistence_min=persistence_min,
             log_scale=float(kelly_config.get("recovery_hurst_log_scale", 0.08)),
         )
     return sig_floor

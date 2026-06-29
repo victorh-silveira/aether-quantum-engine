@@ -6,8 +6,7 @@ import asyncio
 import time
 from typing import TYPE_CHECKING
 
-from src.application.services.deep_learning.dl_model_artifacts import ensure_local_model_checkpoint
-from src.application.services.deep_learning.dl_params import parse_dl_params
+from src.application.services.deep_learning.dl_model_artifacts import bootstrap_and_validate_models
 from src.application.services.deep_learning.dl_startup import resolve_startup_fetch_bars
 from src.application.services.orchestrator.orchestrator_state_restore import restore_orchestrator_state
 from src.infrastructure.api.deriv_rest_client import DerivRestError
@@ -42,6 +41,7 @@ async def setup_trading_session(orch: Orchestrator) -> bool:
     """Conecta WebSocket via OTP PAT e prepara saldo e transacoes."""
     try:
         await validate_infra_services(orch.infra, orch.config)
+        await bootstrap_and_validate_models(orch)
         await restore_orchestrator_state(orch)
         if orch.ws.ws:
             await orch.ws.close()
@@ -78,6 +78,9 @@ async def setup_trading_session(orch: Orchestrator) -> bool:
         detalhe = str(e).strip() or repr(e)
         orch.logger.warning("INIT: broker indisponivel [%s]: %s", type(e).__name__, detalhe)
         return False
+    except RuntimeError as e:
+        orch.logger.error("INIT: sanity TorchScript falhou: %s", e)
+        return False
     except Exception as e:
         detalhe = str(e).strip() or repr(e)
         orch.logger.error("INIT: Erro no setup [%s]: %s", type(e).__name__, detalhe, exc_info=True)
@@ -86,12 +89,6 @@ async def setup_trading_session(orch: Orchestrator) -> bool:
 
 async def start_orchestrator_streams(orch: Orchestrator) -> bool:
     """Inicia stream de velas e contratos abertos do orquestrador."""
-    dl_config = orch.config.get("deep_learning") or {}
-    data_config = orch.config.get("data_handler") or {}
-    risk_params = (orch.config.get("risk_management") or {}).get("params") or {}
-    params = parse_dl_params(dl_config, data_config, risk_params)
-    for symbol in orch.symbols:
-        await ensure_local_model_checkpoint(orch, str(symbol), dl_config, params)
     orch.ws.subscribe("proposal_open_contract", orch._on_contract_update)
     retries = 2
     delay = 1.0

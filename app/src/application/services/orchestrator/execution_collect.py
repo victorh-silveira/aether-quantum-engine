@@ -4,8 +4,6 @@ __all__ = ["collect_cluster_orders", "_mandatory_fallback_candidates"]
 
 from src.application.services.deep_learning.dl_params import parse_dynamic_threshold_config
 from src.application.services.execution_direction import build_execution_candidate
-from src.application.services.execution_direction_fallback import build_mandatory_fallback_candidate
-from src.application.services.execution_mandatory_pick import pick_absolute_mandatory_candidate
 from src.application.services.execution_quality_gate import passes_execution_quality, quality_gate_params
 from src.application.services.execution_symbols import (
     select_best_execution_candidate,
@@ -22,6 +20,7 @@ from src.application.services.orchestrator.execution_collect_helpers import (
     mandatory_fallback_candidates as _mandatory_fallback_candidates,  # noqa: F401
     mandatory_fallback_if_empty,
     recovery_hurst_blocks_collect,
+    resolve_mandatory_ultimate_candidate,
 )
 from src.application.services.orchestrator.execution_recovery_gate import (
     cluster_entry_eligible,
@@ -45,6 +44,7 @@ def _gather_cluster_candidates(
     low_accuracy=True,
     kelly_cfg=None,
     consecutive_losses=0,
+    recovery_skip_counter=0,
 ):
     """Coleta candidatos DL elegiveis para o ciclo atual."""
     _ = (mean_reversion, low_accuracy, recovery_cfg)
@@ -93,6 +93,7 @@ def _gather_cluster_candidates(
             exhaustion_gate_cfg=exhaustion_gate,
             recovery_kelly_cfg=kelly if recovery_active else None,
             consecutive_losses=consecutive_losses,
+            recovery_skip_counter=recovery_skip_counter,
             **qparams,
         ):
             exec_mgr.logger.debug("[%s] SKIP: Qualidade insuficiente para %s", cid, symbol)
@@ -146,6 +147,7 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
     ) = extract_collect_params(exec_mgr, dl_cfg, recovery_active=recovery_active)
     cid = f"C{int(exec_mgr.orch._active_cycle_id):04d}"
     consecutive = getattr(exec_mgr.orch.risk_manager, "consecutive_losses", 0)
+    skip_counter = int(getattr(exec_mgr.orch, "_recovery_skip_counter", 0))
 
     candidates = _gather_cluster_candidates(
         exec_mgr,
@@ -161,6 +163,7 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
         low_accuracy=low_accuracy,
         kelly_cfg=kelly_cfg,
         consecutive_losses=consecutive,
+        recovery_skip_counter=skip_counter,
     )
     candidates = mandatory_fallback_if_empty(
         exec_mgr,
@@ -183,6 +186,7 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
         consecutive_losses=consecutive,
         kelly_cfg=kelly_cfg,
         cid=cid,
+        recovery_skip_counter=skip_counter,
     ):
         return []
     if candidates and skip_symbols:
@@ -213,47 +217,21 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
         skip_symbols=skip_symbols,
     )
     if best is None and mandatory:
-        ultimate = build_mandatory_fallback_candidate(
-            exec_mgr._trade_symbols(),
+        best, candidates = resolve_mandatory_ultimate_candidate(
+            exec_mgr,
             decisions,
+            mandatory=mandatory,
             recovery_active=recovery_active,
-            last_loss_symbol=last_loss,
-            last_loss_direction=last_loss_dir,
+            last_loss=last_loss,
+            last_loss_dir=last_loss_dir,
             skip_symbols=skip_symbols,
             min_signal=min_signal,
             min_val=min_val,
-            consecutive_losses=getattr(exec_mgr.orch.risk_manager, "consecutive_losses", 0),
-            mean_reversion_enabled=mean_reversion,
-            low_accuracy_enabled=low_accuracy,
+            mean_reversion=mean_reversion,
+            low_accuracy=low_accuracy,
         )
-        if ultimate is None:
-            ultimate = pick_absolute_mandatory_candidate(
-                exec_mgr._trade_symbols(),
-                decisions,
-                recovery_active=recovery_active,
-                last_loss_symbol=last_loss,
-                last_loss_direction=last_loss_dir,
-                min_signal=min_signal,
-                min_val=min_val,
-                mean_reversion_enabled=mean_reversion,
-                low_accuracy_enabled=low_accuracy,
-            )
-            if ultimate is None and not recovery_active:
-                ultimate = pick_absolute_mandatory_candidate(
-                    exec_mgr._trade_symbols(),
-                    decisions,
-                    recovery_active=recovery_active,
-                    last_loss_symbol=last_loss,
-                    last_loss_direction=last_loss_dir,
-                    min_signal=0.0,
-                    min_val=0.0,
-                    mean_reversion_enabled=mean_reversion,
-                    low_accuracy_enabled=low_accuracy,
-                )
-        if ultimate is not None:
-            best = ultimate
-            candidates = [ultimate]
-    exec_cfg = exec_mgr.orch.config.get("orchestrator", {}).get("execution", {})
+        if best is None:
+            candidates = []
     best = apply_recovery_direction_flip(
         best,
         decisions,
@@ -284,6 +262,7 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
             else {},
             recovery_kelly_cfg=kelly_cfg if recovery_active else None,
             consecutive_losses=consecutive,
+            recovery_skip_counter=skip_counter,
             **quality_gate_params(exec_cfg),
         ):
             exec_mgr.logger.info(

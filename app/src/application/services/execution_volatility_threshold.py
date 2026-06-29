@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from src.application.services.execution_volatility_bb import (
     squeeze_exponential_min_edge,
     squeeze_extreme_regime,
+    vol_compression_hyperbolic_edge,
 )
 
 
@@ -173,16 +174,29 @@ def resolve_dynamic_threshold_bundle(
         regime_score=regime,
         cfg=chunk,
     )
+    min_edge = thresholds.min_edge
     if squeeze:
-        edge = squeeze_exponential_min_edge(
-            base_edge=thresholds.min_edge,
-            bb_norm=bb_norm,
-            squeeze_k=float(chunk.get("squeeze_edge_exponential_k", 2.5)),
+        min_edge = max(
+            min_edge,
+            squeeze_exponential_min_edge(
+                base_edge=thresholds.min_edge,
+                bb_norm=bb_norm,
+                squeeze_k=float(chunk.get("squeeze_edge_exponential_k", 2.5)),
+            ),
         )
+    compressed = vol_compression_hyperbolic_edge(
+        base_edge=thresholds.min_edge,
+        vol_ratio=vol_ratio,
+        threshold=float(chunk.get("vol_compression_threshold", 0.50)),
+        k_parabolic=float(chunk.get("vol_compression_k_parabolic", 4.0)),
+        k_hyperbolic=float(chunk.get("vol_compression_k_hyperbolic", 0.15)),
+    )
+    min_edge = max(min_edge, compressed)
+    if min_edge != thresholds.min_edge or squeeze:
         return DynamicThresholds(
             call_threshold=thresholds.call_threshold,
             put_threshold=thresholds.put_threshold,
-            min_edge=edge,
+            min_edge=min_edge,
             regime_score=thresholds.regime_score,
         )
     return thresholds

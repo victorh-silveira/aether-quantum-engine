@@ -5,10 +5,15 @@ Stack local para Redis, TimescaleDB e MinIO. O motor (`run.py` / `train.py`) exe
 ## Subir servicos
 
 ```bash
-cd infra/docker
+make docker-up
+```
+
+Ou manualmente (a partir da raiz do repositorio):
+
+```bash
 cp .env.example .env
-docker compose up -d
-docker compose ps
+docker compose -f infra/docker/docker-compose.yml --project-directory infra/docker --env-file .env up -d
+docker compose -f infra/docker/docker-compose.yml --project-directory infra/docker ps
 ```
 
 ## Portas
@@ -56,9 +61,17 @@ O servico usa `redis.conf` com `appendonly yes` e `appendfsync everysec` (RDB de
 
 Com `infra.enabled: true` em `config/settings.json`, o motor aborta o startup se algum servico estiver indisponivel (fail-fast).
 
-Variaveis de ambiente no `.env` da raiz do repo:
+Todas as variaveis de ambiente ficam no `.env` da **raiz** do repositorio (Deriv, Postgres e MinIO). Copie de `.env.example`:
 
-- `AETHER_MINIO_ACCESS_KEY`
-- `AETHER_MINIO_SECRET_KEY`
+```bash
+cp .env.example .env
+```
 
-DSN padrao: `postgresql://aether:aether@localhost:5432/aether`
+Chaves usadas pelo Docker Compose:
+
+- `AETHER_PG_USER`, `AETHER_PG_PASSWORD`, `AETHER_PG_DB`
+- `AETHER_MINIO_ACCESS_KEY`, `AETHER_MINIO_SECRET_KEY`
+
+Chaves usadas pelo motor Deriv:
+
+- `AETHER_DERIV_PAT`, `AETHER_DERIV_APP_ID`, `AETHER_DERIV_ACCOUNT_ID` (opcional)

@@ -75,9 +75,9 @@ async def reconcile_single_contract(orch: Any, contract_id: int) -> bool:
     if poc and contract_payload_is_settled(poc):
         await process_contract_settlement(orch, {"proposal_open_contract": poc})
         return True
-    if poc:
-        return False
-    return await backfill_contract_from_profit_table(orch, contract_id)
+    if not poc:
+        return await backfill_contract_from_profit_table(orch, contract_id)
+    return False
 
 
 async def backfill_contract_from_profit_table(orch: Any, contract_id: int) -> bool:

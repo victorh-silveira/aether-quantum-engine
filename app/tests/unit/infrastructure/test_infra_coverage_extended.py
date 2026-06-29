@@ -20,6 +20,7 @@ async def test_local_model_store_missing_download(tmp_path):
     store = LocalModelStore(tmp_path)
     dest = tmp_path / "missing.pth"
     assert await store.download_latest("X", arch="tcn", dest=dest) is False
+    assert await store.download_torchscript("X", arch="tcn", dest=tmp_path / "missing_ts.pt") is False
 
 
 @pytest.mark.asyncio
