@@ -76,6 +76,34 @@ async def test_setup_trading_session_rest_error(orch_config):
 
 
 @pytest.mark.asyncio
+async def test_setup_trading_session_torchscript_sanity_failure(orch_config):
+    orch = Orchestrator(orch_config)
+    with (
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap.bootstrap_and_validate_models",
+            AsyncMock(side_effect=RuntimeError("bad ts")),
+        ),
+        patch.object(orch.logger, "error") as mock_error,
+    ):
+        assert await setup_trading_session(orch) is False
+    assert any("sanity TorchScript" in str(c) for c in mock_error.call_args_list)
+
+
+@pytest.mark.asyncio
+async def test_setup_trading_session_unexpected_error(orch_config):
+    orch = Orchestrator(orch_config)
+    with (
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap.validate_infra_services",
+            AsyncMock(side_effect=ValueError("unexpected")),
+        ),
+        patch.object(orch.logger, "error") as mock_error,
+    ):
+        assert await setup_trading_session(orch) is False
+    assert any("INIT: Erro no setup" in str(c) for c in mock_error.call_args_list)
+
+
+@pytest.mark.asyncio
 async def test_subscribe_account_transactions_success(orch_config):
     orch = Orchestrator(orch_config)
     orch.ws.send = AsyncMock()
