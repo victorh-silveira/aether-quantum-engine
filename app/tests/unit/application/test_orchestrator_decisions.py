@@ -200,7 +200,7 @@ async def test_run_trading_cycle_lock_recheck_is_trading(orch_config):
     with (
         patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()),
         patch(
-            "src.application.services.orchestrator.acquire_trading_cycle_lock",
+            "src.application.services.orchestrator.trading_cycle_entry.acquire_trading_cycle_lock",
             new_callable=AsyncMock,
             return_value=False,
         ),

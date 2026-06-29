@@ -1,6 +1,7 @@
 """Sessao dedicada de treino DL acionada por train.py."""
 
 from src.application.services.deep_learning.dl_bootstrap_train import run_dl_training_session
+from src.application.services.deep_learning.dl_model_artifacts import upload_all_symbol_checkpoints
 from src.application.services.orchestrator.decision_mode_banner import emit_decision_engine_banner
 
 
@@ -23,6 +24,7 @@ async def run_orchestrator_training(orch) -> bool:
     if orch._decision_mode() == "deep_learning":
         await run_dl_training_session(orch)
         orch._dl_bootstrap_completed = True
+        await upload_all_symbol_checkpoints(orch)
     await orch._save_full_state()
     orch.logger.info("DL | sessao de treino finalizada")
     await orch.stop()

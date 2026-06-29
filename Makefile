@@ -2,6 +2,9 @@
 SHELL := /bin/bash
 APP_DIR=app
 CONDA_ENV ?= deriv-api
+DOCKER_DIR=infra/docker
+DOCKER_COMPOSE=docker compose -f $(DOCKER_DIR)/docker-compose.yml --project-directory $(DOCKER_DIR)
+DOCKER_SERVICE ?= timescaledb
 RESOLVE_PY := $(shell bash linters/git-hooks/bin/resolve_conda_python.sh 2>/dev/null || echo python)
 PYTHON := $(RESOLVE_PY)
 
@@ -14,7 +17,8 @@ RESET  := \033[0m
 
 .DEFAULT_GOAL := help
 
-.PHONY: install lint test security run train pre-commit pre-commit-run setup-wsl clean help helpo
+.PHONY: install lint test security run train pre-commit pre-commit-run setup-wsl clean help helpo \
+	docker-up docker-down docker-ps docker-logs docker-bash
 
 help:
 	@echo -e "$(BLUE)========================================================================$(RESET)"
@@ -25,17 +29,24 @@ help:
 	@echo -e "$(YELLOW)Python:$(RESET) Conda $(CONDA_ENV) ($(PYTHON))"
 	@echo -e ""
 	@echo -e "$(YELLOW)Comandos Disponiveis:$(RESET)"
-	@echo -e "  $(GREEN)install$(RESET)         - Instala dependencias no Conda $(CONDA_ENV)"
-	@echo -e "  $(GREEN)lint$(RESET)        - Roda os linters e verificadores de formatacao (Ruff, pylint, etc.)"
-	@echo -e "  $(GREEN)test$(RESET)        - Roda os testes unitarios com pytest e gera cobertura de codigo"
-	@echo -e "  $(GREEN)security$(RESET)    - Varre o projeto em busca de vulnerabilidades (bandit/pip-audit)"
-	@echo -e "  $(GREEN)run$(RESET)         - Inicia a execucao principal do motor quantico (run.py)"
-	@echo -e "  $(GREEN)train$(RESET)       - Treina modelos Deep Learning (train.py)"
-	@echo -e "  $(GREEN)pre-commit$(RESET)      - Instala e configura os git hooks locais de pre-commit"
-	@echo -e "  $(GREEN)pre-commit-run$(RESET)  - Roda todos os hooks (equivalente a pre-commit run --all-files)"
-	@echo -e "  $(GREEN)setup-wsl$(RESET)     - Configura Git, Conda e hooks no WSL (bash app/scripts/wsl/setup.sh)"
-	@echo -e "  $(GREEN)clean$(RESET)       - Limpa lixo, caches do Python/Pytest e logs do workspace"
-	@echo -e "  $(GREEN)help / helpo$(RESET) - Exibe este menu de ajuda interativo"
+	@echo -e "  $(GREEN)app-install$(RESET)         - Instala dependencias no Conda $(CONDA_ENV)"
+	@echo -e "  $(GREEN)app-lint$(RESET)        	- Roda os linters e verificadores de formatacao (Ruff, pylint, etc.)"
+	@echo -e "  $(GREEN)app-test$(RESET)        	- Roda os testes unitarios com pytest e gera cobertura de codigo"
+	@echo -e "  $(GREEN)app-security$(RESET)    	- Varre o projeto em busca de vulnerabilidades (bandit/pip-audit)"
+	@echo -e "  $(GREEN)app-run$(RESET)         	- Inicia a execucao principal do motor quantico (run.py)"
+	@echo -e "  $(GREEN)app-train$(RESET)       	- Treina modelos Deep Learning (train.py)"
+	@echo -e "  $(GREEN)app-pre-commit$(RESET)      - Instala e configura os git hooks locais de pre-commit"
+	@echo -e "  $(GREEN)app-pre-commit-run$(RESET)  - Roda todos os hooks (equivalente a pre-commit run --all-files)"
+	@echo -e "  $(GREEN)app-setup-wsl$(RESET)     	- Configura Git, Conda e hooks no WSL (bash app/scripts/wsl/setup.sh)"
+	@echo -e "  $(GREEN)app-clean$(RESET)       	- Limpa lixo, caches do Python/Pytest e logs do workspace"
+	@echo -e "  $(GREEN)help / helpo$(RESET) 		- Exibe este menu de ajuda interativo"
+	@echo -e ""
+	@echo -e "$(YELLOW)Docker:$(RESET)"
+	@echo -e "  $(GREEN)docker-up$(RESET)    - Sobe Redis, TimescaleDB e MinIO"
+	@echo -e "  $(GREEN)docker-down$(RESET)  - Para e remove containers"
+	@echo -e "  $(GREEN)docker-ps$(RESET)    - Status dos containers"
+	@echo -e "  $(GREEN)docker-logs$(RESET)  - Logs (DOCKER_SERVICE=redis F=1)"
+	@echo -e "  $(GREEN)docker-bash$(RESET)  - Shell no container (DOCKER_SERVICE=timescaledb)"
 	@echo -e "$(BLUE)========================================================================$(RESET)"
 
 helpo: help
@@ -71,3 +82,20 @@ setup-wsl:
 
 clean:
 	$(PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --stage clean
+
+docker-up:
+	@test -f $(DOCKER_DIR)/.env || cp $(DOCKER_DIR)/.env.example $(DOCKER_DIR)/.env
+	$(DOCKER_COMPOSE) up -d
+	@$(DOCKER_COMPOSE) ps
+
+docker-down:
+	$(DOCKER_COMPOSE) down
+
+docker-ps:
+	$(DOCKER_COMPOSE) ps
+
+docker-logs:
+	$(DOCKER_COMPOSE) logs $(if $(F),-f,) $(if $(DOCKER_SERVICE),$(DOCKER_SERVICE),)
+
+docker-bash:
+	$(DOCKER_COMPOSE) exec -it $(DOCKER_SERVICE) sh -c 'if [ -x /bin/bash ]; then exec /bin/bash; else exec /bin/sh; fi'

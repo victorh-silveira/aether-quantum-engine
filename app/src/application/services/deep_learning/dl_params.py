@@ -156,6 +156,9 @@ def parse_calibration_config(dl_config: dict) -> dict[str, Any]:
         "method": str(raw.get("method", "auto")).strip().lower(),
         "isotonic_min_samples": max(3, int(raw.get("isotonic_min_samples", 20))),
         "auto_select_by_brier": bool(raw.get("auto_select_by_brier", True)),
+        "entropy_ceiling": float(raw.get("entropy_ceiling", 0.92)),
+        "entropy_penalty_strength": float(raw.get("entropy_penalty_strength", 1.0)),
+        "entropy_floor": float(raw.get("entropy_floor", 0.0)),
     }
 
 
@@ -177,6 +180,10 @@ def parse_dynamic_threshold_config(exec_config: dict) -> dict[str, Any]:
         "compressive_bb_percentile": float(raw.get("compressive_bb_percentile", 0.25)),
         "directional_adx_min": float(raw.get("directional_adx_min", 0.22)),
         "baseline_lookback": max(8, int(raw.get("baseline_lookback", 48))),
+        "squeeze_edge_slope": float(raw.get("squeeze_edge_slope", 0.025)),
+        "squeeze_min_margin": float(raw.get("squeeze_min_margin", 0.12)),
+        "require_indicator_consensus": bool(raw.get("require_indicator_consensus", True)),
+        "implied_vol_bb_scale": bool(raw.get("implied_vol_bb_scale", True)),
     }
 
 

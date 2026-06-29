@@ -6,7 +6,9 @@ import time
 from typing import Any
 
 from src.application.services.auth_manager import AuthManager
-from src.application.services.deep_learning.decision_bridge import collect_deep_learning_decisions
+from src.application.services.deep_learning.decision_bridge import (
+    collect_deep_learning_decisions as collect_deep_learning_decisions,
+)
 from src.application.services.deep_learning.dl_retrain import tick_bars_since_train
 from src.application.services.orchestrator.config_symbols import normalize_symbols_and_anchor
 from src.application.services.orchestrator.engine_mode import training_enabled
@@ -20,6 +22,7 @@ from src.application.services.orchestrator.orchestrator_run_loop import (
     stop_orchestrator,
     subscribe_transactions,
 )
+from src.application.services.orchestrator.orchestrator_state_restore import bar_epoch_already_processed
 from src.application.services.orchestrator.post_settlement_cycle import (
     post_settlement_cycle_pending,
     run_post_settlement_breath_and_cycle,
@@ -28,16 +31,17 @@ from src.application.services.orchestrator.post_settlement_cycle import (
 from src.application.services.orchestrator.settlement_backfill import reconcile_single_contract
 from src.application.services.orchestrator.settlement_logic import process_contract_settlement
 from src.application.services.orchestrator.trading_cycle_entry import (
-    acquire_trading_cycle_lock,
     prepare_orchestrator_run_loop,
-    trading_cycle_entry_allowed,
+    run_trading_cycle_if_ready,
 )
 from src.application.services.orchestrator.training_run import run_orchestrator_training
 from src.application.services.strategy.decision_mode import resolve_decision_mode
 from src.domain.risk.risk_manager import RiskManager
 from src.infrastructure.api.websocket_manager import WebSocketManager
+from src.infrastructure.factories.infra_factory import create_infra_services
 from src.infrastructure.handlers.stream_handler import StreamHandler
 from src.infrastructure.handlers.trade_handler import TradeHandler
+from src.infrastructure.state.json_state_store import JsonStateStore
 from src.infrastructure.state.persistence_manager import PersistenceManager
 from src.infrastructure.state.state_manager import StateManager
 from src.infrastructure.state.trading_state import TradingState
@@ -49,17 +53,27 @@ class Orchestrator:
     def __init__(self, config: dict, auth: AuthManager | None = None):
         """Inicializa dependencias, estado e infraestrutura do motor."""
         self.config = config
+        self.infra = create_infra_services(config)
+        self.state_store = self.infra.state_store
+        self.market_writer = self.infra.market_writer
+        self.model_store = self.infra.model_store
         mode = str(config.get("trading", {}).get("mode", "demo"))
         self.auth = auth if isinstance(auth, AuthManager) else AuthManager(mode=mode, config=config)
         timeout = int(config["api_config"]["request_timeout_seconds"])
         self.ws = WebSocketManager("", request_timeout=timeout)
         self.anchor, self.symbols = normalize_symbols_and_anchor(config)
-        self.stream = StreamHandler(self.ws, self.symbols, config["data_handler"])
+        self.stream = StreamHandler(
+            self.ws,
+            self.symbols,
+            config["data_handler"],
+            market_writer=self.market_writer,
+        )
         self.trade_handler = TradeHandler(self.ws, config)
         self.risk_manager = RiskManager(config["risk_management"])
         gran = int(config.get("data_handler", {}).get("granularity", 900))
         self.risk_manager.set_candle_interval_seconds(gran)
-        self.state, self.persistence = TradingState(), PersistenceManager()
+        self.state = TradingState()
+        self.persistence = JsonStateStore() if not self.infra.enabled else PersistenceManager()
         self.state_mgr = StateManager()
         self.logger = logging.getLogger("AETH")
         self.executor = ExecutionManager(self)
@@ -197,6 +211,8 @@ class Orchestrator:
         """Callback de vela do ancora: atualiza estado e tenta ciclo."""
         if candle.symbol != self.anchor:
             return
+        if await bar_epoch_already_processed(self, self.anchor, candle.epoch):
+            return
         self.tick_count += 1
         if self._last_epoch == candle.epoch:
             return
@@ -216,37 +232,7 @@ class Orchestrator:
 
     async def _run_trading_cycle_if_ready(self) -> bool:
         """Executa um ciclo completo de decisao e cluster quando permitido."""
-        if not trading_cycle_entry_allowed(self) or not await acquire_trading_cycle_lock(self):
-            return False
-        ran = False
-        try:
-            if not self.ws.is_running or not self.stream.is_synchronized:
-                self.logger.debug("STRM: aguardando sincronia...")
-            elif self._decision_mode() == "inactive":
-                self.logger.error(
-                    "CICLO: modo inativo; defina deep_learning.enabled=true em config/settings.json.",
-                )
-                ran = True
-            else:
-                self._cycle_seq += 1
-                if self._cycle_seq > 1:
-                    self.logger.info("")
-                self._active_cycle_id = self._cycle_seq
-                self._last_processed_epoch = self._last_epoch
-                ran = True
-                self.logger.debug(
-                    "[C%04d] CICLO: coletando decisoes DL (%d simbolos)",
-                    self._active_cycle_id,
-                    len(self.symbols),
-                )
-                decisions = await collect_deep_learning_decisions(self)
-                await self.executor.execute_cluster(decisions)
-        except Exception as e:
-            self.logger.error(f"FALHA: Ciclo: {e}")
-            ran = True
-        finally:
-            self.is_trading = False
-        return ran
+        return await run_trading_cycle_if_ready(self)
 
     async def _subscribe_account_transactions(self) -> None:
         """Inscreve callback de transacoes de conta na Deriv."""

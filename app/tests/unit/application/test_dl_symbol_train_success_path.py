@@ -10,6 +10,7 @@ from tests.unit.application.test_dl_training_progress import _training_params
 
 def test_run_symbol_training_persists_successful_train(tmp_path):
     orch = MagicMock()
+    orch.infra = MagicMock(enabled=False)
     runtime = {
         "model": create_direction_model(arch="tcn"),
         "norm_stats": MagicMock(),

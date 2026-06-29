@@ -49,14 +49,24 @@ flowchart LR
   subgraph pos
     ST[settlement_*]
     RM[RiskManager]
-    PM[PersistenceManager]
+    PM[Redis StateStore]
+    TS[TimescaleDB]
+    MO[MinIO]
   end
   WS --> SH
   SH --> TB
   SH --> FEAT --> MODEL --> PRED --> RES --> QG --> COL --> SEL --> EM --> TH
   TH --> ST --> RM
   ST --> PM
+  ST --> TS
+  MODEL --> MO
 ```
+
+### 2.4 Infraestrutura hibrida
+
+Com `infra.enabled: true`, o motor valida Redis, TimescaleDB e MinIO em `localhost` antes do WebSocket (fail-fast). Estado de risco e sessao persistem em Redis; ticks e barras vao para Timescale; checkpoints DL sincronizam com MinIO mantendo cache local em `data/dl/`. Ver [`infra-docker.md`](infra-docker.md).
+
+---
 
 ### 2.1 Bootstrap
 

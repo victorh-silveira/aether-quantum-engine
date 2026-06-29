@@ -22,7 +22,13 @@ async def test_setup_trading_session_preserves_initial_bankroll_on_reconnect(orc
         balance=1165.61,
         account_id="DOT1",
     )
-    with patch.object(orch.auth, "open_trading_session", AsyncMock(return_value=session)):
+    with (
+        patch.object(orch.auth, "open_trading_session", AsyncMock(return_value=session)),
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap.restore_orchestrator_state",
+            AsyncMock(),
+        ),
+    ):
         orch.ws.connect = AsyncMock()
         orch.ws.send = AsyncMock()
         orch.ws.subscribe = MagicMock()

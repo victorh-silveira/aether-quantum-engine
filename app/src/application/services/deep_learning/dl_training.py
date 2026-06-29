@@ -5,7 +5,7 @@ import logging
 import numpy as np
 import torch
 
-from src.application.services.deep_learning.dl_calibration_fit import fit_calibrator
+from src.application.services.deep_learning.dl_calibration_fit import calibrator_entropy_metrics, fit_calibrator
 from src.application.services.deep_learning.dl_device import (
     device_label,
     log_device_once,
@@ -143,6 +143,12 @@ def train_model_walkforward(
         [float(y) for y in y_calib],
         calibration_cfg=calibration_cfg if isinstance(calibration_cfg, dict) else None,
     )
+    entropy_meta = calibrator_entropy_metrics(
+        [float(p) for p in raw_calib],
+        [float(y) for y in y_calib],
+        calibrator,
+        calibration_cfg=calibration_cfg if isinstance(calibration_cfg, dict) else None,
+    )
     val_brier, val_ece = evaluate_calibrated_metrics(model, x_val, y_val, calibrator)
     logger.debug(
         "DL_TRAIN: device=%s batch=%d epocas=%d/%d loss=%.4f val_acc=%.3f brier=%.3f ece=%.3f method=%s samples=%d",
@@ -166,6 +172,8 @@ def train_model_walkforward(
         val_brier=val_brier,
         val_ece=val_ece,
         epochs_ran=epochs_ran,
+        calibrated_entropy=float(entropy_meta.get("calibrated_entropy", 0.0)),
+        entropy_violation=bool(entropy_meta.get("entropy_violation", False)),
     )
 
 

@@ -21,12 +21,13 @@ _KEY_TYPE_VALUE_ERRORS = (KeyError, TypeError, ValueError)
 class StreamHandler:
     """Gerencia fluxos de dados de mercado em tempo real (OHLC) para múltiplos símbolos."""
 
-    def __init__(self, ws_manager: WebSocketManager, symbols: list[str], data_config: dict):
+    def __init__(self, ws_manager: WebSocketManager, symbols: list[str], data_config: dict, *, market_writer=None):
         """Inicializa o manipulador."""
         self.ws = ws_manager
         self.symbols = symbols
         self.candles = {s: [] for s in symbols}
         self.config = data_config
+        self._market_writer = market_writer
         self.history_limit = self.config.get("buffer_limit", 1000)
         self.logger = logging.getLogger("AETH")
         requested = int(self.config.get("granularity", 60))
@@ -200,7 +201,10 @@ class StreamHandler:
         else:
             prev_epoch = self._last_bar_epoch.get(symbol)
             if prev_epoch is not None and prev_epoch != candle.epoch:
-                self.tick_buffer.on_bar_close(symbol, prev_epoch)
+                micro = self.tick_buffer.on_bar_close(symbol, prev_epoch)
+                history = self.candles.get(symbol, [])
+                closed = history[-1] if history else candle
+                await self._persist_bar(symbol, prev_epoch, closed, micro)
             self.candles[symbol].append(candle)
             self._last_bar_epoch[symbol] = candle.epoch
             self.tick_buffer.on_bar_update(symbol, candle.epoch)
@@ -229,6 +233,29 @@ class StreamHandler:
         except _TYPE_VALUE_ERRORS:
             return
         self.tick_buffer.record_tick(symbol, epoch_ms, price)
+        writer = self._market_writer
+        if writer is not None:
+            await writer.enqueue_tick(symbol=symbol, epoch_ms=epoch_ms, price=price)
+
+    async def _persist_bar(self, symbol: str, prev_epoch: int, candle: Candle, micro) -> None:
+        """Envia barra fechada ao writer de series temporais."""
+        writer = self._market_writer
+        if writer is None:
+            return
+        await writer.enqueue_bar(
+            symbol=symbol,
+            bar={
+                "epoch": int(prev_epoch),
+                "granularity": int(self.granularity),
+                "open": float(candle.open),
+                "high": float(candle.high),
+                "low": float(candle.low),
+                "close": float(candle.close),
+                "tick_count": int(micro.tick_count) if micro is not None else 0,
+                "mean_inter_tick_ms": float(micro.mean_inter_tick_ms) if micro is not None else 0.0,
+                "price_velocity": float(micro.price_velocity) if micro is not None else 0.0,
+            },
+        )
 
     def get_numpy_series(self, symbol: str, field: str = "close") -> np.ndarray:
         """Retorna uma série numpy de um campo específico para o timeframe M1."""

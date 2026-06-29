@@ -1,0 +1,64 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: aether-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - aether_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - aether-net
+
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: aether-timescaledb
+    environment:
+      POSTGRES_USER: ${AETHER_PG_USER:-aether}
+      POSTGRES_PASSWORD: ${AETHER_PG_PASSWORD:-aether}
+      POSTGRES_DB: ${AETHER_PG_DB:-aether}
+    ports:
+      - "5432:5432"
+    volumes:
+      - aether_ts_data:/var/lib/postgresql/data
+      - ./init-timescale.sql:/docker-entrypoint-initdb.d/init-timescale.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AETHER_PG_USER:-aether} -d ${AETHER_PG_DB:-aether}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - aether-net
+
+  minio:
+    image: minio/minio:latest
+    container_name: aether-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${AETHER_MINIO_ACCESS_KEY:-aether}
+      MINIO_ROOT_PASSWORD: ${AETHER_MINIO_SECRET_KEY:-aethersecret}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - aether_minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - aether-net
+
+volumes:
+  aether_redis_data:
+  aether_ts_data:
+  aether_minio_data:
+
+networks:
+  aether-net:
+    driver: bridge

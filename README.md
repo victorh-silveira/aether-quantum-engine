@@ -11,7 +11,7 @@ Motor quantitativo assíncrono para a Deriv: decisão exclusiva por **Deep Learn
 
 A operação divide-se em duas fases: **FASE TREINO** (nenhuma ordem até todos os modelos concluírem o treino da sessão) e **FASE OPERACAO** (operação seletiva — só entra quando o candidato passa nos pisos de qualidade; sem trade obrigatório por ciclo).
 
-Documentação: [arquitetura](docs/arquitetura.md) | [metodologia quant](docs/medallion.md) | [estrutura do repo](docs/structure.md) | [Deriv API](docs/deriv-api.md)
+Documentação: [arquitetura](docs/arquitetura.md) | [metodologia quant](docs/medallion.md) | [estrutura do repo](docs/structure.md) | [infra Docker](docs/infra-docker.md) | [Deriv API](docs/deriv-api.md)
 
 Layout: `app/` (código e testes), `config/settings.json`, `docs/`, `linters/`. Ver [docs/structure.md](docs/structure.md).
 
@@ -28,7 +28,9 @@ Layout: `app/` (código e testes), `config/settings.json`, `docs/`, `linters/`. 
 | Qualidade | `execution_quality_gate` | Filtra candidatos por score, edge, margem direcional, ADX e inversão |
 | Execução | `ExecutionManager` + `execution_collect` | Ranking por `market_decision_score`; pula ciclo se nenhum candidato passa no piso |
 | Risco | `RiskManager` | Kelly fracionário, stop win diário, martingale em recovery, cooldown por símbolo |
-| Estado | `StateManager` + `PersistenceManager` | `data/session_state.json`, `data/state.json`, checkpoints `data/dl/{symbol}.pth` + TorchScript `_ts.pt` |
+| Estado | `StateStore` (Redis) + `PersistenceManager` local | Snapshot de risco, sessao diaria, assinaturas `bar_sig` / `market_sig` |
+| Mercado TS | `TimescaleMarketWriter` | Ticks e barras OHLC 180s para backtest |
+| Modelos | `MinioModelStore` + cache `data/dl/` | Checkpoints DL como source of truth remoto |
 
 Ciclo do orquestrador: `orchestrator.cycle_interval_seconds` (padrão 60 s). Granularidade OHLC: `data_handler.granularity` (180 s). Contrato: `risk_management.params.duration` (180 s).
 
@@ -47,6 +49,19 @@ Arquivo: [`config/settings.json`](config/settings.json)
 | `risk_management.kelly` | Kelly, martingale, `mandatory_min_trade_score`, recovery floors |
 | `risk_management.params` | `duration: 180`, stakes |
 | `trading` | `demo` / `live` |
+| `infra` | Redis, TimescaleDB, MinIO (`enabled`, `fail_fast`) |
+
+## Ambiente hibrido Docker
+
+O motor (`run.py` / `train.py`) roda no host Conda/WSL. Redis, TimescaleDB e MinIO sobem via Docker em `localhost`:
+
+```bash
+cd infra/docker
+cp .env.example .env
+docker compose up -d
+```
+
+Com `infra.enabled: true`, o startup valida os tres servicos (fail-fast). Detalhes em [docs/infra-docker.md](docs/infra-docker.md).
 
 Variáveis na raiz (`.env`): `AETHER_DERIV_PAT`, `AETHER_DERIV_APP_ID`, `AETHER_DERIV_ACCOUNT_ID` (opcional). Validação: `python app/scripts/operations/deriv_pat_connect.py`.
 

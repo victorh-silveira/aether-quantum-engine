@@ -1,6 +1,7 @@
 """Pisos de qualidade para filtrar candidatos antes da execucao."""
 
 from src.application.services.deep_learning.dl_gating import resolve_calibrated_edge
+from src.application.services.execution_squeeze_gate import passes_squeeze_gate
 from src.application.services.orchestrator.execution_recovery_gate import effective_signal
 
 
@@ -77,8 +78,11 @@ def passes_execution_quality(
     inverted_min_score: float = 0.0,
     min_adx_normal: float = 0.0,
     recovery_active: bool = False,
+    dynamic_threshold_cfg: dict | None = None,
 ) -> bool:
     """Indica se metricas pos-resolucao atendem pisos de conviccao e clareza direcional."""
+    if not passes_squeeze_gate(metrics, cfg=dynamic_threshold_cfg):
+        return False
     return not _quality_failures(
         metrics,
         min_signal=min_signal,

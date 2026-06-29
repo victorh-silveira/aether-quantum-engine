@@ -7,6 +7,7 @@ from src.domain.risk.martingale_conviction import martingale_dl_conviction_ok, m
 from src.domain.risk.martingale_gate import apply_win_to_pending_loss, martingale_allowed
 from src.domain.risk.risk_cluster import finalize_risk_cluster
 from src.domain.risk.risk_cooldown import RiskCooldownMixin
+from src.domain.risk.risk_manager_restore import apply_risk_snapshot
 from src.domain.risk.risk_stake_calc import calculate_stake_for_manager
 from src.domain.risk.stop_win_target import resolve_stop_win_target
 from src.domain.risk.symbol_loss_cooldown import SymbolLossCooldownMixin
@@ -268,3 +269,7 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
             "recovery_symbol_loss_streak": dict(self.recovery_symbol_loss_streak),
             **self.symbol_cooldown_state(),
         }
+
+    def restore_state(self, data: dict[str, Any]) -> None:
+        """Restaura campos de risco a partir de snapshot persistido."""
+        apply_risk_snapshot(self, data)

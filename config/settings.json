@@ -33,7 +33,10 @@
     "calibration": {
       "method": "auto",
       "isotonic_min_samples": 20,
-      "auto_select_by_brier": true
+      "auto_select_by_brier": true,
+      "entropy_ceiling": 0.92,
+      "entropy_penalty_strength": 1.0,
+      "entropy_floor": 0.0
     },
     "confidence_call_threshold": 0.53,
     "confidence_put_threshold": 0.47,
@@ -141,7 +144,11 @@
         "low_regime_edge_delta": -0.01,
         "compressive_bb_percentile": 0.25,
         "directional_adx_min": 0.22,
-        "baseline_lookback": 48
+        "baseline_lookback": 48,
+        "squeeze_edge_slope": 0.025,
+        "squeeze_min_margin": 0.12,
+        "require_indicator_consensus": true,
+        "implied_vol_bb_scale": true
       },
       "quality_gate": {
         "min_direction_margin": 0.05,
@@ -221,5 +228,21 @@
   ],
   "trading": {
     "mode": "demo"
+  },
+  "infra": {
+    "enabled": true,
+    "fail_fast": true,
+    "redis": {
+      "url": "redis://localhost:6379/0",
+      "key_prefix": "aether"
+    },
+    "timescale": {
+      "dsn": "postgresql://aether:aether@localhost:5432/aether"
+    },
+    "minio": {
+      "endpoint": "localhost:9000",
+      "bucket": "dl-models",
+      "secure": false
+    }
   }
 }

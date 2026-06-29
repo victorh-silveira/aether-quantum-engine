@@ -2,6 +2,11 @@
 
 from dataclasses import dataclass
 
+from src.application.services.execution_volatility_bb import (
+    squeeze_dynamic_min_edge,
+    squeeze_extreme_regime,
+)
+
 
 @dataclass(frozen=True)
 class DynamicThresholds:
@@ -136,6 +141,8 @@ def resolve_dynamic_threshold_bundle(
     bb_width_history: list[float] | None = None,
     atr_norm_history: list[float] | None = None,
     cfg: dict | None = None,
+    symbol: str = "",
+    implied_vol_ratio: float = 1.0,
 ) -> DynamicThresholds | None:
     """Calcula thresholds dinamicos quando habilitado na configuracao."""
     chunk = cfg if isinstance(cfg, dict) else {}
@@ -150,10 +157,32 @@ def resolve_dynamic_threshold_bundle(
         atr_norm_history=atr_norm_history,
         cfg=chunk,
     )
-    return resolve_dynamic_thresholds(
+    scale_bb = bool(chunk.get("implied_vol_bb_scale", True))
+    squeeze, bb_norm = squeeze_extreme_regime(
+        bb_effective=bb_width,
+        bb_width_history=bb_width_history,
+        vol_ratio=vol_ratio,
+        implied_vol_ratio=implied_vol_ratio,
+        symbol=symbol,
+        scale_enabled=scale_bb,
+    )
+    thresholds = resolve_dynamic_thresholds(
         base_call=base_call,
         base_put=base_put,
         base_edge=base_edge,
         regime_score=regime,
         cfg=chunk,
     )
+    if squeeze:
+        edge = squeeze_dynamic_min_edge(
+            base_edge=thresholds.min_edge,
+            bb_norm=bb_norm,
+            squeeze_slope=float(chunk.get("squeeze_edge_slope", 0.025)),
+        )
+        return DynamicThresholds(
+            call_threshold=thresholds.call_threshold,
+            put_threshold=thresholds.put_threshold,
+            min_edge=edge,
+            regime_score=thresholds.regime_score,
+        )
+    return thresholds

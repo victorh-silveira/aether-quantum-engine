@@ -115,7 +115,7 @@ async def test_run_post_settlement_retries_until_cycle_runs(orch_ready):
 
     with (
         patch(
-            "src.application.services.orchestrator.trading_cycle_entry_allowed",
+            "src.application.services.orchestrator.trading_cycle_entry.trading_cycle_entry_allowed",
             side_effect=lambda _orch: next(allows),
         ),
         patch(

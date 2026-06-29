@@ -1,9 +1,10 @@
 # Estrutura do repositório
 
-Layout de software (sem infraestrutura de nuvem neste repo).
+Layout de software com infraestrutura Docker local opcional (`infra/docker/`).
 
 ```
 aether-quantum-engine/
+├── infra/docker/                       # Redis, TimescaleDB, MinIO (compose)
 ├── app/
 │   ├── src/
 │   │   ├── application/services/
@@ -42,7 +43,7 @@ aether-quantum-engine/
 | `application/services/orchestrator` | `Orchestrator`, `ExecutionManager`, `execution_collect`, `execution_recovery_gate`, settlement, `post_settlement_cycle` |
 | `application/services` | `execution_direction_resolver`, `execution_quality_gate`, `execution_direction`, `execution_market_rank`, `execution_symbols`, `execution_mandatory_pick`, `execution_direction_fallback`, `log_dedupe`, `auth_manager` |
 | `domain` | `Candle`, `Trade`, `RiskManager`, Kelly, martingale, cooldowns, `stake_sizing` |
-| `infrastructure` | `WebSocketManager`, `StreamHandler`, `TickBuffer`, `TradeHandler`, `PersistenceManager` |
+| `infrastructure` | `WebSocketManager`, `StreamHandler`, `TickBuffer`, `TradeHandler`, ports `StateStore` / `MarketSeriesWriter` / `ModelArtifactStore`, Redis, Timescale, MinIO |
 | `presentation/terminal` | `setup_logger`, `BlankLineSquasher`, formatação de logs |
 
 Decisão exclusivamente Deep Learning quando `deep_learning.enabled` é verdadeiro. Treino e execução são processos separados (`train.py` / `run.py`).

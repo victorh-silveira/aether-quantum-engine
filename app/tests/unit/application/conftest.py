@@ -69,6 +69,7 @@ def orch_config():
             "cycle_interval_seconds": 0,
             "execution": {"include_anchor_trades": True, "inter_symbol_delay": 0.25},
         },
+        "infra": {"enabled": False},
         "trading": {"mode": "demo", "session": {"enabled": False}},
     }
 

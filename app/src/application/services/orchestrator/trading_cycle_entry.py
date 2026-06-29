@@ -5,10 +5,12 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from src.application.services.deep_learning.decision_bridge import collect_deep_learning_decisions
 from src.application.services.deep_learning.dl_deferred_train import try_enqueue_next_bootstrap_training
 from src.application.services.deep_learning.dl_startup import prepare_inference_run_loop
 from src.application.services.orchestrator.decision_mode_banner import emit_decision_engine_banner
 from src.application.services.orchestrator.engine_mode import ENGINE_MODE_TRAIN, resolve_engine_mode
+from src.application.services.orchestrator.orchestrator_state_restore import mark_bar_processed
 from src.application.services.strategy.decision_mode import resolve_decision_mode
 from src.domain.risk.stop_win_target import resolve_stop_win_target
 
@@ -123,3 +125,39 @@ async def acquire_trading_cycle_lock(orch: Any) -> bool:
             return False
         orch.is_trading = True
     return True
+
+
+async def run_trading_cycle_if_ready(orch: Any) -> bool:
+    """Executa um ciclo completo de decisao e cluster quando permitido."""
+    if not trading_cycle_entry_allowed(orch) or not await acquire_trading_cycle_lock(orch):
+        return False
+    ran = False
+    try:
+        if not orch.ws.is_running or not orch.stream.is_synchronized:
+            orch.logger.debug("STRM: aguardando sincronia...")
+        elif resolve_decision_mode(orch.config) == "inactive":
+            orch.logger.error(
+                "CICLO: modo inativo; defina deep_learning.enabled=true em config/settings.json.",
+            )
+            ran = True
+        else:
+            orch._cycle_seq += 1
+            if orch._cycle_seq > 1:
+                orch.logger.info("")
+            orch._active_cycle_id = orch._cycle_seq
+            orch._last_processed_epoch = orch._last_epoch
+            await mark_bar_processed(orch, orch.anchor, orch._last_epoch)
+            ran = True
+            orch.logger.debug(
+                "[C%04d] CICLO: coletando decisoes DL (%d simbolos)",
+                orch._active_cycle_id,
+                len(orch.symbols),
+            )
+            decisions = await collect_deep_learning_decisions(orch)
+            await orch.executor.execute_cluster(decisions)
+    except Exception as e:
+        orch.logger.error(f"FALHA: Ciclo: {e}")
+        ran = True
+    finally:
+        orch.is_trading = False
+    return ran

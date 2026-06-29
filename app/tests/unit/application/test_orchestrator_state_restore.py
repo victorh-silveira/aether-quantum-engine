@@ -1,0 +1,40 @@
+"""Testes de restore de estado do orquestrador."""
+
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
+from src.application.services.orchestrator.orchestrator_state_restore import (
+    bar_epoch_already_processed,
+    mark_bar_processed,
+    restore_orchestrator_state,
+)
+from src.domain.risk.risk_manager import RiskManager
+
+
+@pytest.mark.asyncio
+async def test_restore_orchestrator_state():
+    orch = MagicMock()
+    orch.state_store = AsyncMock()
+    orch.state_store.load_snapshot.return_value = {
+        "risk": {"consecutive_losses": 3, "pending_loss": {"R_10": 2.0}},
+        "total_session_profit": 5.0,
+    }
+    orch.state_store.get_hash.return_value = {"initial_balance": "100.0", "day_key": "1"}
+    orch.state_store.get_string.side_effect = ["sig", "99"]
+    orch.risk_manager = RiskManager({"params": {}, "kelly": {}, "limits": {}})
+    orch.anchor = "R_10"
+    await restore_orchestrator_state(orch)
+    assert orch.risk_manager.consecutive_losses == 3
+    assert orch.last_data_signature == "sig"
+
+
+@pytest.mark.asyncio
+async def test_bar_sig_helpers():
+    orch = MagicMock()
+    orch.infra = MagicMock(enabled=True)
+    orch.state_store = AsyncMock()
+    orch.state_store.get_string.return_value = "42"
+    assert await bar_epoch_already_processed(orch, "R_10", 42) is True
+    await mark_bar_processed(orch, "R_10", 43)
+    orch.state_store.set_string.assert_called()

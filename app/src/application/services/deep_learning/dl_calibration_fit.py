@@ -15,6 +15,7 @@ from src.application.services.deep_learning.dl_calibration import (
     raw_to_logit,
 )
 from src.application.services.deep_learning.dl_calibration_isotonic import fit_isotonic
+from src.domain.math.probability_entropy import binary_entropy, entropy_penalty_factor
 
 
 def fit_temperature(probs: list[float], labels: list[float]) -> float:
@@ -116,6 +117,25 @@ def _select_best_calibrator(candidates: list[tuple[CalibratorState, float, float
     return ranked[0][0]
 
 
+def calibrator_entropy_metrics(
+    probs: list[float],
+    _labels: list[float],
+    calibrator: CalibratorState,
+    *,
+    calibration_cfg: dict | None = None,
+) -> dict[str, float | bool]:
+    """Calcula entropia media calibrada e flag de violacao ao teto."""
+    cfg = calibration_cfg if isinstance(calibration_cfg, dict) else {}
+    ceiling = float(cfg.get("entropy_ceiling", 0.92))
+    calibrated = _calibrated_probs(probs, calibrator)
+    if not calibrated:
+        return {"calibrated_entropy": 0.0, "entropy_violation": False}
+    ent_values = [binary_entropy(p) for p in calibrated]
+    mean_ent = sum(ent_values) / float(len(ent_values))
+    violation = mean_ent > ceiling
+    return {"calibrated_entropy": mean_ent, "entropy_violation": violation}
+
+
 def fit_calibrator(
     probs: list[float],
     labels: list[float],
@@ -148,3 +168,11 @@ def fit_calibrator(
     if bool(cfg.get("auto_select_by_brier", True)):
         return _select_best_calibrator(candidates)
     return cal_tp
+
+
+def entropy_weight_penalty(probability: float, *, calibration_cfg: dict | None = None) -> float:
+    """Penalizacao [0, 1] para peso DL no resolver."""
+    chunk = calibration_cfg if isinstance(calibration_cfg, dict) else {}
+    ceiling = float(chunk.get("entropy_ceiling", 0.92))
+    floor = float(chunk.get("entropy_floor", 0.0))
+    return entropy_penalty_factor(probability, ceiling=ceiling, floor=floor)

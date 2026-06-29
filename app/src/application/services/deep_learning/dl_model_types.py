@@ -33,3 +33,5 @@ class TrainResult:
     val_brier: float = 1.0
     val_ece: float = 1.0
     epochs_ran: int = 0
+    calibrated_entropy: float = 0.0
+    entropy_violation: bool = False

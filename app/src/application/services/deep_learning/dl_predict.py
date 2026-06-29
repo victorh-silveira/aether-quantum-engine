@@ -12,6 +12,7 @@ from src.application.services.deep_learning.dl_gating import (
 )
 from src.application.services.deep_learning.dl_outcomes import blended_val_accuracy
 from src.application.services.deep_learning.dl_params import parse_dynamic_threshold_config
+from src.application.services.deep_learning.dl_predict_metrics import attach_dynamic_metrics
 from src.application.services.deep_learning.dl_symbol_runtime import guard_symbol_model
 from src.application.services.deep_learning.dl_trend import calculate_trend_direction
 from src.application.services.deep_learning.model import predict_next_direction
@@ -85,6 +86,9 @@ def predict_symbol_decision(
         vol_ratio = (
             float(series["vol_ratio_short_long"][-1]) if len(series.get("vol_ratio_short_long", [])) > 0 else 0.0
         )
+        implied_vol_ratio = (
+            float(series["implied_vol_ratio"][-1]) if len(series.get("implied_vol_ratio", [])) > 0 else 1.0
+        )
         dynamic = resolve_dynamic_threshold_bundle(
             base_call=base_call,
             base_put=base_put,
@@ -95,6 +99,8 @@ def predict_symbol_decision(
             vol_ratio=vol_ratio,
             bb_width_history=_series_tail("bb_width", series),
             atr_norm_history=_series_tail("atr_norm", series),
+            symbol=str(symbol),
+            implied_vol_ratio=implied_vol_ratio,
             cfg={
                 **dynamic_cfg,
                 "call_base": dynamic_cfg.get("call_base", base_call),
@@ -127,6 +133,7 @@ def predict_symbol_decision(
             "hurst": float(series["hurst"][-1]) if "hurst" in series and len(series["hurst"]) > 0 else 0.0,
             "adx": adx,
             "vol_ratio": vol_ratio,
+            "implied_vol_ratio": implied_vol_ratio,
             "bb_width": bb_width,
             "atr_norm": atr_norm,
             "cmo": float(series["cmo"][-1]) if "cmo" in series and len(series["cmo"]) > 0 else 0.0,
@@ -174,11 +181,17 @@ def predict_symbol_decision(
         entry["metrics"]["call_votes"] = call_votes
         entry["metrics"]["put_votes"] = put_votes
         entry["metrics"]["indicators"] = indicators_data
-        if dynamic is not None:
-            entry["metrics"]["dynamic_call_threshold"] = dynamic.call_threshold
-            entry["metrics"]["dynamic_put_threshold"] = dynamic.put_threshold
-            entry["metrics"]["dynamic_min_edge"] = dynamic.min_edge
-            entry["metrics"]["volatility_regime"] = dynamic.regime_score
+        attach_dynamic_metrics(
+            entry["metrics"],
+            dynamic=dynamic,
+            bb_width=bb_width,
+            vol_ratio=vol_ratio,
+            implied_vol_ratio=implied_vol_ratio,
+            symbol=str(symbol),
+            bb_history=_series_tail("bb_width", series),
+            scale_enabled=bool(dynamic_cfg.get("implied_vol_bb_scale", True)),
+            runtime=runtime,
+        )
         return entry
     except Exception as e:
         logger.error("DL: Falha na predicao para %s: %s", symbol, e)

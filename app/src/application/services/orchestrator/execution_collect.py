@@ -2,6 +2,7 @@
 
 __all__ = ["collect_cluster_orders", "_mandatory_fallback_candidates"]
 
+from src.application.services.deep_learning.dl_params import parse_dynamic_threshold_config
 from src.application.services.execution_direction import build_execution_candidate
 from src.application.services.execution_direction_fallback import build_mandatory_fallback_candidate
 from src.application.services.execution_mandatory_pick import pick_absolute_mandatory_candidate
@@ -46,6 +47,7 @@ def _gather_cluster_candidates(
     _ = (mean_reversion, low_accuracy, recovery_cfg)
     exec_cfg = exec_mgr.orch.config.get("orchestrator", {}).get("execution", {})
     qparams = quality_gate_params(exec_cfg)
+    dynamic_cfg = parse_dynamic_threshold_config(exec_cfg if isinstance(exec_cfg, dict) else {})
     candidates = []
     for symbol in exec_mgr._trade_symbols():
         entry = decisions.get(symbol)
@@ -80,6 +82,7 @@ def _gather_cluster_candidates(
             min_val=min_val,
             min_edge=min_edge,
             recovery_active=recovery_active,
+            dynamic_threshold_cfg=dynamic_cfg,
             **qparams,
         ):
             exec_mgr.logger.debug("[%s] SKIP: Qualidade insuficiente para %s", cid, symbol)
@@ -253,6 +256,7 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
             min_val=min_val,
             min_edge=min_edge,
             recovery_active=recovery_active,
+            dynamic_threshold_cfg=parse_dynamic_threshold_config(exec_cfg if isinstance(exec_cfg, dict) else {}),
             **quality_gate_params(exec_cfg),
         ):
             exec_mgr.logger.info(

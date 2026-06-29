@@ -10,6 +10,11 @@ numpy==2.4.6                 # Biblioteca fundamental para computação científ
 # ---- INTERFACE & UI ----
 rich==15.0.0                 # Formatação de texto rica e renderização de tabelas/logs no terminal
 
+# ---- INFRAESTRUTURA ----
+redis[hiredis]>=5.0          # Banco de dados em memória (Cache/Mensageria) com driver C de alta performance (hiredis)
+asyncpg>=0.30                # Driver assíncrono de alta performance para banco de dados PostgreSQL
+minio>=7.2                   # Cliente para armazenamento de objetos compatível com a API do Amazon S3
+
 # ---- PROCESSAMENTO DE DADOS & DEEP LEARNING ----
 pandas==2.3.3                # Manipulação e análise de dados estruturados através de DataFrames
 polars==1.23.0               # DataFrame de alta performance focado em velocidade e processamento paralelo

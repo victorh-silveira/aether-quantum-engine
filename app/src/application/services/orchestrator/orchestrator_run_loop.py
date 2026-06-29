@@ -3,12 +3,17 @@
 from typing import Any
 
 from src.application.services.deep_learning.dl_deferred_train import cancel_deferred_symbol_training
+from src.application.services.orchestrator.orchestrator_state_restore import (
+    persist_session_hash,
+    sync_market_signature,
+)
 from src.application.services.orchestrator.ws_bootstrap import (
     setup_trading_session,
     start_orchestrator_streams,
     subscribe_account_transactions,
 )
 from src.domain.risk.stop_win_target import resolve_stop_win_target
+from src.infrastructure.factories.infra_factory import close_infra_services
 
 
 async def setup_session(orch: Any) -> bool:
@@ -51,7 +56,13 @@ async def save_full_state(orch: Any) -> None:
             "risk": orch.risk_manager.get_state(),
         }
     )
-    orch.persistence.save(s)
+    await orch.state_store.save_snapshot(s)
+    await persist_session_hash(orch)
+    sig = orch.get_data_state_signature()
+    if sig:
+        await sync_market_signature(orch, sig)
+    if hasattr(orch.persistence, "save"):
+        orch.persistence.save(s)
 
 
 async def stop_orchestrator(orch: Any) -> None:
@@ -61,6 +72,9 @@ async def stop_orchestrator(orch: Any) -> None:
     if task is not None and not task.done():
         task.cancel()
     cancel_deferred_symbol_training(orch)
+    infra = getattr(orch, "infra", None)
+    if infra is not None:
+        await close_infra_services(infra)
     await orch.ws.close()
     orch.logger.debug("STOP: encerrado.")
 

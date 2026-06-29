@@ -4,6 +4,11 @@ from __future__ import annotations
 
 import contextlib
 
+from src.application.services.deep_learning.dl_calibration_fit import entropy_weight_penalty
+from src.application.services.execution_direction_scoring import (
+    accumulate_direction_scores,
+    finalize_direction_metrics,
+)
 from src.domain.models.trade import TradeDirection
 
 
@@ -88,7 +93,13 @@ def _dl_call_put_scores(entry: dict, weights: dict) -> tuple[float, float]:
     prob_f = _clamp01(float(prob))
     pivot = _direction_pivot(metrics)
     w = float(weights["dl_raw_weight"])
-    return 0.5 + (prob_f - pivot) * w, 0.5 + (pivot - prob_f) * w
+    penalty = entropy_weight_penalty(prob_f)
+    if metrics.get("entropy_violation"):
+        penalty = max(penalty, entropy_weight_penalty(prob_f))
+    w_eff = w * (1.0 - penalty * penalty)
+    metrics["dl_weight_penalty"] = penalty
+    metrics["direction_entropy"] = float(metrics.get("calibrated_entropy", 0.0))
+    return 0.5 + (prob_f - pivot) * w_eff, 0.5 + (pivot - prob_f) * w_eff
 
 
 def _val_accuracy_bias(metrics: dict, weights: dict) -> tuple[float, float]:
@@ -182,55 +193,24 @@ def resolve_execution_direction(
     metrics = dict(entry.get("metrics") or {})
     cfg = exec_cfg if isinstance(exec_cfg, dict) else {}
     weights = _scoring_weights(cfg)
-
-    call_score = 0.0
-    put_score = 0.0
-    hints: list[str] = []
-
-    dl_call, dl_put = _dl_call_put_scores(entry, weights)
-    call_score += dl_call
-    put_score += dl_put
-
-    val_call, val_put = _val_accuracy_bias(metrics, weights)
-    call_score += val_call - 0.5
-    put_score += val_put - 0.5
-
-    for bias_fn in (_trend_bias, _exhaustion_bias, _indicator_regime_bias):
-        c_bias, p_bias, hint = bias_fn(metrics, weights)
-        call_score += c_bias - 0.5
-        put_score += p_bias - 0.5
-        if hint and hint not in hints:
-            hints.append(hint)
-
-    c_low, p_low, low_hint = _low_val_accuracy_bias(entry, metrics, weights)
-    call_score += c_low - 0.5
-    put_score += p_low - 0.5
-    if low_hint and low_hint not in hints:
-        hints.append(low_hint)
-
-    if recovery_active:
-        trend_str = metrics.get("trend_direction")
-        if trend_str:
-            with contextlib.suppress(KeyError, ValueError):
-                trend_dir = TradeDirection[str(trend_str).upper()]
-                w = float(weights["trend_weight"]) * 0.5
-                if trend_dir == TradeDirection.CALL:
-                    call_score += w
-                else:
-                    put_score += w
-
+    call_score, put_score, hints = accumulate_direction_scores(
+        entry,
+        metrics,
+        weights,
+        recovery_active=recovery_active,
+        bias_fns=(_trend_bias, _exhaustion_bias, _indicator_regime_bias),
+        dl_scores_fn=_dl_call_put_scores,
+        val_bias_fn=_val_accuracy_bias,
+        low_val_fn=_low_val_accuracy_bias,
+    )
     exec_dir = TradeDirection.CALL if call_score + 1e-9 >= put_score else TradeDirection.PUT
-    chosen = max(call_score, put_score)
-    metrics["direction_call_score"] = call_score
-    metrics["direction_put_score"] = put_score
-    metrics["direction_margin"] = abs(call_score - put_score)
-    metrics["direction_hints"] = hints
-    metrics["direction_hint"] = hints[0] if hints else None
-    metrics["dl_direction"] = dl_dir.name
-    metrics["exec_direction"] = exec_dir.name
-    metrics["direction_inverted"] = dl_dir != exec_dir
-    side_strength = _clamp01(chosen)
-    if metrics.get("trade_score") is None:
-        metrics["trade_score"] = side_strength
-    metrics["resolved_conviction"] = side_strength
+    finalize_direction_metrics(
+        metrics,
+        call_score=call_score,
+        put_score=put_score,
+        hints=hints,
+        dl_dir=dl_dir,
+        exec_dir=exec_dir,
+        clamp01=_clamp01,
+    )
     return exec_dir, metrics

@@ -9,6 +9,7 @@ from src.application.services.deep_learning.dl_calibration import CalibratorStat
 from src.application.services.deep_learning.dl_deploy import apply_deploy_to_runtime
 from src.application.services.deep_learning.dl_deploy_eval import evaluate_mini_deploy
 from src.application.services.deep_learning.dl_gate_config import resolve_deploy_ok
+from src.application.services.deep_learning.dl_model_artifacts import schedule_model_upload
 from src.application.services.deep_learning.dl_retrain import clear_force_retrain, reset_bars_since_train
 from src.application.services.deep_learning.dl_symbol_runtime import resolve_dl_model_path
 from src.application.services.deep_learning.model import save_model_checkpoint
@@ -45,6 +46,8 @@ def apply_successful_symbol_train(
     runtime["calibrator"] = train_result.calibrator or CalibratorState()
     runtime["val_brier"] = train_result.val_brier
     runtime["val_ece"] = train_result.val_ece
+    runtime["calibrated_entropy"] = float(getattr(train_result, "calibrated_entropy", 0.0))
+    runtime["entropy_violation"] = bool(getattr(train_result, "entropy_violation", False))
     train_loss = train_result.avg_loss
     runtime["last_candle_epoch"] = candle_epoch_value
     mini_ok, deploy_wr, mini_brier = evaluate_mini_deploy(
@@ -88,6 +91,17 @@ def apply_successful_symbol_train(
         deploy_ok=runtime["deploy_ok"],
         deploy_win_rate=runtime["deploy_win_rate"],
         granularity=granularity,
+    )
+    schedule_model_upload(
+        orch,
+        symbol,
+        path,
+        arch=str(params["arch"]),
+        metadata={
+            "val_accuracy": runtime["val_accuracy"],
+            "calibrated_entropy": runtime.get("calibrated_entropy"),
+            "entropy_violation": runtime.get("entropy_violation"),
+        },
     )
     runtime["session_trained"] = True
     clear_force_retrain(orch, symbol)

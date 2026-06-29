@@ -22,7 +22,7 @@ async def test_run_trading_cycle_collect_failure(orch_config):
     with (
         patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()),
         patch(
-            "src.application.services.orchestrator.collect_deep_learning_decisions",
+            "src.application.services.orchestrator.trading_cycle_entry.collect_deep_learning_decisions",
             new_callable=AsyncMock,
             side_effect=RuntimeError("dl down"),
         ),
