@@ -1,5 +1,6 @@
 """Pisos de qualidade para filtrar candidatos antes da execucao."""
 
+from src.application.services.deep_learning.dl_gating import resolve_calibrated_edge
 from src.application.services.orchestrator.execution_recovery_gate import effective_signal
 
 
@@ -13,6 +14,28 @@ def quality_gate_params(exec_cfg: dict) -> dict[str, float]:
         "inverted_min_score": float(chunk.get("inverted_min_score", 0.74)),
         "min_adx_normal": float(chunk.get("min_adx_normal", 0.18)),
     }
+
+
+def _effective_edge(metrics: dict) -> float:
+    """Edge operacional priorizando probabilidade calibrada."""
+    calibrated_edge = metrics.get("calibrated_edge")
+    if calibrated_edge is not None:
+        return float(calibrated_edge)
+    edge = metrics.get("edge")
+    if edge is not None:
+        return float(edge)
+    return resolve_calibrated_edge(
+        metrics.get("calibrated_prob"),
+        raw_prob=metrics.get("raw_prob"),
+    )
+
+
+def _effective_min_edge(metrics: dict, min_edge: float) -> float:
+    """Piso de edge global ou dinamico por candidato."""
+    dynamic = metrics.get("dynamic_min_edge")
+    if dynamic is None:
+        return float(min_edge)
+    return max(float(min_edge), float(dynamic))
 
 
 def _quality_failures(
@@ -31,10 +54,12 @@ def _quality_failures(
     indicators = metrics.get("indicators") or {}
     adx = float(indicators.get("adx", 0.0))
     margin = float(metrics.get("direction_margin", 0.0))
+    edge_floor = _effective_min_edge(metrics, min_edge)
+    edge_val = _effective_edge(metrics)
     checks = [
         eff + 1e-9 < min_signal,
         min_val > 0.0 and float(metrics.get("val_accuracy", 0.0)) + 1e-9 < min_val,
-        min_edge > 0.0 and float(metrics.get("edge", 0.0)) + 1e-9 < min_edge,
+        edge_floor > 0.0 and edge_val + 1e-9 < edge_floor,
         min_direction_margin > 0.0 and margin + 1e-9 < min_direction_margin,
         metrics.get("direction_inverted") and inverted_min_score > 0.0 and eff + 1e-9 < inverted_min_score,
         not recovery_active and min_adx_normal > 0.0 and adx + 1e-9 < min_adx_normal,

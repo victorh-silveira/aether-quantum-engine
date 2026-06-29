@@ -8,6 +8,15 @@ def resolve_edge(raw_prob: float) -> float:
     return abs(float(raw_prob) - 0.5)
 
 
+def resolve_calibrated_edge(calibrated_prob: float | None, *, raw_prob: float | None = None) -> float:
+    """Margem de edge preferindo probabilidade calibrada."""
+    if calibrated_prob is not None:
+        return abs(float(calibrated_prob) - 0.5)
+    if raw_prob is not None:
+        return resolve_edge(raw_prob)
+    return 0.0
+
+
 def resolve_confidence_thresholds(params: dict) -> tuple[float, float]:
     """Retorna limiares CALL e PUT da configuracao."""
     return (

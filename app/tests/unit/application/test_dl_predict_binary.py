@@ -101,6 +101,53 @@ def test_predict_weak_direction_still_executes():
     assert entry["metrics"]["gate_reason"] is None
 
 
+def test_predict_includes_dynamic_threshold_metrics():
+    params = parse_dl_params(
+        {
+            "confidence_call_threshold": 0.53,
+            "confidence_put_threshold": 0.47,
+            "min_edge_execute": 0.04,
+            "min_val_accuracy": 0.53,
+        }
+    )
+    orch = type(
+        "O",
+        (),
+        {
+            "config": {
+                "orchestrator": {
+                    "execution": {
+                        "dynamic_threshold": {
+                            "enabled": True,
+                            "vol_source": "blend",
+                            "baseline_lookback": 8,
+                        }
+                    }
+                }
+            }
+        },
+    )()
+    runtime = {"val_accuracy": 0.55, "val_brier": 0.2, "val_ece": 0.1, "lookback": 15, "deploy_ok": True}
+    with patch(
+        "src.application.services.deep_learning.dl_predict.predict_next_direction",
+        return_value=(TradeDirection.CALL, 0.80, 0.80),
+    ):
+        entry = predict_symbol_decision(
+            orch,
+            "R_50",
+            TemporalDirectionClassifier(input_dim=INPUT_DIM),
+            np.linspace(10.0, 11.0, 80),
+            fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32)),
+            runtime,
+            params,
+            None,
+            recovery_active=False,
+        )
+    assert entry["metrics"]["calibrated_prob"] == 0.80
+    assert "dynamic_call_threshold" in entry["metrics"]
+    assert "volatility_regime" in entry["metrics"]
+
+
 def test_predict_includes_trend_metrics():
     params = parse_dl_params(
         {

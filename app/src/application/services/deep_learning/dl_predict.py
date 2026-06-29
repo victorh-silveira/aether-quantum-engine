@@ -6,22 +6,35 @@ from typing import Any
 from src.application.services.deep_learning.dl_bridge_helpers import build_decision_entry
 from src.application.services.deep_learning.dl_calibration import CalibratorState, calibrate_trade_score
 from src.application.services.deep_learning.dl_feature_build import precompute_price_series
-from src.application.services.deep_learning.dl_gating import resolve_confidence_thresholds, resolve_edge
+from src.application.services.deep_learning.dl_gating import (
+    resolve_calibrated_edge,
+    resolve_confidence_thresholds,
+)
 from src.application.services.deep_learning.dl_outcomes import blended_val_accuracy
+from src.application.services.deep_learning.dl_params import parse_dynamic_threshold_config
 from src.application.services.deep_learning.dl_symbol_runtime import guard_symbol_model
 from src.application.services.deep_learning.dl_trend import calculate_trend_direction
 from src.application.services.deep_learning.model import predict_next_direction
+from src.application.services.execution_volatility_threshold import resolve_dynamic_threshold_bundle
 from src.domain.models.trade import TradeDirection
 
 
 logger = logging.getLogger("AETH")
 
 
-def _infer_direction(raw_prob: float, direction: TradeDirection | None) -> TradeDirection:
-    """Infere CALL ou PUT a partir de raw_prob quando direction e None."""
+def _series_tail(series_key: str, series: dict) -> list[float]:
+    """Extrai historico numerico de uma serie de indicadores."""
+    chunk = series.get(series_key)
+    if chunk is None or len(chunk) == 0:
+        return []
+    return [float(v) for v in chunk]
+
+
+def _infer_direction(calibrated_prob: float, direction: TradeDirection | None, pivot: float = 0.5) -> TradeDirection:
+    """Infere CALL ou PUT a partir da probabilidade calibrada quando direction e None."""
     if direction is not None:
         return direction
-    return TradeDirection.CALL if float(raw_prob) > 0.5 else TradeDirection.PUT
+    return TradeDirection.CALL if float(calibrated_prob) > float(pivot) else TradeDirection.PUT
 
 
 def predict_symbol_decision(
@@ -49,7 +62,8 @@ def predict_symbol_decision(
         float(runtime["val_accuracy"]),
         live_weight=float(params.get("val_acc_live_blend", 0.35)),
     )
-    call_threshold, put_threshold = resolve_confidence_thresholds(params)
+    base_call, base_put = resolve_confidence_thresholds(params)
+    base_edge = float(params.get("min_edge_execute", 0.04))
     try:
         gran = int(granularity or params.get("granularity", 60))
         calibrator = runtime.get("calibrator") or CalibratorState()
@@ -63,6 +77,33 @@ def predict_symbol_decision(
             micro=micro,
             implied_vol_bars=int(params.get("implied_vol_bars", 60)),
         )
+        exec_cfg = orch.config.get("orchestrator", {}).get("execution", {}) if hasattr(orch, "config") else {}
+        dynamic_cfg = parse_dynamic_threshold_config(exec_cfg if isinstance(exec_cfg, dict) else {})
+        bb_width = float(series["bb_width"][-1]) if len(series.get("bb_width", [])) > 0 else 0.0
+        atr_norm = float(series["atr_norm"][-1]) if len(series.get("atr_norm", [])) > 0 else 0.0
+        adx = float(series["adx"][-1]) if len(series.get("adx", [])) > 0 else 0.0
+        vol_ratio = (
+            float(series["vol_ratio_short_long"][-1]) if len(series.get("vol_ratio_short_long", [])) > 0 else 0.0
+        )
+        dynamic = resolve_dynamic_threshold_bundle(
+            base_call=base_call,
+            base_put=base_put,
+            base_edge=base_edge,
+            bb_width=bb_width,
+            atr_norm=atr_norm,
+            adx=adx,
+            vol_ratio=vol_ratio,
+            bb_width_history=_series_tail("bb_width", series),
+            atr_norm_history=_series_tail("atr_norm", series),
+            cfg={
+                **dynamic_cfg,
+                "call_base": dynamic_cfg.get("call_base", base_call),
+                "put_base": dynamic_cfg.get("put_base", base_put),
+                "min_edge_base": dynamic_cfg.get("min_edge_base", base_edge),
+            },
+        )
+        call_threshold = dynamic.call_threshold if dynamic is not None else base_call
+        put_threshold = dynamic.put_threshold if dynamic is not None else base_put
         with guard_symbol_model(runtime):
             direction, prob, raw_prob = predict_next_direction(
                 model,
@@ -80,15 +121,14 @@ def predict_symbol_decision(
                 put_threshold=put_threshold,
                 calibrator=calibrator,
             )
-        exec_cfg = orch.config.get("orchestrator", {}).get("execution", {}) if hasattr(orch, "config") else {}
         trend_dir, trend_type, trend_period, call_votes, put_votes = calculate_trend_direction(prices, series, exec_cfg)
 
         indicators_data = {
             "hurst": float(series["hurst"][-1]) if "hurst" in series and len(series["hurst"]) > 0 else 0.0,
-            "adx": float(series["adx"][-1]) if "adx" in series and len(series["adx"]) > 0 else 0.0,
-            "vol_ratio": float(series["vol_ratio_short_long"][-1])
-            if "vol_ratio_short_long" in series and len(series["vol_ratio_short_long"]) > 0
-            else 0.0,
+            "adx": adx,
+            "vol_ratio": vol_ratio,
+            "bb_width": bb_width,
+            "atr_norm": atr_norm,
             "cmo": float(series["cmo"][-1]) if "cmo" in series and len(series["cmo"]) > 0 else 0.0,
             "keltner": float(series["keltner_pct_b"][-1])
             if "keltner_pct_b" in series and len(series["keltner_pct_b"]) > 0
@@ -101,8 +141,10 @@ def predict_symbol_decision(
             "di_diff": float(series["di_diff"][-1]) if "di_diff" in series and len(series["di_diff"]) > 0 else 0.0,
         }
 
-        resolved_dir = _infer_direction(raw_prob, direction)
-        edge = resolve_edge(raw_prob)
+        calibrated_prob = float(prob)
+        pivot = (call_threshold + put_threshold) * 0.5
+        resolved_dir = _infer_direction(calibrated_prob, direction, pivot=pivot)
+        calibrated_edge = resolve_calibrated_edge(calibrated_prob, raw_prob=raw_prob)
         side_score = calibrate_trade_score(
             raw_prob,
             val_accuracy,
@@ -115,7 +157,7 @@ def predict_symbol_decision(
             prob,
             execute=True,
             val_accuracy=val_accuracy,
-            edge=edge,
+            edge=calibrated_edge,
             train_loss=train_loss,
             trade_score=side_score,
             raw_prob=raw_prob,
@@ -124,12 +166,19 @@ def predict_symbol_decision(
             contract_duration=int(params.get("contract_duration", 60)),
         )
         entry["metrics"]["gate_reason"] = None
+        entry["metrics"]["calibrated_prob"] = calibrated_prob
+        entry["metrics"]["calibrated_edge"] = calibrated_edge
         entry["metrics"]["trend_direction"] = trend_dir.name
         entry["metrics"]["trend_type"] = trend_type
         entry["metrics"]["trend_period"] = trend_period
         entry["metrics"]["call_votes"] = call_votes
         entry["metrics"]["put_votes"] = put_votes
         entry["metrics"]["indicators"] = indicators_data
+        if dynamic is not None:
+            entry["metrics"]["dynamic_call_threshold"] = dynamic.call_threshold
+            entry["metrics"]["dynamic_put_threshold"] = dynamic.put_threshold
+            entry["metrics"]["dynamic_min_edge"] = dynamic.min_edge
+            entry["metrics"]["volatility_regime"] = dynamic.regime_score
         return entry
     except Exception as e:
         logger.error("DL: Falha na predicao para %s: %s", symbol, e)

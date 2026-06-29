@@ -7,16 +7,38 @@ import contextlib
 from src.domain.models.trade import TradeDirection
 
 
+def _direction_prob(entry: dict) -> float | None:
+    """Retorna probabilidade calibrada de CALL quando disponivel."""
+    metrics = entry.get("metrics") or {}
+    calibrated = metrics.get("calibrated_prob")
+    if calibrated is not None:
+        return float(calibrated)
+    raw = metrics.get("raw_prob")
+    if raw is None:
+        return None
+    return float(raw)
+
+
+def _direction_pivot(metrics: dict) -> float:
+    """Pivot CALL/PUT: medio dos thresholds dinamicos ou 0.5."""
+    call_th = metrics.get("dynamic_call_threshold")
+    put_th = metrics.get("dynamic_put_threshold")
+    if call_th is not None and put_th is not None:
+        return (float(call_th) + float(put_th)) * 0.5
+    return 0.5
+
+
 def infer_dl_direction(entry: dict) -> TradeDirection | None:
-    """Obtem direcao prevista pelo DL ou infere a partir de raw_prob."""
+    """Obtem direcao prevista pelo DL ou infere a partir da probabilidade calibrada."""
     direction = entry.get("direction")
     if direction is not None:
         return direction
     metrics = entry.get("metrics") or {}
-    raw = metrics.get("raw_prob")
-    if raw is None:
+    prob = _direction_prob(entry)
+    if prob is None:
         return None
-    return TradeDirection.CALL if float(raw) > 0.5 else TradeDirection.PUT
+    pivot = _direction_pivot(metrics)
+    return TradeDirection.CALL if float(prob) > pivot else TradeDirection.PUT
 
 
 _TECHNICAL_BLOCKS = frozenset({"data", "predict_error", "training"})
@@ -55,17 +77,18 @@ def _clamp01(value: float) -> float:
 
 
 def _dl_call_put_scores(entry: dict, weights: dict) -> tuple[float, float]:
-    """Calcula contribuicao lateralizada de raw_prob no score CALL/PUT."""
+    """Calcula contribuicao lateralizada da probabilidade calibrada no score CALL/PUT."""
     metrics = entry.get("metrics") or {}
-    raw = metrics.get("raw_prob")
-    if raw is None:
+    prob = _direction_prob(entry)
+    if prob is None:
         dl_dir = infer_dl_direction(entry)
         if dl_dir is None:
             return 0.5, 0.5
-        raw = 0.55 if dl_dir == TradeDirection.CALL else 0.45
-    raw_f = _clamp01(float(raw))
+        prob = 0.55 if dl_dir == TradeDirection.CALL else 0.45
+    prob_f = _clamp01(float(prob))
+    pivot = _direction_pivot(metrics)
     w = float(weights["dl_raw_weight"])
-    return 0.5 + (raw_f - 0.5) * w, 0.5 + (0.5 - raw_f) * w
+    return 0.5 + (prob_f - pivot) * w, 0.5 + (pivot - prob_f) * w
 
 
 def _val_accuracy_bias(metrics: dict, weights: dict) -> tuple[float, float]:
@@ -150,7 +173,7 @@ def resolve_execution_direction(
     exec_cfg: dict | None = None,
     recovery_active: bool = False,
 ) -> tuple[TradeDirection, dict] | None:
-    """Resolve CALL ou PUT por score composto; retorna None apenas se sem raw_prob."""
+    """Resolve CALL ou PUT por score composto; retorna None apenas se sem probabilidade."""
     if is_technically_blocked(entry):
         return None
     dl_dir = infer_dl_direction(entry)

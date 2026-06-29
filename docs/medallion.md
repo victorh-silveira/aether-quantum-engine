@@ -65,15 +65,19 @@ Perfil em `config/settings.json`:
 
 | Parâmetro | Valor | Função |
 |-----------|-------|--------|
-| `confidence_call_threshold` | 0.53 | Referência de calibração CALL |
-| `confidence_put_threshold` | 0.47 | Referência de calibração PUT |
-| `min_val_accuracy` | 0.60 | Piso de acurácia de validação |
-| `min_edge_execute` | 0.04 | Edge mínimo para execução |
-| `mandatory_min_trade_score` | 0.68 | Score mínimo modo normal |
-| `recovery_min_trade_score` | 0.64 | Score mínimo recovery |
-| `quality_gate.inverted_min_score` | 0.74 | Score mínimo com inversão DL→exec |
-| `quality_gate.min_adx_normal` | 0.18 | ADX mínimo fora de recovery |
-| `mandatory_trade_each_cycle` | false | Sem trade forçado por ciclo |
+| `calibration.method` | auto | Platt logistico, isotonic ou temperatura+Platt no holdout |
+| `calibration.isotonic_min_samples` | 20 | Amostras minimas para isotonic |
+| `confidence_call_threshold` | 0.53 | Base de calibracao CALL |
+| `confidence_put_threshold` | 0.47 | Base de calibracao PUT |
+| `dynamic_threshold.enabled` | true | Thresholds flutuantes por volatilidade |
+| `dynamic_threshold.vol_source` | blend | Sinal de vol: `bb_width`, `atr_norm` ou blend |
+| `min_val_accuracy` | 0.60 | Piso de acuracia de validacao |
+| `min_edge_execute` | 0.04 | Edge base (pode subir via `dynamic_min_edge`) |
+| `mandatory_min_trade_score` | 0.68 | Score minimo modo normal |
+| `recovery_min_trade_score` | 0.64 | Score minimo recovery |
+| `quality_gate.inverted_min_score` | 0.74 | Score minimo com inversao DL→exec |
+| `quality_gate.min_adx_normal` | 0.18 | ADX minimo fora de recovery |
+| `mandatory_trade_each_cycle` | false | Sem trade forcado por ciclo |
 
 ---
 
@@ -83,7 +87,7 @@ Pesos em `orchestrator.execution.direction_scoring`:
 
 | Peso | Padrão | Sinal |
 |------|--------|-------|
-| `dl_raw_weight` | 0.45 | Probabilidade bruta do modelo |
+| `dl_raw_weight` | 0.45 | Probabilidade calibrada do modelo (fallback: bruta) |
 | `val_accuracy_weight` | 0.18 | Acurácia de validação / flip em val baixa |
 | `trend_weight` | 0.15 | Alinhamento com tendência de mercado |
 | `exhaustion_weight` | 0.12 | Mean-reversion em RSI/Keltner extremos |

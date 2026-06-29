@@ -30,6 +30,11 @@
     "enabled": true,
     "bootstrap_max_wait_rounds": 240,
     "calib_ratio": 0.15,
+    "calibration": {
+      "method": "auto",
+      "isotonic_min_samples": 20,
+      "auto_select_by_brier": true
+    },
     "confidence_call_threshold": 0.53,
     "confidence_put_threshold": 0.47,
     "train_symbols": [
@@ -121,6 +126,22 @@
         "indicator_regime_weight": 0.10,
         "dl_raw_weight": 0.45,
         "val_accuracy_weight": 0.18
+      },
+      "dynamic_threshold": {
+        "enabled": true,
+        "vol_source": "blend",
+        "call_base": 0.53,
+        "put_base": 0.47,
+        "min_edge_base": 0.04,
+        "high_regime_call_delta": 0.03,
+        "high_regime_put_delta": 0.03,
+        "high_regime_edge_delta": 0.015,
+        "low_regime_call_delta": -0.02,
+        "low_regime_put_delta": -0.02,
+        "low_regime_edge_delta": -0.01,
+        "compressive_bb_percentile": 0.25,
+        "directional_adx_min": 0.22,
+        "baseline_lookback": 48
       },
       "quality_gate": {
         "min_direction_margin": 0.05,

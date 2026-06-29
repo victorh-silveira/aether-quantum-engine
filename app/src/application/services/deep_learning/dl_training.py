@@ -5,7 +5,7 @@ import logging
 import numpy as np
 import torch
 
-from src.application.services.deep_learning.dl_calibration import fit_calibrator
+from src.application.services.deep_learning.dl_calibration_fit import fit_calibrator
 from src.application.services.deep_learning.dl_device import (
     device_label,
     log_device_once,
@@ -137,10 +137,15 @@ def train_model_walkforward(
             .cpu()
             .numpy()
         )
-    calibrator = fit_calibrator([float(p) for p in raw_calib], [float(y) for y in y_calib])
+    calibration_cfg = (dl_config or {}).get("calibration") if isinstance(dl_config, dict) else None
+    calibrator = fit_calibrator(
+        [float(p) for p in raw_calib],
+        [float(y) for y in y_calib],
+        calibration_cfg=calibration_cfg if isinstance(calibration_cfg, dict) else None,
+    )
     val_brier, val_ece = evaluate_calibrated_metrics(model, x_val, y_val, calibrator)
     logger.debug(
-        "DL_TRAIN: device=%s batch=%d epocas=%d/%d loss=%.4f val_acc=%.3f brier=%.3f ece=%.3f samples=%d",
+        "DL_TRAIN: device=%s batch=%d epocas=%d/%d loss=%.4f val_acc=%.3f brier=%.3f ece=%.3f method=%s samples=%d",
         device_label(device),
         max(1, int(batch_size)),
         epochs_ran,
@@ -149,6 +154,7 @@ def train_model_walkforward(
         val_accuracy,
         val_brier,
         val_ece,
+        calibrator.method,
         len(x_all),
     )
     return TrainResult(

@@ -1,21 +1,29 @@
 """Calibracao de probabilidades do classificador Deep Learning."""
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+from src.application.services.deep_learning.dl_calibration_isotonic import apply_isotonic
 
 
 _VAL_ACC_TRUST_FLOOR = 0.50
 _TEMPERATURE_MIN = 0.75
 _TEMPERATURE_MAX = 2.5
+_METHOD_TEMPERATURE_PLATT = "temperature_platt"
+_METHOD_PLATT = "platt"
+_METHOD_ISOTONIC = "isotonic"
 
 
 @dataclass
 class CalibratorState:
-    """Parametros de calibracao Platt e temperatura."""
+    """Parametros de calibracao Platt, temperatura ou isotonica."""
 
+    method: str = _METHOD_TEMPERATURE_PLATT
     temperature: float = 1.0
     platt_a: float = 1.0
     platt_b: float = 0.0
+    isotonic_x: tuple[float, ...] = field(default_factory=tuple)
+    isotonic_y: tuple[float, ...] = field(default_factory=tuple)
 
 
 def raw_to_logit(prob: float) -> float:
@@ -58,7 +66,12 @@ def apply_platt(prob: float, calibrator: CalibratorState) -> float:
 
 
 def apply_calibrator(prob: float, calibrator: CalibratorState) -> float:
-    """Combina temperatura e Platt scaling."""
+    """Aplica calibrador conforme metodo persistido no estado."""
+    method = str(calibrator.method or _METHOD_TEMPERATURE_PLATT)
+    if method == _METHOD_ISOTONIC:
+        return apply_isotonic(prob, calibrator.isotonic_x, calibrator.isotonic_y)
+    if method == _METHOD_PLATT:
+        return apply_platt(prob, calibrator)
     temp = min(max(float(calibrator.temperature), _TEMPERATURE_MIN), _TEMPERATURE_MAX)
     tempered = apply_temperature(prob, temp)
     return apply_platt(tempered, calibrator)
@@ -132,70 +145,29 @@ def expected_calibration_error(probs: list[float], labels: list[float], *, bins:
     return ece
 
 
-def fit_temperature(probs: list[float], labels: list[float]) -> float:
-    """Busca temperatura que minimiza Brier na validacao."""
-    if not probs:
-        return 1.0
-    best_temp = 1.0
-    best_err = float("inf")
-    for step in range(1, 41):
-        temp = 0.5 + step * 0.125
-        err = 0.0
-        for prob, label in zip(probs, labels, strict=False):
-            calibrated = apply_temperature(prob, temp)
-            err += (calibrated - float(label)) ** 2
-        if err < best_err:
-            best_err = err
-            best_temp = temp
-    return min(max(best_temp, _TEMPERATURE_MIN), _TEMPERATURE_MAX)
-
-
-def fit_platt(probs: list[float], labels: list[float], *, steps: int = 40) -> tuple[float, float]:
-    """Busca coeficientes Platt minimizando Brier via grid leve."""
-    if not probs:
-        return 1.0, 0.0
-    best_a = 1.0
-    best_b = 0.0
-    best_err = float("inf")
-    for a_step in range(steps):
-        a_val = 0.5 + a_step * 0.1
-        for b_step in range(steps):
-            b_val = -2.0 + b_step * 0.1
-            err = 0.0
-            for prob, label in zip(probs, labels, strict=False):
-                logit = raw_to_logit(prob) * a_val + b_val
-                pred = logit_to_prob(logit)
-                err += (pred - float(label)) ** 2
-            if err < best_err:
-                best_err = err
-                best_a = a_val
-                best_b = b_val
-    return best_a, best_b
-
-
-def fit_calibrator(probs: list[float], labels: list[float]) -> CalibratorState:
-    """Ajusta temperatura e Platt no holdout de calibracao."""
-    temp = fit_temperature(probs, labels)
-    tempered = [apply_temperature(p, temp) for p in probs]
-    a_val, b_val = fit_platt(tempered, labels)
-    return CalibratorState(temperature=temp, platt_a=a_val, platt_b=b_val)
-
-
 def calibrator_from_dict(data: dict | None) -> CalibratorState:
     """Reconstrui calibrador a partir de payload de checkpoint."""
     if not data:
         return CalibratorState()
+    iso_x = data.get("isotonic_x") or ()
+    iso_y = data.get("isotonic_y") or ()
     return CalibratorState(
+        method=str(data.get("method", _METHOD_TEMPERATURE_PLATT)),
         temperature=float(data.get("temperature", 1.0)),
         platt_a=float(data.get("platt_a", 1.0)),
         platt_b=float(data.get("platt_b", 0.0)),
+        isotonic_x=tuple(float(v) for v in iso_x),
+        isotonic_y=tuple(float(v) for v in iso_y),
     )
 
 
 def calibrator_to_dict(calibrator: CalibratorState) -> dict:
     """Serializa calibrador para checkpoint."""
     return {
+        "method": str(calibrator.method or _METHOD_TEMPERATURE_PLATT),
         "temperature": float(calibrator.temperature),
         "platt_a": float(calibrator.platt_a),
         "platt_b": float(calibrator.platt_b),
+        "isotonic_x": [float(v) for v in calibrator.isotonic_x],
+        "isotonic_y": [float(v) for v in calibrator.isotonic_y],
     }

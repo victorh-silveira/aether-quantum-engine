@@ -22,6 +22,30 @@ def test_passes_execution_quality_rejects_low_edge():
     assert not passes_execution_quality(metrics, min_signal=0.68, min_val=0.60, min_edge=0.04)
 
 
+def test_passes_execution_quality_uses_calibrated_edge():
+    metrics = {
+        "trade_score": 0.80,
+        "val_accuracy": 0.70,
+        "edge": 0.10,
+        "calibrated_prob": 0.52,
+        "calibrated_edge": 0.02,
+        "direction_margin": 0.08,
+    }
+    assert not passes_execution_quality(metrics, min_signal=0.68, min_val=0.60, min_edge=0.04)
+
+
+def test_passes_execution_quality_uses_dynamic_min_edge():
+    metrics = {
+        "trade_score": 0.80,
+        "val_accuracy": 0.70,
+        "edge": 0.05,
+        "calibrated_edge": 0.05,
+        "dynamic_min_edge": 0.06,
+        "direction_margin": 0.08,
+    }
+    assert not passes_execution_quality(metrics, min_signal=0.68, min_val=0.60, min_edge=0.04)
+
+
 def test_passes_execution_quality_rejects_low_val():
     metrics = {"trade_score": 0.80, "val_accuracy": 0.50, "edge": 0.10, "direction_margin": 0.08}
     assert not passes_execution_quality(metrics, min_signal=0.68, min_val=0.60, min_edge=0.04)

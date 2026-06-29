@@ -7,15 +7,19 @@ from src.application.services.deep_learning.dl_calibration import (
     calibrate_conviction,
     calibrate_trade_score,
     calibrator_from_dict,
+    calibrator_to_dict,
     cap_calibrated_to_raw_band,
     expected_calibration_error,
-    fit_calibrator,
-    fit_platt,
-    fit_temperature,
     logit_to_prob,
     raw_side_conviction,
     raw_to_logit,
     shrink_toward_fifty,
+)
+from src.application.services.deep_learning.dl_calibration_fit import (
+    fit_calibrator,
+    fit_platt,
+    fit_platt_logistic,
+    fit_temperature,
 )
 from src.application.services.deep_learning.dl_outcomes import record_symbol_outcome, sample_weights_for_symbol
 from src.application.services.deep_learning.dl_splits import purged_temporal_splits, splits_valid
@@ -30,8 +34,11 @@ def test_calibration_helpers():
     assert shrink_toward_fifty(0.65, 0.48) > 0.56
     assert shrink_toward_fifty(0.65, 0.0) > 0.56
     cal = fit_calibrator([0.9, 0.1, 0.8, 0.2], [1.0, 0.0, 1.0, 0.0])
-    assert 0.75 <= cal.temperature <= 2.5
+    assert 0.75 <= cal.temperature <= 2.5 or cal.method == "isotonic"
     assert fit_temperature([], []) == 1.0
+    a_val, b_val = fit_platt_logistic([0.9, 0.1, 0.8, 0.2], [1.0, 0.0, 1.0, 0.0])
+    assert isinstance(a_val, float)
+    assert isinstance(b_val, float)
     score = calibrate_trade_score(0.72, 0.54, cal)
     assert score >= 0.56
     assert raw_side_conviction(0.72) == pytest.approx(0.72)
@@ -43,6 +50,9 @@ def test_calibration_helpers():
     assert apply_calibrator(0.7, cal) > 0.0
     assert brier_score([0.8, 0.2], [1.0, 0.0]) < 0.5
     assert expected_calibration_error([0.8, 0.2], [1.0, 0.0]) >= 0.0
+    payload = calibrator_to_dict(cal)
+    restored = calibrator_from_dict(payload)
+    assert restored.method == cal.method
 
 
 def test_outcome_weights():

@@ -122,9 +122,12 @@ Normalização anti-leakage: `fit_norm_stats` somente no split de treino walk-fo
 - Sempre `execute=True` quando a predição técnica é bem-sucedida.
 - Calcula indicadores, trend (`dl_trend.py`) e enriquece métricas para o resolver.
 - `gate_reason=None` após predição OK; bloqueio só em exceção (`predict_error`).
-- Thresholds `confidence_call/put` (0.53/0.47) são referência de calibração, não veto de execução.
+- Thresholds `confidence_call/put` (0.53/0.47) sao bases; com `dynamic_threshold.enabled`, flutuam por `bb_width`, `atr_norm` e regime de volatilidade.
+- Grava `calibrated_prob`, `calibrated_edge` e thresholds dinamicos em metrics para resolver e quality gate.
 
-`dl_gating.py` mantém utilitários: `resolve_edge`, `direction_from_raw_prob`, `resolve_confidence_thresholds`.
+`dl_gating.py` mantem utilitarios: `resolve_edge`, `resolve_calibrated_edge`, `direction_from_raw_prob`, `resolve_confidence_thresholds`.
+
+`dl_calibration_fit.py` ajusta Platt logistico, isotonic (PAV) e temperatura no holdout (`deep_learning.calibration.method: auto`).
 
 ---
 
@@ -136,16 +139,19 @@ Substitui travas binárias por scoring composto CALL vs PUT:
 
 | Sinal | Comportamento |
 |-------|---------------|
-| `raw_prob` | Peso principal (`dl_raw_weight`) |
+| `calibrated_prob` | Peso principal via `dl_raw_weight` (fallback: `raw_prob`) |
+| `dynamic_call/put_threshold` | Pivot dinâmico para inferência DL |
 | `val_accuracy` | Bias lateral |
 | `trend_direction` + votos | `trend_bias` |
 | RSI/Keltner extremos | `exhaustion_flip` (mean-reversion) |
 | Hurst, ADX, vol_ratio, CMO | `indicator_regime` / `mean_reversion` |
 | `val_accuracy` baixa | `low_val_flip` |
 
-Retorna `(CALL|PUT, metrics)` com `direction_inverted`, `direction_margin`, `direction_hints`. Retorna `None` apenas em bloqueio técnico ou sem `raw_prob`.
+Retorna `(CALL|PUT, metrics)` com `direction_inverted`, `direction_margin`, `direction_hints`. Retorna `None` apenas em bloqueio técnico ou sem probabilidade calibrada/bruta.
 
 Pesos configuráveis em `orchestrator.execution.direction_scoring`.
+
+`execution_volatility_threshold.py` calcula `volatility_regime` e ajusta thresholds/edge por símbolo.
 
 ### 4.2 Gate de qualidade (`execution_quality_gate.py`)
 
@@ -155,7 +161,7 @@ Aplicado **após** resolução direcional em `_gather_cluster_candidates` e na v
 |------|--------------|--------|
 | `mandatory_min_trade_score` | 0.68 | Score efetivo mínimo (modo normal) |
 | `recovery_min_trade_score` | 0.64 | Piso em recovery (escala com perdas consecutivas) |
-| `min_edge_execute` | 0.04 | Edge mínimo de `raw_prob` |
+| `min_edge_execute` | 0.04 | Edge mínimo (usa `calibrated_edge`; respeita `dynamic_min_edge`) |
 | `min_direction_margin` | 0.05 | Clareza CALL vs PUT no resolver |
 | `inverted_min_score` | 0.74 | Score extra quando `direction_inverted=true` |
 | `min_adx_normal` | 0.18 | ADX mínimo fora de recovery |

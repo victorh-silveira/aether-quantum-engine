@@ -149,6 +149,37 @@ def resolve_inference_history_bars(
     return warmup + lookback + 16
 
 
+def parse_calibration_config(dl_config: dict) -> dict[str, Any]:
+    """Extrai configuracao do bloco deep_learning.calibration."""
+    raw = dl_config.get("calibration") if isinstance(dl_config.get("calibration"), dict) else {}
+    return {
+        "method": str(raw.get("method", "auto")).strip().lower(),
+        "isotonic_min_samples": max(3, int(raw.get("isotonic_min_samples", 20))),
+        "auto_select_by_brier": bool(raw.get("auto_select_by_brier", True)),
+    }
+
+
+def parse_dynamic_threshold_config(exec_config: dict) -> dict[str, Any]:
+    """Extrai configuracao do bloco orchestrator.execution.dynamic_threshold."""
+    raw = exec_config.get("dynamic_threshold") if isinstance(exec_config.get("dynamic_threshold"), dict) else {}
+    return {
+        "enabled": bool(raw.get("enabled", False)),
+        "vol_source": str(raw.get("vol_source", "blend")).strip().lower(),
+        "call_base": float(raw.get("call_base", 0.53)),
+        "put_base": float(raw.get("put_base", 0.47)),
+        "min_edge_base": float(raw.get("min_edge_base", 0.04)),
+        "high_regime_call_delta": float(raw.get("high_regime_call_delta", 0.03)),
+        "high_regime_put_delta": float(raw.get("high_regime_put_delta", 0.03)),
+        "high_regime_edge_delta": float(raw.get("high_regime_edge_delta", 0.015)),
+        "low_regime_call_delta": float(raw.get("low_regime_call_delta", -0.02)),
+        "low_regime_put_delta": float(raw.get("low_regime_put_delta", -0.02)),
+        "low_regime_edge_delta": float(raw.get("low_regime_edge_delta", -0.01)),
+        "compressive_bb_percentile": float(raw.get("compressive_bb_percentile", 0.25)),
+        "directional_adx_min": float(raw.get("directional_adx_min", 0.22)),
+        "baseline_lookback": max(8, int(raw.get("baseline_lookback", 48))),
+    }
+
+
 def parse_indicator_gating_config(dl_config: dict) -> dict[str, Any]:
     """Extrai configuracao do bloco indicator_gating."""
     raw = dl_config.get("indicator_gating", {}) if isinstance(dl_config.get("indicator_gating"), dict) else {}
@@ -255,4 +286,5 @@ def parse_dl_params(
     gate = {**gate, "mini_bars": max(min_eval_bars, int(gate.get("mini_bars", 120)))}
     base["deploy_gate"] = gate
     base["indicator_gating"] = parse_indicator_gating_config(dl_config)
+    base["calibration"] = parse_calibration_config(dl_config)
     return base

@@ -42,8 +42,8 @@ Arquivo: [`config/settings.json`](config/settings.json)
 |-------|--------|
 | `symbols` / `anchor` | Universo (`R_10` … `R_100`; âncora `R_10`) |
 | `data_handler` | `granularity`, `history_bars`, `fetch_count`, `buffer_limit` |
-| `deep_learning` | `arch`, `lookback`, `confidence_call/put_threshold`, `min_val_accuracy`, `min_edge_execute`, `deploy_gate` |
-| `orchestrator.execution` | `direction_scoring`, `quality_gate`, `mandatory_trade_each_cycle`, settlement |
+| `deep_learning` | `arch`, `lookback`, `calibration`, `confidence_call/put_threshold`, `min_val_accuracy`, `min_edge_execute`, `deploy_gate` |
+| `orchestrator.execution` | `direction_scoring`, `dynamic_threshold`, `quality_gate`, `mandatory_trade_each_cycle`, settlement |
 | `risk_management.kelly` | Kelly, martingale, `mandatory_min_trade_score`, recovery floors |
 | `risk_management.params` | `duration: 180`, stakes |
 | `trading` | `demo` / `live` |

@@ -57,16 +57,18 @@ Desvios extremos tendem a retornar à média em ativos com volatilidade fixa.
 
 - **FASE TREINO**: todos os símbolos retreinam ao menos uma vez por sessão (`session_trained`). Nenhuma ordem até concluir.
 - **FASE OPERACAO**: motor seleciona o melhor candidato por `market_decision_score`. Ciclos sem candidato acima do piso de qualidade são **pulados** (não força trade).
-- **Resolução direcional**: `execution_direction_resolver` combina DL, trend, exaustão e regime; conflitos mudam CALL/PUT e score.
-- **Deploy gate**: modelos com `deploy_ok=false` não entram no pool.
+- **Resolucao direcional**: `execution_direction_resolver` combina probabilidade calibrada, trend, exaustao e regime; thresholds dinamicos por `bb_width`/`atr_norm` ajustam conviccao por indice (R_10 a R_100).
+- **Deploy gate**: modelos com `deploy_ok=false` nao entram no pool.
 
 ### 2.5 Perfil de qualidade atual
 
 | Camada | Comportamento |
 |--------|---------------|
-| Bloqueio técnico | `data`, `predict_error`, `training`, `deploy_ok=false` |
-| Scoring direcional | Sempre CALL ou PUT quando tecnicamente válido |
-| Gate de qualidade | Score ≥ 0.68, edge ≥ 0.04, margem direcional ≥ 0.05 |
+| Bloqueio tecnico | `data`, `predict_error`, `training`, `deploy_ok=false` |
+| Calibracao DL | Holdout ajusta Platt/isotonic; `calibrated_prob` alimenta scoring |
+| Regime de vol | Compressao/estouro exige edge maior; regime direcional limpo relaxa pisos |
+| Scoring direcional | Sempre CALL ou PUT quando tecnicamente valido |
+| Gate de qualidade | Score ≥ 0.68, edge calibrado ≥ max(0.04, dynamic_min_edge), margem ≥ 0.05 |
 | Inversão DL→exec | Exige score ≥ 0.74 |
 | Modo normal | ADX ≥ 0.18 |
 | Recovery | Pisos escalonados (0.64+) e martingale com convicção ≥ 0.64 |
