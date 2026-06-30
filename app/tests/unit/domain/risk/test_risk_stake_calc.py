@@ -181,3 +181,40 @@ def test_apply_mandatory_weak_cap_zero_pct():
         martingale_active=False,
     )
     assert result == 50.0
+
+
+def test_calculate_stake_martingale_vol_cap(kelly_config):
+    rm = MagicMock()
+    rm.config = kelly_config
+    rm.kelly_config = {
+        **kelly_config["kelly"],
+        "martingale_vol_adjust_enabled": True,
+        "martingale_max_recovery_bankroll_pct": 0.05,
+        "martingale_vol_losses_min": 2,
+    }
+    rm.risk_params = kelly_config["params"]
+    rm.stake_max = 10000.0
+    rm.initial_bankroll = 10000.0
+    rm.total_session_profit = 0.0
+    rm.pending_loss = {"R_50": 400.0}
+    rm.consecutive_losses = 3
+    rm.active_contract_ids = []
+    rm.logger = MagicMock()
+    rm.effective_win_rate = MagicMock(return_value=0.55)
+    rm._martingale_allowed = MagicMock(return_value=True)
+    stake = calculate_stake_for_manager(
+        rm,
+        10000.0,
+        "R_50",
+        0.65,
+        silent=True,
+        apply_stop_win=False,
+        kwargs={
+            "dl_metrics": {
+                "execute": True,
+                "indicators": {"vol_ratio": 1.23},
+                "order_direction": "CALL",
+            },
+        },
+    )
+    assert stake <= 10000.0 * 0.05 + 1e-9

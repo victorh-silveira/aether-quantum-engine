@@ -80,6 +80,12 @@ def _apply_mandatory_weak_cap(
     return kelly_base
 
 
+def _vol_recovery_context(rm: Any, dl_metrics: dict | None) -> tuple[float, int]:
+    """Extrai vol_ratio e perdas consecutivas para sizing martingale adaptativo."""
+    indicators = (dl_metrics or {}).get("indicators") or {} if isinstance(dl_metrics, dict) else {}
+    return float(indicators.get("vol_ratio", 1.0)), int(getattr(rm, "consecutive_losses", 0))
+
+
 def calculate_stake_for_manager(
     rm: Any,
     bankroll: float,
@@ -98,6 +104,7 @@ def calculate_stake_for_manager(
             return 0.0
 
     dl_metrics = kwargs.get("dl_metrics")
+    vol_ratio, consecutive_losses = _vol_recovery_context(rm, dl_metrics)
     conviction = resolve_stake_conviction(_metrics_for_conviction(dl_metrics, conviction), rm.kelly_config)
 
     mandatory = bool(kwargs.get("mandatory_trade_each_cycle", False))
@@ -168,6 +175,8 @@ def calculate_stake_for_manager(
         risk_config=rm.config,
         initial_bankroll=rm.initial_bankroll,
         total_session_profit=rm.total_session_profit,
+        vol_ratio=vol_ratio,
+        consecutive_losses=consecutive_losses,
     )
     if not martingale_active:
         final_stake = apply_symbol_stake_cap(final_stake, bankroll, symbol, rm.kelly_config)
@@ -201,6 +210,9 @@ def calculate_stake_for_manager(
         b,
         last_loss_stake=float(getattr(rm, "last_loss_stake", 0.0)),
         target_fraction=float(rm.kelly_config.get("martingale_target_fraction", 1.0)),
+        vol_ratio=vol_ratio,
+        consecutive_losses=consecutive_losses,
+        kelly_config=rm.kelly_config,
     )
     if cycle_id > 0 and not silent:
         rm.logger.info(

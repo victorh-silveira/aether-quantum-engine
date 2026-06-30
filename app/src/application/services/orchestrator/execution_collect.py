@@ -26,6 +26,7 @@ from src.application.services.orchestrator.execution_recovery_gate import (
     cluster_entry_eligible,
 )
 from src.domain.models.trade import TradeDirection
+from src.domain.risk.recovery_hurst_decay import session_drawdown_from_profit
 from src.domain.risk.stake_sizing import enrich_metrics_conviction, raw_side_from_metrics
 
 
@@ -45,6 +46,7 @@ def _gather_cluster_candidates(
     kelly_cfg=None,
     consecutive_losses=0,
     recovery_skip_counter=0,
+    session_drawdown=0.0,
 ):
     """Coleta candidatos DL elegiveis para o ciclo atual."""
     _ = (mean_reversion, low_accuracy, recovery_cfg)
@@ -94,6 +96,7 @@ def _gather_cluster_candidates(
             recovery_kelly_cfg=kelly if recovery_active else None,
             consecutive_losses=consecutive_losses,
             recovery_skip_counter=recovery_skip_counter,
+            session_drawdown=session_drawdown,
             **qparams,
         ):
             exec_mgr.logger.debug("[%s] SKIP: Qualidade insuficiente para %s", cid, symbol)
@@ -148,6 +151,7 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
     cid = f"C{int(exec_mgr.orch._active_cycle_id):04d}"
     consecutive = getattr(exec_mgr.orch.risk_manager, "consecutive_losses", 0)
     skip_counter = int(getattr(exec_mgr.orch, "_recovery_skip_counter", 0))
+    session_drawdown = session_drawdown_from_profit(getattr(exec_mgr.orch.risk_manager, "total_session_profit", 0.0))
 
     candidates = _gather_cluster_candidates(
         exec_mgr,
@@ -164,6 +168,7 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
         kelly_cfg=kelly_cfg,
         consecutive_losses=consecutive,
         recovery_skip_counter=skip_counter,
+        session_drawdown=session_drawdown,
     )
     candidates = mandatory_fallback_if_empty(
         exec_mgr,
@@ -187,6 +192,7 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
         kelly_cfg=kelly_cfg,
         cid=cid,
         recovery_skip_counter=skip_counter,
+        session_drawdown=session_drawdown,
     ):
         return []
     if candidates and skip_symbols:
@@ -263,6 +269,7 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
             recovery_kelly_cfg=kelly_cfg if recovery_active else None,
             consecutive_losses=consecutive,
             recovery_skip_counter=skip_counter,
+            session_drawdown=session_drawdown,
             **quality_gate_params(exec_cfg),
         ):
             exec_mgr.logger.info(

@@ -101,6 +101,36 @@ def test_recovery_hurst_blocks_collect_allows_after_decay_counter():
     assert blocked is False
 
 
+def test_recovery_hurst_blocks_collect_log_decay_unblocks_n3_severe_drawdown():
+    orch = SimpleNamespace(state_store=None, _recovery_skip_counter=4)
+    exec_mgr = SimpleNamespace(orch=orch, logger=MagicMock())
+    candidates = [
+        (
+            "R_10",
+            TradeDirection.CALL,
+            {"indicators": {"hurst": 0.54}},
+        )
+    ]
+    kelly_cfg = {
+        "recovery_hurst_persistence_min": 0.58,
+        "recovery_hurst_decay_enabled": True,
+        "recovery_hurst_log_decay_coef": 0.025,
+        "recovery_hurst_accel_losses_min": 3,
+        "recovery_hurst_severe_drawdown_min": 150.0,
+    }
+    blocked = recovery_hurst_blocks_collect(
+        exec_mgr,
+        candidates,
+        recovery_active=True,
+        consecutive_losses=3,
+        kelly_cfg=kelly_cfg,
+        cid="C0015",
+        recovery_skip_counter=4,
+        session_drawdown=200.0,
+    )
+    assert blocked is False
+
+
 def test_collect_cluster_orders_skips_when_recovery_lacks_hurst_persistence():
     orch = SimpleNamespace(
         anchor=ANCHOR,

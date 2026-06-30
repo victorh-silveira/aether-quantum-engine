@@ -26,6 +26,9 @@ class ModelArtifactStore(Protocol):
     async def download_torchscript(self, symbol: str, *, arch: str, dest: Path) -> bool:
         """Baixa TorchScript para destino local; False se ausente."""
 
+    async def load_manifest(self, symbol: str, *, arch: str) -> dict[str, Any]:
+        """Carrega metadados de schema do model store."""
+
     async def sanity_check_torchscript(
         self,
         dest_ts: Path,
@@ -33,6 +36,7 @@ class ModelArtifactStore(Protocol):
         lookback: int,
         feature_dim: int,
         symbol: str = "",
+        manifest: dict[str, Any] | None = None,
     ) -> None:
         """Valida artefato TorchScript com forward pass dummy."""
 

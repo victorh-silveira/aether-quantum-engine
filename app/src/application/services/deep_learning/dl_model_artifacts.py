@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from inspect import iscoroutinefunction
 from pathlib import Path
 from typing import Any
 
@@ -47,12 +48,17 @@ async def bootstrap_and_validate_models(orch) -> None:
         if callable(download_ts):
             await download_ts(sym, arch=arch, dest=ts_path)
         sanity = getattr(store, "sanity_check_torchscript", None)
+        load_manifest = getattr(store, "load_manifest", None)
+        manifest: dict[str, Any] = {}
+        if callable(load_manifest) and iscoroutinefunction(load_manifest):
+            manifest = await load_manifest(sym, arch=arch)
         if ts_path.is_file() and callable(sanity):
             await sanity(
                 ts_path,
                 lookback=lookback,
                 feature_dim=FEATURE_DIM,
                 symbol=sym,
+                manifest=manifest or None,
             )
         elif use_ts and not ts_path.is_file():
             logger.warning("DL: TorchScript ausente para %s; inferencia eager no runtime", sym)

@@ -66,7 +66,7 @@ flowchart LR
 
 ### 2.4 Infraestrutura hibrida
 
-Com `infra.enabled: true`, o motor valida Redis, TimescaleDB e MinIO em `localhost` antes do WebSocket (fail-fast). Estado de risco e sessao persistem em Redis via pipeline atomico (`redis_state_pipeline.write_state_bundle`); ticks e barras vao para Timescale; checkpoints DL sincronizam com MinIO mantendo cache local em `data/dl/`. Antes de abrir o WebSocket Deriv, `bootstrap_and_validate_models` baixa `{symbol}.pth` e `latest_ts.pt`, executa forward pass de sanidade em TorchScript (`torchscript_sanity.verify_torchscript_artifact`) e falha rapido se o artefato estiver corrompido. Ver [`infra-docker.md`](infra-docker.md).
+Com `infra.enabled: true`, o motor valida Redis, TimescaleDB e MinIO em `localhost` antes do WebSocket (fail-fast). Estado de risco e sessao persistem em Redis via pipeline atomico (`redis_state_pipeline.write_state_bundle`); ticks e barras vao para Timescale; checkpoints DL sincronizam com MinIO mantendo cache local em `data/dl/`. Antes de abrir o WebSocket Deriv, `bootstrap_and_validate_models` baixa `{symbol}.pth` e `latest_ts.pt`, carrega `manifest.json` (schema `feature_dim`, `lookback`, `norm_mean`/`norm_std`) e executa forward pass multi-probe em TorchScript (`torchscript_sanity` com Z-scores extremos); falha rapido se o artefato estiver corrompido ou dimensionado incorretamente. Ver [`infra-docker.md`](infra-docker.md).
 
 Redis local usa AOF `appendfsync everysec` (`infra/docker/redis.conf`). `make docker-up` aplica `host-prereq.sh` (`vm.overcommit_memory=1` no WSL).
 
@@ -166,6 +166,8 @@ Substitui travas binárias por scoring composto CALL vs PUT:
 
 Retorna `(CALL|PUT, metrics)` com `direction_inverted`, `direction_margin`, `direction_hints`. Retorna `None` apenas em bloqueio técnico ou sem probabilidade calibrada/bruta.
 
+Com `vol_ratio > expansion_inversion_veto_vol_ratio` (padrao 1.05), `execution_direction_expansion_veto` veta inversao por `exhaustion_flip` ou `mean_reversion`, preserva a direcao DL e reduz `trade_score`/`market_decision_score` em 30% para SKIP saudavel em breakout.
+
 Pesos configuráveis em `orchestrator.execution.direction_scoring`.
 
 `execution_volatility_threshold.py` calcula `volatility_regime` e ajusta thresholds/edge por símbolo.
@@ -214,7 +216,7 @@ Aplicado **após** resolução direcional em `_gather_cluster_candidates` e na v
 
 Ciclo sem candidato elegível → nenhuma ordem (qualidade > quantidade).
 
-Em **recovery ativo** com `consecutive_losses >= 2`, o piso de `trade_score` e ajustado **por candidato** via `recovery_min_signal(..., hurst=indicators.hurst)` usando `recovery_hurst_adjusted_floor`. Apos SKIPs consecutivos por Hurst persistente, `recovery_skip_counter` no Redis reduz o limiar `recovery_hurst_persistence_min` linearmente (0.01/ciclo, piso 0.50). Se nenhum candidato do pool tiver Hurst acima do limiar efetivo, `execution_collect` retorna lista vazia (SKIP do ciclo inteiro).
+Em **recovery ativo** com `consecutive_losses >= 2`, o piso de `trade_score` e ajustado **por candidato** via `recovery_min_signal(..., hurst=indicators.hurst)` usando `recovery_hurst_adjusted_floor`. Apos SKIPs consecutivos por Hurst persistente, `recovery_skip_counter` no Redis reduz o limiar `recovery_hurst_persistence_min` linearmente (0.01/ciclo, piso 0.50). Com `consecutive_losses >= 3` e drawdown de sessao severo (`max(0, -total_session_profit) >= recovery_hurst_severe_drawdown_min`), o decaimento passa a logaritmico (`0.025 * log1p(skip_counter)`) para convergir mais rapido ao piso 0.50. Se nenhum candidato do pool tiver Hurst acima do limiar efetivo, `execution_collect` retorna lista vazia (SKIP do ciclo inteiro).
 
 ### 4.3 Pool e seleção
 
@@ -259,9 +261,10 @@ Resumo detalhado em DEBUG; deduplicação via `build_dl_cycle_brief_key`.
 | Kelly fracionário | `stake_sizing.py`, `kelly.fraction` |
 | Penalidade consenso Kelly | `consensus_stake_penalty.py` — reduz `f*` quando `order_direction` diverge da maioria de votos tecnicos (`call_votes`/`put_votes`), ponderando `di_diff` e `cmo` opostos |
 | Stop win diário | `stop_win_target.py` |
-| Martingale recovery | `martingale_gate.py`, `martingale_conviction.py` |
+| Martingale recovery | `martingale_gate.py`, `martingale_conviction.py`, `martingale_sizing.py` |
+| Martingale vol-adjust | `martingale_sizing.martingale_defer_active` — defer 50% quando vol > 1.10 (N2+), teto 2.5% banca por ordem deferida; sqrt(vol_ratio) e teto 5% quando defer inativo |
 | Trava Hurst N2+ | `recovery_hurst_gate.py` — piso logaritmico e filtro de pool |
-| Decaimento Hurst em inanição | `recovery_hurst_decay.py` — `recovery_skip_counter` no Redis reduz `recovery_hurst_persistence_min` 0.01/ciclo ate 0.50 |
+| Decaimento Hurst acelerado | `recovery_hurst_decay.py` — log-decay N3+ com drawdown severo; linear abaixo desse limiar |
 | Cooldown entrada | `risk_cooldown.py` |
 | Cooldown por loss no símbolo | `symbol_loss_cooldown.py` |
 

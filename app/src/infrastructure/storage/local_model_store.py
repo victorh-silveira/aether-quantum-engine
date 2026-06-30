@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from aether_paths import repo_path
-from src.infrastructure.storage.torchscript_sanity import verify_torchscript_artifact
+from src.infrastructure.storage.torchscript_sanity import verify_torchscript_artifact_async
 
 
 logger = logging.getLogger("AETH")
@@ -61,6 +61,17 @@ class LocalModelStore:
         shutil.copy2(src, dest)
         return True
 
+    async def load_manifest(self, symbol: str, *, arch: str) -> dict[str, Any]:
+        """Carrega manifest.json local do simbolo."""
+        manifest = self._object_dir(symbol, arch) / "manifest.json"
+        if not manifest.is_file():
+            return {}
+        try:
+            payload = json.loads(manifest.read_text(encoding="utf-8"))
+            return payload if isinstance(payload, dict) else {}
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
+            return {}
+
     async def sanity_check_torchscript(
         self,
         dest_ts: Path,
@@ -68,9 +79,15 @@ class LocalModelStore:
         lookback: int,
         feature_dim: int,
         symbol: str = "",
+        manifest: dict[str, Any] | None = None,
     ) -> None:
         """Valida forward pass do TorchScript local."""
-        verify_torchscript_artifact(dest_ts, lookback=lookback, feature_dim=feature_dim)
+        await verify_torchscript_artifact_async(
+            dest_ts,
+            lookback=lookback,
+            feature_dim=feature_dim,
+            manifest=manifest,
+        )
         label = symbol or dest_ts.stem
         logger.debug("LOCAL: sanity ok %s", label)
 

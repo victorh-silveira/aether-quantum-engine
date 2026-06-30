@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 from functools import partial
 
+from src.application.services.execution_direction_expansion_veto import apply_expansion_inversion_veto
 from src.application.services.execution_direction_scoring import (
     accumulate_direction_scores,
     finalize_direction_metrics,
@@ -257,6 +258,14 @@ def resolve_execution_direction(
         hints=hints,
         dl_dir=dl_dir,
         exec_dir=exec_dir,
+        clamp01=_clamp01,
+    )
+    exec_dir, hints = apply_expansion_inversion_veto(
+        exec_dir,
+        dl_dir,
+        hints,
+        metrics,
+        exec_cfg=cfg,
         clamp01=_clamp01,
     )
     conflict, penalty = exhaustion_conflict_penalty(metrics, dl_dir, cfg=cfg)

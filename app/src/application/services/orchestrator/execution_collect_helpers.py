@@ -196,9 +196,15 @@ def recovery_hurst_blocks_collect(
     kelly_cfg: dict,
     cid: str,
     recovery_skip_counter: int = 0,
+    session_drawdown: float = 0.0,
 ) -> bool:
     """True quando recovery martingale N2+ deve pular o ciclo por falta de Hurst persistente."""
-    hurst_min = resolve_effective_hurst_min(kelly_cfg, recovery_skip_counter)
+    hurst_min = resolve_effective_hurst_min(
+        kelly_cfg,
+        recovery_skip_counter,
+        consecutive_losses=consecutive_losses,
+        session_drawdown=session_drawdown,
+    )
     if (
         recovery_active
         and consecutive_losses >= 2

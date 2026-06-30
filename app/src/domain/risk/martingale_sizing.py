@@ -6,6 +6,61 @@ from src.domain.risk.stake_sizing import conviction_stop_win_weight, round_stake
 from src.domain.risk.stop_win_target import resolve_stop_win_target
 
 
+def martingale_defer_active(
+    vol_ratio: float,
+    consecutive_losses: int,
+    kelly_config: dict[str, Any],
+) -> bool:
+    """Indica defer fracionado obrigatorio em vol elevada com perdas consecutivas."""
+    if not kelly_config.get("martingale_vol_adjust_enabled", True):
+        return False
+    losses_min = int(kelly_config.get("martingale_vol_losses_min", 2))
+    defer_ratio = float(kelly_config.get("martingale_vol_defer_ratio", 1.10))
+    return consecutive_losses >= losses_min and float(vol_ratio) > defer_ratio
+
+
+def _effective_step_frac(
+    step_frac: float,
+    *,
+    vol_ratio: float,
+    consecutive_losses: int,
+    kelly_config: dict[str, Any],
+) -> float:
+    """Reduz fracao de recuperacao quando volatilidade exige martingale fracionado."""
+    if martingale_defer_active(vol_ratio, consecutive_losses, kelly_config):
+        return min(step_frac, 0.5)
+    return step_frac
+
+
+def calculate_vol_adjusted_martingale(
+    base_stake: float,
+    *,
+    bankroll: float,
+    vol_ratio: float,
+    consecutive_losses: int,
+    kelly_config: dict[str, Any],
+) -> float:
+    """Aplica ajuste inverso por sqrt(vol_ratio) e teto percentual da banca em recovery."""
+    if not kelly_config.get("martingale_vol_adjust_enabled", True):
+        return float(base_stake)
+    losses_min = int(kelly_config.get("martingale_vol_losses_min", 2))
+    stake = float(base_stake)
+    if consecutive_losses < losses_min:
+        return stake
+    vol = max(float(vol_ratio), 1e-6)
+    stake *= vol**-0.5
+    defer = martingale_defer_active(vol_ratio, consecutive_losses, kelly_config)
+    if defer:
+        defer_pct = float(kelly_config.get("martingale_deferred_max_recovery_bankroll_pct", 0.025))
+        if defer_pct > 0.0:
+            stake = min(stake, float(bankroll) * defer_pct)
+    else:
+        max_pct = float(kelly_config.get("martingale_max_recovery_bankroll_pct", 0.05))
+        if max_pct > 0.0:
+            stake = min(stake, float(bankroll) * max_pct)
+    return stake
+
+
 def martingale_stake(
     bankroll: float,
     loss_to_recover: float,
@@ -15,6 +70,8 @@ def martingale_stake(
     stake_min: float,
     *,
     last_loss_stake: float = 0.0,
+    vol_ratio: float = 1.0,
+    consecutive_losses: int = 0,
 ) -> float:
     """Calcula stake de recuperacao integral da perda pendente mais lucro alvo."""
     seed = float(last_loss_stake) if last_loss_stake > 0.0 else float(kelly_base)
@@ -22,6 +79,12 @@ def martingale_stake(
     target_frac = float(kelly_config.get("martingale_target_fraction", 1.0))
     step_frac = float(kelly_config.get("martingale_recovery_step_fraction", 1.0))
     step_frac = max(0.15, min(1.0, step_frac))
+    step_frac = _effective_step_frac(
+        step_frac,
+        vol_ratio=vol_ratio,
+        consecutive_losses=consecutive_losses,
+        kelly_config=kelly_config,
+    )
     effective_loss = float(loss_to_recover) * step_frac
     profit_target = seed * payout * target_frac
     raw = (effective_loss + profit_target) / payout if payout > 0 and effective_loss > 0 else seed
@@ -80,10 +143,12 @@ def resolve_mode_stake(
     risk_config: dict[str, Any] | None = None,
     initial_bankroll: float = 0.0,
     total_session_profit: float = 0.0,
+    vol_ratio: float = 1.0,
+    consecutive_losses: int = 0,
 ) -> tuple[float, float, str]:
     """Resolve stake final, valor bruto de recuperacao e modo Kelly ou Martingale."""
     if martingale_active:
-        recovery = martingale_stake(
+        base_recovery = martingale_stake(
             bankroll,
             loss_to_recover,
             kelly_base,
@@ -91,6 +156,15 @@ def resolve_mode_stake(
             kelly_config,
             stake_min,
             last_loss_stake=last_loss_stake,
+            vol_ratio=vol_ratio,
+            consecutive_losses=consecutive_losses,
+        )
+        recovery = calculate_vol_adjusted_martingale(
+            base_recovery,
+            bankroll=bankroll,
+            vol_ratio=vol_ratio,
+            consecutive_losses=consecutive_losses,
+            kelly_config=kelly_config,
         )
         floor_stake = martingale_stop_win_floor(
             bankroll,
@@ -115,10 +189,20 @@ def martingale_log_suffix(
     *,
     last_loss_stake: float = 0.0,
     target_fraction: float = 1.0,
+    vol_ratio: float = 1.0,
+    consecutive_losses: int = 0,
+    kelly_config: dict[str, Any] | None = None,
 ) -> str:
     """Monta sufixo de log com detalhes da stake de recuperacao Martingale."""
     if mode_tag != "MARTINGALE":
         return ""
     seed = last_loss_stake if last_loss_stake > 0.0 else kelly_base
     alvo = seed * payout * float(target_fraction)
-    return f" | MARTINGALE ${final_stake:.2f} (pend=${loss_to_recover:.2f}+alvo=${alvo:.2f})"
+    suffix = f" | MARTINGALE ${final_stake:.2f} (pend=${loss_to_recover:.2f}+alvo=${alvo:.2f})"
+    cfg = kelly_config or {}
+    if cfg.get("martingale_vol_adjust_enabled", True) and consecutive_losses >= int(
+        cfg.get("martingale_vol_losses_min", 2)
+    ):
+        defer = martingale_defer_active(vol_ratio, consecutive_losses, cfg)
+        suffix += f" | VOL_ADJ vol={float(vol_ratio):.2f} defer={'Y' if defer else 'N'}"
+    return suffix

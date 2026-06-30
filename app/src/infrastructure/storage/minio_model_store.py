@@ -11,7 +11,7 @@ from typing import Any
 
 from minio import Minio
 
-from src.infrastructure.storage.torchscript_sanity import verify_torchscript_artifact
+from src.infrastructure.storage.torchscript_sanity import verify_torchscript_artifact_async
 
 
 class MinioModelStore:
@@ -98,6 +98,27 @@ class MinioModelStore:
 
         return await asyncio.to_thread(_do_download)
 
+    async def load_manifest(self, symbol: str, *, arch: str) -> dict[str, Any]:
+        """Carrega manifest.json do simbolo no bucket MinIO."""
+        _ = arch
+        manifest_key = f"{symbol}/manifest.json"
+
+        def _load() -> dict[str, Any]:
+            """Le e decodifica manifest.json do bucket MinIO."""
+            try:
+                response = self._client.get_object(self._bucket, manifest_key)
+                try:
+                    raw = response.read()
+                finally:
+                    response.close()
+                    response.release_conn()
+                payload = json.loads(raw.decode("utf-8"))
+                return payload if isinstance(payload, dict) else {}
+            except Exception:
+                return {}
+
+        return await asyncio.to_thread(_load)
+
     async def sanity_check_torchscript(
         self,
         dest_ts: Path,
@@ -105,14 +126,15 @@ class MinioModelStore:
         lookback: int,
         feature_dim: int,
         symbol: str = "",
+        manifest: dict[str, Any] | None = None,
     ) -> None:
         """Executa forward pass de sanidade no artefato TorchScript."""
-
-        def _run() -> None:
-            """Executa forward pass de sanidade no thread pool."""
-            verify_torchscript_artifact(dest_ts, lookback=lookback, feature_dim=feature_dim)
-
-        await asyncio.to_thread(_run)
+        await verify_torchscript_artifact_async(
+            dest_ts,
+            lookback=lookback,
+            feature_dim=feature_dim,
+            manifest=manifest,
+        )
         label = symbol or dest_ts.stem
         self.logger.info("MINIO: sanity ok %s", label)
 

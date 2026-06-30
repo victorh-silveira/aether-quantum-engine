@@ -3,6 +3,50 @@
 from __future__ import annotations
 
 import math
+from typing import Any
+
+from src.domain.risk.recovery_hurst_decay import resolve_effective_hurst_min
+
+
+def recovery_loss_tier_floor(base: float, consecutive_losses: int) -> float:
+    """Eleva piso base conforme streak de perdas consecutivas."""
+    losses = int(consecutive_losses)
+    if losses == 1:
+        return max(base, 0.52)
+    if losses == 2:
+        return max(base, 0.54)
+    if losses == 3:
+        return max(base, 0.56)
+    if losses >= 4:
+        return max(base, 0.58)
+    return base
+
+
+def resolve_recovery_signal_floor(
+    kelly_config: dict[str, Any],
+    *,
+    hurst: float,
+    consecutive_losses: int,
+    total_session_profit: float,
+    recovery_skip_counter: int = 0,
+) -> float:
+    """Piso de sinal em recovery ajustado por streak, Hurst efetivo e decaimento Redis."""
+    base = float(kelly_config.get("recovery_min_trade_score", 0.64))
+    base = recovery_loss_tier_floor(base, consecutive_losses)
+    losses = int(consecutive_losses)
+    hurst_min = resolve_effective_hurst_min(
+        kelly_config,
+        recovery_skip_counter,
+        consecutive_losses=losses,
+        session_drawdown=max(0.0, -float(total_session_profit)),
+    )
+    return recovery_hurst_adjusted_floor(
+        base,
+        float(hurst),
+        consecutive_losses=losses,
+        hurst_persistence_min=hurst_min,
+        log_scale=float(kelly_config.get("recovery_hurst_log_scale", 0.08)),
+    )
 
 
 def recovery_hurst_adjusted_floor(

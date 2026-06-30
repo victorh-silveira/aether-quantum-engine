@@ -5,8 +5,7 @@ from typing import Any
 
 from src.domain.risk.martingale_conviction import martingale_dl_conviction_ok, martingale_dl_entry_allowed
 from src.domain.risk.martingale_gate import apply_win_to_pending_loss, martingale_allowed
-from src.domain.risk.recovery_hurst_decay import resolve_effective_hurst_min
-from src.domain.risk.recovery_hurst_gate import recovery_hurst_adjusted_floor
+from src.domain.risk.recovery_hurst_gate import resolve_recovery_signal_floor
 from src.domain.risk.risk_cluster import finalize_risk_cluster
 from src.domain.risk.risk_cooldown import RiskCooldownMixin
 from src.domain.risk.risk_manager_restore import apply_risk_snapshot
@@ -278,21 +277,10 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
 
     def recovery_signal_floor(self, hurst: float, *, recovery_skip_counter: int = 0) -> float:
         """Piso de sinal em recovery ajustado logaritmicamente pelo Hurst do candidato."""
-        base = float(self.kelly_config.get("recovery_min_trade_score", 0.64))
-        losses = int(self.consecutive_losses)
-        if losses == 1:
-            base = max(base, 0.52)
-        elif losses == 2:
-            base = max(base, 0.54)
-        elif losses == 3:
-            base = max(base, 0.56)
-        elif losses >= 4:
-            base = max(base, 0.58)
-        hurst_min = resolve_effective_hurst_min(self.kelly_config, recovery_skip_counter)
-        return recovery_hurst_adjusted_floor(
-            base,
-            float(hurst),
-            consecutive_losses=losses,
-            hurst_persistence_min=hurst_min,
-            log_scale=float(self.kelly_config.get("recovery_hurst_log_scale", 0.08)),
+        return resolve_recovery_signal_floor(
+            self.kelly_config,
+            hurst=hurst,
+            consecutive_losses=self.consecutive_losses,
+            total_session_profit=self.total_session_profit,
+            recovery_skip_counter=recovery_skip_counter,
         )

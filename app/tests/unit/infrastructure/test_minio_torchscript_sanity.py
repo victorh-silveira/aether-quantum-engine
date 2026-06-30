@@ -5,6 +5,7 @@ import pytest
 import torch
 from torch import nn
 
+from src.application.services.deep_learning.dl_features import FEATURE_DIM
 from src.application.services.deep_learning.dl_model_artifacts import bootstrap_and_validate_models
 from src.infrastructure.storage.local_model_store import LocalModelStore
 from src.infrastructure.storage.minio_model_store import MinioModelStore
@@ -24,11 +25,17 @@ async def test_minio_download_torchscript_and_sanity(tmp_path):
     with patch("asyncio.to_thread", new=AsyncMock(return_value=True)):
         assert await store.download_torchscript("R_10", arch="tcn", dest=dest) is True
     with patch(
-        "src.infrastructure.storage.minio_model_store.verify_torchscript_artifact",
+        "src.infrastructure.storage.minio_model_store.verify_torchscript_artifact_async",
+        new=AsyncMock(),
     ) as verify:
-        with patch("asyncio.to_thread", new=AsyncMock(side_effect=lambda fn: fn())):
-            await store.sanity_check_torchscript(dest, lookback=48, feature_dim=19, symbol="R_10")
-        verify.assert_called_once()
+        await store.sanity_check_torchscript(
+            dest,
+            lookback=48,
+            feature_dim=FEATURE_DIM,
+            symbol="R_10",
+            manifest={"feature_dim": FEATURE_DIM},
+        )
+        verify.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -102,6 +109,41 @@ async def test_bootstrap_and_validate_models_runs_sanity_when_ts_present(tmp_pat
     ):
         await bootstrap_and_validate_models(orch)
     store.sanity_check_torchscript.assert_awaited_once()
+    call_kw = store.sanity_check_torchscript.await_args.kwargs
+    assert call_kw.get("manifest") is None
+
+
+@pytest.mark.asyncio
+async def test_bootstrap_loads_manifest_before_sanity(tmp_path):
+    orch = MagicMock()
+    orch.symbols = ["R_10"]
+    orch.config = {
+        "deep_learning": {"enabled": True, "use_torchscript": True, "arch": "tcn", "lookback": 48},
+        "data_handler": {},
+        "risk_management": {"params": {}},
+    }
+    ckpt = tmp_path / "R_10.pth"
+    ckpt.write_bytes(b"x")
+    ts_path = tmp_path / "R_10_ts.pt"
+    ts_path.write_bytes(b"ts")
+    store = MagicMock()
+    store.download_torchscript = AsyncMock(return_value=True)
+    store.load_manifest = AsyncMock(return_value={"feature_dim": FEATURE_DIM, "lookback": 48})
+    store.sanity_check_torchscript = AsyncMock()
+    orch.model_store = store
+    with (
+        patch(
+            "src.application.services.deep_learning.dl_model_artifacts.ensure_local_model_checkpoint",
+            new=AsyncMock(return_value=ckpt),
+        ),
+        patch(
+            "src.application.services.deep_learning.dl_model_artifacts._scripted_path",
+            return_value=ts_path,
+        ),
+    ):
+        await bootstrap_and_validate_models(orch)
+    store.load_manifest.assert_awaited_once()
+    store.sanity_check_torchscript.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -109,7 +151,7 @@ async def test_local_model_store_torchscript_download_and_sanity(tmp_path):
     class _TinyNet(nn.Module):
         def __init__(self):
             super().__init__()
-            self.fc = nn.Linear(19, 1)
+            self.fc = nn.Linear(FEATURE_DIM, 1)
 
         def forward(self, x):
             return self.fc(x[:, -1, :])
@@ -120,11 +162,17 @@ async def test_local_model_store_torchscript_download_and_sanity(tmp_path):
     ts_src = ts_dir / "latest_ts.pt"
     model = _TinyNet()
     model.eval()
-    traced = torch.jit.trace(model, torch.zeros(1, 48, 19), strict=False)
+    traced = torch.jit.trace(model, torch.zeros(1, 48, FEATURE_DIM), strict=False)
     traced.save(str(ts_src))
     dest = tmp_path / "out_ts.pt"
     assert await store.download_torchscript("R_10", arch="tcn", dest=dest) is True
-    await store.sanity_check_torchscript(dest, lookback=48, feature_dim=19, symbol="R_10")
+    await store.sanity_check_torchscript(
+        dest,
+        lookback=48,
+        feature_dim=FEATURE_DIM,
+        symbol="R_10",
+        manifest={"feature_dim": FEATURE_DIM, "lookback": 48},
+    )
 
 
 @pytest.mark.asyncio

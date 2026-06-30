@@ -15,6 +15,10 @@
 * **infra:** bootstrap MinIO baixa TorchScript, sanity forward pass antes do WebSocket Deriv; upload de `latest_ts.pt`
 * **risk:** decaimento temporal do piso Hurst em recovery via `recovery_skip_counter` no Redis
 * **orchestrator:** reconciliacao atomica pos-reconexao WebSocket (`settlement_reconciliation`) antes do proximo ciclo DL
+* **risk:** martingale adaptativo por vol_ratio (sqrt, deferimento fracionado, teto 5% banca) em N2+
+* **risk:** defer martingale obrigatorio em vol > 1.10 (N2+), teto 2.5% banca por ordem deferida
+* **risk:** decaimento logaritmico do piso Hurst em recovery N3+ com drawdown severo de sessao
+* **infra:** auditoria FEAT_DIM via manifest MinIO e forward pass multi-probe (Z-scores extremos) no startup
 
 ## [1.16.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.15.0...v1.16.0) (2026-06-29)
 

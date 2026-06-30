@@ -245,6 +245,36 @@ def test_passes_execution_quality_recovery_decay_counter_relaxes_floor():
     )
 
 
+def test_passes_execution_quality_log_decay_with_severe_drawdown():
+    metrics = {
+        "trade_score": 0.64,
+        "val_accuracy": 0.70,
+        "edge": 0.10,
+        "direction_margin": 0.08,
+        "indicators": {"adx": 0.25, "hurst": 0.54},
+    }
+    kelly = {
+        "recovery_min_trade_score": 0.64,
+        "recovery_hurst_persistence_min": 0.58,
+        "recovery_hurst_log_scale": 0.08,
+        "recovery_hurst_decay_enabled": True,
+        "recovery_hurst_log_decay_coef": 0.025,
+        "recovery_hurst_accel_losses_min": 3,
+        "recovery_hurst_severe_drawdown_min": 150.0,
+    }
+    assert passes_execution_quality(
+        metrics,
+        min_signal=0.64,
+        min_val=0.60,
+        min_edge=0.04,
+        recovery_active=True,
+        recovery_kelly_cfg=kelly,
+        consecutive_losses=3,
+        recovery_skip_counter=6,
+        session_drawdown=200.0,
+    )
+
+
 def test_passes_execution_quality_rejects_c0011_like_vol_compression_edge():
     metrics = {
         "trade_score": 0.80,

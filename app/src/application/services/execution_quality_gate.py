@@ -54,6 +54,7 @@ def _quality_failures(
     recovery_kelly_cfg: dict | None = None,
     consecutive_losses: int = 0,
     recovery_skip_counter: int = 0,
+    session_drawdown: float = 0.0,
 ) -> bool:
     """Retorna True quando algum piso de qualidade nao e atendido."""
     eff = effective_signal(metrics)
@@ -71,7 +72,12 @@ def _quality_failures(
     signal_floor = float(min_signal)
     if recovery_active and isinstance(recovery_kelly_cfg, dict):
         hurst = float(indicators.get("hurst", 0.5))
-        hurst_min = resolve_effective_hurst_min(recovery_kelly_cfg, recovery_skip_counter)
+        hurst_min = resolve_effective_hurst_min(
+            recovery_kelly_cfg,
+            recovery_skip_counter,
+            consecutive_losses=consecutive_losses,
+            session_drawdown=session_drawdown,
+        )
         signal_floor = recovery_min_signal(
             recovery_kelly_cfg,
             recovery_active=True,
@@ -106,6 +112,7 @@ def passes_execution_quality(
     recovery_kelly_cfg: dict | None = None,
     consecutive_losses: int = 0,
     recovery_skip_counter: int = 0,
+    session_drawdown: float = 0.0,
 ) -> bool:
     """Indica se metricas pos-resolucao atendem pisos de conviccao e clareza direcional."""
     if not passes_squeeze_gate(metrics, cfg=dynamic_threshold_cfg):
@@ -123,4 +130,5 @@ def passes_execution_quality(
         recovery_kelly_cfg=recovery_kelly_cfg,
         consecutive_losses=consecutive_losses,
         recovery_skip_counter=recovery_skip_counter,
+        session_drawdown=session_drawdown,
     )

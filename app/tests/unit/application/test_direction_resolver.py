@@ -72,7 +72,7 @@ def test_resolve_flips_put_to_call_on_exhaustion():
         indicators={
             "hurst": 0.50,
             "adx": 0.30,
-            "vol_ratio": 1.10,
+            "vol_ratio": 1.00,
             "rsi": 0.25,
             "keltner": -0.20,
             "cmo": -0.10,
