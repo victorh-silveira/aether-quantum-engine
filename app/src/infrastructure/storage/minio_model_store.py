@@ -136,7 +136,7 @@ class MinioModelStore:
             manifest=manifest,
         )
         label = symbol or dest_ts.stem
-        self.logger.info("MINIO: sanity ok %s", label)
+        self.logger.debug("MINIO: sanity ok %s", label)
 
     async def head(self) -> bool:
         """Valida conectividade com MinIO e garante bucket configurado."""

@@ -4,8 +4,10 @@ from src.domain.risk.consensus_stake_penalty import consensus_kelly_retention
 _CFG = {
     "consensus_penalty_enabled": True,
     "consensus_max_cut": 0.50,
-    "consensus_di_weight": 0.35,
-    "consensus_cmo_weight": 0.40,
+    "consensus_di_weight": 0.30,
+    "consensus_cmo_weight": 0.30,
+    "consensus_rsi_weight": 0.25,
+    "consensus_entropy_exponent": 2.0,
 }
 
 
@@ -13,10 +15,26 @@ def test_c0011_like_divergence_reduces_retention():
     metrics = {
         "call_votes": 1,
         "put_votes": 5,
-        "indicators": {"di_diff": 0.01, "cmo": -0.18},
+        "indicators": {"di_diff": 0.01, "cmo": -0.18, "rsi": 0.36},
     }
     retention = consensus_kelly_retention(metrics, "CALL", kelly_config=_CFG)
     assert 0.50 <= retention < 1.0
+
+
+def test_convex_penalty_stronger_on_lopsided_votes():
+    mild = {
+        "call_votes": 2,
+        "put_votes": 4,
+        "indicators": {"di_diff": 0.02, "cmo": -0.15, "rsi": 0.40},
+    }
+    severe = {
+        "call_votes": 1,
+        "put_votes": 5,
+        "indicators": {"di_diff": 0.02, "cmo": -0.15, "rsi": 0.40},
+    }
+    mild_ret = consensus_kelly_retention(mild, "CALL", kelly_config=_CFG)
+    severe_ret = consensus_kelly_retention(severe, "CALL", kelly_config=_CFG)
+    assert severe_ret < mild_ret
 
 
 def test_aligned_direction_full_retention():

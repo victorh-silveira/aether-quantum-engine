@@ -45,7 +45,7 @@ def maybe_reset_daily_risk_session(orch: Any, epoch: int) -> None:
 
     orch.state_mgr.reset_daily_metrics(bal, target, day_key)
     orch.risk_manager.reset_daily_session(bal)
-    orch.logger.info("RISK: Sessao diaria | banca=$%.2f | stop win diario ativo", bal)
+    orch.logger.info("RISK | banca=$%.2f | stop-win diario", bal)
 
 
 async def save_full_state(orch: Any) -> None:
@@ -60,8 +60,14 @@ async def save_full_state(orch: Any) -> None:
     sig = orch.get_data_state_signature()
     session = session_hash_payload(orch)
     save_bundle = getattr(orch.state_store, "save_state_bundle", None)
+    skip_counter = int(getattr(orch, "_recovery_skip_counter", 0))
     if callable(save_bundle):
-        await save_bundle(snapshot=s, session=session, market_sig=sig or None)
+        await save_bundle(
+            snapshot=s,
+            session=session,
+            market_sig=sig or None,
+            recovery_skip_counter=skip_counter,
+        )
     else:
         await orch.state_store.save_snapshot(s)
         await persist_session_hash(orch)

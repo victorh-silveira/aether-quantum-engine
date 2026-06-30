@@ -1,6 +1,6 @@
 # Infraestrutura Docker do Aether
 
-Stack local para Redis, TimescaleDB e MinIO. O motor (`run.py` / `train.py`) executa no host Conda/WSL e conecta via `localhost`.
+Stack local para Redis, TimescaleDB, MinIO e **Triton Inference Server**. O motor (`run.py` / `train.py`) executa no host Conda/WSL e conecta via `localhost`.
 
 ## Subir servicos
 
@@ -18,12 +18,32 @@ docker compose -f infra/docker/docker-compose.yml --project-directory infra/dock
 
 ## Portas
 
-| Servico | Porta |
-|---------|-------|
-| Redis | 6379 |
-| TimescaleDB | 5432 |
-| MinIO API | 9000 |
-| MinIO Console | 9001 |
+| Servico | Porta | Uso |
+|---------|-------|-----|
+| Redis | 6379 | Estado, risco, assinaturas de vela |
+| TimescaleDB | 5432 | Ticks e barras OHLC |
+| MinIO API | 9000 | Checkpoints Deep Learning |
+| MinIO Console | 9001 | Console web |
+| Triton HTTP | 8000 | Health, metadata, reload do repositório |
+| Triton gRPC | 8001 | Inferência TorchScript em produção |
+
+## Triton e GPU
+
+O serviço `aether-triton` usa `nvcr.io/nvidia/tritonserver` com repositório em `infra/docker/triton-models` (bind mount). Requer **NVIDIA Container Toolkit** no WSL2.
+
+Fluxo no motor:
+
+1. `sync_all_symbols_to_triton` copia `latest_ts.pt` para `{symbol}/1/model.pt`.
+2. `reload_triton_repository` via HTTP na porta 8000.
+3. `verify_triton_stressed_inference_async` valida inferência sob tensores estressados.
+4. `TritonGrpcClient` mantém canal gRPC persistente na porta 8001.
+
+Variáveis no `.env` da raiz:
+
+| Variável | Padrão |
+|----------|--------|
+| `AETHER_TRITON_GRPC` | `localhost:8001` |
+| `AETHER_TRITON_HTTP` | `localhost:8000` |
 
 ## Pre-requisito do host (WSL)
 
@@ -57,11 +77,13 @@ docker exec -it aether-redis redis-cli CONFIG GET appendfsync
 
 O servico usa `redis.conf` com `appendonly yes` e `appendfsync everysec` (RDB desabilitado via `save ""`).
 
+O motor grava estado via `redis_state_pipeline.write_state_bundle` (MULTI/EXEC atômico), incluindo `recovery:skip_counter`.
+
 ## Pre-requisito do motor
 
-Com `infra.enabled: true` em `config/settings.json`, o motor aborta o startup se algum servico estiver indisponivel (fail-fast).
+Com `infra.enabled: true` em `config/settings.json`, o motor aborta o startup se algum servico estiver indisponivel (fail-fast), incluindo sanity TorchScript local e inferência estressada no Triton quando `infra.triton.enabled`.
 
-Todas as variaveis de ambiente ficam no `.env` da **raiz** do repositorio (Deriv, Postgres e MinIO). Copie de `.env.example`:
+Todas as variaveis de ambiente ficam no `.env` da **raiz** do repositorio (Deriv, Postgres, MinIO e Triton). Copie de `.env.example`:
 
 ```bash
 cp .env.example .env
@@ -75,3 +97,5 @@ Chaves usadas pelo Docker Compose:
 Chaves usadas pelo motor Deriv:
 
 - `AETHER_DERIV_PAT`, `AETHER_DERIV_APP_ID`, `AETHER_DERIV_ACCOUNT_ID` (opcional)
+
+Documentação completa: [docs/infra-docker.md](../../docs/infra-docker.md).

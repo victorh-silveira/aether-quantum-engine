@@ -14,6 +14,10 @@ from src.application.services.deep_learning.dl_params import parse_dl_params
 from src.application.services.deep_learning.dl_symbol_runtime import resolve_dl_model_path
 from src.infrastructure.inference.triton_inference_client import triton_enabled
 from src.infrastructure.inference.triton_model_sync import sync_all_symbols_to_triton
+from src.infrastructure.storage.torchscript_sanity import (
+    verify_triton_schema_alignment_async,
+    verify_triton_stressed_inference_async,
+)
 
 
 logger = logging.getLogger("AETH")
@@ -42,6 +46,7 @@ async def bootstrap_and_validate_models(orch) -> None:
     lookback = int(params.get("lookback", 48))
     use_ts = bool(params.get("use_torchscript", dl_config.get("use_torchscript", False)))
     store = getattr(orch, "model_store", None)
+    sanity_ok: list[str] = []
     for symbol in orch.symbols:
         sym = str(symbol)
         path = await ensure_local_model_checkpoint(orch, sym, dl_config, params)
@@ -62,10 +67,33 @@ async def bootstrap_and_validate_models(orch) -> None:
                 symbol=sym,
                 manifest=manifest or None,
             )
+            sanity_ok.append(sym)
         elif use_ts and not ts_path.is_file():
             logger.warning("DL: TorchScript ausente para %s; inferencia eager no runtime", sym)
+    if sanity_ok:
+        logger.info("MINIO | %d TorchScript ok | %s", len(sanity_ok), ",".join(sanity_ok))
     if triton_enabled(orch.config):
         await sync_all_symbols_to_triton(orch)
+        probe_symbol = str(orch.symbols[0]) if orch.symbols else ""
+        if probe_symbol:
+            await verify_triton_schema_alignment_async(
+                orch.config,
+                probe_symbol,
+                host_feature_dim=FEATURE_DIM,
+                host_lookback=lookback,
+            )
+            await verify_triton_stressed_inference_async(
+                orch.config,
+                [str(s) for s in orch.symbols],
+                lookback=lookback,
+                feature_dim=FEATURE_DIM,
+            )
+            logger.info(
+                "TRITON | schema+stress ok | %s | lb=%d fd=%d",
+                probe_symbol,
+                lookback,
+                FEATURE_DIM,
+            )
 
 
 async def upload_model_checkpoint(

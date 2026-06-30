@@ -45,3 +45,19 @@ async def test_write_state_bundle_clears_empty_pending_loss():
         snapshot={"risk": {"consecutive_losses": 0, "pending_loss": {}}},
     )
     pipe.delete.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_write_state_bundle_includes_recovery_skip_counter():
+    client = MagicMock()
+    pipe = _pipeline_ctx()
+    client.pipeline.return_value = pipe
+    await write_state_bundle(
+        client,
+        prefix="aether",
+        snapshot={"risk": {"consecutive_losses": 2}},
+        recovery_skip_counter=3,
+    )
+    pipe.set.assert_called()
+    set_args = [call.args[0] for call in pipe.set.call_args_list]
+    assert any("recovery:skip_counter" in str(key) for key in set_args)

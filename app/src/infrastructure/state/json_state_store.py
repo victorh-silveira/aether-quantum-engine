@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from aether_paths import repo_path
+from src.domain.risk.recovery_hurst_decay import REDIS_SKIP_COUNTER_KEY
 
 
 class JsonStateStore:
@@ -29,6 +30,7 @@ class JsonStateStore:
         snapshot: dict[str, Any],
         session: dict[str, Any] | None = None,
         market_sig: str | None = None,
+        recovery_skip_counter: int | None = None,
     ) -> None:
         """Compativel com RedisStateStore; persiste snapshot e hashes em memoria."""
         await self.save_snapshot(snapshot)
@@ -44,6 +46,8 @@ class JsonStateStore:
             await self.set_hash("session:daily", session)
         if market_sig:
             await self.set_string("market_sig", market_sig)
+        if recovery_skip_counter is not None:
+            await self.set_string(REDIS_SKIP_COUNTER_KEY, str(max(0, int(recovery_skip_counter))))
 
     async def load_snapshot(self) -> dict[str, Any] | None:
         """Carrega snapshot do arquivo JSON."""

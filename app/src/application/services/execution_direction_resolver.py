@@ -6,6 +6,7 @@ from functools import partial
 
 from src.application.services.execution_direction_cross_corr import adjust_dl_weight_with_correlation
 from src.application.services.execution_direction_expansion_veto import apply_expansion_inversion_veto
+from src.application.services.execution_direction_mean_reversion import apply_contraction_mean_reversion_flip
 from src.application.services.execution_direction_resolver_bias import (
     exhaustion_bias as _exhaustion_bias,
     indicator_regime_bias as _indicator_regime_bias,
@@ -205,6 +206,14 @@ def resolve_execution_direction(
         hints=hints,
         dl_dir=dl_dir,
         exec_dir=exec_dir,
+        clamp01=_clamp01,
+    )
+    exec_dir, hints = apply_contraction_mean_reversion_flip(
+        exec_dir,
+        dl_dir,
+        hints,
+        metrics,
+        exec_cfg=cfg,
         clamp01=_clamp01,
     )
     exec_dir, hints = apply_expansion_inversion_veto(

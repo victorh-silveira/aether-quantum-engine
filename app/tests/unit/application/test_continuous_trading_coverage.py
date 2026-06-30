@@ -230,18 +230,39 @@ def test_entropy_fallback_skips_blocked_symbol():
 
 
 @pytest.mark.asyncio
-async def test_bootstrap_calls_triton_sync():
+async def test_bootstrap_calls_triton_sync_and_schema_probe(tmp_path):
     orch = MagicMock()
-    orch.symbols = []
+    orch.symbols = ["R_10"]
     orch.config = {
         "deep_learning": {"enabled": True, "arch": "tcn", "lookback": 48},
         "data_handler": {},
         "risk_management": {"params": {}},
         "infra": {"triton": {"enabled": True}},
     }
-    with patch(
-        "src.application.services.deep_learning.dl_model_artifacts.sync_all_symbols_to_triton",
-        new_callable=AsyncMock,
-    ) as mock_sync:
+    ckpt = tmp_path / "R_10.pth"
+    ckpt.write_bytes(b"x")
+    ts_path = tmp_path / "R_10_ts.pt"
+    store = MagicMock()
+    store.download_torchscript = AsyncMock(return_value=False)
+    orch.model_store = store
+    with (
+        patch(
+            "src.application.services.deep_learning.dl_model_artifacts.ensure_local_model_checkpoint",
+            new=AsyncMock(return_value=ckpt),
+        ),
+        patch(
+            "src.application.services.deep_learning.dl_model_artifacts._scripted_path",
+            return_value=ts_path,
+        ),
+        patch(
+            "src.application.services.deep_learning.dl_model_artifacts.sync_all_symbols_to_triton",
+            new_callable=AsyncMock,
+        ) as mock_sync,
+        patch(
+            "src.application.services.deep_learning.dl_model_artifacts.verify_triton_schema_alignment_async",
+            new_callable=AsyncMock,
+        ) as mock_schema,
+    ):
         await bootstrap_and_validate_models(orch)
     mock_sync.assert_awaited_once()
+    mock_schema.assert_awaited_once()

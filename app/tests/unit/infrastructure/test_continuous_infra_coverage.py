@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import numpy as np
 import pytest
 
-from src.infrastructure.inference import triton_inference_client as tic
+from src.infrastructure.inference.triton_grpc_client import InferenceServerException
 from src.infrastructure.inference.triton_inference_client import (
     close_triton_client,
     get_triton_client,
@@ -39,31 +39,32 @@ def test_triton_enabled_and_url():
 
 @pytest.mark.asyncio
 async def test_triton_client_pool():
-    with patch("src.infrastructure.inference.triton_inference_client.grpc_aio") as mock_grpc:
-        mock_grpc.InferenceServerClient.return_value = AsyncMock()
-        mock_grpc.InferInput = MagicMock()
-        mock_grpc.InferRequestedOutput = MagicMock()
+    mock_client = MagicMock()
+    with (
+        patch(
+            "src.infrastructure.inference.triton_inference_client.get_triton_grpc_client",
+            new_callable=AsyncMock,
+            return_value=mock_client,
+        ),
+        patch(
+            "src.infrastructure.inference.triton_inference_client.close_triton_grpc_client",
+            new_callable=AsyncMock,
+        ),
+    ):
         client = await get_triton_client({"infra": {"triton": {"grpc_url": "localhost:8001"}}})
-        assert client is not None
+        assert client is mock_client
         await close_triton_client()
 
 
 @pytest.mark.asyncio
 async def test_infer_symbol_async_success():
-    fake_result = MagicMock()
-    fake_result.as_numpy.return_value = np.array([0.44], dtype=np.float32)
-    fake_client = AsyncMock()
-    fake_client.infer.return_value = fake_result
-    with (
-        patch(
-            "src.infrastructure.inference.triton_inference_client.get_triton_client",
-            new_callable=AsyncMock,
-            return_value=fake_client,
-        ),
-        patch("src.infrastructure.inference.triton_inference_client.grpc_aio") as mock_grpc,
+    fake_client = MagicMock()
+    fake_client.infer_symbol = AsyncMock(return_value=0.44)
+    with patch(
+        "src.infrastructure.inference.triton_inference_client.get_triton_grpc_client",
+        new_callable=AsyncMock,
+        return_value=fake_client,
     ):
-        mock_grpc.InferInput = MagicMock()
-        mock_grpc.InferRequestedOutput = MagicMock()
         prob = await infer_symbol_async(
             {"infra": {"triton": {"enabled": True}}},
             "R_10",
@@ -75,6 +76,7 @@ async def test_infer_symbol_async_success():
 def test_triton_config_and_repo_path():
     text = triton_config_pbtxt(lookback=48, feature_dim=34)
     assert "pytorch_libtorch" in text
+    assert 'backend: "pytorch"' in text
     assert default_triton_repo_path().name == "triton-models"
 
 
@@ -198,20 +200,17 @@ async def test_correlation_worker_loop_runs_once():
 
 @pytest.mark.asyncio
 async def test_infer_symbol_async_error():
-    fake_client = AsyncMock()
+    fake_client = MagicMock()
+    fake_client.infer_symbol = AsyncMock(side_effect=InferenceServerException("boom"))
     with (
         patch(
-            "src.infrastructure.inference.triton_inference_client.get_triton_client",
+            "src.infrastructure.inference.triton_inference_client.get_triton_grpc_client",
             new_callable=AsyncMock,
             return_value=fake_client,
         ),
-        patch("src.infrastructure.inference.triton_inference_client.grpc_aio") as mock_grpc,
+        pytest.raises(InferenceServerException),
     ):
-        mock_grpc.InferInput = MagicMock()
-        mock_grpc.InferRequestedOutput = MagicMock()
-        fake_client.infer.side_effect = tic.InferenceServerException("boom")
-        with pytest.raises(tic.InferenceServerException):
-            await infer_symbol_async({"infra": {"triton": {}}}, "R_10", np.zeros((1, 4, 34), dtype=np.float32))
+        await infer_symbol_async({"infra": {"triton": {}}}, "R_10", np.zeros((1, 4, 34), dtype=np.float32))
 
 
 @pytest.mark.asyncio
@@ -223,14 +222,23 @@ async def test_sync_all_symbols_with_store(tmp_path):
         "deep_learning": {"arch": "tcn", "model_path_template": "data/dl/{symbol}.pth"},
         "data_handler": {},
         "risk_management": {"params": {}},
+        "infra": {"triton": {"enabled": True}},
     }
-    with patch(
-        "src.infrastructure.inference.triton_model_sync.sync_symbol_torchscript_to_triton",
-        new_callable=AsyncMock,
-        return_value=True,
-    ) as mock_one:
+    with (
+        patch(
+            "src.infrastructure.inference.triton_model_sync.sync_symbol_torchscript_to_triton",
+            new_callable=AsyncMock,
+            return_value=True,
+        ) as mock_one,
+        patch(
+            "src.infrastructure.inference.triton_model_sync.reload_triton_repository",
+            new_callable=AsyncMock,
+            return_value=True,
+        ) as mock_reload,
+    ):
         await sync_all_symbols_to_triton(orch, repo_path_override=tmp_path)
     mock_one.assert_awaited_once()
+    mock_reload.assert_awaited_once()
 
 
 @pytest.mark.asyncio

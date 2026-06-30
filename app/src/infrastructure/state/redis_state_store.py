@@ -59,6 +59,7 @@ class RedisStateStore:
         snapshot: dict[str, Any],
         session: dict[str, Any] | None = None,
         market_sig: str | None = None,
+        recovery_skip_counter: int | None = None,
     ) -> None:
         """Persiste snapshot, hashes e assinatura em uma transacao Redis."""
         client = await self._redis()
@@ -68,6 +69,7 @@ class RedisStateStore:
             snapshot=snapshot,
             session_hash=session,
             market_sig=market_sig,
+            recovery_skip_counter=recovery_skip_counter,
         )
         self._last_snapshot_at = time.monotonic()
         self._pending_snapshot = None

@@ -4,17 +4,21 @@ Layout de software com infraestrutura Docker local opcional (`infra/docker/`).
 
 ```
 aether-quantum-engine/
-├── infra/docker/                       # Redis (AOF), TimescaleDB, MinIO, host-prereq.sh
+├── infra/docker/                       # Redis (AOF), TimescaleDB, MinIO, Triton (GPU)
 ├── app/
 │   ├── src/
 │   │   ├── application/services/
-│   │   │   ├── deep_learning/          # TCN/LSTM/GRU, labels, predict, logs DL
+│   │   │   ├── deep_learning/          # TCN/LSTM/GRU, labels, predict, Triton bridge
 │   │   │   ├── orchestrator/           # Ciclo, execução, settlement, recovery gate
-│   │   │   ├── execution_*.py          # Direção, resolver, qualidade, exaustão, entropia, ranking
+│   │   │   ├── execution_*.py          # Direção, resolver, mean-reversion, qualidade, ranking
 │   │   │   ├── log_dedupe.py
 │   │   │   └── auth_manager.py
-│   │   ├── domain/                     # Modelos, risk_manager, recovery_hurst_gate, martingale
-│   │   ├── infrastructure/             # WebSocket, stream, tick_buffer, trade, persistência
+│   │   ├── domain/                     # Modelos, risk_manager, consensus_stake_penalty, martingale
+│   │   ├── infrastructure/
+│   │   │   ├── inference/              # triton_grpc_client, triton_inference_client, triton_model_sync
+│   │   │   ├── state/                  # redis_state_pipeline, redis_state_store
+│   │   │   ├── storage/                # minio_model_store, torchscript_sanity, torchscript_sanity_probes
+│   │   │   └── ...                     # WebSocket, stream, tick_buffer, trade
 │   │   └── presentation/               # Logger terminal
 │   ├── tests/unit/                     # Pytest (cobertura 100% em src)
 │   ├── scripts/
@@ -39,11 +43,14 @@ aether-quantum-engine/
 
 | Pasta | Responsabilidade |
 |-------|------------------|
-| `application/services/deep_learning` | Features 19D, TCN/LSTM/GRU, `dl_predict`, `dl_trend`, `dl_cycle_brief`, `dl_cycle_log`, deploy gate, TorchScript |
-| `application/services/orchestrator` | `Orchestrator`, `ExecutionManager`, `execution_collect`, `execution_recovery_gate`, settlement, `post_settlement_cycle` |
-| `application/services` | `execution_direction_resolver`, `execution_entropy_adaptive`, `execution_exhaustion_conflict`, `execution_exhaustion_hard_gate`, `execution_quality_gate`, `execution_volatility_bb`, `execution_direction`, `execution_market_rank`, `execution_symbols`, `execution_mandatory_pick`, `execution_direction_fallback`, `log_dedupe`, `auth_manager` |
-| `domain` | `Candle`, `Trade`, `RiskManager`, `recovery_hurst_gate`, `probability_entropy`, Kelly, martingale, cooldowns, `stake_sizing` |
-| `infrastructure` | `WebSocketManager`, `StreamHandler`, `TickBuffer`, `TradeHandler`, `redis_state_pipeline`, ports `StateStore` / `MarketSeriesWriter` / `ModelArtifactStore`, Redis, Timescale, MinIO |
+| `application/services/deep_learning` | Features **34D**, TCN/LSTM/GRU, `dl_predict_async`, `dl_predict_triton`, `dl_trend`, deploy gate, TorchScript |
+| `application/services/orchestrator` | `Orchestrator`, `ExecutionManager`, `execution_collect`, `execution_recovery_gate`, settlement, `post_settlement_cycle`, `orchestrator_run_loop` |
+| `application/services` | `execution_direction_resolver`, `execution_direction_mean_reversion`, `execution_direction_expansion_veto`, `execution_direction_cross_corr`, `execution_entropy_adaptive`, `execution_quality_gate`, `execution_market_rank`, `execution_mandatory_pick`, `log_dedupe`, `auth_manager` |
+| `domain` | `Candle`, `Trade`, `RiskManager`, `consensus_stake_penalty`, `recovery_hurst_gate`, `probability_entropy`, Kelly, martingale, cooldowns, `stake_sizing` |
+| `infrastructure/inference` | `TritonGrpcClient` (gRPC aio persistente), `triton_inference_client`, `triton_model_sync`, `triton_tensor_builder`, `triton_model_metadata` |
+| `infrastructure/state` | `redis_state_pipeline` (MULTI/EXEC atômico), `redis_state_store`, ports `StateStore` |
+| `infrastructure/storage` | `minio_model_store`, `torchscript_sanity`, `torchscript_sanity_probes` (probes estressados) |
+| `infrastructure` (demais) | `WebSocketManager`, `StreamHandler`, `TickBuffer`, `TradeHandler`, Timescale, MinIO |
 | `presentation/terminal` | `setup_logger`, `BlankLineSquasher`, formatação de logs |
 
 Decisão exclusivamente Deep Learning quando `deep_learning.enabled` é verdadeiro. Treino e execução são processos separados (`train.py` / `run.py`).
@@ -52,11 +59,12 @@ Decisão exclusivamente Deep Learning quando `deep_learning.enabled` é verdadei
 
 ```mermaid
 flowchart TD
-  BR[decision_bridge] --> PRED[dl_predict]
+  BR[decision_bridge] --> PRED[dl_predict_triton]
   PRED --> ENT[execution_entropy_adaptive]
-  ENT --> RES[execution_direction_resolver]
-  RES --> HG[execution_exhaustion_hard_gate]
-  HG --> QG[execution_quality_gate]
+  ENT --> MRF[execution_direction_mean_reversion]
+  MRF --> RES[execution_direction_resolver]
+  RES --> EXP[execution_direction_expansion_veto]
+  EXP --> QG[execution_quality_gate]
   QG --> COL[execution_collect]
   COL --> RANK[execution_market_rank / execution_symbols]
   RANK --> EM[ExecutionManager]
@@ -64,27 +72,26 @@ flowchart TD
 
 | Arquivo | Papel |
 |---------|-------|
-| `execution_entropy_adaptive.py` | Comprime peso DL via entropia de probabilidade (`entropy_regime_tighten`) |
+| `triton_grpc_client.py` | Canal `grpc.aio.insecure_channel` persistente; `infer_symbols_concurrent` via `asyncio.gather` |
+| `execution_direction_mean_reversion.py` | Flip contra DL em exaustão + contração de vol (`vol_ratio < 0.80`) |
+| `execution_direction_expansion_veto.py` | Veto de inversão em expansão (`vol_ratio > 1.15`); suavização Kelly |
+| `execution_entropy_adaptive.py` | Comprime peso DL via entropia de probabilidade |
 | `execution_direction_resolver.py` | Scoring CALL/PUT unificado; `direction_margin`, `direction_inverted` |
-| `execution_exhaustion_conflict.py` | Penalidade soft RSI+CMO vs lado DL |
-| `execution_exhaustion_hard_gate.py` | Tripla RSI+CMO+Keltner; atenuacao 80% do peso DL; isencao ADX |
-| `execution_quality_gate.py` | Pisos de score, edge, ADX, inversao; piso Hurst por candidato em recovery |
-| `execution_volatility_bb.py` | Edge minimo exponencial em squeeze de Bollinger |
-| `execution_direction.py` | `build_execution_candidate`, hedge recovery |
-| `execution_recovery_gate.py` | Pool tecnico; floors de recovery com ajuste Hurst |
-| `execution_collect_helpers.py` | `recovery_hurst_blocks_collect`, fallback mandatory, logs EXEC_SEL |
-| `execution_collect.py` | Coleta, selecao e skip de ciclo |
-| `recovery_hurst_gate.py` (domain) | Piso logaritmico e filtro de persistencia do pool |
-| `redis_state_pipeline.py` | Escrita atomica de snapshot + hashes no Redis |
+| `execution_quality_gate.py` | Penalidade de score/edge; pisos recovery com Hurst |
+| `execution_collect_helpers.py` | `recovery_hurst_blocks_collect`, mandatory fallback, logs EXEC_SEL |
+| `execution_collect.py` | Coleta e seleção (modo seletivo ou contínuo) |
+| `consensus_stake_penalty.py` (domain) | Penalidade convexa Kelly por divergência ordem vs votos |
+| `redis_state_pipeline.py` | Escrita atômica snapshot + risco + sessão + `recovery:skip_counter` |
 
 ## Dados e artefatos
 
 | Caminho | Uso |
 |---------|-----|
-| `data/state.json` | Estado geral de contratos e banca |
+| `data/state.json` | Estado geral de contratos e banca (legado) |
 | `data/session_state.json` | Métricas diárias da sessão e limites de Stop Win |
 | `data/dl/{symbol}.pth` | Checkpoints PyTorch + calibrador + métricas |
-| `data/dl/{symbol}_ts.pt` | TorchScript trace para inferência rápida |
+| `data/dl/{symbol}_ts.pt` | TorchScript trace para inferência Triton |
+| `infra/docker/triton-models/{symbol}/` | Layout Triton (`model.pt`, `config.pbtxt`) |
 | `data/deriv/pat_bindings.json` | Cache PAT → App ID |
 | `logs/engine.log` | Auditoria operacional |
 
@@ -98,6 +105,7 @@ Primeira vez no WSL: `make setup-wsl` (Git, Conda no `~/.bashrc`, hooks).
 make install
 make test
 make lint
+make docker-up
 make train
 make run
 make clean

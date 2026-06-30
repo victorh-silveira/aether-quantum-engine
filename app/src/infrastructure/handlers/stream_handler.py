@@ -89,8 +89,7 @@ class StreamHandler:
                 await asyncio.sleep(symbol_delay)
         if self.symbols:
             bars = len(self.candles.get(self.symbols[0], []))
-            label = self.symbols[0] if len(self.symbols) == 1 else f"{len(self.symbols)} simbolos"
-            self.logger.info("DATA: Buffer pronto | %s | %d velas", label, bars)
+            self.logger.info("DATA | buffer %d simbolos x %d velas", len(self.symbols), bars)
         if not self.ws.is_running:
             raise ConnectionError("STREAM: WebSocket desconectado após sincronização histórica.")
 

@@ -5,6 +5,7 @@ CONDA_ENV ?= deriv-api
 DOCKER_DIR=infra/docker
 DOCKER_COMPOSE=docker compose -f $(DOCKER_DIR)/docker-compose.yml --project-directory $(DOCKER_DIR) --env-file .env
 DOCKER_SERVICE ?= timescaledb
+DOCKER_SERVICE_EFFECTIVE := $(if $(filter triton,$(DOCKER_SERVICE)),aether-triton,$(DOCKER_SERVICE))
 RESOLVE_PY := $(shell bash linters/git-hooks/bin/resolve_conda_python.sh 2>/dev/null || echo python)
 PYTHON := $(RESOLVE_PY)
 
@@ -45,8 +46,8 @@ help:
 	@echo -e "  $(GREEN)docker-up$(RESET)    - Sobe Redis, TimescaleDB, MinIO e Triton (GPU)"
 	@echo -e "  $(GREEN)docker-down$(RESET)  - Para e remove containers"
 	@echo -e "  $(GREEN)docker-ps$(RESET)    - Status dos containers"
-	@echo -e "  $(GREEN)docker-logs$(RESET)  - Logs (DOCKER_SERVICE=redis F=1)"
-	@echo -e "  $(GREEN)docker-bash$(RESET)  - Shell no container (DOCKER_SERVICE=timescaledb)"
+	@echo -e "  $(GREEN)docker-logs$(RESET)  - Logs (DOCKER_SERVICE=triton|redis F=1)"
+	@echo -e "  $(GREEN)docker-bash$(RESET)  - Shell (DOCKER_SERVICE=triton|timescaledb)"
 	@echo -e "$(BLUE)========================================================================$(RESET)"
 
 helpo: help
@@ -96,7 +97,7 @@ docker-ps:
 	$(DOCKER_COMPOSE) ps
 
 docker-logs:
-	$(DOCKER_COMPOSE) logs $(if $(F),-f,) $(if $(DOCKER_SERVICE),$(DOCKER_SERVICE),)
+	$(DOCKER_COMPOSE) logs $(if $(F),-f,) $(if $(DOCKER_SERVICE),$(DOCKER_SERVICE_EFFECTIVE),)
 
 docker-bash:
-	$(DOCKER_COMPOSE) exec -it $(DOCKER_SERVICE) sh -c 'if [ -x /bin/bash ]; then exec /bin/bash; else exec /bin/sh; fi'
+	$(DOCKER_COMPOSE) exec -it $(DOCKER_SERVICE_EFFECTIVE) sh -c 'if [ -x /bin/bash ]; then exec /bin/bash; else exec /bin/sh; fi'

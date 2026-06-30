@@ -55,6 +55,47 @@ def test_calculate_stake_consensus_penalty_reduces_stake(kelly_config):
     assert stake_diverged < stake_aligned
 
 
+def test_calculate_stake_consensus_floor_uses_stake_min(kelly_config):
+    rm = MagicMock()
+    rm.config = kelly_config
+    rm.kelly_config = {
+        **kelly_config["kelly"],
+        "consensus_penalty_enabled": True,
+        "consensus_max_cut": 0.50,
+        "consensus_di_weight": 0.30,
+        "consensus_cmo_weight": 0.30,
+        "consensus_rsi_weight": 0.25,
+        "consensus_entropy_exponent": 2.0,
+        "fraction": 0.50,
+        "max_stake_pct": 1.0,
+    }
+    rm.risk_params = {**kelly_config["params"], "stake_min": 1.0}
+    rm.stake_max = 12000.0
+    rm.initial_bankroll = 11800.0
+    rm.total_session_profit = 0.0
+    rm.pending_loss = {}
+    rm.active_contract_ids = []
+    rm.logger = MagicMock()
+    rm.effective_win_rate = MagicMock(return_value=0.80)
+    rm._martingale_allowed = MagicMock(return_value=False)
+    metrics = {
+        "execute": True,
+        "call_votes": 0,
+        "put_votes": 6,
+        "indicators": {"di_diff": -0.90, "cmo": -0.90, "rsi": 0.15},
+    }
+    stake = calculate_stake_for_manager(
+        rm,
+        11800.0,
+        "R_10",
+        0.80,
+        silent=True,
+        apply_stop_win=False,
+        kwargs={"dl_metrics": metrics, "order_direction": "CALL"},
+    )
+    assert stake == 1.0
+
+
 def test_calculate_stake_consensus_penalty_logs_retention(kelly_config):
     rm = MagicMock()
     rm.config = kelly_config

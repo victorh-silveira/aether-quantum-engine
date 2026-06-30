@@ -124,8 +124,15 @@
       "recovery_flip_direction_after_loss": false,
       "recovery_flip_max_conviction": 0.56,
       "recovery_flip_use_trend_confirmation": false,
-      "expansion_inversion_veto_vol_ratio": 1.05,
+      "expansion_inversion_veto_vol_ratio": 1.15,
       "expansion_inversion_score_retention": 0.70,
+      "expansion_momentum_kelly_scale": 0.85,
+      "mean_reversion_contraction_vol_ratio": 0.80,
+      "mean_reversion_rsi_overbought": 0.72,
+      "mean_reversion_cmo_overbought": 0.45,
+      "mean_reversion_rsi_oversold": 0.28,
+      "mean_reversion_cmo_oversold": -0.45,
+      "mean_reversion_flip_margin": 0.08,
       "direction_scoring": {
         "trend_weight": 0.15,
         "exhaustion_weight": 0.12,
@@ -244,8 +251,11 @@
       "stop_win_martingale_progress_fraction": 0.0,
       "consensus_penalty_enabled": true,
       "consensus_max_cut": 0.50,
-      "consensus_di_weight": 0.35,
-      "consensus_cmo_weight": 0.40
+      "consensus_di_weight": 0.30,
+      "consensus_cmo_weight": 0.30,
+      "consensus_rsi_weight": 0.25,
+      "consensus_entropy_exponent": 2.0,
+      "consensus_min_retention": 0.50
     },
     "large_account_stop_win_pct": 4.0,
     "params": {

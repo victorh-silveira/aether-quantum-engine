@@ -13,6 +13,7 @@ from src.application.services.deep_learning.dl_features import FEATURE_DIM
 from src.application.services.deep_learning.dl_model_checkpoint import _scripted_path
 from src.application.services.deep_learning.dl_params import parse_dl_params
 from src.application.services.deep_learning.dl_symbol_runtime import resolve_dl_model_path
+from src.infrastructure.inference.triton_inference_client import reload_triton_repository, triton_enabled
 
 
 logger = logging.getLogger("AETH")
@@ -24,10 +25,11 @@ def default_triton_repo_path() -> Path:
 
 
 def triton_config_pbtxt(*, lookback: int, feature_dim: int = FEATURE_DIM) -> str:
-    """Gera config.pbtxt para backend pytorch_libtorch."""
+    """Gera config.pbtxt para backend pytorch com TorchScript LibTorch."""
     return (
         f'name: "{{name}}"\n'
-        'backend: "pytorch_libtorch"\n'
+        'backend: "pytorch"\n'
+        'platform: "pytorch_libtorch"\n'
         "max_batch_size: 8\n"
         "input [\n"
         "  {\n"
@@ -110,11 +112,12 @@ async def sync_all_symbols_to_triton(
     if store is None:
         return
     repo = repo_path_override or default_triton_repo_path()
+    synced_symbols: list[str] = []
     for symbol in orch.symbols:
         sym = str(symbol)
         path = resolve_dl_model_path(dl_config, sym)
         ts_path = _scripted_path(path)
-        await sync_symbol_torchscript_to_triton(
+        ok = await sync_symbol_torchscript_to_triton(
             store,
             sym,
             arch=arch,
@@ -122,3 +125,14 @@ async def sync_all_symbols_to_triton(
             lookback=lookback,
             repo_path_override=repo,
         )
+        if ok:
+            synced_symbols.append(sym)
+    if not synced_symbols:
+        return
+    label = ",".join(synced_symbols)
+    if triton_enabled(orch.config):
+        repo_ok = await reload_triton_repository(orch.config)
+        status = "repo ok" if repo_ok else "repo falhou"
+        logger.info("TRITON | %d modelos | %s | %s", len(synced_symbols), label, status)
+    else:
+        logger.info("TRITON | %d modelos | %s", len(synced_symbols), label)

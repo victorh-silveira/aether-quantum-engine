@@ -16,10 +16,11 @@
 | Proposta / compra | `proposal` + `buy` via `TradeHandler` (RISE_FALL, stake, duração **180 s**) |
 | Contratos abertos | `proposal_open_contract`, `profit_table` (reconciliação e settlement) |
 | Keep-alive | Loop de ping no `WebSocketManager` |
+| Inferência DL | Fora da Deriv API: Triton gRPC local (`localhost:8001`) ou TorchScript em cache; ver [infra-docker.md](infra-docker.md) |
 
 Símbolos ativos do motor: **Range Break** (`R_10`, `R_25`, `R_50`, `R_75`, `R_100`), não os exemplos genéricos `1HZ100V` / OTC deste documento.
 
-Para fluxo completo (DL, direção inteligente, gate de qualidade, risco, ciclo), ver [arquitetura.md](arquitetura.md).
+Para fluxo completo (DL, Triton, direção inteligente, mean-reversion, gate de qualidade, Kelly com consensus penalty, risco, ciclo), ver [arquitetura.md](arquitetura.md).
 
 A documentação abaixo descreve a API Deriv de forma ampla (referência geral). O Aether usa apenas o fluxo PAT documentado acima.
 

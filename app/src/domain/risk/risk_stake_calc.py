@@ -2,7 +2,10 @@
 
 from typing import Any
 
-from src.domain.risk.consensus_stake_penalty import consensus_kelly_retention
+from src.domain.risk.consensus_stake_penalty import (
+    consensus_entropy_applies_min_stake,
+    consensus_kelly_retention,
+)
 from src.domain.risk.martingale_sizing import martingale_log_suffix, resolve_mode_stake
 from src.domain.risk.stake_sizing import (
     apply_symbol_stake_cap,
@@ -96,6 +99,52 @@ def _apply_kelly_fraction_scale(f_star: float, dl_metrics: dict | None) -> float
     return f_star
 
 
+def _apply_consensus_entropy_f_star(
+    rm: Any,
+    f_star: float,
+    dl_metrics: dict | None,
+    order_direction: str | None,
+    *,
+    silent: bool,
+) -> float:
+    """Atenua f* quando ordem diverge do consenso tecnico."""
+    if not isinstance(dl_metrics, dict):
+        return f_star
+    retention = consensus_kelly_retention(
+        dl_metrics,
+        order_direction,
+        kelly_config=rm.kelly_config,
+    )
+    if retention < 1.0 and not silent:
+        rm.logger.debug(
+            "KELLY: consensus retention=%.2f ord=%s votes=%d/%d",
+            retention,
+            order_direction,
+            int(dl_metrics.get("call_votes", 0)),
+            int(dl_metrics.get("put_votes", 0)),
+        )
+    dl_metrics["consensus_entropy_retention"] = retention
+    return f_star * retention
+
+
+def _kelly_base_with_consensus_floor(
+    bankroll: float,
+    f_star: float,
+    dl_metrics: dict | None,
+    kelly_config: dict,
+    sizing_conviction: float,
+    stake_min: float,
+) -> float:
+    """Calcula kelly_base e forca piso minimo quando consenso esta no floor."""
+    kelly_base = clamp_kelly_stake(bankroll, bankroll * f_star, kelly_config, sizing_conviction)
+    if isinstance(dl_metrics, dict) and consensus_entropy_applies_min_stake(
+        float(dl_metrics.get("consensus_entropy_retention", 1.0)),
+        kelly_config,
+    ):
+        return stake_min
+    return kelly_base
+
+
 def calculate_stake_for_manager(
     rm: Any,
     bankroll: float,
@@ -133,24 +182,23 @@ def calculate_stake_for_manager(
         cap_conv = float(rm.kelly_config.get("mandatory_weak_conviction_cap", 0.55))
         sizing_conviction = min(conviction, cap_conv)
     f_star = max(0.0, kelly_f * float(rm.kelly_config.get("fraction", 0.03)))
-    if isinstance(dl_metrics, dict):
-        retention = consensus_kelly_retention(
-            dl_metrics,
-            kwargs.get("order_direction"),
-            kelly_config=rm.kelly_config,
-        )
-        if retention < 1.0 and not silent:
-            rm.logger.debug(
-                "KELLY: consensus retention=%.2f ord=%s votes=%d/%d",
-                retention,
-                kwargs.get("order_direction"),
-                int(dl_metrics.get("call_votes", 0)),
-                int(dl_metrics.get("put_votes", 0)),
-            )
-        f_star *= retention
+    f_star = _apply_consensus_entropy_f_star(
+        rm,
+        f_star,
+        dl_metrics,
+        kwargs.get("order_direction"),
+        silent=silent,
+    )
     f_star = _apply_kelly_fraction_scale(f_star, dl_metrics)
     stake_min = float(rm.risk_params.get("stake_min", 1.0))
-    kelly_base = clamp_kelly_stake(bankroll, bankroll * f_star, rm.kelly_config, sizing_conviction)
+    kelly_base = _kelly_base_with_consensus_floor(
+        bankroll,
+        f_star,
+        dl_metrics,
+        rm.kelly_config,
+        sizing_conviction,
+        stake_min,
+    )
     dl_execute = not isinstance(dl_metrics, dict) or bool(dl_metrics.get("execute", True))
     kelly_base = _apply_stop_win_kelly_boost(
         rm,

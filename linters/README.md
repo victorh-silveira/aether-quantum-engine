@@ -14,9 +14,11 @@ Configuração centralizada de hooks e release semântico (sem infra Kubernetes/
 | Hook | Ferramenta | Escopo |
 |------|------------|--------|
 | Qualidade | Ruff, Interrogate, Vulture, limite 300 linhas | `app/src`, `app/tests` |
-| Testes | pytest + coverage | 100% em `app/src` |
+| Testes | pytest + coverage | 100% em `app/src` (inclui módulos Triton, mean-reversion, consensus penalty) |
 | Segurança | Bandit, pip-audit | dependências e código |
 | Limpeza | caches e artefatos locais | workspace |
+
+Documentação do projeto (`docs/`, `README.md`) não entra nos gates; alterações em `.md` não disparam pytest.
 
 Os gates executam `app/scripts/operations/clean_workspace.py` com `cwd` em `app/`, usando o Conda `deriv-api` (`linters/git-hooks/bin/python` no WSL).
 

@@ -20,7 +20,7 @@ def test_emit_decision_engine_banner_dl_enabled():
         decision_mode="deep_learning",
     )
     logger.info.assert_called_once()
-    assert logger.info.call_args.args[-1] == "CONTINUOUS"
+    assert "continuo" in logger.info.call_args.args[0]
 
 
 def test_emit_decision_engine_banner_inactive():

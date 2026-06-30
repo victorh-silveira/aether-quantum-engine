@@ -57,7 +57,7 @@ async def test_refresh_correlation_handles_exception():
 @pytest.mark.asyncio
 async def test_get_triton_client_without_grpc_module():
     with (
-        patch("src.infrastructure.inference.triton_inference_client.grpc_aio", None),
+        patch("src.infrastructure.inference.triton_grpc_client.grpc_aio", None),
         pytest.raises(RuntimeError, match="tritonclient"),
     ):
         await get_triton_client({})
@@ -86,20 +86,13 @@ def test_triton_grpc_url_env_fallback(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_infer_symbol_async_2d_tensor():
-    fake_result = MagicMock()
-    fake_result.as_numpy.return_value = np.array([0.55], dtype=np.float32)
-    fake_client = AsyncMock()
-    fake_client.infer.return_value = fake_result
-    with (
-        patch(
-            "src.infrastructure.inference.triton_inference_client.get_triton_client",
-            new_callable=AsyncMock,
-            return_value=fake_client,
-        ),
-        patch("src.infrastructure.inference.triton_inference_client.grpc_aio") as mock_grpc,
+    fake_client = MagicMock()
+    fake_client.infer_symbol = AsyncMock(return_value=0.55)
+    with patch(
+        "src.infrastructure.inference.triton_inference_client.get_triton_grpc_client",
+        new_callable=AsyncMock,
+        return_value=fake_client,
     ):
-        mock_grpc.InferInput = MagicMock()
-        mock_grpc.InferRequestedOutput = MagicMock()
         prob = await infer_symbol_async(
             {"infra": {"triton": {"enabled": True}}},
             "R_10",
@@ -184,8 +177,11 @@ async def test_correlation_worker_loop_stops_when_not_running():
 
 
 def test_module_import_without_tritonclient():
-    name = "src.infrastructure.inference.triton_inference_client"
-    saved = sys.modules.pop(name, None)
+    names = (
+        "src.infrastructure.inference.triton_grpc_client",
+        "src.infrastructure.inference.triton_inference_client",
+    )
+    saved = {name: sys.modules.pop(name, None) for name in names}
     real_import = builtins.__import__
 
     def fake_import(imp_name, g=None, loc=None, fromlist=(), level=0):
@@ -195,15 +191,18 @@ def test_module_import_without_tritonclient():
 
     try:
         with patch("builtins.__import__", side_effect=fake_import):
-            mod = importlib.import_module(name)
-        assert mod.grpc_aio is None
-        assert mod.InferenceServerException is Exception
+            grpc_mod = importlib.import_module(names[0])
+            tic_mod = importlib.import_module(names[1])
+        assert grpc_mod.grpc_aio is None
+        assert grpc_mod.InferenceServerException is Exception
+        assert tic_mod is not None
     finally:
-        if saved is not None:
-            sys.modules[name] = saved
-            importlib.reload(saved)
-        else:
-            importlib.import_module(name)
+        for name in names:
+            if saved[name] is not None:
+                sys.modules[name] = saved[name]
+                importlib.reload(saved[name])
+            else:
+                importlib.import_module(name)
 
 
 @pytest.mark.asyncio

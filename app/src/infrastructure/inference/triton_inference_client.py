@@ -1,55 +1,25 @@
-"""Cliente gRPC assincrono para NVIDIA Triton Inference Server."""
+"""Facade de inferencia Triton: delega ao cliente gRPC aio persistente."""
 
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
+import urllib.error
 from typing import Any
 
 import numpy as np
 
-
-try:
-    import tritonclient.grpc.aio as grpc_aio
-    from tritonclient.utils import InferenceServerException
-except ImportError:
-    grpc_aio = None
-    InferenceServerException = Exception
+from src.infrastructure.inference.triton_grpc_client import (
+    close_triton_grpc_client,
+    get_triton_grpc_client,
+)
+from src.infrastructure.inference.triton_http import post_triton_repository_reload
 
 
 logger = logging.getLogger("AETH")
-
-_INPUT_NAME = "INPUT__0"
 _OUTPUT_NAME = "OUTPUT__0"
-
-
-class _TritonClientPool:
-    """Pool singleton de cliente gRPC aio."""
-
-    def __init__(self) -> None:
-        self._client: Any | None = None
-        self._client_url: str | None = None
-
-    async def get(self, config: dict) -> Any:
-        """Retorna cliente para o endpoint configurado."""
-        if grpc_aio is None:
-            raise RuntimeError("tritonclient[grpc] nao instalado")
-        url = triton_grpc_url(config)
-        if self._client is None or self._client_url != url:
-            self._client = grpc_aio.InferenceServerClient(url=url, verbose=False)
-            self._client_url = url
-        return self._client
-
-    async def close(self) -> None:
-        """Fecha cliente se aberto."""
-        if self._client is not None:
-            await self._client.close()
-            self._client = None
-            self._client_url = None
-
-
-_pool = _TritonClientPool()
 
 
 def triton_enabled(config: dict) -> bool:
@@ -68,19 +38,43 @@ def triton_grpc_url(config: dict) -> str:
     return os.getenv("AETHER_TRITON_GRPC", "localhost:8001")
 
 
+def triton_http_url(config: dict) -> str:
+    """Resolve URL HTTP do Triton a partir da configuracao."""
+    infra = config.get("infra") if isinstance(config, dict) else {}
+    chunk = infra.get("triton") if isinstance(infra, dict) else {}
+    if isinstance(chunk, dict) and chunk.get("http_url"):
+        return str(chunk["http_url"]).rstrip("/")
+    return os.getenv("AETHER_TRITON_HTTP", "http://localhost:8000").rstrip("/")
+
+
+async def reload_triton_repository(config: dict) -> bool:
+    """Recarrega modelos no Triton apos sincronizar artefatos no disco."""
+    if not triton_enabled(config):
+        return False
+    http_url = triton_http_url(config)
+    try:
+        models = await asyncio.to_thread(post_triton_repository_reload, http_url)
+    except (urllib.error.URLError, OSError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
+        logger.warning("TRITON: falha ao recarregar repositorio (%s): %s", http_url, exc)
+        return False
+    names = [str(item.get("name", "")) for item in models if isinstance(item, dict)]
+    logger.debug("TRITON: repositorio recarregado | modelos=%s", ",".join(n for n in names if n) or "-")
+    return True
+
+
 async def get_triton_client(config: dict) -> Any:
     """Retorna cliente gRPC aio singleton para o endpoint configurado."""
-    return await _pool.get(config)
+    return await get_triton_grpc_client(triton_grpc_url(config))
 
 
 async def close_triton_client() -> None:
     """Fecha cliente gRPC aio se aberto."""
-    await _pool.close()
+    await close_triton_grpc_client()
 
 
 def _parse_raw_output(result: Any) -> float:
     """Extrai probabilidade bruta do resultado Triton."""
-    out = result.as_numpy(_OUTPUT_NAME)
+    out = getattr(result, "as_numpy", lambda _n: None)(_OUTPUT_NAME)
     if out is None:
         return 0.5
     flat = np.asarray(out, dtype=np.float32).reshape(-1)
@@ -92,37 +86,13 @@ def _parse_raw_output(result: Any) -> float:
     return max(0.0, min(1.0, val))
 
 
-async def infer_symbol_async(
-    config: dict,
-    symbol: str,
-    tensor: np.ndarray,
-) -> float:
+async def infer_symbol_async(config: dict, symbol: str, tensor: np.ndarray) -> float:
     """Executa inferencia gRPC para um simbolo e retorna probabilidade bruta."""
-    client = await get_triton_client(config)
-    batch = np.asarray(tensor, dtype=np.float32)
-    if batch.ndim == 2:
-        batch = batch.reshape(1, batch.shape[0], batch.shape[1])
-    inputs = [grpc_aio.InferInput(_INPUT_NAME, batch.shape, "FP32")]
-    inputs[0].set_data_from_numpy(batch)
-    outputs = [grpc_aio.InferRequestedOutput(_OUTPUT_NAME)]
-    try:
-        result = await client.infer(model_name=str(symbol), inputs=inputs, outputs=outputs)
-        return _parse_raw_output(result)
-    except InferenceServerException as exc:
-        logger.error("TRITON: inferencia falhou para %s: %s", symbol, exc)
-        raise
+    client = await get_triton_grpc_client(triton_grpc_url(config))
+    return await client.infer_symbol(str(symbol), tensor)
 
 
-async def infer_symbols_async(
-    config: dict,
-    tensors: dict[str, np.ndarray],
-) -> dict[str, float]:
+async def infer_symbols_async(config: dict, tensors: dict[str, np.ndarray]) -> dict[str, float]:
     """Inferencia gRPC concorrente para multiplos simbolos."""
-
-    async def _one(sym: str, arr: np.ndarray) -> tuple[str, float]:
-        """Executa inferencia para um par simbolo/tensor."""
-        prob = await infer_symbol_async(config, sym, arr)
-        return sym, prob
-
-    pairs = await asyncio.gather(*[_one(sym, arr) for sym, arr in tensors.items()])
-    return dict(pairs)
+    client = await get_triton_grpc_client(triton_grpc_url(config))
+    return await client.infer_symbols_concurrent(tensors)

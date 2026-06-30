@@ -18,6 +18,7 @@ class StateStore(Protocol):
         snapshot: dict[str, Any],
         session: dict[str, Any] | None = None,
         market_sig: str | None = None,
+        recovery_skip_counter: int | None = None,
     ) -> None:
         """Persiste snapshot, hashes e assinatura em transacao unica."""
 
