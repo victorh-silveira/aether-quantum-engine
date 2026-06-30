@@ -12,6 +12,8 @@ from src.application.services.deep_learning.dl_features import FEATURE_DIM
 from src.application.services.deep_learning.dl_model_checkpoint import _scripted_path
 from src.application.services.deep_learning.dl_params import parse_dl_params
 from src.application.services.deep_learning.dl_symbol_runtime import resolve_dl_model_path
+from src.infrastructure.inference.triton_inference_client import triton_enabled
+from src.infrastructure.inference.triton_model_sync import sync_all_symbols_to_triton
 
 
 logger = logging.getLogger("AETH")
@@ -62,6 +64,8 @@ async def bootstrap_and_validate_models(orch) -> None:
             )
         elif use_ts and not ts_path.is_file():
             logger.warning("DL: TorchScript ausente para %s; inferencia eager no runtime", sym)
+    if triton_enabled(orch.config):
+        await sync_all_symbols_to_triton(orch)
 
 
 async def upload_model_checkpoint(

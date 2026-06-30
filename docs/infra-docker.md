@@ -9,6 +9,20 @@ Stack local para o modo hibrido: motor no host, persistencia em containers.
 | Redis | 6379 | Estado, risco, assinaturas de vela |
 | TimescaleDB | 5432 | Ticks e barras OHLC |
 | MinIO | 9000 / 9001 | Checkpoints Deep Learning |
+| Triton (aether-triton) | 8000 / 8001 | Inferencia GPU TorchScript via gRPC |
+
+## GPU e Triton
+
+O servico `aether-triton` usa `nvcr.io/nvidia/tritonserver` com repositorio em `infra/docker/triton-models` (bind mount). Requer **NVIDIA Container Toolkit** no WSL2 para expor a GPU (ex.: RTX 4060).
+
+O motor sincroniza `latest_ts.pt` do MinIO para o layout Triton (`{symbol}/1/model.pt` + `config.pbtxt`) no bootstrap e envia inferencia gRPC assincrona quando `infra.triton.enabled` estiver ativo.
+
+Variaveis no `.env`:
+
+| Variavel | Uso |
+|----------|-----|
+| `AETHER_TRITON_GRPC` | Endpoint gRPC (padrao `localhost:8001`) |
+| `AETHER_TRITON_HTTP` | Health HTTP (padrao `localhost:8000`) |
 
 ## Subir
 
@@ -54,7 +68,8 @@ Bloco `infra` em `config/settings.json`:
   "fail_fast": true,
   "redis": { "url": "redis://localhost:6379/0", "key_prefix": "aether" },
   "timescale": { "dsn": "postgresql://aether:aether@localhost:5432/aether" },
-  "minio": { "endpoint": "localhost:9000", "bucket": "dl-models", "secure": false }
+  "minio": { "endpoint": "localhost:9000", "bucket": "dl-models", "secure": false },
+  "triton": { "enabled": true, "grpc_url": "localhost:8001", "http_url": "localhost:8000" }
 }
 ```
 

@@ -3,6 +3,7 @@
 import asyncio
 
 from src.application.services.execution_direction_fallback import build_mandatory_fallback_candidate
+from src.application.services.execution_entropy_fallback import pick_entropy_fallback_candidate
 from src.application.services.execution_mandatory_pick import pick_absolute_mandatory_candidate
 from src.application.services.execution_symbols import format_execution_alternates
 from src.application.services.execution_symbols_recovery import recovery_blocked_symbols
@@ -37,6 +38,13 @@ def mandatory_fallback_candidates(
     low_accuracy=True,
 ):
     """Monta lista com candidato forcado quando o pool DL fica vazio."""
+    entropy_pick = pick_entropy_fallback_candidate(
+        exec_mgr._trade_symbols(),
+        decisions,
+        skip_symbols=skip_symbols,
+    )
+    if entropy_pick is not None:
+        return [entropy_pick]
     fallback = build_mandatory_fallback_candidate(
         exec_mgr._trade_symbols(),
         decisions,

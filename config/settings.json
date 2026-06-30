@@ -283,6 +283,14 @@
       "endpoint": "localhost:9000",
       "bucket": "dl-models",
       "secure": false
+    },
+    "triton": {
+      "enabled": true,
+      "grpc_url": "localhost:8001",
+      "http_url": "localhost:8000",
+      "model_repo_path": "infra/docker/triton-models",
+      "correlation_refresh_cycles": 5,
+      "correlation_bars": 120
     }
   }
 }

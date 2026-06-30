@@ -1,13 +1,14 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from src.application.services.orchestrator.execution_collect import (
-    _gather_cluster_candidates,
-    cluster_entry_eligible,
-    collect_cluster_orders,
-)
+from src.application.services.orchestrator.execution_collect import collect_cluster_orders
+from src.application.services.orchestrator.execution_collect_gather import gather_cluster_candidates
+from src.application.services.orchestrator.execution_recovery_gate import cluster_entry_eligible
 from src.domain.models.trade import TradeDirection
 from tests.market_symbols import ANCHOR, PAIR
+
+
+_gather_cluster_candidates = gather_cluster_candidates
 
 
 def test_gather_cluster_candidates_skips_unbuildable_direction():
@@ -26,7 +27,6 @@ def test_gather_cluster_candidates_skips_unbuildable_direction():
     candidates = _gather_cluster_candidates(
         exec_mgr,
         decisions,
-        mandatory=False,
         recovery_active=False,
         recovery_cfg={},
         cid="C0001",
@@ -55,13 +55,12 @@ def test_gather_cluster_candidates_skips_when_build_returns_none():
         },
     }
     with patch(
-        "src.application.services.orchestrator.execution_collect.build_execution_candidate",
+        "src.application.services.orchestrator.execution_collect_gather.build_execution_candidate",
         return_value=None,
     ):
         candidates = _gather_cluster_candidates(
             exec_mgr,
             decisions,
-            mandatory=False,
             recovery_active=False,
             recovery_cfg={},
             cid="C0001",
@@ -71,7 +70,7 @@ def test_gather_cluster_candidates_skips_when_build_returns_none():
     assert candidates == []
 
 
-def test_collect_cluster_orders_skips_best_below_final_quality_floor():
+def test_collect_cluster_orders_keeps_best_after_quality_penalty_only():
     orch = SimpleNamespace(
         anchor=ANCHOR,
         symbols=[PAIR],
@@ -110,12 +109,11 @@ def test_collect_cluster_orders_skips_best_below_final_quality_floor():
         },
     }
     with patch(
-        "src.application.services.orchestrator.execution_collect.passes_execution_quality",
-        side_effect=[True, False],
+        "src.application.services.orchestrator.execution_collect_gather.apply_quality_penalty_to_metrics",
+        return_value=0.5,
     ):
         orders = collect_cluster_orders(exec_mgr, decisions)
-    assert orders == []
-    assert exec_mgr.logger.info.called
+    assert len(orders) == 1
 
 
 def test_collect_cluster_orders_inverts_on_grey_zone():

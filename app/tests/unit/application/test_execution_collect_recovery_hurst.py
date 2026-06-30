@@ -131,7 +131,7 @@ def test_recovery_hurst_blocks_collect_log_decay_unblocks_n3_severe_drawdown():
     assert blocked is False
 
 
-def test_collect_cluster_orders_skips_when_recovery_lacks_hurst_persistence():
+def test_collect_cluster_orders_keeps_candidate_when_recovery_lacks_hurst_persistence():
     orch = SimpleNamespace(
         anchor=ANCHOR,
         symbols=[ANCHOR, PAIR],
@@ -176,7 +176,7 @@ def test_collect_cluster_orders_skips_when_recovery_lacks_hurst_persistence():
     ]
     with (
         patch(
-            "src.application.services.orchestrator.execution_collect._gather_cluster_candidates",
+            "src.application.services.orchestrator.execution_collect.gather_cluster_candidates",
             return_value=low_hurst,
         ),
         patch(
@@ -185,5 +185,5 @@ def test_collect_cluster_orders_skips_when_recovery_lacks_hurst_persistence():
         ),
     ):
         orders = collect_cluster_orders(exec_mgr, {PAIR: {"direction": TradeDirection.CALL, "metrics": {}}})
-    assert orders == []
-    exec_mgr.logger.info.assert_called()
+    assert len(orders) == 1
+    assert orders[0][0] == PAIR

@@ -116,7 +116,7 @@ async def test_collect_predict_runs_each_cycle_same_candle():
             side_effect=AssertionError("should not train"),
         ) as mock_train,
         patch(
-            "src.application.services.deep_learning.dl_predict.predict_next_direction",
+            "src.application.services.deep_learning.dl_predict_build.predict_next_direction",
             return_value=(TradeDirection.CALL, 0.55, 0.58),
         ) as mock_predict,
     ):
@@ -186,7 +186,7 @@ async def test_collect_applies_symbol_loss_cooldown():
     }
     with (
         patch(
-            "src.application.services.deep_learning.dl_predict.predict_next_direction",
+            "src.application.services.deep_learning.dl_predict_build.predict_next_direction",
             return_value=(TradeDirection.CALL, 0.80, 0.80),
         ),
         patch(
@@ -230,7 +230,7 @@ async def test_collect_decisions_exceptions_and_load():
         dec = await collect_deep_learning_decisions(orch)
         assert "R_50" in dec
     with patch(
-        "src.application.services.deep_learning.dl_predict.predict_next_direction",
+        "src.application.services.deep_learning.dl_predict_build.predict_next_direction",
         side_effect=ValueError("Predict failed"),
     ):
         dec = await collect_deep_learning_decisions(orch)

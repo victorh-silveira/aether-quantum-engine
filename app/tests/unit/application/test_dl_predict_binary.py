@@ -21,7 +21,7 @@ def test_predict_executes_on_gray_zone_raw_prob():
     orch = type("O", (), {"config": {"deep_learning": {}, "orchestrator": {"execution": {}}}})()
     runtime = {"val_accuracy": 0.55, "val_brier": 0.2, "val_ece": 0.1, "lookback": 15, "deploy_ok": True}
     with patch(
-        "src.application.services.deep_learning.dl_predict.predict_next_direction",
+        "src.application.services.deep_learning.dl_predict_build.predict_next_direction",
         return_value=(None, 0.52, 0.52),
     ):
         entry = predict_symbol_decision(
@@ -52,7 +52,7 @@ def test_predict_executes_on_strong_call():
     orch = type("O", (), {"config": {"deep_learning": {}, "orchestrator": {"execution": {}}}})()
     runtime = {"val_accuracy": 0.55, "val_brier": 0.2, "val_ece": 0.1, "lookback": 15, "deploy_ok": True}
     with patch(
-        "src.application.services.deep_learning.dl_predict.predict_next_direction",
+        "src.application.services.deep_learning.dl_predict_build.predict_next_direction",
         return_value=(TradeDirection.CALL, 0.80, 0.80),
     ):
         entry = predict_symbol_decision(
@@ -81,7 +81,7 @@ def test_predict_weak_direction_still_executes():
     orch = type("O", (), {"config": {"deep_learning": {}, "orchestrator": {"execution": {}}}})()
     runtime = {"val_accuracy": 0.55, "val_brier": 0.2, "val_ece": 0.1, "lookback": 15, "deploy_ok": True}
     with patch(
-        "src.application.services.deep_learning.dl_predict.predict_next_direction",
+        "src.application.services.deep_learning.dl_predict_build.predict_next_direction",
         return_value=(None, 0.47, 0.47),
     ):
         entry = predict_symbol_decision(
@@ -129,7 +129,7 @@ def test_predict_includes_dynamic_threshold_metrics():
     )()
     runtime = {"val_accuracy": 0.55, "val_brier": 0.2, "val_ece": 0.1, "lookback": 15, "deploy_ok": True}
     with patch(
-        "src.application.services.deep_learning.dl_predict.predict_next_direction",
+        "src.application.services.deep_learning.dl_predict_build.predict_next_direction",
         return_value=(TradeDirection.CALL, 0.80, 0.80),
     ):
         entry = predict_symbol_decision(
@@ -174,7 +174,7 @@ def test_predict_includes_trend_metrics():
     runtime = {"val_accuracy": 0.55, "val_brier": 0.2, "val_ece": 0.1, "lookback": 15, "deploy_ok": True}
     prices = np.array([10.0, 5.0, 6.0, 3.0])
     with patch(
-        "src.application.services.deep_learning.dl_predict.predict_next_direction",
+        "src.application.services.deep_learning.dl_predict_build.predict_next_direction",
         return_value=(None, 0.52, 0.52),
     ):
         entry = predict_symbol_decision(
@@ -202,7 +202,7 @@ def test_predict_trend_conflict_does_not_block():
     runtime = {"val_accuracy": 0.55, "val_brier": 0.2, "val_ece": 0.1, "lookback": 15, "deploy_ok": True}
     prices = np.array([5.0, 5.0, 6.0, 9.0])
     with patch(
-        "src.application.services.deep_learning.dl_predict.predict_next_direction",
+        "src.application.services.deep_learning.dl_predict_build.predict_next_direction",
         return_value=(None, 0.45, 0.45),
     ):
         entry = predict_symbol_decision(

@@ -233,14 +233,14 @@ def test_collect_cluster_orders_skips_weak_signal_when_execute_false():
     exec_mgr = SimpleNamespace(
         orch=orch,
         logger=MagicMock(),
-        _mandatory_trade_each_cycle=lambda: False,
+        _mandatory_trade_each_cycle=lambda: True,
         _trade_symbols=lambda: [PAIR],
     )
     decisions = {
         PAIR: {"direction": TradeDirection.CALL, "metrics": {"raw_prob": 0.4, "execute": False, "deploy_ok": True}},
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
-    assert len(orders) == 0
+    assert len(orders) == 1
 
 
 def test_collect_cluster_orders_mandatory_does_not_skip_recovery_without_hedge():

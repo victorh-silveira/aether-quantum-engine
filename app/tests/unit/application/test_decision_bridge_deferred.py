@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
 import pytest
@@ -29,7 +29,11 @@ async def test_collect_skips_new_candle_train_on_fast_cycle(orch_ready_train):
             "src.application.services.deep_learning.decision_bridge.should_retrain_symbol",
             return_value=(True, "new_candle"),
         ),
-        patch("src.application.services.deep_learning.decision_bridge.predict_symbol_decision", return_value=entry),
+        patch(
+            "src.application.services.deep_learning.decision_bridge.predict_symbol_decision",
+            new_callable=AsyncMock,
+            return_value=entry,
+        ),
         patch(
             "src.application.services.deep_learning.decision_bridge.enqueue_deferred_symbol_training"
         ) as mock_enqueue,
@@ -60,7 +64,11 @@ async def test_collect_defers_bootstrap_without_fast_cycle(orch_ready_train):
             "src.application.services.deep_learning.decision_bridge.should_retrain_symbol",
             return_value=(True, "bootstrap"),
         ),
-        patch("src.application.services.deep_learning.decision_bridge.predict_symbol_decision", return_value=entry),
+        patch(
+            "src.application.services.deep_learning.decision_bridge.predict_symbol_decision",
+            new_callable=AsyncMock,
+            return_value=entry,
+        ),
         patch(
             "src.application.services.deep_learning.decision_bridge.enqueue_deferred_symbol_training"
         ) as mock_enqueue,
@@ -91,7 +99,11 @@ async def test_collect_bootstrap_only_enqueues_first_pending_symbol(orch_ready_t
             "src.application.services.deep_learning.decision_bridge.should_retrain_symbol",
             return_value=(True, "bootstrap"),
         ),
-        patch("src.application.services.deep_learning.decision_bridge.predict_symbol_decision", return_value=entry),
+        patch(
+            "src.application.services.deep_learning.decision_bridge.predict_symbol_decision",
+            new_callable=AsyncMock,
+            return_value=entry,
+        ),
         patch(
             "src.application.services.deep_learning.decision_bridge.training_priority_symbols",
             return_value=frozenset(orch.symbols),
@@ -128,7 +140,11 @@ async def test_collect_skips_bootstrap_defer_after_initial_bootstrap(orch_ready_
             "src.application.services.deep_learning.decision_bridge.should_retrain_symbol",
             return_value=(True, "bootstrap"),
         ),
-        patch("src.application.services.deep_learning.decision_bridge.predict_symbol_decision", return_value=entry),
+        patch(
+            "src.application.services.deep_learning.decision_bridge.predict_symbol_decision",
+            new_callable=AsyncMock,
+            return_value=entry,
+        ),
         patch(
             "src.application.services.deep_learning.decision_bridge.enqueue_deferred_symbol_training"
         ) as mock_enqueue,
@@ -158,7 +174,11 @@ async def test_collect_defers_retrain_when_fast_cycle(orch_ready_train):
         patch("src.application.services.deep_learning.decision_bridge.load_symbol_close_ohlc", return_value=ohlc),
         patch("src.application.services.deep_learning.decision_bridge.get_symbol_runtime", return_value=runtime),
         patch("src.application.services.deep_learning.decision_bridge.candle_epoch", return_value=100),
-        patch("src.application.services.deep_learning.decision_bridge.predict_symbol_decision", return_value=entry),
+        patch(
+            "src.application.services.deep_learning.decision_bridge.predict_symbol_decision",
+            new_callable=AsyncMock,
+            return_value=entry,
+        ),
         patch(
             "src.application.services.deep_learning.decision_bridge.enqueue_deferred_symbol_training"
         ) as mock_enqueue,

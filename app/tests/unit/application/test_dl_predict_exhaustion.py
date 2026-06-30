@@ -27,11 +27,11 @@ def test_predict_exhaustion_does_not_block_execution():
 
     with (
         patch(
-            "src.application.services.deep_learning.dl_predict.predict_next_direction",
+            "src.application.services.deep_learning.dl_predict_build.predict_next_direction",
             return_value=(TradeDirection.PUT, 0.40, 0.40),
         ),
         patch(
-            "src.application.services.deep_learning.dl_predict.precompute_price_series",
+            "src.application.services.deep_learning.dl_predict_build.precompute_price_series",
             return_value={
                 "rsi": [0.25],
                 "adx": [0.15],

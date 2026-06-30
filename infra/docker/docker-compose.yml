@@ -56,6 +56,33 @@ services:
     networks:
       - aether-net
 
+  aether-triton:
+    image: nvcr.io/nvidia/tritonserver:24.10-py3
+    container_name: aether-triton
+    command: ["tritonserver", "--model-repository=/models", "--allow-gpu-metrics=true"]
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+    volumes:
+      - ./triton-models:/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    depends_on:
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v2/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    networks:
+      - aether-net
+
 volumes:
   aether_redis_data:
   aether_ts_data:

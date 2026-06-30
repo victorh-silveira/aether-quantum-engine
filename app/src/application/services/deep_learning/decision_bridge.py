@@ -19,7 +19,7 @@ from src.application.services.deep_learning.dl_gate_config import parse_deploy_g
 from src.application.services.deep_learning.dl_market_data import load_symbol_close_ohlc, load_symbol_microstructure
 from src.application.services.deep_learning.dl_outcomes import tick_dl_session_pauses
 from src.application.services.deep_learning.dl_params import slice_dl_ohlc_window
-from src.application.services.deep_learning.dl_predict import predict_symbol_decision
+from src.application.services.deep_learning.dl_predict_async import predict_symbol_decision_async
 from src.application.services.deep_learning.dl_retrain import should_retrain_symbol
 from src.application.services.deep_learning.dl_symbol_runtime import (
     candle_epoch,
@@ -35,6 +35,8 @@ from src.application.services.deep_learning.dl_training_gate import (
 )
 from src.application.services.orchestrator.engine_mode import training_enabled
 
+
+predict_symbol_decision = predict_symbol_decision_async
 
 __all__ = [
     "collect_deep_learning_decisions",
@@ -214,8 +216,7 @@ async def _collect_symbol_decision(
     )
     norm_stats = runtime["norm_stats"]
 
-    entry = await asyncio.to_thread(
-        predict_symbol_decision,
+    entry = await predict_symbol_decision(
         orch,
         symbol,
         runtime["model"],
@@ -257,8 +258,8 @@ async def collect_deep_learning_decisions(orch) -> dict[str, dict]:
     train_priority = training_priority_symbols(orch, dl_config, params)
     orch._dl_training_symbols = train_priority
 
-    for symbol in orch.symbols:
-        entry, reason = await _collect_symbol_decision(
+    tasks = [
+        _collect_symbol_decision(
             orch,
             symbol,
             dl_config=dl_config,
@@ -268,6 +269,10 @@ async def collect_deep_learning_decisions(orch) -> dict[str, dict]:
             recovery_active=recovery_active,
             train_priority=train_priority,
         )
+        for symbol in orch.symbols
+    ]
+    results = await asyncio.gather(*tasks)
+    for symbol, (entry, reason) in zip(orch.symbols, results, strict=True):
         decisions[symbol] = entry
         if reason:
             trained.append(symbol)

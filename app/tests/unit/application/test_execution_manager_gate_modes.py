@@ -110,11 +110,10 @@ def test_collect_orders_non_mandatory_includes_candidate_with_raw_prob(orch_conf
         assert len(orders) == 1
 
 
-def test_collect_orders_non_mandatory_skips_weak_technically_valid_candidate(orch_config):
+def test_collect_orders_continuous_keeps_weak_technically_valid_candidate(orch_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
-        orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = False
         orch.symbols = ["R_50"]
         orch.config["deep_learning"] = {
             "min_edge_execute": 0.04,
@@ -135,7 +134,7 @@ def test_collect_orders_non_mandatory_skips_weak_technically_valid_candidate(orc
             },
         }
         orders = orch.executor._collect_orders(decisions)
-        assert len(orders) == 0
+        assert len(orders) == 1
 
 
 def test_collect_orders_non_mandatory_keeps_filtered_candidate(orch_config):

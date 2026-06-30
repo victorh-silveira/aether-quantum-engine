@@ -17,6 +17,7 @@ from src.application.services.deep_learning.model import (
     fit_norm_stats,
     load_model_checkpoint,
 )
+from src.infrastructure.inference.triton_inference_client import triton_enabled
 
 
 logger = logging.getLogger("AETH")
@@ -102,8 +103,9 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
             val_brier = 1.0
             val_ece = 1.0
         inference_device = resolve_torch_device(dl_config, kind="inference")
-        place_model(model, inference_device)
-        log_device_once(inference_device, context="inferencia")
+        if not triton_enabled(orch.config):
+            place_model(model, inference_device)
+            log_device_once(inference_device, context="inferencia")
         orch._dl_runtime[symbol] = {
             "model": model,
             "norm_stats": norm_stats,

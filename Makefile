@@ -42,7 +42,7 @@ help:
 	@echo -e "  $(GREEN)help / helpo$(RESET) 		- Exibe este menu de ajuda interativo"
 	@echo -e ""
 	@echo -e "$(YELLOW)Docker:$(RESET)"
-	@echo -e "  $(GREEN)docker-up$(RESET)    - Sobe Redis, TimescaleDB e MinIO"
+	@echo -e "  $(GREEN)docker-up$(RESET)    - Sobe Redis, TimescaleDB, MinIO e Triton (GPU)"
 	@echo -e "  $(GREEN)docker-down$(RESET)  - Para e remove containers"
 	@echo -e "  $(GREEN)docker-ps$(RESET)    - Status dos containers"
 	@echo -e "  $(GREEN)docker-logs$(RESET)  - Logs (DOCKER_SERVICE=redis F=1)"

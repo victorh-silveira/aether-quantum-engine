@@ -2,14 +2,21 @@
 
 from __future__ import annotations
 
-import contextlib
 from functools import partial
 
+from src.application.services.execution_direction_cross_corr import adjust_dl_weight_with_correlation
 from src.application.services.execution_direction_expansion_veto import apply_expansion_inversion_veto
+from src.application.services.execution_direction_resolver_bias import (
+    exhaustion_bias as _exhaustion_bias,
+    indicator_regime_bias as _indicator_regime_bias,
+    trend_bias as _trend_bias,
+    val_accuracy_bias as _val_accuracy_bias,
+)
 from src.application.services.execution_direction_scoring import (
     accumulate_direction_scores,
     finalize_direction_metrics,
 )
+from src.application.services.execution_direction_softmax_conflict import resolve_softmax_exhaustion_conflict
 from src.application.services.execution_entropy_adaptive import resolve_dl_entropy_penalty
 from src.application.services.execution_exhaustion_conflict import exhaustion_conflict_penalty
 from src.application.services.execution_exhaustion_hard_gate import (
@@ -127,78 +134,6 @@ def _dl_call_put_scores(
     return 0.5 + (prob_f - pivot) * w_eff, 0.5 + (pivot - prob_f) * w_eff
 
 
-def _val_accuracy_bias(metrics: dict, weights: dict) -> tuple[float, float]:
-    """Aplica bias de val_accuracy ao score lateral."""
-    val = _clamp01(float(metrics.get("val_accuracy", 0.5)))
-    w = float(weights["val_accuracy_weight"])
-    bias = (val - 0.5) * w
-    return 0.5 + bias, 0.5 - bias
-
-
-def _trend_bias(metrics: dict, weights: dict) -> tuple[float, float, str | None]:
-    """Ajusta score conforme alinhamento com tendencia de mercado."""
-    trend_str = metrics.get("trend_direction")
-    if not trend_str:
-        return 0.5, 0.5, None
-    indicators = metrics.get("indicators") or {}
-    vol_ratio = float(indicators.get("vol_ratio", 1.0))
-    adx = float(indicators.get("adx", 0.5))
-    if vol_ratio < 0.85 and adx < 0.25:
-        return 0.5, 0.5, None
-    w = float(weights["trend_weight"])
-    with contextlib.suppress(KeyError, ValueError):
-        trend_dir = TradeDirection[str(trend_str).upper()]
-        if trend_dir == TradeDirection.CALL:
-            return 0.5 + w, 0.5 - w, "trend_bias"
-        return 0.5 - w, 0.5 + w, "trend_bias"
-    return 0.5, 0.5, None
-
-
-def _exhaustion_bias(
-    metrics: dict,
-    weights: dict,
-    *,
-    cfg: dict | None = None,
-) -> tuple[float, float, str | None]:
-    """Empurra direcao oposta em extremos de RSI/Keltner configuraveis."""
-    gate = (cfg or {}).get("exhaustion_gate") if isinstance(cfg, dict) else {}
-    gate = gate if isinstance(gate, dict) else {}
-    indicators = metrics.get("indicators") or {}
-    rsi = float(indicators.get("rsi", 0.5))
-    keltner = float(indicators.get("keltner", 0.5))
-    rsi_os = float(gate.get("rsi_oversold", 0.28))
-    rsi_ob = float(gate.get("rsi_overbought", 0.73))
-    k_os = float(gate.get("keltner_oversold", -0.15))
-    k_ob = float(gate.get("keltner_overbought", 1.15))
-    w = float(weights["exhaustion_weight"])
-    if rsi < rsi_os or keltner < k_os:
-        return 0.5 + w, 0.5 - w, "exhaustion_flip"
-    if rsi > rsi_ob or keltner > k_ob:
-        return 0.5 - w, 0.5 + w, "exhaustion_flip"
-    return 0.5, 0.5, None
-
-
-def _indicator_regime_bias(metrics: dict, weights: dict) -> tuple[float, float, str | None]:
-    """Aplica pesos de regime (hurst, adx, vol_ratio, cmo) ao score."""
-    indicators = metrics.get("indicators") or {}
-    hurst = float(indicators.get("hurst", 0.5))
-    adx = float(indicators.get("adx", 0.5))
-    vol_ratio = float(indicators.get("vol_ratio", 1.0))
-    rsi = float(indicators.get("rsi", 0.5))
-    w = float(weights["indicator_regime_weight"])
-    if hurst < 0.48 and adx < 0.25 and vol_ratio < 1.0:
-        if rsi < 0.45:
-            return 0.5 + w, 0.5 - w, "mean_reversion"
-        if rsi > 0.55:
-            return 0.5 - w, 0.5 + w, "mean_reversion"
-    cmo = float(indicators.get("cmo", 0.0))
-    if cmo > 0.08:
-        return 0.5 + w * 0.5, 0.5 - w * 0.5, "indicator_regime"
-    if cmo < -0.08:
-        return 0.5 - w * 0.5, 0.5 + w * 0.5, "indicator_regime"
-    return 0.5, 0.5, None
-
-
 def _low_val_accuracy_bias(entry: dict, metrics: dict, weights: dict) -> tuple[float, float, str | None]:
     """Inverte bias lateral quando val_accuracy esta abaixo de 0.5."""
     val_acc = float(metrics.get("val_accuracy", 0.5))
@@ -220,6 +155,8 @@ def resolve_execution_direction(
     exec_cfg: dict | None = None,
     calibration_cfg: dict | None = None,
     recovery_active: bool = False,
+    symbol: str | None = None,
+    corr_matrix: dict[tuple[str, str], float] | None = None,
 ) -> tuple[TradeDirection, dict] | None:
     """Resolve CALL ou PUT por score composto; retorna None apenas se sem probabilidade."""
     if is_technically_blocked(entry):
@@ -233,6 +170,16 @@ def resolve_execution_direction(
     cal_cfg = calibration_cfg if isinstance(calibration_cfg, dict) else {}
     dynamic_cfg = cfg.get("dynamic_threshold") if isinstance(cfg.get("dynamic_threshold"), dict) else {}
     weights = _scoring_weights(cfg)
+    qchunk = cfg.get("quality_gate") if isinstance(cfg.get("quality_gate"), dict) else {}
+    min_margin = float(qchunk.get("min_direction_margin", 0.05)) if isinstance(qchunk, dict) else 0.05
+    if corr_matrix and symbol:
+        weights = adjust_dl_weight_with_correlation(
+            weights,
+            str(symbol),
+            metrics,
+            corr_matrix,
+            min_margin=min_margin,
+        )
     dl_scores_fn = partial(
         _dl_call_put_scores,
         calibration_cfg=cal_cfg,
@@ -277,4 +224,12 @@ def resolve_execution_direction(
     metrics["exhaustion_conflict"] = conflict
     metrics["exhaustion_penalty"] = penalty
     metrics["direction_hints"] = hints
+    exec_dir, metrics = resolve_softmax_exhaustion_conflict(
+        exec_dir,
+        dl_dir,
+        metrics,
+        call_score=call_score,
+        put_score=put_score,
+        exec_cfg=cfg,
+    )
     return exec_dir, metrics

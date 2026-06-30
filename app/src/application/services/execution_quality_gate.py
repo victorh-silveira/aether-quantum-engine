@@ -114,7 +114,7 @@ def passes_execution_quality(
     recovery_skip_counter: int = 0,
     session_drawdown: float = 0.0,
 ) -> bool:
-    """Indica se metricas pos-resolucao atendem pisos de conviccao e clareza direcional."""
+    """Indica se metricas atendem pisos de qualidade (legado para testes)."""
     if not passes_squeeze_gate(metrics, cfg=dynamic_threshold_cfg):
         return False
     return not _quality_failures(
@@ -132,3 +132,91 @@ def passes_execution_quality(
         recovery_skip_counter=recovery_skip_counter,
         session_drawdown=session_drawdown,
     )
+
+
+def quality_gate_penalty(
+    metrics: dict,
+    *,
+    min_signal: float,
+    min_val: float,
+    min_edge: float,
+    min_direction_margin: float = 0.0,
+    inverted_min_score: float = 0.0,
+    min_adx_normal: float = 0.0,
+    recovery_active: bool = False,
+    dynamic_threshold_cfg: dict | None = None,
+    exhaustion_gate_cfg: dict | None = None,
+    recovery_kelly_cfg: dict | None = None,
+    consecutive_losses: int = 0,
+    recovery_skip_counter: int = 0,
+    session_drawdown: float = 0.0,
+) -> float:
+    """Penalidade composta em [0, 1] quando pisos de qualidade nao sao atingidos."""
+    penalties: list[float] = []
+    if not passes_squeeze_gate(metrics, cfg=dynamic_threshold_cfg):
+        penalties.append(0.35)
+    if _quality_failures(
+        metrics,
+        min_signal=min_signal,
+        min_val=min_val,
+        min_edge=min_edge,
+        min_direction_margin=min_direction_margin,
+        inverted_min_score=inverted_min_score,
+        min_adx_normal=min_adx_normal,
+        recovery_active=recovery_active,
+        exhaustion_gate_cfg=exhaustion_gate_cfg,
+        recovery_kelly_cfg=recovery_kelly_cfg,
+        consecutive_losses=consecutive_losses,
+        recovery_skip_counter=recovery_skip_counter,
+        session_drawdown=session_drawdown,
+    ):
+        penalties.append(0.45)
+    if not penalties:
+        return 0.0
+    return min(1.0, sum(penalties))
+
+
+def apply_quality_penalty_to_metrics(
+    metrics: dict,
+    *,
+    min_signal: float,
+    min_val: float,
+    min_edge: float,
+    min_direction_margin: float = 0.0,
+    inverted_min_score: float = 0.0,
+    min_adx_normal: float = 0.0,
+    recovery_active: bool = False,
+    dynamic_threshold_cfg: dict | None = None,
+    exhaustion_gate_cfg: dict | None = None,
+    recovery_kelly_cfg: dict | None = None,
+    consecutive_losses: int = 0,
+    recovery_skip_counter: int = 0,
+    session_drawdown: float = 0.0,
+) -> float:
+    """Aplica penalidade de qualidade ao trade_score sem bloquear execucao."""
+    penalty = quality_gate_penalty(
+        metrics,
+        min_signal=min_signal,
+        min_val=min_val,
+        min_edge=min_edge,
+        min_direction_margin=min_direction_margin,
+        inverted_min_score=inverted_min_score,
+        min_adx_normal=min_adx_normal,
+        recovery_active=recovery_active,
+        dynamic_threshold_cfg=dynamic_threshold_cfg,
+        exhaustion_gate_cfg=exhaustion_gate_cfg,
+        recovery_kelly_cfg=recovery_kelly_cfg,
+        consecutive_losses=consecutive_losses,
+        recovery_skip_counter=recovery_skip_counter,
+        session_drawdown=session_drawdown,
+    )
+    if penalty <= 0.0:
+        return 0.0
+    metrics["quality_gate_penalty"] = penalty
+    for key in ("trade_score", "conviction"):
+        if key in metrics and metrics[key] is not None:
+            metrics[key] = max(0.0, float(metrics[key]) * (1.0 - penalty))
+    if penalty >= 0.35:
+        metrics["execution_mode"] = metrics.get("execution_mode") or "EXEC_FALLBACK"
+        metrics["fallback_reason"] = metrics.get("fallback_reason") or "qualidade_baixa"
+    return penalty

@@ -27,3 +27,6 @@ SELECT create_hypertable('ohlc_bars', 'time', if_not_exists => TRUE);
 
 CREATE UNIQUE INDEX IF NOT EXISTS ohlc_bars_symbol_epoch
   ON ohlc_bars (symbol, epoch, granularity, time);
+
+CREATE INDEX IF NOT EXISTS ohlc_bars_symbol_gran_time
+  ON ohlc_bars (symbol, granularity, time DESC);

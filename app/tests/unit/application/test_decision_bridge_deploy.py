@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
 import pytest
@@ -28,6 +28,7 @@ async def test_collect_blocks_execute_when_deploy_not_ok():
         ),
         patch(
             "src.application.services.deep_learning.decision_bridge.predict_symbol_decision",
+            new_callable=AsyncMock,
             return_value=entry,
         ),
         patch(
@@ -92,6 +93,7 @@ async def test_collect_gives_training_slot_priority_to_untrained_symbols():
         ),
         patch(
             "src.application.services.deep_learning.decision_bridge.predict_symbol_decision",
+            new_callable=AsyncMock,
             return_value=entry,
         ),
         patch(
@@ -140,6 +142,7 @@ async def test_collect_enqueues_all_symbols_when_none_in_training():
         ),
         patch(
             "src.application.services.deep_learning.decision_bridge.predict_symbol_decision",
+            new_callable=AsyncMock,
             return_value=entry,
         ),
         patch(
@@ -185,6 +188,7 @@ async def test_collect_marks_symbol_in_training_until_first_valid_train():
         ),
         patch(
             "src.application.services.deep_learning.decision_bridge.predict_symbol_decision",
+            new_callable=AsyncMock,
             return_value=entry,
         ),
         patch(

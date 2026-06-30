@@ -21,6 +21,10 @@
 * **risk:** defer martingale obrigatorio em vol > 1.10 (N2+), teto 2.5% banca por ordem deferida
 * **risk:** decaimento logaritmico do piso Hurst em recovery N3+ com drawdown severo de sessao
 * **infra:** auditoria FEAT_DIM via manifest MinIO e forward pass multi-probe (Z-scores extremos) no startup
+* **infra:** container `aether-triton` (GPU) com inferencia gRPC assincrona; sync MinIO para `infra/docker/triton-models`
+* **execution:** trading continuo obrigatorio (`CONTINUOUS`); quality gate virou penalidade sem SKIP operacional
+* **execution:** fallback por menor entropia de Shannon (`EXEC_FALLBACK`) e resolucao Softmax em conflito DL/exaustao (`EXEC_DIVERGENT`)
+* **execution:** peso DL ajustado por matriz de correlacao cruzada (TimescaleDB + cache Redis)
 
 ## [1.16.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.15.0...v1.16.0) (2026-06-29)
 

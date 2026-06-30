@@ -94,8 +94,12 @@ def test_collect_cluster_orders_mandatory_returns_empty_when_fallback_missing():
     }
     with (
         patch(
-            "src.application.services.orchestrator.execution_collect._gather_cluster_candidates",
+            "src.application.services.orchestrator.execution_collect.gather_cluster_candidates",
             return_value=[],
+        ),
+        patch(
+            "src.application.services.orchestrator.execution_collect_helpers.pick_entropy_fallback_candidate",
+            return_value=None,
         ),
         patch(
             "src.application.services.orchestrator.execution_collect_helpers.build_mandatory_fallback_candidate",
@@ -199,7 +203,7 @@ def test_collect_cluster_orders_returns_empty_when_only_blocked_symbols_remain()
     }
     with (
         patch(
-            "src.application.services.orchestrator.execution_collect._gather_cluster_candidates",
+            "src.application.services.orchestrator.execution_collect.gather_cluster_candidates",
             return_value=[blocked_candidate],
         ),
         patch(
@@ -239,7 +243,7 @@ def test_collect_cluster_orders_uses_ultimate_fallback_when_select_empty():
     fallback = (PAIR, TradeDirection.PUT, {"trade_score": 0.55, "dl_direction": "PUT", "exec_direction": "PUT"})
     with (
         patch(
-            "src.application.services.orchestrator.execution_collect._gather_cluster_candidates",
+            "src.application.services.orchestrator.execution_collect.gather_cluster_candidates",
             return_value=pool,
         ),
         patch(

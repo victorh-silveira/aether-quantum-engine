@@ -86,6 +86,16 @@ def _vol_recovery_context(rm: Any, dl_metrics: dict | None) -> tuple[float, int]
     return float(indicators.get("vol_ratio", 1.0)), int(getattr(rm, "consecutive_losses", 0))
 
 
+def _apply_kelly_fraction_scale(f_star: float, dl_metrics: dict | None) -> float:
+    """Atenua fracao Kelly quando resolver sinaliza execucao defensiva."""
+    if not isinstance(dl_metrics, dict):
+        return f_star
+    frac_scale = float(dl_metrics.get("kelly_fraction_scale", 1.0))
+    if frac_scale < 1.0:
+        return f_star * max(0.0, frac_scale)
+    return f_star
+
+
 def calculate_stake_for_manager(
     rm: Any,
     bankroll: float,
@@ -138,6 +148,7 @@ def calculate_stake_for_manager(
                 int(dl_metrics.get("put_votes", 0)),
             )
         f_star *= retention
+    f_star = _apply_kelly_fraction_scale(f_star, dl_metrics)
     stake_min = float(rm.risk_params.get("stake_min", 1.0))
     kelly_base = clamp_kelly_stake(bankroll, bankroll * f_star, rm.kelly_config, sizing_conviction)
     dl_execute = not isinstance(dl_metrics, dict) or bool(dl_metrics.get("execute", True))

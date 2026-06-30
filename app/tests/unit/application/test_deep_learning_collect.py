@@ -111,7 +111,7 @@ def test_predict_symbol_decision_executes_on_confidence():
         "lookback": 15,
     }
     with patch(
-        "src.application.services.deep_learning.dl_predict.predict_next_direction",
+        "src.application.services.deep_learning.dl_predict_build.predict_next_direction",
         return_value=(TradeDirection.CALL, 0.80, 0.80),
     ):
         orch = type("O", (), {"config": {"deep_learning": {}}})()

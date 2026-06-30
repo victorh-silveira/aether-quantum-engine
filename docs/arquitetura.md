@@ -66,7 +66,7 @@ flowchart LR
 
 ### 2.4 Infraestrutura hibrida
 
-Com `infra.enabled: true`, o motor valida Redis, TimescaleDB e MinIO em `localhost` antes do WebSocket (fail-fast). Estado de risco e sessao persistem em Redis via pipeline atomico (`redis_state_pipeline.write_state_bundle`); ticks e barras vao para Timescale; checkpoints DL sincronizam com MinIO mantendo cache local em `data/dl/`. Antes de abrir o WebSocket Deriv, `bootstrap_and_validate_models` baixa `{symbol}.pth` e `latest_ts.pt`, carrega `manifest.json` (schema `feature_dim`, `lookback`, `norm_mean`/`norm_std`) e executa forward pass multi-probe em TorchScript (`torchscript_sanity` com Z-scores extremos); falha rapido se o artefato estiver corrompido ou dimensionado incorretamente. Ver [`infra-docker.md`](infra-docker.md).
+Com `infra.enabled: true`, o motor valida Redis, TimescaleDB e MinIO em `localhost` antes do WebSocket (fail-fast). Estado de risco e sessao persistem em Redis via pipeline atomico (`redis_state_pipeline.write_state_bundle`); ticks e barras vao para Timescale; checkpoints DL sincronizam com MinIO mantendo cache local em `data/dl/`. Antes de abrir o WebSocket Deriv, `bootstrap_and_validate_models` baixa `{symbol}.pth` e `latest_ts.pt`, carrega `manifest.json` (schema `feature_dim`, `lookback`, `norm_mean`/`norm_std`) e executa forward pass multi-probe em TorchScript (`torchscript_sanity` com Z-scores extremos); falha rapido se o artefato estiver corrompido ou dimensionado incorretamente. Com `infra.triton.enabled`, artefatos TorchScript sao espelhados em `infra/docker/triton-models` e a inferencia de producao ocorre via gRPC assincrono no container `aether-triton` (portas 8000/8001, GPU). Ver [`infra-docker.md`](infra-docker.md).
 
 Redis local usa AOF `appendfsync everysec` (`infra/docker/redis.conf`). `make docker-up` aplica `host-prereq.sh` (`vm.overcommit_memory=1` no WSL).
 
@@ -119,7 +119,8 @@ Normalização anti-leakage: `fit_norm_stats` somente no split de treino walk-fo
 - Arquitetura: **`tcn`** (padrão), **`lstm`** ou **`gru`** via `deep_learning.arch`.
 - Saída: probabilidade bruta de alta (`raw_prob`).
 - Checkpoint v4 em `data/dl/{symbol}.pth` + TorchScript `{symbol}_ts.pt` (espelho MinIO `latest_ts.pt`).
-- `dl_symbol_runtime.py` prefere modelo scripted; fallback eager quando `_ts.pt` ausente.
+- `dl_symbol_runtime.py` mantém estado de treino/calibracao; inferencia de producao via Triton quando `infra.triton.enabled`.
+- `collect_cluster_orders` opera em modo continuo: penalidade de qualidade em vez de SKIP; fallback por entropia minima.
 
 ### 3.3 Treino walk-forward
 

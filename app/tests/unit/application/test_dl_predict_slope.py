@@ -42,7 +42,7 @@ def test_predict_trend_slope():
     # Como 11.0 >= 10.5, deve retornar CALL
     prices_up = np.array([10.0, 11.0, 12.0])
     with patch(
-        "src.application.services.deep_learning.dl_predict.predict_next_direction",
+        "src.application.services.deep_learning.dl_predict_build.predict_next_direction",
         return_value=(None, 0.52, 0.52),
     ):
         entry = predict_symbol_decision(
@@ -64,7 +64,7 @@ def test_predict_trend_slope():
     # Como 11.0 < 11.5, deve retornar PUT
     prices_down = np.array([12.0, 11.0, 10.0])
     with patch(
-        "src.application.services.deep_learning.dl_predict.predict_next_direction",
+        "src.application.services.deep_learning.dl_predict_build.predict_next_direction",
         return_value=(None, 0.52, 0.52),
     ):
         entry = predict_symbol_decision(
@@ -98,7 +98,7 @@ def test_predict_trend_slope():
         },
     )()
     with patch(
-        "src.application.services.deep_learning.dl_predict.predict_next_direction",
+        "src.application.services.deep_learning.dl_predict_build.predict_next_direction",
         return_value=(None, 0.52, 0.52),
     ):
         entry = predict_symbol_decision(

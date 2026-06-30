@@ -16,7 +16,7 @@ def emit_decision_engine_banner(
     dl_cfg = config.get("deep_learning") or {}
     if decision_mode == "deep_learning":
         exec_cfg = config.get("orchestrator", {}).get("execution", {})
-        mandatory = bool(exec_cfg.get("mandatory_trade_each_cycle", False))
+        _ = exec_cfg
         hist = dl_cfg.get("training_history_bars")
         if hist is None:
             data_cfg = config.get("data_handler") or {}
@@ -40,7 +40,7 @@ def emit_decision_engine_banner(
             risk_params.get("duration", 60),
             risk_params.get("duration_unit", "s"),
             online,
-            mandatory,
+            "CONTINUOUS",
         )
     else:
         logger.debug(

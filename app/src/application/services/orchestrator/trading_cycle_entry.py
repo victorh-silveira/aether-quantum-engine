@@ -13,6 +13,7 @@ from src.application.services.orchestrator.engine_mode import ENGINE_MODE_TRAIN,
 from src.application.services.orchestrator.orchestrator_state_restore import mark_bar_processed
 from src.application.services.strategy.decision_mode import resolve_decision_mode
 from src.domain.risk.stop_win_target import resolve_stop_win_target
+from src.infrastructure.market.timescale_correlation_worker import refresh_correlation_cache, start_correlation_worker
 
 
 def _orchestrator_cfg(orch: Any) -> dict:
@@ -110,6 +111,7 @@ def prepare_orchestrator_run_loop(orch: Any) -> None:
     orch._dl_bootstrap_completed = prepare_inference_run_loop(orch)
     mode = resolve_decision_mode(orch.config)
     emit_decision_engine_banner(orch.logger, orch.config, decision_mode=mode)
+    start_correlation_worker(orch)
     if mode == "deep_learning" and not orch._dl_bootstrap_completed:
         try_enqueue_next_bootstrap_training(orch)
     orch.logger.debug(
@@ -156,6 +158,14 @@ async def run_trading_cycle_if_ready(orch: Any) -> bool:
                 len(orch.symbols),
             )
             decisions = await collect_deep_learning_decisions(orch)
+            if (
+                int(orch._cycle_seq)
+                % max(
+                    1, int((orch.config.get("infra", {}).get("triton", {}) or {}).get("correlation_refresh_cycles", 5))
+                )
+                == 0
+            ):
+                await refresh_correlation_cache(orch)
             await orch.executor.execute_cluster(decisions)
     except Exception as e:
         orch.logger.error(f"FALHA: Ciclo: {e}")

@@ -1,5 +1,5 @@
 import logging
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
 import pytest
@@ -124,6 +124,7 @@ async def test_collect_symbol_decision_full_path():
         ) as mock_enqueue,
         patch(
             "src.application.services.deep_learning.decision_bridge.predict_symbol_decision",
+            new_callable=AsyncMock,
             return_value=entry,
         ),
         patch(
@@ -198,6 +199,7 @@ async def test_collect_symbol_decision_resamples_m1_to_m5():
         ),
         patch(
             "src.application.services.deep_learning.decision_bridge.predict_symbol_decision",
+            new_callable=AsyncMock,
             return_value=entry,
         ),
         patch(
