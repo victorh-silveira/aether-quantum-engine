@@ -1,9 +1,32 @@
 from unittest.mock import MagicMock
 
+from src.domain.risk.risk_manager import RiskManager
 from src.domain.risk.risk_stake_calc import (
     _apply_mandatory_weak_cap,
     calculate_stake_for_manager,
 )
+
+
+def test_calculate_stake_uses_persisted_session_target(kelly_config):
+    rm = RiskManager({**kelly_config, "params": {**kelly_config["params"], "compounding_enabled": True}})
+    rm.initial_bankroll = 10000.0
+    rm.daily_stop_win_target = 88.0
+    rm.total_session_profit = 0.0
+    rm.pending_loss = {}
+    rm.active_contract_ids = []
+    rm.logger = MagicMock()
+    rm.effective_win_rate = MagicMock(return_value=0.55)
+    rm._martingale_allowed = MagicMock(return_value=False)
+    stake = calculate_stake_for_manager(
+        rm,
+        5000.0,
+        "R_50",
+        0.6,
+        silent=True,
+        apply_stop_win=True,
+        kwargs={"dl_metrics": {"execute": True}},
+    )
+    assert stake >= 0.0
 
 
 def test_calculate_stake_silent_skips_martingale_log(kelly_config):

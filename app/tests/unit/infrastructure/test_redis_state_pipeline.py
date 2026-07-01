@@ -61,3 +61,20 @@ async def test_write_state_bundle_includes_recovery_skip_counter():
     pipe.set.assert_called()
     set_args = [call.args[0] for call in pipe.set.call_args_list]
     assert any("recovery:skip_counter" in str(key) for key in set_args)
+
+
+@pytest.mark.asyncio
+async def test_write_state_bundle_includes_session_current_keys():
+    client = MagicMock()
+    pipe = _pipeline_ctx()
+    client.pipeline.return_value = pipe
+    await write_state_bundle(
+        client,
+        prefix="aether",
+        snapshot={"risk": {"consecutive_losses": 0}},
+        session_start_balance=10000.0,
+        session_target_win=100.0,
+    )
+    set_args = [call.args[0] for call in pipe.set.call_args_list]
+    assert any("session:current:start_balance" in str(key) for key in set_args)
+    assert any("session:current:target_win" in str(key) for key in set_args)

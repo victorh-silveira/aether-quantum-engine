@@ -9,12 +9,18 @@ from src.domain.risk.recovery_hurst_gate import resolve_recovery_signal_floor
 from src.domain.risk.risk_cluster import finalize_risk_cluster
 from src.domain.risk.risk_cooldown import RiskCooldownMixin
 from src.domain.risk.risk_manager_restore import apply_risk_snapshot
+from src.domain.risk.risk_proposal_skip import ProposalSkipMixin
+from src.domain.risk.risk_recovery_state import (
+    log_partial_win_recovery,
+    pending_loss_total as sum_pending_loss,
+    recovery_financially_active as is_recovery_financially_active,
+)
 from src.domain.risk.risk_stake_calc import calculate_stake_for_manager
-from src.domain.risk.stop_win_target import resolve_stop_win_target
+from src.domain.risk.stop_win_target import persisted_session_target, resolve_stop_win_target
 from src.domain.risk.symbol_loss_cooldown import SymbolLossCooldownMixin
 
 
-class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
+class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin, ProposalSkipMixin):
     """Gerenciador de Risco que utiliza a fórmula de Kelly para dimensionamento de posição."""
 
     def __init__(self, config: dict[str, Any]):
@@ -27,6 +33,7 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
 
         self._rolling_wins: dict[str, list[int]] = {}
         self.initial_bankroll = 0.0
+        self.daily_stop_win_target = 0.0
         self.total_session_profit = 0.0
         self.last_result_tick = 0
         self.base_cooldown = self.risk_params.get("entry_cooldown_ticks", 0)
@@ -53,36 +60,29 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
         """Define a banca inicial para rastreamento da sessão."""
         self.initial_bankroll = float(amount)
 
+    def pending_loss_total(self) -> float:
+        """Soma drawdown financeiro pendente da sessao."""
+        return sum_pending_loss(self.pending_loss)
+
+    def recovery_financially_active(self) -> bool:
+        """Indica se a sessao ainda deve operar em modo recovery financeiro."""
+        return is_recovery_financially_active(self.pending_loss)
+
     def set_candle_interval_seconds(self, seconds: int) -> None:
         """Define duracao da vela ancora para cooldown em tempo real."""
         self._candle_interval_seconds = max(1, int(seconds))
 
-    def register_proposal_failure(self, symbol: str, *, cycles: int = 6) -> None:
-        """Marca simbolo para pular selecao apos falha de proposta na Deriv."""
-        hold = max(int(cycles), int(self.proposal_skip_cycles.get(str(symbol), 0)))
-        self.proposal_skip_cycles[str(symbol)] = hold
-
-    def decay_proposal_skip_cycles(self) -> None:
-        """Reduz cooldown de simbolos com proposta rejeitada."""
-        expired: list[str] = []
-        for symbol, remaining in self.proposal_skip_cycles.items():
-            left = int(remaining) - 1
-            if left <= 0:
-                expired.append(symbol)
-            else:
-                self.proposal_skip_cycles[symbol] = left
-        for symbol in expired:
-            self.proposal_skip_cycles.pop(symbol, None)
-
-    def proposal_skip_symbols(self) -> frozenset[str]:
-        """Simbolos temporariamente excluidos apos falha de proposta."""
-        return frozenset(s for s, n in self.proposal_skip_cycles.items() if int(n) > 0)
-
-    def reset_daily_session(self, bankroll: float) -> None:
-        """Reinicia lucro de sessao e metas para novo dia (stop win diario)."""
+    def reset_session(self, bankroll: float, *, target: float = 0.0) -> None:
+        """Reinicia lucro de sessao e meta de stop win da instancia corrente."""
         bal = float(bankroll)
         self.total_session_profit = 0.0
         self.initial_bankroll = bal
+        self.daily_stop_win_target = max(0.0, float(target))
+
+    def reset_daily_session(self, bankroll: float, *, target: float = 0.0, max_loss: float = 0.0) -> None:
+        """Alias legado para reset_session."""
+        _ = max_loss
+        self.reset_session(bankroll, target=target)
 
     def record_trade_outcome(self, symbol: str, *, won: bool) -> None:
         """Registra o resultado para cálculo de win rate dinâmico."""
@@ -128,7 +128,11 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
     ) -> str | None:
         """Retorna motivo quando nenhuma stake pode ser alocada."""
         if apply_stop_win:
-            target = resolve_stop_win_target(self.config, self.initial_bankroll)
+            target = resolve_stop_win_target(
+                self.config,
+                self.initial_bankroll,
+                persisted_target=persisted_session_target(self),
+            )
             if self.total_session_profit >= target:
                 return "stop_win"
 
@@ -238,7 +242,7 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin):
         else:
             apply_win_to_pending_loss(self.pending_loss, profit)
             self.recovery_symbol_loss_streak.pop(symbol, None)
-            if sum(self.pending_loss.values()) <= 0.0:
+            if log_partial_win_recovery(self, profit) <= 0.0:
                 self.last_martingale_stake = 0.0
                 self.last_loss_stake = 0.0
                 self.recovery_symbol_loss_streak = {}

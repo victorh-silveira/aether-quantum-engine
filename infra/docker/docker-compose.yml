@@ -35,8 +35,10 @@ services:
       - "5432:5432"
     volumes:
       - aether_ts_data:/var/lib/postgresql/data
-      - ./init-timescale.sql:/docker-entrypoint-initdb.d/init-timescale.sql:ro
       - ./002_aether-io-tune.sql:/docker-entrypoint-initdb.d/002_aether-io-tune.sql:ro
+      - ./003_init-timescale.sql:/docker-entrypoint-initdb.d/003_init-timescale.sql:ro
+      - ./004_timescale-lifecycle.sql:/docker-entrypoint-initdb.d/004_timescale-lifecycle.sql:ro
+      - ./004_timescale-lifecycle.sql:/docker-scripts/004_timescale-lifecycle.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${AETHER_PG_USER:-aether} -d ${AETHER_PG_DB:-aether}"]
       interval: 5s

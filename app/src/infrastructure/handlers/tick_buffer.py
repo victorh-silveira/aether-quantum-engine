@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections import deque
 from dataclasses import dataclass
 
@@ -32,12 +33,25 @@ class TickBuffer:
         self._live: dict[str, deque[tuple[int, float]]] = {s: deque(maxlen=self._max_ticks) for s in symbols}
         self._bar_stats: dict[str, deque[BarMicrostructure]] = {s: deque(maxlen=self._max_bars) for s in symbols}
         self._current_epoch: dict[str, int | None] = dict.fromkeys(symbols)
+        self._last_tick_monotonic: float = 0.0
+
+    def touch_activity(self) -> None:
+        """Marca atividade de ingestao no relogio monotonico do loop asyncio."""
+        try:
+            self._last_tick_monotonic = asyncio.get_running_loop().time()
+        except RuntimeError:
+            self._last_tick_monotonic = 0.0
+
+    def last_tick_monotonic(self) -> float:
+        """Retorna timestamp monotonico do ultimo tick registrado."""
+        return float(self._last_tick_monotonic)
 
     def record_tick(self, symbol: str, epoch_ms: int, price: float) -> None:
         """Registra um tick recebido do WebSocket."""
         if symbol not in self._live:
             return
         self._live[symbol].append((int(epoch_ms), float(price)))
+        self.touch_activity()
 
     def on_bar_close(self, symbol: str, bar_epoch: int) -> BarMicrostructure:
         """Finaliza stats da barra e reinicia acumulador para a proxima."""

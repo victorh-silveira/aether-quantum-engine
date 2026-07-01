@@ -7,7 +7,7 @@
 [![Pre-commit](https://img.shields.io/badge/Pre--commit-active-FAB040?logo=pre-commit&logoColor=white)](.pre-commit-config.yaml)
 [![CI](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml)
 
-Motor quantitativo assíncrono para a Deriv: decisão exclusiva por **Deep Learning** (TCN, LSTM ou GRU via PyTorch) nos símbolos **Range Break** (`R_10`, `R_25`, `R_50`, `R_75`, `R_100`), contratos **RISE_FALL** de **180 segundos**, classificação binária Rise/Fall com referência de confiança **0.53 / 0.47**, resolução direcional inteligente CALL/PUT, penalidade de **qualidade** pós-resolução (em vez de veto cego) e dimensionamento **Kelly** com **Consensus Entropy Penalty** e recuperação **martingale** quando há perda pendente.
+Motor quantitativo assíncrono para a Deriv: decisão exclusiva por **Deep Learning** (TCN, LSTM ou GRU via PyTorch) nos símbolos **Range Break** (`R_10`, `R_25`, `R_50`, `R_75`, `R_100`), contratos **RISE_FALL** de **300 segundos (M5)**, classificação binária Rise/Fall com referência de confiança **0.53 / 0.47**, resolução direcional inteligente CALL/PUT, penalidade de **qualidade** pós-resolução (em vez de veto cego) e dimensionamento **Kelly** com **Consensus Entropy Penalty** e recuperação **martingale** quando há perda pendente.
 
 A operação divide-se em duas fases: **FASE TREINO** (nenhuma ordem até todos os modelos concluírem o treino da sessão) e **FASE OPERACAO** (seletiva por padrão ou **modo contínuo** com `mandatory_trade_each_cycle: true` — uma ordem por ciclo, sem SKIP de qualidade).
 
@@ -21,21 +21,22 @@ Layout: `app/` (código e testes), `config/settings.json`, `docs/`, `linters/`. 
 
 | Etapa | Componente | Descrição |
 |-------|------------|-----------|
-| Dados | `StreamHandler` + `TickBuffer` | WebSocket Deriv, OHLC 180 s, ticks agregados por barra (microestrutura) |
+| Dados | `StreamHandler` + `TickBuffer` + `AetherWatchdog` | WebSocket Deriv, OHLC M5 (300 s), ticks agregados por barra fechada; watchdog reconecta stream em inanição (>30 s) |
 | Fases | `_training_phase_gate` | Suspende a operação até todos os modelos concluírem o treino da sessão |
-| Predição DL | `decision_bridge` + TCN/LSTM/GRU | **34 features**, labels `ma_trend`, treino walk-forward deferido; inferência Triton gRPC concorrente quando `infra.triton.enabled` |
+| Predição DL | `decision_bridge` + TCN/LSTM/GRU | **34 features**, labels `ma_trend`, treino walk-forward deferido; inferência Triton gRPC concorrente com timeout 2 s e fallback TorchScript |
 | Direção | `execution_direction_resolver` | Scoring CALL/PUT; flip de reversão em contração de vol; veto de inversão em expansão |
 | Entropia | `execution_entropy_adaptive` + `execution_entropy_fallback` | Comprime peso DL por entropia; fallback mínimo em modo contínuo |
 | Exaustão | `execution_exhaustion_*` + `execution_direction_mean_reversion` | Penalidade soft; flip mean-reversion em exaustão + `vol_ratio < 0.80` |
 | Qualidade | `execution_quality_gate` | Penalidade de score/edge (não veto absoluto em modo contínuo); piso Hurst em recovery N2+ |
 | Execução | `ExecutionManager` + `execution_collect` | Ranking por `market_decision_score`; mandatory pick quando configurado |
-| Risco | `RiskManager` + `consensus_stake_penalty` | Kelly com penalidade convexa por divergência ordem vs votos; martingale em recovery |
-| Estado | `redis_state_pipeline` + `StateStore` | Snapshot atômico MULTI/EXEC (risco, sessão, `recovery:skip_counter`, assinaturas) |
-| Inferência | `TritonGrpcClient` | Canal `grpc.aio.insecure_channel` persistente; predições paralelas via `asyncio.gather` |
-| Mercado TS | `TimescaleMarketWriter` | Ticks e barras OHLC 180s para backtest |
+| Risco | `RiskManager` + `risk_recovery_state` + `consensus_stake_penalty` + `StopWinManager` | Kelly com penalidade convexa; smoothing 40% em recovery; martingale até zerar `pending_loss`; CAP 4% banca; meta de stop win **por sessão ativa** (1% composto) |
+| Resiliência | `graceful_shutdown` + `watchdog_service` | Shutdown ordenado; reconexão de stream sem derrubar o motor |
+| Estado | `redis_state_pipeline` + `StateStore` | Snapshot atômico MULTI/EXEC (risco, `session:current`, `session:current:start_balance`, `session:current:target_win`, `recovery:skip_counter`, assinaturas) |
+| Inferência | `TritonGrpcClient` | Canal `grpc.aio.insecure_channel` persistente; timeout 2 s; predições paralelas via `asyncio.gather`; fallback local em timeout |
+| Mercado TS | `TimescaleMarketWriter` | Ticks e barras OHLC M5 (300 s) para backtest |
 | Modelos | `MinioModelStore` + cache `data/dl/` | Checkpoints DL como source of truth remoto; sanity estressado no startup |
 
-Ciclo do orquestrador: `orchestrator.cycle_interval_seconds` (padrão 60 s). Granularidade OHLC: `data_handler.granularity` (180 s). Contrato: `risk_management.params.duration` (180 s).
+Ciclo do orquestrador: `orchestrator.cycle_interval_seconds` (padrão 60 s). Granularidade OHLC: `data_handler.granularity` (**300 s / M5**). Contrato: `risk_management.params.duration` (**300 s**, encerra na virada da vela M5).
 
 ---
 
@@ -49,8 +50,9 @@ Arquivo: [`config/settings.json`](config/settings.json)
 | `data_handler` | `granularity`, `history_bars`, `fetch_count`, `buffer_limit` |
 | `deep_learning` | `arch`, `lookback`, `calibration`, thresholds, `deploy_gate` |
 | `orchestrator.execution` | `direction_scoring`, `dynamic_threshold`, `quality_gate`, `mandatory_trade_each_cycle`, mean-reversion, settlement |
-| `risk_management.kelly` | Kelly, martingale, `consensus_penalty_*`, recovery floors |
-| `risk_management.params` | `duration: 180`, stakes |
+| `orchestrator` | `watchdog_*`, `cycle_interval_seconds`, execução, settlement |
+| `risk_management.kelly` | Kelly, martingale, `consensus_penalty_*`, `penalty_smoothing_*`, `martingale_hard_cap_bankroll_pct` |
+| `risk_management.params` | `duration: 300`, stakes, `compounding_enabled`, `compounding_rate_daily`, `session_start_balance` (opcional) |
 | `trading` | `demo` / `live` |
 | `infra` | Redis, TimescaleDB, MinIO, Triton (`enabled`, `fail_fast`, `grpc_url`) |
 
@@ -88,8 +90,12 @@ Copie `cp .env.example .env` e preencha o PAT. Validação Deriv: `python app/sc
 
 - **Kelly fracionário** com win rate dinâmico e tetos `max_stake_pct`.
 - **Consensus Entropy Penalty**: atenuação convexa de `f*` quando a ordem diverge da maioria dos votos técnicos (`call_votes`/`put_votes`), ponderando `di_diff`, `cmo` e `rsi`; em baixo consenso, stake reduzida ao piso mínimo da API.
-- **Stop win diário** por percentual da banca inicial (conta grande) ou valor fixo (conta pequena).
-- **Martingale de recovery** quando há perda pendente: stake cobre perda integral + alvo derivado do payout, limitada por banca e `stake_max`.
+- **Penalty smoothing em recovery**: com drawdown pendente ou `consecutive_losses > 0` e `trade_score > 0.70`, a penalidade convexa é suavizada em 40% (`penalty_smoothing_factor`), permitindo stakes maiores para recuperação sem violar o CAP.
+- **Recovery financeiro persistente**: WIN operacional **não** zera `consecutive_losses` enquanto `pending_loss > 0`; o motor permanece em modo Martingale até o drawdown pendente ser extinto por retornos reais.
+- **CAP martingale 4%**: `martingale_hard_cap_bankroll_pct: 0.04` limita stake máxima sobre a banca.
+- **Stop win por sessão ativa**: no boot, captura o saldo vivo (Deriv) ou override `session_start_balance`; meta = `banca_inicial × compounding_rate_daily` (padrão **1%**). Quando `pnl_sessao >= meta`, dispara encerramento gracioso. Cada restart do processo inicia uma sessão independente — o operador controla quantas sessões rodar por dia.
+- **Stop loss desativado**: não há disjuntor de perda diária; o Martingale opera sem teto de drawdown imposto pelo motor.
+- **Martingale de recovery** quando há perda pendente: stake cobre perda integral + alvo derivado do payout, com fatiamento progressivo em sequências longas.
 - Cooldown por símbolo após sequência de losses (`symbol_loss_cooldown_candles`).
 
 ---
@@ -103,7 +109,8 @@ Copie `cp .env.example .env` e preencha o PAT. Validação Deriv: `python app/sc
 - **Veto de expansão**: com `vol_ratio > 1.15`, inversões são vetadas e o momentum do DL prevalece com suavização Kelly (`expansion_momentum_kelly_scale`).
 - **Trava Hurst em recovery N2+**: com `consecutive_losses >= 2`, piso de score elevado logaritmicamente; `recovery_skip_counter` no Redis decai o limiar Hurst.
 - **Bloqueio absoluto** somente para falhas técnicas: `data`, `predict_error`, `training`, `deploy_ok=false`.
-- **Recovery**: ranking de mercado com diversificação de símbolo; martingale com convicção mínima 0.64 e `val_accuracy` ≥ 0.62.
+- **Recovery**: ranking de mercado com diversificação de símbolo; martingale com convicção mínima 0.64 e `val_accuracy` ≥ 0.62; reset de risco somente quando `pending_loss` zera.
+- **Watchdog de ingestão**: em modo contínuo, reconecta WebSocket se ticks pararem por >30 s (`watchdog_stale_tick_seconds`), persistindo snapshot de risco antes.
 
 ---
 
@@ -116,7 +123,9 @@ Logs em `logs/engine.log` (formato `AetherFormatter`):
 - `DL` / `DL REC` — linha curta: `exec`, `bias` (ajuste direcional), `skip` (bloqueio técnico)
 - `EXEC_SEL` — símbolo escolhido com `ord=`, `dl=`, métricas `s`/`v`/`r`, indicadores e alternativas
 - `SKIP` — ciclo pulado por bloqueio técnico ou recovery sem Hurst persistente (modo seletivo)
-- `MARTINGALE`, `RISK: RECOVERY`, `KELLY: consensus retention` — sizing e recovery
+- `MARTINGALE`, `RISK: RECOVERY`, `RISK: WIN operacional`, `KELLY: consensus retention` — sizing, recovery financeiro e penalidade de consenso
+- `SESSAO INICIADA | Alvo de 1%: $XX.XX | Stop Loss: DESATIVADO` — bootstrap de meta por sessão ativa
+- `TRITON_TIMEOUT_FALLBACK`, `WATCHDOG: STALE_DATA` — resiliência de inferência e ingestão
 - Liquidação e resumo de cluster após settlement
 
 Mensagens repetidas são deduplicadas (`log_dedupe`). Cada ciclo e bloco de treino são separados por linha em branco.

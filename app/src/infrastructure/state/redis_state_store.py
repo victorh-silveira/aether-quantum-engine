@@ -60,8 +60,10 @@ class RedisStateStore:
         session: dict[str, Any] | None = None,
         market_sig: str | None = None,
         recovery_skip_counter: int | None = None,
+        session_start_balance: float | None = None,
+        session_target_win: float | None = None,
     ) -> None:
-        """Persiste snapshot, hashes e assinatura em uma transacao Redis."""
+        """Grava bundle atomico com sessao e chaves de meta ativa."""
         client = await self._redis()
         await write_state_bundle(
             client,
@@ -70,6 +72,8 @@ class RedisStateStore:
             session_hash=session,
             market_sig=market_sig,
             recovery_skip_counter=recovery_skip_counter,
+            session_start_balance=session_start_balance,
+            session_target_win=session_target_win,
         )
         self._last_snapshot_at = time.monotonic()
         self._pending_snapshot = None
@@ -116,9 +120,14 @@ class RedisStateStore:
             await client.set(full, str(value))
 
     async def get_string(self, key: str) -> str | None:
-        """Le string Redis por chave relativa."""
+        """Le string Redis pelo sufixo de chave."""
         client = await self._redis()
         return await client.get(self._full_key(key))
+
+    async def delete_string(self, key: str) -> None:
+        """Remove string Redis pelo sufixo de chave."""
+        client = await self._redis()
+        await client.delete(self._full_key(key))
 
     async def ping(self) -> bool:
         """Valida conectividade Redis com PING."""

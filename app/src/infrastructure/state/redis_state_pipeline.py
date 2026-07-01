@@ -8,22 +8,26 @@ from typing import Any
 import redis.asyncio as aioredis
 
 from src.domain.risk.recovery_hurst_decay import REDIS_SKIP_COUNTER_KEY
+from src.domain.risk.stop_win_target import (
+    REDIS_SESSION_START_BALANCE_KEY,
+    REDIS_SESSION_TARGET_WIN_KEY,
+)
 
 
 def _flat_scalars(data: dict[str, Any]) -> dict[str, str]:
-    """Achata dict de risco mantendo apenas valores escalares."""
+    """Converte dict para mapa string-string omitindo estruturas aninhadas."""
     return {str(k): str(v) for k, v in data.items() if not isinstance(v, (dict, list))}
 
 
 def _flat_mapping(data: dict[str, Any] | None) -> dict[str, str]:
-    """Converte dict arbitrario em mapeamento string para HSET."""
+    """Normaliza dict opcional para mapa string-string."""
     if not isinstance(data, dict):
         return {}
     return {str(k): str(v) for k, v in data.items()}
 
 
 def _queue_risk_hashes(pipe: Any, pfx: str, risk: dict[str, Any] | None) -> None:
-    """Enfileira HSET de risco e pending_loss no pipeline Redis."""
+    """Enfileira hashes de risco e pending_loss no pipeline Redis."""
     risk_key = f"{pfx}:state:risk"
     pending_key = f"{pfx}:state:pending_loss"
     if not isinstance(risk, dict):
@@ -49,13 +53,17 @@ async def write_state_bundle(
     session_hash: dict[str, Any] | None = None,
     market_sig: str | None = None,
     recovery_skip_counter: int | None = None,
+    session_start_balance: float | None = None,
+    session_target_win: float | None = None,
 ) -> None:
     """Grava snapshot, risco, pending_loss, sessao, skip counter e assinatura em transacao."""
     pfx = prefix.rstrip(":")
     snapshot_key = f"{pfx}:state:snapshot"
-    session_key = f"{pfx}:session:daily"
+    session_key = f"{pfx}:session:current"
     market_key = f"{pfx}:market_sig"
     skip_key = f"{pfx}:{REDIS_SKIP_COUNTER_KEY}"
+    start_key = f"{pfx}:{REDIS_SESSION_START_BALANCE_KEY}"
+    target_key = f"{pfx}:{REDIS_SESSION_TARGET_WIN_KEY}"
     risk = snapshot.get("risk")
     async with client.pipeline(transaction=True) as pipe:
         pipe.set(snapshot_key, json.dumps(snapshot))
@@ -67,4 +75,8 @@ async def write_state_bundle(
             pipe.set(market_key, str(market_sig))
         if recovery_skip_counter is not None:
             pipe.set(skip_key, str(max(0, int(recovery_skip_counter))))
+        if session_start_balance is not None:
+            pipe.set(start_key, str(float(session_start_balance)))
+        if session_target_win is not None:
+            pipe.set(target_key, str(float(session_target_win)))
         await pipe.execute()

@@ -11,16 +11,17 @@
 | REST | `DerivRestClient` → `GET /trading/v1/options/accounts`, `POST .../otp` |
 | WebSocket ao vivo | URL retornada pelo OTP (`wss://api.derivws.com/trading/v1/options/ws/demo?otp=...`) |
 | Dados publicos / backtest | `api_config.public_ws_url` (sem OTP) |
-| Histórico OHLC | `ticks_history` com `style: candles`, `granularity` de `data_handler` (**180 s**) |
+| Histórico OHLC | `ticks_history` com `style: candles`, `granularity` de `data_handler` (**300 s / M5**) |
 | Stream ao vivo | `subscribe` OHLC por símbolo (`R_10`, `R_25`, `R_50`, `R_75`, `R_100`) |
-| Proposta / compra | `proposal` + `buy` via `TradeHandler` (RISE_FALL, stake, duração **180 s**) |
+| Proposta / compra | `proposal` + `buy` via `TradeHandler` (RISE_FALL, stake, duração **300 s**) |
 | Contratos abertos | `proposal_open_contract`, `profit_table` (reconciliação e settlement) |
 | Keep-alive | Loop de ping no `WebSocketManager` |
 | Inferência DL | Fora da Deriv API: Triton gRPC local (`localhost:8001`) ou TorchScript em cache; ver [infra-docker.md](infra-docker.md) |
+| Meta de sessão | Stop win de 1% composto sobre banca inicial; sem stop loss interno; contratos RISE_FALL não usam `limit_order.stop_loss` |
 
 Símbolos ativos do motor: **Range Break** (`R_10`, `R_25`, `R_50`, `R_75`, `R_100`), não os exemplos genéricos `1HZ100V` / OTC deste documento.
 
-Para fluxo completo (DL, Triton, direção inteligente, mean-reversion, gate de qualidade, Kelly com consensus penalty, risco, ciclo), ver [arquitetura.md](arquitetura.md).
+Para fluxo completo (DL, Triton, direção inteligente, mean-reversion, gate de qualidade, Kelly com consensus penalty, stop win por sessão ativa, ciclo), ver [arquitetura.md](arquitetura.md).
 
 A documentação abaixo descreve a API Deriv de forma ampla (referência geral). O Aether usa apenas o fluxo PAT documentado acima.
 

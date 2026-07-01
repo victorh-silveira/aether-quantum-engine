@@ -172,7 +172,7 @@ async def test_timescale_full_lifecycle():
     with patch("asyncpg.create_pool", AsyncMock(return_value=pool)):
         writer = TimescaleMarketWriter(dsn="postgresql://u:p@localhost/db", flush_interval_ms=0.02, batch_limit=1)
         await writer.enqueue_tick(symbol="R_10", epoch_ms=1000, price=1.0)
-        await writer.enqueue_bar(symbol="R_10", bar={"epoch": 1, "granularity": 180, "open": 1.0})
+        await writer.enqueue_bar(symbol="R_10", bar={"epoch": 1, "granularity": 300, "open": 1.0})
         await asyncio.sleep(0.05)
         await writer.flush()
         assert await writer.ping() is True
@@ -265,7 +265,7 @@ async def test_timescale_worker_logs_errors():
 @pytest.mark.asyncio
 async def test_timescale_flush_bar_only():
     writer = TimescaleMarketWriter(dsn="postgresql://u:p@localhost/db")
-    writer._queue.put_nowait(("bar", (1, "R_10", 1, 180, 1, 1, 1, 1, 1, 1, 1)))
+    writer._queue.put_nowait(("bar", (1, "R_10", 1, 300, 1, 1, 1, 1, 1, 1, 1)))
     with patch.object(writer, "_flush_batches", AsyncMock()) as flush_mock:
         await writer.flush()
     flush_mock.assert_awaited_once()

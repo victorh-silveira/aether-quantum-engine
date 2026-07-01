@@ -9,11 +9,11 @@ Motor assíncrono para trading na Deriv com decisão exclusiva por **Deep Learni
 | Aspecto | Valor atual (`config/settings.json`) |
 |---------|--------------------------------------|
 | Símbolos | `R_10`, `R_25`, `R_50`, `R_75`, `R_100` (âncora `R_10`) |
-| Granularidade OHLC | 180 s (`data_handler.granularity`) |
-| Histórico para treino | 25920 barras (`training_history_bars`) |
-| Lookback | 48 barras por sequência |
+| Granularidade OHLC | **300 s / M5** (`data_handler.granularity`) |
+| Histórico para treino | 15552 barras (`training_history_bars`, ~54 dias) |
+| Lookback | 48 barras por sequência (**4 h** de contexto) |
 | Features | **34** (`FEATURE_DIM` em `dl_feature_build.py`) |
-| Contrato | `RISE_FALL`, duração 180 s |
+| Contrato | `RISE_FALL`, duração **300 s** (virada vela M5) |
 | Ciclo do orquestrador | 60 s (`cycle_interval_seconds`) |
 | Decisão | `collect_deep_learning_decisions` |
 | Fases | `FASE TREINO` → `FASE OPERACAO` |
@@ -31,6 +31,7 @@ flowchart LR
     WS[WebSocketManager]
     SH[StreamHandler]
     TB[TickBuffer]
+    WD[AetherWatchdog]
   end
   subgraph dl
     FEAT[dl_features 34D]
@@ -60,6 +61,7 @@ flowchart LR
   end
   WS --> SH
   SH --> TB
+  WD -->|STALE_DATA reconnect| SH
   SH --> FEAT --> TRITON --> MODEL --> PRED --> ENT --> MRF --> RES --> EXP --> QG --> COL --> SEL --> EM --> TH
   TH --> ST --> RM
   ST --> PM
@@ -82,11 +84,21 @@ Com `infra.enabled: true`, o motor valida Redis, TimescaleDB e MinIO em `localho
 
 - Canal persistente `grpc.aio.insecure_channel` com keepalive (sem handshake repetido a cada ciclo).
 - Predições dos 5 símbolos em paralelo com `asyncio.gather`.
+- **Timeout rigido de 2,0 s** por requisição (`asyncio.wait_for`); se o Triton exceder o limite, dispara `TritonInferenceTimeout` e fallback imediato para TorchScript em cache local (`dl_predict_triton.py`, log `TRITON_TIMEOUT_FALLBACK`), preservando a janela de 60 s do orquestrador.
 - Facade em `triton_inference_client.py` para o restante do motor.
+
+**Resiliência de ingestão** (`watchdog_service.py` + `stream_reconnect.py`):
+
+- `AetherWatchdog` roda como task assíncrona perpétua após bootstrap do stream.
+- Monitora `TickBuffer.last_tick_monotonic()`; se a inanição exceder `watchdog_stale_tick_seconds` (padrão 30 s) com WebSocket aparentemente conectado, entra em estado `STALE_DATA`.
+- Antes de reconectar: persiste snapshot de risco (`save_full_state`); em seguida `StreamHandler.reconnect_stream` fecha o WS, reabre sessão OTP e reativa subscrições OHLC/tick sem backfill pesado.
+- Encerrado no graceful shutdown (`graceful_shutdown.stop_ingestion_watchdog`).
+
+Config em `orchestrator`: `watchdog_enabled`, `watchdog_stale_tick_seconds`, `watchdog_poll_interval_seconds`.
 
 Redis local usa AOF `appendfsync everysec` (`infra/docker/redis.conf`). `make docker-up` aplica `host-prereq.sh` (`vm.overcommit_memory=1` no WSL).
 
-**Persistência pós-settlement** (`save_full_state`): uma transação Redis `MULTI/EXEC` grava snapshot JSON, hash de risco (`consecutive_losses`, `pending_loss`, cooldowns), sessão diária (`current_balance`, etc.), `recovery:skip_counter` e assinatura de mercado — sem round-trips bloqueantes adicionais na thread principal.
+**Persistência pós-settlement** (`save_full_state`): uma transação Redis `MULTI/EXEC` grava snapshot JSON, hash de risco (`consecutive_losses`, `pending_loss`, cooldowns), hash `session:current`, chaves `session:current:start_balance` e `session:current:target_win`, `recovery:skip_counter` e assinatura de mercado — sem round-trips bloqueantes adicionais na thread principal.
 
 ---
 
@@ -96,13 +108,14 @@ Redis local usa AOF `appendfsync everysec` (`infra/docker/redis.conf`). `make do
 2. `validate_infra_services` (quando `infra.enabled`) e `bootstrap_and_validate_models` (checkpoint + TorchScript + sanity + Triton).
 3. `restore_orchestrator_state` e `AuthManager` abrem sessão REST/WebSocket via OTP PAT.
 4. `Orchestrator` instancia stream, risco, executor e persistência.
-5. `StreamHandler.start_candle_stream` busca histórico OHLC e assina velas (`style: candles`) e ticks (`style: ticks`).
+5. Após autenticação, `bootstrap_active_session_targets` captura banca inicial e define meta de 1% (`session_target_bootstrap.py`).
+6. `StreamHandler.start_candle_stream` busca histórico OHLC e assina velas (`style: candles`) e ticks (`style: ticks`).
 
 ### 2.2 Buffer e microestrutura
 
 - `buffer_limit` limita velas em memória por símbolo.
 - `history_bars` / `training_history_bars` definem recorte para treino e predição.
-- `TickBuffer` agrega por barra fechada: contagem de ticks, intervalo médio, velocidade, aceleração e desvio padrão de diffs consecutivas.
+- `TickBuffer` agrega por barra fechada de **300 s (M5)**: contagem de ticks, intervalo médio, velocidade, aceleração e desvio padrão de diffs consecutivas. O fechamento é disparado pelo `StreamHandler` quando a Deriv emite vela OHLC completa no intervalo configurado em `data_handler.granularity`.
 
 ### 2.3 Assinatura de estado de dados
 
@@ -137,7 +150,7 @@ Normalização anti-leakage: `fit_norm_stats` somente no split de treino walk-fo
 - Arquitetura: **`tcn`** (padrão), **`lstm`** ou **`gru`** via `deep_learning.arch`.
 - Saída: probabilidade bruta de alta (`raw_prob`).
 - Checkpoint v4 em `data/dl/{symbol}.pth` + TorchScript `{symbol}_ts.pt` (espelho MinIO `latest_ts.pt`).
-- `dl_symbol_runtime.py` mantém estado de treino/calibração; inferência via `TritonGrpcClient.infer_symbols_concurrent` quando `infra.triton.enabled`.
+- Inferência via `TritonGrpcClient.infer_symbols_concurrent` quando `infra.triton.enabled`; tensor FP32 **`[1, 48, 34]`** (48 barras M5 = **4 h** de contexto).
 - `collect_cluster_orders` suporta modo contínuo: penalidade de qualidade em vez de SKIP; fallback por entropia e mandatory pick.
 
 ### 3.3 Treino walk-forward
@@ -157,6 +170,7 @@ Normalização anti-leakage: `fit_norm_stats` somente no split de treino walk-fo
 - Calcula indicadores, trend (`dl_trend.py`) e enriquece métricas para o resolver.
 - `gate_reason=None` após predição OK; bloqueio só em exceção (`predict_error`).
 - Thresholds `confidence_call/put` (0.53/0.47) são bases; com `dynamic_threshold.enabled`, flutuam por `bb_width`, `atr_norm` e regime de volatilidade.
+- Com Triton ativo: inferência via `infer_symbol_async`; timeout 2 s dispara fallback TorchScript em cache (`TRITON_TIMEOUT_FALLBACK`).
 - Grava `calibrated_prob`, `calibrated_edge` e thresholds dinâmicos em metrics para resolver e quality gate.
 
 ---
@@ -232,7 +246,7 @@ Em recovery N2+, `recovery_skip_counter` no Redis reduz o limiar Hurst linearmen
 
 - Monta ordens com stake de `RiskManager.calculate_stake`.
 - Settlement assíncrono; reentrada via `post_settlement_cycle`.
-- Contratos via `TradeHandler.buy_with_parameters`: RISE_FALL, 180 s.
+- Contratos via `TradeHandler.buy_with_parameters`: RISE_FALL, **300 s** (M5).
 - Após settlement: `save_full_state` persiste bundle atômico no Redis.
 
 ---
@@ -243,15 +257,37 @@ Em recovery N2+, `recovery_skip_counter` no Redis reduz o limiar Hurst linearmen
 |-----------|-----------------|
 | Kelly fracionário | `stake_sizing.py`, `kelly.fraction` |
 | Consensus Entropy Penalty | `consensus_stake_penalty.py` — penalidade convexa em `f*` quando ord diverge dos votos; atenua por `di_diff`, `cmo`, `rsi`; piso `stake_min` em baixo consenso |
-| Stop win diário | `stop_win_target.py` |
+| Penalty smoothing em recovery | `consensus_stake_penalty.py` — com `pending_loss > 0` ou `consecutive_losses > 0` e `trade_score > 0.70`, reduz a penalidade convexa em **40%** (`penalty_smoothing_factor`) sem violar o CAP martingale |
+| Recovery financeiro persistente | `risk_recovery_state.py` — `consecutive_losses` **nao reseta** em WIN operacional enquanto `pending_loss > 0`; reset somente quando o drawdown pendente zera por retornos reais |
+| Stop win por sessão ativa | `stop_win_target.py` + `session_target_bootstrap.py` — meta = `session_start_balance × compounding_rate_daily`; sem reset por relógio/calendário |
+| Encerramento por meta | `StateManager.check_session_limits()` — `pnl_sessao >= target_win` → `graceful_shutdown` |
+| Stop loss | **Desativado** — sem `daily_max_loss_limit` nem disjuntor de perda no motor |
 | Martingale recovery | `martingale_gate.py`, `martingale_conviction.py`, `martingale_sizing.py` |
+| Martingale fatiamento progressivo | `martingale_progressive_slice_cycles` — divide `pending_loss` em 1/2/3 ciclos conforme sequência de perdas |
+| CAP martingale 4% | `martingale_hard_cap_bankroll_pct: 0.04` — teto rígido de stake sobre banca |
 | Martingale vol-adjust | defer 50% quando vol > 1.10 (N2+); sqrt(vol_ratio) quando defer inativo |
 | Trava Hurst N2+ | `recovery_hurst_gate.py` |
 | Decaimento Hurst acelerado | `recovery_hurst_decay.py` — `recovery_skip_counter` no Redis |
 | Cooldown entrada | `risk_cooldown.py` |
 | Cooldown por loss no símbolo | `symbol_loss_cooldown.py` |
 
-Persistência: `data/session_state.json` (métricas diárias), Redis (snapshot atômico), `data/state.json` (contratos legado).
+### 6.1 Sessão ativa e juros compostos
+
+A meta de lucro segue a planilha de juros compostos (`compounding_rate_daily`, padrão **0,01 = 1%**), aplicada **estritamente por instância de processo**:
+
+1. **Boot** (`ws_bootstrap` → `bootstrap_active_session_targets`): lê saldo vivo da Deriv ou override `session_start_balance` em `risk_management.params`.
+2. **Cálculo**: `target_win = session_start_balance × compounding_rate_daily` via `StopWinManager.calculate_session_targets`.
+3. **Persistência Redis**: `{prefix}:session:current:start_balance` e `{prefix}:session:current:target_win` no pipeline atômico; hash `session:current` com métricas correntes.
+4. **Encerramento**: após settlement, `check_session_limits()` compara `session_profit` com `daily_stop_win_target`; se atingido, `graceful_shutdown` encerra o motor e `clear_current_session_redis_keys` remove as chaves da sessão.
+5. **Nova sessão**: reiniciar `run.py` captura novo saldo e recalcula meta — o operador decide quantas sessões executar no mesmo dia civil.
+
+Log de bootstrap: `SESSAO INICIADA | Alvo de 1%: $XX.XX | Stop Loss: DESATIVADO`.
+
+Com `compounding_enabled: false`, o motor usa alvo legado (`small_account_stop_win` / `large_account_stop_win_pct`).
+
+Logs de sizing expõem `pend=$` (drawdown pendente) e `pnl_sess=$` (P&L acumulado da sessão) em cada cálculo de stake.
+
+Persistência: `data/session_state.json` (métricas da sessão corrente), Redis (snapshot atômico + chaves `session:current:*`), `data/state.json` (contratos legado).
 
 ---
 
@@ -260,12 +296,16 @@ Persistência: `data/session_state.json` (métricas diárias), Redis (snapshot a
 `Orchestrator` (`orchestrator/__init__.py`):
 
 1. `setup_trading_session` — autenticação Deriv e WebSocket.
-2. A cada vela do âncora ou `cycle_interval_seconds`:
+2. `bootstrap_active_session_targets` — captura banca inicial e meta de stop win da sessão.
+3. `start_ingestion_watchdog` — monitoramento de inanição de ticks (modo contínuo).
+3. A cada vela do âncora ou `cycle_interval_seconds`:
    - `tick_bars_since_train`
-   - `collect_deep_learning_decisions` (inferência Triton concorrente)
+   - `collect_deep_learning_decisions` (inferência Triton concorrente com fallback TorchScript)
    - `executor.execute_cluster`
-3. Reconciliação periódica de contratos abertos.
-4. Após liquidação: `post_settlement_cycle` → `save_full_state`.
+4. Reconciliação periódica de contratos abertos.
+5. Após liquidação: `post_settlement_cycle` → `save_full_state`.
+
+**Graceful shutdown** (`graceful_shutdown.py`): encerra watchdog, Triton gRPC, Timescale, Redis e WebSocket sem vazamento de tasks; limpa chaves `session:current:*`; excepthook instalado em `run.py`.
 
 ---
 
@@ -275,8 +315,10 @@ Persistência: `data/session_state.json` (métricas diárias), Redis (snapshot a
 |-------|-------------------|
 | `data_handler` | `granularity`, `history_bars`, `fetch_count`, `buffer_limit` |
 | `deep_learning` | `arch`, `lookback`, `confidence_*`, `min_val_accuracy`, `deploy_gate` |
+| `orchestrator` | `watchdog_*`, `cycle_interval_seconds`, `idle_cycle_watchdog_seconds` |
 | `orchestrator.execution` | `direction_scoring`, `quality_gate`, `exhaustion_gate`, `mean_reversion_*`, `expansion_inversion_*`, `mandatory_trade_each_cycle` |
-| `risk_management.kelly` | `fraction`, `consensus_penalty_*`, martingale |
+| `risk_management.kelly` | `fraction`, `consensus_penalty_*`, `penalty_smoothing_*`, `martingale_*`, `martingale_hard_cap_bankroll_pct` |
+| `risk_management.params` | `compounding_enabled`, `compounding_rate_daily`, `session_start_balance`, `duration`, stakes |
 | `infra.triton` | `enabled`, `grpc_url`, `http_url`, `model_repo_path` |
 | `trading` | `mode` (`demo` / `live`) |
 
@@ -289,9 +331,9 @@ Persistência: `data/session_state.json` (métricas diárias), Redis (snapshot a
 | Application / DL | `decision_bridge`, `dl_predict_async`, `dl_predict_triton`, `dl_gating`, `dl_trend`, `dl_cycle_*`, `model` |
 | Application / Direção | `execution_direction_resolver`, `execution_direction_mean_reversion`, `execution_direction_expansion_veto`, `execution_direction_cross_corr`, `execution_entropy_adaptive`, `execution_quality_gate` |
 | Application / Execução | `execution_collect`, `execution_collect_gather`, `execution_market_rank`, `execution_symbols`, `execution_mandatory_pick` |
-| Application / Orchestrator | `Orchestrator`, `execution_manager`, `execution_recovery_gate`, `settlement_*`, `post_settlement_cycle`, `orchestrator_run_loop` |
-| Domain | `trade`, `market_data`, `probability_entropy`, `risk_manager`, `consensus_stake_penalty`, `recovery_hurst_gate`, `martingale_*`, `stake_sizing` |
-| Infrastructure | `triton_grpc_client`, `triton_inference_client`, `websocket_manager`, `stream_handler`, `tick_buffer`, `trade_handler`, `minio_model_store`, `torchscript_sanity`, `redis_state_pipeline` |
+| Application / Orchestrator | `Orchestrator`, `execution_manager`, `session_target_bootstrap`, `execution_recovery_gate`, `watchdog_service`, `graceful_shutdown`, `settlement_*`, `post_settlement_cycle`, `orchestrator_run_loop` |
+| Domain | `trade`, `market_data`, `probability_entropy`, `risk_manager`, `stop_win_target`, `risk_recovery_state`, `consensus_stake_penalty`, `recovery_hurst_gate`, `martingale_*`, `stake_sizing` |
+| Infrastructure | `triton_grpc_client`, `triton_inference_client`, `websocket_manager`, `stream_handler`, `stream_reconnect`, `tick_buffer`, `trade_handler`, `minio_model_store`, `torchscript_sanity`, `redis_state_pipeline` |
 | Presentation | `logger`, `log_dedupe` |
 
 ---
@@ -304,6 +346,17 @@ Persistência: `data/session_state.json` (métricas diárias), Redis (snapshot a
 | Monitor Rich | `app/scripts/monitor/live_monitor.py` |
 | CI local | `app/scripts/operations/clean_workspace.py` |
 | PAT Deriv | `app/scripts/operations/deriv_pat_connect.py` |
+
+Marcadores de log relevantes:
+
+| Marcador | Significado |
+|----------|-------------|
+| `[C####] MARTINGALE` / `KELLY` | Stake calculada com `pend=$` e `pnl_sess=$` |
+| `RISK: WIN operacional` / `Lucro parcial` | WIN sem reset de recovery enquanto `pending_loss > 0` |
+| `RISK: Recovery financeiro zerado` | Drawdown pendente extinto; reset de `consecutive_losses` |
+| `SESSAO INICIADA` | Bootstrap de meta por sessão ativa (1% composto; stop loss desativado) |
+| `TRITON_TIMEOUT_FALLBACK` | Inferência Triton excedeu 2 s; fallback TorchScript local |
+| `WATCHDOG: STALE_DATA` | Inanição de ticks; reconexão controlada do stream |
 
 ---
 

@@ -1,6 +1,12 @@
 import pytest
 
-from src.domain.risk.stop_win_target import resolve_max_stake_pct, resolve_stop_win_target
+from src.domain.risk.stop_win_target import (
+    SessionTargets,
+    StopWinManager,
+    resolve_max_stake_pct,
+    resolve_session_start_balance,
+    resolve_stop_win_target,
+)
 
 
 def test_resolve_stop_win_small_account_fixed():
@@ -8,9 +14,9 @@ def test_resolve_stop_win_small_account_fixed():
         "small_account_threshold": 100.0,
         "small_account_stop_win": 10.0,
         "large_account_stop_win_pct": 50.0,
+        "params": {"compounding_enabled": False},
     }
     assert resolve_stop_win_target(rm, 50.0) == pytest.approx(10.0)
-    assert resolve_stop_win_target(rm, 99.99) == pytest.approx(10.0)
 
 
 def test_resolve_stop_win_large_account_pct():
@@ -18,19 +24,36 @@ def test_resolve_stop_win_large_account_pct():
         "small_account_threshold": 100.0,
         "small_account_stop_win": 10.0,
         "large_account_stop_win_pct": 1.0,
+        "params": {"compounding_enabled": False},
     }
-    assert resolve_stop_win_target(rm, 100.0) == pytest.approx(1.0)
     assert resolve_stop_win_target(rm, 1000.0) == pytest.approx(10.0)
 
 
-def test_resolve_stop_win_default_pct_one_percent():
-    rm = {"small_account_threshold": 100.0}
-    assert resolve_stop_win_target(rm, 10127.63) == pytest.approx(101.27)
+def test_session_targets_one_percent():
+    rm = {"params": {"compounding_enabled": True, "compounding_rate_daily": 0.01}}
+    mgr = StopWinManager(rm)
+    targets = mgr.calculate_session_targets(10000.0)
+    assert isinstance(targets, SessionTargets)
+    assert targets.target_win == pytest.approx(100.0)
+    assert targets.session_start_balance == pytest.approx(10000.0)
 
 
-def test_resolve_stop_win_pct_clamped():
-    rm = {"small_account_threshold": 100.0, "large_account_stop_win_pct": 150.0}
-    assert resolve_stop_win_target(rm, 200.0) == pytest.approx(200.0)
+def test_persisted_target_idempotent_for_live_session():
+    rm = {"params": {"compounding_enabled": True, "compounding_rate_daily": 0.01}}
+    assert resolve_stop_win_target(rm, 5000.0, persisted_target=75.0) == pytest.approx(75.0)
+    assert resolve_stop_win_target(rm, 9999.0, persisted_target=75.0) == pytest.approx(75.0)
+
+
+def test_resolve_session_start_balance_prefers_settings_override():
+    rm = {"params": {"compounding_enabled": True, "session_start_balance": 2500.0}}
+    assert resolve_session_start_balance(9000.0, rm) == pytest.approx(2500.0)
+    assert resolve_session_start_balance(9000.0, {"params": {}}) == pytest.approx(9000.0)
+
+
+def test_stop_win_manager_resolve_target_compounding_without_persisted():
+    rm = {"params": {"compounding_enabled": True, "compounding_rate_daily": 0.01}}
+    mgr = StopWinManager(rm)
+    assert mgr.resolve_target(2500.0) == pytest.approx(25.0)
 
 
 def test_resolve_max_stake_pct_high_conviction():

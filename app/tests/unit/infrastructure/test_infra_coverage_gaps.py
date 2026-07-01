@@ -142,7 +142,6 @@ async def test_persist_and_sync_helpers():
         daily_stop_win_target=3.0,
         total_trades_today=1,
         stop_win_triggered=False,
-        day_key=1,
     )
     await persist_session_hash(orch)
     await sync_market_signature(orch, "sig")

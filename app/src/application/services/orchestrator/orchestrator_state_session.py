@@ -1,4 +1,4 @@
-"""Restore de sessao diaria e assinaturas Redis."""
+"""Restore de sessao ativa e assinaturas Redis."""
 
 from __future__ import annotations
 
@@ -7,8 +7,10 @@ from typing import Any
 
 
 async def restore_session_hash(orch: Any, store: Any) -> None:
-    """Restaura SessionState a partir do hash session:daily."""
-    session_hash = await store.get_hash("session:daily")
+    """Restaura SessionState a partir do hash session:current."""
+    session_hash = await store.get_hash("session:current")
+    if not session_hash:
+        session_hash = await store.get_hash("session:daily")
     if not session_hash or not hasattr(orch, "state_mgr"):
         return
     mgr = orch.state_mgr.state
@@ -22,12 +24,16 @@ async def restore_session_hash(orch: Any, store: Any) -> None:
         mgr.total_trades_today = int(session_hash["total_trades_today"])
     if "stop_win_triggered" in session_hash:
         mgr.stop_win_triggered = session_hash["stop_win_triggered"].lower() == "true"
-    if "day_key" in session_hash:
-        mgr.day_key = int(session_hash["day_key"])
+    risk_manager = getattr(orch, "risk_manager", None)
+    if risk_manager is not None:
+        if isinstance(mgr.initial_balance, (int, float)) and float(mgr.initial_balance) > 0.0:
+            risk_manager.initial_bankroll = float(mgr.initial_balance)
+        if isinstance(mgr.daily_stop_win_target, (int, float)) and float(mgr.daily_stop_win_target) > 0.0:
+            risk_manager.daily_stop_win_target = float(mgr.daily_stop_win_target)
 
 
 async def restore_market_signatures(orch: Any, store: Any) -> None:
-    """Restaura market_sig e bar_sig do ancora."""
+    """Restaura assinaturas de mercado e ultima barra processada."""
     market_sig = await store.get_string("market_sig")
     if market_sig:
         orch.last_data_signature = market_sig

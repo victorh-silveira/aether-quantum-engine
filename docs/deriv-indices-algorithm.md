@@ -38,7 +38,7 @@ Como prever a saída exata do CSPRNG é impossível, o foco é **exploração de
 
 O Aether utiliza **TCN** (padrão), **LSTM** ou **GRU** com conexões dilatadas ou recorrentes.
 
-- **Por que TCN?** Processa janelas longas de lookback (48 barras × 180 s) identificando persistência de tendência ou exaustão.
+- **Por que TCN?** Processa janelas longas de lookback (48 barras × **300 s = 4 h**) identificando persistência de tendência ou exaustão com menor ruído CSPRNG que M3.
 - **34 features**: OHLC normalizado, indicadores técnicos, microestrutura de ticks e regime (Hurst, ADX, vol_ratio, CMO).
 - **Inferência**: Triton gRPC concorrente (`TritonGrpcClient`) quando `infra.triton.enabled`; fallback local via TorchScript em cache.
 - **Detecção de regime**: EMAs, inclinação, ADX e votos de trend (`dl_trend.py`) alimentam o scoring direcional.
@@ -56,6 +56,8 @@ Desvios extremos tendem a retornar à média em ativos com volatilidade fixa.
 
 - **Fração de Kelly**: stake proporcional a `trade_score` calibrado e win rate live.
 - **Consensus Entropy Penalty**: quando a ordem final diverge da maioria dos votos técnicos (`call_votes`/`put_votes`), aplica penalidade convexa em `f*` ponderando `di_diff`, `cmo` e afastamento do RSI; em baixo consenso, stake reduzida ao piso mínimo da API.
+- **Stop win por sessão ativa**: meta de lucro = 1% da banca inicial (`compounding_rate_daily`); encerramento gracioso ao atingir; cada restart do processo inicia sessão independente.
+- **Stop loss interno desativado**: Martingale opera sem disjuntor de perda imposto pelo motor.
 - **Gate de qualidade**: em modo seletivo, múltiplas camadas filtram execuções fracas; em modo contínuo, qualidade atua como penalidade de score/edge sem SKIP obrigatório.
 
 ### 2.4 Fases de Treinamento e Operação

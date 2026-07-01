@@ -262,7 +262,12 @@ async def test_bootstrap_calls_triton_sync_and_schema_probe(tmp_path):
             "src.application.services.deep_learning.dl_model_artifacts.verify_triton_schema_alignment_async",
             new_callable=AsyncMock,
         ) as mock_schema,
+        patch(
+            "src.application.services.deep_learning.dl_model_artifacts.verify_triton_stressed_inference_async",
+            new_callable=AsyncMock,
+        ) as mock_stress,
     ):
         await bootstrap_and_validate_models(orch)
     mock_sync.assert_awaited_once()
     mock_schema.assert_awaited_once()
+    mock_stress.assert_awaited_once()

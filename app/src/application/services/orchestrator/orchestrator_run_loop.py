@@ -2,54 +2,37 @@
 
 from typing import Any
 
-from src.application.services.deep_learning.dl_deferred_train import cancel_deferred_symbol_training
+from src.application.services.orchestrator.graceful_shutdown import close_infrastructure_connections
 from src.application.services.orchestrator.orchestrator_state_restore import (
     persist_session_hash,
     session_hash_payload,
     sync_market_signature,
 )
+from src.application.services.orchestrator.session_target_bootstrap import current_session_redis_payload
 from src.application.services.orchestrator.ws_bootstrap import (
     setup_trading_session,
     start_orchestrator_streams,
     subscribe_account_transactions,
 )
-from src.domain.risk.stop_win_target import resolve_stop_win_target
-from src.infrastructure.factories.infra_factory import close_infra_services
 
 
 async def setup_session(orch: Any) -> bool:
-    """Estabelece sessao de trading com autenticacao e WebSocket."""
+    """Autentica Deriv e prepara sessao de trading."""
     return await setup_trading_session(orch)
 
 
 async def start_streams(orch: Any) -> bool:
-    """Inicia streams OHLC e sincroniza velas historicas."""
+    """Inicia streams OHLC e ticks do cluster."""
     return await start_orchestrator_streams(orch)
 
 
 async def subscribe_transactions(orch: Any) -> None:
-    """Inscreve callback de transacoes de conta na Deriv."""
+    """Assina transacoes de conta para reconciliacao de saldo."""
     await subscribe_account_transactions(orch)
 
 
-def maybe_reset_daily_risk_session(orch: Any, epoch: int) -> None:
-    """Reinicia stop win no inicio de cada dia UTC (vela ancora)."""
-    day_key = int(epoch) // 86400
-    if orch._risk_session_day_key == day_key:
-        return
-    orch._risk_session_day_key = day_key
-    bal = float(orch.state.balance)
-
-    risk_cfg = orch.config.get("risk_management", {})
-    target = resolve_stop_win_target(risk_cfg, bal)
-
-    orch.state_mgr.reset_daily_metrics(bal, target, day_key)
-    orch.risk_manager.reset_daily_session(bal)
-    orch.logger.info("RISK | banca=$%.2f | stop-win diario", bal)
-
-
 async def save_full_state(orch: Any) -> None:
-    """Persiste o snapshot completo do orquestrador (Estado + Risco + PnL)."""
+    """Persiste snapshot completo, sessao e assinaturas de mercado."""
     s = await orch.state.get_state()
     s.update(
         {
@@ -59,6 +42,7 @@ async def save_full_state(orch: Any) -> None:
     )
     sig = orch.get_data_state_signature()
     session = session_hash_payload(orch)
+    start_bal, target_win = current_session_redis_payload(orch)
     save_bundle = getattr(orch.state_store, "save_state_bundle", None)
     skip_counter = int(getattr(orch, "_recovery_skip_counter", 0))
     if callable(save_bundle):
@@ -67,6 +51,8 @@ async def save_full_state(orch: Any) -> None:
             session=session,
             market_sig=sig or None,
             recovery_skip_counter=skip_counter,
+            session_start_balance=start_bal,
+            session_target_win=target_win,
         )
     else:
         await orch.state_store.save_snapshot(s)
@@ -78,21 +64,12 @@ async def save_full_state(orch: Any) -> None:
 
 
 async def stop_orchestrator(orch: Any) -> None:
-    """Para o loop e fecha o WebSocket."""
-    orch.running = False
-    task = orch._post_settlement_task
-    if task is not None and not task.done():
-        task.cancel()
-    cancel_deferred_symbol_training(orch)
-    infra = getattr(orch, "infra", None)
-    if infra is not None:
-        await close_infra_services(infra)
-    await orch.ws.close()
-    orch.logger.debug("STOP: encerrado.")
+    """Encerra conexoes de infraestrutura do orquestrador."""
+    await close_infrastructure_connections(orch)
 
 
 def get_data_state_signature(orch: Any) -> str:
-    """Calcula uma assinatura unica do estado dos dados de mercado."""
+    """Monta assinatura OHLC do ultimo candle fechado por simbolo."""
     sigs = []
     for sym in orch.symbols:
         if hasattr(orch, "stream") and hasattr(orch.stream, "candles"):

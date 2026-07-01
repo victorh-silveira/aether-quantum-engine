@@ -14,7 +14,7 @@ from src.domain.risk.stake_sizing import (
     finalize_stake_with_min,
     resolve_stake_conviction,
 )
-from src.domain.risk.stop_win_target import resolve_stop_win_target
+from src.domain.risk.stop_win_target import persisted_session_target, resolve_stop_win_target
 
 
 def _metrics_for_conviction(dl_metrics: dict | None, conviction: float) -> dict:
@@ -114,6 +114,8 @@ def _apply_consensus_entropy_f_star(
         dl_metrics,
         order_direction,
         kelly_config=rm.kelly_config,
+        consecutive_losses=int(getattr(rm, "consecutive_losses", 0)),
+        pending_loss_total=sum(getattr(rm, "pending_loss", {}).values()),
     )
     if retention < 1.0 and not silent:
         rm.logger.debug(
@@ -157,7 +159,11 @@ def calculate_stake_for_manager(
 ) -> float:
     """Calcula stake final com Kelly ou Martingale conforme estado do gerenciador."""
     if apply_stop_win:
-        target = resolve_stop_win_target(rm.config, rm.initial_bankroll)
+        target = resolve_stop_win_target(
+            rm.config,
+            rm.initial_bankroll,
+            persisted_target=persisted_session_target(rm),
+        )
         if rm.total_session_profit >= target:
             rm.logger.info(f"STOP WIN: Meta de ${target:.2f} atingida. Encerrando operações do dia.")
             return 0.0
@@ -275,7 +281,7 @@ def calculate_stake_for_manager(
     )
     if cycle_id > 0 and not silent:
         rm.logger.info(
-            "[C%04d] %s: stake=$%.2f (f*=%.4f) | p=%.2f | b=%.2f | banca=$%.2f | sym=%s%s",
+            "[C%04d] %s: stake=$%.2f (f*=%.4f) | p=%.2f | b=%.2f | banca=$%.2f | pend=$%.2f | pnl_sess=$%+.2f | sym=%s%s",
             cycle_id,
             mode_tag,
             final_stake,
@@ -283,6 +289,8 @@ def calculate_stake_for_manager(
             p,
             b,
             bankroll,
+            loss_to_recover,
+            rm.total_session_profit,
             symbol,
             rec_info,
         )

@@ -126,6 +126,31 @@ def test_arm_cooldown_timer_no_op():
     assert rm.is_on_cooldown(99) is False
 
 
+def test_stake_block_reason_stop_win_with_persisted_target():
+    rm = RiskManager(
+        {
+            "kelly": {"fraction": 0.1},
+            "params": {
+                "compounding_enabled": True,
+                "compounding_rate_daily": 0.01,
+                "payout_estimate": 0.95,
+                "stake_min": 1.0,
+            },
+        }
+    )
+    rm.set_initial_bankroll(1000.0)
+    rm.daily_stop_win_target = 10.0
+    rm.total_session_profit = 11.0
+    assert rm.stake_block_reason(1000.0, "R_50", conviction=0.6) == "stop_win"
+
+
+def test_risk_manager_reset_daily_session_alias():
+    rm = RiskManager({"params": {}, "kelly": {}})
+    rm.reset_daily_session(500.0, target=5.0, max_loss=1.0)
+    assert rm.initial_bankroll == 500.0
+    assert rm.daily_stop_win_target == 5.0
+
+
 def test_stake_block_reason_kelly_no_edge():
     rm = RiskManager(
         {

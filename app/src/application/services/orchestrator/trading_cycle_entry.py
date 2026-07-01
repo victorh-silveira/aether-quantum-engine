@@ -37,7 +37,7 @@ def _cycle_cadence_elapsed(orch: Any) -> bool:
 
 
 def _stop_win_blocks_cycle(orch: Any) -> bool:
-    """True quando a meta diaria de lucro ja foi atingida ou o motor encerrou por stop win."""
+    """True quando a meta diaria de lucro ou perda ja foi atingida."""
     if getattr(orch, "shutdown_reason", None) == "stop_win":
         return True
     risk_manager = getattr(orch, "risk_manager", None)
@@ -45,7 +45,14 @@ def _stop_win_blocks_cycle(orch: Any) -> bool:
         return False
     config = getattr(orch, "config", {}) or {}
     risk_cfg = config.get("risk_management", {}) if isinstance(config, dict) else {}
-    target = resolve_stop_win_target(risk_cfg, float(risk_manager.initial_bankroll))
+    persisted_target = None
+    if hasattr(orch, "state_mgr") and orch.state_mgr is not None:
+        persisted_target = float(orch.state_mgr.state.daily_stop_win_target)
+    target = resolve_stop_win_target(
+        risk_cfg,
+        float(risk_manager.initial_bankroll),
+        persisted_target=persisted_target if persisted_target > 0.0 else None,
+    )
     pnl = float(risk_manager.total_session_profit)
 
     if hasattr(orch, "state_mgr") and orch.state_mgr is not None and type(orch.state_mgr).__name__ == "StateManager":

@@ -20,8 +20,8 @@ async def test_restore_session_hash_all_fields():
         "daily_stop_win_target": "5",
         "total_trades_today": "2",
         "stop_win_triggered": "true",
-        "day_key": "3",
     }
+    orch.risk_manager = MagicMock()
     await restore_session_hash(orch, store)
     mgr = orch.state_mgr.state
     assert mgr.initial_balance == 10.0

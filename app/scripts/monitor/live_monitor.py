@@ -1,14 +1,23 @@
-"""Dashboard Rich em tempo real para telemetria e estado do motor Medallion."""
+"""Dashboard Rich em tempo real para telemetria e estado do motor Deep Learning."""
 
 import json
 import logging
+import re
+import sys
 import time
 from pathlib import Path
 from threading import Thread
 
+
+_APP = Path(__file__).resolve().parents[2]
+if str(_APP) not in sys.path:
+    sys.path.insert(0, str(_APP))
+
 from rich.live import Live
 
 from aether_paths import repo_path
+from scripts.monitor.monitor_redis import refresh_session_targets_from_redis
+from scripts.monitor.monitor_state import DashboardState
 from scripts.monitor.monitor_ui import (
     generate_header,
     generate_radar,
@@ -19,6 +28,7 @@ from scripts.monitor.monitor_ui import (
 
 LOG_PATH = repo_path("logs", "engine.log")
 STATE_PATH = repo_path("data", "state.json")
+SESSION_STATE_PATH = repo_path("data", "session_state.json")
 CONFIG_PATH = repo_path("config", "settings.json")
 
 repo_path("logs").mkdir(parents=True, exist_ok=True)
@@ -27,19 +37,11 @@ repo_path("data").mkdir(parents=True, exist_ok=True)
 logging.basicConfig(level=logging.ERROR, filename=str(repo_path("logs", "monitor.log")))
 logger = logging.getLogger("MONITOR")
 
-
-class DashboardState:
-    def __init__(self):
-        self.balance = 0.0
-        self.initial_bankroll = 0.0
-        self.stop_win_pct = 1.0
-        self.small_threshold = 100.0
-        self.small_stop_win = 10.0
-        self.active_contracts = {}
-        self.last_telemetry = {}
-        self.total_profit = 0.0
-        self.llm_enabled = True
-        self.trading_mode = "N/A"
+_EXEC_SEL_RE = re.compile(
+    r"EXEC_SEL\s*\|\s*(?P<symbol>R_\d+)\s+ord=(?P<ord>CALL|PUT)\s+dl=(?P<dl>CALL|PUT)\s+s=(?P<score>[\d.]+)",
+    re.IGNORECASE,
+)
+_SESSION_START_RE = re.compile(r"Alvo de 1%:\s*\$([\d,]+\.?\d*)", re.IGNORECASE)
 
 
 def _safe_load_json(path: Path, retries: int = 3, delay: float = 0.05):
@@ -62,53 +64,52 @@ class LogParser:
         line = line.strip()
         if not line:
             return
-
-        self._parse_telemetry(line)
-        self._parse_llm_response(line)
-        self._parse_llm_dados(line)
+        self._parse_exec_sel(line)
+        self._parse_session_bootstrap(line)
         self._parse_balance(line)
 
-    def _parse_telemetry(self, line: str):
-        if "LLM_AUDIT" in line:
-            try:
-                content = line.split("LLM_AUDIT", 1)[1]
-                parts = content.split("||") if "||" in content else content.split("|")
-                for p in parts:
-                    if "=" in p:
-                        k, v = p.strip().split("=")[0], p.strip().split("=")[1]
-                        self.state.last_telemetry[k.strip().lower()] = v.strip().split(" ")[0]
-            except Exception as e:
-                logger.error(f"Parser Error LLM_AUDIT: {e}")
+    def _parse_exec_sel(self, line: str) -> None:
+        if "EXEC_SEL" not in line:
+            return
+        match = _EXEC_SEL_RE.search(line)
+        if not match:
+            return
+        try:
+            self.state.last_telemetry["symbol"] = match.group("symbol")
+            self.state.last_telemetry["dir"] = match.group("ord").upper()
+            self.state.last_telemetry["dl_dir"] = match.group("dl").upper()
+            self.state.last_telemetry["conv"] = f"{float(match.group('score')):.2f}"
+            if "| Votes:" in line:
+                after_votes = line.split("| Votes:", 1)[1]
+                parts = [p.strip() for p in after_votes.split("|")]
+                if len(parts) >= 2 and parts[1]:
+                    self.state.last_telemetry["metrics"] = parts[1]
+        except Exception as exc:
+            logger.error("Parser Error EXEC_SEL: %s", exc)
 
-    def _parse_llm_response(self, line: str):
-        if "LLM_RESPOSTA" in line:
-            try:
-                if "[CALL]" in line:
-                    self.state.last_telemetry["dir"] = "CALL"
-                elif "[PUT]" in line:
-                    self.state.last_telemetry["dir"] = "PUT"
-                if "prob=" in line:
-                    val = line.split("prob=")[1].split("%", maxsplit=1)[0]
-                    self.state.last_telemetry["conv"] = f"{float(val) / 100.0:.2f}"
-            except Exception as e:
-                logger.error(f"Parser Error LLM_RESPOSTA: {e}")
+    def _parse_session_bootstrap(self, line: str) -> None:
+        if "SESSAO INICIADA" not in line.upper():
+            return
+        try:
+            match = _SESSION_START_RE.search(line)
+            if match:
+                target = float(match.group(1).replace(",", ""))
+                if target > 0.0:
+                    self.state.session_target_win = target
+        except Exception as exc:
+            logger.error("Parser Error SESSAO INICIADA: %s", exc)
 
-    def _parse_llm_dados(self, line: str):
-        if "LLM_DADOS" in line and "[MTF]" in line:
-            try:
-                tags_str = line.split("[MTF]")[1].strip()
-                tags = [t.strip() for t in tags_str.split("|") if ":" in t]
-                self.state.last_telemetry["patterns"] = ",".join(tags)
-            except Exception as e:
-                logger.error(f"Parser Error LLM_DADOS: {e}")
-
-    def _parse_balance(self, line: str):
-        if "SALDO ATUAL:" in line.upper():
-            try:
-                val = line.upper().split("SALDO ATUAL:")[1].split("|")[0].strip().replace("$", "").replace(",", "")
-                self.state.balance = float(val)
-            except Exception as e:
-                logger.debug(f"Balance parsing error: {e}")
+    def _parse_balance(self, line: str) -> None:
+        upper = line.upper()
+        if "SALDO ATUAL:" not in upper:
+            return
+        try:
+            val = upper.split("SALDO ATUAL:")[1].split("|")[0].strip().replace("$", "").replace(",", "")
+            balance = float(val)
+            if balance > 0.0:
+                self.state.balance = balance
+        except Exception as exc:
+            logger.debug("Balance parsing error: %s", exc)
 
 
 def main():
@@ -135,60 +136,105 @@ def main():
 
     Thread(target=tail_logs, daemon=True).start()
     Thread(target=refresh_state, daemon=True).start()
-
     _run_dashboard(state)
 
 
-def _refresh_config(state: DashboardState):
-    if CONFIG_PATH.exists():
-        try:
-            cfg = _safe_load_json(CONFIG_PATH)
-            if not isinstance(cfg, dict):
-                return
-            rm = cfg.get("risk_management")
-            if isinstance(rm, dict):
-                if "large_account_stop_win_pct" in rm:
-                    state.stop_win_pct = float(rm["large_account_stop_win_pct"])
-                elif "stop_win_percentage" in rm:
-                    state.stop_win_pct = float(rm["stop_win_percentage"])
+def _refresh_config(state: DashboardState) -> None:
+    if not CONFIG_PATH.exists():
+        return
+    try:
+        cfg = _safe_load_json(CONFIG_PATH)
+        if not isinstance(cfg, dict):
+            return
+        symbols = cfg.get("symbols")
+        if isinstance(symbols, list) and symbols:
+            state.active_symbols = tuple(str(s) for s in symbols)
 
-                if "small_account_threshold" in rm:
-                    state.small_threshold = float(rm["small_account_threshold"])
-                if "small_account_stop_win" in rm:
-                    state.small_stop_win = float(rm["small_account_stop_win"])
+        dl = cfg.get("deep_learning")
+        if isinstance(dl, dict):
+            state.dl_arch = str(dl.get("arch", state.dl_arch))
 
-            tm = cfg.get("trading")
-            if isinstance(tm, dict) and "mode" in tm:
-                state.trading_mode = str(tm["mode"])
+        orch = cfg.get("orchestrator")
+        if isinstance(orch, dict):
+            execution = orch.get("execution")
+            if isinstance(execution, dict):
+                mandatory = bool(execution.get("mandatory_trade_each_cycle", False))
+                state.decision_mode = "CONTÍNUO" if mandatory else "SELETIVO"
 
-            llm = cfg.get("llm")
-            if isinstance(llm, dict):
-                state.llm_enabled = bool(llm.get("enabled", True))
-        except Exception as e:
-            logger.error(f"Config refresh error: {e}")
+        rm = cfg.get("risk_management")
+        if isinstance(rm, dict):
+            params = rm.get("params")
+            if isinstance(params, dict):
+                state.compounding_enabled = bool(params.get("compounding_enabled", True))
+                state.compounding_rate = float(params.get("compounding_rate_daily", state.compounding_rate))
+
+        tm = cfg.get("trading")
+        if isinstance(tm, dict) and "mode" in tm:
+            state.trading_mode = str(tm["mode"])
+
+        infra = cfg.get("infra")
+        if isinstance(infra, dict):
+            redis_cfg = infra.get("redis")
+            if isinstance(redis_cfg, dict):
+                state.redis_url = str(redis_cfg.get("url", state.redis_url))
+                state.redis_key_prefix = str(redis_cfg.get("key_prefix", state.redis_key_prefix))
+    except Exception as exc:
+        logger.error("Config refresh error: %s", exc)
 
 
-def _refresh_data(state: DashboardState):
-    if STATE_PATH.exists():
-        try:
-            data = _safe_load_json(STATE_PATH)
-            if not isinstance(data, dict):
-                return
-            if "balance" in data:
-                b = float(data["balance"])
-                if b > 0:
-                    state.balance = b
-            if "total_session_profit" in data:
-                state.total_profit = float(data["total_session_profit"])
-            if "active_contracts" in data and isinstance(data["active_contracts"], dict):
-                state.active_contracts = data["active_contracts"]
-            risk = data.get("risk")
-            if isinstance(risk, dict) and "initial_bankroll" in risk:
-                ini = float(risk["initial_bankroll"])
-                if ini > 0:
-                    state.initial_bankroll = ini
-        except Exception as e:
-            logger.error(f"State load error: {e}")
+def _refresh_data(state: DashboardState) -> None:
+    refresh_session_targets_from_redis(state)
+    _refresh_session_state_file(state)
+    _refresh_runtime_state(state)
+
+
+def _refresh_session_state_file(state: DashboardState) -> None:
+    if not SESSION_STATE_PATH.exists():
+        return
+    try:
+        data = _safe_load_json(SESSION_STATE_PATH)
+        if not isinstance(data, dict):
+            return
+        initial = float(data.get("initial_balance", 0.0))
+        current = float(data.get("current_balance", 0.0))
+        target = float(data.get("daily_stop_win_target", 0.0))
+        if initial > 0.0 and state.session_start_balance <= 0.0:
+            state.session_start_balance = initial
+        if target > 0.0 and state.session_target_win <= 0.0:
+            state.session_target_win = target
+        if initial > 0.0 and current > 0.0:
+            state.session_profit = current - initial
+    except Exception as exc:
+        logger.error("Session state load error: %s", exc)
+
+
+def _refresh_runtime_state(state: DashboardState) -> None:
+    if not STATE_PATH.exists():
+        return
+    try:
+        data = _safe_load_json(STATE_PATH)
+        if not isinstance(data, dict):
+            return
+        balance = data.get("balance")
+        if balance is not None:
+            b = float(balance)
+            if b > 0.0:
+                state.balance = b
+        profit = data.get("total_session_profit")
+        if profit is not None:
+            state.session_profit = float(profit)
+        contracts = data.get("active_contracts")
+        if isinstance(contracts, dict):
+            state.active_contracts = contracts
+        risk = data.get("risk")
+        if isinstance(risk, dict):
+            ini = risk.get("initial_bankroll")
+            if ini is not None:
+                bankroll = float(ini)
+                if bankroll > 0.0 and state.session_start_balance <= 0.0:
+                    state.session_start_balance = bankroll
+    except Exception as exc:
+        logger.error("State load error: %s", exc)
 
 
 def _run_dashboard(state: DashboardState):

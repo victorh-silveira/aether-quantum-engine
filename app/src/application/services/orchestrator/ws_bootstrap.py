@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 from src.application.services.deep_learning.dl_model_artifacts import bootstrap_and_validate_models
 from src.application.services.deep_learning.dl_startup import resolve_startup_fetch_bars
 from src.application.services.orchestrator.orchestrator_state_restore import restore_orchestrator_state
+from src.application.services.orchestrator.session_target_bootstrap import bootstrap_active_session_targets
 from src.infrastructure.api.deriv_rest_client import DerivRestError
 from src.infrastructure.factories.infra_factory import validate_infra_services
 
@@ -61,7 +62,7 @@ async def setup_trading_session(orch: Orchestrator) -> bool:
 
         await orch.ws.connect(session.ws_url, **ws_connect_options(orch))
         orch.state.balance = session.balance
-        orch._maybe_reset_daily_risk_session(int(time.time()))
+        await bootstrap_active_session_targets(orch, float(orch.state.balance))
         if orch.risk_manager.initial_bankroll <= 0.0:
             orch.risk_manager.set_initial_bankroll(orch.state.balance)
         await subscribe_account_transactions(orch)

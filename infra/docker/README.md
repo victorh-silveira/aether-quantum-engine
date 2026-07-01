@@ -77,7 +77,26 @@ docker exec -it aether-redis redis-cli CONFIG GET appendfsync
 
 O servico usa `redis.conf` com `appendonly yes` e `appendfsync everysec` (RDB desabilitado via `save ""`).
 
-O motor grava estado via `redis_state_pipeline.write_state_bundle` (MULTI/EXEC atômico), incluindo `recovery:skip_counter`.
+O motor grava estado via `redis_state_pipeline.write_state_bundle` (MULTI/EXEC atômico), incluindo `recovery:skip_counter` e chaves de sessão ativa (`session:current:start_balance`, `session:current:target_win`).
+
+## TimescaleDB: compressao e retencao
+
+Arquivos SQL:
+
+| Arquivo | Funcao |
+|---------|--------|
+| `003_init-timescale.sql` | Extension, hypertables `ticks`/`ohlc_bars`, indices |
+| `004_timescale-lifecycle.sql` | Compressao columnar (7 dias) e retention de ticks (30 dias) |
+
+Politicas assincronas nativas do TimescaleDB (`add_compression_policy`, `add_retention_policy`) com `if_not_exists => TRUE`.
+
+Apos `make docker-up`, `make timescale-lifecycle` reaplica politicas em volumes ja existentes (idempotente).
+
+```bash
+make timescale-lifecycle
+docker exec -it aether-timescaledb psql -U aether -d aether -c \
+  "SELECT * FROM timescaledb_information.compression_settings;"
+```
 
 ## Pre-requisito do motor
 

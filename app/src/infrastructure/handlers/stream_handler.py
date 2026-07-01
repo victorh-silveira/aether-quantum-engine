@@ -3,6 +3,7 @@
 import asyncio
 import logging
 from datetime import datetime
+from typing import Any
 
 import numpy as np
 
@@ -11,6 +12,7 @@ from src.infrastructure.api.deriv_granularity import normalize_granularity_secon
 from src.infrastructure.api.websocket_manager import WebSocketManager
 from src.infrastructure.handlers.history_fetch import fetch_paginated_candle_history, parse_history_fetch_config
 from src.infrastructure.handlers.stream_ohlc_fetch import fetch_candle_close_rows, fetch_candle_ohlc_rows
+from src.infrastructure.handlers.stream_reconnect import execute_stream_reconnect
 from src.infrastructure.handlers.tick_buffer import TickBuffer
 
 
@@ -284,3 +286,7 @@ class StreamHandler:
         if symbol not in self.symbols:
             return []
         return await fetch_candle_close_rows(self.ws, symbol, granularity, count, self.logger)
+
+    async def reconnect_stream(self, orch: Any) -> bool:
+        """Reinicializa WebSocket e subscricoes de mercado apos inanicao de ticks."""
+        return await execute_stream_reconnect(orch, self)

@@ -20,7 +20,7 @@ O serviço `aether-triton` usa `nvcr.io/nvidia/tritonserver` com repositório em
 1. **Bootstrap**: `sync_all_symbols_to_triton` copia `latest_ts.pt` para `{symbol}/1/model.pt` + `config.pbtxt`.
 2. **Reload**: `reload_triton_repository` via HTTP após sync.
 3. **Sanity estressado**: `verify_triton_stressed_inference_async` envia tensores com RSI=0.99, CMO=1.0, vol_ratio=1.80; fail-fast se NaN/Inf ou prob fora de `[0, 1]`.
-4. **Produção**: `TritonGrpcClient` mantém canal `grpc.aio.insecure_channel` persistente e dispara inferências dos 5 símbolos em paralelo (`asyncio.gather`).
+4. **Produção**: `TritonGrpcClient` mantém canal `grpc.aio.insecure_channel` persistente, dispara inferências dos 5 símbolos em paralelo (`asyncio.gather`) e aplica **timeout de 2,0 s** por requisição. Em timeout, `dl_predict_triton` faz fallback para TorchScript local (log `TRITON_TIMEOUT_FALLBACK`).
 
 Variáveis no `.env`:
 
@@ -47,9 +47,13 @@ Config em `settings.json`:
 - `state:snapshot` (JSON completo)
 - `state:risk` (hash: `consecutive_losses`, cooldowns, etc.)
 - `state:pending_loss` (hash por símbolo)
-- `session:daily` (banca corrente, stop-win, trades do dia)
+- `session:current` (hash: banca corrente, trades, meta win)
+- `session:current:start_balance` (string — banca inicial da sessão ativa)
+- `session:current:target_win` (string — meta de lucro da sessão)
 - `recovery:skip_counter` (decaimento Hurst em recovery)
 - `market_sig` (assinatura OHLC)
+
+As chaves `session:current:*` são gravadas no bootstrap da sessão e removidas no `graceful_shutdown`. Cada restart do processo inicia uma sessão independente.
 
 Gravado em `save_full_state` após cada settlement, sem bloquear a thread principal com múltiplos round-trips.
 
@@ -119,7 +123,33 @@ Se algum falhar e `fail_fast` estiver ativo, o processo encerra com mensagem ind
 
 ## Schema Timescale
 
-Hypertables `ticks` e `ohlc_bars` criadas por `infra/docker/init-timescale.sql` no primeiro boot do container.
+Hypertables `ticks` e `ohlc_bars` criadas por `infra/docker/003_init-timescale.sql` no primeiro boot do container.
+
+Politicas de ciclo de vida (idempotentes) em `infra/docker/004_timescale-lifecycle.sql`:
+
+| Hypertable | Compressao | Retencao |
+|------------|------------|----------|
+| `ticks` | Chunks com mais de **7 dias** (`compress_segmentby = symbol`, `compress_orderby = time DESC`) | Drop automatico apos **30 dias** |
+| `ohlc_bars` | Chunks com mais de **7 dias** (mesma segmentacao) | Sem retention (correlacao cross-symbol) |
+
+Ordem de bootstrap em `docker-entrypoint-initdb.d/`: `002_aether-io-tune.sql` -> `003_init-timescale.sql` -> `004_timescale-lifecycle.sql` (prefixo numerico evita execucao prematura).
+
+Se o primeiro boot falhou (volume parcialmente inicializado), recrie o volume antes de subir de novo:
+
+```bash
+docker compose -f infra/docker/docker-compose.yml --project-directory infra/docker down
+docker volume rm docker_aether_ts_data
+make docker-up
+```
+
+Volumes existentes recebem as mesmas politicas via `make timescale-lifecycle` (executado automaticamente em `make docker-up`).
+
+Validacao:
+
+```bash
+docker exec -it aether-timescaledb psql -U aether -d aether -c \
+  "SELECT hypertable_name, job_id, schedule_interval, config FROM timescaledb_information.jobs WHERE proc_name IN ('policy_compression','policy_retention');"
+```
 
 ## Testes de integração
 

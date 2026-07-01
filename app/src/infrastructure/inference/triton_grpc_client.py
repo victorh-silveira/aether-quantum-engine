@@ -24,12 +24,16 @@ except ImportError:
 
 
 logger = logging.getLogger("AETH")
-
 _INPUT_NAME = "INPUT__0"
 _OUTPUT_NAME = "OUTPUT__0"
 _MAX_MSG = 512 * 1024 * 1024
+_INFER_TIMEOUT_SEC = 2.0
 
 _pool_lock = asyncio.Lock()
+
+
+class TritonInferenceTimeout(TimeoutError):
+    """Inferencia gRPC Triton excedeu o timeout configurado."""
 
 
 class _GrpcClientPool:
@@ -123,8 +127,23 @@ class TritonGrpcClient:
         self._channel = None
         self._url = None
 
-    async def infer_symbol(self, model_name: str, tensor: np.ndarray) -> float:
-        """Executa inferencia gRPC para um simbolo."""
+    async def close_channel(self) -> None:
+        """Encerra canal gRPC aio persistente."""
+        await self.close()
+
+    @classmethod
+    async def close_channel_pool(cls) -> None:
+        """Fecha pool singleton gRPC aio."""
+        await close_triton_grpc_client()
+
+    async def infer_symbol(
+        self,
+        model_name: str,
+        tensor: np.ndarray,
+        *,
+        timeout: float = _INFER_TIMEOUT_SEC,
+    ) -> float:
+        """Executa inferencia gRPC para um simbolo com timeout rigido."""
         if self._infer is None:
             raise RuntimeError("TritonGrpcClient nao conectado")
         batch = np.asarray(tensor, dtype=np.float32)
@@ -134,8 +153,13 @@ class TritonGrpcClient:
         inputs[0].set_data_from_numpy(batch)
         outputs = [grpc_aio.InferRequestedOutput(_OUTPUT_NAME)]
         try:
-            result = await self._infer.infer(model_name=str(model_name), inputs=inputs, outputs=outputs)
+            result = await asyncio.wait_for(
+                self._infer.infer(model_name=str(model_name), inputs=inputs, outputs=outputs),
+                timeout=float(timeout),
+            )
             return _parse_raw_output(result)
+        except TimeoutError as exc:
+            raise TritonInferenceTimeout(f"Triton infer timeout {float(timeout):.1f}s for {model_name}") from exc
         except InferenceServerException as exc:
             logger.error("TRITON: inferencia falhou para %s: %s", model_name, exc)
             raise

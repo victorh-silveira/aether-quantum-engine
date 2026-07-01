@@ -9,6 +9,7 @@ from src.application.services.orchestrator.orchestrator_state_session import (
     restore_market_signatures,
     restore_session_hash,
 )
+from src.application.services.orchestrator.session_target_bootstrap import restore_current_session_targets
 
 
 async def restore_orchestrator_state(orch: Any) -> None:
@@ -27,14 +28,15 @@ async def restore_orchestrator_state(orch: Any) -> None:
         if isinstance(risk, dict) and hasattr(orch.risk_manager, "restore_state"):
             orch.risk_manager.restore_state(risk)
         profit = snapshot.get("total_session_profit")
-        if profit is not None:
+        if profit is not None and not getattr(orch, "_session_targets_bootstrapped", False):
             orch.risk_manager.total_session_profit = float(profit)
     await restore_session_hash(orch, store)
+    await restore_current_session_targets(orch)
     await restore_market_signatures(orch, store)
 
 
 def session_hash_payload(orch: Any) -> dict[str, float | int | bool]:
-    """Monta dict de sessao diaria para persistencia."""
+    """Serializa metricas da sessao ativa para hash Redis."""
     mgr = orch.state_mgr.state
     return {
         "initial_balance": mgr.initial_balance,
@@ -42,20 +44,19 @@ def session_hash_payload(orch: Any) -> dict[str, float | int | bool]:
         "daily_stop_win_target": mgr.daily_stop_win_target,
         "total_trades_today": mgr.total_trades_today,
         "stop_win_triggered": mgr.stop_win_triggered,
-        "day_key": mgr.day_key,
     }
 
 
 async def persist_session_hash(orch: Any) -> None:
-    """Grava campos de sessao diaria no Redis."""
+    """Grava hash session:current com metricas correntes."""
     store = getattr(orch, "state_store", None)
     if store is None:
         return
-    await store.set_hash("session:daily", session_hash_payload(orch))
+    await store.set_hash("session:current", session_hash_payload(orch))
 
 
 async def bar_epoch_already_processed(orch: Any, symbol: str, epoch: int) -> bool:
-    """True quando bar_sig no Redis coincide com epoch da vela."""
+    """True quando epoch de barra ja foi processado nesta sessao."""
     store = getattr(orch, "state_store", None)
     infra = getattr(orch, "infra", None)
     if store is None or infra is None or not infra.enabled:
@@ -69,7 +70,7 @@ async def bar_epoch_already_processed(orch: Any, symbol: str, epoch: int) -> boo
 
 
 async def mark_bar_processed(orch: Any, symbol: str, epoch: int) -> None:
-    """Atualiza bar_sig apos processar ciclo da vela."""
+    """Marca epoch de barra como processado no Redis."""
     store = getattr(orch, "state_store", None)
     if store is None:
         return
@@ -77,7 +78,7 @@ async def mark_bar_processed(orch: Any, symbol: str, epoch: int) -> None:
 
 
 async def sync_market_signature(orch: Any, signature: str) -> None:
-    """Persiste assinatura de mercado no Redis."""
+    """Persiste assinatura agregada de OHLC para deduplicacao de ciclo."""
     store = getattr(orch, "state_store", None)
     if store is None or not signature:
         return

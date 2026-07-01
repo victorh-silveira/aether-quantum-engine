@@ -30,3 +30,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS ohlc_bars_symbol_epoch
 
 CREATE INDEX IF NOT EXISTS ohlc_bars_symbol_gran_time
   ON ohlc_bars (symbol, granularity, time DESC);
+
+CREATE INDEX IF NOT EXISTS ticks_symbol_time
+  ON ticks (symbol, time DESC);

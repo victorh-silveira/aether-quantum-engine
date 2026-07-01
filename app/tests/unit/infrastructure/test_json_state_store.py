@@ -6,6 +6,19 @@ from src.infrastructure.state.json_state_store import JsonStateStore
 
 
 @pytest.mark.asyncio
+async def test_json_state_store_session_keys(tmp_path):
+    path = tmp_path / "state.json"
+    store = JsonStateStore(path)
+    await store.save_state_bundle(
+        snapshot={"risk": {"consecutive_losses": 0}},
+        session_start_balance=2000.0,
+        session_target_win=20.0,
+    )
+    assert await store.get_string("session:current:start_balance") == "2000.0"
+    assert await store.get_string("session:current:target_win") == "20.0"
+
+
+@pytest.mark.asyncio
 async def test_json_state_store_roundtrip(tmp_path):
     path = tmp_path / "state.json"
     store = JsonStateStore(path)

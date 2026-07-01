@@ -20,11 +20,24 @@ async def test_restore_orchestrator_state():
         "risk": {"consecutive_losses": 3, "pending_loss": {"R_10": 2.0}},
         "total_session_profit": 5.0,
     }
-    orch.state_store.get_hash.side_effect = [
-        {"R_10": "2.0"},
-        {"initial_balance": "100.0", "day_key": "1"},
-    ]
-    orch.state_store.get_string.side_effect = ["sig", "99"]
+
+    async def _get_hash(key: str):
+        if key == "state:pending_loss":
+            return {"R_10": "2.0"}
+        if key == "session:daily":
+            return {"initial_balance": "100.0", "day_key": "1"}
+        return {}
+
+    async def _get_string(key: str):
+        if key == "market_sig":
+            return "sig"
+        if key == "bar_sig:R_10":
+            return "99"
+        return None
+
+    orch.state_store.get_hash.side_effect = _get_hash
+    orch.state_store.get_string.side_effect = _get_string
+    orch.config = {"risk_management": {"params": {"compounding_enabled": False}}}
     orch.risk_manager = RiskManager({"params": {}, "kelly": {}, "limits": {}})
     orch.anchor = "R_10"
     await restore_orchestrator_state(orch)

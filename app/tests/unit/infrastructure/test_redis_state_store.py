@@ -31,6 +31,15 @@ async def test_redis_save_and_load_snapshot():
 
 
 @pytest.mark.asyncio
+async def test_redis_delete_string():
+    client = AsyncMock()
+    store = RedisStateStore(url="redis://localhost:6379/0", debounce_seconds=0.0)
+    with patch.object(store, "_redis", AsyncMock(return_value=client)):
+        await store.delete_string("session:current:target_win")
+    client.delete.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_redis_hash_and_string_keys():
     client = AsyncMock()
     client.ping = AsyncMock(return_value=True)

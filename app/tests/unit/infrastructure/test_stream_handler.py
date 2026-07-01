@@ -1,5 +1,5 @@
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -39,18 +39,18 @@ def test_resolve_fetch_count_default(mock_ws):
 
 
 def test_resolve_fetch_count_startup_override(mock_ws):
-    sh = StreamHandler(mock_ws, ["R_50"], {"fetch_count": 25984, "_startup_fetch_count": 192})
+    sh = StreamHandler(mock_ws, ["R_50"], {"fetch_count": 15616, "_startup_fetch_count": 192})
     assert sh._resolve_fetch_count() == 192
     sh.config.pop("_startup_fetch_count", None)
-    assert sh._resolve_fetch_count() == 25984
+    assert sh._resolve_fetch_count() == 15616
 
 
 def test_history_sync_quiet_for_small_fetch_goal(mock_ws):
     sh = StreamHandler(mock_ws, ["R_50"], {"fetch_count": 256})
     assert sh._history_sync_quiet(256) is True
     assert sh._history_sync_quiet(1000) is False
-    sh.config["_startup_fetch_count"] = 25984
-    assert sh._history_sync_quiet(25984) is True
+    sh.config["_startup_fetch_count"] = 15616
+    assert sh._history_sync_quiet(15616) is True
 
 
 def test_stream_handler_normalizes_unsupported_granularity(mock_ws):
@@ -271,3 +271,16 @@ async def test_fetch_candle_ohlc_skips_invalid_rows(mock_ws):
     )
     sh = StreamHandler(mock_ws, ["R_50"], {})
     assert await sh.fetch_candle_ohlc("R_50", 300, 10) == [(1.0, 2.0, 1.0, 1.0)]
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_reconnect_stream(stream_handler):
+    orch = MagicMock()
+    with patch(
+        "src.infrastructure.handlers.stream_handler.execute_stream_reconnect",
+        new_callable=AsyncMock,
+        return_value=True,
+    ) as reconnect_mock:
+        ok = await stream_handler.reconnect_stream(orch)
+    assert ok is True
+    reconnect_mock.assert_awaited_once_with(orch, stream_handler)

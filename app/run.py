@@ -1,6 +1,7 @@
 """Ponto de entrada: carrega configuracao e executa o orquestrador."""
 
 import asyncio
+import sys
 
 from aether_paths import REPO_ROOT
 from src.application.services.orchestrator import Orchestrator
@@ -9,41 +10,44 @@ from src.application.services.orchestrator.engine_session import (
     create_authenticated_auth,
     load_engine_config,
 )
+from src.application.services.orchestrator.graceful_shutdown import install_shutdown_excepthook
 
 
-async def main():
+async def main() -> int:
     """Carrega configuracao, autentica e executa o loop principal do motor."""
     config, logger = load_engine_config(engine_mode=ENGINE_MODE_EXECUTE)
     auth = create_authenticated_auth(config, logger)
     if auth is None:
-        raise SystemExit(1)
+        return 1
 
     orchestrator = Orchestrator(config, auth)
     try:
         await orchestrator.run()
-    except (
-        asyncio.CancelledError,
-        KeyboardInterrupt,
-    ):
-        await orchestrator.stop()
+    except (asyncio.CancelledError, KeyboardInterrupt):
+        return 130
+    finally:
+        await orchestrator.close_infrastructure_connections()
+
     reason = getattr(orchestrator, "shutdown_reason", None)
     if reason == "stop_win":
         target = orchestrator.risk_manager.total_session_profit
-        logger.info("STOP_WIN: meta diaria atingida (pnl_sessao=$%+.2f). Motor encerrado.", target)
-        raise SystemExit(0)
+        logger.info("STOP_WIN: meta da sessao atingida (pnl_sessao=$%+.2f). Motor encerrado.", target)
+        return 0
     if not orchestrator.running:
         logger.error(
             "Motor encerrou antes do loop principal. Veja INIT (PAT, OTP, stream) e %s",
             REPO_ROOT / ".env",
         )
-        raise SystemExit(1)
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
+    install_shutdown_excepthook()
     try:
-        asyncio.run(main())
+        sys.exit(asyncio.run(main()))
     except SystemExit:
         raise
     except Exception as exc:
         print(f"ERRO fatal ao iniciar motor: {exc}", flush=True)
-        raise SystemExit(1) from exc
+        sys.exit(1)

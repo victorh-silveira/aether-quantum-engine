@@ -6,6 +6,34 @@ from src.domain.risk.stake_sizing import conviction_stop_win_weight, round_stake
 from src.domain.risk.stop_win_target import resolve_stop_win_target
 
 
+def martingale_progressive_slice_cycles(
+    consecutive_losses: int,
+    kelly_config: dict[str, Any],
+) -> int:
+    """Retorna divisor de fatiamento do pending_loss (1, 2 ou 3 ciclos futuros)."""
+    min_losses = int(kelly_config.get("martingale_safety_losses_min", 3))
+    if consecutive_losses < min_losses:
+        return 1
+    if consecutive_losses == min_losses:
+        return max(2, int(kelly_config.get("martingale_progressive_slice_at_3", 2)))
+    return max(2, min(3, int(kelly_config.get("martingale_progressive_slice_at_4plus", 3))))
+
+
+def assert_martingale_safety_cap(
+    stake: float,
+    *,
+    bankroll: float,
+    kelly_config: dict[str, Any],
+) -> float:
+    """Teto rigido: stake de recuperacao nao excede pct da banca."""
+    if bankroll <= 0.0 or stake <= 0.0:
+        return max(0.0, stake)
+    cap_pct = float(kelly_config.get("martingale_hard_cap_bankroll_pct", 0.04))
+    if cap_pct <= 0.0:
+        return stake
+    return min(stake, bankroll * cap_pct)
+
+
 def martingale_defer_active(
     vol_ratio: float,
     consecutive_losses: int,
@@ -85,7 +113,8 @@ def martingale_stake(
         consecutive_losses=consecutive_losses,
         kelly_config=kelly_config,
     )
-    effective_loss = float(loss_to_recover) * step_frac
+    slice_cycles = martingale_progressive_slice_cycles(consecutive_losses, kelly_config)
+    effective_loss = float(loss_to_recover) * step_frac / float(slice_cycles)
     profit_target = seed * payout * target_frac
     raw = (effective_loss + profit_target) / payout if payout > 0 and effective_loss > 0 else seed
     if payout > 0 and effective_loss > 0:
@@ -176,6 +205,11 @@ def resolve_mode_stake(
             total_session_profit,
         )
         recovery = max(recovery, floor_stake)
+        recovery = assert_martingale_safety_cap(
+            recovery,
+            bankroll=bankroll,
+            kelly_config=kelly_config,
+        )
         return round_stake(recovery, martingale=True), recovery, "MARTINGALE"
     return round_stake(kelly_base, martingale=False), 0.0, "KELLY"
 
@@ -200,9 +234,15 @@ def martingale_log_suffix(
     alvo = seed * payout * float(target_fraction)
     suffix = f" | MARTINGALE ${final_stake:.2f} (pend=${loss_to_recover:.2f}+alvo=${alvo:.2f})"
     cfg = kelly_config or {}
+    slice_cycles = martingale_progressive_slice_cycles(consecutive_losses, cfg)
+    if slice_cycles > 1:
+        suffix += f" | SLICE={slice_cycles}c"
     if cfg.get("martingale_vol_adjust_enabled", True) and consecutive_losses >= int(
         cfg.get("martingale_vol_losses_min", 2)
     ):
         defer = martingale_defer_active(vol_ratio, consecutive_losses, cfg)
         suffix += f" | VOL_ADJ vol={float(vol_ratio):.2f} defer={'Y' if defer else 'N'}"
+    cap_pct = float(cfg.get("martingale_hard_cap_bankroll_pct", 0.04))
+    if cap_pct > 0.0:
+        suffix += f" | CAP={cap_pct * 100:.1f}%"
     return suffix

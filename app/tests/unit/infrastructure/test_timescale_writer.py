@@ -30,7 +30,7 @@ async def test_timescale_writer_enqueue_and_flush():
             symbol="R_10",
             bar={
                 "epoch": 1,
-                "granularity": 180,
+                "granularity": 300,
                 "open": 1.0,
                 "high": 2.0,
                 "low": 0.5,

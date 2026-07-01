@@ -13,13 +13,12 @@ from src.application.services.deep_learning.dl_retrain import tick_bars_since_tr
 from src.application.services.orchestrator.config_symbols import normalize_symbols_and_anchor
 from src.application.services.orchestrator.engine_mode import training_enabled
 from src.application.services.orchestrator.execution_manager import ExecutionManager
+from src.application.services.orchestrator.graceful_shutdown import close_infrastructure_connections
 from src.application.services.orchestrator.orchestrator_run_loop import (
     get_data_state_signature,
-    maybe_reset_daily_risk_session,
     save_full_state,
     setup_session,
     start_streams,
-    stop_orchestrator,
     subscribe_transactions,
 )
 from src.application.services.orchestrator.orchestrator_state_restore import bar_epoch_already_processed
@@ -36,6 +35,7 @@ from src.application.services.orchestrator.trading_cycle_entry import (
     run_trading_cycle_if_ready,
 )
 from src.application.services.orchestrator.training_run import run_orchestrator_training
+from src.application.services.orchestrator.watchdog_service import start_ingestion_watchdog
 from src.application.services.strategy.decision_mode import resolve_decision_mode
 from src.domain.risk.risk_manager import RiskManager
 from src.infrastructure.api.websocket_manager import WebSocketManager
@@ -84,7 +84,7 @@ class Orchestrator:
         self._last_epoch = 0
         self._last_processed_epoch = 0
         self._last_cluster_cycle_end = 0.0
-        self._risk_session_day_key: int | None = None
+        self._session_targets_bootstrapped = False
         self._buffer_result_logs = False
         self._pending_result_logs: list[str] = []
         self._cycle_seq = 0
@@ -103,6 +103,8 @@ class Orchestrator:
         self._last_loss_direction = ""
         self._last_idle_watchdog_attempt = 0.0
         self.last_data_signature = ""
+        self._stream_ready_mono = 0.0
+        self._ingestion_watchdog = None
 
     def get_data_state_signature(self) -> str:
         """Calcula uma assinatura unica do estado dos dados de mercado."""
@@ -129,6 +131,7 @@ class Orchestrator:
             self.logger.error("INIT: Abortando motor (falha ao sincronizar velas OHLC).")
             return
         prepare_orchestrator_run_loop(self)
+        await start_ingestion_watchdog(self)
         await self._run_trading_cycle_if_ready()
         reconcile_counter = 0
         orch_cfg = self.config.get("orchestrator") if isinstance(self.config.get("orchestrator"), dict) else {}
@@ -205,11 +208,11 @@ class Orchestrator:
 
     async def _start_streams(self) -> bool:
         """Inicia streams OHLC e sincroniza velas historicas."""
-        return await start_streams(self)
-
-    def _maybe_reset_daily_risk_session(self, epoch: int) -> None:
-        """Reinicia stop win no inicio de cada dia UTC (vela ancora)."""
-        maybe_reset_daily_risk_session(self, epoch)
+        ok = await start_streams(self)
+        if ok:
+            self.stream.tick_buffer.touch_activity()
+            self._stream_ready_mono = asyncio.get_running_loop().time()
+        return ok
 
     async def _on_candle(self, candle: Any):
         """Callback de vela do ancora: atualiza estado e tenta ciclo."""
@@ -225,7 +228,7 @@ class Orchestrator:
             val_epoch = int(candle.epoch)
         except (ValueError, TypeError):  # pragma: no cover
             val_epoch = int(time.time())  # pragma: no cover
-        self._maybe_reset_daily_risk_session(val_epoch)
+        _ = val_epoch
         if training_enabled(self):
             tick_bars_since_train(self, self.symbols)
         self.risk_manager.tick_symbol_loss_cooldowns()
@@ -268,6 +271,10 @@ class Orchestrator:
         """Persiste o snapshot completo do orquestrador."""
         await save_full_state(self)
 
-    async def stop(self):
-        """Para o loop e fecha o WebSocket."""
-        await stop_orchestrator(self)
+    async def close_infrastructure_connections(self) -> None:
+        """Encerra Triton, Timescale, Redis e WebSocket antes do exit."""
+        await close_infrastructure_connections(self)
+
+    async def stop(self) -> None:
+        """Para o loop e fecha infraestrutura de forma graciosa."""
+        await close_infrastructure_connections(self)

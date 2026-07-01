@@ -19,7 +19,7 @@ RESET  := \033[0m
 .DEFAULT_GOAL := help
 
 .PHONY: install lint test security run train pre-commit pre-commit-run setup-wsl clean help helpo \
-	docker-up docker-down docker-ps docker-logs docker-bash
+	docker-up docker-down docker-ps docker-logs docker-bash timescale-lifecycle
 
 help:
 	@echo -e "$(BLUE)========================================================================$(RESET)"
@@ -48,6 +48,7 @@ help:
 	@echo -e "  $(GREEN)docker-ps$(RESET)    - Status dos containers"
 	@echo -e "  $(GREEN)docker-logs$(RESET)  - Logs (DOCKER_SERVICE=triton|redis F=1)"
 	@echo -e "  $(GREEN)docker-bash$(RESET)  - Shell (DOCKER_SERVICE=triton|timescaledb)"
+	@echo -e "  $(GREEN)timescale-lifecycle$(RESET) - Aplica compressao/retencao Timescale (idempotente)"
 	@echo -e "$(BLUE)========================================================================$(RESET)"
 
 helpo: help
@@ -89,6 +90,16 @@ docker-up:
 	@test -f .env || cp .env.example .env
 	$(DOCKER_COMPOSE) up -d
 	@$(DOCKER_COMPOSE) ps
+	@$(MAKE) timescale-lifecycle
+
+timescale-lifecycle:
+	@$(DOCKER_COMPOSE) up -d timescaledb
+	@i=0; while [ $$i -lt 60 ]; do \
+		$(DOCKER_COMPOSE) exec -T timescaledb sh -c 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"' >/dev/null 2>&1 && break; \
+		sleep 2; i=$$((i+1)); \
+	done
+	@$(DOCKER_COMPOSE) exec -T timescaledb sh -c 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"'
+	@$(DOCKER_COMPOSE) exec -T timescaledb sh -c 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -v ON_ERROR_STOP=1 -f /docker-scripts/004_timescale-lifecycle.sql'
 
 docker-down:
 	$(DOCKER_COMPOSE) down

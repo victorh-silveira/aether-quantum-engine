@@ -2,8 +2,10 @@ import pytest
 
 from src.domain.risk.martingale_sizing import (
     _effective_step_frac,
+    assert_martingale_safety_cap,
     calculate_vol_adjusted_martingale,
     martingale_defer_active,
+    martingale_progressive_slice_cycles,
     martingale_stake,
     resolve_mode_stake,
 )
@@ -162,3 +164,63 @@ def test_resolve_mode_stake_deferred_cap_at_two_point_five_pct():
     )
     assert mode == "MARTINGALE"
     assert stake <= bankroll * 0.025 + 1e-9
+
+
+def test_progressive_slice_cycles_at_three_and_four_losses():
+    cfg = _kelly_cfg()
+    cfg["martingale_safety_losses_min"] = 3
+    assert martingale_progressive_slice_cycles(2, cfg) == 1
+    assert martingale_progressive_slice_cycles(3, cfg) == 2
+    assert martingale_progressive_slice_cycles(4, cfg) == 3
+    assert martingale_progressive_slice_cycles(6, cfg) == 3
+
+
+def test_assert_martingale_safety_cap_four_pct():
+    cfg = _kelly_cfg()
+    cfg["martingale_hard_cap_bankroll_pct"] = 0.04
+    bankroll = 20000.0
+    capped = assert_martingale_safety_cap(900.0, bankroll=bankroll, kelly_config=cfg)
+    assert capped == pytest.approx(800.0)
+    assert assert_martingale_safety_cap(500.0, bankroll=bankroll, kelly_config=cfg) == pytest.approx(500.0)
+
+
+def test_assert_safety_cap_zero_bankroll_and_disabled_cap():
+    cfg = _kelly_cfg()
+    assert assert_martingale_safety_cap(10.0, bankroll=0.0, kelly_config=cfg) == pytest.approx(10.0)
+    cfg["martingale_hard_cap_bankroll_pct"] = 0.0
+    assert assert_martingale_safety_cap(75.0, bankroll=5000.0, kelly_config=cfg) == pytest.approx(75.0)
+
+
+def test_c0012_scenario_slice_and_cap_prevent_full_recovery_stake():
+    cfg = _kelly_cfg()
+    cfg["martingale_safety_losses_min"] = 3
+    cfg["martingale_hard_cap_bankroll_pct"] = 0.04
+    cfg["martingale_recovery_step_fraction"] = 1.0
+    cfg["martingale_vol_adjust_enabled"] = False
+    bankroll = 20764.0
+    pending = 830.57
+    linear_stake, _, _ = resolve_mode_stake(
+        martingale_active=True,
+        bankroll=bankroll,
+        loss_to_recover=pending,
+        kelly_base=50.0,
+        payout=0.95,
+        kelly_config=cfg,
+        stake_min=1.0,
+        vol_ratio=1.0,
+        consecutive_losses=0,
+    )
+    safe_stake, _, mode = resolve_mode_stake(
+        martingale_active=True,
+        bankroll=bankroll,
+        loss_to_recover=pending,
+        kelly_base=50.0,
+        payout=0.95,
+        kelly_config=cfg,
+        stake_min=1.0,
+        vol_ratio=1.0,
+        consecutive_losses=3,
+    )
+    assert mode == "MARTINGALE"
+    assert safe_stake <= bankroll * 0.04 + 1e-6
+    assert safe_stake < linear_stake

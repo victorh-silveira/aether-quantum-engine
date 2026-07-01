@@ -1,3 +1,5 @@
+import pytest
+
 from src.infrastructure.handlers.tick_buffer import TickBuffer
 
 
@@ -42,3 +44,14 @@ def test_tick_buffer_two_ticks_only():
     buf.record_tick("R_50", 1100, 100.5)
     stats = buf.on_bar_close("R_50", 60)
     assert stats.price_acceleration == 0.0
+
+
+@pytest.mark.asyncio
+async def test_tick_buffer_last_tick_monotonic_updates_on_record():
+    buf = TickBuffer(["R_50"])
+    assert buf.last_tick_monotonic() == 0.0
+    buf.record_tick("R_50", 1000, 100.0)
+    assert buf.last_tick_monotonic() > 0.0
+    before = buf.last_tick_monotonic()
+    buf.touch_activity()
+    assert buf.last_tick_monotonic() >= before

@@ -141,6 +141,23 @@ async def test_triton_grpc_client_infer_not_connected():
 
 
 @pytest.mark.asyncio
+async def test_triton_grpc_client_infer_timeout():
+    client = TritonGrpcClient()
+    client._infer = MagicMock()
+    client._infer.infer = AsyncMock(return_value=_FakeResult(np.array([0.5], dtype=np.float32)))
+    with (
+        patch("src.infrastructure.inference.triton_grpc_client.grpc_aio.InferInput"),
+        patch("src.infrastructure.inference.triton_grpc_client.grpc_aio.InferRequestedOutput"),
+        patch(
+            "src.infrastructure.inference.triton_grpc_client.asyncio.wait_for",
+            side_effect=TimeoutError(),
+        ),
+        pytest.raises(TimeoutError, match=r"Triton infer timeout"),
+    ):
+        await client.infer_symbol("R_10", np.zeros((1, 4, 34), dtype=np.float32))
+
+
+@pytest.mark.asyncio
 async def test_triton_grpc_client_infer_raises_server_exception():
     client = TritonGrpcClient()
     client._infer = MagicMock()

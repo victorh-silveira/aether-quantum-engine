@@ -8,6 +8,10 @@ from typing import Any
 
 from aether_paths import repo_path
 from src.domain.risk.recovery_hurst_decay import REDIS_SKIP_COUNTER_KEY
+from src.domain.risk.stop_win_target import (
+    REDIS_SESSION_START_BALANCE_KEY,
+    REDIS_SESSION_TARGET_WIN_KEY,
+)
 
 
 class JsonStateStore:
@@ -20,7 +24,7 @@ class JsonStateStore:
         self._path.parent.mkdir(parents=True, exist_ok=True)
 
     async def save_snapshot(self, payload: dict[str, Any]) -> None:
-        """Grava snapshot completo em arquivo JSON."""
+        """Persiste snapshot JSON em arquivo local."""
         with self._path.open("w", encoding="utf-8") as handle:
             json.dump(payload, handle, indent=2)
 
@@ -31,8 +35,10 @@ class JsonStateStore:
         session: dict[str, Any] | None = None,
         market_sig: str | None = None,
         recovery_skip_counter: int | None = None,
+        session_start_balance: float | None = None,
+        session_target_win: float | None = None,
     ) -> None:
-        """Compativel com RedisStateStore; persiste snapshot e hashes em memoria."""
+        """Grava bundle completo em arquivo e estruturas auxiliares em memoria."""
         await self.save_snapshot(snapshot)
         risk = snapshot.get("risk")
         if isinstance(risk, dict):
@@ -43,14 +49,18 @@ class JsonStateStore:
             if isinstance(pending, dict):
                 await self.set_hash("state:pending_loss", pending)
         if session:
-            await self.set_hash("session:daily", session)
+            await self.set_hash("session:current", session)
         if market_sig:
             await self.set_string("market_sig", market_sig)
         if recovery_skip_counter is not None:
             await self.set_string(REDIS_SKIP_COUNTER_KEY, str(max(0, int(recovery_skip_counter))))
+        if session_start_balance is not None:
+            await self.set_string(REDIS_SESSION_START_BALANCE_KEY, str(float(session_start_balance)))
+        if session_target_win is not None:
+            await self.set_string(REDIS_SESSION_TARGET_WIN_KEY, str(float(session_target_win)))
 
     async def load_snapshot(self) -> dict[str, Any] | None:
-        """Carrega snapshot do arquivo JSON."""
+        """Carrega snapshot JSON do arquivo local."""
         if not self._path.exists() or self._path.stat().st_size == 0:
             return None
         try:
@@ -65,34 +75,38 @@ class JsonStateStore:
         self._hashes[key] = {str(k): str(v) for k, v in mapping.items()}
 
     async def get_hash(self, key: str) -> dict[str, str]:
-        """Retorna hash armazenado em memoria."""
+        """Le hash em memoria."""
         return dict(self._hashes.get(key, {}))
 
     async def set_string(self, key: str, value: str, *, ttl_seconds: int | None = None) -> None:
-        """Armazena string em memoria ignorando TTL."""
+        """Armazena string em memoria."""
         _ = ttl_seconds
         self._strings[key] = str(value)
 
     async def get_string(self, key: str) -> str | None:
-        """Retorna string armazenada em memoria."""
+        """Le string em memoria."""
         return self._strings.get(key)
 
+    async def delete_string(self, key: str) -> None:
+        """Remove string em memoria."""
+        self._strings.pop(key, None)
+
     async def ping(self) -> bool:
-        """Sempre disponivel em modo local."""
+        """Sempre retorna True no store JSON."""
         return True
 
     async def close(self) -> None:
-        """Encerramento sem efeito."""
+        """No-op para store JSON."""
         return
 
     def save(self, data: dict[str, Any]) -> None:
-        """Compatibilidade sync com PersistenceManager em testes."""
+        """Grava dict em disco de forma sincrona."""
         self._path.parent.mkdir(parents=True, exist_ok=True)
         with self._path.open("w", encoding="utf-8") as handle:
             json.dump(data, handle, indent=2)
 
     def load(self) -> dict[str, Any] | None:
-        """Compatibilidade sync com PersistenceManager em testes."""
+        """Carrega dict do disco de forma sincrona."""
         if not self._path.exists() or self._path.stat().st_size == 0:
             return None
         try:

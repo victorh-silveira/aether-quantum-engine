@@ -50,7 +50,7 @@ def test_resolve_startup_fetch_bars_inference_mode(tmp_path, monkeypatch):
 
 def test_resolve_startup_fetch_bars_full_when_checkpoint_missing(tmp_path, monkeypatch):
     config = {
-        "data_handler": {"fetch_count": 25984},
+        "data_handler": {"fetch_count": 15616},
         "deep_learning": {"online_training": False},
     }
     monkeypatch.setattr(
@@ -59,7 +59,7 @@ def test_resolve_startup_fetch_bars_full_when_checkpoint_missing(tmp_path, monke
     )
     bars, mode = resolve_startup_fetch_bars(config, ["R_100"])
     assert mode == "treino"
-    assert bars == 25984
+    assert bars == 15616
 
 
 def test_all_symbols_have_checkpoints(tmp_path, monkeypatch):
@@ -136,7 +136,7 @@ def test_min_dl_history_len_uses_inference_window_when_online_training_off():
     params = {
         "lookback": 48,
         "validation_bars": 96,
-        "training_history_bars": 25920,
+        "training_history_bars": 15552,
         "inference_history_bars": 128,
         "online_training": False,
     }

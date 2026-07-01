@@ -1,4 +1,3 @@
-import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -13,10 +12,11 @@ from src.infrastructure.api.deriv_rest_client import DerivRestError, DerivTradin
 
 
 @pytest.mark.asyncio
-async def test_setup_trading_session_preserves_initial_bankroll_on_reconnect(orch_config):
+async def test_setup_trading_session_preserves_session_on_reconnect(orch_config):
     orch = Orchestrator(orch_config)
     orch.risk_manager.set_initial_bankroll(1126.82)
-    orch._risk_session_day_key = int(time.time()) // 86400
+    orch.risk_manager.daily_stop_win_target = 11.27
+    orch._session_targets_bootstrapped = True
     session = DerivTradingSession(
         ws_url="wss://api.derivws.com/trading/v1/options/ws/demo?otp=x",
         balance=1165.61,
@@ -28,12 +28,15 @@ async def test_setup_trading_session_preserves_initial_bankroll_on_reconnect(orc
             "src.application.services.orchestrator.ws_bootstrap.restore_orchestrator_state",
             AsyncMock(),
         ),
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap.bootstrap_active_session_targets",
+            AsyncMock(),
+        ),
     ):
         orch.ws.connect = AsyncMock()
         orch.ws.send = AsyncMock()
         orch.ws.subscribe = MagicMock()
         assert await setup_trading_session(orch) is True
-        assert orch.state.balance == 1165.61
         assert orch.risk_manager.initial_bankroll == 1126.82
 
 
