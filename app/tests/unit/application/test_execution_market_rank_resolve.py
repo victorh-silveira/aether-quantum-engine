@@ -58,7 +58,20 @@ def test_resolve_mean_reversion_put_to_call():
 
 
 def test_resolve_low_accuracy_inverts():
-    entry = _entry(direction=TradeDirection.CALL, raw_prob=0.58, val_accuracy=0.45, trend_direction="PUT")
+    entry = _entry(
+        direction=TradeDirection.CALL,
+        raw_prob=0.58,
+        val_accuracy=0.45,
+        trend_direction="PUT",
+        indicators={
+            "hurst": 0.52,
+            "adx": 0.18,
+            "vol_ratio": 0.90,
+            "rsi": 0.50,
+            "keltner": 0.55,
+            "cmo": 0.05,
+        },
+    )
     result = resolve_execution_direction(entry)
     assert result is not None
     assert result[0] == TradeDirection.PUT

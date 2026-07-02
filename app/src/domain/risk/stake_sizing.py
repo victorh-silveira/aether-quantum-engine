@@ -1,9 +1,9 @@
-"""Calculo de stake Kelly e Martingale."""
+"""Calculo de stake Kelly e D'Alembert."""
 
 import math
 from typing import Any
 
-from src.domain.risk.stop_win_target import resolve_max_stake_pct, resolve_stop_win_target
+from src.domain.risk.stop_win_target import resolve_stop_win_target
 
 
 def raw_side_from_metrics(metrics: dict) -> float:
@@ -49,27 +49,23 @@ def clamp_kelly_stake(
     kelly_config: dict[str, Any],
     conviction: float,
 ) -> float:
-    """Limita a stake Kelly entre piso e teto percentuais da banca."""
-    max_pct = resolve_max_stake_pct(kelly_config, conviction)
+    """Aplica piso percentual da banca sem teto superior na stake Kelly."""
+    _ = conviction
     min_pct = float(kelly_config.get("min_stake_pct", 0.0))
     floor_stake = bankroll * min_pct if min_pct > 0 else 0.0
-    if max_pct > 0.0:
-        ceiling = bankroll * max_pct
-        bounded = max(floor_stake, min(raw_stake, ceiling))
-    else:
-        bounded = max(floor_stake, raw_stake)
+    bounded = max(floor_stake, raw_stake)
     return bounded if bounded > 0 else 0.0
 
 
-def round_stake(value: float, *, martingale: bool) -> float:
-    """Arredonda stake para cima em martingale e para baixo em Kelly."""
-    if martingale:
+def round_stake(value: float, *, recovery_linear: bool) -> float:
+    """Arredonda stake para cima em recovery linear e para baixo em Kelly."""
+    if recovery_linear:
         return math.ceil(value * 100) / 100
     return math.floor(value * 100) / 100
 
 
 def resolve_cycle_stake_scale(kelly_config: dict[str, Any], risk_config: dict[str, Any]) -> float:
-    """Escala stake pelo tempo de rodada (contrato M5 ou ciclo do orquestrador)."""
+    """Escala stake pelo tempo de rodada (contrato M15 ou ciclo do orquestrador)."""
     if not kelly_config.get("cycle_stake_scale_enabled", True):
         return 1.0
     baseline = float(kelly_config.get("cycle_stake_baseline_seconds", 60))
@@ -133,7 +129,7 @@ def _resolve_stop_win_max_stake_pct(
 
 def compute_single_strike_kelly_base(
     kelly_base: float,
-    bankroll: float,
+    _bankroll: float,
     payout: float,
     conviction: float,
     risk_config: dict[str, Any],
@@ -156,18 +152,8 @@ def compute_single_strike_kelly_base(
     cycles_target = max(1.0, float(kelly_config.get("stop_win_kelly_cycles_target", 1.0)))
     cycle_scale = resolve_cycle_stake_scale(kelly_config, risk_config)
     goal_stake = (remaining / payout) * weight / cycles_target * cycle_scale if payout > 0.0 else kelly_base
-    stop_cap = _resolve_stop_win_max_stake_pct(risk_config, kelly_config, payout)
-    kelly_cap = resolve_max_stake_pct(kelly_config, conviction)
-    if kelly_cap > 0.0:
-        cap_pct = max(stop_cap, kelly_cap)
-    elif stop_cap > 0.0:
-        cap_pct = stop_cap
-    else:
-        cap_pct = 0.0
-    max_allowed = bankroll * cap_pct if cap_pct > 0.0 else bankroll
-    stop_win_stake = min(goal_stake, max_allowed)
-    if stop_win_stake > kelly_base:
-        return stop_win_stake
+    if goal_stake > kelly_base:
+        return goal_stake
     return kelly_base
 
 
@@ -177,14 +163,9 @@ def apply_symbol_stake_cap(
     symbol: str,
     kelly_config: dict[str, Any],
 ) -> float:
-    """Aplica teto percentual da banca por simbolo quando configurado."""
-    caps = kelly_config.get("symbol_max_stake_pct")
-    if not isinstance(caps, dict) or bankroll <= 0.0:
-        return final_stake
-    cap_pct = caps.get(str(symbol))
-    if cap_pct is None:
-        return final_stake
-    return min(final_stake, bankroll * float(cap_pct))
+    """Retorna stake sem teto por simbolo."""
+    _ = (bankroll, symbol, kelly_config)
+    return final_stake
 
 
 def finalize_stake_with_min(
@@ -193,11 +174,11 @@ def finalize_stake_with_min(
     bankroll: float,
     conviction: float,
     *,
-    martingale_active: bool,
+    recovery_linear: bool,
     mandatory: bool = False,
 ) -> float:
-    """Garante stake minima ou zero quando conviccao, martingale ou execucao obrigatoria exigem entrada."""
-    if conviction >= 0.50 or martingale_active or mandatory:
+    """Garante stake minima ou zero quando conviccao, recovery ou execucao obrigatoria exigem entrada."""
+    if conviction >= 0.50 or recovery_linear or mandatory:
         if final_stake < stake_min and bankroll >= stake_min:
             return stake_min
         if final_stake < stake_min:

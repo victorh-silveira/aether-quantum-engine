@@ -16,7 +16,7 @@ def recovery_min_signal(
     hurst: float | None = None,
     hurst_persistence_min: float | None = None,
 ) -> float:
-    """Piso de trade_score para martingale e sizing em recovery."""
+    """Piso de trade_score para recovery linear e sizing em recovery."""
     floor = float(kelly_config.get("mandatory_min_trade_score", 0.45))
     if not recovery_active:
         return floor
@@ -58,7 +58,7 @@ def recovery_min_val_accuracy(
     *,
     consecutive_losses: int = 0,
 ) -> float:
-    """Piso de val_accuracy para martingale em recovery."""
+    """Piso de val_accuracy para recovery linear em recovery."""
     base_val = float(kelly_config.get("recovery_min_val_accuracy", 0.50))
 
     losses = int(consecutive_losses)

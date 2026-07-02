@@ -57,7 +57,7 @@ def recovery_hurst_adjusted_floor(
     hurst_persistence_min: float = 0.58,
     log_scale: float = 0.08,
 ) -> float:
-    """Eleva piso de sinal quando Hurst nao indica persistencia em martingale N2+."""
+    """Eleva piso de sinal quando Hurst nao indica persistencia em recovery N2+."""
     if int(consecutive_losses) < 2:
         return float(base_floor)
     h = float(hurst)

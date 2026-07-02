@@ -153,6 +153,10 @@ class DerivRestClient:
             raise DerivRestError("URL WebSocket OTP ausente na resposta")
         return url
 
+    async def post_otp(self, account_id: str) -> str:
+        """Renova OTP de uso unico e retorna URL WebSocket autorizada."""
+        return await self.request_otp_ws_url(account_id)
+
     async def open_trading_session(
         self,
         mode: str,

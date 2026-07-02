@@ -5,7 +5,7 @@ from src.application.services.execution_direction_resolver import infer_dl_direc
 from src.domain.models.trade import TradeDirection
 
 
-_CLUSTER_CORE = frozenset({"R_50", "R_75"})
+_CLUSTER_CORE = frozenset({"RDBULL"})
 
 
 def _trade_score(metrics: dict) -> float:
@@ -78,6 +78,9 @@ def market_decision_score(
     last_loss_direction: str | None = None,
 ) -> float:
     """Pontua candidato com probabilidade bruta, val_acc e edge."""
+    override = metrics.get("market_decision_score_override")
+    if override is not None:
+        return float(override)
     raw_side = _raw_side(metrics)
     val = float(metrics.get("val_accuracy", 0.0))
     edge = float(metrics.get("edge", abs(raw_side - 0.5)))
@@ -98,6 +101,7 @@ def market_decision_score(
     margin = float(metrics.get("direction_margin", 0.0))
     if margin + 1e-9 < 0.05:
         composite -= 0.08
+    composite *= float(metrics.get("universal_regime_score_factor", 1.0))
     return _recovery_score_adjustment(
         composite,
         recovery_active=recovery_active,

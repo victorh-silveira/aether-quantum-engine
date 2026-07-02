@@ -7,6 +7,10 @@ from typing import Any
 
 import redis.asyncio as aioredis
 
+from src.domain.risk.dlambert_sizing import (
+    REDIS_DLAMBERT_LINEAR_LOSSES_KEY,
+    REDIS_DLAMBERT_UNIT_KEY,
+)
 from src.domain.risk.recovery_hurst_decay import REDIS_SKIP_COUNTER_KEY
 from src.domain.risk.stop_win_target import (
     REDIS_SESSION_START_BALANCE_KEY,
@@ -55,6 +59,8 @@ async def write_state_bundle(
     recovery_skip_counter: int | None = None,
     session_start_balance: float | None = None,
     session_target_win: float | None = None,
+    dlambert_unit: float | None = None,
+    consecutive_losses_linear: int | None = None,
 ) -> None:
     """Grava snapshot, risco, pending_loss, sessao, skip counter e assinatura em transacao."""
     pfx = prefix.rstrip(":")
@@ -64,6 +70,8 @@ async def write_state_bundle(
     skip_key = f"{pfx}:{REDIS_SKIP_COUNTER_KEY}"
     start_key = f"{pfx}:{REDIS_SESSION_START_BALANCE_KEY}"
     target_key = f"{pfx}:{REDIS_SESSION_TARGET_WIN_KEY}"
+    unit_key = f"{pfx}:{REDIS_DLAMBERT_UNIT_KEY}"
+    linear_key = f"{pfx}:{REDIS_DLAMBERT_LINEAR_LOSSES_KEY}"
     risk = snapshot.get("risk")
     async with client.pipeline(transaction=True) as pipe:
         pipe.set(snapshot_key, json.dumps(snapshot))
@@ -79,4 +87,8 @@ async def write_state_bundle(
             pipe.set(start_key, str(float(session_start_balance)))
         if session_target_win is not None:
             pipe.set(target_key, str(float(session_target_win)))
+        if dlambert_unit is not None:
+            pipe.set(unit_key, str(float(dlambert_unit)))
+        if consecutive_losses_linear is not None:
+            pipe.set(linear_key, str(max(0, int(consecutive_losses_linear))))
         await pipe.execute()

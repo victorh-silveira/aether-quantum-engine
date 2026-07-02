@@ -3,19 +3,20 @@
 import logging
 from typing import Any
 
-from src.domain.risk.martingale_conviction import martingale_dl_conviction_ok, martingale_dl_entry_allowed
-from src.domain.risk.martingale_gate import apply_win_to_pending_loss, martingale_allowed
+from src.domain.risk.recovery_conviction import recovery_dl_conviction_ok, recovery_dl_entry_allowed
 from src.domain.risk.recovery_hurst_gate import resolve_recovery_signal_floor
 from src.domain.risk.risk_cluster import finalize_risk_cluster
 from src.domain.risk.risk_cooldown import RiskCooldownMixin
 from src.domain.risk.risk_manager_restore import apply_risk_snapshot
 from src.domain.risk.risk_proposal_skip import ProposalSkipMixin
 from src.domain.risk.risk_recovery_state import (
+    apply_win_to_pending_loss,
     log_partial_win_recovery,
     pending_loss_total as sum_pending_loss,
     recovery_financially_active as is_recovery_financially_active,
 )
 from src.domain.risk.risk_stake_calc import calculate_stake_for_manager
+from src.domain.risk.stake_target_proximity import apply_target_proximity_damping
 from src.domain.risk.stop_win_target import persisted_session_target, resolve_stop_win_target
 from src.domain.risk.symbol_loss_cooldown import SymbolLossCooldownMixin
 
@@ -27,9 +28,9 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin, ProposalSkipMixin)
         """Inicializa o RiskManager com configurações de Kelly."""
         self.config = config
         self.kelly_config = config.get("kelly", {})
-        self.risk_params = config.get("params", {"payout_estimate": 0.95, "stake_min": 1.0, "stake_max": 1000000.0})
+        self.dlambert_config = config.get("dlambert", {})
+        self.risk_params = config.get("params", {"payout_estimate": 0.95, "stake_min": 1.0})
         self.limits = config.get("limits", {})
-        self.stake_max = float(self.risk_params.get("stake_max", 1000000.0))
 
         self._rolling_wins: dict[str, list[int]] = {}
         self.initial_bankroll = 0.0
@@ -39,11 +40,10 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin, ProposalSkipMixin)
         self.base_cooldown = self.risk_params.get("entry_cooldown_ticks", 0)
         self.current_cooldown_ticks = self.base_cooldown
         self._last_entry_conviction = 0.0
-        self.consecutive_losses = 0
+        self.consecutive_losses_linear = 0
+        self.dlambert_unit = 0.0
         self.pending_loss: dict[str, float] = {}
-        self.last_martingale_stake = 0.0
         self.last_loss_stake = 0.0
-        self.recovery_symbol_loss_streak: dict[str, int] = {}
         self.proposal_skip_cycles: dict[str, int] = {}
         self.contract_stakes: dict[int, float] = {}
         self.init_symbol_loss_cooldown()
@@ -78,11 +78,8 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin, ProposalSkipMixin)
         self.total_session_profit = 0.0
         self.initial_bankroll = bal
         self.daily_stop_win_target = max(0.0, float(target))
-
-    def reset_daily_session(self, bankroll: float, *, target: float = 0.0, max_loss: float = 0.0) -> None:
-        """Alias legado para reset_session."""
-        _ = max_loss
-        self.reset_session(bankroll, target=target)
+        self.dlambert_unit = 0.0
+        self.consecutive_losses_linear = 0
 
     def record_trade_outcome(self, symbol: str, *, won: bool) -> None:
         """Registra o resultado para cálculo de win rate dinâmico."""
@@ -150,29 +147,49 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin, ProposalSkipMixin)
             return "kelly_no_edge"
         return None
 
-    def _martingale_dl_conviction_ok(self, dl_metrics: dict) -> bool:
-        """Exige piso de sinal e val_accuracy para martingale com metricas DL."""
-        return martingale_dl_conviction_ok(
+    def _recovery_dl_conviction_ok(self, dl_metrics: dict) -> bool:
+        """Exige piso de sinal e val_accuracy para recovery com metricas DL."""
+        return recovery_dl_conviction_ok(
             dl_metrics,
             self.kelly_config,
+            self.dlambert_config,
             pending_loss=self.pending_loss,
-            consecutive_losses=int(getattr(self, "consecutive_losses", 0)),
+            consecutive_losses_linear=int(getattr(self, "consecutive_losses_linear", 0)),
         )
 
-    def _martingale_allowed(self, _symbol: str, _conviction: float, **kwargs) -> bool:
-        """Martingale ativo com perda pendente e conviccao minima nas metricas DL."""
-        if not martingale_allowed(pending_loss=self.pending_loss):
+    def _recovery_allowed(self, _symbol: str, _conviction: float, **kwargs) -> bool:
+        """Recovery D'Alembert ativo com perda pendente e conviccao minima nas metricas DL."""
+        if not self.recovery_financially_active():
             return False
         dl_metrics = kwargs.get("dl_metrics")
         if isinstance(dl_metrics, dict):
-            return martingale_dl_entry_allowed(
+            return recovery_dl_entry_allowed(
                 dl_metrics,
                 self.kelly_config,
+                self.dlambert_config,
                 pending_loss=self.pending_loss,
-                consecutive_losses=int(getattr(self, "consecutive_losses", 0)),
+                consecutive_losses_linear=int(getattr(self, "consecutive_losses_linear", 0)),
                 recovery_forced=bool(kwargs.get("recovery_forced")),
             )
         return True
+
+    def apply_kelly_target_proximity_damping(
+        self,
+        kelly_stake_raw: float,
+        *,
+        target_win: float | None = None,
+    ) -> float:
+        """Comprime stake Kelly bruta conforme distancia da meta de stop win da sessao."""
+        target = (
+            float(target_win)
+            if target_win is not None
+            else resolve_stop_win_target(
+                self.config,
+                self.initial_bankroll,
+                persisted_target=persisted_session_target(self),
+            )
+        )
+        return apply_target_proximity_damping(kelly_stake_raw, target, self.total_session_profit)
 
     def calculate_stake(
         self,
@@ -201,7 +218,7 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin, ProposalSkipMixin)
         self.cluster_results = {}
 
     def record_contract_stake(self, contract_id: int, stake: float) -> None:
-        """Associa stake enviada ao contrato para progressao martingale."""
+        """Associa stake enviada ao contrato para progressao D'Alembert."""
         self.contract_stakes[int(contract_id)] = float(stake)
 
     def register_result(
@@ -230,22 +247,15 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin, ProposalSkipMixin)
         self.last_result_tick = current_tick
         self.record_trade_outcome(symbol, won=profit >= 0.0)
 
-        had_pending = sum(self.pending_loss.values()) > 0.0
         if profit < 0:
             loss_amt = abs(profit)
             self.pending_loss[symbol] = self.pending_loss.get(symbol, 0.0) + loss_amt
             self.last_loss_stake = float(recorded_stake) if recorded_stake else loss_amt
             self.register_symbol_loss_cooldown(symbol, direction=direction)
-            if had_pending:
-                streak = int(self.recovery_symbol_loss_streak.get(symbol, 0)) + 1
-                self.recovery_symbol_loss_streak[symbol] = streak
         else:
             apply_win_to_pending_loss(self.pending_loss, profit)
-            self.recovery_symbol_loss_streak.pop(symbol, None)
             if log_partial_win_recovery(self, profit) <= 0.0:
-                self.last_martingale_stake = 0.0
                 self.last_loss_stake = 0.0
-                self.recovery_symbol_loss_streak = {}
 
         self.active_contract_ids = [x for x in self.active_contract_ids if int(x) != int(contract_id)]
 
@@ -267,11 +277,10 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin, ProposalSkipMixin)
             "last_result_tick": self.last_result_tick,
             "rolling_wins": {k: list(v) for k, v in self._rolling_wins.items()},
             "pending_loss": dict(self.pending_loss),
-            "last_martingale_stake": self.last_martingale_stake,
             "last_loss_stake": self.last_loss_stake,
-            "consecutive_losses": self.consecutive_losses,
+            "consecutive_losses_linear": self.consecutive_losses_linear,
+            "dlambert_unit": self.dlambert_unit,
             "current_cooldown_ticks": self.current_cooldown_ticks,
-            "recovery_symbol_loss_streak": dict(self.recovery_symbol_loss_streak),
             **self.symbol_cooldown_state(),
         }
 
@@ -284,7 +293,7 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin, ProposalSkipMixin)
         return resolve_recovery_signal_floor(
             self.kelly_config,
             hurst=hurst,
-            consecutive_losses=self.consecutive_losses,
+            consecutive_losses=self.consecutive_losses_linear,
             total_session_profit=self.total_session_profit,
             recovery_skip_counter=recovery_skip_counter,
         )

@@ -1,14 +1,19 @@
+import asyncio
+import asyncio.tasks as asyncio_tasks
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
 import pytest
 
+from src.infrastructure.inference import triton_grpc_client as triton_grpc_module
 from src.infrastructure.inference.triton_grpc_client import (
+    _INFER_TIMEOUT_SEC,
     _MAX_MSG,
     InferenceServerException,
     TritonGrpcClient,
     _channel_options,
     _GrpcClientPool,
+    _pack_inference_tensor,
     _parse_raw_output,
     close_triton_grpc_client,
     get_triton_grpc_client,
@@ -21,6 +26,14 @@ def _reset_triton_pool():
     _GrpcClientPool.client = None
     yield
     _GrpcClientPool.client = None
+
+
+@pytest.fixture(autouse=True)
+def _restore_triton_asyncio_wait_for():
+    real_wait_for = asyncio_tasks.wait_for
+    asyncio.wait_for = real_wait_for
+    triton_grpc_module.asyncio.wait_for = real_wait_for
+    yield
 
 
 class _FakeResult:
@@ -38,11 +51,23 @@ def test_parse_raw_output_clamps_probability():
 
 
 def test_assert_triton_probability_bounds():
-    assert assert_triton_probability(0.72, model_name="R_10") == 0.72
+    assert assert_triton_probability(0.72, model_name="RDBEAR") == 0.72
     with pytest.raises(RuntimeError, match="NaN"):
-        assert_triton_probability(float("nan"), model_name="R_10")
+        assert_triton_probability(float("nan"), model_name="RDBEAR")
     with pytest.raises(RuntimeError, match="fora"):
-        assert_triton_probability(1.05, model_name="R_10")
+        assert_triton_probability(1.05, model_name="RDBEAR")
+
+
+def test_pack_inference_tensor_makes_contiguous_batch():
+    tensor = np.arange(48 * 34, dtype=np.float32).reshape(48, 34)
+    tensor.flags.writeable = False
+    packed = _pack_inference_tensor(tensor)
+    assert packed.flags["C_CONTIGUOUS"]
+    assert packed.shape == (1, 48, 34)
+
+
+def test_infer_timeout_default_is_850ms():
+    assert pytest.approx(0.85) == _INFER_TIMEOUT_SEC
 
 
 @pytest.mark.asyncio
@@ -64,7 +89,7 @@ async def test_triton_grpc_client_infer_2d_tensor():
         patch("src.infrastructure.inference.triton_grpc_client.grpc_aio.InferRequestedOutput"),
     ):
         infer_in.return_value.set_data_from_numpy = MagicMock()
-        prob = await client.infer_symbol("R_10", np.zeros((4, 34), dtype=np.float32))
+        prob = await client.infer_symbol("RDBEAR", np.zeros((4, 34), dtype=np.float32))
     assert prob == pytest.approx(0.33)
 
 
@@ -81,12 +106,12 @@ async def test_triton_grpc_client_concurrent_infer():
     client._infer.infer = mock_infer
     client._channel = MagicMock()
     tensors = {
-        "R_10": np.zeros((1, 48, 34), dtype=np.float32),
-        "R_25": np.zeros((1, 48, 34), dtype=np.float32),
+        "RDBEAR": np.zeros((1, 48, 34), dtype=np.float32),
+        "RDBULL": np.zeros((1, 48, 34), dtype=np.float32),
     }
     probs = await client.infer_symbols_concurrent(tensors)
-    assert probs["R_10"] == pytest.approx(0.61)
-    assert probs["R_25"] == pytest.approx(0.39)
+    assert probs["RDBEAR"] == pytest.approx(0.61)
+    assert probs["RDBULL"] == pytest.approx(0.39)
     assert mock_infer.await_count == 2
 
 
@@ -137,7 +162,11 @@ async def test_triton_grpc_client_connect_skips_when_already_connected():
 async def test_triton_grpc_client_infer_not_connected():
     client = TritonGrpcClient()
     with pytest.raises(RuntimeError, match="nao conectado"):
-        await client.infer_symbol("R_10", np.zeros((1, 4, 34), dtype=np.float32))
+        await client.infer_symbol("RDBEAR", np.zeros((1, 4, 34), dtype=np.float32))
+
+
+async def _timeout_wait_for(_coro, timeout=None):
+    raise TimeoutError()
 
 
 @pytest.mark.asyncio
@@ -148,13 +177,25 @@ async def test_triton_grpc_client_infer_timeout():
     with (
         patch("src.infrastructure.inference.triton_grpc_client.grpc_aio.InferInput"),
         patch("src.infrastructure.inference.triton_grpc_client.grpc_aio.InferRequestedOutput"),
-        patch(
-            "src.infrastructure.inference.triton_grpc_client.asyncio.wait_for",
-            side_effect=TimeoutError(),
-        ),
-        pytest.raises(TimeoutError, match=r"Triton infer timeout"),
+        patch.object(triton_grpc_module.asyncio, "wait_for", new=_timeout_wait_for),
+        pytest.raises(triton_grpc_module.TritonInferenceTimeout, match=r"0\.850s"),
     ):
-        await client.infer_symbol("R_10", np.zeros((1, 4, 34), dtype=np.float32))
+        await client.infer_symbol("RDBEAR", np.zeros((1, 4, 34), dtype=np.float32))
+
+
+@pytest.mark.asyncio
+async def test_triton_grpc_client_batch_infer_timeout():
+    client = TritonGrpcClient()
+    client._infer = MagicMock()
+    client._infer.infer = AsyncMock(return_value=_FakeResult(np.array([0.5], dtype=np.float32)))
+    tensors = {f"R_{i}": np.zeros((1, 48, 34), dtype=np.float32) for i in (10, 25, 50, 75, 100)}
+    with (
+        patch("src.infrastructure.inference.triton_grpc_client.grpc_aio.InferInput"),
+        patch("src.infrastructure.inference.triton_grpc_client.grpc_aio.InferRequestedOutput"),
+        patch.object(triton_grpc_module.asyncio, "wait_for", new=_timeout_wait_for),
+        pytest.raises(triton_grpc_module.TritonInferenceTimeout, match=r"batch infer timeout"),
+    ):
+        await client.infer_symbols_concurrent(tensors)
 
 
 @pytest.mark.asyncio
@@ -167,7 +208,7 @@ async def test_triton_grpc_client_infer_raises_server_exception():
         patch("src.infrastructure.inference.triton_grpc_client.grpc_aio.InferRequestedOutput"),
         pytest.raises(InferenceServerException),
     ):
-        await client.infer_symbol("R_10", np.zeros((1, 4, 34), dtype=np.float32))
+        await client.infer_symbol("RDBEAR", np.zeros((1, 4, 34), dtype=np.float32))
 
 
 @pytest.mark.asyncio

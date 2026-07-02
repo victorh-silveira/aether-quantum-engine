@@ -43,7 +43,7 @@ async def test_predict_raw_prob_async_put_and_neutral():
     ):
         direction, prob, raw = await predict_raw_prob_async(
             orch,
-            "R_10",
+            "RDBEAR",
             prices,
             runtime,
             {"lookback": 4},
@@ -59,7 +59,7 @@ async def test_predict_raw_prob_async_put_and_neutral():
     ):
         direction, prob, raw = await predict_raw_prob_async(
             orch,
-            "R_10",
+            "RDBEAR",
             prices,
             runtime,
             {"lookback": 4},
@@ -87,7 +87,7 @@ async def test_predict_raw_prob_async_eager_branch():
     ):
         direction, prob, raw = await predict_raw_prob_async(
             orch,
-            "R_10",
+            "RDBEAR",
             np.linspace(1.0, 2.0, 20),
             runtime,
             {"lookback": 4},
@@ -102,19 +102,19 @@ def test_entropy_fallback_build_returns_none(monkeypatch):
         "src.application.services.execution_entropy_fallback.build_execution_candidate",
         lambda *_a, **_k: None,
     )
-    assert pick_entropy_fallback_candidate(["R_10"], {"R_10": entry}) is None
+    assert pick_entropy_fallback_candidate(["RDBEAR"], {"RDBEAR": entry}) is None
 
 
 def test_cached_correlation_matrix_from_orch():
     orch = MagicMock()
-    orch._corr_matrix_cache = {("R_10", "R_50"): 0.3}
-    assert cached_correlation_matrix(orch)[("R_10", "R_50")] == 0.3
+    orch._corr_matrix_cache = {("RDBEAR", "RDBULL"): 0.3}
+    assert cached_correlation_matrix(orch)[("RDBEAR", "RDBULL")] == 0.3
 
 
 def test_cross_corr_no_adjustment_without_squeeze():
     weights = {"dl_raw_weight": 0.45}
     metrics = {"direction_margin": 0.2, "indicators": {"vol_ratio": 1.2}}
-    assert adjust_dl_weight_with_correlation(weights, "R_50", metrics, {}) == weights
+    assert adjust_dl_weight_with_correlation(weights, "RDBULL", metrics, {}) == weights
 
 
 def test_resolve_execution_direction_with_corr_matrix():
@@ -130,11 +130,11 @@ def test_resolve_execution_direction_with_corr_matrix():
             "bb_squeeze": True,
         },
     }
-    corr = {("R_50", "R_10"): 0.8, ("R_10", "R_50"): 0.8}
+    corr = {("RDBULL", "RDBEAR"): 0.8, ("RDBEAR", "RDBULL"): 0.8}
     resolved = resolve_execution_direction(
         entry,
         exec_cfg={"quality_gate": {"min_direction_margin": 0.05}},
-        symbol="R_50",
+        symbol="RDBULL",
         corr_matrix=corr,
     )
     assert resolved is not None
@@ -217,7 +217,7 @@ async def test_predict_symbol_decision_async_triton_path():
         }
         entry = await predict_symbol_decision_async(
             orch,
-            "R_10",
+            "RDBEAR",
             MagicMock(),
             np.linspace(1.0, 2.0, 30),
             runtime["norm_stats"],
@@ -232,14 +232,15 @@ async def test_predict_symbol_decision_async_triton_path():
 def test_entropy_fallback_skips_symbol_in_set():
     entry = {"metrics": {"deploy_ok": True, "calibrated_prob": 0.62, "gate_reason": None}}
     assert (
-        pick_entropy_fallback_candidate(["R_10", "R_50"], {"R_50": entry}, skip_symbols=frozenset({"R_10"})) is not None
+        pick_entropy_fallback_candidate(["RDBEAR", "RDBULL"], {"RDBULL": entry}, skip_symbols=frozenset({"RDBEAR"}))
+        is not None
     )
 
 
 def test_entropy_fallback_infers_direction_when_missing():
     entry = {"metrics": {"deploy_ok": True, "calibrated_prob": 0.72, "gate_reason": None}}
     with patch("src.application.services.execution_entropy_fallback.infer_dl_direction", return_value=None):
-        picked = pick_entropy_fallback_candidate(["R_10"], {"R_10": entry})
+        picked = pick_entropy_fallback_candidate(["RDBEAR"], {"RDBEAR": entry})
     assert picked is not None
     assert picked[1] == TradeDirection.CALL
 

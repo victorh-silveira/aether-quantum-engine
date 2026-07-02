@@ -22,13 +22,13 @@ def test_recovery_metrics_eligible_rejects_low_trade_score():
 
 def test_build_mandatory_fallback_returns_last_resort_at_configured_min_signal():
     decisions = {
-        "R_50": {
+        "RDBULL": {
             "direction": None,
             "metrics": {"trade_score": 0.50, "raw_prob": 0.50},
         },
     }
     best = build_mandatory_fallback_candidate(
-        ["R_50"],
+        ["RDBULL"],
         decisions,
         recovery_active=False,
         last_loss_symbol=None,
@@ -40,18 +40,18 @@ def test_build_mandatory_fallback_returns_last_resort_at_configured_min_signal()
 
 
 def test_symbol_priority_recovery_core_only():
-    order = _symbol_priority(["R_10", "R_50", "R_75"], "R_50", recovery_core_only=True)
-    assert order == ["R_75", "R_50"]
+    order = _symbol_priority(["RDBEAR", "RDBULL"], "RDBULL", recovery_core_only=True)
+    assert order == ["RDBEAR", "RDBULL"]
 
 
 def test_symbol_priority_reuses_core_when_tail_empty():
-    order = _symbol_priority(["R_50", "R_75"], "R_50", recovery_core_only=False)
-    assert order == ["R_75", "R_50"]
+    order = _symbol_priority(["RDBULL", "RDBEAR"], "RDBULL", recovery_core_only=False)
+    assert order == ["RDBEAR", "RDBULL"]
 
 
 def test_last_resort_fallback_uses_raw_when_market_direction_missing():
     decisions = {
-        "R_50": {
+        "RDBULL": {
             "direction": None,
             "metrics": {"trade_score": 0.50, "raw_prob": 0.44, "deploy_ok": True},
         },
@@ -60,31 +60,31 @@ def test_last_resort_fallback_uses_raw_when_market_direction_missing():
         "src.application.services.execution_direction_fallback.build_execution_candidate",
         return_value=None,
     ):
-        picked = _last_resort_fallback_pick(["R_50"], decisions, min_signal=0.0)
+        picked = _last_resort_fallback_pick(["RDBULL"], decisions, min_signal=0.0)
     assert picked is not None
     assert picked[1] == TradeDirection.PUT
 
 
 def test_forced_recovery_pick_skips_gate_blocked():
     decisions = {
-        "R_50": {
+        "RDBULL": {
             "direction": TradeDirection.CALL,
             "metrics": {"deploy_ok": False, "trade_score": 0.60, "val_accuracy": 0.55},
         },
     }
-    assert _forced_recovery_pick(["R_50"], decisions, TradeDirection.CALL) is None
+    assert _forced_recovery_pick(["RDBULL"], decisions, TradeDirection.CALL) is None
 
 
 def test_forced_recovery_pick_rejects_low_val_accuracy():
     decisions = {
-        "R_75": {
+        "RDBEAR": {
             "direction": TradeDirection.PUT,
             "metrics": {"trade_score": 0.60, "val_accuracy": 0.40, "raw_prob": 0.44},
         },
     }
     assert (
         _forced_recovery_pick(
-            ["R_75"],
+            ["RDBEAR"],
             decisions,
             TradeDirection.PUT,
             min_signal=0.45,
@@ -96,7 +96,7 @@ def test_forced_recovery_pick_rejects_low_val_accuracy():
 
 def test_build_mandatory_fallback_last_resort_below_min_signal():
     decisions = {
-        "R_50": {
+        "RDBULL": {
             "direction": TradeDirection.CALL,
             "metrics": {
                 "execute": False,
@@ -107,7 +107,7 @@ def test_build_mandatory_fallback_last_resort_below_min_signal():
         },
     }
     best = build_mandatory_fallback_candidate(
-        ["R_50"],
+        ["RDBULL"],
         decisions,
         recovery_active=False,
         last_loss_symbol=None,

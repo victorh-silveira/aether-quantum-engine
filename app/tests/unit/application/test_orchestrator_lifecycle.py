@@ -50,7 +50,32 @@ async def test_orchestrator_run_loop_reconnection(orchestrator_config):
         async def stop_soon(_):
             orch.running = False
 
-        with patch("src.application.services.orchestrator.asyncio.sleep", side_effect=stop_soon):
+        with (
+            patch(
+                "src.application.services.orchestrator.orchestrator_run_loop.setup_session",
+                AsyncMock(return_value=True),
+            ),
+            patch(
+                "src.application.services.orchestrator.orchestrator_run_loop.start_streams",
+                AsyncMock(return_value=True),
+            ),
+            patch(
+                "src.application.services.orchestrator.orchestrator_run_loop.start_settlement_worker",
+                AsyncMock(),
+            ),
+            patch(
+                "src.application.services.orchestrator.orchestrator_run_loop.start_ingestion_watchdog",
+                AsyncMock(),
+            ),
+            patch(
+                "src.application.services.orchestrator.orchestrator_run_loop.prepare_orchestrator_run_loop",
+            ),
+            patch.object(orch, "_run_trading_cycle_if_ready", AsyncMock(return_value=False)),
+            patch(
+                "src.application.services.orchestrator.orchestrator_run_loop.asyncio.sleep",
+                side_effect=stop_soon,
+            ),
+        ):
             await asyncio.wait_for(orch.run(), timeout=2.0)
 
 
@@ -112,7 +137,7 @@ async def test_orchestrator_full_lifecycle_summary(orchestrator_config):
         orch.risk_manager.initial_bankroll = 100.0
         c = Contract(
             contract_id=1,
-            symbol="R_50",
+            symbol="RDBULL",
             direction=TradeDirection.CALL,
             stake=10.0,
             payout=18.0,
@@ -123,7 +148,7 @@ async def test_orchestrator_full_lifecycle_summary(orchestrator_config):
         )
         await orch.state.add_contract(c)
         orch.risk_manager.active_contract_ids = [1]
-        orch.risk_manager.contract_to_symbol[1] = "R_50"
+        orch.risk_manager.contract_to_symbol[1] = "RDBULL"
         await orch._on_contract_update(
             {
                 "proposal_open_contract": {
@@ -140,27 +165,37 @@ async def test_orchestrator_full_lifecycle_summary(orchestrator_config):
 
 @pytest.mark.asyncio
 async def test_orchestrator_run_early_return_when_setup_fails(orchestrator_config):
-    """Cobre run() quando _setup_session falha antes do loop (linha 54)."""
+    """Cobre run() quando setup_session falha antes do loop."""
     TradingState.reset()
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orchestrator_config, "token")
-        orch._setup_session = AsyncMock(return_value=False)
-        orch._start_streams = AsyncMock(return_value=True)
-        await orch.run()
+        with patch(
+            "src.application.services.orchestrator.orchestrator_run_loop.setup_session",
+            AsyncMock(return_value=False),
+        ):
+            await orch.run()
         assert orch.running is False
 
 
 @pytest.mark.asyncio
 async def test_orchestrator_run_early_return_when_streams_fail(orchestrator_config):
-    """Cobre run() quando _start_streams falha na entrada (linha 54)."""
+    """Cobre run() quando start_streams falha na entrada."""
     TradingState.reset()
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orchestrator_config, "token")
-        orch._setup_session = AsyncMock(return_value=True)
-        orch._start_streams = AsyncMock(return_value=False)
-        await orch.run()
+        with (
+            patch(
+                "src.application.services.orchestrator.orchestrator_run_loop.setup_session",
+                AsyncMock(return_value=True),
+            ),
+            patch(
+                "src.application.services.orchestrator.orchestrator_run_loop.start_streams",
+                AsyncMock(return_value=False),
+            ),
+        ):
+            await orch.run()
         assert orch.running is False
 
 
@@ -226,7 +261,7 @@ async def test_orchestrator_run_loop_persistence_and_reconcile(orchestrator_conf
             status=TradeStatus.OPEN,
             buy_price=1.0,
             payout=2.0,
-            symbol="R_50",
+            symbol="RDBULL",
             direction=TradeDirection.CALL,
             stake=1.0,
             expiry_time=0,
@@ -234,7 +269,32 @@ async def test_orchestrator_run_loop_persistence_and_reconcile(orchestrator_conf
         orch.executor.reconcile = AsyncMock()
         orch.persistence.save = MagicMock()
         orch.running = True
-        with patch("src.application.services.orchestrator.asyncio.sleep", side_effect=stop_after_main_loops):
+        with (
+            patch(
+                "src.application.services.orchestrator.orchestrator_run_loop.setup_session",
+                AsyncMock(return_value=True),
+            ),
+            patch(
+                "src.application.services.orchestrator.orchestrator_run_loop.start_streams",
+                AsyncMock(return_value=True),
+            ),
+            patch(
+                "src.application.services.orchestrator.orchestrator_run_loop.start_settlement_worker",
+                AsyncMock(),
+            ),
+            patch(
+                "src.application.services.orchestrator.orchestrator_run_loop.start_ingestion_watchdog",
+                AsyncMock(),
+            ),
+            patch(
+                "src.application.services.orchestrator.orchestrator_run_loop.prepare_orchestrator_run_loop",
+            ),
+            patch.object(orch, "_run_trading_cycle_if_ready", AsyncMock(return_value=False)),
+            patch(
+                "src.application.services.orchestrator.orchestrator_run_loop.asyncio.sleep",
+                side_effect=stop_after_main_loops,
+            ),
+        ):
             await asyncio.wait_for(orch.run(), timeout=5.0)
         orch.executor.reconcile.assert_called()
         orch.persistence.save.assert_called()

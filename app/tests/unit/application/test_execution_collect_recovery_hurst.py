@@ -18,7 +18,7 @@ def test_recovery_hurst_blocks_collect_increments_on_skip():
     exec_mgr = SimpleNamespace(orch=orch, logger=MagicMock())
     candidates = [
         (
-            "R_10",
+            "RDBEAR",
             TradeDirection.CALL,
             {"indicators": {"hurst": 0.50}},
         )
@@ -46,7 +46,7 @@ async def test_recovery_skip_counter_persisted_on_hurst_block():
     exec_mgr = SimpleNamespace(orch=orch, logger=MagicMock())
     candidates = [
         (
-            "R_10",
+            "RDBEAR",
             TradeDirection.CALL,
             {"indicators": {"hurst": 0.50}},
         )
@@ -78,7 +78,7 @@ def test_recovery_hurst_blocks_collect_allows_after_decay_counter():
     exec_mgr = SimpleNamespace(orch=orch, logger=MagicMock())
     candidates = [
         (
-            "R_10",
+            "RDBEAR",
             TradeDirection.CALL,
             {"indicators": {"hurst": 0.55}},
         )
@@ -106,7 +106,7 @@ def test_recovery_hurst_blocks_collect_log_decay_unblocks_n3_severe_drawdown():
     exec_mgr = SimpleNamespace(orch=orch, logger=MagicMock())
     candidates = [
         (
-            "R_10",
+            "RDBEAR",
             TradeDirection.CALL,
             {"indicators": {"hurst": 0.54}},
         )

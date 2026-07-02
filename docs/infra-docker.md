@@ -20,7 +20,7 @@ O serviço `aether-triton` usa `nvcr.io/nvidia/tritonserver` com repositório em
 1. **Bootstrap**: `sync_all_symbols_to_triton` copia `latest_ts.pt` para `{symbol}/1/model.pt` + `config.pbtxt`.
 2. **Reload**: `reload_triton_repository` via HTTP após sync.
 3. **Sanity estressado**: `verify_triton_stressed_inference_async` envia tensores com RSI=0.99, CMO=1.0, vol_ratio=1.80; fail-fast se NaN/Inf ou prob fora de `[0, 1]`.
-4. **Produção**: `TritonGrpcClient` mantém canal `grpc.aio.insecure_channel` persistente, dispara inferências dos 5 símbolos em paralelo (`asyncio.gather`) e aplica **timeout de 2,0 s** por requisição. Em timeout, `dl_predict_triton` faz fallback para TorchScript local (log `TRITON_TIMEOUT_FALLBACK`).
+4. **Produção**: `TritonGrpcClient` mantém canal `grpc.aio.insecure_channel` persistente, dispara inferências de `RDBEAR` e `RDBULL` em paralelo (`asyncio.gather`) e aplica **timeout de 2,0 s** por requisição. Em timeout, `dl_predict_triton` faz fallback para TorchScript local (log `TRITON_TIMEOUT_FALLBACK`).
 
 Variáveis no `.env`:
 

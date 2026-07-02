@@ -10,32 +10,32 @@ from src.infrastructure.storage.minio_model_store import MinioModelStore
 @pytest.mark.asyncio
 async def test_local_model_store_load_manifest(tmp_path):
     store = LocalModelStore(tmp_path)
-    ts_dir = tmp_path / "R_10" / "tcn"
+    ts_dir = tmp_path / "RDBEAR" / "tcn"
     ts_dir.mkdir(parents=True)
     (ts_dir / "manifest.json").write_text(
         '{"feature_dim": 34, "lookback": 48}',
         encoding="utf-8",
     )
-    manifest = await store.load_manifest("R_10", arch="tcn")
+    manifest = await store.load_manifest("RDBEAR", arch="tcn")
     assert manifest["feature_dim"] == FEATURE_DIM
 
 
 @pytest.mark.asyncio
 async def test_local_model_store_load_manifest_invalid_json(tmp_path):
     store = LocalModelStore(tmp_path)
-    ts_dir = tmp_path / "R_10" / "tcn"
+    ts_dir = tmp_path / "RDBEAR" / "tcn"
     ts_dir.mkdir(parents=True)
     (ts_dir / "manifest.json").write_text("not-json", encoding="utf-8")
-    assert await store.load_manifest("R_10", arch="tcn") == {}
+    assert await store.load_manifest("RDBEAR", arch="tcn") == {}
 
 
 @pytest.mark.asyncio
 async def test_local_model_store_load_manifest_non_dict_payload(tmp_path):
     store = LocalModelStore(tmp_path)
-    ts_dir = tmp_path / "R_10" / "tcn"
+    ts_dir = tmp_path / "RDBEAR" / "tcn"
     ts_dir.mkdir(parents=True)
     (ts_dir / "manifest.json").write_text("[1, 2]", encoding="utf-8")
-    assert await store.load_manifest("R_10", arch="tcn") == {}
+    assert await store.load_manifest("RDBEAR", arch="tcn") == {}
 
 
 @pytest.mark.asyncio
@@ -67,7 +67,7 @@ async def test_minio_load_manifest_success():
         return fn()
 
     with patch("asyncio.to_thread", side_effect=_thread_run):
-        manifest = await store.load_manifest("R_10", arch="tcn")
+        manifest = await store.load_manifest("RDBEAR", arch="tcn")
     assert manifest["feature_dim"] == FEATURE_DIM
 
 
@@ -88,4 +88,4 @@ async def test_minio_load_manifest_failure():
         return fn()
 
     with patch("asyncio.to_thread", side_effect=_thread_run):
-        assert await store.load_manifest("R_10", arch="tcn") == {}
+        assert await store.load_manifest("RDBEAR", arch="tcn") == {}

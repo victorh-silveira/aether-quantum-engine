@@ -6,7 +6,7 @@ import math
 from dataclasses import dataclass, field
 
 
-RANGE_BREAK_SYMBOLS = ("R_10", "R_25", "R_50", "R_75", "R_100")
+DRIFT_SYMBOLS = ("RDBEAR", "RDBULL")
 
 
 @dataclass
@@ -22,7 +22,7 @@ class DashboardState:
     trading_mode: str = "N/A"
     dl_arch: str = "tcn"
     decision_mode: str = "SELETIVO"
-    active_symbols: tuple[str, ...] = RANGE_BREAK_SYMBOLS
+    active_symbols: tuple[str, ...] = DRIFT_SYMBOLS
     redis_url: str = ""
     redis_key_prefix: str = "aether"
 
@@ -75,5 +75,5 @@ def decision_engine_label(state: DashboardState) -> str:
 
 
 def active_symbols_label(state: DashboardState) -> str:
-    symbols = state.active_symbols or RANGE_BREAK_SYMBOLS
+    symbols = state.active_symbols or DRIFT_SYMBOLS
     return "Símbolos ativos: " + ", ".join(symbols)

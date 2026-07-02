@@ -4,7 +4,21 @@ from src.application.services.deep_learning.dl_params import parse_dynamic_thres
 from src.application.services.execution_direction import build_execution_candidate
 from src.application.services.execution_direction_cross_corr import cached_correlation_matrix
 from src.application.services.execution_quality_gate import apply_quality_penalty_to_metrics, quality_gate_params
+from src.application.services.execution_universal_regime_gate import log_regime_audit
+from src.application.services.execution_volatility_booster import apply_volatility_vol_booster
 from src.application.services.orchestrator.execution_recovery_gate import cluster_entry_eligible
+from src.domain.models.trade import TradeDirection
+
+
+def _dl_direction_from_metrics(metrics: dict, fallback: TradeDirection) -> TradeDirection:
+    """Resolve direcao DL das metricas com fallback para ordem resolvida."""
+    raw = metrics.get("dl_direction")
+    if raw is None:
+        return fallback
+    try:
+        return TradeDirection[str(raw).upper()]
+    except (KeyError, ValueError):
+        return fallback
 
 
 def gather_cluster_candidates(
@@ -23,7 +37,6 @@ def gather_cluster_candidates(
     session_drawdown=0.0,
 ):
     """Coleta candidatos DL elegiveis aplicando penalidade em vez de veto de qualidade."""
-    _ = (recovery_cfg, cid)
     exec_cfg = exec_mgr.orch.config.get("orchestrator", {}).get("execution", {})
     calibration_cfg = exec_mgr.orch.config.get("deep_learning", {}).get("calibration")
     kelly = kelly_cfg if isinstance(kelly_cfg, dict) else {}
@@ -56,12 +69,21 @@ def gather_cluster_candidates(
         )
         if built is None:
             continue
-        _, _, metrics = built
+        _, direction, metrics = built
+        if metrics.get("regime_skip_cycle"):
+            continue
+        dl_dir = _dl_direction_from_metrics(metrics, direction)
+        log_regime_audit(exec_mgr.logger, cid, symbol, dl_dir, direction, metrics, recovery_active=recovery_active)
+        boosted_signal, boosted_edge = apply_volatility_vol_booster(
+            metrics,
+            mandatory_min_trade_score=min_signal,
+            min_edge_execute=min_edge,
+        )
         apply_quality_penalty_to_metrics(
             metrics,
-            min_signal=min_signal,
+            min_signal=boosted_signal,
             min_val=min_val,
-            min_edge=min_edge,
+            min_edge=boosted_edge,
             recovery_active=recovery_active,
             dynamic_threshold_cfg=dynamic_cfg,
             exhaustion_gate_cfg=exhaustion_gate,

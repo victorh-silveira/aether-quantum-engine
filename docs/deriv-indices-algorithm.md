@@ -1,6 +1,6 @@
 # Algoritmo de Índices Sintéticos da Deriv e Estratégia de Trading
 
-Este documento detalha o funcionamento técnico dos índices sintéticos da Deriv (séries Volatility R_* e Range Break) e como o **Aether Quantum Engine** se posiciona estrategicamente para operá-los.
+Este documento detalha o funcionamento técnico dos índices sintéticos da Deriv (Volatility e **Drift** `RDBEAR`/`RDBULL`) e como o **Aether Quantum Engine** se posiciona estrategicamente para operá-los.
 
 ---
 
@@ -26,7 +26,7 @@ O motor central de preços da Deriv utiliza um **Gerador de Números Pseudo-Alea
 
 ### 1.2 Parâmetros e Coeficientes de Volatilidade
 
-Cada símbolo possui coeficiente de desvio padrão fixo (Volatility 10, 50, 75, 100, Range Break). O mercado opera 24/7 com comportamento estatístico consistente.
+Cada símbolo possui parâmetros de volatilidade fixos (Volatility 10/50/75/100 na Deriv; no motor, o par **Drift** `RDBEAR`/`RDBULL`). O mercado opera 24/7 com comportamento estatístico consistente.
 
 ---
 
@@ -38,7 +38,7 @@ Como prever a saída exata do CSPRNG é impossível, o foco é **exploração de
 
 O Aether utiliza **TCN** (padrão), **LSTM** ou **GRU** com conexões dilatadas ou recorrentes.
 
-- **Por que TCN?** Processa janelas longas de lookback (48 barras × **300 s = 4 h**) identificando persistência de tendência ou exaustão com menor ruído CSPRNG que M3.
+- **Por que TCN?** Processa janelas longas de lookback (48 barras × **900 s = 12 h**) identificando persistência de tendência ou exaustão com menor ruído CSPRNG que M3.
 - **34 features**: OHLC normalizado, indicadores técnicos, microestrutura de ticks e regime (Hurst, ADX, vol_ratio, CMO).
 - **Inferência**: Triton gRPC concorrente (`TritonGrpcClient`) quando `infra.triton.enabled`; fallback local via TorchScript em cache.
 - **Detecção de regime**: EMAs, inclinação, ADX e votos de trend (`dl_trend.py`) alimentam o scoring direcional.
@@ -65,7 +65,7 @@ Desvios extremos tendem a retornar à média em ativos com volatilidade fixa.
 - **FASE TREINO**: todos os símbolos retreinam ao menos uma vez por sessão (`session_trained`). Nenhuma ordem até concluir.
 - **FASE OPERACAO seletiva** (`mandatory_trade_each_cycle: false`): opera quando o melhor candidato passa no gate (score ≥ 0.68 normal). Ciclos sem candidato elegível são pulados.
 - **FASE OPERACAO contínua** (`mandatory_trade_each_cycle: true`): uma ordem por ciclo; qualidade como penalidade; fallback de entropia garante participação mínima.
-- **Resolução direcional**: `execution_direction_resolver` combina probabilidade calibrada, trend, exaustão e regime; thresholds dinâmicos por `bb_width`/`atr_norm` ajustam convicção por índice (R_10 a R_100).
+- **Resolução direcional**: `execution_direction_resolver` combina probabilidade calibrada, trend, exaustão e regime; thresholds dinâmicos por `bb_width`/`atr_norm` ajustam convicção por índice (RDBEAR a RDBULL).
 - **Deploy gate**: modelos com `deploy_ok=false` não entram no pool.
 
 ### 2.5 Perfil de qualidade atual
@@ -81,7 +81,7 @@ Desvios extremos tendem a retornar à média em ativos com volatilidade fixa.
 | Gate de qualidade | Score ≥ 0.68, edge calibrado ≥ max(0.04, dynamic_min_edge), margem ≥ 0.05 (modo seletivo) |
 | Inversão DL→exec | Exige score ≥ 0.74 (modo seletivo) |
 | Modo normal | ADX ≥ 0.18 |
-| Recovery | Pisos escalonados (0.64+) e martingale com convicção ≥ 0.64 |
+| Recovery | Pisos escalonados (0.64+) e D'Alembert linear com convicção ≥ 0.64 |
 | Kelly divergente | Consensus Entropy Penalty atenua stake quando ordem ≠ maioria dos votos |
 
 ---

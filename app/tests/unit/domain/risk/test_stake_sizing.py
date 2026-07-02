@@ -101,7 +101,7 @@ def test_compute_single_strike_targets_stop_win_pct():
     assert strong == pytest.approx(46.72 / 0.95, abs=0.5)
 
 
-def test_resolve_cycle_stake_scale_m5():
+def test_resolve_cycle_stake_scale_m15():
     scale = resolve_cycle_stake_scale(
         {"cycle_stake_baseline_seconds": 60, "cycle_stake_exponent": 0.55},
         {"orchestrator": {"cycle_interval_seconds": 300}},
@@ -113,9 +113,9 @@ def test_resolve_cycle_stake_scale_m5():
             "cycle_stake_exponent": 0.55,
             "cycle_stake_use_contract_duration": True,
         },
-        {"params": {"duration": 300, "duration_unit": "s"}},
+        {"params": {"duration": 60, "duration_unit": "s"}},
     )
-    assert contract_scale == pytest.approx((300 / 60) ** 0.55, rel=1e-6)
+    assert contract_scale == pytest.approx((60 / 60) ** 0.55, rel=1e-6)
     assert resolve_cycle_stake_scale(
         {
             "cycle_stake_baseline_seconds": 60,
@@ -187,11 +187,10 @@ def test_compute_single_strike_cycles_target_reduces_stake():
     assert damped == pytest.approx(full / 2.75, abs=0.5)
 
 
-def test_apply_symbol_stake_cap_limits_r10():
-    cfg = {"symbol_max_stake_pct": {"R_10": 0.009}}
-    capped = apply_symbol_stake_cap(126.0, 10545.0, "R_10", cfg)
-    assert capped == pytest.approx(10545.0 * 0.009, abs=0.02)
-    assert apply_symbol_stake_cap(80.0, 10545.0, "R_50", cfg) == 80.0
+def test_apply_symbol_stake_cap_passes_through_unchanged():
+    cfg = {"symbol_max_stake_pct": {"RDBEAR": 0.009}}
+    assert apply_symbol_stake_cap(126.0, 10545.0, "RDBEAR", cfg) == 126.0
+    assert apply_symbol_stake_cap(80.0, 10545.0, "RDBULL", cfg) == 80.0
 
 
 def test_compute_single_strike_scales_with_m5_cycle():

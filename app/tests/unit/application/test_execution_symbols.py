@@ -47,21 +47,21 @@ def test_select_best_execution_candidate_diversify_margin_picks_alt():
 
 def test_candidate_execution_score_recovery_weights_val_accuracy():
     metrics = {"trade_score": 0.80, "raw_prob": 0.80, "val_accuracy": 0.40, "execute": True}
-    normal = candidate_execution_score(metrics, recovery_active=False, symbol="R_50")
+    normal = candidate_execution_score(metrics, recovery_active=False, symbol="RDBULL")
     recovery = candidate_execution_score(
         metrics,
         recovery_active=True,
-        symbol="R_50",
+        symbol="RDBULL",
         exec_direction=TradeDirection.CALL,
-        last_loss_symbol="R_10",
+        last_loss_symbol="RDBEAR",
         last_loss_direction="CALL",
     )
     high_val = candidate_execution_score(
         {"trade_score": 0.80, "raw_prob": 0.80, "val_accuracy": 0.60, "execute": True},
         recovery_active=True,
-        symbol="R_50",
+        symbol="RDBULL",
         exec_direction=TradeDirection.CALL,
-        last_loss_symbol="R_10",
+        last_loss_symbol="RDBEAR",
         last_loss_direction="CALL",
     )
     assert high_val > recovery

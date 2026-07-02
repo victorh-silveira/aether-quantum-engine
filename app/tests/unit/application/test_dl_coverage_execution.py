@@ -49,16 +49,16 @@ def test_market_decision_score_high_brier_penalty():
 
 
 def test_recovery_rank_score_same_symbol_penalty():
-    item = ("R_50", TradeDirection.CALL, {"raw_prob": 0.8, "execute": True})
+    item = ("RDBULL", TradeDirection.CALL, {"raw_prob": 0.8, "execute": True})
     penalized = recovery_rank_score(
         item,
-        last_loss_symbol="R_50",
+        last_loss_symbol="RDBULL",
         last_loss_direction="CALL",
         base_score=0.7,
     )
     diversified = recovery_rank_score(
         item,
-        last_loss_symbol="R_75",
+        last_loss_symbol="RDBEAR",
         last_loss_direction="CALL",
         base_score=0.7,
     )
@@ -66,11 +66,11 @@ def test_recovery_rank_score_same_symbol_penalty():
 
 
 def test_inject_recovery_hedge_missing_peer_entry():
-    candidates = [("R_50", TradeDirection.PUT, {"trade_score": 0.8})]
+    candidates = [("RDBULL", TradeDirection.PUT, {"trade_score": 0.8})]
     out = inject_recovery_hedge_candidates(
         candidates,
         {},
-        last_loss_symbol="R_100",
+        last_loss_symbol="RDBULL",
         last_loss_direction="PUT",
     )
     assert out == candidates
@@ -78,7 +78,7 @@ def test_inject_recovery_hedge_missing_peer_entry():
 
 def test_recovery_hedge_pick_forced_recovery_path():
     decisions = {
-        "R_10": {
+        "RDBEAR": {
             "direction": TradeDirection.PUT,
             "metrics": {"deploy_ok": True, "raw_prob": 0.42},
         },
@@ -89,12 +89,12 @@ def test_recovery_hedge_pick_forced_recovery_path():
     ):
         picked = _recovery_hedge_pick(
             decisions,
-            last_loss_symbol="R_100",
+            last_loss_symbol="RDBULL",
             last_loss_direction="PUT",
             skip_symbols=frozenset(),
         )
     assert picked is not None
-    assert picked[0] == "R_10"
+    assert picked[0] == "RDBEAR"
 
 
 def test_load_checkpoint_invalid_torchscript(tmp_path):
@@ -166,19 +166,19 @@ def test_hurst_skips_tiny_rs():
 
 
 def test_live_win_rate_insufficient_samples():
-    orch = SimpleNamespace(_dl_outcome_flags={"R_50": [True, False, True]})
-    assert live_win_rate(orch, "R_50") is None
+    orch = SimpleNamespace(_dl_outcome_flags={"RDBULL": [True, False, True]})
+    assert live_win_rate(orch, "RDBULL") is None
 
 
 def test_tick_dl_session_pauses_clears_zero():
-    orch = SimpleNamespace(_dl_session_pause={"R_50": 1})
+    orch = SimpleNamespace(_dl_session_pause={"RDBULL": 1})
     tick_dl_session_pauses(orch)
-    assert "R_50" in orch._dl_session_pause
+    assert "RDBULL" in orch._dl_session_pause
 
 
 def test_maybe_pause_noop_when_disabled():
-    orch = SimpleNamespace(_dl_outcome_flags={"R_50": [False, False, False]})
-    maybe_pause_symbol_session(orch, "R_50", max_losses_in_window=2, window_trades=3, pause_cycles=0)
+    orch = SimpleNamespace(_dl_outcome_flags={"RDBULL": [False, False, False]})
+    maybe_pause_symbol_session(orch, "RDBULL", max_losses_in_window=2, window_trades=3, pause_cycles=0)
     assert not hasattr(orch, "_dl_session_pause")
 
 
@@ -245,7 +245,7 @@ def test_evaluate_mini_deploy_micro_slice_runs():
     ) as mock_predict:
         ok, wr, brier = evaluate_mini_deploy(
             orch,
-            "R_50",
+            "RDBULL",
             model,
             prices,
             stats,
@@ -259,14 +259,14 @@ def test_evaluate_mini_deploy_micro_slice_runs():
 
 def test_apply_symbol_loss_cooldown_session_pause():
     orch = SimpleNamespace(risk_manager=MagicMock(is_symbol_on_loss_cooldown=MagicMock(return_value=False)))
-    orch._dl_session_pause = {"R_50": 3}
+    orch._dl_session_pause = {"RDBULL": 3}
     entry = {"metrics": {"execute": True}}
-    out = apply_symbol_loss_cooldown(orch, "R_50", entry)
+    out = apply_symbol_loss_cooldown(orch, "RDBULL", entry)
     assert out["metrics"].get("gate_reason") is None
     assert out["metrics"]["execute"] is True
 
 
 def test_apply_symbol_loss_cooldown_empty_entry():
     orch = SimpleNamespace(risk_manager=MagicMock())
-    assert apply_symbol_loss_cooldown(orch, "R_50", {}) == {}
-    assert apply_symbol_loss_cooldown(orch, "R_50", None) is None
+    assert apply_symbol_loss_cooldown(orch, "RDBULL", {}) == {}
+    assert apply_symbol_loss_cooldown(orch, "RDBULL", None) is None

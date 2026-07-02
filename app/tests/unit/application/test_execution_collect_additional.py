@@ -152,6 +152,8 @@ def test_collect_cluster_orders_inverts_on_grey_zone():
                 "val_accuracy": 0.49,
                 "conviction": 0.55,
                 "raw_prob": 0.55,
+                "call_votes": 4,
+                "put_votes": 2,
             },
         },
     }

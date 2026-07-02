@@ -10,7 +10,7 @@ from tests.market_symbols import ANCHOR, PAIR
 def test_log_execution_decision_direct():
     exec_mgr = SimpleNamespace(logger=MagicMock())
     best = (
-        "R_10",
+        "RDBEAR",
         TradeDirection.CALL,
         {
             "val_accuracy": 0.55,

@@ -9,7 +9,12 @@ from dotenv import load_dotenv
 from aether_paths import APP_ROOT, REPO_ROOT
 from src.infrastructure.api.deriv_credentials import is_legacy_deriv_app_id, resolve_deriv_app_id
 from src.infrastructure.api.deriv_pat_binding import parse_deriv_pat
-from src.infrastructure.api.deriv_rest_client import DerivRestClient, DerivRestError, DerivTradingSession
+from src.infrastructure.api.deriv_rest_client import (
+    DerivRestClient,
+    DerivRestError,
+    DerivTradingSession,
+    select_account,
+)
 
 
 class AuthManager:
@@ -74,3 +79,10 @@ class AuthManager:
         """Abre sessao de trading (accounts + OTP) para o modo configurado."""
         client = self.rest_client()
         return await client.open_trading_session(self.mode, self.account_id_override)
+
+    async def refresh_otp_ws_url(self) -> str:
+        """Solicita OTP REST novo e retorna URL WebSocket de uso unico."""
+        client = self.rest_client()
+        accounts = await client.list_accounts()
+        account = select_account(accounts, self.mode, self.account_id_override)
+        return await client.post_otp(account.account_id)

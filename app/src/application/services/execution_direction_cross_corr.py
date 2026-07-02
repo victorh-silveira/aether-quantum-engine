@@ -26,7 +26,7 @@ def adjust_dl_weight_with_correlation(
     metrics: dict,
     corr_matrix: dict[tuple[str, str], float],
     *,
-    anchor: str = "R_10",
+    anchor: str = "RDBULL",
     min_margin: float = 0.05,
 ) -> dict[str, float]:
     """Mistura dl_raw_weight com correlacao cruzada em squeeze ou consenso fraco."""

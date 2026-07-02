@@ -1,3 +1,4 @@
+import urllib.error
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -9,6 +10,37 @@ from src.application.services.orchestrator.ws_bootstrap import (
     subscribe_account_transactions,
 )
 from src.infrastructure.api.deriv_rest_client import DerivRestError, DerivTradingSession
+
+
+@pytest.mark.asyncio
+async def test_setup_trading_session_reconnect_skips_model_stress(orch_config):
+    orch = Orchestrator(orch_config)
+    orch._is_initial_boot = False
+    session = DerivTradingSession(
+        ws_url="wss://api.derivws.com/trading/v1/options/ws/demo?otp=x",
+        balance=100.0,
+        account_id="DOT1",
+    )
+    with (
+        patch.object(orch.auth, "open_trading_session", AsyncMock(return_value=session)),
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap.restore_orchestrator_state",
+            AsyncMock(),
+        ),
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap.bootstrap_active_session_targets",
+            AsyncMock(),
+        ),
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap.bootstrap_and_validate_models",
+            new_callable=AsyncMock,
+        ) as bootstrap,
+    ):
+        orch.ws.connect = AsyncMock()
+        orch.ws.send = AsyncMock()
+        orch.ws.subscribe = MagicMock()
+        assert await setup_trading_session(orch) is True
+        bootstrap.assert_awaited_once_with(orch, is_initial_boot=False)
 
 
 @pytest.mark.asyncio
@@ -69,6 +101,27 @@ async def test_setup_trading_session_broker_unavailable(orch_config):
         with patch.object(orch.logger, "warning") as mock_warn:
             assert await setup_trading_session(orch) is False
         assert any("broker indisponivel" in str(c) for c in mock_warn.call_args_list)
+
+
+@pytest.mark.asyncio
+async def test_setup_trading_session_http_error(orch_config):
+    orch = Orchestrator(orch_config)
+    err = urllib.error.HTTPError(
+        url="http://localhost:8000/v2/models/RDBEAR",
+        code=404,
+        msg="Not Found",
+        hdrs=None,
+        fp=None,
+    )
+    with (
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap.validate_infra_services",
+            AsyncMock(side_effect=err),
+        ),
+        patch.object(orch.logger, "error") as mock_error,
+    ):
+        assert await setup_trading_session(orch) is False
+    assert any("404" in str(c) for c in mock_error.call_args_list)
 
 
 @pytest.mark.asyncio

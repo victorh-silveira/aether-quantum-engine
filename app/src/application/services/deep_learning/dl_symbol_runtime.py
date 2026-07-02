@@ -46,7 +46,7 @@ def resolve_dl_model_path(dl_config: dict, symbol: str) -> Path:
 
 def granularity_seconds(orch) -> int:
     """Retorna granularidade OHLC em segundos."""
-    return int(orch.config.get("data_handler", {}).get("granularity", 60))
+    return int(orch.config.get("data_handler", {}).get("granularity", 900))
 
 
 def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict:

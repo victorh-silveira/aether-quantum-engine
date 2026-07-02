@@ -7,7 +7,7 @@ from src.application.services.execution_direction_resolver import (
 )
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.stake_sizing import enrich_metrics_conviction, raw_side_from_metrics
-from src.domain.symbols.range_symbols import HEDGE_PEER, hedge_peer, is_high_side
+from src.domain.symbols.drift_symbols import HEDGE_PEER, hedge_peer, is_high_side
 
 
 _TECHNICAL_BLOCKS = frozenset({"data", "predict_error", "training"})
@@ -58,7 +58,7 @@ def recovery_hedge_target(
     last_loss_symbol: str | None,
     last_loss_direction: str | None,
 ) -> tuple[str, TradeDirection] | None:
-    """Define simbolo par e direcao de hedge apos loss em contratos Range R_*."""
+    """Define simbolo par e direcao de hedge apos loss em contratos Drift."""
     if not last_loss_symbol or last_loss_symbol not in HEDGE_PEER:
         return None
     if not last_loss_direction:
@@ -104,7 +104,7 @@ def build_forced_direction_candidate(
     entry: dict,
     forced_dir: TradeDirection,
 ) -> tuple[str, TradeDirection, dict] | None:
-    """Monta candidato com direcao de hedge forcada para recovery no par Range."""
+    """Monta candidato com direcao de hedge forcada para recovery no par Drift."""
     dl_dir = infer_dl_direction(entry)
     if dl_dir is None:
         return None

@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+from src.application.services.execution_symbols_recovery import recovery_blocked_symbols
 from src.application.services.orchestrator.execution_collect import collect_cluster_orders
 from src.application.services.orchestrator.execution_collect_helpers import resolve_mandatory_ultimate_candidate
 from src.domain.models.trade import TradeDirection
@@ -167,53 +168,12 @@ def test_collect_cluster_orders_skips_entry_without_inferable_direction():
     assert orders[0][1] == TradeDirection.CALL
 
 
-def test_collect_cluster_orders_returns_empty_when_only_blocked_symbols_remain():
-    orch = SimpleNamespace(
-        anchor=ANCHOR,
-        symbols=[ANCHOR, PAIR],
-        config={
-            "orchestrator": {"execution": {"include_anchor_trades": True}},
-            "risk_management": {
-                "kelly": {"recovery_martingale_max_losses_per_symbol": 2, "mandatory_min_trade_score": 0.0}
-            },
-            "deep_learning": {"recovery_gating": {}},
-        },
-        risk_manager=SimpleNamespace(
-            pending_loss={ANCHOR: 5.0},
-            last_loss_symbol=ANCHOR,
-            last_loss_direction="CALL",
-            recovery_symbol_loss_streak={ANCHOR: 2},
-            symbol_loss_cooldown={},
-        ),
-        _active_cycle_id=8,
+def test_collect_cluster_orders_does_not_exclude_symbol_by_loss_streak():
+    rm = SimpleNamespace(
+        recovery_symbol_loss_streak={ANCHOR: 5},
+        dlambert_config={"recovery_max_losses_per_symbol": 2},
     )
-    exec_mgr = SimpleNamespace(
-        orch=orch,
-        logger=MagicMock(),
-        _mandatory_trade_each_cycle=lambda: True,
-        _trade_symbols=lambda: [ANCHOR, PAIR],
-    )
-    blocked_candidate = (ANCHOR, TradeDirection.CALL, {"execute": False, "trade_score": 0.58})
-    decisions = {
-        ANCHOR: {"direction": TradeDirection.CALL, "metrics": {"trade_score": 0.58, "val_accuracy": 0.55}},
-        PAIR: {
-            "direction": TradeDirection.PUT,
-            "metrics": {"trade_score": 0.62, "raw_prob": 0.44, "val_accuracy": 0.55},
-        },
-    }
-    with (
-        patch(
-            "src.application.services.orchestrator.execution_collect.gather_cluster_candidates",
-            return_value=[blocked_candidate],
-        ),
-        patch(
-            "src.application.services.orchestrator.execution_collect._mandatory_fallback_candidates",
-            return_value=[],
-        ),
-    ):
-        orders = collect_cluster_orders(exec_mgr, decisions)
-    assert len(orders) == 1
-    assert orders[0][0] == PAIR
+    assert recovery_blocked_symbols(rm, {}) == frozenset()
 
 
 def test_collect_cluster_orders_uses_ultimate_fallback_when_select_empty():

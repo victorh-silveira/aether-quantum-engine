@@ -7,6 +7,10 @@ from pathlib import Path
 from typing import Any
 
 from aether_paths import repo_path
+from src.domain.risk.dlambert_sizing import (
+    REDIS_DLAMBERT_LINEAR_LOSSES_KEY,
+    REDIS_DLAMBERT_UNIT_KEY,
+)
 from src.domain.risk.recovery_hurst_decay import REDIS_SKIP_COUNTER_KEY
 from src.domain.risk.stop_win_target import (
     REDIS_SESSION_START_BALANCE_KEY,
@@ -37,6 +41,8 @@ class JsonStateStore:
         recovery_skip_counter: int | None = None,
         session_start_balance: float | None = None,
         session_target_win: float | None = None,
+        dlambert_unit: float | None = None,
+        consecutive_losses_linear: int | None = None,
     ) -> None:
         """Grava bundle completo em arquivo e estruturas auxiliares em memoria."""
         await self.save_snapshot(snapshot)
@@ -58,6 +64,10 @@ class JsonStateStore:
             await self.set_string(REDIS_SESSION_START_BALANCE_KEY, str(float(session_start_balance)))
         if session_target_win is not None:
             await self.set_string(REDIS_SESSION_TARGET_WIN_KEY, str(float(session_target_win)))
+        if dlambert_unit is not None:
+            await self.set_string(REDIS_DLAMBERT_UNIT_KEY, str(float(dlambert_unit)))
+        if consecutive_losses_linear is not None:
+            await self.set_string(REDIS_DLAMBERT_LINEAR_LOSSES_KEY, str(max(0, int(consecutive_losses_linear))))
 
     async def load_snapshot(self) -> dict[str, Any] | None:
         """Carrega snapshot JSON do arquivo local."""

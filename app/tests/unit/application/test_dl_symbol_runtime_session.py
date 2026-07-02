@@ -33,7 +33,7 @@ def test_get_symbol_runtime_marks_session_trained_when_deploy_ok_checkpoint():
         "src.application.services.deep_learning.dl_symbol_runtime.load_model_checkpoint",
         return_value=_loaded_checkpoint(deploy_ok=True),
     ):
-        runtime = get_symbol_runtime(orch, "R_100", dl_config, params)
+        runtime = get_symbol_runtime(orch, "RDBULL", dl_config, params)
     assert runtime["session_trained"] is True
     assert runtime["deploy_ok"] is True
 
@@ -47,7 +47,7 @@ def test_get_symbol_runtime_keeps_session_untrained_without_deploy_ok():
         "src.application.services.deep_learning.dl_symbol_runtime.load_model_checkpoint",
         return_value=_loaded_checkpoint(deploy_ok=False, val_brier=0.9),
     ):
-        runtime = get_symbol_runtime(orch, "R_100", dl_config, params)
+        runtime = get_symbol_runtime(orch, "RDBULL", dl_config, params)
     assert runtime["session_trained"] is False
 
 
@@ -60,7 +60,7 @@ def test_get_symbol_runtime_reuses_checkpoint_when_online_training_disabled():
         "src.application.services.deep_learning.dl_symbol_runtime.load_model_checkpoint",
         return_value=_loaded_checkpoint(deploy_ok=False, val_brier=0.22),
     ):
-        runtime = get_symbol_runtime(orch, "R_100", dl_config, params)
+        runtime = get_symbol_runtime(orch, "RDBULL", dl_config, params)
     assert runtime["session_trained"] is True
     assert runtime["deploy_ok"] is False
 
@@ -78,6 +78,6 @@ def test_get_symbol_runtime_exception_on_torch_load():
             return_value=_loaded_checkpoint(deploy_ok=True),
         ),
     ):
-        runtime = get_symbol_runtime(orch, "R_100", dl_config, params)
+        runtime = get_symbol_runtime(orch, "RDBULL", dl_config, params)
     assert runtime["trained_granularity"] == 60
     assert runtime["deploy_ok"] is True

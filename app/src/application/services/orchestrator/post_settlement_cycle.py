@@ -29,6 +29,26 @@ async def _poll_delay(seconds: float) -> None:
     await asyncio.sleep(seconds)
 
 
+def _ensure_trading_slot_poll(orch: Any, *, wait_limit: float) -> None:
+    """Dispara polling atomico do slot de ciclo sem bloquear a corrotina chamadora."""
+    task = getattr(orch, "_trading_slot_poll_task", None)
+    if task is not None and not task.done():
+        return
+    orch._trading_slot_poll_task = asyncio.ensure_future(_release_stuck_trading_slot(orch, wait_limit=wait_limit))
+
+
+async def _release_stuck_trading_slot(orch: Any, *, wait_limit: float) -> None:
+    """Libera is_trading preso apos deadline sem log bloqueante no hot path."""
+    poll = 0.05
+    deadline = time.monotonic() + float(wait_limit)
+    while orch.running and orch.is_trading:
+        if time.monotonic() >= deadline:
+            orch.is_trading = False
+            orch.logger.warning("CICLO: is_trading preso; liberando e retentando")
+            return
+        await _poll_delay(poll)
+
+
 async def _await_post_settlement_breath(orch: Any, breath: float, poll: float) -> None:
     """Aguarda folego pos-liquidacao, interrompido por reagendamento."""
     if breath <= 0:
@@ -96,26 +116,18 @@ async def _run_post_settlement_retry_loop(orch: Any, orch_cfg: dict, poll: float
     """Repete tentativas de ciclo ate sucesso ou motor parar."""
     trading_wait_limit = float(orch_cfg.get("post_settlement_is_trading_wait_seconds", 120.0))
     retry_limit = float(orch_cfg.get("post_settlement_cycle_retry_seconds", 120.0))
-    trading_deadline = time.monotonic() + trading_wait_limit
     retry_deadline = time.monotonic() + retry_limit
-    trading_wait_logged = False
     while orch.running:
         if orch.state.active_contracts:
-            trading_wait_logged = False
             await _poll_delay(poll)
             continue
         if orch.is_trading:
-            if not trading_wait_logged:
-                orch.logger.info("CICLO: aguardando slot pos-liquidacao")
-                trading_wait_logged = True
-            if time.monotonic() >= trading_deadline:
-                orch.is_trading = False
-                trading_deadline = time.monotonic() + trading_wait_limit
-                trading_wait_logged = False
-                orch.logger.warning("CICLO: is_trading preso; liberando e retentando")
+            _ensure_trading_slot_poll(orch, wait_limit=trading_wait_limit)
+            slot_task = getattr(orch, "_trading_slot_poll_task", None)
+            if slot_task is not None and not slot_task.done():
+                await asyncio.wait((slot_task,), timeout=0)
             await _poll_delay(poll)
             continue
-        trading_wait_logged = False
         if await _attempt_post_settlement_trading_cycle(orch, orch_cfg):
             return
         if time.monotonic() >= retry_deadline:

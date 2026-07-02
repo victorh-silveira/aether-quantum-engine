@@ -15,7 +15,10 @@ from src.infrastructure.inference.triton_grpc_client import (
     close_triton_grpc_client,
     get_triton_grpc_client,
 )
-from src.infrastructure.inference.triton_http import post_triton_repository_reload
+from src.infrastructure.inference.triton_http import (
+    post_triton_repository_reload,
+    wait_triton_models_ready,
+)
 
 
 logger = logging.getLogger("AETH")
@@ -47,18 +50,45 @@ def triton_http_url(config: dict) -> str:
     return os.getenv("AETHER_TRITON_HTTP", "http://localhost:8000").rstrip("/")
 
 
-async def reload_triton_repository(config: dict) -> bool:
-    """Recarrega modelos no Triton apos sincronizar artefatos no disco."""
+def _triton_wait_settings(config: dict) -> tuple[float, float]:
+    """Resolve timeout e intervalo de poll para modelos ficarem ready."""
+    infra = config.get("infra") if isinstance(config, dict) else {}
+    chunk = infra.get("triton") if isinstance(infra, dict) else {}
+    if not isinstance(chunk, dict):
+        return 25.0, 0.5
+    timeout = float(chunk.get("wait_ready_seconds", 25.0))
+    poll = float(chunk.get("poll_ready_seconds", 0.5))
+    return timeout, poll
+
+
+async def reload_triton_repository(config: dict, model_names: list[str] | None = None) -> bool:
+    """Aguarda modelos do Triton ficarem prontos apos sincronizar artefatos no disco."""
     if not triton_enabled(config):
         return False
     http_url = triton_http_url(config)
+    symbols = [str(name) for name in (model_names or []) if str(name)]
+    if symbols:
+        timeout, poll = _triton_wait_settings(config)
+        ready = await asyncio.to_thread(
+            wait_triton_models_ready,
+            http_url,
+            symbols,
+            timeout_seconds=timeout,
+            poll_interval_seconds=poll,
+        )
+        if not ready:
+            logger.warning(
+                "TRITON: modelos nao ficaram prontos a tempo (%s)",
+                ",".join(symbols),
+            )
+        return ready
     try:
         models = await asyncio.to_thread(post_triton_repository_reload, http_url)
     except (urllib.error.URLError, OSError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
-        logger.warning("TRITON: falha ao recarregar repositorio (%s): %s", http_url, exc)
+        logger.warning("TRITON: falha ao consultar repositorio (%s): %s", http_url, exc)
         return False
     names = [str(item.get("name", "")) for item in models if isinstance(item, dict)]
-    logger.debug("TRITON: repositorio recarregado | modelos=%s", ",".join(n for n in names if n) or "-")
+    logger.debug("TRITON: indice repositorio | modelos=%s", ",".join(n for n in names if n) or "-")
     return True
 
 

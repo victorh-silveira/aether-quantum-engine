@@ -5,7 +5,7 @@ from src.domain.risk.risk_manager import RiskManager
 
 def test_recovery_signal_floor_delegates_hurst(kelly_config):
     rm = RiskManager(kelly_config)
-    rm.consecutive_losses = 2
+    rm.consecutive_losses_linear = 2
     low = rm.recovery_signal_floor(0.45)
     high = rm.recovery_signal_floor(0.60)
     assert high <= low

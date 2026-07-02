@@ -1,6 +1,6 @@
 import asyncio
 import json
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import websockets
@@ -37,6 +37,35 @@ async def test_ws_connect_sets_uri_argument():
     with patch("websockets.connect", new_callable=AsyncMock) as mock_connect:
         mock_connect.return_value = AsyncMock()
         await mgr.connect(uri="wss://api.derivws.com/ws/demo?otp=x")
+    assert mgr.uri == "wss://api.derivws.com/ws/demo?otp=x"
+
+
+@pytest.mark.asyncio
+async def test_ws_connect_rejects_http_401_otp():
+    mgr = WebSocketManager("wss://stale?otp=old")
+    response = MagicMock()
+    response.status_code = 401
+    status_exc = websockets.InvalidStatus(response)
+    with (
+        patch("websockets.connect", new_callable=AsyncMock, side_effect=status_exc),
+        pytest.raises(ConnectionError, match="401"),
+    ):
+        await mgr.connect(max_attempts=1)
+    assert mgr.uri == ""
+
+
+@pytest.mark.asyncio
+async def test_ws_connect_retries_on_non_401_invalid_status():
+    mgr = WebSocketManager("wss://api.derivws.com/ws/demo?otp=x")
+    response = MagicMock()
+    response.status_code = 503
+    status_exc = websockets.InvalidStatus(response)
+    with (
+        patch("websockets.connect", new_callable=AsyncMock, side_effect=status_exc) as mock_connect,
+        pytest.raises(ConnectionError, match="esgotada"),
+    ):
+        await mgr.connect(max_attempts=2, retry_delay=0.01)
+    assert mock_connect.await_count == 2
     assert mgr.uri == "wss://api.derivws.com/ws/demo?otp=x"
 
 
@@ -156,7 +185,7 @@ async def test_ws_ping_loop_critical_fail(ws_manager):
 @pytest.mark.asyncio
 async def test_ws_heuristic_routing(ws_manager):
     ws_manager.ws = AsyncMock()
-    data_ohlc = json.dumps({"ohlc": {"symbol": "R_50"}})
+    data_ohlc = json.dumps({"ohlc": {"symbol": "RDBULL"}})
     data_poc = json.dumps({"proposal_open_contract": {"id": 1}})
 
     ws_manager.ws.__aiter__.return_value = [data_ohlc, data_poc]

@@ -47,7 +47,7 @@ def test_mini_deploy_runs_inside_training_guard():
     ):
         ok, wr, _ = evaluate_mini_deploy(
             orch,
-            "R_10",
+            "RDBEAR",
             model,
             prices,
             stats,

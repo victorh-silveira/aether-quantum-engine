@@ -1,5 +1,5 @@
 {
-  "anchor": "R_10",
+  "anchor": "RDBULL",
   "api_config": {
     "deriv_app_id": "",
     "public_ws_url": "wss://api.derivws.com/trading/v1/options/ws/public",
@@ -13,7 +13,7 @@
   "data_handler": {
     "buffer_limit": 65536,
     "fetch_count": 15616,
-    "granularity": 300,
+    "granularity": 900,
     "history_bars": 15552,
     "history_fetch_chunk": 1000,
     "history_fetch_delay_seconds": 0.35,
@@ -21,7 +21,8 @@
     "history_fetch_rate_limit_retries": 12,
     "history_fetch_rate_limit_backoff": 2.0,
     "history_fetch_rate_limit_max_delay": 45.0,
-    "history_warmup_bars": 64,
+    "micro_granularity": 60,
+    "micro_history_bars": 512,
     "min_required_points": 64,
     "startup_fetch_bars": 1024
   },
@@ -42,11 +43,8 @@
     "confidence_call_threshold": 0.53,
     "confidence_put_threshold": 0.47,
     "train_symbols": [
-      "R_10",
-      "R_25",
-      "R_50",
-      "R_75",
-      "R_100"
+      "RDBEAR",
+      "RDBULL"
     ],
     "deploy_gate": {
       "enabled": false,
@@ -93,7 +91,7 @@
     "training_epochs": 100,
     "training_log_every_n_epochs": 10,
     "training_history_bars": 15552,
-    "training_history_days": 90,
+    "training_history_days": 162,
     "val_acc_live_blend": 0.20,
     "validation_ratio": 0.15,
     "label_smoothing": 0.0,
@@ -168,9 +166,24 @@
         "implied_vol_bb_scale": true
       },
       "quality_gate": {
-        "min_direction_margin": 0.05,
-        "inverted_min_score": 0.74,
-        "min_adx_normal": 0.18
+        "min_direction_margin": 0.06,
+        "inverted_min_score": 0.76,
+        "min_adx_normal": 0.20,
+        "mandatory_min_trade_score": 0.72
+      },
+      "regime_evaluator": {
+        "enabled": true,
+        "trend_adx_min": 0.28,
+        "trend_hurst_min": 0.56,
+        "trend_vol_min": 1.05,
+        "compression_adx_max": 0.18,
+        "compression_hurst_max": 0.48,
+        "compression_vol_max": 0.80,
+        "compression_rsi_call_min": 0.62,
+        "compression_rsi_put_max": 0.38,
+        "climax_rsi_max": 0.70,
+        "climax_cmo_min": 0.52,
+        "entropic_hurst_max": 0.42
       },
       "exhaustion_gate": {
         "enabled": true,
@@ -201,6 +214,13 @@
     "ws_reconnect_delay_seconds": 8
   },
   "risk_management": {
+    "dlambert": {
+      "dlambert_enabled": true,
+      "dlambert_unit_override": null,
+      "recovery_sizing_conviction": 0.62,
+      "recovery_min_conviction": 0.64,
+      "recovery_min_val_accuracy": 0.62
+    },
     "kelly": {
       "base_win_rate": 0.53,
       "cycle_stake_baseline_seconds": 60,
@@ -213,19 +233,7 @@
       "high_conviction_stake_threshold": 0.0,
       "mandatory_weak_conviction_cap": 1.0,
       "mandatory_weak_max_stake_pct": 0,
-      "martingale_target_fraction": 1.0,
-      "martingale_recovery_step_fraction": 1.0,
-      "martingale_max_stake_multiplier": 0.0,
-      "martingale_vol_adjust_enabled": true,
-      "martingale_vol_defer_ratio": 1.10,
-      "martingale_deferred_max_recovery_bankroll_pct": 0.025,
-      "martingale_max_recovery_bankroll_pct": 0.05,
-      "martingale_vol_losses_min": 2,
-      "martingale_safety_losses_min": 3,
-      "martingale_progressive_slice_at_3": 2,
-      "martingale_progressive_slice_at_4plus": 3,
-      "martingale_hard_cap_bankroll_pct": 0.04,
-      "mandatory_min_trade_score": 0.68,
+      "mandatory_min_trade_score": 0.72,
       "recovery_min_trade_score": 0.64,
       "recovery_force_min_trade_score": 0.60,
       "recovery_force_pending_min": 0,
@@ -238,11 +246,6 @@
       "recovery_hurst_log_decay_coef": 0.025,
       "recovery_hurst_accel_losses_min": 3,
       "recovery_hurst_severe_drawdown_min": 150.0,
-      "recovery_martingale_always": true,
-      "recovery_martingale_max_losses_per_symbol": 3,
-      "martingale_sizing_conviction": 0.62,
-      "recovery_martingale_min_conviction": 0.64,
-      "martingale_min_val_accuracy": 0.62,
       "stake_conviction_min_raw": 0.0,
       "max_stake_pct": 1.0,
       "max_stake_pct_high_conviction": 1.0,
@@ -255,7 +258,6 @@
       "stop_win_kelly_max_fraction": 1.0,
       "stop_win_kelly_min_conviction": 0.0,
       "stop_win_kelly_min_fraction": 0.0,
-      "stop_win_martingale_progress_fraction": 0.0,
       "consensus_penalty_enabled": true,
       "consensus_max_cut": 0.50,
       "consensus_di_weight": 0.30,
@@ -271,21 +273,17 @@
       "compounding_enabled": true,
       "compounding_rate_daily": 0.01,
       "contract_type": "RISE_FALL",
-      "duration": 300,
+      "duration": 60,
       "duration_unit": "s",
       "payout_estimate": 0.95,
-      "stake_max": 0,
       "stake_min": 1.0
     },
     "small_account_stop_win": 10.0,
     "small_account_threshold": 50.0
   },
   "symbols": [
-    "R_10",
-    "R_25",
-    "R_50",
-    "R_75",
-    "R_100"
+    "RDBEAR",
+    "RDBULL"
   ],
   "trading": {
     "mode": "demo"

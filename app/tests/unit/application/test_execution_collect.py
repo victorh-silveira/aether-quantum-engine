@@ -1,110 +1,9 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-from src.application.services.execution_symbols import (
-    has_recovery_hedge_candidate,
-    inject_recovery_hedge_candidates,
-)
-from src.application.services.orchestrator.execution_collect import (
-    apply_recovery_hedge_to_candidates,
-    collect_cluster_orders,
-)
+from src.application.services.orchestrator.execution_collect import collect_cluster_orders
 from src.domain.models.trade import TradeDirection
-from tests.market_symbols import ANCHOR, HEDGE_PEER_SYMBOL, PAIR
-
-
-def test_inject_recovery_hedge_early_returns():
-    base = [(PAIR, TradeDirection.CALL, {"execute": True})]
-    assert (
-        inject_recovery_hedge_candidates(
-            base,
-            {},
-            last_loss_symbol=None,
-            last_loss_direction=None,
-        )
-        == base
-    )
-    present = [(HEDGE_PEER_SYMBOL, TradeDirection.PUT, {"execute": True})]
-    assert (
-        inject_recovery_hedge_candidates(
-            present,
-            {HEDGE_PEER_SYMBOL: {"direction": TradeDirection.CALL, "metrics": {}}},
-            last_loss_symbol=PAIR,
-            last_loss_direction="CALL",
-        )
-        == present
-    )
-    assert (
-        inject_recovery_hedge_candidates(
-            base,
-            {HEDGE_PEER_SYMBOL: {"direction": None, "metrics": {}}},
-            last_loss_symbol=PAIR,
-            last_loss_direction="CALL",
-        )
-        == base
-    )
-    assert has_recovery_hedge_candidate(base, last_loss_symbol=None, last_loss_direction=None)
-
-
-def test_apply_recovery_hedge_keeps_same_direction_candidates():
-    orch = SimpleNamespace(
-        config={"orchestrator": {"execution": {}}},
-        risk_manager=SimpleNamespace(
-            pending_loss={PAIR: 10.0},
-            last_loss_symbol=PAIR,
-            last_loss_direction="CALL",
-        ),
-        _active_cycle_id=2,
-    )
-    exec_mgr = SimpleNamespace(orch=orch, logger=MagicMock())
-    candidates = [(PAIR, TradeDirection.CALL, {"execute": True})]
-    result = apply_recovery_hedge_to_candidates(
-        exec_mgr,
-        candidates,
-        {},
-        cid="C0002",
-    )
-    assert result == candidates
-
-
-def test_apply_recovery_hedge_keeps_candidates_for_market_ranking():
-    orch = SimpleNamespace(
-        config={
-            "risk_management": {"kelly": {}},
-            "orchestrator": {"execution": {}},
-        },
-        risk_manager=SimpleNamespace(
-            pending_loss={PAIR: 5.0},
-            last_loss_symbol=PAIR,
-            last_loss_direction="PUT",
-        ),
-        _active_cycle_id=3,
-    )
-    exec_mgr = SimpleNamespace(
-        orch=orch,
-        logger=MagicMock(),
-        _trade_symbols=lambda: [ANCHOR, PAIR],
-    )
-    candidates = [(ANCHOR, TradeDirection.CALL, {"execute": True})]
-    result = apply_recovery_hedge_to_candidates(
-        exec_mgr,
-        candidates,
-        {},
-        cid="C0003",
-        mandatory=True,
-    )
-    assert result == candidates
-
-
-def test_apply_recovery_hedge_passthrough_without_pending():
-    orch = SimpleNamespace(
-        config={"orchestrator": {"execution": {}}},
-        risk_manager=SimpleNamespace(pending_loss={}, last_loss_symbol=None, last_loss_direction=None),
-        _active_cycle_id=1,
-    )
-    exec_mgr = SimpleNamespace(orch=orch, logger=MagicMock())
-    candidates = [(ANCHOR, TradeDirection.CALL, {})]
-    assert apply_recovery_hedge_to_candidates(exec_mgr, candidates, {}, cid="C0001") == candidates
+from tests.market_symbols import ANCHOR, PAIR
 
 
 def test_collect_cluster_orders_recovery_executes_best_available_signal():
@@ -192,27 +91,6 @@ def test_collect_cluster_orders_includes_recovery_candidate_with_raw_prob():
     assert orders[0][0] == PAIR
 
 
-def test_apply_recovery_hedge_keeps_pool_when_direction_differs_from_loss():
-    orch = SimpleNamespace(
-        config={"orchestrator": {"execution": {}}},
-        risk_manager=SimpleNamespace(
-            pending_loss={PAIR: 10.0},
-            last_loss_symbol=PAIR,
-            last_loss_direction="PUT",
-        ),
-        _active_cycle_id=7,
-    )
-    exec_mgr = SimpleNamespace(orch=orch, logger=MagicMock())
-    candidates = [(ANCHOR, TradeDirection.CALL, {"execute": True})]
-    result = apply_recovery_hedge_to_candidates(
-        exec_mgr,
-        candidates,
-        {},
-        cid="C0007",
-    )
-    assert result == candidates
-
-
 def test_collect_cluster_orders_skips_weak_signal_when_execute_false():
     orch = SimpleNamespace(
         anchor=ANCHOR,
@@ -274,6 +152,37 @@ def test_collect_cluster_orders_mandatory_does_not_skip_recovery_without_hedge()
                 "deploy_ok": True,
             },
         },
+    }
+    orders = collect_cluster_orders(exec_mgr, decisions)
+    assert len(orders) == 1
+
+
+def test_collect_cluster_orders_filters_proposal_skip_symbols():
+    orch = SimpleNamespace(
+        anchor=ANCHOR,
+        symbols=[ANCHOR, PAIR],
+        config={
+            "orchestrator": {"execution": {"include_anchor_trades": True}},
+            "risk_management": {"kelly": {"mandatory_min_trade_score": 0.0}},
+            "deep_learning": {},
+        },
+        risk_manager=SimpleNamespace(
+            pending_loss={},
+            last_loss_symbol=None,
+            last_loss_direction=None,
+            proposal_skip_symbols=lambda: frozenset({ANCHOR}),
+        ),
+        _active_cycle_id=11,
+    )
+    exec_mgr = SimpleNamespace(
+        orch=orch,
+        logger=MagicMock(),
+        _mandatory_trade_each_cycle=lambda: False,
+        _trade_symbols=lambda: [ANCHOR, PAIR],
+    )
+    decisions = {
+        ANCHOR: {"direction": TradeDirection.CALL, "metrics": {"execute": True, "trade_score": 0.70}},
+        PAIR: {"direction": TradeDirection.PUT, "metrics": {"execute": True, "trade_score": 0.62}},
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
     assert len(orders) == 1

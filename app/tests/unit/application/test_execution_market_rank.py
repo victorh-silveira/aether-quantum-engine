@@ -41,10 +41,10 @@ def test_market_decision_score_prefers_higher_raw_side():
 
 
 def test_build_market_execution_candidate_uses_resolver():
-    built = build_market_execution_candidate("R_50", _entry(direction=TradeDirection.PUT, raw_prob=0.40))
+    built = build_market_execution_candidate("RDBULL", _entry(direction=TradeDirection.PUT, raw_prob=0.40))
     assert built is not None
     symbol, direction, metrics = built
-    assert symbol == "R_50"
+    assert symbol == "RDBULL"
     assert direction in (TradeDirection.CALL, TradeDirection.PUT)
     assert "exec_direction" in metrics
 
@@ -58,14 +58,14 @@ def test_market_decision_score_recovery_indicator_adjustments():
         "deploy_ok": True,
         "indicators": {"adx": 0.15, "vol_ratio": 0.90, "hurst": 0.40},
     }
-    low_adx = market_decision_score(metrics, recovery_active=True, symbol="R_50")
+    low_adx = market_decision_score(metrics, recovery_active=True, symbol="RDBULL")
     high_adx = market_decision_score(
         {
             **metrics,
             "indicators": {"adx": 0.30, "vol_ratio": 1.10, "hurst": 0.60},
         },
         recovery_active=True,
-        symbol="R_50",
+        symbol="RDBULL",
     )
     assert high_adx > low_adx
 
@@ -79,7 +79,22 @@ def test_market_decision_score_penalizes_inverted_and_low_margin():
 
 
 def test_resolve_flips_on_low_val_accuracy():
-    entry = _entry(direction=TradeDirection.CALL, raw_prob=0.58, val_accuracy=0.45, trend_direction="PUT")
+    entry = _entry(
+        direction=TradeDirection.CALL,
+        raw_prob=0.58,
+        val_accuracy=0.45,
+        trend_direction="PUT",
+        call_votes=4,
+        put_votes=2,
+        indicators={
+            "hurst": 0.52,
+            "adx": 0.18,
+            "vol_ratio": 0.90,
+            "rsi": 0.50,
+            "keltner": 0.55,
+            "cmo": 0.05,
+        },
+    )
     result = resolve_execution_direction(entry)
     assert result is not None
     direction, metrics = result

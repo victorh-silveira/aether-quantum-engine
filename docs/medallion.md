@@ -1,6 +1,6 @@
 # Metodologia quantitativa
 
-O Aether Quantum Engine herda a postura **Medallion** no sentido operacional: o mercado é um **sistema de sinais ruidosos**, não uma narrativa macro discricionária. A implementação concentra-se nos símbolos de **Range Break** (`R_10`, `R_25`, `R_50`, `R_75`, `R_100`) com **Deep Learning** e classificação binária Rise/Fall.
+O Aether Quantum Engine herda a postura **Medallion** no sentido operacional: o mercado é um **sistema de sinais ruidosos**, não uma narrativa macro discricionária. A implementação concentra-se nos índices **Drift** (`RDBEAR`, `RDBULL`) com **Deep Learning** e classificação binária Rise/Fall.
 
 Para arquitetura de código, ver [`arquitetura.md`](arquitetura.md).
 
@@ -11,28 +11,28 @@ Para arquitetura de código, ver [`arquitetura.md`](arquitetura.md).
 | Princípio | No motor atual |
 |-----------|----------------|
 | Sinais, não histórias | Direção CALL/PUT por scoring numérico (DL + indicadores + trend) |
-| Horizonte curto | Velas **M5 (300 s)**; contrato **300 s**; label `ma_trend` |
+| Horizonte curto | Contexto DL **M15 (900 s)**; execução **M1 (60 s)**; label `ma_trend` |
 | Qualidade adaptativa | Gate como penalidade em modo contínuo; veto seletivo quando configurado |
 | Modelo pronto antes de operar | `FASE TREINO` suspende ordens até treino da sessão |
 | Operação configurável | `mandatory_trade_each_cycle`: seletivo (`false`) ou contínuo (`true`) |
 | Feedback real | Win rate live misturado em `val_accuracy`; retreino após loss |
 | Defesa contra ruído CSPRNG | Consensus Entropy Penalty no Kelly; flip mean-reversion em exaustão |
 | Persistência financeira | Recovery atrelado a `pending_loss`, não a WIN operacional isolado |
-| Sobrevivência geométrica | Fatiamento progressivo N3+ e CAP 4% da banca em Martingale |
+| Sobrevivência linear aditiva | Escada D'Alembert `Kelly + n×U` sem teto macro de stake |
 | Meta por sessão ativa | Stop win de 1% composto sobre banca inicial; operador controla quantas sessões por dia |
-| Sem disjuntor de perda | Stop loss interno desativado; Martingale sem teto de drawdown imposto pelo motor |
+| Sem disjuntor de perda | Stop loss interno desativado; recovery linear sem teto de drawdown imposto pelo motor |
 
 ---
 
-## 2. Universo Range Break
+## 2. Universo Drift
 
 Índices sintéticos correlacionados no eixo de barreiras. Cada símbolo tem modelo DL independente com **34 features** e volatilidade calibrada ao alvo do índice.
 
 | Símbolo | Papel típico |
 |---------|----------------|
-| `R_10` | Âncora padrão; referência de cluster |
-| `R_50` / `R_75` | Núcleo do cluster; bônus em recovery |
-| `R_10` / `R_100`, `R_25` / `R_75` | Pares de hedge para recovery |
+| `RDBULL` | Âncora padrão; referência de cluster |
+| `RDBULL` / `RDBEAR` | Núcleo do cluster; bônus em recovery |
+| `RDBEAR` / `RDBULL` | Pares de hedge para recovery |
 
 Operação: contratos **RISE_FALL** (CALL = alta no período, PUT = queda).
 
@@ -40,12 +40,21 @@ Operação: contratos **RISE_FALL** (CALL = alta no período, PUT = queda).
 
 ## 3. Janela temporal de treino
 
-Com `granularity: 300` (5 minutos / M5) e `training_history_bars: 15552`:
+## 3. Blindagem multi-timeframe
+
+| Camada | Timeframe | Papel |
+|--------|-----------|-------|
+| Deep Learning / TCN | M15 (900 s) | Tensor `[1, 48, 34]` = 12 h de contexto macro |
+| Orquestrador / contrato | M1 (60 s) | Ciclo a cada minuto; RISE_FALL de 60 s |
+| Regimes universais | Indicadores M15 | Classificação estrutural (Trend, Compression, Climax) |
+| Execução tática | M1 | Aplicação CALL/PUT na virada do minuto |
+
+Com `granularity: 900` (M15) e `training_history_bars: 15552`:
 
 | Conceito | Barras | Tempo aproximado |
 |----------|--------|------------------|
-| Histórico de treino | 15552 | ~54 dias |
-| Lookback | 48 | **4 h** de contexto por sequência |
+| Histórico de treino | 15552 | ~162 dias |
+| Lookback | 48 | **12 h** de contexto por sequência |
 | Validação holdout | ~15% | proporcional ao split |
 
 ---
@@ -62,7 +71,7 @@ Ordem lógica de uma entrada:
 6. **Gate de qualidade** — penalidade de score/edge (contínuo) ou veto (seletivo).
 7. **Deploy** — `deploy_ok=false` bloqueia execução.
 8. **Seleção** — `market_decision_score` entre candidatos elegíveis.
-9. **Risco** — Kelly + Consensus Penalty; recovery financeiro persistente; fatiamento Martingale; stop win por sessão ativa (1% composto).
+9. **Risco** — Kelly + Consensus Penalty; recovery financeiro persistente; escada D'Alembert linear; stop win por sessão ativa (1% composto).
 
 Bloqueio absoluto **somente** para falhas técnicas. Conflitos de indicador ajustam direção, score e stake — não vetam participação no pool em modo contínuo.
 
@@ -79,9 +88,7 @@ Perfil em `config/settings.json`:
 | `mandatory_min_trade_score` | 0.68 | Score mínimo modo normal |
 | `mandatory_trade_each_cycle` | false | `true` = modo contínuo (uma ordem/ciclo) |
 | `consensus_penalty_enabled` | true | Atenua Kelly quando ord diverge dos votos |
-| `penalty_smoothing_factor` | 0.40 | Suavização convexa em recovery com trade_score > 0.70 |
-| `martingale_hard_cap_bankroll_pct` | 0.04 | CAP crítico 4% da banca em Martingale |
-| `martingale_safety_losses_min` | 3 | Ativa fatiamento progressivo a partir de N3 |
+| `penalty_smoothing_factor` | 0.40 | Suavização convexa em recovery com trade_score > 0.68 |
 | `mean_reversion_contraction_vol_ratio` | 0.80 | Limiar de contração para flip |
 | `expansion_inversion_veto_vol_ratio` | 1.15 | Limiar de expansão para veto de inversão |
 
@@ -101,6 +108,19 @@ Pesos em `orchestrator.execution.direction_scoring`:
 
 O lado vencedor define `exec_direction`. `direction_inverted=true` quando difere de `dl_direction`.
 
+### 5.1 Barramento de regimes CALL/PUT
+
+Após o scoring composto, `UniversalRegimeEvaluator` classifica o candidato (34 features nas métricas) e aplica chaveamento direcional:
+
+| Regime | Transição típica |
+|--------|------------------|
+| `TREND_EXPANSION` | `ord` = direção do DL (momentum) |
+| `COMPRESSION_TRAP` | `ord` invertido quando preço esticado no canal lateral |
+| `CLIMAX_EXHAUSTION` | `ord` contra o topo/fundo esticado do DL |
+| `ENTROPIC_NOISE` | SKIP do ciclo (modo seletivo) ou direção por maior probabilidade calibrada com penalidade Kelly convexa máxima |
+
+O barramento protege o Stop Win por sessão ao evitar falsos rompimentos em compressão e ruído CSPRNG.
+
 ---
 
 ## 6. Kelly e Consensus Entropy Penalty (base)
@@ -117,7 +137,7 @@ Quando a ordem final (`order_direction`) diverge da maioria dos votos técnicos 
 
 Em baixo consenso (`retention_raw ≤ consensus_min_retention`, padrão 0,50), a stake é forçada ao piso mínimo da API ($1,00), protegendo contra ruído do CSPRNG quando DL e indicadores clássicos discordam.
 
-**Modo contínuo:** essa penalidade opera sobre o Kelly base mesmo quando o motor já está em recovery Martingale. A convergência adaptativa (seção 7.2) evita que a penalidade asfixie a recuperação financeira.
+**Modo contínuo:** essa penalidade opera sobre o Kelly base mesmo quando o motor já está em recovery D'Alembert. A convergência adaptativa (seção 7.2) evita que a penalidade asfixie a recuperação financeira.
 
 ---
 
@@ -134,9 +154,9 @@ Em execução contínua (`mandatory_trade_each_cycle: true`), o motor pode regis
 O critério legado — resetar `consecutive_losses` a zero após qualquer cluster com P&L ≥ 0 — tratava **resultado operacional isolado** como **recuperação financeira completa**. Isso gerava assimetria negativa:
 
 ```
-Ciclo 1: LOSS  -$10  →  pending_loss = $10,  consecutive_losses = 1,  MARTINGALE
-Ciclo 2: WIN   +$3   →  pending_loss = $7,   consecutive_losses = 0   ← reset cego
-Ciclo 3: LOSS  -$12  →  nova linha de perda sem memória de recovery
+Ciclo 1: LOSS  -$10  →  pending_loss = $10,  consecutive_losses_linear = 1,  D'ALEMBERT
+Ciclo 2: WIN   +$3   →  pending_loss = $7,   consecutive_losses_linear = 1   ← retração parcial
+Ciclo 3: LOSS  -$12  →  nova perda com memória de recovery preservada
 ```
 
 O robô voltava ao Kelly fracionário com stakes micro (~$8), enquanto a sessão continuava no vermelho — **inanição por sizing desalinhado**.
@@ -148,148 +168,133 @@ O robô voltava ao Kelly fracionário com stakes micro (~$8), enquanto a sessão
 | `pending_loss[s]` | Drawdown financeiro pendente por símbolo `s`, acumulado após losses e reduzido por wins via `apply_win_to_pending_loss` |
 | `pending_total` | `Σ pending_loss[s]` — critério único de recovery financeiro ativo |
 | `total_session_profit` | P&L acumulado real da sessão (soma de todos os contratos liquidados pela API) |
-| `consecutive_losses` | Contador de clusters negativos consecutivos — **memória operacional** de stress |
+| `consecutive_losses_linear` | Contador linear de clusters negativos — **memória operacional** de stress para escada D'Alembert |
+| `dlambert_unit` (U) | Unidade aditiva capturada na primeira stake Kelly da sessão (ou override de config) |
 | `recovery_financially_active` | Verdadeiro iff `pending_total > 0` |
 
 #### Regra de persistência (implementação atual)
 
-O motor **não utiliza mais reset cego** de `consecutive_losses` baseado em WIN operacional isolado.
+O motor **não utiliza reset cego** de `consecutive_losses_linear` baseado em WIN operacional isolado.
 
 | Condição após liquidação | Comportamento |
 |--------------------------|---------------|
-| `cluster_profit < 0` | `consecutive_losses += 1`; `pending_loss` incrementado |
-| `cluster_profit ≥ 0` **e** `pending_total > 0` | WIN absorvido no drawdown; **`consecutive_losses` mantido**; modo MARTINGALE preservado |
-| `cluster_profit ≥ 0` **e** `pending_total = 0` | Recovery financeiro extinto; reset de `consecutive_losses`, `last_martingale_stake` e `last_loss_stake` |
+| `cluster_profit < 0` | `consecutive_losses_linear += 1`; `pending_loss` incrementado |
+| `cluster_profit ≥ 0` **e** `pending_total > 0` | WIN absorvido no drawdown; **`consecutive_losses_linear = max(1, n-1)`** (retração D'Alembert) |
+| `cluster_profit ≥ 0` **e** `pending_total = 0` | Recovery financeiro extinto; reset de `consecutive_losses_linear` e `last_loss_stake` |
 
-**Persistência de Drawdown:** o robô permanece em estado de Recovery (Martingale + sizing controlados + gates de convicção elevados) até que `pending_total` seja **financeiramente zerado** por retornos reais da API — não por um WIN simbólico que não cobre o buraco acumulado.
+**Persistência de Drawdown:** o robô permanece em estado de Recovery (D'Alembert + sizing controlados + gates de convicção elevados) até que `pending_total` seja **financeiramente zerado** por retornos reais da API — não por um WIN simbólico que não cobre o buraco acumulado.
 
 #### Implicação para gestão de cauda
 
 - O **estado de risco** segue o **passivo financeiro** (`pending_loss`), não a contagem superficial de vitórias.
-- Micro-WINs em recovery **amortizam** o drawdown, mas **não encerram** o regime Martingale prematuramente.
+- Micro-WINs em recovery **amortizam** o drawdown e **retraem** a escada linear (`max(1, n-1)`), mas **não encerram** o regime de recovery prematuramente.
 - Logs de auditoria: `RISK: WIN operacional`, `RISK: Lucro parcial`, `RISK: Recovery financeiro zerado` — cada um com `pend=$` e `pnl_sess=$`.
 
 ---
 
-### 7.2 Convergência Adaptativa do Kelly em Recovery (Penalty Smoothing Factor)
+### 7.2 Regime Edge Sizing e waiver de Consensus Penalty em Recovery
 
-#### Problema: penalidade convexa vs. eficiência de recuperação
+#### Problema: penalidade convexa vs. inversão tática macro
 
-O **Consensus Entropy Penalty** (seção 6) comprime `f*` quando a ordem diverge dos votos técnicos. Em modo contínuo, com `Acc ≈ 0,69` e consenso fraco, a penalidade convexa empurrava stakes para o piso mínimo ($1,00) **mesmo durante recovery Martingale** — impossibilitando a extração matemática do drawdown pendente.
+O **Consensus Entropy Penalty** comprime `f*` quando a ordem diverge dos votos técnicos. Em recovery, quando o **Universal Regime Evaluator** inverte a direção do Deep Learning (`CLIMAX_EXHAUSTION` ou `COMPRESSION_TRAP` com `direction_inverted`), punir a stake por falta de consenso upstream anula a proteção macro — o sizing não pode contradizer a inversão tática.
 
-#### Condições de ativação
+#### Condições de waiver absoluto (`retention = 1.0`)
 
-O **Penalty Smoothing Factor** (`penalty_smoothing_factor`, padrão **0,40**) aplica-se quando **todas** as condições abaixo são verdadeiras:
+1. **Recovery ativo:** `pending_total > 0` **ou** `consecutive_losses_linear > 0`
+2. **Qualquer** candidato do cluster em recovery que atenda **uma** das condições:
+   - **Inversão de regime:** `universal_regime ∈ {CLIMAX_EXHAUSTION, COMPRESSION_TRAP}` **e** `direction_inverted = true`
+   - **Votos unânimes alinhados:** `6×0` ou `0×6` na direção da ordem (M15)
+   - **Convicção elevada:** `trade_score >= penalty_smoothing_trade_score_min` (padrão **0,68**)
 
-1. **Recovery ativo:** `pending_total > 0` **ou** `consecutive_losses > 0`
-2. **Sinal robusto:** `trade_score > penalty_smoothing_trade_score_min` (padrão **0,70**)
-3. **Penalidade em vigor:** `retention_raw < 1,0` (ordem diverge do consenso)
-
-#### Fórmula de suavização
-
-```
-cut          = 1 - retention_raw
-retention*   = min(1, retention_raw + cut × penalty_smoothing_factor)
-f*_efetivo   = f* × retention*
-```
-
-Com `penalty_smoothing_factor = 0,40`, **40% do corte convexa é devolvido** à stake — a penalidade efetiva cai de `cut` para `cut × (1 - 0,40) = cut × 0,60`.
-
-**Exemplo numérico:**
-
-| Grandeza | Valor |
-|----------|-------|
-| `retention_raw` | 0,50 (corte de 50%) |
-| `penalty_smoothing_factor` | 0,40 |
-| `retention*` | 0,50 + 0,50 × 0,40 = **0,70** |
-| Efeito | Stake Kelly recupera 20 p.p. de retenção |
-
-#### Fronteira de segurança: CAP 4%
-
-A suavização **nunca** eleva a stake acima do teto Martingale:
-
-```
-stake_final ≤ bankroll × martingale_hard_cap_bankroll_pct   (padrão 0,04 = 4%)
-```
-
-A convergência adaptativa aumenta a **eficiência** da recuperação dentro do envelope de sobrevivência geométrica — não o risco absoluto sobre a banca global.
-
-#### Objetivo quantitativo
-
-Permitir que entradas com `trade_score > 0,70` em recovery tenham stake **matematicamente suficiente** para convergir `pending_total → 0` em horizonte finito, sem sacrificar a defesa contra divergência ordem-vs-votos em regime normal (fora de recovery, `retention*` = `retention_raw`).
+Justificativa: com alinhamento direcional unânime em M15 ou convicção alta, o Kelly base não pode ser esmagado pela penalidade de entropia — o D'Alembert precisa operar com peso financeiro real em símbolos secundários do cluster (ex.: `RDBEAR`).
 
 ---
 
-### 7.3 Dinâmica de Fatiamento Progressivo do Martingale
+### 7.3 Escada D'Alembert com Amortization Booster (Kelly + unidade linear acelerada)
 
-#### Problema: concentração de risco em sequências longas
+#### Problema: progressão multiplicativa vs. sobrevivência
 
-Recuperar `pending_total` integralmente em **um único ciclo** de 60 s expõe a banca a **risco geométrico concentrado** — especialmente após N3+ perdas consecutivas em execução contínua, onde cada ciclo força participação.
+A progressão multiplicativa (Martingale clássico) concentra risco geométrico: cada LOSS dobra a exposição e comprime a margem de erro da banca em sequências longas. O motor substituiu essa dinâmica por **sizing linear aditivo** inspirado em D'Alembert, ancorado na stake Kelly fracionária.
 
-O fatiamento progressivo **fragmenta** o passivo pendente em parcelas distribuídas por múltiplos ciclos futuros, preservando a direção de recuperação sem apostar a sobrevivência em uma tacada única.
+#### Fórmula de stake
 
-#### Tabela de fatiamento (`martingale_progressive_slice_cycles`)
-
-Parâmetro de ativação: `martingale_safety_losses_min` (padrão **3**).
-
-| `consecutive_losses` | Divisor `slice_cycles` | Interpretação |
-|----------------------|------------------------|---------------|
-| N < 3 | **1** | Recovery integral em um ciclo (comportamento clássico) |
-| N = 3 | **2** (`martingale_progressive_slice_at_3`) | Metade do `pending_total` efetivo por ciclo |
-| N ≥ 4 | **3** (`martingale_progressive_slice_at_4plus`) | Um terço do `pending_total` efetivo por ciclo |
-
-#### Fórmula de stake fragmentada
-
-```
-effective_loss = pending_total × step_frac / slice_cycles
-profit_target  = seed × payout × martingale_target_fraction
-stake_raw      = (effective_loss + profit_target) / payout
-stake_final    = min(stake_raw, bankroll × martingale_hard_cap_bankroll_pct)
-```
+| Estado | Stake |
+|--------|-------|
+| Normal (`pending_total = 0`) | Kelly fracionário (+ booster super-concordance se P≥0.75, 6×0, Hurst>0.55) |
+| Recovery (`pending_total > 0`) | `Kelly_base + consecutive_losses_linear × U_eff` |
 
 Onde:
 
 | Termo | Significado |
 |-------|-------------|
-| `step_frac` | Fração de recuperação por ciclo (ajustada por vol: defer 50% se `vol_ratio > 1,10` em N2+) |
-| `seed` | `max(last_loss_stake, kelly_base, stake_min)` — referência de progressão |
-| `slice_cycles` | Divisor de fatiamento conforme tabela acima |
+| `Kelly_base` | Stake Kelly após consensus penalty, scale e floor |
+| `U` (`dlambert_unit`) | Primeira stake Kelly da sessão (ou `dlambert_unit_override` em config) |
+| `U_eff` | Unidade acelerada pelo Amortization Booster quando há passivo pendente |
+| `consecutive_losses_linear` | Contador linear de stress; +1 em LOSS de cluster |
 
-#### Assimetria de sobrevivência geométrica
+#### Amortization Booster e Piso de Amortização Progressiva por Cluster
 
-Em execução contínua, a sequência N1 → N2 → N3+ comprime geometricamente a margem de erro da banca. O fatiamento introduz **convexidade defensiva**:
+Quando `pending_total > 0`, a unidade base é escalonada pela profundidade do drawdown. Se o passivo excede **2% da banca** (`pending_total > bankroll × 0,02`), aplica-se um **piso de segurança** na unidade aditiva efetiva, **independente do símbolo** do cluster:
 
 ```
-Sem fatiamento (N=4, pending=$30):
-  stake ≈ $30/payout  →  risco de ruína elevado se LOSS
-
-Com fatiamento (slice_cycles=3):
-  effective_loss = $30 × step_frac / 3  →  ~$10/ciclo
-  3 ciclos de WIN parcial convergem pending sem concentração
+U_eff = max(U × 1,5, U × (1 + min(1,5, pending_total / (bankroll × 0,02))))
+stake_raw = Kelly_base + consecutive_losses_linear × U_eff
 ```
 
-A combinação **fatiamento + CAP 4% + vol-adjust defer** forma um envelope tridimensional de sobrevivência:
+Com drawdown até 2% da banca, mantém-se o escalonamento progressivo sem piso reforçado:
 
-1. **Horizontal (temporal):** parcelas em 2–3 ciclos
-2. **Vertical (banca):** teto 4% por tacada
-3. **Regime (volatilidade):** `step_frac` reduzido em expansão (`vol_ratio > 1,10`)
+```
+U_eff = U × (1 + min(1,5, pending_total / (bankroll × 0,02)))
+```
 
-#### Parâmetros de configuração
+**Exemplo:** banca $10.000, `pending_total = $400`, `U = $20`, `linear = 2`, `Kelly_base = $50`:
+
+```
+multiplier = 1 + min(1,5, 400/200) = 2,5
+U_eff = 20 × 2,5 = $50
+stake_raw = 50 + 2×50 = $150
+```
+
+#### Retração D'Alembert em WIN parcial
+
+```
+WIN parcial (pending_total > 0 após liquidação):
+  consecutive_losses_linear = max(1, n - 1)
+
+WIN total (pending_total = 0):
+  consecutive_losses_linear = 0
+  U preservado até nova sessão
+```
+
+A escada **sobe** uma unidade por LOSS e **desce** uma unidade por WIN parcial, nunca abaixo de 1 enquanto recovery ativo — evitando reset cego sem extinguir o drawdown.
+
+#### Exemplo numérico
+
+```
+Sessão: U = $10 (Kelly capturado), Kelly_base = $8
+
+Kelly puro:     stake = $8
+LOSS #1:        linear=1 → stake = $8 + 1×$10 = $18
+LOSS #2:        linear=2 → stake = $8 + 2×$10 = $28
+WIN parcial:    linear=1 → stake = $8 + 1×$10 = $18
+WIN total:      linear=0 → stake = $8 (Kelly puro)
+```
+
+#### Parâmetros de configuração (`risk_management.dlambert`)
 
 | Parâmetro | Padrão | Função |
 |-----------|--------|--------|
-| `martingale_safety_losses_min` | 3 | Ativa fatiamento a partir de N3 |
-| `martingale_progressive_slice_at_3` | 2 | Divisor em N = 3 |
-| `martingale_progressive_slice_at_4plus` | 3 | Divisor em N ≥ 4 |
-| `martingale_hard_cap_bankroll_pct` | 0,04 | CAP crítico 4% da banca |
-| `recovery_martingale_min_conviction` | 0,64 | Piso de convicção em recovery |
+| `dlambert_enabled` | true | Ativa escada em recovery |
+| `dlambert_unit_override` | null | Força U fixo (ignora captura Kelly) |
+| `recovery_sizing_conviction` | 0,62 | Piso de convicção para sizing em recovery |
+| `recovery_min_conviction` | 0,64 | Piso de convicção para entrada em recovery |
 | `recovery_min_val_accuracy` | 0,62 | Piso de acurácia de validação |
 
 #### Seleção de símbolo e Hurst em recovery
 
-Complementar ao fatiamento:
+Complementar à escada linear:
 
-- Ranking com diversificação e bônus em `R_50`/`R_75`
+- Ranking com diversificação e bônus em `RDBULL`/`RDBEAR`
 - Trava Hurst N2+ (`recovery_hurst_gate`) — piso logarítmico de score
 - `recovery_skip_counter` no Redis decai limiar Hurst em drawdown severo
 
@@ -312,7 +317,8 @@ Logs: `ord=` (ordem enviada), `dl=` (direção prevista pelo DL), `inv` quando i
 
 | Mecanismo | Papel |
 |-----------|-------|
-| Kelly fracionário | Sizing base com win rate dinâmico após amostras mínimas |
+| Kelly fracionário | Sizing base com win rate dinâmico após amostras mínimas; compressão estática de 60% fora de recovery |
+| Target Proximity Damping | Amortecimento linear da stake Kelly conforme `pnl_sessao` se aproxima de `target_win` (piso 0.40×) |
 | Consensus Entropy Penalty | Defesa contra ruído CSPRNG (seção 6) |
 | Penalty Smoothing | Convergência adaptativa em recovery (seção 7.2) |
 | Recovery financeiro persistente | Estado de risco atrelado a `pending_total` (seção 7.1) |
@@ -342,6 +348,16 @@ Parâmetros em `risk_management.params`:
 | `session_start_balance` | `null` | Override manual da banca inicial (senão usa saldo Deriv) |
 
 Com `compounding_enabled: false`, o motor recorre ao alvo legado (`small_account_stop_win` / `large_account_stop_win_pct`).
+
+### 9.2 Sizing defensivo de proximidade de alvo
+
+Evita superexposição quando a sessão já capturou a maior parte do stop win de 1%:
+
+1. **Kelly base comprimido** — `resolve_effective_kelly_fraction` aplica retenção de 40% (`fraction` de config `0.0035` → coeficiente `0.0012`), ancorando a unidade D'Alembert `U` na faixa ~$10–$12 em vez de ~$31.
+2. **Amortecimento dinâmico** — após o Kelly bruto, `apply_kelly_target_proximity_damping` multiplica a stake por `0.40 + 0.60 × remaining_target_pct`.
+3. **Exemplo** — meta $101.20, Kelly bruto $45.56: com `pnl_sessao = 0` permanece $45.56×1.0 (já atenuado pela fração base); com 90% da meta (`pnl ≈ $91.08`) o fator cai para 0.46 (~$20.96).
+
+A escada D'Alembert continua aditiva sobre o `Kelly_base` já amortecido.
 
 Log de bootstrap: `SESSAO INICIADA | Alvo de 1%: $XX.XX | Stop Loss: DESATIVADO`.
 

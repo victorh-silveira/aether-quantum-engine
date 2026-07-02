@@ -11,7 +11,6 @@ from src.application.services.deep_learning.dl_bridge_helpers import (
     parse_dl_params,
     pending_loss_total,
     recovery_gating_active,
-    resample_m1_to_m5,
 )
 from src.application.services.deep_learning.dl_cycle_log import log_dl_cycle_summary
 from src.application.services.deep_learning.dl_deferred_train import enqueue_deferred_symbol_training
@@ -157,14 +156,8 @@ async def _collect_symbol_decision(
     """Treina (se necessario), prediz e aplica gates para um simbolo."""
     prices_raw, open_raw, high_raw, low_raw = load_symbol_close_ohlc(orch, symbol)
     runtime = get_symbol_runtime(orch, symbol, dl_config, params)
-    trained_granularity = runtime.get("trained_granularity", 60)
-    current_granularity = granularity
-
-    if trained_granularity == 300 and current_granularity == 60:
-        prices_raw, open_raw, high_raw, low_raw = resample_m1_to_m5(prices_raw, open_raw, high_raw, low_raw)
-        micro_full = None
-    else:
-        micro_full = load_symbol_microstructure(orch, symbol, len(prices_raw))
+    trained_granularity = runtime.get("trained_granularity", granularity)
+    micro_full = load_symbol_microstructure(orch, symbol, len(prices_raw))
 
     if len(prices_raw) < min_len:
         logger.debug("DL: Historico insuficiente para %s (%d/%d velas).", symbol, len(prices_raw), min_len)
@@ -207,7 +200,7 @@ async def _collect_symbol_decision(
         dl_config,
         params,
         epoch,
-        current_granularity,
+        granularity,
         train_priority,
         open_,
         high,

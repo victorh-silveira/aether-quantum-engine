@@ -1,5 +1,7 @@
 """Testes da trava Hurst em recovery."""
 
+import pytest
+
 from src.domain.risk.recovery_hurst_gate import (
     recovery_hurst_adjusted_floor,
     recovery_loss_tier_floor,
@@ -23,32 +25,35 @@ def test_hurst_floor_raises_when_low_hurst():
 
 def test_recovery_pool_requires_hurst_persistence():
     candidates = [
-        ("R_50", None, {"indicators": {"hurst": 0.50}}),
-        ("R_75", None, {"indicators": {"hurst": 0.52}}),
+        ("RDBULL", None, {"indicators": {"hurst": 0.50}}),
+        ("RDBEAR", None, {"indicators": {"hurst": 0.52}}),
     ]
     assert recovery_pool_has_persistence(candidates, consecutive_losses=2, hurst_min=0.58) is False
 
 
 def test_recovery_pool_passes_with_one_persistent_symbol():
     candidates = [
-        ("R_50", None, {"indicators": {"hurst": 0.50}}),
-        ("R_75", None, {"indicators": {"hurst": 0.61}}),
+        ("RDBULL", None, {"indicators": {"hurst": 0.50}}),
+        ("RDBEAR", None, {"indicators": {"hurst": 0.61}}),
     ]
     assert recovery_pool_has_persistence(candidates, consecutive_losses=2, hurst_min=0.58) is True
 
 
 def test_recovery_pool_skips_check_when_losses_below_two():
-    candidates = [("R_50", None, {"indicators": {"hurst": 0.40}})]
+    candidates = [("RDBULL", None, {"indicators": {"hurst": 0.40}})]
     assert recovery_pool_has_persistence(candidates, consecutive_losses=1) is True
 
 
 def test_recovery_pool_ignores_invalid_candidates():
-    assert recovery_pool_has_persistence([("R_50",)], consecutive_losses=2) is False
-    assert recovery_pool_has_persistence([("R_50", None, "bad")], consecutive_losses=2) is False
+    assert recovery_pool_has_persistence([("RDBULL",)], consecutive_losses=2) is False
+    assert recovery_pool_has_persistence([("RDBULL", None, "bad")], consecutive_losses=2) is False
 
 
 def test_recovery_loss_tier_floor_escalates_with_streak():
+    assert recovery_loss_tier_floor(0.64, 1) == pytest.approx(0.64)
+    assert recovery_loss_tier_floor(0.50, 1) == pytest.approx(0.52)
     assert recovery_loss_tier_floor(0.64, 3) >= 0.56
+    assert recovery_loss_tier_floor(0.50, 5) == pytest.approx(0.58)
     assert recovery_loss_tier_floor(0.64, 0) == 0.64
 
 

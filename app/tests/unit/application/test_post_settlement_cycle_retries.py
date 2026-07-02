@@ -1,5 +1,4 @@
-import asyncio
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -8,6 +7,8 @@ from src.application.services.orchestrator.post_settlement_cycle import (
     schedule_trading_cycle_after_settlement,
 )
 from tests.unit.application.post_settlement_helpers import (
+    _yield_to_event_loop,
+    patch_incrementing_monotonic,
     patch_instant_post_settlement_poll,
     patch_post_settlement_poll_stop_after,
 )
@@ -28,7 +29,7 @@ async def test_run_post_settlement_timeout_releases_is_trading_and_retries(orch_
         poll_calls += 1
         if poll_calls >= 2:
             orch.running = False
-        await asyncio.sleep(0)
+        await _yield_to_event_loop()
 
     with (
         patch.object(orch, "_run_trading_cycle_if_ready", new_callable=AsyncMock, return_value=False),
@@ -57,11 +58,9 @@ async def test_run_post_settlement_retries_when_cycle_does_not_complete(orch_rea
             orch.running = False
         return False
 
-    times = iter([0.0, 0.02, 0.03])
-
     with (
         patch.object(orch, "_run_trading_cycle_if_ready", side_effect=cycle_side_effect),
-        patch(f"{POST_SETTLEMENT_MODULE}.time.monotonic", side_effect=lambda: next(times, 1.0)),
+        patch_incrementing_monotonic(),
         patch_instant_post_settlement_poll(),
     ):
         await run_post_settlement_breath_and_cycle(orch)
@@ -70,15 +69,39 @@ async def test_run_post_settlement_retries_when_cycle_does_not_complete(orch_rea
 
 
 @pytest.mark.asyncio
+async def test_post_settlement_uses_ensure_future_for_trading_slot(orch_ready):
+    orch = orch_ready
+    orch.is_trading = True
+    orch.config.setdefault("orchestrator", {})["post_settlement_breath_seconds"] = 0
+    orch.config["orchestrator"]["post_settlement_is_trading_wait_seconds"] = 0.01
+    polls = 0
+
+    async def release_on_poll(*_args, **_kwargs):
+        nonlocal polls
+        polls += 1
+        if polls >= 1:
+            orch.is_trading = False
+            orch.running = False
+        await _yield_to_event_loop()
+
+    with (
+        patch(f"{POST_SETTLEMENT_MODULE}.asyncio.ensure_future") as ensure_future,
+        patch(f"{POST_SETTLEMENT_MODULE}._poll_delay", side_effect=release_on_poll),
+    ):
+        ensure_future.return_value = MagicMock(done=MagicMock(return_value=True))
+        await run_post_settlement_breath_and_cycle(orch)
+    ensure_future.assert_called()
+
+
+@pytest.mark.asyncio
 async def test_run_post_settlement_releases_stuck_is_trading(orch_ready):
     orch = orch_ready
     orch.is_trading = True
     orch.config.setdefault("orchestrator", {})["post_settlement_breath_seconds"] = 0
     orch.config["orchestrator"]["post_settlement_is_trading_wait_seconds"] = 0.01
-    times = iter([0.0, 0.02, 0.03])
 
     with (
-        patch(f"{POST_SETTLEMENT_MODULE}.time.monotonic", side_effect=lambda: next(times, 1.0)),
+        patch_incrementing_monotonic(),
         patch_post_settlement_poll_stop_after(orch, 2),
     ):
         await run_post_settlement_breath_and_cycle(orch)
@@ -135,7 +158,7 @@ async def test_run_post_settlement_retries_until_cycle_runs(orch_ready):
 async def test_schedule_prunes_stale_risk_ids(orch_ready):
     orch = orch_ready
     orch.risk_manager.active_contract_ids = [999]
-    orch.risk_manager.contract_to_symbol[999] = "R_75"
+    orch.risk_manager.contract_to_symbol[999] = "RDBEAR"
     with (
         patch(
             "src.application.services.orchestrator.collect_deep_learning_decisions",
@@ -156,14 +179,13 @@ async def test_schedule_spawns_task_even_when_is_trading(orch_ready):
     orch = orch_ready
     orch.is_trading = True
     orch.config["orchestrator"]["post_settlement_is_trading_wait_seconds"] = 0.01
-    times = iter([0.0, 0.02, 0.03])
     with (
         patch(
             "src.application.services.orchestrator.collect_deep_learning_decisions",
             new_callable=AsyncMock,
             return_value={},
         ),
-        patch(f"{POST_SETTLEMENT_MODULE}.time.monotonic", side_effect=lambda: next(times, 1.0)),
+        patch_incrementing_monotonic(),
         patch_instant_post_settlement_poll(),
     ):
         orch.executor.execute_cluster = AsyncMock()

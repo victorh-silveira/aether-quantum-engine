@@ -8,30 +8,44 @@ from src.domain.risk.stake_sizing import (
     consensus_entropy_applies_min_stake,
     consensus_entropy_kelly_retention,
 )
+from src.domain.risk.super_concordance_kelly import is_unanimous_vote_alignment
 
 
-def _smooth_recovery_penalty(
-    retention: float,
+_REGIME_TACTICAL_INVERT = frozenset({"CLIMAX_EXHAUSTION", "COMPRESSION_TRAP"})
+
+
+def _regime_tactical_inversion_active(metrics: dict) -> bool:
+    """Indica inversao tatica forçada por CLIMAX_EXHAUSTION ou COMPRESSION_TRAP."""
+    regime = str(metrics.get("universal_regime") or metrics.get("universal_regime_scenario") or "")
+    if regime not in _REGIME_TACTICAL_INVERT:
+        return False
+    return bool(metrics.get("direction_inverted"))
+
+
+def _recovery_waives_consensus_penalty(
     metrics: dict,
     kelly_config: dict[str, Any],
     *,
     consecutive_losses: int,
     pending_loss_total: float,
-) -> float:
-    """Amortece penalidade convexa em recovery quando trade_score e estavel."""
-    if retention >= 1.0:
-        return retention
+    order_direction: str | None,
+) -> bool:
+    """Suspende penalidade em recovery com inversao tatica, votos unanimes ou trade_score alto."""
     recovering = float(pending_loss_total) > 0.0 or int(consecutive_losses) > 0
     if not recovering:
-        return retention
+        return False
+    if _regime_tactical_inversion_active(metrics):
+        return True
+    if is_unanimous_vote_alignment(
+        int(metrics.get("call_votes", 0)),
+        int(metrics.get("put_votes", 0)),
+        order_direction,
+    ):
+        return True
     cfg = kelly_config or {}
-    score_min = float(cfg.get("penalty_smoothing_trade_score_min", 0.70))
+    score_min = float(cfg.get("penalty_smoothing_trade_score_min", 0.68))
     trade_score = float(metrics.get("trade_score", metrics.get("conviction", 0.0)))
-    if trade_score + 1e-9 <= score_min:
-        return retention
-    factor = float(cfg.get("penalty_smoothing_factor", 0.40))
-    cut = 1.0 - float(retention)
-    return min(1.0, float(retention) + cut * factor)
+    return trade_score + 1e-9 >= score_min
 
 
 def consensus_kelly_retention(
@@ -43,20 +57,21 @@ def consensus_kelly_retention(
     pending_loss_total: float = 0.0,
 ) -> float:
     """Retorna fator [floor, 1.0] para atenuar f* quando ord diverge do consenso tecnico."""
-    raw = consensus_entropy_kelly_retention(metrics, order_direction, kelly_config=kelly_config)
-    if not isinstance(metrics, dict):
-        return raw
-    smoothed = _smooth_recovery_penalty(
-        raw,
-        metrics,
-        kelly_config or {},
-        consecutive_losses=int(consecutive_losses),
-        pending_loss_total=float(pending_loss_total),
-    )
-    if smoothed > raw + 1e-9:
-        metrics["consensus_penalty_smoothed"] = True
-        metrics["consensus_entropy_retention_raw"] = raw
-    return smoothed
+    if isinstance(metrics, dict):
+        recovering = float(pending_loss_total) > 0.0 or int(consecutive_losses) > 0
+        if recovering and _recovery_waives_consensus_penalty(
+            metrics,
+            kelly_config or {},
+            consecutive_losses=int(consecutive_losses),
+            pending_loss_total=float(pending_loss_total),
+            order_direction=order_direction,
+        ):
+            if _regime_tactical_inversion_active(metrics):
+                metrics["consensus_penalty_regime_inversion_waived"] = True
+            else:
+                metrics["consensus_penalty_recovery_waived"] = True
+            return 1.0
+    return consensus_entropy_kelly_retention(metrics, order_direction, kelly_config=kelly_config)
 
 
 __all__ = [

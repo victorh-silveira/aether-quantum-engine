@@ -11,11 +11,11 @@ def test_market_decision_score_recovery_bonus_for_core_symbol():
         "execute": True,
         "deploy_ok": True,
     }
-    normal = market_decision_score(metrics, recovery_active=False, symbol="R_50")
+    normal = market_decision_score(metrics, recovery_active=False, symbol="RDBULL")
     recovery = market_decision_score(
         metrics,
         recovery_active=True,
-        symbol="R_50",
+        symbol="RDBULL",
         exec_direction=TradeDirection.CALL,
     )
     assert recovery > normal

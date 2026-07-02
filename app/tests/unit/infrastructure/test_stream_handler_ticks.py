@@ -17,13 +17,13 @@ def mock_ws():
 @pytest.fixture
 def stream_handler(mock_ws):
     config = {"buffer_limit": 10, "fetch_count": 3, "granularity": 60}
-    return StreamHandler(mock_ws, ["R_50"], config)
+    return StreamHandler(mock_ws, ["RDBULL"], config)
 
 
 @pytest.mark.asyncio
 async def test_stream_handler_on_tick_records_valid_tick(stream_handler):
-    await stream_handler._on_tick({"tick": {"symbol": "R_50", "epoch": 1600000001, "quote": 100.25}})
-    ticks = stream_handler.tick_buffer._live["R_50"]
+    await stream_handler._on_tick({"tick": {"symbol": "RDBULL", "epoch": 1600000001, "quote": 100.25}})
+    ticks = stream_handler.tick_buffer._live["RDBULL"]
     assert len(ticks) == 1
     assert ticks[0] == (1600000001000, 100.25)
 
@@ -32,7 +32,7 @@ async def test_stream_handler_on_tick_records_valid_tick(stream_handler):
 async def test_stream_handler_on_tick_ignores_invalid_payload(stream_handler):
     await stream_handler._on_tick({"tick": "invalid"})
     await stream_handler._on_tick({"tick": {"symbol": "UNKNOWN", "epoch": 1, "quote": 1.0}})
-    await stream_handler._on_tick({"tick": {"symbol": "R_50", "epoch": None, "quote": 1.0}})
-    await stream_handler._on_tick({"tick": {"symbol": "R_50", "epoch": 1, "quote": None}})
-    await stream_handler._on_tick({"tick": {"symbol": "R_50", "epoch": "bad", "quote": 1.0}})
-    assert len(stream_handler.tick_buffer._live["R_50"]) == 0
+    await stream_handler._on_tick({"tick": {"symbol": "RDBULL", "epoch": None, "quote": 1.0}})
+    await stream_handler._on_tick({"tick": {"symbol": "RDBULL", "epoch": 1, "quote": None}})
+    await stream_handler._on_tick({"tick": {"symbol": "RDBULL", "epoch": "bad", "quote": 1.0}})
+    assert len(stream_handler.tick_buffer._live["RDBULL"]) == 0

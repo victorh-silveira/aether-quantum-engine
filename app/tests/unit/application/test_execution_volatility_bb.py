@@ -10,9 +10,9 @@ from src.application.services.execution_volatility_bb import (
 
 
 def test_bb_effective_width_scales_with_implied_vol():
-    base = bb_effective_width(bb_width=0.02, implied_vol_ratio=0.25, symbol="R_50", scale_enabled=True)
+    base = bb_effective_width(bb_width=0.02, implied_vol_ratio=0.25, symbol="RDBULL", scale_enabled=True)
     assert base < 0.02
-    raw = bb_effective_width(bb_width=0.02, implied_vol_ratio=0.5, symbol="R_50", scale_enabled=False)
+    raw = bb_effective_width(bb_width=0.02, implied_vol_ratio=0.5, symbol="RDBULL", scale_enabled=False)
     assert raw == 0.02
 
 
@@ -22,7 +22,7 @@ def test_squeeze_extreme_and_edge():
         bb_width_history=[0.05, 0.04, 0.03],
         vol_ratio=0.8,
         implied_vol_ratio=0.5,
-        symbol="R_75",
+        symbol="RDBEAR",
     )
     assert isinstance(extreme, bool)
     assert 0.0 <= norm <= 1.0

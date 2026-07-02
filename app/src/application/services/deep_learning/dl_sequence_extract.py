@@ -20,7 +20,7 @@ def extract_sequences(
     label_mode: str = "ma_trend",
     label_ma_window: int = 5,
     implied_vol_bars: int = 60,
-    symbol: str = "R_50",
+    symbol: str = "RDBULL",
     open_: np.ndarray | None = None,
     high: np.ndarray | None = None,
     low: np.ndarray | None = None,

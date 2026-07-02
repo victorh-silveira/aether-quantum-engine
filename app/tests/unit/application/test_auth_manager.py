@@ -62,6 +62,30 @@ async def test_auth_manager_open_trading_session(monkeypatch):
     assert out.account_id == "DOT"
 
 
+@pytest.mark.asyncio
+async def test_auth_manager_refresh_otp_ws_url(monkeypatch):
+    monkeypatch.setenv("AETHER_DERIV_PAT", "pat_x|app-99")
+    auth = AuthManager(mode="demo", config={"api_config": {"deriv_app_id": "app-99"}})
+    with (
+        patch(
+            "src.application.services.auth_manager.DerivRestClient.list_accounts",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "src.application.services.auth_manager.select_account",
+            return_value=type("A", (), {"account_id": "DOT"})(),
+        ),
+        patch(
+            "src.application.services.auth_manager.DerivRestClient.post_otp",
+            new_callable=AsyncMock,
+            return_value="wss://fresh?otp=new",
+        ),
+    ):
+        url = await auth.refresh_otp_ws_url()
+    assert url == "wss://fresh?otp=new"
+
+
 def test_auth_manager_loads_dotenv_if_file_exists():
     with (
         patch("pathlib.Path.is_file", return_value=True),

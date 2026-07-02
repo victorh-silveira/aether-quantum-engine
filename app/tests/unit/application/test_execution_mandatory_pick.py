@@ -10,13 +10,13 @@ from src.domain.models.trade import TradeDirection
 
 def test_pick_absolute_mandatory_skips_training_symbols():
     decisions = {
-        "R_50": {
+        "RDBULL": {
             "direction": TradeDirection.PUT,
             "metrics": {"execute": False, "gate_reason": "training", "trade_score": 0.70, "raw_prob": 0.40},
         },
     }
     picked = pick_absolute_mandatory_candidate(
-        ["R_50"],
+        ["RDBULL"],
         decisions,
         recovery_active=False,
         last_loss_symbol=None,
@@ -27,29 +27,29 @@ def test_pick_absolute_mandatory_skips_training_symbols():
 
 def test_pick_best_mandatory_prefers_strong_r50_over_weak_r10():
     decisions = {
-        "R_50": {
+        "RDBULL": {
             "direction": TradeDirection.CALL,
             "metrics": {"execute": False, "trade_score": 0.80, "val_accuracy": 0.71, "raw_prob": 0.80},
         },
-        "R_10": {
+        "RDBEAR": {
             "direction": TradeDirection.CALL,
             "metrics": {"execute": False, "trade_score": 0.51, "val_accuracy": 0.0, "raw_prob": 0.51},
         },
     }
     picked = pick_best_mandatory_candidate(
-        ["R_10", "R_50"],
+        ["RDBEAR", "RDBULL"],
         decisions,
         recovery_active=False,
         last_loss_symbol=None,
         last_loss_direction=None,
     )
     assert picked is not None
-    assert picked[0] == "R_50"
+    assert picked[0] == "RDBULL"
 
 
 def test_pick_best_mandatory_recovery_prefers_market_rank_over_loss_direction():
     decisions = {
-        "R_75": {
+        "RDBEAR": {
             "direction": TradeDirection.PUT,
             "metrics": {
                 "trade_score": 0.80,
@@ -59,43 +59,44 @@ def test_pick_best_mandatory_recovery_prefers_market_rank_over_loss_direction():
                 "execute": True,
             },
         },
-        "R_50": {
+        "RDBULL": {
             "direction": TradeDirection.CALL,
             "metrics": {
                 "trade_score": 0.44,
                 "val_accuracy": 0.55,
                 "raw_prob": 0.80,
-                "deploy_ok": True,
+                "deploy_ok": False,
+                "gate_reason": "deploy",
                 "execute": True,
             },
         },
     }
     picked = pick_best_mandatory_candidate(
-        ["R_50", "R_75"],
+        ["RDBULL", "RDBEAR"],
         decisions,
         recovery_active=True,
-        last_loss_symbol="R_10",
+        last_loss_symbol="RDBEAR",
         last_loss_direction="CALL",
         min_signal=0.45,
         min_val=0.50,
     )
     assert picked is not None
-    assert picked[0] == "R_75"
+    assert picked[0] == "RDBEAR"
     assert picked[1] == TradeDirection.PUT
 
 
 def test_pick_best_mandatory_aligned_skips_low_val_accuracy():
     decisions = {
-        "R_50": {
+        "RDBULL": {
             "direction": TradeDirection.CALL,
             "metrics": {"trade_score": 0.62, "val_accuracy": 0.40, "raw_prob": 0.58},
         },
     }
     picked = pick_best_mandatory_candidate(
-        ["R_50"],
+        ["RDBULL"],
         decisions,
         recovery_active=True,
-        last_loss_symbol="R_10",
+        last_loss_symbol="RDBEAR",
         last_loss_direction="CALL",
         min_signal=0.45,
         min_val=0.50,
@@ -105,16 +106,16 @@ def test_pick_best_mandatory_aligned_skips_low_val_accuracy():
 
 def test_pick_absolute_mandatory_skips_below_signal_floor():
     decisions = {
-        "R_50": {
+        "RDBULL": {
             "direction": TradeDirection.PUT,
             "metrics": {"execute": False, "trade_score": 0.20, "raw_prob": 0.44},
         },
     }
     picked = pick_absolute_mandatory_candidate(
-        ["R_50"],
+        ["RDBULL"],
         decisions,
         recovery_active=True,
-        last_loss_symbol="R_10",
+        last_loss_symbol="RDBEAR",
         last_loss_direction="CALL",
         min_signal=0.50,
         min_val=0.50,
@@ -124,16 +125,16 @@ def test_pick_absolute_mandatory_skips_below_signal_floor():
 
 def test_pick_absolute_mandatory_skips_weak_recovery_signal():
     decisions = {
-        "R_50": {
+        "RDBULL": {
             "direction": TradeDirection.PUT,
             "metrics": {"execute": False, "trade_score": 0.0, "val_accuracy": 0.55},
         },
     }
     picked = pick_absolute_mandatory_candidate(
-        ["R_50"],
+        ["RDBULL"],
         decisions,
         recovery_active=True,
-        last_loss_symbol="R_10",
+        last_loss_symbol="RDBEAR",
         last_loss_direction="CALL",
         min_signal=0.50,
         min_val=0.50,
@@ -143,16 +144,16 @@ def test_pick_absolute_mandatory_skips_weak_recovery_signal():
 
 def test_pick_absolute_mandatory_skips_low_val_accuracy_in_recovery():
     decisions = {
-        "R_50": {
+        "RDBULL": {
             "direction": TradeDirection.PUT,
             "metrics": {"execute": False, "trade_score": 0.60, "raw_prob": 0.60, "val_accuracy": 0.40},
         },
     }
     picked = pick_absolute_mandatory_candidate(
-        ["R_50"],
+        ["RDBULL"],
         decisions,
         recovery_active=True,
-        last_loss_symbol="R_10",
+        last_loss_symbol="RDBEAR",
         last_loss_direction="CALL",
         min_signal=0.50,
         min_val=0.50,
@@ -162,50 +163,50 @@ def test_pick_absolute_mandatory_skips_low_val_accuracy_in_recovery():
 
 def test_pick_best_skips_aligned_candidate_below_min_signal():
     decisions = {
-        "R_50": {
+        "RDBULL": {
             "direction": TradeDirection.CALL,
             "metrics": {"trade_score": 0.30, "val_accuracy": 0.55},
         },
-        "R_75": {
+        "RDBEAR": {
             "direction": TradeDirection.PUT,
             "metrics": {"trade_score": 0.65, "val_accuracy": 0.55, "raw_prob": 0.42},
         },
     }
     picked = pick_best_mandatory_candidate(
-        ["R_50", "R_75"],
+        ["RDBULL", "RDBEAR"],
         decisions,
         recovery_active=True,
-        last_loss_symbol="R_10",
+        last_loss_symbol="RDBEAR",
         last_loss_direction="CALL",
         min_signal=0.45,
         min_val=0.50,
     )
     assert picked is not None
-    assert picked[0] == "R_75"
+    assert picked[0] == "RDBEAR"
 
 
 def test_pick_best_skips_aligned_candidate_below_recovery_thresholds():
     decisions = {
-        "R_50": {
+        "RDBULL": {
             "direction": TradeDirection.CALL,
             "metrics": {"trade_score": 0.30, "val_accuracy": 0.40, "raw_prob": 0.52},
         },
-        "R_75": {
+        "RDBEAR": {
             "direction": TradeDirection.PUT,
             "metrics": {"trade_score": 0.65, "val_accuracy": 0.55, "raw_prob": 0.42},
         },
     }
     picked = pick_best_mandatory_candidate(
-        ["R_50", "R_75"],
+        ["RDBULL", "RDBEAR"],
         decisions,
         recovery_active=True,
-        last_loss_symbol="R_10",
+        last_loss_symbol="RDBEAR",
         last_loss_direction="CALL",
         min_signal=0.45,
         min_val=0.50,
     )
     assert picked is not None
-    assert picked[0] == "R_75"
+    assert picked[0] == "RDBEAR"
 
 
 def test_build_mandatory_fallback_legacy_path_when_market_rank_empty():
@@ -214,8 +215,8 @@ def test_build_mandatory_fallback_legacy_path_when_market_rank_empty():
         return_value=None,
     ):
         best = build_mandatory_fallback_candidate(
-            ["R_50"],
-            {"R_50": {"direction": TradeDirection.PUT, "metrics": {"trade_score": 0.55, "raw_prob": 0.44}}},
+            ["RDBULL"],
+            {"RDBULL": {"direction": TradeDirection.PUT, "metrics": {"trade_score": 0.55, "raw_prob": 0.44}}},
             recovery_active=False,
             last_loss_symbol=None,
             last_loss_direction=None,

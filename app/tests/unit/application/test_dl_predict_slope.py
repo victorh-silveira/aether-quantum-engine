@@ -47,7 +47,7 @@ def test_predict_trend_slope():
     ):
         entry = predict_symbol_decision(
             orch_slope_sma,
-            "R_50",
+            "RDBULL",
             TemporalDirectionClassifier(input_dim=INPUT_DIM),
             prices_up,
             fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32)),
@@ -69,7 +69,7 @@ def test_predict_trend_slope():
     ):
         entry = predict_symbol_decision(
             orch_slope_sma,
-            "R_50",
+            "RDBULL",
             TemporalDirectionClassifier(input_dim=INPUT_DIM),
             prices_down,
             fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32)),
@@ -103,7 +103,7 @@ def test_predict_trend_slope():
     ):
         entry = predict_symbol_decision(
             orch_slope_ema,
-            "R_50",
+            "RDBULL",
             TemporalDirectionClassifier(input_dim=INPUT_DIM),
             prices_up,
             fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32)),

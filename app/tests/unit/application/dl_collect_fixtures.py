@@ -7,12 +7,16 @@ from tests.market_symbols import ANCHOR
 
 
 class MockStreamHandler:
-    def __init__(self, prices, epoch=1000):
+    def __init__(self, prices, epoch=1000, micro_epoch=60):
         self.prices = prices
         self._epoch = epoch
-        self.candles = {
-            ANCHOR: [Candle(ANCHOR, 10.0, 10.0, 10.0, float(p), datetime.now(UTC), self._epoch) for p in prices]
-        }
+        self._micro_epoch = micro_epoch
+        macro_candle = Candle(ANCHOR, 10.0, 10.0, 10.0, float(prices[-1]), datetime.now(UTC), self._epoch)
+        micro_candle = Candle(ANCHOR, 10.0, 10.0, 10.0, float(prices[-1]), datetime.now(UTC), self._micro_epoch)
+        self.macro_candles = {ANCHOR: [macro_candle]}
+        self.micro_candles = {ANCHOR: [micro_candle]}
+        self.candles = self.macro_candles
+        self.tick_buffer = None
 
     def get_numpy_series(self, _symbol, _field):
         return self.prices
@@ -20,13 +24,16 @@ class MockStreamHandler:
     def get_last_candle_epoch(self, _symbol):
         return self._epoch
 
+    def get_last_micro_candle_epoch(self, _symbol):
+        return self._micro_epoch
+
 
 class MockOrchestrator:
     def __init__(self, symbols, prices, *, dl_enabled=True, epoch=1000, train_mode=False):
         self.symbols = symbols
         self.temp_dir = tempfile.mkdtemp()
         self.config = {
-            "data_handler": {"granularity": 300},
+            "data_handler": {"granularity": 900},
             "deep_learning": {
                 "enabled": dl_enabled,
                 "lookback": 15,

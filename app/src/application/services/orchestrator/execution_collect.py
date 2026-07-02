@@ -2,6 +2,7 @@
 
 __all__ = ["collect_cluster_orders", "_mandatory_fallback_candidates"]
 
+from src.application.services.execution_direction import build_execution_candidate
 from src.application.services.execution_symbols import (
     select_best_execution_candidate,
     select_mandatory_execution_candidate,
@@ -10,6 +11,7 @@ from src.application.services.execution_symbols_recovery import (
     apply_recovery_direction_flip,
     pending_recovery_active,
 )
+from src.application.services.execution_universal_regime_gate import regime_skip_blocks_trade
 from src.application.services.orchestrator.execution_collect_gather import gather_cluster_candidates
 from src.application.services.orchestrator.execution_collect_helpers import (
     apply_recovery_hedge_to_candidates,
@@ -22,6 +24,33 @@ from src.application.services.orchestrator.execution_collect_helpers import (
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.recovery_hurst_decay import session_drawdown_from_profit
 from src.domain.risk.stake_sizing import enrich_metrics_conviction, raw_side_from_metrics
+
+
+def _regime_skip_blocks_mandatory_cycle(exec_mgr, decisions: dict, *, recovery_active: bool) -> bool:
+    """True quando todos os simbolos elegiveis estao sob skip de regime macro."""
+    exec_cfg = exec_mgr.orch.config.get("orchestrator", {}).get("execution", {})
+    calibration_cfg = exec_mgr.orch.config.get("deep_learning", {}).get("calibration")
+    saw_decision = False
+    saw_tradeable = False
+    for symbol in exec_mgr._trade_symbols():
+        entry = decisions.get(symbol)
+        if not entry:
+            continue
+        saw_decision = True
+        built = build_execution_candidate(
+            symbol,
+            entry,
+            exec_cfg=exec_cfg,
+            calibration_cfg=calibration_cfg,
+            recovery_active=recovery_active,
+        )
+        if built is None:
+            continue
+        if regime_skip_blocks_trade(built[2]):
+            continue
+        saw_tradeable = True
+        break
+    return saw_decision and not saw_tradeable
 
 
 def _select_cluster_best(exec_mgr, candidates, *, mandatory, last_loss, last_loss_dir, recovery_active, skip_symbols):
@@ -68,7 +97,7 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
         exec_cfg,
     ) = extract_collect_params(exec_mgr, dl_cfg, recovery_active=recovery_active)
     cid = f"C{int(exec_mgr.orch._active_cycle_id):04d}"
-    consecutive = getattr(exec_mgr.orch.risk_manager, "consecutive_losses", 0)
+    consecutive = getattr(exec_mgr.orch.risk_manager, "consecutive_losses_linear", 0)
     skip_counter = int(getattr(exec_mgr.orch, "_recovery_skip_counter", 0))
     session_drawdown = session_drawdown_from_profit(getattr(exec_mgr.orch.risk_manager, "total_session_profit", 0.0))
 
@@ -86,6 +115,14 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
         recovery_skip_counter=skip_counter,
         session_drawdown=session_drawdown,
     )
+    regime_blocked = not candidates and _regime_skip_blocks_mandatory_cycle(
+        exec_mgr,
+        decisions,
+        recovery_active=recovery_active,
+    )
+    if regime_blocked:
+        exec_mgr.logger.info("[%s] SKIP: REGIME MACRO ENTROPIC_NOISE | ciclo bloqueado", cid)
+        return []
     candidates = mandatory_fallback_if_empty(
         exec_mgr,
         decisions,
@@ -149,7 +186,7 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
         last_loss_direction=last_loss_dir,
         flip_enabled=bool(exec_cfg.get("recovery_flip_direction_after_loss", True)),
         flip_max_conviction=float(exec_cfg.get("recovery_flip_max_conviction", 0.56)),
-        consecutive_losses=getattr(exec_mgr.orch.risk_manager, "consecutive_losses", 0),
+        consecutive_losses=getattr(exec_mgr.orch.risk_manager, "consecutive_losses_linear", 0),
         flip_use_trend=bool(exec_cfg.get("recovery_flip_use_trend_confirmation", False)),
     )
     if best is not None:

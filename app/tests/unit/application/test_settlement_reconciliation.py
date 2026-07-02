@@ -19,7 +19,7 @@ async def test_reconcile_after_ws_recovery_settles_offline_contract():
     }
     orch.state.active_contracts = {101: MagicMock()}
     orch.risk_manager.active_contract_ids = [101]
-    orch.risk_manager.contract_to_symbol = {101: "R_10"}
+    orch.risk_manager.contract_to_symbol = {101: "RDBEAR"}
     orch.ws = AsyncMock()
     orch.logger = MagicMock()
     orch._save_full_state = AsyncMock()
@@ -60,7 +60,7 @@ async def test_reconcile_after_ws_recovery_late_settlement():
     }
     orch.state.active_contracts = {}
     orch.risk_manager.active_contract_ids = []
-    orch.risk_manager.contract_to_symbol = {202: "R_25"}
+    orch.risk_manager.contract_to_symbol = {202: "RDBEAR"}
     orch.ws = AsyncMock()
     orch.logger = MagicMock()
     orch._save_full_state = AsyncMock()
@@ -70,7 +70,7 @@ async def test_reconcile_after_ws_recovery_late_settlement():
         "contract_id": 202,
         "profit": -1.0,
         "contract_status": "lost",
-        "symbol": "R_25",
+        "symbol": "RDBEAR",
     }
     with (
         patch(
@@ -110,12 +110,12 @@ async def test_reconcile_after_ws_recovery_processes_profit_row_with_finalize():
     }
     orch.state.active_contracts = {}
     orch.risk_manager.active_contract_ids = []
-    orch.risk_manager.contract_to_symbol = {303: "R_10"}
+    orch.risk_manager.contract_to_symbol = {303: "RDBEAR"}
     orch.ws = AsyncMock()
     orch.logger = MagicMock()
     orch._save_full_state = AsyncMock()
     orch.state.finalize_contract = AsyncMock(return_value=MagicMock())
-    row = {"contract_id": 303, "profit": 1.0, "contract_status": "won", "symbol": "R_10"}
+    row = {"contract_id": 303, "profit": 1.0, "contract_status": "won", "symbol": "RDBEAR"}
     with (
         patch(
             "src.application.services.orchestrator.settlement_reconciliation.fetch_portfolio",

@@ -7,11 +7,11 @@ def test_symbol_loss_cooldown_always_disabled_and_inactive(kelly_config):
     kelly_config["kelly"]["symbol_loss_cooldown_candles"] = 2
     rm = RiskManager(kelly_config)
     rm.active_contract_ids = [1]
-    rm.register_result(-10.0, 1, "R_50")
-    assert rm.last_loss_symbol == "R_50"
-    assert rm.is_symbol_on_loss_cooldown("R_50") is False
+    rm.register_result(-10.0, 1, "RDBULL")
+    assert rm.last_loss_symbol == "RDBULL"
+    assert rm.is_symbol_on_loss_cooldown("RDBULL") is False
     assert rm.symbol_loss_cooldown == {}
     rm.tick_symbol_loss_cycle_cooldowns()
-    assert rm.is_symbol_on_loss_cooldown("R_50") is False
+    assert rm.is_symbol_on_loss_cooldown("RDBULL") is False
     rm.tick_symbol_loss_cooldowns()
-    assert rm.is_symbol_on_loss_cooldown("R_50") is False
+    assert rm.is_symbol_on_loss_cooldown("RDBULL") is False

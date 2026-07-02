@@ -34,7 +34,7 @@ async def test_predict_raw_prob_async_triton_timeout_fallback():
     ):
         direction, prob, raw = await predict_raw_prob_async(
             orch,
-            "R_10",
+            "RDBEAR",
             prices,
             runtime,
             {"lookback": 4, "confidence_call_threshold": 0.6, "confidence_put_threshold": 0.4},
@@ -63,7 +63,7 @@ async def test_predict_raw_prob_async_triton_timeout_without_local_model():
     ):
         direction, prob, raw = await predict_raw_prob_async(
             orch,
-            "R_10",
+            "RDBEAR",
             np.linspace(1.0, 2.0, 20),
             runtime,
             {"lookback": 4},

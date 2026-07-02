@@ -16,7 +16,7 @@ from src.application.services.execution_direction_cross_corr import (
 from src.application.services.execution_direction_softmax_conflict import resolve_softmax_exhaustion_conflict
 from src.application.services.execution_entropy_fallback import pick_entropy_fallback_candidate
 from src.domain.models.trade import TradeDirection
-from src.domain.risk.risk_stake_calc import _apply_kelly_fraction_scale
+from src.domain.risk.kelly_f_star_adjustments import apply_kelly_fraction_scale
 from src.infrastructure.inference.triton_tensor_builder import build_inference_tensor
 
 
@@ -37,7 +37,7 @@ async def test_predict_raw_prob_async_triton_path():
     ):
         direction, prob, raw = await predict_raw_prob_async(
             orch,
-            "R_10",
+            "RDBEAR",
             prices,
             runtime,
             {"lookback": 4, "confidence_call_threshold": 0.6, "confidence_put_threshold": 0.4},
@@ -56,7 +56,7 @@ async def test_predict_raw_prob_async_eager_without_model():
     runtime = {"lookback": 4, "norm_stats": None, "model": None}
     direction, prob, raw = await predict_raw_prob_async(
         orch,
-        "R_10",
+        "RDBEAR",
         np.linspace(1.0, 2.0, 20),
         runtime,
         {"lookback": 4},
@@ -74,14 +74,14 @@ def test_build_inference_tensor_raises_on_short_history():
 
 def test_entropy_fallback_returns_none_without_prob():
     entry = {"metrics": {"deploy_ok": True, "gate_reason": None}}
-    assert pick_entropy_fallback_candidate(["R_10"], {"R_10": entry}) is None
+    assert pick_entropy_fallback_candidate(["RDBEAR"], {"RDBEAR": entry}) is None
 
 
 def test_cross_corr_low_correlation_boosts_weight():
     weights = {"dl_raw_weight": 0.45}
     metrics = {"direction_margin": 0.01, "indicators": {"vol_ratio": 0.7}, "bb_squeeze": True}
-    corr = {("R_50", "R_10"): 0.1, ("R_10", "R_50"): 0.1}
-    out = adjust_dl_weight_with_correlation(weights, "R_50", metrics, corr)
+    corr = {("RDBULL", "RDBEAR"): 0.1, ("RDBEAR", "RDBULL"): 0.1}
+    out = adjust_dl_weight_with_correlation(weights, "RDBULL", metrics, corr)
     assert out["dl_raw_weight"] > weights["dl_raw_weight"]
 
 
@@ -101,7 +101,7 @@ def test_softmax_no_conflict_returns_same_direction():
 
 
 def test_apply_kelly_fraction_scale_attenuates():
-    assert _apply_kelly_fraction_scale(2.0, {"kelly_fraction_scale": 0.5}) == 1.0
+    assert apply_kelly_fraction_scale(2.0, {"kelly_fraction_scale": 0.5}) == 1.0
 
 
 def test_predict_symbol_decision_exception_path():
@@ -122,7 +122,7 @@ def test_predict_symbol_decision_exception_path():
     ):
         entry = predict_symbol_decision(
             orch,
-            "R_10",
+            "RDBEAR",
             MagicMock(),
             np.linspace(1.0, 2.0, 20),
             runtime["norm_stats"],
@@ -172,7 +172,7 @@ async def test_predict_symbol_decision_async_eager_path():
         }
         entry = await predict_symbol_decision_async(
             orch,
-            "R_10",
+            "RDBEAR",
             runtime["model"],
             np.linspace(1.0, 2.0, 30),
             runtime["norm_stats"],
@@ -192,7 +192,7 @@ def test_attach_dynamic_metrics_runtime_entropy():
         bb_width=0.1,
         vol_ratio=1.0,
         implied_vol_ratio=1.0,
-        symbol="R_10",
+        symbol="RDBEAR",
         bb_history=[],
         scale_enabled=False,
         runtime={"calibrated_entropy": 0.4, "entropy_violation": True},
@@ -224,26 +224,28 @@ def test_softmax_put_dl_conflict_resolves():
 def test_entropy_fallback_skips_blocked_symbol():
     blocked = {"metrics": {"gate_reason": "predict_error", "deploy_ok": False}}
     viable = {"metrics": {"deploy_ok": True, "calibrated_prob": 0.62, "gate_reason": None}}
-    picked = pick_entropy_fallback_candidate(["R_10", "R_50"], {"R_10": blocked, "R_50": viable})
+    picked = pick_entropy_fallback_candidate(["RDBEAR", "RDBULL"], {"RDBEAR": blocked, "RDBULL": viable})
     assert picked is not None
-    assert picked[0] == "R_50"
+    assert picked[0] == "RDBULL"
 
 
 @pytest.mark.asyncio
 async def test_bootstrap_calls_triton_sync_and_schema_probe(tmp_path):
     orch = MagicMock()
-    orch.symbols = ["R_10"]
+    orch.symbols = ["RDBEAR"]
     orch.config = {
         "deep_learning": {"enabled": True, "arch": "tcn", "lookback": 48},
         "data_handler": {},
         "risk_management": {"params": {}},
         "infra": {"triton": {"enabled": True}},
     }
-    ckpt = tmp_path / "R_10.pth"
+    ckpt = tmp_path / "RDBEAR.pth"
     ckpt.write_bytes(b"x")
-    ts_path = tmp_path / "R_10_ts.pt"
+    ts_path = tmp_path / "RDBEAR_ts.pt"
+    ts_path.write_bytes(b"ts")
     store = MagicMock()
     store.download_torchscript = AsyncMock(return_value=False)
+    store.sanity_check_torchscript = AsyncMock()
     orch.model_store = store
     with (
         patch(

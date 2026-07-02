@@ -11,7 +11,7 @@ def test_contract_duration_seconds_minutes():
 def test_label_horizon_bars_aligns_contract_to_granularity():
     risk = {"duration": 1, "duration_unit": "m"}
     assert resolve_label_horizon_bars(60, risk, {}) == 1
-    assert resolve_label_horizon_bars(300, risk, {}) == 1
+    assert resolve_label_horizon_bars(900, risk, {}) == 1
     assert resolve_label_horizon_bars(60, {"duration": 5, "duration_unit": "m"}, {}) == 5
 
 

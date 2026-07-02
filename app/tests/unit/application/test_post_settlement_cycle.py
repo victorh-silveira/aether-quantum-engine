@@ -6,13 +6,18 @@ import pytest
 from src.application.services.orchestrator.execution_settlement import _settlement_poll_delay
 from src.application.services.orchestrator.post_settlement_cycle import (
     _await_post_settlement_breath,
+    _ensure_trading_slot_poll,
     _poll_delay,
     _prune_stale_risk_contract_ids,
     _release_post_settlement_task,
+    _release_stuck_trading_slot,
     run_post_settlement_breath_and_cycle,
     schedule_trading_cycle_after_settlement,
 )
-from tests.unit.application.post_settlement_helpers import patch_instant_post_settlement_poll
+from tests.unit.application.post_settlement_helpers import (
+    patch_incrementing_monotonic,
+    patch_instant_post_settlement_poll,
+)
 
 
 POST_SETTLEMENT_MODULE = "src.application.services.orchestrator.post_settlement_cycle"
@@ -28,8 +33,8 @@ def test_release_post_settlement_task_clears_matching_reference(orch_ready):
 def test_prune_stale_risk_contract_ids_clears_orphans(orch_ready):
     orch = orch_ready
     orch.risk_manager.active_contract_ids = [888, 999]
-    orch.risk_manager.contract_to_symbol[888] = "R_50"
-    orch.risk_manager.contract_to_symbol[999] = "R_75"
+    orch.risk_manager.contract_to_symbol[888] = "RDBULL"
+    orch.risk_manager.contract_to_symbol[999] = "RDBEAR"
     orch.risk_manager.cluster_results[999] = -1.0
     _prune_stale_risk_contract_ids(orch)
     assert orch.risk_manager.active_contract_ids == []
@@ -44,6 +49,29 @@ def test_release_post_settlement_task_ignores_stale_callback(orch_ready):
     orch_ready._post_settlement_task = newer
     _release_post_settlement_task(orch_ready, stale)
     assert orch_ready._post_settlement_task is newer
+
+
+@pytest.mark.asyncio
+async def test_release_stuck_trading_slot_polls_before_deadline(orch_ready):
+    orch = orch_ready
+    orch.is_trading = True
+    times = iter([0.0, 0.0, 10.0])
+    with (
+        patch(f"{POST_SETTLEMENT_MODULE}.time.monotonic", side_effect=lambda: next(times, 10.0)),
+        patch(f"{POST_SETTLEMENT_MODULE}._poll_delay", new_callable=AsyncMock) as poll_mock,
+    ):
+        await _release_stuck_trading_slot(orch, wait_limit=5.0)
+    poll_mock.assert_awaited()
+    assert orch.is_trading is False
+
+
+def test_ensure_trading_slot_poll_skips_active_task(orch_ready):
+    orch = orch_ready
+    pending = asyncio.get_event_loop().create_future()
+    orch._trading_slot_poll_task = pending
+    _ensure_trading_slot_poll(orch, wait_limit=1.0)
+    assert orch._trading_slot_poll_task is pending
+    pending.cancel()
 
 
 @pytest.mark.asyncio
@@ -151,7 +179,6 @@ async def test_run_post_settlement_waits_for_is_trading_then_runs_real_cycle(orc
     orch.config.setdefault("orchestrator", {})["post_settlement_breath_seconds"] = 0
     orch.config["orchestrator"]["post_settlement_is_trading_wait_seconds"] = 0.01
     orch.is_trading = True
-    times = iter([0.0, 0.02, 0.03])
 
     with (
         patch(
@@ -159,7 +186,7 @@ async def test_run_post_settlement_waits_for_is_trading_then_runs_real_cycle(orc
             new_callable=AsyncMock,
             return_value={},
         ),
-        patch(f"{POST_SETTLEMENT_MODULE}.time.monotonic", side_effect=lambda: next(times, 1.0)),
+        patch_incrementing_monotonic(),
         patch_instant_post_settlement_poll(),
     ):
         orch.executor.execute_cluster = AsyncMock()

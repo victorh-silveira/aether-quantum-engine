@@ -28,10 +28,10 @@ def test_resolve_startup_fetch_bars_inference_mode(tmp_path, monkeypatch):
     repo = tmp_path
     dl_dir = repo / "data" / "dl"
     dl_dir.mkdir(parents=True)
-    (dl_dir / "R_100.pth").write_bytes(b"x")
+    (dl_dir / "RDBULL.pth").write_bytes(b"x")
     config = {
-        "symbols": ["R_100"],
-        "data_handler": {"granularity": 300, "history_warmup_bars": 64},
+        "symbols": ["RDBULL"],
+        "data_handler": {"granularity": 900, "history_warmup_bars": 64},
         "deep_learning": {
             "online_training": False,
             "lookback": 48,
@@ -43,7 +43,7 @@ def test_resolve_startup_fetch_bars_inference_mode(tmp_path, monkeypatch):
         "src.application.services.deep_learning.dl_startup.resolve_dl_model_path",
         lambda dl_cfg, symbol: dl_dir / f"{symbol}.pth",
     )
-    bars, mode = resolve_startup_fetch_bars(config, ["R_100"])
+    bars, mode = resolve_startup_fetch_bars(config, ["RDBULL"])
     assert mode == "inferencia"
     assert bars == 128 + 64
 
@@ -57,26 +57,26 @@ def test_resolve_startup_fetch_bars_full_when_checkpoint_missing(tmp_path, monke
         "src.application.services.deep_learning.dl_startup.resolve_dl_model_path",
         lambda dl_cfg, symbol: tmp_path / "missing.pth",
     )
-    bars, mode = resolve_startup_fetch_bars(config, ["R_100"])
+    bars, mode = resolve_startup_fetch_bars(config, ["RDBULL"])
     assert mode == "treino"
     assert bars == 15616
 
 
 def test_all_symbols_have_checkpoints(tmp_path, monkeypatch):
-    path = tmp_path / "R_100.pth"
+    path = tmp_path / "RDBULL.pth"
     path.write_bytes(b"1")
     monkeypatch.setattr(
         "src.application.services.deep_learning.dl_startup.resolve_dl_model_path",
         lambda _dl, symbol: tmp_path / f"{symbol}.pth",
     )
-    assert all_symbols_have_checkpoints(["R_100"], {}) is True
-    assert all_symbols_have_checkpoints(["R_50"], {}) is False
+    assert all_symbols_have_checkpoints(["RDBULL"], {}) is True
+    assert all_symbols_have_checkpoints(["RDBEAR", "RDBULL"], {}) is False
 
 
 def test_prepare_inference_run_loop_marks_bootstrap_done(tmp_path, monkeypatch):
-    (tmp_path / "R_100.pth").write_bytes(b"1")
+    (tmp_path / "RDBULL.pth").write_bytes(b"1")
     orch = SimpleNamespace(
-        symbols=["R_100"],
+        symbols=["RDBULL"],
         config={"deep_learning": {"online_training": False}},
     )
     monkeypatch.setattr(
@@ -92,13 +92,13 @@ def test_resolve_startup_fetch_bars_from_history_bars_when_training_mode(tmp_pat
         "data_handler": {"history_bars": 288, "history_warmup_bars": 32},
         "deep_learning": {"online_training": True},
     }
-    bars, mode = resolve_startup_fetch_bars(config, ["R_100"])
+    bars, mode = resolve_startup_fetch_bars(config, ["RDBULL"])
     assert mode == "treino"
     assert bars == 320
 
 
 def test_resolve_startup_fetch_bars_explicit_startup_fetch_bars(tmp_path, monkeypatch):
-    (tmp_path / "R_100.pth").write_bytes(b"1")
+    (tmp_path / "RDBULL.pth").write_bytes(b"1")
     config = {
         "data_handler": {"startup_fetch_bars": 256},
         "deep_learning": {"online_training": False},
@@ -107,14 +107,14 @@ def test_resolve_startup_fetch_bars_explicit_startup_fetch_bars(tmp_path, monkey
         "src.application.services.deep_learning.dl_startup.resolve_dl_model_path",
         lambda _dl, symbol: tmp_path / f"{symbol}.pth",
     )
-    bars, mode = resolve_startup_fetch_bars(config, ["R_100"])
+    bars, mode = resolve_startup_fetch_bars(config, ["RDBULL"])
     assert mode == "inferencia"
     assert bars == 256
 
 
 def test_prepare_inference_run_loop_false_without_checkpoint(tmp_path, monkeypatch):
     orch = SimpleNamespace(
-        symbols=["R_100"],
+        symbols=["RDBULL"],
         config={"deep_learning": {"online_training": False}},
     )
     monkeypatch.setattr(
@@ -127,7 +127,7 @@ def test_prepare_inference_run_loop_false_without_checkpoint(tmp_path, monkeypat
 
 def test_resolve_startup_fetch_bars_default_training_target():
     config = {"data_handler": {}, "deep_learning": {"online_training": True}}
-    bars, mode = resolve_startup_fetch_bars(config, ["R_100"])
+    bars, mode = resolve_startup_fetch_bars(config, ["RDBULL"])
     assert mode == "treino"
     assert bars == 500
 
@@ -154,17 +154,17 @@ def test_min_dl_history_len_ignores_training_validation_bars_in_inference_mode()
 
 
 def test_all_symbols_have_checkpoints_incompatible_or_error(tmp_path, monkeypatch):
-    path = tmp_path / "R_100.pth"
+    path = tmp_path / "RDBULL.pth"
     path.write_bytes(b"1")
     monkeypatch.setattr(
         "src.application.services.deep_learning.dl_startup.resolve_dl_model_path",
         lambda _dl, symbol: tmp_path / f"{symbol}.pth",
     )
     monkeypatch.setattr(torch, "load", lambda *a, **kw: {"feature_dim": 26})
-    assert all_symbols_have_checkpoints(["R_100"], {}) is False
+    assert all_symbols_have_checkpoints(["RDBULL"], {}) is False
 
     def raise_err(*a, **kw):
         raise ValueError("Load error")
 
     monkeypatch.setattr(torch, "load", raise_err)
-    assert all_symbols_have_checkpoints(["R_100"], {}) is False
+    assert all_symbols_have_checkpoints(["RDBULL"], {}) is False

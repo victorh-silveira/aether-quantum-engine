@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import contextlib
 from typing import Any
 
+from src.domain.risk.dlambert_sizing import (
+    REDIS_DLAMBERT_LINEAR_LOSSES_KEY,
+    REDIS_DLAMBERT_UNIT_KEY,
+)
 from src.domain.risk.stop_win_target import (
     REDIS_SESSION_START_BALANCE_KEY,
     REDIS_SESSION_TARGET_WIN_KEY,
@@ -56,6 +61,35 @@ async def restore_current_session_targets(orch: Any) -> None:
     if hasattr(orch, "risk_manager"):
         orch.risk_manager.initial_bankroll = start_balance
         orch.risk_manager.daily_stop_win_target = target_win
+    await _restore_dlambert_session_keys(orch, store)
+
+
+async def _restore_dlambert_session_keys(orch: Any, store: Any) -> None:
+    """Restaura unidade D'Alembert e contador linear da sessao ativa."""
+    if not hasattr(orch, "risk_manager"):
+        return
+    unit_raw = await store.get_string(REDIS_DLAMBERT_UNIT_KEY)
+    linear_raw = await store.get_string(REDIS_DLAMBERT_LINEAR_LOSSES_KEY)
+    if unit_raw:
+        with contextlib.suppress(ValueError, TypeError):
+            unit = float(unit_raw)
+            if unit > 0.0:
+                orch.risk_manager.dlambert_unit = unit
+    if linear_raw:
+        with contextlib.suppress(ValueError, TypeError):
+            orch.risk_manager.consecutive_losses_linear = max(0, int(linear_raw))
+
+
+def current_dlambert_redis_payload(orch: Any) -> tuple[float | None, int | None]:
+    """Retorna unidade base e contador linear para persistencia atomica."""
+    if not getattr(orch, "_session_targets_bootstrapped", False):
+        return None, None
+    rm = getattr(orch, "risk_manager", None)
+    if rm is None:
+        return None, None
+    unit = float(getattr(rm, "dlambert_unit", 0.0))
+    linear = int(getattr(rm, "consecutive_losses_linear", 0))
+    return (unit if unit > 0.0 else None), linear
 
 
 async def clear_current_session_redis_keys(orch: Any) -> None:
@@ -65,6 +99,8 @@ async def clear_current_session_redis_keys(orch: Any) -> None:
         return
     await store.delete_string(REDIS_SESSION_START_BALANCE_KEY)
     await store.delete_string(REDIS_SESSION_TARGET_WIN_KEY)
+    await store.delete_string(REDIS_DLAMBERT_UNIT_KEY)
+    await store.delete_string(REDIS_DLAMBERT_LINEAR_LOSSES_KEY)
 
 
 def current_session_redis_payload(orch: Any) -> tuple[float | None, float | None]:

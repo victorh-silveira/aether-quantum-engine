@@ -63,7 +63,7 @@ def test_state_manager_legacy_aliases(tmp_path):
     assert state.current_balance == 820.0
     state.initial_session_balance = 700.0
     assert state.initial_balance == 700.0
-    mgr.reset_daily_session_metrics(900.0, 9.0, 0)
+    mgr.reset_session_metrics(900.0, 9.0)
     assert mgr.state.daily_stop_win_target == 9.0
 
 
@@ -76,5 +76,5 @@ def test_state_manager_default_path_and_original_reset(tmp_path):
     mock_path = tmp_path / "default_session_state.json"
     with patch("src.infrastructure.state.state_manager.repo_path", return_value=mock_path):
         mgr = StateManager()
-        mgr.reset_daily_metrics(1200.0, 60.0, 0)
+        mgr.reset_session_metrics(1200.0, 60.0)
         assert mgr.state.initial_balance == 1200.0

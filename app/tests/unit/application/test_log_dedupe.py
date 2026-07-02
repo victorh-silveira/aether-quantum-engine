@@ -41,7 +41,7 @@ def test_log_dl_cycle_summary_dedupes_with_orch():
     logger = MagicMock()
     orch = Owner()
     decisions = {
-        "R_50": {
+        "RDBULL": {
             "direction": TradeDirection.CALL,
             "metrics": {"conviction": 0.70, "execute": True, "val_accuracy": 0.55},
         },

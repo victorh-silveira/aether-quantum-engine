@@ -17,6 +17,11 @@ def test_clamp_kelly_stake_unlimited_when_max_pct_zero():
     assert stake == pytest.approx(2500.0, rel=1e-6)
 
 
+def test_clamp_kelly_stake_ignores_configured_max_pct():
+    stake = clamp_kelly_stake(10000.0, 2500.0, {"max_stake_pct": 0.01}, 0.70)
+    assert stake == pytest.approx(2500.0, rel=1e-6)
+
+
 def test_compute_single_strike_unlimited_when_kelly_cap_zero():
     boosted = compute_single_strike_kelly_base(
         50.0,
@@ -40,7 +45,7 @@ def test_compute_single_strike_unlimited_when_kelly_cap_zero():
     assert boosted > 50.0
 
 
-def test_compute_single_strike_uses_stop_cap_when_kelly_cap_disabled():
+def test_compute_single_strike_boosts_without_stop_cap():
     boosted = compute_single_strike_kelly_base(
         50.0,
         10000.0,
@@ -59,6 +64,4 @@ def test_compute_single_strike_uses_stop_cap_when_kelly_cap_disabled():
         0.0,
         has_active_contracts=False,
     )
-    stop_cap_stake = (0.04 / 0.95) * 10000.0
-    assert boosted <= stop_cap_stake + 1.0
     assert boosted > 50.0

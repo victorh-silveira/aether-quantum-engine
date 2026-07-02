@@ -64,6 +64,21 @@ class WebSocketManager:
                 asyncio.create_task(self._listen())
                 asyncio.create_task(self._ping_loop())
                 return
+            except websockets.InvalidStatus as exc:
+                response = getattr(exc, "response", None)
+                status = getattr(exc, "status_code", None) or getattr(exc, "status", None)
+                if status is None and response is not None:
+                    status = getattr(response, "status_code", None) or getattr(response, "status", None)
+                if status == 401:
+                    self.uri = ""
+                    raise ConnectionError(
+                        "WSS: OTP expirado ou reutilizado (HTTP 401). Renove via REST POST /otp."
+                    ) from exc
+                last_err = exc
+                if attempt >= attempts:
+                    break
+                await asyncio.sleep(delay)
+                delay = min(delay * float(retry_backoff), 60.0)
             except (TimeoutError, ConnectionError, OSError, websockets.WebSocketException) as exc:
                 last_err = exc
                 if attempt >= attempts:
@@ -84,6 +99,7 @@ class WebSocketManager:
         self.is_running = False
         if self.ws:
             await self.ws.close()
+            self.uri = ""
             self.logger.debug("WSS: Conexao encerrada.")
 
     async def _listen(self):

@@ -4,6 +4,7 @@ from src.infrastructure.api.deriv_granularity import normalize_granularity_secon
 def test_normalize_granularity_keeps_allowed_values():
     assert normalize_granularity_seconds(60) == 60
     assert normalize_granularity_seconds(300) == 300
+    assert normalize_granularity_seconds(900) == 900
 
 
 def test_normalize_granularity_snaps_invalid_to_minimum():

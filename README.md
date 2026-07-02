@@ -7,7 +7,7 @@
 [![Pre-commit](https://img.shields.io/badge/Pre--commit-active-FAB040?logo=pre-commit&logoColor=white)](.pre-commit-config.yaml)
 [![CI](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml)
 
-Motor quantitativo assíncrono para a Deriv: decisão exclusiva por **Deep Learning** (TCN, LSTM ou GRU via PyTorch) nos símbolos **Range Break** (`R_10`, `R_25`, `R_50`, `R_75`, `R_100`), contratos **RISE_FALL** de **300 segundos (M5)**, classificação binária Rise/Fall com referência de confiança **0.53 / 0.47**, resolução direcional inteligente CALL/PUT, penalidade de **qualidade** pós-resolução (em vez de veto cego) e dimensionamento **Kelly** com **Consensus Entropy Penalty** e recuperação **martingale** quando há perda pendente.
+Motor quantitativo assíncrono para a Deriv: decisão exclusiva por **Deep Learning** (TCN, LSTM ou GRU via PyTorch) nos índices **Drift** (`RDBEAR`, `RDBULL`), contratos **RISE_FALL** de **60 segundos (M1)** com contexto macro **M15 (900 s)** para inferência, classificação binária Rise/Fall com referência de confiança **0.53 / 0.47**, resolução direcional inteligente CALL/PUT, penalidade de **qualidade** pós-resolução (em vez de veto cego) e dimensionamento **Kelly** com **Consensus Entropy Penalty** e recuperação **martingale** quando há perda pendente.
 
 A operação divide-se em duas fases: **FASE TREINO** (nenhuma ordem até todos os modelos concluírem o treino da sessão) e **FASE OPERACAO** (seletiva por padrão ou **modo contínuo** com `mandatory_trade_each_cycle: true` — uma ordem por ciclo, sem SKIP de qualidade).
 
@@ -21,7 +21,7 @@ Layout: `app/` (código e testes), `config/settings.json`, `docs/`, `linters/`. 
 
 | Etapa | Componente | Descrição |
 |-------|------------|-----------|
-| Dados | `StreamHandler` + `TickBuffer` + `AetherWatchdog` | WebSocket Deriv, OHLC M5 (300 s), ticks agregados por barra fechada; watchdog reconecta stream em inanição (>30 s) |
+| Dados | `StreamHandler` + `TickBuffer` + `AetherWatchdog` | WebSocket Deriv dual-timeframe: OHLC macro M15 (900 s) para DL/regimes + OHLC micro M1 (60 s) para gatilho do ciclo; ticks agregados por barra fechada; watchdog reconecta stream em inanição (>30 s) |
 | Fases | `_training_phase_gate` | Suspende a operação até todos os modelos concluírem o treino da sessão |
 | Predição DL | `decision_bridge` + TCN/LSTM/GRU | **34 features**, labels `ma_trend`, treino walk-forward deferido; inferência Triton gRPC concorrente com timeout 2 s e fallback TorchScript |
 | Direção | `execution_direction_resolver` | Scoring CALL/PUT; flip de reversão em contração de vol; veto de inversão em expansão |
@@ -33,10 +33,10 @@ Layout: `app/` (código e testes), `config/settings.json`, `docs/`, `linters/`. 
 | Resiliência | `graceful_shutdown` + `watchdog_service` | Shutdown ordenado; reconexão de stream sem derrubar o motor |
 | Estado | `redis_state_pipeline` + `StateStore` | Snapshot atômico MULTI/EXEC (risco, `session:current`, `session:current:start_balance`, `session:current:target_win`, `recovery:skip_counter`, assinaturas) |
 | Inferência | `TritonGrpcClient` | Canal `grpc.aio.insecure_channel` persistente; timeout 2 s; predições paralelas via `asyncio.gather`; fallback local em timeout |
-| Mercado TS | `TimescaleMarketWriter` | Ticks e barras OHLC M5 (300 s) para backtest |
+| Mercado TS | `TimescaleMarketWriter` | Ticks e barras OHLC macro M15 (900 s) e micro M1 (60 s) para backtest |
 | Modelos | `MinioModelStore` + cache `data/dl/` | Checkpoints DL como source of truth remoto; sanity estressado no startup |
 
-Ciclo do orquestrador: `orchestrator.cycle_interval_seconds` (padrão 60 s). Granularidade OHLC: `data_handler.granularity` (**300 s / M5**). Contrato: `risk_management.params.duration` (**300 s**, encerra na virada da vela M5).
+Ciclo do orquestrador: `orchestrator.cycle_interval_seconds` (**60 s / M1**). Contexto DL: `data_handler.granularity` (**900 s / M15**, tensor `[1, 48, 34]`). Contrato: `risk_management.params.duration` (**60 s**, RISE_FALL alinhado ao fechamento M1).
 
 ---
 
@@ -46,13 +46,13 @@ Arquivo: [`config/settings.json`](config/settings.json)
 
 | Bloco | Função |
 |-------|--------|
-| `symbols` / `anchor` | Universo (`R_10` … `R_100`; âncora `R_10`) |
-| `data_handler` | `granularity`, `history_bars`, `fetch_count`, `buffer_limit` |
+| `symbols` / `anchor` | Universo (``RDBEAR`, `RDBULL`; âncora `RDBULL`) |
+| `data_handler` | `granularity` (macro M15), `micro_granularity` (M1), `history_bars`, `fetch_count`, `buffer_limit` |
 | `deep_learning` | `arch`, `lookback`, `calibration`, thresholds, `deploy_gate` |
 | `orchestrator.execution` | `direction_scoring`, `dynamic_threshold`, `quality_gate`, `mandatory_trade_each_cycle`, mean-reversion, settlement |
 | `orchestrator` | `watchdog_*`, `cycle_interval_seconds`, execução, settlement |
 | `risk_management.kelly` | Kelly, martingale, `consensus_penalty_*`, `penalty_smoothing_*`, `martingale_hard_cap_bankroll_pct` |
-| `risk_management.params` | `duration: 300`, stakes, `compounding_enabled`, `compounding_rate_daily`, `session_start_balance` (opcional) |
+| `risk_management.params` | `duration: 60`, stakes, `compounding_enabled`, `compounding_rate_daily`, `session_start_balance` (opcional) |
 | `trading` | `demo` / `live` |
 | `infra` | Redis, TimescaleDB, MinIO, Triton (`enabled`, `fail_fast`, `grpc_url`) |
 

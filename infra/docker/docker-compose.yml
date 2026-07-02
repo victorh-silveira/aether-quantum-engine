@@ -75,7 +75,7 @@ services:
         "tritonserver",
         "--model-repository=/models",
         "--model-control-mode=poll",
-        "--repository-poll-secs=15",
+        "--repository-poll-secs=2",
         "--allow-gpu-metrics=true",
       ]
     ports:

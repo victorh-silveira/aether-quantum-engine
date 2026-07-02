@@ -13,7 +13,7 @@ aether-quantum-engine/
 │   │   │   ├── execution_*.py          # Direção, resolver, mean-reversion, qualidade, ranking
 │   │   │   ├── log_dedupe.py
 │   │   │   └── auth_manager.py
-│   │   ├── domain/                     # Modelos, risk_manager, stop_win_target, risk_recovery_state, consensus_stake_penalty, martingale
+│   │   ├── domain/                     # Modelos, risk_manager, stop_win_target, risk_recovery_state, consensus_stake_penalty, dlambert_sizing
 │   │   ├── infrastructure/
 │   │   │   ├── inference/              # triton_grpc_client, triton_inference_client, triton_model_sync
 │   │   │   ├── state/                  # redis_state_pipeline, redis_state_store
@@ -46,7 +46,7 @@ aether-quantum-engine/
 | `application/services/deep_learning` | Features **34D**, TCN/LSTM/GRU, `dl_predict_async`, `dl_predict_triton`, `dl_trend`, deploy gate, TorchScript |
 | `application/services/orchestrator` | `Orchestrator`, `ExecutionManager`, `session_target_bootstrap`, `execution_collect`, `execution_recovery_gate`, `watchdog_service`, `graceful_shutdown`, settlement, `post_settlement_cycle`, `orchestrator_run_loop` |
 | `application/services` | `execution_direction_resolver`, `execution_direction_mean_reversion`, `execution_direction_expansion_veto`, `execution_direction_cross_corr`, `execution_entropy_adaptive`, `execution_quality_gate`, `execution_market_rank`, `execution_mandatory_pick`, `log_dedupe`, `auth_manager` |
-| `domain` | `Candle`, `Trade`, `RiskManager`, `StopWinManager` (`stop_win_target.py`), `risk_recovery_state`, `consensus_stake_penalty`, `recovery_hurst_gate`, `probability_entropy`, Kelly, martingale, cooldowns, `stake_sizing` |
+| `domain` | `Candle`, `Trade`, `RiskManager`, `StopWinManager` (`stop_win_target.py`), `risk_recovery_state`, `consensus_stake_penalty`, `recovery_hurst_gate`, `probability_entropy`, Kelly, `dlambert_sizing`, `recovery_conviction`, cooldowns, `stake_sizing` |
 | `infrastructure/inference` | `TritonGrpcClient` (gRPC aio persistente), `triton_inference_client`, `triton_model_sync`, `triton_tensor_builder`, `triton_model_metadata` |
 | `infrastructure/state` | `redis_state_pipeline` (MULTI/EXEC atômico), `redis_state_store`, ports `StateStore` |
 | `infrastructure/storage` | `minio_model_store`, `torchscript_sanity`, `torchscript_sanity_probes` (probes estressados) |

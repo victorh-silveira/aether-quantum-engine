@@ -21,22 +21,23 @@ def apply_risk_snapshot(manager: Any, data: dict[str, Any]) -> None:
     """Aplica dict de risco persistido ao RiskManager."""
     if not isinstance(data, dict) or not data:
         return
+    snapshot = dict(data)
+    snapshot.pop("last_martingale_stake", None)
     _apply_float_fields(
         manager,
-        data,
-        ("initial_bankroll", "total_session_profit", "last_martingale_stake", "last_loss_stake"),
+        snapshot,
+        ("initial_bankroll", "total_session_profit", "last_loss_stake", "dlambert_unit"),
     )
-    _apply_int_fields(manager, data, ("last_result_tick", "consecutive_losses", "current_cooldown_ticks"))
-    rolling = data.get("rolling_wins")
+    _apply_int_fields(manager, snapshot, ("last_result_tick", "consecutive_losses_linear", "current_cooldown_ticks"))
+    if "consecutive_losses_linear" not in snapshot and "consecutive_losses" in snapshot:
+        manager.consecutive_losses_linear = max(0, int(snapshot["consecutive_losses"]))
+    rolling = snapshot.get("rolling_wins")
     if isinstance(rolling, dict):
         manager._rolling_wins = {str(k): [int(x) for x in v] for k, v in rolling.items() if isinstance(v, list)}
-    pending = data.get("pending_loss")
+    pending = snapshot.get("pending_loss")
     if isinstance(pending, dict):
         manager.pending_loss = {str(k): float(v) for k, v in pending.items()}
-    streak = data.get("recovery_symbol_loss_streak")
-    if isinstance(streak, dict):
-        manager.recovery_symbol_loss_streak = {str(k): int(v) for k, v in streak.items()}
-    if data.get("last_loss_symbol") is not None:
-        manager.last_loss_symbol = str(data["last_loss_symbol"])
-    if data.get("last_loss_direction") is not None:
-        manager.last_loss_direction = str(data["last_loss_direction"])
+    if snapshot.get("last_loss_symbol") is not None:
+        manager.last_loss_symbol = str(snapshot["last_loss_symbol"])
+    if snapshot.get("last_loss_direction") is not None:
+        manager.last_loss_direction = str(snapshot["last_loss_direction"])

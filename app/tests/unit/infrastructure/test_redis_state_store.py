@@ -20,14 +20,14 @@ def _pipeline_mock():
 async def test_redis_save_and_load_snapshot():
     client = AsyncMock()
     client.ping.return_value = True
-    client.get.return_value = json.dumps({"risk": {"consecutive_losses": 2}})
+    client.get.return_value = json.dumps({"risk": {"consecutive_losses_linear": 2}})
     pipe = _pipeline_mock()
     client.pipeline = MagicMock(return_value=pipe)
     store = RedisStateStore(url="redis://localhost:6379/0", debounce_seconds=0.0)
     with patch.object(store, "_redis", AsyncMock(return_value=client)):
-        await store.save_snapshot({"risk": {"consecutive_losses": 2}, "x": 1})
+        await store.save_snapshot({"risk": {"consecutive_losses_linear": 2}, "x": 1})
         loaded = await store.load_snapshot()
-    assert loaded["risk"]["consecutive_losses"] == 2
+    assert loaded["risk"]["consecutive_losses_linear"] == 2
 
 
 @pytest.mark.asyncio
@@ -48,10 +48,10 @@ async def test_redis_hash_and_string_keys():
     store = RedisStateStore(url="redis://localhost:6379/0", debounce_seconds=0.0)
     with patch.object(store, "_redis", AsyncMock(return_value=client)):
         await store.set_hash("session:daily", {"a": 1})
-        await store.set_string("bar_sig:R_10", "123")
-        await store.set_string("cooldown:R_10", "1", ttl_seconds=30)
+        await store.set_string("bar_sig:RDBEAR", "123")
+        await store.set_string("cooldown:RDBEAR", "1", ttl_seconds=30)
         assert await store.get_hash("session:daily") == {"a": "1"}
-        assert await store.get_string("bar_sig:R_10") == "epoch"
+        assert await store.get_string("bar_sig:RDBEAR") == "epoch"
         assert await store.ping() is True
 
 
@@ -76,7 +76,7 @@ async def test_redis_save_state_bundle_uses_pipeline():
     store = RedisStateStore(url="redis://localhost:6379/0", debounce_seconds=0.0)
     with patch.object(store, "_redis", AsyncMock(return_value=client)):
         await store.save_state_bundle(
-            snapshot={"risk": {"consecutive_losses": 1, "pending_loss": {"R_10": 2.5}}},
+            snapshot={"risk": {"consecutive_losses_linear": 1, "pending_loss": {"RDBEAR": 2.5}}},
             session={"day_key": 1},
             market_sig="sig",
         )
@@ -92,5 +92,5 @@ async def test_redis_pipeline_writes_pending_loss():
     client.pipeline = MagicMock(return_value=pipe)
     store = RedisStateStore(url="redis://localhost:6379/0", debounce_seconds=0.0)
     with patch.object(store, "_redis", AsyncMock(return_value=client)):
-        await store.save_snapshot({"risk": {"consecutive_losses": 2, "pending_loss": {"R_10": 3.0}}})
+        await store.save_snapshot({"risk": {"consecutive_losses_linear": 2, "pending_loss": {"RDBEAR": 3.0}}})
     assert pipe.hset.call_args_list

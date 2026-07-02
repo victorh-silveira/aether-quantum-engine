@@ -54,7 +54,7 @@ def mandatory_fallback_candidates(
         skip_symbols=skip_symbols,
         min_signal=min_signal,
         min_val=min_val,
-        consecutive_losses=getattr(exec_mgr.orch.risk_manager, "consecutive_losses", 0),
+        consecutive_losses=getattr(exec_mgr.orch.risk_manager, "consecutive_losses_linear", 0),
         mean_reversion_enabled=mean_reversion,
         low_accuracy_enabled=low_accuracy,
     )
@@ -103,7 +103,7 @@ def extract_collect_params(exec_mgr, dl_cfg: dict, *, recovery_active: bool) -> 
     recovery_skip = recovery_blocked_symbols(exec_mgr.orch.risk_manager, kelly_cfg) if recovery_active else frozenset()
     skip_symbols = proposal_skip | recovery_skip
     pending_total = sum(float(v) for v in getattr(exec_mgr.orch.risk_manager, "pending_loss", {}).values())
-    consecutive_losses = getattr(exec_mgr.orch.risk_manager, "consecutive_losses", 0)
+    consecutive_losses = getattr(exec_mgr.orch.risk_manager, "consecutive_losses_linear", 0)
     min_signal = recovery_min_signal(
         kelly_cfg,
         recovery_active=recovery_active,
@@ -162,7 +162,7 @@ def resolve_mandatory_ultimate_candidate(
         skip_symbols=skip_symbols,
         min_signal=min_signal,
         min_val=min_val,
-        consecutive_losses=getattr(exec_mgr.orch.risk_manager, "consecutive_losses", 0),
+        consecutive_losses=getattr(exec_mgr.orch.risk_manager, "consecutive_losses_linear", 0),
         mean_reversion_enabled=mean_reversion,
         low_accuracy_enabled=low_accuracy,
     )
@@ -206,7 +206,7 @@ def recovery_hurst_blocks_collect(
     recovery_skip_counter: int = 0,
     session_drawdown: float = 0.0,
 ) -> bool:
-    """True quando recovery martingale N2+ deve pular o ciclo por falta de Hurst persistente."""
+    """True quando recovery D'Alembert N2+ deve pular o ciclo por falta de Hurst persistente."""
     hurst_min = resolve_effective_hurst_min(
         kelly_cfg,
         recovery_skip_counter,

@@ -1,4 +1,10 @@
-from src.application.services.execution_quality_gate import passes_execution_quality, quality_gate_params
+import pytest
+
+from src.application.services.execution_quality_gate import (
+    MANDATORY_MIN_TRADE_SCORE_DEFAULT,
+    passes_execution_quality,
+    quality_gate_params,
+)
 
 
 def test_quality_gate_params_custom_config():
@@ -12,9 +18,10 @@ def test_quality_gate_params_custom_config():
 
 def test_quality_gate_params_defaults():
     params = quality_gate_params({})
-    assert params["min_direction_margin"] == 0.05
-    assert params["inverted_min_score"] == 0.74
-    assert params["min_adx_normal"] == 0.18
+    assert params["min_direction_margin"] == 0.06
+    assert params["inverted_min_score"] == 0.76
+    assert params["min_adx_normal"] == 0.20
+    assert pytest.approx(0.72) == MANDATORY_MIN_TRADE_SCORE_DEFAULT
 
 
 def test_passes_execution_quality_rejects_low_edge():

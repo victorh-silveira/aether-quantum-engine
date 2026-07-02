@@ -7,7 +7,7 @@ from src.domain.models.trade import TradeDirection
 from src.domain.risk.stake_sizing import raw_side_from_metrics
 
 
-_CLUSTER_CORE = frozenset({"R_50", "R_75"})
+_CLUSTER_CORE = frozenset({"RDBULL"})
 
 
 def pending_recovery_active(pending_loss: dict) -> bool:
@@ -16,16 +16,9 @@ def pending_recovery_active(pending_loss: dict) -> bool:
 
 
 def recovery_blocked_symbols(risk_manager: Any, kelly_config: dict) -> frozenset[str]:
-    """Simbolos excluidos do recovery por sequencia de losses em martingale."""
-    max_streak = int(kelly_config.get("recovery_martingale_max_losses_per_symbol", 2))
-    if max_streak <= 0:
-        return frozenset()
-    blocked: set[str] = set()
-    streaks = getattr(risk_manager, "recovery_symbol_loss_streak", {}) or {}
-    for symbol, count in streaks.items():
-        if int(count) >= max_streak:
-            blocked.add(str(symbol))
-    return frozenset(blocked)
+    """Nenhum simbolo e excluido do recovery por contagem de perdas."""
+    _ = (risk_manager, kelly_config)
+    return frozenset()
 
 
 def recovery_candidate_pool(
@@ -86,7 +79,7 @@ def inject_recovery_hedge_candidates(
     last_loss_symbol: str | None,
     last_loss_direction: str | None,
 ) -> list[tuple[str, TradeDirection, dict]]:
-    """Inclui candidato hedge estrutural do par Range quando ausente no pool."""
+    """Inclui candidato hedge estrutural do par Drift quando ausente no pool."""
     target = recovery_hedge_target(last_loss_symbol, last_loss_direction)
     if target is None:
         return candidates

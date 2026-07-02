@@ -27,13 +27,13 @@ async def test_fetch_symbol_history_paginates(mock_ws):
     mock_ws.send = AsyncMock(side_effect=send_side_effect)
     sh = StreamHandler(
         mock_ws,
-        ["R_50"],
-        {"fetch_count": 5, "history_fetch_chunk": 3, "history_fetch_delay_seconds": 0, "granularity": 300},
+        ["RDBULL"],
+        {"fetch_count": 5, "history_fetch_chunk": 3, "history_fetch_delay_seconds": 0, "granularity": 900},
     )
-    await sh._fetch_symbol_history("R_50", 5)
-    assert len(sh.candles["R_50"]) == 5
-    assert sh.candles["R_50"][0].epoch == 1000
-    assert sh.candles["R_50"][-1].epoch == 2002
+    await sh._fetch_symbol_history("RDBULL", 5, granularity=900, store=sh.macro_candles)
+    assert len(sh.macro_candles["RDBULL"]) == 5
+    assert sh.macro_candles["RDBULL"][0].epoch == 1000
+    assert sh.macro_candles["RDBULL"][-1].epoch == 2002
 
 
 @pytest.mark.asyncio
@@ -42,20 +42,20 @@ async def test_fetch_symbol_history_trims_excess(mock_ws):
     candles = [{"open": 1.0, "high": 1.1, "low": 0.9, "close": 1.05, "epoch": 1000 + i} for i in range(6)]
     mock_ws.send = AsyncMock(return_value={"candles": candles})
     sh = StreamHandler(
-        mock_ws, ["R_50"], {"history_fetch_chunk": 10, "history_fetch_delay_seconds": 0, "granularity": 300}
+        mock_ws, ["RDBULL"], {"history_fetch_chunk": 10, "history_fetch_delay_seconds": 0, "granularity": 900}
     )
-    await sh._fetch_symbol_history("R_50", 4)
-    assert len(sh.candles["R_50"]) == 4
-    assert sh.candles["R_50"][0].epoch == 1002
-    assert sh.candles["R_50"][-1].epoch == 1005
+    await sh._fetch_symbol_history("RDBULL", 4, granularity=900, store=sh.macro_candles)
+    assert len(sh.macro_candles["RDBULL"]) == 4
+    assert sh.macro_candles["RDBULL"][0].epoch == 1002
+    assert sh.macro_candles["RDBULL"][-1].epoch == 1005
 
 
 @pytest.mark.asyncio
 async def test_fetch_symbol_history_stops_on_api_error(mock_ws):
     mock_ws.send = AsyncMock(return_value={"error": {"message": "Invalid granularity"}})
-    sh = StreamHandler(mock_ws, ["R_50"], {"granularity": 60, "history_fetch_delay_seconds": 0})
-    await sh._fetch_symbol_history("R_50", 10)
-    assert sh.candles["R_50"] == []
+    sh = StreamHandler(mock_ws, ["RDBULL"], {"granularity": 60, "history_fetch_delay_seconds": 0})
+    await sh._fetch_symbol_history("RDBULL", 10, granularity=60, store=sh.micro_candles)
+    assert sh.micro_candles["RDBULL"] == []
 
 
 @pytest.mark.asyncio
@@ -65,15 +65,15 @@ async def test_ensure_cluster_history_backfills_and_skips_full(mock_ws):
     mock_ws.send = AsyncMock(return_value={"candles": page})
     sh = StreamHandler(
         mock_ws,
-        ["R_50", "R_25"],
+        ["RDBULL", "RDBEAR"],
         {
-            "granularity": 60,
+            "granularity": 900,
             "history_fetch_chunk": 10,
             "history_fetch_delay_seconds": 0,
             "history_fetch_symbol_delay_seconds": 0,
         },
     )
-    sh.candles["R_50"] = [Candle("R_50", 1, 1, 1, 1, None, 5000) for _ in range(4)]
+    sh.macro_candles["RDBULL"] = [Candle("RDBULL", 1, 1, 1, 1, None, 5000) for _ in range(4)]
     await sh.ensure_cluster_history(3)
-    assert len(sh.candles["R_50"]) == 4
-    assert len(sh.candles["R_25"]) == 3
+    assert len(sh.macro_candles["RDBULL"]) == 4
+    assert len(sh.macro_candles["RDBEAR"]) == 3

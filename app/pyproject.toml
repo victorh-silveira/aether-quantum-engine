@@ -1,7 +1,7 @@
 [project]
 name = "aether-quantum-engine"
 version = "0.0.0"
-description = "Motor quantitativo assíncrono para a Deriv usando Deep Learning (TCN PyTorch) e controle de risco Kelly/martingale."
+description = "Motor quantitativo assíncrono para a Deriv usando Deep Learning (TCN PyTorch) e controle de risco Kelly/D'Alembert."
 readme = "../README.md"
 requires-python = ">=3.13.12,<3.13.13"
 

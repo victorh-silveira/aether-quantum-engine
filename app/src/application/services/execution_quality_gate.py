@@ -2,8 +2,16 @@
 
 from src.application.services.deep_learning.dl_gating import resolve_calibrated_edge
 from src.application.services.execution_squeeze_gate import passes_squeeze_gate
+from src.application.services.execution_universal_regime_gate import UniversalRegimeEvaluator
+from src.application.services.execution_universal_regime_types import RegimeState
 from src.application.services.orchestrator.execution_recovery_gate import effective_signal, recovery_min_signal
+from src.domain.models.trade import TradeDirection
 from src.domain.risk.recovery_hurst_decay import resolve_effective_hurst_min
+
+
+MANDATORY_MIN_TRADE_SCORE_DEFAULT = 0.72
+MACRO_VOL_EXPANSION_MIN = 1.15
+MICRO_VOL_DIVERGENCE_MAX = 0.50
 
 
 def quality_gate_params(exec_cfg: dict) -> dict[str, float]:
@@ -12,10 +20,42 @@ def quality_gate_params(exec_cfg: dict) -> dict[str, float]:
     if not isinstance(chunk, dict):
         chunk = {}
     return {
-        "min_direction_margin": float(chunk.get("min_direction_margin", 0.05)),
-        "inverted_min_score": float(chunk.get("inverted_min_score", 0.74)),
-        "min_adx_normal": float(chunk.get("min_adx_normal", 0.18)),
+        "min_direction_margin": float(chunk.get("min_direction_margin", 0.06)),
+        "inverted_min_score": float(chunk.get("inverted_min_score", 0.76)),
+        "min_adx_normal": float(chunk.get("min_adx_normal", 0.20)),
     }
+
+
+def _macro_vol_ratio(metrics: dict) -> float:
+    """Le vol_ratio macro M15 com fallback para indicadores micro."""
+    macro = metrics.get("macro_indicators")
+    if isinstance(macro, dict) and macro.get("vol_ratio") is not None:
+        return float(macro["vol_ratio"])
+    indicators = metrics.get("indicators") or {}
+    return float(indicators.get("vol_ratio", 1.0))
+
+
+def _micro_vol_ratio(metrics: dict) -> float:
+    """Le vol_ratio micro M1 dos indicadores de execucao."""
+    indicators = metrics.get("indicators") or {}
+    return float(indicators.get("vol_ratio", _macro_vol_ratio(metrics)))
+
+
+def apply_vol_cohesion_entropic_downgrade(metrics: dict) -> bool:
+    """Rebaixa para ENTROPIC_NOISE quando M1 comprime sob macro M15 expandido."""
+    macro_vol = _macro_vol_ratio(metrics)
+    micro_vol = _micro_vol_ratio(metrics)
+    if macro_vol + 1e-9 < MACRO_VOL_EXPANSION_MIN or micro_vol + 1e-9 >= MICRO_VOL_DIVERGENCE_MAX:
+        return False
+    regime = RegimeState.ENTROPIC_NOISE.value
+    metrics["universal_regime"] = regime
+    metrics["universal_regime_scenario"] = regime
+    metrics["gate_penalty"] = "noise"
+    metrics["regime_skip_cycle"] = True
+    metrics["vol_cohesion_divergence"] = True
+    metrics["vol_cohesion_macro_ratio"] = macro_vol
+    metrics["vol_cohesion_micro_ratio"] = micro_vol
+    return True
 
 
 def _effective_edge(metrics: dict) -> float:
@@ -69,6 +109,7 @@ def _quality_failures(
         bool(metrics.get("exhaustion_conflict"))
         and float(metrics.get("exhaustion_penalty", 0.0)) + 1e-9 >= min_exhaustion
     )
+    vol_cohesion_fail = bool(metrics.get("vol_cohesion_divergence"))
     signal_floor = float(min_signal)
     if recovery_active and isinstance(recovery_kelly_cfg, dict):
         hurst = float(indicators.get("hurst", 0.5))
@@ -93,6 +134,7 @@ def _quality_failures(
         metrics.get("direction_inverted") and inverted_min_score > 0.0 and eff + 1e-9 < inverted_min_score,
         not recovery_active and min_adx_normal > 0.0 and adx + 1e-9 < min_adx_normal,
         exhaustion_fail,
+        vol_cohesion_fail,
     ]
     return any(checks)
 
@@ -115,6 +157,7 @@ def passes_execution_quality(
     session_drawdown: float = 0.0,
 ) -> bool:
     """Indica se metricas atendem pisos de qualidade (legado para testes)."""
+    apply_vol_cohesion_entropic_downgrade(metrics)
     if not passes_squeeze_gate(metrics, cfg=dynamic_threshold_cfg):
         return False
     return not _quality_failures(
@@ -194,6 +237,29 @@ def apply_quality_penalty_to_metrics(
     session_drawdown: float = 0.0,
 ) -> float:
     """Aplica penalidade de qualidade ao trade_score sem bloquear execucao."""
+    dl_raw = metrics.get("dl_direction") or metrics.get("resolved_direction")
+    exec_raw = metrics.get("exec_direction") or metrics.get("resolved_direction")
+    dl_dir = None
+    exec_dir = None
+    try:
+        if dl_raw:
+            dl_dir = TradeDirection[str(dl_raw).upper()]
+        if exec_raw:
+            exec_dir = TradeDirection[str(exec_raw).upper()]
+    except (KeyError, ValueError):
+        dl_dir = None
+        exec_dir = None
+    if metrics.get("universal_regime") is None and dl_dir is not None and exec_dir is not None:
+        apply_vol_cohesion_entropic_downgrade(metrics)
+        if metrics.get("universal_regime") is None:
+            evaluator = UniversalRegimeEvaluator(
+                None,
+                recovery_active=recovery_active,
+                mandatory_min_signal=min_signal,
+                kelly_cfg=recovery_kelly_cfg,
+            )
+            regime_eval = evaluator.evaluate(metrics, dl_dir=dl_dir, exec_dir=exec_dir)
+            evaluator.apply(metrics, regime_eval, exec_dir, dl_dir=dl_dir)
     penalty = quality_gate_penalty(
         metrics,
         min_signal=min_signal,

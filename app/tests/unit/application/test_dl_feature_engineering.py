@@ -28,7 +28,7 @@ def test_feature_dim_is_thirty_two():
 
 def test_log_return_and_ema_distances():
     prices = np.array([100.0, 101.0, 102.0, 101.5, 103.0, 104.0, 103.0, 105.0], dtype=np.float64)
-    series = precompute_price_series(prices, granularity=60, symbol="R_50")
+    series = precompute_price_series(prices, granularity=60, symbol="RDBULL")
     assert "log_return" in series
     assert "ema_dist_20" in series
     assert "ema_dist_50" in series
@@ -54,7 +54,7 @@ def test_log_return_and_ema_distances():
 
 def test_build_feature_row_shape():
     prices = np.linspace(100.0, 110.0, 80)
-    series = precompute_price_series(prices, granularity=60, symbol="R_75")
+    series = precompute_price_series(prices, granularity=60, symbol="RDBEAR")
     row = build_feature_row(series, 40)
     assert row.shape == (FEATURE_DIM,)
     matrix = build_feature_matrix(series)
@@ -122,8 +122,8 @@ def test_dl_feature_build_coverage_booster():
     assert "tick_count" in series2
 
     prices = np.linspace(100.0, 110.0, 80)
-    series_none = precompute_price_series(prices, symbol="R_50")
+    series_none = precompute_price_series(prices, symbol="RDBULL")
     assert "bb_pct_b" in series_none
 
-    seq = build_sequence_tensor(prices, lookback=10, end_index=70, symbol="R_50")
+    seq = build_sequence_tensor(prices, lookback=10, end_index=70, symbol="RDBULL")
     assert seq.shape == (10, FEATURE_DIM)

@@ -213,6 +213,8 @@ def build_prediction_entry(
     entry["metrics"]["call_votes"] = call_votes
     entry["metrics"]["put_votes"] = put_votes
     entry["metrics"]["indicators"] = indicators_data
+    entry["metrics"]["macro_indicators"] = indicators_data
+    entry["metrics"]["indicator_timeframe_seconds"] = int(params.get("granularity", 900))
     attach_dynamic_metrics(
         entry["metrics"],
         dynamic=dynamic,

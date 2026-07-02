@@ -20,8 +20,8 @@ def test_label_horizon_one_bar_for_60s_contract():
     assert horizon == 1
 
 
-def test_label_horizon_one_bar_for_300s_contract_m5():
-    horizon = resolve_label_horizon_bars(300, {"duration": 300, "duration_unit": "s"}, {})
+def test_label_horizon_one_bar_for_900s_contract_m15():
+    horizon = resolve_label_horizon_bars(900, {"duration": 900, "duration_unit": "s"}, {})
     assert horizon == 1
 
 

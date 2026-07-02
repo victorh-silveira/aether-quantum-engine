@@ -1,5 +1,6 @@
 """Testes de bootstrap de meta por sessao ativa."""
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -7,6 +8,7 @@ import pytest
 from src.application.services.orchestrator.session_target_bootstrap import (
     bootstrap_active_session_targets,
     clear_current_session_redis_keys,
+    current_dlambert_redis_payload,
     current_session_redis_payload,
     restore_current_session_targets,
 )
@@ -66,11 +68,36 @@ async def test_restore_current_session_targets_when_bootstrapped():
 
 
 @pytest.mark.asyncio
+async def test_restore_current_session_targets_restores_dlambert_keys():
+    orch = MagicMock()
+    orch._session_targets_bootstrapped = True
+    orch.state_mgr = StateManager()
+    orch.risk_manager = RiskManager({"params": {}, "kelly": {}, "dlambert": {}})
+    orch.state_store = AsyncMock()
+
+    async def _get_string(key: str):
+        if key == "session:current:start_balance":
+            return "5000.0"
+        if key == "session:current:target_win":
+            return "50.0"
+        if key == "session:current:dlambert_unit":
+            return "22.0"
+        if key == "session:current:consecutive_losses_linear":
+            return "2"
+        return None
+
+    orch.state_store.get_string.side_effect = _get_string
+    await restore_current_session_targets(orch)
+    assert orch.risk_manager.dlambert_unit == pytest.approx(22.0)
+    assert orch.risk_manager.consecutive_losses_linear == 2
+
+
+@pytest.mark.asyncio
 async def test_clear_current_session_redis_keys():
     orch = MagicMock()
     orch.state_store = AsyncMock()
     await clear_current_session_redis_keys(orch)
-    assert orch.state_store.delete_string.await_count == 2
+    assert orch.state_store.delete_string.await_count == 4
 
 
 def test_current_session_redis_payload():
@@ -160,3 +187,40 @@ def test_current_session_redis_payload_rejects_invalid_values():
     orch.state_mgr.state.initial_balance = "x"
     orch.state_mgr.state.daily_stop_win_target = 10.0
     assert current_session_redis_payload(orch) == (None, None)
+
+
+def test_current_dlambert_redis_payload_returns_unit_and_linear():
+    orch = MagicMock()
+    orch._session_targets_bootstrapped = True
+    orch.risk_manager = RiskManager({"params": {}, "kelly": {}, "dlambert": {}})
+    orch.risk_manager.dlambert_unit = 12.0
+    orch.risk_manager.consecutive_losses_linear = 2
+    assert current_dlambert_redis_payload(orch) == (12.0, 2)
+
+
+def test_current_dlambert_redis_payload_without_risk_manager():
+    orch = MagicMock()
+    orch._session_targets_bootstrapped = True
+    orch.risk_manager = None
+    assert current_dlambert_redis_payload(orch) == (None, None)
+
+
+@pytest.mark.asyncio
+async def test_restore_dlambert_skips_without_risk_manager():
+    store = AsyncMock()
+
+    async def _get_string(key: str):
+        if key == "session:current:start_balance":
+            return "5000.0"
+        if key == "session:current:target_win":
+            return "50.0"
+        return None
+
+    store.get_string.side_effect = _get_string
+    orch = SimpleNamespace(
+        _session_targets_bootstrapped=True,
+        state_mgr=StateManager(),
+        state_store=store,
+    )
+    await restore_current_session_targets(orch)
+    assert orch.state_mgr.state.initial_balance == pytest.approx(5000.0)

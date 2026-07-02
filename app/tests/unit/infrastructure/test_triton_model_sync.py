@@ -13,19 +13,19 @@ from tests.unit.infrastructure.test_torchscript_sanity import _trace_model
 
 @pytest.mark.asyncio
 async def test_infer_symbols_async_batch(tmp_path):
-    tensors = {"R_10": np.zeros((1, 4, 34), dtype=np.float32)}
+    tensors = {"RDBEAR": np.zeros((1, 4, 34), dtype=np.float32)}
     with patch(
         "src.infrastructure.inference.triton_inference_client.get_triton_grpc_client",
         new_callable=AsyncMock,
     ) as mock_get:
-        mock_get.return_value.infer_symbols_concurrent = AsyncMock(return_value={"R_10": 0.61})
+        mock_get.return_value.infer_symbols_concurrent = AsyncMock(return_value={"RDBEAR": 0.61})
         out = await infer_symbols_async({"infra": {"triton": {"enabled": True}}}, tensors)
-    assert out["R_10"] == pytest.approx(0.61)
+    assert out["RDBEAR"] == pytest.approx(0.61)
 
 
 @pytest.mark.asyncio
 async def test_sync_symbol_torchscript_to_triton_writes_model(tmp_path):
-    ts_path = tmp_path / "R_10_ts.pt"
+    ts_path = tmp_path / "RDBEAR_ts.pt"
     _trace_model(ts_path, lookback=48)
     repo = tmp_path / "models"
 
@@ -34,15 +34,15 @@ async def test_sync_symbol_torchscript_to_triton_writes_model(tmp_path):
 
     ok = await sync_symbol_torchscript_to_triton(
         _Store(),
-        "R_10",
+        "RDBEAR",
         arch="tcn",
         local_ts_path=ts_path,
         lookback=48,
         repo_path_override=repo,
     )
     assert ok is True
-    assert (repo / "R_10" / "1" / "model.pt").is_file()
-    assert (repo / "R_10" / "config.pbtxt").is_file()
+    assert (repo / "RDBEAR" / "1" / "model.pt").is_file()
+    assert (repo / "RDBEAR" / "config.pbtxt").is_file()
 
 
 @pytest.mark.asyncio
@@ -56,7 +56,7 @@ async def test_sync_symbol_download_torchscript_fails(tmp_path):
 
     ok = await sync_symbol_torchscript_to_triton(
         _Store(),
-        "R_10",
+        "RDBEAR",
         arch="tcn",
         local_ts_path=missing,
         lookback=48,
@@ -68,7 +68,7 @@ async def test_sync_symbol_download_torchscript_fails(tmp_path):
 @pytest.mark.asyncio
 async def test_sync_all_symbols_no_synced_models(tmp_path):
     orch = MagicMock()
-    orch.symbols = ["R_10"]
+    orch.symbols = ["RDBEAR"]
     orch.model_store = MagicMock()
     orch.config = {
         "deep_learning": {"arch": "tcn"},
@@ -87,7 +87,7 @@ async def test_sync_all_symbols_no_synced_models(tmp_path):
 @pytest.mark.asyncio
 async def test_sync_all_symbols_without_triton_reload(tmp_path):
     orch = MagicMock()
-    orch.symbols = ["R_10"]
+    orch.symbols = ["RDBEAR"]
     orch.model_store = MagicMock()
     orch.config = {
         "deep_learning": {"arch": "tcn"},
@@ -108,3 +108,30 @@ async def test_sync_all_symbols_without_triton_reload(tmp_path):
     ):
         await sync_all_symbols_to_triton(orch, repo_path_override=tmp_path)
     mock_reload.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_sync_all_symbols_raises_when_triton_not_ready(tmp_path):
+    orch = MagicMock()
+    orch.symbols = ["RDBEAR"]
+    orch.model_store = MagicMock()
+    orch.config = {
+        "deep_learning": {"arch": "tcn"},
+        "data_handler": {},
+        "risk_management": {"params": {}},
+        "infra": {"triton": {"enabled": True}},
+    }
+    with (
+        patch(
+            "src.infrastructure.inference.triton_model_sync.sync_symbol_torchscript_to_triton",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
+            "src.infrastructure.inference.triton_model_sync.reload_triton_repository",
+            new_callable=AsyncMock,
+            return_value=False,
+        ),
+        pytest.raises(ConnectionError, match="nao ficaram prontos"),
+    ):
+        await sync_all_symbols_to_triton(orch, repo_path_override=tmp_path)

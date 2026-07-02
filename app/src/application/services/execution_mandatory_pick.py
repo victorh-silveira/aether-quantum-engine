@@ -25,7 +25,7 @@ def _symbol_order(
 ) -> list[str]:
     """Ordena simbolos priorizando core e diversificacao apos loss."""
     eligible = [symbol for symbol in trade_symbols if symbol not in skip_symbols]
-    core = [symbol for symbol in ("R_75", "R_50") if symbol in eligible]
+    core = [symbol for symbol in ("RDBULL", "RDBEAR") if symbol in eligible]
     alt = [symbol for symbol in core if symbol != last_loss_symbol]
     if alt:
         core = alt + [symbol for symbol in core if symbol not in alt]
@@ -45,7 +45,7 @@ def _recovery_hedge_pick(
     mean_reversion_enabled: bool = True,
     low_accuracy_enabled: bool = True,
 ) -> tuple[str, TradeDirection, dict] | None:
-    """Prioriza par Range com direcao estrutural oposta ao ultimo loss."""
+    """Prioriza par Drift com direcao estrutural oposta ao ultimo loss."""
     _ = (consecutive_losses, mean_reversion_enabled, low_accuracy_enabled)
     target = recovery_hedge_target(last_loss_symbol, last_loss_direction)
     if target is None:

@@ -27,7 +27,7 @@ logger = logging.getLogger("AETH")
 _INPUT_NAME = "INPUT__0"
 _OUTPUT_NAME = "OUTPUT__0"
 _MAX_MSG = 512 * 1024 * 1024
-_INFER_TIMEOUT_SEC = 2.0
+_INFER_TIMEOUT_SEC = 0.85
 
 _pool_lock = asyncio.Lock()
 
@@ -67,6 +67,14 @@ def _attach_channel(client: Any, channel: grpc.aio.Channel) -> Any:
     client._client_stub = service_pb2_grpc.GRPCInferenceServiceStub(channel)
     client._verbose = False
     return client
+
+
+def _pack_inference_tensor(tensor: np.ndarray) -> np.ndarray:
+    """Normaliza shape e garante buffer FP32 contiguo para envio gRPC."""
+    batch = np.asarray(tensor, dtype=np.float32)
+    if batch.ndim == 2:
+        batch = batch.reshape(1, batch.shape[0], batch.shape[1])
+    return np.ascontiguousarray(batch)
 
 
 def _parse_raw_output(result: Any) -> float:
@@ -146,9 +154,7 @@ class TritonGrpcClient:
         """Executa inferencia gRPC para um simbolo com timeout rigido."""
         if self._infer is None:
             raise RuntimeError("TritonGrpcClient nao conectado")
-        batch = np.asarray(tensor, dtype=np.float32)
-        if batch.ndim == 2:
-            batch = batch.reshape(1, batch.shape[0], batch.shape[1])
+        batch = _pack_inference_tensor(tensor)
         inputs = [grpc_aio.InferInput(_INPUT_NAME, batch.shape, "FP32")]
         inputs[0].set_data_from_numpy(batch)
         outputs = [grpc_aio.InferRequestedOutput(_OUTPUT_NAME)]
@@ -159,22 +165,35 @@ class TritonGrpcClient:
             )
             return _parse_raw_output(result)
         except TimeoutError as exc:
-            raise TritonInferenceTimeout(f"Triton infer timeout {float(timeout):.1f}s for {model_name}") from exc
+            raise TritonInferenceTimeout(f"Triton infer timeout {float(timeout):.3f}s for {model_name}") from exc
         except InferenceServerException as exc:
             logger.error("TRITON: inferencia falhou para %s: %s", model_name, exc)
             raise
 
-    async def infer_symbols_concurrent(self, tensors: dict[str, np.ndarray]) -> dict[str, float]:
-        """Dispara inferencias em paralelo via asyncio.gather."""
+    async def infer_symbols_concurrent(
+        self,
+        tensors: dict[str, np.ndarray],
+        *,
+        timeout: float = _INFER_TIMEOUT_SEC,
+    ) -> dict[str, float]:
+        """Dispara inferencias em paralelo com deadline unico para o lote."""
 
         async def _one(sym: str, arr: np.ndarray) -> tuple[str, float]:
             """Executa inferencia para um par simbolo/tensor."""
-            prob = await self.infer_symbol(sym, arr)
+            prob = await self.infer_symbol(sym, arr, timeout=timeout)
             return sym, prob
 
         if not tensors:
             return {}
-        pairs = await asyncio.gather(*[_one(sym, arr) for sym, arr in tensors.items()])
+        try:
+            pairs = await asyncio.wait_for(
+                asyncio.gather(*[_one(sym, arr) for sym, arr in tensors.items()]),
+                timeout=float(timeout),
+            )
+        except TimeoutError as exc:
+            raise TritonInferenceTimeout(
+                f"Triton batch infer timeout {float(timeout):.3f}s for {len(tensors)} symbols"
+            ) from exc
         return dict(pairs)
 
 

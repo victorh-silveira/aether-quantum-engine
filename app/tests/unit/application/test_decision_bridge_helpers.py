@@ -11,7 +11,7 @@ from src.application.services.deep_learning.decision_bridge import (
     _log_retrain_batch,
     _min_dl_history_len,
 )
-from src.application.services.deep_learning.dl_bridge_helpers import build_decision_entry, resample_m1_to_m5
+from src.application.services.deep_learning.dl_bridge_helpers import build_decision_entry, resample_m1_to_m15
 from src.domain.models.trade import TradeDirection
 from tests.unit.application.dl_collect_fixtures import MockOrchestrator
 
@@ -52,7 +52,7 @@ def test_apply_deploy_gate_blocks_when_not_ok():
 def test_log_retrain_batch_empty_and_nonempty(caplog):
     _log_retrain_batch([], "bootstrap", {"training_history_bars": 5})
     with caplog.at_level(logging.DEBUG):
-        _log_retrain_batch(["R_10", "R_25"], "new_candle", {"training_history_bars": 5})
+        _log_retrain_batch(["RDBEAR", "RDBULL"], "new_candle", {"training_history_bars": 5})
     assert "retreino" in caplog.text
 
 
@@ -62,7 +62,7 @@ async def test_collect_symbol_decision_insufficient_history():
     orch.stream.get_numpy_series = MagicMock(return_value=np.array([1.0, 2.0]))
     entry, reason = await _collect_symbol_decision(
         orch,
-        "R_50",
+        "RDBULL",
         dl_config={},
         params={"training_history_bars": 32},
         min_len=10,
@@ -84,7 +84,7 @@ async def test_collect_symbol_decision_insufficient_after_slice():
     ):
         entry, reason = await _collect_symbol_decision(
             orch,
-            "R_50",
+            "RDBULL",
             dl_config={},
             params={"training_history_bars": 32, "lookback": 32, "validation_bars": 10},
             min_len=100,
@@ -98,7 +98,7 @@ async def test_collect_symbol_decision_insufficient_after_slice():
 @pytest.mark.asyncio
 async def test_collect_symbol_decision_full_path():
     prices = np.sin(np.linspace(0, 10, 90)) + 10.0
-    orch = MockOrchestrator(["R_50"], prices, train_mode=True)
+    orch = MockOrchestrator(["RDBULL"], prices, train_mode=True)
     entry = {
         "direction": TradeDirection.CALL,
         "metrics": {"execute": True, "conviction": 0.62, "trade_score": 0.62, "val_accuracy": 0.52},
@@ -138,7 +138,7 @@ async def test_collect_symbol_decision_full_path():
     ):
         out, reason = await _collect_symbol_decision(
             orch,
-            "R_50",
+            "RDBULL",
             dl_config={"deploy_gate": {"enabled": False}},
             params={"training_history_bars": 60, "lookback": 32},
             min_len=30,
@@ -150,32 +150,32 @@ async def test_collect_symbol_decision_full_path():
     mock_enqueue.assert_called_once()
 
 
-def test_resample_m1_to_m5():
+def test_resample_m1_to_m15():
     prices = np.array([1.0, 2.0])
-    res_p, res_o, res_h, res_l = resample_m1_to_m5(prices, None, None, None)
+    res_p, res_o, res_h, res_l = resample_m1_to_m15(prices, None, None, None)
     assert np.array_equal(res_p, prices)
 
-    prices = np.linspace(1.0, 10.0, 10)
-    open_val = np.linspace(1.0, 10.0, 10)
-    high_val = np.linspace(1.5, 10.5, 10)
-    low_val = np.linspace(0.5, 9.5, 10)
-    res_p, res_o, res_h, res_l = resample_m1_to_m5(prices, open_val, high_val, low_val)
+    prices = np.linspace(1.0, 30.0, 30)
+    open_val = np.linspace(1.0, 30.0, 30)
+    high_val = np.linspace(1.5, 30.5, 30)
+    low_val = np.linspace(0.5, 29.5, 30)
+    res_p, res_o, res_h, res_l = resample_m1_to_m15(prices, open_val, high_val, low_val)
     assert len(res_p) == 2
     assert len(res_o) == 2
     assert len(res_h) == 2
     assert len(res_l) == 2
-    assert res_h[0] == np.max(high_val[0:5])
-    assert res_h[1] == np.max(high_val[5:10])
+    assert res_h[0] == np.max(high_val[0:15])
+    assert res_h[1] == np.max(high_val[15:30])
 
-    res_p, res_o, res_h, res_l = resample_m1_to_m5(prices, open_val, None, None)
+    res_p, res_o, res_h, res_l = resample_m1_to_m15(prices, open_val, None, None)
     assert res_h is None
     assert res_l is None
 
 
 @pytest.mark.asyncio
-async def test_collect_symbol_decision_resamples_m1_to_m5():
-    prices = np.linspace(1.0, 10.0, 600)
-    orch = MockOrchestrator(["R_50"], prices, train_mode=True)
+async def test_collect_symbol_decision_uses_macro_buffer():
+    prices = np.linspace(1.0, 10.0, 960)
+    orch = MockOrchestrator(["RDBULL"], prices, train_mode=True)
     entry = {
         "direction": TradeDirection.CALL,
         "metrics": {"execute": True, "conviction": 0.62, "trade_score": 0.62, "val_accuracy": 0.52},
@@ -190,7 +190,7 @@ async def test_collect_symbol_decision_resamples_m1_to_m5():
         "deploy_ok": True,
         "deploy_win_rate": 0.5,
         "last_candle_epoch": 0,
-        "trained_granularity": 300,
+        "trained_granularity": 900,
     }
     with (
         patch(
@@ -213,11 +213,11 @@ async def test_collect_symbol_decision_resamples_m1_to_m5():
     ):
         out, reason = await _collect_symbol_decision(
             orch,
-            "R_50",
+            "RDBULL",
             dl_config={"deploy_gate": {"enabled": False}},
             params={"training_history_bars": 60, "lookback": 32},
             min_len=30,
-            granularity=60,
+            granularity=900,
             recovery_active=False,
         )
     assert out["direction"] == TradeDirection.CALL

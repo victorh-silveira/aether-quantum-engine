@@ -70,14 +70,14 @@ def test_run_symbol_training_forwards_progress_callback():
         return_value=None,
     ) as mock_train:
         run_symbol_training(
-            "R_50",
+            "RDBULL",
             runtime,
             prices,
             dl_config,
             params,
             100,
             orch,
-            granularity=300,
+            granularity=900,
         )
     progress_cb = mock_train.call_args.kwargs["progress_cb"]
     progress_cb(1, 2, 0.5123, 0.55)
@@ -87,14 +87,14 @@ def test_run_symbol_training_forwards_progress_callback():
         return_value=None,
     ) as mock_train_trained:
         run_symbol_training(
-            "R_50",
+            "RDBULL",
             runtime,
             prices,
             dl_config,
             params,
             100,
             orch,
-            granularity=300,
+            granularity=900,
         )
     assert "progress_cb" in mock_train_trained.call_args.kwargs
 
@@ -116,14 +116,14 @@ def test_run_symbol_training_skips_throttled_progress_logs():
         return_value=None,
     ) as mock_train:
         run_symbol_training(
-            "R_50",
+            "RDBULL",
             runtime,
             prices,
             dl_config,
             params,
             100,
             orch,
-            granularity=300,
+            granularity=900,
         )
     progress_cb = mock_train.call_args.kwargs["progress_cb"]
     with patch("src.application.services.deep_learning.dl_symbol_train.logger.log") as mock_log:
@@ -148,14 +148,14 @@ def test_run_symbol_training_when_walkforward_unavailable():
         return_value=None,
     ):
         stats, loss = run_symbol_training(
-            "R_50",
+            "RDBULL",
             runtime,
             prices,
             dl_config,
             params,
             100,
             orch,
-            granularity=300,
+            granularity=900,
         )
     assert stats is runtime["norm_stats"]
     assert loss is None
@@ -182,14 +182,14 @@ def test_run_symbol_training_clears_cuda_after_cuda_failure():
         patch("src.application.services.deep_learning.dl_symbol_train.torch.cuda.empty_cache") as mock_empty,
     ):
         run_symbol_training(
-            "R_50",
+            "RDBULL",
             runtime,
             prices,
             dl_config,
             params,
             100,
             orch,
-            granularity=300,
+            granularity=900,
         )
     mock_sync.assert_called_once()
     mock_empty.assert_called_once()
@@ -218,14 +218,14 @@ def test_run_symbol_training_cuda_cleanup_failure_is_ignored():
         ),
     ):
         run_symbol_training(
-            "R_50",
+            "RDBULL",
             runtime,
             prices,
             dl_config,
             params,
             100,
             orch,
-            granularity=300,
+            granularity=900,
         )
     assert runtime["deploy_ok"] is False
 
@@ -245,14 +245,14 @@ def test_run_symbol_training_handles_training_exception():
         side_effect=RuntimeError("fail"),
     ):
         stats, loss = run_symbol_training(
-            "R_50",
+            "RDBULL",
             runtime,
             prices,
             dl_config,
             params,
             100,
             orch,
-            granularity=300,
+            granularity=900,
         )
     assert stats is runtime["norm_stats"]
     assert loss is None

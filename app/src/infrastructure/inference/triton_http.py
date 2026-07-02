@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from typing import Any
@@ -31,9 +33,57 @@ def get_triton_model_metadata(http_base: str, model_name: str) -> dict[str, Any]
     return parsed
 
 
+def fetch_triton_health_ready(http_url: str) -> None:
+    """Valida endpoint HTTP /v2/health/ready do Triton."""
+    base = triton_http_base_url(http_url)
+    req = urllib.request.Request(f"{base}/v2/health/ready", method="GET")
+    body = read_http_response(req, timeout=2.0).decode("utf-8").strip()
+    if body and body.lower() not in ("", "ok"):
+        parsed = json.loads(body) if body.startswith("{") else {}
+        if isinstance(parsed, dict) and parsed.get("error"):
+            raise RuntimeError(f"Triton health/ready: {parsed['error']}")
+
+
+def triton_model_ready(http_base: str, model_name: str) -> bool:
+    """Retorna True quando GET /v2/models/{name}/ready responde 200."""
+    base = triton_http_base_url(http_base)
+    quoted = urllib.parse.quote(str(model_name), safe="")
+    req = urllib.request.Request(f"{base}/v2/models/{quoted}/ready", method="GET")
+    try:
+        read_http_response(req, timeout=2.0)
+        return True
+    except urllib.error.HTTPError as exc:
+        if exc.code in (404, 503):
+            return False
+        raise
+
+
+def wait_triton_models_ready(
+    http_base: str,
+    model_names: list[str],
+    *,
+    timeout_seconds: float = 25.0,
+    poll_interval_seconds: float = 0.5,
+) -> bool:
+    """Aguarda modelos ficarem prontos apos sync no repositorio em modo poll."""
+    pending = {str(name) for name in model_names if str(name)}
+    if not pending:
+        return True
+    deadline = time.monotonic() + max(0.5, float(timeout_seconds))
+    poll = max(0.1, float(poll_interval_seconds))
+    while pending and time.monotonic() < deadline:
+        for name in list(pending):
+            if triton_model_ready(http_base, name):
+                pending.discard(name)
+        if not pending:
+            return True
+        time.sleep(poll)
+    return False
+
+
 def post_triton_repository_reload(http_url: str) -> list[dict[str, str]]:
-    """Solicita rescan do model repository via API HTTP do Triton."""
-    payload = json.dumps({"action": "reload"}).encode("utf-8")
+    """Lista o indice do model repository via POST /v2/repository/index."""
+    payload = json.dumps({}).encode("utf-8")
     base = triton_http_base_url(http_url)
     req = urllib.request.Request(
         f"{base}/v2/repository/index",

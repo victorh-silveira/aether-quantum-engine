@@ -67,7 +67,7 @@ async def test_infer_symbol_async_success():
     ):
         prob = await infer_symbol_async(
             {"infra": {"triton": {"enabled": True}}},
-            "R_10",
+            "RDBEAR",
             np.zeros((1, 4, 34), dtype=np.float32),
         )
     assert prob == pytest.approx(0.44)
@@ -99,7 +99,7 @@ async def test_sync_symbol_downloads_when_missing(tmp_path):
 
     ok = await sync_symbol_torchscript_to_triton(
         Store(),
-        "R_10",
+        "RDBEAR",
         arch="tcn",
         local_ts_path=tmp_path / "missing.pt",
         lookback=48,
@@ -109,20 +109,20 @@ async def test_sync_symbol_downloads_when_missing(tmp_path):
 
 
 def test_correlation_cache_roundtrip():
-    matrix = {("R_10", "R_50"): 0.5, ("R_50", "R_10"): 0.5}
+    matrix = {("RDBEAR", "RDBULL"): 0.5, ("RDBULL", "RDBEAR"): 0.5}
     raw = correlation_matrix_to_cache(matrix)
-    assert correlation_matrix_from_cache(raw)[("R_10", "R_50")] == 0.5
+    assert correlation_matrix_from_cache(raw)[("RDBEAR", "RDBULL")] == 0.5
     assert correlation_matrix_from_cache(None) == {}
 
 
 @pytest.mark.asyncio
 async def test_read_cached_correlation_matrix():
     store = AsyncMock()
-    store.get_string.return_value = json.dumps({"R_10|R_50": 0.4})
+    store.get_string.return_value = json.dumps({"RDBEAR|RDBULL": 0.4})
     orch = MagicMock()
     orch.state_store = store
     matrix = await read_cached_correlation_matrix(orch)
-    assert matrix[("R_10", "R_50")] == 0.4
+    assert matrix[("RDBEAR", "RDBULL")] == 0.4
 
 
 @pytest.mark.asyncio
@@ -150,10 +150,10 @@ async def test_fetch_symbol_closes_and_matrix():
         new_callable=AsyncMock,
         return_value=_Pool(),
     ):
-        closes = await fetch_symbol_closes("dsn", ["R_10"], granularity=60, bars=3)
-        matrix = await fetch_correlation_matrix("dsn", ["R_10", "R_50"], granularity=60, bars=3)
-    assert "R_10" in closes
-    assert ("R_10", "R_50") in matrix
+        closes = await fetch_symbol_closes("dsn", ["RDBEAR"], granularity=60, bars=3)
+        matrix = await fetch_correlation_matrix("dsn", ["RDBEAR", "RDBULL"], granularity=60, bars=3)
+    assert "RDBEAR" in closes
+    assert ("RDBEAR", "RDBULL") in matrix
 
 
 @pytest.mark.asyncio
@@ -164,12 +164,12 @@ async def test_refresh_correlation_cache_enabled():
         "infra": {"timescale": {"dsn": "postgresql://x"}, "triton": {"correlation_bars": 10}},
         "data_handler": {"granularity": 60},
     }
-    orch.symbols = ["R_10", "R_50"]
+    orch.symbols = ["RDBEAR", "RDBULL"]
     orch.state_store = AsyncMock()
     with patch(
         "src.infrastructure.market.timescale_correlation_worker.fetch_correlation_matrix",
         new_callable=AsyncMock,
-        return_value={("R_10", "R_50"): 0.2},
+        return_value={("RDBEAR", "RDBULL"): 0.2},
     ):
         await refresh_correlation_cache(orch)
     orch.state_store.set_string.assert_awaited()
@@ -210,13 +210,13 @@ async def test_infer_symbol_async_error():
         ),
         pytest.raises(InferenceServerException),
     ):
-        await infer_symbol_async({"infra": {"triton": {}}}, "R_10", np.zeros((1, 4, 34), dtype=np.float32))
+        await infer_symbol_async({"infra": {"triton": {}}}, "RDBEAR", np.zeros((1, 4, 34), dtype=np.float32))
 
 
 @pytest.mark.asyncio
 async def test_sync_all_symbols_with_store(tmp_path):
     orch = MagicMock()
-    orch.symbols = ["R_10"]
+    orch.symbols = ["RDBEAR"]
     orch.model_store = MagicMock()
     orch.config = {
         "deep_learning": {"arch": "tcn", "model_path_template": "data/dl/{symbol}.pth"},
@@ -248,7 +248,7 @@ async def test_sync_symbol_returns_false_without_file_or_download():
 
     ok = await sync_symbol_torchscript_to_triton(
         Store(),
-        "R_10",
+        "RDBEAR",
         arch="tcn",
         local_ts_path=Path("missing.pt"),
         lookback=48,

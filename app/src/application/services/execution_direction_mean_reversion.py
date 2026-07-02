@@ -47,6 +47,8 @@ def apply_contraction_mean_reversion_flip(
     indicators = metrics.get("indicators") or {}
     if not isinstance(indicators, dict):
         return exec_dir, hints
+    if metrics.get("compression_trap_inverted"):
+        return exec_dir, hints
     flipped = _contraction_flip_target(dl_dir, indicators, exec_cfg=exec_cfg)
     if flipped is None:
         return exec_dir, hints

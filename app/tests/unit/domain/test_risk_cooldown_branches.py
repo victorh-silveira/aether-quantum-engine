@@ -115,7 +115,7 @@ def test_stake_block_reason_stop_win():
     rm = RiskManager({"small_account_stop_win": 5.0, "small_account_threshold": 100.0, "params": {"stake_min": 1.0}})
     rm.set_initial_bankroll(50.0)
     rm.total_session_profit = 10.0
-    assert rm.stake_block_reason(50.0, "R_50") == "stop_win"
+    assert rm.stake_block_reason(50.0, "RDBULL") == "stop_win"
 
 
 def test_arm_cooldown_timer_no_op():
@@ -141,12 +141,12 @@ def test_stake_block_reason_stop_win_with_persisted_target():
     rm.set_initial_bankroll(1000.0)
     rm.daily_stop_win_target = 10.0
     rm.total_session_profit = 11.0
-    assert rm.stake_block_reason(1000.0, "R_50", conviction=0.6) == "stop_win"
+    assert rm.stake_block_reason(1000.0, "RDBULL", conviction=0.6) == "stop_win"
 
 
-def test_risk_manager_reset_daily_session_alias():
-    rm = RiskManager({"params": {}, "kelly": {}})
-    rm.reset_daily_session(500.0, target=5.0, max_loss=1.0)
+def test_risk_manager_reset_session():
+    rm = RiskManager({"params": {}, "kelly": {}, "dlambert": {}})
+    rm.reset_session(500.0, target=5.0)
     assert rm.initial_bankroll == 500.0
     assert rm.daily_stop_win_target == 5.0
 
@@ -159,7 +159,7 @@ def test_stake_block_reason_kelly_no_edge():
         }
     )
     rm.set_initial_bankroll(100.0)
-    assert rm.stake_block_reason(100.0, "R_50", conviction=0.05) == "kelly_no_edge"
+    assert rm.stake_block_reason(100.0, "RDBULL", conviction=0.05) == "kelly_no_edge"
 
 
 def test_cooldown_mono_expiry_fallback_no_op():
@@ -182,7 +182,7 @@ def test_is_on_cooldown_expired_mono_timer_no_op():
 
 def test_risk_manager_missing_coverage():
     rm = RiskManager({"params": {"stake_min": 1.0}})
-    rm.reset_daily_session(500.0)
+    rm.reset_session(500.0)
     assert rm.initial_bankroll == 500.0
     assert rm.total_session_profit == 0.0
 

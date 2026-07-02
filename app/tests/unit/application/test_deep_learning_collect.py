@@ -72,7 +72,7 @@ def test_parse_dl_params():
     assert full["inference_history_bars"] >= full["lookback"] + 16
     explicit = parse_dl_params(
         {"lookback": 30, "training_history_bars": 500, "inference_history_bars": 80},
-        {"granularity": 300},
+        {"granularity": 900},
         {},
     )
     assert explicit["inference_history_bars"] == 80
@@ -83,7 +83,7 @@ def test_parse_dl_params():
 
 def test_recovery_gating_active_when_pending_loss():
     orch = MagicMock()
-    orch.risk_manager.pending_loss = {"R_50": 100.92}
+    orch.risk_manager.pending_loss = {"RDBULL": 100.92}
     assert recovery_gating_active(orch) is True
     orch.risk_manager.pending_loss = {}
     assert recovery_gating_active(orch) is False
@@ -92,8 +92,8 @@ def test_recovery_gating_active_when_pending_loss():
 def test_resolve_dl_model_path_legacy():
     path = resolve_dl_model_path({"model_path": "data/legacy_model.pth"}, "X")
     assert path.name == "legacy_model.pth"
-    templated = resolve_dl_model_path({"model_path_template": "data/dl/{symbol}.pth"}, "R_50")
-    assert templated.name == "R_50.pth"
+    templated = resolve_dl_model_path({"model_path_template": "data/dl/{symbol}.pth"}, "RDBULL")
+    assert templated.name == "RDBULL.pth"
 
 
 def test_predict_symbol_decision_executes_on_confidence():
@@ -117,7 +117,7 @@ def test_predict_symbol_decision_executes_on_confidence():
         orch = type("O", (), {"config": {"deep_learning": {}}})()
         entry = predict_symbol_decision(
             orch,
-            "R_50",
+            "RDBULL",
             MarketDirectionClassifier(input_dim=INPUT_DIM),
             np.zeros(80),
             fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32)),

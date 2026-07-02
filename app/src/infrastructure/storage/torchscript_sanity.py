@@ -10,7 +10,12 @@ import numpy as np
 import torch
 
 from src.infrastructure.inference.triton_grpc_client import get_triton_grpc_client
-from src.infrastructure.inference.triton_inference_client import triton_grpc_url
+from src.infrastructure.inference.triton_http import fetch_triton_health_ready
+from src.infrastructure.inference.triton_inference_client import (
+    triton_enabled,
+    triton_grpc_url,
+    triton_http_url,
+)
 from src.infrastructure.inference.triton_model_metadata import (
     fetch_triton_model_metadata_async,
     parse_triton_input_dims,
@@ -113,6 +118,36 @@ def assert_triton_probability(value: float, *, model_name: str) -> float:
     if prob < 0.0 or prob > 1.0:
         raise RuntimeError(f"Triton model={model_name} probabilidade={prob} fora de [0,1]")
     return prob
+
+
+async def verify_triton_healthcheck_async(config: dict) -> None:
+    """Ping leve HTTP/gRPC do Triton sem inferencia estressada na GPU."""
+    if not triton_enabled(config):
+        return
+    await asyncio.to_thread(fetch_triton_health_ready, triton_http_url(config))
+    client = await get_triton_grpc_client(triton_grpc_url(config))
+    infer = getattr(client, "_infer", None)
+    if infer is None:
+        raise RuntimeError("Triton gRPC indisponivel")
+    ready_fn = getattr(infer, "is_server_ready", None)
+    if not callable(ready_fn):
+        return
+    ready = await asyncio.wait_for(ready_fn(), timeout=2.0)
+    if not ready:
+        raise RuntimeError("Triton gRPC nao ready")
+
+
+async def verify_torchscript_artifact_light_async(
+    path: Path,
+    *,
+    lookback: int,
+    feature_dim: int,
+    manifest: dict[str, Any] | None = None,
+) -> None:
+    """Valida presenca do artefato e schema do manifest sem probes de estresse."""
+    if not path.is_file():
+        raise RuntimeError(f"TorchScript ausente: {path}")
+    validate_manifest_schema(manifest, lookback=lookback, feature_dim=feature_dim)
 
 
 async def verify_triton_stressed_inference_async(

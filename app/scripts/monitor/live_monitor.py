@@ -38,7 +38,7 @@ logging.basicConfig(level=logging.ERROR, filename=str(repo_path("logs", "monitor
 logger = logging.getLogger("MONITOR")
 
 _EXEC_SEL_RE = re.compile(
-    r"EXEC_SEL\s*\|\s*(?P<symbol>R_\d+)\s+ord=(?P<ord>CALL|PUT)\s+dl=(?P<dl>CALL|PUT)\s+s=(?P<score>[\d.]+)",
+    r"EXEC_SEL\s*\|\s*(?P<symbol>RDBEAR|RDBULL)\s+ord=(?P<ord>CALL|PUT)\s+dl=(?P<dl>CALL|PUT)\s+s=(?P<score>[\d.]+)",
     re.IGNORECASE,
 )
 _SESSION_START_RE = re.compile(r"Alvo de 1%:\s*\$([\d,]+\.?\d*)", re.IGNORECASE)

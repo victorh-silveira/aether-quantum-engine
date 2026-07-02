@@ -3,6 +3,13 @@ from unittest.mock import MagicMock
 from src.domain.risk.risk_stake_calc import calculate_stake_for_manager
 
 
+def _attach_dlambert(rm, kelly_config):
+    rm.dlambert_config = kelly_config.get("dlambert", {})
+    rm.consecutive_losses_linear = 0
+    rm.dlambert_unit = 0.0
+    return rm
+
+
 def test_calculate_stake_stop_win_kelly_boosts_from_raw_when_score_zero(kelly_config):
     rm = MagicMock()
     rm.config = {
@@ -33,11 +40,12 @@ def test_calculate_stake_stop_win_kelly_boosts_from_raw_when_score_zero(kelly_co
     rm.active_contract_ids = []
     rm.logger = MagicMock()
     rm.effective_win_rate = MagicMock(return_value=0.55)
-    rm._martingale_allowed = MagicMock(return_value=False)
+    _attach_dlambert(rm, kelly_config)
+    rm._recovery_allowed = MagicMock(return_value=False)
     stake = calculate_stake_for_manager(
         rm,
         10000.0,
-        "R_100",
+        "RDBULL",
         0.0,
         silent=True,
         apply_stop_win=True,
@@ -47,10 +55,9 @@ def test_calculate_stake_stop_win_kelly_boosts_from_raw_when_score_zero(kelly_co
         },
     )
     assert stake > 20.0
-    assert stake <= 10000.0 * 0.006 + 0.02
 
 
-def test_calculate_stake_martingale_recovers_full_pending(kelly_config):
+def test_calculate_stake_dlambert_recovery_adds_linear_unit(kelly_config):
     rm = MagicMock()
     rm.config = kelly_config
     rm.kelly_config = kelly_config["kelly"]
@@ -58,16 +65,19 @@ def test_calculate_stake_martingale_recovers_full_pending(kelly_config):
     rm.stake_max = 12000.0
     rm.initial_bankroll = 10000.0
     rm.total_session_profit = 0.0
-    rm.pending_loss = {"R_50": 200.0}
+    rm.pending_loss = {"RDBULL": 200.0}
     rm.active_contract_ids = []
     rm.last_loss_stake = 50.0
     rm.logger = MagicMock()
     rm.effective_win_rate = MagicMock(return_value=0.55)
-    rm._martingale_allowed = MagicMock(return_value=True)
+    _attach_dlambert(rm, kelly_config)
+    rm.dlambert_unit = 30.0
+    rm.consecutive_losses_linear = 2
+    rm._recovery_allowed = MagicMock(return_value=True)
     stake = calculate_stake_for_manager(
         rm,
         10000.0,
-        "R_75",
+        "RDBEAR",
         0.0,
         silent=True,
         apply_stop_win=True,
@@ -81,10 +91,10 @@ def test_calculate_stake_martingale_recovers_full_pending(kelly_config):
             },
         },
     )
-    assert stake > 200.0
+    assert stake > 50.0
 
 
-def test_calculate_stake_mandatory_weak_boost_capped(kelly_config):
+def test_calculate_stake_mandatory_weak_boost_unlimited(kelly_config):
     rm = MagicMock()
     rm.config = {
         **kelly_config,
@@ -116,11 +126,12 @@ def test_calculate_stake_mandatory_weak_boost_capped(kelly_config):
     rm.active_contract_ids = []
     rm.logger = MagicMock()
     rm.effective_win_rate = MagicMock(return_value=0.55)
-    rm._martingale_allowed = MagicMock(return_value=False)
+    _attach_dlambert(rm, kelly_config)
+    rm._recovery_allowed = MagicMock(return_value=False)
     stake = calculate_stake_for_manager(
         rm,
         10000.0,
-        "R_25",
+        "RDBEAR",
         0.50,
         silent=True,
         apply_stop_win=True,
@@ -130,7 +141,6 @@ def test_calculate_stake_mandatory_weak_boost_capped(kelly_config):
         },
     )
     assert stake > 20.0
-    assert stake <= 10000.0 * 0.006 + 0.02
 
 
 def test_calculate_stake_stop_win_kelly_boosts_when_dl_approved(kelly_config):
@@ -158,11 +168,12 @@ def test_calculate_stake_stop_win_kelly_boosts_when_dl_approved(kelly_config):
     rm.active_contract_ids = []
     rm.logger = MagicMock()
     rm.effective_win_rate = MagicMock(return_value=0.55)
-    rm._martingale_allowed = MagicMock(return_value=False)
+    _attach_dlambert(rm, kelly_config)
+    rm._recovery_allowed = MagicMock(return_value=False)
     stake = calculate_stake_for_manager(
         rm,
         1168.0,
-        "R_10",
+        "RDBEAR",
         0.55,
         silent=True,
         apply_stop_win=True,
@@ -196,11 +207,12 @@ def test_calculate_stake_stop_win_kelly_silent_skips_boost_log(kelly_config):
     rm.active_contract_ids = []
     rm.logger = MagicMock()
     rm.effective_win_rate = MagicMock(return_value=0.55)
-    rm._martingale_allowed = MagicMock(return_value=False)
+    _attach_dlambert(rm, kelly_config)
+    rm._recovery_allowed = MagicMock(return_value=False)
     calculate_stake_for_manager(
         rm,
         1168.0,
-        "R_75",
+        "RDBEAR",
         0.50,
         silent=True,
         apply_stop_win=True,

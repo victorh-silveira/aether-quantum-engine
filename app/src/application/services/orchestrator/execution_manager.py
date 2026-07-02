@@ -121,7 +121,11 @@ class ExecutionManager:
                 await asyncio.sleep(inter_delay)
             try:
                 custom_dur = metrics.get("duration")
-                res = await self._place_order(symbol, direction, stake, duration=custom_dur, metrics=metrics)
+                if custom_dur is None:
+                    risk_params = self.orch.config.get("risk_management", {}).get("params", {})
+                    custom_dur = int(risk_params.get("duration", 60))
+                order_metrics = {**metrics, "duration": int(custom_dur)}
+                res = await self._place_order(symbol, direction, stake, duration=custom_dur, metrics=order_metrics)
                 if res:
                     self.orch.risk_manager.record_contract_stake(int(res.contract_id), stake)
                     self.orch.risk_manager.active_contract_ids.append(res.contract_id)
@@ -131,7 +135,7 @@ class ExecutionManager:
                         symbol,
                         direction,
                         stake,
-                        metrics,
+                        order_metrics,
                         order_n=order_n,
                         contract_id=int(res.contract_id),
                     )

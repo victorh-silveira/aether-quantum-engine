@@ -115,6 +115,7 @@ def prepare_orchestrator_run_loop(orch: Any) -> None:
     """Inicializa estado do loop principal apos streams e banner de decisao."""
     orch._last_cluster_cycle_end = time.time()
     orch.running = True
+    orch._trading_slot_poll_task = None
     orch._dl_bootstrap_completed = prepare_inference_run_loop(orch)
     mode = resolve_decision_mode(orch.config)
     emit_decision_engine_banner(orch.logger, orch.config, decision_mode=mode)
@@ -129,13 +130,12 @@ def prepare_orchestrator_run_loop(orch: Any) -> None:
 
 
 async def acquire_trading_cycle_lock(orch: Any) -> bool:
-    """Reserva o slot de ciclo ativo; False se outro ciclo ja esta em andamento."""
-    async with orch.lock:
-        if _stop_win_blocks_cycle(orch):
-            return False
-        if orch.is_trading:
-            return False
-        orch.is_trading = True
+    """Reserva o slot de ciclo ativo sem lock bloqueante (cooperativo asyncio)."""
+    if _stop_win_blocks_cycle(orch):
+        return False
+    if orch.is_trading:
+        return False
+    orch.is_trading = True
     return True
 
 

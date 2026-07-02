@@ -9,6 +9,7 @@ from src.application.services.execution_direction import (
 )
 from src.application.services.execution_mandatory_pick import pick_best_mandatory_candidate
 from src.application.services.execution_market_rank import build_market_execution_candidate
+from src.application.services.execution_universal_regime_gate import regime_skip_blocks_trade
 from src.domain.models.trade import TradeDirection
 
 
@@ -39,10 +40,10 @@ def _symbol_priority(
     skip_symbols: frozenset[str] | None = None,
     recovery_core_only: bool = False,
 ) -> list[str]:
-    """Ordena simbolos priorizando R_75 e R_50 e evitando repetir o ultimo loss."""
+    """Ordena simbolos priorizando RDBULL e RDBEAR e evitando repetir o ultimo loss."""
     skip = skip_symbols or frozenset()
     eligible = [symbol for symbol in symbols if symbol not in skip]
-    core_order = ("R_75", "R_50")
+    core_order = ("RDBULL", "RDBEAR")
     core = [symbol for symbol in core_order if symbol in eligible]
     alt = [symbol for symbol in core if symbol != last_loss_symbol]
     if alt:
@@ -123,7 +124,7 @@ def _scored_fallback_pick(
         )
         if candidate is None:
             candidate = build_execution_candidate(symbol, entry)
-        if candidate is None or score < best_score:
+        if candidate is None or regime_skip_blocks_trade(candidate[2]) or score < best_score:
             continue
         best_score = score
         best = candidate
@@ -166,7 +167,7 @@ def _last_resort_fallback_pick(
         )
         if candidate is None:
             candidate = build_execution_candidate(symbol, entry, recovery_active=recovery_active)
-        if candidate is None:
+        if candidate is None or regime_skip_blocks_trade(candidate[2]):
             continue
         return candidate
     return None

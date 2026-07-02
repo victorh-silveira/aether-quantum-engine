@@ -16,11 +16,13 @@ from src.application.services.orchestrator.execution_manager import ExecutionMan
 from src.application.services.orchestrator.graceful_shutdown import close_infrastructure_connections
 from src.application.services.orchestrator.orchestrator_run_loop import (
     get_data_state_signature,
+    run_orchestrator_main_loop,
     save_full_state,
     setup_session,
     start_streams,
     subscribe_transactions,
 )
+from src.application.services.orchestrator.orchestrator_settlement_queue import enqueue_contract_settlement
 from src.application.services.orchestrator.orchestrator_state_restore import bar_epoch_already_processed
 from src.application.services.orchestrator.post_settlement_cycle import (
     post_settlement_cycle_pending,
@@ -28,14 +30,8 @@ from src.application.services.orchestrator.post_settlement_cycle import (
     schedule_trading_cycle_after_settlement,
 )
 from src.application.services.orchestrator.settlement_backfill import reconcile_single_contract
-from src.application.services.orchestrator.settlement_logic import process_contract_settlement
-from src.application.services.orchestrator.settlement_reconciliation import reconcile_after_ws_recovery
-from src.application.services.orchestrator.trading_cycle_entry import (
-    prepare_orchestrator_run_loop,
-    run_trading_cycle_if_ready,
-)
+from src.application.services.orchestrator.trading_cycle_entry import run_trading_cycle_if_ready
 from src.application.services.orchestrator.training_run import run_orchestrator_training
-from src.application.services.orchestrator.watchdog_service import start_ingestion_watchdog
 from src.application.services.strategy.decision_mode import resolve_decision_mode
 from src.domain.risk.risk_manager import RiskManager
 from src.infrastructure.api.websocket_manager import WebSocketManager
@@ -71,14 +67,15 @@ class Orchestrator:
         )
         self.trade_handler = TradeHandler(self.ws, config)
         self.risk_manager = RiskManager(config["risk_management"])
-        gran = int(config.get("data_handler", {}).get("granularity", 900))
+        gran = int(config.get("data_handler", {}).get("micro_granularity", 60))
         self.risk_manager.set_candle_interval_seconds(gran)
         self.state = TradingState()
         self.persistence = JsonStateStore() if not self.infra.enabled else PersistenceManager()
         self.state_mgr = StateManager()
         self.logger = logging.getLogger("AETH")
         self.executor = ExecutionManager(self)
-        self.tick_count, self.running, self.is_trading, self.lock = 0, False, False, asyncio.Lock()
+        self.tick_count, self.running, self.is_trading, self.lock = 0, False, False, None
+        self._settlement_queue, self._settlement_worker_task, self._trading_slot_poll_task = None, None, None
         self.shutdown_reason: str | None = None
         self._cluster_results: list = []
         self._last_epoch = 0
@@ -91,8 +88,7 @@ class Orchestrator:
         self._active_cycle_id = 0
         self._contract_cycle: dict[int, int] = {}
         self._last_result_cycle_id = 0
-        self._session_wins = 0
-        self._session_losses = 0
+        self._session_wins, self._session_losses = 0, 0
         self._stream_ready_at: float | None = None
         self._recovery_skip_counter = 0
         self._reconciliation_pending = False
@@ -104,7 +100,9 @@ class Orchestrator:
         self._last_idle_watchdog_attempt = 0.0
         self.last_data_signature = ""
         self._stream_ready_mono = 0.0
+        self._is_initial_boot = True
         self._ingestion_watchdog = None
+        self._profit_table_audit_task: asyncio.Task | None = None
 
     def get_data_state_signature(self) -> str:
         """Calcula uma assinatura unica do estado dos dados de mercado."""
@@ -124,43 +122,7 @@ class Orchestrator:
 
     async def run(self):
         """Loop principal: reconexao, persistencia e ciclos por intervalo."""
-        if not await self._setup_session():
-            self.logger.error("INIT: Abortando motor (falha em PAT, OTP ou WebSocket).")
-            return
-        if not await self._start_streams():
-            self.logger.error("INIT: Abortando motor (falha ao sincronizar velas OHLC).")
-            return
-        prepare_orchestrator_run_loop(self)
-        await start_ingestion_watchdog(self)
-        await self._run_trading_cycle_if_ready()
-        reconcile_counter = 0
-        orch_cfg = self.config.get("orchestrator") if isinstance(self.config.get("orchestrator"), dict) else {}
-        reconnect_delay = float(orch_cfg.get("ws_reconnect_delay_seconds", 8.0))
-        while self.running:
-            await self._tick_idle_cycle_watchdog()
-            await self._tick_interval_cycle_if_due()
-            current_signature = self.get_data_state_signature()
-            if current_signature and current_signature == self.last_data_signature and self.ws.is_running:
-                await asyncio.sleep(0.1)  # pragma: no cover
-                continue  # pragma: no cover
-            await asyncio.sleep(1)
-            if not self.ws.is_running:
-                if await self._setup_session() and await self._start_streams():
-                    self.logger.info("RECOV: WebSocket restaurado.")
-                    await reconcile_after_ws_recovery(self)
-                    reconnect_delay = float(orch_cfg.get("ws_reconnect_delay_seconds", 8.0))
-                else:
-                    self.logger.warning("RECOV: broker indisponivel; nova tentativa em %.0fs.", reconnect_delay)
-                    await asyncio.sleep(reconnect_delay)
-                    reconnect_delay = min(reconnect_delay * 1.5, 60.0)
-                continue
-            reconcile_counter += 1
-            await self._save_full_state()
-            if reconcile_counter >= self.config["orchestrator"].get("reconcile_interval_seconds", 60):
-                if self.state.active_contracts:
-                    await self.executor.reconcile()
-                reconcile_counter = 0
-            await self._run_trading_cycle_if_ready()
+        await run_orchestrator_main_loop(self)
 
     async def _tick_idle_cycle_watchdog(self) -> None:
         """Verifica ociosidade e dispara ciclo quando necessario."""
@@ -264,8 +226,8 @@ class Orchestrator:
         await reconcile_single_contract(self, c_id)
 
     async def _on_contract_update(self, data):
-        """Processa liquidacao de contrato delegando para o settlement_logic."""
-        await process_contract_settlement(self, data)
+        """Enfileira liquidacao de contrato sem bloquear o loop principal."""
+        await enqueue_contract_settlement(self, data)
 
     async def _save_full_state(self):
         """Persiste o snapshot completo do orquestrador."""

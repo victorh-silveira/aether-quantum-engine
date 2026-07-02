@@ -10,6 +10,7 @@ from src.infrastructure.storage.torchscript_sanity import (
     validate_manifest_schema,
     verify_torchscript_artifact,
     verify_torchscript_artifact_async,
+    verify_torchscript_artifact_light_async,
     verify_triton_stressed_inference_async,
 )
 from src.infrastructure.storage.torchscript_sanity_probes import build_sanity_probe_tensors
@@ -62,7 +63,7 @@ def test_validate_manifest_schema_norm_std_length():
 
 def test_assert_triton_probability_rejects_inf():
     with pytest.raises(RuntimeError, match="NaN"):
-        assert_triton_probability(float("inf"), model_name="R_50")
+        assert_triton_probability(float("inf"), model_name="RDBULL")
 
 
 @pytest.mark.asyncio
@@ -82,19 +83,19 @@ async def test_verify_triton_stressed_inference_missing_response():
         ),
         pytest.raises(RuntimeError, match="sem resposta"),
     ):
-        await verify_triton_stressed_inference_async(cfg, ["R_10"], lookback=48, feature_dim=FEATURE_DIM)
+        await verify_triton_stressed_inference_async(cfg, ["RDBEAR"], lookback=48, feature_dim=FEATURE_DIM)
 
 
 @pytest.mark.asyncio
 async def test_verify_triton_stressed_inference_async():
     cfg = {"infra": {"triton": {"enabled": True, "grpc_url": "localhost:8001"}}}
     mock_client = MagicMock()
-    mock_client.infer_symbols_concurrent = AsyncMock(return_value={"R_10": 0.55})
+    mock_client.infer_symbols_concurrent = AsyncMock(return_value={"RDBEAR": 0.55})
     with patch(
         "src.infrastructure.storage.torchscript_sanity.get_triton_grpc_client",
         AsyncMock(return_value=mock_client),
     ):
-        await verify_triton_stressed_inference_async(cfg, ["R_10"], lookback=48, feature_dim=FEATURE_DIM)
+        await verify_triton_stressed_inference_async(cfg, ["RDBEAR"], lookback=48, feature_dim=FEATURE_DIM)
     mock_client.infer_symbols_concurrent.assert_awaited_once()
 
 
@@ -102,7 +103,7 @@ async def test_verify_triton_stressed_inference_async():
 async def test_verify_triton_stressed_inference_fail_fast_on_oob():
     cfg = {"infra": {"triton": {"enabled": True, "grpc_url": "localhost:8001"}}}
     mock_client = MagicMock()
-    mock_client.infer_symbols_concurrent = AsyncMock(return_value={"R_10": 1.2})
+    mock_client.infer_symbols_concurrent = AsyncMock(return_value={"RDBEAR": 1.2})
     with (
         patch(
             "src.infrastructure.storage.torchscript_sanity.get_triton_grpc_client",
@@ -110,7 +111,7 @@ async def test_verify_triton_stressed_inference_fail_fast_on_oob():
         ),
         pytest.raises(RuntimeError, match="fora"),
     ):
-        await verify_triton_stressed_inference_async(cfg, ["R_10"], lookback=48, feature_dim=FEATURE_DIM)
+        await verify_triton_stressed_inference_async(cfg, ["RDBEAR"], lookback=48, feature_dim=FEATURE_DIM)
 
 
 @pytest.mark.asyncio
@@ -216,3 +217,26 @@ def test_verify_torchscript_with_valid_manifest(tmp_path):
         feature_dim=FEATURE_DIM,
         manifest=manifest,
     )
+
+
+@pytest.mark.asyncio
+async def test_verify_torchscript_artifact_light_async(tmp_path):
+    path = tmp_path / "light_ts.pt"
+    path.write_bytes(b"ts")
+    manifest = {"feature_dim": FEATURE_DIM, "lookback": 48}
+    await verify_torchscript_artifact_light_async(
+        path,
+        lookback=48,
+        feature_dim=FEATURE_DIM,
+        manifest=manifest,
+    )
+
+
+@pytest.mark.asyncio
+async def test_verify_torchscript_artifact_light_missing_file(tmp_path):
+    with pytest.raises(RuntimeError, match="ausente"):
+        await verify_torchscript_artifact_light_async(
+            tmp_path / "missing.pt",
+            lookback=48,
+            feature_dim=FEATURE_DIM,
+        )

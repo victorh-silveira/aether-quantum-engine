@@ -9,6 +9,7 @@ import torch
 
 from src.application.services.deep_learning import dl_device
 from src.application.services.orchestrator.execution_manager import ExecutionManager
+from src.infrastructure.market.timescale_correlation_worker import stop_correlation_worker
 from src.infrastructure.state.trading_state import TradingState
 
 
@@ -60,6 +61,7 @@ def noop_background_settlement_watch(request):
 async def cancel_leftover_async_tasks():
     """Cancela tasks asyncio orfas (ex.: settlement watch) ao final de cada teste."""
     yield
+    stop_correlation_worker()
     current = asyncio.current_task()
     pending = [task for task in asyncio.all_tasks() if task is not current and not task.done()]
     for task in pending:

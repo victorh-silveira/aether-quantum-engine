@@ -6,8 +6,15 @@ POST_SETTLEMENT_MODULE = "src.application.services.orchestrator.post_settlement_
 SETTLEMENT_MODULE = "src.application.services.orchestrator.execution_settlement"
 
 
+async def _yield_to_event_loop() -> None:
+    loop = asyncio.get_running_loop()
+    done = loop.create_future()
+    done.set_result(None)
+    await done
+
+
 async def instant_poll_delay(_seconds: float) -> None:
-    await asyncio.sleep(0)
+    await _yield_to_event_loop()
 
 
 def poll_delay_stop_after(orch, max_calls: int):
@@ -17,7 +24,7 @@ def poll_delay_stop_after(orch, max_calls: int):
         state["n"] += 1
         if state["n"] >= max_calls:
             orch.running = False
-        await asyncio.sleep(0)
+        await _yield_to_event_loop()
 
     return delay
 
@@ -27,11 +34,22 @@ def settlement_poll_clear_after(max_calls: int, risk_manager):
 
     async def delay(_seconds: float) -> None:
         state["n"] += 1
-        await asyncio.sleep(0)
+        await _yield_to_event_loop()
         if state["n"] >= max_calls:
             risk_manager.active_contract_ids = []
 
     return delay
+
+
+def patch_incrementing_monotonic(step: float = 0.02):
+    state = {"t": 0.0}
+
+    def monotonic() -> float:
+        value = state["t"]
+        state["t"] += step
+        return value
+
+    return patch(f"{POST_SETTLEMENT_MODULE}.time.monotonic", side_effect=monotonic)
 
 
 def patch_instant_post_settlement_poll():

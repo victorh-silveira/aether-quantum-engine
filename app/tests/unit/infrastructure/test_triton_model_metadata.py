@@ -16,7 +16,7 @@ from src.infrastructure.storage.torchscript_sanity import (
 
 def test_parse_triton_input_dims_from_http_payload():
     payload = {
-        "name": "R_10",
+        "name": "RDBEAR",
         "inputs": [{"name": "INPUT__0", "datatype": "FP32", "shape": [-1, 48, 34]}],
     }
     feature_dim, lookback = parse_triton_input_dims(payload)
@@ -47,7 +47,7 @@ def test_assert_triton_host_schema_aligned_ok():
         payload,
         host_feature_dim=FEATURE_DIM,
         host_lookback=48,
-        model_name="R_10",
+        model_name="RDBEAR",
     )
 
 
@@ -58,7 +58,7 @@ def test_assert_triton_host_schema_aligned_feature_dim_mismatch():
             payload,
             host_feature_dim=FEATURE_DIM,
             host_lookback=48,
-            model_name="R_10",
+            model_name="RDBEAR",
         )
 
 
@@ -69,7 +69,7 @@ def test_assert_triton_host_schema_aligned_lookback_mismatch():
             payload,
             host_feature_dim=FEATURE_DIM,
             host_lookback=48,
-            model_name="R_10",
+            model_name="RDBEAR",
         )
 
 
@@ -83,17 +83,17 @@ async def test_verify_triton_schema_alignment_async():
     ) as fetch:
         await verify_triton_schema_alignment_async(
             cfg,
-            "R_10",
+            "RDBEAR",
             host_feature_dim=FEATURE_DIM,
             host_lookback=48,
         )
-    fetch.assert_awaited_once_with(cfg, "R_10")
+    fetch.assert_awaited_once_with(cfg, "RDBEAR")
 
 
 @pytest.mark.asyncio
 async def test_fetch_triton_model_metadata_async_disabled():
     with pytest.raises(RuntimeError, match="desabilitado"):
-        await fetch_triton_model_metadata_async({"infra": {"triton": {"enabled": False}}}, "R_10")
+        await fetch_triton_model_metadata_async({"infra": {"triton": {"enabled": False}}}, "RDBEAR")
 
 
 @pytest.mark.asyncio
@@ -104,9 +104,9 @@ async def test_fetch_triton_model_metadata_async_enabled():
         "src.infrastructure.inference.triton_model_metadata.get_triton_model_metadata",
         return_value=payload,
     ) as fetch:
-        out = await fetch_triton_model_metadata_async(cfg, "R_10")
+        out = await fetch_triton_model_metadata_async(cfg, "RDBEAR")
     assert out == payload
-    fetch.assert_called_once_with("http://localhost:8000", "R_10")
+    fetch.assert_called_once_with("http://localhost:8000", "RDBEAR")
 
 
 def test_triton_http_url_default(monkeypatch):

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+import urllib.error
 from typing import TYPE_CHECKING
 
 from src.application.services.deep_learning.dl_model_artifacts import bootstrap_and_validate_models
@@ -40,9 +41,10 @@ async def subscribe_account_transactions(orch: Orchestrator) -> None:
 
 async def setup_trading_session(orch: Orchestrator) -> bool:
     """Conecta WebSocket via OTP PAT e prepara saldo e transacoes."""
+    initial_boot = bool(getattr(orch, "_is_initial_boot", True))
     try:
         await validate_infra_services(orch.infra, orch.config)
-        await bootstrap_and_validate_models(orch)
+        await bootstrap_and_validate_models(orch, is_initial_boot=initial_boot)
         await restore_orchestrator_state(orch)
         if orch.ws.ws:
             await orch.ws.close()
@@ -71,9 +73,13 @@ async def setup_trading_session(orch: Orchestrator) -> bool:
             session.account_id,
             orch.state.balance,
         )
+        orch._is_initial_boot = False
         return True
     except DerivRestError as e:
         orch.logger.error("INIT: Deriv REST falhou: %s", e)
+        return False
+    except urllib.error.HTTPError as e:
+        orch.logger.error("INIT: HTTP %s em %s", e.code, e.url)
         return False
     except (ConnectionError, TimeoutError, OSError) as e:
         detalhe = str(e).strip() or repr(e)
@@ -115,7 +121,8 @@ async def start_orchestrator_streams(orch: Orchestrator) -> bool:
                 orch.logger.debug(f"STRM: reconexao durante startup ({attempt}/{retries}): {e}")
                 await asyncio.sleep(delay)
                 if not orch.ws.is_running:
-                    await orch.ws.connect(**ws_connect_options(orch))
+                    session = await orch.auth.open_trading_session()
+                    await orch.ws.connect(session.ws_url, **ws_connect_options(orch))
     except Exception as e:
         detalhe = str(e).strip() or repr(e)
         orch.logger.error("STRM: Falha [%s]: %s", type(e).__name__, detalhe, exc_info=True)

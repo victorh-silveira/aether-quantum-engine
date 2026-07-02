@@ -131,8 +131,10 @@ async def sync_all_symbols_to_triton(
         return
     label = ",".join(synced_symbols)
     if triton_enabled(orch.config):
-        repo_ok = await reload_triton_repository(orch.config)
-        status = "repo ok" if repo_ok else "repo falhou"
+        repo_ok = await reload_triton_repository(orch.config, synced_symbols)
+        status = "ready" if repo_ok else "timeout"
         logger.info("TRITON | %d modelos | %s | %s", len(synced_symbols), label, status)
+        if not repo_ok:
+            raise ConnectionError(f"TRITON: modelos nao ficaram prontos: {label}")
     else:
         logger.info("TRITON | %d modelos | %s", len(synced_symbols), label)

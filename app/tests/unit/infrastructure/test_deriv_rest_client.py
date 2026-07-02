@@ -73,6 +73,24 @@ async def test_open_trading_session():
     assert "otp=abc" in session.ws_url
 
 
+@pytest.mark.asyncio
+async def test_post_otp_issues_fresh_ws_url():
+    client = DerivRestClient(
+        rest_base_url="https://api.derivws.com",
+        deriv_app_id="1089",
+        access_token="ory_at_test",
+        timeout_seconds=5,
+    )
+    otp_payload = json.dumps({"data": {"url": "wss://api.derivws.com/trading/v1/options/ws/demo?otp=new"}}).encode()
+
+    with patch(
+        "src.infrastructure.api.deriv_rest_client.read_http_response",
+        return_value=otp_payload,
+    ):
+        url = await client.post_otp("DOT1")
+    assert "otp=new" in url
+
+
 def test_list_accounts_invalid_payload():
     client = DerivRestClient(
         rest_base_url="https://api.derivws.com",

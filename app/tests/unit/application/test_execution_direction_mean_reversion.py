@@ -75,6 +75,54 @@ def test_contraction_flip_skipped_when_vol_not_contracting():
     assert direction == TradeDirection.CALL
 
 
+def test_contraction_flip_skipped_when_compression_trap_inverted():
+    metrics = {
+        "compression_trap_inverted": True,
+        "indicators": {"rsi": 0.78, "cmo": 0.52, "vol_ratio": 0.72},
+    }
+    direction, hints = apply_contraction_mean_reversion_flip(
+        TradeDirection.CALL,
+        TradeDirection.CALL,
+        [],
+        metrics,
+        exec_cfg={},
+        clamp01=_clamp01,
+    )
+    assert direction == TradeDirection.CALL
+    assert hints == []
+
+
+def test_contraction_flip_oversold_branch():
+    metrics = {
+        "direction_call_score": 0.41,
+        "direction_put_score": 0.62,
+        "trade_score": 0.62,
+        "indicators": {"rsi": 0.20, "cmo": -0.50, "vol_ratio": 0.72},
+    }
+    direction, _ = apply_contraction_mean_reversion_flip(
+        TradeDirection.PUT,
+        TradeDirection.PUT,
+        [],
+        metrics,
+        exec_cfg={},
+        clamp01=_clamp01,
+    )
+    assert direction == TradeDirection.CALL
+
+
+def test_contraction_flip_no_extremes_keeps_direction():
+    metrics = {"indicators": {"rsi": 0.50, "cmo": 0.10, "vol_ratio": 0.72}}
+    direction, _ = apply_contraction_mean_reversion_flip(
+        TradeDirection.CALL,
+        TradeDirection.CALL,
+        [],
+        metrics,
+        exec_cfg={},
+        clamp01=_clamp01,
+    )
+    assert direction == TradeDirection.CALL
+
+
 def test_resolver_mean_reversion_flip_on_exhaustion_contraction():
     entry = {
         "direction": TradeDirection.CALL,
@@ -93,18 +141,18 @@ def test_resolver_mean_reversion_flip_on_exhaustion_contraction():
                 "vol_ratio": 0.75,
                 "rsi": 0.74,
                 "keltner": 1.10,
-                "cmo": 0.48,
+                "cmo": 0.53,
             },
         },
     }
-    result = resolve_execution_direction(entry, exec_cfg={"exhaustion_gate": {}})
+    result = resolve_execution_direction(entry, exec_cfg={"exhaustion_gate": {}, "regime_evaluator": {"enabled": True}})
     assert result is not None
     direction, metrics = result
     assert direction == TradeDirection.PUT
-    assert metrics.get("mean_reversion_expansion_flip") is True
+    assert metrics.get("universal_regime") == "CLIMAX_EXHAUSTION"
 
 
-def test_resolver_expansion_veto_at_115_follows_dl():
+def test_resolver_trend_expansion_preserves_dl_on_high_vol():
     entry = {
         "direction": TradeDirection.CALL,
         "metrics": {
@@ -117,18 +165,17 @@ def test_resolver_expansion_veto_at_115_follows_dl():
             "call_votes": 4,
             "put_votes": 2,
             "indicators": {
-                "hurst": 0.55,
+                "hurst": 0.57,
                 "adx": 0.30,
                 "vol_ratio": 1.18,
-                "rsi": 0.80,
+                "rsi": 0.68,
                 "keltner": 1.20,
                 "cmo": 0.05,
             },
         },
     }
-    result = resolve_execution_direction(entry, exec_cfg={"exhaustion_gate": {}})
+    result = resolve_execution_direction(entry, exec_cfg={"exhaustion_gate": {}, "regime_evaluator": {"enabled": True}})
     assert result is not None
     direction, metrics = result
     assert direction == TradeDirection.CALL
-    assert metrics.get("expansion_inversion_veto") is True
-    assert float(metrics.get("kelly_fraction_scale", 1.0)) < 1.0
+    assert metrics.get("universal_regime") == "TREND_EXPANSION"

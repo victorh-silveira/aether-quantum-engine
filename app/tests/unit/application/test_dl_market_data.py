@@ -13,7 +13,7 @@ class _Stream:
 
 def test_load_symbol_close_ohlc_empty():
     orch = type("O", (), {"stream": _Stream({"close": np.array([])})})()
-    close, open_, high, low = load_symbol_close_ohlc(orch, "R_50")
+    close, open_, high, low = load_symbol_close_ohlc(orch, "RDBULL")
     assert len(close) == 0
     assert open_ is None
 
@@ -34,7 +34,7 @@ def test_load_symbol_close_ohlc_mismatched_lengths():
             )
         },
     )()
-    out_close, open_, high, low = load_symbol_close_ohlc(orch, "R_50")
+    out_close, open_, high, low = load_symbol_close_ohlc(orch, "RDBULL")
     assert len(out_close) == 8
     assert open_ is None and high is None and low is None
 
@@ -55,7 +55,7 @@ def test_load_symbol_close_ohlc_aligned():
             )
         },
     )()
-    c, o, h, low = load_symbol_close_ohlc(orch, "R_50")
+    c, o, h, low = load_symbol_close_ohlc(orch, "RDBULL")
     assert len(c) == 6 and o is not None and h is not None and low is not None
 
 

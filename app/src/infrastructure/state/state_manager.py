@@ -72,15 +72,6 @@ class StateManager:
         self.state.stop_win_triggered = False
         self.save_state()
 
-    def reset_daily_metrics(self, balance: float, target: float, day_key: int = 0, *, max_loss: float = 0.0):
-        """Alias legado: reinicia metricas de sessao sem day_key."""
-        _ = day_key, max_loss
-        self.reset_session_metrics(balance, target)
-
-    def reset_daily_session_metrics(self, balance: float, target: float, day_key: int = 0, *, max_loss: float = 0.0):
-        """Alias legado para reset_session_metrics."""
-        self.reset_daily_metrics(balance, target, day_key, max_loss=max_loss)
-
     def check_session_limits(self) -> bool:
         """True quando o lucro da sessao atinge a meta de stop win."""
         daily_profit = self.state.session_profit

@@ -6,6 +6,7 @@ from typing import Any
 
 from src.domain.models.trade import Contract, TradeDirection, TradeStatus
 from src.infrastructure.api.websocket_manager import WebSocketManager
+from src.infrastructure.handlers.stream_reconnect_profit_audit import schedule_profit_table_audit
 
 
 class TradeHandler:
@@ -25,6 +26,10 @@ class TradeHandler:
         self.ws = ws_manager
         self.config = config
         self.logger = logging.getLogger("AETH")
+
+    def schedule_profit_table_audit(self, orch: Any, *, reason: str = "broker_unavailable") -> None:
+        """Agenda auditoria profit_table em background com backoff exponencial."""
+        schedule_profit_table_audit(orch, reason=reason)
 
     async def buy_with_parameters(
         self, symbol: str, direction: TradeDirection, stake: float, params: dict | None = None

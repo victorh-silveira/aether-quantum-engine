@@ -62,6 +62,8 @@ class RedisStateStore:
         recovery_skip_counter: int | None = None,
         session_start_balance: float | None = None,
         session_target_win: float | None = None,
+        dlambert_unit: float | None = None,
+        consecutive_losses_linear: int | None = None,
     ) -> None:
         """Grava bundle atomico com sessao e chaves de meta ativa."""
         client = await self._redis()
@@ -74,6 +76,8 @@ class RedisStateStore:
             recovery_skip_counter=recovery_skip_counter,
             session_start_balance=session_start_balance,
             session_target_win=session_target_win,
+            dlambert_unit=dlambert_unit,
+            consecutive_losses_linear=consecutive_losses_linear,
         )
         self._last_snapshot_at = time.monotonic()
         self._pending_snapshot = None

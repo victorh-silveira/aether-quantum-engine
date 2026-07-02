@@ -5,29 +5,29 @@ import numpy as np
 from src.application.services.deep_learning.dl_params import optional_float, parse_dl_params
 
 
-def resample_m1_to_m5(
+def resample_m1_to_m15(
     prices: np.ndarray,
     open_: np.ndarray | None,
     high: np.ndarray | None,
     low: np.ndarray | None,
 ) -> tuple[np.ndarray, np.ndarray | None, np.ndarray | None, np.ndarray | None]:
-    """Resamples M1 (60s) arrays to non-overlapping M5 (300s) arrays ending at current candle."""
+    """Resamples M1 (60s) arrays to non-overlapping M15 (900s) arrays ending at current candle."""
     n = len(prices)
-    if n < 5:
+    if n < 15:
         return prices, open_, high, low
 
-    indices = list(range(n - 1, 3, -5))[::-1]
+    indices = list(range(n - 1, 13, -15))[::-1]
 
     resampled_close = prices[indices]
-    resampled_open = open_[np.array(indices) - 4] if open_ is not None else None
+    resampled_open = open_[np.array(indices) - 14] if open_ is not None else None
 
     if high is not None:
-        resampled_high = np.array([np.max(high[idx - 4 : idx + 1]) for idx in indices], dtype=np.float64)
+        resampled_high = np.array([np.max(high[idx - 14 : idx + 1]) for idx in indices], dtype=np.float64)
     else:
         resampled_high = None
 
     if low is not None:
-        resampled_low = np.array([np.min(low[idx - 4 : idx + 1]) for idx in indices], dtype=np.float64)
+        resampled_low = np.array([np.min(low[idx - 14 : idx + 1]) for idx in indices], dtype=np.float64)
     else:
         resampled_low = None
 
@@ -105,5 +105,5 @@ __all__ = [
     "parse_dl_params",
     "pending_loss_total",
     "recovery_gating_active",
-    "resample_m1_to_m5",
+    "resample_m1_to_m15",
 ]

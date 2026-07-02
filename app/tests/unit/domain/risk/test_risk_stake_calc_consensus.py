@@ -3,6 +3,12 @@ from unittest.mock import MagicMock
 from src.domain.risk.risk_stake_calc import calculate_stake_for_manager
 
 
+def _attach_dlambert(rm, kelly_config):
+    rm.dlambert_config = kelly_config.get("dlambert", {})
+    rm.consecutive_losses_linear = 0
+    rm.dlambert_unit = 0.0
+
+
 def test_calculate_stake_consensus_penalty_reduces_stake(kelly_config):
     rm = MagicMock()
     rm.config = kelly_config
@@ -23,7 +29,8 @@ def test_calculate_stake_consensus_penalty_reduces_stake(kelly_config):
     rm.active_contract_ids = []
     rm.logger = MagicMock()
     rm.effective_win_rate = MagicMock(return_value=0.80)
-    rm._martingale_allowed = MagicMock(return_value=False)
+    rm._recovery_allowed = MagicMock(return_value=False)
+    _attach_dlambert(rm, kelly_config)
     aligned = {
         "execute": True,
         "trade_score": 0.80,
@@ -37,7 +44,7 @@ def test_calculate_stake_consensus_penalty_reduces_stake(kelly_config):
     stake_aligned = calculate_stake_for_manager(
         rm,
         11800.0,
-        "R_100",
+        "RDBULL",
         0.80,
         silent=True,
         apply_stop_win=False,
@@ -46,7 +53,7 @@ def test_calculate_stake_consensus_penalty_reduces_stake(kelly_config):
     stake_diverged = calculate_stake_for_manager(
         rm,
         11800.0,
-        "R_10",
+        "RDBEAR",
         0.80,
         silent=True,
         apply_stop_win=False,
@@ -77,7 +84,8 @@ def test_calculate_stake_consensus_floor_uses_stake_min(kelly_config):
     rm.active_contract_ids = []
     rm.logger = MagicMock()
     rm.effective_win_rate = MagicMock(return_value=0.80)
-    rm._martingale_allowed = MagicMock(return_value=False)
+    rm._recovery_allowed = MagicMock(return_value=False)
+    _attach_dlambert(rm, kelly_config)
     metrics = {
         "execute": True,
         "call_votes": 0,
@@ -87,7 +95,7 @@ def test_calculate_stake_consensus_floor_uses_stake_min(kelly_config):
     stake = calculate_stake_for_manager(
         rm,
         11800.0,
-        "R_10",
+        "RDBEAR",
         0.80,
         silent=True,
         apply_stop_win=False,
@@ -116,7 +124,8 @@ def test_calculate_stake_consensus_penalty_logs_retention(kelly_config):
     rm.active_contract_ids = []
     rm.logger = MagicMock()
     rm.effective_win_rate = MagicMock(return_value=0.80)
-    rm._martingale_allowed = MagicMock(return_value=False)
+    rm._recovery_allowed = MagicMock(return_value=False)
+    _attach_dlambert(rm, kelly_config)
     metrics = {
         "execute": True,
         "call_votes": 1,
@@ -126,7 +135,7 @@ def test_calculate_stake_consensus_penalty_logs_retention(kelly_config):
     calculate_stake_for_manager(
         rm,
         11800.0,
-        "R_10",
+        "RDBEAR",
         0.80,
         silent=False,
         apply_stop_win=False,

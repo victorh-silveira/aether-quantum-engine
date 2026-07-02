@@ -118,7 +118,7 @@ def test_entry_gate_blocked_rejects_deploy_not_ok():
 
 def test_build_execution_candidate_returns_none_without_direction():
     entry = {"direction": None, "metrics": {"execute": True}}
-    assert build_execution_candidate("R_50", entry) is None
+    assert build_execution_candidate("RDBULL", entry) is None
 
 
 def test_build_candidate_uses_dl_direction():
@@ -126,8 +126,8 @@ def test_build_candidate_uses_dl_direction():
         "direction": TradeDirection.CALL,
         "metrics": {"execute": False, "conviction": 0.61, "raw_prob": 0.52},
     }
-    sym, exec_dir, metrics = build_execution_candidate("R_50", entry)
-    assert sym == "R_50"
+    sym, exec_dir, metrics = build_execution_candidate("RDBULL", entry)
+    assert sym == "RDBULL"
     assert exec_dir == TradeDirection.CALL
     assert metrics["dl_direction"] == "CALL"
     assert metrics["exec_direction"] == "CALL"
@@ -136,28 +136,27 @@ def test_build_candidate_uses_dl_direction():
 
 def test_build_forced_direction_candidate_after_high_side_call_loss():
     entry = {"direction": TradeDirection.CALL, "metrics": {"raw_prob": 0.56, "conviction": 0.56}}
-    target = recovery_hedge_target("R_100", "CALL")
-    assert target == ("R_10", TradeDirection.PUT)
-    sym, exec_dir, metrics = build_forced_direction_candidate("R_10", entry, TradeDirection.PUT)
-    assert sym == "R_10"
+    target = recovery_hedge_target("RDBULL", "CALL")
+    assert target == ("RDBEAR", TradeDirection.PUT)
+    sym, exec_dir, metrics = build_forced_direction_candidate("RDBEAR", entry, TradeDirection.PUT)
+    assert sym == "RDBEAR"
     assert exec_dir == TradeDirection.PUT
     assert metrics["recovery_hedge_forced"] is True
 
 
 def test_build_forced_direction_candidate_without_dl_direction():
     entry = {"direction": None, "metrics": {}}
-    assert build_forced_direction_candidate("R_50", entry, TradeDirection.PUT) is None
+    assert build_forced_direction_candidate("RDBULL", entry, TradeDirection.PUT) is None
 
 
 def test_recovery_hedge_target_returns_none_without_inputs():
     assert recovery_hedge_target(None, "CALL") is None
-    assert recovery_hedge_target("R_50", "CALL") is None
-    assert recovery_hedge_target("R_10", None) is None
+    assert recovery_hedge_target("RDBEAR", None) is None
 
 
 def test_recovery_hedge_target_low_side_call_loss():
-    assert recovery_hedge_target("R_10", "CALL") == ("R_100", TradeDirection.PUT)
-    assert recovery_hedge_target("R_25", "PUT") == ("R_75", TradeDirection.CALL)
+    assert recovery_hedge_target("RDBEAR", "CALL") == ("RDBULL", TradeDirection.PUT)
+    assert recovery_hedge_target("RDBEAR", "PUT") == ("RDBULL", TradeDirection.CALL)
 
 
 def test_recovery_hedge_target_when_peer_lookup_empty():
@@ -165,7 +164,7 @@ def test_recovery_hedge_target_when_peer_lookup_empty():
         "src.application.services.execution_direction.hedge_peer",
         return_value=None,
     ):
-        assert recovery_hedge_target("R_10", "CALL") is None
+        assert recovery_hedge_target("RDBEAR", "CALL") is None
 
 
 def test_mandatory_execution_eligible_accepts_direction_margin_with_raw():
@@ -185,8 +184,8 @@ def test_mandatory_execution_eligible_accepts_direction_margin_with_raw():
 
 def test_build_forced_recovery_candidate_without_dl_direction():
     entry = {"direction": None, "metrics": {"trade_score": 0.55}}
-    sym, side, metrics = build_forced_recovery_candidate("R_75", entry, TradeDirection.PUT)
-    assert sym == "R_75"
+    sym, side, metrics = build_forced_recovery_candidate("RDBEAR", entry, TradeDirection.PUT)
+    assert sym == "RDBEAR"
     assert side == TradeDirection.PUT
     assert metrics["recovery_forced"] is True
     assert metrics["trade_score"] == 0.55
@@ -194,19 +193,19 @@ def test_build_forced_recovery_candidate_without_dl_direction():
 
 def test_build_forced_recovery_candidate_uses_raw_side_floor():
     entry = {"direction": None, "metrics": {"raw_prob": 0.62, "trade_score": 0.0}}
-    _, _, metrics = build_forced_recovery_candidate("R_75", entry, TradeDirection.CALL)
+    _, _, metrics = build_forced_recovery_candidate("RDBEAR", entry, TradeDirection.CALL)
     assert metrics["trade_score"] == 0.62
     assert metrics["direction_inverted"] is False
 
 
 def test_forced_recovery_pick_prefers_dl_aligned_symbol():
     decisions = {
-        "R_50": {"direction": None, "metrics": {"raw_prob": 0.40, "trade_score": 0.58, "val_accuracy": 0.55}},
-        "R_75": {"direction": None, "metrics": {"raw_prob": 0.62, "trade_score": 0.58, "val_accuracy": 0.55}},
+        "RDBULL": {"direction": None, "metrics": {"raw_prob": 0.40, "trade_score": 0.58, "val_accuracy": 0.55}},
+        "RDBEAR": {"direction": None, "metrics": {"raw_prob": 0.62, "trade_score": 0.58, "val_accuracy": 0.55}},
     }
-    picked = _forced_recovery_pick(["R_50", "R_75"], decisions, TradeDirection.CALL)
+    picked = _forced_recovery_pick(["RDBULL", "RDBEAR"], decisions, TradeDirection.CALL)
     assert picked is not None
-    assert picked[0] == "R_75"
+    assert picked[0] == "RDBEAR"
 
 
 def test_recovery_execution_eligible_rejects_technical_blocks():

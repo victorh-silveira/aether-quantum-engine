@@ -1,6 +1,6 @@
 # Arquitetura — Aether Quantum Engine
 
-Motor assíncrono para trading na Deriv com decisão exclusiva por **Deep Learning** (TCN, LSTM ou GRU) nos símbolos **Range Break** (`R_10`, `R_25`, `R_50`, `R_75`, `R_100`). A metodologia de negócio quantitativa está em [`medallion.md`](medallion.md); este documento descreve o software.
+Motor assíncrono para trading na Deriv com decisão exclusiva por **Deep Learning** (TCN, LSTM ou GRU) nos índices **Drift** (`RDBEAR`, `RDBULL`). A metodologia de negócio quantitativa está em [`medallion.md`](medallion.md); este documento descreve o software.
 
 ---
 
@@ -8,13 +8,14 @@ Motor assíncrono para trading na Deriv com decisão exclusiva por **Deep Learni
 
 | Aspecto | Valor atual (`config/settings.json`) |
 |---------|--------------------------------------|
-| Símbolos | `R_10`, `R_25`, `R_50`, `R_75`, `R_100` (âncora `R_10`) |
-| Granularidade OHLC | **300 s / M5** (`data_handler.granularity`) |
-| Histórico para treino | 15552 barras (`training_history_bars`, ~54 dias) |
-| Lookback | 48 barras por sequência (**4 h** de contexto) |
+| Símbolos | `RDBEAR`, `RDBULL` (âncora `RDBULL`) |
+| Granularidade OHLC (DL) | **900 s / M15** (`data_handler.granularity`) |
+| Relógio operacional | **60 s / M1** (`data_handler.micro_granularity`) |
+| Histórico para treino | 15552 barras M15 (`training_history_bars`, ~162 dias) |
+| Lookback | 48 barras M15 por sequência (**12 h** de contexto) |
 | Features | **34** (`FEATURE_DIM` em `dl_feature_build.py`) |
-| Contrato | `RISE_FALL`, duração **300 s** (virada vela M5) |
-| Ciclo do orquestrador | 60 s (`cycle_interval_seconds`) |
+| Contrato | `RISE_FALL`, duração **60 s** (execução micro M1) |
+| Ciclo do orquestrador | 60 s (`cycle_interval_seconds`, virada M1) |
 | Decisão | `collect_deep_learning_decisions` |
 | Fases | `FASE TREINO` → `FASE OPERACAO` |
 | Execução | Seletiva (`mandatory_trade_each_cycle: false`) ou **contínua** (`true`) |
@@ -83,7 +84,7 @@ Com `infra.enabled: true`, o motor valida Redis, TimescaleDB e MinIO em `localho
 **Inferência de produção** via `TritonGrpcClient` (`triton_grpc_client.py`):
 
 - Canal persistente `grpc.aio.insecure_channel` com keepalive (sem handshake repetido a cada ciclo).
-- Predições dos 5 símbolos em paralelo com `asyncio.gather`.
+- Predições de `RDBEAR` e `RDBULL` em paralelo com `asyncio.gather`.
 - **Timeout rigido de 2,0 s** por requisição (`asyncio.wait_for`); se o Triton exceder o limite, dispara `TritonInferenceTimeout` e fallback imediato para TorchScript em cache local (`dl_predict_triton.py`, log `TRITON_TIMEOUT_FALLBACK`), preservando a janela de 60 s do orquestrador.
 - Facade em `triton_inference_client.py` para o restante do motor.
 
@@ -115,7 +116,9 @@ Redis local usa AOF `appendfsync everysec` (`infra/docker/redis.conf`). `make do
 
 - `buffer_limit` limita velas em memória por símbolo.
 - `history_bars` / `training_history_bars` definem recorte para treino e predição.
-- `TickBuffer` agrega por barra fechada de **300 s (M5)**: contagem de ticks, intervalo médio, velocidade, aceleração e desvio padrão de diffs consecutivas. O fechamento é disparado pelo `StreamHandler` quando a Deriv emite vela OHLC completa no intervalo configurado em `data_handler.granularity`.
+- `StreamHandler` assina **dois fluxos OHLC** por símbolo: **M15 (900 s)** para tensor DL `[1, 48, 34]` e **M1 (60 s)** para o relógio do orquestrador.
+- `TickBuffer` agrega microestrutura apenas no fechamento de barras **M15**.
+- `get_data_state_signature()` combina assinatura **M1 + M15** para reavaliar o cenário a cada minuto sem inferência redundante na GPU.
 
 ### 2.3 Assinatura de estado de dados
 
@@ -150,7 +153,7 @@ Normalização anti-leakage: `fit_norm_stats` somente no split de treino walk-fo
 - Arquitetura: **`tcn`** (padrão), **`lstm`** ou **`gru`** via `deep_learning.arch`.
 - Saída: probabilidade bruta de alta (`raw_prob`).
 - Checkpoint v4 em `data/dl/{symbol}.pth` + TorchScript `{symbol}_ts.pt` (espelho MinIO `latest_ts.pt`).
-- Inferência via `TritonGrpcClient.infer_symbols_concurrent` quando `infra.triton.enabled`; tensor FP32 **`[1, 48, 34]`** (48 barras M5 = **4 h** de contexto).
+- Inferência via `TritonGrpcClient.infer_symbols_concurrent` quando `infra.triton.enabled`; tensor FP32 **`[1, 48, 34]`** (48 barras M15 = **12 h** de contexto).
 - `collect_cluster_orders` suporta modo contínuo: penalidade de qualidade em vez de SKIP; fallback por entropia e mandatory pick.
 
 ### 3.3 Treino walk-forward
@@ -190,24 +193,29 @@ Substitui travas binárias por scoring composto CALL vs PUT:
 | RSI/Keltner extremos | `exhaustion_flip` (mean-reversion) |
 | RSI+CMO+Keltner alinhados | `exhaustion_hard_gate` — atenua peso DL em 80% |
 | Entropia de probabilidade | `execution_entropy_adaptive` — comprime `w_eff` em regime incerto |
-| Hurst, ADX, vol_ratio, CMO | `indicator_regime` / `mean_reversion` |
+| Hurst, ADX, vol_ratio, CMO | `indicator_regime` no scoring composto |
 | Correlação cross-symbol | `execution_direction_cross_corr` — matriz Timescale + softmax |
 
-**Mean Reversion Flip** (`execution_direction_mean_reversion.py`), aplicado antes do veto de expansão:
+**Barramento de 4 Regimes Universais** (`UniversalRegimeEvaluator` em `execution_universal_regime_evaluator.py`), aplicado após o scoring em `resolve_execution_direction`:
 
-- Condição: `vol_ratio < 0.80` e exaustão extrema (`RSI > 0.72` e `CMO > 0.45`, ou espelho oversold).
-- Ação: inverte a direção do DL (CALL→PUT ou PUT→CALL) com margem de segurança no `trade_score`.
+Prioridade risco-primeiro:
 
-**Veto de expansão** (`execution_direction_expansion_veto.py`):
+| Regime | Critério | Ação |
+|--------|----------|------|
+| `CLIMAX_EXHAUSTION` | `adx ≥ 0.23`, RSI extremo, `\|cmo\| ≥ 0.45` | Inverte contra o DL esticado; score **0.76** |
+| `COMPRESSION_TRAP` | `adx < 0.20`, `hurst ≤ 0.50`, `vol_ratio < 0.85` | Inverte se RSI esticado (CALL+RSI>0.58→PUT; PUT+RSI<0.42→CALL); score **0.75** |
+| `TREND_EXPANSION` | `adx ≥ 0.23`, `hurst > 0.53`, `vol_ratio ≥ 1.00` | Mantém direção do DL |
+| `ENTROPIC_NOISE` | votos empatados ou `hurst < 0.45` | `gate_penalty=noise`; SKIP do ciclo fora de recovery/contínuo |
 
-- Com `vol_ratio > expansion_inversion_veto_vol_ratio` (padrão **1.15**), veta inversões por exaustão/mean-reversion.
-- Preserva direção do DL e aplica `expansion_momentum_kelly_scale` (padrão 0.85) em `kelly_fraction_scale`.
+Configuração em `orchestrator.execution.regime_evaluator`. Auditoria em `gather_cluster_candidates`:
+
+`[C0042] REGIME: CLIMAX_EXHAUSTION | Invertido=True | ord=PUT dl=CALL | RDBULL`
 
 Pesos configuráveis em `orchestrator.execution.direction_scoring`.
 
 ### 4.2 Gate de qualidade (`execution_quality_gate.py`)
 
-Aplicado **após** resolução direcional em `_gather_cluster_candidates`:
+Aplicado **após** resolução direcional em `gather_cluster_candidates`:
 
 | Modo | Comportamento |
 |------|---------------|
@@ -218,7 +226,7 @@ Aplicado **após** resolução direcional em `_gather_cluster_candidates`:
 |------|--------------|--------|
 | `mandatory_min_trade_score` | 0.68 | Score efetivo mínimo (modo normal) |
 | `recovery_min_trade_score` | 0.64 | Piso em recovery (escala com perdas consecutivas) |
-| `recovery_hurst_persistence_min` | 0.58 | Hurst mínimo para persistência em martingale N2+ |
+| `recovery_hurst_persistence_min` | 0.58 | Hurst mínimo para persistência em recovery N2+ |
 | `min_edge_execute` | 0.04 | Edge mínimo (usa `calibrated_edge`; respeita `dynamic_min_edge`) |
 | `min_direction_margin` | 0.05 | Clareza CALL vs PUT no resolver |
 | `inverted_min_score` | 0.74 | Score extra quando `direction_inverted=true` |
@@ -246,7 +254,7 @@ Em recovery N2+, `recovery_skip_counter` no Redis reduz o limiar Hurst linearmen
 
 - Monta ordens com stake de `RiskManager.calculate_stake`.
 - Settlement assíncrono; reentrada via `post_settlement_cycle`.
-- Contratos via `TradeHandler.buy_with_parameters`: RISE_FALL, **300 s** (M5).
+- Contratos via `TradeHandler.buy_with_parameters`: RISE_FALL, **60 s** (M1), com contexto DL em **M15**.
 - Após settlement: `save_full_state` persiste bundle atômico no Redis.
 
 ---
@@ -255,17 +263,18 @@ Em recovery N2+, `recovery_skip_counter` no Redis reduz o limiar Hurst linearmen
 
 | Mecanismo | Módulo / config |
 |-----------|-----------------|
-| Kelly fracionário | `stake_sizing.py`, `kelly.fraction` |
+| Kelly fracionário | `kelly_base_fraction.py`, `stake_sizing.py`, `kelly.fraction` — compressão base de 60% em regime normal (`0.0035 → 0.0012`) |
+| Target Proximity Damping | `stake_target_proximity.py` + `RiskManager.apply_kelly_target_proximity_damping` — `Stake_Kelly × (0.40 + 0.60 × remaining_target_pct)` |
 | Consensus Entropy Penalty | `consensus_stake_penalty.py` — penalidade convexa em `f*` quando ord diverge dos votos; atenua por `di_diff`, `cmo`, `rsi`; piso `stake_min` em baixo consenso |
-| Penalty smoothing em recovery | `consensus_stake_penalty.py` — com `pending_loss > 0` ou `consecutive_losses > 0` e `trade_score > 0.70`, reduz a penalidade convexa em **40%** (`penalty_smoothing_factor`) sem violar o CAP martingale |
-| Recovery financeiro persistente | `risk_recovery_state.py` — `consecutive_losses` **nao reseta** em WIN operacional enquanto `pending_loss > 0`; reset somente quando o drawdown pendente zera por retornos reais |
+| Regime Edge Sizing (waiver) | `consensus_stake_penalty.py` — em recovery, `retention = 1.0` para inversão tática, votos unânimes (6×0/0×6) ou `trade_score >= 0.68` |
+| Recovery score waiver | `consensus_stake_penalty.py` — com `pending_loss > 0` ou `consecutive_losses_linear > 0` e votos unânimes ou `trade_score >= 0.68`, `retention = 1.0` |
+| Recovery financeiro persistente | `risk_recovery_state.py` — `consecutive_losses_linear` **nao reseta** em WIN operacional enquanto `pending_loss > 0`; reset somente quando o drawdown pendente zera por retornos reais |
 | Stop win por sessão ativa | `stop_win_target.py` + `session_target_bootstrap.py` — meta = `session_start_balance × compounding_rate_daily`; sem reset por relógio/calendário |
 | Encerramento por meta | `StateManager.check_session_limits()` — `pnl_sessao >= target_win` → `graceful_shutdown` |
 | Stop loss | **Desativado** — sem `daily_max_loss_limit` nem disjuntor de perda no motor |
-| Martingale recovery | `martingale_gate.py`, `martingale_conviction.py`, `martingale_sizing.py` |
-| Martingale fatiamento progressivo | `martingale_progressive_slice_cycles` — divide `pending_loss` em 1/2/3 ciclos conforme sequência de perdas |
-| CAP martingale 4% | `martingale_hard_cap_bankroll_pct: 0.04` — teto rígido de stake sobre banca |
-| Martingale vol-adjust | defer 50% quando vol > 1.10 (N2+); sqrt(vol_ratio) quando defer inativo |
+| D'Alembert recovery | `dlambert_sizing.py`, `recovery_conviction.py` — stake linear `Kelly_base + n×U_eff` com Amortization Booster e piso progressivo por cluster |
+| Retração D'Alembert | WIN parcial em recovery: `consecutive_losses_linear = max(1, n-1)` |
+| Super-concordance Kelly | booster desligado em recovery; ativo em Kelly puro com P≥0.75, 6×0, Hurst>0.55 |
 | Trava Hurst N2+ | `recovery_hurst_gate.py` |
 | Decaimento Hurst acelerado | `recovery_hurst_decay.py` — `recovery_skip_counter` no Redis |
 | Cooldown entrada | `risk_cooldown.py` |
@@ -286,6 +295,19 @@ Log de bootstrap: `SESSAO INICIADA | Alvo de 1%: $XX.XX | Stop Loss: DESATIVADO`
 Com `compounding_enabled: false`, o motor usa alvo legado (`small_account_stop_win` / `large_account_stop_win_pct`).
 
 Logs de sizing expõem `pend=$` (drawdown pendente) e `pnl_sess=$` (P&L acumulado da sessão) em cada cálculo de stake.
+
+### 6.2 Sizing defensivo de proximidade de alvo
+
+Política aplicada sobre a stake Kelly bruta **antes** da escada D'Alembert:
+
+| Etapa | Fórmula / regra |
+|-------|-----------------|
+| Compressão Kelly base | `fraction_efetiva = fraction × 0.40` (referência `0.0035 → 0.0012`); recovery mantém `fraction` integral |
+| Distância relativa à meta | `remaining_target_pct = max(0, (target_win − pnl_sessao) / target_win)` |
+| Amortecimento dinâmico | `target_damping = 0.40 + 0.60 × remaining_target_pct` |
+| Stake Kelly comprimida | `Stake_Kelly = Stake_Kelly_raw × target_damping` |
+
+Comportamento: no início da sessão (`pnl_sessao = 0`), `target_damping = 1.0` e apenas a compressão Kelly base atua. Com ~90% da meta atingida, o fator cai para **0.46**, reduzindo superexposição nos ciclos finais antes do stop win.
 
 Persistência: `data/session_state.json` (métricas da sessão corrente), Redis (snapshot atômico + chaves `session:current:*`), `data/state.json` (contratos legado).
 
@@ -317,7 +339,8 @@ Persistência: `data/session_state.json` (métricas da sessão corrente), Redis 
 | `deep_learning` | `arch`, `lookback`, `confidence_*`, `min_val_accuracy`, `deploy_gate` |
 | `orchestrator` | `watchdog_*`, `cycle_interval_seconds`, `idle_cycle_watchdog_seconds` |
 | `orchestrator.execution` | `direction_scoring`, `quality_gate`, `exhaustion_gate`, `mean_reversion_*`, `expansion_inversion_*`, `mandatory_trade_each_cycle` |
-| `risk_management.kelly` | `fraction`, `consensus_penalty_*`, `penalty_smoothing_*`, `martingale_*`, `martingale_hard_cap_bankroll_pct` |
+| `risk_management.kelly` | `fraction`, `consensus_penalty_*`, `penalty_smoothing_*`, `recovery_*` |
+| `risk_management.dlambert` | `dlambert_enabled`, `dlambert_unit_override`, `recovery_*_conviction` |
 | `risk_management.params` | `compounding_enabled`, `compounding_rate_daily`, `session_start_balance`, `duration`, stakes |
 | `infra.triton` | `enabled`, `grpc_url`, `http_url`, `model_repo_path` |
 | `trading` | `mode` (`demo` / `live`) |
@@ -332,7 +355,7 @@ Persistência: `data/session_state.json` (métricas da sessão corrente), Redis 
 | Application / Direção | `execution_direction_resolver`, `execution_direction_mean_reversion`, `execution_direction_expansion_veto`, `execution_direction_cross_corr`, `execution_entropy_adaptive`, `execution_quality_gate` |
 | Application / Execução | `execution_collect`, `execution_collect_gather`, `execution_market_rank`, `execution_symbols`, `execution_mandatory_pick` |
 | Application / Orchestrator | `Orchestrator`, `execution_manager`, `session_target_bootstrap`, `execution_recovery_gate`, `watchdog_service`, `graceful_shutdown`, `settlement_*`, `post_settlement_cycle`, `orchestrator_run_loop` |
-| Domain | `trade`, `market_data`, `probability_entropy`, `risk_manager`, `stop_win_target`, `risk_recovery_state`, `consensus_stake_penalty`, `recovery_hurst_gate`, `martingale_*`, `stake_sizing` |
+| Domain | `trade`, `market_data`, `probability_entropy`, `risk_manager`, `stop_win_target`, `risk_recovery_state`, `consensus_stake_penalty`, `recovery_hurst_gate`, `dlambert_sizing`, `recovery_conviction`, `stake_sizing` |
 | Infrastructure | `triton_grpc_client`, `triton_inference_client`, `websocket_manager`, `stream_handler`, `stream_reconnect`, `tick_buffer`, `trade_handler`, `minio_model_store`, `torchscript_sanity`, `redis_state_pipeline` |
 | Presentation | `logger`, `log_dedupe` |
 

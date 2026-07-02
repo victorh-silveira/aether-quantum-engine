@@ -10,6 +10,12 @@
 
 ## [Unreleased]
 
+### Breaking changes
+
+* **risk:** remove motor Martingale multiplicativo; migra recovery para D'Alembert linear (`Kelly_base + n×U`) com retração `max(1, n-1)` em WIN parcial
+* **config:** substitui bloco `martingale_*` por `risk_management.dlambert`; renomeia `consecutive_losses` para `consecutive_losses_linear`
+* **redis:** novas chaves `session:current:dlambert_unit` e `session:current:consecutive_losses_linear`; remove `last_martingale_stake`
+
 ### Funcionalidades
 
 * **execution:** hard gate de exaustao RSI+CMO+Keltner com atenuacao 80% do peso DL e SKIP via quality gate
@@ -415,7 +421,7 @@
 
 ## 2026-06-14 (e6cafeeb)
 
-* feat(engine): M5 ma_trend e vol implicita para R_100
+* feat(engine): M5 ma_trend e vol implicita para RDBULL
 
 ## 2026-06-14 (901852e6)
 

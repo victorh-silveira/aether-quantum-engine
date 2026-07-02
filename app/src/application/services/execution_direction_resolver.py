@@ -5,8 +5,6 @@ from __future__ import annotations
 from functools import partial
 
 from src.application.services.execution_direction_cross_corr import adjust_dl_weight_with_correlation
-from src.application.services.execution_direction_expansion_veto import apply_expansion_inversion_veto
-from src.application.services.execution_direction_mean_reversion import apply_contraction_mean_reversion_flip
 from src.application.services.execution_direction_resolver_bias import (
     exhaustion_bias as _exhaustion_bias,
     indicator_regime_bias as _indicator_regime_bias,
@@ -24,6 +22,11 @@ from src.application.services.execution_exhaustion_hard_gate import (
     dl_weight_retention,
     hard_gate_score_penalty,
 )
+from src.application.services.execution_universal_regime_gate import (
+    UniversalRegimeEvaluator,
+    map_volatility_regime_to_metrics,
+)
+from src.application.services.execution_volatility_booster import apply_volatility_vol_booster
 from src.domain.models.trade import TradeDirection
 
 
@@ -94,6 +97,35 @@ def _scoring_weights(cfg: dict) -> dict[str, float]:
 def _clamp01(value: float) -> float:
     """Limita valor ao intervalo [0, 1]."""
     return max(0.0, min(1.0, float(value)))
+
+
+def _atr_norm_peak_anomaly(indicators: dict) -> bool:
+    """True quando ATR normalizado excede a mediana historica em faixa de pico."""
+    atr_norm = float(indicators.get("atr_norm", 0.0))
+    if atr_norm <= 0.0:
+        return False
+    history = indicators.get("atr_norm_history")
+    if not isinstance(history, list) or len(history) < 2:
+        return False
+    ordered = sorted(float(v) for v in history)
+    baseline = ordered[len(ordered) // 2]
+    if baseline <= 0.0:
+        return False
+    return atr_norm > baseline * 1.20
+
+
+def _apply_implied_vol_embargo_weights(metrics: dict, weights: dict[str, float]) -> dict[str, float]:
+    """Eleva trend_weight em picos de ATR quando vol implicita esta ativa."""
+    indicators = metrics.get("indicators") or {}
+    implied_vol_ratio = float(indicators.get("implied_vol_ratio", 0.0))
+    if implied_vol_ratio == 0.0 or not _atr_norm_peak_anomaly(indicators):
+        return weights
+    merged = dict(weights)
+    trend_delta = float(merged["trend_weight"]) * 0.15
+    merged["trend_weight"] = float(merged["trend_weight"]) + trend_delta
+    merged["val_accuracy_weight"] = max(0.0, float(merged["val_accuracy_weight"]) - trend_delta)
+    metrics["implied_vol_embargo_reweight"] = True
+    return merged
 
 
 def _dl_call_put_scores(
@@ -171,6 +203,7 @@ def resolve_execution_direction(
     cal_cfg = calibration_cfg if isinstance(calibration_cfg, dict) else {}
     dynamic_cfg = cfg.get("dynamic_threshold") if isinstance(cfg.get("dynamic_threshold"), dict) else {}
     weights = _scoring_weights(cfg)
+    weights = _apply_implied_vol_embargo_weights(metrics, weights)
     qchunk = cfg.get("quality_gate") if isinstance(cfg.get("quality_gate"), dict) else {}
     min_margin = float(qchunk.get("min_direction_margin", 0.05)) if isinstance(qchunk, dict) else 0.05
     if corr_matrix and symbol:
@@ -208,22 +241,30 @@ def resolve_execution_direction(
         exec_dir=exec_dir,
         clamp01=_clamp01,
     )
-    exec_dir, hints = apply_contraction_mean_reversion_flip(
-        exec_dir,
-        dl_dir,
-        hints,
+    map_volatility_regime_to_metrics(metrics)
+    qchunk = cfg.get("quality_gate") if isinstance(cfg.get("quality_gate"), dict) else {}
+    mandatory_floor = float(qchunk.get("mandatory_min_trade_score", 0.56)) if isinstance(qchunk, dict) else 0.56
+    mandatory_floor, _ = apply_volatility_vol_booster(
         metrics,
-        exec_cfg=cfg,
-        clamp01=_clamp01,
+        mandatory_min_trade_score=mandatory_floor,
+        min_edge_execute=1.0,
     )
-    exec_dir, hints = apply_expansion_inversion_veto(
-        exec_dir,
-        dl_dir,
-        hints,
-        metrics,
-        exec_cfg=cfg,
-        clamp01=_clamp01,
+    continuous_mode = bool(cfg.get("mandatory_trade_each_cycle", False))
+    kelly_cfg = cfg.get("kelly") if isinstance(cfg.get("kelly"), dict) else {}
+    regime_cfg = cfg.get("regime_evaluator") if isinstance(cfg.get("regime_evaluator"), dict) else {}
+    evaluator = UniversalRegimeEvaluator(
+        regime_cfg,
+        recovery_active=recovery_active,
+        continuous_mode=continuous_mode,
+        mandatory_min_signal=mandatory_floor,
+        kelly_cfg=kelly_cfg,
     )
+    regime_eval = evaluator.evaluate(metrics, dl_dir=dl_dir, exec_dir=exec_dir)
+    exec_dir = evaluator.apply(metrics, regime_eval, exec_dir, dl_dir=dl_dir)
+    if not metrics.get("universal_regime"):
+        call_score = float(metrics.get("direction_call_score", call_score))
+        put_score = float(metrics.get("direction_put_score", put_score))
+        exec_dir = TradeDirection.CALL if call_score + 1e-9 >= put_score else TradeDirection.PUT
     conflict, penalty = exhaustion_conflict_penalty(metrics, dl_dir, cfg=cfg)
     if metrics.get("exhaustion_hard_gate"):
         penalty = max(penalty, hard_gate_score_penalty(cfg=cfg))
