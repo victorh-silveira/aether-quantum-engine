@@ -52,10 +52,11 @@ def test_apply_volatility_vol_booster_keeps_lower_existing_floors():
 
 def test_passes_execution_quality_accepts_signal_with_vol_booster_floors():
     metrics = {
-        "trade_score": 0.66,
+        "trade_score": 0.68,
         "val_accuracy": 0.70,
         "edge": 0.035,
         "direction_margin": 0.08,
+        "universal_regime": "TREND_EXPANSION",
         "macro_indicators": {"vol_ratio": 1.30},
         "indicators": {"bb_width": 0.03, "adx": 0.25},
     }

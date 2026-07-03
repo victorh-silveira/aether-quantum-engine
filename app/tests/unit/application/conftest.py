@@ -67,7 +67,11 @@ def orch_config():
             "engine_mode": "execute",
             "reconcile_interval_seconds": 1,
             "cycle_interval_seconds": 0,
-            "execution": {"include_anchor_trades": True, "inter_symbol_delay": 0.25},
+            "execution": {
+                "include_anchor_trades": True,
+                "inter_symbol_delay": 0.25,
+                "regime_evaluator": {"enabled": True},
+            },
         },
         "infra": {"enabled": False},
         "trading": {"mode": "demo", "session": {"enabled": False}},

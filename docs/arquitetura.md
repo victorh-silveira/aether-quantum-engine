@@ -203,9 +203,10 @@ Prioridade risco-primeiro:
 | Regime | Critério | Ação |
 |--------|----------|------|
 | `CLIMAX_EXHAUSTION` | `adx ≥ 0.23`, RSI extremo, `\|cmo\| ≥ 0.45` | Inverte contra o DL esticado; score **0.76** |
-| `COMPRESSION_TRAP` | `adx < 0.20`, `hurst ≤ 0.50`, `vol_ratio < 0.85` | Inverte se RSI esticado (CALL+RSI>0.58→PUT; PUT+RSI<0.42→CALL); score **0.75** |
+| `COMPRESSION_TRAP` | `adx < 0.20`, `hurst ≤ 0.50`, `vol_ratio < 0.85` | Inverte se RSI esticado **e** `bb_width < 0.01` no M1; caso contrário segue TCN estrita |
 | `TREND_EXPANSION` | `adx ≥ 0.23`, `hurst > 0.53`, `vol_ratio ≥ 1.00` | Mantém direção do DL |
 | `ENTROPIC_NOISE` | votos empatados ou `hurst < 0.45` | `gate_penalty=noise`; SKIP do ciclo fora de recovery/contínuo |
+| `NEUTRO` | nenhum regime classificado no M15 | sem inversão; sujeito ao Gate Assimétrico de Proteção |
 
 Configuração em `orchestrator.execution.regime_evaluator`. Auditoria em `gather_cluster_candidates`:
 
@@ -232,6 +233,16 @@ Aplicado **após** resolução direcional em `gather_cluster_candidates`:
 | `inverted_min_score` | 0.74 | Score extra quando `direction_inverted=true` |
 
 Em recovery N2+, `recovery_skip_counter` no Redis reduz o limiar Hurst linearmente ou com decaimento logarítmico em drawdown severo.
+
+#### Gate Assimétrico de Proteção (`validate_recovery_asymmetric_gate`)
+
+Veto mandatório aplicado em `gather_cluster_candidates` e `apply_quality_penalty_to_metrics`, **independente** de `mandatory_trade_each_cycle` ou recovery ativo (`pending_total > 0`):
+
+| Condição | Ação |
+|----------|------|
+| `universal_regime == NEUTRO` **e** `trade_score < 0.68` | SKIP absoluto do ciclo (`gate_reason=low_conviction_neutral_skip`) |
+
+Justificativa: operar o relógio micro M1 sem tendência macro M15 e com convicção abaixo do piso institucional degrada a expectativa de payoff — o sinal é ruído puro, não edge recuperável.
 
 ### 4.3 Pool e seleção
 

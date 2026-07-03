@@ -57,8 +57,10 @@ def test_collect_cluster_orders_mandatory_blocks_entropic_regime_skip():
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
     assert orders == []
-    logged = " ".join(str(call.args[0]) for call in exec_mgr.logger.info.call_args_list if call.args)
-    assert "ENTROPIC_NOISE" in logged
+    logged = " ".join(
+        " ".join(str(part) for part in call.args) for call in exec_mgr.logger.info.call_args_list if call.args
+    )
+    assert "ENTROPIC_NOISE" in logged or "LOW CONVICTION NEUTRAL SKIP" in logged
 
 
 def test_regime_skip_blocks_mandatory_cycle_skips_unbuildable_symbols():
@@ -84,7 +86,8 @@ def test_regime_skip_blocks_mandatory_cycle_skips_unbuildable_symbols():
         ANCHOR: {"direction": TradeDirection.CALL, "metrics": {"gate_reason": "training"}},
         PAIR: {"direction": TradeDirection.PUT, "metrics": dict(entropic_metrics)},
     }
-    assert _regime_skip_blocks_mandatory_cycle(exec_mgr, decisions, recovery_active=False) is True
+    blocked, _ = _regime_skip_blocks_mandatory_cycle(exec_mgr, decisions, recovery_active=False)
+    assert blocked is True
 
 
 def test_collect_cluster_orders_regime_skip_ignores_unbuildable_symbol():

@@ -116,7 +116,7 @@ def test_collect_cluster_orders_keeps_best_after_quality_penalty_only():
     assert len(orders) == 1
 
 
-def test_collect_cluster_orders_inverts_on_grey_zone():
+def test_collect_cluster_orders_skips_neutral_low_conviction_in_mandatory_mode():
     orch = SimpleNamespace(
         anchor=ANCHOR,
         symbols=[PAIR],
@@ -158,9 +158,7 @@ def test_collect_cluster_orders_inverts_on_grey_zone():
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
-    assert len(orders) == 1
-    assert orders[0][0] == PAIR
-    assert orders[0][1] == TradeDirection.PUT  # Invertido de CALL para PUT
+    assert len(orders) == 0
 
 
 def test_cluster_entry_recovery_accepts_mandatory_weak_with_pending_loss():
@@ -184,7 +182,7 @@ def test_cluster_entry_recovery_accepts_mandatory_weak_with_pending_loss():
     )
 
 
-def test_collect_cluster_orders_allows_weak_fallback_in_recovery():
+def test_collect_cluster_orders_blocks_weak_neutral_in_recovery():
     orch = SimpleNamespace(
         anchor=ANCHOR,
         symbols=[ANCHOR, PAIR],
@@ -226,4 +224,4 @@ def test_collect_cluster_orders_allows_weak_fallback_in_recovery():
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
-    assert len(orders) == 1
+    assert len(orders) == 0

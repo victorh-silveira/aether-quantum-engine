@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from functools import partial
 
+from src.application.services.execution_direction_compression_trap import (
+    enforce_compression_trap_micro_bb_cohesion,
+)
 from src.application.services.execution_direction_cross_corr import adjust_dl_weight_with_correlation
 from src.application.services.execution_direction_resolver_bias import (
     exhaustion_bias as _exhaustion_bias,
@@ -28,6 +31,9 @@ from src.application.services.execution_universal_regime_gate import (
 )
 from src.application.services.execution_volatility_booster import apply_volatility_vol_booster
 from src.domain.models.trade import TradeDirection
+
+
+NEUTRAL_REGIME_TOKEN = "NEUTRO"
 
 
 def _direction_prob(entry: dict) -> float | None:
@@ -261,6 +267,15 @@ def resolve_execution_direction(
     )
     regime_eval = evaluator.evaluate(metrics, dl_dir=dl_dir, exec_dir=exec_dir)
     exec_dir = evaluator.apply(metrics, regime_eval, exec_dir, dl_dir=dl_dir)
+    if regime_eval.regime is None and not metrics.get("universal_regime"):
+        metrics["universal_regime"] = NEUTRAL_REGIME_TOKEN
+        metrics["universal_regime_scenario"] = NEUTRAL_REGIME_TOKEN
+    exec_dir = enforce_compression_trap_micro_bb_cohesion(
+        exec_dir,
+        dl_dir,
+        metrics,
+        regime_eval,
+    )
     if not metrics.get("universal_regime"):
         call_score = float(metrics.get("direction_call_score", call_score))
         put_score = float(metrics.get("direction_put_score", put_score))

@@ -139,6 +139,12 @@ Em baixo consenso (`retention_raw ≤ consensus_min_retention`, padrão 0,50), a
 
 **Modo contínuo:** essa penalidade opera sobre o Kelly base mesmo quando o motor já está em recovery D'Alembert. A convergência adaptativa (seção 7.2) evita que a penalidade asfixie a recuperação financeira.
 
+### 6.1 Gate Assimétrico de Proteção (regime NEUTRO)
+
+Quando o barramento universal M15 não classifica tendência, compressão ou exaustão (`universal_regime = NEUTRO`), sinais com `trade_score < 0.68` são vetados com `gate_reason = low_conviction_neutral_skip`. O veto é **absoluto**: não cede a `mandatory_trade_each_cycle` nem a recovery financeiro (`pending_total > 0`). Objetivo: estancar perdas por baixa convicção pós-inferência no horizonte micro M1 quando o macro não oferece confluência direcional.
+
+Em `COMPRESSION_TRAP`, a inversão condicional CALL/PUT só é consumada se `bb_width < 0.01` no M1; bandas expandidas no micro abortam a inversão e o motor segue a predição estrita da TCN.
+
 ---
 
 ## 7. Recovery, sizing e persistência financeira

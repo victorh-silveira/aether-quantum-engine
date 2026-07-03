@@ -1,6 +1,10 @@
 """Pisos de qualidade para filtrar candidatos antes da execucao."""
 
 from src.application.services.deep_learning.dl_gating import resolve_calibrated_edge
+from src.application.services.execution_quality_asymmetric_gate import (
+    NEUTRAL_REGIME_TOKEN,
+    validate_recovery_asymmetric_gate,
+)
 from src.application.services.execution_squeeze_gate import passes_squeeze_gate
 from src.application.services.execution_universal_regime_gate import UniversalRegimeEvaluator
 from src.application.services.execution_universal_regime_types import RegimeState
@@ -110,6 +114,7 @@ def _quality_failures(
         and float(metrics.get("exhaustion_penalty", 0.0)) + 1e-9 >= min_exhaustion
     )
     vol_cohesion_fail = bool(metrics.get("vol_cohesion_divergence"))
+    asymmetric_fail = bool(metrics.get("recovery_asymmetric_gate"))
     signal_floor = float(min_signal)
     if recovery_active and isinstance(recovery_kelly_cfg, dict):
         hurst = float(indicators.get("hurst", 0.5))
@@ -135,6 +140,7 @@ def _quality_failures(
         not recovery_active and min_adx_normal > 0.0 and adx + 1e-9 < min_adx_normal,
         exhaustion_fail,
         vol_cohesion_fail,
+        asymmetric_fail,
     ]
     return any(checks)
 
@@ -158,6 +164,7 @@ def passes_execution_quality(
 ) -> bool:
     """Indica se metricas atendem pisos de qualidade (legado para testes)."""
     apply_vol_cohesion_entropic_downgrade(metrics)
+    validate_recovery_asymmetric_gate(metrics)
     if not passes_squeeze_gate(metrics, cfg=dynamic_threshold_cfg):
         return False
     return not _quality_failures(
@@ -260,6 +267,10 @@ def apply_quality_penalty_to_metrics(
             )
             regime_eval = evaluator.evaluate(metrics, dl_dir=dl_dir, exec_dir=exec_dir)
             evaluator.apply(metrics, regime_eval, exec_dir, dl_dir=dl_dir)
+            if regime_eval.regime is None and not metrics.get("universal_regime"):
+                metrics["universal_regime"] = NEUTRAL_REGIME_TOKEN
+                metrics["universal_regime_scenario"] = NEUTRAL_REGIME_TOKEN
+    validate_recovery_asymmetric_gate(metrics)
     penalty = quality_gate_penalty(
         metrics,
         min_signal=min_signal,

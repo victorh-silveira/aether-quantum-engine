@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 from src.application.services.orchestrator.execution_collect import collect_cluster_orders
 from src.domain.models.trade import TradeDirection
 from tests.market_symbols import ANCHOR, PAIR
+from tests.unit.application.universal_regime_metrics import asymmetric_gate_safe_metrics
 
 
 def test_collect_cluster_orders_recovery_executes_best_available_signal():
@@ -11,7 +12,7 @@ def test_collect_cluster_orders_recovery_executes_best_available_signal():
         anchor=ANCHOR,
         symbols=[ANCHOR, PAIR],
         config={
-            "orchestrator": {"execution": {"include_anchor_trades": True}},
+            "orchestrator": {"execution": {"include_anchor_trades": True, "regime_evaluator": {"enabled": True}}},
             "deep_learning": {"recovery_gating": {}},
         },
         risk_manager=SimpleNamespace(
@@ -33,13 +34,7 @@ def test_collect_cluster_orders_recovery_executes_best_available_signal():
     decisions = {
         ANCHOR: {
             "direction": TradeDirection.CALL,
-            "metrics": {
-                "execute": True,
-                "deploy_ok": True,
-                "val_accuracy": 0.55,
-                "conviction": 0.60,
-                "raw_prob": 0.58,
-            },
+            "metrics": asymmetric_gate_safe_metrics(),
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
@@ -53,7 +48,7 @@ def test_collect_cluster_orders_includes_recovery_candidate_with_raw_prob():
         anchor=ANCHOR,
         symbols=[ANCHOR, PAIR],
         config={
-            "orchestrator": {"execution": {"include_anchor_trades": False}},
+            "orchestrator": {"execution": {"include_anchor_trades": False, "regime_evaluator": {"enabled": True}}},
             "deep_learning": {"min_edge_execute": 0.04},
             "risk_management": {"kelly": {"mandatory_min_trade_score": 0.68, "recovery_min_trade_score": 0.64}},
         },
@@ -96,7 +91,7 @@ def test_collect_cluster_orders_skips_weak_signal_when_execute_false():
         anchor=ANCHOR,
         symbols=[ANCHOR, PAIR],
         config={
-            "orchestrator": {"execution": {"include_anchor_trades": False}},
+            "orchestrator": {"execution": {"include_anchor_trades": False, "regime_evaluator": {"enabled": True}}},
             "deep_learning": {"min_edge_execute": 0.04},
             "risk_management": {"kelly": {"mandatory_min_trade_score": 0.68, "recovery_min_trade_score": 0.64}},
         },
@@ -118,7 +113,7 @@ def test_collect_cluster_orders_skips_weak_signal_when_execute_false():
         PAIR: {"direction": TradeDirection.CALL, "metrics": {"raw_prob": 0.4, "execute": False, "deploy_ok": True}},
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
-    assert len(orders) == 1
+    assert len(orders) == 0
 
 
 def test_collect_cluster_orders_mandatory_does_not_skip_recovery_without_hedge():
@@ -126,7 +121,7 @@ def test_collect_cluster_orders_mandatory_does_not_skip_recovery_without_hedge()
         anchor=ANCHOR,
         symbols=[ANCHOR, PAIR],
         config={
-            "orchestrator": {"execution": {"include_anchor_trades": False}},
+            "orchestrator": {"execution": {"include_anchor_trades": False, "regime_evaluator": {"enabled": True}}},
         },
         risk_manager=SimpleNamespace(
             pending_loss={PAIR: 10.0},
@@ -144,13 +139,7 @@ def test_collect_cluster_orders_mandatory_does_not_skip_recovery_without_hedge()
     decisions = {
         PAIR: {
             "direction": TradeDirection.CALL,
-            "metrics": {
-                "raw_prob": 0.4,
-                "execute": True,
-                "trade_score": 0.55,
-                "val_accuracy": 0.52,
-                "deploy_ok": True,
-            },
+            "metrics": asymmetric_gate_safe_metrics(raw_prob=0.72, execute=True),
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
@@ -162,7 +151,7 @@ def test_collect_cluster_orders_filters_proposal_skip_symbols():
         anchor=ANCHOR,
         symbols=[ANCHOR, PAIR],
         config={
-            "orchestrator": {"execution": {"include_anchor_trades": True}},
+            "orchestrator": {"execution": {"include_anchor_trades": True, "regime_evaluator": {"enabled": True}}},
             "risk_management": {"kelly": {"mandatory_min_trade_score": 0.0}},
             "deep_learning": {},
         },
@@ -182,7 +171,7 @@ def test_collect_cluster_orders_filters_proposal_skip_symbols():
     )
     decisions = {
         ANCHOR: {"direction": TradeDirection.CALL, "metrics": {"execute": True, "trade_score": 0.70}},
-        PAIR: {"direction": TradeDirection.PUT, "metrics": {"execute": True, "trade_score": 0.62}},
+        PAIR: {"direction": TradeDirection.PUT, "metrics": {"execute": True, "trade_score": 0.70}},
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
     assert len(orders) == 1

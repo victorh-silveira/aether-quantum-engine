@@ -230,6 +230,7 @@ def test_passes_execution_quality_recovery_decay_counter_relaxes_floor():
         "val_accuracy": 0.70,
         "edge": 0.10,
         "direction_margin": 0.08,
+        "universal_regime": "TREND_EXPANSION",
         "indicators": {"adx": 0.25, "hurst": 0.55},
     }
     kelly = {
@@ -258,6 +259,7 @@ def test_passes_execution_quality_log_decay_with_severe_drawdown():
         "val_accuracy": 0.70,
         "edge": 0.10,
         "direction_margin": 0.08,
+        "universal_regime": "TREND_EXPANSION",
         "indicators": {"adx": 0.25, "hurst": 0.54},
     }
     kelly = {

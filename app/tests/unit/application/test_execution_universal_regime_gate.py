@@ -1,4 +1,3 @@
-from src.application.services.execution_direction_resolver import resolve_execution_direction
 from src.application.services.execution_market_rank import market_decision_score
 from src.application.services.execution_universal_regime_evaluator import UniversalRegimeEvaluator
 from src.application.services.execution_universal_regime_gate import (
@@ -258,28 +257,3 @@ def test_apply_regime_direction_boost_put_branch():
 
 def test_invert_trade_direction():
     assert invert_trade_direction(TradeDirection.PUT) == TradeDirection.CALL
-
-
-def test_resolve_execution_direction_applies_compression_trap_inversion():
-    entry = {
-        "direction": TradeDirection.CALL,
-        "metrics": base_metrics(
-            indicators={
-                "vol_ratio": 0.56,
-                "adx": 0.17,
-                "hurst": 0.48,
-                "rsi": 0.63,
-                "cmo": 0.10,
-            },
-            deploy_ok=True,
-            val_accuracy=0.58,
-        ),
-    }
-    resolved = resolve_execution_direction(
-        entry,
-        exec_cfg={"regime_evaluator": {"enabled": True}},
-    )
-    assert resolved is not None
-    direction, metrics = resolved
-    assert direction == TradeDirection.PUT
-    assert metrics.get("universal_regime") == "COMPRESSION_TRAP"

@@ -4,6 +4,7 @@ import pytest
 
 from src.application.services.orchestrator import Orchestrator
 from src.domain.models.trade import TradeDirection
+from tests.unit.application.universal_regime_metrics import asymmetric_gate_safe_metrics
 
 
 @pytest.mark.asyncio
@@ -33,7 +34,10 @@ def test_execution_manager_collect_orders_mandatory_includes_execute_false(orch_
         orch.symbols = ["RDBULL", "RDBEAR"]
         decisions = {
             "RDBULL": {"direction": TradeDirection.CALL, "metrics": {"conviction": 0.8, "execute": False}},
-            "RDBEAR": {"direction": TradeDirection.PUT, "metrics": {"conviction": 0.9, "execute": True}},
+            "RDBEAR": {
+                "direction": TradeDirection.PUT,
+                "metrics": asymmetric_gate_safe_metrics(conviction=0.9, execute=True),
+            },
         }
         orders = orch.executor._collect_orders(decisions)
         assert len(orders) == 1
@@ -59,14 +63,14 @@ def test_collect_orders_mandatory_bypasses_selection_filter(orch_config):
         decisions = {
             "RDBULL": {
                 "direction": TradeDirection.CALL,
-                "metrics": {
-                    "execute": True,
-                    "conviction": 0.55,
-                    "trade_score": 0.55,
-                    "val_accuracy": 0.4,
-                    "edge": 0.05,
-                    "raw_prob": 0.56,
-                },
+                "metrics": asymmetric_gate_safe_metrics(
+                    execute=True,
+                    conviction=0.55,
+                    trade_score=0.75,
+                    val_accuracy=0.4,
+                    edge=0.05,
+                    raw_prob=0.56,
+                ),
             },
         }
         orders = orch.executor._collect_orders(decisions)
@@ -82,7 +86,10 @@ async def test_execute_cluster_logs_exec_pause_on_stop_win(orch_config):
         orch.symbols = ["RDBULL", "RDBULL"]
         orch.risk_manager.stake_block_reason = MagicMock(return_value="stop_win")
         decisions = {
-            "RDBULL": {"direction": TradeDirection.PUT, "metrics": {"conviction": 0.7, "execute": True}},
+            "RDBULL": {
+                "direction": TradeDirection.PUT,
+                "metrics": asymmetric_gate_safe_metrics(conviction=0.7, execute=True),
+            },
         }
         with (
             patch.object(orch.executor.logger, "info") as mock_info,
@@ -146,7 +153,10 @@ async def test_execute_cluster_runs_with_dl_decisions(orch_config):
         orch._active_cycle_id = 4
         orch.symbols = ["RDBULL", "RDBULL"]
         decisions = {
-            "RDBULL": {"direction": TradeDirection.PUT, "metrics": {"conviction": 0.7, "execute": True}},
+            "RDBULL": {
+                "direction": TradeDirection.PUT,
+                "metrics": asymmetric_gate_safe_metrics(conviction=0.7, execute=True),
+            },
         }
         with patch.object(orch.executor, "_execute_orders", new_callable=AsyncMock, return_value=0) as mock_exec:
             await orch.executor.execute_cluster(decisions)
@@ -164,7 +174,7 @@ async def test_execute_cluster_executes_when_stake_available(orch_config):
         decisions = {
             "RDBEAR": {
                 "direction": TradeDirection.PUT,
-                "metrics": {"conviction": 0.7, "execute": True},
+                "metrics": asymmetric_gate_safe_metrics(conviction=0.7, execute=True),
             },
         }
         with patch.object(orch.executor, "_execute_orders", new_callable=AsyncMock, return_value=1) as mock_exec:

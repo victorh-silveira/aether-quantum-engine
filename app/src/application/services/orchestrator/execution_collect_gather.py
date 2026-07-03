@@ -3,6 +3,7 @@
 from src.application.services.deep_learning.dl_params import parse_dynamic_threshold_config
 from src.application.services.execution_direction import build_execution_candidate
 from src.application.services.execution_direction_cross_corr import cached_correlation_matrix
+from src.application.services.execution_quality_asymmetric_gate import validate_recovery_asymmetric_gate
 from src.application.services.execution_quality_gate import apply_quality_penalty_to_metrics, quality_gate_params
 from src.application.services.execution_universal_regime_gate import log_regime_audit
 from src.application.services.execution_volatility_booster import apply_volatility_vol_booster
@@ -70,6 +71,7 @@ def gather_cluster_candidates(
         if built is None:
             continue
         _, direction, metrics = built
+        validate_recovery_asymmetric_gate(metrics)
         if metrics.get("regime_skip_cycle"):
             continue
         dl_dir = _dl_direction_from_metrics(metrics, direction)

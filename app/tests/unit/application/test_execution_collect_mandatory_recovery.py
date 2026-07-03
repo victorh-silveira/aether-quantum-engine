@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 from src.application.services.orchestrator.execution_collect import collect_cluster_orders
 from src.domain.models.trade import TradeDirection
 from tests.market_symbols import ANCHOR, LOW_SIDE_SYMBOL, PAIR
+from tests.unit.application.universal_regime_metrics import asymmetric_gate_safe_metrics
 
 
 def test_collect_cluster_orders_recovery_picks_dl_put_after_call_loss():
@@ -11,7 +12,7 @@ def test_collect_cluster_orders_recovery_picks_dl_put_after_call_loss():
         anchor=ANCHOR,
         symbols=[LOW_SIDE_SYMBOL, PAIR, ANCHOR],
         config={
-            "orchestrator": {"execution": {"include_anchor_trades": True}},
+            "orchestrator": {"execution": {"include_anchor_trades": True, "regime_evaluator": {"enabled": True}}},
             "risk_management": {"kelly": {"mandatory_min_trade_score": 0.45}},
             "deep_learning": {"recovery_gating": {}},
         },
@@ -34,22 +35,11 @@ def test_collect_cluster_orders_recovery_picks_dl_put_after_call_loss():
     decisions = {
         ANCHOR: {
             "direction": TradeDirection.PUT,
-            "metrics": {
-                "execute": True,
-                "trade_score": 0.64,
-                "val_accuracy": 0.80,
-                "raw_prob": 0.38,
-                "deploy_ok": True,
-                "trend_direction": "PUT",
-                "indicators": {
-                    "hurst": 0.55,
-                    "adx": 0.30,
-                    "vol_ratio": 1.10,
-                    "rsi": 0.50,
-                    "keltner": 0.50,
-                    "cmo": 0.0,
-                },
-            },
+            "metrics": asymmetric_gate_safe_metrics(
+                trade_score=0.72,
+                raw_prob=0.38,
+                trend_direction="PUT",
+            ),
         },
         LOW_SIDE_SYMBOL: {
             "direction": TradeDirection.CALL,
@@ -73,7 +63,13 @@ def test_collect_cluster_orders_recovery_flips_r100_put_after_call_loss():
         anchor="RDBULL",
         symbols=["RDBULL"],
         config={
-            "orchestrator": {"execution": {"include_anchor_trades": True, "recovery_flip_direction_after_loss": True}},
+            "orchestrator": {
+                "execution": {
+                    "include_anchor_trades": True,
+                    "recovery_flip_direction_after_loss": True,
+                    "regime_evaluator": {"enabled": True},
+                }
+            },
             "risk_management": {"kelly": {}},
             "deep_learning": {"recovery_gating": {}},
         },
@@ -96,13 +92,7 @@ def test_collect_cluster_orders_recovery_flips_r100_put_after_call_loss():
     decisions = {
         "RDBULL": {
             "direction": TradeDirection.CALL,
-            "metrics": {
-                "execute": True,
-                "trade_score": 0.54,
-                "val_accuracy": 0.63,
-                "raw_prob": 0.54,
-                "deploy_ok": True,
-            },
+            "metrics": asymmetric_gate_safe_metrics(trade_score=0.72, raw_prob=0.54),
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
@@ -117,7 +107,7 @@ def test_collect_cluster_orders_recovery_skips_weak_signal():
         anchor=ANCHOR,
         symbols=[ANCHOR, PAIR],
         config={
-            "orchestrator": {"execution": {"include_anchor_trades": False}},
+            "orchestrator": {"execution": {"include_anchor_trades": False, "regime_evaluator": {"enabled": True}}},
         },
         risk_manager=SimpleNamespace(
             pending_loss={PAIR: 10.0},
@@ -148,15 +138,14 @@ def test_collect_cluster_orders_recovery_skips_weak_signal():
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
-    assert len(orders) == 1
-    assert orders[0][1] == TradeDirection.PUT
+    assert len(orders) == 0
 
 
 def test_collect_cluster_orders_mandatory_skips_in_recovery_if_quality_below_threshold():
     orch = SimpleNamespace(
         anchor=ANCHOR,
         symbols=[ANCHOR],
-        config={"orchestrator": {"execution": {}}},
+        config={"orchestrator": {"execution": {"regime_evaluator": {"enabled": True}}}},
         risk_manager=SimpleNamespace(
             pending_loss={ANCHOR: 4.0},
             last_loss_symbol=ANCHOR,
@@ -185,6 +174,5 @@ def test_collect_cluster_orders_mandatory_skips_in_recovery_if_quality_below_thr
             },
         },
     }
-    # Em recuperacao, candidatos tecnicos entram no pool mesmo com sinal fraco
     orders = collect_cluster_orders(exec_mgr, decisions)
-    assert len(orders) == 1
+    assert len(orders) == 0

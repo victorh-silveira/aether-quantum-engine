@@ -3,6 +3,7 @@
 __all__ = ["collect_cluster_orders", "_mandatory_fallback_candidates"]
 
 from src.application.services.execution_direction import build_execution_candidate
+from src.application.services.execution_quality_asymmetric_gate import validate_recovery_asymmetric_gate
 from src.application.services.execution_symbols import (
     select_best_execution_candidate,
     select_mandatory_execution_candidate,
@@ -26,12 +27,13 @@ from src.domain.risk.recovery_hurst_decay import session_drawdown_from_profit
 from src.domain.risk.stake_sizing import enrich_metrics_conviction, raw_side_from_metrics
 
 
-def _regime_skip_blocks_mandatory_cycle(exec_mgr, decisions: dict, *, recovery_active: bool) -> bool:
+def _regime_skip_blocks_mandatory_cycle(exec_mgr, decisions: dict, *, recovery_active: bool) -> tuple[bool, str]:
     """True quando todos os simbolos elegiveis estao sob skip de regime macro."""
     exec_cfg = exec_mgr.orch.config.get("orchestrator", {}).get("execution", {})
     calibration_cfg = exec_mgr.orch.config.get("deep_learning", {}).get("calibration")
     saw_decision = False
     saw_tradeable = False
+    skip_label = "REGIME MACRO ENTROPIC_NOISE"
     for symbol in exec_mgr._trade_symbols():
         entry = decisions.get(symbol)
         if not entry:
@@ -46,11 +48,15 @@ def _regime_skip_blocks_mandatory_cycle(exec_mgr, decisions: dict, *, recovery_a
         )
         if built is None:
             continue
-        if regime_skip_blocks_trade(built[2]):
+        _, _, metrics = built
+        validate_recovery_asymmetric_gate(metrics)
+        if regime_skip_blocks_trade(metrics):
+            if metrics.get("gate_reason") == "low_conviction_neutral_skip":
+                skip_label = "LOW CONVICTION NEUTRAL SKIP"
             continue
         saw_tradeable = True
         break
-    return saw_decision and not saw_tradeable
+    return saw_decision and not saw_tradeable, skip_label
 
 
 def _select_cluster_best(exec_mgr, candidates, *, mandatory, last_loss, last_loss_dir, recovery_active, skip_symbols):
@@ -115,13 +121,13 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
         recovery_skip_counter=skip_counter,
         session_drawdown=session_drawdown,
     )
-    regime_blocked = not candidates and _regime_skip_blocks_mandatory_cycle(
+    regime_blocked, skip_label = _regime_skip_blocks_mandatory_cycle(
         exec_mgr,
         decisions,
         recovery_active=recovery_active,
     )
-    if regime_blocked:
-        exec_mgr.logger.info("[%s] SKIP: REGIME MACRO ENTROPIC_NOISE | ciclo bloqueado", cid)
+    if not candidates and regime_blocked:
+        exec_mgr.logger.info("[%s] SKIP: %s | ciclo bloqueado", cid, skip_label)
         return []
     candidates = mandatory_fallback_if_empty(
         exec_mgr,

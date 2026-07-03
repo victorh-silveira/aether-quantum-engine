@@ -6,6 +6,7 @@ from src.application.services.orchestrator.execution_collect import collect_clus
 from src.application.services.orchestrator.execution_collect_helpers import resolve_mandatory_ultimate_candidate
 from src.domain.models.trade import TradeDirection
 from tests.market_symbols import ANCHOR, PAIR
+from tests.unit.application.universal_regime_metrics import asymmetric_gate_safe_metrics
 
 
 def test_collect_cluster_orders_mandatory_fallback_after_recovery_filter():
@@ -13,7 +14,7 @@ def test_collect_cluster_orders_mandatory_fallback_after_recovery_filter():
         anchor=ANCHOR,
         symbols=[ANCHOR, PAIR],
         config={
-            "orchestrator": {"execution": {"include_anchor_trades": True}},
+            "orchestrator": {"execution": {"include_anchor_trades": True, "regime_evaluator": {"enabled": True}}},
             "deep_learning": {"recovery_gating": {}},
         },
         risk_manager=SimpleNamespace(
@@ -45,13 +46,7 @@ def test_collect_cluster_orders_mandatory_fallback_after_recovery_filter():
         },
         PAIR: {
             "direction": TradeDirection.PUT,
-            "metrics": {
-                "execute": False,
-                "trade_score": 0.58,
-                "val_accuracy": 0.52,
-                "raw_prob": 0.44,
-                "deploy_ok": True,
-            },
+            "metrics": asymmetric_gate_safe_metrics(execute=False, trade_score=0.72, raw_prob=0.44),
         },
     }
     with patch(
@@ -67,7 +62,7 @@ def test_collect_cluster_orders_mandatory_returns_empty_when_fallback_missing():
     orch = SimpleNamespace(
         anchor=ANCHOR,
         symbols=[ANCHOR],
-        config={"orchestrator": {"execution": {}}},
+        config={"orchestrator": {"execution": {"regime_evaluator": {"enabled": True}}}},
         risk_manager=SimpleNamespace(
             pending_loss={ANCHOR: 4.0},
             last_loss_symbol=ANCHOR,
@@ -141,7 +136,7 @@ def test_collect_cluster_orders_skips_entry_without_inferable_direction():
         anchor=ANCHOR,
         symbols=[ANCHOR, PAIR],
         config={
-            "orchestrator": {"execution": {"include_anchor_trades": False}},
+            "orchestrator": {"execution": {"include_anchor_trades": False, "regime_evaluator": {"enabled": True}}},
             "risk_management": {"kelly": {"mandatory_min_trade_score": 0.0}},
         },
         risk_manager=SimpleNamespace(
@@ -160,7 +155,7 @@ def test_collect_cluster_orders_skips_entry_without_inferable_direction():
         _trade_symbols=lambda: [PAIR],
     )
     decisions = {
-        PAIR: {"direction": None, "metrics": {"execute": True, "raw_prob": 0.55}},
+        PAIR: {"direction": None, "metrics": asymmetric_gate_safe_metrics(raw_prob=0.75)},
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
     assert len(orders) == 1
@@ -181,7 +176,7 @@ def test_collect_cluster_orders_uses_ultimate_fallback_when_select_empty():
         anchor=ANCHOR,
         symbols=[ANCHOR, PAIR],
         config={
-            "orchestrator": {"execution": {"include_anchor_trades": False}},
+            "orchestrator": {"execution": {"include_anchor_trades": False, "regime_evaluator": {"enabled": True}}},
             "risk_management": {"kelly": {"mandatory_min_trade_score": 0.45}},
         },
         risk_manager=SimpleNamespace(
@@ -229,7 +224,7 @@ def test_collect_cluster_orders_mandatory_returns_empty_when_select_none():
     orch = SimpleNamespace(
         anchor=ANCHOR,
         symbols=[ANCHOR, PAIR],
-        config={"orchestrator": {"execution": {"include_anchor_trades": False}}},
+        config={"orchestrator": {"execution": {"include_anchor_trades": False, "regime_evaluator": {"enabled": True}}}},
         risk_manager=SimpleNamespace(pending_loss={}, last_loss_symbol=None, last_loss_direction=None),
         _active_cycle_id=4,
     )

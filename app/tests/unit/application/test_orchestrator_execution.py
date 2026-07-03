@@ -6,6 +6,7 @@ import pytest
 from src.application.services.orchestrator import Orchestrator
 from src.domain.models.trade import Contract, TradeDirection, TradeStatus
 from src.infrastructure.state.trading_state import TradingState
+from tests.unit.application.universal_regime_metrics import asymmetric_gate_safe_metrics
 
 
 @pytest.mark.asyncio
@@ -20,11 +21,29 @@ async def test_execute_cluster_dispatches_when_decisions_present(orch_config):
         decisions = {
             "RDBULL": {
                 "direction": TradeDirection.CALL,
-                "metrics": {"conviction": 1.0, "execute": True, "macro_bias": 0.8, "pattern_tags": ["BULL_FLAG"]},
+                "metrics": {
+                    "conviction": 1.0,
+                    "trade_score": 0.75,
+                    "raw_prob": 0.75,
+                    "deploy_ok": True,
+                    "val_accuracy": 0.60,
+                    "execute": True,
+                    "macro_bias": 0.8,
+                    "pattern_tags": ["BULL_FLAG"],
+                },
             },
             "RDBEAR": {
                 "direction": TradeDirection.CALL,
-                "metrics": {"conviction": 0.9, "execute": True, "macro_bias": 0.4, "pattern_tags": ["BULL_PENNANT"]},
+                "metrics": {
+                    "conviction": 0.9,
+                    "trade_score": 0.75,
+                    "raw_prob": 0.75,
+                    "deploy_ok": True,
+                    "val_accuracy": 0.60,
+                    "execute": True,
+                    "macro_bias": 0.4,
+                    "pattern_tags": ["BULL_PENNANT"],
+                },
             },
         }
 
@@ -94,7 +113,7 @@ async def test_execution_manager_skip_and_failure_paths(orch_config):
             "RDBULL": {"direction": None, "metrics": {"conviction": 0.0}},
             "RDBEAR": {
                 "direction": TradeDirection.CALL,
-                "metrics": {"conviction": 1.0, "execute": True},
+                "metrics": asymmetric_gate_safe_metrics(conviction=1.0, execute=True),
             },
         }
         orch.executor._place_order = AsyncMock(side_effect=Exception("API ERROR"))

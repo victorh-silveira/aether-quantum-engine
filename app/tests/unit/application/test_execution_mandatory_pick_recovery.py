@@ -9,6 +9,7 @@ from src.application.services.execution_mandatory_pick import (
 from src.application.services.orchestrator.execution_collect import collect_cluster_orders
 from src.domain.models.trade import TradeDirection
 from tests.market_symbols import ANCHOR, LOW_SIDE_SYMBOL, PAIR
+from tests.unit.application.universal_regime_metrics import asymmetric_gate_safe_metrics
 
 
 def test_collect_cluster_orders_recovery_picks_dl_put_after_call_loss():
@@ -16,7 +17,7 @@ def test_collect_cluster_orders_recovery_picks_dl_put_after_call_loss():
         anchor=ANCHOR,
         symbols=[LOW_SIDE_SYMBOL, PAIR, ANCHOR],
         config={
-            "orchestrator": {"execution": {"include_anchor_trades": True}},
+            "orchestrator": {"execution": {"include_anchor_trades": True, "regime_evaluator": {"enabled": True}}},
             "risk_management": {"kelly": {"mandatory_min_trade_score": 0.45}},
         },
         risk_manager=SimpleNamespace(
@@ -38,22 +39,11 @@ def test_collect_cluster_orders_recovery_picks_dl_put_after_call_loss():
     decisions = {
         ANCHOR: {
             "direction": TradeDirection.PUT,
-            "metrics": {
-                "execute": True,
-                "trade_score": 0.64,
-                "val_accuracy": 0.80,
-                "raw_prob": 0.38,
-                "deploy_ok": True,
-                "trend_direction": "PUT",
-                "indicators": {
-                    "hurst": 0.55,
-                    "adx": 0.30,
-                    "vol_ratio": 1.10,
-                    "rsi": 0.50,
-                    "keltner": 0.50,
-                    "cmo": 0.0,
-                },
-            },
+            "metrics": asymmetric_gate_safe_metrics(
+                trade_score=0.72,
+                raw_prob=0.38,
+                trend_direction="PUT",
+            ),
         },
         LOW_SIDE_SYMBOL: {
             "direction": TradeDirection.CALL,
@@ -76,7 +66,7 @@ def test_collect_cluster_orders_mandatory_keeps_weak_recovery_candidate():
     orch = SimpleNamespace(
         anchor=ANCHOR,
         symbols=[ANCHOR],
-        config={"orchestrator": {"execution": {}}},
+        config={"orchestrator": {"execution": {"regime_evaluator": {"enabled": True}}}},
         risk_manager=SimpleNamespace(
             pending_loss={ANCHOR: 4.0},
             last_loss_symbol=ANCHOR,
@@ -106,7 +96,7 @@ def test_collect_cluster_orders_mandatory_keeps_weak_recovery_candidate():
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
-    assert len(orders) == 1
+    assert len(orders) == 0
 
 
 def test_pick_best_mandatory_returns_hedge_when_quality_ok():

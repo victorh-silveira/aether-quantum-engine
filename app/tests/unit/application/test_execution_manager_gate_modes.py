@@ -4,6 +4,7 @@ import pytest
 
 from src.application.services.orchestrator import Orchestrator
 from src.domain.models.trade import TradeDirection
+from tests.unit.application.universal_regime_metrics import asymmetric_gate_safe_metrics
 
 
 @pytest.mark.asyncio
@@ -38,13 +39,12 @@ async def test_execute_cluster_mandatory_skips_exec_none_when_execute_false(orch
         decisions = {
             "RDBULL": {
                 "direction": TradeDirection.CALL,
-                "metrics": {
-                    "conviction": 0.7,
-                    "execute": False,
-                    "raw_prob": 0.52,
-                    "deploy_ok": True,
-                    "val_accuracy": 0.55,
-                },
+                "metrics": asymmetric_gate_safe_metrics(
+                    conviction=0.7,
+                    execute=False,
+                    raw_prob=0.52,
+                    val_accuracy=0.55,
+                ),
             },
         }
         with (
@@ -134,7 +134,7 @@ def test_collect_orders_continuous_keeps_weak_technically_valid_candidate(orch_c
             },
         }
         orders = orch.executor._collect_orders(decisions)
-        assert len(orders) == 1
+        assert len(orders) == 0
 
 
 def test_collect_orders_non_mandatory_keeps_filtered_candidate(orch_config):
@@ -189,7 +189,7 @@ async def test_execute_cluster_mandatory_never_exec_skip_without_direction(orch_
                 {
                     "RDBULL": {
                         "direction": None,
-                        "metrics": {"raw_prob": 0.58, "trade_score": 0.55, "val_accuracy": 0.55},
+                        "metrics": asymmetric_gate_safe_metrics(raw_prob=0.58, trade_score=0.72, val_accuracy=0.55),
                     }
                 }
             )
