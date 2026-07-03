@@ -134,7 +134,8 @@ def test_collect_orders_continuous_keeps_weak_technically_valid_candidate(orch_c
             },
         }
         orders = orch.executor._collect_orders(decisions)
-        assert len(orders) == 0
+        assert len(orders) == 1
+        assert orders[0][1] == TradeDirection.CALL
 
 
 def test_collect_orders_non_mandatory_keeps_filtered_candidate(orch_config):

@@ -57,7 +57,7 @@ def test_resolve_mean_reversion_put_to_call():
     assert result[0] == TradeDirection.CALL
 
 
-def test_resolve_low_accuracy_inverts():
+def test_resolve_low_accuracy_keeps_dl_side():
     entry = _entry(
         direction=TradeDirection.CALL,
         raw_prob=0.58,
@@ -74,4 +74,5 @@ def test_resolve_low_accuracy_inverts():
     )
     result = resolve_execution_direction(entry)
     assert result is not None
-    assert result[0] == TradeDirection.PUT
+    assert result[0] == TradeDirection.CALL
+    assert result[1]["direction_inverted"] is False

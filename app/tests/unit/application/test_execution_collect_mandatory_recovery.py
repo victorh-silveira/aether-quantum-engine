@@ -102,7 +102,7 @@ def test_collect_cluster_orders_recovery_flips_r100_put_after_call_loss():
     assert orders[0][2].get("direction_inverted") is True
 
 
-def test_collect_cluster_orders_recovery_skips_weak_signal():
+def test_collect_cluster_orders_recovery_bolts_weak_signal():
     orch = SimpleNamespace(
         anchor=ANCHOR,
         symbols=[ANCHOR, PAIR],
@@ -138,10 +138,10 @@ def test_collect_cluster_orders_recovery_skips_weak_signal():
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
-    assert len(orders) == 0
+    assert len(orders) == 1
 
 
-def test_collect_cluster_orders_mandatory_skips_in_recovery_if_quality_below_threshold():
+def test_collect_cluster_orders_mandatory_bolts_in_recovery_regardless_of_quality():
     orch = SimpleNamespace(
         anchor=ANCHOR,
         symbols=[ANCHOR],
@@ -175,4 +175,4 @@ def test_collect_cluster_orders_mandatory_skips_in_recovery_if_quality_below_thr
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
-    assert len(orders) == 0
+    assert len(orders) == 1

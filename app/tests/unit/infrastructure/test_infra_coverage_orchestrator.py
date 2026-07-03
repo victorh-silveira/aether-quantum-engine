@@ -5,11 +5,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.application.services.deep_learning.dl_model_artifacts import schedule_model_upload
-from src.application.services.execution_squeeze_gate import (
-    _resolved_side,
-    passes_squeeze_gate,
-    squeeze_consensus_side,
-)
 from src.application.services.execution_volatility_threshold import resolve_dynamic_threshold_bundle
 from src.application.services.orchestrator import Orchestrator
 from src.application.services.orchestrator.orchestrator_run_loop import save_full_state
@@ -19,7 +14,6 @@ from src.application.services.orchestrator.orchestrator_state_restore import (
     restore_orchestrator_state,
 )
 from src.domain.math.probability_entropy import entropy_penalty_factor
-from src.domain.models.trade import TradeDirection
 
 
 def test_schedule_model_upload_without_loop(tmp_path):
@@ -100,26 +94,6 @@ async def test_orchestrator_skips_processed_bar():
     assert orch.tick_count == 0
 
 
-def test_squeeze_gate_skips_consensus_when_disabled():
-    metrics = {"squeeze_extreme": True, "direction_margin": 0.2, "direction_inverted": True}
-    assert passes_squeeze_gate(metrics, cfg={"require_indicator_consensus": False}) is False
-
-
-def test_squeeze_consensus_returns_none():
-    assert squeeze_consensus_side({"trend_direction": "CALL"}) is None
-
-
-def test_squeeze_gate_resolved_none_passes():
-    metrics = {
-        "squeeze_extreme": True,
-        "direction_margin": 0.2,
-        "trend_direction": "CALL",
-        "indicator_regime_side": "call",
-        "calibrated_prob": 0.7,
-    }
-    assert passes_squeeze_gate(metrics, cfg={"squeeze_min_margin": 0.12}) is True
-
-
 @pytest.mark.asyncio
 async def test_bar_epoch_missing_stored_value():
     orch = MagicMock()
@@ -131,11 +105,6 @@ async def test_bar_epoch_missing_stored_value():
 
 def test_entropy_penalty_below_floor():
     assert entropy_penalty_factor(0.99, ceiling=0.92, floor=0.8) == 0.0
-
-
-def test_squeeze_resolved_trade_direction_enum():
-    assert _resolved_side({"resolved_direction": TradeDirection.PUT}) == "put"
-    assert _resolved_side({"resolved_direction": "UNKNOWN"}) is None
 
 
 def test_entropy_penalty_at_ceiling():

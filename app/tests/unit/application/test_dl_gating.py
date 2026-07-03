@@ -2,6 +2,7 @@ import pytest
 
 from src.application.services.deep_learning.dl_gating import (
     direction_from_raw_prob,
+    resolve_calibrated_edge,
     resolve_confidence_thresholds,
     resolve_edge,
 )
@@ -11,6 +12,18 @@ from src.domain.models.trade import TradeDirection
 def test_resolve_edge():
     assert resolve_edge(0.80) == pytest.approx(0.30)
     assert resolve_edge(0.50) == 0.0
+
+
+def test_resolve_calibrated_edge_prefers_calibrated():
+    assert resolve_calibrated_edge(0.82, raw_prob=0.60) == pytest.approx(0.32)
+
+
+def test_resolve_calibrated_edge_falls_back_to_raw():
+    assert resolve_calibrated_edge(None, raw_prob=0.70) == pytest.approx(0.20)
+
+
+def test_resolve_calibrated_edge_defaults_to_zero():
+    assert resolve_calibrated_edge(None) == 0.0
 
 
 def test_confidence_thresholds_from_params():

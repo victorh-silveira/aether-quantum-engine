@@ -125,22 +125,6 @@
       "recovery_flip_direction_after_loss": false,
       "recovery_flip_max_conviction": 0.56,
       "recovery_flip_use_trend_confirmation": false,
-      "expansion_inversion_veto_vol_ratio": 1.15,
-      "expansion_inversion_score_retention": 0.70,
-      "expansion_momentum_kelly_scale": 0.85,
-      "mean_reversion_contraction_vol_ratio": 0.80,
-      "mean_reversion_rsi_overbought": 0.72,
-      "mean_reversion_cmo_overbought": 0.45,
-      "mean_reversion_rsi_oversold": 0.28,
-      "mean_reversion_cmo_oversold": -0.45,
-      "mean_reversion_flip_margin": 0.08,
-      "direction_scoring": {
-        "trend_weight": 0.15,
-        "exhaustion_weight": 0.12,
-        "indicator_regime_weight": 0.10,
-        "dl_raw_weight": 0.45,
-        "val_accuracy_weight": 0.18
-      },
       "dynamic_threshold": {
         "enabled": true,
         "vol_source": "blend",
@@ -166,47 +150,7 @@
         "implied_vol_bb_scale": true
       },
       "quality_gate": {
-        "min_direction_margin": 0.06,
-        "inverted_min_score": 0.76,
-        "min_adx_normal": 0.20,
         "mandatory_min_trade_score": 0.72
-      },
-      "micro_noise_gate": {
-        "enabled": true,
-        "adx_floor": 0.12,
-        "bb_extreme": 0.01,
-        "hurst_random_walk_max": 0.48,
-        "keltner_topo_trigger": 1.05,
-        "keltner_fundo_trigger": -0.05,
-        "breakout_momentum_boost": 0.05
-      },
-      "regime_evaluator": {
-        "enabled": true,
-        "trend_adx_min": 0.28,
-        "trend_hurst_min": 0.56,
-        "trend_vol_min": 1.05,
-        "compression_adx_max": 0.18,
-        "compression_hurst_max": 0.48,
-        "compression_vol_max": 0.80,
-        "compression_rsi_call_min": 0.62,
-        "compression_rsi_put_max": 0.38,
-        "climax_rsi_max": 0.70,
-        "climax_cmo_min": 0.52,
-        "entropic_hurst_max": 0.42
-      },
-      "exhaustion_gate": {
-        "enabled": true,
-        "hard_gate_enabled": true,
-        "rsi_overbought": 0.73,
-        "rsi_oversold": 0.27,
-        "cmo_bull": 0.48,
-        "cmo_bear": -0.48,
-        "keltner_overbought": 1.15,
-        "keltner_oversold": -0.15,
-        "dl_weight_retention": 0.20,
-        "adx_super_trend_min": 0.40,
-        "hard_gate_score_penalty": 0.25,
-        "min_penalty_skip": 0.12
       },
       "trend_period": 15,
       "trend_use_ema": true,
@@ -228,10 +172,7 @@
       "dlambert_unit_override": null,
       "recovery_sizing_conviction": 0.62,
       "recovery_min_conviction": 0.64,
-      "recovery_min_val_accuracy": 0.62,
-      "circuit_breaker_max_linear_level": 8,
-      "circuit_breaker_max_stake_u_multiple": 10.0,
-      "circuit_breaker_max_session_drawdown_u": 250.0
+      "recovery_min_val_accuracy": 0.62
     },
     "kelly": {
       "base_win_rate": 0.53,

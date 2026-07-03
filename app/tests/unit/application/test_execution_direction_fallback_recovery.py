@@ -36,7 +36,7 @@ def test_build_mandatory_fallback_returns_last_resort_at_configured_min_signal()
         min_signal=0.45,
     )
     assert best is not None
-    assert best[1] == TradeDirection.CALL
+    assert best[1] == TradeDirection.PUT
 
 
 def test_symbol_priority_recovery_core_only():

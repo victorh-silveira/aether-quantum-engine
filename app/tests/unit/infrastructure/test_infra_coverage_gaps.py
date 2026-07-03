@@ -15,9 +15,6 @@ from src.application.services.deep_learning.dl_model_artifacts import (
     upload_all_symbol_checkpoints,
     upload_model_checkpoint,
 )
-from src.application.services.execution_direction_resolver import _dl_call_put_scores
-from src.application.services.execution_squeeze_bias import normalize_bias_side
-from src.application.services.execution_squeeze_gate import passes_squeeze_gate
 from src.application.services.execution_volatility_bb import _percentile_p10
 from src.application.services.orchestrator.orchestrator_state_restore import (
     bar_epoch_already_processed,
@@ -31,27 +28,6 @@ from src.infrastructure.state.json_state_store import JsonStateStore
 from src.infrastructure.state.redis_state_store import RedisStateStore
 
 
-def test_normalize_bias_side_variants():
-    assert normalize_bias_side("RISE") == "call"
-    assert normalize_bias_side("FALL") == "put"
-    assert normalize_bias_side("flat") is None
-    assert normalize_bias_side(0.51) is None
-    assert normalize_bias_side(0.6) == "call"
-    assert normalize_bias_side(0.4) == "put"
-
-
-def test_squeeze_gate_resolved_mismatch():
-    metrics = {
-        "squeeze_extreme": True,
-        "direction_margin": 0.2,
-        "trend_direction": "CALL",
-        "indicator_regime_side": "call",
-        "calibrated_prob": 0.7,
-        "resolved_direction": "PUT",
-    }
-    assert passes_squeeze_gate(metrics, cfg={"squeeze_min_margin": 0.12}) is False
-
-
 def test_percentile_p10_single_value():
     assert _percentile_p10([0.3]) == 0.3
     assert _percentile_p10([]) == 0.0
@@ -59,19 +35,6 @@ def test_percentile_p10_single_value():
 
 def test_entropy_penalty_mid_range():
     assert 0.0 < entropy_penalty_factor(0.7, ceiling=1.0, floor=0.5) < 1.0
-
-
-def test_dl_call_put_entropy_violation():
-    entry = {
-        "metrics": {
-            "calibrated_prob": 0.6,
-            "entropy_violation": True,
-            "dynamic_call_threshold": 0.53,
-            "dynamic_put_threshold": 0.47,
-        }
-    }
-    call, put = _dl_call_put_scores(entry, {"dl_raw_weight": 0.45})
-    assert call != put
 
 
 def test_calibrator_entropy_empty_probs():

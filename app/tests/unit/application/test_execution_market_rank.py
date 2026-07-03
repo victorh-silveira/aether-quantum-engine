@@ -78,7 +78,7 @@ def test_market_decision_score_penalizes_inverted_and_low_margin():
     assert aligned > low_margin
 
 
-def test_resolve_flips_on_low_val_accuracy():
+def test_resolve_keeps_dl_side_on_low_val_accuracy():
     entry = _entry(
         direction=TradeDirection.CALL,
         raw_prob=0.58,
@@ -98,5 +98,5 @@ def test_resolve_flips_on_low_val_accuracy():
     result = resolve_execution_direction(entry)
     assert result is not None
     direction, metrics = result
-    assert direction == TradeDirection.PUT
-    assert metrics["direction_inverted"] is True
+    assert direction == TradeDirection.CALL
+    assert metrics["direction_inverted"] is False

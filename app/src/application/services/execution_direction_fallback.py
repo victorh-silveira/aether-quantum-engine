@@ -9,7 +9,6 @@ from src.application.services.execution_direction import (
 )
 from src.application.services.execution_mandatory_pick import pick_best_mandatory_candidate
 from src.application.services.execution_market_rank import build_market_execution_candidate
-from src.application.services.execution_universal_regime_gate import regime_skip_blocks_trade
 from src.domain.models.trade import TradeDirection
 
 
@@ -124,7 +123,7 @@ def _scored_fallback_pick(
         )
         if candidate is None:
             candidate = build_execution_candidate(symbol, entry)
-        if candidate is None or regime_skip_blocks_trade(candidate[2]) or score < best_score:
+        if candidate is None or score < best_score:
             continue
         best_score = score
         best = candidate
@@ -167,7 +166,7 @@ def _last_resort_fallback_pick(
         )
         if candidate is None:
             candidate = build_execution_candidate(symbol, entry, recovery_active=recovery_active)
-        if candidate is None or regime_skip_blocks_trade(candidate[2]):
+        if candidate is None:
             continue
         return candidate
     return None

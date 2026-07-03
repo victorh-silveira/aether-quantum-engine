@@ -3,6 +3,10 @@ from src.application.services.execution_market_rank import market_decision_score
 from src.domain.models.trade import TradeDirection
 
 
+def test_market_decision_score_override_short_circuits():
+    assert market_decision_score({"market_decision_score_override": 0.91}) == 0.91
+
+
 def test_market_decision_score_recovery_bonus_for_core_symbol():
     metrics = {
         "raw_prob": 0.62,

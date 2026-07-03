@@ -1,40 +1,15 @@
-"""Motor unificado de direcao CALL/PUT por scoring de indicadores e DL."""
+"""Motor de direcao linear puro: segue estritamente o sinal do Deep Learning (TCN)."""
 
 from __future__ import annotations
 
-from functools import partial
-
-from src.application.services.execution_direction_cross_corr import adjust_dl_weight_with_correlation
-from src.application.services.execution_direction_micro_boundary import validate_micro_boundary_exhaustion
-from src.application.services.execution_direction_regime_pipeline import apply_universal_regime_pipeline
-from src.application.services.execution_direction_resolver_bias import (
-    exhaustion_bias as _exhaustion_bias,
-    indicator_regime_bias as _indicator_regime_bias,
-    trend_bias as _trend_bias,
-    val_accuracy_bias as _val_accuracy_bias,
-)
-from src.application.services.execution_direction_scoring import (
-    accumulate_direction_scores,
-    finalize_direction_metrics,
-)
-from src.application.services.execution_direction_softmax_conflict import resolve_softmax_exhaustion_conflict
-from src.application.services.execution_entropy_adaptive import resolve_dl_entropy_penalty
-from src.application.services.execution_exhaustion_conflict import exhaustion_conflict_penalty
-from src.application.services.execution_exhaustion_hard_gate import (
-    dl_weight_retention,
-    hard_gate_score_penalty,
-)
-from src.application.services.execution_universal_regime_gate import map_volatility_regime_to_metrics
-from src.application.services.execution_volatility_booster import apply_volatility_vol_booster
 from src.domain.models.trade import TradeDirection
 
 
-NEUTRAL_REGIME_TOKEN = "NEUTRO"
-DL_INVERSION_VETO_SCORE = 0.60
+_TECHNICAL_BLOCKS = frozenset({"data", "predict_error", "training"})
 
 
 def _direction_prob(entry: dict) -> float | None:
-    """Retorna probabilidade calibrada de CALL quando disponivel."""
+    """Retorna probabilidade calibrada de CALL surfaçada pelo decision_bridge."""
     metrics = entry.get("metrics") or {}
     calibrated = metrics.get("calibrated_prob")
     if calibrated is not None:
@@ -55,7 +30,7 @@ def _direction_pivot(metrics: dict) -> float:
 
 
 def infer_dl_direction(entry: dict) -> TradeDirection | None:
-    """Obtem direcao prevista pelo DL ou infere a partir da probabilidade calibrada."""
+    """Obtem direcao prevista pelo DL (P(CALL) > P(PUT) => CALL, senao PUT)."""
     direction = entry.get("direction")
     if direction is not None:
         return direction
@@ -67,18 +42,8 @@ def infer_dl_direction(entry: dict) -> TradeDirection | None:
     return TradeDirection.CALL if float(prob) > pivot else TradeDirection.PUT
 
 
-_TECHNICAL_BLOCKS = frozenset({"data", "predict_error", "training"})
-_DEFAULT_WEIGHTS = {
-    "dl_raw_weight": 0.45,
-    "val_accuracy_weight": 0.18,
-    "trend_weight": 0.15,
-    "exhaustion_weight": 0.12,
-    "indicator_regime_weight": 0.10,
-}
-
-
 def is_technically_blocked(entry: dict) -> bool:
-    """Indica bloqueio absoluto por falha tecnica."""
+    """Indica bloqueio absoluto por falha tecnica de dados ou treino."""
     metrics = entry.get("metrics") or {}
     if metrics.get("deploy_ok") is False:
         return True
@@ -86,103 +51,9 @@ def is_technically_blocked(entry: dict) -> bool:
     return gate in _TECHNICAL_BLOCKS
 
 
-def _scoring_weights(cfg: dict) -> dict[str, float]:
-    """Mescla pesos de direction_scoring com defaults do resolver."""
-    merged = dict(_DEFAULT_WEIGHTS)
-    chunk = cfg.get("direction_scoring") if isinstance(cfg, dict) else {}
-    if isinstance(chunk, dict):
-        for key in _DEFAULT_WEIGHTS:
-            if key in chunk:
-                merged[key] = float(chunk[key])
-    return merged
-
-
 def _clamp01(value: float) -> float:
     """Limita valor ao intervalo [0, 1]."""
     return max(0.0, min(1.0, float(value)))
-
-
-def _atr_norm_peak_anomaly(indicators: dict) -> bool:
-    """True quando ATR normalizado excede a mediana historica em faixa de pico."""
-    atr_norm = float(indicators.get("atr_norm", 0.0))
-    if atr_norm <= 0.0:
-        return False
-    history = indicators.get("atr_norm_history")
-    if not isinstance(history, list) or len(history) < 2:
-        return False
-    ordered = sorted(float(v) for v in history)
-    baseline = ordered[len(ordered) // 2]
-    if baseline <= 0.0:
-        return False
-    return atr_norm > baseline * 1.20
-
-
-def _apply_implied_vol_embargo_weights(metrics: dict, weights: dict[str, float]) -> dict[str, float]:
-    """Eleva trend_weight em picos de ATR quando vol implicita esta ativa."""
-    indicators = metrics.get("indicators") or {}
-    implied_vol_ratio = float(indicators.get("implied_vol_ratio", 0.0))
-    if implied_vol_ratio == 0.0 or not _atr_norm_peak_anomaly(indicators):
-        return weights
-    merged = dict(weights)
-    trend_delta = float(merged["trend_weight"]) * 0.15
-    merged["trend_weight"] = float(merged["trend_weight"]) + trend_delta
-    merged["val_accuracy_weight"] = max(0.0, float(merged["val_accuracy_weight"]) - trend_delta)
-    metrics["implied_vol_embargo_reweight"] = True
-    return merged
-
-
-def _dl_call_put_scores(
-    entry: dict,
-    weights: dict,
-    *,
-    calibration_cfg: dict | None = None,
-    dynamic_cfg: dict | None = None,
-    exec_cfg: dict | None = None,
-) -> tuple[float, float]:
-    """Calcula contribuicao lateralizada da probabilidade calibrada no score CALL/PUT."""
-    metrics = entry.get("metrics") or {}
-    prob = _direction_prob(entry)
-    dl_dir = infer_dl_direction(entry)
-    if prob is None:
-        if dl_dir is None:
-            return 0.5, 0.5
-        prob = 0.55 if dl_dir == TradeDirection.CALL else 0.45
-    prob_f = _clamp01(float(prob))
-    pivot = _direction_pivot(metrics)
-    w = float(weights["dl_raw_weight"])
-    penalty, ent, ceiling_eff = resolve_dl_entropy_penalty(
-        prob_f,
-        metrics,
-        calibration_cfg=calibration_cfg,
-        dynamic_cfg=dynamic_cfg,
-    )
-    if metrics.get("entropy_violation"):
-        penalty = min(1.0, max(penalty, 0.5))
-    w_eff = w * (1.0 - penalty * penalty)
-    if dl_dir is not None:
-        retention = dl_weight_retention(metrics, dl_dir, cfg=exec_cfg)
-        w_eff *= retention
-        metrics["exhaustion_dl_retention"] = retention
-        metrics["exhaustion_hard_gate"] = retention < 1.0
-    metrics["dl_weight_penalty"] = penalty
-    metrics["direction_entropy"] = ent
-    metrics["entropy_ceiling_effective"] = ceiling_eff
-    return 0.5 + (prob_f - pivot) * w_eff, 0.5 + (pivot - prob_f) * w_eff
-
-
-def _low_val_accuracy_bias(entry: dict, metrics: dict, weights: dict) -> tuple[float, float, str | None]:
-    """Inverte bias lateral quando val_accuracy esta abaixo de 0.5."""
-    val_acc = float(metrics.get("val_accuracy", 0.5))
-    if val_acc >= 0.50:
-        return 0.5, 0.5, None
-    dl_dir = infer_dl_direction(entry)
-    if dl_dir is None:
-        return 0.5, 0.5, None
-    w = float(weights["val_accuracy_weight"]) * 0.5
-    inverted = TradeDirection.PUT if dl_dir == TradeDirection.CALL else TradeDirection.CALL
-    if inverted == TradeDirection.CALL:
-        return 0.5 + w, 0.5 - w, "low_val_flip"
-    return 0.5 - w, 0.5 + w, "low_val_flip"
 
 
 def resolve_execution_direction(
@@ -194,98 +65,28 @@ def resolve_execution_direction(
     symbol: str | None = None,
     corr_matrix: dict[tuple[str, str], float] | None = None,
 ) -> tuple[TradeDirection, dict] | None:
-    """Resolve CALL ou PUT por score composto; retorna None apenas se sem probabilidade."""
+    """Resolve direcao seguindo estritamente o DL; trade_score e a probabilidade calibrada bruta."""
+    _ = (exec_cfg, calibration_cfg, recovery_active, symbol, corr_matrix)
     if is_technically_blocked(entry):
         return None
     dl_dir = infer_dl_direction(entry)
     if dl_dir is None:
         return None
     metrics = dict(entry.get("metrics") or {})
-    entry = {**entry, "metrics": metrics}
-    cfg = exec_cfg if isinstance(exec_cfg, dict) else {}
-    cal_cfg = calibration_cfg if isinstance(calibration_cfg, dict) else {}
-    dynamic_cfg = cfg.get("dynamic_threshold") if isinstance(cfg.get("dynamic_threshold"), dict) else {}
-    weights = _scoring_weights(cfg)
-    weights = _apply_implied_vol_embargo_weights(metrics, weights)
-    qchunk = cfg.get("quality_gate") if isinstance(cfg.get("quality_gate"), dict) else {}
-    min_margin = float(qchunk.get("min_direction_margin", 0.05)) if isinstance(qchunk, dict) else 0.05
-    if corr_matrix and symbol:
-        weights = adjust_dl_weight_with_correlation(
-            weights,
-            str(symbol),
-            metrics,
-            corr_matrix,
-            min_margin=min_margin,
-        )
-    dl_scores_fn = partial(
-        _dl_call_put_scores,
-        calibration_cfg=cal_cfg,
-        dynamic_cfg=dynamic_cfg,
-        exec_cfg=cfg,
-    )
-    exhaustion_bias_fn = partial(_exhaustion_bias, cfg=cfg)
-    call_score, put_score, hints = accumulate_direction_scores(
-        entry,
-        metrics,
-        weights,
-        recovery_active=recovery_active,
-        bias_fns=(_trend_bias, exhaustion_bias_fn, _indicator_regime_bias),
-        dl_scores_fn=dl_scores_fn,
-        val_bias_fn=_val_accuracy_bias,
-        low_val_fn=_low_val_accuracy_bias,
-    )
-    exec_dir = TradeDirection.CALL if call_score + 1e-9 >= put_score else TradeDirection.PUT
-    finalize_direction_metrics(
-        metrics,
-        call_score=call_score,
-        put_score=put_score,
-        hints=hints,
-        dl_dir=dl_dir,
-        exec_dir=exec_dir,
-        clamp01=_clamp01,
-    )
-    map_volatility_regime_to_metrics(metrics)
-    qchunk = cfg.get("quality_gate") if isinstance(cfg.get("quality_gate"), dict) else {}
-    mandatory_floor = float(qchunk.get("mandatory_min_trade_score", 0.56)) if isinstance(qchunk, dict) else 0.56
-    mandatory_floor, _ = apply_volatility_vol_booster(
-        metrics,
-        mandatory_min_trade_score=mandatory_floor,
-        min_edge_execute=1.0,
-    )
-    exec_dir = apply_universal_regime_pipeline(
-        metrics,
-        exec_dir=exec_dir,
-        dl_dir=dl_dir,
-        cfg=cfg,
-        mandatory_floor=mandatory_floor,
-        recovery_active=recovery_active,
-        dl_inversion_veto_score=DL_INVERSION_VETO_SCORE,
-        neutral_token=NEUTRAL_REGIME_TOKEN,
-    )
-    if not metrics.get("universal_regime"):
-        call_score = float(metrics.get("direction_call_score", call_score))
-        put_score = float(metrics.get("direction_put_score", put_score))
-        exec_dir = TradeDirection.CALL if call_score + 1e-9 >= put_score else TradeDirection.PUT
-    conflict, penalty = exhaustion_conflict_penalty(metrics, dl_dir, cfg=cfg)
-    if metrics.get("exhaustion_hard_gate"):
-        penalty = max(penalty, hard_gate_score_penalty(cfg=cfg))
-        conflict = True
-        if "exhaustion_hard_gate" not in hints:
-            hints.append("exhaustion_hard_gate")
-    metrics["exhaustion_conflict"] = conflict
-    metrics["exhaustion_penalty"] = penalty
-    metrics["direction_hints"] = hints
-    exec_dir, metrics = resolve_softmax_exhaustion_conflict(
-        exec_dir,
-        dl_dir,
-        metrics,
-        call_score=call_score,
-        put_score=put_score,
-        exec_cfg=cfg,
-    )
-    if metrics.get("dl_inversion_veto"):
-        exec_dir = dl_dir
-        metrics["direction_inverted"] = False
-        metrics["exec_direction"] = metrics["resolved_direction"] = dl_dir.name
-    validate_micro_boundary_exhaustion(exec_dir, metrics)
-    return exec_dir, metrics
+    prob = _direction_prob(entry)
+    if prob is None:
+        prob = 0.55 if dl_dir == TradeDirection.CALL else 0.45
+    prob = _clamp01(prob)
+    call_score = prob
+    put_score = 1.0 - prob
+    score = call_score if dl_dir == TradeDirection.CALL else put_score
+    metrics["dl_direction"] = dl_dir.name
+    metrics["exec_direction"] = dl_dir.name
+    metrics["resolved_direction"] = dl_dir.name
+    metrics["direction_inverted"] = False
+    metrics["direction_call_score"] = call_score
+    metrics["direction_put_score"] = put_score
+    metrics["direction_margin"] = abs(call_score - put_score)
+    metrics["trade_score"] = score
+    metrics["conviction"] = score
+    return dl_dir, metrics

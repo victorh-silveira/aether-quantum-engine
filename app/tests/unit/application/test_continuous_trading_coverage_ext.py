@@ -11,19 +11,9 @@ from src.application.services.execution_direction_cross_corr import (
     cached_correlation_matrix,
 )
 from src.application.services.execution_direction_resolver import resolve_execution_direction
-from src.application.services.execution_direction_softmax_conflict import (
-    _severe_exhaustion_conflict,
-    _softmax_pair,
-    resolve_softmax_exhaustion_conflict,
-)
 from src.application.services.execution_entropy_fallback import pick_entropy_fallback_candidate
 from src.application.services.orchestrator.trading_cycle_entry import run_trading_cycle_if_ready
 from src.domain.models.trade import TradeDirection
-
-
-def test_severe_exhaustion_put_branch():
-    metrics = {"exhaustion_conflict": True, "exhaustion_penalty": 0.2, "indicators": {"rsi": 0.2, "cmo": -0.5}}
-    assert _severe_exhaustion_conflict(metrics, TradeDirection.PUT, cfg={"exhaustion_gate": {}})
 
 
 @pytest.mark.asyncio
@@ -245,40 +235,8 @@ def test_entropy_fallback_infers_direction_when_missing():
     assert picked[1] == TradeDirection.CALL
 
 
-def test_softmax_pair_zero_total():
-    with patch("src.application.services.execution_direction_softmax_conflict.math.exp", return_value=0.0):
-        a, b = _softmax_pair(1.0, 2.0, 0.1)
-    assert a == 0.5 and b == 0.5
-
-
-def test_severe_exhaustion_penalty_threshold():
-    metrics = {
-        "exhaustion_conflict": True,
-        "exhaustion_penalty": 0.2,
-        "indicators": {"rsi": 0.5, "cmo": 0.0},
-    }
-    assert _severe_exhaustion_conflict(
-        metrics,
-        TradeDirection.CALL,
-        cfg={"exhaustion_gate": {"min_penalty_skip": 0.12}},
-    )
-
-
-def test_softmax_put_dl_branch_resolves():
-    metrics = {
-        "exhaustion_conflict": True,
-        "exhaustion_penalty": 0.2,
-        "indicators": {"rsi": 0.2, "cmo": -0.6, "implied_vol_ratio": 0.9},
-        "kelly_fraction_scale": 1.0,
-        "direction_hints": [],
-    }
-    resolved, out = resolve_softmax_exhaustion_conflict(
-        TradeDirection.PUT,
-        TradeDirection.PUT,
-        metrics,
-        call_score=0.3,
-        put_score=0.7,
-        exec_cfg={"exhaustion_gate": {"rsi_oversold": 0.27, "cmo_bear": -0.48}},
-    )
-    assert resolved in (TradeDirection.CALL, TradeDirection.PUT)
-    assert out.get("execution_mode") == "EXEC_DIVERGENT"
+def test_entropy_fallback_direction_default_call_when_uninferable():
+    entry = {"metrics": {"deploy_ok": True, "calibrated_prob": 0.72, "gate_reason": None}}
+    with patch("src.application.services.execution_entropy_fallback.infer_dl_direction", return_value=None):
+        picked = pick_entropy_fallback_candidate(["RDBEAR"], {"RDBEAR": entry})
+    assert picked is not None

@@ -86,7 +86,7 @@ def test_collect_cluster_orders_includes_recovery_candidate_with_raw_prob():
     assert orders[0][0] == PAIR
 
 
-def test_collect_cluster_orders_skips_weak_signal_when_execute_false():
+def test_collect_cluster_orders_bolts_weak_signal_continuously():
     orch = SimpleNamespace(
         anchor=ANCHOR,
         symbols=[ANCHOR, PAIR],
@@ -113,7 +113,8 @@ def test_collect_cluster_orders_skips_weak_signal_when_execute_false():
         PAIR: {"direction": TradeDirection.CALL, "metrics": {"raw_prob": 0.4, "execute": False, "deploy_ok": True}},
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
-    assert len(orders) == 0
+    assert len(orders) == 1
+    assert orders[0][0] == PAIR
 
 
 def test_collect_cluster_orders_mandatory_does_not_skip_recovery_without_hedge():

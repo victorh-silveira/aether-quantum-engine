@@ -1,18 +1,12 @@
-from unittest.mock import MagicMock
-
 import pytest
 
 from src.domain.risk.dlambert_sizing import (
-    BOOSTER_DAMPING_FACTOR,
-    MAX_LINEAR_LEVEL,
-    MAX_SESSION_DRAWDOWN_U,
-    MAX_STAKE_U_MULTIPLE,
+    GEOMETRIC_MARTINGALE_BASE,
     REDIS_DLAMBERT_LINEAR_LOSSES_KEY,
     REDIS_DLAMBERT_UNIT_KEY,
-    dlambert_amortization_multiplier,
-    dlambert_circuit_breaker,
-    dlambert_recovery_stake,
-    effective_dlambert_unit,
+    dlambert_enabled,
+    dlambert_log_suffix,
+    geometric_martingale_stake,
     resolve_dlambert_stake,
     resolve_dlambert_unit,
 )
@@ -23,116 +17,35 @@ def test_redis_keys():
     assert REDIS_DLAMBERT_LINEAR_LOSSES_KEY == "session:current:consecutive_losses_linear"
 
 
-def test_dlambert_recovery_stake_linear():
-    assert dlambert_recovery_stake(50.0, 25.0, 2) == pytest.approx(100.0)
+def test_geometric_martingale_base_constant():
+    assert pytest.approx(2.0) == GEOMETRIC_MARTINGALE_BASE
 
 
-def test_amortization_booster_scales_unit_with_deep_drawdown():
-    bankroll = 10000.0
-    pending = 400.0
-    unit = 20.0
-    assert dlambert_amortization_multiplier(pending, bankroll) == pytest.approx(1.75)
-    assert effective_dlambert_unit(unit, pending, bankroll) == pytest.approx(35.0)
-    assert dlambert_recovery_stake(
-        50.0,
-        unit,
-        2,
-        pending_total=pending,
-        bankroll=bankroll,
-    ) == pytest.approx(120.0)
+def test_geometric_martingale_stake_doubles_each_loss():
+    assert geometric_martingale_stake(50.0, 0) == pytest.approx(50.0)
+    assert geometric_martingale_stake(50.0, 1) == pytest.approx(100.0)
+    assert geometric_martingale_stake(50.0, 2) == pytest.approx(200.0)
+    assert geometric_martingale_stake(50.0, 3) == pytest.approx(400.0)
 
 
-def test_amortization_booster_caps_multiplier_at_one_point_seven_five():
-    bankroll = 10000.0
-    pending = 800.0
-    assert dlambert_amortization_multiplier(pending, bankroll) == pytest.approx(1.75)
-    assert effective_dlambert_unit(10.0, pending, bankroll) == pytest.approx(17.5)
+def test_geometric_martingale_stake_losses_three_is_base_times_eight():
+    assert geometric_martingale_stake(10.0, 3) == pytest.approx(80.0)
 
 
-def test_booster_damping_softens_c0005_drawdown_stake():
-    bankroll = 10000.0
-    pending = 141.78
-    unit = 35.0
-    kelly_base = 50.0
-    linear = 2
-    u_eff_damped = effective_dlambert_unit(unit, pending, bankroll)
-    u_eff_undamped = effective_dlambert_unit(unit, pending, bankroll, damping=1.0)
-    damped_stake = kelly_base + linear * u_eff_damped
-    undamped_stake = kelly_base + linear * u_eff_undamped
-    assert damped_stake < undamped_stake
-    assert damped_stake < 175.23
-    assert pytest.approx(0.50) == BOOSTER_DAMPING_FACTOR
+def test_geometric_martingale_stake_clamps_negative_inputs():
+    assert geometric_martingale_stake(-5.0, 4) == pytest.approx(0.0)
+    assert geometric_martingale_stake(20.0, -3) == pytest.approx(20.0)
 
 
-def test_amortization_floor_secondary_symbol_deep_drawdown():
-    bankroll = 30000.0
-    pending = 653.12
-    unit = 14.30
-    ratio = min(1.5, pending / (bankroll * 0.02))
-    expected_u_eff = unit * (1.0 + ratio * BOOSTER_DAMPING_FACTOR)
-    assert effective_dlambert_unit(unit, pending, bankroll) == pytest.approx(expected_u_eff)
-    stake = dlambert_recovery_stake(
-        8.0,
-        unit,
-        1,
-        pending_total=pending,
-        bankroll=bankroll,
-    )
-    assert stake == pytest.approx(8.0 + expected_u_eff)
-    assert stake < 8.0 + unit * 2.5
+def test_geometric_martingale_stake_has_no_ceiling():
+    deep = geometric_martingale_stake(50.0, 12)
+    assert deep == pytest.approx(50.0 * (2.0**12))
+    assert deep > 100000.0
 
 
-def test_amortization_multiplier_returns_one_without_drawdown():
-    assert dlambert_amortization_multiplier(0.0, 10000.0) == pytest.approx(1.0)
-    assert dlambert_amortization_multiplier(100.0, 0.0) == pytest.approx(1.0)
-
-
-def test_amortization_below_drawdown_gate_keeps_progressive_scaling():
-    bankroll = 10000.0
-    pending = 150.0
-    unit = 20.0
-    assert pending <= bankroll * 0.02
-    assert effective_dlambert_unit(unit, pending, bankroll) == pytest.approx(
-        unit * dlambert_amortization_multiplier(pending, bankroll)
-    )
-
-
-def test_resolve_dlambert_stake_applies_booster_without_ceiling():
-    class RM:
-        dlambert_unit = 20.0
-        dlambert_config = {}
-
-    cfg = {"dlambert_enabled": True}
-    stake, tag = resolve_dlambert_stake(
-        recovery_active=True,
-        bankroll=10000.0,
-        kelly_base=50.0,
-        dlambert_config=cfg,
-        rm=RM(),
-        consecutive_losses_linear=2,
-        pending_total=400.0,
-    )
-    assert tag == "D'ALEMBERT"
-    assert stake == pytest.approx(120.0)
-
-
-def test_resolve_dlambert_stake_progresses_without_bankroll_cap():
-    class RM:
-        dlambert_unit = 500.0
-        dlambert_config = {}
-
-    cfg = {"dlambert_enabled": True}
-    stake, tag = resolve_dlambert_stake(
-        recovery_active=True,
-        bankroll=10000.0,
-        kelly_base=100.0,
-        dlambert_config=cfg,
-        rm=RM(),
-        consecutive_losses_linear=5,
-        pending_total=800.0,
-    )
-    assert tag == "D'ALEMBERT"
-    assert stake > 10000.0 * 0.04
+def test_dlambert_enabled_defaults_true_and_respects_flag():
+    assert dlambert_enabled({}) is True
+    assert dlambert_enabled({"dlambert_enabled": False}) is False
 
 
 def test_resolve_dlambert_unit_captures_first_kelly():
@@ -164,137 +77,94 @@ def test_resolve_dlambert_unit_invalid_override():
     assert resolve_dlambert_unit(25.0, rm) == pytest.approx(25.0)
 
 
-def test_circuit_breaker_constants():
-    assert MAX_LINEAR_LEVEL == 8
-    assert pytest.approx(10.0) == MAX_STAKE_U_MULTIPLE
-    assert pytest.approx(25.0) == MAX_SESSION_DRAWDOWN_U
-
-
-def test_circuit_breaker_trips_on_linear_overflow():
-    stake, tripped = dlambert_circuit_breaker(
-        500.0,
-        consecutive_losses_linear=9,
-        dlambert_unit=50.0,
-        pending_total=100.0,
-    )
-    assert tripped is True
-    assert stake == pytest.approx(0.0)
-
-
-def test_circuit_breaker_trips_on_stake_u_multiple():
-    stake, tripped = dlambert_circuit_breaker(
-        130.0,
-        consecutive_losses_linear=4,
-        dlambert_unit=10.0,
-        pending_total=50.0,
-    )
-    assert tripped is True
-    assert stake == pytest.approx(0.0)
-
-
-def test_circuit_breaker_trips_on_session_drawdown():
-    stake, tripped = dlambert_circuit_breaker(
-        40.0,
-        consecutive_losses_linear=3,
-        dlambert_unit=10.0,
-        pending_total=300.0,
-    )
-    assert tripped is True
-    assert stake == pytest.approx(0.0)
-
-
-def test_circuit_breaker_continuous_mode_floors_regulatory_min():
-    stake, tripped = dlambert_circuit_breaker(
-        999.0,
-        consecutive_losses_linear=9,
-        dlambert_unit=50.0,
-        pending_total=100.0,
-        continuous_mode=True,
-        stake_min=1.0,
-    )
-    assert tripped is True
-    assert stake == pytest.approx(1.0)
-
-
-def test_circuit_breaker_passthrough_within_limits():
-    stake, tripped = dlambert_circuit_breaker(
-        90.0,
-        consecutive_losses_linear=2,
-        dlambert_unit=20.0,
-        pending_total=40.0,
-    )
-    assert tripped is False
-    assert stake == pytest.approx(90.0)
-
-
-def test_resolve_dlambert_stake_circuit_break_linear_overflow_zeroes_stake():
+def test_resolve_dlambert_unit_zero_kelly_returns_zero():
     class RM:
-        dlambert_unit = 30.0
+        dlambert_unit = 0.0
         dlambert_config = {}
 
-    stake, tag = resolve_dlambert_stake(
-        recovery_active=True,
-        bankroll=10000.0,
-        kelly_base=50.0,
-        dlambert_config={"dlambert_enabled": True},
-        rm=RM(),
-        consecutive_losses_linear=9,
-        pending_total=100.0,
-    )
-    assert tag == "D'ALEMBERT_CB"
-    assert stake == pytest.approx(0.0)
+    assert resolve_dlambert_unit(0.0, RM()) == pytest.approx(0.0)
 
 
-def test_resolve_dlambert_stake_circuit_break_continuous_floor_and_log():
-    logger = MagicMock()
-
+def test_resolve_dlambert_stake_kelly_when_flat():
     class RM:
-        dlambert_unit = 30.0
-        dlambert_config = {}
-        config = {"orchestrator": {"execution": {"mandatory_trade_each_cycle": True}}}
-        risk_params = {"stake_min": 1.0}
-
-    rm = RM()
-    rm.logger = logger
-    stake, tag = resolve_dlambert_stake(
-        recovery_active=True,
-        bankroll=10000.0,
-        kelly_base=50.0,
-        dlambert_config={"dlambert_enabled": True},
-        rm=rm,
-        consecutive_losses_linear=9,
-        pending_total=100.0,
-    )
-    assert tag == "D'ALEMBERT_CB"
-    assert stake == pytest.approx(1.0)
-    logger.warning.assert_called_once()
-
-
-def test_resolve_dlambert_stake_kelly_vs_recovery():
-    class RM:
-        dlambert_unit = 20.0
+        dlambert_unit = 0.0
         dlambert_config = {}
 
-    cfg = {"dlambert_enabled": True}
     stake, tag = resolve_dlambert_stake(
         recovery_active=False,
         bankroll=10000.0,
         kelly_base=55.0,
-        dlambert_config=cfg,
+        dlambert_config={"dlambert_enabled": True},
         rm=RM(),
         consecutive_losses_linear=0,
     )
     assert tag == "KELLY"
     assert stake == pytest.approx(55.0)
 
+
+def test_resolve_dlambert_stake_geometric_in_recovery():
+    class RM:
+        dlambert_unit = 0.0
+        dlambert_config = {}
+
     stake, tag = resolve_dlambert_stake(
         recovery_active=True,
         bankroll=10000.0,
         kelly_base=50.0,
-        dlambert_config=cfg,
+        dlambert_config={"dlambert_enabled": True},
         rm=RM(),
-        consecutive_losses_linear=2,
-        pending_total=0.0,
+        consecutive_losses_linear=3,
+        pending_total=400.0,
     )
     assert tag == "D'ALEMBERT"
-    assert stake == pytest.approx(90.0)
+    assert stake == pytest.approx(400.0)
+
+
+def test_resolve_dlambert_stake_progresses_without_bankroll_cap():
+    class RM:
+        dlambert_unit = 0.0
+        dlambert_config = {}
+
+    stake, tag = resolve_dlambert_stake(
+        recovery_active=True,
+        bankroll=10000.0,
+        kelly_base=100.0,
+        dlambert_config={"dlambert_enabled": True},
+        rm=RM(),
+        consecutive_losses_linear=8,
+        pending_total=5000.0,
+    )
+    assert tag == "D'ALEMBERT"
+    assert stake == pytest.approx(100.0 * (2.0**8))
+    assert stake > 10000.0
+
+
+def test_resolve_dlambert_stake_falls_back_to_kelly_when_disabled():
+    class RM:
+        dlambert_unit = 0.0
+        dlambert_config = {}
+
+    stake, tag = resolve_dlambert_stake(
+        recovery_active=True,
+        bankroll=10000.0,
+        kelly_base=40.0,
+        dlambert_config={"dlambert_enabled": False},
+        rm=RM(),
+        consecutive_losses_linear=4,
+        pending_total=200.0,
+    )
+    assert tag == "KELLY"
+    assert stake == pytest.approx(40.0)
+
+
+def test_dlambert_log_suffix_geometric_and_empty():
+    suffix = dlambert_log_suffix(
+        "D'ALEMBERT",
+        400.0,
+        350.0,
+        50.0,
+        consecutive_losses_linear=3,
+    )
+    assert "2^3" in suffix
+    assert "kelly=$50.00" in suffix
+    assert dlambert_log_suffix("KELLY", 55.0, 0.0, 55.0) == ""

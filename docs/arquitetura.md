@@ -20,7 +20,7 @@ Motor assíncrono para trading na Deriv com decisão exclusiva por **Deep Learni
 | Fases | `FASE TREINO` → `FASE OPERACAO` |
 | Execução | Seletiva (`mandatory_trade_each_cycle: false`) ou **contínua** (`true`) |
 
-O mercado é tratado como **série temporal ruidosa**: o modelo estima probabilidade de alta; um **motor de direção** composto e uma **camada de qualidade** (penalidade ou veto conforme modo) decidem CALL, PUT ou skip do ciclo.
+O mercado é tratado como **série temporal ruidosa**: o modelo estima probabilidade de alta; um **motor de direção linear puro** segue estritamente o sinal da TCN (`P(CALL) > P(PUT)` → CALL, caso contrário PUT) e uma **camada de qualidade neutra** apenas confirma que o sinal é matematicamente válido. Não há vetos táticos, inversões de regime nem skip de ciclo: em modo contínuo o motor boleta em toda virada de minuto M1.
 
 ---
 
@@ -41,11 +41,8 @@ flowchart LR
     PRED[dl_predict]
   end
   subgraph direcao
-    ENT[execution_entropy_adaptive]
-    MRF[execution_direction_mean_reversion]
-    RES[execution_direction_resolver]
-    EXP[execution_direction_expansion_veto]
-    QG[execution_quality_gate]
+    RES[execution_direction_resolver linear puro]
+    QG[execution_quality_gate neutro]
   end
   subgraph exec
     COL[execution_collect]
@@ -63,7 +60,7 @@ flowchart LR
   WS --> SH
   SH --> TB
   WD -->|STALE_DATA reconnect| SH
-  SH --> FEAT --> TRITON --> MODEL --> PRED --> ENT --> MRF --> RES --> EXP --> QG --> COL --> SEL --> EM --> TH
+  SH --> FEAT --> TRITON --> MODEL --> PRED --> RES --> QG --> COL --> SEL --> EM --> TH
   TH --> ST --> RM
   ST --> PM
   ST --> TS
@@ -154,7 +151,7 @@ Normalização anti-leakage: `fit_norm_stats` somente no split de treino walk-fo
 - Saída: probabilidade bruta de alta (`raw_prob`).
 - Checkpoint v4 em `data/dl/{symbol}.pth` + TorchScript `{symbol}_ts.pt` (espelho MinIO `latest_ts.pt`).
 - Inferência via `TritonGrpcClient.infer_symbols_concurrent` quando `infra.triton.enabled`; tensor FP32 **`[1, 48, 34]`** (48 barras M15 = **12 h** de contexto).
-- `collect_cluster_orders` suporta modo contínuo: penalidade de qualidade em vez de SKIP; fallback por entropia e mandatory pick.
+- `collect_cluster_orders` opera de forma contínua: sem SKIP por qualidade; mandatory pick garante ordem a cada virada M1 quando a TCN entrega sinal válido.
 
 ### 3.3 Treino walk-forward
 
@@ -180,109 +177,40 @@ Normalização anti-leakage: `fit_norm_stats` somente no split de treino walk-fo
 
 ## 4. Direção e qualidade
 
-### 4.1 Motor de direção (`execution_direction_resolver.py`)
+### 4.1 Motor de direção linear puro (`execution_direction_resolver.py`)
 
-Substitui travas binárias por scoring composto CALL vs PUT:
+A direção final resolvida (`exec_direction`) **segue estritamente** o sinal do Deep Learning surfaçado pelo `decision_bridge`. Não há scoring composto, inversão tática, barramento de regimes, exaustão de Keltner/Bollinger nem qualquer override:
 
-| Sinal | Comportamento |
+| Etapa | Comportamento |
 |-------|---------------|
-| `calibrated_prob` | Peso principal via `dl_raw_weight` (fallback: `raw_prob`) |
-| `dynamic_call/put_threshold` | Pivot dinâmico para inferência DL |
-| `val_accuracy` | Bias lateral |
-| `trend_direction` + votos | `trend_bias` |
-| RSI/Keltner extremos | `exhaustion_flip` (mean-reversion) |
-| RSI+CMO+Keltner alinhados | `exhaustion_hard_gate` — atenua peso DL em 80% |
-| Entropia de probabilidade | `execution_entropy_adaptive` — comprime `w_eff` em regime incerto |
-| Hurst, ADX, vol_ratio, CMO | `indicator_regime` no scoring composto |
-| Correlação cross-symbol | `execution_direction_cross_corr` — matriz Timescale + softmax |
+| `infer_dl_direction` | Direção pré-computada pelo bridge ou, na ausência, `P(CALL) > pivot` → CALL, caso contrário PUT |
+| Probabilidade | `calibrated_prob` (fallback `raw_prob`); pivot = média dos thresholds dinâmicos ou `0.5` |
+| `trade_score` / `conviction` | **Probabilidade calibrada bruta** do lado escolhido (`prob` para CALL, `1 - prob` para PUT) |
+| `direction_margin` | `\|P(CALL) − P(PUT)\|` — telemetria de clareza, sem efeito de veto |
+| `direction_inverted` | Constante `False` (não existe mais inversão) |
 
-**Barramento de 4 Regimes Universais** (`UniversalRegimeEvaluator` em `execution_universal_regime_evaluator.py`), aplicado após o scoring em `resolve_execution_direction`:
+Bloqueio absoluto (`resolve_execution_direction` retorna `None`) apenas em falha técnica: `deploy_ok == False` ou `gate_reason ∈ {data, predict_error, training}`. Qualquer sinal tecnicamente válido resolve para CALL ou PUT.
 
-Prioridade risco-primeiro:
+A matriz de correlação cross-symbol (`execution_direction_cross_corr`) e o `execution_volatility_booster` permanecem no pipeline apenas como telemetria/pisos consultivos; não invertem direção nem vetam a ordem.
 
-| Regime | Critério | Ação |
-|--------|----------|------|
-| `CLIMAX_EXHAUSTION` | `adx ≥ 0.23`, RSI extremo, `\|cmo\| ≥ 0.45` | Inverte contra o DL esticado; score **0.76** |
-| `COMPRESSION_TRAP` | `adx < 0.20`, `hurst ≤ 0.50`, `vol_ratio < 0.85` | Inverte se RSI esticado **e** `bb_width < 0.01` no M1; caso contrário segue TCN estrita |
-| `TREND_EXPANSION` | `adx ≥ 0.23`, `hurst > 0.53`, `vol_ratio ≥ 1.00` | Mantém direção do DL |
-| `ENTROPIC_NOISE` | votos empatados ou `hurst < 0.45` | `gate_penalty=noise`; SKIP do ciclo fora de recovery/contínuo |
-| `NEUTRO` | nenhum regime classificado no M15 | sem inversão; sujeito ao Gate Assimétrico de Proteção |
+### 4.2 Gate de qualidade neutro (`execution_quality_gate.py`)
 
-Configuração em `orchestrator.execution.regime_evaluator`. Auditoria em `gather_cluster_candidates`:
+O gate foi neutralizado: não há vetos, penalidades nem skip de ciclo. Sua única função é confirmar que existe sinal matematicamente válido.
 
-`[C0042] REGIME: CLIMAX_EXHAUSTION | Invertido=True | ord=PUT dl=CALL | RDBULL`
+| Função | Retorno invariável |
+|--------|--------------------|
+| `passes_execution_quality(metrics, ...)` | `True`; grava `metrics["regime_skip_cycle"] = False` |
+| `apply_quality_penalty_to_metrics(metrics, ...)` | `0.0`; grava `metrics["regime_skip_cycle"] = False` |
+| `quality_gate_params(config)` | Pisos default `0.0` (`min_direction_margin`, `inverted_min_score`, `min_adx_normal`) |
 
-Pesos configuráveis em `orchestrator.execution.direction_scoring`.
-
-#### Veto de Inversão por Convicção DL (`execution_direction_inversion_veto.py`)
-
-Aplicado em `resolve_execution_direction` **antes** de `apply_regime_direction_boost`, com `DL_INVERSION_VETO_SCORE = 0.60`:
-
-| Condição | Ação |
-|----------|------|
-| Regime pede inversão tática **e** `P(lado_DL) ≥ 0.60` | Proíbe a inversão: `direction_inverted=False`, `trap_boost_score=None`, executa a direção estrita da TCN (`dl_dir`) |
-
-`P(lado_DL)` deriva de `calibrated_prob`, com fallback para `raw_prob` e depois `trade_score`. O motor de direção não sobrescreve predições de alta convicção do modelo convolucional profundo; a flag `dl_inversion_veto=True` é persistida para auditoria.
-
-### 4.2 Gate de qualidade (`execution_quality_gate.py`)
-
-Aplicado **após** resolução direcional em `gather_cluster_candidates`:
-
-| Modo | Comportamento |
-|------|---------------|
-| Seletivo (`mandatory_trade_each_cycle: false`) | Pisos de score/edge podem resultar em SKIP do ciclo |
-| Contínuo (`mandatory_trade_each_cycle: true`) | Penalidade de score/edge; mandatory pick garante ordem |
-
-| Piso | Valor padrão | Efeito |
-|------|--------------|--------|
-| `mandatory_min_trade_score` | 0.68 | Score efetivo mínimo (modo normal) |
-| `recovery_min_trade_score` | 0.64 | Piso em recovery (escala com perdas consecutivas) |
-| `recovery_hurst_persistence_min` | 0.58 | Hurst mínimo para persistência em recovery N2+ |
-| `min_edge_execute` | 0.04 | Edge mínimo (usa `calibrated_edge`; respeita `dynamic_min_edge`) |
-| `min_direction_margin` | 0.05 | Clareza CALL vs PUT no resolver |
-| `inverted_min_score` | 0.74 | Score extra quando `direction_inverted=true` |
-
-Em recovery N2+, `recovery_skip_counter` no Redis reduz o limiar Hurst linearmente ou com decaimento logarítmico em drawdown severo.
-
-#### Gate Assimétrico de Proteção (`validate_recovery_asymmetric_gate`)
-
-Veto mandatório aplicado em `gather_cluster_candidates` e `apply_quality_penalty_to_metrics`, **independente** de `mandatory_trade_each_cycle` ou recovery ativo (`pending_total > 0`):
-
-| Condição | Ação |
-|----------|------|
-| `universal_regime == NEUTRO` **e** `trade_score < 0.68` | SKIP absoluto do ciclo (`gate_reason=low_conviction_neutral_skip`) |
-
-Justificativa: operar o relógio micro M1 sem tendência macro M15 e com convicção abaixo do piso institucional degrada a expectativa de payoff — o sinal é ruído puro, não edge recuperável.
-
-#### Micro Noise Gate (`validate_micro_noise_gate`)
-
-Veto estrutural aplicado em `gather_cluster_candidates` e no bloqueio de ciclo mandatório, forçando SKIP absoluto (aborta inclusive os fallbacks obrigatórios do modo contínuo). Pisos config-driven em `orchestrator.execution.micro_noise_gate` (`enabled`, `adx_floor`, `bb_extreme`, `hurst_random_walk_max`), com fallback nas constantes `MICRO_ADX_FLOOR = 0.15`, `MICRO_BB_EXTREME = 0.01`, `MICRO_HURST_RANDOM_WALK_MAX = 0.48`. Calibração ativa: `adx_floor = 0.12` para devolver atividade em índices Drift de baixa direcionalidade.
-
-| Condição | Ação |
-|----------|------|
-| `adx < 0.15` | SKIP (`gate_reason=micro_adx_chop_skip`) |
-| `bb_width < 0.01` **e** `hurst < 0.48` | SKIP (`gate_reason=micro_squeeze_breakout_skip`) |
-
-Justificativa: ADX colapsado indica ausência de tendência (chop); squeeze extremo com Hurst em random walk sinaliza esmagamento sem reversão limpa — ambos convertem a inferência micro em sorteio de expectativa negativa.
-
-#### Filtro de Exaustão de Barreira Micro (`validate_micro_boundary_exhaustion`)
-
-Último estágio de `resolve_execution_direction` (`execution_direction_micro_boundary.py`), executado sobre a direção final. Rebaixa `trade_score` para `min(trade_score, 0.55)` quando a ordem compraria o topo ou venderia o fundo do canal micro M1:
-
-| Direção final | Gatilho de saturação | Ação |
-|---------------|----------------------|------|
-| `CALL` | `keltner > 1.10` **ou** `bb_pct_b ≥ 0.95` (banda superior de Bollinger M1) | `trade_score = min(trade_score, 0.55)` + `micro_boundary_exhaustion=True` |
-| `PUT` | `keltner < -0.10` **ou** `bb_pct_b ≤ 0.05` (banda inferior de Bollinger M1) | `trade_score = min(trade_score, 0.55)` + `micro_boundary_exhaustion=True` |
-
-`validate_micro_boundary_saturation_gate` converte a marca em SKIP absoluto (`gate_reason=micro_boundary_saturation_skip`) em `gather_cluster_candidates` e no bloqueio de ciclo mandatório, soberano sob `mandatory_trade_each_cycle=true`. Justificativa: derrubar o score abaixo do piso de 0.68 congela compras de topo e vendas de fundo em zonas saturadas de ticks, aguardando o recuo saudável do preço. O `bb_pct_b` é exposto em `dl_predict_build` para a checagem do último fechamento contra as bandas.
+Consequência: sob `mandatory_trade_each_cycle: true`, o `ExecutionManager` boleta continuamente a cada virada M1 sempre que a TCN retorna sinal válido. Foram removidos por completo `validate_recovery_asymmetric_gate`, `validate_micro_noise_gate`, `validate_micro_boundary_saturation_gate`, as checagens de ADX colapsado/squeeze em random walk e o barramento `UniversalRegimeEvaluator`.
 
 ### 4.3 Pool e seleção
 
 - `execution_recovery_gate.cluster_entry_eligible` — bloqueio **somente técnico** + exige `raw_prob` ou direção.
-- `execution_collect_helpers.recovery_hurst_blocks_collect` — filtro de persistência Hurst antes da seleção.
-- `execution_direction.build_execution_candidate` — delega ao resolver.
+- `execution_direction.build_execution_candidate` — delega ao resolver linear.
 - `execution_symbols.select_best_execution_candidate` / `select_mandatory_execution_candidate` — ranking por `market_decision_score`.
-- `execution_mandatory_pick` / `execution_entropy_fallback` — fallbacks em modo contínuo.
+- `execution_mandatory_pick` / `execution_entropy_fallback` — fallbacks que garantem ordem no modo contínuo.
 
 ---
 
@@ -309,15 +237,15 @@ Justificativa: ADX colapsado indica ausência de tendência (chop); squeeze extr
 | Kelly fracionário | `kelly_base_fraction.py`, `stake_sizing.py`, `kelly.fraction` — compressão base de 60% em regime normal (`0.0035 → 0.0012`) |
 | Target Proximity Damping | `stake_target_proximity.py` + `RiskManager.apply_kelly_target_proximity_damping` — `Stake_Kelly × (0.40 + 0.60 × remaining_target_pct)` |
 | Consensus Entropy Penalty | `consensus_stake_penalty.py` — penalidade convexa em `f*` quando ord diverge dos votos; atenua por `di_diff`, `cmo`, `rsi`; piso `stake_min` em baixo consenso |
-| Regime Edge Sizing (waiver) | `consensus_stake_penalty.py` — em recovery, `retention = 1.0` para inversão tática, votos unânimes (6×0/0×6) ou `trade_score >= 0.68` |
+| Regime Edge Sizing (waiver) | `consensus_stake_penalty.py` — em recovery, `retention = 1.0` para votos unânimes (6×0/0×6) ou `trade_score >= 0.68` |
 | Recovery score waiver | `consensus_stake_penalty.py` — com `pending_loss > 0` ou `consecutive_losses_linear > 0` e votos unânimes ou `trade_score >= 0.68`, `retention = 1.0` |
 | Recovery financeiro persistente | `risk_recovery_state.py` — `consecutive_losses_linear` **nao reseta** em WIN operacional enquanto `pending_loss > 0`; reset somente quando o drawdown pendente zera por retornos reais |
 | Stop win por sessão ativa | `stop_win_target.py` + `session_target_bootstrap.py` — meta = `session_start_balance × compounding_rate_daily`; sem reset por relógio/calendário |
 | Encerramento por meta | `StateManager.check_session_limits()` — `pnl_sessao >= target_win` → `graceful_shutdown` |
 | Stop loss | **Desativado** — sem `daily_max_loss_limit` nem disjuntor de perda no motor |
-| D'Alembert recovery | `dlambert_sizing.py`, `recovery_conviction.py` — stake linear `Kelly_base + n×U_eff` com Amortization Booster e piso progressivo por cluster |
-| Circuit Breaker D'Alembert | `dlambert_sizing.dlambert_circuit_breaker` — trava rígida em recovery ativo, config-driven em `risk_management.dlambert` (`circuit_breaker_max_linear_level=8`, `circuit_breaker_max_stake_u_multiple=10.0×U`, `circuit_breaker_max_session_drawdown_u` calibrado para `250.0×U`); violação força stake `0.0` (ou `$1.00` em modo contínuo estrito) com log `DLAMBERT_CIRCUIT_BREAK` |
-| Retração D'Alembert | WIN parcial em recovery: `consecutive_losses_linear = max(1, n-1)` |
+| Martingale Geométrico | `dlambert_sizing.geometric_martingale_stake` — curva multiplicativa clássica `Stake = Kelly_base × 2^consecutive_losses_linear`, **sem teto** de nível, stake ou drawdown de sessão |
+| Sem circuit breaker | Removidos `dlambert_circuit_breaker`, `MAX_LINEAR_LEVEL`, `MAX_STAKE_U_MULTIPLE`, `MAX_SESSION_DRAWDOWN_U` e o curto-circuito da tag `D'ALEMBERT_CB`; o cálculo prossegue livre na thread principal escalando exponencialmente até recuperar o passivo total |
+| Retração de recovery | WIN parcial em recovery: `consecutive_losses_linear = max(1, n-1)`, reduzindo o expoente da curva |
 | Super-concordance Kelly | booster desligado em recovery; ativo em Kelly puro com P≥0.75, 6×0, Hurst>0.55 |
 | Trava Hurst N2+ | `recovery_hurst_gate.py` |
 | Decaimento Hurst acelerado | `recovery_hurst_decay.py` — `recovery_skip_counter` no Redis |
@@ -342,7 +270,7 @@ Logs de sizing expõem `pend=$` (drawdown pendente) e `pnl_sess=$` (P&L acumulad
 
 ### 6.2 Sizing defensivo de proximidade de alvo
 
-Política aplicada sobre a stake Kelly bruta **antes** da escada D'Alembert:
+Política aplicada sobre a stake Kelly bruta em regime **normal** (fora de recovery). Quando `recovery_active` e `consecutive_losses_linear > 0`, o sizing passa integralmente ao Martingale Geométrico `Kelly_base × 2^n`, sem amortecimento de proximidade:
 
 | Etapa | Fórmula / regra |
 |-------|-----------------|
@@ -382,9 +310,9 @@ Persistência: `data/session_state.json` (métricas da sessão corrente), Redis 
 | `data_handler` | `granularity`, `history_bars`, `fetch_count`, `buffer_limit` |
 | `deep_learning` | `arch`, `lookback`, `confidence_*`, `min_val_accuracy`, `deploy_gate` |
 | `orchestrator` | `watchdog_*`, `cycle_interval_seconds`, `idle_cycle_watchdog_seconds` |
-| `orchestrator.execution` | `direction_scoring`, `quality_gate`, `exhaustion_gate`, `mean_reversion_*`, `expansion_inversion_*`, `mandatory_trade_each_cycle` |
+| `orchestrator.execution` | `mandatory_trade_each_cycle`, `include_anchor_trades`, `recovery_flip_direction_after_loss` |
 | `risk_management.kelly` | `fraction`, `consensus_penalty_*`, `penalty_smoothing_*`, `recovery_*` |
-| `risk_management.dlambert` | `dlambert_enabled`, `dlambert_unit_override`, `recovery_*_conviction` |
+| `risk_management.dlambert` | `dlambert_enabled`, `dlambert_unit_override` (base do Martingale Geométrico) |
 | `risk_management.params` | `compounding_enabled`, `compounding_rate_daily`, `session_start_balance`, `duration`, stakes |
 | `infra.triton` | `enabled`, `grpc_url`, `http_url`, `model_repo_path` |
 | `trading` | `mode` (`demo` / `live`) |
@@ -396,7 +324,7 @@ Persistência: `data/session_state.json` (métricas da sessão corrente), Redis 
 | Camada | Módulos principais |
 |--------|-------------------|
 | Application / DL | `decision_bridge`, `dl_predict_async`, `dl_predict_triton`, `dl_gating`, `dl_trend`, `dl_cycle_*`, `model` |
-| Application / Direção | `execution_direction_resolver`, `execution_direction_mean_reversion`, `execution_direction_expansion_veto`, `execution_direction_cross_corr`, `execution_entropy_adaptive`, `execution_quality_gate` |
+| Application / Direção | `execution_direction_resolver` (linear puro), `execution_direction_cross_corr` (telemetria), `execution_volatility_booster` (pisos consultivos), `execution_quality_gate` (neutro) |
 | Application / Execução | `execution_collect`, `execution_collect_gather`, `execution_market_rank`, `execution_symbols`, `execution_mandatory_pick` |
 | Application / Orchestrator | `Orchestrator`, `execution_manager`, `session_target_bootstrap`, `execution_recovery_gate`, `watchdog_service`, `graceful_shutdown`, `settlement_*`, `post_settlement_cycle`, `orchestrator_run_loop` |
 | Domain | `trade`, `market_data`, `probability_entropy`, `risk_manager`, `stop_win_target`, `risk_recovery_state`, `consensus_stake_penalty`, `recovery_hurst_gate`, `dlambert_sizing`, `recovery_conviction`, `stake_sizing` |

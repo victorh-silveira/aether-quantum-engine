@@ -2,12 +2,6 @@
 
 __all__ = ["collect_cluster_orders", "_mandatory_fallback_candidates"]
 
-from src.application.services.execution_direction import build_execution_candidate
-from src.application.services.execution_quality_asymmetric_gate import (
-    validate_micro_boundary_saturation_gate,
-    validate_micro_noise_gate,
-    validate_recovery_asymmetric_gate,
-)
 from src.application.services.execution_symbols import (
     select_best_execution_candidate,
     select_mandatory_execution_candidate,
@@ -16,7 +10,6 @@ from src.application.services.execution_symbols_recovery import (
     apply_recovery_direction_flip,
     pending_recovery_active,
 )
-from src.application.services.execution_universal_regime_gate import regime_skip_blocks_trade
 from src.application.services.orchestrator.execution_collect_gather import gather_cluster_candidates
 from src.application.services.orchestrator.execution_collect_helpers import (
     apply_recovery_hedge_to_candidates,
@@ -29,53 +22,6 @@ from src.application.services.orchestrator.execution_collect_helpers import (
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.recovery_hurst_decay import session_drawdown_from_profit
 from src.domain.risk.stake_sizing import enrich_metrics_conviction, raw_side_from_metrics
-
-
-_SKIP_LABELS = {
-    "low_conviction_neutral_skip": "LOW CONVICTION NEUTRAL SKIP",
-    "micro_adx_chop_skip": "MICRO ADX CHOP SKIP",
-    "micro_squeeze_breakout_skip": "MICRO SQUEEZE BREAKOUT SKIP",
-    "micro_boundary_saturation_skip": "MICRO BOUNDARY SATURATION SKIP",
-    "micro_middle_uncertainty_skip": "MICRO MIDDLE UNCERTAINTY SKIP",
-}
-
-
-def _skip_label_for_gate(gate_reason, default_label: str) -> str:
-    """Traduz gate_reason em rotulo humano de skip para auditoria de ciclo."""
-    return _SKIP_LABELS.get(str(gate_reason or ""), default_label)
-
-
-def _regime_skip_blocks_mandatory_cycle(exec_mgr, decisions: dict, *, recovery_active: bool) -> tuple[bool, str]:
-    """True quando todos os simbolos elegiveis estao sob skip de regime macro."""
-    exec_cfg = exec_mgr.orch.config.get("orchestrator", {}).get("execution", {})
-    calibration_cfg = exec_mgr.orch.config.get("deep_learning", {}).get("calibration")
-    saw_decision = False
-    saw_tradeable = False
-    skip_label = "REGIME MACRO ENTROPIC_NOISE"
-    for symbol in exec_mgr._trade_symbols():
-        entry = decisions.get(symbol)
-        if not entry:
-            continue
-        saw_decision = True
-        built = build_execution_candidate(
-            symbol,
-            entry,
-            exec_cfg=exec_cfg,
-            calibration_cfg=calibration_cfg,
-            recovery_active=recovery_active,
-        )
-        if built is None:
-            continue
-        _, _, metrics = built
-        validate_micro_noise_gate(metrics, exec_cfg=exec_cfg)
-        validate_recovery_asymmetric_gate(metrics)
-        validate_micro_boundary_saturation_gate(metrics)
-        if regime_skip_blocks_trade(metrics):
-            skip_label = _skip_label_for_gate(metrics.get("gate_reason"), skip_label)
-            continue
-        saw_tradeable = True
-        break
-    return saw_decision and not saw_tradeable, skip_label
 
 
 def _select_cluster_best(exec_mgr, candidates, *, mandatory, last_loss, last_loss_dir, recovery_active, skip_symbols):
@@ -140,14 +86,6 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
         recovery_skip_counter=skip_counter,
         session_drawdown=session_drawdown,
     )
-    regime_blocked, skip_label = _regime_skip_blocks_mandatory_cycle(
-        exec_mgr,
-        decisions,
-        recovery_active=recovery_active,
-    )
-    if not candidates and regime_blocked:
-        exec_mgr.logger.info("[%s] SKIP: %s | ciclo bloqueado", cid, skip_label)
-        return []
     candidates = mandatory_fallback_if_empty(
         exec_mgr,
         decisions,

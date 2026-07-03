@@ -13,7 +13,6 @@ from src.application.services.execution_direction_cross_corr import (
     adjust_dl_weight_with_correlation,
     cached_correlation_matrix,
 )
-from src.application.services.execution_direction_softmax_conflict import resolve_softmax_exhaustion_conflict
 from src.application.services.execution_entropy_fallback import pick_entropy_fallback_candidate
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.kelly_f_star_adjustments import apply_kelly_fraction_scale
@@ -87,17 +86,6 @@ def test_cross_corr_low_correlation_boosts_weight():
 
 def test_cached_correlation_matrix_empty():
     assert cached_correlation_matrix(object()) == {}
-
-
-def test_softmax_no_conflict_returns_same_direction():
-    resolved, metrics = resolve_softmax_exhaustion_conflict(
-        TradeDirection.CALL,
-        TradeDirection.CALL,
-        {"indicators": {}, "direction_hints": []},
-        call_score=0.6,
-        put_score=0.4,
-    )
-    assert resolved == TradeDirection.CALL
 
 
 def test_apply_kelly_fraction_scale_attenuates():
@@ -199,26 +187,6 @@ def test_attach_dynamic_metrics_runtime_entropy():
     )
     assert metrics["calibrated_entropy"] == 0.4
     assert metrics["entropy_violation"] is True
-
-
-def test_softmax_put_dl_conflict_resolves():
-    metrics = {
-        "exhaustion_conflict": True,
-        "exhaustion_penalty": 0.2,
-        "indicators": {"rsi": 0.8, "cmo": 0.5, "implied_vol_ratio": 1.1},
-        "kelly_fraction_scale": 1.0,
-        "direction_hints": [],
-    }
-    resolved, out = resolve_softmax_exhaustion_conflict(
-        TradeDirection.CALL,
-        TradeDirection.CALL,
-        metrics,
-        call_score=0.7,
-        put_score=0.3,
-        exec_cfg={"exhaustion_gate": {"rsi_overbought": 0.73}},
-    )
-    assert resolved in (TradeDirection.CALL, TradeDirection.PUT)
-    assert out.get("execution_mode") == "EXEC_DIVERGENT"
 
 
 def test_entropy_fallback_skips_blocked_symbol():
