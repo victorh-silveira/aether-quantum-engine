@@ -256,7 +256,7 @@ Justificativa: operar o relógio micro M1 sem tendência macro M15 e com convic�
 
 #### Micro Noise Gate (`validate_micro_noise_gate`)
 
-Veto estrutural aplicado em `gather_cluster_candidates` e no bloqueio de ciclo mandatório, forçando SKIP absoluto (aborta inclusive os fallbacks obrigatórios do modo contínuo). Pisos: `MICRO_ADX_FLOOR = 0.15`, `MICRO_BB_EXTREME = 0.01`, `MICRO_HURST_RANDOM_WALK_MAX = 0.48`.
+Veto estrutural aplicado em `gather_cluster_candidates` e no bloqueio de ciclo mandatório, forçando SKIP absoluto (aborta inclusive os fallbacks obrigatórios do modo contínuo). Pisos config-driven em `orchestrator.execution.micro_noise_gate` (`enabled`, `adx_floor`, `bb_extreme`, `hurst_random_walk_max`), com fallback nas constantes `MICRO_ADX_FLOOR = 0.15`, `MICRO_BB_EXTREME = 0.01`, `MICRO_HURST_RANDOM_WALK_MAX = 0.48`. Calibração ativa: `adx_floor = 0.12` para devolver atividade em índices Drift de baixa direcionalidade.
 
 | Condição | Ação |
 |----------|------|
@@ -264,6 +264,17 @@ Veto estrutural aplicado em `gather_cluster_candidates` e no bloqueio de ciclo m
 | `bb_width < 0.01` **e** `hurst < 0.48` | SKIP (`gate_reason=micro_squeeze_breakout_skip`) |
 
 Justificativa: ADX colapsado indica ausência de tendência (chop); squeeze extremo com Hurst em random walk sinaliza esmagamento sem reversão limpa — ambos convertem a inferência micro em sorteio de expectativa negativa.
+
+#### Filtro de Exaustão de Barreira Micro (`validate_micro_boundary_exhaustion`)
+
+Último estágio de `resolve_execution_direction` (`execution_direction_micro_boundary.py`), executado sobre a direção final. Rebaixa `trade_score` para `min(trade_score, 0.55)` quando a ordem compraria o topo ou venderia o fundo do canal micro M1:
+
+| Direção final | Gatilho de saturação | Ação |
+|---------------|----------------------|------|
+| `CALL` | `keltner > 1.10` **ou** `bb_pct_b ≥ 0.95` (banda superior de Bollinger M1) | `trade_score = min(trade_score, 0.55)` + `micro_boundary_exhaustion=True` |
+| `PUT` | `keltner < -0.10` **ou** `bb_pct_b ≤ 0.05` (banda inferior de Bollinger M1) | `trade_score = min(trade_score, 0.55)` + `micro_boundary_exhaustion=True` |
+
+`validate_micro_boundary_saturation_gate` converte a marca em SKIP absoluto (`gate_reason=micro_boundary_saturation_skip`) em `gather_cluster_candidates` e no bloqueio de ciclo mandatório, soberano sob `mandatory_trade_each_cycle=true`. Justificativa: derrubar o score abaixo do piso de 0.68 congela compras de topo e vendas de fundo em zonas saturadas de ticks, aguardando o recuo saudável do preço. O `bb_pct_b` é exposto em `dl_predict_build` para a checagem do último fechamento contra as bandas.
 
 ### 4.3 Pool e seleção
 
@@ -305,7 +316,7 @@ Justificativa: ADX colapsado indica ausência de tendência (chop); squeeze extr
 | Encerramento por meta | `StateManager.check_session_limits()` — `pnl_sessao >= target_win` → `graceful_shutdown` |
 | Stop loss | **Desativado** — sem `daily_max_loss_limit` nem disjuntor de perda no motor |
 | D'Alembert recovery | `dlambert_sizing.py`, `recovery_conviction.py` — stake linear `Kelly_base + n×U_eff` com Amortization Booster e piso progressivo por cluster |
-| Circuit Breaker D'Alembert | `dlambert_sizing.dlambert_circuit_breaker` — trava rígida em recovery ativo: `MAX_LINEAR_LEVEL=8`, `MAX_STAKE_U_MULTIPLE=10.0×U`, `MAX_SESSION_DRAWDOWN_U=25.0×U`; violação força stake `0.0` (ou `$1.00` em modo contínuo estrito) com log `DLAMBERT_CIRCUIT_BREAK` |
+| Circuit Breaker D'Alembert | `dlambert_sizing.dlambert_circuit_breaker` — trava rígida em recovery ativo, config-driven em `risk_management.dlambert` (`circuit_breaker_max_linear_level=8`, `circuit_breaker_max_stake_u_multiple=10.0×U`, `circuit_breaker_max_session_drawdown_u` calibrado para `250.0×U`); violação força stake `0.0` (ou `$1.00` em modo contínuo estrito) com log `DLAMBERT_CIRCUIT_BREAK` |
 | Retração D'Alembert | WIN parcial em recovery: `consecutive_losses_linear = max(1, n-1)` |
 | Super-concordance Kelly | booster desligado em recovery; ativo em Kelly puro com P≥0.75, 6×0, Hurst>0.55 |
 | Trava Hurst N2+ | `recovery_hurst_gate.py` |

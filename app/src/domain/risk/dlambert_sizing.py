@@ -96,17 +96,29 @@ def dlambert_circuit_breaker(
     pending_total: float,
     continuous_mode: bool = False,
     stake_min: float = 1.0,
+    max_linear_level: int = MAX_LINEAR_LEVEL,
+    max_stake_u_multiple: float = MAX_STAKE_U_MULTIPLE,
+    max_session_drawdown_u: float = MAX_SESSION_DRAWDOWN_U,
 ) -> tuple[float, bool]:
     """Trava rigida da escada aditiva: retorna (stake, tripped) contra drawdown superlinear."""
     unit = max(0.0, float(dlambert_unit))
     tripped = (
-        int(consecutive_losses_linear) >= MAX_LINEAR_LEVEL
-        or (unit > 0.0 and float(proposed_stake) > MAX_STAKE_U_MULTIPLE * unit)
-        or (unit > 0.0 and float(pending_total) > MAX_SESSION_DRAWDOWN_U * unit)
+        int(consecutive_losses_linear) >= int(max_linear_level)
+        or (unit > 0.0 and float(proposed_stake) > float(max_stake_u_multiple) * unit)
+        or (unit > 0.0 and float(pending_total) > float(max_session_drawdown_u) * unit)
     )
     if not tripped:
         return float(proposed_stake), False
     return (float(stake_min) if continuous_mode else 0.0), True
+
+
+def _circuit_breaker_limits(dlambert_config: dict[str, Any]) -> tuple[int, float, float]:
+    """Le limites do circuit breaker da config D'Alembert com fallback institucional."""
+    cfg = dlambert_config if isinstance(dlambert_config, dict) else {}
+    level = int(cfg.get("circuit_breaker_max_linear_level", MAX_LINEAR_LEVEL))
+    stake_mult = float(cfg.get("circuit_breaker_max_stake_u_multiple", MAX_STAKE_U_MULTIPLE))
+    drawdown = float(cfg.get("circuit_breaker_max_session_drawdown_u", MAX_SESSION_DRAWDOWN_U))
+    return level, stake_mult, drawdown
 
 
 def _continuous_strict_mode(rm: Any) -> bool:
@@ -166,6 +178,7 @@ def resolve_dlambert_stake(
             pending_total=pending_total,
             bankroll=bankroll,
         )
+        max_level, max_mult, max_drawdown = _circuit_breaker_limits(dlambert_config)
         guarded, tripped = dlambert_circuit_breaker(
             raw,
             consecutive_losses_linear=consecutive_losses_linear,
@@ -173,6 +186,9 @@ def resolve_dlambert_stake(
             pending_total=pending_total,
             continuous_mode=_continuous_strict_mode(rm),
             stake_min=_regulatory_stake_min(rm),
+            max_linear_level=max_level,
+            max_stake_u_multiple=max_mult,
+            max_session_drawdown_u=max_drawdown,
         )
         if tripped:
             _log_dlambert_circuit_break(rm, guarded, unit, consecutive_losses_linear, pending_total)

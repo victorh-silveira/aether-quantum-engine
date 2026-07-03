@@ -1,4 +1,5 @@
 from src.application.services.execution_quality_asymmetric_gate import (
+    validate_micro_boundary_saturation_gate,
     validate_micro_noise_gate,
     validate_recovery_asymmetric_gate,
 )
@@ -75,6 +76,21 @@ def test_validate_micro_noise_gate_defaults_are_safe_without_indicators():
     assert not metrics.get("regime_skip_cycle")
 
 
+def test_validate_micro_noise_gate_disabled_via_config():
+    metrics = {"indicators": {"adx": 0.05, "bb_width": 0.5, "hurst": 0.55}}
+    assert not validate_micro_noise_gate(metrics, exec_cfg={"micro_noise_gate": {"enabled": False}})
+    assert not metrics.get("regime_skip_cycle")
+
+
+def test_validate_micro_noise_gate_respects_config_adx_floor():
+    cfg = {"micro_noise_gate": {"adx_floor": 0.12}}
+    tolerated = {"indicators": {"adx": 0.13, "bb_width": 0.05, "hurst": 0.55}}
+    assert not validate_micro_noise_gate(tolerated, exec_cfg=cfg)
+    blocked = {"indicators": {"adx": 0.11, "bb_width": 0.05, "hurst": 0.55}}
+    assert validate_micro_noise_gate(blocked, exec_cfg=cfg)
+    assert blocked["gate_reason"] == "micro_adx_chop_skip"
+
+
 def test_apply_quality_penalty_tags_neutro_when_regime_unclassified():
     metrics = {
         "dl_direction": "CALL",
@@ -91,3 +107,21 @@ def test_apply_quality_penalty_tags_neutro_when_regime_unclassified():
         min_edge=0.04,
     )
     assert metrics.get("universal_regime") == "NEUTRO"
+
+
+def test_micro_boundary_saturation_gate_forces_skip_on_c0012_downgrade():
+    metrics = {
+        "micro_boundary_exhaustion": True,
+        "micro_boundary_side": "upper",
+        "trade_score": 0.55,
+    }
+    assert validate_micro_boundary_saturation_gate(metrics) is True
+    assert metrics["regime_skip_cycle"] is True
+    assert metrics["gate_reason"] == "micro_boundary_saturation_skip"
+    assert metrics["micro_boundary_saturation_gate"] is True
+
+
+def test_micro_boundary_saturation_gate_noop_without_marker():
+    metrics = {"trade_score": 0.80}
+    assert validate_micro_boundary_saturation_gate(metrics) is False
+    assert not metrics.get("regime_skip_cycle")

@@ -15,8 +15,37 @@ class RegimeState(StrEnum):
     ENTROPIC_NOISE = "ENTROPIC_NOISE"
 
 
+class MicroPositionZone(StrEnum):
+    """Zonas de micro-posicionamento M1 no canal de preco de 60s."""
+
+    UPPER_BOUNDARY = "UPPER_BOUNDARY"
+    LOWER_BOUNDARY = "LOWER_BOUNDARY"
+    FAIR_VALUE_MIDDLE = "FAIR_VALUE_MIDDLE"
+
+
 COMPRESSION_TRAP_SCORE = 0.75
 CLIMAX_EXHAUSTION_SCORE = 0.76
+
+MICRO_KELTNER_TOPO_TRIGGER = 1.05
+MICRO_KELTNER_FUNDO_TRIGGER = -0.05
+MICRO_BB_UPPER_TRIGGER = 0.95
+MICRO_BB_LOWER_TRIGGER = 0.05
+MICRO_BREAKOUT_MOMENTUM_BOOST = 0.05
+MICRO_BREAKOUT_SCORE_CAP = 0.95
+MICRO_EXHAUSTION_OVERRIDE_SCORE = 0.75
+MICRO_MIDDLE_UNCERTAINTY_SCORE = 0.50
+MICRO_TREND_ADX_MIN = 0.23
+MICRO_TREND_VOL_MIN = 1.0
+MICRO_LOW_CONSENSUS_MARGIN = 2
+MICRO_LOW_CONSENSUS_MIN_MINORITY = 2
+MICRO_MIDDLE_UNCERTAINTY_REASON = "micro_middle_uncertainty_skip"
+MICRO_EXHAUSTION_REGIME_TOKEN = "MICRO_EXHAUSTION_TRAP"
+
+_DEFAULT_MICRO_MATRIX_CFG: dict[str, float] = {
+    "keltner_topo_trigger": MICRO_KELTNER_TOPO_TRIGGER,
+    "keltner_fundo_trigger": MICRO_KELTNER_FUNDO_TRIGGER,
+    "breakout_momentum_boost": MICRO_BREAKOUT_MOMENTUM_BOOST,
+}
 
 _DEFAULT_REGIME_CFG: dict[str, float | bool] = {
     "enabled": True,
@@ -37,6 +66,17 @@ _DEFAULT_REGIME_CFG: dict[str, float | bool] = {
 
 
 @dataclass(frozen=True)
+class MicroMatrixDecision:
+    """Decisao tatica da matriz de micro-posicionamento M1."""
+
+    zone: MicroPositionZone
+    breakout_boost: float = 0.0
+    exhaustion_invert: bool = False
+    score_override: float | None = None
+    middle_uncertainty: bool = False
+
+
+@dataclass(frozen=True)
 class RegimeEvaluation:
     """Resultado da classificacao de regime universal."""
 
@@ -47,6 +87,7 @@ class RegimeEvaluation:
     trap_boost_score: float | None = None
     score_factor: float = 1.0
     mandatory_conviction_floor: float | None = None
+    micro: MicroMatrixDecision | None = None
 
 
 @dataclass(frozen=True)
@@ -71,6 +112,16 @@ def parse_regime_evaluator_cfg(raw: dict | None) -> dict[str, float | bool]:
             if key == "enabled":
                 merged[key] = bool(raw[key])
             else:
+                merged[key] = float(raw[key])
+    return merged
+
+
+def parse_micro_matrix_cfg(raw: dict | None) -> dict[str, float]:
+    """Mescla knobs de micro-posicionamento M1 com defaults institucionais."""
+    merged: dict[str, float] = dict(_DEFAULT_MICRO_MATRIX_CFG)
+    if isinstance(raw, dict):
+        for key in _DEFAULT_MICRO_MATRIX_CFG:
+            if key in raw:
                 merged[key] = float(raw[key])
     return merged
 

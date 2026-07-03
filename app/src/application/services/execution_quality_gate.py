@@ -7,15 +7,23 @@ from src.application.services.execution_quality_asymmetric_gate import (
 )
 from src.application.services.execution_squeeze_gate import passes_squeeze_gate
 from src.application.services.execution_universal_regime_gate import UniversalRegimeEvaluator
-from src.application.services.execution_universal_regime_types import RegimeState
+from src.application.services.execution_universal_regime_types import MICRO_MIDDLE_UNCERTAINTY_REASON
+from src.application.services.execution_vol_cohesion_gate import apply_vol_cohesion_entropic_downgrade
 from src.application.services.orchestrator.execution_recovery_gate import effective_signal, recovery_min_signal
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.recovery_hurst_decay import resolve_effective_hurst_min
 
 
 MANDATORY_MIN_TRADE_SCORE_DEFAULT = 0.72
-MACRO_VOL_EXPANSION_MIN = 1.15
-MICRO_VOL_DIVERGENCE_MAX = 0.50
+
+__all__ = [
+    "apply_quality_penalty_to_metrics",
+    "apply_vol_cohesion_entropic_downgrade",
+    "enforce_micro_middle_uncertainty_skip",
+    "passes_execution_quality",
+    "quality_gate_params",
+    "quality_gate_penalty",
+]
 
 
 def quality_gate_params(exec_cfg: dict) -> dict[str, float]:
@@ -30,35 +38,12 @@ def quality_gate_params(exec_cfg: dict) -> dict[str, float]:
     }
 
 
-def _macro_vol_ratio(metrics: dict) -> float:
-    """Le vol_ratio macro M15 com fallback para indicadores micro."""
-    macro = metrics.get("macro_indicators")
-    if isinstance(macro, dict) and macro.get("vol_ratio") is not None:
-        return float(macro["vol_ratio"])
-    indicators = metrics.get("indicators") or {}
-    return float(indicators.get("vol_ratio", 1.0))
-
-
-def _micro_vol_ratio(metrics: dict) -> float:
-    """Le vol_ratio micro M1 dos indicadores de execucao."""
-    indicators = metrics.get("indicators") or {}
-    return float(indicators.get("vol_ratio", _macro_vol_ratio(metrics)))
-
-
-def apply_vol_cohesion_entropic_downgrade(metrics: dict) -> bool:
-    """Rebaixa para ENTROPIC_NOISE quando M1 comprime sob macro M15 expandido."""
-    macro_vol = _macro_vol_ratio(metrics)
-    micro_vol = _micro_vol_ratio(metrics)
-    if macro_vol + 1e-9 < MACRO_VOL_EXPANSION_MIN or micro_vol + 1e-9 >= MICRO_VOL_DIVERGENCE_MAX:
+def enforce_micro_middle_uncertainty_skip(metrics: dict) -> bool:
+    """Forca skip absoluto quando o candidato cai em incerteza de meio de canal M1."""
+    if str(metrics.get("gate_reason") or "") != MICRO_MIDDLE_UNCERTAINTY_REASON:
         return False
-    regime = RegimeState.ENTROPIC_NOISE.value
-    metrics["universal_regime"] = regime
-    metrics["universal_regime_scenario"] = regime
-    metrics["gate_penalty"] = "noise"
     metrics["regime_skip_cycle"] = True
-    metrics["vol_cohesion_divergence"] = True
-    metrics["vol_cohesion_macro_ratio"] = macro_vol
-    metrics["vol_cohesion_micro_ratio"] = micro_vol
+    metrics["micro_middle_uncertainty"] = True
     return True
 
 
@@ -114,7 +99,7 @@ def _quality_failures(
         and float(metrics.get("exhaustion_penalty", 0.0)) + 1e-9 >= min_exhaustion
     )
     vol_cohesion_fail = bool(metrics.get("vol_cohesion_divergence"))
-    asymmetric_fail = bool(metrics.get("recovery_asymmetric_gate"))
+    asymmetric_fail = bool(metrics.get("recovery_asymmetric_gate")) or bool(metrics.get("micro_boundary_exhaustion"))
     signal_floor = float(min_signal)
     if recovery_active and isinstance(recovery_kelly_cfg, dict):
         hurst = float(indicators.get("hurst", 0.5))
@@ -165,6 +150,8 @@ def passes_execution_quality(
     """Indica se metricas atendem pisos de qualidade (legado para testes)."""
     apply_vol_cohesion_entropic_downgrade(metrics)
     validate_recovery_asymmetric_gate(metrics)
+    if enforce_micro_middle_uncertainty_skip(metrics):
+        return False
     if not passes_squeeze_gate(metrics, cfg=dynamic_threshold_cfg):
         return False
     return not _quality_failures(
@@ -270,6 +257,7 @@ def apply_quality_penalty_to_metrics(
             if regime_eval.regime is None and not metrics.get("universal_regime"):
                 metrics["universal_regime"] = NEUTRAL_REGIME_TOKEN
                 metrics["universal_regime_scenario"] = NEUTRAL_REGIME_TOKEN
+    enforce_micro_middle_uncertainty_skip(metrics)
     validate_recovery_asymmetric_gate(metrics)
     penalty = quality_gate_penalty(
         metrics,

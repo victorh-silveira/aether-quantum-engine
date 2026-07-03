@@ -4,6 +4,7 @@ __all__ = ["collect_cluster_orders", "_mandatory_fallback_candidates"]
 
 from src.application.services.execution_direction import build_execution_candidate
 from src.application.services.execution_quality_asymmetric_gate import (
+    validate_micro_boundary_saturation_gate,
     validate_micro_noise_gate,
     validate_recovery_asymmetric_gate,
 )
@@ -34,6 +35,8 @@ _SKIP_LABELS = {
     "low_conviction_neutral_skip": "LOW CONVICTION NEUTRAL SKIP",
     "micro_adx_chop_skip": "MICRO ADX CHOP SKIP",
     "micro_squeeze_breakout_skip": "MICRO SQUEEZE BREAKOUT SKIP",
+    "micro_boundary_saturation_skip": "MICRO BOUNDARY SATURATION SKIP",
+    "micro_middle_uncertainty_skip": "MICRO MIDDLE UNCERTAINTY SKIP",
 }
 
 
@@ -64,8 +67,9 @@ def _regime_skip_blocks_mandatory_cycle(exec_mgr, decisions: dict, *, recovery_a
         if built is None:
             continue
         _, _, metrics = built
-        validate_micro_noise_gate(metrics)
+        validate_micro_noise_gate(metrics, exec_cfg=exec_cfg)
         validate_recovery_asymmetric_gate(metrics)
+        validate_micro_boundary_saturation_gate(metrics)
         if regime_skip_blocks_trade(metrics):
             skip_label = _skip_label_for_gate(metrics.get("gate_reason"), skip_label)
             continue

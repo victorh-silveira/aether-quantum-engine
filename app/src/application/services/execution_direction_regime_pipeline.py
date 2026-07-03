@@ -23,12 +23,14 @@ def apply_universal_regime_pipeline(
     continuous_mode = bool(cfg.get("mandatory_trade_each_cycle", False))
     kelly_cfg = cfg.get("kelly") if isinstance(cfg.get("kelly"), dict) else {}
     regime_cfg = cfg.get("regime_evaluator") if isinstance(cfg.get("regime_evaluator"), dict) else {}
+    micro_cfg = cfg.get("micro_noise_gate") if isinstance(cfg.get("micro_noise_gate"), dict) else {}
     evaluator = UniversalRegimeEvaluator(
         regime_cfg,
         recovery_active=recovery_active,
         continuous_mode=continuous_mode,
         mandatory_min_signal=mandatory_floor,
         kelly_cfg=kelly_cfg,
+        micro_cfg=micro_cfg,
     )
     regime_eval = evaluator.evaluate(metrics, dl_dir=dl_dir, exec_dir=exec_dir)
     regime_eval = veto_inversion_on_dl_conviction(regime_eval, metrics, dl_dir, veto_score=dl_inversion_veto_score)

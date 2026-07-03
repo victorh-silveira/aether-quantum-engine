@@ -2,6 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from src.domain.risk.dlambert_sizing import dlambert_circuit_breaker, resolve_dlambert_stake
 from src.domain.risk.risk_manager import RiskManager
 from src.domain.risk.risk_recovery_state import apply_cluster_profit_to_recovery_state
 from src.domain.risk.risk_stake_calc import calculate_stake_for_manager
@@ -136,3 +137,56 @@ def test_dlambert_circuit_breaker_halts_stake_on_linear_overflow(kelly_config):
         kwargs={"dl_metrics": {"execute": True, "trade_score": 0.65, "val_accuracy": 0.55}},
     )
     assert stake == 0.0
+
+
+def test_circuit_breaker_respects_custom_session_drawdown():
+    stake, tripped = dlambert_circuit_breaker(
+        40.0,
+        consecutive_losses_linear=3,
+        dlambert_unit=10.0,
+        pending_total=300.0,
+        max_session_drawdown_u=250.0,
+    )
+    assert tripped is False
+    assert stake == pytest.approx(40.0)
+
+
+def test_resolve_dlambert_stake_default_drawdown_ceiling_trips():
+    class RM:
+        dlambert_unit = 9.44
+        dlambert_config = {}
+
+    stake, tag = resolve_dlambert_stake(
+        recovery_active=True,
+        bankroll=10000.0,
+        kelly_base=9.44,
+        dlambert_config={"dlambert_enabled": True},
+        rm=RM(),
+        consecutive_losses_linear=2,
+        pending_total=2078.0,
+    )
+    assert tag == "D'ALEMBERT_CB"
+    assert stake == pytest.approx(0.0)
+
+
+def test_resolve_dlambert_stake_config_raises_drawdown_ceiling():
+    dlambert_config = {
+        "dlambert_enabled": True,
+        "circuit_breaker_max_session_drawdown_u": 250.0,
+    }
+
+    class RM:
+        dlambert_unit = 9.44
+        dlambert_config = {}
+
+    stake, tag = resolve_dlambert_stake(
+        recovery_active=True,
+        bankroll=10000.0,
+        kelly_base=9.44,
+        dlambert_config=dlambert_config,
+        rm=RM(),
+        consecutive_losses_linear=2,
+        pending_total=2078.0,
+    )
+    assert tag == "D'ALEMBERT"
+    assert stake > 9.44

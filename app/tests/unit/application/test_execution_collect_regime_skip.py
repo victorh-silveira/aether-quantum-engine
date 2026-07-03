@@ -15,8 +15,59 @@ def test_skip_label_for_gate_maps_known_and_default_reasons():
     assert _skip_label_for_gate("low_conviction_neutral_skip", "X") == "LOW CONVICTION NEUTRAL SKIP"
     assert _skip_label_for_gate("micro_adx_chop_skip", "X") == "MICRO ADX CHOP SKIP"
     assert _skip_label_for_gate("micro_squeeze_breakout_skip", "X") == "MICRO SQUEEZE BREAKOUT SKIP"
+    assert _skip_label_for_gate("micro_middle_uncertainty_skip", "X") == "MICRO MIDDLE UNCERTAINTY SKIP"
     assert _skip_label_for_gate(None, "DEFAULT") == "DEFAULT"
     assert _skip_label_for_gate("unknown_reason", "DEFAULT") == "DEFAULT"
+
+
+def test_collect_cluster_orders_mandatory_blocks_micro_middle_uncertainty():
+    middle_metrics = base_metrics(
+        deploy_ok=True,
+        execute=True,
+        val_accuracy=0.60,
+        edge=0.08,
+    )
+    orch = SimpleNamespace(
+        anchor=ANCHOR,
+        symbols=[ANCHOR, PAIR],
+        config={
+            "orchestrator": {
+                "execution": {
+                    "mandatory_trade_each_cycle": True,
+                    "regime_evaluator": {"enabled": True},
+                },
+            },
+            "deep_learning": {"recovery_gating": {}, "min_val_accuracy": 0.54},
+            "risk_management": {"kelly": {}},
+        },
+        risk_manager=SimpleNamespace(
+            pending_loss={},
+            last_loss_symbol=None,
+            last_loss_direction=None,
+            consecutive_losses_linear=0,
+            total_session_profit=0.0,
+            symbol_loss_cooldown={},
+            recovery_symbol_loss_streak={},
+        ),
+        _active_cycle_id=21,
+        _recovery_skip_counter=0,
+    )
+    exec_mgr = SimpleNamespace(
+        orch=orch,
+        logger=MagicMock(),
+        _mandatory_trade_each_cycle=lambda: True,
+        _trade_symbols=lambda: [ANCHOR, PAIR],
+    )
+    decisions = {
+        ANCHOR: {"direction": TradeDirection.CALL, "metrics": dict(middle_metrics)},
+        PAIR: {"direction": TradeDirection.CALL, "metrics": dict(middle_metrics)},
+    }
+    orders = collect_cluster_orders(exec_mgr, decisions)
+    assert orders == []
+    logged = " ".join(
+        " ".join(str(part) for part in call.args) for call in exec_mgr.logger.info.call_args_list if call.args
+    )
+    assert "MICRO MIDDLE UNCERTAINTY SKIP" in logged
 
 
 def test_collect_cluster_orders_mandatory_blocks_entropic_regime_skip():

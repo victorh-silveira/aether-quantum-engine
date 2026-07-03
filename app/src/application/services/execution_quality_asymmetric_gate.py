@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from src.application.services.execution_universal_regime_types import MICRO_MIDDLE_UNCERTAINTY_REASON
 from src.domain.risk.stake_sizing import raw_side_from_metrics
 
 
@@ -33,6 +34,8 @@ def validate_recovery_asymmetric_gate(
     min_conviction_floor: float = RECOVERY_ASYMMETRIC_MIN_SCORE,
 ) -> bool:
     """Veto absoluto de ciclo em regime neutro com conviccao abaixo do piso institucional."""
+    if str(metrics.get("gate_reason") or "") == MICRO_MIDDLE_UNCERTAINTY_REASON:
+        return True
     if not _is_neutral_universal_regime(metrics):
         return False
     score = _effective_signal(metrics)
@@ -53,17 +56,41 @@ def _micro_indicators(metrics: dict) -> tuple[float, float, float]:
     return adx, bb_width, hurst
 
 
-def validate_micro_noise_gate(metrics: dict) -> bool:
+def _micro_noise_gate_params(exec_cfg: dict | None) -> tuple[bool, float, float, float]:
+    """Le pisos do micro noise gate da config de execucao com fallback institucional."""
+    chunk = exec_cfg.get("micro_noise_gate") if isinstance(exec_cfg, dict) else None
+    chunk = chunk if isinstance(chunk, dict) else {}
+    enabled = bool(chunk.get("enabled", True))
+    adx_floor = float(chunk.get("adx_floor", MICRO_ADX_FLOOR))
+    bb_extreme = float(chunk.get("bb_extreme", MICRO_BB_EXTREME))
+    hurst_max = float(chunk.get("hurst_random_walk_max", MICRO_HURST_RANDOM_WALK_MAX))
+    return enabled, adx_floor, bb_extreme, hurst_max
+
+
+def validate_micro_noise_gate(metrics: dict, *, exec_cfg: dict | None = None) -> bool:
     """Veto de ciclo em chop micro: ADX colapsado ou squeeze em random walk sem reversao."""
+    enabled, adx_floor, bb_extreme, hurst_max = _micro_noise_gate_params(exec_cfg)
+    if not enabled:
+        return False
     adx, bb_width, hurst = _micro_indicators(metrics)
-    if adx + 1e-9 < MICRO_ADX_FLOOR:
+    if adx + 1e-9 < adx_floor:
         metrics["regime_skip_cycle"] = True
         metrics["gate_reason"] = "micro_adx_chop_skip"
         metrics["micro_noise_gate"] = True
         return True
-    if bb_width + 1e-9 < MICRO_BB_EXTREME and hurst + 1e-9 < MICRO_HURST_RANDOM_WALK_MAX:
+    if bb_width + 1e-9 < bb_extreme and hurst + 1e-9 < hurst_max:
         metrics["regime_skip_cycle"] = True
         metrics["gate_reason"] = "micro_squeeze_breakout_skip"
         metrics["micro_noise_gate"] = True
         return True
     return False
+
+
+def validate_micro_boundary_saturation_gate(metrics: dict) -> bool:
+    """Veto absoluto quando o filtro de exaustao micro rebaixou o score por saturacao de banda."""
+    if not metrics.get("micro_boundary_exhaustion"):
+        return False
+    metrics["regime_skip_cycle"] = True
+    metrics["gate_reason"] = "micro_boundary_saturation_skip"
+    metrics["micro_boundary_saturation_gate"] = True
+    return True

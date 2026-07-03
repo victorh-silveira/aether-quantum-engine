@@ -172,6 +172,7 @@ def build_prediction_entry(
         "keltner": float(series["keltner_pct_b"][-1])
         if "keltner_pct_b" in series and len(series["keltner_pct_b"]) > 0
         else 0.0,
+        "bb_pct_b": float(series["bb_pct_b"][-1]) if "bb_pct_b" in series and len(series["bb_pct_b"]) > 0 else 0.5,
         "rsi": float(series["rsi"][-1]) if "rsi" in series and len(series["rsi"]) > 0 else 0.0,
         "macd": float(series["macd"][-1]) if "macd" in series and len(series["macd"]) > 0 else 0.0,
         "macd_sig": float(series["macd_signal"][-1])

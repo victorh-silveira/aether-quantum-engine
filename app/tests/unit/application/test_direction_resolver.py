@@ -261,6 +261,28 @@ def test_resolve_sets_trade_score_when_missing():
     assert result[1]["trade_score"] is not None
 
 
+def test_resolve_micro_boundary_downgrades_call_at_volatility_top():
+    entry = _entry(
+        direction=TradeDirection.CALL,
+        raw_prob=0.88,
+        indicators={
+            "hurst": 0.55,
+            "adx": 0.30,
+            "vol_ratio": 1.10,
+            "rsi": 0.69,
+            "keltner": 1.16,
+            "cmo": 0.25,
+            "bb_pct_b": 0.90,
+        },
+    )
+    result = resolve_execution_direction(entry)
+    assert result is not None
+    direction, metrics = result
+    assert direction == TradeDirection.CALL
+    assert metrics["trade_score"] == 0.55
+    assert metrics["micro_boundary_exhaustion"] is True
+
+
 def test_dl_call_put_scores_without_inferable_direction():
     weights = _scoring_weights({})
     assert _dl_call_put_scores({"direction": None, "metrics": {}}, weights) == (0.5, 0.5)

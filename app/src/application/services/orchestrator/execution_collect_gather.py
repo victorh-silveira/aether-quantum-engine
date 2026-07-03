@@ -4,6 +4,7 @@ from src.application.services.deep_learning.dl_params import parse_dynamic_thres
 from src.application.services.execution_direction import build_execution_candidate
 from src.application.services.execution_direction_cross_corr import cached_correlation_matrix
 from src.application.services.execution_quality_asymmetric_gate import (
+    validate_micro_boundary_saturation_gate,
     validate_micro_noise_gate,
     validate_recovery_asymmetric_gate,
 )
@@ -74,8 +75,9 @@ def gather_cluster_candidates(
         if built is None:
             continue
         _, direction, metrics = built
-        validate_micro_noise_gate(metrics)
+        validate_micro_noise_gate(metrics, exec_cfg=exec_cfg)
         validate_recovery_asymmetric_gate(metrics)
+        validate_micro_boundary_saturation_gate(metrics)
         if metrics.get("regime_skip_cycle"):
             continue
         dl_dir = _dl_direction_from_metrics(metrics, direction)

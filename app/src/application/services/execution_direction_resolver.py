@@ -5,6 +5,7 @@ from __future__ import annotations
 from functools import partial
 
 from src.application.services.execution_direction_cross_corr import adjust_dl_weight_with_correlation
+from src.application.services.execution_direction_micro_boundary import validate_micro_boundary_exhaustion
 from src.application.services.execution_direction_regime_pipeline import apply_universal_regime_pipeline
 from src.application.services.execution_direction_resolver_bias import (
     exhaustion_bias as _exhaustion_bias,
@@ -286,4 +287,5 @@ def resolve_execution_direction(
         exec_dir = dl_dir
         metrics["direction_inverted"] = False
         metrics["exec_direction"] = metrics["resolved_direction"] = dl_dir.name
+    validate_micro_boundary_exhaustion(exec_dir, metrics)
     return exec_dir, metrics

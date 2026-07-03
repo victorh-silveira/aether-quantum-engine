@@ -3,11 +3,22 @@
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 from typing import Any
 
+from src.application.services.execution_micro_position_matrix import (
+    build_micro_decision,
+    classify_micro_zone,
+)
 from src.application.services.execution_universal_regime_types import (
+    MICRO_BREAKOUT_SCORE_CAP,
+    MICRO_EXHAUSTION_REGIME_TOKEN,
+    MICRO_MIDDLE_UNCERTAINTY_REASON,
+    MICRO_MIDDLE_UNCERTAINTY_SCORE,
+    MicroPositionZone,
     RegimeEvaluation,
     RegimeState,
+    parse_micro_matrix_cfg,
     parse_regime_evaluator_cfg,
 )
 from src.domain.models.trade import TradeDirection
@@ -65,7 +76,7 @@ def apply_regime_direction_boost(
 
 
 class UniversalRegimeEvaluator:
-    """Classifica candidatos em quatro regimes e aplica chaveamento CALL/PUT."""
+    """Classifica candidatos em regimes macro e cruza com micro-posicionamento M1."""
 
     def __init__(
         self,
@@ -75,9 +86,11 @@ class UniversalRegimeEvaluator:
         continuous_mode: bool = False,
         mandatory_min_signal: float = 0.56,
         kelly_cfg: dict | None = None,
+        micro_cfg: dict | None = None,
     ) -> None:
-        """Inicializa avaliador com config, recovery e modo continuo."""
+        """Inicializa avaliador com config macro, micro, recovery e modo continuo."""
         self._cfg = parse_regime_evaluator_cfg(cfg)
+        self._micro_cfg = parse_micro_matrix_cfg(micro_cfg)
         self._recovery_active = recovery_active
         self._continuous_mode = continuous_mode
         self._mandatory_min_signal = float(mandatory_min_signal)
@@ -95,10 +108,14 @@ class UniversalRegimeEvaluator:
         dl_dir: TradeDirection,
         exec_dir: TradeDirection,
     ) -> RegimeEvaluation:
-        """Classifica regime com prioridade risco-primeiro."""
-        _ = dl_dir
+        """Classifica regime macro M15 e sobrepoe a matriz de micro-posicionamento M1."""
         if not self.enabled:
             return RegimeEvaluation(regime=None)
+        macro = self._classify_macro(metrics, exec_dir)
+        return self._overlay_micro(metrics, macro, dl_dir=dl_dir, exec_dir=exec_dir)
+
+    def _classify_macro(self, metrics: dict, exec_dir: TradeDirection) -> RegimeEvaluation:
+        """Classifica regime macro M15 com prioridade risco-primeiro."""
         indicators = _indicators(metrics)
         adx = _safe_float(indicators.get("adx"), 0.0)
         hurst = _safe_float(indicators.get("hurst"), 0.5)
@@ -143,6 +160,41 @@ class UniversalRegimeEvaluator:
             )
         return RegimeEvaluation(regime=None)
 
+    def _evaluate_micro_position(self, metrics: dict) -> MicroPositionZone:
+        """Classifica a zona de micro-posicionamento M1 pelos indicadores de 60s."""
+        return classify_micro_zone(
+            metrics,
+            keltner_topo=float(self._micro_cfg["keltner_topo_trigger"]),
+            keltner_fundo=float(self._micro_cfg["keltner_fundo_trigger"]),
+        )
+
+    def _overlay_micro(
+        self,
+        metrics: dict,
+        macro: RegimeEvaluation,
+        *,
+        dl_dir: TradeDirection,
+        exec_dir: TradeDirection,
+    ) -> RegimeEvaluation:
+        """Sobrepoe a decisao tatica micro M1 ao regime macro classificado."""
+        zone = self._evaluate_micro_position(metrics)
+        decision = build_micro_decision(
+            zone,
+            macro.regime,
+            dl_dir,
+            exec_dir,
+            metrics,
+            breakout_boost=float(self._micro_cfg["breakout_momentum_boost"]),
+        )
+        if decision.exhaustion_invert:
+            return replace(
+                macro,
+                direction_inverted=True,
+                trap_boost_score=decision.score_override,
+                micro=decision,
+            )
+        return replace(macro, micro=decision)
+
     def apply(
         self,
         metrics: dict,
@@ -151,7 +203,73 @@ class UniversalRegimeEvaluator:
         *,
         dl_dir: TradeDirection,
     ) -> TradeDirection:
-        """Persiste regime nas metricas e retorna direcao final de execucao."""
+        """Persiste regime, resolve matriz micro M1 e retorna direcao final de execucao."""
+        micro = evaluation.micro
+        if micro is not None:
+            metrics["micro_position_zone"] = micro.zone.value
+            if micro.middle_uncertainty:
+                return self._apply_micro_middle(metrics, exec_dir)
+            if micro.exhaustion_invert:
+                return self._apply_micro_exhaustion(metrics, evaluation, dl_dir)
+            if micro.breakout_boost > 0.0:
+                return self._apply_micro_breakout(metrics, evaluation, dl_dir, micro.breakout_boost)
+        return self._apply_macro(metrics, evaluation, exec_dir, dl_dir=dl_dir)
+
+    def _apply_micro_middle(self, metrics: dict, exec_dir: TradeDirection) -> TradeDirection:
+        """Congela o candidato em incerteza de meio de canal para skip absoluto."""
+        metrics["trade_score"] = MICRO_MIDDLE_UNCERTAINTY_SCORE
+        metrics["gate_reason"] = MICRO_MIDDLE_UNCERTAINTY_REASON
+        metrics["regime_skip_cycle"] = True
+        metrics["micro_middle_uncertainty"] = True
+        return exec_dir
+
+    def _apply_micro_exhaustion(
+        self,
+        metrics: dict,
+        evaluation: RegimeEvaluation,
+        dl_dir: TradeDirection,
+    ) -> TradeDirection:
+        """Trata compra de topo e venda de fundo saturados como exaustao invertida."""
+        if not evaluation.direction_inverted:
+            metrics["direction_inverted"] = False
+            metrics["exec_direction"] = dl_dir.name
+            metrics["resolved_direction"] = dl_dir.name
+            return dl_dir
+        token = evaluation.regime.value if evaluation.regime is not None else MICRO_EXHAUSTION_REGIME_TOKEN
+        score = float(evaluation.trap_boost_score)
+        inverted = invert_trade_direction(dl_dir)
+        apply_regime_direction_boost(metrics, inverted, score, token)
+        return inverted
+
+    def _apply_micro_breakout(
+        self,
+        metrics: dict,
+        evaluation: RegimeEvaluation,
+        dl_dir: TradeDirection,
+        boost: float,
+    ) -> TradeDirection:
+        """Confirma rompimento direcional concedendo boost de momentum ao trade_score."""
+        token = evaluation.regime.value if evaluation.regime is not None else RegimeState.TREND_EXPANSION.value
+        metrics["universal_regime"] = token
+        metrics["universal_regime_scenario"] = token
+        metrics["direction_inverted"] = False
+        metrics["universal_regime_score_factor"] = 1.0
+        metrics["exec_direction"] = dl_dir.name
+        metrics["resolved_direction"] = dl_dir.name
+        current = float(metrics.get("trade_score", metrics.get("conviction", 0.0)))
+        metrics["trade_score"] = min(current + float(boost), MICRO_BREAKOUT_SCORE_CAP)
+        metrics["micro_breakout_boost"] = float(boost)
+        return dl_dir
+
+    def _apply_macro(
+        self,
+        metrics: dict,
+        evaluation: RegimeEvaluation,
+        exec_dir: TradeDirection,
+        *,
+        dl_dir: TradeDirection,
+    ) -> TradeDirection:
+        """Persiste regime macro e resolve inversao tatica legada."""
         if evaluation.regime is None:
             return exec_dir
         regime_name = evaluation.regime.value

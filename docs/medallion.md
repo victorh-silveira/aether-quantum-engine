@@ -151,14 +151,32 @@ Antes de consumar qualquer inversão tática de regime (`apply_regime_direction_
 
 ### 6.3 Micro Noise Gate
 
-Veto estrutural de ruído micro M1, com SKIP absoluto em `gather_cluster_candidates` (aborta fallbacks obrigatórios do modo contínuo). Pisos: `MICRO_ADX_FLOOR = 0.15`, `MICRO_BB_EXTREME = 0.01`, `MICRO_HURST_RANDOM_WALK_MAX = 0.48`.
+Veto estrutural de ruído micro M1, com SKIP absoluto em `gather_cluster_candidates` (aborta fallbacks obrigatórios do modo contínuo). Os pisos são config-driven via `orchestrator.execution.micro_noise_gate` (fallback nas constantes `MICRO_ADX_FLOOR = 0.15`, `MICRO_BB_EXTREME = 0.01`, `MICRO_HURST_RANDOM_WALK_MAX = 0.48`):
+
+| Knob de calibração | Default institucional | Calibração ativa |
+|--------------------|-----------------------|------------------|
+| `micro_noise_gate.enabled` | `true` | `true` |
+| `micro_noise_gate.adx_floor` | `0.15` | `0.12` |
+| `micro_noise_gate.bb_extreme` | `0.01` | `0.01` |
+| `micro_noise_gate.hurst_random_walk_max` | `0.48` | `0.48` |
 
 | Condição | `gate_reason` |
 |----------|---------------|
-| `adx < 0.15` | `micro_adx_chop_skip` |
-| `bb_width < 0.01` **e** `hurst < 0.48` | `micro_squeeze_breakout_skip` |
+| `adx < adx_floor` | `micro_adx_chop_skip` |
+| `bb_width < bb_extreme` **e** `hurst < hurst_random_walk_max` | `micro_squeeze_breakout_skip` |
 
-ADX colapsado significa ausência de tendência (chop puro); squeeze extremo com Hurst em random walk denota esmagamento sem reversão limpa. Operar o relógio M1 nesses estados degrada a expectativa de payoff independentemente do score calibrado.
+ADX colapsado significa ausência de tendência (chop puro); squeeze extremo com Hurst em random walk denota esmagamento sem reversão limpa. Operar o relógio M1 nesses estados degrada a expectativa de payoff independentemente do score calibrado. A calibração ativa suaviza o piso de ADX para `0.12`, devolvendo atividade em índices Drift de baixa direcionalidade sem abrir mão do veto de squeeze. `enabled=false` desativa o gate por completo.
+
+### 6.4 Filtro de Exaustão de Barreira Micro
+
+`validate_micro_boundary_exhaustion` (`execution_direction_micro_boundary.py`) roda como último estágio de `resolve_execution_direction`, após o veto de inversão DL, sobre a direção final resolvida. Impede que o motor compre o topo ou venda o fundo exato do canal de volatilidade de 60 segundos mesmo com voto macro unânime e TCN acima de 0.85.
+
+| Direção final | Gatilho de saturação | Ação |
+|---------------|----------------------|------|
+| `CALL` | `keltner > 1.10` **ou** `bb_pct_b ≥ 0.95` (último tick colado na banda superior de Bollinger M1) | `trade_score = min(trade_score, 0.55)` |
+| `PUT` | `keltner < -0.10` **ou** `bb_pct_b ≤ 0.05` (último tick colado na banda inferior de Bollinger M1) | `trade_score = min(trade_score, 0.55)` |
+
+O rebaixamento marca `micro_boundary_exhaustion = True`. No barramento de coleta, `validate_micro_boundary_saturation_gate` converte essa marca em SKIP absoluto (`regime_skip_cycle = True`, `gate_reason = micro_boundary_saturation_skip`), soberano inclusive sob `mandatory_trade_each_cycle = true`. Além disso, `execution_quality_gate._quality_failures` trata a marca como falha de qualidade (via `asymmetric_fail`), reforçando a penalidade no barramento de convicção. Justificativa: forçar o score a 0.55 derruba o candidato abaixo do piso institucional de 0.68, congelando a operação em topos e fundos ruidosos e aguardando o recuo saudável do preço. O indicador `bb_pct_b` (posição do último fechamento entre as bandas) é surfaçado em `dl_predict_build` para viabilizar a checagem de tick contra Bollinger.
 
 ---
 
@@ -291,15 +309,15 @@ A escada **sobe** uma unidade por LOSS e **desce** uma unidade por WIN parcial, 
 
 #### Circuit Breaker rígido (`dlambert_circuit_breaker`)
 
-A escada aditiva é linear, mas o Amortization Booster e sequências longas de LOSS ainda podem projetar stakes superlineares em relação a `U`. Em recovery ativo (`pending_total > 0`), `dlambert_circuit_breaker` aplica três travas macro independentes indexadas à unidade `U`:
+A escada aditiva é linear, mas o Amortization Booster e sequências longas de LOSS ainda podem projetar stakes superlineares em relação a `U`. Em recovery ativo (`pending_total > 0`), `dlambert_circuit_breaker` aplica três travas macro independentes indexadas à unidade `U`. Os limites são config-driven via `risk_management.dlambert` (fallback nas constantes `MAX_LINEAR_LEVEL`, `MAX_STAKE_U_MULTIPLE`, `MAX_SESSION_DRAWDOWN_U`):
 
-| Trava | Limite | Gatilho |
-|-------|--------|---------|
-| Nível linear | `MAX_LINEAR_LEVEL = 8` | `consecutive_losses_linear ≥ 8` |
-| Múltiplo de stake | `MAX_STAKE_U_MULTIPLE = 10.0` | `stake_proposta > 10 × U` |
-| Drawdown de sessão | `MAX_SESSION_DRAWDOWN_U = 25.0` | `pending_total > 25 × U` |
+| Trava | Knob de calibração | Default | Calibração ativa | Gatilho |
+|-------|--------------------|---------|------------------|---------|
+| Nível linear | `circuit_breaker_max_linear_level` | `8` | `8` | `consecutive_losses_linear ≥ nível` |
+| Múltiplo de stake | `circuit_breaker_max_stake_u_multiple` | `10.0` | `10.0` | `stake_proposta > múltiplo × U` |
+| Drawdown de sessão | `circuit_breaker_max_session_drawdown_u` | `25.0` | `250.0` | `pending_total > drawdown × U` |
 
-Se qualquer trava é violada, o motor força a stake para `0.0` (ou piso regulamentar de `$1.00` em modo contínuo estrito), registra `DLAMBERT_CIRCUIT_BREAK` e retorna com a tag `D'ALEMBERT_CB`. Essa tag faz `calculate_stake_for_manager` retornar imediatamente, curto-circuitando `finalize_stake_with_min` — impedindo que o piso mínimo reative uma exposição que o breaker travou.
+Se qualquer trava é violada, o motor força a stake para `0.0` (ou piso regulamentar de `$1.00` em modo contínuo estrito), registra `DLAMBERT_CIRCUIT_BREAK` e retorna com a tag `D'ALEMBERT_CB`. Essa tag faz `calculate_stake_for_manager` retornar imediatamente, curto-circuitando `finalize_stake_with_min` — impedindo que o piso mínimo reative uma exposição que o breaker travou. A calibração ativa eleva o teto de drawdown de sessão para `250 × U`, acomodando passivos persistentes herdados (ex.: `pending ≈ $2078` sobre `U = $9.44` = `220 × U`, abaixo do novo teto de `250 × U = $2360`) sem desligar as travas de nível linear e múltiplo de stake.
 
 #### Exemplo numérico
 

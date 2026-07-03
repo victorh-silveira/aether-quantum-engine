@@ -113,7 +113,7 @@
       "diversify_after_loss_margin": 0.08,
       "include_anchor_trades": true,
       "inter_symbol_delay": 0.2,
-      "mandatory_trade_each_cycle": false,
+      "mandatory_trade_each_cycle": true,
       "proposal_failure_skip_cycles": 3,
       "proposal_retry_scales": [
         0.85,
@@ -171,6 +171,15 @@
         "min_adx_normal": 0.20,
         "mandatory_min_trade_score": 0.72
       },
+      "micro_noise_gate": {
+        "enabled": true,
+        "adx_floor": 0.12,
+        "bb_extreme": 0.01,
+        "hurst_random_walk_max": 0.48,
+        "keltner_topo_trigger": 1.05,
+        "keltner_fundo_trigger": -0.05,
+        "breakout_momentum_boost": 0.05
+      },
       "regime_evaluator": {
         "enabled": true,
         "trend_adx_min": 0.28,
@@ -219,7 +228,10 @@
       "dlambert_unit_override": null,
       "recovery_sizing_conviction": 0.62,
       "recovery_min_conviction": 0.64,
-      "recovery_min_val_accuracy": 0.62
+      "recovery_min_val_accuracy": 0.62,
+      "circuit_breaker_max_linear_level": 8,
+      "circuit_breaker_max_stake_u_multiple": 10.0,
+      "circuit_breaker_max_session_drawdown_u": 250.0
     },
     "kelly": {
       "base_win_rate": 0.53,
