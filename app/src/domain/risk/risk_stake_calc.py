@@ -172,6 +172,8 @@ def calculate_stake_for_manager(
         consecutive_losses_linear=linear_losses,
         pending_total=loss_to_recover,
     )
+    if mode_tag == "D'ALEMBERT_CB":
+        return final_stake
     mandatory_flag = (
         bool(kwargs.get("mandatory_weak_cap"))
         or bool(kwargs.get("mandatory_trade_each_cycle"))

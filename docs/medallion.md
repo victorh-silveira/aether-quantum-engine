@@ -145,6 +145,21 @@ Quando o barramento universal M15 não classifica tendência, compressão ou exa
 
 Em `COMPRESSION_TRAP`, a inversão condicional CALL/PUT só é consumada se `bb_width < 0.01` no M1; bandas expandidas no micro abortam a inversão e o motor segue a predição estrita da TCN.
 
+### 6.2 Veto de Inversão por Convicção DL
+
+Antes de consumar qualquer inversão tática de regime (`apply_regime_direction_boost`), o resolver avalia `P(lado_DL)` a partir de `calibrated_prob` (fallback `raw_prob`, depois `trade_score`). Se `P(lado_DL) ≥ DL_INVERSION_VETO_SCORE = 0.60`, a inversão é **proibida**: `direction_inverted=False`, `trap_boost_score=None` e o motor executa a direção estrita da TCN (`dl_dir`). O boost de regime não pode fabricar um score sintético de 0.75/0.76 sobre uma predição de alta convicção do modelo convolucional profundo — em `ord=CALL dl=PUT inv` sob ADX/Hurst de random walk, essa inversão convertia edge em sorteio.
+
+### 6.3 Micro Noise Gate
+
+Veto estrutural de ruído micro M1, com SKIP absoluto em `gather_cluster_candidates` (aborta fallbacks obrigatórios do modo contínuo). Pisos: `MICRO_ADX_FLOOR = 0.15`, `MICRO_BB_EXTREME = 0.01`, `MICRO_HURST_RANDOM_WALK_MAX = 0.48`.
+
+| Condição | `gate_reason` |
+|----------|---------------|
+| `adx < 0.15` | `micro_adx_chop_skip` |
+| `bb_width < 0.01` **e** `hurst < 0.48` | `micro_squeeze_breakout_skip` |
+
+ADX colapsado significa ausência de tendência (chop puro); squeeze extremo com Hurst em random walk denota esmagamento sem reversão limpa. Operar o relógio M1 nesses estados degrada a expectativa de payoff independentemente do score calibrado.
+
 ---
 
 ## 7. Recovery, sizing e persistência financeira
@@ -273,6 +288,18 @@ WIN total (pending_total = 0):
 ```
 
 A escada **sobe** uma unidade por LOSS e **desce** uma unidade por WIN parcial, nunca abaixo de 1 enquanto recovery ativo — evitando reset cego sem extinguir o drawdown.
+
+#### Circuit Breaker rígido (`dlambert_circuit_breaker`)
+
+A escada aditiva é linear, mas o Amortization Booster e sequências longas de LOSS ainda podem projetar stakes superlineares em relação a `U`. Em recovery ativo (`pending_total > 0`), `dlambert_circuit_breaker` aplica três travas macro independentes indexadas à unidade `U`:
+
+| Trava | Limite | Gatilho |
+|-------|--------|---------|
+| Nível linear | `MAX_LINEAR_LEVEL = 8` | `consecutive_losses_linear ≥ 8` |
+| Múltiplo de stake | `MAX_STAKE_U_MULTIPLE = 10.0` | `stake_proposta > 10 × U` |
+| Drawdown de sessão | `MAX_SESSION_DRAWDOWN_U = 25.0` | `pending_total > 25 × U` |
+
+Se qualquer trava é violada, o motor força a stake para `0.0` (ou piso regulamentar de `$1.00` em modo contínuo estrito), registra `DLAMBERT_CIRCUIT_BREAK` e retorna com a tag `D'ALEMBERT_CB`. Essa tag faz `calculate_stake_for_manager` retornar imediatamente, curto-circuitando `finalize_stake_with_min` — impedindo que o piso mínimo reative uma exposição que o breaker travou.
 
 #### Exemplo numérico
 

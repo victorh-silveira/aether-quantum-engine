@@ -98,6 +98,7 @@ def test_kelly_intelligent_recovery(kelly_config):
 def test_dlambert_after_partial_win(kelly_config):
     """Mantem recovery linear enquanto houver perda pendente apos win parcial."""
     kelly_config["kelly"]["max_stake_pct"] = 0.01
+    kelly_config["kelly"]["fraction"] = 0.005
     rm = RiskManager(kelly_config)
 
     rm.pending_loss["RDBEAR"] = 8.54

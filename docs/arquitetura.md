@@ -214,6 +214,16 @@ Configuração em `orchestrator.execution.regime_evaluator`. Auditoria em `gathe
 
 Pesos configuráveis em `orchestrator.execution.direction_scoring`.
 
+#### Veto de Inversão por Convicção DL (`execution_direction_inversion_veto.py`)
+
+Aplicado em `resolve_execution_direction` **antes** de `apply_regime_direction_boost`, com `DL_INVERSION_VETO_SCORE = 0.60`:
+
+| Condição | Ação |
+|----------|------|
+| Regime pede inversão tática **e** `P(lado_DL) ≥ 0.60` | Proíbe a inversão: `direction_inverted=False`, `trap_boost_score=None`, executa a direção estrita da TCN (`dl_dir`) |
+
+`P(lado_DL)` deriva de `calibrated_prob`, com fallback para `raw_prob` e depois `trade_score`. O motor de direção não sobrescreve predições de alta convicção do modelo convolucional profundo; a flag `dl_inversion_veto=True` é persistida para auditoria.
+
 ### 4.2 Gate de qualidade (`execution_quality_gate.py`)
 
 Aplicado **após** resolução direcional em `gather_cluster_candidates`:
@@ -243,6 +253,17 @@ Veto mandatório aplicado em `gather_cluster_candidates` e `apply_quality_penalt
 | `universal_regime == NEUTRO` **e** `trade_score < 0.68` | SKIP absoluto do ciclo (`gate_reason=low_conviction_neutral_skip`) |
 
 Justificativa: operar o relógio micro M1 sem tendência macro M15 e com convicção abaixo do piso institucional degrada a expectativa de payoff — o sinal é ruído puro, não edge recuperável.
+
+#### Micro Noise Gate (`validate_micro_noise_gate`)
+
+Veto estrutural aplicado em `gather_cluster_candidates` e no bloqueio de ciclo mandatório, forçando SKIP absoluto (aborta inclusive os fallbacks obrigatórios do modo contínuo). Pisos: `MICRO_ADX_FLOOR = 0.15`, `MICRO_BB_EXTREME = 0.01`, `MICRO_HURST_RANDOM_WALK_MAX = 0.48`.
+
+| Condição | Ação |
+|----------|------|
+| `adx < 0.15` | SKIP (`gate_reason=micro_adx_chop_skip`) |
+| `bb_width < 0.01` **e** `hurst < 0.48` | SKIP (`gate_reason=micro_squeeze_breakout_skip`) |
+
+Justificativa: ADX colapsado indica ausência de tendência (chop); squeeze extremo com Hurst em random walk sinaliza esmagamento sem reversão limpa — ambos convertem a inferência micro em sorteio de expectativa negativa.
 
 ### 4.3 Pool e seleção
 
@@ -284,6 +305,7 @@ Justificativa: operar o relógio micro M1 sem tendência macro M15 e com convic�
 | Encerramento por meta | `StateManager.check_session_limits()` — `pnl_sessao >= target_win` → `graceful_shutdown` |
 | Stop loss | **Desativado** — sem `daily_max_loss_limit` nem disjuntor de perda no motor |
 | D'Alembert recovery | `dlambert_sizing.py`, `recovery_conviction.py` — stake linear `Kelly_base + n×U_eff` com Amortization Booster e piso progressivo por cluster |
+| Circuit Breaker D'Alembert | `dlambert_sizing.dlambert_circuit_breaker` — trava rígida em recovery ativo: `MAX_LINEAR_LEVEL=8`, `MAX_STAKE_U_MULTIPLE=10.0×U`, `MAX_SESSION_DRAWDOWN_U=25.0×U`; violação força stake `0.0` (ou `$1.00` em modo contínuo estrito) com log `DLAMBERT_CIRCUIT_BREAK` |
 | Retração D'Alembert | WIN parcial em recovery: `consecutive_losses_linear = max(1, n-1)` |
 | Super-concordance Kelly | booster desligado em recovery; ativo em Kelly puro com P≥0.75, 6×0, Hurst>0.55 |
 | Trava Hurst N2+ | `recovery_hurst_gate.py` |

@@ -10,6 +10,9 @@ from src.domain.risk.stake_sizing import round_stake
 REDIS_DLAMBERT_UNIT_KEY = "session:current:dlambert_unit"
 REDIS_DLAMBERT_LINEAR_LOSSES_KEY = "session:current:consecutive_losses_linear"
 BOOSTER_DAMPING_FACTOR = 0.50
+MAX_LINEAR_LEVEL = 8
+MAX_STAKE_U_MULTIPLE = 10.0
+MAX_SESSION_DRAWDOWN_U = 25.0
 
 
 def dlambert_enabled(dlambert_config: dict[str, Any]) -> bool:
@@ -85,6 +88,64 @@ def dlambert_recovery_stake(
     return base + linear * u_eff
 
 
+def dlambert_circuit_breaker(
+    proposed_stake: float,
+    *,
+    consecutive_losses_linear: int,
+    dlambert_unit: float,
+    pending_total: float,
+    continuous_mode: bool = False,
+    stake_min: float = 1.0,
+) -> tuple[float, bool]:
+    """Trava rigida da escada aditiva: retorna (stake, tripped) contra drawdown superlinear."""
+    unit = max(0.0, float(dlambert_unit))
+    tripped = (
+        int(consecutive_losses_linear) >= MAX_LINEAR_LEVEL
+        or (unit > 0.0 and float(proposed_stake) > MAX_STAKE_U_MULTIPLE * unit)
+        or (unit > 0.0 and float(pending_total) > MAX_SESSION_DRAWDOWN_U * unit)
+    )
+    if not tripped:
+        return float(proposed_stake), False
+    return (float(stake_min) if continuous_mode else 0.0), True
+
+
+def _continuous_strict_mode(rm: Any) -> bool:
+    """Detecta modo continuo estrito para preservar o piso regulamentar minimo."""
+    cfg = getattr(rm, "config", None)
+    if not isinstance(cfg, dict):
+        return False
+    execution = cfg.get("orchestrator", {}).get("execution", {})
+    return bool(execution.get("mandatory_trade_each_cycle", False))
+
+
+def _regulatory_stake_min(rm: Any) -> float:
+    """Piso regulamentar minimo (stake_min) do gerenciador de risco."""
+    params = getattr(rm, "risk_params", None)
+    if isinstance(params, dict):
+        return float(params.get("stake_min", 1.0))
+    return 1.0
+
+
+def _log_dlambert_circuit_break(
+    rm: Any,
+    stake: float,
+    unit: float,
+    consecutive_losses_linear: int,
+    pending_total: float,
+) -> None:
+    """Registra o disparo do circuit breaker aditivo D'Alembert."""
+    logger = getattr(rm, "logger", None)
+    if logger is None:
+        return
+    logger.warning(
+        "DLAMBERT_CIRCUIT_BREAK | linear=%d | U=$%.2f | pend=$%.2f | stake_travada=$%.2f",
+        int(consecutive_losses_linear),
+        float(unit),
+        float(pending_total),
+        float(stake),
+    )
+
+
 def resolve_dlambert_stake(
     *,
     recovery_active: bool,
@@ -95,7 +156,7 @@ def resolve_dlambert_stake(
     consecutive_losses_linear: int,
     pending_total: float = 0.0,
 ) -> tuple[float, str]:
-    """Resolve stake final Kelly ou D'Alembert com arredondamento."""
+    """Resolve stake final Kelly ou D'Alembert com circuit breaker de recovery."""
     if recovery_active and dlambert_enabled(dlambert_config):
         unit = resolve_dlambert_unit(kelly_base, rm)
         raw = dlambert_recovery_stake(
@@ -105,7 +166,18 @@ def resolve_dlambert_stake(
             pending_total=pending_total,
             bankroll=bankroll,
         )
-        return round_stake(raw, recovery_linear=True), "D'ALEMBERT"
+        guarded, tripped = dlambert_circuit_breaker(
+            raw,
+            consecutive_losses_linear=consecutive_losses_linear,
+            dlambert_unit=unit,
+            pending_total=pending_total,
+            continuous_mode=_continuous_strict_mode(rm),
+            stake_min=_regulatory_stake_min(rm),
+        )
+        if tripped:
+            _log_dlambert_circuit_break(rm, guarded, unit, consecutive_losses_linear, pending_total)
+            return round_stake(guarded, recovery_linear=True), "D'ALEMBERT_CB"
+        return round_stake(guarded, recovery_linear=True), "D'ALEMBERT"
     resolve_dlambert_unit(kelly_base, rm)
     return round_stake(float(kelly_base), recovery_linear=False), "KELLY"
 

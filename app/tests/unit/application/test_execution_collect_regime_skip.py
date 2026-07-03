@@ -3,11 +3,20 @@ from unittest.mock import MagicMock
 
 from src.application.services.orchestrator.execution_collect import (
     _regime_skip_blocks_mandatory_cycle,
+    _skip_label_for_gate,
     collect_cluster_orders,
 )
 from src.domain.models.trade import TradeDirection
 from tests.market_symbols import ANCHOR, PAIR
 from tests.unit.application.universal_regime_metrics import base_metrics
+
+
+def test_skip_label_for_gate_maps_known_and_default_reasons():
+    assert _skip_label_for_gate("low_conviction_neutral_skip", "X") == "LOW CONVICTION NEUTRAL SKIP"
+    assert _skip_label_for_gate("micro_adx_chop_skip", "X") == "MICRO ADX CHOP SKIP"
+    assert _skip_label_for_gate("micro_squeeze_breakout_skip", "X") == "MICRO SQUEEZE BREAKOUT SKIP"
+    assert _skip_label_for_gate(None, "DEFAULT") == "DEFAULT"
+    assert _skip_label_for_gate("unknown_reason", "DEFAULT") == "DEFAULT"
 
 
 def test_collect_cluster_orders_mandatory_blocks_entropic_regime_skip():

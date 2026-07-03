@@ -129,8 +129,8 @@ def test_resolver_mean_reversion_flip_on_exhaustion_contraction():
         "metrics": {
             "execute": True,
             "deploy_ok": True,
-            "raw_prob": 0.68,
-            "trade_score": 0.68,
+            "raw_prob": 0.58,
+            "trade_score": 0.58,
             "val_accuracy": 0.72,
             "trend_direction": None,
             "call_votes": 4,

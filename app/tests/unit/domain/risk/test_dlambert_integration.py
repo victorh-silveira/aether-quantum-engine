@@ -116,3 +116,23 @@ def test_dlambert_ladder_kelly_loss_loss_win_partial_win_total(kelly_config):
         kwargs={"dl_metrics": {"execute": True, "trade_score": 0.62}},
     )
     assert stake_pure == pytest.approx(kelly_stake, rel=0.08)
+
+
+def test_dlambert_circuit_breaker_halts_stake_on_linear_overflow(kelly_config):
+    rm = RiskManager(kelly_config)
+    rm.initial_bankroll = 10000.0
+    rm.pending_loss["RDBEAR"] = 50.0
+    rm.consecutive_losses_linear = 9
+    rm.dlambert_unit = 10.0
+    rm._recovery_allowed = lambda *_a, **_k: True
+
+    stake = calculate_stake_for_manager(
+        rm,
+        10000.0,
+        "RDBEAR",
+        0.61,
+        silent=True,
+        apply_stop_win=False,
+        kwargs={"dl_metrics": {"execute": True, "trade_score": 0.65, "val_accuracy": 0.55}},
+    )
+    assert stake == 0.0

@@ -7,6 +7,9 @@ from src.domain.risk.stake_sizing import raw_side_from_metrics
 
 RECOVERY_ASYMMETRIC_MIN_SCORE = 0.68
 NEUTRAL_REGIME_TOKEN = "NEUTRO"
+MICRO_ADX_FLOOR = 0.15
+MICRO_BB_EXTREME = 0.01
+MICRO_HURST_RANDOM_WALK_MAX = 0.48
 
 
 def _effective_signal(metrics: dict) -> float:
@@ -39,3 +42,28 @@ def validate_recovery_asymmetric_gate(
     metrics["gate_reason"] = "low_conviction_neutral_skip"
     metrics["recovery_asymmetric_gate"] = True
     return True
+
+
+def _micro_indicators(metrics: dict) -> tuple[float, float, float]:
+    """Extrai ADX, bb_width e Hurst do bloco micro M1 com fallbacks neutros."""
+    indicators = metrics.get("indicators") or {}
+    adx = float(indicators.get("adx", 1.0))
+    bb_width = float(indicators.get("bb_width", 1.0))
+    hurst = float(indicators.get("hurst", 0.5))
+    return adx, bb_width, hurst
+
+
+def validate_micro_noise_gate(metrics: dict) -> bool:
+    """Veto de ciclo em chop micro: ADX colapsado ou squeeze em random walk sem reversao."""
+    adx, bb_width, hurst = _micro_indicators(metrics)
+    if adx + 1e-9 < MICRO_ADX_FLOOR:
+        metrics["regime_skip_cycle"] = True
+        metrics["gate_reason"] = "micro_adx_chop_skip"
+        metrics["micro_noise_gate"] = True
+        return True
+    if bb_width + 1e-9 < MICRO_BB_EXTREME and hurst + 1e-9 < MICRO_HURST_RANDOM_WALK_MAX:
+        metrics["regime_skip_cycle"] = True
+        metrics["gate_reason"] = "micro_squeeze_breakout_skip"
+        metrics["micro_noise_gate"] = True
+        return True
+    return False

@@ -1,10 +1,16 @@
+from unittest.mock import MagicMock
+
 import pytest
 
 from src.domain.risk.dlambert_sizing import (
     BOOSTER_DAMPING_FACTOR,
+    MAX_LINEAR_LEVEL,
+    MAX_SESSION_DRAWDOWN_U,
+    MAX_STAKE_U_MULTIPLE,
     REDIS_DLAMBERT_LINEAR_LOSSES_KEY,
     REDIS_DLAMBERT_UNIT_KEY,
     dlambert_amortization_multiplier,
+    dlambert_circuit_breaker,
     dlambert_recovery_stake,
     effective_dlambert_unit,
     resolve_dlambert_stake,
@@ -156,6 +162,112 @@ def test_resolve_dlambert_unit_invalid_override():
 
     rm = RM()
     assert resolve_dlambert_unit(25.0, rm) == pytest.approx(25.0)
+
+
+def test_circuit_breaker_constants():
+    assert MAX_LINEAR_LEVEL == 8
+    assert pytest.approx(10.0) == MAX_STAKE_U_MULTIPLE
+    assert pytest.approx(25.0) == MAX_SESSION_DRAWDOWN_U
+
+
+def test_circuit_breaker_trips_on_linear_overflow():
+    stake, tripped = dlambert_circuit_breaker(
+        500.0,
+        consecutive_losses_linear=9,
+        dlambert_unit=50.0,
+        pending_total=100.0,
+    )
+    assert tripped is True
+    assert stake == pytest.approx(0.0)
+
+
+def test_circuit_breaker_trips_on_stake_u_multiple():
+    stake, tripped = dlambert_circuit_breaker(
+        130.0,
+        consecutive_losses_linear=4,
+        dlambert_unit=10.0,
+        pending_total=50.0,
+    )
+    assert tripped is True
+    assert stake == pytest.approx(0.0)
+
+
+def test_circuit_breaker_trips_on_session_drawdown():
+    stake, tripped = dlambert_circuit_breaker(
+        40.0,
+        consecutive_losses_linear=3,
+        dlambert_unit=10.0,
+        pending_total=300.0,
+    )
+    assert tripped is True
+    assert stake == pytest.approx(0.0)
+
+
+def test_circuit_breaker_continuous_mode_floors_regulatory_min():
+    stake, tripped = dlambert_circuit_breaker(
+        999.0,
+        consecutive_losses_linear=9,
+        dlambert_unit=50.0,
+        pending_total=100.0,
+        continuous_mode=True,
+        stake_min=1.0,
+    )
+    assert tripped is True
+    assert stake == pytest.approx(1.0)
+
+
+def test_circuit_breaker_passthrough_within_limits():
+    stake, tripped = dlambert_circuit_breaker(
+        90.0,
+        consecutive_losses_linear=2,
+        dlambert_unit=20.0,
+        pending_total=40.0,
+    )
+    assert tripped is False
+    assert stake == pytest.approx(90.0)
+
+
+def test_resolve_dlambert_stake_circuit_break_linear_overflow_zeroes_stake():
+    class RM:
+        dlambert_unit = 30.0
+        dlambert_config = {}
+
+    stake, tag = resolve_dlambert_stake(
+        recovery_active=True,
+        bankroll=10000.0,
+        kelly_base=50.0,
+        dlambert_config={"dlambert_enabled": True},
+        rm=RM(),
+        consecutive_losses_linear=9,
+        pending_total=100.0,
+    )
+    assert tag == "D'ALEMBERT_CB"
+    assert stake == pytest.approx(0.0)
+
+
+def test_resolve_dlambert_stake_circuit_break_continuous_floor_and_log():
+    logger = MagicMock()
+
+    class RM:
+        dlambert_unit = 30.0
+        dlambert_config = {}
+        config = {"orchestrator": {"execution": {"mandatory_trade_each_cycle": True}}}
+        risk_params = {"stake_min": 1.0}
+
+    rm = RM()
+    rm.logger = logger
+    stake, tag = resolve_dlambert_stake(
+        recovery_active=True,
+        bankroll=10000.0,
+        kelly_base=50.0,
+        dlambert_config={"dlambert_enabled": True},
+        rm=rm,
+        consecutive_losses_linear=9,
+        pending_total=100.0,
+    )
+    assert tag == "D'ALEMBERT_CB"
+    assert stake == pytest.approx(1.0)
+    logger.warning.assert_called_once()
 
 
 def test_resolve_dlambert_stake_kelly_vs_recovery():

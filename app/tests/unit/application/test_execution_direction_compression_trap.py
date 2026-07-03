@@ -21,6 +21,8 @@ def test_resolve_execution_direction_applies_compression_trap_inversion():
             },
             deploy_ok=True,
             val_accuracy=0.58,
+            calibrated_prob=0.58,
+            raw_prob=0.58,
         ),
     }
     resolved = resolve_execution_direction(
@@ -47,6 +49,8 @@ def test_resolve_execution_direction_compression_trap_bb_expansion_vetoes_invers
             },
             deploy_ok=True,
             val_accuracy=0.58,
+            calibrated_prob=0.58,
+            raw_prob=0.58,
         ),
     }
     resolved = resolve_execution_direction(
@@ -73,6 +77,8 @@ def test_resolve_execution_direction_compression_trap_missing_bb_width_vetoes_in
             },
             deploy_ok=True,
             val_accuracy=0.58,
+            calibrated_prob=0.58,
+            raw_prob=0.58,
         ),
     }
     resolved = resolve_execution_direction(

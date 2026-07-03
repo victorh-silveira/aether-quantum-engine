@@ -4,10 +4,8 @@ from __future__ import annotations
 
 from functools import partial
 
-from src.application.services.execution_direction_compression_trap import (
-    enforce_compression_trap_micro_bb_cohesion,
-)
 from src.application.services.execution_direction_cross_corr import adjust_dl_weight_with_correlation
+from src.application.services.execution_direction_regime_pipeline import apply_universal_regime_pipeline
 from src.application.services.execution_direction_resolver_bias import (
     exhaustion_bias as _exhaustion_bias,
     indicator_regime_bias as _indicator_regime_bias,
@@ -25,15 +23,13 @@ from src.application.services.execution_exhaustion_hard_gate import (
     dl_weight_retention,
     hard_gate_score_penalty,
 )
-from src.application.services.execution_universal_regime_gate import (
-    UniversalRegimeEvaluator,
-    map_volatility_regime_to_metrics,
-)
+from src.application.services.execution_universal_regime_gate import map_volatility_regime_to_metrics
 from src.application.services.execution_volatility_booster import apply_volatility_vol_booster
 from src.domain.models.trade import TradeDirection
 
 
 NEUTRAL_REGIME_TOKEN = "NEUTRO"
+DL_INVERSION_VETO_SCORE = 0.60
 
 
 def _direction_prob(entry: dict) -> float | None:
@@ -255,26 +251,15 @@ def resolve_execution_direction(
         mandatory_min_trade_score=mandatory_floor,
         min_edge_execute=1.0,
     )
-    continuous_mode = bool(cfg.get("mandatory_trade_each_cycle", False))
-    kelly_cfg = cfg.get("kelly") if isinstance(cfg.get("kelly"), dict) else {}
-    regime_cfg = cfg.get("regime_evaluator") if isinstance(cfg.get("regime_evaluator"), dict) else {}
-    evaluator = UniversalRegimeEvaluator(
-        regime_cfg,
-        recovery_active=recovery_active,
-        continuous_mode=continuous_mode,
-        mandatory_min_signal=mandatory_floor,
-        kelly_cfg=kelly_cfg,
-    )
-    regime_eval = evaluator.evaluate(metrics, dl_dir=dl_dir, exec_dir=exec_dir)
-    exec_dir = evaluator.apply(metrics, regime_eval, exec_dir, dl_dir=dl_dir)
-    if regime_eval.regime is None and not metrics.get("universal_regime"):
-        metrics["universal_regime"] = NEUTRAL_REGIME_TOKEN
-        metrics["universal_regime_scenario"] = NEUTRAL_REGIME_TOKEN
-    exec_dir = enforce_compression_trap_micro_bb_cohesion(
-        exec_dir,
-        dl_dir,
+    exec_dir = apply_universal_regime_pipeline(
         metrics,
-        regime_eval,
+        exec_dir=exec_dir,
+        dl_dir=dl_dir,
+        cfg=cfg,
+        mandatory_floor=mandatory_floor,
+        recovery_active=recovery_active,
+        dl_inversion_veto_score=DL_INVERSION_VETO_SCORE,
+        neutral_token=NEUTRAL_REGIME_TOKEN,
     )
     if not metrics.get("universal_regime"):
         call_score = float(metrics.get("direction_call_score", call_score))
@@ -297,4 +282,8 @@ def resolve_execution_direction(
         put_score=put_score,
         exec_cfg=cfg,
     )
+    if metrics.get("dl_inversion_veto"):
+        exec_dir = dl_dir
+        metrics["direction_inverted"] = False
+        metrics["exec_direction"] = metrics["resolved_direction"] = dl_dir.name
     return exec_dir, metrics
