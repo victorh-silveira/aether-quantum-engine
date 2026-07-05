@@ -20,3 +20,4 @@ pandas==2.3.3                # Manipulação e análise de dados estruturados at
 polars==1.23.0               # DataFrame de alta performance focado em velocidade e processamento paralelo
 torch==2.10.0                # Framework de Deep Learning para computação de tensores e redes neurais com aceleração GPU
 tritonclient[grpc]>=2.49     # Cliente gRPC assíncrono para NVIDIA Triton Inference Server
+httpx==0.28.1                # Cliente HTTP assíncrono para meta-classificador tabular

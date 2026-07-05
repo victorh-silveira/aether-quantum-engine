@@ -82,6 +82,7 @@ def build_execution_candidate(
     calibration_cfg: dict | None = None,
     recovery_active: bool = False,
     corr_matrix: dict[tuple[str, str], float] | None = None,
+    infra_cfg: dict | None = None,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Monta candidato com direcao resolvida por scoring inteligente."""
     resolved = resolve_execution_direction(
@@ -91,6 +92,7 @@ def build_execution_candidate(
         recovery_active=recovery_active,
         symbol=symbol,
         corr_matrix=corr_matrix,
+        infra_cfg=infra_cfg,
     )
     if resolved is None:
         return None

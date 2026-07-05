@@ -1,3 +1,5 @@
+import pytest
+
 from src.application.services.execution_direction_resolver import (
     infer_dl_direction,
     is_technically_blocked,
@@ -110,3 +112,53 @@ def test_resolve_ignores_tactical_config_and_corr_matrix():
     assert result is not None
     assert result[0] == TradeDirection.CALL
     assert result[1]["direction_inverted"] is False
+
+
+def test_resolve_applies_prefetched_meta_payoff_score():
+    entry = _entry(direction=TradeDirection.CALL, calibrated_prob=0.70)
+    entry["metrics"]["meta_calibrated_payoff_score"] = 0.81
+    entry["metrics"]["meta_classifier_applied"] = True
+    result = resolve_execution_direction(
+        entry,
+        infra_cfg={"meta_classifier": {"enabled": True}},
+    )
+    assert result is not None
+    assert result[1]["trade_score"] == pytest.approx(0.81)
+    assert result[1]["conviction"] == pytest.approx(0.81)
+
+
+def test_resolve_flips_call_to_put_when_meta_payoff_saturated():
+    entry = _entry(direction=TradeDirection.CALL, calibrated_prob=0.70)
+    entry["metrics"]["meta_calibrated_payoff_score"] = 0.35
+    entry["metrics"]["meta_classifier_applied"] = True
+    result = resolve_execution_direction(entry)
+    assert result is not None
+    direction, metrics = result
+    assert direction == TradeDirection.PUT
+    assert metrics["exec_direction"] == "PUT"
+    assert metrics["dl_direction"] == "CALL"
+    assert metrics["meta_direction_flip"] is True
+    assert metrics["trade_score"] == pytest.approx(0.75)
+    assert metrics["direction_inverted"] is True
+
+
+def test_resolve_flips_put_to_call_when_meta_payoff_saturated():
+    entry = _entry(direction=TradeDirection.PUT, calibrated_prob=0.30)
+    entry["metrics"]["meta_calibrated_payoff_score"] = 0.38
+    entry["metrics"]["meta_classifier_applied"] = True
+    result = resolve_execution_direction(entry)
+    assert result is not None
+    direction, metrics = result
+    assert direction == TradeDirection.CALL
+    assert metrics["meta_direction_flip"] is True
+    assert metrics["trade_score"] == pytest.approx(0.75)
+
+
+def test_resolve_meta_disabled_keeps_tcn_score():
+    entry = _entry(direction=TradeDirection.CALL, calibrated_prob=0.70)
+    result = resolve_execution_direction(
+        entry,
+        infra_cfg={"meta_classifier": {"enabled": False}},
+    )
+    assert result is not None
+    assert result[1]["trade_score"] == pytest.approx(0.70)

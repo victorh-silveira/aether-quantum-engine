@@ -1,7 +1,12 @@
-"""Motor de direcao linear puro: segue estritamente o sinal do Deep Learning (TCN)."""
+"""Motor de direcao com inversao micro orientada pelo meta-classificador LightGBM."""
 
 from __future__ import annotations
 
+from src.application.services.meta_classifier_stacking import (
+    apply_meta_payoff_to_metrics,
+    resolve_meta_payoff_score,
+)
+from src.application.services.meta_direction_flip import apply_meta_direction_flip
 from src.domain.models.trade import TradeDirection
 
 
@@ -56,6 +61,27 @@ def _clamp01(value: float) -> float:
     return max(0.0, min(1.0, float(value)))
 
 
+def _seed_direction_metrics(
+    metrics: dict,
+    *,
+    dl_dir: TradeDirection,
+    prob: float,
+) -> float:
+    """Inicializa scores laterais TCN antes do refinamento meta-classificador."""
+    call_score = prob
+    put_score = 1.0 - prob
+    score = call_score if dl_dir == TradeDirection.CALL else put_score
+    metrics["dl_direction"] = dl_dir.name
+    metrics["exec_direction"] = dl_dir.name
+    metrics["resolved_direction"] = dl_dir.name
+    metrics["direction_inverted"] = False
+    metrics["meta_direction_flip"] = False
+    metrics["direction_call_score"] = call_score
+    metrics["direction_put_score"] = put_score
+    metrics["direction_margin"] = abs(call_score - put_score)
+    return score
+
+
 def resolve_execution_direction(
     entry: dict,
     *,
@@ -64,9 +90,10 @@ def resolve_execution_direction(
     recovery_active: bool = False,
     symbol: str | None = None,
     corr_matrix: dict[tuple[str, str], float] | None = None,
+    infra_cfg: dict | None = None,
 ) -> tuple[TradeDirection, dict] | None:
-    """Resolve direcao seguindo estritamente o DL; trade_score e a probabilidade calibrada bruta."""
-    _ = (exec_cfg, calibration_cfg, recovery_active, symbol, corr_matrix)
+    """Resolve direcao micro com autonomia do meta-classificador para inversao em exaustao."""
+    _ = (exec_cfg, calibration_cfg, recovery_active, corr_matrix)
     if is_technically_blocked(entry):
         return None
     dl_dir = infer_dl_direction(entry)
@@ -77,16 +104,34 @@ def resolve_execution_direction(
     if prob is None:
         prob = 0.55 if dl_dir == TradeDirection.CALL else 0.45
     prob = _clamp01(prob)
-    call_score = prob
-    put_score = 1.0 - prob
-    score = call_score if dl_dir == TradeDirection.CALL else put_score
-    metrics["dl_direction"] = dl_dir.name
-    metrics["exec_direction"] = dl_dir.name
-    metrics["resolved_direction"] = dl_dir.name
-    metrics["direction_inverted"] = False
-    metrics["direction_call_score"] = call_score
-    metrics["direction_put_score"] = put_score
-    metrics["direction_margin"] = abs(call_score - put_score)
-    metrics["trade_score"] = score
-    metrics["conviction"] = score
-    return dl_dir, metrics
+    score = _seed_direction_metrics(metrics, dl_dir=dl_dir, prob=prob)
+    payoff_score, meta_applied = resolve_meta_payoff_score(
+        symbol=symbol,
+        metrics=metrics,
+        direction=dl_dir,
+        tcn_probability=prob,
+        base_score=score,
+        config={"infra": infra_cfg} if infra_cfg else None,
+    )
+    exec_dir, final_score = apply_meta_direction_flip(
+        dl_dir,
+        metrics,
+        payoff_score,
+        meta_applied=meta_applied,
+        tcn_probability=prob,
+    )
+    if exec_dir == dl_dir:
+        if meta_applied or payoff_score != score:
+            apply_meta_payoff_to_metrics(
+                metrics,
+                direction=dl_dir,
+                tcn_probability=prob,
+                payoff_score=payoff_score,
+                meta_applied=meta_applied,
+            )
+        else:
+            metrics["trade_score"] = score
+            metrics["conviction"] = score
+    else:
+        _ = final_score
+    return exec_dir, metrics

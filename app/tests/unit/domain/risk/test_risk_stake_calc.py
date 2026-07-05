@@ -190,3 +190,50 @@ def test_calculate_stake_dlambert_progresses_without_hard_cap(kelly_config):
         kwargs={"dl_metrics": {"execute": True, "order_direction": "CALL"}},
     )
     assert stake > 10000.0 * 0.04
+
+
+def test_calculate_stake_c0017_bypasses_consensus_and_uses_dlambert_martingale(kelly_config):
+    unit_u = 10.0
+    rm = _mock_rm(
+        kelly_config,
+        pending_loss={"RDBULL": 93.19},
+        consecutive_losses_linear=3,
+        dlambert_unit=unit_u,
+        _recovery_allowed=MagicMock(return_value=False),
+    )
+    rm.kelly_config = {
+        **kelly_config["kelly"],
+        "consensus_penalty_enabled": True,
+        "consensus_max_cut": 0.50,
+        "consensus_di_weight": 0.35,
+        "consensus_cmo_weight": 0.40,
+        "consensus_rsi_weight": 0.25,
+        "consensus_entropy_exponent": 2.0,
+        "fraction": 0.001,
+        "max_stake_pct": 1.0,
+    }
+    rm.risk_params = {**kelly_config["params"], "stake_min": 1.0}
+    rm.effective_win_rate = MagicMock(return_value=0.55)
+    stake = calculate_stake_for_manager(
+        rm,
+        10000.0,
+        "RDBULL",
+        0.55,
+        silent=False,
+        apply_stop_win=False,
+        kwargs={
+            "cycle_id": 17,
+            "dl_metrics": {
+                "execute": True,
+                "call_votes": 1,
+                "put_votes": 5,
+                "trade_score": 0.55,
+                "val_accuracy": 0.40,
+                "indicators": {"di_diff": 0.01, "cmo": -0.18, "rsi": 0.62},
+            },
+            "order_direction": "CALL",
+        },
+    )
+    assert stake == pytest.approx(unit_u * (2.0**3))
+    logged = " ".join(str(c) for c in rm.logger.info.call_args_list)
+    assert "D'ALEMBERT" in logged

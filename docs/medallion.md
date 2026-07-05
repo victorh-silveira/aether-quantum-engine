@@ -24,7 +24,9 @@ Para arquitetura de código, ver [`arquitetura.md`](arquitetura.md).
 
 ---
 
-## 2. Universo Drift
+## 2. Universo Drift e perfil de qualidade
+
+### 2.1 Universo Drift
 
 Índices sintéticos correlacionados no eixo de barreiras. Cada símbolo tem modelo DL independente com **34 features** e volatilidade calibrada ao alvo do índice.
 
@@ -36,6 +38,30 @@ Para arquitetura de código, ver [`arquitetura.md`](arquitetura.md).
 
 Operação: contratos **RISE_FALL** (CALL = alta no período, PUT = queda).
 
+### 2.2 Telemetria de Volatilidade, Exaustão e Fluxo Micro
+
+Indicadores micro de 60 s (RSI, `vol_ratio`, Keltner, aceleração de ticks) alimentam o container `aether-meta-classifier` via vetor **39D**. O LightGBM recalibra `calibrated_payoff_score` e, quando detecta saturação severa de topo/fundo (`payoff < 0.42`), o resolver **inverte** `exec_direction` para a contra-tendência micro (`meta_direction_flip=true`, `trade_score=0.75`).
+
+Features de fluxo extraídas do `TickBuffer`:
+
+| Feature | Descrição |
+|---------|-----------|
+| `micro_tick_acceleration` | Aceleração estocástica de ticks nos últimos 5 s do minuto corrente |
+| `keltner_deviation_ratio` | Distância fracionária do último tick ao centro do canal Keltner micro |
+
+Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `feature_vector` (34D TCN) como telemetria analítica e insumo do stacking — sem veto direcional autônomo fora do meta-classificador.
+
+### 2.5 Perfil de qualidade atualizado
+
+| Camada | Comportamento |
+|--------|---------------|
+| Bloqueio técnico | `data`, `predict_error`, `training`, `deploy_ok=false` |
+| Classificação macro | TCN processa lookback de 12 h em M15; define direção estrita (`exec_direction`) |
+| Stacking tabular | Meta-classificador LightGBM (M1) sobre vetor **39D** + probabilidade TCN |
+| Scoring direcional | TCN define `dl_direction`; meta-classificador pode inverter `exec_direction` em exaustão micro (`payoff < 0.42`) |
+| Gate de qualidade | Neutro: participa sempre do pool, sem skip por comportamento |
+| Gerenciamento de risco | Kelly base + Martingale Geométrico puro (`Kelly_base × 2^n`) sem teto macro |
+
 ---
 
 ## 3. Janela temporal de treino
@@ -45,8 +71,9 @@ Operação: contratos **RISE_FALL** (CALL = alta no período, PUT = queda).
 | Camada | Timeframe | Papel |
 |--------|-----------|-------|
 | Deep Learning / TCN | M15 (900 s) | Tensor `[1, 48, 34]` = 12 h de contexto macro |
+| Meta-classificador GBDT | M1 (60 s) | Stacking tabular **39D** (34 TCN + 3 cross-symbol + 2 fluxo); inversão micro quando `payoff < 0.42` |
 | Orquestrador / contrato | M1 (60 s) | Ciclo a cada minuto; RISE_FALL de 60 s |
-| Resolução direcional | Saída da TCN | `exec_direction` = lado de maior probabilidade calibrada |
+| Resolução direcional | TCN + meta GBDT | `dl_direction` da TCN; `exec_direction` pode inverter em saturação micro |
 | Execução contínua | M1 | Boleta CALL/PUT na virada do minuto sempre que há sinal válido |
 
 Com `granularity: 900` (M15) e `training_history_bars: 15552`:
@@ -67,11 +94,12 @@ Ordem lógica de uma entrada:
 2. **Dados** — histórico suficiente (`gate_reason=data`).
 3. **Treinamento** — modelo do símbolo treinado na sessão (`gate_reason=training`).
 4. **Predição DL** — inferência Triton concorrente; `raw_prob`/`calibrated_prob` e indicadores calculados.
-5. **Resolução direcional** — `execution_direction_resolver` linear puro: segue estritamente o lado de maior probabilidade da TCN.
-6. **Gate de qualidade** — neutro: `passes_execution_quality` retorna `True` e `regime_skip_cycle=False` invariável.
-7. **Deploy** — `deploy_ok=false` bloqueia execução.
-8. **Seleção** — `market_decision_score` entre candidatos elegíveis.
-9. **Risco** — Kelly + Consensus Penalty; recovery financeiro persistente; Martingale Geométrico `Kelly_base × 2^n`; stop win por sessão ativa (1% composto).
+5. **Stacking tabular** — `MetaClassifierClient` envia probabilidade TCN + vetor **39D** ao `aether-meta-classifier`; retorna `calibrated_payoff_score`.
+6. **Resolução direcional** — `execution_direction_resolver`: inverte `exec_direction` quando `payoff < 0.42` (exaustão Keltner/Bollinger micro); `meta_direction_flip=true`.
+7. **Gate de qualidade** — neutro: `passes_execution_quality` retorna `True` e `regime_skip_cycle=False` invariável.
+8. **Deploy** — `deploy_ok=false` bloqueia execução.
+9. **Seleção** — `market_decision_score` entre candidatos elegíveis.
+10. **Risco** — Kelly + Consensus Penalty; recovery financeiro persistente; Martingale Geométrico `Kelly_base × 2^n`; stop win por sessão ativa (1% composto).
 
 Bloqueio absoluto **somente** para falhas técnicas (`data`, `predict_error`, `training`, `deploy_ok=false`). Não há vetos táticos, inversões nem skip por qualidade: qualquer sinal válido participa do pool.
 
@@ -91,20 +119,19 @@ Perfil em `config/settings.json`:
 
 ---
 
-## 5. Resolução direcional linear pura
+## 5. Resolução direcional com inversão micro
 
-`execution_direction_resolver.resolve_execution_direction` não usa scoring composto, pesos configuráveis nem barramento de regimes. A direção segue estritamente a TCN:
+`execution_direction_resolver.resolve_execution_direction` aplica a matriz de inversão por probabilidade do meta-classificador:
 
 | Etapa | Regra |
 |-------|-------|
-| Probabilidade | `calibrated_prob` (fallback `raw_prob`) |
-| Pivot | média dos thresholds dinâmicos (`dynamic_call/put_threshold`) ou `0.5` |
-| `exec_direction` | `P(CALL) > pivot` → CALL, caso contrário PUT |
-| `trade_score` / `conviction` | probabilidade calibrada bruta do lado escolhido (`prob` para CALL, `1 - prob` para PUT) |
-| `direction_margin` | `\|P(CALL) − P(PUT)\|` — telemetria de clareza |
-| `direction_inverted` | constante `False` |
+| `dl_direction` | TCN: `P(CALL) > pivot` → CALL, caso contrário PUT |
+| Payoff GBDT | `calibrated_payoff_score` do container LightGBM (porta 8005) |
+| Inversão | `payoff < 0.42` → `exec_direction` oposto; `trade_score=0.75`; `meta_direction_flip=true` |
+| Sem inversão | `exec_direction = dl_direction`; `trade_score` recalibrado pelo payoff |
+| `direction_inverted` | `True` apenas quando `meta_direction_flip=true` |
 
-Não existe mais `direction_inverted=true`, inversão de regime, `exhaustion_flip` nem override micro de Keltner/Bollinger. `execution_direction_cross_corr` e `execution_volatility_booster` permanecem como telemetria/pisos consultivos e não alteram a direção resolvida.
+`execution_direction_cross_corr` e `execution_volatility_booster` permanecem como telemetria consultiva.
 
 ---
 
@@ -185,6 +212,10 @@ O motor **não utiliza reset cego** de `consecutive_losses_linear` baseado em WI
 
 O **Consensus Entropy Penalty** comprime `f*` quando a ordem diverge dos votos técnicos. Em recovery, punir a stake por falta de consenso upstream asfixia a recuperação — o Martingale Geométrico precisa de peso financeiro real para extinguir o passivo.
 
+#### Bypass de consensus em recovery com passivo pendente
+
+Quando `pending_total > 0`, `risk_stake_calc.py` **ignora** a penalidade de entropia de votação e o piso `stake_min` por divergência de consenso. O payload segue direto para Martingale Geométrico com tag `D'ALEMBERT`.
+
 #### Condições de waiver absoluto (`retention = 1.0`)
 
 1. **Recovery ativo:** `pending_total > 0` **ou** `consecutive_losses_linear > 0`
@@ -207,17 +238,19 @@ Em recovery ativo, o sizing abandona qualquer escada aditiva e adota a **curva m
 | Estado | Stake |
 |--------|-------|
 | Normal (`recovery_active` falso) | Kelly fracionário (+ booster super-concordance se P≥0.75, 6×0, Hurst>0.55), tag `KELLY` |
-| Recovery (`recovery_active` e `dlambert_enabled`) | `Kelly_base × 2^consecutive_losses_linear`, tag `D'ALEMBERT` |
+| Recovery (`pending_total > 0` ou `consecutive_losses_linear > 0`) | `Effective_Base × 2^consecutive_losses_linear`, tag `D'ALEMBERT` |
 
 ```
+Effective_Base = max(dlambert_unit_override, U)
 GEOMETRIC_MARTINGALE_BASE = 2.0
-stake_raw = max(0, Kelly_base) × 2^max(0, consecutive_losses_linear)
+stake_raw = Effective_Base × 2^max(0, consecutive_losses_linear)
 ```
 
 | Termo | Significado |
 |-------|-------------|
-| `Kelly_base` | Stake Kelly após consensus penalty, scale e floor |
-| `consecutive_losses_linear` | Contador de stress; +1 em LOSS de cluster; expoente da curva |
+| `U` (`dlambert_unit`) | Primeira stake Kelly capturada na sessão |
+| `Effective_Base` | Piso ancorado: nunca usa Kelly comprimido por consenso em recovery |
+| `consecutive_losses_linear` | Contador de stress; expoente da curva |
 
 #### Retração em WIN parcial
 

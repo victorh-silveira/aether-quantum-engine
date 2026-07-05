@@ -32,6 +32,7 @@ from src.application.services.deep_learning.dl_training_gate import (
     runtime_in_training,
     training_priority_symbols,
 )
+from src.application.services.meta_classifier_stacking import prefetch_meta_payoff_for_decisions
 from src.application.services.orchestrator.engine_mode import training_enabled
 
 
@@ -272,6 +273,7 @@ async def collect_deep_learning_decisions(orch) -> dict[str, dict]:
             train_reason = reason
 
     _log_retrain_batch(trained, train_reason, params)
+    await prefetch_meta_payoff_for_decisions(decisions, orch.config)
     log_dl_cycle_summary(
         logger,
         decisions,

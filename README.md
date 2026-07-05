@@ -7,7 +7,7 @@
 [![Pre-commit](https://img.shields.io/badge/Pre--commit-active-FAB040?logo=pre-commit&logoColor=white)](.pre-commit-config.yaml)
 [![CI](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml)
 
-Motor quantitativo assíncrono para a Deriv: decisão exclusiva por **Deep Learning** (TCN, LSTM ou GRU via PyTorch) nos índices **Drift** (`RDBEAR`, `RDBULL`), contratos **RISE_FALL** de **60 segundos (M1)** com contexto macro **M15 (900 s)** para inferência, classificação binária Rise/Fall com referência de confiança **0.53 / 0.47**, resolução direcional inteligente CALL/PUT, penalidade de **qualidade** pós-resolução (em vez de veto cego) e dimensionamento **Kelly** com **Consensus Entropy Penalty** e recuperação **martingale** quando há perda pendente.
+Motor quantitativo assíncrono para a Deriv: decisão por **Deep Learning** (TCN/LSTM/GRU) nos índices **Drift** (`RDBEAR`, `RDBULL`), contratos **RISE_FALL** de **60 s (M1)** com contexto macro **M15 (900 s)**, meta-classificador LightGBM para inversão micro em exaustão, e recuperação **Martingale Geométrico** (`Effective_Base × 2^n`) quando há passivo pendente.
 
 A operação divide-se em duas fases: **FASE TREINO** (nenhuma ordem até todos os modelos concluírem o treino da sessão) e **FASE OPERACAO** (seletiva por padrão ou **modo contínuo** com `mandatory_trade_each_cycle: true` — uma ordem por ciclo, sem SKIP de qualidade).
 
@@ -23,13 +23,12 @@ Layout: `app/` (código e testes), `config/settings.json`, `docs/`, `linters/`. 
 |-------|------------|-----------|
 | Dados | `StreamHandler` + `TickBuffer` + `AetherWatchdog` | WebSocket Deriv dual-timeframe: OHLC macro M15 (900 s) para DL/regimes + OHLC micro M1 (60 s) para gatilho do ciclo; ticks agregados por barra fechada; watchdog reconecta stream em inanição (>30 s) |
 | Fases | `_training_phase_gate` | Suspende a operação até todos os modelos concluírem o treino da sessão |
-| Predição DL | `decision_bridge` + TCN/LSTM/GRU | **34 features**, labels `ma_trend`, treino walk-forward deferido; inferência Triton gRPC concorrente com timeout 2 s e fallback TorchScript |
-| Direção | `execution_direction_resolver` | Scoring CALL/PUT; flip de reversão em contração de vol; veto de inversão em expansão |
-| Entropia | `execution_entropy_adaptive` + `execution_entropy_fallback` | Comprime peso DL por entropia; fallback mínimo em modo contínuo |
-| Exaustão | `execution_exhaustion_*` + `execution_direction_mean_reversion` | Penalidade soft; flip mean-reversion em exaustão + `vol_ratio < 0.80` |
-| Qualidade | `execution_quality_gate` | Penalidade de score/edge (não veto absoluto em modo contínuo); piso Hurst em recovery N2+ |
+| Predição DL | `decision_bridge` + TCN/LSTM/GRU | **34 features** TCN (tensor `[1, 48, 34]`); inferência Triton gRPC com timeout 2 s e fallback TorchScript |
+| Meta GBDT | `meta_classifier_client` + `aether-meta-classifier` | Stacking tabular **39D** (M1); inverte direção quando `calibrated_payoff_score < 0.42` |
+| Direção | `execution_direction_resolver` + `meta_direction_flip` | TCN define macro; meta-classificador inverte `exec_direction` em saturação micro |
+| Qualidade | `execution_quality_gate` | Neutro: valida sinal sem skip de ciclo |
 | Execução | `ExecutionManager` + `execution_collect` | Ranking por `market_decision_score`; mandatory pick quando configurado |
-| Risco | `RiskManager` + `risk_recovery_state` + `consensus_stake_penalty` + `StopWinManager` | Kelly com penalidade convexa; smoothing 40% em recovery; martingale até zerar `pending_loss`; CAP 4% banca; meta de stop win **por sessão ativa** (1% composto) |
+| Risco | `RiskManager` + `dlambert_sizing` + `consensus_stake_penalty` | Kelly + Martingale `U × 2^n` em recovery; bypass de consenso com `pending_total > 0` |
 | Resiliência | `graceful_shutdown` + `watchdog_service` | Shutdown ordenado; reconexão de stream sem derrubar o motor |
 | Estado | `redis_state_pipeline` + `StateStore` | Snapshot atômico MULTI/EXEC (risco, `session:current`, `session:current:start_balance`, `session:current:target_win`, `recovery:skip_counter`, assinaturas) |
 | Inferência | `TritonGrpcClient` | Canal `grpc.aio.insecure_channel` persistente; timeout 2 s; predições paralelas via `asyncio.gather`; fallback local em timeout |

@@ -4,6 +4,7 @@ from typing import Any
 
 from src.domain.risk.dlambert_sizing import (
     dlambert_log_suffix,
+    effective_martingale_base,
     resolve_dlambert_stake,
 )
 from src.domain.risk.kelly_f_star_adjustments import (
@@ -12,6 +13,7 @@ from src.domain.risk.kelly_f_star_adjustments import (
     kelly_base_with_consensus_floor,
 )
 from src.domain.risk.stake_sizing import (
+    clamp_kelly_stake,
     compute_single_strike_kelly_base,
     finalize_stake_with_min,
     resolve_stake_conviction,
@@ -117,6 +119,9 @@ def calculate_stake_for_manager(
     loss_to_recover = sum(rm.pending_loss.values())
     recovery_active = rm._recovery_allowed(symbol, conviction, **kwargs)
     recovery_financial = bool(loss_to_recover)
+    linear_losses = int(getattr(rm, "consecutive_losses_linear", 0))
+    recovery_stress = recovery_financial or linear_losses > 0
+    recovery_bypass_consensus = float(loss_to_recover) > 0.0
 
     sizing_conviction = conviction
     if isinstance(dl_metrics, dict) and not dl_metrics.get("execute", True):
@@ -129,23 +134,30 @@ def calculate_stake_for_manager(
         kwargs.get("order_direction"),
         recovery_active=recovery_financial,
     )
-    f_star = apply_consensus_entropy_f_star(
-        rm,
-        f_star,
-        dl_metrics,
-        kwargs.get("order_direction"),
-        silent=silent,
-    )
+    if recovery_bypass_consensus:
+        if isinstance(dl_metrics, dict):
+            dl_metrics["consensus_entropy_retention"] = 1.0
+    else:
+        f_star = apply_consensus_entropy_f_star(
+            rm,
+            f_star,
+            dl_metrics,
+            kwargs.get("order_direction"),
+            silent=silent,
+        )
     f_star = apply_kelly_fraction_scale(f_star, dl_metrics)
     stake_min = float(rm.risk_params.get("stake_min", 1.0))
-    kelly_base = kelly_base_with_consensus_floor(
-        bankroll,
-        f_star,
-        dl_metrics,
-        rm.kelly_config,
-        sizing_conviction,
-        stake_min,
-    )
+    if recovery_bypass_consensus:
+        kelly_base = clamp_kelly_stake(bankroll, bankroll * f_star, rm.kelly_config, sizing_conviction)
+    else:
+        kelly_base = kelly_base_with_consensus_floor(
+            bankroll,
+            f_star,
+            dl_metrics,
+            rm.kelly_config,
+            sizing_conviction,
+            stake_min,
+        )
     dl_execute = not isinstance(dl_metrics, dict) or bool(dl_metrics.get("execute", True))
     kelly_base = _apply_stop_win_kelly_boost(
         rm,
@@ -162,9 +174,8 @@ def calculate_stake_for_manager(
     if apply_stop_win:
         kelly_base = _apply_target_proximity_to_kelly(rm, kelly_base, apply_stop_win=True)
 
-    linear_losses = int(getattr(rm, "consecutive_losses_linear", 0))
     final_stake, mode_tag = resolve_dlambert_stake(
-        recovery_active=recovery_active and recovery_financial,
+        recovery_active=recovery_stress,
         bankroll=bankroll,
         kelly_base=kelly_base,
         dlambert_config=rm.dlambert_config,
@@ -182,15 +193,18 @@ def calculate_stake_for_manager(
         stake_min,
         bankroll,
         conviction,
-        recovery_linear=recovery_active,
+        recovery_linear=recovery_stress,
         mandatory=mandatory_flag,
     )
     cycle_id = int(kwargs.get("cycle_id") or 0)
+    log_kelly_base = kelly_base
+    if mode_tag == "D'ALEMBERT":
+        log_kelly_base = effective_martingale_base(kelly_base, rm, rm.dlambert_config)
     rec_info = dlambert_log_suffix(
         mode_tag,
         final_stake,
         loss_to_recover,
-        kelly_base,
+        log_kelly_base,
         dlambert_unit=float(getattr(rm, "dlambert_unit", 0.0)),
         consecutive_losses_linear=linear_losses,
         dlambert_config=rm.dlambert_config,

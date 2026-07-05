@@ -41,6 +41,40 @@ def resolve_dlambert_unit(
     return 0.0
 
 
+def _resolve_override_value(dlambert_config: dict[str, Any]) -> float:
+    """Extrai override positivo de unidade U a partir da config dlambert."""
+    override = dlambert_config.get("dlambert_unit_override")
+    if override is None:
+        return 0.0
+    try:
+        value = float(override)
+    except (TypeError, ValueError):
+        return 0.0
+    return value if value > 0.0 else 0.0
+
+
+def effective_martingale_base(
+    kelly_base: float,
+    rm: Any,
+    dlambert_config: dict[str, Any],
+) -> float:
+    """Resolve base ancorada U com piso de override para Martingale geometrico."""
+    existing = float(getattr(rm, "dlambert_unit", 0.0))
+    unit = existing if existing > 0.0 else resolve_dlambert_unit(kelly_base, rm)
+    override = _resolve_override_value(dlambert_config)
+    return max(override, unit, 0.0)
+
+
+def martingale_recovery_active(
+    *,
+    recovery_active: bool,
+    pending_total: float,
+    consecutive_losses_linear: int,
+) -> bool:
+    """Indica estresse de recovery quando ha passivo pendente ou perdas lineares."""
+    return recovery_active or float(pending_total) > 0.0 or int(consecutive_losses_linear) > 0
+
+
 def geometric_martingale_stake(
     kelly_base: float,
     consecutive_losses_linear: int,
@@ -62,10 +96,15 @@ def resolve_dlambert_stake(
     pending_total: float = 0.0,
 ) -> tuple[float, str]:
     """Resolve stake final Kelly ou Martingale Geometrico contínuo em recovery."""
-    _ = (bankroll, pending_total)
-    if recovery_active and dlambert_enabled(dlambert_config):
-        resolve_dlambert_unit(kelly_base, rm)
-        raw = geometric_martingale_stake(kelly_base, consecutive_losses_linear)
+    _ = bankroll
+    stress_recovery = martingale_recovery_active(
+        recovery_active=recovery_active,
+        pending_total=pending_total,
+        consecutive_losses_linear=consecutive_losses_linear,
+    )
+    if stress_recovery and dlambert_enabled(dlambert_config):
+        effective_base = effective_martingale_base(kelly_base, rm, dlambert_config)
+        raw = geometric_martingale_stake(effective_base, consecutive_losses_linear)
         return round_stake(raw, recovery_linear=True), "D'ALEMBERT"
     resolve_dlambert_unit(kelly_base, rm)
     return round_stake(float(kelly_base), recovery_linear=False), "KELLY"

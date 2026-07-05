@@ -26,6 +26,7 @@ def gather_cluster_candidates(
     _ = (cid, kelly_cfg, consecutive_losses, recovery_skip_counter, session_drawdown)
     exec_cfg = exec_mgr.orch.config.get("orchestrator", {}).get("execution", {})
     calibration_cfg = exec_mgr.orch.config.get("deep_learning", {}).get("calibration")
+    infra_cfg = exec_mgr.orch.config.get("infra", {})
     corr_matrix = cached_correlation_matrix(exec_mgr.orch)
     candidates = []
     for symbol in exec_mgr._trade_symbols():
@@ -49,6 +50,7 @@ def gather_cluster_candidates(
             calibration_cfg=calibration_cfg,
             recovery_active=recovery_active,
             corr_matrix=corr_matrix or None,
+            infra_cfg=infra_cfg if isinstance(infra_cfg, dict) else None,
         )
         if built is None:
             continue

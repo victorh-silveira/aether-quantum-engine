@@ -115,14 +115,6 @@ def test_dlambert_after_partial_win(kelly_config):
     assert stake > 10.0
 
 
-def test_kelly_keeps_fraction_with_consecutive_losses_without_pending(kelly_config):
-    rm = RiskManager(kelly_config)
-    stake_base = rm.calculate_stake(1000.0, "RDBULL", conviction=0.6)
-    rm.consecutive_losses_linear = 2
-    stake_same = rm.calculate_stake(1000.0, "RDBULL", conviction=0.6)
-    assert stake_same == stake_base
-
-
 def test_stake_zero_when_bankroll_below_min(kelly_config):
     rm = RiskManager(kelly_config)
     stake = rm.calculate_stake(0.5, "RDBULL", conviction=0.4)

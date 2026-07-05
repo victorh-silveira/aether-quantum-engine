@@ -19,7 +19,7 @@ RESET  := \033[0m
 .DEFAULT_GOAL := help
 
 .PHONY: install lint test security run train pre-commit pre-commit-run setup-wsl clean help helpo \
-	docker-up docker-down docker-ps docker-logs docker-bash timescale-lifecycle
+	docker-up docker-down docker-clean docker-ps docker-logs docker-bash timescale-lifecycle
 
 help:
 	@echo -e "$(BLUE)========================================================================$(RESET)"
@@ -43,8 +43,9 @@ help:
 	@echo -e "  $(GREEN)help / helpo$(RESET) 		- Exibe este menu de ajuda interativo"
 	@echo -e ""
 	@echo -e "$(YELLOW)Docker:$(RESET)"
-	@echo -e "  $(GREEN)docker-up$(RESET)    - Sobe Redis, TimescaleDB, MinIO e Triton (GPU)"
+	@echo -e "  $(GREEN)docker-up$(RESET)    - Sobe Redis, TimescaleDB, MinIO, Triton e Meta-Classificador"
 	@echo -e "  $(GREEN)docker-down$(RESET)  - Para e remove containers"
+	@echo -e "  $(GREEN)docker-clean$(RESET) - Remove containers, volumes e redes do projeto (preserva imagens)"
 	@echo -e "  $(GREEN)docker-ps$(RESET)    - Status dos containers"
 	@echo -e "  $(GREEN)docker-logs$(RESET)  - Logs (DOCKER_SERVICE=triton|redis F=1)"
 	@echo -e "  $(GREEN)docker-bash$(RESET)  - Shell (DOCKER_SERVICE=triton|timescaledb)"
@@ -103,6 +104,11 @@ timescale-lifecycle:
 
 docker-down:
 	$(DOCKER_COMPOSE) down
+
+docker-clean:
+	@test -f .env || cp .env.example .env
+	$(DOCKER_COMPOSE) down --volumes --remove-orphans
+	@$(DOCKER_COMPOSE) ps
 
 docker-ps:
 	$(DOCKER_COMPOSE) ps

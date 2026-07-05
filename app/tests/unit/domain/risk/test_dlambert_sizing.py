@@ -4,9 +4,12 @@ from src.domain.risk.dlambert_sizing import (
     GEOMETRIC_MARTINGALE_BASE,
     REDIS_DLAMBERT_LINEAR_LOSSES_KEY,
     REDIS_DLAMBERT_UNIT_KEY,
+    _resolve_override_value,
     dlambert_enabled,
     dlambert_log_suffix,
+    effective_martingale_base,
     geometric_martingale_stake,
+    martingale_recovery_active,
     resolve_dlambert_stake,
     resolve_dlambert_unit,
 )
@@ -100,6 +103,44 @@ def test_resolve_dlambert_stake_kelly_when_flat():
     )
     assert tag == "KELLY"
     assert stake == pytest.approx(55.0)
+
+
+def test_resolve_override_value_handles_invalid_and_non_positive_values():
+    assert _resolve_override_value({}) == pytest.approx(0.0)
+    assert _resolve_override_value({"dlambert_unit_override": "bad"}) == pytest.approx(0.0)
+    assert _resolve_override_value({"dlambert_unit_override": -2.0}) == pytest.approx(0.0)
+
+
+def test_martingale_recovery_active_pending_or_linear_losses():
+    assert martingale_recovery_active(recovery_active=False, pending_total=93.19, consecutive_losses_linear=0)
+    assert martingale_recovery_active(recovery_active=False, pending_total=0.0, consecutive_losses_linear=3)
+    assert not martingale_recovery_active(recovery_active=False, pending_total=0.0, consecutive_losses_linear=0)
+
+
+def test_effective_martingale_base_anchors_above_compressed_kelly():
+    class RM:
+        dlambert_unit = 10.0
+        dlambert_config = {"dlambert_unit_override": 8.0}
+
+    assert effective_martingale_base(1.0, RM(), {"dlambert_unit_override": 8.0}) == pytest.approx(10.0)
+
+
+def test_resolve_dlambert_stake_c0017_anchors_unit_times_eight_despite_kelly_collapse():
+    class RM:
+        dlambert_unit = 10.0
+        dlambert_config = {}
+
+    stake, tag = resolve_dlambert_stake(
+        recovery_active=False,
+        bankroll=10000.0,
+        kelly_base=1.0,
+        dlambert_config={"dlambert_enabled": True},
+        rm=RM(),
+        consecutive_losses_linear=3,
+        pending_total=93.19,
+    )
+    assert tag == "D'ALEMBERT"
+    assert stake == pytest.approx(80.0)
 
 
 def test_resolve_dlambert_stake_geometric_in_recovery():

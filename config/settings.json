@@ -263,6 +263,11 @@
       "model_repo_path": "infra/docker/triton-models",
       "correlation_refresh_cycles": 5,
       "correlation_bars": 120
+    },
+    "meta_classifier": {
+      "enabled": true,
+      "http_url": "http://localhost:8005",
+      "timeout_seconds": 1.0
     }
   }
 }

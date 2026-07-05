@@ -6,7 +6,7 @@ from typing import Any
 
 from src.application.services.deep_learning.dl_bridge_helpers import build_decision_entry
 from src.application.services.deep_learning.dl_calibration import CalibratorState, calibrate_trade_score
-from src.application.services.deep_learning.dl_feature_build import precompute_price_series
+from src.application.services.deep_learning.dl_feature_build import build_feature_row, precompute_price_series
 from src.application.services.deep_learning.dl_gating import resolve_calibrated_edge, resolve_confidence_thresholds
 from src.application.services.deep_learning.dl_params import parse_dynamic_threshold_config
 from src.application.services.deep_learning.dl_predict_metrics import attach_dynamic_metrics
@@ -14,6 +14,7 @@ from src.application.services.deep_learning.dl_symbol_runtime import guard_symbo
 from src.application.services.deep_learning.dl_trend import calculate_trend_direction
 from src.application.services.deep_learning.model import predict_next_direction
 from src.application.services.execution_volatility_threshold import resolve_dynamic_threshold_bundle
+from src.application.services.meta_classifier_flow_features import flow_features_from_micro_series
 from src.domain.models.trade import TradeDirection
 
 
@@ -30,6 +31,36 @@ def _infer_direction(calibrated_prob: float, direction: TradeDirection | None, p
     if direction is not None:
         return direction
     return TradeDirection.CALL if float(calibrated_prob) > float(pivot) else TradeDirection.PUT
+
+
+def stamp_micro_frame_telemetry(orch: Any, symbol: str, metrics: dict[str, Any], params: dict[str, Any]) -> None:
+    """Anexa telemetria micro M1, fluxo de ticks e desvio Keltner para meta-classificador."""
+    stream = getattr(orch, "stream", None)
+    if stream is None or not hasattr(stream, "get_micro_numpy_series"):
+        return
+    closes = stream.get_micro_numpy_series(str(symbol), "close")
+    if closes is None or len(closes) < 8:
+        return
+    micro_gran = int(params.get("micro_granularity", 60))
+    high = stream.get_micro_numpy_series(str(symbol), "high")
+    low = stream.get_micro_numpy_series(str(symbol), "low")
+    open_ = stream.get_micro_numpy_series(str(symbol), "open")
+    series = precompute_price_series(closes, granularity=micro_gran, symbol=str(symbol))
+    rsi = float(series["rsi"][-1]) if len(series.get("rsi", [])) > 0 else 0.0
+    vol_ratio = float(series["vol_ratio_short_long"][-1]) if len(series.get("vol_ratio_short_long", [])) > 0 else 0.0
+    metrics["micro_indicators"] = {"rsi": rsi, "vol_ratio": vol_ratio}
+    flow = flow_features_from_micro_series(
+        closes,
+        granularity=micro_gran,
+        symbol=str(symbol),
+        open_=open_,
+        high=high,
+        low=low,
+    )
+    tick_buffer = getattr(stream, "tick_buffer", None)
+    if tick_buffer is not None and hasattr(tick_buffer, "live_tick_acceleration"):
+        flow["micro_tick_acceleration"] = float(tick_buffer.live_tick_acceleration(str(symbol)))
+    metrics["flow_features"] = flow
 
 
 def build_prediction_context(
@@ -215,7 +246,11 @@ def build_prediction_entry(
     entry["metrics"]["put_votes"] = put_votes
     entry["metrics"]["indicators"] = indicators_data
     entry["metrics"]["macro_indicators"] = indicators_data
+    if len(series.get("log_return", [])) > 0:
+        idx = len(series["log_return"]) - 1
+        entry["metrics"]["feature_vector"] = build_feature_row(series, idx).tolist()
     entry["metrics"]["indicator_timeframe_seconds"] = int(params.get("granularity", 900))
+    stamp_micro_frame_telemetry(_orch, str(symbol), entry["metrics"], params)
     attach_dynamic_metrics(
         entry["metrics"],
         dynamic=dynamic,

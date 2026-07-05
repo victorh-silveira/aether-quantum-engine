@@ -101,6 +101,29 @@ services:
     networks:
       - aether-net
 
+  aether-meta-classifier:
+    build:
+      context: ./meta-classifier
+      dockerfile: Dockerfile
+    container_name: aether-meta-classifier
+    ports:
+      - "8005:8000"
+    volumes:
+      - ./meta-models:/models
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; import sys; response = urllib.request.urlopen('http://localhost:8000/health'); sys.exit(0 if response.getcode() == 200 else 1)",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - aether-net
+
 volumes:
   aether_redis_data:
   aether_ts_data:

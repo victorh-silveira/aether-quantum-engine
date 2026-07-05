@@ -87,6 +87,27 @@ class TickBuffer:
             "consecutive_diff_std": np.array([s.consecutive_diff_std for s in series], dtype=np.float64),
         }
 
+    def live_tick_acceleration(self, symbol: str, *, window_ms: int = 5000) -> float:
+        """Aceleracao estocastica de ticks na janela final do minuto corrente."""
+        ticks = list(self._live.get(symbol, []))
+        if len(ticks) < 3:
+            return 0.0
+        latest_ms = int(ticks[-1][0])
+        cutoff = latest_ms - max(1, int(window_ms))
+        window = [(epoch, price) for epoch, price in ticks if int(epoch) >= cutoff]
+        if len(window) < 3:
+            return 0.0
+        epochs = np.array([item[0] for item in window], dtype=np.float64)
+        prices = np.array([item[1] for item in window], dtype=np.float64)
+        diffs = np.diff(epochs)
+        valid = diffs > 0
+        if not np.any(valid):
+            return 0.0
+        price_diffs = np.diff(prices)
+        v1 = price_diffs[:-1] / np.maximum(diffs[:-1], 1.0)
+        v2 = price_diffs[1:] / np.maximum(diffs[1:], 1.0)
+        return float(np.mean(v2 - v1))
+
     def _aggregate_bar(self, symbol: str) -> BarMicrostructure:
         """Calcula microestrutura a partir dos ticks acumulados na barra."""
         ticks = list(self._live.get(symbol, []))

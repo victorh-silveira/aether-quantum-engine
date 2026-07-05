@@ -46,6 +46,37 @@ def test_tick_buffer_two_ticks_only():
     assert stats.price_acceleration == 0.0
 
 
+def test_tick_buffer_live_tick_acceleration_window():
+    buf = TickBuffer(["RDBULL"])
+    buf.record_tick("RDBULL", 55_000, 100.0)
+    buf.record_tick("RDBULL", 56_000, 100.4)
+    buf.record_tick("RDBULL", 57_000, 100.9)
+    buf.record_tick("RDBULL", 58_000, 101.1)
+    accel = buf.live_tick_acceleration("RDBULL", window_ms=5000)
+    assert accel != 0.0
+
+
+def test_tick_buffer_live_tick_acceleration_returns_zero_with_sparse_ticks():
+    buf = TickBuffer(["RDBULL"])
+    assert buf.live_tick_acceleration("RDBULL") == 0.0
+
+
+def test_tick_buffer_live_tick_acceleration_sparse_window():
+    buf = TickBuffer(["RDBULL"])
+    buf.record_tick("RDBULL", 1000, 100.0)
+    buf.record_tick("RDBULL", 2000, 100.2)
+    buf.record_tick("RDBULL", 30_000, 101.0)
+    assert buf.live_tick_acceleration("RDBULL", window_ms=2000) == 0.0
+
+
+def test_tick_buffer_live_tick_acceleration_same_epoch_window():
+    buf = TickBuffer(["RDBULL"])
+    buf.record_tick("RDBULL", 5000, 100.0)
+    buf.record_tick("RDBULL", 5000, 100.2)
+    buf.record_tick("RDBULL", 5000, 100.4)
+    assert buf.live_tick_acceleration("RDBULL", window_ms=5000) == 0.0
+
+
 @pytest.mark.asyncio
 async def test_tick_buffer_last_tick_monotonic_updates_on_record():
     buf = TickBuffer(["RDBULL"])

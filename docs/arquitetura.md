@@ -26,6 +26,8 @@ O mercado é tratado como **série temporal ruidosa**: o modelo estima probabili
 
 ## 2. Pipeline de dados
 
+O grafo abaixo reflete o pipeline **aprovado no pre-commit**: o subgrafo `direcao` contém apenas o resolver linear e o gate neutro. Módulos purgados (`execution_entropy_adaptive`, `execution_direction_mean_reversion`, `execution_direction_expansion_veto` e afins) **não** participam do fluxo.
+
 ```mermaid
 flowchart LR
   subgraph ingestao
@@ -39,6 +41,7 @@ flowchart LR
     TRITON[TritonGrpcClient]
     MODEL[TCN ou LSTM/GRU]
     PRED[dl_predict]
+    META[aether-meta-classifier GBDT]
   end
   subgraph direcao
     RES[execution_direction_resolver linear puro]
@@ -60,7 +63,7 @@ flowchart LR
   WS --> SH
   SH --> TB
   WD -->|STALE_DATA reconnect| SH
-  SH --> FEAT --> TRITON --> MODEL --> PRED --> RES --> QG --> COL --> SEL --> EM --> TH
+  SH --> FEAT --> TRITON --> MODEL --> PRED --> META --> RES --> QG --> COL --> SEL --> EM --> TH
   TH --> ST --> RM
   ST --> PM
   ST --> TS
@@ -84,6 +87,16 @@ Com `infra.enabled: true`, o motor valida Redis, TimescaleDB e MinIO em `localho
 - Predições de `RDBEAR` e `RDBULL` em paralelo com `asyncio.gather`.
 - **Timeout rigido de 2,0 s** por requisição (`asyncio.wait_for`); se o Triton exceder o limite, dispara `TritonInferenceTimeout` e fallback imediato para TorchScript em cache local (`dl_predict_triton.py`, log `TRITON_TIMEOUT_FALLBACK`), preservando a janela de 60 s do orquestrador.
 - Facade em `triton_inference_client.py` para o restante do motor.
+
+**Meta-classificador tabular** (`aether-meta-classifier`, porta host `8005`):
+
+- Container Python 3.13-slim com FastAPI expõe `POST /v2/predict_meta`.
+- Artefatos LightGBM/XGBoost (`.pkl`) montados em `infra/docker/meta-models` → `/models`.
+- `MetaClassifierClient` (`meta_classifier_client.py`) consulta o serviço com `httpx.AsyncClient`, timeout **1,0 s** e fallback transparente ao `trade_score` bruto da TCN em falha ou timeout.
+- Vetor tabular **39D** enviado ao GBDT: **34** features TCN + **3** cross-symbol (`cross_symbol_prob_delta`, `cross_symbol_vol_ratio_diff`, `cross_symbol_rsi_spread`) + **2** de fluxo micro (`micro_tick_acceleration`, `keltner_deviation_ratio`).
+- `collect_deep_learning_decisions` executa prefetch paralelo (`prefetch_meta_payoff_for_decisions`) antes da coleta; `execution_direction_resolver` pode **inverter** `exec_direction` quando `calibrated_payoff_score < 0.42` (exaustão micro), marcando `meta_direction_flip=true`.
+- Healthcheck nativo Python (`urllib.request`) — sem dependência de `curl` na imagem slim.
+- Treino offline: `app/scripts/operations/train_meta_classifier.py` (Optuna + histórico OHLC TimescaleDB/Deriv; labels de reversão micro 60 s).
 
 **Resiliência de ingestão** (`watchdog_service.py` + `stream_reconnect.py`):
 
@@ -177,21 +190,23 @@ Normalização anti-leakage: `fit_norm_stats` somente no split de treino walk-fo
 
 ## 4. Direção e qualidade
 
-### 4.1 Motor de direção linear puro (`execution_direction_resolver.py`)
+### 4.1 Motor de direção com inversão micro orientada a dados (`execution_direction_resolver.py`)
 
-A direção final resolvida (`exec_direction`) **segue estritamente** o sinal do Deep Learning surfaçado pelo `decision_bridge`. Não há scoring composto, inversão tática, barramento de regimes, exaustão de Keltner/Bollinger nem qualquer override:
+A direção macro (`dl_direction`) segue a TCN (M15). O **meta-classificador** (M1) tem autonomia sobre o gatilho de execução micro de 60 s:
 
 | Etapa | Comportamento |
 |-------|---------------|
-| `infer_dl_direction` | Direção pré-computada pelo bridge ou, na ausência, `P(CALL) > pivot` → CALL, caso contrário PUT |
+| `infer_dl_direction` | Direção pré-computada pelo bridge ou `P(CALL) > pivot` → CALL, caso contrário PUT |
 | Probabilidade | `calibrated_prob` (fallback `raw_prob`); pivot = média dos thresholds dinâmicos ou `0.5` |
-| `trade_score` / `conviction` | **Probabilidade calibrada bruta** do lado escolhido (`prob` para CALL, `1 - prob` para PUT) |
-| `direction_margin` | `\|P(CALL) − P(PUT)\|` — telemetria de clareza, sem efeito de veto |
-| `direction_inverted` | Constante `False` (não existe mais inversão) |
+| Stacking GBDT | `MetaClassifierClient` retorna `calibrated_payoff_score` (prefetch ou sync) |
+| **Inversão micro** | Se `calibrated_payoff_score < 0.42`: TCN CALL → `exec_direction=PUT`; TCN PUT → `exec_direction=CALL`; `trade_score=0.75`; `meta_direction_flip=true` |
+| Sem inversão | `trade_score`/`conviction` recalibrados pelo payoff; `exec_direction` = `dl_direction` |
+| `direction_margin` | `\|P(CALL) − P(PUT)\|` — telemetria de clareza |
+| `direction_inverted` | `True` somente quando `meta_direction_flip=true` |
 
-Bloqueio absoluto (`resolve_execution_direction` retorna `None`) apenas em falha técnica: `deploy_ok == False` ou `gate_reason ∈ {data, predict_error, training}`. Qualquer sinal tecnicamente válido resolve para CALL ou PUT.
+Bloqueio absoluto (`resolve_execution_direction` retorna `None`) apenas em falha técnica: `deploy_ok == False` ou `gate_reason ∈ {data, predict_error, training}`.
 
-A matriz de correlação cross-symbol (`execution_direction_cross_corr`) e o `execution_volatility_booster` permanecem no pipeline apenas como telemetria/pisos consultivos; não invertem direção nem vetam a ordem.
+A matriz de correlação cross-symbol (`execution_direction_cross_corr`) e o `execution_volatility_booster` permanecem como telemetria/pisos consultivos.
 
 ### 4.2 Gate de qualidade neutro (`execution_quality_gate.py`)
 
@@ -243,7 +258,8 @@ Consequência: sob `mandatory_trade_each_cycle: true`, o `ExecutionManager` bole
 | Stop win por sessão ativa | `stop_win_target.py` + `session_target_bootstrap.py` — meta = `session_start_balance × compounding_rate_daily`; sem reset por relógio/calendário |
 | Encerramento por meta | `StateManager.check_session_limits()` — `pnl_sessao >= target_win` → `graceful_shutdown` |
 | Stop loss | **Desativado** — sem `daily_max_loss_limit` nem disjuntor de perda no motor |
-| Martingale Geométrico | `dlambert_sizing.geometric_martingale_stake` — curva multiplicativa clássica `Stake = Kelly_base × 2^consecutive_losses_linear`, **sem teto** de nível, stake ou drawdown de sessão |
+| Martingale Geométrico | `dlambert_sizing.geometric_martingale_stake` — `Stake = Effective_Base × 2^consecutive_losses_linear` com `Effective_Base = max(dlambert_unit_override, U)`; tag `D'ALEMBERT` quando `pending_total > 0` ou `consecutive_losses_linear > 0` |
+| Ancoragem em recovery | `risk_stake_calc.py` ignora consensus penalty e piso `stake_min` quando `pending_total > 0`; evita tag `KELLY` e stake sub-dimensionada em estresse |
 | Sem circuit breaker | Removidos `dlambert_circuit_breaker`, `MAX_LINEAR_LEVEL`, `MAX_STAKE_U_MULTIPLE`, `MAX_SESSION_DRAWDOWN_U` e o curto-circuito da tag `D'ALEMBERT_CB`; o cálculo prossegue livre na thread principal escalando exponencialmente até recuperar o passivo total |
 | Retração de recovery | WIN parcial em recovery: `consecutive_losses_linear = max(1, n-1)`, reduzindo o expoente da curva |
 | Super-concordance Kelly | booster desligado em recovery; ativo em Kelly puro com P≥0.75, 6×0, Hurst>0.55 |
@@ -315,6 +331,7 @@ Persistência: `data/session_state.json` (métricas da sessão corrente), Redis 
 | `risk_management.dlambert` | `dlambert_enabled`, `dlambert_unit_override` (base do Martingale Geométrico) |
 | `risk_management.params` | `compounding_enabled`, `compounding_rate_daily`, `session_start_balance`, `duration`, stakes |
 | `infra.triton` | `enabled`, `grpc_url`, `http_url`, `model_repo_path` |
+| `infra.meta_classifier` | `enabled`, `http_url` (porta host `8005`), `timeout_seconds` |
 | `trading` | `mode` (`demo` / `live`) |
 
 ---
