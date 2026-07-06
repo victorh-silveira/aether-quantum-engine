@@ -78,8 +78,7 @@ class Orchestrator:
         self._settlement_queue, self._settlement_worker_task, self._trading_slot_poll_task = None, None, None
         self.shutdown_reason: str | None = None
         self._cluster_results: list = []
-        self._last_epoch = 0
-        self._last_processed_epoch = 0
+        self._last_epoch, self._last_processed_epoch = 0, 0
         self._last_cluster_cycle_end = 0.0
         self._session_targets_bootstrapped = False
         self._buffer_result_logs = False
@@ -94,6 +93,7 @@ class Orchestrator:
         self._reconciliation_pending = False
         self._post_settlement_task: asyncio.Task | None = None
         self._post_settlement_wake = asyncio.Event()
+        self._post_settlement_incomplete_streak, self._post_settlement_deadlock = 0, False
         self._settlement_wait_logged = False
         self._last_loss_symbol = ""
         self._last_loss_direction = ""

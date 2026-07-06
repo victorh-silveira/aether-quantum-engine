@@ -1,5 +1,5 @@
 @echo off
-TITLE Aether Engine - Treino Deep Learning
+TITLE Aether Engine - Treino Deep Learning + Meta-Classificador
 
 pushd "%~dp0..\..\.."
 SET "REPO_ROOT=%CD%"
@@ -21,9 +21,11 @@ if "%CONDA_ACTIVATE%"=="" (
     exit /b 1
 )
 
-echo [AETHER] Iniciando treino Deep Learning...
+echo [AETHER] Iniciando treino Deep Learning e meta-classificador...
 cd /d "%REPO_ROOT%"
-start "AETHER TRAIN" cmd /k ""%~dp0_run_train.bat" "%CONDA_ACTIVATE%""
-echo [OK] Treino em execucao.
+start "AETHER TRAIN DL" cmd /k ""%~dp0_run_train.bat" "%CONDA_ACTIVATE%""
+timeout /t 2 /nobreak > nul
+start "AETHER TRAIN META" cmd /k ""%~dp0_run_meta_train.bat" "%CONDA_ACTIVATE%""
+echo [OK] Treino DL e meta-classificador em execucao.
 timeout /t 3 /nobreak > nul
 exit /b 0

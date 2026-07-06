@@ -20,6 +20,14 @@ from src.infrastructure.handlers.history_fetch import fetch_paginated_candle_his
 
 logger = logging.getLogger("META_TRAIN")
 MIN_OHLC_ROWS = 96
+META_TRAIN_DEFAULT_BARS = 5000
+META_TRAIN_MAX_BARS = 5000
+
+
+def resolve_meta_train_bars(bars: int) -> int:
+    """Normaliza alvo de barras micro respeitando o teto da API ticks_history."""
+    target = max(MIN_OHLC_ROWS, int(bars))
+    return min(target, META_TRAIN_MAX_BARS)
 
 
 @dataclass(frozen=True)
@@ -30,6 +38,7 @@ class OhlcBundle:
     open_: np.ndarray
     high: np.ndarray
     low: np.ndarray
+    epochs: np.ndarray
     source: str
 
 
@@ -51,7 +60,25 @@ async def _fetch_timescale_rows(
     conn: asyncpg.Connection,
     symbol: str,
     granularity: int,
+    max_bars: int | None = None,
 ) -> list[asyncpg.Record]:
+    if max_bars is not None and int(max_bars) > 0:
+        return await conn.fetch(
+            """
+            SELECT close, open, high, low, epoch
+            FROM (
+                SELECT close, open, high, low, epoch
+                FROM ohlc_bars
+                WHERE symbol = $1 AND granularity = $2 AND close IS NOT NULL
+                ORDER BY epoch DESC
+                LIMIT $3
+            ) recent
+            ORDER BY epoch ASC
+            """,
+            symbol,
+            granularity,
+            int(max_bars),
+        )
     return await conn.fetch(
         """
         SELECT close, open, high, low, epoch
@@ -71,8 +98,16 @@ def _rows_to_bundle(symbol: str, granularity: int, rows: list[asyncpg.Record], *
     open_ = np.asarray([float(r["open"] or r["close"]) for r in rows], dtype=np.float64)
     high = np.asarray([float(r["high"] or r["close"]) for r in rows], dtype=np.float64)
     low = np.asarray([float(r["low"] or r["close"]) for r in rows], dtype=np.float64)
+    epochs = np.asarray([int(r["epoch"]) for r in rows], dtype=np.int64)
     return OhlcBundle(
-        symbol=symbol, granularity=granularity, closes=closes, open_=open_, high=high, low=low, source=source
+        symbol=symbol,
+        granularity=granularity,
+        closes=closes,
+        open_=open_,
+        high=high,
+        low=low,
+        epochs=epochs,
+        source=source,
     )
 
 
@@ -80,13 +115,15 @@ async def load_bundles_from_timescale(
     dsn: str,
     symbols: list[str],
     granularities: list[int],
+    max_bars: int = META_TRAIN_DEFAULT_BARS,
 ) -> list[OhlcBundle]:
     conn = await asyncpg.connect(dsn)
     try:
         bundles: list[OhlcBundle] = []
+        bar_target = resolve_meta_train_bars(max_bars)
         for symbol in symbols:
             for granularity in granularities:
-                rows = await _fetch_timescale_rows(conn, symbol, granularity)
+                rows = await _fetch_timescale_rows(conn, symbol, granularity, bar_target)
                 bundle = _rows_to_bundle(symbol, granularity, rows, source="timescale")
                 if bundle is not None:
                     bundles.append(bundle)
@@ -104,8 +141,16 @@ def _candles_to_bundle(symbol: str, granularity: int, candles: list[Candle], *, 
     open_ = np.asarray([float(c.open) for c in ordered], dtype=np.float64)
     high = np.asarray([float(c.high) for c in ordered], dtype=np.float64)
     low = np.asarray([float(c.low) for c in ordered], dtype=np.float64)
+    epochs = np.asarray([int(c.epoch) for c in ordered], dtype=np.int64)
     return OhlcBundle(
-        symbol=symbol, granularity=granularity, closes=closes, open_=open_, high=high, low=low, source=source
+        symbol=symbol,
+        granularity=granularity,
+        closes=closes,
+        open_=open_,
+        high=high,
+        low=low,
+        epochs=epochs,
+        source=source,
     )
 
 
@@ -139,7 +184,7 @@ async def load_bundles_from_deriv(
 ) -> list[OhlcBundle]:
     data_cfg = settings.get("data_handler", {}) if isinstance(settings.get("data_handler"), dict) else {}
     fetch_cfg = parse_history_fetch_config(data_cfg if isinstance(data_cfg, dict) else {})
-    target = max(MIN_OHLC_ROWS, int(bars))
+    target = resolve_meta_train_bars(bars)
     ws = await _open_deriv_ws(settings)
     bundles: list[OhlcBundle] = []
     try:
@@ -203,20 +248,21 @@ async def resolve_training_bundles(
 ) -> list[OhlcBundle]:
     granularities = _granularity_candidates(settings, granularity)
     mode = str(source or "auto").lower()
+    bar_target = resolve_meta_train_bars(bars)
     bundles: list[OhlcBundle] = []
     if mode in {"auto", "timescale"}:
-        bundles = await load_bundles_from_timescale(dsn, symbols, granularities)
+        bundles = await load_bundles_from_timescale(dsn, symbols, granularities, bar_target)
     if bundles:
         return bundles
     if mode == "timescale":
         detail = await _timescale_error(dsn, symbols, granularities)
         raise RuntimeError(detail)
     logger.warning("META_TRAIN: TimescaleDB sem dados; buscando historico na API Deriv.")
-    bundles = await load_bundles_from_deriv(settings, symbols, granularity, bars)
+    bundles = await load_bundles_from_deriv(settings, symbols, granularity, bar_target)
     if bundles:
         return bundles
     detail = await _timescale_error(dsn, symbols, granularities)
     raise RuntimeError(
         f"Nenhum dado OHLC disponivel para treino do meta-classificador. {detail} "
-        f"Fallback Deriv tambem falhou para granularidade {granularity}s e alvo {bars} barras."
+        f"Fallback Deriv tambem falhou para granularidade {granularity}s e alvo {bar_target} barras."
     )

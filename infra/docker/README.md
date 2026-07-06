@@ -1,6 +1,6 @@
 # Infraestrutura Docker do Aether
 
-Stack local para Redis, TimescaleDB, MinIO e **Triton Inference Server**. O motor (`run.py` / `train.py`) executa no host Conda/WSL e conecta via `localhost`.
+Stack local para Redis, TimescaleDB, MinIO, **Triton Inference Server** e **meta-regressor LightGBM**. O motor (`run.py` / `train.py`) executa no host Conda/WSL e conecta via `localhost`.
 
 ## Subir servicos
 
@@ -26,6 +26,7 @@ docker compose -f infra/docker/docker-compose.yml --project-directory infra/dock
 | MinIO Console | 9001 | Console web |
 | Triton HTTP | 8000 | Health, metadata, reload do repositório |
 | Triton gRPC | 8001 | Inferência TorchScript em produção |
+| Meta-classificador | **8005** | LightGBM HTTP; vetor 39D; `POST /v2/predict_meta` |
 
 ## Triton e GPU
 
@@ -38,12 +39,26 @@ Fluxo no motor:
 3. `verify_triton_stressed_inference_async` valida inferência sob tensores estressados.
 4. `TritonGrpcClient` mantém canal gRPC persistente na porta 8001.
 
+Healthcheck Triton: `python3` + `urllib` em `/v2/health/ready` (sem `curl`).
+
+## Meta-classificador
+
+O serviço `aether-meta-classifier` usa imagem Python 3.13-slim com FastAPI. Artefatos LightGBM em `infra/docker/meta-models/` (`FEATURE_DIM=39`).
+
+| Endpoint | Uso |
+|----------|-----|
+| `GET /health` | Healthcheck Docker (urllib nativo) |
+| `POST /v2/predict_meta` | Inferência tabular 39D |
+
+Healthcheck: `python3` + `urllib` em `http://localhost:8005/health`.
+
 Variáveis no `.env` da raiz:
 
 | Variável | Padrão |
 |----------|--------|
 | `AETHER_TRITON_GRPC` | `localhost:8001` |
 | `AETHER_TRITON_HTTP` | `localhost:8000` |
+| `AETHER_META_CLASSIFIER_URL` | `http://localhost:8005` |
 
 ## Pre-requisito do host (WSL)
 
@@ -100,7 +115,7 @@ docker exec -it aether-timescaledb psql -U aether -d aether -c \
 
 ## Pre-requisito do motor
 
-Com `infra.enabled: true` em `config/settings.json`, o motor aborta o startup se algum servico estiver indisponivel (fail-fast), incluindo sanity TorchScript local e inferência estressada no Triton quando `infra.triton.enabled`.
+Com `infra.enabled: true` em `config/settings.json`, o motor aborta o startup se algum servico estiver indisponivel (fail-fast), incluindo sanity TorchScript local, inferência estressada no Triton quando `infra.triton.enabled` e health do meta-regressor quando `infra.meta_classifier.enabled`.
 
 Todas as variaveis de ambiente ficam no `.env` da **raiz** do repositorio (Deriv, Postgres, MinIO e Triton). Copie de `.env.example`:
 

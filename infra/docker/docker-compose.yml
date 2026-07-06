@@ -94,10 +94,16 @@ services:
       minio:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/v2/health/ready"]
-      interval: 10s
+      test:
+        [
+          "CMD",
+          "python3",
+          "-c",
+          "import urllib.request; import sys; response = urllib.request.urlopen('http://localhost:8000/v2/health/ready'); sys.exit(0 if response.getcode() == 200 else 1)",
+        ]
+      interval: 15s
       timeout: 5s
-      retries: 30
+      retries: 3
     networks:
       - aether-net
 

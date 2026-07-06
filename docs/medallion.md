@@ -40,7 +40,17 @@ Operação: contratos **RISE_FALL** (CALL = alta no período, PUT = queda).
 
 ### 2.2 Telemetria de Volatilidade, Exaustão e Fluxo Micro
 
-Indicadores micro de 60 s (RSI, `vol_ratio`, Keltner, aceleração de ticks) alimentam o container `aether-meta-classifier` via vetor **39D**. O LightGBM recalibra `calibrated_payoff_score` e, quando detecta saturação severa de topo/fundo (`payoff < 0.42`), o resolver **inverte** `exec_direction` para a contra-tendência micro (`meta_direction_flip=true`, `trade_score=0.75`).
+Indicadores micro de 60 s (RSI, `vol_ratio`, Keltner, `bb_width`, aceleração de ticks) alimentam o container `aether-meta-classifier` via vetor **39D**. O `LGBMRegressor` (huber) estima `predicted_payoff_edge` contínuo; o resolver preserva score orgânico da TCN quando o edge é positivo e aciona downgrade D-SQUEEZE quando o edge colapsa em compressão M1.
+
+**Spread de convicção cross-symbol** (triplet anexado em `prepare_meta_classifier_cross_symbol_bundle`):
+
+| Feature | Descrição |
+|---------|-----------|
+| `cross_symbol_prob_delta` | `abs(P(CALL)_RDBULL − P(PUT)_RDBEAR)` — divergência de convicção entre índices |
+| `cross_symbol_vol_ratio_diff` | Spread linear M1 de `vol_ratio` (BULL − BEAR) |
+| `cross_symbol_rsi_spread` | Spread linear M1 de RSI micro (BULL − BEAR) |
+
+Em regimes de drift paralelo (ambos símbolos com scores altos na mesma direção), spreads baixos sinalizam saturação espelhada — o GBDT usa isso para evitar entradas sem viés relativo.
 
 Features de fluxo extraídas do `TickBuffer`:
 
@@ -57,8 +67,8 @@ Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `
 |--------|---------------|
 | Bloqueio técnico | `data`, `predict_error`, `training`, `deploy_ok=false` |
 | Classificação macro | TCN processa lookback de 12 h em M15; define direção estrita (`exec_direction`) |
-| Stacking tabular | Meta-classificador LightGBM (M1) sobre vetor **39D** + probabilidade TCN |
-| Scoring direcional | TCN define `dl_direction`; meta-classificador pode inverter `exec_direction` em exaustão micro (`payoff < 0.42`) |
+| Stacking tabular | Meta-regressor LightGBM (M1) sobre vetor **39D** + probabilidade TCN; saída `predicted_payoff_edge` |
+| Scoring direcional | TCN define `dl_direction`; edge `> 0` mantém score orgânico; edge `< -0.15` em squeeze rebaixa para `0.52` |
 | Gate de qualidade | Neutro: participa sempre do pool, sem skip por comportamento |
 | Gerenciamento de risco | Kelly base + Martingale Geométrico puro (`Kelly_base × 2^n`) sem teto macro |
 
@@ -71,9 +81,9 @@ Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `
 | Camada | Timeframe | Papel |
 |--------|-----------|-------|
 | Deep Learning / TCN | M15 (900 s) | Tensor `[1, 48, 34]` = 12 h de contexto macro |
-| Meta-classificador GBDT | M1 (60 s) | Stacking tabular **39D** (34 TCN + 3 cross-symbol + 2 fluxo); inversão micro quando `payoff < 0.42` |
+| Meta-regressor GBDT | M1 (60 s) | Regressão tabular **39D**; edge contínuo + downgrade D-SQUEEZE |
 | Orquestrador / contrato | M1 (60 s) | Ciclo a cada minuto; RISE_FALL de 60 s |
-| Resolução direcional | TCN + meta GBDT | `dl_direction` da TCN; `exec_direction` pode inverter em saturação micro |
+| Resolução direcional | TCN + meta GBDT | `dl_direction` da TCN; `exec_direction` permanece alinhada salvo bloqueio técnico |
 | Execução contínua | M1 | Boleta CALL/PUT na virada do minuto sempre que há sinal válido |
 
 Com `granularity: 900` (M15) e `training_history_bars: 15552`:
@@ -94,12 +104,13 @@ Ordem lógica de uma entrada:
 2. **Dados** — histórico suficiente (`gate_reason=data`).
 3. **Treinamento** — modelo do símbolo treinado na sessão (`gate_reason=training`).
 4. **Predição DL** — inferência Triton concorrente; `raw_prob`/`calibrated_prob` e indicadores calculados.
-5. **Stacking tabular** — `MetaClassifierClient` envia probabilidade TCN + vetor **39D** ao `aether-meta-classifier`; retorna `calibrated_payoff_score`.
-6. **Resolução direcional** — `execution_direction_resolver`: inverte `exec_direction` quando `payoff < 0.42` (exaustão Keltner/Bollinger micro); `meta_direction_flip=true`.
-7. **Gate de qualidade** — neutro: `passes_execution_quality` retorna `True` e `regime_skip_cycle=False` invariável.
-8. **Deploy** — `deploy_ok=false` bloqueia execução.
-9. **Seleção** — `market_decision_score` entre candidatos elegíveis.
-10. **Risco** — Kelly + Consensus Penalty; recovery financeiro persistente; Martingale Geométrico `Kelly_base × 2^n`; stop win por sessão ativa (1% composto).
+5. **Bundle cross-symbol** — `prepare_meta_classifier_cross_symbol_bundle` coleta telemetria micro M1 em paralelo e anexa spreads cross-symbol.
+6. **Stacking tabular** — `MetaClassifierClient` envia probabilidade TCN + vetor **39D** ao `aether-meta-classifier`; retorna `predicted_payoff_edge`.
+7. **Resolução direcional** — `execution_direction_resolver` + `meta_payoff_regression`: edge positivo preserva TCN; edge `< -0.15` em squeeze rebaixa `trade_score=0.52` (`[D-SQUEEZE]`).
+8. **Gate de qualidade** — neutro: `passes_execution_quality` retorna `True` e `regime_skip_cycle=False` invariável.
+9. **Deploy** — `deploy_ok=false` bloqueia execução.
+10. **Seleção** — `market_decision_score` entre candidatos elegíveis.
+11. **Risco** — Kelly + Consensus Penalty; recovery financeiro persistente; Martingale Geométrico `Kelly_base × 2^n`; stop win por sessão ativa (1% composto).
 
 Bloqueio absoluto **somente** para falhas técnicas (`data`, `predict_error`, `training`, `deploy_ok=false`). Não há vetos táticos, inversões nem skip por qualidade: qualquer sinal válido participa do pool.
 
@@ -119,17 +130,20 @@ Perfil em `config/settings.json`:
 
 ---
 
-## 5. Resolução direcional com inversão micro
+## 5. Resolução direcional com edge contínuo e downgrade D-SQUEEZE
 
-`execution_direction_resolver.resolve_execution_direction` aplica a matriz de inversão por probabilidade do meta-classificador:
+`execution_direction_resolver.resolve_execution_direction` delega o refinamento a `meta_payoff_regression.apply_meta_regression_edge`:
 
 | Etapa | Regra |
 |-------|-------|
 | `dl_direction` | TCN: `P(CALL) > pivot` → CALL, caso contrário PUT |
-| Payoff GBDT | `calibrated_payoff_score` do container LightGBM (porta 8005) |
-| Inversão | `payoff < 0.42` → `exec_direction` oposto; `trade_score=0.75`; `meta_direction_flip=true` |
-| Sem inversão | `exec_direction = dl_direction`; `trade_score` recalibrado pelo payoff |
-| `direction_inverted` | `True` apenas quando `meta_direction_flip=true` |
+| Payoff GBDT | `predicted_payoff_edge` do container LightGBM (porta 8005) |
+| Edge positivo | `predicted_payoff_edge > 0.0` → `exec_direction = dl_direction`; `trade_score` orgânico da TCN |
+| Downgrade squeeze | `predicted_payoff_edge < -0.15` **e** (`bb_width < 0.06` **ou** `micro_tick_acceleration < 0`) → `trade_score=0.52`; `meta_squeeze_downgrade=true`; log `[D-SQUEEZE]` |
+| Edge negativo leve | Mantém `dl_direction` e score orgânico |
+| `direction_inverted` | `False` no fluxo de regressão |
+
+**Justificativa do score 0.52 em squeeze**: em canais Bollinger esmagados (ex.: ciclos C0014–C0016 com `bb_width` 0.03–0.09), o rebaixamento força o `consensus_stake_penalty` a comprimir a stake ao piso de $1.00 da Deriv, curto-circuitando a cauda exponencial do Martingale Geométrico nos frames de maior ruído estocástico.
 
 `execution_direction_cross_corr` e `execution_volatility_booster` permanecem como telemetria consultiva.
 
@@ -320,7 +334,7 @@ Logs: `ord=` (ordem enviada) sempre igual a `dl=` (direção prevista pelo DL), 
 | Penalty Smoothing | Convergência adaptativa em recovery (seção 7.2) |
 | Recovery financeiro persistente | Estado de risco atrelado a `pending_total` (seção 7.1) |
 | Martingale Geométrico sem teto | Recuperação exponencial `Kelly_base × 2^n` (seção 7.3) |
-| Stop win por sessão ativa | `target_win = session_start_balance × compounding_rate_daily` (padrão 1%) |
+| Stop win por sessão ativa | `target_win = session_start_balance × compounding_rate_daily` (padrão 1%); fast-path anti-deadlock |
 | Stop loss | Desativado — sem reset por relógio nem disjuntor de perda diária |
 
 ### 9.1 Juros compostos e controle operacional
@@ -332,7 +346,8 @@ A meta segue a planilha de gerenciamento de juros compostos (`compounding_rate_d
 | Boot do processo | Captura saldo Deriv (ou `session_start_balance` em settings) como `session_start_balance` |
 | Meta calculada | `target_win = session_start_balance × 0,01` (arredondada para baixo em centavos) |
 | Durante a sessão | `pnl_sessao = current_balance - session_start_balance` |
-| Meta atingida | `graceful_shutdown` — encerramento ordenado do motor |
+| Meta atingida | Fast-path: `clear_current_session_redis_keys` → `cancel_settlement_queue_fast` → `graceful_shutdown(fast_path=True)` |
+| Ciclo pós-liquidação incompleto | Retry com breath; após 2 falhas consecutivas → `emergency_save_session_state` + `sys.exit(0)` |
 | Restart manual | Nova sessão independente com novo saldo e nova meta de 1% |
 | Mesmo dia civil | Múltiplas sessões isoladas permitidas — sem virada UTC/meia-noite |
 

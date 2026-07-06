@@ -13,6 +13,8 @@ from src.application.services.orchestrator.orchestrator_state_restore import res
 from src.application.services.orchestrator.session_target_bootstrap import bootstrap_active_session_targets
 from src.infrastructure.api.deriv_rest_client import DerivRestError
 from src.infrastructure.factories.infra_factory import validate_infra_services
+from src.infrastructure.inference.meta_classifier_client import meta_classifier_enabled
+from src.infrastructure.inference.meta_classifier_pool import bootstrap_meta_classifier_client
 
 
 if TYPE_CHECKING:
@@ -44,6 +46,8 @@ async def setup_trading_session(orch: Orchestrator) -> bool:
     initial_boot = bool(getattr(orch, "_is_initial_boot", True))
     try:
         await validate_infra_services(orch.infra, orch.config)
+        if meta_classifier_enabled(orch.config):
+            await bootstrap_meta_classifier_client(orch.config)
         await bootstrap_and_validate_models(orch, is_initial_boot=initial_boot)
         await restore_orchestrator_state(orch)
         if orch.ws.ws:

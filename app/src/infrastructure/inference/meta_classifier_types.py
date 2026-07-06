@@ -15,7 +15,7 @@ class MetaPredictRequest(TypedDict):
 
 
 class MetaPredictResponse(TypedDict):
-    """Resposta tipada do meta-classificador com score calibrado."""
+    """Resposta tipada do meta-regressor com edge continuo de payoff."""
 
-    calibrated_payoff_score: float
+    predicted_payoff_edge: float
     meta_applied: bool

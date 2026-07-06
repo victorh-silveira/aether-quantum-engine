@@ -10,6 +10,7 @@ Stack local para o modo híbrido: motor no host, persistência em containers.
 | TimescaleDB | 5432 | Ticks e barras OHLC |
 | MinIO | 9000 / 9001 | Checkpoints Deep Learning |
 | Triton (`aether-triton`) | 8000 / 8001 | Inferência GPU TorchScript via gRPC |
+| Meta-regressor (`aether-meta-classifier`) | **8005** | LightGBM HTTP; vetor **39D**; `POST /v2/predict_meta` → `predicted_payoff_edge` |
 
 ## GPU e Triton
 
@@ -22,7 +23,26 @@ O serviço `aether-triton` usa `nvcr.io/nvidia/tritonserver` com repositório em
 3. **Sanity estressado**: `verify_triton_stressed_inference_async` envia tensores com RSI=0.99, CMO=1.0, vol_ratio=1.80; fail-fast se NaN/Inf ou prob fora de `[0, 1]`.
 4. **Produção**: `TritonGrpcClient` mantém canal `grpc.aio.insecure_channel` persistente, dispara inferências de `RDBEAR` e `RDBULL` em paralelo (`asyncio.gather`) e aplica **timeout de 2,0 s** por requisição. Em timeout, `dl_predict_triton` faz fallback para TorchScript local (log `TRITON_TIMEOUT_FALLBACK`).
 
+### Healthcheck Triton
+
+O healthcheck do container `aether-triton` usa `python3` + `urllib` contra `/v2/health/ready` (porta HTTP 8000), sem dependência de `curl` na imagem base.
+
+## Meta-regressor LightGBM
+
+O serviço `aether-meta-classifier` expõe FastAPI na porta host **8005** com `FEATURE_DIM=39`. Artefatos em `infra/docker/meta-models/` (bind mount).
+
+| Endpoint | Uso |
+|----------|-----|
+| `GET /health` | Healthcheck Docker via `urllib` nativo |
+| `POST /v2/predict_meta` | Regressão tabular; entrada: probabilidade TCN + vetor 39D; saída: `predicted_payoff_edge` |
+
+Treino offline: `train_meta_classifier.py`, `train_meta_optuna.py` e `train_meta_vector.py` (Optuna minimiza MAE; `LGBMRegressor` huber com `feature_name=columns`; alvo `Y = PnL_Real / Stake`; sumário com `train_mae` e `target_variance`).
+
 Variáveis no `.env`:
+
+| Variável | Uso |
+|----------|-----|
+| `AETHER_META_CLASSIFIER_URL` | Endpoint HTTP (padrão `http://localhost:8005`) |
 
 | Variável | Uso |
 |----------|-----|
@@ -53,7 +73,7 @@ Config em `settings.json`:
 - `recovery:skip_counter` (decaimento Hurst em recovery)
 - `market_sig` (assinatura OHLC)
 
-As chaves `session:current:*` são gravadas no bootstrap da sessão e removidas no `graceful_shutdown`. Cada restart do processo inicia uma sessão independente.
+As chaves `session:current:*` são gravadas no bootstrap da sessão e removidas no `graceful_shutdown` (ou no fast-path de stop win, **antes** do shutdown, via `clear_current_session_redis_keys`). Cada restart do processo inicia uma sessão independente.
 
 Gravado em `save_full_state` após cada settlement, sem bloquear a thread principal com múltiplos round-trips.
 
@@ -97,7 +117,8 @@ Bloco `infra` em `config/settings.json`:
   "redis": { "url": "redis://localhost:6379/0", "key_prefix": "aether" },
   "timescale": { "dsn": "postgresql://aether:aether@localhost:5432/aether" },
   "minio": { "endpoint": "localhost:9000", "bucket": "dl-models", "secure": false },
-  "triton": { "enabled": true, "grpc_url": "localhost:8001", "http_url": "localhost:8000" }
+  "triton": { "enabled": true, "grpc_url": "localhost:8001", "http_url": "localhost:8000" },
+  "meta_classifier": { "enabled": true, "url": "http://localhost:8005" }
 }
 ```
 
@@ -118,6 +139,7 @@ Antes do WebSocket Deriv, o motor executa:
 - MinIO `HeadBucket`
 - Sanity TorchScript local (probes + regime estressado)
 - Com Triton: schema HTTP + inferência estressada concorrente
+- Com meta-regressor: `GET /health` na porta 8005
 
 Se algum falhar e `fail_fast` estiver ativo, o processo encerra com mensagem indicando `docker compose up -d`.
 

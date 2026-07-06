@@ -29,6 +29,6 @@ timeout /t 3 /nobreak > nul
 
 start "AETHER DEMO" cmd /k ""%~dp0_run_engine.bat" "%CONDA_ACTIVATE%""
 
-echo [OK] Robotica e Monitor (DEMO) em execucao.
+echo [OK] Monitor e motor DEMO em execucao.
 timeout /t 3 /nobreak > nul
 exit /b 0

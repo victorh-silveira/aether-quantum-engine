@@ -1,6 +1,7 @@
 """Ciclo de vida, persistencia e sessao do Orquestrador."""
 
 import asyncio
+import sys
 from typing import Any
 
 from src.application.services.orchestrator.graceful_shutdown import close_infrastructure_connections
@@ -106,6 +107,39 @@ def get_data_state_signature(orch: Any) -> str:
     return f"m1:{micro_sig};m15:{macro_sig}"
 
 
+def emergency_save_session_state(orch: Any) -> None:
+    """Persiste bundle financeiro de risco em session_state.json em modo de emergencia."""
+    state_mgr = getattr(orch, "state_mgr", None)
+    if state_mgr is None or type(state_mgr).__name__ != "StateManager":
+        return
+    state_mgr.state.current_balance = float(orch.state.balance)
+    if state_mgr.state.initial_balance <= 0.0:
+        state_mgr.state.initial_balance = float(orch.risk_manager.initial_bankroll)
+    payload = {
+        "initial_balance": state_mgr.state.initial_balance,
+        "current_balance": state_mgr.state.current_balance,
+        "daily_stop_win_target": state_mgr.state.daily_stop_win_target,
+        "total_trades_today": state_mgr.state.total_trades_today,
+        "stop_win_triggered": state_mgr.state.stop_win_triggered,
+        "emergency_shutdown": True,
+        "total_session_profit": orch.risk_manager.total_session_profit,
+        "risk": orch.risk_manager.get_state(),
+    }
+    state_mgr.persistence.save(payload)
+
+
+def _enforce_post_settlement_deadlock_exit(orch: Any) -> None:
+    """Forca encerramento quando pos-liquidacao falha consecutivamente no limite."""
+    streak = int(getattr(orch, "_post_settlement_incomplete_streak", 0))
+    deadlock = bool(getattr(orch, "_post_settlement_deadlock", False))
+    if not deadlock and streak < 2:
+        return
+    emergency_save_session_state(orch)
+    orch.shutdown_reason = "post_settlement_deadlock"
+    orch.logger.error("CICLO: timeout pos-liquidacao forcado apos %d tentativas incompletas", streak)
+    raise TimeoutError("post-settlement cycle incomplete")
+
+
 async def run_orchestrator_main_loop(orch: Any) -> None:
     """Loop principal assincrono com reconexao, persistencia e ciclos M1."""
     if not await setup_session(orch):
@@ -122,6 +156,11 @@ async def run_orchestrator_main_loop(orch: Any) -> None:
     orch_cfg = orch.config.get("orchestrator") if isinstance(orch.config.get("orchestrator"), dict) else {}
     reconnect_delay = float(orch_cfg.get("ws_reconnect_delay_seconds", 8.0))
     while orch.running:
+        try:
+            _enforce_post_settlement_deadlock_exit(orch)
+        except TimeoutError:
+            orch.running = False
+            sys.exit(0)
         await orch._tick_idle_cycle_watchdog()
         await orch._tick_interval_cycle_if_due()
         current_signature = get_data_state_signature(orch)

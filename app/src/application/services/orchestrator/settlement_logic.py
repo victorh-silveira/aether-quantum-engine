@@ -1,9 +1,12 @@
 """Lógica de liquidação e pós-processamento de contratos para o Orquestrador."""
 
+from __future__ import annotations
+
 from typing import Any
 
 from src.application.services.deep_learning.dl_outcomes import record_symbol_outcome
 from src.application.services.deep_learning.dl_retrain import mark_force_retrain
+from src.application.services.orchestrator.graceful_shutdown import graceful_shutdown
 from src.application.services.orchestrator.metrics_utils import neutral_metrics
 from src.application.services.orchestrator.result_utils import api_settlement_label
 from src.application.services.orchestrator.settlement_detect import contract_payload_is_settled
@@ -41,19 +44,44 @@ def _process_contract_outcome(orch: Any, c: dict, contract: Any, c_id: int, prof
         log_cluster_summary(orch)
 
 
-def _update_state_manager_and_check_stop_win(orch: Any, target: float, pnl: float) -> bool:
-    """Atualiza o StateManager se disponível e retorna se o Stop Win foi ativado."""
+def _sync_state_manager_session(orch: Any, target: float, *, increment_trades: bool) -> bool:
+    """Sincroniza StateManager com saldo corrente e retorna se stop-win foi atingido."""
+    state_mgr = getattr(orch, "state_mgr", None)
+    if state_mgr is None or type(state_mgr).__name__ != "StateManager":
+        return False
+    state_mgr.state.current_balance = float(orch.state.balance)
+    if state_mgr.state.initial_balance <= 0.0:
+        state_mgr.state.initial_balance = float(orch.risk_manager.initial_bankroll)
+    if state_mgr.state.daily_stop_win_target <= 0.0:
+        state_mgr.state.daily_stop_win_target = float(target)
+    if increment_trades:
+        state_mgr.state.total_trades_today += 1
+    state_mgr.check_session_limits()
+    return bool(state_mgr.state.stop_win_triggered)
+
+
+def check_session_limits_before_post_settlement(orch: Any) -> bool:
+    """True quando o stop-win da sessao ja foi atingido antes do ciclo pos-liquidacao."""
+    pnl = orch.risk_manager.total_session_profit
+    target = resolve_stop_win_target(orch.config.get("risk_management", {}), orch.risk_manager.initial_bankroll)
+    if target > 0 and pnl >= target:
+        _sync_state_manager_session(orch, target, increment_trades=False)
+        return True
+    if _sync_state_manager_session(orch, target, increment_trades=False):
+        return True
     state_mgr = getattr(orch, "state_mgr", None)
     if state_mgr is not None and type(state_mgr).__name__ == "StateManager":
-        state_mgr.state.current_balance = float(orch.state.balance)
-        if state_mgr.state.initial_balance <= 0.0:
-            state_mgr.state.initial_balance = float(orch.risk_manager.initial_bankroll)
-        if state_mgr.state.daily_stop_win_target <= 0.0:
-            state_mgr.state.daily_stop_win_target = float(target)
-        state_mgr.state.total_trades_today += 1
-        state_mgr.check_session_limits()
-        state_mgr.save_state()
         return bool(state_mgr.state.stop_win_triggered)
+    return target > 0 and pnl >= target  # pragma: no cover
+
+
+def _update_state_manager_and_check_stop_win(orch: Any, target: float, pnl: float) -> bool:
+    """Atualiza o StateManager se disponível e retorna se o Stop Win foi ativado."""
+    triggered = _sync_state_manager_session(orch, target, increment_trades=True)
+    state_mgr = getattr(orch, "state_mgr", None)
+    if state_mgr is not None and type(state_mgr).__name__ == "StateManager":
+        state_mgr.save_state()
+        return triggered
     return target > 0 and pnl >= target  # pragma: no cover
 
 
@@ -132,12 +160,11 @@ async def process_contract_settlement(orch: Any, data: dict):
             target,
         )
         orch.shutdown_reason = "stop_win"
-        orch.running = False
-        post_task = getattr(orch, "_post_settlement_task", None)
-        if post_task is not None and not post_task.done():
-            post_task.cancel()
         await orch.state.set_trading(value=False)
-    elif not orch.state.active_contracts and orch.running:
+        await orch._save_full_state()
+        await graceful_shutdown(orch, fast_path=True)
+        return
+    if not orch.state.active_contracts and orch.running:
         orch.schedule_trading_cycle_after_settlement()
 
     await orch._save_full_state()

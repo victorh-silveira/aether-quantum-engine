@@ -1,0 +1,53 @@
+"""Testes do encerramento gracioso em fast-path."""
+
+import asyncio
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from src.application.services.orchestrator.graceful_shutdown import graceful_shutdown
+
+
+@pytest.mark.asyncio
+async def test_graceful_shutdown_fast_path_cancels_settlement_queue():
+    orch = MagicMock()
+    orch._infra_shutdown_done = False
+    orch.running = True
+    orch._post_settlement_task = None
+    orch.config = {"infra": {"triton": {"enabled": False}}}
+    orch.infra = None
+    orch.ws = AsyncMock()
+    with (
+        patch(
+            "src.application.services.orchestrator.graceful_shutdown.cancel_settlement_queue_fast",
+        ) as cancel_queue,
+        patch(
+            "src.application.services.orchestrator.graceful_shutdown.close_infrastructure_connections",
+            new_callable=AsyncMock,
+        ) as close_infra,
+    ):
+        await graceful_shutdown(orch, fast_path=True)
+    cancel_queue.assert_called_once_with(orch)
+    close_infra.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_graceful_shutdown_non_fast_path_awaits_post_settlement_task():
+    orch = MagicMock()
+    orch._infra_shutdown_done = False
+    orch.running = True
+    orch.config = {"infra": {"triton": {"enabled": False}}}
+    orch.infra = None
+    orch.ws = AsyncMock()
+
+    async def _slow():
+        await asyncio.sleep(10)
+
+    task = asyncio.create_task(_slow())
+    orch._post_settlement_task = task
+    with patch(
+        "src.application.services.orchestrator.graceful_shutdown.close_infrastructure_connections",
+        new_callable=AsyncMock,
+    ):
+        await graceful_shutdown(orch, fast_path=False)
+    assert task.cancelled() or task.done()

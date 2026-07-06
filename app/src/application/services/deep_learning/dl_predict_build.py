@@ -14,6 +14,7 @@ from src.application.services.deep_learning.dl_symbol_runtime import guard_symbo
 from src.application.services.deep_learning.dl_trend import calculate_trend_direction
 from src.application.services.deep_learning.model import predict_next_direction
 from src.application.services.execution_volatility_threshold import resolve_dynamic_threshold_bundle
+from src.application.services.meta_classifier_cross_symbol import attach_cross_symbol_features_to_decisions
 from src.application.services.meta_classifier_flow_features import flow_features_from_micro_series
 from src.domain.models.trade import TradeDirection
 
@@ -263,3 +264,19 @@ def build_prediction_entry(
         runtime=runtime,
     )
     return entry
+
+
+def prepare_meta_classifier_cross_symbol_bundle(
+    orch: Any,
+    decisions: dict[str, dict],
+    params: dict[str, Any],
+) -> None:
+    """Centraliza telemetria micro paralela e spreads cross-symbol antes do prefetch meta."""
+    for symbol, entry in decisions.items():
+        if not isinstance(entry, dict):
+            continue
+        metrics = entry.get("metrics")
+        if not isinstance(metrics, dict):
+            continue
+        stamp_micro_frame_telemetry(orch, str(symbol), metrics, params)
+    attach_cross_symbol_features_to_decisions(decisions)

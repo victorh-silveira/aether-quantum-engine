@@ -52,8 +52,8 @@ def compute_cross_symbol_triplet(
     bear_rsi = _indicator_value(bear_metrics, "rsi", micro=True)
     return {
         "cross_symbol_prob_delta": abs(bull_call - bear_put),
-        "cross_symbol_vol_ratio_diff": abs(bull_vol - bear_vol),
-        "cross_symbol_rsi_spread": abs(bull_rsi - bear_rsi),
+        "cross_symbol_vol_ratio_diff": bull_vol - bear_vol,
+        "cross_symbol_rsi_spread": bull_rsi - bear_rsi,
     }
 
 

@@ -1,53 +1,51 @@
-"""Aplicacao do stacking tabular sobre trade_score com inversao micro no resolver."""
+"""Aplicacao do stacking tabular com edge continuo do meta-regressor."""
 
 from __future__ import annotations
 
 from typing import Any
 
-from src.application.services.meta_classifier_cross_symbol import attach_cross_symbol_features_to_decisions
 from src.domain.models.trade import TradeDirection
 from src.infrastructure.inference.meta_classifier_client import (
     build_meta_predict_request,
     fallback_payoff_score,
-    get_meta_classifier_client,
     meta_classifier_enabled,
-    predict_meta_via_config_sync,
 )
+from src.infrastructure.inference.meta_classifier_pool import get_meta_classifier_client
 
 
-def apply_meta_payoff_to_metrics(
+def apply_meta_regression_edge_to_metrics(
     metrics: dict[str, Any],
     *,
     direction: TradeDirection,
     tcn_probability: float,
-    payoff_score: float,
+    predicted_edge: float,
     meta_applied: bool,
+    base_score: float,
 ) -> float:
-    """Atualiza trade_score e conviccao com score refinado do meta-classificador."""
-    _ = tcn_probability
-    score = max(0.0, min(1.0, float(payoff_score)))
-    metrics["meta_calibrated_payoff_score"] = score
+    """Anexa edge continuo e preserva trade_score organico da TCN no prefetch."""
+    _ = (direction, tcn_probability)
+    metrics["predicted_payoff_edge"] = float(predicted_edge)
     metrics["meta_classifier_applied"] = bool(meta_applied)
-    metrics["trade_score"] = score
-    metrics["conviction"] = score
+    score = float(base_score)
+    metrics["trade_score"] = max(0.0, min(1.0, score))
+    metrics["conviction"] = metrics["trade_score"]
     if direction == TradeDirection.CALL:
-        metrics["direction_call_score"] = score
-        metrics["direction_put_score"] = max(0.0, 1.0 - score)
+        metrics["direction_call_score"] = metrics["trade_score"]
+        metrics["direction_put_score"] = max(0.0, 1.0 - metrics["trade_score"])
     else:
-        metrics["direction_put_score"] = score
-        metrics["direction_call_score"] = max(0.0, 1.0 - score)
+        metrics["direction_put_score"] = metrics["trade_score"]
+        metrics["direction_call_score"] = max(0.0, 1.0 - metrics["trade_score"])
     metrics["direction_margin"] = abs(metrics["direction_call_score"] - metrics["direction_put_score"])
-    return score
+    return metrics["trade_score"]
 
 
 async def prefetch_meta_payoff_for_decisions(decisions: dict[str, dict], config: dict[str, Any]) -> None:
-    """Enriquece decisoes DL com stacking tabular em paralelo antes da coleta."""
+    """Enriquece decisoes DL com edge continuo do meta-regressor em paralelo."""
     if not meta_classifier_enabled(config):
         return
-    attach_cross_symbol_features_to_decisions(decisions)
     client = await get_meta_classifier_client(config)
     batch: list[tuple] = []
-    refs: list[tuple[dict, TradeDirection, float]] = []
+    refs: list[tuple[dict, TradeDirection, float, float]] = []
     for symbol, entry in decisions.items():
         if not isinstance(entry, dict):
             continue
@@ -61,56 +59,42 @@ async def prefetch_meta_payoff_for_decisions(decisions: dict[str, dict], config:
         if prob is None:
             continue
         tcn_prob = float(prob)
-        fallback = fallback_payoff_score(metrics, str(direction), tcn_prob)
+        base_score = fallback_payoff_score(metrics, direction.name, tcn_prob)
         request = build_meta_predict_request(
             symbol=str(symbol),
             metrics=metrics,
             tcn_probability=tcn_prob,
-            direction=str(direction),
+            direction=direction.name,
         )
-        batch.append((request, fallback))
-        refs.append((metrics, direction, tcn_prob))
+        batch.append((request, base_score))
+        refs.append((metrics, direction, tcn_prob, base_score))
     if not batch:
         return
     responses = await client.predict_meta_batch(batch)
-    for (metrics, direction, tcn_prob), response in zip(refs, responses, strict=True):
-        apply_meta_payoff_to_metrics(
+    for (metrics, direction, tcn_prob, base_score), response in zip(refs, responses, strict=True):
+        apply_meta_regression_edge_to_metrics(
             metrics,
             direction=direction,
             tcn_probability=tcn_prob,
-            payoff_score=response["calibrated_payoff_score"],
+            predicted_edge=response["predicted_payoff_edge"],
             meta_applied=response["meta_applied"],
+            base_score=base_score,
         )
 
 
-def resolve_meta_payoff_score(
+def resolve_meta_payoff_edge(
     *,
     symbol: str | None,
     metrics: dict[str, Any],
     direction: TradeDirection,
     tcn_probability: float,
-    base_score: float,
+    _base_score: float,
     config: dict[str, Any] | None,
 ) -> tuple[float, bool]:
-    """Resolve score meta-classificador com prefetch, chamada sync ou fallback TCN."""
-    prefetched = metrics.get("meta_calibrated_payoff_score")
+    """Resolve edge continuo apenas a partir do prefetch do ciclo M1."""
+    _ = (symbol, direction, tcn_probability, _base_score, config)
+    prefetched = metrics.get("predicted_payoff_edge")
     if prefetched is not None:
         applied = bool(metrics.get("meta_classifier_applied", True))
-        return max(0.0, min(1.0, float(prefetched))), applied
-    if not config or not meta_classifier_enabled(config):
-        return float(base_score), False
-    fallback = fallback_payoff_score(metrics, direction.name, tcn_probability)
-    request = build_meta_predict_request(
-        symbol=str(symbol or metrics.get("symbol") or ""),
-        metrics=metrics,
-        tcn_probability=tcn_probability,
-        direction=direction.name,
-    )
-    try:
-        response = predict_meta_via_config_sync(config, request, fallback_score=fallback)
-    except Exception:
-        return float(fallback), False
-    return (
-        max(0.0, min(1.0, float(response["calibrated_payoff_score"]))),
-        bool(response["meta_applied"]),
-    )
+        return float(prefetched), applied
+    return 0.0, False

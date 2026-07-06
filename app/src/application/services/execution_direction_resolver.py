@@ -1,12 +1,9 @@
-"""Motor de direcao com inversao micro orientada pelo meta-classificador LightGBM."""
+"""Motor de direcao com refinamento de payoff continuo pelo meta-regressor LightGBM."""
 
 from __future__ import annotations
 
-from src.application.services.meta_classifier_stacking import (
-    apply_meta_payoff_to_metrics,
-    resolve_meta_payoff_score,
-)
-from src.application.services.meta_direction_flip import apply_meta_direction_flip
+from src.application.services.meta_classifier_stacking import resolve_meta_payoff_edge
+from src.application.services.meta_payoff_regression import apply_meta_regression_edge
 from src.domain.models.trade import TradeDirection
 
 
@@ -67,7 +64,7 @@ def _seed_direction_metrics(
     dl_dir: TradeDirection,
     prob: float,
 ) -> float:
-    """Inicializa scores laterais TCN antes do refinamento meta-classificador."""
+    """Inicializa scores laterais TCN antes do refinamento meta-regressor."""
     call_score = prob
     put_score = 1.0 - prob
     score = call_score if dl_dir == TradeDirection.CALL else put_score
@@ -92,7 +89,7 @@ def resolve_execution_direction(
     corr_matrix: dict[tuple[str, str], float] | None = None,
     infra_cfg: dict | None = None,
 ) -> tuple[TradeDirection, dict] | None:
-    """Resolve direcao micro com autonomia do meta-classificador para inversao em exaustao."""
+    """Resolve direcao micro com edge continuo do meta-regressor e downgrade D-SQUEEZE."""
     _ = (exec_cfg, calibration_cfg, recovery_active, corr_matrix)
     if is_technically_blocked(entry):
         return None
@@ -105,33 +102,21 @@ def resolve_execution_direction(
         prob = 0.55 if dl_dir == TradeDirection.CALL else 0.45
     prob = _clamp01(prob)
     score = _seed_direction_metrics(metrics, dl_dir=dl_dir, prob=prob)
-    payoff_score, meta_applied = resolve_meta_payoff_score(
+    predicted_edge, meta_applied = resolve_meta_payoff_edge(
         symbol=symbol,
         metrics=metrics,
         direction=dl_dir,
         tcn_probability=prob,
-        base_score=score,
+        _base_score=score,
         config={"infra": infra_cfg} if infra_cfg else None,
     )
-    exec_dir, final_score = apply_meta_direction_flip(
+    exec_dir, final_score = apply_meta_regression_edge(
         dl_dir,
         metrics,
-        payoff_score,
+        predicted_edge,
         meta_applied=meta_applied,
-        tcn_probability=prob,
+        base_score=score,
+        symbol=symbol,
     )
-    if exec_dir == dl_dir:
-        if meta_applied or payoff_score != score:
-            apply_meta_payoff_to_metrics(
-                metrics,
-                direction=dl_dir,
-                tcn_probability=prob,
-                payoff_score=payoff_score,
-                meta_applied=meta_applied,
-            )
-        else:
-            metrics["trade_score"] = score
-            metrics["conviction"] = score
-    else:
-        _ = final_score
+    _ = final_score
     return exec_dir, metrics

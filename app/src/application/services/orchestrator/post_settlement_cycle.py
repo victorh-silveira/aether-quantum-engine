@@ -6,10 +6,16 @@ import asyncio
 import time
 from typing import Any
 
+from src.application.services.orchestrator.graceful_shutdown import graceful_shutdown
+from src.application.services.orchestrator.session_target_bootstrap import clear_current_session_redis_keys
+from src.application.services.orchestrator.settlement_logic import check_session_limits_before_post_settlement
 from src.application.services.orchestrator.settlement_utils import (
     clear_contract_metadata,
     prune_orphan_contract_ids,
 )
+
+
+_POST_SETTLEMENT_INCOMPLETE_LIMIT = 2
 
 
 def _release_post_settlement_task(orch: Any, task: asyncio.Task) -> None:
@@ -93,6 +99,28 @@ def schedule_trading_cycle_after_settlement(orch: Any) -> None:
     new_task.add_done_callback(lambda done: _release_post_settlement_task(orch, done))
 
 
+async def _try_stop_win_fast_path(orch: Any) -> bool:
+    """Curto-circuita pos-liquidacao quando stop-win ja foi atingido."""
+    if not check_session_limits_before_post_settlement(orch):
+        return False
+    await clear_current_session_redis_keys(orch)
+    orch.shutdown_reason = "stop_win"
+    await orch.state.set_trading(value=False)
+    await graceful_shutdown(orch, fast_path=True)
+    return True
+
+
+def _record_post_settlement_incomplete(orch: Any) -> None:
+    """Incrementa contador de ciclos incompletos e sinaliza deadlock no limite."""
+    streak = int(getattr(orch, "_post_settlement_incomplete_streak", 0)) + 1
+    orch._post_settlement_incomplete_streak = streak
+    orch.logger.warning(
+        "CICLO: ciclo pos-liquidacao incompleto; nova tentativa (%d/%d)", streak, _POST_SETTLEMENT_INCOMPLETE_LIMIT
+    )
+    if streak >= _POST_SETTLEMENT_INCOMPLETE_LIMIT:
+        orch._post_settlement_deadlock = True
+
+
 async def _attempt_post_settlement_trading_cycle(orch: Any, orch_cfg: dict) -> bool:
     """Executa um ciclo pos-liquidacao; True quando concluido."""
     orch._last_cluster_cycle_end = 0.0
@@ -118,6 +146,10 @@ async def _run_post_settlement_retry_loop(orch: Any, orch_cfg: dict, poll: float
     retry_limit = float(orch_cfg.get("post_settlement_cycle_retry_seconds", 120.0))
     retry_deadline = time.monotonic() + retry_limit
     while orch.running:
+        if await _try_stop_win_fast_path(orch):
+            return
+        if bool(getattr(orch, "_post_settlement_deadlock", False)):
+            return
         if orch.state.active_contracts:
             await _poll_delay(poll)
             continue
@@ -129,16 +161,21 @@ async def _run_post_settlement_retry_loop(orch: Any, orch_cfg: dict, poll: float
             await _poll_delay(poll)
             continue
         if await _attempt_post_settlement_trading_cycle(orch, orch_cfg):
+            orch._post_settlement_incomplete_streak = 0
             return
         if time.monotonic() >= retry_deadline:
             retry_deadline = time.monotonic() + retry_limit
-            orch.logger.warning("CICLO: ciclo pos-liquidacao incompleto; nova tentativa")
+            _record_post_settlement_incomplete(orch)
+            if bool(getattr(orch, "_post_settlement_deadlock", False)):
+                return
         await _poll_delay(poll)
 
 
 async def run_post_settlement_breath_and_cycle(orch: Any) -> None:
     """Aplica fôlego pós-liquidação antes de um novo ciclo."""
     try:
+        if await _try_stop_win_fast_path(orch):
+            return
         orch_cfg = orch.config.get("orchestrator") if isinstance(getattr(orch, "config", None), dict) else {}
         poll = 0.25
         breath = float(orch_cfg.get("post_settlement_breath_seconds", 8.0))

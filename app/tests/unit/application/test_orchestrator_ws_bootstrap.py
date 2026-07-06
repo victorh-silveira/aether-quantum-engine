@@ -73,6 +73,35 @@ async def test_setup_trading_session_preserves_session_on_reconnect(orch_config)
 
 
 @pytest.mark.asyncio
+async def test_setup_trading_session_bootstraps_meta_classifier_when_enabled(orch_config):
+    orch = Orchestrator(orch_config)
+    orch.config = {
+        **orch.config,
+        "infra": {
+            **(orch.config.get("infra") or {}),
+            "meta_classifier": {"enabled": True, "http_url": "http://localhost:8005"},
+        },
+    }
+    session = DerivTradingSession(
+        ws_url="wss://api.derivws.com/trading/v1/options/ws/demo?otp=x",
+        balance=100.0,
+        account_id="DOT1",
+    )
+    with (
+        patch.object(orch.auth, "open_trading_session", AsyncMock(return_value=session)),
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap.bootstrap_meta_classifier_client",
+            new_callable=AsyncMock,
+        ) as bootstrap_meta,
+    ):
+        orch.ws.connect = AsyncMock()
+        orch.ws.send = AsyncMock()
+        orch.ws.subscribe = MagicMock()
+        assert await setup_trading_session(orch) is True
+    bootstrap_meta.assert_awaited_once_with(orch.config)
+
+
+@pytest.mark.asyncio
 async def test_setup_trading_session_success(orch_config):
     orch = Orchestrator(orch_config)
     session = DerivTradingSession(

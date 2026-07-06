@@ -43,29 +43,30 @@ O Aether utiliza **TCN** (padrão), **LSTM** ou **GRU** com conexões dilatadas 
 - **Inferência**: Triton gRPC concorrente (`TritonGrpcClient`) quando `infra.triton.enabled`; fallback local via TorchScript em cache.
 - **Detecção de regime**: EMAs, inclinação, ADX e votos de trend (`dl_trend.py`) alimentam o scoring direcional.
 
-### 2.2 Reversão à Média (Mean Reversion)
+### 2.2 Exaustão micro e meta-regressor
 
-Desvios extremos tendem a retornar à média em ativos com volatilidade fixa.
+Desvios extremos em M1 (RSI, Keltner, Bollinger) alimentam o vetor tabular **39D** do `aether-meta-classifier` (`LGBMRegressor` huber).
 
-- **Features de volatilidade**: `vol_ratio`, Hurst, variance ratio.
-- **Exaustão no resolver**: RSI e Keltner extremos aplicam `exhaustion_flip` e `mean_reversion` no score CALL/PUT.
-- **Flip dedicado** (`execution_direction_mean_reversion`): em exaustão com contração de vol (`vol_ratio < 0.80`), inverte a direção prevista pelo DL contra o consenso de exaustão.
-- **Veto de expansão** (`execution_direction_expansion_veto`): com `vol_ratio > 1.15`, bloqueia inversão da ordem em relação ao DL e suaviza penalidade Kelly.
+- **Regressão de payoff**: TCN fornece direção macro (`dl_direction`); meta-regressor estima `predicted_payoff_edge` com features cross-symbol (`prob_delta`, `vol_ratio_diff`, `rsi_spread`) e fluxo micro (`micro_tick_acceleration`, `keltner_deviation_ratio`).
+- **Downgrade D-SQUEEZE** (`meta_payoff_regression`): quando `predicted_payoff_edge < -0.15` em squeeze M1 (`bb_width < 0.06` ou `micro_tick_acceleration < 0`), rebaixa `trade_score=0.52` e emite log `[D-SQUEEZE]` — sem inverter direção.
+- **Treino offline**: alvo contínuo `Y = PnL_Real / Stake`; Optuna minimiza MAE; telemetria `train_mae` e `target_variance` (substitui balanceamento binário).
+- **Telemetria consultiva**: `execution_direction_cross_corr` e `execution_volatility_booster` permanecem como insumo analítico, sem veto autônomo.
 
-### 2.3 Gestão de Risco com Kelly Fracionário e Martingale Controlado
+### 2.3 Gestão de Risco com Kelly Fracionário e Martingale Geométrico
 
 - **Fração de Kelly**: stake proporcional a `trade_score` calibrado e win rate live.
-- **Consensus Entropy Penalty**: quando a ordem final diverge da maioria dos votos técnicos (`call_votes`/`put_votes`), aplica penalidade convexa em `f*` ponderando `di_diff`, `cmo` e afastamento do RSI; em baixo consenso, stake reduzida ao piso mínimo da API.
-- **Stop win por sessão ativa**: meta de lucro = 1% da banca inicial (`compounding_rate_daily`); encerramento gracioso ao atingir; cada restart do processo inicia sessão independente.
+- **Consensus Entropy Penalty**: quando a ordem final diverge da maioria dos votos técnicos (`call_votes`/`put_votes`), aplica penalidade convexa em `f*`; bypass absoluto quando `pending_total > 0`.
+- **Martingale Geométrico**: em recovery, `Effective_Base × 2^consecutive_losses_linear` sem teto de nível.
+- **Stop win por sessão ativa**: meta de lucro = 1% da banca inicial (`compounding_rate_daily`); ao atingir, fast-path (`clear_current_session_redis_keys` → `cancel_settlement_queue_fast` → `graceful_shutdown(fast_path=True)`); cada restart inicia sessão independente.
 - **Stop loss interno desativado**: Martingale opera sem disjuntor de perda imposto pelo motor.
-- **Gate de qualidade**: em modo seletivo, múltiplas camadas filtram execuções fracas; em modo contínuo, qualidade atua como penalidade de score/edge sem SKIP obrigatório.
+- **Gate de qualidade neutro**: sinal válido participa sempre do pool; sem SKIP por regime ou exaustão.
 
 ### 2.4 Fases de Treinamento e Operação
 
 - **FASE TREINO**: todos os símbolos retreinam ao menos uma vez por sessão (`session_trained`). Nenhuma ordem até concluir.
 - **FASE OPERACAO seletiva** (`mandatory_trade_each_cycle: false`): opera quando o melhor candidato passa no gate (score ≥ 0.68 normal). Ciclos sem candidato elegível são pulados.
 - **FASE OPERACAO contínua** (`mandatory_trade_each_cycle: true`): uma ordem por ciclo; qualidade como penalidade; fallback de entropia garante participação mínima.
-- **Resolução direcional**: `execution_direction_resolver` combina probabilidade calibrada, trend, exaustão e regime; thresholds dinâmicos por `bb_width`/`atr_norm` ajustam convicção por índice (RDBEAR a RDBULL).
+- **Resolução direcional**: TCN define `dl_direction`; meta-regressor refina stake via `predicted_payoff_edge` e downgrade D-SQUEEZE em compressão M1.
 - **Deploy gate**: modelos com `deploy_ok=false` não entram no pool.
 
 ### 2.5 Perfil de qualidade atual
@@ -73,16 +74,13 @@ Desvios extremos tendem a retornar à média em ativos com volatilidade fixa.
 | Camada | Comportamento |
 |--------|---------------|
 | Bloqueio técnico | `data`, `predict_error`, `training`, `deploy_ok=false` |
-| Calibração DL | Holdout ajusta Platt/isotonic; `calibrated_prob` alimenta scoring |
-| Regime de vol | Compressão/estouro exige edge maior; regime direcional limpo relaxa pisos |
-| Mean-reversion flip | Exaustão + `vol_ratio < 0.80` inverte direção DL |
-| Expansão veto | `vol_ratio > 1.15` impede inversão ordem vs DL |
-| Scoring direcional | Sempre CALL ou PUT quando tecnicamente válido |
-| Gate de qualidade | Score ≥ 0.68, edge calibrado ≥ max(0.04, dynamic_min_edge), margem ≥ 0.05 (modo seletivo) |
-| Inversão DL→exec | Exige score ≥ 0.74 (modo seletivo) |
-| Modo normal | ADX ≥ 0.18 |
-| Recovery | Pisos escalonados (0.64+) e D'Alembert linear com convicção ≥ 0.64 |
-| Kelly divergente | Consensus Entropy Penalty atenua stake quando ordem ≠ maioria dos votos |
+| Classificação macro | TCN M15 define `dl_direction` |
+| Stacking tabular | Meta-regressor LightGBM M1 sobre vetor **39D** + probabilidade TCN; saída `predicted_payoff_edge` |
+| Downgrade squeeze | Edge `< -0.15` em compressão M1: `trade_score=0.52`; `[D-SQUEEZE]` |
+| Gate de qualidade | Neutro: participa sempre do pool, sem skip por regime |
+| Scoring direcional | TCN + meta GBDT; `exec_direction` alinhada à TCN |
+| Recovery | Martingale Geométrico `Kelly_base × 2^n`; persistência até `pending_total = 0` |
+| Kelly divergente | Consensus Entropy Penalty; waiver em recovery com `pending_total > 0` |
 
 ---
 
@@ -90,5 +88,5 @@ Desvios extremos tendem a retornar à média em ativos com volatilidade fixa.
 
 - [arquitetura.md](arquitetura.md) — pipeline técnico
 - [medallion.md](medallion.md) — princípios quant
-- [infra-docker.md](infra-docker.md) — Triton, Redis, sanity estressado
+- [infra-docker.md](infra-docker.md) — Triton, meta-regressor 8005, Redis, sanity estressado
 - [README.md](../README.md) — execução

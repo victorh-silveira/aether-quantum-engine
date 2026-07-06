@@ -7,7 +7,7 @@
 [![Pre-commit](https://img.shields.io/badge/Pre--commit-active-FAB040?logo=pre-commit&logoColor=white)](.pre-commit-config.yaml)
 [![CI](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml)
 
-Motor quantitativo assíncrono para a Deriv: decisão por **Deep Learning** (TCN/LSTM/GRU) nos índices **Drift** (`RDBEAR`, `RDBULL`), contratos **RISE_FALL** de **60 s (M1)** com contexto macro **M15 (900 s)**, meta-classificador LightGBM para inversão micro em exaustão, e recuperação **Martingale Geométrico** (`Effective_Base × 2^n`) quando há passivo pendente.
+Motor quantitativo assíncrono para a Deriv: decisão por **Deep Learning** (TCN/LSTM/GRU) nos índices **Drift** (`RDBEAR`, `RDBULL`), contratos **RISE_FALL** de **60 s (M1)** com contexto macro **M15 (900 s)**, meta-regressor LightGBM de expectativa de retorno contínuo, e recuperação **Martingale Geométrico** (`Effective_Base × 2^n`) quando há passivo pendente.
 
 A operação divide-se em duas fases: **FASE TREINO** (nenhuma ordem até todos os modelos concluírem o treino da sessão) e **FASE OPERACAO** (seletiva por padrão ou **modo contínuo** com `mandatory_trade_each_cycle: true` — uma ordem por ciclo, sem SKIP de qualidade).
 
@@ -23,13 +23,13 @@ Layout: `app/` (código e testes), `config/settings.json`, `docs/`, `linters/`. 
 |-------|------------|-----------|
 | Dados | `StreamHandler` + `TickBuffer` + `AetherWatchdog` | WebSocket Deriv dual-timeframe: OHLC macro M15 (900 s) para DL/regimes + OHLC micro M1 (60 s) para gatilho do ciclo; ticks agregados por barra fechada; watchdog reconecta stream em inanição (>30 s) |
 | Fases | `_training_phase_gate` | Suspende a operação até todos os modelos concluírem o treino da sessão |
-| Predição DL | `decision_bridge` + TCN/LSTM/GRU | **34 features** TCN (tensor `[1, 48, 34]`); inferência Triton gRPC com timeout 2 s e fallback TorchScript |
-| Meta GBDT | `meta_classifier_client` + `aether-meta-classifier` | Stacking tabular **39D** (M1); inverte direção quando `calibrated_payoff_score < 0.42` |
-| Direção | `execution_direction_resolver` + `meta_direction_flip` | TCN define macro; meta-classificador inverte `exec_direction` em saturação micro |
+| Predição DL | `decision_bridge` + `dl_predict_build` + TCN/LSTM/GRU | **34 features** TCN; bundle cross-symbol 39D antes do prefetch meta; inferência Triton gRPC com timeout 2 s e fallback TorchScript |
+| Meta GBDT | `meta_classifier_client` + `aether-meta-classifier` | Regressão tabular **39D** (`LGBMRegressor` huber); retorna `predicted_payoff_edge` contínuo |
+| Direção | `execution_direction_resolver` + `meta_payoff_regression` | TCN define macro; edge `> 0` preserva score orgânico; edge `< -0.15` em squeeze rebaixa para **0.52** (`[D-SQUEEZE]`) |
 | Qualidade | `execution_quality_gate` | Neutro: valida sinal sem skip de ciclo |
 | Execução | `ExecutionManager` + `execution_collect` | Ranking por `market_decision_score`; mandatory pick quando configurado |
 | Risco | `RiskManager` + `dlambert_sizing` + `consensus_stake_penalty` | Kelly + Martingale `U × 2^n` em recovery; bypass de consenso com `pending_total > 0` |
-| Resiliência | `graceful_shutdown` + `watchdog_service` | Shutdown ordenado; reconexão de stream sem derrubar o motor |
+| Resiliência | `graceful_shutdown` + `watchdog_service` + `post_settlement_cycle` | Fast-path stop win; cancelamento de fila Redis/settlement; teto 2× incompleto → `sys.exit(0)` |
 | Estado | `redis_state_pipeline` + `StateStore` | Snapshot atômico MULTI/EXEC (risco, `session:current`, `session:current:start_balance`, `session:current:target_win`, `recovery:skip_counter`, assinaturas) |
 | Inferência | `TritonGrpcClient` | Canal `grpc.aio.insecure_channel` persistente; timeout 2 s; predições paralelas via `asyncio.gather`; fallback local em timeout |
 | Mercado TS | `TimescaleMarketWriter` | Ticks e barras OHLC macro M15 (900 s) e micro M1 (60 s) para backtest |
@@ -53,11 +53,11 @@ Arquivo: [`config/settings.json`](config/settings.json)
 | `risk_management.kelly` | Kelly, martingale, `consensus_penalty_*`, `penalty_smoothing_*`, `martingale_hard_cap_bankroll_pct` |
 | `risk_management.params` | `duration: 60`, stakes, `compounding_enabled`, `compounding_rate_daily`, `session_start_balance` (opcional) |
 | `trading` | `demo` / `live` |
-| `infra` | Redis, TimescaleDB, MinIO, Triton (`enabled`, `fail_fast`, `grpc_url`) |
+| `infra` | Redis, TimescaleDB, MinIO, Triton (`enabled`, `fail_fast`, `grpc_url`), meta-regressor (`enabled`, `url`) |
 
 ## Ambiente híbrido Docker
 
-O motor (`run.py` / `train.py`) roda no host Conda/WSL. Redis, TimescaleDB, MinIO e **Triton** sobem via Docker em `localhost`:
+O motor (`run.py` / `train.py`) roda no host Conda/WSL. Redis, TimescaleDB, MinIO, **Triton** e **meta-regressor** sobem via Docker em `localhost`:
 
 ```bash
 make docker-up
@@ -80,6 +80,7 @@ Variáveis na raiz (`.env` único — Deriv + infra Docker):
 | `AETHER_PG_USER`, `AETHER_PG_PASSWORD`, `AETHER_PG_DB` | TimescaleDB |
 | `AETHER_MINIO_ACCESS_KEY`, `AETHER_MINIO_SECRET_KEY` | MinIO |
 | `AETHER_TRITON_GRPC`, `AETHER_TRITON_HTTP` | Triton Inference Server |
+| `AETHER_META_CLASSIFIER_URL` | Meta-classificador LightGBM (padrão `http://localhost:8005`) |
 
 Copie `cp .env.example .env` e preencha o PAT. Validação Deriv: `python app/scripts/operations/deriv_pat_connect.py`.
 
@@ -92,7 +93,7 @@ Copie `cp .env.example .env` e preencha o PAT. Validação Deriv: `python app/sc
 - **Penalty smoothing em recovery**: com drawdown pendente ou `consecutive_losses > 0` e `trade_score > 0.70`, a penalidade convexa é suavizada em 40% (`penalty_smoothing_factor`), permitindo stakes maiores para recuperação sem violar o CAP.
 - **Recovery financeiro persistente**: WIN operacional **não** zera `consecutive_losses` enquanto `pending_loss > 0`; o motor permanece em modo Martingale até o drawdown pendente ser extinto por retornos reais.
 - **CAP martingale 4%**: `martingale_hard_cap_bankroll_pct: 0.04` limita stake máxima sobre a banca.
-- **Stop win por sessão ativa**: no boot, captura o saldo vivo (Deriv) ou override `session_start_balance`; meta = `banca_inicial × compounding_rate_daily` (padrão **1%**). Quando `pnl_sessao >= meta`, dispara encerramento gracioso. Cada restart do processo inicia uma sessão independente — o operador controla quantas sessões rodar por dia.
+- **Stop win por sessão ativa**: no boot, captura o saldo vivo (Deriv) ou override `session_start_balance`; meta = `banca_inicial × compounding_rate_daily` (padrão **1%**). Quando `pnl_sessao >= meta`, dispara **fast-path** (`clear_current_session_redis_keys` → cancelamento da fila de settlement → `graceful_shutdown(fast_path=True)`).
 - **Stop loss desativado**: não há disjuntor de perda diária; o Martingale opera sem teto de drawdown imposto pelo motor.
 - **Martingale de recovery** quando há perda pendente: stake cobre perda integral + alvo derivado do payout, com fatiamento progressivo em sequências longas.
 - Cooldown por símbolo após sequência de losses (`symbol_loss_cooldown_candles`).
@@ -104,8 +105,7 @@ Copie `cp .env.example .env` e preencha o PAT. Validação Deriv: `python app/sc
 - **FASE TREINO**: ao iniciar a sessão, todo símbolo retreina pelo menos uma vez. Enquanto qualquer modelo não concluir, nenhuma ordem é enviada.
 - **FASE OPERACAO seletiva** (`mandatory_trade_each_cycle: false`): opera quando o melhor candidato passa no gate de qualidade (score ≥ 0.68 normal, pisos recovery mais altos).
 - **FASE OPERACAO contínua** (`mandatory_trade_each_cycle: true`): uma ordem por ciclo; qualidade vira **penalidade** de score; fallback por entropia e mandatory pick garantem participação.
-- **Mean Reversion Flip**: em exaustão extrema com `vol_ratio < 0.80`, o resolver inverte a direção do DL (contra-tendência defensiva).
-- **Veto de expansão**: com `vol_ratio > 1.15`, inversões são vetadas e o momentum do DL prevalece com suavização Kelly (`expansion_momentum_kelly_scale`).
+- **Gatilho D-SQUEEZE (`[D-SQUEEZE]`)**: quando `predicted_payoff_edge < -0.15` em compressão M1 (`bb_width < 0.06` ou `micro_tick_acceleration < 0`), o resolver rebaixa `trade_score` para **0.52**, comprimindo stake via consensus penalty até o piso de $1.00 da Deriv — sem inverter a direção da TCN.
 - **Trava Hurst em recovery N2+**: com `consecutive_losses >= 2`, piso de score elevado logaritmicamente; `recovery_skip_counter` no Redis decai o limiar Hurst.
 - **Bloqueio absoluto** somente para falhas técnicas: `data`, `predict_error`, `training`, `deploy_ok=false`.
 - **Recovery**: ranking de mercado com diversificação de símbolo; martingale com convicção mínima 0.64 e `val_accuracy` ≥ 0.62; reset de risco somente quando `pending_loss` zera.
@@ -125,6 +125,8 @@ Logs em `logs/engine.log` (formato `AetherFormatter`):
 - `MARTINGALE`, `RISK: RECOVERY`, `RISK: WIN operacional`, `KELLY: consensus retention` — sizing, recovery financeiro e penalidade de consenso
 - `SESSAO INICIADA | Alvo de 1%: $XX.XX | Stop Loss: DESATIVADO` — bootstrap de meta por sessão ativa
 - `TRITON_TIMEOUT_FALLBACK`, `WATCHDOG: STALE_DATA` — resiliência de inferência e ingestão
+- `[D-SQUEEZE]` — downgrade de score em compressão M1 (`bb_width`, `tick_accel`, `predicted_payoff_edge`, `score`)
+- `CICLO: ciclo pos-liquidacao incompleto` — retry pós-liquidação; após 2 falhas consecutivas, persistência de emergência e encerramento atômico
 - Liquidação e resumo de cluster após settlement
 
 Mensagens repetidas são deduplicadas (`log_dedupe`). Cada ciclo e bloco de treino são separados por linha em branco.
@@ -137,7 +139,7 @@ Monitor opcional: `python app/scripts/monitor/live_monitor.py`
 
 - **Python 3.13.12**, `asyncio`, NumPy, Polars, PyTorch (TCN / LSTM / GRU)
 - **Deriv** PAT + REST OTP + WebSocket (`api_config` em settings; ver `docs/deriv-api.md`)
-- **Infra**: Redis, TimescaleDB, MinIO, NVIDIA Triton (gRPC assíncrono)
+- **Infra**: Redis, TimescaleDB, MinIO, NVIDIA Triton (gRPC), meta-regressor LightGBM (HTTP 8005)
 - **CI / pre-commit**: Ruff, Interrogate, Vulture, limite 300 linhas/arquivo, pytest com **100%** de cobertura em `app/src`
 
 Requisito local: ambiente Conda **`deriv-api`** (Python 3.13.12). Configuração em [`config/python.json`](config/python.json).

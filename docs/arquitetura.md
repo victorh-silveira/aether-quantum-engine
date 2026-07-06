@@ -63,7 +63,8 @@ flowchart LR
   WS --> SH
   SH --> TB
   WD -->|STALE_DATA reconnect| SH
-  SH --> FEAT --> TRITON --> MODEL --> PRED --> META --> RES --> QG --> COL --> SEL --> EM --> TH
+  SH --> FEAT --> TRITON --> MODEL --> PRED --> BUNDLE[dl_predict_build cross-symbol]
+  BUNDLE --> META --> RES --> QG --> COL --> SEL --> EM --> TH
   TH --> ST --> RM
   ST --> PM
   ST --> TS
@@ -88,15 +89,26 @@ Com `infra.enabled: true`, o motor valida Redis, TimescaleDB e MinIO em `localho
 - **Timeout rigido de 2,0 s** por requisição (`asyncio.wait_for`); se o Triton exceder o limite, dispara `TritonInferenceTimeout` e fallback imediato para TorchScript em cache local (`dl_predict_triton.py`, log `TRITON_TIMEOUT_FALLBACK`), preservando a janela de 60 s do orquestrador.
 - Facade em `triton_inference_client.py` para o restante do motor.
 
-**Meta-classificador tabular** (`aether-meta-classifier`, porta host `8005`):
+**Meta-regressor tabular** (`aether-meta-classifier`, porta host `8005`):
 
 - Container Python 3.13-slim com FastAPI expõe `POST /v2/predict_meta`.
-- Artefatos LightGBM/XGBoost (`.pkl`) montados em `infra/docker/meta-models` → `/models`.
-- `MetaClassifierClient` (`meta_classifier_client.py`) consulta o serviço com `httpx.AsyncClient`, timeout **1,0 s** e fallback transparente ao `trade_score` bruto da TCN em falha ou timeout.
+- Artefatos LightGBM (`.pkl`) montados em `infra/docker/meta-models` → `/models`.
+- `MetaClassifierClient` (`meta_classifier_client.py`) consulta o serviço com `httpx.AsyncClient`, timeout **1,0 s** e fallback neutro (`predicted_payoff_edge=0.0`) em falha ou timeout — preserva `trade_score` orgânico da TCN.
 - Vetor tabular **39D** enviado ao GBDT: **34** features TCN + **3** cross-symbol (`cross_symbol_prob_delta`, `cross_symbol_vol_ratio_diff`, `cross_symbol_rsi_spread`) + **2** de fluxo micro (`micro_tick_acceleration`, `keltner_deviation_ratio`).
-- `collect_deep_learning_decisions` executa prefetch paralelo (`prefetch_meta_payoff_for_decisions`) antes da coleta; `execution_direction_resolver` pode **inverter** `exec_direction` quando `calibrated_payoff_score < 0.42` (exaustão micro), marcando `meta_direction_flip=true`.
+- `prepare_meta_classifier_cross_symbol_bundle` (`dl_predict_build.py`) centraliza telemetria micro M1 paralela (`stamp_micro_frame_telemetry`) e anexa spreads cross-symbol (`attach_cross_symbol_features_to_decisions`) **antes** do prefetch HTTP.
+- `collect_deep_learning_decisions` chama o bundle e em seguida `prefetch_meta_payoff_for_decisions`; `execution_direction_resolver` aplica `meta_payoff_regression.apply_meta_regression_edge` sobre o `predicted_payoff_edge` retornado pelo regressor.
 - Healthcheck nativo Python (`urllib.request`) — sem dependência de `curl` na imagem slim.
-- Treino offline: `app/scripts/operations/train_meta_classifier.py` (Optuna + histórico OHLC TimescaleDB/Deriv; labels de reversão micro 60 s).
+- Treino offline: `train_meta_classifier.py` + `train_meta_optuna.py` + `train_meta_vector.py` (Optuna minimiza MAE; `LGBMRegressor` huber; alvo contínuo `Y = PnL_Real / Stake`; sumário com `train_mae` e `target_variance`).
+
+**Spread de convicção cross-symbol** (`meta_classifier_cross_symbol.py`):
+
+| Feature | Fórmula |
+|---------|---------|
+| `cross_symbol_prob_delta` | `abs(P(CALL)_RDBULL − P(PUT)_RDBEAR)` |
+| `cross_symbol_vol_ratio_diff` | `vol_ratio_micro_BULL − vol_ratio_micro_BEAR` (spread linear M1) |
+| `cross_symbol_rsi_spread` | `rsi_micro_BULL − rsi_micro_BEAR` (divergência estocástica 60 s) |
+
+Em regimes de drift paralelo (ambos símbolos com scores altos na mesma direção), o spread baixo sinaliza saturação espelhada — insumo do LightGBM para evitar entradas sem viés relativo.
 
 **Resiliência de ingestão** (`watchdog_service.py` + `stream_reconnect.py`):
 
@@ -190,19 +202,29 @@ Normalização anti-leakage: `fit_norm_stats` somente no split de treino walk-fo
 
 ## 4. Direção e qualidade
 
-### 4.1 Motor de direção com inversão micro orientada a dados (`execution_direction_resolver.py`)
+### 4.1 Motor de direção com edge contínuo do meta-regressor (`execution_direction_resolver.py`)
 
-A direção macro (`dl_direction`) segue a TCN (M15). O **meta-classificador** (M1) tem autonomia sobre o gatilho de execução micro de 60 s:
+A direção macro (`dl_direction`) segue a TCN (M15). O **meta-regressor** (M1) refina o gatilho de execução micro de 60 s via expectativa de retorno contínua:
 
 | Etapa | Comportamento |
 |-------|---------------|
 | `infer_dl_direction` | Direção pré-computada pelo bridge ou `P(CALL) > pivot` → CALL, caso contrário PUT |
 | Probabilidade | `calibrated_prob` (fallback `raw_prob`); pivot = média dos thresholds dinâmicos ou `0.5` |
-| Stacking GBDT | `MetaClassifierClient` retorna `calibrated_payoff_score` (prefetch ou sync) |
-| **Inversão micro** | Se `calibrated_payoff_score < 0.42`: TCN CALL → `exec_direction=PUT`; TCN PUT → `exec_direction=CALL`; `trade_score=0.75`; `meta_direction_flip=true` |
-| Sem inversão | `trade_score`/`conviction` recalibrados pelo payoff; `exec_direction` = `dl_direction` |
+| Regressão GBDT | `MetaClassifierClient` retorna `predicted_payoff_edge` (prefetch ou sync) |
+| **Edge positivo** | `predicted_payoff_edge > 0.0`: mantém `dl_direction` e `trade_score` orgânico da TCN |
+| **Edge negativo severo + squeeze** | `predicted_payoff_edge < -0.15` com `bb_width < 0.06` ou `micro_tick_acceleration < 0`: `trade_score=0.52`; `meta_squeeze_downgrade=true`; log `[D-SQUEEZE]` |
+| Edge negativo leve | Mantém direção TCN e score orgânico |
 | `direction_margin` | `\|P(CALL) − P(PUT)\|` — telemetria de clareza |
-| `direction_inverted` | `True` somente quando `meta_direction_flip=true` |
+| `direction_inverted` | Permanece `False` no fluxo de regressão (sem flip binário) |
+
+**Gatilho D-SQUEEZE** (`meta_payoff_regression.py` + `meta_direction_flip.log_d_squeeze_audit`):
+
+| Condição de squeeze | Detecção |
+|---------------------|----------|
+| Canal Bollinger esmagado | `bb_width < 0.06` (M1, via `micro_indicators` / `indicators`) |
+| Desaceleração institucional | `micro_tick_acceleration < 0` (via `flow_features`) |
+
+Em squeeze com edge severamente negativo, o `trade_score=0.52` força o `consensus_stake_penalty` a comprimir a stake ao piso mínimo da API Deriv ($1.00), sem inverter `exec_direction`.
 
 Bloqueio absoluto (`resolve_execution_direction` retorna `None`) apenas em falha técnica: `deploy_ok == False` ou `gate_reason ∈ {data, predict_error, training}`.
 
@@ -245,6 +267,35 @@ Consequência: sob `mandatory_trade_each_cycle: true`, o `ExecutionManager` bole
 
 ---
 
+### 5.3 Pós-liquidação e encerramento atômico
+
+`post_settlement_cycle.py` agenda reentrada após liquidação com fôlego configurável (`post_settlement_breath_seconds`). O fluxo prioriza **stop win** antes de qualquer round-trip Redis ou ciclo de trading:
+
+```mermaid
+flowchart TD
+  A[run_post_settlement_breath_and_cycle] --> B{pnl_sessao >= target_win?}
+  B -->|Sim| C[clear_current_session_redis_keys]
+  C --> D[cancel_settlement_queue_fast]
+  D --> E[graceful_shutdown fast_path]
+  B -->|Nao| F[retry loop pos-liquidacao]
+  F --> G{ciclo incompleto 2x?}
+  G -->|Sim| H[emergency_save_session_state]
+  H --> I[sys.exit 0]
+```
+
+| Etapa | Módulo | Comportamento |
+|-------|--------|---------------|
+| Curto-circuito stop win | `check_session_limits_before_post_settlement` | Checa `pnl_sessao >= target_win` antes de breath/retry |
+| Abort Redis | `clear_current_session_redis_keys` | Remove chaves `session:current:*` sem aguardar MULTI/EXEC pendente |
+| Cancelamento de fila | `settlement_queue_ops.cancel_settlement_queue_fast` | Cancela worker e drena fila sem `task_done` handshake |
+| Shutdown rápido | `graceful_shutdown(fast_path=True)` | Encerra infra sem aguardar tasks fantasmas pós-reconexão |
+| Teto de retry | `_post_settlement_incomplete_streak` | Após 2 ciclos incompletos consecutivos, sinaliza deadlock |
+| Saída forçada | `orchestrator_run_loop._enforce_post_settlement_deadlock_exit` | Persiste bundle de emergência em `session_state.json` e `sys.exit(0)` |
+
+Settlement assíncrono via `orchestrator_settlement_queue.py`: worker consome fila sem bloquear o loop principal; no fast-path a fila é cancelada e drenada imediatamente.
+
+---
+
 ## 6. Gerenciamento de risco
 
 | Mecanismo | Módulo / config |
@@ -256,7 +307,7 @@ Consequência: sob `mandatory_trade_each_cycle: true`, o `ExecutionManager` bole
 | Recovery score waiver | `consensus_stake_penalty.py` — com `pending_loss > 0` ou `consecutive_losses_linear > 0` e votos unânimes ou `trade_score >= 0.68`, `retention = 1.0` |
 | Recovery financeiro persistente | `risk_recovery_state.py` — `consecutive_losses_linear` **nao reseta** em WIN operacional enquanto `pending_loss > 0`; reset somente quando o drawdown pendente zera por retornos reais |
 | Stop win por sessão ativa | `stop_win_target.py` + `session_target_bootstrap.py` — meta = `session_start_balance × compounding_rate_daily`; sem reset por relógio/calendário |
-| Encerramento por meta | `StateManager.check_session_limits()` — `pnl_sessao >= target_win` → `graceful_shutdown` |
+| Encerramento por meta | `check_session_limits_before_post_settlement` + `graceful_shutdown(fast_path=True)` — aborta Redis e fila de settlement antes do shutdown |
 | Stop loss | **Desativado** — sem `daily_max_loss_limit` nem disjuntor de perda no motor |
 | Martingale Geométrico | `dlambert_sizing.geometric_martingale_stake` — `Stake = Effective_Base × 2^consecutive_losses_linear` com `Effective_Base = max(dlambert_unit_override, U)`; tag `D'ALEMBERT` quando `pending_total > 0` ou `consecutive_losses_linear > 0` |
 | Ancoragem em recovery | `risk_stake_calc.py` ignora consensus penalty e piso `stake_min` quando `pending_total > 0`; evita tag `KELLY` e stake sub-dimensionada em estresse |
@@ -275,8 +326,9 @@ A meta de lucro segue a planilha de juros compostos (`compounding_rate_daily`, p
 1. **Boot** (`ws_bootstrap` → `bootstrap_active_session_targets`): lê saldo vivo da Deriv ou override `session_start_balance` em `risk_management.params`.
 2. **Cálculo**: `target_win = session_start_balance × compounding_rate_daily` via `StopWinManager.calculate_session_targets`.
 3. **Persistência Redis**: `{prefix}:session:current:start_balance` e `{prefix}:session:current:target_win` no pipeline atômico; hash `session:current` com métricas correntes.
-4. **Encerramento**: após settlement, `check_session_limits()` compara `session_profit` com `daily_stop_win_target`; se atingido, `graceful_shutdown` encerra o motor e `clear_current_session_redis_keys` remove as chaves da sessão.
-5. **Nova sessão**: reiniciar `run.py` captura novo saldo e recalcula meta — o operador decide quantas sessões executar no mesmo dia civil.
+4. **Encerramento**: após settlement ou no início do pós-liquidação, `check_session_limits_before_post_settlement` compara `pnl_sessao` com `target_win`; se atingido, fast-path limpa Redis, cancela fila de settlement e chama `graceful_shutdown(fast_path=True)`.
+5. **Deadlock pós-liquidação**: se o ciclo incompleto ocorrer 2 vezes consecutivas, `emergency_save_session_state` grava bundle financeiro e o processo encerra com `sys.exit(0)`.
+6. **Nova sessão**: reiniciar `run.py` captura novo saldo e recalcula meta — o operador decide quantas sessões executar no mesmo dia civil.
 
 Log de bootstrap: `SESSAO INICIADA | Alvo de 1%: $XX.XX | Stop Loss: DESATIVADO`.
 
@@ -313,9 +365,15 @@ Persistência: `data/session_state.json` (métricas da sessão corrente), Redis 
    - `collect_deep_learning_decisions` (inferência Triton concorrente com fallback TorchScript)
    - `executor.execute_cluster`
 4. Reconciliação periódica de contratos abertos.
-5. Após liquidação: `post_settlement_cycle` → `save_full_state`.
+5. Após liquidação: `post_settlement_cycle` (fast-path stop win ou retry com teto) → `save_full_state` quando aplicável.
 
-**Graceful shutdown** (`graceful_shutdown.py`): encerra watchdog, Triton gRPC, Timescale, Redis e WebSocket sem vazamento de tasks; limpa chaves `session:current:*`; excepthook instalado em `run.py`.
+**Graceful shutdown** (`graceful_shutdown.py`):
+
+- `graceful_shutdown(orch, fast_path=False)` — padrão; aguarda cancelamento de tasks.
+- `graceful_shutdown(orch, fast_path=True)` — stop win: cancela fila de settlement (`cancel_settlement_queue_fast`), cancela task pós-liquidação sem handshake prolongado, depois `close_infrastructure_connections`.
+- `close_infrastructure_connections` encerra watchdog, Triton gRPC, Timescale, Redis e WebSocket; limpa chaves `session:current:*`; excepthook instalado em `run.py`.
+
+**Loop principal** (`orchestrator_run_loop.py`): a cada iteração verifica `_post_settlement_deadlock`; em deadlock confirmado, persiste estado de emergência e força `sys.exit(0)`.
 
 ---
 
@@ -340,10 +398,11 @@ Persistência: `data/session_state.json` (métricas da sessão corrente), Redis 
 
 | Camada | Módulos principais |
 |--------|-------------------|
-| Application / DL | `decision_bridge`, `dl_predict_async`, `dl_predict_triton`, `dl_gating`, `dl_trend`, `dl_cycle_*`, `model` |
-| Application / Direção | `execution_direction_resolver` (linear puro), `execution_direction_cross_corr` (telemetria), `execution_volatility_booster` (pisos consultivos), `execution_quality_gate` (neutro) |
+| Application / DL | `decision_bridge`, `dl_predict_build`, `dl_predict_async`, `dl_predict_triton`, `dl_gating`, `dl_trend`, `dl_cycle_*`, `model` |
+| Application / Meta | `meta_classifier_stacking`, `meta_payoff_regression`, `meta_classifier_features`, `meta_classifier_cross_symbol`, `meta_classifier_flow_features`, `meta_direction_flip` (auditoria D-SQUEEZE) |
+| Application / Direção | `execution_direction_resolver` (TCN + edge contínuo), `execution_direction_cross_corr` (telemetria), `execution_volatility_booster` (pisos consultivos), `execution_quality_gate` (neutro) |
 | Application / Execução | `execution_collect`, `execution_collect_gather`, `execution_market_rank`, `execution_symbols`, `execution_mandatory_pick` |
-| Application / Orchestrator | `Orchestrator`, `execution_manager`, `session_target_bootstrap`, `execution_recovery_gate`, `watchdog_service`, `graceful_shutdown`, `settlement_*`, `post_settlement_cycle`, `orchestrator_run_loop` |
+| Application / Orchestrator | `Orchestrator`, `execution_manager`, `session_target_bootstrap`, `execution_recovery_gate`, `watchdog_service`, `graceful_shutdown`, `settlement_*`, `settlement_queue_ops`, `post_settlement_cycle`, `orchestrator_run_loop` |
 | Domain | `trade`, `market_data`, `probability_entropy`, `risk_manager`, `stop_win_target`, `risk_recovery_state`, `consensus_stake_penalty`, `recovery_hurst_gate`, `dlambert_sizing`, `recovery_conviction`, `stake_sizing` |
 | Infrastructure | `triton_grpc_client`, `triton_inference_client`, `websocket_manager`, `stream_handler`, `stream_reconnect`, `tick_buffer`, `trade_handler`, `minio_model_store`, `torchscript_sanity`, `redis_state_pipeline` |
 | Presentation | `logger`, `log_dedupe` |
@@ -369,6 +428,9 @@ Marcadores de log relevantes:
 | `SESSAO INICIADA` | Bootstrap de meta por sessão ativa (1% composto; stop loss desativado) |
 | `TRITON_TIMEOUT_FALLBACK` | Inferência Triton excedeu 2 s; fallback TorchScript local |
 | `WATCHDOG: STALE_DATA` | Inanição de ticks; reconexão controlada do stream |
+| `CICLO: ciclo pos-liquidacao incompleto` | Retry pós-liquidação; após 2× consecutivas → encerramento forçado |
+| `STOP_WIN` / fast-path | Meta da sessão atingida; Redis limpo e shutdown imediato |
+| `[D-SQUEEZE]` | Downgrade de score em compressão M1; métricas `bb_width`, `tick_accel`, `predicted_payoff_edge`, `score` |
 
 ---
 

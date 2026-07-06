@@ -9,8 +9,10 @@ from src.application.services.orchestrator.post_settlement_cycle import (
     _ensure_trading_slot_poll,
     _poll_delay,
     _prune_stale_risk_contract_ids,
+    _record_post_settlement_incomplete,
     _release_post_settlement_task,
     _release_stuck_trading_slot,
+    _run_post_settlement_retry_loop,
     run_post_settlement_breath_and_cycle,
     schedule_trading_cycle_after_settlement,
 )
@@ -194,3 +196,97 @@ async def test_run_post_settlement_waits_for_is_trading_then_runs_real_cycle(orc
 
     orch.executor.execute_cluster.assert_awaited_once()
     assert orch.is_trading is False
+
+
+def test_record_post_settlement_incomplete_sets_deadlock_at_limit(orch_ready):
+    orch = orch_ready
+    _record_post_settlement_incomplete(orch)
+    assert orch._post_settlement_incomplete_streak == 1
+    assert orch._post_settlement_deadlock is False
+    _record_post_settlement_incomplete(orch)
+    assert orch._post_settlement_incomplete_streak == 2
+    assert orch._post_settlement_deadlock is True
+
+
+@pytest.mark.asyncio
+async def test_post_settlement_stop_win_fast_path_skips_heavy_cycle(orch_ready):
+    orch = orch_ready
+    orch.state_mgr.reset_session_metrics(1000.0, 50.0)
+    orch.state.balance = 1060.0
+    orch.state_mgr.state.total_trades_today = 2
+    orch.risk_manager.total_session_profit = 60.0
+    cycle_mock = AsyncMock(return_value=False)
+    with (
+        patch(
+            f"{POST_SETTLEMENT_MODULE}.graceful_shutdown",
+            new_callable=AsyncMock,
+        ) as shutdown_mock,
+        patch(
+            f"{POST_SETTLEMENT_MODULE}.clear_current_session_redis_keys",
+            new_callable=AsyncMock,
+        ) as redis_clear_mock,
+        patch.object(orch, "_run_trading_cycle_if_ready", cycle_mock),
+    ):
+        await run_post_settlement_breath_and_cycle(orch)
+    redis_clear_mock.assert_awaited_once_with(orch)
+    shutdown_mock.assert_awaited_once()
+    assert shutdown_mock.await_args.kwargs["fast_path"] is True
+    cycle_mock.assert_not_awaited()
+    assert orch.shutdown_reason == "stop_win"
+
+
+@pytest.mark.asyncio
+async def test_post_settlement_stop_win_during_stuck_retry_loop(orch_ready):
+    orch = orch_ready
+    orch.config.setdefault("orchestrator", {})["post_settlement_breath_seconds"] = 0
+    orch.config["orchestrator"]["post_settlement_cycle_retry_seconds"] = 0.001
+    orch.state_mgr.reset_session_metrics(1000.0, 50.0)
+    orch.state_mgr.state.total_trades_today = 1
+    attempts = 0
+
+    async def cycle_never_completes():
+        nonlocal attempts
+        attempts += 1
+        if attempts >= 1:
+            orch.state.balance = 1060.0
+            orch.risk_manager.total_session_profit = 60.0
+            orch.state_mgr.state.total_trades_today = 1
+        return False
+
+    with (
+        patch(
+            f"{POST_SETTLEMENT_MODULE}.graceful_shutdown",
+            new_callable=AsyncMock,
+        ) as shutdown_mock,
+        patch.object(orch, "_run_trading_cycle_if_ready", side_effect=cycle_never_completes),
+        patch_incrementing_monotonic(),
+        patch_instant_post_settlement_poll(),
+    ):
+        await run_post_settlement_breath_and_cycle(orch)
+    shutdown_mock.assert_awaited()
+    assert shutdown_mock.await_args.kwargs["fast_path"] is True
+    assert attempts >= 1
+
+
+@pytest.mark.asyncio
+async def test_post_settlement_deadlock_flag_after_two_incomplete_cycles(orch_ready):
+    orch = orch_ready
+    orch.config.setdefault("orchestrator", {})["post_settlement_breath_seconds"] = 0
+    orch.config["orchestrator"]["post_settlement_cycle_retry_seconds"] = 0.001
+    with (
+        patch.object(orch, "_run_trading_cycle_if_ready", new_callable=AsyncMock, return_value=False),
+        patch_incrementing_monotonic(),
+        patch_instant_post_settlement_poll(),
+    ):
+        await run_post_settlement_breath_and_cycle(orch)
+    assert orch._post_settlement_deadlock is True
+    assert orch._post_settlement_incomplete_streak == 2
+
+
+@pytest.mark.asyncio
+async def test_post_settlement_retry_loop_exits_on_deadlock_flag(orch_ready):
+    orch = orch_ready
+    orch._post_settlement_deadlock = True
+    orch_cfg = orch.config.setdefault("orchestrator", {})
+    with patch(f"{POST_SETTLEMENT_MODULE}._try_stop_win_fast_path", new_callable=AsyncMock, return_value=False):
+        await _run_post_settlement_retry_loop(orch, orch_cfg, 0.0)

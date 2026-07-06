@@ -21,6 +21,15 @@ def _entry(*, direction=None, raw_prob=0.55, calibrated_prob=None, execute=True,
     return {"direction": direction, "metrics": metrics}
 
 
+def _c0015_entry():
+    entry = _entry(direction=TradeDirection.CALL, calibrated_prob=0.70)
+    entry["metrics"]["predicted_payoff_edge"] = -0.22
+    entry["metrics"]["meta_classifier_applied"] = True
+    entry["metrics"]["indicators"] = {"bb_width": 0.03}
+    entry["metrics"]["flow_features"] = {"micro_tick_acceleration": -0.02}
+    return entry
+
+
 def test_technically_blocked_predict_error():
     assert is_technically_blocked(_entry(execute=False, gate_reason="predict_error")) is True
 
@@ -114,44 +123,31 @@ def test_resolve_ignores_tactical_config_and_corr_matrix():
     assert result[1]["direction_inverted"] is False
 
 
-def test_resolve_applies_prefetched_meta_payoff_score():
+def test_resolve_applies_prefetched_positive_edge_with_organic_tcn_score():
     entry = _entry(direction=TradeDirection.CALL, calibrated_prob=0.70)
-    entry["metrics"]["meta_calibrated_payoff_score"] = 0.81
+    entry["metrics"]["predicted_payoff_edge"] = 0.14
     entry["metrics"]["meta_classifier_applied"] = True
     result = resolve_execution_direction(
         entry,
         infra_cfg={"meta_classifier": {"enabled": True}},
     )
     assert result is not None
-    assert result[1]["trade_score"] == pytest.approx(0.81)
-    assert result[1]["conviction"] == pytest.approx(0.81)
+    assert result[1]["trade_score"] == pytest.approx(0.70)
+    assert result[1]["conviction"] == pytest.approx(0.70)
 
 
-def test_resolve_flips_call_to_put_when_meta_payoff_saturated():
+def test_resolve_keeps_tcn_direction_when_edge_mildly_negative_without_squeeze():
     entry = _entry(direction=TradeDirection.CALL, calibrated_prob=0.70)
-    entry["metrics"]["meta_calibrated_payoff_score"] = 0.35
+    entry["metrics"]["predicted_payoff_edge"] = -0.08
     entry["metrics"]["meta_classifier_applied"] = True
-    result = resolve_execution_direction(entry)
-    assert result is not None
-    direction, metrics = result
-    assert direction == TradeDirection.PUT
-    assert metrics["exec_direction"] == "PUT"
-    assert metrics["dl_direction"] == "CALL"
-    assert metrics["meta_direction_flip"] is True
-    assert metrics["trade_score"] == pytest.approx(0.75)
-    assert metrics["direction_inverted"] is True
-
-
-def test_resolve_flips_put_to_call_when_meta_payoff_saturated():
-    entry = _entry(direction=TradeDirection.PUT, calibrated_prob=0.30)
-    entry["metrics"]["meta_calibrated_payoff_score"] = 0.38
-    entry["metrics"]["meta_classifier_applied"] = True
+    entry["metrics"]["indicators"] = {"bb_width": 0.09}
+    entry["metrics"]["flow_features"] = {"micro_tick_acceleration": 0.04}
     result = resolve_execution_direction(entry)
     assert result is not None
     direction, metrics = result
     assert direction == TradeDirection.CALL
-    assert metrics["meta_direction_flip"] is True
-    assert metrics["trade_score"] == pytest.approx(0.75)
+    assert metrics["trade_score"] == pytest.approx(0.70)
+    assert metrics.get("meta_squeeze_downgrade") is not True
 
 
 def test_resolve_meta_disabled_keeps_tcn_score():
@@ -162,3 +158,45 @@ def test_resolve_meta_disabled_keeps_tcn_score():
     )
     assert result is not None
     assert result[1]["trade_score"] == pytest.approx(0.70)
+
+
+def test_resolve_c0015_squeeze_downgrades_score_without_flip(caplog):
+    entry = _c0015_entry()
+    with caplog.at_level("INFO"):
+        result = resolve_execution_direction(entry, symbol="RDBULL")
+    assert result is not None
+    direction, metrics = result
+    assert direction == TradeDirection.CALL
+    assert metrics["meta_squeeze_active"] is True
+    assert metrics["meta_squeeze_downgrade"] is True
+    assert metrics.get("meta_direction_flip") is not True
+    assert metrics["trade_score"] == pytest.approx(0.52)
+    assert any("[D-SQUEEZE]" in record.message for record in caplog.records)
+
+
+def test_resolve_without_prefetch_keeps_organic_score_when_meta_enabled():
+    entry = _entry(direction=TradeDirection.CALL, calibrated_prob=0.70)
+    result = resolve_execution_direction(
+        entry,
+        infra_cfg={"meta_classifier": {"enabled": True}},
+        symbol="RDBULL",
+    )
+    assert result is not None
+    direction, metrics = result
+    assert direction == TradeDirection.CALL
+    assert metrics["trade_score"] == pytest.approx(0.70)
+    assert metrics["predicted_payoff_edge"] == pytest.approx(0.0)
+    assert metrics["meta_classifier_applied"] is False
+
+
+def test_resolve_c0015_positive_edge_keeps_organic_score_without_squeeze():
+    entry = _entry(direction=TradeDirection.CALL, calibrated_prob=0.70)
+    entry["metrics"]["predicted_payoff_edge"] = 0.11
+    entry["metrics"]["meta_classifier_applied"] = True
+    entry["metrics"]["indicators"] = {"bb_width": 0.09}
+    entry["metrics"]["flow_features"] = {"micro_tick_acceleration": 0.04}
+    result = resolve_execution_direction(entry)
+    assert result is not None
+    direction, metrics = result
+    assert direction == TradeDirection.CALL
+    assert metrics["trade_score"] == pytest.approx(0.70)

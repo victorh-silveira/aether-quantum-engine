@@ -4,7 +4,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.application.services.orchestrator.settlement_logic import log_cluster_summary, process_contract_settlement
+from src.application.services.orchestrator.settlement_logic import (
+    check_session_limits_before_post_settlement,
+    log_cluster_summary,
+    process_contract_settlement,
+)
 from src.domain.models.trade import Contract, TradeDirection, TradeStatus
 from tests.unit.application.post_settlement_helpers import patch_instant_post_settlement_poll
 
@@ -223,11 +227,61 @@ async def test_process_contract_settlement_stop_win(orch_ready):
     orch._post_settlement_task = pending_task
     with (
         patch("src.application.services.orchestrator.settlement_logic.resolve_stop_win_target", return_value=50.0),
+        patch(
+            "src.application.services.orchestrator.settlement_logic.graceful_shutdown",
+            new_callable=AsyncMock,
+        ) as shutdown_mock,
         patch_instant_post_settlement_poll(),
     ):
         await process_contract_settlement(orch, data)
 
-    assert pending_task.cancel.called
-    assert orch.running is False
+    shutdown_mock.assert_awaited_once()
+    assert shutdown_mock.await_args.kwargs["fast_path"] is True
     assert orch.shutdown_reason == "stop_win"
     assert orch.risk_manager.total_session_profit == 150.0
+
+
+def test_check_session_limits_before_post_settlement_detects_stop_win(orch_ready):
+    orch = orch_ready
+    orch.state.balance = 1060.0
+    orch.state_mgr.reset_session_metrics(1000.0, 50.0)
+    orch.state_mgr.state.total_trades_today = 2
+    orch.risk_manager.total_session_profit = 60.0
+    assert check_session_limits_before_post_settlement(orch) is True
+    assert orch.state_mgr.state.stop_win_triggered is True
+
+
+def test_check_session_limits_without_state_manager_returns_pnl_fallback(orch_ready):
+    orch = orch_ready
+    orch.state_mgr = MagicMock()
+    orch.risk_manager.total_session_profit = 60.0
+    with patch(
+        "src.application.services.orchestrator.settlement_logic.resolve_stop_win_target",
+        return_value=50.0,
+    ):
+        assert check_session_limits_before_post_settlement(orch) is True
+
+
+def test_check_session_limits_triggers_on_session_pnl_before_state_sync(orch_ready):
+    orch = orch_ready
+    orch.risk_manager.total_session_profit = 105.09
+    orch.state_mgr.reset_session_metrics(1000.0, 101.83)
+    orch.state.balance = 1105.09
+    with patch(
+        "src.application.services.orchestrator.settlement_logic.resolve_stop_win_target",
+        return_value=101.83,
+    ):
+        assert check_session_limits_before_post_settlement(orch) is True
+
+
+def test_check_session_limits_via_balance_sync_when_pnl_below_target(orch_ready):
+    orch = orch_ready
+    orch.risk_manager.total_session_profit = 40.0
+    orch.state.balance = 1060.0
+    orch.state_mgr.reset_session_metrics(1000.0, 50.0)
+    orch.state_mgr.state.total_trades_today = 2
+    with patch(
+        "src.application.services.orchestrator.settlement_logic.resolve_stop_win_target",
+        return_value=50.0,
+    ):
+        assert check_session_limits_before_post_settlement(orch) is True

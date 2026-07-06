@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
@@ -6,13 +6,12 @@ import pytest
 from src.infrastructure.inference.meta_classifier_client import (
     MetaClassifierClient,
     build_meta_predict_request,
-    close_meta_classifier_client,
+    build_persistent_http_client,
     fallback_payoff_score,
-    get_meta_classifier_client,
     meta_classifier_enabled,
     meta_classifier_http_url,
     meta_classifier_timeout,
-    predict_meta_via_config_sync,
+    reset_meta_classifier_fallback_dedupe,
 )
 
 
@@ -40,7 +39,7 @@ async def test_predict_meta_success():
     client = MetaClassifierClient(base_url="http://meta:8005", timeout=1.0, enabled=True)
     response = MagicMock()
     response.raise_for_status = MagicMock()
-    response.json = MagicMock(return_value={"calibrated_payoff_score": 0.77, "meta_applied": True})
+    response.json = MagicMock(return_value={"predicted_payoff_edge": 0.17, "meta_applied": True})
     client._client.post = AsyncMock(return_value=response)
     result = await client.predict_meta(
         build_meta_predict_request(
@@ -51,7 +50,7 @@ async def test_predict_meta_success():
         ),
         fallback_score=0.62,
     )
-    assert result["calibrated_payoff_score"] == pytest.approx(0.77)
+    assert result["predicted_payoff_edge"] == pytest.approx(0.17)
     assert result["meta_applied"] is True
     await client.aclose()
 
@@ -69,7 +68,7 @@ async def test_predict_meta_timeout_fallback():
         ),
         fallback_score=0.62,
     )
-    assert result["calibrated_payoff_score"] == pytest.approx(0.62)
+    assert result["predicted_payoff_edge"] == pytest.approx(0.0)
     assert result["meta_applied"] is False
     await client.aclose()
 
@@ -89,13 +88,13 @@ async def test_predict_meta_http_error_fallback():
         ),
         fallback_score=0.62,
     )
-    assert result["calibrated_payoff_score"] == pytest.approx(0.62)
+    assert result["predicted_payoff_edge"] == pytest.approx(0.0)
     assert result["meta_applied"] is False
     await client.aclose()
 
 
 @pytest.mark.asyncio
-async def test_predict_meta_disabled_returns_fallback():
+async def test_predict_meta_disabled_returns_zero_edge():
     client = MetaClassifierClient(base_url="http://meta:8005", timeout=1.0, enabled=False)
     result = await client.predict_meta(
         build_meta_predict_request(
@@ -106,18 +105,68 @@ async def test_predict_meta_disabled_returns_fallback():
         ),
         fallback_score=0.62,
     )
-    assert result["calibrated_payoff_score"] == pytest.approx(0.62)
+    assert result["predicted_payoff_edge"] == pytest.approx(0.0)
+    assert result["meta_applied"] is False
     await client.aclose()
 
 
 @pytest.mark.asyncio
-async def test_get_and_close_meta_classifier_client_singleton():
-    await close_meta_classifier_client()
-    cfg = {"infra": {"meta_classifier": {"enabled": True, "http_url": "http://localhost:8005"}}}
-    first = await get_meta_classifier_client(cfg)
-    second = await get_meta_classifier_client(cfg)
-    assert first is second
-    await close_meta_classifier_client()
+async def test_predict_meta_batch_emits_single_fallback_log(caplog):
+    client = MetaClassifierClient(base_url="http://meta:8005", timeout=1.0, enabled=True)
+    client._client.post = AsyncMock(side_effect=httpx.TimeoutException("timeout"))
+    requests = [
+        (
+            build_meta_predict_request(
+                symbol="RDBULL",
+                metrics=_meta_metrics(),
+                tcn_probability=0.62,
+                direction="CALL",
+            ),
+            0.62,
+        ),
+        (
+            build_meta_predict_request(
+                symbol="RDBEAR",
+                metrics={"feature_vector": [0.2] * 34},
+                tcn_probability=0.41,
+                direction="PUT",
+            ),
+            0.59,
+        ),
+    ]
+    with caplog.at_level("WARNING"):
+        results = await client.predict_meta_batch(requests)
+    assert len(results) == 2
+    fallback_logs = [r for r in caplog.records if "META_CLASSIFIER_FALLBACK" in r.message]
+    assert len(fallback_logs) == 1
+    await client.aclose()
+
+
+def test_build_persistent_http_client_uses_keepalive_limits():
+    http_client = build_persistent_http_client("http://meta:8005", 1.0)
+    assert http_client.base_url == "http://meta:8005"
+    assert http_client.timeout.connect == pytest.approx(1.0)
+
+
+def test_reset_meta_classifier_fallback_dedupe_clears_channel():
+    reset_meta_classifier_fallback_dedupe()
+    reset_meta_classifier_fallback_dedupe()
+
+
+@pytest.mark.asyncio
+async def test_meta_classifier_client_accepts_injected_http_client():
+    mock_client = AsyncMock(spec=httpx.AsyncClient)
+    mock_client.aclose = AsyncMock()
+    client = MetaClassifierClient(
+        base_url="http://meta:8005",
+        timeout=1.0,
+        enabled=False,
+        http_client=mock_client,
+        owns_http_client=False,
+    )
+    assert client._client is mock_client
+    await client.aclose()
+    mock_client.aclose.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -125,7 +174,7 @@ async def test_predict_meta_batch_parallel():
     client = MetaClassifierClient(base_url="http://meta:8005", timeout=1.0, enabled=True)
     response = MagicMock()
     response.raise_for_status = MagicMock()
-    response.json = MagicMock(return_value={"calibrated_payoff_score": 0.66, "meta_applied": True})
+    response.json = MagicMock(return_value={"predicted_payoff_edge": 0.11, "meta_applied": True})
     client._client.post = AsyncMock(return_value=response)
     requests = [
         (
@@ -149,7 +198,7 @@ async def test_predict_meta_batch_parallel():
     ]
     results = await client.predict_meta_batch(requests)
     assert len(results) == 2
-    assert results[0]["calibrated_payoff_score"] == pytest.approx(0.66)
+    assert results[0]["predicted_payoff_edge"] == pytest.approx(0.11)
     await client.aclose()
 
 
@@ -164,7 +213,7 @@ def test_predict_meta_sync_outside_running_loop():
         ),
         fallback_score=0.62,
     )
-    assert result["calibrated_payoff_score"] == pytest.approx(0.62)
+    assert result["predicted_payoff_edge"] == pytest.approx(0.0)
 
 
 @pytest.mark.asyncio
@@ -185,41 +234,6 @@ async def test_predict_meta_invalid_json_fallback():
     )
     assert result["meta_applied"] is False
     await client.aclose()
-
-
-def test_predict_meta_via_config_sync_outside_loop():
-    cfg = {"infra": {"meta_classifier": {"enabled": False}}}
-    response = predict_meta_via_config_sync(
-        cfg,
-        build_meta_predict_request(
-            symbol="RDBULL",
-            metrics=_meta_metrics(),
-            tcn_probability=0.62,
-            direction="CALL",
-        ),
-        fallback_score=0.62,
-    )
-    assert response["calibrated_payoff_score"] == pytest.approx(0.62)
-
-
-@pytest.mark.asyncio
-async def test_predict_meta_via_config_sync_inside_running_loop():
-    cfg = {"infra": {"meta_classifier": {"enabled": False}}}
-    with patch(
-        "src.infrastructure.inference.meta_classifier_client.asyncio.run",
-        return_value={"calibrated_payoff_score": 0.71, "meta_applied": False},
-    ):
-        response = predict_meta_via_config_sync(
-            cfg,
-            build_meta_predict_request(
-                symbol="RDBULL",
-                metrics=_meta_metrics(),
-                tcn_probability=0.62,
-                direction="CALL",
-            ),
-            fallback_score=0.62,
-        )
-    assert response["calibrated_payoff_score"] == pytest.approx(0.71)
 
 
 def test_meta_classifier_timeout_custom_value():
@@ -244,7 +258,7 @@ async def test_predict_meta_sync_inside_running_loop():
         ),
         fallback_score=0.62,
     )
-    assert result["calibrated_payoff_score"] == pytest.approx(0.62)
+    assert result["predicted_payoff_edge"] == pytest.approx(0.0)
 
 
 def test_fallback_payoff_score_prefers_trade_score():

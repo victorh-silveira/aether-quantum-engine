@@ -44,11 +44,16 @@ async def test_close_infrastructure_connections_idempotent():
             "src.application.services.orchestrator.graceful_shutdown.clear_current_session_redis_keys",
             new_callable=AsyncMock,
         ),
+        patch(
+            "src.application.services.orchestrator.graceful_shutdown.close_meta_classifier_client",
+            new_callable=AsyncMock,
+        ) as close_meta,
     ):
         await close_infrastructure_connections(orch)
         await close_infrastructure_connections(orch)
     close_triton.assert_awaited_once()
     close_infra.assert_awaited_once()
+    close_meta.assert_awaited_once()
     orch.ws.close.assert_awaited_once()
     assert orch._infra_shutdown_done is True
     assert orch.running is False

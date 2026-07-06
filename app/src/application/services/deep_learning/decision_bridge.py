@@ -19,6 +19,7 @@ from src.application.services.deep_learning.dl_market_data import load_symbol_cl
 from src.application.services.deep_learning.dl_outcomes import tick_dl_session_pauses
 from src.application.services.deep_learning.dl_params import slice_dl_ohlc_window
 from src.application.services.deep_learning.dl_predict_async import predict_symbol_decision_async
+from src.application.services.deep_learning.dl_predict_build import prepare_meta_classifier_cross_symbol_bundle
 from src.application.services.deep_learning.dl_retrain import should_retrain_symbol
 from src.application.services.deep_learning.dl_symbol_runtime import (
     candle_epoch,
@@ -273,6 +274,7 @@ async def collect_deep_learning_decisions(orch) -> dict[str, dict]:
             train_reason = reason
 
     _log_retrain_batch(trained, train_reason, params)
+    prepare_meta_classifier_cross_symbol_bundle(orch, decisions, params)
     await prefetch_meta_payoff_for_decisions(decisions, orch.config)
     log_dl_cycle_summary(
         logger,

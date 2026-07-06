@@ -10,6 +10,7 @@ from src.application.services.orchestrator.orchestrator_settlement_queue import 
     enqueue_contract_settlement,
     start_settlement_worker,
 )
+from src.application.services.orchestrator.settlement_queue_ops import cancel_settlement_queue_fast
 
 
 async def _stop_settlement_worker(orch) -> None:
@@ -81,3 +82,20 @@ async def test_settlement_worker_continues_after_queue_timeout(orch_ready):
         pytest.raises(asyncio.CancelledError),
     ):
         await _settlement_worker_loop(orch)
+
+
+@pytest.mark.asyncio
+async def test_cancel_settlement_queue_fast_drains_without_handshake(orch_ready):
+    orch = orch_ready
+    orch.running = True
+    orch._settlement_queue = asyncio.Queue()
+    orch._settlement_queue.put_nowait({"proposal_open_contract": {"contract_id": 1}})
+    orch._settlement_queue.put_nowait({"proposal_open_contract": {"contract_id": 2}})
+
+    async def _blocked_worker():
+        await asyncio.sleep(3600)
+
+    orch._settlement_worker_task = asyncio.create_task(_blocked_worker())
+    cancel_settlement_queue_fast(orch)
+    assert orch._settlement_queue.empty()
+    assert orch._settlement_worker_task is None

@@ -39,6 +39,14 @@ def meta_classifier_column_names() -> list[str]:
     return base + list(CROSS_SYMBOL_KEYS) + list(FLOW_FEATURE_KEYS)
 
 
+def cross_symbol_conviction_spread(metrics: dict[str, Any]) -> float:
+    """Retorna spread de conviccao cruzada anexado em metrics."""
+    chunk = metrics.get("cross_symbol_features")
+    if isinstance(chunk, dict):
+        return float(chunk.get("cross_symbol_prob_delta", 0.0))
+    return 0.0
+
+
 def _base_feature_vector(metrics: dict[str, Any]) -> list[float]:
     """Monta vetor base FEATURE_DIM a partir de cache ou indicadores tabulares."""
     stored = metrics.get("feature_vector")
