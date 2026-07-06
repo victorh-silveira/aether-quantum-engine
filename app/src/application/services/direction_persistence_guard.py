@@ -19,6 +19,19 @@ from src.domain.models.trade import TradeDirection
 
 
 _GUARD_LOGGER = logging.getLogger("AETH")
+_LOGGED_REGIME_GUARD_CYCLES: dict[int, frozenset[str]] = {}
+
+
+def reset_regime_guard_log_state() -> None:
+    """Limpa deduplicacao de logs do guard para testes e reinicios de sessao."""
+    _LOGGED_REGIME_GUARD_CYCLES.clear()
+
+
+def _prune_regime_guard_log_state(current_cycle_id: int) -> None:
+    """Remove entradas antigas da deduplicacao de logs do guard."""
+    stale = [key for key in _LOGGED_REGIME_GUARD_CYCLES if key < int(current_cycle_id) - 100]
+    for key in stale:
+        _LOGGED_REGIME_GUARD_CYCLES.pop(key, None)
 
 
 def _entry_prob(entry: dict[str, Any]) -> float:
@@ -89,10 +102,18 @@ def bull_call_prob_expanding(
 
 def log_regime_guard(cycle_id: int, action: str, consecutive_losses: int) -> None:
     """Emite telemetria padronizada do filtro anti-trend-lock."""
+    cid = int(cycle_id)
+    action_text = str(action)
+    if action_text == "FREEZE: SKIP CYCLE":
+        seen = _LOGGED_REGIME_GUARD_CYCLES.get(cid, frozenset())
+        if action_text in seen:
+            return
+        _LOGGED_REGIME_GUARD_CYCLES[cid] = seen | frozenset({action_text})
+        _prune_regime_guard_log_state(cid)
     _GUARD_LOGGER.info(
         "[C%04d] REGIME_GUARD | {AntiTrendLock: %s} | consecutive_losses=%d",
-        int(cycle_id),
-        action,
+        cid,
+        action_text,
         int(consecutive_losses),
     )
 

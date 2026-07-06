@@ -105,6 +105,7 @@ def test_resolve_dlambert_stake_soft_recovery_with_progression():
         dlambert_unit = 10.0
         dlambert_config = {}
         risk_params = {"payout_estimate": 0.95}
+        last_loss_stake = 0.0
 
     stake, tag = resolve_dlambert_stake(
         recovery_active=False,
@@ -120,6 +121,30 @@ def test_resolve_dlambert_stake_soft_recovery_with_progression():
     session_unit = max(10.0, 10000.0 * 0.0015)
     factor = 1.0 + (1.0 / 0.95)
     expected = math.ceil((session_unit * (factor**3)) * 100) / 100
+    assert stake == pytest.approx(expected)
+
+
+def test_resolve_dlambert_stake_ignores_last_loss_stake_for_geometric_progression():
+    class RM:
+        dlambert_unit = 17.89
+        dlambert_config = {}
+        risk_params = {"payout_estimate": 0.95}
+        last_loss_stake = 36.72
+
+    payout = 0.95
+    factor = 1.0 + (1.0 / payout)
+    stake, tag = resolve_dlambert_stake(
+        recovery_active=True,
+        bankroll=11926.67,
+        kelly_base=1.0,
+        dlambert_config={"dlambert_enabled": True},
+        rm=RM(),
+        consecutive_losses_linear=1,
+        pending_total=36.72,
+        payout=payout,
+    )
+    assert tag == "D'ALEMBERT"
+    expected = math.ceil((17.89 * factor) * 100) / 100
     assert stake == pytest.approx(expected)
 
 

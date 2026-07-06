@@ -2,6 +2,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from src.application.services.direction_persistence_guard import log_regime_guard, reset_regime_guard_log_state
+from src.application.services.meta_direction_flip import SIGNAL_SUSPENDED
 from src.application.services.orchestrator.post_settlement_cycle import run_post_settlement_breath_and_cycle
 from src.application.services.orchestrator.post_settlement_loss_cooldown import (
     POST_LOSS_COOLDOWN_BASE_SECONDS,
@@ -10,12 +12,16 @@ from src.application.services.orchestrator.post_settlement_loss_cooldown import 
     post_loss_cooldown_active,
     post_loss_cooldown_delay_seconds,
 )
+from src.application.services.orchestrator.regime_freeze_yield import _REGIME_FREEZE_DEFAULT_YIELD_SECONDS
 from src.application.services.orchestrator.settlement_logic import process_contract_settlement
+from src.application.services.orchestrator.trading_cycle_entry import run_trading_cycle_if_ready
 from src.domain.models.trade import Contract, TradeDirection, TradeStatus
 from tests.unit.application.post_settlement_helpers import patch_instant_post_settlement_poll
 
 
 COOLDOWN_MODULE = "src.application.services.orchestrator.post_settlement_loss_cooldown"
+FREEZE_YIELD_MODULE = "src.application.services.orchestrator.regime_freeze_yield"
+TRADING_CYCLE_MODULE = "src.application.services.orchestrator.trading_cycle_entry"
 
 
 def test_post_loss_cooldown_delay_zero_below_linear_two():
@@ -173,3 +179,85 @@ async def test_settlement_loss_reconciles_planned_vs_executed_stake(orch_ready):
     assert orch.risk_manager.pending_loss.get("RDBULL") == pytest.approx(332.28)
     assert orch.risk_manager.last_loss_stake == pytest.approx(332.28)
     assert orch.risk_manager.total_session_profit == pytest.approx(-332.28)
+
+
+def _frozen_decisions():
+    return {
+        "RDBULL": {
+            "metrics": {
+                "signal_status": SIGNAL_SUSPENDED,
+                "execute": True,
+                "trade_score": 0.70,
+                "raw_prob": 0.70,
+            }
+        },
+        "RDBEAR": {
+            "metrics": {
+                "signal_status": SIGNAL_SUSPENDED,
+                "execute": True,
+                "trade_score": 0.65,
+                "raw_prob": 0.35,
+            }
+        },
+    }
+
+
+@pytest.mark.asyncio
+async def test_run_trading_cycle_freeze_yields_and_avoids_hot_loop(orch_ready):
+    orch = orch_ready
+    orch._last_epoch = 120
+    orch._last_cluster_cycle_end = 0.0
+    orch._dl_fast_cycle = False
+    orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 0
+    recorded: list[float] = []
+
+    async def record_sleep(seconds: float) -> None:
+        recorded.append(seconds)
+
+    with (
+        patch(
+            f"{TRADING_CYCLE_MODULE}.collect_deep_learning_decisions",
+            new_callable=AsyncMock,
+            return_value=_frozen_decisions(),
+        ),
+        patch(f"{TRADING_CYCLE_MODULE}.mark_bar_processed", new_callable=AsyncMock),
+        patch(f"{TRADING_CYCLE_MODULE}.refresh_correlation_cache", new_callable=AsyncMock),
+        patch(f"{FREEZE_YIELD_MODULE}.asyncio.sleep", side_effect=record_sleep),
+    ):
+        first = await run_trading_cycle_if_ready(orch)
+        second = await run_trading_cycle_if_ready(orch)
+
+    assert first is True
+    assert second is False
+    assert len(recorded) == 1
+    assert recorded[0] == pytest.approx(_REGIME_FREEZE_DEFAULT_YIELD_SECONDS)
+
+
+@pytest.mark.asyncio
+async def test_run_trading_cycle_freeze_log_emitted_once_per_cycle_id(orch_ready, caplog):
+    reset_regime_guard_log_state()
+    orch = orch_ready
+    orch._last_epoch = 120
+    orch._last_cluster_cycle_end = 0.0
+    orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 0
+
+    async def noop_sleep(seconds: float) -> None:
+        _ = seconds
+
+    with (
+        patch(
+            f"{TRADING_CYCLE_MODULE}.collect_deep_learning_decisions",
+            new_callable=AsyncMock,
+            return_value=_frozen_decisions(),
+        ),
+        patch(f"{TRADING_CYCLE_MODULE}.mark_bar_processed", new_callable=AsyncMock),
+        patch(f"{TRADING_CYCLE_MODULE}.refresh_correlation_cache", new_callable=AsyncMock),
+        patch(f"{FREEZE_YIELD_MODULE}.asyncio.sleep", side_effect=noop_sleep),
+        caplog.at_level("INFO", logger="AETH"),
+    ):
+        log_regime_guard(1, "FREEZE: SKIP CYCLE", 2)
+        log_regime_guard(1, "FREEZE: SKIP CYCLE", 2)
+        await run_trading_cycle_if_ready(orch)
+
+    freeze_logs = [record for record in caplog.records if "FREEZE: SKIP CYCLE" in record.message]
+    assert len(freeze_logs) == 1

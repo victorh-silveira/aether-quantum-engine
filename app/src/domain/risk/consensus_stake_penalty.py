@@ -104,8 +104,6 @@ def apply_soft_recovery_stake(
     anchor = float(previous_stake) if float(previous_stake) > 0.0 else unit
     if losses <= 0:
         stake = unit
-    elif float(previous_stake) > 0.0:
-        stake = anchor * factor
     else:
         stake = unit * soft_recovery_progression_multiplier(
             losses,

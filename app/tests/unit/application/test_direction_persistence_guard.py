@@ -5,10 +5,12 @@ from src.application.services.direction_loss_tracker import (
     reset_direction_persistence_tracker,
 )
 from src.application.services.direction_persistence_guard import (
+    _LOGGED_REGIME_GUARD_CYCLES,
     bear_put_prob_expanding,
     bull_call_prob_expanding,
     evaluate_direction_persistence_guard,
     log_regime_guard,
+    reset_regime_guard_log_state,
 )
 from src.application.services.execution_direction_resolver import resolve_execution_direction
 from src.application.services.meta_direction_flip import SIGNAL_SUSPENDED
@@ -18,8 +20,10 @@ from src.domain.models.trade import TradeDirection
 @pytest.fixture(autouse=True)
 def _reset_tracker():
     reset_direction_persistence_tracker()
+    reset_regime_guard_log_state()
     yield
     reset_direction_persistence_tracker()
+    reset_regime_guard_log_state()
 
 
 def _entry(
@@ -162,6 +166,21 @@ def test_regime_freeze_when_congestion_or_missing_expansion(caplog):
     )
     assert stalled is None
     assert metrics["regime_guard_action"] == "FREEZE: SKIP CYCLE"
+
+
+def test_log_regime_guard_freeze_logs_once_per_cycle(caplog):
+    with caplog.at_level("INFO", logger="AETH"):
+        log_regime_guard(5, "FREEZE: SKIP CYCLE", 2)
+        log_regime_guard(5, "FREEZE: SKIP CYCLE", 2)
+    freeze_logs = [record for record in caplog.records if "FREEZE: SKIP CYCLE" in record.message]
+    assert len(freeze_logs) == 1
+
+
+def test_log_regime_guard_prunes_stale_cycle_entries(caplog):
+    _LOGGED_REGIME_GUARD_CYCLES[1] = frozenset({"FREEZE: SKIP CYCLE"})
+    with caplog.at_level("INFO", logger="AETH"):
+        log_regime_guard(150, "FREEZE: SKIP CYCLE", 2)
+    assert 1 not in _LOGGED_REGIME_GUARD_CYCLES
 
 
 def test_prob_expanding_helpers_and_regime_guard_log(caplog):

@@ -1,3 +1,4 @@
+import math
 from unittest.mock import MagicMock
 
 import pytest
@@ -92,6 +93,55 @@ def test_calculate_stake_turbo_edge_doubles_final_stake(kelly_config):
         kwargs={"dl_metrics": turbo_metrics, "order_direction": "PUT"},
     )
     assert stake_turbo == pytest.approx(stake_base * 2.0)
+    assert turbo_metrics.get("consensus_turbo_edge_active") is True
+
+
+def test_calculate_stake_c0007_turbo_on_clean_recovery_base(kelly_config):
+    rm = _base_rm(kelly_config)
+    rm.pending_loss = {"RDBULL": 36.72}
+    rm.consecutive_losses_linear = 1
+    rm.dlambert_unit = 17.89
+    rm.last_loss_stake = 36.72
+    rm._recovery_allowed = MagicMock(return_value=True)
+    rm.risk_params = {**kelly_config["params"], "stake_min": 1.0, "payout_estimate": 0.95}
+    neutral_metrics = {
+        "execute": True,
+        "trade_score": 0.80,
+        "raw_prob": 0.78,
+        "edge_expectancy": "NO_EDGE_NEUTRAL",
+        "edge_zscore": 0.1,
+        "call_votes": 0,
+        "put_votes": 6,
+        "indicators": {"di_diff": -0.06, "cmo": -0.71},
+    }
+    turbo_metrics = {
+        **neutral_metrics,
+        "edge_expectancy": "WIN_EXPECTED",
+        "edge_zscore": 1.8,
+    }
+    bankroll = 11926.67
+    stake_neutral = calculate_stake_for_manager(
+        rm,
+        bankroll,
+        "RDBULL",
+        0.80,
+        silent=True,
+        apply_stop_win=False,
+        kwargs={"dl_metrics": dict(neutral_metrics), "order_direction": "PUT"},
+    )
+    factor = 1.0 + (1.0 / 0.95)
+    expected_base = math.ceil((17.89 * factor) * 100) / 100
+    assert stake_neutral == pytest.approx(expected_base, rel=1e-3)
+    stake_turbo = calculate_stake_for_manager(
+        rm,
+        bankroll,
+        "RDBULL",
+        0.80,
+        silent=True,
+        apply_stop_win=False,
+        kwargs={"dl_metrics": turbo_metrics, "order_direction": "PUT"},
+    )
+    assert stake_turbo == pytest.approx(expected_base * 2.0, rel=1e-3)
     assert turbo_metrics.get("consensus_turbo_edge_active") is True
 
 

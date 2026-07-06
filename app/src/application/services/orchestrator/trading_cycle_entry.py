@@ -11,6 +11,7 @@ from src.application.services.deep_learning.dl_startup import prepare_inference_
 from src.application.services.orchestrator.decision_mode_banner import emit_decision_engine_banner
 from src.application.services.orchestrator.engine_mode import ENGINE_MODE_TRAIN, resolve_engine_mode
 from src.application.services.orchestrator.orchestrator_state_restore import mark_bar_processed
+from src.application.services.orchestrator.regime_freeze_yield import await_regime_freeze_yield
 from src.application.services.strategy.decision_mode import resolve_decision_mode
 from src.domain.risk.stop_win_target import resolve_stop_win_target
 from src.infrastructure.market.timescale_correlation_worker import refresh_correlation_cache, start_correlation_worker
@@ -175,6 +176,7 @@ async def run_trading_cycle_if_ready(orch: Any) -> bool:
             ):
                 await refresh_correlation_cache(orch)
             await orch.executor.execute_cluster(decisions)
+            await await_regime_freeze_yield(orch, decisions)
     except Exception as e:
         orch.logger.error(f"FALHA: Ciclo: {e}")
         ran = True
