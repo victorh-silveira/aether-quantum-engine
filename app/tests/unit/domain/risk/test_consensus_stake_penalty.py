@@ -214,7 +214,7 @@ def test_apply_neutral_edge_kelly_base_raises_to_bankroll_pct():
     metrics = {"edge_expectancy": "NO_EDGE_NEUTRAL"}
     base = apply_neutral_edge_kelly_base(2.0, 11000.0, metrics)
     assert base == pytest.approx(16.50)
-    assert metrics["edge_neutral_dynamic_unit"] == pytest.approx(16.50)
+    assert metrics["session_base_unit"] == pytest.approx(16.50)
 
 
 def test_apply_neutral_edge_kelly_base_skips_when_kelly_already_higher():
@@ -227,7 +227,7 @@ def test_apply_neutral_edge_kelly_base_skips_on_d_squeeze():
     metrics = {"edge_expectancy": "NO_EDGE_NEUTRAL", "meta_squeeze_downgrade": True}
     base = apply_neutral_edge_kelly_base(1.0, 11000.0, metrics)
     assert base == pytest.approx(1.0)
-    assert "edge_neutral_dynamic_unit" not in metrics
+    assert "session_base_unit" not in metrics
 
 
 def test_turbo_edge_multiplier_doubles_on_extreme_zscore():

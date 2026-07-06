@@ -1,15 +1,20 @@
-"""Sizing Kelly base acoplado a Martingale Geometrico puro sem teto em recovery."""
+"""Sizing Kelly base acoplado a progressao suave 1.65x em recovery."""
 
 from __future__ import annotations
 
 from typing import Any
 
+from src.domain.risk.consensus_stake_penalty import (
+    apply_soft_recovery_stake,
+    max_safe_stake_cap,
+    resolve_session_base_unit,
+)
 from src.domain.risk.stake_sizing import round_stake
 
 
 REDIS_DLAMBERT_UNIT_KEY = "session:current:dlambert_unit"
 REDIS_DLAMBERT_LINEAR_LOSSES_KEY = "session:current:consecutive_losses_linear"
-GEOMETRIC_MARTINGALE_BASE = 2.0
+SOFT_RECOVERY_PROGRESSION = 1.65
 
 
 def dlambert_enabled(dlambert_config: dict[str, Any]) -> bool:
@@ -58,7 +63,7 @@ def effective_martingale_base(
     rm: Any,
     dlambert_config: dict[str, Any],
 ) -> float:
-    """Resolve base ancorada U com piso de override para Martingale geometrico."""
+    """Resolve base ancorada U com piso de override para progressao suave."""
     existing = float(getattr(rm, "dlambert_unit", 0.0))
     unit = existing if existing > 0.0 else resolve_dlambert_unit(kelly_base, rm)
     override = _resolve_override_value(dlambert_config)
@@ -75,16 +80,6 @@ def martingale_recovery_active(
     return recovery_active or float(pending_total) > 0.0 or int(consecutive_losses_linear) > 0
 
 
-def geometric_martingale_stake(
-    kelly_base: float,
-    consecutive_losses_linear: int,
-) -> float:
-    """Curva multiplicativa classica: Kelly_Base * 2^perdas_consecutivas, sem teto."""
-    base = max(0.0, float(kelly_base))
-    losses = max(0, int(consecutive_losses_linear))
-    return base * (GEOMETRIC_MARTINGALE_BASE**losses)
-
-
 def resolve_dlambert_stake(
     *,
     recovery_active: bool,
@@ -94,9 +89,11 @@ def resolve_dlambert_stake(
     rm: Any,
     consecutive_losses_linear: int,
     pending_total: float = 0.0,
+    payout: float | None = None,
+    dl_metrics: dict | None = None,
 ) -> tuple[float, str]:
-    """Resolve stake final Kelly ou Martingale Geometrico contínuo em recovery."""
-    _ = bankroll
+    """Resolve stake final Kelly ou progressao suave 1.65x em recovery."""
+    _ = payout
     stress_recovery = martingale_recovery_active(
         recovery_active=recovery_active,
         pending_total=pending_total,
@@ -104,8 +101,20 @@ def resolve_dlambert_stake(
     )
     if stress_recovery and dlambert_enabled(dlambert_config):
         effective_base = effective_martingale_base(kelly_base, rm, dlambert_config)
-        raw = geometric_martingale_stake(effective_base, consecutive_losses_linear)
-        return round_stake(raw, recovery_linear=True), "D'ALEMBERT"
+        metrics = dl_metrics if isinstance(dl_metrics, dict) else None
+        session_base = resolve_session_base_unit(bankroll, effective_base, metrics)
+        previous_stake = float(getattr(rm, "last_loss_stake", 0.0))
+        raw = apply_soft_recovery_stake(
+            pending_total=float(pending_total),
+            base_unit=session_base,
+            consecutive_losses=int(consecutive_losses_linear),
+            previous_stake=previous_stake,
+            bankroll=bankroll,
+            metrics=metrics,
+        )
+        rounded = round_stake(raw, recovery_linear=True)
+        cap = max_safe_stake_cap(bankroll)
+        return min(rounded, cap), "D'ALEMBERT"
     resolve_dlambert_unit(kelly_base, rm)
     return round_stake(float(kelly_base), recovery_linear=False), "KELLY"
 
@@ -120,10 +129,11 @@ def dlambert_log_suffix(
     consecutive_losses_linear: int = 0,
     dlambert_config: dict[str, Any] | None = None,
     bankroll: float = 0.0,
+    payout: float | None = None,
 ) -> str:
-    """Monta sufixo de log com detalhes da stake Martingale Geometrico."""
-    _ = (dlambert_unit, dlambert_config, bankroll)
+    """Monta sufixo de log com detalhes da progressao suave 1.65x."""
+    _ = (dlambert_unit, dlambert_config, bankroll, payout)
     if mode_tag != "D'ALEMBERT":
         return ""
     linear = int(consecutive_losses_linear)
-    return f" | D'ALEMBERT ${final_stake:.2f} (kelly=${kelly_base:.2f}*2^{linear}) | pend=${loss_to_recover:.2f}"
+    return f" | D'ALEMBERT ${final_stake:.2f} (soft=1.65x^{linear} U=${kelly_base:.2f}) | pend=${loss_to_recover:.2f}"

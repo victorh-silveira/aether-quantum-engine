@@ -1,5 +1,10 @@
 import pytest
 
+from src.application.services.bb_width_adaptive_squeeze import (
+    BB_WIDTH_HARMONIC_WINDOW,
+    record_bb_width,
+    reset_bb_width_buffer,
+)
 from src.application.services.meta_direction_flip import micro_volatility_squeeze_active
 from src.application.services.meta_payoff_regression import (
     META_SQUEEZE_TRADE_SCORE,
@@ -8,8 +13,21 @@ from src.application.services.meta_payoff_regression import (
 from src.domain.models.trade import TradeDirection
 
 
+@pytest.fixture(autouse=True)
+def _reset_bb_buffer():
+    reset_bb_width_buffer()
+    yield
+    reset_bb_width_buffer()
+
+
+def _prime_bb(value: float, count: int = BB_WIDTH_HARMONIC_WINDOW) -> None:
+    for _ in range(count):
+        record_bb_width(value)
+
+
 def test_micro_volatility_squeeze_active_bb_width():
-    metrics = {"indicators": {"bb_width": 0.04}}
+    _prime_bb(0.050)
+    metrics = {"indicators": {"bb_width": 0.020}}
     assert micro_volatility_squeeze_active(metrics) is True
 
 
@@ -53,8 +71,9 @@ def test_apply_meta_regression_edge_loss_expected_triggers_squeeze(caplog):
 
 
 def test_apply_meta_regression_edge_bb_compression_triggers_squeeze_even_positive_edge(caplog):
+    _prime_bb(0.050)
     metrics = {
-        "indicators": {"bb_width": 0.03},
+        "indicators": {"bb_width": 0.020},
         "flow_features": {"micro_tick_acceleration": 0.05},
     }
     with caplog.at_level("INFO"):

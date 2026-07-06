@@ -1,5 +1,10 @@
 import pytest
 
+from src.application.services.bb_width_adaptive_squeeze import (
+    BB_WIDTH_HARMONIC_WINDOW,
+    record_bb_width,
+    reset_bb_width_buffer,
+)
 from src.application.services.meta_direction_flip import (
     META_FLIP_PAYOFF_THRESHOLD_BASE,
     META_FLIP_PAYOFF_THRESHOLD_SQUEEZE,
@@ -13,6 +18,18 @@ from src.application.services.meta_direction_flip import (
     should_flip_direction,
 )
 from src.domain.models.trade import TradeDirection
+
+
+@pytest.fixture(autouse=True)
+def _reset_bb_buffer():
+    reset_bb_width_buffer()
+    yield
+    reset_bb_width_buffer()
+
+
+def _prime_bb(value: float, count: int = BB_WIDTH_HARMONIC_WINDOW) -> None:
+    for _ in range(count):
+        record_bb_width(value)
 
 
 def test_should_flip_when_payoff_below_threshold_and_meta_applied():
@@ -42,9 +59,12 @@ def test_flipped_direction_opposes_tcn():
 
 
 def test_micro_volatility_squeeze_active_bb_width_and_negative_accel():
-    assert micro_volatility_squeeze_active({"indicators": {"bb_width": 0.03}}) is True
-    assert micro_volatility_squeeze_active({"micro_indicators": {"bb_width": 0.04}}) is True
-    assert micro_volatility_squeeze_active({"macro_indicators": {"bb_width": 0.05}}) is True
+    _prime_bb(0.050)
+    assert micro_volatility_squeeze_active({"indicators": {"bb_width": 0.020}}) is True
+    _prime_bb(0.050)
+    assert micro_volatility_squeeze_active({"micro_indicators": {"bb_width": 0.020}}) is True
+    _prime_bb(0.050)
+    assert micro_volatility_squeeze_active({"macro_indicators": {"bb_width": 0.020}}) is True
     assert micro_volatility_squeeze_active({"flow_features": {"micro_tick_acceleration": -0.02}}) is True
     assert (
         micro_volatility_squeeze_active(
@@ -55,10 +75,13 @@ def test_micro_volatility_squeeze_active_bb_width_and_negative_accel():
         )
         is False
     )
+    _prime_bb(0.035)
+    assert micro_volatility_squeeze_active({"indicators": {"bb_width": 0.035}}) is False
 
 
 def test_resolve_dynamic_flip_threshold_elevates_on_squeeze():
-    metrics = {"indicators": {"bb_width": 0.03}}
+    _prime_bb(0.050)
+    metrics = {"indicators": {"bb_width": 0.020}}
     threshold, squeeze = resolve_dynamic_flip_threshold(metrics)
     assert squeeze is True
     assert threshold == pytest.approx(META_FLIP_PAYOFF_THRESHOLD_SQUEEZE)
@@ -121,8 +144,9 @@ def test_apply_meta_direction_flip_skips_when_payoff_healthy():
 
 
 def test_apply_meta_direction_flip_c0015_squeeze_defensive_score():
+    _prime_bb(0.050)
     metrics = {
-        "indicators": {"bb_width": 0.03},
+        "indicators": {"bb_width": 0.020},
         "flow_features": {"micro_tick_acceleration": 0.01},
     }
     exec_dir, score = apply_meta_direction_flip(
@@ -141,8 +165,9 @@ def test_apply_meta_direction_flip_c0015_squeeze_defensive_score():
 
 
 def test_log_d_squeeze_audit_emits_tag(caplog):
+    _prime_bb(0.050)
     metrics = {
-        "indicators": {"bb_width": 0.03},
+        "indicators": {"bb_width": 0.020},
         "flow_features": {"micro_tick_acceleration": 0.01},
         "meta_calibrated_payoff_score": 0.46,
         "dynamic_flip_threshold": 0.49,

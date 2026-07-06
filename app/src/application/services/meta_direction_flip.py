@@ -5,6 +5,11 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from src.application.services.bb_width_adaptive_squeeze import (
+    BB_WIDTH_ANOMALY_RATIO,
+    evaluate_bb_width_squeeze,
+    harmonic_mean_bb_width,
+)
 from src.domain.models.trade import TradeDirection
 
 
@@ -12,7 +17,6 @@ META_FLIP_PAYOFF_THRESHOLD_BASE = 0.42
 META_FLIP_PAYOFF_THRESHOLD_SQUEEZE = 0.49
 META_FLIP_TRADE_SCORE = 0.75
 META_FLIP_SQUEEZE_TRADE_SCORE = 0.52
-BB_WIDTH_SQUEEZE_CUTOFF = 0.06
 
 _SQUEEZE_LOGGER = logging.getLogger("AETH")
 
@@ -40,9 +44,18 @@ def _read_micro_tick_acceleration(metrics: dict[str, Any]) -> float:
 
 
 def severe_bb_compression(metrics: dict[str, Any]) -> bool:
-    """Indica compressao severa de volatilidade micro por bb_width abaixo do corte."""
+    """Indica compressao anomala de bb_width abaixo do ratio elastico da media harmonica movel."""
     bb_width = _read_micro_bb_width(metrics)
-    return bb_width is not None and bb_width < BB_WIDTH_SQUEEZE_CUTOFF
+    if bb_width is None:
+        return False
+    configured_ratio = metrics.get("bb_width_anomaly_ratio")
+    ratio = float(configured_ratio) if configured_ratio is not None else BB_WIDTH_ANOMALY_RATIO
+    compressed, mean, width = evaluate_bb_width_squeeze(bb_width, anomaly_ratio=ratio)
+    metrics["bb_width_harmonic_mean"] = float(mean)
+    metrics["bb_width_anomaly_ratio"] = float(ratio)
+    metrics["bb_width_current"] = float(width)
+    metrics["bb_width_anomalous_compression"] = bool(compressed)
+    return compressed
 
 
 def micro_volatility_squeeze_active(metrics: dict[str, Any]) -> bool:
@@ -79,10 +92,13 @@ def flipped_direction(dl_dir: TradeDirection) -> TradeDirection:
 def log_d_squeeze_audit(symbol: str | None, metrics: dict[str, Any]) -> None:
     """Emite log [D-SQUEEZE] com metricas de compressao micro para auditoria."""
     bb_width = _read_micro_bb_width(metrics)
+    harmonic = float(metrics.get("bb_width_harmonic_mean", harmonic_mean_bb_width()))
     _SQUEEZE_LOGGER.info(
-        "[D-SQUEEZE] %s bb_width=%.4f tick_accel=%.4f payoff=%.4f threshold=%.2f flip=%s score=%.2f",
+        "[D-SQUEEZE] %s bb_width=%.4f harm_mean=%.4f ratio=%.2f tick_accel=%.4f payoff=%.4f threshold=%.2f flip=%s score=%.2f",
         symbol or "?",
         float(bb_width) if bb_width is not None else 0.0,
+        harmonic,
+        float(BB_WIDTH_ANOMALY_RATIO),
         _read_micro_tick_acceleration(metrics),
         float(metrics.get("predicted_payoff_edge", metrics.get("meta_calibrated_payoff_score", 0.0))),
         float(metrics.get("dynamic_flip_threshold", META_FLIP_PAYOFF_THRESHOLD_BASE)),

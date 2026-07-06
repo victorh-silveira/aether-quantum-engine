@@ -57,7 +57,7 @@ def test_calculate_stake_neutral_regime_uses_dynamic_bankroll_base(kelly_config)
         kwargs={"dl_metrics": metrics, "order_direction": "PUT"},
     )
     assert stake == pytest.approx(16.50)
-    assert metrics.get("edge_neutral_dynamic_unit") == pytest.approx(16.50)
+    assert metrics.get("session_base_unit") == pytest.approx(16.50)
 
 
 def test_calculate_stake_turbo_edge_doubles_final_stake(kelly_config):

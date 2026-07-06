@@ -1,3 +1,4 @@
+import math
 from unittest.mock import MagicMock
 
 import pytest
@@ -18,6 +19,7 @@ def _mock_rm(kelly_config, **overrides):
     rm.active_contract_ids = []
     rm.consecutive_losses_linear = 0
     rm.dlambert_unit = 0.0
+    rm.last_loss_stake = 0.0
     rm.logger = MagicMock()
     rm.effective_win_rate = MagicMock(return_value=0.55)
     rm._recovery_allowed = MagicMock(return_value=False)
@@ -169,7 +171,7 @@ def test_calculate_stake_mandatory_trade_each_cycle(kelly_config):
             "mandatory_trade_each_cycle": True,
         },
     )
-    assert stake == 1.5
+    assert stake == pytest.approx(15.0)
 
 
 def test_calculate_stake_dlambert_progresses_without_hard_cap(kelly_config):
@@ -189,14 +191,15 @@ def test_calculate_stake_dlambert_progresses_without_hard_cap(kelly_config):
         apply_stop_win=False,
         kwargs={"dl_metrics": {"execute": True, "order_direction": "CALL"}},
     )
-    assert stake > 10000.0 * 0.04
+    assert stake <= 10000.0 * 0.035 + 1e-9
 
 
-def test_calculate_stake_c0017_bypasses_consensus_and_uses_dlambert_martingale(kelly_config):
+def test_calculate_stake_c0017_bypasses_consensus_and_uses_soft_recovery(kelly_config):
     unit_u = 10.0
+    pending = 93.19
     rm = _mock_rm(
         kelly_config,
-        pending_loss={"RDBULL": 93.19},
+        pending_loss={"RDBULL": pending},
         consecutive_losses_linear=3,
         dlambert_unit=unit_u,
         _recovery_allowed=MagicMock(return_value=False),
@@ -234,6 +237,9 @@ def test_calculate_stake_c0017_bypasses_consensus_and_uses_dlambert_martingale(k
             "order_direction": "CALL",
         },
     )
-    assert stake == pytest.approx(unit_u * (2.0**3))
+    session_unit = max(unit_u, 10000.0 * 0.0015)
+    expected = math.ceil((session_unit * (1.65**3)) * 100) / 100
+    assert stake == pytest.approx(expected)
     logged = " ".join(str(c) for c in rm.logger.info.call_args_list)
     assert "D'ALEMBERT" in logged
+    assert "soft=1.65x^3" in logged

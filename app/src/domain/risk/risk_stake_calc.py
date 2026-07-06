@@ -242,6 +242,8 @@ def calculate_stake_for_manager(
         rm=rm,
         consecutive_losses_linear=linear_losses,
         pending_total=loss_to_recover,
+        payout=b,
+        dl_metrics=dl_metrics if isinstance(dl_metrics, dict) else None,
     )
     mandatory_flag = _mandatory_trade_flag(kwargs, rm)
     final_stake = finalize_stake_with_min(
@@ -266,6 +268,7 @@ def calculate_stake_for_manager(
         consecutive_losses_linear=linear_losses,
         dlambert_config=rm.dlambert_config,
         bankroll=bankroll,
+        payout=b,
     )
     _emit_cycle_stake_log(
         rm,

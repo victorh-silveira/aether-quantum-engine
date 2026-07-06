@@ -20,11 +20,11 @@ def test_kelly_calculation_standard(kelly_config):
 
 
 def test_kelly_negative_edge_returns_min_stake(kelly_config):
-    """Verifica que agora forçamos a stake_min mesmo sem vantagem (No-Idle)."""
+    """Verifica piso dinamico de 0.15% da banca fora do D-SQUEEZE."""
     kelly_config["params"]["payout_estimate"] = 0.01
     rm = RiskManager(kelly_config)
     stake = rm.calculate_stake(1000.0, "RDBULL", conviction=0.5)
-    assert stake == 1.0
+    assert stake == pytest.approx(1.5)
 
 
 def test_kelly_stake_unlimited_by_max_pct(kelly_config):
@@ -88,7 +88,7 @@ def test_kelly_intelligent_recovery(kelly_config):
         dl_metrics={"execute": True, "trade_score": 0.65, "val_accuracy": 0.55},
     )
     assert stake_high >= stake_low
-    assert stake_low > 50.0
+    assert stake_low > 15.0
 
     rm.active_contract_ids = [2]
     rm.register_result(57.49, 2, "RDBULL")
@@ -179,7 +179,7 @@ def test_risk_manager_dlambert_same_stake_with_same_linear(kelly_config):
     stake_first = rm.calculate_stake(1000.0, "RDBEAR", conviction=0.55, dl_metrics=dl_metrics)
     stake_second = rm.calculate_stake(1000.0, "RDBEAR", conviction=0.55, dl_metrics=dl_metrics)
     assert stake_second == stake_first
-    assert stake_first > 17.0
+    assert stake_first > 1.5
 
 
 def test_proposal_skip_cycles_expire(kelly_config):
@@ -250,7 +250,7 @@ def test_cross_symbol_recovery(kelly_config):
         conviction=0.8,
         dl_metrics={"execute": True, "trade_score": 0.65, "val_accuracy": 0.55},
     )
-    assert stake_b_high > 17.0
+    assert stake_b_high > 1.5
 
     rm.active_contract_ids = [2]
     rm.register_result(12.0, 2, "RDBEAR")

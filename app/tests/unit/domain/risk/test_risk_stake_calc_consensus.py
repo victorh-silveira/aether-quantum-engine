@@ -1,5 +1,7 @@
 from unittest.mock import MagicMock
 
+import pytest
+
 from src.domain.risk.risk_stake_calc import calculate_stake_for_manager
 
 
@@ -18,7 +20,7 @@ def test_calculate_stake_consensus_penalty_reduces_stake(kelly_config):
         "consensus_max_cut": 0.50,
         "consensus_di_weight": 0.35,
         "consensus_cmo_weight": 0.40,
-        "fraction": 0.005,
+        "fraction": 0.08,
         "max_stake_pct": 1.0,
     }
     rm.risk_params = kelly_config["params"]
@@ -62,7 +64,7 @@ def test_calculate_stake_consensus_penalty_reduces_stake(kelly_config):
     assert stake_diverged < stake_aligned
 
 
-def test_calculate_stake_consensus_floor_uses_stake_min(kelly_config):
+def test_calculate_stake_consensus_floor_uses_session_base_unit(kelly_config):
     rm = MagicMock()
     rm.config = kelly_config
     rm.kelly_config = {
@@ -101,7 +103,7 @@ def test_calculate_stake_consensus_floor_uses_stake_min(kelly_config):
         apply_stop_win=False,
         kwargs={"dl_metrics": metrics, "order_direction": "CALL"},
     )
-    assert stake == 1.0
+    assert stake == pytest.approx(11800.0 * 0.0015)
 
 
 def test_calculate_stake_consensus_penalty_logs_retention(kelly_config):

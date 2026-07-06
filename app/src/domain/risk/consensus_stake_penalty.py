@@ -17,6 +17,88 @@ _WIN_EXPECTED = "WIN_EXPECTED"
 _NEUTRAL_BANKROLL_PCT = 0.0015
 _TURBO_EDGE_ZSCORE_THRESHOLD = 1.5
 _TURBO_EDGE_STAKE_MULTIPLIER = 2.0
+_PAYOUT_FALLBACK = 0.90
+_MAX_SAFE_STAKE_BANKROLL_PCT = 0.035
+_SOFT_RECOVERY_PROGRESSION = 1.65
+
+
+def _positive_float(value: object) -> float | None:
+    """Converte valor numerico positivo ou retorna None quando invalido."""
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0.0 else None
+
+
+def resolve_contract_payout(
+    payout: float | None = None,
+    risk_params: dict[str, Any] | None = None,
+) -> float:
+    """Resolve payout real do contrato com fallback estatico de seguranca."""
+    candidates: list[float] = []
+    if payout is not None:
+        parsed = _positive_float(payout)
+        if parsed is not None:
+            candidates.append(parsed)
+    if isinstance(risk_params, dict):
+        for key in ("contract_payout", "payout", "payout_estimate"):
+            parsed = _positive_float(risk_params.get(key))
+            if parsed is not None:
+                candidates.append(parsed)
+    if candidates:
+        return candidates[0]
+    return _PAYOUT_FALLBACK
+
+
+def soft_recovery_progression_multiplier(consecutive_losses: int) -> float:
+    """Retorna fator 1.65^n para n perdas consecutivas na sessao."""
+    losses = max(0, int(consecutive_losses))
+    if losses <= 0:
+        return 1.0
+    return _SOFT_RECOVERY_PROGRESSION**losses
+
+
+def resolve_session_base_unit(bankroll: float, base_unit: float, metrics: dict | None) -> float:
+    """Resolve unidade base U como max(kelly, 0.15% banca) fora do D-SQUEEZE."""
+    unit = max(float(base_unit), neutral_edge_dynamic_unit(bankroll))
+    if isinstance(metrics, dict) and not _squeeze_floor_active(metrics):
+        metrics["session_base_unit"] = unit
+    return unit
+
+
+def apply_soft_recovery_stake(
+    *,
+    pending_total: float,
+    base_unit: float,
+    consecutive_losses: int,
+    previous_stake: float,
+    bankroll: float,
+    metrics: dict | None = None,
+) -> float:
+    """Aplica progressao suave 1.65x por perda consecutiva quando ha passivo pendente."""
+    unit = resolve_session_base_unit(bankroll, base_unit, metrics)
+    if float(pending_total) <= 0.0:
+        return min(unit, max_safe_stake_cap(bankroll))
+    losses = max(0, int(consecutive_losses))
+    anchor = float(previous_stake) if float(previous_stake) > 0.0 else unit
+    if losses <= 0:
+        stake = unit
+    elif float(previous_stake) > 0.0:
+        stake = anchor * _SOFT_RECOVERY_PROGRESSION
+    else:
+        stake = unit * soft_recovery_progression_multiplier(losses)
+    if isinstance(metrics, dict):
+        metrics["recovery_soft_progression"] = _SOFT_RECOVERY_PROGRESSION
+        metrics["recovery_soft_losses"] = losses
+        metrics["recovery_soft_anchor_stake"] = anchor
+    cap = max_safe_stake_cap(bankroll)
+    return min(stake, cap)
+
+
+def max_safe_stake_cap(bankroll: float) -> float:
+    """Retorna teto absoluto de exposicao: 3.5% da banca ativa."""
+    return max(0.0, float(bankroll)) * _MAX_SAFE_STAKE_BANKROLL_PCT
 
 
 def _squeeze_floor_active(metrics: dict) -> bool:
@@ -30,14 +112,10 @@ def neutral_edge_dynamic_unit(bankroll: float) -> float:
 
 
 def apply_neutral_edge_kelly_base(kelly_base: float, bankroll: float, metrics: dict | None) -> float:
-    """Eleva kelly_base ao piso dinamico de 0.15% da banca em NO_EDGE_NEUTRAL."""
-    if not isinstance(metrics, dict) or _squeeze_floor_active(metrics):
+    """Eleva kelly_base ao piso dinamico de 0.15% da banca fora do D-SQUEEZE."""
+    if isinstance(metrics, dict) and _squeeze_floor_active(metrics):
         return kelly_base
-    if str(metrics.get("edge_expectancy") or "") != _NO_EDGE_NEUTRAL:
-        return kelly_base
-    floor = neutral_edge_dynamic_unit(bankroll)
-    metrics["edge_neutral_dynamic_unit"] = floor
-    return max(float(kelly_base), floor)
+    return resolve_session_base_unit(bankroll, float(kelly_base), metrics)
 
 
 def turbo_edge_stake_multiplier(metrics: dict | None) -> float:
@@ -125,10 +203,15 @@ def consensus_kelly_retention(
 
 __all__ = [
     "apply_neutral_edge_kelly_base",
+    "apply_soft_recovery_stake",
     "apply_turbo_edge_stake",
     "consensus_entropy_applies_min_stake",
     "consensus_entropy_kelly_retention",
     "consensus_kelly_retention",
+    "max_safe_stake_cap",
     "neutral_edge_dynamic_unit",
+    "resolve_contract_payout",
+    "resolve_session_base_unit",
+    "soft_recovery_progression_multiplier",
     "turbo_edge_stake_multiplier",
 ]

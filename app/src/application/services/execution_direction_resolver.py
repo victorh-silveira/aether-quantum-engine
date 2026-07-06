@@ -10,6 +10,9 @@ from src.application.services.payoff_edge_zscore import attach_payoff_edge_zscor
 from src.domain.models.trade import TradeDirection
 
 
+D_SQUEEZE_BB_WIDTH_ANOMALY_RATIO = 0.55
+
+
 _TECHNICAL_BLOCKS = frozenset({"data", "predict_error", "training"})
 TCN_CALL_THRESHOLD = 0.53
 TCN_PUT_THRESHOLD = 0.47
@@ -170,6 +173,7 @@ def resolve_execution_direction(
     if dl_dir is None:
         return None
     metrics = dict(entry.get("metrics") or {})
+    metrics["bb_width_anomaly_ratio"] = D_SQUEEZE_BB_WIDTH_ANOMALY_RATIO
     prob = _direction_prob(entry)
     if prob is None:
         prob = 0.55 if dl_dir == TradeDirection.CALL else 0.45
