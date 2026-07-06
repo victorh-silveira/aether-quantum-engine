@@ -18,14 +18,22 @@ async def test_orchestrator_run_schedules_bootstrap_in_execute_mode(orch_config)
         mock_ws_class.return_value.subscribe = MagicMock()
         mock_ws_class.return_value.is_running = True
         orch = Orchestrator(orch_config, "token")
-        orch._setup_session = AsyncMock(return_value=True)
-        orch._start_streams = AsyncMock(return_value=True)
         orch._run_trading_cycle_if_ready = AsyncMock(return_value=True)
         with (
             patch(
                 "src.application.services.orchestrator.run_orchestrator_training",
                 new_callable=AsyncMock,
             ) as mock_train,
+            patch(
+                "src.application.services.orchestrator.orchestrator_run_loop.setup_session",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+            patch(
+                "src.application.services.orchestrator.orchestrator_run_loop.start_streams",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
             patch(
                 "src.application.services.orchestrator.trading_cycle_entry.try_enqueue_next_bootstrap_training",
             ) as mock_enqueue,

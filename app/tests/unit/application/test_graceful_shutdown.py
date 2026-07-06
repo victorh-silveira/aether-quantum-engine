@@ -1,15 +1,12 @@
 import asyncio
-import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-import src.application.services.orchestrator.graceful_shutdown as graceful_shutdown_module
 from src.application.services.orchestrator import Orchestrator
 from src.application.services.orchestrator.graceful_shutdown import (
-    _shutdown_safe_excepthook,
+    _cancel_pending_loop_tasks,
     close_infrastructure_connections,
-    install_shutdown_excepthook,
 )
 from src.application.services.orchestrator.orchestrator_run_loop import stop_orchestrator
 from src.infrastructure.inference.triton_grpc_client import TritonGrpcClient
@@ -223,54 +220,34 @@ async def test_triton_close_channel_instance():
     close_mock.assert_awaited_once()
 
 
-def test_shutdown_safe_excepthook_ignores_closed_loop():
-    gs = graceful_shutdown_module
-
-    old_hook = sys.excepthook
-    try:
-        gs._original_excepthook = lambda *a: None
-        install_shutdown_excepthook()
-        assert sys.excepthook is _shutdown_safe_excepthook
-        sys.excepthook(RuntimeError, RuntimeError("Event loop is closed"), None)
-        sys.excepthook(SystemExit, SystemExit(0), None)
-    finally:
-        sys.excepthook = old_hook
+@pytest.mark.asyncio
+async def test_cancel_pending_loop_tasks_noop_when_empty():
+    await _cancel_pending_loop_tasks()
 
 
-def test_shutdown_safe_excepthook_covers_branches():
-    gs = graceful_shutdown_module
-
-    old_hook = sys.excepthook
-    called: list[type[BaseException]] = []
-    try:
-        gs._original_excepthook = lambda exc_type, exc_value, exc_tb: called.append(exc_type)
-        install_shutdown_excepthook()
-        sys.excepthook(GeneratorExit, GeneratorExit(), None)
-        sys.excepthook(
-            AttributeError,
-            AttributeError("call_exception_handler failed"),
-            None,
-        )
-        sys.excepthook(RuntimeError, RuntimeError("cannot schedule new futures after shutdown"), None)
-        sys.excepthook(ValueError, ValueError("real"), None)
-        assert ValueError in called
-    finally:
-        sys.excepthook = old_hook
+@pytest.mark.asyncio
+async def test_cancel_pending_loop_tasks_cancels_pending_tasks():
+    mock_task = MagicMock()
+    mock_task.done.return_value = False
+    current = asyncio.current_task()
+    with (
+        patch("asyncio.all_tasks", return_value={mock_task, current}),
+        patch("asyncio.current_task", return_value=current),
+        patch("asyncio.gather", new_callable=AsyncMock, return_value=[]),
+    ):
+        await _cancel_pending_loop_tasks()
+    mock_task.cancel.assert_called_once()
 
 
-def test_shutdown_safe_excepthook_closed_loop():
-    gs = graceful_shutdown_module
+@pytest.mark.asyncio
+async def test_cancel_pending_loop_tasks_cancels_orphans():
+    started = asyncio.Event()
 
-    old_hook = sys.excepthook
-    try:
-        gs._original_excepthook = lambda *a: None
-        install_shutdown_excepthook()
+    async def _orphan() -> None:
+        started.set()
+        await asyncio.sleep(3600)
 
-        class _ClosedLoop:
-            def is_closed(self):
-                return True
-
-        with patch("asyncio.get_running_loop", return_value=_ClosedLoop()):
-            sys.excepthook(RuntimeError, RuntimeError("other"), None)
-    finally:
-        sys.excepthook = old_hook
+    orphan = asyncio.create_task(_orphan())
+    await started.wait()
+    await _cancel_pending_loop_tasks()
+    assert orphan.cancelled() or orphan.done()

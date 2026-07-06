@@ -28,6 +28,17 @@ async def _close_triton_if_enabled(orch: Any) -> None:
     await close_triton_grpc_client()
 
 
+async def _cancel_pending_loop_tasks() -> None:
+    """Cancela tasks asyncio pendentes antes do fechamento de infraestrutura."""
+    current = asyncio.current_task()
+    pending = [task for task in asyncio.all_tasks() if task is not current and not task.done()]
+    if not pending:
+        return
+    for task in pending:
+        task.cancel()
+    await asyncio.gather(*pending, return_exceptions=True)
+
+
 async def close_infrastructure_connections(orch: Any) -> None:
     """Aguarda fechamento de Triton, Timescale, Redis e WebSocket."""
     if getattr(orch, "_infra_shutdown_done", False):
@@ -69,10 +80,23 @@ async def graceful_shutdown(orch: Any, *, fast_path: bool = False) -> None:
         if not fast_path and isinstance(task, asyncio.Task):
             with contextlib.suppress(asyncio.CancelledError):
                 await task
+    await _cancel_pending_loop_tasks()
     await close_infrastructure_connections(orch)
 
 
 _original_excepthook = sys.excepthook
+
+
+def _invoke_original_excepthook(
+    exc_type: type[BaseException],
+    exc_value: BaseException,
+    exc_tb: object,
+) -> None:
+    """Delega ao excepthook nativo sem propagar falhas do proprio hook."""
+    try:
+        _original_excepthook(exc_type, exc_value, exc_tb)
+    except Exception:
+        return
 
 
 def _shutdown_safe_excepthook(
@@ -81,9 +105,7 @@ def _shutdown_safe_excepthook(
     exc_tb: object,
 ) -> None:
     """Ignora ruido de shutdown assincrono; repassa demais excecoes ao hook original."""
-    if exc_type is SystemExit:
-        return
-    if exc_type is GeneratorExit:
+    if exc_type in (SystemExit, GeneratorExit, KeyboardInterrupt):
         return
     if exc_type is RuntimeError:
         msg = str(exc_value)
@@ -97,7 +119,7 @@ def _shutdown_safe_excepthook(
         loop = None
     if loop is not None and loop.is_closed():
         return
-    _original_excepthook(exc_type, exc_value, exc_tb)
+    _invoke_original_excepthook(exc_type, exc_value, exc_tb)
 
 
 def install_shutdown_excepthook() -> None:

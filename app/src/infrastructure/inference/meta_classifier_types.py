@@ -19,3 +19,14 @@ class MetaPredictResponse(TypedDict):
 
     predicted_payoff_edge: float
     meta_applied: bool
+
+
+def parse_meta_predict_response(payload: object) -> MetaPredictResponse:
+    """Extrai edge continuo da resposta HTTP do meta-regressor."""
+    if not isinstance(payload, dict):
+        raise TypeError("meta response must be object")
+    if "predicted_payoff_edge" not in payload:
+        raise KeyError("predicted_payoff_edge")
+    edge = float(payload["predicted_payoff_edge"])
+    applied = bool(payload.get("meta_applied", False))
+    return {"predicted_payoff_edge": edge, "meta_applied": applied}

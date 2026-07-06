@@ -15,7 +15,11 @@ from src.application.services.meta_classifier_features import (
     extract_meta_feature_vector,
     side_payoff_from_probability,
 )
-from src.infrastructure.inference.meta_classifier_types import MetaPredictRequest, MetaPredictResponse
+from src.infrastructure.inference.meta_classifier_types import (
+    MetaPredictRequest,
+    MetaPredictResponse,
+    parse_meta_predict_response,
+)
 
 
 logger = logging.getLogger("AETH")
@@ -138,10 +142,10 @@ class MetaClassifierClient:
         try:
             response = await self._client.post("/v2/predict_meta", json=payload)
             response.raise_for_status()
-            data = response.json()
-            edge = float(data["predicted_payoff_edge"])
-            applied = bool(data.get("meta_applied", True))
-            return {"predicted_payoff_edge": edge, "meta_applied": applied}
+            parsed = parse_meta_predict_response(response.json())
+            if parsed["meta_applied"]:
+                reset_meta_classifier_fallback_dedupe()
+            return parsed
         except (httpx.TimeoutException, httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
             _ = fallback_score
             message = str(exc)

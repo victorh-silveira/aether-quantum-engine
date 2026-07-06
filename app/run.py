@@ -13,6 +13,17 @@ from src.application.services.orchestrator.engine_session import (
 from src.application.services.orchestrator.graceful_shutdown import install_shutdown_excepthook
 
 
+def _emit_fatal_startup_error(exc: BaseException) -> None:
+    """Emite erro fatal no stderr quando streams ainda estao abertos."""
+    try:
+        stderr = getattr(sys, "stderr", None)
+        if stderr is None or getattr(stderr, "closed", False):
+            return
+        print(f"ERRO fatal ao iniciar motor: {exc}", file=stderr, flush=True)
+    except Exception:
+        return
+
+
 async def main() -> int:
     """Carrega configuracao, autentica e executa o loop principal do motor."""
     config, logger = load_engine_config(engine_mode=ENGINE_MODE_EXECUTE)
@@ -46,8 +57,8 @@ if __name__ == "__main__":
     install_shutdown_excepthook()
     try:
         sys.exit(asyncio.run(main()))
-    except SystemExit:
+    except (SystemExit, KeyboardInterrupt):
         raise
     except Exception as exc:
-        print(f"ERRO fatal ao iniciar motor: {exc}", flush=True)
+        _emit_fatal_startup_error(exc)
         sys.exit(1)

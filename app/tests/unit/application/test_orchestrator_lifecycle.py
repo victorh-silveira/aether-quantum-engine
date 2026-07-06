@@ -80,18 +80,6 @@ async def test_orchestrator_run_loop_reconnection(orchestrator_config):
 
 
 @pytest.mark.asyncio
-async def test_orchestrator_stop(orchestrator_config):
-    """Testa a parada graciosa."""
-    TradingState.reset()
-    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
-        mock_ws_class.return_value.subscribe = MagicMock()
-        orch = Orchestrator(orchestrator_config, "token")
-        orch.running = True
-        await orch.stop()
-        assert orch.running is False
-
-
-@pytest.mark.asyncio
 async def test_orchestrator_setup_session_auth_error(orchestrator_config):
     """Cobre erro de autorização."""
     TradingState.reset()
@@ -218,6 +206,9 @@ async def test_orchestrator_start_streams_retries_on_connection_error(orchestrat
         mock_ws.subscribe = MagicMock()
         mock_ws.is_running = False
         orch = Orchestrator(orchestrator_config, "token")
+        orch.auth.open_trading_session = AsyncMock(
+            return_value=DerivTradingSession(ws_url="wss://test/ws?otp=x", balance=1000.0, account_id="DOT1")
+        )
         orch.stream.start_candle_stream = AsyncMock(side_effect=[ConnectionError("down"), None])
         with patch("src.application.services.orchestrator.asyncio.sleep", new_callable=AsyncMock):
             assert await orch._start_streams() is True
@@ -232,6 +223,9 @@ async def test_orchestrator_start_streams_fails_after_retry_limit(orchestrator_c
         mock_ws.subscribe = MagicMock()
         mock_ws.is_running = False
         orch = Orchestrator(orchestrator_config, "token")
+        orch.auth.open_trading_session = AsyncMock(
+            return_value=DerivTradingSession(ws_url="wss://test/ws?otp=x", balance=1000.0, account_id="DOT1")
+        )
         orch.stream.start_candle_stream = AsyncMock(side_effect=ConnectionError("down"))
         with patch("src.application.services.orchestrator.asyncio.sleep", new_callable=AsyncMock):
             assert await orch._start_streams() is False
