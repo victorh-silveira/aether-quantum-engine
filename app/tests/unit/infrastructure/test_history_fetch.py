@@ -134,3 +134,22 @@ async def test_fetch_paginated_waits_between_chunks():
         )
     assert len(out) == 2
     mock_sleep.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_fetch_paginated_continues_after_partial_first_page():
+    partial = [{"open": 1.0, "high": 1.1, "low": 0.9, "close": 1.05, "epoch": 5000 - i} for i in range(999)]
+    older = [{"open": 1.0, "high": 1.1, "low": 0.9, "close": 1.02, "epoch": 3000 + i} for i in range(2)]
+    ws = AsyncMock()
+    ws.send = AsyncMock(side_effect=[{"candles": partial}, {"candles": older}])
+    cfg = parse_history_fetch_config({"history_fetch_chunk": 1000, "history_fetch_delay_seconds": 0})
+    out = await fetch_paginated_candle_history(
+        ws,
+        symbol="RDBEAR",
+        granularity=60,
+        target=1001,
+        fetch_cfg=cfg,
+        logger=logging.getLogger("test"),
+    )
+    assert len(out) == 1001
+    assert ws.send.await_count == 2

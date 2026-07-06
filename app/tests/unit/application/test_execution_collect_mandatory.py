@@ -6,7 +6,7 @@ from src.application.services.orchestrator.execution_collect import collect_clus
 from src.application.services.orchestrator.execution_collect_helpers import resolve_mandatory_ultimate_candidate
 from src.domain.models.trade import TradeDirection
 from tests.market_symbols import ANCHOR, PAIR
-from tests.unit.application.universal_regime_metrics import asymmetric_gate_safe_metrics
+from tests.unit.application.universal_regime_metrics import bear_put_metrics
 
 
 def test_collect_cluster_orders_mandatory_fallback_after_recovery_filter():
@@ -46,7 +46,7 @@ def test_collect_cluster_orders_mandatory_fallback_after_recovery_filter():
         },
         PAIR: {
             "direction": TradeDirection.PUT,
-            "metrics": asymmetric_gate_safe_metrics(execute=False, trade_score=0.72, raw_prob=0.44),
+            "metrics": bear_put_metrics(execute=False, trade_score=0.72, raw_prob=0.44, calibrated_prob=0.44),
         },
     }
     with patch(
@@ -155,12 +155,12 @@ def test_collect_cluster_orders_skips_entry_without_inferable_direction():
         _trade_symbols=lambda: [PAIR],
     )
     decisions = {
-        PAIR: {"direction": None, "metrics": asymmetric_gate_safe_metrics(raw_prob=0.75)},
+        PAIR: {"direction": None, "metrics": bear_put_metrics(raw_prob=0.28, calibrated_prob=0.28)},
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
     assert len(orders) == 1
     assert orders[0][0] == PAIR
-    assert orders[0][1] == TradeDirection.CALL
+    assert orders[0][1] == TradeDirection.PUT
 
 
 def test_collect_cluster_orders_does_not_exclude_symbol_by_loss_streak():

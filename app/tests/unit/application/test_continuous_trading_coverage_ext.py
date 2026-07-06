@@ -228,15 +228,45 @@ def test_entropy_fallback_skips_symbol_in_set():
 
 
 def test_entropy_fallback_infers_direction_when_missing():
-    entry = {"metrics": {"deploy_ok": True, "calibrated_prob": 0.72, "gate_reason": None}}
+    entry = {"metrics": {"deploy_ok": True, "calibrated_prob": 0.28, "gate_reason": None}}
     with patch("src.application.services.execution_entropy_fallback.infer_dl_direction", return_value=None):
         picked = pick_entropy_fallback_candidate(["RDBEAR"], {"RDBEAR": entry})
+    assert picked is not None
+    assert picked[1] == TradeDirection.PUT
+
+
+def test_entropy_fallback_bull_symbol_forces_call_when_infer_missing():
+    entry = {"metrics": {"deploy_ok": True, "calibrated_prob": 0.72, "gate_reason": None}}
+    with (
+        patch("src.application.services.execution_entropy_fallback.infer_dl_direction", return_value=None),
+        patch(
+            "src.application.services.execution_entropy_fallback.build_execution_candidate",
+            return_value=("RDBULL", TradeDirection.CALL, {"deploy_ok": True}),
+        ),
+    ):
+        picked = pick_entropy_fallback_candidate(["RDBULL"], {"RDBULL": entry})
     assert picked is not None
     assert picked[1] == TradeDirection.CALL
 
 
 def test_entropy_fallback_direction_default_call_when_uninferable():
-    entry = {"metrics": {"deploy_ok": True, "calibrated_prob": 0.72, "gate_reason": None}}
+    entry = {"metrics": {"deploy_ok": True, "calibrated_prob": 0.28, "gate_reason": None}}
     with patch("src.application.services.execution_entropy_fallback.infer_dl_direction", return_value=None):
         picked = pick_entropy_fallback_candidate(["RDBEAR"], {"RDBEAR": entry})
     assert picked is not None
+    assert picked[1] == TradeDirection.PUT
+
+
+def test_entropy_fallback_generic_symbol_infers_from_pivot():
+    entry = {"metrics": {"deploy_ok": True, "calibrated_prob": 0.62, "gate_reason": None}}
+    with (
+        patch("src.application.services.execution_entropy_fallback.infer_dl_direction", return_value=None),
+        patch(
+            "src.application.services.execution_entropy_fallback.build_execution_candidate",
+            return_value=("SYNTH", TradeDirection.CALL, {"deploy_ok": True}),
+        ),
+    ):
+        picked = pick_entropy_fallback_candidate(["SYNTH"], {"SYNTH": entry})
+    assert picked is not None
+    assert picked[0] == "SYNTH"
+    assert picked[1] == TradeDirection.CALL

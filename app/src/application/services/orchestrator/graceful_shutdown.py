@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-import sys
 from typing import Any
 
 from src.application.services.deep_learning.dl_deferred_train import cancel_deferred_symbol_training
@@ -15,6 +14,29 @@ from src.application.services.orchestrator.watchdog_service import stop_ingestio
 from src.infrastructure.factories.infra_factory import close_infra_services
 from src.infrastructure.inference.meta_classifier_pool import close_meta_classifier_client
 from src.infrastructure.inference.triton_grpc_client import close_triton_grpc_client
+
+
+_INFRA_TASK_PREFIXES = ("httpx",)
+_INFRA_TASK_MARKERS = (
+    "_listen",
+    "_ping_loop",
+    "websocketclientprotocol",
+    "connectionpool",
+    "_run_worker",
+    "_correlation_worker",
+    "safe_callback",
+)
+_APP_TASK_MARKERS = (
+    "_run_deferred_training",
+    "_subscribe_open_contract_background",
+    "_run_settlement_watch",
+    "run_post_settlement_breath_and_cycle",
+    "_settlement_worker_loop",
+    "_release_stuck_trading_slot",
+    "_profit_table_audit_loop",
+    "schedule_recovery_skip_counter_increment",
+    "aether-watchdog",
+)
 
 
 async def _close_triton_if_enabled(orch: Any) -> None:
@@ -28,14 +50,90 @@ async def _close_triton_if_enabled(orch: Any) -> None:
     await close_triton_grpc_client()
 
 
-async def _cancel_pending_loop_tasks() -> None:
-    """Cancela tasks asyncio pendentes antes do fechamento de infraestrutura."""
+def _task_label(task: asyncio.Task[Any]) -> str:
+    """Retorna nome legivel da task para filtragem de shutdown."""
+    name = task.get_name() if hasattr(task, "get_name") else ""
+    if name:
+        return str(name)
+    coro = task.get_coro()
+    if coro is None:
+        return ""
+    qual = getattr(coro, "__qualname__", "") or getattr(coro, "__name__", "")
+    return str(qual)
+
+
+def _is_infrastructure_async_task(task: asyncio.Task[Any]) -> bool:
+    """Ignora tasks de rede persistente e bibliotecas HTTP internas."""
+    label = _task_label(task).lower()
+    if any(label.startswith(prefix) for prefix in _INFRA_TASK_PREFIXES):
+        return True
+    return any(marker in label for marker in _INFRA_TASK_MARKERS)
+
+
+def _is_application_async_task(task: asyncio.Task[Any]) -> bool:
+    """Identifica tasks explicitas da esteira de trading do motor."""
+    label = _task_label(task)
+    lowered = label.lower()
+    if lowered == "aether-watchdog":
+        return True
+    return any(marker in label for marker in _APP_TASK_MARKERS)
+
+
+def _orchestrator_owned_tasks(orch: Any) -> list[asyncio.Task[Any]]:
+    """Coleta tasks registradas no orquestrador sem varrer o loop inteiro."""
+    owned: list[asyncio.Task[Any]] = []
+    for attr in (
+        "_settlement_worker_task",
+        "_post_settlement_task",
+        "_trading_slot_poll_task",
+        "_profit_table_audit_task",
+    ):
+        task = getattr(orch, attr, None)
+        if isinstance(task, asyncio.Task) and not task.done():
+            owned.append(task)
+    watchdog = getattr(orch, "_ingestion_watchdog", None)
+    if watchdog is not None:
+        wd_task = getattr(watchdog, "_task", None)
+        if isinstance(wd_task, asyncio.Task) and not wd_task.done():
+            owned.append(wd_task)
+    deferred = getattr(orch, "_dl_deferred_tasks", None) or {}
+    for task in deferred.values():
+        if isinstance(task, asyncio.Task) and not task.done():
+            owned.append(task)
+    return owned
+
+
+def _safe_cancel_task(task: asyncio.Task[Any]) -> bool:
+    """Cancela task com protecao contra RecursionError em hierarquias aninhadas."""
+    if task.done():
+        return False
+    try:
+        task.cancel()
+        return True
+    except RecursionError:
+        return False
+
+
+async def _cancel_pending_loop_tasks(orch: Any) -> None:
+    """Cancela apenas tasks da esteira de trading antes do fechamento de infraestrutura."""
     current = asyncio.current_task()
-    pending = [task for task in asyncio.all_tasks() if task is not current and not task.done()]
+    pending_map: dict[int, asyncio.Task[Any]] = {}
+    for task in _orchestrator_owned_tasks(orch):
+        if task is not current and not task.done():
+            pending_map[id(task)] = task
+    for task in asyncio.all_tasks():
+        if task is current or task.done() or id(task) in pending_map:
+            continue
+        if _is_infrastructure_async_task(task):
+            continue
+        if not _is_application_async_task(task):
+            continue
+        pending_map[id(task)] = task
+    pending = list(pending_map.values())
     if not pending:
         return
     for task in pending:
-        task.cancel()
+        _safe_cancel_task(task)
     await asyncio.gather(*pending, return_exceptions=True)
 
 
@@ -80,48 +178,5 @@ async def graceful_shutdown(orch: Any, *, fast_path: bool = False) -> None:
         if not fast_path and isinstance(task, asyncio.Task):
             with contextlib.suppress(asyncio.CancelledError):
                 await task
-    await _cancel_pending_loop_tasks()
+    await _cancel_pending_loop_tasks(orch)
     await close_infrastructure_connections(orch)
-
-
-_original_excepthook = sys.excepthook
-
-
-def _invoke_original_excepthook(
-    exc_type: type[BaseException],
-    exc_value: BaseException,
-    exc_tb: object,
-) -> None:
-    """Delega ao excepthook nativo sem propagar falhas do proprio hook."""
-    try:
-        _original_excepthook(exc_type, exc_value, exc_tb)
-    except Exception:
-        return
-
-
-def _shutdown_safe_excepthook(
-    exc_type: type[BaseException],
-    exc_value: BaseException,
-    exc_tb: object,
-) -> None:
-    """Ignora ruido de shutdown assincrono; repassa demais excecoes ao hook original."""
-    if exc_type in (SystemExit, GeneratorExit, KeyboardInterrupt):
-        return
-    if exc_type is RuntimeError:
-        msg = str(exc_value)
-        if "Event loop is closed" in msg or "cannot schedule new futures" in msg:
-            return
-    if exc_type is AttributeError and "call_exception_handler" in str(exc_value):
-        return
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
-    if loop is not None and loop.is_closed():
-        return
-    _invoke_original_excepthook(exc_type, exc_value, exc_tb)
-
-
-def install_shutdown_excepthook() -> None:
-    """Instala excepthook que ignora ruido de GC apos loop asyncio fechado."""
-    sys.excepthook = _shutdown_safe_excepthook

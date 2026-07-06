@@ -52,3 +52,19 @@ def base_metrics(**overrides):
         merged.update(overrides["indicators"])
         metrics["indicators"] = merged
     return metrics
+
+
+def bear_put_metrics(**overrides):
+    defaults = {
+        "trade_score": 0.72,
+        "conviction": 0.72,
+        "direction_call_score": 0.28,
+        "direction_put_score": 0.72,
+        "dl_direction": "PUT",
+        "exec_direction": "PUT",
+        "raw_prob": 0.28,
+        "calibrated_prob": 0.28,
+        "cross_symbol_features": {"cross_symbol_vol_ratio_diff": -0.1},
+    }
+    defaults.update(overrides)
+    return asymmetric_gate_safe_metrics(**defaults)

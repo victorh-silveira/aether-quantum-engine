@@ -3,6 +3,7 @@
 import asyncio
 import logging
 
+from src.application.services.market_audit_log import format_direction_audit_line, resolve_predicted_edge
 from src.domain.risk.stop_win_target import resolve_stop_win_target
 
 from .execution_proposal import (
@@ -72,14 +73,17 @@ async def place_order(executor, symbol, direction, stake, duration=None, metrics
     u = params.get("duration_unit", "m")
     meta = metrics if isinstance(metrics, dict) else {}
     dl_dir = meta.get("dl_direction")
-    inv = bool(meta.get("direction_inverted")) and not meta.get("recovery_forced")
-    inv_part = f" || ord={direction.name} dl={dl_dir} inv" if inv and dl_dir else f" || ord={direction.name}"
+    cycle_id = int(executor.orch._active_cycle_id)
     logger.info(
-        "[%s] EXEC || %s $%.2f%s || pay=%.2f cid=%s buy=$%.2f %s%s",
-        cid,
-        symbol,
+        "%s || stake=$%.2f pay=%.2f cid=%s buy=$%.2f %s%s",
+        format_direction_audit_line(
+            cycle_id,
+            direction.name,
+            str(symbol),
+            resolve_predicted_edge(meta),
+            dl_direction=str(dl_dir) if dl_dir else None,
+        ),
         float(stake),
-        inv_part,
         float(contract.payout),
         int(contract.contract_id),
         float(contract.buy_price),

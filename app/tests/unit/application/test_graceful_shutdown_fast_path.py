@@ -51,7 +51,7 @@ async def test_graceful_shutdown_cancels_pending_tasks_before_infra_close():
         started.set()
         await asyncio.sleep(3600)
 
-    orphan = asyncio.create_task(_orphan())
+    orphan = asyncio.create_task(_orphan(), name="_run_settlement_watch")
     await started.wait()
     with patch(
         "src.application.services.orchestrator.graceful_shutdown.close_infrastructure_connections",

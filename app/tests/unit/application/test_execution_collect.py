@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 from src.application.services.orchestrator.execution_collect import collect_cluster_orders
 from src.domain.models.trade import TradeDirection
 from tests.market_symbols import ANCHOR, PAIR
-from tests.unit.application.universal_regime_metrics import asymmetric_gate_safe_metrics
+from tests.unit.application.universal_regime_metrics import asymmetric_gate_safe_metrics, bear_put_metrics
 
 
 def test_collect_cluster_orders_recovery_executes_best_available_signal():
@@ -68,22 +68,20 @@ def test_collect_cluster_orders_includes_recovery_candidate_with_raw_prob():
     )
     decisions = {
         PAIR: {
-            "direction": TradeDirection.CALL,
-            "metrics": {
-                "raw_prob": 0.82,
-                "execute": True,
-                "deploy_ok": True,
-                "trade_score": 0.82,
-                "val_accuracy": 0.70,
-                "edge": 0.12,
-                "trend_direction": "CALL",
-                "indicators": {"adx": 0.28, "hurst": 0.55, "vol_ratio": 1.1, "rsi": 0.52, "keltner": 0.55, "cmo": 0.05},
-            },
+            "direction": TradeDirection.PUT,
+            "metrics": bear_put_metrics(
+                raw_prob=0.28,
+                calibrated_prob=0.28,
+                trade_score=0.82,
+                conviction=0.82,
+                execute=True,
+            ),
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
     assert len(orders) == 1
     assert orders[0][0] == PAIR
+    assert orders[0][1] == TradeDirection.PUT
 
 
 def test_collect_cluster_orders_bolts_weak_signal_continuously():
@@ -110,11 +108,15 @@ def test_collect_cluster_orders_bolts_weak_signal_continuously():
         _trade_symbols=lambda: [PAIR],
     )
     decisions = {
-        PAIR: {"direction": TradeDirection.CALL, "metrics": {"raw_prob": 0.4, "execute": False, "deploy_ok": True}},
+        PAIR: {
+            "direction": TradeDirection.PUT,
+            "metrics": {"raw_prob": 0.4, "execute": False, "deploy_ok": True, "val_accuracy": 0.55},
+        },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
     assert len(orders) == 1
     assert orders[0][0] == PAIR
+    assert orders[0][1] == TradeDirection.PUT
 
 
 def test_collect_cluster_orders_mandatory_does_not_skip_recovery_without_hedge():
@@ -139,8 +141,8 @@ def test_collect_cluster_orders_mandatory_does_not_skip_recovery_without_hedge()
     )
     decisions = {
         PAIR: {
-            "direction": TradeDirection.CALL,
-            "metrics": asymmetric_gate_safe_metrics(raw_prob=0.72, execute=True),
+            "direction": TradeDirection.PUT,
+            "metrics": bear_put_metrics(raw_prob=0.28, execute=True),
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)

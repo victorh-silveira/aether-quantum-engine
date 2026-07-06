@@ -14,6 +14,8 @@ from src.application.services.meta_classifier_features import meta_classifier_co
 FEATURE_LOOKBACK_SKIP = 32
 META_TRAIN_REFERENCE_STAKE = 1.0
 INNER_JOIN_MIN_SAMPLE_RATIO = 0.80
+TCN_CALL_PROXY_THRESHOLD = 0.53
+TCN_PUT_PROXY_THRESHOLD = 0.47
 
 
 def _proxy_prob_from_forward(forward: np.ndarray) -> np.ndarray:
@@ -22,12 +24,19 @@ def _proxy_prob_from_forward(forward: np.ndarray) -> np.ndarray:
 
 def _continuous_payoff_target(
     proxy: np.ndarray,
-    forward: np.ndarray,
+    bull_forward: np.ndarray,
+    bear_forward: np.ndarray,
     *,
     stake: float = META_TRAIN_REFERENCE_STAKE,
 ) -> np.ndarray:
-    tcn_call = proxy >= 0.5
-    signed_pnl = np.where(tcn_call, forward, -forward)
+    call_mask = proxy >= TCN_CALL_PROXY_THRESHOLD
+    put_mask = proxy <= TCN_PUT_PROXY_THRESHOLD
+    gray_bull = proxy > 0.5
+    signed_pnl = np.where(
+        call_mask,
+        bull_forward,
+        np.where(put_mask, bear_forward, np.where(gray_bull, bull_forward, bear_forward)),
+    )
     return (signed_pnl / max(float(stake), 1e-9)).astype(np.float32)
 
 
@@ -142,10 +151,12 @@ def build_paired_training_dataset(
     df_bull, bull_features = _symbol_frame(bull)
     df_bear, _bear_features = _symbol_frame(bear)
     bull_aligned, bear_aligned, epoch_index = _inner_join_symbol_frames(df_bull, df_bear)
+    paired_cap = min(len(bull_aligned), len(bear_aligned))
     rows = len(epoch_index) - FEATURE_LOOKBACK_SKIP - 2
     if rows <= 0:
         raise RuntimeError("Historico insuficiente para parear features cross-symbol.")
-    _validate_inner_join_sample_floor(rows, planned_fetch)
+    effective_fetch = min(planned_fetch, paired_cap)
+    _validate_inner_join_sample_floor(rows, effective_fetch)
     start = FEATURE_LOOKBACK_SKIP
     end = start + rows
     epoch_slice = epoch_index[start:end]
@@ -174,7 +185,8 @@ def build_paired_training_dataset(
     if matrix.shape[1] != META_FEATURE_DIM:
         raise RuntimeError(f"Meta feature row divergente: esperado {META_FEATURE_DIM}, obtido {matrix.shape[1]}")
     proxy = bull_slice["prob_call"].to_numpy(dtype=np.float32)
-    pnl = bull_slice["pnl"].to_numpy(dtype=np.float32)
-    labels = _continuous_payoff_target(proxy, pnl, stake=reference_stake)
+    bull_pnl = bull_slice["pnl"].to_numpy(dtype=np.float32)
+    bear_pnl = bear_slice["pnl"].to_numpy(dtype=np.float32)
+    labels = _continuous_payoff_target(proxy, bull_pnl, bear_pnl, stake=reference_stake)
     frame = pd.DataFrame(matrix, columns=meta_classifier_column_names())
-    return frame, labels, proxy, pnl
+    return frame, labels, proxy, bull_pnl

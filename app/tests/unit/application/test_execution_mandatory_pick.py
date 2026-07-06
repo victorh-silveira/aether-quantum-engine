@@ -6,6 +6,7 @@ from src.application.services.execution_mandatory_pick import (
     pick_best_mandatory_candidate,
 )
 from src.domain.models.trade import TradeDirection
+from tests.unit.application.universal_regime_metrics import bear_put_metrics
 
 
 def test_pick_absolute_mandatory_skips_training_symbols():
@@ -215,8 +216,13 @@ def test_build_mandatory_fallback_legacy_path_when_market_rank_empty():
         return_value=None,
     ):
         best = build_mandatory_fallback_candidate(
-            ["RDBULL"],
-            {"RDBULL": {"direction": TradeDirection.PUT, "metrics": {"trade_score": 0.55, "raw_prob": 0.44}}},
+            ["RDBEAR"],
+            {
+                "RDBEAR": {
+                    "direction": TradeDirection.PUT,
+                    "metrics": bear_put_metrics(trade_score=0.55, raw_prob=0.42, calibrated_prob=0.42),
+                }
+            },
             recovery_active=False,
             last_loss_symbol=None,
             last_loss_direction=None,

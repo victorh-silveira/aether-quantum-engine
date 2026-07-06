@@ -4,7 +4,7 @@ import pytest
 
 from src.application.services.orchestrator import Orchestrator
 from src.domain.models.trade import TradeDirection
-from tests.unit.application.universal_regime_metrics import asymmetric_gate_safe_metrics
+from tests.unit.application.universal_regime_metrics import asymmetric_gate_safe_metrics, bear_put_metrics
 
 
 @pytest.mark.asyncio
@@ -36,7 +36,7 @@ def test_execution_manager_collect_orders_mandatory_includes_execute_false(orch_
             "RDBULL": {"direction": TradeDirection.CALL, "metrics": {"conviction": 0.8, "execute": False}},
             "RDBEAR": {
                 "direction": TradeDirection.PUT,
-                "metrics": asymmetric_gate_safe_metrics(conviction=0.9, execute=True),
+                "metrics": bear_put_metrics(conviction=0.9, execute=True),
             },
         }
         orders = orch.executor._collect_orders(decisions)
@@ -174,7 +174,7 @@ async def test_execute_cluster_executes_when_stake_available(orch_config):
         decisions = {
             "RDBEAR": {
                 "direction": TradeDirection.PUT,
-                "metrics": asymmetric_gate_safe_metrics(conviction=0.7, execute=True),
+                "metrics": bear_put_metrics(conviction=0.7, execute=True),
             },
         }
         with patch.object(orch.executor, "_execute_orders", new_callable=AsyncMock, return_value=1) as mock_exec:

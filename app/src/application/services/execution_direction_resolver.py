@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+from src.application.services.meta_classifier_cross_symbol import ANCHOR_BEAR, ANCHOR_BULL
+from src.application.services.meta_classifier_features import cross_symbol_conviction_spread
 from src.application.services.meta_classifier_stacking import resolve_meta_payoff_edge
 from src.application.services.meta_payoff_regression import apply_meta_regression_edge
+from src.application.services.payoff_edge_zscore import attach_payoff_edge_zscore_metrics
 from src.domain.models.trade import TradeDirection
 
 
 _TECHNICAL_BLOCKS = frozenset({"data", "predict_error", "training"})
+TCN_CALL_THRESHOLD = 0.53
+TCN_PUT_THRESHOLD = 0.47
 
 
 def _direction_prob(entry: dict) -> float | None:
@@ -79,6 +84,74 @@ def _seed_direction_metrics(
     return score
 
 
+def _cross_prob_delta_mean(metrics: dict, infra_cfg: dict | None) -> float:
+    """Retorna media de treino do spread cross-symbol para validacao micro."""
+    stored = metrics.get("cross_symbol_prob_delta_mean")
+    if stored is not None:
+        return float(stored)
+    infra = (infra_cfg or {}).get("meta_classifier") or {}
+    manifest = infra.get("cross_symbol_prob_delta_mean")
+    if manifest is not None:
+        return float(manifest)
+    return 0.0
+
+
+def _read_tick_acceleration(metrics: dict) -> float:
+    """Le aceleracao de ticks micro anexada em flow_features."""
+    flow = metrics.get("flow_features")
+    if isinstance(flow, dict) and flow.get("micro_tick_acceleration") is not None:
+        return float(flow["micro_tick_acceleration"])
+    return 0.0
+
+
+def _call_micro_conviction_ok(metrics: dict, infra_cfg: dict | None) -> bool:
+    """Valida expansao de conviccao Bulls com aceleracao de ticks positiva."""
+    delta = cross_symbol_conviction_spread(metrics)
+    mean = _cross_prob_delta_mean(metrics, infra_cfg)
+    if delta <= mean + 1e-12:
+        return True
+    return _read_tick_acceleration(metrics) > 0.0
+
+
+def _put_bear_book_ok(metrics: dict) -> bool:
+    """Valida dominancia de volatilidade e volume micro do RDBEAR para PUT."""
+    cross = metrics.get("cross_symbol_features")
+    if not isinstance(cross, dict):
+        return True
+    vol_diff = float(cross.get("cross_symbol_vol_ratio_diff", 0.0))
+    micro = metrics.get("micro_indicators") if isinstance(metrics.get("micro_indicators"), dict) else {}
+    indicators = metrics.get("indicators") if isinstance(metrics.get("indicators"), dict) else {}
+    bear_iv = float(micro.get("implied_vol_ratio", indicators.get("implied_vol_ratio", 0.0)))
+    bear_vol = float(micro.get("vol_ratio", indicators.get("vol_ratio", 0.0)))
+    peer_vol = float(indicators.get("vol_ratio", 0.0))
+    return vol_diff <= 0.0 or bear_iv >= 1.0 or bear_vol + 1e-12 >= peer_vol
+
+
+def _strict_anchor_direction(
+    prob: float,
+    edge: float,
+    symbol: str | None,
+    *,
+    meta_applied: bool,
+    call_conviction_ok: bool,
+    put_book_ok: bool,
+) -> TradeDirection | None:
+    """Aplica regras rigidas CALL em RDBULL e PUT em RDBEAR com edge nao-negativo."""
+    if edge + 1e-12 < 0.0:
+        return None
+    call_floor = TCN_CALL_THRESHOLD if meta_applied else 0.5
+    put_ceiling = TCN_PUT_THRESHOLD if meta_applied else 0.5
+    if symbol == ANCHOR_BULL:
+        return TradeDirection.CALL if prob + 1e-12 >= call_floor and call_conviction_ok else None
+    if symbol == ANCHOR_BEAR:
+        return TradeDirection.PUT if prob - 1e-12 <= put_ceiling and put_book_ok else None
+    if prob + 1e-12 >= call_floor and call_conviction_ok:
+        return TradeDirection.CALL
+    if prob - 1e-12 <= put_ceiling and put_book_ok:
+        return TradeDirection.PUT
+    return None
+
+
 def resolve_execution_direction(
     entry: dict,
     *,
@@ -118,5 +191,23 @@ def resolve_execution_direction(
         base_score=score,
         symbol=symbol,
     )
+    attach_payoff_edge_zscore_metrics(metrics, float(metrics.get("predicted_payoff_edge", 0.0)))
+    if metrics.get("meta_squeeze_downgrade"):
+        metrics["tcn_score"] = prob
+        metrics["consensus_stake_floor"] = True
+        return exec_dir, metrics
+    strict = _strict_anchor_direction(
+        prob,
+        float(metrics.get("predicted_payoff_edge", 0.0)),
+        symbol,
+        meta_applied=meta_applied,
+        call_conviction_ok=_call_micro_conviction_ok(metrics, infra_cfg),
+        put_book_ok=_put_bear_book_ok(metrics),
+    )
+    if strict is None:
+        return None
+    metrics["exec_direction"] = strict.name
+    metrics["resolved_direction"] = strict.name
+    metrics["tcn_score"] = prob
     _ = final_score
-    return exec_dir, metrics
+    return strict, metrics

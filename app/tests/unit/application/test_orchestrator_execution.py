@@ -6,7 +6,7 @@ import pytest
 from src.application.services.orchestrator import Orchestrator
 from src.domain.models.trade import Contract, TradeDirection, TradeStatus
 from src.infrastructure.state.trading_state import TradingState
-from tests.unit.application.universal_regime_metrics import asymmetric_gate_safe_metrics
+from tests.unit.application.universal_regime_metrics import bear_put_metrics
 
 
 @pytest.mark.asyncio
@@ -112,8 +112,8 @@ async def test_execution_manager_skip_and_failure_paths(orch_config):
         decisions = {
             "RDBULL": {"direction": None, "metrics": {"conviction": 0.0}},
             "RDBEAR": {
-                "direction": TradeDirection.CALL,
-                "metrics": asymmetric_gate_safe_metrics(conviction=1.0, execute=True),
+                "direction": TradeDirection.PUT,
+                "metrics": bear_put_metrics(conviction=1.0, execute=True),
             },
         }
         orch.executor._place_order = AsyncMock(side_effect=Exception("API ERROR"))

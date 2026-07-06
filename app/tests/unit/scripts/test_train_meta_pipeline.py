@@ -24,7 +24,12 @@ from scripts.operations.train_meta_optuna import (
     configure_meta_train_logging,
     train_lgbm_candidate,
 )
-from scripts.operations.train_meta_vector import INNER_JOIN_MIN_SAMPLE_RATIO
+from scripts.operations.train_meta_vector import (
+    INNER_JOIN_MIN_SAMPLE_RATIO,
+    TCN_CALL_PROXY_THRESHOLD,
+    TCN_PUT_PROXY_THRESHOLD,
+    _continuous_payoff_target,
+)
 from src.application.services.meta_classifier_cross_symbol import META_FEATURE_DIM
 from src.application.services.meta_classifier_features import meta_classifier_column_names
 
@@ -67,13 +72,29 @@ def _asymmetric_bundles(*, bull_n: int = 5000, bear_n: int = 999) -> list[OhlcBu
     return [bull, bear]
 
 
-def test_build_paired_training_dataset_rejects_asymmetric_pagination():
+def test_build_paired_training_dataset_accepts_paired_cap_below_planned_fetch():
     bundles = _asymmetric_bundles(bull_n=5000, bear_n=999)
-    minimum = int(5000 * INNER_JOIN_MIN_SAMPLE_RATIO)
+    frame, y, _, _ = build_paired_training_dataset(bundles, micro_granularity=60, fetch_count=5000)
+    assert len(frame) >= int(999 * INNER_JOIN_MIN_SAMPLE_RATIO) - 40
+    validate_target_variance(y)
+
+
+def test_build_paired_training_dataset_rejects_severely_short_bear():
+    bull = _synthetic_bundle("RDBULL", n=500)
+    bear_n = 120
+    closes = np.linspace(100.0, 101.0, bear_n)
+    bear = OhlcBundle(
+        symbol="RDBEAR",
+        granularity=60,
+        closes=closes,
+        open_=closes - 0.01,
+        high=closes + 0.02,
+        low=closes - 0.02,
+        epochs=bull.epochs[:bear_n].copy(),
+        source="test",
+    )
     with pytest.raises(RuntimeError, match="paginacao assimétrica"):
-        build_paired_training_dataset(bundles, micro_granularity=60, fetch_count=5000)
-    paired_rows = 999 - 32 - 2
-    assert paired_rows < minimum
+        build_paired_training_dataset([bull, bear], micro_granularity=60, fetch_count=5000)
 
 
 def test_build_paired_training_dataset_rejects_disjoint_epochs():
@@ -211,3 +232,18 @@ def test_train_lgbm_candidate_uses_regressor_and_explicit_feature_name_columns()
     assert fit_kwargs["feature_name"] == columns
     assert list(fit_args[0].columns) == columns
     assert mock_model.predict.call_count == 2
+
+
+def test_continuous_payoff_target_maps_call_to_bull_and_put_to_bear():
+    proxy = np.array([0.60, 0.40, 0.51], dtype=np.float32)
+    bull = np.array([1.0, 0.5, -0.2], dtype=np.float32)
+    bear = np.array([-0.5, 1.0, 0.3], dtype=np.float32)
+    y = _continuous_payoff_target(proxy, bull, bear)
+    assert y[0] == pytest.approx(1.0)
+    assert y[1] == pytest.approx(1.0)
+    assert y[2] == pytest.approx(-0.2)
+
+
+def test_continuous_payoff_threshold_constants():
+    assert pytest.approx(0.53) == TCN_CALL_PROXY_THRESHOLD
+    assert pytest.approx(0.47) == TCN_PUT_PROXY_THRESHOLD

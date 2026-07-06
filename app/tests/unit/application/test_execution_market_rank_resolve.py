@@ -26,23 +26,23 @@ def _entry(**metrics):
 
 def test_resolve_uses_entry_direction():
     entry = _entry()
-    result = resolve_execution_direction(entry)
+    result = resolve_execution_direction(entry, symbol="RDBULL")
     assert result is not None
     assert result[0] == TradeDirection.CALL
 
 
 def test_resolve_infers_from_raw_prob():
     entry = {"direction": None, "metrics": _entry(raw_prob=0.42, trend_direction="PUT")["metrics"]}
-    result = resolve_execution_direction(entry)
+    result = resolve_execution_direction(entry, symbol="RDBEAR")
     assert result is not None
     assert result[0] == TradeDirection.PUT
 
 
-def test_resolve_mean_reversion_put_to_call():
+def test_resolve_put_on_bear_with_low_prob():
     entry = _entry(
         direction=TradeDirection.PUT,
         raw_prob=0.42,
-        trend_direction="CALL",
+        trend_direction="PUT",
         indicators={
             "hurst": 0.50,
             "adx": 0.30,
@@ -52,9 +52,9 @@ def test_resolve_mean_reversion_put_to_call():
             "cmo": -0.10,
         },
     )
-    result = resolve_execution_direction(entry)
+    result = resolve_execution_direction(entry, symbol="RDBEAR")
     assert result is not None
-    assert result[0] == TradeDirection.CALL
+    assert result[0] == TradeDirection.PUT
 
 
 def test_resolve_low_accuracy_keeps_dl_side():
@@ -72,7 +72,7 @@ def test_resolve_low_accuracy_keeps_dl_side():
             "cmo": 0.05,
         },
     )
-    result = resolve_execution_direction(entry)
+    result = resolve_execution_direction(entry, symbol="RDBULL")
     assert result is not None
     assert result[0] == TradeDirection.CALL
     assert result[1]["direction_inverted"] is False

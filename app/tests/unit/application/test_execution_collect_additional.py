@@ -6,6 +6,7 @@ from src.application.services.orchestrator.execution_collect_gather import gathe
 from src.application.services.orchestrator.execution_recovery_gate import cluster_entry_eligible
 from src.domain.models.trade import TradeDirection
 from tests.market_symbols import ANCHOR, PAIR
+from tests.unit.application.universal_regime_metrics import bear_put_metrics
 
 
 _gather_cluster_candidates = gather_cluster_candidates
@@ -95,17 +96,16 @@ def test_collect_cluster_orders_keeps_best_after_quality_penalty_only():
     )
     decisions = {
         PAIR: {
-            "direction": TradeDirection.CALL,
-            "metrics": {
-                "execute": True,
-                "deploy_ok": True,
-                "trade_score": 0.82,
-                "val_accuracy": 0.70,
-                "edge": 0.12,
-                "raw_prob": 0.82,
-                "trend_direction": "CALL",
-                "indicators": {"adx": 0.28, "hurst": 0.55, "vol_ratio": 1.1, "rsi": 0.52, "keltner": 0.55, "cmo": 0.05},
-            },
+            "direction": TradeDirection.PUT,
+            "metrics": bear_put_metrics(
+                execute=True,
+                trade_score=0.82,
+                val_accuracy=0.70,
+                edge=0.12,
+                raw_prob=0.18,
+                calibrated_prob=0.18,
+                trend_direction="PUT",
+            ),
         },
     }
     with patch(
@@ -145,16 +145,16 @@ def test_collect_cluster_orders_bolts_neutral_low_conviction_in_mandatory_mode()
     )
     decisions = {
         PAIR: {
-            "direction": TradeDirection.CALL,
-            "metrics": {
-                "execute": False,
-                "deploy_ok": True,
-                "val_accuracy": 0.49,
-                "conviction": 0.55,
-                "raw_prob": 0.55,
-                "call_votes": 4,
-                "put_votes": 2,
-            },
+            "direction": TradeDirection.PUT,
+            "metrics": bear_put_metrics(
+                execute=False,
+                val_accuracy=0.49,
+                conviction=0.55,
+                raw_prob=0.45,
+                calibrated_prob=0.45,
+                call_votes=2,
+                put_votes=4,
+            ),
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
@@ -213,14 +213,14 @@ def test_collect_cluster_orders_bolts_weak_neutral_in_recovery():
     )
     decisions = {
         PAIR: {
-            "direction": TradeDirection.CALL,
-            "metrics": {
-                "execute": False,
-                "trade_score": 0.20,
-                "val_accuracy": 0.30,
-                "raw_prob": 0.52,
-                "deploy_ok": True,
-            },
+            "direction": TradeDirection.PUT,
+            "metrics": bear_put_metrics(
+                execute=False,
+                trade_score=0.20,
+                val_accuracy=0.30,
+                raw_prob=0.48,
+                calibrated_prob=0.48,
+            ),
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)

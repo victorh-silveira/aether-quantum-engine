@@ -24,6 +24,23 @@ def test_log_execution_decision_direct():
     assert exec_mgr.logger.info.called
 
 
+def test_log_execution_decision_uses_cycle_fallback_when_cid_invalid():
+    exec_mgr = SimpleNamespace(logger=MagicMock(), orch=SimpleNamespace(_active_cycle_id=9))
+    best = (
+        "RDBULL",
+        TradeDirection.PUT,
+        {
+            "val_accuracy": 0.61,
+            "raw_prob": 0.41,
+            "indicators": {"hurst": 0.52},
+            "call_votes": 1,
+            "put_votes": 4,
+        },
+    )
+    log_execution_decision(exec_mgr, "Cbad", best, [best], 0.61)
+    assert exec_mgr.logger.info.called
+
+
 def test_collect_cluster_orders_covers_logging():
     orch = SimpleNamespace(
         anchor=ANCHOR,

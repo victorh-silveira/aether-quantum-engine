@@ -8,6 +8,7 @@ from src.application.services.execution_direction_fallback import (
     build_mandatory_fallback_candidate,
 )
 from src.domain.models.trade import TradeDirection
+from tests.unit.application.universal_regime_metrics import asymmetric_gate_safe_metrics
 
 
 def test_recovery_metrics_eligible_rejects_low_val_accuracy():
@@ -24,7 +25,12 @@ def test_build_mandatory_fallback_returns_last_resort_at_configured_min_signal()
     decisions = {
         "RDBULL": {
             "direction": None,
-            "metrics": {"trade_score": 0.50, "raw_prob": 0.50},
+            "metrics": asymmetric_gate_safe_metrics(
+                trade_score=0.50,
+                raw_prob=0.56,
+                calibrated_prob=0.56,
+                val_accuracy=0.55,
+            ),
         },
     }
     best = build_mandatory_fallback_candidate(
@@ -36,7 +42,7 @@ def test_build_mandatory_fallback_returns_last_resort_at_configured_min_signal()
         min_signal=0.45,
     )
     assert best is not None
-    assert best[1] == TradeDirection.PUT
+    assert best[1] == TradeDirection.CALL
 
 
 def test_symbol_priority_recovery_core_only():
@@ -53,7 +59,12 @@ def test_last_resort_fallback_uses_raw_when_market_direction_missing():
     decisions = {
         "RDBULL": {
             "direction": None,
-            "metrics": {"trade_score": 0.50, "raw_prob": 0.44, "deploy_ok": True},
+            "metrics": asymmetric_gate_safe_metrics(
+                trade_score=0.50,
+                raw_prob=0.56,
+                calibrated_prob=0.56,
+                deploy_ok=True,
+            ),
         },
     }
     with patch(
@@ -62,7 +73,7 @@ def test_last_resort_fallback_uses_raw_when_market_direction_missing():
     ):
         picked = _last_resort_fallback_pick(["RDBULL"], decisions, min_signal=0.0)
     assert picked is not None
-    assert picked[1] == TradeDirection.PUT
+    assert picked[1] == TradeDirection.CALL
 
 
 def test_forced_recovery_pick_skips_gate_blocked():

@@ -15,7 +15,12 @@ def test_loss_direction_call_and_put():
 def test_loss_direction_invalid_value():
     best = build_mandatory_fallback_candidate(
         ["RDBULL"],
-        {"RDBULL": {"direction": TradeDirection.CALL, "metrics": {"trade_score": 0.5}}},
+        {
+            "RDBULL": {
+                "direction": TradeDirection.CALL,
+                "metrics": {"trade_score": 0.55, "raw_prob": 0.55, "deploy_ok": True, "val_accuracy": 0.55},
+            }
+        },
         recovery_active=True,
         last_loss_symbol=None,
         last_loss_direction="HOLD",
@@ -31,7 +36,9 @@ def test_build_mandatory_fallback_candidate_non_recovery_uses_raw():
             "metrics": {
                 "gate_reason": "direction_margin",
                 "trade_score": 0.62,
-                "raw_prob": 0.44,
+                "raw_prob": 0.56,
+                "deploy_ok": True,
+                "val_accuracy": 0.55,
             },
         },
     }
@@ -43,18 +50,18 @@ def test_build_mandatory_fallback_candidate_non_recovery_uses_raw():
         last_loss_direction=None,
     )
     assert best is not None
-    assert best[1] == TradeDirection.PUT
+    assert best[1] == TradeDirection.CALL
 
 
 def test_build_mandatory_fallback_candidate_skips_hard_blocked_symbols():
     decisions = {
         "RDBEAR": {
             "direction": TradeDirection.PUT,
-            "metrics": {"gate_reason": "data", "trade_score": 0.70, "val_accuracy": 0.55},
+            "metrics": {"gate_reason": "data", "trade_score": 0.70, "val_accuracy": 0.55, "raw_prob": 0.30},
         },
         "RDBULL": {
-            "direction": TradeDirection.PUT,
-            "metrics": {"trade_score": 0.58, "val_accuracy": 0.52},
+            "direction": TradeDirection.CALL,
+            "metrics": {"trade_score": 0.58, "val_accuracy": 0.52, "raw_prob": 0.55, "deploy_ok": True},
         },
     }
     best = build_mandatory_fallback_candidate(
@@ -66,13 +73,18 @@ def test_build_mandatory_fallback_candidate_skips_hard_blocked_symbols():
     )
     assert best is not None
     assert best[0] == "RDBULL"
-    assert best[1] == TradeDirection.PUT
+    assert best[1] == TradeDirection.CALL
 
 
 def test_build_mandatory_fallback_candidate_recovery_without_loss_direction():
     best = build_mandatory_fallback_candidate(
         ["RDBULL"],
-        {"RDBULL": {"direction": TradeDirection.CALL, "metrics": {"trade_score": 0.6, "raw_prob": 0.55}}},
+        {
+            "RDBULL": {
+                "direction": TradeDirection.CALL,
+                "metrics": {"trade_score": 0.6, "raw_prob": 0.55, "deploy_ok": True, "val_accuracy": 0.55},
+            }
+        },
         recovery_active=True,
         last_loss_symbol=None,
         last_loss_direction=None,
@@ -83,10 +95,10 @@ def test_build_mandatory_fallback_candidate_recovery_without_loss_direction():
 
 def test_build_mandatory_fallback_candidate_skips_missing_raw():
     decisions = {
-        "RDBEAR": {"direction": None, "metrics": {"trade_score": 0.90}},
+        "RDBEAR": {"direction": TradeDirection.PUT, "metrics": {"trade_score": 0.90}},
         "RDBULL": {
-            "direction": None,
-            "metrics": {"trade_score": 0.40, "raw_prob": 0.44},
+            "direction": TradeDirection.CALL,
+            "metrics": {"trade_score": 0.56, "raw_prob": 0.56, "deploy_ok": True, "val_accuracy": 0.55},
         },
     }
     best = build_mandatory_fallback_candidate(
@@ -103,7 +115,12 @@ def test_build_mandatory_fallback_candidate_skips_missing_raw():
 def test_build_mandatory_fallback_candidate_last_resort_skips_missing_entry():
     best = build_mandatory_fallback_candidate(
         ["RDBEAR", "RDBULL"],
-        {"RDBULL": {"direction": TradeDirection.PUT, "metrics": {"gate_reason": "deploy", "trade_score": 0.5}}},
+        {
+            "RDBULL": {
+                "direction": TradeDirection.CALL,
+                "metrics": {"gate_reason": "deploy", "trade_score": 0.55, "raw_prob": 0.55, "deploy_ok": True},
+            }
+        },
         recovery_active=False,
         last_loss_symbol=None,
         last_loss_direction=None,
@@ -115,7 +132,12 @@ def test_build_mandatory_fallback_candidate_last_resort_skips_missing_entry():
 def test_build_mandatory_fallback_candidate_last_resort_call_without_recovery():
     best = build_mandatory_fallback_candidate(
         ["RDBEAR", "RDBULL"],
-        {"RDBULL": {"direction": TradeDirection.PUT, "metrics": {"trade_score": 0.5}}},
+        {
+            "RDBEAR": {
+                "direction": TradeDirection.PUT,
+                "metrics": {"trade_score": 0.72, "raw_prob": 0.28, "deploy_ok": True, "val_accuracy": 0.55},
+            }
+        },
         recovery_active=False,
         last_loss_symbol=None,
         last_loss_direction=None,
@@ -162,16 +184,19 @@ def test_build_mandatory_fallback_recovery_uses_dl_when_loss_direction_missing()
                 "trade_score": 0.65,
                 "raw_prob": 0.65,
                 "val_accuracy": 0.55,
+                "deploy_ok": True,
             },
         },
         "RDBEAR": {
-            "direction": TradeDirection.CALL,
+            "direction": TradeDirection.PUT,
             "metrics": {
                 "execute": False,
                 "gate_reason": "noise",
                 "trade_score": 0.80,
-                "raw_prob": 0.80,
+                "raw_prob": 0.20,
                 "val_accuracy": 0.62,
+                "deploy_ok": True,
+                "cross_symbol_features": {"cross_symbol_vol_ratio_diff": -0.1},
             },
         },
     }
@@ -191,13 +216,13 @@ def test_build_mandatory_fallback_recovery_uses_dl_when_loss_direction_missing()
         ["RDBULL", "RDBEAR"],
         decisions,
         recovery_active=True,
-        last_loss_symbol="RDBEAR",
+        last_loss_symbol="RDBULL",
         last_loss_direction="CALL",
         min_signal=0.45,
         min_val=0.50,
     )
     assert best_put is not None
-    assert best_put[0] == "RDBULL"
+    assert best_put[0] == "RDBEAR"
     assert best_put[1] == TradeDirection.PUT
 
 
@@ -205,11 +230,23 @@ def test_build_mandatory_fallback_skips_blocked_symbol_in_recovery():
     decisions = {
         "RDBULL": {
             "direction": TradeDirection.CALL,
-            "metrics": {"execute": False, "trade_score": 0.60, "val_accuracy": 0.55, "raw_prob": 0.58},
+            "metrics": {
+                "execute": False,
+                "trade_score": 0.60,
+                "val_accuracy": 0.55,
+                "raw_prob": 0.58,
+                "deploy_ok": True,
+            },
         },
         "RDBEAR": {
-            "direction": TradeDirection.CALL,
-            "metrics": {"execute": False, "trade_score": 0.55, "val_accuracy": 0.52, "raw_prob": 0.54},
+            "direction": TradeDirection.PUT,
+            "metrics": {
+                "execute": False,
+                "trade_score": 0.55,
+                "val_accuracy": 0.52,
+                "raw_prob": 0.42,
+                "deploy_ok": True,
+            },
         },
     }
     best = build_mandatory_fallback_candidate(
@@ -217,10 +254,8 @@ def test_build_mandatory_fallback_skips_blocked_symbol_in_recovery():
         decisions,
         recovery_active=True,
         last_loss_symbol="RDBULL",
-        last_loss_direction="CALL",
-        skip_symbols=frozenset({"RDBULL"}),
+        last_loss_direction="PUT",
         min_signal=0.45,
         min_val=0.50,
     )
     assert best is not None
-    assert best[0] == "RDBEAR"

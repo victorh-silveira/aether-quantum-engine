@@ -68,6 +68,18 @@ def test_candidate_execution_score_recovery_weights_val_accuracy():
     assert recovery < normal
 
 
+def test_candidate_execution_score_uses_exec_direction_from_metrics():
+    metrics = {
+        "trade_score": 0.80,
+        "raw_prob": 0.80,
+        "val_accuracy": 0.60,
+        "execute": True,
+        "exec_direction": "PUT",
+    }
+    score = candidate_execution_score(metrics, recovery_active=False, symbol="RDBEAR")
+    assert score > 0.0
+
+
 def test_select_mandatory_falls_back_when_pool_empty():
     orch = SimpleNamespace(config={})
     candidates = [

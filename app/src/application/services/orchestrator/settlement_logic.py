@@ -6,6 +6,10 @@ from typing import Any
 
 from src.application.services.deep_learning.dl_outcomes import record_symbol_outcome
 from src.application.services.deep_learning.dl_retrain import mark_force_retrain
+from src.application.services.market_audit_log import (
+    format_settlement_audit_line,
+    pop_contract_audit,
+)
 from src.application.services.orchestrator.graceful_shutdown import graceful_shutdown
 from src.application.services.orchestrator.metrics_utils import neutral_metrics
 from src.application.services.orchestrator.result_utils import api_settlement_label
@@ -96,11 +100,18 @@ async def process_late_settlement_from_payload(orch: Any, poc: dict) -> None:
     profit = float(poc.get("profit", 0.0))
     api_status_raw = (poc.get("status") or "").strip()
     outcome = api_settlement_label(api_status_raw, profit)
+    sym = orch.risk_manager.contract_to_symbol.get(c_id, poc.get("underlying", "UNK"))
+    _, direction, edge = pop_contract_audit(orch, c_id, symbol=str(sym))
     orch.logger.info(
-        "[C%04d] STATUS: %s || P&L: $%+.2f || API: %s (late)",
-        orch._contract_cycle.get(c_id, 0),
-        outcome,
-        profit,
+        "%s || API: %s (late)",
+        format_settlement_audit_line(
+            orch._contract_cycle.get(c_id, 0),
+            outcome,
+            profit,
+            direction,
+            str(sym),
+            edge,
+        ),
         api_status_raw.lower() or "-",
     )
     _process_contract_outcome(orch, poc, None, c_id, profit)
@@ -131,10 +142,15 @@ async def process_contract_settlement(orch: Any, data: dict):
     profit = float(c.get("profit", 0.0))
     api_status_raw = (c.get("status") or "").strip()
     outcome = api_settlement_label(api_status_raw, profit)
-
-    result_line = (
-        f"[C{orch._contract_cycle.get(c_id, 0):04d}] STATUS: {outcome} || "
-        f"P&L: ${profit:+.2f} || API: {api_status_raw.lower() or '-'}"
+    sym = orch.risk_manager.contract_to_symbol.get(c_id, c.get("underlying", "UNK"))
+    _, direction, edge = pop_contract_audit(orch, c_id, contract=contract, symbol=str(sym))
+    result_line = format_settlement_audit_line(
+        orch._contract_cycle.get(c_id, 0),
+        outcome,
+        profit,
+        direction,
+        str(sym),
+        edge,
     )
 
     if orch._buffer_result_logs:

@@ -41,11 +41,11 @@ def test_market_decision_score_prefers_higher_raw_side():
 
 
 def test_build_market_execution_candidate_uses_resolver():
-    built = build_market_execution_candidate("RDBULL", _entry(direction=TradeDirection.PUT, raw_prob=0.40))
+    built = build_market_execution_candidate("RDBULL", _entry(direction=TradeDirection.CALL, raw_prob=0.62))
     assert built is not None
     symbol, direction, metrics = built
     assert symbol == "RDBULL"
-    assert direction in (TradeDirection.CALL, TradeDirection.PUT)
+    assert direction == TradeDirection.CALL
     assert "exec_direction" in metrics
 
 
@@ -95,7 +95,7 @@ def test_resolve_keeps_dl_side_on_low_val_accuracy():
             "cmo": 0.05,
         },
     )
-    result = resolve_execution_direction(entry)
+    result = resolve_execution_direction(entry, symbol="RDBULL")
     assert result is not None
     direction, metrics = result
     assert direction == TradeDirection.CALL

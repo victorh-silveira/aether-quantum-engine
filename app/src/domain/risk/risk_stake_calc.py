@@ -2,6 +2,10 @@
 
 from typing import Any
 
+from src.domain.risk.consensus_stake_penalty import (
+    apply_neutral_edge_kelly_base,
+    apply_turbo_edge_stake,
+)
 from src.domain.risk.dlambert_sizing import (
     dlambert_log_suffix,
     effective_martingale_base,
@@ -84,6 +88,68 @@ def _apply_target_proximity_to_kelly(rm: Any, kelly_base: float, *, apply_stop_w
     return apply_target_proximity_damping(kelly_base, target, rm.total_session_profit)
 
 
+def _mandatory_trade_flag(kwargs: dict, rm: Any) -> bool:
+    """Indica se o ciclo exige entrada obrigatoria independente de conviccao."""
+    return (
+        bool(kwargs.get("mandatory_weak_cap"))
+        or bool(kwargs.get("mandatory_trade_each_cycle"))
+        or bool(rm.config.get("orchestrator", {}).get("execution", {}).get("mandatory_trade_each_cycle", False))
+    )
+
+
+def _emit_cycle_stake_log(
+    rm: Any,
+    *,
+    cycle_id: int,
+    silent: bool,
+    mode_tag: str,
+    final_stake: float,
+    f_star: float,
+    p: float,
+    b: float,
+    bankroll: float,
+    loss_to_recover: float,
+    linear_losses: int,
+    symbol: str,
+    rec_info: str,
+) -> None:
+    """Emite log estruturado de stake do ciclo quando cycle_id e visivel."""
+    if cycle_id <= 0 or silent:
+        return
+    rm.logger.info(
+        "[C%04d] %s: stake=$%.2f (f*=%.4f) | p=%.2f | b=%.2f | banca=$%.2f | pend=$%.2f | "
+        "pnl_sess=$%+.2f | U=$%.2f | linear=%d | sym=%s%s",
+        cycle_id,
+        mode_tag,
+        final_stake,
+        f_star,
+        p,
+        b,
+        bankroll,
+        loss_to_recover,
+        rm.total_session_profit,
+        float(getattr(rm, "dlambert_unit", 0.0)),
+        linear_losses,
+        symbol,
+        rec_info,
+    )
+
+
+def _stop_win_target_reached(rm: Any, *, apply_stop_win: bool) -> bool:
+    """Retorna True quando lucro da sessao atingiu o alvo de stop win diario."""
+    if not apply_stop_win:
+        return False
+    target = resolve_stop_win_target(
+        rm.config,
+        rm.initial_bankroll,
+        persisted_target=persisted_session_target(rm),
+    )
+    if rm.total_session_profit < target:
+        return False
+    rm.logger.info(f"STOP WIN: Meta de ${target:.2f} atingida. Encerrando operações do dia.")
+    return True
+
+
 def calculate_stake_for_manager(
     rm: Any,
     bankroll: float,
@@ -95,15 +161,8 @@ def calculate_stake_for_manager(
     kwargs: dict,
 ) -> float:
     """Calcula stake final com Kelly ou D'Alembert conforme estado do gerenciador."""
-    if apply_stop_win:
-        target = resolve_stop_win_target(
-            rm.config,
-            rm.initial_bankroll,
-            persisted_target=persisted_session_target(rm),
-        )
-        if rm.total_session_profit >= target:
-            rm.logger.info(f"STOP WIN: Meta de ${target:.2f} atingida. Encerrando operações do dia.")
-            return 0.0
+    if _stop_win_target_reached(rm, apply_stop_win=apply_stop_win):
+        return 0.0
 
     dl_metrics = kwargs.get("dl_metrics")
     conviction = resolve_stake_conviction(_metrics_for_conviction(dl_metrics, conviction), rm.kelly_config)
@@ -173,6 +232,7 @@ def calculate_stake_for_manager(
     )
     if apply_stop_win:
         kelly_base = _apply_target_proximity_to_kelly(rm, kelly_base, apply_stop_win=True)
+    kelly_base = apply_neutral_edge_kelly_base(kelly_base, bankroll, dl_metrics)
 
     final_stake, mode_tag = resolve_dlambert_stake(
         recovery_active=recovery_stress,
@@ -183,11 +243,7 @@ def calculate_stake_for_manager(
         consecutive_losses_linear=linear_losses,
         pending_total=loss_to_recover,
     )
-    mandatory_flag = (
-        bool(kwargs.get("mandatory_weak_cap"))
-        or bool(kwargs.get("mandatory_trade_each_cycle"))
-        or bool(rm.config.get("orchestrator", {}).get("execution", {}).get("mandatory_trade_each_cycle", False))
-    )
+    mandatory_flag = _mandatory_trade_flag(kwargs, rm)
     final_stake = finalize_stake_with_min(
         final_stake,
         stake_min,
@@ -196,6 +252,7 @@ def calculate_stake_for_manager(
         recovery_linear=recovery_stress,
         mandatory=mandatory_flag,
     )
+    final_stake = apply_turbo_edge_stake(final_stake, dl_metrics)
     cycle_id = int(kwargs.get("cycle_id") or 0)
     log_kelly_base = kelly_base
     if mode_tag == "D'ALEMBERT":
@@ -210,22 +267,19 @@ def calculate_stake_for_manager(
         dlambert_config=rm.dlambert_config,
         bankroll=bankroll,
     )
-    if cycle_id > 0 and not silent:
-        rm.logger.info(
-            "[C%04d] %s: stake=$%.2f (f*=%.4f) | p=%.2f | b=%.2f | banca=$%.2f | pend=$%.2f | "
-            "pnl_sess=$%+.2f | U=$%.2f | linear=%d | sym=%s%s",
-            cycle_id,
-            mode_tag,
-            final_stake,
-            f_star,
-            p,
-            b,
-            bankroll,
-            loss_to_recover,
-            rm.total_session_profit,
-            float(getattr(rm, "dlambert_unit", 0.0)),
-            linear_losses,
-            symbol,
-            rec_info,
-        )
+    _emit_cycle_stake_log(
+        rm,
+        cycle_id=cycle_id,
+        silent=silent,
+        mode_tag=mode_tag,
+        final_stake=final_stake,
+        f_star=f_star,
+        p=p,
+        b=b,
+        bankroll=bankroll,
+        loss_to_recover=loss_to_recover,
+        linear_losses=linear_losses,
+        symbol=symbol,
+        rec_info=rec_info,
+    )
     return final_stake

@@ -39,12 +39,16 @@ def _read_micro_tick_acceleration(metrics: dict[str, Any]) -> float:
     return 0.0
 
 
+def severe_bb_compression(metrics: dict[str, Any]) -> bool:
+    """Indica compressao severa de volatilidade micro por bb_width abaixo do corte."""
+    bb_width = _read_micro_bb_width(metrics)
+    return bb_width is not None and bb_width < BB_WIDTH_SQUEEZE_CUTOFF
+
+
 def micro_volatility_squeeze_active(metrics: dict[str, Any]) -> bool:
     """Indica squeeze M1 por bb_width comprimido ou desaceleracao institucional de ticks."""
-    bb_width = _read_micro_bb_width(metrics)
     tick_accel = _read_micro_tick_acceleration(metrics)
-    bb_squeeze = bb_width is not None and bb_width < BB_WIDTH_SQUEEZE_CUTOFF
-    return bb_squeeze or tick_accel < 0.0
+    return severe_bb_compression(metrics) or tick_accel < 0.0
 
 
 def resolve_dynamic_flip_threshold(metrics: dict[str, Any]) -> tuple[float, bool]:

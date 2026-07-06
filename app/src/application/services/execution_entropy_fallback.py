@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from src.application.services.execution_direction import build_execution_candidate
 from src.application.services.execution_direction_resolver import infer_dl_direction, is_technically_blocked
+from src.application.services.meta_classifier_cross_symbol import ANCHOR_BEAR, ANCHOR_BULL
 from src.domain.math.probability_entropy import binary_entropy
 from src.domain.models.trade import TradeDirection
 
@@ -64,8 +65,16 @@ def pick_entropy_fallback_candidate(
     prob = float(_direction_prob(best_entry) or 0.5)
     direction = infer_dl_direction(best_entry)
     if direction is None:
-        direction = TradeDirection.CALL if prob > pivot else TradeDirection.PUT
-    candidate = build_execution_candidate(best_symbol, {**best_entry, "metrics": metrics})
+        if best_symbol == ANCHOR_BULL:
+            direction = TradeDirection.CALL
+        elif best_symbol == ANCHOR_BEAR:
+            direction = TradeDirection.PUT
+        else:
+            direction = TradeDirection.CALL if prob > pivot else TradeDirection.PUT
+    candidate = build_execution_candidate(
+        best_symbol,
+        {**best_entry, "direction": direction, "metrics": metrics},
+    )
     if candidate is None:
         return None
     sym, _, out_metrics = candidate

@@ -12,6 +12,51 @@ from src.domain.risk.super_concordance_kelly import is_unanimous_vote_alignment
 
 
 _REGIME_TACTICAL_INVERT = frozenset({"CLIMAX_EXHAUSTION", "COMPRESSION_TRAP"})
+_NO_EDGE_NEUTRAL = "NO_EDGE_NEUTRAL"
+_WIN_EXPECTED = "WIN_EXPECTED"
+_NEUTRAL_BANKROLL_PCT = 0.0015
+_TURBO_EDGE_ZSCORE_THRESHOLD = 1.5
+_TURBO_EDGE_STAKE_MULTIPLIER = 2.0
+
+
+def _squeeze_floor_active(metrics: dict) -> bool:
+    """Indica disjuntor D-SQUEEZE ativo que bloqueia moduladores de edge."""
+    return bool(metrics.get("meta_squeeze_downgrade") or metrics.get("consensus_stake_floor"))
+
+
+def neutral_edge_dynamic_unit(bankroll: float) -> float:
+    """Unidade base U em regime neutro: 0.15% da banca ativa."""
+    return max(0.0, float(bankroll)) * _NEUTRAL_BANKROLL_PCT
+
+
+def apply_neutral_edge_kelly_base(kelly_base: float, bankroll: float, metrics: dict | None) -> float:
+    """Eleva kelly_base ao piso dinamico de 0.15% da banca em NO_EDGE_NEUTRAL."""
+    if not isinstance(metrics, dict) or _squeeze_floor_active(metrics):
+        return kelly_base
+    if str(metrics.get("edge_expectancy") or "") != _NO_EDGE_NEUTRAL:
+        return kelly_base
+    floor = neutral_edge_dynamic_unit(bankroll)
+    metrics["edge_neutral_dynamic_unit"] = floor
+    return max(float(kelly_base), floor)
+
+
+def turbo_edge_stake_multiplier(metrics: dict | None) -> float:
+    """Super-alavancagem assimétrica quando WIN_EXPECTED com Z_Edge extremo."""
+    if not isinstance(metrics, dict) or _squeeze_floor_active(metrics):
+        return 1.0
+    if str(metrics.get("edge_expectancy") or "") != _WIN_EXPECTED:
+        return 1.0
+    if float(metrics.get("edge_zscore", 0.0)) + 1e-12 >= _TURBO_EDGE_ZSCORE_THRESHOLD:
+        return _TURBO_EDGE_STAKE_MULTIPLIER
+    return 1.0
+
+
+def apply_turbo_edge_stake(final_stake: float, metrics: dict | None) -> float:
+    """Aplica multiplicador turbo sobre stake final quando conviccao de cauda e extrema."""
+    mult = turbo_edge_stake_multiplier(metrics)
+    if mult > 1.0 and isinstance(metrics, dict):
+        metrics["consensus_turbo_edge_active"] = True
+    return float(final_stake) * mult
 
 
 def _regime_tactical_inversion_active(metrics: dict) -> bool:
@@ -57,6 +102,10 @@ def consensus_kelly_retention(
     pending_loss_total: float = 0.0,
 ) -> float:
     """Retorna fator [floor, 1.0] para atenuar f* quando ord diverge do consenso tecnico."""
+    if isinstance(metrics, dict) and _squeeze_floor_active(metrics):
+        metrics["consensus_penalty_d_squeeze"] = True
+        cfg = kelly_config if isinstance(kelly_config, dict) else {}
+        return float(cfg.get("consensus_min_retention", 1.0 - float(cfg.get("consensus_max_cut", 0.50))))
     if isinstance(metrics, dict):
         recovering = float(pending_loss_total) > 0.0 or int(consecutive_losses) > 0
         if recovering and _recovery_waives_consensus_penalty(
@@ -75,7 +124,11 @@ def consensus_kelly_retention(
 
 
 __all__ = [
+    "apply_neutral_edge_kelly_base",
+    "apply_turbo_edge_stake",
     "consensus_entropy_applies_min_stake",
     "consensus_entropy_kelly_retention",
     "consensus_kelly_retention",
+    "neutral_edge_dynamic_unit",
+    "turbo_edge_stake_multiplier",
 ]

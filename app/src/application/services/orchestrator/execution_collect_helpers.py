@@ -5,13 +5,16 @@ import asyncio
 from src.application.services.execution_direction_fallback import build_mandatory_fallback_candidate
 from src.application.services.execution_entropy_fallback import pick_entropy_fallback_candidate
 from src.application.services.execution_mandatory_pick import pick_absolute_mandatory_candidate
-from src.application.services.execution_symbols import format_execution_alternates
 from src.application.services.execution_symbols_recovery import recovery_blocked_symbols
+from src.application.services.market_audit_log import (
+    format_direction_audit_line,
+    format_execution_audit_line,
+    resolve_predicted_edge,
+)
 from src.application.services.orchestrator.execution_recovery_gate import (
     recovery_min_signal,
     recovery_min_val_accuracy,
 )
-from src.domain.models.trade import TradeDirection
 from src.domain.risk.recovery_hurst_decay import (
     increment_recovery_skip_counter,
     resolve_effective_hurst_min,
@@ -257,26 +260,31 @@ def schedule_recovery_skip_counter_increment(orch) -> None:
 def log_execution_decision(exec_mgr, cid: str, best: tuple, candidates: list, effective_signal: float) -> None:
     """Registra log detalhado da decisao de execucao e indicadores."""
     metrics = best[2]
-    alts_str = format_execution_alternates(candidates, exclude_symbol=best[0])
-    alt_suffix = f" | alt={alts_str}" if alts_str else ""
-    indicators = metrics.get("indicators", {})
-    ind_str = " | ".join(f"{k}={v:.2f}" if isinstance(v, float) else f"{k}={v}" for k, v in indicators.items())
-    raw_val = float(metrics.get("raw_prob", 0.5))
+    cycle_digits = cid[1:] if cid.startswith("C") else cid
+    try:
+        cycle_id = int(cycle_digits)
+    except (TypeError, ValueError):
+        cycle_id = int(getattr(exec_mgr.orch, "_active_cycle_id", 0))
+    edge = resolve_predicted_edge(metrics)
+    tcn_score = float(metrics.get("tcn_score", metrics.get("calibrated_prob", metrics.get("raw_prob", 0.5))))
     exec_mgr.logger.info(
-        "[%s] EXEC_SEL | %s ord=%s dl=%s s=%.2f v=%.2f r=%.2f | P(CALL)=%.2f P(PUT)=%.2f | Acc=%.2f Score=%.2f | Votes: CALL=%d PUT=%d | %s%s",
-        cid,
-        best[0],
-        best[1].name,
-        metrics.get("dl_direction", best[1].name),
-        effective_signal,
-        float(metrics.get("val_accuracy", 0.0)),
-        raw_val if best[1] == TradeDirection.CALL else 1.0 - raw_val,
-        raw_val,
-        1.0 - raw_val,
-        float(metrics.get("val_accuracy", 0.0)),
-        effective_signal,
-        metrics.get("call_votes", 0),
-        metrics.get("put_votes", 0),
-        ind_str,
-        alt_suffix,
+        format_direction_audit_line(
+            cycle_id,
+            best[1].name,
+            str(best[0]),
+            edge,
+            dl_direction=str(metrics.get("dl_direction") or best[1].name),
+        )
     )
+    exec_mgr.logger.info(
+        format_execution_audit_line(
+            cycle_id,
+            str(best[0]),
+            best[1].name,
+            tcn_score,
+            edge,
+            z_edge=float(metrics.get("edge_zscore", 0.0)),
+            expectancy=str(metrics.get("edge_expectancy") or ""),
+        )
+    )
+    _ = (candidates, effective_signal)

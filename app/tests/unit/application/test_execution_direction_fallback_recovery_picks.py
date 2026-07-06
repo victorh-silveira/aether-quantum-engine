@@ -7,12 +7,19 @@ from src.application.services.execution_direction_fallback import (
     build_mandatory_fallback_candidate,
 )
 from src.domain.models.trade import TradeDirection
+from tests.unit.application.universal_regime_metrics import bear_put_metrics
 
 
 def test_scored_fallback_skips_lower_score_candidate():
     decisions = {
-        "RDBULL": {"direction": TradeDirection.CALL, "metrics": {"trade_score": 0.70, "raw_prob": 0.70}},
-        "RDBEAR": {"direction": TradeDirection.CALL, "metrics": {"trade_score": 0.55, "raw_prob": 0.55}},
+        "RDBULL": {
+            "direction": TradeDirection.CALL,
+            "metrics": {"trade_score": 0.70, "raw_prob": 0.70, "deploy_ok": True},
+        },
+        "RDBEAR": {
+            "direction": TradeDirection.PUT,
+            "metrics": bear_put_metrics(trade_score=0.55, raw_prob=0.42, calibrated_prob=0.42),
+        },
     }
     picked = _scored_fallback_pick(["RDBULL", "RDBEAR"], decisions, min_signal=0.45)
     assert picked is not None
@@ -26,14 +33,14 @@ def test_last_resort_skips_symbol_when_builders_fail():
             "metrics": {"trade_score": 0.55, "raw_prob": 0.58, "deploy_ok": True},
         },
         "RDBEAR": {
-            "direction": TradeDirection.CALL,
-            "metrics": {"trade_score": 0.60, "raw_prob": 0.60, "deploy_ok": True},
+            "direction": TradeDirection.PUT,
+            "metrics": bear_put_metrics(trade_score=0.60, raw_prob=0.42, calibrated_prob=0.42, deploy_ok=True),
         },
     }
     with (
         patch(
             "src.application.services.execution_direction_fallback.build_market_execution_candidate",
-            side_effect=[None, ("RDBEAR", TradeDirection.CALL, {"trade_score": 0.60})],
+            side_effect=[None, ("RDBEAR", TradeDirection.PUT, {"trade_score": 0.60})],
         ),
         patch(
             "src.application.services.execution_direction_fallback.build_execution_candidate",
@@ -49,8 +56,8 @@ def test_last_resort_skips_symbol_without_candidate():
     decisions = {
         "RDBULL": {"direction": None, "metrics": {"gate_reason": "data", "deploy_ok": True}},
         "RDBEAR": {
-            "direction": TradeDirection.CALL,
-            "metrics": {"trade_score": 0.55, "raw_prob": 0.58, "deploy_ok": True},
+            "direction": TradeDirection.PUT,
+            "metrics": bear_put_metrics(trade_score=0.55, raw_prob=0.42, calibrated_prob=0.42, deploy_ok=True),
         },
     }
     picked = _last_resort_fallback_pick(["RDBULL", "RDBEAR"], decisions, min_signal=0.0)
@@ -97,8 +104,15 @@ def test_build_mandatory_fallback_uses_forced_recovery_when_market_rank_empty():
         return_value=None,
     ):
         best = build_mandatory_fallback_candidate(
-            ["RDBULL"],
-            {"RDBULL": {"direction": TradeDirection.PUT, "metrics": {"trade_score": 0.60, "val_accuracy": 0.55}}},
+            ["RDBEAR"],
+            {
+                "RDBEAR": {
+                    "direction": TradeDirection.PUT,
+                    "metrics": bear_put_metrics(
+                        trade_score=0.60, val_accuracy=0.55, raw_prob=0.42, calibrated_prob=0.42
+                    ),
+                }
+            },
             recovery_active=True,
             last_loss_symbol="RDBEAR",
             last_loss_direction="PUT",
@@ -191,40 +205,44 @@ def test_scored_fallback_uses_execution_candidate_when_market_build_fails():
 
 def test_last_resort_returns_candidate_from_execution_builder():
     decisions = {
-        "RDBULL": {
+        "RDBEAR": {
             "direction": TradeDirection.PUT,
-            "metrics": {"trade_score": 0.55, "raw_prob": 0.44, "deploy_ok": True},
+            "metrics": bear_put_metrics(trade_score=0.55, raw_prob=0.42, calibrated_prob=0.42, deploy_ok=True),
         },
     }
     with patch(
         "src.application.services.execution_direction_fallback.build_market_execution_candidate",
         return_value=None,
     ):
-        picked = _last_resort_fallback_pick(["RDBULL"], decisions, min_signal=0.0)
+        picked = _last_resort_fallback_pick(["RDBEAR"], decisions, min_signal=0.0)
     assert picked is not None
 
     decisions = {
-        "RDBULL": {
+        "RDBEAR": {
             "direction": TradeDirection.PUT,
-            "metrics": {"execute": False, "trade_score": 0.20},
+            "metrics": {
+                "execute": False,
+                "trade_score": 0.20,
+                "deploy_ok": True,
+            },
         },
     }
-    assert _last_resort_fallback_pick(["RDBULL"], decisions, min_signal=0.45) is None
+    assert _last_resort_fallback_pick(["RDBEAR"], decisions, min_signal=0.45) is None
 
 
 def test_last_resort_fallback_pick_put_side_and_skip():
     decisions = {
-        "RDBULL": {
+        "RDBEAR": {
             "direction": TradeDirection.PUT,
-            "metrics": {"execute": False, "trade_score": 0.55, "raw_prob": 0.44},
+            "metrics": bear_put_metrics(execute=False, trade_score=0.55, raw_prob=0.42, calibrated_prob=0.42),
         },
     }
     picked = _last_resort_fallback_pick(
-        ["RDBULL"],
+        ["RDBEAR"],
         decisions,
         skip_symbols=frozenset(),
         min_signal=0.45,
     )
     assert picked is not None
     assert picked[1] == TradeDirection.PUT
-    assert _last_resort_fallback_pick(["RDBULL"], decisions, skip_symbols=frozenset({"RDBULL"})) is None
+    assert _last_resort_fallback_pick(["RDBEAR"], decisions, skip_symbols=frozenset({"RDBEAR"})) is None

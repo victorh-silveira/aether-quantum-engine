@@ -14,6 +14,7 @@ except ImportError:  # pragma: no cover
 from src.application.services.execution_symbols import symbols_eligible_for_execution
 from src.application.services.execution_symbols_recovery import pending_recovery_active
 from src.application.services.log_dedupe import clear_log_channel, log_info_if_changed
+from src.application.services.market_audit_log import resolve_predicted_edge, store_contract_audit
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.recovery_hurst_decay import prepare_recovery_skip_counter, reset_recovery_skip_counter_for_orch
 from src.domain.risk.stake_sizing import resolve_stake_conviction
@@ -131,6 +132,13 @@ class ExecutionManager:
                     self.orch.risk_manager.active_contract_ids.append(res.contract_id)
                     await self.orch.state.add_contract(res)
                     self.orch._contract_cycle[int(res.contract_id)] = int(self.orch._active_cycle_id)
+                    store_contract_audit(
+                        self.orch,
+                        int(res.contract_id),
+                        symbol=symbol,
+                        direction=direction.name,
+                        edge=resolve_predicted_edge(order_metrics),
+                    )
                     self._log_exec(
                         symbol,
                         direction,

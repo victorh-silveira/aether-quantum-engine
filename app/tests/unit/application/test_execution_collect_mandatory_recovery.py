@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 from src.application.services.orchestrator.execution_collect import collect_cluster_orders
 from src.domain.models.trade import TradeDirection
 from tests.market_symbols import ANCHOR, LOW_SIDE_SYMBOL, PAIR
-from tests.unit.application.universal_regime_metrics import asymmetric_gate_safe_metrics
+from tests.unit.application.universal_regime_metrics import asymmetric_gate_safe_metrics, bear_put_metrics
 
 
 def test_collect_cluster_orders_recovery_picks_dl_put_after_call_loss():
@@ -34,27 +34,27 @@ def test_collect_cluster_orders_recovery_picks_dl_put_after_call_loss():
     )
     decisions = {
         ANCHOR: {
-            "direction": TradeDirection.PUT,
+            "direction": TradeDirection.CALL,
             "metrics": asymmetric_gate_safe_metrics(
-                trade_score=0.72,
-                raw_prob=0.38,
-                trend_direction="PUT",
+                execute=False,
+                trade_score=0.49,
+                raw_prob=0.51,
+                calibrated_prob=0.51,
             ),
         },
         LOW_SIDE_SYMBOL: {
-            "direction": TradeDirection.CALL,
-            "metrics": {
-                "execute": False,
-                "trade_score": 0.49,
-                "val_accuracy": 0.67,
-                "raw_prob": 0.51,
-                "deploy_ok": True,
-            },
+            "direction": TradeDirection.PUT,
+            "metrics": bear_put_metrics(
+                trade_score=0.72,
+                raw_prob=0.28,
+                calibrated_prob=0.28,
+                trend_direction="PUT",
+            ),
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
     assert len(orders) == 1
-    assert orders[0][0] == ANCHOR
+    assert orders[0][0] == LOW_SIDE_SYMBOL
     assert orders[0][1] == TradeDirection.PUT
 
 

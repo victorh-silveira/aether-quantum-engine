@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from dataclasses import dataclass
@@ -185,10 +186,12 @@ async def load_bundles_from_deriv(
     data_cfg = settings.get("data_handler", {}) if isinstance(settings.get("data_handler"), dict) else {}
     fetch_cfg = parse_history_fetch_config(data_cfg if isinstance(data_cfg, dict) else {})
     target = resolve_meta_train_bars(bars)
+    min_complete = max(MIN_OHLC_ROWS, int(target * 0.80))
+    symbol_delay = float(fetch_cfg["symbol_delay"])
     ws = await _open_deriv_ws(settings)
     bundles: list[OhlcBundle] = []
     try:
-        for symbol in symbols:
+        for index, symbol in enumerate(symbols):
             candles = await fetch_paginated_candle_history(
                 ws,
                 symbol=str(symbol),
@@ -197,10 +200,30 @@ async def load_bundles_from_deriv(
                 fetch_cfg=fetch_cfg,
                 logger=logger,
             )
+            if len(candles) < min_complete:
+                logger.warning(
+                    "META_TRAIN: %s incompleto (%d/%d); retomando paginacao apos pausa.",
+                    symbol,
+                    len(candles),
+                    target,
+                )
+                if symbol_delay > 0:
+                    await asyncio.sleep(symbol_delay)
+                candles = await fetch_paginated_candle_history(
+                    ws,
+                    symbol=str(symbol),
+                    granularity=int(granularity),
+                    target=target,
+                    fetch_cfg=fetch_cfg,
+                    logger=logger,
+                    existing=candles,
+                )
             bundle = _candles_to_bundle(str(symbol), int(granularity), candles, source="deriv")
             if bundle is not None:
                 bundles.append(bundle)
                 logger.info("META_TRAIN: %s | %d velas via Deriv (%ds)", symbol, len(bundle.closes), granularity)
+            if symbol_delay > 0 and index + 1 < len(symbols):
+                await asyncio.sleep(symbol_delay)
     finally:
         await ws.close()
     return bundles

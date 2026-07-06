@@ -4,11 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.application.services.meta_direction_flip import log_d_squeeze_audit, micro_volatility_squeeze_active
+from src.application.services.meta_direction_flip import (
+    log_d_squeeze_audit,
+    micro_volatility_squeeze_active,
+    severe_bb_compression,
+)
 from src.domain.models.trade import TradeDirection
 
 
-META_SEVERE_NEGATIVE_EDGE = -0.15
 META_SQUEEZE_TRADE_SCORE = 0.52
 
 
@@ -43,10 +46,8 @@ def apply_meta_regression_edge(
     if not meta_applied:
         _apply_direction_scores(metrics, direction=dl_dir, score=base_score)
         return dl_dir, float(base_score)
-    if float(predicted_edge) > 0.0:
-        _apply_direction_scores(metrics, direction=dl_dir, score=base_score)
-        return dl_dir, float(base_score)
-    if float(predicted_edge) < META_SEVERE_NEGATIVE_EDGE and squeeze_active:
+    squeeze_danger = severe_bb_compression(metrics) or float(predicted_edge) <= 0.0
+    if squeeze_danger:
         metrics["meta_squeeze_downgrade"] = True
         _apply_direction_scores(metrics, direction=dl_dir, score=META_SQUEEZE_TRADE_SCORE)
         log_d_squeeze_audit(symbol, metrics)

@@ -133,11 +133,12 @@ async def fetch_paginated_candle_history(
         if not history:
             break
         batch = candles_from_payload(symbol, history)
+        before_merge = len(merged)
         merged = merge_candle_pages(merged, batch)
+        if len(merged) == before_merge:
+            break
         if chunk_index == 1 or chunk_index % 25 == 0 or len(merged) >= goal:
             progress_log("DATA: %s | %d/%d velas", symbol, len(merged), goal)
-        if len(history) < need:
-            break
         end = int(history[0]["epoch"]) - 1
         if chunk_delay > 0:
             await asyncio.sleep(chunk_delay)

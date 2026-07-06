@@ -4,10 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.application.services.orchestrator import Orchestrator
-from src.application.services.orchestrator.graceful_shutdown import (
-    _cancel_pending_loop_tasks,
-    close_infrastructure_connections,
-)
+from src.application.services.orchestrator.graceful_shutdown import close_infrastructure_connections
 from src.application.services.orchestrator.orchestrator_run_loop import stop_orchestrator
 from src.infrastructure.inference.triton_grpc_client import TritonGrpcClient
 
@@ -30,9 +27,7 @@ async def test_close_infrastructure_connections_idempotent():
             "src.application.services.orchestrator.graceful_shutdown.close_infra_services",
             new_callable=AsyncMock,
         ) as close_infra,
-        patch(
-            "src.application.services.orchestrator.graceful_shutdown.cancel_deferred_symbol_training",
-        ),
+        patch("src.application.services.orchestrator.graceful_shutdown.cancel_deferred_symbol_training"),
         patch(
             "src.application.services.orchestrator.graceful_shutdown.stop_ingestion_watchdog",
             new_callable=AsyncMock,
@@ -75,9 +70,7 @@ async def test_close_infrastructure_cancels_post_settlement_task():
             "src.application.services.orchestrator.graceful_shutdown.close_infra_services",
             new_callable=AsyncMock,
         ),
-        patch(
-            "src.application.services.orchestrator.graceful_shutdown.cancel_deferred_symbol_training",
-        ),
+        patch("src.application.services.orchestrator.graceful_shutdown.cancel_deferred_symbol_training"),
         patch(
             "src.application.services.orchestrator.graceful_shutdown.stop_ingestion_watchdog",
             new_callable=AsyncMock,
@@ -106,9 +99,7 @@ async def test_close_infrastructure_awaits_cancelled_asyncio_task():
     task = asyncio.create_task(_block())
     orch._post_settlement_task = task
     with (
-        patch(
-            "src.application.services.orchestrator.graceful_shutdown.cancel_deferred_symbol_training",
-        ),
+        patch("src.application.services.orchestrator.graceful_shutdown.cancel_deferred_symbol_training"),
         patch(
             "src.application.services.orchestrator.graceful_shutdown.stop_ingestion_watchdog",
             new_callable=AsyncMock,
@@ -136,9 +127,7 @@ async def test_close_infrastructure_skips_triton_when_infra_block_invalid():
             "src.application.services.orchestrator.graceful_shutdown.close_triton_grpc_client",
             new_callable=AsyncMock,
         ) as close_triton,
-        patch(
-            "src.application.services.orchestrator.graceful_shutdown.cancel_deferred_symbol_training",
-        ),
+        patch("src.application.services.orchestrator.graceful_shutdown.cancel_deferred_symbol_training"),
         patch(
             "src.application.services.orchestrator.graceful_shutdown.stop_ingestion_watchdog",
             new_callable=AsyncMock,
@@ -163,9 +152,7 @@ async def test_close_infrastructure_ws_close_failure_logged():
     orch.ws = AsyncMock()
     orch.ws.close = AsyncMock(side_effect=RuntimeError("ws down"))
     with (
-        patch(
-            "src.application.services.orchestrator.graceful_shutdown.cancel_deferred_symbol_training",
-        ),
+        patch("src.application.services.orchestrator.graceful_shutdown.cancel_deferred_symbol_training"),
         patch(
             "src.application.services.orchestrator.graceful_shutdown.stop_ingestion_watchdog",
             new_callable=AsyncMock,
@@ -218,36 +205,3 @@ async def test_triton_close_channel_instance():
     with patch.object(client, "close", new_callable=AsyncMock) as close_mock:
         await client.close_channel()
     close_mock.assert_awaited_once()
-
-
-@pytest.mark.asyncio
-async def test_cancel_pending_loop_tasks_noop_when_empty():
-    await _cancel_pending_loop_tasks()
-
-
-@pytest.mark.asyncio
-async def test_cancel_pending_loop_tasks_cancels_pending_tasks():
-    mock_task = MagicMock()
-    mock_task.done.return_value = False
-    current = asyncio.current_task()
-    with (
-        patch("asyncio.all_tasks", return_value={mock_task, current}),
-        patch("asyncio.current_task", return_value=current),
-        patch("asyncio.gather", new_callable=AsyncMock, return_value=[]),
-    ):
-        await _cancel_pending_loop_tasks()
-    mock_task.cancel.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_cancel_pending_loop_tasks_cancels_orphans():
-    started = asyncio.Event()
-
-    async def _orphan() -> None:
-        started.set()
-        await asyncio.sleep(3600)
-
-    orphan = asyncio.create_task(_orphan())
-    await started.wait()
-    await _cancel_pending_loop_tasks()
-    assert orphan.cancelled() or orphan.done()

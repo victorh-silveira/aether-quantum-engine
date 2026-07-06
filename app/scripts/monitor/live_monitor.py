@@ -37,8 +37,12 @@ repo_path("data").mkdir(parents=True, exist_ok=True)
 logging.basicConfig(level=logging.ERROR, filename=str(repo_path("logs", "monitor.log")))
 logger = logging.getLogger("MONITOR")
 
+_DIR_SEL_RE = re.compile(
+    r"DIR_SEL\s*\|\|\s*ord=(?P<ord>CALL|PUT)(?:\s+\|\|\s+dl=(?P<dl>CALL|PUT)\s+inv)?\s+\|\|\s+sym=(?P<symbol>RDBEAR|RDBULL)\s+\|\|\s+edge=(?P<edge>-?[\d.]+)",
+    re.IGNORECASE,
+)
 _EXEC_SEL_RE = re.compile(
-    r"EXEC_SEL\s*\|\s*(?P<symbol>RDBEAR|RDBULL)\s+ord=(?P<ord>CALL|PUT)\s+dl=(?P<dl>CALL|PUT)\s+s=(?P<score>[\d.]+)",
+    r"EXEC_SEL\s*\|\s*(?P<symbol>RDBEAR|RDBULL)\s*\|\s*ord=(?P<ord>CALL|PUT)\s*\|\s*TCN=(?P<tcn>[\d.]+)\s*\|\s*edge=(?P<edge>-?[\d.]+)\s*\(Z=(?P<z_edge>[+-]?[\d.]+)\)\s*\|\s*(?P<state>WIN_EXPECTED|NO_EDGE_NEUTRAL|LOSS_EXPECTED)",
     re.IGNORECASE,
 )
 _SESSION_START_RE = re.compile(r"Alvo de 1%:\s*\$([\d,]+\.?\d*)", re.IGNORECASE)
@@ -64,9 +68,25 @@ class LogParser:
         line = line.strip()
         if not line:
             return
+        self._parse_dir_sel(line)
         self._parse_exec_sel(line)
         self._parse_session_bootstrap(line)
         self._parse_balance(line)
+
+    def _parse_dir_sel(self, line: str) -> None:
+        if "DIR_SEL" not in line:
+            return
+        match = _DIR_SEL_RE.search(line)
+        if not match:
+            return
+        try:
+            self.state.last_telemetry["symbol"] = match.group("symbol")
+            self.state.last_telemetry["dir"] = match.group("ord").upper()
+            dl = match.group("dl")
+            self.state.last_telemetry["dl_dir"] = dl.upper() if dl else match.group("ord").upper()
+            self.state.last_telemetry["conv"] = f"{float(match.group('edge')):.2f}"
+        except Exception as exc:
+            logger.error("Parser Error DIR_SEL: %s", exc)
 
     def _parse_exec_sel(self, line: str) -> None:
         if "EXEC_SEL" not in line:
@@ -77,13 +97,11 @@ class LogParser:
         try:
             self.state.last_telemetry["symbol"] = match.group("symbol")
             self.state.last_telemetry["dir"] = match.group("ord").upper()
-            self.state.last_telemetry["dl_dir"] = match.group("dl").upper()
-            self.state.last_telemetry["conv"] = f"{float(match.group('score')):.2f}"
-            if "| Votes:" in line:
-                after_votes = line.split("| Votes:", 1)[1]
-                parts = [p.strip() for p in after_votes.split("|")]
-                if len(parts) >= 2 and parts[1]:
-                    self.state.last_telemetry["metrics"] = parts[1]
+            self.state.last_telemetry["dl_dir"] = match.group("ord").upper()
+            self.state.last_telemetry["conv"] = f"{float(match.group('tcn')):.2f}"
+            edge = float(match.group("edge"))
+            z_edge = float(match.group("z_edge"))
+            self.state.last_telemetry["metrics"] = f"edge={edge:.4f} Z={z_edge:+.2f} {match.group('state')}"
         except Exception as exc:
             logger.error("Parser Error EXEC_SEL: %s", exc)
 
