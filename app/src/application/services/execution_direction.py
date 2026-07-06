@@ -83,8 +83,14 @@ def build_execution_candidate(
     recovery_active: bool = False,
     corr_matrix: dict[tuple[str, str], float] | None = None,
     infra_cfg: dict | None = None,
+    decisions: dict | None = None,
+    cycle_id: int = 0,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Monta candidato com direcao resolvida por scoring inteligente."""
+    peer = hedge_peer(symbol)
+    peer_entry = None
+    if isinstance(decisions, dict) and peer:
+        peer_entry = decisions.get(peer)
     resolved = resolve_execution_direction(
         entry,
         exec_cfg=exec_cfg or {},
@@ -93,6 +99,8 @@ def build_execution_candidate(
         symbol=symbol,
         corr_matrix=corr_matrix,
         infra_cfg=infra_cfg,
+        peer_entry=peer_entry if isinstance(peer_entry, dict) else None,
+        cycle_id=cycle_id,
     )
     if resolved is None:
         return None

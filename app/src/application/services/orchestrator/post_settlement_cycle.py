@@ -7,6 +7,7 @@ import time
 from typing import Any
 
 from src.application.services.orchestrator.graceful_shutdown import graceful_shutdown
+from src.application.services.orchestrator.post_settlement_loss_cooldown import await_post_loss_cooldown
 from src.application.services.orchestrator.session_target_bootstrap import clear_current_session_redis_keys
 from src.application.services.orchestrator.settlement_logic import check_session_limits_before_post_settlement
 from src.application.services.orchestrator.settlement_utils import (
@@ -180,6 +181,7 @@ async def run_post_settlement_breath_and_cycle(orch: Any) -> None:
         poll = 0.25
         breath = float(orch_cfg.get("post_settlement_breath_seconds", 8.0))
         await _await_post_settlement_breath(orch, breath, poll)
+        await await_post_loss_cooldown(orch)
         await _run_post_settlement_retry_loop(orch, orch_cfg, poll)
     finally:
         current = asyncio.current_task()

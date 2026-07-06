@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import os
 from typing import Any
 
 from src.application.services.deep_learning.dl_deferred_train import cancel_deferred_symbol_training
@@ -180,3 +181,5 @@ async def graceful_shutdown(orch: Any, *, fast_path: bool = False) -> None:
                 await task
     await _cancel_pending_loop_tasks(orch)
     await close_infrastructure_connections(orch)
+    if fast_path:
+        os._exit(0)

@@ -17,6 +17,10 @@ META_FLIP_PAYOFF_THRESHOLD_BASE = 0.42
 META_FLIP_PAYOFF_THRESHOLD_SQUEEZE = 0.49
 META_FLIP_TRADE_SCORE = 0.75
 META_FLIP_SQUEEZE_TRADE_SCORE = 0.52
+CHOP_CONGESTION_Z_EDGE = 0.20
+TICK_ACCEL_NEUTRAL_EPS = 0.01
+REGIME_CHOP_CONGESTION = "CHOP_CONGESTION"
+SIGNAL_SUSPENDED = "SIGNAL_SUSPENDED"
 
 _SQUEEZE_LOGGER = logging.getLogger("AETH")
 
@@ -62,6 +66,25 @@ def micro_volatility_squeeze_active(metrics: dict[str, Any]) -> bool:
     """Indica squeeze M1 por bb_width comprimido ou desaceleracao institucional de ticks."""
     tick_accel = _read_micro_tick_acceleration(metrics)
     return severe_bb_compression(metrics) or tick_accel < 0.0
+
+
+def chop_congestion_regime_active(metrics: dict[str, Any], *, persistence_filter_active: bool) -> bool:
+    """Indica congestao micro com edge colapsado e aceleracao de ticks neutra."""
+    if not persistence_filter_active:
+        return False
+    z_edge = abs(float(metrics.get("edge_zscore", 0.0)))
+    tick_accel = abs(_read_micro_tick_acceleration(metrics))
+    return z_edge + 1e-12 < CHOP_CONGESTION_Z_EDGE and tick_accel <= TICK_ACCEL_NEUTRAL_EPS
+
+
+def apply_regime_freeze_if_congested(metrics: dict[str, Any], *, persistence_filter_active: bool) -> bool:
+    """Classifica CHOP_CONGESTION e sinaliza suspensao quando micro sinais conflitam."""
+    if not chop_congestion_regime_active(metrics, persistence_filter_active=persistence_filter_active):
+        return False
+    metrics["regime_classification"] = REGIME_CHOP_CONGESTION
+    metrics["regime_guard_action"] = "FREEZE: SKIP CYCLE"
+    metrics["signal_status"] = SIGNAL_SUSPENDED
+    return True
 
 
 def resolve_dynamic_flip_threshold(metrics: dict[str, Any]) -> tuple[float, bool]:

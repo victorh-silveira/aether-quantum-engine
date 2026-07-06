@@ -19,7 +19,7 @@ _TURBO_EDGE_ZSCORE_THRESHOLD = 1.5
 _TURBO_EDGE_STAKE_MULTIPLIER = 2.0
 _PAYOUT_FALLBACK = 0.90
 _MAX_SAFE_STAKE_BANKROLL_PCT = 0.035
-_SOFT_RECOVERY_PROGRESSION = 1.65
+_ADAPTIVE_RECOVERY_FACTOR_CAP = 2.50
 
 
 def _positive_float(value: object) -> float | None:
@@ -51,12 +51,28 @@ def resolve_contract_payout(
     return _PAYOUT_FALLBACK
 
 
-def soft_recovery_progression_multiplier(consecutive_losses: int) -> float:
-    """Retorna fator 1.65^n para n perdas consecutivas na sessao."""
+def adaptive_recovery_progression_factor(
+    payout: float | None = None,
+    risk_params: dict[str, Any] | None = None,
+) -> float:
+    """Calcula fator adaptativo 1 + 1/payout_real com teto institucional de 2.50."""
+    resolved = resolve_contract_payout(payout, risk_params)
+    raw = 1.0 + (1.0 / resolved)
+    return min(raw, _ADAPTIVE_RECOVERY_FACTOR_CAP)
+
+
+def soft_recovery_progression_multiplier(
+    consecutive_losses: int,
+    *,
+    payout: float | None = None,
+    risk_params: dict[str, Any] | None = None,
+) -> float:
+    """Retorna fator adaptativo^n para n perdas consecutivas na sessao."""
     losses = max(0, int(consecutive_losses))
     if losses <= 0:
         return 1.0
-    return _SOFT_RECOVERY_PROGRESSION**losses
+    factor = adaptive_recovery_progression_factor(payout, risk_params)
+    return factor**losses
 
 
 def resolve_session_base_unit(bankroll: float, base_unit: float, metrics: dict | None) -> float:
@@ -75,21 +91,30 @@ def apply_soft_recovery_stake(
     previous_stake: float,
     bankroll: float,
     metrics: dict | None = None,
+    payout: float | None = None,
+    risk_params: dict[str, Any] | None = None,
 ) -> float:
-    """Aplica progressao suave 1.65x por perda consecutiva quando ha passivo pendente."""
+    """Aplica progressao adaptativa indexada ao payout real quando ha passivo pendente."""
     unit = resolve_session_base_unit(bankroll, base_unit, metrics)
     if float(pending_total) <= 0.0:
         return min(unit, max_safe_stake_cap(bankroll))
+    factor = adaptive_recovery_progression_factor(payout, risk_params)
+    resolved_payout = resolve_contract_payout(payout, risk_params)
     losses = max(0, int(consecutive_losses))
     anchor = float(previous_stake) if float(previous_stake) > 0.0 else unit
     if losses <= 0:
         stake = unit
     elif float(previous_stake) > 0.0:
-        stake = anchor * _SOFT_RECOVERY_PROGRESSION
+        stake = anchor * factor
     else:
-        stake = unit * soft_recovery_progression_multiplier(losses)
+        stake = unit * soft_recovery_progression_multiplier(
+            losses,
+            payout=payout,
+            risk_params=risk_params,
+        )
     if isinstance(metrics, dict):
-        metrics["recovery_soft_progression"] = _SOFT_RECOVERY_PROGRESSION
+        metrics["recovery_soft_progression"] = factor
+        metrics["recovery_adaptive_payout"] = resolved_payout
         metrics["recovery_soft_losses"] = losses
         metrics["recovery_soft_anchor_stake"] = anchor
     cap = max_safe_stake_cap(bankroll)
@@ -202,6 +227,7 @@ def consensus_kelly_retention(
 
 
 __all__ = [
+    "adaptive_recovery_progression_factor",
     "apply_neutral_edge_kelly_base",
     "apply_soft_recovery_stake",
     "apply_turbo_edge_stake",

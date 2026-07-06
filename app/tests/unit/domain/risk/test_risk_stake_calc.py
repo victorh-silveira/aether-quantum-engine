@@ -237,9 +237,11 @@ def test_calculate_stake_c0017_bypasses_consensus_and_uses_soft_recovery(kelly_c
             "order_direction": "CALL",
         },
     )
+    payout = float(kelly_config["params"].get("payout_estimate", 0.95))
+    factor = 1.0 + (1.0 / payout)
     session_unit = max(unit_u, 10000.0 * 0.0015)
-    expected = math.ceil((session_unit * (1.65**3)) * 100) / 100
+    expected = math.ceil((session_unit * (factor**3)) * 100) / 100
     assert stake == pytest.approx(expected)
     logged = " ".join(str(c) for c in rm.logger.info.call_args_list)
     assert "D'ALEMBERT" in logged
-    assert "soft=1.65x^3" in logged
+    assert "soft=2.05x^3" in logged

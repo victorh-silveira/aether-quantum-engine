@@ -6,6 +6,7 @@ from typing import Any
 
 from src.application.services.deep_learning.dl_outcomes import record_symbol_outcome
 from src.application.services.deep_learning.dl_retrain import mark_force_retrain
+from src.application.services.direction_loss_tracker import record_direction_outcome
 from src.application.services.market_audit_log import (
     format_settlement_audit_line,
     pop_contract_audit,
@@ -14,6 +15,11 @@ from src.application.services.orchestrator.graceful_shutdown import graceful_shu
 from src.application.services.orchestrator.metrics_utils import neutral_metrics
 from src.application.services.orchestrator.result_utils import api_settlement_label
 from src.application.services.orchestrator.settlement_detect import contract_payload_is_settled
+from src.domain.risk.executed_stake_reconciliation import (
+    bind_executed_stake_for_contract,
+    reconcile_settlement_profit,
+    resolve_executed_buy_stake,
+)
 from src.domain.risk.recovery_hurst_decay import reset_recovery_skip_counter_for_orch
 from src.domain.risk.stop_win_target import resolve_stop_win_target
 
@@ -31,10 +37,21 @@ def _process_contract_outcome(orch: Any, c: dict, contract: Any, c_id: int, prof
     sym = orch.risk_manager.contract_to_symbol.get(c_id, c.get("underlying", "UNK"))
     loss_dir = getattr(contract, "direction", None)
     dir_name = loss_dir.name if loss_dir is not None else None
+    executed_buy = resolve_executed_buy_stake(
+        c_id,
+        payload=c if isinstance(c, dict) else None,
+        contract=contract,
+        contract_stakes=orch.risk_manager.contract_stakes,
+    )
+    profit = reconcile_settlement_profit(profit, executed_buy)
+    bind_executed_stake_for_contract(orch.risk_manager.contract_stakes, c_id, executed_buy)
     record_symbol_outcome(orch, sym, won=profit >= 0.0)
+    if dir_name:
+        record_direction_outcome(sym, dir_name, won=profit >= 0.0)
     orch.risk_manager.register_result(profit, c_id, symbol=sym, current_tick=orch.tick_count, direction=dir_name)
     orch._cluster_results.append({"symbol": sym, "profit": profit})
     orch._last_result_cycle_id = orch._contract_cycle.pop(c_id, 0)
+    orch._last_settlement_outcome = "WIN" if profit > 0.0 else ("LOSS" if profit < 0.0 else "FLAT")
 
     if profit >= 0:
         orch._session_wins += 1

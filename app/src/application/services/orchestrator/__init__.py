@@ -86,7 +86,7 @@ class Orchestrator:
         self._cycle_seq = 0
         self._active_cycle_id = 0
         self._contract_cycle: dict[int, int] = {}
-        self._last_result_cycle_id = 0
+        self._last_result_cycle_id, self._last_settlement_outcome = 0, ""
         self._session_wins, self._session_losses = 0, 0
         self._stream_ready_at: float | None = None
         self._recovery_skip_counter = 0

@@ -51,6 +51,8 @@ def gather_cluster_candidates(
             recovery_active=recovery_active,
             corr_matrix=corr_matrix or None,
             infra_cfg=infra_cfg if isinstance(infra_cfg, dict) else None,
+            decisions=decisions,
+            cycle_id=int(exec_mgr.orch._active_cycle_id),
         )
         if built is None:
             continue

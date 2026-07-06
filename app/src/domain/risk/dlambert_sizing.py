@@ -1,12 +1,14 @@
-"""Sizing Kelly base acoplado a progressao suave 1.65x em recovery."""
+"""Sizing Kelly base acoplado a progressao adaptativa indexada ao payout em recovery."""
 
 from __future__ import annotations
 
 from typing import Any
 
 from src.domain.risk.consensus_stake_penalty import (
+    adaptive_recovery_progression_factor,
     apply_soft_recovery_stake,
     max_safe_stake_cap,
+    resolve_contract_payout,
     resolve_session_base_unit,
 )
 from src.domain.risk.stake_sizing import round_stake
@@ -14,7 +16,6 @@ from src.domain.risk.stake_sizing import round_stake
 
 REDIS_DLAMBERT_UNIT_KEY = "session:current:dlambert_unit"
 REDIS_DLAMBERT_LINEAR_LOSSES_KEY = "session:current:consecutive_losses_linear"
-SOFT_RECOVERY_PROGRESSION = 1.65
 
 
 def dlambert_enabled(dlambert_config: dict[str, Any]) -> bool:
@@ -92,8 +93,7 @@ def resolve_dlambert_stake(
     payout: float | None = None,
     dl_metrics: dict | None = None,
 ) -> tuple[float, str]:
-    """Resolve stake final Kelly ou progressao suave 1.65x em recovery."""
-    _ = payout
+    """Resolve stake final Kelly ou progressao adaptativa indexada ao payout em recovery."""
     stress_recovery = martingale_recovery_active(
         recovery_active=recovery_active,
         pending_total=pending_total,
@@ -111,6 +111,8 @@ def resolve_dlambert_stake(
             previous_stake=previous_stake,
             bankroll=bankroll,
             metrics=metrics,
+            payout=payout,
+            risk_params=getattr(rm, "risk_params", None),
         )
         rounded = round_stake(raw, recovery_linear=True)
         cap = max_safe_stake_cap(bankroll)
@@ -131,9 +133,14 @@ def dlambert_log_suffix(
     bankroll: float = 0.0,
     payout: float | None = None,
 ) -> str:
-    """Monta sufixo de log com detalhes da progressao suave 1.65x."""
-    _ = (dlambert_unit, dlambert_config, bankroll, payout)
+    """Monta sufixo de log com detalhes da progressao adaptativa indexada ao payout."""
+    _ = (dlambert_unit, dlambert_config, bankroll)
     if mode_tag != "D'ALEMBERT":
         return ""
     linear = int(consecutive_losses_linear)
-    return f" | D'ALEMBERT ${final_stake:.2f} (soft=1.65x^{linear} U=${kelly_base:.2f}) | pend=${loss_to_recover:.2f}"
+    resolved_payout = resolve_contract_payout(payout)
+    factor = adaptive_recovery_progression_factor(payout)
+    return (
+        f" | D'ALEMBERT ${final_stake:.2f} (soft={factor:.2f}x^{linear}"
+        f" p={resolved_payout:.2f} U=${kelly_base:.2f}) | pend=${loss_to_recover:.2f}"
+    )

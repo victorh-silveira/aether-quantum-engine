@@ -8,6 +8,7 @@ import pytest
 import torch
 
 from src.application.services.deep_learning import dl_device
+from src.application.services.direction_loss_tracker import reset_direction_persistence_tracker
 from src.application.services.orchestrator.execution_manager import ExecutionManager
 from src.infrastructure.market.timescale_correlation_worker import stop_correlation_worker
 from src.infrastructure.state.trading_state import TradingState
@@ -41,6 +42,21 @@ def force_dl_training_on_cpu():
     gc.collect()
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
+
+
+@pytest.fixture(autouse=True)
+def reset_direction_loss_tracker():
+    """Limpa rastreador anti-trend-lock entre testes."""
+    reset_direction_persistence_tracker()
+    yield
+    reset_direction_persistence_tracker()
+
+
+@pytest.fixture(autouse=True)
+def block_os_hard_exit():
+    """Impede os._exit de encerrar o runner durante a suíte de testes."""
+    with patch("os._exit"):
+        yield
 
 
 @pytest.fixture(autouse=True)

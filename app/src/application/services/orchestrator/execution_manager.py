@@ -128,7 +128,8 @@ class ExecutionManager:
                 order_metrics = {**metrics, "duration": int(custom_dur)}
                 res = await self._place_order(symbol, direction, stake, duration=custom_dur, metrics=order_metrics)
                 if res:
-                    self.orch.risk_manager.record_contract_stake(int(res.contract_id), stake)
+                    executed_stake = float(getattr(res, "buy_price", 0.0) or stake)
+                    self.orch.risk_manager.record_contract_stake(int(res.contract_id), executed_stake)
                     self.orch.risk_manager.active_contract_ids.append(res.contract_id)
                     await self.orch.state.add_contract(res)
                     self.orch._contract_cycle[int(res.contract_id)] = int(self.orch._active_cycle_id)

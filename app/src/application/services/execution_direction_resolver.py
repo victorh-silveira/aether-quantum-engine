@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from src.application.services.direction_persistence_guard import evaluate_direction_persistence_guard
 from src.application.services.meta_classifier_cross_symbol import ANCHOR_BEAR, ANCHOR_BULL
 from src.application.services.meta_classifier_features import cross_symbol_conviction_spread
 from src.application.services.meta_classifier_stacking import resolve_meta_payoff_edge
@@ -164,6 +165,8 @@ def resolve_execution_direction(
     symbol: str | None = None,
     corr_matrix: dict[tuple[str, str], float] | None = None,
     infra_cfg: dict | None = None,
+    peer_entry: dict | None = None,
+    cycle_id: int = 0,
 ) -> tuple[TradeDirection, dict] | None:
     """Resolve direcao micro com edge continuo do meta-regressor e downgrade D-SQUEEZE."""
     _ = (exec_cfg, calibration_cfg, recovery_active, corr_matrix)
@@ -210,8 +213,25 @@ def resolve_execution_direction(
     )
     if strict is None:
         return None
-    metrics["exec_direction"] = strict.name
-    metrics["resolved_direction"] = strict.name
+    guarded = evaluate_direction_persistence_guard(
+        symbol,
+        dl_dir,
+        strict,
+        metrics,
+        entry=entry,
+        peer_entry=peer_entry,
+        cycle_id=cycle_id,
+        infra_cfg=infra_cfg,
+    )
+    if guarded is None:
+        entry_metrics = entry.get("metrics")
+        if isinstance(entry_metrics, dict):
+            entry_metrics.update(metrics)
+        elif metrics.get("signal_status") == "SIGNAL_SUSPENDED":
+            entry["metrics"] = metrics
+        return None
+    metrics["exec_direction"] = guarded.name
+    metrics["resolved_direction"] = guarded.name
     metrics["tcn_score"] = prob
     _ = final_score
-    return strict, metrics
+    return guarded, metrics

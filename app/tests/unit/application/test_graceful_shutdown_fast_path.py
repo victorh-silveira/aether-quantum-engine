@@ -29,11 +29,13 @@ async def test_graceful_shutdown_fast_path_cancels_settlement_queue():
             "src.application.services.orchestrator.graceful_shutdown.close_infrastructure_connections",
             new_callable=AsyncMock,
         ) as close_infra,
+        patch("src.application.services.orchestrator.graceful_shutdown.os._exit") as hard_exit,
     ):
         await graceful_shutdown(orch, fast_path=True)
     cancel_queue.assert_called_once_with(orch)
     cancel_tasks.assert_awaited_once()
     close_infra.assert_awaited_once()
+    hard_exit.assert_called_once_with(0)
 
 
 @pytest.mark.asyncio
@@ -53,9 +55,12 @@ async def test_graceful_shutdown_cancels_pending_tasks_before_infra_close():
 
     orphan = asyncio.create_task(_orphan(), name="_run_settlement_watch")
     await started.wait()
-    with patch(
-        "src.application.services.orchestrator.graceful_shutdown.close_infrastructure_connections",
-        new_callable=AsyncMock,
+    with (
+        patch(
+            "src.application.services.orchestrator.graceful_shutdown.close_infrastructure_connections",
+            new_callable=AsyncMock,
+        ),
+        patch("src.application.services.orchestrator.graceful_shutdown.os._exit"),
     ):
         await graceful_shutdown(orch, fast_path=True)
     assert orphan.cancelled() or orphan.done()
