@@ -57,17 +57,18 @@ def test_triton_model_ready_true_and_false():
         return_value=b"",
     ):
         assert triton_model_ready("http://localhost:8000", "RDBEAR") is True
-    with patch(
-        "src.infrastructure.inference.triton_http.read_http_response",
-        side_effect=urllib.error.HTTPError(
-            url="http://localhost:8000/v2/models/RDBEAR/ready",
-            code=404,
-            msg="Not Found",
-            hdrs=None,
-            fp=None,
-        ),
-    ):
-        assert triton_model_ready("http://localhost:8000", "RDBEAR") is False
+    for code in (400, 404, 503):
+        with patch(
+            "src.infrastructure.inference.triton_http.read_http_response",
+            side_effect=urllib.error.HTTPError(
+                url="http://localhost:8000/v2/models/RDBEAR/ready",
+                code=code,
+                msg="Not Ready",
+                hdrs=None,
+                fp=None,
+            ),
+        ):
+            assert triton_model_ready("http://localhost:8000", "RDBEAR") is False
 
 
 def test_triton_model_ready_reraises_unexpected_http_error():

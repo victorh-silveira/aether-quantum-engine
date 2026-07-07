@@ -60,7 +60,9 @@ def _write_triton_model_dir(
     model_dir = repo / symbol / "1"
     model_dir.mkdir(parents=True, exist_ok=True)
     dest_pt = model_dir / "model.pt"
-    shutil.copy2(ts_source, dest_pt)
+    tmp_pt = model_dir / "model.pt.tmp"
+    shutil.copy2(ts_source, tmp_pt)
+    tmp_pt.replace(dest_pt)
     pbtxt = triton_config_pbtxt(lookback=lookback, feature_dim=feature_dim).replace("{name}", symbol)
     (repo / symbol / "config.pbtxt").write_text(pbtxt, encoding="utf-8")
 

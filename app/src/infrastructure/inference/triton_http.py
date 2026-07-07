@@ -53,7 +53,7 @@ def triton_model_ready(http_base: str, model_name: str) -> bool:
         read_http_response(req, timeout=2.0)
         return True
     except urllib.error.HTTPError as exc:
-        if exc.code in (404, 503):
+        if exc.code in (400, 404, 503):
             return False
         raise
 

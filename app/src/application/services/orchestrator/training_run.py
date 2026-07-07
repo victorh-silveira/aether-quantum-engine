@@ -9,7 +9,7 @@ async def run_orchestrator_training(orch) -> bool:
     """Conecta, sincroniza velas, treina modelos DL e encerra a sessao."""
     orch.logger.info("INIT: Treino DL | conectando Deriv")
     if not await orch._setup_session():
-        orch.logger.error("INIT: Abortando treino (falha em PAT, OTP ou WebSocket).")
+        orch.logger.error("INIT: Abortando treino (falha em infra, PAT, OTP ou WebSocket).")
         return False
     fetch_count = orch.stream._resolve_fetch_count()
     orch.logger.info(

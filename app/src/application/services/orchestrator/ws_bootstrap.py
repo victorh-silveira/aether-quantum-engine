@@ -83,7 +83,7 @@ async def setup_trading_session(orch: Orchestrator) -> bool:
         orch.logger.error("INIT: Deriv REST falhou: %s", e)
         return False
     except urllib.error.HTTPError as e:
-        orch.logger.error("INIT: HTTP %s em %s", e.code, e.url)
+        orch.logger.error("INIT: HTTP %s em %s (infra/Triton)", e.code, e.url)
         return False
     except (ConnectionError, TimeoutError, OSError) as e:
         detalhe = str(e).strip() or repr(e)
