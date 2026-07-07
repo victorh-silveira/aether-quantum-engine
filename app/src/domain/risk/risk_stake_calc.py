@@ -5,6 +5,8 @@ from typing import Any
 from src.domain.risk.consensus_stake_penalty import (
     apply_neutral_edge_kelly_base,
     apply_turbo_edge_stake,
+    d_squeeze_sovereignty_active,
+    enforce_d_squeeze_stake_floor,
 )
 from src.domain.risk.dlambert_sizing import (
     dlambert_log_suffix,
@@ -176,11 +178,12 @@ def calculate_stake_for_manager(
     p = rm.effective_win_rate(symbol, conviction)
     kelly_f = (b * p - (1.0 - p)) / b if b > 0 else 0.0
     loss_to_recover = sum(rm.pending_loss.values())
+    squeeze_sovereignty = d_squeeze_sovereignty_active(dl_metrics if isinstance(dl_metrics, dict) else None)
     recovery_active = rm._recovery_allowed(symbol, conviction, **kwargs)
     recovery_financial = bool(loss_to_recover)
     linear_losses = int(getattr(rm, "consecutive_losses_linear", 0))
-    recovery_stress = recovery_financial or linear_losses > 0
-    recovery_bypass_consensus = float(loss_to_recover) > 0.0
+    recovery_stress = (recovery_financial or linear_losses > 0) and not squeeze_sovereignty
+    recovery_bypass_consensus = float(loss_to_recover) > 0.0 and not squeeze_sovereignty
 
     sizing_conviction = conviction
     if isinstance(dl_metrics, dict) and not dl_metrics.get("execute", True):
@@ -270,6 +273,7 @@ def calculate_stake_for_manager(
         bankroll=bankroll,
         payout=b,
     )
+    final_stake = enforce_d_squeeze_stake_floor(final_stake, stake_min, dl_metrics)
     _emit_cycle_stake_log(
         rm,
         cycle_id=cycle_id,

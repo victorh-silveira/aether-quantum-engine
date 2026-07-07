@@ -20,6 +20,7 @@ _TURBO_EDGE_STAKE_MULTIPLIER = 2.0
 _PAYOUT_FALLBACK = 0.90
 _MAX_SAFE_STAKE_BANKROLL_PCT = 0.035
 _ADAPTIVE_RECOVERY_FACTOR_CAP = 2.50
+_D_SQUEEZE_SOVEREIGN_TRADE_SCORE = 0.52
 
 
 def _positive_float(value: object) -> float | None:
@@ -129,6 +130,29 @@ def _squeeze_floor_active(metrics: dict) -> bool:
     return bool(metrics.get("meta_squeeze_downgrade") or metrics.get("consensus_stake_floor"))
 
 
+def d_squeeze_sovereignty_active(metrics: dict | None) -> bool:
+    """Indica barreira soberana D-SQUEEZE que revoga waiver de recovery no ciclo."""
+    if not isinstance(metrics, dict):
+        return False
+    if _squeeze_floor_active(metrics):
+        return True
+    score = float(metrics.get("trade_score", metrics.get("conviction", -1.0)))
+    return abs(score - _D_SQUEEZE_SOVEREIGN_TRADE_SCORE) < 1e-6
+
+
+def enforce_d_squeeze_stake_floor(
+    final_stake: float,
+    stake_min: float,
+    metrics: dict | None,
+) -> float:
+    """Comprime stake ao piso absoluto da API quando D-SQUEEZE revoga recovery."""
+    if not d_squeeze_sovereignty_active(metrics):
+        return final_stake
+    if isinstance(metrics, dict):
+        metrics["d_squeeze_recovery_waiver_revoked"] = True
+    return float(stake_min)
+
+
 def neutral_edge_dynamic_unit(bankroll: float) -> float:
     """Unidade base U em regime neutro: 0.15% da banca ativa."""
     return max(0.0, float(bankroll)) * _NEUTRAL_BANKROLL_PCT
@@ -177,6 +201,8 @@ def _recovery_waives_consensus_penalty(
     order_direction: str | None,
 ) -> bool:
     """Suspende penalidade em recovery com inversao tatica, votos unanimes ou trade_score alto."""
+    if d_squeeze_sovereignty_active(metrics):
+        return False
     recovering = float(pending_loss_total) > 0.0 or int(consecutive_losses) > 0
     if not recovering:
         return False
@@ -232,6 +258,8 @@ __all__ = [
     "consensus_entropy_applies_min_stake",
     "consensus_entropy_kelly_retention",
     "consensus_kelly_retention",
+    "d_squeeze_sovereignty_active",
+    "enforce_d_squeeze_stake_floor",
     "max_safe_stake_cap",
     "neutral_edge_dynamic_unit",
     "resolve_contract_payout",

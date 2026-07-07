@@ -29,6 +29,7 @@ from src.application.services.meta_direction_flip import (
     should_flip_direction,
 )
 from src.domain.models.trade import TradeDirection
+from src.domain.risk.consensus_stake_penalty import d_squeeze_sovereignty_active
 
 
 @pytest.fixture(autouse=True)
@@ -281,3 +282,8 @@ def test_regime_freeze_skips_cycle_on_chop_congestion():
     assert apply_regime_freeze_if_congested(metrics, persistence_filter_active=True) is True
     assert metrics["regime_classification"] == REGIME_CHOP_CONGESTION
     assert metrics["signal_status"] == SIGNAL_SUSPENDED
+
+
+def test_squeeze_trade_score_activates_d_squeeze_sovereignty_barrier():
+    metrics = {"trade_score": META_FLIP_SQUEEZE_TRADE_SCORE, "meta_squeeze_downgrade": True}
+    assert d_squeeze_sovereignty_active(metrics) is True

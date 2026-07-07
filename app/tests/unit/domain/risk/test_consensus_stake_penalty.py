@@ -5,6 +5,7 @@ from src.domain.risk.consensus_stake_penalty import (
     apply_neutral_edge_kelly_base,
     apply_turbo_edge_stake,
     consensus_kelly_retention,
+    d_squeeze_sovereignty_active,
     neutral_edge_dynamic_unit,
     turbo_edge_stake_multiplier,
 )
@@ -101,6 +102,26 @@ def test_recovery_waive_helper_skips_when_not_in_recovery():
             consecutive_losses=0,
             pending_loss_total=0.0,
             order_direction="CALL",
+        )
+        is False
+    )
+
+
+def test_recovery_waiver_revoked_when_d_squeeze_sovereignty_active():
+    metrics = {
+        "trade_score": 0.52,
+        "meta_squeeze_downgrade": True,
+        "call_votes": 0,
+        "put_votes": 6,
+    }
+    assert d_squeeze_sovereignty_active(metrics) is True
+    assert (
+        _recovery_waives_consensus_penalty(
+            metrics,
+            _CFG,
+            consecutive_losses=3,
+            pending_loss_total=335.52,
+            order_direction="PUT",
         )
         is False
     )

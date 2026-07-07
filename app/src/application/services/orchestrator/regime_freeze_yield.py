@@ -20,11 +20,45 @@ def _entry_signal_suspended(entry: object) -> bool:
     return isinstance(metrics, dict) and str(metrics.get("signal_status") or "") == SIGNAL_SUSPENDED
 
 
+def _entry_freeze_active(entry: object) -> bool:
+    """True quando o entry sinaliza FREEZE ativo ou suspensao de sinal."""
+    if not isinstance(entry, dict):
+        return False
+    if _entry_signal_suspended(entry):
+        return True
+    metrics = entry.get("metrics")
+    if not isinstance(metrics, dict):
+        return False
+    action = str(metrics.get("regime_guard_action") or "")
+    return action.startswith("FREEZE:")
+
+
 def decisions_signal_suspended(decisions: dict) -> bool:
     """True quando qualquer simbolo do cluster reporta SIGNAL_SUSPENDED."""
     if not isinstance(decisions, dict):
         return False
     return any(_entry_signal_suspended(entry) for entry in decisions.values())
+
+
+def cluster_freeze_active(decisions: dict) -> bool:
+    """True quando qualquer simbolo do par exige suspensao global do cluster."""
+    if not isinstance(decisions, dict):
+        return False
+    return any(_entry_freeze_active(entry) for entry in decisions.values())
+
+
+def propagate_cluster_signal_suspended(decisions: dict) -> None:
+    """Propaga SIGNAL_SUSPENDED para todos os simbolos quando o cluster congela."""
+    if not isinstance(decisions, dict):
+        return
+    for entry in decisions.values():
+        if not isinstance(entry, dict):
+            continue
+        metrics = entry.get("metrics")
+        if not isinstance(metrics, dict):
+            metrics = {}
+            entry["metrics"] = metrics
+        metrics["signal_status"] = SIGNAL_SUSPENDED
 
 
 def regime_freeze_yield_seconds(orch: Any) -> float:

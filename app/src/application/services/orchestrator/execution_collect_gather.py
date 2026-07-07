@@ -5,6 +5,10 @@ from src.application.services.execution_direction_cross_corr import cached_corre
 from src.application.services.execution_quality_gate import apply_quality_penalty_to_metrics
 from src.application.services.execution_volatility_booster import apply_volatility_vol_booster
 from src.application.services.orchestrator.execution_recovery_gate import cluster_entry_eligible
+from src.application.services.orchestrator.regime_freeze_yield import (
+    cluster_freeze_active,
+    propagate_cluster_signal_suspended,
+)
 
 
 def gather_cluster_candidates(
@@ -24,6 +28,9 @@ def gather_cluster_candidates(
 ):
     """Coleta candidatos DL elegiveis; qualquer sinal valido participa do pool."""
     _ = (cid, kelly_cfg, consecutive_losses, recovery_skip_counter, session_drawdown)
+    if cluster_freeze_active(decisions):
+        propagate_cluster_signal_suspended(decisions)
+        return []
     exec_cfg = exec_mgr.orch.config.get("orchestrator", {}).get("execution", {})
     calibration_cfg = exec_mgr.orch.config.get("deep_learning", {}).get("calibration")
     infra_cfg = exec_mgr.orch.config.get("infra", {})

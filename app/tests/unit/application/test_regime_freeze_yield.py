@@ -7,9 +7,12 @@ import pytest
 from src.application.services.meta_direction_flip import SIGNAL_SUSPENDED
 from src.application.services.orchestrator.regime_freeze_yield import (
     _REGIME_FREEZE_DEFAULT_YIELD_SECONDS,
+    _entry_freeze_active,
     _yield_freeze_delay,
     await_regime_freeze_yield,
+    cluster_freeze_active,
     decisions_signal_suspended,
+    propagate_cluster_signal_suspended,
     regime_freeze_yield_seconds,
 )
 
@@ -28,6 +31,42 @@ def test_decisions_signal_suspended_detects_frozen_entry():
 def test_decisions_signal_suspended_false_for_empty_or_active():
     assert decisions_signal_suspended({}) is False
     assert decisions_signal_suspended({"RDBULL": {"metrics": {"execute": True}}}) is False
+
+
+def test_cluster_freeze_active_detects_regime_guard_action():
+    decisions = {
+        "RDBULL": {"metrics": {"regime_guard_action": "FREEZE: SKIP CYCLE"}},
+        "RDBEAR": {"metrics": {"execute": True, "trade_score": 0.80}},
+    }
+    assert cluster_freeze_active(decisions) is True
+
+
+def test_propagate_cluster_signal_suspended_marks_all_symbols():
+    decisions = {
+        "RDBULL": {"metrics": {"signal_status": SIGNAL_SUSPENDED}},
+        "RDBEAR": {"metrics": {"execute": True}},
+    }
+    propagate_cluster_signal_suspended(decisions)
+    assert decisions["RDBULL"]["metrics"]["signal_status"] == SIGNAL_SUSPENDED
+    assert decisions["RDBEAR"]["metrics"]["signal_status"] == SIGNAL_SUSPENDED
+
+
+def test_cluster_freeze_active_false_for_invalid_decisions():
+    assert cluster_freeze_active({}) is False
+    assert cluster_freeze_active(None) is False
+
+
+def test_entry_freeze_active_handles_invalid_shapes():
+    assert _entry_freeze_active(None) is False
+    assert _entry_freeze_active({"metrics": "invalid"}) is False
+    assert _entry_freeze_active({"metrics": {"regime_guard_action": "FREEZE: SKIP CYCLE"}}) is True
+
+
+def test_propagate_cluster_signal_suspended_creates_missing_metrics():
+    decisions = {"RDBULL": {}, "RDBEAR": "invalid"}
+    propagate_cluster_signal_suspended(decisions)
+    assert decisions["RDBULL"]["metrics"]["signal_status"] == SIGNAL_SUSPENDED
+    propagate_cluster_signal_suspended(None)
     assert decisions_signal_suspended("bad") is False
     assert decisions_signal_suspended({"RDBULL": "bad"}) is False
 
