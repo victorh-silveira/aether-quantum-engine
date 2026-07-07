@@ -19,7 +19,7 @@ Para arquitetura de código, ver [`arquitetura.md`](arquitetura.md).
 | Defesa contra ruído CSPRNG | Consensus Entropy Penalty no Kelly base |
 | Persistência financeira | Recovery atrelado a `pending_loss`, não a WIN operacional isolado |
 | Martingale Geométrico sem teto | Em recovery, `Stake = Kelly_base × 2^n` escalando até recuperar o passivo total |
-| Meta por sessão ativa | Stop win de 1% composto sobre banca inicial; operador controla quantas sessões por dia |
+| Meta por sessão ativa | Stop win de 2,60% composto sobre banca inicial; operador controla quantas sessões por dia |
 | Sem disjuntor de perda | Stop loss interno desativado; recovery geométrico sem teto de nível, stake ou drawdown |
 | Isolamento de estado | `asyncio.Lock` serializa inferência, liquidação e persistência; elimina race conditions pós-reset linear |
 
@@ -111,7 +111,7 @@ Ordem lógica de uma entrada:
 8. **Gate de qualidade** — neutro: `passes_execution_quality` retorna `True` e `regime_skip_cycle=False` invariável.
 9. **Deploy** — `deploy_ok=false` bloqueia execução.
 10. **Seleção** — `market_decision_score` entre candidatos elegíveis.
-11. **Risco** — Kelly + Consensus Penalty; recovery financeiro persistente; Martingale Geométrico `Kelly_base × 2^n`; stop win por sessão ativa (1% composto).
+11. **Risco** — Kelly + Consensus Penalty; recovery financeiro persistente; Martingale Geométrico `Kelly_base × 2^n`; stop win por sessão ativa (2,60% composto).
 
 Bloqueio absoluto **somente** para falhas técnicas (`data`, `predict_error`, `training`, `deploy_ok=false`). Não há vetos táticos, inversões nem skip por qualidade: qualquer sinal válido participa do pool.
 
@@ -348,21 +348,21 @@ Logs: `ord=` (ordem enviada) sempre igual a `dl=` (direção prevista pelo DL), 
 | Penalty Smoothing | Convergência adaptativa em recovery (seção 7.2) |
 | Recovery financeiro persistente | Estado de risco atrelado a `pending_total` (seção 7.1) |
 | Martingale Geométrico sem teto | Recuperação exponencial `Kelly_base × 2^n` (seção 7.3) |
-| Stop win por sessão ativa | `target_win = session_start_balance × compounding_rate_daily` (padrão 1%); fast-path anti-deadlock |
+| Stop win por sessão ativa | `target_win = session_start_balance × compounding_rate_daily` (padrão 2,60%); fast-path anti-deadlock |
 | Stop loss | Desativado — sem reset por relógio nem disjuntor de perda diária |
 
 ### 9.1 Juros compostos e controle operacional
 
-A meta segue a planilha de gerenciamento de juros compostos (`compounding_rate_daily: 0.01`):
+A meta segue a planilha de gerenciamento de juros compostos (`compounding_rate_daily: 0.026`):
 
 | Evento | Comportamento |
 |--------|---------------|
 | Boot do processo | Captura saldo Deriv (ou `session_start_balance` em settings) como `session_start_balance` |
-| Meta calculada | `target_win = session_start_balance × 0,01` (arredondada para baixo em centavos) |
+| Meta calculada | `target_win = session_start_balance × 0,026` (arredondada para baixo em centavos) |
 | Durante a sessão | `pnl_sessao = current_balance - session_start_balance` |
 | Meta atingida | Fast-path: `clear_current_session_redis_keys` → `cancel_settlement_queue_fast` → `graceful_shutdown(fast_path=True)` |
 | Ciclo pós-liquidação incompleto | Retry com breath; após 2 falhas consecutivas → `emergency_save_session_state` + `sys.exit(0)` |
-| Restart manual | Nova sessão independente com novo saldo e nova meta de 1% |
+| Restart manual | Nova sessão independente com novo saldo e nova meta de 2,60% |
 | Mesmo dia civil | Múltiplas sessões isoladas permitidas — sem virada UTC/meia-noite |
 
 Parâmetros em `risk_management.params`:
@@ -370,14 +370,14 @@ Parâmetros em `risk_management.params`:
 | Chave | Padrão | Função |
 |-------|--------|--------|
 | `compounding_enabled` | `true` | Ativa meta composta por sessão |
-| `compounding_rate_daily` | `0.01` | Taxa de juros (1% sobre banca inicial) |
+| `compounding_rate_daily` | `0.026` | Taxa de juros (2,60% sobre banca inicial) |
 | `session_start_balance` | `null` | Override manual da banca inicial (senão usa saldo Deriv) |
 
 Com `compounding_enabled: false`, o motor recorre ao alvo legado (`small_account_stop_win` / `large_account_stop_win_pct`).
 
 ### 9.2 Sizing defensivo de proximidade de alvo
 
-Evita superexposição quando a sessão já capturou a maior parte do stop win de 1%:
+Evita superexposição quando a sessão já capturou a maior parte do stop win de 2,60%:
 
 1. **Kelly base comprimido** — `resolve_effective_kelly_fraction` aplica retenção de 40% (`fraction` de config `0.0035` → coeficiente `0.0012`), ancorando `Kelly_base` na faixa ~$10–$12 em vez de ~$31.
 2. **Amortecimento dinâmico** — após o Kelly bruto, `apply_kelly_target_proximity_damping` multiplica a stake por `0.40 + 0.60 × remaining_target_pct`.
@@ -385,7 +385,7 @@ Evita superexposição quando a sessão já capturou a maior parte do stop win d
 
 Fora de recovery, este amortecimento define o `Kelly_base`. Em recovery, o Martingale Geométrico `Kelly_base × 2^n` opera sem amortecimento de proximidade.
 
-Log de bootstrap: `SESSAO INICIADA | Alvo de 1%: $XX.XX | Stop Loss: DESATIVADO`.
+Log de bootstrap: `SESSAO INICIADA | Alvo de 2,60%: $XX.XX | Stop Loss: DESATIVADO`.
 
 ---
 

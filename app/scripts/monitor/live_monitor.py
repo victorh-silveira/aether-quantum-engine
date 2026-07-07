@@ -45,7 +45,7 @@ _EXEC_SEL_RE = re.compile(
     r"EXEC_SEL\s*\|\s*(?P<symbol>RDBEAR|RDBULL)\s*\|\s*ord=(?P<ord>CALL|PUT)\s*\|\s*TCN=(?P<tcn>[\d.]+)\s*\|\s*edge=(?P<edge>-?[\d.]+)\s*\(Z=(?P<z_edge>[+-]?[\d.]+)\)\s*\|\s*(?P<state>WIN_EXPECTED|NO_EDGE_NEUTRAL|LOSS_EXPECTED)",
     re.IGNORECASE,
 )
-_SESSION_START_RE = re.compile(r"Alvo de 1%:\s*\$([\d,]+\.?\d*)", re.IGNORECASE)
+_SESSION_START_RE = re.compile(r"Alvo de [\d.]+%:\s*\$([\d,]+\.?\d*)", re.IGNORECASE)
 
 
 def _safe_load_json(path: Path, retries: int = 3, delay: float = 0.05):

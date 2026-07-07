@@ -29,17 +29,17 @@ def test_resolve_stop_win_large_account_pct():
     assert resolve_stop_win_target(rm, 1000.0) == pytest.approx(10.0)
 
 
-def test_session_targets_one_percent():
-    rm = {"params": {"compounding_enabled": True, "compounding_rate_daily": 0.01}}
+def test_session_targets_compounding_rate():
+    rm = {"params": {"compounding_enabled": True, "compounding_rate_daily": 0.026}}
     mgr = StopWinManager(rm)
     targets = mgr.calculate_session_targets(10000.0)
     assert isinstance(targets, SessionTargets)
-    assert targets.target_win == pytest.approx(100.0)
+    assert targets.target_win == pytest.approx(260.0)
     assert targets.session_start_balance == pytest.approx(10000.0)
 
 
 def test_persisted_target_idempotent_for_live_session():
-    rm = {"params": {"compounding_enabled": True, "compounding_rate_daily": 0.01}}
+    rm = {"params": {"compounding_enabled": True, "compounding_rate_daily": 0.026}}
     assert resolve_stop_win_target(rm, 5000.0, persisted_target=75.0) == pytest.approx(75.0)
     assert resolve_stop_win_target(rm, 9999.0, persisted_target=75.0) == pytest.approx(75.0)
 
@@ -51,9 +51,9 @@ def test_resolve_session_start_balance_prefers_settings_override():
 
 
 def test_stop_win_manager_resolve_target_compounding_without_persisted():
-    rm = {"params": {"compounding_enabled": True, "compounding_rate_daily": 0.01}}
+    rm = {"params": {"compounding_enabled": True, "compounding_rate_daily": 0.026}}
     mgr = StopWinManager(rm)
-    assert mgr.resolve_target(2500.0) == pytest.approx(25.0)
+    assert mgr.resolve_target(2500.0) == pytest.approx(65.0)
 
 
 def test_resolve_max_stake_pct_high_conviction():

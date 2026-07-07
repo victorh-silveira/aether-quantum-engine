@@ -38,6 +38,13 @@ def regime_freeze_yield_seconds(orch: Any) -> float:
     return _REGIME_FREEZE_DEFAULT_YIELD_SECONDS
 
 
+async def _yield_freeze_delay(seconds: float) -> None:
+    """Aguarda yield temporal sem acesso ao StateManager ou locks de sessao."""
+    if seconds <= 0.0:
+        return
+    await asyncio.sleep(seconds)
+
+
 async def await_regime_freeze_yield(orch: Any, decisions: dict) -> float:
     """Pausa o laço quando FREEZE suspende o ciclo, evitando hot loop."""
     if not getattr(orch, "running", True):
@@ -45,5 +52,5 @@ async def await_regime_freeze_yield(orch: Any, decisions: dict) -> float:
     if not decisions_signal_suspended(decisions):
         return 0.0
     delay = regime_freeze_yield_seconds(orch)
-    await asyncio.sleep(delay)
+    await _yield_freeze_delay(delay)
     return delay

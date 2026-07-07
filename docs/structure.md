@@ -100,7 +100,7 @@ flowchart TD
 | `consensus_stake_penalty.py` (domain) | Penalidade Kelly base por divergência técnica; waiver absoluto em regime de recovery ativo |
 | `risk_recovery_state.py` (domain) | Reset do expoente consecutivo condicionado à extinção real de `pending_loss` |
 | `redis_state_pipeline.py` | Escrita atômica MULTI/EXEC do bundle de risco, snapshot e chaves de sessão no Redis |
-| `session_target_bootstrap.py` | Bootstrap e clearing de metas compostas de 1% atreladas ao processo vivo |
+| `session_target_bootstrap.py` | Bootstrap e clearing de metas compostas de 2,60% atreladas ao processo vivo |
 | `stop_win_target.py` (domain) | Cálculo centralizado de `target_win` e gerenciamento de estados de sessão composta |
 | `state_manager.py` (infra) | `asyncio.Lock` central; `atomic_state_context()`; `mirror_balance()` / `read_cached_balance()` |
 | `orchestrator_atomic_state.py` | Facade do lock para o orquestrador; `orchestrator_balance_snapshot()` para infra read-only |

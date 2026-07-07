@@ -94,7 +94,7 @@ Copie `cp .env.example .env` e preencha o PAT. Validação Deriv: `python app/sc
 - **Penalty smoothing em recovery**: com drawdown pendente ou `consecutive_losses > 0` e `trade_score > 0.70`, a penalidade convexa é suavizada em 40% (`penalty_smoothing_factor`), permitindo stakes maiores para recuperação sem violar o CAP.
 - **Recovery financeiro persistente**: WIN operacional **não** zera `consecutive_losses` enquanto `pending_loss > 0`; o motor permanece em modo Martingale até o drawdown pendente ser extinto por retornos reais.
 - **CAP martingale 4%**: `martingale_hard_cap_bankroll_pct: 0.04` limita stake máxima sobre a banca.
-- **Stop win por sessão ativa**: no boot, captura o saldo vivo (Deriv) ou override `session_start_balance`; meta = `banca_inicial × compounding_rate_daily` (padrão **1%**). Quando `pnl_sessao >= meta`, dispara **fast-path** (`clear_current_session_redis_keys` → cancelamento da fila de settlement → `graceful_shutdown(fast_path=True)`).
+- **Stop win por sessão ativa**: no boot, captura o saldo vivo (Deriv) ou override `session_start_balance`; meta = `banca_inicial × compounding_rate_daily` (padrão **2,60%**). Quando `pnl_sessao >= meta`, dispara **fast-path** (`clear_current_session_redis_keys` → cancelamento da fila de settlement → `graceful_shutdown(fast_path=True)`).
 - **Stop loss desativado**: não há disjuntor de perda diária; o Martingale opera sem teto de drawdown imposto pelo motor.
 - **Martingale de recovery** quando há perda pendente: stake cobre perda integral + alvo derivado do payout, com fatiamento progressivo em sequências longas.
 - Cooldown por símbolo após sequência de losses (`symbol_loss_cooldown_candles`).
@@ -124,7 +124,7 @@ Logs em `logs/engine.log` (formato `AetherFormatter`):
 - `EXEC_SEL` — símbolo escolhido com `ord=`, `dl=`, métricas `s`/`v`/`r`, indicadores e alternativas
 - `SKIP` — ciclo pulado por bloqueio técnico ou recovery sem Hurst persistente (modo seletivo)
 - `MARTINGALE`, `RISK: RECOVERY`, `RISK: WIN operacional`, `KELLY: consensus retention` — sizing, recovery financeiro e penalidade de consenso
-- `SESSAO INICIADA | Alvo de 1%: $XX.XX | Stop Loss: DESATIVADO` — bootstrap de meta por sessão ativa
+- `SESSAO INICIADA | Alvo de 2,60%: $XX.XX | Stop Loss: DESATIVADO` — bootstrap de meta por sessão ativa
 - `TRITON_TIMEOUT_FALLBACK`, `WATCHDOG: STALE_DATA` — resiliência de inferência e ingestão
 - `[API_GUARD]` — hibernação cooperativa durante manutenção ou reset de liquidez do broker
 - `[D-SQUEEZE]` — downgrade de score em compressão M1 (`bb_width`, `tick_accel`, `predicted_payoff_edge`, `score`)

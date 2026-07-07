@@ -20,13 +20,13 @@ from src.infrastructure.state.state_manager import StateManager
 async def test_bootstrap_active_session_targets():
     orch = MagicMock()
     orch._session_targets_bootstrapped = False
-    orch.config = {"risk_management": {"params": {"compounding_enabled": True, "compounding_rate_daily": 0.01}}}
+    orch.config = {"risk_management": {"params": {"compounding_enabled": True, "compounding_rate_daily": 0.026}}}
     orch.state_mgr = StateManager()
     orch.risk_manager = RiskManager(orch.config["risk_management"])
     orch.state_store = AsyncMock()
     orch.logger = MagicMock()
     await bootstrap_active_session_targets(orch, 10000.0)
-    assert orch.state_mgr.state.daily_stop_win_target == pytest.approx(100.0)
+    assert orch.state_mgr.state.daily_stop_win_target == pytest.approx(260.0)
     assert orch.risk_manager.initial_bankroll == pytest.approx(10000.0)
     assert orch._session_targets_bootstrapped is True
     orch.state_store.set_string.assert_called()
@@ -35,7 +35,7 @@ async def test_bootstrap_active_session_targets():
 @pytest.mark.asyncio
 async def test_bootstrap_idempotent_second_call():
     orch = MagicMock()
-    orch.config = {"risk_management": {"params": {"compounding_enabled": True, "compounding_rate_daily": 0.01}}}
+    orch.config = {"risk_management": {"params": {"compounding_enabled": True, "compounding_rate_daily": 0.026}}}
     orch.state_mgr = StateManager()
     orch.risk_manager = RiskManager(orch.config["risk_management"])
     orch.state_store = AsyncMock()
@@ -170,7 +170,7 @@ def test_current_session_redis_payload_rejects_zero_target():
 async def test_bootstrap_without_state_store():
     orch = MagicMock()
     orch._session_targets_bootstrapped = False
-    orch.config = {"risk_management": {"params": {"compounding_enabled": True, "compounding_rate_daily": 0.01}}}
+    orch.config = {"risk_management": {"params": {"compounding_enabled": True, "compounding_rate_daily": 0.026}}}
     orch.state_mgr = StateManager()
     orch.risk_manager = RiskManager(orch.config["risk_management"])
     orch.state_store = None

@@ -18,7 +18,7 @@ from src.domain.risk.stop_win_target import (
 
 
 async def bootstrap_active_session_targets(orch: Any, live_balance: float) -> None:
-    """Captura banca inicial da sessao e define meta de 1% composto."""
+    """Captura banca inicial da sessao e define meta de stop win composto."""
     if getattr(orch, "_session_targets_bootstrapped", False):
         return
     risk_cfg = orch.config.get("risk_management", {}) if isinstance(getattr(orch, "config", {}), dict) else {}
@@ -32,8 +32,10 @@ async def bootstrap_active_session_targets(orch: Any, live_balance: float) -> No
     orch.risk_manager.reset_session(start_balance, target=target_win)
     orch.risk_manager.total_session_profit = 0.0
     orch._session_targets_bootstrapped = True
+    rate_pct = swm.compounding_rate() * 100.0
     orch.logger.info(
-        "SESSAO INICIADA | Alvo de 1%%: $%.2f | Stop Loss: DESATIVADO",
+        "SESSAO INICIADA | Alvo de %.2f%%: $%.2f | Stop Loss: DESATIVADO",
+        rate_pct,
         target_win,
     )
     await _persist_current_session_keys(orch, start_balance, target_win)

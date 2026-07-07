@@ -15,7 +15,7 @@ class DashboardState:
     session_start_balance: float = 0.0
     session_target_win: float = 0.0
     session_profit: float = 0.0
-    compounding_rate: float = 0.01
+    compounding_rate: float = 0.026
     compounding_enabled: bool = True
     active_contracts: dict = field(default_factory=dict)
     last_telemetry: dict = field(default_factory=dict)

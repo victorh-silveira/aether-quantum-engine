@@ -57,7 +57,7 @@ Desvios extremos em M1 (RSI, Keltner, Bollinger) alimentam o vetor tabular **39D
 - **Fração de Kelly**: stake proporcional a `trade_score` calibrado e win rate live.
 - **Consensus Entropy Penalty**: quando a ordem final diverge da maioria dos votos técnicos (`call_votes`/`put_votes`), aplica penalidade convexa em `f*`; bypass absoluto quando `pending_total > 0`.
 - **Martingale Geométrico**: em recovery, `Effective_Base × 2^consecutive_losses_linear` sem teto de nível.
-- **Stop win por sessão ativa**: meta de lucro = 1% da banca inicial (`compounding_rate_daily`); ao atingir, fast-path (`clear_current_session_redis_keys` → `cancel_settlement_queue_fast` → `graceful_shutdown(fast_path=True)`); cada restart inicia sessão independente.
+- **Stop win por sessão ativa**: meta de lucro = 2,60% da banca inicial (`compounding_rate_daily`); ao atingir, fast-path (`clear_current_session_redis_keys` → `cancel_settlement_queue_fast` → `graceful_shutdown(fast_path=True)`); cada restart inicia sessão independente.
 - **Stop loss interno desativado**: Martingale opera sem disjuntor de perda imposto pelo motor.
 - **Gate de qualidade neutro**: sinal válido participa sempre do pool; sem SKIP por regime ou exaustão.
 

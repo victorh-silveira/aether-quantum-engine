@@ -61,7 +61,7 @@ async def test_schedule_post_loss_cooldown_sets_cooldown_until(orch_ready):
     base = loop.time()
     delay = schedule_post_loss_cooldown(orch)
     assert delay == pytest.approx(expected)
-    assert orch._cooldown_until == pytest.approx(base + expected)
+    assert orch._cooldown_until - base == pytest.approx(expected, abs=0.05)
     assert orchestrator_cooldown_active(orch, now=base + 1.0) is True
     assert orchestrator_cooldown_active(orch, now=base + expected + 0.01) is False
     assert orchestrator_cooldown_remaining(orch, now=base + 1.0) == pytest.approx(expected - 1.0)
@@ -104,7 +104,7 @@ async def test_sequential_loss_levels_expand_post_settlement_cooldown(orch_ready
             await run_post_settlement_breath_and_cycle(orch)
         expected = post_loss_cooldown_delay_seconds(linear)
         deadlines_by_linear[linear] = float(orch._cooldown_until)
-        assert deadlines_by_linear[linear] == pytest.approx(base + expected)
+        assert deadlines_by_linear[linear] - base == pytest.approx(expected, abs=0.05)
 
     assert deadlines_by_linear[3] > deadlines_by_linear[2]
     assert deadlines_by_linear[4] > deadlines_by_linear[3]
@@ -169,7 +169,7 @@ async def test_run_post_settlement_schedules_cooldown_without_blocking_cycle(orc
         patch_instant_post_settlement_poll(),
     ):
         await run_post_settlement_breath_and_cycle(orch)
-    assert orch._cooldown_until == pytest.approx(base + expected)
+    assert orch._cooldown_until - base == pytest.approx(expected, abs=0.05)
     cycle_mock.assert_not_awaited()
 
 

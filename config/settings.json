@@ -224,7 +224,7 @@
     "large_account_stop_win_pct": 4.0,
     "params": {
       "compounding_enabled": true,
-      "compounding_rate_daily": 0.01,
+      "compounding_rate_daily": 0.026,
       "contract_type": "RISE_FALL",
       "duration": 60,
       "duration_unit": "s",

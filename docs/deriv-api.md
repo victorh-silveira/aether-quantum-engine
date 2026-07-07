@@ -18,7 +18,7 @@
 | Keep-alive | Loop de ping no `WebSocketManager` (I/O puro; não adquire lock de estado) |
 | Manutenção broker | `api_maintenance_guard` — hibernação cooperativa em janelas de indisponibilidade |
 | Inferência DL | Fora da Deriv API: Triton gRPC local (`localhost:8001`) ou TorchScript em cache; ver [infra-docker.md](infra-docker.md) |
-| Meta de sessão | Stop win de 1% composto sobre banca inicial; sem stop loss interno; contratos RISE_FALL não usam `limit_order.stop_loss` |
+| Meta de sessão | Stop win de 2,60% composto sobre banca inicial; sem stop loss interno; contratos RISE_FALL não usam `limit_order.stop_loss` |
 
 Símbolos ativos do motor: **Drift** (`RDBEAR`, `RDBULL`), não os exemplos genéricos `1HZ100V` / OTC deste documento.
 

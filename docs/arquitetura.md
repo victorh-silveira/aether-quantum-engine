@@ -179,7 +179,7 @@ flowchart TD
 2. `validate_infra_services` (quando `infra.enabled`) e `bootstrap_and_validate_models` (checkpoint + TorchScript + sanity + Triton).
 3. `restore_orchestrator_state` e `AuthManager` abrem sessão REST/WebSocket via OTP PAT.
 4. `Orchestrator` instancia stream, risco, executor e persistência.
-5. Após autenticação, `bootstrap_active_session_targets` captura banca inicial e define meta de 1% (`session_target_bootstrap.py`).
+5. Após autenticação, `bootstrap_active_session_targets` captura banca inicial e define meta de 2,60% (`session_target_bootstrap.py`).
 6. `StreamHandler.start_candle_stream` busca histórico OHLC e assina velas (`style: candles`) e ticks (`style: ticks`).
 
 ### 2.2 Buffer e microestrutura
@@ -372,7 +372,7 @@ Settlement assíncrono via `orchestrator_settlement_queue.py`: worker consome fi
 
 ### 6.1 Sessão ativa e juros compostos
 
-A meta de lucro segue a planilha de juros compostos (`compounding_rate_daily`, padrão **0,01 = 1%**), aplicada **estritamente por instância de processo**:
+A meta de lucro segue a planilha de juros compostos (`compounding_rate_daily`, padrão **0,026 = 2,60%**), aplicada **estritamente por instância de processo**:
 
 1. **Boot** (`ws_bootstrap` → `bootstrap_active_session_targets`): lê saldo vivo da Deriv ou override `session_start_balance` em `risk_management.params`.
 2. **Cálculo**: `target_win = session_start_balance × compounding_rate_daily` via `StopWinManager.calculate_session_targets`.
@@ -381,7 +381,7 @@ A meta de lucro segue a planilha de juros compostos (`compounding_rate_daily`, p
 5. **Deadlock pós-liquidação**: se o ciclo incompleto ocorrer 2 vezes consecutivas, `emergency_save_session_state` grava bundle financeiro e o processo encerra com `sys.exit(0)`.
 6. **Nova sessão**: reiniciar `run.py` captura novo saldo e recalcula meta — o operador decide quantas sessões executar no mesmo dia civil.
 
-Log de bootstrap: `SESSAO INICIADA | Alvo de 1%: $XX.XX | Stop Loss: DESATIVADO`.
+Log de bootstrap: `SESSAO INICIADA | Alvo de 2,60%: $XX.XX | Stop Loss: DESATIVADO`.
 
 Com `compounding_enabled: false`, o motor usa alvo legado (`small_account_stop_win` / `large_account_stop_win_pct`).
 
@@ -483,7 +483,7 @@ Marcadores de log relevantes:
 | `[C####] MARTINGALE` / `KELLY` | Stake calculada com `pend=$` e `pnl_sess=$` |
 | `RISK: WIN operacional` / `Lucro parcial` | WIN sem reset de recovery enquanto `pending_loss > 0` |
 | `RISK: Recovery financeiro zerado` | Drawdown pendente extinto; reset de `consecutive_losses` |
-| `SESSAO INICIADA` | Bootstrap de meta por sessão ativa (1% composto; stop loss desativado) |
+| `SESSAO INICIADA` | Bootstrap de meta por sessão ativa (2,60% composto; stop loss desativado) |
 | `TRITON_TIMEOUT_FALLBACK` | Inferência Triton excedeu 2 s; fallback TorchScript local |
 | `WATCHDOG: STALE_DATA` | Inanição de ticks; reconexão controlada do stream |
 | `CICLO: ciclo pos-liquidacao incompleto` | Retry pós-liquidação; após 2× consecutivas → encerramento forçado |

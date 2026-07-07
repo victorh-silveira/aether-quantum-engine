@@ -26,7 +26,7 @@ def _round_currency(value: float) -> float:
 
 
 class StopWinManager:
-    """Calcula meta de stop win da sessao corrente (1% composto sobre banca inicial)."""
+    """Calcula meta de stop win da sessao corrente (2,60% composto sobre banca inicial)."""
 
     def __init__(self, risk_management: dict[str, Any] | None):
         self.risk_management = risk_management if isinstance(risk_management, dict) else {}
@@ -39,7 +39,7 @@ class StopWinManager:
 
     def compounding_rate(self) -> float:
         """Retorna taxa diaria de compounding limitada ao intervalo [0, 1]."""
-        rate = float(self.params.get("compounding_rate_daily", 0.01))
+        rate = float(self.params.get("compounding_rate_daily", 0.026))
         return max(0.0, min(1.0, rate))
 
     def calculate_session_targets(self, session_start_balance: float) -> SessionTargets:

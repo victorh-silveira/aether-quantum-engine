@@ -180,6 +180,7 @@ async def run_trading_cycle_if_ready(orch: Any) -> bool:
                 orch._active_cycle_id,
                 len(orch.symbols),
             )
+            post_lock_decisions = None
             async with orchestrator_atomic_state_context(orch):
                 decisions = await collect_deep_learning_decisions(orch)
                 if (
@@ -197,7 +198,9 @@ async def run_trading_cycle_if_ready(orch: Any) -> bool:
                     ran = True
                 else:
                     await orch.executor.execute_cluster(decisions)
-                    await await_regime_freeze_yield(orch, decisions)
+                    post_lock_decisions = decisions
+            if post_lock_decisions is not None:
+                await await_regime_freeze_yield(orch, post_lock_decisions)
     except Exception as e:
         orch.logger.error(f"FALHA: Ciclo: {e}")
         ran = True

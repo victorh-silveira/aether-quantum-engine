@@ -30,5 +30,5 @@ def test_log_parser_exec_sel():
 def test_log_parser_session_bootstrap():
     state = DashboardState()
     parser = LogParser(state)
-    parser.process_line("SESSAO INICIADA | Alvo de 1%: $91.01 | Stop Loss: DESATIVADO")
-    assert state.session_target_win == 91.01
+    parser.process_line("SESSAO INICIADA | Alvo de 2.60%: $236.62 | Stop Loss: DESATIVADO")
+    assert state.session_target_win == 236.62

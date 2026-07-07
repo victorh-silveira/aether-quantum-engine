@@ -85,7 +85,10 @@ async def test_execute_orders_maintenance_error_schedules_api_hibernation(orch_c
             )
         assert count == 0
         mock_warn.assert_called_once()
-        assert orch._api_maintenance_until == pytest.approx(loop_start + _API_MAINTENANCE_FALLBACK_SECONDS)
+        assert orch._api_maintenance_until - loop_start == pytest.approx(
+            _API_MAINTENANCE_FALLBACK_SECONDS,
+            abs=0.05,
+        )
 
 
 @pytest.mark.asyncio
