@@ -1,6 +1,11 @@
 """Gerenciamento de estado de sessao e persistencia de limites de trading."""
 
+from __future__ import annotations
+
+import asyncio
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from aether_paths import repo_path
@@ -62,11 +67,29 @@ class StateManager:
         self.persistence = PersistenceManager(actual_path)
         self.state = SessionState()
         self.logger = logging.getLogger("AETH")
+        self._state_lock = asyncio.Lock()
+        self._balance_snapshot = 0.0
+
+    @asynccontextmanager
+    async def atomic_state_context(self) -> AsyncIterator[None]:
+        """Portao de exclusao mutua para leitura e escrita atomica de estado."""
+        async with self._state_lock:
+            yield
+
+    def read_cached_balance(self) -> float:
+        """Saldo de sessao cacheado para consumo read-only fora do lock."""
+        return float(self._balance_snapshot)
+
+    def mirror_balance(self, balance: float) -> None:
+        """Atualiza saldo corrente e snapshot cacheado de forma sincrona."""
+        value = float(balance)
+        self.state.current_balance = value
+        self._balance_snapshot = value
 
     def reset_session_metrics(self, balance: float, target: float):
         """Reinicia metricas da sessao ativa corrente."""
+        self.mirror_balance(balance)
         self.state.initial_balance = float(balance)
-        self.state.current_balance = float(balance)
         self.state.daily_stop_win_target = float(target)
         self.state.total_trades_today = 0
         self.state.stop_win_triggered = False
@@ -90,7 +113,7 @@ class StateManager:
         data = self.persistence.load()
         if data:
             self.state.initial_balance = float(data.get("initial_balance", 0.0))
-            self.state.current_balance = float(data.get("current_balance", 0.0))
+            self.mirror_balance(float(data.get("current_balance", 0.0)))
             self.state.daily_stop_win_target = float(data.get("daily_stop_win_target", 0.0))
             self.state.total_trades_today = int(data.get("total_trades_today", 0))
             self.state.stop_win_triggered = bool(data.get("stop_win_triggered", False))

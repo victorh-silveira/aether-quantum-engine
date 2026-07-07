@@ -21,6 +21,7 @@ Para arquitetura de código, ver [`arquitetura.md`](arquitetura.md).
 | Martingale Geométrico sem teto | Em recovery, `Stake = Kelly_base × 2^n` escalando até recuperar o passivo total |
 | Meta por sessão ativa | Stop win de 1% composto sobre banca inicial; operador controla quantas sessões por dia |
 | Sem disjuntor de perda | Stop loss interno desativado; recovery geométrico sem teto de nível, stake ou drawdown |
+| Isolamento de estado | `asyncio.Lock` serializa inferência, liquidação e persistência; elimina race conditions pós-reset linear |
 
 ---
 
@@ -308,6 +309,19 @@ Complementar à curva geométrica:
 
 - Ranking com diversificação e bônus em `RDBULL`/`RDBEAR`
 - Trava Hurst N2+ (`recovery_hurst_gate`) — piso logarítmico de score
+
+---
+
+### 7.4 Barreira de persistência pós-reset linear
+
+Quando um cluster encerra com reset linear D'Alembert (`_linear_reset_occurred`), o motor executa uma sequência atômica antes de permitir novo ciclo de inferência:
+
+1. `_finalize_linear_reset_risk_state` — zera `consecutive_losses_linear`, `last_loss_stake` e limpa entradas zeradas de `pending_loss`.
+2. `_persist_session_state_snapshot` — espelha saldo em `StateManager` e persiste `data/session_state.json`.
+3. `_persist_full_state_unlocked` — bundle Redis sem reentrância no lock.
+4. Yield cooperativo de **0,1 s** — libera o event loop antes do próximo ciclo DL.
+
+Durante a barreira, `session_persistence_write_active` impede que `trading_cycle_entry` execute `execute_cluster` concorrentemente. O lock central (`StateManager._state_lock`) garante que leituras de stake e escrita de liquidação não se sobreponham — eliminando deadlocks térmicos silenciosos observados na transição entre clusters (ex.: C0006 → inferência subsequente).
 
 ---
 

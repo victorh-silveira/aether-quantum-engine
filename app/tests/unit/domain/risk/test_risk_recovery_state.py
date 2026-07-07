@@ -57,10 +57,12 @@ def test_cluster_win_resets_when_pending_cleared():
     rm.last_loss_stake = 10.0
     rm.logger = type("L", (), {"info": lambda *a, **k: None})()
 
-    apply_cluster_profit_to_recovery_state(rm, 5.0)
+    reset = apply_cluster_profit_to_recovery_state(rm, 5.0)
 
+    assert reset is True
     assert rm.consecutive_losses_linear == 0
     assert rm.last_loss_stake == 0.0
+    assert rm._linear_reset_occurred is True
 
 
 def test_recovery_penalty_waived_with_stable_trade_score():

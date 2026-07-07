@@ -8,10 +8,14 @@ from typing import Any
 from src.application.services.deep_learning.decision_bridge import collect_deep_learning_decisions
 from src.application.services.deep_learning.dl_deferred_train import try_enqueue_next_bootstrap_training
 from src.application.services.deep_learning.dl_startup import prepare_inference_run_loop
+from src.application.services.orchestrator.api_maintenance_guard import api_maintenance_blocks_trading_cycle
 from src.application.services.orchestrator.decision_mode_banner import emit_decision_engine_banner
 from src.application.services.orchestrator.engine_mode import ENGINE_MODE_TRAIN, resolve_engine_mode
+from src.application.services.orchestrator.orchestrator_atomic_state import orchestrator_atomic_state_context
 from src.application.services.orchestrator.orchestrator_state_restore import mark_bar_processed
+from src.application.services.orchestrator.post_settlement_loss_cooldown import post_loss_cooldown_blocks_trading_cycle
 from src.application.services.orchestrator.regime_freeze_yield import await_regime_freeze_yield
+from src.application.services.orchestrator.session_persistence_barrier import session_persistence_blocks_trading_cycle
 from src.application.services.strategy.decision_mode import resolve_decision_mode
 from src.domain.risk.stop_win_target import resolve_stop_win_target
 from src.infrastructure.market.timescale_correlation_worker import refresh_correlation_cache, start_correlation_worker
@@ -75,7 +79,12 @@ def _stop_win_blocks_cycle(orch: Any) -> bool:
 
 def trading_cycle_entry_allowed(orch: Any) -> bool:
     """False quando o motor nao pode iniciar um novo ciclo de decisao."""
-    if getattr(orch, "_reconciliation_pending", False):
+    if (
+        getattr(orch, "_reconciliation_pending", False)
+        or post_loss_cooldown_blocks_trading_cycle(orch)
+        or api_maintenance_blocks_trading_cycle(orch)
+        or session_persistence_blocks_trading_cycle(orch)
+    ):
         return False
     if (
         resolve_engine_mode(orch.config) == ENGINE_MODE_TRAIN
@@ -115,6 +124,11 @@ def trading_cycle_entry_allowed(orch: Any) -> bool:
 def prepare_orchestrator_run_loop(orch: Any) -> None:
     """Inicializa estado do loop principal apos streams e banner de decisao."""
     orch._last_cluster_cycle_end = time.time()
+    orch._cooldown_until = 0.0
+    orch._cooldown_skip_logged_until = 0.0
+    orch._api_maintenance_until = 0.0
+    orch._api_maintenance_logged_until = 0.0
+    orch._session_persistence_write_active = False
     orch.running = True
     orch._trading_slot_poll_task = None
     orch._dl_bootstrap_completed = prepare_inference_run_loop(orch)
@@ -166,17 +180,24 @@ async def run_trading_cycle_if_ready(orch: Any) -> bool:
                 orch._active_cycle_id,
                 len(orch.symbols),
             )
-            decisions = await collect_deep_learning_decisions(orch)
-            if (
-                int(orch._cycle_seq)
-                % max(
-                    1, int((orch.config.get("infra", {}).get("triton", {}) or {}).get("correlation_refresh_cycles", 5))
-                )
-                == 0
-            ):
-                await refresh_correlation_cache(orch)
-            await orch.executor.execute_cluster(decisions)
-            await await_regime_freeze_yield(orch, decisions)
+            async with orchestrator_atomic_state_context(orch):
+                decisions = await collect_deep_learning_decisions(orch)
+                if (
+                    int(orch._cycle_seq)
+                    % max(
+                        1,
+                        int(
+                            (orch.config.get("infra", {}).get("triton", {}) or {}).get("correlation_refresh_cycles", 5)
+                        ),
+                    )
+                    == 0
+                ):
+                    await refresh_correlation_cache(orch)
+                if session_persistence_blocks_trading_cycle(orch):
+                    ran = True
+                else:
+                    await orch.executor.execute_cluster(decisions)
+                    await await_regime_freeze_yield(orch, decisions)
     except Exception as e:
         orch.logger.error(f"FALHA: Ciclo: {e}")
         ran = True

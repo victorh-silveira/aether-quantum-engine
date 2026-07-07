@@ -15,13 +15,14 @@
 | Stream ao vivo | Dupla assinatura OHLC por símbolo: M15 (contexto DL) + M1 (relógio operacional); ticks opcionais |
 | Proposta / compra | `proposal` + `buy` via `TradeHandler` (RISE_FALL, stake, duração **60 s**) |
 | Contratos abertos | `proposal_open_contract`, `profit_table` (reconciliação e settlement) |
-| Keep-alive | Loop de ping no `WebSocketManager` |
+| Keep-alive | Loop de ping no `WebSocketManager` (I/O puro; não adquire lock de estado) |
+| Manutenção broker | `api_maintenance_guard` — hibernação cooperativa em janelas de indisponibilidade |
 | Inferência DL | Fora da Deriv API: Triton gRPC local (`localhost:8001`) ou TorchScript em cache; ver [infra-docker.md](infra-docker.md) |
 | Meta de sessão | Stop win de 1% composto sobre banca inicial; sem stop loss interno; contratos RISE_FALL não usam `limit_order.stop_loss` |
 
 Símbolos ativos do motor: **Drift** (`RDBEAR`, `RDBULL`), não os exemplos genéricos `1HZ100V` / OTC deste documento.
 
-Para fluxo completo (DL, Triton, direção inteligente, mean-reversion, gate de qualidade, Kelly com consensus penalty, stop win por sessão ativa, ciclo), ver [arquitetura.md](arquitetura.md).
+Para fluxo completo (DL, Triton, barreira atômica, direção inteligente, gate de qualidade, Kelly com consensus penalty, stop win por sessão ativa, ciclo), ver [arquitetura.md](arquitetura.md).
 
 A documentação abaixo descreve a API Deriv de forma ampla (referência geral). O Aether usa apenas o fluxo PAT documentado acima.
 

@@ -146,6 +146,7 @@ async def test_trading_cycle_refreshes_correlation_on_interval():
     orch.stream.is_synchronized = True
     orch._dl_fast_cycle = True
     orch._cycle_seq = 1
+    orch._session_persistence_write_active = False
     orch.lock = AsyncMock()
     orch.lock.__aenter__ = AsyncMock(return_value=None)
     orch.lock.__aexit__ = AsyncMock(return_value=None)

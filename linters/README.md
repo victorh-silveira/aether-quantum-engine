@@ -14,7 +14,7 @@ Configuração centralizada de hooks e release semântico (sem infra Kubernetes/
 | Hook | Ferramenta | Escopo |
 |------|------------|--------|
 | Qualidade | Ruff, Interrogate, Vulture, limite 300 linhas | `app/src`, `app/tests` |
-| Testes | pytest + coverage | 100% em `app/src` (inclui Triton, mean-reversion, consensus penalty, session_target_bootstrap, stop_win_target) |
+| Testes | pytest + coverage | 100% em `app/src` (~1806 testes; inclui barreira atomica, Triton, consensus penalty, session_target_bootstrap, stop_win_target, api_maintenance_guard) |
 | Segurança | Bandit, pip-audit | dependências e código |
 | Limpeza | caches e artefatos locais | workspace |
 

@@ -1,5 +1,7 @@
 from unittest.mock import patch
 
+import pytest
+
 from src.infrastructure.state.state_manager import SessionState, StateManager
 
 
@@ -78,3 +80,12 @@ def test_state_manager_default_path_and_original_reset(tmp_path):
         mgr = StateManager()
         mgr.reset_session_metrics(1200.0, 60.0)
         assert mgr.state.initial_balance == 1200.0
+        assert mgr.read_cached_balance() == pytest.approx(1200.0)
+
+
+@pytest.mark.asyncio
+async def test_state_manager_atomic_state_context_exposes_lock(tmp_path):
+    mgr = StateManager(file_path=tmp_path / "lock.json")
+    async with mgr.atomic_state_context():
+        assert mgr._state_lock.locked()
+    assert not mgr._state_lock.locked()

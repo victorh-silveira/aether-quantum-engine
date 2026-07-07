@@ -1,6 +1,15 @@
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 from src.application.services.orchestrator import Orchestrator
+from src.application.services.orchestrator.api_maintenance_guard import (
+    _API_MAINTENANCE_FALLBACK_SECONDS,
+    orchestrator_api_maintenance_until,
+)
+from src.application.services.orchestrator.execution_orders import place_order
+from src.domain.models.trade import TradeDirection
 
 
 def test_log_execution_blockers_groups_training_symbols(orch_config):
@@ -56,3 +65,58 @@ def test_log_execution_blockers_skips_symbol_without_decision_entry(orch_config)
                 {"RDBULL": {"direction": None, "metrics": {"gate_reason": "data", "execute": False}}},
             )
         assert mock_info.call_args_list == []
+
+
+@pytest.mark.asyncio
+async def test_execute_orders_maintenance_error_schedules_api_hibernation(orch_config):
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
+        mock_ws_class.return_value.subscribe = MagicMock()
+        orch = Orchestrator(orch_config, "token")
+        orch._active_cycle_id = 7
+        orch.risk_manager.calculate_stake = MagicMock(return_value=2.0)
+        error = RuntimeError("Trading is not available from 00:00:00 to 00:01:00")
+        orch.executor._place_order = AsyncMock(side_effect=error)
+        loop_start = asyncio.get_running_loop().time()
+        with patch.object(orch.executor.logger, "warning") as mock_warn:
+            count = await orch.executor._execute_orders(
+                [("RDBEAR", TradeDirection.CALL, {"conviction": 0.8})],
+                0.0,
+                100.0,
+            )
+        assert count == 0
+        mock_warn.assert_called_once()
+        assert orch._api_maintenance_until == pytest.approx(loop_start + _API_MAINTENANCE_FALLBACK_SECONDS)
+
+
+@pytest.mark.asyncio
+async def test_execute_orders_generic_closed_error_emits_warning_without_hibernation(orch_config):
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
+        mock_ws_class.return_value.subscribe = MagicMock()
+        orch = Orchestrator(orch_config, "token")
+        orch._active_cycle_id = 9
+        orch.risk_manager.calculate_stake = MagicMock(return_value=2.0)
+        orch.executor._place_order = AsyncMock(side_effect=RuntimeError("Trading session closed"))
+        with patch.object(orch.executor.logger, "warning") as mock_warn:
+            count = await orch.executor._execute_orders(
+                [("RDBEAR", TradeDirection.CALL, {"conviction": 0.8})],
+                0.0,
+                100.0,
+            )
+        assert count == 0
+        mock_warn.assert_called_once()
+        assert orchestrator_api_maintenance_until(orch) == 0.0
+
+
+@pytest.mark.asyncio
+async def test_place_order_maintenance_error_schedules_hibernation_before_raise(orch_config):
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
+        mock_ws_class.return_value.subscribe = MagicMock()
+        orch = Orchestrator(orch_config, "token")
+        orch._active_cycle_id = 8
+        orch.trade_handler.buy_with_parameters = AsyncMock(
+            side_effect=RuntimeError("Erro na proposta: Market is closed")
+        )
+        loop_start = asyncio.get_running_loop().time()
+        with pytest.raises(RuntimeError):
+            await place_order(orch.executor, "RDBEAR", TradeDirection.CALL, 10.0)
+        assert orch._api_maintenance_until == pytest.approx(loop_start + _API_MAINTENANCE_FALLBACK_SECONDS)

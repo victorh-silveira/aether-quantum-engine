@@ -6,6 +6,7 @@ import logging
 from src.application.services.market_audit_log import format_direction_audit_line, resolve_predicted_edge
 from src.domain.risk.stop_win_target import resolve_stop_win_target
 
+from .api_maintenance_guard import handle_broker_maintenance_error
 from .execution_proposal import (
     is_retriable_proposal_error,
     proposal_retry_scales,
@@ -65,6 +66,8 @@ async def place_order(executor, symbol, direction, stake, duration=None, metrics
             break
         except RuntimeError as exc:
             last_error = exc
+            if handle_broker_maintenance_error(executor.orch, exc):
+                raise
             if not is_retriable_proposal_error(exc) or attempt_stake == attempts[-1]:
                 raise
     if contract is None:

@@ -56,6 +56,7 @@ flowchart LR
   subgraph pos
     ST[settlement_*]
     RM[RiskManager]
+    LOCK[StateManager asyncio.Lock]
     PM[redis_state_pipeline]
     TS[TimescaleDB]
     MO[MinIO]
@@ -66,7 +67,9 @@ flowchart LR
   SH --> FEAT --> TRITON --> MODEL --> PRED --> BUNDLE[dl_predict_build cross-symbol]
   BUNDLE --> META --> RES --> QG --> COL --> SEL --> EM --> TH
   TH --> ST --> RM
-  ST --> PM
+  COL --> LOCK
+  ST --> LOCK
+  LOCK --> PM
   ST --> TS
   MODEL --> MO
 ```
@@ -121,7 +124,52 @@ Config em `orchestrator`: `watchdog_enabled`, `watchdog_stale_tick_seconds`, `wa
 
 Redis local usa AOF `appendfsync everysec` (`infra/docker/redis.conf`). `make docker-up` aplica `host-prereq.sh` (`vm.overcommit_memory=1` no WSL).
 
-**Persistência pós-settlement** (`save_full_state`): uma transação Redis `MULTI/EXEC` grava snapshot JSON, hash de risco (`consecutive_losses`, `pending_loss`, cooldowns), hash `session:current`, chaves `session:current:start_balance` e `session:current:target_win`, `recovery:skip_counter` e assinatura de mercado — sem round-trips bloqueantes adicionais na thread principal.
+**Persistência pós-settlement** (`orchestrator_persistence.save_full_state`): uma transação Redis `MULTI/EXEC` grava snapshot JSON, hash de risco (`consecutive_losses`, `pending_loss`, cooldowns), hash `session:current`, chaves `session:current:start_balance` e `session:current:target_win`, `recovery:skip_counter` e assinatura de mercado — sem round-trips bloqueantes adicionais na thread principal.
+
+### 2.5 Barreira atômica de concorrência assíncrona
+
+O motor opera em Windows/WSL com múltiplas coroutines concorrentes (inferência Triton, liquidação WebSocket, persistência Redis, watchdog de reconexão). Race conditions pós-reset linear D'Alembert (transição entre clusters e inferência subsequente) eram causadas por escritas de `settlement_logic` e leituras paralelas de `execution_collect_gather` sobre o mesmo agregado de risco.
+
+**Design DDD (Domain/Infrastructure Barrier):**
+
+```mermaid
+flowchart TD
+  subgraph lock_protegido
+    TC[trading_cycle_entry]
+    SL[settlement_logic]
+    SP[session_persistence_barrier]
+  end
+  subgraph infra_readonly
+    WS[WebSocketManager ping]
+    SR[stream_reconnect]
+    PT[profit_table audit]
+  end
+  SM[StateManager._state_lock]
+  TC -->|async with atomic_state_context| SM
+  SL -->|async with atomic_state_context| SM
+  SP -->|persist unlocked dentro do lock| SM
+  WS -->|read_cached_balance| SNAP[_balance_snapshot]
+  SR --> SNAP
+  PT --> SNAP
+```
+
+| Componente | Caminho | Papel |
+|------------|---------|-------|
+| Lock central | `infrastructure/state/state_manager.py` | `self._state_lock = asyncio.Lock()`; `async def atomic_state_context()` |
+| Facade orquestrador | `orchestrator_atomic_state.py` | `orchestrator_atomic_state_context(orch)` — delega ao `StateManager`; bypass em `MagicMock` (testes) |
+| Persistência | `orchestrator_persistence.py` | `save_full_state()` (com lock); `persist_full_state_unlocked()` (sem reentrância dentro de seções já protegidas) |
+| Ciclo de trading | `trading_cycle_entry.py` | Lock envolvendo `collect_deep_learning_decisions` → cache de correlação → `execute_cluster` |
+| Liquidação | `settlement_logic.py` | Lock em `_complete_contract_settlement()` (WIN/LOSS, linear, pend, reset) |
+| Barreira pós-reset | `session_persistence_barrier.py` | Sequência limpeza de risco + persistência + yield 0,1 s após reset linear; flag `_session_persistence_write_active` bloqueia ciclo concorrente |
+| Leitura não bloqueante | `read_cached_balance()` / `orchestrator_balance_snapshot()` | Snapshot de saldo para tarefas de infra (ping WS, reconexão) sem adquirir o lock principal |
+| Manutenção broker | `api_maintenance_guard.py` | Hibernação cooperativa quando a API retorna janela de indisponibilidade; evita starvation do loop principal |
+
+**Regras de serialização:**
+
+1. Inferência DL + decisão + boletamento **nunca** rodam concorrentemente com liquidação ou gravação de estado de risco.
+2. `post_settlement_cycle` **não** envolve lock duplo — o ciclo subsequente já entra protegido via `trading_cycle_entry`.
+3. Settlement interno usa `_persist_full_state_unlocked()` quando já está dentro do lock; `_save_full_state()` adquire lock próprio no loop de polling de `execution_settlement.py`.
+4. `_linear_reset_occurred` em `risk_recovery_state.py` dispara `run_linear_reset_persistence_barrier` antes do próximo ciclo de inferência.
 
 ---
 
@@ -267,7 +315,9 @@ Consequência: sob `mandatory_trade_each_cycle: true`, o `ExecutionManager` bole
 
 ---
 
-### 5.3 Pós-liquidação e encerramento atômico
+### 5.3 Pós-liquidação, barreira atômica e encerramento
+
+`settlement_logic.process_contract_settlement` executa liquidação (WIN/LOSS, atualização de `pending_loss`, reset linear D'Alembert) dentro de `orchestrator_atomic_state_context`. Quando `_linear_reset_occurred`, dispara `run_linear_reset_persistence_barrier` antes do próximo ciclo DL.
 
 `post_settlement_cycle.py` agenda reentrada após liquidação com fôlego configurável (`post_settlement_breath_seconds`). O fluxo prioriza **stop win** antes de qualquer round-trip Redis ou ciclo de trading:
 
@@ -313,6 +363,7 @@ Settlement assíncrono via `orchestrator_settlement_queue.py`: worker consome fi
 | Ancoragem em recovery | `risk_stake_calc.py` ignora consensus penalty e piso `stake_min` quando `pending_total > 0`; evita tag `KELLY` e stake sub-dimensionada em estresse |
 | Sem circuit breaker | Removidos `dlambert_circuit_breaker`, `MAX_LINEAR_LEVEL`, `MAX_STAKE_U_MULTIPLE`, `MAX_SESSION_DRAWDOWN_U` e o curto-circuito da tag `D'ALEMBERT_CB`; o cálculo prossegue livre na thread principal escalando exponencialmente até recuperar o passivo total |
 | Retração de recovery | WIN parcial em recovery: `consecutive_losses_linear = max(1, n-1)`, reduzindo o expoente da curva |
+| Reset linear D'Alembert | `risk_recovery_state._linear_reset_occurred` → `session_persistence_barrier` com yield 0,1 s |
 | Super-concordance Kelly | booster desligado em recovery; ativo em Kelly puro com P≥0.75, 6×0, Hurst>0.55 |
 | Trava Hurst N2+ | `recovery_hurst_gate.py` |
 | Decaimento Hurst acelerado | `recovery_hurst_decay.py` — `recovery_skip_counter` no Redis |
@@ -360,12 +411,19 @@ Persistência: `data/session_state.json` (métricas da sessão corrente), Redis 
 1. `setup_trading_session` — autenticação Deriv e WebSocket.
 2. `bootstrap_active_session_targets` — captura banca inicial e meta de stop win da sessão.
 3. `start_ingestion_watchdog` — monitoramento de inanição de ticks (modo contínuo).
-3. A cada vela do âncora ou `cycle_interval_seconds`:
+4. A cada vela do âncora ou `cycle_interval_seconds`:
    - `tick_bars_since_train`
-   - `collect_deep_learning_decisions` (inferência Triton concorrente com fallback TorchScript)
-   - `executor.execute_cluster`
-4. Reconciliação periódica de contratos abertos.
-5. Após liquidação: `post_settlement_cycle` (fast-path stop win ou retry com teto) → `save_full_state` quando aplicável.
+   - `run_trading_cycle_if_ready` → `async with orchestrator_atomic_state_context`:
+     - `collect_deep_learning_decisions` (inferência Triton concorrente com fallback TorchScript)
+     - `executor.execute_cluster`
+5. Reconciliação periódica de contratos abertos.
+6. Após liquidação: `post_settlement_cycle` (fast-path stop win ou retry com teto) → persistência via `orchestrator_persistence`.
+
+**Guarda de manutenção da API** (`api_maintenance_guard.py`):
+
+- Intercepta erros `"trading is not available"`, `"market is closed"` e janelas temporais parseadas da mensagem do broker.
+- Define `_api_maintenance_until` e suspende o ciclo de trading (`MAINTENANCE_CYCLE_SUSPENDED`) até a liberação do pool.
+- Log: `[AETHER] API_GUARD | Hibernando motor devido a reset/manutencao de liquidez do broker`.
 
 **Graceful shutdown** (`graceful_shutdown.py`):
 
@@ -402,9 +460,9 @@ Persistência: `data/session_state.json` (métricas da sessão corrente), Redis 
 | Application / Meta | `meta_classifier_stacking`, `meta_payoff_regression`, `meta_classifier_features`, `meta_classifier_cross_symbol`, `meta_classifier_flow_features`, `meta_direction_flip` (auditoria D-SQUEEZE) |
 | Application / Direção | `execution_direction_resolver` (TCN + edge contínuo), `execution_direction_cross_corr` (telemetria), `execution_volatility_booster` (pisos consultivos), `execution_quality_gate` (neutro) |
 | Application / Execução | `execution_collect`, `execution_collect_gather`, `execution_market_rank`, `execution_symbols`, `execution_mandatory_pick` |
-| Application / Orchestrator | `Orchestrator`, `execution_manager`, `session_target_bootstrap`, `execution_recovery_gate`, `watchdog_service`, `graceful_shutdown`, `settlement_*`, `settlement_queue_ops`, `post_settlement_cycle`, `orchestrator_run_loop` |
+| Application / Orchestrator | `Orchestrator`, `execution_manager`, `trading_cycle_entry`, `orchestrator_atomic_state`, `orchestrator_persistence`, `session_persistence_barrier`, `api_maintenance_guard`, `session_target_bootstrap`, `execution_recovery_gate`, `watchdog_service`, `graceful_shutdown`, `settlement_*`, `settlement_queue_ops`, `post_settlement_cycle`, `orchestrator_run_loop` |
 | Domain | `trade`, `market_data`, `probability_entropy`, `risk_manager`, `stop_win_target`, `risk_recovery_state`, `consensus_stake_penalty`, `recovery_hurst_gate`, `dlambert_sizing`, `recovery_conviction`, `stake_sizing` |
-| Infrastructure | `triton_grpc_client`, `triton_inference_client`, `websocket_manager`, `stream_handler`, `stream_reconnect`, `tick_buffer`, `trade_handler`, `minio_model_store`, `torchscript_sanity`, `redis_state_pipeline` |
+| Infrastructure | `state_manager` (asyncio.Lock), `triton_grpc_client`, `triton_inference_client`, `websocket_manager`, `stream_handler`, `stream_reconnect`, `tick_buffer`, `trade_handler`, `minio_model_store`, `torchscript_sanity`, `redis_state_pipeline` |
 | Presentation | `logger`, `log_dedupe` |
 
 ---
@@ -431,6 +489,8 @@ Marcadores de log relevantes:
 | `CICLO: ciclo pos-liquidacao incompleto` | Retry pós-liquidação; após 2× consecutivas → encerramento forçado |
 | `STOP_WIN` / fast-path | Meta da sessão atingida; Redis limpo e shutdown imediato |
 | `[D-SQUEEZE]` | Downgrade de score em compressão M1; métricas `bb_width`, `tick_accel`, `predicted_payoff_edge`, `score` |
+| `[API_GUARD]` | Hibernação cooperativa durante manutenção ou reset de liquidez do broker |
+| `session_persistence_write_active` | Barreira pós-reset linear em andamento; ciclo de trading aguarda liberação |
 
 ---
 

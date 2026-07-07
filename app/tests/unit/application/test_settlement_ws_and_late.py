@@ -39,6 +39,7 @@ def test_trading_cycle_blocked_while_reconciliation_pending():
 async def test_process_late_settlement_early_returns():
     orch = MagicMock()
     orch._save_full_state = AsyncMock()
+    orch._persist_full_state_unlocked = AsyncMock()
     await process_late_settlement_from_payload(orch, {"is_settled": 0})
     await process_late_settlement_from_payload(orch, {"is_settled": 1})
     orch._save_full_state.assert_not_awaited()
@@ -77,7 +78,7 @@ async def test_process_late_settlement_from_payload():
     orch.risk_manager.active_contract_ids = []
     orch.state.active_contracts = {}
     orch.running = True
-    orch._save_full_state = AsyncMock()
+    orch._persist_full_state_unlocked = AsyncMock()
     orch.schedule_trading_cycle_after_settlement = MagicMock()
     poc = {
         "contract_id": 303,
@@ -97,4 +98,4 @@ async def test_process_late_settlement_from_payload():
     ):
         await process_late_settlement_from_payload(orch, poc)
     outcome.assert_called_once()
-    orch._save_full_state.assert_awaited_once()
+    orch._persist_full_state_unlocked.assert_awaited_once()

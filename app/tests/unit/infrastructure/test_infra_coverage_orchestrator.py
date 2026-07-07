@@ -7,7 +7,7 @@ import pytest
 from src.application.services.deep_learning.dl_model_artifacts import schedule_model_upload
 from src.application.services.execution_volatility_threshold import resolve_dynamic_threshold_bundle
 from src.application.services.orchestrator import Orchestrator
-from src.application.services.orchestrator.orchestrator_run_loop import save_full_state
+from src.application.services.orchestrator.orchestrator_persistence import save_full_state
 from src.application.services.orchestrator.orchestrator_state_restore import (
     bar_epoch_already_processed,
     mark_bar_processed,
@@ -59,11 +59,11 @@ async def test_save_full_state_legacy_store_without_bundle():
     orch.persistence = MagicMock()
     with (
         patch(
-            "src.application.services.orchestrator.orchestrator_run_loop.persist_session_hash",
+            "src.application.services.orchestrator.orchestrator_persistence.persist_session_hash",
             AsyncMock(),
         ) as persist_mock,
         patch(
-            "src.application.services.orchestrator.orchestrator_run_loop.sync_market_signature",
+            "src.application.services.orchestrator.orchestrator_persistence.sync_market_signature",
             AsyncMock(),
         ) as sync_mock,
     ):

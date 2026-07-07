@@ -13,7 +13,12 @@ from src.application.services.market_audit_log import (
 )
 from src.application.services.orchestrator.graceful_shutdown import graceful_shutdown
 from src.application.services.orchestrator.metrics_utils import neutral_metrics
+from src.application.services.orchestrator.orchestrator_atomic_state import orchestrator_atomic_state_context
 from src.application.services.orchestrator.result_utils import api_settlement_label
+from src.application.services.orchestrator.session_persistence_barrier import (
+    consume_linear_reset_flag,
+    run_linear_reset_persistence_barrier,
+)
 from src.application.services.orchestrator.settlement_detect import contract_payload_is_settled
 from src.domain.risk.executed_stake_reconciliation import (
     bind_executed_stake_for_contract,
@@ -70,7 +75,10 @@ def _sync_state_manager_session(orch: Any, target: float, *, increment_trades: b
     state_mgr = getattr(orch, "state_mgr", None)
     if state_mgr is None or type(state_mgr).__name__ != "StateManager":
         return False
-    state_mgr.state.current_balance = float(orch.state.balance)
+    if hasattr(state_mgr, "mirror_balance"):
+        state_mgr.mirror_balance(float(orch.state.balance))
+    else:
+        state_mgr.state.current_balance = float(orch.state.balance)
     if state_mgr.state.initial_balance <= 0.0:
         state_mgr.state.initial_balance = float(orch.risk_manager.initial_bankroll)
     if state_mgr.state.daily_stop_win_target <= 0.0:
@@ -106,6 +114,59 @@ def _update_state_manager_and_check_stop_win(orch: Any, target: float, pnl: floa
     return target > 0 and pnl >= target  # pragma: no cover
 
 
+async def _finalize_settlement_persistence(orch: Any) -> bool:
+    """Aplica barreira pos-reset linear ou persistencia padrao ao encerrar liquidacao."""
+    if consume_linear_reset_flag(orch):
+        await run_linear_reset_persistence_barrier(orch)
+        return True
+    await orch._persist_full_state_unlocked()
+    return False
+
+
+async def _complete_contract_settlement(
+    orch: Any,
+    c: dict,
+    contract: Any,
+    c_id: int,
+    profit: float,
+    *,
+    result_line: str | None = None,
+) -> None:
+    """Processa liquidação, risco e persistencia sob lock atomico."""
+    if result_line is not None:
+        if orch._buffer_result_logs:
+            orch._pending_result_logs.append(result_line)
+        else:
+            orch.logger.info(result_line)
+
+    _process_contract_outcome(orch, c, contract, c_id, profit)
+
+    if profit >= 0.0 and sum(orch.risk_manager.pending_loss.values()) <= 0.0:
+        await reset_recovery_skip_counter_for_orch(orch)
+
+    pnl = orch.risk_manager.total_session_profit
+    target = resolve_stop_win_target(orch.config.get("risk_management", {}), orch.risk_manager.initial_bankroll)
+
+    stop_win_triggered = _update_state_manager_and_check_stop_win(orch, target, pnl)
+
+    if stop_win_triggered:
+        orch.logger.debug(
+            "[C%04d] STOP_WIN | pnl_sessao=$%+.2f | alvo=$%.2f",
+            orch._last_result_cycle_id,
+            pnl,
+            target,
+        )
+        orch.shutdown_reason = "stop_win"
+        await orch.state.set_trading(value=False)
+        await orch._persist_full_state_unlocked()
+        await graceful_shutdown(orch, fast_path=True)
+        return
+    if not orch.state.active_contracts and orch.running:
+        orch.schedule_trading_cycle_after_settlement()
+
+    await _finalize_settlement_persistence(orch)
+
+
 async def process_late_settlement_from_payload(orch: Any, poc: dict) -> None:
     """Liquida contrato ausente de active_contracts mas rastreado em risco."""
     if not contract_payload_is_settled(poc):
@@ -131,12 +192,13 @@ async def process_late_settlement_from_payload(orch: Any, poc: dict) -> None:
         ),
         api_status_raw.lower() or "-",
     )
-    _process_contract_outcome(orch, poc, None, c_id, profit)
-    if profit >= 0.0 and sum(orch.risk_manager.pending_loss.values()) <= 0.0:
-        await reset_recovery_skip_counter_for_orch(orch)
-    if not orch.state.active_contracts and orch.running:
-        orch.schedule_trading_cycle_after_settlement()
-    await orch._save_full_state()
+    async with orchestrator_atomic_state_context(orch):
+        _process_contract_outcome(orch, poc, None, c_id, profit)
+        if profit >= 0.0 and sum(orch.risk_manager.pending_loss.values()) <= 0.0:
+            await reset_recovery_skip_counter_for_orch(orch)
+        if not orch.state.active_contracts and orch.running:
+            orch.schedule_trading_cycle_after_settlement()
+        await _finalize_settlement_persistence(orch)
 
 
 async def process_contract_settlement(orch: Any, data: dict):
@@ -170,37 +232,15 @@ async def process_contract_settlement(orch: Any, data: dict):
         edge,
     )
 
-    if orch._buffer_result_logs:
-        orch._pending_result_logs.append(result_line)
-    else:
-        orch.logger.info(result_line)
-
-    _process_contract_outcome(orch, c, contract, c_id, profit)
-
-    if profit >= 0.0 and sum(orch.risk_manager.pending_loss.values()) <= 0.0:
-        await reset_recovery_skip_counter_for_orch(orch)
-
-    pnl = orch.risk_manager.total_session_profit
-    target = resolve_stop_win_target(orch.config.get("risk_management", {}), orch.risk_manager.initial_bankroll)
-
-    stop_win_triggered = _update_state_manager_and_check_stop_win(orch, target, pnl)
-
-    if stop_win_triggered:
-        orch.logger.debug(
-            "[C%04d] STOP_WIN | pnl_sessao=$%+.2f | alvo=$%.2f",
-            orch._last_result_cycle_id,
-            pnl,
-            target,
+    async with orchestrator_atomic_state_context(orch):
+        await _complete_contract_settlement(
+            orch,
+            c,
+            contract,
+            c_id,
+            profit,
+            result_line=result_line,
         )
-        orch.shutdown_reason = "stop_win"
-        await orch.state.set_trading(value=False)
-        await orch._save_full_state()
-        await graceful_shutdown(orch, fast_path=True)
-        return
-    if not orch.state.active_contracts and orch.running:
-        orch.schedule_trading_cycle_after_settlement()
-
-    await orch._save_full_state()
 
 
 def log_cluster_summary(orch: Any):

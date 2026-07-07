@@ -82,6 +82,16 @@ Desvios extremos em M1 (RSI, Keltner, Bollinger) alimentam o vetor tabular **39D
 | Recovery | Martingale Geométrico `Kelly_base × 2^n`; persistência até `pending_total = 0` |
 | Kelly divergente | Consensus Entropy Penalty; waiver em recovery com `pending_total > 0` |
 
+### 2.6 Isolamento de estado assíncrono
+
+O motor serializa mutações críticas de risco e sessão via `asyncio.Lock` no `StateManager`:
+
+- **Protegido pelo lock:** ciclo de inferência DL (`trading_cycle_entry`), liquidação (`settlement_logic`), barreira pós-reset linear (`session_persistence_barrier`).
+- **Fora do lock:** ping WebSocket, reconexão de stream, auditoria profit_table — leem `read_cached_balance()` sem bloquear o loop de trading.
+- **Manutenção broker:** `api_maintenance_guard` hiberna o ciclo quando a API sinaliza indisponibilidade, evitando starvation durante reset de liquidez.
+
+Ver [arquitetura.md](arquitetura.md) seção 2.5 para o diagrama completo.
+
 ---
 
 ## 3. Referências

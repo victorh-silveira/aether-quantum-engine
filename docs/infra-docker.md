@@ -75,7 +75,21 @@ Config em `settings.json`:
 
 As chaves `session:current:*` são gravadas no bootstrap da sessão e removidas no `graceful_shutdown` (ou no fast-path de stop win, **antes** do shutdown, via `clear_current_session_redis_keys`). Cada restart do processo inicia uma sessão independente.
 
-Gravado em `save_full_state` após cada settlement, sem bloquear a thread principal com múltiplos round-trips.
+Gravado em `orchestrator_persistence.save_full_state` após cada settlement, sob proteção do `StateManager._state_lock`. Durante seções já protegidas (liquidação, barreira pós-reset), usa `persist_full_state_unlocked` para evitar deadlock por reentrância.
+
+## StateManager (host)
+
+Além do Redis, o motor persiste métricas de sessão em `data/session_state.json` via `StateManager`:
+
+| Método | Papel |
+|--------|-------|
+| `atomic_state_context()` | Context manager assíncrono; serializa mutações de estado |
+| `mirror_balance()` | Atualiza saldo corrente e snapshot cacheado |
+| `read_cached_balance()` | Leitura read-only para infra (ping WS, reconexão) sem adquirir lock |
+| `check_session_limits()` | Avalia stop win da sessão ativa |
+| `reset_session_metrics()` | Bootstrap de banca inicial e meta |
+
+O snapshot `_balance_snapshot` é atualizado em cada persistência e permite que tarefas de background consultem saldo sem contention no lock principal.
 
 ## Subir
 

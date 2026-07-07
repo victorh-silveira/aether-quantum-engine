@@ -103,7 +103,7 @@ async def test_settlement_schedules_cycle_before_save(orch_ready):
 
     orch.schedule_trading_cycle_after_settlement = track_schedule
     save_mock = AsyncMock(side_effect=lambda: call_order.append("save"))
-    orch._save_full_state = save_mock
+    orch._persist_full_state_unlocked = save_mock
     with patch_instant_post_settlement_poll():
         await orch._on_contract_update(
             {

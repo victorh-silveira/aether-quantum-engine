@@ -20,6 +20,7 @@ from src.domain.risk.recovery_hurst_decay import prepare_recovery_skip_counter, 
 from src.domain.risk.stake_sizing import resolve_stake_conviction
 from src.domain.risk.stop_win_target import resolve_stop_win_target
 
+from .api_maintenance_guard import handle_broker_maintenance_error
 from .execution_blockers import log_execution_blockers
 from .execution_collect import collect_cluster_orders
 from .execution_orders import place_order
@@ -150,6 +151,9 @@ class ExecutionManager:
                     )
                     executed_count += 1
             except Exception as e:
+                if handle_broker_maintenance_error(self.orch, e):
+                    self.logger.warning(f"SKIP: Sessão fechada para {symbol}: {e}")
+                    continue
                 err_msg = str(e).lower()
                 if "closed" in err_msg or "trading is not available" in err_msg:
                     self.logger.warning(f"SKIP: Sessão fechada para {symbol}: {e}")

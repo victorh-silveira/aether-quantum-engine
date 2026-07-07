@@ -34,7 +34,7 @@ def apply_dlambert_partial_win_retraction(risk_manager) -> None:
     risk_manager.consecutive_losses_linear = max(1, linear - 1)
 
 
-def apply_cluster_profit_to_recovery_state(risk_manager, cluster_profit: float) -> None:
+def apply_cluster_profit_to_recovery_state(risk_manager, cluster_profit: float) -> bool:
     """Atualiza perdas lineares sem reset falso enquanto pending_loss > 0."""
     pending = pending_loss_total(risk_manager.pending_loss)
     pnl_sess = float(risk_manager.total_session_profit)
@@ -48,7 +48,7 @@ def apply_cluster_profit_to_recovery_state(risk_manager, cluster_profit: float) 
             pnl_sess,
             risk_manager.consecutive_losses_linear,
         )
-        return
+        return False
     if pending > 0.0:
         apply_dlambert_partial_win_retraction(risk_manager)
         risk_manager.logger.info(
@@ -58,8 +58,9 @@ def apply_cluster_profit_to_recovery_state(risk_manager, cluster_profit: float) 
             pnl_sess,
             risk_manager.consecutive_losses_linear,
         )
-        return
-    if linear > 0:
+        return False
+    linear_reset = linear > 0
+    if linear_reset:
         risk_manager.logger.info(
             "RISK: Recovery financeiro zerado (P&L: $%.2f) | pnl_sess=$%+.2f | reset linear",
             cluster_profit,
@@ -67,6 +68,9 @@ def apply_cluster_profit_to_recovery_state(risk_manager, cluster_profit: float) 
         )
     risk_manager.consecutive_losses_linear = 0
     risk_manager.last_loss_stake = 0.0
+    if linear_reset:
+        risk_manager._linear_reset_occurred = True
+    return linear_reset
 
 
 def log_partial_win_recovery(risk_manager, profit: float) -> float:

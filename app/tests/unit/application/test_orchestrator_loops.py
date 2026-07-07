@@ -4,141 +4,22 @@ import pytest
 
 from src.application.services.direction_persistence_guard import log_regime_guard, reset_regime_guard_log_state
 from src.application.services.meta_direction_flip import SIGNAL_SUSPENDED
-from src.application.services.orchestrator.post_settlement_cycle import run_post_settlement_breath_and_cycle
-from src.application.services.orchestrator.post_settlement_loss_cooldown import (
-    POST_LOSS_COOLDOWN_BASE_SECONDS,
-    POST_LOSS_COOLDOWN_GROWTH,
-    await_post_loss_cooldown,
-    post_loss_cooldown_active,
-    post_loss_cooldown_delay_seconds,
+from src.application.services.orchestrator.api_maintenance_guard import (
+    _API_GUARD_LOG_MESSAGE,
+    schedule_api_maintenance_hibernation,
 )
 from src.application.services.orchestrator.regime_freeze_yield import _REGIME_FREEZE_DEFAULT_YIELD_SECONDS
+from src.application.services.orchestrator.session_persistence_barrier import (
+    session_persistence_write_active,
+)
 from src.application.services.orchestrator.settlement_logic import process_contract_settlement
 from src.application.services.orchestrator.trading_cycle_entry import run_trading_cycle_if_ready
 from src.domain.models.trade import Contract, TradeDirection, TradeStatus
 from tests.unit.application.post_settlement_helpers import patch_instant_post_settlement_poll
 
 
-COOLDOWN_MODULE = "src.application.services.orchestrator.post_settlement_loss_cooldown"
 FREEZE_YIELD_MODULE = "src.application.services.orchestrator.regime_freeze_yield"
 TRADING_CYCLE_MODULE = "src.application.services.orchestrator.trading_cycle_entry"
-
-
-def test_post_loss_cooldown_delay_zero_below_linear_two():
-    assert post_loss_cooldown_delay_seconds(0) == 0.0
-    assert post_loss_cooldown_delay_seconds(1) == 0.0
-
-
-def test_post_loss_cooldown_delay_exponential_from_linear_two():
-    assert post_loss_cooldown_delay_seconds(2) == pytest.approx(
-        POST_LOSS_COOLDOWN_BASE_SECONDS * POST_LOSS_COOLDOWN_GROWTH**2
-    )
-    assert post_loss_cooldown_delay_seconds(3) == pytest.approx(
-        POST_LOSS_COOLDOWN_BASE_SECONDS * POST_LOSS_COOLDOWN_GROWTH**3
-    )
-    assert post_loss_cooldown_delay_seconds(4) == pytest.approx(
-        POST_LOSS_COOLDOWN_BASE_SECONDS * POST_LOSS_COOLDOWN_GROWTH**4
-    )
-
-
-def test_post_loss_cooldown_active_requires_loss_and_linear_floor():
-    assert post_loss_cooldown_active("LOSS", 2) is True
-    assert post_loss_cooldown_active("loss", 3) is True
-    assert post_loss_cooldown_active("LOSS", 1) is False
-    assert post_loss_cooldown_active("WIN", 4) is False
-    assert post_loss_cooldown_active("FLAT", 4) is False
-
-
-@pytest.mark.asyncio
-async def test_await_post_loss_cooldown_level_three_virtual_clock(orch_ready):
-    orch = orch_ready
-    orch._last_settlement_outcome = "LOSS"
-    orch.risk_manager.consecutive_losses_linear = 3
-    expected = post_loss_cooldown_delay_seconds(3)
-    recorded: list[float] = []
-
-    async def record_sleep(seconds: float) -> None:
-        recorded.append(seconds)
-
-    with patch(f"{COOLDOWN_MODULE}.asyncio.sleep", side_effect=record_sleep):
-        delay = await await_post_loss_cooldown(orch)
-    assert delay == pytest.approx(expected)
-    assert recorded == [pytest.approx(expected)]
-    assert expected == pytest.approx(36.905625)
-
-
-@pytest.mark.asyncio
-async def test_await_post_loss_cooldown_skips_when_orchestrator_stopped(orch_ready):
-    orch = orch_ready
-    orch.running = False
-    orch._last_settlement_outcome = "LOSS"
-    orch.risk_manager.consecutive_losses_linear = 3
-    with patch(f"{COOLDOWN_MODULE}.asyncio.sleep", new_callable=AsyncMock) as sleep_mock:
-        delay = await await_post_loss_cooldown(orch)
-    assert delay == 0.0
-    sleep_mock.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_await_post_loss_cooldown_skips_on_win(orch_ready):
-    orch = orch_ready
-    orch._last_settlement_outcome = "WIN"
-    orch.risk_manager.consecutive_losses_linear = 4
-    recorded: list[float] = []
-
-    async def record_sleep(seconds: float) -> None:
-        recorded.append(seconds)
-
-    with patch(f"{COOLDOWN_MODULE}.asyncio.sleep", side_effect=record_sleep):
-        delay = await await_post_loss_cooldown(orch)
-    assert delay == 0.0
-    assert recorded == []
-
-
-@pytest.mark.asyncio
-async def test_sequential_loss_levels_expand_post_settlement_cooldown(orch_ready):
-    orch = orch_ready
-    orch.config.setdefault("orchestrator", {})["post_settlement_breath_seconds"] = 0
-    orch._run_trading_cycle_if_ready = AsyncMock(return_value=True)
-    delays_by_linear = {}
-
-    async def record_sleep(seconds: float) -> None:
-        linear = int(orch.risk_manager.consecutive_losses_linear)
-        delays_by_linear[linear] = seconds
-
-    for linear in (2, 3, 4):
-        orch._last_settlement_outcome = "LOSS"
-        orch.risk_manager.consecutive_losses_linear = linear
-        with (
-            patch(f"{COOLDOWN_MODULE}.asyncio.sleep", side_effect=record_sleep),
-            patch_instant_post_settlement_poll(),
-        ):
-            await run_post_settlement_breath_and_cycle(orch)
-        assert delays_by_linear[linear] == pytest.approx(post_loss_cooldown_delay_seconds(linear))
-
-    assert delays_by_linear[3] > delays_by_linear[2]
-    assert delays_by_linear[4] > delays_by_linear[3]
-
-
-@pytest.mark.asyncio
-async def test_run_post_settlement_skips_cooldown_when_linear_below_two(orch_ready):
-    orch = orch_ready
-    orch.config.setdefault("orchestrator", {})["post_settlement_breath_seconds"] = 0
-    orch._last_settlement_outcome = "LOSS"
-    orch.risk_manager.consecutive_losses_linear = 1
-    orch._run_trading_cycle_if_ready = AsyncMock(return_value=True)
-    recorded: list[float] = []
-
-    async def record_sleep(seconds: float) -> None:
-        recorded.append(seconds)
-
-    with (
-        patch(f"{COOLDOWN_MODULE}.asyncio.sleep", side_effect=record_sleep),
-        patch_instant_post_settlement_poll(),
-    ):
-        await run_post_settlement_breath_and_cycle(orch)
-    assert recorded == []
-    orch._run_trading_cycle_if_ready.assert_awaited()
 
 
 @pytest.mark.asyncio
@@ -261,3 +142,107 @@ async def test_run_trading_cycle_freeze_log_emitted_once_per_cycle_id(orch_ready
 
     freeze_logs = [record for record in caplog.records if "FREEZE: SKIP CYCLE" in record.message]
     assert len(freeze_logs) == 1
+
+
+@pytest.mark.asyncio
+async def test_run_trading_cycle_api_maintenance_hibernates_cleanly(orch_ready, caplog):
+    orch = orch_ready
+    orch._last_cluster_cycle_end = 0.0
+    orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 0
+    schedule_api_maintenance_hibernation(
+        orch,
+        "Trading is not available from 00:00:00 to 00:01:00",
+    )
+    with (
+        patch(
+            f"{TRADING_CYCLE_MODULE}.collect_deep_learning_decisions",
+            new_callable=AsyncMock,
+        ) as collect_mock,
+        caplog.at_level("INFO"),
+    ):
+        first = await run_trading_cycle_if_ready(orch)
+        second = await run_trading_cycle_if_ready(orch)
+    assert first is False
+    assert second is False
+    collect_mock.assert_not_awaited()
+    guard_logs = [record for record in caplog.records if record.message == _API_GUARD_LOG_MESSAGE]
+    assert len(guard_logs) == 1
+
+
+@pytest.mark.asyncio
+async def test_linear_reset_settlement_then_immediate_inference_runs_cleanly(orch_ready):
+    orch = orch_ready
+    loss_contract = Contract(
+        contract_id=431,
+        proposal_id="p431",
+        status=TradeStatus.OPEN,
+        buy_price=8.0,
+        payout=14.0,
+        symbol="RDBEAR",
+        direction=TradeDirection.PUT,
+        stake=8.0,
+        expiry_time=0,
+    )
+    win_contract = Contract(
+        contract_id=432,
+        proposal_id="p432",
+        status=TradeStatus.OPEN,
+        buy_price=8.0,
+        payout=15.0,
+        symbol="RDBEAR",
+        direction=TradeDirection.PUT,
+        stake=8.0,
+        expiry_time=0,
+    )
+    orch._contract_cycle = {431: 6, 432: 6}
+    loss_data = {
+        "proposal_open_contract": {
+            "status": "lost",
+            "is_settled": 1,
+            "contract_id": 431,
+            "profit": -8.0,
+            "balance_after": 992.0,
+        }
+    }
+    win_data = {
+        "proposal_open_contract": {
+            "status": "won",
+            "is_settled": 1,
+            "contract_id": 432,
+            "profit": 10.0,
+            "balance_after": 1002.0,
+        }
+    }
+    await orch.state.add_contract(loss_contract)
+    orch.risk_manager.active_contract_ids = [431]
+    orch.risk_manager.contract_to_symbol[431] = "RDBEAR"
+    orch.risk_manager.begin_cluster(1)
+    with patch_instant_post_settlement_poll():
+        await process_contract_settlement(orch, loss_data)
+        if orch._post_settlement_task is not None:
+            await orch._post_settlement_task
+
+    await orch.state.add_contract(win_contract)
+    orch.risk_manager.active_contract_ids = [432]
+    orch.risk_manager.contract_to_symbol[432] = "RDBEAR"
+    orch.risk_manager.begin_cluster(1)
+    with (
+        patch_instant_post_settlement_poll(),
+        patch(
+            "src.application.services.orchestrator.settlement_logic.run_linear_reset_persistence_barrier",
+            new_callable=AsyncMock,
+        ) as barrier_mock,
+        patch(
+            f"{TRADING_CYCLE_MODULE}.collect_deep_learning_decisions",
+            new_callable=AsyncMock,
+            return_value={"RDBULL": {"direction": None, "metrics": {"execute": False}}},
+        ) as collect_mock,
+    ):
+        orch.executor.execute_cluster = AsyncMock()
+        await process_contract_settlement(orch, win_data)
+        if orch._post_settlement_task is not None:
+            await orch._post_settlement_task
+    barrier_mock.assert_awaited_once()
+    assert session_persistence_write_active(orch) is False
+    collect_mock.assert_awaited_once()
+    orch.executor.execute_cluster.assert_awaited_once()

@@ -92,7 +92,7 @@ docker exec -it aether-redis redis-cli CONFIG GET appendfsync
 
 O servico usa `redis.conf` com `appendonly yes` e `appendfsync everysec` (RDB desabilitado via `save ""`).
 
-O motor grava estado via `redis_state_pipeline.write_state_bundle` (MULTI/EXEC atômico), incluindo `recovery:skip_counter` e chaves de sessão ativa (`session:current:start_balance`, `session:current:target_win`).
+O motor grava estado via `orchestrator_persistence.save_full_state` → `redis_state_pipeline.write_state_bundle` (MULTI/EXEC atomico), incluindo `recovery:skip_counter` e chaves de sessao ativa (`session:current:start_balance`, `session:current:target_win`). A gravacao ocorre sob `StateManager._state_lock`; metricas locais adicionais em `data/session_state.json`.
 
 ## TimescaleDB: compressao e retencao
 

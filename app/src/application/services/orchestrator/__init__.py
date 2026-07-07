@@ -14,10 +14,10 @@ from src.application.services.orchestrator.config_symbols import normalize_symbo
 from src.application.services.orchestrator.engine_mode import training_enabled
 from src.application.services.orchestrator.execution_manager import ExecutionManager
 from src.application.services.orchestrator.graceful_shutdown import close_infrastructure_connections
+from src.application.services.orchestrator.orchestrator_persistence import persist_full_state_unlocked, save_full_state
 from src.application.services.orchestrator.orchestrator_run_loop import (
     get_data_state_signature,
     run_orchestrator_main_loop,
-    save_full_state,
     setup_session,
     start_streams,
     subscribe_transactions,
@@ -232,6 +232,10 @@ class Orchestrator:
     async def _save_full_state(self):
         """Persiste o snapshot completo do orquestrador."""
         await save_full_state(self)
+
+    async def _persist_full_state_unlocked(self):
+        """Persiste snapshot completo assumindo lock atomico ja adquirido."""
+        await persist_full_state_unlocked(self)
 
     async def close_infrastructure_connections(self) -> None:
         """Encerra Triton, Timescale, Redis e WebSocket antes do exit."""

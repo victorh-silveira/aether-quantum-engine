@@ -5,16 +5,8 @@ import sys
 from typing import Any
 
 from src.application.services.orchestrator.graceful_shutdown import close_infrastructure_connections
+from src.application.services.orchestrator.orchestrator_persistence import save_full_state
 from src.application.services.orchestrator.orchestrator_settlement_queue import start_settlement_worker
-from src.application.services.orchestrator.orchestrator_state_restore import (
-    persist_session_hash,
-    session_hash_payload,
-    sync_market_signature,
-)
-from src.application.services.orchestrator.session_target_bootstrap import (
-    current_dlambert_redis_payload,
-    current_session_redis_payload,
-)
 from src.application.services.orchestrator.settlement_reconciliation import reconcile_after_ws_recovery
 from src.application.services.orchestrator.trading_cycle_entry import prepare_orchestrator_run_loop
 from src.application.services.orchestrator.watchdog_service import start_ingestion_watchdog
@@ -38,41 +30,6 @@ async def start_streams(orch: Any) -> bool:
 async def subscribe_transactions(orch: Any) -> None:
     """Assina transacoes de conta para reconciliacao de saldo."""
     await subscribe_account_transactions(orch)
-
-
-async def save_full_state(orch: Any) -> None:
-    """Persiste snapshot completo, sessao e assinaturas de mercado."""
-    s = await orch.state.get_state()
-    s.update(
-        {
-            "total_session_profit": orch.risk_manager.total_session_profit,
-            "risk": orch.risk_manager.get_state(),
-        }
-    )
-    sig = orch.get_data_state_signature()
-    session = session_hash_payload(orch)
-    start_bal, target_win = current_session_redis_payload(orch)
-    dlambert_unit, linear_losses = current_dlambert_redis_payload(orch)
-    save_bundle = getattr(orch.state_store, "save_state_bundle", None)
-    skip_counter = int(getattr(orch, "_recovery_skip_counter", 0))
-    if callable(save_bundle):
-        await save_bundle(
-            snapshot=s,
-            session=session,
-            market_sig=sig or None,
-            recovery_skip_counter=skip_counter,
-            session_start_balance=start_bal,
-            session_target_win=target_win,
-            dlambert_unit=dlambert_unit,
-            consecutive_losses_linear=linear_losses,
-        )
-    else:
-        await orch.state_store.save_snapshot(s)
-        await persist_session_hash(orch)
-        if sig:
-            await sync_market_signature(orch, sig)
-    if hasattr(orch.persistence, "save"):
-        orch.persistence.save(s)
 
 
 async def stop_orchestrator(orch: Any) -> None:

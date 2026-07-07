@@ -29,8 +29,9 @@ Layout: `app/` (código e testes), `config/settings.json`, `docs/`, `linters/`. 
 | Qualidade | `execution_quality_gate` | Neutro: valida sinal sem skip de ciclo |
 | Execução | `ExecutionManager` + `execution_collect` | Ranking por `market_decision_score`; mandatory pick quando configurado |
 | Risco | `RiskManager` + `dlambert_sizing` + `consensus_stake_penalty` | Kelly + Martingale `U × 2^n` em recovery; bypass de consenso com `pending_total > 0` |
-| Resiliência | `graceful_shutdown` + `watchdog_service` + `post_settlement_cycle` | Fast-path stop win; cancelamento de fila Redis/settlement; teto 2× incompleto → `sys.exit(0)` |
-| Estado | `redis_state_pipeline` + `StateStore` | Snapshot atômico MULTI/EXEC (risco, `session:current`, `session:current:start_balance`, `session:current:target_win`, `recovery:skip_counter`, assinaturas) |
+| Resiliência | `graceful_shutdown` + `watchdog_service` + `post_settlement_cycle` + `api_maintenance_guard` | Fast-path stop win; cancelamento de fila Redis/settlement; hibernação cooperativa em manutenção do broker; teto 2× incompleto → `sys.exit(0)` |
+| Concorrência | `StateManager` + `orchestrator_atomic_state` + `session_persistence_barrier` | `asyncio.Lock` central serializa inferência DL, liquidação e persistência; leituras de infra via `read_cached_balance` sem bloquear o lock |
+| Estado | `StateManager` + `redis_state_pipeline` + `orchestrator_persistence` | Snapshot atômico MULTI/EXEC; persistência locked/unlocked; barreira pós-reset linear D'Alembert |
 | Inferência | `TritonGrpcClient` | Canal `grpc.aio.insecure_channel` persistente; timeout 2 s; predições paralelas via `asyncio.gather`; fallback local em timeout |
 | Mercado TS | `TimescaleMarketWriter` | Ticks e barras OHLC macro M15 (900 s) e micro M1 (60 s) para backtest |
 | Modelos | `MinioModelStore` + cache `data/dl/` | Checkpoints DL como source of truth remoto; sanity estressado no startup |
@@ -125,6 +126,7 @@ Logs em `logs/engine.log` (formato `AetherFormatter`):
 - `MARTINGALE`, `RISK: RECOVERY`, `RISK: WIN operacional`, `KELLY: consensus retention` — sizing, recovery financeiro e penalidade de consenso
 - `SESSAO INICIADA | Alvo de 1%: $XX.XX | Stop Loss: DESATIVADO` — bootstrap de meta por sessão ativa
 - `TRITON_TIMEOUT_FALLBACK`, `WATCHDOG: STALE_DATA` — resiliência de inferência e ingestão
+- `[API_GUARD]` — hibernação cooperativa durante manutenção ou reset de liquidez do broker
 - `[D-SQUEEZE]` — downgrade de score em compressão M1 (`bb_width`, `tick_accel`, `predicted_payoff_edge`, `score`)
 - `CICLO: ciclo pos-liquidacao incompleto` — retry pós-liquidação; após 2 falhas consecutivas, persistência de emergência e encerramento atômico
 - Liquidação e resumo de cluster após settlement
@@ -140,7 +142,7 @@ Monitor opcional: `python app/scripts/monitor/live_monitor.py`
 - **Python 3.13.12**, `asyncio`, NumPy, Polars, PyTorch (TCN / LSTM / GRU)
 - **Deriv** PAT + REST OTP + WebSocket (`api_config` em settings; ver `docs/deriv-api.md`)
 - **Infra**: Redis, TimescaleDB, MinIO, NVIDIA Triton (gRPC), meta-regressor LightGBM (HTTP 8005)
-- **CI / pre-commit**: Ruff, Interrogate, Vulture, limite 300 linhas/arquivo, pytest com **100%** de cobertura em `app/src`
+- **CI / pre-commit**: Ruff, Interrogate, Vulture, limite 300 linhas/arquivo, pytest com **100%** de cobertura em `app/src` (~1806 testes)
 
 Requisito local: ambiente Conda **`deriv-api`** (Python 3.13.12). Configuração em [`config/python.json`](config/python.json).
 
