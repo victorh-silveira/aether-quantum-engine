@@ -5,6 +5,7 @@ import sys
 from typing import Any
 
 from src.application.services.orchestrator.graceful_shutdown import close_infrastructure_connections
+from src.application.services.orchestrator.orchestrator_data_signature import get_data_state_signature
 from src.application.services.orchestrator.orchestrator_persistence import save_full_state
 from src.application.services.orchestrator.orchestrator_settlement_queue import start_settlement_worker
 from src.application.services.orchestrator.settlement_reconciliation import reconcile_after_ws_recovery
@@ -35,33 +36,6 @@ async def subscribe_transactions(orch: Any) -> None:
 async def stop_orchestrator(orch: Any) -> None:
     """Encerra conexoes de infraestrutura do orquestrador."""
     await close_infrastructure_connections(orch)
-
-
-def get_data_state_signature(orch: Any) -> str:
-    """Monta assinatura combinada M1 (micro) e M15 (macro) por simbolo."""
-    micro_parts: list[str] = []
-    macro_parts: list[str] = []
-    stream = getattr(orch, "stream", None)
-    if stream is None:
-        return ""
-    for sym in orch.symbols:
-        micro_hist = getattr(stream, "micro_candles", {}).get(sym, [])
-        if micro_hist:
-            last_m = micro_hist[-1]  # pragma: no cover
-            micro_parts.append(
-                f"{sym}:{last_m.epoch}:{last_m.open}:{last_m.close}:{last_m.high}:{last_m.low}"
-            )  # pragma: no cover
-        macro_hist = getattr(stream, "macro_candles", stream.candles).get(sym, [])
-        if macro_hist:
-            last_macro = macro_hist[-1]  # pragma: no cover
-            macro_parts.append(
-                f"{sym}:{last_macro.epoch}:{last_macro.open}:{last_macro.close}:{last_macro.high}:{last_macro.low}"
-            )  # pragma: no cover
-    micro_sig = "|".join(micro_parts)
-    macro_sig = "|".join(macro_parts)
-    if not micro_sig and not macro_sig:
-        return ""
-    return f"m1:{micro_sig};m15:{macro_sig}"
 
 
 def emergency_save_session_state(orch: Any) -> None:

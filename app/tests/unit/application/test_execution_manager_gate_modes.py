@@ -114,6 +114,7 @@ def test_collect_orders_continuous_keeps_weak_technically_valid_candidate(orch_c
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
+        orch.risk_manager.consecutive_losses_linear = 2
         orch.symbols = ["RDBULL"]
         orch.config["deep_learning"] = {
             "min_edge_execute": 0.04,
@@ -134,8 +135,7 @@ def test_collect_orders_continuous_keeps_weak_technically_valid_candidate(orch_c
             },
         }
         orders = orch.executor._collect_orders(decisions)
-        assert len(orders) == 1
-        assert orders[0][1] == TradeDirection.CALL
+        assert len(orders) == 0
 
 
 def test_collect_orders_non_mandatory_keeps_filtered_candidate(orch_config):

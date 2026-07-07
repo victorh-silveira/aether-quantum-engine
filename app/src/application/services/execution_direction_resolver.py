@@ -2,10 +2,18 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from src.application.services.direction_persistence_guard import evaluate_direction_persistence_guard
+from src.application.services.execution_quality_gate import (
+    direction_margin_from_probability,
+    ensure_direction_margin,
+    passes_execution_quality,
+)
 from src.application.services.meta_classifier_cross_symbol import ANCHOR_BEAR, ANCHOR_BULL
 from src.application.services.meta_classifier_features import cross_symbol_conviction_spread
 from src.application.services.meta_classifier_stacking import resolve_meta_payoff_edge
+from src.application.services.meta_direction_flip import SIGNAL_SUSPENDED
 from src.application.services.meta_payoff_regression import apply_meta_regression_edge
 from src.application.services.payoff_edge_zscore import attach_payoff_edge_zscore_metrics
 from src.domain.models.trade import TradeDirection
@@ -84,7 +92,7 @@ def _seed_direction_metrics(
     metrics["meta_direction_flip"] = False
     metrics["direction_call_score"] = call_score
     metrics["direction_put_score"] = put_score
-    metrics["direction_margin"] = abs(call_score - put_score)
+    metrics["direction_margin"] = direction_margin_from_probability(prob, direction=dl_dir.name)
     return score
 
 
@@ -156,6 +164,43 @@ def _strict_anchor_direction(
     return None
 
 
+def _sync_entry_metrics(entry: dict, metrics: dict) -> None:
+    """Propaga metricas resolvidas de volta ao entry de decisao."""
+    entry_metrics = entry.get("metrics")
+    if isinstance(entry_metrics, dict):
+        entry_metrics.update(metrics)
+    else:
+        entry["metrics"] = metrics
+
+
+def _reject_on_quality_gate(
+    entry: dict,
+    metrics: dict,
+    gate_probe: dict,
+    exec_cfg_dict: dict,
+    *,
+    risk_manager: Any | None = None,
+) -> bool:
+    """Retorna True quando o gate de alta conviccao suspende o candidato."""
+    if passes_execution_quality(
+        gate_probe,
+        exec_cfg=exec_cfg_dict,
+        risk_manager=risk_manager,
+    ):
+        return False
+    metrics.update(
+        {
+            key: gate_probe[key]
+            for key in ("regime_skip_cycle", "direction_margin", "quality_gate_reason")
+            if key in gate_probe
+        },
+    )
+    metrics["signal_status"] = SIGNAL_SUSPENDED
+    metrics["quality_guard_reject"] = True
+    _sync_entry_metrics(entry, metrics)
+    return True
+
+
 def resolve_execution_direction(
     entry: dict,
     *,
@@ -167,13 +212,13 @@ def resolve_execution_direction(
     infra_cfg: dict | None = None,
     peer_entry: dict | None = None,
     cycle_id: int = 0,
+    risk_manager: Any | None = None,
 ) -> tuple[TradeDirection, dict] | None:
     """Resolve direcao micro com edge continuo do meta-regressor e downgrade D-SQUEEZE."""
-    _ = (exec_cfg, calibration_cfg, recovery_active, corr_matrix)
-    if is_technically_blocked(entry):
-        return None
+    _ = (calibration_cfg, recovery_active, corr_matrix)
+    exec_cfg_dict = exec_cfg if isinstance(exec_cfg, dict) else {}
     dl_dir = infer_dl_direction(entry)
-    if dl_dir is None:
+    if is_technically_blocked(entry) or dl_dir is None:
         return None
     metrics = dict(entry.get("metrics") or {})
     metrics["bb_width_anomaly_ratio"] = D_SQUEEZE_BB_WIDTH_ANOMALY_RATIO
@@ -190,6 +235,11 @@ def resolve_execution_direction(
         _base_score=score,
         config={"infra": infra_cfg} if infra_cfg else None,
     )
+    gate_probe = dict(metrics)
+    gate_probe["predicted_payoff_edge"] = float(predicted_edge)
+    gate_probe["meta_classifier_applied"] = bool(meta_applied)
+    if _reject_on_quality_gate(entry, metrics, gate_probe, exec_cfg_dict, risk_manager=risk_manager):
+        return None
     exec_dir, final_score = apply_meta_regression_edge(
         dl_dir,
         metrics,
@@ -202,6 +252,7 @@ def resolve_execution_direction(
     if metrics.get("meta_squeeze_downgrade"):
         metrics["tcn_score"] = prob
         metrics["consensus_stake_floor"] = True
+        ensure_direction_margin(metrics)
         return exec_dir, metrics
     strict = _strict_anchor_direction(
         prob,
@@ -224,14 +275,11 @@ def resolve_execution_direction(
         infra_cfg=infra_cfg,
     )
     if guarded is None:
-        entry_metrics = entry.get("metrics")
-        if isinstance(entry_metrics, dict):
-            entry_metrics.update(metrics)
-        elif metrics.get("signal_status") == "SIGNAL_SUSPENDED":
-            entry["metrics"] = metrics
+        _sync_entry_metrics(entry, metrics)
         return None
     metrics["exec_direction"] = guarded.name
     metrics["resolved_direction"] = guarded.name
     metrics["tcn_score"] = prob
     _ = final_score
+    ensure_direction_margin(metrics)
     return guarded, metrics

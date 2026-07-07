@@ -1,8 +1,10 @@
+import asyncio
 from contextlib import contextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from src.application.services.orchestrator.warm_up_buffer_guard import STREAM_WARM_UP_DELAY_SECONDS
 from src.infrastructure.handlers.stream_reconnect import (
     _continuous_stream_active,
     _needs_profit_table_audit,
@@ -50,7 +52,10 @@ def _build_reconnect_mocks(
     stream.ws.send = AsyncMock()
     stream._on_candle = MagicMock()
     stream._on_tick = MagicMock()
+    stream.tick_buffer = MagicMock()
+    stream.tick_buffer.reset_live_accumulators = MagicMock()
     stream.tick_buffer.touch_activity = MagicMock()
+    orch.config = {"orchestrator": {"stream_warm_up_delay_seconds": 45}}
     return orch, stream
 
 
@@ -97,7 +102,21 @@ async def test_execute_stream_reconnect_success():
     assert ok is True
     orch.ws.close.assert_awaited_once()
     stream.ws.send.assert_awaited()
+    stream.tick_buffer.reset_live_accumulators.assert_called_once()
     stream.tick_buffer.touch_activity.assert_called_once()
+    assert orch._stream_warmed_up_at > 0.0
+
+
+@pytest.mark.asyncio
+async def test_execute_stream_reconnect_schedules_warm_up_barrier():
+    orch, stream = _build_reconnect_mocks()
+    with _reconnect_patches():
+        ok = await execute_stream_reconnect(orch, stream)
+    assert ok is True
+    assert orch._stream_warmed_up_at - asyncio.get_running_loop().time() == pytest.approx(
+        STREAM_WARM_UP_DELAY_SECONDS,
+        abs=0.05,
+    )
 
 
 @pytest.mark.asyncio

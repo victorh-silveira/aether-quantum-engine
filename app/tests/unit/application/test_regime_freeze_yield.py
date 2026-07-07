@@ -1,3 +1,4 @@
+import asyncio
 import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -10,14 +11,22 @@ from src.application.services.orchestrator.regime_freeze_yield import (
     _entry_freeze_active,
     _yield_freeze_delay,
     await_regime_freeze_yield,
+    cluster_collect_aborted,
     cluster_freeze_active,
     decisions_signal_suspended,
     propagate_cluster_signal_suspended,
     regime_freeze_yield_seconds,
 )
+from src.application.services.orchestrator.trading_cycle_entry import run_trading_cycle_if_ready
+from src.application.services.orchestrator.warm_up_buffer_guard import (
+    STREAM_WARM_UP_DELAY_SECONDS,
+    schedule_stream_warm_up_barrier,
+    stream_warm_up_active,
+)
 
 
 FREEZE_YIELD_MODULE = "src.application.services.orchestrator.regime_freeze_yield"
+TRADING_CYCLE_MODULE = "src.application.services.orchestrator.trading_cycle_entry"
 
 
 def test_decisions_signal_suspended_detects_frozen_entry():
@@ -49,6 +58,20 @@ def test_propagate_cluster_signal_suspended_marks_all_symbols():
     propagate_cluster_signal_suspended(decisions)
     assert decisions["RDBULL"]["metrics"]["signal_status"] == SIGNAL_SUSPENDED
     assert decisions["RDBEAR"]["metrics"]["signal_status"] == SIGNAL_SUSPENDED
+
+
+def test_cluster_collect_aborted_propagates_and_returns_true():
+    decisions = {
+        "RDBULL": {"metrics": {"regime_guard_action": "FREEZE: SKIP CYCLE"}},
+        "RDBEAR": {"metrics": {"execute": True}},
+    }
+    assert cluster_collect_aborted(decisions) is True
+    assert decisions["RDBEAR"]["metrics"]["signal_status"] == SIGNAL_SUSPENDED
+
+
+def test_cluster_collect_aborted_false_when_cluster_active():
+    decisions = {"RDBULL": {"metrics": {"execute": True, "trade_score": 0.80}}}
+    assert cluster_collect_aborted(decisions) is False
 
 
 def test_cluster_freeze_active_false_for_invalid_decisions():
@@ -151,3 +174,53 @@ async def test_await_regime_freeze_yield_skips_without_suspension():
         delay = await await_regime_freeze_yield(orch, decisions)
     assert delay == 0.0
     sleep_mock.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_post_reconnect_warm_up_suspends_cycles_before_regime_freeze(orch_ready):
+    orch = orch_ready
+    orch._last_cluster_cycle_end = 0.0
+    orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 0
+    loop = asyncio.get_running_loop()
+    base = loop.time()
+    schedule_stream_warm_up_barrier(orch)
+    with (
+        patch(
+            f"{TRADING_CYCLE_MODULE}.collect_deep_learning_decisions",
+            new_callable=AsyncMock,
+            return_value={"RDBULL": {"metrics": {"signal_status": SIGNAL_SUSPENDED}}},
+        ) as collect_mock,
+        patch(f"{FREEZE_YIELD_MODULE}._yield_freeze_delay", new_callable=AsyncMock) as freeze_sleep,
+        patch(f"{TRADING_CYCLE_MODULE}.mark_bar_processed", new_callable=AsyncMock),
+        patch.object(loop, "time", return_value=base + 20.0),
+    ):
+        ran = await run_trading_cycle_if_ready(orch)
+    assert ran is True
+    collect_mock.assert_not_awaited()
+    freeze_sleep.assert_not_awaited()
+    assert stream_warm_up_active(orch, now=base + 20.0) is True
+
+
+@pytest.mark.asyncio
+async def test_post_reconnect_warm_up_releases_cycles_after_delay(orch_ready):
+    orch = orch_ready
+    orch._last_cluster_cycle_end = 0.0
+    orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 0
+    loop = asyncio.get_running_loop()
+    base = loop.time()
+    orch._stream_warmed_up_at = base + STREAM_WARM_UP_DELAY_SECONDS
+    orch.executor.execute_cluster = AsyncMock()
+    with (
+        patch(
+            f"{TRADING_CYCLE_MODULE}.collect_deep_learning_decisions",
+            new_callable=AsyncMock,
+            return_value={"RDBULL": {"metrics": {"calibrated_prob": 0.70, "predicted_payoff_edge": 0.08}}},
+        ) as collect_mock,
+        patch(f"{TRADING_CYCLE_MODULE}.mark_bar_processed", new_callable=AsyncMock),
+        patch.object(loop, "time", return_value=base + STREAM_WARM_UP_DELAY_SECONDS + 1.0),
+    ):
+        ran = await run_trading_cycle_if_ready(orch)
+    assert ran is True
+    collect_mock.assert_awaited_once()
+    orch.executor.execute_cluster.assert_awaited_once()
+    assert stream_warm_up_active(orch, now=base + STREAM_WARM_UP_DELAY_SECONDS + 1.0) is False

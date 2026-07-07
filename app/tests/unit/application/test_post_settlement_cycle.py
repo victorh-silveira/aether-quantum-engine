@@ -17,6 +17,7 @@ from src.application.services.orchestrator.post_settlement_cycle import (
     schedule_trading_cycle_after_settlement,
 )
 from tests.unit.application.post_settlement_helpers import (
+    TRADING_CYCLE_COLLECT,
     patch_incrementing_monotonic,
     patch_instant_post_settlement_poll,
 )
@@ -144,7 +145,7 @@ async def test_run_post_settlement_invokes_real_trading_cycle(orch_ready):
     orch.config.setdefault("orchestrator", {})["post_settlement_breath_seconds"] = 0
     with (
         patch(
-            "src.application.services.orchestrator.collect_deep_learning_decisions",
+            TRADING_CYCLE_COLLECT,
             new_callable=AsyncMock,
             return_value={},
         ),
@@ -162,7 +163,7 @@ async def test_run_post_settlement_releases_task_reference(orch_ready):
     orch.config.setdefault("orchestrator", {})["post_settlement_breath_seconds"] = 0
     with (
         patch(
-            "src.application.services.orchestrator.collect_deep_learning_decisions",
+            TRADING_CYCLE_COLLECT,
             new_callable=AsyncMock,
             return_value={},
         ),
@@ -184,7 +185,7 @@ async def test_run_post_settlement_waits_for_is_trading_then_runs_real_cycle(orc
 
     with (
         patch(
-            "src.application.services.orchestrator.collect_deep_learning_decisions",
+            TRADING_CYCLE_COLLECT,
             new_callable=AsyncMock,
             return_value={},
         ),

@@ -59,14 +59,14 @@ Desvios extremos em M1 (RSI, Keltner, Bollinger) alimentam o vetor tabular **39D
 - **Martingale Geométrico**: em recovery, `Effective_Base × 2^consecutive_losses_linear` sem teto de nível.
 - **Stop win por sessão ativa**: meta de lucro = 2,60% da banca inicial (`compounding_rate_daily`); ao atingir, fast-path (`clear_current_session_redis_keys` → `cancel_settlement_queue_fast` → `graceful_shutdown(fast_path=True)`); cada restart inicia sessão independente.
 - **Stop loss interno desativado**: Martingale opera sem disjuntor de perda imposto pelo motor.
-- **Gate de qualidade neutro**: sinal válido participa sempre do pool; sem SKIP por regime ou exaustão.
+- **Gate de qualidade adaptativo**: `direction_margin = abs(P(lado) − 0.50)` com pisos **0.06** / **0.12** (regular / recovery); suspende ruído lateral próximo ao neutro.
 
 ### 2.4 Fases de Treinamento e Operação
 
 - **FASE TREINO**: todos os símbolos retreinam ao menos uma vez por sessão (`session_trained`). Nenhuma ordem até concluir.
-- **FASE OPERACAO seletiva** (`mandatory_trade_each_cycle: false`): opera quando o melhor candidato passa no gate (score ≥ 0.68 normal). Ciclos sem candidato elegível são pulados.
-- **FASE OPERACAO contínua** (`mandatory_trade_each_cycle: true`): uma ordem por ciclo; qualidade como penalidade; fallback de entropia garante participação mínima.
-- **Resolução direcional**: TCN define `dl_direction`; meta-regressor refina stake via `predicted_payoff_edge` e downgrade D-SQUEEZE em compressão M1.
+- **FASE OPERACAO seletiva** (`mandatory_trade_each_cycle: false`): opera quando o melhor candidato passa no gate (margem direcional e payoff meta acima dos pisos).
+- **FASE OPERACAO contínua** (`mandatory_trade_each_cycle: true`): uma ordem por ciclo quando há candidato válido; fallback obrigatório bloqueado em recovery se todos foram vetados pelo gate.
+- **Resolução direcional**: TCN define `dl_direction`; meta-regressor refina stake via `predicted_payoff_edge` e downgrade D-SQUEEZE em compressão M1; `ensure_direction_margin` expõe margem corrigida.
 - **Deploy gate**: modelos com `deploy_ok=false` não entram no pool.
 
 ### 2.5 Perfil de qualidade atual
@@ -77,7 +77,8 @@ Desvios extremos em M1 (RSI, Keltner, Bollinger) alimentam o vetor tabular **39D
 | Classificação macro | TCN M15 define `dl_direction` |
 | Stacking tabular | Meta-regressor LightGBM M1 sobre vetor **39D** + probabilidade TCN; saída `predicted_payoff_edge` |
 | Downgrade squeeze | Edge `< -0.15` em compressão M1: `trade_score=0.52`; `[D-SQUEEZE]` |
-| Gate de qualidade | Neutro: participa sempre do pool, sem skip por regime |
+| Margem direcional | `abs(P(lado_escolhido) − 0.50)` — CALL usa `calibrated_prob`; PUT usa `1 − prob` |
+| Gate de qualidade | Janelas dinâmicas regular/recovery; log `[AETHER] QUALITY_GUARD` em reprovação |
 | Scoring direcional | TCN + meta GBDT; `exec_direction` alinhada à TCN |
 | Recovery | Martingale Geométrico `Kelly_base × 2^n`; persistência até `pending_total = 0` |
 | Kelly divergente | Consensus Entropy Penalty; waiver em recovery com `pending_total > 0` |

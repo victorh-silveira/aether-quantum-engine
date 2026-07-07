@@ -10,6 +10,7 @@ from src.application.services.bb_width_adaptive_squeeze import (
     evaluate_bb_width_squeeze,
     harmonic_mean_bb_width,
 )
+from src.application.services.execution_quality_gate import sync_direction_margin
 from src.domain.models.trade import TradeDirection
 
 
@@ -167,6 +168,6 @@ def apply_meta_direction_flip(
     else:
         metrics["direction_put_score"] = score
         metrics["direction_call_score"] = max(0.0, 1.0 - score)
-    metrics["direction_margin"] = abs(metrics["direction_call_score"] - metrics["direction_put_score"])
+    sync_direction_margin(metrics, direction=exec_dir.name)
     _ = tcn_probability
     return exec_dir, score

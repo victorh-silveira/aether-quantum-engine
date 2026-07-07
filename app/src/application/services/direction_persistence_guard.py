@@ -9,6 +9,7 @@ from src.application.services.direction_loss_tracker import (
     anti_trend_lock_active,
     consecutive_direction_losses,
 )
+from src.application.services.execution_quality_gate import sync_direction_margin
 from src.application.services.meta_classifier_cross_symbol import ANCHOR_BEAR, ANCHOR_BULL
 from src.application.services.meta_classifier_features import cross_symbol_conviction_spread
 from src.application.services.meta_direction_flip import (
@@ -142,7 +143,7 @@ def _apply_flip_metrics(
     else:
         metrics["direction_put_score"] = score
         metrics["direction_call_score"] = max(0.0, 1.0 - score)
-    metrics["direction_margin"] = abs(metrics["direction_call_score"] - metrics["direction_put_score"])
+    sync_direction_margin(metrics, direction=exec_dir.name)
 
 
 def _mark_guard(metrics: dict[str, Any], count: int) -> None:

@@ -20,13 +20,13 @@ Motor assíncrono para trading na Deriv com decisão exclusiva por **Deep Learni
 | Fases | `FASE TREINO` → `FASE OPERACAO` |
 | Execução | Seletiva (`mandatory_trade_each_cycle: false`) ou **contínua** (`true`) |
 
-O mercado é tratado como **série temporal ruidosa**: o modelo estima probabilidade de alta; um **motor de direção linear puro** segue estritamente o sinal da TCN (`P(CALL) > P(PUT)` → CALL, caso contrário PUT) e uma **camada de qualidade neutra** apenas confirma que o sinal é matematicamente válido. Não há vetos táticos, inversões de regime nem skip de ciclo: em modo contínuo o motor boleta em toda virada de minuto M1.
+O mercado é tratado como **série temporal ruidosa**: o modelo estima probabilidade de alta; um **motor de direção** segue o sinal da TCN (`P(CALL) > pivot` → CALL, caso contrário PUT), refinado pelo meta-regressor LightGBM, e um **gate de qualidade adaptativo** filtra ruído lateral próximo ao neutro 0,50 antes da execução. Em modo contínuo (`mandatory_trade_each_cycle: true`), o motor boleta em toda virada de minuto M1 quando o candidato passa no gate; sinais fracos (`direction_margin` insuficiente) são rejeitados sem fallback obrigatório em recovery.
 
 ---
 
 ## 2. Pipeline de dados
 
-O grafo abaixo reflete o pipeline **aprovado no pre-commit**: o subgrafo `direcao` contém apenas o resolver linear e o gate neutro. Módulos purgados (`execution_entropy_adaptive`, `execution_direction_mean_reversion`, `execution_direction_expansion_veto` e afins) **não** participam do fluxo.
+O grafo abaixo reflete o pipeline **aprovado no pre-commit**: o subgrafo `direcao` contém o resolver TCN + meta-regressor, o gate de qualidade com janelas dinâmicas e a assinatura M1+M15 para invalidação de cache.
 
 ```mermaid
 flowchart LR
@@ -44,8 +44,9 @@ flowchart LR
     META[aether-meta-classifier GBDT]
   end
   subgraph direcao
-    RES[execution_direction_resolver linear puro]
-    QG[execution_quality_gate neutro]
+    SIG[orchestrator_data_signature M1+M15]
+    RES[execution_direction_resolver TCN + meta GBDT]
+    QG[execution_quality_gate janelas dinamicas]
   end
   subgraph exec
     COL[execution_collect]
@@ -66,6 +67,7 @@ flowchart LR
   WD -->|STALE_DATA reconnect| SH
   SH --> FEAT --> TRITON --> MODEL --> PRED --> BUNDLE[dl_predict_build cross-symbol]
   BUNDLE --> META --> RES --> QG --> COL --> SEL --> EM --> TH
+  SIG -->|invalida cache por minuto| RES
   TH --> ST --> RM
   COL --> LOCK
   ST --> LOCK
@@ -188,11 +190,24 @@ flowchart TD
 - `history_bars` / `training_history_bars` definem recorte para treino e predição.
 - `StreamHandler` assina **dois fluxos OHLC** por símbolo: **M15 (900 s)** para tensor DL `[1, 48, 34]` e **M1 (60 s)** para o relógio do orquestrador.
 - `TickBuffer` agrega microestrutura apenas no fechamento de barras **M15**.
-- `get_data_state_signature()` combina assinatura **M1 + M15** para reavaliar o cenário a cada minuto sem inferência redundante na GPU.
+- `get_data_state_signature()` (`orchestrator_data_signature.py`) combina assinatura **M1 + M15** com fronteira de minuto obrigatória para reavaliar o cenário a cada virada M1 sem inferência redundante na GPU.
 
-### 2.3 Assinatura de estado de dados
+### 2.3 Assinatura de estado de dados (M1 + M15)
 
-Para evitar inferências duplicadas na virada de vela, o orquestrador usa `get_data_state_signature()`: concatena epoch e OHLC do último candle fechado por símbolo. Se a assinatura for idêntica ao ciclo anterior, o motor aguarda sem reprocessar.
+Para evitar inferências duplicadas na mesma fronteira de minuto, o orquestrador usa `get_data_state_signature()`:
+
+| Componente | Função |
+|------------|--------|
+| `m1_boundary_epoch()` | Epoch Unix alinhado ao minuto corrente (`max` entre relógio e `_last_epoch` do âncora) |
+| Assinatura micro | `m1:{sym}@{epoch}` por símbolo — último candle M1 fechado |
+| Assinatura macro | `m15:{sym}@{epoch}` por símbolo — último candle M15 fechado |
+| Formato final | `m1b:{boundary};m1:{...};m15:{...}` |
+
+Em `trading_cycle_entry.run_trading_cycle_if_ready`:
+
+1. Se a assinatura mudou, o ciclo **não** é bloqueado apenas por `_last_processed_epoch == _last_epoch` (cache invalidado).
+2. Se a assinatura é idêntica ao ciclo anterior, o motor aguarda sem reprocessar.
+3. Log DEBUG: `DATA_SIG: cache invalidado por divergencia M1 | anterior=... | atual=...`.
 
 ---
 
@@ -224,7 +239,7 @@ Normalização anti-leakage: `fit_norm_stats` somente no split de treino walk-fo
 - Saída: probabilidade bruta de alta (`raw_prob`).
 - Checkpoint v4 em `data/dl/{symbol}.pth` + TorchScript `{symbol}_ts.pt` (espelho MinIO `latest_ts.pt`).
 - Inferência via `TritonGrpcClient.infer_symbols_concurrent` quando `infra.triton.enabled`; tensor FP32 **`[1, 48, 34]`** (48 barras M15 = **12 h** de contexto).
-- `collect_cluster_orders` opera de forma contínua: sem SKIP por qualidade; mandatory pick garante ordem a cada virada M1 quando a TCN entrega sinal válido.
+- `collect_cluster_orders` opera de forma contínua quando `mandatory_trade_each_cycle: true`; o quality gate filtra sinais com margem direcional insuficiente antes do pool de candidatos.
 
 ### 3.3 Treino walk-forward
 
@@ -262,7 +277,8 @@ A direção macro (`dl_direction`) segue a TCN (M15). O **meta-regressor** (M1) 
 | **Edge positivo** | `predicted_payoff_edge > 0.0`: mantém `dl_direction` e `trade_score` orgânico da TCN |
 | **Edge negativo severo + squeeze** | `predicted_payoff_edge < -0.15` com `bb_width < 0.06` ou `micro_tick_acceleration < 0`: `trade_score=0.52`; `meta_squeeze_downgrade=true`; log `[D-SQUEEZE]` |
 | Edge negativo leve | Mantém direção TCN e score orgânico |
-| `direction_margin` | `\|P(CALL) − P(PUT)\|` — telemetria de clareza |
+| `direction_margin` | `abs(P(lado_escolhido) − 0.50)` — distância da confiança lateral ao neutro; CALL usa `calibrated_prob`; PUT usa `1 − prob` |
+| `ensure_direction_margin` | Recalcula margem a partir de prob + direção final (`exec_direction`/`resolved_direction`/`dl_direction`), ignorando valor sobrescrito pelo meta stacking |
 | `direction_inverted` | Permanece `False` no fluxo de regressão (sem flip binário) |
 
 **Gatilho D-SQUEEZE** (`meta_payoff_regression.py` + `meta_direction_flip.log_d_squeeze_audit`):
@@ -274,21 +290,49 @@ A direção macro (`dl_direction`) segue a TCN (M15). O **meta-regressor** (M1) 
 
 Em squeeze com edge severamente negativo, o `trade_score=0.52` força o `consensus_stake_penalty` a comprimir a stake ao piso mínimo da API Deriv ($1.00), sem inverter `exec_direction`.
 
-Bloqueio absoluto (`resolve_execution_direction` retorna `None`) apenas em falha técnica: `deploy_ok == False` ou `gate_reason ∈ {data, predict_error, training}`.
+Bloqueio absoluto (`resolve_execution_direction` retorna `None`) em:
+
+- Falha técnica: `deploy_ok == False` ou `gate_reason ∈ {data, predict_error, training}`
+- Quality gate: `direction_margin` ou `predicted_payoff_edge` abaixo dos pisos dinâmicos (`_reject_on_quality_gate`)
+
+Antes de retornar, o resolver chama `ensure_direction_margin()` para expor a margem corrigida nas métricas do candidato.
 
 A matriz de correlação cross-symbol (`execution_direction_cross_corr`) e o `execution_volatility_booster` permanecem como telemetria/pisos consultivos.
 
-### 4.2 Gate de qualidade neutro (`execution_quality_gate.py`)
+### 4.2 Gate de qualidade adaptativo (`execution_quality_gate.py`)
 
-O gate foi neutralizado: não há vetos, penalidades nem skip de ciclo. Sua única função é confirmar que existe sinal matematicamente válido.
+O gate filtra ruído lateral com **janelas elásticas** calibradas pelo estado de risco (`RiskManager`):
 
-| Função | Retorno invariável |
-|--------|--------------------|
-| `passes_execution_quality(metrics, ...)` | `True`; grava `metrics["regime_skip_cycle"] = False` |
-| `apply_quality_penalty_to_metrics(metrics, ...)` | `0.0`; grava `metrics["regime_skip_cycle"] = False` |
-| `quality_gate_params(config)` | Pisos default `0.0` (`min_direction_margin`, `inverted_min_score`, `min_adx_normal`) |
+| Regime | Condição | `min_direction_margin` | `min_payoff_edge` |
+|--------|----------|------------------------|-------------------|
+| **Regular** | `consecutive_losses_linear == 0` e `pending_loss_total == 0` | **0.06** | **0.01** |
+| **Recovery** | `linear > 0` ou `pending_loss > 0` | **0.12** | **0.04** |
 
-Consequência: sob `mandatory_trade_each_cycle: true`, o `ExecutionManager` boleta continuamente a cada virada M1 sempre que a TCN retorna sinal válido. Foram removidos por completo `validate_recovery_asymmetric_gate`, `validate_micro_noise_gate`, `validate_micro_boundary_saturation_gate`, as checagens de ADX colapsado/squeeze em random walk e o barramento `UniversalRegimeEvaluator`.
+Limites configuráveis em `orchestrator.execution.quality_gate` e `quality_gate.regular` (`config/settings.json`).
+
+**Fórmula de margem direcional** (`direction_margin_from_probability`):
+
+```
+direction_margin = abs(probabilidade_do_lado_escolhido − 0.50)
+```
+
+Exemplos: CALL com `c=0.75` → margem **0.25**; PUT com `c=0.46` → confiança PUT `0.54` → margem **0.04**.
+
+| Função | Comportamento |
+|--------|---------------|
+| `ensure_direction_margin(metrics)` | Recalcula margem a partir de `calibrated_prob`/`raw_prob` + direção final |
+| `passes_execution_quality(metrics, ...)` | Reprova se `direction_margin ≤ piso` ou (meta ativo e `payoff_edge < piso`); grava `quality_gate_reason`, `quality_gate_regime` |
+| `apply_quality_penalty_to_metrics(...)` | Retorna `1.0` quando o gate reprova (penalidade no ranking) |
+| `resolve_dynamic_quality_limits(...)` | Seleciona pisos regular vs recovery |
+
+**Suspensão cooperativa do cluster** (`execution_quality_gate_cluster.py`):
+
+- `quality_conviction_suspends_cluster(orch, decisions)` — chamado em `trading_cycle_entry` após inferência; marca `signal_status=SIGNAL_SUSPENDED` e `quality_guard_reject=True` nos entries reprovados
+- Log estruturado: `[AETHER] QUALITY_GUARD | Ciclo C#### descartado. Motivo: ... | linear=... pending_loss=$...`
+
+**Fallback obrigatório em recovery** (`execution_quality_gate_fallback.py`):
+
+- `cluster_quality_gate_blocks_mandatory_fallback` impede fallback obrigatório quando **todos** os candidatos DL viáveis foram vetados pelo quality gate em recovery — evita boletar ruído lateral após rejeição coletiva
 
 ### 4.3 Pool e seleção
 
@@ -413,8 +457,9 @@ Persistência: `data/session_state.json` (métricas da sessão corrente), Redis 
 3. `start_ingestion_watchdog` — monitoramento de inanição de ticks (modo contínuo).
 4. A cada vela do âncora ou `cycle_interval_seconds`:
    - `tick_bars_since_train`
-   - `run_trading_cycle_if_ready` → `async with orchestrator_atomic_state_context`:
+   - `run_trading_cycle_if_ready` → valida assinatura M1+M15 → `async with orchestrator_atomic_state_context`:
      - `collect_deep_learning_decisions` (inferência Triton concorrente com fallback TorchScript)
+     - `quality_conviction_suspends_cluster` (veto cooperativo por margem/payoff)
      - `executor.execute_cluster`
 5. Reconciliação periódica de contratos abertos.
 6. Após liquidação: `post_settlement_cycle` (fast-path stop win ou retry com teto) → persistência via `orchestrator_persistence`.
@@ -442,7 +487,7 @@ Persistência: `data/session_state.json` (métricas da sessão corrente), Redis 
 | `data_handler` | `granularity`, `history_bars`, `fetch_count`, `buffer_limit` |
 | `deep_learning` | `arch`, `lookback`, `confidence_*`, `min_val_accuracy`, `deploy_gate` |
 | `orchestrator` | `watchdog_*`, `cycle_interval_seconds`, `idle_cycle_watchdog_seconds` |
-| `orchestrator.execution` | `mandatory_trade_each_cycle`, `include_anchor_trades`, `recovery_flip_direction_after_loss` |
+| `orchestrator.execution` | `mandatory_trade_each_cycle`, `include_anchor_trades`, `quality_gate`, `recovery_flip_direction_after_loss` |
 | `risk_management.kelly` | `fraction`, `consensus_penalty_*`, `penalty_smoothing_*`, `recovery_*` |
 | `risk_management.dlambert` | `dlambert_enabled`, `dlambert_unit_override` (base do Martingale Geométrico) |
 | `risk_management.params` | `compounding_enabled`, `compounding_rate_daily`, `session_start_balance`, `duration`, stakes |
@@ -458,9 +503,9 @@ Persistência: `data/session_state.json` (métricas da sessão corrente), Redis 
 |--------|-------------------|
 | Application / DL | `decision_bridge`, `dl_predict_build`, `dl_predict_async`, `dl_predict_triton`, `dl_gating`, `dl_trend`, `dl_cycle_*`, `model` |
 | Application / Meta | `meta_classifier_stacking`, `meta_payoff_regression`, `meta_classifier_features`, `meta_classifier_cross_symbol`, `meta_classifier_flow_features`, `meta_direction_flip` (auditoria D-SQUEEZE) |
-| Application / Direção | `execution_direction_resolver` (TCN + edge contínuo), `execution_direction_cross_corr` (telemetria), `execution_volatility_booster` (pisos consultivos), `execution_quality_gate` (neutro) |
+| Application / Direção | `execution_direction_resolver` (TCN + edge contínuo), `execution_direction_cross_corr` (telemetria), `execution_volatility_booster` (pisos consultivos), `execution_quality_gate` (margem + payoff), `execution_quality_gate_cluster`, `execution_quality_gate_fallback` |
 | Application / Execução | `execution_collect`, `execution_collect_gather`, `execution_market_rank`, `execution_symbols`, `execution_mandatory_pick` |
-| Application / Orchestrator | `Orchestrator`, `execution_manager`, `trading_cycle_entry`, `orchestrator_atomic_state`, `orchestrator_persistence`, `session_persistence_barrier`, `api_maintenance_guard`, `session_target_bootstrap`, `execution_recovery_gate`, `watchdog_service`, `graceful_shutdown`, `settlement_*`, `settlement_queue_ops`, `post_settlement_cycle`, `orchestrator_run_loop` |
+| Application / Orchestrator | `Orchestrator`, `execution_manager`, `trading_cycle_entry`, `orchestrator_data_signature`, `orchestrator_atomic_state`, `orchestrator_persistence`, `session_persistence_barrier`, `api_maintenance_guard`, `session_target_bootstrap`, `execution_recovery_gate`, `watchdog_service`, `graceful_shutdown`, `settlement_*`, `settlement_queue_ops`, `post_settlement_cycle`, `orchestrator_run_loop` |
 | Domain | `trade`, `market_data`, `probability_entropy`, `risk_manager`, `stop_win_target`, `risk_recovery_state`, `consensus_stake_penalty`, `recovery_hurst_gate`, `dlambert_sizing`, `recovery_conviction`, `stake_sizing` |
 | Infrastructure | `state_manager` (asyncio.Lock), `triton_grpc_client`, `triton_inference_client`, `websocket_manager`, `stream_handler`, `stream_reconnect`, `tick_buffer`, `trade_handler`, `minio_model_store`, `torchscript_sanity`, `redis_state_pipeline` |
 | Presentation | `logger`, `log_dedupe` |
@@ -488,6 +533,8 @@ Marcadores de log relevantes:
 | `WATCHDOG: STALE_DATA` | Inanição de ticks; reconexão controlada do stream |
 | `CICLO: ciclo pos-liquidacao incompleto` | Retry pós-liquidação; após 2× consecutivas → encerramento forçado |
 | `STOP_WIN` / fast-path | Meta da sessão atingida; Redis limpo e shutdown imediato |
+| `[AETHER] QUALITY_GUARD` | Ciclo descartado por margem TCN ou payoff meta insuficiente; inclui `linear` e `pending_loss` |
+| `DATA_SIG: cache invalidado` | Assinatura M1+M15 mudou; inferência reinicializada na fronteira de minuto |
 | `[D-SQUEEZE]` | Downgrade de score em compressão M1; métricas `bb_width`, `tick_accel`, `predicted_payoff_edge`, `score` |
 | `[API_GUARD]` | Hibernação cooperativa durante manutenção ou reset de liquidez do broker |
 | `session_persistence_write_active` | Barreira pós-reset linear em andamento; ciclo de trading aguarda liberação |

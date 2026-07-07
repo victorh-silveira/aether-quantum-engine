@@ -10,13 +10,14 @@ from src.application.services.deep_learning.decision_bridge import (
     collect_deep_learning_decisions as collect_deep_learning_decisions,
 )
 from src.application.services.deep_learning.dl_retrain import tick_bars_since_train
+from src.application.services.direction_loss_tracker import DirectionLossTracker, get_direction_loss_tracker
 from src.application.services.orchestrator.config_symbols import normalize_symbols_and_anchor
 from src.application.services.orchestrator.engine_mode import training_enabled
 from src.application.services.orchestrator.execution_manager import ExecutionManager
 from src.application.services.orchestrator.graceful_shutdown import close_infrastructure_connections
+from src.application.services.orchestrator.orchestrator_data_signature import get_data_state_signature
 from src.application.services.orchestrator.orchestrator_persistence import persist_full_state_unlocked, save_full_state
 from src.application.services.orchestrator.orchestrator_run_loop import (
-    get_data_state_signature,
     run_orchestrator_main_loop,
     setup_session,
     start_streams,
@@ -103,6 +104,11 @@ class Orchestrator:
         self._is_initial_boot = True
         self._ingestion_watchdog = None
         self._profit_table_audit_task: asyncio.Task | None = None
+
+    @property
+    def loss_tracker(self) -> DirectionLossTracker:
+        """Rastreador singleton de perdas direcionais com expiracao temporal."""
+        return get_direction_loss_tracker()
 
     def get_data_state_signature(self) -> str:
         """Calcula uma assinatura unica do estado dos dados de mercado."""

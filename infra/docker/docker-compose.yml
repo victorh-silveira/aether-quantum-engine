@@ -122,7 +122,7 @@ services:
           "CMD",
           "python",
           "-c",
-          "import urllib.request; import sys; response = urllib.request.urlopen('http://localhost:8000/health'); sys.exit(0 if response.getcode() == 200 else 1)",
+          "import json, urllib.request, sys; response = urllib.request.urlopen('http://localhost:8000/health'); payload = json.loads(response.read().decode()); sys.exit(0 if response.getcode() == 200 and payload.get('ready') else 1)",
         ]
       interval: 15s
       timeout: 5s

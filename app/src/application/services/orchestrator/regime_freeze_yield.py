@@ -61,6 +61,14 @@ def propagate_cluster_signal_suspended(decisions: dict) -> None:
         metrics["signal_status"] = SIGNAL_SUSPENDED
 
 
+def cluster_collect_aborted(decisions: dict) -> bool:
+    """Propaga suspensao global e indica abort imediato da coleta do cluster."""
+    if not cluster_freeze_active(decisions):
+        return False
+    propagate_cluster_signal_suspended(decisions)
+    return True
+
+
 def regime_freeze_yield_seconds(orch: Any) -> float:
     """Calcula pausa ate a virada M1 ou fallback institucional de 15s."""
     epoch = int(getattr(orch, "_last_epoch", 0) or 0)

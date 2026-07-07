@@ -3,10 +3,36 @@ from unittest.mock import MagicMock, patch
 
 from src.application.services.execution_symbols_recovery import recovery_blocked_symbols
 from src.application.services.orchestrator.execution_collect import collect_cluster_orders
-from src.application.services.orchestrator.execution_collect_helpers import resolve_mandatory_ultimate_candidate
+from src.application.services.orchestrator.execution_collect_helpers import (
+    mandatory_fallback_candidates,
+    resolve_mandatory_ultimate_candidate,
+)
 from src.domain.models.trade import TradeDirection
 from tests.market_symbols import ANCHOR, PAIR
 from tests.unit.application.universal_regime_metrics import bear_put_metrics
+
+
+def test_mandatory_fallback_candidates_returns_entropy_pick():
+    exec_mgr = SimpleNamespace(
+        _trade_symbols=lambda: [ANCHOR],
+        orch=SimpleNamespace(risk_manager=SimpleNamespace(consecutive_losses_linear=0)),
+    )
+    entropy_candidate = (ANCHOR, TradeDirection.CALL, {"trade_score": 0.55})
+    with patch(
+        "src.application.services.orchestrator.execution_collect_helpers.pick_entropy_fallback_candidate",
+        return_value=entropy_candidate,
+    ):
+        picks = mandatory_fallback_candidates(
+            exec_mgr,
+            {},
+            recovery_active=False,
+            last_loss_symbol=None,
+            last_loss_direction=None,
+            skip_symbols=frozenset(),
+            min_signal=0.45,
+            min_val=0.50,
+        )
+    assert picks == [entropy_candidate]
 
 
 def test_collect_cluster_orders_mandatory_fallback_after_recovery_filter():
@@ -46,7 +72,7 @@ def test_collect_cluster_orders_mandatory_fallback_after_recovery_filter():
         },
         PAIR: {
             "direction": TradeDirection.PUT,
-            "metrics": bear_put_metrics(execute=False, trade_score=0.72, raw_prob=0.44, calibrated_prob=0.44),
+            "metrics": bear_put_metrics(execute=False, trade_score=0.72, raw_prob=0.36, calibrated_prob=0.36),
         },
     }
     with patch(

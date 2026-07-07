@@ -50,16 +50,16 @@ def test_apply_volatility_vol_booster_keeps_lower_existing_floors():
     assert edge == 0.02
 
 
-def test_vol_booster_lowers_floors_and_quality_gate_never_vetoes():
+def test_vol_booster_lowers_floors_and_quality_gate_vetoes_weak_edge():
     metrics = {
         "trade_score": 0.68,
         "val_accuracy": 0.70,
         "edge": 0.035,
-        "direction_margin": 0.08,
+        "calibrated_prob": 0.55,
+        "predicted_payoff_edge": 0.01,
         "macro_indicators": {"vol_ratio": 1.30},
         "indicators": {"bb_width": 0.03, "adx": 0.25},
     }
-    assert passes_execution_quality(metrics, min_signal=0.68, min_val=0.60, min_edge=0.04)
     boosted_signal, boosted_edge = apply_volatility_vol_booster(
         metrics,
         mandatory_min_trade_score=0.68,
@@ -67,4 +67,4 @@ def test_vol_booster_lowers_floors_and_quality_gate_never_vetoes():
     )
     assert boosted_signal < 0.68
     assert boosted_edge < 0.04
-    assert passes_execution_quality(metrics, min_signal=boosted_signal, min_val=0.60, min_edge=boosted_edge)
+    assert passes_execution_quality(metrics, min_direction_margin=0.12, min_payoff_edge=0.04) is False

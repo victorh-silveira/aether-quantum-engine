@@ -7,6 +7,7 @@ from src.application.services.orchestrator.post_settlement_cycle import (
     schedule_trading_cycle_after_settlement,
 )
 from tests.unit.application.post_settlement_helpers import (
+    TRADING_CYCLE_COLLECT,
     _yield_to_event_loop,
     patch_incrementing_monotonic,
     patch_instant_post_settlement_poll,
@@ -142,7 +143,7 @@ async def test_run_post_settlement_retries_until_cycle_runs(orch_ready):
             side_effect=lambda _orch: next(allows),
         ),
         patch(
-            "src.application.services.orchestrator.collect_deep_learning_decisions",
+            TRADING_CYCLE_COLLECT,
             new_callable=AsyncMock,
             return_value={},
         ),
@@ -161,7 +162,7 @@ async def test_schedule_prunes_stale_risk_ids(orch_ready):
     orch.risk_manager.contract_to_symbol[999] = "RDBEAR"
     with (
         patch(
-            "src.application.services.orchestrator.collect_deep_learning_decisions",
+            TRADING_CYCLE_COLLECT,
             new_callable=AsyncMock,
             return_value={},
         ),
@@ -181,7 +182,7 @@ async def test_schedule_spawns_task_even_when_is_trading(orch_ready):
     orch.config["orchestrator"]["post_settlement_is_trading_wait_seconds"] = 0.01
     with (
         patch(
-            "src.application.services.orchestrator.collect_deep_learning_decisions",
+            TRADING_CYCLE_COLLECT,
             new_callable=AsyncMock,
             return_value={},
         ),

@@ -4,6 +4,7 @@ import pytest
 
 from src.domain.models.trade import Contract, TradeDirection, TradeStatus
 from tests.unit.application.post_settlement_helpers import (
+    TRADING_CYCLE_COLLECT,
     patch_instant_post_settlement_poll,
     patch_post_settlement_poll_stop_after,
 )
@@ -40,7 +41,7 @@ async def test_schedule_trading_cycle_after_settlement_runs_real_cycle(orch_read
     orch.config.setdefault("orchestrator", {})["post_settlement_breath_seconds"] = 0
     with (
         patch(
-            "src.application.services.orchestrator.collect_deep_learning_decisions",
+            TRADING_CYCLE_COLLECT,
             new_callable=AsyncMock,
             return_value={},
         ),
@@ -58,7 +59,7 @@ async def test_post_settlement_breath_runs_real_cycle_when_running(orch_ready):
     orch.config.setdefault("orchestrator", {})["post_settlement_breath_seconds"] = 0.01
     with (
         patch(
-            "src.application.services.orchestrator.collect_deep_learning_decisions",
+            TRADING_CYCLE_COLLECT,
             new_callable=AsyncMock,
             return_value={},
         ),
@@ -87,7 +88,7 @@ async def test_post_settlement_breath_skips_when_active_contracts(orch_ready):
 
     with (
         patch(
-            "src.application.services.orchestrator.collect_deep_learning_decisions",
+            TRADING_CYCLE_COLLECT,
             new_callable=AsyncMock,
             return_value={},
         ),
@@ -121,7 +122,7 @@ async def test_settlement_win_triggers_real_next_cycle(orch_ready):
 
     with (
         patch(
-            "src.application.services.orchestrator.collect_deep_learning_decisions",
+            TRADING_CYCLE_COLLECT,
             new_callable=AsyncMock,
             return_value={},
         ),
@@ -170,7 +171,7 @@ async def test_settlement_loss_triggers_real_next_cycle(orch_ready):
 
     with (
         patch(
-            "src.application.services.orchestrator.collect_deep_learning_decisions",
+            TRADING_CYCLE_COLLECT,
             new_callable=AsyncMock,
             return_value={},
         ),

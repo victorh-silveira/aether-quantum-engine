@@ -27,8 +27,8 @@ def test_build_mandatory_fallback_returns_last_resort_at_configured_min_signal()
             "direction": None,
             "metrics": asymmetric_gate_safe_metrics(
                 trade_score=0.50,
-                raw_prob=0.56,
-                calibrated_prob=0.56,
+                raw_prob=0.70,
+                calibrated_prob=0.70,
                 val_accuracy=0.55,
             ),
         },
@@ -61,8 +61,8 @@ def test_last_resort_fallback_uses_raw_when_market_direction_missing():
             "direction": None,
             "metrics": asymmetric_gate_safe_metrics(
                 trade_score=0.50,
-                raw_prob=0.56,
-                calibrated_prob=0.56,
+                raw_prob=0.70,
+                calibrated_prob=0.70,
                 deploy_ok=True,
             ),
         },

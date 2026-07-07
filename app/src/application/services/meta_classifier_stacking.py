@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.application.services.execution_quality_gate import sync_direction_margin
 from src.domain.models.trade import TradeDirection
 from src.infrastructure.inference.meta_classifier_client import (
     build_meta_predict_request,
@@ -35,7 +36,7 @@ def apply_meta_regression_edge_to_metrics(
     else:
         metrics["direction_put_score"] = metrics["trade_score"]
         metrics["direction_call_score"] = max(0.0, 1.0 - metrics["trade_score"])
-    metrics["direction_margin"] = abs(metrics["direction_call_score"] - metrics["direction_put_score"])
+    sync_direction_margin(metrics, direction=direction.name)
     return metrics["trade_score"]
 
 

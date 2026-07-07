@@ -138,7 +138,7 @@ def test_collect_cluster_orders_recovery_bolts_weak_signal():
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
-    assert len(orders) == 1
+    assert len(orders) == 0
 
 
 def test_collect_cluster_orders_mandatory_bolts_in_recovery_regardless_of_quality():
@@ -175,4 +175,4 @@ def test_collect_cluster_orders_mandatory_bolts_in_recovery_regardless_of_qualit
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
-    assert len(orders) == 1
+    assert len(orders) == 0

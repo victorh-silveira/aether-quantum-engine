@@ -6,6 +6,7 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
+from src.application.services.orchestrator.warm_up_buffer_guard import schedule_stream_warm_up_barrier
 from src.application.services.orchestrator.ws_bootstrap import subscribe_account_transactions, ws_connect_options
 from src.infrastructure.handlers.stream_timeframe import subscribe_candle_streams, subscribe_tick_streams
 
@@ -79,9 +80,11 @@ async def execute_stream_reconnect(orch: Any, stream: StreamHandler) -> bool:
         else:
             await _resubscribe_market_channels(stream)
         stream.is_synchronized = True
+        stream.tick_buffer.reset_live_accumulators()
         stream.tick_buffer.touch_activity()
         loop = asyncio.get_running_loop()
         orch._stream_ready_mono = loop.time()
+        schedule_stream_warm_up_barrier(orch)
         logger.info("WATCHDOG: stream de mercado reconectado")
         if _needs_profit_table_audit(orch):
             _schedule_profit_audit(orch, reason="stream_reconnect")

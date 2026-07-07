@@ -1,8 +1,20 @@
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from src.application.services.orchestrator import Orchestrator
+from src.application.services.orchestrator.orchestrator_data_signature import get_data_state_signature
+from src.domain.models.market_data import Candle
+from tests.unit.application.post_settlement_helpers import TRADING_CYCLE_COLLECT, strong_cycle_decisions
+
+
+_MACRO_EPOCH = 1_700_000_900
+_MICRO_EPOCH = 1_700_001_000
+
+
+def _bear_candle(epoch: int) -> Candle:
+    return Candle("RDBEAR", 1.0, 1.1, 0.9, 1.05, datetime.now(), epoch)
 
 
 @pytest.mark.asyncio
@@ -51,7 +63,14 @@ async def test_run_trading_cycle_inactive_without_decision_mode(orch_config):
 
 @pytest.mark.asyncio
 async def test_orchestrator_on_candle_extra_coverage(orch_config):
-    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
+    with (
+        patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()),
+        patch(
+            TRADING_CYCLE_COLLECT,
+            new_callable=AsyncMock,
+            return_value=strong_cycle_decisions(),
+        ),
+    ):
         orch = Orchestrator(orch_config, "token")
 
         candle = MagicMock(symbol="OTHER_SYM", epoch=1000)
@@ -171,7 +190,7 @@ async def test_run_trading_cycle_inserts_blank_line_between_cycles(orch_config):
     with (
         patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()),
         patch(
-            "src.application.services.orchestrator.collect_deep_learning_decisions",
+            TRADING_CYCLE_COLLECT,
             new_callable=AsyncMock,
             return_value={},
         ),
@@ -193,6 +212,34 @@ async def test_run_trading_cycle_inserts_blank_line_between_cycles(orch_config):
         await orch._run_trading_cycle_if_ready()
         blank_calls = [c for c in orch.logger.info.call_args_list if c.args == ("",)]
         assert len(blank_calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_run_trading_cycle_invokes_inference_on_m1_signature_shift(orch_config):
+    with (
+        patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()),
+        patch(
+            TRADING_CYCLE_COLLECT,
+            new_callable=AsyncMock,
+            return_value=strong_cycle_decisions(),
+        ) as mock_collect,
+        patch(
+            "src.application.services.orchestrator.trading_cycle_entry.time.time",
+            return_value=float(_MICRO_EPOCH + 65),
+        ),
+    ):
+        orch = Orchestrator(orch_config, "token")
+        orch.stream.is_synchronized = True
+        orch.ws.is_running = True
+        orch.stream.macro_candles = {"RDBEAR": [_bear_candle(_MACRO_EPOCH)]}
+        orch.stream.micro_candles = {"RDBEAR": [_bear_candle(_MICRO_EPOCH)]}
+        orch._last_epoch = _MICRO_EPOCH
+        orch._last_processed_epoch = _MICRO_EPOCH
+        orch.last_data_signature = get_data_state_signature(orch, now=float(_MICRO_EPOCH + 5))
+        orch.executor.execute_cluster = AsyncMock()
+        await orch._run_trading_cycle_if_ready()
+        mock_collect.assert_awaited_once()
+        orch.executor.execute_cluster.assert_awaited_once()
 
 
 @pytest.mark.asyncio

@@ -35,6 +35,14 @@ class TickBuffer:
         self._current_epoch: dict[str, int | None] = dict.fromkeys(symbols)
         self._last_tick_monotonic: float = 0.0
 
+    def reset_live_accumulators(self) -> None:
+        """Limpa ticks ao vivo apos queda do socket para forcar repopulacao estocastica."""
+        for symbol in self.symbols:
+            bucket = self._live.get(symbol)
+            if bucket is not None:
+                bucket.clear()
+        self._last_tick_monotonic = 0.0
+
     def touch_activity(self) -> None:
         """Marca atividade de ingestao no relogio monotonico do loop asyncio."""
         try:

@@ -12,7 +12,7 @@ Para arquitetura de código, ver [`arquitetura.md`](arquitetura.md).
 |-----------|----------------|
 | Sinais, não histórias | Direção CALL/PUT estritamente pela TCN (`P(CALL) > P(PUT)`) |
 | Horizonte curto | Contexto DL **M15 (900 s)**; execução **M1 (60 s)**; label `ma_trend` |
-| Boletamento contínuo | Gate de qualidade neutro: sinal válido opera sempre, sem veto nem skip de ciclo |
+| Boletamento contínuo | Gate adaptativo filtra ruído lateral (`direction_margin`); sinais fortes passam, neutros próximos a 0,50 são rejeitados |
 | Modelo pronto antes de operar | `FASE TREINO` suspende ordens até treino da sessão |
 | Operação configurável | `mandatory_trade_each_cycle`: seletivo (`false`) ou contínuo (`true`) |
 | Feedback real | Win rate live misturado em `val_accuracy`; retreino após loss |
@@ -67,10 +67,11 @@ Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `
 | Camada | Comportamento |
 |--------|---------------|
 | Bloqueio técnico | `data`, `predict_error`, `training`, `deploy_ok=false` |
-| Classificação macro | TCN processa lookback de 12 h em M15; define direção estrita (`exec_direction`) |
+| Classificação macro | TCN processa lookback de 12 h em M15; define direção (`dl_direction`) |
 | Stacking tabular | Meta-regressor LightGBM (M1) sobre vetor **39D** + probabilidade TCN; saída `predicted_payoff_edge` |
 | Scoring direcional | TCN define `dl_direction`; edge `> 0` mantém score orgânico; edge `< -0.15` em squeeze rebaixa para `0.52` |
-| Gate de qualidade | Neutro: participa sempre do pool, sem skip por comportamento |
+| Margem direcional | `direction_margin = abs(P(lado_escolhido) − 0.50)`; CALL usa `calibrated_prob`; PUT usa `1 − prob` |
+| Gate de qualidade | Janelas dinâmicas: margem mín. **0.06** / **0.12** e payoff meta **0.01** / **0.04** (regular / recovery) |
 | Gerenciamento de risco | Kelly base + Martingale Geométrico puro (`Kelly_base × 2^n`) sem teto macro |
 
 ---
@@ -107,13 +108,13 @@ Ordem lógica de uma entrada:
 4. **Predição DL** — inferência Triton concorrente; `raw_prob`/`calibrated_prob` e indicadores calculados.
 5. **Bundle cross-symbol** — `prepare_meta_classifier_cross_symbol_bundle` coleta telemetria micro M1 em paralelo e anexa spreads cross-symbol.
 6. **Stacking tabular** — `MetaClassifierClient` envia probabilidade TCN + vetor **39D** ao `aether-meta-classifier`; retorna `predicted_payoff_edge`.
-7. **Resolução direcional** — `execution_direction_resolver` + `meta_payoff_regression`: edge positivo preserva TCN; edge `< -0.15` em squeeze rebaixa `trade_score=0.52` (`[D-SQUEEZE]`).
-8. **Gate de qualidade** — neutro: `passes_execution_quality` retorna `True` e `regime_skip_cycle=False` invariável.
+7. **Resolução direcional** — `execution_direction_resolver` + `meta_payoff_regression`: edge positivo preserva TCN; edge `< -0.15` em squeeze rebaixa `trade_score=0.52` (`[D-SQUEEZE]`); `ensure_direction_margin` expõe margem corrigida.
+8. **Gate de qualidade** — `passes_execution_quality` valida `direction_margin` e `predicted_payoff_edge` contra pisos do regime (regular vs recovery); reprovação suspende cluster (`[AETHER] QUALITY_GUARD`).
 9. **Deploy** — `deploy_ok=false` bloqueia execução.
 10. **Seleção** — `market_decision_score` entre candidatos elegíveis.
 11. **Risco** — Kelly + Consensus Penalty; recovery financeiro persistente; Martingale Geométrico `Kelly_base × 2^n`; stop win por sessão ativa (2,60% composto).
 
-Bloqueio absoluto **somente** para falhas técnicas (`data`, `predict_error`, `training`, `deploy_ok=false`). Não há vetos táticos, inversões nem skip por qualidade: qualquer sinal válido participa do pool.
+Bloqueio absoluto para falhas técnicas (`data`, `predict_error`, `training`, `deploy_ok=false`) e para sinais com margem direcional ou payoff meta abaixo dos pisos configurados. Não há vetos táticos autônomos fora do meta-classificador e do quality gate adaptativo.
 
 Perfil em `config/settings.json`:
 
@@ -125,7 +126,11 @@ Perfil em `config/settings.json`:
 | `dynamic_threshold.enabled` | true | Thresholds flutuantes por volatilidade |
 | `min_val_accuracy` | 0.60 | Piso de acurácia de validação |
 | `min_edge_execute` | 0.04 | Edge base (advisory) |
-| `mandatory_trade_each_cycle` | false | `true` = modo contínuo (uma ordem/ciclo) |
+| `quality_gate.regular.min_direction_margin` | 0.06 | Piso de margem TCN em regime regular |
+| `quality_gate.regular.min_payoff_edge` | 0.01 | Piso de payoff meta em regime regular |
+| `quality_gate.min_direction_margin` | 0.12 | Piso de margem TCN em recovery |
+| `quality_gate.min_payoff_edge` | 0.04 | Piso de payoff meta em recovery |
+| `mandatory_trade_each_cycle` | true | Modo contínuo (uma ordem/ciclo quando candidato passa no gate) |
 | `consensus_penalty_enabled` | true | Atenua Kelly quando ord diverge dos votos |
 | `penalty_smoothing_factor` | 0.40 | Suavização convexa em recovery com trade_score > 0.68 |
 
@@ -142,6 +147,7 @@ Perfil em `config/settings.json`:
 | Edge positivo | `predicted_payoff_edge > 0.0` → `exec_direction = dl_direction`; `trade_score` orgânico da TCN |
 | Downgrade squeeze | `predicted_payoff_edge < -0.15` **e** (`bb_width < 0.06` **ou** `micro_tick_acceleration < 0`) → `trade_score=0.52`; `meta_squeeze_downgrade=true`; log `[D-SQUEEZE]` |
 | Edge negativo leve | Mantém `dl_direction` e score orgânico |
+| `direction_margin` | `abs(P(lado_escolhido) − 0.50)` — distância ao neutro; recalculada por `ensure_direction_margin` no retorno do resolver |
 | `direction_inverted` | `False` no fluxo de regressão |
 
 **Justificativa do score 0.52 em squeeze**: em canais Bollinger esmagados (ex.: ciclos C0014–C0016 com `bb_width` 0.03–0.09), o rebaixamento força o `consensus_stake_penalty` a comprimir a stake ao piso de $1.00 da Deriv, curto-circuitando a cauda exponencial do Martingale Geométrico nos frames de maior ruído estocástico.
@@ -166,7 +172,7 @@ Em baixo consenso (`retention_raw ≤ consensus_min_retention`, padrão 0,50), a
 
 **Modo contínuo:** essa penalidade opera sobre o Kelly base mesmo quando o motor já está em recovery Martingale Geométrico. A convergência adaptativa (seção 7.2) evita que a penalidade asfixie a recuperação financeira.
 
-> **Gates defensivos removidos.** O Gate Assimétrico de Proteção (`validate_recovery_asymmetric_gate`), o Micro Noise Gate (`validate_micro_noise_gate`), o Filtro de Exaustão de Barreira Micro (`validate_micro_boundary_saturation_gate`) e o Veto de Inversão por Convicção DL foram eliminados. Não há mais SKIP por regime NEUTRO, chop de ADX, squeeze em random walk ou saturação de banda: o gate de qualidade é neutro e o boletamento é contínuo.
+> **Gates defensivos legados removidos.** O Gate Assimétrico de Proteção, o Micro Noise Gate, o Filtro de Exaustão de Barreira Micro e o Veto de Inversão por Convicção DL foram eliminados. O quality gate atual filtra por **margem direcional** (`abs(P(lado) − 0.50)`) e **payoff meta** com janelas elásticas regular/recovery — sem SKIP por regime NEUTRO, chop de ADX ou squeeze em random walk.
 
 ---
 
@@ -329,8 +335,8 @@ Durante a barreira, `session_persistence_write_active` impede que `trading_cycle
 
 | Flag | Efeito |
 |------|--------|
-| `mandatory_trade_each_cycle: false` | Opera só com candidato acima do piso (modo seletivo) |
-| `mandatory_trade_each_cycle: true` | Uma ordem por ciclo; qualidade como penalidade |
+| `mandatory_trade_each_cycle: false` | Opera só com candidato acima dos pisos do quality gate (modo seletivo) |
+| `mandatory_trade_each_cycle: true` | Uma ordem por ciclo quando há candidato válido; fallback obrigatório bloqueado em recovery se todos foram vetados pelo gate |
 | `include_anchor_trades` | Inclui âncora nas ordens do cluster |
 | `diversify_after_loss_margin` | Prefere símbolo alternativo quando scores são próximos |
 

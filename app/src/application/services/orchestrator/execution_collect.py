@@ -2,6 +2,7 @@
 
 __all__ = ["collect_cluster_orders", "_mandatory_fallback_candidates"]
 
+from src.application.services.execution_quality_gate_fallback import cluster_quality_gate_blocks_mandatory_fallback
 from src.application.services.execution_symbols import (
     select_best_execution_candidate,
     select_mandatory_execution_candidate,
@@ -16,16 +17,43 @@ from src.application.services.orchestrator.execution_collect_helpers import (
     extract_collect_params,
     log_execution_decision,
     mandatory_fallback_candidates as _mandatory_fallback_candidates,
-    mandatory_fallback_if_empty,
-    resolve_mandatory_ultimate_candidate,
+    mandatory_fallback_if_empty as _mandatory_fallback_if_empty,
+    resolve_mandatory_ultimate_candidate as _resolve_mandatory_ultimate_candidate,
 )
 from src.application.services.orchestrator.regime_freeze_yield import (
-    cluster_freeze_active,
-    propagate_cluster_signal_suspended,
+    cluster_collect_aborted,
 )
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.recovery_hurst_decay import session_drawdown_from_profit
 from src.domain.risk.stake_sizing import enrich_metrics_conviction, raw_side_from_metrics
+
+
+def _quality_blocks_mandatory_fallback(exec_mgr, decisions: dict) -> bool:
+    """Encapsula bloqueio de fallback obrigatorio pelo quality gate em recovery."""
+    exec_cfg = exec_mgr.orch.config.get("orchestrator", {}).get("execution", {})
+    return cluster_quality_gate_blocks_mandatory_fallback(
+        decisions,
+        exec_cfg=exec_cfg if isinstance(exec_cfg, dict) else {},
+        risk_manager=getattr(exec_mgr.orch, "risk_manager", None),
+        trade_symbols=exec_mgr._trade_symbols(),
+    )
+
+
+def mandatory_fallback_if_empty(exec_mgr, decisions, candidates, **kwargs):
+    """Aplica fallback obrigatorio respeitando veto de qualidade em recovery."""
+    mandatory = bool(kwargs.get("mandatory", exec_mgr._mandatory_trade_each_cycle()))
+    if candidates or not mandatory:
+        return candidates
+    if _quality_blocks_mandatory_fallback(exec_mgr, decisions):
+        return []
+    return _mandatory_fallback_if_empty(exec_mgr, decisions, candidates, **kwargs)
+
+
+def resolve_mandatory_ultimate_candidate(exec_mgr, decisions, **kwargs):
+    """Ultimo recurso de candidato com veto de qualidade em recovery."""
+    if _quality_blocks_mandatory_fallback(exec_mgr, decisions):
+        return None, None
+    return _resolve_mandatory_ultimate_candidate(exec_mgr, decisions, **kwargs)
 
 
 def _select_cluster_best(exec_mgr, candidates, *, mandatory, last_loss, last_loss_dir, recovery_active, skip_symbols):
@@ -55,8 +83,7 @@ def _select_cluster_best(exec_mgr, candidates, *, mandatory, last_loss, last_los
 
 def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDirection, dict]]:
     """Seleciona uma ordem por ciclo em modo continuo obrigatorio."""
-    if cluster_freeze_active(decisions):
-        propagate_cluster_signal_suspended(decisions)
+    if cluster_collect_aborted(decisions):
         return []
     mandatory = exec_mgr._mandatory_trade_each_cycle()
     recovery_active = pending_recovery_active(getattr(exec_mgr.orch.risk_manager, "pending_loss", {}))

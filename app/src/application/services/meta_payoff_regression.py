@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.application.services.execution_quality_gate import sync_direction_margin
 from src.application.services.meta_direction_flip import (
     log_d_squeeze_audit,
     micro_volatility_squeeze_active,
@@ -26,7 +27,7 @@ def _apply_direction_scores(metrics: dict[str, Any], *, direction: TradeDirectio
     else:
         metrics["direction_put_score"] = clamped
         metrics["direction_call_score"] = max(0.0, 1.0 - clamped)
-    metrics["direction_margin"] = abs(metrics["direction_call_score"] - metrics["direction_put_score"])
+    sync_direction_margin(metrics, direction=direction.name)
 
 
 def apply_meta_regression_edge(

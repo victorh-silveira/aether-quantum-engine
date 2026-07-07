@@ -77,6 +77,15 @@ def test_tick_buffer_live_tick_acceleration_same_epoch_window():
     assert buf.live_tick_acceleration("RDBULL", window_ms=5000) == 0.0
 
 
+def test_tick_buffer_reset_live_accumulators_clears_live_ticks():
+    buf = TickBuffer(["RDBULL"])
+    buf.record_tick("RDBULL", 1000, 100.0)
+    buf.record_tick("RDBULL", 1100, 100.5)
+    buf.reset_live_accumulators()
+    assert len(buf._live["RDBULL"]) == 0
+    assert buf.last_tick_monotonic() == 0.0
+
+
 @pytest.mark.asyncio
 async def test_tick_buffer_last_tick_monotonic_updates_on_record():
     buf = TickBuffer(["RDBULL"])

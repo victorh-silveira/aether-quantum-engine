@@ -130,7 +130,9 @@ def test_collect_cluster_orders_bolts_neutral_low_conviction_in_mandatory_mode()
             last_loss_symbol=None,
             last_loss_direction=None,
             consecutive_losses=0,
+            consecutive_losses_linear=0,
             kelly_config={},
+            pending_loss_total=lambda: 0.0,
         ),
         _active_cycle_id=15,
         _dl_brief_last_logged=None,
@@ -158,7 +160,7 @@ def test_collect_cluster_orders_bolts_neutral_low_conviction_in_mandatory_mode()
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
-    assert len(orders) == 1
+    assert len(orders) == 0
 
 
 def test_cluster_entry_recovery_accepts_mandatory_weak_with_pending_loss():
@@ -224,4 +226,4 @@ def test_collect_cluster_orders_bolts_weak_neutral_in_recovery():
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
-    assert len(orders) == 1
+    assert len(orders) == 0

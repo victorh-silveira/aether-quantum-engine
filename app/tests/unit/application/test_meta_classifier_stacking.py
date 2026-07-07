@@ -248,7 +248,7 @@ async def test_prefetch_disabled_returns_early():
     get_client.assert_not_called()
 
 
-def test_c0015_stacking_payload_triggers_squeeze_downgrade_without_flip(caplog):
+def test_c0015_stacking_payload_rejects_negative_edge_before_squeeze(caplog):
     entry = {
         "direction": TradeDirection.CALL,
         "metrics": {
@@ -267,12 +267,8 @@ def test_c0015_stacking_payload_triggers_squeeze_downgrade_without_flip(caplog):
     }
     with caplog.at_level("INFO"):
         result = resolve_execution_direction(entry, symbol="RDBULL")
-    assert result is not None
-    direction, metrics = result
-    assert direction == TradeDirection.CALL
-    assert metrics["meta_squeeze_active"] is True
-    assert metrics["meta_squeeze_downgrade"] is True
-    assert metrics.get("meta_direction_flip") is not True
-    assert metrics["trade_score"] == pytest.approx(0.52)
-    assert len(extract_meta_feature_vector(metrics)) == META_FEATURE_DIM
-    assert any("[D-SQUEEZE]" in record.message for record in caplog.records)
+    assert result is None
+    assert entry["metrics"]["quality_guard_reject"] is True
+    assert entry["metrics"]["signal_status"] == "SIGNAL_SUSPENDED"
+    assert len(extract_meta_feature_vector(entry["metrics"])) == META_FEATURE_DIM
+    assert not any("[D-SQUEEZE]" in record.message for record in caplog.records)

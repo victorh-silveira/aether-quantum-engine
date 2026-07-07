@@ -124,7 +124,7 @@ def test_build_execution_candidate_returns_none_without_direction():
 def test_build_candidate_uses_dl_direction():
     entry = {
         "direction": TradeDirection.CALL,
-        "metrics": {"execute": False, "conviction": 0.61, "raw_prob": 0.52},
+        "metrics": {"execute": False, "conviction": 0.61, "raw_prob": 0.52, "calibrated_prob": 0.70, "deploy_ok": True},
     }
     sym, exec_dir, metrics = build_execution_candidate("RDBULL", entry)
     assert sym == "RDBULL"

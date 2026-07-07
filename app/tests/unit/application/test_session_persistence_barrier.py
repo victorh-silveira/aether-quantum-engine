@@ -15,7 +15,7 @@ from src.application.services.orchestrator.session_persistence_barrier import (
 from src.application.services.orchestrator.settlement_logic import process_contract_settlement
 from src.application.services.orchestrator.trading_cycle_entry import run_trading_cycle_if_ready
 from src.domain.models.trade import Contract, TradeDirection, TradeStatus
-from tests.unit.application.post_settlement_helpers import patch_instant_post_settlement_poll
+from tests.unit.application.post_settlement_helpers import TRADING_CYCLE_COLLECT, patch_instant_post_settlement_poll
 
 
 TRADING_CYCLE_MODULE = "src.application.services.orchestrator.trading_cycle_entry"
@@ -187,7 +187,7 @@ async def test_process_contract_settlement_linear_reset_runs_persistence_barrier
     orch.risk_manager.begin_cluster(1)
     with (
         patch(
-            "src.application.services.orchestrator.collect_deep_learning_decisions",
+            TRADING_CYCLE_COLLECT,
             new_callable=AsyncMock,
             return_value={},
         ),

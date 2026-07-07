@@ -15,8 +15,9 @@ aether-quantum-engine/
 │   │   │   │   ├── session_persistence_barrier.py
 │   │   │   │   ├── api_maintenance_guard.py
 │   │   │   │   ├── trading_cycle_entry.py
+│   │   │   │   ├── orchestrator_data_signature.py
 │   │   │   │   └── ...
-│   │   │   ├── execution_*.py          # Resolver linear, meta stacking, cross-symbol, qualidade neutra, ranking
+│   │   │   ├── execution_*.py          # Resolver TCN+meta, quality gate adaptativo, cross-symbol, ranking
 │   │   │   ├── log_dedupe.py
 │   │   │   └── auth_manager.py
 │   │   ├── domain/                     # Modelos, risk_manager, stop_win_target, risk_recovery_state, consensus_stake_penalty, dlambert_sizing
@@ -26,7 +27,7 @@ aether-quantum-engine/
 │   │   │   ├── storage/                # minio_model_store, torchscript_sanity, torchscript_sanity_probes
 │   │   │   └── ...                     # WebSocket, stream, stream_reconnect, tick_buffer, trade
 │   │   └── presentation/               # Logger terminal
-│   ├── tests/unit/                     # Pytest (~1806 testes; cobertura 100% em src)
+│   ├── tests/unit/                     # Pytest (~1893 testes; cobertura 100% em src)
 │   ├── scripts/
 │   │   ├── batch/                      # launch-all-demo, launch-train, _run_engine
 │   │   ├── monitor/                    # live_monitor
@@ -50,8 +51,8 @@ aether-quantum-engine/
 | Pasta | Responsabilidade |
 |-------|------------------|
 | `application/services/deep_learning` | Features **34D**, TCN/LSTM/GRU, `dl_predict_build` (bundle cross-symbol), `dl_predict_async`, `dl_predict_triton`, `dl_trend`, deploy gate, TorchScript |
-| `application/services/orchestrator` | `Orchestrator`, `ExecutionManager`, `trading_cycle_entry`, `orchestrator_atomic_state`, `orchestrator_persistence`, `session_persistence_barrier`, `api_maintenance_guard`, `execution_collect`, `execution_recovery_gate`, `watchdog_service`, `graceful_shutdown`, `settlement_*`, `settlement_queue_ops`, `post_settlement_cycle`, `orchestrator_run_loop` |
-| `application/services` | `execution_direction_resolver` (TCN + edge contínuo D-SQUEEZE), `meta_payoff_regression`, `meta_classifier_stacking`, `meta_classifier_features`, `meta_classifier_cross_symbol`, `meta_classifier_flow_features`, `meta_direction_flip` (auditoria), `execution_direction_cross_corr` (telemetria), `execution_quality_gate` (neutro), `execution_market_rank`, `execution_symbols`, `execution_mandatory_pick`, `log_dedupe`, `auth_manager` |
+| `application/services/orchestrator` | `Orchestrator`, `ExecutionManager`, `trading_cycle_entry`, `orchestrator_data_signature`, `orchestrator_atomic_state`, `orchestrator_persistence`, `session_persistence_barrier`, `api_maintenance_guard`, `execution_collect`, `execution_recovery_gate`, `watchdog_service`, `graceful_shutdown`, `settlement_*`, `settlement_queue_ops`, `post_settlement_cycle`, `orchestrator_run_loop` |
+| `application/services` | `execution_direction_resolver` (TCN + edge contínuo D-SQUEEZE), `meta_payoff_regression`, `meta_classifier_stacking`, `execution_quality_gate` (margem + payoff), `execution_quality_gate_cluster`, `execution_quality_gate_fallback`, `execution_direction_cross_corr` (telemetria), `execution_market_rank`, `execution_symbols`, `execution_mandatory_pick`, `log_dedupe`, `auth_manager` |
 | `domain` | `Candle`, `Trade`, `RiskManager`, `StopWinManager` (`stop_win_target.py`), `risk_recovery_state`, `consensus_stake_penalty`, `recovery_hurst_gate`, `probability_entropy`, Kelly, `dlambert_sizing` (Martingale Geométrico), `recovery_conviction`, cooldowns, `stake_sizing` |
 | `infrastructure/inference` | `TritonGrpcClient` (gRPC aio persistente), `triton_inference_client`, `meta_classifier_client`, `triton_model_sync`, `triton_tensor_builder`, `triton_model_metadata` |
 | `infrastructure/state` | `state_manager` (`asyncio.Lock`, `atomic_state_context`, `read_cached_balance`), `redis_state_pipeline` (MULTI/EXEC atômico), `redis_state_store`, `json_state_store`, ports `StateStore` |
@@ -69,7 +70,7 @@ flowchart TD
   BUNDLE --> PRED[dl_predict_triton]
   PRED --> META[meta_classifier_client GBDT M1]
   META --> RES[execution_direction_resolver TCN + edge contínuo]
-  RES --> QG[execution_quality_gate neutro]
+  RES --> QG[execution_quality_gate janelas dinamicas]
   QG --> COL[execution_collect]
   COL --> RANK[execution_market_rank / execution_symbols]
   RANK --> EM[ExecutionManager]
@@ -91,12 +92,15 @@ flowchart TD
 | `settlement_queue_ops.py` | `cancel_settlement_queue_fast` — cancela worker e drena fila sem handshake `task_done` |
 | `post_settlement_cycle.py` | Breath pós-liquidação; curto-circuito stop win; teto 2× ciclo incompleto |
 | `orchestrator_run_loop.py` | Loop principal; `_enforce_post_settlement_deadlock_exit` → `emergency_save_session_state` + `sys.exit(0)` |
-| `execution_direction_resolver.py` | TCN define `dl_direction`; meta-regressor refina via `predicted_payoff_edge` e downgrade D-SQUEEZE |
+| `execution_direction_resolver.py` | TCN define `dl_direction`; meta-regressor refina via `predicted_payoff_edge`; `ensure_direction_margin` expõe `abs(P(lado) − 0.50)` |
+| `execution_quality_gate.py` | Janelas dinâmicas regular/recovery; `direction_margin_from_probability`, `ensure_direction_margin`, `passes_execution_quality` |
+| `execution_quality_gate_cluster.py` | `quality_conviction_suspends_cluster`, log `[AETHER] QUALITY_GUARD` |
+| `execution_quality_gate_fallback.py` | Bloqueia fallback obrigatório em recovery quando todos os candidatos foram vetados |
+| `orchestrator_data_signature.py` | Assinatura `m1b:...;m1:...;m15:...` para invalidar cache por fronteira M1 |
 | `dlambert_sizing.py` (domain) | Martingale `Effective_Base × 2^n` com ancoragem `max(override, U)` |
 | `risk_stake_calc.py` (domain) | Bypass de consensus penalty quando `pending_total > 0` |
-| `execution_quality_gate.py` | Validação neutra de predição ativa; skip de ciclo desativado estruturalmente |
 | `execution_collect_helpers.py` | `recovery_hurst_blocks_collect`, mandatory fallback, logs EXEC_SEL |
-| `execution_collect.py` | Coleta e seleção contínua mandatória sem filtros de barreira |
+| `execution_collect.py` | Coleta contínua; quality gate como penalidade; fallback bloqueado em recovery se todos vetados |
 | `consensus_stake_penalty.py` (domain) | Penalidade Kelly base por divergência técnica; waiver absoluto em regime de recovery ativo |
 | `risk_recovery_state.py` (domain) | Reset do expoente consecutivo condicionado à extinção real de `pending_loss` |
 | `redis_state_pipeline.py` | Escrita atômica MULTI/EXEC do bundle de risco, snapshot e chaves de sessão no Redis |
@@ -107,7 +111,7 @@ flowchart TD
 | `orchestrator_persistence.py` | `save_full_state()` (locked) e `persist_full_state_unlocked()` (sem reentrância) |
 | `session_persistence_barrier.py` | Barreira pós-reset linear D'Alembert; yield 0,1 s; flag `_session_persistence_write_active` |
 | `api_maintenance_guard.py` | Hibernação cooperativa em manutenção/reset de liquidez do broker Deriv |
-| `trading_cycle_entry.py` | Entrada do ciclo M1; lock atômico envolvendo inferência DL e `execute_cluster` |
+| `trading_cycle_entry.py` | Entrada do ciclo M1; assinatura M1+M15; lock atômico; `quality_conviction_suspends_cluster` antes de `execute_cluster` |
 
 ## Concorrência assíncrona (barreira atômica)
 

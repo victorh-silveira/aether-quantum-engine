@@ -6,9 +6,19 @@ from src.application.services.execution_quality_gate import apply_quality_penalt
 from src.application.services.execution_volatility_booster import apply_volatility_vol_booster
 from src.application.services.orchestrator.execution_recovery_gate import cluster_entry_eligible
 from src.application.services.orchestrator.regime_freeze_yield import (
-    cluster_freeze_active,
-    propagate_cluster_signal_suspended,
+    cluster_collect_aborted,
 )
+
+
+def _sync_entry_metrics(entry: dict, metrics: dict) -> None:
+    """Propaga flags de suspensao do candidato construido de volta ao entry."""
+    entry_metrics = entry.get("metrics")
+    if not isinstance(entry_metrics, dict):
+        entry["metrics"] = dict(metrics)
+        return
+    for key in ("signal_status", "regime_guard_action", "quality_guard_reject", "regime_skip_cycle"):
+        if key in metrics:
+            entry_metrics[key] = metrics[key]
 
 
 def gather_cluster_candidates(
@@ -28,8 +38,7 @@ def gather_cluster_candidates(
 ):
     """Coleta candidatos DL elegiveis; qualquer sinal valido participa do pool."""
     _ = (cid, kelly_cfg, consecutive_losses, recovery_skip_counter, session_drawdown)
-    if cluster_freeze_active(decisions):
-        propagate_cluster_signal_suspended(decisions)
+    if cluster_collect_aborted(decisions):
         return []
     exec_cfg = exec_mgr.orch.config.get("orchestrator", {}).get("execution", {})
     calibration_cfg = exec_mgr.orch.config.get("deep_learning", {}).get("calibration")
@@ -60,8 +69,11 @@ def gather_cluster_candidates(
             infra_cfg=infra_cfg if isinstance(infra_cfg, dict) else None,
             decisions=decisions,
             cycle_id=int(exec_mgr.orch._active_cycle_id),
+            risk_manager=getattr(exec_mgr.orch, "risk_manager", None),
         )
         if built is None:
+            if cluster_collect_aborted(decisions):
+                return []
             continue
         _, _, metrics = built
         apply_volatility_vol_booster(
@@ -69,6 +81,13 @@ def gather_cluster_candidates(
             mandatory_min_trade_score=min_signal,
             min_edge_execute=min_edge,
         )
-        apply_quality_penalty_to_metrics(metrics)
+        apply_quality_penalty_to_metrics(
+            metrics,
+            exec_cfg=exec_cfg if isinstance(exec_cfg, dict) else {},
+            risk_manager=getattr(exec_mgr.orch, "risk_manager", None),
+        )
+        _sync_entry_metrics(entry, metrics)
         candidates.append(built)
+        if cluster_collect_aborted(decisions):
+            return []
     return candidates

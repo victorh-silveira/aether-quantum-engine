@@ -96,7 +96,7 @@ def test_collect_cluster_orders_mandatory_keeps_weak_recovery_candidate():
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
-    assert len(orders) == 1
+    assert len(orders) == 0
 
 
 def test_pick_best_mandatory_returns_hedge_when_quality_ok():

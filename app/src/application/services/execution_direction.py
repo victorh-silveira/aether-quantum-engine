@@ -85,6 +85,7 @@ def build_execution_candidate(
     infra_cfg: dict | None = None,
     decisions: dict | None = None,
     cycle_id: int = 0,
+    risk_manager=None,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Monta candidato com direcao resolvida por scoring inteligente."""
     peer = hedge_peer(symbol)
@@ -101,6 +102,7 @@ def build_execution_candidate(
         infra_cfg=infra_cfg,
         peer_entry=peer_entry if isinstance(peer_entry, dict) else None,
         cycle_id=cycle_id,
+        risk_manager=risk_manager,
     )
     if resolved is None:
         return None

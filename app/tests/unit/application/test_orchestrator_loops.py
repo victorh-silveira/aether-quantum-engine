@@ -15,7 +15,7 @@ from src.application.services.orchestrator.session_persistence_barrier import (
 from src.application.services.orchestrator.settlement_logic import process_contract_settlement
 from src.application.services.orchestrator.trading_cycle_entry import run_trading_cycle_if_ready
 from src.domain.models.trade import Contract, TradeDirection, TradeStatus
-from tests.unit.application.post_settlement_helpers import patch_instant_post_settlement_poll
+from tests.unit.application.post_settlement_helpers import patch_instant_post_settlement_poll, strong_cycle_decisions
 
 
 FREEZE_YIELD_MODULE = "src.application.services.orchestrator.regime_freeze_yield"
@@ -270,7 +270,7 @@ async def test_linear_reset_settlement_then_immediate_inference_runs_cleanly(orc
         patch(
             f"{TRADING_CYCLE_MODULE}.collect_deep_learning_decisions",
             new_callable=AsyncMock,
-            return_value={"RDBULL": {"direction": None, "metrics": {"execute": False}}},
+            return_value=strong_cycle_decisions(),
         ) as collect_mock,
     ):
         orch.executor.execute_cluster = AsyncMock()

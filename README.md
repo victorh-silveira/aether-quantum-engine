@@ -25,12 +25,13 @@ Layout: `app/` (código e testes), `config/settings.json`, `docs/`, `linters/`. 
 | Fases | `_training_phase_gate` | Suspende a operação até todos os modelos concluírem o treino da sessão |
 | Predição DL | `decision_bridge` + `dl_predict_build` + TCN/LSTM/GRU | **34 features** TCN; bundle cross-symbol 39D antes do prefetch meta; inferência Triton gRPC com timeout 2 s e fallback TorchScript |
 | Meta GBDT | `meta_classifier_client` + `aether-meta-classifier` | Regressão tabular **39D** (`LGBMRegressor` huber); retorna `predicted_payoff_edge` contínuo |
-| Direção | `execution_direction_resolver` + `meta_payoff_regression` | TCN define macro; edge `> 0` preserva score orgânico; edge `< -0.15` em squeeze rebaixa para **0.52** (`[D-SQUEEZE]`) |
-| Qualidade | `execution_quality_gate` | Neutro: valida sinal sem skip de ciclo |
+| Direção | `execution_direction_resolver` + `meta_payoff_regression` | TCN define macro; edge `> 0` preserva score orgânico; edge `< -0.15` em squeeze rebaixa para **0.52** (`[D-SQUEEZE]`); `direction_margin = abs(P(lado) − 0.50)` |
+| Qualidade | `execution_quality_gate` | Janelas dinâmicas: margem mín. **0.06** (regular) / **0.12** (recovery); payoff meta mín. **0.01** / **0.04**; suspende cluster com `[AETHER] QUALITY_GUARD` |
 | Execução | `ExecutionManager` + `execution_collect` | Ranking por `market_decision_score`; mandatory pick quando configurado |
 | Risco | `RiskManager` + `dlambert_sizing` + `consensus_stake_penalty` | Kelly + Martingale `U × 2^n` em recovery; bypass de consenso com `pending_total > 0` |
 | Resiliência | `graceful_shutdown` + `watchdog_service` + `post_settlement_cycle` + `api_maintenance_guard` | Fast-path stop win; cancelamento de fila Redis/settlement; hibernação cooperativa em manutenção do broker; teto 2× incompleto → `sys.exit(0)` |
 | Concorrência | `StateManager` + `orchestrator_atomic_state` + `session_persistence_barrier` | `asyncio.Lock` central serializa inferência DL, liquidação e persistência; leituras de infra via `read_cached_balance` sem bloquear o lock |
+| Cache M1+M15 | `orchestrator_data_signature` | Assinatura multi-timeframe invalida inferência redundante na mesma fronteira de minuto |
 | Estado | `StateManager` + `redis_state_pipeline` + `orchestrator_persistence` | Snapshot atômico MULTI/EXEC; persistência locked/unlocked; barreira pós-reset linear D'Alembert |
 | Inferência | `TritonGrpcClient` | Canal `grpc.aio.insecure_channel` persistente; timeout 2 s; predições paralelas via `asyncio.gather`; fallback local em timeout |
 | Mercado TS | `TimescaleMarketWriter` | Ticks e barras OHLC macro M15 (900 s) e micro M1 (60 s) para backtest |
@@ -104,8 +105,8 @@ Copie `cp .env.example .env` e preencha o PAT. Validação Deriv: `python app/sc
 ## Fases, recovery e execução
 
 - **FASE TREINO**: ao iniciar a sessão, todo símbolo retreina pelo menos uma vez. Enquanto qualquer modelo não concluir, nenhuma ordem é enviada.
-- **FASE OPERACAO seletiva** (`mandatory_trade_each_cycle: false`): opera quando o melhor candidato passa no gate de qualidade (score ≥ 0.68 normal, pisos recovery mais altos).
-- **FASE OPERACAO contínua** (`mandatory_trade_each_cycle: true`): uma ordem por ciclo; qualidade vira **penalidade** de score; fallback por entropia e mandatory pick garantem participação.
+- **FASE OPERACAO seletiva** (`mandatory_trade_each_cycle: false`): opera quando o melhor candidato passa no gate de qualidade (margem direcional e payoff meta acima dos pisos do regime).
+- **FASE OPERACAO contínua** (`mandatory_trade_each_cycle: true`): uma ordem por ciclo quando há candidato válido; sinais com `direction_margin` insuficiente são rejeitados; em recovery o fallback obrigatório não contorna o veto coletivo do quality gate.
 - **Gatilho D-SQUEEZE (`[D-SQUEEZE]`)**: quando `predicted_payoff_edge < -0.15` em compressão M1 (`bb_width < 0.06` ou `micro_tick_acceleration < 0`), o resolver rebaixa `trade_score` para **0.52**, comprimindo stake via consensus penalty até o piso de $1.00 da Deriv — sem inverter a direção da TCN.
 - **Trava Hurst em recovery N2+**: com `consecutive_losses >= 2`, piso de score elevado logaritmicamente; `recovery_skip_counter` no Redis decai o limiar Hurst.
 - **Bloqueio absoluto** somente para falhas técnicas: `data`, `predict_error`, `training`, `deploy_ok=false`.
@@ -126,6 +127,8 @@ Logs em `logs/engine.log` (formato `AetherFormatter`):
 - `MARTINGALE`, `RISK: RECOVERY`, `RISK: WIN operacional`, `KELLY: consensus retention` — sizing, recovery financeiro e penalidade de consenso
 - `SESSAO INICIADA | Alvo de 2,60%: $XX.XX | Stop Loss: DESATIVADO` — bootstrap de meta por sessão ativa
 - `TRITON_TIMEOUT_FALLBACK`, `WATCHDOG: STALE_DATA` — resiliência de inferência e ingestão
+- `[AETHER] QUALITY_GUARD` — ciclo descartado por margem TCN ou payoff meta insuficiente (`linear`, `pending_loss`)
+- `DATA_SIG: cache invalidado` — assinatura M1+M15 mudou; inferência reinicializada
 - `[API_GUARD]` — hibernação cooperativa durante manutenção ou reset de liquidez do broker
 - `[D-SQUEEZE]` — downgrade de score em compressão M1 (`bb_width`, `tick_accel`, `predicted_payoff_edge`, `score`)
 - `CICLO: ciclo pos-liquidacao incompleto` — retry pós-liquidação; após 2 falhas consecutivas, persistência de emergência e encerramento atômico
@@ -142,7 +145,7 @@ Monitor opcional: `python app/scripts/monitor/live_monitor.py`
 - **Python 3.13.12**, `asyncio`, NumPy, Polars, PyTorch (TCN / LSTM / GRU)
 - **Deriv** PAT + REST OTP + WebSocket (`api_config` em settings; ver `docs/deriv-api.md`)
 - **Infra**: Redis, TimescaleDB, MinIO, NVIDIA Triton (gRPC), meta-regressor LightGBM (HTTP 8005)
-- **CI / pre-commit**: Ruff, Interrogate, Vulture, limite 300 linhas/arquivo, pytest com **100%** de cobertura em `app/src` (~1806 testes)
+- **CI / pre-commit**: Ruff, Interrogate, Vulture, limite 300 linhas/arquivo, pytest com **100%** de cobertura em `app/src` (~1893 testes)
 
 Requisito local: ambiente Conda **`deriv-api`** (Python 3.13.12). Configuração em [`config/python.json`](config/python.json).
 

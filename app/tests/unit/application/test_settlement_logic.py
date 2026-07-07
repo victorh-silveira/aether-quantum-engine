@@ -10,7 +10,7 @@ from src.application.services.orchestrator.settlement_logic import (
     process_contract_settlement,
 )
 from src.domain.models.trade import Contract, TradeDirection, TradeStatus
-from tests.unit.application.post_settlement_helpers import patch_instant_post_settlement_poll
+from tests.unit.application.post_settlement_helpers import TRADING_CYCLE_COLLECT, patch_instant_post_settlement_poll
 
 
 @pytest.mark.asyncio
@@ -89,7 +89,7 @@ async def test_process_contract_settlement_won(orch_ready):
 
     with (
         patch(
-            "src.application.services.orchestrator.collect_deep_learning_decisions",
+            TRADING_CYCLE_COLLECT,
             new_callable=AsyncMock,
             return_value={},
         ),
@@ -141,7 +141,7 @@ async def test_process_contract_settlement_lost(orch_ready):
 
     with (
         patch(
-            "src.application.services.orchestrator.collect_deep_learning_decisions",
+            TRADING_CYCLE_COLLECT,
             new_callable=AsyncMock,
             return_value={},
         ),

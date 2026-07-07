@@ -2,6 +2,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from src.application.services.orchestrator.execution_collect import collect_cluster_orders
+from src.application.services.orchestrator.execution_collect_helpers import mandatory_fallback_if_empty
 from src.domain.models.trade import TradeDirection
 from tests.market_symbols import ANCHOR, PAIR
 from tests.unit.application.universal_regime_metrics import asymmetric_gate_safe_metrics, bear_put_metrics
@@ -114,9 +115,7 @@ def test_collect_cluster_orders_bolts_weak_signal_continuously():
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
-    assert len(orders) == 1
-    assert orders[0][0] == PAIR
-    assert orders[0][1] == TradeDirection.PUT
+    assert len(orders) == 0
 
 
 def test_collect_cluster_orders_mandatory_does_not_skip_recovery_without_hedge():
@@ -173,9 +172,41 @@ def test_collect_cluster_orders_filters_proposal_skip_symbols():
         _trade_symbols=lambda: [ANCHOR, PAIR],
     )
     decisions = {
-        ANCHOR: {"direction": TradeDirection.CALL, "metrics": {"execute": True, "trade_score": 0.70}},
-        PAIR: {"direction": TradeDirection.PUT, "metrics": {"execute": True, "trade_score": 0.70}},
+        ANCHOR: {
+            "direction": TradeDirection.CALL,
+            "metrics": {
+                "execute": True,
+                "trade_score": 0.70,
+                "raw_prob": 0.75,
+                "calibrated_prob": 0.75,
+                "deploy_ok": True,
+                "predicted_payoff_edge": 0.06,
+                "meta_classifier_applied": True,
+            },
+        },
+        PAIR: {"direction": TradeDirection.PUT, "metrics": bear_put_metrics(execute=True, trade_score=0.70)},
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
     assert len(orders) == 1
     assert orders[0][0] == PAIR
+
+
+def test_mandatory_fallback_if_empty_returns_early_when_not_mandatory():
+    exec_mgr = SimpleNamespace(
+        orch=SimpleNamespace(config={}),
+        _mandatory_trade_each_cycle=lambda: True,
+        _trade_symbols=lambda: ["RDBULL"],
+    )
+    kept = mandatory_fallback_if_empty(
+        exec_mgr,
+        {},
+        [],
+        mandatory=False,
+        recovery_active=False,
+        last_loss=None,
+        last_loss_dir=None,
+        skip_symbols=frozenset(),
+        min_signal=0.5,
+        min_val=0.5,
+    )
+    assert kept == []

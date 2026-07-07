@@ -1,7 +1,6 @@
 import argparse
 import json
 import os
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -9,6 +8,12 @@ from pathlib import Path
 
 APP_ROOT = Path(__file__).resolve().parents[2]
 REPO_ROOT = APP_ROOT.parent
+
+if str(APP_ROOT) not in sys.path:
+    sys.path.insert(0, str(APP_ROOT))
+
+from scripts.operations.clean_workspace_stage import stage_clean as run_stage_clean
+
 
 _STAGE_MODULES: dict[str, tuple[str, ...]] = {
     "lint": ("ruff", "interrogate", "vulture", "pylint"),
@@ -194,58 +199,7 @@ def stage_security():
 
 
 def stage_clean():
-    print("\n>>> Running: Limpeza de lixo e caches")
-
-    def safe_remove(p: Path):
-        try:
-            if p.is_dir():
-                shutil.rmtree(p)
-                print(f"Removido diretório: {p}")
-            else:
-                p.unlink()
-                print(f"Removido arquivo: {p}")
-        except Exception as e:
-            print(f"Erro ao remover {p}: {e}")
-
-    cache_names = (
-        ".pytest_cache",
-        ".ruff_cache",
-        ".coverage",
-        "htmlcov",
-        "dist",
-        "build",
-        ".mypy_cache",
-    )
-
-    for scan_root in (APP_ROOT, REPO_ROOT):
-        for name in cache_names:
-            p = scan_root / name
-            if p.exists():
-                safe_remove(p)
-
-        for root, dirs, files in os.walk(scan_root):
-            dirs[:] = [d for d in dirs if d not in (".venv", "venv", ".git", ".idea", ".vscode")]
-
-            for d in list(dirs):
-                if d == "__pycache__":
-                    safe_remove(Path(root) / d)
-                    dirs.remove(d)
-
-            for f in files:
-                if f.endswith((".pyc", ".pyo", ".pyd")):
-                    safe_remove(Path(root) / f)
-
-    for name in ("logs",):
-        p = REPO_ROOT / name
-        if p.exists():
-            safe_remove(p)
-
-    app_data = APP_ROOT / "data"
-    if app_data.exists():
-        safe_remove(app_data)
-
-    for stray in APP_ROOT.glob("pytest-cache-files-*"):
-        safe_remove(stray)
+    run_stage_clean(APP_ROOT, REPO_ROOT)
 
 
 def main():

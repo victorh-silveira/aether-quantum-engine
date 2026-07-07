@@ -5,7 +5,7 @@ import pytest
 
 from src.application.services.orchestrator import Orchestrator
 from src.domain.models.trade import Contract, TradeDirection, TradeStatus
-from tests.unit.application.post_settlement_helpers import patch_instant_post_settlement_poll
+from tests.unit.application.post_settlement_helpers import TRADING_CYCLE_COLLECT, patch_instant_post_settlement_poll
 
 
 @pytest.mark.asyncio
@@ -14,7 +14,7 @@ async def test_idle_watchdog_runs_cycle_when_idle(orch_ready):
     orch.config.setdefault("orchestrator", {})["idle_cycle_watchdog_seconds"] = 0.01
     orch._last_idle_watchdog_attempt = 0.0
     with patch(
-        "src.application.services.orchestrator.collect_deep_learning_decisions",
+        TRADING_CYCLE_COLLECT,
         new_callable=AsyncMock,
         return_value={},
     ):
@@ -30,7 +30,7 @@ async def test_idle_watchdog_skips_when_post_settlement_pending(orch_ready):
     pending.done.return_value = False
     orch._post_settlement_task = pending
     with patch(
-        "src.application.services.orchestrator.collect_deep_learning_decisions",
+        TRADING_CYCLE_COLLECT,
         new_callable=AsyncMock,
         return_value={},
     ):
@@ -44,7 +44,7 @@ async def test_idle_watchdog_skips_when_disabled_or_too_soon(orch_ready):
     orch = orch_ready
     orch.config.setdefault("orchestrator", {})["idle_cycle_watchdog_seconds"] = 0
     with patch(
-        "src.application.services.orchestrator.collect_deep_learning_decisions",
+        TRADING_CYCLE_COLLECT,
         new_callable=AsyncMock,
         return_value={},
     ):
@@ -66,7 +66,7 @@ async def test_on_candle_skips_when_post_settlement_pending(orch_ready):
     orch._post_settlement_task = pending
     candle = MagicMock(symbol=orch.anchor, epoch=orch._last_epoch + 60)
     with patch(
-        "src.application.services.orchestrator.collect_deep_learning_decisions",
+        TRADING_CYCLE_COLLECT,
         new_callable=AsyncMock,
         return_value={},
     ):

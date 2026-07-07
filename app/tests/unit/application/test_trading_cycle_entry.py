@@ -1,37 +1,18 @@
-from datetime import datetime
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from src.application.services.orchestrator.engine_mode import ENGINE_MODE_TRAIN, apply_engine_mode
-from src.application.services.orchestrator.orchestrator_run_loop import get_data_state_signature
 from src.application.services.orchestrator.trading_cycle_entry import (
     _stop_win_blocks_cycle,
     acquire_trading_cycle_lock,
+    run_trading_cycle_if_ready,
     trading_cycle_entry_allowed,
 )
-from src.domain.models.market_data import Candle
 
 
-def test_get_data_state_signature_empty_without_stream():
-    orch = SimpleNamespace(symbols=["RDBEAR"], stream=None)
-    assert get_data_state_signature(orch) == ""
-
-
-def test_dual_timeframe_data_signature(orch_ready):
-    orch = orch_ready
-    orch.stream.macro_candles = {
-        "RDBEAR": [Candle("RDBEAR", 1.0, 1.1, 0.9, 1.05, datetime.now(), 900)],
-    }
-    orch.stream.micro_candles = {
-        "RDBEAR": [Candle("RDBEAR", 1.0, 1.1, 0.9, 1.04, datetime.now(), 60)],
-    }
-    sig = get_data_state_signature(orch)
-    assert sig.startswith("m1:")
-    assert ";m15:" in sig
-    assert "900" in sig
-    assert ":60:" in sig
+TRADING_CYCLE_MODULE = "src.application.services.orchestrator.trading_cycle_entry"
 
 
 def test_trading_cycle_entry_blocked_in_train_engine_mode(orch_ready):
@@ -145,3 +126,39 @@ async def test_acquire_trading_cycle_lock_rejects_when_stop_win_reached(orch_rea
         "large_account_stop_win_pct": 4.0,
     }
     assert await acquire_trading_cycle_lock(orch) is False
+
+
+@pytest.mark.asyncio
+async def test_trading_cycle_logs_quality_guard_reason_on_cluster_suspend(orch_ready, caplog):
+    orch = orch_ready
+    orch.risk_manager.consecutive_losses_linear = 2
+    orch._last_cluster_cycle_end = 0.0
+    orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 0
+    orch.executor.execute_cluster = AsyncMock()
+    weak_decisions = {
+        "RDBULL": {
+            "metrics": {
+                "calibrated_prob": 0.55,
+            }
+        },
+    }
+    with (
+        patch(
+            f"{TRADING_CYCLE_MODULE}.collect_deep_learning_decisions",
+            new_callable=AsyncMock,
+            return_value=weak_decisions,
+        ),
+        patch(f"{TRADING_CYCLE_MODULE}.mark_bar_processed", new_callable=AsyncMock),
+        patch(f"{TRADING_CYCLE_MODULE}.await_regime_freeze_yield", new_callable=AsyncMock),
+        caplog.at_level("INFO", logger="AETH"),
+    ):
+        await run_trading_cycle_if_ready(orch)
+    guard_logs = [record for record in caplog.records if "QUALITY_GUARD" in record.message]
+    assert guard_logs
+    message = guard_logs[0].message
+    assert "TCN Margin" in message
+    assert "<" in message
+    assert "min" in message
+    assert "linear=2" in message
+    assert "Payoff" not in message
+    assert "None" not in message

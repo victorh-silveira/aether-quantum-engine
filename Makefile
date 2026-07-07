@@ -4,8 +4,10 @@ APP_DIR=app
 CONDA_ENV ?= deriv-api
 DOCKER_DIR=infra/docker
 DOCKER_COMPOSE=docker compose -f $(DOCKER_DIR)/docker-compose.yml --project-directory $(DOCKER_DIR) --env-file .env
-DOCKER_SERVICE ?= timescaledb
-DOCKER_SERVICE_EFFECTIVE := $(if $(filter triton,$(DOCKER_SERVICE)),aether-triton,$(DOCKER_SERVICE))
+DOCKER_LOGS_TAIL ?= all
+define docker_service_name
+$(if $(filter triton,$(1)),aether-triton,$(1))
+endef
 RESOLVE_PY := $(shell bash linters/git-hooks/bin/resolve_conda_python.sh 2>/dev/null || echo python)
 PYTHON := $(RESOLVE_PY)
 
@@ -39,16 +41,16 @@ help:
 	@echo -e "  $(GREEN)app-pre-commit$(RESET)      - Instala e configura os git hooks locais de pre-commit"
 	@echo -e "  $(GREEN)app-pre-commit-run$(RESET)  - Roda todos os hooks (equivalente a pre-commit run --all-files)"
 	@echo -e "  $(GREEN)app-setup-wsl$(RESET)     	- Configura Git, Conda e hooks no WSL (bash app/scripts/wsl/setup.sh)"
-	@echo -e "  $(GREEN)app-clean$(RESET)       	- Limpa lixo, caches do Python/Pytest e logs do workspace"
+	@echo -e "  $(GREEN)app-clean$(RESET)       	- Limpa caches, logs e dados locais de run/treino (preserva bind mounts Docker)"
 	@echo -e "  $(GREEN)help / helpo$(RESET) 		- Exibe este menu de ajuda interativo"
 	@echo -e ""
 	@echo -e "$(YELLOW)Docker:$(RESET)"
 	@echo -e "  $(GREEN)docker-up$(RESET)    - Sobe Redis, TimescaleDB, MinIO, Triton e Meta-Classificador"
 	@echo -e "  $(GREEN)docker-down$(RESET)  - Para e remove containers"
-	@echo -e "  $(GREEN)docker-clean$(RESET) - Remove containers, volumes e redes do projeto (preserva imagens)"
+	@echo -e "  $(GREEN)docker-clean$(RESET) - Remove containers, volumes nomeados e redes (preserva bind mounts e imagens)"
 	@echo -e "  $(GREEN)docker-ps$(RESET)    - Status dos containers"
-	@echo -e "  $(GREEN)docker-logs$(RESET)  - Logs (DOCKER_SERVICE=triton|redis F=1)"
-	@echo -e "  $(GREEN)docker-bash$(RESET)  - Shell (DOCKER_SERVICE=triton|timescaledb)"
+	@echo -e "  $(GREEN)docker-logs$(RESET)  - Logs de todos os containers (DOCKER_SERVICE=redis F=1 para filtrar/seguir)"
+	@echo -e "  $(GREEN)docker-bash$(RESET)  - Shell (DOCKER_SERVICE=triton|timescaledb; padrao: timescaledb)"
 	@echo -e "  $(GREEN)timescale-lifecycle$(RESET) - Aplica compressao/retencao Timescale (idempotente)"
 	@echo -e "$(BLUE)========================================================================$(RESET)"
 
@@ -107,6 +109,8 @@ docker-down:
 
 docker-clean:
 	@test -f .env || cp .env.example .env
+	@echo ">>> docker-clean: removendo containers, volumes nomeados (redis/timescale/minio) e redes"
+	@echo ">>> bind mounts preservados no host: infra/docker/triton-models, infra/docker/meta-models"
 	$(DOCKER_COMPOSE) down --volumes --remove-orphans
 	@$(DOCKER_COMPOSE) ps
 
@@ -114,7 +118,7 @@ docker-ps:
 	$(DOCKER_COMPOSE) ps
 
 docker-logs:
-	$(DOCKER_COMPOSE) logs $(if $(F),-f,) $(if $(DOCKER_SERVICE),$(DOCKER_SERVICE_EFFECTIVE),)
+	$(DOCKER_COMPOSE) logs --tail=$(DOCKER_LOGS_TAIL) $(if $(F),-f,) $(if $(DOCKER_SERVICE),$(call docker_service_name,$(DOCKER_SERVICE)),)
 
 docker-bash:
-	$(DOCKER_COMPOSE) exec -it $(DOCKER_SERVICE_EFFECTIVE) sh -c 'if [ -x /bin/bash ]; then exec /bin/bash; else exec /bin/sh; fi'
+	$(DOCKER_COMPOSE) exec -it $(call docker_service_name,$(or $(DOCKER_SERVICE),timescaledb)) sh -c 'if [ -x /bin/bash ]; then exec /bin/bash; else exec /bin/sh; fi'

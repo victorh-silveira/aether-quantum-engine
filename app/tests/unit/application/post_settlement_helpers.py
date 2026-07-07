@@ -1,9 +1,35 @@
 import asyncio
 from unittest.mock import patch
 
+from src.domain.models.trade import TradeDirection
+
 
 POST_SETTLEMENT_MODULE = "src.application.services.orchestrator.post_settlement_cycle"
 SETTLEMENT_MODULE = "src.application.services.orchestrator.execution_settlement"
+TRADING_CYCLE_COLLECT = "src.application.services.orchestrator.trading_cycle_entry.collect_deep_learning_decisions"
+
+
+def strong_cycle_decisions() -> dict:
+    return {
+        "RDBULL": {
+            "direction": TradeDirection.CALL,
+            "metrics": {
+                "calibrated_prob": 0.70,
+                "deploy_ok": True,
+                "execute": True,
+                "val_accuracy": 0.60,
+            },
+        },
+        "RDBEAR": {
+            "direction": TradeDirection.PUT,
+            "metrics": {
+                "calibrated_prob": 0.28,
+                "deploy_ok": True,
+                "execute": True,
+                "val_accuracy": 0.60,
+            },
+        },
+    }
 
 
 async def _yield_to_event_loop() -> None:

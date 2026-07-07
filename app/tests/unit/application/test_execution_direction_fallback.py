@@ -18,7 +18,7 @@ def test_loss_direction_invalid_value():
         {
             "RDBULL": {
                 "direction": TradeDirection.CALL,
-                "metrics": {"trade_score": 0.55, "raw_prob": 0.55, "deploy_ok": True, "val_accuracy": 0.55},
+                "metrics": {"trade_score": 0.55, "raw_prob": 0.72, "deploy_ok": True, "val_accuracy": 0.55},
             }
         },
         recovery_active=True,
@@ -36,7 +36,7 @@ def test_build_mandatory_fallback_candidate_non_recovery_uses_raw():
             "metrics": {
                 "gate_reason": "direction_margin",
                 "trade_score": 0.62,
-                "raw_prob": 0.56,
+                "raw_prob": 0.62,
                 "deploy_ok": True,
                 "val_accuracy": 0.55,
             },
@@ -61,7 +61,7 @@ def test_build_mandatory_fallback_candidate_skips_hard_blocked_symbols():
         },
         "RDBULL": {
             "direction": TradeDirection.CALL,
-            "metrics": {"trade_score": 0.58, "val_accuracy": 0.52, "raw_prob": 0.55, "deploy_ok": True},
+            "metrics": {"trade_score": 0.58, "val_accuracy": 0.52, "raw_prob": 0.72, "deploy_ok": True},
         },
     }
     best = build_mandatory_fallback_candidate(
@@ -82,7 +82,7 @@ def test_build_mandatory_fallback_candidate_recovery_without_loss_direction():
         {
             "RDBULL": {
                 "direction": TradeDirection.CALL,
-                "metrics": {"trade_score": 0.6, "raw_prob": 0.55, "deploy_ok": True, "val_accuracy": 0.55},
+                "metrics": {"trade_score": 0.6, "raw_prob": 0.72, "deploy_ok": True, "val_accuracy": 0.55},
             }
         },
         recovery_active=True,
@@ -98,7 +98,7 @@ def test_build_mandatory_fallback_candidate_skips_missing_raw():
         "RDBEAR": {"direction": TradeDirection.PUT, "metrics": {"trade_score": 0.90}},
         "RDBULL": {
             "direction": TradeDirection.CALL,
-            "metrics": {"trade_score": 0.56, "raw_prob": 0.56, "deploy_ok": True, "val_accuracy": 0.55},
+            "metrics": {"trade_score": 0.56, "raw_prob": 0.72, "deploy_ok": True, "val_accuracy": 0.55},
         },
     }
     best = build_mandatory_fallback_candidate(
@@ -118,7 +118,7 @@ def test_build_mandatory_fallback_candidate_last_resort_skips_missing_entry():
         {
             "RDBULL": {
                 "direction": TradeDirection.CALL,
-                "metrics": {"gate_reason": "deploy", "trade_score": 0.55, "raw_prob": 0.55, "deploy_ok": True},
+                "metrics": {"gate_reason": "deploy", "trade_score": 0.55, "raw_prob": 0.72, "deploy_ok": True},
             }
         },
         recovery_active=False,
