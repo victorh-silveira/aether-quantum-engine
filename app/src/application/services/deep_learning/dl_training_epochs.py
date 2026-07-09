@@ -10,6 +10,14 @@ from src.application.services.deep_learning.dl_device import tensor_from_numpy
 from src.application.services.deep_learning.model import model_accuracy
 
 
+AUX_REGRESSION_WEIGHT = 0.15
+
+
+def _model_core(model):
+    """Extrai o modelo interno se ele for envelopado."""
+    return getattr(model, "inner", model)
+
+
 def _masked_loss(
     model,
     x_batch: np.ndarray,
@@ -20,11 +28,23 @@ def _masked_loss(
     *,
     label_smoothing: float,
     focal_gamma: float,
+    delta_batch: np.ndarray | None = None,
+    aux_regression_weight: float = AUX_REGRESSION_WEIGHT,
 ) -> torch.Tensor:
-    """Calcula BCE mascarada com pesos e focal loss opcional."""
+    """Calcula BCE mascarada com pesos, focal loss opcional e regressao auxiliar TCN."""
     smooth = max(0.0, min(0.2, float(label_smoothing)))
     targets = y_batch * (1.0 - smooth) + 0.5 * smooth
-    logits = model(tensor_from_numpy(x_batch, device), logits=True).clamp(-30.0, 30.0)
+    core = _model_core(model)
+    x_tensor = tensor_from_numpy(x_batch, device)
+    use_aux = delta_batch is not None and hasattr(core, "regression_head")
+    if use_aux:
+        logits, aux_pred = core(x_tensor, logits=True, return_aux=True)
+        logits = logits.clamp(-30.0, 30.0)
+    else:
+        logits = model(x_tensor, logits=True)
+        if isinstance(logits, tuple):
+            logits = logits[0]
+        logits = logits.clamp(-30.0, 30.0)
     target_t = tensor_from_numpy(targets, device).clamp(0.0, 1.0)
     mask_t = tensor_from_numpy(mask_batch, device)
     loss_vec = nn.functional.binary_cross_entropy_with_logits(logits, target_t, reduction="none")
@@ -35,7 +55,13 @@ def _masked_loss(
     w = tensor_from_numpy(np.asarray(weights, dtype=np.float32), device)
     weighted = loss_vec * mask_t * w
     denom = (mask_t * w).sum().clamp(min=1e-6)
-    return weighted.sum() / denom
+    cls_loss = weighted.sum() / denom
+    if not use_aux:
+        return cls_loss
+    delta_t = tensor_from_numpy(np.asarray(delta_batch, dtype=np.float32), device)
+    reg_vec = nn.functional.mse_loss(aux_pred, delta_t, reduction="none")
+    reg_weighted = (reg_vec * mask_t * w).sum() / denom
+    return cls_loss + float(aux_regression_weight) * reg_weighted
 
 
 def _shuffled_batch_indices(n: int, batch_size: int) -> list[np.ndarray]:
@@ -110,6 +136,7 @@ def _mean_epoch_loss(
     label_smoothing: float,
     focal_gamma: float,
     optimizer: optim.Optimizer,
+    delta_train: np.ndarray | None = None,
 ) -> tuple[float, int]:
     """Executa uma epoca completa e retorna loss media e contagem de batches."""
     epoch_loss = 0.0
@@ -126,6 +153,7 @@ def _mean_epoch_loss(
             device,
             label_smoothing=label_smoothing,
             focal_gamma=focal_gamma,
+            delta_batch=None if delta_train is None else delta_train[batch_idx],
         )
         loss_value = float(loss.item())
         if not math.isfinite(loss_value):
@@ -180,6 +208,7 @@ def fit_training_epochs(
     early_stopping_patience: int = 6,
     lr_scheduler: str = "cosine",
     progress_cb=None,
+    delta_train: np.ndarray | None = None,
 ) -> tuple[float, None | dict, int]:
     """Executa epocas de treino com early stopping pela perda de validacao."""
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=max(0.0, weight_decay))
@@ -213,6 +242,7 @@ def fit_training_epochs(
             label_smoothing=label_smoothing,
             focal_gamma=focal_gamma,
             optimizer=optimizer,
+            delta_train=delta_train,
         )
         if batch_count == 0 or not math.isfinite(mean_epoch_loss):
             if best_state is not None:

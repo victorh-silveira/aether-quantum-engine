@@ -42,6 +42,9 @@ def _process_contract_outcome(orch: Any, c: dict, contract: Any, c_id: int, prof
     sym = orch.risk_manager.contract_to_symbol.get(c_id, c.get("underlying", "UNK"))
     loss_dir = getattr(contract, "direction", None)
     dir_name = loss_dir.name if loss_dir is not None else None
+    planned_stake = float(getattr(contract, "stake", 0.0) or 0.0)
+    if planned_stake > 0.0:
+        orch.risk_manager.contract_requested_stakes.setdefault(c_id, planned_stake)
     executed_buy = resolve_executed_buy_stake(
         c_id,
         payload=c if isinstance(c, dict) else None,

@@ -1,166 +1,476 @@
 # Estrutura do repositório
 
-Layout de software com infraestrutura Docker local opcional (`infra/docker/`).
+Layout de software com infraestrutura Docker local opcional (`infra/docker/`). O código de produção vive em **`app/src/`** com **208 módulos Python** organizados em quatro camadas DDD. Testes: **244** arquivos `test_*.py` em `app/tests/` com cobertura **100%** em `app/src` (**1413** statements).
 
 ```
 aether-quantum-engine/
-├── infra/docker/                       # Redis (AOF), TimescaleDB, MinIO, Triton (GPU), meta-classifier
 ├── app/
-│   ├── src/
-│   │   ├── application/services/
-│   │   │   ├── deep_learning/          # TCN/LSTM/GRU, labels, predict, dl_predict_build, Triton bridge
-│   │   │   ├── orchestrator/           # Ciclo, execução, settlement, barreira atômica, persistência, watchdog, graceful shutdown
-│   │   │   │   ├── orchestrator_atomic_state.py
-│   │   │   │   ├── orchestrator_persistence.py
-│   │   │   │   ├── session_persistence_barrier.py
-│   │   │   │   ├── api_maintenance_guard.py
-│   │   │   │   ├── trading_cycle_entry.py
-│   │   │   │   ├── orchestrator_data_signature.py
-│   │   │   │   └── ...
-│   │   │   ├── execution_*.py          # Resolver TCN+meta, quality gate adaptativo, cross-symbol, ranking
-│   │   │   ├── log_dedupe.py
-│   │   │   └── auth_manager.py
-│   │   ├── domain/                     # Modelos, risk_manager, stop_win_target, risk_recovery_state, consensus_stake_penalty, dlambert_sizing
-│   │   ├── infrastructure/
-│   │   │   ├── inference/              # triton_grpc_client, meta_classifier_client, triton_model_sync
-│   │   │   ├── state/                  # state_manager (asyncio.Lock), redis_state_pipeline, redis_state_store, json_state_store
-│   │   │   ├── storage/                # minio_model_store, torchscript_sanity, torchscript_sanity_probes
-│   │   │   └── ...                     # WebSocket, stream, stream_reconnect, tick_buffer, trade
-│   │   └── presentation/               # Logger terminal
-│   ├── tests/unit/                     # Pytest (~1893 testes; cobertura 100% em src)
-│   ├── scripts/
-│   │   ├── batch/                      # launch-all-demo, launch-train, _run_engine
-│   │   ├── monitor/                    # live_monitor
-│   │   ├── operations/                 # clean_workspace, deriv_pat_connect, train_meta_classifier, train_meta_optuna, train_meta_vector, reset_demo_balance
-│   │   └── wsl/                        # setup.sh (WSL)
-│   ├── aether_paths.py
+│   ├── aether_paths.py                 # Resolução de caminhos a partir da raiz do repo
 │   ├── run.py                          # Entrada de execução (modo execute)
-│   └── train.py                        # Entrada de treino DL (modo train)
-├── config/settings.json                # Configuração versionada
-├── data/                               # state.json, dl/, deriv/ (runtime)
-├── logs/                               # engine.log, monitor.log
+│   ├── train.py                        # Entrada de treino DL (modo train)
+│   ├── pyproject.toml
+│   ├── requirements.txt
+│   ├── requirements-dev.txt
+│   ├── scripts/
+│   │   ├── batch/                      # launch-all-demo, launch-all-live, launch-train, _run_*
+│   │   ├── monitor/                    # live_monitor, monitor_redis, monitor_state, monitor_ui
+│   │   ├── operations/                 # clean_workspace, deriv_pat_connect, train_meta_*
+│   │   └── wsl/setup.sh
+│   ├── src/                            # 208 módulos Python (DDD)
+│   └── tests/
+│       ├── unit/                       # application, domain, infrastructure, presentation, scripts
+│       ├── conftest.py
+│       └── market_symbols.py
+├── config/
+│   ├── settings.json
+│   └── python.json
+├── data/                               # Runtime: state.json, session_state.json, dl/, deriv/
 ├── docs/
-├── linters/                            # pre-commit, commitlint, release
-├── .github/workflows/                  # CI
-├── run.py                              # Atalho para app/run.py
-└── train.py                            # Atalho para app/train.py
+├── infra/docker/                       # Redis, TimescaleDB, MinIO, Triton, meta-classifier
+├── linters/
+├── logs/
+├── Makefile
+├── README.md
+├── run.py                              # Atalho → app/run.py
+└── train.py                            # Atalho → app/train.py
 ```
 
-## Camadas em `app/src`
+---
 
-| Pasta | Responsabilidade |
-|-------|------------------|
-| `application/services/deep_learning` | Features **34D**, TCN/LSTM/GRU, `dl_predict_build` (bundle cross-symbol), `dl_predict_async`, `dl_predict_triton`, `dl_trend`, deploy gate, TorchScript |
-| `application/services/orchestrator` | `Orchestrator`, `ExecutionManager`, `trading_cycle_entry`, `orchestrator_data_signature`, `orchestrator_atomic_state`, `orchestrator_persistence`, `session_persistence_barrier`, `api_maintenance_guard`, `execution_collect`, `execution_recovery_gate`, `watchdog_service`, `graceful_shutdown`, `settlement_*`, `settlement_queue_ops`, `post_settlement_cycle`, `orchestrator_run_loop` |
-| `application/services` | `execution_direction_resolver` (TCN + edge contínuo D-SQUEEZE), `meta_payoff_regression`, `meta_classifier_stacking`, `execution_quality_gate` (margem + payoff), `execution_quality_gate_cluster`, `execution_quality_gate_fallback`, `execution_direction_cross_corr` (telemetria), `execution_market_rank`, `execution_symbols`, `execution_mandatory_pick`, `log_dedupe`, `auth_manager` |
-| `domain` | `Candle`, `Trade`, `RiskManager`, `StopWinManager` (`stop_win_target.py`), `risk_recovery_state`, `consensus_stake_penalty`, `recovery_hurst_gate`, `probability_entropy`, Kelly, `dlambert_sizing` (Martingale Geométrico), `recovery_conviction`, cooldowns, `stake_sizing` |
-| `infrastructure/inference` | `TritonGrpcClient` (gRPC aio persistente), `triton_inference_client`, `meta_classifier_client`, `triton_model_sync`, `triton_tensor_builder`, `triton_model_metadata` |
-| `infrastructure/state` | `state_manager` (`asyncio.Lock`, `atomic_state_context`, `read_cached_balance`), `redis_state_pipeline` (MULTI/EXEC atômico), `redis_state_store`, `json_state_store`, ports `StateStore` |
-| `infrastructure/storage` | `minio_model_store`, `torchscript_sanity`, `torchscript_sanity_probes` (probes estressados) |
-| `infrastructure` (demais) | `WebSocketManager`, `StreamHandler`, `stream_reconnect`, `TickBuffer`, `TradeHandler`, Timescale, MinIO |
-| `presentation/terminal` | `setup_logger`, `BlankLineSquasher`, formatação de logs |
+## Regra DDD entre camadas
 
-Decisão exclusivamente Deep Learning quando `deep_learning.enabled` é verdadeiro. Treino e execução são processos separados (`train.py` / `run.py`).
+```
+presentation  →  application  →  domain
+                    ↓
+              infrastructure (ports/adapters)
+```
 
-## Módulos de execução (pipeline atual)
+| Camada | Pasta | Módulos | Responsabilidade |
+|--------|-------|---------|------------------|
+| Application | `application/services/` | ~133 | Casos de uso: orquestração, DL, execução, meta-classificador |
+| Domain | `domain/` | ~30 | Lógica pura: risco Kelly/D'Alembert, modelos, matemática |
+| Infrastructure | `infrastructure/` | ~38 | Adaptadores: Deriv API, Redis, Triton, MinIO, Timescale |
+| Presentation | `presentation/` | 1 | Logging de terminal |
+
+---
+
+## Entry points (`app/`)
+
+| Arquivo | Função |
+|---------|--------|
+| `aether_paths.py` | `repo_path()` — caminhos absolutos a partir da raiz |
+| `run.py` | Bootstrap `engine_session`, cria `Orchestrator`, `asyncio.run(orch.run())` |
+| `train.py` | Bootstrap de treino, `orch.run_training()` |
+
+---
+
+## Application — raiz (`application/services/`)
+
+| Módulo | Responsabilidade |
+|--------|------------------|
+| `auth_manager.py` | Autenticação PAT Deriv, sessão REST/OTP |
+| `bb_width_adaptive_squeeze.py` | D-SQUEEZE: média harmônica de `bb_width` |
+| `direction_loss_tracker.py` | Perdas consecutivas por direção (singleton) |
+| `direction_persistence_guard.py` | Anti-trend-lock com flip cross-symbol |
+| `execution_direction.py` | Resolução/inversão CALL/PUT para execução |
+| `execution_direction_cross_corr.py` | Peso DL via correlação cruzada |
+| `execution_direction_fallback.py` | Fallback quando pool DL vazio |
+| `execution_direction_resolver.py` | Motor de direção TCN + meta-regressor + Z-Score |
+| `execution_entropy_fallback.py` | Fallback por menor entropia Shannon |
+| `execution_mandatory_pick.py` | Seleção obrigatória por ranking |
+| `execution_market_rank.py` | Ranking de mercado e `market_decision_score` |
+| `execution_quality_gate.py` | Gate TCN: margem direcional + meta payoff edge |
+| `execution_quality_gate_reason.py` | Motivos textuais e mensagens `QUALITY_GUARD` / `EXECUTION_FLOW` |
+| `execution_quality_gate_cluster.py` | Suspensão cooperativa do cluster (TCN vs meta) |
+| `execution_quality_gate_meta.py` | Filtro pelo meta-regressor (z-score payoff) |
+| `execution_quality_gate_fallback.py` | Bloqueio de fallback em recovery |
+| `execution_quality_gate_drawdown.py` | Limites proporcionais ao drawdown |
+| `execution_quality_gate_starvation.py` | Válvula de escape por inanição de ciclos |
+| `execution_symbols.py` | Símbolos elegíveis e ranking |
+| `execution_symbols_recovery.py` | Pool e ranking em recovery |
+| `execution_symbols_overdrive.py` | Volatility Overdrive Override |
+| `execution_volatility_threshold.py` | Thresholds dinâmicos por regime |
+| `execution_volatility_bb.py` | Bollinger width com vol implícita |
+| `execution_volatility_booster.py` | Modificador por estouro M15/M1 |
+| `log_dedupe.py` | `LogDeduper` — deduplicação de logs por minuto |
+| `market_audit_log.py` | Auditoria unificada de mercado |
+| `meta_classifier_features.py` | Vetores tabulares para stacking |
+| `meta_classifier_flow_features.py` | Features de velocidade micro |
+| `meta_classifier_cross_symbol.py` | Features cross-symbol de arbitragem |
+| `meta_classifier_stacking.py` | Stacking tabular com edge contínuo |
+| `meta_payoff_regression.py` | Decisão com edge LightGBM |
+| `meta_direction_flip.py` | Inversão direcional em exaustão micro |
+| `payoff_edge_zscore.py` | Z-Score adaptativo (janela 15–45) sobre `predicted_payoff_edge` |
+
+### Application — strategy (`application/services/strategy/`)
+
+| Módulo | Responsabilidade |
+|--------|------------------|
+| `decision_mode.py` | `resolve_decision_mode` — modo DL ativo |
+| `__init__.py` | Pacote de modos alternativos |
+
+### Application — orchestrator (`application/services/orchestrator/`)
+
+| Módulo | Responsabilidade |
+|--------|------------------|
+| `__init__.py` | **`Orchestrator`** — aggregate root operacional |
+| `orchestrator_run_loop.py` | Loop principal; recovery transparente pós-deadlock |
+| `trading_cycle_entry.py` | Pré-condições, lock e execução do ciclo |
+| `ws_bootstrap.py` | Bootstrap WebSocket PAT e streams |
+| `engine_session.py` | Bootstrap compartilhado run.py / train.py |
+| `engine_mode.py` | Modos train vs execute |
+| `config_symbols.py` | Normalização de símbolos e âncora |
+| `decision_mode_banner.py` | Banner de modo de decisão no startup |
+| `execution_manager.py` | **`ExecutionManager`** — ordens, settlement, reconcile |
+| `execution_collect.py` | Coleta e seleção de candidatos do cluster |
+| `execution_collect_gather.py` | Coleta contínua sem veto de qualidade |
+| `execution_collect_helpers.py` | Helpers: hedge, fallback, Hurst |
+| `execution_orders.py` | Envio de ordens e subscribe de contratos |
+| `execution_proposal.py` | Retry de proposta com redução de stake |
+| `execution_fractional_lots.py` | Fatiamento de stakes em lotes paralelos |
+| `execution_contract_adoption.py` | Adoção de contratos executados no estado |
+| `execution_split_abort.py` | Anti-loop em abortos de fatiamento |
+| `execution_recovery_gate.py` | Pisos de qualidade em modo recovery |
+| `execution_settlement.py` | Aguarda liquidação e reconcilia |
+| `execution_blockers.py` | Logs quando nenhuma ordem é enviada |
+| `execution_quality_skip_yield.py` | Yield após rejeição silenciosa do meta-gate |
+| `settlement_logic.py` | Liquidação e pós-processamento de contratos |
+| `settlement_reconciliation.py` | Reconciliação atômica pós-reconexão WS |
+| `settlement_backfill.py` | Fallback via profit_table / portfolio |
+| `settlement_detect.py` | Detecção de contrato liquidado |
+| `settlement_ws_queries.py` | Consultas WS para reconciliação |
+| `settlement_utils.py` | Utilitários de liquidação |
+| `settlement_queue_ops.py` | Operações da fila de liquidação |
+| `orchestrator_settlement_queue.py` | Fila assíncrona de liquidações |
+| `post_settlement_cycle.py` | Agendamento pós-liquidação com fôlego |
+| `post_settlement_loss_cooldown.py` | Inércia temporal pós-LOSS |
+| `post_settlement_resilience.py` | Recovery transparente e timeouts resilientes |
+| `session_target_bootstrap.py` | Bootstrap de metas stop-win por sessão |
+| `session_persistence_barrier.py` | Barreira atômica pós-reset D'Alembert |
+| `orchestrator_persistence.py` | Snapshot atômico sessão/risco/mercado |
+| `orchestrator_state_restore.py` | Restore Redis no boot |
+| `orchestrator_state_session.py` | Restore de sessão e assinaturas Redis |
+| `orchestrator_atomic_state.py` | Contexto atômico de leitura/escrita |
+| `orchestrator_data_signature.py` | Assinatura M1+M15 para invalidação de cache |
+| `metrics_utils.py` | Métricas neutras do orquestrador |
+| `result_utils.py` | Normalização de resultado de contratos |
+| `regime_freeze_yield.py` | Yield quando regime FREEZE suspende ciclo |
+| `warm_up_buffer_guard.py` | Aquecimento do TickBuffer pós-reconexão |
+| `watchdog_service.py` | Watchdog de inanição de ticks |
+| `api_maintenance_guard.py` | Hibernação durante manutenção do broker |
+| `graceful_shutdown.py` | Encerramento gracioso |
+| `training_run.py` | Sessão de treino DL (train.py) |
+
+### Application — deep learning (`application/services/deep_learning/`)
+
+| Módulo | Responsabilidade |
+|--------|------------------|
+| `decision_bridge.py` | Ponte DL → Orquestrador |
+| `model.py` | Fachada TCN/LSTM, checkpoint e predição |
+| `dl_tcn.py` | TCN dilatado + **cabeça auxiliar de regressão** (`regression_head`) para regularização multi-task |
+| `dl_lstm.py` | Classificador LSTM/GRU |
+| `dl_model_factory.py` | Fábrica de arquiteturas |
+| `dl_model_types.py` | Tipos e constantes DL |
+| `dl_model_checkpoint.py` | Persistência PyTorch / TorchScript |
+| `dl_model_artifacts.py` | Download/upload via ModelArtifactStore |
+| `dl_symbol_runtime.py` | Runtime de modelo por símbolo |
+| `dl_params.py` | Leitura de parâmetros deep_learning |
+| `dl_params_blocks.py` | Blocos de parsing de parâmetros |
+| `dl_device.py` | Seleção CPU/CUDA |
+| `dl_startup.py` | Fetch inicial e prontidão de checkpoint |
+| `dl_training.py` | Treino walk-forward com split purged |
+| `dl_training_epochs.py` | Loop de épocas e perda mascarada |
+| `dl_training_gate.py` | Gates de treino inicial / histórico mínimo |
+| `dl_symbol_train.py` | Treino walk-forward por símbolo |
+| `dl_symbol_train_success.py` | Persistência pós-treino |
+| `dl_bootstrap_train.py` | Treino inicial sequencial de todos os símbolos |
+| `dl_deferred_train.py` | Retreino em background |
+| `dl_retrain.py` | Agenda retreino por vela/loss/janela |
+| `dl_splits.py` | Splits temporais purged com embargo |
+| `dl_labels.py` | Rótulos binários Rise/Fall / Triple Barrier |
+| `dl_horizon.py` | Horizonte de label alinhado ao contrato |
+| `dl_features.py` | Reexport de feature build e sequence extract |
+| `dl_feature_build.py` | Séries de preço e tensores de features (34D) |
+| `dl_feature_indicators.py` | Indicadores técnicos normalizados |
+| `dl_feature_indicators_advanced.py` | Indicadores avançados normalizados |
+| `dl_sequence_extract.py` | Sequências TCN a partir de OHLC |
+| `dl_market_data.py` | Leitura OHLC e microestrutura do stream |
+| `dl_hurst.py` | Hurst e variance ratio |
+| `dl_trend.py` | Direção consensual de tendência |
+| `dl_gating.py` | Utilitários de probabilidade para execução |
+| `dl_gate_config.py` | Config do gate de deploy |
+| `dl_deploy.py` | Gate de deploy e persistência no runtime |
+| `dl_deploy_eval.py` | Mini walk-forward de deploy |
+| `dl_calibration.py` | Calibração de probabilidades |
+| `dl_calibration_fit.py` | Ajuste de calibradores no holdout |
+| `dl_calibration_isotonic.py` | Regressão isotônica (PAV) |
+| `dl_predict.py` | Predição por símbolo |
+| `dl_predict_async.py` | Predição assíncrona por símbolo |
+| `dl_predict_triton.py` | Predição via Triton |
+| `dl_predict_build.py` | Montagem de entrada de decisão DL (bundle 39D) |
+| `dl_predict_metrics.py` | Métricas dinâmicas e squeeze no entry |
+| `dl_cycle_log.py` | Logs compactos do ciclo DL |
+| `dl_cycle_brief.py` | Linhas curtas do ciclo DL |
+| `dl_outcomes.py` | Peso de amostras a partir de trades reais |
+| `dl_bridge_helpers.py` | Entradas de decisão, cooldown, reexportes |
+
+---
+
+## Domain (`domain/`)
+
+### Models (`domain/models/`)
+
+| Módulo | Responsabilidade |
+|--------|------------------|
+| `trade.py` | `TradeDirection`, `Proposal`, `Contract`, `TradeResult` |
+| `market_data.py` | `Candle` |
+
+### Math (`domain/math/`)
+
+| Módulo | Responsabilidade |
+|--------|------------------|
+| `probability_entropy.py` | `binary_entropy`, `entropy_penalty_factor`, `adaptive_entropy_ceiling` |
+| `__init__.py` | Pacote vazio |
+
+### Symbols (`domain/symbols/`)
+
+| Módulo | Responsabilidade |
+|--------|------------------|
+| `drift_symbols.py` | `hedge_peer`, `is_high_side`, `sym_is_low_barrier` |
+
+### Risk (`domain/risk/`)
+
+| Módulo | Responsabilidade |
+|--------|------------------|
+| `risk_manager.py` | **`RiskManager`** — Kelly, cluster, recovery |
+| `risk_stake_calc.py` | Cálculo de stake para RiskManager |
+| `risk_stake_flow.py` | `apply_stop_win_kelly_boost`, `emit_cycle_stake_log` |
+| `stake_sizing.py` | Kelly e D'Alembert, consenso, round_stake |
+| `kelly_base_fraction.py` | Compressão da fração Kelly |
+| `kelly_f_star_adjustments.py` | Ajustes f* (consenso, divergência) |
+| `super_concordance_kelly.py` | Expansão Kelly em super-consenso |
+| `consensus_stake_penalty.py` | Modificador por divergência técnica |
+| `dlambert_sizing.py` | Kelly + progressão D'Alembert / Martingale |
+| `stop_win_target.py` | `StopWinManager`, meta de lucro por sessão |
+| `stake_target_proximity.py` | Amortecimento por proximidade da meta |
+| `risk_recovery_state.py` | Estado financeiro de recovery |
+| `recovery_conviction.py` | Pisos de convicção em recovery |
+| `recovery_hurst_gate.py` | Piso logarítmico por Hurst |
+| `recovery_hurst_decay.py` | Decaimento do piso Hurst |
+| `risk_cluster.py` | Finalização de cluster |
+| `risk_contract_result.py` | `apply_contract_settlement_result` |
+| `executed_stake_reconciliation.py` | Stake executada vs planejada |
+| `risk_cooldown.py` | `RiskCooldownMixin` |
+| `entry_cooldown.py` | Cooldown entre entradas |
+| `risk_proposal_skip.py` | `ProposalSkipMixin` |
+| `symbol_loss_cooldown.py` | Cooldown por loss recente |
+| `risk_manager_restore.py` | Restore de snapshot |
+
+---
+
+## Infrastructure (`infrastructure/`)
+
+### Ports (`infrastructure/ports/`)
+
+| Módulo | Responsabilidade |
+|--------|------------------|
+| `state_store.py` | `StateStore` (Protocol) |
+| `model_artifact_store.py` | `ModelArtifactStore` (Protocol) |
+| `market_series_writer.py` | `MarketSeriesWriter` (Protocol) |
+
+### API Deriv (`infrastructure/api/`)
+
+| Módulo | Responsabilidade |
+|--------|------------------|
+| `deriv_rest_client.py` | Cliente REST PAT + OTP |
+| `deriv_pat_session.py` | Fluxo PAT: health, accounts, OTP |
+| `deriv_pat_binding.py` | Cache de App ID para PAT |
+| `deriv_credentials.py` | App ID e credenciais Deriv |
+| `deriv_http.py` | HTTP seguro para Deriv |
+| `deriv_granularity.py` | Granularidades OHLC aceitas |
+| `websocket_manager.py` | WebSocket assíncrono |
+
+### Handlers (`infrastructure/handlers/`)
+
+| Módulo | Responsabilidade |
+|--------|------------------|
+| `stream_handler.py` | Fluxo em tempo real e histórico local |
+| `tick_buffer.py` | Buffer de ticks e microestrutura |
+| `stream_timeframe.py` | Granularidades macro/micro duplas |
+| `stream_candle_apply.py` | Aplicação incremental de velas |
+| `stream_tick_sidecar.py` | Ingestão de ticks e persistência de barras |
+| `stream_ohlc_fetch.py` | Busca OHLC sem alterar buffer |
+| `stream_reconnect.py` | Reconexão controlada OHLC/tick |
+| `stream_reconnect_profit_audit.py` | Auditoria profit_table pós-instabilidade |
+| `history_fetch.py` | Paginação resiliente ticks_history |
+| `trade_handler.py` | Propostas e compra de contratos |
+
+### State (`infrastructure/state/`)
+
+| Módulo | Responsabilidade |
+|--------|------------------|
+| `trading_state.py` | `TradingState` — estado compartilhado |
+| `state_manager.py` | `StateManager` — sessão e `asyncio.Lock` |
+| `persistence_manager.py` | Salvar/carregar estado JSON |
+| `redis_state_store.py` | StateStore Redis com debounce |
+| `redis_state_pipeline.py` | Escrita atômica MULTI/EXEC |
+| `json_state_store.py` | StateStore JSON (testes/sem infra) |
+
+### Inference (`infrastructure/inference/`)
+
+| Módulo | Responsabilidade |
+|--------|------------------|
+| `triton_inference_client.py` | Facade de inferência Triton |
+| `triton_grpc_client.py` | Cliente gRPC aio persistente |
+| `triton_http.py` | HTTP para Triton |
+| `triton_model_sync.py` | Sync TorchScript MinIO → Triton |
+| `triton_model_metadata.py` | Metadados HTTP de modelos |
+| `triton_tensor_builder.py` | Montagem de tensores OHLC |
+| `meta_classifier_client.py` | Cliente HTTP meta-classificador |
+| `meta_classifier_pool.py` | Pool singleton do cliente meta |
+| `meta_classifier_types.py` | Tipos de payload meta |
+
+### Storage (`infrastructure/storage/`)
+
+| Módulo | Responsabilidade |
+|--------|------------------|
+| `minio_model_store.py` | Armazenamento MinIO de checkpoints |
+| `local_model_store.py` | Checkpoints locais (testes/cache) |
+| `torchscript_sanity.py` | Validação forward pass TorchScript/Triton |
+| `torchscript_sanity_probes.py` | Tensores de stress para sanidade |
+
+### Market (`infrastructure/market/`)
+
+| Módulo | Responsabilidade |
+|--------|------------------|
+| `timescale_writer.py` | Persistência assíncrona em TimescaleDB |
+| `timescale_correlation_reader.py` | Matriz de correlação cruzada |
+| `timescale_correlation_worker.py` | Worker de refresh da matriz |
+| `null_market_writer.py` | Writer nulo (testes/sem Timescale) |
+
+### Factories (`infrastructure/factories/`)
+
+| Módulo | Responsabilidade |
+|--------|------------------|
+| `infra_factory.py` | `create_infra_services`, `InfraServices` |
+
+---
+
+## Presentation (`presentation/`)
+
+| Módulo | Responsabilidade |
+|--------|------------------|
+| `terminal/logger.py` | `setup_logger`, `AetherFormatter`, `BlankLineSquasher` |
+
+---
+
+## Scripts (`app/scripts/`)
+
+| Caminho | Função |
+|---------|--------|
+| `batch/launch-all-demo.bat` | Launcher demo Windows |
+| `batch/launch-all-live.bat` | Launcher live Windows |
+| `batch/launch-train.bat` | Launcher treino Windows |
+| `monitor/live_monitor.py` | Monitor Rich ao vivo |
+| `monitor/monitor_redis.py` | Inspeção Redis |
+| `monitor/monitor_state.py` | Inspeção de estado |
+| `monitor/monitor_ui.py` | UI de monitoramento |
+| `operations/clean_workspace.py` | Lint, pytest, segurança, limpeza (pre-commit) |
+| `operations/clean_workspace_stage.py` | Estágios isolados do clean_workspace |
+| `operations/clean_runtime_artifacts.py` | Limpeza de artefatos de runtime |
+| `operations/deriv_pat_connect.py` | Conexão/teste PAT Deriv |
+| `operations/reset_demo_balance.py` | Reset de saldo demo |
+| `operations/train_meta_classifier.py` | Treino do meta-classificador |
+| `operations/train_meta_data.py` | Preparação de dados meta |
+| `operations/train_meta_optuna.py` | Otimização Optuna meta (max IR) |
+| `operations/train_meta_vector.py` | Treino de vetores meta |
+| `wsl/setup.sh` | Setup do ambiente WSL |
+
+---
+
+## Testes (`app/tests/`)
+
+```
+app/tests/
+├── conftest.py
+├── market_symbols.py
+├── memory_reclaim.py
+├── torch_test_support.py
+└── unit/
+    ├── test_run.py
+    ├── application/          # ~167 arquivos — orchestrator, DL, execution, meta
+    ├── domain/
+    │   ├── math/
+    │   └── risk/             # ~30 testes
+    ├── infrastructure/       # ~45 testes
+    ├── presentation/
+    └── scripts/
+```
+
+Convenção: espelha as camadas DDD. Cobertura obrigatória **100%** em `app/src/`.
+
+---
+
+## Pipeline de execução
 
 ```mermaid
 flowchart TD
-  BR[decision_bridge] --> BUNDLE[dl_predict_build cross-symbol bundle]
-  BUNDLE --> PRED[dl_predict_triton]
-  PRED --> META[meta_classifier_client GBDT M1]
-  META --> RES[execution_direction_resolver TCN + edge contínuo]
-  RES --> QG[execution_quality_gate janelas dinamicas]
+  BR[decision_bridge] --> BUNDLE[dl_predict_build 39D]
+  BUNDLE --> PRED[dl_predict_triton gRPC 2s]
+  PRED --> META[meta_classifier_client]
+  META --> RES[execution_direction_resolver]
+  RES --> ZS[payoff_edge_zscore]
+  ZS --> QG[execution_quality_gate]
   QG --> COL[execution_collect]
-  COL --> RANK[execution_market_rank / execution_symbols]
-  RANK --> EM[ExecutionManager]
+  COL --> RANK[execution_market_rank]
+  RANK --> SYM[execution_symbols]
+  SYM --> EM[ExecutionManager fractional lots]
+  EM --> TH[TradeHandler RISE_FALL 60s]
+  TH --> ST[settlement_logic]
+  ST --> RM[risk_contract_result → RiskManager]
+  ST --> PSC[post_settlement_cycle]
+  PSC -->|deadlock 2x| REC[post_settlement_resilience]
 ```
 
-| Arquivo | Papel |
-|---------|-------|
-| `dl_predict_build.py` | `prepare_meta_classifier_cross_symbol_bundle` — telemetria micro M1 paralela + spreads cross-symbol antes do prefetch HTTP |
-| `triton_grpc_client.py` | Canal `grpc.aio.insecure_channel` persistente; timeout 2 s por inferência; `infer_symbols_concurrent` via `asyncio.gather`; fallback TorchScript em timeout |
-| `meta_classifier_client.py` | Consulta assíncrona httpx ao container porta 8005; timeout 1,0 s; retorna `predicted_payoff_edge`; fallback neutro em falha |
-| `meta_payoff_regression.py` | Edge `> 0` preserva score TCN; edge `< -0.15` em squeeze rebaixa para `0.52`; log `[D-SQUEEZE]` |
-| `meta_classifier_features.py` | Extração tabular 39D (34 TCN + 3 cross-symbol + 2 fluxo micro); `meta_classifier_column_names()` |
-| `meta_classifier_cross_symbol.py` | Triplet cross-symbol: `prob_delta` (abs), `vol_ratio_diff` e `rsi_spread` (spreads lineares assinados) |
-| `train_meta_vector.py` | Montagem vetorizada do dataset 39D com alinhamento epoch; alvo `Y = PnL_Real / Stake` |
-| `train_meta_optuna.py` | Optuna + `LGBMRegressor` huber; minimiza MAE; `n_jobs=2`; `LOKY_MAX_CPU_COUNT=4` no boot |
-| `watchdog_service.py` | `AetherWatchdog` — detecta inanição de ticks (>30 s) e reconecta stream sem derrubar o motor |
-| `stream_reconnect.py` | Reabertura controlada de WS + subscrições OHLC/tick após STALE_DATA |
-| `graceful_shutdown.py` | Encerramento ordenado; `fast_path=True` cancela fila de settlement e aborta tasks pós-liquidação |
-| `settlement_queue_ops.py` | `cancel_settlement_queue_fast` — cancela worker e drena fila sem handshake `task_done` |
-| `post_settlement_cycle.py` | Breath pós-liquidação; curto-circuito stop win; teto 2× ciclo incompleto |
-| `orchestrator_run_loop.py` | Loop principal; `_enforce_post_settlement_deadlock_exit` → `emergency_save_session_state` + `sys.exit(0)` |
-| `execution_direction_resolver.py` | TCN define `dl_direction`; meta-regressor refina via `predicted_payoff_edge`; `ensure_direction_margin` expõe `abs(P(lado) − 0.50)` |
-| `execution_quality_gate.py` | Janelas dinâmicas regular/recovery; `direction_margin_from_probability`, `ensure_direction_margin`, `passes_execution_quality` |
-| `execution_quality_gate_cluster.py` | `quality_conviction_suspends_cluster`, log `[AETHER] QUALITY_GUARD` |
-| `execution_quality_gate_fallback.py` | Bloqueia fallback obrigatório em recovery quando todos os candidatos foram vetados |
-| `orchestrator_data_signature.py` | Assinatura `m1b:...;m1:...;m15:...` para invalidar cache por fronteira M1 |
-| `dlambert_sizing.py` (domain) | Martingale `Effective_Base × 2^n` com ancoragem `max(override, U)` |
-| `risk_stake_calc.py` (domain) | Bypass de consensus penalty quando `pending_total > 0` |
-| `execution_collect_helpers.py` | `recovery_hurst_blocks_collect`, mandatory fallback, logs EXEC_SEL |
-| `execution_collect.py` | Coleta contínua; quality gate como penalidade; fallback bloqueado em recovery se todos vetados |
-| `consensus_stake_penalty.py` (domain) | Penalidade Kelly base por divergência técnica; waiver absoluto em regime de recovery ativo |
-| `risk_recovery_state.py` (domain) | Reset do expoente consecutivo condicionado à extinção real de `pending_loss` |
-| `redis_state_pipeline.py` | Escrita atômica MULTI/EXEC do bundle de risco, snapshot e chaves de sessão no Redis |
-| `session_target_bootstrap.py` | Bootstrap e clearing de metas compostas de 2,60% atreladas ao processo vivo |
-| `stop_win_target.py` (domain) | Cálculo centralizado de `target_win` e gerenciamento de estados de sessão composta |
-| `state_manager.py` (infra) | `asyncio.Lock` central; `atomic_state_context()`; `mirror_balance()` / `read_cached_balance()` |
-| `orchestrator_atomic_state.py` | Facade do lock para o orquestrador; `orchestrator_balance_snapshot()` para infra read-only |
-| `orchestrator_persistence.py` | `save_full_state()` (locked) e `persist_full_state_unlocked()` (sem reentrância) |
-| `session_persistence_barrier.py` | Barreira pós-reset linear D'Alembert; yield 0,1 s; flag `_session_persistence_write_active` |
-| `api_maintenance_guard.py` | Hibernação cooperativa em manutenção/reset de liquidez do broker Deriv |
-| `trading_cycle_entry.py` | Entrada do ciclo M1; assinatura M1+M15; lock atômico; `quality_conviction_suspends_cluster` antes de `execute_cluster` |
+---
 
-## Concorrência assíncrona (barreira atômica)
+## Concorrência assíncrona
 
-```mermaid
-flowchart LR
-  TC[trading_cycle_entry] --> LOCK[StateManager Lock]
-  SL[settlement_logic] --> LOCK
-  SP[session_persistence_barrier] --> LOCK
-  LOCK --> REDIS[redis_state_pipeline]
-  LOCK --> JSON[data/session_state.json]
-  WS[websocket ping] --> SNAP[read_cached_balance]
-  REC[stream_reconnect] --> SNAP
-```
+| Componente | Caminho | Papel |
+|------------|---------|-------|
+| Lock central | `state_manager.py` | `asyncio.Lock` + `atomic_state_context` |
+| Facade | `orchestrator_atomic_state.py` | Delega ao StateManager |
+| Ciclo | `trading_cycle_entry.py` | Lock envolvendo inferência + execução |
+| Liquidação | `settlement_logic.py` | Lock em `_complete_contract_settlement` |
+| Barreira | `session_persistence_barrier.py` | Pós-reset linear D'Alembert |
+| Recovery | `post_settlement_resilience.py` | Reset transparente de contadores pós-deadlock |
 
-| Regra | Detalhe |
-|-------|---------|
-| Serialização | Inferência DL, liquidação e persistência de risco não coexistem |
-| Reentrância | Seções já protegidas usam `_persist_full_state_unlocked()` |
-| Infra read-only | Ping WS, reconexão e profit audit leem `_balance_snapshot` sem lock |
-| Testes | `MagicMock` como `state_mgr` bypassa o lock (evita deadlock em mocks) |
+---
 
 ## Dados e artefatos
 
 | Caminho | Uso |
 |---------|-----|
-| `data/state.json` | Estado geral de contratos e banca (legado) |
-| `data/session_state.json` | Métricas da sessão ativa corrente (`session_start_balance`, `target_win`, P&L) |
-| `data/dl/{symbol}.pth` | Checkpoints PyTorch + calibrador + métricas |
-| `data/dl/{symbol}_ts.pt` | TorchScript trace para inferência Triton |
-| `infra/docker/triton-models/{symbol}/` | Layout Triton (`model.pt`, `config.pbtxt`) |
-| `infra/docker/meta-classifier/` | Container FastAPI Python 3.13-slim; `POST /v2/predict_meta`; healthcheck `urllib` em `/health` (porta host **8005**) |
-| `infra/docker/meta-models/` | Artefatos LightGBM do meta-regressor (`.pkl`, `FEATURE_DIM=39`); `LGBMRegressor` huber treinado com `feature_name` explícito |
-| `data/deriv/pat_bindings.json` | Cache PAT → App ID |
+| `data/state.json` | Estado geral legado |
+| `data/session_state.json` | Métricas da sessão ativa |
+| `data/dl/{symbol}.pth` | Checkpoints PyTorch |
+| `data/dl/{symbol}_ts.pt` | TorchScript para Triton |
+| `infra/docker/triton-models/{symbol}/` | Layout Triton |
+| `infra/docker/meta-models/` | LightGBM `.pkl` (39D) |
 | `logs/engine.log` | Auditoria operacional |
 
-Caminhos resolvidos por `aether_paths.repo_path()` a partir da raiz do repositório.
+---
 
 ## Comandos úteis (WSL)
 
-Primeira vez no WSL: `make setup-wsl` (Git, Conda no `~/.bashrc`, hooks).
-
 ```bash
-make install
-make test
-make lint
+make app-install
+make app-lint
+make app-test
 make docker-up
-make train
-make run
-make clean
+make app-train
+make app-run
+make app-pre-commit-run
 ```
 
-Pre-commit: `make pre-commit` instala hooks; `git commit` dispara lint, testes e segurança.
+Verificação estrutural: máximo **300 linhas** por arquivo em `app/src/` (estágio lint do `clean_workspace.py`).

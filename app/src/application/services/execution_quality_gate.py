@@ -4,13 +4,22 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.application.services.execution_quality_gate_reason import (
+    build_quality_gate_reason,
+    format_quality_guard_log_message,
+    format_quality_guard_reject_message,
+)
+from src.application.services.execution_quality_gate_starvation import (
+    apply_starvation_margin_decay,
+    starvation_decay_factor,
+)
+
 
 MANDATORY_MIN_TRADE_SCORE_DEFAULT = 0.72
-MIN_DIRECTION_MARGIN_DEFAULT = 0.12
+MIN_DIRECTION_MARGIN_DEFAULT = 0.11
 MIN_PAYOFF_EDGE_DEFAULT = 0.04
 REGULAR_MIN_DIRECTION_MARGIN_DEFAULT = 0.06
 REGULAR_MIN_PAYOFF_EDGE_DEFAULT = 0.01
-_QUALITY_GUARD_LOG_PREFIX = "[AETHER] QUALITY_GUARD |"
 
 __all__ = [
     "apply_quality_penalty_to_metrics",
@@ -18,10 +27,12 @@ __all__ = [
     "ensure_direction_margin",
     "sync_direction_margin",
     "format_quality_guard_log_message",
+    "format_quality_guard_reject_message",
     "passes_execution_quality",
     "quality_gate_params",
     "read_risk_session_state",
     "resolve_dynamic_quality_limits",
+    "starvation_decay_factor",
 ]
 
 
@@ -35,6 +46,7 @@ def quality_gate_params(exec_cfg: dict) -> dict[str, float]:
         "min_payoff_edge": float(chunk.get("min_payoff_edge", MIN_PAYOFF_EDGE_DEFAULT)),
         "inverted_min_score": float(chunk.get("inverted_min_score", 0.0)),
         "min_adx_normal": float(chunk.get("min_adx_normal", 0.0)),
+        "min_meta_payoff_zscore": float(chunk.get("min_meta_payoff_zscore", 0.5)),
     }
 
 
@@ -89,6 +101,8 @@ def resolve_dynamic_quality_limits(
     pending_loss_total: float | None = None,
     override_margin: float | None = None,
     override_edge: float | None = None,
+    skipped_cycles_counter: int | None = None,
+    orch: Any | None = None,
 ) -> dict[str, float | str]:
     """Calibra limites elasticos conforme regime regular ou recovery da sessao."""
     recovery_limits = quality_gate_params(exec_cfg)
@@ -111,13 +125,22 @@ def resolve_dynamic_quality_limits(
         margin = float(override_margin)
     if override_edge is not None:
         edge = float(override_edge)
+    if skipped_cycles_counter is not None:
+        skipped = max(0, int(skipped_cycles_counter))
+    elif orch is not None:
+        skipped = max(0, int(getattr(orch, "_quality_skipped_cycles_counter", 0) or 0))
+    else:
+        skipped = 0
+    decayed_margin, decay_factor = apply_starvation_margin_decay(margin, skipped, orch=orch)
     return {
         **recovery_limits,
-        "min_direction_margin": margin,
+        "min_direction_margin": decayed_margin,
         "min_payoff_edge": edge,
         "quality_regime": regime,
         "session_linear": float(session_linear),
         "pending_loss_total": pending,
+        "starvation_decay_factor": decay_factor,
+        "skipped_cycles_counter": float(skipped),
     }
 
 
@@ -157,50 +180,6 @@ def sync_direction_margin(metrics: dict, *, direction: str) -> float:
     return margin
 
 
-def _margin_reject_clause(dir_margin: float, min_margin: float) -> str:
-    """Formata clausula de rejeicao por margem direcional TCN insuficiente."""
-    return f"[TCN Margin {dir_margin:.2f} < min {min_margin:.2f}]"
-
-
-def _edge_reject_clause(payoff_edge: float, min_edge: float) -> str:
-    """Formata clausula de rejeicao por payoff meta-classificador insuficiente."""
-    return f"[Meta Payoff {payoff_edge:.2f} < min {min_edge:.2f}]"
-
-
-def _build_quality_gate_reason(
-    *,
-    dir_margin: float,
-    min_margin: float,
-    payoff_edge: float,
-    min_edge: float,
-    margin_fail: bool,
-    edge_fail: bool,
-    meta_applied: bool,
-) -> str:
-    """Monta motivo textual combinando violacoes de margem TCN e payoff meta."""
-    parts: list[str] = []
-    if margin_fail:
-        parts.append(_margin_reject_clause(dir_margin, min_margin))
-    if meta_applied and edge_fail:
-        parts.append(_edge_reject_clause(payoff_edge, min_edge))
-    return " ou ".join(parts)
-
-
-def format_quality_guard_log_message(
-    cycle_id: int,
-    reason: str,
-    *,
-    linear: int,
-    pending_loss: float,
-) -> str:
-    """Monta log estruturado de suspensao cooperativa do quality gate por ciclo."""
-    cycle_label = f"C{int(cycle_id):04d}"
-    return (
-        f"{_QUALITY_GUARD_LOG_PREFIX} Ciclo {cycle_label} descartado. "
-        f"Motivo: {reason} | linear={int(linear)} pending_loss=${float(pending_loss):.2f}"
-    )
-
-
 def passes_execution_quality(
     metrics: dict,
     *,
@@ -210,6 +189,8 @@ def passes_execution_quality(
     pending_loss_total: float | None = None,
     min_direction_margin: float | None = None,
     min_payoff_edge: float | None = None,
+    skipped_cycles_counter: int | None = None,
+    orch: Any | None = None,
     **_kwargs,
 ) -> bool:
     """Valida margem direcional e payoff previsto com janelas dinamicas de qualidade."""
@@ -220,12 +201,16 @@ def passes_execution_quality(
         pending_loss_total=pending_loss_total,
         override_margin=min_direction_margin,
         override_edge=min_payoff_edge,
+        skipped_cycles_counter=skipped_cycles_counter,
+        orch=orch,
     )
     margin_floor = float(limits["min_direction_margin"])
     edge_floor = float(limits["min_payoff_edge"])
     metrics["quality_gate_regime"] = str(limits["quality_regime"])
     metrics["quality_min_direction_margin"] = margin_floor
     metrics["quality_min_payoff_edge"] = edge_floor
+    metrics["quality_starvation_decay_factor"] = float(limits["starvation_decay_factor"])
+    metrics["quality_skipped_cycles_counter"] = float(limits["skipped_cycles_counter"])
     margin = ensure_direction_margin(metrics)
     margin_fail = margin <= margin_floor + 1e-12
     meta_applied = bool(metrics.get("meta_classifier_applied") or metrics.get("meta_applied"))
@@ -233,7 +218,7 @@ def passes_execution_quality(
     edge_fail = meta_applied and payoff_edge + 1e-12 < edge_floor
     if margin_fail or edge_fail:
         metrics["regime_skip_cycle"] = True
-        metrics["quality_gate_reason"] = _build_quality_gate_reason(
+        metrics["quality_gate_reason"] = build_quality_gate_reason(
             dir_margin=margin,
             min_margin=margin_floor,
             payoff_edge=payoff_edge,

@@ -25,6 +25,7 @@ logger = logging.getLogger("META_TRAIN")
 LGBM_QUIET_PARAMS: dict[str, Any] = {"verbose": -1, "warnings": False, "n_jobs": 2}
 OPTUNA_N_JOBS = 2
 LGBM_REGRESSION_OBJECTIVE = "huber"
+OPTUNA_OOS_PAYOFF_ZSCORE_MIN = 1.0
 
 
 def configure_meta_train_logging() -> None:
@@ -65,6 +66,29 @@ def train_lgbm_candidate(
     return model, train_mae, val_mae
 
 
+def information_ratio_from_predictions(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    """Calcula Information Ratio da estratégia simulada com sizing por sinal previsto."""
+    scale = np.tanh(np.asarray(y_pred, dtype=np.float64))
+    realized = scale * np.asarray(y_true, dtype=np.float64)
+    if realized.size == 0:
+        return 0.0
+    std = float(np.std(realized, ddof=0))
+    if std <= 1e-12:
+        return 0.0
+    mean = float(np.mean(realized))
+    return float(mean / std * np.sqrt(realized.size))
+
+
+def payoff_zscore_mean(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    """Calcula z-score médio do payoff OOS induzido pelas predições."""
+    scale = np.tanh(np.asarray(y_pred, dtype=np.float64))
+    realized = scale * np.asarray(y_true, dtype=np.float64)
+    std = float(np.std(realized, ddof=0))
+    if std <= 1e-12:
+        return 0.0
+    return float(np.mean(realized) / std)
+
+
 def run_optuna_study(
     frame: pd.DataFrame,
     y: np.ndarray,
@@ -85,15 +109,25 @@ def run_optuna_study(
             "num_leaves": trial.suggest_int("num_leaves", 16, 96),
             "n_jobs": OPTUNA_N_JOBS,
         }
-        _, _, val_mae = train_lgbm_candidate(x_train, y_train, x_val, y_val, params)
-        return val_mae
+        model, _, _ = train_lgbm_candidate(x_train, y_train, x_val, y_val, params)
+        val_pred = model.predict(x_val.loc[:, columns])
+        oos_zscore = payoff_zscore_mean(y_val, val_pred)
+        trial.set_user_attr("oos_payoff_zscore_mean", float(oos_zscore))
+        if oos_zscore < OPTUNA_OOS_PAYOFF_ZSCORE_MIN:
+            return -1_000_000.0 + float(oos_zscore)
+        return information_ratio_from_predictions(y_val, val_pred)
 
-    study = optuna.create_study(direction="minimize")
+    study = optuna.create_study(direction="maximize")
     study.optimize(objective, n_trials=trials, show_progress_bar=False, n_jobs=OPTUNA_N_JOBS)
     best_params = {**study.best_params, "n_jobs": OPTUNA_N_JOBS}
     model, train_mae, val_mae = train_lgbm_candidate(x_train, y_train, x_val, y_val, best_params)
+    val_pred = model.predict(x_val.loc[:, columns])
+    val_ir = information_ratio_from_predictions(y_val, val_pred)
+    val_oos_zscore = payoff_zscore_mean(y_val, val_pred)
     logger.info(
-        "Optuna concluido | val_mae=%.6f | train_mae=%.6f | params=%s | trials=%d",
+        "Optuna concluido | val_ir=%.6f | val_zscore=%.6f | val_mae=%.6f | train_mae=%.6f | params=%s | trials=%d",
+        val_ir,
+        val_oos_zscore,
         val_mae,
         train_mae,
         best_params,
@@ -107,6 +141,8 @@ def run_optuna_study(
         "cross_symbol_feature_count": CROSS_SYMBOL_FEATURE_COUNT,
         "flow_feature_count": 2,
         "feature_names": meta_classifier_column_names(),
+        "optuna_objective_metric": "information_ratio",
+        "oos_payoff_zscore_mean": float(val_oos_zscore),
         **best_params,
     }
     return model, bundle_meta, train_mae, val_mae
@@ -115,7 +151,10 @@ def run_optuna_study(
 __all__ = [
     "LGBM_QUIET_PARAMS",
     "LGBM_REGRESSION_OBJECTIVE",
+    "OPTUNA_OOS_PAYOFF_ZSCORE_MIN",
     "OPTUNA_N_JOBS",
+    "information_ratio_from_predictions",
+    "payoff_zscore_mean",
     "build_paired_training_dataset",
     "configure_meta_train_logging",
     "run_optuna_study",

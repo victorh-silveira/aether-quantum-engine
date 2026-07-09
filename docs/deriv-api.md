@@ -13,10 +13,12 @@
 | Dados publicos / backtest | `api_config.public_ws_url` (sem OTP) |
 | Histórico OHLC | `ticks_history` com `style: candles`: macro **900 s / M15** (`data_handler.granularity`) e micro **60 s / M1** (`data_handler.micro_granularity`) |
 | Stream ao vivo | Dupla assinatura OHLC por símbolo: M15 (contexto DL) + M1 (relógio operacional); ticks opcionais |
-| Proposta / compra | `proposal` + `buy` via `TradeHandler` (RISE_FALL, stake, duração **60 s**) |
+| Proposta / compra | `proposal` + `buy` via `TradeHandler` (RISE_FALL, stake, duração **60 s**); stakes > limite configurável fatiadas com **proposta atômica por sub-lote** (`execution_fractional_lots`) — aborta cluster se qualquer `proposal.id` falhar |
+| Reconciliação de stake | `executed_stake_reconciliation` + `risk_contract_result` — residual de downgrade ajusta `pending_loss`; `apply_contract_settlement_result` reconcilia planned vs executed |
+| Recovery pós-deadlock | `post_settlement_resilience` — reinicialização transparente do loop sem encerrar o processo |
 | Contratos abertos | `proposal_open_contract`, `profit_table` (reconciliação e settlement) |
 | Keep-alive | Loop de ping no `WebSocketManager` (I/O puro; não adquire lock de estado) |
-| Manutenção broker | `api_maintenance_guard` — hibernação cooperativa em janelas de indisponibilidade |
+| Manutenção broker | `api_maintenance_guard` — telemetria reativa `[API_GUARD]`; bloqueio de ciclo neutralizado em modo mandatário |
 | Inferência DL | Fora da Deriv API: Triton gRPC local (`localhost:8001`) ou TorchScript em cache; ver [infra-docker.md](infra-docker.md) |
 | Meta de sessão | Stop win de 2,60% composto sobre banca inicial; sem stop loss interno; contratos RISE_FALL não usam `limit_order.stop_loss` |
 

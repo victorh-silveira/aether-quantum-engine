@@ -57,7 +57,7 @@ async def test_settlement_loss_reconciles_planned_vs_executed_stake(orch_ready):
         await process_contract_settlement(orch, data)
         if orch._post_settlement_task is not None:
             await orch._post_settlement_task
-    assert orch.risk_manager.pending_loss.get("RDBULL") == pytest.approx(332.28)
+    assert orch.risk_manager.pending_loss.get("RDBULL") == pytest.approx(390.92)
     assert orch.risk_manager.last_loss_stake == pytest.approx(332.28)
     assert orch.risk_manager.total_session_profit == pytest.approx(-332.28)
 

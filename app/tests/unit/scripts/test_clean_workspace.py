@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from scripts.operations.clean_workspace_stage import build_safe_remove
+from scripts.operations.clean_workspace import build_safe_remove
 
 
 def test_build_safe_remove_skips_docker_bind_mounts(tmp_path: Path):

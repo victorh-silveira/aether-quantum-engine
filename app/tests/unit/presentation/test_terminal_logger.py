@@ -1,8 +1,36 @@
 import io
+import logging
 import uuid
 from unittest.mock import patch
 
-from src.presentation.terminal.logger import setup_logger
+from src.presentation.terminal.logger import AetherFormatter, BlankLineSquasher, _FlushStreamHandler, setup_logger
+
+
+def test_aether_formatter_maps_levels_and_blank_messages():
+    formatter = AetherFormatter("%(levelname)s | %(message)s")
+    record = logging.LogRecord("AETH", logging.CRITICAL, "", 0, "critico", (), None)
+    assert "CRIT" in formatter.format(record)
+    record.levelname = "UNKNOWN"
+    assert formatter.format(record).startswith("UNKN")
+    blank = logging.LogRecord("AETH", logging.INFO, "", 0, "   ", (), None)
+    assert formatter.format(blank) == ""
+
+
+def test_blank_line_squasher_allows_blank_after_content():
+    squasher = BlankLineSquasher()
+    first = logging.LogRecord("AETH", logging.INFO, "", 0, "ok", (), None)
+    blank = logging.LogRecord("AETH", logging.INFO, "", 0, "", (), None)
+    assert squasher.filter(first) is True
+    assert squasher.filter(blank) is True
+    assert squasher.filter(blank) is False
+
+
+def test_flush_stream_handler_flushes_after_emit():
+    handler = _FlushStreamHandler(io.StringIO())
+    record = logging.LogRecord("AETH", logging.INFO, "", 0, "flush", (), None)
+    with patch.object(handler.stream, "flush") as flush_mock:
+        handler.emit(record)
+    assert flush_mock.call_count >= 1
 
 
 def test_setup_logger_writes_to_stdout_with_flush_handler():

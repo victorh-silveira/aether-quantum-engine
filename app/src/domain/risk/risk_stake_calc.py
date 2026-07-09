@@ -18,14 +18,17 @@ from src.domain.risk.kelly_f_star_adjustments import (
     apply_kelly_fraction_scale,
     kelly_base_with_consensus_floor,
 )
+from src.domain.risk.risk_stake_flow import (
+    apply_stop_win_kelly_boost as _apply_stop_win_kelly_boost,
+    apply_target_proximity_to_kelly as _apply_target_proximity_to_kelly,
+    emit_cycle_stake_log as _emit_cycle_stake_log,
+    stop_win_target_reached as _stop_win_target_reached,
+)
 from src.domain.risk.stake_sizing import (
     clamp_kelly_stake,
-    compute_single_strike_kelly_base,
     finalize_stake_with_min,
     resolve_stake_conviction,
 )
-from src.domain.risk.stake_target_proximity import apply_target_proximity_damping
-from src.domain.risk.stop_win_target import persisted_session_target, resolve_stop_win_target
 from src.domain.risk.super_concordance_kelly import apply_super_concordance_kelly_fraction
 
 
@@ -40,56 +43,6 @@ def _metrics_for_conviction(dl_metrics: dict | None, conviction: float) -> dict:
     return {"trade_score": conviction, "conviction": conviction}
 
 
-def _apply_stop_win_kelly_boost(
-    rm: Any,
-    *,
-    kelly_base: float,
-    bankroll: float,
-    payout: float,
-    sizing_conviction: float,
-    conviction: float,
-    dl_execute: bool,
-    recovery_active: bool,
-    apply_stop_win: bool,
-    silent: bool,
-) -> float:
-    """Aplica boost de stake Kelly alinhado ao stop win diario."""
-    min_stop_conv = float(rm.kelly_config.get("stop_win_kelly_min_conviction", 0.45))
-    stop_win_boost_ok = dl_execute or sizing_conviction + 1e-9 >= min_stop_conv
-    if not apply_stop_win or recovery_active or not stop_win_boost_ok:
-        return kelly_base
-    boosted = compute_single_strike_kelly_base(
-        kelly_base,
-        bankroll,
-        payout,
-        sizing_conviction if not dl_execute else conviction,
-        rm.config,
-        rm.kelly_config,
-        rm.initial_bankroll,
-        rm.total_session_profit,
-        has_active_contracts=bool(rm.active_contract_ids),
-    )
-    if boosted > kelly_base and not silent:
-        rm.logger.info(
-            "RISK: STOP WIN KELLY | stake $%.2f -> $%.2f (meta sessao)",
-            kelly_base,
-            boosted,
-        )
-    return boosted
-
-
-def _apply_target_proximity_to_kelly(rm: Any, kelly_base: float, *, apply_stop_win: bool) -> float:
-    """Comprime Kelly bruto pela proximidade da meta de stop win da sessao."""
-    if not apply_stop_win:
-        return kelly_base
-    target = resolve_stop_win_target(
-        rm.config,
-        rm.initial_bankroll,
-        persisted_target=persisted_session_target(rm),
-    )
-    return apply_target_proximity_damping(kelly_base, target, rm.total_session_profit)
-
-
 def _mandatory_trade_flag(kwargs: dict, rm: Any) -> bool:
     """Indica se o ciclo exige entrada obrigatoria independente de conviccao."""
     return (
@@ -97,59 +50,6 @@ def _mandatory_trade_flag(kwargs: dict, rm: Any) -> bool:
         or bool(kwargs.get("mandatory_trade_each_cycle"))
         or bool(rm.config.get("orchestrator", {}).get("execution", {}).get("mandatory_trade_each_cycle", False))
     )
-
-
-def _emit_cycle_stake_log(
-    rm: Any,
-    *,
-    cycle_id: int,
-    silent: bool,
-    mode_tag: str,
-    final_stake: float,
-    f_star: float,
-    p: float,
-    b: float,
-    bankroll: float,
-    loss_to_recover: float,
-    linear_losses: int,
-    symbol: str,
-    rec_info: str,
-) -> None:
-    """Emite log estruturado de stake do ciclo quando cycle_id e visivel."""
-    if cycle_id <= 0 or silent:
-        return
-    rm.logger.info(
-        "[C%04d] %s: stake=$%.2f (f*=%.4f) | p=%.2f | b=%.2f | banca=$%.2f | pend=$%.2f | "
-        "pnl_sess=$%+.2f | U=$%.2f | linear=%d | sym=%s%s",
-        cycle_id,
-        mode_tag,
-        final_stake,
-        f_star,
-        p,
-        b,
-        bankroll,
-        loss_to_recover,
-        rm.total_session_profit,
-        float(getattr(rm, "dlambert_unit", 0.0)),
-        linear_losses,
-        symbol,
-        rec_info,
-    )
-
-
-def _stop_win_target_reached(rm: Any, *, apply_stop_win: bool) -> bool:
-    """Retorna True quando lucro da sessao atingiu o alvo de stop win diario."""
-    if not apply_stop_win:
-        return False
-    target = resolve_stop_win_target(
-        rm.config,
-        rm.initial_bankroll,
-        persisted_target=persisted_session_target(rm),
-    )
-    if rm.total_session_profit < target:
-        return False
-    rm.logger.info(f"STOP WIN: Meta de ${target:.2f} atingida. Encerrando operações do dia.")
-    return True
 
 
 def calculate_stake_for_manager(

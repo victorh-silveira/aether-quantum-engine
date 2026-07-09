@@ -50,11 +50,15 @@ def test_enforce_post_settlement_deadlock_exit_raises_timeout(orchestrator_confi
 
 
 @pytest.mark.asyncio
-async def test_orchestrator_run_loop_forces_sys_exit_on_post_settlement_deadlock(orchestrator_config):
+async def test_orchestrator_run_loop_recovers_on_post_settlement_deadlock(orchestrator_config, caplog):
     TradingState.reset()
+    iterations = 0
 
-    async def stop_on_exit(code):
-        orch.running = False
+    async def stop_after_recovery(*_args, **_kwargs):
+        nonlocal iterations
+        iterations += 1
+        if iterations >= 2:
+            orch.running = False
 
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
         mock_ws_class.return_value.subscribe = MagicMock()
@@ -85,13 +89,19 @@ async def test_orchestrator_run_loop_forces_sys_exit_on_post_settlement_deadlock
                 "src.application.services.orchestrator.orchestrator_run_loop.prepare_orchestrator_run_loop",
             ),
             patch.object(orch, "_run_trading_cycle_if_ready", AsyncMock(return_value=False)),
+            patch.object(orch, "_tick_idle_cycle_watchdog", side_effect=stop_after_recovery),
+            patch.object(orch, "_tick_interval_cycle_if_due", AsyncMock()),
             patch(
-                "src.application.services.orchestrator.orchestrator_run_loop.sys.exit",
-                side_effect=stop_on_exit,
-            ) as exit_mock,
+                "src.application.services.orchestrator.orchestrator_run_loop.get_data_state_signature",
+                return_value="sig",
+            ),
+            caplog.at_level("INFO"),
         ):
+            orch.last_data_signature = "sig"
             await orch.run()
-        exit_mock.assert_called_once_with(0)
+        assert orch._post_settlement_deadlock is False
+        assert orch._post_settlement_incomplete_streak == 0
+        assert "Loop reinicializado de forma transparente" in caplog.text
         orch.state_mgr.persistence.save.assert_called_once()
 
 

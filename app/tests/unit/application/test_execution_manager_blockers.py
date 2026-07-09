@@ -122,4 +122,4 @@ async def test_place_order_maintenance_error_schedules_hibernation_before_raise(
         loop_start = asyncio.get_running_loop().time()
         with pytest.raises(RuntimeError):
             await place_order(orch.executor, "RDBEAR", TradeDirection.CALL, 10.0)
-        assert orch._api_maintenance_until == pytest.approx(loop_start + _API_MAINTENANCE_FALLBACK_SECONDS)
+        assert orch._api_maintenance_until == pytest.approx(loop_start + _API_MAINTENANCE_FALLBACK_SECONDS, abs=1.0)

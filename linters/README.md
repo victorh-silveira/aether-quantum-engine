@@ -1,11 +1,11 @@
 # Linters e qualidade
 
-Configuração centralizada de hooks e release semântico (sem infra Kubernetes/Terraform).
+Configuracao centralizada de hooks e release semantico.
 
 | Arquivo | Uso |
 |---------|-----|
 | `git-hooks/` | Wrappers bash para WSL; `bash linters/git-hooks/install.sh` ou `make pre-commit` |
-| `../.pre-commit-config.yaml` | Config única dos hooks (raiz do repo) |
+| `../.pre-commit-config.yaml` | Config unica dos hooks (raiz do repo) |
 | `commitlint.config.mjs` | Mensagens de commit (Conventional Commits) |
 | `releaserc.json` | semantic-release no CI |
 
@@ -14,19 +14,21 @@ Configuração centralizada de hooks e release semântico (sem infra Kubernetes/
 | Hook | Ferramenta | Escopo |
 |------|------------|--------|
 | Qualidade | Ruff, Interrogate, Vulture, limite 300 linhas | `app/src`, `app/tests` |
-| Testes | pytest + coverage | 100% em `app/src` (~1806 testes; inclui barreira atomica, Triton, consensus penalty, session_target_bootstrap, stop_win_target, api_maintenance_guard) |
-| Segurança | Bandit, pip-audit | dependências e código |
+| Testes | pytest + coverage | 100% em `app/src` (**1413** statements, **244** arquivos de teste) |
+| Seguranca | Bandit, pip-audit | dependencias e codigo |
 | Limpeza | caches e artefatos locais | workspace |
 
-Documentação do projeto (`docs/`, `README.md`) não entra nos gates; alterações em `.md` não disparam pytest.
+Documentacao (`docs/`, `README.md`) nao entra nos gates; alteracoes em `.md` nao disparam pytest.
 
 Os gates executam `app/scripts/operations/clean_workspace.py` com `cwd` em `app/`, usando o Conda `deriv-api` (`linters/git-hooks/bin/python` no WSL).
 
 Comandos:
 
 ```bash
-make lint          # estágio lint
-make test          # pytest + cobertura
-make pre-commit    # instala hooks
-make pre-commit-run  # roda todos os hooks
+make app-lint
+make app-test
+make app-pre-commit
+make app-pre-commit-run
 ```
+
+Verificacao estrutural: maximo **300 linhas** por arquivo em `app/src/` (estagio lint).

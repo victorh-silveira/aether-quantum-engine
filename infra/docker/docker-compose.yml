@@ -76,6 +76,8 @@ services:
         "--model-repository=/models",
         "--model-control-mode=poll",
         "--repository-poll-secs=2",
+        "--strict-readiness=false",
+        "--exit-on-error=false",
         "--allow-gpu-metrics=true",
       ]
     ports:
@@ -99,11 +101,12 @@ services:
           "CMD",
           "python3",
           "-c",
-          "import urllib.request; import sys; response = urllib.request.urlopen('http://localhost:8000/v2/health/ready'); sys.exit(0 if response.getcode() == 200 else 1)",
+          "import urllib.request; import sys; response = urllib.request.urlopen('http://localhost:8000/v2/health/live'); sys.exit(0 if response.getcode() == 200 else 1)",
         ]
-      interval: 15s
+      interval: 10s
       timeout: 5s
-      retries: 3
+      retries: 18
+      start_period: 45s
     networks:
       - aether-net
 

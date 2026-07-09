@@ -1,13 +1,15 @@
 """Ciclo de vida, persistencia e sessao do Orquestrador."""
 
 import asyncio
-import sys
 from typing import Any
 
 from src.application.services.orchestrator.graceful_shutdown import close_infrastructure_connections
 from src.application.services.orchestrator.orchestrator_data_signature import get_data_state_signature
 from src.application.services.orchestrator.orchestrator_persistence import save_full_state
 from src.application.services.orchestrator.orchestrator_settlement_queue import start_settlement_worker
+from src.application.services.orchestrator.post_settlement_resilience import (
+    recover_post_settlement_loop_transparently,
+)
 from src.application.services.orchestrator.settlement_reconciliation import reconcile_after_ws_recovery
 from src.application.services.orchestrator.trading_cycle_entry import prepare_orchestrator_run_loop
 from src.application.services.orchestrator.watchdog_service import start_ingestion_watchdog
@@ -90,8 +92,8 @@ async def run_orchestrator_main_loop(orch: Any) -> None:
         try:
             _enforce_post_settlement_deadlock_exit(orch)
         except TimeoutError:
-            orch.running = False
-            sys.exit(0)
+            recover_post_settlement_loop_transparently(orch)
+            continue
         await orch._tick_idle_cycle_watchdog()
         await orch._tick_interval_cycle_if_due()
         current_signature = get_data_state_signature(orch)

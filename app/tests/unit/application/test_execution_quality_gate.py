@@ -287,6 +287,6 @@ def test_log_quality_guard_suspension_uses_default_reason_when_missing(orch_read
     orch._active_cycle_id = 5
     with caplog.at_level("INFO", logger="AETH"):
         log_quality_guard_suspension(orch)
-    guard_logs = [record for record in caplog.records if "QUALITY_GUARD" in record.message]
+    guard_logs = [record for record in caplog.records if "EXECUTION_FLOW" in record.message]
     assert len(guard_logs) == 1
-    assert "[Quality gate reject]" in guard_logs[0].message
+    assert "suspenso por meta-regressor" in guard_logs[0].message

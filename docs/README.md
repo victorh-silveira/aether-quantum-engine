@@ -2,12 +2,29 @@
 
 | Documento | Conteúdo |
 |-----------|----------|
-| [structure.md](structure.md) | Layout do repositório (`app/`, `config/`, `linters/`, `infra/docker/`) e mapa de módulos |
-| [arquitetura.md](arquitetura.md) | Fluxo ao vivo: WebSocket, watchdog, barreira atômica `asyncio.Lock`, assinatura M1+M15, DL, Triton gRPC, meta-regressor 39D, `direction_margin`, quality gate adaptativo, execução, risco financeiro, stop win fast-path, settlement e persistência |
-| [medallion.md](medallion.md) | Filosofia quantitativa e perfil de qualidade (scoring, gate adaptativo, ranking, recovery, Kelly, regressão de payoff D-SQUEEZE, meta 2,60% por sessão) |
-| [deriv-indices-algorithm.md](deriv-indices-algorithm.md) | Algoritmo dos índices sintéticos da Deriv e estratégia do motor |
-| [infra-docker.md](infra-docker.md) | Stack Docker (Redis, TimescaleDB, MinIO, Triton, meta-regressor 8005), healthchecks Python, pipeline Redis, `StateManager` |
-| [deriv-api.md](deriv-api.md) | Referência Deriv + integração usada pelo motor (PAT, OTP, manutenção do broker) |
+| [structure.md](structure.md) | Layout do repositório, **inventário completo dos 208 módulos Python** em `app/src/`, scripts, testes, pipeline de execução |
+| [arquitetura.md](arquitetura.md) | Fluxos técnicos ao vivo: esteira mandatária, barreira atômica, DL, Triton, meta-regressor 39D, settlement, recovery transparente |
+| [medallion.md](medallion.md) | Filosofia quantitativa: scoring TCN × meta Z-Score, esteira contínua, recovery Martingale, Kelly, D-SQUEEZE, meta 2,60% por sessão |
+| [deriv-indices-algorithm.md](deriv-indices-algorithm.md) | Algoritmo CSPRNG dos índices Deriv Drift e estratégia do motor |
+| [infra-docker.md](infra-docker.md) | Stack Docker (5 containers), Triton, meta-regressor, Redis pipeline, StateManager |
+| [deriv-api.md](deriv-api.md) | Referência Deriv + integração PAT/OTP, propostas atômicas por sub-lote |
 | [CHANGELOG.md](CHANGELOG.md) | Histórico de versões |
 
 Ponto de entrada do projeto: [README.md](../README.md).
+
+## Camadas DDD (resumo)
+
+```
+presentation  →  application  →  domain
+                    ↓
+              infrastructure (ports/adapters)
+```
+
+| Camada | Módulos | Aggregate roots |
+|--------|---------|-----------------|
+| Application | ~133 | `Orchestrator`, `ExecutionManager` |
+| Domain | ~30 | `RiskManager`, modelos `trade` |
+| Infrastructure | ~38 | adaptadores Deriv, Redis, Triton, MinIO |
+| Presentation | 1 | `terminal/logger` |
+
+Regra: **domain** não importa application nem infrastructure. **Application** orquestra domain + ports; implementações concretas vêm de `infra_factory`.

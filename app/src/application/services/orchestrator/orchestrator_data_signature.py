@@ -6,7 +6,7 @@ import time
 from typing import Any
 
 
-__all__ = ["get_data_state_signature", "m1_boundary_epoch"]
+__all__ = ["get_data_state_signature", "m1_boundary_epoch", "resolve_signature_boundary_seconds"]
 
 
 def _resolve_now(now: float | None) -> float:
@@ -14,6 +14,21 @@ def _resolve_now(now: float | None) -> float:
     if now is not None:
         return float(now)
     return time.time()
+
+
+def resolve_signature_boundary_seconds(orch: Any) -> int:
+    """Le fronteira de assinatura em segundos a partir da configuracao do orquestrador."""
+    config = getattr(orch, "config", None)
+    if not isinstance(config, dict):
+        return 60
+    orchestrator = config.get("orchestrator")
+    if not isinstance(orchestrator, dict):
+        return 60
+    raw = orchestrator.get("signature_boundary_seconds", 60)
+    try:
+        return max(60, int(raw))
+    except (TypeError, ValueError):
+        return 60
 
 
 def m1_boundary_epoch(orch: Any, *, now: float | None = None) -> int:

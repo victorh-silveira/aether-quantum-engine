@@ -49,7 +49,7 @@ Desvios extremos em M1 (RSI, Keltner, Bollinger) alimentam o vetor tabular **39D
 
 - **Regressão de payoff**: TCN fornece direção macro (`dl_direction`); meta-regressor estima `predicted_payoff_edge` com features cross-symbol (`prob_delta`, `vol_ratio_diff`, `rsi_spread`) e fluxo micro (`micro_tick_acceleration`, `keltner_deviation_ratio`).
 - **Downgrade D-SQUEEZE** (`meta_payoff_regression`): quando `predicted_payoff_edge < -0.15` em squeeze M1 (`bb_width < 0.06` ou `micro_tick_acceleration < 0`), rebaixa `trade_score=0.52` e emite log `[D-SQUEEZE]` — sem inverter direção.
-- **Treino offline**: alvo contínuo `Y = PnL_Real / Stake`; Optuna minimiza MAE; telemetria `train_mae` e `target_variance` (substitui balanceamento binário).
+- **Treino offline**: alvo contínuo `Y = PnL_Real / Stake`; Optuna **maximiza Information Ratio** com constraint OOS payoff Z-Score ≥ +1,00; rotulagem TCN via **Triple Barrier Method** (`label_mode: triple_barrier`).
 - **Telemetria consultiva**: `execution_direction_cross_corr` e `execution_volatility_booster` permanecem como insumo analítico, sem veto autônomo.
 
 ### 2.3 Gestão de Risco com Kelly Fracionário e Martingale Geométrico
@@ -59,13 +59,12 @@ Desvios extremos em M1 (RSI, Keltner, Bollinger) alimentam o vetor tabular **39D
 - **Martingale Geométrico**: em recovery, `Effective_Base × 2^consecutive_losses_linear` sem teto de nível.
 - **Stop win por sessão ativa**: meta de lucro = 2,60% da banca inicial (`compounding_rate_daily`); ao atingir, fast-path (`clear_current_session_redis_keys` → `cancel_settlement_queue_fast` → `graceful_shutdown(fast_path=True)`); cada restart inicia sessão independente.
 - **Stop loss interno desativado**: Martingale opera sem disjuntor de perda imposto pelo motor.
-- **Gate de qualidade adaptativo**: `direction_margin = abs(P(lado) − 0.50)` com pisos **0.06** / **0.12** (regular / recovery); suspende ruído lateral próximo ao neutro.
+- **Gate de qualidade**: dual TCN + meta Z-Score; logs `[AETHER] QUALITY_GUARD` e `[AETHER] EXECUTION_FLOW`; suspensão cooperativa via `quality_conviction_suspends_cluster`.
 
 ### 2.4 Fases de Treinamento e Operação
 
 - **FASE TREINO**: todos os símbolos retreinam ao menos uma vez por sessão (`session_trained`). Nenhuma ordem até concluir.
-- **FASE OPERACAO seletiva** (`mandatory_trade_each_cycle: false`): opera quando o melhor candidato passa no gate (margem direcional e payoff meta acima dos pisos).
-- **FASE OPERACAO contínua** (`mandatory_trade_each_cycle: true`): uma ordem por ciclo quando há candidato válido; fallback obrigatório bloqueado em recovery se todos foram vetados pelo gate.
+- **FASE OPERACAO mandatária** (`mandatory_trade_each_cycle: true`): esteira contínua — candidatos DL tecnicamente válidos seguem para execução; redirect inter-símbolo quando âncora degradada.
 - **Resolução direcional**: TCN define `dl_direction`; meta-regressor refina stake via `predicted_payoff_edge` e downgrade D-SQUEEZE em compressão M1; `ensure_direction_margin` expõe margem corrigida.
 - **Deploy gate**: modelos com `deploy_ok=false` não entram no pool.
 
@@ -78,18 +77,28 @@ Desvios extremos em M1 (RSI, Keltner, Bollinger) alimentam o vetor tabular **39D
 | Stacking tabular | Meta-regressor LightGBM M1 sobre vetor **39D** + probabilidade TCN; saída `predicted_payoff_edge` |
 | Downgrade squeeze | Edge `< -0.15` em compressão M1: `trade_score=0.52`; `[D-SQUEEZE]` |
 | Margem direcional | `abs(P(lado_escolhido) − 0.50)` — CALL usa `calibrated_prob`; PUT usa `1 − prob` |
-| Gate de qualidade | Janelas dinâmicas regular/recovery; log `[AETHER] QUALITY_GUARD` em reprovação |
+| Gate de qualidade | Dual TCN + meta Z-Score; suspensão cooperativa do cluster |
+| Ranking | TCN × fator Z-Score meta; redirect inter-símbolo em modo mandatory |
 | Scoring direcional | TCN + meta GBDT; `exec_direction` alinhada à TCN |
 | Recovery | Martingale Geométrico `Kelly_base × 2^n`; persistência até `pending_total = 0` |
 | Kelly divergente | Consensus Entropy Penalty; waiver em recovery com `pending_total > 0` |
 
-### 2.6 Isolamento de estado assíncrono
+### 2.7 Ranking TCN × Z-Score e redirect inter-símbolo
+
+Após inferência TCN (Triton) e regressão LightGBM (meta-regressor), o motor calcula `meta_payoff_edge_zscore` sobre janela móvel de edges históricos:
+
+- **Ranking:** `market_decision_score = tcn × max(0.1, 1 + z)` — sinais com Z negativo sofrem deflação geométrica; Z positivo amplifica prioridade.
+- **Redirect mandatory:** se a âncora tem Z < -0,50 e o par tem Z > +0,50, a boleta desvia para o par forte — frequência operacional preservada sem entrar em setup degradado.
+
+Exemplo documentado: TCN 0,75 com Z=-1,50 perde para TCN 0,68 com Z=+1,20 no ranking de execução.
+
+### 2.8 Isolamento de estado assíncrono
 
 O motor serializa mutações críticas de risco e sessão via `asyncio.Lock` no `StateManager`:
 
 - **Protegido pelo lock:** ciclo de inferência DL (`trading_cycle_entry`), liquidação (`settlement_logic`), barreira pós-reset linear (`session_persistence_barrier`).
 - **Fora do lock:** ping WebSocket, reconexão de stream, auditoria profit_table — leem `read_cached_balance()` sem bloquear o loop de trading.
-- **Manutenção broker:** `api_maintenance_guard` hiberna o ciclo quando a API sinaliza indisponibilidade, evitando starvation durante reset de liquidez.
+- **Manutenção broker:** `api_maintenance_guard` emite telemetria `[API_GUARD]`; bloqueio de ciclo neutralizado em modo mandatário.
 
 Ver [arquitetura.md](arquitetura.md) seção 2.5 para o diagrama completo.
 
@@ -97,6 +106,7 @@ Ver [arquitetura.md](arquitetura.md) seção 2.5 para o diagrama completo.
 
 ## 3. Referências
 
+- [structure.md](structure.md) — inventário DDD completo (208 módulos)
 - [arquitetura.md](arquitetura.md) — pipeline técnico
 - [medallion.md](medallion.md) — princípios quant
 - [infra-docker.md](infra-docker.md) — Triton, meta-regressor 8005, Redis, sanity estressado

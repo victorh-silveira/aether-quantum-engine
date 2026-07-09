@@ -11,6 +11,7 @@ from src.infrastructure.inference.triton_grpc_client import (
     _MAX_MSG,
     InferenceServerException,
     TritonGrpcClient,
+    _attach_channel,
     _channel_options,
     _GrpcClientPool,
     _pack_inference_tensor,
@@ -217,6 +218,36 @@ async def test_triton_grpc_client_infer_empty_batch_returns():
     assert await client.infer_symbols_concurrent({}) == {}
 
 
+def test_channel_options_with_keepalive():
+    fake_keepalive = MagicMock()
+    fake_keepalive.keepalive_time_ms = 120000
+    fake_keepalive.keepalive_timeout_ms = 20000
+    fake_keepalive.keepalive_permit_without_calls = True
+    fake_keepalive.http2_max_pings_without_data = 0
+    with patch("src.infrastructure.inference.triton_grpc_client.KeepAliveOptions", return_value=fake_keepalive):
+        opts = _channel_options()
+    assert ("grpc.keepalive_time_ms", 120000) in opts
+    assert ("grpc.max_send_message_length", _MAX_MSG) in opts
+
+
+@pytest.mark.asyncio
+async def test_triton_grpc_client_connect_opens_channel():
+    client = TritonGrpcClient()
+    channel = MagicMock()
+    infer_client = MagicMock()
+    with (
+        patch("src.infrastructure.inference.triton_grpc_client.grpc.aio.insecure_channel", return_value=channel),
+        patch(
+            "src.infrastructure.inference.triton_grpc_client.grpc_aio.InferenceServerClient.__new__",
+            return_value=infer_client,
+        ),
+        patch("src.infrastructure.inference.triton_grpc_client._attach_channel", return_value=infer_client) as attach,
+    ):
+        await client.connect("localhost:8001")
+    attach.assert_called_once()
+    assert client._url == "localhost:8001"
+
+
 def test_channel_options_without_keepalive():
     with patch("src.infrastructure.inference.triton_grpc_client.KeepAliveOptions", None):
         opts = _channel_options()
@@ -230,3 +261,13 @@ def test_parse_raw_output_nan_and_empty():
     empty = MagicMock()
     empty.as_numpy.return_value = np.array([], dtype=np.float32)
     assert _parse_raw_output(empty) == 0.5
+
+
+def test_attach_channel_real():
+    client = MagicMock()
+    channel = MagicMock()
+    with patch("src.infrastructure.inference.triton_grpc_client.InferenceServerClientBase.__init__") as mock_init:
+        res = _attach_channel(client, channel)
+    mock_init.assert_called_once_with(client)
+    assert res._channel is channel
+    assert res._verbose is False

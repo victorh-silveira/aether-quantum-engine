@@ -6,12 +6,11 @@ from typing import Any
 from src.domain.risk.recovery_conviction import recovery_dl_conviction_ok, recovery_dl_entry_allowed
 from src.domain.risk.recovery_hurst_gate import resolve_recovery_signal_floor
 from src.domain.risk.risk_cluster import finalize_risk_cluster
+from src.domain.risk.risk_contract_result import apply_contract_settlement_result
 from src.domain.risk.risk_cooldown import RiskCooldownMixin
 from src.domain.risk.risk_manager_restore import apply_risk_snapshot
 from src.domain.risk.risk_proposal_skip import ProposalSkipMixin
 from src.domain.risk.risk_recovery_state import (
-    apply_win_to_pending_loss,
-    log_partial_win_recovery,
     pending_loss_total as sum_pending_loss,
     recovery_financially_active as is_recovery_financially_active,
 )
@@ -46,6 +45,7 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin, ProposalSkipMixin)
         self.last_loss_stake = 0.0
         self.proposal_skip_cycles: dict[str, int] = {}
         self.contract_stakes: dict[int, float] = {}
+        self.contract_requested_stakes: dict[int, float] = {}
         self.init_symbol_loss_cooldown()
         self._candle_interval_seconds = 900
         self._cooldown_until_mono = 0.0
@@ -217,9 +217,12 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin, ProposalSkipMixin)
         self.expected_cluster_settlements = max(0, int(expected_settlements))
         self.cluster_results = {}
 
-    def record_contract_stake(self, contract_id: int, stake: float) -> None:
+    def record_contract_stake(self, contract_id: int, stake: float, *, requested: float | None = None) -> None:
         """Associa stake enviada ao contrato para progressao D'Alembert."""
-        self.contract_stakes[int(contract_id)] = float(stake)
+        cid = int(contract_id)
+        self.contract_stakes[cid] = float(stake)
+        planned = float(requested) if requested is not None else float(stake)
+        self.contract_requested_stakes[cid] = planned
 
     def register_result(
         self,
@@ -231,39 +234,14 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin, ProposalSkipMixin)
         direction: str | None = None,
     ):
         """Registra lucro/prejuízo e atualiza estatísticas."""
-        if contract_id in self.cluster_results:
-            return
-
-        tracked = int(contract_id) in self.active_contract_ids
-        late = not tracked and int(contract_id) in self.contract_to_symbol
-        if not tracked and not late:
-            return
-        if late:
-            self.logger.debug("RISK: Liquidacao tardia cid=%s aplicada ao pending.", contract_id)
-
-        recorded_stake = self.contract_stakes.pop(int(contract_id), None)
-        self.cluster_results[contract_id] = profit
-        self.total_session_profit += profit
-        self.last_result_tick = current_tick
-        self.record_trade_outcome(symbol, won=profit >= 0.0)
-
-        if profit < 0:
-            loss_amt = abs(profit)
-            self.pending_loss[symbol] = self.pending_loss.get(symbol, 0.0) + loss_amt
-            self.last_loss_stake = float(recorded_stake) if recorded_stake else loss_amt
-            self.register_symbol_loss_cooldown(symbol, direction=direction)
-        else:
-            apply_win_to_pending_loss(self.pending_loss, profit)
-            if log_partial_win_recovery(self, profit) <= 0.0:
-                self.last_loss_stake = 0.0
-
-        self.active_contract_ids = [x for x in self.active_contract_ids if int(x) != int(contract_id)]
-
-        expected = self.expected_cluster_settlements
-        cluster_done = expected > 0 and len(self.cluster_results) >= expected
-        idle_done = not self.active_contract_ids and self.cluster_results
-        if cluster_done or idle_done:
-            self._finalize_cluster()
+        apply_contract_settlement_result(
+            self,
+            profit,
+            contract_id,
+            symbol,
+            current_tick,
+            direction=direction,
+        )
 
     def _finalize_cluster(self):
         """Limpeza após ciclo."""

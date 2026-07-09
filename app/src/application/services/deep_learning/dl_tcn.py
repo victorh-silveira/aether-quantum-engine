@@ -56,9 +56,16 @@ class TemporalDirectionClassifier(nn.Module):
         self.network = nn.Sequential(*layers)
         self.norm = nn.LayerNorm(in_ch)
         self.head = nn.Linear(in_ch, 1)
+        self.regression_head = nn.Linear(in_ch, 1)
 
-    def forward(self, x: torch.Tensor, *, logits: bool = False) -> torch.Tensor:
-        """Projeta sequencia (batch, lookback, features) em probabilidade ou logits de alta."""
+    def forward(
+        self,
+        x: torch.Tensor,
+        *,
+        logits: bool = False,
+        return_aux: bool = False,
+    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
+        """Projeta sequencia em probabilidade direcional e delta de preco auxiliar."""
         if x.dim() == 2:
             x = x.unsqueeze(1)
         x = x.transpose(1, 2)
@@ -66,6 +73,14 @@ class TemporalDirectionClassifier(nn.Module):
         pooled = out.mean(dim=2)
         pooled = self.norm(pooled)
         raw = self.head(pooled)
+        aux = self.regression_head(pooled)
         if logits:
-            return raw.squeeze(-1)
-        return torch.sigmoid(raw)
+            logits_out = raw.squeeze(-1)
+            aux_out = aux.squeeze(-1)
+            if return_aux:
+                return logits_out, aux_out
+            return logits_out
+        prob = torch.sigmoid(raw)
+        if return_aux:
+            return prob, aux.squeeze(-1)
+        return prob

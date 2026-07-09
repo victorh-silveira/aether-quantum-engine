@@ -58,9 +58,15 @@ class MarketDirectionClassifier(nn.Module):
         super().__init__()
         self.inner = TemporalDirectionClassifier(input_dim=input_dim)
 
-    def forward(self, x: torch.Tensor, *, logits: bool = False) -> torch.Tensor:
+    def forward(
+        self,
+        x: torch.Tensor,
+        *,
+        logits: bool = False,
+        return_aux: bool = False,
+    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
         """Delega forward para o classificador TCN interno."""
-        return self.inner(x, logits=logits)
+        return self.inner(x, logits=logits, return_aux=return_aux)
 
 
 def fit_norm_stats(x: np.ndarray) -> FeatureNormStats:

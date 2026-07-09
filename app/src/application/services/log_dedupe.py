@@ -40,3 +40,38 @@ def clear_log_channel(owner, channel: str) -> str | None:
     if not cache:
         return None
     return cache.pop(channel, None)
+
+
+class LogDeduper:
+    """Deduplicacao de logs de quality guard e inanição por canal temporal."""
+
+    def __init__(self, owner) -> None:
+        self._owner = owner
+
+    def log_quality_guard_cycle_minute(
+        self,
+        logger: logging.Logger,
+        *,
+        cycle_id: int,
+        minute_bucket: str,
+        message: str,
+    ) -> None:
+        """Emite log de suspensao do quality guard uma vez por bloco de minuto."""
+        channel = f"quality_guard:{int(cycle_id)}:{minute_bucket}"
+        log_info_if_changed(self._owner, logger, channel, "seen", "%s", message)
+
+    def log_quality_starvation_escape(
+        self,
+        logger: logging.Logger,
+        *,
+        skipped_cycles: int,
+        min_margin: float,
+    ) -> None:
+        """Emite log deduplicado quando a valvula de inanicao reduz o piso de margem."""
+        message = (
+            "[AETHER] EXECUTION_FLOW | Válvula de inanição ativa. "
+            f"Limite mitigado por decaimento temporal para min {float(min_margin):.4f} | "
+            f"skipped_cycles={int(skipped_cycles)}"
+        )
+        channel = f"starvation:{int(skipped_cycles)}:{float(min_margin):.4f}"
+        log_info_if_changed(self._owner, logger, channel, message, "%s", message)

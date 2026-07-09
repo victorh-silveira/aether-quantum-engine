@@ -16,6 +16,7 @@ from src.application.services.deep_learning.dl_features import (
     extract_sequences,
     precompute_price_series,
 )
+from src.application.services.deep_learning.dl_sequence_extract import sequence_price_deltas
 from src.application.services.deep_learning.dl_splits import purged_temporal_splits
 from src.application.services.deep_learning.dl_tcn import TemporalDirectionClassifier, _Chomp1d
 from src.application.services.deep_learning.dl_training import train_model_online, train_model_walkforward
@@ -45,6 +46,33 @@ def test_model_initialization():
     assert torch.all(out >= 0.0) and torch.all(out <= 1.0)
     logits = model(x, logits=True)
     assert logits.shape == (2,)
+    prob, aux = model(x, return_aux=True)
+    assert prob.shape == (2, 1)
+    assert aux.shape == (2,)
+    logits_aux = model(x, logits=True, return_aux=True)
+    assert logits_aux[0].shape == (2,)
+    assert logits_aux[1].shape == (2,)
+
+
+def test_sequence_price_deltas_empty_when_insufficient_prices():
+    prices = np.linspace(100.0, 101.0, 10, dtype=np.float64)
+    deltas = sequence_price_deltas(prices, lookback=20)
+    assert deltas.size == 0
+
+
+def test_sequence_price_deltas_zero_base_price():
+    prices = np.linspace(100.0, 110.0, 40, dtype=np.float64)
+    prices[4] = 0.0
+    deltas = sequence_price_deltas(prices, lookback=5, label_horizon_bars=1)
+    assert deltas[0] == 0.0
+
+
+def test_sequence_price_deltas_aligns_with_labels():
+    prices = np.linspace(100.0, 110.0, 80, dtype=np.float64)
+    deltas = sequence_price_deltas(prices, lookback=20, label_horizon_bars=1)
+    seqs, _, masks = extract_sequences(prices, 20, label_horizon_bars=1)
+    assert len(deltas) == len(seqs) == len(masks)
+    assert deltas.dtype == np.float32
 
 
 def test_sanitize_feature_batch_replaces_non_finite():

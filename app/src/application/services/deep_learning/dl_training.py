@@ -14,6 +14,7 @@ from src.application.services.deep_learning.dl_device import (
     tensor_from_numpy,
 )
 from src.application.services.deep_learning.dl_features import extract_sequences
+from src.application.services.deep_learning.dl_sequence_extract import sequence_price_deltas
 from src.application.services.deep_learning.dl_splits import purged_temporal_splits
 from src.application.services.deep_learning.dl_training_epochs import fit_training_epochs
 from src.application.services.deep_learning.model import (
@@ -94,6 +95,15 @@ def train_model_walkforward(
     y_train, mask_train = y_all[train_sl], mask_all[train_sl]
     y_val, mask_val = y_all[val_sl], mask_all[val_sl]
     y_calib = y_all[calib_sl]
+    delta_all = sequence_price_deltas(
+        prices,
+        lookback,
+        label_horizon_bars=label_horizon_bars,
+        label_smooth_bars=label_smooth_bars,
+        label_mode=label_mode,
+        label_ma_window=label_ma_window,
+    )
+    delta_train = delta_all[train_sl] if len(delta_all) == len(x_all) else None
     weights = sample_weights if sample_weights and len(sample_weights) == len(y_train) else [1.0] * len(y_train)
     patience = 6
     label_smoothing = 0.0
@@ -123,6 +133,7 @@ def train_model_walkforward(
         lr_scheduler=lr_scheduler,
         early_stopping_patience=patience,
         progress_cb=progress_cb,
+        delta_train=delta_train,
     )
     if best_state is not None:
         model.load_state_dict(best_state)

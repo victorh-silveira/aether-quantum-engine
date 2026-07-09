@@ -32,6 +32,7 @@ class WebSocketManager:
         self.callbacks: dict[int, asyncio.Future] = {}
         self.subscriptions: dict[str, Callable] = {}
         self.is_running = False
+        self.last_rtt_seconds = 0.0
         self.logger = logging.getLogger("AETH")
 
     async def connect(
@@ -183,9 +184,12 @@ class WebSocketManager:
         future = asyncio.get_event_loop().create_future()
         self.callbacks[self.req_id_counter] = future
 
+        started = asyncio.get_event_loop().time()
         await self.ws.send(json.dumps(request))
         try:
-            return await asyncio.wait_for(future, timeout=actual_timeout)
+            result = await asyncio.wait_for(future, timeout=actual_timeout)
+            self.last_rtt_seconds = max(0.001, asyncio.get_event_loop().time() - started)
+            return result
         except TimeoutError:
             if cmd != "ping":
                 self.logger.debug(f"WSS: Timeout na requisicao {self.req_id_counter} ({cmd}) apos {actual_timeout}s")

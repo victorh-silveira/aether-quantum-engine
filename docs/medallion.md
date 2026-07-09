@@ -11,10 +11,10 @@ Para arquitetura de código, ver [`arquitetura.md`](arquitetura.md).
 | Princípio | No motor atual |
 |-----------|----------------|
 | Sinais, não histórias | Direção CALL/PUT estritamente pela TCN (`P(CALL) > P(PUT)`) |
-| Horizonte curto | Contexto DL **M15 (900 s)**; execução **M1 (60 s)**; label `ma_trend` |
-| Boletamento contínuo | Gate adaptativo filtra ruído lateral (`direction_margin`); sinais fortes passam, neutros próximos a 0,50 são rejeitados |
+| Horizonte curto | Contexto DL **M15 (900 s)**; execução **M1 (60 s)**; label `triple_barrier` (ou `ma_trend` legado) |
+| Esteira mandatária | `mandatory_trade_each_cycle: true` — mandatory pick quando pool DL aprovado pelo quality gate |
 | Modelo pronto antes de operar | `FASE TREINO` suspende ordens até treino da sessão |
-| Operação configurável | `mandatory_trade_each_cycle`: seletivo (`false`) ou contínuo (`true`) |
+| Operação configurável | `mandatory_trade_each_cycle` — esteira mandatária contínua (padrão atual) |
 | Feedback real | Win rate live misturado em `val_accuracy`; retreino após loss |
 | Defesa contra ruído CSPRNG | Consensus Entropy Penalty no Kelly base |
 | Persistência financeira | Recovery atrelado a `pending_loss`, não a WIN operacional isolado |
@@ -33,9 +33,8 @@ Para arquitetura de código, ver [`arquitetura.md`](arquitetura.md).
 
 | Símbolo | Papel típico |
 |---------|----------------|
-| `RDBULL` | Âncora padrão; referência de cluster |
-| `RDBULL` / `RDBEAR` | Núcleo do cluster; bônus em recovery |
-| `RDBEAR` / `RDBULL` | Pares de hedge para recovery |
+| `RDBULL` | Âncora padrão; referência de cluster; bônus de ranking em recovery |
+| `RDBEAR` | Par correlacionado; candidato a redirect inter-símbolo quando âncora degradada |
 
 Operação: contratos **RISE_FALL** (CALL = alta no período, PUT = queda).
 
@@ -69,14 +68,17 @@ Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `
 | Bloqueio técnico | `data`, `predict_error`, `training`, `deploy_ok=false` |
 | Classificação macro | TCN processa lookback de 12 h em M15; define direção (`dl_direction`) |
 | Stacking tabular | Meta-regressor LightGBM (M1) sobre vetor **39D** + probabilidade TCN; saída `predicted_payoff_edge` |
+| Z-Score de payoff | `payoff_edge_zscore`: janela adaptativa 15–45; classificação estatística do micro-edge |
+| Scoring de ranking | `market_decision_score = tcn × max(0.1, 1 + z)` — penaliza sinais `NO_EDGE_NEUTRAL` / `LOSS_EXPECTED` |
 | Scoring direcional | TCN define `dl_direction`; edge `> 0` mantém score orgânico; edge `< -0.15` em squeeze rebaixa para `0.52` |
 | Margem direcional | `direction_margin = abs(P(lado_escolhido) − 0.50)`; CALL usa `calibrated_prob`; PUT usa `1 − prob` |
-| Gate de qualidade | Janelas dinâmicas: margem mín. **0.06** / **0.12** e payoff meta **0.01** / **0.04** (regular / recovery) |
+| Gate de qualidade | Dual TCN (`passes_execution_quality`) + meta Z-Score (`evaluate_meta_payoff_quality`); suspensão cooperativa via `quality_conviction_suspends_cluster` |
+| Rotulagem Triple Barrier | Barreira dinâmica por σ de ticks; neutro em lateralização; tunável por símbolo |
+| Perda TCN assimétrica | Penalidade 2,5× para erro direcional em alta volatilidade |
+| Optuna meta | Maximiza Information Ratio; constraint OOS payoff Z-Score ≥ +1,00 |
 | Gerenciamento de risco | Kelly base + Martingale Geométrico puro (`Kelly_base × 2^n`) sem teto macro |
 
 ---
-
-## 3. Janela temporal de treino
 
 ## 3. Blindagem multi-timeframe
 
@@ -109,12 +111,13 @@ Ordem lógica de uma entrada:
 5. **Bundle cross-symbol** — `prepare_meta_classifier_cross_symbol_bundle` coleta telemetria micro M1 em paralelo e anexa spreads cross-symbol.
 6. **Stacking tabular** — `MetaClassifierClient` envia probabilidade TCN + vetor **39D** ao `aether-meta-classifier`; retorna `predicted_payoff_edge`.
 7. **Resolução direcional** — `execution_direction_resolver` + `meta_payoff_regression`: edge positivo preserva TCN; edge `< -0.15` em squeeze rebaixa `trade_score=0.52` (`[D-SQUEEZE]`); `ensure_direction_margin` expõe margem corrigida.
-8. **Gate de qualidade** — `passes_execution_quality` valida `direction_margin` e `predicted_payoff_edge` contra pisos do regime (regular vs recovery); reprovação suspende cluster (`[AETHER] QUALITY_GUARD`).
-9. **Deploy** — `deploy_ok=false` bloqueia execução.
-10. **Seleção** — `market_decision_score` entre candidatos elegíveis.
-11. **Risco** — Kelly + Consensus Penalty; recovery financeiro persistente; Martingale Geométrico `Kelly_base × 2^n`; stop win por sessão ativa (2,60% composto).
+8. **Gate de qualidade** — dual TCN (`passes_execution_quality`) + meta Z-Score (`evaluate_meta_payoff_quality`); suspensão cooperativa do cluster
+9. **Z-Score meta** — `attach_payoff_edge_zscore_metrics` classifica expectativa (`WIN_EXPECTED` se Z ≥ 0,50 e edge > 0).
+10. **Deploy** — `deploy_ok=false` bloqueia execução.
+11. **Seleção** — `market_decision_score` multiplicativo (TCN × fator Z-Score); redirect inter-símbolo quando âncora degradada.
+12. **Risco** — Kelly + Consensus Penalty; recovery financeiro persistente; Martingale Geométrico `Kelly_base × 2^n`; stop win por sessão ativa (2,60% composto).
 
-Bloqueio absoluto para falhas técnicas (`data`, `predict_error`, `training`, `deploy_ok=false`) e para sinais com margem direcional ou payoff meta abaixo dos pisos configurados. Não há vetos táticos autônomos fora do meta-classificador e do quality gate adaptativo.
+Bloqueio absoluto para falhas técnicas (`data`, `predict_error`, `training`, `deploy_ok=false`) e reconciliação pendente. Não há vetos táticos autônomos de quality guard, cooldown pós-LOSS, blackout de broker ou Hurst em recovery.
 
 Perfil em `config/settings.json`:
 
@@ -126,17 +129,58 @@ Perfil em `config/settings.json`:
 | `dynamic_threshold.enabled` | true | Thresholds flutuantes por volatilidade |
 | `min_val_accuracy` | 0.60 | Piso de acurácia de validação |
 | `min_edge_execute` | 0.04 | Edge base (advisory) |
-| `quality_gate.regular.min_direction_margin` | 0.06 | Piso de margem TCN em regime regular |
-| `quality_gate.regular.min_payoff_edge` | 0.01 | Piso de payoff meta em regime regular |
-| `quality_gate.min_direction_margin` | 0.12 | Piso de margem TCN em recovery |
-| `quality_gate.min_payoff_edge` | 0.04 | Piso de payoff meta em recovery |
-| `mandatory_trade_each_cycle` | true | Modo contínuo (uma ordem/ciclo quando candidato passa no gate) |
+| `label_mode` | `triple_barrier` | Rotulagem por barreira tripla (recomendado para M1) |
+| `label_vol_window_bars` | 15 | Janela de σ para largura de barreira (tunável por símbolo) |
+| `label_vol_multiplier` | 1.0 | Multiplicador da barreira de volatilidade |
+| `quality_gate.regular.min_direction_margin` | 0.06 | Piso legado (observabilidade; não veta em modo mandatário) |
+| `quality_gate.regular.min_payoff_edge` | 0.01 | Piso legado (observabilidade) |
+| `quality_gate.min_direction_margin` | 0.12 | Piso legado recovery (observabilidade) |
+| `quality_gate.min_payoff_edge` | 0.04 | Piso legado recovery (observabilidade) |
+| `mandatory_trade_each_cycle` | true | Esteira mandatária contínua |
 | `consensus_penalty_enabled` | true | Atenua Kelly quando ord diverge dos votos |
 | `penalty_smoothing_factor` | 0.40 | Suavização convexa em recovery com trade_score > 0.68 |
 
 ---
 
-## 5. Resolução direcional com edge contínuo e downgrade D-SQUEEZE
+## 5. Ranking multiplicativo TCN × Z-Score
+
+O ranking de execução (`execution_market_rank`) substitui a soma linear TCN + meta por uma **ponderação multiplicativa** que prioriza convicção estatística validada pelo LightGBM:
+
+```
+zscore_rank_factor(z) = max(0.1, 1.0 + z)
+market_decision_score ≈ tcn_score × zscore_rank_factor(meta_payoff_edge_zscore)
+```
+
+| Cenário | TCN | Z-Score meta | Efeito |
+|---------|-----|--------------|--------|
+| Âncora degradada | 0,75 | -1,50 | Score comprimido (~0,075 × TCN base) |
+| Par forte validado | 0,68 | +1,20 | Score ampliado (~2,2 × TCN base) |
+| Resultado esperado | — | — | Par forte ranqueia acima mesmo com TCN menor |
+
+Classificação do buffer (`payoff_edge_zscore.py`):
+
+| Classe | Condição |
+|--------|----------|
+| `WIN_EXPECTED` | `edge > 0` e `z ≥ 0,50` |
+| `NO_EDGE_NEUTRAL` | `edge > 0` e `z < 0,50` |
+| `LOSS_EXPECTED` | `edge ≤ 0` |
+
+O buffer histórico **não** avança durante recovery ou com `linear_losses > 0`, evitando contaminação estatística em Martingale.
+
+### 5.1 Redirect inter-símbolo (modo contínuo)
+
+Com `mandatory_trade_each_cycle: true`, `try_inter_symbol_zscore_redirect` evita inanição operacional sem forçar entrada degradada:
+
+| Gatilho | Limiar |
+|---------|--------|
+| Âncora degradada | `meta_payoff_edge_zscore < -0.50` |
+| Par alternativo forte | `meta_payoff_edge_zscore > +0.50` |
+
+O fluxo inteiro do ciclo desvia para o par com maior probabilidade matemática de ganho no milissegundo de entrada.
+
+---
+
+## 6. Resolução direcional com edge contínuo e downgrade D-SQUEEZE
 
 `execution_direction_resolver.resolve_execution_direction` delega o refinamento a `meta_payoff_regression.apply_meta_regression_edge`:
 
@@ -156,7 +200,7 @@ Perfil em `config/settings.json`:
 
 ---
 
-## 6. Kelly e Consensus Entropy Penalty (base)
+## 7. Kelly e Consensus Entropy Penalty (base)
 
 Quando a ordem final (`order_direction`) diverge da maioria dos votos técnicos (`call_votes`/`put_votes`):
 
@@ -170,17 +214,17 @@ Quando a ordem final (`order_direction`) diverge da maioria dos votos técnicos 
 
 Em baixo consenso (`retention_raw ≤ consensus_min_retention`, padrão 0,50), a stake é forçada ao piso mínimo da API ($1,00), protegendo contra ruído do CSPRNG quando DL e indicadores clássicos discordam.
 
-**Modo contínuo:** essa penalidade opera sobre o Kelly base mesmo quando o motor já está em recovery Martingale Geométrico. A convergência adaptativa (seção 7.2) evita que a penalidade asfixie a recuperação financeira.
+**Modo contínuo:** essa penalidade opera sobre o Kelly base mesmo quando o motor já está em recovery Martingale Geométrico. A convergência adaptativa (seção 8.2) evita que a penalidade asfixie a recuperação financeira.
 
-> **Gates defensivos legados removidos.** O Gate Assimétrico de Proteção, o Micro Noise Gate, o Filtro de Exaustão de Barreira Micro e o Veto de Inversão por Convicção DL foram eliminados. O quality gate atual filtra por **margem direcional** (`abs(P(lado) − 0.50)`) e **payoff meta** com janelas elásticas regular/recovery — sem SKIP por regime NEUTRO, chop de ADX ou squeeze em random walk.
+> **Gates defensivos legados removidos.** O Gate Assimétrico de Proteção, o Micro Noise Gate, o Filtro de Exaustão de Barreira Micro e o Veto de Inversão por Convicção DL foram eliminados. Em modo mandatário, portões secundários (quality guard, cooldown pós-LOSS, blackout de broker, Hurst em recovery) retornam sempre não bloqueantes — a esteira só para em falha técnica, reconciliação pendente, stop win ou settlement ativo.
 
 ---
 
-## 7. Recovery, sizing e persistência financeira
+## 8. Recovery, sizing e persistência financeira
 
 Esta seção documenta as diretrizes matemáticas que corrigem a **inanição por sizing desalinhado**: WINs operacionais com micro-stakes que zeravam o contador de perdas sem extinguir o drawdown real da sessão.
 
-### 7.1 Filosofia de Recovery Financeiro Persistente
+### 8.1 Filosofia de Recovery Financeiro Persistente
 
 #### Problema: reset cego vs. realidade financeira
 
@@ -227,7 +271,7 @@ O motor **não utiliza reset cego** de `consecutive_losses_linear` baseado em WI
 
 ---
 
-### 7.2 Waiver de Consensus Penalty em Recovery
+### 8.2 Waiver de Consensus Penalty em Recovery
 
 #### Problema: penalidade convexa vs. peso financeiro do recovery
 
@@ -248,7 +292,7 @@ Justificativa: com alinhamento direcional unânime em M15 ou convicção alta, o
 
 ---
 
-### 7.3 Martingale Geométrico Puro sem teto (Kelly base × 2^n)
+### 8.3 Martingale Geométrico Puro sem teto (Kelly base × 2^n)
 
 #### Filosofia: recuperação exponencial do passivo
 
@@ -318,7 +362,7 @@ Complementar à curva geométrica:
 
 ---
 
-### 7.4 Barreira de persistência pós-reset linear
+### 8.4 Barreira de persistência pós-reset linear
 
 Quando um cluster encerra com reset linear D'Alembert (`_linear_reset_occurred`), o motor executa uma sequência atômica antes de permitir novo ciclo de inferência:
 
@@ -331,12 +375,12 @@ Durante a barreira, `session_persistence_write_active` impede que `trading_cycle
 
 ---
 
-## 8. Execução
+## 9. Execução
 
 | Flag | Efeito |
 |------|--------|
-| `mandatory_trade_each_cycle: false` | Opera só com candidato acima dos pisos do quality gate (modo seletivo) |
-| `mandatory_trade_each_cycle: true` | Uma ordem por ciclo quando há candidato válido; fallback obrigatório bloqueado em recovery se todos foram vetados pelo gate |
+| `mandatory_trade_each_cycle: true` | Esteira contínua — toda oportunidade DL tecnicamente válida segue para execução; redirect inter-símbolo se âncora Z<-0.50 e par Z>+0.50 |
+| `mandatory_trade_each_cycle: false` | Modo legado seletivo (não recomendado na configuração atual) |
 | `include_anchor_trades` | Inclui âncora nas ordens do cluster |
 | `diversify_after_loss_margin` | Prefere símbolo alternativo quando scores são próximos |
 
@@ -344,20 +388,20 @@ Logs: `ord=` (ordem enviada) sempre igual a `dl=` (direção prevista pelo DL), 
 
 ---
 
-## 9. Risco e stop win por sessão
+## 10. Risco e stop win por sessão
 
 | Mecanismo | Papel |
 |-----------|-------|
 | Kelly fracionário | Sizing base com win rate dinâmico após amostras mínimas; compressão estática de 60% fora de recovery |
 | Target Proximity Damping | Amortecimento linear da stake Kelly conforme `pnl_sessao` se aproxima de `target_win` (piso 0.40×) |
 | Consensus Entropy Penalty | Defesa contra ruído CSPRNG (seção 6) |
-| Penalty Smoothing | Convergência adaptativa em recovery (seção 7.2) |
-| Recovery financeiro persistente | Estado de risco atrelado a `pending_total` (seção 7.1) |
-| Martingale Geométrico sem teto | Recuperação exponencial `Kelly_base × 2^n` (seção 7.3) |
+| Penalty Smoothing | Convergência adaptativa em recovery (seção 8.2) |
+| Recovery financeiro persistente | Estado de risco atrelado a `pending_total` (seção 8.1) |
+| Martingale Geométrico sem teto | Recuperação exponencial `Kelly_base × 2^n` (seção 8.3) |
 | Stop win por sessão ativa | `target_win = session_start_balance × compounding_rate_daily` (padrão 2,60%); fast-path anti-deadlock |
 | Stop loss | Desativado — sem reset por relógio nem disjuntor de perda diária |
 
-### 9.1 Juros compostos e controle operacional
+### 10.1 Juros compostos e controle operacional
 
 A meta segue a planilha de gerenciamento de juros compostos (`compounding_rate_daily: 0.026`):
 
@@ -367,7 +411,7 @@ A meta segue a planilha de gerenciamento de juros compostos (`compounding_rate_d
 | Meta calculada | `target_win = session_start_balance × 0,026` (arredondada para baixo em centavos) |
 | Durante a sessão | `pnl_sessao = current_balance - session_start_balance` |
 | Meta atingida | Fast-path: `clear_current_session_redis_keys` → `cancel_settlement_queue_fast` → `graceful_shutdown(fast_path=True)` |
-| Ciclo pós-liquidação incompleto | Retry com breath; após 2 falhas consecutivas → `emergency_save_session_state` + `sys.exit(0)` |
+| Ciclo pós-liquidação incompleto | Retry com breath; após 2 falhas consecutivas → `emergency_save_session_state` + `recover_post_settlement_loop_transparently` |
 | Restart manual | Nova sessão independente com novo saldo e nova meta de 2,60% |
 | Mesmo dia civil | Múltiplas sessões isoladas permitidas — sem virada UTC/meia-noite |
 
@@ -381,7 +425,7 @@ Parâmetros em `risk_management.params`:
 
 Com `compounding_enabled: false`, o motor recorre ao alvo legado (`small_account_stop_win` / `large_account_stop_win_pct`).
 
-### 9.2 Sizing defensivo de proximidade de alvo
+### 10.2 Sizing defensivo de proximidade de alvo
 
 Evita superexposição quando a sessão já capturou a maior parte do stop win de 2,60%:
 
@@ -395,8 +439,9 @@ Log de bootstrap: `SESSAO INICIADA | Alvo de 2,60%: $XX.XX | Stop Loss: DESATIVA
 
 ---
 
-## 10. Referências internas
+## 11. Referências internas
 
 - [arquitetura.md](arquitetura.md)
+- [structure.md](structure.md) — inventário completo dos 208 módulos Python
 - [README.md](../README.md)
 - [CHANGELOG.md](CHANGELOG.md)

@@ -18,9 +18,9 @@ Motor assíncrono para trading na Deriv com decisão exclusiva por **Deep Learni
 | Ciclo do orquestrador | 60 s (`cycle_interval_seconds`, virada M1) |
 | Decisão | `collect_deep_learning_decisions` |
 | Fases | `FASE TREINO` → `FASE OPERACAO` |
-| Execução | Seletiva (`mandatory_trade_each_cycle: false`) ou **contínua** (`true`) |
+| Execução | Seletiva (`mandatory_trade_each_cycle: false`) ou **esteira mandatária contínua** (`true`) |
 
-O mercado é tratado como **série temporal ruidosa**: o modelo estima probabilidade de alta; um **motor de direção** segue o sinal da TCN (`P(CALL) > pivot` → CALL, caso contrário PUT), refinado pelo meta-regressor LightGBM, e um **gate de qualidade adaptativo** filtra ruído lateral próximo ao neutro 0,50 antes da execução. Em modo contínuo (`mandatory_trade_each_cycle: true`), o motor boleta em toda virada de minuto M1 quando o candidato passa no gate; sinais fracos (`direction_margin` insuficiente) são rejeitados sem fallback obrigatório em recovery.
+O mercado é tratado como **série temporal ruidosa**: o modelo estima probabilidade de alta; um **motor de direção** segue o sinal da TCN (`P(CALL) > pivot` → CALL, caso contrário PUT), refinado pelo meta-regressor LightGBM e pelo **Z-Score estatístico do payoff** (`meta_payoff_edge_zscore`). O **ranking multiplicativo** `tcn × max(0.1, 1+z)` prioriza setups `WIN_EXPECTED` sobre TCN bruto degradado. Em modo mandatário (`mandatory_trade_each_cycle: true`), o motor exige mandatory pick quando há candidatos aprovados pelo quality gate dual. Cooldown pós-LOSS, blackout de broker e Hurst em recovery permanecem neutralizados.
 
 ---
 
@@ -46,11 +46,11 @@ flowchart LR
   subgraph direcao
     SIG[orchestrator_data_signature M1+M15]
     RES[execution_direction_resolver TCN + meta GBDT]
-    QG[execution_quality_gate janelas dinamicas]
+    QG[execution_quality_gate telemetria mandatoria]
   end
   subgraph exec
     COL[execution_collect]
-    SEL[execution_symbols]
+    SEL[execution_symbols rank + redirect]
     EM[ExecutionManager]
     TH[TradeHandler]
   end
@@ -99,11 +99,12 @@ Com `infra.enabled: true`, o motor valida Redis, TimescaleDB e MinIO em `localho
 - Container Python 3.13-slim com FastAPI expõe `POST /v2/predict_meta`.
 - Artefatos LightGBM (`.pkl`) montados em `infra/docker/meta-models` → `/models`.
 - `MetaClassifierClient` (`meta_classifier_client.py`) consulta o serviço com `httpx.AsyncClient`, timeout **1,0 s** e fallback neutro (`predicted_payoff_edge=0.0`) em falha ou timeout — preserva `trade_score` orgânico da TCN.
+- `payoff_edge_zscore.py` mantém buffer adaptativo de **15–45** amostras (Hurst macro, variação ATR, compressão BB), calcula `meta_payoff_edge_zscore` e classifica `WIN_EXPECTED` / `NO_EDGE_NEUTRAL` / `LOSS_EXPECTED`.
 - Vetor tabular **39D** enviado ao GBDT: **34** features TCN + **3** cross-symbol (`cross_symbol_prob_delta`, `cross_symbol_vol_ratio_diff`, `cross_symbol_rsi_spread`) + **2** de fluxo micro (`micro_tick_acceleration`, `keltner_deviation_ratio`).
 - `prepare_meta_classifier_cross_symbol_bundle` (`dl_predict_build.py`) centraliza telemetria micro M1 paralela (`stamp_micro_frame_telemetry`) e anexa spreads cross-symbol (`attach_cross_symbol_features_to_decisions`) **antes** do prefetch HTTP.
-- `collect_deep_learning_decisions` chama o bundle e em seguida `prefetch_meta_payoff_for_decisions`; `execution_direction_resolver` aplica `meta_payoff_regression.apply_meta_regression_edge` sobre o `predicted_payoff_edge` retornado pelo regressor.
+- `collect_deep_learning_decisions` chama o bundle e em seguida `prefetch_meta_payoff_for_decisions`; `execution_direction_resolver` aplica `meta_payoff_regression.apply_meta_regression_edge` sobre o `predicted_payoff_edge` retornado pelo regressor e `attach_payoff_edge_zscore_metrics` calcula o Z-Score estatístico do edge (`meta_payoff_edge_zscore`) usado no ranking final.
 - Healthcheck nativo Python (`urllib.request`) — sem dependência de `curl` na imagem slim.
-- Treino offline: `train_meta_classifier.py` + `train_meta_optuna.py` + `train_meta_vector.py` (Optuna minimiza MAE; `LGBMRegressor` huber; alvo contínuo `Y = PnL_Real / Stake`; sumário com `train_mae` e `target_variance`).
+- Treino offline: `train_meta_classifier.py` + `train_meta_optuna.py` + `train_meta_vector.py` (Optuna **maximiza Information Ratio**; rejeita trials com Z-Score médio de payoff OOS < **+1,00**; `LGBMRegressor` huber; alvo contínuo `Y = PnL_Real / Stake`).
 
 **Spread de convicção cross-symbol** (`meta_classifier_cross_symbol.py`):
 
@@ -215,12 +216,22 @@ Em `trading_cycle_entry.run_trading_cycle_if_ready`:
 
 ### 3.1 Labels e features
 
-**Rótulo** (`dl_labels.py`, modo `ma_trend`):
+**Rótulo** (`dl_labels.py`):
 
-```
-Y[i] = 1.0 se média móvel suavizada indica alta na barra i + horizon
-horizon = label_horizon_bars (padrão 1)
-```
+| Modo | Config | Comportamento |
+|------|--------|---------------|
+| `spot_forward` | padrão legado | Preço futuro > preço atual |
+| `ma_trend` | `label_mode: ma_trend` | Média móvel suavizada indica tendência |
+| **`triple_barrier`** | `label_mode: triple_barrier` | Barreira superior/inferior dinâmica por σ de ticks; neutro (0) se nenhuma barreira rompida no horizonte M1 |
+
+Parâmetros Triple Barrier (tunáveis por símbolo em `deep_learning`):
+
+| Chave | Padrão | Função |
+|-------|--------|--------|
+| `label_vol_window_bars` | 15 | Janela de σ (barras M15 ≈ 15 min) |
+| `label_vol_multiplier` | 1.0 | Multiplicador da largura de barreira |
+
+Resolução via `dl_horizon.resolve_label_vol_window_bars` / `resolve_label_vol_multiplier`; propagados por `dl_params`, `dl_sequence_extract`, `dl_training` e `dl_symbol_train`.
 
 **34 features** (`FEATURE_DIM` em `dl_feature_build.py`):
 
@@ -233,13 +244,15 @@ horizon = label_horizon_bars (padrão 1)
 
 Normalização anti-leakage: `fit_norm_stats` somente no split de treino walk-forward.
 
-### 3.2 Modelo
+### 3.2 Modelo e perda
 
 - Arquitetura: **`tcn`** (padrão), **`lstm`** ou **`gru`** via `deep_learning.arch`.
 - Saída: probabilidade bruta de alta (`raw_prob`).
+- **Perda assimétrica** (`model.high_volatility_asymmetric_focal_loss`): BCE focal com penalidade **2,5×** para previsão direcional errada em instantes de alta volatilidade (percentil 75 do proxy de vol no batch); integrada em `dl_training_epochs._masked_loss`.
+- **Cabeça auxiliar de regressão** (`dl_tcn.regression_head`): multi-task learning com delta de preço relativo (`sequence_price_deltas`); peso auxiliar 0,15 na perda combinada para regularizar embeddings convolucionais.
 - Checkpoint v4 em `data/dl/{symbol}.pth` + TorchScript `{symbol}_ts.pt` (espelho MinIO `latest_ts.pt`).
 - Inferência via `TritonGrpcClient.infer_symbols_concurrent` quando `infra.triton.enabled`; tensor FP32 **`[1, 48, 34]`** (48 barras M15 = **12 h** de contexto).
-- `collect_cluster_orders` opera de forma contínua quando `mandatory_trade_each_cycle: true`; o quality gate filtra sinais com margem direcional insuficiente antes do pool de candidatos.
+- `collect_cluster_orders` opera de forma contínua quando `mandatory_trade_each_cycle: true`; o quality gate registra telemetria sem vetar candidatos.
 
 ### 3.3 Treino walk-forward
 
@@ -279,6 +292,7 @@ A direção macro (`dl_direction`) segue a TCN (M15). O **meta-regressor** (M1) 
 | Edge negativo leve | Mantém direção TCN e score orgânico |
 | `direction_margin` | `abs(P(lado_escolhido) − 0.50)` — distância da confiança lateral ao neutro; CALL usa `calibrated_prob`; PUT usa `1 − prob` |
 | `ensure_direction_margin` | Recalcula margem a partir de prob + direção final (`exec_direction`/`resolved_direction`/`dl_direction`), ignorando valor sobrescrito pelo meta stacking |
+| `attach_payoff_edge_zscore_metrics` | Calcula Z-Score adaptativo do `predicted_payoff_edge`; expõe `edge_zscore_window` nas métricas |
 | `direction_inverted` | Permanece `False` no fluxo de regressão (sem flip binário) |
 
 **Gatilho D-SQUEEZE** (`meta_payoff_regression.py` + `meta_direction_flip.log_d_squeeze_audit`):
@@ -293,53 +307,80 @@ Em squeeze com edge severamente negativo, o `trade_score=0.52` força o `consens
 Bloqueio absoluto (`resolve_execution_direction` retorna `None`) em:
 
 - Falha técnica: `deploy_ok == False` ou `gate_reason ∈ {data, predict_error, training}`
-- Quality gate: `direction_margin` ou `predicted_payoff_edge` abaixo dos pisos dinâmicos (`_reject_on_quality_gate`)
+- Regras de âncora estrita (`_strict_anchor_direction`) e guarda de persistência direcional
 
-Antes de retornar, o resolver chama `ensure_direction_margin()` para expor a margem corrigida nas métricas do candidato.
+O quality gate dual pode suspender o cluster via `quality_conviction_suspends_cluster` quando margem TCN, payoff meta ou Z-Score estatístico falham (ver seção 4.2).
 
 A matriz de correlação cross-symbol (`execution_direction_cross_corr`) e o `execution_volatility_booster` permanecem como telemetria/pisos consultivos.
 
-### 4.2 Gate de qualidade adaptativo (`execution_quality_gate.py`)
+### 4.2 Gate de qualidade dual (`execution_quality_gate*.py`)
 
-O gate filtra ruído lateral com **janelas elásticas** calibradas pelo estado de risco (`RiskManager`):
+O motor avalia candidatos por **dois portões complementares**, selecionados por candidato em `execution_quality_gate_cluster`:
 
-| Regime | Condição | `min_direction_margin` | `min_payoff_edge` |
-|--------|----------|------------------------|-------------------|
-| **Regular** | `consecutive_losses_linear == 0` e `pending_loss_total == 0` | **0.06** | **0.01** |
-| **Recovery** | `linear > 0` ou `pending_loss > 0` | **0.12** | **0.04** |
+| Portão | Condição de ativação | Módulo | Critério |
+|--------|---------------------|--------|----------|
+| TCN + meta payoff | Sem `meta_payoff_edge_zscore` / `edge_zscore` com `edge_expectancy` | `execution_quality_gate` | `direction_margin` ≥ piso dinâmico **e** `predicted_payoff_edge` ≥ piso (quando meta aplicado) |
+| Meta Z-Score | `edge_expectancy` + (`meta_payoff_edge_zscore` ou `edge_zscore`) | `execution_quality_gate_meta` | Z-Score estatístico do payoff vs buffer móvel |
 
-Limites configuráveis em `orchestrator.execution.quality_gate` e `quality_gate.regular` (`config/settings.json`).
+`resolve_dynamic_quality_limits` ajusta pisos por regime (regular/recovery), drawdown (`execution_quality_gate_drawdown`) e inanição (`execution_quality_gate_starvation`).
 
-**Fórmula de margem direcional** (`direction_margin_from_probability`):
+**Suspensão de cluster** (`quality_conviction_suspends_cluster`):
+
+- Modo TCN: qualquer falha sem aprovação paralela suspende o cluster.
+- Modo meta: suspende apenas se **todos** os candidatos elegíveis falharem (`meta_mode and any_pass` → continua).
+- Logs TCN/Payoff: prefixo `[AETHER] QUALITY_GUARD |` via `execution_quality_gate_reason`.
+- Logs Meta Z-Score: prefixo `[AETHER] EXECUTION_FLOW |` via `format_quality_guard_reject_message`.
+
+**Módulos auxiliares:**
+
+| Módulo | Função |
+|--------|--------|
+| `execution_quality_gate_reason.py` | `build_quality_gate_reason`, formatação de mensagens |
+| `execution_quality_gate_fallback.py` | Bloqueio de fallback em recovery |
+| `execution_quality_skip_yield.py` | Yield após rejeição silenciosa do meta-gate |
+
+**Portões neutralizados (não bloqueantes em modo mandatário):**
+
+| Módulo | Função | Retorno |
+|--------|--------|---------|
+| `post_settlement_loss_cooldown` | `post_loss_cooldown_blocks_trading_cycle` | `False` |
+| `session_persistence_barrier` | `session_persistence_blocks_trading_cycle` | `False` |
+| `api_maintenance_guard` | `api_maintenance_blocks_trading_cycle` | `False` |
+| `execution_recovery_gate` | `recovery_hurst_blocks_collect` | `False` |
+
+### 4.3 Pool, ranking e seleção
+
+**Score multiplicativo de alta convicção** (`execution_market_rank.market_decision_score`):
 
 ```
-direction_margin = abs(probabilidade_do_lado_escolhido − 0.50)
+zscore_rank_factor(z) = max(0.1, 1.0 + z)
+market_decision_score = tcn_score × zscore_rank_factor(meta_payoff_edge_zscore) + ajustes secundários
 ```
 
-Exemplos: CALL com `c=0.75` → margem **0.25**; PUT com `c=0.46` → confiança PUT `0.54` → margem **0.04**.
+| Comportamento | Efeito |
+|---------------|--------|
+| Z negativo (`meta_payoff_edge_zscore < 0`) | Deflação geométrica agressiva (fator mínimo **0,1**) |
+| Z positivo | Bônus linear de priorização (`1.0 + z`) |
+| Penalidades secundárias | `val_accuracy < 0.50`, Brier alto, margem baixa, recovery, `direction_inverted` |
 
-| Função | Comportamento |
-|--------|---------------|
-| `ensure_direction_margin(metrics)` | Recalcula margem a partir de `calibrated_prob`/`raw_prob` + direção final |
-| `passes_execution_quality(metrics, ...)` | Reprova se `direction_margin ≤ piso` ou (meta ativo e `payoff_edge < piso`); grava `quality_gate_reason`, `quality_gate_regime` |
-| `apply_quality_penalty_to_metrics(...)` | Retorna `1.0` quando o gate reprova (penalidade no ranking) |
-| `resolve_dynamic_quality_limits(...)` | Seleciona pisos regular vs recovery |
+Sinais classificados como `WIN_EXPECTED` (Z ≥ **0,50** e edge > 0) tendem ao topo absoluto do ranking, mesmo com TCN ligeiramente inferior ao par degradado.
 
-**Suspensão cooperativa do cluster** (`execution_quality_gate_cluster.py`):
+**Redirect inter-símbolo em modo contínuo** (`execution_symbols.try_inter_symbol_zscore_redirect`):
 
-- `quality_conviction_suspends_cluster(orch, decisions)` — chamado em `trading_cycle_entry` após inferência; marca `signal_status=SIGNAL_SUSPENDED` e `quality_guard_reject=True` nos entries reprovados
-- Log estruturado: `[AETHER] QUALITY_GUARD | Ciclo C#### descartado. Motivo: ... | linear=... pending_loss=$...`
+| Condição | Ação |
+|----------|------|
+| Âncora com `meta_payoff_edge_zscore < -0.50` | Sinal degradado no contêiner micro |
+| Par alternativo com `meta_payoff_edge_zscore > +0.50` e quality gate OK | Desvia execução inteira para o par forte |
+| Modo | `mandatory_trade_each_cycle: true` via `select_mandatory_execution_candidate` / `select_best_execution_candidate(orch=...)` |
 
-**Fallback obrigatório em recovery** (`execution_quality_gate_fallback.py`):
+Mantém frequência operacional minuto a minuto sem forçar entrada no ativo degradado.
 
-- `cluster_quality_gate_blocks_mandatory_fallback` impede fallback obrigatório quando **todos** os candidatos DL viáveis foram vetados pelo quality gate em recovery — evita boletar ruído lateral após rejeição coletiva
-
-### 4.3 Pool e seleção
+Demais componentes:
 
 - `execution_recovery_gate.cluster_entry_eligible` — bloqueio **somente técnico** + exige `raw_prob` ou direção.
 - `execution_direction.build_execution_candidate` — delega ao resolver linear.
-- `execution_symbols.select_best_execution_candidate` / `select_mandatory_execution_candidate` — ranking por `market_decision_score`.
-- `execution_mandatory_pick` / `execution_entropy_fallback` — fallbacks que garantem ordem no modo contínuo.
+- `execution_symbols.select_best_execution_candidate` / `select_mandatory_execution_candidate` — ranking por `market_decision_score` com diversificação suave pós-loss.
+- `execution_mandatory_pick` / `execution_entropy_fallback` — fallbacks que garantem ordem no modo contínuo quando o pool não está vetado coletivamente.
 
 ---
 
@@ -353,9 +394,11 @@ Exemplos: CALL com `c=0.75` → margem **0.25**; PUT com `c=0.46` → confiança
 ### 5.2 ExecutionManager
 
 - Monta ordens com stake de `RiskManager.calculate_stake`.
+- **Lotes fracionados** (`execution_fractional_lots.dispatch_fractional_orders`): stakes acima de `max_single_stake_limit` (padrão **$200**) são fatiadas em N sub-lotes com **proposta atômica individual** por pedaço. Entre sub-propostas, `resolve_fractional_lot_stagger_seconds` aplica jitter estocástico escalado pelo RTT medido em `WebSocketManager.last_rtt_seconds`. Se qualquer proposta falhar, o cluster fragmentado aborta sem incrementar `pending_loss` (`fractional_lot_technical_failure=True`).
 - Settlement assíncrono; reentrada via `post_settlement_cycle`.
 - Contratos via `TradeHandler.buy_with_parameters`: RISE_FALL, **60 s** (M1), com contexto DL em **M15**.
 - Após settlement: `save_full_state` persiste bundle atômico no Redis.
+- **Reconciliação de stake executada** (`executed_stake_reconciliation.py`): quando a Deriv reduz stake na compra (`stake_downgrade`), o residual é aplicado ao `pending_loss` antes de `register_result` — WIN parcial não zera drawdown cegamente.
 
 ---
 
@@ -374,17 +417,17 @@ flowchart TD
   B -->|Nao| F[retry loop pos-liquidacao]
   F --> G{ciclo incompleto 2x?}
   G -->|Sim| H[emergency_save_session_state]
-  H --> I[sys.exit 0]
+  H --> I[recover_post_settlement_loop_transparently]
 ```
 
 | Etapa | Módulo | Comportamento |
 |-------|--------|---------------|
-| Curto-circuito stop win | `check_session_limits_before_post_settlement` | Checa `pnl_sessao >= target_win` antes de breath/retry |
+| Curto-circuito stop win | `check_session_limits_before_post_settlement` / `finalize_stop_win_shutdown` | Checa meta; purge Redis bloqueante; log CRITICAL `[AETHER] STOP_WIN | ...`; fast-path shutdown |
 | Abort Redis | `clear_current_session_redis_keys` | Remove chaves `session:current:*` sem aguardar MULTI/EXEC pendente |
 | Cancelamento de fila | `settlement_queue_ops.cancel_settlement_queue_fast` | Cancela worker e drena fila sem `task_done` handshake |
 | Shutdown rápido | `graceful_shutdown(fast_path=True)` | Encerra infra sem aguardar tasks fantasmas pós-reconexão |
 | Teto de retry | `_post_settlement_incomplete_streak` | Após 2 ciclos incompletos consecutivos, sinaliza deadlock |
-| Saída forçada | `orchestrator_run_loop._enforce_post_settlement_deadlock_exit` | Persiste bundle de emergência em `session_state.json` e `sys.exit(0)` |
+| Recovery transparente | `orchestrator_run_loop` + `post_settlement_resilience` | Persiste bundle de emergência; chama `recover_post_settlement_loop_transparently`; reinicia contadores sem encerrar o processo |
 
 Settlement assíncrono via `orchestrator_settlement_queue.py`: worker consome fila sem bloquear o loop principal; no fast-path a fila é cancelada e drenada imediatamente.
 
@@ -422,7 +465,7 @@ A meta de lucro segue a planilha de juros compostos (`compounding_rate_daily`, p
 2. **Cálculo**: `target_win = session_start_balance × compounding_rate_daily` via `StopWinManager.calculate_session_targets`.
 3. **Persistência Redis**: `{prefix}:session:current:start_balance` e `{prefix}:session:current:target_win` no pipeline atômico; hash `session:current` com métricas correntes.
 4. **Encerramento**: após settlement ou no início do pós-liquidação, `check_session_limits_before_post_settlement` compara `pnl_sessao` com `target_win`; se atingido, fast-path limpa Redis, cancela fila de settlement e chama `graceful_shutdown(fast_path=True)`.
-5. **Deadlock pós-liquidação**: se o ciclo incompleto ocorrer 2 vezes consecutivas, `emergency_save_session_state` grava bundle financeiro e o processo encerra com `sys.exit(0)`.
+5. **Deadlock pós-liquidação**: se o ciclo incompleto ocorrer 2 vezes consecutivas, `emergency_save_session_state` grava bundle financeiro e `recover_post_settlement_loop_transparently` reinicia o loop sem `sys.exit`.
 6. **Nova sessão**: reiniciar `run.py` captura novo saldo e recalcula meta — o operador decide quantas sessões executar no mesmo dia civil.
 
 Log de bootstrap: `SESSAO INICIADA | Alvo de 2,60%: $XX.XX | Stop Loss: DESATIVADO`.
@@ -459,16 +502,21 @@ Persistência: `data/session_state.json` (métricas da sessão corrente), Redis 
    - `tick_bars_since_train`
    - `run_trading_cycle_if_ready` → valida assinatura M1+M15 → `async with orchestrator_atomic_state_context`:
      - `collect_deep_learning_decisions` (inferência Triton concorrente com fallback TorchScript)
-     - `quality_conviction_suspends_cluster` (veto cooperativo por margem/payoff)
-     - `executor.execute_cluster`
+     - `prepare_quality_skipped_cycles_counter` + `quality_conviction_suspends_cluster` (telemetria; não bloqueia)
+     - `executor.execute_cluster` (salvo barreira de persistência de sessão ou abort de coleta)
 5. Reconciliação periódica de contratos abertos.
 6. Após liquidação: `post_settlement_cycle` (fast-path stop win ou retry com teto) → persistência via `orchestrator_persistence`.
 
+**Cooldown pós-LOSS** (`post_settlement_loss_cooldown.py`):
+
+- `schedule_post_loss_cooldown` emite **uma única linha** `CICLO: cooling-down {tempo}s pos-LOSS linear={linear}` no agendamento
+- `post_loss_cooldown_blocks_trading_cycle` retorna sempre `False` (esteira mandatária)
+- `log_trading_cycle_cooldown_skip` é no-op — sem contagem regressiva iterativa no console
+
 **Guarda de manutenção da API** (`api_maintenance_guard.py`):
 
-- Intercepta erros `"trading is not available"`, `"market is closed"` e janelas temporais parseadas da mensagem do broker.
-- Define `_api_maintenance_until` e suspende o ciclo de trading (`MAINTENANCE_CYCLE_SUSPENDED`) até a liberação do pool.
-- Log: `[AETHER] API_GUARD | Hibernando motor devido a reset/manutencao de liquidez do broker`.
+- Telemetria reativa (`[AETHER] API_GUARD`) permanece para observabilidade
+- `api_maintenance_blocks_trading_cycle` e `proactive_blackout_blocks_cycle` retornam `False` — ciclo não é suspenso em modo mandatário
 
 **Graceful shutdown** (`graceful_shutdown.py`):
 
@@ -476,7 +524,7 @@ Persistência: `data/session_state.json` (métricas da sessão corrente), Redis 
 - `graceful_shutdown(orch, fast_path=True)` — stop win: cancela fila de settlement (`cancel_settlement_queue_fast`), cancela task pós-liquidação sem handshake prolongado, depois `close_infrastructure_connections`.
 - `close_infrastructure_connections` encerra watchdog, Triton gRPC, Timescale, Redis e WebSocket; limpa chaves `session:current:*`; excepthook instalado em `run.py`.
 
-**Loop principal** (`orchestrator_run_loop.py`): a cada iteração verifica `_post_settlement_deadlock`; em deadlock confirmado, persiste estado de emergência e força `sys.exit(0)`.
+**Loop principal** (`orchestrator_run_loop.py`): a cada iteração verifica `_post_settlement_deadlock` via `_enforce_post_settlement_deadlock_exit`; em deadlock confirmado, persiste estado de emergência e chama `recover_post_settlement_loop_transparently` (log `Loop reinicializado de forma transparente`).
 
 ---
 
@@ -499,15 +547,17 @@ Persistência: `data/session_state.json` (métricas da sessão corrente), Redis 
 
 ## 9. Camadas de software
 
+Inventário completo de **208 módulos** em [structure.md](structure.md). Resumo por camada:
+
 | Camada | Módulos principais |
 |--------|-------------------|
-| Application / DL | `decision_bridge`, `dl_predict_build`, `dl_predict_async`, `dl_predict_triton`, `dl_gating`, `dl_trend`, `dl_cycle_*`, `model` |
-| Application / Meta | `meta_classifier_stacking`, `meta_payoff_regression`, `meta_classifier_features`, `meta_classifier_cross_symbol`, `meta_classifier_flow_features`, `meta_direction_flip` (auditoria D-SQUEEZE) |
-| Application / Direção | `execution_direction_resolver` (TCN + edge contínuo), `execution_direction_cross_corr` (telemetria), `execution_volatility_booster` (pisos consultivos), `execution_quality_gate` (margem + payoff), `execution_quality_gate_cluster`, `execution_quality_gate_fallback` |
-| Application / Execução | `execution_collect`, `execution_collect_gather`, `execution_market_rank`, `execution_symbols`, `execution_mandatory_pick` |
-| Application / Orchestrator | `Orchestrator`, `execution_manager`, `trading_cycle_entry`, `orchestrator_data_signature`, `orchestrator_atomic_state`, `orchestrator_persistence`, `session_persistence_barrier`, `api_maintenance_guard`, `session_target_bootstrap`, `execution_recovery_gate`, `watchdog_service`, `graceful_shutdown`, `settlement_*`, `settlement_queue_ops`, `post_settlement_cycle`, `orchestrator_run_loop` |
-| Domain | `trade`, `market_data`, `probability_entropy`, `risk_manager`, `stop_win_target`, `risk_recovery_state`, `consensus_stake_penalty`, `recovery_hurst_gate`, `dlambert_sizing`, `recovery_conviction`, `stake_sizing` |
-| Infrastructure | `state_manager` (asyncio.Lock), `triton_grpc_client`, `triton_inference_client`, `websocket_manager`, `stream_handler`, `stream_reconnect`, `tick_buffer`, `trade_handler`, `minio_model_store`, `torchscript_sanity`, `redis_state_pipeline` |
+| Application / DL | `decision_bridge`, `dl_predict_build`, `dl_labels`, `dl_horizon`, `dl_training_epochs`, `model`, `dl_predict_async`, `dl_predict_triton`, `dl_params_blocks` |
+| Application / Meta | `meta_classifier_stacking`, `meta_payoff_regression`, `payoff_edge_zscore`, `meta_classifier_features`, `meta_classifier_cross_symbol`, `meta_direction_flip` |
+| Application / Direção | `execution_direction_resolver`, `execution_quality_gate`, `execution_quality_gate_reason`, `execution_quality_gate_meta`, `execution_quality_gate_cluster`, `execution_quality_gate_starvation` |
+| Application / Execução | `execution_collect`, `execution_market_rank`, `execution_symbols`, `execution_symbols_overdrive`, `execution_fractional_lots`, `execution_contract_adoption`, `execution_split_abort` |
+| Application / Orchestrator | `Orchestrator`, `execution_manager`, `trading_cycle_entry`, `orchestrator_data_signature`, `orchestrator_atomic_state`, `orchestrator_persistence`, `post_settlement_resilience`, `post_settlement_loss_cooldown`, `session_persistence_barrier`, `watchdog_service`, `graceful_shutdown`, `settlement_*` |
+| Domain | `trade`, `market_data`, `probability_entropy`, `risk_manager`, `risk_contract_result`, `risk_stake_flow`, `risk_cluster`, `stop_win_target`, `risk_recovery_state`, `consensus_stake_penalty`, `executed_stake_reconciliation`, `dlambert_sizing` |
+| Infrastructure | `state_manager`, `triton_grpc_client`, `meta_classifier_client`, `websocket_manager`, `stream_handler`, `tick_buffer`, `trade_handler`, `minio_model_store`, `redis_state_pipeline` |
 | Presentation | `logger`, `log_dedupe` |
 
 ---
@@ -531,19 +581,24 @@ Marcadores de log relevantes:
 | `SESSAO INICIADA` | Bootstrap de meta por sessão ativa (2,60% composto; stop loss desativado) |
 | `TRITON_TIMEOUT_FALLBACK` | Inferência Triton excedeu 2 s; fallback TorchScript local |
 | `WATCHDOG: STALE_DATA` | Inanição de ticks; reconexão controlada do stream |
-| `CICLO: ciclo pos-liquidacao incompleto` | Retry pós-liquidação; após 2× consecutivas → encerramento forçado |
-| `STOP_WIN` / fast-path | Meta da sessão atingida; Redis limpo e shutdown imediato |
-| `[AETHER] QUALITY_GUARD` | Ciclo descartado por margem TCN ou payoff meta insuficiente; inclui `linear` e `pending_loss` |
+| `CICLO: ciclo pos-liquidacao incompleto` | Retry pós-liquidação; após 2× consecutivas → recovery transparente |
+| `Loop reinicializado de forma transparente` | `post_settlement_resilience` resetou contadores pós-deadlock |
+| `STOP_WIN` / fast-path | Meta da sessão atingida; purge Redis; log CRITICAL; shutdown imediato |
+| `meta_payoff_edge_zscore` / `edge_expectancy` | Z-Score estatístico do edge LightGBM; classificação `WIN_EXPECTED`, `NO_EDGE_NEUTRAL`, `LOSS_EXPECTED` |
+| `INTER_SYMBOL` redirect | Desvio de âncora degradada (Z < -0.50) para par forte (Z > +0.50) em modo mandatory |
+| `[AETHER] EXECUTION_FLOW` | Telemetria de fluxo mandatário contínuo; válvula de inanição; substitui semântica legada `QUALITY_GUARD` |
+| `CICLO: cooling-down` | Único log de cooldown pós-LOSS no agendamento; silêncio durante vigência do timer |
 | `DATA_SIG: cache invalidado` | Assinatura M1+M15 mudou; inferência reinicializada na fronteira de minuto |
 | `[D-SQUEEZE]` | Downgrade de score em compressão M1; métricas `bb_width`, `tick_accel`, `predicted_payoff_edge`, `score` |
-| `[API_GUARD]` | Hibernação cooperativa durante manutenção ou reset de liquidez do broker |
+| `[API_GUARD]` | Telemetria reativa de manutenção/blackout do broker (sem bloqueio de ciclo em modo mandatário) |
 | `session_persistence_write_active` | Barreira pós-reset linear em andamento; ciclo de trading aguarda liberação |
+| Cooldown pós-loss | `LogDeduper.log_cooldown_schedule` — 1 log no agendamento; `log_cooldown_active` deduplicado (sem spam iterativo) |
 
 ---
 
 ## 11. Garantia de qualidade
 
-- Cobertura **100%** em `app/src` (pytest + coverage).
+- Cobertura **100%** em `app/src` (pytest + coverage; **1413** statements, **244** arquivos de teste).
 - Pre-commit: Ruff, Interrogate, Vulture, pylint duplicate-code, máximo **300 linhas** por arquivo em `app/src`.
 
 ---

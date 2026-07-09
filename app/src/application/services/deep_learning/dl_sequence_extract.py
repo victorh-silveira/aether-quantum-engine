@@ -66,6 +66,41 @@ def extract_sequences(
     )
 
 
+def sequence_price_deltas(
+    prices: np.ndarray,
+    lookback: int,
+    *,
+    label_horizon_bars: int = 1,
+    label_smooth_bars: int = 1,
+    label_mode: str = "ma_trend",
+    label_ma_window: int = 5,
+) -> np.ndarray:
+    """Retorna delta relativo de preco alinhado aos rotulos de classificacao."""
+    _, masks = sequence_labels(
+        prices,
+        lookback,
+        max(1, int(label_horizon_bars)),
+        smooth_bars=max(1, int(label_smooth_bars)),
+        label_mode=label_mode,
+        ma_window=label_ma_window,
+    )
+    count = len(masks)
+    if count == 0:
+        return np.empty((0,), dtype=np.float32)
+    horizon = max(1, int(label_horizon_bars))
+    deltas = np.zeros(count, dtype=np.float32)
+    for offset, end_idx in enumerate(range(lookback, lookback + count)):
+        start_idx = end_idx - 1
+        future_idx = min(len(prices) - 1, end_idx + horizon - 1)
+        base = float(prices[start_idx])
+        future = float(prices[future_idx])
+        if abs(base) < 1e-12:
+            deltas[offset] = 0.0
+        else:
+            deltas[offset] = (future - base) / abs(base)
+    return deltas
+
+
 def extract_features(prices: np.ndarray, lookback: int = 20) -> tuple[np.ndarray, np.ndarray]:
     """Compatibilidade: retorna ultima linha de cada sequencia como matriz 2D."""
     seqs, targets, _ = extract_sequences(prices, lookback)

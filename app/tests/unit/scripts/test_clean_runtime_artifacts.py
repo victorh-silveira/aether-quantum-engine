@@ -1,7 +1,7 @@
 import shutil
 from pathlib import Path
 
-from scripts.operations.clean_runtime_artifacts import (
+from scripts.operations.clean_workspace import (
     clean_repo_data,
     clean_runtime_artifacts,
     is_docker_bind_mount,

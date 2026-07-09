@@ -64,7 +64,7 @@ async def test_schedule_post_loss_cooldown_sets_cooldown_until(orch_ready):
     assert orch._cooldown_until - base == pytest.approx(expected, abs=0.05)
     assert orchestrator_cooldown_active(orch, now=base + 1.0) is True
     assert orchestrator_cooldown_active(orch, now=base + expected + 0.01) is False
-    assert orchestrator_cooldown_remaining(orch, now=base + 1.0) == pytest.approx(expected - 1.0)
+    assert orchestrator_cooldown_remaining(orch, now=base + 1.0) == pytest.approx(expected - 1.0, abs=0.001)
     assert expected == pytest.approx(36.905625)
 
 

@@ -25,7 +25,7 @@ O serviço `aether-triton` usa `nvcr.io/nvidia/tritonserver` com repositório em
 
 ### Healthcheck Triton
 
-O healthcheck do container `aether-triton` usa `python3` + `urllib` contra `/v2/health/ready` (porta HTTP 8000), sem dependência de `curl` na imagem base.
+O container `aether-triton` inicia com `--strict-readiness=false` e `--exit-on-error=false` para tolerar repositório parcial antes do `make train`. O healthcheck usa `python3` + `urllib` contra `/v2/health/live` (porta HTTP 8000), sem dependência de `curl`.
 
 ## Meta-regressor LightGBM
 
@@ -36,7 +36,7 @@ O serviço `aether-meta-classifier` expõe FastAPI na porta host **8005** com `F
 | `GET /health` | Healthcheck Docker via `urllib` nativo |
 | `POST /v2/predict_meta` | Regressão tabular; entrada: probabilidade TCN + vetor 39D; saída: `predicted_payoff_edge` |
 
-Treino offline: `train_meta_classifier.py`, `train_meta_optuna.py` e `train_meta_vector.py` (Optuna minimiza MAE; `LGBMRegressor` huber com `feature_name=columns`; alvo `Y = PnL_Real / Stake`; sumário com `train_mae` e `target_variance`).
+Treino offline: `train_meta_classifier.py`, `train_meta_optuna.py` e `train_meta_vector.py` (Optuna **maximiza Information Ratio**; rejeita trials com Z-Score médio de payoff OOS < **+1,00**; `LGBMRegressor` huber com `feature_name=columns`; alvo `Y = PnL_Real / Stake`).
 
 Variáveis no `.env`:
 
@@ -71,11 +71,14 @@ Config em `settings.json`:
 - `session:current:start_balance` (string — banca inicial da sessão ativa)
 - `session:current:target_win` (string — meta de lucro da sessão)
 - `recovery:skip_counter` (decaimento Hurst em recovery)
+- `state:risk:skipped_cycles_counter` (contador de inanição do quality gate — observabilidade)
 - `market_sig` (assinatura OHLC)
 
 As chaves `session:current:*` são gravadas no bootstrap da sessão e removidas no `graceful_shutdown` (ou no fast-path de stop win, **antes** do shutdown, via `clear_current_session_redis_keys`). Cada restart do processo inicia uma sessão independente.
 
 Gravado em `orchestrator_persistence.save_full_state` após cada settlement, sob proteção do `StateManager._state_lock`. Durante seções já protegidas (liquidação, barreira pós-reset), usa `persist_full_state_unlocked` para evitar deadlock por reentrância.
+
+**Recovery pós-deadlock:** quando o ciclo pós-liquidação falha 2 vezes consecutivas, `post_settlement_resilience.recover_post_settlement_loop_transparently` reinicia contadores e limpa polling sem encerrar o processo host.
 
 ## StateManager (host)
 
@@ -96,6 +99,14 @@ O snapshot `_balance_snapshot` é atualizado em cada persistência e permite que
 ```bash
 make docker-up
 ```
+
+O target executa, em ordem:
+
+1. `host-prereq.sh` — `vm.overcommit_memory=1` no WSL (Redis).
+2. `triton-prereq.sh` — remove `model.pt` corrompidos; normaliza layout vazio em `triton-models/`.
+3. `docker compose up -d` — sobe os 5 serviços.
+4. `docker-wait-healthy.sh` — aguarda healthchecks (timeout padrão 300 s).
+5. `make timescale-lifecycle` — políticas de compressão/retenção idempotentes.
 
 Ou manualmente (na raiz do repo):
 

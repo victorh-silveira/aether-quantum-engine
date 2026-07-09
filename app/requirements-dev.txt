@@ -14,6 +14,7 @@ pytest==9.0.3               # Framework principal para escrita e execução de t
 pytest-asyncio==1.3.0       # Extensão para suporte a testes de funções assíncronas (async/await)
 pytest-mock==3.15.1         # Facilita o uso de objetos Mock e Spies dentro do Pytest
 pytest-timeout==2.4.0       # Interrompe testes que travam além do limite configurado
+pytest-xdist==3.8.0         # Execucao paralela com workers limitados por RAM disponivel
 coverage==7.14.0            # Mede a porcentagem de linhas de código cobertas pelos testes
 lightgbm==4.6.0             # Gradient boosting tabular para meta-classificador offline
 optuna==4.2.1               # Otimizacao Bayesiana de hiperparametros do meta-classificador

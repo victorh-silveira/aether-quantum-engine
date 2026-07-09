@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -137,6 +138,18 @@ def test_parse_dl_params_gru_block():
     assert params["rnn_hidden_size"] == 32
 
 
+def test_masked_loss_handles_tuple_logits_without_aux_head():
+    model = MagicMock()
+    logits_tensor = torch.randn(4, dtype=torch.float32)
+    model.return_value = (logits_tensor, logits_tensor)
+    device = torch.device("cpu")
+    x = np.random.randn(4, 8, INPUT_DIM).astype(np.float32)
+    y = np.array([1.0, 0.0, 1.0, 0.0], dtype=np.float32)
+    m = np.ones(4, dtype=np.float32)
+    loss = _masked_loss(model, x, y, m, [1.0] * 4, device, label_smoothing=0.0, focal_gamma=0.0)
+    assert float(loss.item()) >= 0.0
+
+
 def test_masked_loss_focal_gamma():
     model = create_direction_model(arch="tcn", input_dim=INPUT_DIM)
     device = torch.device("cpu")
@@ -144,6 +157,17 @@ def test_masked_loss_focal_gamma():
     y = np.array([1.0, 0.0, 1.0, 0.0], dtype=np.float32)
     m = np.ones(4, dtype=np.float32)
     loss = _masked_loss(model, x, y, m, [1.0] * 4, device, label_smoothing=0.05, focal_gamma=2.0)
+    assert float(loss.item()) >= 0.0
+
+
+def test_masked_loss_auxiliary_regression_head():
+    model = create_direction_model(arch="tcn", input_dim=INPUT_DIM)
+    device = torch.device("cpu")
+    x = np.random.randn(4, 8, INPUT_DIM).astype(np.float32)
+    y = np.array([1.0, 0.0, 1.0, 0.0], dtype=np.float32)
+    m = np.ones(4, dtype=np.float32)
+    deltas = np.array([0.01, -0.02, 0.03, -0.01], dtype=np.float32)
+    loss = _masked_loss(model, x, y, m, [1.0] * 4, device, label_smoothing=0.0, focal_gamma=0.0, delta_batch=deltas)
     assert float(loss.item()) >= 0.0
 
 

@@ -13,6 +13,10 @@ from src.application.services.meta_direction_flip import SIGNAL_SUSPENDED
 from src.application.services.orchestrator.api_maintenance_guard import api_maintenance_blocks_trading_cycle
 from src.application.services.orchestrator.decision_mode_banner import emit_decision_engine_banner
 from src.application.services.orchestrator.engine_mode import ENGINE_MODE_TRAIN, resolve_engine_mode
+from src.application.services.orchestrator.execution_quality_skip_yield import (
+    await_quality_skip_yield,
+    sanitize_quality_skip_decisions,
+)
 from src.application.services.orchestrator.orchestrator_atomic_state import orchestrator_atomic_state_context
 from src.application.services.orchestrator.orchestrator_state_restore import mark_bar_processed
 from src.application.services.orchestrator.post_settlement_loss_cooldown import post_loss_cooldown_blocks_trading_cycle
@@ -190,6 +194,7 @@ async def _execute_inference_cluster_cycle(orch: Any) -> None:
         len(orch.symbols),
     )
     post_lock_decisions = None
+    quality_skip_pending = False
     async with orchestrator_atomic_state_context(orch):
         decisions = await collect_deep_learning_decisions(orch)
         if (
@@ -206,13 +211,25 @@ async def _execute_inference_cluster_cycle(orch: Any) -> None:
             == 0
         ):
             await refresh_correlation_cache(orch)
-        if cluster_collect_aborted(decisions) or quality_conviction_suspends_cluster(orch, decisions):
+        if cluster_collect_aborted(decisions):
             post_lock_decisions = decisions
+        elif quality_conviction_suspends_cluster(orch, decisions):
+            sanitize_quality_skip_decisions(decisions)
+            post_lock_decisions = decisions
+            quality_skip_pending = any(
+                isinstance(entry, dict)
+                and isinstance(entry.get("metrics"), dict)
+                and entry["metrics"].get("execution_gate_state") == "meta_zscore_reject"
+                for entry in decisions.values()
+            )
         elif not session_persistence_blocks_trading_cycle(orch):
             await orch.executor.execute_cluster(decisions)
             post_lock_decisions = decisions
     if post_lock_decisions is not None:
-        await await_regime_freeze_yield(orch, post_lock_decisions)
+        if quality_skip_pending:
+            await await_quality_skip_yield(orch)
+        else:
+            await await_regime_freeze_yield(orch, post_lock_decisions)
 
 
 async def run_trading_cycle_if_ready(orch: Any) -> bool:

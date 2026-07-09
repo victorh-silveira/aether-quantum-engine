@@ -103,7 +103,7 @@
     "log_file": "logs/engine.log"
   },
   "orchestrator": {
-    "cycle_interval_seconds": 60,
+    "cycle_interval_seconds": 180,
     "idle_cycle_watchdog_seconds": 30,
     "watchdog_enabled": true,
     "watchdog_stale_tick_seconds": 30,
@@ -122,7 +122,7 @@
         0.55,
         0.4
       ],
-      "post_settlement_cycle_timeout_seconds": 30,
+      "post_settlement_cycle_timeout_seconds": 600,
       "recovery_flip_direction_after_loss": false,
       "recovery_flip_max_conviction": 0.56,
       "recovery_flip_use_trend_confirmation": false,
@@ -154,6 +154,7 @@
         "mandatory_min_trade_score": 0.72,
         "min_direction_margin": 0.12,
         "min_payoff_edge": 0.04,
+        "min_meta_payoff_zscore": 0.5,
         "regular": {
           "min_direction_margin": 0.06,
           "min_payoff_edge": 0.01

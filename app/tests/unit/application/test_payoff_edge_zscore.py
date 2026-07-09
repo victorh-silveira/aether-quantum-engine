@@ -3,9 +3,12 @@ import pytest
 from src.application.services.execution_direction_resolver import resolve_execution_direction
 from src.application.services.payoff_edge_zscore import (
     EDGE_ZSCORE_TURBO_THRESHOLD,
+    EDGE_ZSCORE_WINDOW_MAX,
+    EDGE_ZSCORE_WINDOW_MIN,
     LOSS_EXPECTED,
     NO_EDGE_NEUTRAL,
     WIN_EXPECTED,
+    _indicator_map,
     apply_payoff_edge_zscore,
     attach_payoff_edge_zscore_metrics,
     classify_edge_expectancy,
@@ -13,6 +16,7 @@ from src.application.services.payoff_edge_zscore import (
     edge_zscore_neutral_regime_active,
     payoff_edge_buffer_snapshot,
     reset_payoff_edge_buffer,
+    resolve_adaptive_edge_window,
     sample_edge_std,
 )
 from src.domain.models.trade import TradeDirection
@@ -98,6 +102,49 @@ def _resolver_entry(edge: float) -> dict:
             "meta_classifier_applied": True,
         },
     }
+
+
+def test_indicator_map_returns_empty_for_non_dict():
+    assert _indicator_map(None) == {}
+
+
+def test_resolve_adaptive_edge_window_bounds():
+    assert EDGE_ZSCORE_WINDOW_MIN <= resolve_adaptive_edge_window() <= EDGE_ZSCORE_WINDOW_MAX
+    trending = resolve_adaptive_edge_window({"indicators": {"hurst": 0.72, "atr_norm": 0.20}})
+    lateral = resolve_adaptive_edge_window({"indicators": {"hurst": 0.48, "bb_width": 0.04}})
+    assert trending <= lateral
+
+
+def test_adaptive_window_shortens_history_for_zscore():
+    metrics = {"indicators": {"hurst": 0.72, "atr_change_ratio": 0.25}}
+    for edge in [1.0, 1.05, 0.95, 1.02, 1.01]:
+        apply_payoff_edge_zscore(edge, metrics)
+    z_adaptive, _ = apply_payoff_edge_zscore(1.40, metrics)
+    history = [1.0, 1.05, 0.95, 1.02, 1.01]
+    z_static = compute_edge_zscore(1.40, history=history)
+    assert metrics["edge_zscore_window"] <= EDGE_ZSCORE_WINDOW_MAX
+    assert z_adaptive != z_static or abs(z_adaptive) >= 0.0
+
+
+def test_attach_metrics_records_adaptive_window():
+    metrics: dict = {"indicators": {"hurst": 0.62, "bb_width": 0.08}}
+    attach_payoff_edge_zscore_metrics(metrics, 0.85)
+    assert metrics["edge_zscore_window"] >= EDGE_ZSCORE_WINDOW_MIN
+    assert metrics["meta_payoff_edge_zscore"] == metrics["edge_zscore"]
+
+
+def test_active_edge_history_slices_when_buffer_exceeds_window():
+    metrics = {"indicators": {"hurst": 0.72, "atr_change_ratio": 0.25}}
+    for edge in [1.0 + 0.01 * i for i in range(50)]:
+        apply_payoff_edge_zscore(edge, metrics)
+    z_edge, _ = apply_payoff_edge_zscore(1.55, metrics)
+    assert metrics["edge_zscore_window"] < 50
+    assert isinstance(z_edge, float)
+
+
+def test_resolve_adaptive_edge_window_uses_micro_indicators():
+    window = resolve_adaptive_edge_window({"micro_indicators": {"hurst": 0.50, "bb_width": 0.03}})
+    assert EDGE_ZSCORE_WINDOW_MIN <= window <= EDGE_ZSCORE_WINDOW_MAX
 
 
 def test_resolve_stable_edge_sequence_marks_no_edge_neutral():

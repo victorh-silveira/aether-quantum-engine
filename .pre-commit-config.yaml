@@ -38,7 +38,7 @@ repos:
 
       - id: cleanup
         name: Limpeza (caches e artefatos locais)
-        entry: python app/scripts/operations/clean_workspace.py --stage clean
+        entry: python app/scripts/operations/clean_workspace.py --stage clean --light-clean
         language: system
         pass_filenames: false
         always_run: true

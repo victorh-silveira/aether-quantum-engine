@@ -91,7 +91,18 @@ line-ending = "auto"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-addopts = "-q --strict-markers --timeout=90"
+addopts = [
+    "-q",
+    "--strict-markers",
+    "--timeout=90",
+    "--tb=short",
+    "-p", "no:cacheprovider",
+    "-p", "no:stepwise",
+    "--import-mode=importlib",
+]
+log_cli = false
+log_cli_level = "WARNING"
+log_file = ""
 filterwarnings = []
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
@@ -122,6 +133,8 @@ exclude_dirs = [".git", ".venv", "tests", "venv", "scripts"]
 [tool.coverage.run]
 source = ["src"]
 omit = []
+core = "sysmon"
+parallel = true
 
 [tool.coverage.report]
 show_missing = true

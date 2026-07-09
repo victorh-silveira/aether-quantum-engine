@@ -8,7 +8,17 @@ Stack local para Redis, TimescaleDB, MinIO, **Triton Inference Server** e **meta
 make docker-up
 ```
 
-Ou manualmente (a partir da raiz do repositorio):
+Pipeline do `make docker-up`:
+
+| Etapa | Script | Funcao |
+|-------|--------|--------|
+| 1 | `host-prereq.sh` | `vm.overcommit_memory=1` no WSL |
+| 2 | `triton-prereq.sh` | Remove `model.pt` invalidos; layout vazio ate `make train` |
+| 3 | `docker compose up -d` | Sobe 5 containers |
+| 4 | `docker-wait-healthy.sh` | Aguarda healthchecks (timeout 300 s) |
+| 5 | `timescale-lifecycle` | Compressao/retencao idempotente |
+
+Manual (raiz do repositorio):
 
 ```bash
 cp .env.example .env
@@ -24,37 +34,41 @@ docker compose -f infra/docker/docker-compose.yml --project-directory infra/dock
 | TimescaleDB | 5432 | Ticks e barras OHLC |
 | MinIO API | 9000 | Checkpoints Deep Learning |
 | MinIO Console | 9001 | Console web |
-| Triton HTTP | 8000 | Health, metadata, reload do repositório |
-| Triton gRPC | 8001 | Inferência TorchScript em produção |
+| Triton HTTP | 8000 | Health live, metadata, reload |
+| Triton gRPC | 8001 | Inferencia TorchScript em producao |
 | Meta-classificador | **8005** | LightGBM HTTP; vetor 39D; `POST /v2/predict_meta` |
 
 ## Triton e GPU
 
-O serviço `aether-triton` usa `nvcr.io/nvidia/tritonserver` com repositório em `infra/docker/triton-models` (bind mount). Requer **NVIDIA Container Toolkit** no WSL2.
+O servico `aether-triton` usa `nvcr.io/nvidia/tritonserver:24.10-py3` com repositorio em `infra/docker/triton-models` (bind mount). Requer **NVIDIA Container Toolkit** no WSL2.
+
+Flags de startup:
+
+- `--strict-readiness=false` — tolera repo parcial antes do treino
+- `--exit-on-error=false` — nao derruba o container por modelo ausente
+- Healthcheck: `/v2/health/live` via Python urllib
 
 Fluxo no motor:
 
 1. `sync_all_symbols_to_triton` copia `latest_ts.pt` para `{symbol}/1/model.pt`.
 2. `reload_triton_repository` via HTTP na porta 8000.
-3. `verify_triton_stressed_inference_async` valida inferência sob tensores estressados.
-4. `TritonGrpcClient` mantém canal gRPC persistente na porta 8001.
-
-Healthcheck Triton: `python3` + `urllib` em `/v2/health/ready` (sem `curl`).
+3. `verify_triton_stressed_inference_async` valida inferencia sob tensores estressados.
+4. `TritonGrpcClient` mantem canal gRPC persistente na porta 8001 (timeout 2 s por inferencia).
 
 ## Meta-classificador
 
-O serviço `aether-meta-classifier` usa imagem Python 3.13-slim com FastAPI. Artefatos LightGBM em `infra/docker/meta-models/` (`FEATURE_DIM=39`).
+Container `aether-meta-classifier`: Python 3.13-slim + FastAPI. Artefatos em `infra/docker/meta-models/` (`FEATURE_DIM=39`).
 
 | Endpoint | Uso |
 |----------|-----|
 | `GET /health` | Healthcheck Docker (urllib nativo) |
-| `POST /v2/predict_meta` | Inferência tabular 39D |
+| `POST /v2/predict_meta` | Regressao tabular 39D → `predicted_payoff_edge` |
 
-Healthcheck: `python3` + `urllib` em `http://localhost:8005/health`.
+Treino offline: `train_meta_optuna.py` maximiza **Information Ratio** com constraint OOS payoff Z-Score ≥ +1,00.
 
-Variáveis no `.env` da raiz:
+Variaveis no `.env` da raiz:
 
-| Variável | Padrão |
+| Variavel | Padrao |
 |----------|--------|
 | `AETHER_TRITON_GRPC` | `localhost:8001` |
 | `AETHER_TRITON_HTTP` | `localhost:8000` |
@@ -62,16 +76,9 @@ Variáveis no `.env` da raiz:
 
 ## Pre-requisito do host (WSL)
 
-Antes de subir o Redis, aplique `vm.overcommit_memory=1` no kernel WSL:
-
 ```bash
-make docker-up
-```
-
-O target executa `infra/docker/host-prereq.sh` automaticamente. No setup inicial do WSL:
-
-```bash
-make setup-wsl
+make setup-wsl    # setup inicial
+make docker-up    # host-prereq automatico
 ```
 
 Persistencia manual (opcional):
@@ -81,55 +88,25 @@ echo 'vm.overcommit_memory=1' | sudo tee /etc/sysctl.d/99-aether-redis.conf
 sudo sysctl --system
 ```
 
-Validacao Redis apos `docker compose up -d`:
-
-```bash
-docker exec -it aether-redis redis-cli CONFIG GET appendonly
-docker exec -it aether-redis redis-cli CONFIG GET appendfsync
-```
-
 ## Redis AOF
 
-O servico usa `redis.conf` com `appendonly yes` e `appendfsync everysec` (RDB desabilitado via `save ""`).
+`redis.conf`: `appendonly yes`, `appendfsync everysec`, RDB desabilitado.
 
-O motor grava estado via `orchestrator_persistence.save_full_state` → `redis_state_pipeline.write_state_bundle` (MULTI/EXEC atomico), incluindo `recovery:skip_counter` e chaves de sessao ativa (`session:current:start_balance`, `session:current:target_win`). A gravacao ocorre sob `StateManager._state_lock`; metricas locais adicionais em `data/session_state.json`.
+Estado via `orchestrator_persistence.save_full_state` → `redis_state_pipeline.write_state_bundle` (MULTI/EXEC), sob `StateManager._state_lock`. Metricas locais em `data/session_state.json`.
 
-## TimescaleDB: compressao e retencao
-
-Arquivos SQL:
+## TimescaleDB
 
 | Arquivo | Funcao |
 |---------|--------|
-| `003_init-timescale.sql` | Extension, hypertables `ticks`/`ohlc_bars`, indices |
-| `004_timescale-lifecycle.sql` | Compressao columnar (7 dias) e retention de ticks (30 dias) |
-
-Politicas assincronas nativas do TimescaleDB (`add_compression_policy`, `add_retention_policy`) com `if_not_exists => TRUE`.
-
-Apos `make docker-up`, `make timescale-lifecycle` reaplica politicas em volumes ja existentes (idempotente).
+| `003_init-timescale.sql` | Hypertables `ticks` / `ohlc_bars` |
+| `004_timescale-lifecycle.sql` | Compressao 7 dias; retencao ticks 30 dias |
 
 ```bash
 make timescale-lifecycle
-docker exec -it aether-timescaledb psql -U aether -d aether -c \
-  "SELECT * FROM timescaledb_information.compression_settings;"
 ```
 
 ## Pre-requisito do motor
 
-Com `infra.enabled: true` em `config/settings.json`, o motor aborta o startup se algum servico estiver indisponivel (fail-fast), incluindo sanity TorchScript local, inferência estressada no Triton quando `infra.triton.enabled` e health do meta-regressor quando `infra.meta_classifier.enabled`.
+Com `infra.enabled: true`, fail-fast valida Redis, Timescale, MinIO, sanity TorchScript, Triton estressado e health do meta-regressor (porta 8005).
 
-Todas as variaveis de ambiente ficam no `.env` da **raiz** do repositorio (Deriv, Postgres, MinIO e Triton). Copie de `.env.example`:
-
-```bash
-cp .env.example .env
-```
-
-Chaves usadas pelo Docker Compose:
-
-- `AETHER_PG_USER`, `AETHER_PG_PASSWORD`, `AETHER_PG_DB`
-- `AETHER_MINIO_ACCESS_KEY`, `AETHER_MINIO_SECRET_KEY`
-
-Chaves usadas pelo motor Deriv:
-
-- `AETHER_DERIV_PAT`, `AETHER_DERIV_APP_ID`, `AETHER_DERIV_ACCOUNT_ID` (opcional)
-
-Documentação completa: [docs/infra-docker.md](../../docs/infra-docker.md).
+Documentacao completa: [docs/infra-docker.md](../../docs/infra-docker.md) | [docs/structure.md](../../docs/structure.md)
