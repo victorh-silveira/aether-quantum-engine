@@ -1,6 +1,6 @@
 import asyncio
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -12,6 +12,7 @@ from src.application.services.execution_quality_gate_cluster import quality_conv
 from src.application.services.execution_quality_gate_meta import evaluate_meta_payoff_quality
 from src.application.services.execution_quality_gate_starvation import (
     REDIS_SKIPPED_CYCLES_COUNTER_KEY,
+    _schedule_quality_skipped_cycles_persist,
     apply_starvation_margin_decay,
     load_quality_skipped_cycles_counter,
     prepare_quality_skipped_cycles_counter,
@@ -190,3 +191,9 @@ async def test_record_quality_guard_cycle_skip_persists_when_loop_active():
     if pending:
         await asyncio.gather(*pending)
     store.set_string.assert_awaited_with(REDIS_SKIPPED_CYCLES_COUNTER_KEY, "7")
+
+
+def test_schedule_persist_raises_runtime_error_when_no_loop():
+    orch = SimpleNamespace(state_store=MagicMock(), _quality_skipped_cycles_counter=3)
+    with patch("asyncio.get_running_loop", side_effect=RuntimeError("no loop")):
+        _schedule_quality_skipped_cycles_persist(orch)

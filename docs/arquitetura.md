@@ -324,6 +324,16 @@ O motor avalia candidatos por **dois portões complementares**, selecionados por
 
 `resolve_dynamic_quality_limits` ajusta pisos por regime (regular/recovery), drawdown (`execution_quality_gate_drawdown`) e inanição (`execution_quality_gate_starvation`).
 
+**Válvula de Escape por Inanição (Starvation Escape Valve):**
+Para evitar que o motor entre em bloqueio permanente devido a restrições de qualidade muito rígidas (especialmente o piso de margem direcional de `0.12` durante o regime de recovery), o módulo `execution_quality_gate_starvation` gerencia um contador de ciclos pulados consecutivamente devido ao quality gate (`state:risk:skipped_cycles_counter`):
+- **Decaimento Temporal**: Quando o número de ciclos descartados consecutivamente atinge ou excede o limiar de **15 ciclos**, o piso de margem direcional é atenuado multiplicando-o pelo fator de decaimento:
+  $$\text{fator} = \max\left(0.50, 1.0 - (\text{ciclos} - 14) \times 0.05\right)$$
+  Isso reduz gradualmente a margem direcional exigida em 5% a cada ciclo, até um piso de 50% da margem original.
+- **Integração no Ciclo**:
+  1. No início de cada ciclo de trading, o contador de inanição é carregado a partir do Redis (`prepare_quality_skipped_cycles_counter`).
+  2. Se o ciclo for suspenso por decisão do quality gate (`quality_conviction_suspends_cluster`), o contador é incrementado e persistido no Redis (`record_quality_guard_cycle_skip`).
+  3. Se o ciclo prosseguir para a execução bem-sucedida do cluster (`execute_cluster`), o contador é zerado e limpo no Redis (`reset_quality_skipped_cycles_counter_for_orch`).
+
 **Suspensão de cluster** (`quality_conviction_suspends_cluster`):
 
 - Modo TCN: qualquer falha sem aprovação paralela suspende o cluster.

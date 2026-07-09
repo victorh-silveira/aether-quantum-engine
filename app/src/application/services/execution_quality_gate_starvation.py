@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from typing import Any
 
 from src.application.services.log_dedupe import LogDeduper
@@ -52,19 +53,20 @@ async def load_quality_skipped_cycles_counter(store: Any) -> int:
     """Le contador de ciclos pulados pelo quality guard no StateStore."""
     if store is None or not hasattr(store, "get_string"):
         return 0
-    raw = await store.get_string(REDIS_SKIPPED_CYCLES_COUNTER_KEY)
-    if raw is None or not str(raw).strip():
-        return 0
     try:
+        raw = await store.get_string(REDIS_SKIPPED_CYCLES_COUNTER_KEY)
+        if raw is None or not str(raw).strip():
+            return 0
         return max(0, int(str(raw).strip()))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, AttributeError):
         return 0
 
 
 async def reset_quality_skipped_cycles_counter(store: Any) -> None:
     """Zera contador de inanição do quality guard no StateStore."""
     if store is not None and hasattr(store, "set_string"):
-        await store.set_string(REDIS_SKIPPED_CYCLES_COUNTER_KEY, "0")
+        with contextlib.suppress(TypeError, AttributeError):
+            await store.set_string(REDIS_SKIPPED_CYCLES_COUNTER_KEY, "0")
 
 
 async def reset_quality_skipped_cycles_counter_for_orch(orch: Any) -> None:
@@ -97,10 +99,11 @@ def _schedule_quality_skipped_cycles_persist(orch: Any) -> None:
     async def _persist() -> None:
         """Grava contador de inanição no Redis após incremento local."""
         if store is not None and hasattr(store, "set_string"):
-            await store.set_string(REDIS_SKIPPED_CYCLES_COUNTER_KEY, str(value))
+            with contextlib.suppress(TypeError, AttributeError):
+                await store.set_string(REDIS_SKIPPED_CYCLES_COUNTER_KEY, str(value))
 
     try:
         loop = asyncio.get_running_loop()
         loop.create_task(_persist())
-    except RuntimeError:
+    except RuntimeError:  # pragma: no cover
         return

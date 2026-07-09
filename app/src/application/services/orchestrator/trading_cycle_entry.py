@@ -9,6 +9,11 @@ from src.application.services.deep_learning.decision_bridge import collect_deep_
 from src.application.services.deep_learning.dl_deferred_train import try_enqueue_next_bootstrap_training
 from src.application.services.deep_learning.dl_startup import prepare_inference_run_loop
 from src.application.services.execution_quality_gate_cluster import quality_conviction_suspends_cluster
+from src.application.services.execution_quality_gate_starvation import (
+    prepare_quality_skipped_cycles_counter,
+    record_quality_guard_cycle_skip,
+    reset_quality_skipped_cycles_counter_for_orch,
+)
 from src.application.services.meta_direction_flip import SIGNAL_SUSPENDED
 from src.application.services.orchestrator.api_maintenance_guard import api_maintenance_blocks_trading_cycle
 from src.application.services.orchestrator.decision_mode_banner import emit_decision_engine_banner
@@ -187,6 +192,7 @@ async def acquire_trading_cycle_lock(orch: Any) -> bool:
 
 async def _execute_inference_cluster_cycle(orch: Any) -> None:
     """Coleta inferencia DL e executa cluster quando o warm-up micro ja liberou o ciclo."""
+    await prepare_quality_skipped_cycles_counter(orch)
     orch.loss_tracker.prune_obsolete_direction_losses(max_age_seconds=120.0)
     orch.logger.debug(
         "[C%04d] CICLO: coletando decisoes DL (%d simbolos)",
@@ -216,6 +222,7 @@ async def _execute_inference_cluster_cycle(orch: Any) -> None:
         elif quality_conviction_suspends_cluster(orch, decisions):
             sanitize_quality_skip_decisions(decisions)
             post_lock_decisions = decisions
+            record_quality_guard_cycle_skip(orch)
             quality_skip_pending = any(
                 isinstance(entry, dict)
                 and isinstance(entry.get("metrics"), dict)
@@ -225,6 +232,7 @@ async def _execute_inference_cluster_cycle(orch: Any) -> None:
         elif not session_persistence_blocks_trading_cycle(orch):
             await orch.executor.execute_cluster(decisions)
             post_lock_decisions = decisions
+            await reset_quality_skipped_cycles_counter_for_orch(orch)
     if post_lock_decisions is not None:
         if quality_skip_pending:
             await await_quality_skip_yield(orch)
