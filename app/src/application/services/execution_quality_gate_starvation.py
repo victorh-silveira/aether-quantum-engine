@@ -10,7 +10,7 @@ from src.application.services.log_dedupe import LogDeduper
 
 
 REDIS_SKIPPED_CYCLES_COUNTER_KEY = "state:risk:skipped_cycles_counter"
-STARVATION_DECAY_THRESHOLD = 15
+STARVATION_DECAY_THRESHOLD = 5
 STARVATION_DECAY_STEP = 0.05
 STARVATION_DECAY_FLOOR = 0.50
 _STARVATION_ESCAPE_LOG_PREFIX = (
@@ -24,7 +24,10 @@ def starvation_decay_factor(skipped_cycles: int) -> float:
     count = max(0, int(skipped_cycles))
     if count < STARVATION_DECAY_THRESHOLD:
         return 1.0
-    return max(STARVATION_DECAY_FLOOR, 1.0 - ((count - 14) * STARVATION_DECAY_STEP))
+    return max(
+        STARVATION_DECAY_FLOOR,
+        1.0 - ((count - (STARVATION_DECAY_THRESHOLD - 1)) * STARVATION_DECAY_STEP),
+    )
 
 
 def apply_starvation_margin_decay(
