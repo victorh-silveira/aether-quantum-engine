@@ -34,6 +34,7 @@ class WebSocketManager:
         self.is_running = False
         self.last_rtt_seconds = 0.0
         self.logger = logging.getLogger("AETH")
+        self._connect_in_progress = False
 
     async def connect(
         self,
@@ -45,55 +46,63 @@ class WebSocketManager:
         retry_backoff: float = 1.5,
     ):
         """Estabelece a conexao WebSocket com retentativas e inicia tarefas de segundo plano."""
-        if uri:
-            self.uri = uri
-        if not self.uri:
-            raise ConnectionError("WSS: URI nao definida.")
-        attempts = max(1, int(max_attempts))
-        delay = max(0.5, float(retry_delay))
-        last_err: BaseException | None = None
-        for attempt in range(1, attempts + 1):
-            self.is_running = False
-            try:
-                self.ws = await websockets.connect(
-                    self.uri,
-                    open_timeout=float(open_timeout),
-                    close_timeout=10.0,
-                )
-                self.is_running = True
-                self.logger.debug("WSS: Conexao estabelecida com sucesso.")
-                asyncio.create_task(self._listen())
-                asyncio.create_task(self._ping_loop())
-                return
-            except websockets.InvalidStatus as exc:
-                response = getattr(exc, "response", None)
-                status = getattr(exc, "status_code", None) or getattr(exc, "status", None)
-                if status is None and response is not None:
-                    status = getattr(response, "status_code", None) or getattr(response, "status", None)
-                if status == 401:
-                    self.uri = ""
-                    raise ConnectionError(
-                        "WSS: OTP expirado ou reutilizado (HTTP 401). Renove via REST POST /otp."
-                    ) from exc
-                last_err = exc
-                if attempt >= attempts:
-                    break
-                await asyncio.sleep(delay)
-                delay = min(delay * float(retry_backoff), 60.0)
-            except (TimeoutError, ConnectionError, OSError, websockets.WebSocketException) as exc:
-                last_err = exc
-                if attempt >= attempts:
-                    break
-                self.logger.warning(
-                    "WSS: conexao falhou (%d/%d): %s",
-                    attempt,
-                    attempts,
-                    exc,
-                )
-                await asyncio.sleep(delay)
-                delay = min(delay * float(retry_backoff), 60.0)
-        detail = str(last_err).strip() if last_err else "erro desconhecido"
-        raise ConnectionError(f"WSS: conexao esgotada apos {attempts} tentativas: {detail}") from last_err
+        if self._connect_in_progress:
+            self.logger.debug("WSS: Conexao ja em andamento (SingleFlight). Retornando.")
+            return
+        self._connect_in_progress = True
+        try:
+            if uri:
+                self.uri = uri
+            if not self.uri:
+                raise ConnectionError("WSS: URI nao definida.")
+            attempts = max(1, int(max_attempts))
+
+            delay = max(0.5, float(retry_delay))
+            last_err: BaseException | None = None
+            for attempt in range(1, attempts + 1):
+                self.is_running = False
+                try:
+                    self.ws = await websockets.connect(
+                        self.uri,
+                        open_timeout=float(open_timeout),
+                        close_timeout=10.0,
+                    )
+                    self.is_running = True
+                    self.logger.debug("WSS: Conexao estabelecida com sucesso.")
+                    asyncio.create_task(self._listen())
+                    asyncio.create_task(self._ping_loop())
+                    return
+                except websockets.InvalidStatus as exc:
+                    response = getattr(exc, "response", None)
+                    status = getattr(exc, "status_code", None) or getattr(exc, "status", None)
+                    if status is None and response is not None:
+                        status = getattr(response, "status_code", None) or getattr(response, "status", None)
+                    if status == 401:
+                        self.uri = ""
+                        raise ConnectionError(
+                            "WSS: OTP expirado ou reutilizado (HTTP 401). Renove via REST POST /otp."
+                        ) from exc
+                    last_err = exc
+                    if attempt >= attempts:
+                        break
+                    await asyncio.sleep(delay)
+                    delay = min(delay * float(retry_backoff), 60.0)
+                except (TimeoutError, ConnectionError, OSError, websockets.WebSocketException) as exc:
+                    last_err = exc
+                    if attempt >= attempts:
+                        break
+                    self.logger.warning(
+                        "WSS: conexao falhou (%d/%d): %s",
+                        attempt,
+                        attempts,
+                        exc,
+                    )
+                    await asyncio.sleep(delay)
+                    delay = min(delay * float(retry_backoff), 60.0)
+            detail = str(last_err).strip() if last_err else "erro desconhecido"
+            raise ConnectionError(f"WSS: conexao esgotada apos {attempts} tentativas: {detail}") from last_err
+        finally:
+            self._connect_in_progress = False
 
     async def close(self):
         """Encerra a conexao WebSocket de forma graciosa."""

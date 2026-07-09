@@ -1,4 +1,6 @@
-"""Estado financeiro de recovery: pending_loss e perdas lineares D'Alembert."""
+"""Políticas de estado de recuperação de risco e trava anti-tendência (AntiTrendLock)."""
+
+from src.domain.models.trade import TradeDirection
 
 
 def pending_loss_total(pending_loss: dict[str, float]) -> float:
@@ -85,3 +87,42 @@ def log_partial_win_recovery(risk_manager, profit: float) -> float:
             int(risk_manager.consecutive_losses_linear),
         )
     return pending_after
+
+
+def evaluate_anti_trend_lock(
+    symbol: str,
+    proposed_direction: TradeDirection,
+    consecutive_losses: int,
+    bull_call_prob: float,
+    bear_put_prob: float,
+    probability_delta: float,
+    predicted_payoff_edge: float,
+    cross_symbol_prob_delta_mean: float,
+) -> tuple[TradeDirection | None, str]:
+    """Política pura de domínio para resolver a direção sob AntiTrendLock.
+
+    Recebe inputs limpos e retorna a direção pura resolvida (ou None se suspensa)
+    e a ação correspondente (ex: 'FLIP to PUT', 'FLIP to CALL', 'FREEZE: SKIP CYCLE', 'KEEP').
+    """
+    if consecutive_losses < 2:
+        return proposed_direction, "KEEP"
+
+    if symbol == "RDBULL" and proposed_direction == TradeDirection.CALL:
+        # Tentamos fazer flip para PUT (que opera em RDBEAR)
+        expanding = (bear_put_prob + 1e-12 > bull_call_prob) or (
+            probability_delta > cross_symbol_prob_delta_mean + 1e-12
+        )
+        if expanding and predicted_payoff_edge + 1e-12 >= 0.0:
+            return TradeDirection.PUT, "FLIP to PUT"
+        return None, "FREEZE: SKIP CYCLE"
+
+    if symbol == "RDBEAR" and proposed_direction == TradeDirection.PUT:
+        # Tentamos fazer flip para CALL (que opera em RDBULL)
+        expanding = (bull_call_prob + 1e-12 > bear_put_prob) or (
+            probability_delta > cross_symbol_prob_delta_mean + 1e-12
+        )
+        if expanding and predicted_payoff_edge + 1e-12 >= 0.0:
+            return TradeDirection.CALL, "FLIP to CALL"
+        return None, "FREEZE: SKIP CYCLE"
+
+    return None, "FREEZE: SKIP CYCLE"

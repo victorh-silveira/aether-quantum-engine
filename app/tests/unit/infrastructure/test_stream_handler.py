@@ -239,3 +239,11 @@ async def test_stream_handler_reconnect_stream(stream_handler):
         ok = await stream_handler.reconnect_stream(orch)
     assert ok is True
     reconnect_mock.assert_awaited_once_with(orch, stream_handler)
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_reconnect_single_flight(stream_handler):
+    orch = MagicMock()
+    stream_handler._reconnect_in_progress = True
+    ok = await stream_handler.reconnect_stream(orch)
+    assert ok is False

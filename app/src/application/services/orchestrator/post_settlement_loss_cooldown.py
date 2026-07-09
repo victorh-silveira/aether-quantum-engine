@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
+from src.application.services.log_dedupe import LogDeduper
 from src.application.services.meta_direction_flip import SIGNAL_SUSPENDED
 
 
@@ -61,11 +62,8 @@ def schedule_post_loss_cooldown(orch: Any) -> float:
         return 0.0
     loop = asyncio.get_running_loop()
     orch._cooldown_until = loop.time() + delay
-    orch.logger.info(
-        "CICLO: cooling-down %.1fs pos-LOSS linear=%d",
-        delay,
-        linear,
-    )
+    msg = f"CICLO: cooling-down {delay:.1f}s pos-LOSS linear={linear}"
+    LogDeduper(orch).log_cooldown_cooling_down(orch.logger, msg, delay, linear)
     return delay
 
 
@@ -79,10 +77,8 @@ def log_trading_cycle_cooldown_skip(orch: Any) -> None:
         return
     orch._cooldown_skip_logged_until = deadline
     remaining = orchestrator_cooldown_remaining(orch)
-    orch.logger.info(
-        "CICLO: resfriamento pos-LOSS ativo (%.1fs restantes); ciclo suspenso",
-        remaining,
-    )
+    msg = f"CICLO: resfriamento pos-LOSS ativo ({remaining:.1f}s restantes); ciclo suspenso"
+    LogDeduper(orch).log_cooldown_skip(orch.logger, msg)
 
 
 def post_loss_cooldown_blocks_trading_cycle(orch: Any) -> bool:

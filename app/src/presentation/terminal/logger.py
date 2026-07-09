@@ -1,7 +1,9 @@
 """Configuração de log de terminal para o Aether Engine."""
 
+import asyncio
 import logging
 import sys
+import time
 from pathlib import Path
 
 
@@ -28,6 +30,31 @@ class BlankLineSquasher(logging.Filter):
         if blank and self._last_blank:
             return False
         self._last_blank = blank
+        return True
+
+
+class CooldownDeduplicationFilter(logging.Filter):
+    """Filtro de log que suprime mensagens de cooldown idênticas no mesmo tick do relógio do loop/segundo."""
+
+    def __init__(self) -> None:
+        """Inicializa o filtro com um dicionário de últimas mensagens vistas."""
+        super().__init__()
+        self._last_seen: dict[str, int] = {}
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Suprime mensagens de cooldown repetidas no mesmo segundo."""
+        msg = record.getMessage()
+        if "CICLO: cooling-down" in msg or "CICLO: resfriamento pos-LOSS" in msg:
+            try:
+                loop = asyncio.get_running_loop()
+                current_time = loop.time()
+            except RuntimeError:
+                current_time = time.time()
+            tick = int(current_time)
+            key = "cooling-down" if "cooling-down" in msg else "resfriamento"
+            if self._last_seen.get(key) == tick:
+                return False
+            self._last_seen[key] = tick
         return True
 
 
@@ -64,6 +91,7 @@ def setup_logger(name: str, log_file: str = None):
     logger = logging.getLogger(name)
     logger.setLevel(logging.INFO)
     logger.addFilter(BlankLineSquasher())
+    logger.addFilter(CooldownDeduplicationFilter())
 
     formatter = AetherFormatter("%(asctime)s | %(levelname)s | %(message)s", datefmt="%H:%M:%S")
 

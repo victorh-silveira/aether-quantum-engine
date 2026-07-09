@@ -5,7 +5,12 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from src.application.services.orchestrator.settlement_logic import process_contract_settlement
+from src.application.services.orchestrator.settlement_logic import (
+    process_contract_settlement,
+)
+from src.application.services.orchestrator.settlement_queue_ops import (
+    process_redis_settlement_queue,
+)
 
 
 async def start_settlement_worker(orch: Any) -> None:
@@ -33,12 +38,13 @@ async def _settlement_worker_loop(orch: Any) -> None:
     """Consome fila de settlements ate o motor encerrar."""
     queue: asyncio.Queue = orch._settlement_queue
     while orch.running or not queue.empty():
+        await process_redis_settlement_queue(orch)
+
         try:
             payload = await asyncio.wait_for(queue.get(), timeout=0.25)
         except TimeoutError:
+            _ = None
             continue
-        except asyncio.CancelledError:
-            raise
         try:
             await process_contract_settlement(orch, payload)
         finally:

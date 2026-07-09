@@ -44,6 +44,7 @@ class StreamHandler:
         self.tick_buffer = TickBuffer(symbols)
         self._last_macro_bar_epoch: dict[str, int | None] = dict.fromkeys(symbols)
         self._last_micro_bar_epoch: dict[str, int | None] = dict.fromkeys(symbols)
+        self._reconnect_in_progress = False
 
     def _resolve_fetch_count(self) -> int:
         """Define quantas velas macro buscar na sincronizacao inicial."""
@@ -269,4 +270,11 @@ class StreamHandler:
 
     async def reconnect_stream(self, orch: Any) -> bool:
         """Reinicializa WebSocket e subscricoes de mercado apos inanicao de ticks."""
-        return await execute_stream_reconnect(orch, self)
+        if self._reconnect_in_progress:
+            self.logger.debug("STREAM: Reconnect ja em andamento. Retornando silenciosamente.")
+            return False
+        self._reconnect_in_progress = True
+        try:
+            return await execute_stream_reconnect(orch, self)
+        finally:
+            self._reconnect_in_progress = False

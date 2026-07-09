@@ -27,6 +27,7 @@ from src.application.services.orchestrator.orchestrator_state_restore import mar
 from src.application.services.orchestrator.post_settlement_loss_cooldown import post_loss_cooldown_blocks_trading_cycle
 from src.application.services.orchestrator.regime_freeze_yield import await_regime_freeze_yield, cluster_collect_aborted
 from src.application.services.orchestrator.session_persistence_barrier import session_persistence_blocks_trading_cycle
+from src.application.services.orchestrator.settlement_queue_ops import process_redis_settlement_queue
 from src.application.services.orchestrator.warm_up_buffer_guard import trading_cycle_warm_up_suspended
 from src.application.services.strategy.decision_mode import resolve_decision_mode
 from src.domain.risk.stop_win_target import resolve_stop_win_target
@@ -242,6 +243,8 @@ async def _execute_inference_cluster_cycle(orch: Any) -> None:
 
 async def run_trading_cycle_if_ready(orch: Any) -> bool:
     """Executa um ciclo completo de decisao e cluster quando permitido."""
+    await process_redis_settlement_queue(orch)
+
     if not trading_cycle_entry_allowed(orch) or not await acquire_trading_cycle_lock(orch):
         return False
     ran = False

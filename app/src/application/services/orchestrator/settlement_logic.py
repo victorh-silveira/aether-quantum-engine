@@ -20,6 +20,9 @@ from src.application.services.orchestrator.session_persistence_barrier import (
     run_linear_reset_persistence_barrier,
 )
 from src.application.services.orchestrator.settlement_detect import contract_payload_is_settled
+from src.application.services.orchestrator.settlement_queue_ops import (
+    push_to_redis_priority_queue,
+)
 from src.domain.risk.executed_stake_reconciliation import (
     bind_executed_stake_for_contract,
     reconcile_settlement_profit,
@@ -204,23 +207,10 @@ async def process_late_settlement_from_payload(orch: Any, poc: dict) -> None:
         await _finalize_settlement_persistence(orch)
 
 
-async def process_contract_settlement(orch: Any, data: dict):
-    """Lida com a mensagem de liquidação, atualiza saldo, risco e logs."""
-    if "proposal_open_contract" not in data:
-        return
-
+async def _process_confirmed_settlement(orch: Any, data: dict, contract: Any) -> None:
+    """Aplica o resultado confirmado e reconciliado do contrato ao RiskManager e estado."""
     c = data["proposal_open_contract"]
-    if not contract_payload_is_settled(c):
-        return
-
-    c_id = c.get("contract_id")
-    if c_id is None:
-        return
-    c_id = int(c_id)
-    contract = await orch.state.finalize_contract(c_id)
-    if not contract:
-        return
-
+    c_id = int(c["contract_id"])
     profit = float(c.get("profit", 0.0))
     api_status_raw = (c.get("status") or "").strip()
     outcome = api_settlement_label(api_status_raw, profit)
@@ -234,7 +224,6 @@ async def process_contract_settlement(orch: Any, data: dict):
         str(sym),
         edge,
     )
-
     async with orchestrator_atomic_state_context(orch):
         await _complete_contract_settlement(
             orch,
@@ -244,6 +233,33 @@ async def process_contract_settlement(orch: Any, data: dict):
             profit,
             result_line=result_line,
         )
+
+
+async def process_contract_settlement(orch: Any, data: dict):
+    """Lida com a mensagem de liquidação, atualiza saldo, risco e logs."""
+    if "proposal_open_contract" not in data:
+        return
+
+    c = data["proposal_open_contract"]
+    if not contract_payload_is_settled(c):
+        return
+
+    c_id = c.get("contract_id")
+    if c_id is None:
+        return
+    c_id = int(c_id)
+
+    # Se o broker estiver offline, enfileira no Redis e faz early return silencioso
+    if not orch.ws.is_running:
+        orch.logger.warning("SETTLE: Broker offline. Enfileirando contrato %d no Redis.", c_id)
+        await push_to_redis_priority_queue(orch, data)
+        return
+
+    contract = await orch.state.finalize_contract(c_id)
+    if not contract:
+        return
+
+    await _process_confirmed_settlement(orch, data, contract)
 
 
 def log_cluster_summary(orch: Any):

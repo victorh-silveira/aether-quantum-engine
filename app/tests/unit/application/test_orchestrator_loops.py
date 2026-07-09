@@ -2,7 +2,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.application.services.direction_persistence_guard import log_regime_guard, reset_regime_guard_log_state
+from src.application.services.direction_persistence_guard import log_regime_guard
+from src.application.services.direction_persistence_guard_helpers import reset_regime_guard_log_state
 from src.application.services.meta_direction_flip import SIGNAL_SUSPENDED
 from src.application.services.orchestrator.api_maintenance_guard import (
     _API_GUARD_LOG_MESSAGE,

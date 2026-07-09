@@ -1,6 +1,8 @@
-"""Deduplicacao de linhas de log repetidas entre ciclos."""
+"""Deduplicação e controle de concorrência de logging para o ciclo de trading orquestrado."""
 
+import asyncio
 import logging
+import time
 
 
 def _log_if_changed(
@@ -46,6 +48,7 @@ class LogDeduper:
     """Deduplicacao de logs de quality guard e inanição por canal temporal."""
 
     def __init__(self, owner) -> None:
+        """Inicializa o deduplicador de logs associado a um proprietário."""
         self._owner = owner
 
     def log_quality_guard_cycle_minute(
@@ -75,3 +78,23 @@ class LogDeduper:
         )
         channel = f"starvation:{int(skipped_cycles)}:{float(min_margin):.4f}"
         log_info_if_changed(self._owner, logger, channel, message, "%s", message)
+
+    def log_cooldown_cooling_down(self, logger: logging.Logger, message: str, _delay: float, _linear: int) -> None:
+        """Loga cooling-down uma vez por tick do relógio orquestrador."""
+        try:
+            loop = asyncio.get_running_loop()
+            tick = int(loop.time())
+        except RuntimeError:
+            tick = int(time.time())
+        channel = f"cooldown:cooling-down:{tick}"
+        log_info_if_changed(self._owner, logger, channel, "seen", "%s", message)
+
+    def log_cooldown_skip(self, logger: logging.Logger, message: str) -> None:
+        """Loga skip por cooldown uma vez por tick do relógio orquestrador."""
+        try:
+            loop = asyncio.get_running_loop()
+            tick = int(loop.time())
+        except RuntimeError:
+            tick = int(time.time())
+        channel = f"cooldown:resfriamento:{tick}"
+        log_info_if_changed(self._owner, logger, channel, "seen", "%s", message)

@@ -163,3 +163,12 @@ async def test_reconcile_skips_open_portfolio_contracts():
         result = await reconcile_after_ws_recovery(orch)
     reconcile_mock.assert_not_awaited()
     assert result.settled_count == 0
+
+
+@pytest.mark.asyncio
+async def test_reconcile_after_ws_recovery_active_guard():
+    orch = MagicMock()
+    orch._reconciliation_active = True
+    result = await reconcile_after_ws_recovery(orch)
+    assert result.settled_count == 0
+    assert result.duration_ms == 0.0

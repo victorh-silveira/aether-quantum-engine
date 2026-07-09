@@ -113,6 +113,11 @@ async def orch_ready(orch_config):
         pending.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await pending
+    worker = getattr(orch, "_settlement_worker_task", None)
+    if isinstance(worker, asyncio.Task) and not worker.done():
+        worker.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await worker
     ws_patch.stop()
 
 
@@ -145,4 +150,9 @@ async def orch_ready_train(orch_config_train):
         pending.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await pending
+    worker = getattr(orch, "_settlement_worker_task", None)
+    if isinstance(worker, asyncio.Task) and not worker.done():
+        worker.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await worker
     ws_patch.stop()

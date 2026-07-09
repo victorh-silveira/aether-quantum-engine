@@ -124,6 +124,10 @@ async def _settle_from_profit_burst(
 
 async def reconcile_after_ws_recovery(orch: Any) -> ReconciliationResult:
     """Audita contratos offline e persiste risco antes do proximo ciclo DL."""
+    if getattr(orch, "_reconciliation_active", False) is True:
+        return ReconciliationResult()
+    orch._reconciliation_active = True
+
     started = time.monotonic()
     result = ReconciliationResult()
     orch._reconciliation_pending = True
@@ -148,6 +152,7 @@ async def reconcile_after_ws_recovery(orch: Any) -> ReconciliationResult:
         result.errors.append(type(exc).__name__)
     finally:
         orch._reconciliation_pending = False
+        orch._reconciliation_active = False
         result.duration_ms = (time.monotonic() - started) * 1000.0
         orch.logger.info(
             "RECONCILE: auditoria pos-RECOV concluida settled=%d erros=%d",

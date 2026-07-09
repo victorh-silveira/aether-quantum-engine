@@ -5,11 +5,13 @@ from src.application.services.direction_loss_tracker import (
     reset_direction_persistence_tracker,
 )
 from src.application.services.direction_persistence_guard import (
+    evaluate_direction_persistence_guard,
+    log_regime_guard,
+)
+from src.application.services.direction_persistence_guard_helpers import (
     _LOGGED_REGIME_GUARD_CYCLES,
     bear_put_prob_expanding,
     bull_call_prob_expanding,
-    evaluate_direction_persistence_guard,
-    log_regime_guard,
     reset_regime_guard_log_state,
 )
 from src.application.services.execution_direction_resolver import resolve_execution_direction

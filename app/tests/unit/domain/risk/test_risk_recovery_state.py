@@ -1,10 +1,12 @@
 import pytest
 
+from src.domain.models.trade import TradeDirection
 from src.domain.risk.consensus_stake_penalty import consensus_kelly_retention
 from src.domain.risk.risk_manager import RiskManager
 from src.domain.risk.risk_recovery_state import (
     apply_cluster_profit_to_recovery_state,
     apply_dlambert_partial_win_retraction,
+    evaluate_anti_trend_lock,
     pending_loss_total,
     recovery_financially_active,
 )
@@ -136,3 +138,13 @@ def test_linear_retraction_on_partial_win_with_pending(kelly_config):
     rm.register_result(8.0, 3, "RDBULL")
     assert rm.consecutive_losses_linear == 0
     assert not rm.recovery_financially_active()
+
+
+def test_evaluate_anti_trend_lock_branches():
+    direction, action = evaluate_anti_trend_lock("RDBULL", TradeDirection.CALL, 1, 0.5, 0.5, 0.0, 0.0, 0.0)
+    assert direction == TradeDirection.CALL
+    assert action == "KEEP"
+
+    direction, action = evaluate_anti_trend_lock("OTHER", TradeDirection.CALL, 2, 0.5, 0.5, 0.0, 0.0, 0.0)
+    assert direction is None
+    assert action == "FREEZE: SKIP CYCLE"

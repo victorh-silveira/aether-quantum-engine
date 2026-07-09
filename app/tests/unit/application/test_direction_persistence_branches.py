@@ -5,10 +5,12 @@ from src.application.services.direction_loss_tracker import (
     reset_direction_persistence_tracker,
 )
 from src.application.services.direction_persistence_guard import (
-    _peer_payoff_edge,
+    evaluate_direction_persistence_guard,
+)
+from src.application.services.direction_persistence_guard_helpers import (
     bear_put_prob_expanding,
     bull_call_prob_expanding,
-    evaluate_direction_persistence_guard,
+    peer_payoff_edge,
 )
 from src.domain.models.trade import TradeDirection
 
@@ -21,9 +23,9 @@ def _reset_tracker():
 
 
 def test_peer_payoff_edge_fallback_paths():
-    assert _peer_payoff_edge({"metrics": {"predicted_payoff_edge": 0.08}}, {}) == pytest.approx(0.08)
-    assert _peer_payoff_edge({"metrics": {}}, {"predicted_payoff_edge": 0.06}) == pytest.approx(0.06)
-    assert _peer_payoff_edge({"metrics": {}}, {}) == pytest.approx(0.0)
+    assert peer_payoff_edge({"metrics": {"predicted_payoff_edge": 0.08}}, {}) == pytest.approx(0.08)
+    assert peer_payoff_edge({"metrics": {}}, {"predicted_payoff_edge": 0.06}) == pytest.approx(0.06)
+    assert peer_payoff_edge({"metrics": {}}, {}) == pytest.approx(0.0)
 
 
 def test_bull_call_prob_expanding_false_without_bull_entry():

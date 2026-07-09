@@ -221,3 +221,11 @@ async def test_ws_callback_error_handling(ws_manager):
         ws_manager.is_running = False
         await task
         assert mock_log.called
+
+
+@pytest.mark.asyncio
+async def test_ws_connect_single_flight(ws_manager):
+    ws_manager._connect_in_progress = True
+    ws_manager.uri = ""
+    await ws_manager.connect()
+    assert ws_manager._connect_in_progress is True
