@@ -2,8 +2,8 @@
 
 | Documento | Conteúdo |
 |-----------|----------|
-| [structure.md](structure.md) | Layout do repositório, **inventário completo dos 208 módulos Python** em `app/src/`, scripts, testes, pipeline de execução |
-| [arquitetura.md](arquitetura.md) | Fluxos técnicos ao vivo: esteira mandatária, barreira atômica, DL, Triton, meta-regressor 39D, settlement, recovery transparente |
+| [structure.md](structure.md) | Layout do repositório, **inventário completo dos 209 módulos Python** em `app/src/`, scripts, testes, pipeline de execução |
+| [arquitetura.md](arquitetura.md) | Fluxos técnicos ao vivo: esteira mandatária, barreira atômica, fila Redis de settlement, DL, Triton, meta-regressor 39D, AntiTrendLock |
 | [medallion.md](medallion.md) | Filosofia quantitativa: scoring TCN × meta Z-Score, esteira contínua, recovery Martingale, Kelly, D-SQUEEZE, meta 2,60% por sessão |
 | [deriv-indices-algorithm.md](deriv-indices-algorithm.md) | Algoritmo CSPRNG dos índices Deriv Drift e estratégia do motor |
 | [infra-docker.md](infra-docker.md) | Stack Docker (5 containers), Triton, meta-regressor, Redis pipeline, StateManager |
@@ -22,9 +22,9 @@ presentation  →  application  →  domain
 
 | Camada | Módulos | Aggregate roots |
 |--------|---------|-----------------|
-| Application | ~133 | `Orchestrator`, `ExecutionManager` |
-| Domain | ~30 | `RiskManager`, modelos `trade` |
-| Infrastructure | ~38 | adaptadores Deriv, Redis, Triton, MinIO |
+| Application | ~132 | `Orchestrator`, `ExecutionManager` |
+| Domain | ~28 | `RiskManager`, modelos `trade`, políticas AntiTrendLock |
+| Infrastructure | ~49 | adaptadores Deriv, Redis, Triton, MinIO |
 | Presentation | 1 | `terminal/logger` |
 
 Regra: **domain** não importa application nem infrastructure. **Application** orquestra domain + ports; implementações concretas vêm de `infra_factory`.

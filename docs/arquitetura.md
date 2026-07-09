@@ -46,6 +46,7 @@ flowchart LR
   subgraph direcao
     SIG[orchestrator_data_signature M1+M15]
     RES[execution_direction_resolver TCN + meta GBDT]
+    ATL[direction_persistence_guard AntiTrendLock]
     QG[execution_quality_gate telemetria mandatoria]
   end
   subgraph exec
@@ -55,7 +56,7 @@ flowchart LR
     TH[TradeHandler]
   end
   subgraph pos
-    ST[settlement_*]
+    ST[settlement_* + Redis priority queue]
     RM[RiskManager]
     LOCK[StateManager asyncio.Lock]
     PM[redis_state_pipeline]
@@ -66,7 +67,7 @@ flowchart LR
   SH --> TB
   WD -->|STALE_DATA reconnect| SH
   SH --> FEAT --> TRITON --> MODEL --> PRED --> BUNDLE[dl_predict_build cross-symbol]
-  BUNDLE --> META --> RES --> QG --> COL --> SEL --> EM --> TH
+  BUNDLE --> META --> RES --> ATL --> QG --> COL --> SEL --> EM --> TH
   SIG -->|invalida cache por minuto| RES
   TH --> ST --> RM
   COL --> LOCK
@@ -311,6 +312,25 @@ Bloqueio absoluto (`resolve_execution_direction` retorna `None`) em:
 
 O quality gate dual pode suspender o cluster via `quality_conviction_suspends_cluster` quando margem TCN, payoff meta ou Z-Score estatístico falham (ver seção 4.2).
 
+### 4.1.1 Filtro AntiTrendLock (`direction_persistence_guard*.py`)
+
+Após **2 perdas consecutivas na mesma direção** por símbolo, o motor ativa o filtro anti-trend-lock antes do quality gate:
+
+| Componente | Camada | Papel |
+|------------|--------|-------|
+| `direction_persistence_guard.py` | Application | Orquestra bloqueio, flip cross-symbol e congelamento de ciclo |
+| `direction_persistence_guard_helpers.py` | Application | Probabilidades cross-symbol, spread de convicção, deduplicação de logs |
+| `evaluate_anti_trend_lock` | Domain (`risk_recovery_state.py`) | Política pura: `KEEP`, `FLIP to PUT/CALL`, `FREEZE: SKIP CYCLE` |
+
+Fluxo de decisão (domínio puro):
+
+1. Com `< 2` perdas consecutivas na direção proposta → `KEEP`.
+2. Em `RDBULL` + CALL após 2 losses: tenta flip para PUT se probabilidade PUT no par expande (`bear_put_prob > bull_call_prob` ou `cross_symbol_prob_delta > média`) **e** `predicted_payoff_edge >= 0`.
+3. Em `RDBEAR` + PUT após 2 losses: simétrico com flip para CALL.
+4. Sem expansão cross-symbol ou edge negativo → `FREEZE: SKIP CYCLE` (`signal_status = SIGNAL_SUSPENDED`, `regime_classification = CHOP_CONGESTION`).
+
+Telemetria: `[C####] REGIME_GUARD | {AntiTrendLock: ...}` via `log_regime_guard` (deduplicado por ciclo para `FREEZE`).
+
 A matriz de correlação cross-symbol (`execution_direction_cross_corr`) e o `execution_volatility_booster` permanecem como telemetria/pisos consultivos.
 
 ### 4.2 Gate de qualidade dual (`execution_quality_gate*.py`)
@@ -439,7 +459,35 @@ flowchart TD
 | Teto de retry | `_post_settlement_incomplete_streak` | Após 2 ciclos incompletos consecutivos, sinaliza deadlock |
 | Recovery transparente | `orchestrator_run_loop` + `post_settlement_resilience` | Persiste bundle de emergência; chama `recover_post_settlement_loop_transparently`; reinicia contadores sem encerrar o processo |
 
-Settlement assíncrono via `orchestrator_settlement_queue.py`: worker consome fila sem bloquear o loop principal; no fast-path a fila é cancelada e drenada imediatamente.
+Settlement assíncrono via `orchestrator_settlement_queue.py`: worker consome fila in-memory sem bloquear o loop principal; no fast-path a fila é cancelada e drenada imediatamente.
+
+### 5.4 Fila de liquidação Redis (prioridade)
+
+Quando o broker fica offline durante liquidação (`orch.ws.is_running == False`), o motor enfileira payloads em Redis para reconciliação posterior:
+
+```mermaid
+flowchart LR
+  POC[proposal_open_contract] --> ENQ[enqueue_contract_settlement]
+  ENQ --> IQ[asyncio.Queue in-memory]
+  IQ --> WK[_settlement_worker_loop]
+  WK --> PRQ[process_redis_settlement_queue]
+  PRQ --> ZSET[Redis ZSET settlement:queue:priority]
+  WK --> PCS[process_contract_settlement]
+  PCS -->|ws offline| PUSH[push_to_redis_priority_queue]
+  PUSH --> ZSET
+  PRQ -->|ws online| CONF[fetch_open_contract + profit_table]
+  CONF --> PCS
+```
+
+| Componente | Caminho | Comportamento |
+|------------|---------|---------------|
+| Enfileiramento offline | `settlement_logic.process_contract_settlement` | Early return após `push_to_redis_priority_queue` |
+| Chave Redis | `settlement_queue_ops.REDIS_SETTLEMENT_QUEUE_KEY` | `settlement:queue:priority` (ZSET; score = `contract_id`) |
+| Consumo | `process_redis_settlement_queue` | Itera itens; confirma P&L via `fetch_open_contract` ou `fetch_profit_table`; remove com `zrem` após confirmação |
+| Worker | `_settlement_worker_loop` | A cada iteração: drena Redis priority **antes** de aguardar fila local (timeout 0,25 s) |
+| Cancel fast-path | `cancel_settlement_queue_fast` | Cancela worker, drena fila in-memory sem handshake; usado no stop win e shutdown |
+
+Testes: `test_settlement_redis_queue.py`, `test_orchestrator_settlement_queue.py`.
 
 ---
 
@@ -452,7 +500,7 @@ Settlement assíncrono via `orchestrator_settlement_queue.py`: worker consome fi
 | Consensus Entropy Penalty | `consensus_stake_penalty.py` — penalidade convexa em `f*` quando ord diverge dos votos; atenua por `di_diff`, `cmo`, `rsi`; piso `stake_min` em baixo consenso |
 | Regime Edge Sizing (waiver) | `consensus_stake_penalty.py` — em recovery, `retention = 1.0` para votos unânimes (6×0/0×6) ou `trade_score >= 0.68` |
 | Recovery score waiver | `consensus_stake_penalty.py` — com `pending_loss > 0` ou `consecutive_losses_linear > 0` e votos unânimes ou `trade_score >= 0.68`, `retention = 1.0` |
-| Recovery financeiro persistente | `risk_recovery_state.py` — `consecutive_losses_linear` **nao reseta** em WIN operacional enquanto `pending_loss > 0`; reset somente quando o drawdown pendente zera por retornos reais |
+| Recovery financeiro persistente | `risk_recovery_state.py` — `consecutive_losses_linear` **nao reseta** em WIN operacional enquanto `pending_loss > 0`; reset somente quando o drawdown pendente zera por retornos reais; `evaluate_anti_trend_lock` isola política AntiTrendLock no domínio |
 | Stop win por sessão ativa | `stop_win_target.py` + `session_target_bootstrap.py` — meta = `session_start_balance × compounding_rate_daily`; sem reset por relógio/calendário |
 | Encerramento por meta | `check_session_limits_before_post_settlement` + `graceful_shutdown(fast_path=True)` — aborta Redis e fila de settlement antes do shutdown |
 | Stop loss | **Desativado** — sem `daily_max_loss_limit` nem disjuntor de perda no motor |
@@ -557,15 +605,15 @@ Persistência: `data/session_state.json` (métricas da sessão corrente), Redis 
 
 ## 9. Camadas de software
 
-Inventário completo de **208 módulos** em [structure.md](structure.md). Resumo por camada:
+Inventário completo de **209 módulos** em [structure.md](structure.md). Resumo por camada:
 
 | Camada | Módulos principais |
 |--------|-------------------|
 | Application / DL | `decision_bridge`, `dl_predict_build`, `dl_labels`, `dl_horizon`, `dl_training_epochs`, `model`, `dl_predict_async`, `dl_predict_triton`, `dl_params_blocks` |
 | Application / Meta | `meta_classifier_stacking`, `meta_payoff_regression`, `payoff_edge_zscore`, `meta_classifier_features`, `meta_classifier_cross_symbol`, `meta_direction_flip` |
-| Application / Direção | `execution_direction_resolver`, `execution_quality_gate`, `execution_quality_gate_reason`, `execution_quality_gate_meta`, `execution_quality_gate_cluster`, `execution_quality_gate_starvation` |
+| Application / Direção | `execution_direction_resolver`, `direction_persistence_guard`, `direction_persistence_guard_helpers`, `execution_quality_gate`, `execution_quality_gate_reason`, `execution_quality_gate_meta`, `execution_quality_gate_cluster`, `execution_quality_gate_starvation` |
 | Application / Execução | `execution_collect`, `execution_market_rank`, `execution_symbols`, `execution_symbols_overdrive`, `execution_fractional_lots`, `execution_contract_adoption`, `execution_split_abort` |
-| Application / Orchestrator | `Orchestrator`, `execution_manager`, `trading_cycle_entry`, `orchestrator_data_signature`, `orchestrator_atomic_state`, `orchestrator_persistence`, `post_settlement_resilience`, `post_settlement_loss_cooldown`, `session_persistence_barrier`, `watchdog_service`, `graceful_shutdown`, `settlement_*` |
+| Application / Orchestrator | `Orchestrator`, `execution_manager`, `trading_cycle_entry`, `orchestrator_data_signature`, `orchestrator_atomic_state`, `orchestrator_persistence`, `post_settlement_resilience`, `post_settlement_loss_cooldown`, `session_persistence_barrier`, `watchdog_service`, `graceful_shutdown`, `settlement_*`, `settlement_queue_ops`, `orchestrator_settlement_queue` |
 | Domain | `trade`, `market_data`, `probability_entropy`, `risk_manager`, `risk_contract_result`, `risk_stake_flow`, `risk_cluster`, `stop_win_target`, `risk_recovery_state`, `consensus_stake_penalty`, `executed_stake_reconciliation`, `dlambert_sizing` |
 | Infrastructure | `state_manager`, `triton_grpc_client`, `meta_classifier_client`, `websocket_manager`, `stream_handler`, `tick_buffer`, `trade_handler`, `minio_model_store`, `redis_state_pipeline` |
 | Presentation | `logger`, `log_dedupe` |
@@ -602,13 +650,15 @@ Marcadores de log relevantes:
 | `[D-SQUEEZE]` | Downgrade de score em compressão M1; métricas `bb_width`, `tick_accel`, `predicted_payoff_edge`, `score` |
 | `[API_GUARD]` | Telemetria reativa de manutenção/blackout do broker (sem bloqueio de ciclo em modo mandatário) |
 | `session_persistence_write_active` | Barreira pós-reset linear em andamento; ciclo de trading aguarda liberação |
-| Cooldown pós-loss | `LogDeduper.log_cooldown_schedule` — 1 log no agendamento; `log_cooldown_active` deduplicado (sem spam iterativo) |
+| `REGIME_GUARD` | Filtro AntiTrendLock: `KEEP`, `FLIP to PUT/CALL`, `FREEZE: SKIP CYCLE` |
+| `SETTLE:` | Enfileiramento/consumo da fila Redis `settlement:queue:priority` |
+| Cooldown pós-loss | `LogDeduper.log_cooldown_schedule` + `CooldownDeduplicationFilter` — 1 log no agendamento; supressão por tick do loop |
 
 ---
 
 ## 11. Garantia de qualidade
 
-- Cobertura **100%** em `app/src` (pytest + coverage; **1413** statements, **244** arquivos de teste).
+- Cobertura **100%** em `app/src` (pytest + coverage; **246** arquivos de teste).
 - Pre-commit: Ruff, Interrogate, Vulture, pylint duplicate-code, máximo **300 linhas** por arquivo em `app/src`.
 
 ---

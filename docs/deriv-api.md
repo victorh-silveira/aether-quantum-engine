@@ -17,7 +17,8 @@
 | Reconciliação de stake | `executed_stake_reconciliation` + `risk_contract_result` — residual de downgrade ajusta `pending_loss`; `apply_contract_settlement_result` reconcilia planned vs executed |
 | Recovery pós-deadlock | `post_settlement_resilience` — reinicialização transparente do loop sem encerrar o processo |
 | Contratos abertos | `proposal_open_contract`, `profit_table` (reconciliação e settlement) |
-| Keep-alive | Loop de ping no `WebSocketManager` (I/O puro; não adquire lock de estado) |
+| Settlement offline | `settlement_queue_ops` — enfileira em Redis `settlement:queue:priority` quando `WebSocketManager.is_running == False`; worker drena ao reconectar |
+| Keep-alive | Loop de ping no `WebSocketManager` (I/O puro; single-flight connect; RTT em `last_rtt_seconds`) |
 | Manutenção broker | `api_maintenance_guard` — telemetria reativa `[API_GUARD]`; bloqueio de ciclo neutralizado em modo mandatário |
 | Inferência DL | Fora da Deriv API: Triton gRPC local (`localhost:8001`) ou TorchScript em cache; ver [infra-docker.md](infra-docker.md) |
 | Meta de sessão | Stop win de 2,60% composto sobre banca inicial; sem stop loss interno; contratos RISE_FALL não usam `limit_order.stop_loss` |

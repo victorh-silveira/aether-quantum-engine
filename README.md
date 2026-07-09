@@ -26,7 +26,7 @@ Layout: `app/` (código e testes), `config/settings.json`, `docs/`, `linters/`. 
 | Predição DL | `decision_bridge` + `dl_predict_build` + TCN/LSTM/GRU | **34 features** TCN; bundle cross-symbol 39D antes do prefetch meta; inferência Triton gRPC com timeout 2 s e fallback TorchScript |
 | Meta GBDT | `meta_classifier_client` + `aether-meta-classifier` | Regressão tabular **39D** (`LGBMRegressor` huber); retorna `predicted_payoff_edge` contínuo |
 | Z-Score payoff | `payoff_edge_zscore` | Janela adaptativa 15–45 (Hurst/ATR/BB); `meta_payoff_edge_zscore`; classificação estatística |
-| Direção | `execution_direction_resolver` + `meta_payoff_regression` | TCN define macro; edge `> 0` preserva score; D-SQUEEZE rebaixa para **0.52**; `direction_margin = abs(P(lado) − 0.50)` |
+| Direção | `execution_direction_resolver` + `direction_persistence_guard` + `meta_payoff_regression` | TCN define macro; AntiTrendLock com flip cross-symbol; edge `> 0` preserva score; D-SQUEEZE rebaixa para **0.52**; `direction_margin = abs(P(lado) − 0.50)` |
 | Rotulagem DL | `dl_labels` + `dl_horizon` | **Triple Barrier Method** (`label_mode: triple_barrier`); barreira dinâmica por σ de ticks (janela 15 barras M15); neutro (0) em lateralização; tunável por símbolo via `label_vol_window_bars` e `label_vol_multiplier` |
 | Perda TCN | `model.high_volatility_asymmetric_focal_loss` | BCE focal com penalidade **2,5×** para erro direcional em alta volatilidade |
 | Optuna meta | `train_meta_optuna.py` | Maximiza **Information Ratio** (IR); rejeita trials com Z-Score médio de payoff OOS < **+1,00** |
@@ -34,7 +34,7 @@ Layout: `app/` (código e testes), `config/settings.json`, `docs/`, `linters/`. 
 | Ranking | `execution_market_rank` + `execution_symbols` | Score `tcn × max(0.1, 1+z)`; redirect inter-símbolo (âncora Z<-0.50 → par Z>+0.50) |
 | Execução | `ExecutionManager` + `execution_fractional_lots` | Proposta atômica por sub-lote; stagger estocástico entre sub-propostas (RTT WS) |
 | Risco | `RiskManager` + `risk_contract_result` + `risk_stake_flow` + `dlambert_sizing` | Kelly + Martingale `U × 2^n`; `register_result` delega a `apply_contract_settlement_result`; reconciliação de stake downgrade vs `pending_loss` |
-| Resiliência | `graceful_shutdown` + `watchdog_service` + `post_settlement_resilience` | Fast-path stop win; cancelamento de fila Redis/settlement; cooldown pós-LOSS com **1 log** no agendamento; após 2 ciclos incompletos → `recover_post_settlement_loop_transparently` (sem encerrar o processo) |
+| Resiliência | `graceful_shutdown` + `watchdog_service` + `post_settlement_resilience` + `settlement_queue_ops` | Fast-path stop win; fila Redis `settlement:queue:priority` quando broker offline; cancelamento fast-path no shutdown; recovery transparente pós-deadlock |
 | Concorrência | `StateManager` + `orchestrator_atomic_state` + `session_persistence_barrier` | `asyncio.Lock` central serializa inferência DL, liquidação e persistência; leituras de infra via `read_cached_balance` sem bloquear o lock |
 | Cache M1+M15 | `orchestrator_data_signature` | Assinatura multi-timeframe invalida inferência redundante na mesma fronteira de minuto |
 | Estado | `StateManager` + `redis_state_pipeline` + `orchestrator_persistence` | Snapshot atômico MULTI/EXEC; persistência locked/unlocked; barreira pós-reset linear D'Alembert |
@@ -139,9 +139,10 @@ Logs em `logs/engine.log` (formato `AetherFormatter`):
 - `[API_GUARD]` — telemetria reativa de manutenção do broker (sem bloqueio de ciclo em modo mandatário)
 - `[D-SQUEEZE]` — downgrade de score em compressão M1 (`bb_width`, `tick_accel`, `predicted_payoff_edge`, `score`)
 - `Loop reinicializado de forma transparente` — recovery pós-deadlock sem `sys.exit`; persistência de emergência antes do reset de contadores
-- Liquidação e resumo de cluster após settlement
+- `REGIME_GUARD` — telemetria do filtro AntiTrendLock (`FLIP`, `FREEZE`, `KEEP`)
+- `SETTLE:` — enfileiramento/consumo da fila Redis de liquidação por instabilidade do broker
 
-Mensagens repetidas são deduplicadas (`log_dedupe`). Cada ciclo e bloco de treino são separados por linha em branco.
+Mensagens repetidas são deduplicadas (`log_dedupe`, `CooldownDeduplicationFilter`). Cada ciclo e bloco de treino são separados por linha em branco.
 
 Monitor opcional: `python app/scripts/monitor/live_monitor.py`
 
@@ -152,7 +153,7 @@ Monitor opcional: `python app/scripts/monitor/live_monitor.py`
 - **Python 3.13.12**, `asyncio`, NumPy, Polars, PyTorch (TCN / LSTM / GRU)
 - **Deriv** PAT + REST OTP + WebSocket (`api_config` em settings; ver `docs/deriv-api.md`)
 - **Infra**: Redis, TimescaleDB, MinIO, NVIDIA Triton (gRPC), meta-regressor LightGBM (HTTP 8005)
-- **CI / pre-commit**: Ruff, Interrogate, Vulture, limite 300 linhas/arquivo, pytest com **100%** de cobertura em `app/src` (**244** arquivos de teste, **1413** statements cobertos)
+- **CI / pre-commit**: Ruff, Interrogate, Vulture, limite 300 linhas/arquivo, pytest com **100%** de cobertura em `app/src` (**246** arquivos de teste)
 
 Requisito local: ambiente Conda **`deriv-api`** (Python 3.13.12). Configuração em [`config/python.json`](config/python.json).
 

@@ -30,7 +30,7 @@ docker compose -f infra/docker/docker-compose.yml --project-directory infra/dock
 
 | Servico | Porta | Uso |
 |---------|-------|-----|
-| Redis | 6379 | Estado, risco, assinaturas de vela |
+| Redis | 6379 | Estado, risco, assinaturas de vela, fila `settlement:queue:priority` |
 | TimescaleDB | 5432 | Ticks e barras OHLC |
 | MinIO API | 9000 | Checkpoints Deep Learning |
 | MinIO Console | 9001 | Console web |
@@ -92,7 +92,7 @@ sudo sysctl --system
 
 `redis.conf`: `appendonly yes`, `appendfsync everysec`, RDB desabilitado.
 
-Estado via `orchestrator_persistence.save_full_state` → `redis_state_pipeline.write_state_bundle` (MULTI/EXEC), sob `StateManager._state_lock`. Metricas locais em `data/session_state.json`.
+Estado via `orchestrator_persistence.save_full_state` → `redis_state_pipeline.write_state_bundle` (MULTI/EXEC), sob `StateManager._state_lock`. Liquidações offline vão para ZSET `settlement:queue:priority` (`settlement_queue_ops`). Metricas locais em `data/session_state.json`.
 
 ## TimescaleDB
 

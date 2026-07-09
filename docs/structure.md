@@ -1,6 +1,6 @@
 # Estrutura do repositório
 
-Layout de software com infraestrutura Docker local opcional (`infra/docker/`). O código de produção vive em **`app/src/`** com **208 módulos Python** organizados em quatro camadas DDD. Testes: **244** arquivos `test_*.py` em `app/tests/` com cobertura **100%** em `app/src` (**1413** statements).
+Layout de software com infraestrutura Docker local opcional (`infra/docker/`). O código de produção vive em **`app/src/`** com **209 módulos Python** organizados em quatro camadas DDD. Testes: **246** arquivos `test_*.py` em `app/tests/` com cobertura **100%** em `app/src`.
 
 ```
 aether-quantum-engine/
@@ -47,9 +47,9 @@ presentation  →  application  →  domain
 
 | Camada | Pasta | Módulos | Responsabilidade |
 |--------|-------|---------|------------------|
-| Application | `application/services/` | ~133 | Casos de uso: orquestração, DL, execução, meta-classificador |
-| Domain | `domain/` | ~30 | Lógica pura: risco Kelly/D'Alembert, modelos, matemática |
-| Infrastructure | `infrastructure/` | ~38 | Adaptadores: Deriv API, Redis, Triton, MinIO, Timescale |
+| Application | `application/services/` | ~132 | Casos de uso: orquestração, DL, execução, meta-classificador, guards |
+| Domain | `domain/` | ~28 | Lógica pura: risco Kelly/D'Alembert, AntiTrendLock, modelos, matemática |
+| Infrastructure | `infrastructure/` | ~49 | Adaptadores: Deriv API, Redis, Triton, MinIO, Timescale |
 | Presentation | `presentation/` | 1 | Logging de terminal |
 
 ---
@@ -71,7 +71,8 @@ presentation  →  application  →  domain
 | `auth_manager.py` | Autenticação PAT Deriv, sessão REST/OTP |
 | `bb_width_adaptive_squeeze.py` | D-SQUEEZE: média harmônica de `bb_width` |
 | `direction_loss_tracker.py` | Perdas consecutivas por direção (singleton) |
-| `direction_persistence_guard.py` | Anti-trend-lock com flip cross-symbol |
+| `direction_persistence_guard.py` | Anti-trend-lock com flip cross-symbol e telemetria `REGIME_GUARD` |
+| `direction_persistence_guard_helpers.py` | Auxiliares de probabilidade cross-symbol e deduplicação de logs do guard |
 | `execution_direction.py` | Resolução/inversão CALL/PUT para execução |
 | `execution_direction_cross_corr.py` | Peso DL via correlação cruzada |
 | `execution_direction_fallback.py` | Fallback quando pool DL vazio |
@@ -92,7 +93,7 @@ presentation  →  application  →  domain
 | `execution_volatility_threshold.py` | Thresholds dinâmicos por regime |
 | `execution_volatility_bb.py` | Bollinger width com vol implícita |
 | `execution_volatility_booster.py` | Modificador por estouro M15/M1 |
-| `log_dedupe.py` | `LogDeduper` — deduplicação de logs por minuto |
+| `log_dedupe.py` | `LogDeduper` — deduplicação por canal/minuto; `log_info_if_changed` / `log_warning_if_changed` |
 | `market_audit_log.py` | Auditoria unificada de mercado |
 | `meta_classifier_features.py` | Vetores tabulares para stacking |
 | `meta_classifier_flow_features.py` | Features de velocidade micro |
@@ -140,8 +141,8 @@ presentation  →  application  →  domain
 | `settlement_detect.py` | Detecção de contrato liquidado |
 | `settlement_ws_queries.py` | Consultas WS para reconciliação |
 | `settlement_utils.py` | Utilitários de liquidação |
-| `settlement_queue_ops.py` | Operações da fila de liquidação |
-| `orchestrator_settlement_queue.py` | Fila assíncrona de liquidações |
+| `settlement_queue_ops.py` | Fila Redis `settlement:queue:priority` (ZSET), push/consume/cancel fast-path |
+| `orchestrator_settlement_queue.py` | Worker assíncrono: consome Redis priority + fila in-memory local |
 | `post_settlement_cycle.py` | Agendamento pós-liquidação com fôlego |
 | `post_settlement_loss_cooldown.py` | Inércia temporal pós-LOSS |
 | `post_settlement_resilience.py` | Recovery transparente e timeouts resilientes |
@@ -253,7 +254,7 @@ presentation  →  application  →  domain
 | `dlambert_sizing.py` | Kelly + progressão D'Alembert / Martingale |
 | `stop_win_target.py` | `StopWinManager`, meta de lucro por sessão |
 | `stake_target_proximity.py` | Amortecimento por proximidade da meta |
-| `risk_recovery_state.py` | Estado financeiro de recovery |
+| `risk_recovery_state.py` | Estado financeiro de recovery; `evaluate_anti_trend_lock` (política pura AntiTrendLock) |
 | `recovery_conviction.py` | Pisos de convicção em recovery |
 | `recovery_hurst_gate.py` | Piso logarítmico por Hurst |
 | `recovery_hurst_decay.py` | Decaimento do piso Hurst |
@@ -288,7 +289,7 @@ presentation  →  application  →  domain
 | `deriv_credentials.py` | App ID e credenciais Deriv |
 | `deriv_http.py` | HTTP seguro para Deriv |
 | `deriv_granularity.py` | Granularidades OHLC aceitas |
-| `websocket_manager.py` | WebSocket assíncrono |
+| `websocket_manager.py` | WebSocket assíncrono; single-flight connect; RTT medido (`last_rtt_seconds`) |
 
 ### Handlers (`infrastructure/handlers/`)
 
@@ -360,7 +361,7 @@ presentation  →  application  →  domain
 
 | Módulo | Responsabilidade |
 |--------|------------------|
-| `terminal/logger.py` | `setup_logger`, `AetherFormatter`, `BlankLineSquasher` |
+| `terminal/logger.py` | `setup_logger`, `AetherFormatter`, `BlankLineSquasher`, `CooldownDeduplicationFilter` |
 
 ---
 
@@ -398,7 +399,7 @@ app/tests/
 ├── torch_test_support.py
 └── unit/
     ├── test_run.py
-    ├── application/          # ~167 arquivos — orchestrator, DL, execution, meta
+    ├── application/          # ~167 arquivos — orchestrator, DL, execution, meta, settlement Redis
     ├── domain/
     │   ├── math/
     │   └── risk/             # ~30 testes
@@ -419,14 +420,19 @@ flowchart TD
   BUNDLE --> PRED[dl_predict_triton gRPC 2s]
   PRED --> META[meta_classifier_client]
   META --> RES[execution_direction_resolver]
-  RES --> ZS[payoff_edge_zscore]
+  RES --> DG[direction_persistence_guard AntiTrendLock]
+  DG --> ZS[payoff_edge_zscore]
   ZS --> QG[execution_quality_gate]
   QG --> COL[execution_collect]
   COL --> RANK[execution_market_rank]
   RANK --> SYM[execution_symbols]
   SYM --> EM[ExecutionManager fractional lots]
   EM --> TH[TradeHandler RISE_FALL 60s]
-  TH --> ST[settlement_logic]
+  TH --> ENQ[enqueue_contract_settlement]
+  ENQ --> WQ[asyncio.Queue worker]
+  WQ --> ST[settlement_logic]
+  ST -->|broker offline| RQ[Redis settlement:queue:priority]
+  RQ --> WQ
   ST --> RM[risk_contract_result → RiskManager]
   ST --> PSC[post_settlement_cycle]
   PSC -->|deadlock 2x| REC[post_settlement_resilience]
@@ -441,7 +447,7 @@ flowchart TD
 | Lock central | `state_manager.py` | `asyncio.Lock` + `atomic_state_context` |
 | Facade | `orchestrator_atomic_state.py` | Delega ao StateManager |
 | Ciclo | `trading_cycle_entry.py` | Lock envolvendo inferência + execução |
-| Liquidação | `settlement_logic.py` | Lock em `_complete_contract_settlement` |
+| Liquidação | `settlement_logic.py` + `orchestrator_settlement_queue.py` | Worker assíncrono; fila in-memory + Redis priority; lock em `_complete_contract_settlement` |
 | Barreira | `session_persistence_barrier.py` | Pós-reset linear D'Alembert |
 | Recovery | `post_settlement_resilience.py` | Reset transparente de contadores pós-deadlock |
 

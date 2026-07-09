@@ -51,6 +51,7 @@ Desvios extremos em M1 (RSI, Keltner, Bollinger) alimentam o vetor tabular **39D
 - **Downgrade D-SQUEEZE** (`meta_payoff_regression`): quando `predicted_payoff_edge < -0.15` em squeeze M1 (`bb_width < 0.06` ou `micro_tick_acceleration < 0`), rebaixa `trade_score=0.52` e emite log `[D-SQUEEZE]` — sem inverter direção.
 - **Treino offline**: alvo contínuo `Y = PnL_Real / Stake`; Optuna **maximiza Information Ratio** com constraint OOS payoff Z-Score ≥ +1,00; rotulagem TCN via **Triple Barrier Method** (`label_mode: triple_barrier`).
 - **Telemetria consultiva**: `execution_direction_cross_corr` e `execution_volatility_booster` permanecem como insumo analítico, sem veto autônomo.
+- **AntiTrendLock**: após 2 perdas consecutivas na mesma direção, `evaluate_anti_trend_lock` (domínio) decide flip cross-symbol ou `FREEZE: SKIP CYCLE` (`direction_persistence_guard`).
 
 ### 2.3 Gestão de Risco com Kelly Fracionário e Martingale Geométrico
 

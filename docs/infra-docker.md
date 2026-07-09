@@ -6,7 +6,7 @@ Stack local para o modo híbrido: motor no host, persistência em containers.
 
 | Serviço | Porta | Uso |
 |---------|-------|-----|
-| Redis | 6379 | Estado, risco, assinaturas de vela, `recovery:skip_counter` |
+| Redis | 6379 | Estado, risco, assinaturas de vela, `recovery:skip_counter`, fila `settlement:queue:priority` |
 | TimescaleDB | 5432 | Ticks e barras OHLC |
 | MinIO | 9000 / 9001 | Checkpoints Deep Learning |
 | Triton (`aether-triton`) | 8000 / 8001 | Inferência GPU TorchScript via gRPC |
@@ -73,6 +73,7 @@ Config em `settings.json`:
 - `recovery:skip_counter` (decaimento Hurst em recovery)
 - `state:risk:skipped_cycles_counter` (contador de inanição do quality gate — observabilidade)
 - `market_sig` (assinatura OHLC)
+- `settlement:queue:priority` (ZSET — payloads de liquidação enfileirados quando o broker fica offline; score = `contract_id`)
 
 As chaves `session:current:*` são gravadas no bootstrap da sessão e removidas no `graceful_shutdown` (ou no fast-path de stop win, **antes** do shutdown, via `clear_current_session_redis_keys`). Cada restart do processo inicia uma sessão independente.
 

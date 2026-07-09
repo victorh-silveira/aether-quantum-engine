@@ -22,6 +22,8 @@ Para arquitetura de código, ver [`arquitetura.md`](arquitetura.md).
 | Meta por sessão ativa | Stop win de 2,60% composto sobre banca inicial; operador controla quantas sessões por dia |
 | Sem disjuntor de perda | Stop loss interno desativado; recovery geométrico sem teto de nível, stake ou drawdown |
 | Isolamento de estado | `asyncio.Lock` serializa inferência, liquidação e persistência; elimina race conditions pós-reset linear |
+| AntiTrendLock | Após 2 losses na mesma direção, flip cross-symbol ou congelamento de ciclo (`direction_persistence_guard` + `evaluate_anti_trend_lock`) |
+| Settlement resiliente | Fila Redis `settlement:queue:priority` preserva liquidações durante instabilidade do broker |
 
 ---
 
@@ -73,6 +75,7 @@ Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `
 | Scoring direcional | TCN define `dl_direction`; edge `> 0` mantém score orgânico; edge `< -0.15` em squeeze rebaixa para `0.52` |
 | Margem direcional | `direction_margin = abs(P(lado_escolhido) − 0.50)`; CALL usa `calibrated_prob`; PUT usa `1 − prob` |
 | Gate de qualidade | Dual TCN (`passes_execution_quality`) + meta Z-Score (`evaluate_meta_payoff_quality`); suspensão cooperativa via `quality_conviction_suspends_cluster` |
+| AntiTrendLock | Após 2 perdas consecutivas na mesma direção: flip cross-symbol (PUT↔CALL) ou `FREEZE: SKIP CYCLE` em congestão micro |
 | Rotulagem Triple Barrier | Barreira dinâmica por σ de ticks; neutro em lateralização; tunável por símbolo |
 | Perda TCN assimétrica | Penalidade 2,5× para erro direcional em alta volatilidade |
 | Optuna meta | Maximiza Information Ratio; constraint OOS payoff Z-Score ≥ +1,00 |
