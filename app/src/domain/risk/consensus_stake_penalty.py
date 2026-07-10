@@ -17,6 +17,8 @@ _TURBO_EDGE_ZSCORE_THRESHOLD = 1.5
 _TURBO_EDGE_STAKE_MULTIPLIER = 2.0
 _PAYOUT_FALLBACK = 0.90
 _MAX_SAFE_STAKE_BANKROLL_PCT = 0.035
+_MAX_SAFE_STAKE_BANKROLL_PCT_LINEAR2 = 0.025
+_MAX_SAFE_STAKE_BANKROLL_PCT_LINEAR3 = 0.020
 _ADAPTIVE_RECOVERY_FACTOR_CAP = 2.50
 _D_SQUEEZE_SOVEREIGN_TRADE_SCORE = 0.52
 
@@ -96,7 +98,7 @@ def apply_soft_recovery_stake(
     """Aplica progressao adaptativa indexada ao payout real quando ha passivo pendente."""
     unit = resolve_session_base_unit(bankroll, base_unit, metrics)
     if float(pending_total) <= 0.0:
-        return min(unit, max_safe_stake_cap(bankroll))
+        return min(unit, max_safe_stake_cap(bankroll, consecutive_losses_linear=consecutive_losses))
     factor = adaptive_recovery_progression_factor(payout, risk_params)
     resolved_payout = resolve_contract_payout(payout, risk_params)
     losses = max(0, int(consecutive_losses))
@@ -114,13 +116,19 @@ def apply_soft_recovery_stake(
         metrics["recovery_adaptive_payout"] = resolved_payout
         metrics["recovery_soft_losses"] = losses
         metrics["recovery_soft_anchor_stake"] = anchor
-    cap = max_safe_stake_cap(bankroll)
+    cap = max_safe_stake_cap(bankroll, consecutive_losses_linear=consecutive_losses)
     return min(stake, cap)
 
 
-def max_safe_stake_cap(bankroll: float) -> float:
-    """Retorna teto absoluto de exposicao: 3.5% da banca ativa."""
-    return max(0.0, float(bankroll)) * _MAX_SAFE_STAKE_BANKROLL_PCT
+def max_safe_stake_cap(bankroll: float, *, consecutive_losses_linear: int = 0) -> float:
+    """Retorna teto absoluto de exposicao com compressao em streak linear N2+."""
+    linear = max(0, int(consecutive_losses_linear))
+    pct = _MAX_SAFE_STAKE_BANKROLL_PCT
+    if linear >= 3:
+        pct = min(pct, _MAX_SAFE_STAKE_BANKROLL_PCT_LINEAR3)
+    elif linear >= 2:
+        pct = min(pct, _MAX_SAFE_STAKE_BANKROLL_PCT_LINEAR2)
+    return max(0.0, float(bankroll)) * pct
 
 
 def _squeeze_floor_active(metrics: dict) -> bool:

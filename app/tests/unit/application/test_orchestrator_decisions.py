@@ -201,7 +201,7 @@ async def test_run_trading_cycle_inserts_blank_line_between_cycles(orch_config):
         orch.logger = MagicMock()
         orch.executor.execute_cluster = AsyncMock()
         orch.last_data_signature = ""
-        orch.get_data_state_signature = MagicMock(side_effect=["sig1", "sig2", "sig3"])
+        orch.get_data_state_signature = MagicMock(side_effect=["sig1", "sig1", "sig2", "sig2", "sig3", "sig3"])
         await orch._run_trading_cycle_if_ready()
         assert not any(c.args == ("",) for c in orch.logger.info.call_args_list)
         orch.last_data_signature = ""

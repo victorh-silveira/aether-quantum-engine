@@ -11,7 +11,6 @@ from src.application.services.execution_symbols import (
 from src.application.services.execution_symbols_recovery import (
     has_recovery_hedge_candidate,
     inject_recovery_hedge_candidates,
-    recovery_blocked_symbols,
     recovery_candidate_pool,
     recovery_rank_score,
 )
@@ -76,7 +75,7 @@ def test_recovery_rank_score_penalizes_matching_direction():
 
 
 def test_recovery_rank_score_bonus_for_different_symbol():
-    item = (ANCHOR, TradeDirection.CALL, {"trade_score": 0.55, "execute": True, "raw_prob": 0.58})
+    item = (ANCHOR, TradeDirection.PUT, {"trade_score": 0.55, "execute": True, "raw_prob": 0.42})
     base = candidate_execution_score(item[2], recovery_active=True)
     ranked = recovery_rank_score(item, last_loss_symbol=PAIR, last_loss_direction="CALL", base_score=base)
     assert ranked >= base + 0.05
@@ -234,59 +233,3 @@ def test_recovery_rank_score_raw_bonus_for_opposite_direction(direction, last_lo
         )
         >= base + 0.05
     )
-
-
-def test_recovery_blocked_symbols_never_excludes():
-    rm = SimpleNamespace(
-        dlambert_config={"recovery_max_losses_per_symbol": 2},
-    )
-    blocked = recovery_blocked_symbols(rm, {})
-    assert blocked == frozenset()
-
-
-def test_recovery_blocked_symbols_always_empty():
-    rm = SimpleNamespace(dlambert_config={})
-    blocked = recovery_blocked_symbols(rm, {})
-    assert blocked == frozenset()
-
-
-def test_recovery_candidate_pool_skips_blocked_symbols():
-    candidates = [
-        (PAIR, TradeDirection.CALL, {"execute": True, "trade_score": 0.60}),
-        (ANCHOR, TradeDirection.CALL, {"execute": True, "trade_score": 0.55}),
-    ]
-    result = recovery_candidate_pool(
-        candidates,
-        last_loss_symbol=None,
-        last_loss_direction="CALL",
-        recovery_active=True,
-        skip_symbols=frozenset({PAIR}),
-    )
-    assert len(result) == 1
-    assert result[0][0] == ANCHOR
-
-
-def test_select_best_returns_none_for_empty_pool():
-    assert (
-        select_best_execution_candidate(
-            [],
-            last_loss_symbol=None,
-            diversify_margin=0.08,
-            recovery_active=False,
-        )
-        is None
-    )
-
-
-def test_recovery_candidate_pool_keeps_single_opposite_direction():
-    candidates = [
-        (HEDGE_PEER_SYMBOL, TradeDirection.CALL, {"execute": True}),
-    ]
-    result = recovery_candidate_pool(
-        candidates,
-        last_loss_symbol=PAIR,
-        last_loss_direction="PUT",
-        recovery_active=True,
-    )
-    assert len(result) == 1
-    assert result[0][1] == TradeDirection.CALL

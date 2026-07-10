@@ -2,6 +2,7 @@
 
 from src.application.services.execution_direction import build_execution_candidate
 from src.application.services.execution_direction_cross_corr import cached_correlation_matrix
+from src.application.services.execution_loss_protection import apply_loss_protection_penalties
 from src.application.services.execution_quality_gate import apply_quality_penalty_to_metrics
 from src.application.services.execution_volatility_booster import apply_volatility_vol_booster
 from src.application.services.orchestrator.execution_recovery_gate import cluster_entry_eligible
@@ -79,6 +80,7 @@ def gather_cluster_candidates(
             exec_cfg=exec_cfg if isinstance(exec_cfg, dict) else {},
             risk_manager=getattr(exec_mgr.orch, "risk_manager", None),
         )
+        apply_loss_protection_penalties(metrics, exec_direction=built[1])
         _sync_entry_metrics(entry, metrics)
         candidates.append(built)
     return candidates

@@ -189,12 +189,12 @@ def test_collect_cluster_orders_skips_entry_without_inferable_direction():
     assert orders[0][1] == TradeDirection.PUT
 
 
-def test_collect_cluster_orders_does_not_exclude_symbol_by_loss_streak():
+def test_collect_cluster_orders_blocks_symbol_after_linear_loss():
     rm = SimpleNamespace(
-        recovery_symbol_loss_streak={ANCHOR: 5},
-        dlambert_config={"recovery_max_losses_per_symbol": 2},
+        consecutive_losses_linear=1,
+        last_loss_symbol=ANCHOR,
     )
-    assert recovery_blocked_symbols(rm, {}) == frozenset()
+    assert recovery_blocked_symbols(rm, {"symbol_loss_rotation_cycles": 1}) == frozenset({ANCHOR})
 
 
 def test_collect_cluster_orders_uses_ultimate_fallback_when_select_empty():

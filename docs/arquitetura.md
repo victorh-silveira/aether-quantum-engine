@@ -275,6 +275,7 @@ Normalização anti-leakage: `fit_norm_stats` somente no split de treino walk-fo
 - `gate_reason=None` após predição OK; bloqueio só em exceção (`predict_error`).
 - Thresholds `confidence_call/put` (0.53/0.47) são bases; com `dynamic_threshold.enabled`, flutuam por `bb_width`, `atr_norm` e regime de volatilidade.
 - Com Triton ativo: inferência via `infer_symbol_async`; timeout 2 s dispara fallback TorchScript em cache (`TRITON_TIMEOUT_FALLBACK`).
+- Cache de predição invalidado quando o fingerprint do tensor muda, mesmo fora da fronteira M1 — evita `raw_prob` estagnado entre ciclos.
 - Grava `calibrated_prob`, `calibrated_edge` e thresholds dinâmicos em metrics para resolver e quality gate.
 
 ---
@@ -355,6 +356,25 @@ Para evitar que o motor entre em bloqueio permanente devido a restrições de qu
   1. No início de cada ciclo de trading, o contador de inanição é carregado a partir do Redis (`prepare_quality_skipped_cycles_counter`).
   2. Se o ciclo for suspenso por decisão do quality gate (`quality_conviction_suspends_cluster`), o contador é incrementado e persistido no Redis (`record_quality_guard_cycle_skip`).
   3. Se o ciclo prosseguir para a execução bem-sucedida do cluster (`execute_cluster`), o contador é zerado e limpo no Redis (`reset_quality_skipped_cycles_counter_for_orch`).
+
+### 4.3 Proteção contra padrões de loss (`execution_loss_protection.py`)
+
+Camada aplicada em `execution_collect_gather` (penalidades) e `execution_collect` (filtros), derivada de telemetria de sessões reais:
+
+| Proteção | Gatilho | Efeito |
+|----------|---------|--------|
+| Cache DL por fingerprint | Tensor M1+M15 alterado | Re-inferência Triton; evita `raw_prob` idêntico entre ciclos |
+| Desconexão edge-conviccão | `edge` alto + `direction_margin` baixo | Penalidade no ranking; bloqueio de candidato |
+| Rotação de símbolo | `consecutive_losses_linear >= symbol_loss_rotation_cycles` | Exclui `last_loss_symbol` do pool |
+| Hurst recovery N1+ | `hurst < recovery_min_hurst` em recovery | Bloqueia candidato sem persistência |
+| Hurst N2+ | Recovery com streak ≥2 | Prioriza candidatos com Hurst persistente |
+| Hurst N3+ | Streak ≥3 sem persistência | Pool vazio — bloqueia escalada D'Alembert |
+| Teto de stake linear | `linear >= 2` / `>= 3` | Cap 2,5% / 2,0% da banca |
+| Quality guard em recovery | `pending > 0` ou `linear > 0` + mandatory | Não suspende cluster; recovery deve fechar passivo |
+| Reconexão WS | Queda de rede | `release_trading_cycle_after_reconnect` invalida assinatura/epoch e reduz warm-up com pendência |
+| Assinatura M1 | Quality skip sem execução | `commit_trading_cycle_data_signature` só após `execute_cluster`; permite retentativa no mesmo candle |
+
+Configuração em `orchestrator.execution.loss_protection` e `risk_management.kelly.symbol_loss_rotation_cycles`.
 
 **Suspensão de cluster** (`quality_conviction_suspends_cluster`):
 

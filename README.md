@@ -103,7 +103,8 @@ Copie `cp .env.example .env` e preencha o PAT. Validação Deriv: `python app/sc
 - **Stop win por sessão ativa**: meta = `banca_inicial × 2,60%`; `finalize_stop_win_shutdown` purge Redis + log CRITICAL + fast-path.
 - **Stop loss desativado**: sem disjuntor de perda diária interno.
 - **Lotes fracionados**: stakes acima de `max_single_stake_limit` (padrão $200) divididas em N ordens com proposta atômica por sub-lote; falha técnica de proposta aborta o cluster sem inflar `pending_loss`.
-- Cooldown por símbolo após sequência de losses (`symbol_loss_cooldown_candles`).
+- Cooldown por símbolo após sequência de losses (`symbol_loss_rotation_cycles`): rota o par Drift após loss linear sem pausar o ciclo.
+- **Proteção contra loss** (`execution_loss_protection`): penaliza edge meta inflado com `direction_margin` baixo; comprime stake em linear ≥2.
 
 ---
 
@@ -114,8 +115,10 @@ Copie `cp .env.example .env` e preencha o PAT. Validação Deriv: `python app/sc
 - **Bloqueio absoluto** somente para falhas técnicas: `data`, `predict_error`, `training`, `deploy_ok=false` e reconciliação pendente.
 - **Ranking TCN × Z-Score**: `market_decision_score = tcn × max(0.1, 1+z)` — LightGBM validado ranqueia acima de TCN bruto degradado.
 - **Gatilho D-SQUEEZE (`[D-SQUEEZE]`)**: quando `predicted_payoff_edge < -0.15` em compressão M1 (`bb_width < 0.06` ou `micro_tick_acceleration < 0`), o resolver rebaixa `trade_score` para **0.52**, comprimindo stake via consensus penalty até o piso de $1.00 da Deriv — sem inverter a direção da TCN.
-- **Trava Hurst em recovery N2+**: com `consecutive_losses >= 2`, piso de score elevado logaritmicamente; `recovery_skip_counter` no Redis decai o limiar Hurst.
-- **Recovery**: ranking de mercado com diversificação de símbolo; martingale com convicção mínima 0.64 e `val_accuracy` ≥ 0.62; reset de risco somente quando `pending_loss` zera.
+- **Recovery**: rotação de símbolo após loss linear; martingale com convicção mínima 0.64 e `val_accuracy` ≥ 0.62; reset de risco somente quando `pending_loss` zera.
+- **Loss protection**: filtro de convicção direcional e Hurst N1+ bloqueiam entradas degradadas; quality guard não suspende recovery obrigatório com passivo pendente.
+- **Reconexão**: `release_trading_cycle_after_reconnect` invalida assinatura/epoch e reduz warm-up micro para 5s quando há `pending_loss`; log `RECOV: ciclo liberado`.
+- **Assinatura M1**: gravada somente após cluster executado; quality skip não consome o candle.
 - **Watchdog de ingestão**: em modo contínuo, reconecta WebSocket se ticks pararem por >30 s (`watchdog_stale_tick_seconds`), persistindo snapshot de risco antes.
 
 ---

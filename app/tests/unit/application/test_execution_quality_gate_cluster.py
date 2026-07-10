@@ -34,9 +34,8 @@ def test_quality_conviction_suspends_cluster_ignores_non_dict_decisions(orch_rea
 def test_quality_conviction_suspends_cluster_skips_malformed_entries(orch_ready, caplog):
     orch = orch_ready
     orch._active_cycle_id = 2
-    orch.risk_manager.consecutive_losses_linear = 2
-    orch.risk_manager.dlambert_unit = 16.0
-    orch.risk_manager.pending_loss_total = lambda: 20.0
+    orch.risk_manager.consecutive_losses_linear = 0
+    orch.risk_manager.pending_loss_total = lambda: 0.0
     decisions = {
         "RDBULL": "invalid",
         "RDBEAR": {"metrics": "invalid"},
@@ -48,12 +47,11 @@ def test_quality_conviction_suspends_cluster_skips_malformed_entries(orch_ready,
     assert len(guard_logs) == 1
 
 
-def test_quality_conviction_suspends_cluster_keeps_decisions_unblocked_in_recovery(orch_ready):
+def test_quality_conviction_suspends_cluster_keeps_decisions_unblocked_with_meta_pass(orch_ready):
     orch = orch_ready
     orch._active_cycle_id = 7
-    orch.risk_manager.consecutive_losses_linear = 2
-    orch.risk_manager.dlambert_unit = 16.0
-    orch.risk_manager.pending_loss_total = lambda: 20.0
+    orch.risk_manager.consecutive_losses_linear = 0
+    orch.risk_manager.pending_loss_total = lambda: 0.0
     decisions = {
         "RDBULL": {"metrics": _weak_edge_metrics()},
         "RDBEAR": {
@@ -111,9 +109,8 @@ def test_quality_conviction_suspends_cluster_suppresses_sub_minute_duplicate_log
     orch = orch_ready
     orch._active_cycle_id = 44
     orch._broker_server_time_utc = datetime(2026, 7, 7, 23, 10, 1, tzinfo=UTC)
-    orch.risk_manager.consecutive_losses_linear = 2
-    orch.risk_manager.dlambert_unit = 16.0
-    orch.risk_manager.pending_loss_total = lambda: 20.0
+    orch.risk_manager.consecutive_losses_linear = 0
+    orch.risk_manager.pending_loss_total = lambda: 0.0
     decisions = {"RDBULL": {"metrics": _weak_edge_metrics()}}
     with caplog.at_level("INFO", logger="AETH"):
         assert quality_conviction_suspends_cluster(orch, decisions) is True
@@ -133,6 +130,14 @@ def test_log_quality_guard_suspension_emits_again_on_next_minute_bucket(orch_rea
         log_quality_guard_suspension(orch, reason="[TCN Margin 0.11 < min 0.12]")
     guard_logs = [record for record in caplog.records if "QUALITY_GUARD" in record.message]
     assert len(guard_logs) == 2
+
+
+def test_quality_conviction_waives_suspension_during_recovery_mandatory(orch_ready):
+    orch = orch_ready
+    orch.risk_manager.consecutive_losses_linear = 2
+    orch.risk_manager.pending_loss_total = lambda: 4.14
+    decisions = {"RDBULL": {"metrics": _weak_edge_metrics()}}
+    assert quality_conviction_suspends_cluster(orch, decisions) is False
 
 
 def test_quality_conviction_suspends_cluster_skips_deploy_blocked_entries(orch_ready):

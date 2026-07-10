@@ -2,6 +2,10 @@
 
 __all__ = ["collect_cluster_orders", "_mandatory_fallback_candidates"]
 
+from src.application.services.execution_loss_protection import (
+    filter_loss_protection_candidates,
+    filter_recovery_hurst_candidates,
+)
 from src.application.services.execution_quality_gate_fallback import cluster_quality_gate_blocks_mandatory_fallback
 from src.application.services.execution_symbols import (
     select_best_execution_candidate,
@@ -110,6 +114,19 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
         min_signal=min_signal,
         min_val=min_val,
         min_edge=min_edge,
+        kelly_cfg=kelly_cfg,
+        consecutive_losses=consecutive,
+        recovery_skip_counter=skip_counter,
+        session_drawdown=session_drawdown,
+    )
+    candidates = filter_loss_protection_candidates(
+        candidates,
+        exec_cfg=exec_cfg,
+        recovery_active=recovery_active,
+        consecutive_losses=consecutive,
+    )
+    candidates = filter_recovery_hurst_candidates(
+        candidates,
         kelly_cfg=kelly_cfg,
         consecutive_losses=consecutive,
         recovery_skip_counter=skip_counter,

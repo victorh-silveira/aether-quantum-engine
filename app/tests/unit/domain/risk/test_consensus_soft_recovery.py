@@ -114,6 +114,11 @@ def test_max_safe_stake_cap_at_three_point_five_percent():
     assert max_safe_stake_cap(11300.0) == pytest.approx(395.50)
 
 
+def test_max_safe_stake_cap_compresses_on_linear_streak():
+    assert max_safe_stake_cap(10000.0, consecutive_losses_linear=2) == pytest.approx(250.0)
+    assert max_safe_stake_cap(10000.0, consecutive_losses_linear=3) == pytest.approx(200.0)
+
+
 def test_apply_soft_recovery_stake_respects_bankroll_cap():
     metrics: dict = {}
     stake = apply_soft_recovery_stake(
@@ -125,7 +130,7 @@ def test_apply_soft_recovery_stake_respects_bankroll_cap():
         metrics=metrics,
         payout=0.70,
     )
-    assert stake == pytest.approx(max_safe_stake_cap(10000.0))
+    assert stake == pytest.approx(max_safe_stake_cap(10000.0, consecutive_losses_linear=8))
 
 
 def test_sequential_drawdown_stakes_grow_smoothly_not_geometric_two():
@@ -146,7 +151,9 @@ def test_sequential_drawdown_stakes_grow_smoothly_not_geometric_two():
         for losses in losses_sequence
     ]
     assert stakes[2] < stakes[0] * 8
-    assert stakes[-1] == pytest.approx(min(unit * (factor**5), max_safe_stake_cap(bankroll)))
+    assert stakes[-1] == pytest.approx(
+        min(unit * (factor**5), max_safe_stake_cap(bankroll, consecutive_losses_linear=5))
+    )
 
 
 def test_adaptive_recovery_factor_at_payout_ninety_five():

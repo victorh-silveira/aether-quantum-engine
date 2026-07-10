@@ -104,7 +104,7 @@ def extract_collect_params(exec_mgr, dl_cfg: dict, *, recovery_active: bool) -> 
     kelly_cfg = risk_cfg.get("kelly", {}) if isinstance(risk_cfg, dict) else {}
     proposal_skip_fn = getattr(exec_mgr.orch.risk_manager, "proposal_skip_symbols", None)
     proposal_skip = proposal_skip_fn() if callable(proposal_skip_fn) else frozenset()
-    recovery_skip = recovery_blocked_symbols(exec_mgr.orch.risk_manager, kelly_cfg) if recovery_active else frozenset()
+    recovery_skip = recovery_blocked_symbols(exec_mgr.orch.risk_manager, kelly_cfg)
     skip_symbols = proposal_skip | recovery_skip
     pending_total = sum(float(v) for v in getattr(exec_mgr.orch.risk_manager, "pending_loss", {}).values())
     consecutive_losses = getattr(exec_mgr.orch.risk_manager, "consecutive_losses_linear", 0)

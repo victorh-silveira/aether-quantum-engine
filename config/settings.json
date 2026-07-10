@@ -160,6 +160,13 @@
           "min_payoff_edge": 0.01
         }
       },
+      "loss_protection": {
+        "min_direction_margin": 0.18,
+        "recovery_min_direction_margin": 0.20,
+        "recovery_min_hurst": 0.50,
+        "max_edge_without_margin": 0.40,
+        "max_zscore_without_margin": 0.85
+      },
       "trend_period": 15,
       "trend_use_ema": true,
       "trend_use_slope": true,
@@ -207,6 +214,7 @@
       "recovery_hurst_log_decay_coef": 0.025,
       "recovery_hurst_accel_losses_min": 3,
       "recovery_hurst_severe_drawdown_min": 150.0,
+      "symbol_loss_rotation_cycles": 1,
       "stake_conviction_min_raw": 0.0,
       "max_stake_pct": 1.0,
       "max_stake_pct_high_conviction": 1.0,

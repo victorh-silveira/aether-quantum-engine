@@ -136,17 +136,22 @@ def _signature_epoch_blocks_cycle(orch: Any) -> bool:
             _log_market_signature_invalidation(orch, previous=orch.last_data_signature, current=sig)
     last_epoch = getattr(orch, "_last_epoch", 0)
     last_processed = getattr(orch, "_last_processed_epoch", 0)
-    if (
+    return (
         not signature_changed
         and isinstance(last_epoch, (int, float))
         and isinstance(last_processed, (int, float))
         and last_epoch > 0
         and last_processed == last_epoch
-    ):
-        return True
-    if sig and hasattr(orch, "last_data_signature"):
+    )
+
+
+def commit_trading_cycle_data_signature(orch: Any) -> None:
+    """Persiste assinatura M1 apenas apos cluster executado com sucesso."""
+    if not hasattr(orch, "get_data_state_signature") or not hasattr(orch, "last_data_signature"):
+        return
+    sig = orch.get_data_state_signature()
+    if sig:
         orch.last_data_signature = sig
-    return False
 
 
 def _non_fast_cycle_blocks(orch: Any) -> bool:

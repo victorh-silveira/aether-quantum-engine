@@ -44,10 +44,10 @@ def resolve_cached_prediction(
     entry = slot.get("entry")
     if not isinstance(entry, dict):
         return None
-    if not at_boundary:
-        return entry
-    if tensor_fingerprint is None:
+    if tensor_fingerprint is not None:
+        if slot.get("tensor_fingerprint") == tensor_fingerprint:
+            return entry
         return None
-    if slot.get("tensor_fingerprint") == tensor_fingerprint:
+    if not at_boundary:
         return entry
     return None

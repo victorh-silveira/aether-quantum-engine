@@ -208,7 +208,8 @@ def test_build_mandatory_fallback_recovery_uses_dl_when_loss_direction_missing()
         last_loss_direction="PUT",
     )
     assert best is not None
-    assert best[1] == TradeDirection.CALL
+    assert best[0] == "RDBEAR"
+    assert best[1] == TradeDirection.PUT
     decisions["RDBEAR"]["direction"] = TradeDirection.PUT
     decisions["RDBEAR"]["metrics"]["raw_prob"] = 0.20
     decisions["RDBEAR"]["metrics"]["trade_score"] = 0.80

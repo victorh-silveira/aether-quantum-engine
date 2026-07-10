@@ -115,7 +115,7 @@ def resolve_dlambert_stake(
             risk_params=getattr(rm, "risk_params", None),
         )
         rounded = round_stake(raw, recovery_linear=True)
-        cap = max_safe_stake_cap(bankroll)
+        cap = max_safe_stake_cap(bankroll, consecutive_losses_linear=consecutive_losses_linear)
         return min(rounded, cap), "D'ALEMBERT"
     resolve_dlambert_unit(kelly_base, rm)
     return round_stake(float(kelly_base), recovery_linear=False), "KELLY"

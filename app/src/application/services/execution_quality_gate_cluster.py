@@ -81,6 +81,10 @@ def quality_conviction_suspends_cluster(orch: Any, decisions: dict) -> bool:
         return False
     exec_cfg = getattr(orch, "config", {}).get("orchestrator", {}).get("execution", {})
     risk_manager = getattr(orch, "risk_manager", None)
+    session_linear, pending_loss = read_risk_session_state(risk_manager)
+    mandatory = bool(exec_cfg.get("mandatory_trade_each_cycle", True) if isinstance(exec_cfg, dict) else True)
+    if mandatory and (float(pending_loss) > 0.0 or int(session_linear) > 0):
+        return False
     skipped_cycles = int(getattr(orch, "_quality_skipped_cycles_counter", 0) or 0)
     any_fail = False
     any_pass = False

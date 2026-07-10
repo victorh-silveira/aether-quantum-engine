@@ -34,6 +34,24 @@ def test_store_and_resolve_cached_prediction_outside_boundary():
     store_prediction_cache(orch, "RDBULL", entry, tensor_fingerprint=fingerprint, boundary_epoch=1000)
     cached = resolve_cached_prediction(orch, "RDBULL", at_boundary=False)
     assert cached is entry
+    assert (
+        resolve_cached_prediction(
+            orch,
+            "RDBULL",
+            at_boundary=False,
+            tensor_fingerprint=b"stale-tensor",
+        )
+        is None
+    )
+    assert (
+        resolve_cached_prediction(
+            orch,
+            "RDBULL",
+            at_boundary=False,
+            tensor_fingerprint=fingerprint,
+        )
+        is entry
+    )
 
 
 def test_resolve_cached_prediction_reuses_duplicate_tensor_on_boundary():

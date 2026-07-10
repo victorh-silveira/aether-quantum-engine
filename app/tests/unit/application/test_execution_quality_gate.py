@@ -22,7 +22,6 @@ from src.application.services.execution_quality_gate_cluster import (
     log_quality_guard_suspension,
     quality_conviction_suspends_cluster,
 )
-from src.application.services.meta_direction_flip import SIGNAL_SUSPENDED
 
 
 def _edge_signal_metrics() -> dict:
@@ -217,7 +216,8 @@ def test_quality_conviction_suspends_cluster_ignores_non_dict_decisions(orch_rea
 def test_quality_conviction_suspends_cluster_skips_malformed_entries(orch_ready, caplog):
     orch = orch_ready
     orch._active_cycle_id = 2
-    orch.risk_manager.consecutive_losses_linear = 2
+    orch.risk_manager.consecutive_losses_linear = 0
+    orch.risk_manager.pending_loss_total = lambda: 0.0
     decisions = {
         "RDBULL": "invalid",
         "RDBEAR": {"metrics": "invalid"},
@@ -226,23 +226,27 @@ def test_quality_conviction_suspends_cluster_skips_malformed_entries(orch_ready,
                 "calibrated_prob": 0.61,
                 "predicted_payoff_edge": 0.01,
                 "meta_classifier_applied": True,
+                "meta_payoff_edge_zscore": 0.10,
+                "deploy_ok": True,
+                "direction": "CALL",
             }
         },
     }
     with caplog.at_level("INFO", logger="AETH"):
         assert quality_conviction_suspends_cluster(orch, decisions) is True
     assert decisions["RDBULL2"]["metrics"]["quality_guard_reject"] is True
-    guard_logs = [record for record in caplog.records if "QUALITY_GUARD" in record.message]
+    guard_logs = [record for record in caplog.records if "EXECUTION_FLOW" in record.message]
     assert len(guard_logs) == 1
     assert "C0002" in guard_logs[0].message
-    assert "Payoff" in guard_logs[0].message
-    assert "linear=2" in guard_logs[0].message
+    assert "Meta Z-Score" in guard_logs[0].message
+    assert "linear=0" in guard_logs[0].message
 
 
-def test_quality_conviction_suspends_cluster_marks_decisions_in_recovery(orch_ready):
+def test_quality_conviction_waives_suspension_during_recovery_mandatory(orch_ready):
     orch = orch_ready
     orch._active_cycle_id = 7
     orch.risk_manager.consecutive_losses_linear = 2
+    orch.risk_manager.pending_loss_total = lambda: 4.14
     decisions = {
         "RDBULL": {
             "metrics": {
@@ -253,10 +257,7 @@ def test_quality_conviction_suspends_cluster_marks_decisions_in_recovery(orch_re
         },
         "RDBEAR": {"metrics": {"calibrated_prob": 0.30, "predicted_payoff_edge": 0.08}},
     }
-    assert quality_conviction_suspends_cluster(orch, decisions) is True
-    assert decisions["RDBULL"]["metrics"]["signal_status"] == SIGNAL_SUSPENDED
-    assert decisions["RDBEAR"]["metrics"]["signal_status"] == SIGNAL_SUSPENDED
-    assert decisions["RDBULL"]["metrics"]["quality_guard_reject"] is True
+    assert quality_conviction_suspends_cluster(orch, decisions) is False
 
 
 def test_quality_conviction_suspends_cluster_false_for_regular_elastic_signal(orch_ready):

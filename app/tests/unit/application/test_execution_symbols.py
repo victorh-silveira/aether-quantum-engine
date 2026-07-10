@@ -38,7 +38,7 @@ def test_select_best_execution_candidate_picks_highest_score():
     ]
     best = select_best_execution_candidate(
         candidates,
-        last_loss_symbol=ANCHOR,
+        last_loss_symbol=None,
         diversify_margin=0.05,
         recovery_active=False,
     )

@@ -2,10 +2,8 @@
 
 from src.application.services.execution_direction import build_execution_candidate
 from src.application.services.execution_direction_resolver import infer_dl_direction, is_technically_blocked
+from src.application.services.execution_loss_protection import edge_conviction_disconnect_penalty
 from src.domain.models.trade import TradeDirection
-
-
-_CLUSTER_CORE = frozenset({"RDBULL"})
 
 
 def _trade_score(metrics: dict) -> float:
@@ -40,14 +38,19 @@ def _recovery_score_adjustment(
 ) -> float:
     """Aplica bonus e penalidades de recovery ao score composto."""
     if not recovery_active:
+        if last_loss_symbol and symbol == last_loss_symbol:
+            composite -= 0.08
         return composite
-    if symbol in _CLUSTER_CORE:
-        composite += 0.03
-    if last_loss_symbol and symbol != last_loss_symbol:
-        composite += 0.04
+    if last_loss_symbol and symbol == last_loss_symbol:
+        composite -= 0.20
+    elif last_loss_symbol and symbol != last_loss_symbol:
+        composite += 0.06
     if last_loss_direction and exec_direction is not None:
         ld = str(last_loss_direction).upper()
-        composite += 0.03 if exec_direction.name != ld else -0.12
+        if exec_direction.name == ld:
+            composite -= 0.18
+        else:
+            composite += 0.05
 
     if metrics:
         indicators = metrics.get("indicators") or {}
@@ -98,6 +101,8 @@ def market_decision_score(
     if metrics.get("direction_inverted"):
         composite -= 0.10
     composite -= float(metrics.get("exhaustion_penalty", 0.0))
+    composite -= float(metrics.get("loss_protection_penalty", 0.0))
+    composite -= edge_conviction_disconnect_penalty(metrics, exec_direction=exec_direction)
     margin = float(metrics.get("direction_margin", 0.0))
     if margin + 1e-9 < 0.05:
         composite -= 0.08

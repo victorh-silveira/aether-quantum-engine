@@ -27,6 +27,7 @@ from src.application.services.orchestrator.session_persistence_barrier import se
 from src.application.services.orchestrator.settlement_queue_ops import process_redis_settlement_queue
 from src.application.services.orchestrator.trading_cycle_entry_guards import (
     _stop_win_blocks_cycle,
+    commit_trading_cycle_data_signature,
     cycle_cadence_seconds,
     trading_cycle_entry_allowed,
 )
@@ -75,7 +76,7 @@ async def acquire_trading_cycle_lock(orch: Any) -> bool:
     return True
 
 
-async def _execute_inference_cluster_cycle(orch: Any) -> None:
+async def _execute_inference_cluster_cycle(orch: Any) -> bool:
     """Coleta inferencia DL e executa cluster quando o warm-up micro ja liberou o ciclo."""
     await prepare_quality_skipped_cycles_counter(orch)
     orch.loss_tracker.prune_obsolete_direction_losses(max_age_seconds=120.0)
@@ -86,6 +87,7 @@ async def _execute_inference_cluster_cycle(orch: Any) -> None:
     )
     post_lock_decisions = None
     quality_skip_pending = False
+    cluster_executed = False
     async with orchestrator_atomic_state_context(orch):
         decisions = await collect_deep_learning_decisions(orch)
         if (
@@ -114,6 +116,7 @@ async def _execute_inference_cluster_cycle(orch: Any) -> None:
             )
         elif not session_persistence_blocks_trading_cycle(orch):
             await orch.executor.execute_cluster(decisions)
+            cluster_executed = True
             post_lock_decisions = decisions
             await reset_quality_skipped_cycles_counter_for_orch(orch)
     if post_lock_decisions is not None:
@@ -121,6 +124,7 @@ async def _execute_inference_cluster_cycle(orch: Any) -> None:
             await await_quality_skip_yield(orch)
         else:
             await await_regime_freeze_yield(orch, post_lock_decisions)
+    return cluster_executed
 
 
 async def run_trading_cycle_if_ready(orch: Any) -> bool:
@@ -143,11 +147,13 @@ async def run_trading_cycle_if_ready(orch: Any) -> bool:
             if orch._cycle_seq > 1:
                 orch.logger.info("")
             orch._active_cycle_id = orch._cycle_seq
-            orch._last_processed_epoch = orch._last_epoch
-            await mark_bar_processed(orch, orch.anchor, orch._last_epoch)
             ran = True
             if trading_cycle_warm_up_suspended(orch) != SIGNAL_SUSPENDED:
-                await _execute_inference_cluster_cycle(orch)
+                cluster_executed = await _execute_inference_cluster_cycle(orch)
+                if cluster_executed:
+                    commit_trading_cycle_data_signature(orch)
+                    orch._last_processed_epoch = orch._last_epoch
+                    await mark_bar_processed(orch, orch.anchor, orch._last_epoch)
     except Exception as e:
         orch.logger.error(f"FALHA: Ciclo: {e}")
         ran = True

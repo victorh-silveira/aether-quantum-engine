@@ -5,17 +5,18 @@ from typing import Any
 from src.domain.models.trade import TradeDirection
 
 
-_CLUSTER_CORE = frozenset({"RDBULL"})
-
-
 def pending_recovery_active(pending_loss: dict) -> bool:
     """Indica se ha perda pendente ativando modo de recuperacao na selecao."""
     return sum(float(v) for v in pending_loss.values()) > 0.0
 
 
 def recovery_blocked_symbols(risk_manager: Any, kelly_config: dict) -> frozenset[str]:
-    """Nenhum simbolo e excluido do recovery por contagem de perdas."""
-    _ = (risk_manager, kelly_config)
+    """Exclui simbolo da ultima loss durante streak linear ativa."""
+    linear = int(getattr(risk_manager, "consecutive_losses_linear", 0))
+    rotation_cycles = int(kelly_config.get("symbol_loss_rotation_cycles", 1))
+    last = getattr(risk_manager, "last_loss_symbol", None)
+    if linear >= rotation_cycles and last:
+        return frozenset({str(last)})
     return frozenset()
 
 
@@ -48,18 +49,16 @@ def recovery_rank_score(
     """Pontua candidato em recovery priorizando melhor tendencia e diversificacao."""
     score = float(base_score)
     metrics = item[2]
-    if item[0] in _CLUSTER_CORE:
-        score += 0.04
     if last_loss_symbol and item[0] == last_loss_symbol:
-        score -= 0.12
+        score -= 0.20
     elif last_loss_symbol and item[0] != last_loss_symbol:
-        score += 0.05
+        score += 0.08
     if last_loss_direction:
         ld = str(last_loss_direction).upper()
         if item[1].name == ld:
-            score -= 0.08
+            score -= 0.12
         else:
-            score += 0.07
+            score += 0.06
     raw = metrics.get("raw_prob")
     if raw is not None and item[1] == TradeDirection.CALL and float(raw) > 0.5:
         score += 0.02

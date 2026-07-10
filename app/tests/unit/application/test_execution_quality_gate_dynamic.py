@@ -89,23 +89,26 @@ def test_cluster_quality_gate_blocks_mandatory_fallback_ignores_non_dict_decisio
 @pytest.mark.asyncio
 async def test_trading_cycle_skips_execute_cluster_on_quality_reject(orch_ready, caplog):
     orch = orch_ready
-    orch.risk_manager.consecutive_losses_linear = 2
+    orch.risk_manager.consecutive_losses_linear = 0
+    orch.risk_manager.pending_loss_total = lambda: 0.0
     orch._last_cluster_cycle_end = 0.0
     orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 0
     orch.executor.execute_cluster = AsyncMock()
     weak_decisions = {
         "RDBULL": {
             "metrics": {
-                "calibrated_prob": 0.61,
+                "calibrated_prob": 0.52,
                 "predicted_payoff_edge": 0.01,
                 "meta_classifier_applied": True,
+                "meta_payoff_edge_zscore": 0.10,
             }
         },
         "RDBEAR": {
             "metrics": {
-                "calibrated_prob": 0.39,
+                "calibrated_prob": 0.48,
                 "predicted_payoff_edge": 0.01,
                 "meta_classifier_applied": True,
+                "meta_payoff_edge_zscore": 0.10,
             }
         },
     }
@@ -116,16 +119,16 @@ async def test_trading_cycle_skips_execute_cluster_on_quality_reject(orch_ready,
             return_value=weak_decisions,
         ),
         patch(f"{TRADING_CYCLE_MODULE}.mark_bar_processed", new_callable=AsyncMock),
-        patch(f"{TRADING_CYCLE_MODULE}.await_regime_freeze_yield", new_callable=AsyncMock) as freeze_yield,
+        patch(f"{TRADING_CYCLE_MODULE}.await_quality_skip_yield", new_callable=AsyncMock) as quality_yield,
         caplog.at_level("INFO", logger="AETH"),
     ):
         ran = await run_trading_cycle_if_ready(orch)
     assert ran is True
     orch.executor.execute_cluster.assert_not_awaited()
-    freeze_yield.assert_awaited_once()
-    guard_logs = [record for record in caplog.records if "QUALITY_GUARD" in record.message]
+    quality_yield.assert_awaited_once()
+    guard_logs = [record for record in caplog.records if "EXECUTION_FLOW" in record.message]
     assert guard_logs
-    assert "Payoff" in guard_logs[0].message
+    assert "Meta Z-Score" in guard_logs[0].message
     assert "<" in guard_logs[0].message
     assert "min" in guard_logs[0].message
-    assert "linear=2" in guard_logs[0].message
+    assert "linear=0" in guard_logs[0].message

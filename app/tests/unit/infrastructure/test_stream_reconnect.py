@@ -24,6 +24,14 @@ def _build_reconnect_mocks(
     orch = MagicMock()
     orch.running = True
     orch._stream_ready_mono = stream_ready_mono
+    orch.config = {"orchestrator": {"stream_warm_up_delay_seconds": STREAM_WARM_UP_DELAY_SECONDS}}
+    orch.risk_manager.pending_loss = {}
+    orch.risk_manager.pending_loss_total = lambda: 0.0
+    orch.last_data_signature = "sig"
+    orch._signature_invalidation_logged_key = "sig"
+    orch._last_processed_epoch = 1
+    orch._quality_guard_logged_cycle_id = 0
+    orch.logger = MagicMock()
     orch.ws.ws = MagicMock()
     orch.ws.close = AsyncMock()
     if use_fallback_session:

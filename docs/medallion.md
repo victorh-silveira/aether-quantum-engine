@@ -36,8 +36,8 @@ Para arquitetura de código, ver [`arquitetura.md`](arquitetura.md).
 
 | Símbolo | Papel típico |
 |---------|----------------|
-| `RDBULL` | Âncora padrão; referência de cluster; bônus de ranking em recovery |
-| `RDBEAR` | Par correlacionado; candidato a redirect inter-símbolo quando âncora degradada |
+| `RDBULL` | Âncora padrão; referência de cluster; rotação após loss linear |
+| `RDBEAR` | Par correlacionado; priorizado após loss no âncora |
 
 Operação: contratos **RISE_FALL** (CALL = alta no período, PUT = queda).
 
@@ -361,8 +361,10 @@ WIN total:      n=0 → stake = $8 (Kelly puro)
 
 Complementar à curva geométrica:
 
-- Ranking com diversificação e bônus em `RDBULL`/`RDBEAR`
-- Trava Hurst N2+ (`recovery_hurst_gate`) — piso logarítmico de score
+- Rotação de símbolo após loss linear (`symbol_loss_rotation_cycles`); sem bônus fixo em `RDBULL`
+- Filtro de convicção direcional (`loss_protection`) bloqueia edge meta inflado com `direction_margin` baixo
+- Trava Hurst N2+ (`recovery_hurst_gate`) — prioriza candidatos persistentes; N3+ sem Hurst bloqueia escalada
+- Teto de stake comprimido em linear ≥2 (2,5%) e ≥3 (2,0%)
 
 ---
 

@@ -10,6 +10,7 @@ from src.application.services.orchestrator.trading_cycle_entry import trading_cy
 from src.application.services.orchestrator.trading_cycle_entry_guards import (
     _log_market_signature_invalidation,
     _signature_epoch_blocks_cycle,
+    commit_trading_cycle_data_signature,
 )
 from src.domain.models.market_data import Candle
 
@@ -150,3 +151,32 @@ def test_trading_cycle_entry_blocked_when_signature_and_epoch_unchanged(orch_rea
     orch.last_data_signature = get_data_state_signature(orch, now=float(_MICRO_EPOCH + 5))
     with patch(f"{TRADING_CYCLE_MODULE}.time.time", return_value=float(_MICRO_EPOCH + 10)):
         assert trading_cycle_entry_allowed(orch) is False
+
+
+def test_commit_trading_cycle_data_signature_noop_without_signature_api():
+    commit_trading_cycle_data_signature(SimpleNamespace())
+
+
+def test_commit_trading_cycle_data_signature_persists_after_cluster(orch_ready):
+    orch = orch_ready
+    _seed_dual_timeframe_stream(orch)
+    orch.last_data_signature = ""
+    fixed_sig = get_data_state_signature(orch, now=float(_MICRO_EPOCH + 5))
+    orch.get_data_state_signature = lambda: fixed_sig
+    commit_trading_cycle_data_signature(orch)
+    assert orch.last_data_signature == fixed_sig
+
+
+def test_signature_epoch_allows_retry_after_skip_without_commit(orch_ready):
+    orch = orch_ready
+    _seed_dual_timeframe_stream(orch)
+    orch.config["orchestrator"]["cycle_interval_seconds"] = 0
+    orch._last_epoch = _MICRO_EPOCH
+    orch._last_processed_epoch = 0
+    orch.last_data_signature = ""
+    fixed_sig = get_data_state_signature(orch, now=float(_MICRO_EPOCH + 5))
+    orch.get_data_state_signature = lambda: fixed_sig
+    assert _signature_epoch_blocks_cycle(orch) is False
+    assert orch.last_data_signature == ""
+    orch.last_data_signature = fixed_sig
+    assert _signature_epoch_blocks_cycle(orch) is True

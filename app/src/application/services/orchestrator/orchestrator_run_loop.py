@@ -10,6 +10,7 @@ from src.application.services.orchestrator.orchestrator_settlement_queue import 
 from src.application.services.orchestrator.post_settlement_resilience import (
     recover_post_settlement_loop_transparently,
 )
+from src.application.services.orchestrator.reconnect_cycle_release import release_trading_cycle_after_reconnect
 from src.application.services.orchestrator.settlement_reconciliation import reconcile_after_ws_recovery
 from src.application.services.orchestrator.trading_cycle_entry import prepare_orchestrator_run_loop
 from src.application.services.orchestrator.watchdog_service import start_ingestion_watchdog
@@ -104,6 +105,7 @@ async def run_orchestrator_main_loop(orch: Any) -> None:
         if not orch.ws.is_running:
             if await setup_session(orch) and await start_streams(orch):
                 orch.logger.info("RECOV: WebSocket restaurado.")
+                release_trading_cycle_after_reconnect(orch)
                 await reconcile_after_ws_recovery(orch)
                 reconnect_delay = float(orch_cfg.get("ws_reconnect_delay_seconds", 8.0))
             else:

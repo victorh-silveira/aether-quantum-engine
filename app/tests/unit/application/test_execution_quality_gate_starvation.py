@@ -112,9 +112,8 @@ def test_passes_execution_quality_keeps_flow_without_starvation():
 def test_quality_conviction_suspends_cluster_does_not_increment_skipped_counter(orch_ready):
     orch = orch_ready
     orch._quality_skipped_cycles_counter = 4
-    orch.risk_manager.consecutive_losses_linear = 2
-    orch.risk_manager.dlambert_unit = 16.0
-    orch.risk_manager.pending_loss_total = lambda: 20.0
+    orch.risk_manager.consecutive_losses_linear = 0
+    orch.risk_manager.pending_loss_total = lambda: 0.0
     decisions = {
         "RDBULL": {
             "metrics": {

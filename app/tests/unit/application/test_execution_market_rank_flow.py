@@ -7,7 +7,7 @@ def test_market_decision_score_override_short_circuits():
     assert market_decision_score({"market_decision_score_override": 0.91}) == 0.91
 
 
-def test_market_decision_score_recovery_bonus_for_core_symbol():
+def test_market_decision_score_penalizes_repeat_loss_symbol():
     metrics = {
         "raw_prob": 0.62,
         "val_accuracy": 0.60,
@@ -15,14 +15,21 @@ def test_market_decision_score_recovery_bonus_for_core_symbol():
         "execute": True,
         "deploy_ok": True,
     }
-    normal = market_decision_score(metrics, recovery_active=False, symbol="RDBULL")
-    recovery = market_decision_score(
+    alternate = market_decision_score(
+        metrics,
+        recovery_active=True,
+        symbol="RDBEAR",
+        last_loss_symbol="RDBULL",
+        exec_direction=TradeDirection.CALL,
+    )
+    repeat = market_decision_score(
         metrics,
         recovery_active=True,
         symbol="RDBULL",
+        last_loss_symbol="RDBULL",
         exec_direction=TradeDirection.CALL,
     )
-    assert recovery > normal
+    assert alternate > repeat
 
 
 def test_resolve_execution_direction_strong_call():

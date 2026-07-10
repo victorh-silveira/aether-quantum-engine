@@ -188,7 +188,7 @@ def test_resolve_dlambert_stake_caps_at_bankroll_pct_and_splits_pending():
         dl_metrics=metrics,
     )
     assert tag == "D'ALEMBERT"
-    assert stake == pytest.approx(350.0)
+    assert stake == pytest.approx(200.0)
 
 
 def test_resolve_dlambert_stake_falls_back_to_kelly_when_disabled():

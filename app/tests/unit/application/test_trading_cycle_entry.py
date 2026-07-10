@@ -132,7 +132,8 @@ async def test_acquire_trading_cycle_lock_rejects_when_stop_win_reached(orch_rea
 @pytest.mark.asyncio
 async def test_trading_cycle_logs_quality_guard_reason_on_cluster_suspend(orch_ready, caplog):
     orch = orch_ready
-    orch.risk_manager.consecutive_losses_linear = 2
+    orch.risk_manager.consecutive_losses_linear = 0
+    orch.risk_manager.pending_loss_total = lambda: 0.0
     orch._last_cluster_cycle_end = 0.0
     orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 0
     orch.executor.execute_cluster = AsyncMock()
@@ -160,9 +161,32 @@ async def test_trading_cycle_logs_quality_guard_reason_on_cluster_suspend(orch_r
     assert "TCN Margin" in message
     assert "<" in message
     assert "min" in message
-    assert "linear=2" in message
+    assert "linear=0" in message
     assert "Payoff" not in message
     assert "None" not in message
+
+
+@pytest.mark.asyncio
+async def test_trading_cycle_skips_epoch_advance_when_quality_guard_suspends(orch_ready):
+    orch = orch_ready
+    orch._last_epoch = 500
+    orch._last_processed_epoch = 0
+    orch.risk_manager.consecutive_losses_linear = 0
+    orch.risk_manager.pending_loss_total = lambda: 0.0
+    orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 0
+    weak_decisions = {"RDBULL": {"metrics": {"calibrated_prob": 0.55}}}
+    with (
+        patch(
+            f"{TRADING_CYCLE_MODULE}.collect_deep_learning_decisions",
+            new_callable=AsyncMock,
+            return_value=weak_decisions,
+        ),
+        patch(f"{TRADING_CYCLE_MODULE}.mark_bar_processed", new_callable=AsyncMock) as mark_mock,
+        patch(f"{TRADING_CYCLE_MODULE}.await_regime_freeze_yield", new_callable=AsyncMock),
+    ):
+        await run_trading_cycle_if_ready(orch)
+    mark_mock.assert_not_awaited()
+    assert orch._last_processed_epoch == 0
 
 
 @pytest.mark.asyncio
