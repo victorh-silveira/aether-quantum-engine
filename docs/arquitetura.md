@@ -22,6 +22,8 @@ Motor assíncrono para trading na Deriv com decisão exclusiva por **Deep Learni
 
 O mercado é tratado como **série temporal ruidosa**: o modelo estima probabilidade de alta; um **motor de direção** segue o sinal da TCN (`P(CALL) > pivot` → CALL, caso contrário PUT), refinado pelo meta-regressor LightGBM e pelo **Z-Score estatístico do payoff** (`meta_payoff_edge_zscore`). O **ranking multiplicativo** `tcn × max(0.1, 1+z)` prioriza setups `WIN_EXPECTED` sobre TCN bruto degradado. Em modo mandatário (`mandatory_trade_each_cycle: true`), o motor exige mandatory pick quando há candidatos aprovados pelo quality gate dual. Cooldown pós-LOSS, blackout de broker e Hurst em recovery permanecem neutralizados.
 
+**Invariante de acoplamento temporal:** inferências e rotações de ciclo seguem estritamente a fronteira configurada em `signature_boundary_seconds` (fallback para `cycle_interval_seconds`), mitigando ruído microestrutural e evitando inferências redundantes fora da janela macro.
+
 ---
 
 ## 2. Pipeline de dados
@@ -659,7 +661,7 @@ Marcadores de log relevantes:
 ## 11. Garantia de qualidade
 
 - Cobertura **100%** em `app/src` (pytest + coverage; **246** arquivos de teste).
-- Pre-commit: Ruff, Interrogate, Vulture, pylint duplicate-code, máximo **300 linhas** por arquivo em `app/src`.
+- Pre-commit: Ruff, Interrogate, Vulture, máximo **300 linhas** por arquivo em `app/src`.
 
 ---
 

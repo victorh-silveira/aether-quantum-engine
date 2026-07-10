@@ -6,7 +6,10 @@ import asyncio
 import time
 from typing import Any
 
-from src.application.services.orchestrator.orchestrator_data_signature import resolve_signature_boundary_seconds
+from src.application.services.orchestrator.orchestrator_data_signature import (
+    resolve_signature_boundary_seconds,
+    seconds_until_next_signature_boundary,
+)
 
 
 def _cycle_cadence_seconds(orch: Any) -> int:
@@ -20,12 +23,11 @@ def _cycle_cadence_seconds(orch: Any) -> int:
 
 def quality_skip_yield_seconds(orch: Any) -> float:
     """Calcula pausa ate a proxima fronteira temporal operacional."""
-    boundary = max(60, int(resolve_signature_boundary_seconds(orch)))
-    now = time.time()
-    next_boundary = (int(now) // boundary + 1) * boundary
-    delay = max(0.0, float(next_boundary) - now)
+    _ = resolve_signature_boundary_seconds(orch)
+    delay = seconds_until_next_signature_boundary(orch)
     cadence = _cycle_cadence_seconds(orch)
     if cadence > 0:
+        now = time.time()
         last_end = float(getattr(orch, "_last_cluster_cycle_end", 0.0))
         elapsed = now - last_end if last_end > 0.0 else 0.0
         cadence_remaining = max(0.0, float(cadence) - elapsed)

@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import asyncio
-import time
 from typing import Any
 
 from src.application.services.meta_direction_flip import SIGNAL_SUSPENDED
+from src.application.services.orchestrator.orchestrator_data_signature import (
+    resolve_signature_boundary_seconds,
+    seconds_until_next_signature_boundary,
+)
 
 
 _REGIME_FREEZE_DEFAULT_YIELD_SECONDS = 15.0
@@ -70,14 +73,12 @@ def cluster_collect_aborted(decisions: dict) -> bool:
 
 
 def regime_freeze_yield_seconds(orch: Any) -> float:
-    """Calcula pausa ate a virada M1 ou fallback institucional de 15s."""
-    epoch = int(getattr(orch, "_last_epoch", 0) or 0)
-    if epoch > 0:
-        next_boundary = ((epoch // 60) + 1) * 60
-        remaining = float(next_boundary) - time.time()
-        if remaining > 0.05:
-            return remaining
-    return _REGIME_FREEZE_DEFAULT_YIELD_SECONDS
+    """Calcula pausa ate a proxima fronteira temporal configurada."""
+    _ = resolve_signature_boundary_seconds(orch)
+    delay = seconds_until_next_signature_boundary(orch)
+    if delay > 0.05:
+        return delay
+    return float(resolve_signature_boundary_seconds(orch))
 
 
 async def _yield_freeze_delay(seconds: float) -> None:

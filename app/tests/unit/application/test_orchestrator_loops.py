@@ -9,7 +9,7 @@ from src.application.services.orchestrator.api_maintenance_guard import (
     _API_GUARD_LOG_MESSAGE,
     schedule_api_maintenance_hibernation,
 )
-from src.application.services.orchestrator.regime_freeze_yield import _REGIME_FREEZE_DEFAULT_YIELD_SECONDS
+from src.application.services.orchestrator.regime_freeze_yield import regime_freeze_yield_seconds
 from src.application.services.orchestrator.session_persistence_barrier import (
     session_persistence_write_active,
 )
@@ -107,14 +107,19 @@ async def test_run_trading_cycle_freeze_yields_and_avoids_hot_loop(orch_ready):
         patch(f"{TRADING_CYCLE_MODULE}.mark_bar_processed", new_callable=AsyncMock),
         patch(f"{TRADING_CYCLE_MODULE}.refresh_correlation_cache", new_callable=AsyncMock),
         patch(f"{FREEZE_YIELD_MODULE}._yield_freeze_delay", side_effect=record_sleep),
+        patch(
+            "src.application.services.orchestrator.orchestrator_data_signature.time.time",
+            return_value=150.0,
+        ),
     ):
+        expected_delay = regime_freeze_yield_seconds(orch)
         first = await run_trading_cycle_if_ready(orch)
         second = await run_trading_cycle_if_ready(orch)
 
     assert first is True
     assert second is False
     assert len(recorded) == 1
-    assert recorded[0] == pytest.approx(_REGIME_FREEZE_DEFAULT_YIELD_SECONDS)
+    assert recorded[0] == pytest.approx(expected_delay)
     assert lock_during_sleep == [False]
     assert not orch.state_mgr._state_lock.locked()
 

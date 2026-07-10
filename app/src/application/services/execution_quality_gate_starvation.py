@@ -10,7 +10,7 @@ from src.application.services.log_dedupe import LogDeduper
 
 
 REDIS_SKIPPED_CYCLES_COUNTER_KEY = "state:risk:skipped_cycles_counter"
-STARVATION_DECAY_THRESHOLD = 5
+STARVATION_DECAY_THRESHOLD = 15
 STARVATION_DECAY_STEP = 0.05
 STARVATION_DECAY_FLOOR = 0.50
 _STARVATION_ESCAPE_LOG_PREFIX = (

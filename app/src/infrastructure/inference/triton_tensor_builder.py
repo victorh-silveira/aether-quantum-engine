@@ -9,6 +9,22 @@ from src.application.services.deep_learning.dl_model_types import FeatureNormSta
 from src.application.services.deep_learning.model import normalize_sequences
 
 
+class PartialInferenceHistoryError(ValueError):
+    """Historico OHLC insuficiente para montar sequencia de inferencia."""
+
+
+def resolve_sequence_end_index(prices_len: int, lookback: int) -> int:
+    """Retorna indice final da sequencia quando o historico cobre o lookback."""
+    if prices_len < lookback:
+        raise PartialInferenceHistoryError(f"historico insuficiente: {prices_len} < {lookback}")
+    return prices_len - 1
+
+
+def inference_tensor_fingerprint(tensor: np.ndarray) -> bytes:
+    """Gera fingerprint estavel do tensor normalizado de inferencia."""
+    return np.asarray(tensor, dtype=np.float32).tobytes()
+
+
 def build_inference_tensor(
     prices: np.ndarray,
     lookback: int,
@@ -23,13 +39,11 @@ def build_inference_tensor(
     implied_vol_bars: int = 60,
 ) -> np.ndarray:
     """Retorna tensor FP32 normalizado com shape [1, lookback, FEATURE_DIM]."""
-    n = len(prices)
-    if n < lookback:
-        raise ValueError(f"historico insuficiente: {n} < {lookback}")
+    end_idx = resolve_sequence_end_index(len(prices), lookback)
     seq = build_sequence_tensor(
         prices,
         lookback,
-        n - 1,
+        end_idx,
         granularity=granularity,
         symbol=symbol,
         open_=open_,

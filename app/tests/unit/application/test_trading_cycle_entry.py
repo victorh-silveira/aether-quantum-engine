@@ -5,14 +5,15 @@ import pytest
 
 from src.application.services.orchestrator.engine_mode import ENGINE_MODE_TRAIN, apply_engine_mode
 from src.application.services.orchestrator.trading_cycle_entry import (
-    _stop_win_blocks_cycle,
     acquire_trading_cycle_lock,
     run_trading_cycle_if_ready,
     trading_cycle_entry_allowed,
 )
+from src.application.services.orchestrator.trading_cycle_entry_guards import _stop_win_blocks_cycle
 
 
 TRADING_CYCLE_MODULE = "src.application.services.orchestrator.trading_cycle_entry"
+GUARDS_MODULE = "src.application.services.orchestrator.trading_cycle_entry_guards"
 
 
 def test_trading_cycle_entry_blocked_in_train_engine_mode(orch_ready):
@@ -49,7 +50,7 @@ def test_trading_cycle_entry_allowed_when_cadence_elapsed_same_epoch(orch_ready)
     orch._last_epoch = 1000
     orch._last_processed_epoch = 1000
     orch._last_cluster_cycle_end = 10.0
-    with patch("src.application.services.orchestrator.trading_cycle_entry.time.time", return_value=80.0):
+    with patch(f"{GUARDS_MODULE}.time.time", return_value=80.0):
         assert trading_cycle_entry_allowed(orch) is True
 
 
@@ -59,7 +60,7 @@ def test_trading_cycle_entry_blocked_same_epoch_before_cadence(orch_ready):
     orch._last_epoch = 1000
     orch._last_processed_epoch = 1000
     orch._last_cluster_cycle_end = 50.0
-    with patch("src.application.services.orchestrator.trading_cycle_entry.time.time", return_value=80.0):
+    with patch(f"{GUARDS_MODULE}.time.time", return_value=80.0):
         assert trading_cycle_entry_allowed(orch) is False
 
 

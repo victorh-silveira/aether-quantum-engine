@@ -135,6 +135,7 @@ source = ["src"]
 omit = []
 core = "sysmon"
 parallel = true
+concurrency = ["multiprocessing", "thread"]
 
 [tool.coverage.report]
 show_missing = true

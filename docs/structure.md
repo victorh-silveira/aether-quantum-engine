@@ -152,7 +152,7 @@ presentation  →  application  →  domain
 | `orchestrator_state_restore.py` | Restore Redis no boot |
 | `orchestrator_state_session.py` | Restore de sessão e assinaturas Redis |
 | `orchestrator_atomic_state.py` | Contexto atômico de leitura/escrita |
-| `orchestrator_data_signature.py` | Assinatura M1+M15 para invalidação de cache |
+| `orchestrator_data_signature.py` | `resolve_signature_boundary_seconds`, `seconds_until_next_signature_boundary`, assinatura M1+M15 |
 | `metrics_utils.py` | Métricas neutras do orquestrador |
 | `result_utils.py` | Normalização de resultado de contratos |
 | `regime_freeze_yield.py` | Yield quando regime FREEZE suspende ciclo |

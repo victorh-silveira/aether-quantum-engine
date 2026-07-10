@@ -12,6 +12,7 @@ Para arquitetura de código, ver [`arquitetura.md`](arquitetura.md).
 |-----------|----------------|
 | Sinais, não histórias | Direção CALL/PUT estritamente pela TCN (`P(CALL) > P(PUT)`) |
 | Horizonte curto | Contexto DL **M15 (900 s)**; execução **M1 (60 s)**; label `triple_barrier` (ou `ma_trend` legado) |
+| Acoplamento temporal | Inferências e rotações de ciclo seguem estritamente `signature_boundary_seconds` (fallback `cycle_interval_seconds`), mitigando ruído microestrutural |
 | Esteira mandatária | `mandatory_trade_each_cycle: true` — mandatory pick quando pool DL aprovado pelo quality gate |
 | Modelo pronto antes de operar | `FASE TREINO` suspende ordens até treino da sessão |
 | Operação configurável | `mandatory_trade_each_cycle` — esteira mandatária contínua (padrão atual) |

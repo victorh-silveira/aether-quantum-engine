@@ -16,7 +16,7 @@ from src.application.services.execution_direction_cross_corr import (
 from src.application.services.execution_entropy_fallback import pick_entropy_fallback_candidate
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.kelly_f_star_adjustments import apply_kelly_fraction_scale
-from src.infrastructure.inference.triton_tensor_builder import build_inference_tensor
+from src.infrastructure.inference.triton_tensor_builder import PartialInferenceHistoryError, build_inference_tensor
 
 
 @pytest.mark.asyncio
@@ -67,7 +67,7 @@ async def test_predict_raw_prob_async_eager_without_model():
 
 def test_build_inference_tensor_raises_on_short_history():
     stats = FeatureNormStats(mean=np.zeros(34, dtype=np.float32), std=np.ones(34, dtype=np.float32))
-    with pytest.raises(ValueError):
+    with pytest.raises(PartialInferenceHistoryError):
         build_inference_tensor(np.array([1.0, 2.0]), 8, stats)
 
 

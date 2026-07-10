@@ -1,23 +1,29 @@
-# ---- COMUNICAÇÃO & REDE ----
-websockets==16.0             # Implementação de servidor e cliente para o protocolo WebSocket
+# ---- COMUNICACAO & REDE ----
+websockets==16.0               # Comunicação bidirecional em tempo real (WebSockets assíncrono)
+httpx==0.28.1                  # Cliente HTTP moderno com suporte a requisições assíncronas (async/await)
 
-# ---- AMBIENTE & CONFIGURAÇÃO ----
-python-dotenv==1.2.2         # Carrega variáveis de ambiente a partir de um arquivo .env
+# ---- AMBIENTE & CONFIGURACAO ----
+python-dotenv==1.2.2           # Carrega variáveis de ambiente a partir de um arquivo .env
 
 # ---- PROCESSAMENTO DE DADOS ----
-numpy==2.4.6                 # Biblioteca fundamental para computação científica e arrays multidimensionais
+numpy==2.4.6                   # Computação numérica de alta performance e manipulação de arrays multidimensionais
+pandas==2.3.3                  # Manipulação e análise de dados estruturados em DataFrames (base estrutural)
+polars==1.23.0                 # DataFrame library extremamente rápida e otimizada em Rust para grandes volumes de dados
 
 # ---- INTERFACE & UI ----
-rich==15.0.0                 # Formatação de texto rica e renderização de tabelas/logs no terminal
+rich==15.0.0                   # Renderização de texto formatado, cores, tabelas e logs bonitos no terminal
 
 # ---- INFRAESTRUTURA ----
-redis[hiredis]>=5.0          # Banco de dados em memória (Cache/Mensageria) com driver C de alta performance (hiredis)
-asyncpg>=0.30                # Driver assíncrono de alta performance para banco de dados PostgreSQL
-minio>=7.2                   # Cliente para armazenamento de objetos compatível com a API do Amazon S3
+redis[hiredis]>=5.0            # Banco de dados em memória para cache/mensageria + parser ultrarrápido em C (hiredis)
+asyncpg>=0.30                  # Driver de conexão assíncrono de alta performance para PostgreSQL
+minio>=7.2                     # SDK para integração com armazenamento de objetos compatível com AWS S3
 
-# ---- PROCESSAMENTO DE DADOS & DEEP LEARNING ----
-pandas==2.3.3                # Manipulação e análise de dados estruturados através de DataFrames
-polars==1.23.0               # DataFrame de alta performance focado em velocidade e processamento paralelo
-torch==2.10.0                # Framework de Deep Learning para computação de tensores e redes neurais com aceleração GPU
-tritonclient[grpc]>=2.49     # Cliente gRPC assíncrono para NVIDIA Triton Inference Server
-httpx==0.28.1                # Cliente HTTP assíncrono para meta-classificador tabular
+# ---- DEEP LEARNING & INFERENCIA ----
+torch==2.10.0                  # Framework principal de Deep Learning (PyTorch) para criação e execução de redes neurais
+tritonclient[grpc]>=2.49       # Cliente gRPC para comunicação de baixa latência com o servidor de inferência NVIDIA Triton
+
+# ---- TREINAMENTO OFFLINE (meta-classificador tabular) ----
+lightgbm==4.6.0                # Framework de Gradient Boosting baseado em árvores de decisão para alta performance em dados tabulares
+optuna==4.2.1                  # Framework de otimização de hiperparâmetros automatizada (Hyperparameter Tuning)
+scikit-learn==1.6.1            # Biblioteca clássica de Machine Learning para pré-processamento, métricas e modelos básicos
+joblib==1.4.2                  # Otimização de pipelines, paralelização de tarefas e serialização de objetos Python (salvar modelos)

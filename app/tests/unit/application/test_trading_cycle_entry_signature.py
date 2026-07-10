@@ -6,10 +6,8 @@ from src.application.services.orchestrator.orchestrator_data_signature import (
     get_data_state_signature,
     m1_boundary_epoch,
 )
-from src.application.services.orchestrator.trading_cycle_entry import (
-    _log_market_signature_invalidation,
-    trading_cycle_entry_allowed,
-)
+from src.application.services.orchestrator.trading_cycle_entry import trading_cycle_entry_allowed
+from src.application.services.orchestrator.trading_cycle_entry_guards import _log_market_signature_invalidation
 from src.domain.models.market_data import Candle
 
 

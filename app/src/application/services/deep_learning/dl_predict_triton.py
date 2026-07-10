@@ -83,6 +83,7 @@ async def predict_raw_prob_async(
     micro: dict[str, np.ndarray] | None = None,
     call_threshold: float | None = None,
     put_threshold: float | None = None,
+    prebuilt_tensor: np.ndarray | None = None,
 ) -> tuple[TradeDirection | None, float, float]:
     """Retorna direcao, probabilidade calibrada e bruta via Triton ou eager local."""
     lookback = int(runtime.get("lookback", params["lookback"]))
@@ -114,18 +115,21 @@ async def predict_raw_prob_async(
             return None, 0.5, 0.5
         return _local_torchscript_predict(**local_kwargs)
 
-    tensor = build_inference_tensor(
-        prices,
-        lookback,
-        norm_stats,
-        granularity=granularity,
-        symbol=str(symbol),
-        open_=open_,
-        high=high,
-        low=low,
-        micro=micro,
-        implied_vol_bars=implied_vol_bars,
-    )
+    if prebuilt_tensor is not None:
+        tensor = np.asarray(prebuilt_tensor, dtype=np.float32)
+    else:
+        tensor = build_inference_tensor(
+            prices,
+            lookback,
+            norm_stats,
+            granularity=granularity,
+            symbol=str(symbol),
+            open_=open_,
+            high=high,
+            low=low,
+            micro=micro,
+            implied_vol_bars=implied_vol_bars,
+        )
     try:
         raw_prob = await infer_symbol_async(orch.config, str(symbol), tensor)
     except TritonInferenceTimeout:

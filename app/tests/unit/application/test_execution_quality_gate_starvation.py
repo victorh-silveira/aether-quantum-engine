@@ -24,18 +24,18 @@ from src.application.services.execution_quality_gate_starvation import (
 
 def test_starvation_decay_factor_below_threshold_is_neutral():
     assert starvation_decay_factor(0) == 1.0
-    assert starvation_decay_factor(4) == 1.0
+    assert starvation_decay_factor(14) == 1.0
 
 
 def test_starvation_decay_factor_linear_decay_and_floor():
-    assert starvation_decay_factor(5) == pytest.approx(0.95)
-    assert starvation_decay_factor(10) == pytest.approx(0.70)
-    assert starvation_decay_factor(14) == pytest.approx(0.50)
+    assert starvation_decay_factor(15) == pytest.approx(0.95)
+    assert starvation_decay_factor(20) == pytest.approx(0.70)
+    assert starvation_decay_factor(24) == pytest.approx(0.50)
     assert starvation_decay_factor(40) == pytest.approx(0.50)
 
 
 def test_apply_starvation_margin_decay_without_orch():
-    margin, decay = apply_starvation_margin_decay(0.11, 10)
+    margin, decay = apply_starvation_margin_decay(0.11, 20)
     assert decay == pytest.approx(0.70)
     assert margin == pytest.approx(0.077)
 
@@ -43,14 +43,14 @@ def test_apply_starvation_margin_decay_without_orch():
 def test_apply_starvation_margin_decay_emits_deduped_log(orch_ready, caplog):
     orch = orch_ready
     with caplog.at_level("INFO", logger="AETH"):
-        margin, decay = apply_starvation_margin_decay(0.11, 10, orch=orch)
-        apply_starvation_margin_decay(0.11, 10, orch=orch)
+        margin, decay = apply_starvation_margin_decay(0.11, 20, orch=orch)
+        apply_starvation_margin_decay(0.11, 20, orch=orch)
     assert decay == pytest.approx(0.70)
     assert margin == pytest.approx(0.077)
     escape_logs = [record for record in caplog.records if "Válvula de inanição ativa" in record.message]
     assert len(escape_logs) == 1
     assert "0.0770" in escape_logs[0].message
-    assert "skipped_cycles=10" in escape_logs[0].message
+    assert "skipped_cycles=20" in escape_logs[0].message
 
 
 def test_resolve_dynamic_quality_limits_applies_starvation_decay_at_counter_20():
@@ -60,11 +60,11 @@ def test_resolve_dynamic_quality_limits_applies_starvation_decay_at_counter_20()
         risk_manager=risk_manager,
         linear=1,
         pending_loss_total=13.333333333333334,
-        skipped_cycles_counter=10,
+        skipped_cycles_counter=20,
     )
     assert limits["min_direction_margin"] == pytest.approx(0.077)
     assert limits["starvation_decay_factor"] == pytest.approx(0.70)
-    assert limits["skipped_cycles_counter"] == pytest.approx(10.0)
+    assert limits["skipped_cycles_counter"] == pytest.approx(20.0)
 
 
 def test_passes_execution_quality_starvation_allows_margin_008_after_decay():
@@ -80,11 +80,18 @@ def test_passes_execution_quality_starvation_allows_margin_008_after_decay():
         dlambert_unit=16.0,
         pending_loss_total=lambda: 13.333333333333334,
     )
-    orch = SimpleNamespace(_quality_skipped_cycles_counter=10, logger=MagicMock())
+    orch = SimpleNamespace(_quality_skipped_cycles_counter=20, logger=MagicMock())
 
     assert evaluate_meta_payoff_quality(metrics, risk_manager=risk_manager, orch=orch) is True
     assert metrics["quality_min_direction_margin"] == pytest.approx(0.077)
     assert metrics["quality_starvation_decay_factor"] == pytest.approx(0.70)
+
+
+def test_starvation_decay_inactive_before_threshold():
+    assert starvation_decay_factor(14) == 1.0
+    margin, decay = apply_starvation_margin_decay(0.11, 14)
+    assert decay == 1.0
+    assert margin == pytest.approx(0.11)
 
 
 def test_passes_execution_quality_keeps_flow_without_starvation():

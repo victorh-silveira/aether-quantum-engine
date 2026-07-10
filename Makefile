@@ -27,7 +27,7 @@ RESET  := \033[0m
 
 .DEFAULT_GOAL := help
 
-.PHONY: app-install app-lint app-test app-test-fast app-security app-run app-train app-pre-commit \
+.PHONY: app-install app-lint app-test app-security app-run app-train app-pre-commit \
 	app-pre-commit-run app-setup-wsl app-clean help helpo docker-up docker-down \
 	docker-clean docker-ps docker-logs docker-bash docker-hydrate timescale-lifecycle
 
@@ -42,8 +42,7 @@ help:
 	@echo -e "$(YELLOW)Comandos Disponiveis (Aplicação):$(RESET)"
 	@echo -e "  $(GREEN)app-install$(RESET)        - Instala dependencias no Conda $(CONDA_ENV)"
 	@echo -e "  $(GREEN)app-lint$(RESET)           - Roda os linters e verificadores de formatacao (Ruff, etc.)"
-	@echo -e "  $(GREEN)app-test$(RESET)           - Roda os testes unitarios com pytest e gera cobertura de codigo"
-	@echo -e "  $(GREEN)app-test-fast$(RESET)      - Roda testes com shards maiores e mais workers paralelos"
+	@echo -e "  $(GREEN)app-test$(RESET)           - Roda os testes unitarios com pytest-xdist e cobertura 100%"
 	@echo -e "  $(GREEN)app-security$(RESET)       - Varre o projeto em busca de vulnerabilidades (bandit/pip-audit)"
 	@echo -e "  $(GREEN)app-run$(RESET)            - Inicia a execucao principal do motor quantico (run.py)"
 	@echo -e "  $(GREEN)app-train$(RESET)          - Treina modelos Deep Learning (train.py)"
@@ -75,9 +74,6 @@ app-lint:
 
 app-test:
 	$(PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --stage test
-
-app-test-fast:
-	AETHER_TEST_PROFILE=fast $(PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --stage test
 
 app-security:
 	$(PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --stage security
