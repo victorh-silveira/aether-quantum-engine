@@ -1,12 +1,8 @@
 """Selecao obrigatoria de candidatos por ranking de mercado."""
 
 from src.application.services.execution_direction import (
-    _entry_gate_blocked,
     build_execution_candidate,
-    build_forced_direction_candidate,
-    build_forced_recovery_candidate,
     meets_mandatory_signal_floor,
-    recovery_hedge_target,
 )
 from src.application.services.execution_market_rank import (
     _trade_score,
@@ -33,33 +29,6 @@ def _symbol_order(
     if not tail:
         tail = [symbol for symbol in eligible if symbol not in core]
     return core + tail
-
-
-def _recovery_hedge_pick(
-    decisions: dict,
-    *,
-    last_loss_symbol: str | None,
-    last_loss_direction: str | None,
-    skip_symbols: frozenset[str],
-    consecutive_losses: int = 0,
-    mean_reversion_enabled: bool = True,
-    low_accuracy_enabled: bool = True,
-) -> tuple[str, TradeDirection, dict] | None:
-    """Prioriza par Drift com direcao estrutural oposta ao ultimo loss."""
-    _ = (consecutive_losses, mean_reversion_enabled, low_accuracy_enabled)
-    target = recovery_hedge_target(last_loss_symbol, last_loss_direction)
-    if target is None:
-        return None
-    peer, hedge_dir = target
-    if peer in skip_symbols:
-        return None
-    entry = decisions.get(peer)
-    if not entry or _entry_gate_blocked(entry.get("metrics") or {}):
-        return None
-    built = build_forced_direction_candidate(peer, entry, hedge_dir)
-    if built is not None:
-        return built
-    return build_forced_recovery_candidate(peer, entry, hedge_dir)
 
 
 def _rank_eligible_candidates(
@@ -136,18 +105,6 @@ def pick_best_mandatory_candidate(
 ) -> tuple[str, TradeDirection, dict] | None:
     """Escolhe melhor candidato obrigatorio por score de mercado."""
     skip = skip_symbols or frozenset()
-    if recovery_active:
-        hedge = _recovery_hedge_pick(
-            decisions,
-            last_loss_symbol=last_loss_symbol,
-            last_loss_direction=last_loss_direction,
-            skip_symbols=skip,
-            consecutive_losses=consecutive_losses,
-            mean_reversion_enabled=mean_reversion_enabled,
-            low_accuracy_enabled=low_accuracy_enabled,
-        )
-        if hedge is not None and meets_mandatory_signal_floor(hedge[2], min_signal=min_signal, min_val=min_val):
-            return hedge
     order = _symbol_order(trade_symbols, last_loss_symbol, skip_symbols=skip)
     ranked = _rank_eligible_candidates(
         order,

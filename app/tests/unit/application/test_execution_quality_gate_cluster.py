@@ -13,7 +13,6 @@ def _edge_signal_metrics() -> dict:
         "predicted_payoff_edge": 0.06,
         "meta_classifier_applied": True,
         "meta_payoff_edge_zscore": 0.55,
-        "edge_expectancy": "WIN_EXPECTED",
     }
 
 
@@ -23,7 +22,6 @@ def _weak_edge_metrics() -> dict:
         "predicted_payoff_edge": 0.01,
         "meta_classifier_applied": True,
         "meta_payoff_edge_zscore": 0.10,
-        "edge_expectancy": "NO_EDGE_NEUTRAL",
         "deploy_ok": True,
         "direction": "CALL",
     }
@@ -63,7 +61,6 @@ def test_quality_conviction_suspends_cluster_keeps_decisions_unblocked_in_recove
                 "calibrated_prob": 0.30,
                 "predicted_payoff_edge": 0.08,
                 "meta_payoff_edge_zscore": 0.55,
-                "edge_expectancy": "WIN_EXPECTED",
                 "deploy_ok": True,
                 "direction": "PUT",
             }
@@ -83,7 +80,6 @@ def test_quality_conviction_suspends_cluster_false_for_regular_elastic_signal(or
                 "calibrated_prob": 0.30,
                 "predicted_payoff_edge": 0.06,
                 "meta_payoff_edge_zscore": 0.55,
-                "edge_expectancy": "WIN_EXPECTED",
                 "deploy_ok": True,
                 "direction": "PUT",
             }

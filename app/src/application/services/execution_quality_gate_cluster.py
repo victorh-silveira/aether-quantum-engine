@@ -30,8 +30,6 @@ def _minute_bucket(orch: Any) -> str:
 
 def _uses_meta_quality_gate(metrics: dict) -> bool:
     """Indica se o candidato deve ser avaliado pelo portao estatistico do meta-regressor."""
-    if not metrics.get("edge_expectancy"):
-        return False
     return metrics.get("meta_payoff_edge_zscore") is not None or metrics.get("edge_zscore") is not None
 
 

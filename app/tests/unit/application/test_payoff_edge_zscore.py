@@ -5,15 +5,10 @@ from src.application.services.payoff_edge_zscore import (
     EDGE_ZSCORE_TURBO_THRESHOLD,
     EDGE_ZSCORE_WINDOW_MAX,
     EDGE_ZSCORE_WINDOW_MIN,
-    LOSS_EXPECTED,
-    NO_EDGE_NEUTRAL,
-    WIN_EXPECTED,
     _indicator_map,
     apply_payoff_edge_zscore,
     attach_payoff_edge_zscore_metrics,
-    classify_edge_expectancy,
     compute_edge_zscore,
-    edge_zscore_neutral_regime_active,
     payoff_edge_buffer_snapshot,
     reset_payoff_edge_buffer,
     resolve_adaptive_edge_window,
@@ -29,28 +24,18 @@ def _clear_edge_buffer():
     reset_payoff_edge_buffer()
 
 
-def test_classify_edge_expectancy_states():
-    assert classify_edge_expectancy(0.2, 1.0) == WIN_EXPECTED
-    assert classify_edge_expectancy(0.2, 0.49) == NO_EDGE_NEUTRAL
-    assert classify_edge_expectancy(0.2, -0.2) == NO_EDGE_NEUTRAL
-    assert classify_edge_expectancy(-0.1, 2.0) == LOSS_EXPECTED
-
-
 def test_stable_edge_sequence_yields_neutral_zscore():
     z_edge = 0.0
-    state = NO_EDGE_NEUTRAL
     for edge in [1.28] * 10:
-        z_edge, state = apply_payoff_edge_zscore(edge)
+        z_edge = apply_payoff_edge_zscore(edge)
     assert abs(z_edge) < 0.5
-    assert state == NO_EDGE_NEUTRAL
 
 
-def test_spike_edge_above_stable_window_flags_win():
+def test_spike_edge_above_stable_window_raises_zscore():
     for edge in [1.20] * 10:
         apply_payoff_edge_zscore(edge)
-    z_edge, state = apply_payoff_edge_zscore(1.45)
+    z_edge = apply_payoff_edge_zscore(1.45)
     assert z_edge >= 0.5
-    assert state == WIN_EXPECTED
 
 
 def test_compute_edge_zscore_uses_history_override():
@@ -64,17 +49,11 @@ def test_sample_edge_std_requires_two_points():
     assert sample_edge_std([1.0, 1.2]) > 0.0
 
 
-def test_attach_payoff_edge_zscore_metrics_sets_regime_flag():
+def test_attach_payoff_edge_zscore_metrics_sets_zscore():
     metrics: dict = {}
-    attach_payoff_edge_zscore_metrics(metrics, 1.25)
-    assert "edge_zscore" in metrics
-    assert metrics["edge_expectancy"] in {WIN_EXPECTED, NO_EDGE_NEUTRAL, LOSS_EXPECTED}
-    assert isinstance(metrics["edge_neutral_regime"], bool)
-
-
-def test_edge_zscore_neutral_regime_active():
-    assert edge_zscore_neutral_regime_active({"edge_expectancy": NO_EDGE_NEUTRAL}) is True
-    assert edge_zscore_neutral_regime_active({"edge_expectancy": WIN_EXPECTED, "edge_zscore": 0.8}) is False
+    z_edge = attach_payoff_edge_zscore_metrics(metrics, 1.25)
+    assert metrics["edge_zscore"] == z_edge
+    assert metrics["meta_payoff_edge_zscore"] == z_edge
 
 
 def test_turbo_threshold_constant():
@@ -119,7 +98,7 @@ def test_adaptive_window_shortens_history_for_zscore():
     metrics = {"indicators": {"hurst": 0.72, "atr_change_ratio": 0.25}}
     for edge in [1.0, 1.05, 0.95, 1.02, 1.01]:
         apply_payoff_edge_zscore(edge, metrics)
-    z_adaptive, _ = apply_payoff_edge_zscore(1.40, metrics)
+    z_adaptive = apply_payoff_edge_zscore(1.40, metrics)
     history = [1.0, 1.05, 0.95, 1.02, 1.01]
     z_static = compute_edge_zscore(1.40, history=history)
     assert metrics["edge_zscore_window"] <= EDGE_ZSCORE_WINDOW_MAX
@@ -137,7 +116,7 @@ def test_active_edge_history_slices_when_buffer_exceeds_window():
     metrics = {"indicators": {"hurst": 0.72, "atr_change_ratio": 0.25}}
     for edge in [1.0 + 0.01 * i for i in range(50)]:
         apply_payoff_edge_zscore(edge, metrics)
-    z_edge, _ = apply_payoff_edge_zscore(1.55, metrics)
+    z_edge = apply_payoff_edge_zscore(1.55, metrics)
     assert metrics["edge_zscore_window"] < 50
     assert isinstance(z_edge, float)
 
@@ -147,20 +126,19 @@ def test_resolve_adaptive_edge_window_uses_micro_indicators():
     assert EDGE_ZSCORE_WINDOW_MIN <= window <= EDGE_ZSCORE_WINDOW_MAX
 
 
-def test_resolve_stable_edge_sequence_marks_no_edge_neutral():
+def test_resolve_stable_edge_sequence_keeps_direction():
     result = None
     for edge in [1.28] * 10:
         result = resolve_execution_direction(_resolver_entry(edge), symbol="RDBULL")
         assert result is not None
     assert result is not None
-    assert result[1]["edge_expectancy"] == NO_EDGE_NEUTRAL
     assert abs(float(result[1]["edge_zscore"])) < 0.5
+    assert result[0] == TradeDirection.CALL
 
 
-def test_resolve_edge_spike_above_window_marks_win_expected():
+def test_resolve_edge_spike_records_high_zscore():
     for edge in [1.20] * 12:
         resolve_execution_direction(_resolver_entry(edge), symbol="RDBULL")
     result = resolve_execution_direction(_resolver_entry(1.45), symbol="RDBULL")
     assert result is not None
-    assert result[1]["edge_expectancy"] == WIN_EXPECTED
     assert float(result[1]["edge_zscore"]) >= 0.5

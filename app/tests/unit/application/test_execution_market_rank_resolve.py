@@ -40,9 +40,10 @@ def test_resolve_infers_from_raw_prob():
 
 def test_resolve_put_on_bear_with_low_prob():
     entry = _entry(
-        direction=TradeDirection.PUT,
         raw_prob=0.42,
         trend_direction="PUT",
+        predicted_payoff_edge=0.06,
+        meta_classifier_applied=True,
         indicators={
             "hurst": 0.50,
             "adx": 0.30,
@@ -52,6 +53,7 @@ def test_resolve_put_on_bear_with_low_prob():
             "cmo": -0.10,
         },
     )
+    entry["direction"] = TradeDirection.PUT
     result = resolve_execution_direction(entry, symbol="RDBEAR")
     assert result is not None
     assert result[0] == TradeDirection.PUT

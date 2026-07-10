@@ -2,9 +2,7 @@
 
 from typing import Any
 
-from src.application.services.execution_direction import build_forced_direction_candidate, recovery_hedge_target
 from src.domain.models.trade import TradeDirection
-from src.domain.risk.stake_sizing import raw_side_from_metrics
 
 
 _CLUSTER_CORE = frozenset({"RDBULL"})
@@ -74,25 +72,14 @@ def recovery_rank_score(
 
 def inject_recovery_hedge_candidates(
     candidates: list[tuple[str, TradeDirection, dict]],
-    decisions: dict,
+    _decisions: dict,
     *,
-    last_loss_symbol: str | None,
-    last_loss_direction: str | None,
+    last_loss_symbol: str | None = None,
+    last_loss_direction: str | None = None,
 ) -> list[tuple[str, TradeDirection, dict]]:
-    """Inclui candidato hedge estrutural do par Drift quando ausente no pool."""
-    target = recovery_hedge_target(last_loss_symbol, last_loss_direction)
-    if target is None:
-        return candidates
-    peer, hedge_dir = target
-    if any(item[0] == peer and item[1] == hedge_dir for item in candidates):
-        return candidates
-    entry = decisions.get(peer)
-    if not entry:
-        return candidates
-    built = build_forced_direction_candidate(peer, entry, hedge_dir)
-    if built is None:
-        return candidates
-    return list(candidates) + [built]
+    """Mantem pool original; hedge estrutural desativado."""
+    _ = (last_loss_symbol, last_loss_direction)
+    return candidates
 
 
 def has_recovery_hedge_candidate(
@@ -111,35 +98,24 @@ def has_recovery_hedge_candidate(
 
 def apply_recovery_direction_flip(
     best: tuple[str, TradeDirection, dict] | None,
-    decisions: dict,
+    _decisions: dict,
     *,
-    recovery_active: bool,
-    last_loss_symbol: str | None,
-    last_loss_direction: str | None,
-    flip_enabled: bool,
+    recovery_active: bool = False,
+    last_loss_symbol: str | None = None,
+    last_loss_direction: str | None = None,
+    flip_enabled: bool = False,
     flip_max_conviction: float = 0.56,
     consecutive_losses: int = 0,
     flip_use_trend: bool = False,
 ) -> tuple[str, TradeDirection, dict] | None:
-    """Inverte direcao no mesmo simbolo se a nova predição coincidir com a do ultimo loss na recuperacao."""
-    _ = (consecutive_losses, flip_use_trend)
-    if best is None or not recovery_active or not flip_enabled or not last_loss_symbol or not last_loss_direction:
-        return best
-    symbol, direction, metrics = best
-    trend_dir_name = metrics.get("trend_direction")
-    if trend_dir_name:
-        return best
-    ld = str(last_loss_direction).upper()
-    if (
-        symbol != last_loss_symbol
-        or direction.name != ld
-        or float(flip_max_conviction) <= 0.0
-        or raw_side_from_metrics(metrics) + 1e-9 >= float(flip_max_conviction)
-    ):
-        return best
-    opposite = TradeDirection.PUT if ld == "CALL" else TradeDirection.CALL
-    entry = decisions.get(symbol)
-    if not entry:
-        return best
-    flipped = build_forced_direction_candidate(symbol, entry, opposite)
-    return flipped if flipped is not None else best
+    """Mantem direcao resolvida pelo DL sem inversao pos-loss."""
+    _ = (
+        recovery_active,
+        last_loss_symbol,
+        last_loss_direction,
+        flip_enabled,
+        flip_max_conviction,
+        consecutive_losses,
+        flip_use_trend,
+    )
+    return best

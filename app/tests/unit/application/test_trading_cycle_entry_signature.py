@@ -7,7 +7,10 @@ from src.application.services.orchestrator.orchestrator_data_signature import (
     m1_boundary_epoch,
 )
 from src.application.services.orchestrator.trading_cycle_entry import trading_cycle_entry_allowed
-from src.application.services.orchestrator.trading_cycle_entry_guards import _log_market_signature_invalidation
+from src.application.services.orchestrator.trading_cycle_entry_guards import (
+    _log_market_signature_invalidation,
+    _signature_epoch_blocks_cycle,
+)
 from src.domain.models.market_data import Candle
 
 
@@ -132,6 +135,11 @@ def test_log_market_signature_invalidation_deduplicates_repeated_key(orch_ready,
         _log_market_signature_invalidation(orch, previous="sig-a", current="sig-b")
         _log_market_signature_invalidation(orch, previous="sig-a", current="sig-b")
     assert len([record for record in caplog.records if "DATA_SIG" in record.message]) == 1
+
+
+def test_signature_epoch_blocks_when_epoch_unchanged_without_signature():
+    orch = SimpleNamespace(_last_epoch=100, _last_processed_epoch=100)
+    assert _signature_epoch_blocks_cycle(orch) is True
 
 
 def test_trading_cycle_entry_blocked_when_signature_and_epoch_unchanged(orch_ready):

@@ -9,7 +9,6 @@ from typing import Any
 from src.application.services.orchestrator.graceful_shutdown import graceful_shutdown
 from src.application.services.orchestrator.post_settlement_loss_cooldown import (
     await_post_loss_cooldown,
-    orchestrator_cooldown_active,
 )
 from src.application.services.orchestrator.session_target_bootstrap import clear_current_session_redis_keys
 from src.application.services.orchestrator.settlement_logic import check_session_limits_before_post_settlement
@@ -164,8 +163,6 @@ async def _run_post_settlement_retry_loop(orch: Any, orch_cfg: dict, poll: float
                 await asyncio.wait((slot_task,), timeout=0)
             await _poll_delay(poll)
             continue
-        if orchestrator_cooldown_active(orch):
-            return
         if await _attempt_post_settlement_trading_cycle(orch, orch_cfg):
             orch._post_settlement_incomplete_streak = 0
             return

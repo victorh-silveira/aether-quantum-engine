@@ -20,7 +20,7 @@ Motor assíncrono para trading na Deriv com decisão exclusiva por **Deep Learni
 | Fases | `FASE TREINO` → `FASE OPERACAO` |
 | Execução | Seletiva (`mandatory_trade_each_cycle: false`) ou **esteira mandatária contínua** (`true`) |
 
-O mercado é tratado como **série temporal ruidosa**: o modelo estima probabilidade de alta; um **motor de direção** segue o sinal da TCN (`P(CALL) > pivot` → CALL, caso contrário PUT), refinado pelo meta-regressor LightGBM e pelo **Z-Score estatístico do payoff** (`meta_payoff_edge_zscore`). O **ranking multiplicativo** `tcn × max(0.1, 1+z)` prioriza setups `WIN_EXPECTED` sobre TCN bruto degradado. Em modo mandatário (`mandatory_trade_each_cycle: true`), o motor exige mandatory pick quando há candidatos aprovados pelo quality gate dual. Cooldown pós-LOSS, blackout de broker e Hurst em recovery permanecem neutralizados.
+O mercado é tratado como **série temporal ruidosa**: o modelo estima probabilidade de alta; um **motor de direção** segue o sinal da TCN (`P(CALL) > pivot` → CALL, caso contrário PUT), refinado pelo meta-regressor LightGBM e pelo **Z-Score estatístico do payoff** (`meta_payoff_edge_zscore`). O **ranking multiplicativo** `tcn × max(0.1, 1+z)` prioriza candidatos com Z-Score favorável. Em modo mandatário (`mandatory_trade_each_cycle: true`), o motor exige mandatory pick quando há candidatos aprovados pelo quality gate dual. A esteira é **contínua**: cooldown pós-LOSS, regime FREEZE yield, diversificação forçada pós-loss e hedge estrutural do par Drift estão desativados.
 
 **Invariante de acoplamento temporal:** inferências e rotações de ciclo seguem estritamente a fronteira configurada em `signature_boundary_seconds` (fallback para `cycle_interval_seconds`), mitigando ruído microestrutural e evitando inferências redundantes fora da janela macro.
 
@@ -102,7 +102,7 @@ Com `infra.enabled: true`, o motor valida Redis, TimescaleDB e MinIO em `localho
 - Container Python 3.13-slim com FastAPI expõe `POST /v2/predict_meta`.
 - Artefatos LightGBM (`.pkl`) montados em `infra/docker/meta-models` → `/models`.
 - `MetaClassifierClient` (`meta_classifier_client.py`) consulta o serviço com `httpx.AsyncClient`, timeout **1,0 s** e fallback neutro (`predicted_payoff_edge=0.0`) em falha ou timeout — preserva `trade_score` orgânico da TCN.
-- `payoff_edge_zscore.py` mantém buffer adaptativo de **15–45** amostras (Hurst macro, variação ATR, compressão BB), calcula `meta_payoff_edge_zscore` e classifica `WIN_EXPECTED` / `NO_EDGE_NEUTRAL` / `LOSS_EXPECTED`.
+- `payoff_edge_zscore.py` mantém buffer adaptativo de **15–45** amostras (Hurst macro, variação ATR, compressão BB) e calcula `meta_payoff_edge_zscore` / `edge_zscore` para ranking e gate — sem classificação categórica de expectativa.
 - Vetor tabular **39D** enviado ao GBDT: **34** features TCN + **3** cross-symbol (`cross_symbol_prob_delta`, `cross_symbol_vol_ratio_diff`, `cross_symbol_rsi_spread`) + **2** de fluxo micro (`micro_tick_acceleration`, `keltner_deviation_ratio`).
 - `prepare_meta_classifier_cross_symbol_bundle` (`dl_predict_build.py`) centraliza telemetria micro M1 paralela (`stamp_micro_frame_telemetry`) e anexa spreads cross-symbol (`attach_cross_symbol_features_to_decisions`) **antes** do prefetch HTTP.
 - `collect_deep_learning_decisions` chama o bundle e em seguida `prefetch_meta_payoff_for_decisions`; `execution_direction_resolver` aplica `meta_payoff_regression.apply_meta_regression_edge` sobre o `predicted_payoff_edge` retornado pelo regressor e `attach_payoff_edge_zscore_metrics` calcula o Z-Score estatístico do edge (`meta_payoff_edge_zscore`) usado no ranking final.
@@ -341,8 +341,8 @@ O motor avalia candidatos por **dois portões complementares**, selecionados por
 
 | Portão | Condição de ativação | Módulo | Critério |
 |--------|---------------------|--------|----------|
-| TCN + meta payoff | Sem `meta_payoff_edge_zscore` / `edge_zscore` com `edge_expectancy` | `execution_quality_gate` | `direction_margin` ≥ piso dinâmico **e** `predicted_payoff_edge` ≥ piso (quando meta aplicado) |
-| Meta Z-Score | `edge_expectancy` + (`meta_payoff_edge_zscore` ou `edge_zscore`) | `execution_quality_gate_meta` | Z-Score estatístico do payoff vs buffer móvel |
+| TCN + meta payoff | `predicted_payoff_edge` disponível | `execution_quality_gate` | `direction_margin` ≥ piso dinâmico **e** `predicted_payoff_edge` ≥ piso (quando meta aplicado) |
+| Meta Z-Score | `meta_payoff_edge_zscore` ou `edge_zscore` | `execution_quality_gate_meta` | Z-Score estatístico do payoff vs buffer móvel |
 
 `resolve_dynamic_quality_limits` ajusta pisos por regime (regular/recovery), drawdown (`execution_quality_gate_drawdown`) e inanição (`execution_quality_gate_starvation`).
 
@@ -369,7 +369,8 @@ Para evitar que o motor entre em bloqueio permanente devido a restrições de qu
 |--------|--------|
 | `execution_quality_gate_reason.py` | `build_quality_gate_reason`, formatação de mensagens |
 | `execution_quality_gate_fallback.py` | Bloqueio de fallback em recovery |
-| `execution_quality_skip_yield.py` | Yield após rejeição silenciosa do meta-gate |
+| `execution_quality_skip_yield.py` | Compatibilidade sem yield após rejeição silenciosa do meta-gate |
+| `regime_freeze_yield.py` | Compatibilidade sem pausa por regime FREEZE |
 
 **Portões neutralizados (não bloqueantes em modo mandatário):**
 
@@ -395,7 +396,7 @@ market_decision_score = tcn_score × zscore_rank_factor(meta_payoff_edge_zscore)
 | Z positivo | Bônus linear de priorização (`1.0 + z`) |
 | Penalidades secundárias | `val_accuracy < 0.50`, Brier alto, margem baixa, recovery, `direction_inverted` |
 
-Sinais classificados como `WIN_EXPECTED` (Z ≥ **0,50** e edge > 0) tendem ao topo absoluto do ranking, mesmo com TCN ligeiramente inferior ao par degradado.
+Candidatos com Z-Score favorável (Z ≥ **0,50** e edge > 0) tendem ao topo do ranking, mesmo com TCN ligeiramente inferior ao par degradado.
 
 **Redirect inter-símbolo em modo contínuo** (`execution_symbols.try_inter_symbol_zscore_redirect`):
 
@@ -569,9 +570,8 @@ Persistência: `data/session_state.json` (métricas da sessão corrente), Redis 
 
 **Cooldown pós-LOSS** (`post_settlement_loss_cooldown.py`):
 
-- `schedule_post_loss_cooldown` emite **uma única linha** `CICLO: cooling-down {tempo}s pos-LOSS linear={linear}` no agendamento
-- `post_loss_cooldown_blocks_trading_cycle` retorna sempre `False` (esteira mandatária)
-- `log_trading_cycle_cooldown_skip` é no-op — sem contagem regressiva iterativa no console
+- Todas as funções retornam zero ou `False` — **sem** logs `CICLO: cooling-down` nem `resfriamento pos-LOSS`
+- A esteira não pausa após LOSS; ciclos seguem na cadência configurada
 
 **Guarda de manutenção da API** (`api_maintenance_guard.py`):
 
@@ -644,7 +644,7 @@ Marcadores de log relevantes:
 | `CICLO: ciclo pos-liquidacao incompleto` | Retry pós-liquidação; após 2× consecutivas → recovery transparente |
 | `Loop reinicializado de forma transparente` | `post_settlement_resilience` resetou contadores pós-deadlock |
 | `STOP_WIN` / fast-path | Meta da sessão atingida; purge Redis; log CRITICAL; shutdown imediato |
-| `meta_payoff_edge_zscore` / `edge_expectancy` | Z-Score estatístico do edge LightGBM; classificação `WIN_EXPECTED`, `NO_EDGE_NEUTRAL`, `LOSS_EXPECTED` |
+| `meta_payoff_edge_zscore` / `edge_zscore` | Z-Score estatístico do edge LightGBM usado em ranking e gate |
 | `INTER_SYMBOL` redirect | Desvio de âncora degradada (Z < -0.50) para par forte (Z > +0.50) em modo mandatory |
 | `[AETHER] EXECUTION_FLOW` | Telemetria de fluxo mandatário contínuo; válvula de inanição; substitui semântica legada `QUALITY_GUARD` |
 | `CICLO: cooling-down` | Único log de cooldown pós-LOSS no agendamento; silêncio durante vigência do timer |

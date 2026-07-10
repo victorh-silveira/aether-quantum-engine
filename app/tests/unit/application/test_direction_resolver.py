@@ -3,7 +3,6 @@ from types import SimpleNamespace
 import pytest
 
 from src.application.services.execution_direction_resolver import (
-    _strict_anchor_direction,
     infer_dl_direction,
     is_technically_blocked,
     resolve_execution_direction,
@@ -174,20 +173,6 @@ def test_resolve_applies_prefetched_positive_edge_with_organic_tcn_score():
     assert result is not None
     assert result[1]["trade_score"] == pytest.approx(0.70)
     assert result[1]["conviction"] == pytest.approx(0.70)
-
-
-def test_strict_anchor_rejects_negative_edge():
-    assert (
-        _strict_anchor_direction(
-            0.70,
-            -0.05,
-            "RDBULL",
-            meta_applied=True,
-            call_conviction_ok=True,
-            put_book_ok=True,
-        )
-        is None
-    )
 
 
 def test_resolve_mild_negative_edge_blocked_by_quality_gate():

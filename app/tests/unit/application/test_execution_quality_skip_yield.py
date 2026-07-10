@@ -12,26 +12,9 @@ from src.application.services.orchestrator.orchestrator_data_signature import re
 from src.application.services.orchestrator.trading_cycle_entry import run_trading_cycle_if_ready
 
 
-def test_quality_skip_yield_seconds_with_invalid_orchestrator_config():
-    orch = SimpleNamespace(config={"orchestrator": "invalid"}, _last_cluster_cycle_end=0.0)
-    with patch(
-        "src.application.services.orchestrator.execution_quality_skip_yield.time.time",
-        return_value=1000.0,
-    ):
-        assert quality_skip_yield_seconds(orch) >= 0.0
-
-
-def test_quality_skip_yield_seconds_respects_cycle_interval():
-    orch = SimpleNamespace(
-        config={"orchestrator": {"cycle_interval_seconds": 180}},
-        _last_cluster_cycle_end=0.0,
-    )
-    with patch(
-        "src.application.services.orchestrator.execution_quality_skip_yield.time.time",
-        return_value=1000.0,
-    ):
-        delay = quality_skip_yield_seconds(orch)
-    assert delay >= 80.0
+def test_quality_skip_yield_seconds_always_zero():
+    orch = SimpleNamespace(config={"orchestrator": {"cycle_interval_seconds": 180}}, _last_cluster_cycle_end=0.0)
+    assert quality_skip_yield_seconds(orch) == 0.0
 
 
 def test_sanitize_quality_skip_decisions_strips_reject_metadata():
@@ -78,66 +61,15 @@ def test_sanitize_quality_skip_decisions_ignores_invalid_payload():
     sanitize_quality_skip_decisions({"RDBULL": "invalid", "RDBEAR": {"metrics": "invalid"}})
 
 
-def test_quality_skip_yield_seconds_without_cadence_history():
-    orch = SimpleNamespace(config={"orchestrator": {"cycle_interval_seconds": 0}}, _last_cluster_cycle_end=0.0)
-    with patch(
-        "src.application.services.orchestrator.execution_quality_skip_yield.time.time",
-        return_value=1000.0,
-    ):
-        assert quality_skip_yield_seconds(orch) >= 0.0
-
-
-def test_quality_skip_yield_seconds_uses_cadence_remaining():
-    orch = SimpleNamespace(
-        config={"orchestrator": {"cycle_interval_seconds": 180}},
-        _last_cluster_cycle_end=950.0,
-    )
-    with patch(
-        "src.application.services.orchestrator.execution_quality_skip_yield.time.time",
-        return_value=1000.0,
-    ):
-        delay = quality_skip_yield_seconds(orch)
-    assert delay == pytest.approx(130.0)
-
-
 @pytest.mark.asyncio
-async def test_await_quality_skip_yield_skips_sleep_when_delay_zero():
+async def test_await_quality_skip_yield_is_noop():
     orch = SimpleNamespace(config={"orchestrator": {}}, _last_cluster_cycle_end=0.0)
-    with (
-        patch(
-            "src.application.services.orchestrator.execution_quality_skip_yield.quality_skip_yield_seconds",
-            return_value=0.0,
-        ),
-        patch(
-            "src.application.services.orchestrator.execution_quality_skip_yield.asyncio.sleep",
-            new_callable=AsyncMock,
-        ) as sleep_mock,
-    ):
-        delay = await await_quality_skip_yield(orch)
+    delay = await await_quality_skip_yield(orch)
     assert delay == 0.0
-    sleep_mock.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_await_quality_skip_yield_sleeps_when_delay_positive():
-    orch = SimpleNamespace(config={"orchestrator": {"cycle_interval_seconds": 180}}, _last_cluster_cycle_end=0.0)
-    with (
-        patch(
-            "src.application.services.orchestrator.execution_quality_skip_yield.quality_skip_yield_seconds",
-            return_value=0.25,
-        ),
-        patch(
-            "src.application.services.orchestrator.execution_quality_skip_yield.asyncio.sleep",
-            new_callable=AsyncMock,
-        ) as sleep_mock,
-    ):
-        delay = await await_quality_skip_yield(orch)
-    assert delay == 0.25
-    sleep_mock.assert_awaited_once_with(0.25)
-
-
-@pytest.mark.asyncio
-async def test_trading_cycle_skips_execution_on_quality_gate_without_abort_spam(orch_ready):
+async def test_trading_cycle_skips_execution_on_quality_gate_without_yield(orch_ready):
     orch = orch_ready
     orch._last_cluster_cycle_end = 0.0
     orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 0
@@ -148,7 +80,6 @@ async def test_trading_cycle_skips_execution_on_quality_gate_without_abort_spam(
                 "calibrated_prob": 0.61,
                 "predicted_payoff_edge": 0.01,
                 "meta_payoff_edge_zscore": 0.10,
-                "edge_expectancy": "NO_EDGE_NEUTRAL",
                 "deploy_ok": True,
             },
         },

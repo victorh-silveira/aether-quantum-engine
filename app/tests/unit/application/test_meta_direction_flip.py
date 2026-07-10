@@ -203,7 +203,7 @@ def test_chop_congestion_inactive_without_persistence_filter():
     assert chop_congestion_regime_active(metrics, persistence_filter_active=False) is False
 
 
-def test_resolver_blocks_repeat_call_after_two_bull_call_losses():
+def test_resolver_keeps_call_after_two_bull_call_losses():
     record_direction_outcome("RDBULL", "CALL", won=False)
     record_direction_outcome("RDBULL", "CALL", won=False)
     entry = {
@@ -232,10 +232,11 @@ def test_resolver_blocks_repeat_call_after_two_bull_call_losses():
         peer_entry=peer,
         cycle_id=8,
     )
-    assert result is None
+    assert result is not None
+    assert result[0] == TradeDirection.CALL
 
 
-def test_resolver_flips_bear_put_after_bull_call_streak(caplog):
+def test_resolver_keeps_bear_put_after_bull_call_streak():
     record_direction_outcome("RDBULL", "CALL", won=False)
     record_direction_outcome("RDBULL", "CALL", won=False)
     bull = {
@@ -260,18 +261,16 @@ def test_resolver_flips_bear_put_after_bull_call_streak(caplog):
             "cross_symbol_features": {"cross_symbol_prob_delta": 0.08},
         },
     }
-    with caplog.at_level("INFO", logger="AETH"):
-        result = resolve_execution_direction(
-            bear,
-            symbol="RDBEAR",
-            peer_entry=bull,
-            cycle_id=9,
-        )
+    result = resolve_execution_direction(
+        bear,
+        symbol="RDBEAR",
+        peer_entry=bull,
+        cycle_id=9,
+    )
     assert result is not None
     direction, metrics = result
     assert direction == TradeDirection.PUT
-    assert metrics["anti_trend_lock_flip"] is True
-    assert any("REGIME_GUARD" in record.message and "FLIP to PUT" in record.message for record in caplog.records)
+    assert metrics.get("anti_trend_lock_flip") is not True
 
 
 def test_regime_freeze_skips_cycle_on_chop_congestion():

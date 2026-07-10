@@ -3,7 +3,6 @@ from unittest.mock import MagicMock
 
 from src.application.services.execution_direction_resolver import resolve_execution_direction
 from src.application.services.execution_mandatory_pick import (
-    _recovery_hedge_pick,
     pick_best_mandatory_candidate,
 )
 from src.application.services.orchestrator.execution_collect import collect_cluster_orders
@@ -143,23 +142,6 @@ def test_pick_best_mandatory_skips_hedge_when_peer_blocked():
     )
     assert picked is not None
     assert picked[0] == "RDBULL"
-
-
-def test_recovery_hedge_pick_returns_forced_candidate():
-    decisions = {
-        "RDBULL": {
-            "direction": TradeDirection.CALL,
-            "metrics": {"raw_prob": 0.62, "trade_score": 0.62, "deploy_ok": True},
-        },
-    }
-    hedge = _recovery_hedge_pick(
-        decisions,
-        last_loss_symbol="RDBEAR",
-        last_loss_direction="CALL",
-        skip_symbols=frozenset(),
-    )
-    assert hedge is not None
-    assert hedge[0] == "RDBULL"
 
 
 def test_resolve_weak_without_ctx_keeps_dl_side():

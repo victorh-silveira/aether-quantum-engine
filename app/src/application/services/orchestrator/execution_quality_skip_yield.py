@@ -1,38 +1,14 @@
-"""Yield cooperativo apos rejeicao silenciosa do quality gate meta-regressor."""
+"""Compatibilidade de yield pos quality-skip sem reter o loop."""
 
 from __future__ import annotations
 
-import asyncio
-import time
 from typing import Any
-
-from src.application.services.orchestrator.orchestrator_data_signature import (
-    resolve_signature_boundary_seconds,
-    seconds_until_next_signature_boundary,
-)
-
-
-def _cycle_cadence_seconds(orch: Any) -> int:
-    """Intervalo alvo entre ciclos de decisao em segundos."""
-    config = getattr(orch, "config", {})
-    chunk = config.get("orchestrator") if isinstance(config, dict) else {}
-    if not isinstance(chunk, dict):
-        return 0
-    return int(chunk.get("cycle_interval_seconds") or 0)
 
 
 def quality_skip_yield_seconds(orch: Any) -> float:
-    """Calcula pausa ate a proxima fronteira temporal operacional."""
-    _ = resolve_signature_boundary_seconds(orch)
-    delay = seconds_until_next_signature_boundary(orch)
-    cadence = _cycle_cadence_seconds(orch)
-    if cadence > 0:
-        now = time.time()
-        last_end = float(getattr(orch, "_last_cluster_cycle_end", 0.0))
-        elapsed = now - last_end if last_end > 0.0 else 0.0
-        cadence_remaining = max(0.0, float(cadence) - elapsed)
-        delay = max(delay, cadence_remaining)
-    return delay
+    """Retorna zero: sem pausa apos rejeicao silenciosa do quality gate."""
+    _ = orch
+    return 0.0
 
 
 def sanitize_quality_skip_decisions(decisions: dict) -> None:
@@ -51,8 +27,6 @@ def sanitize_quality_skip_decisions(decisions: dict) -> None:
 
 
 async def await_quality_skip_yield(orch: Any) -> float:
-    """Cede o loop e aguarda a proxima janela temporal limpa."""
-    delay = quality_skip_yield_seconds(orch)
-    if delay > 0.0:
-        await asyncio.sleep(delay)
-    return delay
+    """Nao retém o loop apos quality skip."""
+    _ = orch
+    return 0.0

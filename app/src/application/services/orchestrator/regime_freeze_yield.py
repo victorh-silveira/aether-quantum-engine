@@ -1,18 +1,10 @@
-"""Yield temporal quando o regime FREEZE suspende o ciclo de execucao."""
+"""Compatibilidade de regime FREEZE sem reter o loop (ciclos continuos)."""
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any
 
 from src.application.services.meta_direction_flip import SIGNAL_SUSPENDED
-from src.application.services.orchestrator.orchestrator_data_signature import (
-    resolve_signature_boundary_seconds,
-    seconds_until_next_signature_boundary,
-)
-
-
-_REGIME_FREEZE_DEFAULT_YIELD_SECONDS = 15.0
 
 
 def _entry_signal_suspended(entry: object) -> bool:
@@ -65,35 +57,18 @@ def propagate_cluster_signal_suspended(decisions: dict) -> None:
 
 
 def cluster_collect_aborted(decisions: dict) -> bool:
-    """Propaga suspensao global e indica abort imediato da coleta do cluster."""
-    if not cluster_freeze_active(decisions):
-        return False
-    propagate_cluster_signal_suspended(decisions)
-    return True
+    """Nao aborta coleta do cluster: trades continuam mesmo com FREEZE."""
+    _ = decisions
+    return False
 
 
 def regime_freeze_yield_seconds(orch: Any) -> float:
-    """Calcula pausa ate a proxima fronteira temporal configurada."""
-    _ = resolve_signature_boundary_seconds(orch)
-    delay = seconds_until_next_signature_boundary(orch)
-    if delay > 0.05:
-        return delay
-    return float(resolve_signature_boundary_seconds(orch))
-
-
-async def _yield_freeze_delay(seconds: float) -> None:
-    """Aguarda yield temporal sem acesso ao StateManager ou locks de sessao."""
-    if seconds <= 0.0:
-        return
-    await asyncio.sleep(seconds)
+    """Retorna zero: sem pausa por regime FREEZE."""
+    _ = orch
+    return 0.0
 
 
 async def await_regime_freeze_yield(orch: Any, decisions: dict) -> float:
-    """Pausa o laço quando FREEZE suspende o ciclo, evitando hot loop."""
-    if not getattr(orch, "running", True):
-        return 0.0
-    if not decisions_signal_suspended(decisions):
-        return 0.0
-    delay = regime_freeze_yield_seconds(orch)
-    await _yield_freeze_delay(delay)
-    return delay
+    """Nao retém o loop por regime FREEZE."""
+    _ = (orch, decisions)
+    return 0.0

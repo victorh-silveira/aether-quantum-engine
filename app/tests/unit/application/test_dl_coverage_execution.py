@@ -22,7 +22,6 @@ from src.application.services.deep_learning.model import (
     load_model_checkpoint,
     save_model_checkpoint,
 )
-from src.application.services.execution_mandatory_pick import _recovery_hedge_pick
 from src.application.services.execution_market_rank import mandatory_pool_eligible, market_decision_score
 from src.application.services.execution_symbols_recovery import (
     inject_recovery_hedge_candidates,
@@ -74,27 +73,6 @@ def test_inject_recovery_hedge_missing_peer_entry():
         last_loss_direction="PUT",
     )
     assert out == candidates
-
-
-def test_recovery_hedge_pick_forced_recovery_path():
-    decisions = {
-        "RDBEAR": {
-            "direction": TradeDirection.PUT,
-            "metrics": {"deploy_ok": True, "raw_prob": 0.42},
-        },
-    }
-    with patch(
-        "src.application.services.execution_mandatory_pick.build_forced_direction_candidate",
-        return_value=None,
-    ):
-        picked = _recovery_hedge_pick(
-            decisions,
-            last_loss_symbol="RDBULL",
-            last_loss_direction="PUT",
-            skip_symbols=frozenset(),
-        )
-    assert picked is not None
-    assert picked[0] == "RDBEAR"
 
 
 def test_load_checkpoint_invalid_torchscript(tmp_path):

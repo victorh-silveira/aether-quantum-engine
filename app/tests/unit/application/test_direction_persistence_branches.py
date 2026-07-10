@@ -100,6 +100,30 @@ def test_guard_freeze_paths_for_failed_peer_flips():
     )
 
 
+def test_guard_blocks_repeat_bull_call_without_congestion_freeze():
+    record_direction_outcome("RDBULL", "CALL", won=False)
+    record_direction_outcome("RDBULL", "CALL", won=False)
+    metrics = {
+        "calibrated_prob": 0.70,
+        "edge_zscore": 0.55,
+        "flow_features": {"micro_tick_acceleration": 0.03},
+        "cross_symbol_features": {"cross_symbol_prob_delta": 0.08},
+    }
+    assert (
+        evaluate_direction_persistence_guard(
+            "RDBULL",
+            TradeDirection.CALL,
+            TradeDirection.CALL,
+            metrics,
+            entry={"metrics": metrics},
+            peer_entry={"metrics": {"calibrated_prob": 0.35}},
+            cycle_id=40,
+            infra_cfg=None,
+        )
+        is None
+    )
+
+
 def test_guard_congestion_freeze_on_peer_flip_attempt():
     record_direction_outcome("RDBULL", "CALL", won=False)
     record_direction_outcome("RDBULL", "CALL", won=False)

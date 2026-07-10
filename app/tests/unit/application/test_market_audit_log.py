@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from src.application.services.market_audit_log import (
     format_direction_audit_line,
     format_execution_audit_line,
+    format_indicators_audit_line,
     format_settlement_audit_line,
     pop_contract_audit,
     resolve_predicted_edge,
@@ -25,11 +26,40 @@ def test_format_direction_audit_line_with_flip():
 
 def test_format_execution_audit_line():
     line = format_execution_audit_line(1, "RDBULL", "CALL", 0.72, 0.14, z_edge=0.82)
-    assert line == "[C0001] EXEC_SEL | RDBULL | ord=CALL | TCN=0.72 | edge=0.1400 (Z=+0.82) | WIN_EXPECTED"
-    neutral_line = format_execution_audit_line(2, "RDBEAR", "PUT", 0.41, 1.28, z_edge=0.12)
-    assert "NO_EDGE_NEUTRAL" in neutral_line
-    loss_line = format_execution_audit_line(3, "RDBEAR", "PUT", 0.41, -0.05, z_edge=-0.20)
-    assert "LOSS_EXPECTED" in loss_line
+    assert line == "[C0001] EXEC_SEL | RDBULL | ord=CALL | TCN=0.72 | edge=0.1400 | Z=+0.82"
+
+
+def test_format_indicators_audit_line_ignores_none_values():
+    metrics = {"indicators": {"rsi": None, "hurst": 0.61}, "raw_prob": 0.32}
+    line = format_indicators_audit_line(5, "RDBULL", metrics)
+    assert "hurst=0.6100" in line
+    assert "rsi=" not in line
+
+
+def test_format_indicators_audit_line():
+    metrics = {
+        "indicators": {"rsi": 55.2, "hurst": 0.61},
+        "raw_prob": 0.32,
+        "calibrated_prob": 0.32,
+        "dl_direction": "PUT",
+        "exec_direction": "PUT",
+    }
+    line = format_indicators_audit_line(4, "RDBEAR", metrics)
+    assert "[C0004] IND | RDBEAR |" in line
+    assert "rsi=55.2000" in line
+    assert "dl=PUT" in line
+
+
+def test_format_indicators_audit_line_skips_invalid_values():
+    metrics = {
+        "indicators": {"rsi": "bad", "hurst": 0.61},
+        "raw_prob": 0.32,
+        "dl_direction": "PUT",
+        "exec_direction": "PUT",
+    }
+    line = format_indicators_audit_line(4, "RDBEAR", metrics)
+    assert "hurst=0.6100" in line
+    assert "rsi=" not in line
 
 
 def test_resolve_predicted_edge_prefers_payoff_key():

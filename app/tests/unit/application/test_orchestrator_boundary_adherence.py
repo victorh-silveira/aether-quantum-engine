@@ -104,16 +104,11 @@ def test_cycle_cadence_elapsed_false_when_cadence_disabled(orch_ready):
     assert _cycle_cadence_elapsed(orch) is False
 
 
-def test_quality_skip_yield_uses_signature_boundary_not_static_minute(orch_ready):
+def test_quality_skip_yield_always_zero(orch_ready):
     orch = orch_ready
     orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 180
     orch._last_cluster_cycle_end = 820.0
-    with patch(
-        "src.application.services.orchestrator.execution_quality_skip_yield.time.time",
-        return_value=1000.0,
-    ):
-        delay = quality_skip_yield_seconds(orch)
-    assert delay == pytest.approx(80.0)
+    assert quality_skip_yield_seconds(orch) == 0.0
 
 
 def test_resolve_signature_boundary_seconds_invalid_cadence_fallback(orch_ready):

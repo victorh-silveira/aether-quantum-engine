@@ -18,7 +18,7 @@ def test_log_parser_dir_sel():
 def test_log_parser_exec_sel():
     state = DashboardState()
     parser = LogParser(state)
-    line = "[C0001] EXEC_SEL | RDBULL | ord=CALL | TCN=0.72 | edge=0.1400 (Z=+0.82) | WIN_EXPECTED"
+    line = "[C0001] EXEC_SEL | RDBULL | ord=CALL | TCN=0.72 | edge=0.1400 | Z=+0.82"
     parser.process_line(line)
     assert state.last_telemetry["symbol"] == "RDBULL"
     assert state.last_telemetry["dir"] == "CALL"

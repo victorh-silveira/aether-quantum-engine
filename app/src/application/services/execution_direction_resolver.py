@@ -4,14 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.application.services.direction_persistence_guard import evaluate_direction_persistence_guard
 from src.application.services.execution_quality_gate import (
     direction_margin_from_probability,
     ensure_direction_margin,
     passes_execution_quality,
 )
-from src.application.services.meta_classifier_cross_symbol import ANCHOR_BEAR, ANCHOR_BULL
-from src.application.services.meta_classifier_features import cross_symbol_conviction_spread
 from src.application.services.meta_classifier_stacking import resolve_meta_payoff_edge
 from src.application.services.meta_direction_flip import SIGNAL_SUSPENDED
 from src.application.services.meta_payoff_regression import apply_meta_regression_edge
@@ -23,8 +20,6 @@ D_SQUEEZE_BB_WIDTH_ANOMALY_RATIO = 0.55
 
 
 _TECHNICAL_BLOCKS = frozenset({"data", "predict_error", "training"})
-TCN_CALL_THRESHOLD = 0.53
-TCN_PUT_THRESHOLD = 0.47
 
 
 def _direction_prob(entry: dict) -> float | None:
@@ -96,74 +91,6 @@ def _seed_direction_metrics(
     return score
 
 
-def _cross_prob_delta_mean(metrics: dict, infra_cfg: dict | None) -> float:
-    """Retorna media de treino do spread cross-symbol para validacao micro."""
-    stored = metrics.get("cross_symbol_prob_delta_mean")
-    if stored is not None:
-        return float(stored)
-    infra = (infra_cfg or {}).get("meta_classifier") or {}
-    manifest = infra.get("cross_symbol_prob_delta_mean")
-    if manifest is not None:
-        return float(manifest)
-    return 0.0
-
-
-def _read_tick_acceleration(metrics: dict) -> float:
-    """Le aceleracao de ticks micro anexada em flow_features."""
-    flow = metrics.get("flow_features")
-    if isinstance(flow, dict) and flow.get("micro_tick_acceleration") is not None:
-        return float(flow["micro_tick_acceleration"])
-    return 0.0
-
-
-def _call_micro_conviction_ok(metrics: dict, infra_cfg: dict | None) -> bool:
-    """Valida expansao de conviccao Bulls com aceleracao de ticks positiva."""
-    delta = cross_symbol_conviction_spread(metrics)
-    mean = _cross_prob_delta_mean(metrics, infra_cfg)
-    if delta <= mean + 1e-12:
-        return True
-    return _read_tick_acceleration(metrics) > 0.0
-
-
-def _put_bear_book_ok(metrics: dict) -> bool:
-    """Valida dominancia de volatilidade e volume micro do RDBEAR para PUT."""
-    cross = metrics.get("cross_symbol_features")
-    if not isinstance(cross, dict):
-        return True
-    vol_diff = float(cross.get("cross_symbol_vol_ratio_diff", 0.0))
-    micro = metrics.get("micro_indicators") if isinstance(metrics.get("micro_indicators"), dict) else {}
-    indicators = metrics.get("indicators") if isinstance(metrics.get("indicators"), dict) else {}
-    bear_iv = float(micro.get("implied_vol_ratio", indicators.get("implied_vol_ratio", 0.0)))
-    bear_vol = float(micro.get("vol_ratio", indicators.get("vol_ratio", 0.0)))
-    peer_vol = float(indicators.get("vol_ratio", 0.0))
-    return vol_diff <= 0.0 or bear_iv >= 1.0 or bear_vol + 1e-12 >= peer_vol
-
-
-def _strict_anchor_direction(
-    prob: float,
-    edge: float,
-    symbol: str | None,
-    *,
-    meta_applied: bool,
-    call_conviction_ok: bool,
-    put_book_ok: bool,
-) -> TradeDirection | None:
-    """Aplica regras rigidas CALL em RDBULL e PUT em RDBEAR com edge nao-negativo."""
-    if edge + 1e-12 < 0.0:
-        return None
-    call_floor = TCN_CALL_THRESHOLD if meta_applied else 0.5
-    put_ceiling = TCN_PUT_THRESHOLD if meta_applied else 0.5
-    if symbol == ANCHOR_BULL:
-        return TradeDirection.CALL if prob + 1e-12 >= call_floor and call_conviction_ok else None
-    if symbol == ANCHOR_BEAR:
-        return TradeDirection.PUT if prob - 1e-12 <= put_ceiling and put_book_ok else None
-    if prob + 1e-12 >= call_floor and call_conviction_ok:
-        return TradeDirection.CALL
-    if prob - 1e-12 <= put_ceiling and put_book_ok:
-        return TradeDirection.PUT
-    return None
-
-
 def _sync_entry_metrics(entry: dict, metrics: dict) -> None:
     """Propaga metricas resolvidas de volta ao entry de decisao."""
     entry_metrics = entry.get("metrics")
@@ -214,8 +141,8 @@ def resolve_execution_direction(
     cycle_id: int = 0,
     risk_manager: Any | None = None,
 ) -> tuple[TradeDirection, dict] | None:
-    """Resolve direcao micro com edge continuo do meta-regressor e downgrade D-SQUEEZE."""
-    _ = (calibration_cfg, recovery_active, corr_matrix)
+    """Resolve direcao micro fiel ao sinal TCN/DL com telemetria meta-regressor."""
+    _ = (calibration_cfg, recovery_active, corr_matrix, peer_entry, cycle_id)
     exec_cfg_dict = exec_cfg if isinstance(exec_cfg, dict) else {}
     dl_dir = infer_dl_direction(entry)
     if is_technically_blocked(entry) or dl_dir is None:
@@ -240,7 +167,7 @@ def resolve_execution_direction(
     gate_probe["meta_classifier_applied"] = bool(meta_applied)
     if _reject_on_quality_gate(entry, metrics, gate_probe, exec_cfg_dict, risk_manager=risk_manager):
         return None
-    exec_dir, final_score = apply_meta_regression_edge(
+    exec_dir, _final_score = apply_meta_regression_edge(
         dl_dir,
         metrics,
         predicted_edge,
@@ -249,37 +176,10 @@ def resolve_execution_direction(
         symbol=symbol,
     )
     attach_payoff_edge_zscore_metrics(metrics, float(metrics.get("predicted_payoff_edge", 0.0)))
-    if metrics.get("meta_squeeze_downgrade"):
-        metrics["tcn_score"] = prob
-        metrics["consensus_stake_floor"] = True
-        ensure_direction_margin(metrics)
-        return exec_dir, metrics
-    strict = _strict_anchor_direction(
-        prob,
-        float(metrics.get("predicted_payoff_edge", 0.0)),
-        symbol,
-        meta_applied=meta_applied,
-        call_conviction_ok=_call_micro_conviction_ok(metrics, infra_cfg),
-        put_book_ok=_put_bear_book_ok(metrics),
-    )
-    if strict is None:
-        return None
-    guarded = evaluate_direction_persistence_guard(
-        symbol,
-        dl_dir,
-        strict,
-        metrics,
-        entry=entry,
-        peer_entry=peer_entry,
-        cycle_id=cycle_id,
-        infra_cfg=infra_cfg,
-    )
-    if guarded is None:
-        _sync_entry_metrics(entry, metrics)
-        return None
-    metrics["exec_direction"] = guarded.name
-    metrics["resolved_direction"] = guarded.name
+    metrics["exec_direction"] = exec_dir.name
+    metrics["resolved_direction"] = exec_dir.name
+    metrics["direction_inverted"] = exec_dir != dl_dir
     metrics["tcn_score"] = prob
-    _ = final_score
     ensure_direction_margin(metrics)
-    return guarded, metrics
+    _sync_entry_metrics(entry, metrics)
+    return exec_dir, metrics

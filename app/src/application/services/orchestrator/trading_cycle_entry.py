@@ -22,7 +22,7 @@ from src.application.services.orchestrator.execution_quality_skip_yield import (
 )
 from src.application.services.orchestrator.orchestrator_atomic_state import orchestrator_atomic_state_context
 from src.application.services.orchestrator.orchestrator_state_restore import mark_bar_processed
-from src.application.services.orchestrator.regime_freeze_yield import await_regime_freeze_yield, cluster_collect_aborted
+from src.application.services.orchestrator.regime_freeze_yield import await_regime_freeze_yield
 from src.application.services.orchestrator.session_persistence_barrier import session_persistence_blocks_trading_cycle
 from src.application.services.orchestrator.settlement_queue_ops import process_redis_settlement_queue
 from src.application.services.orchestrator.trading_cycle_entry_guards import (
@@ -102,9 +102,7 @@ async def _execute_inference_cluster_cycle(orch: Any) -> None:
             == 0
         ):
             await refresh_correlation_cache(orch)
-        if cluster_collect_aborted(decisions):
-            post_lock_decisions = decisions
-        elif quality_conviction_suspends_cluster(orch, decisions):
+        if quality_conviction_suspends_cluster(orch, decisions):
             sanitize_quality_skip_decisions(decisions)
             post_lock_decisions = decisions
             record_quality_guard_cycle_skip(orch)

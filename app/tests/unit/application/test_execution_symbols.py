@@ -31,7 +31,7 @@ def test_pending_recovery_active():
     assert pending_recovery_active({ANCHOR: 100.0}) is True
 
 
-def test_select_best_execution_candidate_diversify_margin_picks_alt():
+def test_select_best_execution_candidate_picks_highest_score():
     candidates = [
         (ANCHOR, TradeDirection.PUT, {"trade_score": 0.80, "raw_prob": 0.80, "val_accuracy": 0.50, "execute": True}),
         (PAIR, TradeDirection.CALL, {"trade_score": 0.79, "raw_prob": 0.79, "val_accuracy": 0.48, "execute": True}),
@@ -42,7 +42,7 @@ def test_select_best_execution_candidate_diversify_margin_picks_alt():
         diversify_margin=0.05,
         recovery_active=False,
     )
-    assert best[0] == PAIR
+    assert best[0] == ANCHOR
 
 
 def test_candidate_execution_score_recovery_weights_val_accuracy():

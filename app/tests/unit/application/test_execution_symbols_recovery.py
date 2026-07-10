@@ -30,7 +30,7 @@ def test_inject_recovery_hedge_noop_without_loss_context():
     assert out == candidates
 
 
-def test_inject_recovery_hedge_adds_structural_peer():
+def test_inject_recovery_hedge_keeps_pool_without_structural_peer():
     candidates = [(PAIR, TradeDirection.CALL, {"execute": True})]
     out = inject_recovery_hedge_candidates(
         candidates,
@@ -49,8 +49,8 @@ def test_inject_recovery_hedge_adds_structural_peer():
         last_loss_symbol=PAIR,
         last_loss_direction="CALL",
     )
-    assert len(out) == 2
-    assert any(item[0] == ANCHOR and item[1] == TradeDirection.PUT for item in out)
+    assert out == candidates
+    assert len(out) == 1
 
 
 def test_has_recovery_direction_true_when_same_direction_present():

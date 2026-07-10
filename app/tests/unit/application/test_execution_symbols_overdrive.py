@@ -99,9 +99,10 @@ def test_overdrive_unblocks_cluster_skips_malformed_decision_entries(orch_ready)
                 "raw_prob": 0.31,
                 "trade_score": 0.70,
                 "exec_direction": "PUT",
-                "meta_payoff_edge_zscore": 0.02,
+                "meta_payoff_edge_zscore": 0.55,
                 "predicted_payoff_edge": 0.05,
                 "meta_classifier_applied": True,
+                "deploy_ok": True,
             }
         },
     }

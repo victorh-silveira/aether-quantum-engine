@@ -73,7 +73,6 @@ def test_passes_execution_quality_starvation_allows_margin_008_after_decay():
         "predicted_payoff_edge": 0.06,
         "meta_classifier_applied": True,
         "meta_payoff_edge_zscore": 0.55,
-        "edge_expectancy": "WIN_EXPECTED",
     }
     risk_manager = SimpleNamespace(
         consecutive_losses_linear=1,
@@ -100,7 +99,6 @@ def test_passes_execution_quality_keeps_flow_without_starvation():
         "predicted_payoff_edge": 0.06,
         "meta_classifier_applied": True,
         "meta_payoff_edge_zscore": 0.55,
-        "edge_expectancy": "WIN_EXPECTED",
     }
     risk_manager = SimpleNamespace(
         consecutive_losses_linear=1,
@@ -124,7 +122,6 @@ def test_quality_conviction_suspends_cluster_does_not_increment_skipped_counter(
                 "predicted_payoff_edge": 0.01,
                 "meta_classifier_applied": True,
                 "meta_payoff_edge_zscore": 0.10,
-                "edge_expectancy": "NO_EDGE_NEUTRAL",
                 "deploy_ok": True,
                 "direction": "CALL",
             }

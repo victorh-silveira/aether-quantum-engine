@@ -225,50 +225,49 @@ def test_neutral_edge_dynamic_unit_at_11k_bankroll():
 
 
 def test_neutral_regime_preserves_full_retention_without_zscore_penalty():
-    metrics = {"edge_expectancy": "NO_EDGE_NEUTRAL", "call_votes": 4, "put_votes": 2, "indicators": {}}
+    metrics = {"call_votes": 4, "put_votes": 2, "indicators": {}}
     retention = consensus_kelly_retention(metrics, "CALL", kelly_config=_CFG)
     assert retention == 1.0
     assert metrics.get("consensus_penalty_edge_zscore") is not True
 
 
 def test_apply_neutral_edge_kelly_base_raises_to_bankroll_pct():
-    metrics = {"edge_expectancy": "NO_EDGE_NEUTRAL"}
+    metrics = {}
     base = apply_neutral_edge_kelly_base(2.0, 11000.0, metrics)
     assert base == pytest.approx(16.50)
     assert metrics["session_base_unit"] == pytest.approx(16.50)
 
 
 def test_apply_neutral_edge_kelly_base_skips_when_kelly_already_higher():
-    metrics = {"edge_expectancy": "NO_EDGE_NEUTRAL"}
+    metrics = {}
     base = apply_neutral_edge_kelly_base(25.0, 11000.0, metrics)
     assert base == pytest.approx(25.0)
 
 
 def test_apply_neutral_edge_kelly_base_skips_on_d_squeeze():
-    metrics = {"edge_expectancy": "NO_EDGE_NEUTRAL", "meta_squeeze_downgrade": True}
+    metrics = {"meta_squeeze_downgrade": True}
     base = apply_neutral_edge_kelly_base(1.0, 11000.0, metrics)
     assert base == pytest.approx(1.0)
     assert "session_base_unit" not in metrics
 
 
 def test_turbo_edge_multiplier_doubles_on_extreme_zscore():
-    metrics = {"edge_expectancy": "WIN_EXPECTED", "edge_zscore": 1.6}
+    metrics = {"edge_zscore": 1.6}
     assert turbo_edge_stake_multiplier(metrics) == pytest.approx(2.0)
 
 
 def test_turbo_edge_multiplier_inactive_below_threshold():
-    metrics = {"edge_expectancy": "WIN_EXPECTED", "edge_zscore": 1.2}
+    metrics = {"edge_zscore": 1.2}
     assert turbo_edge_stake_multiplier(metrics) == 1.0
 
 
-def test_turbo_edge_multiplier_skips_neutral_regime():
-    metrics = {"edge_expectancy": "NO_EDGE_NEUTRAL", "edge_zscore": 2.0}
-    assert turbo_edge_stake_multiplier(metrics) == 1.0
+def test_turbo_edge_multiplier_active_without_expectancy_label():
+    metrics = {"edge_zscore": 2.0}
+    assert turbo_edge_stake_multiplier(metrics) == pytest.approx(2.0)
 
 
 def test_turbo_edge_multiplier_skips_d_squeeze():
     metrics = {
-        "edge_expectancy": "WIN_EXPECTED",
         "edge_zscore": 2.0,
         "consensus_stake_floor": True,
     }
@@ -276,14 +275,14 @@ def test_turbo_edge_multiplier_skips_d_squeeze():
 
 
 def test_apply_turbo_edge_stake_doubles_final_stake():
-    metrics = {"edge_expectancy": "WIN_EXPECTED", "edge_zscore": 1.8}
+    metrics = {"edge_zscore": 1.8}
     stake = apply_turbo_edge_stake(20.0, metrics)
     assert stake == pytest.approx(40.0)
     assert metrics.get("consensus_turbo_edge_active") is True
 
 
 def test_apply_turbo_edge_stake_returns_unchanged_without_turbo():
-    metrics = {"edge_expectancy": "WIN_EXPECTED", "edge_zscore": 0.9}
+    metrics = {"edge_zscore": 0.9}
     stake = apply_turbo_edge_stake(20.0, metrics)
     assert stake == pytest.approx(20.0)
     assert metrics.get("consensus_turbo_edge_active") is not True

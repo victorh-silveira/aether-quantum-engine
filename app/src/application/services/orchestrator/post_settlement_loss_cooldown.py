@@ -1,94 +1,63 @@
-"""Gate de inercia temporal pos-LOSS via barreira de timestamp nao-bloqueante."""
+"""Compatibilidade pos-LOSS sem barreira temporal (ciclos continuos)."""
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any
 
-from src.application.services.log_dedupe import LogDeduper
 from src.application.services.meta_direction_flip import SIGNAL_SUSPENDED
 
 
-POST_LOSS_COOLDOWN_BASE_SECONDS = 15.0
-POST_LOSS_COOLDOWN_GROWTH = 1.35
-POST_LOSS_COOLDOWN_LINEAR_MIN = 2
 COOLDOWN_CYCLE_SUSPENDED = SIGNAL_SUSPENDED
 
 
 def post_loss_cooldown_delay_seconds(linear_losses: int) -> float:
-    """Calcula atraso exponencial 15 * 1.35^n quando linear >= 2."""
-    linear = max(0, int(linear_losses))
-    if linear < POST_LOSS_COOLDOWN_LINEAR_MIN:
-        return 0.0
-    return POST_LOSS_COOLDOWN_BASE_SECONDS * (POST_LOSS_COOLDOWN_GROWTH**linear)
+    """Retorna zero: resfriamento pos-LOSS desativado."""
+    _ = linear_losses
+    return 0.0
 
 
 def post_loss_cooldown_active(last_outcome: str, linear_losses: int) -> bool:
-    """Indica se o portao de cooling-down deve ser aplicado."""
-    return str(last_outcome or "").upper() == "LOSS" and int(linear_losses) >= POST_LOSS_COOLDOWN_LINEAR_MIN
+    """Retorna False: resfriamento pos-LOSS desativado."""
+    _ = (last_outcome, linear_losses)
+    return False
 
 
 def orchestrator_cooldown_until(orch: Any) -> float:
-    """Retorna timestamp limite do resfriamento pos-LOSS no relogio do loop."""
-    return float(getattr(orch, "_cooldown_until", 0.0))
+    """Retorna zero: sem barreira temporal ativa."""
+    _ = orch
+    return 0.0
 
 
 def orchestrator_cooldown_active(orch: Any, *, now: float | None = None) -> bool:
-    """True enquanto o motor permanece dentro do periodo de resfriamento pos-LOSS."""
-    deadline = orchestrator_cooldown_until(orch)
-    if deadline <= 0.0:
-        return False
-    current = now if now is not None else asyncio.get_running_loop().time()
-    return current < deadline
+    """Retorna False: ciclos nunca suspensos por cooldown pos-LOSS."""
+    _ = (orch, now)
+    return False
 
 
 def orchestrator_cooldown_remaining(orch: Any, *, now: float | None = None) -> float:
-    """Segundos restantes de resfriamento pos-LOSS; zero quando inativo."""
-    deadline = orchestrator_cooldown_until(orch)
-    if deadline <= 0.0:
-        return 0.0
-    current = now if now is not None else asyncio.get_running_loop().time()
-    return max(0.0, deadline - current)
+    """Retorna zero: sem tempo restante de resfriamento."""
+    _ = (orch, now)
+    return 0.0
 
 
 def schedule_post_loss_cooldown(orch: Any) -> float:
-    """Registra barreira temporal pos-LOSS sem bloquear a corrotina."""
-    outcome = str(getattr(orch, "_last_settlement_outcome", "") or "")
-    linear = int(getattr(orch.risk_manager, "consecutive_losses_linear", 0))
-    if not post_loss_cooldown_active(outcome, linear):
-        return 0.0
-    delay = post_loss_cooldown_delay_seconds(linear)
-    if delay <= 0.0 or not orch.running:
-        return 0.0
-    loop = asyncio.get_running_loop()
-    orch._cooldown_until = loop.time() + delay
-    msg = f"CICLO: cooling-down {delay:.1f}s pos-LOSS linear={linear}"
-    LogDeduper(orch).log_cooldown_cooling_down(orch.logger, msg, delay, linear)
-    return delay
+    """Nao agenda resfriamento pos-LOSS."""
+    _ = orch
+    return 0.0
 
 
 def log_trading_cycle_cooldown_skip(orch: Any) -> None:
-    """Emite log deduplicado quando o ciclo e suspenso pela barreira pos-LOSS."""
-    deadline = orchestrator_cooldown_until(orch)
-    if deadline <= 0.0:
-        return
-    logged_until = float(getattr(orch, "_cooldown_skip_logged_until", 0.0))
-    if deadline <= logged_until:
-        return
-    orch._cooldown_skip_logged_until = deadline
-    remaining = orchestrator_cooldown_remaining(orch)
-    msg = f"CICLO: resfriamento pos-LOSS ativo ({remaining:.1f}s restantes); ciclo suspenso"
-    LogDeduper(orch).log_cooldown_skip(orch.logger, msg)
+    """Nao emite logs de resfriamento pos-LOSS."""
+    _ = orch
 
 
 def post_loss_cooldown_blocks_trading_cycle(orch: Any) -> bool:
-    """True quando o ciclo deve ser suspenso sem invocar resolver ou cluster."""
-    if not orchestrator_cooldown_active(orch):
-        return False
-    log_trading_cycle_cooldown_skip(orch)
-    return True
+    """Nunca bloqueia entrada de ciclo por cooldown pos-LOSS."""
+    _ = orch
+    return False
 
 
 async def await_post_loss_cooldown(orch: Any) -> float:
-    """Agenda barreira pos-LOSS sem reter o laço com sleep monolitico."""
-    return schedule_post_loss_cooldown(orch)
+    """Nao retém o loop apos liquidacao."""
+    _ = orch
+    return 0.0

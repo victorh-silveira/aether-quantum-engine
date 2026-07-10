@@ -17,10 +17,6 @@ HURST_TREND_FLOOR = 0.55
 ATR_TRANSITION_SCALE = 0.15
 BB_COMPRESSION_WIDTH = 0.12
 
-WIN_EXPECTED = "WIN_EXPECTED"
-NO_EDGE_NEUTRAL = "NO_EDGE_NEUTRAL"
-LOSS_EXPECTED = "LOSS_EXPECTED"
-
 _edge_buffer: deque[float] = deque(maxlen=EDGE_ZSCORE_WINDOW_MAX)
 
 
@@ -120,37 +116,20 @@ def compute_edge_zscore(
     return (float(edge) - mean) / (std + EDGE_ZSCORE_STD_EPS)
 
 
-def classify_edge_expectancy(edge: float, z_edge: float) -> str:
-    """Classifica expectativa de payoff com barreira estatistica movel."""
-    if float(edge) <= 0.0:
-        return LOSS_EXPECTED
-    if float(z_edge) + 1e-12 >= EDGE_ZSCORE_WIN_THRESHOLD:
-        return WIN_EXPECTED
-    return NO_EDGE_NEUTRAL
-
-
-def edge_zscore_neutral_regime_active(metrics: dict) -> bool:
-    """Indica regime NO_EDGE_NEUTRAL com base dinamica de 0.15% da banca."""
-    return str(metrics.get("edge_expectancy") or "") == NO_EDGE_NEUTRAL
-
-
-def apply_payoff_edge_zscore(edge: float, metrics: dict[str, Any] | None = None) -> tuple[float, str]:
-    """Registra edge no buffer, calcula Z-Score adaptativo e classifica expectativa."""
+def apply_payoff_edge_zscore(edge: float, metrics: dict[str, Any] | None = None) -> float:
+    """Registra edge no buffer e calcula Z-Score adaptativo."""
     value = float(edge)
     _edge_buffer.append(value)
     window = resolve_adaptive_edge_window(metrics)
     z_edge = compute_edge_zscore(value, metrics=metrics)
-    expectancy = classify_edge_expectancy(value, z_edge)
     if isinstance(metrics, dict):
         metrics["edge_zscore_window"] = int(window)
-    return z_edge, expectancy
+    return z_edge
 
 
-def attach_payoff_edge_zscore_metrics(metrics: dict, edge: float) -> tuple[float, str]:
+def attach_payoff_edge_zscore_metrics(metrics: dict, edge: float) -> float:
     """Anexa telemetria de Z-Score adaptativo nas metricas do ciclo."""
-    z_edge, expectancy = apply_payoff_edge_zscore(edge, metrics)
+    z_edge = apply_payoff_edge_zscore(edge, metrics)
     metrics["edge_zscore"] = float(z_edge)
-    metrics["edge_expectancy"] = str(expectancy)
-    metrics["edge_neutral_regime"] = bool(edge_zscore_neutral_regime_active(metrics))
     metrics["meta_payoff_edge_zscore"] = float(z_edge)
-    return z_edge, expectancy
+    return z_edge

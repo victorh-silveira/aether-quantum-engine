@@ -5,9 +5,6 @@ from src.application.services.execution_direction_cross_corr import cached_corre
 from src.application.services.execution_quality_gate import apply_quality_penalty_to_metrics
 from src.application.services.execution_volatility_booster import apply_volatility_vol_booster
 from src.application.services.orchestrator.execution_recovery_gate import cluster_entry_eligible
-from src.application.services.orchestrator.regime_freeze_yield import (
-    cluster_collect_aborted,
-)
 
 
 def _sync_entry_metrics(entry: dict, metrics: dict) -> None:
@@ -38,8 +35,6 @@ def gather_cluster_candidates(
 ):
     """Coleta candidatos DL elegiveis; qualquer sinal valido participa do pool."""
     _ = (cid, kelly_cfg, consecutive_losses, recovery_skip_counter, session_drawdown)
-    if cluster_collect_aborted(decisions):
-        return []
     exec_cfg = exec_mgr.orch.config.get("orchestrator", {}).get("execution", {})
     calibration_cfg = exec_mgr.orch.config.get("deep_learning", {}).get("calibration")
     infra_cfg = exec_mgr.orch.config.get("infra", {})
@@ -72,8 +67,6 @@ def gather_cluster_candidates(
             risk_manager=getattr(exec_mgr.orch, "risk_manager", None),
         )
         if built is None:
-            if cluster_collect_aborted(decisions):
-                return []
             continue
         _, _, metrics = built
         apply_volatility_vol_booster(
@@ -88,6 +81,4 @@ def gather_cluster_candidates(
         )
         _sync_entry_metrics(entry, metrics)
         candidates.append(built)
-        if cluster_collect_aborted(decisions):
-            return []
     return candidates

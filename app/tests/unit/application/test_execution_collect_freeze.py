@@ -15,7 +15,6 @@ from tests.market_symbols import ANCHOR, PAIR
 from tests.unit.application.universal_regime_metrics import bear_put_metrics
 
 
-FREEZE_YIELD_MODULE = "src.application.services.orchestrator.regime_freeze_yield"
 TRADING_CYCLE_MODULE = "src.application.services.orchestrator.trading_cycle_entry"
 
 
@@ -40,7 +39,7 @@ def _frozen_decisions():
     }
 
 
-def test_gather_cluster_freeze_on_anchor_aborts_entire_cluster():
+def test_gather_cluster_continues_when_anchor_frozen():
     orch = SimpleNamespace(
         anchor=ANCHOR,
         symbols=[ANCHOR, PAIR],
@@ -81,11 +80,11 @@ def test_gather_cluster_freeze_on_anchor_aborts_entire_cluster():
         min_signal=0.45,
         min_val=0.0,
     )
-    assert candidates == []
-    assert decisions[PAIR]["metrics"]["signal_status"] == SIGNAL_SUSPENDED
+    assert len(candidates) >= 1
+    assert any(item[0] == PAIR for item in candidates)
 
 
-def test_collect_cluster_orders_aborts_pair_when_freeze_on_one_symbol():
+def test_collect_cluster_orders_continues_when_one_symbol_frozen():
     orch = SimpleNamespace(
         anchor=ANCHOR,
         symbols=[ANCHOR, PAIR],
@@ -99,6 +98,7 @@ def test_collect_cluster_orders_aborts_pair_when_freeze_on_one_symbol():
             last_loss_symbol=None,
             last_loss_direction=None,
             consecutive_losses=0,
+            consecutive_losses_linear=0,
             kelly_config={},
             proposal_skip_symbols=frozenset,
         ),
@@ -132,12 +132,11 @@ def test_collect_cluster_orders_aborts_pair_when_freeze_on_one_symbol():
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
-    assert orders == []
-    assert decisions[ANCHOR]["metrics"]["signal_status"] == SIGNAL_SUSPENDED
-    assert decisions[PAIR]["metrics"]["signal_status"] == SIGNAL_SUSPENDED
+    assert len(orders) == 1
+    assert orders[0][0] == PAIR
 
 
-def test_gather_aborts_when_freeze_set_after_first_symbol_built(monkeypatch):
+def test_gather_continues_when_freeze_set_after_first_symbol_built(monkeypatch):
     orch = SimpleNamespace(
         anchor=ANCHOR,
         symbols=[ANCHOR, PAIR],
@@ -184,9 +183,8 @@ def test_gather_aborts_when_freeze_set_after_first_symbol_built(monkeypatch):
         min_signal=0.45,
         min_val=0.0,
     )
-    assert candidates == []
-    assert decisions[PAIR]["metrics"]["signal_status"] == SIGNAL_SUSPENDED
-    assert decisions[ANCHOR]["metrics"]["signal_status"] == SIGNAL_SUSPENDED
+    assert len(candidates) == 1
+    assert candidates[0][0] == PAIR
 
 
 def test_sync_entry_metrics_creates_metrics_when_missing():
@@ -196,7 +194,7 @@ def test_sync_entry_metrics_creates_metrics_when_missing():
     assert entry["metrics"]["signal_status"] == SIGNAL_SUSPENDED
 
 
-def test_gather_aborts_after_candidate_when_freeze_propagates_mid_loop(monkeypatch):
+def test_gather_keeps_candidate_when_freeze_metadata_present(monkeypatch):
     orch = SimpleNamespace(
         anchor=ANCHOR,
         symbols=[PAIR],
@@ -238,12 +236,12 @@ def test_gather_aborts_after_candidate_when_freeze_propagates_mid_loop(monkeypat
         min_signal=0.45,
         min_val=0.0,
     )
-    assert candidates == []
-    assert decisions[PAIR]["metrics"]["signal_status"] == SIGNAL_SUSPENDED
+    assert len(candidates) == 1
+    assert candidates[0][0] == PAIR
 
 
 @pytest.mark.asyncio
-async def test_run_trading_cycle_freeze_skips_execute_cluster(orch_ready):
+async def test_run_trading_cycle_executes_cluster_despite_signal_suspended(orch_ready):
     orch = orch_ready
     orch._last_epoch = 120
     orch._last_cluster_cycle_end = 0.0
@@ -259,8 +257,7 @@ async def test_run_trading_cycle_freeze_skips_execute_cluster(orch_ready):
         ),
         patch(f"{TRADING_CYCLE_MODULE}.mark_bar_processed", new_callable=AsyncMock),
         patch(f"{TRADING_CYCLE_MODULE}.refresh_correlation_cache", new_callable=AsyncMock),
-        patch(f"{FREEZE_YIELD_MODULE}._yield_freeze_delay", new_callable=AsyncMock),
     ):
         await run_trading_cycle_if_ready(orch)
 
-    orch.executor.execute_cluster.assert_not_called()
+    orch.executor.execute_cluster.assert_awaited_once()

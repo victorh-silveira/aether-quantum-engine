@@ -65,7 +65,8 @@ def select_best_execution_candidate(
     recovery_active: bool,
     skip_symbols: frozenset[str] | None = None,
 ) -> tuple[str, TradeDirection, dict] | None:
-    """Escolhe melhor candidato por score de mercado com diversificacao suave."""
+    """Escolhe melhor candidato por score de mercado."""
+    _ = diversify_margin
     pool = recovery_candidate_pool(
         candidates,
         last_loss_symbol=last_loss_symbol,
@@ -88,13 +89,7 @@ def select_best_execution_candidate(
         )
 
     ranked = sorted(pool, key=rank_key, reverse=True)
-    best = ranked[0]
-    if len(ranked) >= 2 and last_loss_symbol and best[0] == last_loss_symbol:
-        top_score = rank_key(best)
-        alt_score = rank_key(ranked[1])
-        if top_score - alt_score <= diversify_margin:
-            return ranked[1]
-    return best
+    return ranked[0]
 
 
 def select_mandatory_execution_candidate(

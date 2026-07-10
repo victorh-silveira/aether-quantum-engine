@@ -42,7 +42,7 @@ _DIR_SEL_RE = re.compile(
     re.IGNORECASE,
 )
 _EXEC_SEL_RE = re.compile(
-    r"EXEC_SEL\s*\|\s*(?P<symbol>RDBEAR|RDBULL)\s*\|\s*ord=(?P<ord>CALL|PUT)\s*\|\s*TCN=(?P<tcn>[\d.]+)\s*\|\s*edge=(?P<edge>-?[\d.]+)\s*\(Z=(?P<z_edge>[+-]?[\d.]+)\)\s*\|\s*(?P<state>WIN_EXPECTED|NO_EDGE_NEUTRAL|LOSS_EXPECTED)",
+    r"EXEC_SEL\s*\|\s*(?P<symbol>RDBEAR|RDBULL)\s*\|\s*ord=(?P<ord>CALL|PUT)\s*\|\s*TCN=(?P<tcn>[\d.]+)\s*\|\s*edge=(?P<edge>-?[\d.]+)\s*\|\s*Z=(?P<z_edge>[+-]?[\d.]+)",
     re.IGNORECASE,
 )
 _SESSION_START_RE = re.compile(r"Alvo de [\d.]+%:\s*\$([\d,]+\.?\d*)", re.IGNORECASE)
@@ -101,7 +101,7 @@ class LogParser:
             self.state.last_telemetry["conv"] = f"{float(match.group('tcn')):.2f}"
             edge = float(match.group("edge"))
             z_edge = float(match.group("z_edge"))
-            self.state.last_telemetry["metrics"] = f"edge={edge:.4f} Z={z_edge:+.2f} {match.group('state')}"
+            self.state.last_telemetry["metrics"] = f"edge={edge:.4f} Z={z_edge:+.2f}"
         except Exception as exc:
             logger.error("Parser Error EXEC_SEL: %s", exc)
 

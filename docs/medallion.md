@@ -72,7 +72,7 @@ Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `
 | Classificação macro | TCN processa lookback de 12 h em M15; define direção (`dl_direction`) |
 | Stacking tabular | Meta-regressor LightGBM (M1) sobre vetor **39D** + probabilidade TCN; saída `predicted_payoff_edge` |
 | Z-Score de payoff | `payoff_edge_zscore`: janela adaptativa 15–45; classificação estatística do micro-edge |
-| Scoring de ranking | `market_decision_score = tcn × max(0.1, 1 + z)` — penaliza sinais `NO_EDGE_NEUTRAL` / `LOSS_EXPECTED` |
+| Scoring de ranking | `market_decision_score = tcn × max(0.1, 1 + z)` — prioriza Z-Score favorável sem rótulos categóricos |
 | Scoring direcional | TCN define `dl_direction`; edge `> 0` mantém score orgânico; edge `< -0.15` em squeeze rebaixa para `0.52` |
 | Margem direcional | `direction_margin = abs(P(lado_escolhido) − 0.50)`; CALL usa `calibrated_prob`; PUT usa `1 − prob` |
 | Gate de qualidade | Dual TCN (`passes_execution_quality`) + meta Z-Score (`evaluate_meta_payoff_quality`); suspensão cooperativa via `quality_conviction_suspends_cluster` |
@@ -116,7 +116,7 @@ Ordem lógica de uma entrada:
 6. **Stacking tabular** — `MetaClassifierClient` envia probabilidade TCN + vetor **39D** ao `aether-meta-classifier`; retorna `predicted_payoff_edge`.
 7. **Resolução direcional** — `execution_direction_resolver` + `meta_payoff_regression`: edge positivo preserva TCN; edge `< -0.15` em squeeze rebaixa `trade_score=0.52` (`[D-SQUEEZE]`); `ensure_direction_margin` expõe margem corrigida.
 8. **Gate de qualidade** — dual TCN (`passes_execution_quality`) + meta Z-Score (`evaluate_meta_payoff_quality`); suspensão cooperativa do cluster
-9. **Z-Score meta** — `attach_payoff_edge_zscore_metrics` classifica expectativa (`WIN_EXPECTED` se Z ≥ 0,50 e edge > 0).
+9. **Z-Score meta** — `attach_payoff_edge_zscore_metrics` anexa `meta_payoff_edge_zscore` / `edge_zscore` para ranking e gate.
 10. **Deploy** — `deploy_ok=false` bloqueia execução.
 11. **Seleção** — `market_decision_score` multiplicativo (TCN × fator Z-Score); redirect inter-símbolo quando âncora degradada.
 12. **Risco** — Kelly + Consensus Penalty; recovery financeiro persistente; Martingale Geométrico `Kelly_base × 2^n`; stop win por sessão ativa (2,60% composto).
@@ -161,13 +161,13 @@ market_decision_score ≈ tcn_score × zscore_rank_factor(meta_payoff_edge_zscor
 | Par forte validado | 0,68 | +1,20 | Score ampliado (~2,2 × TCN base) |
 | Resultado esperado | — | — | Par forte ranqueia acima mesmo com TCN menor |
 
-Classificação do buffer (`payoff_edge_zscore.py`):
+Telemetria de direção por ciclo:
 
-| Classe | Condição |
-|--------|----------|
-| `WIN_EXPECTED` | `edge > 0` e `z ≥ 0,50` |
-| `NO_EDGE_NEUTRAL` | `edge > 0` e `z < 0,50` |
-| `LOSS_EXPECTED` | `edge ≤ 0` |
+| Linha | Conteúdo |
+|-------|----------|
+| `DIR_SEL` | Direção executada, símbolo, edge; `dl=... inv` apenas se houver inversão real |
+| `EXEC_SEL` | TCN, edge contínuo e Z-Score (`Z=±x.xx`) — sem rótulo de expectativa |
+| `IND` | Snapshot de indicadores (RSI, Hurst, ATR, BB, MACD, etc.) + `raw_prob`, `calibrated_prob`, `direction_margin` |
 
 O buffer histórico **não** avança durante recovery ou com `linear_losses > 0`, evitando contaminação estatística em Martingale.
 

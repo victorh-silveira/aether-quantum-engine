@@ -58,7 +58,7 @@ def test_collect_cluster_orders_recovery_picks_dl_put_after_call_loss():
     assert orders[0][1] == TradeDirection.PUT
 
 
-def test_collect_cluster_orders_recovery_flips_r100_put_after_call_loss():
+def test_collect_cluster_orders_recovery_keeps_dl_direction_after_call_loss():
     orch = SimpleNamespace(
         anchor="RDBULL",
         symbols=["RDBULL"],
@@ -78,8 +78,10 @@ def test_collect_cluster_orders_recovery_flips_r100_put_after_call_loss():
             last_loss_symbol="RDBULL",
             last_loss_direction="CALL",
             consecutive_losses=1,
+            consecutive_losses_linear=1,
             recovery_symbol_loss_streak={},
             symbol_loss_cooldown={},
+            proposal_skip_symbols=frozenset,
         ),
         _active_cycle_id=4,
     )
@@ -98,8 +100,8 @@ def test_collect_cluster_orders_recovery_flips_r100_put_after_call_loss():
     orders = collect_cluster_orders(exec_mgr, decisions)
     assert len(orders) == 1
     assert orders[0][0] == "RDBULL"
-    assert orders[0][1] == TradeDirection.PUT
-    assert orders[0][2].get("direction_inverted") is True
+    assert orders[0][1] == TradeDirection.CALL
+    assert orders[0][2].get("direction_inverted") is not True
 
 
 def test_collect_cluster_orders_recovery_bolts_weak_signal():

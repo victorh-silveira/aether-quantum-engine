@@ -132,7 +132,7 @@ Logs em `logs/engine.log` (formato `AetherFormatter`):
 - `SESSAO INICIADA | Alvo de 2,60%: $XX.XX | Stop Loss: DESATIVADO` — bootstrap de meta por sessão ativa
 - `TRITON_TIMEOUT_FALLBACK`, `WATCHDOG: STALE_DATA` — resiliência de inferência e ingestão
 - `[AETHER] STOP_WIN` — meta atingida; purge Redis; encerramento CRITICAL
-- `meta_payoff_edge_zscore` / `edge_expectancy` — classificação estatística do edge LightGBM no ranking
+- `meta_payoff_edge_zscore` / `edge_zscore` — Z-Score estatístico do edge LightGBM no ranking
 - `[AETHER] EXECUTION_FLOW` — telemetria de fluxo mandatário contínuo (substitui semântica legada `QUALITY_GUARD`)
 - `CICLO: cooling-down` — único log de cooldown pós-LOSS no agendamento; silêncio absoluto durante o timer
 - `DATA_SIG: cache invalidado` — assinatura M1+M15 mudou; inferência reinicializada

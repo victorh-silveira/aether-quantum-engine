@@ -85,56 +85,12 @@ def _frozen_decisions():
 
 
 @pytest.mark.asyncio
-async def test_run_trading_cycle_freeze_yields_and_avoids_hot_loop(orch_ready):
-    orch = orch_ready
-    orch._last_epoch = 120
-    orch._last_cluster_cycle_end = 0.0
-    orch._dl_fast_cycle = False
-    orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 0
-    recorded: list[float] = []
-    lock_during_sleep: list[bool] = []
-
-    async def record_sleep(seconds: float) -> None:
-        recorded.append(seconds)
-        lock_during_sleep.append(orch.state_mgr._state_lock.locked())
-
-    with (
-        patch(
-            f"{TRADING_CYCLE_MODULE}.collect_deep_learning_decisions",
-            new_callable=AsyncMock,
-            return_value=_frozen_decisions(),
-        ),
-        patch(f"{TRADING_CYCLE_MODULE}.mark_bar_processed", new_callable=AsyncMock),
-        patch(f"{TRADING_CYCLE_MODULE}.refresh_correlation_cache", new_callable=AsyncMock),
-        patch(f"{FREEZE_YIELD_MODULE}._yield_freeze_delay", side_effect=record_sleep),
-        patch(
-            "src.application.services.orchestrator.orchestrator_data_signature.time.time",
-            return_value=150.0,
-        ),
-    ):
-        expected_delay = regime_freeze_yield_seconds(orch)
-        first = await run_trading_cycle_if_ready(orch)
-        second = await run_trading_cycle_if_ready(orch)
-
-    assert first is True
-    assert second is False
-    assert len(recorded) == 1
-    assert recorded[0] == pytest.approx(expected_delay)
-    assert lock_during_sleep == [False]
-    assert not orch.state_mgr._state_lock.locked()
-
-
-@pytest.mark.asyncio
-async def test_run_trading_cycle_consecutive_freeze_releases_lock_before_sleep(orch_ready):
+async def test_run_trading_cycle_never_yields_on_signal_suspended(orch_ready):
     orch = orch_ready
     orch._last_epoch = 120
     orch._last_cluster_cycle_end = 0.0
     orch._dl_fast_cycle = True
     orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 0
-    lock_during_sleep: list[bool] = []
-
-    async def record_sleep(seconds: float) -> None:
-        lock_during_sleep.append(orch.state_mgr._state_lock.locked())
 
     with (
         patch(
@@ -144,14 +100,39 @@ async def test_run_trading_cycle_consecutive_freeze_releases_lock_before_sleep(o
         ),
         patch(f"{TRADING_CYCLE_MODULE}.mark_bar_processed", new_callable=AsyncMock),
         patch(f"{TRADING_CYCLE_MODULE}.refresh_correlation_cache", new_callable=AsyncMock),
-        patch(f"{FREEZE_YIELD_MODULE}._yield_freeze_delay", side_effect=record_sleep),
+        patch.object(orch.executor, "execute_cluster", new_callable=AsyncMock),
+    ):
+        assert regime_freeze_yield_seconds(orch) == 0.0
+        first = await run_trading_cycle_if_ready(orch)
+        orch._last_epoch = 121
+        second = await run_trading_cycle_if_ready(orch)
+
+    assert first is True
+    assert second is True
+
+
+@pytest.mark.asyncio
+async def test_run_trading_cycle_consecutive_freeze_never_sleeps(orch_ready):
+    orch = orch_ready
+    orch._last_epoch = 120
+    orch._last_cluster_cycle_end = 0.0
+    orch._dl_fast_cycle = True
+    orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 0
+
+    with (
+        patch(
+            f"{TRADING_CYCLE_MODULE}.collect_deep_learning_decisions",
+            new_callable=AsyncMock,
+            return_value=_frozen_decisions(),
+        ),
+        patch(f"{TRADING_CYCLE_MODULE}.mark_bar_processed", new_callable=AsyncMock),
+        patch(f"{TRADING_CYCLE_MODULE}.refresh_correlation_cache", new_callable=AsyncMock),
+        patch.object(orch.executor, "execute_cluster", new_callable=AsyncMock),
     ):
         await run_trading_cycle_if_ready(orch)
         orch._last_epoch = 121
         await run_trading_cycle_if_ready(orch)
 
-    assert len(lock_during_sleep) == 2
-    assert lock_during_sleep == [False, False]
     assert not orch.state_mgr._state_lock.locked()
 
 
@@ -163,9 +144,6 @@ async def test_run_trading_cycle_freeze_log_emitted_once_per_cycle_id(orch_ready
     orch._last_cluster_cycle_end = 0.0
     orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 0
 
-    async def noop_sleep(seconds: float) -> None:
-        _ = seconds
-
     with (
         patch(
             f"{TRADING_CYCLE_MODULE}.collect_deep_learning_decisions",
@@ -174,7 +152,6 @@ async def test_run_trading_cycle_freeze_log_emitted_once_per_cycle_id(orch_ready
         ),
         patch(f"{TRADING_CYCLE_MODULE}.mark_bar_processed", new_callable=AsyncMock),
         patch(f"{TRADING_CYCLE_MODULE}.refresh_correlation_cache", new_callable=AsyncMock),
-        patch(f"{FREEZE_YIELD_MODULE}._yield_freeze_delay", side_effect=noop_sleep),
         caplog.at_level("INFO", logger="AETH"),
     ):
         log_regime_guard(1, "FREEZE: SKIP CYCLE", 2)

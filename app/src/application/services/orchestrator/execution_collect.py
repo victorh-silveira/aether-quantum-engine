@@ -20,9 +20,6 @@ from src.application.services.orchestrator.execution_collect_helpers import (
     mandatory_fallback_if_empty as _mandatory_fallback_if_empty,
     resolve_mandatory_ultimate_candidate as _resolve_mandatory_ultimate_candidate,
 )
-from src.application.services.orchestrator.regime_freeze_yield import (
-    cluster_collect_aborted,
-)
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.recovery_hurst_decay import session_drawdown_from_profit
 from src.domain.risk.stake_sizing import enrich_metrics_conviction, raw_side_from_metrics
@@ -83,8 +80,6 @@ def _select_cluster_best(exec_mgr, candidates, *, mandatory, last_loss, last_los
 
 def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDirection, dict]]:
     """Seleciona uma ordem por ciclo em modo continuo obrigatorio."""
-    if cluster_collect_aborted(decisions):
-        return []
     mandatory = exec_mgr._mandatory_trade_each_cycle()
     recovery_active = pending_recovery_active(getattr(exec_mgr.orch.risk_manager, "pending_loss", {}))
     dl_cfg = exec_mgr.orch.config.get("deep_learning", {})

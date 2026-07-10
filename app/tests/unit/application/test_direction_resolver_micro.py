@@ -19,7 +19,7 @@ def _entry(*, direction=None, raw_prob=0.55, calibrated_prob=None, execute=True,
     return {"direction": direction, "metrics": metrics}
 
 
-def test_resolve_call_blocks_when_cross_delta_expanded_without_tick_accel():
+def test_resolve_call_keeps_dl_direction_without_tick_accel_gate():
     entry = _entry(direction=TradeDirection.CALL, calibrated_prob=0.70)
     entry["metrics"]["cross_symbol_features"] = {"cross_symbol_prob_delta": 0.20}
     result = resolve_execution_direction(
@@ -27,7 +27,8 @@ def test_resolve_call_blocks_when_cross_delta_expanded_without_tick_accel():
         infra_cfg={"meta_classifier": {"cross_symbol_prob_delta_mean": 0.10}},
         symbol="RDBULL",
     )
-    assert result is None
+    assert result is not None
+    assert result[0] == TradeDirection.CALL
 
 
 def test_resolve_without_symbol_generic_call_path():
@@ -37,7 +38,7 @@ def test_resolve_without_symbol_generic_call_path():
     assert result[0] == TradeDirection.CALL
 
 
-def test_resolve_without_symbol_returns_none_when_conviction_blocks_generic_call():
+def test_resolve_without_symbol_keeps_generic_call_path():
     entry = _entry(direction=TradeDirection.CALL, calibrated_prob=0.70)
     entry["metrics"]["cross_symbol_features"] = {"cross_symbol_prob_delta": 0.20}
     entry["metrics"]["flow_features"] = {"micro_tick_acceleration": -0.01}
@@ -45,13 +46,15 @@ def test_resolve_without_symbol_returns_none_when_conviction_blocks_generic_call
         entry,
         infra_cfg={"meta_classifier": {"cross_symbol_prob_delta_mean": 0.10}},
     )
-    assert result is None
+    assert result is not None
+    assert result[0] == TradeDirection.CALL
 
 
-def test_resolve_put_requires_bear_symbol():
+def test_resolve_put_on_bull_follows_dl_direction():
     entry = _entry(direction=TradeDirection.PUT, calibrated_prob=0.30)
     result = resolve_execution_direction(entry, symbol="RDBULL")
-    assert result is None
+    assert result is not None
+    assert result[0] == TradeDirection.PUT
 
 
 def test_resolve_put_on_bear_with_positive_edge():

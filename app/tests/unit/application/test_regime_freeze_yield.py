@@ -7,7 +7,6 @@ import pytest
 from src.application.services.meta_direction_flip import SIGNAL_SUSPENDED
 from src.application.services.orchestrator.regime_freeze_yield import (
     _entry_freeze_active,
-    _yield_freeze_delay,
     await_regime_freeze_yield,
     cluster_collect_aborted,
     cluster_freeze_active,
@@ -23,8 +22,6 @@ from src.application.services.orchestrator.warm_up_buffer_guard import (
 )
 
 
-SIGNATURE_MODULE = "src.application.services.orchestrator.orchestrator_data_signature"
-FREEZE_YIELD_MODULE = "src.application.services.orchestrator.regime_freeze_yield"
 TRADING_CYCLE_MODULE = "src.application.services.orchestrator.trading_cycle_entry"
 
 
@@ -59,68 +56,25 @@ def test_propagate_cluster_signal_suspended_marks_all_symbols():
     assert decisions["RDBEAR"]["metrics"]["signal_status"] == SIGNAL_SUSPENDED
 
 
-def test_cluster_collect_aborted_propagates_and_returns_true():
+def test_cluster_collect_aborted_never_aborts():
     decisions = {
         "RDBULL": {"metrics": {"regime_guard_action": "FREEZE: SKIP CYCLE"}},
         "RDBEAR": {"metrics": {"execute": True}},
     }
-    assert cluster_collect_aborted(decisions) is True
-    assert decisions["RDBEAR"]["metrics"]["signal_status"] == SIGNAL_SUSPENDED
-
-
-def test_cluster_collect_aborted_false_when_cluster_active():
-    decisions = {"RDBULL": {"metrics": {"execute": True, "trade_score": 0.80}}}
     assert cluster_collect_aborted(decisions) is False
 
 
-def test_cluster_freeze_active_false_for_invalid_decisions():
-    assert cluster_freeze_active({}) is False
-    assert cluster_freeze_active(None) is False
-
-
-def test_entry_freeze_active_handles_invalid_shapes():
-    assert _entry_freeze_active(None) is False
-    assert _entry_freeze_active({"metrics": "invalid"}) is False
-    assert _entry_freeze_active({"metrics": {"regime_guard_action": "FREEZE: SKIP CYCLE"}}) is True
-
-
-def test_propagate_cluster_signal_suspended_creates_missing_metrics():
-    decisions = {"RDBULL": {}, "RDBEAR": "invalid"}
-    propagate_cluster_signal_suspended(decisions)
-    assert decisions["RDBULL"]["metrics"]["signal_status"] == SIGNAL_SUSPENDED
-    propagate_cluster_signal_suspended(None)
-    assert decisions_signal_suspended("bad") is False
-    assert decisions_signal_suspended({"RDBULL": "bad"}) is False
-
-
-def test_regime_freeze_yield_seconds_uses_signature_boundary():
+def test_regime_freeze_yield_seconds_always_zero():
     orch = SimpleNamespace(config={"orchestrator": {"cycle_interval_seconds": 60}}, _last_epoch=120)
-    with patch(f"{SIGNATURE_MODULE}.time.time", return_value=150.0):
-        assert regime_freeze_yield_seconds(orch) == pytest.approx(30.0)
-
-
-def test_regime_freeze_yield_seconds_returns_boundary_when_delay_elapsed():
-    orch = SimpleNamespace(config={"orchestrator": {"cycle_interval_seconds": 60}}, _last_epoch=0)
-    with patch(f"{FREEZE_YIELD_MODULE}.seconds_until_next_signature_boundary", return_value=0.01):
-        assert regime_freeze_yield_seconds(orch) == pytest.approx(60.0)
+    assert regime_freeze_yield_seconds(orch) == 0.0
 
 
 @pytest.mark.asyncio
-async def test_await_regime_freeze_yield_sleeps_when_suspended():
+async def test_await_regime_freeze_yield_is_noop():
     orch = SimpleNamespace(running=True, config={"orchestrator": {"cycle_interval_seconds": 60}}, _last_epoch=0)
     decisions = {"RDBULL": {"metrics": {"signal_status": SIGNAL_SUSPENDED}}}
-    recorded: list[float] = []
-
-    async def record_sleep(seconds: float) -> None:
-        recorded.append(seconds)
-
-    with (
-        patch(f"{SIGNATURE_MODULE}.time.time", return_value=150.0),
-        patch(f"{FREEZE_YIELD_MODULE}._yield_freeze_delay", side_effect=record_sleep),
-    ):
-        delay = await await_regime_freeze_yield(orch, decisions)
-    assert delay == pytest.approx(30.0)
-    assert recorded == [pytest.approx(30.0)]
+    delay = await await_regime_freeze_yield(orch, decisions)
+    assert delay == 0.0
 
 
 @pytest.mark.asyncio
@@ -129,48 +83,39 @@ async def test_await_regime_freeze_yield_does_not_hold_state_lock(orch_ready):
     orch.running = True
     orch._last_epoch = 0
     decisions = {"RDBULL": {"metrics": {"signal_status": SIGNAL_SUSPENDED}}}
-    lock_during_yield: list[bool] = []
-
-    async def record_yield(seconds: float) -> None:
-        lock_during_yield.append(orch.state_mgr._state_lock.locked())
-
-    with patch(f"{FREEZE_YIELD_MODULE}._yield_freeze_delay", side_effect=record_yield):
-        await await_regime_freeze_yield(orch, decisions)
-    assert lock_during_yield == [False]
-
-
-@pytest.mark.asyncio
-async def test_yield_freeze_delay_skips_non_positive_delay():
-    with patch(f"{FREEZE_YIELD_MODULE}.asyncio.sleep", new_callable=AsyncMock) as sleep_mock:
-        await _yield_freeze_delay(0.0)
-    sleep_mock.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_yield_freeze_delay_awaits_positive_delay():
-    with patch(f"{FREEZE_YIELD_MODULE}.asyncio.sleep", new_callable=AsyncMock) as sleep_mock:
-        await _yield_freeze_delay(2.5)
-    sleep_mock.assert_awaited_once_with(2.5)
+    delay = await await_regime_freeze_yield(orch, decisions)
+    assert delay == 0.0
+    assert orch.state_mgr._state_lock.locked() is False
 
 
 @pytest.mark.asyncio
 async def test_await_regime_freeze_yield_skips_when_not_running():
     orch = SimpleNamespace(running=False, _last_epoch=0)
     decisions = {"RDBULL": {"metrics": {"signal_status": SIGNAL_SUSPENDED}}}
-    with patch(f"{FREEZE_YIELD_MODULE}._yield_freeze_delay", new_callable=AsyncMock) as sleep_mock:
-        delay = await await_regime_freeze_yield(orch, decisions)
+    delay = await await_regime_freeze_yield(orch, decisions)
     assert delay == 0.0
-    sleep_mock.assert_not_awaited()
 
 
 @pytest.mark.asyncio
 async def test_await_regime_freeze_yield_skips_without_suspension():
     orch = SimpleNamespace(running=True, _last_epoch=0)
     decisions = {"RDBULL": {"metrics": {"execute": True}}}
-    with patch(f"{FREEZE_YIELD_MODULE}._yield_freeze_delay", new_callable=AsyncMock) as sleep_mock:
-        delay = await await_regime_freeze_yield(orch, decisions)
+    delay = await await_regime_freeze_yield(orch, decisions)
     assert delay == 0.0
-    sleep_mock.assert_not_awaited()
+
+
+def test_entry_freeze_active_branches():
+    assert _entry_freeze_active("bad") is False
+    assert _entry_freeze_active({"metrics": {"signal_status": SIGNAL_SUSPENDED}}) is True
+    assert _entry_freeze_active({"metrics": "bad"}) is False
+
+
+def test_regime_freeze_helpers_handle_invalid_shapes():
+    propagate_cluster_signal_suspended(None)
+    propagate_cluster_signal_suspended({"RDBULL": "bad"})
+    assert decisions_signal_suspended("bad") is False
+    assert decisions_signal_suspended({"RDBULL": "bad"}) is False
+    assert cluster_freeze_active(None) is False
 
 
 @pytest.mark.asyncio
@@ -187,14 +132,12 @@ async def test_post_reconnect_warm_up_suspends_cycles_before_regime_freeze(orch_
             new_callable=AsyncMock,
             return_value={"RDBULL": {"metrics": {"signal_status": SIGNAL_SUSPENDED}}},
         ) as collect_mock,
-        patch(f"{FREEZE_YIELD_MODULE}._yield_freeze_delay", new_callable=AsyncMock) as freeze_sleep,
         patch(f"{TRADING_CYCLE_MODULE}.mark_bar_processed", new_callable=AsyncMock),
         patch.object(loop, "time", return_value=base + 20.0),
     ):
         ran = await run_trading_cycle_if_ready(orch)
     assert ran is True
     collect_mock.assert_not_awaited()
-    freeze_sleep.assert_not_awaited()
     assert stream_warm_up_active(orch, now=base + 20.0) is True
 
 

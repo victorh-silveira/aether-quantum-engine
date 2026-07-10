@@ -9,6 +9,7 @@ from src.application.services.execution_symbols_recovery import recovery_blocked
 from src.application.services.market_audit_log import (
     format_direction_audit_line,
     format_execution_audit_line,
+    format_indicators_audit_line,
     resolve_predicted_edge,
 )
 from src.application.services.orchestrator.execution_recovery_gate import (
@@ -284,7 +285,7 @@ def log_execution_decision(exec_mgr, cid: str, best: tuple, candidates: list, ef
             tcn_score,
             edge,
             z_edge=float(metrics.get("edge_zscore", 0.0)),
-            expectancy=str(metrics.get("edge_expectancy") or ""),
         )
     )
+    exec_mgr.logger.info(format_indicators_audit_line(cycle_id, str(best[0]), metrics))
     _ = (candidates, effective_signal)

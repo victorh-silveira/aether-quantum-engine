@@ -12,8 +12,6 @@ from src.domain.risk.super_concordance_kelly import is_unanimous_vote_alignment
 
 
 _REGIME_TACTICAL_INVERT = frozenset({"CLIMAX_EXHAUSTION", "COMPRESSION_TRAP"})
-_NO_EDGE_NEUTRAL = "NO_EDGE_NEUTRAL"
-_WIN_EXPECTED = "WIN_EXPECTED"
 _NEUTRAL_BANKROLL_PCT = 0.0015
 _TURBO_EDGE_ZSCORE_THRESHOLD = 1.5
 _TURBO_EDGE_STAKE_MULTIPLIER = 2.0
@@ -166,10 +164,8 @@ def apply_neutral_edge_kelly_base(kelly_base: float, bankroll: float, metrics: d
 
 
 def turbo_edge_stake_multiplier(metrics: dict | None) -> float:
-    """Super-alavancagem assimétrica quando WIN_EXPECTED com Z_Edge extremo."""
+    """Super-alavancagem assimétrica quando Z_Edge extremo."""
     if not isinstance(metrics, dict) or _squeeze_floor_active(metrics):
-        return 1.0
-    if str(metrics.get("edge_expectancy") or "") != _WIN_EXPECTED:
         return 1.0
     if float(metrics.get("edge_zscore", 0.0)) + 1e-12 >= _TURBO_EDGE_ZSCORE_THRESHOLD:
         return _TURBO_EDGE_STAKE_MULTIPLIER
