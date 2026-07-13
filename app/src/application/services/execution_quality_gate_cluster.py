@@ -17,6 +17,8 @@ from src.application.services.meta_direction_flip import SIGNAL_SUSPENDED
 from src.application.services.orchestrator.regime_freeze_yield import propagate_cluster_signal_suspended
 
 
+_MANDATORY_CONTINUOUS_REGIME = "mandatory_continuous"
+
 __all__ = ["log_quality_guard_suspension", "quality_conviction_suspends_cluster"]
 
 
@@ -31,6 +33,13 @@ def _minute_bucket(orch: Any) -> str:
 def _uses_meta_quality_gate(metrics: dict) -> bool:
     """Indica se o candidato deve ser avaliado pelo portao estatistico do meta-regressor."""
     return metrics.get("meta_payoff_edge_zscore") is not None or metrics.get("edge_zscore") is not None
+
+
+def _mandatory_trade_each_cycle(exec_cfg: dict | None) -> bool:
+    """Retorna se o motor opera em modo mandatario continuo."""
+    if not isinstance(exec_cfg, dict):
+        return True
+    return bool(exec_cfg.get("mandatory_trade_each_cycle", True))
 
 
 def _quality_guard_message(cycle_id: int, reason: str, *, linear: int, pending_loss: float) -> str:
@@ -75,16 +84,21 @@ def log_quality_guard_suspension(orch: Any, *, reason: str = "") -> None:
     )
 
 
+def _annotate_quality_failure(metrics: dict, *, mandatory: bool) -> None:
+    """Marca rejeicao de qualidade sem suspender sinal em modo mandatario."""
+    metrics["quality_guard_reject"] = True
+    if not mandatory:
+        metrics["signal_status"] = SIGNAL_SUSPENDED
+
+
 def quality_conviction_suspends_cluster(orch: Any, decisions: dict) -> bool:
     """Retorna True quando o cluster deve ser suspenso por falha no quality gate."""
     if not isinstance(decisions, dict):
         return False
     exec_cfg = getattr(orch, "config", {}).get("orchestrator", {}).get("execution", {})
+    exec_cfg = exec_cfg if isinstance(exec_cfg, dict) else {}
+    mandatory = _mandatory_trade_each_cycle(exec_cfg)
     risk_manager = getattr(orch, "risk_manager", None)
-    session_linear, pending_loss = read_risk_session_state(risk_manager)
-    mandatory = bool(exec_cfg.get("mandatory_trade_each_cycle", True) if isinstance(exec_cfg, dict) else True)
-    if mandatory and (float(pending_loss) > 0.0 or int(session_linear) > 0):
-        return False
     skipped_cycles = int(getattr(orch, "_quality_skipped_cycles_counter", 0) or 0)
     any_fail = False
     any_pass = False
@@ -102,7 +116,7 @@ def quality_conviction_suspends_cluster(orch: Any, decisions: dict) -> bool:
             meta_mode = True
             passed = evaluate_meta_payoff_quality(
                 metrics,
-                exec_cfg=exec_cfg if isinstance(exec_cfg, dict) else {},
+                exec_cfg=exec_cfg,
                 risk_manager=risk_manager,
                 skipped_cycles_counter=skipped_cycles,
                 orch=orch,
@@ -110,7 +124,7 @@ def quality_conviction_suspends_cluster(orch: Any, decisions: dict) -> bool:
         else:
             passed = passes_execution_quality(
                 metrics,
-                exec_cfg=exec_cfg if isinstance(exec_cfg, dict) else {},
+                exec_cfg=exec_cfg,
                 risk_manager=risk_manager,
                 skipped_cycles_counter=skipped_cycles,
                 orch=orch,
@@ -118,8 +132,7 @@ def quality_conviction_suspends_cluster(orch: Any, decisions: dict) -> bool:
         if passed:
             any_pass = True
             continue
-        metrics["signal_status"] = SIGNAL_SUSPENDED
-        metrics["quality_guard_reject"] = True
+        _annotate_quality_failure(metrics, mandatory=mandatory)
         any_fail = True
         reason = metrics.get("quality_gate_reason")
         if isinstance(reason, str) and reason and not suspend_reason:
@@ -128,7 +141,10 @@ def quality_conviction_suspends_cluster(orch: Any, decisions: dict) -> bool:
         return False
     if meta_mode and any_pass:
         return False
-    propagate_cluster_signal_suspended(decisions)
     orch._quality_guard_last_reason = suspend_reason
     log_quality_guard_suspension(orch, reason=suspend_reason)
+    if mandatory:
+        orch._last_quality_gate_regime = _MANDATORY_CONTINUOUS_REGIME
+        return False
+    propagate_cluster_signal_suspended(decisions)
     return True

@@ -371,6 +371,8 @@ Camada aplicada em `execution_collect_gather` (penalidades) e `execution_collect
 | Hurst N3+ | Streak ≥3 sem persistência | Pool vazio — bloqueia escalada D'Alembert |
 | Teto de stake linear | `linear >= 2` / `>= 3` | Cap 2,5% / 2,0% da banca |
 | Quality guard em recovery | `pending > 0` ou `linear > 0` + mandatory | Não suspende cluster; recovery deve fechar passivo |
+| Quality guard mandatário flat | `mandatory_trade_each_cycle` + sessão sem passivo | Telemetria `QUALITY_GUARD`; cluster executa via mandatory pick |
+| Cadência de ciclo | Tentativa concluída (trade ou telemetria) | `mark_cycle_attempt_complete` atualiza `_last_cluster_cycle_end` |
 | Reconexão WS | Queda de rede | `release_trading_cycle_after_reconnect` invalida assinatura/epoch e reduz warm-up com pendência |
 | Assinatura M1 | Quality skip sem execução | `commit_trading_cycle_data_signature` só após `execute_cluster`; permite retentativa no mesmo candle |
 
@@ -378,8 +380,10 @@ Configuração em `orchestrator.execution.loss_protection` e `risk_management.ke
 
 **Suspensão de cluster** (`quality_conviction_suspends_cluster`):
 
-- Modo TCN: qualquer falha sem aprovação paralela suspende o cluster.
-- Modo meta: suspende apenas se **todos** os candidatos elegíveis falharem (`meta_mode and any_pass` → continua).
+- Modo mandatário (`mandatory_trade_each_cycle: true`): nunca suspende; emite `QUALITY_GUARD` como telemetria e delega ao mandatory pick.
+- Modo não mandatário: suspende quando todos os candidatos elegíveis falham no quality gate.
+- Modo TCN (não mandatário): qualquer falha sem aprovação paralela suspende o cluster.
+- Modo meta (não mandatário): suspende apenas se **todos** os candidatos elegíveis falharem (`meta_mode and any_pass` → continua).
 - Logs TCN/Payoff: prefixo `[AETHER] QUALITY_GUARD |` via `execution_quality_gate_reason`.
 - Logs Meta Z-Score: prefixo `[AETHER] EXECUTION_FLOW |` via `format_quality_guard_reject_message`.
 

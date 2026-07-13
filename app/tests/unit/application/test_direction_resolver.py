@@ -80,7 +80,7 @@ def test_resolve_follows_dl_call_and_scores_calibrated_prob():
 
 
 def test_resolve_follows_dl_put_and_scores_complement():
-    entry = _entry(direction=TradeDirection.PUT, calibrated_prob=0.30)
+    entry = _entry(direction=TradeDirection.PUT, raw_prob=0.38, calibrated_prob=0.30)
     result = resolve_execution_direction(entry, symbol="RDBEAR")
     assert result is not None
     direction, metrics = result

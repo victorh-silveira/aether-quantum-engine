@@ -51,14 +51,14 @@ def test_resolve_without_symbol_keeps_generic_call_path():
 
 
 def test_resolve_put_on_bull_follows_dl_direction():
-    entry = _entry(direction=TradeDirection.PUT, calibrated_prob=0.30)
+    entry = _entry(direction=TradeDirection.PUT, raw_prob=0.38, calibrated_prob=0.30)
     result = resolve_execution_direction(entry, symbol="RDBULL")
     assert result is not None
     assert result[0] == TradeDirection.PUT
 
 
 def test_resolve_put_on_bear_with_positive_edge():
-    entry = _entry(direction=TradeDirection.PUT, calibrated_prob=0.30)
+    entry = _entry(direction=TradeDirection.PUT, raw_prob=0.38, calibrated_prob=0.30)
     entry["metrics"]["predicted_payoff_edge"] = 0.05
     entry["metrics"]["meta_classifier_applied"] = True
     entry["metrics"]["cross_symbol_features"] = {"cross_symbol_vol_ratio_diff": -0.1}
@@ -81,7 +81,7 @@ def test_resolve_c0015_positive_edge_keeps_organic_score_without_squeeze():
 
 
 def test_resolve_without_symbol_uses_generic_put_path():
-    entry = _entry(direction=TradeDirection.PUT, calibrated_prob=0.30)
+    entry = _entry(direction=TradeDirection.PUT, raw_prob=0.38, calibrated_prob=0.30)
     result = resolve_execution_direction(entry)
     assert result is not None
     assert result[0] == TradeDirection.PUT

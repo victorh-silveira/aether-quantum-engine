@@ -39,6 +39,22 @@ async def _yield_to_event_loop() -> None:
     await done
 
 
+async def successful_trading_cycle_mock(orch) -> bool:
+    """Simula ciclo concluido com cluster executado para testes pos-liquidacao."""
+    orch._last_cycle_cluster_executed = True
+    return True
+
+
+async def failed_trading_cycle_mock(_orch) -> bool:
+    """Simula tentativa de ciclo sem execucao de cluster."""
+    return False
+
+
+def patch_successful_trading_cycle(orch):
+    """Patch de _run_trading_cycle_if_ready com sucesso de cluster."""
+    return patch.object(orch, "_run_trading_cycle_if_ready", side_effect=lambda: successful_trading_cycle_mock(orch))
+
+
 async def instant_poll_delay(_seconds: float) -> None:
     await _yield_to_event_loop()
 

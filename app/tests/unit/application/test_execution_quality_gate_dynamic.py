@@ -87,7 +87,7 @@ def test_cluster_quality_gate_blocks_mandatory_fallback_ignores_non_dict_decisio
 
 
 @pytest.mark.asyncio
-async def test_trading_cycle_skips_execute_cluster_on_quality_reject(orch_ready, caplog):
+async def test_trading_cycle_executes_cluster_on_mandatory_quality_telemetry(orch_ready, caplog):
     orch = orch_ready
     orch.risk_manager.consecutive_losses_linear = 0
     orch.risk_manager.pending_loss_total = lambda: 0.0
@@ -119,16 +119,10 @@ async def test_trading_cycle_skips_execute_cluster_on_quality_reject(orch_ready,
             return_value=weak_decisions,
         ),
         patch(f"{TRADING_CYCLE_MODULE}.mark_bar_processed", new_callable=AsyncMock),
-        patch(f"{TRADING_CYCLE_MODULE}.await_quality_skip_yield", new_callable=AsyncMock) as quality_yield,
+        patch(f"{TRADING_CYCLE_MODULE}.await_quality_skip_yield", new_callable=AsyncMock),
         caplog.at_level("INFO", logger="AETH"),
     ):
         ran = await run_trading_cycle_if_ready(orch)
     assert ran is True
-    orch.executor.execute_cluster.assert_not_awaited()
-    quality_yield.assert_awaited_once()
-    guard_logs = [record for record in caplog.records if "EXECUTION_FLOW" in record.message]
-    assert guard_logs
-    assert "Meta Z-Score" in guard_logs[0].message
-    assert "<" in guard_logs[0].message
-    assert "min" in guard_logs[0].message
-    assert "linear=0" in guard_logs[0].message
+    orch.executor.execute_cluster.assert_awaited_once()
+    assert orch._last_cycle_cluster_executed is True

@@ -34,7 +34,14 @@ def _cycle_cadence_elapsed(orch: Any) -> bool:
     if cadence <= 0:
         return False
     last_end = float(getattr(orch, "_last_cluster_cycle_end", 0.0))
-    return last_end > 0.0 and (time.time() - last_end) >= cadence
+    if last_end <= 0.0:
+        return True
+    return (time.time() - last_end) >= cadence
+
+
+def mark_cycle_attempt_complete(orch: Any) -> None:
+    """Atualiza relogio de cadencia apos qualquer tentativa de ciclo concluida."""
+    orch._last_cluster_cycle_end = time.time()
 
 
 def _log_market_signature_invalidation(orch: Any, *, previous: str, current: str) -> None:

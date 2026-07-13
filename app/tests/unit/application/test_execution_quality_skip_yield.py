@@ -73,6 +73,7 @@ async def test_trading_cycle_skips_execution_on_quality_gate_without_yield(orch_
     orch = orch_ready
     orch._last_cluster_cycle_end = 0.0
     orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 0
+    orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = False
     weak_decisions = {
         "RDBULL": {
             "direction": "CALL",

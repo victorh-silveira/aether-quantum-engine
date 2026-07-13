@@ -19,6 +19,7 @@ from src.application.services.orchestrator.settlement_utils import (
 
 
 _POST_SETTLEMENT_INCOMPLETE_LIMIT = 2
+_MAX_POST_SETTLEMENT_CYCLE_ATTEMPTS = 32
 
 
 def _release_post_settlement_task(orch: Any, task: asyncio.Task) -> None:
@@ -125,16 +126,16 @@ def _record_post_settlement_incomplete(orch: Any) -> None:
 
 
 async def _attempt_post_settlement_trading_cycle(orch: Any, orch_cfg: dict) -> bool:
-    """Executa um ciclo pos-liquidacao; True quando concluido."""
-    orch._last_cluster_cycle_end = 0.0
+    """Executa um ciclo pos-liquidacao; True quando o cluster foi executado."""
     orch._dl_fast_cycle = True
     cycle_timeout = float(orch_cfg.get("post_settlement_cycle_timeout_seconds", 90.0))
     try:
         try:
-            return await asyncio.wait_for(
+            await asyncio.wait_for(
                 orch._run_trading_cycle_if_ready(),
                 timeout=cycle_timeout,
             )
+            return bool(getattr(orch, "_last_cycle_cluster_executed", False))
         except TimeoutError:
             orch.is_trading = False
             orch.logger.warning("CICLO: timeout pos-liquidacao (%.0fs); nova tentativa", cycle_timeout)
@@ -148,6 +149,7 @@ async def _run_post_settlement_retry_loop(orch: Any, orch_cfg: dict, poll: float
     trading_wait_limit = float(orch_cfg.get("post_settlement_is_trading_wait_seconds", 120.0))
     retry_limit = float(orch_cfg.get("post_settlement_cycle_retry_seconds", 120.0))
     retry_deadline = time.monotonic() + retry_limit
+    failed_attempts = 0
     while orch.running:
         if await _try_stop_win_fast_path(orch):
             return
@@ -166,9 +168,16 @@ async def _run_post_settlement_retry_loop(orch: Any, orch_cfg: dict, poll: float
         if await _attempt_post_settlement_trading_cycle(orch, orch_cfg):
             orch._post_settlement_incomplete_streak = 0
             return
+        failed_attempts += 1
+        if failed_attempts >= _MAX_POST_SETTLEMENT_CYCLE_ATTEMPTS:
+            _record_post_settlement_incomplete(orch)
+            failed_attempts = 0
+            if bool(getattr(orch, "_post_settlement_deadlock", False)):
+                return
         if time.monotonic() >= retry_deadline:
             retry_deadline = time.monotonic() + retry_limit
             _record_post_settlement_incomplete(orch)
+            failed_attempts = 0
             if bool(getattr(orch, "_post_settlement_deadlock", False)):
                 return
         await _poll_delay(poll)

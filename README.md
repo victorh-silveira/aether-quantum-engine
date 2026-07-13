@@ -116,7 +116,7 @@ Copie `cp .env.example .env` e preencha o PAT. Validação Deriv: `python app/sc
 - **Ranking TCN × Z-Score**: `market_decision_score = tcn × max(0.1, 1+z)` — LightGBM validado ranqueia acima de TCN bruto degradado.
 - **Gatilho D-SQUEEZE (`[D-SQUEEZE]`)**: quando `predicted_payoff_edge < -0.15` em compressão M1 (`bb_width < 0.06` ou `micro_tick_acceleration < 0`), o resolver rebaixa `trade_score` para **0.52**, comprimindo stake via consensus penalty até o piso de $1.00 da Deriv — sem inverter a direção da TCN.
 - **Recovery**: rotação de símbolo após loss linear; martingale com convicção mínima 0.64 e `val_accuracy` ≥ 0.62; reset de risco somente quando `pending_loss` zera.
-- **Loss protection**: filtro de convicção direcional e Hurst N1+ bloqueiam entradas degradadas; quality guard não suspende recovery obrigatório com passivo pendente.
+- **Loss protection**: filtro de conviccao direcional e Hurst N1+ bloqueiam entradas degradadas; quality guard em modo mandatorio nunca suspende o cluster.
 - **Reconexão**: `release_trading_cycle_after_reconnect` invalida assinatura/epoch e reduz warm-up micro para 5s quando há `pending_loss`; log `RECOV: ciclo liberado`.
 - **Assinatura M1**: gravada somente após cluster executado; quality skip não consome o candle.
 - **Watchdog de ingestão**: em modo contínuo, reconecta WebSocket se ticks pararem por >30 s (`watchdog_stale_tick_seconds`), persistindo snapshot de risco antes.

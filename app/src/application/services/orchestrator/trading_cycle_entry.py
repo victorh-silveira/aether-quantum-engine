@@ -29,6 +29,7 @@ from src.application.services.orchestrator.trading_cycle_entry_guards import (
     _stop_win_blocks_cycle,
     commit_trading_cycle_data_signature,
     cycle_cadence_seconds,
+    mark_cycle_attempt_complete,
     trading_cycle_entry_allowed,
 )
 from src.application.services.orchestrator.warm_up_buffer_guard import trading_cycle_warm_up_suspended
@@ -132,8 +133,10 @@ async def run_trading_cycle_if_ready(orch: Any) -> bool:
     await process_redis_settlement_queue(orch)
 
     if not trading_cycle_entry_allowed(orch) or not await acquire_trading_cycle_lock(orch):
+        orch._last_cycle_cluster_executed = False
         return False
     ran = False
+    cluster_executed = False
     try:
         if not orch.ws.is_running or not orch.stream.is_synchronized:
             orch.logger.debug("STRM: aguardando sincronia...")
@@ -159,4 +162,7 @@ async def run_trading_cycle_if_ready(orch: Any) -> bool:
         ran = True
     finally:
         orch.is_trading = False
+        if ran:
+            mark_cycle_attempt_complete(orch)
+        orch._last_cycle_cluster_executed = cluster_executed
     return ran

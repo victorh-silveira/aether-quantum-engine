@@ -118,6 +118,7 @@ async def test_run_post_settlement_enables_fast_dl_cycle(orch_ready):
 
     async def capture_fast_cycle():
         seen_fast.append(bool(getattr(orch, "_dl_fast_cycle", False)))
+        orch._last_cycle_cluster_executed = True
         return True
 
     with (

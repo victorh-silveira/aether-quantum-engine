@@ -11,7 +11,10 @@ from src.application.services.execution_quality_gate import (
 )
 from src.application.services.meta_classifier_stacking import resolve_meta_payoff_edge
 from src.application.services.meta_direction_flip import SIGNAL_SUSPENDED
-from src.application.services.meta_payoff_regression import apply_meta_regression_edge
+from src.application.services.meta_payoff_regression import (
+    apply_meta_regression_edge,
+    veto_calibration_neutral_drift,
+)
 from src.application.services.payoff_edge_zscore import attach_payoff_edge_zscore_metrics
 from src.domain.models.trade import TradeDirection
 
@@ -148,6 +151,9 @@ def resolve_execution_direction(
     if is_technically_blocked(entry) or dl_dir is None:
         return None
     metrics = dict(entry.get("metrics") or {})
+    if veto_calibration_neutral_drift(metrics):
+        _sync_entry_metrics(entry, metrics)
+        return None
     metrics["bb_width_anomaly_ratio"] = D_SQUEEZE_BB_WIDTH_ANOMALY_RATIO
     prob = _direction_prob(entry)
     if prob is None:

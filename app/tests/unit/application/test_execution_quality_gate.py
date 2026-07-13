@@ -218,6 +218,7 @@ def test_quality_conviction_suspends_cluster_skips_malformed_entries(orch_ready,
     orch._active_cycle_id = 2
     orch.risk_manager.consecutive_losses_linear = 0
     orch.risk_manager.pending_loss_total = lambda: 0.0
+    orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = False
     decisions = {
         "RDBULL": "invalid",
         "RDBEAR": {"metrics": "invalid"},

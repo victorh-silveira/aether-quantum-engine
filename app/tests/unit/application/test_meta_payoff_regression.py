@@ -118,5 +118,20 @@ def test_apply_meta_regression_edge_not_applied_uses_base_score():
     assert metrics.get("meta_squeeze_downgrade") is not True
 
 
+def test_apply_meta_regression_edge_vetoes_calibration_neutral_drift():
+    metrics = {"raw_prob": 0.43, "calibrated_prob": 0.54}
+    direction, score = apply_meta_regression_edge(
+        TradeDirection.PUT,
+        metrics,
+        0.12,
+        meta_applied=True,
+        base_score=0.54,
+    )
+    assert direction == TradeDirection.PUT
+    assert score == 0.0
+    assert metrics["gate_reason"] == "calibration_neutral_drift"
+    assert metrics["resolved_direction"] is None
+
+
 def test_meta_squeeze_trade_score_constant():
     assert pytest.approx(0.52) == META_SQUEEZE_TRADE_SCORE

@@ -24,6 +24,7 @@ Para arquitetura de código, ver [`arquitetura.md`](arquitetura.md).
 | Sem disjuntor de perda | Stop loss interno desativado; recovery geométrico sem teto de nível, stake ou drawdown |
 | Isolamento de estado | `asyncio.Lock` serializa inferência, liquidação e persistência; elimina race conditions pós-reset linear |
 | AntiTrendLock | Após 2 losses na mesma direção, flip cross-symbol ou congelamento de ciclo (`direction_persistence_guard` + `evaluate_anti_trend_lock`) |
+| Proteção de Fronteira Neutra | Calibrações que invertem o viés direcional macro do tensor sofrem veto automático de segurança (`calibration_neutral_drift`) |
 | Settlement resiliente | Fila Redis `settlement:queue:priority` preserva liquidações durante instabilidade do broker |
 
 ---
@@ -69,6 +70,7 @@ Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `
 | Camada | Comportamento |
 |--------|---------------|
 | Bloqueio técnico | `data`, `predict_error`, `training`, `deploy_ok=false` |
+| Proteção de fronteira neutra | `calibration_neutral_drift` quando `calibrated_prob` cruza o eixo 0.50 em relação a `raw_prob` |
 | Classificação macro | TCN processa lookback de 12 h em M15; define direção (`dl_direction`) |
 | Stacking tabular | Meta-regressor LightGBM (M1) sobre vetor **39D** + probabilidade TCN; saída `predicted_payoff_edge` |
 | Z-Score de payoff | `payoff_edge_zscore`: janela adaptativa 15–45; classificação estatística do micro-edge |
@@ -114,12 +116,13 @@ Ordem lógica de uma entrada:
 4. **Predição DL** — inferência Triton concorrente; `raw_prob`/`calibrated_prob` e indicadores calculados.
 5. **Bundle cross-symbol** — `prepare_meta_classifier_cross_symbol_bundle` coleta telemetria micro M1 em paralelo e anexa spreads cross-symbol.
 6. **Stacking tabular** — `MetaClassifierClient` envia probabilidade TCN + vetor **39D** ao `aether-meta-classifier`; retorna `predicted_payoff_edge`.
-7. **Resolução direcional** — `execution_direction_resolver` + `meta_payoff_regression`: edge positivo preserva TCN; edge `< -0.15` em squeeze rebaixa `trade_score=0.52` (`[D-SQUEEZE]`); `ensure_direction_margin` expõe margem corrigida.
-8. **Gate de qualidade** — dual TCN (`passes_execution_quality`) + meta Z-Score (`evaluate_meta_payoff_quality`); suspensão cooperativa do cluster
-9. **Z-Score meta** — `attach_payoff_edge_zscore_metrics` anexa `meta_payoff_edge_zscore` / `edge_zscore` para ranking e gate.
-10. **Deploy** — `deploy_ok=false` bloqueia execução.
-11. **Seleção** — `market_decision_score` multiplicativo (TCN × fator Z-Score); redirect inter-símbolo quando âncora degradada.
-12. **Risco** — Kelly + Consensus Penalty; recovery financeiro persistente; Martingale Geométrico `Kelly_base × 2^n`; stop win por sessão ativa (2,60% composto).
+7. **Proteção de fronteira neutra** — `veto_calibration_neutral_drift` invalida direção quando a calibração inverte o lado macro do tensor em relação a 0.50.
+8. **Resolução direcional** — `execution_direction_resolver` + `meta_payoff_regression`: edge positivo preserva TCN; edge `< -0.15` em squeeze rebaixa `trade_score=0.52` (`[D-SQUEEZE]`); `ensure_direction_margin` expõe margem corrigida.
+9. **Gate de qualidade** — dual TCN (`passes_execution_quality`) + meta Z-Score (`evaluate_meta_payoff_quality`); suspensão cooperativa do cluster
+10. **Z-Score meta** — `attach_payoff_edge_zscore_metrics` anexa `meta_payoff_edge_zscore` / `edge_zscore` para ranking e gate.
+11. **Deploy** — `deploy_ok=false` bloqueia execução.
+12. **Seleção** — `market_decision_score` multiplicativo (TCN × fator Z-Score); redirect inter-símbolo quando âncora degradada.
+13. **Risco** — Kelly + Consensus Penalty; recovery financeiro persistente; Martingale Geométrico `Kelly_base × 2^n`; stop win por sessão ativa (2,60% composto).
 
 Bloqueio absoluto para falhas técnicas (`data`, `predict_error`, `training`, `deploy_ok=false`) e reconciliação pendente. Não há vetos táticos autônomos de quality guard, cooldown pós-LOSS, blackout de broker ou Hurst em recovery.
 

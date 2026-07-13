@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 
 from src.application.services.execution_quality_gate_cluster import (
+    _mandatory_trade_each_cycle,
     log_quality_guard_suspension,
     quality_conviction_suspends_cluster,
 )
@@ -36,6 +37,7 @@ def test_quality_conviction_suspends_cluster_skips_malformed_entries(orch_ready,
     orch._active_cycle_id = 2
     orch.risk_manager.consecutive_losses_linear = 0
     orch.risk_manager.pending_loss_total = lambda: 0.0
+    orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = False
     decisions = {
         "RDBULL": "invalid",
         "RDBEAR": {"metrics": "invalid"},
@@ -45,6 +47,19 @@ def test_quality_conviction_suspends_cluster_skips_malformed_entries(orch_ready,
         assert quality_conviction_suspends_cluster(orch, decisions) is True
     guard_logs = [record for record in caplog.records if "EXECUTION_FLOW" in record.message]
     assert len(guard_logs) == 1
+
+
+def test_quality_conviction_mandatory_flat_logs_without_suspending(orch_ready, caplog):
+    orch = orch_ready
+    orch._active_cycle_id = 5
+    orch.risk_manager.consecutive_losses_linear = 0
+    orch.risk_manager.pending_loss_total = lambda: 0.0
+    decisions = {"RDBULL": {"metrics": {"calibrated_prob": 0.51, "deploy_ok": True}}}
+    with caplog.at_level("INFO", logger="AETH"):
+        assert quality_conviction_suspends_cluster(orch, decisions) is False
+    assert orch._last_quality_gate_regime == "mandatory_continuous"
+    guard_logs = [record for record in caplog.records if "QUALITY_GUARD" in record.message]
+    assert guard_logs
 
 
 def test_quality_conviction_suspends_cluster_keeps_decisions_unblocked_with_meta_pass(orch_ready):
@@ -111,6 +126,7 @@ def test_quality_conviction_suspends_cluster_suppresses_sub_minute_duplicate_log
     orch._broker_server_time_utc = datetime(2026, 7, 7, 23, 10, 1, tzinfo=UTC)
     orch.risk_manager.consecutive_losses_linear = 0
     orch.risk_manager.pending_loss_total = lambda: 0.0
+    orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = False
     decisions = {"RDBULL": {"metrics": _weak_edge_metrics()}}
     with caplog.at_level("INFO", logger="AETH"):
         assert quality_conviction_suspends_cluster(orch, decisions) is True
@@ -144,6 +160,11 @@ def test_quality_conviction_suspends_cluster_skips_deploy_blocked_entries(orch_r
     orch = orch_ready
     decisions = {"RDBULL": {"direction": "CALL", "metrics": {"deploy_ok": False, "calibrated_prob": 0.7}}}
     assert quality_conviction_suspends_cluster(orch, decisions) is False
+
+
+def test_mandatory_trade_each_cycle_defaults_when_exec_cfg_invalid():
+    assert _mandatory_trade_each_cycle(None) is True
+    assert _mandatory_trade_each_cycle("invalid") is True
 
 
 def test_log_quality_guard_suspension_uses_default_reason_when_missing(orch_ready, caplog):

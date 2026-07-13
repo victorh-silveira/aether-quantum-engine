@@ -32,6 +32,7 @@ from src.application.services.orchestrator.post_settlement_cycle import (
 )
 from src.application.services.orchestrator.settlement_backfill import reconcile_single_contract
 from src.application.services.orchestrator.trading_cycle_entry import run_trading_cycle_if_ready
+from src.application.services.orchestrator.trading_cycle_entry_guards import trading_cycle_entry_allowed
 from src.application.services.orchestrator.training_run import run_orchestrator_training
 from src.application.services.strategy.decision_mode import resolve_decision_mode
 from src.domain.risk.risk_manager import RiskManager
@@ -154,7 +155,7 @@ class Orchestrator:
             return  # pragma: no cover
         if post_settlement_cycle_pending(self):
             return
-        if self.stream.is_synchronized and (time.time() - self._last_cluster_cycle_end) >= cycle_iv:
+        if self.stream.is_synchronized and trading_cycle_entry_allowed(self):
             await self._run_trading_cycle_if_ready()
 
     def mark_cluster_cycle_complete(self) -> None:

@@ -85,7 +85,12 @@ async def test_attempt_post_settlement_trading_cycle_without_timeout_when_patien
     orch = orch_ready
     orch._last_quality_gate_regime = "meta_zscore_reject"
     orch_cfg = {"post_settlement_cycle_timeout_seconds": 0.01}
-    cycle_mock = AsyncMock(return_value=True)
+
+    async def cycle_success():
+        orch._last_cycle_cluster_executed = True
+        return True
+
+    cycle_mock = AsyncMock(side_effect=cycle_success)
     with patch.object(orch, "_run_trading_cycle_if_ready", cycle_mock):
         result = await _attempt_post_settlement_trading_cycle(orch, orch_cfg)
     cycle_mock.assert_awaited_once()
