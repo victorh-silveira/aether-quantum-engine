@@ -100,7 +100,13 @@ def _loss_protection_recovery_blocks(
         return True
     if recovery_active and linear >= 1:
         indicators = metrics.get("indicators") or {}
-        return float(indicators.get("hurst", 0.0)) + 1e-9 < recovery_min_hurst
+        micro = metrics.get("micro_indicators") or {}
+        raw_hurst = indicators.get("hurst")
+        if raw_hurst is None and isinstance(micro, dict):
+            raw_hurst = micro.get("hurst")
+        if raw_hurst is None:
+            return False
+        return float(raw_hurst) + 1e-9 < recovery_min_hurst
     return False
 
 
@@ -192,8 +198,6 @@ def filter_loss_protection_candidates(
     ]
     if filtered:
         return filtered
-    if recovery_active and int(consecutive_losses) >= 1:
-        return []
     return list(candidates)
 
 
@@ -233,6 +237,4 @@ def filter_recovery_hurst_candidates(
                 persistent.append(item)
         if persistent:
             return persistent
-    if int(consecutive_losses) >= 3:
-        return []
     return list(candidates)

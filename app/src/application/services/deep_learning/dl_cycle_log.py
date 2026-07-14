@@ -8,7 +8,7 @@ from src.application.services.deep_learning.dl_cycle_brief import (
 from src.application.services.deep_learning.dl_gating import resolve_edge
 from src.application.services.execution_direction_resolver import infer_dl_direction, is_technically_blocked
 from src.application.services.log_dedupe import log_info_if_changed
-from src.domain.risk.stake_sizing import raw_side_from_metrics
+from src.domain.risk.stake_sizing import metric_float, raw_side_from_metrics
 
 
 def _best_directional_signal(decisions: dict[str, dict]) -> tuple[str, float] | None:
@@ -21,7 +21,7 @@ def _best_directional_signal(decisions: dict[str, dict]) -> tuple[str, float] | 
             continue
         if infer_dl_direction(entry) is None:
             continue
-        score = float(metrics.get("trade_score", metrics.get("conviction", 0.0)))
+        score = metric_float(metrics, "trade_score", "conviction", default=0.0)
         raw_side = raw_side_from_metrics(metrics)
         effective = max(score, raw_side)
         if effective > best_score:
@@ -56,7 +56,7 @@ def build_dl_cycle_summary(
             skip_tokens.append(f"{symbol}:sem_dir")
             continue
         direction = entry.get("direction")
-        conv = float(metrics.get("trade_score", metrics.get("conviction", 0.0)))
+        conv = metric_float(metrics, "trade_score", "conviction", default=0.0)
         val_acc = float(metrics.get("val_accuracy", 0.0))
         raw = metrics.get("raw_prob")
         gap_s = ""

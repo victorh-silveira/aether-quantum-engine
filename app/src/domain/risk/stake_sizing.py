@@ -3,7 +3,22 @@
 import math
 from typing import Any
 
-from src.domain.risk.stop_win_target import resolve_stop_win_target
+from src.domain.risk.stop_win_target import resolve_max_stake_pct, resolve_stop_win_target
+
+
+def metric_float(metrics: dict | None, *keys: str, default: float = 0.0) -> float:
+    """Le float da primeira chave numerica valida em metrics, ignorando None."""
+    if not isinstance(metrics, dict):
+        return float(default)
+    for key in keys:
+        raw = metrics.get(key)
+        if raw is None:
+            continue
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            continue
+    return float(default)
 
 
 def raw_side_from_metrics(metrics: dict) -> float:
@@ -19,7 +34,7 @@ def raw_side_from_metrics(metrics: dict) -> float:
 def enrich_metrics_conviction(metrics: dict, *, min_raw: float = 0.51) -> None:
     """Preenche trade_score a partir de raw_prob quando o score calibrado veio zerado."""
     raw_side = raw_side_from_metrics(metrics)
-    score = float(metrics.get("trade_score", metrics.get("conviction", 0.0)))
+    score = metric_float(metrics, "trade_score", "conviction", default=0.0)
     if score + 1e-9 < min_raw and raw_side + 1e-9 >= min_raw:
         resolved = max(score, raw_side)
         metrics["trade_score"] = resolved
@@ -31,7 +46,7 @@ def resolve_stake_conviction(metrics: dict, kelly_config: dict[str, Any] | None 
     cfg = kelly_config or {}
     min_raw = float(cfg.get("stake_conviction_min_raw", 0.51))
     min_stop = float(cfg.get("stop_win_kelly_min_conviction", 0.45))
-    score = float(metrics.get("trade_score", metrics.get("conviction", 0.0)))
+    score = metric_float(metrics, "trade_score", "conviction", default=0.0)
     raw_side = raw_side_from_metrics(metrics)
 
     resolved = max(score, raw_side) if raw_side >= min_raw else score
@@ -49,11 +64,15 @@ def clamp_kelly_stake(
     kelly_config: dict[str, Any],
     conviction: float,
 ) -> float:
-    """Aplica piso percentual da banca sem teto superior na stake Kelly."""
-    _ = conviction
+    """Aplica piso e teto percentual da banca na stake Kelly."""
     min_pct = float(kelly_config.get("min_stake_pct", 0.0))
     floor_stake = bankroll * min_pct if min_pct > 0 else 0.0
     bounded = max(floor_stake, raw_stake)
+    max_pct = resolve_max_stake_pct(kelly_config, conviction)
+    bankroll_cap = float(kelly_config.get("max_bankroll_stake_fraction", max_pct))
+    ceiling_pct = min(float(max_pct), float(bankroll_cap)) if bankroll_cap > 0 else float(max_pct)
+    if ceiling_pct > 0.0:
+        bounded = min(bounded, float(bankroll) * ceiling_pct)
     return bounded if bounded > 0 else 0.0
 
 

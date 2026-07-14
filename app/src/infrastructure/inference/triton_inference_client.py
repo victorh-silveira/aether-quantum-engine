@@ -61,35 +61,71 @@ def _triton_wait_settings(config: dict) -> tuple[float, float]:
     return timeout, poll
 
 
+def triton_infer_timeout_seconds(config: dict, *, bootstrap: bool = False) -> float:
+    """Resolve deadline gRPC do Triton para ciclo M1 ou probe de bootstrap."""
+    infra = config.get("infra") if isinstance(config, dict) else {}
+    chunk = infra.get("triton") if isinstance(infra, dict) else {}
+    if not isinstance(chunk, dict):
+        return 5.0 if bootstrap else 0.85
+    if bootstrap:
+        return float(chunk.get("bootstrap_infer_timeout_seconds", 5.0))
+    return float(chunk.get("infer_timeout_seconds", 0.85))
+
+
 async def reload_triton_repository(config: dict, model_names: list[str] | None = None) -> bool:
     """Aguarda modelos do Triton ficarem prontos apos sincronizar artefatos no disco."""
+    symbols = [str(name) for name in (model_names or []) if str(name)]
+    if not symbols:
+        if not triton_enabled(config):
+            return False
+        try:
+            models = await asyncio.to_thread(post_triton_repository_reload, triton_http_url(config))
+        except (urllib.error.URLError, OSError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
+            logger.warning("TRITON: falha ao consultar repositorio (%s): %s", triton_http_url(config), exc)
+            return False
+        names = [str(item.get("name", "")) for item in models if isinstance(item, dict)]
+        logger.debug("TRITON: indice repositorio | modelos=%s", ",".join(n for n in names if n) or "-")
+        return True
+    return await wait_triton_models_stable(config, symbols, repo_changed=True)
+
+
+async def wait_triton_models_stable(
+    config: dict,
+    model_names: list[str],
+    *,
+    repo_changed: bool = True,
+) -> bool:
+    """Aguarda ready estavel apos poll do repositorio evitar unload/load concorrente."""
     if not triton_enabled(config):
         return False
+    symbols = [str(name) for name in model_names if str(name)]
+    if not symbols:
+        return True
     http_url = triton_http_url(config)
-    symbols = [str(name) for name in (model_names or []) if str(name)]
-    if symbols:
-        timeout, poll = _triton_wait_settings(config)
-        ready = await asyncio.to_thread(
-            wait_triton_models_ready,
-            http_url,
-            symbols,
-            timeout_seconds=timeout,
-            poll_interval_seconds=poll,
-        )
-        if not ready:
-            logger.warning(
-                "TRITON: modelos nao ficaram prontos a tempo (%s)",
-                ",".join(symbols),
-            )
-        return ready
-    try:
-        models = await asyncio.to_thread(post_triton_repository_reload, http_url)
-    except (urllib.error.URLError, OSError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
-        logger.warning("TRITON: falha ao consultar repositorio (%s): %s", http_url, exc)
+    timeout, poll = _triton_wait_settings(config)
+    ready = await asyncio.to_thread(
+        wait_triton_models_ready,
+        http_url,
+        symbols,
+        timeout_seconds=timeout,
+        poll_interval_seconds=poll,
+    )
+    if not ready:
         return False
-    names = [str(item.get("name", "")) for item in models if isinstance(item, dict)]
-    logger.debug("TRITON: indice repositorio | modelos=%s", ",".join(n for n in names if n) or "-")
-    return True
+    if not repo_changed:
+        return True
+    infra = config.get("infra") if isinstance(config, dict) else {}
+    chunk = infra.get("triton") if isinstance(infra, dict) else {}
+    poll_secs = float(chunk.get("repository_poll_seconds", 2.0)) if isinstance(chunk, dict) else 2.0
+    settle = max(0.5, poll_secs + 0.35)
+    await asyncio.sleep(settle)
+    return await asyncio.to_thread(
+        wait_triton_models_ready,
+        http_url,
+        symbols,
+        timeout_seconds=timeout,
+        poll_interval_seconds=poll,
+    )
 
 
 async def get_triton_client(config: dict) -> Any:

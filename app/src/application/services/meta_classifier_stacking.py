@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from src.application.services.execution_quality_gate import sync_direction_margin
+from src.application.services.payoff_edge_zscore import attach_payoff_edge_zscore_metrics
 from src.domain.models.trade import TradeDirection
 from src.infrastructure.inference.meta_classifier_client import (
     build_meta_predict_request,
@@ -22,11 +23,14 @@ def apply_meta_regression_edge_to_metrics(
     predicted_edge: float,
     meta_applied: bool,
     base_score: float,
+    edge_expectancy: str | None = None,
 ) -> float:
     """Anexa edge continuo e preserva trade_score organico da TCN no prefetch."""
     _ = (direction, tcn_probability)
     metrics["predicted_payoff_edge"] = float(predicted_edge)
     metrics["meta_classifier_applied"] = bool(meta_applied)
+    if edge_expectancy:
+        metrics["edge_expectancy"] = str(edge_expectancy)
     score = float(base_score)
     metrics["trade_score"] = max(0.0, min(1.0, score))
     metrics["conviction"] = metrics["trade_score"]
@@ -46,7 +50,7 @@ async def prefetch_meta_payoff_for_decisions(decisions: dict[str, dict], config:
         return
     client = await get_meta_classifier_client(config)
     batch: list[tuple] = []
-    refs: list[tuple[dict, TradeDirection, float, float]] = []
+    refs: list[tuple[str, dict, TradeDirection, float, float]] = []
     for symbol, entry in decisions.items():
         if not isinstance(entry, dict):
             continue
@@ -68,11 +72,11 @@ async def prefetch_meta_payoff_for_decisions(decisions: dict[str, dict], config:
             direction=direction.name,
         )
         batch.append((request, base_score))
-        refs.append((metrics, direction, tcn_prob, base_score))
+        refs.append((str(symbol), metrics, direction, tcn_prob, base_score))
     if not batch:
         return
     responses = await client.predict_meta_batch(batch)
-    for (metrics, direction, tcn_prob, base_score), response in zip(refs, responses, strict=True):
+    for (symbol, metrics, direction, tcn_prob, base_score), response in zip(refs, responses, strict=True):
         apply_meta_regression_edge_to_metrics(
             metrics,
             direction=direction,
@@ -80,7 +84,14 @@ async def prefetch_meta_payoff_for_decisions(decisions: dict[str, dict], config:
             predicted_edge=response["predicted_payoff_edge"],
             meta_applied=response["meta_applied"],
             base_score=base_score,
+            edge_expectancy=str(response.get("edge_expectancy") or "WIN_EXPECTED"),
         )
+        if metrics.get("meta_payoff_edge_zscore") is None and metrics.get("edge_zscore") is None:
+            attach_payoff_edge_zscore_metrics(
+                metrics,
+                float(metrics["predicted_payoff_edge"]),
+                symbol=symbol,
+            )
 
 
 def resolve_meta_payoff_edge(

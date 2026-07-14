@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from src.domain.risk.consensus_stake_penalty import max_safe_stake_cap
 from src.domain.risk.risk_stake_calc import calculate_stake_for_manager
 
 
@@ -130,7 +131,10 @@ def test_calculate_stake_c0007_turbo_on_clean_recovery_base(kelly_config):
         kwargs={"dl_metrics": dict(neutral_metrics), "order_direction": "PUT"},
     )
     factor = 1.0 + (1.0 / 0.95)
-    expected_base = math.ceil((17.89 * factor) * 100) / 100
+    cover_full = 36.72 / 0.95
+    amort_cycles = max(2, 5 - min(1, 3))
+    cover_need = cover_full / float(amort_cycles)
+    expected_base = math.ceil(max(17.89 * factor, cover_need) * 100) / 100
     assert stake_neutral == pytest.approx(expected_base, rel=1e-3)
     stake_turbo = calculate_stake_for_manager(
         rm,
@@ -141,7 +145,8 @@ def test_calculate_stake_c0007_turbo_on_clean_recovery_base(kelly_config):
         apply_stop_win=False,
         kwargs={"dl_metrics": turbo_metrics, "order_direction": "PUT"},
     )
-    assert stake_turbo == pytest.approx(expected_base * 2.0, rel=1e-3)
+    expected_turbo = min(expected_base * 2.0, max_safe_stake_cap(bankroll, consecutive_losses_linear=1))
+    assert stake_turbo == pytest.approx(expected_turbo, rel=1e-3)
     assert turbo_metrics.get("consensus_turbo_edge_active") is True
 
 

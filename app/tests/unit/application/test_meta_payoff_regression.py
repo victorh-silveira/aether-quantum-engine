@@ -50,24 +50,22 @@ def test_apply_meta_regression_edge_positive_keeps_organic_score():
     assert metrics["predicted_payoff_edge"] == pytest.approx(0.12)
 
 
-def test_apply_meta_regression_edge_loss_expected_triggers_squeeze(caplog):
+def test_apply_meta_regression_edge_loss_expected_keeps_organic_score():
     metrics = {
         "indicators": {"bb_width": 0.12},
         "flow_features": {"micro_tick_acceleration": 0.03},
     }
-    with caplog.at_level("INFO"):
-        direction, score = apply_meta_regression_edge(
-            TradeDirection.PUT,
-            metrics,
-            -0.25,
-            meta_applied=True,
-            base_score=0.68,
-            symbol="RDBEAR",
-        )
+    direction, score = apply_meta_regression_edge(
+        TradeDirection.PUT,
+        metrics,
+        -0.25,
+        meta_applied=True,
+        base_score=0.68,
+        symbol="RDBEAR",
+    )
     assert direction == TradeDirection.PUT
-    assert score == pytest.approx(META_SQUEEZE_TRADE_SCORE)
-    assert metrics["meta_squeeze_downgrade"] is True
-    assert any("[D-SQUEEZE]" in record.message for record in caplog.records)
+    assert score == pytest.approx(0.68)
+    assert metrics.get("meta_squeeze_downgrade") is not True
 
 
 def test_apply_meta_regression_edge_bb_compression_triggers_squeeze_even_positive_edge(caplog):
@@ -91,7 +89,7 @@ def test_apply_meta_regression_edge_bb_compression_triggers_squeeze_even_positiv
     assert any("[D-SQUEEZE]" in record.message for record in caplog.records)
 
 
-def test_apply_meta_regression_edge_mild_negative_triggers_squeeze():
+def test_apply_meta_regression_edge_mild_negative_keeps_organic_score():
     metrics = {"indicators": {"bb_width": 0.12}, "flow_features": {"micro_tick_acceleration": 0.03}}
     direction, score = apply_meta_regression_edge(
         TradeDirection.CALL,
@@ -101,8 +99,8 @@ def test_apply_meta_regression_edge_mild_negative_triggers_squeeze():
         base_score=0.71,
     )
     assert direction == TradeDirection.CALL
-    assert score == pytest.approx(META_SQUEEZE_TRADE_SCORE)
-    assert metrics["meta_squeeze_downgrade"] is True
+    assert score == pytest.approx(0.71)
+    assert metrics.get("meta_squeeze_downgrade") is not True
 
 
 def test_apply_meta_regression_edge_not_applied_uses_base_score():

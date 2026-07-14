@@ -6,9 +6,29 @@ from src.domain.risk.stake_sizing import (
     compute_single_strike_kelly_base,
     conviction_stop_win_weight,
     enrich_metrics_conviction,
+    metric_float,
     resolve_cycle_stake_scale,
     resolve_stake_conviction,
 )
+
+
+def test_metric_float_skips_explicit_none_and_uses_next_key():
+    metrics = {"trade_score": None, "conviction": None, "raw_prob": 0.62}
+    assert metric_float(metrics, "trade_score", "conviction", "raw_prob", default=0.0) == pytest.approx(0.62, abs=1e-6)
+
+
+def test_metric_float_non_dict_returns_default():
+    assert metric_float(None, "trade_score", default=0.5) == pytest.approx(0.5, abs=1e-6)
+
+
+def test_metric_float_skips_invalid_values():
+    metrics = {"trade_score": "invalid", "raw_prob": 0.55}
+    assert metric_float(metrics, "trade_score", "raw_prob", default=0.0) == pytest.approx(0.55, abs=1e-6)
+
+
+def test_resolve_stake_conviction_handles_vetoed_none_scores():
+    metrics = {"trade_score": None, "conviction": None, "raw_prob": 0.51}
+    assert resolve_stake_conviction(metrics) == pytest.approx(0.51, abs=1e-6)
 
 
 def test_resolve_stake_conviction_from_raw_when_score_zero():

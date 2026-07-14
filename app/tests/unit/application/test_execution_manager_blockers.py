@@ -67,6 +67,18 @@ def test_log_execution_blockers_skips_symbol_without_decision_entry(orch_config)
         assert mock_info.call_args_list == []
 
 
+def test_log_execution_blockers_recovery_empty_pool(orch_config):
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
+        mock_ws_class.return_value.subscribe = MagicMock()
+        orch = Orchestrator(orch_config, "token")
+        orch._active_cycle_id = 11
+        orch.risk_manager.consecutive_losses_linear = 2
+        with patch.object(orch.executor.logger, "info") as mock_info:
+            orch.executor._log_execution_blockers({}, pending=38.56)
+        calls = [str(c) for c in mock_info.call_args_list]
+        assert any("EXEC_EMPTY" in c and "38.56" in c for c in calls)
+
+
 @pytest.mark.asyncio
 async def test_execute_orders_maintenance_error_schedules_api_hibernation(orch_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:

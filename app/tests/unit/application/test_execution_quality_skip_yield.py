@@ -78,9 +78,10 @@ async def test_trading_cycle_skips_execution_on_quality_gate_without_yield(orch_
         "RDBULL": {
             "direction": "CALL",
             "metrics": {
-                "calibrated_prob": 0.61,
+                "calibrated_prob": 0.51,
                 "predicted_payoff_edge": 0.01,
                 "meta_payoff_edge_zscore": 0.10,
+                "edge_zscore_samples": 15,
                 "deploy_ok": True,
             },
         },

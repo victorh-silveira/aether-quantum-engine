@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
+import contextlib
+import threading
 from typing import Any
 
 from src.infrastructure.inference.meta_classifier_client import (
@@ -15,25 +17,39 @@ from src.infrastructure.inference.meta_classifier_client import (
 from src.infrastructure.inference.meta_classifier_types import MetaPredictRequest, MetaPredictResponse
 
 
-_CLIENT_LOCK = asyncio.Lock()
+_CLIENT_GUARD = threading.Lock()
 
 
 class _MetaClientPool:
     """Pool singleton do cliente meta-classificador."""
 
     client: MetaClassifierClient | None = None
+    loop: asyncio.AbstractEventLoop | None = None
 
 
 async def get_meta_classifier_client(config: dict[str, Any]) -> MetaClassifierClient:
-    """Retorna singleton do cliente meta-regressor."""
-    async with _CLIENT_LOCK:
-        if _MetaClientPool.client is None:
-            _MetaClientPool.client = MetaClassifierClient(
+    """Retorna singleton do cliente meta-regressor no event loop corrente."""
+    loop = asyncio.get_running_loop()
+    stale: MetaClassifierClient | None = None
+    with _CLIENT_GUARD:
+        client = _MetaClientPool.client
+        if client is not None and _MetaClientPool.loop is not loop:
+            stale = client
+            _MetaClientPool.client = None
+            _MetaClientPool.loop = None
+            client = None
+        if client is None:
+            client = MetaClassifierClient(
                 base_url=meta_classifier_http_url(config),
                 timeout=meta_classifier_timeout(config),
                 enabled=meta_classifier_enabled(config),
             )
-        return _MetaClientPool.client
+            _MetaClientPool.client = client
+            _MetaClientPool.loop = loop
+    if stale is not None:
+        with contextlib.suppress(Exception):
+            await stale.aclose()
+    return client
 
 
 async def bootstrap_meta_classifier_client(config: dict[str, Any]) -> MetaClassifierClient | None:
@@ -45,10 +61,13 @@ async def bootstrap_meta_classifier_client(config: dict[str, Any]) -> MetaClassi
 
 async def close_meta_classifier_client() -> None:
     """Fecha cliente singleton do meta-regressor."""
-    async with _CLIENT_LOCK:
-        if _MetaClientPool.client is not None:
-            await _MetaClientPool.client.aclose()
-            _MetaClientPool.client = None
+    with _CLIENT_GUARD:
+        client = _MetaClientPool.client
+        _MetaClientPool.client = None
+        _MetaClientPool.loop = None
+    if client is not None:
+        with contextlib.suppress(Exception):
+            await client.aclose()
 
 
 def predict_meta_via_config_sync(

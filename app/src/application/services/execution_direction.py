@@ -6,7 +6,7 @@ from src.application.services.execution_direction_resolver import (
     resolve_execution_direction,
 )
 from src.domain.models.trade import TradeDirection
-from src.domain.risk.stake_sizing import enrich_metrics_conviction, raw_side_from_metrics
+from src.domain.risk.stake_sizing import enrich_metrics_conviction, metric_float, raw_side_from_metrics
 from src.domain.symbols.drift_symbols import HEDGE_PEER, hedge_peer, is_high_side
 
 
@@ -15,7 +15,7 @@ _TECHNICAL_BLOCKS = frozenset({"data", "predict_error", "training"})
 
 def _entry_signal_strength(metrics: dict) -> tuple[float, float]:
     """Extrai score calibrado e conviccao bruta lateralizada do candidato."""
-    score = float(metrics.get("trade_score", metrics.get("conviction", 0.0)))
+    score = metric_float(metrics, "trade_score", "conviction", default=0.0)
     raw_side = raw_side_from_metrics(metrics)
     return score, raw_side
 

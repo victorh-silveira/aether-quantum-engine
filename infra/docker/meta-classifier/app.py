@@ -60,6 +60,15 @@ class MetaPredictPayload(BaseModel):
 class MetaPredictResult(BaseModel):
     predicted_payoff_edge: float
     meta_applied: bool
+    edge_expectancy: str
+
+
+def _classify_edge_expectancy(edge: float) -> str:
+    if edge <= 0.0:
+        return "LOSS_EXPECTED"
+    if edge < 0.04:
+        return "NO_EDGE_NEUTRAL"
+    return "WIN_EXPECTED"
 
 
 app = FastAPI(title="Aether Meta-Regressor", version="2.0.0")
@@ -163,5 +172,13 @@ async def predict_meta(payload: MetaPredictPayload) -> MetaPredictResult:
         edge = float(raw_edge)
     except Exception as exc:
         logger.warning("Inferencia meta-regressor falhou: %s", exc)
-        return MetaPredictResult(predicted_payoff_edge=0.0, meta_applied=False)
-    return MetaPredictResult(predicted_payoff_edge=edge, meta_applied=True)
+        return MetaPredictResult(
+            predicted_payoff_edge=0.0,
+            meta_applied=False,
+            edge_expectancy="LOSS_EXPECTED",
+        )
+    return MetaPredictResult(
+        predicted_payoff_edge=edge,
+        meta_applied=True,
+        edge_expectancy=_classify_edge_expectancy(edge),
+    )

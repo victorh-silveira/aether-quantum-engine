@@ -15,6 +15,7 @@ from src.infrastructure.api.deriv_rest_client import DerivRestError
 from src.infrastructure.factories.infra_factory import validate_infra_services
 from src.infrastructure.inference.meta_classifier_client import meta_classifier_enabled
 from src.infrastructure.inference.meta_classifier_pool import bootstrap_meta_classifier_client
+from src.infrastructure.inference.triton_grpc_client import TritonInferenceTimeout
 
 
 if TYPE_CHECKING:
@@ -39,6 +40,28 @@ async def subscribe_account_transactions(orch: Orchestrator) -> None:
         orch.ws.subscribe("transaction", orch._on_transaction)
     except Exception as e:
         orch.logger.warning("SETTLE: subscribe transaction falhou: %s", e)
+
+
+def _setup_trading_session_failure(orch: Orchestrator, exc: BaseException) -> bool:
+    """Registra falha categorizada do bootstrap e retorna False."""
+    if isinstance(exc, DerivRestError):
+        orch.logger.error("INIT: Deriv REST falhou: %s", exc)
+    elif isinstance(exc, urllib.error.HTTPError):
+        orch.logger.error("INIT: HTTP %s em %s (infra/Triton)", exc.code, exc.url)
+    elif isinstance(exc, TritonInferenceTimeout):
+        orch.logger.error(
+            "INIT: Triton inferencia excedeu timeout no bootstrap (%s). Modelos podem estar recarregando na GPU.",
+            exc,
+        )
+    elif isinstance(exc, (ConnectionError, TimeoutError, OSError)):
+        detalhe = str(exc).strip() or repr(exc)
+        orch.logger.warning("INIT: broker indisponivel [%s]: %s", type(exc).__name__, detalhe)
+    elif isinstance(exc, RuntimeError):
+        orch.logger.error("INIT: sanity TorchScript falhou: %s", exc)
+    else:
+        detalhe = str(exc).strip() or repr(exc)
+        orch.logger.error("INIT: Erro no setup [%s]: %s", type(exc).__name__, detalhe, exc_info=True)
+    return False
 
 
 async def setup_trading_session(orch: Orchestrator) -> bool:
@@ -79,23 +102,8 @@ async def setup_trading_session(orch: Orchestrator) -> bool:
         )
         orch._is_initial_boot = False
         return True
-    except DerivRestError as e:
-        orch.logger.error("INIT: Deriv REST falhou: %s", e)
-        return False
-    except urllib.error.HTTPError as e:
-        orch.logger.error("INIT: HTTP %s em %s (infra/Triton)", e.code, e.url)
-        return False
-    except (ConnectionError, TimeoutError, OSError) as e:
-        detalhe = str(e).strip() or repr(e)
-        orch.logger.warning("INIT: broker indisponivel [%s]: %s", type(e).__name__, detalhe)
-        return False
-    except RuntimeError as e:
-        orch.logger.error("INIT: sanity TorchScript falhou: %s", e)
-        return False
-    except Exception as e:
-        detalhe = str(e).strip() or repr(e)
-        orch.logger.error("INIT: Erro no setup [%s]: %s", type(e).__name__, detalhe, exc_info=True)
-        return False
+    except Exception as exc:
+        return _setup_trading_session_failure(orch, exc)
 
 
 async def start_orchestrator_streams(orch: Orchestrator) -> bool:

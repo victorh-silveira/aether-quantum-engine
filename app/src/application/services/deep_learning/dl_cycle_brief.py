@@ -1,6 +1,7 @@
 """Formatacao compacta de linhas curtas do ciclo Deep Learning."""
 
 from src.application.services.execution_direction_resolver import infer_dl_direction, is_technically_blocked
+from src.domain.risk.stake_sizing import metric_float
 
 
 def _format_bias_token(symbol: str, entry: dict) -> str | None:
@@ -12,10 +13,10 @@ def _format_bias_token(symbol: str, entry: dict) -> str | None:
         hint = metrics.get("direction_hint")
         if not hint:
             return None
-        conv = float(metrics.get("trade_score", metrics.get("conviction", 0.0)))
+        conv = metric_float(metrics, "trade_score", "conviction", default=0.0)
         side = dl_dir or exec_dir
         return f"{symbol}:{side} c={conv:.2f}({hint})"
-    conv = float(metrics.get("trade_score", metrics.get("conviction", 0.0)))
+    conv = metric_float(metrics, "trade_score", "conviction", default=0.0)
     hint = metrics.get("direction_hint") or "flip"
     return f"{symbol}:{dl_dir} c={conv:.2f}->{exec_dir}({hint})"
 
@@ -85,7 +86,7 @@ def _brief_cycle_counts(decisions: dict[str, dict]) -> tuple[list[str], list[str
             blocked += 1
             continue
         direction = entry.get("direction") or infer_dl_direction(entry)
-        conv = float(metrics.get("trade_score", metrics.get("conviction", 0.0)))
+        conv = metric_float(metrics, "trade_score", "conviction", default=0.0)
         if metrics.get("execute", True):
             exec_tokens.append(_format_brief_token(symbol, direction, conv))
         bias = _format_bias_token(symbol, entry)

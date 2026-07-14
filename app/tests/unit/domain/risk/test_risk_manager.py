@@ -27,25 +27,26 @@ def test_kelly_negative_edge_returns_min_stake(kelly_config):
     assert stake == pytest.approx(1.5)
 
 
-def test_kelly_stake_unlimited_by_max_pct(kelly_config):
-    """Verifica que a stake Kelly nao sofre teto percentual da banca."""
+def test_kelly_stake_capped_by_max_safe_bankroll_pct(kelly_config):
+    """Verifica que a stake Kelly respeita o teto absoluto de 3.5% da banca."""
     kelly_config["kelly"]["fraction"] = 1.0
     rm = RiskManager(kelly_config)
     stake = rm.calculate_stake(1000.0, "RDBULL", conviction=0.8)
-    assert stake > 50.0
+    assert stake == pytest.approx(35.0)
 
 
-def test_kelly_high_conviction_scales_without_ceiling(kelly_config):
-    """Conviccoes altas escalam stake sem teto artificial."""
+def test_kelly_high_conviction_scales_within_safe_cap(kelly_config):
+    """Conviccoes altas escalam stake ate o teto seguro da banca."""
     kelly_config["kelly"]["fraction"] = 1.0
     kelly_config["kelly"]["max_stake_pct"] = 0.02
     kelly_config["kelly"]["max_stake_pct_high_conviction"] = 0.04
+    kelly_config["kelly"]["max_bankroll_stake_fraction"] = 0.04
     kelly_config["kelly"]["high_conviction_stake_threshold"] = 0.85
     rm = RiskManager(kelly_config)
     low = rm.calculate_stake(1000.0, "RDBULL", conviction=0.7)
     high = rm.calculate_stake(1000.0, "RDBULL", conviction=0.9)
     assert high > low
-    assert high > 40.0
+    assert high == pytest.approx(35.0)
 
 
 def test_kelly_dynamic_win_rate(kelly_config):
@@ -215,7 +216,7 @@ def test_single_strike_stake_boost_toward_stop_win(kelly_config):
     rm.set_initial_bankroll(1000.0)
     rm.total_session_profit = 0.0
     stake = rm.calculate_stake(1000.0, "RDBULL", conviction=0.85)
-    assert stake == pytest.approx((100.0 / 0.95) * 0.72, abs=0.1)
+    assert stake == pytest.approx(35.0)
 
 
 def test_register_result_late_settlement_clears_pending(kelly_config):

@@ -249,7 +249,6 @@ async def process_contract_settlement(orch: Any, data: dict):
         return
     c_id = int(c_id)
 
-    # Se o broker estiver offline, enfileira no Redis e faz early return silencioso
     if not orch.ws.is_running:
         orch.logger.warning("SETTLE: Broker offline. Enfileirando contrato %d no Redis.", c_id)
         await push_to_redis_priority_queue(orch, data)

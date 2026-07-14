@@ -5,6 +5,7 @@ from src.application.services.execution_mandatory_pick import (
     pick_absolute_mandatory_candidate,
     pick_best_mandatory_candidate,
 )
+from src.application.services.meta_payoff_veto_gate import apply_meta_payoff_negative_zscore_veto
 from src.domain.models.trade import TradeDirection
 from tests.unit.application.universal_regime_metrics import bear_put_metrics
 
@@ -24,6 +25,41 @@ def test_pick_absolute_mandatory_skips_training_symbols():
         last_loss_direction=None,
     )
     assert picked is None
+
+
+def test_pick_best_mandatory_survives_vetoed_entry_with_nulled_scores():
+    bull_metrics = {
+        "execute": True,
+        "deploy_ok": True,
+        "raw_prob": 0.70,
+        "trade_score": 0.70,
+        "val_accuracy": 0.72,
+        "edge": 1.40,
+        "trend_direction": "CALL",
+        "indicators": {"hurst": 0.55, "adx": 0.30, "vol_ratio": 1.0},
+    }
+    bear_metrics = {
+        "execute": True,
+        "deploy_ok": True,
+        "raw_prob": 0.51,
+        "trade_score": 0.51,
+        "val_accuracy": 0.71,
+        "trend_direction": "PUT",
+    }
+    apply_meta_payoff_negative_zscore_veto(bear_metrics)
+    decisions = {
+        "RDBULL": {"direction": TradeDirection.CALL, "metrics": bull_metrics},
+        "RDBEAR": {"direction": TradeDirection.PUT, "metrics": bear_metrics},
+    }
+    picked = pick_best_mandatory_candidate(
+        ["RDBEAR", "RDBULL"],
+        decisions,
+        recovery_active=True,
+        last_loss_symbol="RDBULL",
+        last_loss_direction="CALL",
+    )
+    assert picked is not None
+    assert picked[0] == "RDBULL"
 
 
 def test_pick_best_mandatory_prefers_strong_r50_over_weak_r10():

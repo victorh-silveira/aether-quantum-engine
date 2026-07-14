@@ -104,7 +104,7 @@ def test_collect_cluster_orders_recovery_keeps_dl_direction_after_call_loss():
     assert orders[0][2].get("direction_inverted") is not True
 
 
-def test_collect_cluster_orders_recovery_bolts_weak_signal():
+def test_collect_cluster_orders_recovery_bolts_hard_meta_reject():
     orch = SimpleNamespace(
         anchor=ANCHOR,
         symbols=[ANCHOR, PAIR],
@@ -116,8 +116,59 @@ def test_collect_cluster_orders_recovery_bolts_weak_signal():
             last_loss_symbol=PAIR,
             last_loss_direction="CALL",
             consecutive_losses=0,
+            consecutive_losses_linear=1,
             recovery_symbol_loss_streak={},
             symbol_loss_cooldown={},
+            pending_loss_total=lambda: 10.0,
+        ),
+        _active_cycle_id=9,
+    )
+    exec_mgr = SimpleNamespace(
+        orch=orch,
+        logger=MagicMock(),
+        _mandatory_trade_each_cycle=lambda: True,
+        _trade_symbols=lambda: [PAIR],
+    )
+    decisions = {
+        PAIR: {
+            "direction": TradeDirection.PUT,
+            "metrics": {
+                "raw_prob": 0.40,
+                "calibrated_prob": 0.40,
+                "execute": False,
+                "val_accuracy": 0.52,
+                "trade_score": 0.48,
+                "deploy_ok": True,
+                "quality_guard_reject": True,
+                "execution_gate_state": "meta_zscore_reject",
+                "quality_gate_reason": "[Meta Z-Score -1.20 < min 0.50]",
+                "meta_payoff_edge_zscore": -1.20,
+                "edge_zscore": -1.20,
+                "predicted_payoff_edge": -0.55,
+                "edge_expectancy": "LOSS_EXPECTED",
+            },
+        },
+    }
+    orders = collect_cluster_orders(exec_mgr, decisions)
+    assert len(orders) == 0
+
+
+def test_collect_cluster_orders_recovery_allows_soft_tcn_entropy_fallback():
+    orch = SimpleNamespace(
+        anchor=ANCHOR,
+        symbols=[ANCHOR, PAIR],
+        config={
+            "orchestrator": {"execution": {"include_anchor_trades": False, "regime_evaluator": {"enabled": True}}},
+        },
+        risk_manager=SimpleNamespace(
+            pending_loss={PAIR: 10.0},
+            last_loss_symbol=PAIR,
+            last_loss_direction="CALL",
+            consecutive_losses=0,
+            consecutive_losses_linear=1,
+            recovery_symbol_loss_streak={},
+            symbol_loss_cooldown={},
+            pending_loss_total=lambda: 10.0,
         ),
         _active_cycle_id=9,
     )
@@ -136,14 +187,15 @@ def test_collect_cluster_orders_recovery_bolts_weak_signal():
                 "val_accuracy": 0.52,
                 "trade_score": 0.48,
                 "deploy_ok": True,
+                "quality_guard_reject": True,
+                "quality_gate_reason": "[TCN Margin 0.02 < min 0.04]",
             },
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
-    assert len(orders) == 0
-
-
-def test_collect_cluster_orders_mandatory_bolts_in_recovery_regardless_of_quality():
+    assert len(orders) == 1
+    assert orders[0][0] == PAIR
+    assert orders[0][1] == TradeDirection.PUT
     orch = SimpleNamespace(
         anchor=ANCHOR,
         symbols=[ANCHOR],
@@ -177,4 +229,5 @@ def test_collect_cluster_orders_mandatory_bolts_in_recovery_regardless_of_qualit
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
-    assert len(orders) == 0
+    assert len(orders) == 1
+    assert orders[0][0] == ANCHOR

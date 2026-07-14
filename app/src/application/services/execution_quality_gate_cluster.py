@@ -15,11 +15,46 @@ from src.application.services.execution_quality_gate_meta import evaluate_meta_p
 from src.application.services.log_dedupe import LogDeduper
 from src.application.services.meta_direction_flip import SIGNAL_SUSPENDED
 from src.application.services.orchestrator.regime_freeze_yield import propagate_cluster_signal_suspended
+from src.domain.risk.risk_recovery_state import meta_payoff_veto_emergency_waiver
+from src.domain.risk.stake_sizing import metric_float
 
 
 _MANDATORY_CONTINUOUS_REGIME = "mandatory_continuous"
+_STRONG_NEGATIVE_ZSCORE = -0.20
 
 __all__ = ["log_quality_guard_suspension", "quality_conviction_suspends_cluster"]
+
+
+def _strongly_negative_meta(metrics: dict) -> bool:
+    """True quando Z-Score meta cai abaixo do veto duro de -0.20."""
+    if metrics.get("meta_payoff_edge_zscore") is None and metrics.get("edge_zscore") is None:
+        return False
+    return metric_float(metrics, "meta_payoff_edge_zscore", "edge_zscore", default=0.0) < _STRONG_NEGATIVE_ZSCORE
+
+
+def _emergency_allows_mandatory_continue(orch: Any, decisions: dict) -> bool:
+    """True quando waiver de emergencia autoriza seguir em modo mandatario."""
+    risk_manager = getattr(orch, "risk_manager", None)
+    for entry in decisions.values():
+        if not isinstance(entry, dict):
+            continue
+        metrics = entry.get("metrics")
+        if not isinstance(metrics, dict):
+            continue
+        direction = (
+            metrics.get("exec_direction")
+            or metrics.get("dl_direction")
+            or metrics.get("direction")
+            or entry.get("direction")
+        )
+        direction_name = direction.name if hasattr(direction, "name") else str(direction or "")
+        if meta_payoff_veto_emergency_waiver(
+            metrics,
+            direction=direction_name,
+            risk_manager=risk_manager,
+        ):
+            return True
+    return False
 
 
 def _minute_bucket(orch: Any) -> str:
@@ -32,7 +67,10 @@ def _minute_bucket(orch: Any) -> str:
 
 def _uses_meta_quality_gate(metrics: dict) -> bool:
     """Indica se o candidato deve ser avaliado pelo portao estatistico do meta-regressor."""
-    return metrics.get("meta_payoff_edge_zscore") is not None or metrics.get("edge_zscore") is not None
+    if metrics.get("meta_payoff_edge_zscore") is None and metrics.get("edge_zscore") is None:
+        return False
+    samples = metrics.get("edge_zscore_samples")
+    return samples is None or int(samples) >= 2
 
 
 def _mandatory_trade_each_cycle(exec_cfg: dict | None) -> bool:
@@ -91,13 +129,14 @@ def _annotate_quality_failure(metrics: dict, *, mandatory: bool) -> None:
         metrics["signal_status"] = SIGNAL_SUSPENDED
 
 
-def quality_conviction_suspends_cluster(orch: Any, decisions: dict) -> bool:
-    """Retorna True quando o cluster deve ser suspenso por falha no quality gate."""
-    if not isinstance(decisions, dict):
-        return False
-    exec_cfg = getattr(orch, "config", {}).get("orchestrator", {}).get("execution", {})
-    exec_cfg = exec_cfg if isinstance(exec_cfg, dict) else {}
-    mandatory = _mandatory_trade_each_cycle(exec_cfg)
+def _evaluate_cluster_quality(
+    orch: Any,
+    decisions: dict,
+    *,
+    exec_cfg: dict,
+    mandatory: bool,
+) -> tuple[bool, bool, bool, str]:
+    """Avalia candidatos e retorna (any_fail, any_pass, meta_mode, suspend_reason)."""
     risk_manager = getattr(orch, "risk_manager", None)
     skipped_cycles = int(getattr(orch, "_quality_skipped_cycles_counter", 0) or 0)
     any_fail = False
@@ -108,19 +147,36 @@ def quality_conviction_suspends_cluster(orch: Any, decisions: dict) -> bool:
         if not isinstance(entry, dict):
             continue
         metrics = entry.get("metrics")
-        if not isinstance(metrics, dict):
-            continue
-        if metrics.get("deploy_ok") is False:
+        if not isinstance(metrics, dict) or metrics.get("deploy_ok") is False:
             continue
         if _uses_meta_quality_gate(metrics):
             meta_mode = True
-            passed = evaluate_meta_payoff_quality(
+            session_linear, pending = read_risk_session_state(risk_manager)
+            recovery_active = session_linear > 0 or pending > 0.0
+            meta_passed = evaluate_meta_payoff_quality(
                 metrics,
                 exec_cfg=exec_cfg,
                 risk_manager=risk_manager,
                 skipped_cycles_counter=skipped_cycles,
                 orch=orch,
             )
+            tcn_passed = passes_execution_quality(
+                metrics,
+                exec_cfg=exec_cfg,
+                risk_manager=risk_manager,
+                skipped_cycles_counter=skipped_cycles,
+                orch=orch,
+            )
+            meta_soft_ok = not _strongly_negative_meta(metrics)
+            passed = (meta_passed or tcn_passed) if recovery_active else ((tcn_passed and meta_soft_ok) or meta_passed)
+            if meta_passed and not tcn_passed:
+                metrics["execution_gate_state"] = "meta_zscore_pass"
+            elif tcn_passed and not meta_passed:
+                metrics.pop("quality_guard_reject", None)
+                metrics.pop("regime_skip_cycle", None)
+                metrics.pop("quality_gate_reason", None)
+                if metrics.get("execution_gate_state") == "meta_zscore_reject":
+                    metrics.pop("execution_gate_state", None)
         else:
             passed = passes_execution_quality(
                 metrics,
@@ -137,13 +193,40 @@ def quality_conviction_suspends_cluster(orch: Any, decisions: dict) -> bool:
         reason = metrics.get("quality_gate_reason")
         if isinstance(reason, str) and reason and not suspend_reason:
             suspend_reason = reason
-    if not any_fail:
+    return any_fail, any_pass, meta_mode, suspend_reason
+
+
+def _mandatory_should_hard_skip(orch: Any, decisions: dict) -> bool:
+    """True quando mandatory deve suspender por meta fortemente negativo sem waiver."""
+    strong_negative = any(
+        isinstance(entry, dict) and isinstance(entry.get("metrics"), dict) and _strongly_negative_meta(entry["metrics"])
+        for entry in decisions.values()
+    )
+    return strong_negative and not _emergency_allows_mandatory_continue(orch, decisions)
+
+
+def quality_conviction_suspends_cluster(orch: Any, decisions: dict) -> bool:
+    """Retorna True quando o cluster deve ser suspenso por falha no quality gate."""
+    if not isinstance(decisions, dict):
         return False
-    if meta_mode and any_pass:
+    exec_cfg = getattr(orch, "config", {}).get("orchestrator", {}).get("execution", {})
+    exec_cfg = exec_cfg if isinstance(exec_cfg, dict) else {}
+    mandatory = _mandatory_trade_each_cycle(exec_cfg)
+    any_fail, any_pass, meta_mode, suspend_reason = _evaluate_cluster_quality(
+        orch,
+        decisions,
+        exec_cfg=exec_cfg,
+        mandatory=mandatory,
+    )
+    if not any_fail or (meta_mode and any_pass):
         return False
     orch._quality_guard_last_reason = suspend_reason
     log_quality_guard_suspension(orch, reason=suspend_reason)
     if mandatory:
+        if _mandatory_should_hard_skip(orch, decisions):
+            propagate_cluster_signal_suspended(decisions)
+            orch._last_quality_gate_regime = "mandatory_meta_hard_skip"
+            return True
         orch._last_quality_gate_regime = _MANDATORY_CONTINUOUS_REGIME
         return False
     propagate_cluster_signal_suspended(decisions)

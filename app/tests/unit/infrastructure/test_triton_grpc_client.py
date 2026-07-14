@@ -13,7 +13,6 @@ from src.infrastructure.inference.triton_grpc_client import (
     TritonGrpcClient,
     _attach_channel,
     _channel_options,
-    _GrpcClientPool,
     _pack_inference_tensor,
     _parse_raw_output,
     close_triton_grpc_client,
@@ -24,9 +23,9 @@ from src.infrastructure.storage.torchscript_sanity import assert_triton_probabil
 
 @pytest.fixture(autouse=True)
 def _reset_triton_pool():
-    _GrpcClientPool.client = None
+    triton_grpc_module._GrpcClientPool.client = None
     yield
-    _GrpcClientPool.client = None
+    triton_grpc_module._GrpcClientPool.client = None
 
 
 @pytest.fixture(autouse=True)
@@ -118,12 +117,12 @@ async def test_triton_grpc_client_concurrent_infer():
 
 @pytest.mark.asyncio
 async def test_get_triton_grpc_client_singleton():
-    with patch.object(TritonGrpcClient, "connect", AsyncMock()):
+    with patch.object(triton_grpc_module.TritonGrpcClient, "connect", new_callable=AsyncMock):
         first = await get_triton_grpc_client("localhost:8001")
         second = await get_triton_grpc_client("localhost:8001")
         assert first is second
     await close_triton_grpc_client()
-    assert _GrpcClientPool.client is None
+    assert triton_grpc_module._GrpcClientPool.client is None
 
 
 @pytest.mark.asyncio
@@ -154,9 +153,29 @@ async def test_triton_grpc_client_connect_skips_when_already_connected():
     client = TritonGrpcClient()
     client._channel = MagicMock()
     client._url = "localhost:8001"
+    client._loop = asyncio.get_running_loop()
     with patch("src.infrastructure.inference.triton_grpc_client.grpc.aio.insecure_channel") as ctor:
         await client.connect("localhost:8001")
     ctor.assert_not_called()
+
+
+def test_get_triton_grpc_client_rebinds_across_event_loops():
+    created: list[TritonGrpcClient] = []
+
+    async def _once() -> TritonGrpcClient:
+        with patch.object(triton_grpc_module.TritonGrpcClient, "connect", new_callable=AsyncMock) as connect:
+            client = await get_triton_grpc_client("localhost:8001")
+            client._loop = asyncio.get_running_loop()
+            client._url = "localhost:8001"
+            created.append(client)
+            connect.assert_awaited()
+            return client
+
+    first = asyncio.run(_once())
+    second = asyncio.run(_once())
+    assert first is not second
+    assert len(created) == 2
+    assert triton_grpc_module._GrpcClientPool.client is second
 
 
 @pytest.mark.asyncio

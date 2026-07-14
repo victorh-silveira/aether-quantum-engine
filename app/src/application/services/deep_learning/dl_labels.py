@@ -2,11 +2,39 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
 
 
 LABEL_MODE_SPOT = "spot_forward"
 LABEL_MODE_MA_TREND = "ma_trend"
+
+
+@dataclass(frozen=True)
+class LabelSpec:
+    """Contrato unico de label para treino, deploy e settlement."""
+
+    horizon_bars: int = 1
+    smooth_bars: int = 1
+    label_mode: str = LABEL_MODE_SPOT
+    ma_window: int = 5
+
+    @classmethod
+    def from_dl_config(cls, dl_cfg: dict | None) -> LabelSpec:
+        """Monta LabelSpec a partir do bloco deep_learning da config."""
+        cfg = dl_cfg if isinstance(dl_cfg, dict) else {}
+        return cls(
+            horizon_bars=max(1, int(cfg.get("label_horizon_bars", 1))),
+            smooth_bars=max(1, int(cfg.get("label_smooth_bars", 1))),
+            label_mode=str(cfg.get("label_mode", LABEL_MODE_SPOT)),
+            ma_window=max(1, int(cfg.get("label_ma_window", 5))),
+        )
+
+    @property
+    def embargo_bars(self) -> int:
+        """Barras de embargo purged = horizon + smooth - 1."""
+        return max(1, int(self.horizon_bars) + int(self.smooth_bars) - 1)
 
 
 def _rolling_mean(prices: np.ndarray, index: int, window: int) -> float:

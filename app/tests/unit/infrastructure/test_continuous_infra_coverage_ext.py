@@ -108,7 +108,7 @@ async def test_sync_symbol_download_returns_false(tmp_path):
             _ = (symbol, arch, dest)
             return False
 
-    ok = await sync_symbol_torchscript_to_triton(
+    ok, changed = await sync_symbol_torchscript_to_triton(
         Store(),
         "RDBEAR",
         arch="tcn",
@@ -116,6 +116,7 @@ async def test_sync_symbol_download_returns_false(tmp_path):
         lookback=48,
     )
     assert ok is False
+    assert changed is False
 
 
 def test_correlation_reader_log_returns_edges():

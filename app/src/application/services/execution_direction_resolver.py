@@ -9,17 +9,24 @@ from src.application.services.execution_quality_gate import (
     ensure_direction_margin,
     passes_execution_quality,
 )
+from src.application.services.execution_quality_gate_meta import evaluate_meta_payoff_quality
 from src.application.services.meta_classifier_stacking import resolve_meta_payoff_edge
 from src.application.services.meta_direction_flip import SIGNAL_SUSPENDED
 from src.application.services.meta_payoff_regression import (
     apply_meta_regression_edge,
     veto_calibration_neutral_drift,
 )
+from src.application.services.meta_payoff_veto_gate import (
+    apply_meta_payoff_negative_zscore_veto,
+    should_veto_meta_payoff_negative_zscore,
+)
 from src.application.services.payoff_edge_zscore import attach_payoff_edge_zscore_metrics
 from src.domain.models.trade import TradeDirection
+from src.domain.risk.stake_sizing import metric_float
 
 
 D_SQUEEZE_BB_WIDTH_ANOMALY_RATIO = 0.55
+_STRONG_NEGATIVE_ZSCORE = -0.20
 
 
 _TECHNICAL_BLOCKS = frozenset({"data", "predict_error", "training"})
@@ -103,6 +110,19 @@ def _sync_entry_metrics(entry: dict, metrics: dict) -> None:
         entry["metrics"] = metrics
 
 
+def _has_meta_zscore_telemetry(metrics: dict) -> bool:
+    """True quando Z-Score meta ja foi anexado e o buffer tem amostra suficiente."""
+    if metrics.get("meta_payoff_edge_zscore") is None and metrics.get("edge_zscore") is None:
+        return False
+    samples = metrics.get("edge_zscore_samples")
+    return samples is None or int(samples) >= 2
+
+
+def _meta_zscore_soft_ok(metrics: dict) -> bool:
+    """True quando Z meta nao e fortemente negativo (piso soft de quality AND)."""
+    return metric_float(metrics, "meta_payoff_edge_zscore", "edge_zscore", default=0.0) >= _STRONG_NEGATIVE_ZSCORE
+
+
 def _reject_on_quality_gate(
     entry: dict,
     metrics: dict,
@@ -110,18 +130,52 @@ def _reject_on_quality_gate(
     exec_cfg_dict: dict,
     *,
     risk_manager: Any | None = None,
+    recovery_active: bool = False,
 ) -> bool:
-    """Retorna True quando o gate de alta conviccao suspende o candidato."""
-    if passes_execution_quality(
+    """Retorna True quando quality gate reprova o candidato conforme regime."""
+    has_meta = _has_meta_zscore_telemetry(gate_probe)
+    meta_passed = False
+    if has_meta:
+        meta_passed = evaluate_meta_payoff_quality(
+            gate_probe,
+            exec_cfg=exec_cfg_dict,
+            risk_manager=risk_manager,
+        )
+    tcn_passed = passes_execution_quality(
         gate_probe,
         exec_cfg=exec_cfg_dict,
         risk_manager=risk_manager,
-    ):
+    )
+    meta_soft_ok = (not has_meta) or _meta_zscore_soft_ok(gate_probe)
+    waived = bool(gate_probe.get("meta_payoff_veto_waived"))
+    if recovery_active or waived:
+        accepted = meta_passed or tcn_passed
+    elif has_meta:
+        accepted = (tcn_passed and meta_soft_ok) or meta_passed
+    else:
+        accepted = tcn_passed
+    if accepted:
+        for key in ("execution_gate_state", "quality_gate_regime", "direction_margin"):
+            if key in gate_probe:
+                metrics[key] = gate_probe[key]
+        if meta_passed and not tcn_passed:
+            metrics["execution_gate_state"] = "meta_zscore_pass"
+        elif tcn_passed and not meta_passed:
+            metrics.pop("quality_guard_reject", None)
+            metrics.pop("regime_skip_cycle", None)
+            metrics.pop("quality_gate_reason", None)
+            if metrics.get("execution_gate_state") == "meta_zscore_reject":
+                metrics.pop("execution_gate_state", None)
         return False
     metrics.update(
         {
             key: gate_probe[key]
-            for key in ("regime_skip_cycle", "direction_margin", "quality_gate_reason")
+            for key in (
+                "regime_skip_cycle",
+                "direction_margin",
+                "quality_gate_reason",
+                "execution_gate_state",
+            )
             if key in gate_probe
         },
     )
@@ -129,6 +183,11 @@ def _reject_on_quality_gate(
     metrics["quality_guard_reject"] = True
     _sync_entry_metrics(entry, metrics)
     return True
+
+
+def _recovery_soft_quality_continue(metrics: dict) -> bool:
+    """True quando recovery pode seguir apesar de quality aspiracional (Z >= -0.20)."""
+    return metric_float(metrics, "meta_payoff_edge_zscore", "edge_zscore", default=0.0) >= _STRONG_NEGATIVE_ZSCORE
 
 
 def resolve_execution_direction(
@@ -145,7 +204,7 @@ def resolve_execution_direction(
     risk_manager: Any | None = None,
 ) -> tuple[TradeDirection, dict] | None:
     """Resolve direcao micro fiel ao sinal TCN/DL com telemetria meta-regressor."""
-    _ = (calibration_cfg, recovery_active, corr_matrix, peer_entry, cycle_id)
+    _ = (calibration_cfg, corr_matrix, peer_entry, cycle_id)
     exec_cfg_dict = exec_cfg if isinstance(exec_cfg, dict) else {}
     dl_dir = infer_dl_direction(entry)
     if is_technically_blocked(entry) or dl_dir is None:
@@ -168,10 +227,38 @@ def resolve_execution_direction(
         _base_score=score,
         config={"infra": infra_cfg} if infra_cfg else None,
     )
+    if metrics.get("meta_payoff_edge_zscore") is None and metrics.get("edge_zscore") is None:
+        attach_payoff_edge_zscore_metrics(
+            metrics,
+            float(metrics.get("predicted_payoff_edge", predicted_edge)),
+            symbol=symbol,
+        )
+    if should_veto_meta_payoff_negative_zscore(metrics, direction=dl_dir, risk_manager=risk_manager):
+        apply_meta_payoff_negative_zscore_veto(metrics)
+        _sync_entry_metrics(entry, metrics)
+        return None
     gate_probe = dict(metrics)
     gate_probe["predicted_payoff_edge"] = float(predicted_edge)
     gate_probe["meta_classifier_applied"] = bool(meta_applied)
-    if _reject_on_quality_gate(entry, metrics, gate_probe, exec_cfg_dict, risk_manager=risk_manager):
+    if _reject_on_quality_gate(
+        entry,
+        metrics,
+        gate_probe,
+        exec_cfg_dict,
+        risk_manager=risk_manager,
+        recovery_active=recovery_active,
+    ):
+        if not (recovery_active and _recovery_soft_quality_continue(metrics)):
+            return None
+        metrics.pop("signal_status", None)
+        entry_metrics = entry.get("metrics")
+        if isinstance(entry_metrics, dict):
+            entry_metrics.pop("signal_status", None)
+    require_meta = bool(exec_cfg_dict.get("require_meta_for_execution", False))
+    if require_meta and not recovery_active and not bool(meta_applied):
+        metrics["gate_reason"] = "meta_unavailable"
+        metrics["quality_guard_reject"] = True
+        _sync_entry_metrics(entry, metrics)
         return None
     exec_dir, _final_score = apply_meta_regression_edge(
         dl_dir,
@@ -181,7 +268,6 @@ def resolve_execution_direction(
         base_score=score,
         symbol=symbol,
     )
-    attach_payoff_edge_zscore_metrics(metrics, float(metrics.get("predicted_payoff_edge", 0.0)))
     metrics["exec_direction"] = exec_dir.name
     metrics["resolved_direction"] = exec_dir.name
     metrics["direction_inverted"] = exec_dir != dl_dir

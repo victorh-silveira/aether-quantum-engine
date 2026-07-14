@@ -82,8 +82,7 @@ def run_symbol_training(
     norm_stats = runtime["norm_stats"]
     train_loss = None
     gate_cfg = parse_deploy_gate_config(dl_config)
-    bootstrap = not runtime.get("session_trained", False) or float(runtime.get("val_brier", 1.0)) >= 0.99
-    level = logging.INFO if bootstrap else logging.DEBUG
+    level = logging.INFO
     started = time.monotonic()
     logger.log(level, "")
     train_device = resolve_torch_device(dl_config, kind="training")

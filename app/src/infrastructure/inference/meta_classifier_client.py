@@ -132,7 +132,7 @@ class MetaClassifierClient:
     ) -> MetaPredictResponse:
         """Consulta /v2/predict_meta retornando edge continuo de payoff."""
         if not self._enabled:
-            return {"predicted_payoff_edge": 0.0, "meta_applied": False}
+            return {"predicted_payoff_edge": 0.0, "meta_applied": False, "edge_expectancy": "LOSS_EXPECTED"}
         payload = {
             "symbol": str(request["symbol"]),
             "tcn_probability": float(request["tcn_probability"]),
@@ -154,7 +154,7 @@ class MetaClassifierClient:
                     self._batch_fallback_exc = message
             else:
                 _emit_meta_classifier_fallback(message)
-            return {"predicted_payoff_edge": 0.0, "meta_applied": False}
+            return {"predicted_payoff_edge": 0.0, "meta_applied": False, "edge_expectancy": "LOSS_EXPECTED"}
 
     async def predict_meta_batch(
         self,

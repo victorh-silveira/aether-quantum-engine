@@ -3,14 +3,6 @@
 import asyncio
 import logging
 
-
-try:
-    import torch
-
-    HAS_TORCH = True
-except ImportError:  # pragma: no cover
-    HAS_TORCH = False  # pragma: no cover
-
 from src.application.services.execution_symbols import symbols_eligible_for_execution
 from src.application.services.execution_symbols_recovery import pending_recovery_active
 from src.application.services.log_dedupe import clear_log_channel, log_info_if_changed
@@ -23,6 +15,7 @@ from src.domain.risk.stop_win_target import resolve_stop_win_target
 from .api_maintenance_guard import handle_broker_maintenance_error
 from .execution_blockers import log_execution_blockers
 from .execution_collect import collect_cluster_orders
+from .execution_cuda import clear_cuda_cache
 from .execution_orders import place_order
 from .execution_proposal import is_proposal_runtime_error
 from .execution_settlement import reconcile_contracts, run_settlement_watch, wait_for_settlement
@@ -74,13 +67,16 @@ class ExecutionManager:
             mandatory_trade_each_cycle=self._mandatory_trade_each_cycle(),
         )
 
-    def _log_execution_blockers(self, decisions: dict) -> None:
+    def _log_execution_blockers(self, decisions: dict, *, pending: float = 0.0) -> None:
         """Registra motivo quando nenhuma ordem foi montada apesar de decisoes no ciclo."""
-        log_execution_blockers(self, decisions)
+        log_execution_blockers(self, decisions, pending=pending)
 
     def _mandatory_trade_each_cycle(self) -> bool:
-        """Indica se cada ciclo deve executar ao menos uma ordem (sempre ativo)."""
-        return True
+        """Indica se cada ciclo deve executar ao menos uma ordem conforme config."""
+        exec_cfg = self.orch.config.get("orchestrator", {}).get("execution", {})
+        if not isinstance(exec_cfg, dict):
+            return True
+        return bool(exec_cfg.get("mandatory_trade_each_cycle", True))
 
     def _collect_orders(self, decisions: dict) -> list[tuple[str, TradeDirection, dict]]:
         """Seleciona uma ordem por ciclo; modo obrigatorio ignora gate execute=false."""
@@ -233,9 +229,8 @@ class ExecutionManager:
                     sw,
                 )
             if not orders:
-                self._log_execution_blockers(decisions)
-                if HAS_TORCH and torch.cuda.is_available():
-                    torch.cuda.empty_cache()
+                self._log_execution_blockers(decisions, pending=pending)
+                clear_cuda_cache()
                 self.orch.is_trading = False
             else:
                 block = self._cluster_stake_block(orders, bankroll_snapshot)

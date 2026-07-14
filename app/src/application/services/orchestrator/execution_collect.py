@@ -26,7 +26,7 @@ from src.application.services.orchestrator.execution_collect_helpers import (
 )
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.recovery_hurst_decay import session_drawdown_from_profit
-from src.domain.risk.stake_sizing import enrich_metrics_conviction, raw_side_from_metrics
+from src.domain.risk.stake_sizing import enrich_metrics_conviction, metric_float, raw_side_from_metrics
 
 
 def _quality_blocks_mandatory_fallback(exec_mgr, decisions: dict) -> bool:
@@ -146,8 +146,43 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
         mean_reversion=mean_reversion,
         low_accuracy=low_accuracy,
     )
+    pre_skip = list(candidates)
+    active_skip = skip_symbols
     if candidates and skip_symbols:
         candidates = [item for item in candidates if item[0] not in skip_symbols]
+    if not candidates and pre_skip and recovery_active and mandatory:
+        candidates = pre_skip
+        active_skip = frozenset()
+    candidates = mandatory_fallback_if_empty(
+        exec_mgr,
+        decisions,
+        candidates,
+        mandatory=mandatory,
+        recovery_active=recovery_active,
+        last_loss=last_loss,
+        last_loss_dir=last_loss_dir,
+        skip_symbols=active_skip,
+        min_signal=min_signal,
+        min_val=min_val,
+        mean_reversion=mean_reversion,
+        low_accuracy=low_accuracy,
+    )
+    if not candidates and recovery_active and mandatory and skip_symbols:
+        active_skip = frozenset()
+        candidates = mandatory_fallback_if_empty(
+            exec_mgr,
+            decisions,
+            candidates,
+            mandatory=mandatory,
+            recovery_active=recovery_active,
+            last_loss=last_loss,
+            last_loss_dir=last_loss_dir,
+            skip_symbols=active_skip,
+            min_signal=min_signal,
+            min_val=min_val,
+            mean_reversion=mean_reversion,
+            low_accuracy=low_accuracy,
+        )
     if candidates:
         candidates = apply_recovery_hedge_to_candidates(exec_mgr, candidates, decisions, cid=cid, mandatory=mandatory)
         candidates = mandatory_fallback_if_empty(
@@ -158,7 +193,7 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
             recovery_active=recovery_active,
             last_loss=last_loss,
             last_loss_dir=last_loss_dir,
-            skip_symbols=skip_symbols,
+            skip_symbols=active_skip,
             min_signal=min_signal,
             min_val=min_val,
             mean_reversion=mean_reversion,
@@ -171,7 +206,7 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
         last_loss=last_loss,
         last_loss_dir=last_loss_dir,
         recovery_active=recovery_active,
-        skip_symbols=skip_symbols,
+        skip_symbols=active_skip,
     )
     if best is None and mandatory:
         best, candidates = resolve_mandatory_ultimate_candidate(
@@ -181,12 +216,26 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
             recovery_active=recovery_active,
             last_loss=last_loss,
             last_loss_dir=last_loss_dir,
-            skip_symbols=skip_symbols,
+            skip_symbols=active_skip,
             min_signal=min_signal,
             min_val=min_val,
             mean_reversion=mean_reversion,
             low_accuracy=low_accuracy,
         )
+        if best is None and recovery_active and skip_symbols:
+            best, candidates = resolve_mandatory_ultimate_candidate(
+                exec_mgr,
+                decisions,
+                mandatory=mandatory,
+                recovery_active=recovery_active,
+                last_loss=last_loss,
+                last_loss_dir=last_loss_dir,
+                skip_symbols=frozenset(),
+                min_signal=min_signal,
+                min_val=min_val,
+                mean_reversion=mean_reversion,
+                low_accuracy=low_accuracy,
+            )
     best = apply_recovery_direction_flip(
         best,
         decisions,
@@ -202,7 +251,7 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
         metrics = best[2]
         min_raw = float(kelly_cfg.get("stake_conviction_min_raw", 0.51))
         enrich_metrics_conviction(metrics, min_raw=min_raw)
-        calibrated = float(metrics.get("trade_score", metrics.get("conviction", 0.0)))
+        calibrated = metric_float(metrics, "trade_score", "conviction", default=0.0)
         raw_side = raw_side_from_metrics(metrics)
         effective_signal = max(calibrated, raw_side)
         log_execution_decision(exec_mgr, cid, best, candidates, effective_signal)

@@ -146,7 +146,7 @@ def test_calculate_stake_consensus_penalty_logs_retention(kelly_config):
     rm.logger.debug.assert_called()
 
 
-def test_calculate_stake_d_squeeze_revokes_recovery_waiver_at_floor(kelly_config):
+def test_calculate_stake_d_squeeze_preserves_recovery_stake_with_pending(kelly_config):
     rm = MagicMock()
     rm.config = kelly_config
     rm.kelly_config = {
@@ -165,9 +165,55 @@ def test_calculate_stake_d_squeeze_revokes_recovery_waiver_at_floor(kelly_config
     rm.logger = MagicMock()
     rm.effective_win_rate = MagicMock(return_value=0.80)
     rm._recovery_allowed = MagicMock(return_value=True)
+    _attach_dlambert(rm, kelly_config)
     rm.consecutive_losses_linear = 3
     rm.dlambert_unit = 335.52
     rm.last_loss_stake = 335.52
+    metrics = {
+        "execute": True,
+        "trade_score": 0.52,
+        "meta_squeeze_downgrade": True,
+        "call_votes": 1,
+        "put_votes": 5,
+        "indicators": {"di_diff": 0.01, "cmo": -0.18},
+    }
+    stake = calculate_stake_for_manager(
+        rm,
+        11800.0,
+        "RDBULL",
+        0.52,
+        silent=True,
+        apply_stop_win=False,
+        kwargs={"dl_metrics": metrics, "order_direction": "CALL"},
+    )
+    assert stake > 50.0
+    assert stake <= 11800.0 * 0.02 + 1e-9
+    assert metrics.get("d_squeeze_floor_waived_for_recovery") is True
+    assert metrics.get("d_squeeze_recovery_waiver_revoked") is not True
+
+
+def test_calculate_stake_d_squeeze_revokes_recovery_waiver_at_floor(kelly_config):
+    rm = MagicMock()
+    rm.config = kelly_config
+    rm.kelly_config = {
+        **kelly_config["kelly"],
+        "consensus_penalty_enabled": True,
+        "consensus_max_cut": 0.50,
+        "fraction": 0.08,
+        "max_stake_pct": 1.0,
+    }
+    rm.risk_params = {**kelly_config["params"], "stake_min": 1.0, "payout_estimate": 0.95}
+    rm.stake_max = 12000.0
+    rm.initial_bankroll = 11800.0
+    rm.total_session_profit = 0.0
+    rm.pending_loss = {}
+    rm.active_contract_ids = []
+    rm.logger = MagicMock()
+    rm.effective_win_rate = MagicMock(return_value=0.80)
+    rm._recovery_allowed = MagicMock(return_value=True)
+    rm.consecutive_losses_linear = 0
+    rm.dlambert_unit = 17.0
+    rm.last_loss_stake = 0.0
     _attach_dlambert(rm, kelly_config)
     metrics = {
         "execute": True,

@@ -1,6 +1,6 @@
 """Pisos de conviccao para entradas em recovery financeiro."""
 
-from src.domain.risk.stake_sizing import raw_side_from_metrics
+from src.domain.risk.stake_sizing import metric_float, raw_side_from_metrics
 
 
 def _merged_config(kelly_config: dict, dlambert_config: dict) -> dict:
@@ -60,9 +60,9 @@ def recovery_dl_conviction_ok(
         consecutive_losses_linear=consecutive_losses_linear,
     )
     min_val = float(cfg.get("recovery_min_val_accuracy", 0.50))
-    score = float(dl_metrics.get("trade_score", dl_metrics.get("conviction", 0.0)))
+    score = metric_float(dl_metrics, "trade_score", "conviction", default=0.0)
     raw_side = raw_side_from_metrics(dl_metrics)
-    val = float(dl_metrics.get("val_accuracy", 0.0))
+    val = metric_float(dl_metrics, "val_accuracy", default=0.0)
     if min_val > 0.0 and val + 1e-9 < min_val:
         return False
     effective = max(score, raw_side)
@@ -87,7 +87,7 @@ def recovery_dl_entry_allowed(
         return True
     cfg = _merged_config(kelly_config, dlambert_config)
     min_val = float(cfg.get("recovery_min_val_accuracy", 0.50))
-    val = float(dl_metrics.get("val_accuracy", 0.0))
+    val = metric_float(dl_metrics, "val_accuracy", default=0.0)
     if min_val > 0.0 and val + 1e-9 < min_val:
         return False
     return recovery_dl_conviction_ok(

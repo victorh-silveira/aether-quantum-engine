@@ -11,6 +11,7 @@ from src.application.services.orchestrator.engine_mode import (
     ENGINE_MODE_EXECUTE,
     apply_engine_mode,
 )
+from src.domain.risk.risk_policy import validate_engine_risk_config
 from src.presentation.terminal.logger import setup_logger
 
 
@@ -23,6 +24,8 @@ def load_engine_config(*, engine_mode: str = ENGINE_MODE_EXECUTE) -> tuple[dict[
     apply_engine_mode(config, engine_mode)
     log_file = config.get("logging", {}).get("log_file")
     logger = setup_logger("AETH", log_file=log_file)
+    for issue in validate_engine_risk_config(config):
+        logger.warning("CFG_RISK || %s", issue)
     return config, logger
 
 

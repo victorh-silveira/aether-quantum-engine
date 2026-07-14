@@ -18,8 +18,8 @@ TCN_CALL_PROXY_THRESHOLD = 0.53
 TCN_PUT_PROXY_THRESHOLD = 0.47
 
 
-def _proxy_prob_from_forward(forward: np.ndarray) -> np.ndarray:
-    return np.clip(0.5 + 0.15 * forward, 0.05, 0.95).astype(np.float32)
+def _proxy_prob_from_past_return(past_return: np.ndarray) -> np.ndarray:
+    return np.clip(0.5 + 0.15 * past_return, 0.05, 0.95).astype(np.float32)
 
 
 def _continuous_payoff_target(
@@ -64,7 +64,9 @@ def _symbol_frame(bundle: OhlcBundle) -> tuple[pd.DataFrame, np.ndarray]:
     closes = bundle.closes.astype(np.float64)
     forward = np.zeros(len(closes), dtype=np.float32)
     forward[:-1] = (closes[1:] - closes[:-1]).astype(np.float32)
-    proxy = _proxy_prob_from_forward(forward)
+    past = np.zeros(len(closes), dtype=np.float32)
+    past[1:] = (closes[1:] - closes[:-1]).astype(np.float32)
+    proxy = _proxy_prob_from_past_return(past)
     pnl = forward.copy()
     rsi = (
         np.asarray(series["rsi"], dtype=np.float64)

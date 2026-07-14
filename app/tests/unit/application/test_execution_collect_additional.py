@@ -226,4 +226,5 @@ def test_collect_cluster_orders_bolts_weak_neutral_in_recovery():
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
-    assert len(orders) == 0
+    assert len(orders) == 1
+    assert orders[0][0] == PAIR

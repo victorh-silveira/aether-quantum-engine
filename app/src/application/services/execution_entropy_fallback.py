@@ -35,6 +35,7 @@ def pick_entropy_fallback_candidate(
     decisions: dict,
     *,
     skip_symbols: frozenset[str] | None = None,
+    recovery_active: bool = False,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Seleciona simbolo com menor entropia e direcao pela maior assimetria residual."""
     skip = skip_symbols or frozenset()
@@ -74,6 +75,7 @@ def pick_entropy_fallback_candidate(
     candidate = build_execution_candidate(
         best_symbol,
         {**best_entry, "direction": direction, "metrics": metrics},
+        recovery_active=recovery_active,
     )
     if candidate is None:
         return None

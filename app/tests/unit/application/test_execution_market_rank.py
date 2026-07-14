@@ -1,8 +1,15 @@
+import pytest
+
 from src.application.services.execution_direction_resolver import resolve_execution_direction
 from src.application.services.execution_market_rank import (
+    _trade_score,
     build_market_execution_candidate,
     mandatory_pool_eligible,
     market_decision_score,
+)
+from src.application.services.meta_payoff_veto_gate import (
+    META_PAYOFF_NEGATIVE_ZSCORE_VETO,
+    apply_meta_payoff_negative_zscore_veto,
 )
 from src.domain.models.trade import TradeDirection
 
@@ -32,6 +39,18 @@ def _entry(direction=TradeDirection.CALL, raw_prob=0.62, **metrics):
 def test_mandatory_pool_eligible_requires_inferable_direction():
     assert mandatory_pool_eligible(_entry()) is True
     assert mandatory_pool_eligible({"direction": None, "metrics": {"deploy_ok": True}}) is False
+
+
+def test_mandatory_pool_eligible_rejects_execution_signal_veto():
+    entry = _entry()
+    apply_meta_payoff_negative_zscore_veto(entry["metrics"])
+    assert entry["metrics"]["gate_reason"] == META_PAYOFF_NEGATIVE_ZSCORE_VETO
+    assert mandatory_pool_eligible(entry) is False
+
+
+def test_trade_score_falls_back_when_veto_nulled_scores():
+    metrics = {"trade_score": None, "conviction": None, "raw_prob": 0.71}
+    assert _trade_score(metrics) == pytest.approx(0.71, abs=1e-6)
 
 
 def test_market_decision_score_prefers_higher_raw_side():
@@ -76,6 +95,24 @@ def test_market_decision_score_penalizes_inverted_and_low_margin():
     low_margin = market_decision_score(_entry(raw_prob=0.80, direction_margin=0.03)["metrics"])
     assert aligned > inverted
     assert aligned > low_margin
+
+
+def test_market_decision_score_penalizes_squeeze_in_recovery():
+    base = {
+        "raw_prob": 0.70,
+        "val_accuracy": 0.60,
+        "edge": 0.20,
+        "execute": True,
+        "deploy_ok": True,
+        "direction_margin": 0.20,
+    }
+    clean = market_decision_score(base, recovery_active=True, symbol="RDBULL")
+    squeezed = market_decision_score(
+        {**base, "meta_squeeze_downgrade": True},
+        recovery_active=True,
+        symbol="RDBEAR",
+    )
+    assert clean > squeezed
 
 
 def test_resolve_keeps_dl_side_on_low_val_accuracy():

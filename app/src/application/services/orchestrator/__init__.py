@@ -125,10 +125,12 @@ class Orchestrator:
 
     async def run_training(self) -> bool:
         """Executa sessao dedicada de treino DL e encerra."""
+        self.loop = asyncio.get_running_loop()
         return await run_orchestrator_training(self)
 
     async def run(self):
         """Loop principal: reconexao, persistencia e ciclos por intervalo."""
+        self.loop = asyncio.get_running_loop()
         await run_orchestrator_main_loop(self)
 
     async def _tick_idle_cycle_watchdog(self) -> None:

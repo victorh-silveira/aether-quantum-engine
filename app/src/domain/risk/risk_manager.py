@@ -80,6 +80,7 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin, ProposalSkipMixin)
         self.daily_stop_win_target = max(0.0, float(target))
         self.dlambert_unit = 0.0
         self.consecutive_losses_linear = 0
+        self.pending_loss.clear()
 
     def record_trade_outcome(self, symbol: str, *, won: bool) -> None:
         """Registra o resultado para cálculo de win rate dinâmico."""
@@ -99,9 +100,7 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin, ProposalSkipMixin)
 
     def effective_win_rate(self, symbol: str, conviction: float = 0.5) -> float:
         """Define a probabilidade (p) baseada na convicção da IA ou histórico."""
-        base_p = conviction
-        if 0.50 <= base_p <= 0.55:
-            base_p = 0.56 + (base_p - 0.50) * 0.6
+        base_p = float(conviction)
 
         if not self.kelly_config.get("dynamic_win_rate", False):
             return base_p

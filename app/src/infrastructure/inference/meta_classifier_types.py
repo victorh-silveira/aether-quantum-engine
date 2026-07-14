@@ -19,6 +19,17 @@ class MetaPredictResponse(TypedDict):
 
     predicted_payoff_edge: float
     meta_applied: bool
+    edge_expectancy: str
+
+
+def classify_edge_expectancy_from_payoff(predicted_edge: float) -> str:
+    """Classifica expectativa tabular a partir do edge continuo bruto."""
+    edge = float(predicted_edge)
+    if edge <= 0.0:
+        return "LOSS_EXPECTED"
+    if edge < 0.04:
+        return "NO_EDGE_NEUTRAL"
+    return "WIN_EXPECTED"
 
 
 def parse_meta_predict_response(payload: object) -> MetaPredictResponse:
@@ -29,4 +40,13 @@ def parse_meta_predict_response(payload: object) -> MetaPredictResponse:
         raise KeyError("predicted_payoff_edge")
     edge = float(payload["predicted_payoff_edge"])
     applied = bool(payload.get("meta_applied", False))
-    return {"predicted_payoff_edge": edge, "meta_applied": applied}
+    raw_expectancy = payload.get("edge_expectancy")
+    if isinstance(raw_expectancy, str) and raw_expectancy.strip():
+        expectancy = raw_expectancy.strip().upper()
+    else:
+        expectancy = classify_edge_expectancy_from_payoff(edge)
+    return {
+        "predicted_payoff_edge": edge,
+        "meta_applied": applied,
+        "edge_expectancy": expectancy,
+    }

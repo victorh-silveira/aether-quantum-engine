@@ -1,7 +1,15 @@
 import pytest
 
 from src.application.services.execution_direction_resolver import resolve_execution_direction
+from src.application.services.payoff_edge_zscore import reset_payoff_edge_buffer
 from src.domain.models.trade import TradeDirection
+
+
+@pytest.fixture(autouse=True)
+def _reset_edge_buffer():
+    reset_payoff_edge_buffer()
+    yield
+    reset_payoff_edge_buffer()
 
 
 def _entry(*, direction=None, raw_prob=0.55, calibrated_prob=None, execute=True, gate_reason=None, deploy_ok=True):

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import filecmp
 import logging
 import shutil
 from pathlib import Path
@@ -13,7 +14,10 @@ from src.application.services.deep_learning.dl_features import FEATURE_DIM
 from src.application.services.deep_learning.dl_model_checkpoint import _scripted_path
 from src.application.services.deep_learning.dl_params import parse_dl_params
 from src.application.services.deep_learning.dl_symbol_runtime import resolve_dl_model_path
-from src.infrastructure.inference.triton_inference_client import reload_triton_repository, triton_enabled
+from src.infrastructure.inference.triton_inference_client import (
+    triton_enabled,
+    wait_triton_models_stable,
+)
 
 
 logger = logging.getLogger("AETH")
@@ -48,6 +52,15 @@ def triton_config_pbtxt(*, lookback: int, feature_dim: int = FEATURE_DIM) -> str
     )
 
 
+def _files_identical(left: Path, right: Path) -> bool:
+    """Compara conteudo binario de dois artefatos TorchScript."""
+    if not left.is_file() or not right.is_file():
+        return False
+    if left.stat().st_size != right.stat().st_size:
+        return False
+    return filecmp.cmp(left, right, shallow=False)
+
+
 def _write_triton_model_dir(
     repo: Path,
     symbol: str,
@@ -55,16 +68,24 @@ def _write_triton_model_dir(
     *,
     lookback: int,
     feature_dim: int,
-) -> None:
-    """Grava model.pt e config.pbtxt sob {repo}/{symbol}/1/."""
+) -> bool:
+    """Grava model.pt e config.pbtxt sob {repo}/{symbol}/1/ quando houver drift."""
     model_dir = repo / symbol / "1"
     model_dir.mkdir(parents=True, exist_ok=True)
     dest_pt = model_dir / "model.pt"
-    tmp_pt = model_dir / "model.pt.tmp"
-    shutil.copy2(ts_source, tmp_pt)
-    tmp_pt.replace(dest_pt)
+    changed = False
+    if not _files_identical(ts_source, dest_pt):
+        tmp_pt = model_dir / "model.pt.tmp"
+        shutil.copy2(ts_source, tmp_pt)
+        tmp_pt.replace(dest_pt)
+        changed = True
     pbtxt = triton_config_pbtxt(lookback=lookback, feature_dim=feature_dim).replace("{name}", symbol)
-    (repo / symbol / "config.pbtxt").write_text(pbtxt, encoding="utf-8")
+    pbtxt_path = repo / symbol / "config.pbtxt"
+    existing = pbtxt_path.read_text(encoding="utf-8") if pbtxt_path.is_file() else ""
+    if existing != pbtxt:
+        pbtxt_path.write_text(pbtxt, encoding="utf-8")
+        changed = True
+    return changed
 
 
 async def sync_symbol_torchscript_to_triton(
@@ -76,7 +97,7 @@ async def sync_symbol_torchscript_to_triton(
     lookback: int,
     feature_dim: int = FEATURE_DIM,
     repo_path_override: Path | None = None,
-) -> bool:
+) -> tuple[bool, bool]:
     """Copia latest_ts.pt local para o layout de modelos do Triton."""
     repo = repo_path_override or default_triton_repo_path()
     if not local_ts_path.is_file():
@@ -85,17 +106,20 @@ async def sync_symbol_torchscript_to_triton(
             ok = await download_ts(symbol, arch=arch, dest=local_ts_path)
             if not ok:
                 logger.warning("TRITON: TorchScript ausente para %s", symbol)
-                return False
+                return False, False
         else:
-            return False
+            return False, False
 
-    def _sync() -> None:
+    def _sync() -> bool:
         """Grava artefatos no layout Triton em thread de I/O."""
-        _write_triton_model_dir(repo, symbol, local_ts_path, lookback=lookback, feature_dim=feature_dim)
+        return _write_triton_model_dir(repo, symbol, local_ts_path, lookback=lookback, feature_dim=feature_dim)
 
-    await asyncio.to_thread(_sync)
-    logger.debug("TRITON: modelo %s sincronizado em %s", symbol, repo / symbol)
-    return True
+    repo_changed = await asyncio.to_thread(_sync)
+    if repo_changed:
+        logger.debug("TRITON: modelo %s sincronizado em %s", symbol, repo / symbol)
+    else:
+        logger.debug("TRITON: modelo %s inalterado em %s", symbol, repo / symbol)
+    return True, repo_changed
 
 
 async def sync_all_symbols_to_triton(
@@ -115,11 +139,12 @@ async def sync_all_symbols_to_triton(
         return
     repo = repo_path_override or default_triton_repo_path()
     synced_symbols: list[str] = []
+    repo_changed = False
     for symbol in orch.symbols:
         sym = str(symbol)
         path = resolve_dl_model_path(dl_config, sym)
         ts_path = _scripted_path(path)
-        ok = await sync_symbol_torchscript_to_triton(
+        ok, symbol_changed = await sync_symbol_torchscript_to_triton(
             store,
             sym,
             arch=arch,
@@ -129,13 +154,15 @@ async def sync_all_symbols_to_triton(
         )
         if ok:
             synced_symbols.append(sym)
+            repo_changed = repo_changed or symbol_changed
     if not synced_symbols:
         return
     label = ",".join(synced_symbols)
     if triton_enabled(orch.config):
-        repo_ok = await reload_triton_repository(orch.config, synced_symbols)
+        repo_ok = await wait_triton_models_stable(orch.config, synced_symbols, repo_changed=repo_changed)
         status = "ready" if repo_ok else "timeout"
-        logger.info("TRITON | %d modelos | %s | %s", len(synced_symbols), label, status)
+        drift = "sync" if repo_changed else "cache"
+        logger.info("TRITON | %d modelos | %s | %s | %s", len(synced_symbols), label, status, drift)
         if not repo_ok:
             raise ConnectionError(f"TRITON: modelos nao ficaram prontos: {label}")
     else:

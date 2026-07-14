@@ -1,3 +1,4 @@
+import threading
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -48,6 +49,55 @@ def test_evaluate_mini_deploy_insufficient_history():
     )
     assert ok is False
     assert wr == 0.0
+
+
+def test_evaluate_mini_deploy_forces_local_predict():
+    orch = type("O", (), {"config": {"infra": {"triton": {"enabled": True}}}})()
+    model = create_direction_model(input_dim=FEATURE_DIM)
+    stats = fit_norm_stats(np.zeros((1, 32, FEATURE_DIM), dtype=np.float32))
+    runtime = {
+        "val_accuracy": 0.55,
+        "val_brier": 0.2,
+        "lookback": 8,
+        "calibrator": None,
+        "model": model,
+        "model_lock": threading.RLock(),
+    }
+    params = {
+        "lookback": 8,
+        "validation_bars": 8,
+        "confidence_call_threshold": 0.55,
+        "confidence_put_threshold": 0.45,
+        "contract_duration": 60,
+        "implied_vol_bars": 4,
+    }
+    prices = np.linspace(100.0, 110.0, 40)
+    with patch(
+        "src.application.services.deep_learning.dl_deploy_eval.predict_symbol_decision",
+        return_value={
+            "direction": TradeDirection.CALL,
+            "metrics": {"execute": True, "raw_prob": 0.7},
+        },
+    ) as mock_predict:
+        evaluate_mini_deploy(
+            orch,
+            "RDBEAR",
+            model,
+            prices,
+            stats,
+            runtime,
+            params,
+            gate_cfg={
+                "enabled": True,
+                "mini_bars": 20,
+                "min_trades": 1,
+                "max_brier": 0.99,
+                "min_win_rate": 0.0,
+                "max_eval_steps": 4,
+            },
+        )
+    assert mock_predict.called
+    assert mock_predict.call_args.kwargs.get("force_local") is True
 
 
 def test_direction_wins_boundary():

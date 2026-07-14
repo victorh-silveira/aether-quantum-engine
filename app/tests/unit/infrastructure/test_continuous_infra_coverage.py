@@ -97,7 +97,7 @@ async def test_sync_symbol_downloads_when_missing(tmp_path):
             dest.write_bytes(b"x")
             return True
 
-    ok = await sync_symbol_torchscript_to_triton(
+    ok, changed = await sync_symbol_torchscript_to_triton(
         Store(),
         "RDBEAR",
         arch="tcn",
@@ -106,6 +106,7 @@ async def test_sync_symbol_downloads_when_missing(tmp_path):
         repo_path_override=tmp_path / "repo",
     )
     assert ok is True
+    assert changed is True
 
 
 def test_correlation_cache_roundtrip():
@@ -228,12 +229,12 @@ async def test_sync_all_symbols_with_store(tmp_path):
         patch(
             "src.infrastructure.inference.triton_model_sync.sync_symbol_torchscript_to_triton",
             new_callable=AsyncMock,
-            return_value=True,
+            return_value=(True, True),
         ) as mock_one,
         patch(
-            "src.infrastructure.inference.triton_model_sync.reload_triton_repository",
+            "src.infrastructure.inference.triton_model_sync.wait_triton_models_stable",
             new_callable=AsyncMock,
-            return_value=True,
+            return_value=(True, True),
         ) as mock_reload,
     ):
         await sync_all_symbols_to_triton(orch, repo_path_override=tmp_path)
@@ -246,7 +247,7 @@ async def test_sync_symbol_returns_false_without_file_or_download():
     class Store:
         pass
 
-    ok = await sync_symbol_torchscript_to_triton(
+    ok, changed = await sync_symbol_torchscript_to_triton(
         Store(),
         "RDBEAR",
         arch="tcn",
@@ -254,3 +255,4 @@ async def test_sync_symbol_returns_false_without_file_or_download():
         lookback=48,
     )
     assert ok is False
+    assert changed is False

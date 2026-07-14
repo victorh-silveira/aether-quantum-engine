@@ -7,6 +7,7 @@ from src.domain.risk.consensus_stake_penalty import (
     apply_turbo_edge_stake,
     d_squeeze_sovereignty_active,
     enforce_d_squeeze_stake_floor,
+    max_safe_stake_cap,
 )
 from src.domain.risk.dlambert_sizing import (
     dlambert_log_suffix,
@@ -71,8 +72,7 @@ def calculate_stake_for_manager(
 
     mandatory = bool(kwargs.get("mandatory_trade_each_cycle", False))
     is_execute = isinstance(dl_metrics, dict) and bool(dl_metrics.get("execute", True))
-    if mandatory or is_execute:
-        conviction = max(conviction, 0.50)
+    _ = (mandatory, is_execute)
 
     b = float(rm.risk_params.get("payout_estimate", 0.95))
     p = rm.effective_win_rate(symbol, conviction)
@@ -149,6 +149,8 @@ def calculate_stake_for_manager(
         dl_metrics=dl_metrics if isinstance(dl_metrics, dict) else None,
     )
     mandatory_flag = _mandatory_trade_flag(kwargs, rm)
+    final_stake = apply_turbo_edge_stake(final_stake, dl_metrics)
+    final_stake = min(final_stake, max_safe_stake_cap(bankroll, consecutive_losses_linear=linear_losses))
     final_stake = finalize_stake_with_min(
         final_stake,
         stake_min,
@@ -157,7 +159,6 @@ def calculate_stake_for_manager(
         recovery_linear=recovery_stress,
         mandatory=mandatory_flag,
     )
-    final_stake = apply_turbo_edge_stake(final_stake, dl_metrics)
     cycle_id = int(kwargs.get("cycle_id") or 0)
     log_kelly_base = kelly_base
     if mode_tag == "D'ALEMBERT":
@@ -173,7 +174,12 @@ def calculate_stake_for_manager(
         bankroll=bankroll,
         payout=b,
     )
-    final_stake = enforce_d_squeeze_stake_floor(final_stake, stake_min, dl_metrics)
+    final_stake = enforce_d_squeeze_stake_floor(
+        final_stake,
+        stake_min,
+        dl_metrics,
+        pending_total=loss_to_recover,
+    )
     _emit_cycle_stake_log(
         rm,
         cycle_id=cycle_id,

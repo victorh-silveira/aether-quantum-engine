@@ -111,11 +111,14 @@ def apply_soft_recovery_stake(
             payout=payout,
             risk_params=risk_params,
         )
+    cover = float(pending_total) / resolved_payout / 2.0
+    stake = max(stake, cover)
     if isinstance(metrics, dict):
         metrics["recovery_soft_progression"] = factor
         metrics["recovery_adaptive_payout"] = resolved_payout
         metrics["recovery_soft_losses"] = losses
         metrics["recovery_soft_anchor_stake"] = anchor
+        metrics["recovery_cover_need"] = cover
     cap = max_safe_stake_cap(bankroll, consecutive_losses_linear=consecutive_losses)
     return min(stake, cap)
 
@@ -150,9 +153,15 @@ def enforce_d_squeeze_stake_floor(
     final_stake: float,
     stake_min: float,
     metrics: dict | None,
+    *,
+    pending_total: float = 0.0,
 ) -> float:
     """Comprime stake ao piso absoluto da API quando D-SQUEEZE revoga recovery."""
     if not d_squeeze_sovereignty_active(metrics):
+        return final_stake
+    if float(pending_total) > 0.0:
+        if isinstance(metrics, dict):
+            metrics["d_squeeze_floor_waived_for_recovery"] = True
         return final_stake
     if isinstance(metrics, dict):
         metrics["d_squeeze_recovery_waiver_revoked"] = True
@@ -254,6 +263,20 @@ def consensus_kelly_retention(
     return consensus_entropy_kelly_retention(metrics, order_direction, kelly_config=kelly_config)
 
 
+def cross_veto_recovery_waiver_allowed(
+    metrics: dict[str, Any] | None,
+    *,
+    direction: str | None,
+    risk_manager: Any | None = None,
+) -> bool:
+    """Verifica se o waiver de recovery para o veto cruzado esta ativo e permitido."""
+    if metrics is None or direction is None:
+        return False
+    from src.domain.risk.risk_recovery_state import meta_payoff_veto_emergency_waiver  # noqa: PLC0415
+
+    return meta_payoff_veto_emergency_waiver(metrics, direction=direction, risk_manager=risk_manager)
+
+
 __all__ = [
     "adaptive_recovery_progression_factor",
     "apply_neutral_edge_kelly_base",
@@ -262,6 +285,7 @@ __all__ = [
     "consensus_entropy_applies_min_stake",
     "consensus_entropy_kelly_retention",
     "consensus_kelly_retention",
+    "cross_veto_recovery_waiver_allowed",
     "d_squeeze_sovereignty_active",
     "enforce_d_squeeze_stake_floor",
     "max_safe_stake_cap",

@@ -238,6 +238,7 @@ def build_prediction_entry(
         contract_duration=int(params.get("contract_duration", 60)),
     )
     entry["metrics"]["gate_reason"] = None
+    entry["metrics"]["edge_expectancy"] = None
     entry["metrics"]["calibrated_prob"] = calibrated_prob
     entry["metrics"]["calibrated_edge"] = calibrated_edge
     entry["metrics"]["trend_direction"] = trend_dir.name

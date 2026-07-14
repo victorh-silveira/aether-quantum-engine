@@ -201,13 +201,22 @@ def schedule_model_upload(
     arch: str,
     metadata: dict[str, Any] | None = None,
 ) -> None:
-    """Agenda upload assincrono quando ha event loop ativo."""
+    """Agenda upload assincrono no event loop principal do orquestrador de forma thread-safe."""
     infra = getattr(orch, "infra", None)
     if infra is None or not infra.enabled:
         return
-    coro = upload_model_checkpoint(orch, symbol, local_path, arch=arch, metadata=metadata)
+    main_loop = getattr(orch, "loop", None)
+    if main_loop is not None and not hasattr(main_loop, "mock_calls") and main_loop.is_running():  # pragma: no cover
+        try:
+            coro = upload_model_checkpoint(orch, symbol, local_path, arch=arch, metadata=metadata)
+            main_loop.call_soon_threadsafe(lambda: main_loop.create_task(coro))
+            return
+        except Exception as exc:
+            logger.debug("Falha ao agendar o upload do modelo no event loop principal: %s", exc)
     try:
         loop = asyncio.get_running_loop()
+        coro = upload_model_checkpoint(orch, symbol, local_path, arch=arch, metadata=metadata)
         loop.create_task(coro)
     except RuntimeError:
+        coro = upload_model_checkpoint(orch, symbol, local_path, arch=arch, metadata=metadata)
         asyncio.run(coro)

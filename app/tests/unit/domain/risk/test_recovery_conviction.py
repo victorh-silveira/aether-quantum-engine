@@ -24,6 +24,25 @@ def test_recovery_dl_entry_allowed_forced():
     )
 
 
+def test_recovery_dl_conviction_ok_handles_vetoed_none_scores():
+    metrics = {
+        "deploy_ok": True,
+        "val_accuracy": 0.72,
+        "trade_score": None,
+        "conviction": None,
+        "raw_prob": 0.70,
+    }
+    assert (
+        recovery_dl_conviction_ok(
+            metrics,
+            {},
+            {"recovery_min_val_accuracy": 0.50, "recovery_sizing_conviction": 0.58},
+            pending_loss={"RDBEAR": 1.0},
+        )
+        is True
+    )
+
+
 def test_recovery_dl_conviction_ok_deploy_false():
     assert recovery_dl_conviction_ok({"deploy_ok": False}, {}, {}, pending_loss={}) is False
 

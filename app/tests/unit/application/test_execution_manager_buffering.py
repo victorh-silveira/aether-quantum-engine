@@ -1,8 +1,10 @@
+import builtins
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from src.application.services.orchestrator import Orchestrator
+from src.application.services.orchestrator.execution_cuda import clear_cuda_cache
 from src.infrastructure.state.trading_state import TradingState
 
 
@@ -26,19 +28,34 @@ async def test_execution_manager_clears_cuda_cache(orch_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
-
-        with (
-            patch("src.application.services.orchestrator.execution_manager.torch.cuda.is_available", return_value=True),
-            patch("src.application.services.orchestrator.execution_manager.torch.cuda.empty_cache") as mock_empty_cache,
-        ):
+        with patch("src.application.services.orchestrator.execution_manager.clear_cuda_cache") as mock_clear:
             await orch.executor.execute_cluster({})
-            mock_empty_cache.assert_called_once()
+            mock_clear.assert_called_once()
 
-        with (
-            patch(
-                "src.application.services.orchestrator.execution_manager.torch.cuda.is_available", return_value=False
-            ),
-            patch("src.application.services.orchestrator.execution_manager.torch.cuda.empty_cache") as mock_empty_cache,
-        ):
-            await orch.executor.execute_cluster({})
-            mock_empty_cache.assert_not_called()
+
+def test_clear_cuda_cache_when_available():
+    fake_torch = MagicMock()
+    fake_torch.cuda.is_available.return_value = True
+    with patch.dict("sys.modules", {"torch": fake_torch}):
+        clear_cuda_cache()
+    fake_torch.cuda.empty_cache.assert_called_once()
+
+
+def test_clear_cuda_cache_skips_when_unavailable():
+    fake_torch = MagicMock()
+    fake_torch.cuda.is_available.return_value = False
+    with patch.dict("sys.modules", {"torch": fake_torch}):
+        clear_cuda_cache()
+    fake_torch.cuda.empty_cache.assert_not_called()
+
+
+def test_clear_cuda_cache_without_torch():
+    real_import = builtins.__import__
+
+    def _guarded_import(name, *args, **kwargs):
+        if name == "torch":
+            raise ImportError("missing")
+        return real_import(name, *args, **kwargs)
+
+    with patch("builtins.__import__", side_effect=_guarded_import):
+        clear_cuda_cache()

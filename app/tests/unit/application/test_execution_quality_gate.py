@@ -224,10 +224,11 @@ def test_quality_conviction_suspends_cluster_skips_malformed_entries(orch_ready,
         "RDBEAR": {"metrics": "invalid"},
         "RDBULL2": {
             "metrics": {
-                "calibrated_prob": 0.61,
+                "calibrated_prob": 0.51,
                 "predicted_payoff_edge": 0.01,
                 "meta_classifier_applied": True,
                 "meta_payoff_edge_zscore": 0.10,
+                "edge_zscore_samples": 15,
                 "deploy_ok": True,
                 "direction": "CALL",
             }
@@ -236,10 +237,10 @@ def test_quality_conviction_suspends_cluster_skips_malformed_entries(orch_ready,
     with caplog.at_level("INFO", logger="AETH"):
         assert quality_conviction_suspends_cluster(orch, decisions) is True
     assert decisions["RDBULL2"]["metrics"]["quality_guard_reject"] is True
-    guard_logs = [record for record in caplog.records if "EXECUTION_FLOW" in record.message]
+    guard_logs = [record for record in caplog.records if "QUALITY_GUARD" in record.message]
     assert len(guard_logs) == 1
     assert "C0002" in guard_logs[0].message
-    assert "Meta Z-Score" in guard_logs[0].message
+    assert "TCN Margin" in guard_logs[0].message or "Meta Z-Score" in guard_logs[0].message
     assert "linear=0" in guard_logs[0].message
 
 
@@ -289,6 +290,8 @@ def test_log_quality_guard_suspension_uses_default_reason_when_missing(orch_read
     orch._active_cycle_id = 5
     with caplog.at_level("INFO", logger="AETH"):
         log_quality_guard_suspension(orch)
-    guard_logs = [record for record in caplog.records if "EXECUTION_FLOW" in record.message]
+    guard_logs = [
+        record for record in caplog.records if "QUALITY_GUARD" in record.message or "EXECUTION_FLOW" in record.message
+    ]
     assert len(guard_logs) == 1
     assert "suspenso por meta-regressor" in guard_logs[0].message

@@ -10,6 +10,7 @@ import torch
 from src.application.services.deep_learning import dl_device
 from src.application.services.direction_loss_tracker import reset_direction_persistence_tracker
 from src.application.services.orchestrator.execution_manager import ExecutionManager
+from src.application.services.payoff_edge_zscore import reset_payoff_edge_buffer
 from src.infrastructure.market.timescale_correlation_worker import stop_correlation_worker
 from src.infrastructure.state.trading_state import TradingState
 
@@ -26,6 +27,14 @@ _TORCH_DEVICE_PATCHES = (
 def reset_trading_state():
     """Redefine o singleton TradingState antes de cada teste."""
     TradingState.reset()
+
+
+@pytest.fixture(autouse=True)
+def reset_payoff_edge_zscore_buffer():
+    """Isola o buffer movel de Z-Score de payoff entre testes e workers xdist."""
+    reset_payoff_edge_buffer()
+    yield
+    reset_payoff_edge_buffer()
 
 
 @pytest.fixture(scope="session", autouse=True)

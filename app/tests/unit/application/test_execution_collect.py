@@ -99,6 +99,8 @@ def test_collect_cluster_orders_bolts_weak_signal_continuously():
             last_loss_symbol=PAIR,
             last_loss_direction="CALL",
             consecutive_losses=0,
+            consecutive_losses_linear=1,
+            pending_loss_total=lambda: 10.0,
         ),
         _active_cycle_id=9,
     )
@@ -111,7 +113,20 @@ def test_collect_cluster_orders_bolts_weak_signal_continuously():
     decisions = {
         PAIR: {
             "direction": TradeDirection.PUT,
-            "metrics": {"raw_prob": 0.4, "execute": False, "deploy_ok": True, "val_accuracy": 0.55},
+            "metrics": {
+                "raw_prob": 0.4,
+                "calibrated_prob": 0.4,
+                "execute": False,
+                "deploy_ok": True,
+                "val_accuracy": 0.55,
+                "quality_guard_reject": True,
+                "execution_gate_state": "meta_zscore_reject",
+                "quality_gate_reason": "[Meta Z-Score -1.50 < min 0.50]",
+                "meta_payoff_edge_zscore": -1.50,
+                "edge_zscore": -1.50,
+                "predicted_payoff_edge": -0.80,
+                "edge_expectancy": "LOSS_EXPECTED",
+            },
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)

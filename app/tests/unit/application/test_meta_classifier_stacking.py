@@ -16,7 +16,13 @@ from src.application.services.meta_classifier_stacking import (
     prefetch_meta_payoff_for_decisions,
     resolve_meta_payoff_edge,
 )
+from src.application.services.meta_payoff_veto_gate import META_PAYOFF_NEGATIVE_ZSCORE_VETO
 from src.domain.models.trade import TradeDirection
+
+
+def _stamp_negative_zscore(metrics: dict, z_score: float = -0.77) -> None:
+    metrics["meta_payoff_edge_zscore"] = z_score
+    metrics["edge_zscore"] = z_score
 
 
 def _metrics_with_cross() -> dict:
@@ -255,6 +261,7 @@ def test_c0015_stacking_payload_rejects_negative_edge_before_squeeze(caplog):
             "calibrated_prob": 0.70,
             "predicted_payoff_edge": -0.22,
             "meta_classifier_applied": True,
+            "edge_expectancy": "LOSS_EXPECTED",
             "feature_vector": [0.1] * 34,
             "indicators": {"bb_width": 0.03},
             "flow_features": {"micro_tick_acceleration": -0.02, "keltner_deviation_ratio": -0.05},
@@ -265,10 +272,16 @@ def test_c0015_stacking_payload_rejects_negative_edge_before_squeeze(caplog):
             },
         },
     }
-    with caplog.at_level("INFO"):
+    with (
+        patch(
+            "src.application.services.execution_direction_resolver.attach_payoff_edge_zscore_metrics",
+            side_effect=lambda metrics, edge, **kwargs: _stamp_negative_zscore(metrics),
+        ),
+        caplog.at_level("INFO"),
+    ):
         result = resolve_execution_direction(entry, symbol="RDBULL")
     assert result is None
-    assert entry["metrics"]["quality_guard_reject"] is True
-    assert entry["metrics"]["signal_status"] == "SIGNAL_SUSPENDED"
+    assert entry["metrics"]["gate_reason"] == META_PAYOFF_NEGATIVE_ZSCORE_VETO
+    assert entry["metrics"]["signal_status"] == "SKIP"
     assert len(extract_meta_feature_vector(entry["metrics"])) == META_FEATURE_DIM
     assert not any("[D-SQUEEZE]" in record.message for record in caplog.records)

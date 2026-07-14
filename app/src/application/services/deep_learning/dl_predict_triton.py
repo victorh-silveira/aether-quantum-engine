@@ -18,6 +18,19 @@ from src.infrastructure.inference.triton_tensor_builder import build_inference_t
 logger = logging.getLogger("AETH")
 
 
+def _require_triton_for_execution(config: dict | None) -> bool:
+    """True quando timeout Triton deve falhar fechado sem fallback local."""
+    cfg = config if isinstance(config, dict) else {}
+    infra = cfg.get("infra", {}) if isinstance(cfg.get("infra"), dict) else {}
+    triton = infra.get("triton", {}) if isinstance(infra.get("triton"), dict) else {}
+    if "require_for_execution" in triton:
+        return bool(triton.get("require_for_execution"))
+    exec_cfg = cfg.get("orchestrator", {}).get("execution", {}) if isinstance(cfg.get("orchestrator"), dict) else {}
+    if isinstance(exec_cfg, dict) and "require_triton_for_execution" in exec_cfg:
+        return bool(exec_cfg.get("require_triton_for_execution"))
+    return False
+
+
 def _local_torchscript_predict(
     *,
     model: Any,
@@ -133,6 +146,10 @@ async def predict_raw_prob_async(
     try:
         raw_prob = await infer_symbol_async(orch.config, str(symbol), tensor)
     except TritonInferenceTimeout:
+        require_triton = _require_triton_for_execution(orch.config)
+        if require_triton:
+            logger.warning("TRITON_TIMEOUT_FAIL_CLOSED | sym=%s", symbol)
+            return None, 0.5, 0.5
         logger.warning("TRITON_TIMEOUT_FALLBACK | sym=%s", symbol)
         model = local_kwargs["model"]
         if model is None:

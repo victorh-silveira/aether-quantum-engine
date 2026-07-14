@@ -2,7 +2,7 @@ from src.domain.risk.risk_manager import RiskManager
 
 
 def test_symbol_loss_cooldown_always_disabled_and_inactive(kelly_config):
-    # Mesmo configurando cycles ou candles, o cooldown deve sempre permanecer inativo (False/vazio).
+
     kelly_config["kelly"]["symbol_loss_cooldown_cycles"] = 2
     kelly_config["kelly"]["symbol_loss_cooldown_candles"] = 2
     rm = RiskManager(kelly_config)

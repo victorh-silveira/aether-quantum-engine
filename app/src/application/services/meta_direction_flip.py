@@ -12,6 +12,7 @@ from src.application.services.bb_width_adaptive_squeeze import (
 )
 from src.application.services.execution_quality_gate import sync_direction_margin
 from src.domain.models.trade import TradeDirection
+from src.domain.risk.stake_sizing import metric_float
 
 
 META_FLIP_PAYOFF_THRESHOLD_BASE = 0.42
@@ -127,7 +128,7 @@ def log_d_squeeze_audit(symbol: str | None, metrics: dict[str, Any]) -> None:
         float(metrics.get("predicted_payoff_edge", metrics.get("meta_calibrated_payoff_score", 0.0))),
         float(metrics.get("dynamic_flip_threshold", META_FLIP_PAYOFF_THRESHOLD_BASE)),
         bool(metrics.get("meta_direction_flip", False)),
-        float(metrics.get("trade_score", 0.0)),
+        metric_float(metrics, "trade_score", default=0.0),
     )
 
 

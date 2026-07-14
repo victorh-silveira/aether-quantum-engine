@@ -67,6 +67,14 @@ def test_reset_and_snapshot_buffer():
     assert payoff_edge_buffer_snapshot() == ()
 
 
+def test_reset_payoff_edge_buffer_for_single_symbol():
+    apply_payoff_edge_zscore(0.42, symbol="RDBULL")
+    apply_payoff_edge_zscore(0.55, symbol="RDBEAR")
+    reset_payoff_edge_buffer("RDBULL")
+    assert payoff_edge_buffer_snapshot("RDBULL") == ()
+    assert payoff_edge_buffer_snapshot("RDBEAR") == (0.55,)
+
+
 def test_compute_edge_zscore_returns_zero_with_short_history():
     assert compute_edge_zscore(1.0, history=[1.0]) == 0.0
 

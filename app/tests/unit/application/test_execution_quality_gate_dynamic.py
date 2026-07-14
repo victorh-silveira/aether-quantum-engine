@@ -14,11 +14,44 @@ def test_cluster_quality_gate_blocks_mandatory_fallback_when_all_viable_rejected
     decisions = {
         "RDBULL": {
             "direction": "CALL",
-            "metrics": {"calibrated_prob": 0.55, "quality_guard_reject": True, "deploy_ok": True},
+            "metrics": {
+                "calibrated_prob": 0.55,
+                "quality_guard_reject": True,
+                "deploy_ok": True,
+                "meta_payoff_edge_zscore": -0.85,
+                "edge_zscore": -0.85,
+            },
         }
     }
     risk_manager = SimpleNamespace(consecutive_losses_linear=2, pending_loss={}, pending_loss_total=lambda: 0.0)
     assert cluster_quality_gate_blocks_mandatory_fallback(
+        decisions,
+        exec_cfg={},
+        risk_manager=risk_manager,
+        trade_symbols=["RDBULL"],
+    )
+
+
+def test_cluster_quality_gate_allows_soft_meta_zscore_reject():
+    decisions = {
+        "RDBULL": {
+            "direction": "CALL",
+            "metrics": {
+                "calibrated_prob": 0.64,
+                "quality_guard_reject": True,
+                "deploy_ok": True,
+                "execution_gate_state": "meta_zscore_reject",
+                "meta_payoff_edge_zscore": 0.10,
+                "edge_zscore": 0.10,
+            },
+        }
+    }
+    risk_manager = SimpleNamespace(
+        consecutive_losses_linear=4,
+        pending_loss={"RDBULL": 540.0},
+        pending_loss_total=lambda: 540.0,
+    )
+    assert not cluster_quality_gate_blocks_mandatory_fallback(
         decisions,
         exec_cfg={},
         risk_manager=risk_manager,
@@ -66,9 +99,98 @@ def test_cluster_quality_gate_skips_non_viable_entries():
 
 
 def test_cluster_quality_gate_counts_raw_prob_entry():
-    decisions = {"RDBULL": {"metrics": {"raw_prob": 0.55, "quality_guard_reject": True, "deploy_ok": True}}}
+    decisions = {
+        "RDBULL": {
+            "metrics": {
+                "raw_prob": 0.55,
+                "quality_guard_reject": True,
+                "deploy_ok": True,
+                "meta_payoff_edge_zscore": -0.55,
+            }
+        }
+    }
     risk_manager = SimpleNamespace(consecutive_losses_linear=1, pending_loss={}, pending_loss_total=lambda: 0.0)
     assert cluster_quality_gate_blocks_mandatory_fallback(
+        decisions,
+        exec_cfg={},
+        risk_manager=risk_manager,
+        trade_symbols=["RDBULL"],
+    )
+
+
+def test_cluster_quality_gate_allows_fallback_on_soft_tcn_margin_reject():
+    decisions = {
+        "RDBULL": {
+            "direction": "PUT",
+            "metrics": {
+                "calibrated_prob": 0.52,
+                "deploy_ok": True,
+                "quality_guard_reject": True,
+                "quality_gate_reason": "[TCN Margin 0.02 < min 0.04]",
+                "meta_payoff_edge_zscore": 1.75,
+                "edge_zscore": 1.75,
+                "predicted_payoff_edge": 1.33,
+            },
+        }
+    }
+    risk_manager = SimpleNamespace(
+        consecutive_losses_linear=1,
+        pending_loss={"RDBULL": 38.56},
+        pending_loss_total=lambda: 38.56,
+    )
+    assert not cluster_quality_gate_blocks_mandatory_fallback(
+        decisions,
+        exec_cfg={},
+        risk_manager=risk_manager,
+        trade_symbols=["RDBULL"],
+    )
+
+
+def test_cluster_quality_gate_blocks_soft_tcn_when_zscore_strongly_negative():
+    decisions = {
+        "RDBULL": {
+            "direction": "CALL",
+            "metrics": {
+                "calibrated_prob": 0.52,
+                "deploy_ok": True,
+                "quality_guard_reject": True,
+                "quality_gate_reason": "[TCN Margin 0.02 < min 0.04]",
+                "meta_payoff_edge_zscore": -0.85,
+                "edge_zscore": -0.85,
+            },
+        }
+    }
+    risk_manager = SimpleNamespace(
+        consecutive_losses_linear=1,
+        pending_loss={"RDBULL": 20.0},
+        pending_loss_total=lambda: 20.0,
+    )
+    assert cluster_quality_gate_blocks_mandatory_fallback(
+        decisions,
+        exec_cfg={},
+        risk_manager=risk_manager,
+        trade_symbols=["RDBULL"],
+    )
+
+
+def test_cluster_quality_gate_allows_soft_tcn_reject_without_zscore():
+    decisions = {
+        "RDBULL": {
+            "direction": "CALL",
+            "metrics": {
+                "calibrated_prob": 0.52,
+                "deploy_ok": True,
+                "quality_guard_reject": True,
+                "quality_gate_reason": "[TCN Margin 0.02 < min 0.04]",
+            },
+        }
+    }
+    risk_manager = SimpleNamespace(
+        consecutive_losses_linear=1,
+        pending_loss={"RDBULL": 20.0},
+        pending_loss_total=lambda: 20.0,
+    )
+    assert not cluster_quality_gate_blocks_mandatory_fallback(
         decisions,
         exec_cfg={},
         risk_manager=risk_manager,

@@ -83,7 +83,10 @@ def apply_meta_regression_edge(
     if not meta_applied:
         _apply_direction_scores(metrics, direction=dl_dir, score=base_score)
         return dl_dir, float(base_score)
-    squeeze_danger = severe_bb_compression(metrics) or float(predicted_edge) <= 0.0
+    if float(predicted_edge) <= 0.0:
+        _apply_direction_scores(metrics, direction=dl_dir, score=base_score)
+        return dl_dir, float(base_score)
+    squeeze_danger = severe_bb_compression(metrics)
     if squeeze_danger:
         metrics["meta_squeeze_downgrade"] = True
         _apply_direction_scores(metrics, direction=dl_dir, score=META_SQUEEZE_TRADE_SCORE)

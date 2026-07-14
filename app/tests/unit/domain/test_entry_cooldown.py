@@ -11,7 +11,7 @@ def test_resolve_entry_cooldown_always_disabled():
             "high_conviction_cooldown_threshold": 0.85,
         }
     }
-    # Sempre deve retornar None para segundos e 0 para ticks, mesmo com configuracoes ativas
+
     assert resolve_entry_cooldown_ticks(risk, 0.5) == 0
     assert resolve_entry_cooldown_ticks(risk, 0.9) == 0
     assert resolve_entry_cooldown_seconds(risk, 0.5) is None

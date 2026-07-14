@@ -182,7 +182,7 @@ def test_live_win_rate_and_blended():
 
 def test_session_pause_helpers():
     orch = SimpleNamespace(_dl_session_pause={"RDBULL": 2})
-    # Sempre deve retornar False agora que as pausas estao desativadas
+
     assert is_symbol_session_paused(orch, "RDBULL") is False
     tick_dl_session_pauses(orch)
 
@@ -194,6 +194,6 @@ def test_maybe_pause_symbol_session():
             "deep_learning": {"session_max_losses_in_window": 2, "session_window_trades": 3, "session_pause_cycles": 4}
         },
     )
-    # Nao deve criar nenhuma entrada de pausa (no-op)
+
     maybe_pause_symbol_session(orch, "RDBULL", max_losses_in_window=2, window_trades=3, pause_cycles=4)
     assert not hasattr(orch, "_dl_session_pause")

@@ -4,11 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.domain.risk.consensus_stake_penalty import (
-    consensus_entropy_applies_min_stake,
-    consensus_kelly_retention,
-)
-from src.domain.risk.stake_sizing import clamp_kelly_stake
+from src.domain.risk.consensus_stake_penalty import consensus_kelly_retention
+from src.domain.risk.stake_sizing import clamp_kelly_stake, consensus_entropy_applies_min_stake
 
 
 def apply_kelly_fraction_scale(f_star: float, dl_metrics: dict | None) -> float:

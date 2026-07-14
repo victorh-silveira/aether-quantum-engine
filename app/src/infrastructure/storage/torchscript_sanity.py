@@ -9,12 +9,13 @@ from typing import Any
 import numpy as np
 import torch
 
-from src.infrastructure.inference.triton_grpc_client import get_triton_grpc_client
+from src.infrastructure.inference.triton_grpc_client import TritonInferenceTimeout, get_triton_grpc_client
 from src.infrastructure.inference.triton_http import fetch_triton_health_ready
 from src.infrastructure.inference.triton_inference_client import (
     triton_enabled,
     triton_grpc_url,
     triton_http_url,
+    triton_infer_timeout_seconds,
 )
 from src.infrastructure.inference.triton_model_metadata import (
     fetch_triton_model_metadata_async,
@@ -163,7 +164,18 @@ async def verify_triton_stressed_inference_async(
     tensor = build_stressed_regime_probe_ndarray(lookback, feature_dim)
     client = await get_triton_grpc_client(triton_grpc_url(config))
     batch = {str(sym): tensor for sym in symbols}
-    probs = await client.infer_symbols_concurrent(batch)
+    timeout = triton_infer_timeout_seconds(config, bootstrap=True)
+    probs: dict[str, float] | None = None
+    for attempt in range(3):
+        try:
+            probs = await client.infer_symbols_concurrent(batch, timeout=timeout)
+            break
+        except TritonInferenceTimeout:
+            if attempt >= 2:
+                raise
+            await asyncio.sleep(0.35 * float(attempt + 1))
+    if probs is None:  # pragma: no cover
+        raise RuntimeError("Triton inferencia estressada sem resposta apos retries")
     for sym in symbols:
         raw = probs.get(str(sym))
         if raw is None:

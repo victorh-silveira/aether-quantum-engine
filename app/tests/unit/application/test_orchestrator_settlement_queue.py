@@ -87,7 +87,6 @@ async def test_settlement_worker_continues_after_queue_timeout(orch_ready):
     ):
         task = asyncio.create_task(_settlement_worker_loop(orch))
 
-        # Espera tempo suficiente para o timeout real de 0.25s ocorrer
         await real_sleep(0.35)
 
         orch.running = False

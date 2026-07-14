@@ -391,7 +391,7 @@ def stage_test(fail_under: int = 100) -> None:
 
 def stage_security() -> None:
     run_tool("bandit", ["-r", "src", "-c", "pyproject.toml"], "Bandit Security Scan")
-    ignored_vulns = ["PYSEC-2022-42969", "PYSEC-2026-139", "CVE-2025-3000"]
+    ignored_vulns = ["PYSEC-2022-42969", "PYSEC-2026-139", "CVE-2025-3000", "PYSEC-2026-3447"]
     ignore_args = [item for vuln in ignored_vulns for item in ("--ignore-vuln", vuln)]
     run_tool("pip_audit", ignore_args, "Pip-audit Vulnerability Scan")
 

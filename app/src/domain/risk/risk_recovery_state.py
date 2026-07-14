@@ -1,6 +1,14 @@
 """Políticas de estado de recuperação de risco e trava anti-tendência (AntiTrendLock)."""
 
+from typing import Any
+
 from src.domain.models.trade import TradeDirection
+
+
+CRITICAL_LINEAR_LOSSES = 5
+CRITICAL_PENDING_TOTAL = 250.0
+PUT_EXTREME_RAW_PROB = 0.18
+CALL_EXTREME_RAW_PROB = 0.82
 
 
 def pending_loss_total(pending_loss: dict[str, float]) -> float:
@@ -108,7 +116,6 @@ def evaluate_anti_trend_lock(
         return proposed_direction, "KEEP"
 
     if symbol == "RDBULL" and proposed_direction == TradeDirection.CALL:
-        # Tentamos fazer flip para PUT (que opera em RDBEAR)
         expanding = (bear_put_prob + 1e-12 > bull_call_prob) or (
             probability_delta > cross_symbol_prob_delta_mean + 1e-12
         )
@@ -117,7 +124,6 @@ def evaluate_anti_trend_lock(
         return None, "FREEZE: SKIP CYCLE"
 
     if symbol == "RDBEAR" and proposed_direction == TradeDirection.PUT:
-        # Tentamos fazer flip para CALL (que opera em RDBULL)
         expanding = (bull_call_prob + 1e-12 > bear_put_prob) or (
             probability_delta > cross_symbol_prob_delta_mean + 1e-12
         )
@@ -126,3 +132,39 @@ def evaluate_anti_trend_lock(
         return None, "FREEZE: SKIP CYCLE"
 
     return None, "FREEZE: SKIP CYCLE"
+
+
+def critical_recovery_stress(linear_losses: int, pending_total: float) -> bool:
+    """True quando streak e passivo exigem waiver de emergencia em conjunto."""
+    return int(linear_losses) >= CRITICAL_LINEAR_LOSSES and float(pending_total) > CRITICAL_PENDING_TOTAL
+
+
+def tcn_macro_ultra_extreme_conviction(raw_prob: float, direction: str) -> bool:
+    """True quando a TCN macro exibe cauda extrema alinhada a PUT ou CALL."""
+    prob = float(raw_prob)
+    side = str(direction or "").upper()
+    if side == TradeDirection.PUT.name:
+        return prob <= PUT_EXTREME_RAW_PROB
+    if side == TradeDirection.CALL.name:
+        return prob >= CALL_EXTREME_RAW_PROB
+    return False
+
+
+def meta_payoff_veto_emergency_waiver(
+    metrics: dict[str, Any],
+    *,
+    direction: str,
+    risk_manager: Any | None = None,
+) -> bool:
+    """Libera o veto em situacao de estresse critico de recovery se a conviccao for extrema."""
+    if risk_manager is None:
+        return False
+    linear = int(getattr(risk_manager, "consecutive_losses_linear", 0))
+    if hasattr(risk_manager, "pending_loss_total") and callable(risk_manager.pending_loss_total):
+        pending = float(risk_manager.pending_loss_total())
+    else:
+        pending = pending_loss_total(getattr(risk_manager, "pending_loss", {}))
+    if not critical_recovery_stress(linear, pending):
+        return False
+    raw_prob = float(metrics.get("raw_prob", 0.5))
+    return tcn_macro_ultra_extreme_conviction(raw_prob, direction)

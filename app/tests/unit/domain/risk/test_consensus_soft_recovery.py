@@ -70,34 +70,39 @@ def test_apply_soft_recovery_stake_progresses_with_adaptive_factor():
         payout=payout,
     )
     session_unit = max(10.0, 11500.0 * 0.0015)
-    assert stake == pytest.approx(session_unit * (factor**3))
+    geometric = session_unit * (factor**3)
+    cover = 93.19 / payout / 2.0
+    assert stake == pytest.approx(max(geometric, cover))
     assert metrics.get("recovery_soft_progression") == pytest.approx(factor)
     assert metrics.get("recovery_adaptive_payout") == pytest.approx(payout)
     assert metrics.get("recovery_soft_losses") == 3
+    assert metrics.get("recovery_cover_need") == pytest.approx(cover)
 
 
 def test_apply_soft_recovery_stake_ignores_previous_stake_for_geometric_progression():
     payout = 0.95
     factor = _factor(payout)
     unit = 17.89
+    pending = 50.0
     stake = apply_soft_recovery_stake(
-        pending_total=50.0,
+        pending_total=pending,
         base_unit=unit,
         consecutive_losses=1,
         previous_stake=36.72,
         bankroll=11926.67,
         payout=payout,
     )
-    assert stake == pytest.approx(unit * factor)
+    assert stake == pytest.approx(max(unit * factor, pending / payout / 4.0))
 
 
 def test_apply_soft_recovery_stake_c0005_neutral_linear_one_nominal():
     payout = 0.95
     factor = _factor(payout)
     unit = 17.89
+    pending = 36.72
     metrics: dict = {}
     stake = apply_soft_recovery_stake(
-        pending_total=36.72,
+        pending_total=pending,
         base_unit=unit,
         consecutive_losses=1,
         previous_stake=36.72,
@@ -105,9 +110,26 @@ def test_apply_soft_recovery_stake_c0005_neutral_linear_one_nominal():
         metrics=metrics,
         payout=payout,
     )
-    assert stake == pytest.approx(unit * factor, rel=1e-3)
+    assert stake == pytest.approx(max(unit * factor, pending / payout / 4.0), rel=1e-3)
     assert metrics.get("recovery_soft_losses") == 1
     assert metrics.get("recovery_soft_progression") == pytest.approx(factor)
+
+
+def test_apply_soft_recovery_stake_covers_pending_within_bankroll_cap():
+    payout = 0.95
+    pending = 140.78
+    stake = apply_soft_recovery_stake(
+        pending_total=pending,
+        base_unit=24.77,
+        consecutive_losses=2,
+        previous_stake=50.84,
+        bankroll=12895.79,
+        metrics={},
+        payout=payout,
+    )
+    cover = pending / payout / 3.0
+    cap = max_safe_stake_cap(12895.79, consecutive_losses_linear=2)
+    assert stake == pytest.approx(min(max(24.77 * _factor(payout) ** 2, cover), cap), rel=1e-3)
 
 
 def test_max_safe_stake_cap_at_three_point_five_percent():
@@ -138,10 +160,11 @@ def test_sequential_drawdown_stakes_grow_smoothly_not_geometric_two():
     unit = 17.25
     payout = 0.95
     factor = _factor(payout)
+    pending = 50.0
     losses_sequence = [1, 2, 3, 4, 5]
     stakes = [
         apply_soft_recovery_stake(
-            pending_total=50.0,
+            pending_total=pending,
             base_unit=unit,
             consecutive_losses=losses,
             previous_stake=0.0,
@@ -150,10 +173,14 @@ def test_sequential_drawdown_stakes_grow_smoothly_not_geometric_two():
         )
         for losses in losses_sequence
     ]
-    assert stakes[2] < stakes[0] * 8
-    assert stakes[-1] == pytest.approx(
-        min(unit * (factor**5), max_safe_stake_cap(bankroll, consecutive_losses_linear=5))
-    )
+    asserted = []
+    for n in losses_sequence:
+        amort = max(2, 5 - min(n, 3))
+        cover = (pending / payout) / amort
+        geometric = unit * (factor**n) if n > 0 else unit
+        asserted.append(min(max(geometric, cover), max_safe_stake_cap(bankroll, consecutive_losses_linear=n)))
+    assert stakes == pytest.approx(asserted)
+    assert stakes[-1] <= max_safe_stake_cap(bankroll, consecutive_losses_linear=5)
 
 
 def test_adaptive_recovery_factor_at_payout_ninety_five():

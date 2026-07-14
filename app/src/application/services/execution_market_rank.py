@@ -3,12 +3,14 @@
 from src.application.services.execution_direction import build_execution_candidate
 from src.application.services.execution_direction_resolver import infer_dl_direction, is_technically_blocked
 from src.application.services.execution_loss_protection import edge_conviction_disconnect_penalty
+from src.application.services.meta_payoff_veto_gate import is_execution_signal_vetoed
 from src.domain.models.trade import TradeDirection
+from src.domain.risk.stake_sizing import metric_float
 
 
 def _trade_score(metrics: dict) -> float:
     """Le score unificado de conviccao usado em selecao e ranking."""
-    return float(metrics.get("trade_score", metrics.get("raw_prob", metrics.get("conviction", 0.0))))
+    return metric_float(metrics, "trade_score", "raw_prob", "conviction", default=0.0)
 
 
 def _raw_side(metrics: dict) -> float:
@@ -22,6 +24,9 @@ def _raw_side(metrics: dict) -> float:
 def mandatory_pool_eligible(entry: dict, **_) -> bool:
     """Indica se simbolo pode entrar no pool com direcao inferivel."""
     if is_technically_blocked(entry):
+        return False
+    metrics = entry.get("metrics") or {}
+    if is_execution_signal_vetoed(metrics):
         return False
     return infer_dl_direction(entry) is not None
 
@@ -88,7 +93,7 @@ def market_decision_score(
     val = float(metrics.get("val_accuracy", 0.0))
     edge = float(metrics.get("edge", abs(raw_side - 0.5)))
     composite = raw_side * 0.45 + val * 0.35 + edge * 0.20
-    resolved = float(metrics.get("resolved_conviction", 0.0))
+    resolved = metric_float(metrics, "resolved_conviction", default=0.0)
     if resolved > 0.0:
         composite = composite * 0.6 + resolved * 0.4
     if metrics.get("execute"):
@@ -106,6 +111,8 @@ def market_decision_score(
     margin = float(metrics.get("direction_margin", 0.0))
     if margin + 1e-9 < 0.05:
         composite -= 0.08
+    if recovery_active and (metrics.get("meta_squeeze_downgrade") or metrics.get("consensus_stake_floor")):
+        composite -= 0.25
     composite *= float(metrics.get("universal_regime_score_factor", 1.0))
     return _recovery_score_adjustment(
         composite,

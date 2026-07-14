@@ -46,6 +46,7 @@ def mandatory_fallback_candidates(
         exec_mgr._trade_symbols(),
         decisions,
         skip_symbols=skip_symbols,
+        recovery_active=recovery_active,
     )
     if entropy_pick is not None:
         return [entropy_pick]
@@ -182,7 +183,7 @@ def resolve_mandatory_ultimate_candidate(
             mean_reversion_enabled=mean_reversion,
             low_accuracy_enabled=low_accuracy,
         )
-        if ultimate is None and not recovery_active:
+        if ultimate is None:
             ultimate = pick_absolute_mandatory_candidate(
                 exec_mgr._trade_symbols(),
                 decisions,

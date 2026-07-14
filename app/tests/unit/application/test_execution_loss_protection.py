@@ -104,7 +104,7 @@ def test_candidate_passes_loss_protection_rejects_high_penalty():
     )
 
 
-def test_filter_loss_protection_candidates_returns_empty_in_recovery_when_all_weak():
+def test_filter_loss_protection_candidates_keeps_pool_in_recovery_when_all_weak():
     weak = _candidate(direction_margin=0.10, edge=0.90, edge_zscore=1.5, indicators={"hurst": 0.42})
     filtered = filter_loss_protection_candidates(
         [weak],
@@ -112,7 +112,20 @@ def test_filter_loss_protection_candidates_returns_empty_in_recovery_when_all_we
         recovery_active=True,
         consecutive_losses=1,
     )
-    assert filtered == []
+    assert filtered == [weak]
+
+
+def test_candidate_passes_loss_protection_allows_missing_hurst_in_recovery():
+    item = _candidate(direction_margin=0.30, edge=0.20, indicators={})
+    assert (
+        candidate_passes_loss_protection(
+            item,
+            exec_cfg={"loss_protection": {"recovery_min_hurst": 0.50}},
+            recovery_active=True,
+            consecutive_losses=1,
+        )
+        is True
+    )
 
 
 def test_candidate_passes_loss_protection_blocks_low_hurst_in_recovery():
@@ -144,14 +157,14 @@ def test_filter_recovery_hurst_candidates_returns_all_before_n2():
     assert filter_recovery_hurst_candidates([low], kelly_cfg={}, consecutive_losses=1) == [low]
 
 
-def test_filter_recovery_hurst_candidates_blocks_empty_at_n3_without_persistence():
+def test_filter_recovery_hurst_candidates_keeps_pool_at_n3_without_persistence():
     low = ("RDBULL", TradeDirection.PUT, {"indicators": {"hurst": 0.52}})
     filtered = filter_recovery_hurst_candidates(
         [low],
         kelly_cfg={"recovery_hurst_persistence_min": 0.58},
         consecutive_losses=3,
     )
-    assert filtered == []
+    assert filtered == [low]
 
 
 def test_calibrated_side_invalid_value_returns_zero():

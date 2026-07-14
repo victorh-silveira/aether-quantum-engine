@@ -5,12 +5,12 @@ import torch
 from torch import nn
 
 from src.application.services.deep_learning.dl_features import FEATURE_DIM
+from src.infrastructure.inference.triton_grpc_client import TritonInferenceTimeout
 from src.infrastructure.storage.torchscript_sanity import (
     assert_triton_probability,
     validate_manifest_schema,
     verify_torchscript_artifact,
     verify_torchscript_artifact_async,
-    verify_torchscript_artifact_light_async,
     verify_triton_stressed_inference_async,
 )
 from src.infrastructure.storage.torchscript_sanity_probes import build_sanity_probe_tensors
@@ -88,7 +88,15 @@ async def test_verify_triton_stressed_inference_missing_response():
 
 @pytest.mark.asyncio
 async def test_verify_triton_stressed_inference_async():
-    cfg = {"infra": {"triton": {"enabled": True, "grpc_url": "localhost:8001"}}}
+    cfg = {
+        "infra": {
+            "triton": {
+                "enabled": True,
+                "grpc_url": "localhost:8001",
+                "bootstrap_infer_timeout_seconds": 5.0,
+            }
+        }
+    }
     mock_client = MagicMock()
     mock_client.infer_symbols_concurrent = AsyncMock(return_value={"RDBEAR": 0.55})
     with patch(
@@ -97,6 +105,61 @@ async def test_verify_triton_stressed_inference_async():
     ):
         await verify_triton_stressed_inference_async(cfg, ["RDBEAR"], lookback=48, feature_dim=FEATURE_DIM)
     mock_client.infer_symbols_concurrent.assert_awaited_once()
+    assert mock_client.infer_symbols_concurrent.await_args.kwargs["timeout"] == pytest.approx(5.0)
+
+
+@pytest.mark.asyncio
+async def test_verify_triton_stressed_inference_retries_after_timeout():
+    cfg = {
+        "infra": {
+            "triton": {
+                "enabled": True,
+                "grpc_url": "localhost:8001",
+                "bootstrap_infer_timeout_seconds": 5.0,
+            }
+        }
+    }
+    mock_client = MagicMock()
+    mock_client.infer_symbols_concurrent = AsyncMock(
+        side_effect=[
+            TritonInferenceTimeout("batch timeout"),
+            {"RDBEAR": 0.55},
+        ],
+    )
+    with (
+        patch(
+            "src.infrastructure.storage.torchscript_sanity.get_triton_grpc_client",
+            AsyncMock(return_value=mock_client),
+        ),
+        patch("src.infrastructure.storage.torchscript_sanity.asyncio.sleep", new_callable=AsyncMock),
+    ):
+        await verify_triton_stressed_inference_async(cfg, ["RDBEAR"], lookback=48, feature_dim=FEATURE_DIM)
+    assert mock_client.infer_symbols_concurrent.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_verify_triton_stressed_inference_exhausts_retries_on_timeout():
+    cfg = {
+        "infra": {
+            "triton": {
+                "enabled": True,
+                "grpc_url": "localhost:8001",
+                "bootstrap_infer_timeout_seconds": 5.0,
+            }
+        }
+    }
+    mock_client = MagicMock()
+    mock_client.infer_symbols_concurrent = AsyncMock(side_effect=TritonInferenceTimeout("batch timeout"))
+    with (
+        patch(
+            "src.infrastructure.storage.torchscript_sanity.get_triton_grpc_client",
+            AsyncMock(return_value=mock_client),
+        ),
+        patch("src.infrastructure.storage.torchscript_sanity.asyncio.sleep", new_callable=AsyncMock),
+        pytest.raises(TritonInferenceTimeout),
+    ):
+        await verify_triton_stressed_inference_async(cfg, ["RDBEAR"], lookback=48, feature_dim=FEATURE_DIM)
+    assert mock_client.infer_symbols_concurrent.await_count == 3
 
 
 @pytest.mark.asyncio
@@ -217,26 +280,3 @@ def test_verify_torchscript_with_valid_manifest(tmp_path):
         feature_dim=FEATURE_DIM,
         manifest=manifest,
     )
-
-
-@pytest.mark.asyncio
-async def test_verify_torchscript_artifact_light_async(tmp_path):
-    path = tmp_path / "light_ts.pt"
-    path.write_bytes(b"ts")
-    manifest = {"feature_dim": FEATURE_DIM, "lookback": 48}
-    await verify_torchscript_artifact_light_async(
-        path,
-        lookback=48,
-        feature_dim=FEATURE_DIM,
-        manifest=manifest,
-    )
-
-
-@pytest.mark.asyncio
-async def test_verify_torchscript_artifact_light_missing_file(tmp_path):
-    with pytest.raises(RuntimeError, match="ausente"):
-        await verify_torchscript_artifact_light_async(
-            tmp_path / "missing.pt",
-            lookback=48,
-            feature_dim=FEATURE_DIM,
-        )

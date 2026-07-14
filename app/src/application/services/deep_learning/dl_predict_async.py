@@ -48,6 +48,7 @@ async def predict_symbol_decision_async(
     high=None,
     low=None,
     micro=None,
+    force_local: bool = False,
 ) -> dict:
     """Gera predicao DL assincrona com inferencia Triton quando habilitada."""
     _ = recovery_active
@@ -60,6 +61,7 @@ async def predict_symbol_decision_async(
     lookback = int(runtime.get("lookback", params["lookback"]))
     on_boundary = at_signature_boundary(orch)
     boundary_epoch = m1_boundary_epoch(orch)
+    use_triton = bool(triton_enabled(orch.config) and not force_local)
     try:
         ctx = build_prediction_context(
             orch,
@@ -74,7 +76,7 @@ async def predict_symbol_decision_async(
             micro=micro,
         )
         tensor_fingerprint: bytes | None = None
-        if triton_enabled(orch.config):
+        if use_triton:
             try:
                 tensor = build_inference_tensor(
                     prices,

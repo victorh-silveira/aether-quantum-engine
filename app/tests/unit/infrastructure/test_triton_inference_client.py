@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import numpy as np
 import pytest
@@ -8,6 +8,8 @@ from src.infrastructure.inference.triton_inference_client import (
     _triton_wait_settings,
     reload_triton_repository,
     triton_http_url,
+    triton_infer_timeout_seconds,
+    wait_triton_models_stable,
 )
 
 
@@ -34,6 +36,22 @@ def test_triton_wait_settings_defaults_when_chunk_invalid():
     assert _triton_wait_settings({"infra": {"triton": "bad"}}) == (25.0, 0.5)
 
 
+def test_triton_infer_timeout_seconds_reads_bootstrap_and_cycle_defaults():
+    cfg = {
+        "infra": {
+            "triton": {
+                "infer_timeout_seconds": 0.9,
+                "bootstrap_infer_timeout_seconds": 6.0,
+            }
+        }
+    }
+    assert triton_infer_timeout_seconds(cfg, bootstrap=False) == pytest.approx(0.9)
+    assert triton_infer_timeout_seconds(cfg, bootstrap=True) == pytest.approx(6.0)
+    assert triton_infer_timeout_seconds({}, bootstrap=True) == pytest.approx(5.0)
+    assert triton_infer_timeout_seconds({}, bootstrap=False) == pytest.approx(0.85)
+    assert triton_infer_timeout_seconds({"infra": {"triton": "bad"}}, bootstrap=False) == pytest.approx(0.85)
+
+
 @pytest.mark.asyncio
 async def test_reload_triton_repository_success():
     cfg = {"infra": {"triton": {"enabled": True, "http_url": "http://localhost:8000"}}}
@@ -54,16 +72,61 @@ async def test_reload_triton_repository_waits_for_symbols():
                 "http_url": "http://localhost:8000",
                 "wait_ready_seconds": 5.0,
                 "poll_ready_seconds": 0.1,
+                "repository_poll_seconds": 2.0,
             }
         }
     }
-    with patch(
-        "src.infrastructure.inference.triton_inference_client.wait_triton_models_ready",
-        return_value=True,
-    ) as wait_mock:
+    with (
+        patch(
+            "src.infrastructure.inference.triton_inference_client.wait_triton_models_ready",
+            return_value=True,
+        ) as wait_mock,
+        patch("src.infrastructure.inference.triton_inference_client.asyncio.sleep", new_callable=AsyncMock),
+    ):
         ok = await reload_triton_repository(cfg, ["RDBEAR", "RDBULL"])
     assert ok is True
+    assert wait_mock.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_wait_triton_models_stable_skips_settle_when_repo_unchanged():
+    cfg = {"infra": {"triton": {"enabled": True, "http_url": "http://localhost:8000"}}}
+    with (
+        patch(
+            "src.infrastructure.inference.triton_inference_client.wait_triton_models_ready",
+            return_value=True,
+        ) as wait_mock,
+        patch(
+            "src.infrastructure.inference.triton_inference_client.asyncio.sleep", new_callable=AsyncMock
+        ) as sleep_mock,
+    ):
+        ok = await wait_triton_models_stable(cfg, ["RDBEAR"], repo_changed=False)
+    assert ok is True
     wait_mock.assert_called_once()
+    sleep_mock.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_wait_triton_models_stable_disabled():
+    ok = await wait_triton_models_stable({"infra": {"triton": {"enabled": False}}}, ["RDBEAR"])
+    assert ok is False
+
+
+@pytest.mark.asyncio
+async def test_wait_triton_models_stable_empty_symbol_list():
+    ok = await wait_triton_models_stable({"infra": {"triton": {"enabled": True}}}, [])
+    assert ok is True
+
+
+@pytest.mark.asyncio
+async def test_wait_triton_models_stable_returns_false_when_not_ready():
+    cfg = {"infra": {"triton": {"enabled": True, "http_url": "http://localhost:8000"}}}
+    with patch(
+        "src.infrastructure.inference.triton_inference_client.wait_triton_models_ready",
+        return_value=False,
+    ):
+        ok = await wait_triton_models_stable(cfg, ["RDBEAR"], repo_changed=True)
+    assert ok is False
 
 
 @pytest.mark.asyncio

@@ -26,6 +26,14 @@ async def test_execution_manager_log_line_contains_exec_and_direction(orch_confi
         assert args[5] == "12345"
 
 
+def test_execution_manager_mandatory_defaults_when_execution_cfg_not_dict(orch_config):
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
+        mock_ws_class.return_value.subscribe = MagicMock()
+        orch = Orchestrator(orch_config, "token")
+        orch.config.setdefault("orchestrator", {})["execution"] = "invalid"
+        assert orch.executor._mandatory_trade_each_cycle() is True
+
+
 def test_execution_manager_collect_orders_mandatory_includes_execute_false(orch_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
         mock_ws_class.return_value.subscribe = MagicMock()

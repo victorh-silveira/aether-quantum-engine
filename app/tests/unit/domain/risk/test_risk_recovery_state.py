@@ -1,14 +1,17 @@
 import pytest
 
 from src.domain.models.trade import TradeDirection
-from src.domain.risk.consensus_stake_penalty import consensus_kelly_retention
+from src.domain.risk.consensus_stake_penalty import consensus_kelly_retention, cross_veto_recovery_waiver_allowed
 from src.domain.risk.risk_manager import RiskManager
 from src.domain.risk.risk_recovery_state import (
     apply_cluster_profit_to_recovery_state,
     apply_dlambert_partial_win_retraction,
+    critical_recovery_stress,
     evaluate_anti_trend_lock,
+    meta_payoff_veto_emergency_waiver,
     pending_loss_total,
     recovery_financially_active,
+    tcn_macro_ultra_extreme_conviction,
 )
 
 
@@ -148,3 +151,31 @@ def test_evaluate_anti_trend_lock_branches():
     direction, action = evaluate_anti_trend_lock("OTHER", TradeDirection.CALL, 2, 0.5, 0.5, 0.0, 0.0, 0.0)
     assert direction is None
     assert action == "FREEZE: SKIP CYCLE"
+
+
+def test_critical_recovery_stress_and_tcn_extreme_conviction():
+    assert critical_recovery_stress(5, 260.0) is True
+    assert critical_recovery_stress(4, 0.0) is False
+    assert critical_recovery_stress(2, 200.0) is False
+    assert tcn_macro_ultra_extreme_conviction(0.18, "PUT") is True
+    assert tcn_macro_ultra_extreme_conviction(0.82, "CALL") is True
+
+
+def test_cross_veto_recovery_waiver_allowed_rejects_invalid_inputs():
+    assert cross_veto_recovery_waiver_allowed(None, direction="CALL") is False
+    assert cross_veto_recovery_waiver_allowed({}, direction=None) is False
+
+
+def test_meta_payoff_veto_emergency_waiver_pending_total_path():
+    rm = type("RM", (), {"consecutive_losses_linear": 5, "pending_loss": {"RDBEAR": 260.0}})()
+    metrics = {"raw_prob": 0.82}
+    assert meta_payoff_veto_emergency_waiver(metrics, direction="CALL", risk_manager=rm) is True
+
+
+def test_meta_payoff_veto_emergency_waiver_rejects_missing_raw_prob():
+    rm = type("RM", (), {"consecutive_losses_linear": 5, "pending_loss": {"RDBULL": 260.0}})()
+    assert meta_payoff_veto_emergency_waiver({}, direction="PUT", risk_manager=rm) is False
+
+
+def test_tcn_macro_ultra_extreme_conviction_rejects_unknown_direction():
+    assert tcn_macro_ultra_extreme_conviction(0.10, "HOLD") is False

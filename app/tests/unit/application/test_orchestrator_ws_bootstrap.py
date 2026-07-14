@@ -10,6 +10,7 @@ from src.application.services.orchestrator.ws_bootstrap import (
     subscribe_account_transactions,
 )
 from src.infrastructure.api.deriv_rest_client import DerivRestError, DerivTradingSession
+from src.infrastructure.inference.triton_grpc_client import TritonInferenceTimeout
 
 
 @pytest.mark.asyncio
@@ -133,6 +134,20 @@ async def test_setup_trading_session_broker_unavailable(orch_config):
 
 
 @pytest.mark.asyncio
+async def test_setup_trading_session_triton_bootstrap_timeout(orch_config):
+    orch = Orchestrator(orch_config)
+    with (
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap.validate_infra_services",
+            AsyncMock(side_effect=TritonInferenceTimeout("batch infer timeout 0.850s for 2 symbols")),
+        ),
+        patch.object(orch.logger, "error") as mock_error,
+    ):
+        assert await setup_trading_session(orch) is False
+    assert any("Triton inferencia excedeu timeout" in str(c) for c in mock_error.call_args_list)
+
+
+@pytest.mark.asyncio
 async def test_setup_trading_session_http_error(orch_config):
     orch = Orchestrator(orch_config)
     err = urllib.error.HTTPError(
@@ -231,56 +246,3 @@ async def test_start_orchestrator_streams_retries_then_fails(orch_config):
     orch.ws.connect = AsyncMock()
     orch.stream.start_candle_stream = AsyncMock(side_effect=[ConnectionError("x"), ConnectionError("y")])
     assert await start_orchestrator_streams(orch) is False
-
-
-@pytest.mark.asyncio
-async def test_setup_trading_session_reset_demo_balance_success(orch_config):
-    orch = Orchestrator(orch_config)
-    orch.auth.mode = "demo"
-    session_zero = DerivTradingSession(
-        ws_url="wss://api.derivws.com/trading/v1/options/ws/demo?otp=x",
-        balance=0.0,
-        account_id="DOT1",
-    )
-    session_reset = DerivTradingSession(
-        ws_url="wss://api.derivws.com/trading/v1/options/ws/demo?otp=x",
-        balance=10000.0,
-        account_id="DOT1",
-    )
-
-    mock_client = MagicMock()
-    mock_client._request = MagicMock(return_value={"data": {"balance": "10000.00"}})
-
-    with (
-        patch.object(orch.auth, "open_trading_session", AsyncMock(side_effect=[session_zero, session_reset])),
-        patch.object(orch.auth, "rest_client", MagicMock(return_value=mock_client)),
-    ):
-        orch.ws.connect = AsyncMock()
-        orch.ws.send = AsyncMock()
-        orch.ws.subscribe = MagicMock()
-        assert await setup_trading_session(orch) is True
-        assert orch.state.balance == 10000.0
-
-
-@pytest.mark.asyncio
-async def test_setup_trading_session_reset_demo_balance_failure(orch_config):
-    orch = Orchestrator(orch_config)
-    orch.auth.mode = "demo"
-    session_zero = DerivTradingSession(
-        ws_url="wss://api.derivws.com/trading/v1/options/ws/demo?otp=x",
-        balance=0.0,
-        account_id="DOT1",
-    )
-
-    mock_client = MagicMock()
-    mock_client._request = MagicMock(side_effect=RuntimeError("API Error"))
-
-    with (
-        patch.object(orch.auth, "open_trading_session", AsyncMock(return_value=session_zero)),
-        patch.object(orch.auth, "rest_client", MagicMock(return_value=mock_client)),
-    ):
-        orch.ws.connect = AsyncMock()
-        orch.ws.send = AsyncMock()
-        orch.ws.subscribe = MagicMock()
-        assert await setup_trading_session(orch) is True
-        assert orch.state.balance == 0.0

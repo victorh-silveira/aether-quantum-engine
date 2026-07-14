@@ -1,13 +1,29 @@
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 
 from src.application.services.execution_direction_resolver import (
+    _has_meta_zscore_telemetry,
     infer_dl_direction,
     is_technically_blocked,
     resolve_execution_direction,
 )
+from src.application.services.meta_payoff_veto_gate import META_PAYOFF_NEGATIVE_ZSCORE_VETO
+from src.application.services.payoff_edge_zscore import reset_payoff_edge_buffer
 from src.domain.models.trade import TradeDirection
+
+
+@pytest.fixture(autouse=True)
+def _reset_edge_buffer():
+    reset_payoff_edge_buffer()
+    yield
+    reset_payoff_edge_buffer()
+
+
+def _stamp_negative_zscore(metrics: dict, z_score: float = -0.77) -> None:
+    metrics["meta_payoff_edge_zscore"] = z_score
+    metrics["edge_zscore"] = z_score
 
 
 def _entry(*, direction=None, raw_prob=0.55, calibrated_prob=None, execute=True, gate_reason=None, deploy_ok=True):
@@ -36,6 +52,12 @@ def _c0015_entry():
 
 def test_technically_blocked_predict_error():
     assert is_technically_blocked(_entry(execute=False, gate_reason="predict_error")) is True
+
+
+def test_has_meta_zscore_telemetry_requires_attached_values():
+    assert _has_meta_zscore_telemetry({}) is False
+    assert _has_meta_zscore_telemetry({"edge_zscore": 0.2, "edge_zscore_samples": 1}) is False
+    assert _has_meta_zscore_telemetry({"edge_zscore": 0.2, "edge_zscore_samples": 2}) is True
 
 
 def test_technically_blocked_deploy_false():
@@ -175,15 +197,39 @@ def test_resolve_applies_prefetched_positive_edge_with_organic_tcn_score():
     assert result[1]["conviction"] == pytest.approx(0.70)
 
 
-def test_resolve_mild_negative_edge_blocked_by_quality_gate():
+def test_resolve_allows_weak_tcn_margin_when_meta_zscore_strong():
+    entry = _entry(direction=TradeDirection.PUT, calibrated_prob=0.52)
+    entry["metrics"]["predicted_payoff_edge"] = 1.33
+    entry["metrics"]["meta_classifier_applied"] = True
+    entry["metrics"]["meta_payoff_edge_zscore"] = 1.75
+    entry["metrics"]["edge_zscore"] = 1.75
+    entry["metrics"]["edge_zscore_samples"] = 15
+    entry["metrics"]["edge_expectancy"] = "WIN_EXPECTED"
+    result = resolve_execution_direction(
+        entry,
+        exec_cfg={"quality_gate": {"min_direction_margin": 0.04, "min_meta_payoff_zscore": 0.5}},
+        symbol="RDBULL",
+    )
+    assert result is not None
+    assert result[0] == TradeDirection.PUT
+    assert result[1].get("execution_gate_state") == "meta_zscore_pass"
+
+
+def test_resolve_mild_negative_edge_blocked_by_meta_payoff_veto():
     entry = _entry(direction=TradeDirection.CALL, calibrated_prob=0.70)
     entry["metrics"]["predicted_payoff_edge"] = -0.08
     entry["metrics"]["meta_classifier_applied"] = True
+    entry["metrics"]["edge_expectancy"] = "LOSS_EXPECTED"
     entry["metrics"]["indicators"] = {"bb_width": 0.09}
     entry["metrics"]["flow_features"] = {"micro_tick_acceleration": 0.04}
-    result = resolve_execution_direction(entry, symbol="RDBULL")
+    with patch(
+        "src.application.services.execution_direction_resolver.attach_payoff_edge_zscore_metrics",
+        side_effect=lambda metrics, edge, **kwargs: _stamp_negative_zscore(metrics),
+    ):
+        result = resolve_execution_direction(entry, symbol="RDBULL")
     assert result is None
-    assert entry["metrics"]["quality_guard_reject"] is True
+    assert entry["metrics"]["gate_reason"] == META_PAYOFF_NEGATIVE_ZSCORE_VETO
+    assert entry["metrics"]["signal_status"] == "SKIP"
 
 
 def test_resolve_meta_disabled_keeps_tcn_score_when_edge_strong():
@@ -216,9 +262,18 @@ def test_resolve_rejects_weak_edge_without_meta_prefetch():
     assert entry["metrics"]["quality_guard_reject"] is True
 
 
-def test_resolve_c0015_negative_edge_blocked_by_quality_gate(caplog):
+def test_resolve_c0015_negative_edge_blocked_by_meta_payoff_veto(caplog):
     entry = _c0015_entry()
-    with caplog.at_level("INFO"):
+    entry["metrics"]["edge_expectancy"] = "LOSS_EXPECTED"
+    with (
+        patch(
+            "src.application.services.execution_direction_resolver.attach_payoff_edge_zscore_metrics",
+            side_effect=lambda metrics, edge, **kwargs: _stamp_negative_zscore(metrics),
+        ),
+        caplog.at_level("INFO"),
+    ):
         result = resolve_execution_direction(entry, symbol="RDBULL")
     assert result is None
-    assert entry["metrics"]["quality_guard_reject"] is True
+    assert entry["metrics"]["gate_reason"] == META_PAYOFF_NEGATIVE_ZSCORE_VETO
+    assert entry["metrics"]["signal_status"] == "SKIP"
+    assert not any("[D-SQUEEZE]" in record.message for record in caplog.records)

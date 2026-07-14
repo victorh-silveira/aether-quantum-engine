@@ -10,6 +10,7 @@ from src.application.services.deep_learning.dl_horizon import (
 from src.application.services.deep_learning.dl_labels import (
     LABEL_MODE_MA_TREND,
     LABEL_MODE_SPOT,
+    LabelSpec,
     binary_label_at_index,
     sequence_labels,
 )
@@ -58,3 +59,9 @@ def test_sequence_labels_shape_with_smooth():
     prices = np.linspace(100.0, 120.0, 80)
     targets, masks = sequence_labels(prices, lookback=48, horizon_bars=1, smooth_bars=5)
     assert len(targets) == len(masks) == 80 - 48 - 5
+
+
+def test_label_spec_embargo_bars():
+    spec = LabelSpec(horizon_bars=1, smooth_bars=5)
+    assert spec.embargo_bars == 5
+    assert LabelSpec.from_dl_config({"label_horizon_bars": 2, "label_smooth_bars": 3}).embargo_bars == 4

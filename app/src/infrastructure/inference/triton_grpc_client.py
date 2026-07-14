@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 from typing import Any
 
 import grpc.aio
@@ -28,8 +29,7 @@ _INPUT_NAME = "INPUT__0"
 _OUTPUT_NAME = "OUTPUT__0"
 _MAX_MSG = 512 * 1024 * 1024
 _INFER_TIMEOUT_SEC = 0.85
-
-_pool_lock = asyncio.Lock()
+_pool_guard = threading.Lock()
 
 
 class TritonInferenceTimeout(TimeoutError):
@@ -91,6 +91,14 @@ def _parse_raw_output(result: Any) -> float:
     return max(0.0, min(1.0, val))
 
 
+def _running_loop_or_none() -> asyncio.AbstractEventLoop | None:
+    """Retorna o event loop em execucao ou None fora de contexto async."""
+    try:
+        return asyncio.get_running_loop()
+    except RuntimeError:
+        return None
+
+
 class TritonGrpcClient:
     """Canal gRPC aio persistente com inferencias paralelas via asyncio.gather."""
 
@@ -98,42 +106,76 @@ class TritonGrpcClient:
         self._channel: grpc.aio.Channel | None = None
         self._infer: Any | None = None
         self._url: str | None = None
-        self._lock = asyncio.Lock()
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._lock: asyncio.Lock | None = None
 
     @property
     def channel(self) -> grpc.aio.Channel | None:
         """Canal gRPC aio persistente quando conectado."""
         return self._channel
 
+    def bound_to_running_loop(self) -> bool:
+        """True quando o canal esta vinculado ao event loop corrente."""
+        running = _running_loop_or_none()
+        return running is not None and self._loop is running and self._channel is not None
+
+    def abandon(self) -> None:
+        """Descarta recursos sem await quando o loop original ja encerrou."""
+        self._infer = None
+        self._channel = None
+        self._url = None
+        self._loop = None
+        self._lock = None
+
+    def _loop_lock(self) -> asyncio.Lock:
+        """Lock asyncio vinculado ao event loop corrente."""
+        loop = asyncio.get_running_loop()
+        if self._lock is None or self._loop is not loop:
+            self._lock = asyncio.Lock()
+        return self._lock
+
     async def connect(self, url: str) -> None:
         """Abre canal grpc.aio.insecure_channel persistente para o endpoint."""
         if grpc_aio is None or service_pb2_grpc is None:
             raise RuntimeError("tritonclient[grpc] nao instalado")
         target = str(url).strip()
-        async with self._lock:
-            if self._channel is not None and self._url == target:
+        loop = asyncio.get_running_loop()
+        async with self._loop_lock():
+            if self._channel is not None and self._url == target and self._loop is loop:
                 return
             await self._close_unlocked()
             self._channel = grpc.aio.insecure_channel(target, options=_channel_options())
             self._infer = _attach_channel(
-                grpc_aio.InferenceServerClient.__new__(grpc_aio.InferenceServerClient), self._channel
+                grpc_aio.InferenceServerClient.__new__(grpc_aio.InferenceServerClient),
+                self._channel,
             )
             self._url = target
+            self._loop = loop
 
     async def close(self) -> None:
         """Encerra canal e stub gRPC aio."""
-        async with self._lock:
+        running = _running_loop_or_none()
+        if self._loop is not None and running is not None and self._loop is not running:
+            self.abandon()
+            return
+        async with self._loop_lock():
             await self._close_unlocked()
 
     async def _close_unlocked(self) -> None:
         """Fecha recursos sem adquirir lock interno."""
-        if self._infer is not None:
-            await self._infer.close()
-        elif self._channel is not None:
-            await self._channel.close()
-        self._infer = None
-        self._channel = None
-        self._url = None
+        running = _running_loop_or_none()
+        if self._loop is not None and running is not None and self._loop is not running:
+            self.abandon()
+            return
+        try:
+            if self._infer is not None:
+                await self._infer.close()
+            elif self._channel is not None:
+                await self._channel.close()
+        except RuntimeError:
+            self.abandon()
+            return
+        self.abandon()
 
     async def close_channel(self) -> None:
         """Encerra canal gRPC aio persistente."""
@@ -198,17 +240,34 @@ class TritonGrpcClient:
 
 
 async def get_triton_grpc_client(url: str) -> TritonGrpcClient:
-    """Retorna cliente gRPC aio singleton para o endpoint."""
-    async with _pool_lock:
-        if _GrpcClientPool.client is None:
-            _GrpcClientPool.client = TritonGrpcClient()
-        await _GrpcClientPool.client.connect(str(url))
-        return _GrpcClientPool.client
+    """Retorna cliente gRPC aio singleton recriado se o event loop mudou."""
+    loop = asyncio.get_running_loop()
+    target = str(url).strip()
+    stale: TritonGrpcClient | None = None
+    with _pool_guard:
+        client = _GrpcClientPool.client
+        if client is not None:
+            loop_stale = (client._loop is not None and client._loop is not loop) or (
+                client._channel is not None and client._loop is not loop
+            )
+            url_mismatch = client._url is not None and client._url != target
+            if loop_stale or url_mismatch:
+                stale = client
+                _GrpcClientPool.client = None
+                client = None
+        if client is None:
+            client = TritonGrpcClient()
+            _GrpcClientPool.client = client
+    if stale is not None:
+        stale.abandon()
+    await client.connect(target)
+    return client
 
 
 async def close_triton_grpc_client() -> None:
     """Fecha cliente gRPC aio singleton se aberto."""
-    async with _pool_lock:
-        if _GrpcClientPool.client is not None:
-            await _GrpcClientPool.client.close()
-            _GrpcClientPool.client = None
+    with _pool_guard:
+        client = _GrpcClientPool.client
+        _GrpcClientPool.client = None
+    if client is not None:
+        await client.close()

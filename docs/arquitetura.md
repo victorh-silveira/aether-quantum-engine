@@ -263,6 +263,8 @@ Normalização anti-leakage: `fit_norm_stats` somente no split de treino walk-fo
 - Early stopping pela perda de validação.
 - Retreino: bootstrap de sessão, nova vela, rolling, forçado após loss.
 - Treino deferido (`dl_deferred_train.py`): thread em background serializada.
+- Proactive CUDA context initialization: O contexto CUDA é explicitamente inicializado no thread principal em `dl_device.py` (via `torch.cuda.init()`) para evitar travamentos ou deadlocks de recursos da GPU quando threads de background são iniciados no Windows (RTX 4060).
+- Thread-safe uploads: Model uploads para o MinIO de threads em background são despachados de forma segura de volta para o event loop principal através do método `loop.call_soon_threadsafe()` da classe `Orchestrator`.
 - Deploy gate opcional (`dl_deploy_eval.py`): `deploy_ok=false` bloqueia execução.
 - Gate de treinamento: símbolo sem treino da sessão recebe `gate_reason: training`.
 
@@ -271,6 +273,7 @@ Normalização anti-leakage: `fit_norm_stats` somente no split de treino walk-fo
 `predict_symbol_decision_async` (`dl_predict_async.py` / `dl_predict_triton.py`):
 
 - Sempre `execute=True` quando a predição técnica é bem-sucedida.
+- Pipeline síncrono local (`predict_symbol_decision_sync`): Quando a inferência local é forçada durante a fase de validação/gating do treinamento (`force_local=True`), o pipeline ignora completamente a criação de event loops e executa localmente no mesmo thread, evitando o bug `Future attached to a different loop` no gRPC Aio.
 - Calcula indicadores, trend (`dl_trend.py`) e enriquece métricas para o resolver.
 - `gate_reason=None` após predição OK; bloqueio só em exceção (`predict_error`).
 - Thresholds `confidence_call/put` (0.53/0.47) são bases; com `dynamic_threshold.enabled`, flutuam por `bb_width`, `atr_norm` e regime de volatilidade.

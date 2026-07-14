@@ -2,8 +2,9 @@
 
 from typing import Any
 
-from src.application.services.deep_learning.dl_deploy import direction_wins
+from src.application.services.deep_learning.dl_deploy import call_target_label, direction_wins
 from src.application.services.deep_learning.dl_gate_config import deploy_params_for_eval, parse_deploy_gate_config
+from src.application.services.deep_learning.dl_labels import LabelSpec
 from src.application.services.deep_learning.dl_predict import predict_symbol_decision
 
 
@@ -48,7 +49,7 @@ def evaluate_mini_deploy(
     sim_runtime = dict(runtime)
     sim_runtime["deploy_ok"] = True
     max_steps = int(cfg.get("max_eval_steps", 24))
-    horizon = int(params.get("label_horizon_bars", 1))
+    label_spec = LabelSpec.from_dl_config(params)
     bars = _deploy_eval_bar_indices(start, len(prices) - 1, max_steps)
     for bar in bars:
         window = prices[: bar + 1]
@@ -72,16 +73,17 @@ def evaluate_mini_deploy(
             high=win_high,
             low=win_low,
             micro=win_micro,
+            force_local=True,
         )
         if not entry["metrics"].get("execute") or entry["direction"] is None:
             continue
         direction = entry["direction"]
-        won = direction_wins(direction, prices, bar, label_horizon_bars=horizon)
+        won = direction_wins(direction, prices, bar, label_spec=label_spec)
         total += 1
         if won:
             wins += 1
         score = float(entry["metrics"].get("raw_prob", 0.5))
-        label = 1.0 if won else 0.0
+        label = call_target_label(prices, bar, label_spec=label_spec)
         brier_acc += (score - label) ** 2
     if total < int(cfg["min_trades"]):
         return False, 0.0, float(runtime.get("val_brier", 1.0))

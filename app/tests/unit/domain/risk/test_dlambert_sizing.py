@@ -144,7 +144,11 @@ def test_resolve_dlambert_stake_ignores_last_loss_stake_for_geometric_progressio
         payout=payout,
     )
     assert tag == "D'ALEMBERT"
-    expected = math.ceil((17.89 * factor) * 100) / 100
+    geometric = 17.89 * factor
+    cover_full = 36.72 / payout
+    amort_cycles = max(2, 5 - min(1, 3))
+    cover_need = cover_full / float(amort_cycles)
+    expected = math.ceil(max(geometric, cover_need) * 100) / 100
     assert stake == pytest.approx(expected)
 
 
