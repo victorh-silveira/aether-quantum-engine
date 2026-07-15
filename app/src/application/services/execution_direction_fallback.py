@@ -1,5 +1,7 @@
 """Fallback obrigatorio de execucao quando o pool DL fica vazio."""
 
+from typing import Any
+
 from src.application.services.execution_direction import (
     _entry_gate_blocked,
     _entry_signal_strength,
@@ -96,6 +98,8 @@ def _scored_fallback_pick(
     consecutive_losses: int = 0,
     mean_reversion_enabled: bool = True,
     low_accuracy_enabled: bool = True,
+    skipped_cycles_counter: int | None = None,
+    orch: Any | None = None,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Escolhe candidato inferivel com maior trade_score no modo obrigatorio."""
     skip = skip_symbols or frozenset()
@@ -122,7 +126,12 @@ def _scored_fallback_pick(
             low_accuracy_enabled=low_accuracy_enabled,
         )
         if candidate is None:
-            candidate = build_execution_candidate(symbol, entry)
+            candidate = build_execution_candidate(
+                symbol,
+                entry,
+                skipped_cycles_counter=skipped_cycles_counter,
+                orch=orch,
+            )
         if candidate is None or score < best_score:
             continue
         best_score = score
@@ -141,6 +150,8 @@ def _last_resort_fallback_pick(
     consecutive_losses: int = 0,
     mean_reversion_enabled: bool = True,
     low_accuracy_enabled: bool = True,
+    skipped_cycles_counter: int | None = None,
+    orch: Any | None = None,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Ultimo recurso de execucao obrigatoria usando raw_prob ou CALL padrao."""
     skip = skip_symbols or frozenset()
@@ -165,7 +176,13 @@ def _last_resort_fallback_pick(
             low_accuracy_enabled=low_accuracy_enabled,
         )
         if candidate is None:
-            candidate = build_execution_candidate(symbol, entry, recovery_active=recovery_active)
+            candidate = build_execution_candidate(
+                symbol,
+                entry,
+                recovery_active=recovery_active,
+                skipped_cycles_counter=skipped_cycles_counter,
+                orch=orch,
+            )
         if candidate is None:
             continue
         return candidate
@@ -185,6 +202,8 @@ def build_mandatory_fallback_candidate(
     consecutive_losses: int = 0,
     mean_reversion_enabled: bool = True,
     low_accuracy_enabled: bool = True,
+    skipped_cycles_counter: int | None = None,
+    orch: Any | None = None,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Garante ordem em modo obrigatorio quando o pool DL fica vazio."""
     ranked = pick_best_mandatory_candidate(
@@ -212,6 +231,8 @@ def build_mandatory_fallback_candidate(
         consecutive_losses=consecutive_losses,
         mean_reversion_enabled=mean_reversion_enabled,
         low_accuracy_enabled=low_accuracy_enabled,
+        skipped_cycles_counter=skipped_cycles_counter,
+        orch=orch,
     )
     if scored is not None:
         return scored
@@ -225,4 +246,6 @@ def build_mandatory_fallback_candidate(
         consecutive_losses=consecutive_losses,
         mean_reversion_enabled=mean_reversion_enabled,
         low_accuracy_enabled=low_accuracy_enabled,
+        skipped_cycles_counter=skipped_cycles_counter,
+        orch=orch,
     )

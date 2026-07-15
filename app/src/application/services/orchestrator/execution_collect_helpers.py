@@ -62,6 +62,8 @@ def mandatory_fallback_candidates(
         consecutive_losses=getattr(exec_mgr.orch.risk_manager, "consecutive_losses_linear", 0),
         mean_reversion_enabled=mean_reversion,
         low_accuracy_enabled=low_accuracy,
+        skipped_cycles_counter=int(getattr(exec_mgr.orch, "_quality_skipped_cycles_counter", 0) or 0),
+        orch=exec_mgr.orch,
     )
     return [fallback] if fallback else []
 
