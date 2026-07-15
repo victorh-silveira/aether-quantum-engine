@@ -199,7 +199,7 @@ class ExecutionManager:
             self._start_result_buffer()
 
             if self._training_phase_gate():
-                return
+                return None
 
             bankroll_snapshot = float(self.orch.state.balance)
             recovery_active = pending_recovery_active(self.orch.risk_manager.pending_loss)
@@ -252,6 +252,7 @@ class ExecutionManager:
             self.orch.mark_cluster_cycle_complete()
         if executed_count > 0:
             asyncio.create_task(self._run_settlement_watch())
+        return executed_count
 
     def _log_exec(
         self,

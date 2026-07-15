@@ -131,6 +131,8 @@ def _reject_on_quality_gate(
     *,
     risk_manager: Any | None = None,
     recovery_active: bool = False,
+    skipped_cycles_counter: int | None = None,
+    orch: Any | None = None,
 ) -> bool:
     """Retorna True quando quality gate reprova o candidato conforme regime."""
     has_meta = _has_meta_zscore_telemetry(gate_probe)
@@ -140,11 +142,15 @@ def _reject_on_quality_gate(
             gate_probe,
             exec_cfg=exec_cfg_dict,
             risk_manager=risk_manager,
+            skipped_cycles_counter=skipped_cycles_counter,
+            orch=orch,
         )
     tcn_passed = passes_execution_quality(
         gate_probe,
         exec_cfg=exec_cfg_dict,
         risk_manager=risk_manager,
+        skipped_cycles_counter=skipped_cycles_counter,
+        orch=orch,
     )
     meta_soft_ok = (not has_meta) or _meta_zscore_soft_ok(gate_probe)
     waived = bool(gate_probe.get("meta_payoff_veto_waived"))
@@ -202,6 +208,8 @@ def resolve_execution_direction(
     peer_entry: dict | None = None,
     cycle_id: int = 0,
     risk_manager: Any | None = None,
+    skipped_cycles_counter: int | None = None,
+    orch: Any | None = None,
 ) -> tuple[TradeDirection, dict] | None:
     """Resolve direcao micro fiel ao sinal TCN/DL com telemetria meta-regressor."""
     _ = (calibration_cfg, corr_matrix, peer_entry, cycle_id)
@@ -247,6 +255,8 @@ def resolve_execution_direction(
         exec_cfg_dict,
         risk_manager=risk_manager,
         recovery_active=recovery_active,
+        skipped_cycles_counter=skipped_cycles_counter,
+        orch=orch,
     ):
         if not (recovery_active and _recovery_soft_quality_continue(metrics)):
             return None

@@ -66,6 +66,8 @@ def gather_cluster_candidates(
             decisions=decisions,
             cycle_id=int(exec_mgr.orch._active_cycle_id),
             risk_manager=getattr(exec_mgr.orch, "risk_manager", None),
+            skipped_cycles_counter=int(getattr(exec_mgr.orch, "_quality_skipped_cycles_counter", 0) or 0),
+            orch=exec_mgr.orch,
         )
         if built is None:
             continue

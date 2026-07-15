@@ -116,10 +116,20 @@ async def _execute_inference_cluster_cycle(orch: Any) -> bool:
                 for entry in decisions.values()
             )
         elif not session_persistence_blocks_trading_cycle(orch):
-            await orch.executor.execute_cluster(decisions)
-            cluster_executed = True
+            executed_count = await orch.executor.execute_cluster(decisions)
+            cluster_executed = executed_count > 0 if isinstance(executed_count, (int, float)) else True
             post_lock_decisions = decisions
-            await reset_quality_skipped_cycles_counter_for_orch(orch)
+            if cluster_executed:
+                await reset_quality_skipped_cycles_counter_for_orch(orch)
+            else:  # pragma: no cover
+                any_quality_reject = any(
+                    isinstance(entry, dict)
+                    and isinstance(entry.get("metrics"), dict)
+                    and entry["metrics"].get("quality_guard_reject")
+                    for entry in decisions.values()
+                )
+                if any_quality_reject:
+                    record_quality_guard_cycle_skip(orch)
     if post_lock_decisions is not None:
         if quality_skip_pending:
             await await_quality_skip_yield(orch)
