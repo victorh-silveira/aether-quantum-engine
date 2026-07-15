@@ -10,6 +10,7 @@ from src.application.services.execution_quality_gate_reason import (
     format_quality_guard_reject_message,
 )
 from src.application.services.execution_quality_gate_starvation import (
+    apply_starvation_edge_decay,
     apply_starvation_margin_decay,
     starvation_decay_factor,
 )
@@ -23,6 +24,7 @@ REGULAR_MIN_PAYOFF_EDGE_DEFAULT = 0.01
 
 __all__ = [
     "apply_quality_penalty_to_metrics",
+    "apply_starvation_edge_decay",
     "direction_margin_from_probability",
     "ensure_direction_margin",
     "sync_direction_margin",
@@ -132,10 +134,11 @@ def resolve_dynamic_quality_limits(
     else:
         skipped = 0
     decayed_margin, decay_factor = apply_starvation_margin_decay(margin, skipped, orch=orch)
+    decayed_edge = apply_starvation_edge_decay(edge, skipped)
     return {
         **recovery_limits,
         "min_direction_margin": decayed_margin,
-        "min_payoff_edge": edge,
+        "min_payoff_edge": decayed_edge,
         "quality_regime": regime,
         "session_linear": float(session_linear),
         "pending_loss_total": pending,

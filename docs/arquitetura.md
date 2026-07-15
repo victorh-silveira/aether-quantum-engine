@@ -351,10 +351,13 @@ O motor avalia candidatos por **dois portões complementares**, selecionados por
 `resolve_dynamic_quality_limits` ajusta pisos por regime (regular/recovery), drawdown (`execution_quality_gate_drawdown`) e inanição (`execution_quality_gate_starvation`).
 
 **Válvula de Escape por Inanição (Starvation Escape Valve):**
-Para evitar que o motor entre em bloqueio permanente devido a restrições de qualidade muito rígidas (especialmente o piso de margem direcional de `0.12` durante o regime de recovery), o módulo `execution_quality_gate_starvation` gerencia um contador de ciclos pulados consecutivamente devido ao quality gate (`state:risk:skipped_cycles_counter`):
-- **Decaimento Temporal**: Quando o número de ciclos descartados consecutivamente atinge ou excede o limiar de **15 ciclos**, o piso de margem direcional é atenuado multiplicando-o pelo fator de decaimento:
-  $$\text{fator} = \max\left(0.50, 1.0 - (\text{ciclos} - 14) \times 0.05\right)$$
-  Isso reduz gradualmente a margem direcional exigida em 5% a cada ciclo, até um piso de 50% da margem original.
+Para evitar que o motor entre em bloqueio permanente devido a restrições de qualidade muito rígidas (como margens de TCN ou payoff do meta-regressor insuficientes), o módulo `execution_quality_gate_starvation` gerencia um contador de ciclos pulados consecutivamente devido ao quality gate (`state:risk:skipped_cycles_counter`):
+- **Decaimento Temporal**: Quando o número de ciclos descartados consecutivamente atinge ou excede o limiar de **3 ciclos**, tanto o piso de margem direcional quanto o piso de payoff previsto são atenuados multiplicando ou subtraindo pelo fator de decaimento:
+  $$\text{fator} = \max\left(0.20, 1.0 - (\text{ciclos} - 2) \times 0.10\right)$$
+  Isso reduz gradualmente os limites exigidos a cada ciclo de inanição:
+  - O piso de margem direcional é multiplicado pelo fator (até 20% do valor inicial).
+  - O piso de payoff previsto decai linearmente, permitindo valores negativos: $\text{piso\_edge} - (1.0 - \text{fator}) \times 2.0$.
+  - O veto duro do meta-classificador (`_STRONG_NEGATIVE_ZSCORE = -0.20`) é relaxado adicionando a penalidade de inanição: $-0.20 - (1.0 - \text{fator}) \times 2.0$.
 - **Integração no Ciclo**:
   1. No início de cada ciclo de trading, o contador de inanição é carregado a partir do Redis (`prepare_quality_skipped_cycles_counter`).
   2. Se o ciclo for suspenso por decisão do quality gate (`quality_conviction_suspends_cluster`), o contador é incrementado e persistido no Redis (`record_quality_guard_cycle_skip`).

@@ -12,6 +12,9 @@ from src.application.services.execution_quality_gate import (
     read_risk_session_state,
 )
 from src.application.services.execution_quality_gate_meta import evaluate_meta_payoff_quality
+from src.application.services.execution_quality_gate_starvation import (
+    starvation_decay_factor,
+)
 from src.application.services.log_dedupe import LogDeduper
 from src.application.services.meta_direction_flip import SIGNAL_SUSPENDED
 from src.application.services.orchestrator.regime_freeze_yield import propagate_cluster_signal_suspended
@@ -25,11 +28,12 @@ _STRONG_NEGATIVE_ZSCORE = -0.20
 __all__ = ["log_quality_guard_suspension", "quality_conviction_suspends_cluster"]
 
 
-def _strongly_negative_meta(metrics: dict) -> bool:
-    """True quando Z-Score meta cai abaixo do veto duro de -0.20."""
+def _strongly_negative_meta(metrics: dict, *, decay_factor: float = 1.0) -> bool:
+    """True quando Z-Score meta cai abaixo do veto duro de -0.20, relaxado por inanição."""
     if metrics.get("meta_payoff_edge_zscore") is None and metrics.get("edge_zscore") is None:
         return False
-    return metric_float(metrics, "meta_payoff_edge_zscore", "edge_zscore", default=0.0) < _STRONG_NEGATIVE_ZSCORE
+    veto = _STRONG_NEGATIVE_ZSCORE - (1.0 - decay_factor) * 2.0
+    return metric_float(metrics, "meta_payoff_edge_zscore", "edge_zscore", default=0.0) < veto
 
 
 def _emergency_allows_mandatory_continue(orch: Any, decisions: dict) -> bool:
@@ -167,7 +171,8 @@ def _evaluate_cluster_quality(
                 skipped_cycles_counter=skipped_cycles,
                 orch=orch,
             )
-            meta_soft_ok = not _strongly_negative_meta(metrics)
+            decay_factor = starvation_decay_factor(skipped_cycles)
+            meta_soft_ok = not _strongly_negative_meta(metrics, decay_factor=decay_factor)
             passed = (meta_passed or tcn_passed) if recovery_active else ((tcn_passed and meta_soft_ok) or meta_passed)
             if meta_passed and not tcn_passed:
                 metrics["execution_gate_state"] = "meta_zscore_pass"
@@ -198,8 +203,12 @@ def _evaluate_cluster_quality(
 
 def _mandatory_should_hard_skip(orch: Any, decisions: dict) -> bool:
     """True quando mandatory deve suspender por meta fortemente negativo sem waiver."""
+    skipped_cycles = int(getattr(orch, "_quality_skipped_cycles_counter", 0) or 0)
+    decay_factor = starvation_decay_factor(skipped_cycles)
     strong_negative = any(
-        isinstance(entry, dict) and isinstance(entry.get("metrics"), dict) and _strongly_negative_meta(entry["metrics"])
+        isinstance(entry, dict)
+        and isinstance(entry.get("metrics"), dict)
+        and _strongly_negative_meta(entry["metrics"], decay_factor=decay_factor)
         for entry in decisions.values()
     )
     return strong_negative and not _emergency_allows_mandatory_continue(orch, decisions)

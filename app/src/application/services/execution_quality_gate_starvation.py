@@ -10,9 +10,9 @@ from src.application.services.log_dedupe import LogDeduper
 
 
 REDIS_SKIPPED_CYCLES_COUNTER_KEY = "state:risk:skipped_cycles_counter"
-STARVATION_DECAY_THRESHOLD = 15
-STARVATION_DECAY_STEP = 0.05
-STARVATION_DECAY_FLOOR = 0.50
+STARVATION_DECAY_THRESHOLD = 3
+STARVATION_DECAY_STEP = 0.10
+STARVATION_DECAY_FLOOR = 0.20
 _STARVATION_ESCAPE_LOG_PREFIX = (
     "[AETHER] EXECUTION_FLOW | Válvula de inanição ativa. "
     "Limite mitigado por decaimento temporal para min {min_direction_margin:.4f} | skipped_cycles={counter}"
@@ -50,6 +50,17 @@ def apply_starvation_margin_decay(
                 min_margin=mitigated,
             )
     return mitigated, decay
+
+
+def apply_starvation_edge_decay(
+    edge: float,
+    skipped_cycles: int,
+) -> float:
+    """Atenua piso de payoff previsto após inanição cronológica, permitindo valores negativos."""
+    decay = starvation_decay_factor(skipped_cycles)
+    if decay >= 1.0:
+        return float(edge)
+    return float(edge) - (1.0 - decay) * 2.0
 
 
 async def load_quality_skipped_cycles_counter(store: Any) -> int:
