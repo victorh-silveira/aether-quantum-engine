@@ -115,23 +115,34 @@ def evaluate_anti_trend_lock(
     if consecutive_losses < 2:
         return proposed_direction, "KEEP"
 
-    if symbol == "RDBULL" and proposed_direction == TradeDirection.CALL:
+    resolved: TradeDirection | None = None
+    action: str = "FREEZE: SKIP CYCLE"
+
+    is_bull = symbol == "RDBULL"
+    is_bear = symbol == "RDBEAR"
+
+    if is_bull and proposed_direction == TradeDirection.CALL:
         expanding = (bear_put_prob + 1e-12 > bull_call_prob) or (
             probability_delta > cross_symbol_prob_delta_mean + 1e-12
         )
         if expanding and predicted_payoff_edge + 1e-12 >= 0.0:
-            return TradeDirection.PUT, "FLIP to PUT"
-        return None, "FREEZE: SKIP CYCLE"
+            resolved, action = TradeDirection.PUT, "FLIP to PUT"
 
-    if symbol == "RDBEAR" and proposed_direction == TradeDirection.PUT:
+    elif is_bull and proposed_direction == TradeDirection.PUT or is_bear and proposed_direction == TradeDirection.PUT:
         expanding = (bull_call_prob + 1e-12 > bear_put_prob) or (
             probability_delta > cross_symbol_prob_delta_mean + 1e-12
         )
         if expanding and predicted_payoff_edge + 1e-12 >= 0.0:
-            return TradeDirection.CALL, "FLIP to CALL"
-        return None, "FREEZE: SKIP CYCLE"
+            resolved, action = TradeDirection.CALL, "FLIP to CALL"
 
-    return None, "FREEZE: SKIP CYCLE"
+    elif is_bear and proposed_direction == TradeDirection.CALL:
+        expanding = (bear_put_prob + 1e-12 > bull_call_prob) or (
+            probability_delta > cross_symbol_prob_delta_mean + 1e-12
+        )
+        if expanding and predicted_payoff_edge + 1e-12 >= 0.0:
+            resolved, action = TradeDirection.PUT, "FLIP to PUT"
+
+    return resolved, action
 
 
 def critical_recovery_stress(linear_losses: int, pending_total: float) -> bool:

@@ -152,6 +152,26 @@ def test_evaluate_anti_trend_lock_branches():
     assert direction is None
     assert action == "FREEZE: SKIP CYCLE"
 
+    # RDBULL PUT - Expanding
+    direction, action = evaluate_anti_trend_lock("RDBULL", TradeDirection.PUT, 2, 0.6, 0.4, 0.0, 0.0, 0.0)
+    assert direction == TradeDirection.CALL
+    assert action == "FLIP to CALL"
+
+    # RDBULL PUT - Congested
+    direction, action = evaluate_anti_trend_lock("RDBULL", TradeDirection.PUT, 2, 0.4, 0.6, 0.0, 0.0, 0.0)
+    assert direction is None
+    assert action == "FREEZE: SKIP CYCLE"
+
+    # RDBEAR CALL - Expanding
+    direction, action = evaluate_anti_trend_lock("RDBEAR", TradeDirection.CALL, 2, 0.4, 0.6, 0.0, 0.0, 0.0)
+    assert direction == TradeDirection.PUT
+    assert action == "FLIP to PUT"
+
+    # RDBEAR CALL - Congested
+    direction, action = evaluate_anti_trend_lock("RDBEAR", TradeDirection.CALL, 2, 0.6, 0.4, 0.0, 0.0, 0.0)
+    assert direction is None
+    assert action == "FREEZE: SKIP CYCLE"
+
 
 def test_critical_recovery_stress_and_tcn_extreme_conviction():
     assert critical_recovery_stress(5, 260.0) is True
