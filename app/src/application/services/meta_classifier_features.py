@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import numpy as np
+
 from src.application.services.deep_learning.dl_features import FEATURE_DIM
 from src.application.services.meta_classifier_cross_symbol import (
     CROSS_SYMBOL_KEYS,
@@ -51,9 +53,18 @@ def _base_feature_vector(metrics: dict[str, Any]) -> list[float]:
     """Monta vetor base FEATURE_DIM a partir de cache ou indicadores tabulares."""
     stored = metrics.get("feature_vector")
     if isinstance(stored, (list, tuple)) and len(stored) >= FEATURE_DIM:
-        return [float(v) for v in stored[:FEATURE_DIM]]
+        v_list = list(stored[:FEATURE_DIM])
+        if len(v_list) > 9:
+            v_list[8] = float(np.clip(v_list[8], -3.0, 3.0))
+            v_list[9] = float(np.clip(v_list[9], -3.0, 3.0))
+        return [float(v) for v in v_list]
     indicators = metrics.get("indicators") if isinstance(metrics.get("indicators"), dict) else {}
-    values = [float(indicators.get(key, 0.0)) for key in _INDICATOR_KEYS]
+    values = []
+    for key in _INDICATOR_KEYS:
+        val = float(indicators.get(key, 0.0))
+        if key in ("bb_width", "atr_norm"):
+            val = float(np.clip(val, -3.0, 3.0))
+        values.append(val)
     raw_prob = metrics.get("calibrated_prob", metrics.get("raw_prob"))
     values.append(float(raw_prob) if raw_prob is not None else 0.5)
     val_accuracy = metrics.get("val_accuracy")

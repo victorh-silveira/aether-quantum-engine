@@ -6,9 +6,11 @@ import pytest
 from src.application.services.orchestrator.execution_settlement import _settlement_poll_delay
 from src.application.services.orchestrator.post_settlement_cycle import (
     _await_post_settlement_breath,
+    _clean_stale_settlement_and_redis_counters,
     _ensure_trading_slot_poll,
     _poll_delay,
     _prune_stale_risk_contract_ids,
+    _record_post_settlement_incomplete,
     _release_post_settlement_task,
     _release_stuck_trading_slot,
     run_post_settlement_breath_and_cycle,
@@ -195,3 +197,36 @@ async def test_run_post_settlement_waits_for_is_trading_then_runs_real_cycle(orc
 
     orch.executor.execute_cluster.assert_awaited_once()
     assert orch.is_trading is False
+
+
+@pytest.mark.asyncio
+async def test_clean_stale_settlement_and_redis_counters_execution(orch_ready):
+    orch = orch_ready
+    mock_redis = MagicMock()
+    mock_pipe = MagicMock()
+    mock_pipe.execute = AsyncMock()
+    mock_redis.pipeline.return_value = mock_pipe
+
+    async def mock_redis_func():
+        return mock_redis
+
+    orch.state_store = MagicMock()
+    orch.state_store._redis = mock_redis_func
+
+    await _clean_stale_settlement_and_redis_counters(orch)
+
+    mock_pipe.delete.assert_any_call("recovery:skip_counter")
+    mock_pipe.delete.assert_any_call("settlement:queue:priority")
+    mock_pipe.execute.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_record_post_settlement_incomplete_with_loop(orch_ready):
+    orch = orch_ready
+    with patch(
+        f"{POST_SETTLEMENT_MODULE}._clean_stale_settlement_and_redis_counters",
+        new_callable=AsyncMock,
+    ) as mock_clean:
+        _record_post_settlement_incomplete(orch)
+        await asyncio.sleep(0.01)
+        mock_clean.assert_called_once_with(orch)

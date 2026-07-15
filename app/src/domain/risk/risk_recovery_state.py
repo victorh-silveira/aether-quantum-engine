@@ -106,12 +106,22 @@ def evaluate_anti_trend_lock(
     probability_delta: float,
     predicted_payoff_edge: float,
     cross_symbol_prob_delta_mean: float,
+    vol_ratio: float = 0.0,
+    bb_width_zscore: float = 0.0,
 ) -> tuple[TradeDirection | None, str]:
     """Política pura de domínio para resolver a direção sob AntiTrendLock.
 
     Recebe inputs limpos e retorna a direção pura resolvida (ou None se suspensa)
     e a ação correspondente (ex: 'FLIP to PUT', 'FLIP to CALL', 'FREEZE: SKIP CYCLE', 'KEEP').
     """
+    is_drift_forbidden = (
+        (symbol == "RDBULL" and proposed_direction == TradeDirection.PUT)
+        or (symbol == "RDBEAR" and proposed_direction == TradeDirection.CALL)
+    ) and (vol_ratio >= 2.0 or bb_width_zscore >= 2.0)
+
+    if is_drift_forbidden:
+        return None, "FREEZE: SKIP CYCLE"
+
     if consecutive_losses < 2:
         return proposed_direction, "KEEP"
 

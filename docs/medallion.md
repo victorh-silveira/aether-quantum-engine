@@ -457,6 +457,23 @@ Log de bootstrap: `SESSAO INICIADA | Alvo de 2,60%: $XX.XX | Stop Loss: DESATIVA
 
 ---
 
+## 12. Normalização Adaptativa de Volatilidade & Drift Bias Lock
+
+### 12.1 Normalização Adaptativa e Clipping de Volatilidade
+Para evitar degradação de sinal e problemas OOD (Out-of-Distribution) no LightGBM em períodos de estouro dinâmico de volatilidade, as features de dispersão temporal `bb_width` e `atr_norm` são normalizadas com base nas estatísticas das últimas 1024 velas M15:
+\[X_{\text{zscore}} = \frac{X - \mu_{1024}}{\sigma_{1024} + 1e-10}\]
+Se o valor ultrapassar o teto crítico de ±3.0, aplica-se um clipping estrito via:
+\[X_{\text{final}} = \text{clip}(X_{\text{zscore}}, -3.0, 3.0)\]
+
+### 12.2 Invariante de Drift Proibido (Drift Bias Lock)
+Fica terminantemente vedada a emissão de ordens contra o drift natural das séries sob regime de expansão hiperbólica de volatilidade (\(Z_{\text{vol}} \ge 2.0\)):
+- **PUT** em `RDBULL` (Bull Market Index)
+- **CALL** em `RDBEAR` (Bear Market Index)
+
+Sob essa condição, a stake é forçada a `0.0` e a direção é vetada retornando `None` (forçando `EXEC_EMPTY`), mesmo que o motor esteja em modo RECOVERY crítico avançado (\text{linear} \ge 5). O fluxo é obrigatoriamente desviado para o par oposto que se beneficia da física do drift natural da série.
+
+---
+
 ## 11. Referências internas
 
 - [arquitetura.md](arquitetura.md)

@@ -119,6 +119,8 @@ def _attempt_bull_call_lock_flip(
         probability_delta,
         predicted_payoff_edge,
         cross_symbol_prob_delta_mean,
+        vol_ratio=float(metrics.get("vol_ratio", 0.0)),
+        bb_width_zscore=float(metrics.get("bb_width", metrics.get("bb_width_zscore", 0.0))),
     )
 
     if resolved_dir == TradeDirection.PUT and action == "FLIP to PUT":
@@ -160,6 +162,8 @@ def _attempt_bull_put_lock_flip(
         probability_delta,
         predicted_payoff_edge,
         cross_symbol_prob_delta_mean,
+        vol_ratio=float(metrics.get("vol_ratio", 0.0)),
+        bb_width_zscore=float(metrics.get("bb_width", metrics.get("bb_width_zscore", 0.0))),
     )
 
     if resolved_dir == TradeDirection.CALL and action == "FLIP to CALL":
@@ -201,6 +205,8 @@ def _attempt_bear_put_lock_flip(
         probability_delta,
         predicted_payoff_edge,
         cross_symbol_prob_delta_mean,
+        vol_ratio=float(metrics.get("vol_ratio", 0.0)),
+        bb_width_zscore=float(metrics.get("bb_width", metrics.get("bb_width_zscore", 0.0))),
     )
 
     if resolved_dir == TradeDirection.CALL and action == "FLIP to CALL":
@@ -242,6 +248,8 @@ def _attempt_bear_call_lock_flip(
         probability_delta,
         predicted_payoff_edge,
         cross_symbol_prob_delta_mean,
+        vol_ratio=float(metrics.get("vol_ratio", 0.0)),
+        bb_width_zscore=float(metrics.get("bb_width", metrics.get("bb_width_zscore", 0.0))),
     )
 
     if resolved_dir == TradeDirection.PUT and action == "FLIP to PUT":

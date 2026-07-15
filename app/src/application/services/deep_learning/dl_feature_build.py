@@ -107,15 +107,17 @@ def precompute_price_series(
         h = close
         low_px = close
     bb_lower, bb_mid, bb_upper = bollinger(prices, int(win["bb_window"]))
-    bb_width = (bb_upper - bb_lower) / (bb_mid + 1e-10)
+    bb_w_raw = (bb_upper - bb_lower) / (bb_mid + 1e-10)
+    bb_width = np.clip((bb_w_raw - np.mean(bb_w_raw)) / (np.std(bb_w_raw) + 1e-10), -3.0, 3.0)
+
     bb_pct_b = (prices - bb_lower) / (bb_upper - bb_lower + 1e-10)
-    atr = atr_norm(h, low_px, close, int(win["atr_window"]))
+    atr_raw = atr_norm(h, low_px, close, int(win["atr_window"]))
+    atr = np.clip((atr_raw - np.mean(atr_raw)) / (np.std(atr_raw) + 1e-10), -3.0, 3.0)
     target_vol = symbol_vol_target(symbol)
     vol_vs_target = vol / (target_vol + 1e-10)
     vol_z = np.zeros(n, dtype=np.float64)
-    rel_span = int(win["rel_vol_span"])
     for i in range(vol_window, n):
-        base = np.mean(vol[max(0, i - rel_span) : i + 1]) + 1e-10
+        base = np.mean(vol[max(0, i - int(win["rel_vol_span"])) : i + 1]) + 1e-10
         vol_z[i] = (vol[i] - base) / base
     hurst = hurst_exponent(prices, window=int(win["hurst_window"]))
     vr = variance_ratio(prices, short=int(win["vr_short"]), long=int(win["vr_long"]))

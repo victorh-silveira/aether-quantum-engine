@@ -12,6 +12,7 @@ from src.application.services.orchestrator.post_settlement_loss_cooldown import 
 )
 from src.application.services.orchestrator.session_target_bootstrap import clear_current_session_redis_keys
 from src.application.services.orchestrator.settlement_logic import check_session_limits_before_post_settlement
+from src.application.services.orchestrator.settlement_queue_ops import get_redis_client
 from src.application.services.orchestrator.settlement_utils import (
     clear_contract_metadata,
     prune_orphan_contract_ids,
@@ -114,6 +115,21 @@ async def _try_stop_win_fast_path(orch: Any) -> bool:
     return True
 
 
+async def _clean_stale_settlement_and_redis_counters(orch: Any) -> None:
+    """Limpa de forma atômica no Redis os contadores e chaves de timeout pendentes."""
+    try:
+        client = await get_redis_client(orch)
+        pipe = client.pipeline()
+        pipe.delete("recovery:skip_counter")
+        pipe.delete("settlement:queue:priority")
+        await pipe.execute()
+        orch.logger.info(
+            "SRE: Limpeza atômica no Redis concluída para 'recovery:skip_counter' e 'settlement:queue:priority'."
+        )
+    except Exception as e:  # pragma: no cover
+        orch.logger.error("SRE: Falha ao executar limpeza atômica no Redis: %s", e)  # pragma: no cover
+
+
 def _record_post_settlement_incomplete(orch: Any) -> None:
     """Incrementa contador de ciclos incompletos e sinaliza deadlock no limite."""
     streak = int(getattr(orch, "_post_settlement_incomplete_streak", 0)) + 1
@@ -121,6 +137,11 @@ def _record_post_settlement_incomplete(orch: Any) -> None:
     orch.logger.warning(
         "CICLO: ciclo pos-liquidacao incompleto; nova tentativa (%d/%d)", streak, _POST_SETTLEMENT_INCOMPLETE_LIMIT
     )
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(_clean_stale_settlement_and_redis_counters(orch))
+    except RuntimeError:
+        pass
     if streak >= _POST_SETTLEMENT_INCOMPLETE_LIMIT:
         orch._post_settlement_deadlock = True
 

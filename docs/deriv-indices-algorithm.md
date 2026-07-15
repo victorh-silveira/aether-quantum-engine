@@ -103,6 +103,25 @@ O motor serializa mutações críticas de risco e sessão via `asyncio.Lock` no 
 
 Ver [arquitetura.md](arquitetura.md) seção 2.5 para o diagrama completo.
 
+### 2.9 Normalização Adaptativa de Volatilidade & Válvula de Drift Proibido (Drift Bias Lock)
+
+#### 2.9.1 Estouro Dinâmico de Volatilidade e Clipping OOD
+Em regime de cauda hiperbólica, as variáveis de dispersão temporal `bb_width` e `atr_norm` são padronizadas com base na distribuição amostral das últimas 1024 velas M15:
+\[Z = \frac{x - \text{mean}(X_{1024})}{\text{std}(X_{1024}) + 1e-10}\]
+Os inputs para o modelo LightGBM sofrem um clipping estrito a fim de mitigar desvios de distribuição de treino (OOD - Out-of-Distribution):
+\[Z_{\text{clipped}} = \max(-3.0, \min(3.0, Z))\]
+
+#### 2.9.2 Equações da Válvula de Drift Proibido
+A invariante matemática absoluta de Drift Proibido restringe a execução de ordens contrárias ao drift natural das séries sob estresse de volatilidade assimétrica:
+\[\text{Veto} = \begin{cases} 
+\text{True} & \text{se } (\text{Símbolo} = \text{RDBULL} \land \text{Direção} = \text{PUT}) \land (Z_{\text{vol}} \ge 2.0 \lor Z_{\text{bb\_width}} \ge 2.0) \\
+\text{True} & \text{se } (\text{Símbolo} = \text{RDBEAR} \land \text{Direção} = \text{CALL}) \land (Z_{\text{vol}} \ge 2.0 \lor Z_{\text{bb\_width}} \ge 2.0) \\
+\text{False} & \text{caso contrário}
+\end{cases}\]
+Se \(\text{Veto} = \text{True}\), o motor:
+1. Força a stake para `0.0` no nível do `RiskManager`.
+2. Cancela a direção resolvendo para `None` no `evaluate_anti_trend_lock`, forçando o retorno `EXEC_EMPTY` (early-return) e desviando o fluxo para o par oposto favorável.
+
 ---
 
 ## 3. Referências
