@@ -173,6 +173,9 @@ def _non_fast_cycle_blocks(orch: Any) -> bool:
 
 def trading_cycle_entry_allowed(orch: Any) -> bool:
     """False quando o motor nao pode iniciar um novo ciclo de decisao."""
+    cooldown = float(getattr(orch, "_cooldown_until", 0.0))
+    if cooldown > 0.0 and time.time() < cooldown:
+        return False
     if _orchestrator_preconditions_block(orch):
         return False
     if _engine_runtime_blocks_cycle(orch):

@@ -7,11 +7,11 @@
 [![Pre-commit](https://img.shields.io/badge/Pre--commit-active-FAB040?logo=pre-commit&logoColor=white)](.pre-commit-config.yaml)
 [![CI](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml)
 
-Motor quantitativo assíncrono para a Deriv: decisão por **Deep Learning** (TCN/LSTM/GRU) nos índices **Drift** (`RDBEAR`, `RDBULL`), contratos **RISE_FALL** de **60 s (M1)** com contexto macro **M15 (900 s)**, meta-regressor LightGBM de expectativa de retorno contínuo, e recuperação **Martingale Geométrico** (`Effective_Base × 2^n`) quando há passivo pendente.
+Motor quantitativo assíncrono para a Deriv: decisão por **Deep Learning** (TCN/LSTM/GRU) nos índices **Drift** (`RDBEAR`, `RDBULL`), contratos **RISE_FALL** de **60 s (M1)** com contexto macro **M15 (900 s)**, meta-regressor LightGBM (**43D**) de expectativa de retorno contínuo, e **soft recovery** com caps de segurança quando há passivo pendente.
 
-A operação divide-se em duas fases: **FASE TREINO** (nenhuma ordem até todos os modelos concluírem o treino da sessão) e **FASE OPERACAO** em **esteira mandatária contínua** (`mandatory_trade_each_cycle: true`): o motor seleciona candidato obrigatório quando o pool DL é tecnicamente válido e aprovado pelo quality gate dual (TCN + meta Z-Score). Cooldown pós-LOSS, blackout de broker e Hurst em recovery permanecem neutralizados.
+A operação divide-se em duas fases: **FASE TREINO** (nenhuma ordem até todos os modelos concluírem o treino da sessão) e **FASE OPERACAO** em **esteira mandatária contínua** (`mandatory_trade_each_cycle: true`): o motor seleciona candidato obrigatório quando o pool DL é tecnicamente válido e aprovado pelo quality gate dual (TCN + meta Z-Score). Fail-closed para meta e Triton (`require_meta_for_execution`, `infra.triton.require_for_execution`).
 
-Documentação: [arquitetura](docs/arquitetura.md) | [estrutura e módulos](docs/structure.md) | [metodologia quant](docs/medallion.md) | [infra Docker](docs/infra-docker.md) | [Deriv API](docs/deriv-api.md)
+Documentação: [arquitetura](docs/arquitetura.md) | [estrutura e módulos](docs/structure.md) | [metodologia quant](docs/medallion.md) | [infra Docker](docs/infra-docker.md) | [Deriv API](docs/deriv-api.md) | [índice docs](docs/README.md)
 
 Layout: `app/` (código e testes), `config/settings.json`, `docs/`, `linters/`. Ver [docs/structure.md](docs/structure.md).
 
@@ -23,24 +23,17 @@ Layout: `app/` (código e testes), `config/settings.json`, `docs/`, `linters/`. 
 |-------|------------|-----------|
 | Dados | `StreamHandler` + `TickBuffer` + `AetherWatchdog` | WebSocket Deriv dual-timeframe: OHLC macro M15 (900 s) para DL/regimes + OHLC micro M1 (60 s) para gatilho do ciclo; ticks agregados por barra fechada; watchdog reconecta stream em inanição (>30 s) |
 | Fases | `_training_phase_gate` | Suspende a operação até todos os modelos concluírem o treino da sessão |
-| Predição DL | `decision_bridge` + `dl_predict_build` + TCN/LSTM/GRU | **34 features** TCN; bundle cross-symbol 39D antes do prefetch meta; inferência Triton gRPC com timeout 2 s e fallback TorchScript |
-| Meta GBDT | `meta_classifier_client` + `aether-meta-classifier` | Regressão tabular **39D** (`LGBMRegressor` huber); retorna `predicted_payoff_edge` contínuo |
-| Z-Score payoff | `payoff_edge_zscore` | Janela adaptativa 15–45 (Hurst/ATR/BB); `meta_payoff_edge_zscore`; classificação estatística |
-| Direção | `execution_direction_resolver` + `direction_persistence_guard` + `meta_payoff_regression` | TCN define macro; AntiTrendLock com flip cross-symbol; edge `> 0` preserva score; D-SQUEEZE rebaixa para **0.52**; `direction_margin = abs(P(lado) − 0.50)` |
-| Rotulagem DL | `dl_labels` + `dl_horizon` | **Triple Barrier Method** (`label_mode: triple_barrier`); barreira dinâmica por σ de ticks (janela 15 barras M15); neutro (0) em lateralização; tunável por símbolo via `label_vol_window_bars` e `label_vol_multiplier` |
-| Perda TCN | `model.high_volatility_asymmetric_focal_loss` | BCE focal com penalidade **2,5×** para erro direcional em alta volatilidade |
-| Optuna meta | `train_meta_optuna.py` | Maximiza **Information Ratio** (IR); rejeita trials com Z-Score médio de payoff OOS < **+1,00** |
-| Fluxo mandatário | `execution_quality_gate` + `execution_quality_gate_reason` + portões neutralizados | Gate TCN com margem + meta payoff; meta z-score via `execution_quality_gate_meta`; telemetria `QUALITY_GUARD` / `EXECUTION_FLOW` |
-| Ranking | `execution_market_rank` + `execution_symbols` | Score `tcn × max(0.1, 1+z)`; redirect inter-símbolo (âncora Z<-0.50 → par Z>+0.50) |
-| Execução | `ExecutionManager` + `execution_fractional_lots` | Proposta atômica por sub-lote; stagger estocástico entre sub-propostas (RTT WS) |
-| Risco | `RiskManager` + `risk_contract_result` + `risk_stake_flow` + `dlambert_sizing` | Kelly + Martingale `U × 2^n`; `register_result` delega a `apply_contract_settlement_result`; reconciliação de stake downgrade vs `pending_loss` |
-| Resiliência | `graceful_shutdown` + `watchdog_service` + `post_settlement_resilience` + `settlement_queue_ops` | Fast-path stop win; fila Redis `settlement:queue:priority` quando broker offline; cancelamento fast-path no shutdown; recovery transparente pós-deadlock |
-| Concorrência | `StateManager` + `orchestrator_atomic_state` + `session_persistence_barrier` | `asyncio.Lock` central serializa inferência DL, liquidação e persistência; leituras de infra via `read_cached_balance` sem bloquear o lock |
-| Cache M1+M15 | `orchestrator_data_signature` | Assinatura multi-timeframe invalida inferência redundante na mesma fronteira de minuto |
-| Estado | `StateManager` + `redis_state_pipeline` + `orchestrator_persistence` | Snapshot atômico MULTI/EXEC; persistência locked/unlocked; barreira pós-reset linear D'Alembert |
-| Inferência | `TritonGrpcClient` | Canal `grpc.aio.insecure_channel` persistente; timeout 2 s; predições paralelas via `asyncio.gather`; fallback local em timeout |
-| Mercado TS | `TimescaleMarketWriter` | Ticks e barras OHLC macro M15 (900 s) e micro M1 (60 s) para backtest |
-| Modelos | `MinioModelStore` + cache `data/dl/` | Checkpoints DL como source of truth remoto; sanity estressado no startup |
+| Predição DL | `decision_bridge` + `dl_predict_*` + TCN | **34 features** TCN; bundle meta **43D**; Triton gRPC timeout **0,85 s**; fail-closed opcional |
+| Meta GBDT | `meta_classifier_client` + `aether-meta-classifier` | Regressão tabular **43D**; `predicted_payoff_edge` contínuo |
+| Z-Score payoff | `payoff_edge_zscore` | Janela adaptativa 15–45; `meta_payoff_edge_zscore` |
+| Direção | `execution_direction_resolver` + AntiTrendLock | TCN define macro; D-SQUEEZE rebaixa score; margem `abs(P(lado) − 0.50)` |
+| Rotulagem DL | `dl_labels` + `LabelSpec` | Padrão `ma_trend`; Triple Barrier disponível via config |
+| Quality / starvation | `execution_quality_gate*` | Dual TCN+meta; starvation a partir de **6** skips |
+| Ranking | `execution_market_rank` | Score `tcn × max(0.1, 1+z)` |
+| Execução | `ExecutionManager` + lotes fracionados | Proposta atômica; RISE_FALL 60 s |
+| Risco | `RiskManager` + soft recovery | Kelly `fraction=0.005`, teto **3,5%**, `max_safe_stake_cap`, stop win 2,60% |
+| Concorrência | `StateManager` + barreira atômica | Lock serializa inferência, liquidação e persistência |
+| Inferência | `TritonGrpcClient` | Canal persistente; rebind por event loop |
 
 Ciclo do orquestrador: `orchestrator.cycle_interval_seconds` (**60 s / M1**). Contexto DL: `data_handler.granularity` (**900 s / M15**, tensor `[1, 48, 34]`). Contrato: `risk_management.params.duration` (**60 s**, RISE_FALL alinhado ao fechamento M1).
 
@@ -54,13 +47,10 @@ Arquivo: [`config/settings.json`](config/settings.json)
 |-------|--------|
 | `symbols` / `anchor` | Universo (`RDBEAR`, `RDBULL`; ancora `RDBULL`) |
 | `data_handler` | `granularity` (macro M15), `micro_granularity` (M1), `history_bars`, `fetch_count`, `buffer_limit` |
-| `deep_learning` | `arch`, `lookback`, `label_mode` (`triple_barrier`), `label_vol_window_bars`, `label_vol_multiplier`, `calibration`, thresholds, `deploy_gate` |
-| `orchestrator.execution` | `quality_gate`, `mandatory_trade_each_cycle`, `max_single_stake_limit`, settlement |
-| `orchestrator` | `watchdog_*`, `cycle_interval_seconds`, execução, settlement |
-| `risk_management.kelly` | Kelly, `consensus_penalty_*`, `penalty_smoothing_*`, recovery waivers |
-| `risk_management.params` | `duration: 60`, stakes, `compounding_enabled`, `compounding_rate_daily`, `session_start_balance` (opcional) |
-| `trading` | `demo` / `live` |
-| `infra` | Redis, TimescaleDB, MinIO, Triton (`enabled`, `fail_fast`, `grpc_url`), meta-regressor (`enabled`, `url`) |
+| `deep_learning` | `arch`, `lookback`, `label_mode` (`ma_trend`), calibration, thresholds, `deploy_gate` |
+| `orchestrator.execution` | `mandatory_trade_each_cycle`, `require_meta_for_execution`, `quality_gate`, settlement |
+| `risk_management.kelly` | `fraction` (0.005), caps 3,5%, consensus penalty, recovery |
+| `infra` | Redis, Timescale, MinIO, Triton (`infer_timeout_seconds`, `require_for_execution`), meta-classifier |
 
 ## Ambiente híbrido Docker
 

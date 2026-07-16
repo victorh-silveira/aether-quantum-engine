@@ -6,7 +6,8 @@ import numpy as np
 import pandas as pd
 
 from scripts.operations.train_meta_data import META_TRAIN_DEFAULT_BARS, OhlcBundle
-from src.application.services.deep_learning.dl_feature_build import build_feature_matrix, precompute_price_series
+from src.application.services.deep_learning.dl_feature_build import precompute_price_series
+from src.application.services.deep_learning.dl_feature_matrix import build_feature_matrix
 from src.application.services.meta_classifier_cross_symbol import META_FEATURE_DIM
 from src.application.services.meta_classifier_features import meta_classifier_column_names
 
@@ -174,9 +175,15 @@ def build_paired_training_dataset(
     cross_rsi_spread = bull_slice["rsi"].to_numpy(dtype=np.float64) - bear_slice["rsi"].to_numpy(dtype=np.float64)
     flow_tick = bull_slice["tick_accel"].to_numpy(dtype=np.float64)
     flow_keltner = bull_slice["keltner_dev"].to_numpy(dtype=np.float64)
+    n_rows = len(base_features)
+    zero_col = np.zeros(n_rows, dtype=np.float32)
     matrix = np.column_stack(
         [
             base_features,
+            zero_col,  # micro_bid_ask_spread_momentum
+            zero_col,  # micro_bid_ask_spread_momentum_zscore
+            zero_col,  # volatility_shadow_ratio
+            zero_col,  # volatility_shadow_ratio_zscore
             cross_prob_delta,
             cross_vol_diff,
             cross_rsi_spread,

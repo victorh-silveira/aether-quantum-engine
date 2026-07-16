@@ -160,9 +160,9 @@ def test_stake_block_reason_kelly_no_edge():
             "params": {"payout_estimate": 0.5, "stake_min": 1.0},
         }
     )
-    rm.set_initial_bankroll(100.0)
-    assert rm.stake_block_reason(100.0, "RDBULL", conviction=0.05) is None
-    assert rm.calculate_stake(100.0, "RDBULL", conviction=0.05) == pytest.approx(0.15)
+    rm.set_initial_bankroll(1000.0)
+    assert rm.stake_block_reason(1000.0, "RDBULL", conviction=0.05) is None
+    assert rm.calculate_stake(1000.0, "RDBULL", conviction=0.05) == pytest.approx(1.50)
 
 
 def test_stake_block_reason_kelly_no_edge_when_bankroll_below_stake_min():

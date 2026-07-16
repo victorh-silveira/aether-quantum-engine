@@ -38,7 +38,13 @@ _INDICATOR_KEYS = (
 def meta_classifier_column_names() -> list[str]:
     """Retorna nomes de colunas para treino LightGBM com features cross-symbol."""
     base = [f"feature_{index}" for index in range(FEATURE_DIM)]
-    return base + list(CROSS_SYMBOL_KEYS) + list(FLOW_FEATURE_KEYS)
+    micro_vol = [
+        "micro_bid_ask_spread_momentum",
+        "micro_bid_ask_spread_momentum_zscore",
+        "volatility_shadow_ratio",
+        "volatility_shadow_ratio_zscore",
+    ]
+    return base + micro_vol + list(CROSS_SYMBOL_KEYS) + list(FLOW_FEATURE_KEYS)
 
 
 def cross_symbol_conviction_spread(metrics: dict[str, Any]) -> float:
@@ -86,7 +92,14 @@ def extract_meta_feature_vector(metrics: dict[str, Any]) -> list[float]:
     base = _base_feature_vector(metrics)
     cross = cross_symbol_triplet_from_metrics(metrics)
     flow = flow_feature_pair_from_metrics(metrics)
-    vector = base + cross + flow
+    flow_chunk = metrics.get("flow_features") if isinstance(metrics.get("flow_features"), dict) else {}
+    micro_vol = [
+        float(flow_chunk.get("micro_bid_ask_spread_momentum", 0.0)),
+        float(flow_chunk.get("micro_bid_ask_spread_momentum_zscore", 0.0)),
+        float(flow_chunk.get("volatility_shadow_ratio", 0.0)),
+        float(flow_chunk.get("volatility_shadow_ratio_zscore", 0.0)),
+    ]
+    vector = base + micro_vol + cross + flow if META_FEATURE_DIM == 43 else base + cross + flow
     if len(vector) > META_FEATURE_DIM:
         vector = vector[:META_FEATURE_DIM]
     while len(vector) < META_FEATURE_DIM:

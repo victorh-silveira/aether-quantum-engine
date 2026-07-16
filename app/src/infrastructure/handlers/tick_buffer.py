@@ -18,9 +18,11 @@ class BarMicrostructure:
     price_velocity: float
     price_acceleration: float
     consecutive_diff_std: float
+    micro_bid_ask_spread_momentum: float
+    volatility_shadow_ratio: float
 
 
-_NEUTRAL = BarMicrostructure(0.0, 0.0, 0.0, 0.0, 0.0)
+_NEUTRAL = BarMicrostructure(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
 
 class TickBuffer:
@@ -93,6 +95,10 @@ class TickBuffer:
             "price_velocity": np.array([s.price_velocity for s in series], dtype=np.float64),
             "price_acceleration": np.array([s.price_acceleration for s in series], dtype=np.float64),
             "consecutive_diff_std": np.array([s.consecutive_diff_std for s in series], dtype=np.float64),
+            "micro_bid_ask_spread_momentum": np.array(
+                [s.micro_bid_ask_spread_momentum for s in series], dtype=np.float64
+            ),
+            "volatility_shadow_ratio": np.array([s.volatility_shadow_ratio for s in series], dtype=np.float64),
         }
 
     def live_tick_acceleration(self, symbol: str, *, window_ms: int = 5000) -> float:
@@ -126,7 +132,7 @@ class TickBuffer:
         diffs = np.diff(epochs)
         valid = diffs > 0
         if not np.any(valid):
-            return BarMicrostructure(float(len(ticks)), 0.0, 0.0, 0.0, 0.0)
+            return BarMicrostructure(float(len(ticks)), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
         mean_ms = float(np.mean(diffs[valid]))
         price_diffs = np.diff(prices)
         velocity = float(np.mean(price_diffs / np.maximum(diffs, 1.0)))
@@ -137,10 +143,24 @@ class TickBuffer:
         else:
             acceleration = 0.0
         diff_std = float(np.std(price_diffs)) if len(price_diffs) > 0 else 0.0
+        latest_ms = int(ticks[-1][0])
+        curr_window = [t for t in ticks if t[0] >= latest_ms - 5000]
+        prev_window = [t for t in ticks if latest_ms - 10000 <= t[0] < latest_ms - 5000]
+        spread_momentum = float(len(curr_window) - len(prev_window))
+        high_px = float(np.max(prices))
+        low_px = float(np.min(prices))
+        open_px = float(ticks[0][1])
+        close_px = float(ticks[-1][1])
+        upper_shadow = high_px - max(open_px, close_px)
+        lower_shadow = min(open_px, close_px) - low_px
+        std_val = float(np.std(prices))
+        shadow_ratio = (upper_shadow + lower_shadow) / (std_val + 1e-12)
         return BarMicrostructure(
             tick_count=float(len(ticks)),
             mean_inter_tick_ms=mean_ms,
             price_velocity=velocity,
             price_acceleration=acceleration,
             consecutive_diff_std=diff_std,
+            micro_bid_ask_spread_momentum=spread_momentum,
+            volatility_shadow_ratio=shadow_ratio,
         )

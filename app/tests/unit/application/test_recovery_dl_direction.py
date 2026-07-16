@@ -26,8 +26,8 @@ def test_recovery_candidate_pool_keeps_all_directions():
 
 
 def test_recovery_rank_score_penalizes_same_direction():
-    item = (PAIR, TradeDirection.PUT, {"trade_score": 0.55, "raw_prob": 0.42})
-    base = candidate_execution_score(item[2], recovery_active=True)
+    item = ("SYM", TradeDirection.PUT, {"trade_score": 0.55, "raw_prob": 0.42})
+    base = candidate_execution_score(item[2], recovery_active=True, symbol="SYM")
     assert recovery_rank_score(item, last_loss_direction="PUT", base_score=base) <= base
 
 

@@ -74,18 +74,16 @@ def domain_expected_win_profit(executed_stake: float, payout_rate: float) -> flo
 
 
 def fractional_payoff_residual_cents(api_profit: float, executed_stake: float, payout_rate: float) -> float:
-    """Diferenca explicita em centavos entre payoff de dominio e P&L real da API."""
+    """Diferenca explicita com sub-centavos entre payoff de dominio e P&L real da API."""
     profit = float(api_profit)
     stake = float(executed_stake)
     if profit <= 0.0 or stake <= 0.0:
         return 0.0
     expected = domain_expected_win_profit(stake, payout_rate)
-    api_cents = round(profit * 100)
-    expected_cents = round(expected * 100)
-    residual_cents = api_cents - expected_cents
-    if abs(residual_cents) > _MAX_FRACTIONAL_PAYOFF_RESIDUAL_CENTS:
+    residual = round(profit - expected, 4)
+    if abs(residual) > 0.10:
         return 0.0
-    return residual_cents / 100.0
+    return residual
 
 
 def apply_fractional_payoff_residual_to_pending(

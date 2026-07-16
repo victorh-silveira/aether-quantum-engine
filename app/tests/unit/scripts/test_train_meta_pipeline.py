@@ -183,7 +183,7 @@ def test_build_paired_training_dataset_has_continuous_target_and_named_columns()
     columns = meta_classifier_column_names()
     assert list(frame.columns) == columns
     assert isinstance(frame, pd.DataFrame)
-    assert frame.shape[1] == META_FEATURE_DIM == len(columns) == 39
+    assert frame.shape[1] == META_FEATURE_DIM == len(columns) == 43
     assert len(frame) == len(y) == len(proxy) == len(pnl)
     assert np.issubdtype(y.dtype, np.floating)
     assert target_variance(y) > 0.0

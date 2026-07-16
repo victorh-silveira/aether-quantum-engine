@@ -119,7 +119,17 @@ def evaluate_meta_payoff_quality(
     metrics["quality_min_meta_payoff_zscore"] = float(min_z)
     z_edge = _meta_payoff_zscore(metrics)
     edge = float(metrics.get("predicted_payoff_edge", 0.0))
-    approved = edge + 1e-12 >= min_edge and z_edge + 1e-12 >= min_z
+    skipped = int(limits.get("skipped_cycles_counter", 0))
+    call_votes = int(metrics.get("call_votes", 0))
+    put_votes = int(metrics.get("put_votes", 0))
+    total_votes = call_votes + put_votes
+    unanimous = (total_votes >= 6) and (total_votes in (call_votes, put_votes))
+    gbdt_waiver = skipped >= 30 and unanimous
+    if gbdt_waiver:
+        approved = True
+        metrics["gbdt_waiver_applied"] = True
+    else:
+        approved = edge + 1e-12 >= min_edge and z_edge + 1e-12 >= min_z
     if approved:
         metrics["execution_gate_state"] = "meta_zscore_pass"
         metrics.pop("regime_skip_cycle", None)

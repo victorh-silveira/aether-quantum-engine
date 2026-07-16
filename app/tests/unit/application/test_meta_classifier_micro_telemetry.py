@@ -1,6 +1,7 @@
 import numpy as np
 
 from src.application.services.deep_learning.dl_predict_build import stamp_micro_frame_telemetry
+from src.application.services.deep_learning.dl_predict_telemetry import _series_last
 
 
 class _TickBuffer:
@@ -20,6 +21,12 @@ class _Stream:
 
 class _Orch:
     stream = _Stream()
+
+
+def test_series_last_defaults_on_missing_or_empty():
+    assert _series_last({}, "missing") == 0.0
+    assert _series_last({"x": []}, "x", 1.5) == 1.5
+    assert _series_last({"x": [2.0, 3.0]}, "x") == 3.0
 
 
 def test_stamp_micro_frame_telemetry_attaches_micro_indicators():

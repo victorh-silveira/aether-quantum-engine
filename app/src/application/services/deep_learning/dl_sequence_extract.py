@@ -4,9 +4,9 @@ import numpy as np
 
 from src.application.services.deep_learning.dl_feature_build import (
     FEATURE_DIM,
-    build_feature_matrix,
     precompute_price_series,
 )
+from src.application.services.deep_learning.dl_feature_matrix import build_feature_matrix
 from src.application.services.deep_learning.dl_labels import sequence_labels
 
 

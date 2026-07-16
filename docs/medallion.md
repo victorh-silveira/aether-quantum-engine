@@ -11,22 +11,23 @@ Para arquitetura de código, ver [`arquitetura.md`](arquitetura.md).
 | Princípio | No motor atual |
 |-----------|----------------|
 | Sinais, não histórias | Direção CALL/PUT estritamente pela TCN (`P(CALL) > P(PUT)`) |
-| Horizonte curto | Contexto DL **M15 (900 s)**; execução **M1 (60 s)**; label `triple_barrier` (ou `ma_trend` legado) |
-| Acoplamento temporal | Inferências e rotações de ciclo seguem estritamente `signature_boundary_seconds` (fallback `cycle_interval_seconds`), mitigando ruído microestrutural |
+| Horizonte curto | Contexto DL **M15 (900 s)**; execução **M1 (60 s)**; label atual `ma_trend` (Triple Barrier opcional) |
+| Acoplamento temporal | Inferências e rotações seguem `signature_boundary_seconds` (fallback `cycle_interval_seconds`) |
 | Esteira mandatária | `mandatory_trade_each_cycle: true` — mandatory pick quando pool DL aprovado pelo quality gate |
 | Modelo pronto antes de operar | `FASE TREINO` suspende ordens até treino da sessão |
-| Operação configurável | `mandatory_trade_each_cycle` — esteira mandatária contínua (padrão atual) |
+| Fail-closed | `require_meta_for_execution` e `infra.triton.require_for_execution` |
 | Feedback real | Win rate live misturado em `val_accuracy`; retreino após loss |
 | Defesa contra ruído CSPRNG | Consensus Entropy Penalty no Kelly base |
 | Persistência financeira | Recovery atrelado a `pending_loss`, não a WIN operacional isolado |
-| Martingale Geométrico sem teto | Em recovery, `Stake = Kelly_base × 2^n` escalando até recuperar o passivo total |
-| Meta por sessão ativa | Stop win de 2,60% composto sobre banca inicial; operador controla quantas sessões por dia |
-| Sem disjuntor de perda | Stop loss interno desativado; recovery geométrico sem teto de nível, stake ou drawdown |
-| Isolamento de estado | `asyncio.Lock` serializa inferência, liquidação e persistência; elimina race conditions pós-reset linear |
-| AntiTrendLock | Após 2 losses na mesma direção, flip cross-symbol ou congelamento de ciclo (`direction_persistence_guard` + `evaluate_anti_trend_lock`) |
-| Proteção de fronteira neutra | Calibrações que invertem o viés direcional macro do tensor sofrem veto automático de segurança (`calibration_neutral_drift`) |
-| Veto Cruzado TCN-GBDT | Sinais macro com desvio padrão de payoff negativo no buffer móvel do Redis sofrem expurgo preventivo automático fora de recovery crítico (`meta_payoff_negative_zscore_veto`) |
-| Settlement resiliente | Fila Redis `settlement:queue:priority` preserva liquidações durante instabilidade do broker |
+| Soft recovery + caps | `apply_soft_recovery_stake` + `max_safe_stake_cap`; teto Kelly/bankroll **3,5%** |
+| Meta por sessão ativa | Stop win de 2,60% composto sobre banca inicial |
+| Sem disjuntor de perda | Stop loss interno desativado |
+| Isolamento de estado | `asyncio.Lock` serializa inferência, liquidação e persistência |
+| AntiTrendLock | Após 2 losses na mesma direção: flip cross-symbol ou FREEZE |
+| Proteção de fronteira neutra | Veto `calibration_neutral_drift` quando calibração inverte o lado macro |
+| Veto Cruzado TCN-GBDT | Z-Score de payoff negativo sofre expurgo fora de recovery crítico |
+| Settlement resiliente | Fila Redis `settlement:queue:priority` |
+| Starvation escape | Após **6** quality skips consecutivos, pisos de margem/edge/Z decaem |
 
 ---
 
@@ -45,7 +46,7 @@ Operação: contratos **RISE_FALL** (CALL = alta no período, PUT = queda).
 
 ### 2.2 Telemetria de Volatilidade, Exaustão e Fluxo Micro
 
-Indicadores micro de 60 s (RSI, `vol_ratio`, Keltner, `bb_width`, aceleração de ticks) alimentam o container `aether-meta-classifier` via vetor **39D**. O `LGBMRegressor` (huber) estima `predicted_payoff_edge` contínuo; o resolver preserva score orgânico da TCN quando o edge é positivo e aciona downgrade D-SQUEEZE quando o edge colapsa em compressão M1.
+Indicadores micro de 60 s (RSI, `vol_ratio`, Keltner, `bb_width`, aceleração de ticks) alimentam o container `aether-meta-classifier` via vetor **43D**. O `LGBMRegressor` (huber) estima `predicted_payoff_edge` contínuo; o resolver preserva score orgânico da TCN quando o edge é positivo e aciona downgrade D-SQUEEZE quando o edge colapsa em microestrutura M1.
 
 **Spread de convicção cross-symbol** (triplet anexado em `prepare_meta_classifier_cross_symbol_bundle`):
 
@@ -57,12 +58,16 @@ Indicadores micro de 60 s (RSI, `vol_ratio`, Keltner, `bb_width`, aceleração d
 
 Em regimes de drift paralelo (ambos símbolos com scores altos na mesma direção), spreads baixos sinalizam saturação espelhada — o GBDT usa isso para evitar entradas sem viés relativo.
 
-Features de fluxo extraídas do `TickBuffer`:
+Features de fluxo e microestrutura extraídas do `TickBuffer` e precomputação:
 
 | Feature | Descrição |
 |---------|-----------|
 | `micro_tick_acceleration` | Aceleração estocástica de ticks nos últimos 5 s do minuto corrente |
 | `keltner_deviation_ratio` | Distância fracionária do último tick ao centro do canal Keltner micro |
+| `micro_bid_ask_spread_momentum` | Taxa de variação de ticks aglutinados por sub-janelas de 5 segundos no minuto corrente |
+| `micro_bid_ask_spread_momentum_zscore` | Z-Score adaptativo histórico de 1024 períodos da variação de ticks, clipado a ±3.0 |
+| `volatility_shadow_ratio` | Razão entre a soma dos pavios (superior + inferior) da barra M1 atual e a amplitude do desvio padrão do Keltner (ATR) |
+| `volatility_shadow_ratio_zscore` | Z-Score adaptativo histórico de 1024 períodos da razão de pavios, clipado a ±3.0 |
 
 Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `feature_vector` (34D TCN) como telemetria analítica e insumo do stacking — sem veto direcional autônomo fora do meta-classificador.
 
@@ -74,7 +79,7 @@ Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `
 | Proteção de fronteira neutra | `calibration_neutral_drift` quando `calibrated_prob` cruza o eixo 0.50 em relação a `raw_prob` |
 | Veto cruzado TCN-GBDT | Z-Score `< -0.20` reclassifica para `NO_EDGE_NEUTRAL`/`LOSS_EXPECTED` mesmo com `WIN_EXPECTED` explícito do meta e força SKIP (`meta_payoff_negative_zscore_veto`); waiver em recovery crítico (`linear >= 4` ou `pending > 150`) com TCN extrema (`raw_prob <= 0.22` PUT / `>= 0.78` CALL) |
 | Classificação macro | TCN processa lookback de 12 h em M15; define direção (`dl_direction`) |
-| Stacking tabular | Meta-regressor LightGBM (M1) sobre vetor **39D** + probabilidade TCN; saída `predicted_payoff_edge` |
+| Stacking tabular | Meta-regressor LightGBM (M1) sobre vetor **43D** + probabilidade TCN; saída `predicted_payoff_edge` |
 | Z-Score de payoff | `payoff_edge_zscore`: janela adaptativa 15–45; classificação estatística do micro-edge |
 | Scoring de ranking | `market_decision_score = tcn × max(0.1, 1 + z)` — prioriza Z-Score favorável sem rótulos categóricos |
 | Scoring direcional | TCN define `dl_direction`; edge `> 0` mantém score orgânico; veto Z negativo aborta antes do D-SQUEEZE; compressão BB severa rebaixa para `0.52` |
@@ -93,10 +98,10 @@ Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `
 | Camada | Timeframe | Papel |
 |--------|-----------|-------|
 | Deep Learning / TCN | M15 (900 s) | Tensor `[1, 48, 34]` = 12 h de contexto macro |
-| Meta-regressor GBDT | M1 (60 s) | Regressão tabular **39D**; edge contínuo + downgrade D-SQUEEZE |
+| Meta-regressor GBDT | M1 (60 s) | Regressão tabular **43D**; edge contínuo + downgrade D-SQUEEZE |
 | Orquestrador / contrato | M1 (60 s) | Ciclo a cada minuto; RISE_FALL de 60 s |
-| Resolução direcional | TCN + meta GBDT | `dl_direction` da TCN; `exec_direction` permanece alinhada salvo bloqueio técnico |
-| Execução contínua | M1 | Boleta CALL/PUT na virada do minuto sempre que há sinal válido |
+| Resolução direcional | TCN + meta GBDT | `dl_direction` da TCN; meta refina score / D-SQUEEZE |
+| Execução contínua | M1 | Boleta CALL/PUT na virada do minuto quando há sinal válido |
 
 Com `granularity: 900` (M15) e `training_history_bars: 15552`:
 
@@ -117,14 +122,14 @@ Ordem lógica de uma entrada:
 3. **Treinamento** — modelo do símbolo treinado na sessão (`gate_reason=training`).
 4. **Predição DL** — inferência Triton concorrente; `raw_prob`/`calibrated_prob` e indicadores calculados.
 5. **Bundle cross-symbol** — `prepare_meta_classifier_cross_symbol_bundle` coleta telemetria micro M1 em paralelo e anexa spreads cross-symbol.
-6. **Stacking tabular** — `MetaClassifierClient` envia probabilidade TCN + vetor **39D** ao `aether-meta-classifier`; retorna `predicted_payoff_edge`.
+6. **Stacking tabular** — `MetaClassifierClient` envia probabilidade TCN + vetor **43D** ao `aether-meta-classifier`; retorna `predicted_payoff_edge`.
 7. **Proteção de fronteira neutra** — `veto_calibration_neutral_drift` invalida direção quando a calibração inverte o lado macro do tensor em relação a 0.50.
 8. **Resolução direcional** — `execution_direction_resolver` + `meta_payoff_regression`: edge positivo preserva TCN; edge `< -0.15` em squeeze rebaixa `trade_score=0.52` (`[D-SQUEEZE]`); `ensure_direction_margin` expõe margem corrigida.
-9. **Gate de qualidade** — dual TCN (`passes_execution_quality`) + meta Z-Score (`evaluate_meta_payoff_quality`); suspensão cooperativa do cluster
+9. **Gate de qualidade** — dual TCN (`passes_execution_quality`) + meta Z-Score (`evaluate_meta_payoff_quality`); suspensão cooperativa do cluster; starvation a partir de **6** skips.
 10. **Z-Score meta** — `attach_payoff_edge_zscore_metrics` anexa `meta_payoff_edge_zscore` / `edge_zscore` para ranking e gate.
-11. **Deploy** — `deploy_ok=false` bloqueia execução.
+11. **Deploy** — `deploy_ok=false` bloqueia execução; mini-deploy de treino usa `force_local=True` (modelo em memória).
 12. **Seleção** — `market_decision_score` multiplicativo (TCN × fator Z-Score); redirect inter-símbolo quando âncora degradada.
-13. **Risco** — Kelly + Consensus Penalty; recovery financeiro persistente; Martingale Geométrico `Kelly_base × 2^n`; stop win por sessão ativa (2,60% composto).
+13. **Risco** — Kelly + Consensus Penalty; recovery financeiro persistente; soft recovery + `max_safe_stake_cap`; stop win por sessão ativa (2,60% composto).
 
 Bloqueio absoluto para falhas técnicas (`data`, `predict_error`, `training`, `deploy_ok=false`) e reconciliação pendente. Não há vetos táticos autônomos de quality guard, cooldown pós-LOSS, blackout de broker ou Hurst em recovery.
 
@@ -230,7 +235,7 @@ Quando a ordem final (`order_direction`) diverge da maioria dos votos técnicos 
 
 Em baixo consenso (`retention_raw ≤ consensus_min_retention`, padrão 0,50), a stake é forçada ao piso mínimo da API ($1,00), protegendo contra ruído do CSPRNG quando DL e indicadores clássicos discordam.
 
-**Modo contínuo:** essa penalidade opera sobre o Kelly base mesmo quando o motor já está em recovery Martingale Geométrico. A convergência adaptativa (seção 8.2) evita que a penalidade asfixie a recuperação financeira.
+**Modo contínuo:** essa penalidade opera sobre o Kelly base mesmo em recovery. A convergência adaptativa (seção 8.2) evita que a penalidade asfixie a recuperação financeira.
 
 > **Gates defensivos legados removidos.** O Gate Assimétrico de Proteção, o Micro Noise Gate, o Filtro de Exaustão de Barreira Micro e o Veto de Inversão por Convicção DL foram eliminados. Em modo mandatário, o quality guard permanece telemetria quando a falha e fraca; falha **fortemente negativa** do meta (`predicted_payoff_edge < 0` ou Z `< -0.20` em todos os candidulos) suspende o cluster (`mandatory_meta_hard_skip`), salvo waiver de emergencia (`linear >= 4` ou `pending > 150` com TCN extrema).
 
@@ -263,7 +268,7 @@ O robô voltava ao Kelly fracionário com stakes micro (~$8), enquanto a sessão
 | `pending_loss[s]` | Drawdown financeiro pendente por símbolo `s`, acumulado após losses e reduzido por wins via `apply_win_to_pending_loss` |
 | `pending_total` | `Σ pending_loss[s]` — critério único de recovery financeiro ativo |
 | `total_session_profit` | P&L acumulado real da sessão (soma de todos os contratos liquidados pela API) |
-| `consecutive_losses_linear` | Contador de clusters negativos — **memória operacional** de stress; expoente do Martingale Geométrico |
+| `consecutive_losses_linear` | Contador de clusters negativos — **memória operacional** de stress no soft recovery |
 | `dlambert_unit` (U) | Unidade aditiva capturada na primeira stake Kelly da sessão (ou override de config) |
 | `recovery_financially_active` | Verdadeiro iff `pending_total > 0` |
 
@@ -277,7 +282,7 @@ O motor **não utiliza reset cego** de `consecutive_losses_linear` baseado em WI
 | `cluster_profit ≥ 0` **e** `pending_total > 0` | WIN absorvido no drawdown; **`consecutive_losses_linear = max(1, n-1)`** (retração do Martingale) |
 | `cluster_profit ≥ 0` **e** `pending_total = 0` | Recovery financeiro extinto; reset de `consecutive_losses_linear` e `last_loss_stake` |
 
-**Persistência de Drawdown:** o robô permanece em estado de Recovery (Martingale Geométrico `Kelly_base × 2^n`) até que `pending_total` seja **financeiramente zerado** por retornos reais da API — não por um WIN simbólico que não cobre o buraco acumulado.
+**Persistência de Drawdown:** o robô permanece em estado de Recovery (soft recovery + `max_safe_stake_cap`) até que `pending_total` seja **financeiramente zerado** por retornos reais da API — não por um WIN simbólico que não cobre o buraco acumulado.
 
 #### Implicação para gestão de cauda
 
@@ -291,7 +296,7 @@ O motor **não utiliza reset cego** de `consecutive_losses_linear` baseado em WI
 
 #### Problema: penalidade convexa vs. peso financeiro do recovery
 
-O **Consensus Entropy Penalty** comprime `f*` quando a ordem diverge dos votos técnicos. Em recovery, punir a stake por falta de consenso upstream asfixia a recuperação — o Martingale Geométrico precisa de peso financeiro real para extinguir o passivo.
+O **Consensus Entropy Penalty** comprime `f*` quando a ordem diverge dos votos técnicos. Em recovery, punir a stake por falta de consenso upstream asfixia a recuperação — o soft recovery precisa de peso financeiro real para extinguir o passivo.
 
 #### Bypass de consensus em recovery com passivo pendente
 
@@ -308,36 +313,30 @@ Justificativa: com alinhamento direcional unânime em M15 ou convicção alta, o
 
 ---
 
-### 8.3 Martingale Geométrico Puro sem teto (Kelly base × 2^n)
+### 8.3 Soft recovery com caps de segurança
 
-#### Filosofia: recuperação exponencial do passivo
+#### Filosofia: recuperar o passivo sem explosão descontrolada de stake
 
-Em recovery ativo, o sizing abandona qualquer escada aditiva e adota a **curva multiplicativa clássica**: cada LOSS dobra a exposição, escalando geometricamente até que um WIN cubra o passivo acumulado. Não há teto de nível linear, múltiplo de stake nem drawdown de sessão.
+Em recovery ativo, o sizing abandona o Kelly puro e adota progressão adaptativa (`apply_soft_recovery_stake` em `consensus_stake_penalty.py` / `dlambert_sizing.resolve_dlambert_stake`). A curva cresce com `consecutive_losses_linear` e payout estimado, mas é limitada por `max_safe_stake_cap` e pelo teto de fração da banca (`max_stake_pct` / `max_bankroll_stake_fraction` = **3,5%**). Turbo de edge e Kelly booster ocorrem **antes** do cap final.
 
-#### Fórmula de stake (`dlambert_sizing.geometric_martingale_stake`)
+#### Fórmula de stake (visão operacional)
 
 | Estado | Stake |
 |--------|-------|
-| Normal (`recovery_active` falso) | Kelly fracionário (+ booster super-concordance se P≥0.75, 6×0, Hurst>0.55), tag `KELLY` |
-| Recovery (`pending_total > 0` ou `consecutive_losses_linear > 0`) | `Effective_Base × 2^consecutive_losses_linear`, tag `D'ALEMBERT` |
-
-```
-Effective_Base = max(dlambert_unit_override, U)
-GEOMETRIC_MARTINGALE_BASE = 2.0
-stake_raw = Effective_Base × 2^max(0, consecutive_losses_linear)
-```
+| Normal (`recovery_active` falso) | Kelly fracionário (`kelly.fraction: 0.005`) + consensus penalty + target proximity; tag `KELLY` |
+| Recovery (`pending_total > 0` ou `consecutive_losses_linear > 0`) | Soft D'Alembert / progressão adaptativa; tag `D'ALEMBERT`; pós-turbo `min(stake, max_safe_stake_cap(...))` |
 
 | Termo | Significado |
 |-------|-------------|
-| `U` (`dlambert_unit`) | Primeira stake Kelly capturada na sessão |
-| `Effective_Base` | Piso ancorado: nunca usa Kelly comprimido por consenso em recovery |
-| `consecutive_losses_linear` | Contador de stress; expoente da curva |
+| `U` (`dlambert_unit`) | Unidade de recovery (pode ser override ou capturada na sessão) |
+| `consecutive_losses_linear` | Contador de stress / memória operacional |
+| `max_safe_stake_cap` | Teto defensivo por banca e nível linear |
 
 #### Retração em WIN parcial
 
 ```
 WIN parcial (pending_total > 0 após liquidação):
-  consecutive_losses_linear = max(1, n - 1)   → reduz o expoente da curva
+  consecutive_losses_linear = max(1, n - 1)
 
 WIN total (pending_total = 0):
   consecutive_losses_linear = 0               → volta ao Kelly puro
@@ -366,7 +365,7 @@ WIN total:      n=0 → stake = $8 (Kelly puro)
 
 | Parâmetro | Padrão | Função |
 |-----------|--------|--------|
-| `dlambert_enabled` | true | Ativa Martingale Geométrico em recovery |
+| `dlambert_enabled` | true | Ativa soft recovery / D'Alembert em recovery |
 | `dlambert_unit_override` | null | Força base fixa (ignora captura Kelly) |
 
 #### Seleção de símbolo e Hurst em recovery
@@ -415,7 +414,7 @@ Logs: `ord=` (ordem enviada) sempre igual a `dl=` (direção prevista pelo DL), 
 | Consensus Entropy Penalty | Defesa contra ruído CSPRNG (seção 6) |
 | Penalty Smoothing | Convergência adaptativa em recovery (seção 8.2) |
 | Recovery financeiro persistente | Estado de risco atrelado a `pending_total` (seção 8.1) |
-| Martingale Geométrico sem teto | Recuperação exponencial `Kelly_base × 2^n` (seção 8.3) |
+| Soft recovery com caps | Soft recovery com caps de segurança (seção 8.3) |
 | Stop win por sessão ativa | `target_win = session_start_balance × compounding_rate_daily` (padrão 2,60%); fast-path anti-deadlock |
 | Stop loss | Desativado — sem reset por relógio nem disjuntor de perda diária |
 
@@ -447,11 +446,11 @@ Com `compounding_enabled: false`, o motor recorre ao alvo legado (`small_account
 
 Evita superexposição quando a sessão já capturou a maior parte do stop win de 2,60%:
 
-1. **Kelly base comprimido** — `resolve_effective_kelly_fraction` aplica retenção de 40% (`fraction` de config `0.0035` → coeficiente `0.0012`), ancorando `Kelly_base` na faixa ~$10–$12 em vez de ~$31.
+1. **Kelly base** — `resolve_effective_kelly_fraction` usa `kelly.fraction` de config (**0,005**), com consensus penalty e target proximity em regime normal.
 2. **Amortecimento dinâmico** — após o Kelly bruto, `apply_kelly_target_proximity_damping` multiplica a stake por `0.40 + 0.60 × remaining_target_pct`.
 3. **Exemplo** — meta $101.20, Kelly bruto $45.56: com `pnl_sessao = 0` permanece $45.56×1.0 (já atenuado pela fração base); com 90% da meta (`pnl ≈ $91.08`) o fator cai para 0.46 (~$20.96).
 
-Fora de recovery, este amortecimento define o `Kelly_base`. Em recovery, o Martingale Geométrico `Kelly_base × 2^n` opera sem amortecimento de proximidade.
+Fora de recovery, este amortecimento define o `Kelly_base`. Em recovery, o soft recovery + `max_safe_stake_cap` opera sem amortecimento de proximidade.
 
 Log de bootstrap: `SESSAO INICIADA | Alvo de 2,60%: $XX.XX | Stop Loss: DESATIVADO`.
 
@@ -470,7 +469,15 @@ Fica terminantemente vedada a emissão de ordens contra o drift natural das sér
 - **PUT** em `RDBULL` (Bull Market Index)
 - **CALL** em `RDBEAR` (Bear Market Index)
 
-Sob essa condição, a stake é forçada a `0.0` e a direção é vetada retornando `None` (forçando `EXEC_EMPTY`), mesmo que o motor esteja em modo RECOVERY crítico avançado (\text{linear} \ge 5). O fluxo é obrigatoriamente desviado para o par oposto que se beneficia da física do drift natural da série.
+### 12.3 Salvaguarda de Micro-Banca
+Para estender a sobrevida do patrimônio em contas de micro-capital ($100 ou menos), a unidade base 'U' (`dlambert_unit`) do D'Alembert é adaptada de forma dinâmica:
+- A unidade base `U` absorve 1% do capital total ($1.00 para banca de $100), eliminando a compressão Kelly tradicional.
+- Para manter a robustez matemática e física do motor, a progressão geométrica segue sem limitadores/achatamento (tanto em demo quanto em real), assegurando a capacidade de recuperação de passivos sem restrições arbitrárias de progresso.
+- **Consensus Cointegration Redirect**: Sob drawdown acumulado (`pending_total`) superior a 15% do capital vivo ($15.00 para uma banca de $100.00), o sistema suspende ordens isoladas e força a execução cruzada estritamente no símbolo do par Drift (RDBULL/RDBEAR) que apresentar menor entropia de Shannon e maior Z-Score de payoff simultaneamente, acelerando a recuperação de perdas da sessão.
+
+### 12.4 Válvula Dinâmica de Payoff GBDT
+Em estados extremos de inanição operacional (skips >= 30), o veto do classificador tabular é mitigado de forma cooperativa para evitar o congelamento permanente do Martingale:
+- Se o contador `skipped_cycles_counter` atingir ou exceder 30 ciclos consecutivos pulados por qualidade, e houver concordância unânime de votos técnicos (6x0 no domínio), o veto do payoff do LightGBM ('Meta Payoff < min') é ignorado, permitindo que a força bruta limpe o passivo financeiro.
 
 ---
 

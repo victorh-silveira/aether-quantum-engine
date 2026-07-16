@@ -1,6 +1,6 @@
 # Estrutura do repositório
 
-Layout de software com infraestrutura Docker local opcional (`infra/docker/`). O código de produção vive em **`app/src/`** com **209 módulos Python** organizados em quatro camadas DDD. Testes: **246** arquivos `test_*.py` em `app/tests/` com cobertura **100%** em `app/src`.
+Layout de software com infraestrutura Docker local opcional (`infra/docker/`). O código de produção vive em **`app/src/`** com **~219 módulos Python** organizados em quatro camadas DDD. Testes: **~268** arquivos `test_*.py` em `app/tests/` com cobertura **100%** em `app/src`.
 
 ```
 aether-quantum-engine/
@@ -16,7 +16,7 @@ aether-quantum-engine/
 │   │   ├── monitor/                    # live_monitor, monitor_redis, monitor_state, monitor_ui
 │   │   ├── operations/                 # clean_workspace, deriv_pat_connect, train_meta_*
 │   │   └── wsl/setup.sh
-│   ├── src/                            # 208 módulos Python (DDD)
+│   ├── src/                            # ~219 módulos Python (DDD)
 │   └── tests/
 │       ├── unit/                       # application, domain, infrastructure, presentation, scripts
 │       ├── conftest.py
@@ -47,8 +47,8 @@ presentation  →  application  →  domain
 
 | Camada | Pasta | Módulos | Responsabilidade |
 |--------|-------|---------|------------------|
-| Application | `application/services/` | ~132 | Casos de uso: orquestração, DL, execução, meta-classificador, guards |
-| Domain | `domain/` | ~28 | Lógica pura: risco Kelly/D'Alembert, AntiTrendLock, modelos, matemática |
+| Application | `application/services/` | ~140 | Casos de uso: orquestração, DL, execução, meta-classificador, guards |
+| Domain | `domain/` | ~29 | Lógica pura: risco Kelly/D'Alembert, AntiTrendLock, RiskPolicy, modelos |
 | Infrastructure | `infrastructure/` | ~49 | Adaptadores: Deriv API, Redis, Triton, MinIO, Timescale |
 | Presentation | `presentation/` | 1 | Logging de terminal |
 
@@ -117,12 +117,14 @@ presentation  →  application  →  domain
 | `__init__.py` | **`Orchestrator`** — aggregate root operacional |
 | `orchestrator_run_loop.py` | Loop principal; recovery transparente pós-deadlock |
 | `trading_cycle_entry.py` | Pré-condições, lock e execução do ciclo |
+| `trading_cycle_entry_guards.py` | Guards de stop-win, assinatura, cadência e contratos |
 | `ws_bootstrap.py` | Bootstrap WebSocket PAT e streams |
 | `engine_session.py` | Bootstrap compartilhado run.py / train.py |
 | `engine_mode.py` | Modos train vs execute |
 | `config_symbols.py` | Normalização de símbolos e âncora |
 | `decision_mode_banner.py` | Banner de modo de decisão no startup |
 | `execution_manager.py` | **`ExecutionManager`** — ordens, settlement, reconcile |
+| `execution_cuda.py` | Limpeza opcional de cache CUDA pós-ciclo |
 | `execution_collect.py` | Coleta e seleção de candidatos do cluster |
 | `execution_collect_gather.py` | Coleta contínua sem veto de qualidade |
 | `execution_collect_helpers.py` | Helpers: hedge, fallback, Hurst |
@@ -190,8 +192,9 @@ presentation  →  application  →  domain
 | `dl_splits.py` | Splits temporais purged com embargo |
 | `dl_labels.py` | Rótulos binários Rise/Fall / Triple Barrier |
 | `dl_horizon.py` | Horizonte de label alinhado ao contrato |
-| `dl_features.py` | Reexport de feature build e sequence extract |
-| `dl_feature_build.py` | Séries de preço e tensores de features (34D) |
+| `dl_features.py` | Reexport de feature build, matrix e sequence extract |
+| `dl_feature_build.py` | Séries de preço e indicadores (34D) |
+| `dl_feature_matrix.py` | Linhas, matrizes e tensores de features |
 | `dl_feature_indicators.py` | Indicadores técnicos normalizados |
 | `dl_feature_indicators_advanced.py` | Indicadores avançados normalizados |
 | `dl_sequence_extract.py` | Sequências TCN a partir de OHLC |
@@ -201,15 +204,17 @@ presentation  →  application  →  domain
 | `dl_gating.py` | Utilitários de probabilidade para execução |
 | `dl_gate_config.py` | Config do gate de deploy |
 | `dl_deploy.py` | Gate de deploy e persistência no runtime |
-| `dl_deploy_eval.py` | Mini walk-forward de deploy |
+| `dl_deploy_eval.py` | Mini walk-forward de deploy (`force_local=True`) |
 | `dl_calibration.py` | Calibração de probabilidades |
 | `dl_calibration_fit.py` | Ajuste de calibradores no holdout |
 | `dl_calibration_isotonic.py` | Regressão isotônica (PAV) |
-| `dl_predict.py` | Predição por símbolo |
+| `dl_predict.py` | Predição sync por símbolo |
 | `dl_predict_async.py` | Predição assíncrona por símbolo |
-| `dl_predict_triton.py` | Predição via Triton |
-| `dl_predict_build.py` | Montagem de entrada de decisão DL (bundle 39D) |
+| `dl_predict_triton.py` | Predição via Triton (fail-closed opcional) |
+| `dl_predict_build.py` | Montagem de entrada de decisão DL |
+| `dl_predict_telemetry.py` | Telemetria micro + bundle cross-symbol meta |
 | `dl_predict_metrics.py` | Métricas dinâmicas e squeeze no entry |
+| `dl_predict_cache.py` | Cache de predição por fingerprint |
 | `dl_cycle_log.py` | Logs compactos do ciclo DL |
 | `dl_cycle_brief.py` | Linhas curtas do ciclo DL |
 | `dl_outcomes.py` | Peso de amostras a partir de trades reais |
@@ -244,6 +249,7 @@ presentation  →  application  →  domain
 | Módulo | Responsabilidade |
 |--------|------------------|
 | `risk_manager.py` | **`RiskManager`** — Kelly, cluster, recovery |
+| `risk_policy.py` | `RiskPolicy` + `validate_engine_risk_config` no boot |
 | `risk_stake_calc.py` | Cálculo de stake para RiskManager |
 | `risk_stake_flow.py` | `apply_stop_win_kelly_boost`, `emit_cycle_stake_log` |
 | `stake_sizing.py` | Kelly e D'Alembert, consenso, round_stake |

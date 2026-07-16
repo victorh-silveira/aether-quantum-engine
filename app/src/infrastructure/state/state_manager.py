@@ -81,10 +81,11 @@ class StateManager:
         return float(self._balance_snapshot)
 
     def mirror_balance(self, balance: float) -> None:
-        """Atualiza saldo corrente e snapshot cacheado de forma sincrona."""
+        """Atualiza saldo corrente e snapshot cacheado de forma sincrona com tolerancia de float."""
         value = float(balance)
-        self.state.current_balance = value
-        self._balance_snapshot = value
+        if round(abs(value - self._balance_snapshot), 4) >= 0.02 or self._balance_snapshot == 0.0:
+            self.state.current_balance = value
+            self._balance_snapshot = value
 
     def reset_session_metrics(self, balance: float, target: float):
         """Reinicia metricas da sessao ativa corrente."""

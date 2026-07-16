@@ -4,9 +4,6 @@ from src.application.services.deep_learning.dl_feature_build import (
     FEATURE_DIM,
     TRADITIONAL_FEATURE_DIM,
     attach_microstructure,
-    build_feature_matrix,
-    build_feature_row,
-    build_sequence_tensor,
     precompute_price_series,
     symbol_vol_target,
 )
@@ -18,6 +15,11 @@ from src.application.services.deep_learning.dl_feature_indicators import (
     calculate_stochastic,
     calculate_volatility_ratio,
     calculate_williams_r,
+)
+from src.application.services.deep_learning.dl_feature_matrix import (
+    build_feature_matrix,
+    build_feature_row,
+    build_sequence_tensor,
 )
 
 

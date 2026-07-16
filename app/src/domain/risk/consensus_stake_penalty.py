@@ -131,7 +131,10 @@ def max_safe_stake_cap(bankroll: float, *, consecutive_losses_linear: int = 0) -
         pct = min(pct, _MAX_SAFE_STAKE_BANKROLL_PCT_LINEAR3)
     elif linear >= 2:
         pct = min(pct, _MAX_SAFE_STAKE_BANKROLL_PCT_LINEAR2)
-    return max(0.0, float(bankroll)) * pct
+    cap = max(0.0, float(bankroll)) * pct
+    if bankroll <= 250.0:
+        return max(cap, 10.0)
+    return cap
 
 
 def _squeeze_floor_active(metrics: dict) -> bool:
@@ -169,8 +172,9 @@ def enforce_d_squeeze_stake_floor(
 
 
 def neutral_edge_dynamic_unit(bankroll: float) -> float:
-    """Unidade base U em regime neutro: 0.15% da banca ativa."""
-    return max(0.0, float(bankroll)) * _NEUTRAL_BANKROLL_PCT
+    """Unidade base U em regime neutro: 1.0% da banca para micro-capital ou 0.15%."""
+    pct = 0.01 if bankroll <= 250.0 else _NEUTRAL_BANKROLL_PCT
+    return max(0.0, float(bankroll)) * pct
 
 
 def apply_neutral_edge_kelly_base(kelly_base: float, bankroll: float, metrics: dict | None) -> float:
@@ -264,10 +268,7 @@ def consensus_kelly_retention(
 
 
 def cross_veto_recovery_waiver_allowed(
-    metrics: dict[str, Any] | None,
-    *,
-    direction: str | None,
-    risk_manager: Any | None = None,
+    metrics: dict[str, Any] | None, *, direction: str | None, risk_manager: Any | None = None
 ) -> bool:
     """Verifica se o waiver de recovery para o veto cruzado esta ativo e permitido."""
     if metrics is None or direction is None:

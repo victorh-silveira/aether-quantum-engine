@@ -76,6 +76,32 @@ def check_stake_preconditions_veto(symbol: str, *, apply_stop_win: bool, rm: Any
     )
 
 
+def _calculate_kelly_fraction(rm: Any, symbol: str, conviction: float) -> tuple[float, float, float]:
+    """Calcula fracao Kelly bruta e retorna (f, payout b, probabilidade p)."""
+    b = float(rm.risk_params.get("payout_estimate", 0.95))
+    p = rm.effective_win_rate(symbol, conviction)
+    kelly_f = (b * p - (1.0 - p)) / b if b > 0 else 0.0
+    return kelly_f, b, p
+
+
+def _resolve_recovery_flags(
+    rm: Any,
+    symbol: str,
+    conviction: float,
+    loss_to_recover: float,
+    *,
+    squeeze_sovereignty: bool,
+    kwargs: dict,
+) -> tuple[bool, bool, bool, int]:
+    """Resolve flags de recovery e perdas lineares para sizing."""
+    recovery_active = rm._recovery_allowed(symbol, conviction, **kwargs)
+    recovery_financial = bool(loss_to_recover)
+    linear_losses = int(getattr(rm, "consecutive_losses_linear", 0))
+    recovery_stress = (recovery_financial or linear_losses > 0) and not squeeze_sovereignty
+    recovery_bypass_consensus = float(loss_to_recover) > 0.0 and not squeeze_sovereignty
+    return recovery_active, recovery_stress, recovery_bypass_consensus, linear_losses
+
+
 def calculate_stake_for_manager(
     rm: Any,
     bankroll: float,
@@ -87,6 +113,8 @@ def calculate_stake_for_manager(
     kwargs: dict,
 ) -> float:
     """Calcula stake final com Kelly ou D'Alembert conforme estado do gerenciador."""
+    if bankroll <= 100.0 and getattr(rm, "dlambert_unit", 0.0) <= 0.0:
+        rm.dlambert_unit = 1.00
     if check_stake_preconditions_veto(symbol, apply_stop_win=apply_stop_win, rm=rm, kwargs=kwargs):
         return 0.0
 
@@ -97,16 +125,17 @@ def calculate_stake_for_manager(
     is_execute = isinstance(dl_metrics, dict) and bool(dl_metrics.get("execute", True))
     _ = (mandatory, is_execute)
 
-    b = float(rm.risk_params.get("payout_estimate", 0.95))
-    p = rm.effective_win_rate(symbol, conviction)
-    kelly_f = (b * p - (1.0 - p)) / b if b > 0 else 0.0
+    kelly_f, b, p = _calculate_kelly_fraction(rm, symbol, conviction)
     loss_to_recover = sum(rm.pending_loss.values())
     squeeze_sovereignty = d_squeeze_sovereignty_active(dl_metrics if isinstance(dl_metrics, dict) else None)
-    recovery_active = rm._recovery_allowed(symbol, conviction, **kwargs)
-    recovery_financial = bool(loss_to_recover)
-    linear_losses = int(getattr(rm, "consecutive_losses_linear", 0))
-    recovery_stress = (recovery_financial or linear_losses > 0) and not squeeze_sovereignty
-    recovery_bypass_consensus = float(loss_to_recover) > 0.0 and not squeeze_sovereignty
+    recovery_active, recovery_stress, recovery_bypass_consensus, linear_losses = _resolve_recovery_flags(
+        rm,
+        symbol,
+        conviction,
+        loss_to_recover,
+        squeeze_sovereignty=squeeze_sovereignty,
+        kwargs=kwargs,
+    )
 
     sizing_conviction = conviction
     if isinstance(dl_metrics, dict) and not dl_metrics.get("execute", True):
@@ -117,7 +146,7 @@ def calculate_stake_for_manager(
         rm.kelly_config,
         dl_metrics if isinstance(dl_metrics, dict) else None,
         kwargs.get("order_direction"),
-        recovery_active=recovery_financial,
+        recovery_active=bool(loss_to_recover),
     )
     if recovery_bypass_consensus:
         if isinstance(dl_metrics, dict):

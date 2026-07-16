@@ -4,18 +4,23 @@ from __future__ import annotations
 
 from typing import Any
 
+import numpy as np
+
 from src.application.services.deep_learning.dl_bridge_helpers import build_decision_entry
 from src.application.services.deep_learning.dl_calibration import CalibratorState, calibrate_trade_score
-from src.application.services.deep_learning.dl_feature_build import build_feature_row, precompute_price_series
+from src.application.services.deep_learning.dl_feature_build import precompute_price_series
+from src.application.services.deep_learning.dl_feature_matrix import build_feature_row
 from src.application.services.deep_learning.dl_gating import resolve_calibrated_edge, resolve_confidence_thresholds
 from src.application.services.deep_learning.dl_params import parse_dynamic_threshold_config
 from src.application.services.deep_learning.dl_predict_metrics import attach_dynamic_metrics
+from src.application.services.deep_learning.dl_predict_telemetry import (
+    prepare_meta_classifier_cross_symbol_bundle,
+    stamp_micro_frame_telemetry,
+)
 from src.application.services.deep_learning.dl_symbol_runtime import guard_symbol_model
 from src.application.services.deep_learning.dl_trend import calculate_trend_direction
 from src.application.services.deep_learning.model import predict_next_direction
 from src.application.services.execution_volatility_threshold import resolve_dynamic_threshold_bundle
-from src.application.services.meta_classifier_cross_symbol import attach_cross_symbol_features_to_decisions
-from src.application.services.meta_classifier_flow_features import flow_features_from_micro_series
 from src.domain.models.trade import TradeDirection
 
 
@@ -34,34 +39,12 @@ def _infer_direction(calibrated_prob: float, direction: TradeDirection | None, p
     return TradeDirection.CALL if float(calibrated_prob) > float(pivot) else TradeDirection.PUT
 
 
-def stamp_micro_frame_telemetry(orch: Any, symbol: str, metrics: dict[str, Any], params: dict[str, Any]) -> None:
-    """Anexa telemetria micro M1, fluxo de ticks e desvio Keltner para meta-classificador."""
-    stream = getattr(orch, "stream", None)
-    if stream is None or not hasattr(stream, "get_micro_numpy_series"):
-        return
-    closes = stream.get_micro_numpy_series(str(symbol), "close")
-    if closes is None or len(closes) < 8:
-        return
-    micro_gran = int(params.get("micro_granularity", 60))
-    high = stream.get_micro_numpy_series(str(symbol), "high")
-    low = stream.get_micro_numpy_series(str(symbol), "low")
-    open_ = stream.get_micro_numpy_series(str(symbol), "open")
-    series = precompute_price_series(closes, granularity=micro_gran, symbol=str(symbol))
-    rsi = float(series["rsi"][-1]) if len(series.get("rsi", [])) > 0 else 0.0
-    vol_ratio = float(series["vol_ratio_short_long"][-1]) if len(series.get("vol_ratio_short_long", [])) > 0 else 0.0
-    metrics["micro_indicators"] = {"rsi": rsi, "vol_ratio": vol_ratio}
-    flow = flow_features_from_micro_series(
-        closes,
-        granularity=micro_gran,
-        symbol=str(symbol),
-        open_=open_,
-        high=high,
-        low=low,
-    )
-    tick_buffer = getattr(stream, "tick_buffer", None)
-    if tick_buffer is not None and hasattr(tick_buffer, "live_tick_acceleration"):
-        flow["micro_tick_acceleration"] = float(tick_buffer.live_tick_acceleration(str(symbol)))
-    metrics["flow_features"] = flow
+def _series_last(series: dict, key: str, default: float = 0.0) -> float:
+    """Retorna o ultimo valor de uma serie ou default."""
+    chunk = series.get(key)
+    if chunk is None or len(chunk) == 0:
+        return float(default)
+    return float(chunk[-1])
 
 
 def build_prediction_context(
@@ -95,11 +78,11 @@ def build_prediction_context(
     dynamic_cfg = parse_dynamic_threshold_config(exec_cfg if isinstance(exec_cfg, dict) else {})
     base_call, base_put = resolve_confidence_thresholds(params)
     base_edge = float(params.get("min_edge_execute", 0.04))
-    bb_width = float(series["bb_width"][-1]) if len(series.get("bb_width", [])) > 0 else 0.0
-    atr_norm = float(series["atr_norm"][-1]) if len(series.get("atr_norm", [])) > 0 else 0.0
-    adx = float(series["adx"][-1]) if len(series.get("adx", [])) > 0 else 0.0
-    vol_ratio = float(series["vol_ratio_short_long"][-1]) if len(series.get("vol_ratio_short_long", [])) > 0 else 0.0
-    implied_vol_ratio = float(series["implied_vol_ratio"][-1]) if len(series.get("implied_vol_ratio", [])) > 0 else 1.0
+    bb_width = _series_last(series, "bb_width")
+    atr_norm = _series_last(series, "atr_norm")
+    adx = _series_last(series, "adx")
+    vol_ratio = _series_last(series, "vol_ratio_short_long")
+    implied_vol_ratio = _series_last(series, "implied_vol_ratio", 1.0)
     dynamic = resolve_dynamic_threshold_bundle(
         base_call=base_call,
         base_put=base_put,
@@ -167,6 +150,39 @@ def eager_local_predict(
         )
 
 
+def _indicators_from_series(series: dict) -> dict[str, float]:
+    """Extrai snapshot de indicadores da ultima barra."""
+    return {
+        "hurst": _series_last(series, "hurst"),
+        "adx": _series_last(series, "adx"),
+        "vol_ratio": _series_last(series, "vol_ratio_short_long"),
+        "implied_vol_ratio": _series_last(series, "implied_vol_ratio", 1.0),
+        "bb_width": _series_last(series, "bb_width"),
+        "atr_norm": _series_last(series, "atr_norm"),
+        "cmo": _series_last(series, "cmo"),
+        "keltner": _series_last(series, "keltner_pct_b"),
+        "bb_pct_b": _series_last(series, "bb_pct_b", 0.5),
+        "rsi": _series_last(series, "rsi"),
+        "macd": _series_last(series, "macd"),
+        "macd_sig": _series_last(series, "macd_signal"),
+        "di_diff": _series_last(series, "di_diff"),
+    }
+
+
+def _squeeze_congestion_active(prices, series: dict) -> bool:
+    """Detecta congestionamento por squeeze de BB e ADX baixo."""
+    bb_window = 20
+    if len(prices) >= bb_window:
+        w_prices = prices[-bb_window:]
+        std_val = float(np.std(w_prices))
+        mean_val = float(np.mean(w_prices))
+        raw_bb_width = (4.0 * std_val) / (mean_val + 1e-10)
+    else:
+        raw_bb_width = 0.05
+    adx_val = _series_last(series, "adx", 1.0)
+    return len(prices) >= 100 and adx_val < 0.15 and raw_bb_width < 0.04
+
+
 def build_prediction_entry(
     _orch: Any,
     symbol: str,
@@ -187,31 +203,11 @@ def build_prediction_entry(
     val_accuracy: float,
 ) -> dict:
     """Monta dict de decisao a partir de probabilidades e series de indicadores."""
-    bb_width = float(series["bb_width"][-1]) if len(series.get("bb_width", [])) > 0 else 0.0
-    atr_norm = float(series["atr_norm"][-1]) if len(series.get("atr_norm", [])) > 0 else 0.0
-    adx = float(series["adx"][-1]) if len(series.get("adx", [])) > 0 else 0.0
-    vol_ratio = float(series["vol_ratio_short_long"][-1]) if len(series.get("vol_ratio_short_long", [])) > 0 else 0.0
-    implied_vol_ratio = float(series["implied_vol_ratio"][-1]) if len(series.get("implied_vol_ratio", [])) > 0 else 1.0
+    bb_width = _series_last(series, "bb_width")
+    vol_ratio = _series_last(series, "vol_ratio_short_long")
+    implied_vol_ratio = _series_last(series, "implied_vol_ratio", 1.0)
     trend_dir, trend_type, trend_period, call_votes, put_votes = calculate_trend_direction(prices, series, exec_cfg)
-    indicators_data = {
-        "hurst": float(series["hurst"][-1]) if "hurst" in series and len(series["hurst"]) > 0 else 0.0,
-        "adx": adx,
-        "vol_ratio": vol_ratio,
-        "implied_vol_ratio": implied_vol_ratio,
-        "bb_width": bb_width,
-        "atr_norm": atr_norm,
-        "cmo": float(series["cmo"][-1]) if "cmo" in series and len(series["cmo"]) > 0 else 0.0,
-        "keltner": float(series["keltner_pct_b"][-1])
-        if "keltner_pct_b" in series and len(series["keltner_pct_b"]) > 0
-        else 0.0,
-        "bb_pct_b": float(series["bb_pct_b"][-1]) if "bb_pct_b" in series and len(series["bb_pct_b"]) > 0 else 0.5,
-        "rsi": float(series["rsi"][-1]) if "rsi" in series and len(series["rsi"]) > 0 else 0.0,
-        "macd": float(series["macd"][-1]) if "macd" in series and len(series["macd"]) > 0 else 0.0,
-        "macd_sig": float(series["macd_signal"][-1])
-        if "macd_signal" in series and len(series["macd_signal"]) > 0
-        else 0.0,
-        "di_diff": float(series["di_diff"][-1]) if "di_diff" in series and len(series["di_diff"]) > 0 else 0.0,
-    }
+    indicators_data = _indicators_from_series(series)
     calibrated_prob = float(prob)
     pivot = (call_threshold + put_threshold) * 0.5
     resolved_dir = _infer_direction(calibrated_prob, direction, pivot=pivot)
@@ -224,6 +220,9 @@ def build_prediction_entry(
         deploy_ok=runtime.get("deploy_ok", True),
         is_put=resolved_dir == TradeDirection.PUT,
     )
+    squeeze_congestion = _squeeze_congestion_active(prices, series)
+    if squeeze_congestion:
+        side_score = 0.51
     entry = build_decision_entry(
         resolved_dir,
         prob,
@@ -237,7 +236,7 @@ def build_prediction_entry(
         val_ece=float(runtime.get("val_ece", 1.0)),
         contract_duration=int(params.get("contract_duration", 60)),
     )
-    entry["metrics"]["gate_reason"] = None
+    entry["metrics"]["gate_reason"] = "micro_chop_congestion_veto" if squeeze_congestion else None
     entry["metrics"]["edge_expectancy"] = None
     entry["metrics"]["calibrated_prob"] = calibrated_prob
     entry["metrics"]["calibrated_edge"] = calibrated_edge
@@ -267,17 +266,10 @@ def build_prediction_entry(
     return entry
 
 
-def prepare_meta_classifier_cross_symbol_bundle(
-    orch: Any,
-    decisions: dict[str, dict],
-    params: dict[str, Any],
-) -> None:
-    """Centraliza telemetria micro paralela e spreads cross-symbol antes do prefetch meta."""
-    for symbol, entry in decisions.items():
-        if not isinstance(entry, dict):
-            continue
-        metrics = entry.get("metrics")
-        if not isinstance(metrics, dict):
-            continue
-        stamp_micro_frame_telemetry(orch, str(symbol), metrics, params)
-    attach_cross_symbol_features_to_decisions(decisions)
+__all__ = (
+    "build_prediction_context",
+    "build_prediction_entry",
+    "eager_local_predict",
+    "prepare_meta_classifier_cross_symbol_bundle",
+    "stamp_micro_frame_telemetry",
+)

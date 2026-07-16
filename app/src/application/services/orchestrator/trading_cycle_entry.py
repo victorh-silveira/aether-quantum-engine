@@ -21,6 +21,7 @@ from src.application.services.orchestrator.execution_quality_skip_yield import (
     sanitize_quality_skip_decisions,
 )
 from src.application.services.orchestrator.orchestrator_atomic_state import orchestrator_atomic_state_context
+from src.application.services.orchestrator.orchestrator_data_signature import seconds_until_next_signature_boundary
 from src.application.services.orchestrator.orchestrator_state_restore import mark_bar_processed
 from src.application.services.orchestrator.regime_freeze_yield import await_regime_freeze_yield
 from src.application.services.orchestrator.session_persistence_barrier import session_persistence_blocks_trading_cycle
@@ -167,6 +168,9 @@ async def run_trading_cycle_if_ready(orch: Any) -> bool:
                     commit_trading_cycle_data_signature(orch)
                     orch._last_processed_epoch = orch._last_epoch
                     await mark_bar_processed(orch, orch.anchor, orch._last_epoch)
+                else:
+                    commit_trading_cycle_data_signature(orch)
+                    orch._cooldown_until = time.time() + seconds_until_next_signature_boundary(orch)
     except Exception as e:
         orch.logger.error(f"FALHA: Ciclo: {e}")
         ran = True

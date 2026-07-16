@@ -1,6 +1,7 @@
 """Ciclo de vida, persistencia e sessao do Orquestrador."""
 
 import asyncio
+import time
 from typing import Any
 
 from src.application.services.orchestrator.graceful_shutdown import close_infrastructure_connections
@@ -90,6 +91,10 @@ async def run_orchestrator_main_loop(orch: Any) -> None:
     orch_cfg = orch.config.get("orchestrator") if isinstance(orch.config.get("orchestrator"), dict) else {}
     reconnect_delay = float(orch_cfg.get("ws_reconnect_delay_seconds", 8.0))
     while orch.running:
+        cooldown = float(getattr(orch, "_cooldown_until", 0.0))
+        if cooldown > 0.0 and time.time() < cooldown:
+            await asyncio.sleep(max(0.1, cooldown - time.time()))
+            continue
         try:
             _enforce_post_settlement_deadlock_exit(orch)
         except TimeoutError:

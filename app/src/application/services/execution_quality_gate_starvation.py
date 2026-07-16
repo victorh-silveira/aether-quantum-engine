@@ -10,7 +10,7 @@ from src.application.services.log_dedupe import LogDeduper
 
 
 REDIS_SKIPPED_CYCLES_COUNTER_KEY = "state:risk:skipped_cycles_counter"
-STARVATION_DECAY_THRESHOLD = 3
+STARVATION_DECAY_THRESHOLD = 6
 STARVATION_DECAY_STEP = 0.10
 STARVATION_DECAY_FLOOR = 0.20
 _STARVATION_ESCAPE_LOG_PREFIX = (
@@ -36,11 +36,11 @@ def apply_starvation_margin_decay(
     *,
     orch: Any | None = None,
 ) -> tuple[float, float]:
-    """Atenua piso de margem após inanição prolongada e emite log deduplicado."""
+    """Atenua piso de margem após inanição prolongada, sem descer abaixo do piso absoluto de 0.02."""
     decay = starvation_decay_factor(skipped_cycles)
     if decay >= 1.0:
         return float(margin), decay
-    mitigated = float(margin) * decay
+    mitigated = max(0.02, float(margin) * decay)
     if orch is not None:
         logger = getattr(orch, "logger", None)
         if logger is not None:
@@ -56,11 +56,15 @@ def apply_starvation_edge_decay(
     edge: float,
     skipped_cycles: int,
 ) -> float:
-    """Atenua piso de payoff previsto após inanição cronológica, permitindo valores negativos."""
+    """Atenua piso de payoff previsto após inanição cronológica, aplicando desvio linear a partir de 15 ciclos."""
     decay = starvation_decay_factor(skipped_cycles)
     if decay >= 1.0:
         return float(edge)
-    return float(edge) - (1.0 - decay) * 2.0
+    decayed = float(edge) - (1.0 - decay) * 2.0
+    floor = 0.01
+    if skipped_cycles >= 15:
+        floor -= (skipped_cycles - 14) * 0.05
+    return max(floor, decayed)
 
 
 async def load_quality_skipped_cycles_counter(store: Any) -> int:

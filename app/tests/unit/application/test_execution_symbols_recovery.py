@@ -69,8 +69,8 @@ def test_has_recovery_direction_false_when_direction_missing():
 
 
 def test_recovery_rank_score_penalizes_matching_direction():
-    put_item = (PAIR, TradeDirection.PUT, {"trade_score": 0.55, "val_accuracy": 0.5, "raw_prob": 0.42})
-    base_put = candidate_execution_score(put_item[2], recovery_active=True)
+    put_item = ("SYM", TradeDirection.PUT, {"trade_score": 0.55, "val_accuracy": 0.5, "raw_prob": 0.42})
+    base_put = candidate_execution_score(put_item[2], recovery_active=True, symbol="SYM")
     assert recovery_rank_score(put_item, last_loss_direction="PUT", base_score=base_put) <= base_put
 
 

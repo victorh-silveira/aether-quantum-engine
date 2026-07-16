@@ -66,6 +66,8 @@ def recovery_rank_score(
         score += 0.02
     if metrics.get("execute"):
         score += 0.03
+    if item[0] == "RDBULL" and item[1] == TradeDirection.CALL or item[0] == "RDBEAR" and item[1] == TradeDirection.PUT:
+        score += 0.15
     return score
 
 

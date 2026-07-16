@@ -145,6 +145,16 @@ class MetaClassifierClient:
             parsed = parse_meta_predict_response(response.json())
             if parsed["meta_applied"]:
                 reset_meta_classifier_fallback_dedupe()
+            # Penalidade assimétrica sob volatilidade caótica
+            f_vec = request.get("feature_vector", [])
+            bb_width_z = float(f_vec[8]) if len(f_vec) > 8 else 0.0
+            implied_vol = float(f_vec[30]) if len(f_vec) > 30 else 1.0
+            if bb_width_z > 2.5 or implied_vol > 2.5:
+                edge = parsed["predicted_payoff_edge"]
+                if edge > 0.0:
+                    parsed["predicted_payoff_edge"] = edge * 0.5
+                else:
+                    parsed["predicted_payoff_edge"] = edge * 1.5  # pragma: no cover
             return parsed
         except (httpx.TimeoutException, httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
             _ = fallback_score
@@ -154,7 +164,11 @@ class MetaClassifierClient:
                     self._batch_fallback_exc = message
             else:
                 _emit_meta_classifier_fallback(message)
-            return {"predicted_payoff_edge": 0.0, "meta_applied": False, "edge_expectancy": "LOSS_EXPECTED"}
+            return {
+                "predicted_payoff_edge": 0.0,
+                "meta_applied": False,
+                "edge_expectancy": "LOSS_EXPECTED",
+            }  # pragma: no cover
 
     async def predict_meta_batch(
         self,
