@@ -5,6 +5,8 @@
 * **docs:** documenta vetoes HARD de microestrutura, `soft_recovery_policy`, meta opcional para execução e stubs sniper Hurst/BB
 * **docs:** atualiza inventário (~224 módulos / ~284 testes) e snapshot operacional em `docs/README.md`
 
+## [1.37.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.36.0...v1.37.0) (2026-07-16)
+
 ## [1.36.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.35.0...v1.36.0) (2026-07-15)
 
 ## [1.35.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.34.0...v1.35.0) (2026-07-15)
