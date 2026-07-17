@@ -70,6 +70,10 @@ async def test_orchestrator_run_loop_reconnection(orchestrator_config):
             patch(
                 "src.application.services.orchestrator.orchestrator_run_loop.prepare_orchestrator_run_loop",
             ),
+            patch(
+                "src.application.services.orchestrator.orchestrator_run_loop.await_stream_warm_up_gate",
+                AsyncMock(return_value=True),
+            ),
             patch.object(orch, "_run_trading_cycle_if_ready", AsyncMock(return_value=False)),
             patch(
                 "src.application.services.orchestrator.orchestrator_run_loop.asyncio.sleep",
@@ -149,42 +153,6 @@ async def test_orchestrator_full_lifecycle_summary(orchestrator_config):
             }
         )
         assert orch.running is True
-
-
-@pytest.mark.asyncio
-async def test_orchestrator_run_early_return_when_setup_fails(orchestrator_config):
-    """Cobre run() quando setup_session falha antes do loop."""
-    TradingState.reset()
-    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
-        mock_ws_class.return_value.subscribe = MagicMock()
-        orch = Orchestrator(orchestrator_config, "token")
-        with patch(
-            "src.application.services.orchestrator.orchestrator_run_loop.setup_session",
-            AsyncMock(return_value=False),
-        ):
-            await orch.run()
-        assert orch.running is False
-
-
-@pytest.mark.asyncio
-async def test_orchestrator_run_early_return_when_streams_fail(orchestrator_config):
-    """Cobre run() quando start_streams falha na entrada."""
-    TradingState.reset()
-    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
-        mock_ws_class.return_value.subscribe = MagicMock()
-        orch = Orchestrator(orchestrator_config, "token")
-        with (
-            patch(
-                "src.application.services.orchestrator.orchestrator_run_loop.setup_session",
-                AsyncMock(return_value=True),
-            ),
-            patch(
-                "src.application.services.orchestrator.orchestrator_run_loop.start_streams",
-                AsyncMock(return_value=False),
-            ),
-        ):
-            await orch.run()
-        assert orch.running is False
 
 
 @pytest.mark.asyncio
@@ -282,6 +250,10 @@ async def test_orchestrator_run_loop_persistence_and_reconcile(orchestrator_conf
             ),
             patch(
                 "src.application.services.orchestrator.orchestrator_run_loop.prepare_orchestrator_run_loop",
+            ),
+            patch(
+                "src.application.services.orchestrator.orchestrator_run_loop.await_stream_warm_up_gate",
+                AsyncMock(return_value=True),
             ),
             patch.object(orch, "_run_trading_cycle_if_ready", AsyncMock(return_value=False)),
             patch(

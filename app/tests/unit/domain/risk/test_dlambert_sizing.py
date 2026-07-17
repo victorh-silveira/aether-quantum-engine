@@ -119,8 +119,8 @@ def test_resolve_dlambert_stake_soft_recovery_with_progression():
     )
     assert tag == "D'ALEMBERT"
     session_unit = max(10.0, 10000.0 * 0.0015)
-    factor = 1.0 + (1.0 / 0.95)
-    expected = math.ceil((session_unit * (factor**3)) * 100) / 100
+    cover = 93.19 / 0.95 / 2.0
+    expected = math.ceil(max(session_unit * 1.15, cover) * 100) / 100
     assert stake == pytest.approx(expected)
 
 
@@ -220,10 +220,20 @@ def test_dlambert_log_suffix_soft_recovery_and_empty():
         108.62,
         93.19,
         10.0,
+        consecutive_losses_linear=2,
+        payout=0.95,
+    )
+    assert "soft=2.05x^2" in suffix
+    assert "p=0.95" in suffix
+    assert "U=$10.00" in suffix
+    fixed = dlambert_log_suffix(
+        "D'ALEMBERT",
+        17.25,
+        6.75,
+        15.0,
         consecutive_losses_linear=3,
         payout=0.95,
     )
-    assert "soft=2.05x^3" in suffix
-    assert "p=0.95" in suffix
-    assert "U=$10.00" in suffix
+    assert "fixed=U+15%" in fixed
+    assert "n=3" in fixed
     assert dlambert_log_suffix("KELLY", 55.0, 0.0, 55.0) == ""

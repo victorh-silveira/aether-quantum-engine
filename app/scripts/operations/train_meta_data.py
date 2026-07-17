@@ -231,9 +231,9 @@ async def load_bundles_from_deriv(
 
 def _granularity_candidates(settings: dict[str, Any], preferred: int) -> list[int]:
     data_cfg = settings.get("data_handler", {}) if isinstance(settings.get("data_handler"), dict) else {}
-    micro = int(data_cfg.get("micro_granularity", 60)) if isinstance(data_cfg, dict) else 60
+    micro = int(data_cfg.get("micro_granularity", 300)) if isinstance(data_cfg, dict) else 300
     macro = int(data_cfg.get("granularity", 900)) if isinstance(data_cfg, dict) else 900
-    ordered = [int(preferred), micro, macro, 60, 900]
+    ordered = [int(preferred), micro, macro, 300, 900]
     unique: list[int] = []
     for value in ordered:
         if value not in unique:

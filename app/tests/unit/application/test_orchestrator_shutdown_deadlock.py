@@ -35,18 +35,53 @@ def test_emergency_save_session_state_persists_risk_bundle(orchestrator_config):
         assert "risk" in payload
 
 
-def test_enforce_post_settlement_deadlock_exit_raises_timeout(orchestrator_config):
+def test_enforce_post_settlement_schedules_passive_reconcile(orchestrator_config):
     TradingState.reset()
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orchestrator_config, "token")
         orch._post_settlement_deadlock = True
         orch._post_settlement_incomplete_streak = 2
-        orch.state_mgr.persistence.save = MagicMock()
-        with pytest.raises(asyncio.TimeoutError, match="post-settlement cycle incomplete"):
+        orch.logger = MagicMock()
+        with patch("asyncio.get_running_loop") as get_loop:
+            loop = MagicMock()
+            get_loop.return_value = loop
             _enforce_post_settlement_deadlock_exit(orch)
-        orch.state_mgr.persistence.save.assert_called_once()
-        assert orch.shutdown_reason == "post_settlement_deadlock"
+        loop.create_task.assert_called_once()
+        assert orch._post_settlement_deadlock is False
+        assert orch._post_settlement_incomplete_streak == 0
+        orch.logger.info.assert_any_call(
+            "SETTLE: incompleto pos-liquidacao (streak=%d); reconciliacao passiva via portfolio",
+            2,
+        )
+
+
+def test_enforce_post_settlement_without_running_loop(orchestrator_config):
+    TradingState.reset()
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
+        mock_ws_class.return_value.subscribe = MagicMock()
+        orch = Orchestrator(orchestrator_config, "token")
+        orch._post_settlement_deadlock = True
+        orch._post_settlement_incomplete_streak = 2
+        orch.logger = MagicMock()
+        with patch("asyncio.get_running_loop", side_effect=RuntimeError("no loop")):
+            _enforce_post_settlement_deadlock_exit(orch)
+        assert orch._post_settlement_deadlock is False
+
+
+def test_emergency_save_session_state_sets_initial_from_risk(orchestrator_config):
+    TradingState.reset()
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
+        mock_ws_class.return_value.subscribe = MagicMock()
+        orch = Orchestrator(orchestrator_config, "token")
+        orch.state.balance = 80.0
+        orch.risk_manager.initial_bankroll = 75.0
+        orch.risk_manager.total_session_profit = -5.0
+        orch.state_mgr.state.initial_balance = 0.0
+        orch.state_mgr.persistence.save = MagicMock()
+        emergency_save_session_state(orch)
+        payload = orch.state_mgr.persistence.save.call_args[0][0]
+        assert payload["initial_balance"] == pytest.approx(75.0)
 
 
 @pytest.mark.asyncio
@@ -88,12 +123,20 @@ async def test_orchestrator_run_loop_recovers_on_post_settlement_deadlock(orches
             patch(
                 "src.application.services.orchestrator.orchestrator_run_loop.prepare_orchestrator_run_loop",
             ),
+            patch(
+                "src.application.services.orchestrator.orchestrator_run_loop.await_stream_warm_up_gate",
+                AsyncMock(return_value=True),
+            ),
             patch.object(orch, "_run_trading_cycle_if_ready", AsyncMock(return_value=False)),
             patch.object(orch, "_tick_idle_cycle_watchdog", side_effect=stop_after_recovery),
             patch.object(orch, "_tick_interval_cycle_if_due", AsyncMock()),
             patch(
                 "src.application.services.orchestrator.orchestrator_run_loop.get_data_state_signature",
                 return_value="sig",
+            ),
+            patch(
+                "src.application.services.orchestrator.orchestrator_run_loop._run_passive_settlement_reconcile",
+                AsyncMock(return_value=None),
             ),
             caplog.at_level("INFO"),
         ):
@@ -102,7 +145,7 @@ async def test_orchestrator_run_loop_recovers_on_post_settlement_deadlock(orches
         assert orch._post_settlement_deadlock is False
         assert orch._post_settlement_incomplete_streak == 0
         assert "Loop reinicializado de forma transparente" in caplog.text
-        orch.state_mgr.persistence.save.assert_called_once()
+        assert "reconciliacao passiva via portfolio" in caplog.text
 
 
 @pytest.mark.asyncio

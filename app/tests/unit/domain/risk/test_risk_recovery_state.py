@@ -197,5 +197,9 @@ def test_meta_payoff_veto_emergency_waiver_rejects_missing_raw_prob():
     assert meta_payoff_veto_emergency_waiver({}, direction="PUT", risk_manager=rm) is False
 
 
+def test_meta_payoff_veto_emergency_waiver_without_risk_manager():
+    assert meta_payoff_veto_emergency_waiver({"raw_prob": 0.10}, direction="PUT", risk_manager=None) is False
+
+
 def test_tcn_macro_ultra_extreme_conviction_rejects_unknown_direction():
     assert tcn_macro_ultra_extreme_conviction(0.10, "HOLD") is False

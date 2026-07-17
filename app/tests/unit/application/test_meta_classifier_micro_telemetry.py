@@ -31,7 +31,7 @@ def test_series_last_defaults_on_missing_or_empty():
 
 def test_stamp_micro_frame_telemetry_attaches_micro_indicators():
     metrics: dict = {}
-    stamp_micro_frame_telemetry(_Orch(), "RDBULL", metrics, {"micro_granularity": 60})
+    stamp_micro_frame_telemetry(_Orch(), "RDBULL", metrics, {"micro_granularity": 300})
     assert "micro_indicators" in metrics
     assert "rsi" in metrics["micro_indicators"]
     assert "vol_ratio" in metrics["micro_indicators"]

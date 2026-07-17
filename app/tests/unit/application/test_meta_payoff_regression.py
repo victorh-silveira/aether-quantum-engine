@@ -126,9 +126,8 @@ def test_apply_meta_regression_edge_vetoes_calibration_neutral_drift():
         base_score=0.54,
     )
     assert direction == TradeDirection.PUT
-    assert score == 0.0
-    assert metrics["gate_reason"] == "calibration_neutral_drift"
-    assert metrics["resolved_direction"] is None
+    assert score == pytest.approx(0.54)
+    assert metrics.get("gate_reason") != "calibration_neutral_drift"
 
 
 def test_meta_squeeze_trade_score_constant():

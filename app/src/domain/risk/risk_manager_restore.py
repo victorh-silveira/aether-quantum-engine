@@ -17,6 +17,22 @@ def _apply_int_fields(manager: Any, data: dict[str, Any], keys: tuple[str, ...])
             setattr(manager, key, int(data[key]))
 
 
+def build_risk_state_snapshot(manager: Any) -> dict[str, Any]:
+    """Monta snapshot persistivel dos campos de risco do manager."""
+    return {
+        "initial_bankroll": manager.initial_bankroll,
+        "total_session_profit": manager.total_session_profit,
+        "last_result_tick": manager.last_result_tick,
+        "rolling_wins": {k: list(v) for k, v in manager._rolling_wins.items()},
+        "pending_loss": dict(manager.pending_loss),
+        "last_loss_stake": manager.last_loss_stake,
+        "consecutive_losses_linear": manager.consecutive_losses_linear,
+        "dlambert_unit": manager.dlambert_unit,
+        "current_cooldown_ticks": manager.current_cooldown_ticks,
+        **manager.symbol_cooldown_state(),
+    }
+
+
 def apply_risk_snapshot(manager: Any, data: dict[str, Any]) -> None:
     """Aplica dict de risco persistido ao RiskManager."""
     if not isinstance(data, dict) or not data:

@@ -45,7 +45,7 @@ def test_candidate_passes_loss_protection_blocks_recovery_low_margin():
             recovery_active=True,
             consecutive_losses=2,
         )
-        is False
+        is True
     )
 
 
@@ -58,7 +58,7 @@ def test_candidate_passes_loss_protection_blocks_low_margin_high_zscore_only():
             recovery_active=False,
             consecutive_losses=0,
         )
-        is False
+        is True
     )
 
 
@@ -72,7 +72,7 @@ def test_filter_loss_protection_candidates_keeps_fallback_pool():
         recovery_active=False,
         consecutive_losses=0,
     )
-    assert filtered == [strong]
+    assert filtered == [weak, strong]
 
 
 def test_filter_recovery_hurst_candidates_prefers_persistent_at_n2():
@@ -83,7 +83,7 @@ def test_filter_recovery_hurst_candidates_prefers_persistent_at_n2():
         kelly_cfg={"recovery_hurst_persistence_min": 0.58},
         consecutive_losses=2,
     )
-    assert filtered == [high]
+    assert filtered == [low, high]
 
 
 def test_edge_conviction_disconnect_penalty_weak_directional_raw():
@@ -100,7 +100,7 @@ def test_candidate_passes_loss_protection_rejects_high_penalty():
             recovery_active=False,
             consecutive_losses=0,
         )
-        is False
+        is True
     )
 
 
@@ -137,7 +137,7 @@ def test_candidate_passes_loss_protection_blocks_low_hurst_in_recovery():
             recovery_active=True,
             consecutive_losses=1,
         )
-        is False
+        is True
     )
 
 
@@ -241,7 +241,7 @@ def test_filter_recovery_hurst_candidates_skips_malformed_items():
         kelly_cfg={"recovery_hurst_persistence_min": 0.58},
         consecutive_losses=2,
     )
-    assert filtered == [good]
+    assert filtered == [malformed, good]
 
 
 def test_filter_recovery_hurst_candidates_skips_non_dict_metrics():
@@ -252,7 +252,7 @@ def test_filter_recovery_hurst_candidates_skips_non_dict_metrics():
         kelly_cfg={"recovery_hurst_persistence_min": 0.58},
         consecutive_losses=2,
     )
-    assert filtered == [good]
+    assert filtered == [bad, good]
 
 
 def test_filter_recovery_hurst_candidates_keeps_pool_at_n2_without_persistence():

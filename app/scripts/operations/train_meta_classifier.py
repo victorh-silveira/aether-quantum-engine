@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import asyncio
 import json
 import logging
 import os
@@ -21,6 +20,7 @@ import joblib
 import numpy as np
 import pandas as pd
 
+from aether_asyncio import run_async, silence_asyncio_debug
 from aether_paths import REPO_ROOT
 from scripts.operations.train_meta_data import (
     META_TRAIN_DEFAULT_BARS,
@@ -58,7 +58,7 @@ def _resolve_dsn(settings: dict[str, Any]) -> str:
 
 def _micro_granularity(settings: dict[str, Any]) -> int:
     data_cfg = settings.get("data_handler", {}) if isinstance(settings.get("data_handler"), dict) else {}
-    return int(data_cfg.get("micro_granularity", 60)) if isinstance(data_cfg, dict) else 60
+    return int(data_cfg.get("micro_granularity", 300)) if isinstance(data_cfg, dict) else 300
 
 
 def validate_target_variance(y: np.ndarray, *, min_variance: float = MIN_TARGET_VARIANCE) -> None:
@@ -152,7 +152,7 @@ async def train_meta_classifier(
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Treina meta-regressor tabular com Optuna.")
     parser.add_argument("--trials", type=int, default=24)
-    parser.add_argument("--granularity", type=int, default=60)
+    parser.add_argument("--granularity", type=int, default=300)
     parser.add_argument("--bars", type=int, default=META_TRAIN_DEFAULT_BARS)
     parser.add_argument("--output", type=str, default=str(DEFAULT_OUTPUT))
     parser.add_argument("--symbols", nargs="+", default=["RDBULL", "RDBEAR"])
@@ -161,12 +161,13 @@ def _parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    silence_asyncio_debug()
     logging.basicConfig(level=logging.INFO)
     configure_meta_train_logging()
     args = _parse_args()
     settings = _load_settings()
     dsn = _resolve_dsn(settings)
-    summary = asyncio.run(
+    summary = run_async(
         train_meta_classifier(
             settings=settings,
             dsn=dsn,

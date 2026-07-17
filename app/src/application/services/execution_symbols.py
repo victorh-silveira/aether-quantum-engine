@@ -128,7 +128,7 @@ def format_execution_alternates(
     exclude_symbol: str | None = None,
     limit: int = 2,
 ) -> str:
-    """Formata simbolos alternativos ordenados por score para log EXEC_SEL."""
+    """Formata simbolos alternativos ordenados por score para log EXEC."""
     ranked = sorted(
         candidates,
         key=lambda item: candidate_execution_score(item[2], recovery_active=False),

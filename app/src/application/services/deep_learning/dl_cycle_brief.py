@@ -1,6 +1,7 @@
 """Formatacao compacta de linhas curtas do ciclo Deep Learning."""
 
 from src.application.services.execution_direction_resolver import infer_dl_direction, is_technically_blocked
+from src.application.services.execution_quality_gate import direction_margin_from_probability
 from src.domain.risk.stake_sizing import metric_float
 
 
@@ -57,9 +58,20 @@ def _all_blocked_brief(
     return f"DL {tag}| sem exec | {suffix}{train_part}"
 
 
-def _format_brief_token(symbol: str, direction, conv: float, *, suffix: str | None = None) -> str:
-    """Formata token de simbolo para linha curta do ciclo DL."""
-    token = f"{symbol}:{direction.name} c={conv:.2f}"
+def _exec_cal_and_margin(metrics: dict, direction) -> tuple[float, float]:
+    """Retorna probabilidade calibrada e margem TCN para o brief de ciclo."""
+    cal = metrics.get("calibrated_prob", metrics.get("raw_prob"))
+    cal_f = float(cal) if cal is not None else 0.5
+    stored = metrics.get("direction_margin")
+    if stored is not None:
+        return cal_f, float(stored)
+    side = direction.name if hasattr(direction, "name") else str(direction or "")
+    return cal_f, direction_margin_from_probability(cal_f, direction=side)
+
+
+def _format_brief_token(symbol: str, direction, *, margin: float, cal: float, suffix: str | None = None) -> str:
+    """Formata token de simbolo com margem TCN e probabilidade calibrada."""
+    token = f"{symbol}:{direction.name} m={margin:.2f} cal={cal:.2f}"
     if suffix:
         return f"{token}{suffix}"
     return token
@@ -77,6 +89,9 @@ def _brief_cycle_counts(decisions: dict[str, dict]) -> tuple[list[str], list[str
         if metrics.get("gate_reason") == "training":
             training += 1
             continue
+        if str(metrics.get("gate_reason") or "") == "neutral_clamp":
+            blocked += 1
+            continue
         if is_technically_blocked(entry):
             blocked += 1
             if metrics.get("gate_reason") == "data":
@@ -86,9 +101,9 @@ def _brief_cycle_counts(decisions: dict[str, dict]) -> tuple[list[str], list[str
             blocked += 1
             continue
         direction = entry.get("direction") or infer_dl_direction(entry)
-        conv = metric_float(metrics, "trade_score", "conviction", default=0.0)
         if metrics.get("execute", True):
-            exec_tokens.append(_format_brief_token(symbol, direction, conv))
+            cal, margin = _exec_cal_and_margin(metrics, direction)
+            exec_tokens.append(_format_brief_token(symbol, direction, margin=margin, cal=cal))
         bias = _format_bias_token(symbol, entry)
         if bias:
             bias_tokens.append(bias)
@@ -137,21 +152,19 @@ def build_dl_cycle_brief(
 def _brief_key_token(symbol: str, entry: dict) -> tuple[str | None, int, int, int]:
     """Retorna (token, blocked_delta, no_data_delta, training_delta) para a chave de log."""
     metrics = entry.get("metrics") or {}
-    if metrics.get("gate_reason") == "training":
+    gate = str(metrics.get("gate_reason") or "")
+    if gate == "training":
         return None, 0, 0, 1
-    if is_technically_blocked(entry):
-        nd = 1 if metrics.get("gate_reason") == "data" else 0
+    if gate == "neutral_clamp" or is_technically_blocked(entry) or infer_dl_direction(entry) is None:
+        nd = 1 if gate == "data" else 0
         return None, 1, nd, 0
-    if infer_dl_direction(entry) is None:
-        return None, 1, 0, 0
     direction = entry.get("direction") or infer_dl_direction(entry)
     if metrics.get("execute", True):
         return f"exec:{symbol}:{direction.name}", 0, 0, 0
     bias = _format_bias_token(symbol, entry)
     if bias:
         return f"bias:{bias}", 0, 0, 0
-    gate = str(metrics.get("gate_reason") or "block")
-    return f"sinal:{symbol}:{direction.name}:{gate}", 0, 0, 0
+    return f"sinal:{symbol}:{direction.name}:{gate or 'block'}", 0, 0, 0
 
 
 def build_dl_cycle_brief_key(

@@ -18,7 +18,7 @@ def mock_ws():
 
 @pytest.fixture
 def stream_handler(mock_ws):
-    config = {"buffer_limit": 10, "fetch_count": 3, "granularity": 900, "micro_granularity": 60}
+    config = {"buffer_limit": 10, "fetch_count": 3, "granularity": 900, "micro_granularity": 300}
     return StreamHandler(mock_ws, ["RDBULL"], config)
 
 
@@ -89,7 +89,7 @@ async def test_stream_handler_candle_error(stream_handler):
 
 @pytest.mark.asyncio
 async def test_stream_handler_start_stream_fails_when_ws_disconnected(mock_ws):
-    config = {"buffer_limit": 10, "fetch_count": 3, "granularity": 900, "micro_granularity": 60}
+    config = {"buffer_limit": 10, "fetch_count": 3, "granularity": 900, "micro_granularity": 300}
     sh = StreamHandler(mock_ws, ["RDBULL"], config)
     mock_ws.is_running = False
     with pytest.raises(ConnectionError):
@@ -99,7 +99,7 @@ async def test_stream_handler_start_stream_fails_when_ws_disconnected(mock_ws):
 
 @pytest.mark.asyncio
 async def test_stream_handler_start_stream_fails_after_history_sync(mock_ws):
-    config = {"buffer_limit": 10, "fetch_count": 3, "granularity": 900, "micro_granularity": 60}
+    config = {"buffer_limit": 10, "fetch_count": 3, "granularity": 900, "micro_granularity": 300}
     sh = StreamHandler(mock_ws, ["RDBULL"], config)
     mock_ws.is_running = True
 

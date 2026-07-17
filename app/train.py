@@ -2,6 +2,7 @@
 
 import asyncio
 
+from aether_asyncio import run_async, silence_asyncio_debug
 from src.application.services.orchestrator import Orchestrator
 from src.application.services.orchestrator.engine_mode import ENGINE_MODE_TRAIN
 from src.application.services.orchestrator.engine_session import (
@@ -31,8 +32,9 @@ async def main() -> int:
 
 
 if __name__ == "__main__":
+    silence_asyncio_debug()
     try:
-        raise SystemExit(asyncio.run(main()))
+        raise SystemExit(run_async(main()))
     except SystemExit:
         raise
     except Exception as exc:

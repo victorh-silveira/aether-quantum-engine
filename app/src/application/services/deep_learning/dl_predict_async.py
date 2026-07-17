@@ -19,7 +19,7 @@ from src.application.services.deep_learning.dl_predict_cache import (
 from src.application.services.deep_learning.dl_predict_triton import predict_raw_prob_async
 from src.application.services.orchestrator.orchestrator_data_signature import (
     at_signature_boundary,
-    m1_boundary_epoch,
+    m5_boundary_epoch,
 )
 from src.infrastructure.inference.triton_inference_client import triton_enabled
 from src.infrastructure.inference.triton_tensor_builder import (
@@ -60,7 +60,7 @@ async def predict_symbol_decision_async(
     )
     lookback = int(runtime.get("lookback", params["lookback"]))
     on_boundary = at_signature_boundary(orch)
-    boundary_epoch = m1_boundary_epoch(orch)
+    boundary_epoch = m5_boundary_epoch(orch)
     use_triton = bool(triton_enabled(orch.config) and not force_local)
     try:
         ctx = build_prediction_context(
@@ -175,7 +175,7 @@ async def predict_symbol_decision_async(
             val_accuracy=val_accuracy,
             edge=0.0,
             train_loss=train_loss,
-            contract_duration=int(params.get("contract_duration", 60)),
+            contract_duration=int(params.get("contract_duration", 300)),
         )
         entry["metrics"]["gate_reason"] = "predict_error"
         return entry

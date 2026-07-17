@@ -69,7 +69,7 @@ class Orchestrator:
         )
         self.trade_handler = TradeHandler(self.ws, config)
         self.risk_manager = RiskManager(config["risk_management"])
-        gran = int(config.get("data_handler", {}).get("micro_granularity", 60))
+        gran = int(config.get("data_handler", {}).get("micro_granularity", 300))
         self.risk_manager.set_candle_interval_seconds(gran)
         self.state = TradingState()
         self.persistence = JsonStateStore() if not self.infra.enabled else PersistenceManager()

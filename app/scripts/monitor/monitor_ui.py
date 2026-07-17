@@ -106,7 +106,7 @@ def generate_radar(state) -> Panel:
             if metric:
                 metrics_table.add_row(f"[bold cyan]{metric}[/]")
     else:
-        metrics_table.add_row("[dim]aguardando EXEC_SEL do motor[/]")
+        metrics_table.add_row("[dim]aguardando EXEC do motor[/]")
 
     grid.add_row("[bold white]SIGNAL[/]", metrics_table)
     grid.add_row("", "")

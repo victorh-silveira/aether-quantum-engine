@@ -124,7 +124,9 @@ def test_log_dl_cycle_summary_logs_info_without_orch(caplog):
     }
     with caplog.at_level(logging.DEBUG):
         log_dl_cycle_summary(logger, decisions, recovery_active=False, pending_loss_total=0.0)
-    assert any(r.levelname == "INFO" and "exec RDBULL:CALL" in r.message for r in caplog.records)
+    assert any(
+        r.levelname == "INFO" and "[CLUSTER]" in r.message and "RDBULL: CALL" in r.message for r in caplog.records
+    )
 
 
 def test_log_dl_cycle_summary(caplog):
@@ -139,7 +141,9 @@ def test_log_dl_cycle_summary(caplog):
     with caplog.at_level(logging.DEBUG):
         log_dl_cycle_summary(logger, decisions, recovery_active=False, pending_loss_total=0.0)
     assert "DL | NORMAL" in caplog.text
-    assert any(r.levelname == "INFO" and "aguardando sinal" in r.message for r in caplog.records)
+    assert any(
+        r.levelname == "INFO" and "[CLUSTER]" in r.message and "PREDICT_ERROR" in r.message for r in caplog.records
+    )
 
 
 def test_format_bias_token_flip_and_hint_only():

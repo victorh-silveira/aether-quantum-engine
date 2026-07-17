@@ -9,9 +9,9 @@ from src.infrastructure.api.deriv_granularity import normalize_granularity_secon
 
 
 def resolve_dual_granularity(data_config: dict) -> tuple[int, int]:
-    """Resolve granularidade macro (DL) e micro (loop operacional)."""
+    """Resolve granularidade macro (DL M15) e micro (loop operacional M5)."""
     macro = normalize_granularity_seconds(int(data_config.get("granularity", 900)))
-    micro_raw = int(data_config.get("micro_granularity", data_config.get("cycle_granularity", 60)))
+    micro_raw = int(data_config.get("micro_granularity", data_config.get("cycle_granularity", 300)))
     micro = normalize_granularity_seconds(micro_raw)
     return macro, micro
 
@@ -28,7 +28,7 @@ def ohlc_payload_granularity(ohlc: dict, macro: int, micro: int) -> int:
 
 
 def resolve_micro_fetch_count(data_config: dict) -> int:
-    """Quantidade de velas M1 a sincronizar para o relogio operacional."""
+    """Quantidade de velas M5 a sincronizar para o relogio operacional."""
     if "micro_fetch_count" in data_config:
         return max(1, int(data_config["micro_fetch_count"]))
     micro_bars = int(data_config.get("micro_history_bars", 0))

@@ -7,6 +7,8 @@ import pytest
 from src.infrastructure.inference.triton_http import (
     fetch_triton_health_ready,
     get_triton_model_metadata,
+    load_triton_models_sequential,
+    post_triton_model_load,
     post_triton_repository_reload,
     triton_http_base_url,
     triton_model_ready,
@@ -136,6 +138,44 @@ def test_post_triton_repository_reload_non_list():
     ):
         out = post_triton_repository_reload("http://localhost:8000")
     assert out == []
+
+
+def test_post_triton_model_load_posts_explicit_endpoint():
+    captured: dict[str, object] = {}
+
+    def _capture(req, timeout=0):
+        captured["url"] = req.full_url
+        captured["method"] = req.get_method()
+        return b""
+
+    with patch("src.infrastructure.inference.triton_http.read_http_response", side_effect=_capture):
+        post_triton_model_load("http://localhost:8000", "RDBEAR")
+    assert captured["method"] == "POST"
+    assert captured["url"] == "http://localhost:8000/v2/repository/models/RDBEAR/load"
+
+
+def test_load_triton_models_sequential_skips_blank_and_orders():
+    calls: list[str] = []
+
+    def _load(_url: str, name: str) -> None:
+        calls.append(name)
+
+    with (
+        patch("src.infrastructure.inference.triton_http.post_triton_model_load", side_effect=_load),
+        patch("src.infrastructure.inference.triton_http.wait_triton_models_ready", return_value=True),
+    ):
+        loaded = load_triton_models_sequential("http://localhost:8000", ["RDBEAR", "", "RDBULL"])
+    assert loaded == ["RDBEAR", "RDBULL"]
+    assert calls == ["RDBEAR", "RDBULL"]
+
+
+def test_load_triton_models_sequential_raises_when_ready_times_out():
+    with (
+        patch("src.infrastructure.inference.triton_http.post_triton_model_load"),
+        patch("src.infrastructure.inference.triton_http.wait_triton_models_ready", return_value=False),
+        pytest.raises(TimeoutError, match="sem ready"),
+    ):
+        load_triton_models_sequential("http://localhost:8000", ["RDBEAR"])
 
 
 def test_fetch_triton_health_ready_ok():

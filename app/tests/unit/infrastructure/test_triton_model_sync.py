@@ -6,6 +6,9 @@ import pytest
 from src.infrastructure.inference.triton_inference_client import infer_symbols_async
 from src.infrastructure.inference.triton_model_sync import (
     _files_identical,
+    _fsync_directory,
+    _fsync_path,
+    _repo_durability_barrier,
     sync_all_symbols_to_triton,
     sync_symbol_torchscript_to_triton,
 )
@@ -152,6 +155,36 @@ def test_files_identical_requires_matching_bytes(tmp_path):
     assert _files_identical(left, right) is False
     assert _files_identical(tmp_path / "missing.pt", right) is False
     assert _files_identical(left, shorter) is False
+
+
+def test_fsync_helpers_tolerate_os_errors(tmp_path):
+    missing = tmp_path / "missing.bin"
+    _fsync_path(missing)
+    with patch("src.infrastructure.inference.triton_model_sync.os.open", side_effect=OSError("denied")):
+        _fsync_directory(tmp_path)
+    with (
+        patch("src.infrastructure.inference.triton_model_sync.os.open", return_value=7),
+        patch("src.infrastructure.inference.triton_model_sync.os.fsync", side_effect=OSError("bad")),
+        patch("src.infrastructure.inference.triton_model_sync.os.close") as close_mock,
+    ):
+        _fsync_directory(tmp_path)
+        _fsync_path(tmp_path / "x")
+    assert close_mock.call_count >= 2
+
+
+def test_repo_durability_barrier_fsyncs_existing_artifacts(tmp_path):
+    model_pt = tmp_path / "RDBEAR" / "1" / "model.pt"
+    pbtxt = tmp_path / "RDBEAR" / "config.pbtxt"
+    model_pt.parent.mkdir(parents=True)
+    model_pt.write_bytes(b"pt")
+    pbtxt.write_text("name: RDBEAR\n", encoding="utf-8")
+    with (
+        patch("src.infrastructure.inference.triton_model_sync._fsync_path") as fsync_path,
+        patch("src.infrastructure.inference.triton_model_sync._fsync_directory") as fsync_dir,
+    ):
+        _repo_durability_barrier(tmp_path, ["RDBEAR", "MISSING"])
+    assert fsync_path.call_count >= 2
+    assert fsync_dir.call_count >= 2
 
 
 @pytest.mark.asyncio

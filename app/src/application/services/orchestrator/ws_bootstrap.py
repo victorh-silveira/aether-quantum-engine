@@ -20,6 +20,14 @@ from src.infrastructure.inference.triton_grpc_client import TritonInferenceTimeo
 
 if TYPE_CHECKING:
     from src.application.services.orchestrator import Orchestrator
+    from src.infrastructure.api.deriv_rest_client import DerivTradingSession
+
+
+BROKER_HANDSHAKE_TIMEOUT_SECONDS = 15.0
+_BROKER_HANDSHAKE_TIMEOUT_MESSAGE = (
+    "[AETHER] HANDSHAKE_TIMEOUT: WebSocket/Deriv estagnou (rede ou firewall). "
+    "TCP silent drop ou barreira local bloqueou o aperto de mao seguro."
+)
 
 
 def ws_connect_options(orch: Orchestrator) -> dict[str, float | int]:
@@ -31,6 +39,36 @@ def ws_connect_options(orch: Orchestrator) -> dict[str, float | int]:
         "retry_delay": float(api.get("ws_connect_retry_delay_seconds", 4.0)),
         "retry_backoff": float(api.get("ws_connect_retry_backoff", 1.5)),
     }
+
+
+async def _broker_pat_websocket_handshake(orch: Orchestrator) -> DerivTradingSession:
+    """Abre sessao PAT/OTP e conecta o WebSocketManager da corretora."""
+    session = await orch.auth.open_trading_session()
+    if orch.auth.mode == "demo" and session.balance <= 0.0:
+        orch.logger.warning("AUTH: Saldo da conta demo e 0.0. Tentando resetar saldo...")
+        try:
+            client = orch.auth.rest_client()
+            path = f"/trading/v1/options/accounts/{session.account_id}/reset-demo-balance"
+            res = await asyncio.to_thread(client._request, "POST", path)
+            new_bal = float(res.get("data", {}).get("balance", 0.0))
+            if new_bal > 0.0:
+                orch.logger.info("AUTH: Saldo demo resetado com sucesso para $%.2f", new_bal)
+                session = await orch.auth.open_trading_session()
+        except Exception as reset_err:
+            orch.logger.error("AUTH: Falha ao resetar saldo demo: %s", reset_err)
+    await orch.ws.connect(session.ws_url, **ws_connect_options(orch))
+    return session
+
+
+async def open_broker_handshake(orch: Orchestrator) -> DerivTradingSession:
+    """Handshake broker com timeout fail-fast de 15s (PAT/OTP + WebSocket)."""
+    try:
+        return await asyncio.wait_for(
+            _broker_pat_websocket_handshake(orch),
+            timeout=BROKER_HANDSHAKE_TIMEOUT_SECONDS,
+        )
+    except TimeoutError as exc:
+        raise RuntimeError(_BROKER_HANDSHAKE_TIMEOUT_MESSAGE) from exc
 
 
 async def subscribe_account_transactions(orch: Orchestrator) -> None:
@@ -53,6 +91,8 @@ def _setup_trading_session_failure(orch: Orchestrator, exc: BaseException) -> bo
             "INIT: Triton inferencia excedeu timeout no bootstrap (%s). Modelos podem estar recarregando na GPU.",
             exc,
         )
+    elif isinstance(exc, RuntimeError) and "HANDSHAKE_TIMEOUT" in str(exc):
+        orch.logger.error("%s", exc)
     elif isinstance(exc, (ConnectionError, TimeoutError, OSError)):
         detalhe = str(exc).strip() or repr(exc)
         orch.logger.warning("INIT: broker indisponivel [%s]: %s", type(exc).__name__, detalhe)
@@ -75,21 +115,7 @@ async def setup_trading_session(orch: Orchestrator) -> bool:
         await restore_orchestrator_state(orch)
         if orch.ws.ws:
             await orch.ws.close()
-        session = await orch.auth.open_trading_session()
-        if orch.auth.mode == "demo" and session.balance <= 0.0:
-            orch.logger.warning("AUTH: Saldo da conta demo e 0.0. Tentando resetar saldo...")
-            try:
-                client = orch.auth.rest_client()
-                path = f"/trading/v1/options/accounts/{session.account_id}/reset-demo-balance"
-                res = await asyncio.to_thread(client._request, "POST", path)
-                new_bal = float(res.get("data", {}).get("balance", 0.0))
-                if new_bal > 0.0:
-                    orch.logger.info("AUTH: Saldo demo resetado com sucesso para $%.2f", new_bal)
-                    session = await orch.auth.open_trading_session()
-            except Exception as reset_err:
-                orch.logger.error("AUTH: Falha ao resetar saldo demo: %s", reset_err)
-
-        await orch.ws.connect(session.ws_url, **ws_connect_options(orch))
+        session = await open_broker_handshake(orch)
         orch.state.balance = session.balance
         await bootstrap_active_session_targets(orch, float(orch.state.balance))
         if orch.risk_manager.initial_bankroll <= 0.0:
@@ -133,8 +159,8 @@ async def start_orchestrator_streams(orch: Orchestrator) -> bool:
                 orch.logger.debug(f"STRM: reconexao durante startup ({attempt}/{retries}): {e}")
                 await asyncio.sleep(delay)
                 if not orch.ws.is_running:
-                    session = await orch.auth.open_trading_session()
-                    await orch.ws.connect(session.ws_url, **ws_connect_options(orch))
+                    session = await open_broker_handshake(orch)
+                    orch.state.balance = session.balance
     except Exception as e:
         detalhe = str(e).strip() or repr(e)
         orch.logger.error("STRM: Falha [%s]: %s", type(e).__name__, detalhe, exc_info=True)

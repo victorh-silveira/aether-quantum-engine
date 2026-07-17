@@ -43,12 +43,9 @@ def test_calibration_neutral_axis_drift_ignores_missing_values():
 
 def test_veto_calibration_neutral_drift_annuls_direction_and_trade_score():
     metrics = {"raw_prob": 0.40, "calibrated_prob": 0.53, "trade_score": 0.53}
-    assert veto_calibration_neutral_drift(metrics) is True
-    assert metrics["resolved_direction"] is None
-    assert metrics["exec_direction"] is None
-    assert metrics["gate_reason"] == CALIBRATION_NEUTRAL_DRIFT
-    assert metrics["trade_score"] is None
-    assert metrics["conviction"] is None
+    assert veto_calibration_neutral_drift(metrics) is False
+    assert metrics.get("gate_reason") != CALIBRATION_NEUTRAL_DRIFT
+    assert metrics["trade_score"] == 0.53
 
 
 @pytest.mark.parametrize(
@@ -61,9 +58,9 @@ def test_veto_calibration_neutral_drift_annuls_direction_and_trade_score():
 def test_resolve_execution_direction_vetoes_absolute_on_neutral_drift(raw_prob, calibrated_prob):
     entry = _entry(raw_prob=raw_prob, calibrated_prob=calibrated_prob)
     result = resolve_execution_direction(entry, symbol="RDBULL")
-    assert result is None
-    assert entry["metrics"]["gate_reason"] == CALIBRATION_NEUTRAL_DRIFT
-    assert entry["metrics"]["resolved_direction"] is None
+    assert result is not None
+    assert entry["metrics"].get("gate_reason") != CALIBRATION_NEUTRAL_DRIFT
+    assert entry["metrics"].get("resolved_direction") is not None
 
 
 def test_resolve_execution_direction_allows_aligned_calibration():
@@ -86,6 +83,6 @@ def test_apply_meta_regression_edge_vetoes_on_calibration_drift():
         symbol="RDBEAR",
     )
     assert direction == TradeDirection.PUT
-    assert score == 0.0
-    assert metrics["gate_reason"] == CALIBRATION_NEUTRAL_DRIFT
-    assert metrics["resolved_direction"] is None
+    assert score > 0.0
+    assert metrics.get("gate_reason") != CALIBRATION_NEUTRAL_DRIFT
+    assert metrics.get("trade_score") is not None

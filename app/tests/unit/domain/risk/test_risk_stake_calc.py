@@ -11,6 +11,7 @@ def _mock_rm(kelly_config, **overrides):
     rm = MagicMock()
     rm.config = kelly_config
     rm.kelly_config = kelly_config["kelly"]
+    rm.soft_recovery_config = kelly_config.get("soft_recovery", {})
     rm.dlambert_config = kelly_config.get("dlambert", {})
     rm.risk_params = kelly_config["params"]
     rm.initial_bankroll = 10000.0
@@ -93,8 +94,9 @@ def test_calculate_stake_for_manager_dlambert_logs(kelly_config):
         kwargs={"cycle_id": 3, "dl_metrics": {"val_brier": 0.1, "execute": True}, "order_direction": "PUT"},
     )
     assert stake > 0.0
-    logged = " ".join(str(c) for c in rm.logger.info.call_args_list)
-    assert "D'ALEMBERT" in logged
+    audit = getattr(rm, "_last_stake_audit", None)
+    assert isinstance(audit, dict)
+    assert str(audit.get("mode_tag", "")).startswith("DAL_L")
 
 
 def test_calculate_stake_mandatory_weak_entry_uses_full_kelly(kelly_config):
@@ -238,10 +240,10 @@ def test_calculate_stake_c0017_bypasses_consensus_and_uses_soft_recovery(kelly_c
         },
     )
     payout = float(kelly_config["params"].get("payout_estimate", 0.95))
-    factor = 1.0 + (1.0 / payout)
     session_unit = max(unit_u, 10000.0 * 0.0015)
-    expected = math.ceil((session_unit * (factor**3)) * 100) / 100
+    cover = pending / payout / 2.0
+    expected = math.ceil(max(session_unit * 1.15, cover) * 100) / 100
     assert stake == pytest.approx(expected)
-    logged = " ".join(str(c) for c in rm.logger.info.call_args_list)
-    assert "D'ALEMBERT" in logged
-    assert "soft=2.05x^3" in logged
+    audit = getattr(rm, "_last_stake_audit", None)
+    assert isinstance(audit, dict)
+    assert str(audit.get("mode_tag", "")).startswith("DAL_L")

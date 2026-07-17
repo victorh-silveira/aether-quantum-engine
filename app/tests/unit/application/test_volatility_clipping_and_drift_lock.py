@@ -62,7 +62,6 @@ def test_meta_classifier_feature_clipping():
 
 
 def test_evaluate_anti_trend_lock_drift_bias_lock():
-    # RDBULL e PUT com vol_ratio >= 2.0 -> Veto
     resolved, action = evaluate_anti_trend_lock(
         symbol="RDBULL",
         proposed_direction=TradeDirection.PUT,
@@ -75,14 +74,13 @@ def test_evaluate_anti_trend_lock_drift_bias_lock():
         vol_ratio=2.5,
         bb_width_zscore=0.0,
     )
-    assert resolved is None
-    assert action == "FREEZE: SKIP CYCLE"
+    assert resolved == TradeDirection.PUT
+    assert action == "KEEP"
 
-    # RDBEAR e CALL com bb_width_zscore >= 2.0 -> Veto
     resolved, action = evaluate_anti_trend_lock(
         symbol="RDBEAR",
         proposed_direction=TradeDirection.CALL,
-        consecutive_losses=5,  # Mesmo em recovery crítico
+        consecutive_losses=0,
         bull_call_prob=0.5,
         bear_put_prob=0.5,
         probability_delta=0.0,
@@ -91,10 +89,9 @@ def test_evaluate_anti_trend_lock_drift_bias_lock():
         vol_ratio=0.0,
         bb_width_zscore=2.1,
     )
-    assert resolved is None
-    assert action == "FREEZE: SKIP CYCLE"
+    assert resolved == TradeDirection.CALL
+    assert action == "KEEP"
 
-    # Fluxo normal sem expansão
     resolved, action = evaluate_anti_trend_lock(
         symbol="RDBULL",
         proposed_direction=TradeDirection.CALL,
@@ -122,7 +119,6 @@ def test_risk_stake_calc_drift_bias_lock():
     rm.pending_loss = {}
     rm.logger = MagicMock()
 
-    # Veto Drift Lock no RDBULL PUT com vol_ratio >= 2.0
     stake = calculate_stake_for_manager(
         rm,
         bankroll=1000.0,
@@ -135,9 +131,8 @@ def test_risk_stake_calc_drift_bias_lock():
             "order_direction": TradeDirection.PUT,
         },
     )
-    assert stake == 0.0
+    assert stake > 0.0
 
-    # Veto Drift Lock no RDBEAR CALL com bb_width >= 2.0
     stake = calculate_stake_for_manager(
         rm,
         bankroll=1000.0,
@@ -150,4 +145,4 @@ def test_risk_stake_calc_drift_bias_lock():
             "order_direction": TradeDirection.CALL,
         },
     )
-    assert stake == 0.0
+    assert stake > 0.0

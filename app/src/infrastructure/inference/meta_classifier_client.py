@@ -11,6 +11,7 @@ from typing import Any
 import httpx
 
 from src.application.services.log_dedupe import clear_log_channel, log_warning_if_changed
+from src.application.services.meta_classifier_cross_symbol import META_FEATURE_DIM
 from src.application.services.meta_classifier_features import (
     extract_meta_feature_vector,
     side_payoff_from_probability,
@@ -24,6 +25,13 @@ from src.infrastructure.inference.meta_classifier_types import (
 
 logger = logging.getLogger("AETH")
 META_TIMEOUT_SEC = 1.0
+
+
+def assert_meta_feature_vector_dim(feature_vector: list[float]) -> None:
+    """Pre-flight: bloqueia envio HTTP se o vetor tabular nao tiver META_FEATURE_DIM=43."""
+    length = len(feature_vector)
+    if length != META_FEATURE_DIM:
+        raise ValueError(f"Vetor tabular corrompido: local esperado 43, gerado {length}")
 
 
 class _MetaFallbackLogState:
@@ -70,7 +78,7 @@ def build_persistent_http_client(base_url: str, timeout: float) -> httpx.AsyncCl
 
 
 def reset_meta_classifier_fallback_dedupe() -> None:
-    """Limpa deduplicacao de fallback para permitir um log por ciclo M1."""
+    """Limpa deduplicacao de fallback para permitir um log por ciclo M5."""
     clear_log_channel(_META_FALLBACK_LOG, "meta_classifier_fallback")
 
 
@@ -133,11 +141,13 @@ class MetaClassifierClient:
         """Consulta /v2/predict_meta retornando edge continuo de payoff."""
         if not self._enabled:
             return {"predicted_payoff_edge": 0.0, "meta_applied": False, "edge_expectancy": "LOSS_EXPECTED"}
+        feature_vector = [float(v) for v in request["feature_vector"]]
+        assert_meta_feature_vector_dim(feature_vector)
         payload = {
             "symbol": str(request["symbol"]),
             "tcn_probability": float(request["tcn_probability"]),
             "direction": str(request["direction"]),
-            "feature_vector": [float(v) for v in request["feature_vector"]],
+            "feature_vector": feature_vector,
         }
         try:
             response = await self._client.post("/v2/predict_meta", json=payload)
@@ -145,10 +155,8 @@ class MetaClassifierClient:
             parsed = parse_meta_predict_response(response.json())
             if parsed["meta_applied"]:
                 reset_meta_classifier_fallback_dedupe()
-            # Penalidade assimétrica sob volatilidade caótica
-            f_vec = request.get("feature_vector", [])
-            bb_width_z = float(f_vec[8]) if len(f_vec) > 8 else 0.0
-            implied_vol = float(f_vec[30]) if len(f_vec) > 30 else 1.0
+            bb_width_z = float(feature_vector[8]) if len(feature_vector) > 8 else 0.0
+            implied_vol = float(feature_vector[30]) if len(feature_vector) > 30 else 1.0
             if bb_width_z > 2.5 or implied_vol > 2.5:
                 edge = parsed["predicted_payoff_edge"]
                 if edge > 0.0:

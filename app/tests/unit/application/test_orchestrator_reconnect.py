@@ -33,6 +33,7 @@ async def test_orchestrator_run_reconnect_fails_sleeps_backoff(orch_config):
             patch(f"{RUN_LOOP}.start_settlement_worker", AsyncMock()),
             patch(f"{RUN_LOOP}.start_ingestion_watchdog", AsyncMock()),
             patch(f"{RUN_LOOP}.prepare_orchestrator_run_loop"),
+            patch(f"{RUN_LOOP}.await_stream_warm_up_gate", AsyncMock(return_value=True)),
             patch.object(orch, "_run_trading_cycle_if_ready", AsyncMock(return_value=False)),
             patch(f"{RUN_LOOP}.asyncio.sleep", side_effect=track_sleep),
         ):
@@ -69,6 +70,7 @@ async def test_orchestrator_run_reconnect_success_logs_recovery(orch_config):
             patch(f"{RUN_LOOP}.start_settlement_worker", AsyncMock()),
             patch(f"{RUN_LOOP}.start_ingestion_watchdog", AsyncMock()),
             patch(f"{RUN_LOOP}.prepare_orchestrator_run_loop"),
+            patch(f"{RUN_LOOP}.await_stream_warm_up_gate", AsyncMock(return_value=True)),
             patch.object(orch, "_run_trading_cycle_if_ready", AsyncMock(return_value=False)),
             patch(f"{RUN_LOOP}.asyncio.sleep", side_effect=stop_after_recovery_sleep),
             patch(f"{RUN_LOOP}.reconcile_after_ws_recovery", new=AsyncMock()),

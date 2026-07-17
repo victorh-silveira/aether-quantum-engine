@@ -1,4 +1,4 @@
-"""Agendamento de ciclo após liquidação com fôlego configurável."""
+"""Agendamento de ciclo apos liquidacao com janela de tolerancia e backoff."""
 
 from __future__ import annotations
 
@@ -7,9 +7,16 @@ import time
 from typing import Any
 
 from src.application.services.orchestrator.graceful_shutdown import graceful_shutdown
+from src.application.services.orchestrator.orchestrator_data_signature import seconds_until_next_signature_boundary
+from src.application.services.orchestrator.orchestrator_settlement_queue import (
+    SettlementOrphanCleaner,
+    next_settlement_backoff_seconds,
+    resolve_settlement_tolerance_window,
+)
 from src.application.services.orchestrator.post_settlement_loss_cooldown import (
     await_post_loss_cooldown,
 )
+from src.application.services.orchestrator.post_settlement_resilience import clear_post_settlement_polling_state
 from src.application.services.orchestrator.session_target_bootstrap import clear_current_session_redis_keys
 from src.application.services.orchestrator.settlement_logic import check_session_limits_before_post_settlement
 from src.application.services.orchestrator.settlement_queue_ops import get_redis_client
@@ -19,7 +26,6 @@ from src.application.services.orchestrator.settlement_utils import (
 )
 
 
-_POST_SETTLEMENT_INCOMPLETE_LIMIT = 2
 _MAX_POST_SETTLEMENT_CYCLE_ATTEMPTS = 32
 
 
@@ -89,7 +95,7 @@ def _prune_stale_risk_contract_ids(orch: Any) -> None:
 
 
 def schedule_trading_cycle_after_settlement(orch: Any) -> None:
-    """Agenda novo ciclo de decisão logo após liquidação do contrato."""
+    """Agenda novo ciclo de decisao logo apos liquidacao do contrato."""
     if not orch.running:
         return
     if orch.state.active_contracts:
@@ -116,7 +122,7 @@ async def _try_stop_win_fast_path(orch: Any) -> bool:
 
 
 async def _clean_stale_settlement_and_redis_counters(orch: Any) -> None:
-    """Limpa de forma atômica no Redis os contadores e chaves de timeout pendentes."""
+    """Limpa de forma atomica no Redis os contadores e chaves de timeout pendentes."""
     try:
         client = await get_redis_client(orch)
         pipe = client.pipeline()
@@ -124,26 +130,22 @@ async def _clean_stale_settlement_and_redis_counters(orch: Any) -> None:
         pipe.delete("settlement:queue:priority")
         await pipe.execute()
         orch.logger.info(
-            "SRE: Limpeza atômica no Redis concluída para 'recovery:skip_counter' e 'settlement:queue:priority'."
+            "SRE: Limpeza atomica no Redis concluida para 'recovery:skip_counter' e 'settlement:queue:priority'."
         )
     except Exception as e:  # pragma: no cover
-        orch.logger.error("SRE: Falha ao executar limpeza atômica no Redis: %s", e)  # pragma: no cover
+        orch.logger.error("SRE: Falha ao executar limpeza atomica no Redis: %s", e)  # pragma: no cover
 
 
 def _record_post_settlement_incomplete(orch: Any) -> None:
-    """Incrementa contador de ciclos incompletos e sinaliza deadlock no limite."""
+    """Registra tentativa incompleta sem forcar deadlock apos 2 ciclos."""
     streak = int(getattr(orch, "_post_settlement_incomplete_streak", 0)) + 1
     orch._post_settlement_incomplete_streak = streak
-    orch.logger.warning(
-        "CICLO: ciclo pos-liquidacao incompleto; nova tentativa (%d/%d)", streak, _POST_SETTLEMENT_INCOMPLETE_LIMIT
-    )
+    orch.logger.info("CICLO: pos-liquidacao incompleto | tentativa=%d | janela de tolerancia ativa", streak)
     try:
         loop = asyncio.get_running_loop()
         loop.create_task(_clean_stale_settlement_and_redis_counters(orch))
     except RuntimeError:
         pass
-    if streak >= _POST_SETTLEMENT_INCOMPLETE_LIMIT:
-        orch._post_settlement_deadlock = True
 
 
 async def _attempt_post_settlement_trading_cycle(orch: Any, orch_cfg: dict) -> bool:
@@ -159,24 +161,70 @@ async def _attempt_post_settlement_trading_cycle(orch: Any, orch_cfg: dict) -> b
             return bool(getattr(orch, "_last_cycle_cluster_executed", False))
         except TimeoutError:
             orch.is_trading = False
-            orch.logger.warning("CICLO: timeout pos-liquidacao (%.0fs); nova tentativa", cycle_timeout)
+            orch.logger.info("CICLO: timeout pos-liquidacao (%.0fs); backoff na janela de tolerancia", cycle_timeout)
             return False
     finally:
         orch._dl_fast_cycle = False
 
 
+async def _await_exec_empty_signature_alignment(orch: Any, poll: float) -> None:
+    """Apos EXEC_EMPTY em recovery, espera fronteira de 60s; senao polling curto."""
+    rm = getattr(orch, "risk_manager", None)
+    pending = 0.0
+    if rm is not None:
+        pending_fn = getattr(rm, "pending_loss_total", None)
+        if callable(pending_fn):
+            pending = float(pending_fn())
+        else:
+            pending_map = getattr(rm, "pending_loss", {}) or {}
+            if isinstance(pending_map, dict):
+                pending = float(sum(float(v) for v in pending_map.values()))
+    if pending <= 0.0:
+        await _poll_delay(poll)
+        return
+    cooldown = float(getattr(orch, "_cooldown_until", 0.0))
+    now = time.time()
+    if cooldown > now:
+        await _await_post_settlement_breath(orch, cooldown - now, poll)
+        return
+    delay = float(seconds_until_next_signature_boundary(orch))
+    if delay > 0.0:
+        orch._cooldown_until = now + delay
+        await _await_post_settlement_breath(orch, delay, poll)
+        return
+    await _poll_delay(poll)
+
+
+async def _apply_tolerance_window_recovery(orch: Any, *, window: float, failed_attempts: int) -> int:
+    """Roda orphan cleaner ao esgotar a janela e reinicia contadores sem deadlock."""
+    settled = await SettlementOrphanCleaner(orch).reconcile_stale_contracts()
+    _record_post_settlement_incomplete(orch)
+    orch._post_settlement_deadlock = False
+    orch._post_settlement_incomplete_streak = 0
+    clear_post_settlement_polling_state(orch)
+    orch.logger.info(
+        "SETTLE: janela tolerancia %.0fs | orphans=%d | tentativas=%d | estado reconciliado",
+        window,
+        settled,
+        failed_attempts,
+    )
+    return settled
+
+
 async def _run_post_settlement_retry_loop(orch: Any, orch_cfg: dict, poll: float) -> None:
-    """Repete tentativas de ciclo ate sucesso ou motor parar."""
+    """Retenta ciclo com backoff exponencial dentro da janela de 120s."""
     trading_wait_limit = float(orch_cfg.get("post_settlement_is_trading_wait_seconds", 120.0))
-    retry_limit = float(orch_cfg.get("post_settlement_cycle_retry_seconds", 120.0))
-    retry_deadline = time.monotonic() + retry_limit
+    window = resolve_settlement_tolerance_window(orch, orch_cfg)
+    window_deadline = time.monotonic() + window
     failed_attempts = 0
     while orch.running:
         if await _try_stop_win_fast_path(orch):
             return
-        if bool(getattr(orch, "_post_settlement_deadlock", False)):
-            return
         if orch.state.active_contracts:
+            if time.monotonic() >= window_deadline:
+                await _apply_tolerance_window_recovery(orch, window=window, failed_attempts=failed_attempts)
+                window_deadline = time.monotonic() + window
+                failed_attempts = 0
             await _poll_delay(poll)
             continue
         if orch.is_trading:
@@ -188,24 +236,23 @@ async def _run_post_settlement_retry_loop(orch: Any, orch_cfg: dict, poll: float
             continue
         if await _attempt_post_settlement_trading_cycle(orch, orch_cfg):
             orch._post_settlement_incomplete_streak = 0
+            orch._post_settlement_deadlock = False
             return
         failed_attempts += 1
-        if failed_attempts >= _MAX_POST_SETTLEMENT_CYCLE_ATTEMPTS:
-            _record_post_settlement_incomplete(orch)
+        if time.monotonic() >= window_deadline or failed_attempts >= _MAX_POST_SETTLEMENT_CYCLE_ATTEMPTS:
+            await _apply_tolerance_window_recovery(orch, window=window, failed_attempts=failed_attempts)
+            window_deadline = time.monotonic() + window
             failed_attempts = 0
-            if bool(getattr(orch, "_post_settlement_deadlock", False)):
+            if not orch.state.active_contracts and await _attempt_post_settlement_trading_cycle(orch, orch_cfg):
                 return
-        if time.monotonic() >= retry_deadline:
-            retry_deadline = time.monotonic() + retry_limit
-            _record_post_settlement_incomplete(orch)
-            failed_attempts = 0
-            if bool(getattr(orch, "_post_settlement_deadlock", False)):
-                return
-        await _poll_delay(poll)
+            continue
+        backoff = next_settlement_backoff_seconds(failed_attempts - 1)
+        await _await_post_settlement_breath(orch, backoff, max(poll, 0.05))
+        await _await_exec_empty_signature_alignment(orch, poll)
 
 
 async def run_post_settlement_breath_and_cycle(orch: Any) -> None:
-    """Aplica fôlego pós-liquidação antes de um novo ciclo."""
+    """Aplica folego pos-liquidacao antes de um novo ciclo."""
     try:
         if await _try_stop_win_fast_path(orch):
             return

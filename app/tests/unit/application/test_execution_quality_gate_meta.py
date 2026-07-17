@@ -24,41 +24,30 @@ def test_meta_zscore_reject_reason_formats_below_min():
     assert "< min 0.50" in meta_zscore_reject_reason(0.35, min_z=0.5)
 
 
-def test_evaluate_meta_payoff_quality_accepts_favorable_zscore():
+def test_evaluate_meta_payoff_quality_always_passes_even_with_negative_edge():
     metrics = {
         "calibrated_prob": 0.60,
-        "predicted_payoff_edge": 0.06,
-        "meta_payoff_edge_zscore": 0.55,
+        "predicted_payoff_edge": -2.07,
+        "meta_payoff_edge_zscore": -1.5,
     }
     assert evaluate_meta_payoff_quality(metrics, exec_cfg={}) is True
-    assert metrics["execution_gate_state"] == "meta_zscore_pass"
+    assert metrics["execution_gate_state"] == "meta_payoff_gate_disabled"
+    assert "quality_gate_reason" not in metrics
 
 
-def test_evaluate_meta_payoff_quality_rejects_low_zscore():
+def test_evaluate_meta_payoff_quality_ignores_min_edge_floor():
     metrics = {
         "calibrated_prob": 0.57,
         "predicted_payoff_edge": 0.02,
         "meta_payoff_edge_zscore": 0.10,
     }
-    assert evaluate_meta_payoff_quality(metrics, exec_cfg={}) is False
-    assert "< min 0.50" in metrics["quality_gate_reason"]
-
-
-def test_evaluate_meta_payoff_quality_rejects_negative_edge():
-    metrics = {
-        "predicted_payoff_edge": -0.01,
-        "meta_payoff_edge_zscore": -0.20,
-    }
-    assert evaluate_meta_payoff_quality(metrics, exec_cfg={}) is False
-
-
-def test_evaluate_meta_payoff_quality_rejects_below_min_z():
-    metrics = {
-        "predicted_payoff_edge": 0.04,
-        "meta_payoff_edge_zscore": 0.35,
-    }
-    assert evaluate_meta_payoff_quality(metrics, exec_cfg={}) is False
-    assert "< min 0.50" in metrics["quality_gate_reason"]
+    assert (
+        evaluate_meta_payoff_quality(
+            metrics,
+            exec_cfg={"quality_gate": {"min_payoff_edge": 0.70, "min_meta_payoff_zscore": 2.0}},
+        )
+        is True
+    )
 
 
 def test_meta_payoff_zscore_reads_edge_zscore_fallback():
@@ -66,7 +55,7 @@ def test_meta_payoff_zscore_reads_edge_zscore_fallback():
     assert evaluate_meta_payoff_quality(metrics, exec_cfg={}) is True
 
 
-def test_evaluate_meta_payoff_quality_logs_reject_when_requested(orch_ready, caplog):
+def test_evaluate_meta_payoff_quality_log_reject_is_noop_when_disabled(orch_ready, caplog):
     orch = orch_ready
     orch._active_cycle_id = 12
     metrics = {
@@ -82,10 +71,10 @@ def test_evaluate_meta_payoff_quality_logs_reject_when_requested(orch_ready, cap
                 log_reject=True,
                 minute_bucket="202607072310",
             )
-            is False
+            is True
         )
     guard_logs = [record for record in caplog.records if "EXECUTION_FLOW" in record.message]
-    assert len(guard_logs) == 1
+    assert guard_logs == []
 
 
 def test_ensure_meta_zscore_telemetry_populates_missing_fields():

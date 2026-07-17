@@ -30,6 +30,7 @@ OPTUNA_OOS_PAYOFF_ZSCORE_MIN = 1.0
 
 def configure_meta_train_logging() -> None:
     logging.getLogger("lightgbm").setLevel(logging.ERROR)
+    logging.getLogger("asyncio").setLevel(logging.CRITICAL)
     optuna.logging.set_verbosity(optuna.logging.WARNING)
     try:
         silent_logger = getattr(lgb, "basic_logger", None)

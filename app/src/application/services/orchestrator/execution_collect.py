@@ -23,9 +23,12 @@ from src.application.services.orchestrator.execution_collect_helpers import (
     mandatory_fallback_if_empty as _mandatory_fallback_if_empty,
     resolve_mandatory_ultimate_candidate as _resolve_mandatory_ultimate_candidate,
 )
-from src.domain.math.probability_entropy import binary_entropy
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.recovery_hurst_decay import session_drawdown_from_profit
+from src.domain.risk.risk_recovery_state import (
+    cointegration_redirect_armed,
+    select_cointegration_redirect_candidate,
+)
 from src.domain.risk.stake_sizing import enrich_metrics_conviction, metric_float, raw_side_from_metrics
 
 
@@ -33,29 +36,19 @@ def apply_cointegration_redirect(
     candidates: list[tuple[str, TradeDirection, dict]],
     risk_manager: Any,
 ) -> list[tuple[str, TradeDirection, dict]]:
-    """Aplica o filtro Consensus Cointegration Redirect sob drawdown > 15%."""
-    initial_bankroll = float(getattr(risk_manager, "initial_bankroll", 100.0))
-    pending_total = getattr(risk_manager, "pending_loss_total", None)
-    pending_val = pending_total() if callable(pending_total) else 0.0
-    if initial_bankroll <= 250.0 and pending_val > 15.0:
-        drift_candidates = [c for c in candidates if c[0] in ("RDBULL", "RDBEAR")]
-        if len(drift_candidates) > 1:
-
-            def cointegration_score(item):
-                """Pontua candidato Drift por Z de edge menos entropia."""
-                metrics = item[2]
-                prob = float(metrics.get("calibrated_prob", metrics.get("raw_prob", 0.5)))
-                entropy = binary_entropy(prob)
-                z = float(metrics.get("meta_payoff_edge_zscore", metrics.get("edge_zscore", 0.0)))
-                return z - entropy
-
-            best_drift = max(drift_candidates, key=cointegration_score)
-            return [best_drift]
-        if drift_candidates:
-            return drift_candidates
-        # pragma: no cover
-        return []  # pragma: no cover
-    return candidates
+    """Aplica Consensus Cointegration Redirect sob drawdown > 15% do capital vivo."""
+    armed = getattr(risk_manager, "cointegration_redirect_active", None)
+    if callable(armed):
+        if not bool(armed()):
+            return candidates
+    else:
+        initial_bankroll = float(getattr(risk_manager, "initial_bankroll", 100.0) or 100.0)
+        pending_total = getattr(risk_manager, "pending_loss_total", None)
+        pending_val = float(pending_total()) if callable(pending_total) else 0.0
+        if not cointegration_redirect_armed(initial_bankroll, pending_val):
+            return candidates
+    redirected = select_cointegration_redirect_candidate(candidates)
+    return redirected if redirected else candidates
 
 
 def _quality_blocks_mandatory_fallback(exec_mgr, decisions: dict) -> bool:
@@ -285,6 +278,6 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
         calibrated = metric_float(metrics, "trade_score", "conviction", default=0.0)
         raw_side = raw_side_from_metrics(metrics)
         effective_signal = max(calibrated, raw_side)
-        log_execution_decision(exec_mgr, cid, best, candidates, effective_signal)
+        log_execution_decision(exec_mgr, cid, best, candidates, effective_signal, decisions=decisions)
         return [best]
     return []

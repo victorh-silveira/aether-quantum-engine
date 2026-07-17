@@ -16,7 +16,9 @@ from src.infrastructure.inference.triton_grpc_client import (
     get_triton_grpc_client,
 )
 from src.infrastructure.inference.triton_http import (
+    load_triton_models_sequential,
     post_triton_repository_reload,
+    triton_model_ready,
     wait_triton_models_ready,
 )
 
@@ -62,7 +64,7 @@ def _triton_wait_settings(config: dict) -> tuple[float, float]:
 
 
 def triton_infer_timeout_seconds(config: dict, *, bootstrap: bool = False) -> float:
-    """Resolve deadline gRPC do Triton para ciclo M1 ou probe de bootstrap."""
+    """Resolve deadline gRPC do Triton para ciclo M5 ou probe de bootstrap."""
     infra = config.get("infra") if isinstance(config, dict) else {}
     chunk = infra.get("triton") if isinstance(infra, dict) else {}
     if not isinstance(chunk, dict):
@@ -73,7 +75,7 @@ def triton_infer_timeout_seconds(config: dict, *, bootstrap: bool = False) -> fl
 
 
 async def reload_triton_repository(config: dict, model_names: list[str] | None = None) -> bool:
-    """Aguarda modelos do Triton ficarem prontos apos sincronizar artefatos no disco."""
+    """Recarrega modelos via API explicita apos sincronizar artefatos no disco."""
     symbols = [str(name) for name in (model_names or []) if str(name)]
     if not symbols:
         if not triton_enabled(config):
@@ -89,13 +91,37 @@ async def reload_triton_repository(config: dict, model_names: list[str] | None =
     return await wait_triton_models_stable(config, symbols, repo_changed=True)
 
 
+def _models_needing_load_over_load(
+    http_url: str,
+    symbols: list[str],
+    *,
+    repo_changed: bool,
+    changed_models: list[str] | None,
+) -> list[str]:
+    """Seleciona modelos para /load: artefato novo ou ainda nao ready (sem /unload)."""
+    if changed_models is not None:
+        changed = {str(name) for name in changed_models if str(name)}
+        candidates = [sym for sym in symbols if sym in changed] if repo_changed else []
+    elif repo_changed:
+        candidates = list(symbols)
+    else:
+        candidates = []
+    pending_ready = [sym for sym in symbols if not triton_model_ready(http_url, sym)]
+    ordered: list[str] = []
+    for sym in symbols:
+        if (sym in candidates or sym in pending_ready) and sym not in ordered:
+            ordered.append(sym)
+    return ordered
+
+
 async def wait_triton_models_stable(
     config: dict,
     model_names: list[str],
     *,
     repo_changed: bool = True,
+    changed_models: list[str] | None = None,
 ) -> bool:
-    """Aguarda ready estavel apos poll do repositorio evitar unload/load concorrente."""
+    """MODE_EXPLICIT load-over-load: so /load nos modelos necessarios, nunca /unload."""
     if not triton_enabled(config):
         return False
     symbols = [str(name) for name in model_names if str(name)]
@@ -103,22 +129,39 @@ async def wait_triton_models_stable(
         return True
     http_url = triton_http_url(config)
     timeout, poll = _triton_wait_settings(config)
-    ready = await asyncio.to_thread(
-        wait_triton_models_ready,
-        http_url,
-        symbols,
-        timeout_seconds=timeout,
-        poll_interval_seconds=poll,
-    )
-    if not ready:
+    if not repo_changed and not changed_models:
+        ready = await asyncio.to_thread(
+            wait_triton_models_ready,
+            http_url,
+            symbols,
+            timeout_seconds=timeout,
+            poll_interval_seconds=poll,
+        )
+        if ready:
+            return True
+    try:
+        to_load = await asyncio.to_thread(
+            _models_needing_load_over_load,
+            http_url,
+            symbols,
+            repo_changed=repo_changed,
+            changed_models=changed_models,
+        )
+        if to_load:
+            loaded = await asyncio.to_thread(
+                load_triton_models_sequential,
+                http_url,
+                to_load,
+                wait_each_ready=True,
+                timeout_seconds=timeout,
+                poll_interval_seconds=poll,
+            )
+            logger.info("TRITON: load-over-load | modelos=%s", ",".join(loaded) or "-")
+        else:
+            logger.debug("TRITON: load-over-load omitido | modelos ja ready")
+    except (urllib.error.URLError, OSError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
+        logger.warning("TRITON: falha no load-over-load (%s): %s", http_url, exc)
         return False
-    if not repo_changed:
-        return True
-    infra = config.get("infra") if isinstance(config, dict) else {}
-    chunk = infra.get("triton") if isinstance(infra, dict) else {}
-    poll_secs = float(chunk.get("repository_poll_seconds", 2.0)) if isinstance(chunk, dict) else 2.0
-    settle = max(0.5, poll_secs + 0.35)
-    await asyncio.sleep(settle)
     return await asyncio.to_thread(
         wait_triton_models_ready,
         http_url,

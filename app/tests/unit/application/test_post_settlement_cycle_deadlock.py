@@ -3,7 +3,6 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from src.application.services.orchestrator.post_settlement_cycle import (
-    _MAX_POST_SETTLEMENT_CYCLE_ATTEMPTS,
     _attempt_post_settlement_trading_cycle,
     _record_post_settlement_incomplete,
     _run_post_settlement_retry_loop,
@@ -18,14 +17,14 @@ from tests.unit.application.post_settlement_helpers import (
 POST_SETTLEMENT_MODULE = "src.application.services.orchestrator.post_settlement_cycle"
 
 
-def test_record_post_settlement_incomplete_sets_deadlock_at_limit(orch_ready):
+def test_record_post_settlement_incomplete_does_not_set_deadlock(orch_ready):
     orch = orch_ready
     _record_post_settlement_incomplete(orch)
     assert orch._post_settlement_incomplete_streak == 1
     assert orch._post_settlement_deadlock is False
     _record_post_settlement_incomplete(orch)
     assert orch._post_settlement_incomplete_streak == 2
-    assert orch._post_settlement_deadlock is True
+    assert orch._post_settlement_deadlock is False
 
 
 @pytest.mark.asyncio
@@ -59,7 +58,7 @@ async def test_post_settlement_stop_win_fast_path_skips_heavy_cycle(orch_ready):
 async def test_post_settlement_stop_win_during_stuck_retry_loop(orch_ready):
     orch = orch_ready
     orch.config.setdefault("orchestrator", {})["post_settlement_breath_seconds"] = 0
-    orch.config["orchestrator"]["post_settlement_cycle_retry_seconds"] = 0.001
+    orch.config["orchestrator"]["settlement_tolerance_window_seconds"] = 1.0
     orch.state_mgr.reset_session_metrics(1000.0, 50.0)
     orch.state_mgr.state.total_trades_today = 1
     attempts = 0
@@ -79,7 +78,13 @@ async def test_post_settlement_stop_win_during_stuck_retry_loop(orch_ready):
             new_callable=AsyncMock,
         ) as shutdown_mock,
         patch.object(orch, "_run_trading_cycle_if_ready", side_effect=cycle_never_completes),
-        patch_incrementing_monotonic(),
+        patch(
+            f"{POST_SETTLEMENT_MODULE}.SettlementOrphanCleaner.reconcile_stale_contracts",
+            new_callable=AsyncMock,
+            return_value=0,
+        ),
+        patch(f"{POST_SETTLEMENT_MODULE}._await_post_settlement_breath", new_callable=AsyncMock),
+        patch_incrementing_monotonic(step=0.5),
         patch_instant_post_settlement_poll(),
     ):
         await run_post_settlement_breath_and_cycle(orch)
@@ -89,50 +94,129 @@ async def test_post_settlement_stop_win_during_stuck_retry_loop(orch_ready):
 
 
 @pytest.mark.asyncio
-async def test_post_settlement_deadlock_flag_after_two_incomplete_cycles(orch_ready):
+async def test_post_settlement_tolerance_window_runs_orphan_cleaner(orch_ready):
     orch = orch_ready
     orch.config.setdefault("orchestrator", {})["post_settlement_breath_seconds"] = 0
-    orch.config["orchestrator"]["post_settlement_cycle_retry_seconds"] = 0.001
+    orch.config["orchestrator"]["settlement_tolerance_window_seconds"] = 1.0
+    cleaner_calls = 0
+
+    async def fake_reconcile(_self):
+        nonlocal cleaner_calls
+        cleaner_calls += 1
+        if cleaner_calls >= 1:
+            orch.running = False
+        return 1
+
     with (
         patch.object(orch, "_run_trading_cycle_if_ready", new_callable=AsyncMock, return_value=False),
-        patch_incrementing_monotonic(),
+        patch(
+            f"{POST_SETTLEMENT_MODULE}.SettlementOrphanCleaner.reconcile_stale_contracts",
+            new=fake_reconcile,
+        ),
+        patch(f"{POST_SETTLEMENT_MODULE}._await_post_settlement_breath", new_callable=AsyncMock),
+        patch_incrementing_monotonic(step=0.6),
         patch_instant_post_settlement_poll(),
     ):
         await run_post_settlement_breath_and_cycle(orch)
-    assert orch._post_settlement_deadlock is True
-    assert orch._post_settlement_incomplete_streak == 2
+    assert cleaner_calls >= 1
+    assert orch._post_settlement_deadlock is False
 
 
 @pytest.mark.asyncio
-async def test_post_settlement_retry_loop_exits_on_deadlock_flag(orch_ready):
+async def test_post_settlement_retry_loop_exits_on_stop_win(orch_ready):
     orch = orch_ready
-    orch._post_settlement_deadlock = True
     orch_cfg = orch.config.setdefault("orchestrator", {})
-    with patch(f"{POST_SETTLEMENT_MODULE}._try_stop_win_fast_path", new_callable=AsyncMock, return_value=False):
+    with patch(f"{POST_SETTLEMENT_MODULE}._try_stop_win_fast_path", new_callable=AsyncMock, return_value=True):
         await _run_post_settlement_retry_loop(orch, orch_cfg, 0.0)
 
 
 @pytest.mark.asyncio
-async def test_post_settlement_retry_loop_deadlocks_after_repeated_failed_attempt_batches(orch_ready):
+async def test_post_settlement_retry_loop_soft_recovers_after_tolerance_window(orch_ready):
     orch = orch_ready
     orch_cfg = orch.config.setdefault("orchestrator", {})
-    orch_cfg["post_settlement_cycle_retry_seconds"] = 9999.0
+    orch_cfg["settlement_tolerance_window_seconds"] = 1.0
     attempts = 0
 
     async def cycle_without_cluster():
         nonlocal attempts
         attempts += 1
         orch._last_cycle_cluster_executed = False
+        if attempts >= 3:
+            orch.running = False
         return True
 
     with (
         patch.object(orch, "_run_trading_cycle_if_ready", AsyncMock(side_effect=cycle_without_cluster)),
+        patch(
+            f"{POST_SETTLEMENT_MODULE}.SettlementOrphanCleaner.reconcile_stale_contracts",
+            new_callable=AsyncMock,
+            return_value=0,
+        ),
+        patch(f"{POST_SETTLEMENT_MODULE}._await_post_settlement_breath", new_callable=AsyncMock),
+        patch_incrementing_monotonic(step=0.6),
         patch_instant_post_settlement_poll(),
     ):
         await _run_post_settlement_retry_loop(orch, orch_cfg, 0.0)
 
-    assert orch._post_settlement_deadlock is True
-    assert attempts >= _MAX_POST_SETTLEMENT_CYCLE_ATTEMPTS * 2
+    assert orch._post_settlement_deadlock is False
+    assert attempts >= 2
+
+
+@pytest.mark.asyncio
+async def test_post_settlement_active_contracts_trigger_orphan_cleaner(orch_ready):
+    orch = orch_ready
+    orch_cfg = orch.config.setdefault("orchestrator", {})
+    orch_cfg["settlement_tolerance_window_seconds"] = 1.0
+    orch.state.active_contracts = {11: object()}
+    polls = 0
+
+    async def release_contracts(_seconds: float):
+        nonlocal polls
+        polls += 1
+        if polls >= 2:
+            orch.state.active_contracts = {}
+            orch.running = False
+
+    with (
+        patch(
+            f"{POST_SETTLEMENT_MODULE}.SettlementOrphanCleaner.reconcile_stale_contracts",
+            new_callable=AsyncMock,
+            return_value=1,
+        ) as cleaner,
+        patch(f"{POST_SETTLEMENT_MODULE}._poll_delay", side_effect=release_contracts),
+        patch_incrementing_monotonic(step=0.7),
+    ):
+        await _run_post_settlement_retry_loop(orch, orch_cfg, 0.0)
+    cleaner.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_post_settlement_recovery_then_successful_cycle(orch_ready):
+    orch = orch_ready
+    orch_cfg = orch.config.setdefault("orchestrator", {})
+    orch_cfg["settlement_tolerance_window_seconds"] = 1.0
+    calls = 0
+
+    async def cycle_then_success():
+        nonlocal calls
+        calls += 1
+        orch._last_cycle_cluster_executed = calls >= 2
+        return True
+
+    with (
+        patch.object(orch, "_run_trading_cycle_if_ready", AsyncMock(side_effect=cycle_then_success)),
+        patch(
+            f"{POST_SETTLEMENT_MODULE}.SettlementOrphanCleaner.reconcile_stale_contracts",
+            new_callable=AsyncMock,
+            return_value=0,
+        ),
+        patch(f"{POST_SETTLEMENT_MODULE}._await_post_settlement_breath", new_callable=AsyncMock),
+        patch_incrementing_monotonic(step=0.8),
+        patch_instant_post_settlement_poll(),
+    ):
+        await _run_post_settlement_retry_loop(orch, orch_cfg, 0.0)
+    assert calls >= 2
+    assert orch._post_settlement_deadlock is False
 
 
 @pytest.mark.asyncio

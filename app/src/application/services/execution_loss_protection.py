@@ -5,8 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 from src.domain.models.trade import TradeDirection
-from src.domain.risk.recovery_hurst_decay import resolve_effective_hurst_min
-from src.domain.risk.recovery_hurst_gate import recovery_pool_has_persistence
 
 
 def _directional_calibrated_side(metrics: dict, direction: TradeDirection | None = None) -> float:
@@ -136,44 +134,11 @@ def candidate_passes_loss_protection(
     recovery_active: bool,
     consecutive_losses: int,
 ) -> bool:
-    """True quando candidato atende piso de conviccao direcional para entrada."""
+    """Filtro de loss protection desativado; qualquer candidato tipado passa."""
+    _ = (exec_cfg, recovery_active, consecutive_losses)
     if not isinstance(item, tuple) or len(item) < 3:
         return False
-    metrics = item[2]
-    if not isinstance(metrics, dict):
-        return False
-    cfg = _loss_protection_cfg(exec_cfg)
-    try:
-        margin = float(metrics.get("direction_margin", 0.0))
-        edge = float(metrics.get("edge", 0.0))
-        z_edge = float(metrics.get("edge_zscore", 0.0))
-    except (TypeError, ValueError):
-        return False
-    min_margin = float(cfg.get("min_direction_margin", 0.18))
-    min_margin_recovery = float(cfg.get("recovery_min_direction_margin", 0.20))
-    recovery_min_hurst = float(cfg.get("recovery_min_hurst", 0.50))
-    max_edge_low_margin = float(cfg.get("max_edge_without_margin", 0.40))
-    max_z_low_margin = float(cfg.get("max_zscore_without_margin", 0.85))
-    linear = int(consecutive_losses)
-    if _loss_protection_recovery_blocks(
-        metrics,
-        recovery_active=recovery_active,
-        linear=linear,
-        min_margin_recovery=min_margin_recovery,
-        recovery_min_hurst=recovery_min_hurst,
-        margin=margin,
-    ):
-        return False
-    return not _loss_protection_signal_blocks(
-        metrics,
-        item[1],
-        margin=margin,
-        edge=edge,
-        z_edge=z_edge,
-        min_margin=min_margin,
-        max_edge_low_margin=max_edge_low_margin,
-        max_z_low_margin=max_z_low_margin,
-    )
+    return isinstance(item[2], dict)
 
 
 def filter_loss_protection_candidates(
@@ -209,32 +174,6 @@ def filter_recovery_hurst_candidates(
     recovery_skip_counter: int = 0,
     session_drawdown: float = 0.0,
 ) -> list[tuple[str, TradeDirection, dict]]:
-    """Em recovery N2+, prioriza candidatos com Hurst de persistencia."""
-    if not candidates or int(consecutive_losses) < 2:
-        return list(candidates)
-    cfg = kelly_cfg if isinstance(kelly_cfg, dict) else {}
-    hurst_min = resolve_effective_hurst_min(
-        cfg,
-        int(recovery_skip_counter),
-        consecutive_losses=int(consecutive_losses),
-        session_drawdown=float(session_drawdown),
-    )
-    if recovery_pool_has_persistence(
-        candidates,
-        consecutive_losses=int(consecutive_losses),
-        hurst_min=hurst_min,
-    ):
-        persistent = []
-        threshold = float(hurst_min)
-        for item in candidates:
-            if not isinstance(item, tuple) or len(item) < 3:
-                continue
-            metrics = item[2]
-            if not isinstance(metrics, dict):
-                continue
-            indicators = metrics.get("indicators") or {}
-            if float(indicators.get("hurst", 0.0)) + 1e-9 >= threshold:
-                persistent.append(item)
-        if persistent:
-            return persistent
+    """Filtro Hurst de recovery desativado; retorna o pool integral."""
+    _ = (kelly_cfg, consecutive_losses, recovery_skip_counter, session_drawdown)
     return list(candidates)

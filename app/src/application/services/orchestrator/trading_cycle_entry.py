@@ -51,6 +51,7 @@ def prepare_orchestrator_run_loop(orch: Any) -> None:
     orch._session_persistence_write_active = False
     orch._stream_warmed_up_at = 0.0
     orch._warm_up_logged_until = 0.0
+    orch._warm_up_waiver_applied = False
     orch._quality_guard_logged_cycle_id = -1
     orch._signature_invalidation_logged_key = ""
     orch.running = True
@@ -110,12 +111,7 @@ async def _execute_inference_cluster_cycle(orch: Any) -> bool:
             sanitize_quality_skip_decisions(decisions)
             post_lock_decisions = decisions
             record_quality_guard_cycle_skip(orch)
-            quality_skip_pending = any(
-                isinstance(entry, dict)
-                and isinstance(entry.get("metrics"), dict)
-                and entry["metrics"].get("execution_gate_state") == "meta_zscore_reject"
-                for entry in decisions.values()
-            )
+            quality_skip_pending = True
         elif not session_persistence_blocks_trading_cycle(orch):
             executed_count = await orch.executor.execute_cluster(decisions)
             cluster_executed = executed_count > 0 if isinstance(executed_count, (int, float)) else True

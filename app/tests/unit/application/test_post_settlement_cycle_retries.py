@@ -49,7 +49,7 @@ async def test_run_post_settlement_timeout_releases_is_trading_and_retries(orch_
 async def test_run_post_settlement_retries_when_cycle_does_not_complete(orch_ready):
     orch = orch_ready
     orch.config.setdefault("orchestrator", {})["post_settlement_breath_seconds"] = 0
-    orch.config["orchestrator"]["post_settlement_cycle_retry_seconds"] = 0.01
+    orch.config["orchestrator"]["settlement_tolerance_window_seconds"] = 1.0
     attempts = 0
 
     async def cycle_side_effect():
@@ -61,12 +61,19 @@ async def test_run_post_settlement_retries_when_cycle_does_not_complete(orch_rea
 
     with (
         patch.object(orch, "_run_trading_cycle_if_ready", side_effect=cycle_side_effect),
-        patch_incrementing_monotonic(),
+        patch(
+            f"{POST_SETTLEMENT_MODULE}.SettlementOrphanCleaner.reconcile_stale_contracts",
+            new_callable=AsyncMock,
+            return_value=0,
+        ),
+        patch(f"{POST_SETTLEMENT_MODULE}._await_post_settlement_breath", new_callable=AsyncMock),
+        patch_incrementing_monotonic(step=0.6),
         patch_instant_post_settlement_poll(),
     ):
         await run_post_settlement_breath_and_cycle(orch)
 
     assert attempts >= 2
+    assert orch._post_settlement_deadlock is False
 
 
 @pytest.mark.asyncio

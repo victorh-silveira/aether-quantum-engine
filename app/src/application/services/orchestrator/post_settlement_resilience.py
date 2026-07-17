@@ -39,7 +39,7 @@ def recover_post_settlement_loop_transparently(orch: Any) -> None:
     """Reinicializa contadores pos-liquidacao sem encerrar o processo do host."""
     streak = int(getattr(orch, "_post_settlement_incomplete_streak", 0))
     deadlock = bool(getattr(orch, "_post_settlement_deadlock", False))
-    if not deadlock and streak < 2:
+    if not deadlock and streak <= 0:
         return
     orch._post_settlement_incomplete_streak = 0
     orch._post_settlement_deadlock = False

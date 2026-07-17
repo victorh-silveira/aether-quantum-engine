@@ -128,6 +128,29 @@ async def test_bootstrap_legacy_stop_win_without_compounding():
     orch.logger = MagicMock()
     await bootstrap_active_session_targets(orch, 50.0)
     assert orch.state_mgr.state.daily_stop_win_target == pytest.approx(15.0)
+    orch.logger.info.assert_called()
+    assert "Alvo fixo micro-banca" in orch.logger.info.call_args[0][0]
+
+
+@pytest.mark.asyncio
+async def test_bootstrap_micro_bankroll_fixed_with_compounding():
+    orch = MagicMock()
+    orch._session_targets_bootstrapped = False
+    orch.config = {
+        "risk_management": {
+            "small_account_threshold": 100.0,
+            "small_account_stop_win": 10.0,
+            "params": {"compounding_enabled": True, "compounding_rate_daily": 0.026},
+        }
+    }
+    orch.state_mgr = StateManager()
+    orch.risk_manager = RiskManager(orch.config["risk_management"])
+    orch.state_store = AsyncMock()
+    orch.logger = MagicMock()
+    await bootstrap_active_session_targets(orch, 50.0)
+    assert orch.state_mgr.state.daily_stop_win_target == pytest.approx(10.0)
+    assert "Alvo fixo micro-banca" in orch.logger.info.call_args[0][0]
+    assert orch.logger.info.call_args[0][1] == pytest.approx(10.0)
 
 
 @pytest.mark.asyncio

@@ -3,11 +3,12 @@ from unittest.mock import AsyncMock, MagicMock
 import httpx
 import pytest
 
+from src.application.services.meta_classifier_cross_symbol import META_FEATURE_DIM
 from src.infrastructure.inference.meta_classifier_client import (
     MetaClassifierClient,
+    assert_meta_feature_vector_dim,
     build_meta_predict_request,
     build_persistent_http_client,
-    fallback_payoff_score,
     meta_classifier_enabled,
     meta_classifier_http_url,
     meta_classifier_timeout,
@@ -32,6 +33,31 @@ def test_meta_classifier_enabled_from_config():
     assert meta_classifier_enabled(cfg) is True
     assert meta_classifier_http_url(cfg) == "http://localhost:8005"
     assert meta_classifier_timeout(cfg) == 1.0
+
+
+def test_assert_meta_feature_vector_dim_accepts_canonical_43():
+    assert_meta_feature_vector_dim([0.0] * META_FEATURE_DIM)
+
+
+def test_assert_meta_feature_vector_dim_rejects_truncated_payload():
+    with pytest.raises(ValueError, match=r"Vetor tabular corrompido: local esperado 43, gerado 39"):
+        assert_meta_feature_vector_dim([0.0] * 39)
+
+
+@pytest.mark.asyncio
+async def test_predict_meta_rejects_corrupted_dim_before_http():
+    client = MetaClassifierClient(base_url="http://meta:8005", timeout=1.0, enabled=True)
+    client._client.post = AsyncMock()
+    request = {
+        "symbol": "RDBULL",
+        "tcn_probability": 0.62,
+        "direction": "CALL",
+        "feature_vector": [0.1] * 39,
+    }
+    with pytest.raises(ValueError, match=r"local esperado 43, gerado 39"):
+        await client.predict_meta(request, fallback_score=0.62)
+    client._client.post.assert_not_called()
+    await client.aclose()
 
 
 @pytest.mark.asyncio
@@ -259,41 +285,3 @@ async def test_predict_meta_sync_inside_running_loop():
         fallback_score=0.62,
     )
     assert result["predicted_payoff_edge"] == pytest.approx(0.0)
-
-
-def test_fallback_payoff_score_prefers_trade_score():
-    metrics = {"trade_score": 0.59, "calibrated_prob": 0.62}
-    assert fallback_payoff_score(metrics, "CALL", 0.62) == pytest.approx(0.59)
-
-
-@pytest.mark.asyncio
-async def test_predict_meta_success_clears_fallback_dedupe_state(caplog):
-    client = MetaClassifierClient(base_url="http://meta:8005", timeout=1.0, enabled=True)
-    client._client.post = AsyncMock(side_effect=httpx.TimeoutException("timeout"))
-    await client.predict_meta(
-        build_meta_predict_request(
-            symbol="RDBULL",
-            metrics=_meta_metrics(),
-            tcn_probability=0.62,
-            direction="CALL",
-        ),
-        fallback_score=0.62,
-    )
-    response = MagicMock()
-    response.raise_for_status = MagicMock()
-    response.json = MagicMock(return_value={"predicted_payoff_edge": 0.17, "meta_applied": True})
-    client._client.post = AsyncMock(return_value=response)
-    with caplog.at_level("WARNING"):
-        result = await client.predict_meta(
-            build_meta_predict_request(
-                symbol="RDBULL",
-                metrics=_meta_metrics(),
-                tcn_probability=0.62,
-                direction="CALL",
-            ),
-            fallback_score=0.62,
-        )
-    assert result["meta_applied"] is True
-    fallback_logs = [record for record in caplog.records if "META_CLASSIFIER_FALLBACK" in record.message]
-    assert len(fallback_logs) == 1
-    await client.aclose()

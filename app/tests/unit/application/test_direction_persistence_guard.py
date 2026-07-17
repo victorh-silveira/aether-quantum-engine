@@ -235,5 +235,5 @@ def test_resolver_and_guard_noop_paths():
             "flow_features": {"micro_tick_acceleration": 0.0},
         },
     }
-    assert resolve_execution_direction(entry, symbol="RDBULL", peer_entry=peer, cycle_id=8) is None
-    assert entry["metrics"].get("signal_status") == SIGNAL_SUSPENDED
+    assert resolve_execution_direction(entry, symbol="RDBULL", peer_entry=peer, cycle_id=8) is not None
+    assert entry["metrics"].get("signal_status") != SIGNAL_SUSPENDED

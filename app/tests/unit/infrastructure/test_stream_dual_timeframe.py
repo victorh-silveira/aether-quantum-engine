@@ -17,13 +17,19 @@ from src.infrastructure.handlers.stream_timeframe import (
 def stream_handler():
     mock_ws = MagicMock()
     mock_ws.send = AsyncMock(return_value={"candles": []})
-    return StreamHandler(mock_ws, ["RDBULL"], {"granularity": 900, "micro_granularity": 60})
+    return StreamHandler(mock_ws, ["RDBULL"], {"granularity": 900, "micro_granularity": 300})
 
 
 def test_resolve_dual_granularity_defaults():
-    macro, micro = resolve_dual_granularity({"granularity": 900, "micro_granularity": 60})
+    macro, micro = resolve_dual_granularity({"granularity": 900, "micro_granularity": 300})
     assert macro == 900
-    assert micro == 60
+    assert micro == 300
+
+
+def test_resolve_dual_granularity_falls_back_to_m5_micro():
+    macro, micro = resolve_dual_granularity({"granularity": 900})
+    assert macro == 900
+    assert micro == 300
 
 
 def test_resolve_micro_fetch_count():
@@ -32,15 +38,15 @@ def test_resolve_micro_fetch_count():
 
 
 def test_ohlc_payload_granularity_explicit():
-    assert ohlc_payload_granularity({"open_time": 1000, "granularity": 900}, 900, 60) == 900
+    assert ohlc_payload_granularity({"open_time": 1000, "granularity": 900}, 900, 300) == 900
 
 
 def test_ohlc_payload_granularity_infers_macro_from_epoch():
-    assert ohlc_payload_granularity({"open_time": 1800}, 900, 60) == 900
+    assert ohlc_payload_granularity({"open_time": 1800}, 900, 300) == 900
 
 
 def test_ohlc_payload_granularity_infers_micro_from_epoch():
-    assert ohlc_payload_granularity({"open_time": 120}, 900, 60) == 60
+    assert ohlc_payload_granularity({"open_time": 300}, 900, 300) == 300
 
 
 def test_candle_from_ohlc_and_apply_update():
@@ -82,8 +88,8 @@ async def test_stream_handler_on_micro_candle_invokes_callback(stream_handler):
                 "high": 1.1,
                 "low": 0.9,
                 "close": 1.05,
-                "open_time": 60,
-                "granularity": 60,
+                "open_time": 300,
+                "granularity": 300,
             }
         }
     )
@@ -101,8 +107,8 @@ async def test_stream_handler_micro_candle_ignores_unknown_symbol(stream_handler
                 "high": 1.1,
                 "low": 0.9,
                 "close": 1.0,
-                "open_time": 60,
-                "granularity": 60,
+                "open_time": 300,
+                "granularity": 300,
             }
         }
     )
@@ -142,7 +148,7 @@ def test_get_last_micro_candle_epoch(stream_handler):
 async def test_stream_handler_macro_buffer_limit():
     ws = MagicMock()
     ws.send = AsyncMock(return_value={"candles": []})
-    sh = StreamHandler(ws, ["RDBULL"], {"buffer_limit": 2, "granularity": 900, "micro_granularity": 60})
+    sh = StreamHandler(ws, ["RDBULL"], {"buffer_limit": 2, "granularity": 900, "micro_granularity": 300})
     await sh.start_candle_stream(AsyncMock())
     payload = {
         "symbol": "RDBULL",

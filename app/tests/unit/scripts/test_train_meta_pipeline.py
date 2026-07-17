@@ -74,7 +74,7 @@ def _asymmetric_bundles(*, bull_n: int = 5000, bear_n: int = 999) -> list[OhlcBu
 
 def test_build_paired_training_dataset_accepts_paired_cap_below_planned_fetch():
     bundles = _asymmetric_bundles(bull_n=5000, bear_n=999)
-    frame, y, _, _ = build_paired_training_dataset(bundles, micro_granularity=60, fetch_count=5000)
+    frame, y, _, _ = build_paired_training_dataset(bundles, micro_granularity=300, fetch_count=5000)
     assert len(frame) >= int(999 * INNER_JOIN_MIN_SAMPLE_RATIO) - 40
     validate_target_variance(y)
 
@@ -94,7 +94,7 @@ def test_build_paired_training_dataset_rejects_severely_short_bear():
         source="test",
     )
     with pytest.raises(RuntimeError, match="paginacao assimétrica"):
-        build_paired_training_dataset([bull, bear], micro_granularity=60, fetch_count=5000)
+        build_paired_training_dataset([bull, bear], micro_granularity=300, fetch_count=5000)
 
 
 def test_build_paired_training_dataset_rejects_disjoint_epochs():
@@ -111,12 +111,12 @@ def test_build_paired_training_dataset_rejects_disjoint_epochs():
         source="test",
     )
     with pytest.raises(RuntimeError, match="Nenhuma epoch comum"):
-        build_paired_training_dataset([bull, bear], micro_granularity=60, fetch_count=280)
+        build_paired_training_dataset([bull, bear], micro_granularity=300, fetch_count=280)
 
 
 def test_build_paired_training_dataset_accepts_high_overlap_inner_join():
     bundles = [_synthetic_bundle("RDBULL", n=5000), _synthetic_bundle("RDBEAR", n=5000, phase=0.3)]
-    frame, y, _, _ = build_paired_training_dataset(bundles, micro_granularity=60, fetch_count=5000)
+    frame, y, _, _ = build_paired_training_dataset(bundles, micro_granularity=300, fetch_count=5000)
     assert len(frame) >= int(5000 * INNER_JOIN_MIN_SAMPLE_RATIO) - 40
     assert frame.shape[1] == META_FEATURE_DIM
     validate_target_variance(y)
@@ -146,7 +146,7 @@ def test_target_variance_returns_float_dispersion():
 
 def test_build_training_summary_includes_continuous_telemetry():
     bundles = [_synthetic_bundle("RDBULL"), _synthetic_bundle("RDBEAR", phase=0.8)]
-    frame, y, _, _ = build_paired_training_dataset(bundles, micro_granularity=60, fetch_count=280)
+    frame, y, _, _ = build_paired_training_dataset(bundles, micro_granularity=300, fetch_count=280)
     summary = build_training_summary(
         frame=frame,
         y=y,
@@ -168,6 +168,7 @@ def test_build_training_summary_includes_continuous_telemetry():
 def test_configure_meta_train_logging_silences_lightgbm_and_optuna():
     configure_meta_train_logging()
     assert logging.getLogger("lightgbm").level == logging.ERROR
+    assert logging.getLogger("asyncio").level == logging.CRITICAL
     assert optuna.logging.get_verbosity() == optuna.logging.WARNING
 
 
@@ -179,7 +180,7 @@ def test_lgbm_quiet_params_include_verbose_and_warnings():
 
 def test_build_paired_training_dataset_has_continuous_target_and_named_columns():
     bundles = [_synthetic_bundle("RDBULL"), _synthetic_bundle("RDBEAR", phase=0.8)]
-    frame, y, proxy, pnl = build_paired_training_dataset(bundles, micro_granularity=60, fetch_count=280)
+    frame, y, proxy, pnl = build_paired_training_dataset(bundles, micro_granularity=300, fetch_count=280)
     columns = meta_classifier_column_names()
     assert list(frame.columns) == columns
     assert isinstance(frame, pd.DataFrame)

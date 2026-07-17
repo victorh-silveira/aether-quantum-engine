@@ -5,6 +5,7 @@ import logging
 import sys
 import types
 
+from aether_asyncio import run_async, silence_asyncio_debug
 from aether_paths import REPO_ROOT
 from src.application.services.orchestrator import Orchestrator
 from src.application.services.orchestrator.engine_mode import ENGINE_MODE_EXECUTE
@@ -167,9 +168,10 @@ async def main() -> int:
 
 
 if __name__ == "__main__":
+    silence_asyncio_debug()
     install_shutdown_excepthook()
     try:
-        sys.exit(asyncio.run(main()))
+        sys.exit(run_async(main()))
     except (SystemExit, KeyboardInterrupt):
         raise
     except Exception as exc:

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import filecmp
 import logging
+import os
 import shutil
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,7 @@ from src.infrastructure.inference.triton_inference_client import (
 
 
 logger = logging.getLogger("AETH")
+_TRITON_REPO_SYNC_LOCK = asyncio.Lock()
 
 
 def default_triton_repo_path() -> Path:
@@ -61,6 +63,73 @@ def _files_identical(left: Path, right: Path) -> bool:
     return filecmp.cmp(left, right, shallow=False)
 
 
+def _fsync_path(path: Path) -> None:
+    """Forca flush do descritor de arquivo para o bind mount do host."""
+    try:
+        fd = os.open(str(path), os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
+    except OSError:
+        return
+    finally:
+        os.close(fd)
+
+
+def _fsync_directory(path: Path) -> None:
+    """Tenta fsync do diretorio pai (POSIX); ignora falha em FS Windows/WSL."""
+    try:
+        dir_fd = os.open(str(path), os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(dir_fd)
+    except OSError:
+        return
+    finally:
+        os.close(dir_fd)
+
+
+def _atomic_publish_torchscript(src: Path, dest: Path) -> None:
+    """Copia TorchScript com flush completo antes do rename atomico."""
+    tmp_pt = dest.with_name(f"{dest.name}.tmp")
+    with src.open("rb") as fsrc, tmp_pt.open("wb") as fdst:
+        shutil.copyfileobj(fsrc, fdst, length=1024 * 1024)
+        fdst.flush()
+        os.fsync(fdst.fileno())
+    tmp_pt.replace(dest)
+    _fsync_path(dest)
+    _fsync_directory(dest.parent)
+
+
+def _write_text_durable(path: Path, content: str) -> None:
+    """Grava texto com fsync e libera o descritor antes de qualquer /load Triton."""
+    tmp = path.with_name(f"{path.name}.tmp")
+    with tmp.open("w", encoding="utf-8", newline="\n") as handle:
+        handle.write(content)
+        handle.flush()
+        os.fsync(handle.fileno())
+    tmp.replace(path)
+    _fsync_path(path)
+    _fsync_directory(path.parent)
+
+
+def _repo_durability_barrier(repo: Path, symbols: list[str]) -> None:
+    """Garante buffers em disco e descritores liberados antes do load-over-load."""
+    for symbol in symbols:
+        model_pt = repo / symbol / "1" / "model.pt"
+        pbtxt = repo / symbol / "config.pbtxt"
+        if model_pt.is_file():
+            _fsync_path(model_pt)
+            _fsync_directory(model_pt.parent)
+        if pbtxt.is_file():
+            _fsync_path(pbtxt)
+            _fsync_directory(pbtxt.parent)
+    if repo.is_dir():
+        _fsync_directory(repo)
+
+
 def _write_triton_model_dir(
     repo: Path,
     symbol: str,
@@ -75,15 +144,13 @@ def _write_triton_model_dir(
     dest_pt = model_dir / "model.pt"
     changed = False
     if not _files_identical(ts_source, dest_pt):
-        tmp_pt = model_dir / "model.pt.tmp"
-        shutil.copy2(ts_source, tmp_pt)
-        tmp_pt.replace(dest_pt)
+        _atomic_publish_torchscript(ts_source, dest_pt)
         changed = True
     pbtxt = triton_config_pbtxt(lookback=lookback, feature_dim=feature_dim).replace("{name}", symbol)
     pbtxt_path = repo / symbol / "config.pbtxt"
     existing = pbtxt_path.read_text(encoding="utf-8") if pbtxt_path.is_file() else ""
     if existing != pbtxt:
-        pbtxt_path.write_text(pbtxt, encoding="utf-8")
+        _write_text_durable(pbtxt_path, pbtxt)
         changed = True
     return changed
 
@@ -127,7 +194,17 @@ async def sync_all_symbols_to_triton(
     *,
     repo_path_override: Path | None = None,
 ) -> None:
-    """Sincroniza todos os simbolos configurados para o repositorio Triton."""
+    """Sincroniza artefatos com barreira de disco e load-over-load serializado."""
+    async with _TRITON_REPO_SYNC_LOCK:
+        await _sync_all_symbols_to_triton_locked(orch, repo_path_override=repo_path_override)
+
+
+async def _sync_all_symbols_to_triton_locked(
+    orch: Any,
+    *,
+    repo_path_override: Path | None = None,
+) -> None:
+    """Corpo do sync Triton sob lock: publica bytes, fsync, so entao /load."""
     dl_config = orch.config.get("deep_learning") or {}
     data_config = orch.config.get("data_handler") or {}
     risk_params = (orch.config.get("risk_management") or {}).get("params") or {}
@@ -139,7 +216,7 @@ async def sync_all_symbols_to_triton(
         return
     repo = repo_path_override or default_triton_repo_path()
     synced_symbols: list[str] = []
-    repo_changed = False
+    changed_symbols: list[str] = []
     for symbol in orch.symbols:
         sym = str(symbol)
         path = resolve_dl_model_path(dl_config, sym)
@@ -154,15 +231,29 @@ async def sync_all_symbols_to_triton(
         )
         if ok:
             synced_symbols.append(sym)
-            repo_changed = repo_changed or symbol_changed
+            if symbol_changed:
+                changed_symbols.append(sym)
     if not synced_symbols:
         return
+    await asyncio.to_thread(_repo_durability_barrier, repo, synced_symbols)
     label = ",".join(synced_symbols)
+    repo_changed = bool(changed_symbols)
     if triton_enabled(orch.config):
-        repo_ok = await wait_triton_models_stable(orch.config, synced_symbols, repo_changed=repo_changed)
+        repo_ok = await wait_triton_models_stable(
+            orch.config,
+            synced_symbols,
+            repo_changed=repo_changed,
+            changed_models=changed_symbols,
+        )
         status = "ready" if repo_ok else "timeout"
         drift = "sync" if repo_changed else "cache"
-        logger.info("TRITON | %d modelos | %s | %s | %s", len(synced_symbols), label, status, drift)
+        logger.info(
+            "TRITON | %d modelos | %s | %s | %s | load-over-load",
+            len(synced_symbols),
+            label,
+            status,
+            drift,
+        )
         if not repo_ok:
             raise ConnectionError(f"TRITON: modelos nao ficaram prontos: {label}")
     else:

@@ -33,6 +33,7 @@ def schedule_post_reconnect_warm_up_barrier(orch: Any) -> float:
     loop = asyncio.get_running_loop()
     orch._stream_warmed_up_at = loop.time() + delay
     orch._warm_up_logged_until = 0.0
+    orch._warm_up_waiver_applied = False
     return delay
 
 

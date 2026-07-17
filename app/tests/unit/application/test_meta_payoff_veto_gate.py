@@ -10,6 +10,7 @@ from src.application.services.meta_payoff_veto_gate import (
     classify_payoff_edge_expectancy,
     is_execution_signal_vetoed,
     meta_payoff_zscore,
+    resolve_payoff_edge_expectancy,
     should_veto_meta_payoff_negative_zscore,
     stamp_payoff_edge_expectancy,
 )
@@ -85,7 +86,7 @@ def test_should_veto_meta_payoff_negative_zscore_skips_neutral_with_low_z():
         "edge_expectancy": "NO_EDGE_NEUTRAL",
     }
     _stamp_negative_zscore(metrics)
-    assert should_veto_meta_payoff_negative_zscore(metrics, direction=TradeDirection.PUT) is True
+    assert should_veto_meta_payoff_negative_zscore(metrics, direction=TradeDirection.PUT) is False
 
 
 def test_should_veto_meta_payoff_negative_zscore_skips_loss_expected():
@@ -94,7 +95,7 @@ def test_should_veto_meta_payoff_negative_zscore_skips_loss_expected():
         "edge_expectancy": "LOSS_EXPECTED",
     }
     _stamp_negative_zscore(metrics)
-    assert should_veto_meta_payoff_negative_zscore(metrics, direction=TradeDirection.CALL) is True
+    assert should_veto_meta_payoff_negative_zscore(metrics, direction=TradeDirection.CALL) is False
 
 
 def test_should_veto_meta_payoff_negative_zscore_overrides_win_expected():
@@ -104,7 +105,7 @@ def test_should_veto_meta_payoff_negative_zscore_overrides_win_expected():
     }
     _stamp_negative_zscore(metrics, z_score=-1.47)
     assert stamp_payoff_edge_expectancy(metrics) == "NO_EDGE_NEUTRAL"
-    assert should_veto_meta_payoff_negative_zscore(metrics, direction=TradeDirection.CALL) is True
+    assert should_veto_meta_payoff_negative_zscore(metrics, direction=TradeDirection.CALL) is False
 
 
 def test_resolve_payoff_edge_expectancy_win_expected_with_nonpositive_edge_becomes_loss():
@@ -115,6 +116,10 @@ def test_resolve_payoff_edge_expectancy_win_expected_with_nonpositive_edge_becom
         "edge_zscore": -0.55,
     }
     assert stamp_payoff_edge_expectancy(metrics) == "LOSS_EXPECTED"
+
+
+def test_resolve_payoff_edge_expectancy_defaults_win_when_edge_missing():
+    assert resolve_payoff_edge_expectancy({}) == "WIN_EXPECTED"
 
 
 def test_should_not_veto_win_expected_with_mild_negative_zscore():
@@ -218,10 +223,9 @@ def test_resolve_execution_direction_skips_on_negative_zscore_veto():
         side_effect=lambda metrics, edge, **kwargs: _stamp_negative_zscore(metrics),
     ):
         result = resolve_execution_direction(entry, symbol="RDBEAR")
-    assert result is None
-    assert entry["metrics"]["gate_reason"] == META_PAYOFF_NEGATIVE_ZSCORE_VETO
-    assert entry["metrics"]["resolved_direction"] is None
-    assert entry["metrics"]["signal_status"] == "SKIP"
+    assert result is not None
+    assert entry["metrics"].get("gate_reason") != META_PAYOFF_NEGATIVE_ZSCORE_VETO
+    assert result[0] == TradeDirection.PUT
 
 
 def test_resolve_execution_direction_skips_win_expected_when_zscore_strongly_negative():
@@ -237,10 +241,10 @@ def test_resolve_execution_direction_skips_win_expected_when_zscore_strongly_neg
         side_effect=lambda metrics, edge, **kwargs: _stamp_negative_zscore(metrics, z_score=-1.47),
     ):
         result = resolve_execution_direction(entry, symbol="RDBULL")
-    assert result is None
-    assert entry["metrics"]["edge_expectancy"] == "NO_EDGE_NEUTRAL"
-    assert entry["metrics"]["gate_reason"] == META_PAYOFF_NEGATIVE_ZSCORE_VETO
-    assert entry["metrics"]["signal_status"] == "SKIP"
+    assert result is not None
+    assert stamp_payoff_edge_expectancy(entry["metrics"]) == "NO_EDGE_NEUTRAL"
+    assert entry["metrics"].get("gate_reason") != META_PAYOFF_NEGATIVE_ZSCORE_VETO
+    assert result[0] == TradeDirection.CALL
 
 
 def test_resolve_execution_direction_waives_veto_under_critical_recovery():
@@ -254,5 +258,4 @@ def test_resolve_execution_direction_waives_veto_under_critical_recovery():
     assert result is not None
     direction, metrics = result
     assert direction == TradeDirection.PUT
-    assert metrics.get("meta_payoff_veto_waived") is True
     assert metrics.get("gate_reason") != META_PAYOFF_NEGATIVE_ZSCORE_VETO

@@ -1,4 +1,4 @@
-"""Assinatura multi-timeframe M1+M15 com fronteira de minuto para invalidacao de cache."""
+"""Assinatura multi-timeframe M5+M15 com fronteira de 300s para invalidacao de cache."""
 
 from __future__ import annotations
 
@@ -6,10 +6,13 @@ import time
 from typing import Any
 
 
+DEFAULT_SIGNATURE_BOUNDARY_SECONDS = 300
+
 __all__ = [
     "at_signature_boundary",
     "get_data_state_signature",
     "m1_boundary_epoch",
+    "m5_boundary_epoch",
     "resolve_signature_boundary_seconds",
     "seconds_until_next_signature_boundary",
 ]
@@ -32,10 +35,10 @@ def _orchestrator_cfg(orch: Any) -> dict:
 
 
 def resolve_signature_boundary_seconds(orch: Any) -> int:
-    """Le fronteira de assinatura em segundos a partir da configuracao do orquestrador."""
+    """Le fronteira de assinatura em segundos (padrao M5 = 300s)."""
     orchestrator = _orchestrator_cfg(orch)
     if not orchestrator:
-        return 60
+        return DEFAULT_SIGNATURE_BOUNDARY_SECONDS
     raw = orchestrator.get("signature_boundary_seconds")
     if raw is not None:
         try:
@@ -50,11 +53,11 @@ def resolve_signature_boundary_seconds(orch: Any) -> int:
                 return cadence_int
         except (TypeError, ValueError):
             pass
-    return 60
+    return DEFAULT_SIGNATURE_BOUNDARY_SECONDS
 
 
 def seconds_until_next_signature_boundary(orch: Any, *, now: float | None = None) -> float:
-    """Calcula segundos restantes ate a proxima fronteira temporal configurada."""
+    """Calcula segundos restantes ate a proxima fronteira M5 (multiplo de 300s)."""
     boundary = resolve_signature_boundary_seconds(orch)
     now_ts = _resolve_now(now)
     next_boundary = (int(now_ts) // boundary + 1) * boundary
@@ -71,8 +74,8 @@ def at_signature_boundary(orch: Any, *, now: float | None = None, tolerance: flo
     return offset <= tol or offset >= max(0, boundary - tol)
 
 
-def m1_boundary_epoch(orch: Any, *, now: float | None = None) -> int:
-    """Retorna epoch Unix alinhado a fronteira temporal operacional configurada."""
+def m5_boundary_epoch(orch: Any, *, now: float | None = None) -> int:
+    """Retorna epoch Unix truncado em multiplos exatos da fronteira operacional (M5)."""
     boundary = resolve_signature_boundary_seconds(orch)
     now_ts = _resolve_now(now)
     clock_boundary = int(now_ts // boundary) * boundary
@@ -83,6 +86,11 @@ def m1_boundary_epoch(orch: Any, *, now: float | None = None) -> int:
     return clock_boundary
 
 
+def m1_boundary_epoch(orch: Any, *, now: float | None = None) -> int:
+    """Alias legado de m5_boundary_epoch para compatibilidade de imports."""
+    return m5_boundary_epoch(orch, now=now)
+
+
 def _last_candle_epoch(candles: list) -> int | None:
     """Extrai epoch do ultimo candle fechado em uma serie OHLC."""
     if not candles:
@@ -91,11 +99,11 @@ def _last_candle_epoch(candles: list) -> int | None:
 
 
 def get_data_state_signature(orch: Any, *, now: float | None = None) -> str:
-    """Monta assinatura M1+M15 com fronteira M1 obrigatoria por minuto."""
+    """Monta assinatura M5+M15 com fronteira M5 obrigatoria (m5b + m5:{sym}@{epoch})."""
     stream = getattr(orch, "stream", None)
     if stream is None:
         return ""
-    boundary = m1_boundary_epoch(orch, now=now)
+    boundary = m5_boundary_epoch(orch, now=now)
     micro_parts: list[str] = []
     macro_parts: list[str] = []
     for sym in getattr(orch, "symbols", []):
@@ -114,4 +122,4 @@ def get_data_state_signature(orch: Any, *, now: float | None = None) -> str:
     macro_sig = "|".join(macro_parts)
     if not micro_sig and not macro_sig:
         return ""
-    return f"m1b:{boundary};m1:{micro_sig};m15:{macro_sig}"
+    return f"m5b:{boundary};m5:{micro_sig};m15:{macro_sig}"

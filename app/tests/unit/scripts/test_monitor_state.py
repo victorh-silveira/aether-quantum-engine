@@ -37,6 +37,23 @@ def test_resolve_session_financials_fallback_from_rate():
     assert fin.remaining == pytest.approx(expected_target - 10.0, rel=1e-4)
 
 
+def test_resolve_session_financials_micro_fixed_fallback():
+    state = DashboardState(
+        balance=50.0,
+        session_start_balance=50.0,
+        session_target_win=0.0,
+        session_profit=2.0,
+        compounding_enabled=True,
+        compounding_rate=0.026,
+        small_account_threshold=100.0,
+        small_account_stop_win=10.0,
+    )
+    fin = resolve_session_financials(state)
+    assert fin.target_win == 10.0
+    assert fin.remaining == 8.0
+    assert "(FIXO MICRO)" in fin.goal_label
+
+
 def test_resolve_session_financials_progress_with_profit():
     state = DashboardState(
         session_start_balance=1000.0,

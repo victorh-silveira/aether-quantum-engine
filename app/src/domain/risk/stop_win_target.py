@@ -26,7 +26,7 @@ def _round_currency(value: float) -> float:
 
 
 class StopWinManager:
-    """Calcula meta de stop win da sessao corrente (2,60% composto sobre banca inicial)."""
+    """Calcula meta de stop win da sessao (2,60% composto, ou fixo em micro-banca)."""
 
     def __init__(self, risk_management: dict[str, Any] | None):
         self.risk_management = risk_management if isinstance(risk_management, dict) else {}
@@ -46,11 +46,17 @@ class StopWinManager:
         """Calcula banca inicial e meta win da sessao ativa."""
         start = max(0.0, float(session_start_balance))
         rate = self.compounding_rate()
+        fixed = _small_account_fixed_win(self.risk_management, start)
+        target = fixed if fixed is not None else start * rate
         return SessionTargets(
             session_start_balance=start,
-            target_win=_round_currency(start * rate),
+            target_win=_round_currency(target),
             compounding_rate=rate,
         )
+
+    def is_small_account(self, session_start_balance: float) -> bool:
+        """Indica se a banca inicial usa stop win fixo de micro-conta."""
+        return _small_account_fixed_win(self.risk_management, session_start_balance) is not None
 
     def resolve_target(
         self,
@@ -76,13 +82,22 @@ def resolve_session_start_balance(live_balance: float, risk_management: dict[str
     return max(0.0, float(live_balance))
 
 
+def _small_account_fixed_win(risk_management: dict[str, Any], session_start_balance: float) -> float | None:
+    """Retorna stop win fixo quando banca inicial esta abaixo do limiar de micro-conta."""
+    rm = risk_management or {}
+    thr = float(rm.get("small_account_threshold", 100.0))
+    if float(session_start_balance) < thr:
+        return max(0.0, float(rm.get("small_account_stop_win", 10.0)))
+    return None
+
+
 def _resolve_legacy_stop_win_target(risk_management: dict[str, Any], session_start_balance: float) -> float:
     """Calcula meta fixa ou percentual legada quando compounding esta desativado."""
     rm = risk_management or {}
+    fixed = _small_account_fixed_win(rm, session_start_balance)
+    if fixed is not None:
+        return fixed
     ini = float(session_start_balance)
-    thr = float(rm.get("small_account_threshold", 100.0))
-    if ini < thr:
-        return max(0.0, float(rm.get("small_account_stop_win", 10.0)))
     pct = float(rm.get("large_account_stop_win_pct", 1.0))
     pct = max(0.0, min(100.0, pct))
     return _round_currency(ini * pct / 100.0)

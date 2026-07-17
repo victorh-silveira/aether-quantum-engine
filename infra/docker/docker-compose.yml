@@ -74,8 +74,8 @@ services:
       [
         "tritonserver",
         "--model-repository=/models",
-        "--model-control-mode=poll",
-        "--repository-poll-secs=2",
+        "--model-control-mode=explicit",
+        "--load-model=*",
         "--strict-readiness=false",
         "--exit-on-error=false",
         "--allow-gpu-metrics=true",

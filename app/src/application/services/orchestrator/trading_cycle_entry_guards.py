@@ -45,7 +45,7 @@ def mark_cycle_attempt_complete(orch: Any) -> None:
 
 
 def _log_market_signature_invalidation(orch: Any, *, previous: str, current: str) -> None:
-    """Registra invalidacao deduplicada do cache tecnico por divergencia M1."""
+    """Registra invalidacao deduplicada do cache tecnico por divergencia M5."""
     if not current or current == previous:
         return
     logged_key = str(getattr(orch, "_signature_invalidation_logged_key", "") or "")
@@ -53,7 +53,7 @@ def _log_market_signature_invalidation(orch: Any, *, previous: str, current: str
         return
     orch._signature_invalidation_logged_key = current
     orch.logger.debug(
-        "DATA_SIG: cache invalidado por divergencia M1 | anterior=%s | atual=%s | inferencia reinicializada",
+        "DATA_SIG: cache invalidado por divergencia M5 | anterior=%s | atual=%s | inferencia reinicializada",
         previous or "-",
         current,
     )
@@ -131,7 +131,7 @@ def _macro_cadence_blocks_cycle(orch: Any) -> bool:
 
 
 def _signature_epoch_blocks_cycle(orch: Any) -> bool:
-    """True quando assinatura M1 e epoch de ancora nao mudaram desde o ultimo ciclo."""
+    """True quando assinatura M5 e epoch de ancora nao mudaram desde o ultimo ciclo."""
     sig = None
     signature_changed = False
     if hasattr(orch, "get_data_state_signature") and hasattr(orch, "last_data_signature"):
@@ -153,7 +153,7 @@ def _signature_epoch_blocks_cycle(orch: Any) -> bool:
 
 
 def commit_trading_cycle_data_signature(orch: Any) -> None:
-    """Persiste assinatura M1 apenas apos cluster executado com sucesso."""
+    """Persiste assinatura M5 apenas apos cluster executado com sucesso."""
     if not hasattr(orch, "get_data_state_signature") or not hasattr(orch, "last_data_signature"):
         return
     sig = orch.get_data_state_signature()
@@ -162,7 +162,7 @@ def commit_trading_cycle_data_signature(orch: Any) -> None:
 
 
 def _non_fast_cycle_blocks(orch: Any) -> bool:
-    """True quando cadencia macro ou assinatura M1 impedem disparo fora do modo rapido DL."""
+    """True quando cadencia macro ou assinatura M5 impedem disparo fora do modo rapido DL."""
     if getattr(orch, "_dl_fast_cycle", False):
         return False
     cadence = _cycle_cadence_seconds(orch)

@@ -2,7 +2,6 @@
 
 from typing import Any
 
-from src.domain.models.trade import TradeDirection
 from src.domain.risk.consensus_stake_penalty import (
     apply_neutral_edge_kelly_base,
     apply_turbo_edge_stake,
@@ -55,25 +54,9 @@ def _mandatory_trade_flag(kwargs: dict, rm: Any) -> bool:
 
 
 def check_stake_preconditions_veto(symbol: str, *, apply_stop_win: bool, rm: Any, kwargs: dict) -> bool:
-    """Retorna True se houver veto de stop win ou Drift Bias Lock."""
-    if _stop_win_target_reached(rm, apply_stop_win=apply_stop_win):
-        return True
-
-    dl_metrics = kwargs.get("dl_metrics")
-    vol_ratio = 0.0
-    bb_width_zscore = 0.0
-    if isinstance(dl_metrics, dict):
-        vol_ratio = float(dl_metrics.get("vol_ratio", 0.0))
-        bb_width_zscore = float(dl_metrics.get("bb_width", dl_metrics.get("bb_width_zscore", 0.0)))
-
-    order_direction = kwargs.get("order_direction")
-    dir_name = (
-        order_direction.name if isinstance(order_direction, TradeDirection) else str(order_direction or "").upper()
-    )
-
-    return ((symbol == "RDBULL" and dir_name == "PUT") or (symbol == "RDBEAR" and dir_name == "CALL")) and (
-        vol_ratio >= 2.0 or bb_width_zscore >= 2.0
-    )
+    """Retorna True apenas no veto de stop win; Drift Bias Lock desativado."""
+    _ = (symbol, kwargs)
+    return bool(_stop_win_target_reached(rm, apply_stop_win=apply_stop_win))
 
 
 def _calculate_kelly_fraction(rm: Any, symbol: str, conviction: float) -> tuple[float, float, float]:
@@ -202,7 +185,12 @@ def calculate_stake_for_manager(
     )
     mandatory_flag = _mandatory_trade_flag(kwargs, rm)
     final_stake = apply_turbo_edge_stake(final_stake, dl_metrics)
-    final_stake = min(final_stake, max_safe_stake_cap(bankroll, consecutive_losses_linear=linear_losses))
+    soft_cfg = getattr(rm, "soft_recovery_config", None)
+    soft = soft_cfg if isinstance(soft_cfg, dict) else None
+    final_stake = min(
+        final_stake,
+        max_safe_stake_cap(bankroll, consecutive_losses_linear=linear_losses, soft_recovery=soft),
+    )
     final_stake = finalize_stake_with_min(
         final_stake,
         stake_min,

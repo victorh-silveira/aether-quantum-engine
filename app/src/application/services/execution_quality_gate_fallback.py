@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from src.application.services.execution_quality_gate import read_risk_session_state
+from src.application.services.execution_quality_gate_microstructure import is_microstructure_starvation_reason
 from src.domain.risk.stake_sizing import metric_float
 
 
@@ -28,7 +29,9 @@ def _entry_viable_for_quality_fallback(entry: dict) -> bool:
 
 
 def _hard_quality_reject_for_fallback(metrics: dict) -> bool:
-    """True apenas para veto meta Z < -0.20; rejeicoes soft de quality nao matam recovery."""
+    """True para veto de microestrutura ou meta Z < -0.20 em recovery."""
+    if is_microstructure_starvation_reason(metrics.get("quality_gate_reason")):
+        return True
     if not metrics.get("quality_guard_reject"):
         return False
     if metrics.get("meta_payoff_edge_zscore") is None and metrics.get("edge_zscore") is None:
@@ -43,14 +46,12 @@ def cluster_quality_gate_blocks_mandatory_fallback(
     risk_manager: Any | None,
     trade_symbols: list[str] | tuple[str, ...],
 ) -> bool:
-    """Impede fallback obrigatorio quando recovery vetou todos os candidatos DL elegiveis."""
-    session_linear, pending = read_risk_session_state(risk_manager)
-    if session_linear <= 0 and pending <= 0.0:
-        return False
+    """Impede fallback obrigatorio quando microestrutura ou recovery vetou todos os elegiveis."""
     if not isinstance(decisions, dict):
         return False
     viable = 0
     rejected = 0
+    micro_rejected = 0
     for symbol in trade_symbols:
         entry = decisions.get(symbol)
         if not isinstance(entry, dict):
@@ -59,7 +60,16 @@ def cluster_quality_gate_blocks_mandatory_fallback(
             continue
         metrics = entry["metrics"]
         viable += 1
+        if is_microstructure_starvation_reason(metrics.get("quality_gate_reason")):
+            micro_rejected += 1
+            rejected += 1
+            continue
         if _hard_quality_reject_for_fallback(metrics):
             rejected += 1
+    if viable > 0 and micro_rejected == viable:
+        return True
+    session_linear, pending = read_risk_session_state(risk_manager)
+    if session_linear <= 0 and pending <= 0.0:
+        return False
     _ = exec_cfg
     return viable > 0 and rejected == viable

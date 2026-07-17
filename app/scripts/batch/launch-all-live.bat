@@ -1,5 +1,7 @@
 @echo off
 TITLE Aether Engine - Master Launcher (LIVE)
+set "PYTHONASYNCIODEBUG="
+set "PYTHONDEVMODE="
 
 pushd "%~dp0..\..\.."
 SET "REPO_ROOT=%CD%"

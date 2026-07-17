@@ -4,12 +4,17 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.application.services.execution_quality_gate_drawdown import (
+    apply_dynamic_recovery_relaxation,
+    resolve_session_stake_unit,
+)
+from src.application.services.execution_quality_gate_microstructure import apply_microstructure_starvation_veto
 from src.application.services.execution_quality_gate_reason import (
-    build_quality_gate_reason,
     format_quality_guard_log_message,
     format_quality_guard_reject_message,
 )
 from src.application.services.execution_quality_gate_starvation import (
+    apply_progressive_conviction_margin,
     apply_starvation_edge_decay,
     apply_starvation_margin_decay,
     starvation_decay_factor,
@@ -47,7 +52,12 @@ def quality_gate_params(exec_cfg: dict) -> dict[str, float]:
         "min_direction_margin": float(chunk.get("min_direction_margin", MIN_DIRECTION_MARGIN_DEFAULT)),
         "min_payoff_edge": float(chunk.get("min_payoff_edge", MIN_PAYOFF_EDGE_DEFAULT)),
         "inverted_min_score": float(chunk.get("inverted_min_score", 0.0)),
-        "min_adx_normal": float(chunk.get("min_adx_normal", 0.0)),
+        "min_adx_normal": float(
+            chunk.get(
+                "min_adx_threshold",
+                chunk.get("min_adx_normal", 0.0),
+            )
+        ),
         "min_meta_payoff_zscore": float(chunk.get("min_meta_payoff_zscore", 0.5)),
     }
 
@@ -127,13 +137,29 @@ def resolve_dynamic_quality_limits(
         margin = float(override_margin)
     if override_edge is not None:
         edge = float(override_edge)
+    session_unit = resolve_session_stake_unit(risk_manager, exec_cfg)
+    margin, edge, relax_intensity = apply_dynamic_recovery_relaxation(
+        margin,
+        edge,
+        linear=session_linear,
+        pending=pending,
+        session_unit=session_unit,
+    )
     if skipped_cycles_counter is not None:
         skipped = max(0, int(skipped_cycles_counter))
     elif orch is not None:
         skipped = max(0, int(getattr(orch, "_quality_skipped_cycles_counter", 0) or 0))
     else:
         skipped = 0
-    decayed_margin, decay_factor = apply_starvation_margin_decay(margin, skipped, orch=orch)
+    if session_linear > 0:
+        decayed_margin, decay_factor = apply_progressive_conviction_margin(
+            margin,
+            skipped,
+            recovery_active=True,
+            orch=orch,
+        )
+    else:
+        decayed_margin, decay_factor = apply_starvation_margin_decay(margin, skipped, orch=orch)
     decayed_edge = apply_starvation_edge_decay(edge, skipped)
     return {
         **recovery_limits,
@@ -144,6 +170,8 @@ def resolve_dynamic_quality_limits(
         "pending_loss_total": pending,
         "starvation_decay_factor": decay_factor,
         "skipped_cycles_counter": float(skipped),
+        "recovery_relax_intensity": float(relax_intensity),
+        "session_stake_unit": float(session_unit),
     }
 
 
@@ -196,7 +224,7 @@ def passes_execution_quality(
     orch: Any | None = None,
     **_kwargs,
 ) -> bool:
-    """Valida margem direcional e payoff previsto com janelas dinamicas de qualidade."""
+    """Telemetria de qualidade; vetos duros apenas por inanicao de microestrutura."""
     limits = resolve_dynamic_quality_limits(
         exec_cfg or {},
         risk_manager=risk_manager,
@@ -208,31 +236,27 @@ def passes_execution_quality(
         orch=orch,
     )
     margin_floor = float(limits["min_direction_margin"])
-    edge_floor = float(limits["min_payoff_edge"])
     metrics["quality_gate_regime"] = str(limits["quality_regime"])
     metrics["quality_min_direction_margin"] = margin_floor
-    metrics["quality_min_payoff_edge"] = edge_floor
+    metrics["quality_min_payoff_edge"] = float(limits["min_payoff_edge"])
     metrics["quality_starvation_decay_factor"] = float(limits["starvation_decay_factor"])
     metrics["quality_skipped_cycles_counter"] = float(limits["skipped_cycles_counter"])
-    margin = ensure_direction_margin(metrics)
-    margin_fail = margin <= margin_floor + 1e-12
-    meta_applied = bool(metrics.get("meta_classifier_applied") or metrics.get("meta_applied"))
-    payoff_edge = float(metrics.get("predicted_payoff_edge", 0.0))
-    edge_fail = meta_applied and payoff_edge + 1e-12 < edge_floor
-    if margin_fail or edge_fail:
+    metrics["recovery_relax_intensity"] = float(limits.get("recovery_relax_intensity", 0.0))
+    ensure_direction_margin(metrics)
+    starvation_reason = apply_microstructure_starvation_veto(
+        metrics,
+        exec_cfg=exec_cfg,
+        risk_manager=risk_manager,
+        orch=orch,
+    )
+    if starvation_reason is not None:
+        metrics["quality_guard_reject"] = True
         metrics["regime_skip_cycle"] = True
-        metrics["quality_gate_reason"] = build_quality_gate_reason(
-            dir_margin=margin,
-            min_margin=margin_floor,
-            payoff_edge=payoff_edge,
-            min_edge=edge_floor,
-            margin_fail=margin_fail,
-            edge_fail=edge_fail,
-            meta_applied=meta_applied,
-        )
+        metrics["quality_gate_reason"] = starvation_reason
         return False
     metrics["regime_skip_cycle"] = False
     metrics.pop("quality_gate_reason", None)
+    metrics.pop("quality_guard_reject", None)
     return True
 
 

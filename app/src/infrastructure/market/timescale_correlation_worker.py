@@ -67,7 +67,7 @@ async def _correlation_worker_loop(orch: Any) -> None:
         for _ in range(every):
             if not getattr(orch, "running", False):
                 return
-            await asyncio.sleep(float(orch.config.get("orchestrator", {}).get("cycle_interval_seconds", 60)))
+            await asyncio.sleep(float(orch.config.get("orchestrator", {}).get("cycle_interval_seconds", 300)))
 
 
 def start_correlation_worker(orch: Any) -> None:

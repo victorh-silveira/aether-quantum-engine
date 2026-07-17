@@ -30,12 +30,31 @@ def test_resolve_stop_win_large_account_pct():
 
 
 def test_session_targets_compounding_rate():
-    rm = {"params": {"compounding_enabled": True, "compounding_rate_daily": 0.026}}
+    rm = {
+        "small_account_threshold": 100.0,
+        "small_account_stop_win": 10.0,
+        "params": {"compounding_enabled": True, "compounding_rate_daily": 0.026},
+    }
     mgr = StopWinManager(rm)
     targets = mgr.calculate_session_targets(10000.0)
     assert isinstance(targets, SessionTargets)
     assert targets.target_win == pytest.approx(260.0)
     assert targets.session_start_balance == pytest.approx(10000.0)
+
+
+def test_session_targets_micro_bankroll_fixed_even_with_compounding():
+    rm = {
+        "small_account_threshold": 100.0,
+        "small_account_stop_win": 10.0,
+        "params": {"compounding_enabled": True, "compounding_rate_daily": 0.026},
+    }
+    mgr = StopWinManager(rm)
+    assert mgr.is_small_account(99.99) is True
+    assert mgr.is_small_account(100.0) is False
+    assert mgr.calculate_session_targets(50.0).target_win == pytest.approx(10.0)
+    assert mgr.calculate_session_targets(99.99).target_win == pytest.approx(10.0)
+    assert mgr.calculate_session_targets(100.0).target_win == pytest.approx(2.60)
+    assert mgr.resolve_target(75.0) == pytest.approx(10.0)
 
 
 def test_persisted_target_idempotent_for_live_session():

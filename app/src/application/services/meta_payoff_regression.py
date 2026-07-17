@@ -34,20 +34,9 @@ def calibration_neutral_axis_drift(raw_prob: float | None, calibrated_prob: floa
 
 
 def veto_calibration_neutral_drift(metrics: dict[str, Any]) -> bool:
-    """Invalida direcao e trade score quando a calibracao contradiz o vetor TCN."""
-    raw = metrics.get("raw_prob")
-    calibrated = metrics.get("calibrated_prob")
-    if not calibration_neutral_axis_drift(
-        float(raw) if raw is not None else None,
-        float(calibrated) if calibrated is not None else None,
-    ):
-        return False
-    metrics["resolved_direction"] = None
-    metrics["exec_direction"] = None
-    metrics["gate_reason"] = CALIBRATION_NEUTRAL_DRIFT
-    metrics["trade_score"] = None
-    metrics["conviction"] = None
-    return True
+    """Trava de drift de calibracao desativada."""
+    _ = metrics
+    return False
 
 
 def _apply_direction_scores(metrics: dict[str, Any], *, direction: TradeDirection, score: float) -> None:
@@ -74,8 +63,7 @@ def apply_meta_regression_edge(
     symbol: str | None = None,
 ) -> tuple[TradeDirection, float]:
     """Aplica edge continuo do meta-regressor com downgrade D-SQUEEZE quando necessario."""
-    if veto_calibration_neutral_drift(metrics):
-        return dl_dir, 0.0
+    _ = veto_calibration_neutral_drift(metrics)
     metrics["predicted_payoff_edge"] = float(predicted_edge)
     metrics["meta_classifier_applied"] = bool(meta_applied)
     squeeze_active = micro_volatility_squeeze_active(metrics)

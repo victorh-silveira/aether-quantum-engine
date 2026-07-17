@@ -1,5 +1,7 @@
 @echo off
 TITLE Aether Engine - Treino Deep Learning + Meta-Classificador
+set "PYTHONASYNCIODEBUG="
+set "PYTHONDEVMODE="
 
 pushd "%~dp0..\..\.."
 SET "REPO_ROOT=%CD%"

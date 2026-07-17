@@ -5,15 +5,22 @@ import time
 from typing import Any
 
 from src.application.services.orchestrator.graceful_shutdown import close_infrastructure_connections
-from src.application.services.orchestrator.orchestrator_data_signature import get_data_state_signature
+from src.application.services.orchestrator.orchestrator_data_signature import (
+    get_data_state_signature,
+    seconds_until_next_signature_boundary,
+)
 from src.application.services.orchestrator.orchestrator_persistence import save_full_state
-from src.application.services.orchestrator.orchestrator_settlement_queue import start_settlement_worker
+from src.application.services.orchestrator.orchestrator_settlement_queue import (
+    SettlementOrphanCleaner,
+    start_settlement_worker,
+)
 from src.application.services.orchestrator.post_settlement_resilience import (
     recover_post_settlement_loop_transparently,
 )
 from src.application.services.orchestrator.reconnect_cycle_release import release_trading_cycle_after_reconnect
 from src.application.services.orchestrator.settlement_reconciliation import reconcile_after_ws_recovery
 from src.application.services.orchestrator.trading_cycle_entry import prepare_orchestrator_run_loop
+from src.application.services.orchestrator.warm_up_buffer_guard import await_stream_warm_up_gate
 from src.application.services.orchestrator.watchdog_service import start_ingestion_watchdog
 from src.application.services.orchestrator.ws_bootstrap import (
     setup_trading_session,
@@ -64,19 +71,60 @@ def emergency_save_session_state(orch: Any) -> None:
 
 
 def _enforce_post_settlement_deadlock_exit(orch: Any) -> None:
-    """Forca encerramento quando pos-liquidacao falha consecutivamente no limite."""
+    """Agenda reconciliacao passiva quando pos-liquidacao acumula incompletos; nao reinicia o loop."""
     streak = int(getattr(orch, "_post_settlement_incomplete_streak", 0))
     deadlock = bool(getattr(orch, "_post_settlement_deadlock", False))
     if not deadlock and streak < 2:
         return
-    emergency_save_session_state(orch)
-    orch.shutdown_reason = "post_settlement_deadlock"
-    orch.logger.error("CICLO: timeout pos-liquidacao forcado apos %d tentativas incompletas", streak)
-    raise TimeoutError("post-settlement cycle incomplete")
+    orch.logger.info(
+        "SETTLE: incompleto pos-liquidacao (streak=%d); reconciliacao passiva via portfolio",
+        streak,
+    )
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(_run_passive_settlement_reconcile(orch))
+    except RuntimeError:
+        pass
+    recover_post_settlement_loop_transparently(orch)
+
+
+async def _run_passive_settlement_reconcile(orch: Any) -> None:
+    """Consulta portfolio/Redis e limpa contratos ja liquidados sem ACK."""
+    cleaner = SettlementOrphanCleaner(orch)
+    cleared = await cleaner.passive_reconcile()
+    if cleared:
+        orch.logger.info("SETTLE: estado local alinhado ao broker; ciclo pode prosseguir")
+
+
+def _recovery_pending_total(orch: Any) -> float:
+    """Soma passivo pendente vivo quando o risk manager expoe a API."""
+    rm = getattr(orch, "risk_manager", None)
+    if rm is None:
+        return 0.0
+    pending_fn = getattr(rm, "pending_loss_total", None)
+    if callable(pending_fn):
+        return float(pending_fn())
+    pending_map = getattr(rm, "pending_loss", {}) or {}
+    if isinstance(pending_map, dict):
+        return float(sum(float(v) for v in pending_map.values()))
+    return 0.0
+
+
+def align_exec_empty_recovery_signature_cooldown(orch: Any) -> float:
+    """Apos EXEC_EMPTY em recovery, alinha cooldown a fronteira inteira de 60s."""
+    if bool(getattr(orch, "_last_cycle_cluster_executed", False)):
+        return 0.0
+    if _recovery_pending_total(orch) <= 0.0:
+        return 0.0
+    delay = float(seconds_until_next_signature_boundary(orch))
+    delay = max(delay, 1.0)
+    orch._cooldown_until = time.time() + delay
+    orch._post_settlement_incomplete_streak = 0
+    return delay
 
 
 async def run_orchestrator_main_loop(orch: Any) -> None:
-    """Loop principal assincrono com reconexao, persistencia e ciclos M1."""
+    """Loop principal assincrono com reconexao, persistencia e ciclos M5."""
     if not await setup_session(orch):
         orch.logger.error("INIT: Abortando motor (falha em PAT, OTP ou WebSocket).")
         return
@@ -84,9 +132,11 @@ async def run_orchestrator_main_loop(orch: Any) -> None:
         orch.logger.error("INIT: Abortando motor (falha ao sincronizar velas OHLC).")
         return
     prepare_orchestrator_run_loop(orch)
+    await await_stream_warm_up_gate(orch)
     await start_settlement_worker(orch)
     await start_ingestion_watchdog(orch)
     await orch._run_trading_cycle_if_ready()
+    align_exec_empty_recovery_signature_cooldown(orch)
     reconcile_counter = 0
     orch_cfg = orch.config.get("orchestrator") if isinstance(orch.config.get("orchestrator"), dict) else {}
     reconnect_delay = float(orch_cfg.get("ws_reconnect_delay_seconds", 8.0))
@@ -95,11 +145,7 @@ async def run_orchestrator_main_loop(orch: Any) -> None:
         if cooldown > 0.0 and time.time() < cooldown:
             await asyncio.sleep(max(0.1, cooldown - time.time()))
             continue
-        try:
-            _enforce_post_settlement_deadlock_exit(orch)
-        except TimeoutError:
-            recover_post_settlement_loop_transparently(orch)
-            continue
+        _enforce_post_settlement_deadlock_exit(orch)
         await orch._tick_idle_cycle_watchdog()
         await orch._tick_interval_cycle_if_due()
         current_signature = get_data_state_signature(orch)
@@ -111,6 +157,7 @@ async def run_orchestrator_main_loop(orch: Any) -> None:
             if await setup_session(orch) and await start_streams(orch):
                 orch.logger.info("RECOV: WebSocket restaurado.")
                 release_trading_cycle_after_reconnect(orch)
+                await await_stream_warm_up_gate(orch)
                 await reconcile_after_ws_recovery(orch)
                 reconnect_delay = float(orch_cfg.get("ws_reconnect_delay_seconds", 8.0))
             else:
@@ -125,3 +172,4 @@ async def run_orchestrator_main_loop(orch: Any) -> None:
                 await orch.executor.reconcile()
             reconcile_counter = 0
         await orch._run_trading_cycle_if_ready()
+        align_exec_empty_recovery_signature_cooldown(orch)

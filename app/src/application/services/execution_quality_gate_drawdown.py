@@ -1,4 +1,4 @@
-"""Limites de quality gate proporcionais ao drawdown de recovery."""
+"""Dynamic Recovery Relaxation: pisos elasticos de quality gate sob passivo."""
 
 from __future__ import annotations
 
@@ -7,8 +7,13 @@ from typing import Any
 from src.domain.risk.consensus_stake_penalty import resolve_session_base_unit
 
 
-RECOVERY_LIGHT_MARGIN_BASE = 0.06
-RECOVERY_LIGHT_MARGIN_SLOPE = 0.06
+RECOVERY_RELAX_MIN_LINEAR = 2
+RECOVERY_RELAX_MARGIN_FLOOR = 0.01
+RECOVERY_RELAX_EDGE_FLOOR = -0.55
+RECOVERY_RELAX_FULL_PENDING_UNITS = 8.0
+NEUTRAL_META_PAYOFF_LO = -0.05
+NEUTRAL_META_PAYOFF_HI = 0.04
+RECOVERY_EDGE_ZSCORE_WAIVER = 0.5
 
 
 def resolve_session_stake_unit(risk_manager: Any | None, exec_cfg: dict) -> float:
@@ -34,19 +39,56 @@ def resolve_session_stake_unit(risk_manager: Any | None, exec_cfg: dict) -> floa
     return max(bankroll * 0.0015, 1.0) if bankroll > 0.0 else 1.0
 
 
+def apply_dynamic_recovery_relaxation(
+    margin: float,
+    edge: float,
+    *,
+    linear: int,
+    pending: float,
+    session_unit: float,
+) -> tuple[float, float, float]:
+    """Reduz linearmente pisos de TCN Margin e Meta Payoff conforme o passivo."""
+    if int(linear) < RECOVERY_RELAX_MIN_LINEAR or float(pending) <= 0.0:
+        return float(margin), float(edge), 0.0
+    unit = max(float(session_unit), 1e-9)
+    intensity = min(1.0, max(0.0, float(pending)) / (RECOVERY_RELAX_FULL_PENDING_UNITS * unit))
+    relaxed_margin = float(margin) - (float(margin) - RECOVERY_RELAX_MARGIN_FLOOR) * intensity
+    relaxed_edge = float(edge) - (float(edge) - RECOVERY_RELAX_EDGE_FLOOR) * intensity
+    return relaxed_margin, relaxed_edge, float(intensity)
+
+
+def recovery_neutral_edge_zscore_waiver(
+    edge: float,
+    z_edge: float,
+    *,
+    linear: int,
+    pending: float,
+) -> bool:
+    """True quando edge neutro com Z>0.5 libera trade de recovery (vacuo GBDT)."""
+    if int(linear) < RECOVERY_RELAX_MIN_LINEAR or float(pending) <= 0.0:
+        return False
+    if float(edge) + 1e-12 < NEUTRAL_META_PAYOFF_LO:
+        return False
+    if float(edge) - 1e-12 > NEUTRAL_META_PAYOFF_HI:
+        return False
+    return float(z_edge) > RECOVERY_EDGE_ZSCORE_WAIVER + 1e-12
+
+
 def recovery_drawdown_quality_limits(
     recovery_limits: dict[str, float],
     regular_limits: dict[str, float],
     *,
     pending: float,
     session_unit: float,
+    linear: int = RECOVERY_RELAX_MIN_LINEAR,
 ) -> tuple[float, float]:
     """Calcula pisos elasticos de recovery proporcionais ao passivo sobre a unidade U."""
-    unit = max(float(session_unit), 1e-9)
-    pending_abs = max(0.0, float(pending))
-    if pending_abs <= unit:
-        ratio = pending_abs / unit
-        margin = RECOVERY_LIGHT_MARGIN_BASE + (RECOVERY_LIGHT_MARGIN_SLOPE * ratio)
-        edge = float(regular_limits["min_payoff_edge"])
-        return margin, edge
-    return float(recovery_limits["min_direction_margin"]), float(recovery_limits["min_payoff_edge"])
+    _ = regular_limits
+    margin, edge, _intensity = apply_dynamic_recovery_relaxation(
+        float(recovery_limits["min_direction_margin"]),
+        float(recovery_limits["min_payoff_edge"]),
+        linear=int(linear),
+        pending=float(pending),
+        session_unit=float(session_unit),
+    )
+    return margin, edge

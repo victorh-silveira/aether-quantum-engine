@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -72,24 +72,32 @@ async def test_reload_triton_repository_waits_for_symbols():
                 "http_url": "http://localhost:8000",
                 "wait_ready_seconds": 5.0,
                 "poll_ready_seconds": 0.1,
-                "repository_poll_seconds": 2.0,
+                "model_control_mode": "explicit",
             }
         }
     }
     with (
         patch(
+            "src.infrastructure.inference.triton_inference_client.triton_model_ready",
+            return_value=False,
+        ),
+        patch(
+            "src.infrastructure.inference.triton_inference_client.load_triton_models_sequential",
+            return_value=["RDBEAR", "RDBULL"],
+        ) as load_mock,
+        patch(
             "src.infrastructure.inference.triton_inference_client.wait_triton_models_ready",
             return_value=True,
         ) as wait_mock,
-        patch("src.infrastructure.inference.triton_inference_client.asyncio.sleep", new_callable=AsyncMock),
     ):
         ok = await reload_triton_repository(cfg, ["RDBEAR", "RDBULL"])
     assert ok is True
-    assert wait_mock.call_count == 2
+    load_mock.assert_called_once()
+    assert wait_mock.call_count >= 1
 
 
 @pytest.mark.asyncio
-async def test_wait_triton_models_stable_skips_settle_when_repo_unchanged():
+async def test_wait_triton_models_stable_skips_load_when_repo_unchanged_and_ready():
     cfg = {"infra": {"triton": {"enabled": True, "http_url": "http://localhost:8000"}}}
     with (
         patch(
@@ -97,13 +105,13 @@ async def test_wait_triton_models_stable_skips_settle_when_repo_unchanged():
             return_value=True,
         ) as wait_mock,
         patch(
-            "src.infrastructure.inference.triton_inference_client.asyncio.sleep", new_callable=AsyncMock
-        ) as sleep_mock,
+            "src.infrastructure.inference.triton_inference_client.load_triton_models_sequential",
+        ) as load_mock,
     ):
         ok = await wait_triton_models_stable(cfg, ["RDBEAR"], repo_changed=False)
     assert ok is True
     wait_mock.assert_called_once()
-    sleep_mock.assert_not_awaited()
+    load_mock.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -121,20 +129,62 @@ async def test_wait_triton_models_stable_empty_symbol_list():
 @pytest.mark.asyncio
 async def test_wait_triton_models_stable_returns_false_when_not_ready():
     cfg = {"infra": {"triton": {"enabled": True, "http_url": "http://localhost:8000"}}}
-    with patch(
-        "src.infrastructure.inference.triton_inference_client.wait_triton_models_ready",
-        return_value=False,
+    with (
+        patch(
+            "src.infrastructure.inference.triton_inference_client.triton_model_ready",
+            return_value=False,
+        ),
+        patch(
+            "src.infrastructure.inference.triton_inference_client.load_triton_models_sequential",
+            return_value=["RDBEAR"],
+        ),
+        patch(
+            "src.infrastructure.inference.triton_inference_client.wait_triton_models_ready",
+            return_value=False,
+        ),
     ):
         ok = await wait_triton_models_stable(cfg, ["RDBEAR"], repo_changed=True)
     assert ok is False
 
 
 @pytest.mark.asyncio
+async def test_wait_triton_models_stable_loads_when_cache_not_ready():
+    cfg = {"infra": {"triton": {"enabled": True, "http_url": "http://localhost:8000"}}}
+    with (
+        patch(
+            "src.infrastructure.inference.triton_inference_client.triton_model_ready",
+            return_value=False,
+        ),
+        patch(
+            "src.infrastructure.inference.triton_inference_client.wait_triton_models_ready",
+            side_effect=[False, True],
+        ),
+        patch(
+            "src.infrastructure.inference.triton_inference_client.load_triton_models_sequential",
+            return_value=["RDBEAR"],
+        ) as load_mock,
+    ):
+        ok = await wait_triton_models_stable(cfg, ["RDBEAR"], repo_changed=False)
+    assert ok is True
+    load_mock.assert_called_once()
+
+
+@pytest.mark.asyncio
 async def test_reload_triton_repository_wait_timeout():
     cfg = {"infra": {"triton": {"enabled": True, "http_url": "http://localhost:8000"}}}
-    with patch(
-        "src.infrastructure.inference.triton_inference_client.wait_triton_models_ready",
-        return_value=False,
+    with (
+        patch(
+            "src.infrastructure.inference.triton_inference_client.triton_model_ready",
+            return_value=False,
+        ),
+        patch(
+            "src.infrastructure.inference.triton_inference_client.load_triton_models_sequential",
+            return_value=["RDBEAR"],
+        ),
+        patch(
+            "src.infrastructure.inference.triton_inference_client.wait_triton_models_ready",
+            return_value=False,
+        ),
     ):
         ok = await reload_triton_repository(cfg, ["RDBEAR"])
     assert ok is False
@@ -155,3 +205,46 @@ async def test_reload_triton_repository_http_error():
     ):
         ok = await reload_triton_repository(cfg)
     assert ok is False
+
+
+@pytest.mark.asyncio
+async def test_wait_triton_models_stable_load_http_error():
+    cfg = {"infra": {"triton": {"enabled": True, "http_url": "http://localhost:8000"}}}
+    with (
+        patch(
+            "src.infrastructure.inference.triton_inference_client.triton_model_ready",
+            return_value=False,
+        ),
+        patch(
+            "src.infrastructure.inference.triton_inference_client.load_triton_models_sequential",
+            side_effect=OSError("connection refused"),
+        ),
+    ):
+        ok = await wait_triton_models_stable(cfg, ["RDBEAR"], repo_changed=True)
+    assert ok is False
+
+
+@pytest.mark.asyncio
+async def test_wait_triton_models_stable_skips_load_when_changed_empty_and_ready():
+    cfg = {"infra": {"triton": {"enabled": True, "http_url": "http://localhost:8000"}}}
+    with (
+        patch(
+            "src.infrastructure.inference.triton_inference_client.triton_model_ready",
+            return_value=True,
+        ),
+        patch(
+            "src.infrastructure.inference.triton_inference_client.load_triton_models_sequential",
+        ) as load_mock,
+        patch(
+            "src.infrastructure.inference.triton_inference_client.wait_triton_models_ready",
+            return_value=True,
+        ),
+    ):
+        ok = await wait_triton_models_stable(
+            cfg,
+            ["RDBEAR", "RDBULL"],
+            repo_changed=True,
+            changed_models=[],
+        )
+    assert ok is True
+    load_mock.assert_not_called()

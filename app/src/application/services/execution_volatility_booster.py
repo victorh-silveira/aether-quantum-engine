@@ -19,7 +19,7 @@ def _macro_vol_ratio(metrics: dict) -> float:
 
 
 def _micro_bb_width(metrics: dict) -> float:
-    """Le bb_width micro M1 dos indicadores de execucao."""
+    """Le bb_width micro M5 dos indicadores de execucao."""
     indicators = metrics.get("indicators") or {}
     return float(indicators.get("bb_width", 0.0))
 

@@ -6,16 +6,23 @@ import asyncio
 import contextlib
 from typing import Any
 
-from src.application.services.log_dedupe import LogDeduper
+from src.application.services.log_dedupe import LogDeduper, log_info_if_changed
 
 
 REDIS_SKIPPED_CYCLES_COUNTER_KEY = "state:risk:skipped_cycles_counter"
 STARVATION_DECAY_THRESHOLD = 6
 STARVATION_DECAY_STEP = 0.10
 STARVATION_DECAY_FLOOR = 0.20
+PROGRESSIVE_CONVICTION_SKIP_STEP = 5
+PROGRESSIVE_CONVICTION_REDUCTION = 0.20
+PROGRESSIVE_CONVICTION_MARGIN_FLOOR = 0.0
 _STARVATION_ESCAPE_LOG_PREFIX = (
     "[AETHER] EXECUTION_FLOW | Válvula de inanição ativa. "
     "Limite mitigado por decaimento temporal para min {min_direction_margin:.4f} | skipped_cycles={counter}"
+)
+_PROGRESSIVE_CONVICTION_LOG_PREFIX = (
+    "[AETHER] EXECUTION_FLOW | Gatilho de Convicção Progressiva. "
+    "min_direction_margin={min_direction_margin:.4f} | factor={factor:.3f} | skipped_cycles={counter}"
 )
 
 
@@ -28,6 +35,41 @@ def starvation_decay_factor(skipped_cycles: int) -> float:
         STARVATION_DECAY_FLOOR,
         1.0 - ((count - (STARVATION_DECAY_THRESHOLD - 1)) * STARVATION_DECAY_STEP),
     )
+
+
+def progressive_conviction_factor(skipped_cycles: int, *, recovery_active: bool) -> float:
+    """Em recovery, reduz 20% o piso a cada 5 ciclos de inanição."""
+    if not recovery_active:
+        return 1.0
+    steps = max(0, int(skipped_cycles)) // PROGRESSIVE_CONVICTION_SKIP_STEP
+    if steps <= 0:
+        return 1.0
+    return (1.0 - PROGRESSIVE_CONVICTION_REDUCTION) ** steps
+
+
+def apply_progressive_conviction_margin(
+    margin: float,
+    skipped_cycles: int,
+    *,
+    recovery_active: bool,
+    orch: Any | None = None,
+) -> tuple[float, float]:
+    """Aplica Gatilho de Convicção Progressiva sobre min_direction_margin em recovery."""
+    factor = progressive_conviction_factor(skipped_cycles, recovery_active=recovery_active)
+    if factor >= 1.0:
+        return float(margin), factor
+    mitigated = max(PROGRESSIVE_CONVICTION_MARGIN_FLOOR, float(margin) * factor)
+    if orch is not None:
+        logger = getattr(orch, "logger", None)
+        if logger is not None:
+            message = _PROGRESSIVE_CONVICTION_LOG_PREFIX.format(
+                min_direction_margin=mitigated,
+                factor=factor,
+                counter=int(skipped_cycles),
+            )
+            channel = f"progressive_conviction:{int(skipped_cycles) // PROGRESSIVE_CONVICTION_SKIP_STEP}"
+            log_info_if_changed(orch, logger, channel, message, "%s", message)
+    return mitigated, factor
 
 
 def apply_starvation_margin_decay(

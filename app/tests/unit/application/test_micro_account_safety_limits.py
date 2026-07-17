@@ -20,10 +20,12 @@ def test_micro_capital_base_unit():
 
 
 def test_micro_capital_max_safe_stake_cap():
-    # Para banca de $100, deve retornar no mínimo $10.00
-    assert max_safe_stake_cap(100.0) == pytest.approx(10.0)
-    # Para banca de $300, deve retornar o cálculo padrão de pct (3.5% = $10.50)
+    assert max_safe_stake_cap(100.0) == pytest.approx(3.50)
+    assert max_safe_stake_cap(100.0, consecutive_losses_linear=4) == pytest.approx(4.20)
     assert max_safe_stake_cap(300.0) == pytest.approx(10.50)
+    soft = {"max_safe_stake_cap": 4.20}
+    assert max_safe_stake_cap(80.0, consecutive_losses_linear=4, soft_recovery=soft) == pytest.approx(4.0)
+    assert max_safe_stake_cap(70.0, consecutive_losses_linear=5, soft_recovery=soft) == pytest.approx(3.5)
 
 
 def test_starvation_decay_skips_threshold_6():
@@ -77,18 +79,15 @@ def test_resolve_execution_direction_technical_discordance_veto():
         },
     }
     res = resolve_execution_direction(entry, symbol="SYM")
-    assert res is None
-    assert entry["metrics"]["gate_reason"] == "technical_discordance"
-    assert entry["metrics"]["quality_guard_reject"] is True
+    assert res is not None
+    assert entry["metrics"].get("gate_reason") != "technical_discordance"
 
 
 @patch("src.application.services.execution_direction_resolver.resolve_meta_payoff_edge")
-@patch("src.application.services.execution_direction_resolver._reject_on_quality_gate")
+@patch("src.application.services.execution_direction_resolver.reject_on_quality_gate")
 def test_resolve_execution_direction_concordance_boost(mock_reject, mock_resolve_meta):
     mock_resolve_meta.return_value = (0.05, False)
     mock_reject.return_value = False
-
-    # DL indica CALL, e indicadores têm 90% de CALL_VOTES (concordância >= 80%)
     entry = {
         "direction": TradeDirection.CALL,
         "metrics": {
@@ -100,5 +99,4 @@ def test_resolve_execution_direction_concordance_boost(mock_reject, mock_resolve
     }
     res = resolve_execution_direction(entry, symbol="SYM")
     assert res is not None
-    # prob 0.60 + 0.05 boost = 0.65
     assert entry["metrics"]["tcn_score"] == pytest.approx(0.65)

@@ -66,4 +66,10 @@ def test_attach_cross_symbol_features_to_decisions():
 def test_extract_meta_feature_vector_uses_meta_feature_vector_cache():
     cached = [float(i) for i in range(META_FEATURE_DIM)]
     metrics = {"meta_feature_vector": cached}
-    assert extract_meta_feature_vector(metrics) == cached
+    vector = extract_meta_feature_vector(metrics)
+    assert len(vector) == META_FEATURE_DIM
+    assert vector[35] == 3.0
+    assert vector[37] == 3.0
+    assert vector[0] == 0.0
+    assert vector[34] == 34.0
+    assert metrics["meta_feature_vector"] is vector

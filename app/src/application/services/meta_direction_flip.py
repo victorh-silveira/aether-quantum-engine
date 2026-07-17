@@ -28,7 +28,7 @@ _SQUEEZE_LOGGER = logging.getLogger("AETH")
 
 
 def _read_micro_bb_width(metrics: dict[str, Any]) -> float | None:
-    """Le bb_width micro M1 com fallback para indicadores macro anexados."""
+    """Le bb_width micro M5 com fallback para indicadores macro anexados."""
     micro = metrics.get("micro_indicators")
     if isinstance(micro, dict) and micro.get("bb_width") is not None:
         return float(micro["bb_width"])
@@ -65,7 +65,7 @@ def severe_bb_compression(metrics: dict[str, Any]) -> bool:
 
 
 def micro_volatility_squeeze_active(metrics: dict[str, Any]) -> bool:
-    """Indica squeeze M1 por bb_width comprimido ou desaceleracao institucional de ticks."""
+    """Indica squeeze M5 por bb_width comprimido ou desaceleracao institucional de ticks."""
     tick_accel = _read_micro_tick_acceleration(metrics)
     return severe_bb_compression(metrics) or tick_accel < 0.0
 

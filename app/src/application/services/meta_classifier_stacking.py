@@ -103,7 +103,7 @@ def resolve_meta_payoff_edge(
     _base_score: float,
     config: dict[str, Any] | None,
 ) -> tuple[float, bool]:
-    """Resolve edge continuo apenas a partir do prefetch do ciclo M1."""
+    """Resolve edge continuo apenas a partir do prefetch do ciclo M5."""
     _ = (symbol, direction, tcn_probability, _base_score, config)
     prefetched = metrics.get("predicted_payoff_edge")
     if prefetched is not None:

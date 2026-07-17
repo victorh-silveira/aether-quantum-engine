@@ -64,7 +64,8 @@ def test_log_execution_blockers_skips_symbol_without_decision_entry(orch_config)
             orch.executor._log_execution_blockers(
                 {"RDBULL": {"direction": None, "metrics": {"gate_reason": "data", "execute": False}}},
             )
-        assert mock_info.call_args_list == []
+        calls = [str(c) for c in mock_info.call_args_list]
+        assert any("EXEC_EMPTY" in c and "RDBULL:data" in c for c in calls)
 
 
 def test_log_execution_blockers_recovery_empty_pool(orch_config):

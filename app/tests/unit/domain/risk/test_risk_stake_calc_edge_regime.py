@@ -9,6 +9,7 @@ from src.domain.risk.risk_stake_calc import calculate_stake_for_manager
 
 def _attach_dlambert(rm, kelly_config):
     rm.dlambert_config = kelly_config.get("dlambert", {})
+    rm.soft_recovery_config = kelly_config.get("soft_recovery", {})
     rm.consecutive_losses_linear = 0
     rm.dlambert_unit = 0.0
 

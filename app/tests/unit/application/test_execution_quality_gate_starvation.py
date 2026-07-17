@@ -9,7 +9,6 @@ from src.application.services.execution_quality_gate import (
     starvation_decay_factor,
 )
 from src.application.services.execution_quality_gate_cluster import (
-    _strongly_negative_meta,
     quality_conviction_suspends_cluster,
 )
 from src.application.services.execution_quality_gate_meta import evaluate_meta_payoff_quality
@@ -20,6 +19,7 @@ from src.application.services.execution_quality_gate_starvation import (
     apply_starvation_margin_decay,
     load_quality_skipped_cycles_counter,
     prepare_quality_skipped_cycles_counter,
+    progressive_conviction_factor,
     record_quality_guard_cycle_skip,
     reset_quality_skipped_cycles_counter,
     reset_quality_skipped_cycles_counter_for_orch,
@@ -29,6 +29,25 @@ from src.application.services.execution_quality_gate_starvation import (
 def test_starvation_decay_factor_below_threshold_is_neutral():
     assert starvation_decay_factor(0) == 1.0
     assert starvation_decay_factor(2) == 1.0
+
+
+def test_progressive_conviction_factor_every_five_skips_in_recovery():
+    assert progressive_conviction_factor(4, recovery_active=True) == pytest.approx(1.0)
+    assert progressive_conviction_factor(5, recovery_active=True) == pytest.approx(0.80)
+    assert progressive_conviction_factor(10, recovery_active=True) == pytest.approx(0.64)
+    assert progressive_conviction_factor(100, recovery_active=True) == pytest.approx(0.80**20)
+    assert progressive_conviction_factor(100, recovery_active=False) == pytest.approx(1.0)
+
+
+def test_resolve_dynamic_quality_limits_progressive_conviction_at_100_skips():
+    limits = resolve_dynamic_quality_limits(
+        {"quality_gate": {"min_direction_margin": 0.10, "min_payoff_edge": -0.50}},
+        linear=2,
+        pending_loss_total=0.0,
+        skipped_cycles_counter=100,
+    )
+    assert limits["starvation_decay_factor"] == pytest.approx(0.80**20)
+    assert limits["min_direction_margin"] == pytest.approx(0.10 * (0.80**20))
 
 
 def test_starvation_decay_factor_linear_decay_and_floor():
@@ -67,14 +86,24 @@ def test_resolve_dynamic_quality_limits_applies_starvation_decay_at_counter_6():
     limits = resolve_dynamic_quality_limits(
         {},
         risk_manager=risk_manager,
-        linear=1,
-        pending_loss_total=13.333333333333334,
+        linear=0,
+        pending_loss_total=0.0,
         skipped_cycles_counter=9,
     )
-    assert limits["min_direction_margin"] == pytest.approx(0.066)
-    assert limits["min_payoff_edge"] == pytest.approx(0.01)
+    assert limits["min_direction_margin"] == pytest.approx(0.036)
     assert limits["starvation_decay_factor"] == pytest.approx(0.60)
     assert limits["skipped_cycles_counter"] == pytest.approx(9.0)
+
+
+def test_resolve_dynamic_quality_limits_applies_progressive_conviction_in_recovery():
+    limits = resolve_dynamic_quality_limits(
+        {"quality_gate": {"min_direction_margin": 0.10, "min_payoff_edge": -0.50}},
+        linear=1,
+        pending_loss_total=0.0,
+        skipped_cycles_counter=9,
+    )
+    assert limits["starvation_decay_factor"] == pytest.approx(0.80)
+    assert limits["min_direction_margin"] == pytest.approx(0.08)
 
 
 def test_passes_execution_quality_starvation_allows_margin_008_after_decay():
@@ -92,8 +121,8 @@ def test_passes_execution_quality_starvation_allows_margin_008_after_decay():
     orch = SimpleNamespace(_quality_skipped_cycles_counter=9, logger=MagicMock())
 
     assert evaluate_meta_payoff_quality(metrics, risk_manager=risk_manager, orch=orch) is True
-    assert metrics["quality_min_direction_margin"] == pytest.approx(0.066)
-    assert metrics["quality_starvation_decay_factor"] == pytest.approx(0.60)
+    assert metrics["quality_starvation_decay_factor"] == pytest.approx(0.80)
+    assert metrics["quality_min_direction_margin"] == pytest.approx(0.088)
 
 
 def test_starvation_decay_inactive_before_threshold():
@@ -138,7 +167,7 @@ def test_quality_conviction_suspends_cluster_does_not_increment_skipped_counter(
             }
         },
     }
-    assert quality_conviction_suspends_cluster(orch, decisions) is True
+    assert quality_conviction_suspends_cluster(orch, decisions) is False
     assert orch._quality_skipped_cycles_counter == 4
 
 
@@ -213,9 +242,3 @@ def test_schedule_persist_raises_runtime_error_when_no_loop():
     orch = SimpleNamespace(state_store=MagicMock(), _quality_skipped_cycles_counter=3)
     with patch("asyncio.get_running_loop", side_effect=RuntimeError("no loop")):
         _schedule_quality_skipped_cycles_persist(orch)
-
-
-def test_strongly_negative_meta_relaxed_under_starvation():
-    metrics = {"meta_payoff_edge_zscore": -0.86}
-    assert _strongly_negative_meta(metrics, decay_factor=1.0) is True
-    assert _strongly_negative_meta(metrics, decay_factor=0.20) is False

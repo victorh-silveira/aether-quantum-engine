@@ -13,9 +13,13 @@ from pydantic import BaseModel, Field, model_validator
 
 logger = logging.getLogger("META")
 MODELS_DIR = Path(os.getenv("MODELS_DIR", "/models"))
-FEATURE_DIM = 39
+META_FEATURE_DIM = 43
 DEFAULT_FEATURE_NAMES: tuple[str, ...] = (
     *(f"feature_{index}" for index in range(34)),
+    "micro_bid_ask_spread_momentum",
+    "micro_bid_ask_spread_momentum_zscore",
+    "volatility_shadow_ratio",
+    "volatility_shadow_ratio_zscore",
     "cross_symbol_prob_delta",
     "cross_symbol_vol_ratio_diff",
     "cross_symbol_rsi_spread",
@@ -40,10 +44,10 @@ def _configure_service_logging() -> None:
 _configure_service_logging()
 
 
-class MetaPredictPayload(BaseModel):
+class PredictMetaRequest(BaseModel):
     tcn_probability: float = Field(ge=0.0, le=1.0)
     direction: str
-    feature_vector: list[float] = Field(min_length=FEATURE_DIM, max_length=FEATURE_DIM)
+    feature_vector: list[float]
     symbol: str = ""
 
     @model_validator(mode="before")
@@ -78,11 +82,11 @@ _model_load_error: str | None = None
 
 def _resolve_feature_names(bundle: dict[str, Any]) -> list[str]:
     stored = bundle.get("feature_names")
-    if isinstance(stored, list) and len(stored) == FEATURE_DIM:
+    if isinstance(stored, list) and stored:
         names = [str(name) for name in stored]
         if names != list(DEFAULT_FEATURE_NAMES):
             logger.warning(
-                "feature_names do bundle divergem do schema de treino; usando nomes do artefato",
+                "feature_names do bundle divergem do schema canônico 43D; usando nomes do artefato",
             )
         return names
     return list(DEFAULT_FEATURE_NAMES)
@@ -90,10 +94,9 @@ def _resolve_feature_names(bundle: dict[str, Any]) -> list[str]:
 
 def _build_feature_dataframe(bundle: dict[str, Any], feature_vector: list[float]) -> pd.DataFrame:
     names = _resolve_feature_names(bundle)
-    if len(feature_vector) != FEATURE_DIM:
-        raise ValueError(f"feature_vector deve ter {FEATURE_DIM} elementos, recebeu {len(feature_vector)}")
-    if len(names) != FEATURE_DIM:
-        raise ValueError(f"feature_names deve ter {FEATURE_DIM} colunas, recebeu {len(names)}")
+    expected = len(names)
+    if len(feature_vector) != expected:
+        raise ValueError(f"feature_vector deve ter {expected} elementos, recebeu {len(feature_vector)}")
     row = [float(value) for value in feature_vector]
     frame = pd.DataFrame([row], columns=names)
     return frame.loc[:, names]
@@ -131,7 +134,8 @@ def _load_model_bundle() -> dict[str, Any] | None:
             logger.warning("Artefato %s sem metodo predict", path.name)
             continue
         _model_load_error = None
-        logger.info("Modelo meta-regressor carregado: %s", path.name)
+        feature_count = len(_resolve_feature_names(bundle))
+        logger.info("Modelo meta-regressor carregado: %s | feature_dim=%d", path.name, feature_count)
         return bundle
     _model_load_error = "; ".join(failures) if failures else f"nenhum regressor valido em {MODELS_DIR}"
     return None
@@ -152,16 +156,18 @@ async def startup_load_model() -> None:
 
 
 @app.get("/health")
-async def health() -> dict[str, bool | str]:
+async def health() -> dict[str, bool | str | int]:
+    names = _resolve_feature_names(_model_bundle) if _model_bundle is not None else list(DEFAULT_FEATURE_NAMES)
     return {
         "ready": _model_bundle is not None,
         "model_loaded": _model_bundle is not None,
+        "feature_dim": len(names),
         "load_error": _model_load_error or "",
     }
 
 
 @app.post("/v2/predict_meta", response_model=MetaPredictResult)
-async def predict_meta(payload: MetaPredictPayload) -> MetaPredictResult:
+async def predict_meta(payload: PredictMetaRequest) -> MetaPredictResult:
     bundle = _model_bundle
     if bundle is None:
         raise HTTPException(status_code=503, detail=_regressor_unavailable_detail())

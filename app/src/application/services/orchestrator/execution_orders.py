@@ -3,7 +3,12 @@
 import asyncio
 import logging
 
-from src.application.services.market_audit_log import format_direction_audit_line, resolve_predicted_edge
+from src.application.services.market_audit_log import (
+    format_execution_ticket_line,
+    resolve_predicted_edge,
+    resolve_stake_audit_context,
+    store_contract_audit,
+)
 from src.domain.risk.stop_win_target import resolve_stop_win_target
 
 from .api_maintenance_guard import handle_broker_maintenance_error
@@ -22,6 +27,35 @@ async def _subscribe_open_contract_background(ws, contract_id: int, *, timeout: 
         await subscribe_open_contract(ws, int(contract_id), timeout=timeout)
     except Exception as e:
         logger.warning("[%s] SETTLE: subscribe cid=%s falhou: %s", cid, int(contract_id), e)
+
+
+def _emit_execution_ticket(executor, *, cycle_id: int, symbol, direction, stake, contract, metrics) -> None:
+    """Emite linha EXEC e persiste auditoria do contrato."""
+    logger = logging.getLogger("AETH")
+    mode_tag, pending, bankroll = resolve_stake_audit_context(
+        executor.orch.risk_manager,
+        balance_fallback=getattr(getattr(executor.orch, "state", None), "balance", None),
+    )
+    logger.info(
+        format_execution_ticket_line(
+            cycle_id,
+            direction=direction.name,
+            symbol=str(symbol),
+            stake=float(stake),
+            mode_tag=mode_tag,
+            pending=pending,
+            bankroll=bankroll,
+            contract_id=int(contract.contract_id),
+            payout=float(contract.payout),
+        )
+    )
+    store_contract_audit(
+        executor.orch,
+        int(contract.contract_id),
+        symbol=str(symbol),
+        direction=direction.name,
+        edge=resolve_predicted_edge(metrics if isinstance(metrics, dict) else {}),
+    )
 
 
 async def place_order(executor, symbol, direction, stake, duration=None, metrics=None):
@@ -72,26 +106,14 @@ async def place_order(executor, symbol, direction, stake, duration=None, metrics
                 raise
     if contract is None:
         raise last_error or RuntimeError("Erro na proposta: falha desconhecida")
-    dur = duration or params.get("duration", 1)
-    u = params.get("duration_unit", "m")
-    meta = metrics if isinstance(metrics, dict) else {}
-    dl_dir = meta.get("dl_direction")
-    cycle_id = int(executor.orch._active_cycle_id)
-    logger.info(
-        "%s || stake=$%.2f pay=%.2f cid=%s buy=$%.2f %s%s",
-        format_direction_audit_line(
-            cycle_id,
-            direction.name,
-            str(symbol),
-            resolve_predicted_edge(meta),
-            dl_direction=str(dl_dir) if dl_dir else None,
-        ),
-        float(stake),
-        float(contract.payout),
-        int(contract.contract_id),
-        float(contract.buy_price),
-        str(dur),
-        str(u),
+    _emit_execution_ticket(
+        executor,
+        cycle_id=int(executor.orch._active_cycle_id),
+        symbol=symbol,
+        direction=direction,
+        stake=stake,
+        contract=contract,
+        metrics=metrics,
     )
     executor.orch.risk_manager.contract_to_symbol[contract.contract_id] = symbol
     req_timeout = float(

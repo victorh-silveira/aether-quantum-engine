@@ -26,7 +26,7 @@ def emit_decision_engine_banner(
             dl_cfg.get("lookback", ""),
             dl_cfg.get("confidence_call_threshold", 0.75),
             dl_cfg.get("confidence_put_threshold", 0.25),
-            risk_params.get("duration", 60),
+            risk_params.get("duration", 300),
             risk_params.get("duration_unit", "s"),
             online,
         )

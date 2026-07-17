@@ -130,10 +130,8 @@ def test_collect_cluster_orders_bolts_weak_signal_continuously():
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
-    assert len(orders) == 0
+    assert len(orders) == 1
 
-
-def test_collect_cluster_orders_mandatory_does_not_skip_recovery_without_hedge():
     orch = SimpleNamespace(
         anchor=ANCHOR,
         symbols=[ANCHOR, PAIR],

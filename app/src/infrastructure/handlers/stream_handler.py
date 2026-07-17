@@ -24,7 +24,7 @@ from src.infrastructure.handlers.tick_buffer import TickBuffer
 
 
 class StreamHandler:
-    """Gerencia fluxos macro M15 (DL) e micro M1 (execucao) para multiplos simbolos."""
+    """Gerencia fluxos macro M15 (DL) e micro M5 (execucao) para multiplos simbolos."""
 
     def __init__(self, ws_manager: WebSocketManager, symbols: list[str], data_config: dict, *, market_writer=None):
         """Inicializa o manipulador."""
@@ -113,7 +113,7 @@ class StreamHandler:
         self.ws.subscribe("tick", self._on_tick)
         self.candle_callback = callback
         self.logger.debug(
-            "STRM: Ativando fluxos M15=%ss e M1=%ss para %d simbolos",
+            "STRM: Ativando fluxos M15=%ss e M5=%ss para %d simbolos",
             self.macro_granularity,
             self.micro_granularity,
             len(self.symbols),
@@ -205,7 +205,7 @@ class StreamHandler:
         self.tick_buffer.on_bar_update(symbol, candle.epoch)
 
     async def _apply_micro_candle(self, symbol: str, candle: Candle):
-        """Atualiza buffer micro M1 e dispara callback operacional."""
+        """Atualiza buffer micro M5 e dispara callback operacional."""
         if symbol not in self.micro_candles:
             return
         apply_candle_update(
@@ -227,7 +227,7 @@ class StreamHandler:
         return self._series_from_store(self.macro_candles, symbol, field)
 
     def get_micro_numpy_series(self, symbol: str, field: str = "close") -> np.ndarray:
-        """Retorna serie numpy micro M1 para assinatura operacional."""
+        """Retorna serie numpy micro M5 para assinatura operacional."""
         return self._series_from_store(self.micro_candles, symbol, field)
 
     @staticmethod
@@ -243,7 +243,7 @@ class StreamHandler:
         return self._last_epoch_from_store(self.macro_candles, symbol)
 
     def get_last_micro_candle_epoch(self, symbol: str) -> int | None:
-        """Retorna epoch da ultima vela micro M1."""
+        """Retorna epoch da ultima vela micro M5."""
         return self._last_epoch_from_store(self.micro_candles, symbol)
 
     @staticmethod

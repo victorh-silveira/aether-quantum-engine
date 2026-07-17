@@ -1,5 +1,7 @@
 @echo off
 setlocal EnableExtensions
+set "PYTHONASYNCIODEBUG="
+set "PYTHONDEVMODE="
 pushd "%~dp0..\..\.."
 set "REPO_ROOT=%CD%"
 popd

@@ -8,6 +8,7 @@ from src.application.services.deep_learning.dl_cycle_brief import (
 from src.application.services.deep_learning.dl_gating import resolve_edge
 from src.application.services.execution_direction_resolver import infer_dl_direction, is_technically_blocked
 from src.application.services.log_dedupe import log_info_if_changed
+from src.application.services.market_audit_log import format_cluster_audit_line, resolve_cluster_timeframe
 from src.domain.risk.stake_sizing import metric_float, raw_side_from_metrics
 
 
@@ -102,11 +103,14 @@ def log_dl_cycle_summary(
         decisions,
         recovery_active=recovery_active,
     )
+    timeframe = resolve_cluster_timeframe(getattr(orch, "config", None) if orch is not None else None)
+    cluster_line = format_cluster_audit_line(decisions, timeframe=timeframe)
     if orch is None:
-        logger.info(brief)
+        logger.info(cluster_line)
         return
     key_brief = build_dl_cycle_brief_key(
         decisions,
         recovery_active=recovery_active,
     )
-    log_info_if_changed(orch, logger, "dl_brief", key_brief, "%s", brief)
+    log_info_if_changed(orch, logger, "dl_brief", key_brief, "%s", cluster_line)
+    _ = brief

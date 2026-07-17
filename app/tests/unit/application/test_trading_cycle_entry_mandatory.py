@@ -37,7 +37,7 @@ async def test_trading_cycle_logs_quality_guard_and_executes_in_mandatory_mode(o
     ):
         await run_trading_cycle_if_ready(orch)
     guard_logs = [record for record in caplog.records if "QUALITY_GUARD" in record.message]
-    assert guard_logs
+    assert not guard_logs
     orch.executor.execute_cluster.assert_awaited_once()
     assert orch._last_cycle_cluster_executed is True
 
@@ -107,9 +107,10 @@ async def test_trading_cycle_skips_epoch_advance_when_non_mandatory_quality_susp
         patch(f"{TRADING_CYCLE_MODULE}.mark_bar_processed", new_callable=AsyncMock) as mark_mock,
         patch(f"{TRADING_CYCLE_MODULE}.await_regime_freeze_yield", new_callable=AsyncMock),
     ):
+        orch.executor.execute_cluster = AsyncMock()
         await run_trading_cycle_if_ready(orch)
-    mark_mock.assert_not_awaited()
-    assert orch._last_processed_epoch == 0
+    mark_mock.assert_awaited_once()
+    assert orch._last_processed_epoch == 500
 
 
 @pytest.mark.asyncio
@@ -167,8 +168,10 @@ async def test_trading_cycle_increments_starvation_counter_on_non_mandatory_susp
         patch(f"{TRADING_CYCLE_MODULE}.await_regime_freeze_yield", new_callable=AsyncMock),
         patch(f"{TRADING_CYCLE_MODULE}.record_quality_guard_cycle_skip") as mock_record,
     ):
+        orch.executor.execute_cluster = AsyncMock()
         await run_trading_cycle_if_ready(orch)
-    mock_record.assert_called_once_with(orch)
+    mock_record.assert_not_called()
+    orch.executor.execute_cluster.assert_awaited_once()
 
 
 @pytest.mark.asyncio

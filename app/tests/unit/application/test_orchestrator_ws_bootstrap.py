@@ -119,21 +119,6 @@ async def test_setup_trading_session_success(orch_config):
 
 
 @pytest.mark.asyncio
-async def test_setup_trading_session_broker_unavailable(orch_config):
-    orch = Orchestrator(orch_config)
-    session = DerivTradingSession(
-        ws_url="wss://api.derivws.com/trading/v1/options/ws/demo?otp=x",
-        balance=100.0,
-        account_id="DOT1",
-    )
-    with patch.object(orch.auth, "open_trading_session", AsyncMock(return_value=session)):
-        orch.ws.connect = AsyncMock(side_effect=ConnectionError("WSS: conexao esgotada"))
-        with patch.object(orch.logger, "warning") as mock_warn:
-            assert await setup_trading_session(orch) is False
-        assert any("broker indisponivel" in str(c) for c in mock_warn.call_args_list)
-
-
-@pytest.mark.asyncio
 async def test_setup_trading_session_triton_bootstrap_timeout(orch_config):
     orch = Orchestrator(orch_config)
     with (

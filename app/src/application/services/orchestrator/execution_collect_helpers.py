@@ -7,10 +7,7 @@ from src.application.services.execution_entropy_fallback import pick_entropy_fal
 from src.application.services.execution_mandatory_pick import pick_absolute_mandatory_candidate
 from src.application.services.execution_symbols_recovery import recovery_blocked_symbols
 from src.application.services.market_audit_log import (
-    format_direction_audit_line,
-    format_execution_audit_line,
     format_indicators_audit_line,
-    resolve_predicted_edge,
 )
 from src.application.services.orchestrator.execution_recovery_gate import (
     recovery_min_signal,
@@ -261,34 +258,21 @@ def schedule_recovery_skip_counter_increment(orch) -> None:
         orch._recovery_skip_counter = int(getattr(orch, "_recovery_skip_counter", 0)) + 1
 
 
-def log_execution_decision(exec_mgr, cid: str, best: tuple, candidates: list, effective_signal: float) -> None:
-    """Registra log detalhado da decisao de execucao e indicadores."""
+def log_execution_decision(
+    exec_mgr,
+    cid: str,
+    best: tuple,
+    candidates: list,
+    effective_signal: float,
+    *,
+    decisions: dict | None = None,
+) -> None:
+    """Registra linha IND da decisao de execucao do simbolo escolhido."""
     metrics = best[2]
     cycle_digits = cid[1:] if cid.startswith("C") else cid
     try:
         cycle_id = int(cycle_digits)
     except (TypeError, ValueError):
         cycle_id = int(getattr(exec_mgr.orch, "_active_cycle_id", 0))
-    edge = resolve_predicted_edge(metrics)
-    tcn_score = float(metrics.get("tcn_score", metrics.get("calibrated_prob", metrics.get("raw_prob", 0.5))))
-    exec_mgr.logger.info(
-        format_direction_audit_line(
-            cycle_id,
-            best[1].name,
-            str(best[0]),
-            edge,
-            dl_direction=str(metrics.get("dl_direction") or best[1].name),
-        )
-    )
-    exec_mgr.logger.info(
-        format_execution_audit_line(
-            cycle_id,
-            str(best[0]),
-            best[1].name,
-            tcn_score,
-            edge,
-            z_edge=float(metrics.get("edge_zscore", 0.0)),
-        )
-    )
+    _ = (candidates, decisions, effective_signal)
     exec_mgr.logger.info(format_indicators_audit_line(cycle_id, str(best[0]), metrics))
-    _ = (candidates, effective_signal)

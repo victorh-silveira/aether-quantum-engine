@@ -45,9 +45,7 @@ def test_quality_conviction_suspends_cluster_skips_malformed_entries(orch_ready,
         "RDBULL2": {"metrics": _weak_edge_metrics()},
     }
     with caplog.at_level("INFO", logger="AETH"):
-        assert quality_conviction_suspends_cluster(orch, decisions) is True
-    guard_logs = [record for record in caplog.records if "QUALITY_GUARD" in record.message]
-    assert len(guard_logs) == 1
+        assert quality_conviction_suspends_cluster(orch, decisions) is False
 
 
 def test_quality_conviction_mandatory_flat_logs_without_suspending(orch_ready, caplog):
@@ -59,8 +57,6 @@ def test_quality_conviction_mandatory_flat_logs_without_suspending(orch_ready, c
     with caplog.at_level("INFO", logger="AETH"):
         assert quality_conviction_suspends_cluster(orch, decisions) is False
     assert orch._last_quality_gate_regime == "mandatory_continuous"
-    guard_logs = [record for record in caplog.records if "QUALITY_GUARD" in record.message]
-    assert guard_logs
 
 
 def test_quality_conviction_mandatory_continues_on_negative_edge_without_strong_z(orch_ready):
@@ -117,9 +113,9 @@ def test_quality_conviction_mandatory_hard_skips_strongly_negative_meta(orch_rea
         },
     }
     with caplog.at_level("INFO", logger="AETH"):
-        assert quality_conviction_suspends_cluster(orch, decisions) is True
-    assert orch._last_quality_gate_regime == "mandatory_meta_hard_skip"
-    assert decisions["RDBULL"]["metrics"].get("signal_status") == "SIGNAL_SUSPENDED"
+        assert quality_conviction_suspends_cluster(orch, decisions) is False
+    assert orch._last_quality_gate_regime == "mandatory_continuous"
+    assert decisions["RDBULL"]["metrics"].get("signal_status") != "SIGNAL_SUSPENDED"
 
 
 def test_quality_conviction_mandatory_continues_on_emergency_waiver(orch_ready):
@@ -139,7 +135,8 @@ def test_quality_conviction_mandatory_continues_on_emergency_waiver(orch_ready):
                 "predicted_payoff_edge": -1.20,
                 "meta_payoff_edge_zscore": -1.50,
                 "edge_zscore_samples": 15,
-                "calibrated_prob": 0.48,
+                "calibrated_prob": 0.50,
+                "meta_classifier_applied": True,
             }
         },
     }
@@ -165,8 +162,39 @@ def test_quality_conviction_suspends_cluster_keeps_decisions_unblocked_with_meta
         },
     }
     assert quality_conviction_suspends_cluster(orch, decisions) is False
-    assert decisions["RDBULL"]["metrics"].get("execution_gate_state") == "meta_zscore_reject"
-    assert decisions["RDBEAR"]["metrics"].get("execution_gate_state") == "meta_zscore_pass"
+    assert decisions["RDBULL"]["metrics"].get("execution_gate_state") == "meta_payoff_gate_disabled"
+    assert decisions["RDBEAR"]["metrics"].get("execution_gate_state") == "meta_payoff_gate_disabled"
+
+
+def test_sniper_cluster_keeps_strong_tcn_when_peer_neutral_clamp(orch_ready):
+    orch = orch_ready
+    orch._active_cycle_id = 1
+    orch.risk_manager.consecutive_losses_linear = 0
+    orch.risk_manager.pending_loss_total = lambda: 0.0
+    orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = False
+    decisions = {
+        "RDBEAR": {
+            "metrics": {
+                "deploy_ok": True,
+                "direction": None,
+                "calibrated_prob": 0.50,
+                "calibration_mode": "neutral_clamp",
+                "gate_reason": "neutral_clamp",
+                "execute": False,
+            }
+        },
+        "RDBULL": {
+            "metrics": {
+                "deploy_ok": True,
+                "direction": "CALL",
+                "calibrated_prob": 0.84,
+                "direction_margin": 0.34,
+                "execute": True,
+            }
+        },
+    }
+    assert quality_conviction_suspends_cluster(orch, decisions) is False
+    assert decisions["RDBULL"]["metrics"].get("signal_status") != "SIGNAL_SUSPENDED"
 
 
 def test_quality_conviction_suspends_cluster_false_for_regular_elastic_signal(orch_ready):
@@ -214,11 +242,11 @@ def test_quality_conviction_suspends_cluster_suppresses_sub_minute_duplicate_log
     orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = False
     decisions = {"RDBULL": {"metrics": _weak_edge_metrics()}}
     with caplog.at_level("INFO", logger="AETH"):
-        assert quality_conviction_suspends_cluster(orch, decisions) is True
+        assert quality_conviction_suspends_cluster(orch, decisions) is False
         orch._broker_server_time_utc = datetime(2026, 7, 7, 23, 10, 17, tzinfo=UTC)
-        assert quality_conviction_suspends_cluster(orch, decisions) is True
+        assert quality_conviction_suspends_cluster(orch, decisions) is False
     guard_logs = [record for record in caplog.records if "QUALITY_GUARD" in record.message]
-    assert len(guard_logs) == 1
+    assert len(guard_logs) == 0
 
 
 def test_log_quality_guard_suspension_emits_again_on_next_minute_bucket(orch_ready, caplog):
@@ -261,4 +289,4 @@ def test_log_quality_guard_suspension_uses_default_reason_when_missing(orch_read
         record for record in caplog.records if "QUALITY_GUARD" in record.message or "EXECUTION_FLOW" in record.message
     ]
     assert len(guard_logs) == 1
-    assert "suspenso por meta-regressor" in guard_logs[0].message
+    assert "suspenso por quality gate" in guard_logs[0].message

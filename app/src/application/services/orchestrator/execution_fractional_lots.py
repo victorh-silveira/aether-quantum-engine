@@ -10,8 +10,10 @@ import uuid
 from typing import Any
 
 from src.application.services.market_audit_log import (
-    format_direction_audit_line,
+    format_execution_ticket_line,
     resolve_predicted_edge,
+    resolve_stake_audit_context,
+    store_contract_audit,
 )
 from src.application.services.orchestrator.execution_contract_adoption import adopt_executed_contract
 from src.application.services.orchestrator.execution_split_abort import next_split_attempt_seq
@@ -266,19 +268,26 @@ async def _buy_lot_from_proposal(
         longcode=str(buy.get("longcode") or proposal.get("longcode") or ""),
     )
     cycle_id = int(getattr(executor.orch, "_active_cycle_id", 0))
+    mode_tag, pending, bankroll = resolve_stake_audit_context(executor.orch.risk_manager)
     executor.logger.info(
-        "%s || stake=$%.2f pay=%.2f cid=%s buy=$%.2f",
-        format_direction_audit_line(
+        format_execution_ticket_line(
             cycle_id,
-            direction.name,
-            str(symbol),
-            resolve_predicted_edge(metrics),
-            dl_direction=str(metrics.get("dl_direction")) if metrics.get("dl_direction") else None,
-        ),
-        float(lot),
-        float(contract.payout),
+            direction=direction.name,
+            symbol=str(symbol),
+            stake=float(lot),
+            mode_tag=mode_tag,
+            pending=pending,
+            bankroll=bankroll,
+            contract_id=int(contract.contract_id),
+            payout=float(contract.payout),
+        )
+    )
+    store_contract_audit(
+        executor.orch,
         int(contract.contract_id),
-        float(contract.buy_price),
+        symbol=str(symbol),
+        direction=direction.name,
+        edge=resolve_predicted_edge(metrics if isinstance(metrics, dict) else {}),
     )
     executor.orch.risk_manager.contract_to_symbol[contract.contract_id] = symbol
     req_timeout = float(

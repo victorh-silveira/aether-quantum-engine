@@ -55,7 +55,7 @@ def _build_reconnect_mocks(
     stream.candle_callback = AsyncMock()
     stream.symbols = symbols or ["RDBEAR"]
     stream.macro_granularity = 900
-    stream.micro_granularity = 60
+    stream.micro_granularity = 300
     stream.ws = orch.ws
     stream.ws.send = AsyncMock()
     stream._on_candle = MagicMock()

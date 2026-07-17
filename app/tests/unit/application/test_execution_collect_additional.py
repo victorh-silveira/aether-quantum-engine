@@ -160,7 +160,7 @@ def test_collect_cluster_orders_bolts_neutral_low_conviction_in_mandatory_mode()
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
-    assert len(orders) == 0
+    assert len(orders) == 1
 
 
 def test_cluster_entry_recovery_accepts_mandatory_weak_with_pending_loss():

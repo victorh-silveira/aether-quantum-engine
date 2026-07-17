@@ -4,10 +4,18 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.domain.risk.stake_sizing import (
-    consensus_entropy_applies_min_stake,
-    consensus_entropy_kelly_retention,
+from src.domain.risk.risk_recovery_state import (
+    MICRO_BANKROLL_THRESHOLD,
+    MICRO_TAIL_LINEAR_LEVEL,
+    MICRO_TAIL_UNIT_MULTIPLIER,
 )
+from src.domain.risk.soft_recovery_policy import (
+    apply_small_account_hard_floor,
+    configured_max_safe_stake_cap,
+    fixed_step_progression_multiplier,
+    resolve_amort_cycles,
+)
+from src.domain.risk.stake_sizing import consensus_entropy_kelly_retention
 from src.domain.risk.super_concordance_kelly import is_unanimous_vote_alignment
 
 
@@ -67,13 +75,14 @@ def soft_recovery_progression_multiplier(
     *,
     payout: float | None = None,
     risk_params: dict[str, Any] | None = None,
+    soft_recovery: dict[str, Any] | None = None,
 ) -> float:
-    """Retorna fator adaptativo^n para n perdas consecutivas na sessao."""
+    """Retorna fator de progressao; niveis 3-4 usam passo fixo U+15%."""
     losses = max(0, int(consecutive_losses))
     if losses <= 0:
         return 1.0
-    factor = adaptive_recovery_progression_factor(payout, risk_params)
-    return factor**losses
+    fixed = fixed_step_progression_multiplier(losses, soft_recovery=soft_recovery)
+    return float(fixed) if fixed is not None else adaptive_recovery_progression_factor(payout, risk_params) ** losses
 
 
 def resolve_session_base_unit(bankroll: float, base_unit: float, metrics: dict | None) -> float:
@@ -94,47 +103,59 @@ def apply_soft_recovery_stake(
     metrics: dict | None = None,
     payout: float | None = None,
     risk_params: dict[str, Any] | None = None,
+    soft_recovery: dict[str, Any] | None = None,
 ) -> float:
-    """Aplica progressao adaptativa indexada ao payout real quando ha passivo pendente."""
+    """Aplica progressao adaptativa ou passo fixo quando ha passivo pendente."""
     unit = resolve_session_base_unit(bankroll, base_unit, metrics)
     if float(pending_total) <= 0.0:
-        return min(unit, max_safe_stake_cap(bankroll, consecutive_losses_linear=consecutive_losses))
+        return min(
+            unit,
+            max_safe_stake_cap(bankroll, consecutive_losses_linear=consecutive_losses, soft_recovery=soft_recovery),
+        )
     factor = adaptive_recovery_progression_factor(payout, risk_params)
     resolved_payout = resolve_contract_payout(payout, risk_params)
     losses = max(0, int(consecutive_losses))
-    anchor = float(previous_stake) if float(previous_stake) > 0.0 else unit
-    if losses <= 0:
-        stake = unit
-    else:
-        stake = unit * soft_recovery_progression_multiplier(
-            losses,
-            payout=payout,
-            risk_params=risk_params,
-        )
-    cover = float(pending_total) / resolved_payout / 2.0
+    progression = soft_recovery_progression_multiplier(
+        losses, payout=payout, risk_params=risk_params, soft_recovery=soft_recovery
+    )
+    stake = unit if losses <= 0 else unit * progression
+    amort = resolve_amort_cycles(losses, soft_recovery)
+    cover = float(pending_total) / resolved_payout / float(amort)
     stake = max(stake, cover)
     if isinstance(metrics, dict):
         metrics["recovery_soft_progression"] = factor
         metrics["recovery_adaptive_payout"] = resolved_payout
         metrics["recovery_soft_losses"] = losses
-        metrics["recovery_soft_anchor_stake"] = anchor
+        metrics["recovery_soft_anchor_stake"] = float(previous_stake) if float(previous_stake) > 0.0 else unit
         metrics["recovery_cover_need"] = cover
-    cap = max_safe_stake_cap(bankroll, consecutive_losses_linear=consecutive_losses)
+        metrics["recovery_amort_cycles"] = amort
+        metrics["recovery_fixed_step"] = (
+            fixed_step_progression_multiplier(losses, soft_recovery=soft_recovery) is not None
+        )
+        metrics["recovery_progression_multiplier"] = float(progression)
+    cap = max_safe_stake_cap(bankroll, consecutive_losses_linear=consecutive_losses, soft_recovery=soft_recovery)
     return min(stake, cap)
 
 
-def max_safe_stake_cap(bankroll: float, *, consecutive_losses_linear: int = 0) -> float:
-    """Retorna teto absoluto de exposicao com compressao em streak linear N2+."""
+def max_safe_stake_cap(
+    bankroll: float,
+    *,
+    consecutive_losses_linear: int = 0,
+    soft_recovery: dict[str, Any] | None = None,
+) -> float:
+    """Retorna teto absoluto; micro-banca <$100 limita recovery a 5% do saldo."""
     linear = max(0, int(consecutive_losses_linear))
+    bal = max(0.0, float(bankroll))
+    if bal <= MICRO_BANKROLL_THRESHOLD and linear >= MICRO_TAIL_LINEAR_LEVEL:
+        configured = configured_max_safe_stake_cap(soft_recovery)
+        raw = configured if configured is not None else MICRO_TAIL_UNIT_MULTIPLIER * neutral_edge_dynamic_unit(bal)
+        return apply_small_account_hard_floor(raw, bal, soft_recovery=soft_recovery)
     pct = _MAX_SAFE_STAKE_BANKROLL_PCT
     if linear >= 3:
         pct = min(pct, _MAX_SAFE_STAKE_BANKROLL_PCT_LINEAR3)
     elif linear >= 2:
         pct = min(pct, _MAX_SAFE_STAKE_BANKROLL_PCT_LINEAR2)
-    cap = max(0.0, float(bankroll)) * pct
-    if bankroll <= 250.0:
-        return max(cap, 10.0)
-    return cap
+    return apply_small_account_hard_floor(bal * pct, bal, soft_recovery=soft_recovery)
 
 
 def _squeeze_floor_active(metrics: dict) -> bool:
@@ -276,23 +297,3 @@ def cross_veto_recovery_waiver_allowed(
     from src.domain.risk.risk_recovery_state import meta_payoff_veto_emergency_waiver  # noqa: PLC0415
 
     return meta_payoff_veto_emergency_waiver(metrics, direction=direction, risk_manager=risk_manager)
-
-
-__all__ = [
-    "adaptive_recovery_progression_factor",
-    "apply_neutral_edge_kelly_base",
-    "apply_soft_recovery_stake",
-    "apply_turbo_edge_stake",
-    "consensus_entropy_applies_min_stake",
-    "consensus_entropy_kelly_retention",
-    "consensus_kelly_retention",
-    "cross_veto_recovery_waiver_allowed",
-    "d_squeeze_sovereignty_active",
-    "enforce_d_squeeze_stake_floor",
-    "max_safe_stake_cap",
-    "neutral_edge_dynamic_unit",
-    "resolve_contract_payout",
-    "resolve_session_base_unit",
-    "soft_recovery_progression_multiplier",
-    "turbo_edge_stake_multiplier",
-]

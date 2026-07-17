@@ -6,7 +6,10 @@ from typing import Any
 
 from src.application.services.meta_payoff_regression import CALIBRATION_NEUTRAL_DRIFT
 from src.domain.models.trade import TradeDirection
-from src.domain.risk.risk_recovery_state import meta_payoff_veto_emergency_waiver
+from src.domain.risk.soft_recovery_policy import (
+    DEFAULT_NEGATIVE_ZSCORE_VETO,
+    negative_zscore_veto_floor_for_risk,
+)
 
 
 META_PAYOFF_NEGATIVE_ZSCORE_VETO = "meta_payoff_negative_zscore_veto"
@@ -16,17 +19,22 @@ EXECUTION_SIGNAL_VETO_REASONS = frozenset(
         CALIBRATION_NEUTRAL_DRIFT,
     }
 )
-NEGATIVE_ZSCORE_VETO_THRESHOLD = -0.20
+NEGATIVE_ZSCORE_VETO_THRESHOLD = DEFAULT_NEGATIVE_ZSCORE_VETO
 VETO_EDGE_EXPECTANCIES = frozenset({"NO_EDGE_NEUTRAL", "LOSS_EXPECTED"})
 NEUTRAL_EDGE_FLOOR = 0.04
 
 
-def classify_payoff_edge_expectancy(predicted_edge: float, *, z_score: float | None = None) -> str:
+def classify_payoff_edge_expectancy(
+    predicted_edge: float,
+    *,
+    z_score: float | None = None,
+    veto_floor: float = NEGATIVE_ZSCORE_VETO_THRESHOLD,
+) -> str:
     """Classifica expectativa tabular do meta-regressor a partir do edge e Z-Score."""
     edge = float(predicted_edge)
     if edge <= 0.0:
         return "LOSS_EXPECTED"
-    if z_score is not None and float(z_score) < NEGATIVE_ZSCORE_VETO_THRESHOLD:
+    if z_score is not None and float(z_score) < float(veto_floor):
         return "NO_EDGE_NEUTRAL"
     if edge < NEUTRAL_EDGE_FLOOR:
         return "NO_EDGE_NEUTRAL"
@@ -47,26 +55,35 @@ def meta_payoff_zscore(metrics: dict[str, Any]) -> float:
     return 0.0
 
 
-def resolve_payoff_edge_expectancy(metrics: dict[str, Any]) -> str:
+def resolve_payoff_edge_expectancy(
+    metrics: dict[str, Any],
+    *,
+    veto_floor: float = NEGATIVE_ZSCORE_VETO_THRESHOLD,
+) -> str:
     """Resolve expectativa; Z negativo sobrescreve WIN_EXPECTED explicito do meta."""
     z_score = meta_payoff_zscore(metrics) if meta_payoff_zscore_present(metrics) else None
     edge_raw = metrics.get("predicted_payoff_edge")
+    floor = float(veto_floor)
     explicit = metrics.get("edge_expectancy")
     if isinstance(explicit, str) and explicit.strip():
         expectancy = explicit.strip().upper()
-        if expectancy == "WIN_EXPECTED" and z_score is not None and float(z_score) < NEGATIVE_ZSCORE_VETO_THRESHOLD:
+        if expectancy == "WIN_EXPECTED" and z_score is not None and float(z_score) < floor:
             if edge_raw is not None and float(edge_raw) <= 0.0:
                 return "LOSS_EXPECTED"
             return "NO_EDGE_NEUTRAL"
         return expectancy
     if edge_raw is None:
         return "WIN_EXPECTED"
-    return classify_payoff_edge_expectancy(float(edge_raw), z_score=z_score)
+    return classify_payoff_edge_expectancy(float(edge_raw), z_score=z_score, veto_floor=floor)
 
 
-def stamp_payoff_edge_expectancy(metrics: dict[str, Any]) -> str:
+def stamp_payoff_edge_expectancy(
+    metrics: dict[str, Any],
+    *,
+    veto_floor: float = NEGATIVE_ZSCORE_VETO_THRESHOLD,
+) -> str:
     """Garante edge_expectancy materializado nas metricas do candidato."""
-    expectancy = resolve_payoff_edge_expectancy(metrics)
+    expectancy = resolve_payoff_edge_expectancy(metrics, veto_floor=veto_floor)
     metrics["edge_expectancy"] = expectancy
     return expectancy
 
@@ -77,21 +94,12 @@ def should_veto_meta_payoff_negative_zscore(
     direction: TradeDirection,
     risk_manager: Any | None = None,
 ) -> bool:
-    """True quando expectativa neutra/perda combina com Z-Score abaixo do piso."""
-    expectancy = stamp_payoff_edge_expectancy(metrics)
-    if expectancy not in VETO_EDGE_EXPECTANCIES:
-        return False
-    z_score = meta_payoff_zscore(metrics)
-    if z_score >= NEGATIVE_ZSCORE_VETO_THRESHOLD:
-        return False
-    if meta_payoff_veto_emergency_waiver(
-        metrics,
-        direction=direction.name,
-        risk_manager=risk_manager,
-    ):
-        metrics["meta_payoff_veto_waived"] = True
-        return False
-    return True
+    """Trava de veto meta-payoff desativada; telemetria de expectativa permanece."""
+    _ = direction
+    veto_floor = negative_zscore_veto_floor_for_risk(risk_manager)
+    metrics["meta_payoff_veto_zscore_floor"] = float(veto_floor)
+    stamp_payoff_edge_expectancy(metrics, veto_floor=veto_floor)
+    return False
 
 
 def is_execution_signal_vetoed(metrics: dict[str, Any] | None) -> bool:

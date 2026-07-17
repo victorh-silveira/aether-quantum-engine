@@ -104,7 +104,7 @@ def resolve_cycle_stake_scale(kelly_config: dict[str, Any], risk_config: dict[st
 
 def _contract_duration_seconds(params: dict[str, Any]) -> float:
     """Converte duracao do contrato em segundos para escala de stake."""
-    dur = max(1, int(params.get("duration", 60)))
+    dur = max(1, int(params.get("duration", 300)))
     unit = str(params.get("duration_unit", "s")).lower().strip()
     if unit == "m":
         return float(dur * 60)

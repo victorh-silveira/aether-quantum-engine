@@ -9,6 +9,7 @@ from src.application.services.orchestrator.trading_cycle_entry import run_tradin
 from src.application.services.orchestrator.warm_up_buffer_guard import (
     _WARM_UP_GUARD_LOG_MESSAGE,
     STREAM_WARM_UP_DELAY_SECONDS,
+    await_stream_warm_up_gate,
     log_warm_up_guard_suspension,
     resolve_stream_warm_up_delay_seconds,
     schedule_stream_warm_up_barrier,
@@ -76,6 +77,63 @@ async def test_trading_cycle_warm_up_suspended_deduplicates_log(orch_ready, capl
         assert trading_cycle_warm_up_suspended(orch) == SIGNAL_SUSPENDED
     guard_logs = [record for record in caplog.records if record.message == _WARM_UP_GUARD_LOG_MESSAGE]
     assert len(guard_logs) == 1
+
+
+@pytest.mark.asyncio
+async def test_await_stream_warm_up_gate_returns_immediately_when_inactive():
+    orch = SimpleNamespace(_stream_warmed_up_at=0.0, logger=MagicMock())
+    assert await await_stream_warm_up_gate(orch) is True
+    orch.logger.info.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_await_stream_warm_up_gate_waives_without_live_ticks(caplog):
+    orch = SimpleNamespace(
+        config={},
+        logger=MagicMock(),
+        stream=SimpleNamespace(tick_buffer=SimpleNamespace(last_tick_monotonic=lambda: 0.0)),
+    )
+    loop = asyncio.get_running_loop()
+    orch._stream_warmed_up_at = loop.time() + 45.0
+    with caplog.at_level("INFO", logger="AETH"):
+        ok = await await_stream_warm_up_gate(orch, timeout=0.05)
+    assert ok is True
+    assert orch._stream_warmed_up_at == 0.0
+    assert orch._warm_up_waiver_applied is True
+    orch.logger.info.assert_called()
+    orch.logger.warning.assert_called()
+    assert "WARMUP_GUARD: Avaliando portao" in str(orch.logger.info.call_args)
+    assert "WARMUP_TIMEOUT: Influxo de ticks vivos estagnado" in str(orch.logger.warning.call_args)
+
+
+@pytest.mark.asyncio
+async def test_await_stream_warm_up_gate_keeps_barrier_when_live_ticks_arrive():
+    loop = asyncio.get_running_loop()
+    now = loop.time()
+    orch = SimpleNamespace(
+        config={},
+        logger=MagicMock(),
+        stream=SimpleNamespace(tick_buffer=SimpleNamespace(last_tick_monotonic=lambda: now)),
+        _stream_warmed_up_at=now + 45.0,
+    )
+    ok = await await_stream_warm_up_gate(orch, timeout=0.05)
+    assert ok is True
+    assert orch._stream_warmed_up_at > 0.0
+    assert not getattr(orch, "_warm_up_waiver_applied", False)
+
+
+@pytest.mark.asyncio
+async def test_await_stream_warm_up_gate_exits_when_barrier_expires():
+    loop = asyncio.get_running_loop()
+    orch = SimpleNamespace(
+        config={},
+        logger=MagicMock(),
+        stream=SimpleNamespace(tick_buffer=object()),
+        _stream_warmed_up_at=loop.time() + 0.05,
+    )
+    ok = await await_stream_warm_up_gate(orch, timeout=1.0)
+    assert ok is True
+    assert stream_warm_up_active(orch) is False
 
 
 @pytest.mark.asyncio

@@ -1,9 +1,11 @@
 import asyncio
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 
 from src.application.services.orchestrator.orchestrator_atomic_state import (
+    _caller_function_name,
     orchestrator_atomic_state_context,
     orchestrator_balance_snapshot,
 )
@@ -37,6 +39,46 @@ async def test_orchestrator_atomic_state_context_uses_state_manager_lock(orch_re
     async with orchestrator_atomic_state_context(orch):
         assert orch.state_mgr._state_lock.locked()
     assert not orch.state_mgr._state_lock.locked()
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_atomic_state_context_times_out_on_deadlock(orch_ready, caplog):
+    orch = orch_ready
+    await orch.state_mgr._state_lock.acquire()
+    with (
+        patch(
+            "src.application.services.orchestrator.orchestrator_atomic_state._STATE_LOCK_ACQUIRE_TIMEOUT_SECONDS",
+            0.05,
+        ),
+        caplog.at_level("DEBUG", logger="AETH"),
+        pytest.raises(RuntimeError, match="STATE_LOCK_TIMEOUT") as captured,
+    ):
+        async with orchestrator_atomic_state_context(orch):
+            pass
+    assert any("LOCK_TRACE" in record.message for record in caplog.records)
+    assert "\n" in str(captured.value)
+    orch.state_mgr._state_lock.release()
+
+
+def test_caller_function_name_fallbacks():
+    with patch(
+        "src.application.services.orchestrator.orchestrator_atomic_state.inspect.currentframe",
+        return_value=None,
+    ):
+        assert _caller_function_name() == "<unknown>"
+
+    class _Frame:
+        def __init__(self, name: str, back=None):
+            self.f_back = back
+            self.f_globals = {"__name__": name}
+            self.f_code = SimpleNamespace(co_name="inner")
+
+    root = _Frame("contextlib")
+    with patch(
+        "src.application.services.orchestrator.orchestrator_atomic_state.inspect.currentframe",
+        return_value=root,
+    ):
+        assert _caller_function_name() == "<unknown>"
 
 
 def test_orchestrator_balance_snapshot_prefers_cached_balance(orch_ready):

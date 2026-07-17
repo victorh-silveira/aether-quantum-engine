@@ -97,34 +97,37 @@ def test_evaluate_meta_payoff_quality_gbdt_waiver():
         "call_votes": 6,
         "put_votes": 0,
     }
-    limits = {
-        "skipped_cycles_counter": 30,
-        "min_payoff_edge": 0.01,
-        "starvation_decay_factor": 0.20,
-    }
-
-    with patch("src.application.services.execution_quality_gate_meta.resolve_min_meta_payoff_zscore") as mock_z:
-        mock_z.return_value = 0.5
-        # Com inanição >= 30 e 6x0 unânime -> Deve ignorar o veto e aprovar
-        approved = evaluate_meta_payoff_quality(metrics, exec_cfg={}, min_payoff_edge=0.01, min_direction_margin=0.04)
-        # Injetar o limits retornado pelo patch
-        with patch(
-            "src.application.services.execution_quality_gate_meta.resolve_dynamic_quality_limits"
-        ) as mock_limits:
-            mock_limits.return_value = limits
-            approved = evaluate_meta_payoff_quality(metrics, exec_cfg={})
-            assert approved is True
-            assert metrics["gbdt_waiver_applied"] is True
+    approved = evaluate_meta_payoff_quality(
+        metrics,
+        exec_cfg={},
+        min_payoff_edge=0.01,
+        min_direction_margin=0.04,
+    )
+    assert approved is True
+    assert metrics["execution_gate_state"] == "meta_payoff_gate_disabled"
 
 
 @patch("src.application.services.orchestrator.orchestrator_run_loop.setup_session", new_callable=AsyncMock)
 @patch("src.application.services.orchestrator.orchestrator_run_loop.start_streams", new_callable=AsyncMock)
 @patch("src.application.services.orchestrator.orchestrator_run_loop.save_full_state", new_callable=AsyncMock)
 @patch("src.application.services.orchestrator.orchestrator_run_loop.prepare_orchestrator_run_loop")
+@patch("src.application.services.orchestrator.orchestrator_run_loop.await_stream_warm_up_gate", new_callable=AsyncMock)
+@patch("src.application.services.orchestrator.orchestrator_run_loop.start_settlement_worker", new_callable=AsyncMock)
+@patch("src.application.services.orchestrator.orchestrator_run_loop.start_ingestion_watchdog", new_callable=AsyncMock)
 @patch("asyncio.sleep", new_callable=AsyncMock)
-def test_run_orchestrator_loop_respects_cooldown_sleep(mock_sleep, mock_prepare, mock_save, mock_start, mock_setup):
+def test_run_orchestrator_loop_respects_cooldown_sleep(
+    mock_sleep,
+    mock_watchdog,
+    mock_settlement,
+    mock_warm_up,
+    mock_prepare,
+    mock_save,
+    mock_start,
+    mock_setup,
+):
     mock_setup.return_value = True
     mock_start.return_value = True
+    mock_warm_up.return_value = True
 
     orch = SimpleNamespace(
         config={"orchestrator": {"reconcile_interval_seconds": 60}},
@@ -138,7 +141,6 @@ def test_run_orchestrator_loop_respects_cooldown_sleep(mock_sleep, mock_prepare,
         _run_trading_cycle_if_ready=AsyncMock(),
     )
 
-    # Para evitar loop infinito, mudamos running para False no primeiro sleep
     def side_effect(seconds):
         orch.running = False
 
@@ -149,7 +151,6 @@ def test_run_orchestrator_loop_respects_cooldown_sleep(mock_sleep, mock_prepare,
 
     asyncio.run(run())
 
-    # O loop deve ter dormido o restante do cooldown (cerca de 15 segundos)
     mock_sleep.assert_called_once()
     args, _ = mock_sleep.call_args
     assert args[0] == pytest.approx(15.0, abs=1.0)

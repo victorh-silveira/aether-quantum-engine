@@ -9,8 +9,16 @@ from src.application.services.meta_direction_flip import SIGNAL_SUSPENDED
 
 
 STREAM_WARM_UP_DELAY_SECONDS = 45.0
+WARM_UP_LIVE_DATA_TIMEOUT_SECONDS = 25.0
 _WARM_UP_GUARD_LOG_MESSAGE = (
     "[AETHER] WARM_UP_GUARD | Aguardando estabilizacao do TickBuffer pos-reconexao. Coletando fluxo micro real."
+)
+_WARM_UP_WAIT_LOG_MESSAGE = (
+    "[AETHER] WARMUP_GUARD: Avaliando portao de aquecimento. Aguardando influxo de ticks reais da Deriv..."
+)
+_WARM_UP_WAIVER_LOG_MESSAGE = (
+    "[AETHER] WARMUP_TIMEOUT: Influxo de ticks vivos estagnado. "
+    "Forcando liberacao (Waiver) do loop mestre para evitar inanicao."
 )
 WARM_UP_CYCLE_SUSPENDED = SIGNAL_SUSPENDED
 
@@ -52,6 +60,7 @@ def schedule_stream_warm_up_barrier(orch: Any) -> float:
     loop = asyncio.get_running_loop()
     orch._stream_warmed_up_at = loop.time() + delay
     orch._warm_up_logged_until = 0.0
+    orch._warm_up_waiver_applied = False
     return delay
 
 
@@ -73,3 +82,52 @@ def trading_cycle_warm_up_suspended(orch: Any) -> str | None:
         return None
     log_warm_up_guard_suspension(orch)
     return WARM_UP_CYCLE_SUSPENDED
+
+
+def _tick_buffer_has_live_data(orch: Any, *, now: float | None = None) -> bool:
+    """True quando o TickBuffer registrou atividade recente de ticks vivos."""
+    stream = getattr(orch, "stream", None)
+    buffer = getattr(stream, "tick_buffer", None) if stream is not None else None
+    if buffer is None or not hasattr(buffer, "last_tick_monotonic"):
+        return False
+    last = float(buffer.last_tick_monotonic())
+    if last <= 0.0:
+        return False
+    current = now if now is not None else asyncio.get_running_loop().time()
+    return (current - last) < WARM_UP_LIVE_DATA_TIMEOUT_SECONDS
+
+
+def apply_warm_up_initialization_waiver(orch: Any) -> None:
+    """Libera o portao de aquecimento e sinaliza waiver de inicializacao."""
+    orch._stream_warmed_up_at = 0.0
+    orch._warm_up_waiver_applied = True
+    orch._warm_up_logged_until = 0.0
+    logger = getattr(orch, "logger", None)
+    if logger is not None:
+        logger.warning(_WARM_UP_WAIVER_LOG_MESSAGE)
+
+
+async def await_stream_warm_up_gate(
+    orch: Any,
+    *,
+    timeout: float = WARM_UP_LIVE_DATA_TIMEOUT_SECONDS,
+) -> bool:
+    """Aguarda aquecimento micro; apos timeout sem ticks vivos aplica waiver e segue."""
+    if not stream_warm_up_active(orch):
+        return True
+    logger = getattr(orch, "logger", None)
+    if logger is not None:
+        logger.info(_WARM_UP_WAIT_LOG_MESSAGE)
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + max(0.0, float(timeout))
+    saw_live = False
+    while stream_warm_up_active(orch):
+        now = loop.time()
+        if _tick_buffer_has_live_data(orch, now=now):
+            saw_live = True
+        if now >= deadline:
+            if not saw_live:
+                apply_warm_up_initialization_waiver(orch)
+            return True
+        await asyncio.sleep(0.1)
+    return True

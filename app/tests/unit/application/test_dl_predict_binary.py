@@ -36,9 +36,10 @@ def test_predict_executes_on_gray_zone_raw_prob():
             recovery_active=False,
         )
     assert entry["metrics"]["execute"] is True
-    assert entry["metrics"]["gate_reason"] is None
-    assert entry["direction"] == TradeDirection.CALL
-    assert entry["metrics"]["trade_score"] == pytest.approx(0.52, abs=1e-6)
+    assert entry["metrics"].get("gate_reason") != "neutral_clamp"
+    assert entry["direction"] is not None
+    assert entry["metrics"]["calibrated_prob"] == pytest.approx(0.52)
+    assert entry["metrics"]["calibration_mode"] == "calibrated"
 
 
 def test_predict_executes_on_strong_call():
@@ -175,7 +176,7 @@ def test_predict_includes_trend_metrics():
     prices = np.array([10.0, 5.0, 6.0, 3.0])
     with patch(
         "src.application.services.deep_learning.dl_predict_build.predict_next_direction",
-        return_value=(None, 0.52, 0.52),
+        return_value=(None, 0.60, 0.60),
     ):
         entry = predict_symbol_decision(
             orch,
@@ -190,6 +191,7 @@ def test_predict_includes_trend_metrics():
         )
     assert entry["metrics"]["trend_direction"] == "PUT"
     assert entry["metrics"]["execute"] is True
+    assert entry["metrics"]["calibration_mode"] == "calibrated"
 
 
 def test_predict_trend_conflict_does_not_block():

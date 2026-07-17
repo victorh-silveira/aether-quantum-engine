@@ -43,17 +43,18 @@ def test_resolve_signature_boundary_seconds_uses_custom_boundary(orch_ready):
 
 
 def test_resolve_signature_boundary_seconds_defaults_when_config_missing():
-    assert resolve_signature_boundary_seconds(SimpleNamespace(config=None)) == 60
+    assert resolve_signature_boundary_seconds(SimpleNamespace(config=None)) == 300
 
 
 def test_resolve_signature_boundary_seconds_defaults_when_boundary_invalid(orch_ready):
     orch = orch_ready
     orch.config.setdefault("orchestrator", {})["signature_boundary_seconds"] = "invalid"
-    assert resolve_signature_boundary_seconds(orch) == 60
+    orch.config["orchestrator"]["cycle_interval_seconds"] = "bad"
+    assert resolve_signature_boundary_seconds(orch) == 300
 
 
 def test_resolve_signature_boundary_seconds_defaults_when_config_invalid():
-    assert resolve_signature_boundary_seconds(SimpleNamespace(config={"orchestrator": "invalid"})) == 60
+    assert resolve_signature_boundary_seconds(SimpleNamespace(config={"orchestrator": "invalid"})) == 300
 
 
 def test_sanitize_quality_skip_decisions_ignores_invalid_payload():
@@ -106,6 +107,6 @@ async def test_trading_cycle_skips_execution_on_quality_gate_without_yield(orch_
         orch.executor.execute_cluster = AsyncMock()
         ran = await run_trading_cycle_if_ready(orch)
     assert ran is True
-    orch.executor.execute_cluster.assert_not_awaited()
-    skip_yield_mock.assert_awaited_once()
-    freeze_yield_mock.assert_not_awaited()
+    orch.executor.execute_cluster.assert_awaited_once()
+    skip_yield_mock.assert_not_awaited()
+    freeze_yield_mock.assert_awaited_once()

@@ -13,12 +13,19 @@ def test_build_dl_cycle_brief_exec_and_blocked():
     decisions = {
         "RDBULL": {
             "direction": TradeDirection.PUT,
-            "metrics": {"conviction": 0.75, "execute": True, "raw_prob": 0.75, "deploy_ok": True},
+            "metrics": {
+                "conviction": 0.75,
+                "execute": True,
+                "raw_prob": 0.25,
+                "calibrated_prob": 0.25,
+                "direction_margin": 0.25,
+                "deploy_ok": True,
+            },
         },
         "RDBEAR": {"direction": None, "metrics": {"gate_reason": "predict_error", "execute": False}},
     }
     line = build_dl_cycle_brief(decisions, recovery_active=False)
-    assert "exec RDBULL:PUT c=0.75" in line
+    assert "exec RDBULL:PUT m=0.25 cal=0.25" in line
     assert "1 bloq" in line
 
 
@@ -36,11 +43,18 @@ def test_build_dl_cycle_brief_exec_with_training():
         "RDBEAR": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}},
         "RDBULL": {
             "direction": TradeDirection.PUT,
-            "metrics": {"conviction": 0.75, "execute": True, "raw_prob": 0.75, "deploy_ok": True},
+            "metrics": {
+                "conviction": 0.75,
+                "execute": True,
+                "raw_prob": 0.25,
+                "calibrated_prob": 0.25,
+                "direction_margin": 0.25,
+                "deploy_ok": True,
+            },
         },
     }
     line = build_dl_cycle_brief(decisions, recovery_active=False)
-    assert "exec RDBULL:PUT c=0.75" in line
+    assert "exec RDBULL:PUT m=0.25 cal=0.25" in line
     assert "1 treinando" in line
 
 
@@ -90,17 +104,49 @@ def test_abstain_detail_mixed_blocked_and_valid():
 
 
 def test_format_brief_token_with_suffix():
-    token = _format_brief_token("RDBULL", TradeDirection.CALL, 0.55, suffix=":edge")
+    token = _format_brief_token("RDBULL", TradeDirection.CALL, margin=0.05, cal=0.55, suffix=":edge")
     assert token.endswith(":edge")
+    assert "m=0.05" in token
+    assert "cal=0.55" in token
+
+
+def test_build_dl_cycle_brief_neutral_clamp_abstains():
+    decisions = {
+        "RDBULL": {
+            "direction": None,
+            "metrics": {
+                "execute": False,
+                "gate_reason": "neutral_clamp",
+                "calibration_mode": "neutral_clamp",
+                "calibrated_prob": 0.50,
+                "raw_prob": 0.52,
+                "deploy_ok": True,
+            },
+        },
+    }
+    line = build_dl_cycle_brief(decisions, recovery_active=False)
+    assert "exec RDBULL" not in line
+    assert "m=" not in line
+    assert "neutral_clamp" in line
 
 
 def test_build_dl_cycle_brief_partial_blocked_tail():
     decisions = {
-        "RDBULL": {"direction": TradeDirection.CALL, "metrics": {"execute": True, "raw_prob": 0.62, "deploy_ok": True}},
+        "RDBULL": {
+            "direction": TradeDirection.CALL,
+            "metrics": {
+                "execute": True,
+                "raw_prob": 0.62,
+                "calibrated_prob": 0.62,
+                "direction_margin": 0.12,
+                "deploy_ok": True,
+            },
+        },
         "RDBEAR": {"direction": None, "metrics": {"gate_reason": "predict_error", "execute": False}},
     }
     line = build_dl_cycle_brief(decisions, recovery_active=False)
     assert "1 bloq" in line
+    assert "m=0.12" in line
 
 
 def test_brief_cycle_counts_marks_missing_direction_as_blocked():

@@ -10,7 +10,9 @@ from src.domain.risk.consensus_stake_penalty import (
     max_safe_stake_cap,
     resolve_contract_payout,
     resolve_session_base_unit,
+    soft_recovery_progression_multiplier,
 )
+from src.domain.risk.soft_recovery_policy import soft_recovery_enabled
 from src.domain.risk.stake_sizing import round_stake
 
 
@@ -18,9 +20,18 @@ REDIS_DLAMBERT_UNIT_KEY = "session:current:dlambert_unit"
 REDIS_DLAMBERT_LINEAR_LOSSES_KEY = "session:current:consecutive_losses_linear"
 
 
-def dlambert_enabled(dlambert_config: dict[str, Any]) -> bool:
-    """Indica se o motor de recovery Martingale esta ativo."""
-    return bool(dlambert_config.get("dlambert_enabled", True))
+def dlambert_enabled(dlambert_config: dict[str, Any], *, soft_recovery: dict[str, Any] | None = None) -> bool:
+    """Indica se o Soft Recovery Adaptativo esta ativo (alias legado)."""
+    return soft_recovery_enabled(dlambert_config, soft_recovery=soft_recovery)
+
+
+def _soft_cfg(rm: Any, dlambert_config: dict[str, Any]) -> dict[str, Any] | None:
+    """Resolve bloco soft_recovery a partir do RiskManager ou config legada."""
+    soft = getattr(rm, "soft_recovery_config", None)
+    if isinstance(soft, dict) and soft:
+        return soft
+    nested = dlambert_config.get("soft_recovery")
+    return nested if isinstance(nested, dict) and nested else None
 
 
 def resolve_dlambert_unit(
@@ -93,13 +104,14 @@ def resolve_dlambert_stake(
     payout: float | None = None,
     dl_metrics: dict | None = None,
 ) -> tuple[float, str]:
-    """Resolve stake final Kelly ou progressao adaptativa indexada ao payout em recovery."""
+    """Resolve stake final Kelly ou Soft Recovery Adaptativo indexado ao payout."""
+    soft = _soft_cfg(rm, dlambert_config)
     stress_recovery = martingale_recovery_active(
         recovery_active=recovery_active,
         pending_total=pending_total,
         consecutive_losses_linear=consecutive_losses_linear,
     )
-    if stress_recovery and dlambert_enabled(dlambert_config):
+    if stress_recovery and soft_recovery_enabled(dlambert_config, soft_recovery=soft):
         effective_base = effective_martingale_base(kelly_base, rm, dlambert_config)
         metrics = dl_metrics if isinstance(dl_metrics, dict) else None
         session_base = resolve_session_base_unit(bankroll, effective_base, metrics)
@@ -113,9 +125,14 @@ def resolve_dlambert_stake(
             metrics=metrics,
             payout=payout,
             risk_params=getattr(rm, "risk_params", None),
+            soft_recovery=soft,
         )
         rounded = round_stake(raw, recovery_linear=True)
-        cap = max_safe_stake_cap(bankroll, consecutive_losses_linear=consecutive_losses_linear)
+        cap = max_safe_stake_cap(
+            bankroll,
+            consecutive_losses_linear=consecutive_losses_linear,
+            soft_recovery=soft,
+        )
         return min(rounded, cap), "D'ALEMBERT"
     resolve_dlambert_unit(kelly_base, rm)
     return round_stake(float(kelly_base), recovery_linear=False), "KELLY"
@@ -133,13 +150,19 @@ def dlambert_log_suffix(
     bankroll: float = 0.0,
     payout: float | None = None,
 ) -> str:
-    """Monta sufixo de log com detalhes da progressao adaptativa indexada ao payout."""
+    """Monta sufixo de log com detalhes da progressao adaptativa ou passo fixo."""
     _ = (dlambert_unit, dlambert_config, bankroll)
     if mode_tag != "D'ALEMBERT":
         return ""
     linear = int(consecutive_losses_linear)
     resolved_payout = resolve_contract_payout(payout)
     factor = adaptive_recovery_progression_factor(payout)
+    mult = soft_recovery_progression_multiplier(linear, payout=payout)
+    if 3 <= linear <= 4:
+        return (
+            f" | D'ALEMBERT ${final_stake:.2f} (fixed=U+15% x{mult:.2f} n={linear}"
+            f" p={resolved_payout:.2f} U=${kelly_base:.2f}) | pend=${loss_to_recover:.2f}"
+        )
     return (
         f" | D'ALEMBERT ${final_stake:.2f} (soft={factor:.2f}x^{linear}"
         f" p={resolved_payout:.2f} U=${kelly_base:.2f}) | pend=${loss_to_recover:.2f}"

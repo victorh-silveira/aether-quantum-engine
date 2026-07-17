@@ -73,11 +73,20 @@ def test_recover_post_settlement_loop_transparently_resets_deadlock(orch_ready, 
     assert "Loop reinicializado de forma transparente" in caplog.text
 
 
-def test_recover_post_settlement_loop_transparently_noop_below_limit(orch_ready):
+def test_recover_post_settlement_loop_transparently_noop_when_idle(orch_ready):
+    orch = orch_ready
+    orch._post_settlement_incomplete_streak = 0
+    orch._post_settlement_deadlock = False
+    recover_post_settlement_loop_transparently(orch)
+    assert orch._post_settlement_incomplete_streak == 0
+    assert orch._post_settlement_deadlock is False
+
+
+def test_recover_post_settlement_loop_transparently_resets_streak(orch_ready):
     orch = orch_ready
     orch._post_settlement_incomplete_streak = 1
     recover_post_settlement_loop_transparently(orch)
-    assert orch._post_settlement_incomplete_streak == 1
+    assert orch._post_settlement_incomplete_streak == 0
 
 
 @pytest.mark.asyncio
@@ -134,6 +143,10 @@ async def test_orchestrator_run_loop_recovers_instead_of_sys_exit(orchestrator_c
             ),
             patch(
                 "src.application.services.orchestrator.orchestrator_run_loop.prepare_orchestrator_run_loop",
+            ),
+            patch(
+                "src.application.services.orchestrator.orchestrator_run_loop.await_stream_warm_up_gate",
+                AsyncMock(return_value=True),
             ),
             patch.object(orch, "_run_trading_cycle_if_ready", AsyncMock(return_value=False)),
             patch.object(orch, "_tick_idle_cycle_watchdog", side_effect=stop_after_recovery),

@@ -32,14 +32,16 @@ def build_quality_gate_reason(
     margin_fail: bool,
     edge_fail: bool,
     meta_applied: bool,
+    calibration_mode: str | None = None,
+    gate_reason: str | None = None,
 ) -> str:
-    """Monta motivo textual combinando violacoes de margem TCN e payoff meta."""
-    parts: list[str] = []
+    """Monta motivo textual de rejeicao por margem TCN (payoff meta desativado)."""
+    _ = (payoff_edge, min_edge, edge_fail, meta_applied)
+    if str(calibration_mode or "") == "neutral_clamp" or str(gate_reason or "") == "neutral_clamp":
+        return "neutral_clamp"
     if margin_fail:
-        parts.append(margin_reject_clause(dir_margin, min_margin))
-    if meta_applied and edge_fail:
-        parts.append(edge_reject_clause(payoff_edge, min_edge))
-    return " ou ".join(parts)
+        return margin_reject_clause(dir_margin, min_margin)
+    return ""
 
 
 def format_quality_guard_log_message(

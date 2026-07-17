@@ -215,7 +215,7 @@ async def test_run_trading_cycle_inserts_blank_line_between_cycles(orch_config):
 
 
 @pytest.mark.asyncio
-async def test_run_trading_cycle_invokes_inference_on_m1_signature_shift(orch_config):
+async def test_run_trading_cycle_invokes_inference_on_m5_signature_shift(orch_config):
     with (
         patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()),
         patch(
@@ -225,7 +225,15 @@ async def test_run_trading_cycle_invokes_inference_on_m1_signature_shift(orch_co
         ) as mock_collect,
         patch(
             "src.application.services.orchestrator.trading_cycle_entry.time.time",
-            return_value=float(_MICRO_EPOCH + 65),
+            return_value=float(_MICRO_EPOCH + 305),
+        ),
+        patch(
+            "src.application.services.orchestrator.trading_cycle_entry_guards.time.time",
+            return_value=float(_MICRO_EPOCH + 305),
+        ),
+        patch(
+            "src.application.services.orchestrator.orchestrator_data_signature.time.time",
+            return_value=float(_MICRO_EPOCH + 305),
         ),
     ):
         orch = Orchestrator(orch_config, "token")

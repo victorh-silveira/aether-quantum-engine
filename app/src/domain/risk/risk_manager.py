@@ -8,13 +8,16 @@ from src.domain.risk.recovery_hurst_gate import resolve_recovery_signal_floor
 from src.domain.risk.risk_cluster import finalize_risk_cluster
 from src.domain.risk.risk_contract_result import apply_contract_settlement_result
 from src.domain.risk.risk_cooldown import RiskCooldownMixin
-from src.domain.risk.risk_manager_restore import apply_risk_snapshot
+from src.domain.risk.risk_manager_restore import apply_risk_snapshot, build_risk_state_snapshot
 from src.domain.risk.risk_proposal_skip import ProposalSkipMixin
 from src.domain.risk.risk_recovery_state import (
+    cointegration_redirect_armed,
+    micro_tail_stake_cap,
     pending_loss_total as sum_pending_loss,
     recovery_financially_active as is_recovery_financially_active,
 )
 from src.domain.risk.risk_stake_calc import calculate_stake_for_manager
+from src.domain.risk.soft_recovery_policy import cointegration_valve_suppressed, resolve_soft_recovery_config
 from src.domain.risk.stake_target_proximity import apply_target_proximity_damping
 from src.domain.risk.stop_win_target import persisted_session_target, resolve_stop_win_target
 from src.domain.risk.symbol_loss_cooldown import SymbolLossCooldownMixin
@@ -27,7 +30,13 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin, ProposalSkipMixin)
         """Inicializa o RiskManager com configurações de Kelly."""
         self.config = config
         self.kelly_config = config.get("kelly", {})
-        self.dlambert_config = config.get("dlambert", {})
+        self.soft_recovery_config = resolve_soft_recovery_config(config)
+        legacy = config.get("dlambert", {}) if isinstance(config.get("dlambert"), dict) else {}
+        self.dlambert_config = {
+            **legacy,
+            "dlambert_enabled": bool(self.soft_recovery_config.get("enabled", True)),
+            "soft_recovery": dict(self.soft_recovery_config),
+        }
         self.risk_params = config.get("params", {"payout_estimate": 0.95, "stake_min": 1.0})
         self.limits = config.get("limits", {})
 
@@ -67,6 +76,24 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin, ProposalSkipMixin)
     def recovery_financially_active(self) -> bool:
         """Indica se a sessao ainda deve operar em modo recovery financeiro."""
         return is_recovery_financially_active(self.pending_loss)
+
+    def cointegration_redirect_active(self) -> bool:
+        """True quando Consensus Cointegration Redirect deve desviar o soft recovery."""
+        bankroll = float(self.initial_bankroll) if self.initial_bankroll > 0.0 else 100.0
+        pending = self.pending_loss_total()
+        if cointegration_valve_suppressed(bankroll, pending, soft_recovery=self.soft_recovery_config):
+            return False
+        threshold = self.soft_recovery_config.get("coing_redirect_drawdown_threshold")
+        return cointegration_redirect_armed(
+            bankroll,
+            pending,
+            threshold=float(threshold) if threshold is not None else None,
+        )
+
+    def max_safe_tail_cap(self, bankroll: float | None = None) -> float:
+        """Retorna teto de cauda 4.2*U para micro-banca a partir do nivel linear 4."""
+        bal = float(bankroll) if bankroll is not None else float(self.initial_bankroll)
+        return micro_tail_stake_cap(bal if bal > 0.0 else 100.0)
 
     def set_candle_interval_seconds(self, seconds: int) -> None:
         """Define duracao da vela ancora para cooldown em tempo real."""
@@ -248,18 +275,7 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin, ProposalSkipMixin)
 
     def get_state(self) -> dict[str, Any]:
         """Estado para persistência."""
-        return {
-            "initial_bankroll": self.initial_bankroll,
-            "total_session_profit": self.total_session_profit,
-            "last_result_tick": self.last_result_tick,
-            "rolling_wins": {k: list(v) for k, v in self._rolling_wins.items()},
-            "pending_loss": dict(self.pending_loss),
-            "last_loss_stake": self.last_loss_stake,
-            "consecutive_losses_linear": self.consecutive_losses_linear,
-            "dlambert_unit": self.dlambert_unit,
-            "current_cooldown_ticks": self.current_cooldown_ticks,
-            **self.symbol_cooldown_state(),
-        }
+        return build_risk_state_snapshot(self)
 
     def restore_state(self, data: dict[str, Any]) -> None:
         """Restaura campos de risco a partir de snapshot persistido."""

@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from src.domain.math.probability_entropy import binary_entropy
 from src.domain.models.trade import TradeDirection
 
 
@@ -9,6 +10,11 @@ CRITICAL_LINEAR_LOSSES = 5
 CRITICAL_PENDING_TOTAL = 250.0
 PUT_EXTREME_RAW_PROB = 0.18
 CALL_EXTREME_RAW_PROB = 0.82
+COINTEGRATION_DRAWDOWN_FRACTION = 0.15
+MICRO_BANKROLL_THRESHOLD = 250.0
+MICRO_TAIL_LINEAR_LEVEL = 4
+MICRO_TAIL_UNIT_MULTIPLIER = 4.2
+DRIFT_PAIR_SYMBOLS = frozenset({"RDBULL", "RDBEAR"})
 
 
 def pending_loss_total(pending_loss: dict[str, float]) -> float:
@@ -114,13 +120,7 @@ def evaluate_anti_trend_lock(
     Recebe inputs limpos e retorna a direção pura resolvida (ou None se suspensa)
     e a ação correspondente (ex: 'FLIP to PUT', 'FLIP to CALL', 'FREEZE: SKIP CYCLE', 'KEEP').
     """
-    is_drift_forbidden = (
-        (symbol == "RDBULL" and proposed_direction == TradeDirection.PUT)
-        or (symbol == "RDBEAR" and proposed_direction == TradeDirection.CALL)
-    ) and (vol_ratio >= 2.0 or bb_width_zscore >= 2.0)
-
-    if is_drift_forbidden:
-        return None, "FREEZE: SKIP CYCLE"
+    _ = (vol_ratio, bb_width_zscore)
 
     if consecutive_losses < 2:
         return proposed_direction, "KEEP"
@@ -189,3 +189,44 @@ def meta_payoff_veto_emergency_waiver(
         return False
     raw_prob = float(metrics.get("raw_prob", 0.5))
     return tcn_macro_ultra_extreme_conviction(raw_prob, direction)
+
+
+def cointegration_redirect_armed(
+    initial_bankroll: float,
+    pending_total: float,
+    *,
+    threshold: float | None = None,
+) -> bool:
+    """True quando drawdown excede limiar configuravel (padrao 15% do capital vivo)."""
+    bankroll = float(initial_bankroll)
+    if bankroll <= 0.0 or bankroll > MICRO_BANKROLL_THRESHOLD:
+        return False
+    limit = float(threshold) if threshold is not None else COINTEGRATION_DRAWDOWN_FRACTION * bankroll
+    return float(pending_total) > limit
+
+
+def micro_tail_stake_cap(bankroll: float) -> float:
+    """Teto de cauda 4.2*U para progressao soft a partir do nivel linear 4."""
+    unit = max(0.0, float(bankroll)) * (0.01 if float(bankroll) <= MICRO_BANKROLL_THRESHOLD else 0.0015)
+    return MICRO_TAIL_UNIT_MULTIPLIER * unit
+
+
+def cointegration_pair_score(metrics: dict[str, Any]) -> float:
+    """Pontua Drift por Z positivo maximizado e entropia de Shannon minimizada."""
+    prob = float(metrics.get("calibrated_prob", metrics.get("raw_prob", 0.5)))
+    z = float(metrics.get("meta_payoff_edge_zscore", metrics.get("edge_zscore", 0.0)))
+    if z <= 0.0:
+        return float("-inf")
+    return float(z) - binary_entropy(prob)
+
+
+def select_cointegration_redirect_candidate(
+    candidates: list[tuple[str, Any, dict]],
+) -> list[tuple[str, Any, dict]]:
+    """Redireciona soft recovery ao Drift de menor entropia e maior Z positivo."""
+    drift = [item for item in candidates if str(item[0]) in DRIFT_PAIR_SYMBOLS]
+    if not drift:
+        return []
+    if len(drift) == 1:
+        return drift
+    return [max(drift, key=lambda item: cointegration_pair_score(item[2]))]

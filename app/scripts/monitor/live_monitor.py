@@ -37,15 +37,31 @@ repo_path("data").mkdir(parents=True, exist_ok=True)
 logging.basicConfig(level=logging.ERROR, filename=str(repo_path("logs", "monitor.log")))
 logger = logging.getLogger("MONITOR")
 
-_DIR_SEL_RE = re.compile(
-    r"DIR_SEL\s*\|\|\s*ord=(?P<ord>CALL|PUT)(?:\s+\|\|\s+dl=(?P<dl>CALL|PUT)\s+inv)?\s+\|\|\s+sym=(?P<symbol>RDBEAR|RDBULL)\s+\|\|\s+edge=(?P<edge>-?[\d.]+)",
+_CLUSTER_RE = re.compile(
+    r"\[CLUSTER\]\s+(?P<tf>\S+)\s+\|\|\s+(?P<body>.+)$",
     re.IGNORECASE,
 )
-_EXEC_SEL_RE = re.compile(
-    r"EXEC_SEL\s*\|\s*(?P<symbol>RDBEAR|RDBULL)\s*\|\s*ord=(?P<ord>CALL|PUT)\s*\|\s*TCN=(?P<tcn>[\d.]+)\s*\|\s*edge=(?P<edge>-?[\d.]+)\s*\|\s*Z=(?P<z_edge>[+-]?[\d.]+)",
+_CLUSTER_TOKEN_RE = re.compile(
+    r"(?P<symbol>RDBEAR|RDBULL):\s+(?P<ord>CALL|PUT|FLAT)"
+    r"(?:\s+\((?:Prob:\s+(?P<prob>-?[\d.]+)\s+Cal:\s+(?P<cal>-?[\d.]+)\s+Edge:\s+(?P<edge>[+-]?[\d.]+)|(?P<veto>[A-Z0-9_]+))\))?",
+    re.IGNORECASE,
+)
+_EXEC_RE = re.compile(
+    r"\]\s*EXEC\s*\|\|\s*(?P<ord>CALL|PUT)\s+\[(?P<symbol>RDBEAR|RDBULL)\]\s*\|\|\s*"
+    r"STAKE:\s*(?P<stake>-?[\d.]+)\s+\((?P<mode>[A-Z0-9_]+)\)\s*\|\s*"
+    r"PEND:\s*(?P<pend>-?[\d.]+)\s*\|\s*BANCA:\s*(?P<banca>-?[\d.]+)\s*\|\|\s*"
+    r"CID:\s*(?P<cid>\d+)\s*\|\s*PAY:\s*(?P<pay>-?[\d.]+)",
+    re.IGNORECASE,
+)
+_IND_RE = re.compile(
+    r"\]\s*IND\s*\|\|\s*"
+    r"RSI:\s*(?P<rsi>[+-]?[\d.]+)\s*\|\s*ADX:\s*(?P<adx>[+-]?[\d.]+)\s*\|\s*HURST:\s*(?P<hurst>[+-]?[\d.]+)\s*\|\|\s*"
+    r"ATR:\s*(?P<atr>[+-]?[\d.]+)\s*\|\s*BBW:\s*(?P<bbw>[+-]?[\d.]+)\s*\|\s*VOL_R:\s*(?P<vol_r>[+-]?[\d.]+)\s*\|\|\s*"
+    r"Z:\s*(?P<z_edge>[+-]?[\d.]+)\s*\|\s*ACC:\s*(?P<acc>[+-]?[\d.]+)",
     re.IGNORECASE,
 )
 _SESSION_START_RE = re.compile(r"Alvo de [\d.]+%:\s*\$([\d,]+\.?\d*)", re.IGNORECASE)
+_SESSION_START_FIXED_RE = re.compile(r"Alvo fixo micro-banca:\s*\$([\d,]+\.?\d*)", re.IGNORECASE)
 
 
 def _safe_load_json(path: Path, retries: int = 3, delay: float = 0.05):
@@ -68,48 +84,74 @@ class LogParser:
         line = line.strip()
         if not line:
             return
-        self._parse_dir_sel(line)
-        self._parse_exec_sel(line)
+        self._parse_cluster(line)
+        self._parse_ind(line)
+        self._parse_exec(line)
         self._parse_session_bootstrap(line)
         self._parse_balance(line)
 
-    def _parse_dir_sel(self, line: str) -> None:
-        if "DIR_SEL" not in line:
+    def _parse_cluster(self, line: str) -> None:
+        if "[CLUSTER]" not in line:
             return
-        match = _DIR_SEL_RE.search(line)
+        match = _CLUSTER_RE.search(line)
         if not match:
             return
         try:
-            self.state.last_telemetry["symbol"] = match.group("symbol")
-            self.state.last_telemetry["dir"] = match.group("ord").upper()
-            dl = match.group("dl")
-            self.state.last_telemetry["dl_dir"] = dl.upper() if dl else match.group("ord").upper()
-            self.state.last_telemetry["conv"] = f"{float(match.group('edge')):.2f}"
+            tokens = list(_CLUSTER_TOKEN_RE.finditer(match.group("body")))
+            if not tokens:
+                return
+            chosen = next((token for token in tokens if not token.group("veto")), tokens[0])
+            self.state.last_telemetry["symbol"] = chosen.group("symbol").upper()
+            self.state.last_telemetry["dir"] = chosen.group("ord").upper()
+            self.state.last_telemetry["dl_dir"] = chosen.group("ord").upper()
+            edge = chosen.group("edge")
+            if edge is not None:
+                self.state.last_telemetry["conv"] = f"{float(edge):.2f}"
+            elif chosen.group("prob") is not None:
+                self.state.last_telemetry["conv"] = f"{float(chosen.group('prob')):.2f}"
         except Exception as exc:
-            logger.error("Parser Error DIR_SEL: %s", exc)
+            logger.error("Parser Error CLUSTER: %s", exc)
 
-    def _parse_exec_sel(self, line: str) -> None:
-        if "EXEC_SEL" not in line:
+    def _parse_ind(self, line: str) -> None:
+        if "IND ||" not in line:
             return
-        match = _EXEC_SEL_RE.search(line)
+        match = _IND_RE.search(line)
         if not match:
             return
         try:
-            self.state.last_telemetry["symbol"] = match.group("symbol")
+            z_edge = float(match.group("z_edge"))
+            acc = float(match.group("acc"))
+            self.state.last_telemetry["metrics"] = f"Z={z_edge:+.2f} ACC={acc:.4f}"
+        except Exception as exc:
+            logger.error("Parser Error IND: %s", exc)
+
+    def _parse_exec(self, line: str) -> None:
+        if "EXEC ||" not in line:
+            return
+        match = _EXEC_RE.search(line)
+        if not match:
+            return
+        try:
+            self.state.last_telemetry["symbol"] = match.group("symbol").upper()
             self.state.last_telemetry["dir"] = match.group("ord").upper()
             self.state.last_telemetry["dl_dir"] = match.group("ord").upper()
-            self.state.last_telemetry["conv"] = f"{float(match.group('tcn')):.2f}"
-            edge = float(match.group("edge"))
-            z_edge = float(match.group("z_edge"))
-            self.state.last_telemetry["metrics"] = f"edge={edge:.4f} Z={z_edge:+.2f}"
+            stake = float(match.group("stake"))
+            self.state.last_telemetry["conv"] = f"{stake:.2f}"
+            mode = match.group("mode")
+            pend = float(match.group("pend"))
+            pay = float(match.group("pay"))
+            self.state.last_telemetry["metrics"] = f"mode={mode} pend={pend:.2f} pay={pay:.2f}"
+            banca = float(match.group("banca"))
+            if banca > 0.0:
+                self.state.balance = banca
         except Exception as exc:
-            logger.error("Parser Error EXEC_SEL: %s", exc)
+            logger.error("Parser Error EXEC: %s", exc)
 
     def _parse_session_bootstrap(self, line: str) -> None:
         if "SESSAO INICIADA" not in line.upper():
             return
         try:
-            match = _SESSION_START_RE.search(line)
+            match = _SESSION_START_FIXED_RE.search(line) or _SESSION_START_RE.search(line)
             if match:
                 target = float(match.group(1).replace(",", ""))
                 if target > 0.0:

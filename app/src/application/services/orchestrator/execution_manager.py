@@ -121,7 +121,7 @@ class ExecutionManager:
                 custom_dur = metrics.get("duration")
                 if custom_dur is None:
                     risk_params = self.orch.config.get("risk_management", {}).get("params", {})
-                    custom_dur = int(risk_params.get("duration", 60))
+                    custom_dur = int(risk_params.get("duration", 300))
                 order_metrics = {**metrics, "duration": int(custom_dur)}
                 res = await self._place_order(symbol, direction, stake, duration=custom_dur, metrics=order_metrics)
                 if res:

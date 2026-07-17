@@ -18,14 +18,14 @@ def _series_last(series: dict, key: str, default: float = 0.0) -> float:
 
 
 def stamp_micro_frame_telemetry(orch: Any, symbol: str, metrics: dict[str, Any], params: dict[str, Any]) -> None:
-    """Anexa telemetria micro M1, fluxo de ticks e desvio Keltner para meta-classificador."""
+    """Anexa telemetria micro M5, fluxo de ticks e desvio Keltner para meta-classificador."""
     stream = getattr(orch, "stream", None)
     if stream is None or not hasattr(stream, "get_micro_numpy_series"):
         return
     closes = stream.get_micro_numpy_series(str(symbol), "close")
     if closes is None or len(closes) < 8:
         return
-    micro_gran = int(params.get("micro_granularity", 60))
+    micro_gran = int(params.get("micro_granularity", 300))
     high = stream.get_micro_numpy_series(str(symbol), "high")
     low = stream.get_micro_numpy_series(str(symbol), "low")
     open_ = stream.get_micro_numpy_series(str(symbol), "open")

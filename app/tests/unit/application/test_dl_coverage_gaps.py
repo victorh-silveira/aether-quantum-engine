@@ -138,6 +138,11 @@ def test_parse_dl_params_gru_block():
     assert params["rnn_hidden_size"] == 32
 
 
+def test_parse_dl_params_calibration_neutral_drift_list():
+    params = parse_dl_params({"calibration": {"calibration_neutral_drift": [0.42, 0.58], "neutral_half_width": 0.02}})
+    assert params["calibration"]["calibration_neutral_drift"] == [0.42, 0.58]
+
+
 def test_masked_loss_handles_tuple_logits_without_aux_head():
     model = MagicMock()
     logits_tensor = torch.randn(4, dtype=torch.float32)

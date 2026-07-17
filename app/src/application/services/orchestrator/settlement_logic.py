@@ -10,6 +10,7 @@ from src.application.services.direction_loss_tracker import record_direction_out
 from src.application.services.market_audit_log import (
     format_settlement_audit_line,
     pop_contract_audit,
+    resolve_settlement_tag,
 )
 from src.application.services.orchestrator.graceful_shutdown import graceful_shutdown
 from src.application.services.orchestrator.metrics_utils import neutral_metrics
@@ -186,6 +187,7 @@ async def process_late_settlement_from_payload(orch: Any, poc: dict) -> None:
     outcome = api_settlement_label(api_status_raw, profit)
     sym = orch.risk_manager.contract_to_symbol.get(c_id, poc.get("underlying", "UNK"))
     _, direction, edge = pop_contract_audit(orch, c_id, symbol=str(sym))
+    linear_before = int(getattr(orch.risk_manager, "consecutive_losses_linear", 0) or 0)
     orch.logger.info(
         "%s || API: %s (late)",
         format_settlement_audit_line(
@@ -195,6 +197,7 @@ async def process_late_settlement_from_payload(orch: Any, poc: dict) -> None:
             direction,
             str(sym),
             edge,
+            settlement_tag=resolve_settlement_tag(profit=profit, linear_before=linear_before),
         ),
         api_status_raw.lower() or "-",
     )
@@ -216,6 +219,7 @@ async def _process_confirmed_settlement(orch: Any, data: dict, contract: Any) ->
     outcome = api_settlement_label(api_status_raw, profit)
     sym = orch.risk_manager.contract_to_symbol.get(c_id, c.get("underlying", "UNK"))
     _, direction, edge = pop_contract_audit(orch, c_id, contract=contract, symbol=str(sym))
+    linear_before = int(getattr(orch.risk_manager, "consecutive_losses_linear", 0) or 0)
     result_line = format_settlement_audit_line(
         orch._contract_cycle.get(c_id, 0),
         outcome,
@@ -223,6 +227,7 @@ async def _process_confirmed_settlement(orch: Any, data: dict, contract: Any) ->
         direction,
         str(sym),
         edge,
+        settlement_tag=resolve_settlement_tag(profit=profit, linear_before=linear_before),
     )
     async with orchestrator_atomic_state_context(orch):
         await _complete_contract_settlement(

@@ -140,7 +140,7 @@ def _validate_inner_join_sample_floor(rows: int, fetch_count: int) -> None:
 def build_paired_training_dataset(
     bundles: list[OhlcBundle],
     *,
-    micro_granularity: int = 60,
+    micro_granularity: int = 300,
     reference_stake: float = META_TRAIN_REFERENCE_STAKE,
     fetch_count: int = META_TRAIN_DEFAULT_BARS,
 ) -> tuple[pd.DataFrame, np.ndarray, np.ndarray, np.ndarray]:

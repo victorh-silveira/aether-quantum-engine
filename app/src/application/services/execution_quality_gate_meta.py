@@ -1,4 +1,4 @@
-"""Filtro de execucao por Z-Score do meta-regressor."""
+"""Telemetria do meta-regressor sem trava de execucao por payoff/Z-Score."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from src.application.services.payoff_edge_zscore import (
     EDGE_ZSCORE_WIN_THRESHOLD,
     attach_payoff_edge_zscore_metrics,
 )
+from src.domain.risk.soft_recovery_policy import gbdt_waiver_skip_threshold_for_risk
 
 
 def _meta_payoff_zscore(metrics: dict) -> float:
@@ -52,12 +53,12 @@ def ensure_meta_zscore_telemetry(
 
 
 def meta_zscore_reject_reason(z_edge: float, *, min_z: float) -> str:
-    """Formata motivo textual de rejeicao por Z-Score insuficiente."""
+    """Formata motivo textual legado de rejeicao por Z-Score insuficiente."""
     return f"[Meta Z-Score {z_edge:.2f} < min {min_z:.2f}]"
 
 
 def emit_quality_reject_log(orch: Any, *, cycle_id: int, reason: str, minute_bucket: str) -> None:
-    """Emite log deduplicado de rejeicao por ciclo e bloco de minuto."""
+    """Emite log deduplicado legado de rejeicao por ciclo e bloco de minuto."""
     logger = getattr(orch, "logger", None)
     if logger is None:
         return
@@ -91,7 +92,8 @@ def evaluate_meta_payoff_quality(
     log_reject: bool = False,
     minute_bucket: str | None = None,
 ) -> bool:
-    """Aprova candidato quando Z-Score meta e edge minimo sao favoraveis."""
+    """Telemetria meta apenas; trava de Meta Payoff/Z-Score desativada."""
+    _ = (log_reject, minute_bucket, orch)
     limits = resolve_dynamic_quality_limits(
         exec_cfg or {},
         risk_manager=risk_manager,
@@ -107,6 +109,7 @@ def evaluate_meta_payoff_quality(
     metrics["quality_min_payoff_edge"] = float(limits.get("min_payoff_edge", 0.0))
     metrics["quality_skipped_cycles_counter"] = float(limits.get("skipped_cycles_counter", 0.0))
     metrics["quality_starvation_decay_factor"] = float(limits.get("starvation_decay_factor", 1.0))
+    metrics["recovery_relax_intensity"] = float(limits.get("recovery_relax_intensity", 0.0))
     ensure_direction_margin(metrics)
     ensure_meta_zscore_telemetry(
         metrics,
@@ -115,33 +118,11 @@ def evaluate_meta_payoff_quality(
         pending_loss_total=pending_loss_total,
     )
     min_z = resolve_min_meta_payoff_zscore(exec_cfg)
-    min_edge = float(limits.get("min_payoff_edge", 0.0))
     metrics["quality_min_meta_payoff_zscore"] = float(min_z)
-    z_edge = _meta_payoff_zscore(metrics)
-    edge = float(metrics.get("predicted_payoff_edge", 0.0))
-    skipped = int(limits.get("skipped_cycles_counter", 0))
-    call_votes = int(metrics.get("call_votes", 0))
-    put_votes = int(metrics.get("put_votes", 0))
-    total_votes = call_votes + put_votes
-    unanimous = (total_votes >= 6) and (total_votes in (call_votes, put_votes))
-    gbdt_waiver = skipped >= 30 and unanimous
-    if gbdt_waiver:
-        approved = True
-        metrics["gbdt_waiver_applied"] = True
-    else:
-        approved = edge + 1e-12 >= min_edge and z_edge + 1e-12 >= min_z
-    if approved:
-        metrics["execution_gate_state"] = "meta_zscore_pass"
-        metrics.pop("regime_skip_cycle", None)
-        metrics.pop("quality_guard_reject", None)
-        metrics.pop("quality_gate_reason", None)
-        return True
-    reason = meta_zscore_reject_reason(z_edge, min_z=min_z)
-    metrics["quality_guard_reject"] = True
-    metrics["regime_skip_cycle"] = True
-    metrics["quality_gate_reason"] = reason
-    metrics["execution_gate_state"] = "meta_zscore_reject"
-    if log_reject and orch is not None and minute_bucket:
-        cycle_id = int(getattr(orch, "_active_cycle_id", 0))
-        emit_quality_reject_log(orch, cycle_id=cycle_id, reason=reason, minute_bucket=minute_bucket)
-    return False
+    metrics["meta_payoff_edge_zscore_snapshot"] = _meta_payoff_zscore(metrics)
+    metrics["gbdt_waiver_skip_threshold"] = int(gbdt_waiver_skip_threshold_for_risk(risk_manager))
+    metrics["execution_gate_state"] = "meta_payoff_gate_disabled"
+    metrics.pop("regime_skip_cycle", None)
+    metrics.pop("quality_guard_reject", None)
+    metrics.pop("quality_gate_reason", None)
+    return True

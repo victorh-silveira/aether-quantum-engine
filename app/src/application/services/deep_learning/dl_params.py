@@ -14,6 +14,10 @@ from src.application.services.deep_learning.dl_horizon import (
     resolve_label_mode,
     resolve_label_smooth_bars,
 )
+from src.application.services.deep_learning.dl_params_blocks import (
+    parse_calibration_config,
+    parse_indicator_gating_config,
+)
 
 
 def bars_per_day(granularity_seconds: int) -> int:
@@ -149,19 +153,6 @@ def resolve_inference_history_bars(
     return warmup + lookback + 16
 
 
-def parse_calibration_config(dl_config: dict) -> dict[str, Any]:
-    """Extrai configuracao do bloco deep_learning.calibration."""
-    raw = dl_config.get("calibration") if isinstance(dl_config.get("calibration"), dict) else {}
-    return {
-        "method": str(raw.get("method", "auto")).strip().lower(),
-        "isotonic_min_samples": max(3, int(raw.get("isotonic_min_samples", 20))),
-        "auto_select_by_brier": bool(raw.get("auto_select_by_brier", True)),
-        "entropy_ceiling": float(raw.get("entropy_ceiling", 0.92)),
-        "entropy_penalty_strength": float(raw.get("entropy_penalty_strength", 1.0)),
-        "entropy_floor": float(raw.get("entropy_floor", 0.0)),
-    }
-
-
 def parse_dynamic_threshold_config(exec_config: dict) -> dict[str, Any]:
     """Extrai configuracao do bloco orchestrator.execution.dynamic_threshold."""
     raw = exec_config.get("dynamic_threshold") if isinstance(exec_config.get("dynamic_threshold"), dict) else {}
@@ -181,26 +172,13 @@ def parse_dynamic_threshold_config(exec_config: dict) -> dict[str, Any]:
         "directional_adx_min": float(raw.get("directional_adx_min", 0.22)),
         "baseline_lookback": max(8, int(raw.get("baseline_lookback", 48))),
         "squeeze_edge_slope": float(raw.get("squeeze_edge_slope", 0.025)),
+        "squeeze_edge_exponential_k": float(raw.get("squeeze_edge_exponential_k", 2.5)),
         "squeeze_min_margin": float(raw.get("squeeze_min_margin", 0.12)),
+        "vol_compression_threshold": float(raw.get("vol_compression_threshold", 0.50)),
+        "vol_compression_k_parabolic": float(raw.get("vol_compression_k_parabolic", 4.0)),
+        "vol_compression_k_hyperbolic": float(raw.get("vol_compression_k_hyperbolic", 0.15)),
         "require_indicator_consensus": bool(raw.get("require_indicator_consensus", True)),
         "implied_vol_bb_scale": bool(raw.get("implied_vol_bb_scale", True)),
-    }
-
-
-def parse_indicator_gating_config(dl_config: dict) -> dict[str, Any]:
-    """Extrai configuracao do bloco indicator_gating."""
-    raw = dl_config.get("indicator_gating", {}) if isinstance(dl_config.get("indicator_gating"), dict) else {}
-    return {
-        "enabled": bool(raw.get("enabled", False)),
-        "hurst_min": float(raw.get("hurst_min", 0.0)),
-        "hurst_max": float(raw.get("hurst_max", 1.0)),
-        "adx_min": float(raw.get("adx_min", 0.0)),
-        "vol_ratio_min": float(raw.get("vol_ratio_min", 0.0)),
-        "vol_ratio_max": float(raw.get("vol_ratio_max", 999.0)),
-        "cmo_min": float(raw.get("cmo_min", -1.0)),
-        "cmo_max": float(raw.get("cmo_max", 1.0)),
-        "keltner_pct_b_min": float(raw.get("keltner_pct_b_min", -999.0)),
-        "keltner_pct_b_max": float(raw.get("keltner_pct_b_max", 999.0)),
     }
 
 
@@ -257,7 +235,7 @@ def parse_dl_params(
         "online_training": bool(dl_config.get("online_training", True)),
         "weight_decay": float(dl_config.get("weight_decay", 0.0002)),
         "granularity": gran,
-        "contract_duration": max(1, int(risk_params.get("duration", 60))),
+        "contract_duration": max(1, int(risk_params.get("duration", 300))),
         "rolling_retrain_bars": int(dl_config.get("rolling_retrain_bars", 3)),
         "retrain_min_bars": int(dl_config.get("retrain_min_bars", 1)),
         "training_history_bars": training_history_bars,

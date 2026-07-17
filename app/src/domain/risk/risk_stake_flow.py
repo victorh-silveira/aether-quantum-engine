@@ -73,26 +73,21 @@ def emit_cycle_stake_log(
     symbol: str,
     rec_info: str,
 ) -> None:
-    """Emite log estruturado de stake do ciclo quando cycle_id e visivel."""
+    """Persiste contexto de stake do ciclo para a linha EXEC unica apos boleta."""
+    _ = (f_star, p, b, rec_info)
     if cycle_id <= 0 or silent:
         return
-    rm.logger.info(
-        "[C%04d] %s: stake=$%.2f (f*=%.4f) | p=%.2f | b=%.2f | banca=$%.2f | pend=$%.2f | "
-        "pnl_sess=$%+.2f | U=$%.2f | linear=%d | sym=%s%s",
-        cycle_id,
-        mode_tag,
-        final_stake,
-        f_star,
-        p,
-        b,
-        bankroll,
-        loss_to_recover,
-        rm.total_session_profit,
-        float(getattr(rm, "dlambert_unit", 0.0)),
-        linear_losses,
-        symbol,
-        rec_info,
-    )
+    tag = str(mode_tag or "KELLY").upper()
+    compact = f"DAL_L{max(0, int(linear_losses))}" if ("ALEMBERT" in tag or tag.startswith("DAL")) else "KELLY"
+    rm._last_stake_audit = {
+        "cycle_id": int(cycle_id),
+        "mode_tag": compact,
+        "stake": float(final_stake),
+        "pending": float(loss_to_recover),
+        "bankroll": float(bankroll),
+        "linear_losses": int(linear_losses),
+        "symbol": str(symbol),
+    }
 
 
 def stop_win_target_reached(rm: Any, *, apply_stop_win: bool) -> bool:

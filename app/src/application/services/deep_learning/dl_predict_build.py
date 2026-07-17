@@ -8,6 +8,9 @@ import numpy as np
 
 from src.application.services.deep_learning.dl_bridge_helpers import build_decision_entry
 from src.application.services.deep_learning.dl_calibration import CalibratorState, calibrate_trade_score
+from src.application.services.deep_learning.dl_calibration_tolerance import (
+    apply_calibration_neutral_tolerance,
+)
 from src.application.services.deep_learning.dl_feature_build import precompute_price_series
 from src.application.services.deep_learning.dl_feature_matrix import build_feature_row
 from src.application.services.deep_learning.dl_gating import resolve_calibrated_edge, resolve_confidence_thresholds
@@ -20,6 +23,7 @@ from src.application.services.deep_learning.dl_predict_telemetry import (
 from src.application.services.deep_learning.dl_symbol_runtime import guard_symbol_model
 from src.application.services.deep_learning.dl_trend import calculate_trend_direction
 from src.application.services.deep_learning.model import predict_next_direction
+from src.application.services.execution_sniper_gates import resolve_calibration_neutral_band
 from src.application.services.execution_volatility_threshold import resolve_dynamic_threshold_bundle
 from src.domain.models.trade import TradeDirection
 
@@ -30,13 +34,6 @@ def _series_tail(series_key: str, series: dict) -> list[float]:
     if chunk is None or len(chunk) == 0:
         return []
     return [float(v) for v in chunk]
-
-
-def _infer_direction(calibrated_prob: float, direction: TradeDirection | None, pivot: float = 0.5) -> TradeDirection:
-    """Infere CALL ou PUT a partir da probabilidade calibrada quando direction e None."""
-    if direction is not None:
-        return direction
-    return TradeDirection.CALL if float(calibrated_prob) > float(pivot) else TradeDirection.PUT
 
 
 def _series_last(series: dict, key: str, default: float = 0.0) -> float:
@@ -208,9 +205,18 @@ def build_prediction_entry(
     implied_vol_ratio = _series_last(series, "implied_vol_ratio", 1.0)
     trend_dir, trend_type, trend_period, call_votes, put_votes = calculate_trend_direction(prices, series, exec_cfg)
     indicators_data = _indicators_from_series(series)
-    calibrated_prob = float(prob)
     pivot = (call_threshold + put_threshold) * 0.5
-    resolved_dir = _infer_direction(calibrated_prob, direction, pivot=pivot)
+    neutral_lo, neutral_hi = resolve_calibration_neutral_band(
+        params.get("calibration") if isinstance(params.get("calibration"), dict) else None
+    )
+    calibrated_prob, resolved_dir, calibration_mode = apply_calibration_neutral_tolerance(
+        float(prob),
+        float(raw_prob),
+        direction,
+        pivot=pivot,
+        neutral_lo=neutral_lo,
+        neutral_hi=neutral_hi,
+    )
     calibrated_edge = resolve_calibrated_edge(calibrated_prob, raw_prob=raw_prob)
     calibrator = runtime.get("calibrator")
     side_score = calibrate_trade_score(
@@ -218,7 +224,7 @@ def build_prediction_entry(
         val_accuracy,
         calibrator,
         deploy_ok=runtime.get("deploy_ok", True),
-        is_put=resolved_dir == TradeDirection.PUT,
+        is_put=resolved_dir == TradeDirection.PUT if resolved_dir is not None else False,
     )
     squeeze_congestion = _squeeze_congestion_active(prices, series)
     if squeeze_congestion:
@@ -230,15 +236,17 @@ def build_prediction_entry(
         val_accuracy=val_accuracy,
         edge=calibrated_edge,
         train_loss=train_loss,
-        trade_score=side_score,
+        trade_score=side_score if side_score is not None else 0.0,
         raw_prob=raw_prob,
         val_brier=float(runtime.get("val_brier", 1.0)),
         val_ece=float(runtime.get("val_ece", 1.0)),
-        contract_duration=int(params.get("contract_duration", 60)),
+        contract_duration=int(params.get("contract_duration", 300)),
     )
+    _ = calibration_mode
     entry["metrics"]["gate_reason"] = "micro_chop_congestion_veto" if squeeze_congestion else None
     entry["metrics"]["edge_expectancy"] = None
     entry["metrics"]["calibrated_prob"] = calibrated_prob
+    entry["metrics"]["calibration_mode"] = calibration_mode
     entry["metrics"]["calibrated_edge"] = calibrated_edge
     entry["metrics"]["trend_direction"] = trend_dir.name
     entry["metrics"]["trend_type"] = trend_type
@@ -267,6 +275,7 @@ def build_prediction_entry(
 
 
 __all__ = (
+    "apply_calibration_neutral_tolerance",
     "build_prediction_context",
     "build_prediction_entry",
     "eager_local_predict",

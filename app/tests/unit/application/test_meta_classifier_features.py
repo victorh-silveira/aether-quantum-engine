@@ -61,4 +61,20 @@ def test_extract_meta_feature_vector_pads_when_vector_shorter_than_meta_dim(monk
     monkeypatch.setattr(meta_classifier_features, "META_FEATURE_DIM", 8)
     vector = extract_meta_feature_vector({"feature_vector": [0.7, 0.3]})
     assert len(vector) == 8
-    assert vector == pytest.approx([0.7, 0.3, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    assert vector[:2] == pytest.approx([0.7, 0.3])
+    assert all(v == 0.0 for v in vector[2:])
+
+
+def test_finalize_meta_vector_pads_short_payload():
+    padded = meta_classifier_features._finalize_meta_vector([1.0, 2.0])
+    assert len(padded) == META_FEATURE_DIM
+    assert padded[0] == pytest.approx(1.0)
+    assert padded[1] == pytest.approx(2.0)
+    assert padded[-1] == 0.0
+
+
+def test_finalize_meta_vector_truncates_long_payload():
+    long_vector = [float(i) for i in range(META_FEATURE_DIM + 5)]
+    truncated = meta_classifier_features._finalize_meta_vector(long_vector)
+    assert len(truncated) == META_FEATURE_DIM
+    assert truncated[35] == 3.0

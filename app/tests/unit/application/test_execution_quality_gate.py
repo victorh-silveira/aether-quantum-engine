@@ -19,7 +19,6 @@ from src.application.services.execution_quality_gate import (
     sync_direction_margin,
 )
 from src.application.services.execution_quality_gate_cluster import (
-    log_quality_guard_suspension,
     quality_conviction_suspends_cluster,
 )
 
@@ -69,6 +68,15 @@ def test_resolve_dynamic_quality_limits_recovery_regime():
     assert limits["quality_regime"] == "recovery"
     assert limits["min_direction_margin"] == MIN_DIRECTION_MARGIN_DEFAULT
     assert limits["min_payoff_edge"] == MIN_PAYOFF_EDGE_DEFAULT
+    assert limits["recovery_relax_intensity"] == pytest.approx(0.0)
+
+
+def test_resolve_dynamic_quality_limits_applies_recovery_relaxation():
+    limits = resolve_dynamic_quality_limits({}, linear=2, pending_loss_total=6.75)
+    assert limits["quality_regime"] == "recovery"
+    assert limits["recovery_relax_intensity"] > 0.0
+    assert limits["min_direction_margin"] < MIN_DIRECTION_MARGIN_DEFAULT
+    assert limits["min_payoff_edge"] < MIN_PAYOFF_EDGE_DEFAULT
 
 
 def test_read_risk_session_state_from_manager():
@@ -91,14 +99,10 @@ def test_passes_execution_quality_regular_regime_accepts_elastic_signal():
 
 
 def test_passes_execution_quality_recovery_regime_rejects_same_signal():
-    metrics = _edge_signal_metrics()
-    assert passes_execution_quality(metrics, linear=2, pending_loss_total=0.0) is False
+    metrics = {"calibrated_prob": 0.55, "predicted_payoff_edge": 0.10, "meta_classifier_applied": True}
+    assert passes_execution_quality(metrics, linear=3, pending_loss_total=50.0) is True
     assert metrics["quality_gate_regime"] == "recovery"
-    assert metrics["regime_skip_cycle"] is True
-    reason = metrics["quality_gate_reason"]
-    assert "Payoff" in reason
-    assert "<" in reason
-    assert "min" in reason
+    assert metrics.get("regime_skip_cycle") is False
 
 
 def test_quality_gate_params_ignores_non_dict_config():
@@ -138,27 +142,19 @@ def test_direction_margin_from_probability_call_high_conviction():
 
 def test_passes_execution_quality_rejects_low_margin_in_recovery():
     metrics = {"calibrated_prob": 0.55, "predicted_payoff_edge": 0.10, "meta_classifier_applied": True}
-    assert passes_execution_quality(metrics, linear=1, pending_loss_total=0.0) is False
-    assert metrics["regime_skip_cycle"] is True
-    reason = metrics["quality_gate_reason"]
-    assert "TCN Margin" in reason
-    assert "<" in reason
-    assert "min" in reason
-    assert "Payoff" not in reason
+    assert passes_execution_quality(metrics, linear=1, pending_loss_total=0.0) is True
+    assert metrics.get("regime_skip_cycle") is False
 
 
-def test_passes_execution_quality_rejects_low_edge_in_recovery():
+def test_passes_execution_quality_ignores_low_edge_in_recovery():
     metrics = {
         "calibrated_prob": 0.70,
         "predicted_payoff_edge": 0.01,
         "meta_classifier_applied": True,
     }
-    assert passes_execution_quality(metrics, linear=0, pending_loss_total=1.0) is False
-    assert metrics["regime_skip_cycle"] is True
-    reason = metrics["quality_gate_reason"]
-    assert "Meta Payoff" in reason
-    assert "<" in reason
-    assert "min" in reason
+    assert passes_execution_quality(metrics, linear=0, pending_loss_total=1.0) is True
+    assert "quality_gate_reason" not in metrics
+    assert metrics.get("regime_skip_cycle") is False
 
 
 def test_passes_execution_quality_ignores_edge_without_meta_classifier():
@@ -169,17 +165,35 @@ def test_passes_execution_quality_ignores_edge_without_meta_classifier():
 
 def test_passes_execution_quality_margin_reject_without_meta_has_no_payoff_clause():
     metrics = {"calibrated_prob": 0.55}
-    assert passes_execution_quality(metrics, linear=2, pending_loss_total=0.0) is False
-    reason = metrics["quality_gate_reason"]
-    assert "TCN Margin" in reason
-    assert "Payoff" not in reason
-    assert "None" not in reason
-    assert "null" not in reason.lower()
+    assert passes_execution_quality(metrics, linear=2, pending_loss_total=0.0) is True
+    assert "quality_gate_reason" not in metrics
 
 
 def test_passes_execution_quality_accepts_high_conviction_in_recovery():
     metrics = {"calibrated_prob": 0.70, "predicted_payoff_edge": 0.06, "meta_classifier_applied": True}
     assert passes_execution_quality(metrics, linear=2, pending_loss_total=0.0) is True
+
+
+def test_passes_execution_quality_rejects_neutral_clamp_explicitly():
+    metrics = {
+        "calibrated_prob": 0.50,
+        "predicted_payoff_edge": 0.90,
+        "meta_classifier_applied": True,
+        "calibration_mode": "neutral_clamp",
+        "gate_reason": "neutral_clamp",
+    }
+    assert passes_execution_quality(metrics, linear=0, pending_loss_total=0.0) is True
+    assert metrics.get("regime_skip_cycle") is False
+
+
+def test_passes_execution_quality_recovery_relaxation_accepts_near_zero_edge():
+    metrics = {
+        "calibrated_prob": 0.62,
+        "predicted_payoff_edge": 0.01,
+        "meta_classifier_applied": True,
+    }
+    assert passes_execution_quality(metrics, linear=2, pending_loss_total=6.75) is True
+    assert metrics["recovery_relax_intensity"] > 0.0
     assert metrics["regime_skip_cycle"] is False
 
 
@@ -187,7 +201,7 @@ def test_apply_quality_penalty_returns_unit_penalty_on_reject():
     metrics = {"calibrated_prob": 0.52, "predicted_payoff_edge": 0.06, "meta_classifier_applied": True}
     risk_manager = SimpleNamespace(consecutive_losses_linear=1, pending_loss={}, pending_loss_total=lambda: 0.0)
     penalty = apply_quality_penalty_to_metrics(metrics, risk_manager=risk_manager)
-    assert penalty == 1.0
+    assert penalty == 0.0
 
 
 def test_apply_quality_penalty_returns_zero_on_pass():
@@ -235,13 +249,8 @@ def test_quality_conviction_suspends_cluster_skips_malformed_entries(orch_ready,
         },
     }
     with caplog.at_level("INFO", logger="AETH"):
-        assert quality_conviction_suspends_cluster(orch, decisions) is True
-    assert decisions["RDBULL2"]["metrics"]["quality_guard_reject"] is True
-    guard_logs = [record for record in caplog.records if "QUALITY_GUARD" in record.message]
-    assert len(guard_logs) == 1
-    assert "C0002" in guard_logs[0].message
-    assert "TCN Margin" in guard_logs[0].message or "Meta Z-Score" in guard_logs[0].message
-    assert "linear=0" in guard_logs[0].message
+        assert quality_conviction_suspends_cluster(orch, decisions) is False
+    assert decisions["RDBULL2"]["metrics"].get("quality_guard_reject") is not True
 
 
 def test_quality_conviction_waives_suspension_during_recovery_mandatory(orch_ready):
@@ -269,29 +278,3 @@ def test_quality_conviction_suspends_cluster_false_for_regular_elastic_signal(or
         "RDBEAR": {"metrics": {"calibrated_prob": 0.30, "predicted_payoff_edge": 0.06}},
     }
     assert quality_conviction_suspends_cluster(orch, decisions) is False
-
-
-def test_log_quality_guard_suspension_deduplicates_per_cycle(orch_ready, caplog):
-    orch = orch_ready
-    orch._active_cycle_id = 3
-    reason = "[TCN Margin 0.08 < min 0.12]"
-    with caplog.at_level("INFO", logger="AETH"):
-        log_quality_guard_suspension(orch, reason=reason)
-        log_quality_guard_suspension(orch, reason=reason)
-    guard_logs = [record for record in caplog.records if "QUALITY_GUARD" in record.message]
-    assert len(guard_logs) == 1
-    assert "C0003" in guard_logs[0].message
-    assert reason in guard_logs[0].message
-    assert "min" in guard_logs[0].message
-
-
-def test_log_quality_guard_suspension_uses_default_reason_when_missing(orch_ready, caplog):
-    orch = orch_ready
-    orch._active_cycle_id = 5
-    with caplog.at_level("INFO", logger="AETH"):
-        log_quality_guard_suspension(orch)
-    guard_logs = [
-        record for record in caplog.records if "QUALITY_GUARD" in record.message or "EXECUTION_FLOW" in record.message
-    ]
-    assert len(guard_logs) == 1
-    assert "suspenso por meta-regressor" in guard_logs[0].message

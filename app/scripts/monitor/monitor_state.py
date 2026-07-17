@@ -17,6 +17,8 @@ class DashboardState:
     session_profit: float = 0.0
     compounding_rate: float = 0.026
     compounding_enabled: bool = True
+    small_account_threshold: float = 100.0
+    small_account_stop_win: float = 10.0
     active_contracts: dict = field(default_factory=dict)
     last_telemetry: dict = field(default_factory=dict)
     trading_mode: str = "N/A"
@@ -48,15 +50,22 @@ def resolve_session_financials(state: DashboardState) -> SessionFinancials:
     if start <= 0.0 and state.balance > 0.0:
         start = float(state.balance)
     if target <= 0.0 and start > 0.0:
-        rate = float(state.compounding_rate) if state.compounding_enabled else 0.0
-        target = _round_currency(start * rate) if rate > 0.0 else 0.0
+        thr = float(state.small_account_threshold)
+        if start < thr:
+            target = _round_currency(float(state.small_account_stop_win))
+        else:
+            rate = float(state.compounding_rate) if state.compounding_enabled else 0.0
+            target = _round_currency(start * rate) if rate > 0.0 else 0.0
     profit = float(state.session_profit)
     target_balance = start + target if start > 0.0 else 0.0
     remaining = max(0.0, target - profit) if target > 0.0 else 0.0
     progress_pct = min(100.0, max(0.0, (profit / target * 100.0) if target > 0.0 else 0.0))
     roi_pct = (profit / start * 100.0) if start > 0.0 else 0.0
-    rate_pct = float(state.compounding_rate) * 100.0
-    goal_label = f"({rate_pct:.1f}% SES. ATIVA)"
+    if start > 0.0 and start < float(state.small_account_threshold):
+        goal_label = "(FIXO MICRO)"
+    else:
+        rate_pct = float(state.compounding_rate) * 100.0
+        goal_label = f"({rate_pct:.1f}% SES. ATIVA)"
     return SessionFinancials(
         start_balance=start,
         target_win=target,

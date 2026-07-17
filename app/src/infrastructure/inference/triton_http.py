@@ -65,7 +65,7 @@ def wait_triton_models_ready(
     timeout_seconds: float = 25.0,
     poll_interval_seconds: float = 0.5,
 ) -> bool:
-    """Aguarda modelos ficarem prontos apos sync no repositorio em modo poll."""
+    """Aguarda modelos ficarem prontos apos load explicito no repositorio."""
     pending = {str(name) for name in model_names if str(name)}
     if not pending:
         return True
@@ -79,6 +79,46 @@ def wait_triton_models_ready(
             return True
         time.sleep(poll)
     return False
+
+
+def post_triton_model_load(http_url: str, model_name: str) -> None:
+    """Load-over-load via POST /load (MODE_EXPLICIT); nunca chama /unload."""
+    base = triton_http_base_url(http_url)
+    quoted = urllib.parse.quote(str(model_name), safe="")
+    req = urllib.request.Request(
+        f"{base}/v2/repository/models/{quoted}/load",
+        data=b"",
+        method="POST",
+    )
+    read_http_response(req, timeout=120)
+
+
+def load_triton_models_sequential(
+    http_url: str,
+    model_names: list[str],
+    *,
+    wait_each_ready: bool = True,
+    timeout_seconds: float = 45.0,
+    poll_interval_seconds: float = 0.25,
+) -> list[str]:
+    """Load-over-load sequencial: /load por modelo e ready antes do proximo."""
+    loaded: list[str] = []
+    for name in model_names:
+        symbol = str(name)
+        if not symbol:
+            continue
+        post_triton_model_load(http_url, symbol)
+        if wait_each_ready:
+            ready = wait_triton_models_ready(
+                http_url,
+                [symbol],
+                timeout_seconds=timeout_seconds,
+                poll_interval_seconds=poll_interval_seconds,
+            )
+            if not ready:
+                raise TimeoutError(f"Triton load-over-load sem ready: {symbol}")
+        loaded.append(symbol)
+    return loaded
 
 
 def post_triton_repository_reload(http_url: str) -> list[dict[str, str]]:
