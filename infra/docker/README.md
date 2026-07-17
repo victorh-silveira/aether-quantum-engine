@@ -31,12 +31,12 @@ docker compose -f infra/docker/docker-compose.yml --project-directory infra/dock
 | Servico | Porta | Uso |
 |---------|-------|-----|
 | Redis | 6379 | Estado, risco, assinaturas de vela, fila `settlement:queue:priority` |
-| TimescaleDB | 5432 | Ticks e barras OHLC |
+| TimescaleDB | 5432 | Ticks e barras OHLC (macro **600 s** + micro **120 s**) |
 | MinIO API | 9000 | Checkpoints Deep Learning |
 | MinIO Console | 9001 | Console web |
 | Triton HTTP | 8000 | Health live, metadata, reload |
 | Triton gRPC | 8001 | Inferencia TorchScript em producao |
-| Meta-classificador | **8005** | LightGBM HTTP; vetor 39D; `POST /v2/predict_meta` |
+| Meta-classificador | **8005** | LightGBM HTTP; vetor **43D**; `POST /v2/predict_meta` |
 
 ## Triton e GPU
 
@@ -50,19 +50,19 @@ Flags de startup:
 
 Fluxo no motor:
 
-1. `sync_all_symbols_to_triton` copia `latest_ts.pt` para `{symbol}/1/model.pt`.
-2. `reload_triton_repository` via HTTP na porta 8000.
+1. `sync_all_symbols_to_triton` copia `latest_ts.pt` para `{symbol}/1/model.pt` (com fsync).
+2. `wait_triton_models_stable` faz load explicito sequencial via HTTP na porta 8000.
 3. `verify_triton_stressed_inference_async` valida inferencia sob tensores estressados.
-4. `TritonGrpcClient` mantem canal gRPC persistente na porta 8001 (timeout 2 s por inferencia).
+4. `TritonGrpcClient` mantem canal gRPC persistente na porta 8001 (timeout **0,85 s** por inferencia).
 
 ## Meta-classificador
 
-Container `aether-meta-classifier`: Python 3.13-slim + FastAPI. Artefatos em `infra/docker/meta-models/` (`FEATURE_DIM=39`).
+Container `aether-meta-classifier`: Python 3.13-slim + FastAPI. Artefatos em `infra/docker/meta-models/` (`META_FEATURE_DIM=43`).
 
 | Endpoint | Uso |
 |----------|-----|
 | `GET /health` | Healthcheck Docker (urllib nativo) |
-| `POST /v2/predict_meta` | Regressao tabular 39D → `predicted_payoff_edge` |
+| `POST /v2/predict_meta` | Regressao tabular **43D** → `predicted_payoff_edge` |
 
 Treino offline: `train_meta_optuna.py` maximiza **Information Ratio** com constraint OOS payoff Z-Score ≥ +1,00.
 

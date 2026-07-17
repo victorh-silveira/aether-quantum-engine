@@ -38,51 +38,53 @@ Como prever a saída exata do CSPRNG é impossível, o foco é **exploração de
 
 O Aether utiliza **TCN** (padrão), **LSTM** ou **GRU** com conexões dilatadas ou recorrentes.
 
-- **Por que TCN?** Processa janelas longas de lookback (48 barras × **900 s = 12 h**) identificando persistência de tendência ou exaustão com menor ruído CSPRNG que M3.
+- **Por que TCN?** Processa janelas longas de lookback (**72** barras × **600 s ≈ 12 h**) identificando persistência de tendência ou exaustão com menor ruído CSPRNG que horizontes curtos.
 - **34 features**: OHLC normalizado, indicadores técnicos, microestrutura de ticks e regime (Hurst, ADX, vol_ratio, CMO).
-- **Inferência**: Triton gRPC concorrente (`TritonGrpcClient`) quando `infra.triton.enabled`; fallback local via TorchScript em cache.
+- **Inferência**: Triton gRPC concorrente (`TritonGrpcClient`) quando `infra.triton.enabled`; fail-closed em produção (`require_for_execution: true`) — sem fallback eager local.
 - **Detecção de regime**: EMAs, inclinação, ADX e votos de trend (`dl_trend.py`) alimentam o scoring direcional.
 
 ### 2.2 Exaustão micro e meta-regressor
 
-Desvios extremos em M1 (RSI, Keltner, Bollinger) alimentam o vetor tabular **39D** do `aether-meta-classifier` (`LGBMRegressor` huber).
+Desvios extremos em microestrutura de **120 s** (RSI, Keltner, Bollinger, shadow de volatilidade, momentum de spread) alimentam o vetor tabular **43D** do `aether-meta-classifier` (`LGBMRegressor` huber, porta **8005**).
 
-- **Regressão de payoff**: TCN fornece direção macro (`dl_direction`); meta-regressor estima `predicted_payoff_edge` com features cross-symbol (`prob_delta`, `vol_ratio_diff`, `rsi_spread`) e fluxo micro (`micro_tick_acceleration`, `keltner_deviation_ratio`).
-- **Downgrade D-SQUEEZE** (`meta_payoff_regression`): quando `predicted_payoff_edge < -0.15` em squeeze M1 (`bb_width < 0.06` ou `micro_tick_acceleration < 0`), rebaixa `trade_score=0.52` e emite log `[D-SQUEEZE]` — sem inverter direção.
-- **Treino offline**: alvo contínuo `Y = PnL_Real / Stake`; Optuna **maximiza Information Ratio** com constraint OOS payoff Z-Score ≥ +1,00; rotulagem TCN via **Triple Barrier Method** (`label_mode: triple_barrier`).
+- **Regressão de payoff**: TCN fornece direção macro (`dl_direction`); meta-regressor estima `predicted_payoff_edge` com features cross-symbol (`prob_delta`, `vol_ratio_diff`, `rsi_spread`) e fluxo micro 120 s (`micro_tick_acceleration`, `keltner_deviation_ratio`).
+- **Downgrade D-SQUEEZE** (`meta_payoff_regression`): quando `predicted_payoff_edge < -0.15` em squeeze micro (`bb_width < 0.06` ou `micro_tick_acceleration < 0`), rebaixa `trade_score=0.52` e emite log `[D-SQUEEZE]` — sem inverter direção. Nos settings atuais, snipers Hurst/BB-squeeze extremo são stubs (`False`); o veto HARD operacional é microestrutura (ADX / `vol_ratio` / `val_accuracy`).
+- **Treino offline**: alvo contínuo `Y = PnL_Real / Stake`; Optuna **maximiza Information Ratio** com constraint OOS payoff Z-Score ≥ +1,00; rotulagem TCN padrão **`ma_trend`** (`triple_barrier` disponível via config).
 - **Telemetria consultiva**: `execution_direction_cross_corr` e `execution_volatility_booster` permanecem como insumo analítico, sem veto autônomo.
 - **AntiTrendLock**: após 2 perdas consecutivas na mesma direção, `evaluate_anti_trend_lock` (domínio) decide flip cross-symbol ou `FREEZE: SKIP CYCLE` (`direction_persistence_guard`).
 
-### 2.3 Gestão de Risco com Kelly Fracionário e Martingale Geométrico
+### 2.3 Gestão de Risco com Kelly Fracionário e Soft D'Alembert
 
-- **Fração de Kelly**: stake proporcional a `trade_score` calibrado e win rate live.
-- **Consensus Entropy Penalty**: quando a ordem final diverge da maioria dos votos técnicos (`call_votes`/`put_votes`), aplica penalidade convexa em `f*`; bypass absoluto quando `pending_total > 0`.
-- **Martingale Geométrico**: em recovery, `Effective_Base × 2^consecutive_losses_linear` sem teto de nível.
-- **Stop win por sessão ativa**: meta de lucro = 2,60% da banca inicial (`compounding_rate_daily`); ao atingir, fast-path (`clear_current_session_redis_keys` → `cancel_settlement_queue_fast` → `graceful_shutdown(fast_path=True)`); cada restart inicia sessão independente.
-- **Stop loss interno desativado**: Martingale opera sem disjuntor de perda imposto pelo motor.
-- **Gate de qualidade**: dual TCN + meta Z-Score; logs `[AETHER] QUALITY_GUARD` e `[AETHER] EXECUTION_FLOW`; suspensão cooperativa via `quality_conviction_suspends_cluster`.
+- **Fração de Kelly**: stake proporcional a `trade_score` calibrado e win rate live (`kelly.fraction: 0.005`, teto **3,5%**).
+- **Consensus Entropy Penalty**: disponível no código; nos settings atuais `consensus_penalty_enabled: false`.
+- **Soft recovery (D'Alembert)**: em recovery, `max(U × m(n), cover)` com **passo fixo** `m(n)=1.15` para `n ∈ {3,4}` via `soft_recovery_policy`; teto `max_safe_stake_cap` e hard floor **5%** se banca &lt; $100.
+- **Stop win por sessão ativa**: meta de lucro = 2,60% da banca inicial (≥ $100) ou **$10** fixo (&lt; $100); ao atingir, fast-path (`clear_current_session_redis_keys` → `cancel_settlement_queue_fast` → `graceful_shutdown(fast_path=True)`); cada restart inicia sessão independente.
+- **Stop loss interno desativado**: soft recovery opera sem disjuntor de perda imposto pelo motor.
+- **Gate de qualidade**: dual soft TCN + meta Z-Score + vetoes HARD de microestrutura; logs `[AETHER] QUALITY_GUARD` e `[AETHER] EXECUTION_FLOW`; starvation a partir de **6** skips.
 
 ### 2.4 Fases de Treinamento e Operação
 
 - **FASE TREINO**: todos os símbolos retreinam ao menos uma vez por sessão (`session_trained`). Nenhuma ordem até concluir.
 - **FASE OPERACAO mandatária** (`mandatory_trade_each_cycle: true`): esteira contínua — candidatos DL tecnicamente válidos seguem para execução; redirect inter-símbolo quando âncora degradada.
-- **Resolução direcional**: TCN define `dl_direction`; meta-regressor refina stake via `predicted_payoff_edge` e downgrade D-SQUEEZE em compressão M1; `ensure_direction_margin` expõe margem corrigida.
+- **Resolução direcional**: TCN define `dl_direction`; meta-regressor refina stake via `predicted_payoff_edge` (meta opcional para execução); `execution_direction_checks` rejeita ciclo só por starvation de microestrutura.
 - **Deploy gate**: modelos com `deploy_ok=false` não entram no pool.
+- **Relógio**: ciclo e contrato em **120 s**; contexto DL em **600 s** — proporção **1:5** (prefixos de assinatura `m5`/`m15` são legado).
 
 ### 2.5 Perfil de qualidade atual
 
 | Camada | Comportamento |
 |--------|---------------|
 | Bloqueio técnico | `data`, `predict_error`, `training`, `deploy_ok=false` |
-| Classificação macro | TCN M15 define `dl_direction` |
-| Stacking tabular | Meta-regressor LightGBM M1 sobre vetor **39D** + probabilidade TCN; saída `predicted_payoff_edge` |
-| Downgrade squeeze | Edge `< -0.15` em compressão M1: `trade_score=0.52`; `[D-SQUEEZE]` |
-| Margem direcional | `abs(P(lado_escolhido) − 0.50)` — CALL usa `calibrated_prob`; PUT usa `1 − prob` |
-| Gate de qualidade | Dual TCN + meta Z-Score; suspensão cooperativa do cluster |
+| Classificação macro | TCN em barras de **600 s** (`[1, 72, 34]`) define `dl_direction` |
+| Stacking tabular | Meta-regressor LightGBM micro **120 s** sobre vetor **43D** + probabilidade TCN; saída `predicted_payoff_edge`; meta opcional |
+| Veto HARD microestrutura | `adx_starvation`, `vol_ratio_starvation`, `val_accuracy_gate` (`min_adx` 0.20, `vol_ratio_min` 0.65, val ≥ 0.63) |
+| Downgrade squeeze | Edge `< -0.15` em compressão micro: `trade_score=0.52`; `[D-SQUEEZE]` (telemetria; sniper BB extremo stub) |
+| Margem direcional | `abs(P(lado_escolhido) − 0.50)` — CALL usa `calibrated_prob`; PUT usa `1 − prob`; margins do gate **0.0** |
+| Gate de qualidade | Dual soft TCN + meta Z-Score + HARD microestrutura; starvation ≥ 6 skips |
 | Ranking | TCN × fator Z-Score meta; redirect inter-símbolo em modo mandatory |
 | Scoring direcional | TCN + meta GBDT; `exec_direction` alinhada à TCN |
-| Recovery | Martingale Geométrico `Kelly_base × 2^n`; persistência até `pending_total = 0` |
-| Kelly divergente | Consensus Entropy Penalty; waiver em recovery com `pending_total > 0` |
+| Recovery | Soft D'Alembert via `soft_recovery_policy` (passo 3–4 = U×1.15); persistência até `pending_total = 0` |
+| Kelly divergente | Consensus Entropy Penalty disponível; **desligado** nos settings atuais |
 
 ### 2.7 Ranking TCN × Z-Score e redirect inter-símbolo
 
@@ -106,7 +108,7 @@ Ver [arquitetura.md](arquitetura.md) seção 2.5 para o diagrama completo.
 ### 2.9 Normalização Adaptativa de Volatilidade & Válvula de Drift Proibido (Drift Bias Lock)
 
 #### 2.9.1 Estouro Dinâmico de Volatilidade e Clipping OOD
-Em regime de cauda hiperbólica, as variáveis de dispersão temporal `bb_width` e `atr_norm` são padronizadas com base na distribuição amostral das últimas 1024 velas M15:
+Em regime de cauda hiperbólica, as variáveis de dispersão temporal `bb_width` e `atr_norm` são padronizadas com base na distribuição amostral das últimas 1024 velas macro (**600 s**):
 \[Z = \frac{x - \text{mean}(X_{1024})}{\text{std}(X_{1024}) + 1e-10}\]
 Os inputs para o modelo LightGBM sofrem um clipping estrito a fim de mitigar desvios de distribuição de treino (OOD - Out-of-Distribution):
 \[Z_{\text{clipped}} = \max(-3.0, \min(3.0, Z))\]
@@ -126,7 +128,7 @@ Se \(\text{Veto} = \text{True}\), o motor:
 
 ## 3. Referências
 
-- [structure.md](structure.md) — inventário DDD completo (208 módulos)
+- [structure.md](structure.md) — inventário DDD completo (~224 módulos em `app/src/`)
 - [arquitetura.md](arquitetura.md) — pipeline técnico
 - [medallion.md](medallion.md) — princípios quant
 - [infra-docker.md](infra-docker.md) — Triton, meta-regressor 8005, Redis, sanity estressado

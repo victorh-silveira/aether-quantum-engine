@@ -11,21 +11,21 @@
 | REST | `DerivRestClient` → `GET /trading/v1/options/accounts`, `POST .../otp` |
 | WebSocket ao vivo | URL retornada pelo OTP (`wss://api.derivws.com/trading/v1/options/ws/demo?otp=...`) |
 | Dados publicos / backtest | `api_config.public_ws_url` (sem OTP) |
-| Histórico OHLC | `ticks_history` com `style: candles`: macro **900 s / M15** (`data_handler.granularity`) e micro **60 s / M1** (`data_handler.micro_granularity`) |
-| Stream ao vivo | Dupla assinatura OHLC por símbolo: M15 (contexto DL) + M1 (relógio operacional); ticks opcionais |
-| Proposta / compra | `proposal` + `buy` via `TradeHandler` (RISE_FALL, stake, duração **60 s**); stakes > limite configurável fatiadas com **proposta atômica por sub-lote** (`execution_fractional_lots`) — aborta cluster se qualquer `proposal.id` falhar |
+| Histórico OHLC | `ticks_history` com `style: candles`: macro **600 s** (`data_handler.granularity`) e micro **120 s** (`data_handler.micro_granularity`); prefixos de assinatura legado `m15`/`m5` |
+| Stream ao vivo | Dupla assinatura OHLC por símbolo: macro 600 s (contexto DL) + micro 120 s (relógio operacional); ticks opcionais |
+| Proposta / compra | `proposal` + `buy` via `TradeHandler` (RISE_FALL, stake, duração **120 s**); stakes > limite configurável fatiadas com **proposta atômica por sub-lote** (`execution_fractional_lots`) — aborta cluster se qualquer `proposal.id` falhar |
 | Reconciliação de stake | `executed_stake_reconciliation` + `risk_contract_result` — residual de downgrade ajusta `pending_loss`; `apply_contract_settlement_result` reconcilia planned vs executed |
 | Recovery pós-deadlock | `post_settlement_resilience` — reinicialização transparente do loop sem encerrar o processo |
 | Contratos abertos | `proposal_open_contract`, `profit_table` (reconciliação e settlement) |
 | Settlement offline | `settlement_queue_ops` — enfileira em Redis `settlement:queue:priority` quando `WebSocketManager.is_running == False`; worker drena ao reconectar |
 | Keep-alive | Loop de ping no `WebSocketManager` (I/O puro; single-flight connect; RTT em `last_rtt_seconds`) |
 | Manutenção broker | `api_maintenance_guard` — telemetria reativa `[API_GUARD]`; bloqueio de ciclo neutralizado em modo mandatário |
-| Inferência DL | Fora da Deriv API: Triton gRPC local (`localhost:8001`) ou TorchScript em cache; ver [infra-docker.md](infra-docker.md) |
-| Meta de sessão | Stop win de 2,60% composto sobre banca inicial; sem stop loss interno; contratos RISE_FALL não usam `limit_order.stop_loss` |
+| Inferência DL | Fora da Deriv API: Triton gRPC local (`localhost:8001`, timeout **0,50 s**, fail-closed); ver [infra-docker.md](infra-docker.md) |
+| Meta de sessão | Stop win de 2,60% composto (banca ≥ $100) ou fixo $10 (banca < $100); sem stop loss interno; contratos RISE_FALL não usam `limit_order.stop_loss` |
 
 Símbolos ativos do motor: **Drift** (`RDBEAR`, `RDBULL`), não os exemplos genéricos `1HZ100V` / OTC deste documento.
 
-Para fluxo completo (DL, Triton, barreira atômica, direção inteligente, gate de qualidade, Kelly com consensus penalty, stop win por sessão ativa, ciclo), ver [arquitetura.md](arquitetura.md).
+Para fluxo completo (DL, Triton, barreira atômica, direção, gate de qualidade soft + HARD microestrutura, Kelly, soft recovery, stop win por sessão ativa, ciclo 120 s), ver [arquitetura.md](arquitetura.md).
 
 A documentação abaixo descreve a API Deriv de forma ampla (referência geral). O Aether usa apenas o fluxo PAT documentado acima.
 

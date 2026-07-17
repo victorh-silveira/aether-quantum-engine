@@ -1,11 +1,12 @@
 # Estrutura do repositório
 
-Layout de software com infraestrutura Docker local opcional (`infra/docker/`). O código de produção vive em **`app/src/`** com **~219 módulos Python** organizados em quatro camadas DDD. Testes: **~268** arquivos `test_*.py` em `app/tests/` com cobertura **100%** em `app/src`.
+Layout de software com infraestrutura Docker local opcional (`infra/docker/`). O código de produção vive em **`app/src/`** com **~224 módulos Python** organizados em quatro camadas DDD. Testes: **~284** arquivos `test_*.py` em `app/tests/` com cobertura **100%** em `app/src`.
 
 ```
 aether-quantum-engine/
 ├── app/
 │   ├── aether_paths.py                 # Resolução de caminhos a partir da raiz do repo
+│   ├── aether_asyncio.py               # Wrapper asyncio.run; silencia ruído de debug
 │   ├── run.py                          # Entrada de execução (modo execute)
 │   ├── train.py                        # Entrada de treino DL (modo train)
 │   ├── pyproject.toml
@@ -16,7 +17,7 @@ aether-quantum-engine/
 │   │   ├── monitor/                    # live_monitor, monitor_redis, monitor_state, monitor_ui
 │   │   ├── operations/                 # clean_workspace, deriv_pat_connect, train_meta_*
 │   │   └── wsl/setup.sh
-│   ├── src/                            # ~219 módulos Python (DDD)
+│   ├── src/                            # ~224 módulos Python (DDD)
 │   └── tests/
 │       ├── unit/                       # application, domain, infrastructure, presentation, scripts
 │       ├── conftest.py
@@ -47,8 +48,8 @@ presentation  →  application  →  domain
 
 | Camada | Pasta | Módulos | Responsabilidade |
 |--------|-------|---------|------------------|
-| Application | `application/services/` | ~140 | Casos de uso: orquestração, DL, execução, meta-classificador, guards |
-| Domain | `domain/` | ~29 | Lógica pura: risco Kelly/D'Alembert, AntiTrendLock, RiskPolicy, modelos |
+| Application | `application/services/` | ~144 | Casos de uso: orquestração, DL, execução, meta-classificador, guards |
+| Domain | `domain/` | ~30 | Lógica pura: risco Kelly/soft recovery, AntiTrendLock, RiskPolicy, modelos |
 | Infrastructure | `infrastructure/` | ~49 | Adaptadores: Deriv API, Redis, Triton, MinIO, Timescale |
 | Presentation | `presentation/` | 1 | Logging de terminal |
 
@@ -59,7 +60,8 @@ presentation  →  application  →  domain
 | Arquivo | Função |
 |---------|--------|
 | `aether_paths.py` | `repo_path()` — caminhos absolutos a partir da raiz |
-| `run.py` | Bootstrap `engine_session`, cria `Orchestrator`, `asyncio.run(orch.run())` |
+| `aether_asyncio.py` | Wrapper de `asyncio.run`; silencia ruído de debug do asyncio |
+| `run.py` | Bootstrap `engine_session`, cria `Orchestrator`, `aether_asyncio.run(orch.run())` |
 | `train.py` | Bootstrap de treino, `orch.run_training()` |
 
 ---
@@ -69,30 +71,34 @@ presentation  →  application  →  domain
 | Módulo | Responsabilidade |
 |--------|------------------|
 | `auth_manager.py` | Autenticação PAT Deriv, sessão REST/OTP |
-| `bb_width_adaptive_squeeze.py` | D-SQUEEZE: média harmônica de `bb_width` |
+| `bb_width_adaptive_squeeze.py` | D-SQUEEZE: média harmônica de `bb_width` (settings: adaptativo **desabilitado**) |
 | `direction_loss_tracker.py` | Perdas consecutivas por direção (singleton) |
 | `direction_persistence_guard.py` | Anti-trend-lock com flip cross-symbol e telemetria `REGIME_GUARD` |
 | `direction_persistence_guard_helpers.py` | Auxiliares de probabilidade cross-symbol e deduplicação de logs do guard |
 | `execution_direction.py` | Resolução/inversão CALL/PUT para execução |
+| `execution_direction_checks.py` | Pré-checagens de direção; rejeita ciclo só por starvation de microestrutura; limpa `neutral_clamp`; hooks sniper |
 | `execution_direction_cross_corr.py` | Peso DL via correlação cruzada |
 | `execution_direction_fallback.py` | Fallback quando pool DL vazio |
 | `execution_direction_resolver.py` | Motor de direção TCN + meta-regressor + Z-Score |
 | `execution_entropy_fallback.py` | Fallback por menor entropia Shannon |
+| `execution_loss_protection.py` | Hard filters de loss protection; pass-through quando caps 999 / margins 0 |
 | `execution_mandatory_pick.py` | Seleção obrigatória por ranking |
 | `execution_market_rank.py` | Ranking de mercado e `market_decision_score` |
-| `execution_quality_gate.py` | Gate TCN: margem direcional + meta payoff edge |
+| `execution_quality_gate.py` | Gate TCN soft: margem direcional + meta payoff edge |
 | `execution_quality_gate_reason.py` | Motivos textuais e mensagens `QUALITY_GUARD` / `EXECUTION_FLOW` |
 | `execution_quality_gate_cluster.py` | Suspensão cooperativa do cluster (TCN vs meta) |
 | `execution_quality_gate_meta.py` | Filtro pelo meta-regressor (z-score payoff) |
+| `execution_quality_gate_microstructure.py` | Vetoes HARD: `adx_starvation`, `vol_ratio_starvation`, `val_accuracy_gate` |
 | `execution_quality_gate_fallback.py` | Bloqueio de fallback em recovery |
-| `execution_quality_gate_drawdown.py` | Limites proporcionais ao drawdown |
+| `execution_quality_gate_drawdown.py` | Dynamic Recovery Relaxation: pisos TCN/Meta vs passivo + waiver Z |
 | `execution_quality_gate_starvation.py` | Válvula de escape por inanição de ciclos |
+| `execution_sniper_gates.py` | Helpers de banda de calibração; `apply_hurst_noise_veto` e `apply_bb_squeeze_requirement` são stubs (`False`) |
 | `execution_symbols.py` | Símbolos elegíveis e ranking |
 | `execution_symbols_recovery.py` | Pool e ranking em recovery |
 | `execution_symbols_overdrive.py` | Volatility Overdrive Override |
 | `execution_volatility_threshold.py` | Thresholds dinâmicos por regime |
 | `execution_volatility_bb.py` | Bollinger width com vol implícita |
-| `execution_volatility_booster.py` | Modificador por estouro M15/M1 |
+| `execution_volatility_booster.py` | Modificador por estouro macro/micro (600 s / 120 s) |
 | `log_dedupe.py` | `LogDeduper` — deduplicação por canal/minuto; `log_info_if_changed` / `log_warning_if_changed` |
 | `market_audit_log.py` | Auditoria unificada de mercado |
 | `meta_classifier_features.py` | Vetores tabulares para stacking |
@@ -154,7 +160,7 @@ presentation  →  application  →  domain
 | `orchestrator_state_restore.py` | Restore Redis no boot |
 | `orchestrator_state_session.py` | Restore de sessão e assinaturas Redis |
 | `orchestrator_atomic_state.py` | Contexto atômico de leitura/escrita |
-| `orchestrator_data_signature.py` | `resolve_signature_boundary_seconds`, `seconds_until_next_signature_boundary`, assinatura M1+M15 |
+| `orchestrator_data_signature.py` | `resolve_signature_boundary_seconds`, `seconds_until_next_signature_boundary`, assinatura micro+macro (prefixos legados `m5`/`m15` para 120/600 s) |
 | `metrics_utils.py` | Métricas neutras do orquestrador |
 | `result_utils.py` | Normalização de resultado de contratos |
 | `regime_freeze_yield.py` | Yield quando regime FREEZE suspende ciclo |
@@ -206,11 +212,12 @@ presentation  →  application  →  domain
 | `dl_deploy.py` | Gate de deploy e persistência no runtime |
 | `dl_deploy_eval.py` | Mini walk-forward de deploy (`force_local=True`) |
 | `dl_calibration.py` | Calibração de probabilidades |
+| `dl_calibration_tolerance.py` | Override TCN macro quando raw&gt;0.65 ou &lt;0.35; zona neutra config-driven (settings: OFF) |
 | `dl_calibration_fit.py` | Ajuste de calibradores no holdout |
 | `dl_calibration_isotonic.py` | Regressão isotônica (PAV) |
 | `dl_predict.py` | Predição sync por símbolo |
 | `dl_predict_async.py` | Predição assíncrona por símbolo |
-| `dl_predict_triton.py` | Predição via Triton (fail-closed opcional) |
+| `dl_predict_triton.py` | Predição via Triton (fail-closed obrigatório em produção) |
 | `dl_predict_build.py` | Montagem de entrada de decisão DL |
 | `dl_predict_telemetry.py` | Telemetria micro + bundle cross-symbol meta |
 | `dl_predict_metrics.py` | Métricas dinâmicas e squeeze no entry |
@@ -257,7 +264,8 @@ presentation  →  application  →  domain
 | `kelly_f_star_adjustments.py` | Ajustes f* (consenso, divergência) |
 | `super_concordance_kelly.py` | Expansão Kelly em super-consenso |
 | `consensus_stake_penalty.py` | Modificador por divergência técnica |
-| `dlambert_sizing.py` | Kelly + progressão D'Alembert / Martingale |
+| `soft_recovery_policy.py` | Soft recovery paramétrico: cap, amort, passo fixo U×1.15 para n∈{3,4}, hard floor 5% se banca&lt;$100, micro-residual Z floor −0.60, waiver GBDT 6 skips |
+| `dlambert_sizing.py` | Kelly + progressão soft D'Alembert (passo fixo 3–4 = U×1.15) |
 | `stop_win_target.py` | `StopWinManager`, meta de lucro por sessão |
 | `stake_target_proximity.py` | Amortecimento por proximidade da meta |
 | `risk_recovery_state.py` | Estado financeiro de recovery; `evaluate_anti_trend_lock` (política pura AntiTrendLock) |
@@ -303,7 +311,7 @@ presentation  →  application  →  domain
 |--------|------------------|
 | `stream_handler.py` | Fluxo em tempo real e histórico local |
 | `tick_buffer.py` | Buffer de ticks e microestrutura |
-| `stream_timeframe.py` | Granularidades macro/micro duplas |
+| `stream_timeframe.py` | Granularidades macro/micro duplas (600 s / 120 s; assinatura legado m15/m5) |
 | `stream_candle_apply.py` | Aplicação incremental de velas |
 | `stream_tick_sidecar.py` | Ingestão de ticks e persistência de barras |
 | `stream_ohlc_fetch.py` | Busca OHLC sem alterar buffer |
@@ -405,16 +413,16 @@ app/tests/
 ├── torch_test_support.py
 └── unit/
     ├── test_run.py
-    ├── application/          # ~167 arquivos — orchestrator, DL, execution, meta, settlement Redis
+    ├── application/          # orchestrator, DL, execution, meta, settlement Redis
     ├── domain/
     │   ├── math/
-    │   └── risk/             # ~30 testes
-    ├── infrastructure/       # ~45 testes
+    │   └── risk/
+    ├── infrastructure/
     ├── presentation/
     └── scripts/
 ```
 
-Convenção: espelha as camadas DDD. Cobertura obrigatória **100%** em `app/src/`.
+Convenção: espelha as camadas DDD. Cobertura obrigatória **100%** em `app/src/`. Contagem atual: **~284** arquivos `test_*.py`.
 
 ---
 
@@ -422,18 +430,20 @@ Convenção: espelha as camadas DDD. Cobertura obrigatória **100%** em `app/src
 
 ```mermaid
 flowchart TD
-  BR[decision_bridge] --> BUNDLE[dl_predict_build 39D]
-  BUNDLE --> PRED[dl_predict_triton gRPC 2s]
-  PRED --> META[meta_classifier_client]
+  BR[decision_bridge] --> BUNDLE[dl_predict_build 34D TCN]
+  BUNDLE --> PRED[dl_predict_triton gRPC 0.50s]
+  PRED --> META[meta_classifier_client 43D]
   META --> RES[execution_direction_resolver]
-  RES --> DG[direction_persistence_guard AntiTrendLock]
+  RES --> CHK[execution_direction_checks]
+  CHK --> DG[direction_persistence_guard AntiTrendLock]
   DG --> ZS[payoff_edge_zscore]
-  ZS --> QG[execution_quality_gate]
-  QG --> COL[execution_collect]
+  ZS --> QG[execution_quality_gate soft]
+  QG --> MICRO[execution_quality_gate_microstructure HARD]
+  MICRO --> COL[execution_collect]
   COL --> RANK[execution_market_rank]
   RANK --> SYM[execution_symbols]
   SYM --> EM[ExecutionManager fractional lots]
-  EM --> TH[TradeHandler RISE_FALL 60s]
+  EM --> TH[TradeHandler RISE_FALL 120s]
   TH --> ENQ[enqueue_contract_settlement]
   ENQ --> WQ[asyncio.Queue worker]
   WQ --> ST[settlement_logic]
@@ -468,7 +478,7 @@ flowchart TD
 | `data/dl/{symbol}.pth` | Checkpoints PyTorch |
 | `data/dl/{symbol}_ts.pt` | TorchScript para Triton |
 | `infra/docker/triton-models/{symbol}/` | Layout Triton |
-| `infra/docker/meta-models/` | LightGBM `.pkl` (39D) |
+| `infra/docker/meta-models/` | LightGBM `.pkl` (43D) |
 | `logs/engine.log` | Auditoria operacional |
 
 ---
