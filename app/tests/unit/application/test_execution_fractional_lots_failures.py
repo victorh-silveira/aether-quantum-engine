@@ -33,7 +33,7 @@ async def test_dispatch_fractional_orders_aborts_cluster_when_proposal_fails(orc
         )
         metrics = {"duration": 60}
         with patch(
-            "src.application.services.orchestrator.execution_fractional_lots.subscribe_open_contract",
+            "src.application.services.orchestrator.execution_fractional_lots_buy.subscribe_open_contract",
             new_callable=AsyncMock,
         ) as subscribe_mock:
             contracts = await dispatch_fractional_orders(

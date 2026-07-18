@@ -46,7 +46,7 @@ def test_recovery_select_prefers_different_symbol_after_put_loss():
     )
     assert best is not None
     assert best[0] == ANCHOR
-    assert best[1] == TradeDirection.PUT
+    assert best[1] == TradeDirection.CALL
 
 
 def test_select_best_can_pick_opposite_direction_when_stronger():

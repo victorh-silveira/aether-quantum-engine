@@ -9,13 +9,46 @@ from src.application.services.deep_learning.dl_calibration import CalibratorStat
 from src.application.services.deep_learning.dl_deploy import apply_deploy_to_runtime
 from src.application.services.deep_learning.dl_deploy_eval import evaluate_mini_deploy
 from src.application.services.deep_learning.dl_gate_config import resolve_deploy_ok
+from src.application.services.deep_learning.dl_horizon import contract_duration_seconds
 from src.application.services.deep_learning.dl_model_artifacts import schedule_model_upload
 from src.application.services.deep_learning.dl_retrain import clear_force_retrain, reset_bars_since_train
 from src.application.services.deep_learning.dl_symbol_runtime import resolve_dl_model_path
 from src.application.services.deep_learning.model import save_model_checkpoint
+from src.application.services.live_signal_metrics import live_signal_snapshot
 
 
 logger = logging.getLogger("AETH")
+
+
+def _log_horizon_gap(
+    *,
+    level: int,
+    symbol: str,
+    granularity: int,
+    params: dict,
+    orch,
+) -> None:
+    """Loga gap entre horizonte de label e duracao do contrato."""
+    label_horizon_bars = max(1, int(params.get("label_horizon_bars", 1)))
+    label_horizon_seconds = int(label_horizon_bars) * max(1, int(granularity))
+    risk_cfg = getattr(orch, "config", {}) if orch is not None else {}
+    risk = risk_cfg.get("risk_management") if isinstance(risk_cfg, dict) else {}
+    risk_params = risk.get("params") if isinstance(risk, dict) else {}
+    if not isinstance(risk_params, dict):
+        risk_params = params.get("risk_params") if isinstance(params.get("risk_params"), dict) else {}
+    contract_sec = (
+        contract_duration_seconds(risk_params) if risk_params else int(params.get("contract_duration_seconds", 0) or 0)
+    )
+    logger.log(
+        level,
+        "DL TREINO | %s | horizonte label=%ds (%d barras x %ds) | contrato=%ds | gap=%ds",
+        symbol,
+        label_horizon_seconds,
+        label_horizon_bars,
+        int(granularity),
+        int(contract_sec),
+        int(label_horizon_seconds - contract_sec),
+    )
 
 
 def apply_successful_symbol_train(
@@ -50,6 +83,7 @@ def apply_successful_symbol_train(
     runtime["entropy_violation"] = bool(getattr(train_result, "entropy_violation", False))
     train_loss = train_result.avg_loss
     runtime["last_candle_epoch"] = candle_epoch_value
+    _log_horizon_gap(level=level, symbol=symbol, granularity=granularity, params=params, orch=orch)
     mini_ok, deploy_wr, mini_brier = evaluate_mini_deploy(
         orch,
         symbol,
@@ -106,9 +140,13 @@ def apply_successful_symbol_train(
     runtime["session_trained"] = True
     clear_force_retrain(orch, symbol)
     reset_bars_since_train(orch, symbol)
+    live_snap = live_signal_snapshot(orch, symbol) if orch is not None else {"live_wr": 0.0, "live_n": 0}
+    live_wr = float(live_snap.get("live_wr", 0.0))
+    live_n = int(live_snap.get("live_n", 0))
     logger.log(
         level,
-        "DL TREINO | %s | concluido em %.0fs | epocas=%d | loss=%.4f | val_acc=%.2f | brier=%.3f | deploy=%s",
+        "DL TREINO | %s | concluido em %.0fs | epocas=%d | loss=%.4f | val_acc=%.2f | brier=%.3f | "
+        "deploy=%s | settle_wr=%.2f | settle_brier=%.3f | label_wr=%.2f | live_wr=%.2f | live_n=%d",
         symbol,
         time.monotonic() - started,
         int(getattr(train_result, "epochs_ran", 0)),
@@ -116,6 +154,11 @@ def apply_successful_symbol_train(
         float(runtime.get("val_accuracy", 0.0)),
         float(runtime.get("val_brier", 1.0)),
         bool(runtime.get("deploy_ok", False)),
+        float(runtime.get("deploy_settlement_win_rate", deploy_wr)),
+        float(runtime.get("deploy_settlement_brier", mini_brier)),
+        float(runtime.get("deploy_label_win_rate", deploy_wr)),
+        live_wr,
+        live_n,
     )
     logger.log(level, "")
     return norm_stats, train_loss

@@ -14,7 +14,7 @@ def resolve_calibration_neutral_band(calibration_cfg: dict[str, Any] | None) -> 
         hi = float(drift[1])
         if hi >= lo:
             return lo, hi
-    half = float(raw.get("neutral_half_width", 0.02))
+    half = float(raw.get("neutral_half_width", 0.04))
     return 0.5 - half, 0.5 + half
 
 

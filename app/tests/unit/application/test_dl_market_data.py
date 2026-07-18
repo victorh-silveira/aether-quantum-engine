@@ -59,6 +59,33 @@ def test_load_symbol_close_ohlc_aligned():
     assert len(c) == 6 and o is not None and h is not None and low is not None
 
 
+def test_load_symbol_close_ohlc_micro_timeframe():
+    close = np.arange(5.0)
+
+    class _MicroStream:
+        def get_numpy_series(self, _symbol: str, _field: str) -> np.ndarray:
+            raise AssertionError("macro path should not be used")
+
+        def get_micro_numpy_series(self, _symbol: str, field: str) -> np.ndarray:
+            base = {"close": close, "open": close + 0.1, "high": close + 0.2, "low": close - 0.1}
+            return base[field]
+
+    orch = type("O", (), {"stream": _MicroStream()})()
+    c, o, h, low = load_symbol_close_ohlc(orch, "RDBULL", timeframe="micro")
+    assert len(c) == 5 and o is not None and h is not None and low is not None
+
+
+def test_load_symbol_close_ohlc_micro_empty():
+    class _MicroStream:
+        def get_micro_numpy_series(self, _symbol: str, _field: str) -> np.ndarray:
+            return np.array([])
+
+    orch = type("O", (), {"stream": _MicroStream()})()
+    close, open_, high, low = load_symbol_close_ohlc(orch, "RDBULL", timeframe="micro")
+    assert len(close) == 0
+    assert open_ is None and high is None and low is None
+
+
 def test_slice_ohlc_window_with_full_ohlc():
     close = np.arange(10.0)
     open_ = close + 1.0

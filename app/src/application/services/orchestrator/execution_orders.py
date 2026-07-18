@@ -5,6 +5,7 @@ import logging
 
 from src.application.services.market_audit_log import (
     format_execution_ticket_line,
+    resolve_meta_payoff_zscore,
     resolve_predicted_edge,
     resolve_stake_audit_context,
     store_contract_audit,
@@ -32,7 +33,7 @@ async def _subscribe_open_contract_background(ws, contract_id: int, *, timeout: 
 def _emit_execution_ticket(executor, *, cycle_id: int, symbol, direction, stake, contract, metrics) -> None:
     """Emite linha EXEC e persiste auditoria do contrato."""
     logger = logging.getLogger("AETH")
-    mode_tag, pending, bankroll = resolve_stake_audit_context(
+    audit = resolve_stake_audit_context(
         executor.orch.risk_manager,
         balance_fallback=getattr(getattr(executor.orch, "state", None), "balance", None),
     )
@@ -42,11 +43,14 @@ def _emit_execution_ticket(executor, *, cycle_id: int, symbol, direction, stake,
             direction=direction.name,
             symbol=str(symbol),
             stake=float(stake),
-            mode_tag=mode_tag,
-            pending=pending,
-            bankroll=bankroll,
+            mode_tag=str(audit.get("mode_tag") or "EXPLORE_KELLY"),
+            pending=float(audit.get("pending", 0.0)),
+            bankroll=float(audit.get("bankroll", 0.0)),
             contract_id=int(contract.contract_id),
             payout=float(contract.payout),
+            linear=int(audit.get("linear", 0)),
+            cap=float(audit.get("cap", 0.0)),
+            recovery_infeasible=bool(audit.get("recovery_infeasible", False)),
         )
     )
     store_contract_audit(
@@ -55,6 +59,10 @@ def _emit_execution_ticket(executor, *, cycle_id: int, symbol, direction, stake,
         symbol=str(symbol),
         direction=direction.name,
         edge=resolve_predicted_edge(metrics if isinstance(metrics, dict) else {}),
+        meta_payoff_edge_zscore=resolve_meta_payoff_zscore(metrics if isinstance(metrics, dict) else None),
+        raw_prob=(
+            float(metrics["raw_prob"]) if isinstance(metrics, dict) and metrics.get("raw_prob") is not None else None
+        ),
     )
 
 

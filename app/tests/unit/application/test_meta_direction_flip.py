@@ -232,8 +232,9 @@ def test_resolver_keeps_call_after_two_bull_call_losses():
         peer_entry=peer,
         cycle_id=8,
     )
-    assert result is not None
-    assert result[0] == TradeDirection.CALL
+    assert result is None
+    assert entry["metrics"].get("persistence_guard_skip") is True
+    assert entry["metrics"].get("gate_reason") == "persistence_guard_skip"
 
 
 def test_resolver_keeps_bear_put_after_bull_call_streak():
@@ -270,7 +271,8 @@ def test_resolver_keeps_bear_put_after_bull_call_streak():
     assert result is not None
     direction, metrics = result
     assert direction == TradeDirection.PUT
-    assert metrics.get("anti_trend_lock_flip") is not True
+    assert metrics.get("direction_inverted") is not True
+    assert metrics.get("persistence_guard_skip") is not True
 
 
 def test_regime_freeze_skips_cycle_on_chop_congestion():

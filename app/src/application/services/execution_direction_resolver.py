@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.application.services.direction_persistence_guard import evaluate_direction_persistence_guard
 from src.application.services.execution_direction_checks import (
     D_SQUEEZE_BB_WIDTH_ANOMALY_RATIO,
     has_meta_zscore_telemetry as _has_meta_zscore_telemetry,
@@ -15,8 +16,16 @@ from src.application.services.execution_direction_checks import (
     sync_entry_metrics,
 )
 from src.application.services.execution_quality_gate import ensure_direction_margin
+from src.application.services.live_signal_metrics import (
+    apply_live_calib_drift_soft,
+    attach_live_signal_metrics,
+)
 from src.application.services.meta_classifier_stacking import resolve_meta_payoff_edge
 from src.application.services.meta_payoff_regression import apply_meta_regression_edge
+from src.application.services.meta_payoff_veto_gate import (
+    is_execution_signal_vetoed,
+    should_veto_meta_payoff_negative_zscore,
+)
 from src.application.services.payoff_edge_zscore import attach_payoff_edge_zscore_metrics
 from src.domain.models.trade import TradeDirection
 
@@ -30,6 +39,43 @@ __all__ = (
 )
 
 
+def _apply_persistence_guard_skip(
+    entry: dict,
+    metrics: dict,
+    dl_dir: TradeDirection,
+    *,
+    symbol: str | None,
+    peer_entry: dict | None,
+    cycle_id: int,
+    infra_cfg: dict | None,
+) -> bool:
+    """Aplica persistence guard como skip; nunca aceita flip de lado."""
+    guarded = evaluate_direction_persistence_guard(
+        symbol,
+        dl_dir,
+        dl_dir,
+        metrics,
+        entry=entry,
+        peer_entry=peer_entry,
+        cycle_id=cycle_id,
+        infra_cfg=infra_cfg,
+    )
+    if guarded is None:
+        metrics["gate_reason"] = str(metrics.get("gate_reason") or "persistence_guard_skip")
+        metrics["persistence_guard_skip"] = True
+        metrics["quality_guard_reject"] = True
+        sync_entry_metrics(entry, metrics)
+        return True
+    if guarded != dl_dir:
+        metrics["gate_reason"] = "persistence_guard_skip"
+        metrics["persistence_guard_skip"] = True
+        metrics["persistence_guard_flip_suppressed"] = True
+        metrics["quality_guard_reject"] = True
+        sync_entry_metrics(entry, metrics)
+        return True
+    return False
+
+
 def _finalize_execution_metrics(
     entry: dict,
     metrics: dict,
@@ -40,8 +86,13 @@ def _finalize_execution_metrics(
     meta_applied: bool,
     score: float,
     symbol: str | None,
-) -> tuple[TradeDirection, dict]:
+    risk_manager: Any | None = None,
+    orch: Any | None = None,
+) -> tuple[TradeDirection, dict] | None:
     """Aplica decisao de execucao final."""
+    if symbol is not None:
+        attach_live_signal_metrics(orch, symbol, metrics)
+    apply_live_calib_drift_soft(metrics)
     exec_dir, _final_score = apply_meta_regression_edge(
         dl_dir,
         metrics,
@@ -50,6 +101,15 @@ def _finalize_execution_metrics(
         base_score=score,
         symbol=symbol,
     )
+    hard = should_veto_meta_payoff_negative_zscore(
+        metrics,
+        direction=exec_dir,
+        risk_manager=risk_manager,
+        orch=orch,
+    )
+    if hard or is_execution_signal_vetoed(metrics):
+        sync_entry_metrics(entry, metrics)
+        return None
     metrics.update(
         {
             "exec_direction": exec_dir.name,
@@ -59,6 +119,8 @@ def _finalize_execution_metrics(
         }
     )
     ensure_direction_margin(metrics)
+    if metrics.get("meta_veto_mode") is None:
+        metrics["meta_veto_mode"] = "none"
     sync_entry_metrics(entry, metrics)
     return exec_dir, metrics
 
@@ -79,12 +141,22 @@ def resolve_execution_direction(
     orch: Any | None = None,
 ) -> tuple[TradeDirection, dict] | None:
     """Resolve direcao micro fiel ao sinal TCN/DL com telemetria meta-regressor."""
-    _ = (calibration_cfg, corr_matrix, peer_entry, cycle_id)
+    _ = (calibration_cfg, corr_matrix)
     exec_cfg_dict = exec_cfg if isinstance(exec_cfg, dict) else {}
     checks = initial_direction_checks(entry, exec_cfg_dict, orch=orch)
     if checks is None:
         return None
     dl_dir, metrics, prob = checks
+    if _apply_persistence_guard_skip(
+        entry,
+        metrics,
+        dl_dir,
+        symbol=symbol,
+        peer_entry=peer_entry,
+        cycle_id=cycle_id,
+        infra_cfg=infra_cfg,
+    ):
+        return None
     score = seed_direction_metrics(metrics, dl_dir=dl_dir, prob=prob)
     predicted_edge, meta_applied = resolve_meta_payoff_edge(
         symbol=symbol,
@@ -109,7 +181,11 @@ def resolve_execution_direction(
     }
     if reject_on_quality_gate(entry, metrics, gate_probe, exec_cfg_dict, **kw):
         return None
-    _ = bool(exec_cfg_dict.get("require_meta_for_execution", False))
+    if bool(exec_cfg_dict.get("require_meta_for_execution", False)) and not meta_applied:
+        metrics["gate_reason"] = "meta_unavailable"
+        metrics["quality_guard_reject"] = True
+        sync_entry_metrics(entry, metrics)
+        return None
     return _finalize_execution_metrics(
         entry,
         metrics,
@@ -119,4 +195,6 @@ def resolve_execution_direction(
         meta_applied=meta_applied,
         score=score,
         symbol=symbol,
+        risk_manager=risk_manager,
+        orch=orch,
     )

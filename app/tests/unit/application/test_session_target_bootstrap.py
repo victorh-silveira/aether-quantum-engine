@@ -33,6 +33,26 @@ async def test_bootstrap_active_session_targets():
 
 
 @pytest.mark.asyncio
+async def test_bootstrap_syncs_live_when_override_diverges():
+    orch = MagicMock()
+    orch._session_targets_bootstrapped = False
+    orch.config = {
+        "risk_management": {
+            "params": {"session_start_balance": 50.0, "compounding_enabled": False},
+            "small_account_threshold": 100.0,
+            "small_account_stop_win": 10.0,
+        }
+    }
+    orch.state_mgr = StateManager()
+    orch.risk_manager = RiskManager(orch.config["risk_management"])
+    orch.state_store = AsyncMock()
+    orch.logger = MagicMock()
+    await bootstrap_active_session_targets(orch, 100.0)
+    assert orch.risk_manager.initial_bankroll == pytest.approx(100.0)
+    assert orch._session_targets_bootstrapped is True
+
+
+@pytest.mark.asyncio
 async def test_bootstrap_idempotent_second_call():
     orch = MagicMock()
     orch.config = {"risk_management": {"params": {"compounding_enabled": True, "compounding_rate_daily": 0.026}}}

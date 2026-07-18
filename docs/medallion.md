@@ -11,7 +11,7 @@ Para arquitetura de código, ver [`arquitetura.md`](arquitetura.md).
 | Princípio | No motor atual |
 |-----------|----------------|
 | Sinais, não histórias | Direção CALL/PUT estritamente pela TCN (`P(CALL) > P(PUT)`) |
-| Horizonte curto | Contexto DL **600 s** (assinatura legado `m15`); execução **120 s** (assinatura legado `m5`); proporção multi-timeframe **1:5** (120:600); label atual `ma_trend` (Triple Barrier opcional) |
+| Horizonte curto | Contexto DL **600 s** (assinatura legado `m15`); execução **120 s** (assinatura legado `m5`); proporção multi-timeframe **1:5** (120:600); label atual `spot_forward` (Triple Barrier / `ma_trend` disponiveis via config) |
 | Acoplamento temporal | Inferências e rotações seguem `signature_boundary_seconds` (fallback `cycle_interval_seconds`, padrão **120 s**); fronteira `m5_boundary_epoch` (nome legado) |
 | Esteira mandatária | `mandatory_trade_each_cycle: true` — mandatory pick quando pool DL aprovado pelo quality gate soft + vetoes HARD de microestrutura |
 | Modelo pronto antes de operar | `FASE TREINO` suspende ordens até treino da sessão |
@@ -23,9 +23,9 @@ Para arquitetura de código, ver [`arquitetura.md`](arquitetura.md).
 | Meta por sessão ativa | Stop win de 2,60% composto (banca ≥ $100) ou fixo $10 (banca < $100) |
 | Sem disjuntor de perda | Stop loss interno desativado |
 | Isolamento de estado | `asyncio.Lock` serializa inferência, liquidação e persistência |
-| AntiTrendLock | Após 2 losses na mesma direção: flip cross-symbol ou FREEZE |
-| Calibração | Zona neutra OFF (`neutral_half_width: 0.0`); override TCN macro se raw&gt;0.65 ou &lt;0.35 |
-| Veto Cruzado TCN-GBDT | Z-Score de payoff negativo sofre expurgo fora de recovery crítico (meta ainda opcional para execução) |
+| Persistence guard | Após 2 losses na mesma direção: **skip** do candidato (sem flip CALL/PUT); FREEZE em congestão micro |
+| Calibração | Zona neutra ON (`neutral_half_width: 0.04`, banda `[0.46, 0.54]`); thresholds **0.54/0.46**; override TCN macro se raw&gt;0.65 ou &lt;0.35 |
+| Veto Cruzado TCN-GBDT | Soft veto comprime score; hard veto só com shadow calibrado (`meta_veto_mode`: none/soft/hard); meta opcional para execução |
 | Settlement resiliente | Fila Redis `settlement:queue:priority`; tolerância **90 s** |
 | Starvation escape | Após **6** quality skips consecutivos, pisos de margem/edge/Z decaem |
 | Microestrutura HARD | Vetoes `adx_starvation`, `vol_ratio_starvation`, `val_accuracy_gate` (`min_validation_accuracy_gate: 0.63`) |
@@ -77,21 +77,21 @@ Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `
 | Camada | Comportamento |
 |--------|---------------|
 | Bloqueio técnico | `data`, `predict_error`, `training`, `deploy_ok=false`, Triton fail-closed |
-| Calibração | Zona neutra OFF; override TCN macro se raw&gt;0.65 ou &lt;0.35 (`dl_calibration_tolerance`) |
+| Calibração | Zona neutra ON (`neutral_half_width: 0.04`); thresholds **0.54/0.46**; override TCN macro se raw&gt;0.65 ou &lt;0.35 |
 | Veto cruzado TCN-GBDT | Z-Score `< -0.20` reclassifica para `NO_EDGE_NEUTRAL`/`LOSS_EXPECTED` mesmo com `WIN_EXPECTED` explícito do meta e força SKIP (`meta_payoff_negative_zscore_veto`); waiver em recovery crítico (`linear >= 4` ou `pending > 150`) com TCN extrema (`raw_prob <= 0.22` PUT / `>= 0.78` CALL) |
 | Classificação macro | TCN processa lookback de ~12 h em barras de **600 s** (`[1, 72, 34]`); define direção (`dl_direction`) |
 | Stacking tabular | Meta-regressor LightGBM (micro **120 s**) sobre vetor **43D** + probabilidade TCN; saída `predicted_payoff_edge`; meta **opcional** para execução |
 | Z-Score de payoff | `payoff_edge_zscore`: janela adaptativa 15–45; classificação estatística do micro-edge |
 | Scoring de ranking | `market_decision_score = tcn × max(0.1, 1 + z)` — prioriza Z-Score favorável sem rótulos categóricos |
 | Scoring direcional | TCN define `dl_direction`; edge `> 0` mantém score orgânico; veto Z negativo aborta antes do D-SQUEEZE; compressão BB severa rebaixa para `0.52` |
-| Margem direcional | `direction_margin = abs(P(lado_escolhido) − 0.50)`; thresholds de confiança **0.50/0.50**; margins do quality gate **0.0** |
+| Margem direcional | `direction_margin = abs(P(lado_escolhido) − 0.50)`; thresholds **0.54/0.46**; `min_direction_margin: 0.03` como **hard gate** (`direction_margin_gate`) |
 | Gate de qualidade | Dual soft TCN+meta + **HARD** microestrutura (`adx_starvation`, `vol_ratio_starvation`, `val_accuracy_gate`); sniper/Hurst/BB são stubs (`False`); `require_meta_for_execution: false`; consensus **off** |
 | Indicator gating | enabled; `adx_min` 0.20; `vol_ratio_min` 0.65; `veto_on_noise` false |
-| AntiTrendLock | Após 2 perdas consecutivas na mesma direção: flip cross-symbol (PUT↔CALL) ou `FREEZE: SKIP CYCLE` em congestão micro |
-| Rotulagem | Padrão `ma_trend`; Triple Barrier disponível via config (barreira dinâmica por σ) |
+| Persistence guard | Após 2 perdas na mesma direção: **skip** (`persistence_guard_skip`); flip CALL/PUT **suprimido** em produção; `FREEZE` em congestão |
+| Rotulagem | Padrão `spot_forward`; `ma_trend` / Triple Barrier disponíveis via config |
 | Perda TCN assimétrica | Penalidade 2,5× para erro direcional em alta volatilidade |
 | Optuna meta | Maximiza Information Ratio; constraint OOS payoff Z-Score ≥ +1,00 |
-| Gerenciamento de risco | Kelly base (`fraction=0.005`) + soft D'Alembert via `soft_recovery_policy` (passo fixo 3–4 = U×1.15); loss-protection hard filters em pass-through (margins 0 / caps 999) |
+| Gerenciamento de risco | Kelly base (`fraction=0.005`) + soft D'Alembert via `soft_recovery_policy` (passo fixo 3–4 = U×1.15); `loss_protection.min_direction_margin: 0.03` |
 | BB squeeze adaptativo | `bb_width_adaptive_squeeze.enabled: false` |
 | Dynamic threshold | `dynamic_threshold.enabled: false` |
 
@@ -129,7 +129,7 @@ Ordem lógica de uma entrada:
 4. **Predição DL** — inferência Triton concorrente (timeout **0,50 s**, fail-closed); `raw_prob`/`calibrated_prob` e indicadores calculados.
 5. **Bundle cross-symbol** — `prepare_meta_classifier_cross_symbol_bundle` coleta telemetria micro em paralelo e anexa spreads cross-symbol.
 6. **Stacking tabular** — `MetaClassifierClient` envia probabilidade TCN + vetor **43D** ao `aether-meta-classifier`; retorna `predicted_payoff_edge` (opcional para execução).
-7. **Calibração** — `dl_calibration_tolerance`: zona neutra OFF; override TCN macro em raw extremos.
+7. **Calibração** — `dl_calibration_tolerance`: zona neutra ON (`neutral_half_width: 0.04`); override TCN macro em raw extremos.
 8. **Resolução direcional** — `execution_direction_resolver` + `execution_direction_checks` + `meta_payoff_regression`: edge positivo preserva TCN; edge `< -0.15` em squeeze rebaixa `trade_score=0.52` (`[D-SQUEEZE]`); `ensure_direction_margin` expõe margem corrigida.
 9. **Gate de qualidade** — dual soft TCN+meta + HARD microestrutura; starvation a partir de **6** skips; stubs sniper não vetam.
 10. **Z-Score meta** — `attach_payoff_edge_zscore_metrics` anexa `meta_payoff_edge_zscore` / `edge_zscore` para ranking e gate.
@@ -144,14 +144,14 @@ Perfil em `config/settings.json` (settings atuais):
 | Parâmetro | Valor | Função |
 |-----------|-------|--------|
 | `calibration.method` | auto | Platt, isotonic ou temperatura+Platt no holdout |
-| `calibration.neutral_half_width` | 0.0 | Zona neutra **OFF** |
-| `confidence_call_threshold` | 0.50 | Base de calibração CALL |
-| `confidence_put_threshold` | 0.50 | Base de calibração PUT |
+| `calibration.neutral_half_width` | 0.04 | Zona neutra ON; banda efetiva `[0.46, 0.54]` |
+| `confidence_call_threshold` | 0.54 | Threshold CALL |
+| `confidence_put_threshold` | 0.46 | Threshold PUT |
 | `dynamic_threshold.enabled` | false | Thresholds flutuantes por volatilidade **desligados** |
 | `min_val_accuracy` | 0.60 | Piso de acurácia de validação (treino/deploy) |
 | `min_validation_accuracy_gate` | 0.63 | Veto HARD de microestrutura em runtime |
 | `min_edge_execute` | 0.0 | Edge base (advisory) |
-| `label_mode` | `ma_trend` | Rotulagem por tendência de média móvel (padrão); `triple_barrier` disponível via config |
+| `label_mode` | `spot_forward` | Rotulagem spot-forward (padrão); `ma_trend` / `triple_barrier` via config |
 | `label_vol_window_bars` | 15 | Janela de σ para largura de barreira (tunável por símbolo) |
 | `label_vol_multiplier` | 1.0 | Multiplicador da barreira de volatilidade |
 | `indicator_gating.enabled` | true | Gate de indicadores |
@@ -159,15 +159,15 @@ Perfil em `config/settings.json` (settings atuais):
 | `indicator_gating.vol_ratio_min` | 0.65 | Piso vol_ratio |
 | `indicator_gating.veto_on_noise` | false | Sem veto por faixa Hurst de ruído |
 | `quality_gate.min_adx_threshold` | 0.20 | HARD ADX starvation |
-| `quality_gate.regular.min_direction_margin` | 0.0 | Margem soft regular (não veta) |
-| `quality_gate.min_direction_margin` | 0.0 | Margem soft recovery (não veta) |
-| `quality_gate.mandatory_min_trade_score` | 0.50 | Piso de score em mandatory pick |
+| `quality_gate.regular.min_direction_margin` | 0.03 | Hard gate de margem (regime regular) |
+| `quality_gate.min_direction_margin` | 0.03 | Hard gate de margem (recovery) |
+| `quality_gate.mandatory_min_trade_score` | 0.52 | Piso de score em mandatory pick |
 | `mandatory_trade_each_cycle` | true | Esteira mandatária contínua |
 | `require_meta_for_execution` | false | Meta **opcional** para execução |
 | `bb_width_adaptive_squeeze.enabled` | false | Squeeze adaptativo desligado |
-| `loss_protection.min_direction_margin` | 0.0 | Hard filter pass-through |
-| `loss_protection.max_edge_without_margin` | 999.0 | Hard filter pass-through |
-| `loss_protection.max_zscore_without_margin` | 999.0 | Hard filter pass-through |
+| `loss_protection.min_direction_margin` | 0.03 | Piso de margem na proteção contra loss |
+| `loss_protection.max_edge_without_margin` | 999.0 | Cap edge sem margem |
+| `loss_protection.max_zscore_without_margin` | 999.0 | Cap Z sem margem |
 | `risk_management.kelly.max_stake_pct` | 0.035 | Teto Kelly efetivo |
 | `risk_management.kelly.max_bankroll_stake_fraction` | 0.035 | Teto de fração de banca alinhado ao Kelly |
 | `risk_management.kelly.fraction` | 0.005 | Fração Kelly base |
@@ -215,7 +215,7 @@ Telemetria de direção por ciclo:
 |-------|----------|
 | `DIR_SEL` | Direção executada, símbolo, edge; `dl=... inv` apenas se houver inversão real |
 | `EXEC_SEL` | TCN, edge contínuo e Z-Score (`Z=±x.xx`) — sem rótulo de expectativa |
-| `IND` | Snapshot de indicadores (RSI, Hurst, ATR, BB, MACD, etc.) + `raw_prob`, `calibrated_prob`, `direction_margin` |
+| `IND` | Snapshot de indicadores + `MARGIN`, `NEUTRAL` (`neutral_clamp`/`calibrated`), `META_VETO` (`none`/`soft`/`hard`) |
 
 O buffer histórico **não** avança durante recovery ou com `linear_losses > 0`, evitando contaminação estatística em soft recovery.
 
@@ -416,7 +416,7 @@ O bloco legado `risk_management.dlambert` foi removido da configuração canôni
 Complementar à curva soft D'Alembert:
 
 - Rotação de símbolo após loss linear (`symbol_loss_rotation_cycles`); sem bônus fixo em `RDBULL`
-- Filtro de loss-protection em pass-through nos settings atuais (margins 0 / caps 999)
+- Filtro de loss-protection com `min_direction_margin: 0.03` (caps edge/Z 999)
 - Trava Hurst N2+ (`recovery_hurst_gate`) — prioriza candidatos persistentes; N3+ sem Hurst bloqueia escalada
 - Teto de stake comprimido em linear ≥2 (2,5%) e ≥3 (2,0%)
 
@@ -559,6 +559,6 @@ Em estados extremos de inanição operacional (skips >= 30), o veto do classific
 ## 11. Referências internas
 
 - [arquitetura.md](arquitetura.md)
-- [structure.md](structure.md) — inventário completo dos módulos Python em `app/src/` (~224)
+- [structure.md](structure.md) — inventário completo dos módulos Python em `app/src/` (~226)
 - [README.md](../README.md)
 - [CHANGELOG.md](CHANGELOG.md)

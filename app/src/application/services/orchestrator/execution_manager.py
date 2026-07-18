@@ -6,18 +6,16 @@ import logging
 from src.application.services.execution_symbols import symbols_eligible_for_execution
 from src.application.services.execution_symbols_recovery import pending_recovery_active
 from src.application.services.log_dedupe import clear_log_channel, log_info_if_changed
-from src.application.services.market_audit_log import resolve_predicted_edge, store_contract_audit
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.recovery_hurst_decay import prepare_recovery_skip_counter, reset_recovery_skip_counter_for_orch
 from src.domain.risk.stake_sizing import resolve_stake_conviction
 from src.domain.risk.stop_win_target import resolve_stop_win_target
 
-from .api_maintenance_guard import handle_broker_maintenance_error
 from .execution_blockers import log_execution_blockers
 from .execution_collect import collect_cluster_orders
 from .execution_cuda import clear_cuda_cache
+from .execution_manager_execute import execute_cluster_orders
 from .execution_orders import place_order
-from .execution_proposal import is_proposal_runtime_error
 from .execution_settlement import reconcile_contracts, run_settlement_watch, wait_for_settlement
 
 
@@ -85,84 +83,8 @@ class ExecutionManager:
     async def _execute_orders(
         self, orders: list[tuple[str, TradeDirection, dict]], inter_delay: float, bankroll_snapshot: float
     ) -> int:
-        """Executa ordens usando Critério de Kelly e retorna quantidade enviada."""
-        executed_count = 0
-        for i, (symbol, direction, metrics) in enumerate(orders):
-            order_n = i + 1
-            conviction = resolve_stake_conviction(metrics, self.orch.risk_manager.kelly_config)
-
-            dl_cfg = self.orch.config.get("deep_learning", {})
-            pending = sum(self.orch.risk_manager.pending_loss.values())
-            mandatory = self._mandatory_trade_each_cycle()
-            stop_win_kelly = bool(self.orch.risk_manager.kelly_config.get("stop_win_kelly_enabled", True))
-            stake = self.orch.risk_manager.calculate_stake(
-                bankroll_snapshot,
-                symbol,
-                conviction=conviction,
-                silent=False,
-                cycle_id=int(self.orch._active_cycle_id),
-                dl_metrics=metrics,
-                order_direction=direction.name,
-                max_val_brier=float(dl_cfg.get("max_val_brier_execute", 0.28)),
-                mandatory_weak_cap=(
-                    mandatory and not metrics.get("execute", True) and pending <= 0.0 and not stop_win_kelly
-                ),
-                mandatory_trade_each_cycle=mandatory,
-            )
-
-            if stake <= 0:
-                continue
-
-            self.orch.risk_manager.register_entry_conviction(conviction)
-
-            if i > 0:
-                await asyncio.sleep(inter_delay)
-            try:
-                custom_dur = metrics.get("duration")
-                if custom_dur is None:
-                    risk_params = self.orch.config.get("risk_management", {}).get("params", {})
-                    custom_dur = int(risk_params.get("duration", 300))
-                order_metrics = {**metrics, "duration": int(custom_dur)}
-                res = await self._place_order(symbol, direction, stake, duration=custom_dur, metrics=order_metrics)
-                if res:
-                    executed_stake = float(getattr(res, "buy_price", 0.0) or stake)
-                    self.orch.risk_manager.record_contract_stake(int(res.contract_id), executed_stake)
-                    self.orch.risk_manager.active_contract_ids.append(res.contract_id)
-                    await self.orch.state.add_contract(res)
-                    self.orch._contract_cycle[int(res.contract_id)] = int(self.orch._active_cycle_id)
-                    store_contract_audit(
-                        self.orch,
-                        int(res.contract_id),
-                        symbol=symbol,
-                        direction=direction.name,
-                        edge=resolve_predicted_edge(order_metrics),
-                    )
-                    self._log_exec(
-                        symbol,
-                        direction,
-                        stake,
-                        order_metrics,
-                        order_n=order_n,
-                        contract_id=int(res.contract_id),
-                    )
-                    executed_count += 1
-            except Exception as e:
-                if handle_broker_maintenance_error(self.orch, e):
-                    self.logger.warning(f"SKIP: Sessão fechada para {symbol}: {e}")
-                    continue
-                err_msg = str(e).lower()
-                if "closed" in err_msg or "trading is not available" in err_msg:
-                    self.logger.warning(f"SKIP: Sessão fechada para {symbol}: {e}")
-                else:
-                    if is_proposal_runtime_error(e):
-                        hold = int(
-                            self.orch.config.get("orchestrator", {})
-                            .get("execution", {})
-                            .get("proposal_failure_skip_cycles", 6)
-                        )
-                        self.orch.risk_manager.register_proposal_failure(symbol, cycles=hold)
-                    self.logger.error(f"FAIL: EXEC: Falha critica na ordem {symbol}: {e}")
-        return executed_count
+        """Executa ordens usando Criterio de Kelly e retorna quantidade enviada."""
+        return await execute_cluster_orders(self, orders, inter_delay, bankroll_snapshot)
 
     async def _run_settlement_watch(self) -> None:
         """Aguarda liquidacao em background e dispara novo ciclo ao concluir."""

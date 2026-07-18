@@ -224,7 +224,8 @@ def test_collect_cluster_orders_recovery_allows_soft_tcn_entropy_fallback():
                 "deploy_ok": True,
                 "trade_score": 0.40,
                 "val_accuracy": 0.45,
-                "raw_prob": 0.51,
+                "raw_prob": 0.40,
+                "calibrated_prob": 0.40,
             },
         },
     }

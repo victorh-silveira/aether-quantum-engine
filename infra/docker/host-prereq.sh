@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+
+if [ ! -f "${REPO_ROOT}/infra/docker/docker-compose.yml" ]; then
+  echo "host-prereq: execute a partir da raiz do repositorio" >&2
+  exit 1
+fi
+
 apply_overcommit() {
   if sysctl -n vm.overcommit_memory 2>/dev/null | grep -q '^1$'; then
     return 0

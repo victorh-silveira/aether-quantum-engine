@@ -220,8 +220,8 @@ def test_collect_cluster_orders_bolts_weak_neutral_in_recovery():
                 execute=False,
                 trade_score=0.20,
                 val_accuracy=0.30,
-                raw_prob=0.48,
-                calibrated_prob=0.48,
+                raw_prob=0.40,
+                calibrated_prob=0.40,
             ),
         },
     }

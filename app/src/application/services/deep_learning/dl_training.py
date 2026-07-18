@@ -105,6 +105,11 @@ def train_model_walkforward(
     )
     delta_train = delta_all[train_sl] if len(delta_all) == len(x_all) else None
     weights = sample_weights if sample_weights and len(sample_weights) == len(y_train) else [1.0] * len(y_train)
+    pos_rate = float(np.mean(np.asarray(y_train, dtype=np.float64) >= 0.5)) if len(y_train) else 0.5
+    if abs(pos_rate - 0.5) > 0.05:
+        pos_w = max(1.0 - pos_rate, 1e-6) / max(pos_rate, 1e-6)
+        neg_w = max(pos_rate, 1e-6) / max(1.0 - pos_rate, 1e-6)
+        weights = [float(weights[i]) * (pos_w if float(y_train[i]) >= 0.5 else neg_w) for i in range(len(y_train))]
     patience = 6
     label_smoothing = 0.0
     focal_gamma = 0.0

@@ -256,7 +256,7 @@ def test_check_session_limits_without_state_manager_returns_pnl_fallback(orch_re
     orch.state_mgr = MagicMock()
     orch.risk_manager.total_session_profit = 60.0
     with patch(
-        "src.application.services.orchestrator.settlement_logic.resolve_stop_win_target",
+        "src.application.services.orchestrator.settlement_outcome.resolve_stop_win_target",
         return_value=50.0,
     ):
         assert check_session_limits_before_post_settlement(orch) is True
@@ -268,7 +268,7 @@ def test_check_session_limits_triggers_on_session_pnl_before_state_sync(orch_rea
     orch.state_mgr.reset_session_metrics(1000.0, 101.83)
     orch.state.balance = 1105.09
     with patch(
-        "src.application.services.orchestrator.settlement_logic.resolve_stop_win_target",
+        "src.application.services.orchestrator.settlement_outcome.resolve_stop_win_target",
         return_value=101.83,
     ):
         assert check_session_limits_before_post_settlement(orch) is True
@@ -281,7 +281,7 @@ def test_check_session_limits_via_balance_sync_when_pnl_below_target(orch_ready)
     orch.state_mgr.reset_session_metrics(1000.0, 50.0)
     orch.state_mgr.state.total_trades_today = 2
     with patch(
-        "src.application.services.orchestrator.settlement_logic.resolve_stop_win_target",
+        "src.application.services.orchestrator.settlement_outcome.resolve_stop_win_target",
         return_value=50.0,
     ):
         assert check_session_limits_before_post_settlement(orch) is True

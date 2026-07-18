@@ -10,7 +10,7 @@ def parse_calibration_config(dl_config: dict) -> dict[str, Any]:
     if isinstance(drift, (list, tuple)) and len(drift) >= 2:
         neutral_drift = [float(drift[0]), float(drift[1])]
     else:
-        half = float(raw.get("neutral_half_width", 0.02))
+        half = float(raw.get("neutral_half_width", 0.04))
         neutral_drift = [0.5 - half, 0.5 + half]
     return {
         "method": str(raw.get("method", "auto")).strip().lower(),
@@ -20,7 +20,7 @@ def parse_calibration_config(dl_config: dict) -> dict[str, Any]:
         "entropy_penalty_strength": float(raw.get("entropy_penalty_strength", 1.0)),
         "entropy_floor": float(raw.get("entropy_floor", 0.0)),
         "calibration_neutral_drift": neutral_drift,
-        "neutral_half_width": float(raw.get("neutral_half_width", 0.02)),
+        "neutral_half_width": float(raw.get("neutral_half_width", 0.04)),
     }
 
 

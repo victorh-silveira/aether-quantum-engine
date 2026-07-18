@@ -18,6 +18,10 @@ from src.application.services.deep_learning.dl_params_blocks import (
     parse_calibration_config,
     parse_indicator_gating_config,
 )
+from src.application.services.deep_learning.dl_params_timeframe import (
+    resolve_dl_granularity,
+    resolve_train_timeframe,
+)
 
 
 def bars_per_day(granularity_seconds: int) -> int:
@@ -190,9 +194,15 @@ def parse_dl_params(
     """Extrai parametros de treino, validacao e gating do bloco deep_learning."""
     data_config = data_config or {}
     risk_params = risk_params or {}
-    gran = int(data_config.get("granularity") or dl_config.get("granularity") or 60)
+    train_tf = resolve_train_timeframe(dl_config)
+    gran = resolve_dl_granularity(dl_config, data_config)
     lookback = int(dl_config.get("lookback", 30))
-    training_history_bars = resolve_training_history_bars(dl_config, data_config)
+    history_cfg = dict(data_config)
+    if train_tf == "micro" and "training_history_bars" not in dl_config:
+        micro_bars = int(data_config.get("micro_history_bars") or 0)
+        if micro_bars > 0:
+            history_cfg["history_bars"] = micro_bars
+    training_history_bars = resolve_training_history_bars(dl_config, history_cfg)
     label_horizon_bars = resolve_label_horizon_bars(gran, risk_params, dl_config)
     label_smooth_bars = resolve_label_smooth_bars(dl_config)
     label_ma_window = resolve_label_ma_window(dl_config)
@@ -235,7 +245,11 @@ def parse_dl_params(
         "online_training": bool(dl_config.get("online_training", True)),
         "weight_decay": float(dl_config.get("weight_decay", 0.0002)),
         "granularity": gran,
-        "contract_duration": max(1, int(risk_params.get("duration", 300))),
+        "train_timeframe": train_tf,
+        "micro_granularity": int(data_config.get("micro_granularity") or dl_config.get("micro_granularity") or gran),
+        "contract_duration": max(1, int(risk_params.get("duration", 120))),
+        "contract_duration_seconds": contract_duration_seconds(risk_params),
+        "risk_params": dict(risk_params),
         "rolling_retrain_bars": int(dl_config.get("rolling_retrain_bars", 3)),
         "retrain_min_bars": int(dl_config.get("retrain_min_bars", 1)),
         "training_history_bars": training_history_bars,

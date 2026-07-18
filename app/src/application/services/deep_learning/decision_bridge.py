@@ -156,7 +156,11 @@ async def _collect_symbol_decision(
     train_priority: frozenset[str] = frozenset(),
 ) -> tuple[dict, str | None]:
     """Treina (se necessario), prediz e aplica gates para um simbolo."""
-    prices_raw, open_raw, high_raw, low_raw = load_symbol_close_ohlc(orch, symbol)
+    prices_raw, open_raw, high_raw, low_raw = load_symbol_close_ohlc(
+        orch,
+        symbol,
+        timeframe=str(params.get("train_timeframe", "macro")),
+    )
     runtime = get_symbol_runtime(orch, symbol, dl_config, params)
     trained_granularity = runtime.get("trained_granularity", granularity)
     micro_full = load_symbol_microstructure(orch, symbol, len(prices_raw))

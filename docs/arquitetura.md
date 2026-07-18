@@ -19,7 +19,7 @@ Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (TCN,
 | Ciclo | **120 s** (`cycle_interval_seconds` / `signature_boundary_seconds`) |
 | Execução | **Esteira mandatária** (`mandatory_trade_each_cycle: true`) |
 | Fail-closed | `require_meta_for_execution: false` (meta opcional); `infra.triton.require_for_execution: true` |
-| Label | `label_mode: ma_trend` (Triple Barrier disponível via config) |
+| Label | `label_mode: spot_forward` (`ma_trend` / Triple Barrier via config) |
 | Meta sessão | Stop win **2,60%** (`compounding_rate_daily: 0.026`); stop loss desativado |
 
 O mercado é tratado como série temporal ruidosa: a TCN estima `P(CALL)`; o meta-regressor LightGBM estima `predicted_payoff_edge`; o ranking usa `tcn × max(0.1, 1+z)`. Em modo mandatário, o motor exige mandatory pick quando há candidatos aprovados pelo quality gate dual soft (TCN + meta) e pelos vetoes HARD de microestrutura.
@@ -32,7 +32,7 @@ O mercado é tratado como série temporal ruidosa: a TCN estima `P(CALL)`; o met
 
 **Dynamic Recovery Relaxation:** com `linear >= 2` e `pending_loss > 0`, os pisos de TCN Margin e Meta Payoff caem linearmente com o passivo (`execution_quality_gate_drawdown.py`). No vácuo GBDT (`Meta Payoff ∈ [-0.05, 0.04]` e Z-Score de edge `> 0.5`), o porteiro meta libera o trade de recovery.
 
-**Calibração (settings atuais):** `neutral_half_width: 0.0` — zona neutra **desligada**. Em `dl_calibration_tolerance` / `dl_predict_build`, se `raw_prob > 0.65` ou `< 0.35`, a TCN macro prevalece sobre a calibração de curto prazo.
+**Calibração (settings atuais):** `neutral_half_width: 0.04` — zona neutra **ON** (banda `[0.46, 0.54]`); thresholds CALL/PUT **0.54/0.46**. Em `dl_calibration_tolerance` / `dl_predict_build`, se `raw_prob > 0.65` ou `< 0.35`, a TCN macro prevalece sobre a calibração de curto prazo.
 
 **Settlement:** janela de tolerância **90 s** com reconciliação passiva (`portfolio` + Redis) — sem reinício forçado do loop por timeout pós-liquidação.
 
@@ -45,8 +45,8 @@ aether-quantum-engine/
 ├── app/                 # Código de produção + testes + scripts
 │   ├── run.py / train.py
 │   ├── aether_asyncio.py
-│   ├── src/             # ~224 módulos Python (DDD)
-│   ├── tests/           # ~284 arquivos test_*.py; cobertura 100% em src
+│   ├── src/             # ~226 módulos Python (DDD)
+│   ├── tests/           # ~287 arquivos test_*.py; cobertura 100% em src
 │   └── scripts/         # operations, monitor, batch
 ├── config/settings.json # Runtime
 ├── data/                # state, session_state, dl/
@@ -88,7 +88,7 @@ flowchart TD
   BUNDLE --> META[prefetch_meta_payoff_for_decisions]
   META --> RES[resolve_execution_direction]
   RES --> CHK[execution_direction_checks]
-  CHK --> ATL[AntiTrendLock]
+  CHK --> ATL[persistence_guard skip]
   ATL --> QG[quality_conviction_suspends_cluster]
   QG -->|HARD micro| MICRO[execution_quality_gate_microstructure]
   QG -->|skip| STV[record_quality_guard_cycle_skip]
@@ -165,7 +165,7 @@ Normalização anti-leakage: `fit_norm_stats` **somente** no split de treino (`d
 | Checkpoint | `data/dl/{symbol}.pth` + TorchScript / MinIO |
 | Deploy gate | `dl_deploy_eval` com **`force_local=True`** (avalia modelo em memória, sem Triton) |
 
-Config atual: `arch: tcn`, `lookback: 72`, `label_mode: ma_trend`, thresholds base **0.50** / **0.50**, `neutral_half_width: 0.0`.
+Config atual: `arch: tcn`, `lookback: 72`, `label_mode: spot_forward`, thresholds **0.54** / **0.46**, `neutral_half_width: 0.04`.
 
 ### 4.3 Treino de sessão
 
@@ -248,22 +248,23 @@ Scripts: `train_meta_vector.py`, `train_meta_data.py`, `train_meta_classifier.py
 | `infer_dl_direction` | TCN: `P(CALL) > pivot` → CALL, senão PUT |
 | Meta edge | Refina score / D-SQUEEZE (meta opcional para execução) |
 | Pré-checagens | `execution_direction_checks` — rejeita ciclo só por starvation de microestrutura; limpa `neutral_clamp`; hooks sniper |
-| AntiTrendLock | Após 2 losses na mesma direção: FLIP cross-symbol ou FREEZE (`evaluate_anti_trend_lock`) |
+| Persistence guard | Após 2 losses na mesma direção: **skip** do candidato; flip CALL/PUT **não** aplicado em produção (`_apply_persistence_guard_skip`) |
 | Bloqueio absoluto | `deploy_ok=false`, `gate_reason ∈ {data, predict_error, training}`, Triton fail-closed |
 
 ### 6.2 Quality gate dual soft + HARD microestrutura
 
 | Portão | Módulo | Critério |
 |--------|--------|----------|
-| TCN + meta soft | `execution_quality_gate` | Margem direcional + edge (quando meta aplicado); Dynamic Recovery Relaxation com `linear≥2` e pendente; margins atuais **0.0** |
+| TCN + meta soft | `execution_quality_gate` | Margem direcional hard (`min_direction_margin: 0.03`) + edge; Dynamic Recovery Relaxation com `linear≥2` e pendente; vetoes HARD de microestrutura |
 | Meta Z-Score | `execution_quality_gate_meta` | Z vs buffer; waiver recovery se edge ∈ [-0.05, 0.04] e Z>0.5; recovery: Z ≥ −0,20 não bloqueia mandatory |
 | Cluster | `execution_quality_gate_cluster` | `quality_conviction_suspends_cluster` |
 | Microestrutura HARD | `execution_quality_gate_microstructure` | Vetoes HARD: `adx_starvation`, `vol_ratio_starvation`, `val_accuracy_gate` (`min_adx_threshold` 0.20; `min_validation_accuracy_gate` 0.63) |
 | Sniper stubs | `execution_sniper_gates` | Helpers de banda de calibração; `apply_hurst_noise_veto` e `apply_bb_squeeze_requirement` são stubs que retornam `False` |
 | Starvation | `execution_quality_gate_starvation` | Regular: limiar **6** ciclos; Recovery: Convicção Progressiva (−20%/5 skips) |
 | Drawdown relax | `execution_quality_gate_drawdown` | Intensidade `min(1, pending/(8U))` reduz pisos TCN/Meta |
-| Calibração | `dl_calibration_tolerance` | Zona neutra config-driven (OFF); override TCN em raw extremos |
-| Loss protection | `execution_loss_protection` | Pass-through quando caps 999 / margins 0 |
+| Calibração | `dl_calibration_tolerance` | Zona neutra ON (`neutral_half_width: 0.04`); override TCN em raw extremos |
+| Loss protection | `execution_loss_protection` | `min_direction_margin: 0.03`; caps edge/Z 999 |
+| Meta veto | `meta_payoff_veto_gate` | Soft comprime score; hard só com shadow (`meta_veto_mode`: none/soft/hard) |
 | Settlement | `orchestrator_settlement_queue` | Janela **90 s** + `SettlementOrphanCleaner.passive_reconcile` |
 
 Em modo mandatário, o quality guard emite telemetria `QUALITY_GUARD` / `EXECUTION_FLOW` e delega ao mandatory pick em vez de congelar a esteira por soft alone.
@@ -324,7 +325,7 @@ Portões neutralizados em modo mandatário (não bloqueiam ciclo): cooldown pós
 | Stop loss | Desativado |
 | Cover pending | Fracionado por `amort_cycles` |
 | Policy boot | `RiskPolicy` / `validate_engine_risk_config` |
-| AntiTrendLock | `evaluate_anti_trend_lock` → KEEP / FLIP / FREEZE |
+| Persistence guard | `evaluate_direction_persistence_guard` → KEEP / SKIP / FREEZE (flip suprimido no resolver) |
 | Val accuracy gate | `min_validation_accuracy_gate: 0.63` |
 
 Facade: `domain/risk/risk_manager.RiskManager.calculate_stake`.
@@ -358,10 +359,10 @@ Watchdog: `AetherWatchdog` reconecta stream se ticks estagnarem (`watchdog_stale
 `granularity` (**600**), `micro_granularity` (**120**), `history_bars` / `training_history_bars` (**23328**), `fetch_count`, `buffer_limit`, rate-limits de histórico.
 
 ### `deep_learning`
-`arch`, `lookback` (**72**), `train_symbols`, `confidence_*` (**0.50/0.50**), `calibration.*` (`neutral_half_width: 0.0`), `indicator_gating.*`, `deploy_gate.*`, `label_mode` + `label_*`, `tcn.channels`, `training_*`, `model_path_template`, `min_edge_execute`.
+`arch`, `lookback` (**72**), `train_symbols`, `confidence_*` (**0.54/0.46**), `calibration.*` (`neutral_half_width: 0.04`), `indicator_gating.*`, `deploy_gate.*`, `label_mode` (`spot_forward`) + `label_*`, `tcn.channels`, `training_*`, `model_path_template`, `min_edge_execute`.
 
 ### `orchestrator` / `orchestrator.execution`
-`cycle_interval_seconds` (**120**), `signature_boundary_seconds` (**120**), `watchdog_stale_tick_seconds` (**25**), `mandatory_trade_each_cycle`, `require_meta_for_execution` (**false**), `quality_gate.*`, `loss_protection.*` (pass-through), `bb_width_adaptive_squeeze.enabled` (**false**), `proposal_*`, `settlement_*` (**90 s**), `dynamic_threshold.enabled` (**false**).
+`cycle_interval_seconds` (**120**), `signature_boundary_seconds` (**120**), `watchdog_stale_tick_seconds` (**25**), `mandatory_trade_each_cycle`, `require_meta_for_execution` (**false**), `quality_gate.*` (`min_direction_margin: 0.03`), `loss_protection.*` (`min_direction_margin: 0.03`), `bb_width_adaptive_squeeze.enabled` (**false**), `proposal_*`, `settlement_*` (**90 s**), `dynamic_threshold.enabled` (**false**).
 
 ### `risk_management`
 `kelly.*` (fraction, caps, `consensus_penalty_enabled: false`, recovery Hurst), `soft_recovery.*` (enabled, `max_safe_stake_cap` 4.20, amort 2–5, `coing_redirect_drawdown_threshold` 15.00), `min_validation_accuracy_gate` (**0.63**), `params.*` (duration **120**, compounding, stake_min, payout_estimate), `small_account_*`.
@@ -380,7 +381,7 @@ Pre-commit (`clean_workspace.py`):
 | Stage | Conteúdo |
 |-------|----------|
 | lint | Ruff, Interrogate 100%, Vulture, ≤300 linhas/arquivo |
-| test | pytest + cobertura **100%** em `app/src` (**~284** `test_*.py`) |
+| test | pytest + cobertura **100%** em `app/src` (**~287** `test_*.py`) |
 | security | Bandit + pip-audit |
 | clean | caches locais |
 
@@ -406,7 +407,7 @@ flowchart LR
   subgraph direcao
     RES[direction_resolver]
     CHK[direction_checks]
-    ATL[AntiTrendLock]
+    ATL[persistence_guard]
     QG[quality_gate soft+HARD]
   end
   subgraph exec

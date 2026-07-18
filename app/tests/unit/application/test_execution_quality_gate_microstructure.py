@@ -77,7 +77,7 @@ def test_passes_execution_quality_rejects_low_val_accuracy():
     assert metrics["quality_gate_reason"] == "val_accuracy_gate"
 
 
-def test_passes_execution_quality_allows_healthy_microstructure_with_weak_margin():
+def test_passes_execution_quality_rejects_healthy_microstructure_with_weak_margin():
     metrics = _healthy_metrics(direction_margin=0.01, calibrated_prob=0.51)
     exec_cfg = {
         "quality_gate": {
@@ -91,8 +91,9 @@ def test_passes_execution_quality_allows_healthy_microstructure_with_weak_margin
             "risk_management": {"min_validation_accuracy_gate": 0.63},
         }
     )
-    assert passes_execution_quality(metrics, exec_cfg=exec_cfg, orch=orch) is True
-    assert metrics.get("quality_guard_reject") is not True
+    assert passes_execution_quality(metrics, exec_cfg=exec_cfg, orch=orch) is False
+    assert metrics.get("quality_gate_reason") == "direction_margin_gate"
+    assert metrics.get("quality_guard_reject") is True
 
 
 def test_quality_conviction_suspends_cluster_on_microstructure_starvation(orch_ready):

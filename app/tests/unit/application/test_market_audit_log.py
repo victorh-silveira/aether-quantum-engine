@@ -5,15 +5,12 @@ from src.application.services.market_audit_log import (
     format_execution_ticket_line,
     format_indicators_audit_line,
     format_settlement_audit_line,
-    pop_contract_audit,
     resolve_cluster_timeframe,
-    resolve_predicted_edge,
     resolve_settlement_tag,
     resolve_stake_audit_context,
     resolve_stake_mode_tag,
-    store_contract_audit,
 )
-from src.domain.models.trade import TradeDirection, TradeStatus
+from src.domain.models.trade import TradeDirection
 
 
 def test_resolve_cluster_timeframe_branches():
@@ -130,22 +127,50 @@ def test_format_execution_ticket_line():
         direction="PUT",
         symbol="RDBEAR",
         stake=2.06,
-        mode_tag="DAL_L1",
+        mode_tag="RECOVER_DAL_L1",
         pending=1.62,
         bankroll=87.69,
         contract_id=1129497159,
         payout=1.79,
+        linear=1,
+        cap=4.20,
+        recovery_infeasible=False,
     )
     assert line == (
         "[C0006] EXEC || PUT [RDBEAR] || "
-        "STAKE: 2.06 (DAL_L1) | PEND: 1.62 | BANCA: 87.69 || "
+        "STAKE: 2.06 (RECOVER_DAL_L1) | PEND: 1.62 | LIN: 1 | CAP: 4.20 | "
+        "BANCA: 87.69 || "
         "CID: 1129497159 | PAY: 1.79"
     )
 
 
 def test_resolve_stake_mode_tag():
-    assert resolve_stake_mode_tag("DALEMBERT", 1) == "DAL_L1"
-    assert resolve_stake_mode_tag("KELLY", 0) == "KELLY"
+    assert resolve_stake_mode_tag("DALEMBERT", 1, stake_regime="RECOVER") == "RECOVER_DAL_L1"
+    assert resolve_stake_mode_tag("KELLY", 0, stake_regime="EXPLORE") == "EXPLORE_KELLY"
+    assert resolve_stake_mode_tag("EXPLORE_KELLY", 0) == "EXPLORE_KELLY"
+
+
+def test_resolve_stake_mode_tag_invalid_regime_defaults_explore():
+    assert resolve_stake_mode_tag("KELLY", 0, stake_regime="WEIRD") == "EXPLORE_KELLY"
+
+
+def test_format_settlement_audit_line_with_finance_telemetry():
+    line = format_settlement_audit_line(
+        3,
+        "WIN",
+        1.5,
+        "CALL",
+        "RDBULL",
+        0.1,
+        pending=2.0,
+        linear=1,
+        mode_tag="RECOVER_DAL_L1",
+        recovery_infeasible=True,
+    )
+    assert "PEND: 2.00" in line
+    assert "LIN: 1" in line
+    assert "MODE: RECOVER_DAL_L1" in line
+    assert "RECOVERY_INFEASIBLE" in line
 
 
 def test_format_indicators_audit_line():
@@ -160,6 +185,9 @@ def test_format_indicators_audit_line():
         },
         "edge_zscore": 0.60,
         "val_accuracy": 0.6433,
+        "direction_margin": 0.12,
+        "calibration_mode": "calibrated",
+        "meta_veto_mode": "none",
     }
     line = format_indicators_audit_line(6, "RDBEAR", metrics)
     assert line.startswith("[C0006] IND || ")
@@ -171,6 +199,9 @@ def test_format_indicators_audit_line():
     assert "VOL_R:" in line and "1.0720" in line
     assert "Z:" in line and "+0.60" in line
     assert "ACC:" in line and "0.6433" in line
+    assert "MARGIN:" in line and "0.120" in line
+    assert "NEUTRAL: calibrated" in line
+    assert "META_VETO: none" in line
 
 
 def test_format_indicators_audit_line_ignores_none_and_invalid():
@@ -181,47 +212,51 @@ def test_format_indicators_audit_line_ignores_none_and_invalid():
     assert "0.0000" in line
 
 
+def test_format_indicators_audit_line_marks_neutral_clamp():
+    metrics = {
+        "indicators": {"rsi": 0.5, "adx": 0.2, "hurst": 0.5},
+        "direction_margin": 0.01,
+        "gate_reason": "neutral_clamp",
+        "meta_veto_mode": "soft",
+    }
+    line = format_indicators_audit_line(7, "RDBULL", metrics)
+    assert "NEUTRAL: neutral_clamp" in line
+    assert "META_VETO: soft" in line
+
+
 def test_resolve_stake_audit_context_from_audit():
     rm = SimpleNamespace(
-        _last_stake_audit={"mode_tag": "DAL_L1", "pending": 1.5, "bankroll": 90.0},
+        _last_stake_audit={
+            "mode_tag": "RECOVER_DAL_L1",
+            "pending": 1.5,
+            "bankroll": 90.0,
+            "linear_losses": 1,
+            "cap": 4.2,
+            "recovery_infeasible": False,
+        },
         pending_loss_total=lambda: 9.0,
         bankroll=80.0,
     )
-    mode_tag, pending, bankroll = resolve_stake_audit_context(rm)
-    assert mode_tag == "DAL_L1"
-    assert pending == 1.5
-    assert bankroll == 90.0
+    audit = resolve_stake_audit_context(rm)
+    assert audit["mode_tag"] == "RECOVER_DAL_L1"
+    assert audit["pending"] == 1.5
+    assert audit["bankroll"] == 90.0
+    assert audit["linear"] == 1
+    assert audit["cap"] == 4.2
 
 
 def test_resolve_stake_audit_context_fallback_balance():
-    rm = SimpleNamespace(bankroll=70.0, initial_bankroll=70.0, pending_loss_total=lambda: 2.0)
-    mode_tag, pending, bankroll = resolve_stake_audit_context(rm, balance_fallback=88.5)
-    assert mode_tag == "KELLY"
-    assert pending == 2.0
-    assert bankroll == 88.5
+    rm = SimpleNamespace(
+        bankroll=70.0,
+        initial_bankroll=70.0,
+        pending_loss_total=lambda: 2.0,
+        consecutive_losses_linear=0,
+    )
+    audit = resolve_stake_audit_context(rm, balance_fallback=88.5)
+    assert audit["mode_tag"] == "EXPLORE_KELLY"
+    assert audit["pending"] == 2.0
+    assert audit["bankroll"] == 88.5
 
 
 def test_format_cluster_audit_line_empty():
     assert format_cluster_audit_line({}, timeframe="M5") == "[CLUSTER] M5 || EMPTY"
-
-
-def test_resolve_predicted_edge_prefers_payoff_key():
-    assert resolve_predicted_edge({"predicted_payoff_edge": 0.42}) == 0.42
-
-
-def test_store_and_pop_contract_audit():
-    orch = SimpleNamespace()
-    store_contract_audit(orch, 9, symbol="RDBULL", direction="CALL", edge=0.11)
-    sym, direction, edge = pop_contract_audit(orch, 9)
-    assert sym == "RDBULL"
-    assert direction == "CALL"
-    assert edge == 0.11
-
-
-def test_pop_contract_audit_falls_back_to_contract_direction():
-    orch = SimpleNamespace()
-    contract = SimpleNamespace(direction=TradeDirection.PUT, status=TradeStatus.OPEN)
-    sym, direction, edge = pop_contract_audit(orch, 4, contract=contract, symbol="RDBEAR")
-    assert sym == "RDBEAR"
-    assert direction == "PUT"
-    assert edge == 0.0

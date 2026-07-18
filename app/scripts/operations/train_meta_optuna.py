@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from typing import Any
 
 import lightgbm as lgb
@@ -25,7 +26,9 @@ logger = logging.getLogger("META_TRAIN")
 LGBM_QUIET_PARAMS: dict[str, Any] = {"verbose": -1, "warnings": False, "n_jobs": 2}
 OPTUNA_N_JOBS = 2
 LGBM_REGRESSION_OBJECTIVE = "huber"
-OPTUNA_OOS_PAYOFF_ZSCORE_MIN = 1.0
+OPTUNA_OOS_PAYOFF_ZSCORE_MIN = 0.25
+META_EXPORT_MIN_ZSCORE = 0.25
+OPTUNA_IR_TIEBREAK_WEIGHT = 0.01
 
 
 def configure_meta_train_logging() -> None:
@@ -90,18 +93,34 @@ def payoff_zscore_mean(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     return float(np.mean(realized) / std)
 
 
+def _purged_frame_split(
+    frame: pd.DataFrame,
+    y: np.ndarray,
+    *,
+    embargo: int = 2,
+) -> tuple[pd.DataFrame, pd.DataFrame, np.ndarray, np.ndarray]:
+    sample_count = int(len(frame))
+    val_size = max(32, int(sample_count * 0.15))
+    train_end = sample_count - val_size - max(0, int(embargo))
+    if train_end < 32 or val_size < 8:
+        cut = max(1, int(sample_count * 0.8))
+        return frame.iloc[:cut], frame.iloc[cut:], y[:cut], y[cut:]
+    val_start = train_end + max(0, int(embargo))
+    return frame.iloc[:train_end], frame.iloc[val_start:], y[:train_end], y[val_start:]
+
+
 def run_optuna_study(
     frame: pd.DataFrame,
     y: np.ndarray,
     *,
     trials: int,
+    granularity: int | None = None,
 ) -> tuple[lgb.LGBMRegressor, dict[str, Any], float, float]:
     configure_meta_train_logging()
     columns = meta_classifier_column_names()
     frame = pd.DataFrame(frame, columns=columns).loc[:, columns]
-    split = int(len(frame) * 0.8)
-    x_train, x_val = frame.iloc[:split], frame.iloc[split:]
-    y_train, y_val = y[:split], y[split:]
+    x_train, x_val, y_train, y_val = _purged_frame_split(frame, y)
+    n_val = int(len(x_val))
 
     def objective(trial: optuna.Trial) -> float:
         params = {
@@ -113,10 +132,10 @@ def run_optuna_study(
         model, _, _ = train_lgbm_candidate(x_train, y_train, x_val, y_val, params)
         val_pred = model.predict(x_val.loc[:, columns])
         oos_zscore = payoff_zscore_mean(y_val, val_pred)
+        oos_ir = information_ratio_from_predictions(y_val, val_pred)
         trial.set_user_attr("oos_payoff_zscore_mean", float(oos_zscore))
-        if oos_zscore < OPTUNA_OOS_PAYOFF_ZSCORE_MIN:
-            return -1_000_000.0 + float(oos_zscore)
-        return information_ratio_from_predictions(y_val, val_pred)
+        trial.set_user_attr("oos_information_ratio", float(oos_ir))
+        return float(oos_zscore) + OPTUNA_IR_TIEBREAK_WEIGHT * float(oos_ir)
 
     study = optuna.create_study(direction="maximize")
     study.optimize(objective, n_trials=trials, show_progress_bar=False, n_jobs=OPTUNA_N_JOBS)
@@ -125,12 +144,17 @@ def run_optuna_study(
     val_pred = model.predict(x_val.loc[:, columns])
     val_ir = information_ratio_from_predictions(y_val, val_pred)
     val_oos_zscore = payoff_zscore_mean(y_val, val_pred)
+    ir_unit = float(val_ir / math.sqrt(n_val)) if n_val > 0 else 0.0
     logger.info(
-        "Optuna concluido | val_ir=%.6f | val_zscore=%.6f | val_mae=%.6f | train_mae=%.6f | params=%s | trials=%d",
-        val_ir,
+        "Optuna concluido | val_zscore=%.6f | val_ir=%.6f | val_ir_unit=%.6f | n_val=%d | "
+        "val_mae=%.6f | train_mae=%.6f | gran=%s | params=%s | trials=%d",
         val_oos_zscore,
+        val_ir,
+        ir_unit,
+        n_val,
         val_mae,
         train_mae,
+        granularity if granularity is not None else "n/a",
         best_params,
         trials,
     )
@@ -142,18 +166,55 @@ def run_optuna_study(
         "cross_symbol_feature_count": CROSS_SYMBOL_FEATURE_COUNT,
         "flow_feature_count": 2,
         "feature_names": meta_classifier_column_names(),
-        "optuna_objective_metric": "information_ratio",
+        "optuna_objective_metric": "payoff_zscore",
         "oos_payoff_zscore_mean": float(val_oos_zscore),
+        "oos_information_ratio": float(val_ir),
+        "oos_information_ratio_unit": float(ir_unit),
+        "n_val": int(n_val),
+        "granularity": int(granularity) if granularity is not None else None,
         **best_params,
     }
     return model, bundle_meta, train_mae, val_mae
 
 
+def assert_export_zscore_floor(bundle_meta: dict[str, Any], *, floor: float = META_EXPORT_MIN_ZSCORE) -> None:
+    zscore = float(bundle_meta.get("oos_payoff_zscore_mean", 0.0))
+    if zscore + 1e-12 >= float(floor):
+        return
+    raise RuntimeError(
+        f"Export meta bloqueado: oos_payoff_zscore_mean={zscore:.6f} < floor={float(floor):.6f}. "
+        "Retreine com gran=120s, mais barras/trials ou features alinhadas ao runtime."
+    )
+
+
+META_EXPORT_MAX_MAE_GAP = 1.25
+
+
+def assert_export_mae_gap(
+    train_mae: float,
+    val_mae: float,
+    *,
+    max_gap: float = META_EXPORT_MAX_MAE_GAP,
+) -> None:
+    train = max(float(train_mae), 1e-9)
+    ratio = float(val_mae) / train
+    if ratio <= float(max_gap) + 1e-12:
+        return
+    raise RuntimeError(
+        f"Export meta bloqueado: val_mae/train_mae={ratio:.3f} > max_gap={float(max_gap):.3f}. "
+        "Overfit tabular; aumente embargo/purge, barras ou regularizacao."
+    )
+
+
 __all__ = [
     "LGBM_QUIET_PARAMS",
     "LGBM_REGRESSION_OBJECTIVE",
+    "META_EXPORT_MAX_MAE_GAP",
+    "META_EXPORT_MIN_ZSCORE",
     "OPTUNA_OOS_PAYOFF_ZSCORE_MIN",
     "OPTUNA_N_JOBS",
+    "assert_export_mae_gap",
+    "assert_export_zscore_floor",
     "information_ratio_from_predictions",
     "payoff_zscore_mean",
     "build_paired_training_dataset",

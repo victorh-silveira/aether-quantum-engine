@@ -22,7 +22,12 @@ async def bootstrap_active_session_targets(orch: Any, live_balance: float) -> No
     if getattr(orch, "_session_targets_bootstrapped", False):
         return
     risk_cfg = orch.config.get("risk_management", {}) if isinstance(getattr(orch, "config", {}), dict) else {}
-    start_balance = resolve_session_start_balance(live_balance, risk_cfg)
+    live = max(0.0, float(live_balance))
+    start_balance = resolve_session_start_balance(live, risk_cfg)
+    params = risk_cfg.get("params") if isinstance(risk_cfg.get("params"), dict) else {}
+    override = params.get("session_start_balance")
+    if isinstance(override, (int, float)) and live > 0.0 and abs(float(override) - live) / max(live, 1e-9) > 0.15:
+        start_balance = live
     swm = StopWinManager(risk_cfg)
     if swm.is_compounding_enabled():
         target_win = swm.calculate_session_targets(start_balance).target_win
@@ -30,19 +35,23 @@ async def bootstrap_active_session_targets(orch: Any, live_balance: float) -> No
         target_win = swm.resolve_target(start_balance)
     orch.state_mgr.reset_session_metrics(start_balance, target_win)
     orch.risk_manager.reset_session(start_balance, target=target_win)
+    orch.risk_manager.initial_bankroll = float(start_balance)
+    orch.risk_manager.daily_stop_win_target = float(target_win)
     orch.risk_manager.total_session_profit = 0.0
     orch._session_targets_bootstrapped = True
     if swm.is_small_account(start_balance):
         orch.logger.info(
-            "SESSAO INICIADA | Alvo fixo micro-banca: $%.2f | Stop Loss: DESATIVADO",
+            "SESSAO INICIADA | Alvo fixo micro-banca: $%.2f | Stop Loss: DESATIVADO | banca=$%.2f",
             target_win,
+            start_balance,
         )
     else:
         rate_pct = swm.compounding_rate() * 100.0
         orch.logger.info(
-            "SESSAO INICIADA | Alvo de %.2f%%: $%.2f | Stop Loss: DESATIVADO",
+            "SESSAO INICIADA | Alvo de %.2f%%: $%.2f | Stop Loss: DESATIVADO | banca=$%.2f",
             rate_pct,
             target_win,
+            start_balance,
         )
     await _persist_current_session_keys(orch, start_balance, target_win)
 

@@ -5,27 +5,22 @@ from __future__ import annotations
 import asyncio
 import math
 import secrets
-import time
 import uuid
 from typing import Any
 
-from src.application.services.market_audit_log import (
-    format_execution_ticket_line,
-    resolve_predicted_edge,
-    resolve_stake_audit_context,
-    store_contract_audit,
-)
 from src.application.services.orchestrator.execution_contract_adoption import adopt_executed_contract
+from src.application.services.orchestrator.execution_fractional_lots_buy import buy_lot_from_proposal
 from src.application.services.orchestrator.execution_split_abort import next_split_attempt_seq
-from src.application.services.orchestrator.settlement_backfill import subscribe_open_contract
-from src.domain.models.trade import Contract, TradeDirection, TradeStatus
-from src.infrastructure.handlers.trade_handler import _contract_duration_seconds, build_proposal_request
+from src.domain.models.trade import Contract, TradeDirection
+from src.infrastructure.handlers.trade_handler import build_proposal_request
 
 
 MAX_SINGLE_STAKE_LIMIT = 200.0
 FRACTIONAL_STAGGER_BASE_US = 250.0
 FRACTIONAL_STAGGER_JITTER_US = 150.0
 FRACTIONAL_STAGGER_RTT_REFERENCE_SECONDS = 0.08
+
+_buy_lot_from_proposal = buy_lot_from_proposal
 
 
 def resolve_fractional_lot_stagger_seconds(orch: Any, exec_cfg: dict[str, Any] | None = None) -> float:
@@ -162,7 +157,7 @@ async def _prepare_split_lot_proposals(
     *,
     duration: int | None,
 ) -> list[dict[str, Any]] | None:
-    """Solicita proposta única por sub-lote e aborta em qualquer falha."""
+    """Solicita proposta unica por sub-lote e aborta em qualquer falha."""
     params = executor.orch.config.get("risk_management", {}).get("params", {}).copy()
     if duration is not None:
         params["duration"] = int(duration)
@@ -225,75 +220,3 @@ async def _prepare_split_lot_proposals(
             )
             return None
     return proposal_rows
-
-
-async def _buy_lot_from_proposal(
-    executor: Any,
-    symbol: str,
-    direction: TradeDirection,
-    lot: float,
-    proposal: dict[str, Any],
-    *,
-    duration: int | None,
-    metrics: dict[str, Any],
-) -> Contract:
-    """Compra um sub-lote com token de proposta previamente reservado."""
-    timeout = int(executor.orch.ws.request_timeout)
-    proposal_id = str(proposal["id"])
-    ask_price = float(proposal.get("ask_price") or lot)
-    buy_response = await executor.orch.ws.send({"buy": proposal_id, "price": ask_price}, timeout=timeout)
-    if not isinstance(buy_response, dict):
-        raise RuntimeError("Erro na compra direta: resposta invalida")
-    if "error" in buy_response:
-        raise RuntimeError(f"Erro na compra direta: {buy_response['error'].get('message', 'Erro desconhecido')}")
-    buy = buy_response.get("buy")
-    if not isinstance(buy, dict):
-        raise RuntimeError("Erro na compra direta: resposta sem buy")
-    params = executor.orch.config.get("risk_management", {}).get("params", {}).copy()
-    if duration is not None:
-        params["duration"] = int(duration)
-    expiry = int(proposal.get("date_expiry") or buy.get("date_expiry") or 0)
-    if expiry <= 0:
-        expiry = int(time.time()) + _contract_duration_seconds(build_proposal_request(symbol, direction, lot, params))
-    contract = Contract(
-        contract_id=int(buy["contract_id"]),
-        proposal_id=proposal_id,
-        status=TradeStatus.OPEN,
-        buy_price=float(buy.get("buy_price") or ask_price),
-        payout=float(buy.get("payout") or proposal.get("payout") or 0.0),
-        symbol=symbol,
-        direction=direction,
-        stake=float(lot),
-        expiry_time=expiry,
-        longcode=str(buy.get("longcode") or proposal.get("longcode") or ""),
-    )
-    cycle_id = int(getattr(executor.orch, "_active_cycle_id", 0))
-    mode_tag, pending, bankroll = resolve_stake_audit_context(executor.orch.risk_manager)
-    executor.logger.info(
-        format_execution_ticket_line(
-            cycle_id,
-            direction=direction.name,
-            symbol=str(symbol),
-            stake=float(lot),
-            mode_tag=mode_tag,
-            pending=pending,
-            bankroll=bankroll,
-            contract_id=int(contract.contract_id),
-            payout=float(contract.payout),
-        )
-    )
-    store_contract_audit(
-        executor.orch,
-        int(contract.contract_id),
-        symbol=str(symbol),
-        direction=direction.name,
-        edge=resolve_predicted_edge(metrics if isinstance(metrics, dict) else {}),
-    )
-    executor.orch.risk_manager.contract_to_symbol[contract.contract_id] = symbol
-    req_timeout = float(
-        executor.orch.config.get("orchestrator", {})
-        .get("execution", {})
-        .get("settlement_request_timeout_seconds", 30.0)
-    )
-    asyncio.create_task(subscribe_open_contract(executor.orch.ws, int(contract.contract_id), timeout=req_timeout))
-    return contract

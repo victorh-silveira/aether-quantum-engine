@@ -137,3 +137,17 @@ def test_resolve_keeps_dl_side_on_low_val_accuracy():
     direction, metrics = result
     assert direction == TradeDirection.CALL
     assert metrics["direction_inverted"] is False
+
+
+def test_market_decision_score_penalizes_mid_brier_and_ece():
+    base = market_decision_score(_entry(raw_prob=0.80, direction_margin=0.12)["metrics"])
+    mid_brier = market_decision_score(
+        _entry(raw_prob=0.80, direction_margin=0.12, deploy_settlement_brier=0.23)["metrics"]
+    )
+    high_brier = market_decision_score(
+        _entry(raw_prob=0.80, direction_margin=0.12, deploy_settlement_brier=0.28)["metrics"]
+    )
+    high_ece = market_decision_score(_entry(raw_prob=0.80, direction_margin=0.12, val_ece=0.12)["metrics"])
+    assert mid_brier < base
+    assert high_brier < mid_brier
+    assert high_ece < base

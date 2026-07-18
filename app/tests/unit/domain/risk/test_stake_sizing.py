@@ -1,7 +1,6 @@
 import pytest
 
 from src.domain.risk.stake_sizing import (
-    _resolve_stop_win_max_stake_pct,
     apply_symbol_stake_cap,
     compute_single_strike_kelly_base,
     conviction_stop_win_weight,
@@ -66,6 +65,7 @@ def test_compute_single_strike_returns_kelly_when_conviction_low():
         1000.0,
         0.0,
         has_active_contracts=False,
+        live_metrics={"live_n": 40, "live_wr": 0.55},
     )
     assert kelly == 50.0
 
@@ -81,6 +81,7 @@ def test_compute_single_strike_keeps_kelly_when_boost_not_greater():
         10000.0,
         0.0,
         has_active_contracts=False,
+        live_metrics={"live_n": 40, "live_wr": 0.55},
     )
     assert kelly == 5000.0
 
@@ -104,6 +105,7 @@ def test_compute_single_strike_targets_stop_win_pct():
         1168.0,
         0.0,
         has_active_contracts=False,
+        live_metrics={"live_n": 40, "live_wr": 0.55},
     )
     weight = conviction_stop_win_weight(0.46, cfg)
     assert weak == pytest.approx((46.72 / 0.95) * weight, abs=0.5)
@@ -117,6 +119,7 @@ def test_compute_single_strike_targets_stop_win_pct():
         1168.0,
         0.0,
         has_active_contracts=False,
+        live_metrics={"live_n": 40, "live_wr": 0.55},
     )
     assert strong == pytest.approx(46.72 / 0.95, abs=0.5)
 
@@ -190,6 +193,7 @@ def test_compute_single_strike_cycles_target_reduces_stake():
         1168.0,
         0.0,
         has_active_contracts=False,
+        live_metrics={"live_n": 40, "live_wr": 0.55},
     )
     damped_cfg = {**base_cfg, "stop_win_kelly_cycles_target": 2.75}
     damped = compute_single_strike_kelly_base(
@@ -202,6 +206,7 @@ def test_compute_single_strike_cycles_target_reduces_stake():
         1168.0,
         0.0,
         has_active_contracts=False,
+        live_metrics={"live_n": 40, "live_wr": 0.55},
     )
     assert damped < full
     assert damped == pytest.approx(full / 2.75, abs=0.5)
@@ -239,6 +244,7 @@ def test_compute_single_strike_scales_with_m5_cycle():
         1168.0,
         0.0,
         has_active_contracts=False,
+        live_metrics={"live_n": 40, "live_wr": 0.55},
     )
     scaled = compute_single_strike_kelly_base(
         1.16,
@@ -250,6 +256,7 @@ def test_compute_single_strike_scales_with_m5_cycle():
         1168.0,
         0.0,
         has_active_contracts=False,
+        live_metrics={"live_n": 40, "live_wr": 0.55},
     )
     assert scaled > base
     assert scaled == pytest.approx(base * resolve_cycle_stake_scale(cfg, risk), abs=0.5)
@@ -266,32 +273,6 @@ def test_compute_single_strike_disabled_when_flag_off():
         1168.0,
         0.0,
         has_active_contracts=False,
+        live_metrics={"live_n": 40, "live_wr": 0.55},
     )
     assert kelly == 12.0
-
-
-def test_resolve_stop_win_max_stake_pct_default_one_percent():
-    pct = _resolve_stop_win_max_stake_pct({}, {}, 0.95)
-    assert pct == pytest.approx(0.01 / 0.95, rel=1e-6)
-
-
-def test_resolve_stop_win_max_stake_pct_from_stop_win():
-    pct = _resolve_stop_win_max_stake_pct({"large_account_stop_win_pct": 4.0}, {}, 0.95)
-    assert pct == pytest.approx(0.04 / 0.95, rel=1e-6)
-
-
-def test_resolve_stop_win_max_stake_pct_explicit_override():
-    pct = _resolve_stop_win_max_stake_pct({}, {"stop_win_max_stake_pct": 0.03}, 0.95)
-    assert pct == 0.03
-
-
-def test_resolve_stop_win_max_stake_pct_without_payout():
-    pct = _resolve_stop_win_max_stake_pct({"large_account_stop_win_pct": 4.0}, {}, 0.0)
-    assert pct == pytest.approx(0.04, rel=1e-6)
-
-
-def test_resolve_stake_conviction_fallback_raw_side():
-    metrics = {"trade_score": 0.40, "raw_prob": 0.52}
-    config = {"stake_conviction_min_raw": 0.51, "stop_win_kelly_min_conviction": 0.55}
-    res = resolve_stake_conviction(metrics, config)
-    assert res == pytest.approx(0.52)

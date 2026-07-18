@@ -12,10 +12,15 @@ MICROSTRUCTURE_STARVATION_REASONS = frozenset(
         "val_accuracy_gate",
     }
 )
+DIRECTION_MARGIN_GATE_REASON = "direction_margin_gate"
+HARD_QUALITY_REJECT_REASONS = MICROSTRUCTURE_STARVATION_REASONS | {DIRECTION_MARGIN_GATE_REASON}
 
 __all__ = [
+    "DIRECTION_MARGIN_GATE_REASON",
+    "HARD_QUALITY_REJECT_REASONS",
     "MICROSTRUCTURE_STARVATION_REASONS",
     "apply_microstructure_starvation_veto",
+    "is_hard_quality_reject_reason",
     "is_microstructure_starvation_reason",
     "resolve_min_adx_threshold",
     "resolve_min_validation_accuracy_gate",
@@ -26,6 +31,11 @@ __all__ = [
 def is_microstructure_starvation_reason(reason: Any) -> bool:
     """True quando a razao de rejeicao e veto duro de microestrutura."""
     return str(reason or "") in MICROSTRUCTURE_STARVATION_REASONS
+
+
+def is_hard_quality_reject_reason(reason: Any) -> bool:
+    """True quando a razao deve abortar o candidato no resolver."""
+    return str(reason or "") in HARD_QUALITY_REJECT_REASONS
 
 
 def _indicator_float(metrics: dict, key: str) -> float | None:

@@ -32,21 +32,21 @@ def test_meta_zscore_soft_ok_uses_floor():
     assert meta_zscore_soft_ok({"meta_payoff_edge_zscore": 0.0, "edge_zscore": 0.0}) is True
 
 
-def test_initial_direction_checks_clears_legacy_neutral_clamp():
+def test_initial_direction_checks_aborts_neutral_clamp():
     entry = {
         "direction": TradeDirection.CALL,
         "metrics": {
             "gate_reason": "neutral_clamp",
             "calibration_mode": "neutral_clamp",
-            "calibrated_prob": 0.62,
-            "raw_prob": 0.62,
+            "calibrated_prob": 0.50,
+            "raw_prob": 0.50,
             "execute": True,
             "deploy_ok": True,
         },
     }
     result = initial_direction_checks(entry, {})
-    assert result is not None
-    assert result[1].get("calibration_mode") == "calibrated"
+    assert result is None
+    assert entry["metrics"].get("gate_reason") == "neutral_clamp"
 
 
 def test_quality_cluster_fail_branch_via_mock():
@@ -92,7 +92,7 @@ def test_meta_payoff_edge_zscore_and_overdrive_eligible():
 
 
 def test_apply_quality_penalty_always_zero_when_unlocked():
-    assert apply_quality_penalty_to_metrics({"calibrated_prob": 0.51}) == 0.0
+    assert apply_quality_penalty_to_metrics({"calibrated_prob": 0.70}) == 0.0
 
 
 def test_apply_meta_regression_edge_continues_when_veto_disabled():

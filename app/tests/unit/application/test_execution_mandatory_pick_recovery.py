@@ -90,7 +90,8 @@ def test_collect_cluster_orders_mandatory_keeps_weak_recovery_candidate():
                 "deploy_ok": True,
                 "trade_score": 0.40,
                 "val_accuracy": 0.45,
-                "raw_prob": 0.51,
+                "raw_prob": 0.40,
+                "calibrated_prob": 0.40,
             },
         },
     }

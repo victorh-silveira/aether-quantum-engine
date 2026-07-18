@@ -22,9 +22,9 @@ from src.application.services.execution_quality_gate_starvation import (
 
 
 MANDATORY_MIN_TRADE_SCORE_DEFAULT = 0.72
-MIN_DIRECTION_MARGIN_DEFAULT = 0.11
+MIN_DIRECTION_MARGIN_DEFAULT = 0.03
 MIN_PAYOFF_EDGE_DEFAULT = 0.04
-REGULAR_MIN_DIRECTION_MARGIN_DEFAULT = 0.06
+REGULAR_MIN_DIRECTION_MARGIN_DEFAULT = 0.03
 REGULAR_MIN_PAYOFF_EDGE_DEFAULT = 0.01
 
 __all__ = [
@@ -224,7 +224,7 @@ def passes_execution_quality(
     orch: Any | None = None,
     **_kwargs,
 ) -> bool:
-    """Telemetria de qualidade; vetos duros apenas por inanicao de microestrutura."""
+    """Quality gate com veto duro por microestrutura e margem de direcao."""
     limits = resolve_dynamic_quality_limits(
         exec_cfg or {},
         risk_manager=risk_manager,
@@ -242,7 +242,7 @@ def passes_execution_quality(
     metrics["quality_starvation_decay_factor"] = float(limits["starvation_decay_factor"])
     metrics["quality_skipped_cycles_counter"] = float(limits["skipped_cycles_counter"])
     metrics["recovery_relax_intensity"] = float(limits.get("recovery_relax_intensity", 0.0))
-    ensure_direction_margin(metrics)
+    margin = ensure_direction_margin(metrics)
     starvation_reason = apply_microstructure_starvation_veto(
         metrics,
         exec_cfg=exec_cfg,
@@ -253,6 +253,11 @@ def passes_execution_quality(
         metrics["quality_guard_reject"] = True
         metrics["regime_skip_cycle"] = True
         metrics["quality_gate_reason"] = starvation_reason
+        return False
+    if margin + 1e-12 < margin_floor:
+        metrics["quality_guard_reject"] = True
+        metrics["regime_skip_cycle"] = True
+        metrics["quality_gate_reason"] = "direction_margin_gate"
         return False
     metrics["regime_skip_cycle"] = False
     metrics.pop("quality_gate_reason", None)

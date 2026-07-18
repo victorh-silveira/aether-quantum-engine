@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from src.application.services.execution_quality_gate import read_risk_session_state
-from src.application.services.execution_quality_gate_microstructure import is_microstructure_starvation_reason
+from src.application.services.execution_quality_gate_microstructure import is_hard_quality_reject_reason
 from src.domain.risk.stake_sizing import metric_float
 
 
@@ -29,8 +29,8 @@ def _entry_viable_for_quality_fallback(entry: dict) -> bool:
 
 
 def _hard_quality_reject_for_fallback(metrics: dict) -> bool:
-    """True para veto de microestrutura ou meta Z < -0.20 em recovery."""
-    if is_microstructure_starvation_reason(metrics.get("quality_gate_reason")):
+    """True para veto duro de qualidade ou meta Z < -0.20 em recovery."""
+    if is_hard_quality_reject_reason(metrics.get("quality_gate_reason")):
         return True
     if not metrics.get("quality_guard_reject"):
         return False
@@ -60,7 +60,7 @@ def cluster_quality_gate_blocks_mandatory_fallback(
             continue
         metrics = entry["metrics"]
         viable += 1
-        if is_microstructure_starvation_reason(metrics.get("quality_gate_reason")):
+        if is_hard_quality_reject_reason(metrics.get("quality_gate_reason")):
             micro_rejected += 1
             rejected += 1
             continue

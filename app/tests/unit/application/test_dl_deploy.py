@@ -8,6 +8,7 @@ from src.application.services.deep_learning.dl_deploy import apply_deploy_to_run
 from src.application.services.deep_learning.dl_deploy_eval import (
     _deploy_eval_bar_indices,
     evaluate_mini_deploy,
+    resolve_settlement_horizon_bars,
 )
 from src.application.services.deep_learning.dl_features import FEATURE_DIM
 from src.application.services.deep_learning.dl_gate_config import parse_deploy_gate_config
@@ -207,3 +208,67 @@ def test_evaluate_mini_deploy_skips_non_execute_and_put_label():
         )
     assert ok is False
     assert wr == 0.0
+
+
+def test_resolve_settlement_horizon_bars_uses_risk_params():
+    assert resolve_settlement_horizon_bars({"risk_params": {"duration": 120, "duration_unit": "s"}}, 120) == 1
+    assert resolve_settlement_horizon_bars({"contract_duration_seconds": 240}, 120) == 2
+    assert resolve_settlement_horizon_bars({}, 120) == 1
+
+
+def test_evaluate_mini_deploy_falls_back_to_label_metrics_when_settlement_fails():
+    orch = SimpleNamespace(config={"deep_learning": {}})
+    model = create_direction_model(input_dim=FEATURE_DIM)
+    prices = np.linspace(100.0, 110.0, 80)
+    stats = fit_norm_stats(np.zeros((1, 32, FEATURE_DIM), dtype=np.float32))
+    runtime = {"val_accuracy": 0.7, "val_brier": 0.2, "lookback": 32, "calibrator": None}
+    params = {
+        "lookback": 32,
+        "granularity": 600,
+        "contract_duration_seconds": 120,
+        "label_horizon_bars": 1,
+        "label_mode": "ma_trend",
+        "label_ma_window": 5,
+        "label_smooth_bars": 1,
+    }
+
+    def always_execute(*_a, **_k):
+        return {
+            "direction": TradeDirection.CALL,
+            "metrics": {"execute": True, "raw_prob": 0.9},
+        }
+
+    with (
+        patch(
+            "src.application.services.deep_learning.dl_deploy_eval.predict_symbol_decision",
+            side_effect=always_execute,
+        ),
+        patch(
+            "src.application.services.deep_learning.dl_deploy_eval.direction_wins",
+            side_effect=lambda direction, prices, bar, label_spec=None: bool(
+                label_spec is not None and str(getattr(label_spec, "label_mode", "")) != "spot_forward"
+            ),
+        ),
+    ):
+        ok, wr, brier = evaluate_mini_deploy(
+            orch,
+            "X",
+            model,
+            prices,
+            stats,
+            runtime,
+            params,
+            gate_cfg={
+                "enabled": True,
+                "mini_bars": 40,
+                "min_trades": 2,
+                "max_brier": 0.5,
+                "min_win_rate": 0.5,
+                "max_eval_steps": 8,
+            },
+            micro={"tick_count": np.ones(80, dtype=np.float32)},
+        )
+    assert isinstance(ok, bool)
+    assert "deploy_settlement_win_rate" in runtime
+    assert wr >= 0.0
+    assert brier >= 0.0

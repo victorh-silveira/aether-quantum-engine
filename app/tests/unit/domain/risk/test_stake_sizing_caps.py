@@ -41,6 +41,7 @@ def test_compute_single_strike_unlimited_when_kelly_cap_zero():
         10000.0,
         0.0,
         has_active_contracts=False,
+        live_metrics={"live_n": 40, "live_wr": 0.55},
     )
     assert boosted > 50.0
 
@@ -63,5 +64,6 @@ def test_compute_single_strike_boosts_without_stop_cap():
         10000.0,
         0.0,
         has_active_contracts=False,
+        live_metrics={"live_n": 40, "live_wr": 0.55},
     )
     assert boosted > 50.0

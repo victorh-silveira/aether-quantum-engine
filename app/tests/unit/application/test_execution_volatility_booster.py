@@ -55,7 +55,7 @@ def test_vol_booster_lowers_floors_and_quality_gate_vetoes_weak_edge():
         "trade_score": 0.68,
         "val_accuracy": 0.70,
         "edge": 0.035,
-        "calibrated_prob": 0.55,
+        "calibrated_prob": 0.70,
         "predicted_payoff_edge": 0.01,
         "macro_indicators": {"vol_ratio": 1.30},
         "indicators": {"bb_width": 0.03, "adx": 0.25},

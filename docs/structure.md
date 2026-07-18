@@ -1,6 +1,6 @@
 # Estrutura do repositório
 
-Layout de software com infraestrutura Docker local opcional (`infra/docker/`). O código de produção vive em **`app/src/`** com **~224 módulos Python** organizados em quatro camadas DDD. Testes: **~284** arquivos `test_*.py` em `app/tests/` com cobertura **100%** em `app/src`.
+Layout de software com infraestrutura Docker local opcional (`infra/docker/`). O código de produção vive em **`app/src/`** com **~226 módulos Python** organizados em quatro camadas DDD. Testes: **~287** arquivos `test_*.py` em `app/tests/` com cobertura **100%** em `app/src`.
 
 ```
 aether-quantum-engine/
@@ -17,7 +17,7 @@ aether-quantum-engine/
 │   │   ├── monitor/                    # live_monitor, monitor_redis, monitor_state, monitor_ui
 │   │   ├── operations/                 # clean_workspace, deriv_pat_connect, train_meta_*
 │   │   └── wsl/setup.sh
-│   ├── src/                            # ~224 módulos Python (DDD)
+│   ├── src/                            # ~226 módulos Python (DDD)
 │   └── tests/
 │       ├── unit/                       # application, domain, infrastructure, presentation, scripts
 │       ├── conftest.py
@@ -49,7 +49,7 @@ presentation  →  application  →  domain
 | Camada | Pasta | Módulos | Responsabilidade |
 |--------|-------|---------|------------------|
 | Application | `application/services/` | ~144 | Casos de uso: orquestração, DL, execução, meta-classificador, guards |
-| Domain | `domain/` | ~30 | Lógica pura: risco Kelly/soft recovery, AntiTrendLock, RiskPolicy, modelos |
+| Domain | `domain/` | ~30 | Lógica pura: risco Kelly/soft recovery, AntiTrendLock (política), RiskPolicy, modelos |
 | Infrastructure | `infrastructure/` | ~49 | Adaptadores: Deriv API, Redis, Triton, MinIO, Timescale |
 | Presentation | `presentation/` | 1 | Logging de terminal |
 
@@ -79,9 +79,9 @@ presentation  →  application  →  domain
 | `execution_direction_checks.py` | Pré-checagens de direção; rejeita ciclo só por starvation de microestrutura; limpa `neutral_clamp`; hooks sniper |
 | `execution_direction_cross_corr.py` | Peso DL via correlação cruzada |
 | `execution_direction_fallback.py` | Fallback quando pool DL vazio |
-| `execution_direction_resolver.py` | Motor de direção TCN + meta-regressor + Z-Score |
+| `execution_direction_resolver.py` | Motor CALL/PUT: TCN + meta + persistence skip + quality/margin gates |
 | `execution_entropy_fallback.py` | Fallback por menor entropia Shannon |
-| `execution_loss_protection.py` | Hard filters de loss protection; pass-through quando caps 999 / margins 0 |
+| `execution_loss_protection.py` | Hard filters de loss protection (`min_direction_margin: 0.03`) |
 | `execution_mandatory_pick.py` | Seleção obrigatória por ranking |
 | `execution_market_rank.py` | Ranking de mercado e `market_decision_score` |
 | `execution_quality_gate.py` | Gate TCN soft: margem direcional + meta payoff edge |
@@ -105,8 +105,10 @@ presentation  →  application  →  domain
 | `meta_classifier_flow_features.py` | Features de velocidade micro |
 | `meta_classifier_cross_symbol.py` | Features cross-symbol de arbitragem |
 | `meta_classifier_stacking.py` | Stacking tabular com edge contínuo |
-| `meta_payoff_regression.py` | Decisão com edge LightGBM |
-| `meta_direction_flip.py` | Inversão direcional em exaustão micro |
+| `meta_payoff_regression.py` | Edge LightGBM + soft score (sem flip de lado) |
+| `meta_payoff_veto_gate.py` | Soft/hard veto Z-Score (`meta_veto_mode`: none/soft/hard) |
+| `meta_payoff_shadow.py` | Shadow calibração para hard veto |
+| `meta_direction_flip.py` | Helpers de regime/freeze (flip CALL/PUT **não** wired no resolver de produção) |
 | `payoff_edge_zscore.py` | Z-Score adaptativo (janela 15–45) sobre `predicted_payoff_edge` |
 
 ### Application — strategy (`application/services/strategy/`)
@@ -422,7 +424,7 @@ app/tests/
     └── scripts/
 ```
 
-Convenção: espelha as camadas DDD. Cobertura obrigatória **100%** em `app/src/`. Contagem atual: **~284** arquivos `test_*.py`.
+Convenção: espelha as camadas DDD. Cobertura obrigatória **100%** em `app/src/`. Contagem atual: **~287** arquivos `test_*.py`.
 
 ---
 
@@ -435,7 +437,7 @@ flowchart TD
   PRED --> META[meta_classifier_client 43D]
   META --> RES[execution_direction_resolver]
   RES --> CHK[execution_direction_checks]
-  CHK --> DG[direction_persistence_guard AntiTrendLock]
+  CHK --> DG[direction_persistence_guard skip]
   DG --> ZS[payoff_edge_zscore]
   ZS --> QG[execution_quality_gate soft]
   QG --> MICRO[execution_quality_gate_microstructure HARD]
@@ -490,9 +492,13 @@ make app-install
 make app-lint
 make app-test
 make docker-up
+make docker-up-core
+make docker-smoke
 make app-train
 make app-run
 make app-pre-commit-run
 ```
+
+Infra Docker híbrida: profiles `core`/`gpu`/`ml` (padrão `core,gpu,ml`). Detalhes em [`infra-docker.md`](infra-docker.md).
 
 Verificação estrutural: máximo **300 linhas** por arquivo em `app/src/` (estágio lint do `clean_workspace.py`).

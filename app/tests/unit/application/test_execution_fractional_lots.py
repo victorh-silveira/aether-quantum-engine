@@ -103,7 +103,7 @@ async def test_dispatch_fractional_orders_staggers_split_proposals(orch_config):
         )
         with (
             patch(
-                "src.application.services.orchestrator.execution_fractional_lots.subscribe_open_contract",
+                "src.application.services.orchestrator.execution_fractional_lots_buy.subscribe_open_contract",
                 new_callable=AsyncMock,
             ),
             patch(
@@ -174,7 +174,7 @@ async def test_dispatch_fractional_orders_renews_proposal_per_split_lot(orch_con
         )
         orch.executor._place_order = AsyncMock()
         with patch(
-            "src.application.services.orchestrator.execution_fractional_lots.subscribe_open_contract",
+            "src.application.services.orchestrator.execution_fractional_lots_buy.subscribe_open_contract",
             new_callable=AsyncMock,
         ) as subscribe_mock:
             contracts = await dispatch_fractional_orders(

@@ -49,7 +49,12 @@ _CLUSTER_TOKEN_RE = re.compile(
 _EXEC_RE = re.compile(
     r"\]\s*EXEC\s*\|\|\s*(?P<ord>CALL|PUT)\s+\[(?P<symbol>RDBEAR|RDBULL)\]\s*\|\|\s*"
     r"STAKE:\s*(?P<stake>-?[\d.]+)\s+\((?P<mode>[A-Z0-9_]+)\)\s*\|\s*"
-    r"PEND:\s*(?P<pend>-?[\d.]+)\s*\|\s*BANCA:\s*(?P<banca>-?[\d.]+)\s*\|\|\s*"
+    r"PEND:\s*(?P<pend>-?[\d.]+)"
+    r"(?:\s*\|\s*LIN:\s*(?P<lin>-?\d+))?"
+    r"(?:\s*\|\s*CAP:\s*(?P<cap>-?[\d.]+))?"
+    r"\s*\|\s*BANCA:\s*(?P<banca>-?[\d.]+)"
+    r"(?:\s*\|\s*RECOVERY_INFEASIBLE)?"
+    r"\s*\|\|\s*"
     r"CID:\s*(?P<cid>\d+)\s*\|\s*PAY:\s*(?P<pay>-?[\d.]+)",
     re.IGNORECASE,
 )
@@ -57,7 +62,8 @@ _IND_RE = re.compile(
     r"\]\s*IND\s*\|\|\s*"
     r"RSI:\s*(?P<rsi>[+-]?[\d.]+)\s*\|\s*ADX:\s*(?P<adx>[+-]?[\d.]+)\s*\|\s*HURST:\s*(?P<hurst>[+-]?[\d.]+)\s*\|\|\s*"
     r"ATR:\s*(?P<atr>[+-]?[\d.]+)\s*\|\s*BBW:\s*(?P<bbw>[+-]?[\d.]+)\s*\|\s*VOL_R:\s*(?P<vol_r>[+-]?[\d.]+)\s*\|\|\s*"
-    r"Z:\s*(?P<z_edge>[+-]?[\d.]+)\s*\|\s*ACC:\s*(?P<acc>[+-]?[\d.]+)",
+    r"Z:\s*(?P<z_edge>[+-]?[\d.]+)\s*\|\s*ACC:\s*(?P<acc>[+-]?[\d.]+)"
+    r"(?:\s*\|\|\s*MARGIN:\s*(?P<margin>[+-]?[\d.]+)\s*\|\s*NEUTRAL:\s*(?P<neutral>\S+)\s*\|\s*META_VETO:\s*(?P<meta_veto>\S+))?",
     re.IGNORECASE,
 )
 _SESSION_START_RE = re.compile(r"Alvo de [\d.]+%:\s*\$([\d,]+\.?\d*)", re.IGNORECASE)
@@ -121,7 +127,17 @@ class LogParser:
         try:
             z_edge = float(match.group("z_edge"))
             acc = float(match.group("acc"))
-            self.state.last_telemetry["metrics"] = f"Z={z_edge:+.2f} ACC={acc:.4f}"
+            extras = f"Z={z_edge:+.2f} ACC={acc:.4f}"
+            margin = match.group("margin")
+            if margin is not None:
+                extras += f" MARGIN={float(margin):.3f}"
+            neutral = match.group("neutral")
+            if neutral is not None:
+                extras += f" NEUTRAL={neutral}"
+            meta_veto = match.group("meta_veto")
+            if meta_veto is not None:
+                extras += f" META_VETO={meta_veto}"
+            self.state.last_telemetry["metrics"] = extras
         except Exception as exc:
             logger.error("Parser Error IND: %s", exc)
 
@@ -140,7 +156,14 @@ class LogParser:
             mode = match.group("mode")
             pend = float(match.group("pend"))
             pay = float(match.group("pay"))
-            self.state.last_telemetry["metrics"] = f"mode={mode} pend={pend:.2f} pay={pay:.2f}"
+            lin = match.group("lin")
+            cap = match.group("cap")
+            extras = f"mode={mode} pend={pend:.2f} pay={pay:.2f}"
+            if lin is not None:
+                extras += f" lin={lin}"
+            if cap is not None:
+                extras += f" cap={float(cap):.2f}"
+            self.state.last_telemetry["metrics"] = extras
             banca = float(match.group("banca"))
             if banca > 0.0:
                 self.state.balance = banca

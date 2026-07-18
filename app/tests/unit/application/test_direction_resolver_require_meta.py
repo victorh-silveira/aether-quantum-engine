@@ -43,13 +43,13 @@ def test_resolve_require_meta_for_execution_blocks_without_meta():
             exec_cfg={"require_meta_for_execution": True},
             symbol="RDBULL",
         )
-    assert result is not None
-    assert entry["metrics"].get("gate_reason") != "meta_unavailable"
-    assert entry["metrics"].get("quality_guard_reject") is not True
+    assert result is None
+    assert entry["metrics"].get("gate_reason") == "meta_unavailable"
+    assert entry["metrics"].get("quality_guard_reject") is True
 
 
 def test_resolve_recovery_soft_quality_continues_on_borderline_zscore():
-    entry = _entry(calibrated_prob=0.51)
+    entry = _entry(calibrated_prob=0.70)
     entry["metrics"]["meta_classifier_applied"] = True
     entry["metrics"]["predicted_payoff_edge"] = 0.02
     entry["metrics"]["meta_payoff_edge_zscore"] = -0.10

@@ -34,7 +34,7 @@ def _risk_manager(kelly_config, *, bankroll=10000.0):
     rm.consecutive_losses_linear = 0
     rm.dlambert_unit = 0.0
     rm.logger = MagicMock()
-    rm.effective_win_rate = MagicMock(side_effect=lambda _sym, conv: float(conv))
+    rm.effective_win_rate = MagicMock(side_effect=lambda _sym, conv, **_kw: float(conv))
     rm._recovery_allowed = MagicMock(return_value=False)
     return rm
 

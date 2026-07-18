@@ -4,6 +4,17 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.application.services.market_audit_log_helpers import (
+    cluster_symbol_token,
+    indicator_snapshot,
+    metric_float,
+    pop_contract_audit,
+    resolve_cluster_timeframe,
+    resolve_meta_payoff_zscore,
+    resolve_predicted_edge,
+    store_contract_audit,
+)
+
 
 __all__ = [
     "format_cluster_audit_line",
@@ -12,102 +23,13 @@ __all__ = [
     "format_settlement_audit_line",
     "pop_contract_audit",
     "resolve_cluster_timeframe",
+    "resolve_meta_payoff_zscore",
     "resolve_predicted_edge",
     "resolve_settlement_tag",
     "resolve_stake_audit_context",
     "resolve_stake_mode_tag",
     "store_contract_audit",
 ]
-
-
-def resolve_predicted_edge(metrics: dict[str, Any]) -> float:
-    """Extrai edge continuo do meta-regressor a partir das metricas do ciclo."""
-    raw = metrics.get("predicted_payoff_edge", metrics.get("meta_calibrated_payoff_score", 0.0))
-    return float(raw or 0.0)
-
-
-def resolve_cluster_timeframe(config: dict[str, Any] | None) -> str:
-    """Resolve rotulo de timeframe do cluster a partir da granularidade configurada."""
-    if not isinstance(config, dict):
-        return "M5"
-    data = config.get("data_handler")
-    if not isinstance(data, dict):
-        data = {}
-    seconds = int(data.get("micro_granularity", data.get("granularity", 300)) or 300)
-    if seconds >= 900:
-        return "M15"
-    if seconds >= 300:
-        return "M5"
-    if seconds >= 60:
-        return f"M{max(1, seconds // 60)}"
-    return f"S{seconds}"
-
-
-def _indicator_snapshot(metrics: dict[str, Any]) -> dict[str, float]:
-    """Consolida indicadores macro e micro em um unico mapa numerico."""
-    merged: dict[str, float] = {}
-    for bucket in ("indicators", "macro_indicators", "micro_indicators"):
-        chunk = metrics.get(bucket)
-        if not isinstance(chunk, dict):
-            continue
-        for key, raw in chunk.items():
-            if raw is None:
-                continue
-            try:
-                merged[str(key)] = float(raw)
-            except (TypeError, ValueError):
-                continue
-    return merged
-
-
-def _metric_float(metrics: dict[str, Any], *keys: str, default: float = 0.0) -> float:
-    """Le o primeiro campo numerico disponivel nas metricas."""
-    for key in keys:
-        raw = metrics.get(key)
-        if raw is None:
-            continue
-        try:
-            return float(raw)
-        except (TypeError, ValueError):
-            continue
-    return default
-
-
-def _veto_token(metrics: dict[str, Any]) -> str | None:
-    """Resolve rotulo curto de veto de microestrutura ou quality gate."""
-    for key in ("quality_gate_reason", "gate_reason"):
-        raw = metrics.get(key)
-        if not raw:
-            continue
-        token = str(raw).strip().upper().replace("-", "_")
-        if token in {"NEUTRAL_CLAMP", "NEUTRO_CLAMP"}:
-            return "NEUTRO_VETO"
-        if token:
-            return token
-    if metrics.get("quality_guard_reject") or metrics.get("regime_skip_cycle"):
-        return "NEUTRO_VETO"
-    if metrics.get("execute") is False and metrics.get("deploy_ok") is not False:
-        return "NEUTRO_VETO"
-    return None
-
-
-def _cluster_symbol_token(symbol: str, entry: dict[str, Any]) -> str:
-    """Formata token de simbolo no resumo CLUSTER."""
-    metrics = entry.get("metrics") if isinstance(entry.get("metrics"), dict) else {}
-    direction = entry.get("direction")
-    if direction is not None and hasattr(direction, "name"):
-        side = str(direction.name)
-    else:
-        side = str(
-            metrics.get("exec_direction") or metrics.get("dl_direction") or metrics.get("resolved_direction") or "FLAT"
-        ).upper()
-    veto = _veto_token(metrics)
-    if veto is not None:
-        return f"{symbol}: {side} ({veto})"
-    raw_prob = _metric_float(metrics, "raw_prob", default=0.5)
-    cal_prob = _metric_float(metrics, "calibrated_prob", "raw_prob", default=raw_prob)
-    edge = resolve_predicted_edge(metrics)
-    return f"{symbol}: {side} (Prob: {raw_prob:0.3f} Cal: {cal_prob:0.3f} Edge: {edge:+0.3f})"
 
 
 def format_cluster_audit_line(
@@ -119,7 +41,7 @@ def format_cluster_audit_line(
     if not isinstance(decisions, dict) or not decisions:
         return f"[CLUSTER] {timeframe} || EMPTY"
     tokens = [
-        _cluster_symbol_token(str(symbol), entry if isinstance(entry, dict) else {})
+        cluster_symbol_token(str(symbol), entry if isinstance(entry, dict) else {})
         for symbol, entry in decisions.items()
     ]
     return f"[CLUSTER] {timeframe} || " + " || ".join(tokens)
@@ -128,46 +50,79 @@ def format_cluster_audit_line(
 def format_indicators_audit_line(cycle_id: int, symbol: str, metrics: dict[str, Any]) -> str:
     """Monta linha compacta de indicadores e microestrutura alinhada por colunas."""
     _ = symbol
-    snap = _indicator_snapshot(metrics)
+    snap = indicator_snapshot(metrics)
     rsi = snap.get("rsi", 0.0)
     adx = snap.get("adx", 0.0)
     hurst = snap.get("hurst", 0.0)
     atr = snap.get("atr_norm", 0.0)
     bbw = snap.get("bb_width", 0.0)
     vol_r = snap.get("vol_ratio", snap.get("vol_ratio_short_long", 0.0))
-    z_edge = _metric_float(metrics, "edge_zscore", "meta_payoff_edge_zscore", default=0.0)
-    acc = _metric_float(metrics, "val_accuracy", default=0.0)
+    z_edge = metric_float(metrics, "edge_zscore", "meta_payoff_edge_zscore", default=0.0)
+    acc = metric_float(metrics, "val_accuracy", default=0.0)
+    margin = metric_float(metrics, "direction_margin", default=0.0)
+    neutral = str(metrics.get("calibration_mode") or metrics.get("gate_reason") or "na")
+    if (
+        str(metrics.get("calibration_mode") or "") == "neutral_clamp"
+        or str(metrics.get("gate_reason") or "") == "neutral_clamp"
+    ):
+        neutral = "neutral_clamp"
+    elif neutral not in {"neutral_clamp", "tcn_macro_override", "calibrated"}:
+        neutral = "na"
+    meta_veto = str(metrics.get("meta_veto_mode") or "none")
     return (
         f"[C{int(cycle_id):04d}] IND || "
         f"RSI: {rsi:>7.4f} | ADX: {adx:>7.4f} | HURST: {hurst:>7.4f} || "
         f"ATR: {atr:>8.4f} | BBW: {bbw:>8.4f} | VOL_R: {vol_r:>7.4f} || "
-        f"Z: {z_edge:>+6.2f} | ACC: {acc:>6.4f}"
+        f"Z: {z_edge:>+6.2f} | ACC: {acc:>6.4f} || "
+        f"MARGIN: {margin:>5.3f} | NEUTRAL: {neutral} | META_VETO: {meta_veto}"
     )
 
 
-def resolve_stake_mode_tag(mode_tag: str, linear_losses: int) -> str:
-    """Compacta modo de sizing em rotulo curto (KELLY / DAL_Ln)."""
+def resolve_stake_mode_tag(
+    mode_tag: str,
+    linear_losses: int,
+    *,
+    stake_regime: str | None = None,
+) -> str:
+    """Compacta modo de sizing em rotulo curto (EXPLORE|RECOVER + KELLY/DAL_Ln)."""
     tag = str(mode_tag or "KELLY").upper()
-    if "ALEMBERT" in tag or tag.startswith("DAL"):
-        return f"DAL_L{max(0, int(linear_losses))}"
-    return "KELLY"
+    if tag.startswith("EXPLORE_") or tag.startswith("RECOVER_"):
+        return tag
+    compact = f"DAL_L{max(0, int(linear_losses))}" if ("ALEMBERT" in tag or tag.startswith("DAL")) else "KELLY"
+    regime = str(stake_regime or "EXPLORE").upper()
+    if regime not in ("EXPLORE", "RECOVER"):
+        regime = "EXPLORE"
+    return f"{regime}_{compact}"
 
 
-def resolve_stake_audit_context(rm: Any, *, balance_fallback: float | None = None) -> tuple[str, float, float]:
-    """Le modo, pendencia e banca do ultimo sizing para a linha EXEC."""
+def resolve_stake_audit_context(rm: Any, *, balance_fallback: float | None = None) -> dict[str, Any]:
+    """Le modo, pendencia, banca e telemetria financeira do ultimo sizing."""
     audit = getattr(rm, "_last_stake_audit", None)
-    mode_tag = "KELLY"
+    mode_tag = "EXPLORE_KELLY"
     pending = float(rm.pending_loss_total()) if callable(getattr(rm, "pending_loss_total", None)) else 0.0
     bankroll = float(getattr(rm, "bankroll", getattr(rm, "initial_bankroll", 0.0)) or 0.0)
+    linear = int(getattr(rm, "consecutive_losses_linear", 0) or 0)
+    cap = 0.0
+    recovery_infeasible = False
     if isinstance(audit, dict):
-        return (
-            str(audit.get("mode_tag") or mode_tag),
-            float(audit.get("pending", pending)),
-            float(audit.get("bankroll", bankroll)),
-        )
+        return {
+            "mode_tag": str(audit.get("mode_tag") or mode_tag),
+            "pending": float(audit.get("pending", pending)),
+            "bankroll": float(audit.get("bankroll", bankroll)),
+            "linear": int(audit.get("linear_losses", linear)),
+            "cap": float(audit.get("cap", cap)),
+            "recovery_infeasible": bool(audit.get("recovery_infeasible", False)),
+        }
     if isinstance(balance_fallback, (int, float)):
         bankroll = float(balance_fallback)
-    return mode_tag, pending, bankroll
+    return {
+        "mode_tag": mode_tag,
+        "pending": pending,
+        "bankroll": bankroll,
+        "linear": linear,
+        "cap": cap,
+        "recovery_infeasible": recovery_infeasible,
+    }
 
 
 def format_execution_ticket_line(
@@ -181,12 +136,17 @@ def format_execution_ticket_line(
     bankroll: float,
     contract_id: int,
     payout: float,
+    linear: int = 0,
+    cap: float = 0.0,
+    recovery_infeasible: bool = False,
 ) -> str:
     """Monta linha unica de risco e boleta EXEC."""
+    infeas = " | RECOVERY_INFEASIBLE" if recovery_infeasible else ""
     return (
         f"[C{int(cycle_id):04d}] EXEC || {direction} [{symbol}] || "
         f"STAKE: {float(stake):.2f} ({mode_tag}) | "
-        f"PEND: {float(pending):.2f} | BANCA: {float(bankroll):.2f} || "
+        f"PEND: {float(pending):.2f} | LIN: {int(linear)} | CAP: {float(cap):.2f} | "
+        f"BANCA: {float(bankroll):.2f}{infeas} || "
         f"CID: {int(contract_id)} | PAY: {float(payout):.2f}"
     )
 
@@ -207,48 +167,19 @@ def format_settlement_audit_line(
     edge: float,
     *,
     settlement_tag: str | None = None,
+    pending: float | None = None,
+    linear: int | None = None,
+    mode_tag: str | None = None,
+    recovery_infeasible: bool = False,
 ) -> str:
     """Monta linha padronizada de liquidacao RESOLVED."""
     _ = (direction, symbol, edge)
     tag = settlement_tag or resolve_settlement_tag(profit=profit, linear_before=0)
-    return f"[C{int(cycle_id):04d}] RESOLVED || STATUS: {str(outcome):<4} | P&L: {float(profit):>+7.2f} | {tag}"
-
-
-def store_contract_audit(
-    orch: Any,
-    contract_id: int,
-    *,
-    symbol: str,
-    direction: str,
-    edge: float,
-) -> None:
-    """Persiste metadados de auditoria por contrato ate a liquidacao."""
-    bag = getattr(orch, "_contract_audit", None)
-    if bag is None:
-        orch._contract_audit = {}
-        bag = orch._contract_audit
-    bag[int(contract_id)] = {
-        "symbol": str(symbol),
-        "direction": str(direction),
-        "edge": float(edge),
-    }
-
-
-def pop_contract_audit(
-    orch: Any,
-    contract_id: int,
-    *,
-    contract: Any = None,
-    symbol: str = "UNK",
-) -> tuple[str, str, float]:
-    """Recupera e remove metadados de auditoria de um contrato liquidado."""
-    bag = getattr(orch, "_contract_audit", None) or {}
-    snap = bag.pop(int(contract_id), None)
-    if isinstance(snap, dict):
-        return str(snap.get("symbol", symbol)), str(snap.get("direction", "UNK")), float(snap.get("edge", 0.0))
-    dir_name = "UNK"
-    if contract is not None:
-        loss_dir = getattr(contract, "direction", None)
-        if loss_dir is not None:
-            dir_name = loss_dir.name
-    return str(symbol), dir_name, 0.0
+    extras = ""
+    if pending is not None or linear is not None or mode_tag is not None:
+        pend_s = f"{float(pending):.2f}" if pending is not None else "n/a"
+        lin_s = str(int(linear)) if linear is not None else "n/a"
+        mode_s = str(mode_tag) if mode_tag else "n/a"
+        infeas = " | RECOVERY_INFEASIBLE" if recovery_infeasible else ""
+        extras = f" | PEND: {pend_s} | LIN: {lin_s} | MODE: {mode_s}{infeas}"
+    return f"[C{int(cycle_id):04d}] RESOLVED || STATUS: {str(outcome):<4} | P&L: {float(profit):>+7.2f} | {tag}{extras}"

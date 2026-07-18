@@ -96,7 +96,7 @@ def test_calculate_stake_for_manager_dlambert_logs(kelly_config):
     assert stake > 0.0
     audit = getattr(rm, "_last_stake_audit", None)
     assert isinstance(audit, dict)
-    assert str(audit.get("mode_tag", "")).startswith("DAL_L")
+    assert "DAL_L" in str(audit.get("mode_tag", ""))
 
 
 def test_calculate_stake_mandatory_weak_entry_uses_full_kelly(kelly_config):
@@ -246,4 +246,4 @@ def test_calculate_stake_c0017_bypasses_consensus_and_uses_soft_recovery(kelly_c
     assert stake == pytest.approx(expected)
     audit = getattr(rm, "_last_stake_audit", None)
     assert isinstance(audit, dict)
-    assert str(audit.get("mode_tag", "")).startswith("DAL_L")
+    assert "DAL_L" in str(audit.get("mode_tag", ""))

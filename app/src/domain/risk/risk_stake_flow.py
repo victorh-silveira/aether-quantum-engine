@@ -19,6 +19,7 @@ def apply_stop_win_kelly_boost(
     recovery_active: bool,
     apply_stop_win: bool,
     silent: bool,
+    live_metrics: dict[str, Any] | None = None,
 ) -> float:
     """Aplica boost de stake Kelly alinhado ao stop win diario."""
     min_stop_conv = float(rm.kelly_config.get("stop_win_kelly_min_conviction", 0.45))
@@ -35,6 +36,7 @@ def apply_stop_win_kelly_boost(
         rm.initial_bankroll,
         rm.total_session_profit,
         has_active_contracts=bool(rm.active_contract_ids),
+        live_metrics=live_metrics,
     )
     if boosted > kelly_base and not silent:
         rm.logger.info(
@@ -72,6 +74,9 @@ def emit_cycle_stake_log(
     linear_losses: int,
     symbol: str,
     rec_info: str,
+    stake_regime: str = "EXPLORE",
+    safe_cap: float = 0.0,
+    recovery_infeasible: bool = False,
 ) -> None:
     """Persiste contexto de stake do ciclo para a linha EXEC unica apos boleta."""
     _ = (f_star, p, b, rec_info)
@@ -79,14 +84,20 @@ def emit_cycle_stake_log(
         return
     tag = str(mode_tag or "KELLY").upper()
     compact = f"DAL_L{max(0, int(linear_losses))}" if ("ALEMBERT" in tag or tag.startswith("DAL")) else "KELLY"
+    regime = str(stake_regime or "EXPLORE").upper()
+    if regime not in ("EXPLORE", "RECOVER"):
+        regime = "EXPLORE"
     rm._last_stake_audit = {
         "cycle_id": int(cycle_id),
-        "mode_tag": compact,
+        "mode_tag": f"{regime}_{compact}",
         "stake": float(final_stake),
         "pending": float(loss_to_recover),
         "bankroll": float(bankroll),
         "linear_losses": int(linear_losses),
         "symbol": str(symbol),
+        "stake_regime": regime,
+        "cap": float(safe_cap),
+        "recovery_infeasible": bool(recovery_infeasible),
     }
 
 

@@ -89,7 +89,7 @@ async def test_dispatch_fractional_orders_increments_split_attempt_seq_per_batch
         )
         orch.executor._place_order = AsyncMock()
         with patch(
-            "src.application.services.orchestrator.execution_fractional_lots.subscribe_open_contract",
+            "src.application.services.orchestrator.execution_fractional_lots_buy.subscribe_open_contract",
             new_callable=AsyncMock,
         ):
             await dispatch_fractional_orders(

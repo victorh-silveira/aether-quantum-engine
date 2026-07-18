@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.application.services.market_audit_log import resolve_predicted_edge, store_contract_audit
+from src.application.services.market_audit_log import (
+    resolve_meta_payoff_zscore,
+    resolve_predicted_edge,
+    store_contract_audit,
+)
 from src.domain.models.trade import TradeDirection
 
 
@@ -32,6 +36,8 @@ async def adopt_executed_contract(
         symbol=symbol,
         direction=direction.name,
         edge=resolve_predicted_edge(metrics),
+        meta_payoff_edge_zscore=resolve_meta_payoff_zscore(metrics),
+        raw_prob=float(metrics["raw_prob"]) if metrics.get("raw_prob") is not None else None,
     )
     executor._log_exec(
         symbol,

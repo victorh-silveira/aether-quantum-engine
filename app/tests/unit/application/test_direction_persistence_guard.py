@@ -225,7 +225,15 @@ def test_resolver_and_guard_noop_paths():
     )
     record_direction_outcome("RDBULL", "CALL", won=False)
     record_direction_outcome("RDBULL", "CALL", won=False)
-    entry = {"direction": TradeDirection.CALL}
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {
+            "calibrated_prob": 0.70,
+            "raw_prob": 0.70,
+            "deploy_ok": True,
+            "execute": True,
+        },
+    }
     peer = {
         "direction": TradeDirection.PUT,
         "metrics": {
@@ -235,5 +243,5 @@ def test_resolver_and_guard_noop_paths():
             "flow_features": {"micro_tick_acceleration": 0.0},
         },
     }
-    assert resolve_execution_direction(entry, symbol="RDBULL", peer_entry=peer, cycle_id=8) is not None
-    assert entry["metrics"].get("signal_status") != SIGNAL_SUSPENDED
+    assert resolve_execution_direction(entry, symbol="RDBULL", peer_entry=peer, cycle_id=8) is None
+    assert entry["metrics"].get("persistence_guard_skip") is True

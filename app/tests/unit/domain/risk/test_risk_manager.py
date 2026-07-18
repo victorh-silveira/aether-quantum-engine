@@ -215,7 +215,12 @@ def test_single_strike_stake_boost_toward_stop_win(kelly_config):
     rm = RiskManager(kelly_config)
     rm.set_initial_bankroll(1000.0)
     rm.total_session_profit = 0.0
-    stake = rm.calculate_stake(1000.0, "RDBULL", conviction=0.85)
+    stake = rm.calculate_stake(
+        1000.0,
+        "RDBULL",
+        conviction=0.85,
+        dl_metrics={"execute": True, "live_n": 40, "live_wr": 0.55, "trade_score": 0.85},
+    )
     assert stake == pytest.approx(35.0)
 
 

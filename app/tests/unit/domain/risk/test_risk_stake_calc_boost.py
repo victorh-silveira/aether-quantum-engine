@@ -51,7 +51,14 @@ def test_calculate_stake_stop_win_kelly_boosts_from_raw_when_score_zero(kelly_co
         silent=True,
         apply_stop_win=True,
         kwargs={
-            "dl_metrics": {"execute": False, "trade_score": 0.0, "raw_prob": 0.51, "val_accuracy": 0.59},
+            "dl_metrics": {
+                "execute": False,
+                "trade_score": 0.0,
+                "raw_prob": 0.51,
+                "val_accuracy": 0.59,
+                "live_n": 40,
+                "live_wr": 0.55,
+            },
             "mandatory_weak_cap": True,
         },
     )
@@ -137,7 +144,7 @@ def test_calculate_stake_mandatory_weak_boost_unlimited(kelly_config):
         silent=True,
         apply_stop_win=True,
         kwargs={
-            "dl_metrics": {"execute": False, "val_brier": 0.1},
+            "dl_metrics": {"execute": False, "val_brier": 0.1, "live_n": 40, "live_wr": 0.55},
             "mandatory_weak_cap": True,
         },
     )
@@ -178,7 +185,7 @@ def test_calculate_stake_stop_win_kelly_boosts_when_dl_approved(kelly_config):
         0.55,
         silent=True,
         apply_stop_win=True,
-        kwargs={"dl_metrics": {"execute": True, "val_brier": 0.1}},
+        kwargs={"dl_metrics": {"execute": True, "val_brier": 0.1, "live_n": 40, "live_wr": 0.55}},
     )
     assert stake > 2.0
 

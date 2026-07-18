@@ -26,8 +26,8 @@ Layout: `app/` (código e testes), `config/settings.json`, `docs/`, `linters/`. 
 | Predição DL | `decision_bridge` + `dl_predict_*` + TCN | **34 features** TCN; bundle meta **43D**; Triton gRPC timeout **0,50 s**; fail-closed obrigatório para Triton |
 | Meta GBDT | `meta_classifier_client` + `aether-meta-classifier` | Regressão tabular **43D**; `predicted_payoff_edge` contínuo (opcional para execução) |
 | Z-Score payoff | `payoff_edge_zscore` | Janela adaptativa 15–45; `meta_payoff_edge_zscore` |
-| Direção | `execution_direction_resolver` + `execution_direction_checks` + AntiTrendLock | TCN define macro; pré-checagens de direção; D-SQUEEZE rebaixa score; margem `abs(P(lado) − 0.50)` |
-| Rotulagem DL | `dl_labels` + `LabelSpec` | Padrão `ma_trend`; Triple Barrier disponível via config |
+| Direção | `execution_direction_resolver` + persistence guard + quality gate | TCN define lado; zona neutra `[0.46, 0.54]`; margem hard `0.03`; persistence **skip** (sem flip); D-SQUEEZE rebaixa score |
+| Rotulagem DL | `dl_labels` + `LabelSpec` | Padrão `spot_forward`; `ma_trend` / Triple Barrier via config |
 | Quality / starvation | `execution_quality_gate*` | Dual soft TCN+meta; vetoes HARD de microestrutura (`adx_starvation`, `vol_ratio_starvation`, `val_accuracy_gate`); starvation a partir de **6** skips |
 | Ranking | `execution_market_rank` | Score `tcn × max(0.1, 1+z)` |
 | Execução | `ExecutionManager` + lotes fracionados | Proposta atômica; RISE_FALL **120 s** |
@@ -47,7 +47,7 @@ Arquivo: [`config/settings.json`](config/settings.json)
 |-------|--------|
 | `symbols` / `anchor` | Universo (`RDBEAR`, `RDBULL`; ancora `RDBULL`) |
 | `data_handler` | `granularity` (macro **600 s**), `micro_granularity` (**120 s**), `history_bars` / `training_history_bars` (**23328**), `fetch_count`, `buffer_limit` |
-| `deep_learning` | `arch`, `lookback` (**72**), `label_mode` (`ma_trend`), calibration (`neutral_half_width: 0.0`), thresholds **0.50/0.50**, `indicator_gating`, `deploy_gate` |
+| `deep_learning` | `arch`, `lookback` (**72**), `label_mode` (`spot_forward`), calibration (`neutral_half_width: 0.04`), thresholds **0.54/0.46**, `indicator_gating`, `deploy_gate` |
 | `orchestrator.execution` | `mandatory_trade_each_cycle`, `require_meta_for_execution: false`, `quality_gate`, settlement **90 s** |
 | `risk_management.kelly` | `fraction` (0.005), caps 3,5%, `consensus_penalty_enabled: false`, recovery |
 | `risk_management.soft_recovery` | Soft D'Alembert paramétrico (`max_safe_stake_cap`, amort 2–5, `coing_redirect`) |
@@ -61,14 +61,23 @@ O motor (`run.py` / `train.py`) roda no host Conda/WSL. Redis, TimescaleDB, MinI
 make docker-up
 ```
 
-O target executa `host-prereq.sh`, `triton-prereq.sh`, `docker compose up -d`, aguarda healthchecks (`docker-wait-healthy.sh`) e aplica `timescale-lifecycle`. Redis sobe com AOF `everysec`.
+Pipeline: `host-prereq` → `triton-prereq` → `compose up` (profiles `DOCKER_PROFILES`, padrão `core,gpu,ml`) → wait healthy → `timescale-lifecycle` → `docker-hydrate` → `docker-smoke`. Redis sobe com AOF `everysec`.
+
+| Target | Uso |
+|--------|-----|
+| `make docker-up` | Stack completa (core+gpu+ml) |
+| `make docker-up-core` | Só Redis, Timescale e MinIO |
+| `make docker-rebuild` | Rebuild do meta-classifier + up |
+| `make docker-smoke` | Valida endpoints da stack |
+
+Compose declara GPU via `gpus: all`. Detalhes em [docs/infra-docker.md](docs/infra-docker.md).
 
 ```bash
 docker exec -it aether-redis redis-cli CONFIG GET appendonly
 docker exec -it aether-redis redis-cli CONFIG GET appendfsync
 ```
 
-Com `infra.enabled: true`, o startup valida os serviços (fail-fast), sincroniza TorchScript no Triton e executa **sanity estressado** (RSI/CMO/vol extremos) antes do WebSocket Deriv. Detalhes em [docs/infra-docker.md](docs/infra-docker.md).
+Com `infra.enabled: true`, o startup valida os serviços (fail-fast), sincroniza TorchScript no Triton e executa **sanity estressado** (RSI/CMO/vol extremos) antes do WebSocket Deriv.
 
 Variáveis na raiz (`.env` único — Deriv + infra Docker):
 
@@ -78,7 +87,8 @@ Variáveis na raiz (`.env` único — Deriv + infra Docker):
 | `AETHER_PG_USER`, `AETHER_PG_PASSWORD`, `AETHER_PG_DB` | TimescaleDB |
 | `AETHER_MINIO_ACCESS_KEY`, `AETHER_MINIO_SECRET_KEY` | MinIO |
 | `AETHER_TRITON_GRPC`, `AETHER_TRITON_HTTP` | Triton Inference Server |
-| `AETHER_META_CLASSIFIER_URL` | Meta-classificador LightGBM (padrão `http://localhost:8005`) |
+| `AETHER_META_CLASSIFIER_HTTP` | Meta-classificador LightGBM (padrão `http://localhost:8005`) |
+| `AETHER_DOCKER_HEALTH_TIMEOUT` | Timeout do wait healthy (padrão `300`) |
 
 Copie `cp .env.example .env` e preencha o PAT. Validação Deriv: `python app/scripts/operations/deriv_pat_connect.py`.
 
@@ -95,7 +105,7 @@ Copie `cp .env.example .env` e preencha o PAT. Validação Deriv: `python app/sc
 - **Stop loss desativado**: sem disjuntor de perda diária interno.
 - **Lotes fracionados**: stakes acima de `max_single_stake_limit` (padrão $200) divididas em N ordens com proposta atômica por sub-lote; falha técnica de proposta aborta o cluster sem inflar `pending_loss`.
 - Cooldown por símbolo após sequência de losses (`symbol_loss_rotation_cycles`): rota o par Drift após loss linear sem pausar o ciclo.
-- **Proteção contra loss** (`execution_loss_protection`): nos settings atuais, hard filters efetivamente desligados (margins **0.0**, caps **999** — pass-through).
+- **Proteção contra loss** (`execution_loss_protection`): `min_direction_margin: 0.03`; caps edge/Z **999**.
 - **Gate de acurácia**: `min_validation_accuracy_gate: 0.63` (veto HARD de microestrutura).
 
 ---
@@ -108,7 +118,7 @@ Copie `cp .env.example .env` e preencha o PAT. Validação Deriv: `python app/sc
 - **Ranking TCN × Z-Score**: `market_decision_score = tcn × max(0.1, 1+z)` — LightGBM validado ranqueia acima de TCN bruto degradado.
 - **Gatilho D-SQUEEZE (`[D-SQUEEZE]`)**: quando `predicted_payoff_edge < -0.15` em compressão micro (`bb_width < 0.06` ou `micro_tick_acceleration < 0`), o resolver rebaixa `trade_score` para **0.52**, comprimindo stake — sem inverter a direção da TCN. `bb_width_adaptive_squeeze` está **desabilitado** nos settings atuais.
 - **Recovery**: rotação de símbolo após loss linear; soft D'Alembert paramétrico; reset de risco somente quando `pending_loss` zera.
-- **Loss protection**: hard filters em pass-through (margins 0 / caps 999); quality guard em modo mandatorio nunca suspende o cluster por soft alone.
+- **Loss protection**: `min_direction_margin: 0.03`; caps edge/Z 999; quality guard em modo mandatorio nunca suspende o cluster por soft alone.
 - **Settlement**: janela de tolerância **90 s** com reconciliação passiva (portfolio + Redis); sem reinício forçado por timeout pós-liquidação.
 - **Starvation**: após **6** quality skips, pisos de margem/edge/Z decaem; Convicção Progressiva (−20%/5 skips em recovery).
 - **Reconexão**: `release_trading_cycle_after_reconnect` invalida assinatura/epoch e reduz warm-up micro quando há `pending_loss`; log `RECOV: ciclo liberado`.
@@ -136,7 +146,8 @@ Logs em `logs/engine.log` (formato `AetherFormatter`):
 - `[API_GUARD]` — telemetria reativa de manutenção do broker (sem bloqueio de ciclo em modo mandatário)
 - `[D-SQUEEZE]` — downgrade de score em compressão micro (`bb_width`, `tick_accel`, `predicted_payoff_edge`, `score`)
 - `Loop reinicializado de forma transparente` — recovery pós-deadlock sem `sys.exit`; persistência de emergência antes do reset de contadores
-- `REGIME_GUARD` — telemetria do filtro AntiTrendLock (`FLIP`, `FREEZE`, `KEEP`)
+- `REGIME_GUARD` — telemetria do persistence guard (`FREEZE`, skip; flip **não** aplicado em produção)
+- Linha `IND` — `MARGIN`, `NEUTRAL`, `META_VETO` (`none`/`soft`/`hard`)
 - `SETTLE:` — enfileiramento/consumo da fila Redis de liquidação por instabilidade do broker
 
 Mensagens repetidas são deduplicadas (`log_dedupe`, `CooldownDeduplicationFilter`). Cada ciclo e bloco de treino são separados por linha em branco.
@@ -150,7 +161,7 @@ Monitor opcional: `python app/scripts/monitor/live_monitor.py`
 - **Python 3.13.12**, `asyncio` (`app/aether_asyncio.py` — wrapper `asyncio.run` que silencia ruído de debug), NumPy, Polars, PyTorch (TCN / LSTM / GRU)
 - **Deriv** PAT + REST OTP + WebSocket (`api_config` em settings; ver `docs/deriv-api.md`)
 - **Infra**: Redis, TimescaleDB, MinIO, NVIDIA Triton (gRPC, timeout **0,50 s**), meta-regressor LightGBM (HTTP 8005)
-- **CI / pre-commit**: Ruff, Interrogate, Vulture, limite 300 linhas/arquivo, pytest com **100%** de cobertura em `app/src` (**284** arquivos de teste; **~224** módulos em `app/src`)
+- **CI / pre-commit**: Ruff, Interrogate, Vulture, limite 300 linhas/arquivo, pytest com **100%** de cobertura em `app/src` (**287** arquivos de teste; **~226** módulos em `app/src`)
 
 Requisito local: ambiente Conda **`deriv-api`** (Python 3.13.12). Configuração em [`config/python.json`](config/python.json).
 

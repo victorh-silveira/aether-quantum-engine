@@ -25,7 +25,7 @@ from src.application.services.execution_quality_gate_cluster import (
 
 def _edge_signal_metrics() -> dict:
     return {
-        "calibrated_prob": 0.57,
+        "calibrated_prob": 0.70,
         "predicted_payoff_edge": 0.02,
         "meta_classifier_applied": True,
     }
@@ -99,7 +99,7 @@ def test_passes_execution_quality_regular_regime_accepts_elastic_signal():
 
 
 def test_passes_execution_quality_recovery_regime_rejects_same_signal():
-    metrics = {"calibrated_prob": 0.55, "predicted_payoff_edge": 0.10, "meta_classifier_applied": True}
+    metrics = {"calibrated_prob": 0.70, "predicted_payoff_edge": 0.10, "meta_classifier_applied": True}
     assert passes_execution_quality(metrics, linear=3, pending_loss_total=50.0) is True
     assert metrics["quality_gate_regime"] == "recovery"
     assert metrics.get("regime_skip_cycle") is False
@@ -140,10 +140,18 @@ def test_direction_margin_from_probability_call_high_conviction():
     assert direction_margin_from_probability(0.75, direction="CALL") == pytest.approx(0.25)
 
 
-def test_passes_execution_quality_rejects_low_margin_in_recovery():
-    metrics = {"calibrated_prob": 0.55, "predicted_payoff_edge": 0.10, "meta_classifier_applied": True}
-    assert passes_execution_quality(metrics, linear=1, pending_loss_total=0.0) is True
-    assert metrics.get("regime_skip_cycle") is False
+def test_passes_execution_quality_rejects_low_margin_regular():
+    metrics = {"calibrated_prob": 0.52, "dl_direction": "CALL"}
+    assert (
+        passes_execution_quality(
+            metrics,
+            exec_cfg={"quality_gate": {"regular": {"min_direction_margin": 0.03}}},
+            linear=0,
+            pending_loss_total=0.0,
+        )
+        is False
+    )
+    assert metrics.get("quality_gate_reason") == "direction_margin_gate"
 
 
 def test_passes_execution_quality_ignores_low_edge_in_recovery():
@@ -164,9 +172,9 @@ def test_passes_execution_quality_ignores_edge_without_meta_classifier():
 
 
 def test_passes_execution_quality_margin_reject_without_meta_has_no_payoff_clause():
-    metrics = {"calibrated_prob": 0.55}
-    assert passes_execution_quality(metrics, linear=2, pending_loss_total=0.0) is True
-    assert "quality_gate_reason" not in metrics
+    metrics = {"calibrated_prob": 0.51}
+    assert passes_execution_quality(metrics, linear=2, pending_loss_total=0.0) is False
+    assert metrics.get("quality_gate_reason") == "direction_margin_gate"
 
 
 def test_passes_execution_quality_accepts_high_conviction_in_recovery():
@@ -176,7 +184,7 @@ def test_passes_execution_quality_accepts_high_conviction_in_recovery():
 
 def test_passes_execution_quality_rejects_neutral_clamp_explicitly():
     metrics = {
-        "calibrated_prob": 0.50,
+        "calibrated_prob": 0.70,
         "predicted_payoff_edge": 0.90,
         "meta_classifier_applied": True,
         "calibration_mode": "neutral_clamp",
@@ -201,7 +209,8 @@ def test_apply_quality_penalty_returns_unit_penalty_on_reject():
     metrics = {"calibrated_prob": 0.52, "predicted_payoff_edge": 0.06, "meta_classifier_applied": True}
     risk_manager = SimpleNamespace(consecutive_losses_linear=1, pending_loss={}, pending_loss_total=lambda: 0.0)
     penalty = apply_quality_penalty_to_metrics(metrics, risk_manager=risk_manager)
-    assert penalty == 0.0
+    assert penalty == 1.0
+    assert metrics.get("quality_gate_reason") == "direction_margin_gate"
 
 
 def test_apply_quality_penalty_returns_zero_on_pass():
@@ -238,7 +247,7 @@ def test_quality_conviction_suspends_cluster_skips_malformed_entries(orch_ready,
         "RDBEAR": {"metrics": "invalid"},
         "RDBULL2": {
             "metrics": {
-                "calibrated_prob": 0.51,
+                "calibrated_prob": 0.70,
                 "predicted_payoff_edge": 0.01,
                 "meta_classifier_applied": True,
                 "meta_payoff_edge_zscore": 0.10,

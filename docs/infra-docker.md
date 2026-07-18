@@ -18,11 +18,19 @@ Subir tudo:
 make docker-up
 ```
 
-O target aplica `host-prereq.sh`, `triton-prereq.sh`, `docker compose up -d`, aguarda healthchecks e lifecycle Timescale.
+Pipeline: `host-prereq` → `triton-prereq` → `compose up` (profiles `DOCKER_PROFILES`, padrão `core,gpu,ml`) → wait healthy → `timescale-lifecycle` → `docker-hydrate` → `docker-smoke`.
+
+| Profile | Serviços | Comando |
+|---------|----------|---------|
+| `core` | redis, timescaledb, minio | `make docker-up-core` |
+| `gpu` | aether-triton (+ minio) | incluso em `docker-up` |
+| `ml` | aether-meta-classifier | incluso em `docker-up` |
+
+Rebuild do meta: `make docker-rebuild`. Smoke isolado: `make docker-smoke`.
 
 ## GPU e Triton
 
-O serviço `aether-triton` usa `nvcr.io/nvidia/tritonserver` com repositório em `infra/docker/triton-models` (bind mount). Requer **NVIDIA Container Toolkit** no WSL2.
+O serviço `aether-triton` usa `nvcr.io/nvidia/tritonserver:24.10-py3` com repositório em `infra/docker/triton-models` (bind mount). Requer **NVIDIA Container Toolkit** no WSL2. Compose declara `gpus: all` e reserva NVIDIA em `deploy.resources`.
 
 ### Fluxo de inferência
 
@@ -54,9 +62,11 @@ Variáveis no `.env`:
 
 | Variável | Uso |
 |----------|-----|
-| `AETHER_META_CLASSIFIER_URL` / HTTP | Endpoint (padrão `http://localhost:8005`) |
+| `AETHER_META_CLASSIFIER_HTTP` | Endpoint (padrão `http://localhost:8005`) |
 | `AETHER_TRITON_GRPC` | gRPC (padrão `localhost:8001`) |
 | `AETHER_TRITON_HTTP` | HTTP (padrão `localhost:8000`) |
+| `AETHER_DOCKER_HEALTH_TIMEOUT` | Timeout do wait healthy em segundos (padrão `300`) |
+| `DOCKER_PROFILES` / `COMPOSE_PROFILES` | Profiles Compose (padrão Make: `core,gpu,ml`) |
 
 Config em `settings.json`:
 

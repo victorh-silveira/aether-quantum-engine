@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 import asyncpg
@@ -229,16 +230,34 @@ async def load_bundles_from_deriv(
     return bundles
 
 
-def _granularity_candidates(settings: dict[str, Any], preferred: int) -> list[int]:
+def _granularity_candidates(
+    settings: dict[str, Any],
+    preferred: int,
+    *,
+    require_exact: bool = False,
+) -> list[int]:
+    if require_exact:
+        return [int(preferred)]
     data_cfg = settings.get("data_handler", {}) if isinstance(settings.get("data_handler"), dict) else {}
-    micro = int(data_cfg.get("micro_granularity", 300)) if isinstance(data_cfg, dict) else 300
-    macro = int(data_cfg.get("granularity", 900)) if isinstance(data_cfg, dict) else 900
-    ordered = [int(preferred), micro, macro, 300, 900]
+    micro = int(data_cfg.get("micro_granularity", 120)) if isinstance(data_cfg, dict) else 120
+    macro = int(data_cfg.get("granularity", 600)) if isinstance(data_cfg, dict) else 600
+    ordered = [int(preferred), micro, macro, 120, 600]
     unique: list[int] = []
     for value in ordered:
         if value not in unique:
             unique.append(value)
     return unique
+
+
+def assert_bundles_match_granularity(bundles: list[OhlcBundle], expected: int) -> None:
+    expected_gran = int(expected)
+    mismatches = [f"{b.symbol}@{b.granularity}" for b in bundles if int(b.granularity) != expected_gran]
+    if not mismatches:
+        return
+    raise RuntimeError(
+        f"Granularidade efetiva diverge do alvo {expected_gran}s: {', '.join(mismatches)}. "
+        "Retreine com --granularity alinhado ao micro runtime ou popule Timescale na gran correta."
+    )
 
 
 async def _timescale_error(dsn: str, symbols: list[str], granularities: list[int]) -> str:
@@ -260,6 +279,37 @@ async def _timescale_error(dsn: str, symbols: list[str], granularities: list[int
     return f"TimescaleDB sem barras suficientes (min {MIN_OHLC_ROWS}). Inventario: {', '.join(lines)}"
 
 
+async def persist_bundles_to_timescale(dsn: str, bundles: list[OhlcBundle]) -> int:
+    if not bundles:
+        return 0
+    conn = await asyncpg.connect(dsn)
+    written = 0
+    try:
+        for bundle in bundles:
+            for idx in range(len(bundle.closes)):
+                epoch = int(bundle.epochs[idx])
+                ts = datetime.fromtimestamp(epoch, tz=UTC)
+                await conn.execute(
+                    """
+                    INSERT INTO ohlc_bars (time, symbol, epoch, granularity, open, high, low, close)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                    ON CONFLICT DO NOTHING
+                    """,
+                    ts,
+                    str(bundle.symbol),
+                    epoch,
+                    int(bundle.granularity),
+                    float(bundle.open_[idx]),
+                    float(bundle.high[idx]),
+                    float(bundle.low[idx]),
+                    float(bundle.closes[idx]),
+                )
+                written += 1
+    finally:
+        await conn.close()
+    return written
+
+
 async def resolve_training_bundles(
     *,
     settings: dict[str, Any],
@@ -268,21 +318,42 @@ async def resolve_training_bundles(
     granularity: int,
     bars: int,
     source: str,
+    require_exact_granularity: bool = True,
+    seed_timescale_on_deriv: bool = True,
 ) -> list[OhlcBundle]:
-    granularities = _granularity_candidates(settings, granularity)
+    granularities = _granularity_candidates(
+        settings,
+        granularity,
+        require_exact=bool(require_exact_granularity),
+    )
     mode = str(source or "auto").lower()
     bar_target = resolve_meta_train_bars(bars)
     bundles: list[OhlcBundle] = []
     if mode in {"auto", "timescale"}:
         bundles = await load_bundles_from_timescale(dsn, symbols, granularities, bar_target)
+        if bundles and require_exact_granularity:
+            try:
+                assert_bundles_match_granularity(bundles, granularity)
+            except RuntimeError:
+                bundles = []
     if bundles:
         return bundles
     if mode == "timescale":
         detail = await _timescale_error(dsn, symbols, granularities)
         raise RuntimeError(detail)
-    logger.warning("META_TRAIN: TimescaleDB sem dados; buscando historico na API Deriv.")
+    logger.warning(
+        "META_TRAIN: TimescaleDB sem dados em %ds; buscando historico na API Deriv.",
+        int(granularity),
+    )
     bundles = await load_bundles_from_deriv(settings, symbols, granularity, bar_target)
     if bundles:
+        assert_bundles_match_granularity(bundles, granularity)
+        if seed_timescale_on_deriv:
+            try:
+                written = await persist_bundles_to_timescale(dsn, bundles)
+                logger.info("META_TRAIN: Timescale seed | %d barras gravadas @%ds", written, int(granularity))
+            except Exception as exc:
+                logger.warning("META_TRAIN: falha ao popular Timescale apos Deriv: %s", exc)
         return bundles
     detail = await _timescale_error(dsn, symbols, granularities)
     raise RuntimeError(

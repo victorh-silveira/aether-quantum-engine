@@ -74,7 +74,7 @@ def test_extract_meta_feature_vector_reclips_cached_payload() -> None:
     ("raw_prob", "calibrated_prob"),
     (
         (0.41, 0.56),
-        (0.62, 0.47),
+        (0.62, 0.44),
     ),
 )
 def test_resolve_execution_direction_calibration_neutral_drift_veto(

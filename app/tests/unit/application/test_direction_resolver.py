@@ -1,4 +1,3 @@
-from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -39,15 +38,6 @@ def _entry(*, direction=None, raw_prob=0.55, calibrated_prob=None, execute=True,
     if calibrated_prob is not None:
         metrics["calibrated_prob"] = calibrated_prob
     return {"direction": direction, "metrics": metrics}
-
-
-def _c0015_entry():
-    entry = _entry(direction=TradeDirection.CALL, calibrated_prob=0.70)
-    entry["metrics"]["predicted_payoff_edge"] = -0.22
-    entry["metrics"]["meta_classifier_applied"] = True
-    entry["metrics"]["indicators"] = {"bb_width": 0.03}
-    entry["metrics"]["flow_features"] = {"micro_tick_acceleration": -0.02}
-    return entry
 
 
 def test_technically_blocked_predict_error():
@@ -133,7 +123,8 @@ def test_resolve_gray_zone_raw_prob_blocks_call_on_bull_with_meta():
     entry["metrics"]["meta_classifier_applied"] = True
     entry["metrics"]["predicted_payoff_edge"] = 0.05
     result = resolve_execution_direction(entry, symbol="RDBULL")
-    assert result is not None
+    assert result is None
+    assert entry["metrics"].get("quality_gate_reason") == "direction_margin_gate"
 
 
 def test_resolve_gray_zone_raw_prob_allows_call_on_bull_without_meta():
@@ -150,8 +141,9 @@ def test_resolve_rejects_weak_margin_without_meta():
     entry["metrics"].pop("predicted_payoff_edge", None)
     entry["metrics"].pop("meta_classifier_applied", None)
     result = resolve_execution_direction(entry, symbol="RDBULL")
-    assert result is not None
-    assert entry["metrics"].get("quality_guard_reject") is not True
+    assert result is None
+    assert entry["metrics"].get("quality_guard_reject") is True
+    assert entry["metrics"].get("quality_gate_reason") == "direction_margin_gate"
 
 
 def test_resolve_returns_none_without_prob():
@@ -226,8 +218,9 @@ def test_resolve_allows_weak_tcn_margin_when_meta_zscore_strong():
         exec_cfg={"quality_gate": {"min_direction_margin": 0.04, "min_meta_payoff_zscore": 0.5}},
         symbol="RDBULL",
     )
-    assert result is not None
-    assert entry["metrics"].get("quality_guard_reject") is not True
+    assert result is None
+    assert entry["metrics"].get("quality_gate_reason") == "direction_margin_gate"
+    assert entry["metrics"].get("quality_guard_reject") is True
 
 
 def test_resolve_mild_negative_edge_blocked_by_meta_payoff_veto():
@@ -257,37 +250,3 @@ def test_resolve_meta_disabled_keeps_tcn_score_when_edge_strong():
     )
     assert result is not None
     assert result[1]["trade_score"] == pytest.approx(0.70)
-
-
-def test_resolve_rejects_weak_edge_without_meta_prefetch():
-    entry = _entry(direction=TradeDirection.CALL, calibrated_prob=0.70)
-    entry["metrics"]["predicted_payoff_edge"] = 0.01
-    risk_manager = SimpleNamespace(
-        consecutive_losses_linear=2,
-        pending_loss={},
-        pending_loss_total=lambda: 0.0,
-    )
-    result = resolve_execution_direction(
-        entry,
-        infra_cfg={"meta_classifier": {"enabled": True}},
-        symbol="RDBULL",
-        risk_manager=risk_manager,
-    )
-    assert result is not None
-    assert result[0] == TradeDirection.CALL
-
-
-def test_resolve_c0015_negative_edge_blocked_by_meta_payoff_veto(caplog):
-    entry = _c0015_entry()
-    entry["metrics"]["edge_expectancy"] = "LOSS_EXPECTED"
-    with (
-        patch(
-            "src.application.services.execution_direction_resolver.attach_payoff_edge_zscore_metrics",
-            side_effect=lambda metrics, edge, **kwargs: _stamp_negative_zscore(metrics),
-        ),
-        caplog.at_level("INFO"),
-    ):
-        result = resolve_execution_direction(entry, symbol="RDBULL")
-    assert result is not None
-    assert entry["metrics"].get("gate_reason") != META_PAYOFF_NEGATIVE_ZSCORE_VETO
-    assert not any("[D-SQUEEZE]" in record.message for record in caplog.records)

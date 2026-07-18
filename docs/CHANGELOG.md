@@ -5,7 +5,9 @@
 ### Documentação
 * **docs:** alinha README e docs ao relógio operacional **120 s** / macro **600 s** (proporção **1:5**), lookback **72**, settlement **90 s**, Triton **0,50 s**
 * **docs:** documenta vetoes HARD de microestrutura, `soft_recovery_policy`, meta opcional para execução e stubs sniper Hurst/BB
-* **docs:** atualiza inventário (~224 módulos / ~284 testes) e snapshot operacional em `docs/README.md`
+* **docs:** motor CALL/PUT híbrido — confiança **0.54/0.46**, `neutral_half_width: 0.04`, margem hard **0.03**, persistence **skip** (sem flip), `meta_veto_mode` none/soft/hard, label `spot_forward`
+* **docs:** Docker híbrido — profiles `core/gpu/ml`, pipeline hydrate/smoke, `gpus: all`, imagens pinadas, `AETHER_META_CLASSIFIER_HTTP`
+* **docs:** inventário (~226 módulos / ~287 testes) e snapshot operacional atualizado
 
 ## [1.37.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.36.0...v1.37.0) (2026-07-16)
 

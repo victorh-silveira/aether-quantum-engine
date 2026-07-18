@@ -49,9 +49,9 @@ Desvios extremos em microestrutura de **120 s** (RSI, Keltner, Bollinger, shadow
 
 - **Regressão de payoff**: TCN fornece direção macro (`dl_direction`); meta-regressor estima `predicted_payoff_edge` com features cross-symbol (`prob_delta`, `vol_ratio_diff`, `rsi_spread`) e fluxo micro 120 s (`micro_tick_acceleration`, `keltner_deviation_ratio`).
 - **Downgrade D-SQUEEZE** (`meta_payoff_regression`): quando `predicted_payoff_edge < -0.15` em squeeze micro (`bb_width < 0.06` ou `micro_tick_acceleration < 0`), rebaixa `trade_score=0.52` e emite log `[D-SQUEEZE]` — sem inverter direção. Nos settings atuais, snipers Hurst/BB-squeeze extremo são stubs (`False`); o veto HARD operacional é microestrutura (ADX / `vol_ratio` / `val_accuracy`).
-- **Treino offline**: alvo contínuo `Y = PnL_Real / Stake`; Optuna **maximiza Information Ratio** com constraint OOS payoff Z-Score ≥ +1,00; rotulagem TCN padrão **`ma_trend`** (`triple_barrier` disponível via config).
+- **Treino offline**: alvo contínuo `Y = PnL_Real / Stake`; Optuna **maximiza Information Ratio** com constraint OOS payoff Z-Score ≥ +1,00; rotulagem TCN padrão **`spot_forward`** (`ma_trend` / `triple_barrier` disponíveis via config).
 - **Telemetria consultiva**: `execution_direction_cross_corr` e `execution_volatility_booster` permanecem como insumo analítico, sem veto autônomo.
-- **AntiTrendLock**: após 2 perdas consecutivas na mesma direção, `evaluate_anti_trend_lock` (domínio) decide flip cross-symbol ou `FREEZE: SKIP CYCLE` (`direction_persistence_guard`).
+- **Persistence guard**: após 2 perdas consecutivas na mesma direção, o resolver **skips** o candidato (`persistence_guard_skip`); flip CALL/PUT **não** é aplicado em produção; congestão micro pode `FREEZE`.
 
 ### 2.3 Gestão de Risco com Kelly Fracionário e Soft D'Alembert
 
@@ -79,7 +79,7 @@ Desvios extremos em microestrutura de **120 s** (RSI, Keltner, Bollinger, shadow
 | Stacking tabular | Meta-regressor LightGBM micro **120 s** sobre vetor **43D** + probabilidade TCN; saída `predicted_payoff_edge`; meta opcional |
 | Veto HARD microestrutura | `adx_starvation`, `vol_ratio_starvation`, `val_accuracy_gate` (`min_adx` 0.20, `vol_ratio_min` 0.65, val ≥ 0.63) |
 | Downgrade squeeze | Edge `< -0.15` em compressão micro: `trade_score=0.52`; `[D-SQUEEZE]` (telemetria; sniper BB extremo stub) |
-| Margem direcional | `abs(P(lado_escolhido) − 0.50)` — CALL usa `calibrated_prob`; PUT usa `1 − prob`; margins do gate **0.0** |
+| Margem direcional | `abs(P(lado_escolhido) − 0.50)` — CALL usa `calibrated_prob`; PUT usa `1 − prob`; hard gate **`min_direction_margin: 0.03`** |
 | Gate de qualidade | Dual soft TCN + meta Z-Score + HARD microestrutura; starvation ≥ 6 skips |
 | Ranking | TCN × fator Z-Score meta; redirect inter-símbolo em modo mandatory |
 | Scoring direcional | TCN + meta GBDT; `exec_direction` alinhada à TCN |
@@ -128,7 +128,7 @@ Se \(\text{Veto} = \text{True}\), o motor:
 
 ## 3. Referências
 
-- [structure.md](structure.md) — inventário DDD completo (~224 módulos em `app/src/`)
+- [structure.md](structure.md) — inventário DDD completo (~226 módulos em `app/src/`)
 - [arquitetura.md](arquitetura.md) — pipeline técnico
 - [medallion.md](medallion.md) — princípios quant
 - [infra-docker.md](infra-docker.md) — Triton, meta-regressor 8005, Redis, sanity estressado

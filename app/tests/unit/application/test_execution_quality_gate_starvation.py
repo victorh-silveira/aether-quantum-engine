@@ -90,7 +90,7 @@ def test_resolve_dynamic_quality_limits_applies_starvation_decay_at_counter_6():
         pending_loss_total=0.0,
         skipped_cycles_counter=9,
     )
-    assert limits["min_direction_margin"] == pytest.approx(0.036)
+    assert limits["min_direction_margin"] == pytest.approx(0.02)
     assert limits["starvation_decay_factor"] == pytest.approx(0.60)
     assert limits["skipped_cycles_counter"] == pytest.approx(9.0)
 
@@ -122,7 +122,7 @@ def test_passes_execution_quality_starvation_allows_margin_008_after_decay():
 
     assert evaluate_meta_payoff_quality(metrics, risk_manager=risk_manager, orch=orch) is True
     assert metrics["quality_starvation_decay_factor"] == pytest.approx(0.80)
-    assert metrics["quality_min_direction_margin"] == pytest.approx(0.088)
+    assert metrics["quality_min_direction_margin"] == pytest.approx(0.024)
 
 
 def test_starvation_decay_inactive_before_threshold():
@@ -145,7 +145,7 @@ def test_passes_execution_quality_keeps_flow_without_starvation():
         pending_loss_total=lambda: 13.333333333333334,
     )
     assert evaluate_meta_payoff_quality(metrics, risk_manager=risk_manager, skipped_cycles_counter=0) is True
-    assert metrics["quality_min_direction_margin"] == pytest.approx(0.11)
+    assert metrics["quality_min_direction_margin"] == pytest.approx(0.03)
 
 
 def test_quality_conviction_suspends_cluster_does_not_increment_skipped_counter(orch_ready):

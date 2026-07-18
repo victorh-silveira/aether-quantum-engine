@@ -2,7 +2,13 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${ROOT}/../.." && pwd)"
 REPO="${ROOT}/triton-models"
+
+if [ ! -f "${REPO_ROOT}/infra/docker/docker-compose.yml" ]; then
+  echo "triton-prereq: execute a partir da raiz do repositorio" >&2
+  exit 1
+fi
 
 model_pt_valid() {
   local file="$1"

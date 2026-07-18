@@ -76,6 +76,30 @@ def _recovery_score_adjustment(
     return composite
 
 
+def _apply_brier_ece_penalties(composite: float, metrics: dict, *, live_n: int) -> float:
+    """Aplica penalidades de Brier/ECE no score composto de ranking."""
+    brier = metrics.get("val_brier")
+    settlement_brier = metrics.get("deploy_settlement_brier")
+    live_brier = metrics.get("live_brier")
+    if live_n >= 20 and live_brier is not None:
+        effective_brier = float(live_brier)
+    else:
+        effective_brier = (
+            float(settlement_brier) if settlement_brier is not None else (float(brier) if brier is not None else None)
+        )
+    if effective_brier is not None and effective_brier > 0.24:
+        composite -= 0.06
+    elif effective_brier is not None and effective_brier > 0.22:
+        composite -= 0.03
+    live_ece = metrics.get("live_ece")
+    ece = live_ece if live_n >= 20 and live_ece is not None else metrics.get("val_ece")
+    if ece is not None and float(ece) > 0.10:
+        composite -= 0.04
+    elif ece is not None and float(ece) > 0.08:
+        composite -= 0.03
+    return composite
+
+
 def market_decision_score(
     metrics: dict,
     *,
@@ -85,14 +109,18 @@ def market_decision_score(
     last_loss_symbol: str | None = None,
     last_loss_direction: str | None = None,
 ) -> float:
-    """Pontua candidato com probabilidade bruta, val_acc e edge."""
+    """Pontua candidato com probabilidade bruta, WR/Brier live e edge."""
     override = metrics.get("market_decision_score_override")
     if override is not None:
         return float(override)
     raw_side = _raw_side(metrics)
     val = float(metrics.get("val_accuracy", 0.0))
     edge = float(metrics.get("edge", abs(raw_side - 0.5)))
-    composite = raw_side * 0.45 + val * 0.35 + edge * 0.20
+    live_n = int(metrics.get("live_n", 0) or 0)
+    settlement_wr = metric_float(metrics, "deploy_settlement_win_rate", "deploy_win_rate", default=0.0)
+    live_wr = metrics.get("live_wr")
+    effective_wr = float(live_wr) if live_n >= 20 and live_wr is not None else float(settlement_wr)
+    composite = raw_side * 0.40 + effective_wr * 0.30 + val * 0.08 + edge * 0.22
     resolved = metric_float(metrics, "resolved_conviction", default=0.0)
     if resolved > 0.0:
         composite = composite * 0.6 + resolved * 0.4
@@ -100,13 +128,13 @@ def market_decision_score(
         composite += 0.05
     if metrics.get("deploy_ok"):
         composite += 0.03
-    brier = metrics.get("val_brier")
-    if brier is not None and float(brier) > 0.28:
-        composite -= 0.04
+    composite = _apply_brier_ece_penalties(composite, metrics, live_n=live_n)
+    composite -= float(metrics.get("calib_drift_soft_penalty", 0.0))
     if metrics.get("direction_inverted"):
         composite -= 0.10
     composite -= float(metrics.get("exhaustion_penalty", 0.0))
     composite -= float(metrics.get("loss_protection_penalty", 0.0))
+    composite -= float(metrics.get("meta_soft_veto_penalty", 0.0))
     composite -= edge_conviction_disconnect_penalty(metrics, exec_direction=exec_direction)
     margin = float(metrics.get("direction_margin", 0.0))
     if margin + 1e-9 < 0.05:

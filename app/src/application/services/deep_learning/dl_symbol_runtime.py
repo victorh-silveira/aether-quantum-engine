@@ -12,6 +12,7 @@ from aether_paths import repo_path
 from src.application.services.deep_learning.dl_calibration import CalibratorState
 from src.application.services.deep_learning.dl_device import log_device_once, place_model, resolve_torch_device
 from src.application.services.deep_learning.dl_features import FEATURE_DIM
+from src.application.services.deep_learning.dl_params import resolve_dl_granularity
 from src.application.services.deep_learning.model import (
     create_direction_model,
     fit_norm_stats,
@@ -45,8 +46,10 @@ def resolve_dl_model_path(dl_config: dict, symbol: str) -> Path:
 
 
 def granularity_seconds(orch) -> int:
-    """Retorna granularidade OHLC em segundos."""
-    return int(orch.config.get("data_handler", {}).get("granularity", 900))
+    """Retorna granularidade OHLC usada pelo treino/inferencia DL."""
+    data = orch.config.get("data_handler", {}) if getattr(orch, "config", None) else {}
+    dl = orch.config.get("deep_learning", {}) if getattr(orch, "config", None) else {}
+    return resolve_dl_granularity(dl if isinstance(dl, dict) else {}, data if isinstance(data, dict) else {})
 
 
 def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict:

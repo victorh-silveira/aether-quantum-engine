@@ -252,37 +252,39 @@ def test_apply_neutral_edge_kelly_base_skips_on_d_squeeze():
 
 
 def test_turbo_edge_multiplier_doubles_on_extreme_zscore():
-    metrics = {"edge_zscore": 1.6}
+    metrics = {"edge_zscore": 1.6, "live_n": 32, "live_brier": 0.15}
     assert turbo_edge_stake_multiplier(metrics) == pytest.approx(2.0)
 
 
 def test_turbo_edge_multiplier_inactive_below_threshold():
-    metrics = {"edge_zscore": 1.2}
+    metrics = {"edge_zscore": 1.2, "live_n": 32, "live_brier": 0.15}
     assert turbo_edge_stake_multiplier(metrics) == 1.0
 
 
 def test_turbo_edge_multiplier_active_without_expectancy_label():
-    metrics = {"edge_zscore": 2.0}
+    metrics = {"edge_zscore": 2.0, "live_n": 40, "live_brier": 0.10}
     assert turbo_edge_stake_multiplier(metrics) == pytest.approx(2.0)
 
 
 def test_turbo_edge_multiplier_skips_d_squeeze():
     metrics = {
         "edge_zscore": 2.0,
+        "live_n": 40,
+        "live_brier": 0.10,
         "consensus_stake_floor": True,
     }
     assert turbo_edge_stake_multiplier(metrics) == 1.0
 
 
 def test_apply_turbo_edge_stake_doubles_final_stake():
-    metrics = {"edge_zscore": 1.8}
+    metrics = {"edge_zscore": 1.8, "live_n": 32, "live_brier": 0.15}
     stake = apply_turbo_edge_stake(20.0, metrics)
     assert stake == pytest.approx(40.0)
     assert metrics.get("consensus_turbo_edge_active") is True
 
 
 def test_apply_turbo_edge_stake_returns_unchanged_without_turbo():
-    metrics = {"edge_zscore": 0.9}
+    metrics = {"edge_zscore": 0.9, "live_n": 32, "live_brier": 0.15}
     stake = apply_turbo_edge_stake(20.0, metrics)
     assert stake == pytest.approx(20.0)
     assert metrics.get("consensus_turbo_edge_active") is not True
@@ -290,3 +292,9 @@ def test_apply_turbo_edge_stake_returns_unchanged_without_turbo():
 
 def test_turbo_edge_multiplier_returns_one_for_non_dict():
     assert turbo_edge_stake_multiplier(None) == 1.0
+
+
+def test_turbo_edge_multiplier_requires_live_health():
+    assert turbo_edge_stake_multiplier({"edge_zscore": 2.0, "live_n": 10}) == 1.0
+    assert turbo_edge_stake_multiplier({"edge_zscore": 2.0, "live_n": 32, "live_brier": 0.30}) == 1.0
+    assert turbo_edge_stake_multiplier({"edge_zscore": 2.0, "live_n": 32, "live_brier": object()}) == 1.0

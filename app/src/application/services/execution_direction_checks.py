@@ -9,7 +9,7 @@ from src.application.services.execution_quality_gate import (
     passes_execution_quality,
 )
 from src.application.services.execution_quality_gate_meta import evaluate_meta_payoff_quality
-from src.application.services.execution_quality_gate_microstructure import is_microstructure_starvation_reason
+from src.application.services.execution_quality_gate_microstructure import is_hard_quality_reject_reason
 from src.application.services.execution_sniper_gates import (
     apply_bb_squeeze_requirement,
     apply_hurst_noise_veto,
@@ -124,7 +124,7 @@ def reject_on_quality_gate(
     skipped_cycles_counter: int | None = None,
     orch: Any | None = None,
 ) -> bool:
-    """Rejeita apenas por inanicao de microestrutura; margem/meta permanecem abertos."""
+    """Rejeita por microestrutura ou margem de direcao insuficiente."""
     kw = {
         "exec_cfg": exec_cfg_dict,
         "risk_manager": risk_manager,
@@ -135,11 +135,16 @@ def reject_on_quality_gate(
     if has_meta_zscore_telemetry(gate_probe):
         evaluate_meta_payoff_quality(gate_probe, **kw)
     passed = passes_execution_quality(gate_probe, **kw)
-    for k in ("execution_gate_state", "quality_gate_regime", "direction_margin"):
+    for k in (
+        "execution_gate_state",
+        "quality_gate_regime",
+        "direction_margin",
+        "quality_min_direction_margin",
+    ):
         if k in gate_probe:
             metrics[k] = gate_probe[k]
     reason = gate_probe.get("quality_gate_reason")
-    if not passed and is_microstructure_starvation_reason(reason):
+    if not passed and is_hard_quality_reject_reason(reason):
         metrics["quality_guard_reject"] = True
         metrics["regime_skip_cycle"] = True
         metrics["quality_gate_reason"] = reason
@@ -184,10 +189,10 @@ def initial_direction_checks(
     """Aplica clamps, sniper gates e discordance antes da resolucao final."""
     metrics = dict(entry.get("metrics") or {})
     if _is_neutral_clamp(metrics):
-        metrics.pop("gate_reason", None)
-        metrics.pop("quality_guard_reject", None)
-        if str(metrics.get("calibration_mode") or "") == _NEUTRAL_CLAMP:
-            metrics["calibration_mode"] = "calibrated"
+        metrics["gate_reason"] = _NEUTRAL_CLAMP
+        metrics["quality_guard_reject"] = True
+        sync_entry_metrics(entry, metrics)
+        return None
     dl_dir = infer_dl_direction(entry)
     if is_technically_blocked(entry) or dl_dir is None or veto_calibration_neutral_drift(metrics):
         if metrics.get("quality_guard_reject") or metrics.get("gate_reason"):

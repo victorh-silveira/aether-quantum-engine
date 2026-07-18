@@ -51,8 +51,8 @@ def test_veto_calibration_neutral_drift_annuls_direction_and_trade_score():
 @pytest.mark.parametrize(
     ("raw_prob", "calibrated_prob"),
     (
-        (0.38, 0.52),
-        (0.62, 0.48),
+        (0.38, 0.55),
+        (0.62, 0.45),
     ),
 )
 def test_resolve_execution_direction_vetoes_absolute_on_neutral_drift(raw_prob, calibrated_prob):

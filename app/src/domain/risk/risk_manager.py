@@ -3,6 +3,7 @@
 import logging
 from typing import Any
 
+from src.domain.risk.bayesian_win_rate import bayesian_win_rate
 from src.domain.risk.recovery_conviction import recovery_dl_conviction_ok, recovery_dl_entry_allowed
 from src.domain.risk.recovery_hurst_gate import resolve_recovery_signal_floor
 from src.domain.risk.risk_cluster import finalize_risk_cluster
@@ -125,20 +126,25 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin, ProposalSkipMixin)
             return None, 0
         return float(sum(lst)) / float(n), n
 
-    def effective_win_rate(self, symbol: str, conviction: float = 0.5) -> float:
-        """Define a probabilidade (p) baseada na convicção da IA ou histórico."""
+    def effective_win_rate(
+        self,
+        symbol: str,
+        conviction: float = 0.5,
+        metrics: dict[str, Any] | None = None,
+    ) -> float:
+        """Define p Kelly via bayesian_win_rate (live_wr/Brier/Z ou rolling interno)."""
         base_p = float(conviction)
-
         if not self.kelly_config.get("dynamic_win_rate", False):
             return base_p
-
         min_s = int(self.kelly_config.get("dynamic_min_samples", 20))
         wr, n = self.get_wr_rolling_stats(symbol)
-
-        if wr is not None and n >= min_s:
-            return (base_p * 0.7) + (wr * 0.3)
-
-        return base_p
+        return bayesian_win_rate(
+            base_p,
+            rolling_wr=wr,
+            rolling_n=n,
+            metrics=metrics,
+            dynamic_min_samples=min_s,
+        )
 
     def stake_block_reason(
         self,
