@@ -89,11 +89,9 @@ def test_market_decision_score_recovery_indicator_adjustments():
     assert high_adx > low_adx
 
 
-def test_market_decision_score_penalizes_inverted_and_low_margin():
+def test_market_decision_score_penalizes_low_margin():
     aligned = market_decision_score(_entry(raw_prob=0.80, direction_margin=0.10)["metrics"])
-    inverted = market_decision_score(_entry(raw_prob=0.80, direction_margin=0.10, direction_inverted=True)["metrics"])
     low_margin = market_decision_score(_entry(raw_prob=0.80, direction_margin=0.03)["metrics"])
-    assert aligned > inverted
     assert aligned > low_margin
 
 
@@ -136,7 +134,6 @@ def test_resolve_keeps_dl_side_on_low_val_accuracy():
     assert result is not None
     direction, metrics = result
     assert direction == TradeDirection.CALL
-    assert metrics["direction_inverted"] is False
 
 
 def test_market_decision_score_penalizes_mid_brier_and_ece():

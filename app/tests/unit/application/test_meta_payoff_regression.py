@@ -5,11 +5,11 @@ from src.application.services.bb_width_adaptive_squeeze import (
     record_bb_width,
     reset_bb_width_buffer,
 )
-from src.application.services.meta_direction_flip import micro_volatility_squeeze_active
 from src.application.services.meta_payoff_regression import (
     META_SQUEEZE_TRADE_SCORE,
     apply_meta_regression_edge,
 )
+from src.application.services.regime_micro_freeze import micro_volatility_squeeze_active
 from src.domain.models.trade import TradeDirection
 
 
@@ -50,7 +50,7 @@ def test_apply_meta_regression_edge_positive_keeps_organic_score():
     assert metrics["predicted_payoff_edge"] == pytest.approx(0.12)
 
 
-def test_apply_meta_regression_edge_loss_expected_flips_direction():
+def test_apply_meta_regression_edge_loss_expected_keeps_direction():
     metrics = {
         "indicators": {"bb_width": 0.12},
         "flow_features": {"micro_tick_acceleration": 0.03},
@@ -63,9 +63,9 @@ def test_apply_meta_regression_edge_loss_expected_flips_direction():
         base_score=0.68,
         symbol="R_10",
     )
-    assert direction == TradeDirection.CALL
-    assert score == pytest.approx(0.75)
-    assert metrics.get("meta_direction_flip") is True
+    assert direction == TradeDirection.PUT
+    assert score == pytest.approx(0.68)
+    assert metrics.get("meta_negative_edge") is True
     assert metrics.get("meta_squeeze_downgrade") is not True
 
 
@@ -90,7 +90,7 @@ def test_apply_meta_regression_edge_bb_compression_triggers_squeeze_even_positiv
     assert any("[D-SQUEEZE]" in record.message for record in caplog.records)
 
 
-def test_apply_meta_regression_edge_mild_negative_flips_call_to_put():
+def test_apply_meta_regression_edge_mild_negative_keeps_call():
     metrics = {"indicators": {"bb_width": 0.12}, "flow_features": {"micro_tick_acceleration": 0.03}}
     direction, score = apply_meta_regression_edge(
         TradeDirection.CALL,
@@ -99,9 +99,9 @@ def test_apply_meta_regression_edge_mild_negative_flips_call_to_put():
         meta_applied=True,
         base_score=0.71,
     )
-    assert direction == TradeDirection.PUT
-    assert score == pytest.approx(0.75)
-    assert metrics.get("meta_direction_flip") is True
+    assert direction == TradeDirection.CALL
+    assert score == pytest.approx(0.71)
+    assert metrics.get("meta_negative_edge") is True
     assert metrics.get("meta_squeeze_downgrade") is not True
 
 
@@ -118,7 +118,7 @@ def test_apply_meta_regression_edge_not_applied_uses_base_score():
     assert metrics.get("meta_squeeze_downgrade") is not True
 
 
-def test_apply_meta_regression_edge_vetoes_calibration_neutral_drift():
+def test_apply_meta_regression_edge_ignores_calibration_neutral_drift():
     metrics = {"raw_prob": 0.43, "calibrated_prob": 0.54}
     direction, score = apply_meta_regression_edge(
         TradeDirection.PUT,
@@ -136,8 +136,8 @@ def test_meta_squeeze_trade_score_constant():
     assert pytest.approx(0.52) == META_SQUEEZE_TRADE_SCORE
 
 
-def test_apply_meta_regression_edge_skips_flip_when_polarity_already_inverted():
-    metrics = {"execution_direction_invert": True, "calibrated_prob": 0.62, "raw_prob": 0.62}
+def test_apply_meta_regression_edge_strong_negative_keeps_direction():
+    metrics = {"calibrated_prob": 0.62, "raw_prob": 0.62}
     direction, score = apply_meta_regression_edge(
         TradeDirection.CALL,
         metrics,
@@ -147,5 +147,4 @@ def test_apply_meta_regression_edge_skips_flip_when_polarity_already_inverted():
     )
     assert direction == TradeDirection.CALL
     assert score == pytest.approx(0.62)
-    assert metrics.get("meta_direction_flip") is not True
-    assert metrics.get("gate_reason") != "meta_negative_edge"
+    assert metrics.get("meta_negative_edge") is True

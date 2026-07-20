@@ -34,7 +34,6 @@ def test_rank_eligible_skips_when_direction_unresolvable_after_build_fails():
             decisions,
             recovery_active=False,
             last_loss_symbol=None,
-            last_loss_direction=None,
         )
     assert picked is None
 
@@ -65,7 +64,6 @@ def test_pick_absolute_skips_when_direction_unresolvable_after_build_fails():
             decisions,
             recovery_active=False,
             last_loss_symbol=None,
-            last_loss_direction=None,
         )
     assert picked is None
 
@@ -86,7 +84,6 @@ def test_pick_best_uses_forced_candidate_when_market_build_fails():
             decisions,
             recovery_active=False,
             last_loss_symbol=None,
-            last_loss_direction=None,
         )
     assert picked is not None
     assert picked[0] in {"R_10", "R_50"}
@@ -109,7 +106,6 @@ def test_pick_absolute_mandatory_uses_forced_candidate_when_market_build_fails()
             decisions,
             recovery_active=False,
             last_loss_symbol=None,
-            last_loss_direction=None,
         )
     assert picked is not None
     assert picked[0] in {"R_10", "R_50"}

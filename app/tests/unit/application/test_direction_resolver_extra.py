@@ -79,16 +79,15 @@ def test_resolve_c0015_negative_edge_blocked_by_meta_payoff_veto(caplog):
     assert not any("[D-SQUEEZE]" in record.message for record in caplog.records)
 
 
-def test_resolve_persistence_guard_suppresses_flip_without_inverting():
+def test_resolve_persistence_guard_freeze_skips_without_inverting():
     entry = _entry(direction=TradeDirection.CALL, calibrated_prob=0.72)
     with patch(
         "src.application.services.execution_direction_resolver.evaluate_direction_persistence_guard",
-        return_value=TradeDirection.PUT,
+        return_value=None,
     ):
         result = resolve_execution_direction(entry, symbol="R_10", cycle_id=11)
     assert result is None
     assert entry["metrics"].get("persistence_guard_skip") is True
-    assert entry["metrics"].get("persistence_guard_flip_suppressed") is True
     assert entry["metrics"].get("gate_reason") == "persistence_guard_skip"
 
 

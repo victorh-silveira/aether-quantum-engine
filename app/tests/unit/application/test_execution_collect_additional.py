@@ -29,7 +29,6 @@ def test_gather_cluster_candidates_skips_unbuildable_direction():
         exec_mgr,
         decisions,
         recovery_active=False,
-        recovery_cfg={},
         cid="C0001",
         min_signal=0.45,
         min_val=0.0,
@@ -63,7 +62,6 @@ def test_gather_cluster_candidates_skips_when_build_returns_none():
             exec_mgr,
             decisions,
             recovery_active=False,
-            recovery_cfg={},
             cid="C0001",
             min_signal=0.45,
             min_val=0.0,
@@ -83,7 +81,6 @@ def test_collect_cluster_orders_keeps_best_after_quality_penalty_only():
         risk_manager=SimpleNamespace(
             pending_loss={},
             last_loss_symbol=None,
-            last_loss_direction=None,
             consecutive_losses=0,
         ),
         _active_cycle_id=12,
@@ -128,7 +125,6 @@ def test_collect_cluster_orders_bolts_neutral_low_conviction_in_mandatory_mode()
         risk_manager=SimpleNamespace(
             pending_loss={},
             last_loss_symbol=None,
-            last_loss_direction=None,
             consecutive_losses=0,
             consecutive_losses_linear=0,
             kelly_config={},
@@ -178,7 +174,6 @@ def test_cluster_entry_recovery_accepts_mandatory_weak_with_pending_loss():
         entry,
         mandatory=True,
         recovery_active=True,
-        recovery_cfg={},
         min_signal=0.50,
         min_val=0.50,
     )
@@ -199,7 +194,6 @@ def test_collect_cluster_orders_bolts_weak_neutral_in_recovery():
         risk_manager=SimpleNamespace(
             pending_loss={PAIR: 100.0},
             last_loss_symbol=PAIR,
-            last_loss_direction="CALL",
             consecutive_losses=0,
             risk_params={"payout_estimate": 0.95},
             kelly_config={"max_consecutive_losses": 0},

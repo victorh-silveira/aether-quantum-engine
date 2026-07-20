@@ -23,10 +23,7 @@ from src.application.services.deep_learning.model import (
     save_model_checkpoint,
 )
 from src.application.services.execution_market_rank import mandatory_pool_eligible, market_decision_score
-from src.application.services.execution_symbols_recovery import (
-    inject_recovery_hedge_candidates,
-    recovery_rank_score,
-)
+from src.application.services.execution_symbols import candidate_execution_score
 from src.domain.models.trade import TradeDirection
 
 
@@ -47,32 +44,21 @@ def test_market_decision_score_high_brier_penalty():
     assert score < base
 
 
-def test_recovery_rank_score_same_symbol_penalty():
-    item = ("R_10", TradeDirection.CALL, {"raw_prob": 0.8, "execute": True})
-    penalized = recovery_rank_score(
-        item,
+def test_candidate_score_same_symbol_penalty_in_recovery():
+    metrics = {"raw_prob": 0.8, "execute": True}
+    penalized = candidate_execution_score(
+        metrics,
+        recovery_active=True,
+        symbol="R_10",
         last_loss_symbol="R_10",
-        last_loss_direction="CALL",
-        base_score=0.7,
     )
-    diversified = recovery_rank_score(
-        item,
+    diversified = candidate_execution_score(
+        metrics,
+        recovery_active=True,
+        symbol="R_10",
         last_loss_symbol="R_50",
-        last_loss_direction="CALL",
-        base_score=0.7,
     )
     assert penalized < diversified
-
-
-def test_inject_recovery_hedge_missing_peer_entry():
-    candidates = [("R_10", TradeDirection.PUT, {"trade_score": 0.8})]
-    out = inject_recovery_hedge_candidates(
-        candidates,
-        {},
-        last_loss_symbol="R_10",
-        last_loss_direction="PUT",
-    )
-    assert out == candidates
 
 
 def test_load_checkpoint_invalid_torchscript(tmp_path):

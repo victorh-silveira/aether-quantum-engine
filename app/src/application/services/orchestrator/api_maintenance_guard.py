@@ -7,7 +7,7 @@ import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from src.application.services.meta_direction_flip import SIGNAL_SUSPENDED
+from src.application.services.regime_micro_freeze import SIGNAL_SUSPENDED
 
 
 _API_MAINTENANCE_FALLBACK_SECONDS = 65.0

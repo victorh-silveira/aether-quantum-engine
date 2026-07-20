@@ -15,7 +15,6 @@ from src.application.services.execution_quality_gate_starvation import (
     reset_quality_skipped_cycles_counter_for_orch,
 )
 from src.application.services.force_trade_mode import force_trade_from_orch
-from src.application.services.meta_direction_flip import SIGNAL_SUSPENDED
 from src.application.services.orchestrator.decision_mode_banner import emit_decision_engine_banner
 from src.application.services.orchestrator.execution_quality_skip_yield import (
     await_quality_skip_yield,
@@ -34,6 +33,7 @@ from src.application.services.orchestrator.trading_cycle_entry_guards import (
     trading_cycle_entry_allowed,
 )
 from src.application.services.orchestrator.warm_up_buffer_guard import trading_cycle_warm_up_suspended
+from src.application.services.regime_micro_freeze import SIGNAL_SUSPENDED
 from src.application.services.strategy.decision_mode import resolve_decision_mode
 from src.infrastructure.market.timescale_correlation_worker import refresh_correlation_cache, start_correlation_worker
 

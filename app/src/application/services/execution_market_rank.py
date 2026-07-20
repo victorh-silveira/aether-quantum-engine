@@ -41,9 +41,7 @@ def _recovery_score_adjustment(
     *,
     recovery_active: bool,
     symbol: str | None,
-    exec_direction: TradeDirection | None,
     last_loss_symbol: str | None,
-    last_loss_direction: str | None,
     metrics: dict | None = None,
 ) -> float:
     """Aplica bonus e penalidades de recovery ao score composto."""
@@ -55,12 +53,6 @@ def _recovery_score_adjustment(
         composite -= 0.20
     elif last_loss_symbol and symbol != last_loss_symbol:
         composite += 0.06
-    if last_loss_direction and exec_direction is not None:
-        ld = str(last_loss_direction).upper()
-        if exec_direction.name == ld:
-            composite -= 0.18
-        else:
-            composite += 0.05
 
     if metrics:
         indicators = metrics.get("indicators") or {}
@@ -112,7 +104,6 @@ def market_decision_score(
     recovery_active: bool = False,
     symbol: str | None = None,
     last_loss_symbol: str | None = None,
-    last_loss_direction: str | None = None,
 ) -> float:
     """Pontua candidato com probabilidade bruta, WR/Brier live e edge."""
     override = metrics.get("market_decision_score_override")
@@ -135,8 +126,6 @@ def market_decision_score(
         composite += 0.03
     composite = _apply_brier_ece_penalties(composite, metrics, live_n=live_n)
     composite -= float(metrics.get("calib_drift_soft_penalty", 0.0))
-    if metrics.get("direction_inverted"):
-        composite -= 0.10
     composite -= float(metrics.get("exhaustion_penalty", 0.0))
     composite -= float(metrics.get("loss_protection_penalty", 0.0))
     composite -= float(metrics.get("meta_soft_veto_penalty", 0.0))
@@ -148,13 +137,7 @@ def market_decision_score(
         composite -= 0.25
     composite *= float(metrics.get("universal_regime_score_factor", 1.0))
     return _recovery_score_adjustment(
-        composite,
-        recovery_active=recovery_active,
-        symbol=symbol,
-        exec_direction=exec_direction,
-        last_loss_symbol=last_loss_symbol,
-        last_loss_direction=last_loss_direction,
-        metrics=metrics,
+        composite, recovery_active=recovery_active, symbol=symbol, last_loss_symbol=last_loss_symbol, metrics=metrics
     )
 
 
@@ -163,18 +146,10 @@ def build_market_execution_candidate(
     entry: dict,
     *,
     recovery_active: bool = False,
-    consecutive_losses: int = 0,
-    mean_reversion_enabled: bool = True,
-    low_accuracy_enabled: bool = True,
     exec_cfg: dict | None = None,
     calibration_cfg: dict | None = None,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Monta candidato com direcao resolvida pelo motor unificado."""
-    _ = (consecutive_losses, mean_reversion_enabled, low_accuracy_enabled)
     return build_execution_candidate(
-        symbol,
-        entry,
-        exec_cfg=exec_cfg,
-        calibration_cfg=calibration_cfg,
-        recovery_active=recovery_active,
+        symbol, entry, exec_cfg=exec_cfg, calibration_cfg=calibration_cfg, recovery_active=recovery_active
     )

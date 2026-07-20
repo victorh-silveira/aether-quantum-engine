@@ -54,7 +54,6 @@ def test_predict_exhaustion_does_not_block_execution():
             runtime,
             params,
             None,
-            recovery_active=False,
         )
     assert entry["metrics"]["execute"] is True
     assert entry["metrics"]["gate_reason"] is None

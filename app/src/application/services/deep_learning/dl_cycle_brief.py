@@ -18,7 +18,7 @@ def _format_bias_token(symbol: str, entry: dict) -> str | None:
         side = dl_dir or exec_dir
         return f"{symbol}:{side} c={conv:.2f}({hint})"
     conv = metric_float(metrics, "trade_score", "conviction", default=0.0)
-    hint = metrics.get("direction_hint") or "flip"
+    hint = metrics.get("direction_hint") or "bias"
     return f"{symbol}:{dl_dir} c={conv:.2f}->{exec_dir}({hint})"
 
 
@@ -41,12 +41,7 @@ def _abstain_detail(decisions: dict[str, dict]) -> str:
 
 
 def _all_blocked_brief(
-    tag: str,
-    *,
-    blocked: int,
-    no_data: int,
-    decisions: dict[str, dict],
-    train_part: str,
+    tag: str, *, blocked: int, no_data: int, decisions: dict[str, dict], train_part: str
 ) -> str | None:
     """Monta linha quando todos os simbolos foram bloqueados no ciclo."""
     if blocked != len(decisions) or not decisions:
@@ -116,11 +111,7 @@ def _join_brief_tokens(tokens: list[str], label: str, *, limit: int = 2) -> str:
     return f"{label} {head}{more}"
 
 
-def build_dl_cycle_brief(
-    decisions: dict[str, dict],
-    *,
-    recovery_active: bool,
-) -> str:
+def build_dl_cycle_brief(decisions: dict[str, dict], *, recovery_active: bool) -> str:
     """Linha curta para o console com execucao ativa e ajustes direcionais."""
     exec_tokens, bias_tokens, blocked, no_data, training = _brief_cycle_counts(decisions)
     tag = "REC " if recovery_active else ""
@@ -132,13 +123,7 @@ def build_dl_cycle_brief(
         return f"DL {tag}| {body}{tail}{train_part}"
     if training == len(decisions):
         return f"DL {tag}| TREINO INICIAL | {training} modelo(s) em treinamento | trades suspensos"
-    blocked_msg = _all_blocked_brief(
-        tag,
-        blocked=blocked,
-        no_data=no_data,
-        decisions=decisions,
-        train_part=train_part,
-    )
+    blocked_msg = _all_blocked_brief(tag, blocked=blocked, no_data=no_data, decisions=decisions, train_part=train_part)
     if blocked_msg is not None:
         return blocked_msg
     if no_data:
@@ -164,11 +149,7 @@ def _brief_key_token(symbol: str, entry: dict) -> tuple[str | None, int, int, in
     return f"sinal:{symbol}:{direction.name}:{gate or 'block'}", 0, 0, 0
 
 
-def build_dl_cycle_brief_key(
-    decisions: dict[str, dict],
-    *,
-    recovery_active: bool,
-) -> str:
+def build_dl_cycle_brief_key(decisions: dict[str, dict], *, recovery_active: bool) -> str:
     """Chave para deduplicacao de logs curtos desconsiderando scores volateis."""
     exec_tokens: list[str] = []
     bias_tokens: list[str] = []
@@ -201,13 +182,7 @@ def build_dl_cycle_brief_key(
         return f"DL {tag}| {body}{tail}{train_part}"
     if training == len(decisions):
         return f"DL {tag}| TREINO INICIAL | {training} modelo(s) em treinamento | trades suspensos"
-    blocked_msg = _all_blocked_brief(
-        tag,
-        blocked=blocked,
-        no_data=no_data,
-        decisions=decisions,
-        train_part=train_part,
-    )
+    blocked_msg = _all_blocked_brief(tag, blocked=blocked, no_data=no_data, decisions=decisions, train_part=train_part)
     if blocked_msg is not None:
         for _, entry in decisions.items():
             metrics = entry.get("metrics") or {}

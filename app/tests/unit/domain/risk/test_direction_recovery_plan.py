@@ -149,7 +149,7 @@ def test_resolve_dlambert_stake_near_target_does_not_escalate_linear():
     assert metrics.get("recovery_near_stop_win_freeze") is True
 
 
-def test_meta_negative_edge_flips_weak_call():
+def test_meta_negative_edge_keeps_weak_call_side():
     metrics = {"calibrated_prob": 0.51, "indicators": {"bb_width": 0.12}}
     direction, score = apply_meta_regression_edge(
         TradeDirection.CALL,
@@ -159,28 +159,23 @@ def test_meta_negative_edge_flips_weak_call():
         base_score=0.51,
         symbol="R_10",
     )
-    assert direction == TradeDirection.PUT
-    assert score == pytest.approx(0.75)
-    assert metrics.get("meta_direction_flip") is True
-
-
-def test_meta_negative_edge_rejects_when_flip_unsupported():
-    metrics = {"calibrated_prob": 0.51}
-    with patch(
-        "src.application.services.meta_payoff_regression.apply_meta_direction_flip",
-        return_value=(TradeDirection.CALL, 0.51),
-    ):
-        direction, score = apply_meta_regression_edge(
-            TradeDirection.CALL,
-            metrics,
-            -0.08,
-            meta_applied=True,
-            base_score=0.51,
-        )
     assert direction == TradeDirection.CALL
     assert score == pytest.approx(0.51)
-    assert metrics.get("quality_guard_reject") is True
-    assert metrics.get("gate_reason") == "meta_negative_edge"
+    assert metrics.get("meta_negative_edge") is True
+
+
+def test_meta_negative_edge_keeps_direction_without_flip():
+    metrics = {"calibrated_prob": 0.51}
+    direction, score = apply_meta_regression_edge(
+        TradeDirection.CALL,
+        metrics,
+        -0.08,
+        meta_applied=True,
+        base_score=0.51,
+    )
+    assert direction == TradeDirection.CALL
+    assert score == pytest.approx(0.51)
+    assert metrics.get("meta_negative_edge") is True
 
 
 def test_resolve_execution_direction_rejects_meta_negative_edge_without_force():

@@ -14,7 +14,7 @@ from src.application.services.execution_quality_gate import (
 from src.application.services.execution_quality_gate_meta import evaluate_meta_payoff_quality
 from src.application.services.execution_quality_gate_microstructure import is_microstructure_starvation_reason
 from src.application.services.log_dedupe import LogDeduper
-from src.application.services.meta_direction_flip import SIGNAL_SUSPENDED
+from src.application.services.regime_micro_freeze import SIGNAL_SUSPENDED
 
 
 _MANDATORY_CONTINUOUS_REGIME = "mandatory_continuous"

@@ -143,58 +143,6 @@ def log_partial_win_recovery(risk_manager, profit: float) -> float:
     return pending_after
 
 
-def evaluate_anti_trend_lock(
-    symbol: str,
-    proposed_direction: TradeDirection,
-    consecutive_losses: int,
-    bull_call_prob: float,
-    bear_put_prob: float,
-    probability_delta: float,
-    predicted_payoff_edge: float,
-    cross_symbol_prob_delta_mean: float,
-    vol_ratio: float = 0.0,
-    bb_width_zscore: float = 0.0,
-) -> tuple[TradeDirection | None, str]:
-    """Política pura de domínio para resolver a direção sob AntiTrendLock.
-
-    Recebe inputs limpos e retorna a direção pura resolvida (ou None se suspensa)
-    e a ação correspondente (ex: 'FLIP to PUT', 'FLIP to CALL', 'FREEZE: SKIP CYCLE', 'KEEP').
-    """
-    _ = (vol_ratio, bb_width_zscore)
-
-    if consecutive_losses < 2:
-        return proposed_direction, "KEEP"
-
-    resolved: TradeDirection | None = None
-    action: str = "FREEZE: SKIP CYCLE"
-
-    is_bull = symbol == "RDBULL"
-    is_bear = symbol == "RDBEAR"
-
-    if is_bull and proposed_direction == TradeDirection.CALL:
-        expanding = (bear_put_prob + 1e-12 > bull_call_prob) or (
-            probability_delta > cross_symbol_prob_delta_mean + 1e-12
-        )
-        if expanding and predicted_payoff_edge + 1e-12 >= 0.0:
-            resolved, action = TradeDirection.PUT, "FLIP to PUT"
-
-    elif is_bull and proposed_direction == TradeDirection.PUT or is_bear and proposed_direction == TradeDirection.PUT:
-        expanding = (bull_call_prob + 1e-12 > bear_put_prob) or (
-            probability_delta > cross_symbol_prob_delta_mean + 1e-12
-        )
-        if expanding and predicted_payoff_edge + 1e-12 >= 0.0:
-            resolved, action = TradeDirection.CALL, "FLIP to CALL"
-
-    elif is_bear and proposed_direction == TradeDirection.CALL:
-        expanding = (bear_put_prob + 1e-12 > bull_call_prob) or (
-            probability_delta > cross_symbol_prob_delta_mean + 1e-12
-        )
-        if expanding and predicted_payoff_edge + 1e-12 >= 0.0:
-            resolved, action = TradeDirection.PUT, "FLIP to PUT"
-
-    return resolved, action
-
-
 def critical_recovery_stress(linear_losses: int, pending_total: float) -> bool:
     """True quando streak e passivo exigem waiver de emergencia em conjunto."""
     return int(linear_losses) >= CRITICAL_LINEAR_LOSSES and float(pending_total) > CRITICAL_PENDING_TOTAL

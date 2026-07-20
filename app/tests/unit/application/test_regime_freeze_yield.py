@@ -4,7 +4,6 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.application.services.meta_direction_flip import SIGNAL_SUSPENDED
 from src.application.services.orchestrator.regime_freeze_yield import (
     _entry_freeze_active,
     await_regime_freeze_yield,
@@ -20,6 +19,7 @@ from src.application.services.orchestrator.warm_up_buffer_guard import (
     schedule_stream_warm_up_barrier,
     stream_warm_up_active,
 )
+from src.application.services.regime_micro_freeze import SIGNAL_SUSPENDED
 
 
 TRADING_CYCLE_MODULE = "src.application.services.orchestrator.trading_cycle_entry"

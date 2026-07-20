@@ -4,18 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.application.services.execution_quality_gate import (
-    direction_margin_from_probability,
-    passes_execution_quality,
-)
+from src.application.services.execution_quality_gate import direction_margin_from_probability, passes_execution_quality
 from src.application.services.execution_quality_gate_meta import evaluate_meta_payoff_quality
 from src.application.services.execution_quality_gate_microstructure import is_hard_quality_reject_reason
-from src.application.services.execution_sniper_gates import (
-    apply_bb_squeeze_requirement,
-    apply_hurst_noise_veto,
-)
+from src.application.services.execution_sniper_gates import apply_bb_squeeze_requirement, apply_hurst_noise_veto
 from src.application.services.force_trade_mode import force_trade_every_cycle, synthesize_force_direction
-from src.application.services.meta_payoff_regression import veto_calibration_neutral_drift
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.soft_recovery_policy import negative_zscore_veto_floor_for_risk
 from src.domain.risk.stake_sizing import metric_float
@@ -83,8 +76,6 @@ def seed_direction_metrics(metrics: dict, *, dl_dir: TradeDirection, prob: float
             "dl_direction": dl_dir.name,
             "exec_direction": dl_dir.name,
             "resolved_direction": dl_dir.name,
-            "direction_inverted": False,
-            "meta_direction_flip": False,
             "direction_call_score": call,
             "direction_put_score": put,
             "direction_margin": direction_margin_from_probability(prob, direction=dl_dir.name),
@@ -139,12 +130,7 @@ def reject_on_quality_gate(
     if has_meta_zscore_telemetry(gate_probe):
         evaluate_meta_payoff_quality(gate_probe, **kw)
     passed = passes_execution_quality(gate_probe, **kw)
-    for k in (
-        "execution_gate_state",
-        "quality_gate_regime",
-        "direction_margin",
-        "quality_min_direction_margin",
-    ):
+    for k in ("execution_gate_state", "quality_gate_regime", "direction_margin", "quality_min_direction_margin"):
         if k in gate_probe:
             metrics[k] = gate_probe[k]
     reason = gate_probe.get("quality_gate_reason")
@@ -160,18 +146,64 @@ def reject_on_quality_gate(
     return False
 
 
+def _macro_indicator_float(metrics: dict, key: str) -> float | None:
+    """Le indicador float priorizando macro (mesmo bloco da votacao TCN)."""
+    for block_name in ("macro_indicators", "indicators"):
+        block = metrics.get(block_name)
+        if not isinstance(block, dict) or block.get(key) is None:
+            continue
+        try:
+            return float(block[key])
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _rsi_di_oppose_direction(metrics: dict, dl_dir: TradeDirection) -> bool:
+    """True quando RSI e di_diff macro votam contra a direcao TCN com vies claro."""
+    rsi = _macro_indicator_float(metrics, "rsi")
+    di_diff = _macro_indicator_float(metrics, "di_diff")
+    if rsi is None or di_diff is None:
+        return False
+    rsi_bias = float(rsi) - 0.5
+    if abs(rsi_bias) < 0.04:
+        return False
+    rsi_call = rsi_bias > 0.0
+    di_call = float(di_diff) > 0.0
+    want_call = dl_dir == TradeDirection.CALL
+    return want_call not in {rsi_call, di_call}
+
+
 def apply_technical_agreement(metrics: dict, dl_dir: TradeDirection, prob: float, exec_cfg: dict) -> tuple[float, bool]:
-    """Ajusta probabilidade por consenso tecnico; veto de discordancia desativado."""
+    """Ajusta probabilidade por consenso tecnico; veta quando maioria dos votos opoe a TCN."""
     call_votes, put_votes = int(metrics.get("call_votes", 0)), int(metrics.get("put_votes", 0))
     total = call_votes + put_votes
-    if total <= 0:
-        return prob, False
-    opp = put_votes / total if dl_dir == TradeDirection.CALL else call_votes / total
-    _ = exec_cfg
+    opp = 0.0
     adjusted = prob
-    if (1.0 - opp) >= 0.80:
-        adjusted = min(1.0, prob + 0.05) if dl_dir == TradeDirection.CALL else max(0.0, prob - 0.05)
-    return adjusted, False
+    if total > 0:
+        opp = put_votes / total if dl_dir == TradeDirection.CALL else call_votes / total
+        if (1.0 - opp) >= 0.80:
+            adjusted = min(1.0, prob + 0.05) if dl_dir == TradeDirection.CALL else max(0.0, prob - 0.05)
+    discordance_enabled = bool(exec_cfg.get("discordance_veto_enabled", False))
+    vote_veto = bool(discordance_enabled and total >= 3 and opp + 1e-12 >= 0.60)
+    trend_name = str(metrics.get("trend_direction") or "").upper()
+    consensus_required = bool(exec_cfg.get("require_indicator_consensus", False))
+    dt = exec_cfg.get("dynamic_threshold")
+    if isinstance(dt, dict) and dt.get("require_indicator_consensus") is not None:
+        consensus_required = bool(dt.get("require_indicator_consensus"))
+    trend_veto = bool(
+        discordance_enabled and consensus_required and trend_name in {"CALL", "PUT"} and trend_name != dl_dir.name
+    )
+    side_veto = bool(discordance_enabled and _rsi_di_oppose_direction(metrics, dl_dir))
+    should_veto = bool(vote_veto or trend_veto or side_veto)
+    if should_veto:
+        metrics["gate_reason"] = "indicator_discordance"
+        metrics["indicator_discordance_opp"] = float(opp)
+        if side_veto:
+            metrics["indicator_side_discordance"] = True
+        if trend_veto:
+            metrics["indicator_trend_discordance"] = True
+    return adjusted, should_veto
 
 
 def sniper_cfg(exec_cfg_dict: dict, orch: Any | None) -> tuple[dict, dict]:
@@ -194,6 +226,13 @@ def initial_direction_checks(
     metrics = dict(entry.get("metrics") or {})
     force = force_trade_every_cycle(exec_cfg_dict)
     if _is_neutral_clamp(metrics):
+        if not force:
+            metrics["gate_reason"] = _NEUTRAL_CLAMP
+            metrics["calibration_mode"] = _NEUTRAL_CLAMP
+            metrics["quality_guard_reject"] = True
+            metrics["regime_skip_cycle"] = True
+            sync_entry_metrics(entry, metrics)
+            return None
         metrics["gate_reason"] = (
             None if str(metrics.get("gate_reason") or "") == _NEUTRAL_CLAMP else metrics.get("gate_reason")
         )
@@ -204,17 +243,25 @@ def initial_direction_checks(
     dl_dir = infer_dl_direction(entry)
     if force and dl_dir is None:
         dl_dir = synthesize_force_direction(entry)
-    if is_technically_blocked(entry) or dl_dir is None or veto_calibration_neutral_drift(metrics):
+    if is_technically_blocked(entry) or dl_dir is None:
         if metrics.get("quality_guard_reject") or metrics.get("gate_reason"):
             sync_entry_metrics(entry, metrics)
         return None
     squeeze_cfg, gating_cfg = sniper_cfg(exec_cfg_dict, orch)
     anomaly = squeeze_cfg.get("anomaly_ratio", D_SQUEEZE_BB_WIDTH_ANOMALY_RATIO)
     metrics["bb_width_anomaly_ratio"] = float(anomaly)
-    _ = apply_hurst_noise_veto(metrics, gating_cfg) or apply_bb_squeeze_requirement(metrics, squeeze_cfg)
+    sniper_hit = apply_hurst_noise_veto(metrics, gating_cfg) or apply_bb_squeeze_requirement(metrics, squeeze_cfg)
+    if sniper_hit and not force:
+        sync_entry_metrics(entry, metrics)
+        return None
     prob = direction_prob(entry)
     if prob is None:
         prob = 0.55 if dl_dir == TradeDirection.CALL else 0.45
     prob, should_veto = apply_technical_agreement(metrics, dl_dir, clamp01(prob), exec_cfg_dict)
-    _ = should_veto
+    if should_veto and not force:
+        metrics["quality_guard_reject"] = True
+        metrics["regime_skip_cycle"] = True
+        metrics["gate_reason"] = str(metrics.get("gate_reason") or "indicator_discordance")
+        sync_entry_metrics(entry, metrics)
+        return None
     return dl_dir, metrics, prob

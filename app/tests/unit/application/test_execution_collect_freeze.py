@@ -3,13 +3,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.application.services.meta_direction_flip import SIGNAL_SUSPENDED
 from src.application.services.orchestrator.execution_collect import collect_cluster_orders
 from src.application.services.orchestrator.execution_collect_gather import (
     _sync_entry_metrics,
     gather_cluster_candidates,
 )
 from src.application.services.orchestrator.trading_cycle_entry import run_trading_cycle_if_ready
+from src.application.services.regime_micro_freeze import SIGNAL_SUSPENDED
 from src.domain.models.trade import TradeDirection
 from tests.market_symbols import ALT_SYMBOL, ANCHOR
 from tests.unit.application.universal_regime_metrics import bear_put_metrics
@@ -75,7 +75,6 @@ def test_gather_cluster_continues_when_anchor_frozen():
         exec_mgr,
         decisions,
         recovery_active=False,
-        recovery_cfg={},
         cid="C0003",
         min_signal=0.45,
         min_val=0.0,
@@ -96,7 +95,6 @@ def test_collect_cluster_orders_continues_when_one_symbol_frozen():
         risk_manager=SimpleNamespace(
             pending_loss={},
             last_loss_symbol=None,
-            last_loss_direction=None,
             consecutive_losses=0,
             consecutive_losses_linear=0,
             kelly_config={},
@@ -178,7 +176,6 @@ def test_gather_continues_when_freeze_set_after_first_symbol_built(monkeypatch):
         exec_mgr,
         decisions,
         recovery_active=False,
-        recovery_cfg={},
         cid="C0004",
         min_signal=0.45,
         min_val=0.0,
@@ -231,7 +228,6 @@ def test_gather_keeps_candidate_when_freeze_metadata_present(monkeypatch):
         exec_mgr,
         decisions,
         recovery_active=False,
-        recovery_cfg={},
         cid="C0005",
         min_signal=0.45,
         min_val=0.0,

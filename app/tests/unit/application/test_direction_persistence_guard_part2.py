@@ -13,11 +13,11 @@ from src.application.services.direction_persistence_guard_helpers import (
     reset_regime_guard_log_state,
 )
 from src.application.services.direction_persistence_guard_part2 import (
-    _attempt_bear_put_lock_flip,
-    _attempt_bull_call_lock_flip,
-    _resolve_peer_flip,
+    _attempt_bear_put_lock_freeze,
+    _attempt_bull_call_lock_freeze,
+    _resolve_peer_lock,
 )
-from src.application.services.meta_direction_flip import SIGNAL_SUSPENDED
+from src.application.services.regime_micro_freeze import SIGNAL_SUSPENDED
 from src.domain.models.trade import TradeDirection
 
 
@@ -44,10 +44,10 @@ def _entry(
     }
 
 
-def test_resolve_peer_flip_noop_when_anchors_equal():
+def test_resolve_peer_lock_noop_when_anchors_equal():
     metrics = dict(_entry()["metrics"])
     assert (
-        _resolve_peer_flip(
+        _resolve_peer_lock(
             "R_10",
             TradeDirection.PUT,
             metrics,
@@ -62,7 +62,7 @@ def test_resolve_peer_flip_noop_when_anchors_equal():
 
 @patch("src.application.services.direction_persistence_guard_part2.ANCHOR_BULL", "RDBULL")
 @patch("src.application.services.direction_persistence_guard_part2.ANCHOR_BEAR", "RDBEAR")
-def test_anti_trend_lock_flips_to_call_on_rdbear_after_bull_put_losses():
+def test_anti_trend_lock_freezes_rdbear_after_bull_put_losses():
     record_direction_outcome("RDBULL", "PUT", won=False)
     record_direction_outcome("RDBULL", "PUT", won=False)
     bull = _entry(prob=0.72, edge=0.15, z_edge=0.40)
@@ -78,13 +78,13 @@ def test_anti_trend_lock_flips_to_call_on_rdbear_after_bull_put_losses():
         cycle_id=11,
         infra_cfg=None,
     )
-    assert result == TradeDirection.CALL
-    assert metrics["regime_guard_action"] == "FLIP to CALL"
+    assert result is None
+    assert metrics["regime_guard_action"] == "FREEZE: SKIP CYCLE"
 
 
 @patch("src.application.services.direction_persistence_guard_part2.ANCHOR_BULL", "RDBULL")
 @patch("src.application.services.direction_persistence_guard_part2.ANCHOR_BEAR", "RDBEAR")
-def test_anti_trend_lock_flips_to_put_on_rdbull_after_bear_call_losses():
+def test_anti_trend_lock_freezes_rdbull_after_bear_call_losses():
     record_direction_outcome("RDBEAR", "CALL", won=False)
     record_direction_outcome("RDBEAR", "CALL", won=False)
     bear = _entry(prob=0.30)
@@ -100,8 +100,8 @@ def test_anti_trend_lock_flips_to_put_on_rdbull_after_bear_call_losses():
         cycle_id=12,
         infra_cfg=None,
     )
-    assert result == TradeDirection.PUT
-    assert metrics["regime_guard_action"] == "FLIP to PUT"
+    assert result is None
+    assert metrics["regime_guard_action"] == "FREEZE: SKIP CYCLE"
 
 
 @patch("src.application.services.direction_persistence_guard_part2.ANCHOR_BULL", "RDBULL")
@@ -212,13 +212,13 @@ def test_anti_trend_lock_freezes_on_rdbull_after_bear_call_losses_with_negative_
 
 @patch("src.application.services.direction_persistence_guard_part2.ANCHOR_BULL", "RDBULL")
 @patch("src.application.services.direction_persistence_guard_part2.ANCHOR_BEAR", "RDBEAR")
-def test_bull_call_lock_flip_success_returns_put():
+def test_bull_call_lock_freeze_returns_none():
     record_direction_outcome("RDBULL", "CALL", won=False)
     record_direction_outcome("RDBULL", "CALL", won=False)
     bull = _entry(prob=0.72, edge=0.15, z_edge=0.40)
     bear = _entry(prob=0.25, edge=0.15, z_edge=0.40)
     metrics = dict(bear["metrics"])
-    result = _attempt_bull_call_lock_flip(
+    result = _attempt_bull_call_lock_freeze(
         TradeDirection.PUT,
         metrics,
         entry=bear,
@@ -226,19 +226,19 @@ def test_bull_call_lock_flip_success_returns_put():
         cycle_id=20,
         infra_cfg=None,
     )
-    assert result == TradeDirection.PUT
-    assert metrics["regime_guard_action"] == "FLIP to PUT"
+    assert result is None
+    assert metrics["regime_guard_action"] == "FREEZE: SKIP CYCLE"
 
 
 @patch("src.application.services.direction_persistence_guard_part2.ANCHOR_BULL", "RDBULL")
 @patch("src.application.services.direction_persistence_guard_part2.ANCHOR_BEAR", "RDBEAR")
-def test_bear_put_lock_flip_success_returns_call():
+def test_bear_put_lock_freeze_returns_none():
     record_direction_outcome("RDBEAR", "PUT", won=False)
     record_direction_outcome("RDBEAR", "PUT", won=False)
     bull = _entry(prob=0.72, edge=0.15, z_edge=0.40)
     bear = _entry(prob=0.55, edge=0.15, z_edge=0.40)
     metrics = dict(bull["metrics"])
-    result = _attempt_bear_put_lock_flip(
+    result = _attempt_bear_put_lock_freeze(
         TradeDirection.CALL,
         metrics,
         entry=bull,
@@ -246,15 +246,15 @@ def test_bear_put_lock_flip_success_returns_call():
         cycle_id=21,
         infra_cfg=None,
     )
-    assert result == TradeDirection.CALL
-    assert metrics["regime_guard_action"] == "FLIP to CALL"
+    assert result is None
+    assert metrics["regime_guard_action"] == "FREEZE: SKIP CYCLE"
 
 
 @patch("src.application.services.direction_persistence_guard_part2.ANCHOR_BULL", "RDBULL")
 @patch("src.application.services.direction_persistence_guard_part2.ANCHOR_BEAR", "RDBEAR")
-def test_resolve_peer_flip_returns_none_for_unmatched_symbol():
+def test_resolve_peer_lock_returns_none_for_unmatched_symbol():
     assert (
-        _resolve_peer_flip(
+        _resolve_peer_lock(
             "R_50",
             TradeDirection.CALL,
             dict(_entry()["metrics"]),

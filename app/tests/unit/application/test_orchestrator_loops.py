@@ -4,7 +4,6 @@ import pytest
 
 from src.application.services.direction_persistence_guard import log_regime_guard
 from src.application.services.direction_persistence_guard_helpers import reset_regime_guard_log_state
-from src.application.services.meta_direction_flip import SIGNAL_SUSPENDED
 from src.application.services.orchestrator.api_maintenance_guard import (
     _API_GUARD_LOG_MESSAGE,
     schedule_api_maintenance_hibernation,
@@ -15,6 +14,7 @@ from src.application.services.orchestrator.session_persistence_barrier import (
 )
 from src.application.services.orchestrator.settlement_logic import process_contract_settlement
 from src.application.services.orchestrator.trading_cycle_entry import run_trading_cycle_if_ready
+from src.application.services.regime_micro_freeze import SIGNAL_SUSPENDED
 from src.domain.models.trade import Contract, TradeDirection, TradeStatus
 from tests.unit.application.post_settlement_helpers import patch_instant_post_settlement_poll, strong_cycle_decisions
 

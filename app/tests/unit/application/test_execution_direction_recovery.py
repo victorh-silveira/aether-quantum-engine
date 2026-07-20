@@ -66,7 +66,7 @@ def test_recovery_execution_eligible_accepts_inferable_direction_without_quality
     assert recovery_execution_eligible(entry) is True
 
 
-def test_recovery_execution_eligible_ignores_recovery_cfg_bypass():
+def test_recovery_execution_eligible_accepts_quality_gate_blocked_with_direction():
     entry = {
         "direction": TradeDirection.CALL,
         "metrics": {
@@ -77,4 +77,4 @@ def test_recovery_execution_eligible_ignores_recovery_cfg_bypass():
             "raw_prob": 0.67,
         },
     }
-    assert recovery_execution_eligible(entry, {"min_val_accuracy": 0.48}) is True
+    assert recovery_execution_eligible(entry) is True

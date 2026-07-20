@@ -7,44 +7,18 @@ from src.application.services.execution_entropy_fallback import pick_entropy_fal
 from src.application.services.execution_mandatory_pick import pick_absolute_mandatory_candidate
 from src.application.services.execution_symbols_recovery import recovery_blocked_symbols
 from src.application.services.force_trade_mode import force_trade_from_orch, synthesize_force_trade_candidate
-from src.application.services.market_audit_log import (
-    format_indicators_audit_line,
-)
-from src.application.services.orchestrator.execution_recovery_gate import (
-    recovery_min_signal,
-    recovery_min_val_accuracy,
-)
-from src.domain.risk.recovery_hurst_decay import (
-    increment_recovery_skip_counter,
-    resolve_effective_hurst_min,
-)
+from src.application.services.market_audit_log import format_indicators_audit_line
+from src.application.services.orchestrator.execution_recovery_gate import recovery_min_signal, recovery_min_val_accuracy
+from src.domain.risk.recovery_hurst_decay import increment_recovery_skip_counter, resolve_effective_hurst_min
 from src.domain.risk.recovery_hurst_gate import recovery_pool_has_persistence
 
 
-def apply_recovery_hedge_to_candidates(exec_mgr, candidates, _decisions, *, cid, mandatory=False):
-    """Mantem pool de candidatos; ranking de recovery escolhe direcao e simbolo."""
-    return candidates if exec_mgr and cid and mandatory is not None else candidates
-
-
 def mandatory_fallback_candidates(
-    exec_mgr,
-    decisions,
-    *,
-    recovery_active,
-    last_loss_symbol,
-    last_loss_direction,
-    skip_symbols,
-    min_signal,
-    min_val,
-    mean_reversion=True,
-    low_accuracy=True,
+    exec_mgr, decisions, *, recovery_active, last_loss_symbol, skip_symbols, min_signal, min_val
 ):
     """Monta lista com candidato forcado quando o pool DL fica vazio."""
     entropy_pick = pick_entropy_fallback_candidate(
-        exec_mgr._trade_symbols(),
-        decisions,
-        skip_symbols=skip_symbols,
-        recovery_active=recovery_active,
+        exec_mgr._trade_symbols(), decisions, skip_symbols=skip_symbols, recovery_active=recovery_active
     )
     if entropy_pick is not None:
         return [entropy_pick]
@@ -53,13 +27,10 @@ def mandatory_fallback_candidates(
         decisions,
         recovery_active=recovery_active,
         last_loss_symbol=last_loss_symbol,
-        last_loss_direction=last_loss_direction,
         skip_symbols=skip_symbols,
         min_signal=min_signal,
         min_val=min_val,
         consecutive_losses=getattr(exec_mgr.orch.risk_manager, "consecutive_losses_linear", 0),
-        mean_reversion_enabled=mean_reversion,
-        low_accuracy_enabled=low_accuracy,
         skipped_cycles_counter=int(getattr(exec_mgr.orch, "_quality_skipped_cycles_counter", 0) or 0),
         orch=exec_mgr.orch,
     )
@@ -72,19 +43,7 @@ def mandatory_fallback_candidates(
 
 
 def mandatory_fallback_if_empty(
-    exec_mgr,
-    decisions,
-    candidates,
-    *,
-    mandatory,
-    recovery_active,
-    last_loss,
-    last_loss_dir,
-    skip_symbols,
-    min_signal,
-    min_val,
-    mean_reversion=True,
-    low_accuracy=True,
+    exec_mgr, decisions, candidates, *, mandatory, recovery_active, last_loss, skip_symbols, min_signal, min_val
 ):
     """Aplica fallback obrigatorio quando o pool de candidatos DL fica vazio."""
     if candidates or not mandatory:
@@ -94,18 +53,14 @@ def mandatory_fallback_if_empty(
         decisions,
         recovery_active=recovery_active,
         last_loss_symbol=last_loss,
-        last_loss_direction=last_loss_dir,
         skip_symbols=skip_symbols,
         min_signal=min_signal,
         min_val=min_val,
-        mean_reversion=mean_reversion,
-        low_accuracy=low_accuracy,
     )
 
 
 def extract_collect_params(exec_mgr, dl_cfg: dict, *, recovery_active: bool) -> tuple:
     """Extrai parametros de configuracao necessarios para collect_cluster_orders."""
-    recovery_cfg = dl_cfg.get("recovery_gating", {}) if isinstance(dl_cfg, dict) else {}
     risk_cfg = exec_mgr.orch.config.get("risk_management", {}) if isinstance(exec_mgr.orch.config, dict) else {}
     kelly_cfg = risk_cfg.get("kelly", {}) if isinstance(risk_cfg, dict) else {}
     proposal_skip_fn = getattr(exec_mgr.orch.risk_manager, "proposal_skip_symbols", None)
@@ -115,10 +70,7 @@ def extract_collect_params(exec_mgr, dl_cfg: dict, *, recovery_active: bool) -> 
     pending_total = sum(float(v) for v in getattr(exec_mgr.orch.risk_manager, "pending_loss", {}).values())
     consecutive_losses = getattr(exec_mgr.orch.risk_manager, "consecutive_losses_linear", 0)
     min_signal = recovery_min_signal(
-        kelly_cfg,
-        recovery_active=recovery_active,
-        pending_total=pending_total,
-        consecutive_losses=consecutive_losses,
+        kelly_cfg, recovery_active=recovery_active, pending_total=pending_total, consecutive_losses=consecutive_losses
     )
     min_val = (
         recovery_min_val_accuracy(kelly_cfg, consecutive_losses=consecutive_losses)
@@ -127,38 +79,12 @@ def extract_collect_params(exec_mgr, dl_cfg: dict, *, recovery_active: bool) -> 
     )
     min_edge = float(dl_cfg.get("min_edge_execute", 0.0))
     last_loss = getattr(exec_mgr.orch.risk_manager, "last_loss_symbol", None)
-    last_loss_dir = getattr(exec_mgr.orch.risk_manager, "last_loss_direction", None)
     exec_cfg = exec_mgr.orch.config.get("orchestrator", {}).get("execution", {})
-    mean_reversion = bool(exec_cfg.get("mean_reversion_inversion_enabled", True))
-    low_accuracy = bool(exec_cfg.get("low_accuracy_inversion_enabled", True))
-    return (
-        recovery_cfg,
-        kelly_cfg,
-        skip_symbols,
-        min_signal,
-        min_val,
-        min_edge,
-        last_loss,
-        last_loss_dir,
-        mean_reversion,
-        low_accuracy,
-        exec_cfg,
-    )
+    return (kelly_cfg, skip_symbols, min_signal, min_val, min_edge, last_loss, exec_cfg)
 
 
 def resolve_mandatory_ultimate_candidate(
-    exec_mgr,
-    decisions,
-    *,
-    mandatory,
-    recovery_active,
-    last_loss,
-    last_loss_dir,
-    skip_symbols,
-    min_signal,
-    min_val,
-    mean_reversion,
-    low_accuracy,
+    exec_mgr, decisions, *, mandatory, recovery_active, last_loss, skip_symbols, min_signal, min_val
 ):
     """Ultimo recurso de candidato quando modo obrigatorio nao encontrou best."""
     if not mandatory:
@@ -168,13 +94,10 @@ def resolve_mandatory_ultimate_candidate(
         decisions,
         recovery_active=recovery_active,
         last_loss_symbol=last_loss,
-        last_loss_direction=last_loss_dir,
         skip_symbols=skip_symbols,
         min_signal=min_signal,
         min_val=min_val,
         consecutive_losses=getattr(exec_mgr.orch.risk_manager, "consecutive_losses_linear", 0),
-        mean_reversion_enabled=mean_reversion,
-        low_accuracy_enabled=low_accuracy,
     )
     if ultimate is None:
         ultimate = pick_absolute_mandatory_candidate(
@@ -182,11 +105,8 @@ def resolve_mandatory_ultimate_candidate(
             decisions,
             recovery_active=recovery_active,
             last_loss_symbol=last_loss,
-            last_loss_direction=last_loss_dir,
             min_signal=min_signal,
             min_val=min_val,
-            mean_reversion_enabled=mean_reversion,
-            low_accuracy_enabled=low_accuracy,
         )
         if ultimate is None:
             ultimate = pick_absolute_mandatory_candidate(
@@ -194,11 +114,8 @@ def resolve_mandatory_ultimate_candidate(
                 decisions,
                 recovery_active=recovery_active,
                 last_loss_symbol=last_loss,
-                last_loss_direction=last_loss_dir,
                 min_signal=0.0,
                 min_val=0.0,
-                mean_reversion_enabled=mean_reversion,
-                low_accuracy_enabled=low_accuracy,
             )
     if ultimate is None and force_trade_from_orch(exec_mgr.orch):
         ultimate = synthesize_force_trade_candidate(exec_mgr._trade_symbols(), decisions)
@@ -220,33 +137,18 @@ def recovery_hurst_blocks_collect(
 ) -> bool:
     """True quando recovery D'Alembert N2+ deve pular o ciclo por falta de Hurst persistente."""
     hurst_min = resolve_effective_hurst_min(
-        kelly_cfg,
-        recovery_skip_counter,
-        consecutive_losses=consecutive_losses,
-        session_drawdown=session_drawdown,
+        kelly_cfg, recovery_skip_counter, consecutive_losses=consecutive_losses, session_drawdown=session_drawdown
     )
     if (
         recovery_active
         and consecutive_losses >= 2
         and candidates
-        and not recovery_pool_has_persistence(
-            candidates,
-            consecutive_losses=consecutive_losses,
-            hurst_min=hurst_min,
-        )
+        and not recovery_pool_has_persistence(candidates, consecutive_losses=consecutive_losses, hurst_min=hurst_min)
     ):
         schedule_recovery_skip_counter_increment(exec_mgr.orch)
         new_count = recovery_skip_counter + 1
-        exec_mgr.logger.info(
-            "[%s] SKIP: Recovery sem Hurst persistente (losses=%d)",
-            cid,
-            consecutive_losses,
-        )
-        exec_mgr.logger.debug(
-            "KELLY: recovery_skip_counter=%d effective_hurst_min=%.2f",
-            new_count,
-            hurst_min,
-        )
+        exec_mgr.logger.info("[%s] SKIP: Recovery sem Hurst persistente (losses=%d)", cid, consecutive_losses)
+        exec_mgr.logger.debug("KELLY: recovery_skip_counter=%d effective_hurst_min=%.2f", new_count, hurst_min)
         return True
     return False
 
@@ -267,13 +169,7 @@ def schedule_recovery_skip_counter_increment(orch) -> None:
 
 
 def log_execution_decision(
-    exec_mgr,
-    cid: str,
-    best: tuple,
-    candidates: list,
-    effective_signal: float,
-    *,
-    decisions: dict | None = None,
+    exec_mgr, cid: str, best: tuple, candidates: list, effective_signal: float, *, decisions: dict | None = None
 ) -> None:
     """Registra linha IND da decisao de execucao do simbolo escolhido."""
     metrics = best[2]

@@ -54,7 +54,6 @@ def test_predict_symbol_decision_sync_path():
             runtime,
             {"lookback": 4, "implied_vol_bars": 60, "contract_duration": 60},
             None,
-            recovery_active=False,
             force_local=True,
         )
     assert entry["direction"] == TradeDirection.CALL
@@ -90,7 +89,6 @@ def test_predict_symbol_decision_sync_cache_hit():
             runtime,
             {"lookback": 4, "implied_vol_bars": 60, "contract_duration": 60},
             None,
-            recovery_active=False,
             force_local=True,
         )
     assert entry == cached_entry

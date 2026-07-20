@@ -53,7 +53,6 @@ def test_collect_cluster_orders_covers_logging():
         risk_manager=SimpleNamespace(
             pending_loss={},
             last_loss_symbol=None,
-            last_loss_direction=None,
         ),
         _active_cycle_id=5,
     )

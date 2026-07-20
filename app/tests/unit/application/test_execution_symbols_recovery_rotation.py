@@ -44,7 +44,6 @@ def test_recovery_candidate_pool_skips_blocked_symbols():
     result = recovery_candidate_pool(
         candidates,
         last_loss_symbol=None,
-        last_loss_direction="CALL",
         recovery_active=True,
         skip_symbols=frozenset({ALT_SYMBOL}),
     )
@@ -57,7 +56,6 @@ def test_select_best_returns_none_for_empty_pool():
         select_best_execution_candidate(
             [],
             last_loss_symbol=None,
-            diversify_margin=0.08,
             recovery_active=False,
         )
         is None
@@ -71,7 +69,6 @@ def test_recovery_candidate_pool_keeps_single_opposite_direction():
     result = recovery_candidate_pool(
         candidates,
         last_loss_symbol=PAIR,
-        last_loss_direction="PUT",
         recovery_active=True,
     )
     assert len(result) == 1

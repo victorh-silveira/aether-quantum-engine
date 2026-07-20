@@ -49,7 +49,6 @@ def test_predict_trend_slope():
             runtime,
             params,
             None,
-            recovery_active=False,
         )
     assert entry["metrics"]["trend_direction"] == "CALL"
 
@@ -67,7 +66,6 @@ def test_predict_trend_slope():
             runtime,
             params,
             None,
-            recovery_active=False,
         )
     assert entry["metrics"]["trend_direction"] == "PUT"
 
@@ -100,6 +98,5 @@ def test_predict_trend_slope():
             runtime,
             params,
             None,
-            recovery_active=False,
         )
     assert entry["metrics"]["trend_direction"] == "CALL"

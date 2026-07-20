@@ -19,7 +19,6 @@ def test_collect_cluster_orders_recovery_picks_dl_put_after_call_loss():
         risk_manager=SimpleNamespace(
             pending_loss={LOW_SIDE_SYMBOL: 1.37},
             last_loss_symbol=LOW_SIDE_SYMBOL,
-            last_loss_direction="CALL",
             consecutive_losses=1,
             recovery_symbol_loss_streak={},
             symbol_loss_cooldown={},
@@ -66,7 +65,6 @@ def test_collect_cluster_orders_recovery_keeps_dl_direction_after_call_loss():
             "orchestrator": {
                 "execution": {
                     "include_anchor_trades": True,
-                    "recovery_flip_direction_after_loss": True,
                     "regime_evaluator": {"enabled": True},
                 }
             },
@@ -76,7 +74,6 @@ def test_collect_cluster_orders_recovery_keeps_dl_direction_after_call_loss():
         risk_manager=SimpleNamespace(
             pending_loss={"R_10": 14.32},
             last_loss_symbol="R_10",
-            last_loss_direction="CALL",
             consecutive_losses=1,
             consecutive_losses_linear=1,
             recovery_symbol_loss_streak={},
@@ -101,7 +98,6 @@ def test_collect_cluster_orders_recovery_keeps_dl_direction_after_call_loss():
     assert len(orders) == 1
     assert orders[0][0] == "R_10"
     assert orders[0][1] == TradeDirection.CALL
-    assert orders[0][2].get("direction_inverted") is not True
 
 
 def test_collect_cluster_orders_recovery_bolts_hard_meta_reject():
@@ -114,7 +110,6 @@ def test_collect_cluster_orders_recovery_bolts_hard_meta_reject():
         risk_manager=SimpleNamespace(
             pending_loss={PAIR: 10.0},
             last_loss_symbol=PAIR,
-            last_loss_direction="CALL",
             consecutive_losses=0,
             consecutive_losses_linear=1,
             recovery_symbol_loss_streak={},
@@ -163,7 +158,6 @@ def test_collect_cluster_orders_recovery_allows_soft_tcn_entropy_fallback():
         risk_manager=SimpleNamespace(
             pending_loss={PAIR: 10.0},
             last_loss_symbol=PAIR,
-            last_loss_direction="CALL",
             consecutive_losses=0,
             consecutive_losses_linear=1,
             recovery_symbol_loss_streak={},
@@ -203,7 +197,6 @@ def test_collect_cluster_orders_recovery_allows_soft_tcn_entropy_fallback():
         risk_manager=SimpleNamespace(
             pending_loss={ANCHOR: 4.0},
             last_loss_symbol=ANCHOR,
-            last_loss_direction="PUT",
             consecutive_losses=1,
             recovery_symbol_loss_streak={},
             symbol_loss_cooldown={},

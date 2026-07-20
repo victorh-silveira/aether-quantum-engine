@@ -215,7 +215,6 @@ async def test_predict_symbol_decision_async_triton_path():
             runtime,
             {"lookback": 4, "implied_vol_bars": 60, "contract_duration": 60},
             None,
-            recovery_active=False,
         )
     assert entry["direction"] == TradeDirection.PUT
 

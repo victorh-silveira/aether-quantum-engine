@@ -138,7 +138,19 @@
       "inter_symbol_delay": 0.05,
       "mandatory_trade_each_cycle": true,
       "force_trade_every_cycle": true,
-      "invert_execution_direction": true,
+      "side_equilibrium": {
+        "enabled": true,
+        "small_window": 12,
+        "large_window": 100,
+        "n_min_small": 6,
+        "n_min_large": 40,
+        "wr_floor_small": 0.40,
+        "wr_floor_large": 0.48,
+        "freq_bias_max_small": 0.75,
+        "freq_bias_max_large": 0.65,
+        "kelly_mult_soft": 0.55,
+        "margin_boost_soft": 0.03
+      },
       "require_meta_for_execution": false,
       "discordance_veto_enabled": false,
       "bb_width_adaptive_squeeze": {
@@ -156,9 +168,6 @@
         0.4
       ],
       "post_settlement_cycle_timeout_seconds": 360,
-      "recovery_flip_direction_after_loss": false,
-      "recovery_flip_max_conviction": 0.56,
-      "recovery_flip_use_trend_confirmation": false,
       "dynamic_threshold": {
         "enabled": false,
         "vol_source": "blend",
@@ -297,7 +306,7 @@
     "R_10"
   ],
   "trading": {
-    "mode": "live"
+    "mode": "demo"
   },
   "infra": {
     "enabled": true,

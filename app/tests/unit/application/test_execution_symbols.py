@@ -47,7 +47,6 @@ def test_select_best_execution_candidate_picks_highest_score():
     best = select_best_execution_candidate(
         candidates,
         last_loss_symbol=None,
-        diversify_margin=0.05,
         recovery_active=False,
     )
     assert best[0] == ANCHOR
@@ -62,7 +61,6 @@ def test_candidate_execution_score_recovery_weights_val_accuracy():
         symbol="R_10",
         exec_direction=TradeDirection.CALL,
         last_loss_symbol="R_10",
-        last_loss_direction="CALL",
     )
     high_val = candidate_execution_score(
         {"trade_score": 0.80, "raw_prob": 0.80, "val_accuracy": 0.60, "execute": True},
@@ -70,7 +68,6 @@ def test_candidate_execution_score_recovery_weights_val_accuracy():
         symbol="R_10",
         exec_direction=TradeDirection.CALL,
         last_loss_symbol="R_10",
-        last_loss_direction="CALL",
     )
     assert high_val > recovery
     assert recovery < normal
@@ -98,7 +95,6 @@ def test_select_mandatory_falls_back_when_pool_empty():
         orch,
         candidates,
         last_loss_symbol=None,
-        diversify_margin=0.08,
         recovery_active=False,
     )
     assert best is not None

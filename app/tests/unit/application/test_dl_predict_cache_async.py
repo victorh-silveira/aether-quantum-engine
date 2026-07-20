@@ -60,7 +60,6 @@ async def test_predict_symbol_decision_async_reuses_triton_cache():
             runtime,
             {"lookback": 4},
             0.0,
-            recovery_active=False,
             granularity=900,
         )
     assert entry is cached_entry
@@ -87,7 +86,6 @@ async def test_predict_symbol_decision_async_returns_cache_on_exception():
             runtime,
             {"lookback": 4},
             0.0,
-            recovery_active=False,
         )
     assert entry is cached_entry
 
@@ -129,7 +127,6 @@ async def test_predict_symbol_decision_async_partial_history_uses_cache():
             runtime,
             {"lookback": 4},
             0.0,
-            recovery_active=False,
         )
     assert entry is cached_entry
 
@@ -174,7 +171,6 @@ async def test_predict_symbol_decision_async_eager_cache_hit():
             runtime,
             {"lookback": 4},
             0.0,
-            recovery_active=False,
         )
     assert entry is cached_entry
     eager_mock.assert_not_called()
@@ -246,6 +242,5 @@ async def test_predict_symbol_decision_async_raises_without_cache_on_partial_his
             runtime,
             {"lookback": 4},
             0.0,
-            recovery_active=False,
         )
     assert entry["metrics"]["gate_reason"] == "predict_error"

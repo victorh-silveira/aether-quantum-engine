@@ -1,13 +1,11 @@
 import pytest
 
-from src.domain.models.trade import TradeDirection
 from src.domain.risk.consensus_stake_penalty import consensus_kelly_retention, cross_veto_recovery_waiver_allowed
 from src.domain.risk.risk_manager import RiskManager
 from src.domain.risk.risk_recovery_state import (
     apply_cluster_profit_to_recovery_state,
     apply_dlambert_partial_win_retraction,
     critical_recovery_stress,
-    evaluate_anti_trend_lock,
     meta_payoff_veto_emergency_waiver,
     pending_loss_total,
     recovery_financially_active,
@@ -141,36 +139,6 @@ def test_linear_retraction_on_partial_win_with_pending(kelly_config):
     rm.register_result(8.0, 3, "R_10")
     assert rm.consecutive_losses_linear == 0
     assert not rm.recovery_financially_active()
-
-
-def test_evaluate_anti_trend_lock_branches():
-    direction, action = evaluate_anti_trend_lock("R_10", TradeDirection.CALL, 1, 0.5, 0.5, 0.0, 0.0, 0.0)
-    assert direction == TradeDirection.CALL
-    assert action == "KEEP"
-
-    direction, action = evaluate_anti_trend_lock("OTHER", TradeDirection.CALL, 2, 0.5, 0.5, 0.0, 0.0, 0.0)
-    assert direction is None
-    assert action == "FREEZE: SKIP CYCLE"
-
-    direction, action = evaluate_anti_trend_lock("RDBULL", TradeDirection.PUT, 2, 0.6, 0.4, 0.0, 0.0, 0.0)
-    assert direction == TradeDirection.CALL
-    assert action == "FLIP to CALL"
-
-    direction, action = evaluate_anti_trend_lock("RDBULL", TradeDirection.PUT, 2, 0.4, 0.6, 0.0, 0.0, 0.0)
-    assert direction is None
-    assert action == "FREEZE: SKIP CYCLE"
-
-    direction, action = evaluate_anti_trend_lock("RDBULL", TradeDirection.CALL, 2, 0.4, 0.65, 0.0, 0.0, 0.0)
-    assert direction == TradeDirection.PUT
-    assert action == "FLIP to PUT"
-
-    direction, action = evaluate_anti_trend_lock("RDBEAR", TradeDirection.CALL, 2, 0.4, 0.6, 0.0, 0.0, 0.0)
-    assert direction == TradeDirection.PUT
-    assert action == "FLIP to PUT"
-
-    direction, action = evaluate_anti_trend_lock("RDBEAR", TradeDirection.CALL, 2, 0.6, 0.4, 0.0, 0.0, 0.0)
-    assert direction is None
-    assert action == "FREEZE: SKIP CYCLE"
 
 
 def test_critical_recovery_stress_and_tcn_extreme_conviction():

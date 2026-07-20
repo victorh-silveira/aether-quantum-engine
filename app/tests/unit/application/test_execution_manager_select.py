@@ -11,7 +11,6 @@ def test_select_best_candidate_keeps_top_when_clear_lead():
     best = select_best_execution_candidate(
         candidates,
         last_loss_symbol=ANCHOR,
-        diversify_margin=0.06,
         recovery_active=False,
     )
     assert best[0] == ANCHOR
@@ -25,7 +24,6 @@ def test_select_best_candidate_diversifies_after_loss():
     best = select_best_execution_candidate(
         candidates,
         last_loss_symbol=ANCHOR,
-        diversify_margin=0.10,
         recovery_active=True,
     )
     assert best[0] == PAIR
@@ -47,7 +45,6 @@ def test_select_best_candidate_prefers_high_val_in_recovery():
     best = select_best_execution_candidate(
         candidates,
         last_loss_symbol=None,
-        diversify_margin=0.10,
         recovery_active=True,
     )
     assert best[0] == PAIR
@@ -59,7 +56,6 @@ def test_select_best_candidate_single_candidate():
         select_best_execution_candidate(
             candidates,
             last_loss_symbol=ANCHOR,
-            diversify_margin=0.06,
             recovery_active=False,
         )[0]
         == ANCHOR

@@ -157,7 +157,7 @@ def test_prob_expanding_helpers_and_regime_guard_log(caplog):
     infra = {"meta_classifier": {"cross_symbol_prob_delta_mean": 0.06}}
     assert bear_put_prob_expanding(_entry(prob=0.50), _entry(prob=0.40), {}, infra) is True
     with caplog.at_level("INFO", logger="AETH"):
-        log_regime_guard(6, "FLIP to PUT", 2)
+        log_regime_guard(6, "FREEZE: SKIP CYCLE", 2)
     assert any("[C0006] REGIME_GUARD" in record.message for record in caplog.records)
 
 

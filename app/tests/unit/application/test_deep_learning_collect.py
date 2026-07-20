@@ -124,7 +124,6 @@ def test_predict_symbol_decision_executes_on_confidence():
             runtime,
             params,
             None,
-            recovery_active=False,
         )
     assert entry["metrics"]["execute"] is True
     assert entry["metrics"]["trade_score"] == 0.80

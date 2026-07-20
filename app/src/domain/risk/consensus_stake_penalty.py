@@ -6,7 +6,6 @@ from typing import Any
 
 from src.domain.risk.consensus_stake_helpers import (
     _recovery_waives_consensus_penalty,
-    _regime_tactical_inversion_active,
     _squeeze_floor_active,
     adaptive_recovery_progression_factor,
     d_squeeze_sovereignty_active,
@@ -92,12 +91,7 @@ def apply_soft_recovery_stake(
     stake = unit if losses <= 0 else unit * progression
     amort = resolve_amort_cycles(losses, soft_recovery)
     cover = pending / resolved_payout / float(amort)
-    infeasible = is_recovery_infeasible(
-        pending,
-        cap,
-        resolved_payout,
-        soft_recovery,
-    )
+    infeasible = is_recovery_infeasible(pending, cap, resolved_payout, soft_recovery)
     stake = min(stake, cap) if infeasible else max(stake, cover)
     if target > 0.0:
         stake = apply_target_proximity_damping(stake, target, pnl)
@@ -119,10 +113,7 @@ def apply_soft_recovery_stake(
 
 
 def max_safe_stake_cap(
-    bankroll: float,
-    *,
-    consecutive_losses_linear: int = 0,
-    soft_recovery: dict[str, Any] | None = None,
+    bankroll: float, *, consecutive_losses_linear: int = 0, soft_recovery: dict[str, Any] | None = None
 ) -> float:
     """Retorna teto absoluto; micro-banca <$100 limita recovery a 5% do saldo."""
     linear = max(0, int(consecutive_losses_linear))
@@ -140,11 +131,7 @@ def max_safe_stake_cap(
 
 
 def enforce_d_squeeze_stake_floor(
-    final_stake: float,
-    stake_min: float,
-    metrics: dict | None,
-    *,
-    pending_total: float = 0.0,
+    final_stake: float, stake_min: float, metrics: dict | None, *, pending_total: float = 0.0
 ) -> float:
     """Comprime stake ao piso absoluto da API quando D-SQUEEZE revoga recovery."""
     if not d_squeeze_sovereignty_active(metrics):
@@ -195,10 +182,7 @@ def consensus_kelly_retention(
             pending_loss_total=float(pending_loss_total),
             order_direction=order_direction,
         ):
-            if _regime_tactical_inversion_active(metrics):
-                metrics["consensus_penalty_regime_inversion_waived"] = True
-            else:
-                metrics["consensus_penalty_recovery_waived"] = True
+            metrics["consensus_penalty_recovery_waived"] = True
             return 1.0
     return consensus_entropy_kelly_retention(metrics, order_direction, kelly_config=kelly_config)
 

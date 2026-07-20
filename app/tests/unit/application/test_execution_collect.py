@@ -19,7 +19,6 @@ def test_collect_cluster_orders_recovery_executes_best_available_signal():
         risk_manager=SimpleNamespace(
             pending_loss={ALT_SYMBOL: 10.0},
             last_loss_symbol=ALT_SYMBOL,
-            last_loss_direction="PUT",
             consecutive_losses=0,
             recovery_symbol_loss_streak={},
             symbol_loss_cooldown={},
@@ -56,7 +55,6 @@ def test_collect_cluster_orders_includes_recovery_candidate_with_raw_prob():
         risk_manager=SimpleNamespace(
             pending_loss={ALT_SYMBOL: 10.0},
             last_loss_symbol=ALT_SYMBOL,
-            last_loss_direction="CALL",
             consecutive_losses=0,
         ),
         _active_cycle_id=9,
@@ -97,7 +95,6 @@ def test_collect_cluster_orders_bolts_weak_signal_continuously():
         risk_manager=SimpleNamespace(
             pending_loss={ALT_SYMBOL: 10.0},
             last_loss_symbol=ALT_SYMBOL,
-            last_loss_direction="CALL",
             consecutive_losses=0,
             consecutive_losses_linear=1,
             pending_loss_total=lambda: 10.0,
@@ -141,7 +138,6 @@ def test_collect_cluster_orders_bolts_weak_signal_continuously():
         risk_manager=SimpleNamespace(
             pending_loss={ALT_SYMBOL: 10.0},
             last_loss_symbol=ALT_SYMBOL,
-            last_loss_direction="CALL",
         ),
         _active_cycle_id=9,
     )
@@ -173,7 +169,6 @@ def test_collect_cluster_orders_filters_proposal_skip_symbols():
         risk_manager=SimpleNamespace(
             pending_loss={},
             last_loss_symbol=None,
-            last_loss_direction=None,
             proposal_skip_symbols=lambda: frozenset({ANCHOR}),
         ),
         _active_cycle_id=11,
@@ -217,7 +212,6 @@ def test_mandatory_fallback_if_empty_returns_early_when_not_mandatory():
         mandatory=False,
         recovery_active=False,
         last_loss=None,
-        last_loss_dir=None,
         skip_symbols=frozenset(),
         min_signal=0.5,
         min_val=0.5,

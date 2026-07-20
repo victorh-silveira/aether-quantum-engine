@@ -34,7 +34,6 @@ def test_predict_abstains_on_gray_zone_raw_prob():
             runtime,
             params,
             None,
-            recovery_active=False,
         )
     assert entry["direction"] == TradeDirection.CALL
     assert entry["metrics"].get("calibration_mode") == "calibrated"
@@ -64,7 +63,6 @@ def test_predict_executes_on_strong_call():
             runtime,
             params,
             None,
-            recovery_active=False,
         )
     assert entry["metrics"]["execute"] is True
     assert entry["direction"] == TradeDirection.CALL
@@ -94,7 +92,6 @@ def test_predict_weak_direction_still_executes():
             runtime,
             params,
             None,
-            recovery_active=False,
         )
     assert entry["direction"] == TradeDirection.PUT
     assert entry["metrics"]["trade_score"] == pytest.approx(0.58, abs=1e-6)
@@ -142,7 +139,6 @@ def test_predict_includes_dynamic_threshold_metrics():
             runtime,
             params,
             None,
-            recovery_active=False,
         )
     assert entry["metrics"]["calibrated_prob"] == 0.80
     assert "dynamic_call_threshold" in entry["metrics"]
@@ -187,7 +183,6 @@ def test_predict_includes_trend_metrics():
             runtime,
             params,
             None,
-            recovery_active=False,
         )
     assert entry["metrics"]["trend_direction"] == "PUT"
     assert entry["metrics"]["execute"] is True
@@ -216,7 +211,6 @@ def test_predict_trend_conflict_does_not_block():
             runtime,
             params,
             None,
-            recovery_active=False,
         )
     assert entry["metrics"]["execute"] is True
     assert entry["metrics"]["gate_reason"] is None

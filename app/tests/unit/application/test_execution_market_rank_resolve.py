@@ -77,4 +77,3 @@ def test_resolve_low_accuracy_keeps_dl_side():
     result = resolve_execution_direction(entry, symbol="R_10")
     assert result is not None
     assert result[0] == TradeDirection.CALL
-    assert result[1]["direction_inverted"] is False

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.application.services.meta_direction_flip import SIGNAL_SUSPENDED
+from src.application.services.regime_micro_freeze import SIGNAL_SUSPENDED
 
 
 def _entry_signal_suspended(entry: object) -> bool:

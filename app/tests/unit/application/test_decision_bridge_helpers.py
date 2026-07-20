@@ -76,7 +76,6 @@ async def test_collect_symbol_decision_insufficient_history():
         params={"training_history_bars": 32},
         min_len=10,
         granularity=60,
-        recovery_active=False,
     )
     assert entry["metrics"]["gate_reason"] == "data"
     assert reason is None
@@ -98,7 +97,6 @@ async def test_collect_symbol_decision_insufficient_after_slice():
             params={"training_history_bars": 32, "lookback": 32, "validation_bars": 10},
             min_len=100,
             granularity=60,
-            recovery_active=False,
         )
     assert entry["metrics"]["gate_reason"] == "data"
     assert reason is None
@@ -152,7 +150,6 @@ async def test_collect_symbol_decision_full_path():
             params={"training_history_bars": 60, "lookback": 32},
             min_len=30,
             granularity=60,
-            recovery_active=False,
         )
     assert reason == "bootstrap"
     assert out["direction"] == TradeDirection.CALL
@@ -227,6 +224,5 @@ async def test_collect_symbol_decision_uses_macro_buffer():
             params={"training_history_bars": 60, "lookback": 32},
             min_len=30,
             granularity=900,
-            recovery_active=False,
         )
     assert out["direction"] == TradeDirection.CALL

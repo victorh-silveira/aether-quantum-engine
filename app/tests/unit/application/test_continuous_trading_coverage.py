@@ -117,7 +117,6 @@ def test_predict_symbol_decision_exception_path():
             runtime,
             {"lookback": 4, "implied_vol_bars": 60},
             None,
-            recovery_active=False,
         )
     assert entry["metrics"]["gate_reason"] == "predict_error"
 
@@ -167,7 +166,6 @@ async def test_predict_symbol_decision_async_eager_path():
             runtime,
             {"lookback": 4, "implied_vol_bars": 60, "contract_duration": 60},
             None,
-            recovery_active=False,
         )
     assert entry["direction"] == TradeDirection.CALL
 

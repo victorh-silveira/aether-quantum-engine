@@ -163,44 +163,6 @@ def test_recovery_trade_score_waiver_at_sixty_eight():
     assert metrics.get("consensus_penalty_recovery_waived") is True
 
 
-def test_regime_inversion_waives_consensus_penalty_in_recovery():
-    metrics = {
-        "call_votes": 1,
-        "put_votes": 5,
-        "direction_inverted": True,
-        "universal_regime": "COMPRESSION_TRAP",
-        "indicators": {"di_diff": 0.01, "cmo": -0.18, "rsi": 0.36},
-    }
-    retention = consensus_kelly_retention(
-        metrics,
-        "PUT",
-        kelly_config=_CFG,
-        consecutive_losses=1,
-        pending_loss_total=120.0,
-    )
-    assert retention == 1.0
-    assert metrics.get("consensus_penalty_regime_inversion_waived") is True
-
-
-def test_climax_inversion_waives_consensus_penalty_with_linear_losses():
-    metrics = {
-        "call_votes": 0,
-        "put_votes": 6,
-        "direction_inverted": True,
-        "universal_regime": "CLIMAX_EXHAUSTION",
-        "indicators": {"di_diff": -0.06, "cmo": -0.71},
-    }
-    retention = consensus_kelly_retention(
-        metrics,
-        "CALL",
-        kelly_config=_CFG,
-        consecutive_losses=2,
-        pending_loss_total=0.0,
-    )
-    assert retention == 1.0
-    assert metrics.get("consensus_penalty_regime_inversion_waived") is True
-
-
 def test_invalid_order_direction_returns_one():
     metrics = {"call_votes": 1, "put_votes": 5, "indicators": {"cmo": -0.5}}
     assert consensus_kelly_retention(metrics, "HOLD", kelly_config=_CFG) == 1.0

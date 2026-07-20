@@ -62,7 +62,6 @@ def _score_deploy_bar(
         sim_runtime,
         eval_params,
         None,
-        recovery_active=False,
         open_=win_open,
         high=win_high,
         low=win_low,

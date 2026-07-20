@@ -8,7 +8,6 @@ from src.domain.risk.soft_recovery_policy import fixed_step_progression_multipli
 from src.domain.risk.super_concordance_kelly import is_unanimous_vote_alignment
 
 
-_REGIME_TACTICAL_INVERT = frozenset({"CLIMAX_EXHAUSTION", "COMPRESSION_TRAP"})
 _NEUTRAL_BANKROLL_PCT = 0.0015
 _TURBO_EDGE_ZSCORE_THRESHOLD = 1.5
 _TURBO_EDGE_STAKE_MULTIPLIER = 2.0
@@ -26,10 +25,7 @@ def _positive_float(value: object) -> float | None:
     return parsed if parsed > 0.0 else None
 
 
-def resolve_contract_payout(
-    payout: float | None = None,
-    risk_params: dict[str, Any] | None = None,
-) -> float:
+def resolve_contract_payout(payout: float | None = None, risk_params: dict[str, Any] | None = None) -> float:
     """Resolve payout real do contrato com fallback estatico de seguranca."""
     candidates: list[float] = []
     if payout is not None:
@@ -47,8 +43,7 @@ def resolve_contract_payout(
 
 
 def adaptive_recovery_progression_factor(
-    payout: float | None = None,
-    risk_params: dict[str, Any] | None = None,
+    payout: float | None = None, risk_params: dict[str, Any] | None = None
 ) -> float:
     """Calcula fator adaptativo 1 + 1/payout_real com teto institucional de 2.50."""
     resolved = resolve_contract_payout(payout, risk_params)
@@ -111,14 +106,6 @@ def turbo_edge_stake_multiplier(metrics: dict | None) -> float:
     return 1.0
 
 
-def _regime_tactical_inversion_active(metrics: dict) -> bool:
-    """Indica inversao tatica forçada por CLIMAX_EXHAUSTION ou COMPRESSION_TRAP."""
-    regime = str(metrics.get("universal_regime") or metrics.get("universal_regime_scenario") or "")
-    if regime not in _REGIME_TACTICAL_INVERT:
-        return False
-    return bool(metrics.get("direction_inverted"))
-
-
 def _recovery_waives_consensus_penalty(
     metrics: dict,
     kelly_config: dict[str, Any],
@@ -127,18 +114,14 @@ def _recovery_waives_consensus_penalty(
     pending_loss_total: float,
     order_direction: str | None,
 ) -> bool:
-    """Suspende penalidade em recovery com inversao tatica, votos unanimes ou trade_score alto."""
+    """Suspende penalidade em recovery com votos unanimes ou trade_score alto."""
     if d_squeeze_sovereignty_active(metrics):
         return False
     recovering = float(pending_loss_total) > 0.0 or int(consecutive_losses) > 0
     if not recovering:
         return False
-    if _regime_tactical_inversion_active(metrics):
-        return True
     if is_unanimous_vote_alignment(
-        int(metrics.get("call_votes", 0)),
-        int(metrics.get("put_votes", 0)),
-        order_direction,
+        int(metrics.get("call_votes", 0)), int(metrics.get("put_votes", 0)), order_direction
     ):
         return True
     cfg = kelly_config or {}

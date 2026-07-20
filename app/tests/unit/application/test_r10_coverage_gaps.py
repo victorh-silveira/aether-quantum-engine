@@ -4,8 +4,8 @@ import numpy as np
 import pytest
 
 from src.application.services.deep_learning.decision_bridge import _maybe_schedule_training
-from src.application.services.execution_direction_fallback import _symbol_priority
 from src.application.services.execution_entropy_fallback import pick_entropy_fallback_candidate
+from src.application.services.execution_mandatory_pick import _symbol_order
 from src.application.services.meta_classifier_cross_symbol import (
     attach_cross_symbol_features_to_decisions,
     compute_cross_symbol_triplet,
@@ -63,12 +63,12 @@ def test_maybe_schedule_training_skips_non_first_bootstrap_symbol():
     mock_enqueue.assert_not_called()
 
 
-def test_symbol_priority_deprioritizes_last_loss_symbol_in_core():
+def test_symbol_order_deprioritizes_last_loss_symbol_in_core():
     with patch(
-        "src.application.services.execution_direction_fallback.TRADING_SYMBOLS",
+        "src.application.services.execution_mandatory_pick.TRADING_SYMBOLS",
         ("R_10", "R_50"),
     ):
-        order = _symbol_priority(["R_10", "R_50", "R_75"], "R_10")
+        order = _symbol_order(["R_10", "R_50", "R_75"], "R_10", skip_symbols=frozenset())
     assert order[0] == "R_50"
     assert "R_10" in order
 

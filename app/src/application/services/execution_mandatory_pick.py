@@ -1,9 +1,6 @@
 """Selecao obrigatoria de candidatos por ranking de mercado."""
 
-from src.application.services.execution_direction import (
-    build_execution_candidate,
-    meets_mandatory_signal_floor,
-)
+from src.application.services.execution_direction import build_execution_candidate, meets_mandatory_signal_floor
 from src.application.services.execution_market_rank import (
     _trade_score,
     build_market_execution_candidate,
@@ -14,12 +11,7 @@ from src.domain.models.trade import TradeDirection
 from src.domain.symbols.drift_symbols import TRADING_SYMBOLS
 
 
-def _symbol_order(
-    trade_symbols: list[str],
-    last_loss_symbol: str | None,
-    *,
-    skip_symbols: frozenset[str],
-) -> list[str]:
+def _symbol_order(trade_symbols: list[str], last_loss_symbol: str | None, *, skip_symbols: frozenset[str]) -> list[str]:
     """Ordena simbolos priorizando core e diversificacao apos loss."""
     eligible = [symbol for symbol in trade_symbols if symbol not in skip_symbols]
     core = [symbol for symbol in TRADING_SYMBOLS if symbol in eligible]
@@ -38,12 +30,8 @@ def _rank_eligible_candidates(
     *,
     recovery_active: bool,
     last_loss_symbol: str | None,
-    last_loss_direction: str | None,
     min_signal: float,
     min_val: float,
-    consecutive_losses: int = 0,
-    mean_reversion_enabled: bool = True,
-    low_accuracy_enabled: bool = True,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Rankeia candidatos elegiveis e retorna o melhor por score de mercado."""
     best = None
@@ -58,20 +46,9 @@ def _rank_eligible_candidates(
         ):
             continue
         score = _trade_score(metrics)
-        candidate = build_market_execution_candidate(
-            symbol,
-            entry,
-            recovery_active=recovery_active,
-            consecutive_losses=consecutive_losses,
-            mean_reversion_enabled=mean_reversion_enabled,
-            low_accuracy_enabled=low_accuracy_enabled,
-        )
+        candidate = build_market_execution_candidate(symbol, entry, recovery_active=recovery_active)
         if candidate is None:
-            candidate = build_execution_candidate(
-                symbol,
-                entry,
-                recovery_active=recovery_active,
-            )
+            candidate = build_execution_candidate(symbol, entry, recovery_active=recovery_active)
         if candidate is None:
             continue
         rank = market_decision_score(
@@ -80,7 +57,6 @@ def _rank_eligible_candidates(
             recovery_active=recovery_active,
             symbol=symbol,
             last_loss_symbol=last_loss_symbol,
-            last_loss_direction=last_loss_direction,
         )
         if score + 1e-9 >= min_signal:
             rank += 0.08
@@ -96,15 +72,13 @@ def pick_best_mandatory_candidate(
     *,
     recovery_active: bool,
     last_loss_symbol: str | None,
-    last_loss_direction: str | None,
     skip_symbols: frozenset[str] | None = None,
     min_signal: float = 0.0,
     min_val: float = 0.0,
     consecutive_losses: int = 0,
-    mean_reversion_enabled: bool = True,
-    low_accuracy_enabled: bool = True,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Escolhe melhor candidato obrigatorio por score de mercado."""
+    _ = consecutive_losses
     skip = skip_symbols or frozenset()
     order = _symbol_order(trade_symbols, last_loss_symbol, skip_symbols=skip)
     ranked = _rank_eligible_candidates(
@@ -112,12 +86,8 @@ def pick_best_mandatory_candidate(
         decisions,
         recovery_active=recovery_active,
         last_loss_symbol=last_loss_symbol,
-        last_loss_direction=last_loss_direction,
         min_signal=min_signal,
         min_val=min_val,
-        consecutive_losses=consecutive_losses,
-        mean_reversion_enabled=mean_reversion_enabled,
-        low_accuracy_enabled=low_accuracy_enabled,
     )
     if ranked is not None:
         return ranked
@@ -126,12 +96,8 @@ def pick_best_mandatory_candidate(
         decisions,
         recovery_active=recovery_active,
         last_loss_symbol=last_loss_symbol,
-        last_loss_direction=last_loss_direction,
         min_signal=min_signal,
         min_val=min_val,
-        consecutive_losses=consecutive_losses,
-        mean_reversion_enabled=mean_reversion_enabled,
-        low_accuracy_enabled=low_accuracy_enabled,
     )
 
 
@@ -141,14 +107,12 @@ def pick_absolute_mandatory_candidate(
     *,
     recovery_active: bool,
     last_loss_symbol: str | None,
-    last_loss_direction: str | None,
     min_signal: float = 0.0,
     min_val: float = 0.0,
     consecutive_losses: int = 0,
-    mean_reversion_enabled: bool = True,
-    low_accuracy_enabled: bool = True,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Garante ordem quando filtros de recovery esgotam o pool."""
+    _ = consecutive_losses
     order = _symbol_order(trade_symbols, last_loss_symbol, skip_symbols=frozenset())
     best = None
     best_score = -1.0
@@ -161,20 +125,9 @@ def pick_absolute_mandatory_candidate(
             metrics, min_signal=min_signal, min_val=min_val
         ):
             continue
-        candidate = build_market_execution_candidate(
-            symbol,
-            entry,
-            recovery_active=recovery_active,
-            consecutive_losses=consecutive_losses,
-            mean_reversion_enabled=mean_reversion_enabled,
-            low_accuracy_enabled=low_accuracy_enabled,
-        )
+        candidate = build_market_execution_candidate(symbol, entry, recovery_active=recovery_active)
         if candidate is None:
-            candidate = build_execution_candidate(
-                symbol,
-                entry,
-                recovery_active=recovery_active,
-            )
+            candidate = build_execution_candidate(symbol, entry, recovery_active=recovery_active)
         if candidate is None:
             continue
         rank = market_decision_score(
@@ -183,7 +136,6 @@ def pick_absolute_mandatory_candidate(
             recovery_active=recovery_active,
             symbol=symbol,
             last_loss_symbol=last_loss_symbol,
-            last_loss_direction=last_loss_direction,
         )
         if rank > best_score:
             best_score = rank

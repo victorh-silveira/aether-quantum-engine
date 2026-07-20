@@ -75,9 +75,8 @@ def recovery_min_val_accuracy(
 def cluster_entry_eligible(
     entry: dict,
     *,
-    mandatory: bool,  # noqa: ARG001
-    recovery_active: bool,  # noqa: ARG001
-    recovery_cfg: dict,  # noqa: ARG001
+    mandatory: bool = True,  # noqa: ARG001
+    recovery_active: bool = False,  # noqa: ARG001
     min_signal: float = 0.0,  # noqa: ARG001
     min_val: float = 0.0,  # noqa: ARG001
     min_edge: float = 0.0,  # noqa: ARG001

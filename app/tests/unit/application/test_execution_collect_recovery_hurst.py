@@ -148,7 +148,6 @@ def test_collect_cluster_orders_keeps_candidate_when_recovery_lacks_hurst_persis
         risk_manager=SimpleNamespace(
             pending_loss={PAIR: 10.0},
             last_loss_symbol=PAIR,
-            last_loss_direction="PUT",
             consecutive_losses=2,
             recovery_symbol_loss_streak={},
             symbol_loss_cooldown={},

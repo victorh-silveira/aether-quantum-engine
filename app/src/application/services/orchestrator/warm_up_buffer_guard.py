@@ -6,7 +6,7 @@ import asyncio
 from typing import Any
 
 from src.application.services.force_trade_mode import force_trade_from_orch
-from src.application.services.meta_direction_flip import SIGNAL_SUSPENDED
+from src.application.services.regime_micro_freeze import SIGNAL_SUSPENDED
 
 
 STREAM_WARM_UP_DELAY_SECONDS = 45.0

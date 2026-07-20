@@ -27,7 +27,6 @@ def test_mandatory_fallback_candidates_returns_entropy_pick():
             {},
             recovery_active=False,
             last_loss_symbol=None,
-            last_loss_direction=None,
             skip_symbols=frozenset(),
             min_signal=0.45,
             min_val=0.50,
@@ -46,7 +45,6 @@ def test_collect_cluster_orders_mandatory_fallback_after_recovery_filter():
         risk_manager=SimpleNamespace(
             pending_loss={ANCHOR: 4.64},
             last_loss_symbol=ANCHOR,
-            last_loss_direction="PUT",
             consecutive_losses=0,
             recovery_symbol_loss_streak={},
             symbol_loss_cooldown={},
@@ -75,11 +73,7 @@ def test_collect_cluster_orders_mandatory_fallback_after_recovery_filter():
             "metrics": bear_put_metrics(execute=False, trade_score=0.72, raw_prob=0.36, calibrated_prob=0.36),
         },
     }
-    with patch(
-        "src.application.services.orchestrator.execution_collect.apply_recovery_hedge_to_candidates",
-        return_value=[],
-    ):
-        orders = collect_cluster_orders(exec_mgr, decisions)
+    orders = collect_cluster_orders(exec_mgr, decisions)
     assert len(orders) == 1
     assert orders[0][0] == PAIR
 
@@ -92,7 +86,6 @@ def test_collect_cluster_orders_mandatory_returns_empty_when_fallback_missing():
         risk_manager=SimpleNamespace(
             pending_loss={ANCHOR: 4.0},
             last_loss_symbol=ANCHOR,
-            last_loss_direction="PUT",
         ),
         _active_cycle_id=12,
     )
@@ -146,12 +139,9 @@ def test_resolve_mandatory_ultimate_candidate_skips_when_not_mandatory():
         mandatory=False,
         recovery_active=False,
         last_loss=None,
-        last_loss_dir=None,
         skip_symbols=frozenset(),
         min_signal=0.5,
         min_val=0.5,
-        mean_reversion=True,
-        low_accuracy=True,
     )
     assert best is None
     assert pool is None
@@ -168,7 +158,6 @@ def test_collect_cluster_orders_skips_entry_without_inferable_direction():
         risk_manager=SimpleNamespace(
             pending_loss={},
             last_loss_symbol=None,
-            last_loss_direction=None,
             recovery_symbol_loss_streak={},
             symbol_loss_cooldown={},
         ),
@@ -208,7 +197,6 @@ def test_collect_cluster_orders_uses_ultimate_fallback_when_select_empty():
         risk_manager=SimpleNamespace(
             pending_loss={},
             last_loss_symbol=None,
-            last_loss_direction=None,
             recovery_symbol_loss_streak={},
             symbol_loss_cooldown={},
         ),
@@ -251,7 +239,7 @@ def test_collect_cluster_orders_mandatory_returns_empty_when_select_none():
         anchor=ANCHOR,
         symbols=[ANCHOR, PAIR],
         config={"orchestrator": {"execution": {"include_anchor_trades": False, "regime_evaluator": {"enabled": True}}}},
-        risk_manager=SimpleNamespace(pending_loss={}, last_loss_symbol=None, last_loss_direction=None),
+        risk_manager=SimpleNamespace(pending_loss={}, last_loss_symbol=None),
         _active_cycle_id=4,
     )
     exec_mgr = SimpleNamespace(

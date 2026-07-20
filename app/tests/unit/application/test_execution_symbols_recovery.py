@@ -1,235 +1,65 @@
 from types import SimpleNamespace
 
-import pytest
-
-from src.application.services.execution_direction import recovery_hedge_target
 from src.application.services.execution_symbols import (
     candidate_execution_score,
     select_best_execution_candidate,
     select_mandatory_execution_candidate,
 )
-from src.application.services.execution_symbols_recovery import (
-    has_recovery_hedge_candidate,
-    inject_recovery_hedge_candidates,
-    recovery_candidate_pool,
-    recovery_rank_score,
-)
+from src.application.services.execution_symbols_recovery import recovery_candidate_pool
 from src.domain.models.trade import TradeDirection
-from tests.market_symbols import ALT_SYMBOL, ANCHOR, HEDGE_PEER_SYMBOL, PAIR
+from tests.market_symbols import ALT_SYMBOL, ANCHOR, PAIR
 
 
-def test_inject_recovery_hedge_noop_without_loss_context():
-    candidates = [(PAIR, TradeDirection.CALL, {"execute": True})]
-    out = inject_recovery_hedge_candidates(
-        candidates,
-        {},
-        last_loss_symbol=None,
-        last_loss_direction=None,
-    )
-    assert out == candidates
+def test_candidate_score_penalizes_same_symbol_in_recovery():
+    metrics = {"trade_score": 0.55, "val_accuracy": 0.5, "raw_prob": 0.42}
+    same = candidate_execution_score(metrics, recovery_active=True, symbol="SYM", last_loss_symbol="SYM")
+    other = candidate_execution_score(metrics, recovery_active=True, symbol="SYM", last_loss_symbol=ALT_SYMBOL)
+    assert same < other
 
 
-def test_inject_recovery_hedge_keeps_pool_without_structural_peer():
-    candidates = [(PAIR, TradeDirection.CALL, {"execute": True})]
-    out = inject_recovery_hedge_candidates(
-        candidates,
-        {
-            HEDGE_PEER_SYMBOL: {
-                "direction": TradeDirection.PUT,
-                "metrics": {
-                    "execute": True,
-                    "trade_score": 0.72,
-                    "val_accuracy": 0.55,
-                    "raw_prob": 0.28,
-                    "trend_sep_pct": 0.01,
-                },
-            }
-        },
-        last_loss_symbol=PAIR,
-        last_loss_direction="CALL",
-    )
-    assert out == candidates
-    assert len(out) == 1
+def test_candidate_score_bonus_for_different_symbol():
+    metrics = {"trade_score": 0.55, "execute": True, "raw_prob": 0.42}
+    base = candidate_execution_score(metrics, recovery_active=True, symbol=ANCHOR)
+    diversified = candidate_execution_score(metrics, recovery_active=True, symbol=ANCHOR, last_loss_symbol=ALT_SYMBOL)
+    assert diversified >= base + 0.05
 
 
-def test_has_recovery_direction_true_when_same_direction_present():
-    assert has_recovery_hedge_candidate(
-        [(PAIR, TradeDirection.PUT, {})],
-        last_loss_symbol=PAIR,
-        last_loss_direction="PUT",
-    )
+def test_recovery_score_ignores_direction_bias():
+    call_metrics = {"raw_prob": 0.62, "execute": True}
+    put_metrics = {"raw_prob": 0.38, "execute": True}
+    call_score = candidate_execution_score(call_metrics, recovery_active=True, symbol="SYM")
+    put_score = candidate_execution_score(put_metrics, recovery_active=True, symbol="SYM")
+    assert abs(call_score - put_score) < 0.05
 
 
-def test_has_recovery_direction_false_when_direction_missing():
-    assert not has_recovery_hedge_candidate(
-        [(HEDGE_PEER_SYMBOL, TradeDirection.CALL, {})],
-        last_loss_symbol=PAIR,
-        last_loss_direction="PUT",
-    )
-
-
-def test_recovery_rank_score_penalizes_matching_direction():
-    put_item = ("SYM", TradeDirection.PUT, {"trade_score": 0.55, "val_accuracy": 0.5, "raw_prob": 0.42})
-    base_put = candidate_execution_score(put_item[2], recovery_active=True, symbol="SYM")
-    assert recovery_rank_score(put_item, last_loss_direction="PUT", base_score=base_put) <= base_put
-
-
-def test_recovery_rank_score_bonus_for_different_symbol():
-    item = (ANCHOR, TradeDirection.PUT, {"trade_score": 0.55, "execute": True, "raw_prob": 0.42})
-    base = candidate_execution_score(item[2], recovery_active=True)
-    ranked = recovery_rank_score(item, last_loss_symbol=ALT_SYMBOL, last_loss_direction="CALL", base_score=base)
-    assert ranked >= base + 0.05
-
-
-def test_recovery_hedge_target_after_high_side_put_loss():
-    target = recovery_hedge_target(ANCHOR, "PUT")
-    assert target is None
-
-
-def test_recovery_prefers_opposite_direction_after_loss():
+def test_select_best_prefers_higher_score_not_opposite_side():
     candidates = [
-        (PAIR, TradeDirection.PUT, {"trade_score": 0.70, "val_accuracy": 0.55, "execute": False}),
-        (ANCHOR, TradeDirection.CALL, {"trade_score": 0.72, "val_accuracy": 0.58, "execute": True}),
-        (ANCHOR, TradeDirection.PUT, {"trade_score": 0.68, "val_accuracy": 0.56, "execute": True}),
+        (PAIR, TradeDirection.PUT, {"trade_score": 0.70, "val_accuracy": 0.55, "execute": False, "raw_prob": 0.40}),
+        (ANCHOR, TradeDirection.CALL, {"trade_score": 0.72, "val_accuracy": 0.58, "execute": True, "raw_prob": 0.62}),
+        (ANCHOR, TradeDirection.PUT, {"trade_score": 0.68, "val_accuracy": 0.56, "execute": True, "raw_prob": 0.38}),
     ]
-    best = select_best_execution_candidate(
-        candidates,
-        last_loss_symbol=PAIR,
-        last_loss_direction="PUT",
-        diversify_margin=0.08,
-        recovery_active=True,
-    )
+    best = select_best_execution_candidate(candidates, last_loss_symbol=PAIR, recovery_active=True)
+    assert best is not None
     assert best[0] == ANCHOR
     assert best[1] == TradeDirection.CALL
 
 
-def test_select_mandatory_non_recovery_prefers_highest_score():
-    orch = SimpleNamespace(config={})
+def test_recovery_candidate_pool_skips_blocked_symbol():
     candidates = [
-        (ANCHOR, TradeDirection.CALL, {"trade_score": 0.81, "raw_prob": 0.81, "execute": True}),
-        (PAIR, TradeDirection.PUT, {"trade_score": 0.55, "raw_prob": 0.20, "execute": False}),
+        ("R_10", TradeDirection.CALL, {}),
+        ("R_75", TradeDirection.PUT, {}),
     ]
-    best = select_mandatory_execution_candidate(
-        orch,
-        candidates,
-        last_loss_symbol=None,
-        diversify_margin=0.08,
-        recovery_active=False,
+    pool = recovery_candidate_pool(
+        candidates, last_loss_symbol="R_10", recovery_active=True, skip_symbols=frozenset({"R_10"})
     )
-    assert best[0] == ANCHOR
+    assert [c[0] for c in pool] == ["R_75"]
 
 
-def test_select_mandatory_recovery_keeps_same_direction_candidate():
-    orch = SimpleNamespace(config={})
+def test_select_mandatory_execution_candidate():
     candidates = [
-        (PAIR, TradeDirection.CALL, {"trade_score": 0.30, "execute": False}),
+        (ANCHOR, TradeDirection.CALL, {"trade_score": 0.8, "raw_prob": 0.7, "execute": True, "val_accuracy": 0.6}),
     ]
-    best = select_mandatory_execution_candidate(
-        orch,
-        candidates,
-        last_loss_symbol=PAIR,
-        last_loss_direction="CALL",
-        diversify_margin=0.08,
-        recovery_active=True,
-    )
+    orch = SimpleNamespace()
+    best = select_mandatory_execution_candidate(orch, candidates, last_loss_symbol=None, recovery_active=False)
     assert best is not None
-    assert best[0] == PAIR
     assert best[1] == TradeDirection.CALL
-
-
-def test_select_mandatory_returns_none_for_empty_candidates():
-    orch = SimpleNamespace(config={})
-    assert (
-        select_mandatory_execution_candidate(
-            orch,
-            [],
-            last_loss_symbol=None,
-            last_loss_direction=None,
-            diversify_margin=0.08,
-            recovery_active=False,
-        )
-        is None
-    )
-
-
-def test_select_mandatory_empty_pool_fallback():
-    orch = SimpleNamespace(config={})
-    candidates = [
-        (ANCHOR, TradeDirection.CALL, {"trade_score": 0.70, "execute": False}),
-        (PAIR, TradeDirection.CALL, {"trade_score": 0.40, "execute": False}),
-    ]
-    best = select_mandatory_execution_candidate(
-        orch,
-        candidates,
-        last_loss_symbol=PAIR,
-        last_loss_direction="CALL",
-        diversify_margin=0.08,
-        recovery_active=True,
-    )
-    assert best is not None
-    assert best[0] == ANCHOR
-
-
-def test_select_mandatory_recovery_prefers_opposite_direction():
-    orch = SimpleNamespace(config={})
-    candidates = [
-        (ANCHOR, TradeDirection.PUT, {"trade_score": 0.55, "val_accuracy": 0.60, "execute": True}),
-        (ANCHOR, TradeDirection.CALL, {"trade_score": 0.62, "val_accuracy": 0.58, "execute": True}),
-        (PAIR, TradeDirection.CALL, {"trade_score": 0.40, "execute": False}),
-    ]
-    best = select_mandatory_execution_candidate(
-        orch,
-        candidates,
-        last_loss_symbol=PAIR,
-        last_loss_direction="CALL",
-        diversify_margin=0.08,
-        recovery_active=True,
-    )
-    assert best[0] == ANCHOR
-    assert best[1] == TradeDirection.PUT
-
-
-def test_recovery_candidate_pool_keeps_opposite_direction_candidates():
-    candidates = [
-        (PAIR, TradeDirection.PUT, {"execute": True}),
-        (HEDGE_PEER_SYMBOL, TradeDirection.CALL, {"execute": True}),
-    ]
-    result = recovery_candidate_pool(
-        candidates,
-        last_loss_symbol=PAIR,
-        last_loss_direction="PUT",
-        recovery_active=True,
-    )
-    assert len(result) == 2
-
-
-def test_recovery_candidate_pool_without_direction_filter_when_inactive():
-    candidates = [(PAIR, TradeDirection.PUT, {"execute": True})]
-    result = recovery_candidate_pool(
-        candidates,
-        last_loss_symbol=PAIR,
-        last_loss_direction=None,
-        recovery_active=False,
-    )
-    assert result == candidates
-
-
-@pytest.mark.parametrize(
-    ("direction", "last_loss_direction", "raw_prob"),
-    [
-        (TradeDirection.PUT, "CALL", 0.42),
-        (TradeDirection.CALL, "PUT", 0.58),
-    ],
-)
-def test_recovery_rank_score_raw_bonus_for_opposite_direction(direction, last_loss_direction, raw_prob):
-    item = (ANCHOR, direction, {"trade_score": 0.55, "val_accuracy": 0.5, "raw_prob": raw_prob})
-    base = candidate_execution_score(item[2], recovery_active=True)
-    assert (
-        recovery_rank_score(
-            item,
-            last_loss_symbol=ALT_SYMBOL,
-            last_loss_direction=last_loss_direction,
-            base_score=base,
-        )
-        >= base + 0.05
-    )

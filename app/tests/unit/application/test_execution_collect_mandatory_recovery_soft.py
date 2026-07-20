@@ -25,7 +25,6 @@ def test_collect_cluster_orders_recovery_waives_rotation_when_pool_would_empty()
         risk_manager=SimpleNamespace(
             pending_loss={HIGH_SIDE_SYMBOL: 38.56},
             last_loss_symbol=HIGH_SIDE_SYMBOL,
-            last_loss_direction="CALL",
             consecutive_losses=1,
             consecutive_losses_linear=1,
             recovery_symbol_loss_streak={},
@@ -87,7 +86,6 @@ def test_collect_cluster_orders_recovery_allows_soft_meta_zscore_reject():
         risk_manager=SimpleNamespace(
             pending_loss={HIGH_SIDE_SYMBOL: 540.66},
             last_loss_symbol=HIGH_SIDE_SYMBOL,
-            last_loss_direction="CALL",
             consecutive_losses=4,
             consecutive_losses_linear=4,
             recovery_symbol_loss_streak={},

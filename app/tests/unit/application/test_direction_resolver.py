@@ -100,7 +100,6 @@ def test_resolve_follows_dl_call_and_scores_calibrated_prob():
     assert result is not None
     direction, metrics = result
     assert direction == TradeDirection.CALL
-    assert metrics["direction_inverted"] is False
     assert metrics["trade_score"] == 0.82
     assert metrics["exec_direction"] == "CALL"
     assert metrics["dl_direction"] == "CALL"
@@ -188,7 +187,6 @@ def test_resolve_ignores_tactical_config_and_corr_matrix():
     )
     assert result is not None
     assert result[0] == TradeDirection.CALL
-    assert result[1]["direction_inverted"] is False
 
 
 def test_resolve_applies_prefetched_positive_edge_with_organic_tcn_score():
@@ -223,7 +221,7 @@ def test_resolve_allows_weak_tcn_margin_when_meta_zscore_strong():
     assert entry["metrics"].get("quality_guard_reject") is True
 
 
-def test_resolve_mild_negative_edge_flips_call_to_put():
+def test_resolve_mild_negative_edge_keeps_call_side():
     entry = _entry(direction=TradeDirection.CALL, calibrated_prob=0.70)
     entry["metrics"]["predicted_payoff_edge"] = -0.08
     entry["metrics"]["meta_classifier_applied"] = True
@@ -237,8 +235,7 @@ def test_resolve_mild_negative_edge_flips_call_to_put():
         result = resolve_execution_direction(entry, symbol="R_10")
     assert result is not None
     assert entry["metrics"].get("gate_reason") != META_PAYOFF_NEGATIVE_ZSCORE_VETO
-    assert result[0] == TradeDirection.PUT
-    assert entry["metrics"].get("meta_direction_flip") is True
+    assert result[0] == TradeDirection.CALL
 
 
 def test_resolve_meta_disabled_keeps_tcn_score_when_edge_strong():

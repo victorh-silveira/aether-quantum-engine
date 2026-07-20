@@ -4,7 +4,7 @@ import pytest
 
 from src.application.services.execution_direction_resolver import resolve_execution_direction
 from src.application.services.execution_quality_gate_starvation import starvation_decay_factor
-from src.application.services.execution_symbols_recovery import recovery_rank_score
+from src.application.services.execution_symbols import candidate_execution_score
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.consensus_stake_penalty import max_safe_stake_cap, neutral_edge_dynamic_unit
 from src.infrastructure.state.state_manager import StateManager
@@ -57,14 +57,10 @@ def test_state_manager_float_tolerance():
     assert mgr.read_cached_balance() == 100.07
 
 
-def test_recovery_rank_score_drift_aligned_boost():
-    item_aligned = ("R_10", TradeDirection.CALL, {})
-    item_non_aligned = ("R_10", TradeDirection.PUT, {})
-
-    score_aligned = recovery_rank_score(item_aligned, base_score=0.5)
-    score_non_aligned = recovery_rank_score(item_non_aligned, base_score=0.5)
-
-    assert score_aligned == pytest.approx(score_non_aligned)
+def test_candidate_score_no_direction_bias_in_recovery():
+    call_score = candidate_execution_score({"raw_prob": 0.62, "execute": True}, recovery_active=True, symbol="R_10")
+    put_score = candidate_execution_score({"raw_prob": 0.38, "execute": True}, recovery_active=True, symbol="R_10")
+    assert call_score == pytest.approx(put_score, abs=0.05)
 
 
 def test_resolve_execution_direction_technical_discordance_veto():

@@ -154,7 +154,6 @@ async def _collect_symbol_decision(
     params: dict,
     min_len: int,
     granularity: int,
-    recovery_active: bool,
     train_priority: frozenset[str] = frozenset(),
 ) -> tuple[dict, str | None]:
     """Treina (se necessario), prediz e aplica gates para um simbolo."""
@@ -226,7 +225,6 @@ async def _collect_symbol_decision(
         runtime,
         params,
         train_loss,
-        recovery_active=recovery_active,
         granularity=trained_granularity,
         open_=open_inf,
         high=high_inf,
@@ -267,7 +265,6 @@ async def collect_deep_learning_decisions(orch) -> dict[str, dict]:
             params=params,
             min_len=min_len,
             granularity=granularity,
-            recovery_active=recovery_active,
             train_priority=train_priority,
         )
         for symbol in orch.symbols

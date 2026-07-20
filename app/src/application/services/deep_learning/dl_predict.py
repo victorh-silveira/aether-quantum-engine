@@ -28,7 +28,6 @@ def predict_symbol_decision_sync(
     params: dict[str, Any],
     train_loss: float | None,
     *,
-    recovery_active: bool,
     granularity: int = 60,
     open_=None,
     high=None,
@@ -36,7 +35,6 @@ def predict_symbol_decision_sync(
     micro=None,
 ) -> dict:
     """Gera predicao DL sincrona local direta (sem usar event loop ou gRPC)."""
-    _ = recovery_active
     val_accuracy = blended_val_accuracy(
         orch,
         symbol,
@@ -102,7 +100,6 @@ def predict_symbol_decision(
     params: dict[str, Any],
     train_loss: float | None,
     *,
-    recovery_active: bool,
     granularity: int = 60,
     open_=None,
     high=None,
@@ -121,7 +118,6 @@ def predict_symbol_decision(
             runtime,
             params,
             train_loss,
-            recovery_active=recovery_active,
             granularity=granularity,
             open_=open_,
             high=high,
@@ -138,7 +134,6 @@ def predict_symbol_decision(
             runtime,
             params,
             train_loss,
-            recovery_active=recovery_active,
             granularity=granularity,
             open_=open_,
             high=high,

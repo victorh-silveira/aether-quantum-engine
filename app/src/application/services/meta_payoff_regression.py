@@ -5,8 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from src.application.services.execution_quality_gate import sync_direction_margin
-from src.application.services.meta_direction_flip import (
-    apply_meta_direction_flip,
+from src.application.services.regime_micro_freeze import (
     log_d_squeeze_audit,
     micro_volatility_squeeze_active,
     severe_bb_compression,
@@ -34,12 +33,6 @@ def calibration_neutral_axis_drift(raw_prob: float | None, calibrated_prob: floa
     return bool(raw_put and calibrated_call)
 
 
-def veto_calibration_neutral_drift(metrics: dict[str, Any]) -> bool:
-    """Trava de drift de calibracao desativada."""
-    _ = metrics
-    return False
-
-
 def _apply_direction_scores(metrics: dict[str, Any], *, direction: TradeDirection, score: float) -> None:
     """Propaga trade_score lateralizado para metricas de direcao CALL/PUT."""
     clamped = max(0.0, min(1.0, float(score)))
@@ -64,7 +57,6 @@ def apply_meta_regression_edge(
     symbol: str | None = None,
 ) -> tuple[TradeDirection, float]:
     """Aplica edge continuo do meta-regressor com downgrade D-SQUEEZE quando necessario."""
-    _ = veto_calibration_neutral_drift(metrics)
     metrics["predicted_payoff_edge"] = float(predicted_edge)
     metrics["meta_classifier_applied"] = bool(meta_applied)
     squeeze_active = micro_volatility_squeeze_active(metrics)
@@ -73,23 +65,8 @@ def apply_meta_regression_edge(
         _apply_direction_scores(metrics, direction=dl_dir, score=base_score)
         return dl_dir, float(base_score)
     if float(predicted_edge) <= 0.0:
-        if bool(metrics.get("execution_direction_invert")):
-            _apply_direction_scores(metrics, direction=dl_dir, score=base_score)
-            return dl_dir, float(base_score)
-        tcn_prob = float(metrics.get("calibrated_prob", metrics.get("raw_prob", 0.5)) or 0.5)
-        flipped, flip_score = apply_meta_direction_flip(
-            dl_dir,
-            metrics,
-            float(predicted_edge),
-            meta_applied=True,
-            tcn_probability=tcn_prob,
-        )
-        if bool(metrics.get("meta_direction_flip")):
-            return flipped, float(flip_score)
-        metrics["quality_guard_reject"] = True
-        metrics["regime_skip_cycle"] = True
-        metrics["gate_reason"] = "meta_negative_edge"
         _apply_direction_scores(metrics, direction=dl_dir, score=base_score)
+        metrics["meta_negative_edge"] = True
         return dl_dir, float(base_score)
     squeeze_danger = severe_bb_compression(metrics)
     if squeeze_danger:

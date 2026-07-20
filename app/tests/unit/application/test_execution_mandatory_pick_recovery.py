@@ -22,7 +22,6 @@ def test_collect_cluster_orders_recovery_picks_dl_put_after_call_loss():
         risk_manager=SimpleNamespace(
             pending_loss={LOW_SIDE_SYMBOL: 1.37},
             last_loss_symbol=LOW_SIDE_SYMBOL,
-            last_loss_direction="CALL",
             consecutive_losses=1,
             recovery_symbol_loss_streak={},
             symbol_loss_cooldown={},
@@ -69,7 +68,6 @@ def test_collect_cluster_orders_mandatory_keeps_weak_recovery_candidate():
         risk_manager=SimpleNamespace(
             pending_loss={ANCHOR: 4.0},
             last_loss_symbol=ANCHOR,
-            last_loss_direction="PUT",
             consecutive_losses=1,
             recovery_symbol_loss_streak={},
             symbol_loss_cooldown={},
@@ -115,7 +113,6 @@ def test_collect_cluster_orders_mandatory_keeps_weak_recovery_candidate():
         decisions,
         recovery_active=True,
         last_loss_symbol="R_10",
-        last_loss_direction="CALL",
         min_signal=0.45,
         min_val=0.50,
     )
@@ -135,7 +132,6 @@ def test_pick_best_mandatory_skips_hedge_when_peer_blocked():
         decisions,
         recovery_active=True,
         last_loss_symbol="R_10",
-        last_loss_direction="CALL",
         skip_symbols=frozenset({"R_10"}),
         min_signal=0.45,
         min_val=0.50,

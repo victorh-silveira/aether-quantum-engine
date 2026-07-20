@@ -17,10 +17,7 @@ from src.application.services.execution_direction_checks import (
 )
 from src.application.services.execution_quality_gate import ensure_direction_margin
 from src.application.services.force_trade_mode import force_trade_every_cycle
-from src.application.services.live_signal_metrics import (
-    apply_live_calib_drift_soft,
-    attach_live_signal_metrics,
-)
+from src.application.services.live_signal_metrics import apply_live_calib_drift_soft, attach_live_signal_metrics
 from src.application.services.meta_classifier_stacking import resolve_meta_payoff_edge
 from src.application.services.meta_payoff_regression import apply_meta_regression_edge
 from src.application.services.meta_payoff_veto_gate import (
@@ -28,6 +25,11 @@ from src.application.services.meta_payoff_veto_gate import (
     should_veto_meta_payoff_negative_zscore,
 )
 from src.application.services.payoff_edge_zscore import attach_payoff_edge_zscore_metrics
+from src.application.services.side_equilibrium_gate import (
+    apply_side_equilibrium_to_metrics,
+    evaluate_proposed_side_equilibrium,
+    log_side_equilibrium,
+)
 from src.domain.models.trade import TradeDirection
 
 
@@ -57,25 +59,11 @@ def _apply_persistence_guard_skip(
         metrics.pop("quality_guard_reject", None)
         return False
     guarded = evaluate_direction_persistence_guard(
-        symbol,
-        dl_dir,
-        dl_dir,
-        metrics,
-        entry=entry,
-        peer_entry=peer_entry,
-        cycle_id=cycle_id,
-        infra_cfg=infra_cfg,
+        symbol, dl_dir, dl_dir, metrics, entry=entry, peer_entry=peer_entry, cycle_id=cycle_id, infra_cfg=infra_cfg
     )
     if guarded is None:
         metrics["gate_reason"] = str(metrics.get("gate_reason") or "persistence_guard_skip")
         metrics["persistence_guard_skip"] = True
-        metrics["quality_guard_reject"] = True
-        sync_entry_metrics(entry, metrics)
-        return True
-    if guarded != dl_dir:
-        metrics["gate_reason"] = "persistence_guard_skip"
-        metrics["persistence_guard_skip"] = True
-        metrics["persistence_guard_flip_suppressed"] = True
         metrics["quality_guard_reject"] = True
         sync_entry_metrics(entry, metrics)
         return True
@@ -101,12 +89,7 @@ def _finalize_execution_metrics(
         attach_live_signal_metrics(orch, symbol, metrics)
     apply_live_calib_drift_soft(metrics)
     exec_dir, _final_score = apply_meta_regression_edge(
-        dl_dir,
-        metrics,
-        predicted_edge,
-        meta_applied=meta_applied,
-        base_score=score,
-        symbol=symbol,
+        dl_dir, metrics, predicted_edge, meta_applied=meta_applied, base_score=score, symbol=symbol
     )
     if (
         not force
@@ -115,12 +98,7 @@ def _finalize_execution_metrics(
     ):
         sync_entry_metrics(entry, metrics)
         return None
-    hard = should_veto_meta_payoff_negative_zscore(
-        metrics,
-        direction=exec_dir,
-        risk_manager=risk_manager,
-        orch=orch,
-    )
+    hard = should_veto_meta_payoff_negative_zscore(metrics, direction=exec_dir, risk_manager=risk_manager, orch=orch)
     if (hard or is_execution_signal_vetoed(metrics)) and not force:
         sync_entry_metrics(entry, metrics)
         return None
@@ -132,11 +110,23 @@ def _finalize_execution_metrics(
         {
             "exec_direction": exec_dir.name,
             "resolved_direction": exec_dir.name,
-            "direction_inverted": exec_dir != dl_dir,
             "tcn_score": prob,
         }
     )
     ensure_direction_margin(metrics)
+    side_decision = evaluate_proposed_side_equilibrium(orch, symbol, exec_dir)
+    log_side_equilibrium(side_decision, symbol=str(symbol or "?"), proposed=exec_dir)
+    if apply_side_equilibrium_to_metrics(metrics, side_decision, proposed=exec_dir) and not force:
+        sync_entry_metrics(entry, metrics)
+        return None
+    if float(metrics.get("side_eq_margin_boost", 0.0)) > 0.0:
+        margin = float(metrics.get("direction_margin", 0.0))
+        floor = float(metrics.get("quality_min_direction_margin", 0.0))
+        if margin + 1e-12 < floor and not force:
+            metrics["gate_reason"] = "side_imbalance_large_n_margin"
+            metrics["quality_guard_reject"] = True
+            sync_entry_metrics(entry, metrics)
+            return None
     if metrics.get("meta_veto_mode") is None:
         metrics["meta_veto_mode"] = "none"
     sync_entry_metrics(entry, metrics)

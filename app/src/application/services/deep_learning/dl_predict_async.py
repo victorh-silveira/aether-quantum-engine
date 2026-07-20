@@ -42,7 +42,6 @@ async def predict_symbol_decision_async(
     params: dict[str, Any],
     train_loss: float | None,
     *,
-    recovery_active: bool,
     granularity: int = 60,
     open_=None,
     high=None,
@@ -51,7 +50,6 @@ async def predict_symbol_decision_async(
     force_local: bool = False,
 ) -> dict:
     """Gera predicao DL assincrona com inferencia Triton quando habilitada."""
-    _ = recovery_active
     val_accuracy = blended_val_accuracy(
         orch,
         symbol,

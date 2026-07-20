@@ -14,7 +14,6 @@ from src.application.services.execution_symbols_overdrive import (
     _meta_payoff_edge_zscore,
     _overdrive_conviction_eligible,
 )
-from src.application.services.meta_direction_flip import SIGNAL_SUSPENDED
 from src.application.services.meta_payoff_regression import apply_meta_regression_edge
 from src.application.services.orchestrator.execution_blockers import _candidate_block_reason
 from src.application.services.orchestrator.execution_collect import (
@@ -24,6 +23,7 @@ from src.application.services.orchestrator.execution_collect import (
 )
 from src.application.services.orchestrator.regime_freeze_yield import propagate_cluster_signal_suspended
 from src.application.services.orchestrator.trading_cycle_entry import run_trading_cycle_if_ready
+from src.application.services.regime_micro_freeze import SIGNAL_SUSPENDED
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.soft_recovery_policy import risk_session_bankroll_pending
 
@@ -32,7 +32,7 @@ def test_meta_zscore_soft_ok_uses_floor():
     assert meta_zscore_soft_ok({"meta_payoff_edge_zscore": 0.0, "edge_zscore": 0.0}) is True
 
 
-def test_initial_direction_checks_clears_neutral_clamp_and_trades():
+def test_initial_direction_checks_blocks_neutral_clamp():
     entry = {
         "direction": TradeDirection.CALL,
         "metrics": {
@@ -45,6 +45,24 @@ def test_initial_direction_checks_clears_neutral_clamp_and_trades():
         },
     }
     result = initial_direction_checks(entry, {})
+    assert result is None
+    assert entry["metrics"].get("gate_reason") == "neutral_clamp"
+    assert entry["metrics"].get("quality_guard_reject") is True
+
+
+def test_initial_direction_checks_clears_neutral_clamp_when_force_trade():
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {
+            "gate_reason": "neutral_clamp",
+            "calibration_mode": "neutral_clamp",
+            "calibrated_prob": 0.50,
+            "raw_prob": 0.50,
+            "execute": True,
+            "deploy_ok": True,
+        },
+    }
+    result = initial_direction_checks(entry, {"force_trade_every_cycle": True})
     assert result is not None
     assert result[0] == TradeDirection.CALL
     assert entry["metrics"].get("gate_reason") is None
@@ -123,7 +141,6 @@ def test_collect_recovery_skip_waiver_empty_pool():
         risk_manager=SimpleNamespace(
             pending_loss={"R_10": 10.0},
             last_loss_symbol="R_10",
-            last_loss_direction="CALL",
             consecutive_losses=2,
             consecutive_losses_linear=2,
             recovery_symbol_loss_streak={},

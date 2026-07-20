@@ -5,7 +5,6 @@ from src.application.services.meta_payoff_regression import (
     CALIBRATION_NEUTRAL_DRIFT,
     apply_meta_regression_edge,
     calibration_neutral_axis_drift,
-    veto_calibration_neutral_drift,
 )
 from src.domain.models.trade import TradeDirection
 
@@ -41,21 +40,8 @@ def test_calibration_neutral_axis_drift_ignores_missing_values():
     assert calibration_neutral_axis_drift(0.42, None) is False
 
 
-def test_veto_calibration_neutral_drift_annuls_direction_and_trade_score():
-    metrics = {"raw_prob": 0.40, "calibrated_prob": 0.53, "trade_score": 0.53}
-    assert veto_calibration_neutral_drift(metrics) is False
-    assert metrics.get("gate_reason") != CALIBRATION_NEUTRAL_DRIFT
-    assert metrics["trade_score"] == 0.53
-
-
-@pytest.mark.parametrize(
-    ("raw_prob", "calibrated_prob"),
-    (
-        (0.38, 0.55),
-        (0.62, 0.45),
-    ),
-)
-def test_resolve_execution_direction_vetoes_absolute_on_neutral_drift(raw_prob, calibrated_prob):
+@pytest.mark.parametrize(("raw_prob", "calibrated_prob"), ((0.38, 0.55), (0.62, 0.45)))
+def test_resolve_execution_direction_allows_neutral_axis_drift(raw_prob, calibrated_prob):
     entry = _entry(raw_prob=raw_prob, calibrated_prob=calibrated_prob)
     result = resolve_execution_direction(entry, symbol="R_10")
     assert result is not None
@@ -72,15 +58,10 @@ def test_resolve_execution_direction_allows_aligned_calibration():
     assert metrics.get("gate_reason") != CALIBRATION_NEUTRAL_DRIFT
 
 
-def test_apply_meta_regression_edge_vetoes_on_calibration_drift():
+def test_apply_meta_regression_edge_keeps_direction_on_calibration_drift():
     metrics = {"raw_prob": 0.44, "calibrated_prob": 0.56}
     direction, score = apply_meta_regression_edge(
-        TradeDirection.PUT,
-        metrics,
-        0.10,
-        meta_applied=True,
-        base_score=0.56,
-        symbol="R_10",
+        TradeDirection.PUT, metrics, 0.10, meta_applied=True, base_score=0.56, symbol="R_10"
     )
     assert direction == TradeDirection.PUT
     assert score > 0.0

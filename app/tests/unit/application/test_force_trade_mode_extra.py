@@ -35,7 +35,6 @@ def test_mandatory_fallback_candidates_returns_build_fallback_when_present():
             {},
             recovery_active=False,
             last_loss_symbol=None,
-            last_loss_direction=None,
             skip_symbols=frozenset(),
             min_signal=0.5,
             min_val=0.5,
@@ -66,7 +65,6 @@ def test_mandatory_fallback_candidates_uses_force_trade_when_empty():
             decisions,
             recovery_active=False,
             last_loss_symbol=None,
-            last_loss_direction=None,
             skip_symbols=frozenset(),
             min_signal=0.5,
             min_val=0.5,
@@ -98,12 +96,9 @@ def test_resolve_ultimate_mandatory_candidate_force_path():
             mandatory=True,
             recovery_active=False,
             last_loss=None,
-            last_loss_dir=None,
             skip_symbols=frozenset(),
             min_signal=0.5,
             min_val=0.5,
-            mean_reversion=True,
-            low_accuracy=True,
         )
     assert ultimate is not None
     assert wrapped == [ultimate]

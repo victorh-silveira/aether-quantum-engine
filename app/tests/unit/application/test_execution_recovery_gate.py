@@ -23,7 +23,6 @@ def test_cluster_entry_accepts_technically_ok_with_raw_prob():
         entry,
         mandatory=True,
         recovery_active=True,
-        recovery_cfg={},
         min_signal=0.53,
         min_val=0.52,
     )
@@ -110,7 +109,6 @@ def test_cluster_entry_rejects_technical_blocks_only():
         entry,
         mandatory=True,
         recovery_active=True,
-        recovery_cfg={},
         min_signal=0.53,
         min_val=0.52,
     )
@@ -131,7 +129,6 @@ def test_cluster_entry_eligible_recovery_deploy_ok_false():
         entry,
         mandatory=True,
         recovery_active=True,
-        recovery_cfg={},
         min_signal=0.53,
         min_val=0.52,
     )
@@ -153,7 +150,6 @@ def test_cluster_entry_accepts_without_execute_flag_when_raw_prob_present():
         entry,
         mandatory=True,
         recovery_active=False,
-        recovery_cfg={},
         min_signal=0.50,
         min_val=0.50,
     )
