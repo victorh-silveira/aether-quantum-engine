@@ -26,10 +26,14 @@ logger = logging.getLogger("META_TRAIN")
 LGBM_QUIET_PARAMS: dict[str, Any] = {"verbose": -1, "warnings": False, "n_jobs": 2}
 OPTUNA_N_JOBS = 2
 LGBM_REGRESSION_OBJECTIVE = "huber"
+LGBM_N_ESTIMATORS = 120
 OPTUNA_OOS_PAYOFF_ZSCORE_MIN = 0.04
 META_EXPORT_MIN_ZSCORE = 0.04
 META_EXPORT_MIN_IR = 1.0
 OPTUNA_IR_TIEBREAK_WEIGHT = 0.01
+META_EXPORT_MAX_MAE_GAP = 2.0
+OPTUNA_OVERFIT_PENALTY = -1.0
+PURGED_SPLIT_EMBARGO = 8
 
 
 def configure_meta_train_logging() -> None:
@@ -57,9 +61,9 @@ def train_lgbm_candidate(
     merged = {**LGBM_QUIET_PARAMS, **params}
     model = lgb.LGBMRegressor(
         objective=LGBM_REGRESSION_OBJECTIVE,
-        n_estimators=180,
-        subsample=0.85,
-        colsample_bytree=0.85,
+        n_estimators=LGBM_N_ESTIMATORS,
+        subsample=0.80,
+        colsample_bytree=0.80,
         random_state=42,
         **merged,
     )
@@ -94,11 +98,15 @@ def payoff_zscore_mean(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     return float(np.mean(realized) / std)
 
 
+def _mae_gap_ratio(train_mae: float, val_mae: float) -> float:
+    return float(val_mae) / max(float(train_mae), 1e-9)
+
+
 def _purged_frame_split(
     frame: pd.DataFrame,
     y: np.ndarray,
     *,
-    embargo: int = 2,
+    embargo: int = PURGED_SPLIT_EMBARGO,
 ) -> tuple[pd.DataFrame, pd.DataFrame, np.ndarray, np.ndarray]:
     sample_count = int(len(frame))
     val_size = max(32, int(sample_count * 0.15))
@@ -125,12 +133,18 @@ def run_optuna_study(
 
     def objective(trial: optuna.Trial) -> float:
         params = {
-            "max_depth": trial.suggest_int("max_depth", 3, 10),
-            "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.2, log=True),
-            "num_leaves": trial.suggest_int("num_leaves", 16, 96),
+            "max_depth": trial.suggest_int("max_depth", 3, 6),
+            "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.08, log=True),
+            "num_leaves": trial.suggest_int("num_leaves", 8, 31),
+            "min_child_samples": trial.suggest_int("min_child_samples", 20, 80),
+            "reg_lambda": trial.suggest_float("reg_lambda", 0.1, 10.0, log=True),
             "n_jobs": OPTUNA_N_JOBS,
         }
-        model, _, _ = train_lgbm_candidate(x_train, y_train, x_val, y_val, params)
+        model, train_mae, val_mae = train_lgbm_candidate(x_train, y_train, x_val, y_val, params)
+        gap = _mae_gap_ratio(train_mae, val_mae)
+        trial.set_user_attr("mae_gap", float(gap))
+        if gap > META_EXPORT_MAX_MAE_GAP + 1e-12:
+            return float(OPTUNA_OVERFIT_PENALTY)
         val_pred = model.predict(x_val.loc[:, columns])
         oos_zscore = payoff_zscore_mean(y_val, val_pred)
         oos_ir = information_ratio_from_predictions(y_val, val_pred)
@@ -140,8 +154,19 @@ def run_optuna_study(
 
     study = optuna.create_study(direction="maximize")
     study.optimize(objective, n_trials=trials, show_progress_bar=False, n_jobs=OPTUNA_N_JOBS)
+    if float(study.best_value) <= float(OPTUNA_OVERFIT_PENALTY) + 1e-12:
+        raise RuntimeError(
+            "Export meta bloqueado: nenhum trial Optuna passou o teto de overfit "
+            f"val_mae/train_mae<={META_EXPORT_MAX_MAE_GAP:.1f}. "
+            "Aumente barras/trials ou regularizacao."
+        )
     best_params = {**study.best_params, "n_jobs": OPTUNA_N_JOBS}
     model, train_mae, val_mae = train_lgbm_candidate(x_train, y_train, x_val, y_val, best_params)
+    if _mae_gap_ratio(train_mae, val_mae) > META_EXPORT_MAX_MAE_GAP + 1e-12:
+        raise RuntimeError(
+            "Export meta bloqueado: melhor trial ainda overfitou no refit final "
+            f"(val_mae/train_mae={_mae_gap_ratio(train_mae, val_mae):.3f})."
+        )
     val_pred = model.predict(x_val.loc[:, columns])
     val_ir = information_ratio_from_predictions(y_val, val_pred)
     val_oos_zscore = payoff_zscore_mean(y_val, val_pred)
@@ -195,9 +220,6 @@ def assert_export_zscore_floor(
         f"e oos_information_ratio={ir:.6f} < min_ir={float(min_ir):.6f}. "
         "Retreine com teacher TCN (data/dl), gran=120s, mais barras/trials ou features alinhadas ao runtime."
     )
-
-
-META_EXPORT_MAX_MAE_GAP = 2.0
 
 
 def assert_export_mae_gap(

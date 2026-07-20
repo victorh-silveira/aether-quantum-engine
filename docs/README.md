@@ -4,7 +4,7 @@
 |-----------|----------|
 | [arquitetura.md](arquitetura.md) | Arquitetura completa: pipeline runtime, DL 34D, meta 43D, quality gates (soft + HARD microestrutura), risco, settlement, config |
 | [structure.md](structure.md) | Layout do repositório e inventário de módulos Python em `app/src/` (~226) |
-| [medallion.md](medallion.md) | Metodologia quantitativa: scoring TCN × meta Z-Score, esteira contínua, soft recovery, Kelly, D-SQUEEZE |
+| [medallion.md](medallion.md) | Metodologia quantitativa: scoring TCN × meta Z-Score, esteira contínua, sizing híbrido Kelly+Martingale, side equilibrium (LLN), D-SQUEEZE |
 | [infra-docker.md](infra-docker.md) | Stack Docker híbrida: profiles `core/gpu/ml`, hydrate/smoke, Triton GPU, meta-classifier |
 | [deriv-api.md](deriv-api.md) | Referência Deriv + integração PAT/OTP |
 | [deriv-indices-algorithm.md](deriv-indices-algorithm.md) | Algoritmo CSPRNG dos índices Drift |
@@ -23,7 +23,7 @@ presentation  →  application  →  domain
 | Camada | Papel |
 |--------|-------|
 | Application | Orquestração, DL, direção, quality gates, meta |
-| Domain | Risco Kelly / soft D'Alembert (`soft_recovery_policy`), `RiskPolicy`, modelos, math |
+| Domain | Risco híbrido Kelly/Martingale (`martingale_sizing`), soft legado (`soft_recovery_policy`), `RiskPolicy`, modelos, math, `side_equilibrium` |
 | Infrastructure | Deriv, Redis, Triton, MinIO, Timescale |
 | Presentation | Logger terminal |
 
@@ -46,7 +46,7 @@ Regra: **domain** não importa application nem infrastructure. **Application** o
 | Quality gate | Dual soft + HARD microestrutura + margem (`min_adx_threshold` 0.20; `min_direction_margin` 0.03; `mandatory_min_trade_score` 0.52; `min_validation_accuracy_gate` 0.63) |
 | BB squeeze adaptativo | **desabilitado** |
 | Loss protection | `min_direction_margin` 0.03; caps edge/Z 999 |
-| Risco | Kelly `fraction=0.005`, teto 3,5%, `consensus_penalty_enabled: false`, soft D'Alembert (`max_safe_stake_cap` 4.20, amort 2–5), stop win 2,60% (≥$100) / $10 (&lt;$100) |
+| Risco | Híbrido Kelly EXPLORE (`fraction=0.08`, teto 3,5%) + Martingale RECOVER (`multiplier=2`); soft D'Alembert legado off; side_equilibrium LLN; stop win 2,60% (≥$100) / $10 (&lt;$100) |
 | Settlement | Tolerância **90 s**, reconciliação passiva |
 | Watchdog | Stale tick **25 s** |
 | Triton | `infer_timeout_seconds: 0.50`, `require_for_execution: true` |

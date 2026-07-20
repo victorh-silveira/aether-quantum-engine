@@ -20,7 +20,8 @@ Para arquitetura de código, ver [`arquitetura.md`](arquitetura.md).
 | Defesa contra ruído CSPRNG | Consensus Entropy Penalty no Kelly base — **desligado** nos settings atuais (`consensus_penalty_enabled: false`) |
 | Persistência financeira | Recovery atrelado a `pending_loss`, não a WIN operacional isolado |
 | Soft recovery + caps | Legado: `soft_recovery_policy` quando `martingale.enabled=false` |
-| Martingale clássico | `martingale_sizing`: base `stake_min`, ×2 após LOSS, reset no WIN, teto = banca; tags `MARTINGALE_Ln` |
+| Sizing híbrido | EXPLORE = Kelly (`fraction: 0.08`); RECOVER = Martingale `last_loss_stake × 2` |
+| Side equilibrium (LLN) | `side_equilibrium`: small-N hard skip; large-N soft Kelly |
 | Meta por sessão ativa | Stop win de 2,60% composto (banca ≥ $100) ou fixo $10 (banca < $100) |
 | Sem disjuntor de perda | Stop loss interno desativado |
 | Isolamento de estado | `asyncio.Lock` serializa inferência, liquidação e persistência |
@@ -91,7 +92,7 @@ Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `
 | Rotulagem | Padrão `spot_forward`; `ma_trend` / Triple Barrier disponíveis via config |
 | Perda TCN assimétrica | Penalidade 2,5× para erro direcional em alta volatilidade |
 | Optuna meta | Maximiza Information Ratio; constraint OOS payoff Z-Score ≥ +1,00 |
-| Gerenciamento de risco | Martingale clássico (`martingale.enabled: true`, base `stake_min`, ×2); path Kelly/soft legado desligado operacionalmente; `loss_protection.min_direction_margin: 0.03` |
+| Gerenciamento de risco | Híbrido Kelly EXPLORE + Martingale RECOVER (`martingale.enabled: true`, `kelly.fraction: 0.08`, tetos 3,5%); soft legado off; `loss_protection.min_direction_margin: 0.03` |
 | BB squeeze adaptativo | `bb_width_adaptive_squeeze.enabled: false` |
 | Dynamic threshold | `dynamic_threshold.enabled: false` |
 
@@ -135,7 +136,7 @@ Ordem lógica de uma entrada:
 10. **Z-Score meta** — `attach_payoff_edge_zscore_metrics` anexa `meta_payoff_edge_zscore` / `edge_zscore` para ranking e gate.
 11. **Deploy** — `deploy_ok=false` bloqueia execução; mini-deploy de treino usa `force_local=True` (modelo em memória).
 12. **Seleção** — `market_decision_score` multiplicativo (TCN × fator Z-Score); redirect inter-símbolo quando âncora degradada.
-13. **Risco** — Martingale clássico 2× (base `stake_min`, teto = banca); consensus **off**; recovery financeiro persistente (`last_loss_stake`); stop win por sessão (2,60% composto ou $10 fixo se banca < $100).
+13. **Risco** — Híbrido: Kelly em EXPLORE (`fraction: 0.08`, teto 3,5%); Martingale 2× em RECOVER a partir de `last_loss_stake`; stop win por sessão (2,60% composto ou $10 fixo se banca < $100).
 
 Bloqueio absoluto para falhas técnicas (`data`, `predict_error`, `training`, `deploy_ok=false`, Triton) e reconciliação pendente. Vetoes HARD de microestrutura bloqueiam independentemente do soft. Não há vetos táticos autônomos de quality guard soft, cooldown pós-LOSS, blackout de broker ou stubs sniper.
 
@@ -170,7 +171,7 @@ Perfil em `config/settings.json` (settings atuais):
 | `loss_protection.max_zscore_without_margin` | 999.0 | Cap Z sem margem |
 | `risk_management.kelly.max_stake_pct` | 0.035 | Teto Kelly efetivo |
 | `risk_management.kelly.max_bankroll_stake_fraction` | 0.035 | Teto de fração de banca alinhado ao Kelly |
-| `risk_management.kelly.fraction` | 0.005 | Fração Kelly base |
+| `risk_management.kelly.fraction` | 0.08 | Fração Kelly base (EXPLORE; compressão 40% fora de recovery) |
 | `infra.triton.require_for_execution` | true | Timeout Triton falha fechado (sem fallback eager local) |
 | `infra.triton.infer_timeout_seconds` | 0.50 | Timeout gRPC de inferência |
 | `consensus_penalty_enabled` | false | Consensus Entropy Penalty **desligado** |
@@ -350,20 +351,20 @@ Justificativa: com alinhamento direcional unânime no contexto macro ou convicç
 
 ---
 
-### 8.3 Martingale clássico (operacional)
+### 8.3 Sizing híbrido Kelly + Martingale (operacional)
 
-#### Filosofia: dobra após LOSS, reset no WIN, teto só pela banca
+#### Filosofia: Kelly na exploração; Martingale só na recovery financeira
 
-Com `risk_management.martingale.enabled: true`, o sizing **não** usa Kelly nem soft D'Alembert para o valor da stake. A regra é:
+Com `risk_management.martingale.enabled: true`, o switch em `calculate_stake_for_manager` usa o regime já modelado:
 
-| Estado | Stake |
-|--------|-------|
-| `consecutive_losses_linear == 0` | `base = stake_min` (`MARTINGALE_L0`) |
-| Após LOSS (`last_loss_stake > 0`) | `2 × last_loss_stake` (`MARTINGALE_Ln`) |
-| Fallback sem `last_loss_stake` | `base × 2^n` |
-| Teto | `min(stake, bankroll)` — sem `max_safe_stake_cap` nem caps Kelly % |
+| Regime | Condição | Sizer | Tag |
+|--------|----------|-------|-----|
+| **EXPLORE** | `pending_total == 0` e `linear == 0` | Kelly fracionário (`fraction: 0.08`, tetos 3,5%) | `EXPLORE_KELLY` |
+| **RECOVER** | `pending_total > 0` ou `linear >= 1` | Martingale `last_loss_stake × 2` (fallback `stake_min × 2^n`) | `MARTINGALE_Ln` |
 
-Path legado Soft/Kelly permanece quando `martingale.enabled=false` (ver `soft_recovery_policy` / `dlambert_sizing`).
+A stake Kelly que sofre LOSS vira `last_loss_stake` via `executed_stake_reconciliation`; a próxima entrada em RECOVER dobra essa base (não `stake_min`). Teto Martingale = `min(stake, bankroll)`.
+
+Path legado Soft/Kelly puro permanece quando `martingale.enabled=false` (ver `soft_recovery_policy` / `dlambert_sizing`).
 
 #### Soft recovery legado (quando Martingale desligado)
 
@@ -446,6 +447,20 @@ Durante a barreira, `session_persistence_write_active` impede que `trading_cycle
 
 ---
 
+### 8.5 Side equilibrium — leis dos pequenos e grandes números
+
+Módulos: `domain/analytics/side_equilibrium.py`, `side_equilibrium_gate.py`, `side_equilibrium_store.py`. Config: `orchestrator.execution.side_equilibrium`.
+
+| Regime | Janela | `n_min` | Ação típica |
+|--------|--------|---------|-------------|
+| **Small-N** (lei dos pequenos números) | 12 trades | 6 | `hard_skip` se WR do lado &lt; `wr_floor_small` (0.40) ou frequência do lado &gt; `freq_bias_max_small` (0.75) |
+| **Large-N** (lei dos grandes números) | 100 trades | 40 | `soft_penalty`: `kelly_mult_soft` (0.55) e `margin_boost_soft` (0.03) se WR &lt; `wr_floor_large` (0.48) ou bias &gt; 0.65 |
+| Amostra insuficiente | `n &lt; n_min` | — | `pass` (log `SIDE_EQ … action=pass`) |
+
+Telemetria: `SIDE_EQ | SYMBOL SIDE | call=W/N put=W/N | bias=… wr=… | action=…`. No início da sessão (`call=0/0 put=0/0`) o gate **deve** passar — não é falha de LLN. Soft penalty escala `kelly_fraction_scale` nas métricas e só afeta stake no path Kelly (EXPLORE).
+
+---
+
 ## 9. Execução
 
 | Flag | Efeito |
@@ -464,12 +479,13 @@ Logs: `ord=` (ordem enviada) sempre igual a `dl=` (direção prevista pelo DL), 
 
 | Mecanismo | Papel |
 |-----------|-------|
-| Kelly fracionário | Sizing base com win rate dinâmico após amostras mínimas; compressão estática de 60% fora de recovery |
+| Kelly fracionário | Sizing EXPLORE com win rate dinâmico; compressão 40% fora de recovery (`fraction: 0.08`) |
 | Target Proximity Damping | Amortecimento linear da stake Kelly conforme `pnl_sessao` se aproxima de `target_win` (piso 0.40×) |
 | Consensus Entropy Penalty | Presente no código; **desligado** nos settings atuais (seção 7) |
 | Penalty Smoothing | Convergência adaptativa em recovery quando consensus estiver ligado (seção 8.2) |
 | Recovery financeiro persistente | Estado de risco atrelado a `pending_total` (seção 8.1) |
-| Martingale clássico | `martingale_sizing` (seção 8.3); soft recovery legado opcional |
+| Sizing híbrido | Kelly EXPLORE + Martingale RECOVER (seção 8.3); soft recovery legado opcional |
+| Side equilibrium (LLN) | Small-N / large-N CALL/PUT (seção 8.4) |
 | Stop win por sessão ativa | Banca ≥ $100: `target_win = session_start_balance × compounding_rate_daily` (padrão 2,60%); banca < $100: stop win fixo `$10`; fast-path anti-deadlock |
 | Stop loss | Desativado — sem reset por relógio nem disjuntor de perda diária |
 
@@ -505,11 +521,11 @@ Com `compounding_enabled: false`, o motor recorre ao alvo legado (`small_account
 
 Evita superexposição quando a sessão já capturou a maior parte do stop win:
 
-1. **Kelly base** — `resolve_effective_kelly_fraction` usa `kelly.fraction` de config (**0,005**), com target proximity em regime normal (consensus off).
+1. **Kelly base** — `resolve_effective_kelly_fraction` usa `kelly.fraction` de config (**0,08**), com target proximity em regime EXPLORE (consensus off).
 2. **Amortecimento dinâmico** — após o Kelly bruto, `apply_kelly_target_proximity_damping` multiplica a stake por `0.40 + 0.60 × remaining_target_pct`.
 3. **Exemplo** — meta $101.20, Kelly bruto $45.56: com `pnl_sessao = 0` permanece $45.56×1.0 (já atenuado pela fração base); com 90% da meta (`pnl ≈ $91.08`) o fator cai para 0.46 (~$20.96).
 
-Fora de recovery, este amortecimento define o `Kelly_base` no path legado. Com Martingale operacional, a stake não usa amortecimento de proximidade Kelly.
+Fora de recovery, este amortecimento define o `Kelly_base`. Em RECOVER com Martingale híbrido, a stake usa `last_loss_stake × 2` (sem amortecimento de proximidade Kelly).
 
 Log de bootstrap (banca ≥ $100): `SESSAO INICIADA | Alvo de 2,60%: $XX.XX | Stop Loss: DESATIVADO`.
 

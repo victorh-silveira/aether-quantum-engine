@@ -1,3 +1,17 @@
+## [Unreleased]
+
+### Added
+* **risk:** sizing híbrido Kelly (EXPLORE) + Martingale (RECOVER) — `last_loss_stake × 2` após LOSS Kelly
+* **docs:** side equilibrium (leis dos pequenos/grandes números) em medallion §8.5
+
+### Changed
+* **docs:** alinha README, arquitetura, structure, medallion e algoritmo ao híbrido Kelly+Martingale (`fraction: 0.08`, tetos 3,5%)
+* **docs:** alinha README e docs ao relógio operacional **120 s** / macro **600 s** (proporção **1:5**), lookback **72**, settlement **90 s**, Triton **0,50 s**
+* **docs:** documenta vetoes HARD de microestrutura, `soft_recovery_policy`, meta opcional para execução e stubs sniper Hurst/BB
+* **docs:** motor CALL/PUT híbrido — confiança **0.54/0.46**, `neutral_half_width: 0.04`, margem hard **0.03**, persistence **skip** (sem flip), `meta_veto_mode` none/soft/hard, label `spot_forward`
+* **docs:** Docker híbrido — profiles `core/gpu/ml`, pipeline hydrate/smoke, `gpus: all`, imagens pinadas, `AETHER_META_CLASSIFIER_HTTP`
+* **docs:** inventário (~226 módulos / ~287 testes) e snapshot operacional atualizado
+
 ## [1.41.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.40.0...v1.41.0) (2026-07-20)
 
 ## [1.40.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.39.0...v1.40.0) (2026-07-20)
@@ -5,15 +19,6 @@
 ## [1.39.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.38.0...v1.39.0) (2026-07-18)
 
 ## [1.38.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.37.0...v1.38.0) (2026-07-17)
-
-## [Unreleased]
-
-### Documentação
-* **docs:** alinha README e docs ao relógio operacional **120 s** / macro **600 s** (proporção **1:5**), lookback **72**, settlement **90 s**, Triton **0,50 s**
-* **docs:** documenta vetoes HARD de microestrutura, `soft_recovery_policy`, meta opcional para execução e stubs sniper Hurst/BB
-* **docs:** motor CALL/PUT híbrido — confiança **0.54/0.46**, `neutral_half_width: 0.04`, margem hard **0.03**, persistence **skip** (sem flip), `meta_veto_mode` none/soft/hard, label `spot_forward`
-* **docs:** Docker híbrido — profiles `core/gpu/ml`, pipeline hydrate/smoke, `gpus: all`, imagens pinadas, `AETHER_META_CLASSIFIER_HTTP`
-* **docs:** inventário (~226 módulos / ~287 testes) e snapshot operacional atualizado
 
 ## [1.37.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.36.0...v1.37.0) (2026-07-16)
 

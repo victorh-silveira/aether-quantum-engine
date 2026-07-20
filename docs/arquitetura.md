@@ -64,7 +64,7 @@ presentation  →  application  →  domain
 | Camada | Pasta | Papel |
 |--------|-------|-------|
 | Application | `application/services/` | Orquestração, DL, direção, quality gates, meta |
-| Domain | `domain/` | Risco Martingale/Kelly/D'Alembert legado (`martingale_sizing`, `soft_recovery_policy`), `RiskPolicy`, modelos, math |
+| Domain | `domain/` | Risco híbrido Kelly/Martingale + soft legado (`martingale_sizing`, `soft_recovery_policy`), `RiskPolicy`, modelos, math |
 | Infrastructure | `infrastructure/` | Deriv WS/REST, Redis, Triton, MinIO, Timescale |
 | Presentation | `presentation/` | Logger terminal |
 
@@ -314,10 +314,12 @@ Portões neutralizados em modo mandatário (não bloqueiam ciclo): cooldown pós
 
 | Mecanismo | Módulo |
 |-----------|--------|
-| Martingale clássico | `martingale_sizing.resolve_martingale_stake` (`enabled: true`; base `stake_min`; ×2 após LOSS; teto = banca) |
-| Tags de stake | `MARTINGALE_Ln` via `emit_cycle_stake_log` / `resolve_stake_mode_tag` |
-| Kelly (legado/telemetria) | `kelly_base_fraction`, `stake_sizing`; operacional `fraction: 0.0` com Martingale |
+| Sizing híbrido | `risk_stake_calc.calculate_stake_for_manager`: EXPLORE→Kelly; RECOVER→Martingale se `martingale.enabled` |
+| Martingale (RECOVER) | `martingale_sizing.resolve_martingale_stake` (`last_loss_stake × 2`; teto = banca) |
+| Tags de stake | `EXPLORE_KELLY` / `MARTINGALE_Ln` via `emit_cycle_stake_log` |
+| Kelly (EXPLORE) | `kelly_base_fraction`, `stake_sizing`; `fraction: 0.08`, tetos 3,5% |
 | Soft recovery (legado) | `soft_recovery_policy` + D'Alembert quando `martingale.enabled=false` |
+| Side equilibrium (LLN) | `side_equilibrium` / `side_equilibrium_gate` |
 | Consensus entropy | `consensus_stake_penalty.consensus_kelly_retention` (`consensus_penalty_enabled: false`) |
 | Recovery persistente | `pending_loss` + `consecutive_losses_linear` + `last_loss_stake` |
 | Stop win sessão | `StopWinManager` + `compounding_rate_daily: 0.026` |
@@ -363,7 +365,7 @@ Watchdog: `AetherWatchdog` reconecta stream se ticks estagnarem (`watchdog_stale
 `cycle_interval_seconds` (**120**), `signature_boundary_seconds` (**120**), `watchdog_stale_tick_seconds` (**25**), `mandatory_trade_each_cycle`, `require_meta_for_execution` (**false**), `quality_gate.*` (`min_direction_margin: 0.03`), `loss_protection.*` (`min_direction_margin: 0.03`), `bb_width_adaptive_squeeze.enabled` (**false**), `proposal_*`, `settlement_*` (**90 s**), `dynamic_threshold.enabled` (**false**).
 
 ### `risk_management`
-`martingale.*` (`enabled: true`, `multiplier: 2.0`), `kelly.*` (telemetria / path legado; operacional `fraction: 0.0`, caps 1.0), `soft_recovery.*` (`enabled: false` operacional), `min_validation_accuracy_gate` (**0.63**), `params.*` (duration **120**, compounding, stake_min, payout_estimate), `small_account_*`.
+`martingale.*` (`enabled: true`, `multiplier: 2.0` — só em RECOVER), `kelly.*` (`fraction: 0.08`, tetos 3,5% — EXPLORE), `soft_recovery.*` (`enabled: false` operacional), `min_validation_accuracy_gate` (**0.63**), `params.*` (duration **120**, compounding, stake_min, payout_estimate), `small_account_*`.
 
 ### `infra`
 Redis/Timescale/MinIO/Triton/meta_classifier URLs e timeouts (`infer_timeout_seconds: 0.50`).
@@ -415,7 +417,7 @@ flowchart LR
   end
   subgraph pos
     ST[settlement + Redis queue]
-    RM[RiskManager martingale]
+    RM[RiskManager Kelly+Martingale]
     LOCK[StateManager Lock]
   end
   WS --> SH --> TB

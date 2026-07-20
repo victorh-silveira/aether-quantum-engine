@@ -1,4 +1,4 @@
-"""Martingale classico: base stake_min, dobra apos LOSS, reset no WIN."""
+"""Martingale de recovery: dobra last_loss_stake apos LOSS; EXPLORE usa Kelly."""
 
 from __future__ import annotations
 

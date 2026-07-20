@@ -49,7 +49,7 @@ presentation  →  application  →  domain
 | Camada | Pasta | Módulos | Responsabilidade |
 |--------|-------|---------|------------------|
 | Application | `application/services/` | ~144 | Casos de uso: orquestração, DL, execução, meta-classificador, guards |
-| Domain | `domain/` | ~30 | Lógica pura: risco Martingale/Kelly/soft legado, AntiTrendLock (política), RiskPolicy, modelos |
+| Domain | `domain/` | ~30 | Lógica pura: risco híbrido Kelly/Martingale, soft legado, AntiTrendLock (política), RiskPolicy, modelos, side_equilibrium |
 | Infrastructure | `infrastructure/` | ~49 | Adaptadores: Deriv API, Redis, Triton, MinIO, Timescale |
 | Presentation | `presentation/` | 1 | Logging de terminal |
 
@@ -247,6 +247,12 @@ presentation  →  application  →  domain
 | `probability_entropy.py` | `binary_entropy`, `entropy_penalty_factor`, `adaptive_entropy_ceiling` |
 | `__init__.py` | Pacote vazio |
 
+### Analytics (`domain/analytics/`)
+
+| Módulo | Responsabilidade |
+|--------|------------------|
+| `side_equilibrium.py` | Leis dos pequenos/grandes números CALL/PUT; hard skip / soft Kelly |
+
 ### Symbols (`domain/symbols/`)
 
 | Módulo | Responsabilidade |
@@ -259,9 +265,10 @@ presentation  →  application  →  domain
 |--------|------------------|
 | `risk_manager.py` | **`RiskManager`** — Kelly, cluster, recovery |
 | `risk_policy.py` | `RiskPolicy` + `validate_engine_risk_config` no boot |
-| `risk_stake_calc.py` | Cálculo de stake para RiskManager |
+| `risk_stake_calc.py` | Stake híbrida: Kelly EXPLORE; Martingale RECOVER |
 | `risk_stake_flow.py` | `apply_stop_win_kelly_boost`, `emit_cycle_stake_log` |
-| `stake_sizing.py` | Kelly e D'Alembert, consenso, round_stake |
+| `stake_sizing.py` | Kelly, regime EXPLORE/RECOVER, consenso, round_stake |
+| `martingale_sizing.py` | Martingale de recovery (`last_loss_stake × multiplier`) |
 | `kelly_base_fraction.py` | Compressão da fração Kelly |
 | `kelly_f_star_adjustments.py` | Ajustes f* (consenso, divergência) |
 | `super_concordance_kelly.py` | Expansão Kelly em super-consenso |

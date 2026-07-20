@@ -107,32 +107,77 @@ def test_resolve_martingale_stake_zero_when_bankroll_below_min():
 
 
 def test_calculate_stake_martingale_path_bypasses_soft_cap(kelly_config):
-    rm = _base_rm(kelly_config, consecutive_losses_linear=2, last_loss_stake=2.0)
+    rm = _base_rm(kelly_config, consecutive_losses_linear=2, last_loss_stake=2.0, pending_loss={"R_10": 3.0})
     stake = calculate_stake_for_manager(
         rm,
         bankroll=100.0,
         symbol="R_10",
         conviction=0.7,
-        silent=True,
+        silent=False,
         apply_stop_win=False,
         kwargs={"cycle_id": 1, "dl_metrics": {"execute": True}},
     )
     assert stake == pytest.approx(4.0)
+    assert rm._last_stake_audit["mode_tag"] == "MARTINGALE_L2"
+    assert rm._last_stake_audit["stake_regime"] == "RECOVER"
 
 
-def test_calculate_stake_martingale_win_reset_uses_base(kelly_config):
-    rm = _base_rm(kelly_config)
+def test_calculate_stake_hybrid_explore_uses_kelly(kelly_config):
+    cfg = dict(kelly_config)
+    cfg["kelly"] = {**kelly_config["kelly"], "fraction": 0.25, "max_stake_pct": 0.05}
+    rm = _base_rm(cfg, martingale_config={"enabled": True, "multiplier": 2.0})
+    rm.kelly_config = cfg["kelly"]
     stake = calculate_stake_for_manager(
         rm,
-        bankroll=50.0,
+        bankroll=10000.0,
+        symbol="R_10",
+        conviction=0.7,
+        silent=False,
+        apply_stop_win=False,
+        kwargs={"cycle_id": 7, "dl_metrics": {"execute": True, "live_wr": 0.55, "live_n": 20}},
+    )
+    assert stake > 1.0
+    assert rm._last_stake_audit["mode_tag"] == "EXPLORE_KELLY"
+    assert rm._last_stake_audit["stake_regime"] == "EXPLORE"
+
+
+def test_calculate_stake_hybrid_recover_uses_martingale_from_kelly_loss(kelly_config):
+    rm = _base_rm(
+        kelly_config,
+        consecutive_losses_linear=1,
+        last_loss_stake=38.46,
+        pending_loss={"R_10": 38.46},
+    )
+    stake = calculate_stake_for_manager(
+        rm,
+        bankroll=12000.0,
+        symbol="R_10",
+        conviction=0.7,
+        silent=False,
+        apply_stop_win=False,
+        kwargs={"cycle_id": 4, "dl_metrics": {"execute": True}},
+    )
+    assert stake == pytest.approx(76.92)
+    assert rm._last_stake_audit["mode_tag"] == "MARTINGALE_L1"
+    assert rm._last_stake_audit["stake_regime"] == "RECOVER"
+
+
+def test_calculate_stake_martingale_explore_after_reset_uses_kelly(kelly_config):
+    cfg = dict(kelly_config)
+    cfg["kelly"] = {**kelly_config["kelly"], "fraction": 0.25, "max_stake_pct": 0.05}
+    rm = _base_rm(cfg)
+    rm.kelly_config = cfg["kelly"]
+    stake = calculate_stake_for_manager(
+        rm,
+        bankroll=10000.0,
         symbol="R_10",
         conviction=0.7,
         silent=False,
         apply_stop_win=False,
         kwargs={"cycle_id": 7, "dl_metrics": {"execute": True, "live_wr": 0.52, "live_n": 10}},
     )
-    assert stake == pytest.approx(1.0)
-    assert rm._last_stake_audit["mode_tag"] == "MARTINGALE_L0"
+    assert stake > 1.0
+    assert rm._last_stake_audit["mode_tag"] == "EXPLORE_KELLY"
     rm.logger.info.assert_called()
 
 
