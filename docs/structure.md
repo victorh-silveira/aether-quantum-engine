@@ -49,7 +49,7 @@ presentation  →  application  →  domain
 | Camada | Pasta | Módulos | Responsabilidade |
 |--------|-------|---------|------------------|
 | Application | `application/services/` | ~144 | Casos de uso: orquestração, DL, execução, meta-classificador, guards |
-| Domain | `domain/` | ~30 | Lógica pura: risco Kelly/soft recovery, AntiTrendLock (política), RiskPolicy, modelos |
+| Domain | `domain/` | ~30 | Lógica pura: risco Martingale/Kelly/soft legado, AntiTrendLock (política), RiskPolicy, modelos |
 | Infrastructure | `infrastructure/` | ~49 | Adaptadores: Deriv API, Redis, Triton, MinIO, Timescale |
 | Presentation | `presentation/` | 1 | Logging de terminal |
 

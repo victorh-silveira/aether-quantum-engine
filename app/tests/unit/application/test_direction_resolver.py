@@ -78,8 +78,8 @@ def test_infer_dl_direction_none_without_prob():
     assert infer_dl_direction({"direction": None, "metrics": {}}) is None
 
 
-def test_infer_dl_direction_none_at_exact_pivot():
-    assert infer_dl_direction(_entry(direction=None, raw_prob=0.50, calibrated_prob=0.50)) is None
+def test_infer_dl_direction_call_at_exact_pivot():
+    assert infer_dl_direction(_entry(direction=None, raw_prob=0.50, calibrated_prob=0.50)) == TradeDirection.CALL
 
 
 def test_infer_dl_direction_none_on_neutral_clamp_gate():

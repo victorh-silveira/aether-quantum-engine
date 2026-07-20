@@ -25,6 +25,7 @@ from src.application.services.deep_learning.dl_trend import calculate_trend_dire
 from src.application.services.deep_learning.model import predict_next_direction
 from src.application.services.execution_sniper_gates import resolve_calibration_neutral_band
 from src.application.services.execution_volatility_threshold import resolve_dynamic_threshold_bundle
+from src.application.services.meta_direction_flip import apply_configured_direction_invert
 from src.domain.models.trade import TradeDirection
 
 
@@ -217,6 +218,12 @@ def build_prediction_entry(
         neutral_lo=neutral_lo,
         neutral_hi=neutral_hi,
     )
+    calibrated_prob, raw_prob, resolved_dir, polarity_inverted = apply_configured_direction_invert(
+        calibrated_prob,
+        float(raw_prob),
+        resolved_dir,
+        exec_cfg=exec_cfg if isinstance(exec_cfg, dict) else None,
+    )
     calibrated_edge = resolve_calibrated_edge(calibrated_prob, raw_prob=raw_prob)
     calibrator = runtime.get("calibrator")
     side_score = calibrate_trade_score(
@@ -231,7 +238,7 @@ def build_prediction_entry(
         side_score = 0.51
     entry = build_decision_entry(
         resolved_dir,
-        prob,
+        calibrated_prob,
         execute=True,
         val_accuracy=val_accuracy,
         edge=calibrated_edge,
@@ -248,6 +255,8 @@ def build_prediction_entry(
     entry["metrics"]["edge_expectancy"] = None
     entry["metrics"]["calibrated_prob"] = calibrated_prob
     entry["metrics"]["calibration_mode"] = calibration_mode
+    entry["metrics"]["execution_direction_invert"] = bool(polarity_inverted)
+    entry["metrics"]["direction_inverted"] = bool(polarity_inverted)
     entry["metrics"]["calibrated_edge"] = calibrated_edge
     entry["metrics"]["trend_direction"] = trend_dir.name
     entry["metrics"]["trend_type"] = trend_type

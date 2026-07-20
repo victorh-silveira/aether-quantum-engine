@@ -20,7 +20,7 @@ def test_log_parser_exec():
     parser = LogParser(state)
     line = (
         "[C0006] EXEC || PUT [R_10] || "
-        "STAKE: 2.06 (RECOVER_DAL_L1) | PEND: 1.62 | LIN: 1 | CAP: 4.20 | "
+        "STAKE: 2.00 (MARTINGALE_L1) | PEND: 1.00 | LIN: 1 | CAP: 50.00 | "
         "BANCA: 87.69 || "
         "CID: 1129497159 | PAY: 1.79"
     )
@@ -28,10 +28,23 @@ def test_log_parser_exec():
     assert state.last_telemetry["symbol"] == "R_10"
     assert state.last_telemetry["dir"] == "PUT"
     assert state.last_telemetry["dl_dir"] == "PUT"
-    assert state.last_telemetry["conv"] == "2.06"
-    assert "mode=RECOVER_DAL_L1" in state.last_telemetry["metrics"]
+    assert state.last_telemetry["conv"] == "2.00"
+    assert "mode=MARTINGALE_L1" in state.last_telemetry["metrics"]
     assert "lin=1" in state.last_telemetry["metrics"]
     assert state.balance == 87.69
+
+
+def test_log_parser_exec_legacy_recover_dal():
+    state = DashboardState()
+    parser = LogParser(state)
+    line = (
+        "[C0006] EXEC || PUT [R_10] || "
+        "STAKE: 2.06 (RECOVER_DAL_L1) | PEND: 1.62 | LIN: 1 | CAP: 4.20 | "
+        "BANCA: 87.69 || "
+        "CID: 1129497159 | PAY: 1.79"
+    )
+    parser.process_line(line)
+    assert "mode=RECOVER_DAL_L1" in state.last_telemetry["metrics"]
 
 
 def test_log_parser_exec_legacy_without_lin_cap():

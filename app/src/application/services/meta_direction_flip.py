@@ -102,9 +102,10 @@ def should_flip_direction(
     *,
     meta_applied: bool,
     flip_threshold: float = META_FLIP_PAYOFF_THRESHOLD_BASE,
+    polarity_inverted: bool = False,
 ) -> bool:
     """Indica inversao quando payoff micro sinaliza saturacao severa de topo/fundo."""
-    if not meta_applied:
+    if polarity_inverted or not meta_applied:
         return False
     return float(payoff_score) < float(flip_threshold)
 
@@ -112,6 +113,31 @@ def should_flip_direction(
 def flipped_direction(dl_dir: TradeDirection) -> TradeDirection:
     """Retorna direcao oposta ao sinal TCN."""
     return TradeDirection.PUT if dl_dir == TradeDirection.CALL else TradeDirection.CALL
+
+
+def invert_execution_direction_enabled(exec_cfg: dict[str, Any] | None) -> bool:
+    """Indica se a polaridade de execucao deve inverter CALL/PUT."""
+    if not isinstance(exec_cfg, dict):
+        return False
+    return bool(exec_cfg.get("invert_execution_direction", False))
+
+
+def apply_configured_direction_invert(
+    calibrated_prob: float,
+    raw_prob: float,
+    direction: TradeDirection | None,
+    *,
+    exec_cfg: dict[str, Any] | None,
+) -> tuple[float, float, TradeDirection | None, bool]:
+    """Inverte probabilidade e direcao quando invert_execution_direction esta ativo."""
+    if not invert_execution_direction_enabled(exec_cfg):
+        return float(calibrated_prob), float(raw_prob), direction, False
+    cal = 1.0 - float(calibrated_prob)
+    raw = 1.0 - float(raw_prob)
+    flipped = flipped_direction(direction) if direction is not None else None
+    if flipped is None:
+        flipped = TradeDirection.CALL if cal + 1e-12 >= 0.5 else TradeDirection.PUT
+    return cal, raw, flipped, True
 
 
 def log_d_squeeze_audit(symbol: str | None, metrics: dict[str, Any]) -> None:
@@ -149,6 +175,7 @@ def apply_meta_direction_flip(
         payoff_score,
         meta_applied=meta_applied,
         flip_threshold=flip_threshold,
+        polarity_inverted=bool(metrics.get("execution_direction_invert")),
     ):
         return dl_dir, float(payoff_score)
     exec_dir = flipped_direction(dl_dir)

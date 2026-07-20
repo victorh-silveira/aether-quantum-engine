@@ -32,7 +32,7 @@ def test_meta_zscore_soft_ok_uses_floor():
     assert meta_zscore_soft_ok({"meta_payoff_edge_zscore": 0.0, "edge_zscore": 0.0}) is True
 
 
-def test_initial_direction_checks_aborts_neutral_clamp():
+def test_initial_direction_checks_clears_neutral_clamp_and_trades():
     entry = {
         "direction": TradeDirection.CALL,
         "metrics": {
@@ -45,8 +45,10 @@ def test_initial_direction_checks_aborts_neutral_clamp():
         },
     }
     result = initial_direction_checks(entry, {})
-    assert result is None
-    assert entry["metrics"].get("gate_reason") == "neutral_clamp"
+    assert result is not None
+    assert result[0] == TradeDirection.CALL
+    assert entry["metrics"].get("gate_reason") is None
+    assert entry["metrics"].get("calibration_mode") == "calibrated"
 
 
 def test_quality_cluster_fail_branch_via_mock():

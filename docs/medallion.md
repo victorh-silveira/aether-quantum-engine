@@ -19,7 +19,8 @@ Para arquitetura de código, ver [`arquitetura.md`](arquitetura.md).
 | Feedback real | Win rate live misturado em `val_accuracy`; retreino após loss |
 | Defesa contra ruído CSPRNG | Consensus Entropy Penalty no Kelly base — **desligado** nos settings atuais (`consensus_penalty_enabled: false`) |
 | Persistência financeira | Recovery atrelado a `pending_loss`, não a WIN operacional isolado |
-| Soft recovery + caps | `soft_recovery_policy` + `apply_soft_recovery_stake` + `max_safe_stake_cap`; micro-banca achata em **\$4,20 (4,2×U)** a partir de \(N\ge 4\); teto Kelly/bankroll **3,5%** |
+| Soft recovery + caps | Legado: `soft_recovery_policy` quando `martingale.enabled=false` |
+| Martingale clássico | `martingale_sizing`: base `stake_min`, ×2 após LOSS, reset no WIN, teto = banca; tags `MARTINGALE_Ln` |
 | Meta por sessão ativa | Stop win de 2,60% composto (banca ≥ $100) ou fixo $10 (banca < $100) |
 | Sem disjuntor de perda | Stop loss interno desativado |
 | Isolamento de estado | `asyncio.Lock` serializa inferência, liquidação e persistência |
@@ -90,7 +91,7 @@ Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `
 | Rotulagem | Padrão `spot_forward`; `ma_trend` / Triple Barrier disponíveis via config |
 | Perda TCN assimétrica | Penalidade 2,5× para erro direcional em alta volatilidade |
 | Optuna meta | Maximiza Information Ratio; constraint OOS payoff Z-Score ≥ +1,00 |
-| Gerenciamento de risco | Kelly base (`fraction=0.005`) + soft D'Alembert via `soft_recovery_policy` (passo fixo 3–4 = U×1.15); `loss_protection.min_direction_margin: 0.03` |
+| Gerenciamento de risco | Martingale clássico (`martingale.enabled: true`, base `stake_min`, ×2); path Kelly/soft legado desligado operacionalmente; `loss_protection.min_direction_margin: 0.03` |
 | BB squeeze adaptativo | `bb_width_adaptive_squeeze.enabled: false` |
 | Dynamic threshold | `dynamic_threshold.enabled: false` |
 
@@ -134,7 +135,7 @@ Ordem lógica de uma entrada:
 10. **Z-Score meta** — `attach_payoff_edge_zscore_metrics` anexa `meta_payoff_edge_zscore` / `edge_zscore` para ranking e gate.
 11. **Deploy** — `deploy_ok=false` bloqueia execução; mini-deploy de treino usa `force_local=True` (modelo em memória).
 12. **Seleção** — `market_decision_score` multiplicativo (TCN × fator Z-Score); redirect inter-símbolo quando âncora degradada.
-13. **Risco** — Kelly; consensus **off**; recovery financeiro persistente; soft recovery + `max_safe_stake_cap`; stop win por sessão (2,60% composto ou $10 fixo se banca < $100).
+13. **Risco** — Martingale clássico 2× (base `stake_min`, teto = banca); consensus **off**; recovery financeiro persistente (`last_loss_stake`); stop win por sessão (2,60% composto ou $10 fixo se banca < $100).
 
 Bloqueio absoluto para falhas técnicas (`data`, `predict_error`, `training`, `deploy_ok=false`, Triton) e reconciliação pendente. Vetoes HARD de microestrutura bloqueiam independentemente do soft. Não há vetos táticos autônomos de quality guard soft, cooldown pós-LOSS, blackout de broker ou stubs sniper.
 
@@ -315,7 +316,7 @@ O motor **não utiliza reset cego** de `consecutive_losses_linear` baseado em WI
 | `cluster_profit ≥ 0` **e** `pending_total > 0` | WIN absorvido no drawdown; **`consecutive_losses_linear = max(1, n-1)`** (retração do soft D'Alembert) |
 | `cluster_profit ≥ 0` **e** `pending_total = 0` | Recovery financeiro extinto; reset de `consecutive_losses_linear` e `last_loss_stake` |
 
-**Persistência de Drawdown:** o robô permanece em estado de Recovery (soft recovery + `max_safe_stake_cap`) até que `pending_total` seja **financeiramente zerado** por retornos reais da API — não por um WIN simbólico que não cobre o buraco acumulado.
+**Persistência de Drawdown:** o robô permanece em estado de Recovery (Martingale com `last_loss_stake` / perdas lineares) até que `pending_total` seja **financeiramente zerado** por retornos reais da API — não por um WIN simbólico que não cobre o buraco acumulado.
 
 #### Implicação para gestão de cauda
 
@@ -349,18 +350,29 @@ Justificativa: com alinhamento direcional unânime no contexto macro ou convicç
 
 ---
 
-### 8.3 Soft recovery com caps de segurança
+### 8.3 Martingale clássico (operacional)
 
-#### Filosofia: recuperar o passivo sem explosão descontrolada de stake
+#### Filosofia: dobra após LOSS, reset no WIN, teto só pela banca
 
-Em recovery ativo, o sizing abandona o Kelly puro e adota progressão adaptativa (`soft_recovery_policy` + `apply_soft_recovery_stake` / `dlambert_sizing.resolve_dlambert_stake`). A curva cresce com `consecutive_losses_linear` e payout estimado, mas é limitada por `max_safe_stake_cap` e pelo teto de fração da banca (`max_stake_pct` / `max_bankroll_stake_fraction` = **3,5%**). Turbo de edge e Kelly booster ocorrem **antes** do cap final.
-
-#### Fórmula de stake (visão operacional)
+Com `risk_management.martingale.enabled: true`, o sizing **não** usa Kelly nem soft D'Alembert para o valor da stake. A regra é:
 
 | Estado | Stake |
 |--------|-------|
-| Normal (`recovery_active` falso) | Kelly fracionário (`kelly.fraction: 0.005`) + target proximity; tag `KELLY` (consensus off) |
-| Recovery (`pending_total > 0` ou `consecutive_losses_linear > 0`) | Soft D'Alembert / progressão adaptativa; tag `D'ALEMBERT`; pós-turbo `min(stake, max_safe_stake_cap(...))` |
+| `consecutive_losses_linear == 0` | `base = stake_min` (`MARTINGALE_L0`) |
+| Após LOSS (`last_loss_stake > 0`) | `2 × last_loss_stake` (`MARTINGALE_Ln`) |
+| Fallback sem `last_loss_stake` | `base × 2^n` |
+| Teto | `min(stake, bankroll)` — sem `max_safe_stake_cap` nem caps Kelly % |
+
+Path legado Soft/Kelly permanece quando `martingale.enabled=false` (ver `soft_recovery_policy` / `dlambert_sizing`).
+
+#### Soft recovery legado (quando Martingale desligado)
+
+Em recovery ativo com Martingale off, o sizing adota progressão adaptativa (`soft_recovery_policy` + `apply_soft_recovery_stake` / `dlambert_sizing.resolve_dlambert_stake`), limitada por `max_safe_stake_cap` e tetos Kelly.
+
+| Estado (legado) | Stake |
+|--------|-------|
+| Normal | Kelly fracionário + tag `KELLY` |
+| Recovery | Soft D'Alembert; tag `D'ALEMBERT` / `RECOVER_DAL_Ln` |
 
 | Termo | Significado |
 |-------|-------------|
@@ -457,7 +469,7 @@ Logs: `ord=` (ordem enviada) sempre igual a `dl=` (direção prevista pelo DL), 
 | Consensus Entropy Penalty | Presente no código; **desligado** nos settings atuais (seção 7) |
 | Penalty Smoothing | Convergência adaptativa em recovery quando consensus estiver ligado (seção 8.2) |
 | Recovery financeiro persistente | Estado de risco atrelado a `pending_total` (seção 8.1) |
-| Soft recovery com caps | `soft_recovery_policy` com caps de segurança (seção 8.3) |
+| Martingale clássico | `martingale_sizing` (seção 8.3); soft recovery legado opcional |
 | Stop win por sessão ativa | Banca ≥ $100: `target_win = session_start_balance × compounding_rate_daily` (padrão 2,60%); banca < $100: stop win fixo `$10`; fast-path anti-deadlock |
 | Stop loss | Desativado — sem reset por relógio nem disjuntor de perda diária |
 
@@ -497,7 +509,7 @@ Evita superexposição quando a sessão já capturou a maior parte do stop win:
 2. **Amortecimento dinâmico** — após o Kelly bruto, `apply_kelly_target_proximity_damping` multiplica a stake por `0.40 + 0.60 × remaining_target_pct`.
 3. **Exemplo** — meta $101.20, Kelly bruto $45.56: com `pnl_sessao = 0` permanece $45.56×1.0 (já atenuado pela fração base); com 90% da meta (`pnl ≈ $91.08`) o fator cai para 0.46 (~$20.96).
 
-Fora de recovery, este amortecimento define o `Kelly_base`. Em recovery, o soft recovery + `max_safe_stake_cap` opera sem amortecimento de proximidade.
+Fora de recovery, este amortecimento define o `Kelly_base` no path legado. Com Martingale operacional, a stake não usa amortecimento de proximidade Kelly.
 
 Log de bootstrap (banca ≥ $100): `SESSAO INICIADA | Alvo de 2,60%: $XX.XX | Stop Loss: DESATIVADO`.
 

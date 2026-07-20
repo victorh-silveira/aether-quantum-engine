@@ -73,6 +73,9 @@ def apply_meta_regression_edge(
         _apply_direction_scores(metrics, direction=dl_dir, score=base_score)
         return dl_dir, float(base_score)
     if float(predicted_edge) <= 0.0:
+        if bool(metrics.get("execution_direction_invert")):
+            _apply_direction_scores(metrics, direction=dl_dir, score=base_score)
+            return dl_dir, float(base_score)
         tcn_prob = float(metrics.get("calibrated_prob", metrics.get("raw_prob", 0.5)) or 0.5)
         flipped, flip_score = apply_meta_direction_flip(
             dl_dir,

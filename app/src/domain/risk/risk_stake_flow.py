@@ -83,13 +83,19 @@ def emit_cycle_stake_log(
     if cycle_id <= 0 or silent:
         return
     tag = str(mode_tag or "KELLY").upper()
-    compact = f"DAL_L{max(0, int(linear_losses))}" if ("ALEMBERT" in tag or tag.startswith("DAL")) else "KELLY"
-    regime = str(stake_regime or "EXPLORE").upper()
-    if regime not in ("EXPLORE", "RECOVER"):
-        regime = "EXPLORE"
+    linear_n = max(0, int(linear_losses))
+    if "MARTINGALE" in tag:
+        audit_tag = f"MARTINGALE_L{linear_n}"
+        regime = "RECOVER" if linear_n > 0 else "EXPLORE"
+    else:
+        compact = f"DAL_L{linear_n}" if ("ALEMBERT" in tag or tag.startswith("DAL")) else "KELLY"
+        regime = str(stake_regime or "EXPLORE").upper()
+        if regime not in ("EXPLORE", "RECOVER"):
+            regime = "EXPLORE"
+        audit_tag = f"{regime}_{compact}"
     rm._last_stake_audit = {
         "cycle_id": int(cycle_id),
-        "mode_tag": f"{regime}_{compact}",
+        "mode_tag": audit_tag,
         "stake": float(final_stake),
         "pending": float(loss_to_recover),
         "bankroll": float(bankroll),

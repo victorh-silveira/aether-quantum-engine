@@ -134,3 +134,18 @@ def test_apply_meta_regression_edge_vetoes_calibration_neutral_drift():
 
 def test_meta_squeeze_trade_score_constant():
     assert pytest.approx(0.52) == META_SQUEEZE_TRADE_SCORE
+
+
+def test_apply_meta_regression_edge_skips_flip_when_polarity_already_inverted():
+    metrics = {"execution_direction_invert": True, "calibrated_prob": 0.62, "raw_prob": 0.62}
+    direction, score = apply_meta_regression_edge(
+        TradeDirection.CALL,
+        metrics,
+        -1.50,
+        meta_applied=True,
+        base_score=0.62,
+    )
+    assert direction == TradeDirection.CALL
+    assert score == pytest.approx(0.62)
+    assert metrics.get("meta_direction_flip") is not True
+    assert metrics.get("gate_reason") != "meta_negative_edge"

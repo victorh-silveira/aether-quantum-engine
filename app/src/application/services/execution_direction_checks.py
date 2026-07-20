@@ -52,7 +52,7 @@ def _is_neutral_clamp(metrics: dict) -> bool:
 
 
 def infer_dl_direction(entry: dict) -> TradeDirection | None:
-    """Infere CALL/PUT a partir da probabilidade, ou None se neutro/indefinido."""
+    """Infere CALL/PUT a partir da probabilidade, ou None se indefinido."""
     metrics = entry.get("metrics") or {}
     d = entry.get("direction")
     if d is not None:
@@ -61,9 +61,7 @@ def infer_dl_direction(entry: dict) -> TradeDirection | None:
     if p is None:
         return None
     pivot = direction_pivot(metrics)
-    if abs(float(p) - float(pivot)) <= _NEUTRAL_PIVOT_EPS:
-        return None
-    return TradeDirection.CALL if float(p) > float(pivot) else TradeDirection.PUT
+    return TradeDirection.CALL if float(p) + _NEUTRAL_PIVOT_EPS >= float(pivot) else TradeDirection.PUT
 
 
 def is_technically_blocked(entry: dict) -> bool:
@@ -196,16 +194,13 @@ def initial_direction_checks(
     metrics = dict(entry.get("metrics") or {})
     force = force_trade_every_cycle(exec_cfg_dict)
     if _is_neutral_clamp(metrics):
-        if not force:
-            metrics["gate_reason"] = _NEUTRAL_CLAMP
-            metrics["quality_guard_reject"] = True
-            sync_entry_metrics(entry, metrics)
-            return None
         metrics["gate_reason"] = (
             None if str(metrics.get("gate_reason") or "") == _NEUTRAL_CLAMP else metrics.get("gate_reason")
         )
         metrics["calibration_mode"] = "calibrated"
         metrics.pop("quality_guard_reject", None)
+        metrics.pop("regime_skip_cycle", None)
+        sync_entry_metrics(entry, metrics)
     dl_dir = infer_dl_direction(entry)
     if force and dl_dir is None:
         dl_dir = synthesize_force_direction(entry)

@@ -89,9 +89,6 @@ def _brief_cycle_counts(decisions: dict[str, dict]) -> tuple[list[str], list[str
         if metrics.get("gate_reason") == "training":
             training += 1
             continue
-        if str(metrics.get("gate_reason") or "") == "neutral_clamp":
-            blocked += 1
-            continue
         if is_technically_blocked(entry):
             blocked += 1
             if metrics.get("gate_reason") == "data":
@@ -155,7 +152,7 @@ def _brief_key_token(symbol: str, entry: dict) -> tuple[str | None, int, int, in
     gate = str(metrics.get("gate_reason") or "")
     if gate == "training":
         return None, 0, 0, 1
-    if gate == "neutral_clamp" or is_technically_blocked(entry) or infer_dl_direction(entry) is None:
+    if is_technically_blocked(entry) or infer_dl_direction(entry) is None:
         nd = 1 if gate == "data" else 0
         return None, 1, nd, 0
     direction = entry.get("direction") or infer_dl_direction(entry)

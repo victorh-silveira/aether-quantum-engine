@@ -7,21 +7,21 @@ from src.application.services.deep_learning.dl_calibration_tolerance import (
 from src.domain.models.trade import TradeDirection
 
 
-def test_calibration_neutral_clamp_blocks_mid_band():
+def test_calibration_mid_band_resolves_put_without_abstention():
     prob, direction, mode = apply_calibration_neutral_tolerance(0.49, 0.51, None)
     assert prob == pytest.approx(0.49)
-    assert direction is None
-    assert mode == "neutral_clamp"
+    assert direction == TradeDirection.PUT
+    assert mode == "calibrated"
 
 
-def test_calibration_neutral_clears_explicit_direction_in_band():
+def test_calibration_keeps_explicit_direction_in_former_neutral_band():
     prob, direction, mode = apply_calibration_neutral_tolerance(0.50, 0.50, TradeDirection.CALL)
     assert prob == pytest.approx(0.50)
-    assert direction is None
-    assert mode == "neutral_clamp"
+    assert direction == TradeDirection.CALL
+    assert mode == "calibrated"
 
 
-def test_calibration_custom_neutral_band_clamps_inside():
+def test_calibration_custom_band_keeps_call():
     prob, direction, mode = apply_calibration_neutral_tolerance(
         0.55,
         0.55,
@@ -30,8 +30,8 @@ def test_calibration_custom_neutral_band_clamps_inside():
         neutral_hi=0.58,
     )
     assert prob == pytest.approx(0.55)
-    assert direction is None
-    assert mode == "neutral_clamp"
+    assert direction == TradeDirection.CALL
+    assert mode == "calibrated"
 
 
 def test_calibration_outside_wide_band_keeps_call():

@@ -110,14 +110,14 @@ def test_format_brief_token_with_suffix():
     assert "cal=0.55" in token
 
 
-def test_build_dl_cycle_brief_neutral_clamp_abstains():
+def test_build_dl_cycle_brief_former_neutral_resolves_direction():
     decisions = {
         "R_10": {
             "direction": None,
             "metrics": {
-                "execute": False,
-                "gate_reason": "neutral_clamp",
-                "calibration_mode": "neutral_clamp",
+                "execute": True,
+                "gate_reason": None,
+                "calibration_mode": "calibrated",
                 "calibrated_prob": 0.50,
                 "raw_prob": 0.52,
                 "deploy_ok": True,
@@ -125,9 +125,8 @@ def test_build_dl_cycle_brief_neutral_clamp_abstains():
         },
     }
     line = build_dl_cycle_brief(decisions, recovery_active=False)
-    assert "exec R_10" not in line
-    assert "m=" not in line
-    assert "neutral_clamp" in line
+    assert "exec R_10" in line
+    assert "CALL" in line or "PUT" in line
 
 
 def test_build_dl_cycle_brief_partial_blocked_tail():

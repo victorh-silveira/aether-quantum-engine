@@ -64,7 +64,7 @@ presentation  →  application  →  domain
 | Camada | Pasta | Papel |
 |--------|-------|-------|
 | Application | `application/services/` | Orquestração, DL, direção, quality gates, meta |
-| Domain | `domain/` | Risco Kelly/D'Alembert (`soft_recovery_policy`), `RiskPolicy`, modelos, math |
+| Domain | `domain/` | Risco Martingale/Kelly/D'Alembert legado (`martingale_sizing`, `soft_recovery_policy`), `RiskPolicy`, modelos, math |
 | Infrastructure | `infrastructure/` | Deriv WS/REST, Redis, Triton, MinIO, Timescale |
 | Presentation | `presentation/` | Logger terminal |
 
@@ -314,18 +314,16 @@ Portões neutralizados em modo mandatário (não bloqueiam ciclo): cooldown pós
 
 | Mecanismo | Módulo |
 |-----------|--------|
-| Kelly fracionário | `kelly_base_fraction`, `stake_sizing`; `kelly.fraction: 0.005` |
-| Teto de stake | `max_stake_pct` / `max_bankroll_stake_fraction: 0.035`; `max_safe_stake_cap` pós-turbo |
-| Consensus entropy | `consensus_stake_penalty.consensus_kelly_retention` (`consensus_penalty_enabled: false` nos settings atuais) |
-| Soft recovery | `soft_recovery_policy` + `apply_soft_recovery_stake` + D'Alembert (passo fixo 3–4 = U×1.15; demais níveis `factor^n`; teto `max_safe_stake_cap` 4.20; amort 2–5; hard floor 5% se banca &lt;$100; micro-residual Z floor −0.60; waiver GBDT 6 skips) |
-| Cap de segurança | `max_safe_stake_cap(bankroll, consecutive_losses_linear=…)` após turbo |
-| Recovery persistente | `pending_loss` + `consecutive_losses_linear`; reset só quando passivo zera |
-| Retração WIN parcial | `linear = max(1, n−1)` |
+| Martingale clássico | `martingale_sizing.resolve_martingale_stake` (`enabled: true`; base `stake_min`; ×2 após LOSS; teto = banca) |
+| Tags de stake | `MARTINGALE_Ln` via `emit_cycle_stake_log` / `resolve_stake_mode_tag` |
+| Kelly (legado/telemetria) | `kelly_base_fraction`, `stake_sizing`; operacional `fraction: 0.0` com Martingale |
+| Soft recovery (legado) | `soft_recovery_policy` + D'Alembert quando `martingale.enabled=false` |
+| Consensus entropy | `consensus_stake_penalty.consensus_kelly_retention` (`consensus_penalty_enabled: false`) |
+| Recovery persistente | `pending_loss` + `consecutive_losses_linear` + `last_loss_stake` |
 | Stop win sessão | `StopWinManager` + `compounding_rate_daily: 0.026` |
 | Stop loss | Desativado |
-| Cover pending | Fracionado por `amort_cycles` |
 | Policy boot | `RiskPolicy` / `validate_engine_risk_config` |
-| Persistence guard | `evaluate_direction_persistence_guard` → KEEP / SKIP / FREEZE (flip suprimido no resolver) |
+| Persistence guard | `evaluate_direction_persistence_guard` → KEEP / SKIP / FREEZE |
 | Val accuracy gate | `min_validation_accuracy_gate: 0.63` |
 
 Facade: `domain/risk/risk_manager.RiskManager.calculate_stake`.
@@ -365,7 +363,7 @@ Watchdog: `AetherWatchdog` reconecta stream se ticks estagnarem (`watchdog_stale
 `cycle_interval_seconds` (**120**), `signature_boundary_seconds` (**120**), `watchdog_stale_tick_seconds` (**25**), `mandatory_trade_each_cycle`, `require_meta_for_execution` (**false**), `quality_gate.*` (`min_direction_margin: 0.03`), `loss_protection.*` (`min_direction_margin: 0.03`), `bb_width_adaptive_squeeze.enabled` (**false**), `proposal_*`, `settlement_*` (**90 s**), `dynamic_threshold.enabled` (**false**).
 
 ### `risk_management`
-`kelly.*` (fraction, caps, `consensus_penalty_enabled: false`, recovery Hurst), `soft_recovery.*` (enabled, `max_safe_stake_cap` 4.20, amort 2–5, `coing_redirect_drawdown_threshold` 15.00), `min_validation_accuracy_gate` (**0.63**), `params.*` (duration **120**, compounding, stake_min, payout_estimate), `small_account_*`.
+`martingale.*` (`enabled: true`, `multiplier: 2.0`), `kelly.*` (telemetria / path legado; operacional `fraction: 0.0`, caps 1.0), `soft_recovery.*` (`enabled: false` operacional), `min_validation_accuracy_gate` (**0.63**), `params.*` (duration **120**, compounding, stake_min, payout_estimate), `small_account_*`.
 
 ### `infra`
 Redis/Timescale/MinIO/Triton/meta_classifier URLs e timeouts (`infer_timeout_seconds: 0.50`).
@@ -417,7 +415,7 @@ flowchart LR
   end
   subgraph pos
     ST[settlement + Redis queue]
-    RM[RiskManager soft_recovery]
+    RM[RiskManager martingale]
     LOCK[StateManager Lock]
   end
   WS --> SH --> TB

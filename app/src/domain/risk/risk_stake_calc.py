@@ -13,6 +13,7 @@ from src.domain.risk.dlambert_sizing import (
     effective_martingale_base,
     resolve_dlambert_stake,
 )
+from src.domain.risk.martingale_sizing import calculate_martingale_stake_for_manager, martingale_enabled
 from src.domain.risk.risk_recovery_state import clear_dust_pending_loss
 from src.domain.risk.risk_stake_calc_helpers import cap_final_stake, resolve_f_star_and_kelly_base
 from src.domain.risk.risk_stake_flow import (
@@ -114,11 +115,13 @@ def calculate_stake_for_manager(
     apply_stop_win: bool,
     kwargs: dict,
 ) -> float:
-    """Calcula stake final com Kelly ou D'Alembert conforme estado do gerenciador."""
-    if bankroll <= 100.0 and getattr(rm, "dlambert_unit", 0.0) <= 0.0:
-        rm.dlambert_unit = 1.00
+    """Calcula stake final com Martingale, Kelly ou D'Alembert conforme config."""
     if check_stake_preconditions_veto(symbol, apply_stop_win=apply_stop_win, rm=rm, kwargs=kwargs):
         return 0.0
+    if martingale_enabled(rm):
+        return calculate_martingale_stake_for_manager(rm, bankroll, symbol, conviction, silent=silent, kwargs=kwargs)
+    if bankroll <= 100.0 and getattr(rm, "dlambert_unit", 0.0) <= 0.0:
+        rm.dlambert_unit = 1.00
 
     dl_metrics = kwargs.get("dl_metrics")
     conviction = resolve_stake_conviction(_metrics_for_conviction(dl_metrics, conviction), rm.kelly_config)

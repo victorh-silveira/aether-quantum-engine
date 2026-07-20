@@ -50,6 +50,7 @@ def test_should_flip_when_payoff_below_threshold_and_meta_applied():
     assert should_flip_direction(TradeDirection.CALL, 0.35, meta_applied=True)
     assert not should_flip_direction(TradeDirection.CALL, 0.55, meta_applied=True)
     assert not should_flip_direction(TradeDirection.PUT, 0.30, meta_applied=False)
+    assert not should_flip_direction(TradeDirection.CALL, 0.10, meta_applied=True, polarity_inverted=True)
 
 
 def test_should_flip_respects_elevated_squeeze_threshold():
