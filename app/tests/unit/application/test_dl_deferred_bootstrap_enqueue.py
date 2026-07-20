@@ -3,7 +3,7 @@ from unittest.mock import patch
 import numpy as np
 
 from src.application.services.deep_learning.dl_deferred_train import try_enqueue_next_bootstrap_training
-from tests.market_symbols import ALL_SYMBOLS
+from tests.market_symbols import ALT_SYMBOL
 
 
 def test_try_enqueue_next_bootstrap_training_schedules_first_pending(orch_ready):
@@ -14,7 +14,7 @@ def test_try_enqueue_next_bootstrap_training_schedules_first_pending(orch_ready)
     with (
         patch(
             "src.application.services.deep_learning.dl_deferred_train._ordered_bootstrap_symbols",
-            return_value=[ALL_SYMBOLS[1]],
+            return_value=[ALT_SYMBOL],
         ),
         patch(
             "src.application.services.deep_learning.dl_deferred_train._bootstrap_training_context",
@@ -45,7 +45,7 @@ def test_try_enqueue_next_bootstrap_training_schedules_first_pending(orch_ready)
     ):
         try_enqueue_next_bootstrap_training(orch)
     mock_enqueue.assert_called_once()
-    assert mock_enqueue.call_args.args[1] == ALL_SYMBOLS[1]
+    assert mock_enqueue.call_args.args[1] == ALT_SYMBOL
 
 
 def test_try_enqueue_next_bootstrap_training_skips_when_not_bootstrap_reason(orch_ready):
@@ -53,7 +53,7 @@ def test_try_enqueue_next_bootstrap_training_skips_when_not_bootstrap_reason(orc
     with (
         patch(
             "src.application.services.deep_learning.dl_deferred_train._ordered_bootstrap_symbols",
-            return_value=["RDBEAR"],
+            return_value=["R_10"],
         ),
         patch(
             "src.application.services.deep_learning.dl_deferred_train._bootstrap_training_context",
@@ -80,7 +80,7 @@ def test_try_enqueue_next_bootstrap_training_stops_on_short_history(orch_ready):
     with (
         patch(
             "src.application.services.deep_learning.dl_deferred_train._ordered_bootstrap_symbols",
-            return_value=["RDBEAR"],
+            return_value=["R_10"],
         ),
         patch(
             "src.application.services.deep_learning.dl_deferred_train._bootstrap_training_context",
@@ -107,7 +107,7 @@ def test_try_enqueue_skips_symbol_already_trained(orch_ready):
     with (
         patch(
             "src.application.services.deep_learning.dl_deferred_train._ordered_bootstrap_symbols",
-            return_value=["RDBEAR", "RDBULL"],
+            return_value=["R_10", "R_50"],
         ),
         patch(
             "src.application.services.deep_learning.dl_deferred_train._bootstrap_training_context",

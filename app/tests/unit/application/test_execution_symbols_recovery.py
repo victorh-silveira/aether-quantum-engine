@@ -15,7 +15,7 @@ from src.application.services.execution_symbols_recovery import (
     recovery_rank_score,
 )
 from src.domain.models.trade import TradeDirection
-from tests.market_symbols import ANCHOR, HEDGE_PEER_SYMBOL, PAIR
+from tests.market_symbols import ALT_SYMBOL, ANCHOR, HEDGE_PEER_SYMBOL, PAIR
 
 
 def test_inject_recovery_hedge_noop_without_loss_context():
@@ -77,13 +77,13 @@ def test_recovery_rank_score_penalizes_matching_direction():
 def test_recovery_rank_score_bonus_for_different_symbol():
     item = (ANCHOR, TradeDirection.PUT, {"trade_score": 0.55, "execute": True, "raw_prob": 0.42})
     base = candidate_execution_score(item[2], recovery_active=True)
-    ranked = recovery_rank_score(item, last_loss_symbol=PAIR, last_loss_direction="CALL", base_score=base)
+    ranked = recovery_rank_score(item, last_loss_symbol=ALT_SYMBOL, last_loss_direction="CALL", base_score=base)
     assert ranked >= base + 0.05
 
 
 def test_recovery_hedge_target_after_high_side_put_loss():
     target = recovery_hedge_target(ANCHOR, "PUT")
-    assert target == (PAIR, TradeDirection.CALL)
+    assert target is None
 
 
 def test_recovery_prefers_opposite_direction_after_loss():
@@ -227,7 +227,7 @@ def test_recovery_rank_score_raw_bonus_for_opposite_direction(direction, last_lo
     assert (
         recovery_rank_score(
             item,
-            last_loss_symbol=PAIR,
+            last_loss_symbol=ALT_SYMBOL,
             last_loss_direction=last_loss_direction,
             base_score=base,
         )

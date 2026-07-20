@@ -13,6 +13,11 @@ def test_resolve_deploy_ok_soft_fallback():
     assert resolve_deploy_ok(mini_ok=False, val_accuracy=0.48, val_brier=0.25, gate_cfg=cfg) is False
 
 
+def test_resolve_deploy_ok_force_ok():
+    cfg = parse_deploy_gate_config({"deploy_gate": {"enabled": True, "force_ok": True}})
+    assert resolve_deploy_ok(mini_ok=False, val_accuracy=0.40, val_brier=0.30, gate_cfg=cfg) is True
+
+
 def test_deploy_params_for_eval_relaxes_thresholds():
     params = {
         "confidence_call_threshold": 0.75,

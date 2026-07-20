@@ -4,6 +4,8 @@ from typing import Any
 
 from src.domain.math.probability_entropy import binary_entropy
 from src.domain.models.trade import TradeDirection
+from src.domain.risk.soft_recovery_policy import DEFAULT_DUST_PENDING_CLEAR_MAX
+from src.domain.symbols.drift_symbols import TRADING_SYMBOLS
 
 
 CRITICAL_LINEAR_LOSSES = 5
@@ -14,7 +16,7 @@ COINTEGRATION_DRAWDOWN_FRACTION = 0.15
 MICRO_BANKROLL_THRESHOLD = 250.0
 MICRO_TAIL_LINEAR_LEVEL = 4
 MICRO_TAIL_UNIT_MULTIPLIER = 4.2
-DRIFT_PAIR_SYMBOLS = frozenset({"RDBULL", "RDBEAR"})
+DRIFT_PAIR_SYMBOLS = frozenset(TRADING_SYMBOLS)
 
 
 def pending_loss_total(pending_loss: dict[str, float]) -> float:
@@ -25,6 +27,34 @@ def pending_loss_total(pending_loss: dict[str, float]) -> float:
 def recovery_financially_active(pending_loss: dict[str, float]) -> bool:
     """True enquanto houver drawdown financeiro pendente na sessao."""
     return pending_loss_total(pending_loss) > 0.0
+
+
+def clear_dust_pending_loss(risk_manager: Any, *, soft_recovery: dict[str, Any] | None = None) -> bool:
+    """Zera dust de pending e retorna sessao ao regime EXPLORE."""
+    soft = soft_recovery
+    if not isinstance(soft, dict):
+        soft = getattr(risk_manager, "soft_recovery_config", None)
+    if not isinstance(soft, dict):
+        soft = {}
+    dust_max = float(soft.get("dust_pending_clear_max", DEFAULT_DUST_PENDING_CLEAR_MAX))
+    pending = getattr(risk_manager, "pending_loss", None)
+    if not isinstance(pending, dict):
+        return False
+    total = pending_loss_total(pending)
+    if total <= 0.0 or total > dust_max:
+        return False
+    pending.clear()
+    risk_manager.consecutive_losses_linear = 0
+    if hasattr(risk_manager, "last_loss_stake"):
+        risk_manager.last_loss_stake = 0.0
+    logger = getattr(risk_manager, "logger", None)
+    if logger is not None:
+        logger.info(
+            "RISK: Dust pending cleared | was=$%.2f | max=$%.2f | regime=EXPLORE",
+            total,
+            dust_max,
+        )
+    return True
 
 
 def apply_win_to_pending_loss(pending_loss: dict[str, float], profit: float) -> None:
@@ -52,6 +82,8 @@ def apply_dlambert_partial_win_retraction(risk_manager) -> None:
 
 def apply_cluster_profit_to_recovery_state(risk_manager, cluster_profit: float) -> bool:
     """Atualiza perdas lineares sem reset falso enquanto pending_loss > 0."""
+    linear_before = int(getattr(risk_manager, "consecutive_losses_linear", 0))
+    dust_cleared = clear_dust_pending_loss(risk_manager)
     pending = pending_loss_total(risk_manager.pending_loss)
     pnl_sess = float(risk_manager.total_session_profit)
     linear = int(getattr(risk_manager, "consecutive_losses_linear", 0))
@@ -65,6 +97,14 @@ def apply_cluster_profit_to_recovery_state(risk_manager, cluster_profit: float) 
             risk_manager.consecutive_losses_linear,
         )
         return False
+    if dust_cleared:
+        risk_manager.logger.info(
+            "RISK: WIN operacional com dust clear (P&L: $%.2f) | pnl_sess=$%+.2f | regime=EXPLORE",
+            cluster_profit,
+            pnl_sess,
+        )
+        risk_manager._linear_reset_occurred = True
+        return True
     if pending > 0.0:
         apply_dlambert_partial_win_retraction(risk_manager)
         risk_manager.logger.info(
@@ -75,7 +115,7 @@ def apply_cluster_profit_to_recovery_state(risk_manager, cluster_profit: float) 
             risk_manager.consecutive_losses_linear,
         )
         return False
-    linear_reset = linear > 0
+    linear_reset = linear_before > 0 or linear > 0
     if linear_reset:
         risk_manager.logger.info(
             "RISK: Recovery financeiro zerado (P&L: $%.2f) | pnl_sess=$%+.2f | reset linear",

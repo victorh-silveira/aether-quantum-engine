@@ -14,7 +14,7 @@ async def test_dispatch_fractional_orders_returns_empty_when_single_lot_fails(or
         orch = Orchestrator(orch_config, "token")
         orch.executor._place_order = AsyncMock(return_value=None)
         contracts = await dispatch_fractional_orders(
-            orch.executor, "RDBULL", TradeDirection.CALL, 150.0, duration=60, metrics={"duration": 60}, order_n=1
+            orch.executor, "R_10", TradeDirection.CALL, 150.0, duration=60, metrics={"duration": 60}, order_n=1
         )
         assert contracts == []
 
@@ -37,7 +37,7 @@ async def test_dispatch_fractional_orders_aborts_cluster_when_proposal_fails(orc
             new_callable=AsyncMock,
         ) as subscribe_mock:
             contracts = await dispatch_fractional_orders(
-                orch.executor, "RDBULL", TradeDirection.CALL, 268.82, duration=60, metrics=metrics, order_n=1
+                orch.executor, "R_10", TradeDirection.CALL, 268.82, duration=60, metrics=metrics, order_n=1
             )
         assert contracts == []
         assert metrics["fractional_lot_technical_failure"] is True
@@ -59,7 +59,7 @@ async def test_dispatch_fractional_orders_aborts_when_proposal_id_is_reused(orch
         )
         metrics = {"duration": 60}
         contracts = await dispatch_fractional_orders(
-            orch.executor, "RDBULL", TradeDirection.CALL, 268.82, duration=60, metrics=metrics, order_n=1
+            orch.executor, "R_10", TradeDirection.CALL, 268.82, duration=60, metrics=metrics, order_n=1
         )
         assert contracts == []
         assert metrics["fractional_lot_technical_failure"] is True
@@ -73,7 +73,7 @@ async def test_dispatch_fractional_orders_aborts_when_proposal_response_is_not_d
         orch.ws.send = AsyncMock(return_value="invalid")
         metrics = {"duration": 60}
         contracts = await dispatch_fractional_orders(
-            orch.executor, "RDBULL", TradeDirection.CALL, 268.82, duration=60, metrics=metrics, order_n=1
+            orch.executor, "R_10", TradeDirection.CALL, 268.82, duration=60, metrics=metrics, order_n=1
         )
         assert contracts == []
         assert metrics["fractional_lot_technical_failure"] is True
@@ -87,7 +87,7 @@ async def test_dispatch_fractional_orders_aborts_when_proposal_payload_missing(o
         orch.ws.send = AsyncMock(return_value={"ok": True})
         metrics = {"duration": 60}
         contracts = await dispatch_fractional_orders(
-            orch.executor, "RDBULL", TradeDirection.CALL, 268.82, duration=60, metrics=metrics, order_n=1
+            orch.executor, "R_10", TradeDirection.CALL, 268.82, duration=60, metrics=metrics, order_n=1
         )
         assert contracts == []
         assert metrics["fractional_lot_technical_failure"] is True
@@ -101,7 +101,7 @@ async def test_dispatch_fractional_orders_aborts_when_proposal_id_missing(orch_c
         orch.ws.send = AsyncMock(return_value={"proposal": {"ask_price": 134.41}})
         metrics = {"duration": 60}
         contracts = await dispatch_fractional_orders(
-            orch.executor, "RDBULL", TradeDirection.CALL, 268.82, duration=60, metrics=metrics, order_n=1
+            orch.executor, "R_10", TradeDirection.CALL, 268.82, duration=60, metrics=metrics, order_n=1
         )
         assert contracts == []
         assert metrics["fractional_lot_technical_failure"] is True
@@ -123,7 +123,7 @@ async def test_dispatch_fractional_orders_raises_when_buy_response_missing_paylo
         )
         with pytest.raises(RuntimeError, match="resposta sem buy"):
             await dispatch_fractional_orders(
-                orch.executor, "RDBULL", TradeDirection.CALL, 268.82, duration=60, metrics={"duration": 60}, order_n=1
+                orch.executor, "R_10", TradeDirection.CALL, 268.82, duration=60, metrics={"duration": 60}, order_n=1
             )
 
 
@@ -141,7 +141,7 @@ async def test_dispatch_fractional_orders_raises_when_buy_response_not_dict(orch
         )
         with pytest.raises(RuntimeError, match="resposta invalida"):
             await dispatch_fractional_orders(
-                orch.executor, "RDBULL", TradeDirection.CALL, 268.82, duration=60, metrics={"duration": 60}, order_n=1
+                orch.executor, "R_10", TradeDirection.CALL, 268.82, duration=60, metrics={"duration": 60}, order_n=1
             )
 
 
@@ -159,5 +159,5 @@ async def test_dispatch_fractional_orders_raises_when_buy_response_has_error(orc
         )
         with pytest.raises(RuntimeError, match="Unknown contract proposal"):
             await dispatch_fractional_orders(
-                orch.executor, "RDBULL", TradeDirection.CALL, 268.82, duration=60, metrics={"duration": 60}, order_n=1
+                orch.executor, "R_10", TradeDirection.CALL, 268.82, duration=60, metrics={"duration": 60}, order_n=1
             )

@@ -82,7 +82,7 @@ def test_resolve_dynamic_quality_limits_applies_recovery_relaxation():
 def test_read_risk_session_state_from_manager():
     risk_manager = SimpleNamespace(
         consecutive_losses_linear=3,
-        pending_loss={"RDBULL": 4.5, "RDBEAR": 1.5},
+        pending_loss={"R_10": 4.5, "R_50": 1.5},
         pending_loss_total=lambda: 6.0,
     )
     linear, pending = read_risk_session_state(risk_manager)
@@ -111,7 +111,7 @@ def test_quality_gate_params_ignores_non_dict_config():
 
 
 def test_read_risk_session_state_sums_pending_loss_dict():
-    risk_manager = SimpleNamespace(consecutive_losses_linear=0, pending_loss={"RDBULL": 2.5, "RDBEAR": 1.5})
+    risk_manager = SimpleNamespace(consecutive_losses_linear=0, pending_loss={"R_10": 2.5, "R_50": 1.5})
     linear, pending = read_risk_session_state(risk_manager)
     assert linear == 0
     assert pending == 4.0
@@ -243,9 +243,9 @@ def test_quality_conviction_suspends_cluster_skips_malformed_entries(orch_ready,
     orch.risk_manager.pending_loss_total = lambda: 0.0
     orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = False
     decisions = {
-        "RDBULL": "invalid",
-        "RDBEAR": {"metrics": "invalid"},
-        "RDBULL2": {
+        "R_10": "invalid",
+        "R_50": {"metrics": "invalid"},
+        "R_102": {
             "metrics": {
                 "calibrated_prob": 0.70,
                 "predicted_payoff_edge": 0.01,
@@ -259,7 +259,7 @@ def test_quality_conviction_suspends_cluster_skips_malformed_entries(orch_ready,
     }
     with caplog.at_level("INFO", logger="AETH"):
         assert quality_conviction_suspends_cluster(orch, decisions) is False
-    assert decisions["RDBULL2"]["metrics"].get("quality_guard_reject") is not True
+    assert decisions["R_102"]["metrics"].get("quality_guard_reject") is not True
 
 
 def test_quality_conviction_waives_suspension_during_recovery_mandatory(orch_ready):
@@ -268,14 +268,14 @@ def test_quality_conviction_waives_suspension_during_recovery_mandatory(orch_rea
     orch.risk_manager.consecutive_losses_linear = 2
     orch.risk_manager.pending_loss_total = lambda: 4.14
     decisions = {
-        "RDBULL": {
+        "R_10": {
             "metrics": {
                 "calibrated_prob": 0.61,
                 "predicted_payoff_edge": 0.01,
                 "meta_classifier_applied": True,
             }
         },
-        "RDBEAR": {"metrics": {"calibrated_prob": 0.30, "predicted_payoff_edge": 0.08}},
+        "R_50": {"metrics": {"calibrated_prob": 0.30, "predicted_payoff_edge": 0.08}},
     }
     assert quality_conviction_suspends_cluster(orch, decisions) is False
 
@@ -283,7 +283,7 @@ def test_quality_conviction_waives_suspension_during_recovery_mandatory(orch_rea
 def test_quality_conviction_suspends_cluster_false_for_regular_elastic_signal(orch_ready):
     orch = orch_ready
     decisions = {
-        "RDBULL": {"metrics": _edge_signal_metrics()},
-        "RDBEAR": {"metrics": {"calibrated_prob": 0.30, "predicted_payoff_edge": 0.06}},
+        "R_10": {"metrics": _edge_signal_metrics()},
+        "R_50": {"metrics": {"calibrated_prob": 0.30, "predicted_payoff_edge": 0.06}},
     }
     assert quality_conviction_suspends_cluster(orch, decisions) is False

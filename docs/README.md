@@ -33,7 +33,7 @@ Regra: **domain** não importa application nem infrastructure. **Application** o
 
 | Item | Valor |
 |------|-------|
-| Universo | `RDBEAR`, `RDBULL` (âncora `RDBULL`) |
+| Universo | `R_10` (âncora `R_10`) |
 | DL | TCN, lookback **72**, macro **600 s**, `FEATURE_DIM=34`, label `spot_forward`, tensor `[1, 72, 34]` |
 | Meta | LightGBM HTTP `:8005`, `META_FEATURE_DIM=43` (micro **120 s**) |
 | Relógio | Micro **120 s** + macro **600 s** (proporção **1:5**); assinatura legado `m5b:…;m5:…;m15:…` (nomes legados para 120/600) |

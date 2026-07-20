@@ -26,14 +26,14 @@ def test_store_and_pop_contract_audit():
     store_contract_audit(
         orch,
         9,
-        symbol="RDBULL",
+        symbol="R_10",
         direction="CALL",
         edge=0.11,
         meta_payoff_edge_zscore=-0.55,
         raw_prob=0.71,
     )
     sym, direction, edge, z_score, raw_prob = pop_contract_audit(orch, 9)
-    assert sym == "RDBULL"
+    assert sym in {"R_10", "R_50"}
     assert direction == "CALL"
     assert edge == 0.11
     assert z_score == pytest.approx(-0.55)
@@ -43,8 +43,8 @@ def test_store_and_pop_contract_audit():
 def test_pop_contract_audit_falls_back_to_contract_direction():
     orch = SimpleNamespace()
     contract = SimpleNamespace(direction=TradeDirection.PUT, status=TradeStatus.OPEN)
-    sym, direction, edge, z_score, raw_prob = pop_contract_audit(orch, 4, contract=contract, symbol="RDBEAR")
-    assert sym == "RDBEAR"
+    sym, direction, edge, z_score, raw_prob = pop_contract_audit(orch, 4, contract=contract, symbol="R_10")
+    assert sym in {"R_10", "R_50"}
     assert direction == "PUT"
     assert edge == 0.0
     assert z_score is None

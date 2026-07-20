@@ -21,16 +21,16 @@ _MICRO_EPOCH = 1_700_001_000
 
 
 def _bear_candle(epoch: int) -> Candle:
-    return Candle("RDBEAR", 1.0, 1.1, 0.9, 1.05, datetime.now(), epoch)
+    return Candle("R_10", 1.0, 1.1, 0.9, 1.05, datetime.now(), epoch)
 
 
 def _seed_dual_timeframe_stream(orch) -> None:
-    orch.stream.macro_candles = {"RDBEAR": [_bear_candle(_MACRO_EPOCH)]}
-    orch.stream.micro_candles = {"RDBEAR": [_bear_candle(_MICRO_EPOCH)]}
+    orch.stream.macro_candles = {"R_10": [_bear_candle(_MACRO_EPOCH)]}
+    orch.stream.micro_candles = {"R_10": [_bear_candle(_MICRO_EPOCH)]}
 
 
 def test_get_data_state_signature_empty_without_stream():
-    orch = SimpleNamespace(symbols=["RDBEAR"], stream=None)
+    orch = SimpleNamespace(symbols=["R_10"], stream=None)
     assert get_data_state_signature(orch) == ""
 
 
@@ -42,8 +42,8 @@ def test_dual_timeframe_data_signature(orch_ready):
     assert sig.startswith("m5b:")
     assert ";m5:" in sig
     assert ";m15:" in sig
-    assert f"RDBEAR@{_MACRO_EPOCH}" in sig
-    assert f"RDBEAR@{_MICRO_EPOCH}" in sig
+    assert f"R_10@{_MACRO_EPOCH}" in sig
+    assert f"R_10@{_MICRO_EPOCH}" in sig
 
 
 def test_data_signature_changes_on_m5_boundary_with_static_m15(orch_ready):
@@ -62,11 +62,11 @@ def test_data_signature_changes_when_micro_epoch_advances_with_static_m15(orch_r
     orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 300
     _seed_dual_timeframe_stream(orch)
     sig_before = get_data_state_signature(orch, now=float(_MICRO_EPOCH))
-    orch.stream.micro_candles = {"RDBEAR": [_bear_candle(_MICRO_EPOCH + 300)]}
+    orch.stream.micro_candles = {"R_10": [_bear_candle(_MICRO_EPOCH + 300)]}
     sig_after = get_data_state_signature(orch, now=float(_MICRO_EPOCH + 300))
     assert sig_before != sig_after
-    assert f"RDBEAR@{_MACRO_EPOCH}" in sig_before
-    assert f"RDBEAR@{_MACRO_EPOCH}" in sig_after
+    assert f"R_10@{_MACRO_EPOCH}" in sig_before
+    assert f"R_10@{_MACRO_EPOCH}" in sig_after
 
 
 def test_m5_boundary_epoch_aligns_to_five_minutes(orch_ready):
@@ -104,10 +104,10 @@ def test_get_data_state_signature_reads_macro_from_legacy_candles_store(orch_rea
     orch = orch_ready
     orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 300
     orch.stream.macro_candles = None
-    orch.stream.candles = {"RDBEAR": [_bear_candle(_MACRO_EPOCH)]}
-    orch.stream.micro_candles = {"RDBEAR": [_bear_candle(_MICRO_EPOCH)]}
+    orch.stream.candles = {"R_10": [_bear_candle(_MACRO_EPOCH)]}
+    orch.stream.micro_candles = {"R_10": [_bear_candle(_MICRO_EPOCH)]}
     sig = get_data_state_signature(orch, now=float(_MICRO_EPOCH))
-    assert f"RDBEAR@{_MACRO_EPOCH}" in sig
+    assert f"R_10@{_MACRO_EPOCH}" in sig
 
 
 def test_get_data_state_signature_empty_when_no_candles(orch_ready):

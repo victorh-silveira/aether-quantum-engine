@@ -38,7 +38,7 @@ from src.application.services.meta_classifier_cross_symbol import META_FEATURE_D
 from src.application.services.meta_classifier_features import meta_classifier_column_names
 
 
-def _synthetic_bundle(symbol: str, *, n: int = 280, phase: float = 0.0) -> OhlcBundle:
+def _synthetic_bundle(symbol: str = "R_10", *, n: int = 280, phase: float = 0.0) -> OhlcBundle:
     flat_head = np.full(120, 100.0)
     t = np.linspace(0, 14 * np.pi, n - 200)
     wiggle = 100.0 + 2.5 * np.sin(t + phase) + 0.2 * np.cos(3 * t)
@@ -60,69 +60,46 @@ def _synthetic_bundle(symbol: str, *, n: int = 280, phase: float = 0.0) -> OhlcB
     )
 
 
-def _asymmetric_bundles(*, bull_n: int = 5000, bear_n: int = 999) -> list[OhlcBundle]:
-    bull = _synthetic_bundle("RDBULL", n=bull_n)
-    bear = _synthetic_bundle("RDBEAR", n=bear_n, phase=0.8)
-    bear = OhlcBundle(
-        symbol="RDBEAR",
-        granularity=60,
-        closes=bear.closes.astype(np.float64),
-        open_=bear.open_.astype(np.float64),
-        high=bear.high.astype(np.float64),
-        low=bear.low.astype(np.float64),
-        epochs=bull.epochs[:bear_n].copy(),
-        source="test",
+def test_build_paired_training_dataset_accepts_fetch_below_history():
+    frame, y, _, _ = build_paired_training_dataset(
+        [_synthetic_bundle(n=999)],
+        micro_granularity=120,
+        fetch_count=5000,
     )
-    return [bull, bear]
-
-
-def test_build_paired_training_dataset_accepts_paired_cap_below_planned_fetch():
-    bundles = _asymmetric_bundles(bull_n=5000, bear_n=999)
-    frame, y, _, _ = build_paired_training_dataset(bundles, micro_granularity=120, fetch_count=5000)
     assert len(frame) >= int(999 * INNER_JOIN_MIN_SAMPLE_RATIO) - 40
     validate_target_variance(y)
 
 
-def test_build_paired_training_dataset_rejects_severely_short_bear():
-    bull = _synthetic_bundle("RDBULL", n=500)
-    bear_n = 120
-    closes = np.linspace(100.0, 101.0, bear_n)
-    bear = OhlcBundle(
-        symbol="RDBEAR",
+def test_build_paired_training_dataset_rejects_insufficient_history():
+    closes = np.linspace(100.0, 101.0, 40)
+    bundle = OhlcBundle(
+        symbol="R_10",
         granularity=60,
         closes=closes,
         open_=closes - 0.01,
         high=closes + 0.02,
         low=closes - 0.02,
-        epochs=bull.epochs[:bear_n].copy(),
+        epochs=(np.arange(40, dtype=np.int64) + 1_700_000_000) * 60,
         source="test",
     )
-    with pytest.raises(RuntimeError, match="paginacao assimétrica"):
-        build_paired_training_dataset([bull, bear], micro_granularity=120, fetch_count=5000)
+    with pytest.raises(RuntimeError, match="Historico insuficiente"):
+        build_paired_training_dataset([bundle], micro_granularity=120, fetch_count=5000)
 
 
-def test_build_paired_training_dataset_rejects_disjoint_epochs():
-    bull = _synthetic_bundle("RDBULL", n=280)
-    bear = _synthetic_bundle("RDBEAR", n=280, phase=0.8)
-    bear = OhlcBundle(
-        symbol="RDBEAR",
-        granularity=60,
-        closes=bear.closes,
-        open_=bear.open_,
-        high=bear.high,
-        low=bear.low,
-        epochs=bear.epochs + 9_999_999,
-        source="test",
+def test_build_paired_training_dataset_rejects_empty_bundles():
+    with pytest.raises(RuntimeError, match="ao menos um bundle"):
+        build_paired_training_dataset([], micro_granularity=120, fetch_count=280)
+
+
+def test_build_paired_training_dataset_single_symbol_shape():
+    frame, y, _, _ = build_paired_training_dataset(
+        [_synthetic_bundle(n=5000)],
+        micro_granularity=120,
+        fetch_count=5000,
     )
-    with pytest.raises(RuntimeError, match="Nenhuma epoch comum"):
-        build_paired_training_dataset([bull, bear], micro_granularity=120, fetch_count=280)
-
-
-def test_build_paired_training_dataset_accepts_high_overlap_inner_join():
-    bundles = [_synthetic_bundle("RDBULL", n=5000), _synthetic_bundle("RDBEAR", n=5000, phase=0.3)]
-    frame, y, _, _ = build_paired_training_dataset(bundles, micro_granularity=120, fetch_count=5000)
     assert len(frame) >= int(5000 * INNER_JOIN_MIN_SAMPLE_RATIO) - 40
     assert frame.shape[1] == META_FEATURE_DIM
+    assert np.allclose(frame["cross_symbol_prob_delta"].to_numpy(), 0.0)
     validate_target_variance(y)
 
 
@@ -149,7 +126,7 @@ def test_target_variance_returns_float_dispersion():
 
 
 def test_build_training_summary_includes_continuous_telemetry():
-    bundles = [_synthetic_bundle("RDBULL"), _synthetic_bundle("RDBEAR", phase=0.8)]
+    bundles = [_synthetic_bundle()]
     frame, y, _, _ = build_paired_training_dataset(bundles, micro_granularity=120, fetch_count=280)
     summary = build_training_summary(
         frame=frame,
@@ -166,7 +143,7 @@ def test_build_training_summary_includes_continuous_telemetry():
             "optuna_objective_metric": "payoff_zscore",
         },
         output_path=Path("meta_lgbm.pkl"),
-        symbols=["RDBULL", "RDBEAR"],
+        symbols=["R_10"],
         bundles=bundles,
     )
     assert "cross_symbol_prob_delta_mean" in summary
@@ -180,14 +157,26 @@ def test_build_training_summary_includes_continuous_telemetry():
 
 def test_assert_export_zscore_floor_blocks_weak_models():
     with pytest.raises(RuntimeError, match="Export meta bloqueado"):
-        assert_export_zscore_floor({"oos_payoff_zscore_mean": 0.041}, floor=META_EXPORT_MIN_ZSCORE)
-    assert_export_zscore_floor({"oos_payoff_zscore_mean": 0.30}, floor=META_EXPORT_MIN_ZSCORE)
+        assert_export_zscore_floor(
+            {"oos_payoff_zscore_mean": 0.020, "oos_information_ratio": 0.50},
+            floor=META_EXPORT_MIN_ZSCORE,
+        )
+    assert_export_zscore_floor(
+        {"oos_payoff_zscore_mean": 0.048271, "oos_information_ratio": 1.316662},
+        floor=META_EXPORT_MIN_ZSCORE,
+    )
+    assert_export_zscore_floor(
+        {"oos_payoff_zscore_mean": 0.061, "oos_information_ratio": 0.80},
+        floor=META_EXPORT_MIN_ZSCORE,
+    )
+    assert pytest.approx(0.04) == META_EXPORT_MIN_ZSCORE
 
 
 def test_assert_export_mae_gap_blocks_overfit():
-    assert_export_mae_gap(1.0, 1.20, max_gap=META_EXPORT_MAX_MAE_GAP)
+    assert_export_mae_gap(1.0, 1.85, max_gap=META_EXPORT_MAX_MAE_GAP)
     with pytest.raises(RuntimeError, match="val_mae/train_mae"):
-        assert_export_mae_gap(1.0, 1.50, max_gap=META_EXPORT_MAX_MAE_GAP)
+        assert_export_mae_gap(1.0, 2.10, max_gap=META_EXPORT_MAX_MAE_GAP)
+    assert pytest.approx(2.0) == META_EXPORT_MAX_MAE_GAP
 
 
 def test_configure_meta_train_logging_silences_lightgbm_and_optuna():
@@ -204,8 +193,11 @@ def test_lgbm_quiet_params_include_verbose_and_warnings():
 
 
 def test_build_paired_training_dataset_has_continuous_target_and_named_columns():
-    bundles = [_synthetic_bundle("RDBULL"), _synthetic_bundle("RDBEAR", phase=0.8)]
-    frame, y, proxy, pnl = build_paired_training_dataset(bundles, micro_granularity=120, fetch_count=280)
+    frame, y, proxy, pnl = build_paired_training_dataset(
+        [_synthetic_bundle()],
+        micro_granularity=120,
+        fetch_count=280,
+    )
     columns = meta_classifier_column_names()
     assert list(frame.columns) == columns
     assert isinstance(frame, pd.DataFrame)

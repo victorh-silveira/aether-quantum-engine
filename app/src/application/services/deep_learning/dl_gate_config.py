@@ -8,6 +8,7 @@ def parse_deploy_gate_config(dl_config: dict) -> dict[str, Any]:
     raw = dl_config.get("deploy_gate", {}) if isinstance(dl_config.get("deploy_gate"), dict) else {}
     return {
         "enabled": bool(raw.get("enabled", True)),
+        "force_ok": bool(raw.get("force_ok", False)),
         "max_brier": float(raw.get("max_brier", 0.24)),
         "min_win_rate": float(raw.get("min_win_rate", 0.52)),
         "mini_bars": int(raw.get("mini_bars", 80)),
@@ -41,6 +42,8 @@ def resolve_deploy_ok(
     if mini_ok:
         return True
     if not gate_cfg.get("enabled", True):
+        return True
+    if gate_cfg.get("force_ok", False):
         return True
     soft_acc = float(gate_cfg.get("soft_min_val_accuracy", 0.50))
     soft_brier = float(gate_cfg.get("soft_max_brier", 0.32))

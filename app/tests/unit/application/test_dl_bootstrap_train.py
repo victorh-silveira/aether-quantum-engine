@@ -9,7 +9,7 @@ from src.application.services.deep_learning.dl_bootstrap_train import (
     run_dl_training_session,
     run_initial_bootstrap_training,
 )
-from tests.market_symbols import ALL_SYMBOLS
+from tests.market_symbols import ALT_SYMBOL, ANCHOR
 
 
 @pytest.mark.asyncio
@@ -24,7 +24,7 @@ async def test_run_initial_bootstrap_training_sequences_symbols(orch_ready):
     with (
         patch(
             "src.application.services.deep_learning.dl_bootstrap_train._ordered_bootstrap_symbols",
-            side_effect=lambda _orch: [] if len(trained) >= 2 else list(ALL_SYMBOLS[:2]),
+            side_effect=lambda _orch: [] if len(trained) >= 2 else [ANCHOR, ALT_SYMBOL],
         ),
         patch(
             "src.application.services.deep_learning.dl_bootstrap_train._train_bootstrap_symbol",
@@ -37,7 +37,7 @@ async def test_run_initial_bootstrap_training_sequences_symbols(orch_ready):
     ):
         await run_initial_bootstrap_training(orch)
 
-    assert trained == list(ALL_SYMBOLS[:2])
+    assert trained == [ANCHOR, ALT_SYMBOL]
     assert mock_train.await_count == 2
 
 
@@ -54,9 +54,9 @@ def test_ordered_bootstrap_symbols_returns_pending_in_config_order(orch_ready):
     orch = orch_ready
     with patch(
         "src.application.services.deep_learning.dl_bootstrap_train.training_priority_symbols",
-        return_value=frozenset({"RDBEAR", "RDBULL"}),
+        return_value=frozenset({"R_10", "R_50"}),
     ):
-        assert _ordered_bootstrap_symbols(orch) == ["RDBEAR", "RDBULL"]
+        assert _ordered_bootstrap_symbols(orch) == ["R_10"]
 
 
 @pytest.mark.asyncio
@@ -85,7 +85,7 @@ async def test_train_bootstrap_symbol_runs_training_in_thread(orch_ready):
             new_callable=AsyncMock,
         ) as mock_thread,
     ):
-        ok = await _train_bootstrap_symbol(orch, "RDBEAR")
+        ok = await _train_bootstrap_symbol(orch, "R_10")
     assert ok is True
     mock_thread.assert_awaited_once()
 
@@ -96,7 +96,7 @@ async def test_run_initial_bootstrap_training_skips_trained_runtime(orch_ready):
     with (
         patch(
             "src.application.services.deep_learning.dl_bootstrap_train._ordered_bootstrap_symbols",
-            return_value=["RDBEAR"],
+            return_value=["R_10"],
         ),
         patch(
             "src.application.services.deep_learning.dl_bootstrap_train.runtime_in_training",
@@ -123,7 +123,7 @@ async def test_run_initial_bootstrap_training_waits_for_history(orch_ready):
     with (
         patch(
             "src.application.services.deep_learning.dl_bootstrap_train._ordered_bootstrap_symbols",
-            side_effect=[["RDBEAR"], ["RDBULL"], []],
+            side_effect=[["R_10"], ["R_10"], []],
         ),
         patch(
             "src.application.services.deep_learning.dl_bootstrap_train._train_bootstrap_symbol",
@@ -152,7 +152,7 @@ async def test_run_initial_bootstrap_training_stops_after_max_wait_rounds(orch_r
     with (
         patch(
             "src.application.services.deep_learning.dl_bootstrap_train._ordered_bootstrap_symbols",
-            return_value=["RDBEAR"],
+            return_value=["R_10"],
         ),
         patch(
             "src.application.services.deep_learning.dl_bootstrap_train._train_bootstrap_symbol",
@@ -223,9 +223,9 @@ async def test_run_dl_training_session_noop_without_symbols(orch_ready):
 @pytest.mark.asyncio
 async def test_run_dl_training_session_waits_for_history(orch_ready):
     orch = orch_ready
-    orch.symbols = ["RDBEAR", "RDBULL"]
-    orch.config.setdefault("deep_learning", {})["train_symbols"] = ["RDBEAR", "RDBULL"]
-    attempts = {"RDBEAR": 0, "RDBULL": 0}
+    orch.symbols = ["R_10", "R_50"]
+    orch.config.setdefault("deep_learning", {})["train_symbols"] = ["R_10", "R_50"]
+    attempts = {"R_10": 0, "R_50": 0}
 
     async def fake_train(_orch, symbol):
         attempts[symbol] += 1
@@ -237,8 +237,8 @@ async def test_run_dl_training_session_waits_for_history(orch_ready):
         side_effect=fake_train,
     ):
         await run_dl_training_session(orch)
-    assert attempts["RDBEAR"] >= 2
-    assert attempts["RDBULL"] >= 2
+    assert attempts["R_10"] >= 2
+    assert attempts["R_50"] >= 2
     orch.stream.ensure_cluster_history.assert_awaited()
 
 
@@ -257,13 +257,14 @@ async def test_run_dl_training_session_stops_after_max_wait_rounds(orch_ready):
 @pytest.mark.asyncio
 async def test_run_dl_training_session_skips_completed_symbols(orch_ready):
     orch = orch_ready
-    orch.symbols = ["RDBEAR", "RDBULL"]
+    orch.symbols = ["R_10", "R_50"]
+    orch.config.setdefault("deep_learning", {})["train_symbols"] = ["R_10", "R_50"]
     calls: list[str] = []
     r25_attempts = {"n": 0}
 
     async def fake_train(_orch, symbol):
         calls.append(symbol)
-        if symbol == "RDBEAR":
+        if symbol == "R_10":
             return True
         r25_attempts["n"] += 1
         return r25_attempts["n"] >= 2
@@ -273,9 +274,7 @@ async def test_run_dl_training_session_skips_completed_symbols(orch_ready):
         side_effect=fake_train,
     ):
         await run_dl_training_session(orch)
-    assert calls[0] == "RDBEAR"
-    assert calls.count("RDBEAR") == 1
-    assert calls.count("RDBULL") >= 2
+    assert calls[0] == "R_10" and calls.count("R_10") == 1 and calls.count("R_50") >= 2
 
 
 @pytest.mark.asyncio
@@ -283,18 +282,7 @@ async def test_train_bootstrap_symbol_returns_false_when_history_short(orch_read
     orch = orch_ready
     with patch(
         "src.application.services.deep_learning.dl_bootstrap_train._bootstrap_training_context",
-        return_value=(
-            {},
-            {"lookback": 32},
-            3000,
-            60,
-            {},
-            np.linspace(1.0, 2.0, 100),
-            None,
-            None,
-            None,
-            None,
-        ),
+        return_value=({}, {"lookback": 32}, 3000, 60, {}, np.linspace(1.0, 2.0, 100), None, None, None, None),
     ):
-        ok = await _train_bootstrap_symbol(orch, "RDBEAR")
+        ok = await _train_bootstrap_symbol(orch, "R_10")
     assert ok is False

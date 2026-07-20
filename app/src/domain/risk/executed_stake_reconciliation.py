@@ -95,7 +95,11 @@ def apply_fractional_payoff_residual_to_pending(
     delta = float(residual)
     if delta == 0.0:
         return
-    updated = max(0.0, float(pending_loss.get(symbol, 0.0)) - delta)
+    current = float(pending_loss.get(symbol, 0.0))
+    if delta < 0.0 and abs(delta) <= 0.10 and current <= 0.0:
+        pending_loss.pop(symbol, None)
+        return
+    updated = max(0.0, current - delta)
     if updated <= 0.0:
         pending_loss.pop(symbol, None)
     else:

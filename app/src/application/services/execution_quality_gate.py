@@ -19,6 +19,7 @@ from src.application.services.execution_quality_gate_starvation import (
     apply_starvation_margin_decay,
     starvation_decay_factor,
 )
+from src.application.services.force_trade_mode import force_trade_every_cycle
 
 
 MANDATORY_MIN_TRADE_SCORE_DEFAULT = 0.72
@@ -225,6 +226,14 @@ def passes_execution_quality(
     **_kwargs,
 ) -> bool:
     """Quality gate com veto duro por microestrutura e margem de direcao."""
+    if force_trade_every_cycle(exec_cfg):
+        metrics.pop("quality_guard_reject", None)
+        metrics.pop("regime_skip_cycle", None)
+        metrics.pop("quality_gate_reason", None)
+        metrics["quality_gate_regime"] = "force_trade"
+        metrics["quality_min_direction_margin"] = 0.0
+        metrics["force_trade_every_cycle"] = True
+        return True
     limits = resolve_dynamic_quality_limits(
         exec_cfg or {},
         risk_manager=risk_manager,

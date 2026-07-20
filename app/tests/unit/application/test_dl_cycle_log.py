@@ -11,18 +11,18 @@ from src.domain.models.trade import TradeDirection
 
 def test_build_dl_cycle_summary_sem_dir_without_raw_prob():
     decisions = {
-        "RDBULL": {
+        "R_10": {
             "direction": None,
             "metrics": {"gate_reason": "data", "execute": False},
         },
     }
     line = build_dl_cycle_summary(decisions, recovery_active=False, pending_loss_total=0.0)
-    assert "RDBULL:data" in line
+    assert "R_10:data" in line
 
 
 def test_build_dl_cycle_summary_normal_exec():
     decisions = {
-        "RDBULL": {
+        "R_10": {
             "direction": TradeDirection.PUT,
             "metrics": {
                 "conviction": 0.71,
@@ -35,12 +35,12 @@ def test_build_dl_cycle_summary_normal_exec():
     }
     line = build_dl_cycle_summary(decisions, recovery_active=False, pending_loss_total=0.0)
     assert "DL | NORMAL" in line
-    assert "RDBULL:PUT:0.71" in line
+    assert "R_10:PUT:0.71" in line
 
 
 def test_build_dl_cycle_summary_shows_bias_on_inversion():
     decisions = {
-        "RDBEAR": {
+        "R_10": {
             "direction": TradeDirection.PUT,
             "metrics": {
                 "execute": True,
@@ -61,7 +61,7 @@ def test_build_dl_cycle_summary_shows_bias_on_inversion():
 
 def test_build_dl_cycle_summary_recovery_exec_token():
     decisions = {
-        "RDBEAR": {
+        "R_10": {
             "direction": TradeDirection.CALL,
             "metrics": {
                 "conviction": 0.55,
@@ -78,37 +78,37 @@ def test_build_dl_cycle_summary_recovery_exec_token():
 
 def test_build_dl_cycle_summary_training_tokens():
     decisions = {
-        "RDBULL": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}},
-        "RDBEAR": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}},
+        "R_10": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}},
+        "R_50": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}},
     }
     line = build_dl_cycle_summary(decisions, recovery_active=False, pending_loss_total=0.0)
-    assert "treino=[RDBULL,RDBEAR]" in line
+    assert "treino=[R_10,R_50]" in line
 
 
 def test_abstain_detail_skips_training_symbols():
     decisions = {
-        "RDBULL": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}},
-        "RDBEAR": {"direction": None, "metrics": {"gate_reason": "data", "execute": False}},
+        "R_10": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}},
+        "R_50": {"direction": None, "metrics": {"gate_reason": "data", "execute": False}},
     }
     detail = _abstain_detail(decisions)
-    assert detail == "RDBEAR:data"
+    assert detail == "R_50:data"
 
 
 def test_best_directional_signal_skips_training():
     decisions = {
-        "RDBULL": {"direction": TradeDirection.CALL, "metrics": {"gate_reason": "training", "trade_score": 0.9}},
-        "RDBEAR": {
+        "R_10": {"direction": TradeDirection.CALL, "metrics": {"gate_reason": "training", "trade_score": 0.9}},
+        "R_50": {
             "direction": TradeDirection.PUT,
             "metrics": {"execute": True, "trade_score": 0.61, "raw_prob": 0.39},
         },
     }
-    assert _best_directional_signal(decisions) == ("RDBEAR", 0.61)
+    assert _best_directional_signal(decisions) == ("R_50", 0.61)
 
 
 def test_best_directional_signal_returns_none_when_all_skipped():
     decisions = {
-        "RDBULL": {"direction": None, "metrics": {"gate_reason": "data", "execute": False}},
-        "RDBEAR": {"direction": None, "metrics": {"gate_reason": "predict_error", "execute": False}},
+        "R_10": {"direction": None, "metrics": {"gate_reason": "data", "execute": False}},
+        "R_50": {"direction": None, "metrics": {"gate_reason": "predict_error", "execute": False}},
     }
     assert _best_directional_signal(decisions) is None
 
@@ -117,23 +117,21 @@ def test_log_dl_cycle_summary_logs_info_without_orch(caplog):
     logger = logging.getLogger("test_dl_cycle_log_no_orch")
     logger.setLevel(logging.DEBUG)
     decisions = {
-        "RDBULL": {
+        "R_10": {
             "direction": TradeDirection.CALL,
             "metrics": {"conviction": 0.70, "execute": True, "raw_prob": 0.70, "deploy_ok": True},
         },
     }
     with caplog.at_level(logging.DEBUG):
         log_dl_cycle_summary(logger, decisions, recovery_active=False, pending_loss_total=0.0)
-    assert any(
-        r.levelname == "INFO" and "[CLUSTER]" in r.message and "RDBULL: CALL" in r.message for r in caplog.records
-    )
+    assert any(r.levelname == "INFO" and "[CLUSTER]" in r.message and "R_10: CALL" in r.message for r in caplog.records)
 
 
 def test_log_dl_cycle_summary(caplog):
     logger = logging.getLogger("test_dl_cycle_log")
     logger.setLevel(logging.DEBUG)
     decisions = {
-        "RDBULL": {
+        "R_10": {
             "direction": None,
             "metrics": {"gate_reason": "predict_error", "execute": False},
         }
@@ -148,7 +146,7 @@ def test_log_dl_cycle_summary(caplog):
 
 def test_format_bias_token_flip_and_hint_only():
     flip = _format_bias_token(
-        "RDBEAR",
+        "R_10",
         {
             "direction": TradeDirection.PUT,
             "metrics": {
@@ -162,7 +160,7 @@ def test_format_bias_token_flip_and_hint_only():
     assert flip is not None
     assert "->CALL" in flip
     hint_only = _format_bias_token(
-        "RDBULL",
+        "R_10",
         {
             "direction": TradeDirection.CALL,
             "metrics": {
@@ -179,7 +177,7 @@ def test_format_bias_token_flip_and_hint_only():
 
 def test_build_dl_cycle_summary_bypass_and_recovery_tokens():
     decisions = {
-        "RDBULL": {
+        "R_10": {
             "direction": TradeDirection.CALL,
             "metrics": {
                 "conviction": 0.71,
@@ -190,7 +188,7 @@ def test_build_dl_cycle_summary_bypass_and_recovery_tokens():
                 "deploy_ok": True,
             },
         },
-        "RDBEAR": {
+        "R_50": {
             "direction": TradeDirection.PUT,
             "metrics": {
                 "conviction": 0.55,

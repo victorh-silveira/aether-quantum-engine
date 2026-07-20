@@ -1,17 +1,15 @@
-"""Simbolos Drift RDBEAR/RDBULL da Deriv e par de hedge."""
+"""Simbolos de trading Deriv (universo single-symbol R_10)."""
 
-DRIFT_SYMBOLS: tuple[str, ...] = ("RDBEAR", "RDBULL")
-DEFAULT_ANCHOR = "RDBULL"
+TRADING_SYMBOLS: tuple[str, ...] = ("R_10",)
+DRIFT_SYMBOLS: tuple[str, ...] = TRADING_SYMBOLS
+DEFAULT_ANCHOR = "R_10"
 
-HEDGE_PEER: dict[str, str] = {
-    "RDBEAR": "RDBULL",
-    "RDBULL": "RDBEAR",
-}
+HEDGE_PEER: dict[str, str] = {}
 
-HIGH_SIDE = frozenset({"RDBULL"})
-LOW_SIDE = frozenset({"RDBEAR"})
+HIGH_SIDE: frozenset[str] = frozenset()
+LOW_SIDE: frozenset[str] = frozenset()
 
-_SYMBOL_ORDER = {symbol: index for index, symbol in enumerate(DRIFT_SYMBOLS)}
+_SYMBOL_ORDER = {symbol: index for index, symbol in enumerate(TRADING_SYMBOLS)}
 
 
 def hedge_peer(symbol: str) -> str | None:
@@ -20,12 +18,12 @@ def hedge_peer(symbol: str) -> str | None:
 
 
 def is_high_side(symbol: str) -> bool:
-    """True para RDBULL usado na logica de recovery."""
+    """True quando o simbolo esta no lado high do universo (vazio em R_10)."""
     return str(symbol) in HIGH_SIDE
 
 
 def sym_is_low_barrier(symbol: str, peer: str | None = None) -> bool:
-    """True quando o simbolo e RDBEAR em relacao ao par Drift."""
+    """True quando o simbolo e low-barrier relativo ao peer (sempre False sem peer)."""
     peer_key = peer if peer is not None else hedge_peer(symbol)
     if peer_key is None:
         return False

@@ -66,9 +66,9 @@ def pick_entropy_fallback_candidate(
     prob = float(_direction_prob(best_entry) or 0.5)
     direction = infer_dl_direction(best_entry)
     if direction is None:
-        if best_symbol == ANCHOR_BULL:
+        if ANCHOR_BULL != ANCHOR_BEAR and best_symbol == ANCHOR_BULL:
             direction = TradeDirection.CALL
-        elif best_symbol == ANCHOR_BEAR:
+        elif ANCHOR_BULL != ANCHOR_BEAR and best_symbol == ANCHOR_BEAR:
             direction = TradeDirection.PUT
         else:
             direction = TradeDirection.CALL if prob > pivot else TradeDirection.PUT

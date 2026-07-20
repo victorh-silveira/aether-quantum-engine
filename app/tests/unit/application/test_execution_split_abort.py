@@ -35,13 +35,13 @@ async def test_handle_split_abort_sets_state_and_logs_seq():
         await handle_split_abort(
             orch,
             logger,
-            symbol="RDBULL",
+            symbol="R_10",
             direction=TradeDirection.CALL,
             cycle_id=57,
         )
     assert orch.is_trading is False
     assert orch._last_split_abort_signature == "sig-a"
-    assert orch._last_split_abort_symbol == "RDBULL"
+    assert orch._last_split_abort_symbol == "R_10"
     assert orch._last_split_abort_direction == "CALL"
     assert orch._last_split_abort_cycle_id == 57
     logger.warning.assert_called_once()
@@ -61,7 +61,7 @@ async def test_handle_split_abort_without_signature_provider():
         await handle_split_abort(
             orch,
             logger,
-            symbol="RDBEAR",
+            symbol="R_10",
             direction=TradeDirection.PUT,
             cycle_id=3,
         )
@@ -94,7 +94,7 @@ async def test_dispatch_fractional_orders_increments_split_attempt_seq_per_batch
         ):
             await dispatch_fractional_orders(
                 orch.executor,
-                "RDBULL",
+                "R_10",
                 TradeDirection.CALL,
                 268.82,
                 duration=60,
@@ -103,7 +103,7 @@ async def test_dispatch_fractional_orders_increments_split_attempt_seq_per_batch
             )
             await dispatch_fractional_orders(
                 orch.executor,
-                "RDBULL",
+                "R_10",
                 TradeDirection.CALL,
                 268.82,
                 duration=60,

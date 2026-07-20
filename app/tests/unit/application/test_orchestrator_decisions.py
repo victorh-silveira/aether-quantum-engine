@@ -14,7 +14,7 @@ _MICRO_EPOCH = 1_700_001_000
 
 
 def _bear_candle(epoch: int) -> Candle:
-    return Candle("RDBEAR", 1.0, 1.1, 0.9, 1.05, datetime.now(), epoch)
+    return Candle("R_10", 1.0, 1.1, 0.9, 1.05, datetime.now(), epoch)
 
 
 @pytest.mark.asyncio
@@ -35,7 +35,7 @@ async def test_run_trading_cycle_waits_for_open_contract_settlement(orch_config)
 async def test_on_candle_throttling_and_cooldown(orch_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
         orch = Orchestrator(orch_config, "token")
-        candle = MagicMock(symbol="RDBULL")
+        candle = MagicMock(symbol="R_10")
 
         orch.risk_manager.is_on_cooldown = MagicMock(return_value=False)
         await orch._on_candle(candle)
@@ -103,22 +103,22 @@ async def test_on_candle_returns_when_is_trading(orch_config):
 @pytest.mark.asyncio
 async def test_orchestrator_symbols_list_preserves_order_when_anchor_included(orch_config):
     orch_config.pop("strategy", None)
-    orch_config["symbols"] = ["RDBULL", "RDBULL", "RDBEAR"]
-    orch_config["anchor"] = "RDBULL"
+    orch_config["symbols"] = ["R_10", "R_50", "R_75"]
+    orch_config["anchor"] = "R_10"
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
         orch = Orchestrator(orch_config, "token")
-        assert orch.symbols == ["RDBULL", "RDBEAR"]
+        assert orch.symbols == ["R_10", "R_50", "R_75"]
 
 
 @pytest.mark.asyncio
 async def test_orchestrator_symbols_list_prepends_anchor_when_missing(orch_config):
     orch_config.pop("strategy", None)
-    orch_config["symbols"] = ["RDBULL", "RDBEAR"]
-    orch_config["anchor"] = "RDBULL"
+    orch_config["symbols"] = ["R_50", "R_75"]
+    orch_config["anchor"] = "R_10"
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
         orch = Orchestrator(orch_config, "token")
-        assert orch.symbols[0] == "RDBULL"
-        assert set(orch.symbols) == {"RDBULL", "RDBEAR"}
+        assert orch.symbols[0] == "R_10"
+        assert set(orch.symbols) == {"R_10", "R_50", "R_75"}
 
 
 @pytest.mark.asyncio
@@ -126,9 +126,9 @@ async def test_orchestrator_symbols_default_from_single_fallback(orch_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
         orch_config.pop("strategy", None)
         orch_config.pop("symbols", None)
-        orch_config["anchor"] = "RDBULL"
+        orch_config["anchor"] = "R_10"
         orch = Orchestrator(orch_config, "token")
-        assert orch.symbols == ["RDBULL"]
+        assert orch.symbols == ["R_10"]
 
 
 @pytest.mark.asyncio
@@ -239,8 +239,8 @@ async def test_run_trading_cycle_invokes_inference_on_m5_signature_shift(orch_co
         orch = Orchestrator(orch_config, "token")
         orch.stream.is_synchronized = True
         orch.ws.is_running = True
-        orch.stream.macro_candles = {"RDBEAR": [_bear_candle(_MACRO_EPOCH)]}
-        orch.stream.micro_candles = {"RDBEAR": [_bear_candle(_MICRO_EPOCH)]}
+        orch.stream.macro_candles = {"R_10": [_bear_candle(_MACRO_EPOCH)]}
+        orch.stream.micro_candles = {"R_10": [_bear_candle(_MICRO_EPOCH)]}
         orch._last_epoch = _MICRO_EPOCH
         orch._last_processed_epoch = _MICRO_EPOCH
         orch.last_data_signature = get_data_state_signature(orch, now=float(_MICRO_EPOCH + 5))

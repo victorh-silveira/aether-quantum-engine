@@ -8,14 +8,14 @@ def test_risk_manager_restore_state(kelly_config):
     snapshot = rm.get_state()
     snapshot["consecutive_losses_linear"] = 4
     snapshot["dlambert_unit"] = 22.5
-    snapshot["pending_loss"] = {"RDBEAR": 3.5}
-    snapshot["rolling_wins"] = {"RDBEAR": [1, 0, 1]}
+    snapshot["pending_loss"] = {"R_10": 3.5}
+    snapshot["rolling_wins"] = {"R_10": [1, 0, 1]}
     rm.restore_state({})
     rm.restore_state(snapshot)
     assert rm.consecutive_losses_linear == 4
     assert rm.dlambert_unit == 22.5
-    assert rm.pending_loss["RDBEAR"] == 3.5
-    assert rm._rolling_wins["RDBEAR"] == [1, 0, 1]
+    assert rm.pending_loss["R_10"] == 3.5
+    assert rm._rolling_wins["R_10"] == [1, 0, 1]
 
 
 def test_risk_manager_restore_legacy_consecutive_losses(kelly_config):

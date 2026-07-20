@@ -189,7 +189,7 @@ def test_log_d_squeeze_audit_emits_tag(caplog):
         "trade_score": 0.52,
     }
     with caplog.at_level("INFO", logger="AETH"):
-        log_d_squeeze_audit("RDBULL", metrics)
+        log_d_squeeze_audit("R_10", metrics)
     assert any("[D-SQUEEZE]" in record.message for record in caplog.records)
 
 
@@ -204,8 +204,8 @@ def test_chop_congestion_inactive_without_persistence_filter():
 
 
 def test_resolver_keeps_call_after_two_bull_call_losses():
-    record_direction_outcome("RDBULL", "CALL", won=False)
-    record_direction_outcome("RDBULL", "CALL", won=False)
+    record_direction_outcome("R_10", "CALL", won=False)
+    record_direction_outcome("R_10", "CALL", won=False)
     entry = {
         "direction": TradeDirection.CALL,
         "metrics": {
@@ -228,7 +228,7 @@ def test_resolver_keeps_call_after_two_bull_call_losses():
     }
     result = resolve_execution_direction(
         entry,
-        symbol="RDBULL",
+        symbol="R_10",
         peer_entry=peer,
         cycle_id=8,
     )
@@ -238,8 +238,8 @@ def test_resolver_keeps_call_after_two_bull_call_losses():
 
 
 def test_resolver_keeps_bear_put_after_bull_call_streak():
-    record_direction_outcome("RDBULL", "CALL", won=False)
-    record_direction_outcome("RDBULL", "CALL", won=False)
+    record_direction_outcome("R_10", "CALL", won=False)
+    record_direction_outcome("R_10", "CALL", won=False)
     bull = {
         "direction": TradeDirection.CALL,
         "metrics": {
@@ -264,7 +264,7 @@ def test_resolver_keeps_bear_put_after_bull_call_streak():
     }
     result = resolve_execution_direction(
         bear,
-        symbol="RDBEAR",
+        symbol="R_10",
         peer_entry=bull,
         cycle_id=9,
     )

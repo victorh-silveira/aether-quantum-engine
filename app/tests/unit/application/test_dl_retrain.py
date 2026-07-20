@@ -11,18 +11,18 @@ from src.application.services.deep_learning.dl_retrain import (
 
 def test_force_retrain_and_clear():
     orch = SimpleNamespace()
-    mark_force_retrain(orch, "RDBULL")
-    ok, reason = should_retrain_symbol(orch, "RDBULL", {}, {"train_on_new_candle": False}, 1)
+    mark_force_retrain(orch, "R_10")
+    ok, reason = should_retrain_symbol(orch, "R_10", {}, {"train_on_new_candle": False}, 1)
     assert ok and reason == "loss_retrain"
-    clear_force_retrain(orch, "RDBULL")
-    assert not (getattr(orch, "_dl_force_retrain", None) or {}).get("RDBULL")
+    clear_force_retrain(orch, "R_10")
+    assert not (getattr(orch, "_dl_force_retrain", None) or {}).get("R_10")
 
 
 def test_online_training_disabled_skips_retrain():
-    orch = SimpleNamespace(_dl_force_retrain={"RDBULL": True}, _dl_bars_since_train={"RDBULL": 99})
+    orch = SimpleNamespace(_dl_force_retrain={"R_10": True}, _dl_bars_since_train={"R_10": 99})
     runtime = {"last_candle_epoch": 0, "session_trained": False}
     params = {"online_training": False, "train_on_new_candle": True, "retrain_min_bars": 0}
-    ok, reason = should_retrain_symbol(orch, "RDBULL", runtime, params, 1)
+    ok, reason = should_retrain_symbol(orch, "R_10", runtime, params, 1)
     assert not ok and reason == ""
 
 
@@ -60,10 +60,10 @@ def test_bootstrap_retrain_when_checkpoint_loaded_but_not_trained_in_session():
 
 def test_deferred_train_pending_skips_retrain():
     pending = SimpleNamespace(done=lambda: False)
-    orch = SimpleNamespace(_dl_deferred_tasks={"RDBULL": pending})
+    orch = SimpleNamespace(_dl_deferred_tasks={"R_10": pending})
     ok, reason = should_retrain_symbol(
         orch,
-        "RDBULL",
+        "R_10",
         {"last_candle_epoch": 0},
         {"retrain_min_bars": 0},
         5,

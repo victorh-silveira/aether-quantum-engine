@@ -53,7 +53,7 @@ def test_calculate_stake_neutral_regime_uses_dynamic_bankroll_base(kelly_config)
     stake = calculate_stake_for_manager(
         rm,
         11000.0,
-        "RDBULL",
+        "R_10",
         0.80,
         silent=True,
         apply_stop_win=False,
@@ -81,7 +81,7 @@ def test_calculate_stake_turbo_edge_doubles_final_stake(kelly_config):
     stake_base = calculate_stake_for_manager(
         rm,
         11000.0,
-        "RDBULL",
+        "R_10",
         0.80,
         silent=True,
         apply_stop_win=False,
@@ -90,7 +90,7 @@ def test_calculate_stake_turbo_edge_doubles_final_stake(kelly_config):
     stake_turbo = calculate_stake_for_manager(
         rm,
         11000.0,
-        "RDBULL",
+        "R_10",
         0.80,
         silent=True,
         apply_stop_win=False,
@@ -102,7 +102,7 @@ def test_calculate_stake_turbo_edge_doubles_final_stake(kelly_config):
 
 def test_calculate_stake_c0007_turbo_on_clean_recovery_base(kelly_config):
     rm = _base_rm(kelly_config)
-    rm.pending_loss = {"RDBULL": 36.72}
+    rm.pending_loss = {"R_10": 36.72}
     rm.consecutive_losses_linear = 1
     rm.dlambert_unit = 17.89
     rm.last_loss_stake = 36.72
@@ -129,7 +129,7 @@ def test_calculate_stake_c0007_turbo_on_clean_recovery_base(kelly_config):
     stake_neutral = calculate_stake_for_manager(
         rm,
         bankroll,
-        "RDBULL",
+        "R_10",
         0.80,
         silent=True,
         apply_stop_win=False,
@@ -144,7 +144,7 @@ def test_calculate_stake_c0007_turbo_on_clean_recovery_base(kelly_config):
     stake_turbo = calculate_stake_for_manager(
         rm,
         bankroll,
-        "RDBULL",
+        "R_10",
         0.80,
         silent=True,
         apply_stop_win=False,
@@ -171,7 +171,7 @@ def test_calculate_stake_d_squeeze_keeps_floor_not_turbo(kelly_config):
     stake = calculate_stake_for_manager(
         rm,
         11000.0,
-        "RDBULL",
+        "R_10",
         0.52,
         silent=True,
         apply_stop_win=False,

@@ -49,10 +49,19 @@ def test_apply_deploy_gate_blocks_when_not_ok():
     assert out["metrics"]["deploy_ok"] is False
 
 
+def test_apply_deploy_gate_force_ok_allows_execution():
+    entry = {"metrics": {"execute": True}}
+    runtime = {"deploy_ok": False}
+    out = _apply_deploy_gate(entry, runtime, {"deploy_gate": {"enabled": True, "force_ok": True}})
+    assert out["metrics"]["execute"] is True
+    assert out["metrics"]["deploy_ok"] is True
+    assert out["metrics"].get("gate_reason") != "deploy"
+
+
 def test_log_retrain_batch_empty_and_nonempty(caplog):
     _log_retrain_batch([], "bootstrap", {"training_history_bars": 5})
     with caplog.at_level(logging.DEBUG):
-        _log_retrain_batch(["RDBEAR", "RDBULL"], "new_candle", {"training_history_bars": 5})
+        _log_retrain_batch(["R_10", "R_50"], "new_candle", {"training_history_bars": 5})
     assert "retreino" in caplog.text
 
 
@@ -62,7 +71,7 @@ async def test_collect_symbol_decision_insufficient_history():
     orch.stream.get_numpy_series = MagicMock(return_value=np.array([1.0, 2.0]))
     entry, reason = await _collect_symbol_decision(
         orch,
-        "RDBULL",
+        "R_10",
         dl_config={},
         params={"training_history_bars": 32},
         min_len=10,
@@ -84,7 +93,7 @@ async def test_collect_symbol_decision_insufficient_after_slice():
     ):
         entry, reason = await _collect_symbol_decision(
             orch,
-            "RDBULL",
+            "R_10",
             dl_config={},
             params={"training_history_bars": 32, "lookback": 32, "validation_bars": 10},
             min_len=100,
@@ -98,7 +107,7 @@ async def test_collect_symbol_decision_insufficient_after_slice():
 @pytest.mark.asyncio
 async def test_collect_symbol_decision_full_path():
     prices = np.sin(np.linspace(0, 10, 90)) + 10.0
-    orch = MockOrchestrator(["RDBULL"], prices, train_mode=True)
+    orch = MockOrchestrator(["R_10"], prices, train_mode=True)
     entry = {
         "direction": TradeDirection.CALL,
         "metrics": {"execute": True, "conviction": 0.62, "trade_score": 0.62, "val_accuracy": 0.52},
@@ -138,7 +147,7 @@ async def test_collect_symbol_decision_full_path():
     ):
         out, reason = await _collect_symbol_decision(
             orch,
-            "RDBULL",
+            "R_10",
             dl_config={"deploy_gate": {"enabled": False}},
             params={"training_history_bars": 60, "lookback": 32},
             min_len=30,
@@ -175,7 +184,7 @@ def test_resample_m1_to_m15():
 @pytest.mark.asyncio
 async def test_collect_symbol_decision_uses_macro_buffer():
     prices = np.linspace(1.0, 10.0, 960)
-    orch = MockOrchestrator(["RDBULL"], prices, train_mode=True)
+    orch = MockOrchestrator(["R_10"], prices, train_mode=True)
     entry = {
         "direction": TradeDirection.CALL,
         "metrics": {"execute": True, "conviction": 0.62, "trade_score": 0.62, "val_accuracy": 0.52},
@@ -213,7 +222,7 @@ async def test_collect_symbol_decision_uses_macro_buffer():
     ):
         out, reason = await _collect_symbol_decision(
             orch,
-            "RDBULL",
+            "R_10",
             dl_config={"deploy_gate": {"enabled": False}},
             params={"training_history_bars": 60, "lookback": 32},
             min_len=30,

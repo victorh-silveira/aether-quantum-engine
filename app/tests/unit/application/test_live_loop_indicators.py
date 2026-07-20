@@ -37,17 +37,17 @@ def test_live_signal_metrics_rolling_wr_brier():
     for i in range(24):
         record_live_signal_outcome(
             orch,
-            "RDBULL",
+            "R_10",
             won=True,
             raw_prob=0.70 if i % 2 == 0 else 0.30,
             direction="CALL" if i % 2 == 0 else "PUT",
         )
-    snap = live_signal_snapshot(orch, "RDBULL")
+    snap = live_signal_snapshot(orch, "R_10")
     assert snap["live_n"] == 24
     assert snap["live_wr"] == 1.0
     assert snap["live_brier"] < 0.2
     metrics = {}
-    attach_live_signal_metrics(orch, "RDBULL", metrics)
+    attach_live_signal_metrics(orch, "R_10", metrics)
     assert metrics["live_n"] == 24
     reset_live_signal_metrics(orch)
 
@@ -110,9 +110,9 @@ def test_meta_hard_veto_requires_shadow():
 
 
 def test_assert_export_mae_gap_blocks_overfit():
-    _assert_export_mae_gap(1.0, 1.20)
+    _assert_export_mae_gap(1.0, 1.20, max_gap=1.25)
     try:
-        _assert_export_mae_gap(1.0, 1.50)
+        _assert_export_mae_gap(1.0, 1.50, max_gap=1.25)
         raised = False
     except RuntimeError:
         raised = True
@@ -196,7 +196,7 @@ def test_hard_veto_path_returns_none_from_resolver():
             "trade_score": 0.80,
         },
     }
-    result = resolve_execution_direction(entry, symbol="RDBULL", orch=orch)
+    result = resolve_execution_direction(entry, symbol="R_10", orch=orch)
     assert result is None
     assert entry["metrics"].get("gate_reason") == "meta_payoff_negative_zscore_veto"
     reset_meta_payoff_shadow()
@@ -272,7 +272,7 @@ def test_process_contract_outcome_uses_audit_direction():
     ):
         _process_contract_outcome(
             orch,
-            {"underlying": "RDBULL"},
+            {"underlying": "R_10"},
             None,
             7,
             -1.0,

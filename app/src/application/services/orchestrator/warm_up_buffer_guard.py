@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
+from src.application.services.force_trade_mode import force_trade_from_orch
 from src.application.services.meta_direction_flip import SIGNAL_SUSPENDED
 
 
@@ -78,6 +79,8 @@ def log_warm_up_guard_suspension(orch: Any) -> None:
 
 def trading_cycle_warm_up_suspended(orch: Any) -> str | None:
     """Retorna SIGNAL_SUSPENDED quando o aquecimento micro ainda esta ativo."""
+    if force_trade_from_orch(orch):
+        return None
     if not stream_warm_up_active(orch):
         return None
     log_warm_up_guard_suspension(orch)

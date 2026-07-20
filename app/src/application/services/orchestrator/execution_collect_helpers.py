@@ -6,6 +6,7 @@ from src.application.services.execution_direction_fallback import build_mandator
 from src.application.services.execution_entropy_fallback import pick_entropy_fallback_candidate
 from src.application.services.execution_mandatory_pick import pick_absolute_mandatory_candidate
 from src.application.services.execution_symbols_recovery import recovery_blocked_symbols
+from src.application.services.force_trade_mode import force_trade_from_orch, synthesize_force_trade_candidate
 from src.application.services.market_audit_log import (
     format_indicators_audit_line,
 )
@@ -62,7 +63,12 @@ def mandatory_fallback_candidates(
         skipped_cycles_counter=int(getattr(exec_mgr.orch, "_quality_skipped_cycles_counter", 0) or 0),
         orch=exec_mgr.orch,
     )
-    return [fallback] if fallback else []
+    if fallback is not None:
+        return [fallback]
+    if force_trade_from_orch(exec_mgr.orch):
+        forced = synthesize_force_trade_candidate(exec_mgr._trade_symbols(), decisions)
+        return [forced] if forced is not None else []
+    return []
 
 
 def mandatory_fallback_if_empty(
@@ -194,6 +200,8 @@ def resolve_mandatory_ultimate_candidate(
                 mean_reversion_enabled=mean_reversion,
                 low_accuracy_enabled=low_accuracy,
             )
+    if ultimate is None and force_trade_from_orch(exec_mgr.orch):
+        ultimate = synthesize_force_trade_candidate(exec_mgr._trade_symbols(), decisions)
     if ultimate is None:
         return None, None
     return ultimate, [ultimate]

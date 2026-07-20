@@ -50,7 +50,7 @@ def test_bayesian_win_rate_falls_back_to_rolling_blend():
 def test_effective_win_rate_uses_bayesian_live(kelly_config):
     rm = RiskManager(kelly_config)
     p = rm.effective_win_rate(
-        "RDBULL",
+        "R_10",
         conviction=0.70,
         metrics={"live_n": 32, "live_wr": 0.35, "live_brier": 0.18, "live_ece": 0.05},
     )
@@ -124,7 +124,7 @@ def test_recover_weak_score_does_not_force_mandatory_min(kelly_config):
     stake_mandatory = calculate_stake_for_manager(
         rm,
         120.0,
-        "RDBULL",
+        "R_10",
         0.40,
         silent=True,
         apply_stop_win=False,
@@ -137,7 +137,7 @@ def test_recover_weak_score_does_not_force_mandatory_min(kelly_config):
     stake_plain = calculate_stake_for_manager(
         rm,
         120.0,
-        "RDBULL",
+        "R_10",
         0.40,
         silent=True,
         apply_stop_win=False,
@@ -152,7 +152,7 @@ def test_explore_emits_stake_regime_on_metrics(kelly_config):
     calculate_stake_for_manager(
         rm,
         120.0,
-        "RDBULL",
+        "R_10",
         0.62,
         silent=False,
         apply_stop_win=False,

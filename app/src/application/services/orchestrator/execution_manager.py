@@ -5,6 +5,7 @@ import logging
 
 from src.application.services.execution_symbols import symbols_eligible_for_execution
 from src.application.services.execution_symbols_recovery import pending_recovery_active
+from src.application.services.force_trade_mode import force_trade_from_orch
 from src.application.services.log_dedupe import clear_log_channel, log_info_if_changed
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.recovery_hurst_decay import prepare_recovery_skip_counter, reset_recovery_skip_counter_for_orch
@@ -50,6 +51,8 @@ class ExecutionManager:
     def _cluster_stake_block(self, orders: list[tuple[str, TradeDirection, dict]], bankroll: float) -> str | None:
         """Motivo unico quando o cluster inteiro nao pode alocar stake."""
         if not orders:
+            return None
+        if force_trade_from_orch(self.orch):
             return None
         symbol, direction, metrics = orders[0]
         conviction = resolve_stake_conviction(metrics, self.orch.risk_manager.kelly_config)

@@ -70,7 +70,7 @@ def test_run_symbol_training_forwards_progress_callback():
         return_value=None,
     ) as mock_train:
         run_symbol_training(
-            "RDBULL",
+            "R_10",
             runtime,
             prices,
             dl_config,
@@ -87,7 +87,7 @@ def test_run_symbol_training_forwards_progress_callback():
         return_value=None,
     ) as mock_train_trained:
         run_symbol_training(
-            "RDBULL",
+            "R_10",
             runtime,
             prices,
             dl_config,
@@ -116,7 +116,7 @@ def test_run_symbol_training_skips_throttled_progress_logs():
         return_value=None,
     ) as mock_train:
         run_symbol_training(
-            "RDBULL",
+            "R_10",
             runtime,
             prices,
             dl_config,
@@ -148,7 +148,7 @@ def test_run_symbol_training_when_walkforward_unavailable():
         return_value=None,
     ):
         stats, loss = run_symbol_training(
-            "RDBULL",
+            "R_10",
             runtime,
             prices,
             dl_config,
@@ -182,7 +182,7 @@ def test_run_symbol_training_clears_cuda_after_cuda_failure():
         patch("src.application.services.deep_learning.dl_symbol_train.torch.cuda.empty_cache") as mock_empty,
     ):
         run_symbol_training(
-            "RDBULL",
+            "R_10",
             runtime,
             prices,
             dl_config,
@@ -218,7 +218,7 @@ def test_run_symbol_training_cuda_cleanup_failure_is_ignored():
         ),
     ):
         run_symbol_training(
-            "RDBULL",
+            "R_10",
             runtime,
             prices,
             dl_config,
@@ -245,7 +245,7 @@ def test_run_symbol_training_handles_training_exception():
         side_effect=RuntimeError("fail"),
     ):
         stats, loss = run_symbol_training(
-            "RDBULL",
+            "R_10",
             runtime,
             prices,
             dl_config,

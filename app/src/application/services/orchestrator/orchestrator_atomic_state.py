@@ -12,7 +12,7 @@ from typing import Any
 
 
 logger = logging.getLogger("AETH")
-_STATE_LOCK_ACQUIRE_TIMEOUT_SECONDS = 5.0
+_STATE_LOCK_ACQUIRE_TIMEOUT_SECONDS = 8.0
 
 
 def _caller_function_name() -> str:

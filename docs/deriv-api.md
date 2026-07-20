@@ -23,7 +23,7 @@
 | Inferência DL | Fora da Deriv API: Triton gRPC local (`localhost:8001`, timeout **0,50 s**, fail-closed); ver [infra-docker.md](infra-docker.md) |
 | Meta de sessão | Stop win de 2,60% composto (banca ≥ $100) ou fixo $10 (banca < $100); sem stop loss interno; contratos RISE_FALL não usam `limit_order.stop_loss` |
 
-Símbolos ativos do motor: **Drift** (`RDBEAR`, `RDBULL`), não os exemplos genéricos `1HZ100V` / OTC deste documento.
+Símbolos ativos do motor: **`R_10`**, não os exemplos genéricos `1HZ100V` / OTC deste documento.
 
 Para fluxo completo (DL, Triton, barreira atômica, direção, gate de qualidade soft + HARD microestrutura, Kelly, soft recovery, stop win por sessão ativa, ciclo 120 s), ver [arquitetura.md](arquitetura.md).
 

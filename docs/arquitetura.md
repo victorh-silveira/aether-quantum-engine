@@ -1,6 +1,6 @@
 # Arquitetura — Aether Quantum Engine
 
-Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (TCN, LSTM ou GRU) nos índices **Drift** (`RDBEAR`, `RDBULL`). Metodologia quantitativa: [`medallion.md`](medallion.md). Inventário de módulos: [`structure.md`](structure.md). Infra Docker: [`infra-docker.md`](infra-docker.md).
+Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (TCN, LSTM ou GRU) no índice **`R_10`**. Metodologia quantitativa: [`medallion.md`](medallion.md). Inventário de módulos: [`structure.md`](structure.md). Infra Docker: [`infra-docker.md`](infra-docker.md).
 
 ---
 
@@ -8,7 +8,7 @@ Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (TCN,
 
 | Aspecto | Valor atual (`config/settings.json`) |
 |---------|--------------------------------------|
-| Símbolos | `RDBEAR`, `RDBULL` (âncora `RDBULL`) |
+| Símbolos | `R_10` (âncora `R_10`) |
 | Granularidade OHLC (DL) | **600 s** (`data_handler.granularity`; chave de assinatura legado `m15`) |
 | Relógio operacional | **120 s** (`data_handler.micro_granularity`; chave de assinatura legado `m5`) |
 | Histórico para treino | **23328** barras macro (`training_history_bars`, ~162 dias @ 600 s) |

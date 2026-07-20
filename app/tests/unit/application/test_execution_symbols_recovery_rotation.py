@@ -6,13 +6,13 @@ from src.application.services.execution_symbols_recovery import (
     recovery_candidate_pool,
 )
 from src.domain.models.trade import TradeDirection
-from tests.market_symbols import ANCHOR, HEDGE_PEER_SYMBOL, PAIR
+from tests.market_symbols import ALT_SYMBOL, ANCHOR, HEDGE_PEER_SYMBOL, PAIR
 
 
 def test_recovery_blocked_symbols_never_excludes():
     rm = SimpleNamespace(
         consecutive_losses_linear=0,
-        last_loss_symbol="RDBULL",
+        last_loss_symbol="R_10",
     )
     blocked = recovery_blocked_symbols(rm, {})
     assert blocked == frozenset()
@@ -21,16 +21,16 @@ def test_recovery_blocked_symbols_never_excludes():
 def test_recovery_blocked_symbols_rotates_after_linear_loss():
     rm = SimpleNamespace(
         consecutive_losses_linear=1,
-        last_loss_symbol="RDBULL",
+        last_loss_symbol="R_10",
     )
     blocked = recovery_blocked_symbols(rm, {"symbol_loss_rotation_cycles": 1})
-    assert blocked == frozenset({"RDBULL"})
+    assert blocked == frozenset({"R_10"})
 
 
 def test_recovery_blocked_symbols_respects_rotation_cycles():
     rm = SimpleNamespace(
         consecutive_losses_linear=1,
-        last_loss_symbol="RDBULL",
+        last_loss_symbol="R_10",
     )
     blocked = recovery_blocked_symbols(rm, {"symbol_loss_rotation_cycles": 2})
     assert blocked == frozenset()
@@ -38,7 +38,7 @@ def test_recovery_blocked_symbols_respects_rotation_cycles():
 
 def test_recovery_candidate_pool_skips_blocked_symbols():
     candidates = [
-        (PAIR, TradeDirection.CALL, {"execute": True, "trade_score": 0.60}),
+        (ALT_SYMBOL, TradeDirection.CALL, {"execute": True, "trade_score": 0.60}),
         (ANCHOR, TradeDirection.CALL, {"execute": True, "trade_score": 0.55}),
     ]
     result = recovery_candidate_pool(
@@ -46,7 +46,7 @@ def test_recovery_candidate_pool_skips_blocked_symbols():
         last_loss_symbol=None,
         last_loss_direction="CALL",
         recovery_active=True,
-        skip_symbols=frozenset({PAIR}),
+        skip_symbols=frozenset({ALT_SYMBOL}),
     )
     assert len(result) == 1
     assert result[0][0] == ANCHOR

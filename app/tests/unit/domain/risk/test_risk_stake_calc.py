@@ -46,7 +46,7 @@ def test_calculate_stake_uses_persisted_session_target(kelly_config):
     stake = calculate_stake_for_manager(
         rm,
         5000.0,
-        "RDBULL",
+        "R_10",
         0.6,
         silent=True,
         apply_stop_win=True,
@@ -58,7 +58,7 @@ def test_calculate_stake_uses_persisted_session_target(kelly_config):
 def test_calculate_stake_silent_skips_dlambert_log(kelly_config):
     rm = _mock_rm(
         kelly_config,
-        pending_loss={"RDBULL": 100.0},
+        pending_loss={"R_10": 100.0},
         consecutive_losses_linear=1,
         dlambert_unit=25.0,
         _recovery_allowed=MagicMock(return_value=True),
@@ -66,7 +66,7 @@ def test_calculate_stake_silent_skips_dlambert_log(kelly_config):
     calculate_stake_for_manager(
         rm,
         5000.0,
-        "RDBULL",
+        "R_10",
         0.6,
         silent=True,
         apply_stop_win=True,
@@ -79,7 +79,7 @@ def test_calculate_stake_silent_skips_dlambert_log(kelly_config):
 def test_calculate_stake_for_manager_dlambert_logs(kelly_config):
     rm = _mock_rm(
         kelly_config,
-        pending_loss={"RDBULL": 100.0},
+        pending_loss={"R_10": 100.0},
         dlambert_unit=30.0,
         consecutive_losses_linear=1,
         _recovery_allowed=MagicMock(return_value=True),
@@ -87,7 +87,7 @@ def test_calculate_stake_for_manager_dlambert_logs(kelly_config):
     stake = calculate_stake_for_manager(
         rm,
         5000.0,
-        "RDBULL",
+        "R_10",
         0.6,
         silent=False,
         apply_stop_win=True,
@@ -109,7 +109,7 @@ def test_calculate_stake_mandatory_weak_entry_uses_full_kelly(kelly_config):
     stake = calculate_stake_for_manager(
         rm,
         10000.0,
-        "RDBULL",
+        "R_10",
         0.70,
         silent=True,
         apply_stop_win=True,
@@ -144,7 +144,7 @@ def test_calculate_stake_stop_win_kelly_skips_boost_when_conviction_low(kelly_co
     stake = calculate_stake_for_manager(
         rm,
         1168.0,
-        "RDBEAR",
+        "R_10",
         0.40,
         silent=True,
         apply_stop_win=True,
@@ -164,7 +164,7 @@ def test_calculate_stake_mandatory_trade_each_cycle(kelly_config):
     stake = calculate_stake_for_manager(
         rm,
         10000.0,
-        "RDBULL",
+        "R_10",
         0.30,
         silent=True,
         apply_stop_win=True,
@@ -179,7 +179,7 @@ def test_calculate_stake_mandatory_trade_each_cycle(kelly_config):
 def test_calculate_stake_dlambert_progresses_without_hard_cap(kelly_config):
     rm = _mock_rm(
         kelly_config,
-        pending_loss={"RDBULL": 400.0},
+        pending_loss={"R_10": 400.0},
         consecutive_losses_linear=3,
         dlambert_unit=200.0,
         _recovery_allowed=MagicMock(return_value=True),
@@ -187,7 +187,7 @@ def test_calculate_stake_dlambert_progresses_without_hard_cap(kelly_config):
     stake = calculate_stake_for_manager(
         rm,
         10000.0,
-        "RDBULL",
+        "R_10",
         0.65,
         silent=True,
         apply_stop_win=False,
@@ -201,7 +201,7 @@ def test_calculate_stake_c0017_bypasses_consensus_and_uses_soft_recovery(kelly_c
     pending = 93.19
     rm = _mock_rm(
         kelly_config,
-        pending_loss={"RDBULL": pending},
+        pending_loss={"R_10": pending},
         consecutive_losses_linear=3,
         dlambert_unit=unit_u,
         _recovery_allowed=MagicMock(return_value=False),
@@ -222,7 +222,7 @@ def test_calculate_stake_c0017_bypasses_consensus_and_uses_soft_recovery(kelly_c
     stake = calculate_stake_for_manager(
         rm,
         10000.0,
-        "RDBULL",
+        "R_10",
         0.55,
         silent=False,
         apply_stop_win=False,

@@ -80,7 +80,7 @@ def test_calculate_stake_neutral_without_super_concordance(kelly_config):
     stake = calculate_stake_for_manager(
         rm,
         10000.0,
-        "RDBEAR",
+        "R_10",
         0.62,
         silent=True,
         apply_stop_win=False,
@@ -90,7 +90,7 @@ def test_calculate_stake_neutral_without_super_concordance(kelly_config):
     hyper_stake = calculate_stake_for_manager(
         hyper_rm,
         10000.0,
-        "RDBEAR",
+        "R_10",
         0.82,
         silent=True,
         apply_stop_win=False,
@@ -106,7 +106,7 @@ def test_calculate_stake_divergence_blocks_booster_and_applies_consensus(kelly_c
     calculate_stake_for_manager(
         rm,
         10000.0,
-        "RDBEAR",
+        "R_10",
         0.80,
         silent=True,
         apply_stop_win=False,
@@ -119,7 +119,7 @@ def test_calculate_stake_divergence_blocks_booster_and_applies_consensus(kelly_c
     baseline_stake = calculate_stake_for_manager(
         baseline_rm,
         10000.0,
-        "RDBEAR",
+        "R_10",
         0.80,
         silent=True,
         apply_stop_win=False,
@@ -131,7 +131,7 @@ def test_calculate_stake_divergence_blocks_booster_and_applies_consensus(kelly_c
     diverged_stake = calculate_stake_for_manager(
         diverged_rm,
         10000.0,
-        "RDBEAR",
+        "R_10",
         0.80,
         silent=True,
         apply_stop_win=False,
@@ -148,7 +148,7 @@ def test_calculate_stake_super_concordance_expands_fraction(kelly_config):
     stake = calculate_stake_for_manager(
         rm,
         10000.0,
-        "RDBEAR",
+        "R_10",
         0.82,
         silent=True,
         apply_stop_win=False,

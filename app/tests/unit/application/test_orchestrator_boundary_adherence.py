@@ -79,7 +79,7 @@ async def test_inference_runs_only_after_full_cadence_window(orch_ready):
     orch.stream.is_synchronized = True
     orch.ws.is_running = True
     orch.state.active_contracts = {}
-    decisions = {"RDBULL": {"metrics": {"calibrated_prob": 0.70, "predicted_payoff_edge": 0.08}}}
+    decisions = {"R_10": {"metrics": {"calibrated_prob": 0.70, "predicted_payoff_edge": 0.08}}}
     with (
         patch(f"{GUARDS_MODULE}.time.time", return_value=1185.0),
         patch(

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
+from src.application.services.force_trade_mode import force_trade_from_orch, resolve_force_min_stake
 from src.application.services.market_audit_log import (
     resolve_meta_payoff_zscore,
     resolve_predicted_edge,
@@ -47,6 +48,8 @@ async def execute_cluster_orders(
             mandatory_trade_each_cycle=mandatory,
         )
 
+        if stake <= 0 and force_trade_from_orch(executor.orch):
+            stake = resolve_force_min_stake(getattr(executor.orch, "config", None))
         if stake <= 0:
             continue
 

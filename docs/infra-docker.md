@@ -18,7 +18,7 @@ Subir tudo:
 make docker-up
 ```
 
-Pipeline: `host-prereq` → `triton-prereq` → `compose up` (profiles `DOCKER_PROFILES`, padrão `core,gpu,ml`) → wait healthy → `timescale-lifecycle` → `docker-hydrate` → `docker-smoke`.
+Pipeline: `host-prereq` → `triton-prereq` → `compose up` (profiles `DOCKER_PROFILES`, padrão `core,gpu,ml`) → wait healthy → `timescale-lifecycle` → `docker-hydrate` (seed OHLC de `R_10`) → `docker-smoke`.
 
 | Profile | Serviços | Comando |
 |---------|----------|---------|

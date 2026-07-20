@@ -9,21 +9,25 @@ from src.application.services.execution_symbols import (
     symbols_eligible_for_execution,
 )
 from src.domain.models.trade import TradeDirection
-from tests.market_symbols import ANCHOR, PAIR
+from tests.market_symbols import ALT_SYMBOL, ANCHOR
 
 
 def test_symbols_eligible_for_execution():
-    symbols = [ANCHOR, PAIR]
-    assert symbols_eligible_for_execution(ANCHOR, symbols, include_anchor=False) == [PAIR]
+    symbols = [ANCHOR, ALT_SYMBOL]
+    assert symbols_eligible_for_execution(ANCHOR, symbols, include_anchor=False) == [ALT_SYMBOL]
     assert symbols_eligible_for_execution(ANCHOR, symbols, include_anchor=True) == symbols
 
 
 def test_format_execution_alternates_excludes_selected():
     candidates = [
         (ANCHOR, TradeDirection.PUT, {"trade_score": 0.80, "raw_prob": 0.80, "val_accuracy": 0.60, "execute": True}),
-        (PAIR, TradeDirection.CALL, {"trade_score": 0.78, "raw_prob": 0.78, "val_accuracy": 0.50, "execute": True}),
+        (
+            ALT_SYMBOL,
+            TradeDirection.CALL,
+            {"trade_score": 0.78, "raw_prob": 0.78, "val_accuracy": 0.50, "execute": True},
+        ),
     ]
-    assert format_execution_alternates(candidates, exclude_symbol=ANCHOR) == f"{PAIR}(0.78)"
+    assert format_execution_alternates(candidates, exclude_symbol=ANCHOR) == f"{ALT_SYMBOL}(0.78)"
 
 
 def test_pending_recovery_active():
@@ -34,7 +38,11 @@ def test_pending_recovery_active():
 def test_select_best_execution_candidate_picks_highest_score():
     candidates = [
         (ANCHOR, TradeDirection.PUT, {"trade_score": 0.80, "raw_prob": 0.80, "val_accuracy": 0.50, "execute": True}),
-        (PAIR, TradeDirection.CALL, {"trade_score": 0.79, "raw_prob": 0.79, "val_accuracy": 0.48, "execute": True}),
+        (
+            ALT_SYMBOL,
+            TradeDirection.CALL,
+            {"trade_score": 0.79, "raw_prob": 0.79, "val_accuracy": 0.48, "execute": True},
+        ),
     ]
     best = select_best_execution_candidate(
         candidates,
@@ -47,21 +55,21 @@ def test_select_best_execution_candidate_picks_highest_score():
 
 def test_candidate_execution_score_recovery_weights_val_accuracy():
     metrics = {"trade_score": 0.80, "raw_prob": 0.80, "val_accuracy": 0.40, "execute": True}
-    normal = candidate_execution_score(metrics, recovery_active=False, symbol="RDBULL")
+    normal = candidate_execution_score(metrics, recovery_active=False, symbol="R_10")
     recovery = candidate_execution_score(
         metrics,
         recovery_active=True,
-        symbol="RDBULL",
+        symbol="R_10",
         exec_direction=TradeDirection.CALL,
-        last_loss_symbol="RDBEAR",
+        last_loss_symbol="R_10",
         last_loss_direction="CALL",
     )
     high_val = candidate_execution_score(
         {"trade_score": 0.80, "raw_prob": 0.80, "val_accuracy": 0.60, "execute": True},
         recovery_active=True,
-        symbol="RDBULL",
+        symbol="R_10",
         exec_direction=TradeDirection.CALL,
-        last_loss_symbol="RDBEAR",
+        last_loss_symbol="R_10",
         last_loss_direction="CALL",
     )
     assert high_val > recovery
@@ -76,7 +84,7 @@ def test_candidate_execution_score_uses_exec_direction_from_metrics():
         "execute": True,
         "exec_direction": "PUT",
     }
-    score = candidate_execution_score(metrics, recovery_active=False, symbol="RDBEAR")
+    score = candidate_execution_score(metrics, recovery_active=False, symbol="R_10")
     assert score > 0.0
 
 
@@ -84,7 +92,7 @@ def test_select_mandatory_falls_back_when_pool_empty():
     orch = SimpleNamespace(config={})
     candidates = [
         (ANCHOR, TradeDirection.CALL, {"trade_score": 0.80, "execute": False}),
-        (PAIR, TradeDirection.PUT, {"trade_score": 0.43, "execute": False}),
+        (ALT_SYMBOL, TradeDirection.PUT, {"trade_score": 0.43, "execute": False}),
     ]
     best = select_mandatory_execution_candidate(
         orch,

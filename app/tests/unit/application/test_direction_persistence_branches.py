@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import pytest
 
 from src.application.services.direction_loss_tracker import (
@@ -32,6 +34,8 @@ def test_bull_call_prob_expanding_false_without_bull_entry():
     assert bull_call_prob_expanding({"metrics": {"calibrated_prob": 0.30}}, None, {}, None) is False
 
 
+@patch("src.application.services.direction_persistence_guard_part2.ANCHOR_BULL", "RDBULL")
+@patch("src.application.services.direction_persistence_guard_part2.ANCHOR_BEAR", "RDBEAR")
 def test_guard_freeze_paths_for_failed_peer_flips():
     record_direction_outcome("RDBULL", "CALL", won=False)
     record_direction_outcome("RDBULL", "CALL", won=False)
@@ -78,7 +82,7 @@ def test_guard_freeze_paths_for_failed_peer_flips():
     }
     bear = {
         "metrics": {
-            "calibrated_prob": 0.75,
+            "calibrated_prob": 0.20,
             "edge_zscore": 0.40,
             "flow_features": {"micro_tick_acceleration": 0.02},
             "cross_symbol_features": {"cross_symbol_prob_delta": 0.0},
@@ -100,58 +104,30 @@ def test_guard_freeze_paths_for_failed_peer_flips():
     )
 
 
-def test_guard_blocks_repeat_bull_call_without_congestion_freeze():
-    record_direction_outcome("RDBULL", "CALL", won=False)
-    record_direction_outcome("RDBULL", "CALL", won=False)
-    metrics = {
-        "calibrated_prob": 0.70,
-        "edge_zscore": 0.55,
-        "flow_features": {"micro_tick_acceleration": 0.03},
-        "cross_symbol_features": {"cross_symbol_prob_delta": 0.08},
-    }
-    assert (
-        evaluate_direction_persistence_guard(
-            "RDBULL",
-            TradeDirection.CALL,
-            TradeDirection.CALL,
-            metrics,
-            entry={"metrics": metrics},
-            peer_entry={"metrics": {"calibrated_prob": 0.35}},
-            cycle_id=40,
-            infra_cfg=None,
-        )
-        is None
-    )
-
-
+@patch("src.application.services.direction_persistence_guard_part2.ANCHOR_BULL", "RDBULL")
+@patch("src.application.services.direction_persistence_guard_part2.ANCHOR_BEAR", "RDBEAR")
 def test_guard_congestion_freeze_on_peer_flip_attempt():
     record_direction_outcome("RDBULL", "CALL", won=False)
     record_direction_outcome("RDBULL", "CALL", won=False)
-    bull = {
-        "metrics": {
-            "calibrated_prob": 0.55,
-            "edge_zscore": 0.05,
-            "flow_features": {"micro_tick_acceleration": 0.0},
-            "cross_symbol_features": {"cross_symbol_prob_delta": 0.08},
-        }
-    }
-    bear = {
+    congested = {
         "metrics": {
             "calibrated_prob": 0.30,
+            "predicted_payoff_edge": -0.05,
             "edge_zscore": 0.05,
             "flow_features": {"micro_tick_acceleration": 0.0},
             "cross_symbol_features": {"cross_symbol_prob_delta": 0.08},
         }
     }
-    metrics = dict(bear["metrics"])
+    peer = {"metrics": {"calibrated_prob": 0.55}}
+    metrics = dict(congested["metrics"])
     assert (
         evaluate_direction_persistence_guard(
             "RDBEAR",
             TradeDirection.PUT,
             TradeDirection.PUT,
             metrics,
-            entry=bear,
-            peer_entry=bull,
+            entry=congested,
+            peer_entry=peer,
             cycle_id=22,
             infra_cfg=None,
         )
@@ -159,70 +135,37 @@ def test_guard_congestion_freeze_on_peer_flip_attempt():
     )
 
 
-def test_guard_blocks_repeat_put_and_returns_proposed_for_other_direction():
-    record_direction_outcome("RDBEAR", "PUT", won=False)
-    record_direction_outcome("RDBEAR", "PUT", won=False)
-    assert (
-        evaluate_direction_persistence_guard(
-            "RDBEAR",
-            TradeDirection.PUT,
-            TradeDirection.PUT,
-            {"edge_zscore": 0.55, "flow_features": {"micro_tick_acceleration": 0.02}},
-            entry={
-                "metrics": {
-                    "calibrated_prob": 0.35,
-                    "edge_zscore": 0.55,
-                    "flow_features": {"micro_tick_acceleration": 0.02},
-                }
-            },
-            peer_entry={"metrics": {"calibrated_prob": 0.55}},
-            cycle_id=30,
-            infra_cfg=None,
-        )
-        is None
+def test_bear_put_prob_expanding_helpers():
+    metrics = {"cross_symbol_features": {"cross_symbol_prob_delta": 0.09}, "cross_symbol_prob_delta_mean": 0.02}
+    assert bear_put_prob_expanding(
+        {"metrics": {"calibrated_prob": 0.40}}, {"metrics": {"calibrated_prob": 0.35}}, metrics, None
     )
-    assert (
-        evaluate_direction_persistence_guard(
-            "RDBEAR",
-            TradeDirection.CALL,
-            TradeDirection.CALL,
-            {},
-            entry={
-                "metrics": {
-                    "calibrated_prob": 0.65,
-                    "edge_zscore": 0.55,
-                    "flow_features": {"micro_tick_acceleration": 0.02},
-                }
-            },
-            peer_entry={"metrics": {"calibrated_prob": 0.35}},
-            cycle_id=31,
-            infra_cfg=None,
-        )
-        == TradeDirection.CALL
-    )
+    assert not bear_put_prob_expanding({"metrics": {"calibrated_prob": 0.40}}, None, {}, None)
 
 
+@patch("src.application.services.direction_persistence_guard_part2.ANCHOR_BULL", "RDBULL")
+@patch("src.application.services.direction_persistence_guard_part2.ANCHOR_BEAR", "RDBEAR")
 def test_bear_put_lock_congestion_freeze_before_bull_flip():
     record_direction_outcome("RDBEAR", "PUT", won=False)
     record_direction_outcome("RDBEAR", "PUT", won=False)
-    bull = {
+    congested = {
         "metrics": {
             "calibrated_prob": 0.65,
+            "predicted_payoff_edge": -0.05,
             "edge_zscore": 0.05,
             "flow_features": {"micro_tick_acceleration": 0.0},
             "cross_symbol_features": {"cross_symbol_prob_delta": 0.08},
         }
     }
-    bear = {"metrics": {"calibrated_prob": 0.35}}
-    metrics = dict(bull["metrics"])
+    metrics = dict(congested["metrics"])
     assert (
         evaluate_direction_persistence_guard(
             "RDBULL",
             TradeDirection.CALL,
             TradeDirection.CALL,
             metrics,
-            entry=bull,
-            peer_entry=bear,
+            entry=congested,
+            peer_entry={"metrics": {"calibrated_prob": 0.35}},
             cycle_id=32,
             infra_cfg=None,
         )
@@ -230,36 +173,19 @@ def test_bear_put_lock_congestion_freeze_before_bull_flip():
     )
 
 
-def test_guard_blocks_locked_put_on_rdbull_generic_path():
-    record_direction_outcome("RDBULL", "PUT", won=False)
-    record_direction_outcome("RDBULL", "PUT", won=False)
-    metrics = {"edge_zscore": 0.55, "flow_features": {"micro_tick_acceleration": 0.02}}
+def test_single_symbol_guard_blocks_repeat_without_peer():
+    record_direction_outcome("R_10", "CALL", won=False)
+    record_direction_outcome("R_10", "CALL", won=False)
     assert (
         evaluate_direction_persistence_guard(
-            "RDBULL",
-            TradeDirection.PUT,
-            TradeDirection.PUT,
-            metrics,
-            entry={
-                "metrics": {
-                    "calibrated_prob": 0.35,
-                    "edge_zscore": 0.55,
-                    "flow_features": {"micro_tick_acceleration": 0.02},
-                }
-            },
-            peer_entry={"metrics": {"calibrated_prob": 0.55}},
-            cycle_id=33,
+            "R_10",
+            TradeDirection.CALL,
+            TradeDirection.CALL,
+            {},
+            entry={"metrics": {"calibrated_prob": 0.7}},
+            peer_entry=None,
+            cycle_id=40,
             infra_cfg=None,
         )
         is None
-    )
-
-
-def test_bear_put_prob_expanding_reads_stored_delta_mean():
-    metrics = {"cross_symbol_prob_delta_mean": 0.03, "cross_symbol_features": {"cross_symbol_prob_delta": 0.04}}
-    assert (
-        bear_put_prob_expanding(
-            {"metrics": {"calibrated_prob": 0.50}}, {"metrics": {"calibrated_prob": 0.50}}, metrics, None
-        )
-        is True
     )

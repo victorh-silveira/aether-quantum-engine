@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-import logging
-from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
-import torch
 
 from scripts.operations.train_meta_data import META_TRAIN_DEFAULT_BARS, OhlcBundle
 from src.application.services.deep_learning.dl_feature_build import precompute_price_series
@@ -188,45 +185,13 @@ def _symbol_frame(
     return frame, features
 
 
-def _inner_join_symbol_frames(
-    df_bull: pd.DataFrame,
-    df_bear: pd.DataFrame,
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.Index]:
-    bull_reset = df_bull.reset_index()
-    bear_reset = df_bear.reset_index()
-    merged = pd.merge(bull_reset, bear_reset, on="epoch", how="inner", suffixes=("_bull", "_bear"))
-    if merged.empty:
-        raise RuntimeError(
-            "Nenhuma epoch comum entre RDBULL e RDBEAR apos inner join. "
-            "Reinicie o treino meta-regressor para forcar nova paginacao limpa via WebSocket/REST."
-        )
-    ordered_epochs = pd.Index(merged["epoch"].astype(np.int64)).sort_values()
-    bull_cols = list(df_bull.columns)
-    bear_cols = list(df_bear.columns)
-    bull_aligned = merged.set_index("epoch").loc[ordered_epochs, [f"{column}_bull" for column in bull_cols]]
-    bull_aligned.columns = bull_cols
-    bear_aligned = merged.set_index("epoch").loc[ordered_epochs, [f"{column}_bear" for column in bear_cols]]
-    bear_aligned.columns = bear_cols
-    return bull_aligned, bear_aligned, ordered_epochs
-
-
-def _bull_feature_rows_for_epochs(
-    df_bull: pd.DataFrame,
-    bull_features: np.ndarray,
-    epochs: pd.Index,
-) -> np.ndarray:
-    epoch_to_row = {int(epoch): row for row, epoch in enumerate(df_bull.index.astype(np.int64))}
-    row_idx = np.asarray([epoch_to_row[int(epoch)] for epoch in epochs], dtype=np.int64)
-    return bull_features[row_idx]
-
-
-def _validate_inner_join_sample_floor(rows: int, fetch_count: int) -> None:
+def _validate_sample_floor(rows: int, fetch_count: int) -> None:
     minimum = int(max(1, fetch_count) * INNER_JOIN_MIN_SAMPLE_RATIO)
     if rows >= minimum:
         return
     raise RuntimeError(
-        "Alinhamento epoch inner join insuficiente apos paginacao assimétrica: "
-        f"{rows} amostras pareadas (minimo {minimum} para fetch_count={fetch_count}). "
+        "Historico insuficiente apos montagem single-symbol: "
+        f"{rows} amostras (minimo {minimum} para fetch_count={fetch_count}). "
         "Reinicie o comando de treino meta-regressor para forcar nova paginacao limpa via WebSocket/REST."
     )
 
@@ -241,100 +206,60 @@ def build_paired_training_dataset(
     teacher_probs: dict[str, np.ndarray] | None = None,
 ) -> tuple[pd.DataFrame, np.ndarray, np.ndarray, np.ndarray]:
     planned_fetch = int(fetch_count)
+    if not bundles:
+        raise RuntimeError("Treino meta-classificador exige ao menos um bundle OHLC.")
     by_symbol = {bundle.symbol: bundle for bundle in bundles}
-    bull = by_symbol.get("RDBULL")
-    bear = by_symbol.get("RDBEAR")
-    if bull is None or bear is None:
-        raise RuntimeError("Treino meta-classificador exige bundles RDBULL e RDBEAR alinhados.")
+    primary = by_symbol.get("R_10") or next(iter(by_symbol.values()))
     duration = int(contract_duration_seconds) if contract_duration_seconds is not None else int(micro_granularity)
     label_horizon = _resolve_label_horizon_bars(
-        int(bull.granularity),
+        int(primary.granularity),
         micro_granularity=int(micro_granularity),
         contract_duration_seconds=duration,
     )
-    df_bull, bull_features = _symbol_frame(
-        bull,
+    df_primary, primary_features = _symbol_frame(
+        primary,
         label_horizon_bars=label_horizon,
         teacher_probs=teacher_probs,
     )
-    df_bear, _bear_features = _symbol_frame(
-        bear,
-        label_horizon_bars=label_horizon,
-        teacher_probs=teacher_probs,
-    )
-    bull_aligned, bear_aligned, epoch_index = _inner_join_symbol_frames(df_bull, df_bear)
-    paired_cap = min(len(bull_aligned), len(bear_aligned))
-    rows = len(epoch_index) - FEATURE_LOOKBACK_SKIP - max(2, label_horizon)
+    epoch_index = df_primary.index.sort_values()
+    paired_cap = len(epoch_index)
+    rows = paired_cap - FEATURE_LOOKBACK_SKIP - max(2, label_horizon)
     if rows <= 0:
-        raise RuntimeError("Historico insuficiente para parear features cross-symbol.")
+        raise RuntimeError("Historico insuficiente para montar features meta single-symbol.")
     effective_fetch = min(planned_fetch, paired_cap)
-    _validate_inner_join_sample_floor(rows, effective_fetch)
+    _validate_sample_floor(rows, effective_fetch)
     start = FEATURE_LOOKBACK_SKIP
     end = start + rows
     epoch_slice = epoch_index[start:end]
-    bull_slice = bull_aligned.loc[epoch_slice]
-    bear_slice = bear_aligned.loc[epoch_slice]
-    base_features = _bull_feature_rows_for_epochs(df_bull, bull_features, epoch_slice)
-    bull_call = bull_slice["prob_call"].to_numpy(dtype=np.float64)
-    bear_put = 1.0 - bear_slice["prob_call"].to_numpy(dtype=np.float64)
-    cross_prob_delta = np.abs(bull_call - bear_put)
-    cross_vol_diff = bull_slice["vol_ratio"].to_numpy(dtype=np.float64) - bear_slice["vol_ratio"].to_numpy(
-        dtype=np.float64
-    )
-    cross_rsi_spread = bull_slice["rsi"].to_numpy(dtype=np.float64) - bear_slice["rsi"].to_numpy(dtype=np.float64)
-    flow_tick = bull_slice["tick_accel"].to_numpy(dtype=np.float64)
-    flow_keltner = bull_slice["keltner_dev"].to_numpy(dtype=np.float64)
+    primary_slice = df_primary.loc[epoch_slice]
+    epoch_to_row = {int(epoch): row for row, epoch in enumerate(df_primary.index.astype(np.int64))}
+    row_idx = np.asarray([epoch_to_row[int(epoch)] for epoch in epoch_slice], dtype=np.int64)
+    base_features = primary_features[row_idx]
+    zeros = np.zeros(len(epoch_slice), dtype=np.float64)
+    flow_tick = primary_slice["tick_accel"].to_numpy(dtype=np.float64)
+    flow_keltner = primary_slice["keltner_dev"].to_numpy(dtype=np.float64)
     matrix = np.column_stack(
         [
             base_features,
-            bull_slice["micro_bid_ask_spread_momentum"].to_numpy(dtype=np.float32),
-            bull_slice["micro_bid_ask_spread_momentum_zscore"].to_numpy(dtype=np.float32),
-            bull_slice["volatility_shadow_ratio"].to_numpy(dtype=np.float32),
-            bull_slice["volatility_shadow_ratio_zscore"].to_numpy(dtype=np.float32),
-            cross_prob_delta,
-            cross_vol_diff,
-            cross_rsi_spread,
+            primary_slice["micro_bid_ask_spread_momentum"].to_numpy(dtype=np.float32),
+            primary_slice["micro_bid_ask_spread_momentum_zscore"].to_numpy(dtype=np.float32),
+            primary_slice["volatility_shadow_ratio"].to_numpy(dtype=np.float32),
+            primary_slice["volatility_shadow_ratio_zscore"].to_numpy(dtype=np.float32),
+            zeros,
+            zeros,
+            zeros,
             flow_tick,
             flow_keltner,
         ]
     ).astype(np.float32)
     if matrix.shape[1] != META_FEATURE_DIM:
         raise RuntimeError(f"Meta feature row divergente: esperado {META_FEATURE_DIM}, obtido {matrix.shape[1]}")
-    proxy = bull_slice["prob_call"].to_numpy(dtype=np.float32)
-    bull_pnl = bull_slice["pnl"].to_numpy(dtype=np.float32)
-    bear_pnl = bear_slice["pnl"].to_numpy(dtype=np.float32)
-    labels = _continuous_payoff_target(proxy, bull_pnl, bear_pnl, stake=reference_stake)
+    proxy = primary_slice["prob_call"].to_numpy(dtype=np.float32)
+    call_pnl = primary_slice["pnl"].to_numpy(dtype=np.float32)
+    put_pnl = (-call_pnl).astype(np.float32)
+    labels = _continuous_payoff_target(proxy, call_pnl, put_pnl, stake=reference_stake)
     frame = pd.DataFrame(matrix, columns=meta_classifier_column_names())
-    return frame, labels, proxy, bull_pnl
-
-
-def load_teacher_probs_from_checkpoints(
-    symbols: list[str],
-    *,
-    model_path_template: str,
-    lookback: int,
-    repo_root: Path,
-) -> dict[str, np.ndarray]:
-    _ = (lookback, repo_root)
-    loaded: dict[str, np.ndarray] = {}
-    for symbol in symbols:
-        path = Path(str(model_path_template).format(symbol=symbol))
-        if not path.is_file():
-            continue
-        try:
-            payload = torch.load(path, map_location="cpu", weights_only=False)
-        except Exception as exc:
-            logging.getLogger("META_TRAIN").debug("teacher checkpoint skip %s: %s", path, exc)
-            continue
-        probs = payload.get("teacher_probs") if isinstance(payload, dict) else None
-        if probs is None and isinstance(payload, dict):
-            probs = payload.get("val_probs")
-        if probs is None:
-            continue
-        arr = np.asarray(probs, dtype=np.float32).reshape(-1)
-        if arr.size > 0:
-            loaded[str(symbol)] = arr
-    return loaded
+    return frame, labels, proxy, call_pnl
 
 
 def resolve_contract_duration_seconds(settings: dict[str, Any]) -> int:

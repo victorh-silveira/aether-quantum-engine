@@ -6,6 +6,7 @@ from typing import Any
 
 from src.application.services.execution_quality_gate import read_risk_session_state
 from src.application.services.execution_quality_gate_microstructure import is_hard_quality_reject_reason
+from src.application.services.force_trade_mode import force_trade_every_cycle
 from src.domain.risk.stake_sizing import metric_float
 
 
@@ -47,6 +48,8 @@ def cluster_quality_gate_blocks_mandatory_fallback(
     trade_symbols: list[str] | tuple[str, ...],
 ) -> bool:
     """Impede fallback obrigatorio quando microestrutura ou recovery vetou todos os elegiveis."""
+    if force_trade_every_cycle(exec_cfg):
+        return False
     if not isinstance(decisions, dict):
         return False
     viable = 0

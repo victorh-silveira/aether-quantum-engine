@@ -126,6 +126,8 @@ def resolve_dlambert_stake(
             payout=payout,
             risk_params=getattr(rm, "risk_params", None),
             soft_recovery=soft,
+            session_pnl=float(getattr(rm, "total_session_profit", 0.0) or 0.0),
+            target_win=float(getattr(rm, "daily_stop_win_target", 0.0) or 0.0),
         )
         rounded = round_stake(raw, recovery_linear=True)
         cap = max_safe_stake_cap(

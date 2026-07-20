@@ -82,7 +82,7 @@ def test_evaluate_mini_deploy_forces_local_predict():
     ) as mock_predict:
         evaluate_mini_deploy(
             orch,
-            "RDBEAR",
+            "R_10",
             model,
             prices,
             stats,

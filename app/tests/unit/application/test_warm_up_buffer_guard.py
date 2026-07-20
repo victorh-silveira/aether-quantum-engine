@@ -54,6 +54,15 @@ def test_trading_cycle_warm_up_suspended_returns_none_when_inactive():
     assert trading_cycle_warm_up_suspended(orch) is None
 
 
+def test_trading_cycle_warm_up_suspended_bypassed_by_force_trade():
+    orch = SimpleNamespace(
+        _stream_warmed_up_at=1e18,
+        logger=MagicMock(),
+        config={"orchestrator": {"execution": {"force_trade_every_cycle": True}}},
+    )
+    assert trading_cycle_warm_up_suspended(orch) is None
+
+
 def test_stream_warm_up_remaining_zero_when_inactive():
     orch = SimpleNamespace(_stream_warmed_up_at=0.0)
     assert stream_warm_up_remaining(orch) == 0.0

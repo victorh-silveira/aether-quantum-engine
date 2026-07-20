@@ -11,7 +11,7 @@ from src.application.services.orchestrator.execution_collect_gather import (
 )
 from src.application.services.orchestrator.trading_cycle_entry import run_trading_cycle_if_ready
 from src.domain.models.trade import TradeDirection
-from tests.market_symbols import ANCHOR, PAIR
+from tests.market_symbols import ALT_SYMBOL, ANCHOR
 from tests.unit.application.universal_regime_metrics import bear_put_metrics
 
 
@@ -20,7 +20,7 @@ TRADING_CYCLE_MODULE = "src.application.services.orchestrator.trading_cycle_entr
 
 def _frozen_decisions():
     return {
-        "RDBULL": {
+        "R_10": {
             "metrics": {
                 "signal_status": SIGNAL_SUSPENDED,
                 "execute": True,
@@ -28,7 +28,7 @@ def _frozen_decisions():
                 "raw_prob": 0.70,
             }
         },
-        "RDBEAR": {
+        "R_50": {
             "metrics": {
                 "signal_status": SIGNAL_SUSPENDED,
                 "execute": True,
@@ -42,14 +42,14 @@ def _frozen_decisions():
 def test_gather_cluster_continues_when_anchor_frozen():
     orch = SimpleNamespace(
         anchor=ANCHOR,
-        symbols=[ANCHOR, PAIR],
+        symbols=[ANCHOR, ALT_SYMBOL],
         _active_cycle_id=3,
         config={"orchestrator": {"execution": {}}, "deep_learning": {}, "infra": {}},
     )
     exec_mgr = SimpleNamespace(
         orch=orch,
         logger=MagicMock(),
-        _trade_symbols=lambda: [ANCHOR, PAIR],
+        _trade_symbols=lambda: [ANCHOR, ALT_SYMBOL],
     )
     decisions = {
         ANCHOR: {
@@ -61,7 +61,7 @@ def test_gather_cluster_continues_when_anchor_frozen():
                 "execute": True,
             },
         },
-        PAIR: {
+        ALT_SYMBOL: {
             "direction": TradeDirection.PUT,
             "metrics": bear_put_metrics(
                 execute=True,
@@ -81,13 +81,13 @@ def test_gather_cluster_continues_when_anchor_frozen():
         min_val=0.0,
     )
     assert len(candidates) >= 1
-    assert any(item[0] == PAIR for item in candidates)
+    assert any(item[0] == ALT_SYMBOL for item in candidates)
 
 
 def test_collect_cluster_orders_continues_when_one_symbol_frozen():
     orch = SimpleNamespace(
         anchor=ANCHOR,
-        symbols=[ANCHOR, PAIR],
+        symbols=[ANCHOR, ALT_SYMBOL],
         config={
             "orchestrator": {"execution": {"include_anchor_trades": True}},
             "deep_learning": {"recovery_gating": {}},
@@ -108,7 +108,7 @@ def test_collect_cluster_orders_continues_when_one_symbol_frozen():
         orch=orch,
         logger=MagicMock(),
         _mandatory_trade_each_cycle=lambda: True,
-        _trade_symbols=lambda: [ANCHOR, PAIR],
+        _trade_symbols=lambda: [ANCHOR, ALT_SYMBOL],
     )
     decisions = {
         ANCHOR: {
@@ -121,7 +121,7 @@ def test_collect_cluster_orders_continues_when_one_symbol_frozen():
                 "deploy_ok": True,
             },
         },
-        PAIR: {
+        ALT_SYMBOL: {
             "direction": TradeDirection.PUT,
             "metrics": bear_put_metrics(
                 execute=True,
@@ -133,20 +133,20 @@ def test_collect_cluster_orders_continues_when_one_symbol_frozen():
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
     assert len(orders) == 1
-    assert orders[0][0] == PAIR
+    assert orders[0][0] == ALT_SYMBOL
 
 
 def test_gather_continues_when_freeze_set_after_first_symbol_built(monkeypatch):
     orch = SimpleNamespace(
         anchor=ANCHOR,
-        symbols=[ANCHOR, PAIR],
+        symbols=[ANCHOR, ALT_SYMBOL],
         _active_cycle_id=4,
         config={"orchestrator": {"execution": {}}, "deep_learning": {}, "infra": {}},
     )
     exec_mgr = SimpleNamespace(
         orch=orch,
         logger=MagicMock(),
-        _trade_symbols=lambda: [PAIR, ANCHOR],
+        _trade_symbols=lambda: [ALT_SYMBOL, ANCHOR],
     )
     pair_metrics = bear_put_metrics(
         execute=True,
@@ -155,7 +155,7 @@ def test_gather_continues_when_freeze_set_after_first_symbol_built(monkeypatch):
         calibrated_prob=0.12,
     )
     decisions = {
-        PAIR: {"direction": TradeDirection.PUT, "metrics": dict(pair_metrics)},
+        ALT_SYMBOL: {"direction": TradeDirection.PUT, "metrics": dict(pair_metrics)},
         ANCHOR: {
             "direction": TradeDirection.CALL,
             "metrics": {"raw_prob": 0.70, "execute": True, "deploy_ok": True},
@@ -184,7 +184,7 @@ def test_gather_continues_when_freeze_set_after_first_symbol_built(monkeypatch):
         min_val=0.0,
     )
     assert len(candidates) == 1
-    assert candidates[0][0] == PAIR
+    assert candidates[0][0] == ALT_SYMBOL
 
 
 def test_sync_entry_metrics_creates_metrics_when_missing():
@@ -197,14 +197,14 @@ def test_sync_entry_metrics_creates_metrics_when_missing():
 def test_gather_keeps_candidate_when_freeze_metadata_present(monkeypatch):
     orch = SimpleNamespace(
         anchor=ANCHOR,
-        symbols=[PAIR],
+        symbols=[ALT_SYMBOL],
         _active_cycle_id=5,
         config={"orchestrator": {"execution": {}}, "deep_learning": {}, "infra": {}},
     )
     exec_mgr = SimpleNamespace(
         orch=orch,
         logger=MagicMock(),
-        _trade_symbols=lambda: [PAIR],
+        _trade_symbols=lambda: [ALT_SYMBOL],
     )
     pair_metrics = bear_put_metrics(
         execute=True,
@@ -212,7 +212,7 @@ def test_gather_keeps_candidate_when_freeze_metadata_present(monkeypatch):
         raw_prob=0.12,
         calibrated_prob=0.12,
     )
-    decisions = {PAIR: {"direction": TradeDirection.PUT, "metrics": dict(pair_metrics)}}
+    decisions = {ALT_SYMBOL: {"direction": TradeDirection.PUT, "metrics": dict(pair_metrics)}}
 
     def _penalty(metrics, **kwargs):
         metrics["signal_status"] = SIGNAL_SUSPENDED
@@ -237,7 +237,7 @@ def test_gather_keeps_candidate_when_freeze_metadata_present(monkeypatch):
         min_val=0.0,
     )
     assert len(candidates) == 1
-    assert candidates[0][0] == PAIR
+    assert candidates[0][0] == ALT_SYMBOL
 
 
 @pytest.mark.asyncio

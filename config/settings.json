@@ -1,5 +1,5 @@
 {
-  "anchor": "RDBULL",
+  "anchor": "R_10",
   "api_config": {
     "deriv_app_id": "",
     "public_ws_url": "wss://api.derivws.com/trading/v1/options/ws/public",
@@ -39,10 +39,10 @@
       "entropy_penalty_strength": 1.0,
       "entropy_floor": 0.0,
       "entropy_regime_tighten": 0.35,
-      "neutral_half_width": 0.04,
+      "neutral_half_width": 0.005,
       "calibration_neutral_drift": [
-        0.46,
-        0.54
+        0.495,
+        0.505
       ]
     },
     "indicator_gating": {
@@ -54,17 +54,17 @@
       "strong_revert_max": 0.35,
       "hurst_min": 0.0,
       "hurst_max": 1.0,
-      "adx_min": 0.20,
-      "vol_ratio_min": 0.65
+      "adx_min": 0.0,
+      "vol_ratio_min": 0.0
     },
-    "confidence_call_threshold": 0.54,
-    "confidence_put_threshold": 0.46,
+    "confidence_call_threshold": 0.51,
+    "confidence_put_threshold": 0.49,
     "train_symbols": [
-      "RDBEAR",
-      "RDBULL"
+      "R_10"
     ],
     "deploy_gate": {
       "enabled": true,
+      "force_ok": true,
       "eval_relaxed_gating": true,
       "max_brier": 0.24,
       "max_eval_steps": 24,
@@ -127,16 +127,17 @@
     "watchdog_enabled": true,
     "watchdog_stale_tick_seconds": 25,
     "watchdog_poll_interval_seconds": 3,
-    "stream_warm_up_delay_seconds": 15,
+    "stream_warm_up_delay_seconds": 0,
     "post_settlement_breath_seconds": 0,
     "settlement_tolerance_window_seconds": 90,
     "settlement_backoff_initial_seconds": 1.0,
     "settlement_backoff_max_seconds": 30.0,
     "execution": {
       "diversify_after_loss_margin": 0.08,
-      "include_anchor_trades": false,
+      "include_anchor_trades": true,
       "inter_symbol_delay": 0.05,
       "mandatory_trade_each_cycle": true,
+      "force_trade_every_cycle": false,
       "require_meta_for_execution": false,
       "discordance_veto_enabled": false,
       "bb_width_adaptive_squeeze": {
@@ -146,7 +147,7 @@
       },
       "fractional_lot_stagger_base_us": 100.0,
       "fractional_lot_stagger_jitter_us": 50.0,
-      "proposal_failure_skip_cycles": 3,
+      "proposal_failure_skip_cycles": 0,
       "proposal_retry_scales": [
         0.85,
         0.7,
@@ -154,7 +155,7 @@
         0.4
       ],
       "post_settlement_cycle_timeout_seconds": 360,
-      "recovery_flip_direction_after_loss": false,
+      "recovery_flip_direction_after_loss": true,
       "recovery_flip_max_conviction": 0.56,
       "recovery_flip_use_trend_confirmation": false,
       "dynamic_threshold": {
@@ -182,15 +183,17 @@
         "implied_vol_bb_scale": true
       },
       "quality_gate": {
-        "min_adx_threshold": 0.20,
-        "mandatory_min_trade_score": 0.52,
-        "min_direction_margin": 0.03,
+        "min_adx_threshold": 0.0,
+        "mandatory_min_trade_score": 0.50,
+        "min_direction_margin": 0.0,
+        "min_payoff_edge": 0.0,
         "regular": {
-          "min_direction_margin": 0.03
+          "min_direction_margin": 0.0,
+          "min_payoff_edge": 0.0
         }
       },
       "loss_protection": {
-        "min_direction_margin": 0.03,
+        "min_direction_margin": 0.0,
         "recovery_min_direction_margin": 0.0,
         "recovery_min_hurst": 0.0,
         "max_edge_without_margin": 999.0,
@@ -211,13 +214,16 @@
     "ws_reconnect_delay_seconds": 8
   },
   "risk_management": {
-    "min_validation_accuracy_gate": 0.63,
+    "min_validation_accuracy_gate": 0.0,
     "soft_recovery": {
       "enabled": true,
       "max_safe_stake_cap": 4.20,
       "amort_cycles_min": 2,
       "amort_cycles_max": 5,
-      "coing_redirect_drawdown_threshold": 15.00
+      "coing_redirect_drawdown_threshold": 15.00,
+      "dust_pending_clear_max": 0.25,
+      "near_stop_win_freeze_pct": 0.80,
+      "material_pending_min": 1.0
     },
     "kelly": {
       "base_win_rate": 0.53,
@@ -231,7 +237,7 @@
       "high_conviction_stake_threshold": 0.0,
       "mandatory_weak_conviction_cap": 0.55,
       "mandatory_weak_max_stake_pct": 0.01,
-      "mandatory_min_trade_score": 0.52,
+      "mandatory_min_trade_score": 0.50,
       "recovery_min_trade_score": 0.50,
       "recovery_force_min_trade_score": 0.60,
       "recovery_force_pending_min": 100,
@@ -246,7 +252,7 @@
       "recovery_hurst_log_decay_coef": 0.025,
       "recovery_hurst_accel_losses_min": 3,
       "recovery_hurst_severe_drawdown_min": 150.0,
-      "symbol_loss_rotation_cycles": 1,
+      "symbol_loss_rotation_cycles": 0,
       "stake_conviction_min_raw": 0.0,
       "max_stake_pct": 0.035,
       "max_stake_pct_high_conviction": 0.035,
@@ -283,8 +289,7 @@
     "small_account_threshold": 100.0
   },
   "symbols": [
-    "RDBEAR",
-    "RDBULL"
+    "R_10"
   ],
   "trading": {
     "mode": "live"
@@ -305,16 +310,16 @@
       "secure": false
     },
     "triton": {
-      "enabled": true,
-      "require_for_execution": true,
+      "enabled": false,
+      "require_for_execution": false,
       "grpc_url": "localhost:8001",
       "http_url": "localhost:8000",
       "model_repo_path": "infra/docker/triton-models",
       "model_control_mode": "explicit",
       "wait_ready_seconds": 45.0,
       "poll_ready_seconds": 0.35,
-      "infer_timeout_seconds": 0.50,
-      "bootstrap_infer_timeout_seconds": 5.0,
+      "infer_timeout_seconds": 8.0,
+      "bootstrap_infer_timeout_seconds": 10.0,
       "correlation_refresh_cycles": 3,
       "correlation_bars": 120
     },

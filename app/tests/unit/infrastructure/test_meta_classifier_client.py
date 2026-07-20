@@ -49,7 +49,7 @@ async def test_predict_meta_rejects_corrupted_dim_before_http():
     client = MetaClassifierClient(base_url="http://meta:8005", timeout=1.0, enabled=True)
     client._client.post = AsyncMock()
     request = {
-        "symbol": "RDBULL",
+        "symbol": "R_10",
         "tcn_probability": 0.62,
         "direction": "CALL",
         "feature_vector": [0.1] * 39,
@@ -69,7 +69,7 @@ async def test_predict_meta_success():
     client._client.post = AsyncMock(return_value=response)
     result = await client.predict_meta(
         build_meta_predict_request(
-            symbol="RDBULL",
+            symbol="R_10",
             metrics=_meta_metrics(),
             tcn_probability=0.62,
             direction="CALL",
@@ -87,7 +87,7 @@ async def test_predict_meta_timeout_fallback():
     client._client.post = AsyncMock(side_effect=httpx.TimeoutException("timeout"))
     result = await client.predict_meta(
         build_meta_predict_request(
-            symbol="RDBULL",
+            symbol="R_10",
             metrics=_meta_metrics(),
             tcn_probability=0.62,
             direction="CALL",
@@ -107,7 +107,7 @@ async def test_predict_meta_http_error_fallback():
     client._client.post = AsyncMock(side_effect=httpx.HTTPStatusError("fail", request=request, response=response))
     result = await client.predict_meta(
         build_meta_predict_request(
-            symbol="RDBULL",
+            symbol="R_10",
             metrics=_meta_metrics(),
             tcn_probability=0.62,
             direction="CALL",
@@ -124,7 +124,7 @@ async def test_predict_meta_disabled_returns_zero_edge():
     client = MetaClassifierClient(base_url="http://meta:8005", timeout=1.0, enabled=False)
     result = await client.predict_meta(
         build_meta_predict_request(
-            symbol="RDBULL",
+            symbol="R_10",
             metrics=_meta_metrics(),
             tcn_probability=0.62,
             direction="CALL",
@@ -143,7 +143,7 @@ async def test_predict_meta_batch_emits_single_fallback_log(caplog):
     requests = [
         (
             build_meta_predict_request(
-                symbol="RDBULL",
+                symbol="R_10",
                 metrics=_meta_metrics(),
                 tcn_probability=0.62,
                 direction="CALL",
@@ -152,7 +152,7 @@ async def test_predict_meta_batch_emits_single_fallback_log(caplog):
         ),
         (
             build_meta_predict_request(
-                symbol="RDBEAR",
+                symbol="R_10",
                 metrics={"feature_vector": [0.2] * 34},
                 tcn_probability=0.41,
                 direction="PUT",
@@ -205,7 +205,7 @@ async def test_predict_meta_batch_parallel():
     requests = [
         (
             build_meta_predict_request(
-                symbol="RDBULL",
+                symbol="R_10",
                 metrics=_meta_metrics(),
                 tcn_probability=0.62,
                 direction="CALL",
@@ -214,7 +214,7 @@ async def test_predict_meta_batch_parallel():
         ),
         (
             build_meta_predict_request(
-                symbol="RDBEAR",
+                symbol="R_10",
                 metrics={"feature_vector": [0.2] * 34},
                 tcn_probability=0.41,
                 direction="PUT",
@@ -232,7 +232,7 @@ def test_predict_meta_sync_outside_running_loop():
     client = MetaClassifierClient(base_url="http://meta:8005", timeout=1.0, enabled=False)
     result = client.predict_meta_sync(
         build_meta_predict_request(
-            symbol="RDBULL",
+            symbol="R_10",
             metrics=_meta_metrics(),
             tcn_probability=0.62,
             direction="CALL",
@@ -251,7 +251,7 @@ async def test_predict_meta_invalid_json_fallback():
     client._client.post = AsyncMock(return_value=response)
     result = await client.predict_meta(
         build_meta_predict_request(
-            symbol="RDBULL",
+            symbol="R_10",
             metrics=_meta_metrics(),
             tcn_probability=0.62,
             direction="CALL",
@@ -277,7 +277,7 @@ async def test_predict_meta_sync_inside_running_loop():
     client = MetaClassifierClient(base_url="http://meta:8005", timeout=1.0, enabled=False)
     result = client.predict_meta_sync(
         build_meta_predict_request(
-            symbol="RDBULL",
+            symbol="R_10",
             metrics=_meta_metrics(),
             tcn_probability=0.62,
             direction="CALL",

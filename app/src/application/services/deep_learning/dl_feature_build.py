@@ -38,9 +38,6 @@ FEATURE_DIM = MICRO_FEATURE_DIM + TRADITIONAL_FEATURE_DIM + VOLATILITY_FEATURE_D
 
 def symbol_vol_target(symbol: str) -> float:
     """Volatilidade anualizada alvo do indice sintetico Deriv."""
-    key = str(symbol).upper()
-    if key in {"RDBULL", "RDBEAR"}:
-        return 0.50
     parts = str(symbol).split("_")
     try:
         return float(parts[-1]) / 100.0 if len(parts) >= 2 else 0.50
@@ -213,7 +210,7 @@ def precompute_price_series(
     prices: np.ndarray,
     *,
     granularity: int = 60,
-    symbol: str = "RDBULL",
+    symbol: str = "R_10",
     open_: np.ndarray | None = None,
     high: np.ndarray | None = None,
     low: np.ndarray | None = None,

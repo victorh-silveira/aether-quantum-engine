@@ -18,7 +18,7 @@ if str(APP_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_ROOT))
 
 RemoveFn = Callable[[Path], None]
-PRESERVED_DATA_CHILDREN = frozenset({"deriv"})
+PRESERVED_DATA_CHILDREN = frozenset({"deriv", "dl"})
 DOCKER_BIND_MOUNTS_RELATIVE = (
     Path("infra") / "docker" / "triton-models",
     Path("infra") / "docker" / "meta-models",

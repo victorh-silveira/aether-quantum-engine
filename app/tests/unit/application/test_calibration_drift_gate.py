@@ -57,7 +57,7 @@ def test_veto_calibration_neutral_drift_annuls_direction_and_trade_score():
 )
 def test_resolve_execution_direction_vetoes_absolute_on_neutral_drift(raw_prob, calibrated_prob):
     entry = _entry(raw_prob=raw_prob, calibrated_prob=calibrated_prob)
-    result = resolve_execution_direction(entry, symbol="RDBULL")
+    result = resolve_execution_direction(entry, symbol="R_10")
     assert result is not None
     assert entry["metrics"].get("gate_reason") != CALIBRATION_NEUTRAL_DRIFT
     assert entry["metrics"].get("resolved_direction") is not None
@@ -65,7 +65,7 @@ def test_resolve_execution_direction_vetoes_absolute_on_neutral_drift(raw_prob, 
 
 def test_resolve_execution_direction_allows_aligned_calibration():
     entry = _entry(raw_prob=0.38, calibrated_prob=0.41, direction=TradeDirection.PUT)
-    result = resolve_execution_direction(entry, symbol="RDBEAR")
+    result = resolve_execution_direction(entry, symbol="R_10")
     assert result is not None
     direction, metrics = result
     assert direction == TradeDirection.PUT
@@ -80,7 +80,7 @@ def test_apply_meta_regression_edge_vetoes_on_calibration_drift():
         0.10,
         meta_applied=True,
         base_score=0.56,
-        symbol="RDBEAR",
+        symbol="R_10",
     )
     assert direction == TradeDirection.PUT
     assert score > 0.0

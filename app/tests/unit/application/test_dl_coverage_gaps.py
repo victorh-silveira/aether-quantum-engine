@@ -30,8 +30,8 @@ from src.application.services.deep_learning.model import INPUT_DIM, create_direc
 
 
 def test_symbol_vol_target_parses_and_defaults():
-    assert symbol_vol_target("RDBEAR") == pytest.approx(0.50)
-    assert symbol_vol_target("RDBULL") == pytest.approx(0.50)
+    assert symbol_vol_target("R_10") == pytest.approx(0.10)
+    assert symbol_vol_target("R_50") == pytest.approx(0.50)
 
 
 def test_symbol_vol_target_invalid_suffix():
@@ -177,28 +177,28 @@ def test_masked_loss_auxiliary_regression_head():
 
 
 def test_live_win_rate_and_blended():
-    orch = SimpleNamespace(_dl_outcome_flags={"RDBULL": [True, False, True, False, True, False]})
-    assert live_win_rate(orch, "RDBULL") is not None
-    blended = blended_val_accuracy(orch, "RDBULL", 0.60, live_weight=0.5, min_live_samples=4)
+    orch = SimpleNamespace(_dl_outcome_flags={"R_10": [True, False, True, False, True, False]})
+    assert live_win_rate(orch, "R_10") is not None
+    blended = blended_val_accuracy(orch, "R_10", 0.60, live_weight=0.5, min_live_samples=4)
     assert blended <= 0.60
-    orch_losses = SimpleNamespace(_dl_outcome_flags={"RDBULL": [False] * 6})
-    assert blended_val_accuracy(orch_losses, "RDBULL", 0.60) <= 0.60
+    orch_losses = SimpleNamespace(_dl_outcome_flags={"R_10": [False] * 6})
+    assert blended_val_accuracy(orch_losses, "R_10", 0.60) <= 0.60
 
 
 def test_session_pause_helpers():
-    orch = SimpleNamespace(_dl_session_pause={"RDBULL": 2})
+    orch = SimpleNamespace(_dl_session_pause={"R_10": 2})
 
-    assert is_symbol_session_paused(orch, "RDBULL") is False
+    assert is_symbol_session_paused(orch, "R_10") is False
     tick_dl_session_pauses(orch)
 
 
 def test_maybe_pause_symbol_session():
     orch = SimpleNamespace(
-        _dl_outcome_flags={"RDBULL": [False, False, False]},
+        _dl_outcome_flags={"R_10": [False, False, False]},
         config={
             "deep_learning": {"session_max_losses_in_window": 2, "session_window_trades": 3, "session_pause_cycles": 4}
         },
     )
 
-    maybe_pause_symbol_session(orch, "RDBULL", max_losses_in_window=2, window_trades=3, pause_cycles=4)
+    maybe_pause_symbol_session(orch, "R_10", max_losses_in_window=2, window_trades=3, pause_cycles=4)
     assert not hasattr(orch, "_dl_session_pause")

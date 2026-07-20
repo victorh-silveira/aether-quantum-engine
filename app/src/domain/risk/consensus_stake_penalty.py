@@ -21,6 +21,8 @@ from src.domain.risk.risk_recovery_state import (
     MICRO_TAIL_UNIT_MULTIPLIER,
 )
 from src.domain.risk.soft_recovery_policy import (
+    DEFAULT_MATERIAL_PENDING_MIN,
+    DEFAULT_NEAR_STOP_WIN_FREEZE_PCT,
     apply_small_account_hard_floor,
     configured_max_safe_stake_cap,
     fixed_step_progression_multiplier,
@@ -28,6 +30,7 @@ from src.domain.risk.soft_recovery_policy import (
     resolve_amort_cycles,
 )
 from src.domain.risk.stake_sizing import consensus_entropy_kelly_retention
+from src.domain.risk.stake_target_proximity import apply_target_proximity_damping
 
 
 _MAX_SAFE_STAKE_BANKROLL_PCT = 0.035
@@ -54,14 +57,32 @@ def apply_soft_recovery_stake(
     payout: float | None = None,
     risk_params: dict[str, Any] | None = None,
     soft_recovery: dict[str, Any] | None = None,
+    session_pnl: float = 0.0,
+    target_win: float = 0.0,
 ) -> float:
     """Aplica progressao adaptativa ou passo fixo quando ha passivo pendente."""
     unit = resolve_session_base_unit(bankroll, base_unit, metrics)
-    if float(pending_total) <= 0.0:
-        return min(
-            unit,
-            max_safe_stake_cap(bankroll, consecutive_losses_linear=consecutive_losses, soft_recovery=soft_recovery),
-        )
+    soft = soft_recovery if isinstance(soft_recovery, dict) else {}
+    material_min = float(soft.get("material_pending_min", DEFAULT_MATERIAL_PENDING_MIN))
+    freeze_pct = float(soft.get("near_stop_win_freeze_pct", DEFAULT_NEAR_STOP_WIN_FREEZE_PCT))
+    target = float(target_win)
+    pnl = float(session_pnl)
+    near_stop_win = target > 0.0 and (pnl / target) + 1e-12 >= freeze_pct
+    pending = float(pending_total)
+    material_pending = pending + 1e-12 >= material_min
+    cap = max_safe_stake_cap(bankroll, consecutive_losses_linear=consecutive_losses, soft_recovery=soft_recovery)
+    if pending <= 0.0 or not material_pending or near_stop_win:
+        explore = min(unit, cap)
+        if isinstance(metrics, dict):
+            metrics["recovery_soft_progression"] = 1.0
+            metrics["recovery_soft_losses"] = max(0, int(consecutive_losses))
+            metrics["recovery_soft_anchor_stake"] = float(previous_stake) if float(previous_stake) > 0.0 else unit
+            metrics["recovery_cover_need"] = 0.0
+            metrics["recovery_material_pending"] = bool(material_pending)
+            metrics["recovery_near_stop_win_freeze"] = bool(near_stop_win)
+            metrics["recovery_progression_multiplier"] = 1.0
+            metrics["recovery_infeasible"] = False
+        return explore
     factor = adaptive_recovery_progression_factor(payout, risk_params)
     resolved_payout = resolve_contract_payout(payout, risk_params)
     losses = max(0, int(consecutive_losses))
@@ -70,15 +91,16 @@ def apply_soft_recovery_stake(
     )
     stake = unit if losses <= 0 else unit * progression
     amort = resolve_amort_cycles(losses, soft_recovery)
-    cover = float(pending_total) / resolved_payout / float(amort)
-    cap = max_safe_stake_cap(bankroll, consecutive_losses_linear=consecutive_losses, soft_recovery=soft_recovery)
+    cover = pending / resolved_payout / float(amort)
     infeasible = is_recovery_infeasible(
-        float(pending_total),
+        pending,
         cap,
         resolved_payout,
         soft_recovery,
     )
     stake = min(stake, cap) if infeasible else max(stake, cover)
+    if target > 0.0:
+        stake = apply_target_proximity_damping(stake, target, pnl)
     if isinstance(metrics, dict):
         metrics["recovery_soft_progression"] = factor
         metrics["recovery_adaptive_payout"] = resolved_payout
@@ -91,6 +113,8 @@ def apply_soft_recovery_stake(
         )
         metrics["recovery_progression_multiplier"] = float(progression)
         metrics["recovery_infeasible"] = bool(infeasible)
+        metrics["recovery_material_pending"] = True
+        metrics["recovery_near_stop_win_freeze"] = False
     return min(stake, cap)
 
 

@@ -16,9 +16,53 @@ async def test_save_full_state_acquires_atomic_lock(orch_ready):
         "src.application.services.orchestrator.orchestrator_persistence.persist_full_state_unlocked",
         new_callable=AsyncMock,
     ) as persist_mock:
-        await save_full_state(orch)
+        assert await save_full_state(orch) is True
     persist_mock.assert_awaited_once_with(orch)
     assert not orch.state_mgr._state_lock.locked()
+
+
+@pytest.mark.asyncio
+async def test_save_full_state_soft_timeout_does_not_raise(orch_ready):
+    orch = orch_ready
+    await orch.state_mgr._state_lock.acquire()
+    try:
+        with patch(
+            "src.application.services.orchestrator.orchestrator_atomic_state._STATE_LOCK_ACQUIRE_TIMEOUT_SECONDS",
+            0.05,
+        ):
+            assert await save_full_state(orch, raise_on_timeout=False) is False
+    finally:
+        orch.state_mgr._state_lock.release()
+
+
+@pytest.mark.asyncio
+async def test_save_full_state_raise_on_timeout(orch_ready):
+    orch = orch_ready
+    await orch.state_mgr._state_lock.acquire()
+    try:
+        with (
+            patch(
+                "src.application.services.orchestrator.orchestrator_atomic_state._STATE_LOCK_ACQUIRE_TIMEOUT_SECONDS",
+                0.05,
+            ),
+            pytest.raises(RuntimeError, match="STATE_LOCK_TIMEOUT"),
+        ):
+            await save_full_state(orch, raise_on_timeout=True)
+    finally:
+        orch.state_mgr._state_lock.release()
+
+
+@pytest.mark.asyncio
+async def test_save_full_state_reraises_non_timeout_runtime_error(orch_ready):
+    orch = orch_ready
+    with (
+        patch(
+            "src.application.services.orchestrator.orchestrator_persistence.orchestrator_atomic_state_context",
+            side_effect=RuntimeError("OTHER_LOCK_ERROR"),
+        ),
+        pytest.raises(RuntimeError, match="OTHER_LOCK_ERROR"),
+    ):
+        await save_full_state(orch, raise_on_timeout=False)
 
 
 @pytest.mark.asyncio

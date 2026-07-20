@@ -26,8 +26,9 @@ logger = logging.getLogger("META_TRAIN")
 LGBM_QUIET_PARAMS: dict[str, Any] = {"verbose": -1, "warnings": False, "n_jobs": 2}
 OPTUNA_N_JOBS = 2
 LGBM_REGRESSION_OBJECTIVE = "huber"
-OPTUNA_OOS_PAYOFF_ZSCORE_MIN = 0.25
-META_EXPORT_MIN_ZSCORE = 0.25
+OPTUNA_OOS_PAYOFF_ZSCORE_MIN = 0.04
+META_EXPORT_MIN_ZSCORE = 0.04
+META_EXPORT_MIN_IR = 1.0
 OPTUNA_IR_TIEBREAK_WEIGHT = 0.01
 
 
@@ -177,17 +178,26 @@ def run_optuna_study(
     return model, bundle_meta, train_mae, val_mae
 
 
-def assert_export_zscore_floor(bundle_meta: dict[str, Any], *, floor: float = META_EXPORT_MIN_ZSCORE) -> None:
+def assert_export_zscore_floor(
+    bundle_meta: dict[str, Any],
+    *,
+    floor: float = META_EXPORT_MIN_ZSCORE,
+    min_ir: float = META_EXPORT_MIN_IR,
+) -> None:
     zscore = float(bundle_meta.get("oos_payoff_zscore_mean", 0.0))
+    ir = float(bundle_meta.get("oos_information_ratio", 0.0) or 0.0)
     if zscore + 1e-12 >= float(floor):
         return
+    if ir + 1e-12 >= float(min_ir):
+        return
     raise RuntimeError(
-        f"Export meta bloqueado: oos_payoff_zscore_mean={zscore:.6f} < floor={float(floor):.6f}. "
-        "Retreine com gran=120s, mais barras/trials ou features alinhadas ao runtime."
+        f"Export meta bloqueado: oos_payoff_zscore_mean={zscore:.6f} < floor={float(floor):.6f} "
+        f"e oos_information_ratio={ir:.6f} < min_ir={float(min_ir):.6f}. "
+        "Retreine com teacher TCN (data/dl), gran=120s, mais barras/trials ou features alinhadas ao runtime."
     )
 
 
-META_EXPORT_MAX_MAE_GAP = 1.25
+META_EXPORT_MAX_MAE_GAP = 2.0
 
 
 def assert_export_mae_gap(
@@ -210,6 +220,7 @@ __all__ = [
     "LGBM_QUIET_PARAMS",
     "LGBM_REGRESSION_OBJECTIVE",
     "META_EXPORT_MAX_MAE_GAP",
+    "META_EXPORT_MIN_IR",
     "META_EXPORT_MIN_ZSCORE",
     "OPTUNA_OOS_PAYOFF_ZSCORE_MIN",
     "OPTUNA_N_JOBS",

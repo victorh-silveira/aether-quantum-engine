@@ -3,6 +3,7 @@
 from src.application.services.execution_direction import build_execution_candidate
 from src.application.services.execution_direction_resolver import infer_dl_direction, is_technically_blocked
 from src.application.services.execution_loss_protection import edge_conviction_disconnect_penalty
+from src.application.services.force_trade_mode import force_trade_every_cycle, synthesize_force_direction
 from src.application.services.meta_payoff_veto_gate import is_execution_signal_vetoed
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.stake_sizing import metric_float
@@ -21,14 +22,18 @@ def _raw_side(metrics: dict) -> float:
     return max(float(raw), 1.0 - float(raw))
 
 
-def mandatory_pool_eligible(entry: dict, **_) -> bool:
+def mandatory_pool_eligible(entry: dict, **kwargs) -> bool:
     """Indica se simbolo pode entrar no pool com direcao inferivel."""
     if is_technically_blocked(entry):
         return False
     metrics = entry.get("metrics") or {}
-    if is_execution_signal_vetoed(metrics):
+    exec_cfg = kwargs.get("exec_cfg")
+    force = force_trade_every_cycle(exec_cfg if isinstance(exec_cfg, dict) else None)
+    if not force and is_execution_signal_vetoed(metrics):
         return False
-    return infer_dl_direction(entry) is not None
+    if infer_dl_direction(entry) is not None:
+        return True
+    return force and synthesize_force_direction(entry) is not None
 
 
 def _recovery_score_adjustment(

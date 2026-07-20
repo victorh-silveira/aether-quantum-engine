@@ -16,6 +16,9 @@ DEFAULT_NEGATIVE_ZSCORE_VETO = -0.20
 DEFAULT_MICRO_RESIDUAL_ZSCORE_FLOOR = -0.60
 DEFAULT_GBDT_WAIVER_SKIP_CYCLES = 30
 DEFAULT_MICRO_RESIDUAL_GBDT_WAIVER_SKIPS = 6
+DEFAULT_DUST_PENDING_CLEAR_MAX = 0.25
+DEFAULT_NEAR_STOP_WIN_FREEZE_PCT = 0.80
+DEFAULT_MATERIAL_PENDING_MIN = 1.0
 FIXED_STEP_LINEAR_MIN = 3
 FIXED_STEP_LINEAR_MAX = 4
 FIXED_STEP_UNIT_PREMIUM = 0.15
@@ -56,6 +59,9 @@ def resolve_soft_recovery_config(risk_management: dict[str, Any] | None) -> dict
             soft.get("small_account_hard_floor_threshold", SMALL_ACCOUNT_HARD_FLOOR_THRESHOLD)
         ),
         "small_account_hard_floor_pct": float(soft.get("small_account_hard_floor_pct", SMALL_ACCOUNT_HARD_FLOOR_PCT)),
+        "dust_pending_clear_max": float(soft.get("dust_pending_clear_max", DEFAULT_DUST_PENDING_CLEAR_MAX)),
+        "near_stop_win_freeze_pct": float(soft.get("near_stop_win_freeze_pct", DEFAULT_NEAR_STOP_WIN_FREEZE_PCT)),
+        "material_pending_min": float(soft.get("material_pending_min", DEFAULT_MATERIAL_PENDING_MIN)),
     }
 
 

@@ -58,14 +58,13 @@ def test_state_manager_float_tolerance():
 
 
 def test_recovery_rank_score_drift_aligned_boost():
-    item_aligned = ("RDBULL", TradeDirection.CALL, {})
-    item_non_aligned = ("RDBULL", TradeDirection.PUT, {})
+    item_aligned = ("R_10", TradeDirection.CALL, {})
+    item_non_aligned = ("R_10", TradeDirection.PUT, {})
 
     score_aligned = recovery_rank_score(item_aligned, base_score=0.5)
     score_non_aligned = recovery_rank_score(item_non_aligned, base_score=0.5)
 
-    # score_aligned deve receber +0.15 de boost por estar alinhado ao drift natural do RDBULL (CALL)
-    assert score_aligned - score_non_aligned == pytest.approx(0.15)
+    assert score_aligned == pytest.approx(score_non_aligned)
 
 
 def test_resolve_execution_direction_technical_discordance_veto():

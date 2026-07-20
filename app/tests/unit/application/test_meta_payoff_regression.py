@@ -50,7 +50,7 @@ def test_apply_meta_regression_edge_positive_keeps_organic_score():
     assert metrics["predicted_payoff_edge"] == pytest.approx(0.12)
 
 
-def test_apply_meta_regression_edge_loss_expected_keeps_organic_score():
+def test_apply_meta_regression_edge_loss_expected_flips_direction():
     metrics = {
         "indicators": {"bb_width": 0.12},
         "flow_features": {"micro_tick_acceleration": 0.03},
@@ -61,10 +61,11 @@ def test_apply_meta_regression_edge_loss_expected_keeps_organic_score():
         -0.25,
         meta_applied=True,
         base_score=0.68,
-        symbol="RDBEAR",
+        symbol="R_10",
     )
-    assert direction == TradeDirection.PUT
-    assert score == pytest.approx(0.68)
+    assert direction == TradeDirection.CALL
+    assert score == pytest.approx(0.75)
+    assert metrics.get("meta_direction_flip") is True
     assert metrics.get("meta_squeeze_downgrade") is not True
 
 
@@ -81,7 +82,7 @@ def test_apply_meta_regression_edge_bb_compression_triggers_squeeze_even_positiv
             0.18,
             meta_applied=True,
             base_score=0.72,
-            symbol="RDBULL",
+            symbol="R_10",
         )
     assert direction == TradeDirection.CALL
     assert score == pytest.approx(META_SQUEEZE_TRADE_SCORE)
@@ -89,7 +90,7 @@ def test_apply_meta_regression_edge_bb_compression_triggers_squeeze_even_positiv
     assert any("[D-SQUEEZE]" in record.message for record in caplog.records)
 
 
-def test_apply_meta_regression_edge_mild_negative_keeps_organic_score():
+def test_apply_meta_regression_edge_mild_negative_flips_call_to_put():
     metrics = {"indicators": {"bb_width": 0.12}, "flow_features": {"micro_tick_acceleration": 0.03}}
     direction, score = apply_meta_regression_edge(
         TradeDirection.CALL,
@@ -98,8 +99,9 @@ def test_apply_meta_regression_edge_mild_negative_keeps_organic_score():
         meta_applied=True,
         base_score=0.71,
     )
-    assert direction == TradeDirection.CALL
-    assert score == pytest.approx(0.71)
+    assert direction == TradeDirection.PUT
+    assert score == pytest.approx(0.75)
+    assert metrics.get("meta_direction_flip") is True
     assert metrics.get("meta_squeeze_downgrade") is not True
 
 

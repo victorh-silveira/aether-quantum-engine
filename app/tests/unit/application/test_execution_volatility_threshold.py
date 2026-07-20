@@ -251,7 +251,7 @@ def test_resolve_dynamic_threshold_bundle_vol_compression():
             "vol_compression_k_parabolic": 4.0,
             "vol_compression_k_hyperbolic": 0.15,
         },
-        symbol="RDBEAR",
+        symbol="R_10",
     )
     assert bundle is not None
     assert bundle.min_edge > 0.04

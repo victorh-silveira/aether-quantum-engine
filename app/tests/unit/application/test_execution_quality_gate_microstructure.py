@@ -107,7 +107,7 @@ def test_quality_conviction_suspends_cluster_on_microstructure_starvation(orch_r
     }
     orch.config.setdefault("risk_management", {})["min_validation_accuracy_gate"] = 0.63
     decisions = {
-        "RDBEAR": {
+        "R_10": {
             "metrics": _healthy_metrics(
                 indicators={"adx": 0.13, "vol_ratio": 0.21},
                 val_accuracy=0.59,
@@ -115,12 +115,12 @@ def test_quality_conviction_suspends_cluster_on_microstructure_starvation(orch_r
         }
     }
     assert quality_conviction_suspends_cluster(orch, decisions) is True
-    assert is_microstructure_starvation_reason(decisions["RDBEAR"]["metrics"]["quality_gate_reason"])
+    assert is_microstructure_starvation_reason(decisions["R_10"]["metrics"]["quality_gate_reason"])
 
 
 def test_mandatory_fallback_blocked_by_microstructure_starvation():
     decisions = {
-        "RDBEAR": {
+        "R_10": {
             "direction": "PUT",
             "metrics": {
                 "deploy_ok": True,
@@ -135,7 +135,7 @@ def test_mandatory_fallback_blocked_by_microstructure_starvation():
             decisions,
             exec_cfg={},
             risk_manager=SimpleNamespace(consecutive_losses_linear=0, pending_loss_total=lambda: 0.0),
-            trade_symbols=["RDBEAR"],
+            trade_symbols=["R_10"],
         )
         is True
     )
@@ -245,7 +245,7 @@ def test_resolve_execution_direction_aborts_on_adx_starvation():
         result = resolve_execution_direction(
             entry,
             exec_cfg={"quality_gate": {"min_adx_threshold": 0.20}},
-            symbol="RDBEAR",
+            symbol="R_10",
             orch=orch,
         )
     assert result is None

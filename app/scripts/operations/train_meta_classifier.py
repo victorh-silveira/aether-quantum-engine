@@ -36,9 +36,9 @@ from scripts.operations.train_meta_optuna import (
     configure_meta_train_logging,
     run_optuna_study,
 )
+from scripts.operations.train_meta_teacher import infer_teacher_probs_from_checkpoints
 from scripts.operations.train_meta_vector import (
     build_paired_training_dataset,
-    load_teacher_probs_from_checkpoints,
     resolve_contract_duration_seconds,
 )
 
@@ -122,18 +122,21 @@ def _export_model(model, bundle_meta: dict[str, Any], output_path: Path) -> None
     joblib.dump({"model": model, **bundle_meta}, output_path)
 
 
-def _teacher_probs(settings: dict[str, Any], symbols: list[str]) -> dict[str, np.ndarray]:
+def _teacher_probs(
+    settings: dict[str, Any],
+    symbols: list[str],
+    bundles: list[OhlcBundle],
+) -> dict[str, np.ndarray]:
     dl = settings.get("deep_learning") if isinstance(settings.get("deep_learning"), dict) else {}
     template = (
         str(dl.get("model_path_template", "data/dl/{symbol}.pth")) if isinstance(dl, dict) else "data/dl/{symbol}.pth"
     )
-    lookback = int(dl.get("lookback", 72)) if isinstance(dl, dict) else 72
     path_template = template if Path(template).is_absolute() else str(REPO_ROOT / template)
-    loaded = load_teacher_probs_from_checkpoints(
-        symbols,
+    selected = [bundle for bundle in bundles if str(bundle.symbol) in set(symbols)]
+    loaded = infer_teacher_probs_from_checkpoints(
+        selected,
         model_path_template=path_template,
-        lookback=lookback,
-        repo_root=REPO_ROOT,
+        dl_params=dl if isinstance(dl, dict) else None,
     )
     if loaded:
         logger.info("META_TRAIN: teacher TCN carregado para %s", ",".join(sorted(loaded)))
@@ -167,7 +170,7 @@ async def train_meta_classifier(
     assert_bundles_match_granularity(bundles, required_gran)
     micro_gran = _micro_granularity(settings)
     contract_duration = resolve_contract_duration_seconds(settings)
-    teacher = _teacher_probs(settings, symbols)
+    teacher = _teacher_probs(settings, symbols, bundles)
     frame, y, _proxy, _pnl = build_paired_training_dataset(
         bundles,
         micro_granularity=micro_gran,
@@ -206,7 +209,7 @@ def _parse_args(settings: dict[str, Any]) -> argparse.Namespace:
     parser.add_argument("--granularity", type=int, default=default_gran)
     parser.add_argument("--bars", type=int, default=META_TRAIN_DEFAULT_BARS)
     parser.add_argument("--output", type=str, default=str(DEFAULT_OUTPUT))
-    parser.add_argument("--symbols", nargs="+", default=["RDBULL", "RDBEAR"])
+    parser.add_argument("--symbols", nargs="+", default=["R_10"])
     parser.add_argument("--source", choices=("auto", "timescale", "deriv"), default="auto")
     parser.add_argument("--export-min-zscore", type=float, default=META_EXPORT_MIN_ZSCORE)
     return parser.parse_args()

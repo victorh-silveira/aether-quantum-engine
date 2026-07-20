@@ -41,7 +41,7 @@ def test_resolve_require_meta_for_execution_blocks_without_meta():
         result = resolve_execution_direction(
             entry,
             exec_cfg={"require_meta_for_execution": True},
-            symbol="RDBULL",
+            symbol="R_10",
         )
     assert result is None
     assert entry["metrics"].get("gate_reason") == "meta_unavailable"
@@ -58,7 +58,7 @@ def test_resolve_recovery_soft_quality_continues_on_borderline_zscore():
         entry,
         exec_cfg={"quality_gate": {"min_direction_margin": 0.12, "min_meta_payoff_zscore": 0.5}},
         recovery_active=True,
-        symbol="RDBULL",
+        symbol="R_10",
     )
     assert result is not None
     assert result[0] == TradeDirection.CALL

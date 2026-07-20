@@ -35,9 +35,9 @@ async def test_local_model_store_roundtrip(tmp_path):
     store = LocalModelStore(tmp_path)
     src = tmp_path / "model.pth"
     src.write_bytes(b"ckpt")
-    await store.upload("RDBEAR", src, arch="tcn", metadata={"val_accuracy": 0.6})
+    await store.upload("R_10", src, arch="tcn", metadata={"val_accuracy": 0.6})
     dest = tmp_path / "cache.pth"
-    assert await store.download_latest("RDBEAR", arch="tcn", dest=dest) is True
+    assert await store.download_latest("R_10", arch="tcn", dest=dest) is True
     assert dest.read_bytes() == b"ckpt"
     assert await store.head() is True
 
@@ -56,11 +56,11 @@ async def test_minio_model_store_upload_download(tmp_path):
     store._client = client
     src = tmp_path / "m.pth"
     src.write_bytes(b"x")
-    await store.upload("RDBEAR", src, arch="tcn", metadata={"a": 1})
+    await store.upload("R_10", src, arch="tcn", metadata={"a": 1})
     assert client.fput_object.called
     dest = tmp_path / "out.pth"
     with patch("asyncio.to_thread", new=AsyncMock(return_value=True)):
-        assert await store.download_latest("RDBEAR", arch="tcn", dest=dest) is True
+        assert await store.download_latest("R_10", arch="tcn", dest=dest) is True
     with patch("asyncio.to_thread", new=AsyncMock(return_value=True)):
         assert await store.head() is True
 

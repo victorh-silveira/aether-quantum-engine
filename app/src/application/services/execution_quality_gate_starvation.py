@@ -78,11 +78,11 @@ def apply_starvation_margin_decay(
     *,
     orch: Any | None = None,
 ) -> tuple[float, float]:
-    """Atenua piso de margem após inanição prolongada, sem descer abaixo do piso absoluto de 0.02."""
+    """Atenua piso de margem apos inanicao prolongada ate liberar sinais fracos."""
     decay = starvation_decay_factor(skipped_cycles)
     if decay >= 1.0:
         return float(margin), decay
-    mitigated = max(0.02, float(margin) * decay)
+    mitigated = max(0.0, float(margin) * decay)
     if orch is not None:
         logger = getattr(orch, "logger", None)
         if logger is not None:

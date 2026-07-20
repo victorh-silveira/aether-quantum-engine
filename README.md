@@ -7,7 +7,7 @@
 [![Pre-commit](https://img.shields.io/badge/Pre--commit-active-FAB040?logo=pre-commit&logoColor=white)](.pre-commit-config.yaml)
 [![CI](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml)
 
-Motor quantitativo assíncrono para a Deriv: decisão por **Deep Learning** (TCN/LSTM/GRU) nos índices **Drift** (`RDBEAR`, `RDBULL`), contratos **RISE_FALL** de **120 s** com contexto macro **600 s** (proporção **1:5**), meta-regressor LightGBM (**43D**) de expectativa de retorno contínuo, e **soft recovery** com caps de segurança quando há passivo pendente. As chaves de assinatura ainda usam prefixos legados `m5`/`m15` para os relógios configurados de **120 s** / **600 s**.
+Motor quantitativo assíncrono para a Deriv: decisão por **Deep Learning** (TCN/LSTM/GRU) no índice sintético **`R_10`** (Volatility 10), contratos **RISE_FALL** de **120 s** com contexto macro **600 s** (proporção **1:5**), meta-regressor LightGBM (**43D**) de expectativa de retorno contínuo (single-symbol), e **soft recovery** com caps de segurança quando há passivo pendente. As chaves de assinatura ainda usam prefixos legados `m5`/`m15` para os relógios configurados de **120 s** / **600 s**.
 
 A operação divide-se em duas fases: **FASE TREINO** (nenhuma ordem até todos os modelos concluírem o treino da sessão) e **FASE OPERACAO** em **esteira mandatária contínua** (`mandatory_trade_each_cycle: true`): o motor seleciona candidato obrigatório quando o pool DL é tecnicamente válido e aprovado pelo quality gate dual soft (TCN + meta Z-Score) e pelos vetoes HARD de microestrutura. Triton permanece **fail-closed** (`infra.triton.require_for_execution: true`); o meta é **opcional** para execução (`require_meta_for_execution: false`).
 
@@ -45,7 +45,7 @@ Arquivo: [`config/settings.json`](config/settings.json)
 
 | Bloco | Função |
 |-------|--------|
-| `symbols` / `anchor` | Universo (`RDBEAR`, `RDBULL`; ancora `RDBULL`) |
+| `symbols` / `anchor` | Universo (`R_10`; ancora `R_10`) |
 | `data_handler` | `granularity` (macro **600 s**), `micro_granularity` (**120 s**), `history_bars` / `training_history_bars` (**23328**), `fetch_count`, `buffer_limit` |
 | `deep_learning` | `arch`, `lookback` (**72**), `label_mode` (`spot_forward`), calibration (`neutral_half_width: 0.04`), thresholds **0.54/0.46**, `indicator_gating`, `deploy_gate` |
 | `orchestrator.execution` | `mandatory_trade_each_cycle`, `require_meta_for_execution: false`, `quality_gate`, settlement **90 s** |
@@ -104,7 +104,7 @@ Copie `cp .env.example .env` e preencha o PAT. Validação Deriv: `python app/sc
 - **Stop win por sessão ativa**: meta = `banca_inicial × 2,60%` (banca ≥ $100) ou **$10** fixo (banca &lt; $100); `finalize_stop_win_shutdown` purge Redis + log CRITICAL + fast-path.
 - **Stop loss desativado**: sem disjuntor de perda diária interno.
 - **Lotes fracionados**: stakes acima de `max_single_stake_limit` (padrão $200) divididas em N ordens com proposta atômica por sub-lote; falha técnica de proposta aborta o cluster sem inflar `pending_loss`.
-- Cooldown por símbolo após sequência de losses (`symbol_loss_rotation_cycles`): rota o par Drift após loss linear sem pausar o ciclo.
+- Cooldown por símbolo após sequência de losses (`symbol_loss_rotation_cycles`): com universo single-symbol (`R_10`) o default operacional e `0` para nao esvaziar o unico ativo.
 - **Proteção contra loss** (`execution_loss_protection`): `min_direction_margin: 0.03`; caps edge/Z **999**.
 - **Gate de acurácia**: `min_validation_accuracy_gate: 0.63` (veto HARD de microestrutura).
 
@@ -207,6 +207,8 @@ WSL: `make app-pre-commit-run`
 6. Execute o motor: `python run.py`, `make run` ou `launch-all-demo.bat` / `launch-all-live.bat`.
 
 O motor exige `deep_learning.enabled: true` e checkpoints válidos em `data/dl/`. Treino e execução são processos separados — `train.py` grava os modelos; `run.py` só opera.
+
+Fluxo tipico single-symbol: treinar TCN `R_10` (`data/dl/R_10.pth` / `triton-models/R_10/`) → sync Triton se habilitado → treinar meta single-symbol (`--symbols R_10`). Artefatos Drift legados no disco nao sao apagados automaticamente.
 
 ---
 

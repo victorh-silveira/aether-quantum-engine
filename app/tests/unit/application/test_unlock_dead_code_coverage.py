@@ -59,7 +59,7 @@ def test_quality_cluster_fail_branch_via_mock():
             risk_manager=None,
             _quality_skipped_cycles_counter=0,
         )
-        decisions = {"RDBULL": {"metrics": {"deploy_ok": True, "calibrated_prob": 0.55}}}
+        decisions = {"R_10": {"metrics": {"deploy_ok": True, "calibrated_prob": 0.55}}}
         assert quality_conviction_suspends_cluster(orch, decisions) is False
 
 
@@ -73,13 +73,13 @@ def test_candidate_block_reason_quality_paths():
 
 
 def test_propagate_cluster_signal_suspended_creates_metrics():
-    decisions = {"RDBULL": {"direction": TradeDirection.CALL}}
+    decisions = {"R_10": {"direction": TradeDirection.CALL}}
     propagate_cluster_signal_suspended(decisions)
-    assert decisions["RDBULL"]["metrics"]["signal_status"] == SIGNAL_SUSPENDED
+    assert decisions["R_10"]["metrics"]["signal_status"] == SIGNAL_SUSPENDED
 
 
 def test_risk_session_bankroll_pending_from_map():
-    rm = SimpleNamespace(initial_bankroll=100.0, pending_loss={"RDBULL": 12.5}, soft_recovery_config=None)
+    rm = SimpleNamespace(initial_bankroll=100.0, pending_loss={"R_10": 12.5}, soft_recovery_config=None)
     bankroll, pending, soft = risk_session_bankroll_pending(rm)
     assert bankroll == 100.0
     assert pending == 12.5
@@ -103,7 +103,7 @@ def test_apply_meta_regression_edge_continues_when_veto_disabled():
         0.20,
         meta_applied=True,
         base_score=0.55,
-        symbol="RDBULL",
+        symbol="R_10",
     )
     assert direction == TradeDirection.CALL
     assert score > 0.0
@@ -111,21 +111,21 @@ def test_apply_meta_regression_edge_continues_when_veto_disabled():
 
 def test_collect_recovery_skip_waiver_empty_pool():
     orch = SimpleNamespace(
-        anchor="RDBULL",
-        symbols=["RDBULL", "RDBEAR"],
+        anchor="R_10",
+        symbols=["R_10", "R_50"],
         config={
             "orchestrator": {"execution": {"include_anchor_trades": False, "regime_evaluator": {"enabled": False}}},
             "risk_management": {"kelly": {}},
             "deep_learning": {},
         },
         risk_manager=SimpleNamespace(
-            pending_loss={"RDBEAR": 10.0},
-            last_loss_symbol="RDBEAR",
+            pending_loss={"R_10": 10.0},
+            last_loss_symbol="R_10",
             last_loss_direction="CALL",
             consecutive_losses=2,
             consecutive_losses_linear=2,
             recovery_symbol_loss_streak={},
-            symbol_loss_cooldown={"RDBEAR": 1},
+            symbol_loss_cooldown={"R_10": 1},
             proposal_skip_symbols=frozenset,
             pending_loss_total=lambda: 10.0,
             total_session_profit=0.0,
@@ -137,7 +137,7 @@ def test_collect_recovery_skip_waiver_empty_pool():
         orch=orch,
         logger=MagicMock(),
         _mandatory_trade_each_cycle=lambda: True,
-        _trade_symbols=lambda: ["RDBEAR"],
+        _trade_symbols=lambda: ["R_10"],
     )
     with (
         patch(
@@ -153,7 +153,7 @@ def test_collect_recovery_skip_waiver_empty_pool():
             return_value=(None, []),
         ),
     ):
-        orders = collect_cluster_orders(exec_mgr, {"RDBEAR": {"direction": TradeDirection.PUT, "metrics": {}}})
+        orders = collect_cluster_orders(exec_mgr, {"R_10": {"direction": TradeDirection.PUT, "metrics": {}}})
     assert orders == []
 
 
@@ -161,7 +161,7 @@ def test_mandatory_fallback_quality_block_paths():
     exec_mgr = SimpleNamespace(
         orch=SimpleNamespace(config={"orchestrator": {"execution": {}}}),
         _mandatory_trade_each_cycle=lambda: True,
-        _trade_symbols=lambda: ["RDBULL"],
+        _trade_symbols=lambda: ["R_10"],
     )
     with patch(
         "src.application.services.orchestrator.execution_collect._quality_blocks_mandatory_fallback",
@@ -177,7 +177,7 @@ async def test_trading_cycle_quality_skip_branch_via_mock(orch_ready):
     orch._last_cluster_cycle_end = 0.0
     orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 0
     orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = False
-    decisions = {"RDBULL": {"metrics": {"calibrated_prob": 0.55, "deploy_ok": True}}}
+    decisions = {"R_10": {"metrics": {"calibrated_prob": 0.55, "deploy_ok": True}}}
     with (
         patch(
             "src.application.services.orchestrator.trading_cycle_entry.collect_deep_learning_decisions",

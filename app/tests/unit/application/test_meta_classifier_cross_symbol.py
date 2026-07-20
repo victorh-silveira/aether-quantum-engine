@@ -52,15 +52,15 @@ def test_compute_cross_symbol_triplet_falls_back_to_indicators_bucket():
 
 def test_attach_cross_symbol_features_to_decisions():
     decisions = {
-        "RDBULL": {"direction": TradeDirection.CALL, "metrics": _metrics(prob=0.66, rsi=60.0, vol_ratio=1.1)},
-        "RDBEAR": {"direction": TradeDirection.PUT, "metrics": _metrics(prob=0.38, rsi=42.0, vol_ratio=0.9)},
+        "R_10": {"direction": TradeDirection.CALL, "metrics": _metrics(prob=0.66, rsi=60.0, vol_ratio=1.1)},
     }
     attach_cross_symbol_features_to_decisions(decisions)
-    bull_metrics = decisions["RDBULL"]["metrics"]
-    assert bull_metrics["cross_symbol_features"]["cross_symbol_rsi_spread"] == pytest.approx(18.0)
-    vector = extract_meta_feature_vector(bull_metrics)
+    metrics = decisions["R_10"]["metrics"]
+    assert metrics["cross_symbol_features"]["cross_symbol_rsi_spread"] == pytest.approx(0.0)
+    assert metrics["cross_symbol_features"]["cross_symbol_prob_delta"] == pytest.approx(0.0)
+    vector = extract_meta_feature_vector(metrics)
     assert len(vector) == META_FEATURE_DIM
-    assert vector[-3] == pytest.approx(18.0)
+    assert vector[-3] == pytest.approx(0.0)
 
 
 def test_extract_meta_feature_vector_uses_meta_feature_vector_cache():

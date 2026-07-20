@@ -11,8 +11,8 @@ from src.infrastructure.market.timescale_writer import TimescaleMarketWriter
 @pytest.mark.asyncio
 async def test_null_market_writer_noop():
     writer = NullMarketWriter()
-    await writer.enqueue_tick(symbol="RDBEAR", epoch_ms=1, price=1.0)
-    await writer.enqueue_bar(symbol="RDBEAR", bar={"epoch": 1})
+    await writer.enqueue_tick(symbol="R_10", epoch_ms=1, price=1.0)
+    await writer.enqueue_bar(symbol="R_10", bar={"epoch": 1})
     assert await writer.ping() is True
 
 
@@ -25,9 +25,9 @@ async def test_timescale_writer_enqueue_and_flush():
     pool.acquire.return_value.__aenter__ = AsyncMock(return_value=conn)
     pool.acquire.return_value.__aexit__ = AsyncMock(return_value=False)
     with patch.object(writer, "_ensure_pool", AsyncMock(return_value=pool)):
-        await writer.enqueue_tick(symbol="RDBEAR", epoch_ms=1000, price=1.23)
+        await writer.enqueue_tick(symbol="R_10", epoch_ms=1000, price=1.23)
         await writer.enqueue_bar(
-            symbol="RDBEAR",
+            symbol="R_10",
             bar={
                 "epoch": 1,
                 "granularity": 900,

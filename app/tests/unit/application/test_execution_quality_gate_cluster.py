@@ -40,9 +40,9 @@ def test_quality_conviction_suspends_cluster_skips_malformed_entries(orch_ready,
     orch.risk_manager.pending_loss_total = lambda: 0.0
     orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = False
     decisions = {
-        "RDBULL": "invalid",
-        "RDBEAR": {"metrics": "invalid"},
-        "RDBULL2": {"metrics": _weak_edge_metrics()},
+        "R_10": "invalid",
+        "R_50": {"metrics": "invalid"},
+        "R_102": {"metrics": _weak_edge_metrics()},
     }
     with caplog.at_level("INFO", logger="AETH"):
         assert quality_conviction_suspends_cluster(orch, decisions) is False
@@ -53,7 +53,7 @@ def test_quality_conviction_mandatory_flat_logs_without_suspending(orch_ready, c
     orch._active_cycle_id = 5
     orch.risk_manager.consecutive_losses_linear = 0
     orch.risk_manager.pending_loss_total = lambda: 0.0
-    decisions = {"RDBULL": {"metrics": {"calibrated_prob": 0.51, "deploy_ok": True}}}
+    decisions = {"R_10": {"metrics": {"calibrated_prob": 0.51, "deploy_ok": True}}}
     with caplog.at_level("INFO", logger="AETH"):
         assert quality_conviction_suspends_cluster(orch, decisions) is False
     assert orch._last_quality_gate_regime == "mandatory_continuous"
@@ -66,7 +66,7 @@ def test_quality_conviction_mandatory_continues_on_negative_edge_without_strong_
     orch.risk_manager.pending_loss_total = lambda: 140.0
     orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = True
     decisions = {
-        "RDBULL": {
+        "R_10": {
             "metrics": {
                 "deploy_ok": True,
                 "direction": "CALL",
@@ -89,7 +89,7 @@ def test_quality_conviction_mandatory_hard_skips_strongly_negative_meta(orch_rea
     orch.risk_manager.pending_loss_total = lambda: 0.0
     orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = True
     decisions = {
-        "RDBULL": {
+        "R_10": {
             "metrics": {
                 "deploy_ok": True,
                 "direction": "PUT",
@@ -100,7 +100,7 @@ def test_quality_conviction_mandatory_hard_skips_strongly_negative_meta(orch_rea
                 "calibrated_prob": 0.51,
             }
         },
-        "RDBEAR": {
+        "R_50": {
             "metrics": {
                 "deploy_ok": True,
                 "direction": "PUT",
@@ -115,19 +115,19 @@ def test_quality_conviction_mandatory_hard_skips_strongly_negative_meta(orch_rea
     with caplog.at_level("INFO", logger="AETH"):
         assert quality_conviction_suspends_cluster(orch, decisions) is False
     assert orch._last_quality_gate_regime == "mandatory_continuous"
-    assert decisions["RDBULL"]["metrics"].get("signal_status") != "SIGNAL_SUSPENDED"
+    assert decisions["R_10"]["metrics"].get("signal_status") != "SIGNAL_SUSPENDED"
 
 
 def test_quality_conviction_mandatory_continues_on_emergency_waiver(orch_ready):
     orch = orch_ready
     orch._active_cycle_id = 40
     orch.risk_manager.consecutive_losses_linear = 5
-    orch.risk_manager.pending_loss = {"RDBULL": 260.0}
+    orch.risk_manager.pending_loss = {"R_10": 260.0}
     orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = True
     decisions = {
         "bad": "skip",
-        "RDBEAR": {"metrics": "invalid"},
-        "RDBULL": {
+        "R_10": {"metrics": "invalid"},
+        "R_50": {
             "metrics": {
                 "deploy_ok": True,
                 "direction": "PUT",
@@ -150,8 +150,8 @@ def test_quality_conviction_suspends_cluster_keeps_decisions_unblocked_with_meta
     orch.risk_manager.consecutive_losses_linear = 0
     orch.risk_manager.pending_loss_total = lambda: 0.0
     decisions = {
-        "RDBULL": {"metrics": _weak_edge_metrics()},
-        "RDBEAR": {
+        "R_10": {"metrics": _weak_edge_metrics()},
+        "R_50": {
             "metrics": {
                 "calibrated_prob": 0.30,
                 "predicted_payoff_edge": 0.08,
@@ -162,8 +162,8 @@ def test_quality_conviction_suspends_cluster_keeps_decisions_unblocked_with_meta
         },
     }
     assert quality_conviction_suspends_cluster(orch, decisions) is False
-    assert decisions["RDBULL"]["metrics"].get("execution_gate_state") == "meta_payoff_gate_disabled"
-    assert decisions["RDBEAR"]["metrics"].get("execution_gate_state") == "meta_payoff_gate_disabled"
+    assert decisions["R_10"]["metrics"].get("execution_gate_state") == "meta_payoff_gate_disabled"
+    assert decisions["R_10"]["metrics"].get("execution_gate_state") == "meta_payoff_gate_disabled"
 
 
 def test_sniper_cluster_keeps_strong_tcn_when_peer_neutral_clamp(orch_ready):
@@ -173,7 +173,7 @@ def test_sniper_cluster_keeps_strong_tcn_when_peer_neutral_clamp(orch_ready):
     orch.risk_manager.pending_loss_total = lambda: 0.0
     orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = False
     decisions = {
-        "RDBEAR": {
+        "R_50": {
             "metrics": {
                 "deploy_ok": True,
                 "direction": None,
@@ -183,7 +183,7 @@ def test_sniper_cluster_keeps_strong_tcn_when_peer_neutral_clamp(orch_ready):
                 "execute": False,
             }
         },
-        "RDBULL": {
+        "R_10": {
             "metrics": {
                 "deploy_ok": True,
                 "direction": "CALL",
@@ -194,14 +194,14 @@ def test_sniper_cluster_keeps_strong_tcn_when_peer_neutral_clamp(orch_ready):
         },
     }
     assert quality_conviction_suspends_cluster(orch, decisions) is False
-    assert decisions["RDBULL"]["metrics"].get("signal_status") != "SIGNAL_SUSPENDED"
+    assert decisions["R_10"]["metrics"].get("signal_status") != "SIGNAL_SUSPENDED"
 
 
 def test_quality_conviction_suspends_cluster_false_for_regular_elastic_signal(orch_ready):
     orch = orch_ready
     decisions = {
-        "RDBULL": {"metrics": _edge_signal_metrics() | {"deploy_ok": True, "direction": "CALL"}},
-        "RDBEAR": {
+        "R_10": {"metrics": _edge_signal_metrics() | {"deploy_ok": True, "direction": "CALL"}},
+        "R_50": {
             "metrics": {
                 "calibrated_prob": 0.30,
                 "predicted_payoff_edge": 0.06,
@@ -240,7 +240,7 @@ def test_quality_conviction_suspends_cluster_suppresses_sub_minute_duplicate_log
     orch.risk_manager.consecutive_losses_linear = 0
     orch.risk_manager.pending_loss_total = lambda: 0.0
     orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = False
-    decisions = {"RDBULL": {"metrics": _weak_edge_metrics()}}
+    decisions = {"R_10": {"metrics": _weak_edge_metrics()}}
     with caplog.at_level("INFO", logger="AETH"):
         assert quality_conviction_suspends_cluster(orch, decisions) is False
         orch._broker_server_time_utc = datetime(2026, 7, 7, 23, 10, 17, tzinfo=UTC)
@@ -265,13 +265,13 @@ def test_quality_conviction_waives_suspension_during_recovery_mandatory(orch_rea
     orch = orch_ready
     orch.risk_manager.consecutive_losses_linear = 2
     orch.risk_manager.pending_loss_total = lambda: 4.14
-    decisions = {"RDBULL": {"metrics": _weak_edge_metrics()}}
+    decisions = {"R_10": {"metrics": _weak_edge_metrics()}}
     assert quality_conviction_suspends_cluster(orch, decisions) is False
 
 
 def test_quality_conviction_suspends_cluster_skips_deploy_blocked_entries(orch_ready):
     orch = orch_ready
-    decisions = {"RDBULL": {"direction": "CALL", "metrics": {"deploy_ok": False, "calibrated_prob": 0.7}}}
+    decisions = {"R_10": {"direction": "CALL", "metrics": {"deploy_ok": False, "calibrated_prob": 0.7}}}
     assert quality_conviction_suspends_cluster(orch, decisions) is False
 
 

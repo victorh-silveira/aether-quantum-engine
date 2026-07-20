@@ -6,7 +6,7 @@ import math
 from dataclasses import dataclass, field
 
 
-DRIFT_SYMBOLS = ("RDBEAR", "RDBULL")
+DRIFT_SYMBOLS = ("R_10",)
 
 
 @dataclass

@@ -36,8 +36,8 @@ def test_release_post_settlement_task_clears_matching_reference(orch_ready):
 def test_prune_stale_risk_contract_ids_clears_orphans(orch_ready):
     orch = orch_ready
     orch.risk_manager.active_contract_ids = [888, 999]
-    orch.risk_manager.contract_to_symbol[888] = "RDBULL"
-    orch.risk_manager.contract_to_symbol[999] = "RDBEAR"
+    orch.risk_manager.contract_to_symbol[888] = "R_10"
+    orch.risk_manager.contract_to_symbol[999] = "R_10"
     orch.risk_manager.cluster_results[999] = -1.0
     _prune_stale_risk_contract_ids(orch)
     assert orch.risk_manager.active_contract_ids == []

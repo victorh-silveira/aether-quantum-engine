@@ -16,6 +16,7 @@ from src.application.services.execution_direction_checks import (
     sync_entry_metrics,
 )
 from src.application.services.execution_quality_gate import ensure_direction_margin
+from src.application.services.force_trade_mode import force_trade_every_cycle
 from src.application.services.live_signal_metrics import (
     apply_live_calib_drift_soft,
     attach_live_signal_metrics,
@@ -48,8 +49,13 @@ def _apply_persistence_guard_skip(
     peer_entry: dict | None,
     cycle_id: int,
     infra_cfg: dict | None,
+    force: bool = False,
 ) -> bool:
     """Aplica persistence guard como skip; nunca aceita flip de lado."""
+    if force:
+        metrics.pop("persistence_guard_skip", None)
+        metrics.pop("quality_guard_reject", None)
+        return False
     guarded = evaluate_direction_persistence_guard(
         symbol,
         dl_dir,
@@ -88,6 +94,7 @@ def _finalize_execution_metrics(
     symbol: str | None,
     risk_manager: Any | None = None,
     orch: Any | None = None,
+    force: bool = False,
 ) -> tuple[TradeDirection, dict] | None:
     """Aplica decisao de execucao final."""
     if symbol is not None:
@@ -101,15 +108,26 @@ def _finalize_execution_metrics(
         base_score=score,
         symbol=symbol,
     )
+    if (
+        not force
+        and metrics.get("quality_guard_reject")
+        and str(metrics.get("gate_reason") or "") == "meta_negative_edge"
+    ):
+        sync_entry_metrics(entry, metrics)
+        return None
     hard = should_veto_meta_payoff_negative_zscore(
         metrics,
         direction=exec_dir,
         risk_manager=risk_manager,
         orch=orch,
     )
-    if hard or is_execution_signal_vetoed(metrics):
+    if (hard or is_execution_signal_vetoed(metrics)) and not force:
         sync_entry_metrics(entry, metrics)
         return None
+    if force:
+        metrics.pop("signal_status", None)
+        metrics["meta_veto_mode"] = "none"
+        metrics["force_trade_every_cycle"] = True
     metrics.update(
         {
             "exec_direction": exec_dir.name,
@@ -143,6 +161,7 @@ def resolve_execution_direction(
     """Resolve direcao micro fiel ao sinal TCN/DL com telemetria meta-regressor."""
     _ = (calibration_cfg, corr_matrix)
     exec_cfg_dict = exec_cfg if isinstance(exec_cfg, dict) else {}
+    force = force_trade_every_cycle(exec_cfg_dict)
     checks = initial_direction_checks(entry, exec_cfg_dict, orch=orch)
     if checks is None:
         return None
@@ -155,6 +174,7 @@ def resolve_execution_direction(
         peer_entry=peer_entry,
         cycle_id=cycle_id,
         infra_cfg=infra_cfg,
+        force=force,
     ):
         return None
     score = seed_direction_metrics(metrics, dl_dir=dl_dir, prob=prob)
@@ -197,4 +217,5 @@ def resolve_execution_direction(
         symbol=symbol,
         risk_manager=risk_manager,
         orch=orch,
+        force=force,
     )

@@ -111,9 +111,9 @@ async def test_orchestrator_on_candle_ticks_retrain_counters_in_train_mode(orch_
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config_train, "token")
-        orch.anchor = "RDBULL"
+        orch.anchor = "R_10"
         candle = MagicMock()
-        candle.symbol = "RDBULL"
+        candle.symbol = "R_10"
         candle.epoch = 100
         orch._last_epoch = 0
         with patch("src.application.services.orchestrator.tick_bars_since_train") as mock_tick:

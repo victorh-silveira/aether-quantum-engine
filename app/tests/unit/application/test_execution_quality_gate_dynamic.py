@@ -12,7 +12,7 @@ TRADING_CYCLE_MODULE = "src.application.services.orchestrator.trading_cycle_entr
 
 def test_cluster_quality_gate_blocks_mandatory_fallback_when_all_viable_rejected():
     decisions = {
-        "RDBULL": {
+        "R_10": {
             "direction": "CALL",
             "metrics": {
                 "calibrated_prob": 0.55,
@@ -28,13 +28,13 @@ def test_cluster_quality_gate_blocks_mandatory_fallback_when_all_viable_rejected
         decisions,
         exec_cfg={},
         risk_manager=risk_manager,
-        trade_symbols=["RDBULL"],
+        trade_symbols=["R_10"],
     )
 
 
 def test_cluster_quality_gate_allows_soft_meta_zscore_reject():
     decisions = {
-        "RDBULL": {
+        "R_10": {
             "direction": "CALL",
             "metrics": {
                 "calibrated_prob": 0.64,
@@ -48,45 +48,45 @@ def test_cluster_quality_gate_allows_soft_meta_zscore_reject():
     }
     risk_manager = SimpleNamespace(
         consecutive_losses_linear=4,
-        pending_loss={"RDBULL": 540.0},
+        pending_loss={"R_10": 540.0},
         pending_loss_total=lambda: 540.0,
     )
     assert not cluster_quality_gate_blocks_mandatory_fallback(
         decisions,
         exec_cfg={},
         risk_manager=risk_manager,
-        trade_symbols=["RDBULL"],
+        trade_symbols=["R_10"],
     )
 
 
 def test_cluster_quality_gate_allows_mandatory_fallback_when_one_symbol_passes():
     decisions = {
-        "RDBULL": {
+        "R_10": {
             "direction": "CALL",
             "metrics": {"calibrated_prob": 0.55, "quality_guard_reject": True, "deploy_ok": True},
         },
-        "RDBEAR": {
+        "R_50": {
             "direction": "PUT",
             "metrics": {"calibrated_prob": 0.70, "deploy_ok": True},
         },
     }
     risk_manager = SimpleNamespace(
         consecutive_losses_linear=0,
-        pending_loss={"RDBULL": 1.0},
+        pending_loss={"R_10": 1.0},
         pending_loss_total=lambda: 1.0,
     )
     assert not cluster_quality_gate_blocks_mandatory_fallback(
         decisions,
         exec_cfg={},
         risk_manager=risk_manager,
-        trade_symbols=["RDBULL", "RDBEAR"],
+        trade_symbols=["R_10", "R_50"],
     )
 
 
 def test_cluster_quality_gate_skips_non_viable_entries():
     decisions = {
-        "RDBULL": {"direction": "CALL", "metrics": {"deploy_ok": False, "quality_guard_reject": True}},
-        "RDBEAR": {"direction": "PUT", "metrics": {"gate_reason": "data", "quality_guard_reject": True}},
+        "R_10": {"direction": "CALL", "metrics": {"deploy_ok": False, "quality_guard_reject": True}},
+        "R_50": {"direction": "PUT", "metrics": {"gate_reason": "data", "quality_guard_reject": True}},
         "ALT": {"metrics": "invalid"},
     }
     risk_manager = SimpleNamespace(consecutive_losses_linear=1, pending_loss={}, pending_loss_total=lambda: 0.0)
@@ -94,13 +94,13 @@ def test_cluster_quality_gate_skips_non_viable_entries():
         decisions,
         exec_cfg={},
         risk_manager=risk_manager,
-        trade_symbols=["RDBULL", "RDBEAR", "ALT", "MISSING"],
+        trade_symbols=["R_10", "R_50", "ALT", "MISSING"],
     )
 
 
 def test_cluster_quality_gate_counts_raw_prob_entry():
     decisions = {
-        "RDBULL": {
+        "R_10": {
             "metrics": {
                 "raw_prob": 0.55,
                 "quality_guard_reject": True,
@@ -114,13 +114,13 @@ def test_cluster_quality_gate_counts_raw_prob_entry():
         decisions,
         exec_cfg={},
         risk_manager=risk_manager,
-        trade_symbols=["RDBULL"],
+        trade_symbols=["R_10"],
     )
 
 
 def test_cluster_quality_gate_allows_fallback_on_soft_tcn_margin_reject():
     decisions = {
-        "RDBULL": {
+        "R_10": {
             "direction": "PUT",
             "metrics": {
                 "calibrated_prob": 0.52,
@@ -135,20 +135,20 @@ def test_cluster_quality_gate_allows_fallback_on_soft_tcn_margin_reject():
     }
     risk_manager = SimpleNamespace(
         consecutive_losses_linear=1,
-        pending_loss={"RDBULL": 38.56},
+        pending_loss={"R_10": 38.56},
         pending_loss_total=lambda: 38.56,
     )
     assert not cluster_quality_gate_blocks_mandatory_fallback(
         decisions,
         exec_cfg={},
         risk_manager=risk_manager,
-        trade_symbols=["RDBULL"],
+        trade_symbols=["R_10"],
     )
 
 
 def test_cluster_quality_gate_blocks_soft_tcn_when_zscore_strongly_negative():
     decisions = {
-        "RDBULL": {
+        "R_10": {
             "direction": "CALL",
             "metrics": {
                 "calibrated_prob": 0.52,
@@ -162,20 +162,20 @@ def test_cluster_quality_gate_blocks_soft_tcn_when_zscore_strongly_negative():
     }
     risk_manager = SimpleNamespace(
         consecutive_losses_linear=1,
-        pending_loss={"RDBULL": 20.0},
+        pending_loss={"R_10": 20.0},
         pending_loss_total=lambda: 20.0,
     )
     assert cluster_quality_gate_blocks_mandatory_fallback(
         decisions,
         exec_cfg={},
         risk_manager=risk_manager,
-        trade_symbols=["RDBULL"],
+        trade_symbols=["R_10"],
     )
 
 
 def test_cluster_quality_gate_allows_soft_tcn_reject_without_zscore():
     decisions = {
-        "RDBULL": {
+        "R_10": {
             "direction": "CALL",
             "metrics": {
                 "calibrated_prob": 0.52,
@@ -187,14 +187,14 @@ def test_cluster_quality_gate_allows_soft_tcn_reject_without_zscore():
     }
     risk_manager = SimpleNamespace(
         consecutive_losses_linear=1,
-        pending_loss={"RDBULL": 20.0},
+        pending_loss={"R_10": 20.0},
         pending_loss_total=lambda: 20.0,
     )
     assert not cluster_quality_gate_blocks_mandatory_fallback(
         decisions,
         exec_cfg={},
         risk_manager=risk_manager,
-        trade_symbols=["RDBULL"],
+        trade_symbols=["R_10"],
     )
 
 
@@ -204,7 +204,7 @@ def test_cluster_quality_gate_blocks_mandatory_fallback_ignores_non_dict_decisio
         [],
         exec_cfg={},
         risk_manager=risk_manager,
-        trade_symbols=["RDBULL"],
+        trade_symbols=["R_10"],
     )
 
 
@@ -217,7 +217,7 @@ async def test_trading_cycle_executes_cluster_on_mandatory_quality_telemetry(orc
     orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 0
     orch.executor.execute_cluster = AsyncMock()
     weak_decisions = {
-        "RDBULL": {
+        "R_10": {
             "metrics": {
                 "calibrated_prob": 0.52,
                 "predicted_payoff_edge": 0.01,
@@ -225,7 +225,7 @@ async def test_trading_cycle_executes_cluster_on_mandatory_quality_telemetry(orc
                 "meta_payoff_edge_zscore": 0.10,
             }
         },
-        "RDBEAR": {
+        "R_50": {
             "metrics": {
                 "calibrated_prob": 0.48,
                 "predicted_payoff_edge": 0.01,

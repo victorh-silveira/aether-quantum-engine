@@ -1,6 +1,6 @@
 # Algoritmo de Índices Sintéticos da Deriv e Estratégia de Trading
 
-Este documento detalha o funcionamento técnico dos índices sintéticos da Deriv (Volatility e **Drift** `RDBEAR`/`RDBULL`) e como o **Aether Quantum Engine** se posiciona estrategicamente para operá-los.
+Este documento detalha o funcionamento técnico dos índices sintéticos da Deriv (Volatility, incluindo **`R_10`**) e como o **Aether Quantum Engine** se posiciona estrategicamente para operá-los.
 
 ---
 
@@ -26,7 +26,7 @@ O motor central de preços da Deriv utiliza um **Gerador de Números Pseudo-Alea
 
 ### 1.2 Parâmetros e Coeficientes de Volatilidade
 
-Cada símbolo possui parâmetros de volatilidade fixos (Volatility 10/50/75/100 na Deriv; no motor, o par **Drift** `RDBEAR`/`RDBULL`). O mercado opera 24/7 com comportamento estatístico consistente.
+Cada símbolo possui parâmetros de volatilidade fixos (Volatility 10/50/75/100 na Deriv; no motor, o universo operacional atual é **`R_10`**). O mercado opera 24/7 com comportamento estatístico consistente.
 
 ---
 
@@ -116,8 +116,8 @@ Os inputs para o modelo LightGBM sofrem um clipping estrito a fim de mitigar des
 #### 2.9.2 Equações da Válvula de Drift Proibido
 A invariante matemática absoluta de Drift Proibido restringe a execução de ordens contrárias ao drift natural das séries sob estresse de volatilidade assimétrica:
 \[\text{Veto} = \begin{cases} 
-\text{True} & \text{se } (\text{Símbolo} = \text{RDBULL} \land \text{Direção} = \text{PUT}) \land (Z_{\text{vol}} \ge 2.0 \lor Z_{\text{bb\_width}} \ge 2.0) \\
-\text{True} & \text{se } (\text{Símbolo} = \text{RDBEAR} \land \text{Direção} = \text{CALL}) \land (Z_{\text{vol}} \ge 2.0 \lor Z_{\text{bb\_width}} \ge 2.0) \\
+\text{True} & \text{se } (\text{Símbolo} = \text{R\_10} \land \text{Direção} = \text{PUT}) \land (Z_{\text{vol}} \ge 2.0 \lor Z_{\text{bb\_width}} \ge 2.0) \\
+\text{True} & \text{se } (\text{Símbolo} = \text{R\_10} \land \text{Direção} = \text{CALL}) \land (Z_{\text{vol}} \ge 2.0 \lor Z_{\text{bb\_width}} \ge 2.0) \\
 \text{False} & \text{caso contrário}
 \end{cases}\]
 Se \(\text{Veto} = \text{True}\), o motor:

@@ -17,14 +17,14 @@ def test_pending_loss_total_without_risk_manager():
 
 
 def test_pending_loss_total_from_dict():
-    rm = SimpleNamespace(pending_loss={"RDBULL": 3.5})
+    rm = SimpleNamespace(pending_loss={"R_10": 3.5})
     assert _pending_loss_total(rm) == pytest.approx(3.5)
 
 
 def test_pending_loss_total_from_dict_via_resolve_warm_up():
     orch = SimpleNamespace(
         config={"orchestrator": {"stream_warm_up_delay_seconds": 45}},
-        risk_manager=SimpleNamespace(pending_loss={"RDBULL": 2.0, "RDBEAR": 2.14}),
+        risk_manager=SimpleNamespace(pending_loss={"R_10": 2.0, "R_50": 2.14}),
     )
     assert resolve_post_reconnect_warm_up_delay_seconds(orch) == pytest.approx(5.0)
 
@@ -32,7 +32,7 @@ def test_pending_loss_total_from_dict_via_resolve_warm_up():
 def test_resolve_post_reconnect_warm_up_delay_seconds_shortens_with_pending():
     orch = SimpleNamespace(
         config={"orchestrator": {"stream_warm_up_delay_seconds": 45}},
-        risk_manager=SimpleNamespace(pending_loss={"RDBULL": 12.0}),
+        risk_manager=SimpleNamespace(pending_loss={"R_10": 12.0}),
     )
     assert resolve_post_reconnect_warm_up_delay_seconds(orch) == pytest.approx(5.0)
 
@@ -64,7 +64,7 @@ async def test_release_trading_cycle_after_reconnect_clears_signature_and_epoch(
     orch = SimpleNamespace(
         config={"orchestrator": {"stream_warm_up_delay_seconds": 45}},
         risk_manager=SimpleNamespace(
-            pending_loss={"RDBULL": 4.14},
+            pending_loss={"R_10": 4.14},
             consecutive_losses_linear=2,
             pending_loss_total=lambda: 4.14,
         ),

@@ -6,12 +6,13 @@ from typing import Any
 
 from src.application.services.deep_learning.dl_features import FEATURE_DIM
 from src.application.services.meta_classifier_flow_features import FLOW_FEATURE_COUNT
+from src.domain.symbols.drift_symbols import DEFAULT_ANCHOR, hedge_peer
 
 
 CROSS_SYMBOL_FEATURE_COUNT = 3
 META_FEATURE_DIM = FEATURE_DIM + CROSS_SYMBOL_FEATURE_COUNT + FLOW_FEATURE_COUNT + 4
-ANCHOR_BULL = "RDBULL"
-ANCHOR_BEAR = "RDBEAR"
+ANCHOR_BULL = DEFAULT_ANCHOR
+ANCHOR_BEAR = DEFAULT_ANCHOR
 
 CROSS_SYMBOL_KEYS = (
     "cross_symbol_prob_delta",
@@ -41,8 +42,10 @@ def compute_cross_symbol_triplet(
     bull_metrics: dict[str, Any] | None,
     bear_metrics: dict[str, Any] | None,
 ) -> dict[str, float]:
-    """Calcula deltas de arbitragem entre RDBULL e RDBEAR."""
+    """Calcula deltas de arbitragem entre pares; zeros quando nao ha peer."""
     if not isinstance(bull_metrics, dict) or not isinstance(bear_metrics, dict):
+        return dict.fromkeys(CROSS_SYMBOL_KEYS, 0.0)
+    if bull_metrics is bear_metrics:
         return dict.fromkeys(CROSS_SYMBOL_KEYS, 0.0)
     bull_call = _metric_prob(bull_metrics)
     bear_put = 1.0 - _metric_prob(bear_metrics)
@@ -59,14 +62,20 @@ def compute_cross_symbol_triplet(
 
 def attach_cross_symbol_features_to_decisions(decisions: dict[str, dict]) -> None:
     """Propaga triplet cross-symbol para cada decisao antes do prefetch meta."""
-    bull_entry = decisions.get(ANCHOR_BULL) if isinstance(decisions.get(ANCHOR_BULL), dict) else None
-    bear_entry = decisions.get(ANCHOR_BEAR) if isinstance(decisions.get(ANCHOR_BEAR), dict) else None
-    bull_metrics = bull_entry.get("metrics") if isinstance(bull_entry, dict) else None
-    bear_metrics = bear_entry.get("metrics") if isinstance(bear_entry, dict) else None
-    triplet = compute_cross_symbol_triplet(
-        bull_metrics if isinstance(bull_metrics, dict) else None,
-        bear_metrics if isinstance(bear_metrics, dict) else None,
-    )
+    symbols = [str(symbol) for symbol in decisions]
+    primary = next((symbol for symbol in symbols if hedge_peer(symbol) is not None), None)
+    if primary is None:
+        triplet = dict.fromkeys(CROSS_SYMBOL_KEYS, 0.0)
+    else:
+        peer = hedge_peer(primary)
+        primary_entry = decisions.get(primary) if isinstance(decisions.get(primary), dict) else None
+        peer_entry = decisions.get(peer) if peer and isinstance(decisions.get(peer), dict) else None
+        primary_metrics = primary_entry.get("metrics") if isinstance(primary_entry, dict) else None
+        peer_metrics = peer_entry.get("metrics") if isinstance(peer_entry, dict) else None
+        triplet = compute_cross_symbol_triplet(
+            primary_metrics if isinstance(primary_metrics, dict) else None,
+            peer_metrics if isinstance(peer_metrics, dict) else None,
+        )
     for entry in decisions.values():
         if not isinstance(entry, dict):
             continue

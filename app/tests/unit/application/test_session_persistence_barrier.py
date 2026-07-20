@@ -62,13 +62,13 @@ async def test_run_linear_reset_persistence_barrier_sequences_save_and_yield(orc
     orch = orch_ready
     orch.risk_manager.consecutive_losses_linear = 3
     orch.risk_manager.last_loss_stake = 12.0
-    orch.risk_manager.pending_loss = {"RDBULL": 0.0}
+    orch.risk_manager.pending_loss = {"R_10": 0.0}
     orch._persist_full_state_unlocked = AsyncMock()
     with patch(f"{BARRIER_MODULE}.asyncio.sleep", new_callable=AsyncMock) as sleep_mock:
         await run_linear_reset_persistence_barrier(orch)
     assert orch.risk_manager.consecutive_losses_linear == 0
     assert orch.risk_manager.last_loss_stake == 0.0
-    assert "RDBULL" not in orch.risk_manager.pending_loss
+    assert "R_10" not in orch.risk_manager.pending_loss
     orch._persist_full_state_unlocked.assert_awaited_once()
     assert sleep_mock.await_count == 2
     assert sleep_mock.await_args_list[-1].args[0] == pytest.approx(_LINEAR_RESET_YIELD_SECONDS)
@@ -93,7 +93,7 @@ async def test_trading_cycle_skips_execute_cluster_when_persistence_lock_races(o
 
     async def _collect_and_lock(_orch):
         _orch._session_persistence_write_active = True
-        return {"RDBULL": {"direction": None, "metrics": {"execute": False}}}
+        return {"R_10": {"direction": None, "metrics": {"execute": False}}}
 
     with patch(
         f"{TRADING_CYCLE_MODULE}.collect_deep_learning_decisions",
@@ -135,7 +135,7 @@ async def test_process_contract_settlement_linear_reset_runs_persistence_barrier
         status=TradeStatus.OPEN,
         buy_price=10.0,
         payout=18.0,
-        symbol="RDBULL",
+        symbol="R_10",
         direction=TradeDirection.CALL,
         stake=10.0,
         expiry_time=0,
@@ -146,7 +146,7 @@ async def test_process_contract_settlement_linear_reset_runs_persistence_barrier
         status=TradeStatus.OPEN,
         buy_price=10.0,
         payout=20.0,
-        symbol="RDBULL",
+        symbol="R_10",
         direction=TradeDirection.CALL,
         stake=10.0,
         expiry_time=0,
@@ -172,18 +172,18 @@ async def test_process_contract_settlement_linear_reset_runs_persistence_barrier
     }
     await orch.state.add_contract(loss_contract)
     orch.risk_manager.active_contract_ids = [320]
-    orch.risk_manager.contract_to_symbol[320] = "RDBULL"
+    orch.risk_manager.contract_to_symbol[320] = "R_10"
     orch.risk_manager.begin_cluster(1)
     with patch_instant_post_settlement_poll():
         await process_contract_settlement(orch, loss_data)
         if orch._post_settlement_task is not None:
             await orch._post_settlement_task
     assert orch.risk_manager.consecutive_losses_linear == 1
-    assert orch.risk_manager.pending_loss["RDBULL"] == pytest.approx(10.0)
+    assert orch.risk_manager.pending_loss["R_10"] == pytest.approx(10.0)
 
     await orch.state.add_contract(win_contract)
     orch.risk_manager.active_contract_ids = [321]
-    orch.risk_manager.contract_to_symbol[321] = "RDBULL"
+    orch.risk_manager.contract_to_symbol[321] = "R_10"
     orch.risk_manager.begin_cluster(1)
     with (
         patch(

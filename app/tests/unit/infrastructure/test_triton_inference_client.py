@@ -57,7 +57,7 @@ async def test_reload_triton_repository_success():
     cfg = {"infra": {"triton": {"enabled": True, "http_url": "http://localhost:8000"}}}
     with patch(
         "src.infrastructure.inference.triton_inference_client.post_triton_repository_reload",
-        return_value=[{"name": "RDBEAR"}],
+        return_value=[{"name": "R_10"}],
     ):
         ok = await reload_triton_repository(cfg)
     assert ok is True
@@ -83,14 +83,14 @@ async def test_reload_triton_repository_waits_for_symbols():
         ),
         patch(
             "src.infrastructure.inference.triton_inference_client.load_triton_models_sequential",
-            return_value=["RDBEAR", "RDBULL"],
+            return_value=["R_10", "R_50"],
         ) as load_mock,
         patch(
             "src.infrastructure.inference.triton_inference_client.wait_triton_models_ready",
             return_value=True,
         ) as wait_mock,
     ):
-        ok = await reload_triton_repository(cfg, ["RDBEAR", "RDBULL"])
+        ok = await reload_triton_repository(cfg, ["R_10", "R_50"])
     assert ok is True
     load_mock.assert_called_once()
     assert wait_mock.call_count >= 1
@@ -108,7 +108,7 @@ async def test_wait_triton_models_stable_skips_load_when_repo_unchanged_and_read
             "src.infrastructure.inference.triton_inference_client.load_triton_models_sequential",
         ) as load_mock,
     ):
-        ok = await wait_triton_models_stable(cfg, ["RDBEAR"], repo_changed=False)
+        ok = await wait_triton_models_stable(cfg, ["R_10"], repo_changed=False)
     assert ok is True
     wait_mock.assert_called_once()
     load_mock.assert_not_called()
@@ -116,7 +116,7 @@ async def test_wait_triton_models_stable_skips_load_when_repo_unchanged_and_read
 
 @pytest.mark.asyncio
 async def test_wait_triton_models_stable_disabled():
-    ok = await wait_triton_models_stable({"infra": {"triton": {"enabled": False}}}, ["RDBEAR"])
+    ok = await wait_triton_models_stable({"infra": {"triton": {"enabled": False}}}, ["R_10"])
     assert ok is False
 
 
@@ -136,14 +136,14 @@ async def test_wait_triton_models_stable_returns_false_when_not_ready():
         ),
         patch(
             "src.infrastructure.inference.triton_inference_client.load_triton_models_sequential",
-            return_value=["RDBEAR"],
+            return_value=["R_10"],
         ),
         patch(
             "src.infrastructure.inference.triton_inference_client.wait_triton_models_ready",
             return_value=False,
         ),
     ):
-        ok = await wait_triton_models_stable(cfg, ["RDBEAR"], repo_changed=True)
+        ok = await wait_triton_models_stable(cfg, ["R_10"], repo_changed=True)
     assert ok is False
 
 
@@ -161,10 +161,10 @@ async def test_wait_triton_models_stable_loads_when_cache_not_ready():
         ),
         patch(
             "src.infrastructure.inference.triton_inference_client.load_triton_models_sequential",
-            return_value=["RDBEAR"],
+            return_value=["R_10"],
         ) as load_mock,
     ):
-        ok = await wait_triton_models_stable(cfg, ["RDBEAR"], repo_changed=False)
+        ok = await wait_triton_models_stable(cfg, ["R_10"], repo_changed=False)
     assert ok is True
     load_mock.assert_called_once()
 
@@ -179,14 +179,14 @@ async def test_reload_triton_repository_wait_timeout():
         ),
         patch(
             "src.infrastructure.inference.triton_inference_client.load_triton_models_sequential",
-            return_value=["RDBEAR"],
+            return_value=["R_10"],
         ),
         patch(
             "src.infrastructure.inference.triton_inference_client.wait_triton_models_ready",
             return_value=False,
         ),
     ):
-        ok = await reload_triton_repository(cfg, ["RDBEAR"])
+        ok = await reload_triton_repository(cfg, ["R_10"])
     assert ok is False
 
 
@@ -220,7 +220,7 @@ async def test_wait_triton_models_stable_load_http_error():
             side_effect=OSError("connection refused"),
         ),
     ):
-        ok = await wait_triton_models_stable(cfg, ["RDBEAR"], repo_changed=True)
+        ok = await wait_triton_models_stable(cfg, ["R_10"], repo_changed=True)
     assert ok is False
 
 
@@ -242,7 +242,7 @@ async def test_wait_triton_models_stable_skips_load_when_changed_empty_and_ready
     ):
         ok = await wait_triton_models_stable(
             cfg,
-            ["RDBEAR", "RDBULL"],
+            ["R_10", "R_50"],
             repo_changed=True,
             changed_models=[],
         )

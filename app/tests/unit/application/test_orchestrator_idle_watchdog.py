@@ -85,14 +85,14 @@ async def test_settlement_schedules_cycle_before_save(orch_ready):
         status=TradeStatus.OPEN,
         buy_price=5.83,
         payout=10.60,
-        symbol="RDBEAR",
+        symbol="R_10",
         direction=TradeDirection.PUT,
         stake=5.83,
         expiry_time=0,
     )
     await orch.state.add_contract(contract)
     orch.risk_manager.active_contract_ids = [1692883719]
-    orch.risk_manager.contract_to_symbol[1692883719] = "RDBEAR"
+    orch.risk_manager.contract_to_symbol[1692883719] = "R_10"
     orch.risk_manager.begin_cluster(1)
     call_order: list[str] = []
     original_schedule = orch.schedule_trading_cycle_after_settlement
@@ -130,7 +130,7 @@ async def test_stop_cancels_pending_post_settlement_task(orch_config):
         orch._post_settlement_task = pending
         deferred = MagicMock()
         deferred.done.return_value = False
-        orch._dl_deferred_tasks = {"RDBEAR": deferred}
+        orch._dl_deferred_tasks = {"R_10": deferred}
         await orch.stop()
         pending.cancel.assert_called_once()
         deferred.cancel.assert_called_once()

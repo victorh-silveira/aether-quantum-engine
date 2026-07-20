@@ -18,15 +18,15 @@ def test_market_decision_score_penalizes_repeat_loss_symbol():
     alternate = market_decision_score(
         metrics,
         recovery_active=True,
-        symbol="RDBEAR",
-        last_loss_symbol="RDBULL",
+        symbol="R_50",
+        last_loss_symbol="R_10",
         exec_direction=TradeDirection.CALL,
     )
     repeat = market_decision_score(
         metrics,
         recovery_active=True,
-        symbol="RDBULL",
-        last_loss_symbol="RDBULL",
+        symbol="R_10",
+        last_loss_symbol="R_10",
         exec_direction=TradeDirection.CALL,
     )
     assert alternate > repeat
@@ -44,7 +44,7 @@ def test_resolve_execution_direction_strong_call():
             "indicators": {"hurst": 0.55, "adx": 0.30, "vol_ratio": 1.1, "rsi": 0.52, "keltner": 0.55, "cmo": 0.05},
         },
     }
-    result = resolve_execution_direction(entry, symbol="RDBULL")
+    result = resolve_execution_direction(entry, symbol="R_10")
     assert result is not None
     direction, _ = result
     assert direction == TradeDirection.CALL

@@ -42,12 +42,12 @@ _CLUSTER_RE = re.compile(
     re.IGNORECASE,
 )
 _CLUSTER_TOKEN_RE = re.compile(
-    r"(?P<symbol>RDBEAR|RDBULL):\s+(?P<ord>CALL|PUT|FLAT)"
+    r"(?P<symbol>R_\d+|RDBEAR|RDBULL):\s+(?P<ord>CALL|PUT|FLAT)"
     r"(?:\s+\((?:Prob:\s+(?P<prob>-?[\d.]+)\s+Cal:\s+(?P<cal>-?[\d.]+)\s+Edge:\s+(?P<edge>[+-]?[\d.]+)|(?P<veto>[A-Z0-9_]+))\))?",
     re.IGNORECASE,
 )
 _EXEC_RE = re.compile(
-    r"\]\s*EXEC\s*\|\|\s*(?P<ord>CALL|PUT)\s+\[(?P<symbol>RDBEAR|RDBULL)\]\s*\|\|\s*"
+    r"\]\s*EXEC\s*\|\|\s*(?P<ord>CALL|PUT)\s+\[(?P<symbol>R_\d+|RDBEAR|RDBULL)\]\s*\|\|\s*"
     r"STAKE:\s*(?P<stake>-?[\d.]+)\s+\((?P<mode>[A-Z0-9_]+)\)\s*\|\s*"
     r"PEND:\s*(?P<pend>-?[\d.]+)"
     r"(?:\s*\|\s*LIN:\s*(?P<lin>-?\d+))?"

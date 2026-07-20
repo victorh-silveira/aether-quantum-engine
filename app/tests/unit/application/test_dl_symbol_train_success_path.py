@@ -44,7 +44,7 @@ def test_run_symbol_training_persists_successful_train(tmp_path):
         ) as mock_save,
     ):
         stats, loss = run_symbol_training(
-            "RDBULL",
+            "R_10",
             runtime,
             prices,
             dl_config,

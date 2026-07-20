@@ -46,7 +46,7 @@ def test_emit_invalid_regime_defaults_explore(kelly_config):
         bankroll=100.0,
         loss_to_recover=0.0,
         linear_losses=0,
-        symbol="RDBULL",
+        symbol="R_10",
         rec_info="",
         stake_regime="WEIRD",
         safe_cap=3.5,
@@ -66,7 +66,7 @@ def test_recover_mandatory_blocked_returns_zero_when_below_min(kelly_config):
     stake = calculate_stake_for_manager(
         rm,
         120.0,
-        "RDBULL",
+        "R_10",
         0.40,
         silent=True,
         apply_stop_win=False,
@@ -81,7 +81,7 @@ def test_recover_mandatory_blocked_returns_zero_when_below_min(kelly_config):
 
 def test_recovery_infeasible_logs_when_not_silent(kelly_config):
     rm = _rm(kelly_config)
-    rm.pending_loss = {"RDBULL": 80.0}
+    rm.pending_loss = {"R_10": 80.0}
     rm.consecutive_losses_linear = 2
     rm.dlambert_unit = 1.0
     rm._recovery_allowed = MagicMock(return_value=True)
@@ -95,7 +95,7 @@ def test_recovery_infeasible_logs_when_not_silent(kelly_config):
     calculate_stake_for_manager(
         rm,
         90.0,
-        "RDBULL",
+        "R_10",
         0.70,
         silent=False,
         apply_stop_win=False,

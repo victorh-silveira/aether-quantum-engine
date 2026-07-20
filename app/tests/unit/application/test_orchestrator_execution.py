@@ -19,7 +19,7 @@ async def test_execute_cluster_dispatches_when_decisions_present(orch_config):
         orch = Orchestrator(orch_config, "token")
         orch.state.balance = 1000.0
         decisions = {
-            "RDBULL": {
+            "R_10": {
                 "direction": TradeDirection.CALL,
                 "metrics": {
                     "conviction": 1.0,
@@ -32,7 +32,7 @@ async def test_execute_cluster_dispatches_when_decisions_present(orch_config):
                     "pattern_tags": ["BULL_FLAG"],
                 },
             },
-            "RDBEAR": {
+            "R_50": {
                 "direction": TradeDirection.CALL,
                 "metrics": {
                     "conviction": 0.9,
@@ -48,14 +48,14 @@ async def test_execute_cluster_dispatches_when_decisions_present(orch_config):
         }
 
         async def _place_order_with_buffer(symbol, direction, stake, **_kw):
-            orch._pending_result_logs = ["   | RESULT: RDBEAR  | CALL | WIN  | P&L: $+1.00 | api=won"]
+            orch._pending_result_logs = ["   | RESULT: R_10  | CALL | WIN  | P&L: $+1.00 | api=won"]
             return Contract(
                 contract_id=1,
                 proposal_id="p1",
                 status=TradeStatus.OPEN,
                 buy_price=1.0,
                 payout=2.0,
-                symbol="RDBEAR",
+                symbol="R_10",
                 direction=TradeDirection.CALL,
                 stake=1.0,
                 expiry_time=0,
@@ -80,14 +80,14 @@ async def test_contract_update_won(orch_config):
             status=TradeStatus.OPEN,
             buy_price=10.0,
             payout=18.0,
-            symbol="RDBULL",
+            symbol="R_10",
             direction=TradeDirection.PUT,
             stake=10.0,
             expiry_time=0,
         )
         orch.risk_manager.active_contract_ids = [1]
         orch.risk_manager.begin_cluster(1)
-        orch.risk_manager.contract_to_symbol[1] = "RDBULL"
+        orch.risk_manager.contract_to_symbol[1] = "R_10"
         data = {
             "proposal_open_contract": {
                 "contract_id": 1,
@@ -108,10 +108,10 @@ async def test_execution_manager_skip_and_failure_paths(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch.state.balance = 1000.0
-        orch.symbols = ["RDBULL", "RDBEAR"]
+        orch.symbols = ["R_10", "R_50"]
         decisions = {
-            "RDBULL": {"direction": None, "metrics": {"conviction": 0.0}},
-            "RDBEAR": {
+            "R_10": {"direction": None, "metrics": {"conviction": 0.0}},
+            "R_50": {
                 "direction": TradeDirection.PUT,
                 "metrics": bear_put_metrics(conviction=1.0, execute=True),
             },
@@ -130,7 +130,7 @@ async def test_wait_for_settlement_polls_reconcile(orch_config):
         orch = Orchestrator(orch_config, "token")
         c = Contract(
             contract_id=1,
-            symbol="RDBULL",
+            symbol="R_10",
             direction=TradeDirection.CALL,
             stake=10.0,
             payout=18.0,
@@ -166,10 +166,7 @@ async def test_execution_manager_inter_symbol_delay(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch.state.balance = 1000.0
-        orders = [
-            ("RDBEAR", TradeDirection.CALL, {"conviction": 1.0}),
-            ("RDBEAR", TradeDirection.PUT, {"conviction": 1.0}),
-        ]
+        orders = [("R_10", TradeDirection.CALL, {"conviction": 1.0}), ("R_10", TradeDirection.PUT, {"conviction": 1.0})]
         orch.executor._place_order = AsyncMock(return_value=MagicMock(contract_id=1))
         with patch("src.application.services.orchestrator.execution_manager.asyncio.sleep", AsyncMock()) as mock_sleep:
             await orch.executor._execute_orders(orders, 0.25, 1000.0)
@@ -195,7 +192,7 @@ async def test_execution_manager_multiplier_tp_calculation(orch_config):
             return_value=MagicMock(contract_id=123, payout=100.0, buy_price=50.0)
         )
 
-        await orch.executor._place_order("RDBULL", TradeDirection.CALL, 50.0)
+        await orch.executor._place_order("R_10", TradeDirection.CALL, 50.0)
 
         args, kwargs = orch.trade_handler.buy_with_parameters.call_args
         params = kwargs.get("params") or args[3]
@@ -215,7 +212,7 @@ async def test_place_order_custom_duration(orch_config):
             "src.application.services.orchestrator.execution_orders.subscribe_open_contract",
             AsyncMock(),
         ):
-            await orch.executor._place_order("RDBEAR", TradeDirection.CALL, 2.0, duration=5)
+            await orch.executor._place_order("R_10", TradeDirection.CALL, 2.0, duration=5)
         params = orch.trade_handler.buy_with_parameters.call_args.kwargs["params"]
         assert params["duration"] == 5
 
@@ -239,7 +236,7 @@ async def test_place_order_multiplier_strips_stop_loss(orch_config):
             "src.application.services.orchestrator.execution_orders.subscribe_open_contract",
             AsyncMock(),
         ):
-            await orch.executor._place_order("RDBEAR", TradeDirection.CALL, 10.0)
+            await orch.executor._place_order("R_10", TradeDirection.CALL, 10.0)
         params = orch.trade_handler.buy_with_parameters.call_args.kwargs["params"]
         assert "stop_loss" not in params["limit_order"]
         assert "take_profit" in params["limit_order"]
@@ -258,7 +255,7 @@ async def test_place_order_subscribe_failure_still_returns_contract(orch_config)
                 status=TradeStatus.OPEN,
                 buy_price=2.34,
                 payout=4.26,
-                symbol="RDBEAR",
+                symbol="R_10",
                 direction=TradeDirection.CALL,
                 stake=2.34,
                 expiry_time=int(time.time()) + 900,
@@ -268,5 +265,5 @@ async def test_place_order_subscribe_failure_still_returns_contract(orch_config)
             "src.application.services.orchestrator.execution_orders.subscribe_open_contract",
             AsyncMock(side_effect=RuntimeError("sub")),
         ):
-            res = await orch.executor._place_order("RDBEAR", TradeDirection.CALL, 2.34)
+            res = await orch.executor._place_order("R_10", TradeDirection.CALL, 2.34)
         assert res.contract_id == 76258194841

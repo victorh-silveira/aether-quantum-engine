@@ -51,11 +51,11 @@ def test_parse_raw_output_clamps_probability():
 
 
 def test_assert_triton_probability_bounds():
-    assert assert_triton_probability(0.72, model_name="RDBEAR") == 0.72
+    assert assert_triton_probability(0.72, model_name="R_10") == 0.72
     with pytest.raises(RuntimeError, match="NaN"):
-        assert_triton_probability(float("nan"), model_name="RDBEAR")
+        assert_triton_probability(float("nan"), model_name="R_10")
     with pytest.raises(RuntimeError, match="fora"):
-        assert_triton_probability(1.05, model_name="RDBEAR")
+        assert_triton_probability(1.05, model_name="R_10")
 
 
 def test_pack_inference_tensor_makes_contiguous_batch():
@@ -89,7 +89,7 @@ async def test_triton_grpc_client_infer_2d_tensor():
         patch("src.infrastructure.inference.triton_grpc_client.grpc_aio.InferRequestedOutput"),
     ):
         infer_in.return_value.set_data_from_numpy = MagicMock()
-        prob = await client.infer_symbol("RDBEAR", np.zeros((4, 34), dtype=np.float32))
+        prob = await client.infer_symbol("R_10", np.zeros((4, 34), dtype=np.float32))
     assert prob == pytest.approx(0.33)
 
 
@@ -106,12 +106,12 @@ async def test_triton_grpc_client_concurrent_infer():
     client._infer.infer = mock_infer
     client._channel = MagicMock()
     tensors = {
-        "RDBEAR": np.zeros((1, 48, 34), dtype=np.float32),
-        "RDBULL": np.zeros((1, 48, 34), dtype=np.float32),
+        "R_10": np.zeros((1, 48, 34), dtype=np.float32),
+        "R_50": np.zeros((1, 48, 34), dtype=np.float32),
     }
     probs = await client.infer_symbols_concurrent(tensors)
-    assert probs["RDBEAR"] == pytest.approx(0.61)
-    assert probs["RDBULL"] == pytest.approx(0.39)
+    assert probs["R_10"] == pytest.approx(0.61)
+    assert probs["R_50"] == pytest.approx(0.39)
     assert mock_infer.await_count == 2
 
 
@@ -182,7 +182,7 @@ def test_get_triton_grpc_client_rebinds_across_event_loops():
 async def test_triton_grpc_client_infer_not_connected():
     client = TritonGrpcClient()
     with pytest.raises(RuntimeError, match="nao conectado"):
-        await client.infer_symbol("RDBEAR", np.zeros((1, 4, 34), dtype=np.float32))
+        await client.infer_symbol("R_10", np.zeros((1, 4, 34), dtype=np.float32))
 
 
 async def _timeout_wait_for(_coro, timeout=None):
@@ -200,7 +200,7 @@ async def test_triton_grpc_client_infer_timeout():
         patch.object(triton_grpc_module.asyncio, "wait_for", new=_timeout_wait_for),
         pytest.raises(triton_grpc_module.TritonInferenceTimeout, match=r"0\.850s"),
     ):
-        await client.infer_symbol("RDBEAR", np.zeros((1, 4, 34), dtype=np.float32))
+        await client.infer_symbol("R_10", np.zeros((1, 4, 34), dtype=np.float32))
 
 
 @pytest.mark.asyncio
@@ -228,7 +228,7 @@ async def test_triton_grpc_client_infer_raises_server_exception():
         patch("src.infrastructure.inference.triton_grpc_client.grpc_aio.InferRequestedOutput"),
         pytest.raises(InferenceServerException),
     ):
-        await client.infer_symbol("RDBEAR", np.zeros((1, 4, 34), dtype=np.float32))
+        await client.infer_symbol("R_10", np.zeros((1, 4, 34), dtype=np.float32))
 
 
 @pytest.mark.asyncio

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from src.application.services.orchestrator.orchestrator_atomic_state import orchestrator_atomic_state_context
@@ -14,6 +15,9 @@ from src.application.services.orchestrator.session_target_bootstrap import (
     current_dlambert_redis_payload,
     current_session_redis_payload,
 )
+
+
+logger = logging.getLogger("AETH")
 
 
 async def persist_full_state_unlocked(orch: Any) -> None:
@@ -54,7 +58,16 @@ async def persist_full_state_unlocked(orch: Any) -> None:
         state_mgr.mirror_balance(float(orch.state.balance))
 
 
-async def save_full_state(orch: Any) -> None:
-    """Persiste snapshot completo, sessao e assinaturas de mercado sob lock atomico."""
-    async with orchestrator_atomic_state_context(orch):
-        await persist_full_state_unlocked(orch)
+async def save_full_state(orch: Any, *, raise_on_timeout: bool = False) -> bool:
+    """Persiste snapshot completo sob lock atomico; nao derruba o motor se o lock estiver ocupado."""
+    try:
+        async with orchestrator_atomic_state_context(orch):
+            await persist_full_state_unlocked(orch)
+        return True
+    except RuntimeError as exc:
+        if "STATE_LOCK_TIMEOUT" not in str(exc):
+            raise
+        logger.warning("STATE_LOCK_BUSY | save_full_state adiado (lock ocupado)")
+        if raise_on_timeout:
+            raise
+        return False

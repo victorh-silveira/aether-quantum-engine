@@ -20,7 +20,7 @@ def test_volatility_clipping_in_precompute_price_series():
     series = precompute_price_series(
         prices,
         granularity=15,
-        symbol="RDBULL",
+        symbol="R_10",
         high=high,
         low=low,
     )
@@ -63,7 +63,7 @@ def test_meta_classifier_feature_clipping():
 
 def test_evaluate_anti_trend_lock_drift_bias_lock():
     resolved, action = evaluate_anti_trend_lock(
-        symbol="RDBULL",
+        symbol="R_10",
         proposed_direction=TradeDirection.PUT,
         consecutive_losses=0,
         bull_call_prob=0.5,
@@ -78,7 +78,7 @@ def test_evaluate_anti_trend_lock_drift_bias_lock():
     assert action == "KEEP"
 
     resolved, action = evaluate_anti_trend_lock(
-        symbol="RDBEAR",
+        symbol="R_10",
         proposed_direction=TradeDirection.CALL,
         consecutive_losses=0,
         bull_call_prob=0.5,
@@ -93,7 +93,7 @@ def test_evaluate_anti_trend_lock_drift_bias_lock():
     assert action == "KEEP"
 
     resolved, action = evaluate_anti_trend_lock(
-        symbol="RDBULL",
+        symbol="R_10",
         proposed_direction=TradeDirection.CALL,
         consecutive_losses=0,
         bull_call_prob=0.5,
@@ -122,7 +122,7 @@ def test_risk_stake_calc_drift_bias_lock():
     stake = calculate_stake_for_manager(
         rm,
         bankroll=1000.0,
-        symbol="RDBULL",
+        symbol="R_10",
         conviction=0.7,
         silent=True,
         apply_stop_win=False,
@@ -136,7 +136,7 @@ def test_risk_stake_calc_drift_bias_lock():
     stake = calculate_stake_for_manager(
         rm,
         bankroll=1000.0,
-        symbol="RDBEAR",
+        symbol="R_10",
         conviction=0.7,
         silent=True,
         apply_stop_win=False,

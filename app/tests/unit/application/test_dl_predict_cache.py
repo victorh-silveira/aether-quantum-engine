@@ -31,13 +31,13 @@ def test_store_and_resolve_cached_prediction_outside_boundary():
     orch = SimpleNamespace(_dl_prediction_cache={})
     entry = {"direction": "CALL", "metrics": {"raw_prob": 0.62}}
     fingerprint = b"tensor-fingerprint"
-    store_prediction_cache(orch, "RDBULL", entry, tensor_fingerprint=fingerprint, boundary_epoch=1000)
-    cached = resolve_cached_prediction(orch, "RDBULL", at_boundary=False)
+    store_prediction_cache(orch, "R_10", entry, tensor_fingerprint=fingerprint, boundary_epoch=1000)
+    cached = resolve_cached_prediction(orch, "R_10", at_boundary=False)
     assert cached is entry
     assert (
         resolve_cached_prediction(
             orch,
-            "RDBULL",
+            "R_10",
             at_boundary=False,
             tensor_fingerprint=b"stale-tensor",
         )
@@ -46,7 +46,7 @@ def test_store_and_resolve_cached_prediction_outside_boundary():
     assert (
         resolve_cached_prediction(
             orch,
-            "RDBULL",
+            "R_10",
             at_boundary=False,
             tensor_fingerprint=fingerprint,
         )
@@ -58,10 +58,10 @@ def test_resolve_cached_prediction_reuses_duplicate_tensor_on_boundary():
     orch = SimpleNamespace(_dl_prediction_cache={})
     entry = {"direction": "PUT", "metrics": {"raw_prob": 0.41}}
     fingerprint = b"duplicate-tensor"
-    store_prediction_cache(orch, "RDBEAR", entry, tensor_fingerprint=fingerprint, boundary_epoch=1000)
+    store_prediction_cache(orch, "R_10", entry, tensor_fingerprint=fingerprint, boundary_epoch=1000)
     cached = resolve_cached_prediction(
         orch,
-        "RDBEAR",
+        "R_10",
         at_boundary=True,
         tensor_fingerprint=fingerprint,
     )
@@ -71,11 +71,11 @@ def test_resolve_cached_prediction_reuses_duplicate_tensor_on_boundary():
 def test_resolve_cached_prediction_rejects_mismatch_on_boundary():
     orch = SimpleNamespace(_dl_prediction_cache={})
     entry = {"direction": "CALL"}
-    store_prediction_cache(orch, "RDBULL", entry, tensor_fingerprint=b"old", boundary_epoch=1)
+    store_prediction_cache(orch, "R_10", entry, tensor_fingerprint=b"old", boundary_epoch=1)
     assert (
         resolve_cached_prediction(
             orch,
-            "RDBULL",
+            "R_10",
             at_boundary=True,
             tensor_fingerprint=b"new",
         )
@@ -85,13 +85,13 @@ def test_resolve_cached_prediction_rejects_mismatch_on_boundary():
 
 def test_resolve_cached_prediction_requires_fingerprint_on_boundary():
     orch = SimpleNamespace(_dl_prediction_cache={})
-    store_prediction_cache(orch, "RDBULL", {"direction": "CALL"}, tensor_fingerprint=b"x", boundary_epoch=1)
-    assert resolve_cached_prediction(orch, "RDBULL", at_boundary=True, tensor_fingerprint=None) is None
+    store_prediction_cache(orch, "R_10", {"direction": "CALL"}, tensor_fingerprint=b"x", boundary_epoch=1)
+    assert resolve_cached_prediction(orch, "R_10", at_boundary=True, tensor_fingerprint=None) is None
 
 
 def test_resolve_cached_prediction_ignores_invalid_entry():
-    orch = SimpleNamespace(_dl_prediction_cache={"RDBULL": {"entry": "invalid"}})
-    assert resolve_cached_prediction(orch, "RDBULL", at_boundary=False) is None
+    orch = SimpleNamespace(_dl_prediction_cache={"R_10": {"entry": "invalid"}})
+    assert resolve_cached_prediction(orch, "R_10", at_boundary=False) is None
 
 
 def test_prediction_cache_initializes_on_orchestrator():

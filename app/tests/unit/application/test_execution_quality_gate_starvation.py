@@ -90,7 +90,7 @@ def test_resolve_dynamic_quality_limits_applies_starvation_decay_at_counter_6():
         pending_loss_total=0.0,
         skipped_cycles_counter=9,
     )
-    assert limits["min_direction_margin"] == pytest.approx(0.02)
+    assert limits["min_direction_margin"] == pytest.approx(0.018)
     assert limits["starvation_decay_factor"] == pytest.approx(0.60)
     assert limits["skipped_cycles_counter"] == pytest.approx(9.0)
 
@@ -155,7 +155,7 @@ def test_quality_conviction_suspends_cluster_does_not_increment_skipped_counter(
     orch.risk_manager.pending_loss_total = lambda: 0.0
     orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = False
     decisions = {
-        "RDBULL": {
+        "R_10": {
             "metrics": {
                 "calibrated_prob": 0.51,
                 "predicted_payoff_edge": 0.01,

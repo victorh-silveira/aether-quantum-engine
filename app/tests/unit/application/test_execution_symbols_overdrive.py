@@ -12,7 +12,7 @@ from src.application.services.execution_symbols_overdrive import (
     volatility_overdrive_unblocks_cluster,
 )
 from src.domain.models.trade import TradeDirection
-from tests.market_symbols import ANCHOR, PAIR
+from tests.market_symbols import ALT_SYMBOL, ANCHOR
 
 
 def _orch_stub():
@@ -41,7 +41,7 @@ def test_meta_payoff_edge_zscore_returns_none_when_fallback_missing():
 def test_overdrive_returns_none_for_single_candidate():
     orch = _orch_stub()
     ranked = [
-        (PAIR, TradeDirection.PUT, {"raw_prob": 0.50, "trade_score": 0.90}),
+        (ALT_SYMBOL, TradeDirection.PUT, {"raw_prob": 0.50, "trade_score": 0.90}),
     ]
     assert try_volatility_overdrive_override(orch, ranked) is None
 
@@ -49,7 +49,7 @@ def test_overdrive_returns_none_for_single_candidate():
 def test_overdrive_returns_none_when_leader_not_neutral():
     orch = _orch_stub()
     ranked = [
-        (PAIR, TradeDirection.PUT, {"raw_prob": 0.40, "trade_score": 0.90, "meta_payoff_edge_zscore": 0.1}),
+        (ALT_SYMBOL, TradeDirection.PUT, {"raw_prob": 0.40, "trade_score": 0.90, "meta_payoff_edge_zscore": 0.1}),
         (ANCHOR, TradeDirection.PUT, {"raw_prob": 0.31, "trade_score": 0.70, "exec_direction": "PUT"}),
     ]
     assert try_volatility_overdrive_override(orch, ranked) is None
@@ -58,7 +58,7 @@ def test_overdrive_returns_none_when_leader_not_neutral():
 def test_overdrive_returns_none_when_alternate_lacks_conviction():
     orch = _orch_stub()
     ranked = [
-        (PAIR, TradeDirection.PUT, {"raw_prob": 0.50, "trade_score": 0.90, "meta_payoff_edge_zscore": 0.1}),
+        (ALT_SYMBOL, TradeDirection.PUT, {"raw_prob": 0.50, "trade_score": 0.90, "meta_payoff_edge_zscore": 0.1}),
         (ANCHOR, TradeDirection.PUT, {"raw_prob": 0.48, "trade_score": 0.70, "meta_payoff_edge_zscore": 0.1}),
     ]
     assert try_volatility_overdrive_override(orch, ranked) is None
@@ -67,7 +67,7 @@ def test_overdrive_returns_none_when_alternate_lacks_conviction():
 def test_overdrive_uses_edge_zscore_fallback():
     orch = _orch_stub()
     ranked = [
-        (PAIR, TradeDirection.PUT, {"raw_prob": 0.50, "trade_score": 0.90}),
+        (ALT_SYMBOL, TradeDirection.PUT, {"raw_prob": 0.50, "trade_score": 0.90}),
         (
             ANCHOR,
             TradeDirection.PUT,
@@ -93,7 +93,7 @@ def test_volatility_overdrive_unblocks_cluster_returns_false_for_empty_pool():
 def test_overdrive_unblocks_cluster_skips_malformed_decision_entries(orch_ready):
     orch = orch_ready
     decisions = {
-        PAIR: "invalid",
+        ALT_SYMBOL: "invalid",
         ANCHOR: {
             "metrics": {
                 "raw_prob": 0.31,
@@ -112,7 +112,7 @@ def test_overdrive_unblocks_cluster_skips_malformed_decision_entries(orch_ready)
 def test_overdrive_redirects_when_leader_fails_quality_and_alt_has_conviction():
     orch = _orch_stub()
     ranked = [
-        (PAIR, TradeDirection.PUT, {"raw_prob": 0.50, "trade_score": 0.90}),
+        (ALT_SYMBOL, TradeDirection.PUT, {"raw_prob": 0.50, "trade_score": 0.90}),
         (ANCHOR, TradeDirection.PUT, {"raw_prob": 0.31, "trade_score": 0.70, "edge_zscore": 0.20}),
     ]
     with patch(
@@ -123,7 +123,7 @@ def test_overdrive_redirects_when_leader_fails_quality_and_alt_has_conviction():
     assert redirect is not None
     assert redirect[0] == ANCHOR
     assert redirect[2]["volatility_overdrive_selected"] is True
-    assert redirect[2]["volatility_overdrive_ignored_symbol"] == PAIR
+    assert redirect[2]["volatility_overdrive_ignored_symbol"] == ALT_SYMBOL
     assert "volatility_overdrive_conviction" in redirect[2]
     assert ranked[0][2]["volatility_overdrive_bypassed"] is True
 
@@ -131,7 +131,7 @@ def test_overdrive_redirects_when_leader_fails_quality_and_alt_has_conviction():
 def test_overdrive_unblocks_cluster_with_decision_pool_and_patch():
     orch = _orch_stub()
     decisions = {
-        PAIR: {"metrics": {"raw_prob": 0.50, "trade_score": 0.90, "market_decision_score_override": 1.0}},
+        ALT_SYMBOL: {"metrics": {"raw_prob": 0.50, "trade_score": 0.90, "market_decision_score_override": 1.0}},
         ANCHOR: {"metrics": {"raw_prob": 0.31, "trade_score": 0.70, "exec_direction": "PUT", "edge_zscore": 0.20}},
     }
     with patch(
@@ -148,7 +148,7 @@ def test_overdrive_conviction_eligible_rejects_low_margin():
 def test_overdrive_returns_none_when_all_alternates_ineligible():
     orch = _orch_stub()
     ranked = [
-        (PAIR, TradeDirection.PUT, {"raw_prob": 0.50, "trade_score": 0.90}),
+        (ALT_SYMBOL, TradeDirection.PUT, {"raw_prob": 0.50, "trade_score": 0.90}),
         (ANCHOR, TradeDirection.PUT, {"raw_prob": 0.49, "trade_score": 0.70, "edge_zscore": 0.20}),
     ]
     with patch(

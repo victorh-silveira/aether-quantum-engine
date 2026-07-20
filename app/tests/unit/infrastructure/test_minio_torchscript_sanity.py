@@ -21,9 +21,9 @@ async def test_minio_download_torchscript_and_sanity(tmp_path):
         secure=False,
     )
     store._client = MagicMock()
-    dest = tmp_path / "RDBEAR_ts.pt"
+    dest = tmp_path / "R_10_ts.pt"
     with patch("asyncio.to_thread", new=AsyncMock(return_value=True)):
-        assert await store.download_torchscript("RDBEAR", arch="tcn", dest=dest) is True
+        assert await store.download_torchscript("R_10", arch="tcn", dest=dest) is True
     with patch(
         "src.infrastructure.storage.minio_model_store.verify_torchscript_artifact_async",
         new=AsyncMock(),
@@ -32,7 +32,7 @@ async def test_minio_download_torchscript_and_sanity(tmp_path):
             dest,
             lookback=48,
             feature_dim=FEATURE_DIM,
-            symbol="RDBEAR",
+            symbol="R_10",
             manifest={"feature_dim": FEATURE_DIM},
         )
         verify.assert_awaited_once()
@@ -50,19 +50,19 @@ async def test_minio_upload_includes_torchscript(tmp_path):
     client = MagicMock()
     client.bucket_exists.return_value = True
     store._client = client
-    pth = tmp_path / "RDBEAR.pth"
+    pth = tmp_path / "R_10.pth"
     pth.write_bytes(b"ckpt")
-    ts = tmp_path / "RDBEAR_ts.pt"
+    ts = tmp_path / "R_10_ts.pt"
     ts.write_bytes(b"ts")
     with patch("asyncio.to_thread", new=AsyncMock(side_effect=lambda fn: fn())):
-        await store.upload("RDBEAR", pth, arch="tcn", metadata={})
+        await store.upload("R_10", pth, arch="tcn", metadata={})
     assert client.fput_object.call_count >= 2
 
 
 @pytest.mark.asyncio
 async def test_bootstrap_and_validate_models_skips_when_no_ts(tmp_path):
     orch = MagicMock()
-    orch.symbols = ["RDBEAR"]
+    orch.symbols = ["R_10"]
     orch.config = {
         "deep_learning": {"enabled": True, "use_torchscript": True, "arch": "tcn", "lookback": 48},
         "data_handler": {},
@@ -71,7 +71,7 @@ async def test_bootstrap_and_validate_models_skips_when_no_ts(tmp_path):
     orch.infra = MagicMock()
     orch.infra.enabled = False
     orch.model_store = object()
-    ckpt = tmp_path / "RDBEAR.pth"
+    ckpt = tmp_path / "R_10.pth"
     ckpt.write_bytes(b"x")
     with patch(
         "src.application.services.deep_learning.dl_model_artifacts.ensure_local_model_checkpoint",
@@ -83,15 +83,15 @@ async def test_bootstrap_and_validate_models_skips_when_no_ts(tmp_path):
 @pytest.mark.asyncio
 async def test_bootstrap_and_validate_models_runs_sanity_when_ts_present(tmp_path):
     orch = MagicMock()
-    orch.symbols = ["RDBEAR"]
+    orch.symbols = ["R_10"]
     orch.config = {
         "deep_learning": {"enabled": True, "use_torchscript": True, "arch": "tcn", "lookback": 48},
         "data_handler": {},
         "risk_management": {"params": {}},
     }
-    ckpt = tmp_path / "RDBEAR.pth"
+    ckpt = tmp_path / "R_10.pth"
     ckpt.write_bytes(b"x")
-    ts_path = tmp_path / "RDBEAR_ts.pt"
+    ts_path = tmp_path / "R_10_ts.pt"
     ts_path.write_bytes(b"ts")
     store = MagicMock()
     store.download_torchscript = AsyncMock(return_value=True)
@@ -116,15 +116,15 @@ async def test_bootstrap_and_validate_models_runs_sanity_when_ts_present(tmp_pat
 @pytest.mark.asyncio
 async def test_bootstrap_loads_manifest_before_sanity(tmp_path):
     orch = MagicMock()
-    orch.symbols = ["RDBEAR"]
+    orch.symbols = ["R_10"]
     orch.config = {
         "deep_learning": {"enabled": True, "use_torchscript": True, "arch": "tcn", "lookback": 48},
         "data_handler": {},
         "risk_management": {"params": {}},
     }
-    ckpt = tmp_path / "RDBEAR.pth"
+    ckpt = tmp_path / "R_10.pth"
     ckpt.write_bytes(b"x")
-    ts_path = tmp_path / "RDBEAR_ts.pt"
+    ts_path = tmp_path / "R_10_ts.pt"
     ts_path.write_bytes(b"ts")
     store = MagicMock()
     store.download_torchscript = AsyncMock(return_value=True)
@@ -157,7 +157,7 @@ async def test_local_model_store_torchscript_download_and_sanity(tmp_path):
             return self.fc(x[:, -1, :])
 
     store = LocalModelStore(tmp_path)
-    ts_dir = tmp_path / "RDBEAR" / "tcn"
+    ts_dir = tmp_path / "R_10" / "tcn"
     ts_dir.mkdir(parents=True)
     ts_src = ts_dir / "latest_ts.pt"
     model = _TinyNet()
@@ -165,12 +165,12 @@ async def test_local_model_store_torchscript_download_and_sanity(tmp_path):
     traced = torch.jit.trace(model, torch.zeros(1, 48, FEATURE_DIM), strict=False)
     traced.save(str(ts_src))
     dest = tmp_path / "out_ts.pt"
-    assert await store.download_torchscript("RDBEAR", arch="tcn", dest=dest) is True
+    assert await store.download_torchscript("R_10", arch="tcn", dest=dest) is True
     await store.sanity_check_torchscript(
         dest,
         lookback=48,
         feature_dim=FEATURE_DIM,
-        symbol="RDBEAR",
+        symbol="R_10",
         manifest={"feature_dim": FEATURE_DIM, "lookback": 48},
     )
 
@@ -197,7 +197,7 @@ async def test_minio_download_torchscript_inner_success(tmp_path):
         return fn()
 
     with patch("asyncio.to_thread", side_effect=_thread_run):
-        assert await store.download_torchscript("RDBEAR", arch="tcn", dest=dest) is True
+        assert await store.download_torchscript("R_10", arch="tcn", dest=dest) is True
 
 
 @pytest.mark.asyncio
@@ -217,4 +217,4 @@ async def test_minio_download_torchscript_raises(tmp_path):
         return fn()
 
     with patch("asyncio.to_thread", side_effect=_thread_run):
-        assert await store.download_torchscript("RDBEAR", arch="tcn", dest=tmp_path / "x_ts.pt") is False
+        assert await store.download_torchscript("R_10", arch="tcn", dest=tmp_path / "x_ts.pt") is False

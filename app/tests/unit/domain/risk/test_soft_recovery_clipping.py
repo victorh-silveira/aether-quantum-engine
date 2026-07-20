@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -65,6 +65,9 @@ def test_resolve_soft_recovery_config_defaults_match_settings() -> None:
     assert soft["fixed_step_unit_premium"] == pytest.approx(0.15)
     assert soft["small_account_hard_floor_threshold"] == pytest.approx(100.0)
     assert soft["small_account_hard_floor_pct"] == pytest.approx(0.05)
+    assert soft["dust_pending_clear_max"] == pytest.approx(0.25)
+    assert soft["near_stop_win_freeze_pct"] == pytest.approx(0.80)
+    assert soft["material_pending_min"] == pytest.approx(1.0)
 
 
 def test_resolve_amort_cycles_bounds_from_soft_recovery() -> None:
@@ -79,7 +82,7 @@ def test_soft_recovery_clipping_linear_five_micro_bank_is_exactly_four_twenty() 
     rm.initial_bankroll = 100.0
     rm.dlambert_unit = 1.0
     rm.consecutive_losses_linear = 5
-    rm.pending_loss = {"RDBULL": 22.0}
+    rm.pending_loss = {"R_10": 22.0}
     rm.last_loss_stake = 8.0
     rm.total_session_profit = -22.0
     rm.logger = MagicMock()
@@ -95,7 +98,7 @@ def test_soft_recovery_clipping_linear_five_micro_bank_is_exactly_four_twenty() 
 
     stake = rm.calculate_stake(
         100.0,
-        "RDBULL",
+        "R_10",
         0.70,
         silent=True,
         apply_stop_win=False,
@@ -125,13 +128,13 @@ def test_soft_recovery_disabled_falls_back_to_kelly() -> None:
     rm.initial_bankroll = 100.0
     rm.dlambert_unit = 1.0
     rm.consecutive_losses_linear = 5
-    rm.pending_loss = {"RDBULL": 22.0}
+    rm.pending_loss = {"R_10": 22.0}
     rm.logger = MagicMock()
     rm.effective_win_rate = MagicMock(return_value=0.62)
     rm._recovery_allowed = MagicMock(return_value=True)
     stake = rm.calculate_stake(
         100.0,
-        "RDBULL",
+        "R_10",
         0.70,
         silent=True,
         apply_stop_win=False,
@@ -172,10 +175,19 @@ def test_soft_recovery_policy_branches_and_tail_cap() -> None:
     assert cointegration_pair_score({"calibrated_prob": 0.7, "edge_zscore": -0.1}) == float("-inf")
     assert cointegration_pair_score({"calibrated_prob": 0.8, "edge_zscore": 1.5}) > 0.0
     assert select_cointegration_redirect_candidate([("R_50", TradeDirection.CALL, {"edge_zscore": 2.0})]) == []
-    alone = [("RDBULL", TradeDirection.CALL, {"calibrated_prob": 0.7, "edge_zscore": 1.0})]
+    alone = [("R_10", TradeDirection.CALL, {"calibrated_prob": 0.7, "edge_zscore": 1.0})]
     assert select_cointegration_redirect_candidate(alone) == alone
     pair = [
-        ("RDBULL", TradeDirection.CALL, {"calibrated_prob": 0.55, "edge_zscore": 0.4}),
-        ("RDBEAR", TradeDirection.PUT, {"calibrated_prob": 0.80, "edge_zscore": 1.5}),
+        ("R_10", TradeDirection.CALL, {"calibrated_prob": 0.55, "edge_zscore": 0.4}),
+        ("R_50", TradeDirection.PUT, {"calibrated_prob": 0.80, "edge_zscore": 1.5}),
     ]
-    assert select_cointegration_redirect_candidate(pair)[0][0] == "RDBEAR"
+    assert select_cointegration_redirect_candidate(pair)[0][0] == "R_10"
+    multi = [
+        ("R_10", TradeDirection.CALL, {"calibrated_prob": 0.55, "edge_zscore": 0.4}),
+        ("R_50", TradeDirection.PUT, {"calibrated_prob": 0.80, "edge_zscore": 1.5}),
+    ]
+    with patch(
+        "src.domain.risk.risk_recovery_state.DRIFT_PAIR_SYMBOLS",
+        frozenset({"R_10", "R_50"}),
+    ):
+        assert select_cointegration_redirect_candidate(multi)[0][0] == "R_50"

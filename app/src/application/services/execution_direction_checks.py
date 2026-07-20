@@ -14,6 +14,7 @@ from src.application.services.execution_sniper_gates import (
     apply_bb_squeeze_requirement,
     apply_hurst_noise_veto,
 )
+from src.application.services.force_trade_mode import force_trade_every_cycle, synthesize_force_direction
 from src.application.services.meta_payoff_regression import veto_calibration_neutral_drift
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.soft_recovery_policy import negative_zscore_veto_floor_for_risk
@@ -125,6 +126,11 @@ def reject_on_quality_gate(
     orch: Any | None = None,
 ) -> bool:
     """Rejeita por microestrutura ou margem de direcao insuficiente."""
+    if force_trade_every_cycle(exec_cfg_dict):
+        for k in ("quality_guard_reject", "regime_skip_cycle", "quality_gate_reason"):
+            metrics.pop(k, None)
+            gate_probe.pop(k, None)
+        return False
     kw = {
         "exec_cfg": exec_cfg_dict,
         "risk_manager": risk_manager,
@@ -188,12 +194,21 @@ def initial_direction_checks(
 ) -> tuple[TradeDirection, dict, float] | None:
     """Aplica clamps, sniper gates e discordance antes da resolucao final."""
     metrics = dict(entry.get("metrics") or {})
+    force = force_trade_every_cycle(exec_cfg_dict)
     if _is_neutral_clamp(metrics):
-        metrics["gate_reason"] = _NEUTRAL_CLAMP
-        metrics["quality_guard_reject"] = True
-        sync_entry_metrics(entry, metrics)
-        return None
+        if not force:
+            metrics["gate_reason"] = _NEUTRAL_CLAMP
+            metrics["quality_guard_reject"] = True
+            sync_entry_metrics(entry, metrics)
+            return None
+        metrics["gate_reason"] = (
+            None if str(metrics.get("gate_reason") or "") == _NEUTRAL_CLAMP else metrics.get("gate_reason")
+        )
+        metrics["calibration_mode"] = "calibrated"
+        metrics.pop("quality_guard_reject", None)
     dl_dir = infer_dl_direction(entry)
+    if force and dl_dir is None:
+        dl_dir = synthesize_force_direction(entry)
     if is_technically_blocked(entry) or dl_dir is None or veto_calibration_neutral_drift(metrics):
         if metrics.get("quality_guard_reject") or metrics.get("gate_reason"):
             sync_entry_metrics(entry, metrics)
@@ -203,7 +218,7 @@ def initial_direction_checks(
     metrics["bb_width_anomaly_ratio"] = float(anomaly)
     _ = apply_hurst_noise_veto(metrics, gating_cfg) or apply_bb_squeeze_requirement(metrics, squeeze_cfg)
     prob = direction_prob(entry)
-    if prob is None:  # pragma: no cover
+    if prob is None:
         prob = 0.55 if dl_dir == TradeDirection.CALL else 0.45
     prob, should_veto = apply_technical_agreement(metrics, dl_dir, clamp01(prob), exec_cfg_dict)
     _ = should_veto

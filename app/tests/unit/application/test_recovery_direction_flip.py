@@ -7,12 +7,12 @@ def _best(symbol: str, direction: TradeDirection, raw_prob: float = 0.52):
 
 
 def test_apply_recovery_direction_flip_keeps_dl_direction():
-    best = _best("RDBEAR", TradeDirection.PUT, raw_prob=0.32)
+    best = _best("R_10", TradeDirection.PUT, raw_prob=0.32)
     flipped = apply_recovery_direction_flip(
         best,
         {},
         recovery_active=True,
-        last_loss_symbol="RDBEAR",
+        last_loss_symbol="R_10",
         last_loss_direction="PUT",
         flip_enabled=True,
         flip_max_conviction=0.56,
@@ -22,13 +22,13 @@ def test_apply_recovery_direction_flip_keeps_dl_direction():
 
 
 def test_apply_recovery_direction_flip_noop_when_disabled():
-    best = _best("RDBULL", TradeDirection.CALL)
+    best = _best("R_10", TradeDirection.CALL)
     assert (
         apply_recovery_direction_flip(
             best,
             {},
             recovery_active=True,
-            last_loss_symbol="RDBULL",
+            last_loss_symbol="R_10",
             last_loss_direction="CALL",
             flip_enabled=False,
         )

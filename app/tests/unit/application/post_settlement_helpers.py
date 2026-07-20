@@ -11,7 +11,7 @@ TRADING_CYCLE_COLLECT = "src.application.services.orchestrator.trading_cycle_ent
 
 def strong_cycle_decisions() -> dict:
     return {
-        "RDBULL": {
+        "R_10": {
             "direction": TradeDirection.CALL,
             "metrics": {
                 "calibrated_prob": 0.70,
@@ -20,7 +20,7 @@ def strong_cycle_decisions() -> dict:
                 "val_accuracy": 0.60,
             },
         },
-        "RDBEAR": {
+        "R_50": {
             "direction": TradeDirection.PUT,
             "metrics": {
                 "calibrated_prob": 0.28,

@@ -1,6 +1,6 @@
 # Metodologia quantitativa
 
-O Aether Quantum Engine herda a postura **Medallion** no sentido operacional: o mercado é um **sistema de sinais ruidosos**, não uma narrativa macro discricionária. A implementação concentra-se nos índices **Drift** (`RDBEAR`, `RDBULL`) com **Deep Learning** e classificação binária Rise/Fall.
+O Aether Quantum Engine herda a postura **Medallion** no sentido operacional: o mercado é um **sistema de sinais ruidosos**, não uma narrativa macro discricionária. A implementação concentra-se no índice **`R_10`** com **Deep Learning** e classificação binária Rise/Fall.
 
 Para arquitetura de código, ver [`arquitetura.md`](arquitetura.md).
 
@@ -40,8 +40,7 @@ Para arquitetura de código, ver [`arquitetura.md`](arquitetura.md).
 
 | Símbolo | Papel típico |
 |---------|----------------|
-| `RDBULL` | Âncora padrão; referência de cluster; rotação após loss linear |
-| `RDBEAR` | Par correlacionado; priorizado após loss no âncora |
+| `R_10` | Universo operacional unico; ancora e unico simbolo de treino/execucao |
 
 Operação: contratos **RISE_FALL** de **120 s** (CALL = alta no período, PUT = queda).
 
@@ -49,13 +48,13 @@ Operação: contratos **RISE_FALL** de **120 s** (CALL = alta no período, PUT =
 
 Indicadores micro de **120 s** (RSI, `vol_ratio`, Keltner, `bb_width`, aceleração de ticks, shadow de volatilidade e momentum de spread) alimentam o container `aether-meta-classifier` (porta **8005**) via vetor **43D**, indexados na resolução amostral micro do TimescaleDB. O `LGBMRegressor` (huber) estima `predicted_payoff_edge` contínuo; o resolver preserva score orgânico da TCN quando o edge é positivo e aciona downgrade D-SQUEEZE quando o edge colapsa em microestrutura. Nos settings atuais, meta é **opcional** para execução.
 
-**Spread de convicção cross-symbol** (triplet anexado em `prepare_meta_classifier_cross_symbol_bundle`):
+**Spread de convicção cross-symbol** (triplet anexado em `prepare_meta_classifier_cross_symbol_bundle`; zeros no modo single-symbol):
 
 | Feature | Descrição |
 |---------|-----------|
-| `cross_symbol_prob_delta` | `abs(P(CALL)_RDBULL − P(PUT)_RDBEAR)` — divergência de convicção entre índices |
-| `cross_symbol_vol_ratio_diff` | Spread linear micro de `vol_ratio` (BULL − BEAR) |
-| `cross_symbol_rsi_spread` | Spread linear micro de RSI (BULL − BEAR) |
+| `cross_symbol_prob_delta` | Divergencia de conviccao entre pares (0.0 sem peer) |
+| `cross_symbol_vol_ratio_diff` | Spread linear micro de `vol_ratio` (0.0 sem peer) |
+| `cross_symbol_rsi_spread` | Spread linear micro de RSI (0.0 sem peer) |
 
 Em regimes de drift paralelo (ambos símbolos com scores altos na mesma direção), spreads baixos sinalizam saturação espelhada — o GBDT usa isso para evitar entradas sem viés relativo.
 
@@ -346,7 +345,7 @@ Quando `pending_total > 0`, `risk_stake_calc.py` **ignora** a penalidade de entr
    - **Votos unânimes alinhados:** `6×0` ou `0×6` na direção da ordem (macro)
    - **Convicção elevada:** `trade_score >= penalty_smoothing_trade_score_min` (padrão **0,68**)
 
-Justificativa: com alinhamento direcional unânime no contexto macro ou convicção alta, o Kelly base não pode ser esmagado pela penalidade de entropia — o soft D'Alembert precisa operar com peso financeiro real em símbolos secundários do cluster (ex.: `RDBEAR`).
+Justificativa: com alinhamento direcional unânime no contexto macro ou convicção alta, o Kelly base não pode ser esmagado pela penalidade de entropia — o soft D'Alembert precisa operar com peso financeiro real em símbolos secundários do cluster (ex.: `R_10`).
 
 ---
 
@@ -415,7 +414,7 @@ O bloco legado `risk_management.dlambert` foi removido da configuração canôni
 
 Complementar à curva soft D'Alembert:
 
-- Rotação de símbolo após loss linear (`symbol_loss_rotation_cycles`); sem bônus fixo em `RDBULL`
+- Rotação de símbolo após loss linear (`symbol_loss_rotation_cycles`); sem bônus fixo em `R_10`
 - Filtro de loss-protection com `min_direction_margin: 0.03` (caps edge/Z 999)
 - Trava Hurst N2+ (`recovery_hurst_gate`) — prioriza candidatos persistentes; N3+ sem Hurst bloqueia escalada
 - Teto de stake comprimido em linear ≥2 (2,5%) e ≥3 (2,0%)
@@ -516,9 +515,9 @@ Se o valor ultrapassar o teto crítico de ±3.0, aplica-se um clipping estrito v
 O payload HTTP do meta (`META_FEATURE_DIM = 43`) espelha rigidamente essa saturação antes do envio ao container `aether-meta-classifier` (porta 8005).
 
 ### 12.2 Invariante de Drift Proibido (Drift Bias Lock)
-Fica terminantemente vedada a emissão de ordens contra o drift natural das séries sob regime de expansão hiperbólica de volatilidade (\(Z_{\text{vol}} \ge 2.0\)):
-- **PUT** em `RDBULL` (Bull Market Index)
-- **CALL** em `RDBEAR` (Bear Market Index)
+Com universo single-symbol (`R_10`), o lock contra drift natural de par Bull/Bear permanece no codigo como no-op (`hedge_peer(R_10)` retorna `None`). Em configuracoes legadas com par Drift (`RDBULL`/`RDBEAR`), continua vedada a emissao contra o drift sob expansao hiperbolica de volatilidade (\(Z_{\text{vol}} \ge 2.0\)):
+- **PUT** contra tendencia de alta no indice Bull
+- **CALL** contra tendencia de baixa no indice Bear
 
 ### 12.3 Salvaguarda de Micro-Banca e Válvula Adaptativa de Cointegração
 Para estender a sobrevida do patrimônio em contas de micro-capital ($100 ou menos), a unidade base \(U\) do soft D'Alembert e a válvula de cointegração operam assim:
@@ -543,7 +542,7 @@ com \(p(0)=0{,}035\), \(p(N\!\ge\!2)=0{,}025\), \(p(N\!\ge\!3)=0{,}020\). Em \(B
 \[
 \mathbb{1}_{\text{redirect}} = \mathbf{1}\!\left[B \le 250 \land P > 0{,}15\cdot B\right]
 \]
-com \(P=\sum_s \text{pending\_loss}[s]\) (\$15 em banca de \$100). Sob \(\mathbb{1}_{\text{redirect}}=1\), ordens isoladas em ativos de maior ruído são suspensas e o payload de soft recovery é desviado estritamente ao par Drift \(\{\text{RDBULL},\text{RDBEAR}\}\) que maximiza
+com \(P=\sum_s \text{pending\_loss}[s]\) (\$15 em banca de \$100). Sob \(\mathbb{1}_{\text{redirect}}=1\), ordens isoladas em ativos de maior ruído são suspensas e o payload de soft recovery é desviado ao simbolo operacional `R_10` (ou, em testes multi-symbol, ao candidato em `DRIFT_PAIR_SYMBOLS`) que maximiza
 \[
 \text{score}(s) = Z_{\text{edge}}(s) - H_2\!\big(p_s\big),\qquad Z_{\text{edge}}(s) > 0
 \]

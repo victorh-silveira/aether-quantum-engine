@@ -12,6 +12,7 @@ from src.application.services.execution_direction import (
 from src.application.services.execution_mandatory_pick import pick_best_mandatory_candidate
 from src.application.services.execution_market_rank import build_market_execution_candidate
 from src.domain.models.trade import TradeDirection
+from src.domain.symbols.drift_symbols import TRADING_SYMBOLS
 
 
 def _recovery_metrics_eligible(metrics: dict, *, min_signal: float, min_val: float) -> bool:
@@ -41,11 +42,10 @@ def _symbol_priority(
     skip_symbols: frozenset[str] | None = None,
     recovery_core_only: bool = False,
 ) -> list[str]:
-    """Ordena simbolos priorizando RDBULL e RDBEAR e evitando repetir o ultimo loss."""
+    """Ordena simbolos priorizando o universo operacional e evitando repetir o ultimo loss."""
     skip = skip_symbols or frozenset()
     eligible = [symbol for symbol in symbols if symbol not in skip]
-    core_order = ("RDBULL", "RDBEAR")
-    core = [symbol for symbol in core_order if symbol in eligible]
+    core = [symbol for symbol in TRADING_SYMBOLS if symbol in eligible]
     alt = [symbol for symbol in core if symbol != last_loss_symbol]
     if alt:
         core = alt + [symbol for symbol in core if symbol not in alt]

@@ -13,6 +13,7 @@ from src.domain.risk.dlambert_sizing import (
     effective_martingale_base,
     resolve_dlambert_stake,
 )
+from src.domain.risk.risk_recovery_state import clear_dust_pending_loss
 from src.domain.risk.risk_stake_calc_helpers import cap_final_stake, resolve_f_star_and_kelly_base
 from src.domain.risk.risk_stake_flow import (
     apply_stop_win_kelly_boost as _apply_stop_win_kelly_boost,
@@ -121,6 +122,7 @@ def calculate_stake_for_manager(
 
     dl_metrics = kwargs.get("dl_metrics")
     conviction = resolve_stake_conviction(_metrics_for_conviction(dl_metrics, conviction), rm.kelly_config)
+    clear_dust_pending_loss(rm)
     loss_to_recover = sum(rm.pending_loss.values())
     linear_preview = int(getattr(rm, "consecutive_losses_linear", 0))
     stake_regime = resolve_stake_regime(pending_loss=loss_to_recover, consecutive_losses_linear=linear_preview)

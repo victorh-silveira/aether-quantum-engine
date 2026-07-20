@@ -47,7 +47,7 @@ def test_predict_symbol_decision_sync_path():
         }
         entry = predict_symbol_decision(
             orch,
-            "RDBEAR",
+            "R_10",
             runtime["model"],
             np.linspace(1.0, 2.0, 30),
             runtime["norm_stats"],
@@ -83,7 +83,7 @@ def test_predict_symbol_decision_sync_cache_hit():
     ):
         entry = predict_symbol_decision(
             orch,
-            "RDBEAR",
+            "R_10",
             runtime["model"],
             np.linspace(1.0, 2.0, 30),
             runtime["norm_stats"],

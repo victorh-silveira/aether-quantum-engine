@@ -14,13 +14,13 @@ from src.application.services.execution_quality_gate_starvation import (
     record_quality_guard_cycle_skip,
     reset_quality_skipped_cycles_counter_for_orch,
 )
+from src.application.services.force_trade_mode import force_trade_from_orch
 from src.application.services.meta_direction_flip import SIGNAL_SUSPENDED
 from src.application.services.orchestrator.decision_mode_banner import emit_decision_engine_banner
 from src.application.services.orchestrator.execution_quality_skip_yield import (
     await_quality_skip_yield,
     sanitize_quality_skip_decisions,
 )
-from src.application.services.orchestrator.orchestrator_atomic_state import orchestrator_atomic_state_context
 from src.application.services.orchestrator.orchestrator_data_signature import seconds_until_next_signature_boundary
 from src.application.services.orchestrator.orchestrator_state_restore import mark_bar_processed
 from src.application.services.orchestrator.regime_freeze_yield import await_regime_freeze_yield
@@ -91,42 +91,41 @@ async def _execute_inference_cluster_cycle(orch: Any) -> bool:
     post_lock_decisions = None
     quality_skip_pending = False
     cluster_executed = False
-    async with orchestrator_atomic_state_context(orch):
-        decisions = await collect_deep_learning_decisions(orch)
-        if (
-            int(orch._cycle_seq)
-            % max(
-                1,
-                int(
-                    (orch.config.get("infra", {}).get("triton", {}) or {}).get(
-                        "correlation_refresh_cycles",
-                        5,
-                    )
-                ),
-            )
-            == 0
-        ):
-            await refresh_correlation_cache(orch)
-        if quality_conviction_suspends_cluster(orch, decisions):
-            sanitize_quality_skip_decisions(decisions)
-            post_lock_decisions = decisions
-            record_quality_guard_cycle_skip(orch)
-            quality_skip_pending = True
-        elif not session_persistence_blocks_trading_cycle(orch):
-            executed_count = await orch.executor.execute_cluster(decisions)
-            cluster_executed = executed_count > 0 if isinstance(executed_count, (int, float)) else True
-            post_lock_decisions = decisions
-            if cluster_executed:
-                await reset_quality_skipped_cycles_counter_for_orch(orch)
-            else:  # pragma: no cover
-                any_quality_reject = any(
-                    isinstance(entry, dict)
-                    and isinstance(entry.get("metrics"), dict)
-                    and entry["metrics"].get("quality_guard_reject")
-                    for entry in decisions.values()
+    decisions = await collect_deep_learning_decisions(orch)
+    if (
+        int(orch._cycle_seq)
+        % max(
+            1,
+            int(
+                (orch.config.get("infra", {}).get("triton", {}) or {}).get(
+                    "correlation_refresh_cycles",
+                    5,
                 )
-                if any_quality_reject:
-                    record_quality_guard_cycle_skip(orch)
+            ),
+        )
+        == 0
+    ):
+        await refresh_correlation_cache(orch)
+    if quality_conviction_suspends_cluster(orch, decisions):
+        sanitize_quality_skip_decisions(decisions)
+        post_lock_decisions = decisions
+        record_quality_guard_cycle_skip(orch)
+        quality_skip_pending = True
+    elif not session_persistence_blocks_trading_cycle(orch):
+        executed_count = await orch.executor.execute_cluster(decisions)
+        cluster_executed = executed_count > 0 if isinstance(executed_count, (int, float)) else True
+        post_lock_decisions = decisions
+        if cluster_executed:
+            await reset_quality_skipped_cycles_counter_for_orch(orch)
+        else:
+            any_quality_reject = any(
+                isinstance(entry, dict)
+                and isinstance(entry.get("metrics"), dict)
+                and entry["metrics"].get("quality_guard_reject")
+                for entry in decisions.values()
+            )
+            if any_quality_reject:
+                record_quality_guard_cycle_skip(orch)
     if post_lock_decisions is not None:
         if quality_skip_pending:
             await await_quality_skip_yield(orch)
@@ -166,7 +165,8 @@ async def run_trading_cycle_if_ready(orch: Any) -> bool:
                     await mark_bar_processed(orch, orch.anchor, orch._last_epoch)
                 else:
                     commit_trading_cycle_data_signature(orch)
-                    orch._cooldown_until = time.time() + seconds_until_next_signature_boundary(orch)
+                    if not force_trade_from_orch(orch):
+                        orch._cooldown_until = time.time() + seconds_until_next_signature_boundary(orch)
     except Exception as e:
         orch.logger.error(f"FALHA: Ciclo: {e}")
         ran = True

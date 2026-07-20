@@ -4,21 +4,21 @@ from unittest.mock import MagicMock
 from src.application.services.orchestrator.execution_collect import collect_cluster_orders
 from src.application.services.orchestrator.execution_collect_helpers import mandatory_fallback_if_empty
 from src.domain.models.trade import TradeDirection
-from tests.market_symbols import ANCHOR, PAIR
+from tests.market_symbols import ALT_SYMBOL, ANCHOR
 from tests.unit.application.universal_regime_metrics import asymmetric_gate_safe_metrics, bear_put_metrics
 
 
 def test_collect_cluster_orders_recovery_executes_best_available_signal():
     orch = SimpleNamespace(
         anchor=ANCHOR,
-        symbols=[ANCHOR, PAIR],
+        symbols=[ANCHOR, ALT_SYMBOL],
         config={
             "orchestrator": {"execution": {"include_anchor_trades": True, "regime_evaluator": {"enabled": True}}},
             "deep_learning": {"recovery_gating": {}},
         },
         risk_manager=SimpleNamespace(
-            pending_loss={PAIR: 10.0},
-            last_loss_symbol=PAIR,
+            pending_loss={ALT_SYMBOL: 10.0},
+            last_loss_symbol=ALT_SYMBOL,
             last_loss_direction="PUT",
             consecutive_losses=0,
             recovery_symbol_loss_streak={},
@@ -47,15 +47,15 @@ def test_collect_cluster_orders_recovery_executes_best_available_signal():
 def test_collect_cluster_orders_includes_recovery_candidate_with_raw_prob():
     orch = SimpleNamespace(
         anchor=ANCHOR,
-        symbols=[ANCHOR, PAIR],
+        symbols=[ANCHOR, ALT_SYMBOL],
         config={
             "orchestrator": {"execution": {"include_anchor_trades": False, "regime_evaluator": {"enabled": True}}},
             "deep_learning": {"min_edge_execute": 0.04},
             "risk_management": {"kelly": {"mandatory_min_trade_score": 0.68, "recovery_min_trade_score": 0.64}},
         },
         risk_manager=SimpleNamespace(
-            pending_loss={PAIR: 10.0},
-            last_loss_symbol=PAIR,
+            pending_loss={ALT_SYMBOL: 10.0},
+            last_loss_symbol=ALT_SYMBOL,
             last_loss_direction="CALL",
             consecutive_losses=0,
         ),
@@ -65,10 +65,10 @@ def test_collect_cluster_orders_includes_recovery_candidate_with_raw_prob():
         orch=orch,
         logger=MagicMock(),
         _mandatory_trade_each_cycle=lambda: False,
-        _trade_symbols=lambda: [PAIR],
+        _trade_symbols=lambda: [ALT_SYMBOL],
     )
     decisions = {
-        PAIR: {
+        ALT_SYMBOL: {
             "direction": TradeDirection.PUT,
             "metrics": bear_put_metrics(
                 raw_prob=0.28,
@@ -81,22 +81,22 @@ def test_collect_cluster_orders_includes_recovery_candidate_with_raw_prob():
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
     assert len(orders) == 1
-    assert orders[0][0] == PAIR
+    assert orders[0][0] == ALT_SYMBOL
     assert orders[0][1] == TradeDirection.PUT
 
 
 def test_collect_cluster_orders_bolts_weak_signal_continuously():
     orch = SimpleNamespace(
         anchor=ANCHOR,
-        symbols=[ANCHOR, PAIR],
+        symbols=[ANCHOR, ALT_SYMBOL],
         config={
             "orchestrator": {"execution": {"include_anchor_trades": False, "regime_evaluator": {"enabled": True}}},
             "deep_learning": {"min_edge_execute": 0.04},
             "risk_management": {"kelly": {"mandatory_min_trade_score": 0.68, "recovery_min_trade_score": 0.64}},
         },
         risk_manager=SimpleNamespace(
-            pending_loss={PAIR: 10.0},
-            last_loss_symbol=PAIR,
+            pending_loss={ALT_SYMBOL: 10.0},
+            last_loss_symbol=ALT_SYMBOL,
             last_loss_direction="CALL",
             consecutive_losses=0,
             consecutive_losses_linear=1,
@@ -108,10 +108,10 @@ def test_collect_cluster_orders_bolts_weak_signal_continuously():
         orch=orch,
         logger=MagicMock(),
         _mandatory_trade_each_cycle=lambda: True,
-        _trade_symbols=lambda: [PAIR],
+        _trade_symbols=lambda: [ALT_SYMBOL],
     )
     decisions = {
-        PAIR: {
+        ALT_SYMBOL: {
             "direction": TradeDirection.PUT,
             "metrics": {
                 "raw_prob": 0.4,
@@ -134,13 +134,13 @@ def test_collect_cluster_orders_bolts_weak_signal_continuously():
 
     orch = SimpleNamespace(
         anchor=ANCHOR,
-        symbols=[ANCHOR, PAIR],
+        symbols=[ANCHOR, ALT_SYMBOL],
         config={
             "orchestrator": {"execution": {"include_anchor_trades": False, "regime_evaluator": {"enabled": True}}},
         },
         risk_manager=SimpleNamespace(
-            pending_loss={PAIR: 10.0},
-            last_loss_symbol=PAIR,
+            pending_loss={ALT_SYMBOL: 10.0},
+            last_loss_symbol=ALT_SYMBOL,
             last_loss_direction="CALL",
         ),
         _active_cycle_id=9,
@@ -149,10 +149,10 @@ def test_collect_cluster_orders_bolts_weak_signal_continuously():
         orch=orch,
         logger=MagicMock(),
         _mandatory_trade_each_cycle=lambda: True,
-        _trade_symbols=lambda: [PAIR],
+        _trade_symbols=lambda: [ALT_SYMBOL],
     )
     decisions = {
-        PAIR: {
+        ALT_SYMBOL: {
             "direction": TradeDirection.PUT,
             "metrics": bear_put_metrics(raw_prob=0.28, execute=True),
         },
@@ -164,7 +164,7 @@ def test_collect_cluster_orders_bolts_weak_signal_continuously():
 def test_collect_cluster_orders_filters_proposal_skip_symbols():
     orch = SimpleNamespace(
         anchor=ANCHOR,
-        symbols=[ANCHOR, PAIR],
+        symbols=[ANCHOR, ALT_SYMBOL],
         config={
             "orchestrator": {"execution": {"include_anchor_trades": True, "regime_evaluator": {"enabled": True}}},
             "risk_management": {"kelly": {"mandatory_min_trade_score": 0.0}},
@@ -182,7 +182,7 @@ def test_collect_cluster_orders_filters_proposal_skip_symbols():
         orch=orch,
         logger=MagicMock(),
         _mandatory_trade_each_cycle=lambda: False,
-        _trade_symbols=lambda: [ANCHOR, PAIR],
+        _trade_symbols=lambda: [ANCHOR, ALT_SYMBOL],
     )
     decisions = {
         ANCHOR: {
@@ -197,18 +197,18 @@ def test_collect_cluster_orders_filters_proposal_skip_symbols():
                 "meta_classifier_applied": True,
             },
         },
-        PAIR: {"direction": TradeDirection.PUT, "metrics": bear_put_metrics(execute=True, trade_score=0.70)},
+        ALT_SYMBOL: {"direction": TradeDirection.PUT, "metrics": bear_put_metrics(execute=True, trade_score=0.70)},
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
     assert len(orders) == 1
-    assert orders[0][0] == PAIR
+    assert orders[0][0] == ALT_SYMBOL
 
 
 def test_mandatory_fallback_if_empty_returns_early_when_not_mandatory():
     exec_mgr = SimpleNamespace(
         orch=SimpleNamespace(config={}),
         _mandatory_trade_each_cycle=lambda: True,
-        _trade_symbols=lambda: ["RDBULL"],
+        _trade_symbols=lambda: ["R_10"],
     )
     kept = mandatory_fallback_if_empty(
         exec_mgr,

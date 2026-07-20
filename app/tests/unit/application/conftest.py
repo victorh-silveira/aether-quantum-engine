@@ -7,7 +7,7 @@ import pytest
 from src.application.services.orchestrator import Orchestrator
 from src.application.services.orchestrator.engine_mode import ENGINE_MODE_TRAIN, apply_engine_mode
 from src.infrastructure.state.trading_state import TradingState
-from tests.market_symbols import ALL_SYMBOLS, ANCHOR, PAIR
+from tests.market_symbols import ALL_SYMBOLS, ANCHOR
 
 
 @pytest.fixture(autouse=True)
@@ -43,7 +43,7 @@ def orch_config():
         },
         "data_handler": {"fetch_count": 100, "min_required_points": 2, "buffer_limit": 1000},
         "strategy": {
-            "clusters": {"rd": [ANCHOR, PAIR]},
+            "clusters": {"rd": [ANCHOR]},
             "correlation": {"anchor": ANCHOR},
         },
         "risk_management": {

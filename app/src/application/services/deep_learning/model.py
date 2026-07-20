@@ -133,7 +133,7 @@ def predict_next_direction(
     norm_stats: FeatureNormStats | None = None,
     *,
     granularity: int = 60,
-    symbol: str = "RDBULL",
+    symbol: str = "R_10",
     open_: np.ndarray | None = None,
     high: np.ndarray | None = None,
     low: np.ndarray | None = None,

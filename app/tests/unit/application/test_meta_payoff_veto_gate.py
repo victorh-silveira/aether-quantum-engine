@@ -197,7 +197,7 @@ def test_stamp_payoff_edge_expectancy_derives_from_zscore():
 @pytest.mark.asyncio
 async def test_prefetch_meta_http_8005_propagates_edge_expectancy():
     decisions = {
-        "RDBEAR": {
+        "R_10": {
             "direction": TradeDirection.PUT,
             "metrics": {
                 "calibrated_prob": 0.38,
@@ -222,7 +222,7 @@ async def test_prefetch_meta_http_8005_propagates_edge_expectancy():
         )
         get_client.return_value = client
         await prefetch_meta_payoff_for_decisions(decisions, cfg)
-    assert decisions["RDBEAR"]["metrics"]["edge_expectancy"] == "NO_EDGE_NEUTRAL"
+    assert decisions["R_10"]["metrics"]["edge_expectancy"] == "NO_EDGE_NEUTRAL"
 
 
 def test_resolve_execution_direction_skips_on_negative_zscore_veto():
@@ -231,7 +231,7 @@ def test_resolve_execution_direction_skips_on_negative_zscore_veto():
         "src.application.services.execution_direction_resolver.attach_payoff_edge_zscore_metrics",
         side_effect=lambda metrics, edge, **kwargs: _stamp_negative_zscore(metrics),
     ):
-        result = resolve_execution_direction(entry, symbol="RDBEAR")
+        result = resolve_execution_direction(entry, symbol="R_10")
     assert result is not None
     assert entry["metrics"].get("gate_reason") != META_PAYOFF_NEGATIVE_ZSCORE_VETO
     assert result[0] == TradeDirection.PUT
@@ -249,7 +249,7 @@ def test_resolve_execution_direction_skips_win_expected_when_zscore_strongly_neg
         "src.application.services.execution_direction_resolver.attach_payoff_edge_zscore_metrics",
         side_effect=lambda metrics, edge, **kwargs: _stamp_negative_zscore(metrics, z_score=-1.47),
     ):
-        result = resolve_execution_direction(entry, symbol="RDBULL")
+        result = resolve_execution_direction(entry, symbol="R_10")
     assert result is not None
     assert stamp_payoff_edge_expectancy(entry["metrics"]) == "NO_EDGE_NEUTRAL"
     assert entry["metrics"].get("gate_reason") != META_PAYOFF_NEGATIVE_ZSCORE_VETO
@@ -263,7 +263,7 @@ def test_resolve_execution_direction_waives_veto_under_critical_recovery():
         "src.application.services.execution_direction_resolver.attach_payoff_edge_zscore_metrics",
         side_effect=lambda metrics, edge, **kwargs: _stamp_negative_zscore(metrics),
     ):
-        result = resolve_execution_direction(entry, symbol="RDBEAR", risk_manager=rm)
+        result = resolve_execution_direction(entry, symbol="R_10", risk_manager=rm)
     assert result is not None
     direction, metrics = result
     assert direction == TradeDirection.PUT

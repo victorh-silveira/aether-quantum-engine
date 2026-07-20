@@ -11,7 +11,7 @@ def test_feature_windows_for_60s_granularity():
 
 def test_precompute_price_series_includes_hurst_and_micro():
     prices = np.linspace(100.0, 101.0, 80)
-    series = precompute_price_series(prices, granularity=60, symbol="RDBEAR")
+    series = precompute_price_series(prices, granularity=60, symbol="R_10")
     assert "hurst" in series
     assert "bb_pct_b" in series
     assert "tick_count" in series

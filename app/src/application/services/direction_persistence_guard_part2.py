@@ -271,7 +271,9 @@ def _resolve_peer_flip(
     cycle_id: int,
     infra_cfg: dict | None,
 ) -> TradeDirection | None:
-    """Delega flip cross-symbol conforme lock ativo no par Drift."""
+    """Delega flip cross-symbol conforme lock ativo no par; no-op sem peer distinto."""
+    if ANCHOR_BULL == ANCHOR_BEAR:
+        return None
     if symbol == ANCHOR_BEAR and anti_trend_lock_active(ANCHOR_BULL, TradeDirection.CALL):
         return _attempt_bull_call_lock_flip(
             dl_dir, metrics, entry=entry, peer_entry=peer_entry, cycle_id=cycle_id, infra_cfg=infra_cfg

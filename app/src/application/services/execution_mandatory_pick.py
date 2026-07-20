@@ -11,6 +11,7 @@ from src.application.services.execution_market_rank import (
     market_decision_score,
 )
 from src.domain.models.trade import TradeDirection
+from src.domain.symbols.drift_symbols import TRADING_SYMBOLS
 
 
 def _symbol_order(
@@ -21,7 +22,7 @@ def _symbol_order(
 ) -> list[str]:
     """Ordena simbolos priorizando core e diversificacao apos loss."""
     eligible = [symbol for symbol in trade_symbols if symbol not in skip_symbols]
-    core = [symbol for symbol in ("RDBULL", "RDBEAR") if symbol in eligible]
+    core = [symbol for symbol in TRADING_SYMBOLS if symbol in eligible]
     alt = [symbol for symbol in core if symbol != last_loss_symbol]
     if alt:
         core = alt + [symbol for symbol in core if symbol not in alt]

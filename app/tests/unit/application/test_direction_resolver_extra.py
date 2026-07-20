@@ -56,7 +56,7 @@ def test_resolve_rejects_weak_edge_without_meta_prefetch():
     result = resolve_execution_direction(
         entry,
         infra_cfg={"meta_classifier": {"enabled": True}},
-        symbol="RDBULL",
+        symbol="R_10",
         risk_manager=risk_manager,
     )
     assert result is not None
@@ -73,7 +73,7 @@ def test_resolve_c0015_negative_edge_blocked_by_meta_payoff_veto(caplog):
         ),
         caplog.at_level("INFO"),
     ):
-        result = resolve_execution_direction(entry, symbol="RDBULL")
+        result = resolve_execution_direction(entry, symbol="R_10")
     assert result is not None
     assert entry["metrics"].get("gate_reason") != META_PAYOFF_NEGATIVE_ZSCORE_VETO
     assert not any("[D-SQUEEZE]" in record.message for record in caplog.records)
@@ -85,7 +85,7 @@ def test_resolve_persistence_guard_suppresses_flip_without_inverting():
         "src.application.services.execution_direction_resolver.evaluate_direction_persistence_guard",
         return_value=TradeDirection.PUT,
     ):
-        result = resolve_execution_direction(entry, symbol="RDBULL", cycle_id=11)
+        result = resolve_execution_direction(entry, symbol="R_10", cycle_id=11)
     assert result is None
     assert entry["metrics"].get("persistence_guard_skip") is True
     assert entry["metrics"].get("persistence_guard_flip_suppressed") is True
@@ -102,6 +102,6 @@ def test_resolve_sets_meta_veto_mode_none_when_absent():
         "src.application.services.execution_direction_resolver.should_veto_meta_payoff_negative_zscore",
         return_value=False,
     ):
-        result = resolve_execution_direction(entry, symbol="RDBULL")
+        result = resolve_execution_direction(entry, symbol="R_10")
     assert result is not None
     assert result[1].get("meta_veto_mode") == "none"

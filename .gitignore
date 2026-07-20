@@ -33,6 +33,11 @@ Thumbs.db
 data/
 logs/
 
+# ---- RELATORIOS LOCAIS DE LINT/COVERAGE ----
+**/coverage_report.txt
+**/interrogate_output.txt
+coverage.xml
+
 # ---- NODE / NPM / HUSKY (ARTEFATOS LOCAIS) ----
 .husky/
 node_modules/

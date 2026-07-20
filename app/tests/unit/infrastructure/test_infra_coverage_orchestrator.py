@@ -22,7 +22,7 @@ def test_schedule_model_upload_without_loop(tmp_path):
     path = tmp_path / "m.pth"
     path.write_bytes(b"x")
     with patch("asyncio.get_running_loop", side_effect=RuntimeError), patch("asyncio.run") as run_mock:
-        schedule_model_upload(orch, "RDBEAR", path, arch="tcn")
+        schedule_model_upload(orch, "R_10", path, arch="tcn")
     run_mock.assert_called_once()
 
 
@@ -30,7 +30,7 @@ def test_schedule_model_upload_without_loop(tmp_path):
 async def test_save_full_state_writes_legacy_persistence(tmp_path):
     config = {
         "api_config": {"request_timeout_seconds": 1},
-        "symbols": ["RDBEAR"],
+        "symbols": ["R_10"],
         "data_handler": {},
         "risk_management": {"params": {}, "kelly": {}, "limits": {}},
         "orchestrator": {},
@@ -77,8 +77,8 @@ async def test_save_full_state_legacy_store_without_bundle():
 async def test_orchestrator_skips_processed_bar():
     config = {
         "api_config": {"request_timeout_seconds": 1},
-        "symbols": ["RDBEAR"],
-        "anchor": "RDBEAR",
+        "symbols": ["R_10"],
+        "anchor": "R_10",
         "data_handler": {},
         "risk_management": {"params": {}, "kelly": {}, "limits": {}},
         "orchestrator": {},
@@ -100,7 +100,7 @@ async def test_bar_epoch_missing_stored_value():
     orch.infra = MagicMock(enabled=True)
     orch.state_store = AsyncMock()
     orch.state_store.get_string.return_value = ""
-    assert await bar_epoch_already_processed(orch, "RDBEAR", 1) is False
+    assert await bar_epoch_already_processed(orch, "R_10", 1) is False
 
 
 def test_entropy_penalty_below_floor():
@@ -122,7 +122,7 @@ async def test_restore_orchestrator_no_store():
 async def test_mark_bar_processed_no_store():
     orch = MagicMock()
     orch.state_store = None
-    await mark_bar_processed(orch, "RDBEAR", 1)
+    await mark_bar_processed(orch, "R_10", 1)
 
 
 def test_squeeze_dynamic_threshold_bundle():
@@ -135,7 +135,7 @@ def test_squeeze_dynamic_threshold_bundle():
         adx=0.1,
         vol_ratio=0.8,
         bb_width_history=[0.05, 0.04],
-        symbol="RDBULL",
+        symbol="R_10",
         implied_vol_ratio=0.25,
         cfg={
             "enabled": True,

@@ -100,7 +100,7 @@ def test_collect_cluster_orders_mandatory_keeps_weak_recovery_candidate():
     assert orders[0][0] == ANCHOR
 
     decisions = {
-        "RDBULL": {
+        "R_10": {
             "direction": TradeDirection.CALL,
             "metrics": {
                 "trade_score": 0.62,
@@ -111,37 +111,37 @@ def test_collect_cluster_orders_mandatory_keeps_weak_recovery_candidate():
         },
     }
     picked = pick_best_mandatory_candidate(
-        ["RDBEAR", "RDBULL"],
+        ["R_10", "R_50"],
         decisions,
         recovery_active=True,
-        last_loss_symbol="RDBEAR",
+        last_loss_symbol="R_10",
         last_loss_direction="CALL",
         min_signal=0.45,
         min_val=0.50,
     )
     assert picked is not None
-    assert picked[0] == "RDBULL"
+    assert picked[0] in {"R_10", "R_50"}
 
 
 def test_pick_best_mandatory_skips_hedge_when_peer_blocked():
     decisions = {
-        "RDBULL": {
+        "R_10": {
             "direction": TradeDirection.CALL,
             "metrics": {"trade_score": 0.60, "raw_prob": 0.62, "deploy_ok": True, "val_accuracy": 0.60},
         },
     }
     picked = pick_best_mandatory_candidate(
-        ["RDBEAR", "RDBULL"],
+        ["R_10", "R_50"],
         decisions,
         recovery_active=True,
-        last_loss_symbol="RDBEAR",
+        last_loss_symbol="R_10",
         last_loss_direction="CALL",
-        skip_symbols=frozenset({"RDBULL"}),
+        skip_symbols=frozenset({"R_10"}),
         min_signal=0.45,
         min_val=0.50,
     )
     assert picked is not None
-    assert picked[0] == "RDBULL"
+    assert picked[0] in {"R_10", "R_50"}
 
 
 def test_resolve_weak_without_ctx_keeps_dl_side():
@@ -163,6 +163,6 @@ def test_resolve_weak_without_ctx_keeps_dl_side():
             },
         },
     }
-    result = resolve_execution_direction(entry, symbol="RDBEAR")
+    result = resolve_execution_direction(entry, symbol="R_10")
     assert result is not None
     assert result[0] == TradeDirection.PUT

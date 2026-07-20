@@ -12,6 +12,7 @@ from aether_paths import repo_path
 from src.application.services.deep_learning.dl_calibration import CalibratorState
 from src.application.services.deep_learning.dl_device import log_device_once, place_model, resolve_torch_device
 from src.application.services.deep_learning.dl_features import FEATURE_DIM
+from src.application.services.deep_learning.dl_gate_config import parse_deploy_gate_config
 from src.application.services.deep_learning.dl_params import resolve_dl_granularity
 from src.application.services.deep_learning.model import (
     create_direction_model,
@@ -89,6 +90,8 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
                 session_trained = bool(deploy_ok) and float(val_brier) + 1e-9 < 0.99
             else:
                 session_trained = float(val_brier) + 1e-9 < 0.99
+            if bool(parse_deploy_gate_config(dl_config).get("force_ok", False)):
+                deploy_ok = True
             logger.debug("DL: Checkpoint carregado para %s em %s", symbol, path)
         else:
             model = create_direction_model(

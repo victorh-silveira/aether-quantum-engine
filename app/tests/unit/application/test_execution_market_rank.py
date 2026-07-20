@@ -60,10 +60,10 @@ def test_market_decision_score_prefers_higher_raw_side():
 
 
 def test_build_market_execution_candidate_uses_resolver():
-    built = build_market_execution_candidate("RDBULL", _entry(direction=TradeDirection.CALL, raw_prob=0.62))
+    built = build_market_execution_candidate("R_10", _entry(direction=TradeDirection.CALL, raw_prob=0.62))
     assert built is not None
     symbol, direction, metrics = built
-    assert symbol == "RDBULL"
+    assert symbol == "R_10"
     assert direction == TradeDirection.CALL
     assert "exec_direction" in metrics
 
@@ -77,14 +77,14 @@ def test_market_decision_score_recovery_indicator_adjustments():
         "deploy_ok": True,
         "indicators": {"adx": 0.15, "vol_ratio": 0.90, "hurst": 0.40},
     }
-    low_adx = market_decision_score(metrics, recovery_active=True, symbol="RDBULL")
+    low_adx = market_decision_score(metrics, recovery_active=True, symbol="R_10")
     high_adx = market_decision_score(
         {
             **metrics,
             "indicators": {"adx": 0.30, "vol_ratio": 1.10, "hurst": 0.60},
         },
         recovery_active=True,
-        symbol="RDBULL",
+        symbol="R_10",
     )
     assert high_adx > low_adx
 
@@ -106,11 +106,11 @@ def test_market_decision_score_penalizes_squeeze_in_recovery():
         "deploy_ok": True,
         "direction_margin": 0.20,
     }
-    clean = market_decision_score(base, recovery_active=True, symbol="RDBULL")
+    clean = market_decision_score(base, recovery_active=True, symbol="R_10")
     squeezed = market_decision_score(
         {**base, "meta_squeeze_downgrade": True},
         recovery_active=True,
-        symbol="RDBEAR",
+        symbol="R_10",
     )
     assert clean > squeezed
 
@@ -132,7 +132,7 @@ def test_resolve_keeps_dl_side_on_low_val_accuracy():
             "cmo": 0.05,
         },
     )
-    result = resolve_execution_direction(entry, symbol="RDBULL")
+    result = resolve_execution_direction(entry, symbol="R_10")
     assert result is not None
     direction, metrics = result
     assert direction == TradeDirection.CALL

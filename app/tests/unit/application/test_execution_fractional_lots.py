@@ -113,7 +113,7 @@ async def test_dispatch_fractional_orders_staggers_split_proposals(orch_config):
         ):
             contracts = await dispatch_fractional_orders(
                 orch.executor,
-                "RDBULL",
+                "R_10",
                 TradeDirection.CALL,
                 268.82,
                 duration=60,
@@ -147,7 +147,7 @@ async def test_dispatch_fractional_orders_single_lot_success(orch_config):
         ) as adopt_mock:
             contracts = await dispatch_fractional_orders(
                 orch.executor,
-                "RDBULL",
+                "R_10",
                 TradeDirection.CALL,
                 150.0,
                 duration=60,
@@ -179,7 +179,7 @@ async def test_dispatch_fractional_orders_renews_proposal_per_split_lot(orch_con
         ) as subscribe_mock:
             contracts = await dispatch_fractional_orders(
                 orch.executor,
-                "RDBULL",
+                "R_10",
                 TradeDirection.CALL,
                 268.82,
                 duration=60,

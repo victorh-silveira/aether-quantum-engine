@@ -213,9 +213,9 @@ def test_compute_single_strike_cycles_target_reduces_stake():
 
 
 def test_apply_symbol_stake_cap_passes_through_unchanged():
-    cfg = {"symbol_max_stake_pct": {"RDBEAR": 0.009}}
-    assert apply_symbol_stake_cap(126.0, 10545.0, "RDBEAR", cfg) == 126.0
-    assert apply_symbol_stake_cap(80.0, 10545.0, "RDBULL", cfg) == 80.0
+    cfg = {"symbol_max_stake_pct": {"R_10": 0.009}}
+    assert apply_symbol_stake_cap(126.0, 10545.0, "R_10", cfg) == 126.0
+    assert apply_symbol_stake_cap(80.0, 10545.0, "R_10", cfg) == 80.0
 
 
 def test_compute_single_strike_scales_with_m5_cycle():

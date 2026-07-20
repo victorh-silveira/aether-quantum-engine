@@ -52,7 +52,7 @@ async def test_predict_meta_via_config_sync_uses_singleton():
     response = predict_meta_via_config_sync(
         cfg,
         build_meta_predict_request(
-            symbol="RDBULL",
+            symbol="R_10",
             metrics=_meta_metrics(),
             tcn_probability=0.62,
             direction="CALL",
@@ -68,7 +68,7 @@ def test_predict_meta_via_config_sync_outside_loop():
     response = predict_meta_via_config_sync(
         cfg,
         build_meta_predict_request(
-            symbol="RDBULL",
+            symbol="R_10",
             metrics=_meta_metrics(),
             tcn_probability=0.62,
             direction="CALL",
@@ -88,7 +88,7 @@ async def test_predict_meta_via_config_sync_inside_running_loop():
         response = predict_meta_via_config_sync(
             cfg,
             build_meta_predict_request(
-                symbol="RDBULL",
+                symbol="R_10",
                 metrics=_meta_metrics(),
                 tcn_probability=0.62,
                 direction="CALL",

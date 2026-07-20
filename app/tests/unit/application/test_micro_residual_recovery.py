@@ -74,7 +74,7 @@ def _micro_rm(*, pending: float = 3.59, bankroll: float = 100.0, linear: int = 2
     rm.initial_bankroll = float(bankroll)
     rm.dlambert_unit = 1.0
     rm.consecutive_losses_linear = int(linear)
-    rm.pending_loss = {"RDBULL": float(pending)}
+    rm.pending_loss = {"R_10": float(pending)}
     rm.last_loss_stake = float(pending)
     rm.total_session_profit = -float(pending)
     rm.logger = MagicMock()
@@ -145,7 +145,7 @@ def test_micro_residual_recovery_releases_gate_and_sizes_stake() -> None:
     ):
         result = resolve_execution_direction(
             entry,
-            symbol="RDBULL",
+            symbol="R_10",
             risk_manager=rm,
             recovery_active=True,
         )
@@ -156,7 +156,7 @@ def test_micro_residual_recovery_releases_gate_and_sizes_stake() -> None:
     assert metrics.get("signal_status") != "SKIP"
     stake = rm.calculate_stake(
         100.0,
-        "RDBULL",
+        "R_10",
         0.72,
         silent=True,
         apply_stop_win=False,
@@ -206,7 +206,7 @@ def test_recovery_pending_total_from_pending_loss_map() -> None:
     orch = MagicMock()
     orch.risk_manager = None
     assert _recovery_pending_total(orch) == 0.0
-    rm = SimpleNamespace(pending_loss={"RDBULL": 1.25, "RDBEAR": 2.34})
+    rm = SimpleNamespace(pending_loss={"R_10": 1.25, "R_50": 2.34})
     orch.risk_manager = rm
     assert _recovery_pending_total(orch) == pytest.approx(3.59)
     orch.risk_manager = SimpleNamespace(pending_loss="bad")
@@ -251,7 +251,7 @@ async def test_post_settlement_signature_wait_on_recovery_pending() -> None:
 @pytest.mark.asyncio
 async def test_post_settlement_signature_wait_uses_pending_map_and_active_cooldown() -> None:
     orch = MagicMock()
-    orch.risk_manager = SimpleNamespace(pending_loss={"RDBULL": 3.59})
+    orch.risk_manager = SimpleNamespace(pending_loss={"R_10": 3.59})
     orch._cooldown_until = time.time() + 5.0
     orch.running = True
     with patch(

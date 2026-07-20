@@ -96,7 +96,7 @@ def test_resolve_execution_direction_aborts_neutral_clamp():
 
 def test_resolve_follows_dl_call_and_scores_calibrated_prob():
     entry = _entry(direction=TradeDirection.CALL, calibrated_prob=0.82)
-    result = resolve_execution_direction(entry, symbol="RDBULL")
+    result = resolve_execution_direction(entry, symbol="R_10")
     assert result is not None
     direction, metrics = result
     assert direction == TradeDirection.CALL
@@ -109,7 +109,7 @@ def test_resolve_follows_dl_call_and_scores_calibrated_prob():
 
 def test_resolve_follows_dl_put_and_scores_complement():
     entry = _entry(direction=TradeDirection.PUT, raw_prob=0.38, calibrated_prob=0.30)
-    result = resolve_execution_direction(entry, symbol="RDBEAR")
+    result = resolve_execution_direction(entry, symbol="R_10")
     assert result is not None
     direction, metrics = result
     assert direction == TradeDirection.PUT
@@ -122,7 +122,7 @@ def test_resolve_gray_zone_raw_prob_blocks_call_on_bull_with_meta():
     entry = _entry(direction=None, raw_prob=0.51)
     entry["metrics"]["meta_classifier_applied"] = True
     entry["metrics"]["predicted_payoff_edge"] = 0.05
-    result = resolve_execution_direction(entry, symbol="RDBULL")
+    result = resolve_execution_direction(entry, symbol="R_10")
     assert result is None
     assert entry["metrics"].get("quality_gate_reason") == "direction_margin_gate"
 
@@ -131,7 +131,7 @@ def test_resolve_gray_zone_raw_prob_allows_call_on_bull_without_meta():
     entry = _entry(direction=None, raw_prob=0.62)
     entry["metrics"].pop("predicted_payoff_edge", None)
     entry["metrics"].pop("meta_classifier_applied", None)
-    result = resolve_execution_direction(entry, symbol="RDBULL")
+    result = resolve_execution_direction(entry, symbol="R_10")
     assert result is not None
     assert result[0] == TradeDirection.CALL
 
@@ -140,7 +140,7 @@ def test_resolve_rejects_weak_margin_without_meta():
     entry = _entry(direction=None, raw_prob=0.51)
     entry["metrics"].pop("predicted_payoff_edge", None)
     entry["metrics"].pop("meta_classifier_applied", None)
-    result = resolve_execution_direction(entry, symbol="RDBULL")
+    result = resolve_execution_direction(entry, symbol="R_10")
     assert result is None
     assert entry["metrics"].get("quality_guard_reject") is True
     assert entry["metrics"].get("quality_gate_reason") == "direction_margin_gate"
@@ -162,7 +162,7 @@ def test_resolve_defaults_prob_when_direction_without_prob():
     }
     result = resolve_execution_direction(
         entry,
-        symbol="RDBEAR",
+        symbol="R_10",
         exec_cfg={
             "quality_gate": {
                 "min_direction_margin": 0.0,
@@ -182,8 +182,8 @@ def test_resolve_ignores_tactical_config_and_corr_matrix():
     result = resolve_execution_direction(
         entry,
         exec_cfg={"regime_evaluator": {"enabled": True}},
-        symbol="RDBULL",
-        corr_matrix={("RDBULL", "RDBEAR"): 0.9},
+        symbol="R_10",
+        corr_matrix={("R_10", "R_10"): 0.9},
         recovery_active=True,
     )
     assert result is not None
@@ -198,7 +198,7 @@ def test_resolve_applies_prefetched_positive_edge_with_organic_tcn_score():
     result = resolve_execution_direction(
         entry,
         infra_cfg={"meta_classifier": {"enabled": True}},
-        symbol="RDBULL",
+        symbol="R_10",
     )
     assert result is not None
     assert result[1]["trade_score"] == pytest.approx(0.70)
@@ -216,14 +216,14 @@ def test_resolve_allows_weak_tcn_margin_when_meta_zscore_strong():
     result = resolve_execution_direction(
         entry,
         exec_cfg={"quality_gate": {"min_direction_margin": 0.04, "min_meta_payoff_zscore": 0.5}},
-        symbol="RDBULL",
+        symbol="R_10",
     )
     assert result is None
     assert entry["metrics"].get("quality_gate_reason") == "direction_margin_gate"
     assert entry["metrics"].get("quality_guard_reject") is True
 
 
-def test_resolve_mild_negative_edge_blocked_by_meta_payoff_veto():
+def test_resolve_mild_negative_edge_flips_call_to_put():
     entry = _entry(direction=TradeDirection.CALL, calibrated_prob=0.70)
     entry["metrics"]["predicted_payoff_edge"] = -0.08
     entry["metrics"]["meta_classifier_applied"] = True
@@ -234,10 +234,11 @@ def test_resolve_mild_negative_edge_blocked_by_meta_payoff_veto():
         "src.application.services.execution_direction_resolver.attach_payoff_edge_zscore_metrics",
         side_effect=lambda metrics, edge, **kwargs: _stamp_negative_zscore(metrics),
     ):
-        result = resolve_execution_direction(entry, symbol="RDBULL")
+        result = resolve_execution_direction(entry, symbol="R_10")
     assert result is not None
     assert entry["metrics"].get("gate_reason") != META_PAYOFF_NEGATIVE_ZSCORE_VETO
-    assert result[0] == TradeDirection.CALL
+    assert result[0] == TradeDirection.PUT
+    assert entry["metrics"].get("meta_direction_flip") is True
 
 
 def test_resolve_meta_disabled_keeps_tcn_score_when_edge_strong():
@@ -246,7 +247,7 @@ def test_resolve_meta_disabled_keeps_tcn_score_when_edge_strong():
     result = resolve_execution_direction(
         entry,
         infra_cfg={"meta_classifier": {"enabled": False}},
-        symbol="RDBULL",
+        symbol="R_10",
     )
     assert result is not None
     assert result[1]["trade_score"] == pytest.approx(0.70)

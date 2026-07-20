@@ -243,7 +243,8 @@ def build_prediction_entry(
         contract_duration=int(params.get("contract_duration", 300)),
     )
     _ = calibration_mode
-    entry["metrics"]["gate_reason"] = "micro_chop_congestion_veto" if squeeze_congestion else None
+    entry["metrics"]["gate_reason"] = None
+    entry["metrics"]["micro_chop_congestion"] = bool(squeeze_congestion)
     entry["metrics"]["edge_expectancy"] = None
     entry["metrics"]["calibrated_prob"] = calibrated_prob
     entry["metrics"]["calibration_mode"] = calibration_mode

@@ -53,9 +53,13 @@ def test_cross_symbol_conviction_spread_defaults_without_triplet():
     assert cross_symbol_conviction_spread({}) == 0.0
 
 
+def test_side_payoff_from_probability_put():
+    assert side_payoff_from_probability(0.62, "PUT") == pytest.approx(0.38)
+
+
 def test_parallel_drift_regime_exposes_low_relative_conviction_spread():
     decisions = {
-        "RDBULL": {
+        "R_10": {
             "direction": TradeDirection.CALL,
             "metrics": {
                 "calibrated_prob": 0.62,
@@ -63,37 +67,16 @@ def test_parallel_drift_regime_exposes_low_relative_conviction_spread():
                 "feature_vector": [0.1] * 34,
             },
         },
-        "RDBEAR": {
-            "direction": TradeDirection.CALL,
-            "metrics": {
-                "calibrated_prob": 0.39,
-                "micro_indicators": {"rsi": 44.0, "vol_ratio": 0.92},
-                "feature_vector": [0.2] * 34,
-            },
-        },
     }
     attach_cross_symbol_features_to_decisions(decisions)
-    spread = cross_symbol_conviction_spread(decisions["RDBULL"]["metrics"])
-    assert spread == pytest.approx(abs(0.62 - (1.0 - 0.39)))
-    assert spread < 0.05
-
-
-def test_side_payoff_from_probability_put():
-    assert side_payoff_from_probability(0.62, "PUT") == pytest.approx(0.38)
+    spread = cross_symbol_conviction_spread(decisions["R_10"]["metrics"])
+    assert spread == pytest.approx(0.0)
 
 
 @pytest.mark.asyncio
 async def test_prefetch_meta_payoff_for_decisions_with_cross_symbol_payload():
     decisions = {
-        "RDBULL": {"direction": TradeDirection.CALL, "metrics": _metrics_with_cross()},
-        "RDBEAR": {
-            "direction": TradeDirection.PUT,
-            "metrics": {
-                "calibrated_prob": 0.39,
-                "feature_vector": [0.2] * 34,
-                "micro_indicators": {"rsi": 50.0, "vol_ratio": 1.0},
-            },
-        },
+        "R_10": {"direction": TradeDirection.CALL, "metrics": _metrics_with_cross()},
     }
     cfg = {"infra": {"meta_classifier": {"enabled": True, "http_url": "http://localhost:8005"}}}
     with patch(
@@ -104,19 +87,15 @@ async def test_prefetch_meta_payoff_for_decisions_with_cross_symbol_payload():
         client.predict_meta_batch = AsyncMock(
             return_value=[
                 {"predicted_payoff_edge": 0.12, "meta_applied": True},
-                {"predicted_payoff_edge": 0.08, "meta_applied": True},
             ]
         )
         get_client.return_value = client
         await prefetch_meta_payoff_for_decisions(decisions, cfg)
-    bull = decisions["RDBULL"]["metrics"]
-    bear = decisions["RDBEAR"]["metrics"]
-    assert bull["predicted_payoff_edge"] == pytest.approx(0.12)
-    assert bull["trade_score"] == pytest.approx(0.62)
-    assert bear["predicted_payoff_edge"] == pytest.approx(0.08)
-    assert bear["trade_score"] == pytest.approx(0.61)
-    assert "cross_symbol_features" in bull
-    assert len(extract_meta_feature_vector(bull)) == META_FEATURE_DIM
+    metrics = decisions["R_10"]["metrics"]
+    assert metrics["predicted_payoff_edge"] == pytest.approx(0.12)
+    assert metrics["trade_score"] == pytest.approx(0.62)
+    assert "cross_symbol_features" in metrics
+    assert len(extract_meta_feature_vector(metrics)) == META_FEATURE_DIM
     args = client.predict_meta_batch.await_args[0][0]
     assert len(args[0][0]["feature_vector"]) == META_FEATURE_DIM
 
@@ -124,20 +103,12 @@ async def test_prefetch_meta_payoff_for_decisions_with_cross_symbol_payload():
 @pytest.mark.asyncio
 async def test_prefetch_meta_payoff_attaches_cross_symbol_when_missing():
     decisions = {
-        "RDBULL": {
+        "R_10": {
             "direction": TradeDirection.CALL,
             "metrics": {
                 "calibrated_prob": 0.66,
                 "feature_vector": [0.1] * 34,
                 "micro_indicators": {"rsi": 60.0, "vol_ratio": 1.1},
-            },
-        },
-        "RDBEAR": {
-            "direction": TradeDirection.PUT,
-            "metrics": {
-                "calibrated_prob": 0.38,
-                "feature_vector": [0.2] * 34,
-                "micro_indicators": {"rsi": 42.0, "vol_ratio": 0.9},
             },
         },
     }
@@ -150,13 +121,13 @@ async def test_prefetch_meta_payoff_attaches_cross_symbol_when_missing():
         client.predict_meta_batch = AsyncMock(
             return_value=[
                 {"predicted_payoff_edge": 0.11, "meta_applied": True},
-                {"predicted_payoff_edge": 0.05, "meta_applied": True},
             ]
         )
         get_client.return_value = client
         prepare_meta_classifier_cross_symbol_bundle(MagicMock(), decisions, {"micro_granularity": 300})
         await prefetch_meta_payoff_for_decisions(decisions, cfg)
-    assert "cross_symbol_features" in decisions["RDBULL"]["metrics"]
+    assert "cross_symbol_features" in decisions["R_10"]["metrics"]
+    assert decisions["R_10"]["metrics"]["cross_symbol_features"]["cross_symbol_prob_delta"] == pytest.approx(0.0)
 
 
 def test_prepare_meta_classifier_bundle_skips_invalid_entries():
@@ -182,7 +153,7 @@ def test_apply_meta_regression_edge_to_metrics_put_side():
 def test_resolve_meta_payoff_edge_uses_prefetched_value():
     metrics = {"predicted_payoff_edge": 0.18, "meta_classifier_applied": True}
     edge, applied = resolve_meta_payoff_edge(
-        symbol="RDBULL",
+        symbol="R_10",
         metrics=metrics,
         direction=TradeDirection.CALL,
         tcn_probability=0.62,
@@ -197,7 +168,7 @@ def test_resolve_meta_payoff_edge_without_prefetch_returns_neutral():
     metrics = _metrics_with_cross()
     cfg = {"infra": {"meta_classifier": {"enabled": True, "http_url": "http://localhost:8005"}}}
     edge, applied = resolve_meta_payoff_edge(
-        symbol="RDBULL",
+        symbol="R_10",
         metrics=metrics,
         direction=TradeDirection.CALL,
         tcn_probability=0.62,
@@ -212,7 +183,7 @@ def test_resolve_meta_payoff_edge_without_prefetch_even_when_enabled():
     metrics = _metrics_with_cross()
     cfg = {"infra": {"meta_classifier": {"enabled": True}}}
     edge, applied = resolve_meta_payoff_edge(
-        symbol="RDBULL",
+        symbol="R_10",
         metrics=metrics,
         direction=TradeDirection.CALL,
         tcn_probability=0.62,
@@ -283,7 +254,7 @@ def test_c0015_stacking_payload_rejects_negative_edge_before_squeeze(caplog):
         ),
         caplog.at_level("INFO"),
     ):
-        result = resolve_execution_direction(entry, symbol="RDBULL")
+        result = resolve_execution_direction(entry, symbol="R_10")
     assert result is not None
     assert entry["metrics"].get("gate_reason") != META_PAYOFF_NEGATIVE_ZSCORE_VETO
     assert entry["metrics"].get("signal_status") != "SKIP"

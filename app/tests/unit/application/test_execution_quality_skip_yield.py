@@ -19,7 +19,7 @@ def test_quality_skip_yield_seconds_always_zero():
 
 def test_sanitize_quality_skip_decisions_strips_reject_metadata():
     decisions = {
-        "RDBULL": {
+        "R_10": {
             "metrics": {
                 "quality_guard_reject": True,
                 "quality_gate_reason": "[Meta Z-Score]",
@@ -29,7 +29,7 @@ def test_sanitize_quality_skip_decisions_strips_reject_metadata():
         }
     }
     sanitize_quality_skip_decisions(decisions)
-    metrics = decisions["RDBULL"]["metrics"]
+    metrics = decisions["R_10"]["metrics"]
     assert "quality_guard_reject" not in metrics
     assert "quality_gate_reason" not in metrics
     assert "regime_skip_cycle" not in metrics
@@ -59,7 +59,7 @@ def test_resolve_signature_boundary_seconds_defaults_when_config_invalid():
 
 def test_sanitize_quality_skip_decisions_ignores_invalid_payload():
     sanitize_quality_skip_decisions([])
-    sanitize_quality_skip_decisions({"RDBULL": "invalid", "RDBEAR": {"metrics": "invalid"}})
+    sanitize_quality_skip_decisions({"R_10": "invalid", "R_50": {"metrics": "invalid"}})
 
 
 @pytest.mark.asyncio
@@ -76,7 +76,7 @@ async def test_trading_cycle_skips_execution_on_quality_gate_without_yield(orch_
     orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 0
     orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = False
     weak_decisions = {
-        "RDBULL": {
+        "R_10": {
             "direction": "CALL",
             "metrics": {
                 "calibrated_prob": 0.51,
