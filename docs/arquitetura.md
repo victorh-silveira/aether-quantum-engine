@@ -58,7 +58,7 @@ aether-quantum-engine/
 ```
 presentation  →  application  →  domain
                     ↓
-              infrastructure (ports/adapters)
+              infrastructure (adapters)
 ```
 
 | Camada | Pasta | Papel |
@@ -292,7 +292,6 @@ Em modo mandatário, o quality guard emite telemetria `QUALITY_GUARD` / `EXECUTI
 ### 7.2 ExecutionManager
 
 - Stake via `RiskManager.calculate_stake` → `risk_stake_calc.calculate_stake_for_manager`
-- Lotes fracionados se stake > `max_single_stake_limit` (`execution_fractional_lots`)
 - `TradeHandler.buy_with_parameters`: RISE_FALL **120 s**
 - Reconciliação de stake downgrade Deriv (`executed_stake_reconciliation`)
 

@@ -13,7 +13,7 @@
 | Dados publicos / backtest | `api_config.public_ws_url` (sem OTP) |
 | Histórico OHLC | `ticks_history` com `style: candles`: macro **600 s** (`data_handler.granularity`) e micro **120 s** (`data_handler.micro_granularity`); prefixos de assinatura legado `m15`/`m5` |
 | Stream ao vivo | Dupla assinatura OHLC por símbolo: macro 600 s (contexto DL) + micro 120 s (relógio operacional); ticks opcionais |
-| Proposta / compra | `proposal` + `buy` via `TradeHandler` (RISE_FALL, stake, duração **120 s**); stakes > limite configurável fatiadas com **proposta atômica por sub-lote** (`execution_fractional_lots`) — aborta cluster se qualquer `proposal.id` falhar |
+| Proposta / compra | `proposal` + `buy` via `TradeHandler` (RISE_FALL, stake, duração **120 s**) |
 | Reconciliação de stake | `executed_stake_reconciliation` + `risk_contract_result` — residual de downgrade ajusta `pending_loss`; `apply_contract_settlement_result` reconcilia planned vs executed |
 | Recovery pós-deadlock | `post_settlement_resilience` — reinicialização transparente do loop sem encerrar o processo |
 | Contratos abertos | `proposal_open_contract`, `profit_table` (reconciliação e settlement) |

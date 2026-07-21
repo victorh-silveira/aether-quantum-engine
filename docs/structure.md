@@ -1,6 +1,6 @@
 # Estrutura do repositório
 
-Layout de software com infraestrutura Docker local opcional (`infra/docker/`). O código de produção vive em **`app/src/`** com **~226 módulos Python** organizados em quatro camadas DDD. Testes: **~287** arquivos `test_*.py` em `app/tests/` com cobertura **100%** em `app/src`.
+Layout de software com infraestrutura Docker local opcional (`infra/docker/`). O código de produção vive em **`app/src/`** com **~243 módulos Python** organizados em quatro camadas DDD. Testes: **~297** arquivos `test_*.py` em `app/tests/` com cobertura **100%** em `app/src`.
 
 ```
 aether-quantum-engine/
@@ -17,7 +17,7 @@ aether-quantum-engine/
 │   │   ├── monitor/                    # live_monitor, monitor_redis, monitor_state, monitor_ui
 │   │   ├── operations/                 # clean_workspace, deriv_pat_connect, train_meta_*
 │   │   └── wsl/setup.sh
-│   ├── src/                            # ~226 módulos Python (DDD)
+│   ├── src/                            # ~243 módulos Python (DDD)
 │   └── tests/
 │       ├── unit/                       # application, domain, infrastructure, presentation, scripts
 │       ├── conftest.py
@@ -29,7 +29,6 @@ aether-quantum-engine/
 ├── docs/
 ├── infra/docker/                       # Redis, TimescaleDB, MinIO, Triton, meta-classifier
 ├── linters/
-├── logs/
 ├── Makefile
 ├── README.md
 ├── run.py                              # Atalho → app/run.py
@@ -43,14 +42,14 @@ aether-quantum-engine/
 ```
 presentation  →  application  →  domain
                     ↓
-              infrastructure (ports/adapters)
+              infrastructure (adapters)
 ```
 
 | Camada | Pasta | Módulos | Responsabilidade |
 |--------|-------|---------|------------------|
-| Application | `application/services/` | ~144 | Casos de uso: orquestração, DL, execução, meta-classificador, guards |
-| Domain | `domain/` | ~30 | Lógica pura: risco Kelly + Soft Recovery, AntiTrendLock (política), RiskPolicy, modelos, side_equilibrium |
-| Infrastructure | `infrastructure/` | ~49 | Adaptadores: Deriv API, Redis, Triton, MinIO, Timescale |
+| Application | `application/services/` | ~51 | Casos de uso: orquestração, DL, execução, meta-classificador, guards |
+| Domain | `domain/` | ~39 | Lógica pura: risco Kelly + Soft Recovery, AntiTrendLock (política), RiskPolicy, modelos, side_equilibrium |
+| Infrastructure | `infrastructure/` | ~45 | Adaptadores: Deriv API, Redis, Triton, MinIO, Timescale |
 | Presentation | `presentation/` | 1 | Logging de terminal |
 
 ---
@@ -75,6 +74,7 @@ presentation  →  application  →  domain
 | `direction_loss_tracker.py` | Perdas consecutivas por direção (singleton) |
 | `direction_persistence_guard.py` | Anti-trend-lock com flip cross-symbol e telemetria `REGIME_GUARD` |
 | `direction_persistence_guard_helpers.py` | Auxiliares de probabilidade cross-symbol e deduplicação de logs do guard |
+| `direction_persistence_guard_part2.py` | Continuacao do anti-trend-lock |
 | `execution_direction.py` | Resolução/inversão CALL/PUT para execução |
 | `execution_direction_checks.py` | Pré-checagens de direção; rejeita ciclo só por starvation de microestrutura; limpa `neutral_clamp`; hooks sniper |
 | `execution_direction_cross_corr.py` | Peso DL via correlação cruzada |
@@ -84,31 +84,42 @@ presentation  →  application  →  domain
 | `execution_loss_protection.py` | Hard filters de loss protection (`min_direction_margin: 0.03`) |
 | `execution_mandatory_pick.py` | Seleção obrigatória por ranking |
 | `execution_market_rank.py` | Ranking de mercado e `market_decision_score` |
+| `execution_price_zone_gate.py` | Gate de zona de preco BB/Keltner |
 | `execution_quality_gate.py` | Gate TCN soft: margem direcional + meta payoff edge |
-| `execution_quality_gate_reason.py` | Motivos textuais e mensagens `QUALITY_GUARD` / `EXECUTION_FLOW` |
 | `execution_quality_gate_cluster.py` | Suspensão cooperativa do cluster (TCN vs meta) |
+| `execution_quality_gate_config.py` | Parsers/resolvers do quality_gate SSOT |
+| `execution_quality_gate_drawdown.py` | Dynamic Recovery Relaxation: pisos TCN/Meta vs passivo + waiver Z |
+| `execution_quality_gate_fallback.py` | Bloqueio de fallback em recovery |
 | `execution_quality_gate_meta.py` | Filtro pelo meta-regressor (z-score payoff) |
 | `execution_quality_gate_microstructure.py` | Vetoes HARD: `adx_starvation`, `vol_ratio_starvation`, `val_accuracy_gate` |
-| `execution_quality_gate_fallback.py` | Bloqueio de fallback em recovery |
-| `execution_quality_gate_drawdown.py` | Dynamic Recovery Relaxation: pisos TCN/Meta vs passivo + waiver Z |
+| `execution_quality_gate_reason.py` | Motivos textuais e mensagens `QUALITY_GUARD` / `EXECUTION_FLOW` |
 | `execution_quality_gate_starvation.py` | Válvula de escape por inanição de ciclos |
+| `execution_runtime_config.py` | Resolve bloco orchestrator.execution do SSOT |
 | `execution_sniper_gates.py` | Banda de calibração neutra e `hurst_regime_allowed` |
 | `execution_symbols.py` | Símbolos elegíveis e ranking |
 | `execution_symbols_recovery.py` | Pool e ranking em recovery |
-| `execution_volatility_threshold.py` | Thresholds dinâmicos por regime |
 | `execution_volatility_bb.py` | Bollinger width com vol implícita |
 | `execution_volatility_booster.py` | Modificador por estouro macro/micro (600 s / 120 s) |
+| `execution_volatility_threshold.py` | Thresholds dinâmicos por regime |
+| `force_trade_mode.py` | Modo force-trade / mandatory |
+| `infra_timing_config.py` | Timeouts/reconnect/history/stream/meta/triton SSOT |
+| `live_signal_metrics.py` | - |
+| `live_signal_metrics_config.py` | Knobs de telemetria live_signal_metrics |
 | `log_dedupe.py` | `LogDeduper` — deduplicação por canal/minuto; `log_info_if_changed` / `log_warning_if_changed` |
 | `market_audit_log.py` | Auditoria unificada de mercado |
+| `market_audit_log_helpers.py` | Helpers do market audit log |
+| `meta_classifier_cross_symbol.py` | Features cross-symbol de arbitragem |
 | `meta_classifier_features.py` | Vetores tabulares para stacking |
 | `meta_classifier_flow_features.py` | Features de velocidade micro |
-| `meta_classifier_cross_symbol.py` | Features cross-symbol de arbitragem |
 | `meta_classifier_stacking.py` | Stacking tabular com edge contínuo |
 | `meta_payoff_regression.py` | Edge LightGBM + soft score (sem flip de lado) |
-| `meta_payoff_veto_gate.py` | Soft/hard veto Z-Score (`meta_veto_mode`: none/soft/hard) |
 | `meta_payoff_shadow.py` | Shadow calibração para hard veto |
-| `meta_direction_flip.py` | Helpers de regime/freeze (flip CALL/PUT **não** wired no resolver de produção) |
+| `meta_payoff_veto_gate.py` | Soft/hard veto Z-Score (`meta_veto_mode`: none/soft/hard) |
 | `payoff_edge_zscore.py` | Z-Score adaptativo (janela 15–45) sobre `predicted_payoff_edge` |
+| `regime_micro_freeze.py` | Freeze micro de regime |
+| `settings_knobs.py` | Facades de knobs de aplicacao sobre config_knobs |
+| `side_equilibrium_gate.py` | Gate SIDE_EQ na execucao |
+| `side_equilibrium_store.py` | Store de equilibrio CALL/PUT |
 
 ### Application — strategy (`application/services/strategy/`)
 
@@ -121,113 +132,125 @@ presentation  →  application  →  domain
 
 | Módulo | Responsabilidade |
 |--------|------------------|
-| `__init__.py` | **`Orchestrator`** — aggregate root operacional |
-| `orchestrator_run_loop.py` | Loop principal; recovery transparente pós-deadlock |
-| `trading_cycle_entry.py` | Pré-condições, lock e execução do ciclo |
-| `trading_cycle_entry_guards.py` | Guards de stop-win, assinatura, cadência e contratos |
-| `ws_bootstrap.py` | Bootstrap WebSocket PAT e streams |
-| `engine_session.py` | Bootstrap compartilhado run.py / train.py |
-| `engine_mode.py` | Modos train vs execute |
+| `__init__.py` | Pacote vazio |
+| `api_maintenance_guard.py` | Hibernação durante manutenção do broker |
 | `config_symbols.py` | Normalização de símbolos e âncora |
 | `decision_mode_banner.py` | Banner de modo de decisão no startup |
-| `execution_manager.py` | **`ExecutionManager`** — ordens, settlement, reconcile |
-| `execution_cuda.py` | Limpeza opcional de cache CUDA pós-ciclo |
+| `engine_mode.py` | Modos train vs execute |
+| `engine_session.py` | Bootstrap compartilhado run.py / train.py |
+| `execution_blockers.py` | Logs quando nenhuma ordem é enviada |
 | `execution_collect.py` | Coleta e seleção de candidatos do cluster |
 | `execution_collect_gather.py` | Coleta contínua sem veto de qualidade |
 | `execution_collect_helpers.py` | Helpers: hedge, fallback, Hurst |
+| `execution_cuda.py` | Limpeza opcional de cache CUDA pós-ciclo |
+| `execution_manager.py` | **`ExecutionManager`** — ordens, settlement, reconcile |
+| `execution_manager_execute.py` | Execucao efetiva de ordem no manager |
 | `execution_orders.py` | Envio de ordens e subscribe de contratos |
 | `execution_proposal.py` | Retry de proposta com redução de stake |
+| `execution_quality_skip_yield.py` | Yield após rejeição silenciosa do meta-gate |
 | `execution_recovery_gate.py` | Pisos de qualidade em modo recovery |
 | `execution_settlement.py` | Aguarda liquidação e reconcilia |
-| `execution_blockers.py` | Logs quando nenhuma ordem é enviada |
-| `execution_quality_skip_yield.py` | Yield após rejeição silenciosa do meta-gate |
-| `settlement_logic.py` | Liquidação e pós-processamento de contratos |
-| `settlement_reconciliation.py` | Reconciliação atômica pós-reconexão WS |
-| `settlement_backfill.py` | Fallback via profit_table / portfolio |
-| `settlement_detect.py` | Detecção de contrato liquidado |
-| `settlement_ws_queries.py` | Consultas WS para reconciliação |
-| `settlement_utils.py` | Utilitários de liquidação |
-| `settlement_queue_ops.py` | Fila Redis `settlement:queue:priority` (ZSET), push/consume/cancel fast-path |
+| `graceful_shutdown.py` | Encerramento gracioso |
+| `metrics_utils.py` | Métricas neutras do orquestrador |
+| `orchestrator_atomic_state.py` | Contexto atômico de leitura/escrita |
+| `orchestrator_data_signature.py` | `resolve_signature_boundary_seconds`, `seconds_until_next_signature_boundary`, assinatura micro+macro (prefixos legados `m5`/`m15` para 120/600 s) |
+| `orchestrator_persistence.py` | Snapshot atômico sessão/risco/mercado |
+| `orchestrator_run_loop.py` | Loop principal; recovery transparente pós-deadlock |
 | `orchestrator_settlement_queue.py` | Worker assíncrono: consome Redis priority + fila in-memory local |
+| `orchestrator_state_restore.py` | Restore Redis no boot |
+| `orchestrator_state_session.py` | Restore de sessão e assinaturas Redis |
 | `post_settlement_cycle.py` | Agendamento pós-liquidação com fôlego |
 | `post_settlement_loss_cooldown.py` | Inércia temporal pós-LOSS |
 | `post_settlement_resilience.py` | Recovery transparente e timeouts resilientes |
-| `session_target_bootstrap.py` | Bootstrap de metas stop-win por sessão |
-| `session_persistence_barrier.py` | Barreira atômica pós-reset D'Alembert |
-| `orchestrator_persistence.py` | Snapshot atômico sessão/risco/mercado |
-| `orchestrator_state_restore.py` | Restore Redis no boot |
-| `orchestrator_state_session.py` | Restore de sessão e assinaturas Redis |
-| `orchestrator_atomic_state.py` | Contexto atômico de leitura/escrita |
-| `orchestrator_data_signature.py` | `resolve_signature_boundary_seconds`, `seconds_until_next_signature_boundary`, assinatura micro+macro (prefixos legados `m5`/`m15` para 120/600 s) |
-| `metrics_utils.py` | Métricas neutras do orquestrador |
-| `result_utils.py` | Normalização de resultado de contratos |
+| `reconnect_cycle_release.py` | Libera ciclo apos reconexao WS |
 | `regime_freeze_yield.py` | Yield quando regime FREEZE suspende ciclo |
+| `result_utils.py` | Normalização de resultado de contratos |
+| `session_persistence_barrier.py` | Barreira atômica pós-reset D'Alembert |
+| `session_target_bootstrap.py` | Bootstrap de metas stop-win por sessão |
+| `settlement_backfill.py` | Fallback via profit_table / portfolio |
+| `settlement_detect.py` | Detecção de contrato liquidado |
+| `settlement_logic.py` | Liquidação e pós-processamento de contratos |
+| `settlement_outcome.py` | - |
+| `settlement_queue_ops.py` | Fila Redis `settlement:queue:priority` (ZSET), push/consume/cancel fast-path |
+| `settlement_reconciliation.py` | Reconciliação atômica pós-reconexão WS |
+| `settlement_utils.py` | Utilitários de liquidação |
+| `settlement_ws_queries.py` | Consultas WS para reconciliação |
+| `trading_cycle_entry.py` | Pré-condições, lock e execução do ciclo |
+| `trading_cycle_entry_guards.py` | Guards de stop-win, assinatura, cadência e contratos |
+| `training_run.py` | Sessão de treino DL (train.py) |
 | `warm_up_buffer_guard.py` | Aquecimento do TickBuffer pós-reconexão |
 | `watchdog_service.py` | Watchdog de inanição de ticks |
-| `api_maintenance_guard.py` | Hibernação durante manutenção do broker |
-| `graceful_shutdown.py` | Encerramento gracioso |
-| `training_run.py` | Sessão de treino DL (train.py) |
+| `ws_bootstrap.py` | Bootstrap WebSocket PAT e streams |
 
 ### Application — deep learning (`application/services/deep_learning/`)
 
 | Módulo | Responsabilidade |
 |--------|------------------|
 | `decision_bridge.py` | Ponte DL → Orquestrador |
-| `model.py` | Fachada TCN/LSTM, checkpoint e predição |
-| `dl_tcn.py` | TCN dilatado + **cabeça auxiliar de regressão** (`regression_head`) para regularização multi-task |
+| `dl_bootstrap_train.py` | Treino inicial sequencial de todos os símbolos |
+| `dl_bridge_helpers.py` | Entradas de decisão, cooldown, reexportes |
+| `dl_calibration.py` | Calibração de probabilidades |
+| `dl_calibration_fit.py` | Ajuste de calibradores no holdout |
+| `dl_calibration_isotonic.py` | Regressão isotônica (PAV) |
+| `dl_calibration_tolerance.py` | Override TCN macro quando raw&gt;0.65 ou &lt;0.35; zona neutra config-driven (settings: OFF) |
+| `dl_congestion.py` | Metricas de congestao de mercado |
+| `dl_cycle_brief.py` | Linhas curtas do ciclo DL |
+| `dl_cycle_log.py` | Logs compactos do ciclo DL |
+| `dl_deferred_train.py` | Retreino em background |
+| `dl_deploy.py` | Gate de deploy e persistência no runtime |
+| `dl_deploy_eval.py` | Mini walk-forward de deploy (`force_local=True`) |
+| `dl_device.py` | Seleção CPU/CUDA |
+| `dl_feature_build.py` | Séries de preço e indicadores (34D) |
+| `dl_feature_indicators.py` | Indicadores técnicos normalizados |
+| `dl_feature_indicators_advanced.py` | Indicadores avançados normalizados |
+| `dl_feature_matrix.py` | Linhas, matrizes e tensores de features |
+| `dl_feature_oscillators.py` | Osciladores para feature build |
+| `dl_features.py` | Reexport de feature build, matrix e sequence extract |
+| `dl_gate_config.py` | Config do gate de deploy |
+| `dl_gating.py` | Utilitários de probabilidade para execução |
+| `dl_horizon.py` | Horizonte de label alinhado ao contrato |
+| `dl_hurst.py` | Hurst e variance ratio |
+| `dl_indicator_config.py` | Config fail-closed de indicadores DL |
+| `dl_labels.py` | Rótulos binários Rise/Fall / Triple Barrier |
 | `dl_lstm.py` | Classificador LSTM/GRU |
+| `dl_market_data.py` | Leitura OHLC e microestrutura do stream |
+| `dl_model_artifacts.py` | Download/upload via ModelArtifactStore |
+| `dl_model_checkpoint.py` | Persistência PyTorch / TorchScript |
 | `dl_model_factory.py` | Fábrica de arquiteturas |
 | `dl_model_types.py` | Tipos e constantes DL |
-| `dl_model_checkpoint.py` | Persistência PyTorch / TorchScript |
-| `dl_model_artifacts.py` | Download/upload via ModelArtifactStore |
-| `dl_symbol_runtime.py` | Runtime de modelo por símbolo |
+| `dl_outcomes.py` | Peso de amostras a partir de trades reais |
 | `dl_params.py` | Leitura de parâmetros deep_learning |
 | `dl_params_blocks.py` | Blocos de parsing de parâmetros |
-| `dl_device.py` | Seleção CPU/CUDA |
+| `dl_params_timeframe.py` | - |
+| `dl_predict.py` | Predição sync por símbolo |
+| `dl_predict_async.py` | Predição assíncrona por símbolo |
+| `dl_predict_build.py` | Montagem de entrada de decisão DL |
+| `dl_predict_cache.py` | Cache de predição por fingerprint |
+| `dl_predict_metrics.py` | Métricas dinâmicas e squeeze no entry |
+| `dl_predict_telemetry.py` | Telemetria micro + bundle cross-symbol meta |
+| `dl_predict_triton.py` | Predição via Triton (fail-closed obrigatório em produção) |
+| `dl_retrain.py` | Agenda retreino por vela/loss/janela |
+| `dl_sequence_extract.py` | Sequências TCN a partir de OHLC |
+| `dl_splits.py` | Splits temporais purged com embargo |
 | `dl_startup.py` | Fetch inicial e prontidão de checkpoint |
+| `dl_symbol_runtime.py` | Runtime de modelo por símbolo |
+| `dl_symbol_train.py` | Treino walk-forward por símbolo |
+| `dl_symbol_train_success.py` | Persistência pós-treino |
+| `dl_tcn.py` | TCN dilatado + **cabeça auxiliar de regressão** (`regression_head`) para regularização multi-task |
 | `dl_training.py` | Treino walk-forward com split purged |
 | `dl_training_epochs.py` | Loop de épocas e perda mascarada |
 | `dl_training_gate.py` | Gates de treino inicial / histórico mínimo |
-| `dl_symbol_train.py` | Treino walk-forward por símbolo |
-| `dl_symbol_train_success.py` | Persistência pós-treino |
-| `dl_bootstrap_train.py` | Treino inicial sequencial de todos os símbolos |
-| `dl_deferred_train.py` | Retreino em background |
-| `dl_retrain.py` | Agenda retreino por vela/loss/janela |
-| `dl_splits.py` | Splits temporais purged com embargo |
-| `dl_labels.py` | Rótulos binários Rise/Fall / Triple Barrier |
-| `dl_horizon.py` | Horizonte de label alinhado ao contrato |
-| `dl_features.py` | Reexport de feature build, matrix e sequence extract |
-| `dl_feature_build.py` | Séries de preço e indicadores (34D) |
-| `dl_feature_matrix.py` | Linhas, matrizes e tensores de features |
-| `dl_feature_indicators.py` | Indicadores técnicos normalizados |
-| `dl_feature_indicators_advanced.py` | Indicadores avançados normalizados |
-| `dl_sequence_extract.py` | Sequências TCN a partir de OHLC |
-| `dl_market_data.py` | Leitura OHLC e microestrutura do stream |
-| `dl_hurst.py` | Hurst e variance ratio |
 | `dl_trend.py` | Direção consensual de tendência |
-| `dl_gating.py` | Utilitários de probabilidade para execução |
-| `dl_gate_config.py` | Config do gate de deploy |
-| `dl_deploy.py` | Gate de deploy e persistência no runtime |
-| `dl_deploy_eval.py` | Mini walk-forward de deploy (`force_local=True`) |
-| `dl_calibration.py` | Calibração de probabilidades |
-| `dl_calibration_tolerance.py` | Override TCN macro quando raw&gt;0.65 ou &lt;0.35; zona neutra config-driven (settings: OFF) |
-| `dl_calibration_fit.py` | Ajuste de calibradores no holdout |
-| `dl_calibration_isotonic.py` | Regressão isotônica (PAV) |
-| `dl_predict.py` | Predição sync por símbolo |
-| `dl_predict_async.py` | Predição assíncrona por símbolo |
-| `dl_predict_triton.py` | Predição via Triton (fail-closed obrigatório em produção) |
-| `dl_predict_build.py` | Montagem de entrada de decisão DL |
-| `dl_predict_telemetry.py` | Telemetria micro + bundle cross-symbol meta |
-| `dl_predict_metrics.py` | Métricas dinâmicas e squeeze no entry |
-| `dl_predict_cache.py` | Cache de predição por fingerprint |
-| `dl_cycle_log.py` | Logs compactos do ciclo DL |
-| `dl_cycle_brief.py` | Linhas curtas do ciclo DL |
-| `dl_outcomes.py` | Peso de amostras a partir de trades reais |
-| `dl_bridge_helpers.py` | Entradas de decisão, cooldown, reexportes |
-
----
+| `model.py` | Fachada TCN/LSTM, checkpoint e predição |
 
 ## Domain (`domain/`)
+
+
+### Config SSOT (`domain/`)
+
+| Módulo | Responsabilidade |
+|--------|------------------|
+| `config_knobs.py` | SSOT: load/merge fail-closed de blocos do settings.json |
 
 ### Models (`domain/models/`)
 
@@ -259,32 +282,37 @@ presentation  →  application  →  domain
 
 | Módulo | Responsabilidade |
 |--------|------------------|
-| `risk_manager.py` | **`RiskManager`** — Kelly, cluster, recovery |
-| `risk_policy.py` | `RiskPolicy` + `validate_engine_risk_config` no boot |
-| `risk_stake_calc.py` | Stake: Kelly EXPLORE; Soft Recovery RECOVER |
-| `risk_stake_flow.py` | `apply_stop_win_kelly_boost`, `emit_cycle_stake_log` |
-| `stake_sizing.py` | Kelly, regime EXPLORE/RECOVER, consenso, round_stake |
-| `soft_recovery_policy.py` | Soft Recovery paramétrico: cap, amort, passo fixo U×1.15, hard floor micro, micro-residual |
-| `kelly_base_fraction.py` | Compressão da fração Kelly |
-| `kelly_f_star_adjustments.py` | Ajustes f* (consenso, divergência) |
-| `super_concordance_kelly.py` | Expansão Kelly em super-consenso |
+| `bayesian_win_rate.py` | - |
+| `consensus_stake_helpers.py` | - |
 | `consensus_stake_penalty.py` | Soft recovery stake + caps + consensus penalty |
 | `dlambert_sizing.py` | Kelly + progressão Soft Recovery |
-| `stop_win_target.py` | `StopWinManager`, meta de lucro por sessão |
-| `stake_target_proximity.py` | Amortecimento por proximidade da meta |
-| `risk_recovery_state.py` | Estado financeiro de recovery; `evaluate_anti_trend_lock` (política pura AntiTrendLock) |
+| `executed_stake_reconciliation.py` | Stake executada vs planejada |
+| `kelly_base_fraction.py` | Compressão da fração Kelly |
+| `kelly_f_star_adjustments.py` | Ajustes f* (consenso, divergência) |
+| `kelly_runtime_config.py` | Knobs Kelly runtime SSOT |
 | `recovery_conviction.py` | Pisos de convicção em recovery |
-| `recovery_hurst_gate.py` | Piso logarítmico por Hurst |
 | `recovery_hurst_decay.py` | Decaimento do piso Hurst |
+| `recovery_hurst_gate.py` | Piso logarítmico por Hurst |
+| `recovery_state_config.py` | Knobs de estado de recovery SSOT |
 | `risk_cluster.py` | Finalização de cluster |
 | `risk_contract_result.py` | `apply_contract_settlement_result` |
-| `executed_stake_reconciliation.py` | Stake executada vs planejada |
 | `risk_cooldown.py` | `RiskCooldownMixin` |
-| `risk_proposal_skip.py` | `ProposalSkipMixin` |
-| `symbol_loss_cooldown.py` | Cooldown por loss recente |
+| `risk_manager.py` | **`RiskManager`** — Kelly, cluster, recovery |
 | `risk_manager_restore.py` | Restore de snapshot |
-
----
+| `risk_policy.py` | `RiskPolicy` + `validate_engine_risk_config` no boot |
+| `risk_proposal_skip.py` | `ProposalSkipMixin` |
+| `risk_recovery_state.py` | Estado financeiro de recovery; `evaluate_anti_trend_lock` (política pura AntiTrendLock) |
+| `risk_stake_calc.py` | Stake: Kelly EXPLORE; Soft Recovery RECOVER |
+| `risk_stake_calc_helpers.py` | - |
+| `risk_stake_flow.py` | `apply_stop_win_kelly_boost`, `emit_cycle_stake_log` |
+| `soft_recovery_config.py` | Knobs Soft Recovery SSOT |
+| `soft_recovery_policy.py` | Soft Recovery paramétrico: cap, amort, passo fixo U×1.15, hard floor micro, micro-residual |
+| `stake_sizing.py` | Kelly, regime EXPLORE/RECOVER, consenso, round_stake |
+| `stake_sizing_consensus.py` | - |
+| `stake_target_proximity.py` | Amortecimento por proximidade da meta |
+| `stop_win_target.py` | `StopWinManager`, meta de lucro por sessão |
+| `super_concordance_kelly.py` | Expansão Kelly em super-consenso |
+| `symbol_loss_cooldown.py` | Cooldown por loss recente |
 
 ## Infrastructure (`infrastructure/`)
 
@@ -474,7 +502,6 @@ flowchart TD
 | `data/dl/{symbol}_ts.pt` | TorchScript para Triton |
 | `infra/docker/triton-models/{symbol}/` | Layout Triton |
 | `infra/docker/meta-models/` | LightGBM `.pkl` (43D) |
-| `logs/engine.log` | Auditoria operacional |
 
 ---
 

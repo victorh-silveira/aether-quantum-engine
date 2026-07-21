@@ -17,7 +17,7 @@ Ponto de entrada do projeto: [README.md](../README.md).
 ```
 presentation  →  application  →  domain
                     ↓
-              infrastructure (ports/adapters)
+              infrastructure (adapters)
 ```
 
 | Camada | Papel |
@@ -27,7 +27,7 @@ presentation  →  application  →  domain
 | Infrastructure | Deriv, Redis, Triton, MinIO, Timescale |
 | Presentation | Logger terminal |
 
-Regra: **domain** não importa application nem infrastructure. **Application** orquestra domain + ports; implementações concretas vêm de `infra_factory`.
+Regra: **domain** não importa application nem infrastructure. **Application** orquestra domain + adapters; implementações concretas vêm de `infra_factory`.
 
 ## Snapshot operacional (settings atuais)
 
