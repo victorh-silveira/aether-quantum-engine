@@ -1,3 +1,5 @@
+## [1.42.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.41.0...v1.42.0) (2026-07-21)
+
 ## [Unreleased]
 
 ### Added
