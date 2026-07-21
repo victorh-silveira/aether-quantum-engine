@@ -25,11 +25,7 @@ from src.application.services.meta_payoff_veto_gate import (
     should_veto_meta_payoff_negative_zscore,
 )
 from src.application.services.payoff_edge_zscore import attach_payoff_edge_zscore_metrics
-from src.application.services.side_equilibrium_gate import (
-    apply_side_equilibrium_to_metrics,
-    evaluate_proposed_side_equilibrium,
-    log_side_equilibrium,
-)
+from src.application.services.side_equilibrium_gate import resolve_direction_with_side_equilibrium
 from src.domain.models.trade import TradeDirection
 
 
@@ -87,7 +83,7 @@ def _finalize_execution_metrics(
     """Aplica decisao de execucao final."""
     if symbol is not None:
         attach_live_signal_metrics(orch, symbol, metrics)
-    apply_live_calib_drift_soft(metrics)
+    apply_live_calib_drift_soft(metrics, orch=orch, symbol=symbol)
     exec_dir, _final_score = apply_meta_regression_edge(
         dl_dir, metrics, predicted_edge, meta_applied=meta_applied, base_score=score, symbol=symbol
     )
@@ -114,15 +110,18 @@ def _finalize_execution_metrics(
         }
     )
     ensure_direction_margin(metrics)
-    side_decision = evaluate_proposed_side_equilibrium(orch, symbol, exec_dir)
-    log_side_equilibrium(side_decision, symbol=str(symbol or "?"), proposed=exec_dir)
-    if apply_side_equilibrium_to_metrics(metrics, side_decision, proposed=exec_dir) and not force:
+    chosen = resolve_direction_with_side_equilibrium(orch, symbol, exec_dir, metrics)
+    if chosen is None:
         sync_entry_metrics(entry, metrics)
         return None
+    exec_dir = chosen
+    metrics["exec_direction"] = exec_dir.name
+    metrics["resolved_direction"] = exec_dir.name
+    ensure_direction_margin(metrics)
     if float(metrics.get("side_eq_margin_boost", 0.0)) > 0.0:
         margin = float(metrics.get("direction_margin", 0.0))
         floor = float(metrics.get("quality_min_direction_margin", 0.0))
-        if margin + 1e-12 < floor and not force:
+        if margin + 1e-12 < floor:
             metrics["gate_reason"] = "side_imbalance_large_n_margin"
             metrics["quality_guard_reject"] = True
             sync_entry_metrics(entry, metrics)

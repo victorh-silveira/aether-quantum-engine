@@ -79,7 +79,9 @@ def test_calib_drift_soft_penalty():
         "raw_prob": 0.85,
         "trade_score": 0.85,
     }
-    assert apply_live_calib_drift_soft(metrics) is True
+    orch = SimpleNamespace(_active_cycle_id=3, _log_dedupe={})
+    assert apply_live_calib_drift_soft(metrics, orch=orch, symbol="R_10") is True
+    assert apply_live_calib_drift_soft(dict(metrics), orch=orch, symbol="R_10") is True
     assert metrics["calib_drift_soft"] is True
     assert metrics["calib_drift_soft_penalty"] > 0.0
     assert metrics["trade_score"] < 0.85
@@ -267,6 +269,7 @@ def test_process_contract_outcome_uses_audit_direction():
         patch("src.application.services.orchestrator.settlement_outcome.record_symbol_outcome"),
         patch("src.application.services.orchestrator.settlement_outcome.record_direction_outcome"),
         patch("src.application.services.orchestrator.settlement_outcome.record_live_signal_outcome") as live,
+        patch("src.application.services.orchestrator.settlement_outcome.record_side_equilibrium_outcome") as side_eq,
         patch("src.application.services.orchestrator.settlement_outcome.mark_force_retrain"),
         patch("src.application.services.orchestrator.settlement_logic.log_cluster_summary"),
     ):
@@ -281,4 +284,7 @@ def test_process_contract_outcome_uses_audit_direction():
         )
     live.assert_called_once()
     assert live.call_args.kwargs["direction"] == "PUT"
+    side_eq.assert_called_once()
+    assert side_eq.call_args.kwargs["direction"] == "PUT"
+    assert side_eq.call_args.kwargs["won"] is False
     assert orch._last_loss_direction == "PUT"

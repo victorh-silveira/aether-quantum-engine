@@ -103,7 +103,7 @@ Copie `cp .env.example .env` e preencha o PAT. Validação Deriv: `python app/sc
   - **RECOVER** (`pending_loss > 0` ou `linear >= 1`): Martingale clássico `last_loss_stake × 2` (fallback `stake_min × 2^n`), teto = banca — tag `MARTINGALE_Ln`.
 - **Kelly** define a stake inicial; após LOSS, `last_loss_stake` (stake Kelly que perdeu) alimenta a dobra Martingale.
 - **Consensus Entropy Penalty**: presente no código; nos settings atuais `consensus_penalty_enabled: false`.
-- **Side equilibrium (LLN)**: `side_equilibrium` — small-N (janela 12, `n_min=6`) hard skip se WR baixo ou frequência enviesada; large-N (janela 100, `n_min=40`) soft penalty (`kelly_mult_soft` → escala f*). Com contagens 0/0 o gate faz `pass` (amostra insuficiente) — esperado no início da sessão.
+- **Side equilibrium (LLN)**: `side_equilibrium` — small-N (janela 12, `n_min=2`) hard skip se WR baixo ou frequência enviesada; large-N (janela 100, `n_min=40`) soft penalty (`kelly_mult_soft` → escala f*). Com contagens 0/0 o gate faz `pass` (amostra insuficiente) — esperado no início da sessão.
 - **Recovery financeiro persistente**: WIN operacional **não** zera `consecutive_losses` enquanto `pending_loss > 0`; reconciliação de stake downgrade preserva drawdown real.
 - **Soft recovery (D'Alembert)** legado via `soft_recovery_policy` quando `martingale.enabled=false`.
 - **Stop win por sessão ativa**: meta = `banca_inicial × 2,60%` (banca ≥ $100) ou **$10** fixo (banca &lt; $100); `finalize_stop_win_shutdown` purge Redis + log CRITICAL + fast-path.

@@ -6,6 +6,8 @@ import logging
 from collections import deque
 from typing import Any
 
+from src.application.services.log_dedupe import log_info_if_changed
+
 
 logger = logging.getLogger("AETH")
 
@@ -121,7 +123,12 @@ def attach_live_signal_metrics(orch: Any | None, symbol: str, metrics: dict[str,
     metrics["live_ece"] = float(snap["live_ece"])
 
 
-def apply_live_calib_drift_soft(metrics: dict[str, Any]) -> bool:
+def apply_live_calib_drift_soft(
+    metrics: dict[str, Any],
+    *,
+    orch: Any | None = None,
+    symbol: str | None = None,
+) -> bool:
     """Marca soft veto de calib drift quando ECE e WR divergem do raw."""
     n = int(metrics.get("live_n", 0) or 0)
     ece = metrics.get("live_ece")
@@ -138,13 +145,28 @@ def apply_live_calib_drift_soft(metrics: dict[str, Any]) -> bool:
     metrics["calib_drift_soft"] = True
     metrics["calib_drift_soft_penalty"] = LIVE_DRIFT_SOFT_PENALTY
     metrics["calib_drift_reason"] = "CALIB_DRIFT_SOFT"
-    logger.info(
-        "CALIB_DRIFT_SOFT | ece=%.3f | live_wr=%.2f | raw_side=%.2f | n=%d",
-        float(ece),
-        float(wr),
-        float(raw_side),
-        n,
-    )
+    cycle = int(getattr(orch, "_active_cycle_id", 0) or 0) if orch is not None else 0
+    content = f"{cycle}|{symbol or '?'}|{n}|{float(ece):.3f}|{float(wr):.2f}|{float(raw_side):.2f}"
+    if orch is not None:
+        log_info_if_changed(
+            orch,
+            logger,
+            "calib_drift_soft",
+            content,
+            "CALIB_DRIFT_SOFT | ece=%.3f | live_wr=%.2f | raw_side=%.2f | n=%d",
+            float(ece),
+            float(wr),
+            float(raw_side),
+            n,
+        )
+    else:
+        logger.info(
+            "CALIB_DRIFT_SOFT | ece=%.3f | live_wr=%.2f | raw_side=%.2f | n=%d",
+            float(ece),
+            float(wr),
+            float(raw_side),
+            n,
+        )
     if n >= LIVE_DRIFT_SOFT_VETO_N:
         base = metrics.get("trade_score")
         if base is None:

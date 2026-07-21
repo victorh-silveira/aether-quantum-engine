@@ -6,6 +6,7 @@ import asyncio
 import time
 from typing import Any
 
+from src.application.services.log_dedupe import clear_log_channel, log_info_if_changed
 from src.application.services.orchestrator.graceful_shutdown import graceful_shutdown
 from src.application.services.orchestrator.orchestrator_data_signature import seconds_until_next_signature_boundary
 from src.application.services.orchestrator.orchestrator_settlement_queue import (
@@ -129,8 +130,12 @@ async def _clean_stale_settlement_and_redis_counters(orch: Any) -> None:
         pipe.delete("recovery:skip_counter")
         pipe.delete("settlement:queue:priority")
         await pipe.execute()
-        orch.logger.info(
-            "SRE: Limpeza atomica no Redis concluida para 'recovery:skip_counter' e 'settlement:queue:priority'."
+        log_info_if_changed(
+            orch,
+            orch.logger,
+            "sre_redis_clean",
+            "ok",
+            "SRE: Limpeza atomica no Redis concluida para 'recovery:skip_counter' e 'settlement:queue:priority'.",
         )
     except Exception as e:  # pragma: no cover
         orch.logger.error("SRE: Falha ao executar limpeza atomica no Redis: %s", e)  # pragma: no cover
@@ -140,7 +145,14 @@ def _record_post_settlement_incomplete(orch: Any) -> None:
     """Registra tentativa incompleta sem forcar deadlock apos 2 ciclos."""
     streak = int(getattr(orch, "_post_settlement_incomplete_streak", 0)) + 1
     orch._post_settlement_incomplete_streak = streak
-    orch.logger.info("CICLO: pos-liquidacao incompleto | tentativa=%d | janela de tolerancia ativa", streak)
+    log_info_if_changed(
+        orch,
+        orch.logger,
+        "post_settle_incomplete",
+        str(streak),
+        "CICLO: pos-liquidacao incompleto | tentativa=%d | janela de tolerancia ativa",
+        streak,
+    )
     try:
         loop = asyncio.get_running_loop()
         loop.create_task(_clean_stale_settlement_and_redis_counters(orch))
@@ -202,7 +214,18 @@ async def _apply_tolerance_window_recovery(orch: Any, *, window: float, failed_a
     orch._post_settlement_deadlock = False
     orch._post_settlement_incomplete_streak = 0
     clear_post_settlement_polling_state(orch)
-    orch.logger.info(
+    settle_content = f"{window:.0f}|{int(settled)}|{int(failed_attempts)}"
+    prev = None
+    cache = getattr(orch, "_log_dedupe", None)
+    if isinstance(cache, dict):
+        prev = cache.get("settle_tolerance")
+    if prev != settle_content:
+        clear_log_channel(orch, "sre_redis_clean")
+    log_info_if_changed(
+        orch,
+        orch.logger,
+        "settle_tolerance",
+        settle_content,
         "SETTLE: janela tolerancia %.0fs | orphans=%d | tentativas=%d | estado reconciliado",
         window,
         settled,

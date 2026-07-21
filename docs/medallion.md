@@ -453,11 +453,11 @@ Módulos: `domain/analytics/side_equilibrium.py`, `side_equilibrium_gate.py`, `s
 
 | Regime | Janela | `n_min` | Ação típica |
 |--------|--------|---------|-------------|
-| **Small-N** (lei dos pequenos números) | 12 trades | 6 | `hard_skip` se WR do lado &lt; `wr_floor_small` (0.40) ou frequência do lado &gt; `freq_bias_max_small` (0.75) |
-| **Large-N** (lei dos grandes números) | 100 trades | 40 | `soft_penalty`: `kelly_mult_soft` (0.55) e `margin_boost_soft` (0.03) se WR &lt; `wr_floor_large` (0.48) ou bias &gt; 0.65 |
-| Amostra insuficiente | `n &lt; n_min` | — | `pass` (log `SIDE_EQ … action=pass`) |
+| **Small-N** (lei dos pequenos números) | 12 trades | **2** | `hard_skip` se WR do lado &lt; `wr_floor_small` (0.40) ou frequência do lado ≥ `freq_bias_max_small` (0.70) |
+| **Large-N** (lei dos grandes números) | 100 trades | 40 | `soft_penalty`: `kelly_mult_soft` (0.55) e `margin_boost_soft` (0.03) se WR &lt; `wr_floor_large` (0.48) ou bias ≥ 0.65 |
+| Amostra insuficiente | `n_side &lt; n_min` ou `total &lt; n_min` | — | `pass` (log `SIDE_EQ … action=pass`) |
 
-Telemetria: `SIDE_EQ | SYMBOL SIDE | call=W/N put=W/N | bias=… wr=… | action=…`. No início da sessão (`call=0/0 put=0/0`) o gate **deve** passar — não é falha de LLN. Soft penalty escala `kelly_fraction_scale` nas métricas e só afeta stake no path Kelly (EXPLORE).
+Telemetria: `SIDE_EQ | SYMBOL SIDE | call=W/N put=W/N | bias=… wr=… | action=…` (dedupe por ciclo/símbolo/lado). Outcomes em `process_contract_outcome`. Hard-skip no proposto **tenta o oposto** (`SIDE_EQ_FLIP`); com 2 PUT LOSS (wr=0, bias=1) flipa para CALL mantendo Martingale/recovery. Soft penalty escala `kelly_fraction_scale` (path Kelly EXPLORE).
 
 ---
 

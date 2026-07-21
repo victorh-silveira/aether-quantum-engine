@@ -173,6 +173,22 @@ def test_synthesize_force_trade_candidate_guards_and_neutral_clamp():
     assert metrics.get("calibration_mode") == "calibrated"
 
 
+def test_synthesize_force_trade_does_not_emit_side_eq_flip():
+    decisions = {
+        "R_10": {
+            "direction": TradeDirection.PUT,
+            "metrics": {"raw_prob": 0.42, "calibrated_prob": 0.42},
+        }
+    }
+    with patch("src.application.services.side_equilibrium_gate.logger") as mock_logger:
+        candidate = synthesize_force_trade_candidate(["R_10"], decisions, orch=SimpleNamespace(_active_cycle_id=1))
+    assert candidate is not None
+    assert candidate[1] == TradeDirection.PUT
+    flip_calls = [c for c in mock_logger.info.call_args_list if c.args and str(c.args[0]).startswith("SIDE_EQ_FLIP")]
+    assert flip_calls == []
+    assert candidate[2].get("side_eq_flipped") is not True
+
+
 def test_cluster_quality_fallback_never_blocks_when_force():
     decisions = {
         "R_10": {

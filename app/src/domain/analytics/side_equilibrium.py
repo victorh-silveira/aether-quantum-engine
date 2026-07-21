@@ -63,11 +63,11 @@ class SideEquilibriumConfig:
     enabled: bool = True
     small_window: int = 12
     large_window: int = 100
-    n_min_small: int = 6
+    n_min_small: int = 2
     n_min_large: int = 40
     wr_floor_small: float = 0.40
     wr_floor_large: float = 0.48
-    freq_bias_max_small: float = 0.75
+    freq_bias_max_small: float = 0.70
     freq_bias_max_large: float = 0.65
     break_even_wr: float = 0.55
     kelly_mult_soft: float = 0.55
@@ -98,11 +98,11 @@ def parse_side_equilibrium_config(raw: dict[str, Any] | None) -> SideEquilibrium
         enabled=bool(cfg.get("enabled", True)),
         small_window=max(4, int(cfg.get("small_window", 12))),
         large_window=max(20, int(cfg.get("large_window", 100))),
-        n_min_small=max(3, int(cfg.get("n_min_small", 6))),
+        n_min_small=max(2, int(cfg.get("n_min_small", 2))),
         n_min_large=max(10, int(cfg.get("n_min_large", 40))),
         wr_floor_small=float(cfg.get("wr_floor_small", 0.40)),
         wr_floor_large=float(cfg.get("wr_floor_large", 0.48)),
-        freq_bias_max_small=float(cfg.get("freq_bias_max_small", 0.75)),
+        freq_bias_max_small=float(cfg.get("freq_bias_max_small", 0.70)),
         freq_bias_max_large=float(cfg.get("freq_bias_max_large", 0.65)),
         break_even_wr=float(cfg.get("break_even_wr", 0.55)),
         kelly_mult_soft=max(0.05, min(1.0, float(cfg.get("kelly_mult_soft", 0.55)))),
@@ -160,7 +160,8 @@ def _evaluate_small_regime(
     base: SideEquilibriumDecision,
 ) -> SideEquilibriumDecision:
     """Aplica regras hard-skip do regime small-N."""
-    if counts.total < config.n_min_small or n_side < max(3, config.n_min_small // 2):
+    min_n = max(2, int(config.n_min_small))
+    if counts.total < min_n or n_side < min_n:
         return _pack_decision(
             counts, action=ACTION_PASS, reason="small_n_insufficient", wr=wr, freq=freq, z_half=z_half
         )

@@ -142,11 +142,11 @@
         "enabled": true,
         "small_window": 12,
         "large_window": 100,
-        "n_min_small": 6,
+        "n_min_small": 2,
         "n_min_large": 40,
         "wr_floor_small": 0.40,
         "wr_floor_large": 0.48,
-        "freq_bias_max_small": 0.75,
+        "freq_bias_max_small": 0.70,
         "freq_bias_max_large": 0.65,
         "kelly_mult_soft": 0.55,
         "margin_boost_soft": 0.03

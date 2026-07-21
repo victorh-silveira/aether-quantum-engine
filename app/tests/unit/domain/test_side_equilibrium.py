@@ -16,7 +16,10 @@ def test_parse_side_equilibrium_config_defaults():
     cfg = parse_side_equilibrium_config(None)
     assert cfg.enabled is True
     assert cfg.small_window == 12
+    assert cfg.n_min_small == 2
     assert cfg.n_min_large == 40
+    assert cfg.freq_bias_max_small == pytest.approx(0.70)
+    assert parse_side_equilibrium_config({"n_min_small": 1}).n_min_small == 2
 
 
 def test_small_n_hard_skip_on_hot_losing_call_side():
@@ -27,11 +30,21 @@ def test_small_n_hard_skip_on_hot_losing_call_side():
     assert "small_n" in decision.reason
 
 
+def test_small_n_hard_skip_after_two_put_losses():
+    counts = SideCounts(call_n=0, call_wins=0, put_n=2, put_wins=0)
+    cfg = SideEquilibriumConfig(n_min_small=2, wr_floor_small=0.40, freq_bias_max_small=0.70)
+    decision = evaluate_side_equilibrium(counts, "PUT", config=cfg, regime="small")
+    assert decision.action == ACTION_HARD_SKIP
+    assert decision.freq_bias == pytest.approx(1.0)
+    assert decision.side_wr == pytest.approx(0.0)
+
+
 def test_small_n_pass_when_insufficient_samples():
-    counts = SideCounts(call_n=2, call_wins=0, put_n=1, put_wins=1)
-    cfg = SideEquilibriumConfig(n_min_small=6)
+    counts = SideCounts(call_n=1, call_wins=0, put_n=0, put_wins=0)
+    cfg = SideEquilibriumConfig(n_min_small=2)
     decision = evaluate_side_equilibrium(counts, "CALL", config=cfg, regime="small")
     assert decision.action == ACTION_PASS
+    assert decision.reason == "small_n_insufficient"
 
 
 def test_large_n_soft_penalty_without_direction_flip():
@@ -81,7 +94,7 @@ def test_small_n_freq_only_and_pass_when_healthy():
     decision = evaluate_side_equilibrium(hot, "CALL", config=cfg, regime="small")
     assert decision.action == ACTION_HARD_SKIP
     assert decision.reason == "side_imbalance_small_n_freq"
-    healthy = SideCounts(call_n=5, call_wins=4, put_n=5, put_wins=3)
+    healthy = SideCounts(call_n=6, call_wins=5, put_n=6, put_wins=4)
     ok = evaluate_side_equilibrium(
         healthy,
         "CALL",

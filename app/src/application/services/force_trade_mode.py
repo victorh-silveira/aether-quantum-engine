@@ -86,6 +86,7 @@ def synthesize_force_direction(entry: dict) -> TradeDirection | None:
 def synthesize_force_trade_candidate(
     trade_symbols: list[str] | tuple[str, ...],
     decisions: dict,
+    orch: Any | None = None,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Monta o primeiro candidato elegivel sob force-trade no pool de simbolos."""
     if not isinstance(decisions, dict):
@@ -120,5 +121,6 @@ def synthesize_force_trade_candidate(
         enrich_metrics_conviction(metrics)
         entry["direction"] = direction
         entry["metrics"] = metrics
+        _ = orch
         return symbol, direction, metrics
     return None

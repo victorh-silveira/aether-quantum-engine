@@ -156,6 +156,7 @@ async def run_trading_cycle_if_ready(orch: Any) -> bool:
             if orch._cycle_seq > 1:
                 orch.logger.info("")
             orch._active_cycle_id = orch._cycle_seq
+            orch._side_eq_log_keys = set()
             ran = True
             if trading_cycle_warm_up_suspended(orch) != SIGNAL_SUSPENDED:
                 cluster_executed = await _execute_inference_cluster_cycle(orch)

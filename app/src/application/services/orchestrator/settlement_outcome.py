@@ -8,6 +8,7 @@ from src.application.services.deep_learning.dl_outcomes import record_symbol_out
 from src.application.services.deep_learning.dl_retrain import mark_force_retrain
 from src.application.services.direction_loss_tracker import record_direction_outcome
 from src.application.services.live_signal_metrics import record_live_signal_outcome
+from src.application.services.side_equilibrium_store import record_side_equilibrium_outcome
 from src.domain.risk.executed_stake_reconciliation import (
     bind_executed_stake_for_contract,
     reconcile_settlement_profit,
@@ -62,6 +63,16 @@ def process_contract_outcome(
     )
     if dir_name:
         record_direction_outcome(sym, dir_name, won=profit >= 0.0)
+    if dir_name and abs(float(profit)) > 1e-12:
+        record_side_equilibrium_outcome(
+            orch,
+            str(sym),
+            direction=dir_name,
+            won=float(profit) > 0.0,
+            profit=float(profit),
+            raw_prob=audit_raw_prob,
+            cycle_id=int(orch._contract_cycle.get(c_id, 0) or 0),
+        )
     orch.risk_manager.register_result(profit, c_id, symbol=sym, current_tick=orch.tick_count, direction=dir_name)
     orch._cluster_results.append({"symbol": sym, "profit": profit})
     orch._last_result_cycle_id = orch._contract_cycle.pop(c_id, 0)

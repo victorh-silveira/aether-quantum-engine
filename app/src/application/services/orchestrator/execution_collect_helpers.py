@@ -2,6 +2,7 @@
 
 import asyncio
 
+from src.application.services.execution_direction import build_execution_candidate
 from src.application.services.execution_direction_fallback import build_mandatory_fallback_candidate
 from src.application.services.execution_entropy_fallback import pick_entropy_fallback_candidate
 from src.application.services.execution_mandatory_pick import pick_absolute_mandatory_candidate
@@ -9,8 +10,31 @@ from src.application.services.execution_symbols_recovery import recovery_blocked
 from src.application.services.force_trade_mode import force_trade_from_orch, synthesize_force_trade_candidate
 from src.application.services.market_audit_log import format_indicators_audit_line
 from src.application.services.orchestrator.execution_recovery_gate import recovery_min_signal, recovery_min_val_accuracy
+from src.domain.models.trade import TradeDirection
 from src.domain.risk.recovery_hurst_decay import increment_recovery_skip_counter, resolve_effective_hurst_min
 from src.domain.risk.recovery_hurst_gate import recovery_pool_has_persistence
+
+
+def _finalize_force_trade_candidate(exec_mgr, decisions, forced: tuple[str, TradeDirection, dict] | None):
+    """Aplica resolve_execution_direction uma vez no candidato force-trade sintetizado."""
+    if forced is None:
+        return None
+    symbol, _direction, _metrics = forced
+    entry = decisions.get(symbol) if isinstance(decisions, dict) else None
+    if not isinstance(entry, dict):
+        return forced
+    exec_cfg = exec_mgr.orch.config.get("orchestrator", {}).get("execution", {})
+    rebuilt = build_execution_candidate(
+        symbol,
+        entry,
+        exec_cfg=exec_cfg if isinstance(exec_cfg, dict) else {},
+        recovery_active=False,
+        cycle_id=int(getattr(exec_mgr.orch, "_active_cycle_id", 0) or 0),
+        risk_manager=getattr(exec_mgr.orch, "risk_manager", None),
+        skipped_cycles_counter=int(getattr(exec_mgr.orch, "_quality_skipped_cycles_counter", 0) or 0),
+        orch=exec_mgr.orch,
+    )
+    return rebuilt if rebuilt is not None else forced
 
 
 def mandatory_fallback_candidates(
@@ -37,8 +61,9 @@ def mandatory_fallback_candidates(
     if fallback is not None:
         return [fallback]
     if force_trade_from_orch(exec_mgr.orch):
-        forced = synthesize_force_trade_candidate(exec_mgr._trade_symbols(), decisions)
-        return [forced] if forced is not None else []
+        forced = synthesize_force_trade_candidate(exec_mgr._trade_symbols(), decisions, orch=exec_mgr.orch)
+        finalized = _finalize_force_trade_candidate(exec_mgr, decisions, forced)
+        return [finalized] if finalized is not None else []
     return []
 
 
@@ -118,7 +143,11 @@ def resolve_mandatory_ultimate_candidate(
                 min_val=0.0,
             )
     if ultimate is None and force_trade_from_orch(exec_mgr.orch):
-        ultimate = synthesize_force_trade_candidate(exec_mgr._trade_symbols(), decisions)
+        ultimate = _finalize_force_trade_candidate(
+            exec_mgr,
+            decisions,
+            synthesize_force_trade_candidate(exec_mgr._trade_symbols(), decisions, orch=exec_mgr.orch),
+        )
     if ultimate is None:
         return None, None
     return ultimate, [ultimate]

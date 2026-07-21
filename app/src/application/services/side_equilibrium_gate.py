@@ -19,6 +19,11 @@ from src.domain.models.trade import TradeDirection
 logger = logging.getLogger("AETH")
 
 
+def opposite_trade_direction(side: TradeDirection) -> TradeDirection:
+    """Retorna o lado oposto CALL/PUT."""
+    return TradeDirection.CALL if side == TradeDirection.PUT else TradeDirection.PUT
+
+
 def evaluate_proposed_side_equilibrium(
     orch: Any | None, symbol: str | None, proposed: TradeDirection
 ) -> SideEquilibriumDecision:
@@ -67,8 +72,24 @@ def apply_side_equilibrium_to_metrics(
     return False
 
 
-def log_side_equilibrium(decision: SideEquilibriumDecision, *, symbol: str, proposed: TradeDirection) -> None:
-    """Registra telemetria SIDE_EQ no logger AETH."""
+def log_side_equilibrium(
+    decision: SideEquilibriumDecision,
+    *,
+    symbol: str,
+    proposed: TradeDirection,
+    orch: Any | None = None,
+) -> None:
+    """Registra telemetria SIDE_EQ no logger AETH (uma vez por ciclo/simbolo/lado)."""
+    cycle = int(getattr(orch, "_active_cycle_id", 0) or 0) if orch is not None else 0
+    key = (cycle, str(symbol), proposed.name, str(decision.action), str(decision.reason))
+    if orch is not None:
+        bag = getattr(orch, "_side_eq_log_keys", None)
+        if not isinstance(bag, set):
+            orch._side_eq_log_keys = set()
+            bag = orch._side_eq_log_keys
+        if key in bag:
+            return
+        bag.add(key)
     logger.info(
         "SIDE_EQ | %s %s | call=%d/%d put=%d/%d | bias=%.2f wr=%s | action=%s",
         symbol,
@@ -80,4 +101,78 @@ def log_side_equilibrium(decision: SideEquilibriumDecision, *, symbol: str, prop
         float(decision.freq_bias),
         f"{decision.side_wr:.2f}" if decision.side_wr is not None else "na",
         decision.action,
+    )
+
+
+def resolve_direction_with_side_equilibrium(
+    orch: Any | None,
+    symbol: str | None,
+    proposed: TradeDirection,
+    metrics: dict[str, Any],
+) -> TradeDirection | None:
+    """Escolhe lado equilibrado: hard-skip no proposto tenta o oposto; None se ambos bloqueados."""
+    if bool(metrics.get("side_eq_gate_done")):
+        if bool(metrics.get("side_eq_blocked")):
+            return None
+        name = str(metrics.get("exec_direction") or metrics.get("resolved_direction") or proposed.name)
+        try:
+            return TradeDirection[name]
+        except KeyError:
+            return proposed
+    primary = evaluate_proposed_side_equilibrium(orch, symbol, proposed)
+    log_side_equilibrium(primary, symbol=str(symbol or "?"), proposed=proposed, orch=orch)
+    if primary.action != ACTION_HARD_SKIP:
+        apply_side_equilibrium_to_metrics(metrics, primary, proposed=proposed)
+        metrics["side_eq_gate_done"] = True
+        metrics["side_eq_blocked"] = False
+        return proposed
+    apply_side_equilibrium_to_metrics(metrics, primary, proposed=proposed)
+    opposite = opposite_trade_direction(proposed)
+    alternate = evaluate_proposed_side_equilibrium(orch, symbol, opposite)
+    log_side_equilibrium(alternate, symbol=str(symbol or "?"), proposed=opposite, orch=orch)
+    if alternate.action == ACTION_HARD_SKIP:
+        apply_side_equilibrium_to_metrics(metrics, alternate, proposed=opposite)
+        metrics["side_eq_gate_done"] = True
+        metrics["side_eq_blocked"] = True
+        return None
+    metrics.pop("quality_guard_reject", None)
+    gate = str(metrics.get("gate_reason") or "")
+    if gate.startswith("side_imbalance"):
+        metrics.pop("gate_reason", None)
+    metrics["side_eq_flipped"] = True
+    metrics["side_eq_flip_from"] = proposed.name
+    apply_side_equilibrium_to_metrics(metrics, alternate, proposed=opposite)
+    _log_side_eq_flip(orch, symbol=str(symbol or "?"), proposed=proposed, opposite=opposite, reason=primary.reason)
+    metrics["exec_direction"] = opposite.name
+    metrics["resolved_direction"] = opposite.name
+    metrics["side_eq_gate_done"] = True
+    metrics["side_eq_blocked"] = False
+    return opposite
+
+
+def _log_side_eq_flip(
+    orch: Any | None,
+    *,
+    symbol: str,
+    proposed: TradeDirection,
+    opposite: TradeDirection,
+    reason: str | None,
+) -> None:
+    """Emite SIDE_EQ_FLIP uma vez por ciclo/simbolo/par de lados."""
+    cycle = int(getattr(orch, "_active_cycle_id", 0) or 0) if orch is not None else 0
+    key = ("flip", cycle, symbol, proposed.name, opposite.name, str(reason or "side_imbalance"))
+    if orch is not None:
+        bag = getattr(orch, "_side_eq_log_keys", None)
+        if not isinstance(bag, set):
+            orch._side_eq_log_keys = set()
+            bag = orch._side_eq_log_keys
+        if key in bag:
+            return
+        bag.add(key)
+    logger.info(
+        "SIDE_EQ_FLIP | %s %s -> %s | blocked=%s",
+        symbol,
+        proposed.name,
+        opposite.name,
+        str(reason or "side_imbalance"),
     )
