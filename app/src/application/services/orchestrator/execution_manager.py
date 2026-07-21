@@ -76,8 +76,8 @@ class ExecutionManager:
         """Indica se cada ciclo deve executar ao menos uma ordem conforme config."""
         exec_cfg = self.orch.config.get("orchestrator", {}).get("execution", {})
         if not isinstance(exec_cfg, dict):
-            return True
-        return bool(exec_cfg.get("mandatory_trade_each_cycle", True))
+            return False
+        return bool(exec_cfg.get("mandatory_trade_each_cycle", False))
 
     def _collect_orders(self, decisions: dict) -> list[tuple[str, TradeDirection, dict]]:
         """Seleciona uma ordem por ciclo; modo obrigatorio ignora gate execute=false."""

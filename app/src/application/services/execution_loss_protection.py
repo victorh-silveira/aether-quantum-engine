@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.application.services.execution_runtime_config import resolve_loss_protection_config
 from src.domain.models.trade import TradeDirection
 
 
@@ -51,17 +52,23 @@ def edge_conviction_disconnect_penalty(
         return 0.0
     calibrated_side = _directional_calibrated_side(metrics, exec_direction)
     raw_side = _directional_raw_side(metrics, exec_direction)
+    disconnect = resolve_loss_protection_config()["disconnect"]
+    soft = disconnect["edge_margin_soft"]
+    hard = disconnect["edge_margin_hard"]
+    zrule = disconnect["zscore_margin"]
+    cal = disconnect["edge_calibrated_side"]
+    raw = disconnect["edge_raw_side"]
     penalty = 0.0
-    if edge >= 0.35 and margin < 0.22:
-        penalty = max(penalty, 0.16)
-    if edge >= 0.50 and margin < 0.26:
-        penalty = max(penalty, 0.12)
-    if z_edge >= 0.85 and margin < 0.24:
-        penalty = max(penalty, 0.14)
-    if edge >= 0.40 and calibrated_side < 0.32:
-        penalty = max(penalty, 0.18)
-    if edge >= 0.35 and raw_side < 0.30:
-        penalty = max(penalty, 0.15)
+    if edge >= float(soft["edge_min"]) and margin < float(soft["margin_max"]):
+        penalty = max(penalty, float(soft["score"]))
+    if edge >= float(hard["edge_min"]) and margin < float(hard["margin_max"]):
+        penalty = max(penalty, float(hard["score"]))
+    if z_edge >= float(zrule["z_min"]) and margin < float(zrule["margin_max"]):
+        penalty = max(penalty, float(zrule["score"]))
+    if edge >= float(cal["edge_min"]) and calibrated_side < float(cal["calibrated_side_max"]):
+        penalty = max(penalty, float(cal["score"]))
+    if edge >= float(raw["edge_min"]) and raw_side < float(raw["raw_side_max"]):
+        penalty = max(penalty, float(raw["score"]))
     return penalty
 
 
@@ -124,7 +131,8 @@ def _loss_protection_signal_blocks(
         return True
     if margin + 1e-9 < min_margin and z_edge >= max_z_low_margin:
         return True
-    return edge_conviction_disconnect_penalty(metrics, exec_direction=direction) >= 0.18
+    block = float(resolve_loss_protection_config()["disconnect"]["block_threshold"])
+    return edge_conviction_disconnect_penalty(metrics, exec_direction=direction) >= block
 
 
 def candidate_passes_loss_protection(

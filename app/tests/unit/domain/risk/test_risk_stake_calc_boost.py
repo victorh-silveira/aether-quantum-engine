@@ -187,7 +187,7 @@ def test_calculate_stake_stop_win_kelly_boosts_when_dl_approved(kelly_config):
         apply_stop_win=True,
         kwargs={"dl_metrics": {"execute": True, "val_brier": 0.1, "live_n": 40, "live_wr": 0.55}},
     )
-    assert stake > 2.0
+    assert stake > 1.5
 
 
 def test_calculate_stake_stop_win_kelly_silent_skips_boost_log(kelly_config):

@@ -6,19 +6,26 @@ import logging
 from typing import Any
 
 from src.application.services.bb_width_adaptive_squeeze import (
-    BB_WIDTH_ANOMALY_RATIO,
     evaluate_bb_width_squeeze,
     harmonic_mean_bb_width,
 )
+from src.application.services.deep_learning.dl_indicator_config import (
+    load_bb_width_anomaly_ratio,
+    load_indicator_config_from_settings,
+)
+from src.application.services.execution_runtime_config import resolve_regime_micro_freeze_config
 from src.domain.risk.stake_sizing import metric_float
 
 
-CHOP_CONGESTION_Z_EDGE = 0.20
-TICK_ACCEL_NEUTRAL_EPS = 0.01
 REGIME_CHOP_CONGESTION = "CHOP_CONGESTION"
 SIGNAL_SUSPENDED = "SIGNAL_SUSPENDED"
 
 _SQUEEZE_LOGGER = logging.getLogger("AETH")
+
+
+def _default_anomaly_ratio() -> float:
+    """Le anomaly_ratio canonico de settings.bb_width_adaptive_squeeze."""
+    return load_bb_width_anomaly_ratio()
 
 
 def _read_micro_bb_width(metrics: dict[str, Any]) -> float | None:
@@ -49,8 +56,9 @@ def severe_bb_compression(metrics: dict[str, Any]) -> bool:
     if bb_width is None:
         return False
     configured_ratio = metrics.get("bb_width_anomaly_ratio")
-    ratio = float(configured_ratio) if configured_ratio is not None else BB_WIDTH_ANOMALY_RATIO
-    compressed, mean, width = evaluate_bb_width_squeeze(bb_width, anomaly_ratio=ratio)
+    ratio = float(configured_ratio) if configured_ratio is not None else _default_anomaly_ratio()
+    harmonic_window = int(load_indicator_config_from_settings()["windows"]["bb_width_harmonic_window"])
+    compressed, mean, width = evaluate_bb_width_squeeze(bb_width, anomaly_ratio=ratio, harmonic_window=harmonic_window)
     metrics["bb_width_harmonic_mean"] = float(mean)
     metrics["bb_width_anomaly_ratio"] = float(ratio)
     metrics["bb_width_current"] = float(width)
@@ -70,7 +78,10 @@ def chop_congestion_regime_active(metrics: dict[str, Any], *, persistence_filter
         return False
     z_edge = abs(float(metrics.get("edge_zscore", 0.0)))
     tick_accel = abs(_read_micro_tick_acceleration(metrics))
-    return z_edge + 1e-12 < CHOP_CONGESTION_Z_EDGE and tick_accel <= TICK_ACCEL_NEUTRAL_EPS
+    freeze = resolve_regime_micro_freeze_config()
+    return z_edge + 1e-12 < float(freeze["chop_congestion_z_edge"]) and tick_accel <= float(
+        freeze["tick_accel_neutral_eps"]
+    )
 
 
 def apply_regime_freeze_if_congested(metrics: dict[str, Any], *, persistence_filter_active: bool) -> bool:
@@ -92,7 +103,7 @@ def log_d_squeeze_audit(symbol: str | None, metrics: dict[str, Any]) -> None:
         symbol or "?",
         float(bb_width) if bb_width is not None else 0.0,
         harmonic,
-        float(BB_WIDTH_ANOMALY_RATIO),
+        float(metrics.get("bb_width_anomaly_ratio", _default_anomaly_ratio())),
         _read_micro_tick_acceleration(metrics),
         float(metrics.get("predicted_payoff_edge", metrics.get("meta_calibrated_payoff_score", 0.0))),
         metric_float(metrics, "trade_score", default=0.0),

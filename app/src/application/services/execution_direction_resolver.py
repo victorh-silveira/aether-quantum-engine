@@ -6,7 +6,6 @@ from typing import Any
 
 from src.application.services.direction_persistence_guard import evaluate_direction_persistence_guard
 from src.application.services.execution_direction_checks import (
-    D_SQUEEZE_BB_WIDTH_ANOMALY_RATIO,
     has_meta_zscore_telemetry as _has_meta_zscore_telemetry,
     infer_dl_direction,
     initial_direction_checks,
@@ -15,6 +14,7 @@ from src.application.services.execution_direction_checks import (
     seed_direction_metrics,
     sync_entry_metrics,
 )
+from src.application.services.execution_price_zone_gate import apply_price_zone_gate
 from src.application.services.execution_quality_gate import ensure_direction_margin
 from src.application.services.force_trade_mode import force_trade_every_cycle
 from src.application.services.live_signal_metrics import apply_live_calib_drift_soft, attach_live_signal_metrics
@@ -30,7 +30,6 @@ from src.domain.models.trade import TradeDirection
 
 
 __all__ = (
-    "D_SQUEEZE_BB_WIDTH_ANOMALY_RATIO",
     "_has_meta_zscore_telemetry",
     "infer_dl_direction",
     "is_technically_blocked",
@@ -79,6 +78,7 @@ def _finalize_execution_metrics(
     risk_manager: Any | None = None,
     orch: Any | None = None,
     force: bool = False,
+    exec_cfg: dict | None = None,
 ) -> tuple[TradeDirection, dict] | None:
     """Aplica decisao de execucao final."""
     if symbol is not None:
@@ -126,6 +126,15 @@ def _finalize_execution_metrics(
             metrics["quality_guard_reject"] = True
             sync_entry_metrics(entry, metrics)
             return None
+    zone_reason = apply_price_zone_gate(
+        metrics, exec_dir, exec_cfg if isinstance(exec_cfg, dict) else {}, tcn_direction=dl_dir
+    )
+    if zone_reason is not None and not force:
+        metrics["quality_guard_reject"] = True
+        metrics["regime_skip_cycle"] = True
+        metrics["gate_reason"] = zone_reason
+        sync_entry_metrics(entry, metrics)
+        return None
     if metrics.get("meta_veto_mode") is None:
         metrics["meta_veto_mode"] = "none"
     sync_entry_metrics(entry, metrics)
@@ -207,4 +216,5 @@ def resolve_execution_direction(
         risk_manager=risk_manager,
         orch=orch,
         force=force,
+        exec_cfg=exec_cfg_dict,
     )

@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from src.application.services.deep_learning.dl_feature_build import rolling_zscore_1024_fast
+from src.application.services.deep_learning.dl_feature_oscillators import rolling_zscore_1024_fast
 from src.application.services.execution_direction_resolver import resolve_execution_direction
 from src.application.services.meta_classifier_cross_symbol import META_FEATURE_DIM
 from src.application.services.meta_classifier_features import (

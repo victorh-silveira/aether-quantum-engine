@@ -5,11 +5,11 @@ from __future__ import annotations
 import numpy as np
 
 
-def hurst_exponent(prices: np.ndarray, window: int = 64) -> np.ndarray:
+def hurst_exponent(prices: np.ndarray, window: int, *, min_window: int) -> np.ndarray:
     """Estima Hurst por janela deslizante; fallback 0.5 para series curtas."""
     n = len(prices)
     out = np.full(n, 0.5, dtype=np.float64)
-    w = max(8, int(window))
+    w = max(int(min_window), int(window))
     if n < w + 2:
         return out
     for i in range(w, n):
@@ -26,7 +26,7 @@ def hurst_exponent(prices: np.ndarray, window: int = 64) -> np.ndarray:
     return out
 
 
-def variance_ratio(prices: np.ndarray, short: int = 2, long: int = 8) -> np.ndarray:
+def variance_ratio(prices: np.ndarray, short: int, long: int) -> np.ndarray:
     """Proxy de persistencia: variancia de retornos longos vs curtos."""
     n = len(prices)
     out = np.ones(n, dtype=np.float64)

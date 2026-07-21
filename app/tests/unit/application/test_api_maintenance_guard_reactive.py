@@ -3,9 +3,9 @@ from datetime import UTC, datetime
 
 import pytest
 
+from src.application.services.infra_timing_config import resolve_orchestrator_timing_config
 from src.application.services.orchestrator.api_maintenance_guard import (
     _API_GUARD_LOG_MESSAGE,
-    _API_MAINTENANCE_FALLBACK_SECONDS,
     _parse_clock,
     api_maintenance_delay_seconds,
     handle_broker_maintenance_error,
@@ -14,6 +14,9 @@ from src.application.services.orchestrator.api_maintenance_guard import (
     orchestrator_api_maintenance_remaining,
     schedule_api_maintenance_hibernation,
 )
+
+
+_API_MAINTENANCE_FALLBACK_SECONDS = float(resolve_orchestrator_timing_config()["api_maintenance_fallback_seconds"])
 
 
 def test_parse_clock_rejects_invalid_values():

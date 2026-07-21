@@ -17,12 +17,12 @@ Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (TCN,
 | Features meta GBDT | **43** (`META_FEATURE_DIM` = 34 + 4 micro-vol + 3 cross + 2 flow) |
 | Contrato | `RISE_FALL`, duração **120 s** |
 | Ciclo | **120 s** (`cycle_interval_seconds` / `signature_boundary_seconds`) |
-| Execução | **Esteira mandatária** (`mandatory_trade_each_cycle: true`) |
+| Execução | **Seletiva** (`mandatory`/`force` off + `price_zone`) |
 | Fail-closed | `require_meta_for_execution: false` (meta opcional); `infra.triton.require_for_execution: true` |
 | Label | `label_mode: spot_forward` (`ma_trend` / Triple Barrier via config) |
 | Meta sessão | Stop win **2,60%** (`compounding_rate_daily: 0.026`); stop loss desativado |
 
-O mercado é tratado como série temporal ruidosa: a TCN estima `P(CALL)`; o meta-regressor LightGBM estima `predicted_payoff_edge`; o ranking usa `tcn × max(0.1, 1+z)`. Em modo mandatário, o motor exige mandatory pick quando há candidatos aprovados pelo quality gate dual soft (TCN + meta) e pelos vetoes HARD de microestrutura.
+O mercado é tratado como série temporal ruidosa: a TCN estima `P(CALL)`; o meta-regressor LightGBM estima `predicted_payoff_edge`; o ranking usa `tcn × max(0.1, 1+z)`. Com `price_zone`, o motor só executa CALL em zona de compra e PUT em zona de venda (BB/Keltner + tendência); ciclos sem zona clara fazem skip.
 
 **Invariante temporal:** inferências seguem `signature_boundary_seconds` (fallback `cycle_interval_seconds`, padrão **120 s**) via `get_data_state_signature()` — formato `m5b:{boundary};m5:...;m15:...` (prefixos **legados**; valores de época alinhados a **120 s** / **600 s**). Proporção multi-timeframe **1:5** (120:600).
 
@@ -64,7 +64,7 @@ presentation  →  application  →  domain
 | Camada | Pasta | Papel |
 |--------|-------|-------|
 | Application | `application/services/` | Orquestração, DL, direção, quality gates, meta |
-| Domain | `domain/` | Risco híbrido Kelly/Martingale + soft legado (`martingale_sizing`, `soft_recovery_policy`), `RiskPolicy`, modelos, math |
+| Domain | `domain/` | Risco Kelly + Soft Recovery (`soft_recovery_policy`), `RiskPolicy`, modelos, math |
 | Infrastructure | `infrastructure/` | Deriv WS/REST, Redis, Triton, MinIO, Timescale |
 | Presentation | `presentation/` | Logger terminal |
 
@@ -150,7 +150,11 @@ Cache inválido quando a assinatura muda; sem assinatura nova, o ciclo aguarda s
 | Volatilidade | 5 | vol rolling, vol vs alvo, z-score, implied vol, vol_ratio |
 | Persistência | 2 | Hurst, variance ratio |
 
-Módulos: `dl_feature_build.py` (séries), `dl_feature_matrix.py` (linhas/matrizes/tensores), `dl_feature_indicators*.py`, facade `dl_features.py`.
+Módulos: `dl_feature_build.py` (séries), `dl_feature_matrix.py` (linhas/matrizes/tensores), `dl_feature_indicators*.py`, `dl_indicator_config.py`, facade `dl_features.py`.
+
+**Config 100% JSON:** períodos, multiplicadores e thresholds de indicadores vivem em `deep_learning.indicators` (`config/settings.json`). O Python só resolve via `resolve_indicator_config` / `load_indicator_config_from_settings` — sem magic numbers de indicador no código. Mudar períodos sem retreinar o TCN altera a distribuição das features (fingerprint inválido até retreino).
+
+**SSOT de knobs de runtime:** thresholds de negócio, timing/infra e parsers DL restantes também vivem só em `config/settings.json` (quality_gate/starvation/recovery_relax, soft_recovery, recovery_state, kelly runtime, loss_protection.disconnect, market_rank.composite, edge_zscore operacional, live_signal_metrics, meta_payoff_veto, regime/force/cross_corr, timeouts orchestrator/meta/triton/stream/history/shadow, aux_regression_weight, calibration bounds, dynamic_threshold clamps, price_zone, side_equilibrium, deploy_gate). Resolvers `resolve_*_config` / `*_from_settings` são fail-closed (chave ausente = `ValueError`). Exclusões: dims de tensor, enums/reason strings, chaves Redis, epsilons `1e-9`/`1e-12`.
 
 Normalização anti-leakage: `fit_norm_stats` **somente** no split de treino (`dl_splits` purged/embargo).
 
@@ -283,7 +287,7 @@ Em modo mandatário, o quality guard emite telemetria `QUALITY_GUARD` / `EXECUTI
 ### 7.1 Fases
 
 - **FASE TREINO** — suspende ordens até `session_trained` em todos os símbolos
-- **FASE OPERACAO** — esteira mandatária contínua
+- **FASE OPERACAO** — seletiva por zona de preço (sem force/mandatory)
 
 ### 7.2 ExecutionManager
 
@@ -314,11 +318,10 @@ Portões neutralizados em modo mandatário (não bloqueiam ciclo): cooldown pós
 
 | Mecanismo | Módulo |
 |-----------|--------|
-| Sizing híbrido | `risk_stake_calc.calculate_stake_for_manager`: EXPLORE→Kelly; RECOVER→Martingale se `martingale.enabled` |
-| Martingale (RECOVER) | `martingale_sizing.resolve_martingale_stake` (`last_loss_stake × 2`; teto = banca) |
-| Tags de stake | `EXPLORE_KELLY` / `MARTINGALE_Ln` via `emit_cycle_stake_log` |
+| Sizing | `risk_stake_calc.calculate_stake_for_manager`: EXPLORE→Kelly; RECOVER→Soft Recovery |
+| Soft Recovery (RECOVER) | `soft_recovery_policy` + `dlambert_sizing` (`amort_cycles`, `max_safe_stake_pct`) |
+| Tags de stake | `EXPLORE_KELLY` / `RECOVER_DAL_Ln` via `emit_cycle_stake_log` |
 | Kelly (EXPLORE) | `kelly_base_fraction`, `stake_sizing`; `fraction: 0.08`, tetos 3,5% |
-| Soft recovery (legado) | `soft_recovery_policy` + D'Alembert quando `martingale.enabled=false` |
 | Side equilibrium (LLN) | `side_equilibrium` / `side_equilibrium_gate` |
 | Consensus entropy | `consensus_stake_penalty.consensus_kelly_retention` (`consensus_penalty_enabled: false`) |
 | Recovery persistente | `pending_loss` + `consecutive_losses_linear` + `last_loss_stake` |
@@ -362,10 +365,10 @@ Watchdog: `AetherWatchdog` reconecta stream se ticks estagnarem (`watchdog_stale
 `arch`, `lookback` (**72**), `train_symbols`, `confidence_*` (**0.54/0.46**), `calibration.*` (`neutral_half_width: 0.04`), `indicator_gating.*`, `deploy_gate.*`, `label_mode` (`spot_forward`) + `label_*`, `tcn.channels`, `training_*`, `model_path_template`, `min_edge_execute`.
 
 ### `orchestrator` / `orchestrator.execution`
-`cycle_interval_seconds` (**120**), `signature_boundary_seconds` (**120**), `watchdog_stale_tick_seconds` (**25**), `mandatory_trade_each_cycle`, `require_meta_for_execution` (**false**), `quality_gate.*` (`min_direction_margin: 0.03`), `loss_protection.*` (`min_direction_margin: 0.03`), `bb_width_adaptive_squeeze.enabled` (**false**), `proposal_*`, `settlement_*` (**90 s**), `dynamic_threshold.enabled` (**false**).
+`cycle_interval_seconds` (**120**), `signature_boundary_seconds` (**120**), `watchdog_stale_tick_seconds` (**25**), `mandatory_trade_each_cycle`, `require_meta_for_execution` (**false**), `quality_gate.*` (`mandatory_min_trade_score: 0.50`, starvation/progressive_conviction/recovery_relax), `loss_protection.*` + `disconnect.*`, `bb_width_adaptive_squeeze.enabled` (**false**), `proposal_*`, `settlement_*` (**90 s** SSOT), `dynamic_threshold.*` (clamps inclusos), `warm_up_live_data_timeout_seconds` (**25**), `broker_handshake_timeout_seconds` (**15**), `state_lock_acquire_timeout_seconds` (**8**).
 
 ### `risk_management`
-`martingale.*` (`enabled: true`, `multiplier: 2.0` — só em RECOVER), `kelly.*` (`fraction: 0.08`, tetos 3,5% — EXPLORE), `soft_recovery.*` (`enabled: false` operacional), `min_validation_accuracy_gate` (**0.63**), `params.*` (duration **120**, compounding, stake_min, payout_estimate), `small_account_*`.
+`kelly.*` (`fraction: 0.08`, tetos 3,5% — EXPLORE), `soft_recovery.*` (`enabled: true`, `max_safe_stake_pct: 0.035` — RECOVER), `min_validation_accuracy_gate` (**0.63**), `params.*` (duration **120**, compounding, stake_min, payout_estimate), `small_account_*`.
 
 ### `infra`
 Redis/Timescale/MinIO/Triton/meta_classifier URLs e timeouts (`infer_timeout_seconds: 0.50`).
@@ -417,7 +420,7 @@ flowchart LR
   end
   subgraph pos
     ST[settlement + Redis queue]
-    RM[RiskManager Kelly+Martingale]
+    RM[RiskManager Kelly+SoftRecovery]
     LOCK[StateManager Lock]
   end
   WS --> SH --> TB

@@ -84,7 +84,12 @@ def test_apply_starvation_margin_decay_emits_deduped_log(orch_ready, caplog):
 def test_resolve_dynamic_quality_limits_applies_starvation_decay_at_counter_6():
     risk_manager = SimpleNamespace(dlambert_unit=16.0)
     limits = resolve_dynamic_quality_limits(
-        {},
+        {
+            "quality_gate": {
+                "min_direction_margin": 0.03,
+                "regular": {"min_direction_margin": 0.03, "min_payoff_edge": 0.0},
+            }
+        },
         risk_manager=risk_manager,
         linear=0,
         pending_loss_total=0.0,
@@ -119,8 +124,14 @@ def test_passes_execution_quality_starvation_allows_margin_008_after_decay():
         pending_loss_total=lambda: 13.333333333333334,
     )
     orch = SimpleNamespace(_quality_skipped_cycles_counter=9, logger=MagicMock())
+    exec_cfg = {
+        "quality_gate": {
+            "min_direction_margin": 0.03,
+            "regular": {"min_direction_margin": 0.03, "min_payoff_edge": 0.0},
+        }
+    }
 
-    assert evaluate_meta_payoff_quality(metrics, risk_manager=risk_manager, orch=orch) is True
+    assert evaluate_meta_payoff_quality(metrics, exec_cfg=exec_cfg, risk_manager=risk_manager, orch=orch) is True
     assert metrics["quality_starvation_decay_factor"] == pytest.approx(0.80)
     assert metrics["quality_min_direction_margin"] == pytest.approx(0.024)
 
@@ -144,7 +155,16 @@ def test_passes_execution_quality_keeps_flow_without_starvation():
         dlambert_unit=16.0,
         pending_loss_total=lambda: 13.333333333333334,
     )
-    assert evaluate_meta_payoff_quality(metrics, risk_manager=risk_manager, skipped_cycles_counter=0) is True
+    exec_cfg = {
+        "quality_gate": {
+            "min_direction_margin": 0.03,
+            "regular": {"min_direction_margin": 0.03, "min_payoff_edge": 0.0},
+        }
+    }
+    assert (
+        evaluate_meta_payoff_quality(metrics, exec_cfg=exec_cfg, risk_manager=risk_manager, skipped_cycles_counter=0)
+        is True
+    )
     assert metrics["quality_min_direction_margin"] == pytest.approx(0.03)
 
 

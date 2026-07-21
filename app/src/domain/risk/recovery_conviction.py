@@ -1,13 +1,24 @@
 """Pisos de conviccao para entradas em recovery financeiro."""
 
+from src.domain.risk.kelly_runtime_config import kelly_runtime_from_config, load_kelly_runtime_from_settings
 from src.domain.risk.stake_sizing import metric_float, raw_side_from_metrics
 
 
 def _merged_config(kelly_config: dict, dlambert_config: dict) -> dict:
-    """Combina configs de kelly e dlambert para gates de recovery."""
+    """Resolve ou aplica  merged config."""
     merged = dict(kelly_config)
     merged.update(dlambert_config)
     return merged
+
+
+def _runtime(kelly_config: dict) -> dict:
+    """Resolve ou aplica  runtime."""
+    if isinstance(kelly_config, dict) and "recovery_conviction_ladder" in kelly_config:
+        try:
+            return kelly_runtime_from_config({"kelly": kelly_config})
+        except ValueError:
+            pass
+    return load_kelly_runtime_from_settings()
 
 
 def recovery_min_conviction(
@@ -17,27 +28,33 @@ def recovery_min_conviction(
     pending_loss: dict[str, float],
     consecutive_losses_linear: int = 0,
 ) -> float:
-    """Resolve piso de conviccao para recovery, escalonando com perdas lineares."""
+    """Resolve ou aplica recovery min conviction."""
     cfg = _merged_config(kelly_config, dlambert_config)
-    min_conv = float(cfg.get("recovery_sizing_conviction", 0.58))
-    if min_conv <= 0.0:
-        min_conv = float(cfg.get("recovery_min_conviction", 0.58))
-    if min_conv <= 0.0:
-        min_conv = 0.58
+    runtime = _runtime(kelly_config)
+    if "recovery_sizing_conviction" in cfg and float(cfg["recovery_sizing_conviction"]) > 0.0:
+        min_conv = float(cfg["recovery_sizing_conviction"])
+    elif "recovery_min_conviction" in cfg and float(cfg["recovery_min_conviction"]) > 0.0:
+        min_conv = float(cfg["recovery_min_conviction"])
+    else:
+        min_conv = float(runtime["recovery_sizing_conviction"])
     pending = sum(float(v) for v in pending_loss.values())
-    force_min = float(cfg.get("recovery_min_conviction", min_conv))
-    force_pending = float(kelly_config.get("recovery_force_pending_min", 0.0))
+    force_min = float(cfg["recovery_min_conviction"]) if "recovery_min_conviction" in cfg else min_conv
+    if "recovery_force_pending_min" in kelly_config:
+        force_pending = float(kelly_config["recovery_force_pending_min"])
+    else:
+        force_pending = float(runtime["recovery_force_pending_min"])
     if force_pending > 0.0 and pending + 1e-9 >= force_pending:
         min_conv = min(min_conv, force_min)
+    ladder = runtime["recovery_conviction_ladder"]
     losses = int(consecutive_losses_linear)
     if losses >= 2:
-        min_conv = max(min_conv, 0.60)
+        min_conv = max(min_conv, float(ladder["losses_2"]))
     elif losses == 1:
-        min_conv = max(min_conv, 0.58)
+        min_conv = max(min_conv, float(ladder["losses_1"]))
     if losses >= 3:
-        min_conv = max(min_conv, 0.62)
+        min_conv = max(min_conv, float(ladder["losses_3"]))
     if losses >= 4:
-        min_conv = max(min_conv, 0.64)
+        min_conv = max(min_conv, float(ladder["losses_4"]))
     return min_conv
 
 
@@ -49,17 +66,22 @@ def recovery_dl_conviction_ok(
     pending_loss: dict[str, float],
     consecutive_losses_linear: int = 0,
 ) -> bool:
-    """Exige piso de sinal e val_accuracy para recovery com metricas DL."""
+    """Resolve ou aplica recovery dl conviction ok."""
     if dl_metrics.get("deploy_ok") is False:
         return False
     cfg = _merged_config(kelly_config, dlambert_config)
+    runtime = _runtime(kelly_config)
     min_conv = recovery_min_conviction(
         kelly_config,
         dlambert_config,
         pending_loss=pending_loss,
         consecutive_losses_linear=consecutive_losses_linear,
     )
-    min_val = float(cfg.get("recovery_min_val_accuracy", 0.50))
+    min_val = (
+        float(cfg["recovery_min_val_accuracy"])
+        if "recovery_min_val_accuracy" in cfg
+        else float(runtime["recovery_min_val_accuracy"])
+    )
     score = metric_float(dl_metrics, "trade_score", "conviction", default=0.0)
     raw_side = raw_side_from_metrics(dl_metrics)
     val = metric_float(dl_metrics, "val_accuracy", default=0.0)
@@ -80,13 +102,18 @@ def recovery_dl_entry_allowed(
     consecutive_losses_linear: int = 0,
     recovery_forced: bool = False,
 ) -> bool:
-    """Valida metricas DL antes de liberar stake de recovery."""
+    """Resolve ou aplica recovery dl entry allowed."""
     if dl_metrics.get("deploy_ok") is False:
         return False
     if recovery_forced or dl_metrics.get("recovery_forced"):
         return True
     cfg = _merged_config(kelly_config, dlambert_config)
-    min_val = float(cfg.get("recovery_min_val_accuracy", 0.50))
+    runtime = _runtime(kelly_config)
+    min_val = (
+        float(cfg["recovery_min_val_accuracy"])
+        if "recovery_min_val_accuracy" in cfg
+        else float(runtime["recovery_min_val_accuracy"])
+    )
     val = metric_float(dl_metrics, "val_accuracy", default=0.0)
     if min_val > 0.0 and val + 1e-9 < min_val:
         return False

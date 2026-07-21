@@ -42,7 +42,7 @@ def _mandatory_trade_each_cycle(exec_cfg: dict | None) -> bool:
     """Retorna se o motor opera em modo mandatario continuo."""
     if not isinstance(exec_cfg, dict):
         return True
-    return bool(exec_cfg.get("mandatory_trade_each_cycle", True))
+    return bool(exec_cfg.get("mandatory_trade_each_cycle", False))
 
 
 def _quality_guard_message(cycle_id: int, reason: str, *, linear: int, pending_loss: float) -> str:

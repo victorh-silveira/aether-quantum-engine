@@ -10,6 +10,7 @@ from typing import Any
 
 import httpx
 
+from src.application.services.infra_timing_config import resolve_meta_classifier_infra_config
 from src.application.services.log_dedupe import clear_log_channel, log_warning_if_changed
 from src.application.services.meta_classifier_cross_symbol import META_FEATURE_DIM
 from src.application.services.meta_classifier_features import (
@@ -24,7 +25,6 @@ from src.infrastructure.inference.meta_classifier_types import (
 
 
 logger = logging.getLogger("AETH")
-META_TIMEOUT_SEC = 1.0
 
 
 def assert_meta_feature_vector_dim(feature_vector: list[float]) -> None:
@@ -65,7 +65,7 @@ def meta_classifier_timeout(config: dict[str, Any]) -> float:
     chunk = infra.get("meta_classifier") if isinstance(infra, dict) else {}
     if isinstance(chunk, dict) and chunk.get("timeout_seconds") is not None:
         return float(chunk["timeout_seconds"])
-    return META_TIMEOUT_SEC
+    return float(resolve_meta_classifier_infra_config()["timeout_seconds"])
 
 
 def build_persistent_http_client(base_url: str, timeout: float) -> httpx.AsyncClient:
@@ -73,7 +73,10 @@ def build_persistent_http_client(base_url: str, timeout: float) -> httpx.AsyncCl
     return httpx.AsyncClient(
         base_url=base_url.rstrip("/"),
         timeout=httpx.Timeout(float(timeout)),
-        limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
+        limits=httpx.Limits(
+            max_connections=int(resolve_meta_classifier_infra_config()["max_connections"]),
+            max_keepalive_connections=int(resolve_meta_classifier_infra_config()["max_keepalive_connections"]),
+        ),
     )
 
 

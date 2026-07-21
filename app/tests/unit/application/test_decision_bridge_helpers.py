@@ -43,7 +43,7 @@ def test_build_decision_entry_includes_train_loss():
 def test_apply_deploy_gate_blocks_when_not_ok():
     entry = {"metrics": {"execute": True}}
     runtime = {"deploy_ok": False}
-    out = _apply_deploy_gate(entry, runtime, {"deploy_gate": {"enabled": True}})
+    out = _apply_deploy_gate(entry, runtime, {"deploy_gate": {"enabled": True, "force_ok": False}})
     assert out["metrics"]["execute"] is False
     assert out["metrics"]["gate_reason"] == "deploy"
     assert out["metrics"]["deploy_ok"] is False

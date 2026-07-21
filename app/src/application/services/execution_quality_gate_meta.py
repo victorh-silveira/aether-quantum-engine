@@ -13,7 +13,6 @@ from src.application.services.execution_quality_gate import (
 )
 from src.application.services.log_dedupe import LogDeduper
 from src.application.services.payoff_edge_zscore import (
-    EDGE_ZSCORE_WIN_THRESHOLD,
     attach_payoff_edge_zscore_metrics,
 )
 from src.domain.risk.soft_recovery_policy import gbdt_waiver_skip_threshold_for_risk
@@ -30,7 +29,7 @@ def _meta_payoff_zscore(metrics: dict) -> float:
 def resolve_min_meta_payoff_zscore(exec_cfg: dict | None) -> float:
     """Le limiar favoravel minimo de Z-Score meta-regressor."""
     params = quality_gate_params(exec_cfg or {})
-    return float(params.get("min_meta_payoff_zscore", EDGE_ZSCORE_WIN_THRESHOLD))
+    return float(params["min_meta_payoff_zscore"])
 
 
 def ensure_meta_zscore_telemetry(

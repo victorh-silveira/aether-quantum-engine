@@ -23,7 +23,8 @@ def test_sniper_cfg_reads_indicator_gating_from_orch():
         }
     )
     squeeze_cfg, gating_cfg = sniper_cfg({"bb_width_adaptive_squeeze": {"enabled": False}}, orch)
-    assert squeeze_cfg == {"enabled": False}
+    assert squeeze_cfg["enabled"] is False
+    assert "anomaly_ratio" in squeeze_cfg
     assert gating_cfg["enabled"] is True
     assert gating_cfg["veto_on_noise"] is True
 

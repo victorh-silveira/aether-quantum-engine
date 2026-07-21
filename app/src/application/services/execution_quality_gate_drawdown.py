@@ -4,20 +4,17 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.application.services.execution_runtime_config import resolve_quality_gate_from_exec
 from src.domain.risk.consensus_stake_penalty import resolve_session_base_unit
 
 
-RECOVERY_RELAX_MIN_LINEAR = 2
-RECOVERY_RELAX_MARGIN_FLOOR = 0.01
-RECOVERY_RELAX_EDGE_FLOOR = -0.55
-RECOVERY_RELAX_FULL_PENDING_UNITS = 8.0
-NEUTRAL_META_PAYOFF_LO = -0.05
-NEUTRAL_META_PAYOFF_HI = 0.04
-RECOVERY_EDGE_ZSCORE_WAIVER = 0.5
+def _qg(exec_cfg: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Resolve ou aplica  qg."""
+    return resolve_quality_gate_from_exec(exec_cfg)
 
 
 def resolve_session_stake_unit(risk_manager: Any | None, exec_cfg: dict) -> float:
-    """Resolve unidade base U da sessao para amortecimento proporcional ao drawdown."""
+    """Resolve unidade de stake da sessao para relaxation de recovery."""
     chunk = exec_cfg.get("quality_gate") if isinstance(exec_cfg, dict) else {}
     if isinstance(chunk, dict):
         configured = chunk.get("session_base_unit")
@@ -32,11 +29,13 @@ def resolve_session_stake_unit(risk_manager: Any | None, exec_cfg: dict) -> floa
     bankroll = float(getattr(risk_manager, "initial_bankroll", 0.0) or 0.0)
     kelly_cfg = getattr(risk_manager, "kelly_config", None)
     if isinstance(kelly_cfg, dict):
-        for key in ("base_stake", "kelly_base", "martingale_base"):
+        for key in ("base_stake", "kelly_base"):
             base = float(kelly_cfg.get(key, 0.0) or 0.0)
             if base > 0.0:
                 return max(resolve_session_base_unit(bankroll, base, None), 1e-9)
-    return max(bankroll * 0.0015, 1.0) if bankroll > 0.0 else 1.0
+    qg = _qg(exec_cfg if isinstance(exec_cfg, dict) else None)
+    pct = float(qg["recovery_relax"]["session_stake_unit_bankroll_pct"])
+    return max(bankroll * pct, 1.0) if bankroll > 0.0 else 1.0
 
 
 def apply_dynamic_recovery_relaxation(
@@ -46,14 +45,16 @@ def apply_dynamic_recovery_relaxation(
     linear: int,
     pending: float,
     session_unit: float,
+    exec_cfg: dict[str, Any] | None = None,
 ) -> tuple[float, float, float]:
-    """Reduz linearmente pisos de TCN Margin e Meta Payoff conforme o passivo."""
-    if int(linear) < RECOVERY_RELAX_MIN_LINEAR or float(pending) <= 0.0:
+    """Resolve ou aplica apply dynamic recovery relaxation."""
+    relax = _qg(exec_cfg)["recovery_relax"]
+    if int(linear) < int(relax["min_linear"]) or float(pending) <= 0.0:
         return float(margin), float(edge), 0.0
     unit = max(float(session_unit), 1e-9)
-    intensity = min(1.0, max(0.0, float(pending)) / (RECOVERY_RELAX_FULL_PENDING_UNITS * unit))
-    relaxed_margin = float(margin) - (float(margin) - RECOVERY_RELAX_MARGIN_FLOOR) * intensity
-    relaxed_edge = float(edge) - (float(edge) - RECOVERY_RELAX_EDGE_FLOOR) * intensity
+    intensity = min(1.0, max(0.0, float(pending)) / (float(relax["full_pending_units"]) * unit))
+    relaxed_margin = float(margin) - (float(margin) - float(relax["margin_floor"])) * intensity
+    relaxed_edge = float(edge) - (float(edge) - float(relax["edge_floor"])) * intensity
     return relaxed_margin, relaxed_edge, float(intensity)
 
 
@@ -63,15 +64,19 @@ def recovery_neutral_edge_zscore_waiver(
     *,
     linear: int,
     pending: float,
+    exec_cfg: dict[str, Any] | None = None,
 ) -> bool:
-    """True quando edge neutro com Z>0.5 libera trade de recovery (vacuo GBDT)."""
-    if int(linear) < RECOVERY_RELAX_MIN_LINEAR or float(pending) <= 0.0:
+    """Resolve ou aplica recovery neutral edge zscore waiver."""
+    qg = _qg(exec_cfg)
+    relax = qg["recovery_relax"]
+    neutral = qg["neutral_meta_payoff"]
+    if int(linear) < int(relax["min_linear"]) or float(pending) <= 0.0:
         return False
-    if float(edge) + 1e-12 < NEUTRAL_META_PAYOFF_LO:
+    if float(edge) + 1e-12 < float(neutral["lo"]):
         return False
-    if float(edge) - 1e-12 > NEUTRAL_META_PAYOFF_HI:
+    if float(edge) - 1e-12 > float(neutral["hi"]):
         return False
-    return float(z_edge) > RECOVERY_EDGE_ZSCORE_WAIVER + 1e-12
+    return float(z_edge) > float(relax["edge_zscore_waiver"]) + 1e-12
 
 
 def recovery_drawdown_quality_limits(
@@ -80,15 +85,19 @@ def recovery_drawdown_quality_limits(
     *,
     pending: float,
     session_unit: float,
-    linear: int = RECOVERY_RELAX_MIN_LINEAR,
+    linear: int | None = None,
+    exec_cfg: dict[str, Any] | None = None,
 ) -> tuple[float, float]:
-    """Calcula pisos elasticos de recovery proporcionais ao passivo sobre a unidade U."""
+    """Resolve ou aplica recovery drawdown quality limits."""
     _ = regular_limits
+    relax = _qg(exec_cfg)["recovery_relax"]
+    linear_val = int(relax["min_linear"]) if linear is None else int(linear)
     margin, edge, _intensity = apply_dynamic_recovery_relaxation(
         float(recovery_limits["min_direction_margin"]),
         float(recovery_limits["min_payoff_edge"]),
-        linear=int(linear),
+        linear=linear_val,
         pending=float(pending),
         session_unit=float(session_unit),
+        exec_cfg=exec_cfg,
     )
     return margin, edge

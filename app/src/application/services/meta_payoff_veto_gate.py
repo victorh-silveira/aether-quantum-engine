@@ -5,12 +5,12 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from src.application.services.execution_runtime_config import resolve_meta_payoff_veto_config
 from src.application.services.meta_payoff_regression import CALIBRATION_NEUTRAL_DRIFT
 from src.application.services.meta_payoff_shadow import meta_hard_veto_allowed, shadow_correlation, shadow_pair_count
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.risk_recovery_state import meta_payoff_veto_emergency_waiver
 from src.domain.risk.soft_recovery_policy import (
-    DEFAULT_NEGATIVE_ZSCORE_VETO,
     negative_zscore_veto_floor_for_risk,
 )
 
@@ -25,28 +25,31 @@ EXECUTION_SIGNAL_VETO_REASONS = frozenset(
         CALIBRATION_NEUTRAL_DRIFT,
     }
 )
-NEGATIVE_ZSCORE_VETO_THRESHOLD = DEFAULT_NEGATIVE_ZSCORE_VETO
 VETO_EDGE_EXPECTANCIES = frozenset({"NO_EDGE_NEUTRAL", "LOSS_EXPECTED"})
-NEUTRAL_EDGE_FLOOR = 0.04
-SOFT_VETO_SCORE_FACTOR = 0.72
-SOFT_VETO_MIN_SCORE = 0.48
 META_SOFT_VETO_MODE = "soft"
 META_HARD_VETO_MODE = "hard"
+
+
+def _veto_cfg() -> dict[str, float]:
+    """Carrega meta_payoff_veto de settings."""
+    return resolve_meta_payoff_veto_config()
 
 
 def classify_payoff_edge_expectancy(
     predicted_edge: float,
     *,
     z_score: float | None = None,
-    veto_floor: float = NEGATIVE_ZSCORE_VETO_THRESHOLD,
+    veto_floor: float | None = None,
 ) -> str:
     """Classifica expectativa tabular do meta-regressor a partir do edge e Z-Score."""
+    cfg = _veto_cfg()
+    floor = float(cfg["negative_zscore_threshold"]) if veto_floor is None else float(veto_floor)
     edge = float(predicted_edge)
     if edge <= 0.0:
         return "LOSS_EXPECTED"
-    if z_score is not None and float(z_score) < float(veto_floor):
+    if z_score is not None and float(z_score) < floor:
         return "NO_EDGE_NEUTRAL"
-    if edge < NEUTRAL_EDGE_FLOOR:
+    if edge < float(cfg["neutral_edge_floor"]):
         return "NO_EDGE_NEUTRAL"
     return "WIN_EXPECTED"
 
@@ -68,12 +71,12 @@ def meta_payoff_zscore(metrics: dict[str, Any]) -> float:
 def resolve_payoff_edge_expectancy(
     metrics: dict[str, Any],
     *,
-    veto_floor: float = NEGATIVE_ZSCORE_VETO_THRESHOLD,
+    veto_floor: float | None = None,
 ) -> str:
     """Resolve expectativa; Z negativo sobrescreve WIN_EXPECTED explicito do meta."""
+    floor = float(_veto_cfg()["negative_zscore_threshold"]) if veto_floor is None else float(veto_floor)
     z_score = meta_payoff_zscore(metrics) if meta_payoff_zscore_present(metrics) else None
     edge_raw = metrics.get("predicted_payoff_edge")
-    floor = float(veto_floor)
     explicit = metrics.get("edge_expectancy")
     if isinstance(explicit, str) and explicit.strip():
         expectancy = explicit.strip().upper()
@@ -90,7 +93,7 @@ def resolve_payoff_edge_expectancy(
 def stamp_payoff_edge_expectancy(
     metrics: dict[str, Any],
     *,
-    veto_floor: float = NEGATIVE_ZSCORE_VETO_THRESHOLD,
+    veto_floor: float | None = None,
 ) -> str:
     """Garante edge_expectancy materializado nas metricas do candidato."""
     expectancy = resolve_payoff_edge_expectancy(metrics, veto_floor=veto_floor)
@@ -100,6 +103,7 @@ def stamp_payoff_edge_expectancy(
 
 def _apply_soft_veto(metrics: dict[str, Any]) -> None:
     """Comprime trade_score/conviction e marca soft veto de payoff."""
+    cfg = _veto_cfg()
     metrics["meta_soft_veto_mode"] = META_SOFT_VETO_MODE
     metrics["meta_soft_veto_reason"] = META_PAYOFF_SOFT_VETO
     metrics["meta_veto_mode"] = META_SOFT_VETO_MODE
@@ -108,7 +112,7 @@ def _apply_soft_veto(metrics: dict[str, Any]) -> None:
         base = metrics.get("resolved_conviction")
     if base is None:
         base = metrics.get("raw_prob", 0.5)
-    compressed = max(SOFT_VETO_MIN_SCORE, float(base) * SOFT_VETO_SCORE_FACTOR)
+    compressed = max(float(cfg["soft_veto_min_score"]), float(base) * float(cfg["soft_veto_score_factor"]))
     metrics["trade_score"] = compressed
     metrics["conviction"] = compressed
     metrics["meta_soft_veto_penalty"] = max(0.0, float(base) - compressed)

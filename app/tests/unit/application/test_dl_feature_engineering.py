@@ -65,7 +65,7 @@ def test_build_feature_row_shape():
 
 def test_calculate_stochastic_flat_prices():
     prices = np.full(50, 100.0)
-    k, d = calculate_stochastic(prices, prices, prices, period=14)
+    k, d = calculate_stochastic(prices, prices, prices, period=14, smooth_k=3)
     assert (k == 0.5).all()
 
 
@@ -104,10 +104,12 @@ def test_new_indicators_edge_cases():
     flat_cmo = calculate_cmo(prices, period=14)
     assert (flat_cmo == 0.0).all()
 
-    kc_short = calculate_keltner_channel_pct_b(short_prices, short_prices, short_prices, period=20, atr_period=10)
+    kc_short = calculate_keltner_channel_pct_b(
+        short_prices, short_prices, short_prices, period=20, atr_period=10, atr_mult=2.0
+    )
     assert (kc_short == 0.5).all()
 
-    flat_kc = calculate_keltner_channel_pct_b(prices, prices, prices, period=20, atr_period=10)
+    flat_kc = calculate_keltner_channel_pct_b(prices, prices, prices, period=20, atr_period=10, atr_mult=2.0)
     assert (flat_kc == 0.5).all()
 
 

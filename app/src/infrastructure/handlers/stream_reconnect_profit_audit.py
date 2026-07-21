@@ -6,13 +6,11 @@ import asyncio
 import logging
 from typing import Any
 
+from src.application.services.infra_timing_config import resolve_stream_reconnect_config
 from src.application.services.orchestrator.settlement_reconciliation import reconcile_after_ws_recovery
 
 
 logger = logging.getLogger("AETH")
-_MAX_ATTEMPTS = 8
-_INITIAL_BACKOFF_SEC = 0.5
-_MAX_BACKOFF_SEC = 60.0
 
 
 def _orch_running(orch: Any) -> bool:
@@ -22,14 +20,15 @@ def _orch_running(orch: Any) -> bool:
 
 async def _profit_table_audit_loop(orch: Any, *, reason: str) -> None:
     """Tenta reconciliar contratos via profit_table ate sucesso ou esgotar tentativas."""
-    backoff = _INITIAL_BACKOFF_SEC
-    for attempt in range(1, _MAX_ATTEMPTS + 1):
+    cfg = resolve_stream_reconnect_config()
+    backoff = float(cfg["initial_backoff_seconds"])
+    for attempt in range(1, int(cfg["max_attempts"]) + 1):
         if not _orch_running(orch):
             return
         ws = getattr(orch, "ws", None)
         if ws is None or not getattr(ws, "is_running", False):
             await asyncio.sleep(backoff)
-            backoff = min(backoff * 2.0, _MAX_BACKOFF_SEC)
+            backoff = min(backoff * 2.0, float(cfg["max_backoff_seconds"]))
             continue
         try:
             result = await reconcile_after_ws_recovery(orch)
@@ -48,7 +47,7 @@ async def _profit_table_audit_loop(orch: Any, *, reason: str) -> None:
                 exc,
             )
         await asyncio.sleep(backoff)
-        backoff = min(backoff * 2.0, _MAX_BACKOFF_SEC)
+        backoff = min(backoff * 2.0, float(cfg["max_backoff_seconds"]))
     logger.warning("RECONCILE: profit_table audit esgotou tentativas | reason=%s", reason)
 
 

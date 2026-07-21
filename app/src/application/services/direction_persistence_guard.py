@@ -11,6 +11,7 @@ from src.application.services.direction_persistence_guard_part2 import (
     _resolve_peer_lock,
     log_regime_guard,
 )
+from src.application.services.execution_runtime_config import resolve_direction_persistence_config
 from src.application.services.regime_micro_freeze import apply_regime_freeze_if_congested
 from src.domain.models.trade import TradeDirection
 
@@ -23,7 +24,7 @@ def _guard_blocked_same_direction(
 ) -> TradeDirection | None:
     """Bloqueia repeticao da mesma direcao apos duas perdas consecutivas."""
     count = consecutive_direction_losses(symbol, proposed.name)
-    if count >= 2:
+    if count >= int(resolve_direction_persistence_config()["same_direction_count_threshold"]):
         _mark_guard(metrics, count)
         if apply_regime_freeze_if_congested(metrics, persistence_filter_active=True):
             _freeze_cycle(metrics, cycle_id, count)

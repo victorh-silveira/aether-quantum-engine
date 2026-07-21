@@ -125,7 +125,7 @@ def test_attach_microstructure_valid_arrays():
 
 def test_hurst_skips_tiny_rs():
     prices = np.concatenate([np.linspace(100.0, 100.001, 20), np.linspace(100.001, 100.002, 60)])
-    out = hurst_exponent(prices, window=12)
+    out = hurst_exponent(prices, window=12, min_window=8)
     assert np.isfinite(out).all()
 
 

@@ -84,10 +84,8 @@ def resolve_stake_mode_tag(
     *,
     stake_regime: str | None = None,
 ) -> str:
-    """Compacta modo de sizing em rotulo curto (MARTINGALE_Ln ou EXPLORE|RECOVER + KELLY/DAL_Ln)."""
+    """Compacta modo de sizing em rotulo curto (EXPLORE|RECOVER + KELLY/DAL_Ln)."""
     tag = str(mode_tag or "KELLY").upper()
-    if tag.startswith("MARTINGALE"):
-        return f"MARTINGALE_L{max(0, int(linear_losses))}"
     if tag.startswith("EXPLORE_") or tag.startswith("RECOVER_"):
         return tag
     compact = f"DAL_L{max(0, int(linear_losses))}" if ("ALEMBERT" in tag or tag.startswith("DAL")) else "KELLY"

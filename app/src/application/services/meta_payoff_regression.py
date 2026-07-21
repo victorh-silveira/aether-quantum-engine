@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from src.application.services.execution_quality_gate import sync_direction_margin
+from src.application.services.execution_runtime_config import resolve_meta_payoff_veto_config
 from src.application.services.regime_micro_freeze import (
     log_d_squeeze_audit,
     micro_volatility_squeeze_active,
@@ -13,7 +14,6 @@ from src.application.services.regime_micro_freeze import (
 from src.domain.models.trade import TradeDirection
 
 
-META_SQUEEZE_TRADE_SCORE = 0.52
 NEUTRAL_AXIS = 0.5
 CALIBRATION_NEUTRAL_DRIFT = "calibration_neutral_drift"
 
@@ -70,9 +70,10 @@ def apply_meta_regression_edge(
         return dl_dir, float(base_score)
     squeeze_danger = severe_bb_compression(metrics)
     if squeeze_danger:
+        squeeze_score = float(resolve_meta_payoff_veto_config()["squeeze_trade_score"])
         metrics["meta_squeeze_downgrade"] = True
-        _apply_direction_scores(metrics, direction=dl_dir, score=META_SQUEEZE_TRADE_SCORE)
+        _apply_direction_scores(metrics, direction=dl_dir, score=squeeze_score)
         log_d_squeeze_audit(symbol, metrics)
-        return dl_dir, META_SQUEEZE_TRADE_SCORE
+        return dl_dir, squeeze_score
     _apply_direction_scores(metrics, direction=dl_dir, score=base_score)
     return dl_dir, float(base_score)

@@ -3,13 +3,16 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from src.application.services.infra_timing_config import resolve_orchestrator_timing_config
 from src.application.services.orchestrator import Orchestrator
 from src.application.services.orchestrator.api_maintenance_guard import (
-    _API_MAINTENANCE_FALLBACK_SECONDS,
     orchestrator_api_maintenance_until,
 )
 from src.application.services.orchestrator.execution_orders import place_order
 from src.domain.models.trade import TradeDirection
+
+
+_API_MAINTENANCE_FALLBACK_SECONDS = float(resolve_orchestrator_timing_config()["api_maintenance_fallback_seconds"])
 
 
 def test_log_execution_blockers_groups_training_symbols(orch_config):

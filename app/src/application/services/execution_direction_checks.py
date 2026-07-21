@@ -4,17 +4,17 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.application.services.deep_learning.dl_indicator_config import load_bb_width_anomaly_ratio
+from src.application.services.execution_price_zone_gate import apply_price_zone_gate
 from src.application.services.execution_quality_gate import direction_margin_from_probability, passes_execution_quality
 from src.application.services.execution_quality_gate_meta import evaluate_meta_payoff_quality
 from src.application.services.execution_quality_gate_microstructure import is_hard_quality_reject_reason
-from src.application.services.execution_sniper_gates import apply_bb_squeeze_requirement, apply_hurst_noise_veto
 from src.application.services.force_trade_mode import force_trade_every_cycle, synthesize_force_direction
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.soft_recovery_policy import negative_zscore_veto_floor_for_risk
 from src.domain.risk.stake_sizing import metric_float
 
 
-D_SQUEEZE_BB_WIDTH_ANOMALY_RATIO = 0.55
 _TECHNICAL_BLOCKS = frozenset({"data", "predict_error", "training"})
 _NEUTRAL_PIVOT_EPS = 1e-9
 _NEUTRAL_CLAMP = "neutral_clamp"
@@ -209,7 +209,9 @@ def apply_technical_agreement(metrics: dict, dl_dir: TradeDirection, prob: float
 def sniper_cfg(exec_cfg_dict: dict, orch: Any | None) -> tuple[dict, dict]:
     """Extrai configs de squeeze e indicator_gating para os gates sniper."""
     squeeze = exec_cfg_dict.get("bb_width_adaptive_squeeze")
-    squeeze_cfg = squeeze if isinstance(squeeze, dict) else {}
+    squeeze_cfg = dict(squeeze) if isinstance(squeeze, dict) else {}
+    if "anomaly_ratio" not in squeeze_cfg:
+        squeeze_cfg["anomaly_ratio"] = load_bb_width_anomaly_ratio()
     gating_cfg: dict = {}
     if orch is not None and hasattr(orch, "config"):
         dl = orch.config.get("deep_learning", {}) if isinstance(orch.config, dict) else {}
@@ -247,13 +249,9 @@ def initial_direction_checks(
         if metrics.get("quality_guard_reject") or metrics.get("gate_reason"):
             sync_entry_metrics(entry, metrics)
         return None
-    squeeze_cfg, gating_cfg = sniper_cfg(exec_cfg_dict, orch)
-    anomaly = squeeze_cfg.get("anomaly_ratio", D_SQUEEZE_BB_WIDTH_ANOMALY_RATIO)
-    metrics["bb_width_anomaly_ratio"] = float(anomaly)
-    sniper_hit = apply_hurst_noise_veto(metrics, gating_cfg) or apply_bb_squeeze_requirement(metrics, squeeze_cfg)
-    if sniper_hit and not force:
-        sync_entry_metrics(entry, metrics)
-        return None
+    squeeze_cfg, _gating_cfg = sniper_cfg(exec_cfg_dict, orch)
+    anomaly = float(squeeze_cfg["anomaly_ratio"])
+    metrics["bb_width_anomaly_ratio"] = anomaly
     prob = direction_prob(entry)
     if prob is None:
         prob = 0.55 if dl_dir == TradeDirection.CALL else 0.45
@@ -262,6 +260,14 @@ def initial_direction_checks(
         metrics["quality_guard_reject"] = True
         metrics["regime_skip_cycle"] = True
         metrics["gate_reason"] = str(metrics.get("gate_reason") or "indicator_discordance")
+        sync_entry_metrics(entry, metrics)
+        return None
+    metrics["dl_direction"] = dl_dir.name
+    zone_reason = apply_price_zone_gate(metrics, dl_dir, exec_cfg_dict, tcn_direction=dl_dir)
+    if zone_reason is not None and not force:
+        metrics["quality_guard_reject"] = True
+        metrics["regime_skip_cycle"] = True
+        metrics["gate_reason"] = zone_reason
         sync_entry_metrics(entry, metrics)
         return None
     return dl_dir, metrics, prob

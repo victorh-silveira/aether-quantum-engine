@@ -31,7 +31,7 @@ def test_execution_manager_mandatory_defaults_when_execution_cfg_not_dict(orch_c
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch.config.setdefault("orchestrator", {})["execution"] = "invalid"
-        assert orch.executor._mandatory_trade_each_cycle() is True
+        assert orch.executor._mandatory_trade_each_cycle() is False
 
 
 def test_execution_manager_collect_orders_mandatory_includes_execute_false(orch_config):

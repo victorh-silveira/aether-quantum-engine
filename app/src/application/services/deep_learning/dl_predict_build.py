@@ -4,17 +4,20 @@ from __future__ import annotations
 
 from typing import Any
 
-import numpy as np
-
 from src.application.services.deep_learning.dl_bridge_helpers import build_decision_entry
 from src.application.services.deep_learning.dl_calibration import CalibratorState, calibrate_trade_score
 from src.application.services.deep_learning.dl_calibration_tolerance import (
     apply_calibration_neutral_tolerance,
 )
+from src.application.services.deep_learning.dl_congestion import (
+    series_last as _series_last,
+    squeeze_congestion_active,
+)
 from src.application.services.deep_learning.dl_feature_build import precompute_price_series
 from src.application.services.deep_learning.dl_feature_matrix import build_feature_row
 from src.application.services.deep_learning.dl_gating import resolve_calibrated_edge, resolve_confidence_thresholds
-from src.application.services.deep_learning.dl_params import parse_dynamic_threshold_config
+from src.application.services.deep_learning.dl_indicator_config import load_indicator_config_from_settings
+from src.application.services.deep_learning.dl_params_blocks import parse_dynamic_threshold_config
 from src.application.services.deep_learning.dl_predict_metrics import attach_dynamic_metrics
 from src.application.services.deep_learning.dl_predict_telemetry import (
     prepare_meta_classifier_cross_symbol_bundle,
@@ -34,14 +37,6 @@ def _series_tail(series_key: str, series: dict) -> list[float]:
     if chunk is None or len(chunk) == 0:
         return []
     return [float(v) for v in chunk]
-
-
-def _series_last(series: dict, key: str, default: float = 0.0) -> float:
-    """Retorna o ultimo valor de uma serie ou default."""
-    chunk = series.get(key)
-    if chunk is None or len(chunk) == 0:
-        return float(default)
-    return float(chunk[-1])
 
 
 def build_prediction_context(
@@ -166,20 +161,6 @@ def _indicators_from_series(series: dict) -> dict[str, float]:
     }
 
 
-def _squeeze_congestion_active(prices, series: dict) -> bool:
-    """Detecta congestionamento por squeeze de BB e ADX baixo."""
-    bb_window = 20
-    if len(prices) >= bb_window:
-        w_prices = prices[-bb_window:]
-        std_val = float(np.std(w_prices))
-        mean_val = float(np.mean(w_prices))
-        raw_bb_width = (4.0 * std_val) / (mean_val + 1e-10)
-    else:
-        raw_bb_width = 0.05
-    adx_val = _series_last(series, "adx", 1.0)
-    return len(prices) >= 100 and adx_val < 0.15 and raw_bb_width < 0.04
-
-
 def build_prediction_entry(
     _orch: Any,
     symbol: str,
@@ -227,7 +208,16 @@ def build_prediction_entry(
         deploy_ok=runtime.get("deploy_ok", True),
         is_put=resolved_dir == TradeDirection.PUT if resolved_dir is not None else False,
     )
-    squeeze_congestion = _squeeze_congestion_active(prices, series)
+    indicator_cfg = params.get("indicators")
+    if not isinstance(indicator_cfg, dict) or "windows" not in indicator_cfg:
+        indicator_cfg = load_indicator_config_from_settings()
+    squeeze_congestion = squeeze_congestion_active(
+        prices,
+        series,
+        bb_window=int(indicator_cfg["windows"]["bb_window"]),
+        bb_std_mult=float(indicator_cfg["multipliers"]["bb_std_mult"]),
+        congestion=indicator_cfg["congestion"],
+    )
     if squeeze_congestion:
         side_score = 0.51
     entry = build_decision_entry(

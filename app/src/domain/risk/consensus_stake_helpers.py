@@ -4,20 +4,23 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.domain.risk.kelly_runtime_config import kelly_runtime_from_config, load_kelly_runtime_from_settings
 from src.domain.risk.soft_recovery_policy import fixed_step_progression_multiplier
 from src.domain.risk.super_concordance_kelly import is_unanimous_vote_alignment
 
 
-_NEUTRAL_BANKROLL_PCT = 0.0015
-_TURBO_EDGE_ZSCORE_THRESHOLD = 1.5
-_TURBO_EDGE_STAKE_MULTIPLIER = 2.0
-_PAYOUT_FALLBACK = 0.90
-_ADAPTIVE_RECOVERY_FACTOR_CAP = 2.50
-_D_SQUEEZE_SOVEREIGN_TRADE_SCORE = 0.52
+def _runtime(kelly_config: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Resolve ou aplica  runtime."""
+    if isinstance(kelly_config, dict) and "neutral_bankroll_pct" in kelly_config:
+        try:
+            return kelly_runtime_from_config({"kelly": kelly_config})
+        except ValueError:
+            pass
+    return load_kelly_runtime_from_settings()
 
 
 def _positive_float(value: object) -> float | None:
-    """Converte valor numerico positivo ou retorna None quando invalido."""
+    """Resolve ou aplica  positive float."""
     try:
         parsed = float(value)
     except (TypeError, ValueError):
@@ -26,7 +29,7 @@ def _positive_float(value: object) -> float | None:
 
 
 def resolve_contract_payout(payout: float | None = None, risk_params: dict[str, Any] | None = None) -> float:
-    """Resolve payout real do contrato com fallback estatico de seguranca."""
+    """Resolve ou aplica resolve contract payout."""
     candidates: list[float] = []
     if payout is not None:
         parsed = _positive_float(payout)
@@ -39,16 +42,16 @@ def resolve_contract_payout(payout: float | None = None, risk_params: dict[str, 
                 candidates.append(parsed)
     if candidates:
         return candidates[0]
-    return _PAYOUT_FALLBACK
+    return float(_runtime()["payout_fallback"])
 
 
 def adaptive_recovery_progression_factor(
     payout: float | None = None, risk_params: dict[str, Any] | None = None
 ) -> float:
-    """Calcula fator adaptativo 1 + 1/payout_real com teto institucional de 2.50."""
+    """Resolve ou aplica adaptive recovery progression factor."""
     resolved = resolve_contract_payout(payout, risk_params)
     raw = 1.0 + (1.0 / resolved)
-    return min(raw, _ADAPTIVE_RECOVERY_FACTOR_CAP)
+    return min(raw, float(_runtime()["adaptive_recovery_factor_cap"]))
 
 
 def soft_recovery_progression_multiplier(
@@ -58,7 +61,7 @@ def soft_recovery_progression_multiplier(
     risk_params: dict[str, Any] | None = None,
     soft_recovery: dict[str, Any] | None = None,
 ) -> float:
-    """Retorna fator de progressao; niveis 3-4 usam passo fixo U+15%."""
+    """Resolve ou aplica soft recovery progression multiplier."""
     losses = max(0, int(consecutive_losses))
     if losses <= 0:
         return 1.0
@@ -67,42 +70,48 @@ def soft_recovery_progression_multiplier(
 
 
 def _squeeze_floor_active(metrics: dict) -> bool:
-    """Indica disjuntor D-SQUEEZE ativo que bloqueia moduladores de edge."""
+    """Resolve ou aplica  squeeze floor active."""
     return bool(metrics.get("meta_squeeze_downgrade") or metrics.get("consensus_stake_floor"))
 
 
 def d_squeeze_sovereignty_active(metrics: dict | None) -> bool:
-    """Indica barreira soberana D-SQUEEZE que revoga waiver de recovery no ciclo."""
+    """Resolve ou aplica d squeeze sovereignty active."""
     if not isinstance(metrics, dict):
         return False
     if _squeeze_floor_active(metrics):
         return True
     score = float(metrics.get("trade_score", metrics.get("conviction", -1.0)))
-    return abs(score - _D_SQUEEZE_SOVEREIGN_TRADE_SCORE) < 1e-6
+    return abs(score - float(_runtime()["d_squeeze_sovereign_trade_score"])) < 1e-6
 
 
 def neutral_edge_dynamic_unit(bankroll: float) -> float:
-    """Unidade base U em regime neutro: 1.0% da banca para micro-capital ou 0.15%."""
-    pct = 0.01 if bankroll <= 250.0 else _NEUTRAL_BANKROLL_PCT
+    """Resolve ou aplica neutral edge dynamic unit."""
+    rt = _runtime()
+    pct = (
+        float(rt["micro_bankroll_pct"])
+        if bankroll <= float(rt["micro_bankroll_threshold"])
+        else float(rt["neutral_bankroll_pct"])
+    )
     return max(0.0, float(bankroll)) * pct
 
 
 def turbo_edge_stake_multiplier(metrics: dict | None) -> float:
-    """Super-alavancagem assimétrica quando Z_Edge extremo e live saudavel."""
+    """Resolve ou aplica turbo edge stake multiplier."""
     if not isinstance(metrics, dict) or _squeeze_floor_active(metrics):
         return 1.0
+    rt = _runtime()
     live_n = int(metrics.get("live_n", 0) or 0)
-    if live_n < 20:
+    if live_n < int(rt["turbo_live_n_min"]):
         return 1.0
     live_brier = metrics.get("live_brier")
     if live_brier is not None:
         try:
-            if float(live_brier) > 0.22:
+            if float(live_brier) > float(rt["turbo_live_brier_max"]):
                 return 1.0
         except (TypeError, ValueError):
             return 1.0
-    if float(metrics.get("edge_zscore", 0.0)) + 1e-12 >= _TURBO_EDGE_ZSCORE_THRESHOLD:
-        return _TURBO_EDGE_STAKE_MULTIPLIER
+    if float(metrics.get("edge_zscore", 0.0)) + 1e-12 >= float(rt["turbo_edge_zscore_threshold"]):
+        return float(rt["turbo_edge_stake_multiplier"])
     return 1.0
 
 
@@ -114,7 +123,7 @@ def _recovery_waives_consensus_penalty(
     pending_loss_total: float,
     order_direction: str | None,
 ) -> bool:
-    """Suspende penalidade em recovery com votos unanimes ou trade_score alto."""
+    """Resolve ou aplica  recovery waives consensus penalty."""
     if d_squeeze_sovereignty_active(metrics):
         return False
     recovering = float(pending_loss_total) > 0.0 or int(consecutive_losses) > 0
@@ -125,6 +134,9 @@ def _recovery_waives_consensus_penalty(
     ):
         return True
     cfg = kelly_config or {}
-    score_min = float(cfg.get("penalty_smoothing_trade_score_min", 0.68))
+    if "penalty_smoothing_trade_score_min" in cfg:
+        score_min = float(cfg["penalty_smoothing_trade_score_min"])
+    else:
+        score_min = float(_runtime(cfg)["penalty_smoothing_trade_score_min"])
     trade_score = float(metrics.get("trade_score", metrics.get("conviction", 0.0)))
     return trade_score + 1e-9 >= score_min

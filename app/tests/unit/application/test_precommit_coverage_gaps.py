@@ -1,10 +1,6 @@
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from src.application.services.deep_learning.dl_indicator_prob_blend import (
-    blend_prob_with_indicator_consensus,
-    indicator_vote_share,
-)
 from src.application.services.execution_direction import (
     build_execution_candidate,
     mandatory_execution_eligible,
@@ -22,14 +18,6 @@ from src.application.services.execution_direction_fallback import (
 from src.application.services.execution_symbols import select_mandatory_execution_candidate
 from src.domain.analytics.side_equilibrium import binomial_z_vs_p
 from src.domain.models.trade import TradeDirection
-
-
-def test_indicator_vote_share_empty_and_votes_low_blend():
-    assert indicator_vote_share(0, 0) == (0.5, 0.5, 0)
-    prob, delta, reason = blend_prob_with_indicator_consensus(0.50, 1, 1, min_votes=4)
-    assert reason == "votes_low"
-    assert delta == 0.0
-    assert prob == 0.50
 
 
 def test_mandatory_eligible_requires_inferable_direction():
@@ -111,21 +99,20 @@ def test_discordance_side_flag_dt_override_and_sniper_freeze():
             "trend_direction": "PUT",
         },
     }
-    with (
-        patch("src.application.services.execution_direction_checks.apply_hurst_noise_veto", return_value=False),
-        patch("src.application.services.execution_direction_checks.apply_bb_squeeze_requirement", return_value=False),
-    ):
-        assert (
-            initial_direction_checks(disc, {"discordance_veto_enabled": True, "require_indicator_consensus": True})
-            is None
-        )
+    assert (
+        initial_direction_checks(disc, {"discordance_veto_enabled": True, "require_indicator_consensus": True}) is None
+    )
     assert disc["metrics"].get("gate_reason") == "indicator_discordance"
-    sniper = {
-        "direction": TradeDirection.CALL,
-        "metrics": {"calibrated_prob": 0.70, "raw_prob": 0.70, "deploy_ok": True, "execute": True},
-    }
-    with patch("src.application.services.execution_direction_checks.apply_hurst_noise_veto", return_value=True):
-        assert initial_direction_checks(sniper, {}) is None
+    assert (
+        initial_direction_checks(
+            {
+                "direction": TradeDirection.CALL,
+                "metrics": {"calibrated_prob": 0.70, "raw_prob": 0.70, "deploy_ok": True, "execute": True},
+            },
+            {},
+        )
+        is not None
+    )
 
 
 def test_fallback_picks_cover_skip_score_and_success_return():

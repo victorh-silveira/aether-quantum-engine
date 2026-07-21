@@ -180,8 +180,10 @@ def calculate_keltner_channel_pct_b(
     high: np.ndarray,
     low: np.ndarray,
     close: np.ndarray,
-    period: int = 20,
-    atr_period: int = 10,
+    period: int,
+    atr_period: int,
+    *,
+    atr_mult: float,
 ) -> np.ndarray:
     """Calcula Keltner Channel %b: (close - lower) / (upper - lower)."""
     n = len(close)
@@ -197,9 +199,10 @@ def calculate_keltner_channel_pct_b(
         tr[i] = max(high[i] - low[i], abs(high[i] - close[i - 1]), abs(low[i] - close[i - 1]))
     df_tr = pl.DataFrame({"tr": tr})
     atr = df_tr.select(pl.col("tr").ewm_mean(span=int(atr_period))).to_numpy().flatten()
+    mult = float(atr_mult)
 
-    upper = ema + 2.0 * atr
-    lower = ema - 2.0 * atr
+    upper = ema + mult * atr
+    lower = ema - mult * atr
 
     for i in range(n):
         denom = upper[i] - lower[i]

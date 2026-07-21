@@ -2,12 +2,26 @@
 
 from __future__ import annotations
 
+import json
+
+from aether_paths import repo_path
 from src.domain.models.trade import TradeDirection
 
 
-NEUTRAL_CALIBRATION_HALF_WIDTH = 0.0
-TCN_MACRO_CALL_OVERRIDE = 0.65
-TCN_MACRO_PUT_OVERRIDE = 0.35
+def _tol() -> dict[str, float]:
+    """Le tolerancia e overrides TCN macro de settings."""
+    path = repo_path("config", "settings.json")
+    with path.open(encoding="utf-8") as handle:
+        full = json.load(handle)
+    raw = (full.get("deep_learning") or {}).get("calibration") or {}
+    for key in ("neutral_calibration_half_width", "tcn_macro_call_override", "tcn_macro_put_override"):
+        if key not in raw:
+            raise ValueError(f"deep_learning.calibration.{key} obrigatorio")
+    return {
+        "neutral_calibration_half_width": float(raw["neutral_calibration_half_width"]),
+        "tcn_macro_call_override": float(raw["tcn_macro_call_override"]),
+        "tcn_macro_put_override": float(raw["tcn_macro_put_override"]),
+    }
 
 
 def infer_direction_from_prob(
@@ -34,10 +48,10 @@ def apply_calibration_neutral_tolerance(
     _ = (neutral_lo, neutral_hi)
     raw = float(raw_prob)
     cal = float(calibrated_prob)
-    if raw > TCN_MACRO_CALL_OVERRIDE:
+    if raw > float(_tol()["tcn_macro_call_override"]):
         resolved = direction if direction is not None else TradeDirection.CALL
         return raw, resolved, "tcn_macro_override"
-    if raw < TCN_MACRO_PUT_OVERRIDE:
+    if raw < float(_tol()["tcn_macro_put_override"]):
         resolved = direction if direction is not None else TradeDirection.PUT
         return raw, resolved, "tcn_macro_override"
     if direction is not None:

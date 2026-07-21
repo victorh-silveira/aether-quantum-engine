@@ -4,12 +4,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.application.services.orchestrator.warm_up_buffer_guard import STREAM_WARM_UP_DELAY_SECONDS
 from src.infrastructure.handlers.stream_reconnect import (
     _continuous_stream_active,
     _needs_profit_table_audit,
     execute_stream_reconnect,
 )
+
+
+STREAM_WARM_UP_DELAY_SECONDS = 45.0
 
 
 def _build_reconnect_mocks(

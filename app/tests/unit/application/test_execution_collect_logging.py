@@ -46,7 +46,7 @@ def test_collect_cluster_orders_covers_logging():
         anchor=ANCHOR,
         symbols=[ANCHOR, PAIR],
         config={
-            "orchestrator": {"execution": {"include_anchor_trades": True}},
+            "orchestrator": {"execution": {"include_anchor_trades": True, "price_zone": {"enabled": False}}},
             "deep_learning": {"min_val_accuracy": 0.50, "min_edge_execute": 0.04},
             "risk_management": {"kelly": {"mandatory_min_trade_score": 0.68}},
         },

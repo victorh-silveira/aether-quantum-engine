@@ -4,10 +4,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from src.application.services.infra_timing_config import resolve_orchestrator_timing_config
 from src.application.services.orchestrator.trading_cycle_entry import run_trading_cycle_if_ready
 from src.application.services.orchestrator.warm_up_buffer_guard import (
     _WARM_UP_GUARD_LOG_MESSAGE,
-    STREAM_WARM_UP_DELAY_SECONDS,
     await_stream_warm_up_gate,
     log_warm_up_guard_suspension,
     resolve_stream_warm_up_delay_seconds,
@@ -19,10 +19,12 @@ from src.application.services.orchestrator.warm_up_buffer_guard import (
 from src.application.services.regime_micro_freeze import SIGNAL_SUSPENDED
 
 
+STREAM_WARM_UP_DELAY_SECONDS = float(resolve_orchestrator_timing_config()["stream_warm_up_delay_seconds"])
+
 TRADING_CYCLE_MODULE = "src.application.services.orchestrator.trading_cycle_entry"
 
 
-def test_resolve_stream_warm_up_delay_seconds_defaults_to_45():
+def test_resolve_stream_warm_up_delay_seconds_defaults_to_settings():
     assert resolve_stream_warm_up_delay_seconds({}) == pytest.approx(STREAM_WARM_UP_DELAY_SECONDS)
 
 
@@ -150,6 +152,7 @@ async def test_trading_cycle_skips_inference_during_warm_up_window(orch_ready):
     orch = orch_ready
     orch._last_cluster_cycle_end = 0.0
     orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 0
+    orch.config.setdefault("orchestrator", {})["stream_warm_up_delay_seconds"] = 45.0
     loop = asyncio.get_running_loop()
     base = loop.time()
     schedule_stream_warm_up_barrier(orch)

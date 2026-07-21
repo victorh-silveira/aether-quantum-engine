@@ -49,7 +49,7 @@ presentation  →  application  →  domain
 | Camada | Pasta | Módulos | Responsabilidade |
 |--------|-------|---------|------------------|
 | Application | `application/services/` | ~144 | Casos de uso: orquestração, DL, execução, meta-classificador, guards |
-| Domain | `domain/` | ~30 | Lógica pura: risco híbrido Kelly/Martingale, soft legado, AntiTrendLock (política), RiskPolicy, modelos, side_equilibrium |
+| Domain | `domain/` | ~30 | Lógica pura: risco Kelly + Soft Recovery, AntiTrendLock (política), RiskPolicy, modelos, side_equilibrium |
 | Infrastructure | `infrastructure/` | ~49 | Adaptadores: Deriv API, Redis, Triton, MinIO, Timescale |
 | Presentation | `presentation/` | 1 | Logging de terminal |
 
@@ -92,10 +92,9 @@ presentation  →  application  →  domain
 | `execution_quality_gate_fallback.py` | Bloqueio de fallback em recovery |
 | `execution_quality_gate_drawdown.py` | Dynamic Recovery Relaxation: pisos TCN/Meta vs passivo + waiver Z |
 | `execution_quality_gate_starvation.py` | Válvula de escape por inanição de ciclos |
-| `execution_sniper_gates.py` | Helpers de banda de calibração; `apply_hurst_noise_veto` e `apply_bb_squeeze_requirement` são stubs (`False`) |
+| `execution_sniper_gates.py` | Banda de calibração neutra e `hurst_regime_allowed` |
 | `execution_symbols.py` | Símbolos elegíveis e ranking |
 | `execution_symbols_recovery.py` | Pool e ranking em recovery |
-| `execution_symbols_overdrive.py` | Volatility Overdrive Override |
 | `execution_volatility_threshold.py` | Thresholds dinâmicos por regime |
 | `execution_volatility_bb.py` | Bollinger width com vol implícita |
 | `execution_volatility_booster.py` | Modificador por estouro macro/micro (600 s / 120 s) |
@@ -138,9 +137,6 @@ presentation  →  application  →  domain
 | `execution_collect_helpers.py` | Helpers: hedge, fallback, Hurst |
 | `execution_orders.py` | Envio de ordens e subscribe de contratos |
 | `execution_proposal.py` | Retry de proposta com redução de stake |
-| `execution_fractional_lots.py` | Fatiamento de stakes em lotes paralelos |
-| `execution_contract_adoption.py` | Adoção de contratos executados no estado |
-| `execution_split_abort.py` | Anti-loop em abortos de fatiamento |
 | `execution_recovery_gate.py` | Pisos de qualidade em modo recovery |
 | `execution_settlement.py` | Aguarda liquidação e reconcilia |
 | `execution_blockers.py` | Logs quando nenhuma ordem é enviada |
@@ -265,16 +261,15 @@ presentation  →  application  →  domain
 |--------|------------------|
 | `risk_manager.py` | **`RiskManager`** — Kelly, cluster, recovery |
 | `risk_policy.py` | `RiskPolicy` + `validate_engine_risk_config` no boot |
-| `risk_stake_calc.py` | Stake híbrida: Kelly EXPLORE; Martingale RECOVER |
+| `risk_stake_calc.py` | Stake: Kelly EXPLORE; Soft Recovery RECOVER |
 | `risk_stake_flow.py` | `apply_stop_win_kelly_boost`, `emit_cycle_stake_log` |
 | `stake_sizing.py` | Kelly, regime EXPLORE/RECOVER, consenso, round_stake |
-| `martingale_sizing.py` | Martingale de recovery (`last_loss_stake × multiplier`) |
+| `soft_recovery_policy.py` | Soft Recovery paramétrico: cap, amort, passo fixo U×1.15, hard floor micro, micro-residual |
 | `kelly_base_fraction.py` | Compressão da fração Kelly |
 | `kelly_f_star_adjustments.py` | Ajustes f* (consenso, divergência) |
 | `super_concordance_kelly.py` | Expansão Kelly em super-consenso |
-| `consensus_stake_penalty.py` | Modificador por divergência técnica |
-| `soft_recovery_policy.py` | Soft recovery paramétrico: cap, amort, passo fixo U×1.15 para n∈{3,4}, hard floor 5% se banca&lt;$100, micro-residual Z floor −0.60, waiver GBDT 6 skips |
-| `dlambert_sizing.py` | Kelly + progressão soft D'Alembert (passo fixo 3–4 = U×1.15) |
+| `consensus_stake_penalty.py` | Soft recovery stake + caps + consensus penalty |
+| `dlambert_sizing.py` | Kelly + progressão Soft Recovery |
 | `stop_win_target.py` | `StopWinManager`, meta de lucro por sessão |
 | `stake_target_proximity.py` | Amortecimento por proximidade da meta |
 | `risk_recovery_state.py` | Estado financeiro de recovery; `evaluate_anti_trend_lock` (política pura AntiTrendLock) |
@@ -285,7 +280,6 @@ presentation  →  application  →  domain
 | `risk_contract_result.py` | `apply_contract_settlement_result` |
 | `executed_stake_reconciliation.py` | Stake executada vs planejada |
 | `risk_cooldown.py` | `RiskCooldownMixin` |
-| `entry_cooldown.py` | Cooldown entre entradas |
 | `risk_proposal_skip.py` | `ProposalSkipMixin` |
 | `symbol_loss_cooldown.py` | Cooldown por loss recente |
 | `risk_manager_restore.py` | Restore de snapshot |
@@ -293,14 +287,6 @@ presentation  →  application  →  domain
 ---
 
 ## Infrastructure (`infrastructure/`)
-
-### Ports (`infrastructure/ports/`)
-
-| Módulo | Responsabilidade |
-|--------|------------------|
-| `state_store.py` | `StateStore` (Protocol) |
-| `model_artifact_store.py` | `ModelArtifactStore` (Protocol) |
-| `market_series_writer.py` | `MarketSeriesWriter` (Protocol) |
 
 ### API Deriv (`infrastructure/api/`)
 

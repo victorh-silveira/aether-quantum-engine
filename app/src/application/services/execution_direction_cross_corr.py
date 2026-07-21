@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.application.services.execution_runtime_config import resolve_cross_corr_config
+
 
 def _squeeze_active(metrics: dict) -> bool:
-    """Indica regime de compressao de volatilidade."""
+    """Resolve ou aplica  squeeze active."""
     indicators = metrics.get("indicators") or {}
-    vol_ratio = float(indicators.get("vol_ratio", 1.0))
-    if vol_ratio < 0.85:
+    vol_ratio = float(indicators["vol_ratio"]) if "vol_ratio" in indicators else 1.0
+    if vol_ratio < float(resolve_cross_corr_config()["squeeze_vol_ratio_max"]):
         return True
     return bool(metrics.get("bb_squeeze") or metrics.get("squeeze_active"))
 
@@ -27,22 +29,26 @@ def adjust_dl_weight_with_correlation(
     corr_matrix: dict[tuple[str, str], float],
     *,
     anchor: str = "R_10",
-    min_margin: float = 0.05,
+    min_margin: float | None = None,
 ) -> dict[str, float]:
-    """Mistura dl_raw_weight com correlacao cruzada em squeeze ou consenso fraco."""
-    if not _squeeze_active(metrics) and not _weak_consensus(metrics, min_margin=min_margin):
+    """Resolve ou aplica adjust dl weight with correlation."""
+    cfg = resolve_cross_corr_config()
+    margin_floor = float(cfg["min_margin"]) if min_margin is None else float(min_margin)
+    if not _squeeze_active(metrics) and not _weak_consensus(metrics, min_margin=margin_floor):
         return weights
     merged = dict(weights)
-    base = float(merged.get("dl_raw_weight", 0.45))
+    base = float(merged["dl_raw_weight"]) if "dl_raw_weight" in merged else float(cfg["dl_raw_weight"])
     corr = float(corr_matrix.get((str(symbol), str(anchor)), corr_matrix.get((str(anchor), str(symbol)), 0.0)))
     corr = max(-1.0, min(1.0, corr))
-    if abs(corr) > 0.55:
-        retention = max(0.35, 1.0 - abs(corr) * 0.45)
+    if abs(corr) > float(cfg["high_corr_abs"]):
+        retention = max(
+            float(cfg["high_corr_retention_floor"]), 1.0 - abs(corr) * float(cfg["high_corr_retention_coef"])
+        )
         merged["dl_raw_weight"] = base * retention
         metrics["cross_corr_dl_retention"] = retention
         metrics["cross_corr_anchor"] = anchor
-    elif abs(corr) < 0.25:
-        merged["dl_raw_weight"] = min(0.65, base * 1.08)
+    elif abs(corr) < float(cfg["low_corr_abs"]):
+        merged["dl_raw_weight"] = min(float(cfg["low_corr_weight_cap"]), base * float(cfg["low_corr_weight_boost"]))
     return merged
 
 

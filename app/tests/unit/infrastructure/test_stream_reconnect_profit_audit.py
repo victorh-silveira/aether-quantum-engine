@@ -87,8 +87,12 @@ async def test_profit_table_audit_loop_retries_on_errors():
             new_callable=AsyncMock,
         ),
         patch(
-            "src.infrastructure.handlers.stream_reconnect_profit_audit._MAX_ATTEMPTS",
-            2,
+            "src.infrastructure.handlers.stream_reconnect_profit_audit.resolve_stream_reconnect_config",
+            return_value={
+                "max_attempts": 2,
+                "initial_backoff_seconds": 0.01,
+                "max_backoff_seconds": 0.01,
+            },
         ),
     ):
         await _profit_table_audit_loop(orch, reason="stream_reconnect")
@@ -112,8 +116,12 @@ async def test_profit_table_audit_loop_handles_exception():
             new_callable=AsyncMock,
         ),
         patch(
-            "src.infrastructure.handlers.stream_reconnect_profit_audit._MAX_ATTEMPTS",
-            1,
+            "src.infrastructure.handlers.stream_reconnect_profit_audit.resolve_stream_reconnect_config",
+            return_value={
+                "max_attempts": 1,
+                "initial_backoff_seconds": 0.01,
+                "max_backoff_seconds": 0.01,
+            },
         ),
     ):
         await _profit_table_audit_loop(orch, reason="broker_unavailable")

@@ -6,20 +6,16 @@ import logging
 from collections import deque
 from typing import Any
 
+from src.application.services.live_signal_metrics_config import load_live_signal_metrics_from_settings
 from src.application.services.log_dedupe import log_info_if_changed
 
 
 logger = logging.getLogger("AETH")
 
-LIVE_WINDOW = 64
-LIVE_MIN_RANK = 20
-LIVE_ECE_BINS = 5
-LIVE_ECE_SOFT_THRESHOLD = 0.12
-LIVE_ECE_RANK_PENALTY = 0.10
-LIVE_DRIFT_SOFT_PENALTY = 0.08
-LIVE_DRIFT_SOFT_VETO_N = 40
-LIVE_DRIFT_SCORE_FACTOR = 0.72
-LIVE_DRIFT_MIN_SCORE = 0.48
+
+def _live() -> dict:
+    """Carrega live_signal_metrics de settings."""
+    return load_live_signal_metrics_from_settings()
 
 
 def reset_live_signal_metrics(orch: Any | None = None) -> None:
@@ -37,8 +33,10 @@ def _ensure_bag(orch: Any) -> dict[str, deque]:
     return bag
 
 
-def _ece(probs: list[float], labels: list[float], *, bins: int = LIVE_ECE_BINS) -> float:
+def _ece(probs: list[float], labels: list[float], *, bins: int | None = None) -> float:
     """Calcula Expected Calibration Error em bins uniformes."""
+    if bins is None:
+        bins = int(_live()["ece_bins"])
     n = len(probs)
     if n == 0:
         return 0.0
@@ -68,7 +66,7 @@ def record_live_signal_outcome(
     sym = str(symbol)
     hist = bag.get(sym)
     if hist is None:
-        hist = deque(maxlen=LIVE_WINDOW)
+        hist = deque(maxlen=int(_live()["window"]))
         bag[sym] = hist
     prob = 0.5 if raw_prob is None else max(0.0, min(1.0, float(raw_prob)))
     dir_name = str(direction or "").upper()
@@ -77,7 +75,7 @@ def record_live_signal_outcome(
     )
     hist.append((bool(won), float(prob), float(label)))
     snap = live_signal_snapshot(orch, sym)
-    if int(snap.get("live_n", 0)) >= LIVE_MIN_RANK and int(snap.get("live_n", 0)) % 8 == 0:
+    if int(snap.get("live_n", 0)) >= int(_live()["min_rank"]) and int(snap.get("live_n", 0)) % 8 == 0:
         logger.info(
             "LIVE_SIGNAL | %s | wr=%.2f | brier=%.3f | ece=%.3f | n=%d",
             sym,
@@ -140,10 +138,10 @@ def apply_live_calib_drift_soft(
         return False
     raw_side = max(float(raw), 1.0 - float(raw))
     inconsistent = abs(float(wr) - float(raw_side)) > 0.12
-    if float(ece) <= LIVE_ECE_SOFT_THRESHOLD or not inconsistent:
+    if float(ece) <= float(_live()["ece_soft_threshold"]) or not inconsistent:
         return False
     metrics["calib_drift_soft"] = True
-    metrics["calib_drift_soft_penalty"] = LIVE_DRIFT_SOFT_PENALTY
+    metrics["calib_drift_soft_penalty"] = float(_live()["drift_soft_penalty"])
     metrics["calib_drift_reason"] = "CALIB_DRIFT_SOFT"
     cycle = int(getattr(orch, "_active_cycle_id", 0) or 0) if orch is not None else 0
     content = f"{cycle}|{symbol or '?'}|{n}|{float(ece):.3f}|{float(wr):.2f}|{float(raw_side):.2f}"
@@ -167,13 +165,13 @@ def apply_live_calib_drift_soft(
             float(raw_side),
             n,
         )
-    if n >= LIVE_DRIFT_SOFT_VETO_N:
+    if n >= int(_live()["drift_soft_veto_n"]):
         base = metrics.get("trade_score")
         if base is None:
             base = metrics.get("resolved_conviction")
         if base is None:
             base = raw_side
-        compressed = max(LIVE_DRIFT_MIN_SCORE, float(base) * LIVE_DRIFT_SCORE_FACTOR)
+        compressed = max(float(_live()["drift_min_score"]), float(base) * float(_live()["drift_score_factor"]))
         metrics["trade_score"] = compressed
         metrics["conviction"] = compressed
         metrics["signal_status"] = "SOFT_VETO"

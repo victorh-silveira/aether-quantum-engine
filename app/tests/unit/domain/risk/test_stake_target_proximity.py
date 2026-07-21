@@ -1,16 +1,21 @@
 import pytest
 
+from src.domain.risk.kelly_runtime_config import load_kelly_runtime_from_settings
 from src.domain.risk.stake_target_proximity import (
-    TARGET_DAMPING_FLOOR,
-    TARGET_DAMPING_SPAN,
     apply_target_proximity_damping,
     resolve_target_proximity_damping,
 )
 
 
+def _damping_knobs():
+    runtime = load_kelly_runtime_from_settings()
+    return float(runtime["target_damping_floor"]), float(runtime["target_damping_span"])
+
+
 def test_resolve_target_proximity_damping_at_session_start():
+    floor, span = _damping_knobs()
     assert resolve_target_proximity_damping(101.20, 0.0) == pytest.approx(1.0)
-    assert pytest.approx(1.0) == TARGET_DAMPING_FLOOR + TARGET_DAMPING_SPAN
+    assert pytest.approx(1.0) == floor + span
 
 
 def test_resolve_target_proximity_damping_at_half_target():
@@ -26,9 +31,10 @@ def test_resolve_target_proximity_damping_at_ninety_percent_target():
 
 
 def test_resolve_target_proximity_damping_at_target_floor():
+    floor, _span = _damping_knobs()
     target = 101.20
-    assert resolve_target_proximity_damping(target, target) == pytest.approx(TARGET_DAMPING_FLOOR)
-    assert resolve_target_proximity_damping(target, target * 1.10) == pytest.approx(TARGET_DAMPING_FLOOR)
+    assert resolve_target_proximity_damping(target, target) == pytest.approx(floor)
+    assert resolve_target_proximity_damping(target, target * 1.10) == pytest.approx(floor)
 
 
 def test_apply_target_proximity_damping_scales_kelly_stake():

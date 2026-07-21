@@ -1,8 +1,9 @@
+import json
+
 import pytest
 
+from aether_paths import repo_path
 from src.application.services.bb_width_adaptive_squeeze import (
-    BB_WIDTH_ANOMALY_RATIO,
-    BB_WIDTH_HARMONIC_WINDOW,
     anomalous_bb_compression,
     bb_width_buffer_snapshot,
     evaluate_bb_width_squeeze,
@@ -10,6 +11,7 @@ from src.application.services.bb_width_adaptive_squeeze import (
     record_bb_width,
     reset_bb_width_buffer,
 )
+from src.application.services.deep_learning.dl_indicator_config import load_indicator_config_from_settings
 
 
 @pytest.fixture(autouse=True)
@@ -19,8 +21,19 @@ def _clear_bb_buffer():
     reset_bb_width_buffer()
 
 
-def _prime_width(value: float, count: int = BB_WIDTH_HARMONIC_WINDOW) -> None:
-    for _ in range(count):
+def _anomaly_ratio() -> float:
+    path = repo_path("config", "settings.json")
+    with path.open(encoding="utf-8") as handle:
+        full = json.load(handle)
+    return float(full["orchestrator"]["execution"]["bb_width_adaptive_squeeze"]["anomaly_ratio"])
+
+
+def _harmonic_window() -> int:
+    return int(load_indicator_config_from_settings()["windows"]["bb_width_harmonic_window"])
+
+
+def _prime_width(value: float, count: int | None = None) -> None:
+    for _ in range(count if count is not None else _harmonic_window()):
         record_bb_width(value)
 
 
@@ -30,38 +43,42 @@ def test_harmonic_mean_bb_width():
 
 def test_rdbull_natural_width_not_anomalous_after_window():
     _prime_width(0.035)
-    assert anomalous_bb_compression(0.035) is False
+    assert anomalous_bb_compression(0.035, anomaly_ratio=_anomaly_ratio()) is False
 
 
-def test_anomalous_compression_below_fifty_five_percent_of_mean():
+def test_anomalous_compression_below_configured_ratio_of_mean():
     _prime_width(0.050)
-    threshold = harmonic_mean_bb_width() * BB_WIDTH_ANOMALY_RATIO
-    assert anomalous_bb_compression(0.020) is True
-    assert threshold > 0.020
+    ratio = _anomaly_ratio()
+    threshold = harmonic_mean_bb_width() * ratio
+    assert anomalous_bb_compression(0.015, anomaly_ratio=ratio) is True
+    assert threshold > 0.015
 
 
-def test_soft_compression_above_fifty_five_percent_ratio_not_anomalous():
+def test_soft_compression_above_configured_ratio_not_anomalous():
     _prime_width(0.068)
-    assert anomalous_bb_compression(0.041) is False
-    assert (0.041 / harmonic_mean_bb_width()) + 1e-12 >= BB_WIDTH_ANOMALY_RATIO
+    ratio = _anomaly_ratio()
+    assert anomalous_bb_compression(0.041, anomaly_ratio=ratio) is False
+    assert (0.041 / harmonic_mean_bb_width()) + 1e-12 >= ratio
 
 
 def test_evaluate_bb_width_squeeze_records_and_flags():
     _prime_width(0.050)
-    compressed, mean, width = evaluate_bb_width_squeeze(0.020)
+    ratio = _anomaly_ratio()
+    compressed, mean, width = evaluate_bb_width_squeeze(0.015, anomaly_ratio=ratio)
     assert compressed is True
-    assert width == pytest.approx(0.020)
+    assert width == pytest.approx(0.015)
     assert mean < 0.050
-    assert len(bb_width_buffer_snapshot()) == BB_WIDTH_HARMONIC_WINDOW
+    assert len(bb_width_buffer_snapshot()) == _harmonic_window()
 
 
 def test_anomalous_compression_false_for_missing_mean():
-    assert anomalous_bb_compression(0.03) is False
+    assert anomalous_bb_compression(0.03, anomaly_ratio=_anomaly_ratio()) is False
 
 
 def test_anomalous_compression_false_for_non_positive_width():
-    assert anomalous_bb_compression(0.0) is False
-    assert anomalous_bb_compression(-0.02) is False
+    ratio = _anomaly_ratio()
+    assert anomalous_bb_compression(0.0, anomaly_ratio=ratio) is False
+    assert anomalous_bb_compression(-0.02, anomaly_ratio=ratio) is False
 
 
 def test_harmonic_mean_bb_width_zero_reciprocal_sum_guard():
@@ -69,7 +86,7 @@ def test_harmonic_mean_bb_width_zero_reciprocal_sum_guard():
 
 
 def test_evaluate_bb_width_squeeze_none_input():
-    compressed, mean, width = evaluate_bb_width_squeeze(None)
+    compressed, mean, width = evaluate_bb_width_squeeze(None, anomaly_ratio=_anomaly_ratio())
     assert compressed is False
     assert mean == 0.0
     assert width == 0.0

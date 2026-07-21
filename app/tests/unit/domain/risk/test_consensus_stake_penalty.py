@@ -149,7 +149,7 @@ def test_recovery_trade_score_waiver_at_sixty_eight():
     metrics = {
         "call_votes": 1,
         "put_votes": 5,
-        "trade_score": 0.68,
+        "trade_score": 0.70,
         "indicators": {"di_diff": 0.01, "cmo": -0.18, "rsi": 0.36},
     }
     retention = consensus_kelly_retention(

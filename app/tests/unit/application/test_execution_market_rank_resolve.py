@@ -26,14 +26,14 @@ def _entry(**metrics):
 
 def test_resolve_uses_entry_direction():
     entry = _entry()
-    result = resolve_execution_direction(entry, symbol="R_10")
+    result = resolve_execution_direction(entry, symbol="R_10", exec_cfg={"price_zone": {"enabled": False}})
     assert result is not None
     assert result[0] == TradeDirection.CALL
 
 
 def test_resolve_infers_from_raw_prob():
     entry = {"direction": None, "metrics": _entry(raw_prob=0.42, trend_direction="PUT")["metrics"]}
-    result = resolve_execution_direction(entry, symbol="R_10")
+    result = resolve_execution_direction(entry, symbol="R_10", exec_cfg={"price_zone": {"enabled": False}})
     assert result is not None
     assert result[0] == TradeDirection.PUT
 
@@ -54,7 +54,7 @@ def test_resolve_put_on_bear_with_low_prob():
         },
     )
     entry["direction"] = TradeDirection.PUT
-    result = resolve_execution_direction(entry, symbol="R_10")
+    result = resolve_execution_direction(entry, symbol="R_10", exec_cfg={"price_zone": {"enabled": False}})
     assert result is not None
     assert result[0] == TradeDirection.PUT
 
@@ -74,6 +74,6 @@ def test_resolve_low_accuracy_keeps_dl_side():
             "cmo": 0.05,
         },
     )
-    result = resolve_execution_direction(entry, symbol="R_10")
+    result = resolve_execution_direction(entry, symbol="R_10", exec_cfg={"price_zone": {"enabled": False}})
     assert result is not None
     assert result[0] == TradeDirection.CALL

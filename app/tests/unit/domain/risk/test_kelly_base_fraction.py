@@ -1,18 +1,18 @@
 import pytest
 
-from src.domain.risk.kelly_base_fraction import (
-    KELLY_FRACTION_BASE_RETENTION,
-    KELLY_FRACTION_COMPRESSED,
-    KELLY_FRACTION_REFERENCE,
-    resolve_effective_kelly_fraction,
-)
+from src.domain.risk.kelly_base_fraction import resolve_effective_kelly_fraction
+from src.domain.risk.kelly_runtime_config import load_kelly_runtime_from_settings
 
 
 def test_resolve_effective_kelly_fraction_attenuates_normal_regime():
-    cfg = {"fraction": KELLY_FRACTION_REFERENCE}
-    assert resolve_effective_kelly_fraction(cfg, recovery_active=False) == pytest.approx(KELLY_FRACTION_COMPRESSED)
-    assert resolve_effective_kelly_fraction(cfg, recovery_active=True) == pytest.approx(KELLY_FRACTION_REFERENCE)
-    assert pytest.approx(0.40) == KELLY_FRACTION_BASE_RETENTION
+    runtime = load_kelly_runtime_from_settings()
+    reference = float(runtime["fraction_reference"])
+    compressed = float(runtime["fraction_compressed"])
+    retention = float(runtime["fraction_base_retention"])
+    cfg = {"fraction": reference}
+    assert resolve_effective_kelly_fraction(cfg, recovery_active=False) == pytest.approx(compressed)
+    assert resolve_effective_kelly_fraction(cfg, recovery_active=True) == pytest.approx(reference)
+    assert pytest.approx(0.40) == retention
 
 
 def test_resolve_effective_kelly_fraction_sixty_percent_reduction_generic():

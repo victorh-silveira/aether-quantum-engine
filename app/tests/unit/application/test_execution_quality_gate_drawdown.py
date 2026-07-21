@@ -3,12 +3,16 @@ from types import SimpleNamespace
 import pytest
 
 from src.application.services.execution_quality_gate_drawdown import (
-    RECOVERY_RELAX_FULL_PENDING_UNITS,
     apply_dynamic_recovery_relaxation,
     recovery_drawdown_quality_limits,
     recovery_neutral_edge_zscore_waiver,
     resolve_session_stake_unit,
 )
+from src.application.services.execution_runtime_config import resolve_quality_gate_from_exec
+
+
+def _full_pending_units() -> float:
+    return float(resolve_quality_gate_from_exec(None)["recovery_relax"]["full_pending_units"])
 
 
 def test_resolve_session_stake_unit_reads_risk_manager_session_base_unit():
@@ -37,7 +41,7 @@ def test_apply_dynamic_recovery_relaxation_noop_without_linear_or_pending():
 def test_apply_dynamic_recovery_relaxation_scales_with_pending():
     unit = 1.0
     pending = 6.75
-    expected_intensity = min(1.0, pending / (RECOVERY_RELAX_FULL_PENDING_UNITS * unit))
+    expected_intensity = min(1.0, pending / (_full_pending_units() * unit))
     margin, edge, intensity = apply_dynamic_recovery_relaxation(
         0.12,
         0.04,

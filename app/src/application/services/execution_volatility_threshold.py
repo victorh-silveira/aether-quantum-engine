@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 
+from src.application.services.deep_learning.dl_params_blocks import parse_dynamic_threshold_config
 from src.application.services.execution_volatility_bb import (
     squeeze_exponential_min_edge,
     squeeze_extreme_regime,
@@ -107,21 +108,23 @@ def resolve_dynamic_thresholds(
     cfg: dict | None = None,
 ) -> DynamicThresholds:
     """Interpola deltas de threshold conforme regime de volatilidade."""
-    chunk = cfg if isinstance(cfg, dict) else {}
+    chunk = parse_dynamic_threshold_config({"dynamic_threshold": cfg} if isinstance(cfg, dict) else {})
     score = _clamp(float(regime_score), 0.0, 1.0)
     if score >= 0.5:
         scale = (score - 0.5) * 2.0
-        call_delta = float(chunk.get("high_regime_call_delta", 0.03)) * scale
-        put_delta = -float(chunk.get("high_regime_put_delta", 0.03)) * scale
-        edge_delta = float(chunk.get("high_regime_edge_delta", 0.015)) * scale
+        call_delta = float(chunk["high_regime_call_delta"]) * scale
+        put_delta = -float(chunk["high_regime_put_delta"]) * scale
+        edge_delta = float(chunk["high_regime_edge_delta"]) * scale
     else:
         scale = (0.5 - score) * 2.0
-        call_delta = float(chunk.get("low_regime_call_delta", -0.02)) * scale
-        put_delta = -float(chunk.get("low_regime_put_delta", -0.02)) * scale
-        edge_delta = float(chunk.get("low_regime_edge_delta", -0.01)) * scale
-    call_threshold = _clamp(float(base_call) + call_delta, 0.51, 0.62)
-    put_threshold = _clamp(float(base_put) + put_delta, 0.38, 0.49)
-    min_edge = _clamp(float(base_edge) + edge_delta, 0.02, 0.08)
+        call_delta = float(chunk["low_regime_call_delta"]) * scale
+        put_delta = -float(chunk["low_regime_put_delta"]) * scale
+        edge_delta = float(chunk["low_regime_edge_delta"]) * scale
+    call_threshold = _clamp(
+        float(base_call) + call_delta, float(chunk["clamp_call_min"]), float(chunk["clamp_call_max"])
+    )
+    put_threshold = _clamp(float(base_put) + put_delta, float(chunk["clamp_put_min"]), float(chunk["clamp_put_max"]))
+    min_edge = _clamp(float(base_edge) + edge_delta, float(chunk["clamp_edge_min"]), float(chunk["clamp_edge_max"]))
     return DynamicThresholds(
         call_threshold=call_threshold,
         put_threshold=put_threshold,

@@ -6,18 +6,21 @@ import math
 from collections import deque
 from typing import Any
 
+from src.application.services.deep_learning.dl_indicator_config import load_indicator_config_from_settings
+from src.application.services.execution_runtime_config import resolve_edge_zscore_runtime
 
-EDGE_ZSCORE_WINDOW_MIN = 15
-EDGE_ZSCORE_WINDOW_DEFAULT = 30
-EDGE_ZSCORE_WINDOW_MAX = 45
-EDGE_ZSCORE_WIN_THRESHOLD = 0.5
-EDGE_ZSCORE_STD_EPS = 1e-6
-EDGE_ZSCORE_TURBO_THRESHOLD = 1.5
-HURST_TREND_FLOOR = 0.55
-ATR_TRANSITION_SCALE = 0.15
-BB_COMPRESSION_WIDTH = 0.12
 
 _edge_buffers: dict[str, deque[float]] = {}
+
+
+def _edge_zscore_cfg() -> dict[str, float]:
+    """Le bloco indicators.edge_zscore de settings."""
+    return load_indicator_config_from_settings()["edge_zscore"]
+
+
+def _edge_runtime() -> dict[str, float]:
+    """Le knobs operacionais de edge_zscore de settings."""
+    return resolve_edge_zscore_runtime()
 
 
 def _buffer_key(symbol: str | None) -> str:
@@ -30,7 +33,7 @@ def _edge_buffer_for(symbol: str | None = None) -> deque[float]:
     key = _buffer_key(symbol)
     buf = _edge_buffers.get(key)
     if buf is None:
-        buf = deque(maxlen=EDGE_ZSCORE_WINDOW_MAX)
+        buf = deque(maxlen=int(_edge_runtime()["window_max"]))
         _edge_buffers[key] = buf
     return buf
 
@@ -63,42 +66,48 @@ def _indicator_map(metrics: dict[str, Any] | None) -> dict[str, Any]:
 
 def _hurst_transition_factor(indicators: dict[str, Any]) -> float:
     """Calcula o fator de transicao do Hurst Exponent."""
+    cfg = _edge_zscore_cfg()
     hurst = float(indicators.get("hurst", 0.5) or 0.5)
-    return max(0.0, min(1.0, (hurst - HURST_TREND_FLOOR) / max(1e-6, 0.70 - HURST_TREND_FLOOR)))
+    floor = float(cfg["hurst_trend_floor"])
+    ceiling = float(cfg["hurst_trend_ceiling"])
+    return max(0.0, min(1.0, (hurst - floor) / max(1e-6, ceiling - floor)))
 
 
 def _atr_transition_factor(metrics: dict[str, Any], indicators: dict[str, Any]) -> float:
     """Calcula o fator de transicao baseado na razao de mudanca do ATR."""
+    cfg = _edge_zscore_cfg()
     raw_change = metrics.get("atr_change_ratio")
     if raw_change is None:
         raw_change = indicators.get("atr_change_ratio")
     if raw_change is None:
         atr_norm = float(indicators.get("atr_norm", indicators.get("atr", 0.0)) or 0.0)
         raw_change = atr_norm
-    return max(0.0, min(1.0, abs(float(raw_change or 0.0)) / ATR_TRANSITION_SCALE))
+    return max(0.0, min(1.0, abs(float(raw_change or 0.0)) / float(cfg["atr_transition_scale"])))
 
 
 def _compression_expansion_factor(indicators: dict[str, Any]) -> float:
     """Calcula o fator de compressao/expansao das Bandas de Bollinger."""
+    cfg = _edge_zscore_cfg()
     bb_width = float(indicators.get("bb_width", 0.0) or 0.0)
     if bb_width <= 0.0:
         return 0.0
-    compression = 1.0 - min(1.0, bb_width / BB_COMPRESSION_WIDTH)
+    compression = 1.0 - min(1.0, bb_width / float(cfg["bb_compression_max"]))
     return max(0.0, min(1.0, compression))
 
 
 def resolve_adaptive_edge_window(metrics: dict[str, Any] | None = None) -> int:
     """Encolhe a janela em tendencia/vol alta e expande em lateral ruidoso."""
     if not isinstance(metrics, dict):
-        return EDGE_ZSCORE_WINDOW_DEFAULT
+        return int(_edge_runtime()["window_default"])
     indicators = _indicator_map(metrics)
     hurst_factor = _hurst_transition_factor(indicators)
     atr_factor = _atr_transition_factor(metrics, indicators)
     compression = _compression_expansion_factor(indicators)
     transition = max(hurst_factor, atr_factor) * (1.0 - 0.35 * compression)
-    span = EDGE_ZSCORE_WINDOW_MAX - EDGE_ZSCORE_WINDOW_MIN
-    window = int(round(EDGE_ZSCORE_WINDOW_MAX - transition * span))
-    return max(EDGE_ZSCORE_WINDOW_MIN, min(EDGE_ZSCORE_WINDOW_MAX, window))
+    rt = _edge_runtime()
+    span = int(rt["window_max"]) - int(rt["window_min"])
+    window = int(round(int(rt["window_max"]) - transition * span))
+    return max(int(rt["window_min"]), min(int(rt["window_max"]), window))
 
 
 def _active_edge_history(metrics: dict[str, Any] | None = None, *, symbol: str | None = None) -> list[float]:
@@ -132,7 +141,7 @@ def compute_edge_zscore(
         return 0.0
     mean = sum(values) / len(values)
     std = sample_edge_std(values)
-    return (float(edge) - mean) / (std + EDGE_ZSCORE_STD_EPS)
+    return (float(edge) - mean) / (std + float(_edge_runtime()["std_eps"]))
 
 
 def apply_payoff_edge_zscore(

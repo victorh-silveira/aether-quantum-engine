@@ -83,6 +83,7 @@ def test_passes_execution_quality_rejects_healthy_microstructure_with_weak_margi
         "quality_gate": {
             "min_adx_threshold": 0.20,
             "min_direction_margin": 0.12,
+            "regular": {"min_direction_margin": 0.12, "min_payoff_edge": 0.0},
         }
     }
     orch = SimpleNamespace(

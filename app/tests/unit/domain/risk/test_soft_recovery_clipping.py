@@ -20,6 +20,7 @@ from src.domain.risk.risk_recovery_state import (
 from src.domain.risk.soft_recovery_policy import (
     apply_small_account_hard_floor,
     configured_max_safe_stake_cap,
+    configured_max_safe_stake_pct,
     fixed_step_progression_multiplier,
     resolve_amort_cycles,
     resolve_soft_recovery_config,
@@ -43,6 +44,7 @@ def _micro_risk_config() -> dict:
         "soft_recovery": {
             "enabled": True,
             "max_safe_stake_cap": 4.20,
+            "max_safe_stake_pct": 0.035,
             "amort_cycles_min": 2,
             "amort_cycles_max": 5,
             "coing_redirect_drawdown_threshold": 15.00,
@@ -52,9 +54,10 @@ def _micro_risk_config() -> dict:
 
 
 def test_resolve_soft_recovery_config_defaults_match_settings() -> None:
-    soft = resolve_soft_recovery_config({"soft_recovery": {"enabled": True, "max_safe_stake_cap": 4.20}})
+    soft = resolve_soft_recovery_config(None)
     assert soft["enabled"] is True
     assert soft["max_safe_stake_cap"] == pytest.approx(4.20)
+    assert soft["max_safe_stake_pct"] == pytest.approx(0.035)
     assert soft["amort_cycles_min"] == 2
     assert soft["amort_cycles_max"] == 5
     assert soft["micro_residual_pending_max"] == pytest.approx(5.0)
@@ -163,6 +166,11 @@ def test_soft_recovery_policy_branches_and_tail_cap() -> None:
     assert configured_max_safe_stake_cap({"max_safe_stake_cap": "bad"}) is None
     assert configured_max_safe_stake_cap({"max_safe_stake_cap": -1.0}) is None
     assert configured_max_safe_stake_cap({"max_safe_stake_cap": 4.20}) == pytest.approx(4.20)
+    assert configured_max_safe_stake_pct(None) == pytest.approx(0.035)
+    assert configured_max_safe_stake_pct({"max_safe_stake_pct": 0.035}) == pytest.approx(0.035)
+    assert configured_max_safe_stake_pct({"max_safe_stake_pct": "bad"}) == pytest.approx(0.035)
+    assert configured_max_safe_stake_pct({"max_safe_stake_pct": -1.0}) == pytest.approx(0.035)
+    assert configured_max_safe_stake_pct({"max_safe_stake_pct": 2.0}) == pytest.approx(1.0)
     rm = RiskManager(_micro_risk_config())
     rm.initial_bankroll = 100.0
     assert rm.max_safe_tail_cap() == pytest.approx(4.20)

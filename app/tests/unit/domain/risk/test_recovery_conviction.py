@@ -1,5 +1,7 @@
 """Testes unitarios para recovery_conviction."""
 
+import pytest
+
 from src.domain.risk.recovery_conviction import (
     recovery_dl_conviction_ok,
     recovery_dl_entry_allowed,
@@ -81,7 +83,7 @@ def test_recovery_min_conviction_zero_sizing_reads_force_min():
 def test_recovery_min_conviction_defaults_when_all_zero():
     cfg = {}
     dlambert = {"recovery_sizing_conviction": 0.0, "recovery_min_conviction": 0.0}
-    assert recovery_min_conviction(cfg, dlambert, pending_loss={}) == 0.58
+    assert recovery_min_conviction(cfg, dlambert, pending_loss={}) == pytest.approx(0.62)
 
 
 def test_recovery_dl_entry_allowed_rejects_deploy_false():

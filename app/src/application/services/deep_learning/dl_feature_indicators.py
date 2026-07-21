@@ -11,6 +11,10 @@ from src.application.services.deep_learning.dl_feature_indicators_advanced impor
     calculate_volatility_ratio,
     calculate_williams_r,
 )
+from src.application.services.deep_learning.dl_indicator_config import (
+    indicator_windows,
+    load_indicator_config_from_settings,
+)
 
 
 __all__ = [
@@ -36,7 +40,7 @@ __all__ = [
 ]
 
 
-def calculate_rsi(prices: np.ndarray, period: int = 14) -> np.ndarray:
+def calculate_rsi(prices: np.ndarray, period: int) -> np.ndarray:
     """Calcula RSI por barra para a serie de precos informada."""
     if len(prices) < period + 1:
         return np.full_like(prices, 50.0)
@@ -62,54 +66,35 @@ def calculate_rsi(prices: np.ndarray, period: int = 14) -> np.ndarray:
     return rsi
 
 
-def feature_windows(granularity: int) -> dict[str, int]:
-    """Janelas de indicadores para contratos alinhados a barras de 60s."""
+def feature_windows(granularity: int, windows: dict[str, int] | None = None) -> dict[str, int]:
+    """Janelas de indicadores a partir de deep_learning.indicators.windows."""
     _ = max(1, int(granularity))
-    return {
-        "adx_period": 14,
-        "atr_window": 14,
-        "bb_window": 20,
-        "cci_period": 20,
-        "ema_20": 20,
-        "ema_50": 50,
-        "ema_fast_crossover": 9,
-        "ema_slow_crossover": 21,
-        "hurst_window": 64,
-        "macd_fast": 12,
-        "macd_signal": 9,
-        "macd_slow": 26,
-        "rel_vol_span": 50,
-        "roc_period": 10,
-        "rsi_period": 14,
-        "stoch_period": 14,
-        "stoch_smooth": 3,
-        "vol_ratio_long": 20,
-        "vol_ratio_short": 5,
-        "vol_window": 10,
-        "williams_period": 14,
-        "vr_long": 8,
-        "vr_short": 2,
-        "cmo_period": 14,
-        "kc_period": 20,
-        "kc_atr_period": 10,
-    }
+    if windows is not None:
+        return {str(key): int(value) for key, value in windows.items()}
+    return indicator_windows(load_indicator_config_from_settings())
 
 
-def bollinger(prices: np.ndarray, window: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def bollinger(
+    prices: np.ndarray,
+    window: int,
+    *,
+    std_mult: float,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Retorna banda inferior, media e superior."""
     n = len(prices)
     lower = np.zeros(n, dtype=np.float64)
     mid = np.zeros(n, dtype=np.float64)
     upper = np.zeros(n, dtype=np.float64)
     w = max(2, int(window))
+    mult = float(std_mult)
     for i in range(n):
         start = max(0, i - w + 1)
         segment = prices[start : i + 1]
         m = float(np.mean(segment))
         s = float(np.std(segment))
         mid[i] = m
-        lower[i] = m - 2.0 * s
-        upper[i] = m + 2.0 * s
+        lower[i] = m - mult * s
+        upper[i] = m + mult * s
     return lower, mid, upper
 
 
@@ -197,9 +182,9 @@ def ema_distances(prices: np.ndarray, span_20: int, span_50: int) -> tuple[np.nd
 
 def calculate_macd(
     prices: np.ndarray,
-    fast_period: int = 12,
-    slow_period: int = 26,
-    signal_period: int = 9,
+    fast_period: int,
+    slow_period: int,
+    signal_period: int,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Calcula a linha MACD e a linha de sinal (normalizadas pelo preco)."""
     df = pl.DataFrame({"close": prices})
@@ -215,8 +200,8 @@ def calculate_stochastic(
     high: np.ndarray,
     low: np.ndarray,
     close: np.ndarray,
-    period: int = 14,
-    smooth_k: int = 3,
+    period: int,
+    smooth_k: int,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Calcula Stochastic Oscillator %K e %D normalizados (escala de 0.0 a 1.0)."""
     n = len(close)
@@ -243,19 +228,27 @@ def calculate_stochastic(
     return smooth_k_arr, d_arr
 
 
-def calculate_cci(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int = 20) -> np.ndarray:
+def calculate_cci(
+    high: np.ndarray,
+    low: np.ndarray,
+    close: np.ndarray,
+    period: int,
+    *,
+    cci_constant: float,
+) -> np.ndarray:
     """Calcula Commodity Channel Index (CCI) normalizado (dividido por 100)."""
     n = len(close)
     tp = (high + low + close) / 3.0
     cci = np.zeros(n, dtype=np.float64)
     w = max(2, int(period))
+    const = float(cci_constant)
     for i in range(n):
         start = max(0, i - w + 1)
         segment = tp[start : i + 1]
         ma = float(np.mean(segment))
         mad = float(np.mean(np.abs(segment - ma)))
         if mad > 1e-10:
-            cci[i] = (tp[i] - ma) / (0.015 * mad)
+            cci[i] = (tp[i] - ma) / (const * mad)
         else:
             cci[i] = 0.0
     return cci / 100.0

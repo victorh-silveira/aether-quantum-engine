@@ -1,7 +1,6 @@
 import pytest
 
 from src.domain.risk.stake_sizing import (
-    apply_symbol_stake_cap,
     compute_single_strike_kelly_base,
     conviction_stop_win_weight,
     enrich_metrics_conviction,
@@ -46,6 +45,12 @@ def test_enrich_metrics_conviction_fills_zero_score():
 def test_resolve_stake_conviction_from_raw_conviction():
     metrics = {"trade_score": 0.0, "raw_conviction": 0.52}
     assert resolve_stake_conviction(metrics) == pytest.approx(0.52, abs=1e-6)
+
+
+def test_resolve_stake_conviction_raw_below_min_stop_uses_raw_side():
+    metrics = {"trade_score": 0.0, "raw_prob": 0.51}
+    cfg = {"stake_conviction_min_raw": 0.51, "stop_win_kelly_min_conviction": 0.60}
+    assert resolve_stake_conviction(metrics, cfg) == pytest.approx(0.51, abs=1e-6)
 
 
 def test_enrich_metrics_conviction_uses_raw_conviction():
@@ -210,12 +215,6 @@ def test_compute_single_strike_cycles_target_reduces_stake():
     )
     assert damped < full
     assert damped == pytest.approx(full / 2.75, abs=0.5)
-
-
-def test_apply_symbol_stake_cap_passes_through_unchanged():
-    cfg = {"symbol_max_stake_pct": {"R_10": 0.009}}
-    assert apply_symbol_stake_cap(126.0, 10545.0, "R_10", cfg) == 126.0
-    assert apply_symbol_stake_cap(80.0, 10545.0, "R_10", cfg) == 80.0
 
 
 def test_compute_single_strike_scales_with_m5_cycle():

@@ -14,16 +14,12 @@ from src.domain.risk.consensus_stake_helpers import (
     soft_recovery_progression_multiplier,
     turbo_edge_stake_multiplier,
 )
-from src.domain.risk.risk_recovery_state import (
-    MICRO_BANKROLL_THRESHOLD,
-    MICRO_TAIL_LINEAR_LEVEL,
-    MICRO_TAIL_UNIT_MULTIPLIER,
-)
+from src.domain.risk.recovery_state_config import load_recovery_state_from_settings
+from src.domain.risk.soft_recovery_config import soft_cfg
 from src.domain.risk.soft_recovery_policy import (
-    DEFAULT_MATERIAL_PENDING_MIN,
-    DEFAULT_NEAR_STOP_WIN_FREEZE_PCT,
     apply_small_account_hard_floor,
     configured_max_safe_stake_cap,
+    configured_max_safe_stake_pct,
     fixed_step_progression_multiplier,
     is_recovery_infeasible,
     resolve_amort_cycles,
@@ -32,7 +28,6 @@ from src.domain.risk.stake_sizing import consensus_entropy_kelly_retention
 from src.domain.risk.stake_target_proximity import apply_target_proximity_damping
 
 
-_MAX_SAFE_STAKE_BANKROLL_PCT = 0.035
 _MAX_SAFE_STAKE_BANKROLL_PCT_LINEAR2 = 0.025
 _MAX_SAFE_STAKE_BANKROLL_PCT_LINEAR3 = 0.020
 
@@ -61,9 +56,9 @@ def apply_soft_recovery_stake(
 ) -> float:
     """Aplica progressao adaptativa ou passo fixo quando ha passivo pendente."""
     unit = resolve_session_base_unit(bankroll, base_unit, metrics)
-    soft = soft_recovery if isinstance(soft_recovery, dict) else {}
-    material_min = float(soft.get("material_pending_min", DEFAULT_MATERIAL_PENDING_MIN))
-    freeze_pct = float(soft.get("near_stop_win_freeze_pct", DEFAULT_NEAR_STOP_WIN_FREEZE_PCT))
+    soft = soft_cfg(soft_recovery)
+    material_min = float(soft["material_pending_min"])
+    freeze_pct = float(soft["near_stop_win_freeze_pct"])
     target = float(target_win)
     pnl = float(session_pnl)
     near_stop_win = target > 0.0 and (pnl / target) + 1e-12 >= freeze_pct
@@ -118,11 +113,16 @@ def max_safe_stake_cap(
     """Retorna teto absoluto; micro-banca <$100 limita recovery a 5% do saldo."""
     linear = max(0, int(consecutive_losses_linear))
     bal = max(0.0, float(bankroll))
-    if bal <= MICRO_BANKROLL_THRESHOLD and linear >= MICRO_TAIL_LINEAR_LEVEL:
+    rs = load_recovery_state_from_settings()
+    if bal <= float(rs["micro_bankroll_threshold"]) and linear >= int(rs["micro_tail_linear_level"]):
         configured = configured_max_safe_stake_cap(soft_recovery)
-        raw = configured if configured is not None else MICRO_TAIL_UNIT_MULTIPLIER * neutral_edge_dynamic_unit(bal)
+        raw = (
+            configured
+            if configured is not None
+            else float(rs["micro_tail_unit_multiplier"]) * neutral_edge_dynamic_unit(bal)
+        )
         return apply_small_account_hard_floor(raw, bal, soft_recovery=soft_recovery)
-    pct = _MAX_SAFE_STAKE_BANKROLL_PCT
+    pct = configured_max_safe_stake_pct(soft_recovery)
     if linear >= 3:
         pct = min(pct, _MAX_SAFE_STAKE_BANKROLL_PCT_LINEAR3)
     elif linear >= 2:

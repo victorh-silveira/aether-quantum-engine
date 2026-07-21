@@ -7,26 +7,29 @@ import math
 from collections import deque
 from typing import Any
 
+from src.application.services.infra_timing_config import resolve_meta_classifier_infra_config
+
 
 logger = logging.getLogger("AETH")
 
-_SHADOW_WINDOW = 64
-_MIN_PAIRS = 12
-_SHADOW_READY_N = 64
-_HARD_CORR_FLOOR = 0.15
-_SOFT_ONLY_CORR_CEILING = 0.05
-_z_pnl_pairs: deque[tuple[float, float]] = deque(maxlen=_SHADOW_WINDOW)
+
+def _shadow() -> dict:
+    """Resolve ou aplica  shadow."""
+    return resolve_meta_classifier_infra_config()["shadow"]
+
+
+_z_pnl_pairs: deque[tuple[float, float]] = deque(maxlen=64)
 
 
 def reset_meta_payoff_shadow() -> None:
-    """Limpa o buffer rolling de pares (z_score, pnl)."""
+    """Resolve ou aplica reset meta payoff shadow."""
     _z_pnl_pairs.clear()
 
 
 def _pearson(xs: list[float], ys: list[float]) -> float | None:
-    """Correlacao de Pearson ou None se amostra insuficiente."""
+    """Resolve ou aplica  pearson."""
     n = len(xs)
-    if n < _MIN_PAIRS or n != len(ys):
+    if n < int(_shadow()["min_pairs"]) or n != len(ys):
         return None
     mean_x = sum(xs) / n
     mean_y = sum(ys) / n
@@ -57,10 +60,10 @@ def shadow_correlation(orch: Any | None = None) -> float | None:
 def shadow_ready(orch: Any | None = None) -> bool:
     """True quando ha N minimo e correlacao calculavel."""
     n = int(getattr(orch, "_meta_payoff_shadow_n", 0) or 0) if orch is not None else shadow_pair_count()
-    if n < _SHADOW_READY_N:
+    if n < int(_shadow()["ready_n"]):
         n = shadow_pair_count()
     corr = shadow_correlation(orch)
-    return n >= _SHADOW_READY_N and corr is not None
+    return n >= int(_shadow()["ready_n"]) and corr is not None
 
 
 def meta_hard_veto_allowed(orch: Any | None = None) -> bool:
@@ -69,9 +72,9 @@ def meta_hard_veto_allowed(orch: Any | None = None) -> bool:
     if orch is not None:
         n = max(n, int(getattr(orch, "_meta_payoff_shadow_n", 0) or 0))
     corr = shadow_correlation(orch)
-    if corr is None or n < _SHADOW_READY_N:
+    if corr is None or n < int(_shadow()["ready_n"]):
         return False
-    return float(corr) >= _HARD_CORR_FLOOR
+    return float(corr) >= float(_shadow()["hard_corr_floor"])
 
 
 def record_meta_payoff_shadow_pair(
@@ -92,12 +95,12 @@ def record_meta_payoff_shadow_pair(
         orch._meta_payoff_shadow_n = len(_z_pnl_pairs)
         orch._meta_payoff_shadow_ready = shadow_ready(orch)
         orch._meta_payoff_hard_veto_allowed = meta_hard_veto_allowed(orch)
-    if corr is not None and len(_z_pnl_pairs) >= _MIN_PAIRS and len(_z_pnl_pairs) % 8 == 0:
+    if corr is not None and len(_z_pnl_pairs) >= int(_shadow()["min_pairs"]) and len(_z_pnl_pairs) % 8 == 0:
         logger.info(
             "META_SHADOW | corr(z,pnl)=%+.3f | n=%d | window=%d | hard=%s",
             corr,
             len(_z_pnl_pairs),
-            _SHADOW_WINDOW,
+            int(_shadow()["window"]),
             str(meta_hard_veto_allowed(orch)).lower(),
         )
     return corr

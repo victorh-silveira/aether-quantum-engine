@@ -14,6 +14,10 @@ from src.application.services.deep_learning.dl_horizon import (
     resolve_label_mode,
     resolve_label_smooth_bars,
 )
+from src.application.services.deep_learning.dl_indicator_config import (
+    load_indicator_config_from_settings,
+    resolve_indicator_config,
+)
 from src.application.services.deep_learning.dl_params_blocks import (
     parse_calibration_config,
     parse_indicator_gating_config,
@@ -143,7 +147,11 @@ def resolve_inference_history_bars(
     lookback = max(1, int(params.get("lookback", 30)))
     gran = max(1, int(granularity or params.get("granularity") or 60))
     implied = max(1, int(params.get("implied_vol_bars", 60)))
-    win = feature_windows(gran)
+    indicators = params.get("indicators")
+    if isinstance(indicators, dict) and isinstance(indicators.get("windows"), dict):
+        win = feature_windows(gran, indicators["windows"])
+    else:
+        win = feature_windows(gran)
     warmup = max(
         lookback,
         implied,
@@ -155,35 +163,6 @@ def resolve_inference_history_bars(
         int(win["rsi_period"]),
     )
     return warmup + lookback + 16
-
-
-def parse_dynamic_threshold_config(exec_config: dict) -> dict[str, Any]:
-    """Extrai configuracao do bloco orchestrator.execution.dynamic_threshold."""
-    raw = exec_config.get("dynamic_threshold") if isinstance(exec_config.get("dynamic_threshold"), dict) else {}
-    return {
-        "enabled": bool(raw.get("enabled", False)),
-        "vol_source": str(raw.get("vol_source", "blend")).strip().lower(),
-        "call_base": float(raw.get("call_base", 0.53)),
-        "put_base": float(raw.get("put_base", 0.47)),
-        "min_edge_base": float(raw.get("min_edge_base", 0.04)),
-        "high_regime_call_delta": float(raw.get("high_regime_call_delta", 0.03)),
-        "high_regime_put_delta": float(raw.get("high_regime_put_delta", 0.03)),
-        "high_regime_edge_delta": float(raw.get("high_regime_edge_delta", 0.015)),
-        "low_regime_call_delta": float(raw.get("low_regime_call_delta", -0.02)),
-        "low_regime_put_delta": float(raw.get("low_regime_put_delta", -0.02)),
-        "low_regime_edge_delta": float(raw.get("low_regime_edge_delta", -0.01)),
-        "compressive_bb_percentile": float(raw.get("compressive_bb_percentile", 0.25)),
-        "directional_adx_min": float(raw.get("directional_adx_min", 0.22)),
-        "baseline_lookback": max(8, int(raw.get("baseline_lookback", 48))),
-        "squeeze_edge_slope": float(raw.get("squeeze_edge_slope", 0.025)),
-        "squeeze_edge_exponential_k": float(raw.get("squeeze_edge_exponential_k", 2.5)),
-        "squeeze_min_margin": float(raw.get("squeeze_min_margin", 0.12)),
-        "vol_compression_threshold": float(raw.get("vol_compression_threshold", 0.50)),
-        "vol_compression_k_parabolic": float(raw.get("vol_compression_k_parabolic", 4.0)),
-        "vol_compression_k_hyperbolic": float(raw.get("vol_compression_k_hyperbolic", 0.15)),
-        "require_indicator_consensus": bool(raw.get("require_indicator_consensus", True)),
-        "implied_vol_bb_scale": bool(raw.get("implied_vol_bb_scale", True)),
-    }
 
 
 def parse_dl_params(
@@ -257,11 +236,7 @@ def parse_dl_params(
             max(1, int(dl_config["inference_history_bars"]))
             if "inference_history_bars" in dl_config
             else resolve_inference_history_bars(
-                {
-                    "lookback": lookback,
-                    "granularity": gran,
-                    "implied_vol_bars": implied_vol_bars,
-                },
+                {"lookback": lookback, "granularity": gran, "implied_vol_bars": implied_vol_bars},
                 granularity=gran,
             )
         ),
@@ -274,12 +249,20 @@ def parse_dl_params(
         "contract_seconds": contract_duration_seconds(risk_params),
         "val_acc_live_blend": float(dl_config.get("val_acc_live_blend", 0.35)),
         "trend_alignment_required": bool(dl_config.get("trend_alignment_required", False)),
-        "exhaustion_filter_enabled": bool(dl_config.get("exhaustion_filter_enabled", False)),
-        "exhaustion_rsi_lower": float(dl_config.get("exhaustion_rsi_lower", 0.28)),
-        "exhaustion_rsi_upper": float(dl_config.get("exhaustion_rsi_upper", 0.72)),
-        "exhaustion_keltner_lower": float(dl_config.get("exhaustion_keltner_lower", 0.0)),
-        "exhaustion_keltner_upper": float(dl_config.get("exhaustion_keltner_upper", 1.0)),
     }
+    indicators = (
+        resolve_indicator_config(dl_config)
+        if isinstance(dl_config.get("indicators"), dict)
+        else load_indicator_config_from_settings()
+    )
+    exhaustion = indicators["exhaustion_filter"]
+    base["indicators"] = indicators
+    base["feature_windows"] = indicators["windows"]
+    base["exhaustion_filter_enabled"] = bool(exhaustion["enabled"])
+    base["exhaustion_rsi_lower"] = float(exhaustion["rsi_lower"])
+    base["exhaustion_rsi_upper"] = float(exhaustion["rsi_upper"])
+    base["exhaustion_keltner_lower"] = float(exhaustion["keltner_lower"])
+    base["exhaustion_keltner_upper"] = float(exhaustion["keltner_upper"])
     gate = parse_deploy_gate_config(dl_config)
     min_eval_bars = lookback + 5
     gate = {**gate, "mini_bars": max(min_eval_bars, int(gate.get("mini_bars", 120)))}

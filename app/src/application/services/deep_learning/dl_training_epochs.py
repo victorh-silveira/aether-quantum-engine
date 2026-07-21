@@ -1,16 +1,26 @@
 """Loop de epocas e perda mascarada do treino walk-forward TCN."""
 
+import json
 import math
 
 import numpy as np
 import torch
 from torch import nn, optim
 
+from aether_paths import repo_path
 from src.application.services.deep_learning.dl_device import tensor_from_numpy
 from src.application.services.deep_learning.model import model_accuracy
 
 
-AUX_REGRESSION_WEIGHT = 0.15
+def _aux_regression_weight() -> float:
+    """Le aux_regression_weight de settings."""
+    path = repo_path("config", "settings.json")
+    with path.open(encoding="utf-8") as handle:
+        full = json.load(handle)
+    dl = full.get("deep_learning") if isinstance(full, dict) else None
+    if not isinstance(dl, dict) or "aux_regression_weight" not in dl:
+        raise ValueError("deep_learning.aux_regression_weight obrigatorio")
+    return float(dl["aux_regression_weight"])
 
 
 def _model_core(model):
@@ -29,7 +39,7 @@ def _masked_loss(
     label_smoothing: float,
     focal_gamma: float,
     delta_batch: np.ndarray | None = None,
-    aux_regression_weight: float = AUX_REGRESSION_WEIGHT,
+    aux_regression_weight: float | None = None,
 ) -> torch.Tensor:
     """Calcula BCE mascarada com pesos, focal loss opcional e regressao auxiliar TCN."""
     smooth = max(0.0, min(0.2, float(label_smoothing)))
@@ -45,6 +55,8 @@ def _masked_loss(
         if isinstance(logits, tuple):
             logits = logits[0]
         logits = logits.clamp(-30.0, 30.0)
+    if aux_regression_weight is None:
+        aux_regression_weight = _aux_regression_weight()
     target_t = tensor_from_numpy(targets, device).clamp(0.0, 1.0)
     mask_t = tensor_from_numpy(mask_batch, device)
     loss_vec = nn.functional.binary_cross_entropy_with_logits(logits, target_t, reduction="none")

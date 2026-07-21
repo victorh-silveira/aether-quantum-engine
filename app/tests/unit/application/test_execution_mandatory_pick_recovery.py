@@ -159,6 +159,6 @@ def test_resolve_weak_without_ctx_keeps_dl_side():
             },
         },
     }
-    result = resolve_execution_direction(entry, symbol="R_10")
+    result = resolve_execution_direction(entry, symbol="R_10", exec_cfg={"price_zone": {"enabled": False}})
     assert result is not None
     assert result[0] == TradeDirection.PUT

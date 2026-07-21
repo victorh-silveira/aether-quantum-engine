@@ -10,10 +10,6 @@ from src.application.services.execution_direction_checks import (
 from src.application.services.execution_quality_gate import apply_quality_penalty_to_metrics
 from src.application.services.execution_quality_gate_cluster import quality_conviction_suspends_cluster
 from src.application.services.execution_sniper_gates import hurst_regime_allowed
-from src.application.services.execution_symbols_overdrive import (
-    _meta_payoff_edge_zscore,
-    _overdrive_conviction_eligible,
-)
 from src.application.services.meta_payoff_regression import apply_meta_regression_edge
 from src.application.services.orchestrator.execution_blockers import _candidate_block_reason
 from src.application.services.orchestrator.execution_collect import (
@@ -104,11 +100,6 @@ def test_risk_session_bankroll_pending_from_map():
     assert bankroll == 100.0
     assert pending == 12.5
     assert soft is None
-
-
-def test_meta_payoff_edge_zscore_and_overdrive_eligible():
-    assert _meta_payoff_edge_zscore({"meta_classifier_applied": True}) is None
-    assert _overdrive_conviction_eligible({"direction_margin": 0.30, "meta_payoff_edge_zscore": None}) is False
 
 
 def test_apply_quality_penalty_always_zero_when_unlocked():

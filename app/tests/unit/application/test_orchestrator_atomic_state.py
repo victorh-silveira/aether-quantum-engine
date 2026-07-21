@@ -47,8 +47,8 @@ async def test_orchestrator_atomic_state_context_times_out_on_deadlock(orch_read
     await orch.state_mgr._state_lock.acquire()
     with (
         patch(
-            "src.application.services.orchestrator.orchestrator_atomic_state._STATE_LOCK_ACQUIRE_TIMEOUT_SECONDS",
-            0.05,
+            "src.application.services.orchestrator.orchestrator_atomic_state._state_lock_timeout",
+            return_value=0.05,
         ),
         caplog.at_level("DEBUG", logger="AETH"),
         pytest.raises(RuntimeError, match="STATE_LOCK_TIMEOUT") as captured,

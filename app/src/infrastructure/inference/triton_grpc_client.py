@@ -24,11 +24,13 @@ except ImportError:
     InferenceServerException = Exception
 
 
+from src.application.services.infra_timing_config import resolve_triton_infer_timeout
+
+
 logger = logging.getLogger("AETH")
 _INPUT_NAME = "INPUT__0"
 _OUTPUT_NAME = "OUTPUT__0"
 _MAX_MSG = 512 * 1024 * 1024
-_INFER_TIMEOUT_SEC = 0.85
 _pool_guard = threading.Lock()
 
 
@@ -191,7 +193,7 @@ class TritonGrpcClient:
         model_name: str,
         tensor: np.ndarray,
         *,
-        timeout: float = _INFER_TIMEOUT_SEC,
+        timeout: float = resolve_triton_infer_timeout(),
     ) -> float:
         """Executa inferencia gRPC para um simbolo com timeout rigido."""
         if self._infer is None:
@@ -216,7 +218,7 @@ class TritonGrpcClient:
         self,
         tensors: dict[str, np.ndarray],
         *,
-        timeout: float = _INFER_TIMEOUT_SEC,
+        timeout: float = resolve_triton_infer_timeout(),
     ) -> dict[str, float]:
         """Dispara inferencias em paralelo com deadline unico para o lote."""
 

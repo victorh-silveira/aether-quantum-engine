@@ -1,4 +1,4 @@
-"""Gates sniper de calibracao neutra, Hurst e squeeze extremo."""
+"""Helpers de calibracao neutra e regime Hurst para gates de direcao."""
 
 from __future__ import annotations
 
@@ -33,15 +33,3 @@ def hurst_regime_allowed(hurst: float | None, gating_cfg: dict[str, Any] | None)
     lo = float(cfg.get("hurst_min", 0.0))
     hi = float(cfg.get("hurst_max", 1.0))
     return lo - 1e-12 <= value <= hi + 1e-12
-
-
-def apply_hurst_noise_veto(metrics: dict[str, Any], gating_cfg: dict[str, Any] | None) -> bool:
-    """Veto de Hurst desativado; telemetria permanece disponivel via hurst_regime_allowed."""
-    _ = (metrics, gating_cfg)
-    return False
-
-
-def apply_bb_squeeze_requirement(metrics: dict[str, Any], squeeze_cfg: dict[str, Any] | None) -> bool:
-    """Exigencia de squeeze extremo desativada."""
-    _ = (metrics, squeeze_cfg)
-    return False

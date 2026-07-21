@@ -4,7 +4,6 @@ import logging
 from typing import Any
 
 from src.domain.risk.bayesian_win_rate import bayesian_win_rate
-from src.domain.risk.martingale_sizing import resolve_martingale_config
 from src.domain.risk.recovery_conviction import recovery_dl_conviction_ok, recovery_dl_entry_allowed
 from src.domain.risk.recovery_hurst_gate import resolve_recovery_signal_floor
 from src.domain.risk.risk_cluster import finalize_risk_cluster
@@ -33,7 +32,6 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin, ProposalSkipMixin)
         self.config = config
         self.kelly_config = config.get("kelly", {})
         self.soft_recovery_config = resolve_soft_recovery_config(config)
-        self.martingale_config = resolve_martingale_config(config)
         legacy = config.get("dlambert", {}) if isinstance(config.get("dlambert"), dict) else {}
         self.dlambert_config = {
             **legacy,

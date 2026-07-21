@@ -6,11 +6,18 @@ import asyncio
 from typing import Any
 
 from src.application.services.force_trade_mode import force_trade_from_orch
+from src.application.services.infra_timing_config import resolve_orchestrator_timing_config
 from src.application.services.regime_micro_freeze import SIGNAL_SUSPENDED
 
 
-STREAM_WARM_UP_DELAY_SECONDS = 45.0
-WARM_UP_LIVE_DATA_TIMEOUT_SECONDS = 25.0
+def _timing(config: dict | None = None) -> dict:
+    """Resolve knobs de timing do orchestrator."""
+    orch = None
+    if isinstance(config, dict):
+        orch = config.get("orchestrator") if "orchestrator" in config else config
+    return resolve_orchestrator_timing_config(orch if isinstance(orch, dict) else None)
+
+
 _WARM_UP_GUARD_LOG_MESSAGE = (
     "[AETHER] WARM_UP_GUARD | Aguardando estabilizacao do TickBuffer pos-reconexao. Coletando fluxo micro real."
 )
@@ -26,10 +33,7 @@ WARM_UP_CYCLE_SUSPENDED = SIGNAL_SUSPENDED
 
 def resolve_stream_warm_up_delay_seconds(config: dict[str, Any]) -> float:
     """Resolve duracao do aquecimento micro pos-reconexao em segundos."""
-    chunk = config.get("orchestrator") if isinstance(config, dict) else {}
-    orchestrator_cfg = chunk if isinstance(chunk, dict) else {}
-    raw = orchestrator_cfg.get("stream_warm_up_delay_seconds", STREAM_WARM_UP_DELAY_SECONDS)
-    return max(0.0, float(raw))
+    return max(0.0, float(_timing(config)["stream_warm_up_delay_seconds"]))
 
 
 def stream_warm_up_deadline(orch: Any) -> float:
@@ -97,7 +101,7 @@ def _tick_buffer_has_live_data(orch: Any, *, now: float | None = None) -> bool:
     if last <= 0.0:
         return False
     current = now if now is not None else asyncio.get_running_loop().time()
-    return (current - last) < WARM_UP_LIVE_DATA_TIMEOUT_SECONDS
+    return (current - last) < float(_timing()["warm_up_live_data_timeout_seconds"])
 
 
 def apply_warm_up_initialization_waiver(orch: Any) -> None:
@@ -113,7 +117,7 @@ def apply_warm_up_initialization_waiver(orch: Any) -> None:
 async def await_stream_warm_up_gate(
     orch: Any,
     *,
-    timeout: float = WARM_UP_LIVE_DATA_TIMEOUT_SECONDS,
+    timeout: float = float(_timing()["warm_up_live_data_timeout_seconds"]),
 ) -> bool:
     """Aguarda aquecimento micro; apos timeout sem ticks vivos aplica waiver e segue."""
     if not stream_warm_up_active(orch):

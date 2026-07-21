@@ -148,9 +148,7 @@ def test_resolve_stake_mode_tag():
     assert resolve_stake_mode_tag("DALEMBERT", 1, stake_regime="RECOVER") == "RECOVER_DAL_L1"
     assert resolve_stake_mode_tag("KELLY", 0, stake_regime="EXPLORE") == "EXPLORE_KELLY"
     assert resolve_stake_mode_tag("EXPLORE_KELLY", 0) == "EXPLORE_KELLY"
-    assert resolve_stake_mode_tag("MARTINGALE", 0) == "MARTINGALE_L0"
-    assert resolve_stake_mode_tag("MARTINGALE", 2) == "MARTINGALE_L2"
-    assert resolve_stake_mode_tag("MARTINGALE_L1", 1) == "MARTINGALE_L1"
+    assert resolve_stake_mode_tag("RECOVER_DAL_L2", 2) == "RECOVER_DAL_L2"
 
 
 def test_resolve_stake_mode_tag_invalid_regime_defaults_explore():

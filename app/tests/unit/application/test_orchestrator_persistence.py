@@ -27,8 +27,8 @@ async def test_save_full_state_soft_timeout_does_not_raise(orch_ready):
     await orch.state_mgr._state_lock.acquire()
     try:
         with patch(
-            "src.application.services.orchestrator.orchestrator_atomic_state._STATE_LOCK_ACQUIRE_TIMEOUT_SECONDS",
-            0.05,
+            "src.application.services.orchestrator.orchestrator_atomic_state._state_lock_timeout",
+            return_value=0.05,
         ):
             assert await save_full_state(orch, raise_on_timeout=False) is False
     finally:
@@ -42,8 +42,8 @@ async def test_save_full_state_raise_on_timeout(orch_ready):
     try:
         with (
             patch(
-                "src.application.services.orchestrator.orchestrator_atomic_state._STATE_LOCK_ACQUIRE_TIMEOUT_SECONDS",
-                0.05,
+                "src.application.services.orchestrator.orchestrator_atomic_state._state_lock_timeout",
+                return_value=0.05,
             ),
             pytest.raises(RuntimeError, match="STATE_LOCK_TIMEOUT"),
         ):

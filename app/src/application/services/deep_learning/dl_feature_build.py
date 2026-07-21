@@ -5,16 +5,7 @@ import numpy as np
 from src.application.services.deep_learning.dl_feature_indicators import (
     atr_norm,
     bollinger,
-    calculate_adx,
-    calculate_cci,
-    calculate_cmo,
-    calculate_ema_crossover,
-    calculate_keltner_channel_pct_b,
-    calculate_macd,
     calculate_rsi,
-    calculate_stochastic,
-    calculate_volatility_ratio,
-    calculate_williams_r,
     delta_series,
     ema_distances,
     feature_windows,
@@ -23,7 +14,12 @@ from src.application.services.deep_learning.dl_feature_indicators import (
     rate_of_change,
     rolling_realized_vol_ratio,
 )
+from src.application.services.deep_learning.dl_feature_oscillators import (
+    compute_oscillators,
+    rolling_zscore_fast,
+)
 from src.application.services.deep_learning.dl_hurst import hurst_exponent, variance_ratio
+from src.application.services.deep_learning.dl_indicator_config import load_indicator_config_from_settings
 
 
 _feature_windows = feature_windows
@@ -43,31 +39,6 @@ def symbol_vol_target(symbol: str) -> float:
         return float(parts[-1]) / 100.0 if len(parts) >= 2 else 0.50
     except ValueError:
         return 0.50
-
-
-def rolling_zscore_1024_fast(series: np.ndarray) -> np.ndarray:
-    """Calcula Z-Score adaptativo historico com limite de 1024 periodos e clipping de +-3.0."""
-    n = len(series)
-    if n == 0:
-        return np.zeros(0, dtype=np.float64)  # pragma: no cover
-    means = np.zeros(n, dtype=np.float64)
-    stds = np.zeros(n, dtype=np.float64)
-    cumsum = np.cumsum(series)
-    cumsum = np.insert(cumsum, 0, 0.0)
-    cumsum2 = np.cumsum(series**2)
-    cumsum2 = np.insert(cumsum2, 0, 0.0)
-    for i in range(n):
-        start = max(0, i - 1023)
-        count = i - start + 1
-        window_sum = cumsum[i + 1] - cumsum[start]
-        window_sum2 = cumsum2[i + 1] - cumsum2[start]
-        mean = window_sum / count
-        var = max(0.0, (window_sum2 / count) - (mean**2))
-        std = np.sqrt(var)
-        means[i] = mean
-        stds[i] = std
-    z = (series - means) / (stds + 1e-12)
-    return np.clip(z, -3.0, 3.0)
 
 
 def _default_micro(n: int) -> dict[str, np.ndarray]:
@@ -100,67 +71,6 @@ def attach_microstructure(
             series[key] = defaults[key]
         else:
             series[key] = np.asarray(arr[:n], dtype=np.float64)
-
-
-def compute_oscillators(
-    h: np.ndarray,
-    low_px: np.ndarray,
-    close: np.ndarray,
-    rsi: np.ndarray,
-    log_return: np.ndarray,
-    win: dict[str, float],
-) -> dict[str, np.ndarray]:
-    """Precomputa osciladores e cruzamentos auxiliares."""
-    macd, macd_signal = calculate_macd(
-        close,
-        fast_period=int(win["macd_fast"]),
-        slow_period=int(win["macd_slow"]),
-        signal_period=int(win["macd_signal"]),
-    )
-    stoch_k, stoch_d = calculate_stochastic(
-        h,
-        low_px,
-        close,
-        period=int(win["stoch_period"]),
-        smooth_k=int(win["stoch_smooth"]),
-    )
-    cci = calculate_cci(h, low_px, close, period=int(win["cci_period"]))
-    adx, di_diff = calculate_adx(h, low_px, close, period=int(win["adx_period"]))
-    williams_r = calculate_williams_r(h, low_px, close, period=int(win["williams_period"]))
-    cmo = calculate_cmo(close, period=int(win["cmo_period"]))
-    roc_rsi = rate_of_change(rsi, period=int(win["roc_period"]))
-    ema_9_21_dist = calculate_ema_crossover(
-        close,
-        fast=int(win["ema_fast_crossover"]),
-        slow=int(win["ema_slow_crossover"]),
-    )
-    vol_ratio_short_long = calculate_volatility_ratio(
-        log_return,
-        short=int(win["vol_ratio_short"]),
-        long=int(win["vol_ratio_long"]),
-    )
-    keltner_pct_b = calculate_keltner_channel_pct_b(
-        h,
-        low_px,
-        close,
-        period=int(win["kc_period"]),
-        atr_period=int(win["kc_atr_period"]),
-    )
-    return {
-        "macd": macd,
-        "macd_signal": macd_signal,
-        "stoch_k": stoch_k,
-        "stoch_d": stoch_d,
-        "cci": cci,
-        "adx": adx,
-        "di_diff": di_diff,
-        "williams_r": williams_r,
-        "cmo": cmo,
-        "roc_rsi": roc_rsi,
-        "ema_9_21_dist": ema_9_21_dist,
-        "vol_ratio_short_long": vol_ratio_short_long,
-        "keltner_pct_b": keltner_pct_b,
-    }
 
 
 def _resolve_high_low(
@@ -196,14 +106,22 @@ def _rolling_vol_and_z(
     return vol, vol_z
 
 
-def _attach_micro_zscores(series: dict[str, np.ndarray], n: int) -> None:
+def _attach_micro_zscores(
+    series: dict[str, np.ndarray],
+    n: int,
+    *,
+    zscore_window: int,
+    zscore_clip: float,
+) -> None:
     """Anexa micro features e z-scores adaptativos com clipping."""
     micro_mom = series.get("micro_bid_ask_spread_momentum", np.zeros(n, dtype=np.float64))
     shadow_ratio = series.get("volatility_shadow_ratio", np.zeros(n, dtype=np.float64))
     series["micro_bid_ask_spread_momentum"] = micro_mom
-    series["micro_bid_ask_spread_momentum_zscore"] = rolling_zscore_1024_fast(micro_mom)
+    series["micro_bid_ask_spread_momentum_zscore"] = rolling_zscore_fast(
+        micro_mom, window=zscore_window, clip=zscore_clip
+    )
     series["volatility_shadow_ratio"] = shadow_ratio
-    series["volatility_shadow_ratio_zscore"] = rolling_zscore_1024_fast(shadow_ratio)
+    series["volatility_shadow_ratio_zscore"] = rolling_zscore_fast(shadow_ratio, window=zscore_window, clip=zscore_clip)
 
 
 def precompute_price_series(
@@ -216,9 +134,13 @@ def precompute_price_series(
     low: np.ndarray | None = None,
     micro: dict[str, np.ndarray] | None = None,
     implied_vol_bars: int = 60,
+    indicator_cfg: dict | None = None,
 ) -> dict[str, np.ndarray]:
     """Precomputa series auxiliares usadas na montagem de features."""
-    win = feature_windows(granularity)
+    cfg = indicator_cfg if isinstance(indicator_cfg, dict) else load_indicator_config_from_settings()
+    win = feature_windows(granularity, cfg["windows"])
+    mult = cfg["multipliers"]
+    norm = cfg["normalization"]
     n = len(prices)
     close = prices.astype(np.float64)
     log_return = log_returns(close)
@@ -229,19 +151,34 @@ def precompute_price_series(
     ema_dist_20, ema_dist_50 = ema_distances(close, int(win["ema_20"]), int(win["ema_50"]))
     roc = rate_of_change(close, int(win["roc_period"]))
     h, low_px = _resolve_high_low(close, n, open_, high, low)
-    bb_lower, bb_mid, bb_upper = bollinger(prices, int(win["bb_window"]))
+    bb_lower, bb_mid, bb_upper = bollinger(prices, int(win["bb_window"]), std_mult=float(mult["bb_std_mult"]))
     bb_w_raw = (bb_upper - bb_lower) / (bb_mid + 1e-10)
-    bb_width = np.clip((bb_w_raw - np.mean(bb_w_raw)) / (np.std(bb_w_raw) + 1e-10), -3.0, 3.0)
+    bb_clip = float(norm["bb_width_z_clip"])
+    bb_width = np.clip((bb_w_raw - np.mean(bb_w_raw)) / (np.std(bb_w_raw) + 1e-10), -bb_clip, bb_clip)
     bb_pct_b = (prices - bb_lower) / (bb_upper - bb_lower + 1e-10)
     atr_raw = atr_norm(h, low_px, close, int(win["atr_window"]))
-    atr = np.clip((atr_raw - np.mean(atr_raw)) / (np.std(atr_raw) + 1e-10), -3.0, 3.0)
+    atr_clip = float(norm["atr_z_clip"])
+    atr = np.clip((atr_raw - np.mean(atr_raw)) / (np.std(atr_raw) + 1e-10), -atr_clip, atr_clip)
     target_vol = symbol_vol_target(symbol)
     vol_vs_target = vol / (target_vol + 1e-10)
-    hurst = hurst_exponent(prices, window=int(win["hurst_window"]))
+    hurst = hurst_exponent(
+        prices,
+        window=int(win["hurst_window"]),
+        min_window=int(win["hurst_min_window"]),
+    )
     vr = variance_ratio(prices, short=int(win["vr_short"]), long=int(win["vr_long"]))
     zscore = price_zscore(close, int(win["bb_window"]))
     implied_vol = rolling_realized_vol_ratio(log_return, target_vol, implied_vol_bars)
-    osc = compute_oscillators(h, low_px, close, rsi, log_return, win)
+    osc = compute_oscillators(
+        h,
+        low_px,
+        close,
+        rsi,
+        log_return,
+        win,
+        cci_constant=float(mult["cci_constant"]),
+        kc_atr_mult=float(mult["kc_atr_mult"]),
+    )
     series = {
         "adx": osc["adx"],
         "atr_norm": atr,
@@ -274,7 +211,12 @@ def precompute_price_series(
         "keltner_pct_b": osc["keltner_pct_b"],
     }
     attach_microstructure(series, micro)
-    _attach_micro_zscores(series, n)
+    _attach_micro_zscores(
+        series,
+        n,
+        zscore_window=int(win["zscore_micro_window"]),
+        zscore_clip=float(norm["series_z_clip"]),
+    )
     for k, v in series.items():
         series[k] = np.nan_to_num(v, nan=0.0, posinf=0.0, neginf=0.0)
     return series

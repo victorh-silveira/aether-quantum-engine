@@ -20,7 +20,7 @@ def test_log_parser_exec():
     parser = LogParser(state)
     line = (
         "[C0006] EXEC || PUT [R_10] || "
-        "STAKE: 2.00 (MARTINGALE_L1) | PEND: 1.00 | LIN: 1 | CAP: 50.00 | "
+        "STAKE: 2.00 (RECOVER_DAL_L1) | PEND: 1.00 | LIN: 1 | CAP: 50.00 | "
         "BANCA: 87.69 || "
         "CID: 1129497159 | PAY: 1.79"
     )
@@ -29,7 +29,7 @@ def test_log_parser_exec():
     assert state.last_telemetry["dir"] == "PUT"
     assert state.last_telemetry["dl_dir"] == "PUT"
     assert state.last_telemetry["conv"] == "2.00"
-    assert "mode=MARTINGALE_L1" in state.last_telemetry["metrics"]
+    assert "mode=RECOVER_DAL_L1" in state.last_telemetry["metrics"]
     assert "lin=1" in state.last_telemetry["metrics"]
     assert state.balance == 87.69
 

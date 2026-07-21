@@ -4,65 +4,13 @@ from __future__ import annotations
 
 from typing import Any
 
-
-DEFAULT_AMORT_CYCLES_MIN = 2
-DEFAULT_AMORT_CYCLES_MAX = 5
-DEFAULT_MAX_SAFE_STAKE_CAP = 4.20
-DEFAULT_COING_REDIRECT_DRAWDOWN = 15.0
-DEFAULT_MICRO_RESIDUAL_BANKROLL_MAX = 250.0
-DEFAULT_MICRO_RESIDUAL_PENDING_MAX = 5.0
-DEFAULT_MICRO_RESIDUAL_PENDING_PCT = 0.05
-DEFAULT_NEGATIVE_ZSCORE_VETO = -0.20
-DEFAULT_MICRO_RESIDUAL_ZSCORE_FLOOR = -0.60
-DEFAULT_GBDT_WAIVER_SKIP_CYCLES = 30
-DEFAULT_MICRO_RESIDUAL_GBDT_WAIVER_SKIPS = 6
-DEFAULT_DUST_PENDING_CLEAR_MAX = 0.25
-DEFAULT_NEAR_STOP_WIN_FREEZE_PCT = 0.80
-DEFAULT_MATERIAL_PENDING_MIN = 1.0
-FIXED_STEP_LINEAR_MIN = 3
-FIXED_STEP_LINEAR_MAX = 4
-FIXED_STEP_UNIT_PREMIUM = 0.15
-SMALL_ACCOUNT_HARD_FLOOR_THRESHOLD = 100.0
-SMALL_ACCOUNT_HARD_FLOOR_PCT = 0.05
-
-
-def resolve_soft_recovery_config(risk_management: dict[str, Any] | None) -> dict[str, Any]:
-    """Extrai bloco soft_recovery com defaults seguros para micro-banca."""
-    cfg = risk_management if isinstance(risk_management, dict) else {}
-    soft = cfg.get("soft_recovery")
-    if not isinstance(soft, dict):
-        soft = {}
-    return {
-        "enabled": bool(soft.get("enabled", True)),
-        "max_safe_stake_cap": float(soft.get("max_safe_stake_cap", DEFAULT_MAX_SAFE_STAKE_CAP)),
-        "amort_cycles_min": int(soft.get("amort_cycles_min", DEFAULT_AMORT_CYCLES_MIN)),
-        "amort_cycles_max": int(soft.get("amort_cycles_max", DEFAULT_AMORT_CYCLES_MAX)),
-        "coing_redirect_drawdown_threshold": float(
-            soft.get("coing_redirect_drawdown_threshold", DEFAULT_COING_REDIRECT_DRAWDOWN)
-        ),
-        "micro_residual_bankroll_max": float(
-            soft.get("micro_residual_bankroll_max", DEFAULT_MICRO_RESIDUAL_BANKROLL_MAX)
-        ),
-        "micro_residual_pending_max": float(soft.get("micro_residual_pending_max", DEFAULT_MICRO_RESIDUAL_PENDING_MAX)),
-        "micro_residual_pending_pct": float(soft.get("micro_residual_pending_pct", DEFAULT_MICRO_RESIDUAL_PENDING_PCT)),
-        "micro_residual_zscore_floor": float(
-            soft.get("micro_residual_zscore_floor", DEFAULT_MICRO_RESIDUAL_ZSCORE_FLOOR)
-        ),
-        "gbdt_waiver_skip_cycles": int(soft.get("gbdt_waiver_skip_cycles", DEFAULT_GBDT_WAIVER_SKIP_CYCLES)),
-        "micro_residual_gbdt_waiver_skips": int(
-            soft.get("micro_residual_gbdt_waiver_skips", DEFAULT_MICRO_RESIDUAL_GBDT_WAIVER_SKIPS)
-        ),
-        "fixed_step_linear_min": int(soft.get("fixed_step_linear_min", FIXED_STEP_LINEAR_MIN)),
-        "fixed_step_linear_max": int(soft.get("fixed_step_linear_max", FIXED_STEP_LINEAR_MAX)),
-        "fixed_step_unit_premium": float(soft.get("fixed_step_unit_premium", FIXED_STEP_UNIT_PREMIUM)),
-        "small_account_hard_floor_threshold": float(
-            soft.get("small_account_hard_floor_threshold", SMALL_ACCOUNT_HARD_FLOOR_THRESHOLD)
-        ),
-        "small_account_hard_floor_pct": float(soft.get("small_account_hard_floor_pct", SMALL_ACCOUNT_HARD_FLOOR_PCT)),
-        "dust_pending_clear_max": float(soft.get("dust_pending_clear_max", DEFAULT_DUST_PENDING_CLEAR_MAX)),
-        "near_stop_win_freeze_pct": float(soft.get("near_stop_win_freeze_pct", DEFAULT_NEAR_STOP_WIN_FREEZE_PCT)),
-        "material_pending_min": float(soft.get("material_pending_min", DEFAULT_MATERIAL_PENDING_MIN)),
-    }
+from src.domain.risk.soft_recovery_config import (
+    load_soft_recovery_from_settings,
+    require_soft_recovery,
+    reset_soft_recovery_config_cache,
+    resolve_soft_recovery_config,
+    soft_cfg,
+)
 
 
 def soft_recovery_enabled(
@@ -70,23 +18,25 @@ def soft_recovery_enabled(
     *,
     soft_recovery: dict[str, Any] | None = None,
 ) -> bool:
-    """Indica se o Soft Recovery Adaptativo esta ativo (novo bloco ou legado dlambert)."""
+    """Indica se soft recovery esta habilitado no engine ou no SSOT."""
     if isinstance(soft_recovery, dict) and ("enabled" in soft_recovery or soft_recovery):
         if "enabled" in soft_recovery:
-            return bool(soft_recovery.get("enabled"))
+            return bool(soft_recovery["enabled"])
         return True
     cfg = engine_config if isinstance(engine_config, dict) else {}
     nested = cfg.get("soft_recovery")
     if isinstance(nested, dict) and ("enabled" in nested or nested):
-        return bool(nested.get("enabled", True))
-    return bool(cfg.get("dlambert_enabled", True))
+        return bool(nested["enabled"]) if "enabled" in nested else True
+    if "dlambert_enabled" in cfg:
+        return bool(cfg["dlambert_enabled"])
+    return bool(load_soft_recovery_from_settings()["enabled"])
 
 
 def resolve_amort_cycles(consecutive_losses: int, soft_recovery: dict[str, Any] | None = None) -> int:
-    """Fraciona cover de pending em amort_cycles dentro de [min, max]."""
-    cfg = soft_recovery if isinstance(soft_recovery, dict) else {}
-    amin = max(1, int(cfg.get("amort_cycles_min", DEFAULT_AMORT_CYCLES_MIN)))
-    amax = max(amin, int(cfg.get("amort_cycles_max", DEFAULT_AMORT_CYCLES_MAX)))
+    """Calcula ciclos de amortizacao entre amin e amax conforme perdas."""
+    cfg = soft_cfg(soft_recovery)
+    amin = max(1, int(cfg["amort_cycles_min"]))
+    amax = max(amin, int(cfg["amort_cycles_max"]))
     span = amax - amin
     losses = max(0, int(consecutive_losses))
     cycles = amax - min(losses, span)
@@ -99,9 +49,9 @@ def is_recovery_infeasible(
     payout: float,
     soft_recovery: dict[str, Any] | None = None,
 ) -> bool:
-    """True quando pending nao cabe no horizonte amort_cycles_max sob o cap."""
-    cfg = soft_recovery if isinstance(soft_recovery, dict) else {}
-    amax = max(1, int(cfg.get("amort_cycles_max", DEFAULT_AMORT_CYCLES_MAX)))
+    """True quando a divida pendente nao cabe no horizonte maximo de amortizacao."""
+    cfg = soft_cfg(soft_recovery)
+    amax = max(1, int(cfg["amort_cycles_max"]))
     cap = float(max_safe_cap)
     pay = float(payout)
     pending = float(pending_total)
@@ -113,17 +63,28 @@ def is_recovery_infeasible(
 
 
 def configured_max_safe_stake_cap(soft_recovery: dict[str, Any] | None) -> float | None:
-    """Retorna teto absoluto configurado de soft recovery, se presente."""
+    """Retorna teto absoluto de stake seguro quando configurado e positivo."""
     if not isinstance(soft_recovery, dict):
         return None
-    raw = soft_recovery.get("max_safe_stake_cap")
-    if raw is None:
+    if "max_safe_stake_cap" not in soft_recovery:
         return None
     try:
-        value = float(raw)
+        value = float(soft_recovery["max_safe_stake_cap"])
     except (TypeError, ValueError):
         return None
     return value if value > 0.0 else None
+
+
+def configured_max_safe_stake_pct(soft_recovery: dict[str, Any] | None) -> float:
+    """Retorna fracao maxima de bankroll para stake seguro."""
+    cfg = soft_cfg(soft_recovery)
+    try:
+        value = float(cfg["max_safe_stake_pct"])
+    except (TypeError, ValueError):
+        value = float(load_soft_recovery_from_settings()["max_safe_stake_pct"])
+    if value <= 0.0:
+        return float(load_soft_recovery_from_settings()["max_safe_stake_pct"])
+    return min(value, 1.0)
 
 
 def fixed_step_progression_multiplier(
@@ -131,11 +92,11 @@ def fixed_step_progression_multiplier(
     *,
     soft_recovery: dict[str, Any] | None = None,
 ) -> float | None:
-    """Retorna multiplicador U+15% nos niveis lineares 3 e 4; None fora da faixa."""
-    cfg = _soft_cfg(soft_recovery)
-    lo = int(cfg.get("fixed_step_linear_min", FIXED_STEP_LINEAR_MIN))
-    hi = int(cfg.get("fixed_step_linear_max", FIXED_STEP_LINEAR_MAX))
-    premium = float(cfg.get("fixed_step_unit_premium", FIXED_STEP_UNIT_PREMIUM))
+    """Multiplicador de progressao em janela linear de perdas consecutivas."""
+    cfg = soft_cfg(soft_recovery)
+    lo = int(cfg["fixed_step_linear_min"])
+    hi = int(cfg["fixed_step_linear_max"])
+    premium = float(cfg["fixed_step_unit_premium"])
     losses = max(0, int(consecutive_losses))
     if lo <= losses <= hi:
         return 1.0 + premium
@@ -148,19 +109,14 @@ def apply_small_account_hard_floor(
     *,
     soft_recovery: dict[str, Any] | None = None,
 ) -> float:
-    """Em bancas abaixo de $100, limita stake de recovery a 5% do saldo."""
-    cfg = _soft_cfg(soft_recovery)
-    threshold = float(cfg.get("small_account_hard_floor_threshold", SMALL_ACCOUNT_HARD_FLOOR_THRESHOLD))
-    pct = float(cfg.get("small_account_hard_floor_pct", SMALL_ACCOUNT_HARD_FLOOR_PCT))
+    """Aplica piso duro de stake em contas abaixo do limiar configurado."""
+    cfg = soft_cfg(soft_recovery)
+    threshold = float(cfg["small_account_hard_floor_threshold"])
+    pct = float(cfg["small_account_hard_floor_pct"])
     bal = max(0.0, float(bankroll))
     if bal <= 0.0 or bal >= threshold:
         return float(cap)
     return min(float(cap), bal * pct)
-
-
-def _soft_cfg(soft_recovery: dict[str, Any] | None) -> dict[str, Any]:
-    """Normaliza o bloco soft_recovery para dicionario seguro."""
-    return soft_recovery if isinstance(soft_recovery, dict) else {}
 
 
 def is_micro_residual_liability(
@@ -169,15 +125,15 @@ def is_micro_residual_liability(
     *,
     soft_recovery: dict[str, Any] | None = None,
 ) -> bool:
-    """True quando o passivo residual e de baixa intensidade em micro-banca."""
+    """True quando a divida pendente e residual relativa ao bankroll micro."""
     bal = float(bankroll)
     pending = float(pending_total)
     if bal <= 0.0 or pending <= 0.0:
         return False
-    cfg = _soft_cfg(soft_recovery)
-    bankroll_max = float(cfg.get("micro_residual_bankroll_max", DEFAULT_MICRO_RESIDUAL_BANKROLL_MAX))
-    pending_max = float(cfg.get("micro_residual_pending_max", DEFAULT_MICRO_RESIDUAL_PENDING_MAX))
-    pending_pct = float(cfg.get("micro_residual_pending_pct", DEFAULT_MICRO_RESIDUAL_PENDING_PCT))
+    cfg = soft_cfg(soft_recovery)
+    bankroll_max = float(cfg["micro_residual_bankroll_max"])
+    pending_max = float(cfg["micro_residual_pending_max"])
+    pending_pct = float(cfg["micro_residual_pending_pct"])
     if bal > bankroll_max:
         return False
     if pending > pending_max:
@@ -191,7 +147,7 @@ def is_low_intensity_recovery(
     *,
     soft_recovery: dict[str, Any] | None = None,
 ) -> bool:
-    """Alias semantico de risco de Baixa Intensidade sob Micro Passivo Residual."""
+    """Alias semantico de residual micro para intensity baixa de recovery."""
     return is_micro_residual_liability(bankroll, pending_total, soft_recovery=soft_recovery)
 
 
@@ -201,11 +157,11 @@ def resolve_negative_zscore_veto_floor(
     *,
     soft_recovery: dict[str, Any] | None = None,
 ) -> float:
-    """Piso de Z-Score do veto GBDT; relaxa ate -0.60 sob Micro Passivo Residual."""
-    cfg = _soft_cfg(soft_recovery)
+    """Piso de veto por z-score negativo, relaxado em residual micro."""
+    cfg = soft_cfg(soft_recovery)
     if is_micro_residual_liability(bankroll, pending_total, soft_recovery=cfg):
-        return float(cfg.get("micro_residual_zscore_floor", DEFAULT_MICRO_RESIDUAL_ZSCORE_FLOOR))
-    return DEFAULT_NEGATIVE_ZSCORE_VETO
+        return float(cfg["micro_residual_zscore_floor"])
+    return float(cfg["negative_zscore_veto"])
 
 
 def resolve_gbdt_waiver_skip_threshold(
@@ -214,11 +170,11 @@ def resolve_gbdt_waiver_skip_threshold(
     *,
     soft_recovery: dict[str, Any] | None = None,
 ) -> int:
-    """Ciclos de inanicao para waiver do GBDT; antecipa sob Micro Passivo Residual."""
-    cfg = _soft_cfg(soft_recovery)
+    """Limiar de skips GBDT waiver conforme intensidade da divida."""
+    cfg = soft_cfg(soft_recovery)
     if is_micro_residual_liability(bankroll, pending_total, soft_recovery=cfg):
-        return max(1, int(cfg.get("micro_residual_gbdt_waiver_skips", DEFAULT_MICRO_RESIDUAL_GBDT_WAIVER_SKIPS)))
-    return max(1, int(cfg.get("gbdt_waiver_skip_cycles", DEFAULT_GBDT_WAIVER_SKIP_CYCLES)))
+        return max(1, int(cfg["micro_residual_gbdt_waiver_skips"]))
+    return max(1, int(cfg["gbdt_waiver_skip_cycles"]))
 
 
 def cointegration_valve_suppressed(
@@ -227,12 +183,12 @@ def cointegration_valve_suppressed(
     *,
     soft_recovery: dict[str, Any] | None = None,
 ) -> bool:
-    """Sob Baixa Intensidade a valvula de cointegracao permanece fechada."""
+    """Suprime valvula de cointegracao em recovery de baixa intensidade."""
     return is_low_intensity_recovery(bankroll, pending_total, soft_recovery=soft_recovery)
 
 
 def risk_session_bankroll_pending(risk_manager: Any | None) -> tuple[float, float, dict[str, Any] | None]:
-    """Extrai banca, pending e soft_recovery de um RiskManager opcional."""
+    """Extrai bankroll, pending e soft_recovery do risk manager da sessao."""
     if risk_manager is None:
         return 0.0, 0.0, None
     bankroll = float(getattr(risk_manager, "initial_bankroll", 0.0) or 0.0)
@@ -247,16 +203,39 @@ def risk_session_bankroll_pending(risk_manager: Any | None) -> tuple[float, floa
 
 
 def negative_zscore_veto_floor_for_risk(risk_manager: Any | None) -> float:
-    """Resolve piso de veto Z-Score a partir do estado vivo de risco."""
+    """Piso de veto z-score a partir do estado do risk manager."""
     bankroll, pending, soft = risk_session_bankroll_pending(risk_manager)
     if bankroll <= 0.0:
-        return DEFAULT_NEGATIVE_ZSCORE_VETO
+        return float(load_soft_recovery_from_settings()["negative_zscore_veto"])
     return resolve_negative_zscore_veto_floor(bankroll, pending, soft_recovery=soft)
 
 
 def gbdt_waiver_skip_threshold_for_risk(risk_manager: Any | None) -> int:
-    """Resolve limiar de skips do waiver GBDT a partir do estado vivo de risco."""
+    """Limiar GBDT waiver a partir do estado do risk manager."""
     bankroll, pending, soft = risk_session_bankroll_pending(risk_manager)
     if bankroll <= 0.0:
-        return DEFAULT_GBDT_WAIVER_SKIP_CYCLES
+        return int(load_soft_recovery_from_settings()["gbdt_waiver_skip_cycles"])
     return resolve_gbdt_waiver_skip_threshold(bankroll, pending, soft_recovery=soft)
+
+
+__all__ = (
+    "apply_small_account_hard_floor",
+    "cointegration_valve_suppressed",
+    "configured_max_safe_stake_cap",
+    "configured_max_safe_stake_pct",
+    "fixed_step_progression_multiplier",
+    "gbdt_waiver_skip_threshold_for_risk",
+    "is_low_intensity_recovery",
+    "is_micro_residual_liability",
+    "is_recovery_infeasible",
+    "load_soft_recovery_from_settings",
+    "negative_zscore_veto_floor_for_risk",
+    "require_soft_recovery",
+    "reset_soft_recovery_config_cache",
+    "resolve_amort_cycles",
+    "resolve_gbdt_waiver_skip_threshold",
+    "resolve_negative_zscore_veto_floor",
+    "resolve_soft_recovery_config",
+    "risk_session_bankroll_pending",
+    "soft_recovery_enabled",
+)

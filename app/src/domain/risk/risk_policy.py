@@ -37,7 +37,7 @@ def load_risk_policy(config: dict[str, Any] | None) -> RiskPolicy:
     triton = infra.get("triton", {}) if isinstance(infra.get("triton"), dict) else {}
     require_triton = bool(triton.get("require_for_execution", exec_cfg.get("require_triton_for_execution", False)))
     return RiskPolicy(
-        mandatory_trade_each_cycle=bool(exec_cfg.get("mandatory_trade_each_cycle", True)),
+        mandatory_trade_each_cycle=bool(exec_cfg.get("mandatory_trade_each_cycle", False)),
         require_meta_for_execution=bool(exec_cfg.get("require_meta_for_execution", True)),
         require_triton_for_execution=require_triton,
         max_stake_pct=float(kelly.get("max_stake_pct", 0.035)),

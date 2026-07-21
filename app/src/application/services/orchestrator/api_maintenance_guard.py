@@ -7,10 +7,15 @@ import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from src.application.services.infra_timing_config import resolve_orchestrator_timing_config
 from src.application.services.regime_micro_freeze import SIGNAL_SUSPENDED
 
 
-_API_MAINTENANCE_FALLBACK_SECONDS = 65.0
+def _maintenance_fallback() -> float:
+    """Le fallback de hibernacao de manutencao em settings."""
+    return float(resolve_orchestrator_timing_config()["api_maintenance_fallback_seconds"])
+
+
 _API_MAINTENANCE_SIGNATURES = (
     "trading is not available",
     "market is closed",
@@ -56,11 +61,11 @@ def api_maintenance_delay_seconds(
     message = str(error)
     match = _MAINTENANCE_WINDOW_RE.search(message)
     if match is None:
-        return _API_MAINTENANCE_FALLBACK_SECONDS
+        return _maintenance_fallback()
     start_clock = _parse_clock(match.group(1))
     end_clock = _parse_clock(match.group(2))
     if start_clock is None or end_clock is None:
-        return _API_MAINTENANCE_FALLBACK_SECONDS
+        return _maintenance_fallback()
     current = now if now is not None else datetime.now(UTC)
     start_hour, start_minute, start_second = start_clock
     end_hour, end_minute, end_second = end_clock
@@ -79,10 +84,10 @@ def api_maintenance_delay_seconds(
     if end_at <= start_at:
         end_at += timedelta(days=1)
     if current > end_at:
-        return _API_MAINTENANCE_FALLBACK_SECONDS
+        return _maintenance_fallback()
     delay = (end_at - current).total_seconds()
     if delay <= 0.0:
-        return _API_MAINTENANCE_FALLBACK_SECONDS
+        return _maintenance_fallback()
     return float(delay)
 
 

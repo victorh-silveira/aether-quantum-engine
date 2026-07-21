@@ -3,7 +3,7 @@ from src.application.services.deep_learning.dl_params import parse_indicator_gat
 
 def test_parse_indicator_gating_config_defaults_when_missing():
     cfg = parse_indicator_gating_config({})
-    assert cfg["enabled"] is False
+    assert cfg["enabled"] is True
     assert cfg["hurst_min"] == 0.0
 
 

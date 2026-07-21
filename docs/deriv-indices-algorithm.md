@@ -53,13 +53,12 @@ Desvios extremos em microestrutura de **120 s** (RSI, Keltner, Bollinger, shadow
 - **Telemetria consultiva**: `execution_direction_cross_corr` e `execution_volatility_booster` permanecem como insumo analítico, sem veto autônomo.
 - **Persistence guard**: após 2 perdas consecutivas na mesma direção, o resolver **skips** o candidato (`persistence_guard_skip`); flip CALL/PUT **não** é aplicado em produção; congestão micro pode `FREEZE`.
 
-### 2.3 Gestão de Risco — híbrido Kelly + Martingale
+### 2.3 Gestão de Risco — Kelly + Soft Recovery
 
 - **EXPLORE (Kelly)**: stake proporcional a edge e win rate live (`kelly.fraction: 0.08`, teto **3,5%**, compressão 40% fora de recovery) — tag `EXPLORE_KELLY`.
-- **RECOVER (Martingale)**: após LOSS, `stake = last_loss_stake × 2` (a base é a stake Kelly que perdeu); teto = banca — tag `MARTINGALE_Ln`.
+- **RECOVER (Soft Recovery)**: após LOSS, amortiza `pending` em 2–5 ciclos sob `max_safe_stake_pct` (3,5%); sem dobra 2× — tag `RECOVER_DAL_Ln`.
 - **Side equilibrium (LLN)**: small-N hard skip / large-N soft Kelly em `side_equilibrium`; com amostra insuficiente → `pass`.
 - **Consensus Entropy Penalty**: disponível no código; nos settings atuais `consensus_penalty_enabled: false`.
-- **Soft recovery (D'Alembert)**: legado quando `martingale.enabled=false`.
 - **Stop win por sessão ativa**: meta de lucro = 2,60% da banca inicial (≥ $100) ou **$10** fixo (&lt; $100); ao atingir, fast-path (`clear_current_session_redis_keys` → `cancel_settlement_queue_fast` → `graceful_shutdown(fast_path=True)`); cada restart inicia sessão independente.
 - **Stop loss interno desativado**: recovery opera sem disjuntor de perda imposto pelo motor.
 - **Gate de qualidade**: dual soft TCN + meta Z-Score + vetoes HARD de microestrutura; logs `[AETHER] QUALITY_GUARD` e `[AETHER] EXECUTION_FLOW`; starvation a partir de **6** skips.
@@ -85,7 +84,7 @@ Desvios extremos em microestrutura de **120 s** (RSI, Keltner, Bollinger, shadow
 | Gate de qualidade | Dual soft TCN + meta Z-Score + HARD microestrutura; starvation ≥ 6 skips |
 | Ranking | TCN × fator Z-Score meta; redirect inter-símbolo em modo mandatory |
 | Scoring direcional | TCN + meta GBDT; `exec_direction` alinhada à TCN |
-| Recovery | Martingale 2× sobre `last_loss_stake` (Kelly); persistência até `pending_total = 0` |
+| Recovery | Soft Recovery amortizado (`pending` em 2–5 ciclos, teto 3,5%); persistência até `pending_total = 0` |
 | Kelly divergente | Consensus Entropy Penalty disponível; **desligado** nos settings atuais |
 | Side equilibrium | Small-N / large-N CALL/PUT (`side_equilibrium`) |
 

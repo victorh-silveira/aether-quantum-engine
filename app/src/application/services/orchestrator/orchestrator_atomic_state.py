@@ -10,9 +10,15 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
+from src.application.services.infra_timing_config import resolve_orchestrator_timing_config
+
 
 logger = logging.getLogger("AETH")
-_STATE_LOCK_ACQUIRE_TIMEOUT_SECONDS = 8.0
+
+
+def _state_lock_timeout() -> float:
+    """Le timeout de aquisicao do state lock em settings."""
+    return float(resolve_orchestrator_timing_config()["state_lock_acquire_timeout_seconds"])
 
 
 def _caller_function_name() -> str:
@@ -38,14 +44,14 @@ async def orchestrator_atomic_state_context(orch: Any) -> AsyncIterator[None]:
         caller = inspect.stack()[1].function
         logger.debug(f"[LOCK_TRACE] Tentando adquirir _state_lock invocado por: {caller}")
         try:
-            await asyncio.wait_for(lock.acquire(), timeout=_STATE_LOCK_ACQUIRE_TIMEOUT_SECONDS)
+            await asyncio.wait_for(lock.acquire(), timeout=_state_lock_timeout())
         except TimeoutError as exc:
             holder = "ocupado" if lock.locked() else "indefinido"
             origin = _caller_function_name()
             stack = "".join(traceback.format_stack())
             raise RuntimeError(
                 f"[AETHER] STATE_LOCK_TIMEOUT: deadlock em _state_lock "
-                f"(caller={origin}, retentor={holder}, timeout={_STATE_LOCK_ACQUIRE_TIMEOUT_SECONDS:.1f}s)\n"
+                f"(caller={origin}, retentor={holder}, timeout={_state_lock_timeout():.1f}s)\n"
                 f"{stack}"
             ) from exc
         try:

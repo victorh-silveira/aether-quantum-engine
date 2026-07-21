@@ -1,14 +1,52 @@
 """Calibracao de probabilidades do classificador Deep Learning."""
 
+import json
 import math
 from dataclasses import dataclass, field
 
+from aether_paths import repo_path
 from src.application.services.deep_learning.dl_calibration_isotonic import apply_isotonic
 
 
-_VAL_ACC_TRUST_FLOOR = 0.50
-_TEMPERATURE_MIN = 0.75
-_TEMPERATURE_MAX = 2.5
+def _calib_bounds() -> dict[str, float]:
+    """Le bounds de calibracao de settings."""
+    path = repo_path("config", "settings.json")
+    with path.open(encoding="utf-8") as handle:
+        full = json.load(handle)
+    raw = (full.get("deep_learning") or {}).get("calibration") or {}
+    for key in (
+        "val_acc_trust_floor",
+        "temperature_min",
+        "temperature_max",
+        "temperature_default",
+        "platt_a_default",
+        "platt_b_default",
+        "trust_blend_floor",
+        "trust_blend_span",
+    ):
+        if key not in raw:
+            raise ValueError(f"deep_learning.calibration.{key} obrigatorio")
+    return {
+        k: float(raw[k])
+        for k in (
+            "val_acc_trust_floor",
+            "temperature_min",
+            "temperature_max",
+            "temperature_default",
+            "platt_a_default",
+            "platt_b_default",
+            "trust_blend_floor",
+            "trust_blend_span",
+        )
+    }
+
+
+def temperature_bounds() -> tuple[float, float]:
+    """Retorna (temperature_min, temperature_max) de settings."""
+    bounds = _calib_bounds()
+    return float(bounds["temperature_min"]), float(bounds["temperature_max"])
+
+
 _METHOD_TEMPERATURE_PLATT = "temperature_platt"
 _METHOD_PLATT = "platt"
 _METHOD_ISOTONIC = "isotonic"
@@ -43,7 +81,7 @@ def logit_to_prob(logit: float) -> float:
 
 def apply_temperature(prob: float, temperature: float) -> float:
     """Suaviza extremos dividindo o logit pela temperatura."""
-    temp = max(float(temperature), _TEMPERATURE_MIN)
+    temp = max(float(temperature), _calib_bounds()["temperature_min"])
     return logit_to_prob(raw_to_logit(prob) / temp)
 
 
@@ -51,11 +89,11 @@ def shrink_toward_fifty(prob: float, val_accuracy: float) -> float:
     """Encolhe conviccao apenas quando val_acc ficar abaixo do piso operacional."""
     val = float(val_accuracy)
     if val <= 0.0:
-        val = _VAL_ACC_TRUST_FLOOR
-    if val >= _VAL_ACC_TRUST_FLOOR:
+        val = _calib_bounds()["val_acc_trust_floor"]
+    if val >= _calib_bounds()["val_acc_trust_floor"]:
         return float(prob)
-    gap = _VAL_ACC_TRUST_FLOOR - val
-    trust = max(0.72, 1.0 - gap / 0.20)
+    gap = _calib_bounds()["val_acc_trust_floor"] - val
+    trust = max(float(_calib_bounds()["trust_blend_floor"]), 1.0 - gap / float(_calib_bounds()["trust_blend_span"]))
     return 0.5 + (float(prob) - 0.5) * trust
 
 
@@ -72,7 +110,9 @@ def apply_calibrator(prob: float, calibrator: CalibratorState) -> float:
         return apply_isotonic(prob, calibrator.isotonic_x, calibrator.isotonic_y)
     if method == _METHOD_PLATT:
         return apply_platt(prob, calibrator)
-    temp = min(max(float(calibrator.temperature), _TEMPERATURE_MIN), _TEMPERATURE_MAX)
+    temp = min(
+        max(float(calibrator.temperature), _calib_bounds()["temperature_min"]), _calib_bounds()["temperature_max"]
+    )
     tempered = apply_temperature(prob, temp)
     return apply_platt(tempered, calibrator)
 
@@ -153,9 +193,9 @@ def calibrator_from_dict(data: dict | None) -> CalibratorState:
     iso_y = data.get("isotonic_y") or ()
     return CalibratorState(
         method=str(data.get("method", _METHOD_TEMPERATURE_PLATT)),
-        temperature=float(data.get("temperature", 1.0)),
-        platt_a=float(data.get("platt_a", 1.0)),
-        platt_b=float(data.get("platt_b", 0.0)),
+        temperature=float(data.get("temperature", _calib_bounds()["temperature_default"])),
+        platt_a=float(data.get("platt_a", _calib_bounds()["platt_a_default"])),
+        platt_b=float(data.get("platt_b", _calib_bounds()["platt_b_default"])),
         isotonic_x=tuple(float(v) for v in iso_x),
         isotonic_y=tuple(float(v) for v in iso_y),
     )

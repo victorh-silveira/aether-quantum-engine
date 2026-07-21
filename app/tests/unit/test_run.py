@@ -129,6 +129,25 @@ def test_load_engine_config_reads_settings():
     assert logger is not None
 
 
+def test_load_engine_config_logs_risk_validation_issues():
+    payload = json.dumps(_MIN_CONFIG)
+    logger = MagicMock()
+    with (
+        patch("src.application.services.orchestrator.engine_session.os.chdir"),
+        patch(
+            "src.application.services.orchestrator.engine_session.repo_path",
+            return_value=MagicMock(open=mock_open(read_data=payload)),
+        ),
+        patch("src.application.services.orchestrator.engine_session.setup_logger", return_value=logger),
+        patch(
+            "src.application.services.orchestrator.engine_session.validate_engine_risk_config",
+            return_value=["kelly.max_stake_pct fora de (0, 0.10]: 0.5"],
+        ),
+    ):
+        load_engine_config()
+    logger.warning.assert_called_once_with("CFG_RISK || %s", "kelly.max_stake_pct fora de (0, 0.10]: 0.5")
+
+
 def test_create_authenticated_auth_returns_none_without_pat():
     auth = MagicMock()
     auth.get_pat.return_value = ""

@@ -54,7 +54,11 @@ def test_get_symbol_runtime_keeps_session_untrained_without_deploy_ok():
 def test_get_symbol_runtime_reuses_checkpoint_when_online_training_disabled():
     orch = MagicMock()
     orch._dl_runtime = {}
-    dl_config = {"model_path_template": "data/dl/{symbol}.pth", "online_training": False}
+    dl_config = {
+        "model_path_template": "data/dl/{symbol}.pth",
+        "online_training": False,
+        "deploy_gate": {"force_ok": False},
+    }
     params = {"lookback": 48, "arch": "tcn"}
     with patch(
         "src.application.services.deep_learning.dl_symbol_runtime.load_model_checkpoint",

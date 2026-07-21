@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.application.services.execution_quality_gate_config import resolve_quality_gate_config
 from src.application.services.execution_quality_gate_drawdown import (
     apply_dynamic_recovery_relaxation,
     resolve_session_stake_unit,
@@ -19,14 +20,9 @@ from src.application.services.execution_quality_gate_starvation import (
     apply_starvation_margin_decay,
     starvation_decay_factor,
 )
+from src.application.services.execution_runtime_config import resolve_quality_gate_from_exec
 from src.application.services.force_trade_mode import force_trade_every_cycle
 
-
-MANDATORY_MIN_TRADE_SCORE_DEFAULT = 0.72
-MIN_DIRECTION_MARGIN_DEFAULT = 0.03
-MIN_PAYOFF_EDGE_DEFAULT = 0.04
-REGULAR_MIN_DIRECTION_MARGIN_DEFAULT = 0.03
-REGULAR_MIN_PAYOFF_EDGE_DEFAULT = 0.01
 
 __all__ = [
     "apply_quality_penalty_to_metrics",
@@ -45,35 +41,33 @@ __all__ = [
 
 
 def quality_gate_params(exec_cfg: dict) -> dict[str, float]:
-    """Le limites de recovery configurados em orchestrator.execution.quality_gate."""
-    chunk = exec_cfg.get("quality_gate") if isinstance(exec_cfg, dict) else {}
-    if not isinstance(chunk, dict):
-        chunk = {}
+    """Resolve ou aplica quality gate params."""
+    qg = (
+        resolve_quality_gate_config(exec_cfg)
+        if isinstance(exec_cfg, dict) and isinstance(exec_cfg.get("quality_gate"), dict)
+        else resolve_quality_gate_from_exec(exec_cfg if isinstance(exec_cfg, dict) else None)
+    )
     return {
-        "min_direction_margin": float(chunk.get("min_direction_margin", MIN_DIRECTION_MARGIN_DEFAULT)),
-        "min_payoff_edge": float(chunk.get("min_payoff_edge", MIN_PAYOFF_EDGE_DEFAULT)),
-        "inverted_min_score": float(chunk.get("inverted_min_score", 0.0)),
-        "min_adx_normal": float(
-            chunk.get(
-                "min_adx_threshold",
-                chunk.get("min_adx_normal", 0.0),
-            )
-        ),
-        "min_meta_payoff_zscore": float(chunk.get("min_meta_payoff_zscore", 0.5)),
+        "min_direction_margin": float(qg["min_direction_margin"]),
+        "min_payoff_edge": float(qg["min_payoff_edge"]),
+        "inverted_min_score": float(qg["inverted_min_score"]),
+        "min_adx_normal": float(qg["min_adx_threshold"]),
+        "min_meta_payoff_zscore": float(qg["min_meta_payoff_zscore"]),
+        "mandatory_min_trade_score": float(qg["mandatory_min_trade_score"]),
     }
 
 
 def _regular_quality_params(exec_cfg: dict) -> dict[str, float]:
-    """Le limites elasticos do regime regular em orchestrator.execution.quality_gate."""
-    chunk = exec_cfg.get("quality_gate") if isinstance(exec_cfg, dict) else {}
-    regular = chunk.get("regular") if isinstance(chunk, dict) else {}
-    if not isinstance(regular, dict):
-        regular = {}
+    """Resolve ou aplica  regular quality params."""
+    qg = (
+        resolve_quality_gate_config(exec_cfg)
+        if isinstance(exec_cfg, dict) and isinstance(exec_cfg.get("quality_gate"), dict)
+        else resolve_quality_gate_from_exec(exec_cfg if isinstance(exec_cfg, dict) else None)
+    )
+    regular = qg["regular"]
     return {
-        "min_direction_margin": float(
-            regular.get("min_direction_margin", REGULAR_MIN_DIRECTION_MARGIN_DEFAULT),
-        ),
-        "min_payoff_edge": float(regular.get("min_payoff_edge", REGULAR_MIN_PAYOFF_EDGE_DEFAULT)),
+        "min_direction_margin": float(regular["min_direction_margin"]),
+        "min_payoff_edge": float(regular["min_payoff_edge"]),
     }
 
 

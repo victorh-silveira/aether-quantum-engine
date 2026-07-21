@@ -19,8 +19,8 @@ async def test_open_broker_handshake_timeout_raises_runtime_error(orch_config):
     orch.auth.open_trading_session = _hang
     with (
         patch(
-            "src.application.services.orchestrator.ws_bootstrap.BROKER_HANDSHAKE_TIMEOUT_SECONDS",
-            0.05,
+            "src.application.services.orchestrator.ws_bootstrap.resolve_orchestrator_timing_config",
+            return_value={"broker_handshake_timeout_seconds": 0.05, "ws_connect": {}},
         ),
         pytest.raises(RuntimeError, match="HANDSHAKE_TIMEOUT"),
     ):

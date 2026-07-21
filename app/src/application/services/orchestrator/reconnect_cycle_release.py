@@ -6,11 +6,8 @@ import asyncio
 from typing import Any
 
 from src.application.services.execution_quality_gate import read_risk_session_state
+from src.application.services.infra_timing_config import resolve_orchestrator_timing_config
 from src.application.services.orchestrator.warm_up_buffer_guard import resolve_stream_warm_up_delay_seconds
-
-
-_RECOVERY_WARM_UP_DELAY_SECONDS = 5.0
-_RECOVERY_PENDING_WARM_UP_MAX_SECONDS = 12.0
 
 
 def _pending_loss_total(risk_manager: Any | None) -> float:
@@ -23,7 +20,10 @@ def resolve_post_reconnect_warm_up_delay_seconds(orch: Any) -> float:
     """Reduz aquecimento micro quando ha passivo pendente para nao travar recovery."""
     pending = _pending_loss_total(getattr(orch, "risk_manager", None))
     if pending > 0.0:
-        return min(_RECOVERY_PENDING_WARM_UP_MAX_SECONDS, _RECOVERY_WARM_UP_DELAY_SECONDS)
+        timing = resolve_orchestrator_timing_config()
+        return min(
+            float(timing["recovery_pending_warm_up_max_seconds"]), float(timing["recovery_warm_up_delay_seconds"])
+        )
     return resolve_stream_warm_up_delay_seconds(getattr(orch, "config", {}) or {})
 
 

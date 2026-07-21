@@ -10,10 +10,9 @@ from src.domain.risk.consensus_stake_penalty import (
 )
 from src.domain.risk.dlambert_sizing import (
     dlambert_log_suffix,
-    effective_martingale_base,
+    effective_soft_recovery_base,
     resolve_dlambert_stake,
 )
-from src.domain.risk.martingale_sizing import calculate_martingale_stake_for_manager, martingale_enabled
 from src.domain.risk.risk_recovery_state import clear_dust_pending_loss
 from src.domain.risk.risk_stake_calc_helpers import cap_final_stake, resolve_f_star_and_kelly_base
 from src.domain.risk.risk_stake_flow import (
@@ -115,15 +114,13 @@ def calculate_stake_for_manager(
     apply_stop_win: bool,
     kwargs: dict,
 ) -> float:
-    """Calcula stake hibrida: Kelly em EXPLORE; Martingale em RECOVER quando habilitado."""
+    """Calcula stake: Kelly em EXPLORE; Soft Recovery amortizado em RECOVER."""
     if check_stake_preconditions_veto(symbol, apply_stop_win=apply_stop_win, rm=rm, kwargs=kwargs):
         return 0.0
     clear_dust_pending_loss(rm)
     loss_to_recover = sum(rm.pending_loss.values())
     linear_preview = int(getattr(rm, "consecutive_losses_linear", 0))
     stake_regime = resolve_stake_regime(pending_loss=loss_to_recover, consecutive_losses_linear=linear_preview)
-    if martingale_enabled(rm) and stake_regime == "RECOVER":
-        return calculate_martingale_stake_for_manager(rm, bankroll, symbol, conviction, silent=silent, kwargs=kwargs)
     if bankroll <= 100.0 and getattr(rm, "dlambert_unit", 0.0) <= 0.0:
         rm.dlambert_unit = 1.00
 
@@ -216,7 +213,7 @@ def calculate_stake_for_manager(
         mandatory=mandatory_flag,
     )
     log_kelly_base = (
-        effective_martingale_base(kelly_base, rm, rm.dlambert_config) if mode_tag == "D'ALEMBERT" else kelly_base
+        effective_soft_recovery_base(kelly_base, rm, rm.dlambert_config) if mode_tag == "D'ALEMBERT" else kelly_base
     )
     rec_info = dlambert_log_suffix(
         mode_tag,

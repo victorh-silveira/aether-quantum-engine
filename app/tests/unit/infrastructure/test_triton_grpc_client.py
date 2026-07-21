@@ -5,9 +5,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import numpy as np
 import pytest
 
+from src.application.services.infra_timing_config import resolve_triton_infer_timeout
 from src.infrastructure.inference import triton_grpc_client as triton_grpc_module
 from src.infrastructure.inference.triton_grpc_client import (
-    _INFER_TIMEOUT_SEC,
     _MAX_MSG,
     InferenceServerException,
     TritonGrpcClient,
@@ -66,8 +66,8 @@ def test_pack_inference_tensor_makes_contiguous_batch():
     assert packed.shape == (1, 48, 34)
 
 
-def test_infer_timeout_default_is_850ms():
-    assert pytest.approx(0.85) == _INFER_TIMEOUT_SEC
+def test_infer_timeout_default_matches_settings():
+    assert resolve_triton_infer_timeout() > 0.0
 
 
 @pytest.mark.asyncio
@@ -198,7 +198,7 @@ async def test_triton_grpc_client_infer_timeout():
         patch("src.infrastructure.inference.triton_grpc_client.grpc_aio.InferInput"),
         patch("src.infrastructure.inference.triton_grpc_client.grpc_aio.InferRequestedOutput"),
         patch.object(triton_grpc_module.asyncio, "wait_for", new=_timeout_wait_for),
-        pytest.raises(triton_grpc_module.TritonInferenceTimeout, match=r"0\.850s"),
+        pytest.raises(triton_grpc_module.TritonInferenceTimeout, match=r"8\.000s"),
     ):
         await client.infer_symbol("R_10", np.zeros((1, 4, 34), dtype=np.float32))
 

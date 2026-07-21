@@ -6,6 +6,7 @@ import asyncio
 import time
 from typing import Any
 
+from src.application.services.infra_timing_config import resolve_orchestrator_timing_config
 from src.application.services.orchestrator.settlement_backfill import reconcile_single_contract
 from src.application.services.orchestrator.settlement_logic import (
     process_contract_settlement,
@@ -20,7 +21,6 @@ from src.application.services.orchestrator.settlement_utils import (
 from src.application.services.orchestrator.settlement_ws_queries import fetch_portfolio
 
 
-DEFAULT_SETTLEMENT_TOLERANCE_WINDOW_SECONDS = 180.0
 DEFAULT_SETTLEMENT_BACKOFF_INITIAL_SECONDS = 1.0
 DEFAULT_SETTLEMENT_BACKOFF_MAX_SECONDS = 30.0
 DEFAULT_ORPHAN_CLEANER_TIMEOUT_SECONDS = 30.0
@@ -30,17 +30,16 @@ def resolve_settlement_tolerance_window(
     orch: Any | None = None,
     orch_cfg: dict[str, Any] | None = None,
 ) -> float:
-    """Janela de tolerancia (padrao 180s) com reconciliação passiva via portfolio."""
+    """Janela de tolerancia de settlement lida de settings (SSOT)."""
     cfg = orch_cfg if isinstance(orch_cfg, dict) else {}
     if not cfg and orch is not None:
         raw_cfg = getattr(orch, "config", {})
         chunk = raw_cfg.get("orchestrator") if isinstance(raw_cfg, dict) else {}
         cfg = chunk if isinstance(chunk, dict) else {}
-    exec_cfg = cfg.get("execution") if isinstance(cfg.get("execution"), dict) else {}
-    raw = cfg.get(
-        "settlement_tolerance_window_seconds",
-        exec_cfg.get("settlement_tolerance_window_seconds", DEFAULT_SETTLEMENT_TOLERANCE_WINDOW_SECONDS),
-    )
+    if "settlement_tolerance_window_seconds" in cfg:
+        raw = cfg["settlement_tolerance_window_seconds"]
+    else:
+        raw = resolve_orchestrator_timing_config(cfg if cfg else None)["settlement_tolerance_window_seconds"]
     return max(1.0, float(raw))
 
 

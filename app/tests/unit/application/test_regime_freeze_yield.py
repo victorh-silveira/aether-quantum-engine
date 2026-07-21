@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from src.application.services.infra_timing_config import resolve_orchestrator_timing_config
 from src.application.services.orchestrator.regime_freeze_yield import (
     _entry_freeze_active,
     await_regime_freeze_yield,
@@ -15,7 +16,6 @@ from src.application.services.orchestrator.regime_freeze_yield import (
 )
 from src.application.services.orchestrator.trading_cycle_entry import run_trading_cycle_if_ready
 from src.application.services.orchestrator.warm_up_buffer_guard import (
-    STREAM_WARM_UP_DELAY_SECONDS,
     schedule_stream_warm_up_barrier,
     stream_warm_up_active,
 )
@@ -23,6 +23,9 @@ from src.application.services.regime_micro_freeze import SIGNAL_SUSPENDED
 
 
 TRADING_CYCLE_MODULE = "src.application.services.orchestrator.trading_cycle_entry"
+
+
+STREAM_WARM_UP_DELAY_SECONDS = float(resolve_orchestrator_timing_config()["stream_warm_up_delay_seconds"]) or 45.0
 
 
 def test_decisions_signal_suspended_detects_frozen_entry():
@@ -123,6 +126,7 @@ async def test_post_reconnect_warm_up_suspends_cycles_before_regime_freeze(orch_
     orch = orch_ready
     orch._last_cluster_cycle_end = 0.0
     orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 0
+    orch.config.setdefault("orchestrator", {})["stream_warm_up_delay_seconds"] = 45.0
     loop = asyncio.get_running_loop()
     base = loop.time()
     schedule_stream_warm_up_barrier(orch)

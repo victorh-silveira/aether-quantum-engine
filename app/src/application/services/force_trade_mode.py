@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.application.services.execution_runtime_config import resolve_force_trade_config
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.stake_sizing import enrich_metrics_conviction, metric_float
 
 
 _TECHNICAL_BLOCKS = frozenset({"data", "predict_error", "training"})
-_FORCE_MIN_TRADE_SCORE = 0.51
 
 
 def force_trade_every_cycle(exec_cfg: dict | None) -> bool:
@@ -38,19 +38,22 @@ def force_trade_from_orch(orch: Any | None) -> bool:
 
 
 def resolve_force_min_stake(config: dict | None) -> float:
-    """Resolve stake minima de force-trade a partir de risk_management.params."""
+    """Resolve stake minima de force-trade a partir de settings e params."""
+    force = resolve_force_trade_config()
+    floor = float(force["stake_min_floor"])
+    default = float(force["stake_min_default"])
     if not isinstance(config, dict):
-        return 1.0
+        return default
     risk = config.get("risk_management")
     if not isinstance(risk, dict):
-        return 1.0
+        return default
     params = risk.get("params")
-    if not isinstance(params, dict):
-        return 1.0
+    if not isinstance(params, dict) or "stake_min" not in params:
+        return default
     try:
-        return max(0.35, float(params.get("stake_min", 1.0)))
+        return max(floor, float(params["stake_min"]))
     except (TypeError, ValueError):
-        return 1.0
+        return default
 
 
 def _entry_prob(entry: dict) -> float | None:
@@ -80,7 +83,11 @@ def synthesize_force_direction(entry: dict) -> TradeDirection | None:
     prob = _entry_prob(entry)
     if prob is None:
         return None
-    return TradeDirection.CALL if float(prob) + 1e-12 >= 0.5 else TradeDirection.PUT
+    return (
+        TradeDirection.CALL
+        if float(prob) + 1e-12 >= float(resolve_force_trade_config()["direction_split"])
+        else TradeDirection.PUT
+    )
 
 
 def synthesize_force_trade_candidate(
@@ -113,8 +120,10 @@ def synthesize_force_trade_candidate(
         metrics["resolved_direction"] = direction.name
         metrics["dl_direction"] = direction.name
         score = max(
-            _FORCE_MIN_TRADE_SCORE,
-            metric_float(metrics, "trade_score", "conviction", default=_FORCE_MIN_TRADE_SCORE),
+            float(resolve_force_trade_config()["min_trade_score"]),
+            metric_float(
+                metrics, "trade_score", "conviction", default=float(resolve_force_trade_config()["min_trade_score"])
+            ),
         )
         metrics["trade_score"] = score
         metrics["conviction"] = score

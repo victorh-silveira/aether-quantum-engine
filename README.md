@@ -7,9 +7,9 @@
 [![Pre-commit](https://img.shields.io/badge/Pre--commit-active-FAB040?logo=pre-commit&logoColor=white)](.pre-commit-config.yaml)
 [![CI](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml)
 
-Motor quantitativo assíncrono para a Deriv: decisão por **Deep Learning** (TCN/LSTM/GRU) no índice sintético **`R_10`** (Volatility 10), contratos **RISE_FALL** de **120 s** com contexto macro **600 s** (proporção **1:5**), meta-regressor LightGBM (**43D**) de expectativa de retorno contínuo (single-symbol), e **sizing híbrido Kelly + Martingale** (Kelly em EXPLORE; Martingale 2× em RECOVER a partir de `last_loss_stake`). As chaves de assinatura ainda usam prefixos legados `m5`/`m15` para os relógios configurados de **120 s** / **600 s**.
+Motor quantitativo assíncrono para a Deriv: decisão por **Deep Learning** (TCN/LSTM/GRU) no índice sintético **`R_10`** (Volatility 10), contratos **RISE_FALL** de **120 s** com contexto macro **600 s** (proporção **1:5**), meta-regressor LightGBM (**43D**) de expectativa de retorno contínuo (single-symbol), e **sizing Kelly + Soft Recovery** (Kelly em EXPLORE; Soft Recovery amortizado em RECOVER). As chaves de assinatura ainda usam prefixos legados `m5`/`m15` para os relógios configurados de **120 s** / **600 s**.
 
-A operação divide-se em duas fases: **FASE TREINO** (nenhuma ordem até todos os modelos concluírem o treino da sessão) e **FASE OPERACAO** em **esteira mandatária contínua** (`mandatory_trade_each_cycle: true`): o motor seleciona candidato obrigatório quando o pool DL é tecnicamente válido e aprovado pelo quality gate dual soft (TCN + meta Z-Score) e pelos vetoes HARD de microestrutura. Triton permanece **fail-closed** (`infra.triton.require_for_execution: true`); o meta é **opcional** para execução (`require_meta_for_execution: false`).
+A operação divide-se em duas fases: **FASE TREINO** (nenhuma ordem até todos os modelos concluírem o treino da sessão) e **FASE OPERACAO** seletiva (`mandatory_trade_each_cycle: false`, `force_trade_every_cycle: false`): entrada só em **zona de compra/venda** (BB/Keltner) com confirmação de tendência e TCN; ciclos sem zona clara são skipped. Triton permanece **fail-closed** (`infra.triton.require_for_execution: true`); o meta é **opcional** para execução (`require_meta_for_execution: false`).
 
 Documentação: [arquitetura](docs/arquitetura.md) | [estrutura e módulos](docs/structure.md) | [metodologia quant](docs/medallion.md) | [infra Docker](docs/infra-docker.md) | [Deriv API](docs/deriv-api.md) | [índice docs](docs/README.md)
 
@@ -31,7 +31,7 @@ Layout: `app/` (código e testes), `config/settings.json`, `docs/`, `linters/`. 
 | Quality / starvation | `execution_quality_gate*` | Dual soft TCN+meta; vetoes HARD de microestrutura (`adx_starvation`, `vol_ratio_starvation`, `val_accuracy_gate`); starvation a partir de **6** skips |
 | Ranking | `execution_market_rank` | Score `tcn × max(0.1, 1+z)` |
 | Execução | `ExecutionManager` + lotes fracionados | Proposta atômica; RISE_FALL **120 s** |
-| Risco | `RiskManager` + Kelly / `martingale_sizing` | Híbrido: `EXPLORE_KELLY` (fraction 0.08, teto 3,5%); `MARTINGALE_Ln` em RECOVER (`last_loss_stake × 2`); soft D'Alembert legado se Martingale off |
+| Risco | `RiskManager` + Kelly / Soft Recovery | `EXPLORE_KELLY` (fraction 0.08, teto 3,5%); Soft Recovery amortizado em RECOVER (`max_safe_stake_pct`) |
 | Concorrência | `StateManager` + barreira atômica | Lock serializa inferência, liquidação e persistência |
 | Inferência | `TritonGrpcClient` | Canal persistente; rebind por event loop |
 
@@ -48,10 +48,9 @@ Arquivo: [`config/settings.json`](config/settings.json)
 | `symbols` / `anchor` | Universo (`R_10`; ancora `R_10`) |
 | `data_handler` | `granularity` (macro **600 s**), `micro_granularity` (**120 s**), `history_bars` / `training_history_bars` (**23328**), `fetch_count`, `buffer_limit` |
 | `deep_learning` | `arch`, `lookback` (**72**), `label_mode` (`spot_forward`), calibration (`neutral_half_width: 0.04`), thresholds **0.54/0.46**, `indicator_gating`, `deploy_gate` |
-| `orchestrator.execution` | `mandatory_trade_each_cycle`, `require_meta_for_execution: false`, `quality_gate`, settlement **90 s** |
-| `risk_management.martingale` | Recovery Martingale (`enabled: true`, `multiplier: 2.0`); ativo só em regime RECOVER |
+| `orchestrator.execution` | `mandatory_trade_each_cycle: false`, `force_trade_every_cycle: false`, `price_zone`, `require_meta_for_execution: false`, `quality_gate`, settlement **90 s** |
 | `risk_management.kelly` | Stake EXPLORE (`fraction: 0.08`, tetos 3,5%); compressão 40% fora de recovery |
-| `risk_management.soft_recovery` | Path legado Soft D'Alembert (`enabled: false` operacional) |
+| `risk_management.soft_recovery` | RECOVER: amortização 2–5 ciclos, `max_safe_stake_pct: 0.035` |
 | `orchestrator.execution.side_equilibrium` | Leis dos pequenos/grandes números CALL/PUT (small-N hard skip; large-N soft Kelly) |
 | `infra` | Redis, Timescale, MinIO, Triton (`infer_timeout_seconds: 0.50`, `require_for_execution`), meta-classifier |
 
@@ -98,14 +97,13 @@ Copie `cp .env.example .env` e preencha o PAT. Validação Deriv: `python app/sc
 
 ## Gerenciamento de risco
 
-- **Híbrido Kelly + Martingale** (`risk_stake_calc` + `martingale_sizing`):
+- **Kelly + Soft Recovery** (`risk_stake_calc` + `soft_recovery_policy`):
   - **EXPLORE** (`pending_loss == 0` e `consecutive_losses_linear == 0`): stake = Kelly fracionário (`fraction: 0.08`, compressão 40%, teto **3,5%** da banca) — tag `EXPLORE_KELLY`.
-  - **RECOVER** (`pending_loss > 0` ou `linear >= 1`): Martingale clássico `last_loss_stake × 2` (fallback `stake_min × 2^n`), teto = banca — tag `MARTINGALE_Ln`.
-- **Kelly** define a stake inicial; após LOSS, `last_loss_stake` (stake Kelly que perdeu) alimenta a dobra Martingale.
+  - **RECOVER** (`pending_loss > 0` ou `linear >= 1`): Soft Recovery amortizado em 2–5 ciclos, teto `max_safe_stake_pct` — tag `RECOVER_DAL_Ln`.
+- Soft Recovery amortiza `pending` em 2–5 ciclos com teto `max_safe_stake_pct` (3,5%).
 - **Consensus Entropy Penalty**: presente no código; nos settings atuais `consensus_penalty_enabled: false`.
 - **Side equilibrium (LLN)**: `side_equilibrium` — small-N (janela 12, `n_min=2`) hard skip se WR baixo ou frequência enviesada; large-N (janela 100, `n_min=40`) soft penalty (`kelly_mult_soft` → escala f*). Com contagens 0/0 o gate faz `pass` (amostra insuficiente) — esperado no início da sessão.
 - **Recovery financeiro persistente**: WIN operacional **não** zera `consecutive_losses` enquanto `pending_loss > 0`; reconciliação de stake downgrade preserva drawdown real.
-- **Soft recovery (D'Alembert)** legado via `soft_recovery_policy` quando `martingale.enabled=false`.
 - **Stop win por sessão ativa**: meta = `banca_inicial × 2,60%` (banca ≥ $100) ou **$10** fixo (banca &lt; $100); `finalize_stop_win_shutdown` purge Redis + log CRITICAL + fast-path.
 - **Stop loss desativado**: sem disjuntor de perda diária interno.
 - **Lotes fracionados**: stakes acima de `max_single_stake_limit` (padrão $200) divididas em N ordens com proposta atômica por sub-lote; falha técnica de proposta aborta o cluster sem inflar `pending_loss`.
@@ -118,11 +116,11 @@ Copie `cp .env.example .env` e preencha o PAT. Validação Deriv: `python app/sc
 ## Fases, recovery e execução
 
 - **FASE TREINO**: ao iniciar a sessão, todo símbolo retreina pelo menos uma vez. Enquanto qualquer modelo não concluir, nenhuma ordem é enviada.
-- **FASE OPERACAO mandatária** (`mandatory_trade_each_cycle: true`): esteira contínua com mandatory pick após quality gate dual soft + vetoes HARD de microestrutura; redirect inter-símbolo se âncora degradada (Z<-0.50) e par forte (Z>+0.50). Cooldown pós-LOSS, blackout de broker e stubs sniper (Hurst/BB) não bloqueiam.
+- **FASE OPERACAO seletiva** (`mandatory_trade_each_cycle: false`, `force_trade_every_cycle: false`): entrada apenas com zona de preço (compra→CALL / venda→PUT) + tendência alinhada + TCN; fora de zona o ciclo faz skip.
 - **Bloqueio absoluto** somente para falhas técnicas: `data`, `predict_error`, `training`, `deploy_ok=false`, Triton fail-closed e reconciliação pendente.
 - **Ranking TCN × Z-Score**: `market_decision_score = tcn × max(0.1, 1+z)` — LightGBM validado ranqueia acima de TCN bruto degradado.
 - **Gatilho D-SQUEEZE (`[D-SQUEEZE]`)**: quando `predicted_payoff_edge < -0.15` em compressão micro (`bb_width < 0.06` ou `micro_tick_acceleration < 0`), o resolver rebaixa `trade_score` para **0.52**, comprimindo stake — sem inverter a direção da TCN. `bb_width_adaptive_squeeze` está **desabilitado** nos settings atuais.
-- **Recovery**: rotação de símbolo após loss linear; Martingale 2× sobre a stake Kelly perdida; reset de risco somente quando `pending_loss` zera.
+- **Recovery**: Soft Recovery amortizado após loss linear; reset de risco somente quando `pending_loss` zera.
 - **Loss protection**: `min_direction_margin: 0.03`; caps edge/Z 999; quality guard em modo mandatorio nunca suspende o cluster por soft alone.
 - **Settlement**: janela de tolerância **90 s** com reconciliação passiva (portfolio + Redis); sem reinício forçado por timeout pós-liquidação.
 - **Starvation**: após **6** quality skips, pisos de margem/edge/Z decaem; Convicção Progressiva (−20%/5 skips em recovery).
@@ -140,7 +138,7 @@ Logs em `logs/engine.log` (formato `AetherFormatter`):
 - `FASE TREINO` / `FASE OPERACAO` — transição entre fases
 - `DL` / `DL REC` — linha curta: `exec`, `bias` (ajuste direcional), `skip` (bloqueio técnico)
 - `EXEC_SEL` — símbolo escolhido com `ord=`, `dl=`, métricas `s`/`v`/`r`, indicadores e alternativas
-- `EXPLORE_KELLY`, `MARTINGALE_Ln`, `RISK: RECOVERY`, `RISK: WIN operacional` — sizing híbrido e estado de recovery
+- `EXPLORE_KELLY`, `RECOVER_DAL_Ln`, `RISK: RECOVERY`, `RISK: WIN operacional` — sizing Kelly/Soft e estado de recovery
 - `SIDE_EQ` — equilíbrio CALL/PUT (leis dos pequenos/grandes números)
 - `SESSAO INICIADA | Alvo de 2,60%: $XX.XX | Stop Loss: DESATIVADO` — bootstrap de meta por sessão ativa
 - `TRITON_TIMEOUT_FALLBACK`, `WATCHDOG: STALE_DATA` — resiliência de inferência e ingestão

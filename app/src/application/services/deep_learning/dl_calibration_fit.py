@@ -4,8 +4,6 @@ from src.application.services.deep_learning.dl_calibration import (
     _METHOD_ISOTONIC,
     _METHOD_PLATT,
     _METHOD_TEMPERATURE_PLATT,
-    _TEMPERATURE_MAX,
-    _TEMPERATURE_MIN,
     CalibratorState,
     apply_calibrator,
     apply_temperature,
@@ -13,6 +11,7 @@ from src.application.services.deep_learning.dl_calibration import (
     expected_calibration_error,
     logit_to_prob,
     raw_to_logit,
+    temperature_bounds,
 )
 from src.application.services.deep_learning.dl_calibration_isotonic import fit_isotonic
 from src.domain.math.probability_entropy import binary_entropy, entropy_penalty_factor
@@ -33,7 +32,7 @@ def fit_temperature(probs: list[float], labels: list[float]) -> float:
         if err < best_err:
             best_err = err
             best_temp = temp
-    return min(max(best_temp, _TEMPERATURE_MIN), _TEMPERATURE_MAX)
+    return min(max(best_temp, temperature_bounds()[0]), temperature_bounds()[1])
 
 
 def fit_platt_logistic(

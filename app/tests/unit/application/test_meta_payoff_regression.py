@@ -1,12 +1,12 @@
 import pytest
 
 from src.application.services.bb_width_adaptive_squeeze import (
-    BB_WIDTH_HARMONIC_WINDOW,
     record_bb_width,
     reset_bb_width_buffer,
 )
+from src.application.services.deep_learning.dl_indicator_config import load_indicator_config_from_settings
+from src.application.services.execution_runtime_config import resolve_meta_payoff_veto_config
 from src.application.services.meta_payoff_regression import (
-    META_SQUEEZE_TRADE_SCORE,
     apply_meta_regression_edge,
 )
 from src.application.services.regime_micro_freeze import micro_volatility_squeeze_active
@@ -20,14 +20,19 @@ def _reset_bb_buffer():
     reset_bb_width_buffer()
 
 
-def _prime_bb(value: float, count: int = BB_WIDTH_HARMONIC_WINDOW) -> None:
-    for _ in range(count):
+def _prime_bb(value: float, count: int | None = None) -> None:
+    window = (
+        count
+        if count is not None
+        else int(load_indicator_config_from_settings()["windows"]["bb_width_harmonic_window"])
+    )
+    for _ in range(window):
         record_bb_width(value)
 
 
 def test_micro_volatility_squeeze_active_bb_width():
     _prime_bb(0.050)
-    metrics = {"indicators": {"bb_width": 0.020}}
+    metrics = {"indicators": {"bb_width": 0.015}}
     assert micro_volatility_squeeze_active(metrics) is True
 
 
@@ -72,7 +77,7 @@ def test_apply_meta_regression_edge_loss_expected_keeps_direction():
 def test_apply_meta_regression_edge_bb_compression_triggers_squeeze_even_positive_edge(caplog):
     _prime_bb(0.050)
     metrics = {
-        "indicators": {"bb_width": 0.020},
+        "indicators": {"bb_width": 0.015},
         "flow_features": {"micro_tick_acceleration": 0.05},
     }
     with caplog.at_level("INFO"):
@@ -85,7 +90,7 @@ def test_apply_meta_regression_edge_bb_compression_triggers_squeeze_even_positiv
             symbol="R_10",
         )
     assert direction == TradeDirection.CALL
-    assert score == pytest.approx(META_SQUEEZE_TRADE_SCORE)
+    assert score == pytest.approx(float(resolve_meta_payoff_veto_config()["squeeze_trade_score"]))
     assert metrics["meta_squeeze_downgrade"] is True
     assert any("[D-SQUEEZE]" in record.message for record in caplog.records)
 
@@ -133,7 +138,7 @@ def test_apply_meta_regression_edge_ignores_calibration_neutral_drift():
 
 
 def test_meta_squeeze_trade_score_constant():
-    assert pytest.approx(0.52) == META_SQUEEZE_TRADE_SCORE
+    assert pytest.approx(0.52) == float(resolve_meta_payoff_veto_config()["squeeze_trade_score"])
 
 
 def test_apply_meta_regression_edge_strong_negative_keeps_direction():

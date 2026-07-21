@@ -16,7 +16,11 @@ async def test_collect_blocks_execute_when_deploy_not_ok():
     prices = np.sin(np.linspace(0, 10, 90)) + 10.0
     orch = MockOrchestrator(["R_10"], prices)
     orch.symbols = ["R_10"]
-    orch.config["deep_learning"]["deploy_gate"] = {"enabled": True, "soft_min_val_accuracy": 0.99}
+    orch.config["deep_learning"]["deploy_gate"] = {
+        "enabled": True,
+        "force_ok": False,
+        "soft_min_val_accuracy": 0.99,
+    }
     entry = {
         "direction": TradeDirection.CALL,
         "metrics": {"execute": True, "conviction": 0.62, "trade_score": 0.62, "val_accuracy": 0.52},

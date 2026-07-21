@@ -4,9 +4,9 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from src.application.services.infra_timing_config import resolve_orchestrator_timing_config
 from src.application.services.orchestrator.api_maintenance_guard import (
     _API_GUARD_LOG_MESSAGE,
-    _API_MAINTENANCE_FALLBACK_SECONDS,
     _parse_clock,
     api_maintenance_blocks_trading_cycle,
     api_maintenance_delay_seconds,
@@ -21,6 +21,7 @@ from src.application.services.orchestrator.trading_cycle_entry import run_tradin
 
 
 TRADING_CYCLE_MODULE = "src.application.services.orchestrator.trading_cycle_entry"
+_API_MAINTENANCE_FALLBACK_SECONDS = float(resolve_orchestrator_timing_config()["api_maintenance_fallback_seconds"])
 
 
 def test_is_api_maintenance_error_detects_broker_signatures():

@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-
-_VOL_BURST_MACRO_RATIO = 1.25
-_VOL_BURST_MICRO_BB_WIDTH = 0.02
-_VOL_BOOST_MANDATORY_SCORE = 0.65
-_VOL_BOOST_MIN_EDGE = 0.03
+from src.application.services.deep_learning.dl_indicator_config import load_indicator_config_from_settings
+from src.application.services.execution_runtime_config import resolve_volatility_booster_config
 
 
 def _macro_vol_ratio(metrics: dict) -> float:
@@ -24,9 +21,12 @@ def _micro_bb_width(metrics: dict) -> float:
     return float(indicators.get("bb_width", 0.0))
 
 
-def volatility_burst_active(metrics: dict) -> bool:
+def volatility_burst_active(metrics: dict, *, vol_burst: dict | None = None) -> bool:
     """True quando M15 macro e M1 micro indicam explosao de volatilidade direcional."""
-    return _macro_vol_ratio(metrics) > _VOL_BURST_MACRO_RATIO and _micro_bb_width(metrics) > _VOL_BURST_MICRO_BB_WIDTH
+    cfg = vol_burst if isinstance(vol_burst, dict) else load_indicator_config_from_settings()["vol_burst"]
+    return _macro_vol_ratio(metrics) > float(cfg["macro_vol_ratio_min"]) and _micro_bb_width(metrics) > float(
+        cfg["micro_bb_width_min"]
+    )
 
 
 def apply_volatility_vol_booster(
@@ -39,7 +39,8 @@ def apply_volatility_vol_booster(
     if not volatility_burst_active(metrics):
         return float(mandatory_min_trade_score), float(min_edge_execute)
     metrics["volatility_vol_booster"] = True
+    boost = resolve_volatility_booster_config()
     return (
-        min(float(mandatory_min_trade_score), _VOL_BOOST_MANDATORY_SCORE),
-        min(float(min_edge_execute), _VOL_BOOST_MIN_EDGE),
+        min(float(mandatory_min_trade_score), float(boost["mandatory_score"])),
+        min(float(min_edge_execute), float(boost["min_edge"])),
     )

@@ -7,7 +7,14 @@ from src.application.services.deep_learning.dl_gate_config import (
 
 def test_resolve_deploy_ok_soft_fallback():
     cfg = parse_deploy_gate_config(
-        {"deploy_gate": {"enabled": True, "soft_min_val_accuracy": 0.50, "soft_max_brier": 0.32}}
+        {
+            "deploy_gate": {
+                "enabled": True,
+                "force_ok": False,
+                "soft_min_val_accuracy": 0.50,
+                "soft_max_brier": 0.32,
+            }
+        }
     )
     assert resolve_deploy_ok(mini_ok=False, val_accuracy=0.52, val_brier=0.25, gate_cfg=cfg) is True
     assert resolve_deploy_ok(mini_ok=False, val_accuracy=0.48, val_brier=0.25, gate_cfg=cfg) is False

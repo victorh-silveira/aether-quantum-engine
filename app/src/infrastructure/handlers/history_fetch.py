@@ -7,6 +7,7 @@ import logging
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+from src.application.services.infra_timing_config import resolve_history_fetch_config
 from src.domain.models.market_data import Candle
 
 
@@ -15,14 +16,18 @@ if TYPE_CHECKING:
 
 
 def parse_history_fetch_config(config: dict) -> dict[str, float | int]:
-    """Le parametros de throttling e retry para ticks_history."""
+    """Resolve ou aplica parse history fetch config."""
+    api = config.get("api_config") if isinstance(config, dict) else None
+    if not isinstance(api, dict):
+        api = config if isinstance(config, dict) else None
+    cfg = resolve_history_fetch_config(api if isinstance(api, dict) else None)
     return {
-        "chunk_size": max(1, int(config.get("history_fetch_chunk", 500))),
-        "chunk_delay": max(0.0, float(config.get("history_fetch_delay_seconds", 0.35))),
-        "symbol_delay": max(0.0, float(config.get("history_fetch_symbol_delay_seconds", 2.0))),
-        "max_retries": max(1, int(config.get("history_fetch_rate_limit_retries", 12))),
-        "backoff_base": max(1.0, float(config.get("history_fetch_rate_limit_backoff", 2.0))),
-        "backoff_cap": max(1.0, float(config.get("history_fetch_rate_limit_max_delay", 45.0))),
+        "chunk_size": max(1, int(cfg["chunk"])),
+        "chunk_delay": max(0.0, float(cfg["delay_seconds"])),
+        "symbol_delay": max(0.0, float(cfg["symbol_delay_seconds"])),
+        "max_retries": max(1, int(cfg["rate_limit_retries"])),
+        "backoff_base": max(1.0, float(cfg["rate_limit_backoff"])),
+        "backoff_cap": max(1.0, float(cfg["rate_limit_max_delay"])),
     }
 
 

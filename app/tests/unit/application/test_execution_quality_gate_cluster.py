@@ -53,6 +53,7 @@ def test_quality_conviction_mandatory_flat_logs_without_suspending(orch_ready, c
     orch._active_cycle_id = 5
     orch.risk_manager.consecutive_losses_linear = 0
     orch.risk_manager.pending_loss_total = lambda: 0.0
+    orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = True
     decisions = {"R_10": {"metrics": {"calibrated_prob": 0.51, "deploy_ok": True}}}
     with caplog.at_level("INFO", logger="AETH"):
         assert quality_conviction_suspends_cluster(orch, decisions) is False

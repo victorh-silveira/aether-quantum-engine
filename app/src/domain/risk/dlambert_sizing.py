@@ -70,7 +70,7 @@ def _resolve_override_value(dlambert_config: dict[str, Any]) -> float:
     return value if value > 0.0 else 0.0
 
 
-def effective_martingale_base(
+def effective_soft_recovery_base(
     kelly_base: float,
     rm: Any,
     dlambert_config: dict[str, Any],
@@ -82,7 +82,7 @@ def effective_martingale_base(
     return max(override, unit, 0.0)
 
 
-def martingale_recovery_active(
+def soft_recovery_stress_active(
     *,
     recovery_active: bool,
     pending_total: float,
@@ -106,13 +106,13 @@ def resolve_dlambert_stake(
 ) -> tuple[float, str]:
     """Resolve stake final Kelly ou Soft Recovery Adaptativo indexado ao payout."""
     soft = _soft_cfg(rm, dlambert_config)
-    stress_recovery = martingale_recovery_active(
+    stress_recovery = soft_recovery_stress_active(
         recovery_active=recovery_active,
         pending_total=pending_total,
         consecutive_losses_linear=consecutive_losses_linear,
     )
     if stress_recovery and soft_recovery_enabled(dlambert_config, soft_recovery=soft):
-        effective_base = effective_martingale_base(kelly_base, rm, dlambert_config)
+        effective_base = effective_soft_recovery_base(kelly_base, rm, dlambert_config)
         metrics = dl_metrics if isinstance(dl_metrics, dict) else None
         session_base = resolve_session_base_unit(bankroll, effective_base, metrics)
         previous_stake = float(getattr(rm, "last_loss_stake", 0.0))

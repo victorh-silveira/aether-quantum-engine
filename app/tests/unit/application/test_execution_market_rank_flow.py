@@ -44,7 +44,7 @@ def test_resolve_execution_direction_strong_call():
             "indicators": {"hurst": 0.55, "adx": 0.30, "vol_ratio": 1.1, "rsi": 0.52, "keltner": 0.55, "cmo": 0.05},
         },
     }
-    result = resolve_execution_direction(entry, symbol="R_10")
+    result = resolve_execution_direction(entry, symbol="R_10", exec_cfg={"price_zone": {"enabled": False}})
     assert result is not None
     direction, _ = result
     assert direction == TradeDirection.CALL

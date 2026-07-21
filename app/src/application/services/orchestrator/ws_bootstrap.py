@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 from src.application.services.deep_learning.dl_model_artifacts import bootstrap_and_validate_models
 from src.application.services.deep_learning.dl_startup import resolve_startup_fetch_bars
+from src.application.services.infra_timing_config import resolve_orchestrator_timing_config
 from src.application.services.orchestrator.orchestrator_state_restore import restore_orchestrator_state
 from src.application.services.orchestrator.session_target_bootstrap import bootstrap_active_session_targets
 from src.infrastructure.api.deriv_rest_client import DerivRestError
@@ -23,7 +24,6 @@ if TYPE_CHECKING:
     from src.infrastructure.api.deriv_rest_client import DerivTradingSession
 
 
-BROKER_HANDSHAKE_TIMEOUT_SECONDS = 15.0
 _BROKER_HANDSHAKE_TIMEOUT_MESSAGE = (
     "[AETHER] HANDSHAKE_TIMEOUT: WebSocket/Deriv estagnou (rede ou firewall). "
     "TCP silent drop ou barreira local bloqueou o aperto de mao seguro."
@@ -32,12 +32,13 @@ _BROKER_HANDSHAKE_TIMEOUT_MESSAGE = (
 
 def ws_connect_options(orch: Orchestrator) -> dict[str, float | int]:
     """Parametros de reconexao WebSocket a partir da configuracao."""
-    api = orch.config.get("api_config") or {}
+    timing = resolve_orchestrator_timing_config((orch.config or {}).get("orchestrator"))
+    ws = timing["ws_connect"]
     return {
-        "max_attempts": int(api.get("ws_connect_max_attempts", 5)),
-        "open_timeout": float(api.get("ws_connect_open_timeout_seconds", 25)),
-        "retry_delay": float(api.get("ws_connect_retry_delay_seconds", 4.0)),
-        "retry_backoff": float(api.get("ws_connect_retry_backoff", 1.5)),
+        "max_attempts": int(ws["max_attempts"]),
+        "open_timeout": float(ws["open_timeout_seconds"]),
+        "retry_delay": float(ws["retry_delay_seconds"]),
+        "retry_backoff": float(ws["retry_backoff"]),
     }
 
 
@@ -65,7 +66,11 @@ async def open_broker_handshake(orch: Orchestrator) -> DerivTradingSession:
     try:
         return await asyncio.wait_for(
             _broker_pat_websocket_handshake(orch),
-            timeout=BROKER_HANDSHAKE_TIMEOUT_SECONDS,
+            timeout=float(
+                resolve_orchestrator_timing_config((orch.config or {}).get("orchestrator"))[
+                    "broker_handshake_timeout_seconds"
+                ]
+            ),
         )
     except TimeoutError as exc:
         raise RuntimeError(_BROKER_HANDSHAKE_TIMEOUT_MESSAGE) from exc
@@ -74,7 +79,14 @@ async def open_broker_handshake(orch: Orchestrator) -> DerivTradingSession:
 async def subscribe_account_transactions(orch: Orchestrator) -> None:
     """Inscreve no stream de transacoes da conta para liquidacao."""
     try:
-        await orch.ws.send({"transaction": 1, "subscribe": 1}, timeout=10)
+        await orch.ws.send(
+            {"transaction": 1, "subscribe": 1},
+            timeout=float(
+                resolve_orchestrator_timing_config((orch.config or {}).get("orchestrator"))["ws_connect"][
+                    "subscribe_transaction_timeout_seconds"
+                ]
+            ),
+        )
         orch.ws.subscribe("transaction", orch._on_transaction)
     except Exception as e:
         orch.logger.warning("SETTLE: subscribe transaction falhou: %s", e)

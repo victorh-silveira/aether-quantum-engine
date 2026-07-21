@@ -121,7 +121,16 @@ def test_resolve_gray_zone_raw_prob_blocks_call_on_bull_with_meta():
     entry = _entry(direction=None, raw_prob=0.51)
     entry["metrics"]["meta_classifier_applied"] = True
     entry["metrics"]["predicted_payoff_edge"] = 0.05
-    result = resolve_execution_direction(entry, symbol="R_10")
+    result = resolve_execution_direction(
+        entry,
+        symbol="R_10",
+        exec_cfg={
+            "quality_gate": {
+                "min_direction_margin": 0.04,
+                "regular": {"min_direction_margin": 0.04, "min_payoff_edge": 0.0},
+            }
+        },
+    )
     assert result is None
     assert entry["metrics"].get("quality_gate_reason") == "direction_margin_gate"
 
@@ -139,7 +148,16 @@ def test_resolve_rejects_weak_margin_without_meta():
     entry = _entry(direction=None, raw_prob=0.51)
     entry["metrics"].pop("predicted_payoff_edge", None)
     entry["metrics"].pop("meta_classifier_applied", None)
-    result = resolve_execution_direction(entry, symbol="R_10")
+    result = resolve_execution_direction(
+        entry,
+        symbol="R_10",
+        exec_cfg={
+            "quality_gate": {
+                "min_direction_margin": 0.04,
+                "regular": {"min_direction_margin": 0.04, "min_payoff_edge": 0.0},
+            }
+        },
+    )
     assert result is None
     assert entry["metrics"].get("quality_guard_reject") is True
     assert entry["metrics"].get("quality_gate_reason") == "direction_margin_gate"
@@ -213,7 +231,13 @@ def test_resolve_allows_weak_tcn_margin_when_meta_zscore_strong():
     entry["metrics"]["edge_expectancy"] = "WIN_EXPECTED"
     result = resolve_execution_direction(
         entry,
-        exec_cfg={"quality_gate": {"min_direction_margin": 0.04, "min_meta_payoff_zscore": 0.5}},
+        exec_cfg={
+            "quality_gate": {
+                "min_direction_margin": 0.04,
+                "min_meta_payoff_zscore": 0.5,
+                "regular": {"min_direction_margin": 0.04, "min_payoff_edge": 0.0},
+            }
+        },
         symbol="R_10",
     )
     assert result is None

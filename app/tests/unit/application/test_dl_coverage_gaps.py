@@ -49,19 +49,19 @@ def test_attach_microstructure_partial_arrays():
 def test_hurst_computes_non_neutral_segment():
     rng = np.random.default_rng(0)
     prices = 100.0 + np.cumsum(rng.normal(0, 0.2, size=80))
-    out = hurst_exponent(prices, window=16)
+    out = hurst_exponent(prices, window=16, min_window=8)
     assert np.any(out != 0.5)
 
 
 def test_hurst_skips_flat_returns():
     prices = np.full(80, 100.0)
-    out = hurst_exponent(prices, window=16)
+    out = hurst_exponent(prices, window=16, min_window=8)
     assert np.allclose(out, 0.5)
 
 
 def test_variance_ratio_short_series():
     prices = np.array([1.0, 1.1, 1.2])
-    out = variance_ratio(prices)
+    out = variance_ratio(prices, short=2, long=8)
     assert np.allclose(out, 1.0)
 
 

@@ -20,7 +20,7 @@ def test_parse_deploy_gate_config_defaults():
     cfg = parse_deploy_gate_config({})
     assert cfg["enabled"] is True
     assert cfg["max_brier"] == 0.24
-    assert cfg["max_eval_steps"] == 160
+    assert cfg["max_eval_steps"] == 24
 
 
 def test_deploy_eval_bar_indices_caps_steps():

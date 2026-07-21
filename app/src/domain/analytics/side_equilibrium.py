@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from math import sqrt
 from typing import Any
 
+from src.domain.config_knobs import merge_settings_block, require_bool, require_float, require_int, require_keys
+
 
 ACTION_PASS = "pass"
 ACTION_HARD_SKIP = "hard_skip"
@@ -92,21 +94,39 @@ class SideEquilibriumDecision:
 
 
 def parse_side_equilibrium_config(raw: dict[str, Any] | None) -> SideEquilibriumConfig:
-    """Converte dict de config em SideEquilibriumConfig."""
-    cfg = raw if isinstance(raw, dict) else {}
+    """Resolve side_equilibrium com merge de override parcial sobre o SSOT."""
+    keys = (
+        "enabled",
+        "small_window",
+        "large_window",
+        "n_min_small",
+        "n_min_large",
+        "wr_floor_small",
+        "wr_floor_large",
+        "freq_bias_max_small",
+        "freq_bias_max_large",
+        "kelly_mult_soft",
+        "margin_boost_soft",
+        "break_even_wr",
+    )
+    cfg = require_keys(
+        merge_settings_block(("orchestrator", "execution", "side_equilibrium"), raw if isinstance(raw, dict) else None),
+        keys,
+        "orchestrator.execution.side_equilibrium",
+    )
     return SideEquilibriumConfig(
-        enabled=bool(cfg.get("enabled", True)),
-        small_window=max(4, int(cfg.get("small_window", 12))),
-        large_window=max(20, int(cfg.get("large_window", 100))),
-        n_min_small=max(2, int(cfg.get("n_min_small", 2))),
-        n_min_large=max(10, int(cfg.get("n_min_large", 40))),
-        wr_floor_small=float(cfg.get("wr_floor_small", 0.40)),
-        wr_floor_large=float(cfg.get("wr_floor_large", 0.48)),
-        freq_bias_max_small=float(cfg.get("freq_bias_max_small", 0.70)),
-        freq_bias_max_large=float(cfg.get("freq_bias_max_large", 0.65)),
-        break_even_wr=float(cfg.get("break_even_wr", 0.55)),
-        kelly_mult_soft=max(0.05, min(1.0, float(cfg.get("kelly_mult_soft", 0.55)))),
-        margin_boost_soft=max(0.0, float(cfg.get("margin_boost_soft", 0.03))),
+        enabled=require_bool(cfg, "enabled"),
+        small_window=max(4, require_int(cfg, "small_window")),
+        large_window=max(20, require_int(cfg, "large_window")),
+        n_min_small=max(2, require_int(cfg, "n_min_small")),
+        n_min_large=max(10, require_int(cfg, "n_min_large")),
+        wr_floor_small=require_float(cfg, "wr_floor_small"),
+        wr_floor_large=require_float(cfg, "wr_floor_large"),
+        freq_bias_max_small=require_float(cfg, "freq_bias_max_small"),
+        freq_bias_max_large=require_float(cfg, "freq_bias_max_large"),
+        break_even_wr=require_float(cfg, "break_even_wr"),
+        kelly_mult_soft=max(0.05, min(1.0, require_float(cfg, "kelly_mult_soft"))),
+        margin_boost_soft=max(0.0, require_float(cfg, "margin_boost_soft")),
     )
 
 

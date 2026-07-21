@@ -12,7 +12,6 @@ from src.domain.risk.stop_win_target import resolve_max_stake_pct, resolve_stop_
 
 
 __all__ = [
-    "apply_symbol_stake_cap",
     "clamp_kelly_stake",
     "compute_single_strike_kelly_base",
     "consensus_entropy_applies_min_stake",
@@ -163,20 +162,6 @@ def conviction_stop_win_weight(conviction: float, kelly_config: dict[str, Any]) 
     return lo_frac + t * (hi_frac - lo_frac)
 
 
-def _resolve_stop_win_max_stake_pct(
-    risk_config: dict[str, Any],
-    kelly_config: dict[str, Any],
-    payout: float,
-) -> float:
-    """Deriva teto de stake Kelly para uma tacada atingir o stop win percentual."""
-    if "stop_win_max_stake_pct" in kelly_config:
-        return max(0.0, float(kelly_config["stop_win_max_stake_pct"]))
-    stop_pct = float((risk_config or {}).get("large_account_stop_win_pct", 1.0)) / 100.0
-    if payout > 0.0:
-        return stop_pct / payout
-    return stop_pct
-
-
 def compute_single_strike_kelly_base(
     kelly_base: float,
     _bankroll: float,
@@ -215,17 +200,6 @@ def compute_single_strike_kelly_base(
     if goal_stake > kelly_base:
         return goal_stake
     return kelly_base
-
-
-def apply_symbol_stake_cap(
-    final_stake: float,
-    bankroll: float,
-    symbol: str,
-    kelly_config: dict[str, Any],
-) -> float:
-    """Retorna stake sem teto por simbolo."""
-    _ = (bankroll, symbol, kelly_config)
-    return final_stake
 
 
 def finalize_stake_with_min(
