@@ -95,13 +95,21 @@ async def test_execute_stream_reconnect_fallback_open_trading_session():
 
 
 @pytest.mark.asyncio
-async def test_execute_stream_reconnect_refreshes_otp_before_connect():
-    orch, stream = _build_reconnect_mocks(ws_url="wss://fresh-otp")
+async def test_execute_stream_reconnect_rest_transport_uses_public_ws():
+    orch, stream = _build_reconnect_mocks()
+    orch.trading_transport = "rest"
+    orch.config = {
+        "orchestrator": {"engine_mode": "execute", "stream_warm_up_delay_seconds": 45},
+        "api_config": {"public_ws_url": "wss://api.derivws.com/trading/v1/options/ws/public"},
+    }
     with _reconnect_patches():
         ok = await execute_stream_reconnect(orch, stream)
     assert ok is True
-    orch.auth.refresh_otp_ws_url.assert_awaited_once()
-    orch.ws.connect.assert_awaited_once_with("wss://fresh-otp", max_attempts=1)
+    orch.auth.refresh_otp_ws_url.assert_not_awaited()
+    orch.ws.connect.assert_awaited_once_with(
+        "wss://api.derivws.com/trading/v1/options/ws/public",
+        max_attempts=1,
+    )
 
 
 @pytest.mark.asyncio

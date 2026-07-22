@@ -6,8 +6,13 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
+from src.application.services.orchestrator.engine_mode import training_enabled
 from src.application.services.orchestrator.reconnect_cycle_release import release_trading_cycle_after_reconnect
-from src.application.services.orchestrator.ws_bootstrap import subscribe_account_transactions, ws_connect_options
+from src.application.services.orchestrator.ws_bootstrap import (
+    resolve_public_ws_url,
+    subscribe_account_transactions,
+    ws_connect_options,
+)
 from src.infrastructure.handlers.stream_timeframe import subscribe_candle_streams, subscribe_tick_streams
 
 
@@ -60,7 +65,7 @@ async def _fetch_fresh_otp_ws_url(orch: Any) -> str:
 
 
 async def execute_stream_reconnect(orch: Any, stream: StreamHandler) -> bool:
-    """Fecha WS, reabre sessao OTP e reativa fluxo de mercado sem backfill pesado."""
+    """Fecha WS, reabre sessao (publico no treino / OTP na execucao) e reativa mercado."""
     callback = stream.candle_callback
     if callback is None:
         return False
@@ -69,12 +74,15 @@ async def execute_stream_reconnect(orch: Any, stream: StreamHandler) -> bool:
     try:
         if orch.ws.ws:
             await orch.ws.close()
-        ws_url = await _fetch_fresh_otp_ws_url(orch)
-        await orch.ws.connect(ws_url, **opts)
-        orch.ws.subscribe("proposal_open_contract", orch._on_contract_update)
+        if training_enabled(orch) or str(getattr(orch, "trading_transport", "ws")).lower() == "rest":
+            await orch.ws.connect(resolve_public_ws_url(orch.config), **opts)
+        else:
+            ws_url = await _fetch_fresh_otp_ws_url(orch)
+            await orch.ws.connect(ws_url, **opts)
+            orch.ws.subscribe("proposal_open_contract", orch._on_contract_update)
+            await subscribe_account_transactions(orch)
         stream.ws.subscribe("ohlc", stream._on_candle)
         stream.ws.subscribe("tick", stream._on_tick)
-        await subscribe_account_transactions(orch)
         if skip_ohlc_resub:
             logger.debug("WATCHDOG: sessao continua ativa; pulando resubscribe OHLC duplicado")
         else:

@@ -13,6 +13,13 @@ from src.infrastructure.api.deriv_rest_client import DerivRestError, DerivTradin
 from src.infrastructure.inference.triton_grpc_client import TritonInferenceTimeout
 
 
+def _patch_rest_balance(balance: float = 100.0, account_id: str = "DOT1"):
+    return patch(
+        "src.application.services.orchestrator.ws_bootstrap._resolve_rest_account_balance",
+        AsyncMock(return_value=(account_id, balance)),
+    )
+
+
 @pytest.mark.asyncio
 async def test_setup_trading_session_reconnect_skips_model_stress(orch_config):
     orch = Orchestrator(orch_config)
@@ -23,6 +30,7 @@ async def test_setup_trading_session_reconnect_skips_model_stress(orch_config):
         account_id="DOT1",
     )
     with (
+        _patch_rest_balance(),
         patch.object(orch.auth, "open_trading_session", AsyncMock(return_value=session)),
         patch(
             "src.application.services.orchestrator.ws_bootstrap.restore_orchestrator_state",
@@ -56,6 +64,7 @@ async def test_setup_trading_session_preserves_session_on_reconnect(orch_config)
         account_id="DOT1",
     )
     with (
+        _patch_rest_balance(1165.61),
         patch.object(orch.auth, "open_trading_session", AsyncMock(return_value=session)),
         patch(
             "src.application.services.orchestrator.ws_bootstrap.restore_orchestrator_state",
@@ -89,6 +98,7 @@ async def test_setup_trading_session_bootstraps_meta_classifier_when_enabled(orc
         account_id="DOT1",
     )
     with (
+        _patch_rest_balance(),
         patch.object(orch.auth, "open_trading_session", AsyncMock(return_value=session)),
         patch(
             "src.application.services.orchestrator.ws_bootstrap.bootstrap_meta_classifier_client",
@@ -110,7 +120,10 @@ async def test_setup_trading_session_success(orch_config):
         balance=100.0,
         account_id="DOT1",
     )
-    with patch.object(orch.auth, "open_trading_session", AsyncMock(return_value=session)):
+    with (
+        _patch_rest_balance(),
+        patch.object(orch.auth, "open_trading_session", AsyncMock(return_value=session)),
+    ):
         orch.ws.connect = AsyncMock()
         orch.ws.send = AsyncMock()
         orch.ws.subscribe = MagicMock()
@@ -156,7 +169,10 @@ async def test_setup_trading_session_http_error(orch_config):
 @pytest.mark.asyncio
 async def test_setup_trading_session_rest_error(orch_config):
     orch = Orchestrator(orch_config)
-    with patch.object(orch.auth, "open_trading_session", AsyncMock(side_effect=DerivRestError("fail"))):
+    with patch(
+        "src.application.services.orchestrator.ws_bootstrap._resolve_rest_account_balance",
+        AsyncMock(side_effect=DerivRestError("fail")),
+    ):
         assert await setup_trading_session(orch) is False
 
 
@@ -208,7 +224,10 @@ async def test_setup_trading_session_closes_existing_ws(orch_config):
         balance=50.0,
         account_id="DOT1",
     )
-    with patch.object(orch.auth, "open_trading_session", AsyncMock(return_value=session)):
+    with (
+        _patch_rest_balance(50.0),
+        patch.object(orch.auth, "open_trading_session", AsyncMock(return_value=session)),
+    ):
         orch.ws.connect = AsyncMock()
         orch.ws.send = AsyncMock()
         orch.ws.subscribe = MagicMock()
@@ -231,3 +250,16 @@ async def test_start_orchestrator_streams_retries_then_fails(orch_config):
     orch.ws.connect = AsyncMock()
     orch.stream.start_candle_stream = AsyncMock(side_effect=[ConnectionError("x"), ConnectionError("y")])
     assert await start_orchestrator_streams(orch) is False
+
+
+@pytest.mark.asyncio
+async def test_start_orchestrator_streams_train_reconnects_public(orch_config_train):
+    orch = Orchestrator(orch_config_train)
+    orch.ws.is_running = False
+    orch.stream.start_candle_stream = AsyncMock(side_effect=[ConnectionError("x"), None])
+    with patch(
+        "src.application.services.orchestrator.ws_bootstrap.open_public_market_handshake",
+        new_callable=AsyncMock,
+    ) as mock_public:
+        assert await start_orchestrator_streams(orch) is True
+    mock_public.assert_awaited_once()

@@ -65,6 +65,26 @@ async def test_ws_connect_rejects_http_401_otp():
 
 
 @pytest.mark.asyncio
+async def test_ws_connect_401_refreshes_otp_via_uri_factory():
+    mgr = WebSocketManager("wss://stale?otp=old")
+    response = MagicMock()
+    response.status_code = 401
+    status_exc = websockets.InvalidStatus(response)
+    fresh = AsyncMock()
+    factory = AsyncMock(return_value="wss://fresh?otp=new")
+    with patch(
+        "src.infrastructure.api.websocket_manager.connect_wss_with_ip_failover",
+        new_callable=AsyncMock,
+        side_effect=[status_exc, fresh],
+    ) as mock_connect:
+        await mgr.connect(max_attempts=2, retry_delay=0.01, uri_factory=factory)
+    assert mgr.is_running is True
+    assert mgr.uri == "wss://fresh?otp=new"
+    assert mock_connect.await_count == 2
+    factory.assert_awaited()
+
+
+@pytest.mark.asyncio
 async def test_ws_connect_retries_on_non_401_invalid_status():
     mgr = WebSocketManager("wss://api.derivws.com/ws/demo?otp=x")
     response = MagicMock()

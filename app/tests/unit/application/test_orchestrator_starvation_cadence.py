@@ -79,10 +79,10 @@ def test_run_trading_cycle_sets_cooldown_on_empty_cycle(
 
 def test_linear_edge_decay_limits():
     assert apply_starvation_edge_decay(0.04, 2) == pytest.approx(0.04)
-    assert apply_starvation_edge_decay(0.04, 9) == pytest.approx(-0.16)
-    assert apply_starvation_edge_decay(0.04, 10) == pytest.approx(-0.24)
-    assert apply_starvation_edge_decay(0.04, 15) == pytest.approx(-0.64)
-    assert apply_starvation_edge_decay(0.04, 16) == pytest.approx(-0.72)
+    assert apply_starvation_edge_decay(0.04, 9) == pytest.approx(-0.6)
+    assert apply_starvation_edge_decay(0.04, 10) == pytest.approx(-0.7)
+    assert apply_starvation_edge_decay(0.04, 15) == pytest.approx(-1.2)
+    assert apply_starvation_edge_decay(0.04, 16) == pytest.approx(-1.3)
 
 
 def test_evaluate_meta_payoff_quality_gbdt_waiver():

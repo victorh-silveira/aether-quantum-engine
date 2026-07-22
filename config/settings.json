@@ -406,7 +406,7 @@
         },
         "max_edge_without_margin": 999.0,
         "max_zscore_without_margin": 999.0,
-        "min_direction_margin": 0.02,
+        "min_direction_margin": 0.01,
         "recovery_min_direction_margin": 0.0,
         "recovery_min_hurst": 0.0
       },
@@ -476,7 +476,7 @@
         "inverted_min_score": 0.0,
         "mandatory_min_trade_score": 0.5,
         "min_adx_threshold": 0.0,
-        "min_direction_margin": 0.02,
+        "min_direction_margin": 0.01,
         "min_meta_payoff_zscore": 0.5,
         "min_payoff_edge": 0.0,
         "neutral_meta_payoff": {
@@ -497,16 +497,16 @@
           "session_stake_unit_bankroll_pct": 0.0015
         },
         "regular": {
-          "min_direction_margin": 0.02,
+          "min_direction_margin": 0.01,
           "min_payoff_edge": 0.0
         },
         "starvation": {
           "decay_floor": 0.2,
           "decay_step": 0.1,
           "decay_threshold": 6,
-          "edge_decay_cycles": 8,
+          "edge_decay_cycles": 4,
           "edge_decay_floor": 0.0,
-          "edge_decay_floor_step": 0.08,
+          "edge_decay_floor_step": 0.1,
           "edge_decay_multiplier": 2.0
         }
       },

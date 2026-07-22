@@ -13,18 +13,22 @@ class TradeHandler:
     """Gerencia o ciclo de vida das operações de trading, incluindo propostas e execução.
 
     Comunica-se com a API WebSocket para obter propostas de preços e executar
-    compras de opções binárias.
+    compras de opções binárias. Em fallback REST usa bulk-purchase (PAT).
     """
 
-    def __init__(self, ws_manager: WebSocketManager, config: dict):
+    def __init__(self, ws_manager: WebSocketManager, config: dict, auth: Any | None = None):
         """Inicializa o manipulador com um gerenciador de conexão e configuração.
 
         Args:
             ws_manager (WebSocketManager): O gerenciador de conexão WebSocket.
             config (dict): Configuração da API e estratégia.
+            auth: AuthManager opcional para compras REST (bulk-purchase).
         """
         self.ws = ws_manager
         self.config = config
+        self.auth = auth
+        self.trading_transport = "ws"
+        self.deriv_account_id = ""
         self.logger = logging.getLogger("AETH")
 
     def schedule_profit_table_audit(self, orch: Any, *, reason: str = "broker_unavailable") -> None:
@@ -34,7 +38,15 @@ class TradeHandler:
     async def buy_with_parameters(
         self, symbol: str, direction: TradeDirection, stake: float, params: dict | None = None
     ) -> Contract:
-        """Compra um contrato via proposal e buy (API Deriv atual)."""
+        """Compra um contrato via proposal/buy (WS) ou bulk-purchase (REST)."""
+        if str(self.trading_transport).lower() == "rest":
+            return await self._buy_via_bulk_purchase(symbol, direction, stake, params)
+        return await self._buy_via_websocket(symbol, direction, stake, params)
+
+    async def _buy_via_websocket(
+        self, symbol: str, direction: TradeDirection, stake: float, params: dict | None
+    ) -> Contract:
+        """Compra um contrato via proposal e buy (API Deriv WebSocket autenticada)."""
         p_cfg = params if params is not None else self.config["risk_management"]["params"]
         proposal_req = build_proposal_request(symbol, direction, stake, p_cfg)
         timeout = int(self.ws.request_timeout)
@@ -72,6 +84,47 @@ class TradeHandler:
             stake=stake,
             expiry_time=expiry,
             longcode=str(b.get("longcode") or proposal.get("longcode") or ""),
+        )
+
+    async def _buy_via_bulk_purchase(
+        self, symbol: str, direction: TradeDirection, stake: float, params: dict | None
+    ) -> Contract:
+        """Compra via REST bulk-purchase quando o WSS OTP esta indisponivel."""
+        if self.auth is None:
+            raise RuntimeError("Compra REST exige AuthManager")
+        p_cfg = params if params is not None else self.config["risk_management"]["params"]
+        proposal_req = build_proposal_request(symbol, direction, stake, p_cfg)
+        contract_parameters = {k: v for k, v in proposal_req.items() if k != "proposal"}
+        pat = self.auth.get_pat()
+        if not pat:
+            raise RuntimeError("AETHER_DERIV_PAT ausente para bulk-purchase")
+        account_id = str(self.deriv_account_id or self.auth.account_id_override or "").strip()
+        if not account_id:
+            raise RuntimeError("deriv_account_id ausente para bulk-purchase")
+        client = self.auth.rest_client()
+        tx = await client.bulk_purchase(
+            mode=str(self.auth.mode),
+            account_id=account_id,
+            pat_token=pat,
+            contract_parameters=contract_parameters,
+        )
+        buy_price = float(tx.get("buy_price") or stake)
+        payout = float(tx.get("payout") or 0.0)
+        purchase_time = int(tx.get("purchase_time") or time.time())
+        start_time = int(tx.get("start_time") or purchase_time)
+        expiry = start_time + _contract_duration_seconds(proposal_req)
+        shortcode = str(tx.get("shortcode") or "")
+        return Contract(
+            contract_id=int(tx["contract_id"]),
+            proposal_id=str(tx.get("transaction_id") or tx["contract_id"]),
+            status=TradeStatus.OPEN,
+            buy_price=buy_price,
+            payout=payout,
+            symbol=symbol,
+            direction=direction,
+            stake=stake,
+            expiry_time=expiry,
+            longcode=shortcode,
         )
 
 

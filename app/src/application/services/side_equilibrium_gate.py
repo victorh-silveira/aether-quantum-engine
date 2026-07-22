@@ -5,6 +5,15 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from src.application.services.side_equilibrium_helpers import (
+    alternate_side_is_preferable,
+    flip_conflicts_price_zone,
+    log_side_eq_flip,
+    positive_meta_edge_keeps_proposed,
+    primary_side_is_toxic,
+    soft_keep_proposed,
+    thin_margin_blocks_flip,
+)
 from src.application.services.side_equilibrium_store import side_eq_config_from_orch, snapshot_side_counts
 from src.domain.analytics.side_equilibrium import (
     ACTION_HARD_SKIP,
@@ -110,6 +119,8 @@ def resolve_direction_with_side_equilibrium(
     symbol: str | None,
     proposed: TradeDirection,
     metrics: dict[str, Any],
+    *,
+    recovery_active: bool = False,
 ) -> TradeDirection | None:
     """Escolhe lado equilibrado: hard-skip no proposto tenta o oposto; None se ambos bloqueados."""
     if bool(metrics.get("side_eq_gate_done")):
@@ -134,39 +145,63 @@ def resolve_direction_with_side_equilibrium(
         if gate.startswith("side_imbalance"):
             metrics.pop("gate_reason", None)
         return proposed
-    if _positive_meta_edge_keeps_proposed(metrics):
-        apply_side_equilibrium_to_metrics(metrics, primary, proposed=proposed)
-        metrics.pop("quality_guard_reject", None)
-        gate = str(metrics.get("gate_reason") or "")
-        if gate.startswith("side_imbalance"):
-            metrics.pop("gate_reason", None)
-        metrics["side_eq_edge_keep_proposed"] = True
-        metrics["side_eq_gate_done"] = True
-        metrics["side_eq_blocked"] = False
-        metrics["exec_direction"] = proposed.name
-        metrics["resolved_direction"] = proposed.name
-        return proposed
+    if positive_meta_edge_keeps_proposed(metrics):
+        return soft_keep_proposed(
+            metrics,
+            primary,
+            proposed,
+            reason="side_eq_edge_keep_proposed",
+            apply_metrics=apply_side_equilibrium_to_metrics,
+        )
     apply_side_equilibrium_to_metrics(metrics, primary, proposed=proposed)
     opposite = opposite_trade_direction(proposed)
     alternate = evaluate_proposed_side_equilibrium(orch, symbol, opposite)
     log_side_equilibrium(alternate, symbol=str(symbol or "?"), proposed=opposite, orch=orch)
     if alternate.action == ACTION_HARD_SKIP:
+        if recovery_active:
+            return soft_keep_proposed(
+                metrics,
+                primary,
+                proposed,
+                reason="side_eq_recovery_both_hard",
+                apply_metrics=apply_side_equilibrium_to_metrics,
+            )
         apply_side_equilibrium_to_metrics(metrics, alternate, proposed=opposite)
         metrics["side_eq_gate_done"] = True
         metrics["side_eq_blocked"] = True
         metrics["gate_reason"] = str(alternate.reason or primary.reason or "side_imbalance_both_sides")
         metrics["quality_guard_reject"] = True
         return None
-    if not _alternate_side_is_preferable(primary, alternate):
+    toxic_primary = primary_side_is_toxic(primary)
+    prefer_alt = alternate_side_is_preferable(primary, alternate, opposite=opposite)
+    thin_blocks = thin_margin_blocks_flip(metrics) and not toxic_primary
+    if not prefer_alt or thin_blocks:
+        if recovery_active:
+            return soft_keep_proposed(
+                metrics,
+                primary,
+                proposed,
+                reason="side_eq_recovery_keep" if not prefer_alt else "side_eq_recovery_thin_margin",
+                apply_metrics=apply_side_equilibrium_to_metrics,
+            )
         apply_side_equilibrium_to_metrics(metrics, primary, proposed=proposed)
         metrics["side_eq_gate_done"] = True
         metrics["side_eq_blocked"] = True
-        metrics["gate_reason"] = "side_imbalance_flip_not_better"
+        metrics["gate_reason"] = (
+            "side_imbalance_thin_margin_flip" if thin_blocks and prefer_alt else "side_imbalance_flip_not_better"
+        )
         metrics["quality_guard_reject"] = True
         metrics["side_eq_flip_rejected"] = True
         return None
-    toxic_primary = _primary_side_is_toxic(primary)
-    if _flip_conflicts_price_zone(opposite, metrics) and not toxic_primary:
+    if flip_conflicts_price_zone(opposite, metrics) and not toxic_primary:
+        if recovery_active:
+            return soft_keep_proposed(
+                metrics,
+                primary,
+                proposed,
+                reason="side_eq_recovery_zone_keep",
+                apply_metrics=apply_side_equilibrium_to_metrics,
+            )
         apply_side_equilibrium_to_metrics(metrics, primary, proposed=proposed)
         metrics["side_eq_gate_done"] = True
         metrics["side_eq_blocked"] = True
@@ -175,7 +210,7 @@ def resolve_direction_with_side_equilibrium(
         metrics["side_eq_flip_rejected"] = True
         metrics["side_eq_flip_zone_conflict"] = True
         return None
-    if toxic_primary and _flip_conflicts_price_zone(opposite, metrics):
+    if toxic_primary and flip_conflicts_price_zone(opposite, metrics):
         metrics["side_eq_toxic_zone_escape"] = True
     metrics.pop("quality_guard_reject", None)
     gate = str(metrics.get("gate_reason") or "")
@@ -186,76 +221,9 @@ def resolve_direction_with_side_equilibrium(
     if toxic_primary:
         metrics["side_eq_toxic_escape"] = True
     apply_side_equilibrium_to_metrics(metrics, alternate, proposed=opposite)
-    _log_side_eq_flip(orch, symbol=str(symbol or "?"), proposed=proposed, opposite=opposite, reason=primary.reason)
+    log_side_eq_flip(orch, symbol=str(symbol or "?"), proposed=proposed, opposite=opposite, reason=primary.reason)
     metrics["exec_direction"] = opposite.name
     metrics["resolved_direction"] = opposite.name
     metrics["side_eq_gate_done"] = True
     metrics["side_eq_blocked"] = False
     return opposite
-
-
-def _positive_meta_edge_keeps_proposed(metrics: dict[str, Any]) -> bool:
-    """True quando o edge meta positivo deve preservar o lado TCN/meta sem flip."""
-    edge = metrics.get("predicted_payoff_edge")
-    if edge is None:
-        return False
-    return float(edge) > 0.0
-
-
-def _primary_side_is_toxic(primary: SideEquilibriumDecision) -> bool:
-    """True quando o lado primario esta em hard-skip toxico por WR baixo."""
-    if primary.action != ACTION_HARD_SKIP:
-        return False
-    if primary.side_wr is None:
-        return True
-    return float(primary.side_wr) + 1e-12 < 0.40
-
-
-def _flip_conflicts_price_zone(opposite: TradeDirection, metrics: dict[str, Any]) -> bool:
-    """True quando o flip proposto conflita com a price zone ativa."""
-    zone_side = str(metrics.get("price_zone_direction") or "").upper()
-    if zone_side not in {TradeDirection.CALL.name, TradeDirection.PUT.name}:
-        return False
-    return opposite.name != zone_side
-
-
-def _alternate_side_is_preferable(
-    primary: SideEquilibriumDecision,
-    alternate: SideEquilibriumDecision,
-) -> bool:
-    """Exige WR amostrado no alternativo e vantagem clara sobre o primario bloqueado."""
-    alt_wr = alternate.side_wr
-    pri_wr = primary.side_wr
-    if alt_wr is None:
-        return False
-    if pri_wr is None:
-        return float(alt_wr) + 1e-12 >= 0.5
-    return float(alt_wr) + 1e-12 >= float(pri_wr) + 0.10
-
-
-def _log_side_eq_flip(
-    orch: Any | None,
-    *,
-    symbol: str,
-    proposed: TradeDirection,
-    opposite: TradeDirection,
-    reason: str | None,
-) -> None:
-    """Registra flip SIDE_EQ deduplicado por ciclo."""
-    cycle = int(getattr(orch, "_active_cycle_id", 0) or 0) if orch is not None else 0
-    key = ("flip", cycle, symbol, proposed.name, opposite.name, str(reason or "side_imbalance"))
-    if orch is not None:
-        bag = getattr(orch, "_side_eq_log_keys", None)
-        if not isinstance(bag, set):
-            orch._side_eq_log_keys = set()
-            bag = orch._side_eq_log_keys
-        if key in bag:
-            return
-        bag.add(key)
-    logger.info(
-        "SIDE_EQ_FLIP | %s %s -> %s | because=%s",
-        symbol,
-        proposed.name,
-        opposite.name,
-        str(reason or "side_imbalance"),
-    )

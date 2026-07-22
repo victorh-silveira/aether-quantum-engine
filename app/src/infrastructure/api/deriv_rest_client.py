@@ -189,6 +189,78 @@ class DerivRestClient:
         """Renova OTP de uso unico e retorna URL WebSocket autorizada."""
         return await self.request_otp_ws_url(account_id)
 
+    def _request_pat_body(
+        self,
+        method: str,
+        path: str,
+        *,
+        body: dict[str, Any],
+    ) -> dict[str, Any]:
+        """REST com Deriv-App-ID + PAT no body (sem Bearer), ex.: bulk-purchase."""
+        url = f"{self.rest_base_url}{path}"
+        headers = {
+            "Deriv-App-ID": self.deriv_app_id,
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        }
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(body).encode("utf-8"),
+            method=method,
+            headers=headers,
+        )
+        last_error = DerivRestError(f"{method} {path} falhou")
+        detail = ""
+        for attempt in range(self.max_retries):
+            try:
+                raw = read_http_response(req, float(self.timeout_seconds)).decode("utf-8")
+            except urllib.error.HTTPError as exc:
+                detail = exc.read().decode("utf-8", errors="replace")
+                last_error = DerivRestError(f"{method} {path} HTTP {exc.code}: {detail}")
+                if int(exc.code) not in _TRANSIENT_HTTP:
+                    raise last_error from exc
+            except urllib.error.URLError as exc:
+                detail = ""
+                last_error = DerivRestError(f"{method} {path} falhou: {exc}")
+            else:
+                parsed = json.loads(raw)
+                if not isinstance(parsed, dict):
+                    raise DerivRestError(f"Resposta JSON invalida em {path}")
+                return parsed
+            if attempt + 1 >= self.max_retries:
+                break
+            time.sleep(_retry_after_seconds(detail, attempt=attempt))
+        raise last_error
+
+    async def bulk_purchase(
+        self,
+        *,
+        mode: str,
+        account_id: str,
+        pat_token: str,
+        contract_parameters: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Compra via POST bulk-purchase/{demo|real} com PAT por conta (sem Bearer)."""
+        lane = "real" if str(mode).lower() in ("live", "real") else "demo"
+        path = f"/trading/v1/options/contracts/bulk-purchase/{lane}"
+        body = {
+            "contract_parameters": dict(contract_parameters),
+            "accounts": [{"account_id": str(account_id), "token": str(pat_token)}],
+        }
+        payload = await asyncio.to_thread(self._request_pat_body, "POST", path, body=body)
+        data = payload.get("data")
+        if not isinstance(data, dict):
+            raise DerivRestError("Campo data ausente em bulk-purchase")
+        rows = data.get("transactions")
+        if not isinstance(rows, list) or not rows:
+            raise DerivRestError("bulk-purchase sem transactions")
+        first = rows[0]
+        if not isinstance(first, dict):
+            raise DerivRestError("transaction bulk-purchase invalida")
+        if first.get("error") or first.get("code"):
+            raise DerivRestError(f"bulk-purchase conta falhou: {first}")
+        return first
+
     async def open_trading_session(
         self,
         mode: str,

@@ -21,7 +21,56 @@ def mock_ws():
 @pytest.fixture
 def trade_handler(mock_ws):
     config = {"risk_management": {"params": {"duration": 15, "duration_unit": "m"}}}
+    mock_ws.request_timeout = 30
     return TradeHandler(mock_ws, config)
+
+
+@pytest.mark.asyncio
+async def test_trade_handler_buy_via_bulk_purchase_rest(mock_ws):
+    mock_ws.request_timeout = 30
+    auth = MagicMock()
+    auth.mode = "demo"
+    auth.get_pat.return_value = "pat_x"
+    auth.account_id_override = None
+    auth.rest_client.return_value.bulk_purchase = AsyncMock(
+        return_value={
+            "buy_price": "0.35",
+            "contract_id": "77",
+            "payout": "0.66",
+            "purchase_time": 1000,
+            "start_time": 1000,
+            "shortcode": "CALL_R_10_0.66_1000_1120_S0P_0",
+            "transaction_id": "55",
+        }
+    )
+    handler = TradeHandler(mock_ws, {"risk_management": {"params": {"duration": 2, "duration_unit": "m"}}}, auth=auth)
+    handler.trading_transport = "rest"
+    handler.deriv_account_id = "DOT1"
+    contract = await handler.buy_with_parameters("R_10", TradeDirection.CALL, 0.35)
+    assert contract.contract_id == 77
+    assert contract.expiry_time == 1120
+    assert contract.payout == pytest.approx(0.66)
+    mock_ws.send.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_trade_handler_bulk_purchase_requires_auth_pat_account(mock_ws):
+    mock_ws.request_timeout = 30
+    handler = TradeHandler(mock_ws, {"risk_management": {"params": {}}}, auth=None)
+    handler.trading_transport = "rest"
+    with pytest.raises(RuntimeError, match="AuthManager"):
+        await handler.buy_with_parameters("R_10", TradeDirection.CALL, 1.0)
+    auth = MagicMock()
+    auth.get_pat.return_value = None
+    auth.account_id_override = None
+    handler = TradeHandler(mock_ws, {"risk_management": {"params": {}}}, auth=auth)
+    handler.trading_transport = "rest"
+    with pytest.raises(RuntimeError, match="AETHER_DERIV_PAT"):
+        await handler.buy_with_parameters("R_10", TradeDirection.CALL, 1.0)
+    auth.get_pat.return_value = "pat"
+    handler.deriv_account_id = ""
+    with pytest.raises(RuntimeError, match="deriv_account_id"):
+        await handler.buy_with_parameters("R_10", TradeDirection.CALL, 1.0)
 
 
 @pytest.mark.asyncio

@@ -121,7 +121,13 @@ def _finalize_execution_metrics(
     metrics["exec_direction"] = exec_dir.name
     metrics["resolved_direction"] = exec_dir.name
     ensure_direction_margin(metrics)
-    chosen = resolve_direction_with_side_equilibrium(orch, symbol, exec_dir, metrics)
+    chosen = resolve_direction_with_side_equilibrium(
+        orch,
+        symbol,
+        exec_dir,
+        metrics,
+        recovery_active=recovery_active,
+    )
     if chosen is None:
         sync_entry_metrics(entry, metrics)
         return None

@@ -26,6 +26,10 @@ async def test_setup_trading_session_reset_demo_balance_success(orch_config):
     mock_client._request = MagicMock(return_value={"data": {"balance": "10000.00"}})
 
     with (
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap._resolve_rest_account_balance",
+            AsyncMock(return_value=("DOT1", 0.0)),
+        ),
         patch.object(orch.auth, "open_trading_session", AsyncMock(side_effect=[session_zero, session_reset])),
         patch.object(orch.auth, "rest_client", MagicMock(return_value=mock_client)),
     ):
@@ -50,6 +54,10 @@ async def test_setup_trading_session_reset_demo_balance_failure(orch_config):
     mock_client._request = MagicMock(side_effect=RuntimeError("API Error"))
 
     with (
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap._resolve_rest_account_balance",
+            AsyncMock(return_value=("DOT1", 0.0)),
+        ),
         patch.object(orch.auth, "open_trading_session", AsyncMock(return_value=session_zero)),
         patch.object(orch.auth, "rest_client", MagicMock(return_value=mock_client)),
     ):

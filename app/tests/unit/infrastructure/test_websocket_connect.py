@@ -173,6 +173,101 @@ async def test_connect_raises_when_all_ips_fail():
         await connect_wss_with_ip_failover("wss://api.example/ws", open_timeout=6.0, per_ip_timeout=2.0)
 
 
+@pytest.mark.asyncio
+async def test_connect_failover_otp_without_factory_aborts_after_first_failure():
+    wsc._state["last_good_ip"] = None
+    with (
+        patch(
+            "src.infrastructure.api.websocket_connect._ordered_targets",
+            return_value=[("1.1.1.1", 443), ("2.2.2.2", 443)],
+        ),
+        patch(
+            "src.infrastructure.api.websocket_connect._connect_one_ip",
+            new_callable=AsyncMock,
+            side_effect=TimeoutError("stall"),
+        ) as mock_one,
+        pytest.raises(ConnectionError, match="OTP"),
+    ):
+        await connect_wss_with_ip_failover(
+            "wss://api.example/ws?otp=burned",
+            open_timeout=12.0,
+            per_ip_timeout=3.0,
+        )
+    assert mock_one.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_connect_failover_otp_401_refreshes_with_factory():
+    wsc._state["last_good_ip"] = None
+    response = MagicMock()
+    response.status_code = 401
+    ws = AsyncMock()
+    factory = AsyncMock(return_value="wss://api.example/ws?otp=new")
+    with (
+        patch(
+            "src.infrastructure.api.websocket_connect._ordered_targets",
+            return_value=[("1.1.1.1", 443), ("2.2.2.2", 443)],
+        ),
+        patch(
+            "src.infrastructure.api.websocket_connect._connect_one_ip",
+            new_callable=AsyncMock,
+            side_effect=[websockets.InvalidStatus(response), ws],
+        ),
+    ):
+        result = await connect_wss_with_ip_failover(
+            "wss://api.example/ws?otp=old",
+            open_timeout=12.0,
+            per_ip_timeout=3.0,
+            uri_factory=factory,
+        )
+    assert result is ws
+    factory.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_connect_failover_otp_non_401_without_factory_aborts():
+    wsc._state["last_good_ip"] = None
+    response = MagicMock()
+    response.status_code = 503
+    with (
+        patch(
+            "src.infrastructure.api.websocket_connect._ordered_targets",
+            return_value=[("1.1.1.1", 443), ("2.2.2.2", 443)],
+        ),
+        patch(
+            "src.infrastructure.api.websocket_connect._connect_one_ip",
+            new_callable=AsyncMock,
+            side_effect=websockets.InvalidStatus(response),
+        ) as mock_one,
+        pytest.raises(ConnectionError, match="OTP one-shot"),
+    ):
+        await connect_wss_with_ip_failover(
+            "wss://api.example/ws?otp=x",
+            open_timeout=12.0,
+            per_ip_timeout=3.0,
+        )
+    assert mock_one.await_count == 1
+
+
+def test_uri_has_otp_and_status_helpers():
+    assert wsc._uri_has_otp("wss://api.example/ws?otp=abc") is True
+    assert wsc._uri_has_otp("wss://api.example/trading/v1/options/ws/public") is False
+    response = MagicMock()
+    response.status_code = 503
+    exc = websockets.InvalidStatus(response)
+    assert wsc._status_code(exc) == 503
+    bare = MagicMock(spec=[])
+    bare.status_code = 502
+    bare.status = None
+    bare.response = None
+    assert wsc._status_code(bare) == 502
+    empty = MagicMock(spec=[])
+    empty.status_code = None
+    empty.status = None
+    empty.response = None
+    assert wsc._status_code(empty) is None
+
+
 def test_raise_connect_failure_branches():
     with pytest.raises(TimeoutError):
         wsc._raise_connect_failure(TimeoutError("x"))

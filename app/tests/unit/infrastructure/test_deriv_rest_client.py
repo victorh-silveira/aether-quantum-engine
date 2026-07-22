@@ -238,8 +238,7 @@ async def test_request_otp_ws_url_errors():
         await client.request_otp_ws_url("DOT1")
 
 
-@pytest.mark.asyncio
-async def test_request_with_json_body():
+def test_request_with_json_body_sets_content_type():
     client = DerivRestClient(
         rest_base_url="https://api.derivws.com",
         deriv_app_id="1089",
@@ -249,9 +248,10 @@ async def test_request_with_json_body():
     with patch(
         "src.infrastructure.api.deriv_rest_client.read_http_response",
         return_value=json.dumps({"data": {}}).encode(),
-    ):
-        out = await asyncio.to_thread(client._request, "POST", "/x", body={"a": 1})
+    ) as mock_read:
+        out = client._request("POST", "/x", body={"a": 1})
     assert out == {"data": {}}
+    assert mock_read.call_args.args[0].data == b'{"a": 1}'
 
 
 def test_retry_after_seconds_fallbacks():

@@ -34,6 +34,24 @@ def _unique_ipv4_targets(host: str, port: int) -> list[tuple[str, int]]:
     return out
 
 
+def _uri_has_otp(uri: str) -> bool:
+    """True quando a URI carrega OTP one-shot (gateway demo/real autenticado)."""
+    query = (urlparse(uri).query or "").lower()
+    return "otp=" in query
+
+
+def _status_code(exc: websockets.InvalidStatus) -> int | None:
+    """Extrai HTTP status de InvalidStatus cobrindo variantes da lib."""
+    status = getattr(exc, "status_code", None) or getattr(exc, "status", None)
+    if status is not None:
+        return int(status)
+    response = getattr(exc, "response", None)
+    if response is None:
+        return None
+    nested = getattr(response, "status_code", None) or getattr(response, "status", None)
+    return int(nested) if nested is not None else None
+
+
 def _ordered_targets(host: str, port: int, *, force_ip: str | None = None) -> list[tuple[str, int]]:
     """Ordena IPs com preferencia pelo ultimo sucesso e shuffle do restante."""
     targets = _unique_ipv4_targets(host, port)
@@ -114,15 +132,19 @@ async def connect_wss_with_ip_failover(
             close_timeout=float(close_timeout),
             **connect_kwargs,
         )
-    budget = max(4.0, float(open_timeout))
+    budget = max(8.0, float(open_timeout))
     ip_timeout = (
-        float(per_ip_timeout) if per_ip_timeout is not None else max(3.0, min(6.0, budget / max(1, len(targets))))
+        float(per_ip_timeout)
+        if per_ip_timeout is not None
+        else max(8.0, min(budget, budget / max(1, len(targets)) + 4.0))
     )
     last_err: BaseException | None = None
     current_uri = uri
+    otp_locked = _uri_has_otp(current_uri)
     for index, (ip, ip_port) in enumerate(targets):
         if index > 0 and uri_factory is not None:
             current_uri = await uri_factory()
+            otp_locked = _uri_has_otp(current_uri)
         try:
             ws = await _connect_one_ip(
                 current_uri,
@@ -138,14 +160,15 @@ async def connect_wss_with_ip_failover(
                 logger.info("WSS: handshake OK via %s (host=%s)", ip, host)
             return ws
         except websockets.InvalidStatus as exc:
-            response = getattr(exc, "response", None)
-            status = getattr(exc, "status_code", None) or getattr(exc, "status", None)
-            if status is None and response is not None:
-                status = getattr(response, "status_code", None) or getattr(response, "status", None)
+            status = _status_code(exc)
             last_err = exc
             logger.warning("WSS: IP %s status=%s (%s)", ip, status, type(exc).__name__)
             if status == 401 and uri_factory is None:
                 raise
+            if otp_locked and uri_factory is None:
+                raise ConnectionError(
+                    "WSS: falha no handshake com OTP one-shot. Renove via REST POST /otp antes de outro IP."
+                ) from exc
         except (
             TimeoutError,
             ConnectionError,
@@ -157,6 +180,10 @@ async def connect_wss_with_ip_failover(
         ) as exc:
             last_err = exc
             logger.warning("WSS: IP %s falhou (%s): %s", ip, type(exc).__name__, exc)
+            if otp_locked and uri_factory is None:
+                raise ConnectionError(
+                    "WSS: timeout/falha pode ter consumido o OTP. Renove via REST POST /otp e reconecte."
+                ) from exc
     return _raise_connect_failure(last_err)
 
 

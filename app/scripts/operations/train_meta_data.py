@@ -2,20 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
 import asyncpg
 import numpy as np
-from dotenv import load_dotenv
 
-from aether_paths import REPO_ROOT
 from src.domain.models.market_data import Candle
-from src.infrastructure.api.deriv_pat_binding import DerivPatBindingError, discover_app_id_for_pat, parse_deriv_pat
-from src.infrastructure.api.deriv_pat_session import DerivPatSession
-from src.infrastructure.api.deriv_rest_client import DerivRestError
 from src.infrastructure.api.websocket_manager import WebSocketManager
 from src.infrastructure.handlers.history_fetch import fetch_paginated_candle_history, parse_history_fetch_config
 
@@ -156,27 +150,20 @@ def _candles_to_bundle(symbol: str, granularity: int, candles: list[Candle], *, 
     )
 
 
-async def _open_deriv_ws(_settings: dict[str, Any]) -> WebSocketManager:
-    load_dotenv(REPO_ROOT / ".env")
-    raw_pat = (os.getenv("AETHER_DERIV_PAT") or "").strip()
-    if not raw_pat:
-        raise RuntimeError("TimescaleDB vazio e AETHER_DERIV_PAT ausente no .env para fallback Deriv.")
-    token, _ = parse_deriv_pat(raw_pat)
-    try:
-        app_id = discover_app_id_for_pat(token, REPO_ROOT)
-    except DerivPatBindingError as exc:
-        raise RuntimeError(
-            "TimescaleDB vazio e App ID Deriv nao encontrado. Rode deriv_pat_connect.py antes do treino."
-        ) from exc
-    session = DerivPatSession(token, app_id=app_id)
-    try:
-        result = await session.bootstrap(persist_binding=False)
-    except DerivRestError as exc:
-        raise RuntimeError(f"Falha ao autenticar Deriv para fallback de historico: {exc}") from exc
-    except Exception as exc:
-        raise RuntimeError(f"Falha ao autenticar Deriv para fallback de historico (PAT/OTP): {exc}") from exc
-    ws = WebSocketManager(result.ws_url, request_timeout=int(session.timeout_seconds))
-    await ws.connect()
+def _public_ws_url(settings: dict[str, Any]) -> str:
+    api = settings.get("api_config") if isinstance(settings.get("api_config"), dict) else {}
+    url = str((api or {}).get("public_ws_url") or "").strip()
+    if not url:
+        raise RuntimeError("TimescaleDB vazio e api_config.public_ws_url ausente para fallback Deriv (ticks_history).")
+    return url
+
+
+async def _open_deriv_ws(settings: dict[str, Any]) -> WebSocketManager:
+    api = settings.get("api_config") if isinstance(settings.get("api_config"), dict) else {}
+    timeout = int((api or {}).get("request_timeout_seconds") or 60)
+    ws = WebSocketManager(_public_ws_url(settings), request_timeout=timeout)
+    logger.info("META_TRAIN: historico via WSS publico (sem OTP): %s", ws.uri)
+    await ws.connect(open_timeout=40.0, max_attempts=3, retry_delay=2.0)
     return ws
 
 

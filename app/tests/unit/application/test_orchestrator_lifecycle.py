@@ -90,8 +90,11 @@ async def test_orchestrator_setup_session_auth_error(orchestrator_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_cls:
         mock_ws_cls.return_value.subscribe = MagicMock()
         orch = Orchestrator(orchestrator_config, "token")
-        orch.auth.open_trading_session = AsyncMock(side_effect=DerivRestError("token invalid"))
-        assert await orch._setup_session() is False
+        with patch(
+            "src.application.services.orchestrator.ws_bootstrap._resolve_rest_account_balance",
+            AsyncMock(side_effect=DerivRestError("token invalid")),
+        ):
+            assert await orch._setup_session() is False
 
 
 @pytest.mark.asyncio
@@ -101,8 +104,11 @@ async def test_orchestrator_setup_session_generic_error(orchestrator_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_cls:
         mock_ws_cls.return_value.subscribe = MagicMock()
         orch = Orchestrator(orchestrator_config, "token")
-        orch.auth.open_trading_session = AsyncMock(side_effect=RuntimeError("ws down"))
-        assert await orch._setup_session() is False
+        with patch(
+            "src.application.services.orchestrator.ws_bootstrap._resolve_rest_account_balance",
+            AsyncMock(side_effect=RuntimeError("ws down")),
+        ):
+            assert await orch._setup_session() is False
 
 
 @pytest.mark.asyncio

@@ -212,13 +212,18 @@ def should_veto_meta_payoff_negative_zscore(
             )
         except Exception:
             waived = False
+    recovery_active = _recovery_active(risk_manager)
+    edge_raw = metrics.get("predicted_payoff_edge")
+    edge_positive = edge_raw is not None and float(edge_raw) > 0.0
+    inverted_recovery_soft = bool(inverted_hit and recovery_active and edge_positive)
+    if inverted_recovery_soft:
+        metrics["meta_shadow_inverted_recovery_soft"] = True
+        inverted_hit = False
     recovery_severe = bool(
-        soft_hit
-        and z_score is not None
-        and float(z_score) <= float(RECOVERY_SEVERE_ZSCORE)
-        and _recovery_active(risk_manager)
+        soft_hit and z_score is not None and float(z_score) <= float(RECOVERY_SEVERE_ZSCORE) and recovery_active
     )
     metrics["meta_recovery_severe_z"] = bool(recovery_severe)
+    metrics["meta_recovery_active"] = bool(recovery_active)
     if (hard_allowed or inverted_hit or recovery_severe) and not waived:
         apply_meta_payoff_negative_zscore_veto(metrics)
         metrics["meta_veto_mode"] = META_HARD_VETO_MODE
@@ -234,7 +239,7 @@ def should_veto_meta_payoff_negative_zscore(
             n_shadow,
             float(z_score or 0.0),
             str(bool(inverted)).lower(),
-            str(bool(recovery_severe)).lower(),
+            str(bool(recovery_active)).lower(),
         )
         return True
     _apply_soft_veto(metrics)

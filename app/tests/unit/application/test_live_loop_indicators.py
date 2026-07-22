@@ -135,6 +135,39 @@ def test_meta_inverted_shadow_hard_vetoes_high_z():
     reset_meta_payoff_shadow()
 
 
+def test_meta_inverted_shadow_soft_in_recovery_with_positive_edge():
+    reset_meta_payoff_shadow()
+    orch = SimpleNamespace()
+    for i in range(16):
+        record_meta_payoff_shadow_pair(z_score=float(i), profit=-float(i), orch=orch)
+    metrics = {
+        "predicted_payoff_edge": 0.08,
+        "edge_expectancy": "WIN_EXPECTED",
+        "trade_score": 0.80,
+        "meta_payoff_edge_zscore": 1.20,
+        "edge_zscore": 1.20,
+        "edge_zscore_samples": 20,
+        "edge_zscore_window": 15,
+        "raw_prob": 0.48,
+    }
+    risk = SimpleNamespace(
+        consecutive_losses_linear=2,
+        pending_loss={"R_10": 40.0},
+        pending_loss_total=lambda: 40.0,
+    )
+    hard = should_veto_meta_payoff_negative_zscore(
+        metrics,
+        direction=TradeDirection.PUT,
+        orch=orch,
+        risk_manager=risk,
+    )
+    assert hard is False
+    assert metrics.get("meta_shadow_inverted_recovery_soft") is True
+    assert metrics.get("meta_veto_mode") == "soft"
+    assert metrics.get("gate_reason") != "meta_shadow_inverted_veto"
+    reset_meta_payoff_shadow()
+
+
 def test_assert_export_mae_gap_blocks_overfit():
     _assert_export_mae_gap(1.0, 1.20, max_gap=1.25)
     try:

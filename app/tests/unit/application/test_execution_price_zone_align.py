@@ -206,7 +206,7 @@ def test_finalize_keeps_side_eq_flip_against_price_zone():
         "trade_score": 0.65,
     }
 
-    def _flip_to_call(_orch, _symbol, _proposed, metrics_arg):
+    def _flip_to_call(_orch, _symbol, _proposed, metrics_arg, **_kwargs):
         metrics_arg["side_eq_flipped"] = True
         metrics_arg["side_eq_flip_from"] = "PUT"
         return TradeDirection.CALL

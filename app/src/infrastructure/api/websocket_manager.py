@@ -65,6 +65,8 @@ class WebSocketManager:
             last_err: BaseException | None = None
             for attempt in range(1, attempts + 1):
                 self.is_running = False
+                if attempt > 1 and uri_factory is not None:
+                    self.uri = await uri_factory()
                 try:
                     scheme = (urlparse(self.uri).scheme or "").lower()
                     if scheme == "wss":
@@ -91,6 +93,16 @@ class WebSocketManager:
                     if status is None and response is not None:
                         status = getattr(response, "status_code", None) or getattr(response, "status", None)
                     if status == 401:
+                        if uri_factory is not None and attempt < attempts:
+                            last_err = exc
+                            self.logger.warning(
+                                "WSS: OTP 401 (%d/%d); renovando via uri_factory",
+                                attempt,
+                                attempts,
+                            )
+                            await asyncio.sleep(delay)
+                            delay = min(delay * float(retry_backoff), 60.0)
+                            continue
                         self.uri = ""
                         raise ConnectionError(
                             "WSS: OTP expirado ou reutilizado (HTTP 401). Renove via REST POST /otp."

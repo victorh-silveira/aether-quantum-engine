@@ -4,10 +4,10 @@ from src.application.services.execution_direction_discordance import (
     _rsi_di_oppose_direction,
     apply_technical_agreement,
 )
-from src.application.services.side_equilibrium_gate import (
-    _alternate_side_is_preferable,
-    _flip_conflicts_price_zone,
-    _primary_side_is_toxic,
+from src.application.services.side_equilibrium_helpers import (
+    alternate_side_is_preferable,
+    flip_conflicts_price_zone,
+    primary_side_is_toxic,
 )
 from src.domain.analytics.side_equilibrium import (
     ACTION_HARD_SKIP,
@@ -85,17 +85,17 @@ def test_initial_direction_checks_discordance_reject():
 
 def test_side_eq_helpers():
     pass_dec = SideEquilibriumDecision(action=ACTION_PASS, reason="ok", side_wr=0.55)
-    assert _primary_side_is_toxic(pass_dec) is False
+    assert primary_side_is_toxic(pass_dec) is False
     toxic = SideEquilibriumDecision(action=ACTION_HARD_SKIP, reason="x", side_wr=None)
-    assert _primary_side_is_toxic(toxic) is True
-    assert _flip_conflicts_price_zone(TradeDirection.CALL, {"price_zone_direction": "PUT"}) is True
-    alt = SideEquilibriumDecision(action=ACTION_PASS, reason="ok", side_wr=0.6)
+    assert primary_side_is_toxic(toxic) is True
+    assert flip_conflicts_price_zone(TradeDirection.CALL, {"price_zone_direction": "PUT"}) is True
+    alt = SideEquilibriumDecision(action=ACTION_PASS, reason="ok", side_wr=0.6, call_n=2, call_wins=1)
     pri = SideEquilibriumDecision(action=ACTION_HARD_SKIP, reason="x", side_wr=None)
-    assert _alternate_side_is_preferable(pri, alt) is True
-    alt_none = SideEquilibriumDecision(action=ACTION_PASS, reason="ok", side_wr=None)
-    assert _alternate_side_is_preferable(pri, alt_none) is False
-    weak_alt = SideEquilibriumDecision(action=ACTION_PASS, reason="ok", side_wr=0.05)
+    assert alternate_side_is_preferable(pri, alt, opposite=TradeDirection.CALL) is True
+    alt_none = SideEquilibriumDecision(action=ACTION_PASS, reason="ok", side_wr=None, call_n=2)
+    assert alternate_side_is_preferable(pri, alt_none, opposite=TradeDirection.CALL) is False
+    weak_alt = SideEquilibriumDecision(action=ACTION_PASS, reason="ok", side_wr=0.05, call_n=2, call_wins=0)
     toxic_pri = SideEquilibriumDecision(action=ACTION_HARD_SKIP, reason="x", side_wr=0.0)
-    assert _alternate_side_is_preferable(toxic_pri, weak_alt) is False
-    strong_alt = SideEquilibriumDecision(action=ACTION_PASS, reason="ok", side_wr=0.55)
-    assert _alternate_side_is_preferable(toxic_pri, strong_alt) is True
+    assert alternate_side_is_preferable(toxic_pri, weak_alt, opposite=TradeDirection.CALL) is False
+    strong_alt = SideEquilibriumDecision(action=ACTION_PASS, reason="ok", side_wr=0.55, call_n=2, call_wins=1)
+    assert alternate_side_is_preferable(toxic_pri, strong_alt, opposite=TradeDirection.CALL) is True

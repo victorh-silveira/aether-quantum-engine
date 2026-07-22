@@ -67,7 +67,9 @@ class Orchestrator:
             config["data_handler"],
             market_writer=self.market_writer,
         )
-        self.trade_handler = TradeHandler(self.ws, config)
+        self.trade_handler = TradeHandler(self.ws, config, auth=self.auth)
+        self.trading_transport = "ws"
+        self.deriv_account_id = ""
         self.risk_manager = RiskManager(config["risk_management"])
         gran = int(config.get("data_handler", {}).get("micro_granularity", 300))
         self.risk_manager.set_candle_interval_seconds(gran)

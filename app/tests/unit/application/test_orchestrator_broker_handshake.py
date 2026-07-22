@@ -1,5 +1,5 @@
 import asyncio
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -68,6 +68,61 @@ async def test_broker_handshake_refreshes_otp_via_uri_factory(orch_config):
 
 
 @pytest.mark.asyncio
+async def test_setup_trading_session_train_uses_public_ws(orch_config_train):
+    from src.infrastructure.api.deriv_rest_client import DerivAccount
+
+    orch = Orchestrator(orch_config_train)
+    client = MagicMock()
+    client.list_accounts = AsyncMock(
+        return_value=[
+            DerivAccount(
+                account_id="DOT1",
+                balance=250.0,
+                account_type="demo",
+                status="active",
+                currency="USD",
+            )
+        ]
+    )
+    with (
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap.validate_infra_services",
+            AsyncMock(),
+        ),
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap.meta_classifier_enabled",
+            return_value=False,
+        ),
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap.bootstrap_and_validate_models",
+            AsyncMock(),
+        ),
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap.restore_orchestrator_state",
+            AsyncMock(),
+        ),
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap.bootstrap_active_session_targets",
+            AsyncMock(),
+        ),
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap.open_broker_handshake",
+            new_callable=AsyncMock,
+        ) as mock_otp,
+        patch.object(orch.auth, "rest_client", return_value=client),
+        patch.object(orch.logger, "info") as mock_info,
+    ):
+        orch.ws.connect = AsyncMock()
+        orch.ws.send = AsyncMock()
+        orch.ws.subscribe = MagicMock()
+        assert await setup_trading_session(orch) is True
+    mock_otp.assert_not_awaited()
+    orch.ws.connect.assert_awaited()
+    assert orch.state.balance == 250.0
+    assert any("WSS publico" in str(c) for c in mock_info.call_args_list)
+
+
+@pytest.mark.asyncio
 async def test_setup_trading_session_broker_handshake_timeout(orch_config):
     orch = Orchestrator(orch_config)
     with (
@@ -88,7 +143,7 @@ async def test_setup_trading_session_broker_handshake_timeout(orch_config):
             AsyncMock(),
         ),
         patch(
-            "src.application.services.orchestrator.ws_bootstrap.open_broker_handshake",
+            "src.application.services.orchestrator.ws_bootstrap._resolve_rest_account_balance",
             AsyncMock(
                 side_effect=RuntimeError(
                     "[AETHER] HANDSHAKE_TIMEOUT: WebSocket/Deriv estagnou (rede ou firewall). "
@@ -100,3 +155,95 @@ async def test_setup_trading_session_broker_handshake_timeout(orch_config):
     ):
         assert await setup_trading_session(orch) is False
     assert any("HANDSHAKE_TIMEOUT" in str(c) for c in mock_error.call_args_list)
+
+
+@pytest.mark.asyncio
+async def test_setup_execute_falls_back_to_public_and_rest(orch_config):
+    from src.infrastructure.api.deriv_rest_client import DerivAccount
+
+    orch = Orchestrator(orch_config)
+    client = MagicMock()
+    client.list_accounts = AsyncMock(
+        return_value=[
+            DerivAccount(
+                account_id="DOT1",
+                balance=500.0,
+                account_type="demo",
+                status="active",
+                currency="USD",
+            )
+        ]
+    )
+    with (
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap.validate_infra_services",
+            AsyncMock(),
+        ),
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap.meta_classifier_enabled",
+            return_value=False,
+        ),
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap.bootstrap_and_validate_models",
+            AsyncMock(),
+        ),
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap.restore_orchestrator_state",
+            AsyncMock(),
+        ),
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap.bootstrap_active_session_targets",
+            AsyncMock(),
+        ),
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap._try_optional_otp_trading_ws",
+            AsyncMock(return_value=False),
+        ),
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap.open_public_market_handshake",
+            AsyncMock(),
+        ) as mock_public,
+        patch.object(orch.auth, "rest_client", return_value=client),
+    ):
+        assert await setup_trading_session(orch) is True
+    mock_public.assert_awaited_once()
+    assert orch.trading_transport == "rest"
+    assert orch.trade_handler.trading_transport == "rest"
+    assert orch.deriv_account_id == "DOT1"
+
+
+def test_resolve_public_ws_url_defaults():
+    from src.application.services.orchestrator.ws_bootstrap import resolve_public_ws_url
+
+    assert resolve_public_ws_url(None).endswith("/ws/public")
+    assert resolve_public_ws_url({"api_config": {"public_ws_url": "wss://x/public"}}) == "wss://x/public"
+
+
+@pytest.mark.asyncio
+async def test_open_public_market_handshake_timeout(orch_config_train):
+    from src.application.services.orchestrator.ws_bootstrap import open_public_market_handshake
+
+    orch = Orchestrator(orch_config_train)
+    stuck = asyncio.Event()
+
+    async def _hang(*_args: object, **_kwargs: object) -> None:
+        await stuck.wait()
+
+    orch.ws.connect = _hang
+    with (
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap.resolve_orchestrator_timing_config",
+            return_value={
+                "broker_handshake_timeout_seconds": 0.05,
+                "ws_connect": {
+                    "max_attempts": 1,
+                    "open_timeout_seconds": 5.0,
+                    "retry_delay_seconds": 0.1,
+                    "retry_backoff": 1.0,
+                    "subscribe_transaction_timeout_seconds": 5.0,
+                },
+            },
+        ),
+        pytest.raises(RuntimeError, match="HANDSHAKE_TIMEOUT"),
+    ):
+        await open_public_market_handshake(orch)

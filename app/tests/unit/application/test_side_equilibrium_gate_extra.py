@@ -1,10 +1,10 @@
 from unittest.mock import patch
 
 from src.application.services.side_equilibrium_gate import (
-    _log_side_eq_flip,
     log_side_equilibrium,
     resolve_direction_with_side_equilibrium,
 )
+from src.application.services.side_equilibrium_helpers import log_side_eq_flip, thin_margin_blocks_flip
 from src.application.services.side_equilibrium_store import record_side_equilibrium_outcome
 from src.domain.analytics.side_equilibrium import ACTION_PASS, SideEquilibriumDecision
 from src.domain.models.trade import TradeDirection
@@ -71,7 +71,7 @@ def test_side_eq_flip_logs_once_when_resolve_called_twice():
     for _ in range(2):
         record_side_equilibrium_outcome(orch, "R_10", direction="CALL", won=True)
     metrics: dict = {}
-    with patch("src.application.services.side_equilibrium_gate.logger") as mock_logger:
+    with patch("src.application.services.side_equilibrium_helpers.logger") as mock_logger:
         first = resolve_direction_with_side_equilibrium(orch, "R_10", TradeDirection.PUT, metrics)
         second = resolve_direction_with_side_equilibrium(orch, "R_10", TradeDirection.PUT, metrics)
     assert first == TradeDirection.CALL
@@ -131,15 +131,15 @@ def test_side_eq_flip_log_creates_bag_and_dedupes_without_gate_flag():
     orch = _orch_with_side_eq(n_min_small=2, wr_floor_small=0.40, freq_bias_max_small=0.70)
     orch._active_cycle_id = 9
     orch._side_eq_log_keys = "not-a-set"
-    with patch("src.application.services.side_equilibrium_gate.logger") as mock_logger:
-        _log_side_eq_flip(
+    with patch("src.application.services.side_equilibrium_helpers.logger") as mock_logger:
+        log_side_eq_flip(
             orch,
             symbol="R_10",
             proposed=TradeDirection.PUT,
             opposite=TradeDirection.CALL,
             reason="side_imbalance_small_n",
         )
-        _log_side_eq_flip(
+        log_side_eq_flip(
             orch,
             symbol="R_10",
             proposed=TradeDirection.PUT,
@@ -148,3 +148,45 @@ def test_side_eq_flip_log_creates_bag_and_dedupes_without_gate_flag():
         )
     assert mock_logger.info.call_count == 1
     assert isinstance(orch._side_eq_log_keys, set)
+
+
+def test_thin_margin_blocks_flip_invalid_margin():
+    assert thin_margin_blocks_flip({"direction_margin": "bad"}) is False
+    assert thin_margin_blocks_flip({"direction_margin": object()}) is False
+
+
+def test_side_eq_recovery_keeps_when_both_sides_hard_skip():
+    orch = _orch_with_side_eq(n_min_small=2, wr_floor_small=0.40, freq_bias_max_small=0.70)
+    for _ in range(2):
+        record_side_equilibrium_outcome(orch, "R_10", direction="PUT", won=False)
+        record_side_equilibrium_outcome(orch, "R_10", direction="CALL", won=False)
+    metrics: dict = {}
+    chosen = resolve_direction_with_side_equilibrium(
+        orch,
+        "R_10",
+        TradeDirection.PUT,
+        metrics,
+        recovery_active=True,
+    )
+    assert chosen == TradeDirection.PUT
+    assert metrics.get("side_eq_recovery_both_hard") is True
+
+
+def test_side_eq_recovery_keeps_on_zone_conflict():
+    orch = _orch_with_side_eq(n_min_small=2, wr_floor_small=0.40, freq_bias_max_small=0.70)
+    for _ in range(4):
+        record_side_equilibrium_outcome(orch, "R_10", direction="PUT", won=True)
+    for _ in range(4):
+        record_side_equilibrium_outcome(orch, "R_10", direction="PUT", won=False)
+    for _ in range(2):
+        record_side_equilibrium_outcome(orch, "R_10", direction="CALL", won=True)
+    metrics = {"price_zone_direction": "PUT", "direction_margin": 0.08}
+    chosen = resolve_direction_with_side_equilibrium(
+        orch,
+        "R_10",
+        TradeDirection.PUT,
+        metrics,
+        recovery_active=True,
+    )
+    assert chosen == TradeDirection.PUT
+    assert metrics.get("side_eq_recovery_zone_keep") is True

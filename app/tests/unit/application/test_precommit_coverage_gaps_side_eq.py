@@ -70,7 +70,7 @@ def test_side_eq_soft_margin_blocks_after_flip_pass():
         },
     }
 
-    def _soft(_orch, _symbol, proposed, metrics):
+    def _soft(_orch, _symbol, proposed, metrics, **_kwargs):
         metrics["side_eq_margin_boost"] = 0.05
         metrics["quality_min_direction_margin"] = 0.10
         return proposed

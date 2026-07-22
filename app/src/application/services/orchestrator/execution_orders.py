@@ -19,6 +19,7 @@ from .execution_proposal import (
     proposal_stake_attempts,
 )
 from .settlement_backfill import subscribe_open_contract
+from .settlement_rest import schedule_rest_contract_settlement
 
 
 async def _subscribe_open_contract_background(ws, contract_id: int, *, timeout: float, cid: str) -> None:
@@ -129,12 +130,27 @@ async def place_order(executor, symbol, direction, stake, duration=None, metrics
         .get("execution", {})
         .get("settlement_request_timeout_seconds", 30.0)
     )
-    asyncio.create_task(
-        _subscribe_open_contract_background(
-            executor.orch.ws,
-            int(contract.contract_id),
-            timeout=req_timeout,
-            cid=cid,
+    if str(getattr(executor.orch, "trading_transport", "ws")).lower() == "rest":
+        balance_after = float(getattr(executor.orch.state, "balance", 0.0) or 0.0) - float(contract.buy_price)
+        try:
+            client = executor.orch.auth.rest_client()
+            accounts = await client.list_accounts()
+            account_id = str(getattr(executor.orch, "deriv_account_id", "") or "")
+            for acc in accounts:
+                if not account_id or str(acc.account_id) == account_id:
+                    balance_after = float(acc.balance)
+                    executor.orch.state.balance = balance_after
+                    break
+        except Exception as exc:
+            logger.warning("[%s] SETTLE_REST: refresh saldo pos-compra falhou: %s", cid, exc)
+        schedule_rest_contract_settlement(executor.orch, contract, balance_after_buy=balance_after)
+    else:
+        asyncio.create_task(
+            _subscribe_open_contract_background(
+                executor.orch.ws,
+                int(contract.contract_id),
+                timeout=req_timeout,
+                cid=cid,
+            )
         )
-    )
     return contract

@@ -10,9 +10,10 @@ from typing import TYPE_CHECKING
 from src.application.services.deep_learning.dl_model_artifacts import bootstrap_and_validate_models
 from src.application.services.deep_learning.dl_startup import resolve_startup_fetch_bars
 from src.application.services.infra_timing_config import resolve_orchestrator_timing_config
+from src.application.services.orchestrator.engine_mode import training_enabled
 from src.application.services.orchestrator.orchestrator_state_restore import restore_orchestrator_state
 from src.application.services.orchestrator.session_target_bootstrap import bootstrap_active_session_targets
-from src.infrastructure.api.deriv_rest_client import DerivRestError
+from src.infrastructure.api.deriv_rest_client import DerivRestError, select_account
 from src.infrastructure.factories.infra_factory import validate_infra_services
 from src.infrastructure.inference.meta_classifier_client import meta_classifier_enabled
 from src.infrastructure.inference.meta_classifier_pool import bootstrap_meta_classifier_client
@@ -28,6 +29,14 @@ _BROKER_HANDSHAKE_TIMEOUT_MESSAGE = (
     "[AETHER] HANDSHAKE_TIMEOUT: WebSocket/Deriv estagnou (rede ou firewall). "
     "TCP silent drop ou barreira local bloqueou o aperto de mao seguro."
 )
+_DEFAULT_PUBLIC_WS_URL = "wss://api.derivws.com/trading/v1/options/ws/public"
+
+
+def resolve_public_ws_url(config: dict | None) -> str:
+    """URL do gateway publico de market data (ticks_history sem OTP)."""
+    api = (config or {}).get("api_config") if isinstance((config or {}).get("api_config"), dict) else {}
+    url = str((api or {}).get("public_ws_url") or "").strip()
+    return url or _DEFAULT_PUBLIC_WS_URL
 
 
 def ws_connect_options(orch: Orchestrator) -> dict[str, float | int]:
@@ -85,6 +94,32 @@ async def open_broker_handshake(orch: Orchestrator) -> DerivTradingSession:
         raise RuntimeError(_BROKER_HANDSHAKE_TIMEOUT_MESSAGE) from exc
 
 
+async def _resolve_rest_account_balance(orch: Orchestrator) -> tuple[str, float]:
+    """Saldo via REST accounts (sem emitir OTP)."""
+    client = orch.auth.rest_client()
+    accounts = await client.list_accounts()
+    account = select_account(accounts, orch.auth.mode, orch.auth.account_id_override)
+    return str(account.account_id), float(account.balance)
+
+
+async def open_public_market_handshake(orch: Orchestrator) -> None:
+    """Conecta ao WSS publico (treino/historico); sem OTP."""
+    url = resolve_public_ws_url(orch.config)
+    opts = ws_connect_options(orch)
+    try:
+        await asyncio.wait_for(
+            orch.ws.connect(url, **opts),
+            timeout=float(
+                resolve_orchestrator_timing_config((orch.config or {}).get("orchestrator"))[
+                    "broker_handshake_timeout_seconds"
+                ]
+            ),
+        )
+    except TimeoutError as exc:
+        raise RuntimeError(_BROKER_HANDSHAKE_TIMEOUT_MESSAGE) from exc
+    orch.logger.info("AUTH: WSS publico (market data) ok | %s", url)
+
+
 async def subscribe_account_transactions(orch: Orchestrator) -> None:
     """Inscreve no stream de transacoes da conta para liquidacao."""
     try:
@@ -125,8 +160,42 @@ def _setup_trading_session_failure(orch: Orchestrator, exc: BaseException) -> bo
     return False
 
 
+async def _try_optional_otp_trading_ws(orch: Orchestrator) -> bool:
+    """Tenta WSS OTP autenticado; False se a rede bloquear o gateway demo/real."""
+    try:
+        session = await asyncio.wait_for(
+            _broker_pat_websocket_handshake(orch),
+            timeout=min(
+                25.0,
+                float(
+                    resolve_orchestrator_timing_config((orch.config or {}).get("orchestrator"))[
+                        "broker_handshake_timeout_seconds"
+                    ]
+                ),
+            ),
+        )
+        orch.state.balance = float(session.balance)
+        orch.deriv_account_id = str(session.account_id)
+        orch.trade_handler.deriv_account_id = orch.deriv_account_id
+        await subscribe_account_transactions(orch)
+        orch.trading_transport = "ws"
+        orch.trade_handler.trading_transport = "ws"
+        orch.logger.info(
+            "AUTH: PAT+OTP ok conta=%s saldo=%.2f (trading via WSS)",
+            session.account_id,
+            orch.state.balance,
+        )
+        return True
+    except Exception as exc:
+        orch.logger.warning(
+            "AUTH: WSS OTP indisponivel (%s); market data publico + trading REST bulk-purchase",
+            type(exc).__name__,
+        )
+        return False
+
+
 async def setup_trading_session(orch: Orchestrator) -> bool:
-    """Conecta WebSocket via OTP PAT e prepara saldo e transacoes."""
+    """Conecta market data publico; OTP se disponivel, senao REST bulk-purchase."""
     initial_boot = bool(getattr(orch, "_is_initial_boot", True))
     try:
         await validate_infra_services(orch.infra, orch.config)
@@ -136,17 +205,38 @@ async def setup_trading_session(orch: Orchestrator) -> bool:
         await restore_orchestrator_state(orch)
         if orch.ws.ws:
             await orch.ws.close()
-        session = await open_broker_handshake(orch)
-        orch.state.balance = session.balance
-        await bootstrap_active_session_targets(orch, float(orch.state.balance))
-        if orch.risk_manager.initial_bankroll <= 0.0:
-            orch.risk_manager.set_initial_bankroll(orch.state.balance)
-        await subscribe_account_transactions(orch)
-        orch.logger.debug(
-            "AUTH: PAT+OTP ok conta=%s saldo=%.2f",
-            session.account_id,
-            orch.state.balance,
-        )
+        account_id, balance = await _resolve_rest_account_balance(orch)
+        orch.deriv_account_id = account_id
+        orch.trade_handler.deriv_account_id = account_id
+        orch.state.balance = balance
+        if training_enabled(orch):
+            await open_public_market_handshake(orch)
+            await bootstrap_active_session_targets(orch, float(orch.state.balance))
+            if orch.risk_manager.initial_bankroll <= 0.0:
+                orch.risk_manager.set_initial_bankroll(orch.state.balance)
+            orch.trading_transport = "rest"
+            orch.trade_handler.trading_transport = "rest"
+            orch.logger.info(
+                "AUTH: treino via WSS publico | conta=%s saldo=%.2f (sem OTP)",
+                account_id,
+                orch.state.balance,
+            )
+        else:
+            otp_ok = await _try_optional_otp_trading_ws(orch)
+            if not otp_ok:
+                if orch.ws.ws:
+                    await orch.ws.close()
+                await open_public_market_handshake(orch)
+                orch.trading_transport = "rest"
+                orch.trade_handler.trading_transport = "rest"
+                orch.logger.info(
+                    "AUTH: execucao hibrida | WSS publico + bulk-purchase REST | conta=%s saldo=%.2f",
+                    account_id,
+                    orch.state.balance,
+                )
+            await bootstrap_active_session_targets(orch, float(orch.state.balance))
+            if orch.risk_manager.initial_bankroll <= 0.0:
+                orch.risk_manager.set_initial_bankroll(orch.state.balance)
         orch._is_initial_boot = False
         return True
     except Exception as exc:
@@ -180,8 +270,11 @@ async def start_orchestrator_streams(orch: Orchestrator) -> bool:
                 orch.logger.debug(f"STRM: reconexao durante startup ({attempt}/{retries}): {e}")
                 await asyncio.sleep(delay)
                 if not orch.ws.is_running:
-                    session = await open_broker_handshake(orch)
-                    orch.state.balance = session.balance
+                    if training_enabled(orch) or str(getattr(orch, "trading_transport", "ws")).lower() == "rest":
+                        await open_public_market_handshake(orch)
+                    else:
+                        session = await open_broker_handshake(orch)
+                        orch.state.balance = session.balance
     except Exception as e:
         detalhe = str(e).strip() or repr(e)
         orch.logger.error("STRM: Falha [%s]: %s", type(e).__name__, detalhe, exc_info=True)
