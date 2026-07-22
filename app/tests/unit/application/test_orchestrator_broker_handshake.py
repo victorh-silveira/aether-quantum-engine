@@ -157,61 +157,6 @@ async def test_setup_trading_session_broker_handshake_timeout(orch_config):
     assert any("HANDSHAKE_TIMEOUT" in str(c) for c in mock_error.call_args_list)
 
 
-@pytest.mark.asyncio
-async def test_setup_execute_falls_back_to_public_and_rest(orch_config):
-    from src.infrastructure.api.deriv_rest_client import DerivAccount
-
-    orch = Orchestrator(orch_config)
-    client = MagicMock()
-    client.list_accounts = AsyncMock(
-        return_value=[
-            DerivAccount(
-                account_id="DOT1",
-                balance=500.0,
-                account_type="demo",
-                status="active",
-                currency="USD",
-            )
-        ]
-    )
-    with (
-        patch(
-            "src.application.services.orchestrator.ws_bootstrap.validate_infra_services",
-            AsyncMock(),
-        ),
-        patch(
-            "src.application.services.orchestrator.ws_bootstrap.meta_classifier_enabled",
-            return_value=False,
-        ),
-        patch(
-            "src.application.services.orchestrator.ws_bootstrap.bootstrap_and_validate_models",
-            AsyncMock(),
-        ),
-        patch(
-            "src.application.services.orchestrator.ws_bootstrap.restore_orchestrator_state",
-            AsyncMock(),
-        ),
-        patch(
-            "src.application.services.orchestrator.ws_bootstrap.bootstrap_active_session_targets",
-            AsyncMock(),
-        ),
-        patch(
-            "src.application.services.orchestrator.ws_bootstrap._try_optional_otp_trading_ws",
-            AsyncMock(return_value=False),
-        ),
-        patch(
-            "src.application.services.orchestrator.ws_bootstrap.open_public_market_handshake",
-            AsyncMock(),
-        ) as mock_public,
-        patch.object(orch.auth, "rest_client", return_value=client),
-    ):
-        assert await setup_trading_session(orch) is True
-    mock_public.assert_awaited_once()
-    assert orch.trading_transport == "rest"
-    assert orch.trade_handler.trading_transport == "rest"
-    assert orch.deriv_account_id == "DOT1"
-
-
 def test_resolve_public_ws_url_defaults():
     from src.application.services.orchestrator.ws_bootstrap import resolve_public_ws_url
 

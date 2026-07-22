@@ -9,6 +9,7 @@ from src.application.services.orchestrator import Orchestrator
 from src.domain.models.trade import Contract, TradeDirection, TradeStatus
 from src.infrastructure.api.deriv_rest_client import DerivRestError, DerivTradingSession
 from src.infrastructure.state.trading_state import TradingState
+from tests.unit.application.orchestrator_session_patches import session_setup_patches
 
 
 @pytest.fixture
@@ -24,14 +25,12 @@ async def test_orchestrator_setup_and_auth(orchestrator_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
         mock_ws = mock_ws_class.return_value
         mock_ws.subscribe = MagicMock()
+        mock_ws.ws = None
         orch = Orchestrator(orchestrator_config, "token")
-        mock_ws.connect.side_effect = Exception("ConnectFail")
-        assert await orch._setup_session() is False
-        mock_ws.connect.side_effect = None
-        orch.auth.open_trading_session = AsyncMock(
-            return_value=DerivTradingSession(ws_url="wss://test/ws?otp=x", balance=1000.0, account_id="DOT1")
-        )
-        assert await orch._setup_session() is True
+        with session_setup_patches(otp_ok=False, public_side_effect=RuntimeError("HANDSHAKE_TIMEOUT")):
+            assert await orch._setup_session() is False
+        with session_setup_patches(otp_ok=True):
+            assert await orch._setup_session() is True
 
 
 @pytest.mark.asyncio
