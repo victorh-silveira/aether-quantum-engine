@@ -23,10 +23,46 @@ INNER_JOIN_MIN_SAMPLE_RATIO = 0.80
 TCN_CALL_PROXY_THRESHOLD = 0.53
 TCN_PUT_PROXY_THRESHOLD = 0.47
 MICRO_ZSCORE_WINDOW = 1024
+TARGET_WINSOR_Q_LOW = 0.01
+TARGET_WINSOR_Q_HIGH = 0.99
+GRAY_KEEP_MIN_RATIO = 0.50
+GRAY_KEEP_MIN_ROWS = 96
+GRAY_FILTER_HARD = 1
+GRAY_FILTER_SOFT = 0
+FORWARD_TARGET_ZSCORE_WINDOW = 64
+LABEL_MODE_FORWARD_Z = 1
 
 
 def _proxy_prob_from_past_return(past_return: np.ndarray) -> np.ndarray:
     return np.clip(0.5 + 0.15 * past_return, 0.05, 0.95).astype(np.float32)
+
+
+def teacher_decisive_mask(proxy: np.ndarray) -> np.ndarray:
+    arr = np.asarray(proxy, dtype=np.float64)
+    return (arr <= float(TCN_PUT_PROXY_THRESHOLD)) | (arr >= float(TCN_CALL_PROXY_THRESHOLD))
+
+
+def teacher_sample_weights(proxy: np.ndarray) -> np.ndarray:
+    conf = 2.0 * np.abs(np.asarray(proxy, dtype=np.float64) - 0.5)
+    return np.clip(conf, 0.1, 1.0).astype(np.float64)
+
+
+def _winsorize_target(y: np.ndarray) -> np.ndarray:
+    arr = np.asarray(y, dtype=np.float64)
+    if arr.size < 8:
+        return arr.astype(np.float32)
+    lo, hi = np.quantile(arr, [TARGET_WINSOR_Q_LOW, TARGET_WINSOR_Q_HIGH])
+    if not np.isfinite(lo) or not np.isfinite(hi) or float(hi) <= float(lo):
+        return arr.astype(np.float32)
+    return np.clip(arr, float(lo), float(hi)).astype(np.float32)
+
+
+def _forward_return_z_target(
+    forward: np.ndarray,
+    *,
+    window: int = FORWARD_TARGET_ZSCORE_WINDOW,
+) -> np.ndarray:
+    return _rolling_zscore(np.asarray(forward, dtype=np.float64), window=int(window)).astype(np.float32)
 
 
 def _rolling_zscore(values: np.ndarray, *, window: int = MICRO_ZSCORE_WINDOW) -> np.ndarray:
@@ -204,7 +240,8 @@ def build_paired_training_dataset(
     reference_stake: float = META_TRAIN_REFERENCE_STAKE,
     fetch_count: int = META_TRAIN_DEFAULT_BARS,
     teacher_probs: dict[str, np.ndarray] | None = None,
-) -> tuple[pd.DataFrame, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[pd.DataFrame, np.ndarray, np.ndarray, np.ndarray, dict[str, int]]:
+    _ = reference_stake
     planned_fetch = int(fetch_count)
     if not bundles:
         raise RuntimeError("Treino meta-classificador exige ao menos um bundle OHLC.")
@@ -256,10 +293,18 @@ def build_paired_training_dataset(
         raise RuntimeError(f"Meta feature row divergente: esperado {META_FEATURE_DIM}, obtido {matrix.shape[1]}")
     proxy = primary_slice["prob_call"].to_numpy(dtype=np.float32)
     call_pnl = primary_slice["pnl"].to_numpy(dtype=np.float32)
-    put_pnl = (-call_pnl).astype(np.float32)
-    labels = _continuous_payoff_target(proxy, call_pnl, put_pnl, stake=reference_stake)
+    labels = _winsorize_target(_forward_return_z_target(call_pnl))
+    n_kept = int(len(labels))
     frame = pd.DataFrame(matrix, columns=meta_classifier_column_names())
-    return frame, labels, proxy, call_pnl
+    hygiene = {
+        "n_before_gray_filter": n_kept,
+        "n_dropped_gray": 0,
+        "n_gray_soft_retained": 0,
+        "n_kept": n_kept,
+        "gray_filter_mode": int(GRAY_FILTER_SOFT),
+        "label_mode": int(LABEL_MODE_FORWARD_Z),
+    }
+    return frame, labels, proxy, call_pnl, hygiene
 
 
 def resolve_contract_duration_seconds(settings: dict[str, Any]) -> int:

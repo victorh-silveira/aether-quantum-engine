@@ -102,63 +102,58 @@ app-clean:
 	$(PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --stage clean
 
 docker-up:
+	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-up · Aether stack (profiles: $(DOCKER_PROFILES))"'
+	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_step 1 6 "Host prerequisites"'
 	@bash infra/docker/host-prereq.sh
+	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_step 2 6 "Triton model layout"'
 	@bash infra/docker/triton-prereq.sh
 	@test -f .env || cp .env.example .env
+	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_step 3 6 "Compose up"'
 	$(DOCKER_COMPOSE) up -d
+	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_step 4 6 "Healthchecks"'
 	@bash infra/docker/docker-wait-healthy.sh
-	@$(MAKE) timescale-lifecycle
-	@$(MAKE) docker-hydrate
-	@$(MAKE) docker-smoke
+	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_step 5 6 "Timescale lifecycle + hydrate"'
+	@bash infra/docker/timescale-lifecycle.sh
+	@bash infra/docker/docker-hydrate.sh
+	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_step 6 6 "Smoke checks"'
+	@bash infra/docker/docker-smoke.sh
 
 docker-up-core:
 	@test -f .env || cp .env.example .env
 	@docker stop aether-triton aether-meta-classifier >/dev/null 2>&1 || true
-	@$(MAKE) docker-up DOCKER_PROFILES=core
+	@$(MAKE) --no-print-directory docker-up DOCKER_PROFILES=core
 
 docker-rebuild:
+	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-rebuild · meta-classifier + stack"'
 	@test -f .env || cp .env.example .env
 	@bash infra/docker/triton-prereq.sh
 	$(DOCKER_COMPOSE) build --pull aether-meta-classifier
 	$(DOCKER_COMPOSE) up -d
 	@bash infra/docker/docker-wait-healthy.sh
-	@$(MAKE) docker-smoke
+	@bash infra/docker/docker-smoke.sh
 
 timescale-lifecycle:
-	@$(DOCKER_COMPOSE) up -d timescaledb
-	@$(DOCKER_COMPOSE) exec -T timescaledb sh -c 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"'
-	@$(DOCKER_COMPOSE) exec -T timescaledb sh -c 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -v ON_ERROR_STOP=1 -f /docker-scripts/004_timescale-lifecycle.sql'
+	@bash infra/docker/timescale-lifecycle.sh
 
 docker-down:
-	@echo ">>> Parando ecossistema Aether... [DADOS E VOLUMES PRESERVADOS]"
+	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-down · parando stack (volumes preservados)"'
 	$(DOCKER_COMPOSE) down
+	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_nl'
 
 docker-clean:
 	@test -f .env || cp .env.example .env
-	@echo -e "$(RED)>>> ATENCAO: Removendo containers, redes e DELETANDO os volumes do TimescaleDB/MinIO/Redis!$(RESET)"
+	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-clean · ATENCAO: volumes serao apagados"'
+	@echo -e "$(RED)  Removendo containers, redes e volumes (TimescaleDB/MinIO/Redis)$(RESET)"
+	@echo ""
 	$(DOCKER_COMPOSE) down --volumes --remove-orphans
+	@echo ""
 	@$(DOCKER_COMPOSE) ps
 
 docker-hydrate:
-	@echo ">>> Verificando integridade de dados no TimescaleDB..."
-	@set -a; [ -f .env ] && . ./.env; set +a; \
-	PG_USER="$${AETHER_PG_USER:-aether}"; \
-	PG_DB="$${AETHER_PG_DB:-aether}"; \
-	CURRENT_COUNT=$$($(DOCKER_COMPOSE) exec -T timescaledb psql -U "$$PG_USER" -d "$$PG_DB" -t -A -c "SELECT count(*) FROM ohlc_bars;" 2>/dev/null || echo "0"); \
-	if [ "$$CURRENT_COUNT" -lt "48" ]; then \
-		echo ">>> [AVISO] Fome de dados detectada ($$CURRENT_COUNT barras). Hidratando portao M15 proativamente..."; \
-		$(DOCKER_COMPOSE) exec -T timescaledb psql -U "$$PG_USER" -d "$$PG_DB" -c " \
-			INSERT INTO ohlc_bars (time, symbol, epoch, granularity, open, high, low, close) \
-			SELECT t, sym, EXTRACT(EPOCH FROM t)::bigint, 900, 100.0+(i*0.01), 100.5+(i*0.01), 99.5+(i*0.01), 100.1+(i*0.01) \
-			FROM (SELECT NOW() - (i * INTERVAL '15 minutes') AS t, i FROM generate_series(1, 60) i) s \
-			CROSS JOIN (SELECT 'R_10' AS sym) symbols \
-			ON CONFLICT DO NOTHING;"; \
-		echo ">>> [SUCESSO] Portao de lookback reidratado."; \
-	else \
-		echo ">>> [OK] Banco de series temporais populado com $$CURRENT_COUNT registros. Preservando consistencia."; \
-	fi
+	@bash infra/docker/docker-hydrate.sh
 
 docker-smoke:
+	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-smoke"'
 	@bash infra/docker/docker-smoke.sh
 
 docker-ps:

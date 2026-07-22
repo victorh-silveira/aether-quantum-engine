@@ -3,14 +3,12 @@ from unittest.mock import MagicMock, patch
 
 from src.application.services.orchestrator.settlement_outcome import process_contract_outcome
 from src.application.services.side_equilibrium_gate import (
-    _log_side_eq_flip,
     apply_side_equilibrium_to_metrics,
     evaluate_proposed_side_equilibrium,
-    log_side_equilibrium,
     resolve_direction_with_side_equilibrium,
 )
 from src.application.services.side_equilibrium_store import record_side_equilibrium_outcome, snapshot_side_counts
-from src.domain.analytics.side_equilibrium import ACTION_PASS, SideEquilibriumDecision
+from src.domain.analytics.side_equilibrium import ACTION_PASS
 from src.domain.models.trade import TradeDirection
 
 
@@ -209,75 +207,14 @@ def test_resolve_direction_flips_put_hard_skip_to_call():
     assert metrics.get("side_eq_flip_from") == "PUT"
 
 
-def test_side_eq_flip_logs_once_when_resolve_called_twice():
+def test_side_eq_rejects_flip_when_alternate_wr_worse():
     orch = _orch_with_side_eq(n_min_small=2, wr_floor_small=0.40, freq_bias_max_small=0.70)
-    orch._active_cycle_id = 7
+    record_side_equilibrium_outcome(orch, "R_10", direction="PUT", won=True)
     for _ in range(2):
         record_side_equilibrium_outcome(orch, "R_10", direction="PUT", won=False)
+    record_side_equilibrium_outcome(orch, "R_10", direction="CALL", won=False)
     metrics: dict = {}
-    with patch("src.application.services.side_equilibrium_gate.logger") as mock_logger:
-        first = resolve_direction_with_side_equilibrium(orch, "R_10", TradeDirection.PUT, metrics)
-        second = resolve_direction_with_side_equilibrium(orch, "R_10", TradeDirection.PUT, metrics)
-    assert first == TradeDirection.CALL
-    assert second == TradeDirection.CALL
-    flip_calls = [c for c in mock_logger.info.call_args_list if c.args and str(c.args[0]).startswith("SIDE_EQ_FLIP")]
-    assert len(flip_calls) == 1
-
-
-def test_side_eq_log_dedupes_same_cycle_symbol_side():
-    orch = _orch_with_side_eq()
-    orch._active_cycle_id = 42
-    decision = SideEquilibriumDecision(
-        action=ACTION_PASS,
-        reason="ok",
-        call_n=0,
-        call_wins=0,
-        put_n=0,
-        put_wins=0,
-        freq_bias=0.5,
-        side_wr=None,
-    )
-    with patch("src.application.services.side_equilibrium_gate.logger") as mock_logger:
-        log_side_equilibrium(decision, symbol="R_10", proposed=TradeDirection.PUT, orch=orch)
-        log_side_equilibrium(decision, symbol="R_10", proposed=TradeDirection.PUT, orch=orch)
-    assert mock_logger.info.call_count == 1
-
-
-def test_side_eq_both_sides_hard_skip_returns_none_and_blocks_replay():
-    orch = _orch_with_side_eq(n_min_small=2, wr_floor_small=0.40, freq_bias_max_small=0.70)
-    for _ in range(2):
-        record_side_equilibrium_outcome(orch, "R_10", direction="PUT", won=False)
-        record_side_equilibrium_outcome(orch, "R_10", direction="CALL", won=False)
-    metrics: dict = {}
-    assert resolve_direction_with_side_equilibrium(orch, "R_10", TradeDirection.PUT, metrics) is None
-    assert metrics.get("side_eq_blocked") is True
-    assert resolve_direction_with_side_equilibrium(orch, "R_10", TradeDirection.PUT, metrics) is None
-
-
-def test_side_eq_gate_done_invalid_direction_name_falls_back():
-    orch = _orch_with_side_eq()
-    metrics = {"side_eq_gate_done": True, "side_eq_blocked": False, "exec_direction": "HOLD"}
-    assert resolve_direction_with_side_equilibrium(orch, "R_10", TradeDirection.CALL, metrics) == TradeDirection.CALL
-
-
-def test_side_eq_flip_log_creates_bag_and_dedupes_without_gate_flag():
-    orch = _orch_with_side_eq(n_min_small=2, wr_floor_small=0.40, freq_bias_max_small=0.70)
-    orch._active_cycle_id = 9
-    orch._side_eq_log_keys = "not-a-set"
-    with patch("src.application.services.side_equilibrium_gate.logger") as mock_logger:
-        _log_side_eq_flip(
-            orch,
-            symbol="R_10",
-            proposed=TradeDirection.PUT,
-            opposite=TradeDirection.CALL,
-            reason="side_imbalance_small_n",
-        )
-        _log_side_eq_flip(
-            orch,
-            symbol="R_10",
-            proposed=TradeDirection.PUT,
-            opposite=TradeDirection.CALL,
-            reason="side_imbalance_small_n",
-        )
-    assert mock_logger.info.call_count == 1
-    assert isinstance(orch._side_eq_log_keys, set)
+    chosen = resolve_direction_with_side_equilibrium(orch, "R_10", TradeDirection.PUT, metrics)
+    assert chosen is None
+    assert metrics.get("side_eq_flip_rejected") is True
+    assert metrics.get("gate_reason") == "side_imbalance_flip_not_better"

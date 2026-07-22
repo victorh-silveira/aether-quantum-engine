@@ -8,10 +8,21 @@ def _candidate_block_reason(metrics: dict) -> str | None:
     reason = metrics.get("gate_reason") or metrics.get("quality_gate_reason")
     if isinstance(reason, str) and reason.strip():
         return reason.strip()
-    if metrics.get("quality_guard_reject"):
-        return "quality_guard_reject"
-    if metrics.get("signal_status") == "SIGNAL_SUSPENDED":
-        return "SIGNAL_SUSPENDED"
+    side_eq_hard = metrics.get("side_eq_blocked") or str(metrics.get("side_eq_action") or "") == "hard_skip"
+    soft_veto = str(metrics.get("meta_veto_mode") or "") == "soft" or metrics.get("signal_status") == "SOFT_VETO"
+    ready = bool(metrics.get("execution_candidate_ready"))
+    mapping = (
+        (bool(metrics.get("quality_guard_reject")), "quality_guard_reject"),
+        (bool(side_eq_hard), str(metrics.get("side_eq_reason") or "side_imbalance_both_sides")),
+        (metrics.get("signal_status") == "SIGNAL_SUSPENDED", "SIGNAL_SUSPENDED"),
+        (bool(soft_veto), "meta_payoff_soft_zscore_veto"),
+        (str(metrics.get("price_zone") or "") == "NONE", "price_zone_none"),
+        (bool(metrics.get("persistence_guard_skip")), "persistence_guard_skip"),
+        (ready, "ready_not_selected"),
+    )
+    for hit, label in mapping:
+        if hit:
+            return label
     return None
 
 
@@ -23,6 +34,7 @@ def log_execution_blockers(executor, decisions: dict, *, pending: float = 0.0) -
     for symbol in executor._trade_symbols():
         entry = decisions.get(symbol)
         if not entry:
+            blocked.append(f"{symbol}:no_decision")
             continue
         metrics = entry.get("metrics") or {}
         if metrics.get("gate_reason") == "training":
@@ -31,6 +43,8 @@ def log_execution_blockers(executor, decisions: dict, *, pending: float = 0.0) -
         reason = _candidate_block_reason(metrics if isinstance(metrics, dict) else {})
         if reason:
             blocked.append(f"{symbol}:{reason}")
+        else:
+            blocked.append(f"{symbol}:no_candidate")
     if training:
         log_info_if_changed(
             executor.orch,
@@ -44,14 +58,15 @@ def log_execution_blockers(executor, decisions: dict, *, pending: float = 0.0) -
     elif clear_log_channel(executor.orch, "dl_treino"):
         executor.logger.info("[%s] DL_TREINO || concluido | todos os modelos treinados", cid)
     if blocked:
+        payload = " ".join(blocked)
         log_info_if_changed(
             executor.orch,
             executor.logger,
-            "exec_empty_blocks",
-            "|".join(blocked),
+            f"exec_empty_blocks:{cid}",
+            payload,
             "[%s] EXEC_EMPTY || sem ordem | %s",
             cid,
-            " ".join(blocked),
+            payload,
         )
     if float(pending) > 0.0:
         executor.logger.info(

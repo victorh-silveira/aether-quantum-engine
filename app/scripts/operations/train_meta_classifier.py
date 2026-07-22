@@ -47,7 +47,7 @@ logger = logging.getLogger("META_TRAIN")
 DEFAULT_DSN = "postgresql://aether:aether@localhost:5432/aether"
 DEFAULT_OUTPUT = REPO_ROOT / "infra" / "docker" / "meta-models" / "meta_lgbm.pkl"
 MIN_TARGET_VARIANCE = 1e-12
-DEFAULT_META_TRIALS = 48
+DEFAULT_META_TRIALS = 96
 
 
 def _load_settings() -> dict[str, Any]:
@@ -171,7 +171,7 @@ async def train_meta_classifier(
     micro_gran = _micro_granularity(settings)
     contract_duration = resolve_contract_duration_seconds(settings)
     teacher = _teacher_probs(settings, symbols, bundles)
-    frame, y, _proxy, _pnl = build_paired_training_dataset(
+    frame, y, _proxy, _pnl, hygiene = build_paired_training_dataset(
         bundles,
         micro_granularity=micro_gran,
         contract_duration_seconds=contract_duration,
@@ -184,6 +184,7 @@ async def train_meta_classifier(
         y,
         trials=trials,
         granularity=required_gran,
+        hygiene=hygiene,
     )
     assert_export_zscore_floor(bundle_meta, floor=float(export_min_zscore))
     assert_export_mae_gap(train_mae, val_mae)

@@ -91,7 +91,7 @@ def test_micro_residual_liability_thresholds() -> None:
     assert is_micro_residual_liability(100.0, 5.01, soft_recovery=soft) is False
     assert is_micro_residual_liability(300.0, 3.59, soft_recovery=soft) is False
     assert resolve_negative_zscore_veto_floor(100.0, 3.59, soft_recovery=soft) == pytest.approx(-0.60)
-    assert resolve_negative_zscore_veto_floor(100.0, 12.0, soft_recovery=soft) == pytest.approx(-0.20)
+    assert resolve_negative_zscore_veto_floor(100.0, 12.0, soft_recovery=soft) == pytest.approx(-0.75)
     assert resolve_gbdt_waiver_skip_threshold(100.0, 3.59, soft_recovery=soft) == 6
     assert resolve_gbdt_waiver_skip_threshold(100.0, 12.0, soft_recovery=soft) == 30
     assert cointegration_valve_suppressed(100.0, 3.59, soft_recovery=soft) is True
@@ -178,7 +178,7 @@ def test_align_exec_empty_recovery_signature_cooldown_sets_boundary() -> None:
     orch = MagicMock()
     orch._last_cycle_cluster_executed = False
     orch.risk_manager = rm
-    orch.config = {"orchestrator": {"signature_boundary_seconds": 60}}
+    orch.config = {"orchestrator": {"signature_boundary_seconds": 60, "exec_empty_retry_seconds": 45}}
     orch._cooldown_until = 0.0
     orch._post_settlement_incomplete_streak = 2
     with patch(
@@ -189,6 +189,21 @@ def test_align_exec_empty_recovery_signature_cooldown_sets_boundary() -> None:
     assert delay == pytest.approx(42.5)
     assert orch._cooldown_until > 0.0
     assert orch._post_settlement_incomplete_streak == 0
+
+
+def test_align_exec_empty_recovery_caps_long_boundary() -> None:
+    rm = _micro_rm()
+    orch = MagicMock()
+    orch._last_cycle_cluster_executed = False
+    orch.risk_manager = rm
+    orch.config = {"orchestrator": {"signature_boundary_seconds": 120, "exec_empty_retry_seconds": 45}}
+    orch._cooldown_until = 0.0
+    with patch(
+        "src.application.services.orchestrator.orchestrator_run_loop.seconds_until_next_signature_boundary",
+        return_value=110.0,
+    ):
+        delay = align_exec_empty_recovery_signature_cooldown(orch)
+    assert delay == pytest.approx(45.0)
 
 
 def test_align_exec_empty_skips_when_cluster_executed_or_no_pending() -> None:
@@ -215,7 +230,7 @@ def test_recovery_pending_total_from_pending_loss_map() -> None:
 
 def test_soft_recovery_helpers_without_risk_manager() -> None:
     assert risk_session_bankroll_pending(None) == (0.0, 0.0, None)
-    assert negative_zscore_veto_floor_for_risk(None) == pytest.approx(-0.20)
+    assert negative_zscore_veto_floor_for_risk(None) == pytest.approx(-0.75)
     assert gbdt_waiver_skip_threshold_for_risk(None) == 30
     assert soft_recovery_enabled({"soft_recovery": {"enabled": False}}) is False
     assert soft_recovery_enabled(soft_recovery={"enabled": True}) is True

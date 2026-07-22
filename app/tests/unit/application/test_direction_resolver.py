@@ -245,7 +245,7 @@ def test_resolve_allows_weak_tcn_margin_when_meta_zscore_strong():
     assert entry["metrics"].get("quality_guard_reject") is True
 
 
-def test_resolve_mild_negative_edge_keeps_call_side():
+def test_resolve_mild_negative_edge_is_blocked_by_meta_edge():
     entry = _entry(direction=TradeDirection.CALL, calibrated_prob=0.70)
     entry["metrics"]["predicted_payoff_edge"] = -0.08
     entry["metrics"]["meta_classifier_applied"] = True
@@ -257,9 +257,9 @@ def test_resolve_mild_negative_edge_keeps_call_side():
         side_effect=lambda metrics, edge, **kwargs: _stamp_negative_zscore(metrics),
     ):
         result = resolve_execution_direction(entry, symbol="R_10")
-    assert result is not None
+    assert result is None
+    assert entry["metrics"].get("gate_reason") == "meta_negative_edge"
     assert entry["metrics"].get("gate_reason") != META_PAYOFF_NEGATIVE_ZSCORE_VETO
-    assert result[0] == TradeDirection.CALL
 
 
 def test_resolve_meta_disabled_keeps_tcn_score_when_edge_strong():

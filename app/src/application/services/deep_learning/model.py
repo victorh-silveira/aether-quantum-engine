@@ -9,6 +9,7 @@ from torch import nn
 from src.application.services.deep_learning.dl_calibration import (
     CalibratorState,
     apply_calibrator,
+    apply_calibrator_stable,
     brier_score,
     expected_calibration_error,
 )
@@ -163,7 +164,7 @@ def predict_next_direction(
         norm_stats = fit_norm_stats(seq)
     feat = normalize_sequences(seq, norm_stats)
     raw_prob = float(_model_raw_prob(model, feat)[0])
-    prob = apply_calibrator(raw_prob, calibrator) if calibrator is not None else raw_prob
+    prob = apply_calibrator_stable(raw_prob, calibrator)
     if prob + 1e-9 >= float(call_threshold):
         return TradeDirection.CALL, prob, raw_prob
     if prob - 1e-9 <= float(put_threshold):

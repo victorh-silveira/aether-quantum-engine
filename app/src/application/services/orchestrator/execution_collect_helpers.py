@@ -41,8 +41,14 @@ def mandatory_fallback_candidates(
     exec_mgr, decisions, *, recovery_active, last_loss_symbol, skip_symbols, min_signal, min_val
 ):
     """Monta lista com candidato forcado quando o pool DL fica vazio."""
+    cycle_id = int(getattr(exec_mgr.orch, "_active_cycle_id", 0) or 0)
     entropy_pick = pick_entropy_fallback_candidate(
-        exec_mgr._trade_symbols(), decisions, skip_symbols=skip_symbols, recovery_active=recovery_active
+        exec_mgr._trade_symbols(),
+        decisions,
+        skip_symbols=skip_symbols,
+        recovery_active=recovery_active,
+        orch=exec_mgr.orch,
+        cycle_id=cycle_id,
     )
     if entropy_pick is not None:
         return [entropy_pick]
@@ -114,6 +120,8 @@ def resolve_mandatory_ultimate_candidate(
     """Ultimo recurso de candidato quando modo obrigatorio nao encontrou best."""
     if not mandatory:
         return None, None
+    cycle_id = int(getattr(exec_mgr.orch, "_active_cycle_id", 0) or 0)
+    skip_counter = int(getattr(exec_mgr.orch, "_quality_skipped_cycles_counter", 0) or 0)
     ultimate = build_mandatory_fallback_candidate(
         exec_mgr._trade_symbols(),
         decisions,
@@ -123,6 +131,8 @@ def resolve_mandatory_ultimate_candidate(
         min_signal=min_signal,
         min_val=min_val,
         consecutive_losses=getattr(exec_mgr.orch.risk_manager, "consecutive_losses_linear", 0),
+        skipped_cycles_counter=skip_counter,
+        orch=exec_mgr.orch,
     )
     if ultimate is None:
         ultimate = pick_absolute_mandatory_candidate(
@@ -132,6 +142,10 @@ def resolve_mandatory_ultimate_candidate(
             last_loss_symbol=last_loss,
             min_signal=min_signal,
             min_val=min_val,
+            orch=exec_mgr.orch,
+            cycle_id=cycle_id,
+            risk_manager=getattr(exec_mgr.orch, "risk_manager", None),
+            skipped_cycles_counter=skip_counter,
         )
         if ultimate is None:
             ultimate = pick_absolute_mandatory_candidate(
@@ -141,6 +155,10 @@ def resolve_mandatory_ultimate_candidate(
                 last_loss_symbol=last_loss,
                 min_signal=0.0,
                 min_val=0.0,
+                orch=exec_mgr.orch,
+                cycle_id=cycle_id,
+                risk_manager=getattr(exec_mgr.orch, "risk_manager", None),
+                skipped_cycles_counter=skip_counter,
             )
     if ultimate is None and force_trade_from_orch(exec_mgr.orch):
         ultimate = _finalize_force_trade_candidate(
@@ -209,3 +227,22 @@ def log_execution_decision(
         cycle_id = int(getattr(exec_mgr.orch, "_active_cycle_id", 0))
     _ = (candidates, decisions, effective_signal)
     exec_mgr.logger.info(format_indicators_audit_line(cycle_id, str(best[0]), metrics))
+
+
+def revive_ready_cluster_candidates(exec_mgr, decisions) -> list[tuple[str, TradeDirection, dict]]:
+    """Reconstroi candidatos prontos quando o pool foi esvaziado apos resolve bem-sucedido."""
+    revived: list[tuple[str, TradeDirection, dict]] = []
+    for symbol in exec_mgr._trade_symbols():
+        entry = decisions.get(symbol) if isinstance(decisions, dict) else None
+        if not isinstance(entry, dict):
+            continue
+        metrics = entry.get("metrics")
+        if not isinstance(metrics, dict) or not metrics.get("execution_candidate_ready"):
+            continue
+        if metrics.get("quality_guard_reject"):
+            continue
+        name = str(metrics.get("exec_direction") or metrics.get("resolved_direction") or "").upper()
+        if name not in {TradeDirection.CALL.name, TradeDirection.PUT.name}:
+            continue
+        revived.append((symbol, TradeDirection[name], metrics))
+    return revived

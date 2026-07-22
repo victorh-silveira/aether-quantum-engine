@@ -41,7 +41,7 @@ def test_harmonic_mean_bb_width():
     assert harmonic_mean_bb_width(history=[0.04, 0.05]) == pytest.approx(2 / (1 / 0.04 + 1 / 0.05))
 
 
-def test_rdbull_natural_width_not_anomalous_after_window():
+def test_anchor_natural_width_not_anomalous_after_window():
     _prime_width(0.035)
     assert anomalous_bb_compression(0.035, anomaly_ratio=_anomaly_ratio()) is False
 

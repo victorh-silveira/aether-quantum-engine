@@ -143,22 +143,13 @@ def apply_live_calib_drift_soft(
     metrics["calib_drift_soft"] = True
     metrics["calib_drift_soft_penalty"] = float(_live()["drift_soft_penalty"])
     metrics["calib_drift_reason"] = "CALIB_DRIFT_SOFT"
-    cycle = int(getattr(orch, "_active_cycle_id", 0) or 0) if orch is not None else 0
-    content = f"{cycle}|{symbol or '?'}|{n}|{float(ece):.3f}|{float(wr):.2f}|{float(raw_side):.2f}"
     if orch is not None:
+        cycle = int(getattr(orch, "_active_cycle_id", 0) or 0)
         log_info_if_changed(
             orch,
             logger,
-            "calib_drift_soft",
-            content,
-            "CALIB_DRIFT_SOFT | ece=%.3f | live_wr=%.2f | raw_side=%.2f | n=%d",
-            float(ece),
-            float(wr),
-            float(raw_side),
-            n,
-        )
-    else:
-        logger.info(
+            f"calib_drift_soft:{cycle}:{symbol or '?'}",
+            "1",
             "CALIB_DRIFT_SOFT | ece=%.3f | live_wr=%.2f | raw_side=%.2f | n=%d",
             float(ece),
             float(wr),

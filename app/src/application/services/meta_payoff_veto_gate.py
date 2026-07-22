@@ -5,9 +5,16 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from src.application.services.execution_runtime_config import resolve_meta_payoff_veto_config
+from src.application.services.execution_runtime_config import (
+    resolve_meta_payoff_veto_config,
+)
 from src.application.services.meta_payoff_regression import CALIBRATION_NEUTRAL_DRIFT
-from src.application.services.meta_payoff_shadow import meta_hard_veto_allowed, shadow_correlation, shadow_pair_count
+from src.application.services.meta_payoff_shadow import (
+    meta_hard_veto_allowed,
+    meta_inverted_shadow_active,
+    shadow_correlation,
+    shadow_pair_count,
+)
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.risk_recovery_state import meta_payoff_veto_emergency_waiver
 from src.domain.risk.soft_recovery_policy import (
@@ -126,7 +133,7 @@ def should_veto_meta_payoff_negative_zscore(
     risk_manager: Any | None = None,
     orch: Any | None = None,
 ) -> bool:
-    """Soft veto por Z negativo; HARD so com shadow calibrado (corr>=0.15, n>=64)."""
+    """Soft veto por Z negativo; HARD com shadow positivo ou Z invertido anti-PnL."""
     _ = direction
     veto_floor = negative_zscore_veto_floor_for_risk(risk_manager)
     metrics["meta_payoff_veto_zscore_floor"] = float(veto_floor)
@@ -139,15 +146,32 @@ def should_veto_meta_payoff_negative_zscore(
         and float(z_score) < float(veto_floor)
         and expectancy in VETO_EDGE_EXPECTANCIES
     )
+    samples = int(metrics.get("edge_zscore_samples") or 0)
+    if soft_hit and samples < 2:
+        soft_hit = False
+        metrics["meta_soft_veto_deferred"] = True
+    severe_z = bool(
+        z_present
+        and z_score is not None
+        and float(z_score) < float(veto_floor)
+        and samples >= 2
+        and expectancy in VETO_EDGE_EXPECTANCIES
+    )
+    if severe_z:
+        soft_hit = True
+        metrics.pop("meta_soft_veto_deferred", None)
     corr = shadow_correlation(orch)
     n_shadow = shadow_pair_count()
     if orch is not None:
         n_shadow = max(n_shadow, int(getattr(orch, "_meta_payoff_shadow_n", 0) or 0))
     metrics["meta_shadow_corr"] = corr
     metrics["meta_shadow_n"] = int(n_shadow)
+    inverted = meta_inverted_shadow_active(orch)
+    metrics["meta_shadow_inverted"] = bool(inverted)
+    inverted_hit = bool(inverted and z_present and z_score is not None and float(z_score) > abs(float(veto_floor)))
     hard_allowed = meta_hard_veto_allowed(orch)
-    metrics["meta_payoff_soft_veto"] = soft_hit
-    if not soft_hit:
+    metrics["meta_payoff_soft_veto"] = soft_hit or inverted_hit
+    if not soft_hit and not inverted_hit:
         metrics["meta_veto_mode"] = "none"
         metrics["meta_soft_veto_penalty"] = 0.0
         logger.debug(
@@ -170,16 +194,19 @@ def should_veto_meta_payoff_negative_zscore(
             )
         except Exception:
             waived = False
-    if hard_allowed and not waived:
+    if (hard_allowed or inverted_hit) and not waived:
         apply_meta_payoff_negative_zscore_veto(metrics)
         metrics["meta_veto_mode"] = META_HARD_VETO_MODE
         metrics["meta_soft_veto_penalty"] = 0.0
+        if inverted_hit:
+            metrics["gate_reason"] = "meta_shadow_inverted_veto"
         logger.info(
-            "META_HARD_VETO | META_VETO_MODE=%s | shadow_corr=%+.3f | n=%d | z=%.3f",
+            "META_HARD_VETO | META_VETO_MODE=%s | shadow_corr=%+.3f | n=%d | z=%.3f | inverted=%s",
             META_HARD_VETO_MODE,
             float(corr or 0.0),
             n_shadow,
             float(z_score or 0.0),
+            str(bool(inverted)).lower(),
         )
         return True
     _apply_soft_veto(metrics)

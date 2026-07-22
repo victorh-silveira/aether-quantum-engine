@@ -16,7 +16,6 @@ from src.application.services.meta_classifier_stacking import (
     prefetch_meta_payoff_for_decisions,
     resolve_meta_payoff_edge,
 )
-from src.application.services.meta_payoff_veto_gate import META_PAYOFF_NEGATIVE_ZSCORE_VETO
 from src.domain.models.trade import TradeDirection
 
 
@@ -255,8 +254,8 @@ def test_c0015_stacking_payload_rejects_negative_edge_before_squeeze(caplog):
         caplog.at_level("INFO"),
     ):
         result = resolve_execution_direction(entry, symbol="R_10")
-    assert result is not None
-    assert entry["metrics"].get("gate_reason") != META_PAYOFF_NEGATIVE_ZSCORE_VETO
-    assert entry["metrics"].get("signal_status") != "SKIP"
+    assert result is None
+    assert entry["metrics"].get("gate_reason") == "meta_negative_edge"
+    assert entry["metrics"].get("meta_negative_edge") is True
     assert len(extract_meta_feature_vector(entry["metrics"])) == META_FEATURE_DIM
     assert not any("[D-SQUEEZE]" in record.message for record in caplog.records)

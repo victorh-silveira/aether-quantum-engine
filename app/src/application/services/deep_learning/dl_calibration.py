@@ -117,6 +117,25 @@ def apply_calibrator(prob: float, calibrator: CalibratorState) -> float:
     return apply_platt(tempered, calibrator)
 
 
+def apply_calibrator_stable(prob: float, calibrator: CalibratorState | None) -> float:
+    """Aplica calibrador evitando extrapolacao isotonic e flip de lado."""
+    raw = float(prob)
+    if calibrator is None:
+        return raw
+    calibrated = float(apply_calibrator(raw, calibrator))
+    method = str(calibrator.method or "")
+    if method == _METHOD_ISOTONIC and calibrator.isotonic_x:
+        xs = calibrator.isotonic_x
+        below = raw + 1e-12 < float(xs[0])
+        above = raw - 1e-12 > float(xs[-1])
+        if below or above:
+            return raw
+        side_flip = (raw - 0.5) * (calibrated - 0.5) < 0.0
+        if side_flip and abs(calibrated - raw) > 0.02:
+            return raw
+    return calibrated
+
+
 def raw_side_conviction(raw_prob: float) -> float:
     """Conviccao bruta do lado escolhido (max(p, 1-p))."""
     p = float(raw_prob)
@@ -142,7 +161,7 @@ def calibrate_trade_score(
 ) -> float:
     """Retorna score calibrado do lado vencedor para gating e stake."""
     raw_side = 1.0 - raw_prob if is_put else raw_prob
-    calibrated = apply_calibrator(raw_side, calibrator)
+    calibrated = apply_calibrator_stable(raw_side, calibrator)
     shrunk = shrink_toward_fifty(calibrated, val_accuracy)
     capped = cap_calibrated_to_raw_band(raw_prob, shrunk, max_calibrated_raw_gap)
     if not deploy_ok:

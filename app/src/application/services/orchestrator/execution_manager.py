@@ -154,21 +154,26 @@ class ExecutionManager:
                     sw,
                 )
             if not orders:
+                self.orch._last_cycle_was_exec_empty = True
                 self._log_execution_blockers(decisions, pending=pending)
                 clear_cuda_cache()
                 self.orch.is_trading = False
             else:
+                self.orch._last_cycle_was_exec_empty = False
                 block = self._cluster_stake_block(orders, bankroll_snapshot)
                 if block:
                     self.logger.info("[%s] EXEC_PAUSE || %s", cid, block)
                     orders = []
+                    self.orch._last_cycle_was_exec_empty = True
                 executed_count = await self._execute_orders(orders, inter_delay, bankroll_snapshot)
                 if executed_count > 0:
+                    self.orch._last_cycle_was_exec_empty = False
                     await reset_recovery_skip_counter_for_orch(self.orch)
                     self.orch.risk_manager.begin_cluster(executed_count)
                     self._flush_result_buffer()
                     self.orch._buffer_result_logs = False
                 else:
+                    self.orch._last_cycle_was_exec_empty = True
                     self._flush_result_buffer()
                     self.orch._buffer_result_logs = False
         finally:

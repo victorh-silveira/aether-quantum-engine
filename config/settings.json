@@ -155,7 +155,7 @@
       "trend_consensus": {
         "di_call_above": 0.0,
         "keltner_call_above": 0.5,
-        "min_bars": 30,
+        "min_bars": 12,
         "rsi_call_above": 0.5
       },
       "vol_burst": {
@@ -163,35 +163,35 @@
         "micro_bb_width_min": 0.02
       },
       "windows": {
-        "adx_period": 14,
-        "atr_window": 14,
-        "bb_width_harmonic_window": 50,
-        "bb_window": 20,
-        "cci_period": 20,
-        "cmo_period": 14,
-        "ema_20": 20,
-        "ema_50": 50,
-        "ema_fast_crossover": 9,
-        "ema_slow_crossover": 21,
+        "adx_period": 7,
+        "atr_window": 7,
+        "bb_width_harmonic_window": 20,
+        "bb_window": 8,
+        "cci_period": 10,
+        "cmo_period": 7,
+        "ema_20": 10,
+        "ema_50": 21,
+        "ema_fast_crossover": 5,
+        "ema_slow_crossover": 13,
         "hurst_min_window": 8,
-        "hurst_window": 64,
-        "kc_atr_period": 10,
-        "kc_period": 20,
-        "macd_fast": 12,
-        "macd_signal": 9,
-        "macd_slow": 26,
-        "rel_vol_span": 50,
-        "roc_period": 10,
-        "rsi_period": 14,
-        "stoch_period": 14,
+        "hurst_window": 32,
+        "kc_atr_period": 5,
+        "kc_period": 8,
+        "macd_fast": 6,
+        "macd_signal": 5,
+        "macd_slow": 13,
+        "rel_vol_span": 20,
+        "roc_period": 5,
+        "rsi_period": 7,
+        "stoch_period": 7,
         "stoch_smooth": 3,
-        "vol_ratio_long": 20,
-        "vol_ratio_short": 5,
-        "vol_window": 10,
+        "vol_ratio_long": 10,
+        "vol_ratio_short": 3,
+        "vol_window": 5,
         "vr_long": 8,
         "vr_short": 2,
-        "williams_period": 14,
-        "zscore_micro_window": 1024
+        "williams_period": 7,
+        "zscore_micro_window": 256
       }
     },
     "inference_device": "auto",
@@ -410,7 +410,7 @@
         "recovery_min_direction_margin": 0.0,
         "recovery_min_hurst": 0.0
       },
-      "mandatory_trade_each_cycle": false,
+      "mandatory_trade_each_cycle": true,
       "market_rank": {
         "composite": {
           "adx_strong_bonus": 0.05,
@@ -448,21 +448,22 @@
         }
       },
       "meta_payoff_veto": {
-        "negative_zscore_threshold": -0.2,
-        "neutral_edge_floor": 0.04,
-        "soft_veto_min_score": 0.48,
-        "soft_veto_score_factor": 0.72,
+        "negative_zscore_threshold": -0.75,
+        "neutral_edge_floor": 0.02,
+        "soft_veto_min_score": 0.52,
+        "soft_veto_score_factor": 0.85,
         "squeeze_trade_score": 0.52
       },
       "post_settlement_cycle_timeout_seconds": 360,
       "price_zone": {
         "bb_weight": 0.6,
-        "buy_max": 0.35,
+        "buy_max": 0.48,
         "enabled": true,
         "keltner_weight": 0.4,
-        "require_tcn_agreement": true,
-        "require_trend_agreement": true,
-        "sell_min": 0.65
+        "neutral_mode": "nearest",
+        "require_tcn_agreement": false,
+        "require_trend_agreement": false,
+        "sell_min": 0.52
       },
       "proposal_failure_skip_cycles": 0,
       "proposal_retry_scales": [
@@ -503,9 +504,9 @@
           "decay_floor": 0.2,
           "decay_step": 0.1,
           "decay_threshold": 6,
-          "edge_decay_cycles": 15,
-          "edge_decay_floor": 0.01,
-          "edge_decay_floor_step": 0.05,
+          "edge_decay_cycles": 8,
+          "edge_decay_floor": 0.0,
+          "edge_decay_floor_step": 0.08,
           "edge_decay_multiplier": 2.0
         }
       },
@@ -684,7 +685,7 @@
       "micro_residual_pending_pct": 0.05,
       "micro_residual_zscore_floor": -0.6,
       "near_stop_win_freeze_pct": 0.8,
-      "negative_zscore_veto": -0.2,
+      "negative_zscore_veto": -0.75,
       "small_account_hard_floor_pct": 0.05,
       "small_account_hard_floor_threshold": 100.0
     }

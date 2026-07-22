@@ -8,10 +8,13 @@ import torch
 
 from scripts.operations.train_meta_data import OhlcBundle
 from scripts.operations.train_meta_teacher import (
+    _calibrate_teacher_array,
+    expand_teacher_conviction,
     infer_teacher_probs_for_bundle,
     infer_teacher_probs_from_checkpoints,
     load_teacher_probs_from_checkpoints,
 )
+from src.application.services.deep_learning.dl_calibration import CalibratorState
 from src.application.services.deep_learning.dl_feature_build import precompute_price_series
 from src.application.services.deep_learning.dl_feature_matrix import build_feature_matrix
 from src.application.services.deep_learning.dl_features import FEATURE_DIM
@@ -53,6 +56,27 @@ def _norm_for_bundle(bundle: OhlcBundle, lookback: int):
         axis=0,
     ).astype(np.float32)
     return fit_norm_stats(seq)
+
+
+def test_expand_teacher_conviction_widens_flat_band():
+    flat = np.linspace(0.46, 0.49, 64, dtype=np.float32)
+    expanded = expand_teacher_conviction(flat)
+    assert float(np.std(expanded)) > float(np.std(flat))
+    assert float(np.min(expanded)) < 0.47
+    assert float(np.max(expanded)) > 0.53
+
+
+def test_calibrate_teacher_array_falls_back_when_isotonic_collapses():
+    raw = np.linspace(0.45, 0.50, 80, dtype=np.float32)
+    calibrator = CalibratorState(
+        method="isotonic",
+        isotonic_x=(0.5019, 0.52, 0.53),
+        isotonic_y=(0.4925, 0.55, 1.0),
+    )
+    chosen, source = _calibrate_teacher_array(raw, calibrator)
+    assert "raw" in source
+    assert float(np.std(chosen)) > 1e-3
+    assert float(np.min(chosen)) < 0.47 or float(np.max(chosen)) > 0.53
 
 
 def test_infer_teacher_probs_for_bundle_length_and_warmup():

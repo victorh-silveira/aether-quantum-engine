@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from src.application.services.deep_learning.dl_indicator_config import load_indicator_config_from_settings
 from src.application.services.execution_direction import build_execution_candidate
 from src.application.services.execution_direction_resolver import infer_dl_direction, is_technically_blocked
@@ -167,8 +169,24 @@ def build_market_execution_candidate(
     recovery_active: bool = False,
     exec_cfg: dict | None = None,
     calibration_cfg: dict | None = None,
+    orch: Any | None = None,
+    cycle_id: int = 0,
+    risk_manager=None,
+    skipped_cycles_counter: int | None = None,
+    infra_cfg: dict | None = None,
+    decisions: dict | None = None,
 ) -> tuple[str, TradeDirection, dict] | None:
-    """Resolve ou aplica build market execution candidate."""
+    """Constroi candidato de mercado ranqueado para execucao."""
     return build_execution_candidate(
-        symbol, entry, exec_cfg=exec_cfg, calibration_cfg=calibration_cfg, recovery_active=recovery_active
+        symbol,
+        entry,
+        exec_cfg=exec_cfg,
+        calibration_cfg=calibration_cfg,
+        recovery_active=recovery_active,
+        orch=orch,
+        cycle_id=cycle_id,
+        risk_manager=risk_manager,
+        skipped_cycles_counter=skipped_cycles_counter,
+        infra_cfg=infra_cfg,
+        decisions=decisions,
     )

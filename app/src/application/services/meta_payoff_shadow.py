@@ -77,6 +77,18 @@ def meta_hard_veto_allowed(orch: Any | None = None) -> bool:
     return float(corr) >= float(_shadow()["hard_corr_floor"])
 
 
+def meta_inverted_shadow_active(orch: Any | None = None) -> bool:
+    """True quando a sombra meta-Z vs PnL esta invertida com amostra suficiente."""
+    n = shadow_pair_count()
+    if orch is not None:
+        n = max(n, int(getattr(orch, "_meta_payoff_shadow_n", 0) or 0))
+    corr = shadow_correlation(orch)
+    min_n = max(int(_shadow()["min_pairs"]), 12)
+    if corr is None or n < min_n:
+        return False
+    return float(corr) < 0.0
+
+
 def record_meta_payoff_shadow_pair(
     *,
     z_score: float | None,

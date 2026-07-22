@@ -104,6 +104,18 @@ def test_cycle_cadence_elapsed_false_when_cadence_disabled(orch_ready):
     assert _cycle_cadence_elapsed(orch) is False
 
 
+def test_cycle_cadence_shortens_after_exec_empty(orch_ready):
+    from src.application.services.orchestrator.trading_cycle_entry_guards import _cycle_cadence_seconds
+
+    orch = orch_ready
+    orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 120
+    orch.config["orchestrator"]["exec_empty_retry_seconds"] = 45
+    orch._last_cycle_was_exec_empty = False
+    assert _cycle_cadence_seconds(orch) == 120
+    orch._last_cycle_was_exec_empty = True
+    assert _cycle_cadence_seconds(orch) == 45
+
+
 def test_quality_skip_yield_always_zero(orch_ready):
     orch = orch_ready
     orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 180

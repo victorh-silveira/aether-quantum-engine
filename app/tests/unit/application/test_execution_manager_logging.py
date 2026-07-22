@@ -127,7 +127,7 @@ def test_cluster_stake_block_empty_orders(orch_config):
         assert orch.executor._cluster_stake_block([], 50.0) is None
 
 
-def test_log_execution_blockers_silent_on_stake_zero(orch_config):
+def test_log_execution_blockers_reports_no_candidate(orch_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
@@ -137,20 +137,30 @@ def test_log_execution_blockers_silent_on_stake_zero(orch_config):
             orch.executor._log_execution_blockers(
                 {"R_10": {"direction": TradeDirection.PUT, "metrics": {"conviction": 0.7, "execute": True}}},
             )
-        assert mock_info.call_args_list == []
+        assert any("EXEC_EMPTY" in str(c) and "no_candidate" in str(c) for c in mock_info.call_args_list)
 
 
-def test_log_execution_blockers_silent_without_direction(orch_config):
+def test_log_execution_blockers_reports_soft_veto_and_price_zone(orch_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
-        orch._active_cycle_id = 3
-        orch.symbols = ["R_10", "R_50"]
+        orch._active_cycle_id = 8
+        orch.symbols = ["R_10"]
         with patch.object(orch.executor.logger, "info") as mock_info:
             orch.executor._log_execution_blockers(
-                {"R_10": {"direction": None, "metrics": {"execute": True}}},
+                {
+                    "R_10": {
+                        "direction": TradeDirection.CALL,
+                        "metrics": {"meta_veto_mode": "soft", "signal_status": "SOFT_VETO"},
+                    }
+                },
             )
-        assert mock_info.call_args_list == []
+            orch.executor._log_execution_blockers(
+                {"R_10": {"direction": TradeDirection.CALL, "metrics": {"price_zone": "NONE"}}},
+            )
+        joined = " ".join(str(c) for c in mock_info.call_args_list)
+        assert "meta_payoff_soft_zscore_veto" in joined
+        assert "price_zone_none" in joined
 
 
 @pytest.mark.asyncio

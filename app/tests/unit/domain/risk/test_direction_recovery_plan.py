@@ -218,7 +218,7 @@ def test_resolve_execution_direction_rejects_meta_negative_edge_without_force():
     assert metrics.get("gate_reason") == "meta_negative_edge"
 
 
-def test_include_anchor_trades_true_keeps_rdbull_eligible():
+def test_include_anchor_trades_true_keeps_anchor_eligible():
     symbols = ["R_10", "R_50"]
     eligible = symbols_eligible_for_execution("R_10", symbols, include_anchor=True)
     assert eligible == ["R_10", "R_50"]

@@ -65,7 +65,7 @@ def test_apply_starvation_margin_decay_without_orch():
 
 def test_apply_starvation_edge_decay_checks():
     assert apply_starvation_edge_decay(0.04, 2) == pytest.approx(0.04)
-    assert apply_starvation_edge_decay(0.04, 9) == pytest.approx(0.01)
+    assert apply_starvation_edge_decay(0.04, 9) == pytest.approx(-0.16)
 
 
 def test_apply_starvation_margin_decay_emits_deduped_log(orch_ready, caplog):

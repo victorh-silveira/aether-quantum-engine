@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 
 from src.application.services.orchestrator.execution_collect import collect_cluster_orders
 from src.application.services.orchestrator.execution_collect_gather import gather_cluster_candidates
+from src.application.services.orchestrator.execution_collect_helpers import revive_ready_cluster_candidates
 from src.application.services.orchestrator.execution_recovery_gate import cluster_entry_eligible
 from src.domain.models.trade import TradeDirection
 from tests.market_symbols import ANCHOR, PAIR
@@ -222,3 +223,72 @@ def test_collect_cluster_orders_bolts_weak_neutral_in_recovery():
     orders = collect_cluster_orders(exec_mgr, decisions)
     assert len(orders) == 1
     assert orders[0][0] == PAIR
+
+
+def test_revive_ready_cluster_candidates_filters_invalid_entries():
+    exec_mgr = SimpleNamespace(_trade_symbols=lambda: [PAIR, "SKIP", "BAD", "OK"])
+    decisions = {
+        PAIR: "not-a-dict",
+        "SKIP": {
+            "metrics": {"execution_candidate_ready": True, "quality_guard_reject": True, "exec_direction": "CALL"}
+        },
+        "BAD": {"metrics": {"execution_candidate_ready": True, "exec_direction": "HOLD"}},
+        "OK": {"metrics": {"execution_candidate_ready": True, "exec_direction": "PUT", "trade_score": 0.6}},
+        "NONE": {"metrics": {"execution_candidate_ready": False}},
+    }
+    revived = revive_ready_cluster_candidates(exec_mgr, decisions)
+    assert len(revived) == 1
+    assert revived[0][0] == "OK"
+    assert revived[0][1] == TradeDirection.PUT
+
+
+def test_collect_revives_ready_candidate_when_gather_empty():
+    orch = SimpleNamespace(
+        anchor=ANCHOR,
+        symbols=[PAIR],
+        config={
+            "orchestrator": {"execution": {"include_anchor_trades": True, "mandatory_trade_each_cycle": True}},
+            "deep_learning": {},
+            "risk_management": {"kelly": {"stake_conviction_min_raw": 0.0}},
+        },
+        risk_manager=SimpleNamespace(
+            pending_loss={},
+            last_loss_symbol=None,
+            consecutive_losses=0,
+            consecutive_losses_linear=0,
+            kelly_config={"stake_conviction_min_raw": 0.0},
+            pending_loss_total=lambda: 0.0,
+            proposal_skip_symbols=frozenset,
+            total_session_profit=0.0,
+        ),
+        _active_cycle_id=3,
+        _recovery_skip_counter=0,
+    )
+    exec_mgr = SimpleNamespace(
+        orch=orch,
+        logger=MagicMock(),
+        _mandatory_trade_each_cycle=lambda: True,
+        _trade_symbols=lambda: [PAIR],
+    )
+    decisions = {
+        PAIR: {
+            "direction": TradeDirection.CALL,
+            "metrics": {
+                "execution_candidate_ready": True,
+                "exec_direction": "CALL",
+                "resolved_direction": "CALL",
+                "trade_score": 0.62,
+                "raw_prob": 0.62,
+                "calibrated_prob": 0.62,
+                "execute": True,
+                "deploy_ok": True,
+            },
+        }
+    }
+    with patch(
+        "src.application.services.orchestrator.execution_collect.gather_cluster_candidates",
+        return_value=[],
+    ):
+        orders = collect_cluster_orders(exec_mgr, decisions)
+    assert len(orders) == 1
+    assert orders[0][1] == TradeDirection.CALL

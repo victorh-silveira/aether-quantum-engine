@@ -17,7 +17,7 @@ Pipeline do `make docker-up`:
 | 3 | `docker compose up -d` | Sobe containers dos profiles ativos (`DOCKER_PROFILES`, padrao `core,gpu,ml`) |
 | 4 | `docker-wait-healthy.sh` | Aguarda healthchecks (`healthy` estrito; timeout 300 s) |
 | 5 | `timescale-lifecycle` | Compressao/retencao idempotente |
-| 6 | `docker-hydrate` | Injeta OHLC M15 sintetico se `ohlc_bars` < 48 |
+| 6 | `docker-hydrate` | Injeta OHLC macro/micro sintetico de `R_10` se `ohlc_bars` insuficiente |
 | 7 | `docker-smoke` | Valida Redis / Timescale / MinIO / Triton / Meta |
 
 Profiles Compose:

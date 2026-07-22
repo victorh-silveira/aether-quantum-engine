@@ -25,7 +25,9 @@
 
 Símbolos ativos do motor: **`R_10`**, não os exemplos genéricos `1HZ100V` / OTC deste documento.
 
-Para fluxo completo (DL, Triton, barreira atômica, direção, gate de qualidade soft + HARD microestrutura, Kelly, soft recovery, stop win por sessão ativa, ciclo 120 s), ver [arquitetura.md](arquitetura.md).
+Resiliência de API no app: `deriv_rest_client` e `deriv_pat_session` fazem retry em **502/503/504** e respeitam `retry_after` Cloudflare (cap operacional).
+
+Para fluxo completo (DL, Triton opcional, barreira atômica, direção modular, quality gate, Kelly, Soft Recovery, stop win, ciclo 120 s), ver [arquitetura.md](arquitetura.md).
 
 A documentação abaixo descreve a API Deriv de forma ampla (referência geral). O Aether usa apenas o fluxo PAT documentado acima.
 

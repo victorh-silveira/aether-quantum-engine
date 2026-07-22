@@ -249,19 +249,21 @@ def resolve_price_zone_config(exec_cfg: dict[str, Any] | None = None) -> dict[st
         "sell_min",
         "bb_weight",
         "keltner_weight",
+        "neutral_mode",
         "require_trend_agreement",
         "require_tcn_agreement",
     )
     raw = require_mapping(_execution_block(exec_cfg), "price_zone", keys, "orchestrator.execution")
-    return {
-        "enabled": require_bool(raw, "enabled"),
-        "buy_max": require_float(raw, "buy_max"),
-        "sell_min": require_float(raw, "sell_min"),
-        "bb_weight": require_float(raw, "bb_weight"),
-        "keltner_weight": require_float(raw, "keltner_weight"),
-        "require_trend_agreement": require_bool(raw, "require_trend_agreement"),
-        "require_tcn_agreement": require_bool(raw, "require_tcn_agreement"),
+    mode = str(raw["neutral_mode"]).strip().lower()
+    if mode not in {"reject", "nearest"}:
+        raise ValueError("orchestrator.execution.price_zone.neutral_mode invalido")
+    out = {
+        k: require_bool(raw, k) if k.startswith("require_") or k == "enabled" else require_float(raw, k)
+        for k in keys
+        if k != "neutral_mode"
     }
+    out["neutral_mode"] = mode
+    return out
 
 
 def resolve_side_equilibrium_config(exec_cfg: dict[str, Any] | None = None) -> dict[str, Any]:

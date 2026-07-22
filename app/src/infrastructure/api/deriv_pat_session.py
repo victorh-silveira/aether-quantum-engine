@@ -2,6 +2,8 @@
 
 import json
 import logging
+import time
+import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from typing import Any
@@ -20,6 +22,9 @@ from src.infrastructure.api.deriv_rest_client import (
     select_account,
 )
 from src.infrastructure.api.websocket_manager import WebSocketManager
+
+
+_TRANSIENT_HTTP = frozenset({502, 503, 504})
 
 
 @dataclass(frozen=True)
@@ -95,14 +100,30 @@ class DerivPatSession:
             timeout_seconds=self.timeout_seconds,
         )
 
-    def health_check(self) -> str:
-        """Chama GET /v1/health na API Deriv."""
+    def health_check(self, *, retries: int = 4, retry_delay: float = 1.5) -> str:
+        """Chama GET /v1/health na API Deriv com retry em 502/503/504."""
         path = "/v1/health"
         url = f"{self.rest_base_url.rstrip('/')}{path}"
         req = urllib.request.Request(url, method="GET")
-        body = read_http_response(req, float(self.timeout_seconds)).decode("utf-8")
-        self._log_step("health", "GET", path, 200, body)
-        return body
+        attempts = max(1, int(retries))
+        last_exc: BaseException = RuntimeError("PAT health_check sem resposta")
+        for attempt in range(attempts):
+            try:
+                body = read_http_response(req, float(self.timeout_seconds)).decode("utf-8")
+                self._log_step("health", "GET", path, 200, body)
+                return body
+            except urllib.error.HTTPError as exc:
+                last_exc = exc
+                self._log_step("health", "GET", path, int(exc.code), str(exc.reason))
+                if int(exc.code) not in _TRANSIENT_HTTP:
+                    raise
+            except urllib.error.URLError as exc:
+                last_exc = exc
+                self._log_step("health", "GET", path, 0, str(exc.reason))
+            if attempt + 1 >= attempts:
+                break
+            time.sleep(float(retry_delay) * float(attempt + 1))
+        raise last_exc
 
     async def bootstrap(
         self,
@@ -111,7 +132,15 @@ class DerivPatSession:
     ) -> PatBootstrapResult:
         """Executa health, accounts, OTP e opcionalmente persiste binding."""
         self._steps.clear()
-        self.health_check()
+        try:
+            self.health_check()
+        except (urllib.error.HTTPError, urllib.error.URLError, OSError) as exc:
+            code = int(getattr(exc, "code", 0) or 0)
+            self.logger.warning(
+                "PAT health indisponivel (HTTP %s: %s); seguindo com accounts/OTP.",
+                code or "n/a",
+                exc,
+            )
         try:
             app_id = self.resolve_app_id()
         except DerivPatBindingError as exc:

@@ -22,10 +22,12 @@ from scripts.operations.train_meta_optuna import (
     LGBM_REGRESSION_OBJECTIVE,
     META_EXPORT_MAX_MAE_GAP,
     META_EXPORT_MIN_ZSCORE,
+    OPTUNA_NEGATIVE_EDGE_PENALTY,
     assert_export_mae_gap,
     assert_export_zscore_floor,
     build_paired_training_dataset,
     configure_meta_train_logging,
+    payoff_zscore_mean,
     train_lgbm_candidate,
 )
 from scripts.operations.train_meta_vector import (
@@ -33,9 +35,13 @@ from scripts.operations.train_meta_vector import (
     TCN_CALL_PROXY_THRESHOLD,
     TCN_PUT_PROXY_THRESHOLD,
     _continuous_payoff_target,
+    teacher_sample_weights,
 )
 from src.application.services.meta_classifier_cross_symbol import META_FEATURE_DIM
 from src.application.services.meta_classifier_features import meta_classifier_column_names
+
+
+GRAY_KEEP_FLOOR = 96
 
 
 def _synthetic_bundle(symbol: str = "R_10", *, n: int = 280, phase: float = 0.0) -> OhlcBundle:
@@ -60,13 +66,24 @@ def _synthetic_bundle(symbol: str = "R_10", *, n: int = 280, phase: float = 0.0)
     )
 
 
+def _decisive_teacher(n: int, *, seed: int = 0) -> np.ndarray:
+    rng = np.random.default_rng(seed)
+    bits = rng.integers(0, 2, size=n)
+    return np.where(bits == 1, 0.62, 0.38).astype(np.float32)
+
+
 def test_build_paired_training_dataset_accepts_fetch_below_history():
-    frame, y, _, _ = build_paired_training_dataset(
-        [_synthetic_bundle(n=999)],
+    bundle = _synthetic_bundle(n=999)
+    frame, y, proxy, _, hygiene = build_paired_training_dataset(
+        [bundle],
         micro_granularity=120,
         fetch_count=5000,
+        teacher_probs={"R_10": _decisive_teacher(len(bundle.closes))},
     )
-    assert len(frame) >= int(999 * INNER_JOIN_MIN_SAMPLE_RATIO) - 40
+    assert len(frame) >= GRAY_KEEP_FLOOR
+    assert hygiene["n_kept"] == len(frame) == len(y) == len(proxy)
+    assert hygiene["label_mode"] == 1
+    assert hygiene["n_dropped_gray"] == 0
     validate_target_variance(y)
 
 
@@ -92,15 +109,46 @@ def test_build_paired_training_dataset_rejects_empty_bundles():
 
 
 def test_build_paired_training_dataset_single_symbol_shape():
-    frame, y, _, _ = build_paired_training_dataset(
-        [_synthetic_bundle(n=5000)],
+    bundle = _synthetic_bundle(n=5000)
+    frame, y, proxy, _, hygiene = build_paired_training_dataset(
+        [bundle],
         micro_granularity=120,
         fetch_count=5000,
+        teacher_probs={"R_10": _decisive_teacher(len(bundle.closes), seed=3)},
     )
     assert len(frame) >= int(5000 * INNER_JOIN_MIN_SAMPLE_RATIO) - 40
     assert frame.shape[1] == META_FEATURE_DIM
     assert np.allclose(frame["cross_symbol_prob_delta"].to_numpy(), 0.0)
+    assert hygiene["n_dropped_gray"] == 0
+    assert hygiene["label_mode"] == 1
     validate_target_variance(y)
+
+
+def test_build_paired_training_dataset_uses_forward_z_labels():
+    n = 1200
+    bundle = _synthetic_bundle(n=n)
+    teacher = np.full(n, 0.50, dtype=np.float32)
+    frame, y, proxy, pnl, hygiene = build_paired_training_dataset(
+        [bundle],
+        micro_granularity=120,
+        fetch_count=1200,
+        teacher_probs={"R_10": teacher},
+    )
+    assert hygiene["label_mode"] == 1
+    assert hygiene["n_dropped_gray"] == 0
+    assert hygiene["n_kept"] == len(frame) == len(y) == len(proxy) == len(pnl)
+    assert float(np.corrcoef(y, pnl)[0, 1]) != 0.0 or float(np.std(y)) > 0.0
+    validate_target_variance(y)
+
+
+def test_teacher_sample_weights_clip_confidence():
+    proxy = np.array([0.38, 0.50, 0.62, 0.90], dtype=np.float32)
+    weights = teacher_sample_weights(proxy)
+    assert weights.shape == proxy.shape
+    assert float(weights[0]) == pytest.approx(0.24)
+    assert float(weights[1]) == pytest.approx(0.1)
+    assert float(weights[2]) == pytest.approx(0.24)
+    assert float(weights[3]) == pytest.approx(0.8)
 
 
 def test_resolve_meta_train_bars_defaults_and_caps():
@@ -127,7 +175,13 @@ def test_target_variance_returns_float_dispersion():
 
 def test_build_training_summary_includes_continuous_telemetry():
     bundles = [_synthetic_bundle()]
-    frame, y, _, _ = build_paired_training_dataset(bundles, micro_granularity=120, fetch_count=280)
+    teacher = _decisive_teacher(len(bundles[0].closes))
+    frame, y, _, _, _ = build_paired_training_dataset(
+        bundles,
+        micro_granularity=120,
+        fetch_count=280,
+        teacher_probs={"R_10": teacher},
+    )
     summary = build_training_summary(
         frame=frame,
         y=y,
@@ -141,6 +195,8 @@ def test_build_training_summary_includes_continuous_telemetry():
             "oos_information_ratio_unit": 0.04,
             "n_val": 100,
             "optuna_objective_metric": "payoff_zscore",
+            "n_dropped_gray": 12,
+            "n_kept": len(frame),
         },
         output_path=Path("meta_lgbm.pkl"),
         symbols=["R_10"],
@@ -192,17 +248,24 @@ def test_lgbm_quiet_params_include_verbose_and_warnings():
     assert LGBM_REGRESSION_OBJECTIVE == "huber"
 
 
+def test_negative_edge_penalty_matches_overfit_floor():
+    assert pytest.approx(-1.0) == OPTUNA_NEGATIVE_EDGE_PENALTY
+    assert payoff_zscore_mean(np.array([1.0, -1.0]), np.array([-0.5, 0.5])) <= 0.0
+
+
 def test_build_paired_training_dataset_has_continuous_target_and_named_columns():
-    frame, y, proxy, pnl = build_paired_training_dataset(
-        [_synthetic_bundle()],
+    bundle = _synthetic_bundle()
+    frame, y, proxy, pnl, hygiene = build_paired_training_dataset(
+        [bundle],
         micro_granularity=120,
         fetch_count=280,
+        teacher_probs={"R_10": _decisive_teacher(len(bundle.closes), seed=11)},
     )
     columns = meta_classifier_column_names()
     assert list(frame.columns) == columns
     assert isinstance(frame, pd.DataFrame)
     assert frame.shape[1] == META_FEATURE_DIM == len(columns) == 43
-    assert len(frame) == len(y) == len(proxy) == len(pnl)
+    assert len(frame) == len(y) == len(proxy) == len(pnl) == hygiene["n_kept"]
     assert np.issubdtype(y.dtype, np.floating)
     assert target_variance(y) > 0.0
     validate_target_variance(y)
@@ -226,6 +289,7 @@ def test_train_lgbm_candidate_uses_regressor_and_explicit_feature_name_columns()
     x_val = frame.iloc[split:]
     y_train = rng.uniform(-0.5, 0.5, size=split).astype(np.float32)
     y_val = rng.uniform(-0.5, 0.5, size=rows - split).astype(np.float32)
+    weights = np.linspace(0.2, 1.0, split, dtype=np.float64)
     mock_model = MagicMock()
     mock_model.predict.side_effect = [
         np.linspace(-0.1, 0.1, split, dtype=np.float32),
@@ -238,17 +302,20 @@ def test_train_lgbm_candidate_uses_regressor_and_explicit_feature_name_columns()
             x_val,
             y_val,
             {"max_depth": 4, "learning_rate": 0.05, "num_leaves": 24},
+            sample_weight=weights,
         )
     assert mock_cls.call_args.kwargs["objective"] == "huber"
     assert mock_cls.call_args.kwargs["verbose"] == -1
     assert mock_cls.call_args.kwargs["warnings"] is False
     assert mock_cls.call_args.kwargs["n_jobs"] == 2
+    assert mock_cls.call_args.kwargs["n_estimators"] == 200
     assert model is mock_model
     assert isinstance(train_mae, float)
     assert isinstance(val_mae, float)
     fit_args, fit_kwargs = mock_model.fit.call_args
     assert fit_kwargs["feature_name"] == columns
     assert list(fit_args[0].columns) == columns
+    assert np.allclose(fit_kwargs["sample_weight"], weights)
     assert mock_model.predict.call_count == 2
 
 

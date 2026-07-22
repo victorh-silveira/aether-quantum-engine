@@ -23,11 +23,63 @@ logger = logging.getLogger("META_TRAIN")
 TEACHER_BATCH_SIZE = 256
 TEACHER_PROB_FLOOR = 0.05
 TEACHER_PROB_CEIL = 0.95
+TEACHER_COLLAPSE_STD = 1e-3
+TEACHER_MIN_STD_RATIO = 0.5
+TEACHER_EXPAND_STD_TRIGGER = 0.02
+TEACHER_EXPAND_SCALE = 0.15
 
 
-def _clip_teacher_prob(raw: float, calibrator: CalibratorState | None) -> float:
-    prob = float(apply_calibrator(raw, calibrator)) if calibrator is not None else float(raw)
-    return float(np.clip(prob, TEACHER_PROB_FLOOR, TEACHER_PROB_CEIL))
+def expand_teacher_conviction(
+    probs: np.ndarray,
+    *,
+    scale: float = TEACHER_EXPAND_SCALE,
+) -> np.ndarray:
+    x = np.asarray(probs, dtype=np.float64)
+    if x.size == 0:
+        return x.astype(np.float32)
+    med = float(np.median(x))
+    mad = float(np.median(np.abs(x - med))) + 1e-9
+    z = (x - med) / (1.4826 * mad)
+    out = 0.5 + float(scale) * np.tanh(z)
+    return np.clip(out, TEACHER_PROB_FLOOR, TEACHER_PROB_CEIL).astype(np.float32)
+
+
+def _calibrate_teacher_array(
+    raw: np.ndarray,
+    calibrator: CalibratorState | None,
+) -> tuple[np.ndarray, str]:
+    raw_arr = np.asarray(raw, dtype=np.float64).reshape(-1)
+    if raw_arr.size == 0:
+        return raw_arr.astype(np.float32), "empty"
+    if calibrator is None:
+        chosen = np.clip(raw_arr, TEACHER_PROB_FLOOR, TEACHER_PROB_CEIL)
+        source = "raw"
+    else:
+        calibrated = np.asarray(
+            [float(apply_calibrator(float(v), calibrator)) for v in raw_arr],
+            dtype=np.float64,
+        )
+        raw_std = float(np.std(raw_arr))
+        cal_std = float(np.std(calibrated))
+        if cal_std < TEACHER_COLLAPSE_STD or cal_std < TEACHER_MIN_STD_RATIO * max(raw_std, 1e-12):
+            logger.warning(
+                "META_TRAIN: calibrador teacher colapsou variancia (raw_std=%.6f cal_std=%.6f); usando probs raw.",
+                raw_std,
+                cal_std,
+            )
+            chosen = np.clip(raw_arr, TEACHER_PROB_FLOOR, TEACHER_PROB_CEIL)
+            source = "raw_collapsed_calibrator"
+        else:
+            chosen = np.clip(calibrated, TEACHER_PROB_FLOOR, TEACHER_PROB_CEIL)
+            source = "calibrated"
+    if float(np.std(chosen)) < TEACHER_EXPAND_STD_TRIGGER:
+        logger.warning(
+            "META_TRAIN: teacher com baixa dispersao (std=%.6f); expandindo conviction para labels meta.",
+            float(np.std(chosen)),
+        )
+        chosen = expand_teacher_conviction(chosen)
+        source = f"{source}+expand"
+    return chosen.astype(np.float32), source
 
 
 def infer_teacher_probs_for_bundle(
@@ -67,8 +119,9 @@ def infer_teacher_probs_for_bundle(
         feat = normalize_sequences(batch, norm_stats)
         raw_chunks.append(_model_raw_prob(model, feat))
     raw = np.concatenate(raw_chunks, axis=0) if raw_chunks else np.empty((0,), dtype=np.float32)
+    chosen, _source = _calibrate_teacher_array(raw, calibrator)
     for idx, end in enumerate(ends):
-        probs[end] = _clip_teacher_prob(float(raw[idx]), calibrator)
+        probs[end] = float(chosen[idx])
     return probs
 
 
@@ -116,11 +169,17 @@ def infer_teacher_probs_from_checkpoints(
         if int(probs.size) != int(len(bundle.closes)):
             continue
         loaded[str(bundle.symbol)] = probs.astype(np.float32)
+        active = probs[int(lookback) - 1 :] if int(lookback) > 0 else probs
         logger.info(
-            "META_TRAIN: teacher TCN inferido | %s | n=%d | lookback=%d | path=%s",
+            "META_TRAIN: teacher TCN inferido | %s | n=%d | lookback=%d | "
+            "prob[min/mean/max]=%.3f/%.3f/%.3f | gray_pct=%.1f%% | path=%s",
             bundle.symbol,
             int(probs.size),
             int(lookback),
+            float(np.min(active)),
+            float(np.mean(active)),
+            float(np.max(active)),
+            float(100.0 * np.mean((active > 0.47) & (active < 0.53))),
             path,
         )
     return loaded

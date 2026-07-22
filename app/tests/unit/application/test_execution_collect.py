@@ -121,8 +121,9 @@ def test_collect_cluster_orders_bolts_weak_signal_continuously():
                 "quality_gate_reason": "[Meta Z-Score -1.50 < min 0.50]",
                 "meta_payoff_edge_zscore": -1.50,
                 "edge_zscore": -1.50,
-                "predicted_payoff_edge": -0.80,
+                "predicted_payoff_edge": -0.40,
                 "edge_expectancy": "LOSS_EXPECTED",
+                "meta_classifier_applied": True,
             },
         },
     }

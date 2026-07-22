@@ -60,7 +60,7 @@ def bear_put_prob_expanding(
     metrics: dict[str, Any],
     infra_cfg: dict | None,
 ) -> bool:
-    """Indica expansao de probabilidade PUT no RDBEAR versus CALL no RDBULL."""
+    """Indica expansao de probabilidade PUT no peer bear versus CALL no peer bull."""
     if not isinstance(bear_entry, dict):
         return False
     bull_call = entry_prob(bull_entry)
@@ -77,7 +77,7 @@ def bull_call_prob_expanding(
     metrics: dict[str, Any],
     infra_cfg: dict | None,
 ) -> bool:
-    """Indica expansao de probabilidade CALL no RDBULL versus PUT no RDBEAR."""
+    """Indica expansao de probabilidade CALL no peer bull versus PUT no peer bear."""
     if not isinstance(bull_entry, dict):
         return False
     bear_put = 1.0 - entry_prob(bear_entry)

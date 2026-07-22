@@ -79,17 +79,18 @@ def log_side_equilibrium(
     proposed: TradeDirection,
     orch: Any | None = None,
 ) -> None:
-    """Registra telemetria SIDE_EQ no logger AETH (uma vez por ciclo/simbolo/lado)."""
-    cycle = int(getattr(orch, "_active_cycle_id", 0) or 0) if orch is not None else 0
-    key = (cycle, str(symbol), proposed.name, str(decision.action), str(decision.reason))
-    if orch is not None:
-        bag = getattr(orch, "_side_eq_log_keys", None)
-        if not isinstance(bag, set):
-            orch._side_eq_log_keys = set()
-            bag = orch._side_eq_log_keys
-        if key in bag:
-            return
-        bag.add(key)
+    """Emite log deduplicado SIDE_EQ por ciclo e simbolo."""
+    if orch is None:
+        return
+    cycle = int(getattr(orch, "_active_cycle_id", 0) or 0)
+    key = ("side_eq", cycle, str(symbol))
+    bag = getattr(orch, "_side_eq_log_keys", None)
+    if not isinstance(bag, set):
+        orch._side_eq_log_keys = set()
+        bag = orch._side_eq_log_keys
+    if key in bag:
+        return
+    bag.add(key)
     logger.info(
         "SIDE_EQ | %s %s | call=%d/%d put=%d/%d | bias=%.2f wr=%s | action=%s",
         symbol,
@@ -113,6 +114,9 @@ def resolve_direction_with_side_equilibrium(
     """Escolhe lado equilibrado: hard-skip no proposto tenta o oposto; None se ambos bloqueados."""
     if bool(metrics.get("side_eq_gate_done")):
         if bool(metrics.get("side_eq_blocked")):
+            if not str(metrics.get("gate_reason") or "").strip():
+                metrics["gate_reason"] = str(metrics.get("side_eq_reason") or "side_imbalance_both_sides")
+                metrics["quality_guard_reject"] = True
             return None
         name = str(metrics.get("exec_direction") or metrics.get("resolved_direction") or proposed.name)
         try:
@@ -125,6 +129,10 @@ def resolve_direction_with_side_equilibrium(
         apply_side_equilibrium_to_metrics(metrics, primary, proposed=proposed)
         metrics["side_eq_gate_done"] = True
         metrics["side_eq_blocked"] = False
+        metrics.pop("quality_guard_reject", None)
+        gate = str(metrics.get("gate_reason") or "")
+        if gate.startswith("side_imbalance"):
+            metrics.pop("gate_reason", None)
         return proposed
     apply_side_equilibrium_to_metrics(metrics, primary, proposed=proposed)
     opposite = opposite_trade_direction(proposed)
@@ -134,13 +142,37 @@ def resolve_direction_with_side_equilibrium(
         apply_side_equilibrium_to_metrics(metrics, alternate, proposed=opposite)
         metrics["side_eq_gate_done"] = True
         metrics["side_eq_blocked"] = True
+        metrics["gate_reason"] = str(alternate.reason or primary.reason or "side_imbalance_both_sides")
+        metrics["quality_guard_reject"] = True
         return None
+    if not _alternate_side_is_preferable(primary, alternate):
+        apply_side_equilibrium_to_metrics(metrics, primary, proposed=proposed)
+        metrics["side_eq_gate_done"] = True
+        metrics["side_eq_blocked"] = True
+        metrics["gate_reason"] = "side_imbalance_flip_not_better"
+        metrics["quality_guard_reject"] = True
+        metrics["side_eq_flip_rejected"] = True
+        return None
+    toxic_primary = _primary_side_is_toxic(primary)
+    if _flip_conflicts_price_zone(opposite, metrics) and not toxic_primary:
+        apply_side_equilibrium_to_metrics(metrics, primary, proposed=proposed)
+        metrics["side_eq_gate_done"] = True
+        metrics["side_eq_blocked"] = True
+        metrics["gate_reason"] = "side_imbalance_flip_zone_conflict"
+        metrics["quality_guard_reject"] = True
+        metrics["side_eq_flip_rejected"] = True
+        metrics["side_eq_flip_zone_conflict"] = True
+        return None
+    if toxic_primary and _flip_conflicts_price_zone(opposite, metrics):
+        metrics["side_eq_toxic_zone_escape"] = True
     metrics.pop("quality_guard_reject", None)
     gate = str(metrics.get("gate_reason") or "")
     if gate.startswith("side_imbalance"):
         metrics.pop("gate_reason", None)
     metrics["side_eq_flipped"] = True
     metrics["side_eq_flip_from"] = proposed.name
+    if toxic_primary:
+        metrics["side_eq_toxic_escape"] = True
     apply_side_equilibrium_to_metrics(metrics, alternate, proposed=opposite)
     _log_side_eq_flip(orch, symbol=str(symbol or "?"), proposed=proposed, opposite=opposite, reason=primary.reason)
     metrics["exec_direction"] = opposite.name
@@ -148,6 +180,37 @@ def resolve_direction_with_side_equilibrium(
     metrics["side_eq_gate_done"] = True
     metrics["side_eq_blocked"] = False
     return opposite
+
+
+def _primary_side_is_toxic(primary: SideEquilibriumDecision) -> bool:
+    """True quando o lado primario esta em hard-skip toxico por WR baixo."""
+    if primary.action != ACTION_HARD_SKIP:
+        return False
+    if primary.side_wr is None:
+        return True
+    return float(primary.side_wr) + 1e-12 < 0.40
+
+
+def _flip_conflicts_price_zone(opposite: TradeDirection, metrics: dict[str, Any]) -> bool:
+    """True quando o flip proposto conflita com a price zone ativa."""
+    zone_side = str(metrics.get("price_zone_direction") or "").upper()
+    if zone_side not in {TradeDirection.CALL.name, TradeDirection.PUT.name}:
+        return False
+    return opposite.name != zone_side
+
+
+def _alternate_side_is_preferable(
+    primary: SideEquilibriumDecision,
+    alternate: SideEquilibriumDecision,
+) -> bool:
+    """Compara WR do lado alternativo contra o primario bloqueado."""
+    alt_wr = alternate.side_wr
+    pri_wr = primary.side_wr
+    if alt_wr is None:
+        return True
+    if pri_wr is None:
+        return float(alt_wr) + 1e-12 >= 0.5
+    return float(alt_wr) + 1e-12 >= float(pri_wr)
 
 
 def _log_side_eq_flip(
@@ -158,7 +221,7 @@ def _log_side_eq_flip(
     opposite: TradeDirection,
     reason: str | None,
 ) -> None:
-    """Emite SIDE_EQ_FLIP uma vez por ciclo/simbolo/par de lados."""
+    """Registra flip SIDE_EQ deduplicado por ciclo."""
     cycle = int(getattr(orch, "_active_cycle_id", 0) or 0) if orch is not None else 0
     key = ("flip", cycle, symbol, proposed.name, opposite.name, str(reason or "side_imbalance"))
     if orch is not None:
@@ -170,7 +233,7 @@ def _log_side_eq_flip(
             return
         bag.add(key)
     logger.info(
-        "SIDE_EQ_FLIP | %s %s -> %s | blocked=%s",
+        "SIDE_EQ_FLIP | %s %s -> %s | because=%s",
         symbol,
         proposed.name,
         opposite.name,

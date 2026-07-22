@@ -1,5 +1,7 @@
 """Selecao obrigatoria de candidatos por ranking de mercado."""
 
+from typing import Any
+
 from src.application.services.execution_direction import build_execution_candidate, meets_mandatory_signal_floor
 from src.application.services.execution_market_rank import (
     _trade_score,
@@ -24,6 +26,30 @@ def _symbol_order(trade_symbols: list[str], last_loss_symbol: str | None, *, ski
     return core + tail
 
 
+def _candidate_kwargs(
+    *,
+    recovery_active: bool,
+    orch: Any | None,
+    cycle_id: int,
+    risk_manager: Any | None,
+    skipped_cycles_counter: int | None,
+    infra_cfg: dict | None,
+    decisions: dict | None,
+    exec_cfg: dict | None,
+) -> dict:
+    """Monta kwargs comuns para resolucao de candidato obrigatorio."""
+    return {
+        "recovery_active": recovery_active,
+        "orch": orch,
+        "cycle_id": cycle_id,
+        "risk_manager": risk_manager,
+        "skipped_cycles_counter": skipped_cycles_counter,
+        "infra_cfg": infra_cfg,
+        "decisions": decisions,
+        "exec_cfg": exec_cfg,
+    }
+
+
 def _rank_eligible_candidates(
     order: list[str],
     decisions: dict,
@@ -32,10 +58,26 @@ def _rank_eligible_candidates(
     last_loss_symbol: str | None,
     min_signal: float,
     min_val: float,
+    orch: Any | None = None,
+    cycle_id: int = 0,
+    risk_manager: Any | None = None,
+    skipped_cycles_counter: int | None = None,
+    infra_cfg: dict | None = None,
+    exec_cfg: dict | None = None,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Rankeia candidatos elegiveis e retorna o melhor por score de mercado."""
     best = None
     best_score = -1.0
+    kw = _candidate_kwargs(
+        recovery_active=recovery_active,
+        orch=orch,
+        cycle_id=cycle_id,
+        risk_manager=risk_manager,
+        skipped_cycles_counter=skipped_cycles_counter,
+        infra_cfg=infra_cfg,
+        decisions=decisions,
+        exec_cfg=exec_cfg,
+    )
     for symbol in order:
         entry = decisions.get(symbol)
         if not entry or not mandatory_pool_eligible(entry):
@@ -46,9 +88,9 @@ def _rank_eligible_candidates(
         ):
             continue
         score = _trade_score(metrics)
-        candidate = build_market_execution_candidate(symbol, entry, recovery_active=recovery_active)
+        candidate = build_market_execution_candidate(symbol, entry, **kw)
         if candidate is None:
-            candidate = build_execution_candidate(symbol, entry, recovery_active=recovery_active)
+            candidate = build_execution_candidate(symbol, entry, **kw)
         if candidate is None:
             continue
         rank = market_decision_score(
@@ -76,6 +118,12 @@ def pick_best_mandatory_candidate(
     min_signal: float = 0.0,
     min_val: float = 0.0,
     consecutive_losses: int = 0,
+    orch: Any | None = None,
+    cycle_id: int = 0,
+    risk_manager: Any | None = None,
+    skipped_cycles_counter: int | None = None,
+    infra_cfg: dict | None = None,
+    exec_cfg: dict | None = None,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Escolhe melhor candidato obrigatorio por score de mercado."""
     _ = consecutive_losses
@@ -88,6 +136,12 @@ def pick_best_mandatory_candidate(
         last_loss_symbol=last_loss_symbol,
         min_signal=min_signal,
         min_val=min_val,
+        orch=orch,
+        cycle_id=cycle_id,
+        risk_manager=risk_manager,
+        skipped_cycles_counter=skipped_cycles_counter,
+        infra_cfg=infra_cfg,
+        exec_cfg=exec_cfg,
     )
     if ranked is not None:
         return ranked
@@ -98,6 +152,12 @@ def pick_best_mandatory_candidate(
         last_loss_symbol=last_loss_symbol,
         min_signal=min_signal,
         min_val=min_val,
+        orch=orch,
+        cycle_id=cycle_id,
+        risk_manager=risk_manager,
+        skipped_cycles_counter=skipped_cycles_counter,
+        infra_cfg=infra_cfg,
+        exec_cfg=exec_cfg,
     )
 
 
@@ -110,12 +170,28 @@ def pick_absolute_mandatory_candidate(
     min_signal: float = 0.0,
     min_val: float = 0.0,
     consecutive_losses: int = 0,
+    orch: Any | None = None,
+    cycle_id: int = 0,
+    risk_manager: Any | None = None,
+    skipped_cycles_counter: int | None = None,
+    infra_cfg: dict | None = None,
+    exec_cfg: dict | None = None,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Garante ordem quando filtros de recovery esgotam o pool."""
     _ = consecutive_losses
     order = _symbol_order(trade_symbols, last_loss_symbol, skip_symbols=frozenset())
     best = None
     best_score = -1.0
+    kw = _candidate_kwargs(
+        recovery_active=recovery_active,
+        orch=orch,
+        cycle_id=cycle_id,
+        risk_manager=risk_manager,
+        skipped_cycles_counter=skipped_cycles_counter,
+        infra_cfg=infra_cfg,
+        decisions=decisions,
+        exec_cfg=exec_cfg,
+    )
     for symbol in order:
         entry = decisions.get(symbol)
         if not entry or not mandatory_pool_eligible(entry):
@@ -125,9 +201,9 @@ def pick_absolute_mandatory_candidate(
             metrics, min_signal=min_signal, min_val=min_val
         ):
             continue
-        candidate = build_market_execution_candidate(symbol, entry, recovery_active=recovery_active)
+        candidate = build_market_execution_candidate(symbol, entry, **kw)
         if candidate is None:
-            candidate = build_execution_candidate(symbol, entry, recovery_active=recovery_active)
+            candidate = build_execution_candidate(symbol, entry, **kw)
         if candidate is None:
             continue
         rank = market_decision_score(

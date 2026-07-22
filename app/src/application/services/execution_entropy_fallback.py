@@ -36,6 +36,8 @@ def pick_entropy_fallback_candidate(
     *,
     skip_symbols: frozenset[str] | None = None,
     recovery_active: bool = False,
+    orch=None,
+    cycle_id: int = 0,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Seleciona simbolo com menor entropia e direcao pela maior assimetria residual."""
     skip = skip_symbols or frozenset()
@@ -72,10 +74,17 @@ def pick_entropy_fallback_candidate(
             direction = TradeDirection.PUT
         else:
             direction = TradeDirection.CALL if prob > pivot else TradeDirection.PUT
+    active_cycle = int(cycle_id or 0)
+    if orch is not None:
+        active_cycle = int(getattr(orch, "_active_cycle_id", 0) or active_cycle or 0)
     candidate = build_execution_candidate(
         best_symbol,
         {**best_entry, "direction": direction, "metrics": metrics},
         recovery_active=recovery_active,
+        orch=orch,
+        cycle_id=active_cycle,
+        decisions=decisions,
+        risk_manager=getattr(orch, "risk_manager", None) if orch is not None else None,
     )
     if candidate is None:
         return None

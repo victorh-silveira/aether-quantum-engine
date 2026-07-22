@@ -7,7 +7,7 @@ from typing import Any
 
 import numpy as np
 
-from src.application.services.deep_learning.dl_calibration import apply_calibrator
+from src.application.services.deep_learning.dl_calibration import apply_calibrator_stable
 from src.application.services.deep_learning.model import predict_next_direction
 from src.domain.models.trade import TradeDirection
 from src.infrastructure.inference.triton_grpc_client import TritonInferenceTimeout
@@ -156,5 +156,5 @@ async def predict_raw_prob_async(
             return None, 0.5, 0.5
         return _local_torchscript_predict(**local_kwargs)
 
-    prob = apply_calibrator(raw_prob, calibrator) if calibrator is not None else raw_prob
+    prob = apply_calibrator_stable(raw_prob, calibrator)
     return _resolve_direction(prob, raw_prob, call_th, put_th)

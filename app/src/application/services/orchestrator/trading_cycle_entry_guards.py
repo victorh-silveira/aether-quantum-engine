@@ -20,7 +20,17 @@ def _orchestrator_cfg(orch: Any) -> dict:
 
 def _cycle_cadence_seconds(orch: Any) -> int:
     """Intervalo alvo entre ciclos de decisao em segundos."""
-    return int(_orchestrator_cfg(orch).get("cycle_interval_seconds") or 0)
+    base = int(_orchestrator_cfg(orch).get("cycle_interval_seconds") or 0)
+    if base <= 0:
+        return 0
+    if not bool(getattr(orch, "_last_cycle_was_exec_empty", False)):
+        return base
+    raw = _orchestrator_cfg(orch).get("exec_empty_retry_seconds", 45)
+    try:
+        empty_retry = int(raw)
+    except (TypeError, ValueError):
+        empty_retry = 45
+    return max(15, min(base, empty_retry))
 
 
 def cycle_cadence_seconds(orch: Any) -> int:

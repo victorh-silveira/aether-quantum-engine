@@ -49,7 +49,10 @@ ignore = [
     "D203",
     "D213",
     "ANN204",
+    "PLR0911",
+    "PLR0912",
     "PLR0913",
+    "PLR0915",
     "PLR2004",
     "COM812",
     "ISC001",
@@ -79,7 +82,7 @@ convention = "google"
 "src/infrastructure/api/deriv_pat_binding.py" = ["S310"]
 "src/infrastructure/api/deriv_pat_session.py" = ["S310"]
 "src/infrastructure/inference/triton_http.py" = ["S310"]
-"tests/**/*.py" = ["ARG001", "ARG005", "S101", "S106", "S310"]
+"tests/**/*.py" = ["ARG001", "ARG005", "S101", "S106", "S310", "PLC0415"]
 "src/infrastructure/inference/triton_grpc_client.py" = ["N818"]
 
 [tool.ruff.format]

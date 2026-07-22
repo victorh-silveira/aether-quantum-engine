@@ -12,7 +12,6 @@ from src.application.services.execution_quality_gate_cluster import quality_conv
 from src.application.services.execution_quality_gate_starvation import (
     prepare_quality_skipped_cycles_counter,
     record_quality_guard_cycle_skip,
-    reset_quality_skipped_cycles_counter_for_orch,
 )
 from src.application.services.force_trade_mode import force_trade_from_orch
 from src.application.services.orchestrator.decision_mode_banner import emit_decision_engine_banner
@@ -115,9 +114,7 @@ async def _execute_inference_cluster_cycle(orch: Any) -> bool:
         executed_count = await orch.executor.execute_cluster(decisions)
         cluster_executed = executed_count > 0 if isinstance(executed_count, (int, float)) else True
         post_lock_decisions = decisions
-        if cluster_executed:
-            await reset_quality_skipped_cycles_counter_for_orch(orch)
-        else:
+        if not cluster_executed:
             any_quality_reject = any(
                 isinstance(entry, dict)
                 and isinstance(entry.get("metrics"), dict)

@@ -9,7 +9,7 @@ Stack local para o modo híbrido: motor no host (Conda/WSL), persistência e inf
 | Redis | 6379 | Estado, risco, assinaturas, starvation counter, fila `settlement:queue:priority` |
 | TimescaleDB | 5432 | Ticks e barras OHLC (macro **600 s** + micro **120 s**; prefixos de assinatura legado `m15`/`m5`) |
 | MinIO | 9000 / 9001 | Checkpoints Deep Learning / TorchScript |
-| Triton (`aether-triton`) | 8000 / 8001 | Inferência GPU TorchScript via gRPC |
+| Triton (`aether-triton`) | 8000 / 8001 | Inferência GPU TorchScript via gRPC; repo `infra/docker/triton-models/R_10` |
 | Meta-regressor (`aether-meta-classifier`) | **8005** | LightGBM HTTP; vetor **43D** (fonte de verdade no app); `POST /v2/predict_meta` |
 
 Subir tudo:
@@ -18,7 +18,9 @@ Subir tudo:
 make docker-up
 ```
 
-Pipeline: `host-prereq` → `triton-prereq` → `compose up` (profiles `DOCKER_PROFILES`, padrão `core,gpu,ml`) → wait healthy → `timescale-lifecycle` → `docker-hydrate` (seed OHLC de `R_10`) → `docker-smoke`.
+Pipeline: `host-prereq` → `triton-prereq` → `compose up` (profiles `DOCKER_PROFILES`, padrão `core,gpu,ml`) → wait healthy → `timescale-lifecycle` → `docker-hydrate` (seed OHLC macro/micro de `R_10`) → `docker-smoke`.
+
+Nos settings atuais do app, Triton pode estar **desligado** (`infra.triton.enabled: false`) para demo/local; a stack Docker permanece disponível para reativar fail-closed (`require_for_execution: true`, timeout tipicamente 0,50–8 s conforme perfil).
 
 | Profile | Serviços | Comando |
 |---------|----------|---------|
@@ -37,9 +39,10 @@ O serviço `aether-triton` usa `nvcr.io/nvidia/tritonserver:24.10-py3` com repos
 1. **Bootstrap**: `sync_all_symbols_to_triton` copia `latest_ts.pt` → `{symbol}/1/model.pt` + `config.pbtxt` com `fsync` antes do rename.
 2. **Load-over-load**: `wait_triton_models_stable` dispara `POST /v2/repository/models/{name}/load` sequencial (MODE_EXPLICIT) apenas para modelos com artefato novo ou ainda nao ready — **nunca** `/unload`; aguarda ready entre simbolos.
 3. **Sanity estressado**: `verify_triton_stressed_inference_async` (RSI/CMO/vol extremos); fail-fast se NaN/Inf ou prob fora de `[0, 1]`.
-4. **Produção**: `TritonGrpcClient` mantém canal `grpc.aio.insecure_channel` persistente, inferências paralelas (`asyncio.gather`) e timeout configurável (`infra.triton.infer_timeout_seconds`, padrão **0,50 s**).
-5. **Fail-closed**: com `infra.triton.require_for_execution: true`, timeout não cai para TorchScript local em produção.
+4. **Produção**: `TritonGrpcClient` mantém canal `grpc.aio.insecure_channel` persistente, inferências paralelas (`asyncio.gather`) e timeout configurável (`infra.triton.infer_timeout_seconds`).
+5. **Fail-closed**: com `infra.triton.require_for_execution: true`, timeout não cai para TorchScript local em produção (nos settings atuais pode estar **false**).
 6. **Loop-aware**: `get_triton_grpc_client` recria o singleton se o event loop asyncio mudou (treinos em thread / `asyncio.run`).
+7. **Modelo**: artefato sincronizado em `triton-models/R_10/1/model.pt` (universo single-symbol).
 
 ### Healthcheck Triton
 

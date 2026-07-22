@@ -6,7 +6,7 @@ import asyncio
 import time
 from typing import Any
 
-from src.application.services.log_dedupe import clear_log_channel, log_info_if_changed
+from src.application.services.log_dedupe import log_info_if_changed
 from src.application.services.orchestrator.graceful_shutdown import graceful_shutdown
 from src.application.services.orchestrator.orchestrator_data_signature import seconds_until_next_signature_boundary
 from src.application.services.orchestrator.orchestrator_settlement_queue import (
@@ -201,6 +201,14 @@ async def _await_exec_empty_signature_alignment(orch: Any, poll: float) -> None:
         return
     delay = float(seconds_until_next_signature_boundary(orch))
     if delay > 0.0:
+        orch_cfg = orch.config.get("orchestrator") if isinstance(getattr(orch, "config", None), dict) else {}
+        if not isinstance(orch_cfg, dict):
+            orch_cfg = {}
+        try:
+            empty_cap = float(orch_cfg.get("exec_empty_retry_seconds", 45))
+        except (TypeError, ValueError):
+            empty_cap = 45.0
+        delay = min(delay, max(15.0, empty_cap))
         orch._cooldown_until = now + delay
         await _await_post_settlement_breath(orch, delay, poll)
         return
@@ -214,13 +222,7 @@ async def _apply_tolerance_window_recovery(orch: Any, *, window: float, failed_a
     orch._post_settlement_deadlock = False
     orch._post_settlement_incomplete_streak = 0
     clear_post_settlement_polling_state(orch)
-    settle_content = f"{window:.0f}|{int(settled)}|{int(failed_attempts)}"
-    prev = None
-    cache = getattr(orch, "_log_dedupe", None)
-    if isinstance(cache, dict):
-        prev = cache.get("settle_tolerance")
-    if prev != settle_content:
-        clear_log_channel(orch, "sre_redis_clean")
+    settle_content = f"{window:.0f}|{int(settled)}"
     log_info_if_changed(
         orch,
         orch.logger,

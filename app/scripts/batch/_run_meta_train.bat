@@ -6,7 +6,7 @@ pushd "%~dp0..\..\.."
 set "REPO_ROOT=%CD%"
 popd
 set "ENV_NAME=deriv-api"
-set "META_TRIALS=48"
+set "META_TRIALS=96"
 set "PYTHON_EXE=%USERPROFILE%\anaconda3\envs\%ENV_NAME%\python.exe"
 if not exist "%PYTHON_EXE%" set "PYTHON_EXE=%USERPROFILE%\miniconda3\envs\%ENV_NAME%\python.exe"
 if not exist "%PYTHON_EXE%" (

@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+source "${SCRIPT_DIR}/docker-ui.sh"
 
 if [ ! -f "${REPO_ROOT}/infra/docker/docker-compose.yml" ]; then
   echo "docker-wait-healthy: execute a partir da raiz do repositorio (compose nao encontrado)" >&2
@@ -61,25 +62,35 @@ all_healthy() {
   return 0
 }
 
+print_status() {
+  docker_ui_nl
+  printf '  %sContainers%s\n' "${DOCKER_UI_BOLD}" "${DOCKER_UI_RESET}"
+  docker_ui_nl
+  "${COMPOSE[@]}" ps
+  docker_ui_nl
+}
+
 main() {
   local elapsed=0
   local code=0
+  printf '  %sAguardando healthchecks%s (timeout %ss)\n' \
+    "${DOCKER_UI_DIM}" "${DOCKER_UI_RESET}" "${TIMEOUT_SECS}"
   while [ "$elapsed" -lt "$TIMEOUT_SECS" ]; do
     code=0
     all_healthy || code=$?
     if [ "$code" -eq 0 ]; then
-      "${COMPOSE[@]}" ps
+      print_status
       exit 0
     fi
     if [ "$code" -eq 2 ]; then
-      "${COMPOSE[@]}" ps
+      print_status
       exit 1
     fi
     sleep "$INTERVAL_SECS"
     elapsed=$((elapsed + INTERVAL_SECS))
   done
   echo "docker-wait-healthy: timeout apos ${TIMEOUT_SECS}s aguardando healthchecks" >&2
-  "${COMPOSE[@]}" ps
+  print_status
   exit 1
 }
 

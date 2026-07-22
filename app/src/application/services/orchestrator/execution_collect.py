@@ -18,6 +18,7 @@ from src.application.services.orchestrator.execution_collect_helpers import (
     log_execution_decision,
     mandatory_fallback_if_empty as _mandatory_fallback_if_empty,
     resolve_mandatory_ultimate_candidate as _resolve_mandatory_ultimate_candidate,
+    revive_ready_cluster_candidates,
 )
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.recovery_hurst_decay import session_drawdown_from_profit
@@ -112,6 +113,8 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
         recovery_skip_counter=skip_counter,
         session_drawdown=session_drawdown,
     )
+    if not candidates:
+        candidates = revive_ready_cluster_candidates(exec_mgr, decisions)
     candidates = filter_loss_protection_candidates(
         candidates, exec_cfg=exec_cfg, recovery_active=recovery_active, consecutive_losses=consecutive
     )

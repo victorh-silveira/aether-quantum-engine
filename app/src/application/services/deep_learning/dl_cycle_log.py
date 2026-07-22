@@ -112,5 +112,6 @@ def log_dl_cycle_summary(
         decisions,
         recovery_active=recovery_active,
     )
-    log_info_if_changed(orch, logger, "dl_brief", key_brief, "%s", cluster_line)
+    cycle_id = int(getattr(orch, "_active_cycle_id", 0) or 0)
+    log_info_if_changed(orch, logger, f"dl_brief:{cycle_id}", key_brief, "%s", cluster_line)
     _ = brief

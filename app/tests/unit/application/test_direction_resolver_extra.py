@@ -4,7 +4,6 @@ from unittest.mock import patch
 import pytest
 
 from src.application.services.execution_direction_resolver import resolve_execution_direction
-from src.application.services.meta_payoff_veto_gate import META_PAYOFF_NEGATIVE_ZSCORE_VETO
 from src.application.services.payoff_edge_zscore import reset_payoff_edge_buffer
 from src.domain.models.trade import TradeDirection
 
@@ -74,16 +73,22 @@ def test_resolve_c0015_negative_edge_blocked_by_meta_payoff_veto(caplog):
         caplog.at_level("INFO"),
     ):
         result = resolve_execution_direction(entry, symbol="R_10")
-    assert result is not None
-    assert entry["metrics"].get("gate_reason") != META_PAYOFF_NEGATIVE_ZSCORE_VETO
+    assert result is None
+    assert entry["metrics"].get("gate_reason") == "meta_negative_edge"
     assert not any("[D-SQUEEZE]" in record.message for record in caplog.records)
 
 
 def test_resolve_persistence_guard_freeze_skips_without_inverting():
     entry = _entry(direction=TradeDirection.CALL, calibrated_prob=0.72)
-    with patch(
-        "src.application.services.execution_direction_resolver.evaluate_direction_persistence_guard",
-        return_value=None,
+    with (
+        patch(
+            "src.application.services.execution_direction_persistence.evaluate_direction_persistence_guard",
+            return_value=None,
+        ),
+        patch(
+            "src.application.services.execution_direction_persistence.consecutive_direction_losses",
+            return_value=2,
+        ),
     ):
         result = resolve_execution_direction(entry, symbol="R_10", cycle_id=11)
     assert result is None

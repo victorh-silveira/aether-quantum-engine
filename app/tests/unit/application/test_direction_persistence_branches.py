@@ -34,11 +34,11 @@ def test_bull_call_prob_expanding_false_without_bull_entry():
     assert bull_call_prob_expanding({"metrics": {"calibrated_prob": 0.30}}, None, {}, None) is False
 
 
-@patch("src.application.services.direction_persistence_guard_part2.ANCHOR_BULL", "RDBULL")
-@patch("src.application.services.direction_persistence_guard_part2.ANCHOR_BEAR", "RDBEAR")
+@patch("src.application.services.direction_persistence_guard_part2.ANCHOR_BULL", "PEER_BULL")
+@patch("src.application.services.direction_persistence_guard_part2.ANCHOR_BEAR", "PEER_BEAR")
 def test_guard_freeze_paths_for_failed_peer_flips():
-    record_direction_outcome("RDBULL", "CALL", won=False)
-    record_direction_outcome("RDBULL", "CALL", won=False)
+    record_direction_outcome("PEER_BULL", "CALL", won=False)
+    record_direction_outcome("PEER_BULL", "CALL", won=False)
     bull = {
         "metrics": {
             "calibrated_prob": 0.80,
@@ -58,7 +58,7 @@ def test_guard_freeze_paths_for_failed_peer_flips():
     metrics = dict(bear["metrics"])
     assert (
         evaluate_direction_persistence_guard(
-            "RDBEAR",
+            "PEER_BEAR",
             TradeDirection.PUT,
             TradeDirection.PUT,
             metrics,
@@ -70,8 +70,8 @@ def test_guard_freeze_paths_for_failed_peer_flips():
         is None
     )
     reset_direction_persistence_tracker()
-    record_direction_outcome("RDBEAR", "PUT", won=False)
-    record_direction_outcome("RDBEAR", "PUT", won=False)
+    record_direction_outcome("PEER_BEAR", "PUT", won=False)
+    record_direction_outcome("PEER_BEAR", "PUT", won=False)
     bull = {
         "metrics": {
             "calibrated_prob": 0.15,
@@ -91,7 +91,7 @@ def test_guard_freeze_paths_for_failed_peer_flips():
     metrics = dict(bull["metrics"])
     assert (
         evaluate_direction_persistence_guard(
-            "RDBULL",
+            "PEER_BULL",
             TradeDirection.CALL,
             TradeDirection.CALL,
             metrics,
@@ -104,11 +104,11 @@ def test_guard_freeze_paths_for_failed_peer_flips():
     )
 
 
-@patch("src.application.services.direction_persistence_guard_part2.ANCHOR_BULL", "RDBULL")
-@patch("src.application.services.direction_persistence_guard_part2.ANCHOR_BEAR", "RDBEAR")
+@patch("src.application.services.direction_persistence_guard_part2.ANCHOR_BULL", "PEER_BULL")
+@patch("src.application.services.direction_persistence_guard_part2.ANCHOR_BEAR", "PEER_BEAR")
 def test_guard_congestion_freeze_on_peer_flip_attempt():
-    record_direction_outcome("RDBULL", "CALL", won=False)
-    record_direction_outcome("RDBULL", "CALL", won=False)
+    record_direction_outcome("PEER_BULL", "CALL", won=False)
+    record_direction_outcome("PEER_BULL", "CALL", won=False)
     congested = {
         "metrics": {
             "calibrated_prob": 0.30,
@@ -122,7 +122,7 @@ def test_guard_congestion_freeze_on_peer_flip_attempt():
     metrics = dict(congested["metrics"])
     assert (
         evaluate_direction_persistence_guard(
-            "RDBEAR",
+            "PEER_BEAR",
             TradeDirection.PUT,
             TradeDirection.PUT,
             metrics,
@@ -143,11 +143,11 @@ def test_bear_put_prob_expanding_helpers():
     assert not bear_put_prob_expanding({"metrics": {"calibrated_prob": 0.40}}, None, {}, None)
 
 
-@patch("src.application.services.direction_persistence_guard_part2.ANCHOR_BULL", "RDBULL")
-@patch("src.application.services.direction_persistence_guard_part2.ANCHOR_BEAR", "RDBEAR")
+@patch("src.application.services.direction_persistence_guard_part2.ANCHOR_BULL", "PEER_BULL")
+@patch("src.application.services.direction_persistence_guard_part2.ANCHOR_BEAR", "PEER_BEAR")
 def test_bear_put_lock_congestion_freeze_before_bull_flip():
-    record_direction_outcome("RDBEAR", "PUT", won=False)
-    record_direction_outcome("RDBEAR", "PUT", won=False)
+    record_direction_outcome("PEER_BEAR", "PUT", won=False)
+    record_direction_outcome("PEER_BEAR", "PUT", won=False)
     congested = {
         "metrics": {
             "calibrated_prob": 0.65,
@@ -160,7 +160,7 @@ def test_bear_put_lock_congestion_freeze_before_bull_flip():
     metrics = dict(congested["metrics"])
     assert (
         evaluate_direction_persistence_guard(
-            "RDBULL",
+            "PEER_BULL",
             TradeDirection.CALL,
             TradeDirection.CALL,
             metrics,

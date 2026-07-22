@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -13,6 +14,9 @@ from src.infrastructure.api.deriv_http import read_http_response
 
 class DerivRestError(Exception):
     """Falha em chamada REST Deriv."""
+
+
+_TRANSIENT_HTTP = frozenset({502, 503, 504})
 
 
 @dataclass(frozen=True)
@@ -64,6 +68,21 @@ def select_account(
     return active[0]
 
 
+def _retry_after_seconds(detail: str, *, attempt: int) -> float:
+    """Extrai retry_after do JSON Cloudflare ou usa backoff linear."""
+    fallback = min(90.0, 2.0 * float(attempt + 1))
+    try:
+        parsed = json.loads(detail)
+    except (json.JSONDecodeError, TypeError):
+        return fallback
+    if not isinstance(parsed, dict) or parsed.get("retry_after") is None:
+        return fallback
+    try:
+        return max(1.0, min(float(parsed["retry_after"]), 90.0))
+    except (TypeError, ValueError):
+        return fallback
+
+
 class DerivRestClient:
     """HTTP REST para contas e OTP WebSocket."""
 
@@ -74,11 +93,13 @@ class DerivRestClient:
         deriv_app_id: str,
         access_token: str,
         timeout_seconds: int = 60,
+        max_retries: int = 4,
     ):
         self.rest_base_url = rest_base_url.rstrip("/")
         self.deriv_app_id = deriv_app_id
         self.access_token = access_token
         self.timeout_seconds = timeout_seconds
+        self.max_retries = max(1, int(max_retries))
 
     def _request(
         self,
@@ -99,17 +120,28 @@ class DerivRestClient:
             data = json.dumps(body).encode("utf-8")
             headers["Content-Type"] = "application/json"
         req = urllib.request.Request(url, data=data, method=method, headers=headers)
-        try:
-            raw = read_http_response(req, float(self.timeout_seconds)).decode("utf-8")
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")
-            raise DerivRestError(f"{method} {path} HTTP {exc.code}: {detail}") from exc
-        except urllib.error.URLError as exc:
-            raise DerivRestError(f"{method} {path} falhou: {exc}") from exc
-        parsed = json.loads(raw)
-        if not isinstance(parsed, dict):
-            raise DerivRestError(f"Resposta JSON invalida em {path}")
-        return parsed
+        last_error = DerivRestError(f"{method} {path} falhou")
+        detail = ""
+        for attempt in range(self.max_retries):
+            try:
+                raw = read_http_response(req, float(self.timeout_seconds)).decode("utf-8")
+            except urllib.error.HTTPError as exc:
+                detail = exc.read().decode("utf-8", errors="replace")
+                last_error = DerivRestError(f"{method} {path} HTTP {exc.code}: {detail}")
+                if int(exc.code) not in _TRANSIENT_HTTP:
+                    raise last_error from exc
+            except urllib.error.URLError as exc:
+                detail = ""
+                last_error = DerivRestError(f"{method} {path} falhou: {exc}")
+            else:
+                parsed = json.loads(raw)
+                if not isinstance(parsed, dict):
+                    raise DerivRestError(f"Resposta JSON invalida em {path}")
+                return parsed
+            if attempt + 1 >= self.max_retries:
+                break
+            time.sleep(_retry_after_seconds(detail, attempt=attempt))
+        raise last_error
 
     async def list_accounts(self) -> list[DerivAccount]:
         """Lista contas Options (GET /trading/v1/options/accounts)."""

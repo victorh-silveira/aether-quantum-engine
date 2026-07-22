@@ -1,199 +1,194 @@
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
-from src.application.services.execution_direction import (
-    build_execution_candidate,
-    mandatory_execution_eligible,
+import pytest
+
+from src.application.services.execution_direction_fallback import _orch_cycle
+from src.application.services.execution_direction_meta_edge import (
+    _negative_edge_skip,
+    _stamp_direction_resolved_cycle,
 )
-from src.application.services.execution_direction_checks import (
-    _macro_indicator_float,
-    _rsi_di_oppose_direction,
-    apply_technical_agreement,
-    initial_direction_checks,
+from src.application.services.execution_direction_resolver import _finalize_execution_metrics
+from src.application.services.execution_price_zone_gate import align_or_keep_meta_side
+from src.application.services.orchestrator.orchestrator_run_loop import (
+    align_exec_empty_recovery_signature_cooldown,
 )
-from src.application.services.execution_direction_fallback import (
-    _last_resort_fallback_pick,
-    _scored_fallback_pick,
+from src.application.services.orchestrator.post_settlement_cycle import (
+    _await_exec_empty_signature_alignment,
 )
-from src.application.services.execution_symbols import select_mandatory_execution_candidate
-from src.domain.analytics.side_equilibrium import binomial_z_vs_p
+from src.application.services.orchestrator.trading_cycle_entry_guards import _cycle_cadence_seconds
 from src.domain.models.trade import TradeDirection
 
 
-def test_mandatory_eligible_requires_inferable_direction():
-    assert mandatory_execution_eligible({"metrics": {"deploy_ok": True}}) is False
+def test_orch_cycle_none_and_value():
+    assert _orch_cycle(None) == 0
+    assert _orch_cycle(SimpleNamespace(_active_cycle_id=7)) == 7
 
 
-def test_build_execution_candidate_reads_peer_from_decisions():
-    entry = {
-        "direction": TradeDirection.CALL,
-        "metrics": {
-            "calibrated_prob": 0.72,
-            "raw_prob": 0.72,
-            "deploy_ok": True,
-            "execute": True,
-            "predicted_payoff_edge": 0.2,
-            "edge_zscore": 1.0,
-            "edge_zscore_samples": 20,
-        },
-    }
-    peer = {
-        "direction": TradeDirection.PUT,
-        "metrics": {"calibrated_prob": 0.30, "raw_prob": 0.30, "deploy_ok": True},
-    }
-    with patch("src.application.services.execution_direction.hedge_peer", return_value="R_25"):
-        built = build_execution_candidate(
-            "R_10",
-            entry,
-            decisions={"R_10": entry, "R_25": peer},
-            orch=SimpleNamespace(config={"orchestrator": {"execution": {}}}),
-        )
-    assert built is not None
-    assert built[0] == "R_10"
+def test_stamp_direction_resolved_cycle_paths():
+    entry: dict = {}
+    _stamp_direction_resolved_cycle(entry, 3)
+    assert entry["metrics"]["_direction_resolved_cycle"] == 3
+    entry2 = {"metrics": "bad"}
+    _stamp_direction_resolved_cycle(entry2, 5)
+    assert entry2["metrics"] == {"_direction_resolved_cycle": 5}
 
 
-def test_select_mandatory_empty_pool_returns_none():
+def test_align_or_keep_meta_side_keep_branches():
+    metrics = {"price_zone_direction": "CALL", "predicted_payoff_edge": 0.12, "meta_classifier_applied": True}
     assert (
-        select_mandatory_execution_candidate(
-            None,
-            [("R_10", TradeDirection.CALL, {"trade_score": 0.7})],
-            last_loss_symbol="R_10",
-            recovery_active=True,
-            skip_symbols=frozenset({"R_10"}),
+        align_or_keep_meta_side(
+            TradeDirection.PUT,
+            metrics,
+            dl_dir=TradeDirection.PUT,
+            predicted_edge=0.12,
+            meta_applied=True,
         )
-        is None
+        == TradeDirection.PUT
     )
-
-
-def test_macro_indicator_and_rsi_di_oppose_paths():
-    assert _macro_indicator_float({}, "rsi") is None
-    assert _macro_indicator_float({"indicators": {"rsi": "x"}}, "rsi") is None
-    assert _macro_indicator_float({"macro_indicators": {"rsi": 0.62}}, "rsi") == 0.62
-    assert _rsi_di_oppose_direction({"indicators": {"rsi": 0.51, "di_diff": 0.1}}, TradeDirection.PUT) is False
-    assert _rsi_di_oppose_direction({"macro_indicators": {"rsi": 0.70, "di_diff": 0.2}}, TradeDirection.PUT) is True
-
-
-def test_discordance_side_flag_dt_override_and_sniper_freeze():
-    side_metrics = {"call_votes": 0, "put_votes": 0, "macro_indicators": {"rsi": 0.70, "di_diff": 0.2}}
-    _, side_veto = apply_technical_agreement(side_metrics, TradeDirection.PUT, 0.55, {"discordance_veto_enabled": True})
-    assert side_veto is True
-    assert side_metrics.get("indicator_side_discordance") is True
-    dt_metrics = {"call_votes": 1, "put_votes": 4, "trend_direction": "PUT"}
-    _, veto = apply_technical_agreement(
-        dt_metrics,
-        TradeDirection.CALL,
-        0.55,
-        {"discordance_veto_enabled": True, "dynamic_threshold": {"require_indicator_consensus": True}},
-    )
-    assert veto is True
-    assert dt_metrics.get("indicator_trend_discordance") is True
-    disc = {
-        "direction": TradeDirection.CALL,
-        "metrics": {
-            "calibrated_prob": 0.70,
-            "raw_prob": 0.70,
-            "deploy_ok": True,
-            "execute": True,
-            "call_votes": 1,
-            "put_votes": 4,
-            "trend_direction": "PUT",
-        },
-    }
-    assert (
-        initial_direction_checks(disc, {"discordance_veto_enabled": True, "require_indicator_consensus": True}) is None
-    )
-    assert disc["metrics"].get("gate_reason") == "indicator_discordance"
-    assert (
-        initial_direction_checks(
-            {
-                "direction": TradeDirection.CALL,
-                "metrics": {"calibrated_prob": 0.70, "raw_prob": 0.70, "deploy_ok": True, "execute": True},
-            },
-            {},
+    metrics2 = {"predicted_payoff_edge": 0.2, "meta_classifier_applied": True}
+    with patch(
+        "src.application.services.execution_price_zone_gate.align_direction_to_price_zone",
+        return_value=TradeDirection.CALL,
+    ):
+        assert (
+            align_or_keep_meta_side(
+                TradeDirection.PUT,
+                metrics2,
+                dl_dir=TradeDirection.PUT,
+                predicted_edge=0.2,
+                meta_applied=True,
+            )
+            == TradeDirection.PUT
         )
-        is not None
-    )
 
 
-def test_fallback_picks_cover_skip_score_and_success_return():
-    decisions = {
-        "R_10": {
-            "direction": TradeDirection.CALL,
-            "metrics": {
-                "trade_score": 0.80,
-                "raw_prob": 0.80,
-                "val_accuracy": 0.60,
-                "deploy_ok": True,
-                "calibrated_prob": 0.80,
-            },
-        },
-        "R_25": {"direction": TradeDirection.PUT, "metrics": {"deploy_ok": False, "gate_reason": "data"}},
-        "R_50": {
-            "direction": TradeDirection.CALL,
-            "metrics": {
-                "trade_score": 0.70,
-                "raw_prob": 0.70,
-                "val_accuracy": 0.60,
-                "deploy_ok": True,
-                "calibrated_prob": 0.70,
-            },
-        },
-        "R_75": {
-            "direction": TradeDirection.CALL,
-            "metrics": {
-                "trade_score": 0.60,
-                "raw_prob": 0.60,
-                "val_accuracy": 0.60,
-                "deploy_ok": True,
-                "calibrated_prob": 0.60,
-            },
-        },
+def test_finalize_toxic_escape_keeps_edge():
+    entry = {"metrics": {}}
+    metrics = {
+        "calibrated_prob": 0.7,
+        "predicted_payoff_edge": 0.15,
+        "trade_score": 0.7,
+        "side_eq_toxic_escape": True,
     }
     with (
         patch(
-            "src.application.services.execution_direction_fallback.build_market_execution_candidate",
+            "src.application.services.execution_direction_resolver.attach_live_signal_metrics",
             return_value=None,
         ),
         patch(
-            "src.application.services.execution_direction_fallback.build_execution_candidate",
-            side_effect=[
-                None,
-                ("R_10", TradeDirection.CALL, decisions["R_10"]["metrics"]),
-                ("R_75", TradeDirection.CALL, decisions["R_75"]["metrics"]),
-                ("R_50", TradeDirection.CALL, decisions["R_50"]["metrics"]),
-                None,
-            ],
+            "src.application.services.execution_direction_resolver.apply_live_calib_drift_soft",
+            return_value=None,
+        ),
+        patch(
+            "src.application.services.execution_direction_resolver.apply_meta_regression_edge",
+            return_value=(TradeDirection.CALL, 0.7),
+        ),
+        patch(
+            "src.application.services.execution_direction_resolver.resolve_direction_with_side_equilibrium",
+            return_value=TradeDirection.PUT,
+        ),
+        patch(
+            "src.application.services.execution_direction_resolver.should_veto_meta_payoff_negative_zscore",
+            return_value=False,
+        ),
+        patch(
+            "src.application.services.execution_direction_resolver.is_execution_signal_vetoed",
+            return_value=False,
+        ),
+        patch(
+            "src.application.services.execution_direction_resolver.apply_price_zone_gate",
+            return_value=None,
+        ),
+        patch(
+            "src.application.services.execution_direction_resolver.ensure_direction_margin",
+            return_value=None,
+        ),
+        patch(
+            "src.application.services.execution_direction_resolver._negative_edge_skip",
+            return_value=False,
         ),
     ):
-        picked = _scored_fallback_pick(
-            ["R_25", "R_50", "R_10", "R_75"],
-            decisions,
-            skip_symbols=frozenset({"R_25"}),
-            min_signal=0.50,
-            min_val=0.50,
+        out = _finalize_execution_metrics(
+            entry,
+            metrics,
+            TradeDirection.CALL,
+            0.7,
+            0.15,
+            meta_applied=True,
+            score=0.7,
+            symbol="R_10",
+            force=False,
+            exec_cfg={"price_zone": {"enabled": False}},
         )
-        assert picked is not None
-        last = _last_resort_fallback_pick(
-            ["R_25", "R_50"],
-            decisions,
-            skip_symbols=frozenset({"R_25"}),
-            min_signal=0.50,
-            min_val=0.50,
+    assert out is not None
+    assert metrics.get("side_eq_escape_edge_kept") is True
+
+
+def test_negative_edge_skip_returns_true():
+    metrics = {"predicted_payoff_edge": -0.9, "meta_classifier_applied": True}
+    with patch(
+        "src.application.services.execution_direction_meta_edge._resolve_meta_edge_floor",
+        return_value=-0.1,
+    ):
+        assert (
+            _negative_edge_skip(
+                metrics,
+                -0.9,
+                force=False,
+                meta_applied=True,
+                exec_cfg={},
+            )
+            is True
         )
-        assert last is not None
-        none_build = _last_resort_fallback_pick(
-            ["R_75"],
-            decisions,
-            skip_symbols=frozenset(),
-            min_signal=0.50,
-            min_val=0.50,
-        )
-        assert none_build is None
-    empty = _last_resort_fallback_pick(
-        ["R_25"], decisions, skip_symbols=frozenset({"R_25"}), min_signal=0.50, min_val=0.50
+
+
+def test_cycle_and_cooldown_invalid_cfg():
+    orch = SimpleNamespace(
+        config={"orchestrator": {"cycle_interval_seconds": 120, "exec_empty_retry_seconds": "bad"}},
+        _last_cycle_was_exec_empty=True,
     )
-    assert empty is None
+    assert _cycle_cadence_seconds(orch) == 45
+    orch2 = SimpleNamespace(
+        config={"orchestrator": "bad"},
+        _last_cycle_cluster_executed=False,
+        risk_manager=SimpleNamespace(pending_loss={"R_10": 1.0}),
+    )
+    with patch(
+        "src.application.services.orchestrator.orchestrator_run_loop.seconds_until_next_signature_boundary",
+        return_value=90.0,
+    ):
+        assert align_exec_empty_recovery_signature_cooldown(orch2) == 45.0
+    orch3 = SimpleNamespace(
+        config={"orchestrator": {"exec_empty_retry_seconds": "bad"}},
+        _last_cycle_cluster_executed=False,
+        risk_manager=SimpleNamespace(pending_loss={"R_10": 1.0}),
+    )
+    with patch(
+        "src.application.services.orchestrator.orchestrator_run_loop.seconds_until_next_signature_boundary",
+        return_value=90.0,
+    ):
+        assert align_exec_empty_recovery_signature_cooldown(orch3) == 45.0
 
 
-def test_binomial_z_tiny_se_returns_zero():
-    assert binomial_z_vs_p(10**24, 2 * 10**24) == 0.0
+@pytest.mark.asyncio
+async def test_post_settlement_invalid_cfg_paths():
+    for cfg in ({"orchestrator": "bad"}, {"orchestrator": {"exec_empty_retry_seconds": "bad"}}):
+        orch = SimpleNamespace(
+            config=cfg,
+            _cooldown_until=0.0,
+            risk_manager=SimpleNamespace(pending_loss={"R_10": 1.0}),
+            logger=MagicMock(),
+        )
+        with (
+            patch(
+                "src.application.services.orchestrator.post_settlement_cycle.seconds_until_next_signature_boundary",
+                return_value=80.0,
+            ),
+            patch(
+                "src.application.services.orchestrator.post_settlement_cycle._await_post_settlement_breath",
+                return_value=None,
+            ),
+        ):
+            await _await_exec_empty_signature_alignment(orch, poll=0.01)
+        assert orch._cooldown_until > 0.0

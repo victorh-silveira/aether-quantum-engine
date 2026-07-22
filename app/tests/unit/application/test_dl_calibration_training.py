@@ -2,7 +2,9 @@ import numpy as np
 import pytest
 
 from src.application.services.deep_learning.dl_calibration import (
+    CalibratorState,
     apply_calibrator,
+    apply_calibrator_stable,
     brier_score,
     calibrate_conviction,
     calibrate_trade_score,
@@ -25,6 +27,19 @@ from src.application.services.deep_learning.dl_outcomes import record_symbol_out
 from src.application.services.deep_learning.dl_splits import purged_temporal_splits, splits_valid
 from src.application.services.deep_learning.dl_training import train_model_online, train_model_walkforward
 from src.application.services.deep_learning.model import INPUT_DIM, create_direction_model
+
+
+def test_apply_calibrator_stable_avoids_isotonic_ood_snap():
+    cal = CalibratorState(
+        method="isotonic",
+        isotonic_x=(0.5019, 0.52, 0.53),
+        isotonic_y=(0.4925, 0.55, 1.0),
+    )
+    raw = 0.486
+    snapped = apply_calibrator(raw, cal)
+    stable = apply_calibrator_stable(raw, cal)
+    assert snapped == pytest.approx(0.4925)
+    assert stable == pytest.approx(raw)
 
 
 def test_calibration_helpers():

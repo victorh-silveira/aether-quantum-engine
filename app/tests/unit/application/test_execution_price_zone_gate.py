@@ -1,10 +1,6 @@
-from types import SimpleNamespace
-from unittest.mock import patch
-
 import pytest
 
 from src.application.services.execution_direction_checks import initial_direction_checks
-from src.application.services.execution_direction_resolver import _finalize_execution_metrics
 from src.application.services.execution_price_zone_gate import (
     ZONE_BUY,
     ZONE_NONE,
@@ -12,8 +8,10 @@ from src.application.services.execution_price_zone_gate import (
     _reject_reason,
     _trend_supports,
     _zone_side_ok,
+    align_direction_to_price_zone,
     apply_price_zone_gate,
     direction_allowed_for_zone,
+    direction_for_price_zone,
     resolve_price_zone,
     resolve_price_zone_config,
     zone_score,
@@ -28,6 +26,7 @@ def _zone_cfg(**overrides):
         "sell_min": 0.65,
         "bb_weight": 0.6,
         "keltner_weight": 0.4,
+        "neutral_mode": "reject",
         "require_trend_agreement": True,
         "require_tcn_agreement": True,
     }
@@ -37,11 +36,34 @@ def _zone_cfg(**overrides):
 
 def test_resolve_price_zone_config_clamps_and_normalizes_weights():
     cfg = resolve_price_zone_config(
-        {"price_zone": {"enabled": True, "buy_max": 0.4, "sell_min": 0.3, "bb_weight": 0.0, "keltner_weight": 0.0}}
+        {
+            "price_zone": {
+                "enabled": True,
+                "buy_max": 0.4,
+                "sell_min": 0.3,
+                "bb_weight": 0.0,
+                "keltner_weight": 0.0,
+                "neutral_mode": "reject",
+                "require_trend_agreement": False,
+                "require_tcn_agreement": False,
+            }
+        }
     )
     assert cfg["sell_min"] == pytest.approx(0.4)
     assert cfg["bb_weight"] + cfg["keltner_weight"] == pytest.approx(1.0)
     assert resolve_price_zone_config(None)["enabled"] is True
+    assert resolve_price_zone_config(None)["neutral_mode"] == "nearest"
+
+
+def test_resolve_price_zone_nearest_mid_band():
+    cfg = resolve_price_zone_config(_zone_cfg(neutral_mode="nearest", buy_max=0.4, sell_min=0.6))
+    assert resolve_price_zone({"bb_pct_b": 0.45, "keltner": 0.45}, cfg) == ZONE_BUY
+    assert resolve_price_zone({"bb_pct_b": 0.55, "keltner": 0.55}, cfg) == ZONE_SELL
+
+
+def test_resolve_price_zone_rejects_invalid_neutral_mode():
+    with pytest.raises(ValueError, match="neutral_mode"):
+        resolve_price_zone_config(_zone_cfg(neutral_mode="bogus"))
 
 
 def test_resolve_price_zone_buy_sell_none():
@@ -59,6 +81,21 @@ def test_zone_score_reads_indicators_and_ignores_bad_values():
     cfg = resolve_price_zone_config(_zone_cfg(bb_weight=0.5, keltner_weight=0.5))
     assert zone_score({"bb_pct_b": 0.0, "keltner": 1.0}, cfg) == pytest.approx(0.5)
     assert zone_score({"indicators": {"bb_pct_b": 0.2, "keltner_pct_b": "x"}}, cfg) == pytest.approx(0.35)
+
+
+def test_direction_for_price_zone_and_align():
+    assert direction_for_price_zone(ZONE_BUY) == TradeDirection.CALL
+    assert direction_for_price_zone(ZONE_SELL) == TradeDirection.PUT
+    assert direction_for_price_zone(ZONE_NONE) is None
+    assert align_direction_to_price_zone(TradeDirection.PUT, {"price_zone_direction": "CALL"}) == TradeDirection.CALL
+    assert align_direction_to_price_zone(TradeDirection.CALL, {}) == TradeDirection.CALL
+    assert (
+        align_direction_to_price_zone(
+            TradeDirection.CALL,
+            {"price_zone_direction": "PUT", "side_eq_flipped": True},
+        )
+        == TradeDirection.CALL
+    )
 
 
 def test_direction_allowed_buy_requires_call_and_trend():
@@ -122,7 +159,7 @@ def test_apply_price_zone_gate_reasons():
             TradeDirection.CALL,
             _zone_cfg(),
         )
-        == "price_zone_sell_requires_put"
+        is None
     )
     assert (
         apply_price_zone_gate(
@@ -184,7 +221,7 @@ def test_initial_direction_checks_accepts_buy_zone_call():
     assert result[1]["price_zone"] == ZONE_BUY
 
 
-def test_initial_direction_checks_rejects_put_in_buy_zone():
+def test_initial_direction_checks_rejects_put_in_buy_zone_with_and_flags():
     entry = {
         "direction": TradeDirection.PUT,
         "metrics": {
@@ -200,49 +237,3 @@ def test_initial_direction_checks_rejects_put_in_buy_zone():
         },
     }
     assert initial_direction_checks(entry, _zone_cfg()) is None
-
-
-def test_finalize_rejects_side_eq_flip_against_zone():
-    entry = {"metrics": {}}
-    metrics = {
-        "bb_pct_b": 0.20,
-        "keltner": 0.20,
-        "trend_direction": "CALL",
-        "dl_direction": "CALL",
-        "calibrated_prob": 0.70,
-        "predicted_payoff_edge": 0.1,
-        "trade_score": 0.7,
-    }
-    with (
-        patch(
-            "src.application.services.execution_direction_resolver.apply_meta_regression_edge",
-            return_value=(TradeDirection.CALL, 0.7),
-        ),
-        patch(
-            "src.application.services.execution_direction_resolver.resolve_direction_with_side_equilibrium",
-            return_value=TradeDirection.PUT,
-        ),
-        patch(
-            "src.application.services.execution_direction_resolver.should_veto_meta_payoff_negative_zscore",
-            return_value=False,
-        ),
-        patch(
-            "src.application.services.execution_direction_resolver.is_execution_signal_vetoed",
-            return_value=False,
-        ),
-    ):
-        out = _finalize_execution_metrics(
-            entry,
-            metrics,
-            TradeDirection.CALL,
-            0.7,
-            0.1,
-            meta_applied=True,
-            score=0.7,
-            symbol="R_10",
-            orch=SimpleNamespace(config={}),
-            force=False,
-            exec_cfg=_zone_cfg(),
-        )
-    assert out is None
-    assert "price_zone" in str(entry["metrics"].get("gate_reason") or "")

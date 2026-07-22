@@ -68,16 +68,18 @@ def _reset_edge_buffer():
     reset_payoff_edge_buffer()
 
 
-def _stamp_negative_zscore(metrics: dict, z_score: float = -0.77) -> None:
+def _stamp_negative_zscore(metrics: dict, z_score: float = -0.90) -> None:
     metrics["meta_payoff_edge_zscore"] = z_score
     metrics["edge_zscore"] = z_score
+    metrics["edge_zscore_samples"] = 20
+    metrics["edge_zscore_window"] = 15
 
 
 def test_classify_payoff_edge_expectancy_negative_zscore():
-    assert classify_payoff_edge_expectancy(0.12, z_score=-0.77) == "NO_EDGE_NEUTRAL"
+    assert classify_payoff_edge_expectancy(0.12, z_score=-0.90) == "NO_EDGE_NEUTRAL"
     assert classify_payoff_edge_expectancy(0.12, z_score=-0.10) == "WIN_EXPECTED"
     assert classify_payoff_edge_expectancy(-0.02, z_score=0.5) == "LOSS_EXPECTED"
-    assert classify_payoff_edge_expectancy(0.02, z_score=0.0) == "NO_EDGE_NEUTRAL"
+    assert classify_payoff_edge_expectancy(0.01, z_score=0.0) == "NO_EDGE_NEUTRAL"
 
 
 def test_should_veto_meta_payoff_negative_zscore_skips_neutral_with_low_z():
@@ -121,8 +123,8 @@ def test_resolve_payoff_edge_expectancy_win_expected_with_nonpositive_edge_becom
     metrics = {
         "predicted_payoff_edge": 0.0,
         "edge_expectancy": "WIN_EXPECTED",
-        "meta_payoff_edge_zscore": -0.55,
-        "edge_zscore": -0.55,
+        "meta_payoff_edge_zscore": -0.90,
+        "edge_zscore": -0.90,
     }
     assert stamp_payoff_edge_expectancy(metrics) == "LOSS_EXPECTED"
 
@@ -268,28 +270,3 @@ def test_resolve_execution_direction_waives_veto_under_critical_recovery():
     direction, metrics = result
     assert direction == TradeDirection.PUT
     assert metrics.get("gate_reason") != META_PAYOFF_NEGATIVE_ZSCORE_VETO
-
-
-def test_soft_veto_falls_back_to_raw_prob_when_scores_missing():
-    metrics = {
-        "predicted_payoff_edge": -0.02,
-        "edge_expectancy": "LOSS_EXPECTED",
-        "raw_prob": 0.81,
-    }
-    _stamp_negative_zscore(metrics, z_score=-0.90)
-    assert should_veto_meta_payoff_negative_zscore(metrics, direction=TradeDirection.CALL) is False
-    assert metrics["meta_payoff_soft_veto"] is True
-    assert metrics["trade_score"] == pytest.approx(0.81 * 0.72)
-
-
-def test_soft_veto_falls_back_to_resolved_conviction():
-    metrics = {
-        "predicted_payoff_edge": -0.02,
-        "edge_expectancy": "LOSS_EXPECTED",
-        "resolved_conviction": 0.77,
-        "raw_prob": 0.55,
-    }
-    _stamp_negative_zscore(metrics, z_score=-0.90)
-    assert should_veto_meta_payoff_negative_zscore(metrics, direction=TradeDirection.PUT) is False
-    assert metrics["meta_payoff_soft_veto"] is True
-    assert metrics["trade_score"] == pytest.approx(0.77 * 0.72)

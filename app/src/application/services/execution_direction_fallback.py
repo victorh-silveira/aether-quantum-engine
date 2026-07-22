@@ -12,6 +12,13 @@ from src.application.services.execution_market_rank import build_market_executio
 from src.domain.models.trade import TradeDirection
 
 
+def _orch_cycle(orch: Any | None) -> int:
+    """Le o cycle_id ativo do orquestrador ou zero."""
+    if orch is None:
+        return 0
+    return int(getattr(orch, "_active_cycle_id", 0) or 0)
+
+
 def _scored_fallback_pick(
     order: list[str],
     decisions: dict,
@@ -29,6 +36,7 @@ def _scored_fallback_pick(
     skip = skip_symbols or frozenset()
     best = None
     best_score = -1.0
+    cycle_id = _orch_cycle(orch)
     for symbol in order:
         if symbol in skip:
             continue
@@ -41,10 +49,24 @@ def _scored_fallback_pick(
             continue
         if min_val > 0.0 and float(metrics.get("val_accuracy", 0.0)) + 1e-9 < min_val:
             continue
-        candidate = build_market_execution_candidate(symbol, entry, recovery_active=recovery_active)
+        candidate = build_market_execution_candidate(
+            symbol,
+            entry,
+            recovery_active=recovery_active,
+            orch=orch,
+            cycle_id=cycle_id,
+            skipped_cycles_counter=skipped_cycles_counter,
+            decisions=decisions,
+        )
         if candidate is None:
             candidate = build_execution_candidate(
-                symbol, entry, skipped_cycles_counter=skipped_cycles_counter, orch=orch
+                symbol,
+                entry,
+                recovery_active=recovery_active,
+                skipped_cycles_counter=skipped_cycles_counter,
+                orch=orch,
+                cycle_id=cycle_id,
+                decisions=decisions,
             )
         if candidate is None or score < best_score:
             continue
@@ -68,6 +90,7 @@ def _last_resort_fallback_pick(
     """Ultimo recurso de fallback percorrendo simbolos em ordem."""
     _ = consecutive_losses
     skip = skip_symbols or frozenset()
+    cycle_id = _orch_cycle(orch)
     for symbol in trade_symbols:
         if symbol in skip:
             continue
@@ -80,10 +103,24 @@ def _last_resort_fallback_pick(
             continue
         if min_val > 0.0 and float(metrics.get("val_accuracy", 0.0)) + 1e-9 < min_val:
             continue
-        candidate = build_market_execution_candidate(symbol, entry, recovery_active=recovery_active)
+        candidate = build_market_execution_candidate(
+            symbol,
+            entry,
+            recovery_active=recovery_active,
+            orch=orch,
+            cycle_id=cycle_id,
+            skipped_cycles_counter=skipped_cycles_counter,
+            decisions=decisions,
+        )
         if candidate is None:
             candidate = build_execution_candidate(
-                symbol, entry, recovery_active=recovery_active, skipped_cycles_counter=skipped_cycles_counter, orch=orch
+                symbol,
+                entry,
+                recovery_active=recovery_active,
+                skipped_cycles_counter=skipped_cycles_counter,
+                orch=orch,
+                cycle_id=cycle_id,
+                decisions=decisions,
             )
         if candidate is None:
             continue
@@ -105,6 +142,7 @@ def build_mandatory_fallback_candidate(
     orch: Any | None = None,
 ) -> tuple[str, TradeDirection, dict] | None:
     """Monta candidato obrigatorio quando o pool DL esta vazio."""
+    cycle_id = _orch_cycle(orch)
     ranked = pick_best_mandatory_candidate(
         trade_symbols,
         decisions,
@@ -114,6 +152,10 @@ def build_mandatory_fallback_candidate(
         min_signal=min_signal,
         min_val=min_val,
         consecutive_losses=consecutive_losses,
+        orch=orch,
+        cycle_id=cycle_id,
+        risk_manager=getattr(orch, "risk_manager", None) if orch is not None else None,
+        skipped_cycles_counter=skipped_cycles_counter,
     )
     if ranked is not None:
         return ranked

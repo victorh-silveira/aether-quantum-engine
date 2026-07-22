@@ -88,8 +88,8 @@ def test_entropy_fallback_uses_raw_prob_when_calibrated_missing():
     assert picked[0] == "R_10"
 
 
-@patch("src.application.services.execution_entropy_fallback.ANCHOR_BULL", "RDBULL")
-@patch("src.application.services.execution_entropy_fallback.ANCHOR_BEAR", "RDBEAR")
+@patch("src.application.services.execution_entropy_fallback.ANCHOR_BULL", "PEER_BULL")
+@patch("src.application.services.execution_entropy_fallback.ANCHOR_BEAR", "PEER_BEAR")
 @patch("src.application.services.execution_entropy_fallback.infer_dl_direction", return_value=None)
 def test_entropy_fallback_uses_anchor_direction_when_dl_missing(_mock_infer):
     entry = {
@@ -101,8 +101,8 @@ def test_entropy_fallback_uses_anchor_direction_when_dl_missing(_mock_infer):
             "dynamic_put_threshold": 0.47,
         },
     }
-    bull = pick_entropy_fallback_candidate(["RDBULL"], {"RDBULL": entry})
-    bear = pick_entropy_fallback_candidate(["RDBEAR"], {"RDBEAR": entry})
+    bull = pick_entropy_fallback_candidate(["PEER_BULL"], {"PEER_BULL": entry})
+    bear = pick_entropy_fallback_candidate(["PEER_BEAR"], {"PEER_BEAR": entry})
     assert bull is not None and bull[1] == TradeDirection.CALL
     assert bear is not None and bear[1] == TradeDirection.PUT
 

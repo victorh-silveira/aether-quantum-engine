@@ -142,6 +142,7 @@ def test_request_http_and_json_errors():
             "src.infrastructure.api.deriv_rest_client.read_http_response",
             side_effect=urllib.error.URLError("offline"),
         ),
+        patch("src.infrastructure.api.deriv_rest_client.time.sleep", return_value=None),
         pytest.raises(DerivRestError, match="falhou"),
     ):
         asyncio.run(client._request("GET", "/trading/v1/options/accounts"))
@@ -153,6 +154,62 @@ def test_request_http_and_json_errors():
         pytest.raises(DerivRestError, match="JSON invalida"),
     ):
         asyncio.run(client._request("GET", "/trading/v1/options/accounts"))
+
+
+def test_request_retries_transient_502_then_succeeds():
+    client = DerivRestClient(
+        rest_base_url="https://api.derivws.com",
+        deriv_app_id="1089",
+        access_token="t",
+        timeout_seconds=5,
+        max_retries=4,
+    )
+    err = urllib.error.HTTPError("u", 502, "Bad Gateway", {}, None)
+    err.read = MagicMock(
+        return_value=json.dumps(
+            {
+                "status": 502,
+                "retryable": True,
+                "retry_after": 60,
+            }
+        ).encode()
+    )
+    ok = json.dumps(
+        {"data": [{"account_id": "DOT1", "balance": 1, "account_type": "demo", "status": "active"}]}
+    ).encode()
+    sleeps: list[float] = []
+
+    def fake_sleep(seconds):
+        sleeps.append(float(seconds))
+
+    with (
+        patch(
+            "src.infrastructure.api.deriv_rest_client.read_http_response",
+            side_effect=[err, ok],
+        ),
+        patch("src.infrastructure.api.deriv_rest_client.time.sleep", side_effect=fake_sleep),
+    ):
+        payload = client._request("GET", "/trading/v1/options/accounts")
+    assert payload["data"][0]["account_id"] == "DOT1"
+    assert sleeps == [60.0]
+
+
+def test_request_exhausted_502_retries():
+    client = DerivRestClient(
+        rest_base_url="https://api.derivws.com",
+        deriv_app_id="1089",
+        access_token="t",
+        timeout_seconds=5,
+        max_retries=2,
+    )
+    err = urllib.error.HTTPError("u", 502, "Bad Gateway", {}, None)
+    err.read = MagicMock(return_value=b'{"retry_after":2}')
+    with (
+        patch("src.infrastructure.api.deriv_rest_client.read_http_response", side_effect=err),
+        patch("src.infrastructure.api.deriv_rest_client.time.sleep", return_value=None),
+        pytest.raises(DerivRestError, match="HTTP 502"),
+    ):
+        client._request("GET", "/trading/v1/options/accounts")
 
 
 @pytest.mark.asyncio
@@ -195,3 +252,13 @@ async def test_request_with_json_body():
     ):
         out = await asyncio.to_thread(client._request, "POST", "/x", body={"a": 1})
     assert out == {"data": {}}
+
+
+def test_retry_after_seconds_fallbacks():
+    from src.infrastructure.api.deriv_rest_client import _retry_after_seconds
+
+    assert _retry_after_seconds("not-json", attempt=0) == pytest.approx(2.0)
+    assert _retry_after_seconds("[]", attempt=1) == pytest.approx(4.0)
+    assert _retry_after_seconds('{"retry_after": null}', attempt=0) == pytest.approx(2.0)
+    assert _retry_after_seconds('{"retry_after": "bad"}', attempt=2) == pytest.approx(6.0)
+    assert _retry_after_seconds('{"retry_after": 120}', attempt=0) == pytest.approx(90.0)

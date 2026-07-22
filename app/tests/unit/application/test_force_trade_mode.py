@@ -114,7 +114,7 @@ def test_persistence_guard_skip_noop_when_force():
         infra_cfg={},
         force=True,
     )
-    assert skipped is False
+    assert skipped == TradeDirection.CALL
     assert metrics.get("persistence_guard_skip") is None
 
 

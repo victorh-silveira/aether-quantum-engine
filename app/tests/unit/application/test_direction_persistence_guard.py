@@ -195,7 +195,14 @@ def test_resolver_and_guard_noop_paths():
             "raw_prob": 0.70,
             "deploy_ok": True,
             "execute": True,
+            "predicted_payoff_edge": 0.10,
+            "meta_classifier_applied": True,
+            "edge_zscore": 0.5,
+            "meta_payoff_edge_zscore": 0.5,
+            "edge_zscore_samples": 20,
         },
     }
-    assert resolve_execution_direction(entry, symbol="R_10", peer_entry=None, cycle_id=8) is None
-    assert entry["metrics"].get("persistence_guard_skip") is True
+    result = resolve_execution_direction(entry, symbol="R_10", peer_entry=None, cycle_id=8)
+    assert result is not None
+    assert result[0] == TradeDirection.PUT
+    assert result[1].get("persistence_guard_flip") == "PUT"

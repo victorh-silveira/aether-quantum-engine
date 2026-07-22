@@ -1,6 +1,6 @@
 # Estrutura do repositório
 
-Layout de software com infraestrutura Docker local opcional (`infra/docker/`). O código de produção vive em **`app/src/`** com **~243 módulos Python** organizados em quatro camadas DDD. Testes: **~297** arquivos `test_*.py` em `app/tests/` com cobertura **100%** em `app/src`.
+Layout de software com infraestrutura Docker local opcional (`infra/docker/`). O código de produção vive em **`app/src/`** com **246 módulos Python** organizados em quatro camadas DDD. Testes: **305** arquivos `test_*.py` em `app/tests/` com cobertura **100%** em `app/src`.
 
 ```
 aether-quantum-engine/
@@ -17,7 +17,7 @@ aether-quantum-engine/
 │   │   ├── monitor/                    # live_monitor, monitor_redis, monitor_state, monitor_ui
 │   │   ├── operations/                 # clean_workspace, deriv_pat_connect, train_meta_*
 │   │   └── wsl/setup.sh
-│   ├── src/                            # ~243 módulos Python (DDD)
+│   ├── src/                            # 246 módulos Python (DDD)
 │   └── tests/
 │       ├── unit/                       # application, domain, infrastructure, presentation, scripts
 │       ├── conftest.py
@@ -47,9 +47,9 @@ presentation  →  application  →  domain
 
 | Camada | Pasta | Módulos | Responsabilidade |
 |--------|-------|---------|------------------|
-| Application | `application/services/` | ~51 | Casos de uso: orquestração, DL, execução, meta-classificador, guards |
+| Application | `application/services/` | ~161 | Casos de uso: orquestração, DL, execução modular, meta-classificador, guards |
 | Domain | `domain/` | ~39 | Lógica pura: risco Kelly + Soft Recovery, AntiTrendLock (política), RiskPolicy, modelos, side_equilibrium |
-| Infrastructure | `infrastructure/` | ~45 | Adaptadores: Deriv API, Redis, Triton, MinIO, Timescale |
+| Infrastructure | `infrastructure/` | ~45 | Adaptadores: Deriv API (retry 5xx), Redis, Triton, MinIO, Timescale |
 | Presentation | `presentation/` | 1 | Logging de terminal |
 
 ---
@@ -75,16 +75,19 @@ presentation  →  application  →  domain
 | `direction_persistence_guard.py` | Anti-trend-lock com flip cross-symbol e telemetria `REGIME_GUARD` |
 | `direction_persistence_guard_helpers.py` | Auxiliares de probabilidade cross-symbol e deduplicação de logs do guard |
 | `direction_persistence_guard_part2.py` | Continuacao do anti-trend-lock |
-| `execution_direction.py` | Resolução/inversão CALL/PUT para execução |
-| `execution_direction_checks.py` | Pré-checagens de direção; rejeita ciclo só por starvation de microestrutura; limpa `neutral_clamp`; hooks sniper |
+| `execution_direction.py` | Resolução CALL/PUT e elegibilidade mandatory/recovery |
+| `execution_direction_checks.py` | Pré-checagens, clamps, sniper stubs, price zone prévia |
 | `execution_direction_cross_corr.py` | Peso DL via correlação cruzada |
-| `execution_direction_fallback.py` | Fallback quando pool DL vazio |
-| `execution_direction_resolver.py` | Motor CALL/PUT: TCN + meta + persistence skip + quality/margin gates |
+| `execution_direction_discordance.py` | Veto RSI/DI + votos técnicos (`discordance_veto_enabled`) |
+| `execution_direction_fallback.py` | Fallback quando pool DL vazio (scored + last resort) |
+| `execution_direction_meta_edge.py` | Piso dinâmico de edge meta e `negative_edge_skip` |
+| `execution_direction_persistence.py` | Flip toxic escape ou skip após losses consecutivos |
+| `execution_direction_resolver.py` | Orquestra resolve + finalize (meta, zona, SIDE_EQ) |
 | `execution_entropy_fallback.py` | Fallback por menor entropia Shannon |
-| `execution_loss_protection.py` | Hard filters de loss protection (`min_direction_margin: 0.03`) |
+| `execution_loss_protection.py` | Hard filters de loss protection |
 | `execution_mandatory_pick.py` | Seleção obrigatória por ranking |
 | `execution_market_rank.py` | Ranking de mercado e `market_decision_score` |
-| `execution_price_zone_gate.py` | Gate de zona de preco BB/Keltner |
+| `execution_price_zone_gate.py` | Zona BB/Keltner + `align_or_keep_meta_side` |
 | `execution_quality_gate.py` | Gate TCN soft: margem direcional + meta payoff edge |
 | `execution_quality_gate_cluster.py` | Suspensão cooperativa do cluster (TCN vs meta) |
 | `execution_quality_gate_config.py` | Parsers/resolvers do quality_gate SSOT |
@@ -458,8 +461,9 @@ flowchart TD
   PRED --> META[meta_classifier_client 43D]
   META --> RES[execution_direction_resolver]
   RES --> CHK[execution_direction_checks]
-  CHK --> DG[direction_persistence_guard skip]
-  DG --> ZS[payoff_edge_zscore]
+  CHK --> DG[execution_direction_persistence flip/skip]
+  DG --> EDGE[execution_direction_meta_edge]
+  EDGE --> ZS[payoff_edge_zscore]
   ZS --> QG[execution_quality_gate soft]
   QG --> MICRO[execution_quality_gate_microstructure HARD]
   MICRO --> COL[execution_collect]

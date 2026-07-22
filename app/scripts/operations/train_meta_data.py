@@ -173,6 +173,8 @@ async def _open_deriv_ws(_settings: dict[str, Any]) -> WebSocketManager:
         result = await session.bootstrap(persist_binding=False)
     except DerivRestError as exc:
         raise RuntimeError(f"Falha ao autenticar Deriv para fallback de historico: {exc}") from exc
+    except Exception as exc:
+        raise RuntimeError(f"Falha ao autenticar Deriv para fallback de historico (PAT/OTP): {exc}") from exc
     ws = WebSocketManager(result.ws_url, request_timeout=int(session.timeout_seconds))
     await ws.connect()
     return ws

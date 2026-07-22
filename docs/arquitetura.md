@@ -17,24 +17,24 @@ Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (TCN,
 | Features meta GBDT | **43** (`META_FEATURE_DIM` = 34 + 4 micro-vol + 3 cross + 2 flow) |
 | Contrato | `RISE_FALL`, duração **120 s** |
 | Ciclo | **120 s** (`cycle_interval_seconds` / `signature_boundary_seconds`) |
-| Execução | **Seletiva** (`mandatory`/`force` off + `price_zone`) |
-| Fail-closed | `require_meta_for_execution: false` (meta opcional); `infra.triton.require_for_execution: true` |
+| Execução | **Mandatória** (`mandatory_trade_each_cycle: true`; `force` off) + alinhamento `price_zone` |
+| Fail-closed | Meta e Triton **opcionais** nos settings atuais (`require_meta_for_execution: false`; `infra.triton.enabled/require_for_execution: false`) |
 | Label | `label_mode: spot_forward` (`ma_trend` / Triple Barrier via config) |
 | Meta sessão | Stop win **2,60%** (`compounding_rate_daily: 0.026`); stop loss desativado |
 
-O mercado é tratado como série temporal ruidosa: a TCN estima `P(CALL)`; o meta-regressor LightGBM estima `predicted_payoff_edge`; o ranking usa `tcn × max(0.1, 1+z)`. Com `price_zone`, o motor só executa CALL em zona de compra e PUT em zona de venda (BB/Keltner + tendência); ciclos sem zona clara fazem skip.
+O mercado é tratado como série temporal ruidosa: a TCN estima `P(CALL)` (thresholds **0.51/0.49**); o meta-regressor LightGBM estima `predicted_payoff_edge`; o ranking usa `tcn × max(0.1, 1+z)`. Com `price_zone`, BUY alinha CALL e SELL alinha PUT; edge meta positivo pode **manter** o lado TCN/meta contra a zona (`align_or_keep_meta_side`).
 
 **Invariante temporal:** inferências seguem `signature_boundary_seconds` (fallback `cycle_interval_seconds`, padrão **120 s**) via `get_data_state_signature()` — formato `m5b:{boundary};m5:...;m15:...` (prefixos **legados**; valores de época alinhados a **120 s** / **600 s**). Proporção multi-timeframe **1:5** (120:600).
 
-**Válvula de starvation:** após **6** ciclos consecutivos bloqueados pelo quality gate (`STARVATION_DECAY_THRESHOLD`), pisos de margem/edge/Z são atenuados (`execution_quality_gate_starvation.py`). Em skips extremos (≥30), a válvula GBDT mitiga veto tabular prolongado.
+**Válvula de starvation:** após **6** ciclos consecutivos bloqueados pelo quality gate, pisos de margem/edge/Z são atenuados (`execution_quality_gate_starvation.py`). O piso de edge meta relaxa a partir de **8** skips (`edge_decay_cycles`) até `edge_decay_floor: 0.0` (passo `0.08`). Em skips extremos (≥30), a válvula GBDT mitiga veto tabular prolongado.
 
 **Gatilho de Convicção Progressiva:** em recovery (`linear > 0`), `min_direction_margin` cai **20% a cada 5** ciclos de inanição (`0.80^(skips//5)`), permitindo sair de loops `EXEC_EMPTY` em mercado lateral.
 
-**Dynamic Recovery Relaxation:** com `linear >= 2` e `pending_loss > 0`, os pisos de TCN Margin e Meta Payoff caem linearmente com o passivo (`execution_quality_gate_drawdown.py`). No vácuo GBDT (`Meta Payoff ∈ [-0.05, 0.04]` e Z-Score de edge `> 0.5`), o porteiro meta libera o trade de recovery.
+**Dynamic Recovery Relaxation:** com `linear >= 2` e `pending_loss > 0`, os pisos de TCN Margin e Meta Payoff caem linearmente com o passivo (`execution_quality_gate_drawdown.py`); `recovery_relax.edge_floor: -0.55`.
 
-**Calibração (settings atuais):** `neutral_half_width: 0.04` — zona neutra **ON** (banda `[0.46, 0.54]`); thresholds CALL/PUT **0.54/0.46**. Em `dl_calibration_tolerance` / `dl_predict_build`, se `raw_prob > 0.65` ou `< 0.35`, a TCN macro prevalece sobre a calibração de curto prazo.
+**Calibração (settings atuais):** `neutral_half_width: 0.0` — zona neutra **OFF**; thresholds CALL/PUT **0.51/0.49**. Em `dl_calibration_tolerance` / `dl_predict_build`, se `raw_prob > 0.65` ou `< 0.35`, a TCN macro prevalece sobre a calibração de curto prazo.
 
-**Settlement:** janela de tolerância **90 s** com reconciliação passiva (`portfolio` + Redis) — sem reinício forçado do loop por timeout pós-liquidação.
+**Settlement:** janela de tolerância **90 s** com reconciliação passiva (`portfolio` + Redis); pós-EXEC_EMPTY em recovery alinha a fronteira de assinatura (cap `exec_empty_retry_seconds`).
 
 ---
 
@@ -45,13 +45,13 @@ aether-quantum-engine/
 ├── app/                 # Código de produção + testes + scripts
 │   ├── run.py / train.py
 │   ├── aether_asyncio.py
-│   ├── src/             # ~226 módulos Python (DDD)
-│   ├── tests/           # ~287 arquivos test_*.py; cobertura 100% em src
+│   ├── src/             # 246 módulos Python (DDD)
+│   ├── tests/           # 305 arquivos test_*.py; cobertura 100% em src
 │   └── scripts/         # operations, monitor, batch
 ├── config/settings.json # Runtime
 ├── data/                # state, session_state, dl/
 ├── docs/
-├── infra/docker/        # Redis, Timescale, MinIO, Triton, meta-classifier
+├── infra/docker/        # Redis, Timescale, MinIO, Triton (repo R_10), meta-classifier
 └── linters/             # Ruff, Interrogate, Vulture, ≤300 linhas/arquivo
 ```
 
@@ -63,9 +63,9 @@ presentation  →  application  →  domain
 
 | Camada | Pasta | Papel |
 |--------|-------|-------|
-| Application | `application/services/` | Orquestração, DL, direção, quality gates, meta |
+| Application | `application/services/` | Orquestração, DL, direção modular, quality gates, meta |
 | Domain | `domain/` | Risco Kelly + Soft Recovery (`soft_recovery_policy`), `RiskPolicy`, modelos, math |
-| Infrastructure | `infrastructure/` | Deriv WS/REST, Redis, Triton, MinIO, Timescale |
+| Infrastructure | `infrastructure/` | Deriv WS/REST (retry 5xx), Redis, Triton, MinIO, Timescale |
 | Presentation | `presentation/` | Logger terminal |
 
 Regra: **domain** não importa application nem infrastructure. Implementações concretas vêm de `infra_factory.create_infra_services`.
@@ -87,9 +87,10 @@ flowchart TD
   DL --> BUNDLE[prepare_meta_classifier_cross_symbol_bundle]
   BUNDLE --> META[prefetch_meta_payoff_for_decisions]
   META --> RES[resolve_execution_direction]
-  RES --> CHK[execution_direction_checks]
-  CHK --> ATL[persistence_guard skip]
-  ATL --> QG[quality_conviction_suspends_cluster]
+  RES --> CHK[execution_direction_checks + discordance]
+  CHK --> PSIST[persistence flip ou skip]
+  PSIST --> EDGE[meta_edge floor dinamico]
+  EDGE --> QG[quality_conviction_suspends_cluster]
   QG -->|HARD micro| MICRO[execution_quality_gate_microstructure]
   QG -->|skip| STV[record_quality_guard_cycle_skip]
   QG -->|ok| COL[collect_cluster_orders / execute_cluster]
@@ -105,11 +106,11 @@ flowchart TD
 1. `app/run.py` carrega `config/settings.json` + PAT (`.env`: `AETHER_DERIV_PAT`, `AETHER_DERIV_APP_ID`) via `aether_asyncio.run`.
 2. `Orchestrator.__init__`: `create_infra_services`, `AuthManager`, `WebSocketManager`, `StreamHandler`, `TradeHandler`, `RiskManager`, `StateManager`, `ExecutionManager`.
 3. `validate_engine_risk_config` / `RiskPolicy` no boot (`risk_policy.py`).
-4. `validate_infra_services` (fail-fast se `infra.enabled`) → `bootstrap_and_validate_models`:
+4. `validate_infra_services` (fail-fast se `infra.enabled`) → `bootstrap_and_validate_models` (quando Triton/MinIO ativos):
    - MinIO → `{symbol}.pth` + `latest_ts.pt`
    - Sanity TorchScript multi-probe (`torchscript_sanity_probes`)
-   - Sync Triton (`triton_model_sync`) + schema + stress infer
-5. Auth OTP → `bootstrap_active_session_targets` (meta 2,60%).
+   - Sync Triton (`triton_model_sync`) no repositório **`R_10`** + schema + stress infer
+5. Auth OTP (health PAT com retry em 502/503/504) → `bootstrap_active_session_targets` (meta 2,60%).
 6. Streams macro+micro+ticks → watchdog → settlement worker → loop principal.
 
 ### 3.2 Ciclo de trading
@@ -169,7 +170,7 @@ Normalização anti-leakage: `fit_norm_stats` **somente** no split de treino (`d
 | Checkpoint | `data/dl/{symbol}.pth` + TorchScript / MinIO |
 | Deploy gate | `dl_deploy_eval` com **`force_local=True`** (avalia modelo em memória, sem Triton) |
 
-Config atual: `arch: tcn`, `lookback: 72`, `label_mode: spot_forward`, thresholds **0.54** / **0.46**, `neutral_half_width: 0.04`.
+Config atual: `arch: tcn`, `lookback: 72`, `label_mode: spot_forward`, thresholds **0.51** / **0.49**, `neutral_half_width: 0.0`.
 
 ### 4.3 Treino de sessão
 
@@ -184,11 +185,11 @@ Config atual: `arch: tcn`, `lookback: 72`, `label_mode: spot_forward`, threshold
 `predict_symbol_decision_async` (`dl_predict_async.py`):
 
 - Triton quando habilitado e **não** `force_local`
-- Timeout `infra.triton.infer_timeout_seconds` (**0,50 s**); com `require_for_execution: true` → fail-closed sem fallback local em produção
+- Timeout `infra.triton.infer_timeout_seconds` (settings atuais **8 s** quando Triton ligado); com `require_for_execution: true` → fail-closed sem fallback local em produção
 - Path sync (`dl_predict.py`) usado pelo mini-deploy de treino: `force_local=True` evita gRPC em thread de treino (bug `Future attached to a different loop`)
 - Cliente gRPC loop-aware: `triton_grpc_client.get_triton_grpc_client` recria canal se o event loop mudou
 - Cache por fingerprint do tensor (`dl_predict_cache`)
-- Calibração: `dl_calibration_tolerance` — override TCN macro quando raw &gt;0.65 ou &lt;0.35; zona neutra config-driven (atualmente OFF)
+- Calibração: `dl_calibration_tolerance` — override TCN macro quando raw &gt;0.65 ou &lt;0.35; zona neutra **off** (`neutral_half_width: 0.0`)
 
 ---
 
@@ -243,33 +244,42 @@ Scripts: `train_meta_vector.py`, `train_meta_data.py`, `train_meta_classifier.py
 
 ## 6. Direção e quality gates
 
-### 6.1 Motor de direção
+### 6.1 Motor de direção (modular)
 
-`execution_direction_resolver.resolve_execution_direction` + `execution_direction_checks`:
+`resolve_execution_direction` orquestra:
+
+| Módulo | Papel |
+|--------|-------|
+| `execution_direction_checks` | Clamps, sniper stubs, discordance (se ligado), price zone prévia |
+| `execution_direction_discordance` | Veto RSI/DI + votos (`discordance_veto_enabled`, default **false**) |
+| `execution_direction_persistence` | Após 2 losses no mesmo lado: **flip** toxic escape se o oposto estiver livre; senão skip |
+| `execution_direction_meta_edge` | Piso dinâmico de edge (`_resolve_meta_edge_floor`) + `_negative_edge_skip` |
+| `execution_direction_resolver` | Finalize: meta regression, price zone + `align_or_keep_meta_side`, SIDE_EQ |
+| `execution_price_zone_gate` | BUY/SELL; edge meta &gt; 0 pode manter lado contra a zona |
+| `side_equilibrium_gate` | Small-N hard skip / large-N soft; toxic escape **preserva** edge positivo |
 
 | Etapa | Comportamento |
 |-------|---------------|
-| `infer_dl_direction` | TCN: `P(CALL) > pivot` → CALL, senão PUT |
-| Meta edge | Refina score / D-SQUEEZE (meta opcional para execução) |
-| Pré-checagens | `execution_direction_checks` — rejeita ciclo só por starvation de microestrutura; limpa `neutral_clamp`; hooks sniper |
-| Persistence guard | Após 2 losses na mesma direção: **skip** do candidato; flip CALL/PUT **não** aplicado em produção (`_apply_persistence_guard_skip`) |
-| Bloqueio absoluto | `deploy_ok=false`, `gate_reason ∈ {data, predict_error, training}`, Triton fail-closed |
+| `infer_dl_direction` | TCN: `P(CALL) ≥ pivot` → CALL, senão PUT (thresholds **0.51/0.49**) |
+| Meta edge | Refina score / D-SQUEEZE (meta opcional); edge abaixo do piso dinâmico → `meta_negative_edge` |
+| Persistence | Flip CALL↔PUT com `side_eq_toxic_escape` **ou** `persistence_guard_skip` |
+| Bloqueio absoluto | `deploy_ok=false`, `gate_reason ∈ {data, predict_error, training}`; Triton fail-closed só se configurado |
 
 ### 6.2 Quality gate dual soft + HARD microestrutura
 
 | Portão | Módulo | Critério |
 |--------|--------|----------|
-| TCN + meta soft | `execution_quality_gate` | Margem direcional hard (`min_direction_margin: 0.03`) + edge; Dynamic Recovery Relaxation com `linear≥2` e pendente; vetoes HARD de microestrutura |
-| Meta Z-Score | `execution_quality_gate_meta` | Z vs buffer; waiver recovery se edge ∈ [-0.05, 0.04] e Z>0.5; recovery: Z ≥ −0,20 não bloqueia mandatory |
+| TCN + meta soft | `execution_quality_gate` | Margem/edge com pisos regulares **0.0** nos settings atuais; Dynamic Recovery Relaxation com `linear≥2` e pendente |
+| Meta Z-Score | `execution_quality_gate_meta` | Z vs buffer; waiver recovery se edge ∈ [-0.05, 0.04] e Z&gt;0.5 |
 | Cluster | `execution_quality_gate_cluster` | `quality_conviction_suspends_cluster` |
-| Microestrutura HARD | `execution_quality_gate_microstructure` | Vetoes HARD: `adx_starvation`, `vol_ratio_starvation`, `val_accuracy_gate` (`min_adx_threshold` 0.20; `min_validation_accuracy_gate` 0.63) |
-| Sniper stubs | `execution_sniper_gates` | Helpers de banda de calibração; `apply_hurst_noise_veto` e `apply_bb_squeeze_requirement` são stubs que retornam `False` |
-| Starvation | `execution_quality_gate_starvation` | Regular: limiar **6** ciclos; Recovery: Convicção Progressiva (−20%/5 skips) |
-| Drawdown relax | `execution_quality_gate_drawdown` | Intensidade `min(1, pending/(8U))` reduz pisos TCN/Meta |
-| Calibração | `dl_calibration_tolerance` | Zona neutra ON (`neutral_half_width: 0.04`); override TCN em raw extremos |
-| Loss protection | `execution_loss_protection` | `min_direction_margin: 0.03`; caps edge/Z 999 |
-| Meta veto | `meta_payoff_veto_gate` | Soft comprime score; hard só com shadow (`meta_veto_mode`: none/soft/hard) |
-| Settlement | `orchestrator_settlement_queue` | Janela **90 s** + `SettlementOrphanCleaner.passive_reconcile` |
+| Microestrutura HARD | `execution_quality_gate_microstructure` | ADX / `vol_ratio` / val_accuracy quando limiares &gt; 0 (settings atuais ADX **0.0**) |
+| Sniper stubs | `execution_sniper_gates` | Helpers de banda; stubs Hurst/BB retornam `False` |
+| Starvation | `execution_quality_gate_starvation` | Limiar **6** ciclos; edge decay a partir de **8**; Convicção Progressiva (−20%/5 skips) |
+| Drawdown relax | `execution_quality_gate_drawdown` | `edge_floor` até **-0.55** |
+| Calibração | `dl_calibration_tolerance` | Zona neutra **off**; override TCN em raw extremos |
+| Loss protection | `execution_loss_protection` | Caps edge/Z 999; margem operacional **0.0** |
+| Meta veto | `meta_payoff_veto_gate` | Soft comprime score (não hard-blocka o resolve); hard só com shadow |
+| Settlement | `orchestrator_settlement_queue` | Janela **90 s** + orphan cleaner |
 
 Em modo mandatário, o quality guard emite telemetria `QUALITY_GUARD` / `EXECUTION_FLOW` e delega ao mandatory pick em vez de congelar a esteira por soft alone.
 
@@ -287,7 +297,7 @@ Em modo mandatário, o quality guard emite telemetria `QUALITY_GUARD` / `EXECUTI
 ### 7.1 Fases
 
 - **FASE TREINO** — suspende ordens até `session_trained` em todos os símbolos
-- **FASE OPERACAO** — seletiva por zona de preço (sem force/mandatory)
+- **FASE OPERACAO** — mandatária por ciclo (`mandatory_trade_each_cycle: true`) com alinhamento de zona
 
 ### 7.2 ExecutionManager
 
@@ -327,8 +337,9 @@ Portões neutralizados em modo mandatário (não bloqueiam ciclo): cooldown pós
 | Stop win sessão | `StopWinManager` + `compounding_rate_daily: 0.026` |
 | Stop loss | Desativado |
 | Policy boot | `RiskPolicy` / `validate_engine_risk_config` |
-| Persistence guard | `evaluate_direction_persistence_guard` → KEEP / SKIP / FREEZE |
-| Val accuracy gate | `min_validation_accuracy_gate: 0.63` |
+| Persistence | `execution_direction_persistence` → flip toxic escape / SKIP / FREEZE |
+| Side equilibrium | `side_equilibrium_gate` (toxic escape mantém edge positivo) |
+| Val accuracy gate | Limiar configurável (settings atuais sem piso hard de 0.63) |
 
 Facade: `domain/risk/risk_manager.RiskManager.calculate_stake`.
 
@@ -361,7 +372,7 @@ Watchdog: `AetherWatchdog` reconecta stream se ticks estagnarem (`watchdog_stale
 `granularity` (**600**), `micro_granularity` (**120**), `history_bars` / `training_history_bars` (**23328**), `fetch_count`, `buffer_limit`, rate-limits de histórico.
 
 ### `deep_learning`
-`arch`, `lookback` (**72**), `train_symbols`, `confidence_*` (**0.54/0.46**), `calibration.*` (`neutral_half_width: 0.04`), `indicator_gating.*`, `deploy_gate.*`, `label_mode` (`spot_forward`) + `label_*`, `tcn.channels`, `training_*`, `model_path_template`, `min_edge_execute`.
+`arch`, `lookback` (**72**), `train_symbols`, `confidence_*` (**0.51/0.49**), `calibration.*` (`neutral_half_width: 0.0`), `indicator_gating.*`, `deploy_gate.*`, `label_mode` (`spot_forward`) + `label_*`, `tcn.channels`, `training_*`, `model_path_template`, `min_edge_execute`.
 
 ### `orchestrator` / `orchestrator.execution`
 `cycle_interval_seconds` (**120**), `signature_boundary_seconds` (**120**), `watchdog_stale_tick_seconds` (**25**), `mandatory_trade_each_cycle`, `require_meta_for_execution` (**false**), `quality_gate.*` (`mandatory_min_trade_score: 0.50`, starvation/progressive_conviction/recovery_relax), `loss_protection.*` + `disconnect.*`, `bb_width_adaptive_squeeze.enabled` (**false**), `proposal_*`, `settlement_*` (**90 s** SSOT), `dynamic_threshold.*` (clamps inclusos), `warm_up_live_data_timeout_seconds` (**25**), `broker_handshake_timeout_seconds` (**15**), `state_lock_acquire_timeout_seconds` (**8**).
@@ -383,7 +394,7 @@ Pre-commit (`clean_workspace.py`):
 | Stage | Conteúdo |
 |-------|----------|
 | lint | Ruff, Interrogate 100%, Vulture, ≤300 linhas/arquivo |
-| test | pytest + cobertura **100%** em `app/src` (**~287** `test_*.py`) |
+| test | pytest + cobertura **100%** em `app/src` (**305** `test_*.py`) |
 | security | Bandit + pip-audit |
 | clean | caches locais |
 
@@ -401,7 +412,7 @@ flowchart LR
   end
   subgraph dl
     FEAT[dl_features 34D]
-    TRITON[TritonGrpcClient 0.50s]
+    TRITON[TritonGrpcClient opcional]
     PRED[dl_predict]
     TELE[dl_predict_telemetry]
     META[meta 43D GBDT]
@@ -409,7 +420,8 @@ flowchart LR
   subgraph direcao
     RES[direction_resolver]
     CHK[direction_checks]
-    ATL[persistence_guard]
+    PSIST[persistence flip/skip]
+    EDGE[meta_edge floor]
     QG[quality_gate soft+HARD]
   end
   subgraph exec
@@ -424,7 +436,7 @@ flowchart LR
   end
   WS --> SH --> TB
   WD -->|STALE_DATA| SH
-  SH --> FEAT --> TRITON --> PRED --> TELE --> META --> RES --> CHK --> ATL --> QG --> COL --> EM --> TH
+  SH --> FEAT --> TRITON --> PRED --> TELE --> META --> RES --> CHK --> PSIST --> EDGE --> QG --> COL --> EM --> TH
   TH --> ST --> RM
   COL --> LOCK
   ST --> LOCK

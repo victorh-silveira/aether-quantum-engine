@@ -1,20 +1,25 @@
-## [1.43.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.42.0...v1.43.0) (2026-07-21)
-
-## [1.42.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.41.0...v1.42.0) (2026-07-21)
-
 ## [Unreleased]
 
 ### Added
-* **risk:** sizing híbrido Kelly (EXPLORE) + Martingale (RECOVER) — `last_loss_stake × 2` após LOSS Kelly
-* **docs:** side equilibrium (leis dos pequenos/grandes números) em medallion §8.5
+* **direction:** módulos `execution_direction_meta_edge`, `execution_direction_persistence`, `execution_direction_discordance` (resolver <=300 linhas)
+* **direction:** persistence com flip toxic escape (threshold 2) e preservacao de edge positivo no SIDE_EQ
+* **starvation:** edge decay a partir de 8 skips (`edge_decay_floor` -> 0.0, passo 0.08); recovery relax `edge_floor: -0.55`
+* **infra:** retries Deriv REST/PAT em 502/503/504 com `retry_after` Cloudflare
+* **docs:** sincroniza README/arquitetura/structure/medallion ao motor mandatorio R_10 e inventario 246/305
 
 ### Changed
-* **docs:** alinha README, arquitetura, structure, medallion e algoritmo ao híbrido Kelly+Martingale (`fraction: 0.08`, tetos 3,5%)
-* **docs:** alinha README e docs ao relógio operacional **120 s** / macro **600 s** (proporção **1:5**), lookback **72**, settlement **90 s**, Triton **0,50 s**
-* **docs:** documenta vetoes HARD de microestrutura, `soft_recovery_policy`, meta opcional para execução e stubs sniper Hurst/BB
-* **docs:** motor CALL/PUT híbrido — confiança **0.54/0.46**, `neutral_half_width: 0.04`, margem hard **0.03**, persistence **skip** (sem flip), `meta_veto_mode` none/soft/hard, label `spot_forward`
-* **docs:** Docker híbrido — profiles `core/gpu/ml`, pipeline hydrate/smoke, `gpus: all`, imagens pinadas, `AETHER_META_CLASSIFIER_HTTP`
-* **docs:** inventário (~226 módulos / ~287 testes) e snapshot operacional atualizado
+* **execution:** esteira **mandatoria** (`mandatory_trade_each_cycle: true`); zona neutra **off**; thresholds **0.51/0.49**
+* **quality:** pisos regulares de margem/ADX **0.0** para reduzir EXEC_EMPTY; Triton/meta opcionais nos settings atuais
+* **price_zone:** `align_or_keep_meta_side` mantem lado meta com edge > 0 contra a zona
+* **docs:** corrige Unreleased — recovery e Soft Recovery (nao Martingale multiplicativo)
+* **triton:** repositorio de modelo `R_10` (substitui layout legado RDBEAR/RDBULL)
+
+### Removed
+* **direction:** gate `recovery_same_side_negative_edge` (bloqueava recovery no mesmo lado)
+
+## [1.43.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.42.0...v1.43.0) (2026-07-21)
+
+## [1.42.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.41.0...v1.42.0) (2026-07-21)
 
 ## [1.41.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.40.0...v1.41.0) (2026-07-20)
 
@@ -78,7 +83,7 @@
 
 ## [1.17.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.16.0...v1.17.0) (2026-06-29)
 
-## [Unreleased]
+## [Notas historicas — migracao D Alembert]
 
 ### Breaking changes
 
@@ -491,7 +496,7 @@
 
 ## 2026-06-14 (e6cafeeb)
 
-* feat(engine): M5 ma_trend e vol implicita para RDBULL
+* feat(engine): M5 ma_trend e vol implicita para R_10
 
 ## 2026-06-14 (901852e6)
 

@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${ROOT}/../.." && pwd)"
 REPO="${ROOT}/triton-models"
+source "${ROOT}/docker-ui.sh"
 
 if [ ! -f "${REPO_ROOT}/infra/docker/docker-compose.yml" ]; then
   echo "triton-prereq: execute a partir da raiz do repositorio" >&2
@@ -25,13 +26,14 @@ prune_symbol_without_model() {
   if [ -d "$version_dir" ] && [ ! -f "${version_dir}/model.pt" ]; then
     rm -f "${symbol_dir}/config.pbtxt"
     find "$version_dir" -mindepth 1 ! -name '.gitkeep' -exec rm -rf {} + 2>/dev/null || true
-    echo "triton-prereq: layout vazio em $(basename "$symbol_dir") (modelo sera criado pelo make train)"
+    docker_ui_info "layout vazio em $(basename "$symbol_dir") (modelo sera criado pelo make train)"
   fi
 }
 
 main() {
   if [ ! -d "$REPO" ]; then
     mkdir -p "$REPO"
+    docker_ui_info "diretorio triton-models criado"
     return 0
   fi
   shopt -s nullglob
@@ -39,7 +41,7 @@ main() {
     if model_pt_valid "$model_pt"; then
       continue
     fi
-    echo "triton-prereq: removendo model.pt invalido: $model_pt"
+    docker_ui_warn "removendo model.pt invalido: $model_pt"
     rm -f "$model_pt"
     prune_symbol_without_model "$(dirname "$(dirname "$model_pt")")"
   done

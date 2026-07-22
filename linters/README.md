@@ -14,7 +14,7 @@ Configuracao centralizada de hooks e release semantico.
 | Hook | Ferramenta | Escopo |
 |------|------------|--------|
 | Qualidade | Ruff, Interrogate, Vulture, limite 300 linhas | `app/src`, `app/tests` |
-| Testes | pytest-xdist + coverage | 100% em `app/src` (**246** arquivos de teste) |
+| Testes | pytest-xdist + coverage | 100% em `app/src` (**305** arquivos de teste) |
 | Seguranca | Bandit, pip-audit | dependencias e codigo |
 | Limpeza | caches e artefatos locais | workspace |
 

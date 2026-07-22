@@ -114,7 +114,7 @@ async def test_trading_cycle_skips_epoch_advance_when_non_mandatory_quality_susp
 
 
 @pytest.mark.asyncio
-async def test_trading_cycle_resets_starvation_counter_on_mandatory_execute(orch_ready):
+async def test_trading_cycle_keeps_starvation_counter_on_mandatory_execute(orch_ready):
     orch = orch_ready
     orch._last_cluster_cycle_end = 0.0
     orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 0
@@ -137,11 +137,15 @@ async def test_trading_cycle_resets_starvation_counter_on_mandatory_execute(orch
         patch(f"{TRADING_CYCLE_MODULE}.mark_bar_processed", new_callable=AsyncMock),
         patch(f"{TRADING_CYCLE_MODULE}.await_regime_freeze_yield", new_callable=AsyncMock),
         patch(
-            f"{TRADING_CYCLE_MODULE}.reset_quality_skipped_cycles_counter_for_orch", new_callable=AsyncMock
-        ) as mock_reset,
+            f"{TRADING_CYCLE_MODULE}.prepare_quality_skipped_cycles_counter",
+            new_callable=AsyncMock,
+            return_value=5,
+        ),
     ):
+        orch._quality_skipped_cycles_counter = 5
         await run_trading_cycle_if_ready(orch)
-    mock_reset.assert_awaited_once_with(orch)
+    orch.executor.execute_cluster.assert_awaited_once()
+    assert orch._quality_skipped_cycles_counter == 5
 
 
 @pytest.mark.asyncio
@@ -175,7 +179,7 @@ async def test_trading_cycle_increments_starvation_counter_on_non_mandatory_susp
 
 
 @pytest.mark.asyncio
-async def test_trading_cycle_resets_starvation_counter_on_success(orch_ready):
+async def test_trading_cycle_keeps_starvation_counter_on_execute_success(orch_ready):
     orch = orch_ready
     orch._last_cluster_cycle_end = 0.0
     orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 0
@@ -198,8 +202,12 @@ async def test_trading_cycle_resets_starvation_counter_on_success(orch_ready):
         patch(f"{TRADING_CYCLE_MODULE}.mark_bar_processed", new_callable=AsyncMock),
         patch(f"{TRADING_CYCLE_MODULE}.await_regime_freeze_yield", new_callable=AsyncMock),
         patch(
-            f"{TRADING_CYCLE_MODULE}.reset_quality_skipped_cycles_counter_for_orch", new_callable=AsyncMock
-        ) as mock_reset,
+            f"{TRADING_CYCLE_MODULE}.prepare_quality_skipped_cycles_counter",
+            new_callable=AsyncMock,
+            return_value=5,
+        ),
     ):
+        orch._quality_skipped_cycles_counter = 5
         await run_trading_cycle_if_ready(orch)
-    mock_reset.assert_awaited_once_with(orch)
+    orch.executor.execute_cluster.assert_awaited_once()
+    assert orch._quality_skipped_cycles_counter == 5

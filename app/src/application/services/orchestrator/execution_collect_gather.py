@@ -14,7 +14,22 @@ def _sync_entry_metrics(entry: dict, metrics: dict) -> None:
     if not isinstance(entry_metrics, dict):
         entry["metrics"] = dict(metrics)
         return
-    for key in ("signal_status", "regime_guard_action", "quality_guard_reject", "regime_skip_cycle"):
+    for key in (
+        "signal_status",
+        "regime_guard_action",
+        "quality_guard_reject",
+        "regime_skip_cycle",
+        "gate_reason",
+        "quality_gate_reason",
+        "side_eq_blocked",
+        "execution_candidate_ready",
+        "side_eq_action",
+        "side_eq_reason",
+        "price_zone",
+        "meta_veto_mode",
+        "exec_direction",
+        "resolved_direction",
+    ):
         if key in metrics:
             entry_metrics[key] = metrics[key]
 

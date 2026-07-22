@@ -111,13 +111,20 @@ def _recovery_pending_total(orch: Any) -> float:
 
 
 def align_exec_empty_recovery_signature_cooldown(orch: Any) -> float:
-    """Apos EXEC_EMPTY em recovery, alinha cooldown a fronteira inteira de 60s."""
+    """Apos EXEC_EMPTY em recovery, espera no maximo 45s (ou fronteira se menor)."""
     if bool(getattr(orch, "_last_cycle_cluster_executed", False)):
         return 0.0
     if _recovery_pending_total(orch) <= 0.0:
         return 0.0
     delay = float(seconds_until_next_signature_boundary(orch))
-    delay = max(delay, 1.0)
+    orch_cfg = orch.config.get("orchestrator") if isinstance(getattr(orch, "config", None), dict) else {}
+    if not isinstance(orch_cfg, dict):
+        orch_cfg = {}
+    try:
+        empty_cap = float(orch_cfg.get("exec_empty_retry_seconds", 45))
+    except (TypeError, ValueError):
+        empty_cap = 45.0
+    delay = min(max(delay, 1.0), max(15.0, empty_cap))
     orch._cooldown_until = time.time() + delay
     orch._post_settlement_incomplete_streak = 0
     return delay
