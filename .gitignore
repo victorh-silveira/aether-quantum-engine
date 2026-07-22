@@ -1,15 +1,21 @@
 # ---- AMBIENTES VIRTUAIS E SEGREDOS ----
 .env
+.env.local
+.env.development
+.env.production
+.env.staging
+.env.test
 .venv/
 env/
 venv/
 
-# ---- CONFIGURAÇÕES DO PROJETO ----
-!config/settings.json
-
 # ---- FERRAMENTAS DE DESENVOLVIMENTO ----
 .cache/
 .pre-commit/
+.mypy_cache/
+.tox/
+.hypothesis/
+.ipynb_checkpoints/
 
 # ---- IA E FERRAMENTAS DE AGENTES (CURSOR/MCP) ----
 .agent/
@@ -27,18 +33,29 @@ venv/
 !.vscode/settings.json
 desktop.ini
 Thumbs.db
+ehthumbs.db
 
-# ---- LOGS E PERSISTÊNCIA LOCAL ----
+# ---- LOGS E PERSISTENCIA LOCAL ----
 *.log
 data/
 logs/
+
+# ---- MODELOS / ARTEFATOS ML (exceto os versionados em infra/) ----
+*.pt
+*.pth
+*.onnx
+*.safetensors
 
 # ---- RELATORIOS LOCAIS DE LINT/COVERAGE ----
 **/coverage_report.txt
 **/interrogate_output.txt
 coverage.xml
+.coverage
+.coverage.*
+*.cover
+htmlcov/
 
-# ---- NODE / NPM / HUSKY (ARTEFATOS LOCAIS) ----
+# ---- NODE / NPM (CI e commitlint usam npx --no-save) ----
 .husky/
 node_modules/
 npm-debug.log*
@@ -49,12 +66,12 @@ yarn-error.log*
 
 # ---- PYTHON: CACHES E ARTEFATOS DE BUILD ----
 *$py.class
+*.egg
 *.egg-info/
 *.py[cod]
-.coverage
+.eggs/
 .pytest_cache/
 .ruff_cache/
 __pycache__/
 build/
 dist/
-htmlcov/

@@ -11,7 +11,7 @@ Motor quantitativo assíncrono para a Deriv: decisão por **Deep Learning** (TCN
 
 A operação divide-se em duas fases: **FASE TREINO** (nenhuma ordem até todos os modelos concluírem o treino da sessão) e **FASE OPERACAO** mandatária (`mandatory_trade_each_cycle: true`, `force_trade_every_cycle: false`): o ciclo tenta montar candidato a cada fronteira de **120 s**, com alinhamento de **zona de preço** (BB/Keltner: BUY→CALL / SELL→PUT; `require_trend_agreement` / `require_tcn_agreement` off). Nos settings atuais Triton e meta são **opcionais** para execução (`infra.triton.enabled/require_for_execution: false`; `require_meta_for_execution: false`); em stack Docker completa o Triton pode ser reativado fail-closed.
 
-Documentação: [arquitetura](docs/arquitetura.md) | [estrutura e módulos](docs/structure.md) | [metodologia quant](docs/medallion.md) | [infra Docker](docs/infra-docker.md) | [Deriv API](docs/deriv-api.md) | [índice docs](docs/README.md)
+Documentação: [arquitetura](docs/arquitetura.md) | [estrutura e módulos](docs/structure.md) | [metodologia quant](docs/medallion.md) | [infra Docker](docs/infra-docker.md) | [Deriv API](docs/deriv-api.md) | [Deriv para agentes](docs/deriv-api-aether.md) | [índice docs](docs/README.md)
 
 Layout: `app/` (código e testes), `config/settings.json`, `docs/`, `linters/`. Ver [docs/structure.md](docs/structure.md).
 

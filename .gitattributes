@@ -1,28 +1,43 @@
-# ---- ARQUIVOS BINÁRIOS E ASSETS ----
-*.ico binary
-*.jpg binary
-*.png binary
-.ruff_cache/** binary
+# ---- TEXTO: LF por padrao (auto detecta binario) ----
+* text=auto eol=lf
 
-# ---- CONFIGURAÇÃO E DADOS ----
-config/*.json text
-data/state.json -text
-logs/*.log text
-
-# ---- CONTROLE DE QUEBRA DE LINHA (NORMALIZAÇÃO) ----
-* text eol=lf
+# ---- SCRIPTS WINDOWS: CRLF ----
 *.bat text eol=crlf
-
-# ---- IDENTIFICAÇÃO DE TIPOS DE ARQUIVO ----
-*.json text
-*.md text
-*.mjs text
+*.cmd text eol=crlf
 *.ps1 text eol=crlf
 *.psm1 text eol=crlf
-*.py text
-*.toml text
-*.txt text
-*.yaml text
-*.yml text
-.pre-commit-config.yaml text
-.python-version text
+
+# ---- FONTES E CONFIG (LF explicito) ----
+*.json text eol=lf
+*.md text eol=lf
+*.mjs text eol=lf
+*.py text eol=lf
+*.sh text eol=lf
+*.sql text eol=lf
+*.toml text eol=lf
+*.txt text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+.pre-commit-config.yaml text eol=lf
+.python-version text eol=lf
+
+# ---- BINARIOS (depois do * text=auto para nao serem tratados como texto) ----
+*.ico binary
+*.jpg binary
+*.jpeg binary
+*.png binary
+*.gif binary
+*.webp binary
+*.pdf binary
+*.pkl binary
+*.pickle binary
+*.pt binary
+*.pth binary
+*.onnx binary
+*.bin binary
+*.gz binary
+*.zip binary
+*.whl binary
+*.so binary
+*.dll binary
+*.pyd binary

@@ -27,6 +27,15 @@ aether-quantum-engine/
 │   └── python.json
 ├── data/                               # Runtime: state.json, session_state.json, dl/, deriv/
 ├── docs/
+│   ├── arquitetura.md
+│   ├── CHANGELOG.md
+│   ├── deriv-api.md
+│   ├── deriv-api-aether.md
+│   ├── deriv-indices-algorithm.md
+│   ├── infra-docker.md
+│   ├── medallion.md
+│   ├── README.md
+│   └── structure.md
 ├── infra/docker/                       # Redis, TimescaleDB, MinIO, Triton, meta-classifier
 ├── linters/
 ├── Makefile

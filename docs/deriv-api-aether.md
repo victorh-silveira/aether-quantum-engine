@@ -1,6 +1,6 @@
 # Deriv API — guia rapido para agentes (Aether)
 
-Referencia completa: `docs/deriv-api.md` (copia em `agents/deriv-api.md`).
+Referencia completa: [deriv-api.md](deriv-api.md).
 
 Use ONLY this API. Symbol field: `underlying_symbol`.
 
