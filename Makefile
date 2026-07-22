@@ -29,8 +29,8 @@ RESET  := \033[0m
 
 .PHONY: app-install app-lint app-test app-security app-run app-train app-pre-commit \
 	app-pre-commit-run app-setup-wsl app-clean help helpo docker-up docker-up-core \
-	docker-down docker-clean docker-ps docker-logs docker-bash docker-hydrate \
-	docker-rebuild docker-smoke timescale-lifecycle
+	docker-down docker-clean docker-restart docker-reset docker-ps docker-logs \
+	docker-bash docker-hydrate docker-rebuild docker-smoke timescale-lifecycle
 
 help:
 	@echo -e "$(BLUE)========================================================================$(RESET)"
@@ -59,7 +59,9 @@ help:
 	@echo -e "  $(GREEN)docker-rebuild$(RESET)     - Rebuild do meta-classifier + up com profiles ativos"
 	@echo -e "  $(GREEN)docker-smoke$(RESET)       - Valida endpoints da stack (Redis/TS/MinIO/Triton/Meta)"
 	@echo -e "  $(GREEN)docker-down$(RESET)        - Para os containers PRESERVANDO os dados e volumes"
-	@echo -e "  $(GREEN)docker-clean$(RESET)       - $(RED)DESTRESTRUTIVO$(RESET): Remove containers, redes e DELETA volumes"
+	@echo -e "  $(GREEN)docker-restart$(RESET)     - Reinicia os containers da stack (volumes preservados)"
+	@echo -e "  $(GREEN)docker-reset$(RESET)       - $(RED)DESTRUTIVO$(RESET): Apaga volumes/dados e sobe stack limpa"
+	@echo -e "  $(GREEN)docker-clean$(RESET)       - $(RED)DESTRUTIVO$(RESET): Remove containers, redes e DELETA volumes"
 	@echo -e "  $(GREEN)docker-hydrate$(RESET)     - Hidrata TimescaleDB com lookback M15 se houver fome de dados"
 	@echo -e "  $(GREEN)docker-ps$(RESET)          - Status dos containers"
 	@echo -e "  $(GREEN)docker-logs$(RESET)        - Logs (DOCKER_SERVICE=redis F=1 para seguir)"
@@ -139,6 +141,21 @@ docker-down:
 	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-down · parando stack (volumes preservados)"'
 	$(DOCKER_COMPOSE) down
 	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_nl'
+
+docker-restart:
+	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-restart · reiniciando containers (volumes preservados)"'
+	@test -f .env || cp .env.example .env
+	$(DOCKER_COMPOSE) restart
+	@bash infra/docker/docker-wait-healthy.sh
+	@$(DOCKER_COMPOSE) ps
+
+docker-reset:
+	@test -f .env || cp .env.example .env
+	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-reset · ATENCAO: dados e volumes serao apagados"'
+	@echo -e "$(RED)  Limpando remanescentes de runs (Redis/TimescaleDB/MinIO) e recriando a stack$(RESET)"
+	@echo ""
+	$(DOCKER_COMPOSE) down --volumes --remove-orphans
+	@$(MAKE) --no-print-directory docker-up
 
 docker-clean:
 	@test -f .env || cp .env.example .env

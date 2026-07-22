@@ -23,7 +23,10 @@ async def test_ws_connect_requires_uri():
 @pytest.mark.asyncio
 async def test_ws_connect_retries_then_raises():
     mgr = WebSocketManager("wss://api.derivws.com/ws/demo?otp=x")
-    with patch("websockets.connect", new_callable=AsyncMock) as mock_connect:
+    with patch(
+        "src.infrastructure.api.websocket_manager.connect_wss_with_ip_failover",
+        new_callable=AsyncMock,
+    ) as mock_connect:
         mock_connect.side_effect = TimeoutError("timed out during opening handshake")
         with pytest.raises(ConnectionError, match="esgotada"):
             await mgr.connect(max_attempts=3, retry_delay=0.01, open_timeout=1.0)
@@ -34,7 +37,10 @@ async def test_ws_connect_retries_then_raises():
 @pytest.mark.asyncio
 async def test_ws_connect_sets_uri_argument():
     mgr = WebSocketManager("")
-    with patch("websockets.connect", new_callable=AsyncMock) as mock_connect:
+    with patch(
+        "src.infrastructure.api.websocket_manager.connect_wss_with_ip_failover",
+        new_callable=AsyncMock,
+    ) as mock_connect:
         mock_connect.return_value = AsyncMock()
         await mgr.connect(uri="wss://api.derivws.com/ws/demo?otp=x")
     assert mgr.uri == "wss://api.derivws.com/ws/demo?otp=x"
@@ -47,7 +53,11 @@ async def test_ws_connect_rejects_http_401_otp():
     response.status_code = 401
     status_exc = websockets.InvalidStatus(response)
     with (
-        patch("websockets.connect", new_callable=AsyncMock, side_effect=status_exc),
+        patch(
+            "src.infrastructure.api.websocket_manager.connect_wss_with_ip_failover",
+            new_callable=AsyncMock,
+            side_effect=status_exc,
+        ),
         pytest.raises(ConnectionError, match="401"),
     ):
         await mgr.connect(max_attempts=1)
@@ -61,7 +71,11 @@ async def test_ws_connect_retries_on_non_401_invalid_status():
     response.status_code = 503
     status_exc = websockets.InvalidStatus(response)
     with (
-        patch("websockets.connect", new_callable=AsyncMock, side_effect=status_exc) as mock_connect,
+        patch(
+            "src.infrastructure.api.websocket_manager.connect_wss_with_ip_failover",
+            new_callable=AsyncMock,
+            side_effect=status_exc,
+        ) as mock_connect,
         pytest.raises(ConnectionError, match="esgotada"),
     ):
         await mgr.connect(max_attempts=2, retry_delay=0.01)

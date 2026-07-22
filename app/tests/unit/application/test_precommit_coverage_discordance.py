@@ -93,4 +93,9 @@ def test_side_eq_helpers():
     pri = SideEquilibriumDecision(action=ACTION_HARD_SKIP, reason="x", side_wr=None)
     assert _alternate_side_is_preferable(pri, alt) is True
     alt_none = SideEquilibriumDecision(action=ACTION_PASS, reason="ok", side_wr=None)
-    assert _alternate_side_is_preferable(pri, alt_none) is True
+    assert _alternate_side_is_preferable(pri, alt_none) is False
+    weak_alt = SideEquilibriumDecision(action=ACTION_PASS, reason="ok", side_wr=0.05)
+    toxic_pri = SideEquilibriumDecision(action=ACTION_HARD_SKIP, reason="x", side_wr=0.0)
+    assert _alternate_side_is_preferable(toxic_pri, weak_alt) is False
+    strong_alt = SideEquilibriumDecision(action=ACTION_PASS, reason="ok", side_wr=0.55)
+    assert _alternate_side_is_preferable(toxic_pri, strong_alt) is True

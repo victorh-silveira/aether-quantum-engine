@@ -68,6 +68,8 @@ def test_side_eq_flip_logs_once_when_resolve_called_twice():
     orch._active_cycle_id = 7
     for _ in range(2):
         record_side_equilibrium_outcome(orch, "R_10", direction="PUT", won=False)
+    for _ in range(2):
+        record_side_equilibrium_outcome(orch, "R_10", direction="CALL", won=True)
     metrics: dict = {}
     with patch("src.application.services.side_equilibrium_gate.logger") as mock_logger:
         first = resolve_direction_with_side_equilibrium(orch, "R_10", TradeDirection.PUT, metrics)

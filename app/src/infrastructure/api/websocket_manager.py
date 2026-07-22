@@ -5,8 +5,11 @@ import json
 import logging
 from collections.abc import Callable
 from typing import Any
+from urllib.parse import urlparse
 
 import websockets
+
+from src.infrastructure.api.websocket_connect import connect_wss_with_ip_failover
 
 
 class WebSocketManager:
@@ -44,6 +47,7 @@ class WebSocketManager:
         open_timeout: float = 20.0,
         retry_delay: float = 3.0,
         retry_backoff: float = 1.5,
+        uri_factory=None,
     ):
         """Estabelece a conexao WebSocket com retentativas e inicia tarefas de segundo plano."""
         if self._connect_in_progress:
@@ -62,11 +66,20 @@ class WebSocketManager:
             for attempt in range(1, attempts + 1):
                 self.is_running = False
                 try:
-                    self.ws = await websockets.connect(
-                        self.uri,
-                        open_timeout=float(open_timeout),
-                        close_timeout=10.0,
-                    )
+                    scheme = (urlparse(self.uri).scheme or "").lower()
+                    if scheme == "wss":
+                        self.ws = await connect_wss_with_ip_failover(
+                            self.uri,
+                            open_timeout=float(open_timeout),
+                            close_timeout=10.0,
+                            uri_factory=uri_factory,
+                        )
+                    else:
+                        self.ws = await websockets.connect(
+                            self.uri,
+                            open_timeout=float(open_timeout),
+                            close_timeout=10.0,
+                        )
                     self.is_running = True
                     self.logger.debug("WSS: Conexao estabelecida com sucesso.")
                     asyncio.create_task(self._listen())

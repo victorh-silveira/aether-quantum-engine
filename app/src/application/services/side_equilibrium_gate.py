@@ -134,6 +134,18 @@ def resolve_direction_with_side_equilibrium(
         if gate.startswith("side_imbalance"):
             metrics.pop("gate_reason", None)
         return proposed
+    if _positive_meta_edge_keeps_proposed(metrics):
+        apply_side_equilibrium_to_metrics(metrics, primary, proposed=proposed)
+        metrics.pop("quality_guard_reject", None)
+        gate = str(metrics.get("gate_reason") or "")
+        if gate.startswith("side_imbalance"):
+            metrics.pop("gate_reason", None)
+        metrics["side_eq_edge_keep_proposed"] = True
+        metrics["side_eq_gate_done"] = True
+        metrics["side_eq_blocked"] = False
+        metrics["exec_direction"] = proposed.name
+        metrics["resolved_direction"] = proposed.name
+        return proposed
     apply_side_equilibrium_to_metrics(metrics, primary, proposed=proposed)
     opposite = opposite_trade_direction(proposed)
     alternate = evaluate_proposed_side_equilibrium(orch, symbol, opposite)
@@ -182,6 +194,14 @@ def resolve_direction_with_side_equilibrium(
     return opposite
 
 
+def _positive_meta_edge_keeps_proposed(metrics: dict[str, Any]) -> bool:
+    """True quando o edge meta positivo deve preservar o lado TCN/meta sem flip."""
+    edge = metrics.get("predicted_payoff_edge")
+    if edge is None:
+        return False
+    return float(edge) > 0.0
+
+
 def _primary_side_is_toxic(primary: SideEquilibriumDecision) -> bool:
     """True quando o lado primario esta em hard-skip toxico por WR baixo."""
     if primary.action != ACTION_HARD_SKIP:
@@ -203,14 +223,14 @@ def _alternate_side_is_preferable(
     primary: SideEquilibriumDecision,
     alternate: SideEquilibriumDecision,
 ) -> bool:
-    """Compara WR do lado alternativo contra o primario bloqueado."""
+    """Exige WR amostrado no alternativo e vantagem clara sobre o primario bloqueado."""
     alt_wr = alternate.side_wr
     pri_wr = primary.side_wr
     if alt_wr is None:
-        return True
+        return False
     if pri_wr is None:
         return float(alt_wr) + 1e-12 >= 0.5
-    return float(alt_wr) + 1e-12 >= float(pri_wr)
+    return float(alt_wr) + 1e-12 >= float(pri_wr) + 0.10
 
 
 def _log_side_eq_flip(

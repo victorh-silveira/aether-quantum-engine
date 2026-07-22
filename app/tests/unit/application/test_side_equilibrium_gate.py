@@ -196,10 +196,36 @@ def test_process_contract_outcome_records_side_equilibrium_counts():
     assert counts.call_n == 0
 
 
-def test_resolve_direction_flips_put_hard_skip_to_call():
+def test_resolve_direction_rejects_flip_without_alternate_samples():
     orch = _orch_with_side_eq(n_min_small=2, wr_floor_small=0.40, freq_bias_max_small=0.70)
     for _ in range(2):
         record_side_equilibrium_outcome(orch, "R_10", direction="PUT", won=False)
+    metrics: dict = {}
+    chosen = resolve_direction_with_side_equilibrium(orch, "R_10", TradeDirection.PUT, metrics)
+    assert chosen is None
+    assert metrics.get("side_eq_flip_rejected") is True
+    assert metrics.get("gate_reason") == "side_imbalance_flip_not_better"
+
+
+def test_resolve_direction_keeps_put_when_meta_edge_positive():
+    orch = _orch_with_side_eq(n_min_small=2, wr_floor_small=0.40, freq_bias_max_small=0.70)
+    for _ in range(2):
+        record_side_equilibrium_outcome(orch, "R_10", direction="PUT", won=False)
+    for _ in range(2):
+        record_side_equilibrium_outcome(orch, "R_10", direction="CALL", won=True)
+    metrics = {"predicted_payoff_edge": 0.09}
+    chosen = resolve_direction_with_side_equilibrium(orch, "R_10", TradeDirection.PUT, metrics)
+    assert chosen == TradeDirection.PUT
+    assert metrics.get("side_eq_edge_keep_proposed") is True
+    assert metrics.get("side_eq_flipped") is not True
+
+
+def test_resolve_direction_flips_put_hard_skip_to_call_with_better_wr():
+    orch = _orch_with_side_eq(n_min_small=2, wr_floor_small=0.40, freq_bias_max_small=0.70)
+    for _ in range(2):
+        record_side_equilibrium_outcome(orch, "R_10", direction="PUT", won=False)
+    for _ in range(2):
+        record_side_equilibrium_outcome(orch, "R_10", direction="CALL", won=True)
     metrics: dict = {}
     chosen = resolve_direction_with_side_equilibrium(orch, "R_10", TradeDirection.PUT, metrics)
     assert chosen == TradeDirection.CALL

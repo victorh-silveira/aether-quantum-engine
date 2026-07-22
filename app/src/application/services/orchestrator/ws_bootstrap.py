@@ -57,12 +57,21 @@ async def _broker_pat_websocket_handshake(orch: Orchestrator) -> DerivTradingSes
                 session = await orch.auth.open_trading_session()
         except Exception as reset_err:
             orch.logger.error("AUTH: Falha ao resetar saldo demo: %s", reset_err)
-    await orch.ws.connect(session.ws_url, **ws_connect_options(orch))
-    return session
+    opts = ws_connect_options(orch)
+    holder: dict[str, DerivTradingSession] = {"session": session}
+
+    async def _fresh_otp_uri() -> str:
+        """Emite OTP novo quando o failover troca de IP Cloudflare."""
+        refreshed = await orch.auth.open_trading_session()
+        holder["session"] = refreshed
+        return refreshed.ws_url
+
+    await orch.ws.connect(session.ws_url, **opts, uri_factory=_fresh_otp_uri)
+    return holder["session"]
 
 
 async def open_broker_handshake(orch: Orchestrator) -> DerivTradingSession:
-    """Handshake broker com timeout fail-fast de 15s (PAT/OTP + WebSocket)."""
+    """Handshake broker com timeout fail-fast (PAT/OTP + WebSocket multi-IP)."""
     try:
         return await asyncio.wait_for(
             _broker_pat_websocket_handshake(orch),

@@ -298,7 +298,7 @@
   },
   "orchestrator": {
     "api_maintenance_fallback_seconds": 65.0,
-    "broker_handshake_timeout_seconds": 15.0,
+    "broker_handshake_timeout_seconds": 90.0,
     "cycle_interval_seconds": 120,
     "execution": {
       "bb_width_adaptive_squeeze": {
@@ -406,7 +406,7 @@
         },
         "max_edge_without_margin": 999.0,
         "max_zscore_without_margin": 999.0,
-        "min_direction_margin": 0.0,
+        "min_direction_margin": 0.02,
         "recovery_min_direction_margin": 0.0,
         "recovery_min_hurst": 0.0
       },
@@ -476,7 +476,7 @@
         "inverted_min_score": 0.0,
         "mandatory_min_trade_score": 0.5,
         "min_adx_threshold": 0.0,
-        "min_direction_margin": 0.0,
+        "min_direction_margin": 0.02,
         "min_meta_payoff_zscore": 0.5,
         "min_payoff_edge": 0.0,
         "neutral_meta_payoff": {
@@ -492,12 +492,12 @@
           "edge_floor": -0.55,
           "edge_zscore_waiver": 0.5,
           "full_pending_units": 8.0,
-          "margin_floor": 0.01,
+          "margin_floor": 0.005,
           "min_linear": 2,
           "session_stake_unit_bankroll_pct": 0.0015
         },
         "regular": {
-          "min_direction_margin": 0.0,
+          "min_direction_margin": 0.02,
           "min_payoff_edge": 0.0
         },
         "starvation": {
@@ -531,7 +531,7 @@
         "large_window": 100,
         "margin_boost_soft": 0.03,
         "n_min_large": 40,
-        "n_min_small": 2,
+        "n_min_small": 3,
         "small_window": 12,
         "wr_floor_large": 0.48,
         "wr_floor_small": 0.4

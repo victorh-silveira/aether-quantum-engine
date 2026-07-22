@@ -35,11 +35,29 @@ EXECUTION_SIGNAL_VETO_REASONS = frozenset(
 VETO_EDGE_EXPECTANCIES = frozenset({"NO_EDGE_NEUTRAL", "LOSS_EXPECTED"})
 META_SOFT_VETO_MODE = "soft"
 META_HARD_VETO_MODE = "hard"
+RECOVERY_SEVERE_ZSCORE = -1.5
 
 
 def _veto_cfg() -> dict[str, float]:
     """Carrega meta_payoff_veto de settings."""
     return resolve_meta_payoff_veto_config()
+
+
+def _recovery_active(risk_manager: Any | None) -> bool:
+    """True quando ha pendencia financeira ou perda linear ativa."""
+    if risk_manager is None:
+        return False
+    if int(getattr(risk_manager, "consecutive_losses_linear", 0) or 0) > 0:
+        return True
+    pending_fn = getattr(risk_manager, "pending_loss_total", None)
+    if callable(pending_fn):
+        pending = float(pending_fn())
+        if pending > 0.0:
+            return True
+    pending_map = getattr(risk_manager, "pending_loss", None)
+    if isinstance(pending_map, dict):
+        return sum(float(v) for v in pending_map.values()) > 0.0
+    return False
 
 
 def classify_payoff_edge_expectancy(
@@ -194,19 +212,29 @@ def should_veto_meta_payoff_negative_zscore(
             )
         except Exception:
             waived = False
-    if (hard_allowed or inverted_hit) and not waived:
+    recovery_severe = bool(
+        soft_hit
+        and z_score is not None
+        and float(z_score) <= float(RECOVERY_SEVERE_ZSCORE)
+        and _recovery_active(risk_manager)
+    )
+    metrics["meta_recovery_severe_z"] = bool(recovery_severe)
+    if (hard_allowed or inverted_hit or recovery_severe) and not waived:
         apply_meta_payoff_negative_zscore_veto(metrics)
         metrics["meta_veto_mode"] = META_HARD_VETO_MODE
         metrics["meta_soft_veto_penalty"] = 0.0
         if inverted_hit:
             metrics["gate_reason"] = "meta_shadow_inverted_veto"
+        if recovery_severe:
+            metrics["meta_recovery_severe_z_veto"] = True
         logger.info(
-            "META_HARD_VETO | META_VETO_MODE=%s | shadow_corr=%+.3f | n=%d | z=%.3f | inverted=%s",
+            "META_HARD_VETO | META_VETO_MODE=%s | shadow_corr=%+.3f | n=%d | z=%.3f | inverted=%s | recovery=%s",
             META_HARD_VETO_MODE,
             float(corr or 0.0),
             n_shadow,
             float(z_score or 0.0),
             str(bool(inverted)).lower(),
+            str(bool(recovery_severe)).lower(),
         )
         return True
     _apply_soft_veto(metrics)

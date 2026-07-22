@@ -16,7 +16,7 @@ def test_parse_side_equilibrium_config_defaults():
     cfg = parse_side_equilibrium_config(None)
     assert cfg.enabled is True
     assert cfg.small_window == 12
-    assert cfg.n_min_small == 2
+    assert cfg.n_min_small == 3
     assert cfg.n_min_large == 40
     assert cfg.freq_bias_max_small == pytest.approx(0.70)
     assert parse_side_equilibrium_config({"n_min_small": 1}).n_min_small == 2
