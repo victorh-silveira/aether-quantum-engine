@@ -12,6 +12,23 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parents[3]
 
 
+_app_path = str(_repo_root() / "app")
+if _app_path not in sys.path:
+    sys.path.insert(0, _app_path)
+
+import torch  # noqa: E402
+
+from src.application.services.deep_learning.dl_calibration import (  # noqa: E402
+    apply_calibrator_stable,
+    calibrator_from_dict,
+)
+from src.application.services.deep_learning.dl_sharpness import (  # noqa: E402
+    mean_sharpness,
+    resolve_calibration_sharpness_cfg,
+    sharpness_pass_fraction,
+)
+
+
 def _load_settings(repo: Path) -> dict:
     path = repo / "config" / "settings.json"
     with path.open(encoding="utf-8") as handle:
@@ -41,21 +58,6 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     repo = _repo_root()
-    if str(repo / "app") not in sys.path:
-        sys.path.insert(0, str(repo / "app"))
-
-    import torch
-
-    from src.application.services.deep_learning.dl_calibration import (
-        apply_calibrator_stable,
-        calibrator_from_dict,
-    )
-    from src.application.services.deep_learning.dl_sharpness import (
-        mean_sharpness,
-        resolve_calibration_sharpness_cfg,
-        sharpness_pass_fraction,
-    )
-
     settings = _load_settings(repo)
     dl = settings.get("deep_learning") if isinstance(settings, dict) else {}
     calib_cfg = dl.get("calibration") if isinstance(dl, dict) else {}
@@ -72,7 +74,9 @@ def main(argv: list[str] | None = None) -> int:
     if not isinstance(payload, dict):
         print(f"CHECKPOINT_INVALIDO path={model_path}")
         return 2
-    calibrator = calibrator_from_dict(payload.get("calibrator") if isinstance(payload.get("calibrator"), dict) else None)
+    calibrator = calibrator_from_dict(
+        payload.get("calibrator") if isinstance(payload.get("calibrator"), dict) else None
+    )
 
     print(f"CHECKPOINT path={model_path}")
     print(f"FLOOR min_oos_sharpness={floor:.4f}")
