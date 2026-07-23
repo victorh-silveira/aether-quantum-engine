@@ -2,8 +2,10 @@ from src.application.services.execution_direction_checks import initial_directio
 from src.application.services.execution_direction_discordance import (
     _macro_indicator_float,
     _rsi_di_oppose_direction,
+    align_direction_to_rsi_trend,
     apply_technical_agreement,
 )
+from src.application.services.execution_price_zone_gate import align_or_keep_meta_side
 from src.application.services.side_equilibrium_helpers import (
     alternate_side_is_preferable,
     flip_conflicts_price_zone,
@@ -58,6 +60,38 @@ def test_apply_technical_agreement_vetoes():
     assert veto is True
     assert metrics.get("indicator_side_discordance") is True
     assert metrics.get("indicator_trend_discordance") is True
+
+
+def test_align_direction_to_rsi_trend():
+    assert align_direction_to_rsi_trend(TradeDirection.PUT, {}) == TradeDirection.PUT
+
+    m_neutral = {"macro_indicators": {"rsi": 0.51}}
+    assert align_direction_to_rsi_trend(TradeDirection.PUT, m_neutral) == TradeDirection.PUT
+
+    m_bull = {"macro_indicators": {"rsi": 0.70}}
+    assert align_direction_to_rsi_trend(TradeDirection.PUT, m_bull) == TradeDirection.CALL
+    assert m_bull.get("rsi_trend_flipped") is True
+
+    m_bear = {"macro_indicators": {"rsi": 0.30}}
+    assert align_direction_to_rsi_trend(TradeDirection.CALL, m_bear) == TradeDirection.PUT
+    assert m_bear.get("rsi_trend_flipped") is True
+
+    m_bull_same = {"macro_indicators": {"rsi": 0.70}}
+    assert align_direction_to_rsi_trend(TradeDirection.CALL, m_bull_same) == TradeDirection.CALL
+
+    assert _rsi_di_oppose_direction({"macro_indicators": {"rsi": 0.70}}, TradeDirection.PUT) is True
+
+    m_align = {"rsi_trend_align_enabled": True, "macro_indicators": {"rsi": 0.70}}
+    assert (
+        align_or_keep_meta_side(
+            TradeDirection.PUT,
+            m_align,
+            dl_dir=TradeDirection.PUT,
+            predicted_edge=-0.05,
+            meta_applied=True,
+        )
+        == TradeDirection.CALL
+    )
 
 
 def test_initial_direction_checks_discordance_reject():

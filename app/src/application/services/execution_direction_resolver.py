@@ -209,17 +209,15 @@ def resolve_execution_direction(
     active_cycle = int(cycle_id or 0)
     if orch is not None:
         active_cycle = int(getattr(orch, "_active_cycle_id", 0) or active_cycle or 0)
-    prior = entry.get("metrics") if isinstance(entry.get("metrics"), dict) else {}
+    prior = entry.setdefault("metrics", {})
+    prior["rsi_trend_align_enabled"] = bool(exec_cfg_dict.get("align_rsi_trend", False))
     if not force and active_cycle > 0 and int(prior.get("_direction_resolved_cycle") or 0) == active_cycle:
         gate = str(prior.get("gate_reason") or "")
         blocked = bool(prior.get("quality_guard_reject") or gate)
         if blocked and not (recovery_active and gate in _RECOVERY_RERESOLVE_GATES):
             return None
         ready_name = str(prior.get("exec_direction") or prior.get("resolved_direction") or "").upper()
-        if prior.get("execution_candidate_ready") and ready_name in {
-            TradeDirection.CALL.name,
-            TradeDirection.PUT.name,
-        }:
+        if prior.get("execution_candidate_ready") and ready_name in {TradeDirection.CALL.name, TradeDirection.PUT.name}:
             return TradeDirection[ready_name], prior
         if blocked and recovery_active and gate in _RECOVERY_RERESOLVE_GATES:
             if bool(prior.get("_recovery_reresolve_done") or prior.get("_resolved_under_recovery")):

@@ -22,15 +22,34 @@ def _rsi_di_oppose_direction(metrics: dict, dl_dir: TradeDirection) -> bool:
     """True quando RSI e di_diff macro votam contra a direcao TCN com vies claro."""
     rsi = _macro_indicator_float(metrics, "rsi")
     di_diff = _macro_indicator_float(metrics, "di_diff")
-    if rsi is None or di_diff is None:
+    if rsi is None:
         return False
     rsi_bias = float(rsi) - 0.5
     if abs(rsi_bias) < 0.04:
         return False
     rsi_call = rsi_bias > 0.0
-    di_call = float(di_diff) > 0.0
     want_call = dl_dir == TradeDirection.CALL
-    return want_call not in {rsi_call, di_call}
+    if di_diff is not None:
+        di_call = float(di_diff) > 0.0
+        return want_call not in {rsi_call, di_call}
+    return want_call != rsi_call
+
+
+def align_direction_to_rsi_trend(dl_dir: TradeDirection, metrics: dict) -> TradeDirection:
+    """Alinha a direcao ao vies claro do RSI macro (RSI > 0.54 -> CALL, RSI < 0.46 -> PUT) se houver divergencia."""
+    rsi = _macro_indicator_float(metrics, "rsi")
+    if rsi is None:
+        return dl_dir
+    rsi_bias = float(rsi) - 0.5
+    if abs(rsi_bias) < 0.04:
+        return dl_dir
+    rsi_dir = TradeDirection.CALL if rsi_bias > 0.0 else TradeDirection.PUT
+    if dl_dir != rsi_dir:
+        metrics["rsi_trend_flipped"] = True
+        metrics["rsi_trend_orig"] = dl_dir.name
+        metrics["rsi_val"] = float(rsi)
+        return rsi_dir
+    return dl_dir
 
 
 def apply_technical_agreement(metrics: dict, dl_dir: TradeDirection, prob: float, exec_cfg: dict) -> tuple[float, bool]:

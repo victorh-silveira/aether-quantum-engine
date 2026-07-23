@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.application.services.execution_direction_discordance import align_direction_to_rsi_trend
 from src.application.services.execution_runtime_config import resolve_price_zone_config as _resolve_price_zone
 from src.domain.config_knobs import merge_settings_block
 from src.domain.models.trade import TradeDirection
@@ -246,4 +247,6 @@ def align_or_keep_meta_side(
     if aligned != exec_dir and applied and edge_v > 0.0 and aligned != dl_dir:
         metrics["price_zone_kept_meta_side"] = True
         return exec_dir
+    if edge_v <= 0.0 and bool(metrics.get("rsi_trend_align_enabled")):
+        return align_direction_to_rsi_trend(aligned, metrics)
     return aligned

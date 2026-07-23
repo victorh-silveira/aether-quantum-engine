@@ -113,11 +113,7 @@ class LogParser:
             if not tokens:
                 return
             chosen = next(
-                (
-                    token
-                    for token in tokens
-                    if not token.group("veto") and not token.group("veto_inline")
-                ),
+                (token for token in tokens if not token.group("veto") and not token.group("veto_inline")),
                 tokens[0],
             )
             self.state.last_telemetry["symbol"] = chosen.group("symbol").upper()

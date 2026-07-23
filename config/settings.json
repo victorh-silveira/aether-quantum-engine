@@ -304,6 +304,7 @@
     "broker_handshake_timeout_seconds": 90.0,
     "cycle_interval_seconds": 120,
     "execution": {
+      "align_rsi_trend": true,
       "bb_width_adaptive_squeeze": {
         "anomaly_ratio": 0.4,
         "enabled": false,
