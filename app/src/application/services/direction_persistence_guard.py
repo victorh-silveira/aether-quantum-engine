@@ -20,11 +20,11 @@ __all__ = ["evaluate_direction_persistence_guard", "log_regime_guard"]
 
 
 def _guard_blocked_same_direction(
-    symbol: str, proposed: TradeDirection, metrics: dict[str, Any], cycle_id: int
+    symbol: str, proposed: TradeDirection, metrics: dict[str, Any], cycle_id: int, infra_cfg: dict | None = None
 ) -> TradeDirection | None:
-    """Bloqueia repeticao da mesma direcao apos duas perdas consecutivas."""
+    """Bloqueia repeticao da mesma direcao apos perdas consecutivas."""
     count = consecutive_direction_losses(symbol, proposed.name)
-    if count >= int(resolve_direction_persistence_config()["same_direction_count_threshold"]):
+    if count >= int(resolve_direction_persistence_config(infra_cfg)["same_direction_count_threshold"]):
         _mark_guard(metrics, count)
         if apply_regime_freeze_if_congested(metrics, persistence_filter_active=True):
             _freeze_cycle(metrics, cycle_id, count)
@@ -46,7 +46,7 @@ def evaluate_direction_persistence_guard(
     """Aplica anti-trend-lock com freeze cross-symbol ou congelamento por congestao."""
     if not symbol:
         return proposed
-    blocked = _guard_blocked_same_direction(symbol, proposed, metrics, cycle_id)
+    blocked = _guard_blocked_same_direction(symbol, proposed, metrics, cycle_id, infra_cfg=infra_cfg)
     if blocked is None:
         return None
     if isinstance(peer_entry, dict):

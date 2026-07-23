@@ -152,11 +152,12 @@ def test_persistence_flips_to_opposite_instead_of_deadlock():
         recovery_active=True,
         cycle_id=11,
         exec_cfg={
+            "direction_persistence": {"same_direction_count_threshold": 2},
             "quality_gate": {
                 "min_direction_margin": 0.0,
                 "min_payoff_edge": 0.0,
                 "regular": {"min_direction_margin": 0.0, "min_payoff_edge": 0.0},
-            }
+            },
         },
     )
     assert result is not None

@@ -185,7 +185,7 @@ def test_single_symbol_guard_blocks_repeat_without_peer():
             entry={"metrics": {"calibrated_prob": 0.7}},
             peer_entry=None,
             cycle_id=40,
-            infra_cfg=None,
+            infra_cfg={"direction_persistence": {"same_direction_count_threshold": 2}},
         )
         is None
     )

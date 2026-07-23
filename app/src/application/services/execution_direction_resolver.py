@@ -234,6 +234,7 @@ def resolve_execution_direction(
         _stamp_direction_resolved_cycle(entry, active_cycle)
         return None
     dl_dir, metrics, prob = checks
+    effective_infra = infra_cfg if infra_cfg is not None else exec_cfg_dict
     persisted = _apply_persistence_guard_skip(
         entry,
         metrics,
@@ -241,7 +242,7 @@ def resolve_execution_direction(
         symbol=symbol,
         peer_entry=peer_entry,
         cycle_id=cycle_id,
-        infra_cfg=infra_cfg,
+        infra_cfg=effective_infra,
         force=force,
     )
     if persisted is None:

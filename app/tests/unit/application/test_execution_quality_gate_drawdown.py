@@ -48,6 +48,18 @@ def test_apply_dynamic_recovery_relaxation_scales_with_pending():
         linear=2,
         pending=pending,
         session_unit=unit,
+        exec_cfg={
+            "quality_gate": {
+                "recovery_relax": {
+                    "min_linear": 2,
+                    "margin_floor": 0.02,
+                    "edge_floor": 0.0,
+                    "full_pending_units": 8.0,
+                    "edge_zscore_waiver": 0.5,
+                    "session_stake_unit_bankroll_pct": 0.0015,
+                }
+            }
+        },
     )
     assert intensity == pytest.approx(expected_intensity)
     assert margin == pytest.approx(0.12 * (1.0 - expected_intensity) + 0.02 * expected_intensity)

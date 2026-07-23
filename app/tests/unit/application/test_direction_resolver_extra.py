@@ -90,8 +90,15 @@ def test_resolve_persistence_guard_freeze_skips_without_inverting():
             return_value=2,
         ),
     ):
-        result = resolve_execution_direction(entry, symbol="R_10", cycle_id=11)
-    assert result is None
+        assert (
+            resolve_execution_direction(
+                entry,
+                symbol="R_10",
+                cycle_id=11,
+                exec_cfg={"direction_persistence": {"same_direction_count_threshold": 2}},
+            )
+            is None
+        )
     assert entry["metrics"].get("persistence_guard_skip") is True
     assert entry["metrics"].get("gate_reason") == "persistence_guard_skip"
 

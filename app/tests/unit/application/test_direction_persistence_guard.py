@@ -52,7 +52,7 @@ def test_anti_trend_lock_blocks_repeat_call_and_allows_other_direction():
         entry=_entry(),
         peer_entry=None,
         cycle_id=7,
-        infra_cfg=None,
+        infra_cfg={"direction_persistence": {"same_direction_count_threshold": 2}},
     )
     assert blocked is None
     reset_direction_persistence_tracker()
@@ -66,7 +66,7 @@ def test_anti_trend_lock_blocks_repeat_call_and_allows_other_direction():
         entry=_entry(prob=0.65),
         peer_entry=None,
         cycle_id=5,
-        infra_cfg=None,
+        infra_cfg={"direction_persistence": {"same_direction_count_threshold": 2}},
     )
     assert allowed == TradeDirection.CALL
     repeat_put = evaluate_direction_persistence_guard(
@@ -77,7 +77,7 @@ def test_anti_trend_lock_blocks_repeat_call_and_allows_other_direction():
         entry=_entry(prob=0.35),
         peer_entry=None,
         cycle_id=3,
-        infra_cfg=None,
+        infra_cfg={"direction_persistence": {"same_direction_count_threshold": 2}},
     )
     assert repeat_put is None
 
@@ -93,8 +93,8 @@ def test_peer_flip_noop_when_anchors_equal():
         metrics,
         entry=_entry(prob=0.30),
         peer_entry=_entry(prob=0.55),
-        cycle_id=9,
-        infra_cfg=None,
+        cycle_id=4,
+        infra_cfg={"direction_persistence": {"same_direction_count_threshold": 2}},
     )
     assert result == TradeDirection.PUT
     assert "regime_guard_action" not in metrics
@@ -128,7 +128,7 @@ def test_same_direction_block_without_peer_entry():
         entry=_entry(),
         peer_entry=None,
         cycle_id=9,
-        infra_cfg=None,
+        infra_cfg={"direction_persistence": {"same_direction_count_threshold": 2}},
     )
     assert frozen is None
 
@@ -202,7 +202,13 @@ def test_resolver_and_guard_noop_paths():
             "edge_zscore_samples": 20,
         },
     }
-    result = resolve_execution_direction(entry, symbol="R_10", peer_entry=None, cycle_id=8)
+    result = resolve_execution_direction(
+        entry,
+        symbol="R_10",
+        peer_entry=None,
+        cycle_id=8,
+        exec_cfg={"direction_persistence": {"same_direction_count_threshold": 2}},
+    )
     assert result is not None
     assert result[0] == TradeDirection.PUT
     assert result[1].get("persistence_guard_flip") == "PUT"

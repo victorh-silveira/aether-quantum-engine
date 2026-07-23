@@ -31,7 +31,7 @@ def _apply_persistence_guard_skip(
     if guarded is not None:
         return guarded
     opposite = TradeDirection.CALL if dl_dir == TradeDirection.PUT else TradeDirection.PUT
-    threshold = int(resolve_direction_persistence_config()["same_direction_count_threshold"])
+    threshold = int(resolve_direction_persistence_config(infra_cfg)["same_direction_count_threshold"])
     if symbol and consecutive_direction_losses(symbol, opposite.name) < threshold:
         metrics.pop("persistence_guard_skip", None)
         metrics.pop("quality_guard_reject", None)
