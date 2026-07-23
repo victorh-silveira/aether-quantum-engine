@@ -40,9 +40,9 @@ def test_side_eq_rejects_flip_against_price_zone():
         record_side_equilibrium_outcome(orch, "R_10", direction="CALL", won=True)
     for _ in range(4):
         record_side_equilibrium_outcome(orch, "R_10", direction="CALL", won=False)
-    for _ in range(2):
+    for _ in range(3):
         record_side_equilibrium_outcome(orch, "R_10", direction="PUT", won=True)
-    metrics = {"price_zone_direction": "CALL"}
+    metrics = {"price_zone_direction": "CALL", "direction_margin": 0.05}
     chosen = resolve_direction_with_side_equilibrium(orch, "R_10", TradeDirection.CALL, metrics)
     assert chosen is None
     assert metrics.get("side_eq_flip_zone_conflict") is True
@@ -53,7 +53,7 @@ def test_side_eq_toxic_escape_allows_flip_against_zone():
     orch = _orch_with_side_eq(n_min_small=2, wr_floor_small=0.40, freq_bias_max_small=0.70)
     for _ in range(2):
         record_side_equilibrium_outcome(orch, "R_10", direction="PUT", won=False)
-    for _ in range(2):
+    for _ in range(3):
         record_side_equilibrium_outcome(orch, "R_10", direction="CALL", won=True)
     metrics = {"price_zone_direction": "PUT"}
     chosen = resolve_direction_with_side_equilibrium(orch, "R_10", TradeDirection.PUT, metrics)
@@ -68,7 +68,7 @@ def test_side_eq_flip_logs_once_when_resolve_called_twice():
     orch._active_cycle_id = 7
     for _ in range(2):
         record_side_equilibrium_outcome(orch, "R_10", direction="PUT", won=False)
-    for _ in range(2):
+    for _ in range(3):
         record_side_equilibrium_outcome(orch, "R_10", direction="CALL", won=True)
     metrics: dict = {}
     with patch("src.application.services.side_equilibrium_helpers.logger") as mock_logger:
@@ -178,7 +178,7 @@ def test_side_eq_recovery_keeps_on_zone_conflict():
         record_side_equilibrium_outcome(orch, "R_10", direction="PUT", won=True)
     for _ in range(4):
         record_side_equilibrium_outcome(orch, "R_10", direction="PUT", won=False)
-    for _ in range(2):
+    for _ in range(3):
         record_side_equilibrium_outcome(orch, "R_10", direction="CALL", won=True)
     metrics = {"price_zone_direction": "PUT", "direction_margin": 0.08}
     chosen = resolve_direction_with_side_equilibrium(

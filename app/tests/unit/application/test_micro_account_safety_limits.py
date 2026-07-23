@@ -28,13 +28,10 @@ def test_micro_capital_max_safe_stake_cap():
     assert max_safe_stake_cap(70.0, consecutive_losses_linear=5, soft_recovery=soft) == pytest.approx(3.5)
 
 
-def test_starvation_decay_skips_threshold_6():
-    # Abaixo do limiar (5 skips) -> Sem decaimento (1.0)
-    assert starvation_decay_factor(5) == 1.0
-    # Exatamente no limiar (6 skips) -> 10% de decaimento (0.90)
-    assert starvation_decay_factor(6) == 0.90
-    # Acima do limiar (7 skips) -> 20% de decaimento (0.80)
-    assert starvation_decay_factor(7) == 0.80
+def test_starvation_decay_skips_threshold_8():
+    assert starvation_decay_factor(7) == 1.0
+    assert starvation_decay_factor(8) == pytest.approx(0.90)
+    assert starvation_decay_factor(9) == pytest.approx(0.80)
 
 
 def test_state_manager_float_tolerance():

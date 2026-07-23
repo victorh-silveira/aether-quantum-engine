@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -63,8 +63,9 @@ def test_log_cooldown_cooling_down_dedupes():
     logger = MagicMock()
     deduper = LogDeduper(owner)
 
-    deduper.log_cooldown_cooling_down(logger, "msg", 15.0, 2)
-    deduper.log_cooldown_cooling_down(logger, "msg", 15.0, 2)
+    with patch("src.application.services.log_dedupe.time.time", return_value=1000.0):
+        deduper.log_cooldown_cooling_down(logger, "msg", 15.0, 2)
+        deduper.log_cooldown_cooling_down(logger, "msg", 15.0, 2)
 
     assert logger.info.call_count == 1
     assert logger.debug.call_count == 1
@@ -76,8 +77,12 @@ async def test_log_cooldown_cooling_down_inside_loop():
     logger = MagicMock()
     deduper = LogDeduper(owner)
 
-    deduper.log_cooldown_cooling_down(logger, "msg", 15.0, 2)
-    deduper.log_cooldown_cooling_down(logger, "msg", 15.0, 2)
+    with patch("src.application.services.log_dedupe.asyncio.get_running_loop") as get_loop:
+        loop = MagicMock()
+        loop.time.return_value = 1000.0
+        get_loop.return_value = loop
+        deduper.log_cooldown_cooling_down(logger, "msg", 15.0, 2)
+        deduper.log_cooldown_cooling_down(logger, "msg", 15.0, 2)
 
     assert logger.info.call_count == 1
     assert logger.debug.call_count == 1
@@ -88,8 +93,9 @@ def test_log_cooldown_skip_dedupes():
     logger = MagicMock()
     deduper = LogDeduper(owner)
 
-    deduper.log_cooldown_skip(logger, "skip")
-    deduper.log_cooldown_skip(logger, "skip")
+    with patch("src.application.services.log_dedupe.time.time", return_value=1000.0):
+        deduper.log_cooldown_skip(logger, "skip")
+        deduper.log_cooldown_skip(logger, "skip")
 
     assert logger.info.call_count == 1
     assert logger.debug.call_count == 1
@@ -101,8 +107,12 @@ async def test_log_cooldown_skip_inside_loop():
     logger = MagicMock()
     deduper = LogDeduper(owner)
 
-    deduper.log_cooldown_skip(logger, "skip")
-    deduper.log_cooldown_skip(logger, "skip")
+    with patch("src.application.services.log_dedupe.asyncio.get_running_loop") as get_loop:
+        loop = MagicMock()
+        loop.time.return_value = 1000.0
+        get_loop.return_value = loop
+        deduper.log_cooldown_skip(logger, "skip")
+        deduper.log_cooldown_skip(logger, "skip")
 
     assert logger.info.call_count == 1
     assert logger.debug.call_count == 1

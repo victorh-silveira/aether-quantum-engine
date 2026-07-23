@@ -232,7 +232,20 @@ def test_apply_quality_penalty_returns_unit_penalty_on_reject():
     }
     penalty = apply_quality_penalty_to_metrics(metrics, exec_cfg=exec_cfg, risk_manager=risk_manager)
     assert penalty == 1.0
-    assert metrics.get("quality_gate_reason") == "direction_margin_gate"
+    assert metrics.get("quality_penalty_reason") == "direction_margin_gate"
+    assert "quality_gate_reason" not in metrics
+    assert "quality_guard_reject" not in metrics
+
+
+def test_apply_quality_penalty_skips_ready_candidate():
+    metrics = {
+        "calibrated_prob": 0.505,
+        "execution_candidate_ready": True,
+        "dl_direction": "PUT",
+    }
+    assert apply_quality_penalty_to_metrics(metrics) == 0.0
+    assert "quality_gate_reason" not in metrics
+    assert "quality_guard_reject" not in metrics
 
 
 def test_apply_quality_penalty_returns_zero_on_pass():

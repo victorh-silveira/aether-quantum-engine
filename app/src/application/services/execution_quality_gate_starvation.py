@@ -125,15 +125,19 @@ def apply_starvation_edge_decay(
 ) -> float:
     """Resolve ou aplica apply starvation edge decay."""
     starvation = _qg(exec_cfg)["starvation"]
-    decay = starvation_decay_factor(skipped_cycles, exec_cfg=exec_cfg)
-    if decay >= 1.0:
-        return float(edge)
-    decayed = float(edge) - (1.0 - decay) * float(starvation["edge_decay_multiplier"])
+    count = max(0, int(skipped_cycles))
+    decay = starvation_decay_factor(count, exec_cfg=exec_cfg)
+    decayed = float(edge)
+    if decay < 1.0:
+        decayed = float(edge) - (1.0 - decay) * float(starvation["edge_decay_multiplier"])
     floor = float(starvation["edge_decay_floor"])
     cycles = int(starvation["edge_decay_cycles"])
-    if skipped_cycles >= cycles:
-        floor -= (skipped_cycles - (cycles - 1)) * float(starvation["edge_decay_floor_step"])
-    return max(floor, decayed)
+    if count >= cycles:
+        floor -= (count - (cycles - 1)) * float(starvation["edge_decay_floor_step"])
+        return max(floor, decayed)
+    if decay < 1.0:
+        return max(floor, decayed)
+    return float(edge)
 
 
 async def load_quality_skipped_cycles_counter(store: Any) -> int:

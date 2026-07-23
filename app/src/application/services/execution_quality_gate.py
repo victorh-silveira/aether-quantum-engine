@@ -9,6 +9,11 @@ from src.application.services.execution_quality_gate_drawdown import (
     apply_dynamic_recovery_relaxation,
     resolve_session_stake_unit,
 )
+from src.application.services.execution_quality_gate_margin import (
+    direction_margin_from_probability,
+    ensure_direction_margin,
+    sync_direction_margin,
+)
 from src.application.services.execution_quality_gate_microstructure import apply_microstructure_starvation_veto
 from src.application.services.execution_quality_gate_reason import (
     format_quality_guard_log_message,
@@ -170,42 +175,6 @@ def resolve_dynamic_quality_limits(
     }
 
 
-def direction_margin_from_probability(call_probability: float, *, direction: str | None = None) -> float:
-    """Calcula distancia da confianca lateral escolhida ao centro neutro 0.50."""
-    call_score = max(0.0, min(1.0, float(call_probability)))
-    side_probability = call_score
-    if str(direction or "").upper() == "PUT":
-        side_probability = 1.0 - call_score
-    return abs(side_probability - 0.5)
-
-
-def ensure_direction_margin(metrics: dict) -> float:
-    """Garante direction_margin a partir da probabilidade calibrada ou bruta."""
-    prob = metrics.get("calibrated_prob", metrics.get("raw_prob"))
-    if prob is not None:
-        direction = metrics.get("exec_direction") or metrics.get("resolved_direction") or metrics.get("dl_direction")
-        margin = direction_margin_from_probability(
-            float(prob),
-            direction=str(direction) if direction is not None else None,
-        )
-    else:
-        stored = metrics.get("direction_margin")
-        margin = float(stored) if stored is not None else 0.0
-    metrics["direction_margin"] = margin
-    return margin
-
-
-def sync_direction_margin(metrics: dict, *, direction: str) -> float:
-    """Atualiza direction_margin a partir da probabilidade calibrada ou scores laterais."""
-    prob = metrics.get("calibrated_prob", metrics.get("raw_prob"))
-    if prob is not None:
-        margin = direction_margin_from_probability(float(prob), direction=direction)
-    else:
-        margin = abs(float(metrics["direction_call_score"]) - float(metrics["direction_put_score"]))
-    metrics["direction_margin"] = margin
-    return margin
-
-
 def passes_execution_quality(
     metrics: dict,
     *,
@@ -273,9 +242,36 @@ def apply_quality_penalty_to_metrics(
     *,
     exec_cfg: dict | None = None,
     risk_manager: Any | None = None,
-    **_kwargs,
+    skipped_cycles_counter: int | None = None,
+    orch: Any | None = None,
+    **kwargs,
 ) -> float:
-    """Aplica veto de qualidade retornando penalidade unitaria quando o gate reprova."""
-    if passes_execution_quality(metrics, exec_cfg=exec_cfg, risk_manager=risk_manager):
+    """Pontua rejeicao de qualidade sem mutar flags duras no candidato pronto."""
+    if bool(metrics.get("execution_candidate_ready")):
         return 0.0
+    probe = dict(metrics)
+    passed = passes_execution_quality(
+        probe,
+        exec_cfg=exec_cfg,
+        risk_manager=risk_manager,
+        skipped_cycles_counter=skipped_cycles_counter,
+        orch=orch,
+        **kwargs,
+    )
+    for key in (
+        "quality_gate_regime",
+        "quality_min_direction_margin",
+        "quality_min_payoff_edge",
+        "quality_starvation_decay_factor",
+        "quality_skipped_cycles_counter",
+        "recovery_relax_intensity",
+        "direction_margin",
+    ):
+        if key in probe:
+            metrics[key] = probe[key]
+    if passed:
+        return 0.0
+    reason = probe.get("quality_gate_reason")
+    if isinstance(reason, str) and reason.strip():
+        metrics["quality_penalty_reason"] = reason.strip()
     return 1.0

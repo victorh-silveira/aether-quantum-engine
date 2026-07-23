@@ -224,7 +224,7 @@ def test_resolve_direction_flips_put_hard_skip_to_call_with_better_wr():
     orch = _orch_with_side_eq(n_min_small=2, wr_floor_small=0.40, freq_bias_max_small=0.70)
     for _ in range(2):
         record_side_equilibrium_outcome(orch, "R_10", direction="PUT", won=False)
-    for _ in range(2):
+    for _ in range(3):
         record_side_equilibrium_outcome(orch, "R_10", direction="CALL", won=True)
     metrics: dict = {}
     chosen = resolve_direction_with_side_equilibrium(orch, "R_10", TradeDirection.PUT, metrics)
@@ -263,13 +263,29 @@ def test_side_eq_recovery_keeps_proposed_when_flip_not_better():
     assert metrics.get("side_eq_blocked") is not True
 
 
+def test_side_eq_mandatory_no_longer_waives_flip_not_better():
+    orch = _orch_with_side_eq(n_min_small=2, wr_floor_small=0.40, freq_bias_max_small=0.70)
+    for _ in range(2):
+        record_side_equilibrium_outcome(orch, "R_10", direction="PUT", won=False)
+    metrics: dict = {"direction_margin": 0.012, "predicted_payoff_edge": -0.02}
+    chosen = resolve_direction_with_side_equilibrium(
+        orch,
+        "R_10",
+        TradeDirection.PUT,
+        metrics,
+    )
+    assert chosen is None
+    assert metrics.get("gate_reason") == "side_imbalance_flip_not_better"
+    assert metrics.get("side_eq_mandatory_keep") is not True
+
+
 def test_side_eq_blocks_thin_margin_flip_outside_recovery():
     orch = _orch_with_side_eq(n_min_small=2, wr_floor_small=0.40, freq_bias_max_small=0.70)
     for _ in range(4):
         record_side_equilibrium_outcome(orch, "R_10", direction="PUT", won=True)
     for _ in range(4):
         record_side_equilibrium_outcome(orch, "R_10", direction="PUT", won=False)
-    for _ in range(2):
+    for _ in range(3):
         record_side_equilibrium_outcome(orch, "R_10", direction="CALL", won=True)
     metrics = {"direction_margin": 0.012}
     chosen = resolve_direction_with_side_equilibrium(orch, "R_10", TradeDirection.PUT, metrics)

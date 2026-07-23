@@ -89,13 +89,17 @@ def test_side_eq_helpers():
     toxic = SideEquilibriumDecision(action=ACTION_HARD_SKIP, reason="x", side_wr=None)
     assert primary_side_is_toxic(toxic) is True
     assert flip_conflicts_price_zone(TradeDirection.CALL, {"price_zone_direction": "PUT"}) is True
-    alt = SideEquilibriumDecision(action=ACTION_PASS, reason="ok", side_wr=0.6, call_n=2, call_wins=1)
+    alt = SideEquilibriumDecision(action=ACTION_PASS, reason="ok", side_wr=0.6, call_n=3, call_wins=2)
     pri = SideEquilibriumDecision(action=ACTION_HARD_SKIP, reason="x", side_wr=None)
     assert alternate_side_is_preferable(pri, alt, opposite=TradeDirection.CALL) is True
-    alt_none = SideEquilibriumDecision(action=ACTION_PASS, reason="ok", side_wr=None, call_n=2)
+    alt_none = SideEquilibriumDecision(action=ACTION_PASS, reason="ok", side_wr=None, call_n=3)
     assert alternate_side_is_preferable(pri, alt_none, opposite=TradeDirection.CALL) is False
-    weak_alt = SideEquilibriumDecision(action=ACTION_PASS, reason="ok", side_wr=0.05, call_n=2, call_wins=0)
+    thin_alt = SideEquilibriumDecision(action=ACTION_PASS, reason="ok", side_wr=0.6, call_n=2, call_wins=1)
+    assert alternate_side_is_preferable(pri, thin_alt, opposite=TradeDirection.CALL) is False
+    weak_alt = SideEquilibriumDecision(action=ACTION_PASS, reason="ok", side_wr=0.50, call_n=3, call_wins=1)
     toxic_pri = SideEquilibriumDecision(action=ACTION_HARD_SKIP, reason="x", side_wr=0.0)
     assert alternate_side_is_preferable(toxic_pri, weak_alt, opposite=TradeDirection.CALL) is False
-    strong_alt = SideEquilibriumDecision(action=ACTION_PASS, reason="ok", side_wr=0.55, call_n=2, call_wins=1)
+    strong_alt = SideEquilibriumDecision(action=ACTION_PASS, reason="ok", side_wr=0.55, call_n=3, call_wins=2)
     assert alternate_side_is_preferable(toxic_pri, strong_alt, opposite=TradeDirection.CALL) is True
+    better_alt = SideEquilibriumDecision(action=ACTION_PASS, reason="ok", side_wr=0.70, call_n=3, call_wins=2)
+    assert alternate_side_is_preferable(toxic_pri, better_alt, opposite=TradeDirection.CALL) is True

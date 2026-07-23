@@ -77,8 +77,8 @@
       "trust_blend_span": 0.2,
       "val_acc_trust_floor": 0.5
     },
-    "confidence_call_threshold": 0.51,
-    "confidence_put_threshold": 0.49,
+    "confidence_call_threshold": 0.53,
+    "confidence_put_threshold": 0.47,
     "deploy_gate": {
       "enabled": true,
       "eval_call_threshold_cap": 0.65,
@@ -406,11 +406,11 @@
         },
         "max_edge_without_margin": 999.0,
         "max_zscore_without_margin": 999.0,
-        "min_direction_margin": 0.01,
-        "recovery_min_direction_margin": 0.0,
+        "min_direction_margin": 0.03,
+        "recovery_min_direction_margin": 0.02,
         "recovery_min_hurst": 0.0
       },
-      "mandatory_trade_each_cycle": true,
+      "mandatory_trade_each_cycle": false,
       "market_rank": {
         "composite": {
           "adx_strong_bonus": 0.05,
@@ -449,7 +449,7 @@
       },
       "meta_payoff_veto": {
         "negative_zscore_threshold": -0.75,
-        "neutral_edge_floor": 0.02,
+        "neutral_edge_floor": 0.03,
         "soft_veto_min_score": 0.52,
         "soft_veto_score_factor": 0.85,
         "squeeze_trade_score": 0.52
@@ -474,11 +474,11 @@
       ],
       "quality_gate": {
         "inverted_min_score": 0.0,
-        "mandatory_min_trade_score": 0.5,
+        "mandatory_min_trade_score": 0.56,
         "min_adx_threshold": 0.0,
-        "min_direction_margin": 0.01,
+        "min_direction_margin": 0.03,
         "min_meta_payoff_zscore": 0.5,
-        "min_payoff_edge": 0.0,
+        "min_payoff_edge": 0.02,
         "neutral_meta_payoff": {
           "hi": 0.04,
           "lo": -0.05
@@ -489,22 +489,22 @@
           "skip_step": 5
         },
         "recovery_relax": {
-          "edge_floor": -0.55,
+          "edge_floor": 0.0,
           "edge_zscore_waiver": 0.5,
           "full_pending_units": 8.0,
-          "margin_floor": 0.005,
+          "margin_floor": 0.02,
           "min_linear": 2,
           "session_stake_unit_bankroll_pct": 0.0015
         },
         "regular": {
-          "min_direction_margin": 0.01,
-          "min_payoff_edge": 0.0
+          "min_direction_margin": 0.03,
+          "min_payoff_edge": 0.02
         },
         "starvation": {
           "decay_floor": 0.2,
           "decay_step": 0.1,
-          "decay_threshold": 6,
-          "edge_decay_cycles": 4,
+          "decay_threshold": 8,
+          "edge_decay_cycles": 10,
           "edge_decay_floor": 0.0,
           "edge_decay_floor_step": 0.1,
           "edge_decay_multiplier": 2.0
@@ -514,7 +514,7 @@
         "chop_congestion_z_edge": 0.2,
         "tick_accel_neutral_eps": 0.01
       },
-      "require_meta_for_execution": false,
+      "require_meta_for_execution": true,
       "settlement_max_stagnant_polls": 24,
       "settlement_poll_seconds": 0.25,
       "settlement_post_expiry_slack_seconds": 2.0,
@@ -591,7 +591,7 @@
       "fraction_compressed": 0.0012,
       "fraction_reference": 0.0035,
       "high_conviction_stake_threshold": 0.0,
-      "mandatory_min_trade_score": 0.5,
+      "mandatory_min_trade_score": 0.56,
       "mandatory_weak_conviction_cap": 0.55,
       "mandatory_weak_max_stake_pct": 0.01,
       "max_bankroll_stake_fraction": 0.035,

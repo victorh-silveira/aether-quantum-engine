@@ -51,6 +51,86 @@ def test_resolve_mild_negative_edge_is_blocked():
     assert entry["metrics"].get("gate_reason") == "meta_negative_edge"
 
 
+def test_resolve_mild_negative_edge_blocked_even_with_mandatory_flag():
+    entry = _entry(direction=TradeDirection.PUT, calibrated_prob=0.46)
+    entry["metrics"]["predicted_payoff_edge"] = -0.15
+    entry["metrics"]["meta_classifier_applied"] = True
+    entry["metrics"]["indicators"] = {"bb_width": 0.09, "adx": 0.25, "rsi": 0.4}
+    entry["metrics"]["flow_features"] = {"micro_tick_acceleration": 0.04}
+    entry["metrics"]["edge_zscore"] = 0.0
+    entry["metrics"]["meta_payoff_edge_zscore"] = 0.0
+    entry["metrics"]["edge_zscore_samples"] = 20
+    result = resolve_execution_direction(
+        entry,
+        symbol="R_10",
+        skipped_cycles_counter=0,
+        exec_cfg={
+            "mandatory_trade_each_cycle": True,
+            "quality_gate": {
+                "min_direction_margin": 0.03,
+                "min_payoff_edge": 0.02,
+                "regular": {"min_direction_margin": 0.03, "min_payoff_edge": 0.02},
+            },
+        },
+    )
+    assert result is None
+    assert entry["metrics"].get("gate_reason") == "meta_negative_edge"
+    assert entry["metrics"].get("meta_negative_edge_mandatory_waiver") is not True
+
+
+def test_resolve_thin_put_margin_rejected_by_quality_floor():
+    entry = _entry(direction=TradeDirection.PUT, calibrated_prob=0.490)
+    entry["metrics"]["predicted_payoff_edge"] = 0.06
+    entry["metrics"]["meta_classifier_applied"] = True
+    entry["metrics"]["indicators"] = {"bb_width": 0.09, "adx": 0.25, "rsi": 0.4}
+    entry["metrics"]["flow_features"] = {"micro_tick_acceleration": 0.04}
+    entry["metrics"]["edge_zscore"] = 0.0
+    entry["metrics"]["meta_payoff_edge_zscore"] = 0.0
+    entry["metrics"]["edge_zscore_samples"] = 20
+    result = resolve_execution_direction(
+        entry,
+        symbol="R_10",
+        skipped_cycles_counter=0,
+        exec_cfg={
+            "quality_gate": {
+                "min_direction_margin": 0.03,
+                "min_payoff_edge": 0.02,
+                "regular": {"min_direction_margin": 0.03, "min_payoff_edge": 0.02},
+            },
+        },
+    )
+    assert result is None
+    assert entry["metrics"].get("quality_gate_reason") == "direction_margin_gate"
+
+
+def test_resolve_defined_direction_with_positive_edge_passes():
+    entry = _entry(direction=TradeDirection.PUT, calibrated_prob=0.44)
+    entry["metrics"]["predicted_payoff_edge"] = 0.05
+    entry["metrics"]["meta_classifier_applied"] = True
+    entry["metrics"]["indicators"] = {"bb_width": 0.09, "adx": 0.25, "rsi": 0.4}
+    entry["metrics"]["flow_features"] = {"micro_tick_acceleration": 0.04}
+    entry["metrics"]["edge_zscore"] = 0.2
+    entry["metrics"]["meta_payoff_edge_zscore"] = 0.2
+    entry["metrics"]["edge_zscore_samples"] = 20
+    result = resolve_execution_direction(
+        entry,
+        symbol="R_10",
+        skipped_cycles_counter=0,
+        exec_cfg={
+            "require_meta_for_execution": True,
+            "quality_gate": {
+                "min_direction_margin": 0.03,
+                "min_payoff_edge": 0.02,
+                "regular": {"min_direction_margin": 0.03, "min_payoff_edge": 0.02},
+            },
+        },
+    )
+    assert result is not None
+    assert result[0] == TradeDirection.PUT
+    assert entry["metrics"].get("quality_gate_reason") != "direction_margin_gate"
+    assert entry["metrics"].get("gate_reason") != "meta_negative_edge"
+
+
 def test_resolve_negative_edge_allowed_under_starvation_floor():
     entry = _entry(direction=TradeDirection.PUT, calibrated_prob=0.46)
     entry["metrics"]["predicted_payoff_edge"] = -0.16
@@ -61,7 +141,7 @@ def test_resolve_negative_edge_allowed_under_starvation_floor():
     result = resolve_execution_direction(
         entry,
         symbol="R_10",
-        skipped_cycles_counter=13,
+        skipped_cycles_counter=16,
         exec_cfg={
             "quality_gate": {
                 "min_direction_margin": 0.0,
@@ -76,7 +156,7 @@ def test_resolve_negative_edge_allowed_under_starvation_floor():
     assert float(entry["metrics"].get("meta_edge_floor", 0.0)) <= -0.16
 
 
-def test_resolve_negative_edge_allowed_in_recovery_with_low_skips():
+def test_resolve_negative_edge_blocked_in_recovery_with_non_negative_floor():
     entry = _entry(direction=TradeDirection.PUT, calibrated_prob=0.46)
     entry["metrics"]["predicted_payoff_edge"] = -0.20
     entry["metrics"]["meta_classifier_applied"] = True
@@ -93,14 +173,21 @@ def test_resolve_negative_edge_allowed_in_recovery_with_low_skips():
         exec_cfg={
             "quality_gate": {
                 "min_direction_margin": 0.0,
-                "min_payoff_edge": 0.0,
-                "regular": {"min_direction_margin": 0.0, "min_payoff_edge": 0.0},
+                "min_payoff_edge": 0.02,
+                "regular": {"min_direction_margin": 0.0, "min_payoff_edge": 0.02},
+                "recovery_relax": {
+                    "edge_floor": 0.0,
+                    "edge_zscore_waiver": 0.5,
+                    "full_pending_units": 8.0,
+                    "margin_floor": 0.02,
+                    "min_linear": 2,
+                    "session_stake_unit_bankroll_pct": 0.0015,
+                },
             }
         },
     )
-    assert result is not None
-    assert result[0] == TradeDirection.PUT
-    assert entry["metrics"].get("meta_negative_edge_recovery_waiver") is True
+    assert result is None
+    assert entry["metrics"].get("gate_reason") == "meta_negative_edge"
 
 
 def test_resolve_aligns_negative_edge_put_to_buy_zone_under_starvation():
@@ -116,7 +203,7 @@ def test_resolve_aligns_negative_edge_put_to_buy_zone_under_starvation():
     result = resolve_execution_direction(
         entry,
         symbol="R_10",
-        skipped_cycles_counter=13,
+        skipped_cycles_counter=16,
         exec_cfg={
             "price_zone": {
                 "enabled": True,
@@ -140,7 +227,7 @@ def test_resolve_aligns_negative_edge_put_to_buy_zone_under_starvation():
     assert result[1].get("price_zone") == "BUY"
 
 
-def test_recovery_allows_same_side_after_loss_with_negative_edge_under_floor():
+def test_recovery_blocks_same_side_after_loss_with_negative_edge():
     from src.application.services.direction_loss_tracker import (
         record_direction_outcome,
         reset_direction_persistence_tracker,
@@ -161,13 +248,21 @@ def test_recovery_allows_same_side_after_loss_with_negative_edge_under_floor():
         exec_cfg={
             "quality_gate": {
                 "min_direction_margin": 0.0,
-                "min_payoff_edge": 0.0,
-                "regular": {"min_direction_margin": 0.0, "min_payoff_edge": 0.0},
+                "min_payoff_edge": 0.02,
+                "regular": {"min_direction_margin": 0.0, "min_payoff_edge": 0.02},
+                "recovery_relax": {
+                    "edge_floor": 0.0,
+                    "edge_zscore_waiver": 0.5,
+                    "full_pending_units": 8.0,
+                    "margin_floor": 0.02,
+                    "min_linear": 2,
+                    "session_stake_unit_bankroll_pct": 0.0015,
+                },
             }
         },
     )
-    assert result is not None
-    assert result[0] == TradeDirection.PUT
+    assert result is None
+    assert entry["metrics"].get("gate_reason") == "meta_negative_edge"
     reset_direction_persistence_tracker()
 
 

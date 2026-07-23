@@ -23,26 +23,24 @@ def _resolve_meta_edge_floor(
         skipped = max(0, int(skipped_cycles_counter))
     elif orch is not None:
         skipped = max(0, int(getattr(orch, "_quality_skipped_cycles_counter", 0) or 0))
-    stored = metrics.get("quality_min_payoff_edge")
-    if stored is not None:
-        floor = float(stored)
-    else:
-        limits = resolve_dynamic_quality_limits(
-            exec_cfg if isinstance(exec_cfg, dict) else {},
-            risk_manager=risk_manager,
-            skipped_cycles_counter=skipped,
-            orch=orch,
-        )
-        floor = float(limits["min_payoff_edge"])
-        metrics["quality_skipped_cycles_counter"] = float(limits.get("skipped_cycles_counter", skipped))
+    cfg = exec_cfg if isinstance(exec_cfg, dict) else {}
+    limits = resolve_dynamic_quality_limits(
+        cfg,
+        risk_manager=risk_manager,
+        skipped_cycles_counter=skipped,
+        orch=orch,
+    )
+    floor = float(limits["min_payoff_edge"])
+    metrics["quality_skipped_cycles_counter"] = float(limits.get("skipped_cycles_counter", skipped))
     in_recovery = bool(recovery_active)
     if not in_recovery and risk_manager is not None:
-        linear = int(getattr(risk_manager, "consecutive_losses_linear", 0) or 0)
+        raw_linear = getattr(risk_manager, "consecutive_losses_linear", 0)
+        linear = int(raw_linear) if isinstance(raw_linear, (int, float)) and not isinstance(raw_linear, bool) else 0
         pending_map = getattr(risk_manager, "pending_loss", None)
         pending = float(sum(pending_map.values())) if isinstance(pending_map, dict) else 0.0
         in_recovery = linear > 0 or pending > 0.0
+    qg = resolve_quality_gate_config(cfg if cfg else None)
     if in_recovery:
-        qg = resolve_quality_gate_config(exec_cfg if isinstance(exec_cfg, dict) else None)
         relax_floor = float(qg["recovery_relax"]["edge_floor"])
         if floor > relax_floor:
             floor = relax_floor

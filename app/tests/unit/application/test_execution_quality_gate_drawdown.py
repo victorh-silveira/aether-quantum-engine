@@ -50,9 +50,9 @@ def test_apply_dynamic_recovery_relaxation_scales_with_pending():
         session_unit=unit,
     )
     assert intensity == pytest.approx(expected_intensity)
-    assert margin == pytest.approx(0.12 * (1.0 - expected_intensity) + 0.005 * expected_intensity)
+    assert margin == pytest.approx(0.12 * (1.0 - expected_intensity) + 0.02 * expected_intensity)
     assert edge < 0.04
-    assert edge > -0.55
+    assert edge >= 0.0
 
 
 def test_recovery_drawdown_quality_limits_higher_pending_lowers_floors():

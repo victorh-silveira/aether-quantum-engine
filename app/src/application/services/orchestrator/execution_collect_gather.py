@@ -94,6 +94,8 @@ def gather_cluster_candidates(
             metrics,
             exec_cfg=exec_cfg if isinstance(exec_cfg, dict) else {},
             risk_manager=getattr(exec_mgr.orch, "risk_manager", None),
+            skipped_cycles_counter=int(getattr(exec_mgr.orch, "_quality_skipped_cycles_counter", 0) or 0),
+            orch=exec_mgr.orch,
         )
         apply_loss_protection_penalties(metrics, exec_direction=built[1])
         _sync_entry_metrics(entry, metrics)

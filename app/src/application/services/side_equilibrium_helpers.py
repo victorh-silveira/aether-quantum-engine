@@ -99,9 +99,9 @@ def alternate_side_is_preferable(
     alt_wr = alternate.side_wr
     pri_wr = primary.side_wr
     alt_n = int(alternate.call_n if opposite == TradeDirection.CALL else alternate.put_n)
-    if alt_n < 2 or alt_wr is None:
+    if alt_n < 3 or alt_wr is None:
         return False
-    if float(alt_wr) + 1e-12 < 0.50:
+    if float(alt_wr) + 1e-12 < 0.55:
         return False
     if pri_wr is None:
         return True

@@ -145,7 +145,7 @@ def test_collect_cluster_orders_recovery_bolts_hard_meta_reject():
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
-    assert len(orders) == 1
+    assert orders == []
 
 
 def test_collect_cluster_orders_recovery_allows_soft_tcn_entropy_fallback():

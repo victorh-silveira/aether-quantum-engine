@@ -123,6 +123,7 @@ def resolve_direction_with_side_equilibrium(
     recovery_active: bool = False,
 ) -> TradeDirection | None:
     """Escolhe lado equilibrado: hard-skip no proposto tenta o oposto; None se ambos bloqueados."""
+    waive_hard = bool(recovery_active)
     if bool(metrics.get("side_eq_gate_done")):
         if bool(metrics.get("side_eq_blocked")):
             if not str(metrics.get("gate_reason") or "").strip():
@@ -158,7 +159,7 @@ def resolve_direction_with_side_equilibrium(
     alternate = evaluate_proposed_side_equilibrium(orch, symbol, opposite)
     log_side_equilibrium(alternate, symbol=str(symbol or "?"), proposed=opposite, orch=orch)
     if alternate.action == ACTION_HARD_SKIP:
-        if recovery_active:
+        if waive_hard:
             return soft_keep_proposed(
                 metrics,
                 primary,
@@ -176,12 +177,13 @@ def resolve_direction_with_side_equilibrium(
     prefer_alt = alternate_side_is_preferable(primary, alternate, opposite=opposite)
     thin_blocks = thin_margin_blocks_flip(metrics) and not toxic_primary
     if not prefer_alt or thin_blocks:
-        if recovery_active:
+        if waive_hard:
+            keep_reason = "side_eq_recovery_keep" if not prefer_alt else "side_eq_recovery_thin_margin"
             return soft_keep_proposed(
                 metrics,
                 primary,
                 proposed,
-                reason="side_eq_recovery_keep" if not prefer_alt else "side_eq_recovery_thin_margin",
+                reason=keep_reason,
                 apply_metrics=apply_side_equilibrium_to_metrics,
             )
         apply_side_equilibrium_to_metrics(metrics, primary, proposed=proposed)
@@ -194,7 +196,7 @@ def resolve_direction_with_side_equilibrium(
         metrics["side_eq_flip_rejected"] = True
         return None
     if flip_conflicts_price_zone(opposite, metrics) and not toxic_primary:
-        if recovery_active:
+        if waive_hard:
             return soft_keep_proposed(
                 metrics,
                 primary,

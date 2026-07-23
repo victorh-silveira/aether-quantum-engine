@@ -128,7 +128,7 @@ def test_collect_cluster_orders_bolts_weak_signal_continuously():
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
-    assert len(orders) == 1
+    assert orders == []
 
     orch = SimpleNamespace(
         anchor=ANCHOR,
