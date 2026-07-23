@@ -81,13 +81,25 @@ def test_align_direction_to_rsi_trend():
 
     assert _rsi_di_oppose_direction({"macro_indicators": {"rsi": 0.70}}, TradeDirection.PUT) is True
 
-    m_align = {"rsi_trend_align_enabled": True, "macro_indicators": {"rsi": 0.70}}
+    m_overbought = {"macro_indicators": {"rsi": 0.80}}
+    assert align_direction_to_rsi_trend(TradeDirection.CALL, m_overbought) == TradeDirection.PUT
+    assert m_overbought.get("rsi_overbought_exhaustion") is True
+
+    m_oversold = {"macro_indicators": {"rsi": 0.20}}
+    assert align_direction_to_rsi_trend(TradeDirection.PUT, m_oversold) == TradeDirection.CALL
+    assert m_oversold.get("rsi_oversold_exhaustion") is True
+
+    m_align_low_margin = {
+        "rsi_trend_align_enabled": True,
+        "direction_margin": 0.010,
+        "macro_indicators": {"rsi": 0.65},
+    }
     assert (
         align_or_keep_meta_side(
             TradeDirection.PUT,
-            m_align,
+            m_align_low_margin,
             dl_dir=TradeDirection.PUT,
-            predicted_edge=-0.05,
+            predicted_edge=0.05,
             meta_applied=True,
         )
         == TradeDirection.CALL
