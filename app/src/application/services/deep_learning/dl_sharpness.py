@@ -39,9 +39,7 @@ def assert_export_sharpness_value(
     value = float(sharpness)
     min_floor = float(floor)
     if value + 1e-12 < min_floor:
-        raise RuntimeError(
-            f"Export TCN bloqueado: sharpness {label}={value:.4f} < min={min_floor:.4f}"
-        )
+        raise RuntimeError(f"Export TCN bloqueado: sharpness {label}={value:.4f} < min={min_floor:.4f}")
     return value
 
 

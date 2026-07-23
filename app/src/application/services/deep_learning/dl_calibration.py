@@ -118,6 +118,7 @@ def apply_calibrator(prob: float, calibrator: CalibratorState) -> float:
 
 
 def _margin_floor_from_settings() -> float:
+    """Le o piso minimo de margem de calibracao de settings.json."""
     path = repo_path("config", "settings.json")
     with path.open(encoding="utf-8") as handle:
         full = json.load(handle)
