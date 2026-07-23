@@ -150,6 +150,7 @@ def should_veto_meta_payoff_negative_zscore(
     direction: TradeDirection,
     risk_manager: Any | None = None,
     orch: Any | None = None,
+    recovery_active: bool = False,
 ) -> bool:
     """Soft veto por Z negativo; HARD com shadow positivo ou Z invertido anti-PnL."""
     _ = direction
@@ -212,25 +213,26 @@ def should_veto_meta_payoff_negative_zscore(
             )
         except Exception:
             waived = False
-    recovery_active = _recovery_active(risk_manager)
+    in_recovery = bool(recovery_active) or _recovery_active(risk_manager)
     edge_raw = metrics.get("predicted_payoff_edge")
     edge_positive = edge_raw is not None and float(edge_raw) > 0.0
-    inverted_recovery_soft = bool(inverted_hit and recovery_active and edge_positive)
+    inverted_recovery_soft = bool(inverted_hit and in_recovery and edge_positive)
     if inverted_recovery_soft:
         metrics["meta_shadow_inverted_recovery_soft"] = True
         inverted_hit = False
     recovery_severe = bool(
-        soft_hit and z_score is not None and float(z_score) <= float(RECOVERY_SEVERE_ZSCORE) and recovery_active
+        soft_hit and z_score is not None and float(z_score) <= float(RECOVERY_SEVERE_ZSCORE) and in_recovery
     )
+    recovery_severe_hard = bool(recovery_severe and not edge_positive)
     metrics["meta_recovery_severe_z"] = bool(recovery_severe)
-    metrics["meta_recovery_active"] = bool(recovery_active)
-    if (hard_allowed or inverted_hit or recovery_severe) and not waived:
+    metrics["meta_recovery_active"] = bool(in_recovery)
+    if (hard_allowed or inverted_hit or recovery_severe_hard) and not waived:
         apply_meta_payoff_negative_zscore_veto(metrics)
         metrics["meta_veto_mode"] = META_HARD_VETO_MODE
         metrics["meta_soft_veto_penalty"] = 0.0
         if inverted_hit:
             metrics["gate_reason"] = "meta_shadow_inverted_veto"
-        if recovery_severe:
+        if recovery_severe_hard:
             metrics["meta_recovery_severe_z_veto"] = True
         logger.info(
             "META_HARD_VETO | META_VETO_MODE=%s | shadow_corr=%+.3f | n=%d | z=%.3f | inverted=%s | recovery=%s",
@@ -239,10 +241,12 @@ def should_veto_meta_payoff_negative_zscore(
             n_shadow,
             float(z_score or 0.0),
             str(bool(inverted)).lower(),
-            str(bool(recovery_active)).lower(),
+            str(bool(in_recovery)).lower(),
         )
         return True
     _apply_soft_veto(metrics)
+    if recovery_severe and edge_positive:
+        metrics["meta_recovery_severe_z_soft"] = True
     logger.info(
         "META_VETO_MODE=%s | shadow_corr=%s | n=%d | z=%.3f",
         META_SOFT_VETO_MODE,

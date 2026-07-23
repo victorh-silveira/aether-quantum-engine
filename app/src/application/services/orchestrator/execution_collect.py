@@ -90,7 +90,11 @@ def _select_cluster_best(exec_mgr, candidates, *, mandatory, last_loss, recovery
 def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDirection, dict]]:
     """Seleciona uma ordem por ciclo em modo continuo obrigatorio."""
     mandatory = exec_mgr._mandatory_trade_each_cycle()
-    recovery_active = pending_recovery_active(getattr(exec_mgr.orch.risk_manager, "pending_loss", {}))
+    rm = exec_mgr.orch.risk_manager
+    recovery_active = pending_recovery_active(
+        getattr(rm, "pending_loss", {}),
+        int(getattr(rm, "consecutive_losses_linear", 0) or 0),
+    )
     dl_cfg = exec_mgr.orch.config.get("deep_learning", {})
     (kelly_cfg, skip_symbols, min_signal, min_val, min_edge, last_loss, exec_cfg) = extract_collect_params(
         exec_mgr, dl_cfg, recovery_active=recovery_active

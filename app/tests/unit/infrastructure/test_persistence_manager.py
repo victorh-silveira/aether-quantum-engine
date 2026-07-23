@@ -111,7 +111,7 @@ def test_persistence_save_retry_success(temp_persistence, monkeypatch):
 
 
 def test_persistence_save_retry_failure(temp_persistence, monkeypatch):
-    """Verifica se o salvamento falha após 8 tentativas de PermissionError."""
+    """Verifica fallback copy2 apos esgotar retries de PermissionError."""
 
     def mock_replace(self, target):
         raise PermissionError("Still locked")
@@ -120,6 +120,37 @@ def test_persistence_save_retry_failure(temp_persistence, monkeypatch):
     monkeypatch.setattr("time.sleep", lambda x: None)
 
     temp_persistence.save({"retry": "fail"})
+    assert temp_persistence.load() == {"retry": "fail"}
+
+
+def test_persistence_save_file_not_found_recreate(temp_persistence, monkeypatch):
+    """WinError 2: temp some e e recriado via copy fallback apos retries."""
+    calls = {"n": 0}
+    real_replace = Path.replace
+
+    def mock_replace(self, target):
+        calls["n"] += 1
+        if calls["n"] <= 2:
+            raise FileNotFoundError(2, "No such file", str(self))
+        return real_replace(self, target)
+
+    monkeypatch.setattr(Path, "replace", mock_replace)
+    monkeypatch.setattr("time.sleep", lambda x: None)
+    temp_persistence.save({"win": True})
+    assert temp_persistence.load() == {"win": True}
+
+
+def test_persistence_save_file_not_found_missing_temp(temp_persistence, monkeypatch):
+    """FileNotFoundError com temp ausente propaga e limpa sem corromper destino."""
+
+    def mock_replace(self, target):
+        raise FileNotFoundError(2, "No such file", str(self))
+
+    monkeypatch.setattr(Path, "replace", mock_replace)
+    monkeypatch.setattr(Path, "exists", lambda self: False)
+    monkeypatch.setattr("time.sleep", lambda x: None)
+    temp_persistence.save({"gone": True})
+    assert temp_persistence.load() is None
 
 
 def test_persistence_save_unlink_error_suppressed(temp_persistence, monkeypatch):

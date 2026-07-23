@@ -102,8 +102,38 @@ def test_resolve_skips_repeat_work_same_cycle_after_reject():
     entry["metrics"]["quality_guard_reject"] = True
     entry["metrics"]["gate_reason"] = "meta_negative_edge"
     entry["metrics"]["_direction_resolved_cycle"] = 9
+    entry["metrics"]["_recovery_reresolve_done"] = True
     assert resolve_execution_direction(entry, symbol="R_10", orch=orch, cycle_id=9, recovery_active=True) is None
     assert entry["metrics"]["gate_reason"] == "meta_negative_edge"
+
+
+def test_resolve_reresolves_waivable_gate_once_under_recovery():
+    orch = SimpleNamespace(_active_cycle_id=12, _log_dedupe={}, _side_eq_log_keys=set())
+    entry = _entry(direction=TradeDirection.PUT, calibrated_prob=0.62)
+    entry["metrics"]["predicted_payoff_edge"] = 0.12
+    entry["metrics"]["meta_classifier_applied"] = True
+    entry["metrics"]["quality_guard_reject"] = True
+    entry["metrics"]["gate_reason"] = "meta_negative_edge"
+    entry["metrics"]["_direction_resolved_cycle"] = 12
+    entry["metrics"]["edge_zscore"] = 0.40
+    entry["metrics"]["meta_payoff_edge_zscore"] = 0.40
+    entry["metrics"]["edge_zscore_samples"] = 20
+    result = resolve_execution_direction(
+        entry,
+        symbol="R_10",
+        orch=orch,
+        cycle_id=12,
+        recovery_active=True,
+        exec_cfg={
+            "quality_gate": {
+                "min_direction_margin": 0.0,
+                "min_payoff_edge": 0.0,
+                "regular": {"min_direction_margin": 0.0, "min_payoff_edge": 0.0},
+            }
+        },
+    )
+    assert entry["metrics"].get("_recovery_reresolve_done") is True
+    assert result is not None or entry["metrics"].get("gate_reason") != "meta_negative_edge"
 
 
 def test_persistence_flips_to_opposite_instead_of_deadlock():

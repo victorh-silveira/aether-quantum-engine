@@ -23,6 +23,28 @@ def test_recovery_severe_zscore_triggers_hard_veto():
     assert is_execution_signal_vetoed(metrics) is True
 
 
+def test_recovery_severe_positive_edge_stays_soft():
+    metrics = {
+        "predicted_payoff_edge": 0.08,
+        "edge_expectancy": "NO_EDGE_NEUTRAL",
+        "trade_score": 0.70,
+    }
+    _stamp_negative_zscore(metrics, z_score=-1.80)
+    rm = _risk_manager(linear=2, pending=40.0)
+    assert (
+        should_veto_meta_payoff_negative_zscore(
+            metrics,
+            direction=TradeDirection.PUT,
+            risk_manager=rm,
+            recovery_active=True,
+        )
+        is False
+    )
+    assert metrics["meta_veto_mode"] == "soft"
+    assert metrics.get("meta_recovery_severe_z_soft") is True
+    assert metrics.get("meta_recovery_severe_z_veto") is not True
+
+
 def test_severe_zscore_without_recovery_stays_soft():
     metrics = {
         "predicted_payoff_edge": -0.05,

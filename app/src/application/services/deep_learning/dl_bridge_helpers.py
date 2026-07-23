@@ -76,11 +76,21 @@ def build_decision_entry(
 
 
 def recovery_gating_active(orch) -> bool:
-    """Indica se ha perda pendente no risk manager para usar gating de recuperacao."""
-    pending = getattr(getattr(orch, "risk_manager", None), "pending_loss", None)
-    if not pending:
+    """Indica se ha perda pendente ou linear ativo para gating de recuperacao."""
+    rm = getattr(orch, "risk_manager", None)
+    if rm is None:
         return False
-    return sum(float(v) for v in pending.values()) > 0.0
+    raw_linear = getattr(rm, "consecutive_losses_linear", 0)
+    linear = int(raw_linear) if isinstance(raw_linear, (int, float)) and not isinstance(raw_linear, bool) else 0
+    if linear > 0:
+        return True
+    pending = getattr(rm, "pending_loss", None)
+    if not isinstance(pending, dict) or not pending:
+        return False
+    try:
+        return sum(float(v) for v in pending.values()) > 0.0
+    except (TypeError, ValueError):
+        return False
 
 
 def pending_loss_total(orch) -> float:

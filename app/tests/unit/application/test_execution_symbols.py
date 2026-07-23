@@ -33,6 +33,11 @@ def test_format_execution_alternates_excludes_selected():
 def test_pending_recovery_active():
     assert pending_recovery_active({}) is False
     assert pending_recovery_active({ANCHOR: 100.0}) is True
+    assert pending_recovery_active({}, consecutive_losses_linear=2) is True
+    assert pending_recovery_active({}, consecutive_losses_linear=0) is False
+    assert pending_recovery_active("bad") is False
+    assert pending_recovery_active({ANCHOR: "x"}) is False
+    assert pending_recovery_active({}, consecutive_losses_linear=True) is False
 
 
 def test_select_best_execution_candidate_picks_highest_score():

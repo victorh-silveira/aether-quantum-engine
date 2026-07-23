@@ -127,7 +127,10 @@ class ExecutionManager:
                 return None
 
             bankroll_snapshot = float(self.orch.state.balance)
-            recovery_active = pending_recovery_active(self.orch.risk_manager.pending_loss)
+            recovery_active = pending_recovery_active(
+                self.orch.risk_manager.pending_loss,
+                int(getattr(self.orch.risk_manager, "consecutive_losses_linear", 0) or 0),
+            )
             await prepare_recovery_skip_counter(self.orch, recovery_active=recovery_active)
 
             exec_chunk = self.orch.config.get("orchestrator", {}).get("execution", {})

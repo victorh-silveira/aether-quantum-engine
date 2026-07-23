@@ -84,8 +84,13 @@ def test_parse_dl_params():
 def test_recovery_gating_active_when_pending_loss():
     orch = MagicMock()
     orch.risk_manager.pending_loss = {"R_10": 100.92}
+    orch.risk_manager.consecutive_losses_linear = 0
     assert recovery_gating_active(orch) is True
     orch.risk_manager.pending_loss = {}
+    assert recovery_gating_active(orch) is False
+    orch.risk_manager.pending_loss = {"R_10": "bad"}
+    assert recovery_gating_active(orch) is False
+    orch.risk_manager = None
     assert recovery_gating_active(orch) is False
 
 

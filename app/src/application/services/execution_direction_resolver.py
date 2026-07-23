@@ -37,6 +37,19 @@ from src.application.services.side_equilibrium_gate import resolve_direction_wit
 from src.domain.models.trade import TradeDirection
 
 
+_RECOVERY_RERESOLVE_GATES = frozenset(
+    {
+        "meta_shadow_inverted_veto",
+        "meta_payoff_negative_zscore_veto",
+        "meta_negative_edge",
+        "side_imbalance_flip_not_better",
+        "side_imbalance_thin_margin_flip",
+        "side_imbalance_both_sides",
+        "side_imbalance_flip_zone_conflict",
+        "side_imbalance_large_n_margin",
+    }
+)
+
 __all__ = (
     "_apply_persistence_guard_skip",
     "_has_meta_zscore_telemetry",
@@ -86,7 +99,13 @@ def _finalize_execution_metrics(
     ):
         sync_entry_metrics(entry, metrics)
         return None
-    hard = should_veto_meta_payoff_negative_zscore(metrics, direction=exec_dir, risk_manager=risk_manager, orch=orch)
+    hard = should_veto_meta_payoff_negative_zscore(
+        metrics,
+        direction=exec_dir,
+        risk_manager=risk_manager,
+        orch=orch,
+        recovery_active=recovery_active,
+    )
     if (hard or is_execution_signal_vetoed(metrics)) and not force:
         sync_entry_metrics(entry, metrics)
         return None
@@ -192,7 +211,9 @@ def resolve_execution_direction(
         active_cycle = int(getattr(orch, "_active_cycle_id", 0) or active_cycle or 0)
     prior = entry.get("metrics") if isinstance(entry.get("metrics"), dict) else {}
     if not force and active_cycle > 0 and int(prior.get("_direction_resolved_cycle") or 0) == active_cycle:
-        if prior.get("quality_guard_reject") or prior.get("gate_reason"):
+        gate = str(prior.get("gate_reason") or "")
+        blocked = bool(prior.get("quality_guard_reject") or gate)
+        if blocked and not (recovery_active and gate in _RECOVERY_RERESOLVE_GATES):
             return None
         ready_name = str(prior.get("exec_direction") or prior.get("resolved_direction") or "").upper()
         if prior.get("execution_candidate_ready") and ready_name in {
@@ -200,6 +221,14 @@ def resolve_execution_direction(
             TradeDirection.PUT.name,
         }:
             return TradeDirection[ready_name], prior
+        if blocked and recovery_active and gate in _RECOVERY_RERESOLVE_GATES:
+            if bool(prior.get("_recovery_reresolve_done") or prior.get("_resolved_under_recovery")):
+                return None
+            prior["_recovery_reresolve_done"] = True
+            prior.pop("_direction_resolved_cycle", None)
+            prior.pop("quality_guard_reject", None)
+            prior.pop("gate_reason", None)
+            prior.pop("regime_skip_cycle", None)
     checks = initial_direction_checks(entry, exec_cfg_dict, orch=orch)
     if checks is None:
         _stamp_direction_resolved_cycle(entry, active_cycle)

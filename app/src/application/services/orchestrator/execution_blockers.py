@@ -8,7 +8,7 @@ def _candidate_block_reason(metrics: dict) -> str | None:
     reason = metrics.get("gate_reason") or metrics.get("quality_gate_reason")
     if isinstance(reason, str) and reason.strip():
         return reason.strip()
-    side_eq_hard = metrics.get("side_eq_blocked") or str(metrics.get("side_eq_action") or "") == "hard_skip"
+    side_eq_hard = bool(metrics.get("side_eq_blocked"))
     soft_veto = str(metrics.get("meta_veto_mode") or "") == "soft" or metrics.get("signal_status") == "SOFT_VETO"
     ready = bool(metrics.get("execution_candidate_ready"))
     mapping = (

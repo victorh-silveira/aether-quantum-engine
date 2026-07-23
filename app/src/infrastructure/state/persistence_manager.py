@@ -4,6 +4,7 @@ import contextlib
 import json
 import logging
 import os
+import shutil
 import threading
 import time
 import uuid
@@ -48,6 +49,32 @@ class PersistenceManager:
             with contextlib.suppress(Exception):
                 candidate.unlink()
 
+    def _write_temp(self, data: dict[str, Any], temp_file: Path) -> None:
+        """Grava JSON no temporario com flush em disco."""
+        with temp_file.open("w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+
+    def _publish_temp(self, temp_file: Path) -> None:
+        """Publica temporario no destino com retry e fallback Windows-safe."""
+        for i in range(8):
+            try:
+                temp_file.replace(self.file_path)
+                return
+            except FileNotFoundError:
+                if not temp_file.exists():
+                    raise
+                time.sleep(0.05 * (i + 1))
+            except _PERMISSION_OS_ERRORS:
+                if i == 7:
+                    break
+                time.sleep(0.05 * (i + 1))
+        if temp_file.exists():
+            shutil.copy2(temp_file, self.file_path)
+            with contextlib.suppress(Exception):
+                temp_file.unlink()
+
     def save(self, data: dict[str, Any]):
         """Salva os dados em um arquivo JSON de forma atômica com verificação de diretório.
 
@@ -58,20 +85,8 @@ class PersistenceManager:
             self._ensure_directory()
             temp_file = self._unique_temp_path()
             try:
-                with temp_file.open("w", encoding="utf-8") as f:
-                    json.dump(data, f, indent=2)
-                    f.flush()
-                    os.fsync(f.fileno())
-
-                for i in range(8):
-                    try:
-                        temp_file.replace(self.file_path)
-                        break
-                    except _PERMISSION_OS_ERRORS:
-                        if i == 7:
-                            raise
-                        time.sleep(0.05 * (i + 1))
-
+                self._write_temp(data, temp_file)
+                self._publish_temp(temp_file)
             except Exception as e:
                 self.logger.error(f"PERS: Erro critico ao salvar estado: {e}")
                 with contextlib.suppress(Exception):
