@@ -321,7 +321,7 @@
         "squeeze_vol_ratio_max": 0.85
       },
       "direction_persistence": {
-        "same_direction_count_threshold": 2
+        "same_direction_count_threshold": 99
       },
       "discordance_veto_enabled": false,
       "diversify_after_loss_margin": 0.08,
@@ -496,7 +496,7 @@
           "edge_floor": 0.0,
           "edge_zscore_waiver": 0.5,
           "full_pending_units": 8.0,
-          "margin_floor": 0.02,
+          "margin_floor": 0.0,
           "min_linear": 2,
           "session_stake_unit_bankroll_pct": 0.0015
         },
