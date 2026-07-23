@@ -25,7 +25,7 @@ def _rsi_di_oppose_direction(metrics: dict, dl_dir: TradeDirection) -> bool:
     if rsi is None:
         return False
     rsi_bias = float(rsi) - 0.5
-    if abs(rsi_bias) < 0.04:
+    if abs(rsi_bias) < 0.01:
         return False
     rsi_call = rsi_bias > 0.0
     want_call = dl_dir == TradeDirection.CALL
@@ -36,7 +36,7 @@ def _rsi_di_oppose_direction(metrics: dict, dl_dir: TradeDirection) -> bool:
 
 
 def align_direction_to_rsi_trend(dl_dir: TradeDirection, metrics: dict) -> TradeDirection:
-    """Alinha a direcao ao vies claro do RSI macro (RSI > 0.54 -> CALL, RSI < 0.46 -> PUT) respeitando exaustao."""
+    """Alinha a direcao ao vies claro do RSI macro (RSI > 0.50 -> CALL, RSI < 0.50 -> PUT) respeitando exaustao."""
     rsi = _macro_indicator_float(metrics, "rsi")
     if rsi is None:
         return dl_dir
@@ -44,11 +44,11 @@ def align_direction_to_rsi_trend(dl_dir: TradeDirection, metrics: dict) -> Trade
     if rsi_v >= 0.73:
         metrics["rsi_overbought_exhaustion"] = True
         return TradeDirection.PUT
-    if rsi_v <= 0.27:
+    if rsi_v <= 0.36:
         metrics["rsi_oversold_exhaustion"] = True
         return TradeDirection.CALL
     rsi_bias = rsi_v - 0.5
-    if abs(rsi_bias) < 0.04:
+    if abs(rsi_bias) < 0.01:
         return dl_dir
     rsi_dir = TradeDirection.CALL if rsi_bias > 0.0 else TradeDirection.PUT
     if dl_dir != rsi_dir:

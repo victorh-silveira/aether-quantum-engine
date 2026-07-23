@@ -31,6 +31,7 @@ def test_macro_indicator_float_and_rsi_di():
         )
         is False
     )
+    assert _rsi_di_oppose_direction({"macro_indicators": {"rsi": 0.50}}, TradeDirection.CALL) is False
     assert (
         _rsi_di_oppose_direction(
             {"macro_indicators": {"rsi": 0.2, "di_diff": -0.1}},
@@ -65,14 +66,14 @@ def test_apply_technical_agreement_vetoes():
 def test_align_direction_to_rsi_trend():
     assert align_direction_to_rsi_trend(TradeDirection.PUT, {}) == TradeDirection.PUT
 
-    m_neutral = {"macro_indicators": {"rsi": 0.51}}
+    m_neutral = {"macro_indicators": {"rsi": 0.50}}
     assert align_direction_to_rsi_trend(TradeDirection.PUT, m_neutral) == TradeDirection.PUT
 
     m_bull = {"macro_indicators": {"rsi": 0.70}}
     assert align_direction_to_rsi_trend(TradeDirection.PUT, m_bull) == TradeDirection.CALL
     assert m_bull.get("rsi_trend_flipped") is True
 
-    m_bear = {"macro_indicators": {"rsi": 0.30}}
+    m_bear = {"macro_indicators": {"rsi": 0.40}}
     assert align_direction_to_rsi_trend(TradeDirection.CALL, m_bear) == TradeDirection.PUT
     assert m_bear.get("rsi_trend_flipped") is True
 

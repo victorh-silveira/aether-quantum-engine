@@ -124,7 +124,7 @@ def _finalize_execution_metrics(
     zone_reason = apply_price_zone_gate(
         metrics, exec_dir, exec_cfg if isinstance(exec_cfg, dict) else {}, tcn_direction=dl_dir
     )
-    if zone_reason is not None and not force:
+    if zone_reason is not None and not (force or recovery_active):
         metrics["quality_guard_reject"] = True
         metrics["regime_skip_cycle"] = True
         metrics["gate_reason"] = zone_reason
@@ -173,7 +173,7 @@ def _finalize_execution_metrics(
     if float(metrics.get("side_eq_margin_boost", 0.0)) > 0.0:
         margin = float(metrics.get("direction_margin", 0.0))
         floor = float(metrics.get("quality_min_direction_margin", 0.0))
-        if margin + 1e-12 < floor:
+        if margin + 1e-12 < floor and not (force or recovery_active):
             metrics["gate_reason"] = "side_imbalance_large_n_margin"
             metrics["quality_guard_reject"] = True
             sync_entry_metrics(entry, metrics)
