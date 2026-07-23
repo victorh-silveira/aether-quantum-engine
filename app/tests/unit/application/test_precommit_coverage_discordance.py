@@ -149,3 +149,30 @@ def test_side_eq_helpers():
     assert alternate_side_is_preferable(toxic_pri, strong_alt, opposite=TradeDirection.CALL) is True
     better_alt = SideEquilibriumDecision(action=ACTION_PASS, reason="ok", side_wr=0.70, call_n=3, call_wins=2)
     assert alternate_side_is_preferable(toxic_pri, better_alt, opposite=TradeDirection.CALL) is True
+
+
+def test_side_eq_gate_rsi_trend_conflict():
+    from unittest.mock import MagicMock, patch
+
+    from src.application.services.side_equilibrium_gate import resolve_direction_with_side_equilibrium
+
+    orch = MagicMock()
+
+    metrics = {
+        "macro_indicators": {"rsi": 0.65},
+        "price_zone_direction": "CALL",
+    }
+    with patch("src.application.services.side_equilibrium_gate.evaluate_proposed_side_equilibrium") as mock_eval:
+        hard_skip = SideEquilibriumDecision(action=ACTION_HARD_SKIP, reason="side_imbalance_small_n")
+        pass_dec = SideEquilibriumDecision(action=ACTION_PASS, reason="ok", side_wr=0.6, put_n=5, put_wins=3)
+        mock_eval.side_effect = [hard_skip, pass_dec]
+        res = resolve_direction_with_side_equilibrium(orch, "R_10", TradeDirection.CALL, metrics, recovery_active=False)
+        assert res is None
+        assert metrics.get("gate_reason") == "side_imbalance_rsi_trend_conflict"
+
+        metrics2 = {"macro_indicators": {"rsi": 0.65}}
+        mock_eval.side_effect = [hard_skip, pass_dec]
+        res2 = resolve_direction_with_side_equilibrium(
+            orch, "R_10", TradeDirection.CALL, metrics2, recovery_active=True
+        )
+        assert res2 == TradeDirection.CALL

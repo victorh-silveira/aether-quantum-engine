@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from src.application.services.execution_direction_discordance import _rsi_di_oppose_direction
 from src.application.services.side_equilibrium_helpers import (
     alternate_side_is_preferable,
     flip_conflicts_price_zone,
@@ -192,6 +193,22 @@ def resolve_direction_with_side_equilibrium(
         metrics["gate_reason"] = (
             "side_imbalance_thin_margin_flip" if thin_blocks and prefer_alt else "side_imbalance_flip_not_better"
         )
+        metrics["quality_guard_reject"] = True
+        metrics["side_eq_flip_rejected"] = True
+        return None
+    if _rsi_di_oppose_direction(metrics, opposite):
+        if waive_hard:
+            return soft_keep_proposed(
+                metrics,
+                primary,
+                proposed,
+                reason="side_eq_recovery_rsi_keep",
+                apply_metrics=apply_side_equilibrium_to_metrics,
+            )
+        apply_side_equilibrium_to_metrics(metrics, primary, proposed=proposed)
+        metrics["side_eq_gate_done"] = True
+        metrics["side_eq_blocked"] = True
+        metrics["gate_reason"] = "side_imbalance_rsi_trend_conflict"
         metrics["quality_guard_reject"] = True
         metrics["side_eq_flip_rejected"] = True
         return None

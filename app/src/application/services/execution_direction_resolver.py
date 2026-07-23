@@ -106,7 +106,7 @@ def _finalize_execution_metrics(
         orch=orch,
         recovery_active=recovery_active,
     )
-    if (hard or is_execution_signal_vetoed(metrics)) and not force:
+    if (hard or is_execution_signal_vetoed(metrics)) and not (force or recovery_active):
         sync_entry_metrics(entry, metrics)
         return None
     if force:
