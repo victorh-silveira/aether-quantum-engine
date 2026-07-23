@@ -63,15 +63,28 @@ def align_direction_to_rsi_trend(dl_dir: TradeDirection, metrics: dict) -> Trade
 
 
 def apply_technical_agreement(metrics: dict, dl_dir: TradeDirection, prob: float, exec_cfg: dict) -> tuple[float, bool]:
-    """Ajusta probabilidade por consenso tecnico; veta quando maioria dos votos opoe a TCN."""
+    """Ajusta probabilidade e aplica bonus/penalidade por confluencia tecnica de indicadores."""
     call_votes, put_votes = int(metrics.get("call_votes", 0)), int(metrics.get("put_votes", 0))
     total = call_votes + put_votes
     opp = 0.0
     adjusted = prob
     if total > 0:
-        opp = put_votes / total if dl_dir == TradeDirection.CALL else call_votes / total
-        if (1.0 - opp) >= 0.80:
-            adjusted = min(1.0, prob + 0.05) if dl_dir == TradeDirection.CALL else max(0.0, prob - 0.05)
+        confluence = (call_votes / total) if dl_dir == TradeDirection.CALL else (put_votes / total)
+        opp = 1.0 - confluence
+        metrics["indicator_confluence_ratio"] = round(confluence, 3)
+        if confluence >= 0.80:
+            bonus = 0.06
+            adjusted = min(1.0, prob + bonus) if dl_dir == TradeDirection.CALL else max(0.0, prob - bonus)
+            metrics["indicator_confluence_bonus"] = bonus
+        elif confluence >= 0.60:
+            bonus = 0.03
+            adjusted = min(1.0, prob + bonus) if dl_dir == TradeDirection.CALL else max(0.0, prob - bonus)
+            metrics["indicator_confluence_bonus"] = bonus
+        elif confluence < 0.35:
+            penalty = 0.04
+            adjusted = max(0.0, prob - penalty) if dl_dir == TradeDirection.CALL else min(1.0, prob + penalty)
+            metrics["indicator_confluence_penalty"] = penalty
+
     discordance_enabled = bool(exec_cfg.get("discordance_veto_enabled", False))
     vote_veto = bool(discordance_enabled and total >= 3 and opp + 1e-12 >= 0.60)
     trend_name = str(metrics.get("trend_direction") or "").upper()

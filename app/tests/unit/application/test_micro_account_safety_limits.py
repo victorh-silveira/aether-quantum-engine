@@ -91,4 +91,4 @@ def test_resolve_execution_direction_concordance_boost(mock_reject, mock_resolve
     }
     res = resolve_execution_direction(entry, symbol="SYM")
     assert res is not None
-    assert entry["metrics"]["tcn_score"] == pytest.approx(0.65)
+    assert entry["metrics"]["tcn_score"] == pytest.approx(0.66)
