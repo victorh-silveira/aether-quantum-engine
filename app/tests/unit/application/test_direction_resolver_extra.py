@@ -72,7 +72,11 @@ def test_resolve_c0015_negative_edge_blocked_by_meta_payoff_veto(caplog):
         ),
         caplog.at_level("INFO"),
     ):
-        result = resolve_execution_direction(entry, symbol="R_10")
+        result = resolve_execution_direction(
+            entry,
+            symbol="R_10",
+            exec_cfg={"quality_gate": {"min_payoff_edge": 0.0, "regular": {"min_payoff_edge": 0.0}}},
+        )
     assert result is None
     assert entry["metrics"].get("gate_reason") == "meta_negative_edge"
     assert not any("[D-SQUEEZE]" in record.message for record in caplog.records)

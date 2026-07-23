@@ -88,7 +88,18 @@ def test_collect_cluster_orders_bolts_weak_signal_continuously():
         anchor=ANCHOR,
         symbols=[ANCHOR, ALT_SYMBOL],
         config={
-            "orchestrator": {"execution": {"include_anchor_trades": False, "regime_evaluator": {"enabled": True}}},
+            "orchestrator": {
+                "execution": {
+                    "mandatory_trade_each_cycle": False,
+                    "include_anchor_trades": False,
+                    "regime_evaluator": {"enabled": True},
+                    "quality_gate": {
+                        "min_payoff_edge": 0.0,
+                        "regular": {"min_payoff_edge": 0.0},
+                        "recovery_relax": {"edge_floor": 0.0},
+                    },
+                }
+            },
             "deep_learning": {"min_edge_execute": 0.04},
             "risk_management": {"kelly": {"mandatory_min_trade_score": 0.68, "recovery_min_trade_score": 0.64}},
         },
@@ -117,10 +128,12 @@ def test_collect_cluster_orders_bolts_weak_signal_continuously():
                 "deploy_ok": True,
                 "val_accuracy": 0.55,
                 "quality_guard_reject": True,
+                "gate_reason": "meta_zscore_reject",
                 "execution_gate_state": "meta_zscore_reject",
                 "quality_gate_reason": "[Meta Z-Score -1.50 < min 0.50]",
                 "meta_payoff_edge_zscore": -1.50,
                 "edge_zscore": -1.50,
+                "edge_zscore_samples": 20,
                 "predicted_payoff_edge": -0.40,
                 "edge_expectancy": "LOSS_EXPECTED",
                 "meta_classifier_applied": True,

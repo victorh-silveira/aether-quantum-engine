@@ -105,7 +105,18 @@ def test_collect_cluster_orders_recovery_bolts_hard_meta_reject():
         anchor=ANCHOR,
         symbols=[ANCHOR, PAIR],
         config={
-            "orchestrator": {"execution": {"include_anchor_trades": False, "regime_evaluator": {"enabled": True}}},
+            "orchestrator": {
+                "execution": {
+                    "mandatory_trade_each_cycle": False,
+                    "include_anchor_trades": False,
+                    "regime_evaluator": {"enabled": True},
+                    "quality_gate": {
+                        "min_payoff_edge": 0.0,
+                        "regular": {"min_payoff_edge": 0.0},
+                        "recovery_relax": {"edge_floor": 0.0},
+                    },
+                }
+            },
         },
         risk_manager=SimpleNamespace(
             pending_loss={PAIR: 10.0},
@@ -135,10 +146,12 @@ def test_collect_cluster_orders_recovery_bolts_hard_meta_reject():
                 "trade_score": 0.48,
                 "deploy_ok": True,
                 "quality_guard_reject": True,
+                "gate_reason": "meta_zscore_reject",
                 "execution_gate_state": "meta_zscore_reject",
                 "quality_gate_reason": "[Meta Z-Score -1.20 < min 0.50]",
                 "meta_payoff_edge_zscore": -1.20,
                 "edge_zscore": -1.20,
+                "edge_zscore_samples": 20,
                 "predicted_payoff_edge": -0.55,
                 "edge_expectancy": "LOSS_EXPECTED",
             },

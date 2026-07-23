@@ -46,7 +46,11 @@ def test_resolve_mild_negative_edge_is_blocked():
         "src.application.services.execution_direction_resolver.attach_payoff_edge_zscore_metrics",
         side_effect=lambda metrics, edge, **kwargs: _stamp_negative_zscore(metrics),
     ):
-        result = resolve_execution_direction(entry, symbol="R_10")
+        result = resolve_execution_direction(
+            entry,
+            symbol="R_10",
+            exec_cfg={"quality_gate": {"min_payoff_edge": 0.0, "regular": {"min_payoff_edge": 0.0}}},
+        )
     assert result is None
     assert entry["metrics"].get("gate_reason") == "meta_negative_edge"
 

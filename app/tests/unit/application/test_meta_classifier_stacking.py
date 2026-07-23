@@ -253,7 +253,11 @@ def test_c0015_stacking_payload_rejects_negative_edge_before_squeeze(caplog):
         ),
         caplog.at_level("INFO"),
     ):
-        result = resolve_execution_direction(entry, symbol="R_10")
+        result = resolve_execution_direction(
+            entry,
+            symbol="R_10",
+            exec_cfg={"quality_gate": {"min_payoff_edge": 0.0, "regular": {"min_payoff_edge": 0.0}}},
+        )
     assert result is None
     assert entry["metrics"].get("gate_reason") == "meta_negative_edge"
     assert entry["metrics"].get("meta_negative_edge") is True

@@ -261,7 +261,7 @@
       "max_connections": 10,
       "max_keepalive_connections": 5,
       "shadow": {
-        "hard_corr_floor": 0.15,
+        "hard_corr_floor": -1.0,
         "min_pairs": 12,
         "ready_n": 64,
         "soft_only_corr_ceiling": 0.05,
@@ -482,7 +482,7 @@
         "min_adx_threshold": 0.0,
         "min_direction_margin": 0.0,
         "min_meta_payoff_zscore": 0.5,
-        "min_payoff_edge": 0.0,
+        "min_payoff_edge": -0.99,
         "neutral_meta_payoff": {
           "hi": 0.04,
           "lo": -0.05
@@ -493,7 +493,7 @@
           "skip_step": 5
         },
         "recovery_relax": {
-          "edge_floor": 0.0,
+          "edge_floor": -0.99,
           "edge_zscore_waiver": 0.5,
           "full_pending_units": 8.0,
           "margin_floor": 0.0,
@@ -502,7 +502,7 @@
         },
         "regular": {
           "min_direction_margin": 0.0,
-          "min_payoff_edge": 0.0
+          "min_payoff_edge": -0.99
         },
         "starvation": {
           "decay_floor": 0.2,
