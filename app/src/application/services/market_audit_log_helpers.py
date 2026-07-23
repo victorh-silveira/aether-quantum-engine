@@ -101,13 +101,22 @@ def cluster_symbol_token(symbol: str, entry: dict[str, Any]) -> str:
         side = str(
             metrics.get("exec_direction") or metrics.get("dl_direction") or metrics.get("resolved_direction") or "FLAT"
         ).upper()
-    veto = veto_token(metrics)
-    if veto is not None:
-        return f"{symbol}: {side} ({veto})"
     raw_prob = metric_float(metrics, "raw_prob", default=0.5)
     cal_prob = metric_float(metrics, "calibrated_prob", "raw_prob", default=raw_prob)
+    margin_raw = metrics.get("direction_margin")
+    if margin_raw is None:
+        margin = abs(float(cal_prob) - 0.5)
+    else:
+        try:
+            margin = float(margin_raw)
+        except (TypeError, ValueError):
+            margin = abs(float(cal_prob) - 0.5)
     edge = resolve_predicted_edge(metrics)
-    return f"{symbol}: {side} (Prob: {raw_prob:0.3f} Cal: {cal_prob:0.3f} Edge: {edge:+0.3f})"
+    detail = f"Prob: {raw_prob:0.3f} Cal: {cal_prob:0.3f} Margin: {margin:0.3f} Edge: {edge:+0.3f}"
+    veto = veto_token(metrics)
+    if veto is not None:
+        return f"{symbol}: {side} ({detail} | {veto})"
+    return f"{symbol}: {side} ({detail})"
 
 
 def store_contract_audit(

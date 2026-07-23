@@ -12,6 +12,7 @@ from src.application.services.execution_quality_gate_drawdown import (
 from src.application.services.execution_quality_gate_margin import (
     direction_margin_from_probability,
     ensure_direction_margin,
+    stamp_edge_without_direction,
     sync_direction_margin,
 )
 from src.application.services.execution_quality_gate_microstructure import apply_microstructure_starvation_veto
@@ -34,6 +35,7 @@ __all__ = [
     "apply_starvation_edge_decay",
     "direction_margin_from_probability",
     "ensure_direction_margin",
+    "stamp_edge_without_direction",
     "sync_direction_margin",
     "format_quality_guard_log_message",
     "format_quality_guard_reject_message",
@@ -227,10 +229,15 @@ def passes_execution_quality(
         metrics["quality_gate_reason"] = starvation_reason
         return False
     if margin + 1e-12 < margin_floor:
+        qg = resolve_quality_gate_config(exec_cfg)
+        score_factor = float(qg.get("edge_without_direction_score_factor", 0.85))
+        stamp_edge_without_direction(metrics, margin_floor=margin_floor, score_factor=score_factor)
         metrics["quality_guard_reject"] = True
         metrics["regime_skip_cycle"] = True
         metrics["quality_gate_reason"] = "direction_margin_gate"
         return False
+    metrics.pop("edge_without_direction", None)
+    metrics.pop("edge_without_direction_penalty", None)
     metrics["regime_skip_cycle"] = False
     metrics.pop("quality_gate_reason", None)
     metrics.pop("quality_guard_reject", None)

@@ -117,8 +117,21 @@ def apply_calibrator(prob: float, calibrator: CalibratorState) -> float:
     return apply_platt(tempered, calibrator)
 
 
-def apply_calibrator_stable(prob: float, calibrator: CalibratorState | None) -> float:
-    """Aplica calibrador evitando extrapolacao isotonic e flip de lado."""
+def _margin_floor_from_settings() -> float:
+    path = repo_path("config", "settings.json")
+    with path.open(encoding="utf-8") as handle:
+        full = json.load(handle)
+    raw = (full.get("deep_learning") or {}).get("calibration") or {}
+    return float(raw.get("min_calibration_margin_floor", 0.03))
+
+
+def apply_calibrator_stable(
+    prob: float,
+    calibrator: CalibratorState | None,
+    *,
+    margin_floor: float | None = None,
+) -> float:
+    """Aplica calibrador evitando extrapolacao, flip de lado e colapso de margem."""
     raw = float(prob)
     if calibrator is None:
         return raw
@@ -132,6 +145,12 @@ def apply_calibrator_stable(prob: float, calibrator: CalibratorState | None) -> 
             return raw
         side_flip = (raw - 0.5) * (calibrated - 0.5) < 0.0
         if side_flip and abs(calibrated - raw) > 0.02:
+            return raw
+    floor = float(margin_floor) if margin_floor is not None else _margin_floor_from_settings()
+    if floor > 0.0:
+        raw_margin = abs(raw - 0.5)
+        cal_margin = abs(calibrated - 0.5)
+        if raw_margin + 1e-12 >= floor and cal_margin + 1e-12 < floor:
             return raw
     return calibrated
 

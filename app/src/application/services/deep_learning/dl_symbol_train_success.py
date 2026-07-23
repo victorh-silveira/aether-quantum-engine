@@ -12,6 +12,10 @@ from src.application.services.deep_learning.dl_gate_config import resolve_deploy
 from src.application.services.deep_learning.dl_horizon import contract_duration_seconds
 from src.application.services.deep_learning.dl_model_artifacts import schedule_model_upload
 from src.application.services.deep_learning.dl_retrain import clear_force_retrain, reset_bars_since_train
+from src.application.services.deep_learning.dl_sharpness import (
+    assert_export_sharpness_value,
+    resolve_calibration_sharpness_cfg,
+)
 from src.application.services.deep_learning.dl_symbol_runtime import resolve_dl_model_path
 from src.application.services.deep_learning.model import save_model_checkpoint
 from src.application.services.live_signal_metrics import live_signal_snapshot
@@ -110,6 +114,15 @@ def apply_successful_symbol_train(
         deploy_win_rate=deploy_wr,
         val_brier=mini_brier if mini_ok else float(train_result.val_brier),
     )
+    calib_cfg = dl_config.get("calibration") if isinstance(dl_config, dict) else None
+    sharpness_cfg = resolve_calibration_sharpness_cfg(calib_cfg if isinstance(calib_cfg, dict) else None)
+    oos_sharpness = float(getattr(train_result, "oos_sharpness", 0.0))
+    assert_export_sharpness_value(
+        oos_sharpness,
+        floor=float(sharpness_cfg["min_oos_sharpness"]),
+        label="holdout",
+    )
+    runtime["oos_sharpness"] = oos_sharpness
     path = resolve_dl_model_path(dl_config, symbol)
     save_model_checkpoint(
         path,

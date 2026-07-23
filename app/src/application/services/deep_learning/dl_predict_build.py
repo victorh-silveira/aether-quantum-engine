@@ -240,6 +240,17 @@ def build_prediction_entry(
     entry["metrics"]["calibrated_prob"] = calibrated_prob
     entry["metrics"]["calibration_mode"] = calibration_mode
     entry["metrics"]["calibrated_edge"] = calibrated_edge
+    entry["metrics"]["raw_margin"] = abs(raw_prob - 0.5)
+    entry["metrics"]["cal_margin"] = abs(float(calibrated_prob) - 0.5)
+    entry["metrics"]["direction_margin"] = abs(float(calibrated_prob) - 0.5)
+    if calibrator is not None:
+        entry["metrics"]["calibrator_method"] = str(getattr(calibrator, "method", "") or "")
+        entry["metrics"]["calibrator_temperature"] = float(getattr(calibrator, "temperature", 1.0) or 1.0)
+        entry["metrics"]["calibrator_platt_a"] = float(getattr(calibrator, "platt_a", 1.0) or 1.0)
+        entry["metrics"]["calibrator_platt_b"] = float(getattr(calibrator, "platt_b", 0.0) or 0.0)
+    entry["metrics"]["calibration_collapsed"] = bool(
+        abs(raw_prob - 0.5) + 1e-12 >= 0.03 and abs(float(calibrated_prob) - 0.5) + 1e-12 < 0.03
+    )
     entry["metrics"]["trend_direction"] = trend_dir.name
     entry["metrics"]["trend_type"] = trend_type
     entry["metrics"]["trend_period"] = trend_period

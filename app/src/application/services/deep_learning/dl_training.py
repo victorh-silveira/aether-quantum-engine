@@ -5,6 +5,7 @@ import logging
 import numpy as np
 import torch
 
+from src.application.services.deep_learning.dl_calibration import apply_calibrator
 from src.application.services.deep_learning.dl_calibration_fit import calibrator_entropy_metrics, fit_calibrator
 from src.application.services.deep_learning.dl_device import (
     device_label,
@@ -15,6 +16,7 @@ from src.application.services.deep_learning.dl_device import (
 )
 from src.application.services.deep_learning.dl_features import extract_sequences
 from src.application.services.deep_learning.dl_sequence_extract import sequence_price_deltas
+from src.application.services.deep_learning.dl_sharpness import mean_sharpness
 from src.application.services.deep_learning.dl_splits import purged_temporal_splits
 from src.application.services.deep_learning.dl_training_epochs import fit_training_epochs
 from src.application.services.deep_learning.model import (
@@ -159,6 +161,8 @@ def train_model_walkforward(
         [float(y) for y in y_calib],
         calibration_cfg=calibration_cfg if isinstance(calibration_cfg, dict) else None,
     )
+    calibrated_holdout = [float(apply_calibrator(float(p), calibrator)) for p in raw_calib]
+    oos_sharpness = mean_sharpness(calibrated_holdout)
     entropy_meta = calibrator_entropy_metrics(
         [float(p) for p in raw_calib],
         [float(y) for y in y_calib],
@@ -167,7 +171,7 @@ def train_model_walkforward(
     )
     val_brier, val_ece = evaluate_calibrated_metrics(model, x_val, y_val, calibrator)
     logger.debug(
-        "DL_TRAIN: device=%s batch=%d epocas=%d/%d loss=%.4f val_acc=%.3f brier=%.3f ece=%.3f method=%s samples=%d",
+        "DL_TRAIN: device=%s batch=%d epocas=%d/%d loss=%.4f val_acc=%.3f brier=%.3f ece=%.3f method=%s samples=%d sharpness=%.4f",
         device_label(device),
         max(1, int(batch_size)),
         epochs_ran,
@@ -178,6 +182,7 @@ def train_model_walkforward(
         val_ece,
         calibrator.method,
         len(x_all),
+        oos_sharpness,
     )
     return TrainResult(
         avg_loss=avg_loss,
@@ -190,6 +195,7 @@ def train_model_walkforward(
         epochs_ran=epochs_ran,
         calibrated_entropy=float(entropy_meta.get("calibrated_entropy", 0.0)),
         entropy_violation=bool(entropy_meta.get("entropy_violation", False)),
+        oos_sharpness=float(oos_sharpness),
     )
 
 

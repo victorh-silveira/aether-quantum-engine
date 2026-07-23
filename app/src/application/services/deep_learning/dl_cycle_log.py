@@ -114,4 +114,34 @@ def log_dl_cycle_summary(
     )
     cycle_id = int(getattr(orch, "_active_cycle_id", 0) or 0)
     log_info_if_changed(orch, logger, f"dl_brief:{cycle_id}", key_brief, "%s", cluster_line)
+    _log_calibrator_gray_zone(logger, decisions, orch=orch, cycle_id=cycle_id)
     _ = brief
+
+
+def _log_calibrator_gray_zone(logger, decisions: dict[str, dict], *, orch, cycle_id: int) -> None:
+    """Emite telemetria unica quando Cal permanece abaixo da margem quality-first."""
+    for symbol, entry in decisions.items():
+        metrics = entry.get("metrics") if isinstance(entry.get("metrics"), dict) else {}
+        cal_margin = metric_float(metrics, "cal_margin", "direction_margin", default=0.0)
+        min_margin = metric_float(metrics, "quality_min_direction_margin", default=0.03)
+        if cal_margin + 1e-12 >= min_margin:
+            continue
+        method = str(metrics.get("calibrator_method") or "na")
+        temp = metric_float(metrics, "calibrator_temperature", default=1.0)
+        platt_a = metric_float(metrics, "calibrator_platt_a", default=1.0)
+        platt_b = metric_float(metrics, "calibrator_platt_b", default=0.0)
+        raw_m = metric_float(metrics, "raw_margin", default=0.0)
+        message = (
+            f"[AETHER] CALIB_GRAY | {symbol} | method={method} T={temp:.3f} "
+            f"platt=({platt_a:.3f},{platt_b:.3f}) raw_m={raw_m:.4f} cal_m={cal_margin:.4f} "
+            f"floor={min_margin:.4f}"
+        )
+        log_info_if_changed(
+            orch,
+            logger,
+            f"calib_gray:{cycle_id}:{symbol}",
+            message,
+            "%s",
+            message,
+        )
+        return

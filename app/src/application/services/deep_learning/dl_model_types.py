@@ -35,3 +35,4 @@ class TrainResult:
     epochs_ran: int = 0
     calibrated_entropy: float = 0.0
     entropy_violation: bool = False
+    oos_sharpness: float = 0.0

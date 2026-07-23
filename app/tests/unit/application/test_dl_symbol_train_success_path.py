@@ -23,6 +23,7 @@ def test_run_symbol_training_persists_successful_train(tmp_path):
         val_brier=0.22,
         val_ece=0.08,
         avg_loss=0.41,
+        oos_sharpness=0.04,
     )
     dl_config = {
         "deploy_gate": {"enabled": False},

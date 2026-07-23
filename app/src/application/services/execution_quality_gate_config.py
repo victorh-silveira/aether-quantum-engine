@@ -137,6 +137,7 @@ def resolve_quality_gate_config(exec_cfg: dict[str, Any] | None) -> dict[str, An
             "lo": require_float(neutral, "lo"),
             "hi": require_float(neutral, "hi"),
         },
+        "edge_without_direction_score_factor": float(raw.get("edge_without_direction_score_factor", 0.85)),
     }
 
 

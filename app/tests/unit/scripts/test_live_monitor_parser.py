@@ -7,7 +7,7 @@ from scripts.monitor.monitor_state import DashboardState
 def test_log_parser_cluster():
     state = DashboardState()
     parser = LogParser(state)
-    line = "[CLUSTER] M5 || R_10: PUT (Prob: 0.377 Cal: 0.365 Edge: +0.950) || R_10: CALL (NEUTRO_VETO)"
+    line = "[CLUSTER] M5 || R_10: PUT (Prob: 0.377 Cal: 0.365 Margin: 0.135 Edge: +0.950) || R_10: CALL (Prob: 0.500 Cal: 0.500 Margin: 0.000 Edge: +0.000 | NEUTRO_VETO)"
     parser.process_line(line)
     assert state.last_telemetry["symbol"] == "R_10"
     assert state.last_telemetry["dir"] == "PUT"

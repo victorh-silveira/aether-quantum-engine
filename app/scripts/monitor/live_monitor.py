@@ -43,7 +43,13 @@ _CLUSTER_RE = re.compile(
 )
 _CLUSTER_TOKEN_RE = re.compile(
     r"(?P<symbol>R_\d+):\s+(?P<ord>CALL|PUT|FLAT)"
-    r"(?:\s+\((?:Prob:\s+(?P<prob>-?[\d.]+)\s+Cal:\s+(?P<cal>-?[\d.]+)\s+Edge:\s+(?P<edge>[+-]?[\d.]+)|(?P<veto>[A-Z0-9_]+))\))?",
+    r"(?:\s+\((?:"
+    r"Prob:\s+(?P<prob>-?[\d.]+)\s+Cal:\s+(?P<cal>-?[\d.]+)"
+    r"(?:\s+Margin:\s+(?P<margin>-?[\d.]+))?"
+    r"\s+Edge:\s+(?P<edge>[+-]?[\d.]+)"
+    r"(?:\s+\|\s+(?P<veto_inline>[A-Z0-9_]+))?"
+    r"|(?P<veto>[A-Z0-9_]+))"
+    r"\))?",
     re.IGNORECASE,
 )
 _EXEC_RE = re.compile(
@@ -106,7 +112,14 @@ class LogParser:
             tokens = list(_CLUSTER_TOKEN_RE.finditer(match.group("body")))
             if not tokens:
                 return
-            chosen = next((token for token in tokens if not token.group("veto")), tokens[0])
+            chosen = next(
+                (
+                    token
+                    for token in tokens
+                    if not token.group("veto") and not token.group("veto_inline")
+                ),
+                tokens[0],
+            )
             self.state.last_telemetry["symbol"] = chosen.group("symbol").upper()
             self.state.last_telemetry["dir"] = chosen.group("ord").upper()
             self.state.last_telemetry["dl_dir"] = chosen.group("ord").upper()

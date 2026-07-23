@@ -64,6 +64,9 @@
       "isotonic_min_samples": 20,
       "max_calibrated_raw_gap": 0.25,
       "method": "auto",
+      "min_calibration_margin_floor": 0.03,
+      "min_calibration_sharpness": 0.03,
+      "min_oos_sharpness": 0.03,
       "neutral_calibration_half_width": 0.0,
       "neutral_half_width": 0.0,
       "platt_a_default": 1.0,
@@ -77,8 +80,8 @@
       "trust_blend_span": 0.2,
       "val_acc_trust_floor": 0.5
     },
-    "confidence_call_threshold": 0.53,
-    "confidence_put_threshold": 0.47,
+    "confidence_call_threshold": 0.51,
+    "confidence_put_threshold": 0.49,
     "deploy_gate": {
       "enabled": true,
       "eval_call_threshold_cap": 0.65,
@@ -406,11 +409,11 @@
         },
         "max_edge_without_margin": 999.0,
         "max_zscore_without_margin": 999.0,
-        "min_direction_margin": 0.03,
-        "recovery_min_direction_margin": 0.02,
+        "min_direction_margin": 0.0,
+        "recovery_min_direction_margin": 0.0,
         "recovery_min_hurst": 0.0
       },
-      "mandatory_trade_each_cycle": false,
+      "mandatory_trade_each_cycle": true,
       "market_rank": {
         "composite": {
           "adx_strong_bonus": 0.05,
@@ -473,12 +476,13 @@
         0.4
       ],
       "quality_gate": {
+        "edge_without_direction_score_factor": 0.85,
         "inverted_min_score": 0.0,
-        "mandatory_min_trade_score": 0.56,
+        "mandatory_min_trade_score": 0.50,
         "min_adx_threshold": 0.0,
-        "min_direction_margin": 0.03,
+        "min_direction_margin": 0.0,
         "min_meta_payoff_zscore": 0.5,
-        "min_payoff_edge": 0.02,
+        "min_payoff_edge": 0.0,
         "neutral_meta_payoff": {
           "hi": 0.04,
           "lo": -0.05
@@ -497,8 +501,8 @@
           "session_stake_unit_bankroll_pct": 0.0015
         },
         "regular": {
-          "min_direction_margin": 0.03,
-          "min_payoff_edge": 0.02
+          "min_direction_margin": 0.0,
+          "min_payoff_edge": 0.0
         },
         "starvation": {
           "decay_floor": 0.2,

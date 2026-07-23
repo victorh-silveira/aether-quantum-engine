@@ -14,6 +14,7 @@ from src.application.services.deep_learning.dl_calibration import (
     temperature_bounds,
 )
 from src.application.services.deep_learning.dl_calibration_isotonic import fit_isotonic
+from src.application.services.deep_learning.dl_sharpness import mean_sharpness, resolve_calibration_sharpness_cfg
 from src.domain.math.probability_entropy import binary_entropy, entropy_penalty_factor
 
 
@@ -77,10 +78,14 @@ def _candidate_score(
     calibrator: CalibratorState,
     probs: list[float],
     labels: list[float],
-) -> tuple[float, float]:
-    """Retorna Brier e ECE de um calibrador candidato."""
+) -> tuple[float, float, float]:
+    """Retorna Brier, ECE e sharpness media de um calibrador candidato."""
     calibrated = _calibrated_probs(probs, calibrator)
-    return brier_score(calibrated, labels), expected_calibration_error(calibrated, labels)
+    return (
+        brier_score(calibrated, labels),
+        expected_calibration_error(calibrated, labels),
+        mean_sharpness(calibrated),
+    )
 
 
 def _build_temperature_platt(probs: list[float], labels: list[float]) -> CalibratorState:
@@ -108,11 +113,20 @@ def _build_isotonic(probs: list[float], labels: list[float]) -> CalibratorState:
     return CalibratorState(method=_METHOD_ISOTONIC, isotonic_x=xs, isotonic_y=ys)
 
 
-def _select_best_calibrator(candidates: list[tuple[CalibratorState, float, float]]) -> CalibratorState:
-    """Escolhe calibrador com menor Brier; empate por menor ECE."""
+def _select_best_calibrator(
+    candidates: list[tuple[CalibratorState, float, float, float]],
+    *,
+    min_sharpness: float = 0.03,
+) -> CalibratorState:
+    """Escolhe calibrador por Brier/ECE respeitando piso de sharpness."""
     if not candidates:
         return CalibratorState()
-    ranked = sorted(candidates, key=lambda item: (item[1], item[2]))
+    floor = float(min_sharpness)
+    eligible = [item for item in candidates if item[3] + 1e-12 >= floor]
+    if eligible:
+        ranked = sorted(eligible, key=lambda item: (item[1], item[2]))
+        return ranked[0][0]
+    ranked = sorted(candidates, key=lambda item: (-item[3], item[1], item[2]))
     return ranked[0][0]
 
 
@@ -153,19 +167,21 @@ def fit_calibrator(
         return _build_platt(probs, labels)
     if method == _METHOD_ISOTONIC and len(probs) >= isotonic_min:
         return _build_isotonic(probs, labels)
-    candidates: list[tuple[CalibratorState, float, float]] = []
+    sharpness_cfg = resolve_calibration_sharpness_cfg(cfg)
+    min_sharpness = float(sharpness_cfg["min_calibration_sharpness"])
+    candidates: list[tuple[CalibratorState, float, float, float]] = []
     cal_tp = _build_temperature_platt(probs, labels)
-    brier, ece = _candidate_score(cal_tp, probs, labels)
-    candidates.append((cal_tp, brier, ece))
+    brier, ece, sharp = _candidate_score(cal_tp, probs, labels)
+    candidates.append((cal_tp, brier, ece, sharp))
     cal_platt = _build_platt(probs, labels)
-    brier, ece = _candidate_score(cal_platt, probs, labels)
-    candidates.append((cal_platt, brier, ece))
+    brier, ece, sharp = _candidate_score(cal_platt, probs, labels)
+    candidates.append((cal_platt, brier, ece, sharp))
     if len(probs) >= isotonic_min:
         cal_iso = _build_isotonic(probs, labels)
-        brier, ece = _candidate_score(cal_iso, probs, labels)
-        candidates.append((cal_iso, brier, ece))
+        brier, ece, sharp = _candidate_score(cal_iso, probs, labels)
+        candidates.append((cal_iso, brier, ece, sharp))
     if bool(cfg.get("auto_select_by_brier", True)):
-        return _select_best_calibrator(candidates)
+        return _select_best_calibrator(candidates, min_sharpness=min_sharpness)
     return cal_tp
 
 
