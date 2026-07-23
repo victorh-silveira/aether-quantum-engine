@@ -213,6 +213,13 @@ def test_resolve_execution_direction_rejects_meta_negative_edge_without_force():
             score=0.51,
             symbol="R_10",
             force=False,
+            exec_cfg={
+                "quality_gate": {
+                    "min_payoff_edge": 0.0,
+                    "regular": {"min_payoff_edge": 0.0},
+                    "recovery_relax": {"edge_floor": 0.0},
+                }
+            },
         )
     assert result is None
     assert metrics.get("gate_reason") == "meta_negative_edge"
