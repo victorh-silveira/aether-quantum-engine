@@ -36,15 +36,15 @@ def _rsi_di_oppose_direction(metrics: dict, dl_dir: TradeDirection) -> bool:
 
 
 def align_direction_to_rsi_trend(dl_dir: TradeDirection, metrics: dict) -> TradeDirection:
-    """Alinha a direcao ao vies claro do RSI macro (RSI > 0.50 -> CALL, RSI < 0.50 -> PUT) respeitando exaustao."""
+    """Alinha a direcao ao vies claro do RSI macro (RSI > 0.50 -> CALL, RSI < 0.50 -> PUT) respeitando exaustao extrema."""
     rsi = _macro_indicator_float(metrics, "rsi")
     if rsi is None:
         return dl_dir
     rsi_v = float(rsi)
-    if rsi_v >= 0.73:
+    if rsi_v >= 0.80:
         metrics["rsi_overbought_exhaustion"] = True
         return TradeDirection.PUT
-    if rsi_v <= 0.36:
+    if rsi_v <= 0.20:
         metrics["rsi_oversold_exhaustion"] = True
         return TradeDirection.CALL
     rsi_bias = rsi_v - 0.5
