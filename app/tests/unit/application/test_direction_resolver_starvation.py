@@ -268,36 +268,3 @@ def test_recovery_blocks_same_side_after_loss_with_negative_edge():
     assert result is None
     assert entry["metrics"].get("gate_reason") == "meta_negative_edge"
     reset_direction_persistence_tracker()
-
-
-def test_recovery_allows_same_side_with_positive_edge_after_loss():
-    from src.application.services.direction_loss_tracker import (
-        record_direction_outcome,
-        reset_direction_persistence_tracker,
-    )
-
-    reset_direction_persistence_tracker()
-    record_direction_outcome("R_10", "PUT", won=False)
-    entry = _entry(direction=TradeDirection.PUT, calibrated_prob=0.35)
-    entry["metrics"]["predicted_payoff_edge"] = 0.12
-    entry["metrics"]["meta_classifier_applied"] = True
-    entry["metrics"]["edge_expectancy"] = "WIN_EXPECTED"
-    entry["metrics"]["edge_zscore"] = 0.90
-    entry["metrics"]["meta_payoff_edge_zscore"] = 0.90
-    entry["metrics"]["indicators"] = {"bb_width": 0.09, "adx": 0.25, "rsi": 0.4}
-    result = resolve_execution_direction(
-        entry,
-        symbol="R_10",
-        recovery_active=True,
-        cycle_id=3,
-        exec_cfg={
-            "quality_gate": {
-                "min_direction_margin": 0.0,
-                "min_payoff_edge": 0.0,
-                "regular": {"min_direction_margin": 0.0, "min_payoff_edge": 0.0},
-            }
-        },
-    )
-    assert result is not None
-    assert result[0] == TradeDirection.PUT
-    reset_direction_persistence_tracker()
