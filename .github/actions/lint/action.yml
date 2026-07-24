@@ -9,16 +9,21 @@ runs:
       uses: actions/setup-python@v5
       with:
         python-version: "3.13.12"
-        python-version-file: app/.python-version
         cache: pip
         cache-dependency-path: |
           app/requirements.txt
           app/requirements-dev.txt
 
+    - name: Liberar espaço em disco no runner
+      shell: bash
+      run: |
+        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/powershell /usr/share/swift || true
+
     - name: Instalar dependências (runtime e dev)
       shell: bash
       run: |
         python -m pip install --upgrade pip
+        pip install --extra-index-url https://download.pytorch.org/whl/cpu torch==2.10.0
         pip install -r app/requirements.txt -r app/requirements-dev.txt
 
     - name: Clean workspace — lint
