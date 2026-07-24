@@ -92,3 +92,18 @@ def test_resolve_execution_direction_concordance_boost(mock_reject, mock_resolve
     res = resolve_execution_direction(entry, symbol="SYM")
     assert res is not None
     assert entry["metrics"]["tcn_score"] == pytest.approx(0.66)
+
+
+def test_align_direction_to_rsi_trend_mean_reversion():
+    from src.application.services.execution_direction_discordance import align_direction_to_rsi_trend
+
+    metrics = {
+        "macro_indicators": {
+            "rsi": 0.48,
+            "adx": 0.15,
+            "hurst": 0.35,
+        }
+    }
+    dir_res = align_direction_to_rsi_trend(TradeDirection.PUT, metrics)
+    assert dir_res == TradeDirection.PUT
+    assert metrics.get("micro_regime_mean_reversion") is True

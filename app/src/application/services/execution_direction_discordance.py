@@ -48,7 +48,11 @@ def align_direction_to_rsi_trend(dl_dir: TradeDirection, metrics: dict) -> Trade
         metrics["rsi_oversold_exhaustion"] = True
         return TradeDirection.CALL
     adx = _macro_indicator_float(metrics, "adx")
+    hurst = _macro_indicator_float(metrics, "hurst")
     adx_v = float(adx) if adx is not None else 0.30
+    hurst_v = float(hurst) if hurst is not None else 0.50
+    if adx_v < 0.20 and hurst_v < 0.45:
+        metrics["micro_regime_mean_reversion"] = True
     min_bias = 0.05 if adx_v < 0.25 else 0.01
     rsi_bias = rsi_v - 0.5
     if abs(rsi_bias) < min_bias:
