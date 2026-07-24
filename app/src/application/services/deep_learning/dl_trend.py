@@ -9,12 +9,20 @@ from src.application.services.deep_learning.dl_indicator_config import load_indi
 from src.domain.models.trade import TradeDirection
 
 
+def _safe_last(series: dict, key: str) -> float | None:
+    """Extrai o ultimo valor de uma serie de indicadores de forma thread-safe e sem race conditions."""
+    val = series.get(key)
+    if val is not None and len(val) > 0:
+        return float(val[-1])
+    return None
+
+
 def consensus_trend_direction(
     price_dir: TradeDirection,
     series: dict,
     trend_consensus: dict,
 ) -> tuple[TradeDirection, int, int]:
-    """Votacao por consenso dos indicadores tecnicos com zonas puras CALL, PUT e NEUTRA."""
+    """Votacao por consenso dos indicadores tecnicos com zonas puras CALL, PUT e NEUTRA sem race condition."""
     call_votes = 1 if price_dir == TradeDirection.CALL else 0
     put_votes = 1 if price_dir != TradeDirection.CALL else 0
     rsi_above = float(trend_consensus.get("rsi_call_above", 0.50))
@@ -22,46 +30,42 @@ def consensus_trend_direction(
     di_above = float(trend_consensus.get("di_call_above", 0.0))
 
     # 1. DI Diff (Zona Neutra: [-0.02, +0.02])
-    di_val = series.get("di_diff")
-    if di_val is not None and len(di_val) > 0:
-        v = float(di_val[-1])
+    v = _safe_last(series, "di_diff")
+    if v is not None:
         if v > (di_above + 0.02):
             call_votes += 1
         elif v < (di_above - 0.02):
             put_votes += 1
 
     # 2. MACD Diff (Zona Neutra: [-0.00005, +0.00005])
-    macd_val = series.get("macd")
-    macd_sig = series.get("macd_signal")
-    if macd_val is not None and len(macd_val) > 0 and macd_sig is not None and len(macd_sig) > 0:
-        diff = float(macd_val[-1]) - float(macd_sig[-1])
+    m_val = _safe_last(series, "macd")
+    m_sig = _safe_last(series, "macd_signal")
+    if m_val is not None and m_sig is not None:
+        diff = m_val - m_sig
         if diff > 0.00005:
             call_votes += 1
         elif diff < -0.00005:
             put_votes += 1
 
     # 3. RSI (Zona Neutra: [0.48, 0.52])
-    rsi_val = series.get("rsi")
-    if rsi_val is not None and len(rsi_val) > 0:
-        rv = float(rsi_val[-1])
+    rv = _safe_last(series, "rsi")
+    if rv is not None:
         if rv > max(rsi_above, 0.52):
             call_votes += 1
         elif rv < min(rsi_above, 0.48):
             put_votes += 1
 
     # 4. CMO (Zona Neutra: [-0.05, +0.05])
-    cmo_val = series.get("cmo")
-    if cmo_val is not None and len(cmo_val) > 0:
-        cv = float(cmo_val[-1])
+    cv = _safe_last(series, "cmo")
+    if cv is not None:
         if cv > 0.05:
             call_votes += 1
         elif cv < -0.05:
             put_votes += 1
 
     # 5. Keltner %B (Zona Neutra: [0.48, 0.52])
-    k_val = series.get("keltner_pct_b")
-    if k_val is not None and len(k_val) > 0:
-        kv = float(k_val[-1])
+    kv = _safe_last(series, "keltner_pct_b")
+    if kv is not None:
         if kv > (keltner_above + 0.02):
             call_votes += 1
         elif kv < (keltner_above - 0.02):

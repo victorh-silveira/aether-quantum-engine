@@ -60,3 +60,9 @@ def test_calculate_trend_direction_requires_trend_period(monkeypatch):
     monkeypatch.setattr(dl_trend_mod, "_load_execution_trend_defaults", lambda: {})
     with pytest.raises(KeyError, match="trend_period"):
         calculate_trend_direction(np.array([1.0, 2.0]), {}, {})
+
+
+def test_safe_last_empty_or_none():
+    assert dl_trend_mod._safe_last({}, "di_diff") is None
+    assert dl_trend_mod._safe_last({"di_diff": []}, "di_diff") is None
+    assert dl_trend_mod._safe_last({"di_diff": [0.05]}, "di_diff") == 0.05
