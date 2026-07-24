@@ -10,7 +10,7 @@ from src.application.services.execution_price_zone_gate import (
     align_or_keep_meta_side,
     apply_price_zone_gate,
 )
-from src.application.services.execution_quality_gate import direction_margin_from_probability, passes_execution_quality
+from src.application.services.execution_quality_gate import passes_execution_quality
 from src.application.services.execution_quality_gate_meta import evaluate_meta_payoff_quality
 from src.application.services.execution_quality_gate_microstructure import is_hard_quality_reject_reason
 from src.application.services.force_trade_mode import force_trade_every_cycle, synthesize_force_direction
@@ -41,10 +41,16 @@ def direction_pivot(metrics: dict) -> float:
 
 
 def _is_neutral_clamp(metrics: dict) -> bool:
-    """True quando a calibracao bloqueou o sinal na zona neutra."""
+    """True quando a calibracao, gate_reason ou sinal indica zona neutra."""
+    reason = str(metrics.get("gate_reason") or "")
+    cal_mode = str(metrics.get("calibration_mode") or "")
+    status = str(metrics.get("signal_status") or "")
+    action = str(metrics.get("action") or "")
     return (
-        str(metrics.get("gate_reason") or "") == _NEUTRAL_CLAMP
-        or str(metrics.get("calibration_mode") or "") == _NEUTRAL_CLAMP
+        reason in {_NEUTRAL_CLAMP, "neutral", "NEUTRAL", "NO_EDGE_NEUTRAL"}
+        or cal_mode in {_NEUTRAL_CLAMP, "neutral", "NEUTRAL"}
+        or status in {"NEUTRAL", "neutral"}
+        or action in {"NEUTRAL", "neutral"}
     )
 
 
@@ -78,14 +84,18 @@ def seed_direction_metrics(metrics: dict, *, dl_dir: TradeDirection, prob: float
     metrics.update(
         {
             "dl_direction": dl_dir.name,
-            "exec_direction": dl_dir.name,
             "resolved_direction": dl_dir.name,
-            "direction_call_score": call,
-            "direction_put_score": put,
-            "direction_margin": direction_margin_from_probability(prob, direction=dl_dir.name),
+            "raw_prob": prob,
+            "raw_call_prob": call,
+            "raw_put_prob": put,
+            "raw_margin": abs(prob - 0.5),
+            "calibrated_prob": prob,
+            "calibrated_call_prob": call,
+            "calibrated_put_prob": put,
+            "direction_margin": abs(prob - 0.5),
         }
     )
-    return call if dl_dir == TradeDirection.CALL else put
+    return max(call, put)
 
 
 def sync_entry_metrics(entry: dict, metrics: dict) -> None:
@@ -190,10 +200,13 @@ def initial_direction_checks(
     force = force_trade_every_cycle(exec_cfg_dict)
     if _is_neutral_clamp(metrics):
         if not force:
-            metrics["gate_reason"] = _NEUTRAL_CLAMP
-            metrics["calibration_mode"] = _NEUTRAL_CLAMP
+            metrics["gate_reason"] = metrics.get("gate_reason") or _NEUTRAL_CLAMP
+            metrics["calibration_mode"] = metrics.get("calibration_mode") or _NEUTRAL_CLAMP
             metrics["quality_guard_reject"] = True
             metrics["regime_skip_cycle"] = True
+            metrics["signal_status"] = "SKIP"
+            metrics["execute"] = False
+            entry["execute"] = False
             sync_entry_metrics(entry, metrics)
             return None
         metrics["gate_reason"] = (
@@ -202,6 +215,7 @@ def initial_direction_checks(
         metrics["calibration_mode"] = "calibrated"
         metrics.pop("quality_guard_reject", None)
         metrics.pop("regime_skip_cycle", None)
+        metrics.pop("signal_status", None)
         sync_entry_metrics(entry, metrics)
     dl_dir = infer_dl_direction(entry)
     if force and dl_dir is None:

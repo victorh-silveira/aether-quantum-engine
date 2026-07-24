@@ -80,14 +80,16 @@ def veto_token(metrics: dict[str, Any]) -> str | None:
         if not raw:
             continue
         token = str(raw).strip().upper().replace("-", "_")
-        if token in {"NEUTRAL_CLAMP", "NEUTRO_CLAMP"}:
-            return "NEUTRO_VETO"
+        if token in {"NEUTRAL_CLAMP", "NEUTRO_CLAMP", "NO_EDGE_NEUTRAL", "NEUTRAL", "NEUTRO"}:
+            return "NEUTRO_SKIP"
         if token:
             return token
+    if metrics.get("signal_status") == "SKIP":
+        return "NEUTRO_SKIP"
     if metrics.get("quality_guard_reject") or metrics.get("regime_skip_cycle"):
-        return "NEUTRO_VETO"
+        return "NEUTRO_SKIP"
     if metrics.get("execute") is False and metrics.get("deploy_ok") is not False:
-        return "NEUTRO_VETO"
+        return "NEUTRO_SKIP"
     return None
 
 

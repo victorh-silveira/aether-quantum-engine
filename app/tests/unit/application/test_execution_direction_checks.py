@@ -54,3 +54,20 @@ def test_initial_direction_checks_rejects_hurst_noise_via_orch():
     }
     assert initial_direction_checks(entry, {}, orch=orch) is not None
     assert entry["metrics"].get("gate_reason") != "hurst_noise_veto"
+
+
+def test_initial_direction_checks_skips_neutral_signals():
+    entry = {
+        "direction": None,
+        "metrics": {
+            "calibration_mode": "neutral_clamp",
+            "calibrated_prob": 0.50,
+            "raw_prob": 0.50,
+        },
+    }
+    result = initial_direction_checks(entry, {})
+    assert result is None
+    assert entry["metrics"]["signal_status"] == "SKIP"
+    assert entry["metrics"]["execute"] is False
+    assert entry["execute"] is False
+    assert entry["metrics"]["regime_skip_cycle"] is True

@@ -12,6 +12,7 @@ def _candidate_block_reason(metrics: dict) -> str | None:
     soft_veto = str(metrics.get("meta_veto_mode") or "") == "soft" or metrics.get("signal_status") == "SOFT_VETO"
     ready = bool(metrics.get("execution_candidate_ready"))
     mapping = (
+        (metrics.get("signal_status") == "SKIP", "neutral_signal_skip"),
         (bool(metrics.get("quality_guard_reject")), "quality_guard_reject"),
         (bool(side_eq_hard), str(metrics.get("side_eq_reason") or "side_imbalance_both_sides")),
         (metrics.get("signal_status") == "SIGNAL_SUSPENDED", "SIGNAL_SUSPENDED"),

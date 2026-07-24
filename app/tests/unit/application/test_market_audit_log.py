@@ -39,6 +39,10 @@ def test_format_cluster_veto_and_metric_float_paths():
                 "quality_guard_reject": True,
             },
         },
+        "R_25": {
+            "direction": "CALL",
+            "metrics": {"exec_direction": "CALL", "signal_status": "SKIP"},
+        },
         "R_50": {
             "direction": None,
             "metrics": {"execute": False, "deploy_ok": True, "dl_direction": "PUT"},
@@ -54,8 +58,9 @@ def test_format_cluster_veto_and_metric_float_paths():
         },
     }
     line = format_cluster_audit_line(decisions, timeframe="M5")
-    assert "R_10: CALL (Prob:" in line and "NEUTRO_VETO)" in line
-    assert "R_50: PUT (Prob:" in line and "NEUTRO_VETO)" in line
+    assert "R_10: CALL (Prob:" in line and "NEUTRO_SKIP)" in line
+    assert "R_25: CALL (Prob:" in line and "NEUTRO_SKIP)" in line
+    assert "R_50: PUT (Prob:" in line and "NEUTRO_SKIP)" in line
     assert "R_100: CALL (Prob:" in line and "ADX_STARVATION)" in line
 
 
@@ -118,7 +123,7 @@ def test_format_cluster_audit_line():
     line = format_cluster_audit_line(decisions, timeframe="M5")
     assert line.startswith("[CLUSTER] M5 || ")
     assert "R_10: PUT (Prob: 0.377 Cal: 0.365 Margin: 0.135 Edge: +0.950)" in line
-    assert "R_50: CALL (Prob:" in line and "NEUTRO_VETO)" in line
+    assert "R_50: CALL (Prob:" in line and "NEUTRO_SKIP)" in line
 
 
 def test_format_execution_ticket_line():
