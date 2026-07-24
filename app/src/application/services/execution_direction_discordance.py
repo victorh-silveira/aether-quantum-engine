@@ -41,10 +41,10 @@ def align_direction_to_rsi_trend(dl_dir: TradeDirection, metrics: dict) -> Trade
     if rsi is None:
         return dl_dir
     rsi_v = float(rsi)
-    if rsi_v >= 0.80:
+    if rsi_v >= 0.72:
         metrics["rsi_overbought_exhaustion"] = True
         return TradeDirection.PUT
-    if rsi_v <= 0.20:
+    if rsi_v <= 0.28:
         metrics["rsi_oversold_exhaustion"] = True
         return TradeDirection.CALL
     adx = _macro_indicator_float(metrics, "adx")
