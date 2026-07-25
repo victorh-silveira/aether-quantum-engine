@@ -212,6 +212,8 @@ def finalize_stake_with_min(
     mandatory: bool = False,
 ) -> float:
     """Garante stake minima ou zero quando conviccao, recovery ou execucao obrigatoria exigem entrada."""
+    if final_stake <= 0.0 and not mandatory:
+        return 0.0
     if conviction >= 0.50 or recovery_linear or mandatory:
         if final_stake < stake_min and bankroll >= stake_min:
             return stake_min

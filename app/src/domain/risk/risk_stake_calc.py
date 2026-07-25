@@ -128,6 +128,10 @@ def calculate_stake_for_manager(
     conviction = resolve_stake_conviction(_metrics_for_conviction(dl_metrics, conviction), rm.kelly_config)
     if isinstance(dl_metrics, dict):
         dl_metrics["stake_regime"] = stake_regime
+        if (
+            dl_metrics.get("meta_veto_mode") == "soft" or dl_metrics.get("signal_status") == "SOFT_VETO"
+        ) and not _mandatory_trade_flag(kwargs, rm):
+            return 0.0
 
     weak_cap = float(rm.kelly_config.get("mandatory_weak_conviction_cap", 0.55))
     recovery_min = float(rm.kelly_config.get("recovery_min_conviction", 0.50))
