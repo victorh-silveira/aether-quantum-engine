@@ -98,7 +98,7 @@
       "soft_max_brier": 0.26,
       "soft_min_val_accuracy": 0.65
     },
-    "early_stopping_patience": 50,
+    "early_stopping_patience": 0,
     "enabled": true,
     "focal_gamma": 2.0,
     "implied_vol_bars": 90,
@@ -203,7 +203,7 @@
     "label_mode": "spot_forward",
     "label_smooth_bars": 1,
     "label_smoothing": 0.0,
-    "learning_rate": 0.0012,
+    "learning_rate": 0.0028,
     "live_signal_metrics": {
       "drift_min_score": 0.48,
       "drift_score_factor": 0.72,
