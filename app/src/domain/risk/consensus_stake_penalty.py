@@ -65,7 +65,9 @@ def apply_soft_recovery_stake(
     pending = float(pending_total)
     material_pending = pending + 1e-12 >= material_min
     cap = max_safe_stake_cap(bankroll, consecutive_losses_linear=consecutive_losses, soft_recovery=soft_recovery)
-    if pending <= 0.0 or not material_pending or near_stop_win:
+    hurst_val = metrics.get("hurst") if isinstance(metrics, dict) else None
+    low_hurst_noise = hurst_val is not None and float(hurst_val) < 0.400
+    if pending <= 0.0 or not material_pending or near_stop_win or low_hurst_noise:
         explore = min(unit, cap)
         if isinstance(metrics, dict):
             metrics["recovery_soft_progression"] = 1.0
@@ -74,6 +76,7 @@ def apply_soft_recovery_stake(
             metrics["recovery_cover_need"] = 0.0
             metrics["recovery_material_pending"] = bool(material_pending)
             metrics["recovery_near_stop_win_freeze"] = bool(near_stop_win)
+            metrics["recovery_low_hurst_damped"] = bool(low_hurst_noise)
             metrics["recovery_progression_multiplier"] = 1.0
             metrics["recovery_infeasible"] = False
         return explore
