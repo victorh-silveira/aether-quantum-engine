@@ -7,12 +7,15 @@ import numpy as np
 from src.application.services.deep_learning.dl_feature_indicators import (
     calculate_adx,
     calculate_cci,
+    calculate_choppiness_index,
     calculate_cmo,
     calculate_ema_crossover,
     calculate_keltner_channel_pct_b,
     calculate_macd,
     calculate_stochastic,
+    calculate_supertrend,
     calculate_volatility_ratio,
+    calculate_vwap_zscore,
     calculate_williams_r,
     rate_of_change,
 )
@@ -104,6 +107,9 @@ def compute_oscillators(
         atr_period=int(win["kc_atr_period"]),
         atr_mult=kc_atr_mult,
     )
+    choppiness_index = calculate_choppiness_index(h, low_px, close, period=14)
+    vwap_zscore = calculate_vwap_zscore(h, low_px, close, window=20)
+    _, supertrend_dir = calculate_supertrend(h, low_px, close, period=10, multiplier=3.0)
     return {
         "macd": macd,
         "macd_signal": macd_signal,
@@ -118,4 +124,7 @@ def compute_oscillators(
         "ema_9_21_dist": ema_9_21_dist,
         "vol_ratio_short_long": vol_ratio_short_long,
         "keltner_pct_b": keltner_pct_b,
+        "choppiness_index": choppiness_index,
+        "vwap_zscore": vwap_zscore,
+        "supertrend_dir": supertrend_dir,
     }

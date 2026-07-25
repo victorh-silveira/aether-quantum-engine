@@ -12,87 +12,50 @@ def calculate_adx(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Calcula o ADX e a diferenca normalizada (+DI - -DI) / 100.0."""
     n = len(close)
-    adx_out = np.zeros(n, dtype=np.float64)
-    di_diff_out = np.zeros(n, dtype=np.float64)
     if n < period + 1:
-        return adx_out, di_diff_out
-
+        return np.zeros(n, dtype=np.float64), np.zeros(n, dtype=np.float64)
     df = pl.DataFrame(
-        {
-            "high": high.astype(np.float64),
-            "low": low.astype(np.float64),
-            "close": close.astype(np.float64),
-        }
+        {"high": high.astype(np.float64), "low": low.astype(np.float64), "close": close.astype(np.float64)}
     )
-
     span = 2 * period - 1
-
-    df = df.with_columns(
-        [
-            pl.col("close").shift(1).alias("prev_close"),
-            pl.col("high").shift(1).alias("prev_high"),
-            pl.col("low").shift(1).alias("prev_low"),
-        ]
-    )
-
-    df = df.with_columns(
-        [
-            (pl.col("high") - pl.col("low")).alias("tr1"),
-            (pl.col("high") - pl.col("prev_close")).abs().alias("tr2"),
-            (pl.col("low") - pl.col("prev_close")).abs().alias("tr3"),
-        ]
-    )
-    df = df.with_columns(pl.max_horizontal("tr1", "tr2", "tr3").alias("tr"))
-
-    df = df.with_columns(
-        [
-            (pl.col("high") - pl.col("prev_high")).alias("up_move"),
-            (pl.col("prev_low") - pl.col("low")).alias("down_move"),
-        ]
-    )
-
-    df = df.with_columns(
-        [
-            pl.when((pl.col("up_move") > pl.col("down_move")) & (pl.col("up_move") > 0.0))
+    df = (
+        df.with_columns(
+            prev_close=pl.col("close").shift(1),
+            prev_high=pl.col("high").shift(1),
+            prev_low=pl.col("low").shift(1),
+        )
+        .with_columns(
+            tr1=pl.col("high") - pl.col("low"),
+            tr2=(pl.col("high") - pl.col("prev_close")).abs(),
+            tr3=(pl.col("low") - pl.col("prev_close")).abs(),
+            up_move=pl.col("high") - pl.col("prev_high"),
+            down_move=pl.col("prev_low") - pl.col("low"),
+        )
+        .with_columns(
+            tr=pl.max_horizontal("tr1", "tr2", "tr3"),
+            plus_dm=pl.when((pl.col("up_move") > pl.col("down_move")) & (pl.col("up_move") > 0.0))
             .then(pl.col("up_move"))
-            .otherwise(0.0)
-            .alias("plus_dm"),
-            pl.when((pl.col("down_move") > pl.col("up_move")) & (pl.col("down_move") > 0.0))
+            .otherwise(0.0),
+            minus_dm=pl.when((pl.col("down_move") > pl.col("up_move")) & (pl.col("down_move") > 0.0))
             .then(pl.col("down_move"))
-            .otherwise(0.0)
-            .alias("minus_dm"),
-        ]
+            .otherwise(0.0),
+        )
+        .with_columns(
+            tr_smooth=pl.col("tr").ewm_mean(span=span, adjust=False),
+            plus_dm_smooth=pl.col("plus_dm").ewm_mean(span=span, adjust=False),
+            minus_dm_smooth=pl.col("minus_dm").ewm_mean(span=span, adjust=False),
+        )
+        .with_columns(
+            plus_di=100.0 * pl.col("plus_dm_smooth") / (pl.col("tr_smooth") + 1e-10),
+            minus_di=100.0 * pl.col("minus_dm_smooth") / (pl.col("tr_smooth") + 1e-10),
+        )
+        .with_columns(
+            dx=100.0 * (pl.col("plus_di") - pl.col("minus_di")).abs() / (pl.col("plus_di") + pl.col("minus_di") + 1e-10)
+        )
+        .with_columns(adx=pl.col("dx").ewm_mean(span=span, adjust=False))
     )
-
-    df = df.with_columns(
-        [
-            pl.col("tr").ewm_mean(span=span, adjust=False).alias("tr_smooth"),
-            pl.col("plus_dm").ewm_mean(span=span, adjust=False).alias("plus_dm_smooth"),
-            pl.col("minus_dm").ewm_mean(span=span, adjust=False).alias("minus_dm_smooth"),
-        ]
-    )
-
-    df = df.with_columns(
-        [
-            (100.0 * pl.col("plus_dm_smooth") / (pl.col("tr_smooth") + 1e-10)).alias("plus_di"),
-            (100.0 * pl.col("minus_dm_smooth") / (pl.col("tr_smooth") + 1e-10)).alias("minus_di"),
-        ]
-    )
-
-    df = df.with_columns(
-        (
-            100.0 * (pl.col("plus_di") - pl.col("minus_di")).abs() / (pl.col("plus_di") + pl.col("minus_di") + 1e-10)
-        ).alias("dx")
-    )
-    df = df.with_columns(pl.col("dx").ewm_mean(span=span, adjust=False).alias("adx"))
-
-    adx_res = df.select("adx").to_numpy().flatten()
-    plus_di_res = df.select("plus_di").to_numpy().flatten()
-    minus_di_res = df.select("minus_di").to_numpy().flatten()
-
-    adx_out = adx_res / 100.0
-    di_diff_out = (plus_di_res - minus_di_res) / 100.0
-
+    adx_out = df.select("adx").to_numpy().flatten() / 100.0
+    di_diff_out = (df.select("plus_di").to_numpy().flatten() - df.select("minus_di").to_numpy().flatten()) / 100.0
     return np.nan_to_num(adx_out, nan=0.0, posinf=0.0, neginf=0.0), np.nan_to_num(
         di_diff_out, nan=0.0, posinf=0.0, neginf=0.0
     )
@@ -211,3 +174,97 @@ def calculate_keltner_channel_pct_b(
         else:
             out[i] = 0.5
     return out
+
+
+def calculate_choppiness_index(
+    high: np.ndarray,
+    low: np.ndarray,
+    close: np.ndarray,
+    period: int = 14,
+) -> np.ndarray:
+    """Calcula Choppiness Index (CI) normalizado em [0, 100]. High (>61.8) = consolidacao."""
+    n = len(close)
+    out = np.full(n, 50.0, dtype=np.float64)
+    if n < period + 1:
+        return out
+    tr = np.zeros(n, dtype=np.float64)
+    tr[0] = high[0] - low[0]
+    for i in range(1, n):
+        tr[i] = max(high[i] - low[i], abs(high[i] - close[i - 1]), abs(low[i] - close[i - 1]))
+    p = max(2, int(period))
+    log10_p = np.log10(p)
+    for i in range(p, n):
+        tr_sum = np.sum(tr[i - p + 1 : i + 1])
+        max_h = np.max(high[i - p + 1 : i + 1])
+        min_l = np.min(low[i - p + 1 : i + 1])
+        rng = max_h - min_l
+        if rng > 1e-10 and tr_sum > 0.0:
+            ci = 100.0 * (np.log10(tr_sum / rng) / log10_p)
+            out[i] = max(0.0, min(100.0, ci))
+    return out
+
+
+def calculate_vwap_zscore(
+    high: np.ndarray,
+    low: np.ndarray,
+    close: np.ndarray,
+    volume: np.ndarray | None = None,
+    window: int = 20,
+) -> np.ndarray:
+    """Calcula Z-Score do desvio do preco em relacao ao VWAP rolling."""
+    n = len(close)
+    out = np.zeros(n, dtype=np.float64)
+    if n < window:
+        return out
+    vol = volume if volume is not None and len(volume) == n else np.ones(n, dtype=np.float64)
+    typical_price = (high + low + close) / 3.0
+    w = max(2, int(window))
+    for i in range(w - 1, n):
+        tp_win = typical_price[i - w + 1 : i + 1]
+        v_win = vol[i - w + 1 : i + 1]
+        v_sum = np.sum(v_win)
+        vwap = np.sum(tp_win * v_win) / (v_sum + 1e-10) if v_sum > 0 else np.mean(tp_win)
+        std = np.std(tp_win)
+        out[i] = (close[i] - vwap) / (std + 1e-10)
+    return np.clip(out, -3.0, 3.0)
+
+
+def calculate_supertrend(
+    high: np.ndarray,
+    low: np.ndarray,
+    close: np.ndarray,
+    period: int = 10,
+    multiplier: float = 3.0,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Calcula linha de SuperTrend e sinal direcional (+1.0 CALL / -1.0 PUT)."""
+    n = len(close)
+    st = np.zeros(n, dtype=np.float64)
+    dir_out = np.ones(n, dtype=np.float64)
+    if n < period + 1:
+        return st, dir_out
+    tr = np.zeros(n, dtype=np.float64)
+    tr[0] = high[0] - low[0]
+    for i in range(1, n):
+        tr[i] = max(high[i] - low[i], abs(high[i] - close[i - 1]), abs(low[i] - close[i - 1]))
+    p = max(2, int(period))
+    atr = np.zeros(n, dtype=np.float64)
+    atr[p - 1] = np.mean(tr[:p])
+    for i in range(p, n):
+        atr[i] = (atr[i - 1] * (p - 1) + tr[i]) / p
+    hl2 = (high + low) / 2.0
+    upper = hl2 + multiplier * atr
+    lower = hl2 - multiplier * atr
+    st_dir = 1
+    for i in range(1, n):
+        if close[i] > upper[i - 1]:
+            st_dir = 1
+        elif close[i] < lower[i - 1]:
+            st_dir = -1
+        if st_dir == 1:
+            lower[i] = max(lower[i], lower[i - 1]) if close[i - 1] > lower[i - 1] else lower[i]
+            st[i] = lower[i]
+        else:
+            upper[i] = min(upper[i], upper[i - 1]) if close[i - 1] < upper[i - 1] else upper[i]
+            st[i] = upper[i]
+        dir_out[i] = float(st_dir)
+    return st, dir_out

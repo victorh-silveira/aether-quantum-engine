@@ -41,15 +41,18 @@ def direction_pivot(metrics: dict) -> float:
 
 
 def _is_neutral_clamp(metrics: dict) -> bool:
-    """True quando a calibracao, gate_reason ou sinal indica zona neutra."""
+    """True quando a calibracao, gate_reason, Choppiness Index ou sinal indica zona neutra."""
     reason = str(metrics.get("gate_reason") or "")
     cal_mode = str(metrics.get("calibration_mode") or "")
     status = str(metrics.get("signal_status") or "")
     action = str(metrics.get("action") or "")
+    ci = metrics.get("choppiness_index")
+    if ci is not None and float(ci) > 61.8:
+        return True
     return (
-        reason in {_NEUTRAL_CLAMP, "neutral", "NEUTRAL", "NO_EDGE_NEUTRAL"}
+        reason in {_NEUTRAL_CLAMP, "neutral", "NEUTRAL", "NO_EDGE_NEUTRAL", "NEUTRO", "NEUTRO_SKIP"}
         or cal_mode in {_NEUTRAL_CLAMP, "neutral", "NEUTRAL"}
-        or status in {"NEUTRAL", "neutral"}
+        or status in {"NEUTRAL", "neutral", "NEUTRO", "NEUTRO_SKIP"}
         or action in {"NEUTRAL", "neutral"}
     )
 

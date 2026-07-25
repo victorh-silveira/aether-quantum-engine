@@ -5,10 +5,13 @@ import polars as pl
 
 from src.application.services.deep_learning.dl_feature_indicators_advanced import (
     calculate_adx,
+    calculate_choppiness_index,
     calculate_cmo,
     calculate_ema_crossover,
     calculate_keltner_channel_pct_b,
+    calculate_supertrend,
     calculate_volatility_ratio,
+    calculate_vwap_zscore,
     calculate_williams_r,
 )
 from src.application.services.deep_learning.dl_indicator_config import (
@@ -37,6 +40,9 @@ __all__ = [
     "calculate_ema_crossover",
     "calculate_cmo",
     "calculate_keltner_channel_pct_b",
+    "calculate_choppiness_index",
+    "calculate_vwap_zscore",
+    "calculate_supertrend",
 ]
 
 
