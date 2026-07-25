@@ -116,8 +116,12 @@ def resolve_dlambert_stake(
         metrics = dl_metrics if isinstance(dl_metrics, dict) else None
         resolved_f_star = f_star
         if resolved_f_star is None and metrics:
-            resolved_f_star = metrics.get("f_star") or metrics.get("kelly_fraction")
-        if kelly_base <= 0.0 or (resolved_f_star is not None and float(resolved_f_star) <= 0.0):
+            resolved_f_star = (
+                metrics.get("f_star") if metrics.get("f_star") is not None else metrics.get("kelly_fraction")
+            )
+        if (kelly_base <= 0.0 and resolved_f_star is None) or (
+            resolved_f_star is not None and float(resolved_f_star) <= 0.0
+        ):
             return 0.0, "D'ALEMBERT"
         effective_base = effective_soft_recovery_base(kelly_base, rm, dlambert_config)
         session_base = resolve_session_base_unit(bankroll, effective_base, metrics)
