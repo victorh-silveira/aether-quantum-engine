@@ -157,6 +157,9 @@ def calculate_stake_for_manager(
         recovery_bypass_consensus=recovery_bypass_consensus,
         silent=silent,
     )
+    if isinstance(dl_metrics, dict):
+        dl_metrics["f_star"] = f_star
+        dl_metrics["kelly_fraction"] = f_star
     dl_execute = not isinstance(dl_metrics, dict) or bool(dl_metrics.get("execute", True))
     kelly_base = _apply_stop_win_kelly_boost(
         rm,
@@ -184,6 +187,7 @@ def calculate_stake_for_manager(
         pending_total=loss_to_recover,
         payout=b,
         dl_metrics=dl_metrics if isinstance(dl_metrics, dict) else None,
+        f_star=f_star,
     )
     mandatory_flag = _mandatory_trade_flag(kwargs, rm) and not mandatory_blocked
     final_stake = apply_turbo_edge_stake(final_stake, dl_metrics)

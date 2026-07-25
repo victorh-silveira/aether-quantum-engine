@@ -253,6 +253,26 @@ def test_resolve_dlambert_stake_uses_rm_soft_recovery_config():
     assert stake > 0.0
 
 
+def test_resolve_dlambert_stake_zero_kelly_fraction_in_metrics_returns_zero():
+    class RM:
+        dlambert_unit = 10.0
+        dlambert_config = {}
+        risk_params = {}
+
+    stake, tag = resolve_dlambert_stake(
+        recovery_active=True,
+        bankroll=10000.0,
+        kelly_base=10.0,
+        dlambert_config={"dlambert_enabled": True},
+        rm=RM(),
+        consecutive_losses_linear=2,
+        pending_total=50.0,
+        dl_metrics={"kelly_fraction": 0.0},
+    )
+    assert tag == "D'ALEMBERT"
+    assert stake == 0.0
+
+
 def test_dlambert_log_suffix_soft_recovery_and_empty():
     suffix = dlambert_log_suffix(
         "D'ALEMBERT",

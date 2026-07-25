@@ -103,6 +103,7 @@ def resolve_dlambert_stake(
     pending_total: float = 0.0,
     payout: float | None = None,
     dl_metrics: dict | None = None,
+    f_star: float | None = None,
 ) -> tuple[float, str]:
     """Resolve stake final Kelly ou Soft Recovery Adaptativo indexado ao payout."""
     soft = _soft_cfg(rm, dlambert_config)
@@ -113,8 +114,10 @@ def resolve_dlambert_stake(
     )
     if stress_recovery and soft_recovery_enabled(dlambert_config, soft_recovery=soft):
         metrics = dl_metrics if isinstance(dl_metrics, dict) else None
-        f_star_val = metrics.get("f_star") or metrics.get("kelly_fraction") if metrics else None
-        if kelly_base <= 0.0 or (f_star_val is not None and float(f_star_val) < 0.0010):
+        resolved_f_star = f_star
+        if resolved_f_star is None and metrics:
+            resolved_f_star = metrics.get("f_star") or metrics.get("kelly_fraction")
+        if kelly_base <= 0.0 or (resolved_f_star is not None and float(resolved_f_star) <= 0.0):
             return 0.0, "D'ALEMBERT"
         effective_base = effective_soft_recovery_base(kelly_base, rm, dlambert_config)
         session_base = resolve_session_base_unit(bankroll, effective_base, metrics)
