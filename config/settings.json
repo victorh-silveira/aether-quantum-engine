@@ -217,7 +217,7 @@
       "wr_raw_inconsistent_gap": 0.12
     },
     "lookback": 72,
-    "lr_scheduler": "reduce_on_plateau",
+    "lr_scheduler": "cosine",
     "lstm": {
       "dropout": 0.2,
       "hidden_size": 64,

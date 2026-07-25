@@ -57,6 +57,19 @@ class TemporalDirectionClassifier(nn.Module):
         self.norm = nn.LayerNorm(in_ch)
         self.head = nn.Linear(in_ch, 1)
         self.regression_head = nn.Linear(in_ch, 1)
+        self._init_weights()
+
+    def _init_weights(self) -> None:
+        """Inicializa pesos convolucionais com Kaiming e lineares com Xavier."""
+        for m in self.modules():
+            if isinstance(m, nn.Conv1d):
+                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+            elif isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
 
     def forward(
         self,
