@@ -23,11 +23,26 @@ if "%CONDA_ACTIVATE%"=="" (
     exit /b 1
 )
 
-echo [AETHER] Iniciando treino Deep Learning e meta-classificador...
-cd /d "%REPO_ROOT%"
-start "AETHER TRAIN DL" cmd /k ""%~dp0_run_train.bat" "%CONDA_ACTIVATE%""
-timeout /t 2 /nobreak > nul
-start "AETHER TRAIN META" cmd /k ""%~dp0_run_meta_train.bat" "%CONDA_ACTIVATE%""
-echo [OK] Treino DL e meta-classificador em execucao.
-timeout /t 3 /nobreak > nul
+echo [AETHER] Etapa 1/2: Executando treino Deep Learning (TCN)...
+call "%~dp0_run_train.bat" "%CONDA_ACTIVATE%"
+if errorlevel 1 (
+    echo.
+    echo [ERRO] Treino DL falhou. Treino do Meta-Classificador abortado para evitar race condition.
+    pause
+    exit /b 1
+)
+
+echo.
+echo [AETHER] Etapa 2/2: Treino DL concluido com sucesso! Iniciando Meta-Classificador (LightGBM)...
+call "%~dp0_run_meta_train.bat" "%CONDA_ACTIVATE%"
+if errorlevel 1 (
+    echo.
+    echo [ERRO] Treino do Meta-Classificador falhou.
+    pause
+    exit /b 1
+)
+
+echo.
+echo [SUCESSO] Pipeline de treinamento AETHER concluido com sucesso!
+timeout /t 5 /nobreak > nul
 exit /b 0
