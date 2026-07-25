@@ -91,6 +91,8 @@ def _validation_loss(
     y_val: np.ndarray,
     mask_val: np.ndarray,
     device: torch.device,
+    *,
+    focal_gamma: float = 0.0,
 ) -> float:
     """Calcula perda de validacao mascarada sem gradiente."""
     model.eval()
@@ -104,7 +106,7 @@ def _validation_loss(
             weights,
             device,
             label_smoothing=0.0,
-            focal_gamma=0.0,
+            focal_gamma=focal_gamma,
         )
         value = float(loss.item())
     model.train()
@@ -262,7 +264,7 @@ def fit_training_epochs(
             continue
         total_loss += mean_epoch_loss
         val_acc = model_accuracy(model, x_val, y_val, mask_val)
-        val_loss = _validation_loss(model, x_val, y_val, mask_val, device)
+        val_loss = _validation_loss(model, x_val, y_val, mask_val, device, focal_gamma=focal_gamma)
         if progress_cb is not None:
             progress_cb(epochs_ran, total_epochs, mean_epoch_loss, float(val_acc))
         best_val_loss, best_val_acc, improved_state, improved = _checkpoint_if_improved(
