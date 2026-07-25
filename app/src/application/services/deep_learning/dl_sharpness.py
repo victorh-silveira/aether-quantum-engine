@@ -57,7 +57,7 @@ def resolve_calibration_sharpness_cfg(calibration_cfg: dict[str, Any] | None) ->
     """Resolve pisos de sharpness/margem a partir do bloco calibration."""
     cfg = calibration_cfg if isinstance(calibration_cfg, dict) else {}
     return {
-        "min_calibration_sharpness": float(cfg.get("min_calibration_sharpness", 0.03)),
-        "min_calibration_margin_floor": float(cfg.get("min_calibration_margin_floor", 0.03)),
-        "min_oos_sharpness": float(cfg.get("min_oos_sharpness", 0.03)),
+        "min_calibration_sharpness": float(cfg.get("min_calibration_sharpness", 0.025)),
+        "min_calibration_margin_floor": float(cfg.get("min_calibration_margin_floor", 0.025)),
+        "min_oos_sharpness": float(cfg.get("min_oos_sharpness", 0.025)),
     }
