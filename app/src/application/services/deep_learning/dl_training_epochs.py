@@ -63,7 +63,7 @@ def _masked_loss(
     if focal_gamma > 0.0:
         preds = torch.sigmoid(logits)
         pt = torch.where(target_t >= 0.5, preds, 1.0 - preds)
-        loss_vec = loss_vec * torch.pow(1.0 - pt, float(focal_gamma))
+        loss_vec = loss_vec * torch.pow(2.0 * (1.0 - pt).clamp(min=1e-6), float(focal_gamma))
     w = tensor_from_numpy(np.asarray(weights, dtype=np.float32), device)
     weighted = loss_vec * mask_t * w
     denom = (mask_t * w).sum().clamp(min=1e-6)
