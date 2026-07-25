@@ -49,6 +49,13 @@ def _is_neutral_clamp(metrics: dict) -> bool:
     ci = metrics.get("choppiness_index")
     if ci is not None and float(ci) > 61.8:
         return True
+    cal_m = metrics.get("calibrated_margin") if metrics.get("calibrated_margin") is not None else metrics.get("cal_m")
+    raw_m = metrics.get("raw_margin") if metrics.get("raw_margin") is not None else metrics.get("raw_m")
+    floor = metrics.get("neutral_floor") if metrics.get("neutral_floor") is not None else metrics.get("floor")
+    if floor is not None:
+        margin = cal_m if cal_m is not None else raw_m
+        if margin is not None and float(margin) < float(floor):
+            return True
     return (
         reason in {_NEUTRAL_CLAMP, "neutral", "NEUTRAL", "NO_EDGE_NEUTRAL", "NEUTRO", "NEUTRO_SKIP"}
         or cal_mode in {_NEUTRAL_CLAMP, "neutral", "NEUTRAL"}
