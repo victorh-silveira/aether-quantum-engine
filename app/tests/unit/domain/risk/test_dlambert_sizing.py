@@ -214,6 +214,45 @@ def test_resolve_dlambert_stake_falls_back_to_kelly_when_disabled():
     assert stake == pytest.approx(40.0)
 
 
+def test_resolve_dlambert_stake_zero_kelly_base_returns_zero():
+    class RM:
+        dlambert_unit = 10.0
+        dlambert_config = {}
+        risk_params = {}
+
+    stake, tag = resolve_dlambert_stake(
+        recovery_active=True,
+        bankroll=10000.0,
+        kelly_base=0.0,
+        dlambert_config={"dlambert_enabled": True},
+        rm=RM(),
+        consecutive_losses_linear=3,
+        pending_total=100.0,
+    )
+    assert tag == "D'ALEMBERT"
+    assert stake == 0.0
+
+
+def test_resolve_dlambert_stake_uses_rm_soft_recovery_config():
+    class RM:
+        dlambert_unit = 10.0
+        dlambert_config = {}
+        soft_recovery_config = {"enabled": True}
+        risk_params = {}
+
+    stake, tag = resolve_dlambert_stake(
+        recovery_active=True,
+        bankroll=10000.0,
+        kelly_base=10.0,
+        dlambert_config={},
+        rm=RM(),
+        consecutive_losses_linear=2,
+        pending_total=50.0,
+    )
+    assert tag == "D'ALEMBERT"
+    assert stake > 0.0
+
+
 def test_dlambert_log_suffix_soft_recovery_and_empty():
     suffix = dlambert_log_suffix(
         "D'ALEMBERT",
