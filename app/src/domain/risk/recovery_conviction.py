@@ -82,12 +82,12 @@ def recovery_dl_conviction_ok(
         if "recovery_min_val_accuracy" in cfg
         else float(runtime["recovery_min_val_accuracy"])
     )
-    score = metric_float(dl_metrics, "trade_score", "conviction", default=0.0)
+    score = metric_float(dl_metrics, "trade_score", "conviction", "calibrated_prob", default=0.0)
     raw_side = raw_side_from_metrics(dl_metrics)
     val = metric_float(dl_metrics, "val_accuracy", default=0.0)
     if min_val > 0.0 and val + 1e-9 < min_val:
         return False
-    effective = max(score, raw_side)
+    effective = max(score, raw_side) if score >= 0.50 else score
     if effective + 1e-9 >= min_conv:
         return True
     return score < 1e-9 and raw_side + 1e-9 >= min_conv
