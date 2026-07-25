@@ -112,10 +112,11 @@ def resolve_dlambert_stake(
         consecutive_losses_linear=consecutive_losses_linear,
     )
     if stress_recovery and soft_recovery_enabled(dlambert_config, soft_recovery=soft):
-        if kelly_base <= 0.0:
+        metrics = dl_metrics if isinstance(dl_metrics, dict) else None
+        f_star_val = metrics.get("f_star") or metrics.get("kelly_fraction") if metrics else None
+        if kelly_base <= 0.0 or (f_star_val is not None and float(f_star_val) < 0.0010):
             return 0.0, "D'ALEMBERT"
         effective_base = effective_soft_recovery_base(kelly_base, rm, dlambert_config)
-        metrics = dl_metrics if isinstance(dl_metrics, dict) else None
         session_base = resolve_session_base_unit(bankroll, effective_base, metrics)
         previous_stake = float(getattr(rm, "last_loss_stake", 0.0))
         raw = apply_soft_recovery_stake(
