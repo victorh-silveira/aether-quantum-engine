@@ -211,7 +211,7 @@ def parse_dl_params(
         "inference_device": str(dl_config.get("inference_device", "auto")).strip().lower(),
         "lr": float(dl_config.get("learning_rate", 0.0012)),
         "label_smoothing": float(dl_config.get("label_smoothing", 0.0)),
-        "focal_gamma": float(dl_config.get("focal_gamma", 0.0)),
+        "focal_gamma": float(dl_config.get("focal_gamma", 1.5)),
         "lr_scheduler": str(dl_config.get("lr_scheduler", "cosine")).strip().lower(),
         "validation_bars": validation_bars,
         "validation_ratio": float(dl_config.get("validation_ratio", 0.15)),

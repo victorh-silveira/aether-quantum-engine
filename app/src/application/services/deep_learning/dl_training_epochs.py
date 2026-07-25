@@ -223,7 +223,7 @@ def fit_training_epochs(
     delta_train: np.ndarray | None = None,
 ) -> tuple[float, None | dict, int]:
     """Executa epocas de treino com early stopping pela perda de validacao."""
-    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=max(0.0, weight_decay))
+    optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=max(0.0, weight_decay))
     scheduler_mode, scheduler = _build_lr_scheduler(
         optimizer,
         lr_scheduler,
