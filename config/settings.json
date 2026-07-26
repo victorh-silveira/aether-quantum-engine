@@ -650,8 +650,8 @@
       "compounding_enabled": true,
       "compounding_rate_daily": 0.01,
       "contract_type": "RISE_FALL",
-      "duration": 120,
-      "duration_unit": "s",
+      "duration": 10,
+      "duration_unit": "t",
       "payout_estimate": 0.95,
       "stake_min": 1.0
     },
