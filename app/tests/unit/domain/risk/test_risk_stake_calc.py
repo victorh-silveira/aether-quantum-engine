@@ -275,3 +275,21 @@ def test_calculate_stake_returns_zero_on_side_eq_blocked(kelly_config):
         kwargs={"dl_metrics": {"execute": True, "side_eq_blocked": True}},
     )
     assert stake == 0.0
+
+
+def test_dlambert_stake_min_zero_f_star_aborts(kelly_config):
+    rm = _mock_rm(kelly_config)
+    rm._recovery_allowed = MagicMock(return_value=True)
+    rm.pending_loss = {"R_10": 0.50}
+    rm.consecutive_losses_linear = 1
+    rm.dlambert_unit = 0.50
+    stake = calculate_stake_for_manager(
+        rm,
+        10.0,
+        "R_10",
+        0.50,
+        silent=True,
+        apply_stop_win=False,
+        kwargs={"dl_metrics": {"execute": True, "f_star": 0.0}},
+    )
+    assert stake == 0.0

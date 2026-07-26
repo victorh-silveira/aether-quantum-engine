@@ -66,6 +66,13 @@ def test_apply_technical_agreement_vetoes():
 def test_align_direction_to_rsi_trend():
     assert align_direction_to_rsi_trend(TradeDirection.PUT, {}) == TradeDirection.PUT
 
+    m_candle = {"macro_indicators": {"open": 100.0, "close": 105.0}}
+    assert align_direction_to_rsi_trend(TradeDirection.PUT, m_candle) == TradeDirection.CALL
+    assert m_candle.get("candle_color_direction") == "CALL"
+    from src.application.services.execution_direction_checks import _is_neutral_clamp
+
+    assert _is_neutral_clamp(m_candle) is False
+
     m_neutral = {"macro_indicators": {"rsi": 0.50}}
     assert align_direction_to_rsi_trend(TradeDirection.PUT, m_neutral) == TradeDirection.PUT
 

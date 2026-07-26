@@ -35,11 +35,26 @@ def _rsi_di_oppose_direction(metrics: dict, dl_dir: TradeDirection) -> bool:
     return want_call != rsi_call
 
 
+def resolve_formed_candle_direction(metrics: dict, default_dir: TradeDirection) -> TradeDirection:
+    """Resolve a direcao alinhada com a cor/corpo da vela formada e existente."""
+    open_p = _macro_indicator_float(metrics, "open") or _macro_indicator_float(metrics, "open_price")
+    close_p = (
+        _macro_indicator_float(metrics, "close")
+        or _macro_indicator_float(metrics, "close_price")
+        or _macro_indicator_float(metrics, "last_price")
+    )
+    if open_p is not None and close_p is not None:
+        candle_dir = TradeDirection.CALL if close_p >= open_p else TradeDirection.PUT
+        metrics["candle_color_direction"] = candle_dir.name
+        return candle_dir
+    return default_dir
+
+
 def align_direction_to_rsi_trend(dl_dir: TradeDirection, metrics: dict) -> TradeDirection:
-    """Alinha a direcao ao vies claro do RSI macro (RSI > 0.50 -> CALL, RSI < 0.50 -> PUT) respeitando exaustao extrema."""
+    """Alinha a direcao ao vies claro do RSI macro (RSI > 0.50 -> CALL, RSI < 0.50 -> PUT) e cor da vela formada."""
     rsi = _macro_indicator_float(metrics, "rsi")
     if rsi is None:
-        return dl_dir
+        return resolve_formed_candle_direction(metrics, dl_dir)
     rsi_v = float(rsi)
     adx = _macro_indicator_float(metrics, "adx")
     hurst = _macro_indicator_float(metrics, "hurst")
@@ -56,7 +71,7 @@ def align_direction_to_rsi_trend(dl_dir: TradeDirection, metrics: dict) -> Trade
     min_bias = 0.05 if adx_v < 0.25 else 0.01
     rsi_bias = rsi_v - 0.5
     if abs(rsi_bias) < min_bias:
-        return dl_dir
+        return resolve_formed_candle_direction(metrics, dl_dir)
     rsi_dir = TradeDirection.CALL if rsi_bias > 0.0 else TradeDirection.PUT
     if dl_dir != rsi_dir:
         metrics["rsi_trend_flipped"] = True

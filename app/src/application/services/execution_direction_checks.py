@@ -41,7 +41,9 @@ def direction_pivot(metrics: dict) -> float:
 
 
 def _is_neutral_clamp(metrics: dict) -> bool:
-    """True quando a calibracao, gate_reason, Choppiness Index ou sinal indica zona neutra."""
+    """True quando a calibracao, gate_reason, Choppiness Index ou sinal indica zona neutra sem alinhamento de vela."""
+    if isinstance(metrics, dict) and metrics.get("candle_color_direction") is not None:
+        return False
     reason = str(metrics.get("gate_reason") or "")
     cal_mode = str(metrics.get("calibration_mode") or "")
     status = str(metrics.get("signal_status") or "")
