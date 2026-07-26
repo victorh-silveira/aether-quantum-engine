@@ -226,6 +226,8 @@ def calculate_stake_for_manager(
         recovery_linear=recovery_stress and not mandatory_blocked and final_stake > 0.0,
         mandatory=mandatory_flag,
     )
+    if final_stake < stake_min and not mandatory_flag:
+        return 0.0
     log_kelly_base = (
         effective_soft_recovery_base(kelly_base, rm, rm.dlambert_config) if mode_tag == "D'ALEMBERT" else kelly_base
     )

@@ -43,12 +43,12 @@ def align_direction_to_rsi_trend(dl_dir: TradeDirection, metrics: dict) -> Trade
     rsi_v = float(rsi)
     adx = _macro_indicator_float(metrics, "adx")
     hurst = _macro_indicator_float(metrics, "hurst")
-    adx_v = float(adx) if adx is not None else 0.30
-    hurst_v = float(hurst) if hurst is not None else 0.50
-    if rsi_v >= 0.72:
+    adx_v = float(adx) if adx is not None else 0.20
+    hurst_v = float(hurst) if hurst is not None else 0.40
+    if rsi_v >= 0.72 and (adx is None or adx_v < 0.28 or hurst_v < 0.52):
         metrics["rsi_overbought_exhaustion"] = True
         return TradeDirection.PUT
-    if rsi_v <= 0.28:
+    if rsi_v <= 0.28 and (adx is None or adx_v < 0.28 or hurst_v < 0.52):
         metrics["rsi_oversold_exhaustion"] = True
         return TradeDirection.CALL
     if adx_v < 0.20 and hurst_v < 0.45:
