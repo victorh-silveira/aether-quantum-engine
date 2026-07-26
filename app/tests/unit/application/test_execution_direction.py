@@ -71,3 +71,19 @@ def test_entry_gate_blocked_rejects_deploy_not_ok():
 def test_recovery_execution_eligible():
     entry = {"direction": TradeDirection.PUT, "metrics": {"deploy_ok": True}}
     assert recovery_execution_eligible(entry) is True
+
+
+def test_build_execution_candidate_stamps_calibrated_gray_zone_skip():
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {
+            "execute": True,
+            "conviction": 0.61,
+            "raw_prob": 0.52,
+            "calibrated_prob": 0.51,
+            "cal_margin": 0.01,
+            "quality_min_direction_margin": 0.03,
+            "deploy_ok": True,
+        },
+    }
+    assert build_execution_candidate("R_10", entry) is None

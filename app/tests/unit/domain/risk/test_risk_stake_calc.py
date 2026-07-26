@@ -261,3 +261,17 @@ def test_calculate_stake_returns_zero_on_soft_veto(kelly_config):
         kwargs={"dl_metrics": {"execute": True, "meta_veto_mode": "soft"}},
     )
     assert stake == 0.0
+
+
+def test_calculate_stake_returns_zero_on_side_eq_blocked(kelly_config):
+    rm = _mock_rm(kelly_config)
+    stake = calculate_stake_for_manager(
+        rm,
+        5000.0,
+        "R_10",
+        0.6,
+        silent=True,
+        apply_stop_win=True,
+        kwargs={"dl_metrics": {"execute": True, "side_eq_blocked": True}},
+    )
+    assert stake == 0.0

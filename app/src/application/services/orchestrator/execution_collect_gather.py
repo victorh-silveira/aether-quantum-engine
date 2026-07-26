@@ -98,6 +98,13 @@ def gather_cluster_candidates(
             orch=exec_mgr.orch,
         )
         apply_loss_protection_penalties(metrics, exec_direction=built[1])
+        if (
+            metrics.get("side_eq_blocked")
+            or str(metrics.get("side_eq_action") or "") == "hard_skip"
+            or metrics.get("signal_status") == "SKIP"
+        ):
+            _sync_entry_metrics(entry, metrics)
+            continue
         _sync_entry_metrics(entry, metrics)
         candidates.append(built)
     return candidates

@@ -129,6 +129,12 @@ def calculate_stake_for_manager(
     if isinstance(dl_metrics, dict):
         dl_metrics["stake_regime"] = stake_regime
         if (
+            dl_metrics.get("side_eq_blocked")
+            or str(dl_metrics.get("side_eq_action") or "") == "hard_skip"
+            or dl_metrics.get("signal_status") == "SKIP"
+        ):
+            return 0.0
+        if (
             dl_metrics.get("meta_veto_mode") == "soft" or dl_metrics.get("signal_status") == "SOFT_VETO"
         ) and not _mandatory_trade_flag(kwargs, rm):
             return 0.0
