@@ -644,7 +644,7 @@
       "turbo_live_brier_max": 0.22,
       "turbo_live_n_min": 20
     },
-    "large_account_stop_win_pct": 1.0,
+    "large_account_stop_win_pct": 3.0,
     "min_validation_accuracy_gate": 0.0,
     "params": {
       "compounding_enabled": true,
