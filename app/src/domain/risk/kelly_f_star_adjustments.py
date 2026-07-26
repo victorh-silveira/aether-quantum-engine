@@ -56,7 +56,9 @@ def kelly_base_with_consensus_floor(
     sizing_conviction: float,
     stake_min: float,
 ) -> float:
-    """Calcula kelly_base e forca piso minimo quando consenso esta no floor."""
+    """Calcula kelly_base e cancela (retorna 0.0) quando f_star <= 0.0."""
+    if f_star <= 0.0:
+        return 0.0
     kelly_base = clamp_kelly_stake(bankroll, bankroll * f_star, kelly_config, sizing_conviction)
     if isinstance(dl_metrics, dict) and consensus_entropy_applies_min_stake(
         float(dl_metrics.get("consensus_entropy_retention", 1.0)),

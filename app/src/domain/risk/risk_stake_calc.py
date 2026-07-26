@@ -223,7 +223,7 @@ def calculate_stake_for_manager(
         stake_min,
         bankroll,
         conviction,
-        recovery_linear=recovery_stress and not mandatory_blocked,
+        recovery_linear=recovery_stress and not mandatory_blocked and final_stake > 0.0,
         mandatory=mandatory_flag,
     )
     log_kelly_base = (
