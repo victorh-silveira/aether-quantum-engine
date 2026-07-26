@@ -648,7 +648,7 @@
     "min_validation_accuracy_gate": 0.0,
     "params": {
       "compounding_enabled": true,
-      "compounding_rate_daily": 0.01,
+      "compounding_rate_daily": 0.03,
       "contract_type": "RISE_FALL",
       "duration": 600,
       "duration_unit": "s",

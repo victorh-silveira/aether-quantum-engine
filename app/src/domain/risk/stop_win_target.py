@@ -39,7 +39,7 @@ class StopWinManager:
 
     def compounding_rate(self) -> float:
         """Retorna taxa diaria de compounding limitada ao intervalo [0, 1]."""
-        rate = float(self.params.get("compounding_rate_daily", 0.01))
+        rate = float(self.params.get("compounding_rate_daily", 0.03))
         return max(0.0, min(1.0, rate))
 
     def calculate_session_targets(self, session_start_balance: float) -> SessionTargets:

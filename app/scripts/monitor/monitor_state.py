@@ -15,7 +15,7 @@ class DashboardState:
     session_start_balance: float = 0.0
     session_target_win: float = 0.0
     session_profit: float = 0.0
-    compounding_rate: float = 0.026
+    compounding_rate: float = 0.03
     compounding_enabled: bool = True
     small_account_threshold: float = 100.0
     small_account_stop_win: float = 10.0
