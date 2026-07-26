@@ -20,11 +20,11 @@ def test_kelly_calculation_standard(kelly_config):
 
 
 def test_kelly_negative_edge_returns_min_stake(kelly_config):
-    """Verifica piso dinamico de 0.15% da banca fora do D-SQUEEZE."""
+    """Verifica retorno 0.0 em probabilidade sem edge."""
     kelly_config["params"]["payout_estimate"] = 0.01
     rm = RiskManager(kelly_config)
     stake = rm.calculate_stake(1000.0, "R_10", conviction=0.5)
-    assert stake == pytest.approx(1.5)
+    assert stake == 0.0
 
 
 def test_kelly_stake_capped_by_max_safe_bankroll_pct(kelly_config):

@@ -54,7 +54,7 @@ def kelly_base_with_consensus_floor(
     dl_metrics: dict | None,
     kelly_config: dict,
     sizing_conviction: float,
-    stake_min: float,
+    stake_min: float = 1.0,
 ) -> float:
     """Calcula kelly_base e cancela (retorna 0.0) quando f_star <= 0.0."""
     if f_star <= 0.0:

@@ -218,7 +218,7 @@ def calculate_stake_for_manager(
         kelly_config=rm.kelly_config,
     )
     stake_min = float(rm.risk_params.get("stake_min", 1.0))
-    if mode_tag == "D'ALEMBERT" and final_stake <= stake_min and not mandatory_flag:
+    if ((mode_tag == "D'ALEMBERT" and final_stake <= stake_min) or f_star <= 0.0) and not mandatory_flag:
         return 0.0
     final_stake = finalize_stake_with_min(
         final_stake,

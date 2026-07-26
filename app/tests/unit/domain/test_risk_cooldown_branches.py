@@ -1,7 +1,5 @@
 """Testes de cobertura para RiskManager Kelly."""
 
-import pytest
-
 from src.domain.risk.risk_manager import RiskManager
 
 
@@ -161,8 +159,8 @@ def test_stake_block_reason_kelly_no_edge():
         }
     )
     rm.set_initial_bankroll(1000.0)
-    assert rm.stake_block_reason(1000.0, "R_10", conviction=0.05) is None
-    assert rm.calculate_stake(1000.0, "R_10", conviction=0.05) == pytest.approx(1.50)
+    assert rm.stake_block_reason(1000.0, "R_10", conviction=0.05) == "kelly_no_edge"
+    assert rm.calculate_stake(1000.0, "R_10", conviction=0.05) == 0.0
 
 
 def test_stake_block_reason_kelly_no_edge_when_bankroll_below_stake_min():
