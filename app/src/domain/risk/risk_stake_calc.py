@@ -220,6 +220,14 @@ def calculate_stake_for_manager(
         kelly_config=rm.kelly_config,
     )
     stake_min = float(rm.risk_params.get("stake_min", 1.0))
+    senior_conv = float(
+        (dl_metrics.get("senior_trader_conviction", 0.0) or 0.0) if isinstance(dl_metrics, dict) else 0.0
+    )
+    senior_override = senior_conv >= 0.56
+    if f_star <= 0.0 and senior_override:
+        f_star = max(f_star, 0.003)
+        kelly_base = max(kelly_base, bankroll * f_star)
+        final_stake = max(final_stake, kelly_base)
     if ((mode_tag == "D'ALEMBERT" and final_stake <= stake_min) or f_star <= 0.0) and not mandatory_flag:
         return 0.0
     final_stake = finalize_stake_with_min(

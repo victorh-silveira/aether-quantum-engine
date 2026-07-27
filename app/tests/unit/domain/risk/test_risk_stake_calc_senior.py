@@ -37,3 +37,19 @@ def test_calculate_stake_soft_veto_with_senior_trader_conviction(kelly_config):
         kwargs={"dl_metrics": {"execute": True, "meta_veto_mode": "soft", "senior_trader_conviction": 0.58}},
     )
     assert stake > 0.0
+
+
+def test_kelly_no_edge_override_with_senior_trader_conviction(kelly_config):
+    """Garante que senior_trader_conviction >= 0.56 isenta gate kelly_no_edge."""
+    rm = _mock_rm(kelly_config)
+    rm.effective_win_rate = MagicMock(return_value=0.48)
+    stake = calculate_stake_for_manager(
+        rm,
+        5000.0,
+        "R_10",
+        0.52,
+        silent=True,
+        apply_stop_win=True,
+        kwargs={"dl_metrics": {"execute": True, "senior_trader_conviction": 0.58}},
+    )
+    assert stake > 0.0
