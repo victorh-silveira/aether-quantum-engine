@@ -55,6 +55,7 @@ def align_direction_to_rsi_trend(dl_dir: TradeDirection, metrics: dict) -> Trade
     candle_dir = resolve_formed_candle_direction(metrics, dl_dir)
     if rsi is None:
         metrics["senior_trader_conviction"] = 0.58
+        metrics["execute"] = True
         return candle_dir
     rsi_v = float(rsi)
     adx = _macro_indicator_float(metrics, "adx")
@@ -67,6 +68,7 @@ def align_direction_to_rsi_trend(dl_dir: TradeDirection, metrics: dict) -> Trade
     if 0.48 <= rsi_v <= 0.52:
         metrics["senior_trader_regime"] = "chop_candle_alignment"
         metrics["senior_trader_conviction"] = 0.56
+        metrics["execute"] = True
         return candle_dir
 
     rsi_dir = TradeDirection.CALL if rsi_v > 0.50 else TradeDirection.PUT
