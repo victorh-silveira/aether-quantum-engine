@@ -145,6 +145,10 @@ def eager_local_predict(
 def _indicators_from_series(series: dict) -> dict[str, float]:
     """Extrai snapshot de indicadores da ultima barra."""
     return {
+        "open": _series_last(series, "open"),
+        "close": _series_last(series, "close"),
+        "high": _series_last(series, "high"),
+        "low": _series_last(series, "low"),
         "hurst": _series_last(series, "hurst"),
         "adx": _series_last(series, "adx"),
         "vol_ratio": _series_last(series, "vol_ratio_short_long"),

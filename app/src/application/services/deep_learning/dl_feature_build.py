@@ -180,6 +180,10 @@ def precompute_price_series(
         kc_atr_mult=float(mult["kc_atr_mult"]),
     )
     series = {
+        "open": open_ if open_ is not None else close,
+        "close": close,
+        "high": h,
+        "low": low_px,
         "adx": osc["adx"],
         "atr_norm": atr,
         "bb_pct_b": bb_pct_b,
