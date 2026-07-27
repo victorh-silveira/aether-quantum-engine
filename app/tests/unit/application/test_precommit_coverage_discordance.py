@@ -76,15 +76,15 @@ def test_align_direction_to_rsi_trend():
     m_neutral = {"macro_indicators": {"rsi": 0.50}}
     assert align_direction_to_rsi_trend(TradeDirection.PUT, m_neutral) == TradeDirection.PUT
 
-    m_bull = {"macro_indicators": {"rsi": 0.70}}
+    m_bull = {"macro_indicators": {"rsi": 0.70, "hurst": 0.55}}
     assert align_direction_to_rsi_trend(TradeDirection.PUT, m_bull) == TradeDirection.CALL
     assert m_bull.get("rsi_trend_flipped") is True
 
-    m_bear = {"macro_indicators": {"rsi": 0.40}}
+    m_bear = {"macro_indicators": {"rsi": 0.40, "hurst": 0.55}}
     assert align_direction_to_rsi_trend(TradeDirection.CALL, m_bear) == TradeDirection.PUT
     assert m_bear.get("rsi_trend_flipped") is True
 
-    m_bull_same = {"macro_indicators": {"rsi": 0.70}}
+    m_bull_same = {"macro_indicators": {"rsi": 0.70, "hurst": 0.55}}
     assert align_direction_to_rsi_trend(TradeDirection.CALL, m_bull_same) == TradeDirection.CALL
 
     assert _rsi_di_oppose_direction({"macro_indicators": {"rsi": 0.70}}, TradeDirection.PUT) is True
@@ -93,13 +93,26 @@ def test_align_direction_to_rsi_trend():
     assert align_direction_to_rsi_trend(TradeDirection.PUT, m_overbought) == TradeDirection.CALL
     assert m_overbought.get("senior_trader_regime") == "strong_trend_impulse"
 
+    # Hurst < 0.50 + RSI <= 0.32 = exaustao de fundo -> CALL (reversao a media)
     m_revert = {"macro_indicators": {"rsi": 0.30, "adx": 0.15, "hurst": 0.40}}
-    assert align_direction_to_rsi_trend(TradeDirection.CALL, m_revert) == TradeDirection.PUT
+    assert align_direction_to_rsi_trend(TradeDirection.PUT, m_revert) == TradeDirection.CALL
     assert m_revert.get("micro_regime_mean_reversion") is True
+    assert m_revert.get("senior_trader_regime") == "mean_reversion_exhaustion_bottom"
 
+    # Hurst < 0.50 + RSI >= 0.68 = exaustao de topo -> PUT (reversao a media)
+    m_exhaustion_top = {"macro_indicators": {"rsi": 0.75, "adx": 0.15, "hurst": 0.40}}
+    assert align_direction_to_rsi_trend(TradeDirection.CALL, m_exhaustion_top) == TradeDirection.PUT
+    assert m_exhaustion_top.get("senior_trader_regime") == "mean_reversion_exhaustion_top"
+
+    # Hurst < 0.50 + RSI neutro (range) = range_momentum_alignment -> segue RSI
+    m_range = {"macro_indicators": {"rsi": 0.60, "hurst": 0.40}}
+    assert align_direction_to_rsi_trend(TradeDirection.PUT, m_range) == TradeDirection.CALL
+    assert m_range.get("senior_trader_regime") == "range_momentum_alignment"
+
+    # Sem hurst informado (default 0.40 < 0.50) + RSI < 0.32 = exaustao de fundo
     m_oversold = {"macro_indicators": {"rsi": 0.20}}
-    assert align_direction_to_rsi_trend(TradeDirection.CALL, m_oversold) == TradeDirection.PUT
-    assert m_oversold.get("rsi_trend_flipped") is True
+    assert align_direction_to_rsi_trend(TradeDirection.PUT, m_oversold) == TradeDirection.CALL
+    assert m_oversold.get("senior_trader_regime") == "mean_reversion_exhaustion_bottom"
 
     m_align_low_margin = {
         "rsi_trend_align_enabled": True,

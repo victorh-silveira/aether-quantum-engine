@@ -62,23 +62,28 @@ def align_direction_to_rsi_trend(dl_dir: TradeDirection, metrics: dict) -> Trade
     hurst = _macro_indicator_float(metrics, "hurst")
     adx_v = float(adx) if adx is not None else 0.20
     hurst_v = float(hurst) if hurst is not None else 0.40
-    if adx_v < 0.20 and hurst_v < 0.45:
+    if hurst_v < 0.50:
         metrics["micro_regime_mean_reversion"] = True
-
-    if 0.48 <= rsi_v <= 0.52:
-        metrics["senior_trader_regime"] = "chop_candle_alignment"
-        metrics["senior_trader_conviction"] = 0.56
-        metrics["execute"] = True
-        return candle_dir
-
-    rsi_dir = TradeDirection.CALL if rsi_v > 0.50 else TradeDirection.PUT
-
-    if adx_v >= 0.22 and hurst_v >= 0.50:
-        metrics["senior_trader_regime"] = "strong_trend_impulse"
-        metrics["senior_trader_conviction"] = 0.62
+        if rsi_v >= 0.68:
+            rsi_dir = TradeDirection.PUT
+            metrics["senior_trader_regime"] = "mean_reversion_exhaustion_top"
+            metrics["senior_trader_conviction"] = 0.62
+        elif rsi_v <= 0.32:
+            rsi_dir = TradeDirection.CALL
+            metrics["senior_trader_regime"] = "mean_reversion_exhaustion_bottom"
+            metrics["senior_trader_conviction"] = 0.62
+        else:
+            rsi_dir = TradeDirection.CALL if rsi_v > 0.50 else TradeDirection.PUT
+            metrics["senior_trader_regime"] = "range_momentum_alignment"
+            metrics["senior_trader_conviction"] = 0.58
     else:
-        metrics["senior_trader_regime"] = "momentum_alignment"
-        metrics["senior_trader_conviction"] = 0.58
+        rsi_dir = TradeDirection.CALL if rsi_v > 0.50 else TradeDirection.PUT
+        if adx_v >= 0.22:
+            metrics["senior_trader_regime"] = "strong_trend_impulse"
+            metrics["senior_trader_conviction"] = 0.62
+        else:
+            metrics["senior_trader_regime"] = "momentum_alignment"
+            metrics["senior_trader_conviction"] = 0.58
 
     if dl_dir != rsi_dir:
         metrics["rsi_trend_flipped"] = True
