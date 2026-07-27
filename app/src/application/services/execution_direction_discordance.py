@@ -6,15 +6,14 @@ from src.domain.models.trade import TradeDirection
 
 
 def _macro_indicator_float(metrics: dict, key: str) -> float | None:
-    """Le indicador float priorizando macro (mesmo bloco da votacao TCN)."""
-    for block_name in ("macro_indicators", "indicators"):
-        block = metrics.get(block_name)
-        if not isinstance(block, dict) or block.get(key) is None:
-            continue
-        try:
-            return float(block[key])
-        except (TypeError, ValueError):
-            return None
+    """Le indicador float priorizando macro (mesmo bloco da votacao TCN) e nivel raiz."""
+    if isinstance(metrics, dict):
+        for block in (metrics.get("macro_indicators"), metrics.get("indicators"), metrics):
+            if isinstance(block, dict) and block.get(key) is not None:
+                try:
+                    return float(block[key])
+                except (TypeError, ValueError):
+                    pass
     return None
 
 
