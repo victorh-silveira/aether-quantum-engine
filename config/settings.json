@@ -414,7 +414,7 @@
         "recovery_min_direction_margin": 0.0,
         "recovery_min_hurst": 0.0
       },
-      "mandatory_trade_each_cycle": true,
+      "mandatory_trade_each_cycle": false,
       "market_rank": {
         "composite": {
           "adx_strong_bonus": 0.05,
