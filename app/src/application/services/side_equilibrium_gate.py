@@ -177,9 +177,14 @@ def resolve_direction_with_side_equilibrium(
     toxic_primary = primary_side_is_toxic(primary)
     prefer_alt = alternate_side_is_preferable(primary, alternate, opposite=opposite)
     thin_blocks = thin_margin_blocks_flip(metrics) and not toxic_primary
-    if not prefer_alt or thin_blocks:
-        if waive_hard:
-            keep_reason = "side_eq_recovery_keep" if not prefer_alt else "side_eq_recovery_thin_margin"
+    senior_aligned = float(metrics.get("senior_trader_conviction", 0.0) or 0.0) >= 0.56
+    if not prefer_alt or thin_blocks or senior_aligned:
+        if waive_hard or senior_aligned:
+            keep_reason = (
+                "side_eq_senior_keep"
+                if senior_aligned
+                else ("side_eq_recovery_keep" if not prefer_alt else "side_eq_recovery_thin_margin")
+            )
             return soft_keep_proposed(
                 metrics,
                 primary,
