@@ -5,7 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from src.application.services.deep_learning.dl_indicator_config import load_bb_width_anomaly_ratio
-from src.application.services.execution_direction_discordance import apply_technical_agreement
+from src.application.services.execution_direction_discordance import (
+    apply_technical_agreement,
+    resolve_formed_candle_direction,
+)
 from src.application.services.execution_price_zone_gate import (
     align_or_keep_meta_side,
     apply_price_zone_gate,
@@ -212,6 +215,9 @@ def initial_direction_checks(
     ):
         metrics.pop(sticky, None)
     force = force_trade_every_cycle(exec_cfg_dict)
+    dl_dir = infer_dl_direction(entry)
+    if dl_dir is not None:
+        resolve_formed_candle_direction(metrics, dl_dir)
     if _is_neutral_clamp(metrics):
         if not force:
             metrics["gate_reason"] = metrics.get("gate_reason") or _NEUTRAL_CLAMP
