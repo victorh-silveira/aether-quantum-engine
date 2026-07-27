@@ -41,11 +41,11 @@ def test_mandatory_pool_eligible_requires_inferable_direction():
     assert mandatory_pool_eligible({"direction": None, "metrics": {"deploy_ok": True}}) is False
 
 
-def test_mandatory_pool_eligible_rejects_execution_signal_veto():
+def test_mandatory_pool_eligible_ignores_signal_veto():
     entry = _entry()
     apply_meta_payoff_negative_zscore_veto(entry["metrics"])
     assert entry["metrics"]["gate_reason"] == META_PAYOFF_NEGATIVE_ZSCORE_VETO
-    assert mandatory_pool_eligible(entry) is False
+    assert mandatory_pool_eligible(entry) is True
 
 
 def test_trade_score_falls_back_when_veto_nulled_scores():

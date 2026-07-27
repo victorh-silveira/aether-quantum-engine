@@ -158,7 +158,10 @@ def test_collect_cluster_orders_recovery_bolts_hard_meta_reject():
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
-    assert orders == []
+    assert len(orders) == 1
+    symbol, direction, _metrics = orders[0]
+    assert symbol == PAIR
+    assert direction == TradeDirection.PUT
 
 
 def test_collect_cluster_orders_recovery_allows_soft_tcn_entropy_fallback():

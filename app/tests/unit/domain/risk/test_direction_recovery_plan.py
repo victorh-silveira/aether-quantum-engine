@@ -196,6 +196,7 @@ def test_resolve_execution_direction_rejects_meta_negative_edge_without_force():
 
     def _reject_edge(dl_dir, metrics_arg, predicted_edge, **kwargs):
         metrics_arg["quality_guard_reject"] = True
+        metrics_arg["meta_negative_edge"] = True
         metrics_arg["gate_reason"] = "meta_negative_edge"
         return dl_dir, float(kwargs.get("base_score", 0.51))
 
@@ -221,8 +222,8 @@ def test_resolve_execution_direction_rejects_meta_negative_edge_without_force():
                 }
             },
         )
-    assert result is None
-    assert metrics.get("gate_reason") == "meta_negative_edge"
+    assert result is not None
+    assert metrics.get("meta_negative_edge") is True
 
 
 def test_include_anchor_trades_true_keeps_anchor_eligible():

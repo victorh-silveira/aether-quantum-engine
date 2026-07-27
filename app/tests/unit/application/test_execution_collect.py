@@ -141,7 +141,10 @@ def test_collect_cluster_orders_bolts_weak_signal_continuously():
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
-    assert orders == []
+    assert len(orders) == 1
+    symbol, direction, _metrics = orders[0]
+    assert symbol == ALT_SYMBOL
+    assert direction == TradeDirection.PUT
 
     orch = SimpleNamespace(
         anchor=ANCHOR,

@@ -35,7 +35,7 @@ def _resolve_meta_edge_floor(
     in_recovery = bool(recovery_active)
     if not in_recovery and risk_manager is not None:
         raw_linear = getattr(risk_manager, "consecutive_losses_linear", 0)
-        linear = int(raw_linear) if isinstance(raw_linear, (int, float)) and not isinstance(raw_linear, bool) else 0
+        linear = int(raw_linear) if isinstance(raw_linear, int | float) and not isinstance(raw_linear, bool) else 0
         pending_map = getattr(risk_manager, "pending_loss", None)
         pending = float(sum(pending_map.values())) if isinstance(pending_map, dict) else 0.0
         in_recovery = linear > 0 or pending > 0.0
@@ -61,15 +61,8 @@ def _negative_edge_skip(
     recovery_active: bool = False,
     risk_manager: Any | None = None,
 ) -> bool:
-    """True quando o edge meta fica abaixo do piso dinamico de execucao."""
+    """Nao bloqueia por edge negativo - apenas registra metricas."""
     if force or not meta_applied or float(metrics.get("senior_trader_conviction", 0.0) or 0.0) >= 0.56:
-        return False
-    if bool(
-        metrics.get("side_eq_toxic_escape")
-        or metrics.get("side_eq_escape_edge_kept")
-        or metrics.get("side_eq_edge_inverted")
-        or metrics.get("side_eq_flipped")
-    ):
         return False
     edge = metrics.get("predicted_payoff_edge")
     edge_v = float(predicted_edge) if edge is None else float(edge)
@@ -86,11 +79,8 @@ def _negative_edge_skip(
             metrics["meta_negative_edge_starvation_waiver"] = True
             metrics["meta_edge_floor"] = floor
         return False
-    metrics["gate_reason"] = "meta_negative_edge"
-    metrics["quality_guard_reject"] = True
-    metrics["meta_negative_edge"] = True
     metrics["meta_edge_floor"] = floor
-    return True
+    return False
 
 
 def _stamp_direction_resolved_cycle(entry: dict, cycle_id: int) -> None:

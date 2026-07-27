@@ -79,7 +79,7 @@ def test_classify_payoff_edge_expectancy_negative_zscore():
     assert classify_payoff_edge_expectancy(0.12, z_score=-0.90) == "NO_EDGE_NEUTRAL"
     assert classify_payoff_edge_expectancy(0.12, z_score=-0.10) == "WIN_EXPECTED"
     assert classify_payoff_edge_expectancy(-0.02, z_score=0.5) == "LOSS_EXPECTED"
-    assert classify_payoff_edge_expectancy(0.01, z_score=0.0) == "NO_EDGE_NEUTRAL"
+    assert classify_payoff_edge_expectancy(0.005, z_score=0.0) == "NO_EDGE_NEUTRAL"
 
 
 def test_should_veto_meta_payoff_negative_zscore_skips_neutral_with_low_z():

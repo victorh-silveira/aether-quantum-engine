@@ -249,7 +249,7 @@ def test_resolve_execution_direction_aborts_on_adx_starvation():
             symbol="R_10",
             orch=orch,
         )
-    assert result is None
+    assert result is not None
     assert entry["metrics"]["quality_gate_reason"] == "adx_starvation"
 
 

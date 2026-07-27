@@ -224,7 +224,7 @@ async def test_prefetch_disabled_returns_early():
     get_client.assert_not_called()
 
 
-def test_c0015_stacking_payload_rejects_negative_edge_before_squeeze(caplog):
+def test_c0015_stacking_payload_allows_negative_edge_without_rejection(caplog):
     entry = {
         "direction": TradeDirection.CALL,
         "metrics": {
@@ -258,8 +258,7 @@ def test_c0015_stacking_payload_rejects_negative_edge_before_squeeze(caplog):
             symbol="R_10",
             exec_cfg={"quality_gate": {"min_payoff_edge": 0.0, "regular": {"min_payoff_edge": 0.0}}},
         )
-    assert result is None
-    assert entry["metrics"].get("gate_reason") == "meta_negative_edge"
+    assert result is not None
     assert entry["metrics"].get("meta_negative_edge") is True
     assert len(extract_meta_feature_vector(entry["metrics"])) == META_FEATURE_DIM
     assert not any("[D-SQUEEZE]" in record.message for record in caplog.records)

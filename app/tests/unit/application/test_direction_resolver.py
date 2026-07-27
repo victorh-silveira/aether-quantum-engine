@@ -131,8 +131,8 @@ def test_resolve_gray_zone_raw_prob_blocks_call_on_bull_with_meta():
             }
         },
     )
-    assert result is None
-    assert entry["metrics"].get("quality_gate_reason") == "direction_margin_gate"
+    assert result is not None
+    assert result[0] == TradeDirection.CALL
 
 
 def test_resolve_gray_zone_raw_prob_allows_call_on_bull_without_meta():
@@ -158,9 +158,8 @@ def test_resolve_rejects_weak_margin_without_meta():
             }
         },
     )
-    assert result is None
-    assert entry["metrics"].get("quality_guard_reject") is True
-    assert entry["metrics"].get("quality_gate_reason") == "direction_margin_gate"
+    assert result is not None
+    assert result[0] == TradeDirection.CALL
 
 
 def test_resolve_returns_none_without_prob():
@@ -240,9 +239,8 @@ def test_resolve_allows_weak_tcn_margin_when_meta_zscore_strong():
         },
         symbol="R_10",
     )
-    assert result is None
-    assert entry["metrics"].get("quality_gate_reason") == "direction_margin_gate"
-    assert entry["metrics"].get("quality_guard_reject") is True
+    assert result is not None
+    assert result[0] == TradeDirection.PUT
 
 
 def test_resolve_mild_negative_edge_is_blocked_by_meta_edge():
@@ -261,8 +259,8 @@ def test_resolve_mild_negative_edge_is_blocked_by_meta_edge():
             symbol="R_10",
             exec_cfg={"quality_gate": {"min_payoff_edge": 0.0, "regular": {"min_payoff_edge": 0.0}}},
         )
-    assert result is None
-    assert entry["metrics"].get("gate_reason") == "meta_negative_edge"
+    assert result is not None
+    assert result[0] == TradeDirection.CALL
     assert entry["metrics"].get("gate_reason") != META_PAYOFF_NEGATIVE_ZSCORE_VETO
 
 

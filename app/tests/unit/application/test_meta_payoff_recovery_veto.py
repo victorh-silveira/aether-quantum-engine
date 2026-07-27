@@ -1,5 +1,4 @@
 from src.application.services.meta_payoff_veto_gate import (
-    META_PAYOFF_NEGATIVE_ZSCORE_VETO,
     _recovery_active,
     is_execution_signal_vetoed,
     should_veto_meta_payoff_negative_zscore,
@@ -22,7 +21,7 @@ def test_recovery_mild_severe_zscore_stays_soft_with_negative_edge():
     assert metrics.get("meta_recovery_severe_z_veto") is not True
 
 
-def test_recovery_catastrophic_zscore_triggers_hard_veto():
+def test_recovery_catastrophic_zscore_triggers_soft_veto():
     metrics = {
         "predicted_payoff_edge": -0.30,
         "edge_expectancy": "LOSS_EXPECTED",
@@ -30,11 +29,11 @@ def test_recovery_catastrophic_zscore_triggers_hard_veto():
     }
     _stamp_negative_zscore(metrics, z_score=-2.90)
     rm = _risk_manager(linear=1, pending=20.0)
-    assert should_veto_meta_payoff_negative_zscore(metrics, direction=TradeDirection.CALL, risk_manager=rm) is True
-    assert metrics["meta_veto_mode"] == "hard"
+    assert should_veto_meta_payoff_negative_zscore(metrics, direction=TradeDirection.CALL, risk_manager=rm) is False
+    assert metrics["meta_veto_mode"] == "soft"
     assert metrics.get("meta_recovery_severe_z_veto") is True
-    assert metrics["gate_reason"] == META_PAYOFF_NEGATIVE_ZSCORE_VETO
-    assert is_execution_signal_vetoed(metrics) is True
+    assert metrics.get("meta_recovery_severe_z_soft") is True
+    assert is_execution_signal_vetoed(metrics) is False
 
 
 def test_recovery_severe_positive_edge_stays_soft():

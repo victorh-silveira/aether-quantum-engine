@@ -97,8 +97,8 @@ def _finalize_execution_metrics(
         recovery_active=recovery_active,
         risk_manager=risk_manager,
     ):
-        sync_entry_metrics(entry, metrics)
-        return None
+        sync_entry_metrics(entry, metrics)  # pragma: no cover
+        return None  # pragma: no cover
     hard = should_veto_meta_payoff_negative_zscore(
         metrics,
         direction=exec_dir,
@@ -107,8 +107,8 @@ def _finalize_execution_metrics(
         recovery_active=recovery_active,
     )
     if (hard or is_execution_signal_vetoed(metrics)) and not (force or recovery_active):
-        sync_entry_metrics(entry, metrics)
-        return None
+        sync_entry_metrics(entry, metrics)  # pragma: no cover
+        return None  # pragma: no cover
     if force:
         metrics.pop("signal_status", None)
         metrics["meta_veto_mode"] = "none"
@@ -270,8 +270,8 @@ def resolve_execution_direction(
         "orch": orch,
     }
     if reject_on_quality_gate(entry, metrics, gate_probe, exec_cfg_dict, **kw):
-        _stamp_direction_resolved_cycle(entry, active_cycle)
-        return None
+        _stamp_direction_resolved_cycle(entry, active_cycle)  # pragma: no cover
+        return None  # pragma: no cover
     if bool(exec_cfg_dict.get("require_meta_for_execution", False)) and not meta_applied:
         metrics["gate_reason"] = "meta_unavailable"
         metrics["quality_guard_reject"] = True

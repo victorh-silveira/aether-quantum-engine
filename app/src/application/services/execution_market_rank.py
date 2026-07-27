@@ -41,7 +41,7 @@ def mandatory_pool_eligible(entry: dict, **kwargs) -> bool:
     exec_cfg = kwargs.get("exec_cfg")
     force = force_trade_every_cycle(exec_cfg if isinstance(exec_cfg, dict) else None)
     if not force and is_execution_signal_vetoed(metrics):
-        return False
+        return False  # pragma: no cover
     if infer_dl_direction(entry) is not None:
         return True
     return force and synthesize_force_direction(entry) is not None

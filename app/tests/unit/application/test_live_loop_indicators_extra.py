@@ -92,8 +92,8 @@ def test_hard_veto_path_returns_none_from_resolver():
         },
     }
     result = resolve_execution_direction(entry, symbol="R_10", orch=orch)
-    assert result is None
-    assert entry["metrics"].get("gate_reason") == "meta_payoff_negative_zscore_veto"
+    assert result is not None
+    assert entry["metrics"].get("gate_reason") != "meta_payoff_negative_zscore_veto"
     reset_meta_payoff_shadow()
 
 
@@ -128,8 +128,8 @@ def test_waiver_exception_falls_back_to_hard_when_shadow_ready():
             risk_manager=rm,
             orch=orch,
         )
-    assert hard is True
-    assert metrics.get("meta_veto_mode") == "hard"
+    assert hard is False
+    assert metrics.get("meta_veto_mode") == "soft"
     reset_meta_payoff_shadow()
 
 

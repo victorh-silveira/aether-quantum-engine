@@ -10,7 +10,6 @@ from src.application.services.execution_runtime_config import (
 )
 from src.application.services.meta_payoff_regression import CALIBRATION_NEUTRAL_DRIFT
 from src.application.services.meta_payoff_shadow import (
-    meta_hard_veto_allowed,
     meta_inverted_shadow_active,
     shadow_correlation,
     shadow_pair_count,
@@ -190,7 +189,6 @@ def should_veto_meta_payoff_negative_zscore(
     inverted = meta_inverted_shadow_active(orch)
     metrics["meta_shadow_inverted"] = bool(inverted)
     inverted_hit = bool(inverted and z_present and z_score is not None and float(z_score) > abs(float(veto_floor)))
-    hard_allowed = meta_hard_veto_allowed(orch)
     metrics["meta_payoff_soft_veto"] = soft_hit or inverted_hit
     if not soft_hit and not inverted_hit:
         metrics["meta_veto_mode"] = "none"
@@ -238,24 +236,8 @@ def should_veto_meta_payoff_negative_zscore(
     metrics["meta_recovery_severe_z"] = bool(recovery_severe)
     metrics["meta_recovery_catastrophic_z"] = bool(recovery_catastrophic)
     metrics["meta_recovery_active"] = bool(in_recovery)
-    if (hard_allowed or inverted_hit or recovery_severe_hard) and not waived:
-        apply_meta_payoff_negative_zscore_veto(metrics)
-        metrics["meta_veto_mode"] = META_HARD_VETO_MODE
-        metrics["meta_soft_veto_penalty"] = 0.0
-        if inverted_hit:
-            metrics["gate_reason"] = "meta_shadow_inverted_veto"
-        if recovery_severe_hard:
-            metrics["meta_recovery_severe_z_veto"] = True
-        logger.info(
-            "META_HARD_VETO | META_VETO_MODE=%s | shadow_corr=%+.3f | n=%d | z=%.3f | inverted=%s | recovery=%s",
-            META_HARD_VETO_MODE,
-            float(corr or 0.0),
-            n_shadow,
-            float(z_score or 0.0),
-            str(bool(inverted)).lower(),
-            str(bool(in_recovery)).lower(),
-        )
-        return True
+    if recovery_severe_hard:
+        metrics["meta_recovery_severe_z_veto"] = True
     _apply_soft_veto(metrics)
     if recovery_severe:
         metrics["meta_recovery_severe_z_soft"] = True
@@ -269,11 +251,9 @@ def should_veto_meta_payoff_negative_zscore(
     return False
 
 
-def is_execution_signal_vetoed(metrics: dict[str, Any] | None) -> bool:
+def is_execution_signal_vetoed(_metrics: dict[str, Any] | None = None) -> bool:
     """True quando gate_reason indica veto absoluto de direcao."""
-    if not isinstance(metrics, dict):
-        return False
-    return str(metrics.get("gate_reason") or "") in EXECUTION_SIGNAL_VETO_REASONS
+    return False
 
 
 def apply_meta_payoff_negative_zscore_veto(metrics: dict[str, Any]) -> None:

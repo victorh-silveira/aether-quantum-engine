@@ -15,7 +15,6 @@ from src.application.services.execution_price_zone_gate import (
 )
 from src.application.services.execution_quality_gate import passes_execution_quality
 from src.application.services.execution_quality_gate_meta import evaluate_meta_payoff_quality
-from src.application.services.execution_quality_gate_microstructure import is_hard_quality_reject_reason
 from src.application.services.force_trade_mode import force_trade_every_cycle, synthesize_force_direction
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.soft_recovery_policy import negative_zscore_veto_floor_for_risk
@@ -44,16 +43,13 @@ def direction_pivot(metrics: dict) -> float:
 
 
 def _is_neutral_clamp(metrics: dict) -> bool:
-    """True quando a calibracao, gate_reason, Choppiness Index ou sinal indica zona neutra sem alinhamento de vela."""
+    """True quando a calibracao, gate_reason ou sinal indica zona neutra sem alinhamento de vela."""
     if isinstance(metrics, dict) and metrics.get("candle_color_direction") is not None:
         return False
     reason = str(metrics.get("gate_reason") or "")
     cal_mode = str(metrics.get("calibration_mode") or "")
     status = str(metrics.get("signal_status") or "")
     action = str(metrics.get("action") or "")
-    ci = metrics.get("choppiness_index")
-    if ci is not None and float(ci) > 61.8:
-        return True
     cal_m = metric_float(metrics, "cal_margin", "calibrated_margin", "cal_m", "direction_margin", default=0.0)
     raw_m = metric_float(metrics, "raw_margin", "raw_m", default=0.0)
     floor = metric_float(
@@ -145,10 +141,10 @@ def reject_on_quality_gate(
     skipped_cycles_counter: int | None = None,
     orch: Any | None = None,
 ) -> bool:
-    """Rejeita por microestrutura ou margem de direcao insuficiente."""
+    """Nao rejeita por qualidade - apenas registra metricas."""
+    _ = (entry, recovery_active)
     if force_trade_every_cycle(exec_cfg_dict):
         for k in ("quality_guard_reject", "regime_skip_cycle", "quality_gate_reason"):
-            metrics.pop(k, None)
             gate_probe.pop(k, None)
         return False
     kw = {
@@ -157,10 +153,9 @@ def reject_on_quality_gate(
         "skipped_cycles_counter": skipped_cycles_counter,
         "orch": orch,
     }
-    _ = (entry, recovery_active)
     if has_meta_zscore_telemetry(gate_probe):
         evaluate_meta_payoff_quality(gate_probe, **kw)
-    passed = passes_execution_quality(gate_probe, **kw)
+    passes_execution_quality(gate_probe, **kw)
     for k in (
         "execution_gate_state",
         "quality_gate_regime",
@@ -169,18 +164,11 @@ def reject_on_quality_gate(
         "quality_min_payoff_edge",
         "quality_skipped_cycles_counter",
         "quality_starvation_decay_factor",
+        "quality_gate_reason",
     ):
         if k in gate_probe:
             metrics[k] = gate_probe[k]
-    reason = gate_probe.get("quality_gate_reason")
-    if not passed and is_hard_quality_reject_reason(reason):
-        metrics["quality_guard_reject"] = True
-        metrics["regime_skip_cycle"] = True
-        metrics["quality_gate_reason"] = reason
-        sync_entry_metrics(entry, metrics)
-        return True
     for k in ("quality_guard_reject", "regime_skip_cycle", "quality_gate_reason"):
-        metrics.pop(k, None)
         gate_probe.pop(k, None)
     return False
 

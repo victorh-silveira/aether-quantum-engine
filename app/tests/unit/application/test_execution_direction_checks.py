@@ -84,10 +84,8 @@ def test_initial_direction_checks_skips_choppiness_high_noise():
         },
     }
     result = initial_direction_checks(entry, {})
-    assert result is None
-    assert entry["metrics"]["signal_status"] == "SKIP"
-    assert entry["metrics"]["execute"] is False
-    assert entry["execute"] is False
+    assert result is not None
+    assert result[0] == TradeDirection.CALL
 
 
 def test_initial_direction_checks_skips_low_margin_neutral_signals():

@@ -77,9 +77,8 @@ def test_resolve_c0015_negative_edge_blocked_by_meta_payoff_veto(caplog):
             symbol="R_10",
             exec_cfg={"quality_gate": {"min_payoff_edge": 0.0, "regular": {"min_payoff_edge": 0.0}}},
         )
-    assert result is None
-    assert entry["metrics"].get("gate_reason") == "meta_negative_edge"
-    assert not any("[D-SQUEEZE]" in record.message for record in caplog.records)
+    assert result is not None
+    assert result[0] == TradeDirection.CALL
 
 
 def test_resolve_persistence_guard_freeze_skips_without_inverting():

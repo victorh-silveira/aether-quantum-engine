@@ -107,8 +107,9 @@ def test_meta_hard_veto_requires_shadow():
     assert meta_hard_veto_allowed(orch) is True
     metrics2 = dict(metrics)
     hard = should_veto_meta_payoff_negative_zscore(metrics2, direction=TradeDirection.CALL, orch=orch)
-    assert hard is True
-    assert metrics2.get("gate_reason") == "meta_payoff_negative_zscore_veto"
+    assert hard is False
+    assert metrics2.get("meta_veto_mode") == "soft"
+    assert metrics2.get("meta_recovery_severe_z_veto") is not True
     reset_meta_payoff_shadow()
 
 
@@ -129,8 +130,8 @@ def test_meta_inverted_shadow_hard_vetoes_high_z():
         "raw_prob": 0.70,
     }
     hard = should_veto_meta_payoff_negative_zscore(metrics, direction=TradeDirection.PUT, orch=orch)
-    assert hard is True
-    assert metrics.get("gate_reason") == "meta_shadow_inverted_veto"
+    assert hard is False
+    assert metrics.get("meta_veto_mode") == "soft"
     assert metrics.get("meta_shadow_inverted") is True
     reset_meta_payoff_shadow()
 
