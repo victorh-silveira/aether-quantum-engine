@@ -210,6 +210,8 @@ def passes_execution_quality(
         orch=orch,
     )
     margin_floor = float(limits["min_direction_margin"])
+    if metrics.get("senior_trader_conviction") or metrics.get("candle_color_direction") is not None:
+        margin_floor = 0.0
     metrics["quality_gate_regime"] = str(limits["quality_regime"])
     metrics["quality_min_direction_margin"] = margin_floor
     metrics["quality_min_payoff_edge"] = float(limits["min_payoff_edge"])
