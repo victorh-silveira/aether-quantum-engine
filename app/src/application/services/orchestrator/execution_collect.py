@@ -144,7 +144,7 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
     active_skip = skip_symbols
     if candidates and skip_symbols:
         candidates = [item for item in candidates if item[0] not in skip_symbols]
-    if not candidates and pre_skip and recovery_active and mandatory:
+    if not candidates and pre_skip and recovery_active:
         candidates = pre_skip
         active_skip = frozenset()
     candidates = mandatory_fallback_if_empty(
