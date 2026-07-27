@@ -51,10 +51,11 @@ def resolve_formed_candle_direction(metrics: dict, default_dir: TradeDirection) 
 
 
 def align_direction_to_rsi_trend(dl_dir: TradeDirection, metrics: dict) -> TradeDirection:
-    """Alinha a direcao ao vies claro do RSI macro (RSI > 0.50 -> CALL, RSI < 0.50 -> PUT) e cor da vela formada."""
+    """Alinha a direcao como um Trader Senior Institucional (RSI > 0.50 -> CALL, RSI < 0.50 -> PUT, filtro ADX/Vela)."""
     rsi = _macro_indicator_float(metrics, "rsi")
+    candle_dir = resolve_formed_candle_direction(metrics, dl_dir)
     if rsi is None:
-        return resolve_formed_candle_direction(metrics, dl_dir)
+        return candle_dir
     rsi_v = float(rsi)
     adx = _macro_indicator_float(metrics, "adx")
     hurst = _macro_indicator_float(metrics, "hurst")
@@ -62,11 +63,18 @@ def align_direction_to_rsi_trend(dl_dir: TradeDirection, metrics: dict) -> Trade
     hurst_v = float(hurst) if hurst is not None else 0.40
     if adx_v < 0.20 and hurst_v < 0.45:
         metrics["micro_regime_mean_reversion"] = True
-    min_bias = 0.05 if adx_v < 0.25 else 0.01
-    rsi_bias = rsi_v - 0.5
-    if abs(rsi_bias) < min_bias:
-        return resolve_formed_candle_direction(metrics, dl_dir)
-    rsi_dir = TradeDirection.CALL if rsi_bias > 0.0 else TradeDirection.PUT
+
+    if 0.48 <= rsi_v <= 0.52:
+        metrics["senior_trader_regime"] = "chop_candle_alignment"
+        return candle_dir
+
+    rsi_dir = TradeDirection.CALL if rsi_v > 0.50 else TradeDirection.PUT
+
+    if adx_v >= 0.22 and hurst_v >= 0.50:
+        metrics["senior_trader_regime"] = "strong_trend_impulse"
+    else:
+        metrics["senior_trader_regime"] = "momentum_alignment"
+
     if dl_dir != rsi_dir:
         metrics["rsi_trend_flipped"] = True
         metrics["rsi_trend_orig"] = dl_dir.name
