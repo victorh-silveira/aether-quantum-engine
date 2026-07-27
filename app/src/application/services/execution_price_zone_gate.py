@@ -248,6 +248,6 @@ def align_or_keep_meta_side(
         metrics["price_zone_kept_meta_side"] = True
         return exec_dir
     margin_v = float(metrics.get("direction_margin", 0.0))
-    if (edge_v <= 0.0 or margin_v < 0.025) and bool(metrics.get("rsi_trend_align_enabled")):
+    if (edge_v <= 0.0 or margin_v < 0.025) and bool(metrics.get("rsi_trend_align_enabled", True)):
         return align_direction_to_rsi_trend(aligned, metrics)
     return aligned
