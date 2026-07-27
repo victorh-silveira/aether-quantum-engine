@@ -270,3 +270,15 @@ def test_resolve_execution_direction_waives_veto_under_critical_recovery():
     direction, metrics = result
     assert direction == TradeDirection.PUT
     assert metrics.get("gate_reason") != META_PAYOFF_NEGATIVE_ZSCORE_VETO
+
+
+def test_should_veto_meta_payoff_waived_under_senior_trader_conviction():
+    metrics = {
+        "edge_zscore": -1.5,
+        "edge_zscore_samples": 5,
+        "senior_trader_conviction": 0.58,
+        "edge_expectancy": "NO_EDGE_NEUTRAL",
+    }
+    vetoed = should_veto_meta_payoff_negative_zscore(metrics, direction=TradeDirection.CALL)
+    assert vetoed is False
+    assert metrics.get("meta_senior_trader_waiver") is True

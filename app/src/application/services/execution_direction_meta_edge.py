@@ -62,7 +62,7 @@ def _negative_edge_skip(
     risk_manager: Any | None = None,
 ) -> bool:
     """True quando o edge meta fica abaixo do piso dinamico de execucao."""
-    if force or not meta_applied:
+    if force or not meta_applied or float(metrics.get("senior_trader_conviction", 0.0) or 0.0) >= 0.56:
         return False
     if bool(
         metrics.get("side_eq_toxic_escape")

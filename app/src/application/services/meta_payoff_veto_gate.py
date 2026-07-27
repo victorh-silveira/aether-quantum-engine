@@ -203,8 +203,10 @@ def should_veto_meta_payoff_negative_zscore(
         )
         return False
     metrics["meta_veto_mode"] = META_SOFT_VETO_MODE
-    waived = False
-    if risk_manager is not None:
+    waived = float(metrics.get("senior_trader_conviction", 0.0) or 0.0) >= 0.56
+    if waived:
+        metrics["meta_senior_trader_waiver"] = True
+    elif risk_manager is not None:
         try:
             waived = bool(
                 meta_payoff_veto_emergency_waiver(
