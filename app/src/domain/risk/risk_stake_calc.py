@@ -134,10 +134,12 @@ def calculate_stake_for_manager(
             or dl_metrics.get("signal_status") == "SKIP"
         ):
             return 0.0
-        if (
-            dl_metrics.get("meta_veto_mode") == "soft" or dl_metrics.get("signal_status") == "SOFT_VETO"
-        ) and not _mandatory_trade_flag(kwargs, rm):
-            return 0.0
+        if dl_metrics.get("meta_veto_mode") == "soft" or dl_metrics.get("signal_status") == "SOFT_VETO":
+            senior_conv = float(dl_metrics.get("senior_trader_conviction", 0.0) or 0.0)
+            if senior_conv < 0.56 and not _mandatory_trade_flag(kwargs, rm):
+                return 0.0
+            scale = float(dl_metrics.get("kelly_fraction_scale", 1.0))
+            dl_metrics["kelly_fraction_scale"] = scale * 0.85
 
     weak_cap = float(rm.kelly_config.get("mandatory_weak_conviction_cap", 0.55))
     recovery_min = float(rm.kelly_config.get("recovery_min_conviction", 0.50))
