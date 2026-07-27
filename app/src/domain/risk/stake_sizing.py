@@ -55,13 +55,14 @@ def raw_side_from_metrics(metrics: dict) -> float:
 
 
 def enrich_metrics_conviction(metrics: dict, *, min_raw: float = 0.51) -> None:
-    """Preenche trade_score a partir de raw_prob quando o score calibrado veio zerado."""
+    """Preenche trade_score a partir de raw_prob ou senior_trader_conviction quando o score calibrado veio zerado."""
     raw_side = raw_side_from_metrics(metrics)
+    senior_conv = metric_float(metrics, "senior_trader_conviction", default=0.0)
     score = metric_float(metrics, "trade_score", "conviction", default=0.0)
-    if score + 1e-9 < min_raw and raw_side + 1e-9 >= min_raw:
-        resolved = max(score, raw_side)
-        metrics["trade_score"] = resolved
-        metrics["conviction"] = resolved
+    best_conv = max(score, raw_side, senior_conv)
+    if best_conv + 1e-9 >= min_raw:
+        metrics["trade_score"] = best_conv
+        metrics["conviction"] = best_conv
 
 
 def resolve_stake_regime(*, pending_loss: float, consecutive_losses_linear: int) -> str:
@@ -72,19 +73,21 @@ def resolve_stake_regime(*, pending_loss: float, consecutive_losses_linear: int)
 
 
 def resolve_stake_conviction(metrics: dict, kelly_config: dict[str, Any] | None = None) -> float:
-    """Deriva conviccao de sizing quando o DL bloqueou mas raw_prob ainda tem lado."""
+    """Deriva conviccao de sizing considerando DL, raw_prob e senior_trader_conviction."""
     cfg = kelly_config or {}
     min_raw = float(cfg.get("stake_conviction_min_raw", 0.51))
     min_stop = float(cfg.get("stop_win_kelly_min_conviction", 0.45))
     score = metric_float(metrics, "trade_score", "conviction", default=0.0)
+    senior_conv = metric_float(metrics, "senior_trader_conviction", default=0.0)
     raw_side = raw_side_from_metrics(metrics)
 
-    resolved = max(score, raw_side) if raw_side >= min_raw else score
+    best_conv = max(score, raw_side, senior_conv)
+    resolved = best_conv if best_conv >= min_raw else score
 
     if resolved + 1e-9 >= min_stop:
         return resolved
-    if raw_side + 1e-9 >= min_raw:
-        return max(resolved, raw_side)
+    if best_conv + 1e-9 >= min_raw:
+        return max(resolved, best_conv)
     return resolved
 
 
