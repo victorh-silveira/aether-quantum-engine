@@ -83,7 +83,9 @@ def align_direction_to_rsi_trend(dl_dir: TradeDirection, metrics: dict) -> Trade
         metrics["rsi_trend_flipped"] = True
         metrics["rsi_trend_orig"] = dl_dir.name
         metrics["rsi_val"] = float(rsi)
+        metrics["execute"] = True
         return rsi_dir
+    metrics["execute"] = True
     return dl_dir
 
 
