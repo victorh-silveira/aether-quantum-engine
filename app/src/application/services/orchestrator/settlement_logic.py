@@ -261,6 +261,3 @@ def log_cluster_summary(orch: Any):
     orch.logger.debug("")
     orch._cluster_results = []
     orch._last_anchor_metrics = neutral_metrics()
-
-
-

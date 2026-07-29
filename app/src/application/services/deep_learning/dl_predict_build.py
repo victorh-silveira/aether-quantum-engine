@@ -15,7 +15,10 @@ from src.application.services.deep_learning.dl_congestion import (
 )
 from src.application.services.deep_learning.dl_feature_build import precompute_price_series
 from src.application.services.deep_learning.dl_feature_matrix import build_feature_row
-from src.application.services.deep_learning.dl_gating import resolve_calibrated_edge, resolve_confidence_thresholds
+from src.application.services.deep_learning.dl_gating import (
+    resolve_calibrated_edge,
+    resolve_confidence_thresholds,
+)
 from src.application.services.deep_learning.dl_indicator_config import load_indicator_config_from_settings
 from src.application.services.deep_learning.dl_params_blocks import parse_dynamic_threshold_config
 from src.application.services.deep_learning.dl_predict_metrics import attach_dynamic_metrics
@@ -203,7 +206,8 @@ def build_prediction_entry(
         neutral_hi=neutral_hi,
     )
     raw_prob = float(raw_prob)
-    calibrated_edge = resolve_calibrated_edge(calibrated_prob, raw_prob=raw_prob)
+    horizon_bars = max(1, int(params.get("label_horizon_bars", 1)))
+    calibrated_edge = resolve_calibrated_edge(calibrated_prob, raw_prob=raw_prob, horizon_bars=horizon_bars)
     calibrator = runtime.get("calibrator")
     side_score = calibrate_trade_score(
         raw_prob,

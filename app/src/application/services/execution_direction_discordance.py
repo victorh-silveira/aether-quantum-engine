@@ -1,4 +1,4 @@
-"""Discordancia tecnica RSI/DI e consenso de votos contra a direcao TCN."""
+"""Discordancia tecnica RSI/DI e consenso de votos contra a direcao TCN em horizonte multi-candle."""
 
 from __future__ import annotations
 
@@ -15,6 +15,16 @@ def _macro_indicator_float(metrics: dict, key: str) -> float | None:
                 except (TypeError, ValueError):
                     pass
     return None
+
+
+def _multi_bar_rsi_alignment(rsi: float, horizon_bars: int = 4) -> str:
+    """Avalia o RSI em relacao ao horizonte multi-candle para definir vies direcional."""
+    r = float(rsi)
+    if r >= 0.65:
+        return "bearish_zone" if horizon_bars > 2 else "neutral"
+    if r <= 0.35:
+        return "bullish_zone" if horizon_bars > 2 else "neutral"
+    return "neutral"
 
 
 def _rsi_di_oppose_direction(metrics: dict, dl_dir: TradeDirection) -> bool:
@@ -49,8 +59,20 @@ def resolve_formed_candle_direction(metrics: dict, default_dir: TradeDirection) 
     return default_dir
 
 
+def _multi_bar_ema_trend_alignment(metrics: dict) -> str | None:
+    """Verifica alinhamento do EMA 9/21 como indicador de tendencia multi-candle."""
+    ema9 = _macro_indicator_float(metrics, "ema_9")
+    ema21 = _macro_indicator_float(metrics, "ema_21")
+    if ema9 is not None and ema21 is not None:
+        if ema9 > ema21:
+            return "CALL"
+        if ema9 < ema21:
+            return "PUT"
+    return None
+
+
 def align_direction_to_rsi_trend(dl_dir: TradeDirection, metrics: dict) -> TradeDirection:
-    """Alinha a direcao como um Trader Senior Institucional (RSI > 0.50 -> CALL, RSI < 0.50 -> PUT, filtro ADX/Vela)."""
+    """Alinha a direcao como um Trader Senior, usando RSI + EMA + horizonte multi-candle."""
     rsi = _macro_indicator_float(metrics, "rsi")
     candle_dir = resolve_formed_candle_direction(metrics, dl_dir)
     if rsi is None:
@@ -62,6 +84,8 @@ def align_direction_to_rsi_trend(dl_dir: TradeDirection, metrics: dict) -> Trade
     hurst = _macro_indicator_float(metrics, "hurst")
     adx_v = float(adx) if adx is not None else 0.20
     hurst_v = float(hurst) if hurst is not None else 0.40
+    ema_trend = _multi_bar_ema_trend_alignment(metrics)
+    rsi_multi = _multi_bar_rsi_alignment(rsi_v)
     if hurst_v < 0.50:
         metrics["micro_regime_mean_reversion"] = True
         if rsi_v >= 0.68:
@@ -84,6 +108,10 @@ def align_direction_to_rsi_trend(dl_dir: TradeDirection, metrics: dict) -> Trade
         rsi_dir = TradeDirection.CALL
         metrics["senior_trader_regime"] = "trend_exhaustion_bottom"
         metrics["senior_trader_conviction"] = 0.62
+    elif ema_trend is not None and rsi_multi != "neutral":
+        rsi_dir = TradeDirection.CALL if ema_trend == "CALL" else TradeDirection.PUT
+        metrics["senior_trader_regime"] = "multi_bar_trend_alignment"
+        metrics["senior_trader_conviction"] = 0.64
     else:
         rsi_dir = TradeDirection.CALL if rsi_v > 0.50 else TradeDirection.PUT
         if adx_v >= 0.22:

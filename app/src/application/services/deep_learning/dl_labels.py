@@ -54,6 +54,11 @@ def _forward_mean(prices: np.ndarray, index: int, horizon_bars: int, smooth_bars
     return float(np.mean(prices[forward_start:forward_end]))
 
 
+def _regime_threshold(ma_window: int, horizon_bars: int) -> float:
+    """Define um limiar minimo de deslocamento percentual para evitar ruido."""
+    return max(0.0002, 0.0005 * float(horizon_bars) / float(max(1, ma_window)))
+
+
 def binary_label_at_index(
     prices: np.ndarray,
     index: int,
@@ -63,14 +68,15 @@ def binary_label_at_index(
     label_mode: str = LABEL_MODE_SPOT,
     ma_window: int = 5,
 ) -> bool:
-    """Retorna True para CALL conforme modo spot_forward ou ma_trend."""
+    """Retorna True para CALL conforme modo ma_trend (suave) ou spot_forward."""
     forward = _forward_mean(prices, index, horizon_bars, smooth_bars)
     if forward is None:
         return False
     mode = str(label_mode).strip().lower()
     if mode == LABEL_MODE_MA_TREND:
         current = _rolling_mean(prices, index, ma_window)
-        return forward > current
+        threshold = _regime_threshold(ma_window, horizon_bars)
+        return forward > current + threshold
     return forward > float(prices[index])
 
 

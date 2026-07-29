@@ -35,8 +35,8 @@ def test_predict_abstains_on_gray_zone_raw_prob():
             params,
             None,
         )
-    assert entry["direction"] == TradeDirection.CALL
-    assert entry["metrics"].get("calibration_mode") == "calibrated"
+    assert entry["direction"] is None
+    assert entry["metrics"].get("calibration_mode") == "neutral_zone"
     assert entry["metrics"]["calibrated_prob"] == pytest.approx(0.50)
 
 

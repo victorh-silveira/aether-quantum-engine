@@ -53,6 +53,7 @@ def parse_meta_predict_response(payload: object) -> MetaPredictResponse:
 
 
 def resolve_predicted_edge(metrics: dict, payout: float = 0.95) -> float:
+    """Calcula edge de payoff a partir da probabilidade calibrada ou raw."""
     if not isinstance(metrics, dict):
         return 0.0
     prob = metrics.get("calibrated_prob", metrics.get("raw_prob", 0.5))

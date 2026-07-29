@@ -154,5 +154,3 @@ async def place_order(executor, symbol, direction, stake, duration=None, metrics
             )
         )
     return contract
-
-

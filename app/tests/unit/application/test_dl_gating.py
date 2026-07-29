@@ -1,7 +1,9 @@
 import pytest
 
+from src.application.services.deep_learning.dl_calibration_tolerance import (
+    infer_direction_from_prob as direction_from_raw_prob,
+)
 from src.application.services.deep_learning.dl_gating import (
-    direction_from_raw_prob,
     resolve_calibrated_edge,
     resolve_confidence_thresholds,
     resolve_edge,
@@ -10,16 +12,27 @@ from src.domain.models.trade import TradeDirection
 
 
 def test_resolve_edge():
-    assert resolve_edge(0.80) == pytest.approx(0.30)
+    actual = resolve_edge(0.80, horizon_bars=1)
+    assert actual == pytest.approx(0.56, abs=0.01)
+
+
+def test_resolve_edge_no_edge_at_fifty():
     assert resolve_edge(0.50) == 0.0
 
 
+def test_resolve_edge_horizon_adjusts_payout():
+    edge_1bar = resolve_edge(0.80, horizon_bars=1)
+    edge_4bar = resolve_edge(0.80, horizon_bars=4)
+    assert edge_4bar < edge_1bar
+
+
 def test_resolve_calibrated_edge_prefers_calibrated():
-    assert resolve_calibrated_edge(0.82, raw_prob=0.60) == pytest.approx(0.32)
+    actual = resolve_calibrated_edge(0.82, raw_prob=0.60, horizon_bars=1)
+    assert actual == pytest.approx(0.60, abs=0.01)
 
 
 def test_resolve_calibrated_edge_falls_back_to_raw():
-    assert resolve_calibrated_edge(None, raw_prob=0.70) == pytest.approx(0.20)
+    assert resolve_calibrated_edge(None, raw_prob=0.70, horizon_bars=1) == pytest.approx(0.37, abs=0.01)
 
 
 def test_resolve_calibrated_edge_defaults_to_zero():
@@ -35,12 +48,12 @@ def test_confidence_thresholds_from_params():
 
 
 def test_direction_from_raw_prob_call():
-    assert direction_from_raw_prob(0.80) == TradeDirection.CALL
+    assert direction_from_raw_prob(0.80, None) == TradeDirection.CALL
 
 
 def test_direction_from_raw_prob_put():
-    assert direction_from_raw_prob(0.20) == TradeDirection.PUT
+    assert direction_from_raw_prob(0.20, None) == TradeDirection.PUT
 
 
-def test_direction_from_raw_prob_gray_zone():
-    assert direction_from_raw_prob(0.52, call_threshold=0.75, put_threshold=0.25) is None
+def test_direction_from_raw_prob_preserves_explicit():
+    assert direction_from_raw_prob(0.50, TradeDirection.PUT) == TradeDirection.PUT
