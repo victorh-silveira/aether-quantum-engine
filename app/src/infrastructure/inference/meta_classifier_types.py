@@ -50,3 +50,14 @@ def parse_meta_predict_response(payload: object) -> MetaPredictResponse:
         "meta_applied": applied,
         "edge_expectancy": expectancy,
     }
+
+
+def resolve_predicted_edge(metrics: dict, payout: float = 0.95) -> float:
+    if not isinstance(metrics, dict):
+        return 0.0
+    prob = metrics.get("calibrated_prob", metrics.get("raw_prob", 0.5))
+    if prob is None:
+        return 0.0
+    p = float(prob)
+    p_win = max(p, 1.0 - p)
+    return float((p_win * (1.0 + payout)) - 1.0)

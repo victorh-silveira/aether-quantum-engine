@@ -206,7 +206,7 @@ def schedule_model_upload(
     if infra is None or not infra.enabled:
         return
     main_loop = getattr(orch, "loop", None)
-    if main_loop is not None and not hasattr(main_loop, "mock_calls") and main_loop.is_running():  # pragma: no cover
+    if main_loop is not None and not hasattr(main_loop, "mock_calls") and main_loop.is_running():
         try:
             coro = upload_model_checkpoint(orch, symbol, local_path, arch=arch, metadata=metadata)
             main_loop.call_soon_threadsafe(lambda: main_loop.create_task(coro))

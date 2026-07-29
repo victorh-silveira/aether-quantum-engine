@@ -121,7 +121,7 @@ def check_session_limits_before_post_settlement(orch: Any) -> bool:
     state_mgr = getattr(orch, "state_mgr", None)
     if state_mgr is not None and type(state_mgr).__name__ == "StateManager":
         return bool(state_mgr.state.stop_win_triggered)
-    return target > 0 and pnl >= target  # pragma: no cover
+    return target > 0 and pnl >= target
 
 
 def update_state_manager_and_check_stop_win(orch: Any, target: float, pnl: float) -> bool:
@@ -131,4 +131,4 @@ def update_state_manager_and_check_stop_win(orch: Any, target: float, pnl: float
     if state_mgr is not None and type(state_mgr).__name__ == "StateManager":
         state_mgr.save_state()
         return triggered
-    return target > 0 and pnl >= target  # pragma: no cover
+    return target > 0 and pnl >= target

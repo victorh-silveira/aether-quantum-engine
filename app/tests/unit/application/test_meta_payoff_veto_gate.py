@@ -76,10 +76,11 @@ def _stamp_negative_zscore(metrics: dict, z_score: float = -0.90) -> None:
 
 
 def test_classify_payoff_edge_expectancy_negative_zscore():
-    assert classify_payoff_edge_expectancy(0.12, z_score=-0.90) == "NO_EDGE_NEUTRAL"
+    assert classify_payoff_edge_expectancy(0.12, z_score=-0.90) == "WIN_EXPECTED"
     assert classify_payoff_edge_expectancy(0.12, z_score=-0.10) == "WIN_EXPECTED"
     assert classify_payoff_edge_expectancy(-0.02, z_score=0.5) == "LOSS_EXPECTED"
     assert classify_payoff_edge_expectancy(0.005, z_score=0.0) == "NO_EDGE_NEUTRAL"
+    assert classify_payoff_edge_expectancy(0.10, z_score=-0.90, veto_floor=0.0) == "NO_EDGE_NEUTRAL"
 
 
 def test_should_veto_meta_payoff_negative_zscore_skips_neutral_with_low_z():
@@ -113,7 +114,7 @@ def test_should_veto_meta_payoff_negative_zscore_overrides_win_expected():
         "trade_score": 0.88,
     }
     _stamp_negative_zscore(metrics, z_score=-1.47)
-    assert stamp_payoff_edge_expectancy(metrics) == "NO_EDGE_NEUTRAL"
+    assert stamp_payoff_edge_expectancy(metrics) == "WIN_EXPECTED"
     assert should_veto_meta_payoff_negative_zscore(metrics, direction=TradeDirection.CALL) is False
     assert metrics["meta_payoff_soft_veto"] is True
     assert metrics["signal_status"] == "SOFT_VETO"
@@ -126,7 +127,7 @@ def test_resolve_payoff_edge_expectancy_win_expected_with_nonpositive_edge_becom
         "meta_payoff_edge_zscore": -0.90,
         "edge_zscore": -0.90,
     }
-    assert stamp_payoff_edge_expectancy(metrics) == "LOSS_EXPECTED"
+    assert stamp_payoff_edge_expectancy(metrics) == "WIN_EXPECTED"
 
 
 def test_resolve_payoff_edge_expectancy_defaults_win_when_edge_missing():
@@ -193,7 +194,18 @@ def test_meta_payoff_zscore_reads_edge_zscore_fallback():
 def test_stamp_payoff_edge_expectancy_derives_from_zscore():
     metrics = {"predicted_payoff_edge": 0.10}
     _stamp_negative_zscore(metrics)
-    assert stamp_payoff_edge_expectancy(metrics) == "NO_EDGE_NEUTRAL"
+    assert stamp_payoff_edge_expectancy(metrics) == "WIN_EXPECTED"
+
+
+def test_stamp_payoff_edge_expectancy_low_z_overrides_win_explicit():
+    metrics = {
+        "edge_expectancy": "WIN_EXPECTED",
+        "predicted_payoff_edge": -0.02,
+    }
+    _stamp_negative_zscore(metrics)
+    result = stamp_payoff_edge_expectancy(metrics, veto_floor=0.0)
+    assert result == "LOSS_EXPECTED"
+    assert metrics["edge_expectancy"] == "LOSS_EXPECTED"
 
 
 @pytest.mark.asyncio

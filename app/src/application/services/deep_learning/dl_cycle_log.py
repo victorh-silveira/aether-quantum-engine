@@ -123,7 +123,7 @@ def _log_calibrator_gray_zone(logger, decisions: dict[str, dict], *, orch, cycle
     for symbol, entry in decisions.items():
         metrics = entry.get("metrics") if isinstance(entry.get("metrics"), dict) else {}
         cal_margin = metric_float(metrics, "cal_margin", "direction_margin", default=0.0)
-        min_margin = metric_float(metrics, "quality_min_direction_margin", default=0.03)
+        min_margin = metric_float(metrics, "quality_min_direction_margin", default=0.01)
         if cal_margin + 1e-12 >= min_margin:
             continue
         method = str(metrics.get("calibrator_method") or "na")

@@ -1,4 +1,7 @@
-from src.application.services.deep_learning.dl_gating import direction_from_raw_prob, resolve_confidence_thresholds
+from src.application.services.deep_learning.dl_calibration_tolerance import (
+    infer_direction_from_prob as direction_from_raw_prob,
+)
+from src.application.services.deep_learning.dl_gating import resolve_confidence_thresholds
 from src.domain.models.trade import TradeDirection
 
 
@@ -17,3 +20,4 @@ def test_gray_zone_not_mapped_to_direction():
 
 def test_strong_call_maps_to_direction():
     assert direction_from_raw_prob(0.80) == TradeDirection.CALL
+

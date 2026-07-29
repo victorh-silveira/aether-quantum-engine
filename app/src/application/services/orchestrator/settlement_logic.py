@@ -146,7 +146,7 @@ async def process_late_settlement_from_payload(orch: Any, poc: dict) -> None:
     api_status_raw = (poc.get("status") or "").strip()
     outcome = api_settlement_label(api_status_raw, profit)
     sym = orch.risk_manager.contract_to_symbol.get(c_id, poc.get("underlying", "UNK"))
-    _, direction, edge, z_score, raw_prob = pop_contract_audit(orch, c_id, symbol=str(sym))
+    _, direction, edge, z_score, raw_prob = pop_contract_audit(orch, c_id)
     record_meta_payoff_shadow_pair(z_score=z_score, profit=profit, orch=orch)
     linear_before = int(getattr(orch.risk_manager, "consecutive_losses_linear", 0) or 0)
     stake_audit = resolve_stake_audit_context(orch.risk_manager)
@@ -193,7 +193,7 @@ async def _process_confirmed_settlement(orch: Any, data: dict, contract: Any) ->
     api_status_raw = (c.get("status") or "").strip()
     outcome = api_settlement_label(api_status_raw, profit)
     sym = orch.risk_manager.contract_to_symbol.get(c_id, c.get("underlying", "UNK"))
-    _, direction, edge, z_score, raw_prob = pop_contract_audit(orch, c_id, contract=contract, symbol=str(sym))
+    _, direction, edge, z_score, raw_prob = pop_contract_audit(orch, c_id)
     record_meta_payoff_shadow_pair(z_score=z_score, profit=profit, orch=orch)
     linear_before = int(getattr(orch.risk_manager, "consecutive_losses_linear", 0) or 0)
     stake_audit = resolve_stake_audit_context(orch.risk_manager)
@@ -261,3 +261,6 @@ def log_cluster_summary(orch: Any):
     orch.logger.debug("")
     orch._cluster_results = []
     orch._last_anchor_metrics = neutral_metrics()
+
+
+

@@ -41,6 +41,7 @@ data/
 logs/
 
 # ---- MODELOS / ARTEFATOS ML (exceto os versionados em infra/) ----
+*.pkl
 *.pt
 *.pth
 *.onnx

@@ -1,40 +1,31 @@
-"""Utilitarios de probabilidade para execucao Deep Learning."""
-
-from src.domain.models.trade import TradeDirection
+"""Regras de gating e cálculo de edge para inferência do Deep Learning."""
 
 
-def resolve_edge(raw_prob: float) -> float:
-    """Margem da probabilidade bruta em relacao a incerteza maxima (0.5)."""
-    return abs(float(raw_prob) - 0.5)
+def resolve_edge(prob: float, payout: float = 0.95) -> float:
+    """Calcula o edge simples baseado na probabilidade e payout."""
+    if prob is None:
+        return 0.0
+    p = float(prob)
+    p_win = max(p, 1.0 - p) if p < 0.5 else p
+    return float((p_win * (1.0 + payout)) - 1.0)
 
 
-def resolve_calibrated_edge(calibrated_prob: float | None, *, raw_prob: float | None = None) -> float:
-    """Margem de edge preferindo probabilidade calibrada."""
-    if calibrated_prob is not None:
-        return abs(float(calibrated_prob) - 0.5)
-    if raw_prob is not None:
-        return resolve_edge(raw_prob)
-    return 0.0
+def resolve_calibrated_edge(calibrated_prob: float | None, raw_prob: float | None = 0.5, payout: float = 0.95) -> float:
+    """Calcula o edge com base na probabilidade do lado dominante (win probability)."""
+    if calibrated_prob is None:
+        return resolve_edge(raw_prob, payout)
+
+    p = float(calibrated_prob)
+    p_win = max(p, 1.0 - p) if p < 0.5 else p
+    return float((p_win * (1.0 + payout)) - 1.0)
 
 
 def resolve_confidence_thresholds(params: dict) -> tuple[float, float]:
-    """Retorna limiares CALL e PUT da configuracao."""
+    if not isinstance(params, dict):
+        return (0.51, 0.49)
     return (
-        float(params.get("confidence_call_threshold", 0.75)),
-        float(params.get("confidence_put_threshold", 0.25)),
+        float(params.get("confidence_call_threshold", 0.51)),
+        float(params.get("confidence_put_threshold", 0.49)),
     )
 
-
-def direction_from_raw_prob(
-    raw_prob: float,
-    *,
-    call_threshold: float = 0.75,
-    put_threshold: float = 0.25,
-) -> TradeDirection | None:
-    """Mapeia probabilidade bruta para CALL, PUT ou zona cinza."""
-    prob = float(raw_prob)
-    if prob + 1e-9 >= float(call_threshold):
-        return TradeDirection.CALL
-    if prob - 1e-9 <= float(put_threshold):
-        return TradeDirection.PUT
-    return None
+# Backwards compatibility re-export

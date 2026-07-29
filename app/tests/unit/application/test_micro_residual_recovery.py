@@ -231,7 +231,7 @@ def test_recovery_pending_total_from_pending_loss_map() -> None:
 def test_soft_recovery_helpers_without_risk_manager() -> None:
     assert risk_session_bankroll_pending(None) == (0.0, 0.0, None)
     assert negative_zscore_veto_floor_for_risk(None) == pytest.approx(-0.75)
-    assert gbdt_waiver_skip_threshold_for_risk(None) == 30
+    assert gbdt_waiver_skip_threshold_for_risk(None) == 20
     assert soft_recovery_enabled({"soft_recovery": {"enabled": False}}) is False
     assert soft_recovery_enabled(soft_recovery={"enabled": True}) is True
     assert configured_max_safe_stake_cap({"max_safe_stake_cap": "x"}) is None

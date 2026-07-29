@@ -165,7 +165,7 @@ class MetaClassifierClient:
                 if edge > 0.0:
                     parsed["predicted_payoff_edge"] = edge * 0.5
                 else:
-                    parsed["predicted_payoff_edge"] = edge * 1.5  # pragma: no cover
+                    parsed["predicted_payoff_edge"] = edge * 1.5
             return parsed
         except (httpx.TimeoutException, httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
             _ = fallback_score
@@ -179,7 +179,7 @@ class MetaClassifierClient:
                 "predicted_payoff_edge": 0.0,
                 "meta_applied": False,
                 "edge_expectancy": "LOSS_EXPECTED",
-            }  # pragma: no cover
+            }
 
     async def predict_meta_batch(
         self,

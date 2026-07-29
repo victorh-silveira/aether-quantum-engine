@@ -157,8 +157,8 @@ async def run_orchestrator_main_loop(orch: Any) -> None:
         await orch._tick_interval_cycle_if_due()
         current_signature = get_data_state_signature(orch)
         if current_signature and current_signature == orch.last_data_signature and orch.ws.is_running:
-            await asyncio.sleep(0.1)  # pragma: no cover
-            continue  # pragma: no cover
+            await asyncio.sleep(0.1)
+            continue
         await asyncio.sleep(1)
         if not orch.ws.is_running:
             if await setup_session(orch) and await start_streams(orch):

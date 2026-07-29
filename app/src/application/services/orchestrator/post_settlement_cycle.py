@@ -137,8 +137,8 @@ async def _clean_stale_settlement_and_redis_counters(orch: Any) -> None:
             "ok",
             "SRE: Limpeza atomica no Redis concluida para 'recovery:skip_counter' e 'settlement:queue:priority'.",
         )
-    except Exception as e:  # pragma: no cover
-        orch.logger.error("SRE: Falha ao executar limpeza atomica no Redis: %s", e)  # pragma: no cover
+    except Exception as e:
+        orch.logger.error("SRE: Falha ao executar limpeza atomica no Redis: %s", e)
 
 
 def _record_post_settlement_incomplete(orch: Any) -> None:

@@ -235,5 +235,5 @@ def test_include_anchor_trades_true_keeps_anchor_eligible():
 def test_soft_recovery_config_exposes_dust_and_freeze_defaults():
     soft = resolve_soft_recovery_config({"soft_recovery": {"enabled": True}})
     assert soft["dust_pending_clear_max"] == pytest.approx(0.25)
-    assert soft["near_stop_win_freeze_pct"] == pytest.approx(0.80)
-    assert soft["material_pending_min"] == pytest.approx(1.0)
+    assert soft["near_stop_win_freeze_pct"] == pytest.approx(0.70)
+    assert soft["material_pending_min"] == pytest.approx(0.5)

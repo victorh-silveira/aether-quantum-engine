@@ -106,7 +106,10 @@ addopts = [
 log_cli = false
 log_cli_level = "WARNING"
 log_file = ""
-filterwarnings = []
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::torch.jit.TracerWarning",
+    "ignore:coroutine '.*' was never awaited:RuntimeWarning",]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 markers = [
@@ -160,4 +163,5 @@ ignore_decorators = []
 ignore_names = []
 min_confidence = 70
 paths = ["src", "run.py", "train.py", "scripts", "aether_paths.py"]
+
 

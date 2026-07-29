@@ -38,12 +38,12 @@ def _settlement_timed_out(exec_mgr: "ExecutionManager", start_time: float, timeo
     """Encerra rastreamento quando o timeout de liquidacao e atingido."""
     if time.time() - start_time <= timeout:
         return False
-    exec_mgr.logger.error("EXEC: Timeout fatal aguardando liquidacao.")  # pragma: no cover
-    settlement_utils.clear_contract_tracking(  # pragma: no cover
+    exec_mgr.logger.error("EXEC: Timeout fatal aguardando liquidacao.")
+    settlement_utils.clear_contract_tracking(
         list(exec_mgr.orch.risk_manager.active_contract_ids),
-        exec_mgr.orch.risk_manager,  # pragma: no cover
-    )  # pragma: no cover
-    return True  # pragma: no cover
+        exec_mgr.orch.risk_manager,
+    )
+    return True
 
 
 def _prune_orphan_settlement_ids(exec_mgr: "ExecutionManager") -> bool:

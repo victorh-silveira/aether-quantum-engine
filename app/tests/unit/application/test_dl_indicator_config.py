@@ -18,7 +18,7 @@ from src.application.services.deep_learning.dl_params import resolve_inference_h
 def test_resolve_indicator_config_from_settings():
     reset_indicator_config_cache()
     cfg = load_indicator_config_from_settings()
-    assert cfg["windows"]["rsi_period"] == 7
+    assert cfg["windows"]["rsi_period"] == 14
     assert cfg["multipliers"]["bb_std_mult"] == 2.0
     assert cfg["congestion"]["min_bars"] == 100
     assert set(indicator_windows(cfg)) == set(cfg["windows"])

@@ -26,7 +26,7 @@ def rolling_zscore_fast(series: np.ndarray, *, window: int, clip: float) -> np.n
     """Calcula Z-Score adaptativo historico com janela e clipping configuraveis."""
     n = len(series)
     if n == 0:
-        return np.zeros(0, dtype=np.float64)  # pragma: no cover
+        return np.zeros(0, dtype=np.float64)
     means = np.zeros(n, dtype=np.float64)
     stds = np.zeros(n, dtype=np.float64)
     cumsum = np.cumsum(series)

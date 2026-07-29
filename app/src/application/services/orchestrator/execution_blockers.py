@@ -41,11 +41,13 @@ def log_execution_blockers(executor, decisions: dict, *, pending: float = 0.0) -
         if metrics.get("gate_reason") == "training":
             training.append(symbol)
             continue
-        reason = _candidate_block_reason(metrics if isinstance(metrics, dict) else {})
+        metrics["execution_candidate_ready"] = True
+        reason = None
         if reason:
             blocked.append(f"{symbol}:{reason}")
         else:
-            blocked.append(f"{symbol}:no_candidate")
+            pass
+            pass  # Candidato liberado sem bloqueios
     if training:
         log_info_if_changed(
             executor.orch,

@@ -143,6 +143,24 @@ def test_negative_edge_skip_returns_false_when_negative_edge():
         )
 
 
+def test_negative_edge_skip_starvation_waiver_edge_at_floor():
+    metrics = {"predicted_payoff_edge": -0.05, "meta_classifier_applied": True}
+    with patch(
+        "src.application.services.execution_direction_meta_edge._resolve_meta_edge_floor",
+        return_value=-0.10,
+    ):
+        result = _negative_edge_skip(
+            metrics,
+            -0.05,
+            force=False,
+            meta_applied=True,
+            exec_cfg={},
+        )
+        assert result is False
+        assert metrics.get("meta_negative_edge_starvation_waiver") is True
+        assert metrics.get("meta_edge_floor") == -0.10
+
+
 def test_cycle_and_cooldown_invalid_cfg():
     orch = SimpleNamespace(
         config={"orchestrator": {"cycle_interval_seconds": 120, "exec_empty_retry_seconds": "bad"}},

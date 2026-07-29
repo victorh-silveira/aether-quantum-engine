@@ -241,6 +241,8 @@ def revive_ready_cluster_candidates(exec_mgr, decisions) -> list[tuple[str, Trad
             continue
         if metrics.get("quality_guard_reject"):
             continue
+        if metrics.get("side_eq_blocked") or str(metrics.get("side_eq_action") or "") == "hard_skip":
+            continue
         name = str(metrics.get("exec_direction") or metrics.get("resolved_direction") or "").upper()
         if name not in {TradeDirection.CALL.name, TradeDirection.PUT.name}:
             continue

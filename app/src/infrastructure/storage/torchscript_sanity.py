@@ -174,7 +174,7 @@ async def verify_triton_stressed_inference_async(
             if attempt >= 2:
                 raise
             await asyncio.sleep(0.35 * float(attempt + 1))
-    if probs is None:  # pragma: no cover
+    if probs is None:
         raise RuntimeError("Triton inferencia estressada sem resposta apos retries")
     for sym in symbols:
         raw = probs.get(str(sym))

@@ -100,9 +100,9 @@ def _stop_win_blocks_cycle(orch: Any) -> bool:
         orch.state_mgr.check_session_limits()
         return orch.state_mgr.state.stop_win_triggered
 
-    if target <= 0.0:  # pragma: no cover
-        return False  # pragma: no cover
-    return pnl >= target  # pragma: no cover
+    if target <= 0.0:
+        return False
+    return pnl >= target
 
 
 def _orchestrator_preconditions_block(orch: Any) -> bool:

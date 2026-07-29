@@ -76,6 +76,14 @@ def align_direction_to_rsi_trend(dl_dir: TradeDirection, metrics: dict) -> Trade
             rsi_dir = TradeDirection.CALL if rsi_v > 0.50 else TradeDirection.PUT
             metrics["senior_trader_regime"] = "range_momentum_alignment"
             metrics["senior_trader_conviction"] = 0.58
+    elif rsi_v >= 0.82:
+        rsi_dir = TradeDirection.PUT
+        metrics["senior_trader_regime"] = "trend_exhaustion_top"
+        metrics["senior_trader_conviction"] = 0.62
+    elif rsi_v <= 0.18:
+        rsi_dir = TradeDirection.CALL
+        metrics["senior_trader_regime"] = "trend_exhaustion_bottom"
+        metrics["senior_trader_conviction"] = 0.62
     else:
         rsi_dir = TradeDirection.CALL if rsi_v > 0.50 else TradeDirection.PUT
         if adx_v >= 0.22:
