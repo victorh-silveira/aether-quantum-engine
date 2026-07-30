@@ -61,7 +61,7 @@ def _negative_edge_skip(
     recovery_active: bool = False,
     risk_manager: Any | None = None,
 ) -> bool:
-    """Nao bloqueia por edge negativo - apenas registra metricas."""
+    """Bloqueia trades com edge abaixo do piso (min_payoff_edge via quality_gate)."""
     if force or not meta_applied or float(metrics.get("senior_trader_conviction", 0.0) or 0.0) >= 0.56:
         return False
     edge = metrics.get("predicted_payoff_edge")
@@ -80,7 +80,7 @@ def _negative_edge_skip(
             metrics["meta_edge_floor"] = floor
         return False
     metrics["meta_edge_floor"] = floor
-    return False
+    return True
 
 
 def _stamp_direction_resolved_cycle(entry: dict, cycle_id: int) -> None:

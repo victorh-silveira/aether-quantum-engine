@@ -222,7 +222,7 @@ def test_resolve_execution_direction_rejects_meta_negative_edge_without_force():
                 }
             },
         )
-    assert result is not None
+        assert result is None
     assert metrics.get("meta_negative_edge") is True
 
 

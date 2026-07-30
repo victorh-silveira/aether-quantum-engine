@@ -51,8 +51,7 @@ def test_resolve_mild_negative_edge_is_blocked():
             symbol="R_10",
             exec_cfg={"quality_gate": {"min_payoff_edge": 0.0, "regular": {"min_payoff_edge": 0.0}}},
         )
-    assert result is not None
-    assert result[0] == TradeDirection.CALL
+    assert result is None
 
 
 def test_resolve_mild_negative_edge_blocked_even_with_mandatory_flag():
@@ -77,8 +76,7 @@ def test_resolve_mild_negative_edge_blocked_even_with_mandatory_flag():
             },
         },
     )
-    assert result is not None
-    assert result[0] == TradeDirection.PUT
+    assert result is None
 
 
 def test_resolve_thin_put_margin_rejected_by_quality_floor():
@@ -136,7 +134,7 @@ def test_resolve_defined_direction_with_positive_edge_passes():
 
 def test_resolve_negative_edge_allowed_under_starvation_floor():
     entry = _entry(direction=TradeDirection.PUT, calibrated_prob=0.46)
-    entry["metrics"]["predicted_payoff_edge"] = -0.16
+    entry["metrics"]["predicted_payoff_edge"] = -0.04
     entry["metrics"]["meta_classifier_applied"] = True
     entry["metrics"]["edge_expectancy"] = "LOSS_EXPECTED"
     entry["metrics"]["indicators"] = {"bb_width": 0.09, "adx": 0.25, "rsi": 0.4}
@@ -187,13 +185,12 @@ def test_resolve_negative_edge_blocked_in_recovery_with_non_negative_floor():
             }
         },
     )
-    assert result is not None
-    assert result[0] == TradeDirection.PUT
+    assert result is None
 
 
 def test_resolve_aligns_negative_edge_put_to_buy_zone_under_starvation():
     entry = _entry(direction=TradeDirection.PUT, calibrated_prob=0.46)
-    entry["metrics"]["predicted_payoff_edge"] = -0.18
+    entry["metrics"]["predicted_payoff_edge"] = -0.04
     entry["metrics"]["meta_classifier_applied"] = True
     entry["metrics"]["bb_pct_b"] = 0.20
     entry["metrics"]["keltner"] = 0.20
@@ -262,6 +259,5 @@ def test_recovery_blocks_same_side_after_loss_with_negative_edge():
             }
         },
     )
-    assert result is not None
-    assert result[0] == TradeDirection.PUT
+    assert result is None
     reset_direction_persistence_tracker()

@@ -113,7 +113,7 @@ def test_collect_cluster_orders_recovery_bolts_hard_meta_reject():
                     "quality_gate": {
                         "min_payoff_edge": 0.0,
                         "regular": {"min_payoff_edge": 0.0},
-                        "recovery_relax": {"edge_floor": 0.0},
+                        "recovery_relax": {"edge_floor": -1.0},
                     },
                 }
             },

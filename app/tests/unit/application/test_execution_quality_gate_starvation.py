@@ -51,17 +51,19 @@ def test_resolve_dynamic_quality_limits_progressive_conviction_at_100_skips():
 
 
 def test_starvation_decay_factor_linear_decay_and_floor():
-    assert starvation_decay_factor(7) == 1.0
-    assert starvation_decay_factor(8) == pytest.approx(0.90)
-    assert starvation_decay_factor(9) == pytest.approx(0.80)
-    assert starvation_decay_factor(13) == pytest.approx(0.40)
+    assert starvation_decay_factor(5) == 1.0
+    assert starvation_decay_factor(6) == pytest.approx(0.85)
+    assert starvation_decay_factor(7) == pytest.approx(0.70)
+    assert starvation_decay_factor(8) == pytest.approx(0.55)
+    assert starvation_decay_factor(9) == pytest.approx(0.40)
+    assert starvation_decay_factor(13) == pytest.approx(0.01)
     assert starvation_decay_factor(20) == pytest.approx(0.01)
 
 
 def test_apply_starvation_margin_decay_without_orch():
     margin, decay = apply_starvation_margin_decay(0.11, 9)
-    assert decay == pytest.approx(0.80)
-    assert margin == pytest.approx(0.088)
+    assert decay == pytest.approx(0.40)
+    assert margin == pytest.approx(0.044)
 
 
 def test_apply_starvation_edge_decay_checks():
@@ -75,11 +77,11 @@ def test_apply_starvation_margin_decay_emits_deduped_log(orch_ready, caplog):
     with caplog.at_level("INFO", logger="AETH"):
         margin, decay = apply_starvation_margin_decay(0.11, 9, orch=orch)
         apply_starvation_margin_decay(0.11, 9, orch=orch)
-    assert decay == pytest.approx(0.80)
-    assert margin == pytest.approx(0.088)
+    assert decay == pytest.approx(0.40)
+    assert margin == pytest.approx(0.044)
     escape_logs = [record for record in caplog.records if "Válvula de inanição ativa" in record.message]
     assert len(escape_logs) == 1
-    assert "0.0880" in escape_logs[0].message
+    assert "0.0440" in escape_logs[0].message
     assert "skipped_cycles=9" in escape_logs[0].message
 
 
@@ -97,8 +99,8 @@ def test_resolve_dynamic_quality_limits_applies_starvation_decay_at_counter_6():
         pending_loss_total=0.0,
         skipped_cycles_counter=9,
     )
-    assert limits["min_direction_margin"] == pytest.approx(0.024)
-    assert limits["starvation_decay_factor"] == pytest.approx(0.80)
+    assert limits["min_direction_margin"] == pytest.approx(0.012)
+    assert limits["starvation_decay_factor"] == pytest.approx(0.40)
     assert limits["skipped_cycles_counter"] == pytest.approx(9.0)
 
 

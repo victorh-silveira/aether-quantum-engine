@@ -125,7 +125,7 @@ def test_finalize_toxic_escape_keeps_edge():
     assert metrics.get("side_eq_escape_edge_kept") is True
 
 
-def test_negative_edge_skip_returns_false_when_negative_edge():
+def test_negative_edge_skip_blocks_when_edge_below_floor():
     metrics = {"predicted_payoff_edge": -0.9, "meta_classifier_applied": True}
     with patch(
         "src.application.services.execution_direction_meta_edge._resolve_meta_edge_floor",
@@ -139,7 +139,7 @@ def test_negative_edge_skip_returns_false_when_negative_edge():
                 meta_applied=True,
                 exec_cfg={},
             )
-            is False
+            is True
         )
 
 

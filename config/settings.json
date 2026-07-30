@@ -103,7 +103,7 @@
         "focal_gamma": 2.5,
         "implied_vol_bars": 60,
         "indicator_gating": {
-            "adx_min": 0.23,
+            "adx_min": 0.20,
             "cmo_max": 1.0,
             "cmo_min": -1.0,
             "enabled": true,
@@ -310,9 +310,9 @@
         "execution": {
             "align_rsi_trend": false,
             "bb_width_adaptive_squeeze": {
-                "anomaly_ratio": 0.4,
-                "enabled": false,
-                "require_extreme_squeeze": false
+                "anomaly_ratio": 0.35,
+                "enabled": true,
+                "require_extreme_squeeze": true
             },
             "cross_corr": {
                 "dl_raw_weight": 0.45,
@@ -342,7 +342,7 @@
                 "clamp_put_min": 0.38,
                 "compressive_bb_percentile": 0.15,
                 "directional_adx_min": 0.28,
-                "enabled": false,
+                "enabled": true,
                 "high_regime_call_delta": 0.03,
                 "high_regime_edge_delta": 0.015,
                 "high_regime_put_delta": 0.03,
@@ -355,13 +355,13 @@
                 "min_edge_base": 0.0,
                 "put_base": 0.5,
                 "require_indicator_consensus": false,
-                "squeeze_edge_exponential_k": 3.0,
+                "squeeze_edge_exponential_k": 2.0,
                 "squeeze_edge_slope": 0.035,
                 "squeeze_min_margin": 0.18,
                 "squeeze_vol_ratio_max": 0.9,
                 "vol_compression_k_hyperbolic": 0.2,
                 "vol_compression_k_parabolic": 4.5,
-                "vol_compression_threshold": 0.4,
+                "vol_compression_threshold": 0.35,
                 "vol_source": "blend"
             },
             "edge_zscore": {
@@ -510,14 +510,14 @@
                 },
                 "starvation": {
                     "decay_floor": 0.01,
-                    "decay_step": 0.1,
-                    "decay_threshold": 8,
+                    "decay_step": 0.15,
+                    "decay_threshold": 6,
                     "edge_decay_cycles": 10,
                     "edge_decay_floor": 0.01,
                     "edge_decay_floor_step": 0.01,
                     "edge_decay_multiplier": 2.0
                 },
-                "min_payoff_edge": "-999.0",
+                "min_payoff_edge": "0.0",
                 "min_edge": "-999.0"
             },
             "regime_micro_freeze": {

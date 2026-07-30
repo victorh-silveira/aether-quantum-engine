@@ -8,7 +8,6 @@ from src.application.services.execution_direction_resolver import (
     is_technically_blocked,
     resolve_execution_direction,
 )
-from src.application.services.meta_payoff_veto_gate import META_PAYOFF_NEGATIVE_ZSCORE_VETO
 from src.application.services.payoff_edge_zscore import reset_payoff_edge_buffer
 from src.domain.models.trade import TradeDirection
 
@@ -259,9 +258,8 @@ def test_resolve_mild_negative_edge_is_blocked_by_meta_edge():
             symbol="R_10",
             exec_cfg={"quality_gate": {"min_payoff_edge": 0.0, "regular": {"min_payoff_edge": 0.0}}},
         )
-    assert result is not None
-    assert result[0] == TradeDirection.CALL
-    assert entry["metrics"].get("gate_reason") != META_PAYOFF_NEGATIVE_ZSCORE_VETO
+    assert result is None
+    assert entry["metrics"].get("quality_gate_reason") is None
 
 
 def test_resolve_meta_disabled_keeps_tcn_score_when_edge_strong():

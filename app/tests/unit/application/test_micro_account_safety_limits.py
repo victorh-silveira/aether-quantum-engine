@@ -29,9 +29,9 @@ def test_micro_capital_max_safe_stake_cap():
 
 
 def test_starvation_decay_skips_threshold_8():
-    assert starvation_decay_factor(7) == 1.0
-    assert starvation_decay_factor(8) == pytest.approx(0.90)
-    assert starvation_decay_factor(9) == pytest.approx(0.80)
+    assert starvation_decay_factor(5) == 1.0
+    assert starvation_decay_factor(6) == pytest.approx(0.85)
+    assert starvation_decay_factor(9) == pytest.approx(0.40)
 
 
 def test_state_manager_float_tolerance():

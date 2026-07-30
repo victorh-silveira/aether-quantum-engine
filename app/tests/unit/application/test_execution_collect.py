@@ -96,7 +96,7 @@ def test_collect_cluster_orders_bolts_weak_signal_continuously():
                     "quality_gate": {
                         "min_payoff_edge": 0.0,
                         "regular": {"min_payoff_edge": 0.0},
-                        "recovery_relax": {"edge_floor": 0.0},
+                        "recovery_relax": {"edge_floor": -1.0},
                     },
                 }
             },

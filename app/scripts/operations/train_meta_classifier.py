@@ -41,6 +41,7 @@ from scripts.operations.train_meta_vector import (
     build_paired_training_dataset,
     resolve_contract_duration_seconds,
 )
+from src.application.services.deep_learning.dl_params import parse_dl_params
 
 
 logger = logging.getLogger("META_TRAIN")
@@ -128,6 +129,15 @@ def _teacher_probs(
     bundles: list[OhlcBundle],
 ) -> dict[str, np.ndarray]:
     dl = settings.get("deep_learning") if isinstance(settings.get("deep_learning"), dict) else {}
+    dl_params = (
+        parse_dl_params(
+            dl,
+            data_config=settings.get("data_handler"),
+            risk_params=settings.get("risk"),
+        )
+        if isinstance(dl, dict)
+        else {}
+    )
     template = (
         str(dl.get("model_path_template", "data/dl/{symbol}.pth")) if isinstance(dl, dict) else "data/dl/{symbol}.pth"
     )
@@ -136,7 +146,7 @@ def _teacher_probs(
     loaded = infer_teacher_probs_from_checkpoints(
         selected,
         model_path_template=path_template,
-        dl_params=dl if isinstance(dl, dict) else None,
+        dl_params=dl_params,
     )
     if loaded:
         logger.info("META_TRAIN: teacher TCN carregado para %s", ",".join(sorted(loaded)))

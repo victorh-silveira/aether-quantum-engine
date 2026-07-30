@@ -6,6 +6,7 @@ from typing import Any
 
 from src.application.services.deep_learning.dl_indicator_config import load_bb_width_anomaly_ratio
 from src.application.services.execution_direction_discordance import (
+    _macro_indicator_float,
     apply_technical_agreement,
     resolve_formed_candle_direction,
 )
@@ -232,9 +233,18 @@ def initial_direction_checks(
         if metrics.get("quality_guard_reject") or metrics.get("gate_reason"):
             sync_entry_metrics(entry, metrics)
         return None
-    squeeze_cfg, _gating_cfg = sniper_cfg(exec_cfg_dict, orch)
+    squeeze_cfg, gating_cfg = sniper_cfg(exec_cfg_dict, orch)
     anomaly = float(squeeze_cfg["anomaly_ratio"])
     metrics["bb_width_anomaly_ratio"] = anomaly
+    adx_min = float(gating_cfg.get("adx_min", 0.0))
+    if adx_min > 0.0 and not force:
+        adx = _macro_indicator_float(metrics, "adx")
+        if adx is not None and float(adx) < adx_min:
+            metrics["quality_guard_reject"] = True
+            metrics["regime_skip_cycle"] = True
+            metrics["gate_reason"] = "adx_min"
+            sync_entry_metrics(entry, metrics)
+            return None
     prob = direction_prob(entry)
     if prob is None:
         prob = 0.55 if dl_dir == TradeDirection.CALL else 0.45

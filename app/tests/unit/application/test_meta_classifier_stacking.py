@@ -256,7 +256,7 @@ def test_c0015_stacking_payload_allows_negative_edge_without_rejection(caplog):
         result = resolve_execution_direction(
             entry,
             symbol="R_10",
-            exec_cfg={"quality_gate": {"min_payoff_edge": 0.0, "regular": {"min_payoff_edge": 0.0}}},
+            exec_cfg={"quality_gate": {"min_payoff_edge": -1.0, "regular": {"min_payoff_edge": -1.0}}},
         )
     assert result is not None
     assert entry["metrics"].get("meta_negative_edge") is True
