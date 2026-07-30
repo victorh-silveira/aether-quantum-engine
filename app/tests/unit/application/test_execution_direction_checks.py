@@ -29,6 +29,30 @@ def test_sniper_cfg_reads_indicator_gating_from_orch():
     assert gating_cfg["veto_on_noise"] is True
 
 
+def test_initial_direction_checks_blocks_low_adx_via_indicator_gating():
+    orch = SimpleNamespace(
+        config={
+            "deep_learning": {
+                "indicator_gating": {
+                    "adx_min": 0.20,
+                }
+            }
+        }
+    )
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {
+            "calibrated_prob": 0.72,
+            "indicators": {"adx": 0.10, "hurst": 0.60},
+            "execute": True,
+        },
+    }
+    result = initial_direction_checks(entry, {}, orch=orch)
+    assert result is None
+    assert entry["metrics"]["gate_reason"] == "adx_min"
+    assert entry["metrics"]["quality_guard_reject"] is True
+
+
 def test_initial_direction_checks_rejects_hurst_noise_via_orch():
     orch = SimpleNamespace(
         config={
