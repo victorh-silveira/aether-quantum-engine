@@ -36,7 +36,7 @@ echo.
 echo [AETHER] Etapa 2/3: Verificando infraestrutura Docker (TimescaleDB)...
 where docker >nul 2>nul
 if not errorlevel 1 (
-    docker ps --filter "name=aether-timescaledb" --filter "health=healthy" --format "{{.Names}}" | findstr /C:"aether-timescaledb" >nul 2>nul
+    docker container inspect aether-timescaledb >nul 2>nul
     if errorlevel 1 (
         echo [AETHER] TimescaleDB offline — tentando subir stack core...
         docker compose -f "%REPO_ROOT%\infra\docker\docker-compose.yml" --project-directory "%REPO_ROOT%\infra\docker" --env-file "%REPO_ROOT%\.env" up -d timescaledb 2>nul
@@ -45,7 +45,7 @@ if not errorlevel 1 (
         ) else (
             echo [AETHER] Aguardando TimescaleDB ficar saudavel...
             for /l %%i in (1,1,30) do (
-                docker ps --filter "name=aether-timescaledb" --filter "health=healthy" --format "{{.Names}}" | findstr /C:"aether-timescaledb" >nul 2>nul && goto :ts_ok
+                docker exec aether-timescaledb pg_isready -U aether >nul 2>nul && goto :ts_ok
                 timeout /t 2 /nobreak >nul
             )
             echo [AVISO] Timeout ao aguardar TimescaleDB. Meta-classificador usara fallback.
