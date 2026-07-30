@@ -1,5 +1,20 @@
 """Regras de gating e cálculo de edge para inferência do Deep Learning."""
 
+from __future__ import annotations
+
+from typing import Any
+
+from src.domain.models.trade import TradeDirection
+
+
+def direction_from_raw_prob(raw_prob: float, call_threshold: float = 0.55, put_threshold: float = 0.45) -> Any:
+    """Decodifica direcao CALL/PUT a partir da probabilidade raw e thresholds."""
+    if raw_prob >= call_threshold:
+        return TradeDirection.CALL
+    if raw_prob <= put_threshold:
+        return TradeDirection.PUT
+    return None
+
 
 def _adjust_payout_for_horizon(payout: float, horizon_bars: int = 4) -> float:
     """Ajusta o payout esperado baseado no horizonte de predicao multi-candle."""

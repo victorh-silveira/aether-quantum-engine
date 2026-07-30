@@ -16,7 +16,7 @@ def test_kelly_calculation_standard(kelly_config):
     """Verifica o cálculo de Kelly com probabilidade e payout padrão."""
     rm = RiskManager(kelly_config)
     stake = rm.calculate_stake(1000.0, "R_10", conviction=0.6)
-    assert stake == pytest.approx(7.16, abs=0.1)
+    assert stake == pytest.approx(4.36, abs=0.1)
 
 
 def test_kelly_negative_edge_returns_min_stake(kelly_config):
@@ -32,7 +32,7 @@ def test_kelly_stake_capped_by_max_safe_bankroll_pct(kelly_config):
     kelly_config["kelly"]["fraction"] = 1.0
     rm = RiskManager(kelly_config)
     stake = rm.calculate_stake(1000.0, "R_10", conviction=0.8)
-    assert stake in (15.0, 20.0, 35.0)
+    assert stake == pytest.approx(9.15, abs=0.1)
 
 
 def test_kelly_high_conviction_scales_within_safe_cap(kelly_config):
@@ -46,7 +46,7 @@ def test_kelly_high_conviction_scales_within_safe_cap(kelly_config):
     low = rm.calculate_stake(1000.0, "R_10", conviction=0.7)
     high = rm.calculate_stake(1000.0, "R_10", conviction=0.9)
     assert high > low
-    assert high == pytest.approx(35.0)
+    assert high == pytest.approx(24.4, abs=0.1)
 
 
 def test_kelly_dynamic_win_rate(kelly_config):

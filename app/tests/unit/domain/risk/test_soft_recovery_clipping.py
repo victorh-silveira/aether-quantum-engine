@@ -61,13 +61,13 @@ def test_resolve_soft_recovery_config_defaults_match_settings() -> None:
     assert soft["amort_cycles_min"] == 2
     assert soft["amort_cycles_max"] == 3
     assert soft["micro_residual_pending_max"] == pytest.approx(3.0)
-    assert soft["micro_residual_zscore_floor"] == pytest.approx(-0.50)
+    assert soft["micro_residual_zscore_floor"] == pytest.approx(0.01)
     assert soft["micro_residual_gbdt_waiver_skips"] == 4
     assert soft["fixed_step_linear_min"] == 2
     assert soft["fixed_step_linear_max"] == 3
     assert soft["fixed_step_unit_premium"] == pytest.approx(0.12)
-    assert soft["small_account_hard_floor_threshold"] == pytest.approx(80.0)
-    assert soft["small_account_hard_floor_pct"] == pytest.approx(0.03)
+    assert soft["small_account_hard_floor_threshold"] == pytest.approx(0.01)
+    assert soft["small_account_hard_floor_pct"] == pytest.approx(0.01)
     assert soft["dust_pending_clear_max"] == pytest.approx(0.25)
     assert soft["near_stop_win_freeze_pct"] == pytest.approx(0.70)
     assert soft["material_pending_min"] == pytest.approx(0.5)

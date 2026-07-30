@@ -68,12 +68,7 @@ async def test_predict_meta_success():
     response.json = MagicMock(return_value={"predicted_payoff_edge": 0.17, "meta_applied": True})
     client._client.post = AsyncMock(return_value=response)
     result = await client.predict_meta(
-        build_meta_predict_request(
-            symbol="R_10",
-            metrics=_meta_metrics(),
-            tcn_probability=0.62,
-            direction="CALL",
-        ),
+        build_meta_predict_request(symbol="R_10", metrics=_meta_metrics(), tcn_probability=0.62, direction="CALL"),
         fallback_score=0.62,
     )
     assert result["predicted_payoff_edge"] == pytest.approx(0.17)
@@ -82,16 +77,29 @@ async def test_predict_meta_success():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("edge,expected", [(0.10, 0.05), (-0.10, -0.15)])
+async def test_predict_meta_high_vol_scales_edge(edge, expected):
+    client = MetaClassifierClient(base_url="http://meta:8005", timeout=1.0, enabled=True)
+    response = MagicMock()
+    response.raise_for_status = MagicMock()
+    response.json = MagicMock(return_value={"predicted_payoff_edge": edge, "meta_applied": True})
+    client._client.post = AsyncMock(return_value=response)
+    metrics = _meta_metrics()
+    metrics["feature_vector"] = [3.0] * 34
+    result = await client.predict_meta(
+        build_meta_predict_request(symbol="R_10", metrics=metrics, tcn_probability=0.62, direction="CALL"),
+        fallback_score=0.62,
+    )
+    assert result["predicted_payoff_edge"] == pytest.approx(expected)
+    await client.aclose()
+
+
+@pytest.mark.asyncio
 async def test_predict_meta_timeout_fallback():
     client = MetaClassifierClient(base_url="http://meta:8005", timeout=1.0, enabled=True)
     client._client.post = AsyncMock(side_effect=httpx.TimeoutException("timeout"))
     result = await client.predict_meta(
-        build_meta_predict_request(
-            symbol="R_10",
-            metrics=_meta_metrics(),
-            tcn_probability=0.62,
-            direction="CALL",
-        ),
+        build_meta_predict_request(symbol="R_10", metrics=_meta_metrics(), tcn_probability=0.62, direction="CALL"),
         fallback_score=0.62,
     )
     assert result["predicted_payoff_edge"] == pytest.approx(0.0)
@@ -106,12 +114,7 @@ async def test_predict_meta_http_error_fallback():
     response = httpx.Response(503, request=request)
     client._client.post = AsyncMock(side_effect=httpx.HTTPStatusError("fail", request=request, response=response))
     result = await client.predict_meta(
-        build_meta_predict_request(
-            symbol="R_10",
-            metrics=_meta_metrics(),
-            tcn_probability=0.62,
-            direction="CALL",
-        ),
+        build_meta_predict_request(symbol="R_10", metrics=_meta_metrics(), tcn_probability=0.62, direction="CALL"),
         fallback_score=0.62,
     )
     assert result["predicted_payoff_edge"] == pytest.approx(0.0)
@@ -123,12 +126,7 @@ async def test_predict_meta_http_error_fallback():
 async def test_predict_meta_disabled_returns_zero_edge():
     client = MetaClassifierClient(base_url="http://meta:8005", timeout=1.0, enabled=False)
     result = await client.predict_meta(
-        build_meta_predict_request(
-            symbol="R_10",
-            metrics=_meta_metrics(),
-            tcn_probability=0.62,
-            direction="CALL",
-        ),
+        build_meta_predict_request(symbol="R_10", metrics=_meta_metrics(), tcn_probability=0.62, direction="CALL"),
         fallback_score=0.62,
     )
     assert result["predicted_payoff_edge"] == pytest.approx(0.0)

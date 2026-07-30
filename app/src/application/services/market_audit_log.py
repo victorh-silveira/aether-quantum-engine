@@ -47,16 +47,27 @@ def format_cluster_audit_line(
     return f"[CLUSTER] {timeframe} || " + " || ".join(tokens)
 
 
+def _indicator_float(snap: dict[str, Any], key: str, default: float = 0.0) -> float:
+    """Extrai float seguro de um snapshot de indicadores."""
+    val = snap.get(key)
+    if val is None:
+        return default
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return default
+
+
 def format_indicators_audit_line(cycle_id: int, symbol: str, metrics: dict[str, Any]) -> str:
     """Monta linha compacta de indicadores e microestrutura alinhada por colunas."""
     _ = symbol
     snap = indicator_snapshot(metrics)
-    rsi = snap.get("rsi", 0.0)
-    adx = snap.get("adx", 0.0)
-    hurst = snap.get("hurst", 0.0)
-    atr = snap.get("atr_norm", 0.0)
-    bbw = snap.get("bb_width", 0.0)
-    vol_r = snap.get("vol_ratio", snap.get("vol_ratio_short_long", 0.0))
+    rsi = _indicator_float(snap, "rsi")
+    adx = _indicator_float(snap, "adx")
+    hurst = _indicator_float(snap, "hurst")
+    atr = _indicator_float(snap, "atr_norm")
+    bbw = _indicator_float(snap, "bb_width")
+    vol_r = _indicator_float(snap, "vol_ratio") or _indicator_float(snap, "vol_ratio_short_long")
     z_edge = metric_float(metrics, "edge_zscore", "meta_payoff_edge_zscore", default=0.0)
     acc = metric_float(metrics, "val_accuracy", default=0.0)
     margin = metric_float(metrics, "direction_margin", default=0.0)

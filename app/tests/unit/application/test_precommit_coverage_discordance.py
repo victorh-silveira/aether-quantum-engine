@@ -201,3 +201,46 @@ def test_side_eq_gate_rsi_trend_conflict():
             orch, "R_10", TradeDirection.CALL, metrics2, recovery_active=True
         )
         assert res2 == TradeDirection.CALL
+
+
+def test_multi_bar_ema_trend_alignment():
+    from src.application.services.execution_direction_discordance import _multi_bar_ema_trend_alignment
+
+    assert _multi_bar_ema_trend_alignment({"macro_indicators": {"ema_9": 1.1, "ema_21": 1.0}}) == "CALL"
+    assert _multi_bar_ema_trend_alignment({"macro_indicators": {"ema_9": 1.0, "ema_21": 1.1}}) == "PUT"
+    assert _multi_bar_ema_trend_alignment({}) is None
+    assert _multi_bar_ema_trend_alignment({"macro_indicators": {"ema_9": 1.0}}) is None
+
+
+def test_align_direction_rsi_trend_hurst_above_50_extremes():
+    assert (
+        align_direction_to_rsi_trend(
+            TradeDirection.CALL,
+            {"macro_indicators": {"rsi": 0.85, "hurst": 0.60, "adx": 0.25}},
+        )
+        == TradeDirection.PUT
+    )
+    assert (
+        align_direction_to_rsi_trend(
+            TradeDirection.PUT,
+            {"macro_indicators": {"rsi": 0.10, "hurst": 0.60, "adx": 0.25}},
+        )
+        == TradeDirection.CALL
+    )
+
+
+def test_align_direction_rsi_trend_ema_multi_bar():
+    assert (
+        align_direction_to_rsi_trend(
+            TradeDirection.CALL,
+            {"macro_indicators": {"rsi": 0.70, "hurst": 0.60, "ema_9": 1.1, "ema_21": 1.0}},
+        )
+        == TradeDirection.CALL
+    )
+    assert (
+        align_direction_to_rsi_trend(
+            TradeDirection.PUT,
+            {"macro_indicators": {"rsi": 0.30, "hurst": 0.60, "ema_9": 1.0, "ema_21": 1.1}},
+        )
+        == TradeDirection.PUT
+    )

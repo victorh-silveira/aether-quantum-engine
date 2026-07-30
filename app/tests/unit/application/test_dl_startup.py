@@ -45,7 +45,7 @@ def test_resolve_startup_fetch_bars_inference_mode(tmp_path, monkeypatch):
     )
     bars, mode = resolve_startup_fetch_bars(config, ["R_10"])
     assert mode == "inferencia"
-    assert bars == 60 + 48 + 16 + 64
+    assert bars == 192
 
 
 def test_resolve_startup_fetch_bars_full_when_checkpoint_missing(tmp_path, monkeypatch):

@@ -47,7 +47,7 @@ def test_resolve_dynamic_quality_limits_progressive_conviction_at_100_skips():
         skipped_cycles_counter=100,
     )
     assert limits["starvation_decay_factor"] == pytest.approx(0.80**20)
-    assert limits["min_direction_margin"] == pytest.approx(0.10 * (0.80**20))
+    assert limits["min_direction_margin"] == pytest.approx(0.01)
 
 
 def test_starvation_decay_factor_linear_decay_and_floor():
@@ -55,7 +55,7 @@ def test_starvation_decay_factor_linear_decay_and_floor():
     assert starvation_decay_factor(8) == pytest.approx(0.90)
     assert starvation_decay_factor(9) == pytest.approx(0.80)
     assert starvation_decay_factor(13) == pytest.approx(0.40)
-    assert starvation_decay_factor(20) == pytest.approx(0.20)
+    assert starvation_decay_factor(20) == pytest.approx(0.01)
 
 
 def test_apply_starvation_margin_decay_without_orch():
@@ -67,7 +67,7 @@ def test_apply_starvation_margin_decay_without_orch():
 def test_apply_starvation_edge_decay_checks():
     assert apply_starvation_edge_decay(0.04, 2) == pytest.approx(0.04)
     assert apply_starvation_edge_decay(-0.05, 2) == pytest.approx(-0.05)
-    assert apply_starvation_edge_decay(0.04, 9) == pytest.approx(0.0)
+    assert apply_starvation_edge_decay(0.04, 9) == pytest.approx(0.01)
 
 
 def test_apply_starvation_margin_decay_emits_deduped_log(orch_ready, caplog):

@@ -86,6 +86,8 @@ def test_hurst_regime_allowed_when_gating_disabled():
 def test_candidate_block_reason_quality_paths():
     assert _candidate_block_reason({"quality_guard_reject": True}) == "quality_guard_reject"
     assert _candidate_block_reason({"signal_status": "SIGNAL_SUSPENDED"}) == "SIGNAL_SUSPENDED"
+    assert _candidate_block_reason({"gate_reason": "data"}) == "data"
+    assert _candidate_block_reason({}) is None
 
 
 def test_propagate_cluster_signal_suspended_creates_metrics():

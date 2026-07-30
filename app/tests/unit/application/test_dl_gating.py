@@ -57,3 +57,13 @@ def test_direction_from_raw_prob_put():
 
 def test_direction_from_raw_prob_preserves_explicit():
     assert direction_from_raw_prob(0.50, TradeDirection.PUT) == TradeDirection.PUT
+
+
+def test_resolve_edge_none_returns_zero():
+    assert resolve_edge(None) == 0.0
+
+
+def test_confidence_thresholds_non_dict_returns_default():
+    call_thr, put_thr = resolve_confidence_thresholds(None)
+    assert call_thr == 0.55
+    assert put_thr == 0.45

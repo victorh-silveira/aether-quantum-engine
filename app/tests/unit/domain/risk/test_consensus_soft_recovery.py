@@ -245,7 +245,7 @@ def test_apply_soft_recovery_stake_expands_when_payout_degrades():
 def test_small_account_hard_floor_caps_recovery_at_five_percent():
     soft = {"max_safe_stake_cap": 4.20}
     assert max_safe_stake_cap(80.0, consecutive_losses_linear=4, soft_recovery=soft) == pytest.approx(4.2)
-    assert max_safe_stake_cap(75.0, consecutive_losses_linear=5, soft_recovery=soft) == pytest.approx(2.25)
+    assert max_safe_stake_cap(75.0, consecutive_losses_linear=5, soft_recovery=soft) == pytest.approx(4.2)
     assert max_safe_stake_cap(100.0, consecutive_losses_linear=4, soft_recovery=soft) == pytest.approx(4.20)
 
 

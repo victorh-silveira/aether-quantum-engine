@@ -130,6 +130,16 @@ def test_cluster_symbol_token_invalid_margin_falls_back():
     assert "Edge: +0.040" in token
 
 
+def test_cluster_symbol_token_empty_symbol():
+    assert cluster_symbol_token(None) == "N/A"
+    assert cluster_symbol_token("") == "N/A"
+
+
+def test_cluster_symbol_token_no_entry():
+    assert cluster_symbol_token("R_10") == "R_10"
+    assert cluster_symbol_token("R_10", None) == "R_10"
+
+
 def test_log_dl_cycle_summary_emits_calib_gray():
     logger = MagicMock()
     orch = SimpleNamespace(_active_cycle_id=7, config={"data_handler": {"micro_granularity": 120}})

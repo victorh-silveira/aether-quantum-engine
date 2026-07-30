@@ -163,6 +163,20 @@ async def test_verify_triton_stressed_inference_exhausts_retries_on_timeout():
 
 
 @pytest.mark.asyncio
+async def test_verify_triton_stressed_inference_none_response():
+    cfg = {"infra": {"triton": {"enabled": True, "grpc_url": "localhost:8001", "bootstrap_infer_timeout_seconds": 5.0}}}
+    mock_client = MagicMock()
+    mock_client.infer_symbols_concurrent = AsyncMock(return_value=None)
+    with (
+        patch(
+            "src.infrastructure.storage.torchscript_sanity.get_triton_grpc_client", AsyncMock(return_value=mock_client)
+        ),
+        pytest.raises(RuntimeError, match="sem resposta"),
+    ):
+        await verify_triton_stressed_inference_async(cfg, ["R_10"], lookback=48, feature_dim=FEATURE_DIM)
+
+
+@pytest.mark.asyncio
 async def test_verify_triton_stressed_inference_fail_fast_on_oob():
     cfg = {"infra": {"triton": {"enabled": True, "grpc_url": "localhost:8001"}}}
     mock_client = MagicMock()

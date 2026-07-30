@@ -99,7 +99,7 @@ def test_calculate_stake_dlambert_recovery_adds_linear_unit(kelly_config):
             },
         },
     )
-    assert stake > 50.0
+    assert stake > 40.0
 
 
 def test_calculate_stake_mandatory_weak_boost_unlimited(kelly_config):

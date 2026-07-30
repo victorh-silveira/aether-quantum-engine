@@ -20,6 +20,10 @@ def test_resolve_cluster_timeframe_branches():
     assert resolve_cluster_timeframe({"data_handler": {"micro_granularity": 300}}) == "M5"
     assert resolve_cluster_timeframe({"data_handler": {"granularity": 120}}) == "M2"
     assert resolve_cluster_timeframe({"data_handler": {"granularity": 30}}) == "S30"
+    assert resolve_cluster_timeframe({"data_handler": {"granularity": 86400}}) == "D1"
+    assert resolve_cluster_timeframe({"data_handler": {"granularity": 172800}}) == "D2"
+    assert resolve_cluster_timeframe({"data_handler": {"granularity": 3600}}) == "H1"
+    assert resolve_cluster_timeframe({"data_handler": {"granularity": 7200}}) == "H2"
 
 
 def test_format_settlement_audit_line_default_tag_flat_keep():
@@ -77,6 +81,18 @@ def test_metric_float_skips_invalid_then_uses_default_in_cluster():
     }
     line = format_cluster_audit_line(decisions, timeframe="M5")
     assert "R_10: PUT (Prob: 0.500 Cal: 0.500 Margin: 0.000 Edge: +0.100)" in line
+
+
+def test_indicator_float_none_branch():
+    from src.application.services.market_audit_log import _indicator_float
+
+    assert _indicator_float({}, "some_key") == 0.0
+
+
+def test_metric_float_conversion_error_branch():
+    from src.application.services.market_audit_log_helpers import metric_float
+
+    assert metric_float({"trade_score": "bad"}, "trade_score", default=0.0) == 0.0
 
 
 def test_format_settlement_audit_line():

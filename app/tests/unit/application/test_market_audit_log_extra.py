@@ -76,3 +76,31 @@ class TestStoreAndPopContractAudit:
 
     def test_store_ignores_empty_id(self):
         store_contract_audit("", {"edge": 0.5})
+
+    def test_store_legacy_no_kwargs(self):
+        store_contract_audit("ignored", "cid", symbol="R_10")
+
+    def test_store_legacy_positional_no_kwargs(self):
+        store_contract_audit("x", "cid")
+
+    def test_store_legacy_too_few_args(self):
+        store_contract_audit("x")
+
+    def test_pop_fallback_empty_args(self):
+        assert pop_contract_audit() == {}
+
+    def test_store_legacy_too_few_args_kwargs(self):
+        store_contract_audit(42, symbol="R_10")
+
+    def test_store_legacy_empty_contract_id(self):
+        store_contract_audit("x", "")
+
+    def test_indicator_snapshot_non_dict(self):
+        from src.application.services.market_audit_log_helpers import indicator_snapshot
+
+        assert indicator_snapshot(None) == {}
+
+    def test_metric_float_non_dict(self):
+        from src.application.services.market_audit_log_helpers import metric_float
+
+        assert metric_float(None, "trade_score", default=0.5) == 0.5

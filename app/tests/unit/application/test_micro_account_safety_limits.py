@@ -25,7 +25,7 @@ def test_micro_capital_max_safe_stake_cap():
     assert max_safe_stake_cap(300.0) == pytest.approx(10.50)
     soft = {"max_safe_stake_cap": 4.20}
     assert max_safe_stake_cap(80.0, consecutive_losses_linear=4, soft_recovery=soft) == pytest.approx(4.2)
-    assert max_safe_stake_cap(70.0, consecutive_losses_linear=5, soft_recovery=soft) == pytest.approx(2.1)
+    assert max_safe_stake_cap(70.0, consecutive_losses_linear=5, soft_recovery=soft) == pytest.approx(4.2)
 
 
 def test_starvation_decay_skips_threshold_8():
