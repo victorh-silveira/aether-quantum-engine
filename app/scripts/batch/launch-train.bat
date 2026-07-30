@@ -7,6 +7,9 @@ pushd "%~dp0..\..\.."
 SET "REPO_ROOT=%CD%"
 popd
 SET "ENV_NAME=deriv-api"
+set "PYTHON_EXE=%USERPROFILE%\anaconda3\envs\%ENV_NAME%\python.exe"
+if not exist "%PYTHON_EXE%" set "PYTHON_EXE=%USERPROFILE%\miniconda3\envs\%ENV_NAME%\python.exe"
+if not exist "%PYTHON_EXE%" set "PYTHON_EXE=python"
 
 set "CONDA_ACTIVATE="
 if exist "%USERPROFILE%\anaconda3\Scripts\activate.bat" (
@@ -35,30 +38,13 @@ if errorlevel 1 (
 echo(
 echo [AETHER] Etapa 2/3: Verificando infraestrutura Docker (TimescaleDB)...
 docker container inspect aether-timescaledb >nul 2>&1
-if not errorlevel 1 (
-    echo [AETHER] TimescaleDB ja esta saudavel.
-    goto :meta_start
-)
-echo [AETHER] TimescaleDB offline - tentando subir stack core...
-cd /d "%REPO_ROOT%\infra\docker"
-docker compose up -d timescaledb >nul 2>&1
+if not errorlevel 1 goto :meta_start
+echo [AETHER] Tentando iniciar TimescaleDB via Python...
 cd /d "%REPO_ROOT%"
+"%PYTHON_EXE%" app/scripts/operations/ensure_timescale.py
 if errorlevel 1 (
-    echo [AVISO] Docker Compose falhou. Meta-classificador usara API Deriv (fallback).
-    goto :meta_start
+    echo [AVISO] TimescaleDB nao disponivel. Meta-classificador usara API Deriv (fallback).
 )
-echo [AETHER] Aguardando TimescaleDB ficar saudavel...
-for /l %%i in (1,1,30) do (
-    docker exec aether-timescaledb pg_isready -U aether >nul 2>&1
-    if not errorlevel 1 goto :ts_ok
-    timeout /t 2 /nobreak >nul
-)
-echo [AVISO] Timeout ao aguardar TimescaleDB. Meta-classificador usara fallback.
-goto :meta_start
-
-:ts_ok
-echo [AETHER] TimescaleDB pronto.
-cd /d "%REPO_ROOT%"
 
 :meta_start
 echo.
