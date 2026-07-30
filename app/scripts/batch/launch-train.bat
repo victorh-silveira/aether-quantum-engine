@@ -35,30 +35,32 @@ if errorlevel 1 (
 echo.
 echo [AETHER] Etapa 2/3: Verificando infraestrutura Docker (TimescaleDB)...
 where docker >nul 2>nul
-if not errorlevel 1 (
-    docker container inspect aether-timescaledb >nul 2>nul
-    if errorlevel 1 (
-        echo [AETHER] TimescaleDB offline — tentando subir stack core...
-        docker compose -f "%REPO_ROOT%\infra\docker\docker-compose.yml" --project-directory "%REPO_ROOT%\infra\docker" --env-file "%REPO_ROOT%\.env" up -d timescaledb 2>nul
-        if errorlevel 1 (
-            echo [AVISO] Docker Compose falhou. Meta-classificador usara API Deriv (fallback).
-        ) else (
-            echo [AETHER] Aguardando TimescaleDB ficar saudavel...
-            for /l %%i in (1,1,30) do (
-                docker exec aether-timescaledb pg_isready -U aether >nul 2>nul && goto :ts_ok
-                timeout /t 2 /nobreak >nul
-            )
-            echo [AVISO] Timeout ao aguardar TimescaleDB. Meta-classificador usara fallback.
-            goto :meta_start
-            :ts_ok
-            echo [AETHER] TimescaleDB pronto.
-        )
-    ) else (
-        echo [AETHER] TimescaleDB ja esta saudavel.
-    )
-) else (
+if errorlevel 1 (
     echo [AVISO] Docker nao encontrado. Meta-classificador usara API Deriv (fallback).
+    goto :meta_start
 )
+docker container inspect aether-timescaledb >nul 2>nul
+if not errorlevel 1 (
+    echo [AETHER] TimescaleDB ja esta saudavel.
+    goto :meta_start
+)
+echo [AETHER] TimescaleDB offline — tentando subir stack core...
+docker compose -f "%REPO_ROOT%\infra\docker\docker-compose.yml" --project-directory "%REPO_ROOT%\infra\docker" --env-file "%REPO_ROOT%\.env" up -d timescaledb >nul 2>nul
+if errorlevel 1 (
+    echo [AVISO] Docker Compose falhou. Meta-classificador usara API Deriv (fallback).
+    goto :meta_start
+)
+echo [AETHER] Aguardando TimescaleDB ficar saudavel...
+for /l %%i in (1,1,30) do (
+    docker exec aether-timescaledb pg_isready -U aether >nul 2>nul
+    if not errorlevel 1 goto :ts_ok
+    timeout /t 2 /nobreak >nul
+)
+echo [AVISO] Timeout ao aguardar TimescaleDB. Meta-classificador usara fallback.
+goto :meta_start
+
+:ts_ok
+echo [AETHER] TimescaleDB pronto.
 
 :meta_start
 echo.
