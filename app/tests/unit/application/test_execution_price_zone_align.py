@@ -79,7 +79,7 @@ def test_price_zone_coverage_edges():
     assert align_direction_to_price_zone(TradeDirection.CALL, {"price_zone_direction": "PUT"}) == TradeDirection.PUT
 
 
-def test_initial_direction_checks_aligns_put_in_buy_zone_when_flags_off():
+def test_initial_direction_checks_keeps_direction_when_meta_unavailable():
     entry = {
         "direction": TradeDirection.PUT,
         "metrics": {
@@ -96,7 +96,7 @@ def test_initial_direction_checks_aligns_put_in_buy_zone_when_flags_off():
     }
     result = initial_direction_checks(entry, _zone_cfg(require_trend_agreement=False, require_tcn_agreement=False))
     assert result is not None
-    assert result[0] == TradeDirection.CALL
+    assert result[0] == TradeDirection.PUT
     assert result[1]["price_zone"] == ZONE_BUY
     assert result[1]["price_zone_aligned"] is True
 

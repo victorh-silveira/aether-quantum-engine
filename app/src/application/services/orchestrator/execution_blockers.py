@@ -1,5 +1,6 @@
 """Logs de bloqueio de execucao quando nenhuma ordem e enviada."""
 
+from src.application.services.force_trade_mode import force_trade_from_orch
 from src.application.services.log_dedupe import clear_log_channel, log_info_if_changed
 
 
@@ -29,6 +30,8 @@ def _candidate_block_reason(metrics: dict) -> str | None:
 
 def log_execution_blockers(executor, decisions: dict, *, pending: float = 0.0) -> None:
     """Registra treino em andamento, rejeicoes sniper e recovery sem ordem."""
+    if force_trade_from_orch(executor.orch):
+        return
     cid = f"C{int(executor.orch._active_cycle_id):04d}"
     training: list[str] = []
     blocked: list[str] = []

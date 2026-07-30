@@ -15,8 +15,8 @@ def test_micro_capital_base_unit():
     assert neutral_edge_dynamic_unit(100.0) == 1.0
     # Banca de $250 -> Unidade base U deve ser 1.0% ($2.50)
     assert neutral_edge_dynamic_unit(250.0) == 2.50
-    # Banca de $1000 -> Unidade base U deve ser 0.15% ($1.50)
-    assert neutral_edge_dynamic_unit(1000.0) == 1.50
+    # Banca de $1000 -> Unidade base U deve ser 0.50% ($5.00)
+    assert neutral_edge_dynamic_unit(1000.0) == 5.0
 
 
 def test_micro_capital_max_safe_stake_cap():

@@ -104,7 +104,7 @@ def test_calculate_stake_consensus_floor_uses_session_base_unit(kelly_config):
         apply_stop_win=False,
         kwargs={"dl_metrics": metrics, "order_direction": "CALL"},
     )
-    assert stake == pytest.approx(11800.0 * 0.0015)
+    assert stake == pytest.approx(11800.0 * 0.005)
 
 
 def test_calculate_stake_consensus_penalty_logs_retention(kelly_config):

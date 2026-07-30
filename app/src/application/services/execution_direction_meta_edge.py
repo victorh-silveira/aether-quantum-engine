@@ -80,6 +80,8 @@ def _negative_edge_skip(
             metrics["meta_edge_floor"] = floor
         return False
     metrics["meta_edge_floor"] = floor
+    metrics["gate_reason"] = "meta_negative_edge"
+    metrics["quality_guard_reject"] = True
     return True
 
 

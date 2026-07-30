@@ -127,7 +127,7 @@ def test_cluster_symbol_token_invalid_margin_falls_back():
         },
     )
     assert "Margin: 0.120" in token
-    assert "Edge: +0.040" in token
+    assert "Edge: +0.209" in token
 
 
 def test_cluster_symbol_token_empty_symbol():

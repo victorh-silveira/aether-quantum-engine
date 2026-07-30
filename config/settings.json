@@ -103,7 +103,7 @@
         "focal_gamma": 2.5,
         "implied_vol_bars": 60,
         "indicator_gating": {
-            "adx_min": 0.20,
+            "adx_min": 0.0,
             "cmo_max": 1.0,
             "cmo_min": -1.0,
             "enabled": true,
@@ -506,7 +506,7 @@
                 },
                 "regular": {
                     "min_direction_margin": 0.0,
-                    "min_payoff_edge": 0.0
+                    "min_payoff_edge": -999.0
                 },
                 "starvation": {
                     "decay_floor": 0.01,
@@ -517,7 +517,7 @@
                     "edge_decay_floor_step": 0.01,
                     "edge_decay_multiplier": 2.0
                 },
-                "min_payoff_edge": "0.0",
+                "min_payoff_edge": "-999.0",
                 "min_edge": "-999.0"
             },
             "regime_micro_freeze": {
@@ -612,7 +612,7 @@
             "micro_bankroll_pct": 0.01,
             "micro_bankroll_threshold": 250.0,
             "min_stake_pct": 0.0,
-            "neutral_bankroll_pct": 0.0015,
+            "neutral_bankroll_pct": 0.005,
             "payout_fallback": 0.9,
             "penalty_smoothing_trade_score_min": 0.7,
             "recovery_conviction_ladder": {
@@ -631,8 +631,8 @@
             "recovery_hurst_log_scale": 0.08,
             "recovery_hurst_persistence_min": 0.58,
             "recovery_hurst_severe_drawdown_min": 150.0,
-            "recovery_min_conviction": 0.0,
-            "recovery_min_trade_score": 0.0,
+            "recovery_min_conviction": 0.55,
+            "recovery_min_trade_score": 0.58,
             "recovery_min_val_accuracy": 0.5,
             "recovery_sizing_conviction": 0.62,
             "stake_conviction_min_raw": 0.0,
@@ -650,9 +650,9 @@
             "turbo_edge_zscore_threshold": 1.5,
             "turbo_live_brier_max": 0.22,
             "turbo_live_n_min": 20,
-            "min_stake": 0.35,
+            "min_stake": 1.0,
             "fallback_stake": 1.0,
-            "fraction": 0.1,
+            "fraction": 0.3,
             "enabled": true,
             "max_stake_percent": 0.05,
             "default_payout": 0.95
@@ -685,7 +685,7 @@
         "small_account_threshold": 100.0,
         "soft_recovery": {
             "amort_cycles_max": 3,
-            "amort_cycles_min": 2,
+            "amort_cycles_min": 1,
             "coing_redirect_drawdown_threshold": 10.0,
             "dust_pending_clear_max": 0.25,
             "enabled": true,

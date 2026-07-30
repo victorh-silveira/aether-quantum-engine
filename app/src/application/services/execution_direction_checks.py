@@ -10,10 +10,7 @@ from src.application.services.execution_direction_discordance import (
     apply_technical_agreement,
     resolve_formed_candle_direction,
 )
-from src.application.services.execution_price_zone_gate import (
-    align_or_keep_meta_side,
-    apply_price_zone_gate,
-)
+from src.application.services.execution_price_zone_gate import apply_price_zone_gate
 from src.application.services.execution_quality_gate import passes_execution_quality
 from src.application.services.execution_quality_gate_meta import evaluate_meta_payoff_quality
 from src.application.services.force_trade_mode import force_trade_every_cycle, synthesize_force_direction
@@ -263,13 +260,6 @@ def initial_direction_checks(
         metrics["gate_reason"] = zone_reason
         sync_entry_metrics(entry, metrics)
         return None
-    dl_dir = align_or_keep_meta_side(
-        dl_dir,
-        metrics,
-        dl_dir=dl_dir,
-        predicted_edge=metrics.get("predicted_payoff_edge"),
-        meta_applied=bool(metrics.get("meta_classifier_applied")),
-    )
     metrics["dl_direction"] = dl_dir.name
     metrics["resolved_direction"] = dl_dir.name
     return dl_dir, metrics, prob

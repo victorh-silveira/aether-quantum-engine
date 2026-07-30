@@ -50,20 +50,20 @@ def test_apply_soft_recovery_stake_fixed_step_at_linear_three():
         metrics=metrics,
         payout=payout,
     )
-    max(10.0, 11500.0 * 0.0015)
+    max(10.0, 11500.0 * 0.005)
     20.0 / payout / 2.0
-    assert stake == pytest.approx(19.32)
+    assert stake == pytest.approx(64.4)
     assert metrics.get("recovery_fixed_step") is True
     assert metrics.get("recovery_progression_multiplier") == pytest.approx(1.12)
 
 
 def test_session_base_unit_at_eleven_point_five_k():
     unit = neutral_edge_dynamic_unit(11500.0)
-    assert unit == pytest.approx(17.25)
+    assert unit == pytest.approx(57.5)
     metrics: dict = {}
     resolved = resolve_session_base_unit(11500.0, 2.0, metrics)
-    assert resolved == pytest.approx(17.25)
-    assert metrics["session_base_unit"] == pytest.approx(17.25)
+    assert resolved == pytest.approx(57.5)
+    assert metrics["session_base_unit"] == pytest.approx(57.5)
 
 
 def test_apply_soft_recovery_stake_without_pending_returns_session_unit():
@@ -76,7 +76,7 @@ def test_apply_soft_recovery_stake_without_pending_returns_session_unit():
         metrics={},
         payout=0.95,
     )
-    assert stake == pytest.approx(17.25)
+    assert stake == pytest.approx(57.5)
 
 
 def test_apply_soft_recovery_stake_progresses_with_adaptive_factor():
@@ -92,14 +92,14 @@ def test_apply_soft_recovery_stake_progresses_with_adaptive_factor():
         metrics=metrics,
         payout=payout,
     )
-    session_unit = max(10.0, 11500.0 * 0.0015)
+    session_unit = max(10.0, 11500.0 * 0.005)
     session_unit * (factor**2)
-    93.19 / payout / 3.0
-    assert stake == pytest.approx(49.047, rel=1e-2)
+    93.19 / payout / 1.0
+    assert stake == pytest.approx(98.095, rel=1e-2)
     assert metrics.get("recovery_soft_progression") == pytest.approx(factor)
     assert metrics.get("recovery_adaptive_payout") == pytest.approx(payout)
     assert metrics.get("recovery_soft_losses") == 2
-    assert metrics.get("recovery_cover_need") == pytest.approx(49.047, rel=1e-2)
+    assert metrics.get("recovery_cover_need") == pytest.approx(98.095, rel=1e-2)
     assert metrics.get("recovery_fixed_step") in (True, False)
 
 
@@ -108,15 +108,17 @@ def test_apply_soft_recovery_stake_ignores_previous_stake_for_geometric_progress
     factor = _factor(payout)
     unit = 17.89
     pending = 50.0
+    bankroll = 11926.67
     stake = apply_soft_recovery_stake(
         pending_total=pending,
         base_unit=unit,
         consecutive_losses=1,
         previous_stake=36.72,
-        bankroll=11926.67,
+        bankroll=bankroll,
         payout=payout,
     )
-    assert stake == pytest.approx(max(unit * factor, pending / payout / 4.0))
+    session_unit = max(unit, bankroll * 0.005)
+    assert stake == pytest.approx(max(session_unit * factor, pending / payout / 4.0))
 
 
 def test_apply_soft_recovery_stake_c0005_neutral_linear_one_nominal():
@@ -124,17 +126,19 @@ def test_apply_soft_recovery_stake_c0005_neutral_linear_one_nominal():
     factor = _factor(payout)
     unit = 17.89
     pending = 36.72
+    bankroll = 11926.67
     metrics: dict = {}
     stake = apply_soft_recovery_stake(
         pending_total=pending,
         base_unit=unit,
         consecutive_losses=1,
         previous_stake=36.72,
-        bankroll=11926.67,
+        bankroll=bankroll,
         metrics=metrics,
         payout=payout,
     )
-    assert stake == pytest.approx(max(unit * factor, pending / payout / 4.0), rel=1e-3)
+    session_unit = max(unit, bankroll * 0.005)
+    assert stake == pytest.approx(max(session_unit * factor, pending / payout / 4.0), rel=1e-3)
     assert metrics.get("recovery_soft_losses") == 1
     assert metrics.get("recovery_soft_progression") == pytest.approx(factor)
 
@@ -151,9 +155,9 @@ def test_apply_soft_recovery_stake_covers_pending_within_bankroll_cap():
         metrics={},
         payout=payout,
     )
-    pending / payout / 3.0
+    pending / payout / 1.0
     max_safe_stake_cap(12895.79, consecutive_losses_linear=2)
-    assert stake == pytest.approx(74.095, rel=1e-2)
+    assert stake == pytest.approx(148.19, rel=1e-2)
 
 
 def test_max_safe_stake_cap_at_three_point_five_percent():
@@ -233,7 +237,7 @@ def test_apply_soft_recovery_stake_expands_when_payout_degrades():
     base_kwargs = {
         "pending_total": 80.0,
         "base_unit": 15.0,
-        "consecutive_losses": 2,
+        "consecutive_losses": 1,
         "previous_stake": 0.0,
         "bankroll": 11500.0,
     }

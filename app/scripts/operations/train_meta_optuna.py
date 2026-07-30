@@ -64,8 +64,12 @@ def train_lgbm_candidate(
     x_train = pd.DataFrame(x_train, columns=columns).loc[:, columns]
     x_val = pd.DataFrame(x_val, columns=columns).loc[:, columns]
     merged = {**LGBM_QUIET_PARAMS, **params}
-    train_set = lgb.Dataset(x_train, label=y_train, feature_name=columns,
-                            weight=np.asarray(sample_weight, dtype=np.float64) if sample_weight is not None else None)
+    train_set = lgb.Dataset(
+        x_train,
+        label=y_train,
+        feature_name=columns,
+        weight=np.asarray(sample_weight, dtype=np.float64) if sample_weight is not None else None,
+    )
     val_set = lgb.Dataset(x_val, label=y_val, reference=train_set)
     model = lgb.train(
         {"objective": LGBM_REGRESSION_OBJECTIVE, "verbosity": -1, "seed": 42, **merged},

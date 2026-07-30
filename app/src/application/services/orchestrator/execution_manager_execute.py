@@ -50,6 +50,19 @@ async def execute_cluster_orders(
 
         if stake <= 0 and force_trade_from_orch(executor.orch):
             stake = resolve_force_min_stake(getattr(executor.orch, "config", None))
+        if stake <= 0 and metrics.get("reversal_stake_floor"):
+            neutral_pct = float(executor.orch.risk_manager.kelly_config.get("neutral_bankroll_pct", 0.0015))
+            _in_recovery = bool(
+                int(getattr(executor.orch.risk_manager, "consecutive_losses_linear", 0) or 0) > 0
+                or float(
+                    executor.orch.risk_manager.pending_loss_total()
+                    if callable(getattr(executor.orch.risk_manager, "pending_loss_total", None))
+                    else sum(float(v) for v in getattr(executor.orch.risk_manager, "pending_loss", {}).values())
+                )
+                > 0.0
+            )
+            pct = max(neutral_pct, 0.008) if _in_recovery else neutral_pct
+            stake = max(0.0, bankroll_snapshot * pct)
         if stake <= 0:
             continue
 

@@ -58,7 +58,7 @@ def test_resolve_soft_recovery_config_defaults_match_settings() -> None:
     assert soft["enabled"] is True
     assert soft["max_safe_stake_cap"] == pytest.approx(4.20)
     assert soft["max_safe_stake_pct"] == pytest.approx(0.035)
-    assert soft["amort_cycles_min"] == 2
+    assert soft["amort_cycles_min"] == 1
     assert soft["amort_cycles_max"] == 3
     assert soft["micro_residual_pending_max"] == pytest.approx(3.0)
     assert soft["micro_residual_zscore_floor"] == pytest.approx(0.01)

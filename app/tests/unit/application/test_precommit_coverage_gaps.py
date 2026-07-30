@@ -63,6 +63,24 @@ def test_align_or_keep_meta_side_keep_branches():
         )
 
 
+def test_align_or_keep_meta_side_meta_is_broken_drift_soft():
+    metrics = {"calib_drift_soft": True}
+    with patch(
+        "src.application.services.execution_price_zone_gate.align_direction_to_price_zone",
+        return_value=TradeDirection.CALL,
+    ):
+        assert (
+            align_or_keep_meta_side(
+                TradeDirection.PUT,
+                metrics,
+                dl_dir=TradeDirection.PUT,
+                predicted_edge=0.2,
+                meta_applied=True,
+            )
+            == TradeDirection.CALL
+        )
+
+
 def test_finalize_toxic_escape_keeps_edge():
     entry = {"metrics": {}}
     metrics = {

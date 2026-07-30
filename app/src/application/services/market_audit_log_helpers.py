@@ -16,16 +16,26 @@ def resolve_meta_payoff_zscore(metrics: dict[str, Any] | None) -> float:
     return float(metrics.get("meta_payoff_edge_zscore", metrics.get("edge_zscore", 0.0)))
 
 
-def resolve_predicted_edge(metrics: dict[str, Any], payout: float = 0.95) -> float:
-    """Calcula o edge previsto baseado na probabilidade dominante (win probability)."""
+def resolve_predicted_edge(
+    metrics: dict[str, Any],
+    direction: str | None = None,
+    payout: float = 0.95,
+) -> float:
+    """Calcula o edge previsto. Se direction for fornecido, edge é direcional (pode ser negativo)."""
     if not isinstance(metrics, dict):
         return 0.0
     prob = metrics.get("calibrated_prob", metrics.get("raw_prob", 0.5))
     if prob is None:
         return 0.0
-    p = float(prob)
-    p_win = max(p, 1.0 - p)
-    return float((p_win * (1.0 + payout)) - 1.0)
+    try:
+        p = float(prob)
+    except (TypeError, ValueError):
+        return 0.0
+    if direction and str(direction).upper() == "PUT":
+        p = 1.0 - p
+    elif not direction:
+        p = max(p, 1.0 - p)
+    return float((p * (1.0 + payout)) - 1.0)
 
 
 def cluster_symbol_token(symbol: str | None, entry: dict[str, Any] | None = None) -> str:
@@ -39,13 +49,21 @@ def cluster_symbol_token(symbol: str | None, entry: dict[str, Any] | None = None
     raw_p = _safe_float(metrics.get("raw_prob"), 0.5)
     cal_p = _safe_float(metrics.get("calibrated_prob"), 0.5)
     margin = abs(0.5 - cal_p)
-    edge = _safe_float(metrics.get("predicted_payoff_edge"), 0.0)
-    raw_dir = entry.get("direction") or metrics.get("dl_direction")
+    raw_dir = (
+        metrics.get("exec_direction")
+        or metrics.get("resolved_direction")
+        or entry.get("direction")
+        or metrics.get("dl_direction")
+    )
     direction = str(raw_dir).replace("TradeDirection.", "").upper() if raw_dir is not None else "N/A"
+    is_put = direction == "PUT"
+    raw_p = 1.0 - raw_p if is_put else raw_p
+    cal_p = 1.0 - cal_p if is_put else cal_p
+    display_edge = resolve_predicted_edge(metrics, direction=direction)
     skip = _resolve_skip_reason(entry, metrics)
     if skip:
         return f"{sym}: {direction} (Prob: {raw_p:.3f} Cal: {cal_p:.3f} | {skip})"
-    return f"{sym}: {direction} (Prob: {raw_p:.3f} Cal: {cal_p:.3f} Margin: {margin:.3f} Edge: {edge:+.3f})"
+    return f"{sym}: {direction} (Prob: {raw_p:.3f} Cal: {cal_p:.3f} Margin: {margin:.3f} Edge: {display_edge:+.3f})"
 
 
 def _safe_float(value: Any, default: float) -> float:

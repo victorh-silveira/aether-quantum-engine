@@ -158,9 +158,9 @@ def test_stake_block_reason_kelly_no_edge():
             "params": {"payout_estimate": 0.5, "stake_min": 1.0},
         }
     )
-    rm.set_initial_bankroll(1000.0)
-    assert rm.stake_block_reason(1000.0, "R_10", conviction=0.05) == "kelly_no_edge"
-    assert rm.calculate_stake(1000.0, "R_10", conviction=0.05) == 0.0
+    rm.set_initial_bankroll(50.0)
+    assert rm.stake_block_reason(50.0, "R_10", conviction=0.05) == "kelly_no_edge"
+    assert rm.calculate_stake(50.0, "R_10", conviction=0.05) == 0.0
 
 
 def test_stake_block_reason_kelly_no_edge_when_bankroll_below_stake_min():
