@@ -26,7 +26,7 @@ logger = logging.getLogger("META_TRAIN")
 LGBM_QUIET_PARAMS: dict[str, Any] = {"verbose": -1, "warnings": False, "n_jobs": 2}
 OPTUNA_N_JOBS = 2
 LGBM_REGRESSION_OBJECTIVE = "huber"
-LGBM_N_ESTIMATORS = 200
+LGBM_N_ESTIMATORS = 1000
 OPTUNA_OOS_PAYOFF_ZSCORE_MIN = 0.04
 META_EXPORT_MIN_ZSCORE = 0.04
 META_EXPORT_MIN_IR = 1.0
@@ -34,7 +34,8 @@ OPTUNA_IR_TIEBREAK_WEIGHT = 0.01
 META_EXPORT_MAX_MAE_GAP = 2.0
 OPTUNA_OVERFIT_PENALTY = -1.0
 OPTUNA_NEGATIVE_EDGE_PENALTY = -1.0
-PURGED_SPLIT_EMBARGO = 8
+PURGED_SPLIT_EMBARGO = 32
+LGBM_EARLY_STOPPING_ROUNDS = 50
 
 
 def configure_meta_train_logging() -> None:
@@ -57,23 +58,22 @@ def train_lgbm_candidate(
     params: dict[str, Any],
     *,
     sample_weight: np.ndarray | None = None,
-) -> tuple[lgb.LGBMRegressor, float, float]:
+    early_stopping: bool = True,
+) -> tuple[lgb.Booster, float, float]:
     columns = meta_classifier_column_names()
     x_train = pd.DataFrame(x_train, columns=columns).loc[:, columns]
     x_val = pd.DataFrame(x_val, columns=columns).loc[:, columns]
     merged = {**LGBM_QUIET_PARAMS, **params}
-    model = lgb.LGBMRegressor(
-        objective=LGBM_REGRESSION_OBJECTIVE,
-        n_estimators=LGBM_N_ESTIMATORS,
-        subsample=0.80,
-        colsample_bytree=0.80,
-        random_state=42,
-        **merged,
+    train_set = lgb.Dataset(x_train, label=y_train, feature_name=columns,
+                            weight=np.asarray(sample_weight, dtype=np.float64) if sample_weight is not None else None)
+    val_set = lgb.Dataset(x_val, label=y_val, reference=train_set)
+    model = lgb.train(
+        {"objective": LGBM_REGRESSION_OBJECTIVE, "verbosity": -1, "seed": 42, **merged},
+        train_set,
+        num_boost_round=int(LGBM_N_ESTIMATORS),
+        valid_sets=[val_set],
+        callbacks=[lgb.early_stopping(int(LGBM_EARLY_STOPPING_ROUNDS), verbose=False)] if early_stopping else [],
     )
-    fit_kwargs: dict[str, Any] = {"feature_name": columns}
-    if sample_weight is not None:
-        fit_kwargs["sample_weight"] = np.asarray(sample_weight, dtype=np.float64)
-    model.fit(x_train, y_train, **fit_kwargs)
     train_pred = model.predict(x_train.loc[:, columns])
     val_pred = model.predict(x_val.loc[:, columns])
     train_mae = float(mean_absolute_error(y_train, train_pred))
@@ -136,7 +136,7 @@ def run_optuna_study(
     granularity: int | None = None,
     sample_weight: np.ndarray | None = None,
     hygiene: dict[str, int] | None = None,
-) -> tuple[lgb.LGBMRegressor, dict[str, Any], float, float]:
+) -> tuple[lgb.Booster, dict[str, Any], float, float]:
     configure_meta_train_logging()
     columns = meta_classifier_column_names()
     frame = pd.DataFrame(frame, columns=columns).loc[:, columns]
@@ -149,11 +149,13 @@ def run_optuna_study(
 
     def objective(trial: optuna.Trial) -> float:
         params = {
-            "max_depth": trial.suggest_int("max_depth", 3, 6),
-            "learning_rate": trial.suggest_float("learning_rate", 0.008, 0.12, log=True),
-            "num_leaves": trial.suggest_int("num_leaves", 8, 48),
-            "min_child_samples": trial.suggest_int("min_child_samples", 20, 80),
-            "reg_lambda": trial.suggest_float("reg_lambda", 0.1, 10.0, log=True),
+            "max_depth": trial.suggest_int("max_depth", 3, 8),
+            "learning_rate": trial.suggest_float("learning_rate", 0.004, 0.15, log=True),
+            "num_leaves": trial.suggest_int("num_leaves", 8, 64),
+            "min_child_samples": trial.suggest_int("min_child_samples", 10, 100),
+            "reg_lambda": trial.suggest_float("reg_lambda", 0.05, 15.0, log=True),
+            "feature_fraction": trial.suggest_float("feature_fraction", 0.60, 1.0),
+            "subsample_freq": trial.suggest_int("subsample_freq", 1, 10),
             "n_jobs": OPTUNA_N_JOBS,
         }
         model, train_mae, val_mae = train_lgbm_candidate(

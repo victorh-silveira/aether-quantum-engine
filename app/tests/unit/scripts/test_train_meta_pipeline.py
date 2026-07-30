@@ -2,6 +2,7 @@ import logging
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import lightgbm as lgb
 import numpy as np
 import optuna
 import pandas as pd
@@ -279,7 +280,7 @@ def test_build_paired_training_dataset_has_continuous_target_and_named_columns()
     ]
 
 
-def test_train_lgbm_candidate_uses_regressor_and_explicit_feature_name_columns():
+def test_train_lgbm_candidate_uses_train_api():
     columns = meta_classifier_column_names()
     rows = 40
     rng = np.random.default_rng(7)
@@ -295,7 +296,7 @@ def test_train_lgbm_candidate_uses_regressor_and_explicit_feature_name_columns()
         np.linspace(-0.1, 0.1, split, dtype=np.float32),
         np.linspace(-0.2, 0.2, rows - split, dtype=np.float32),
     ]
-    with patch("scripts.operations.train_meta_optuna.lgb.LGBMRegressor", return_value=mock_model) as mock_cls:
+    with patch("scripts.operations.train_meta_optuna.lgb.train", return_value=mock_model) as mock_train:
         model, train_mae, val_mae = train_lgbm_candidate(
             x_train,
             y_train,
@@ -304,18 +305,17 @@ def test_train_lgbm_candidate_uses_regressor_and_explicit_feature_name_columns()
             {"max_depth": 4, "learning_rate": 0.05, "num_leaves": 24},
             sample_weight=weights,
         )
-    assert mock_cls.call_args.kwargs["objective"] == "huber"
-    assert mock_cls.call_args.kwargs["verbose"] == -1
-    assert mock_cls.call_args.kwargs["warnings"] is False
-    assert mock_cls.call_args.kwargs["n_jobs"] == 2
-    assert mock_cls.call_args.kwargs["n_estimators"] == 200
+    call_args = mock_train.call_args
+    params = call_args[0][0]
+    train_set = call_args[0][1]
+    assert params["objective"] == "huber"
+    assert call_args.kwargs["num_boost_round"] == 1000
+    assert isinstance(train_set, lgb.Dataset)
+    assert len(call_args.kwargs["valid_sets"]) == 1
+    assert len(call_args.kwargs["callbacks"]) == 1
     assert model is mock_model
     assert isinstance(train_mae, float)
     assert isinstance(val_mae, float)
-    fit_args, fit_kwargs = mock_model.fit.call_args
-    assert fit_kwargs["feature_name"] == columns
-    assert list(fit_args[0].columns) == columns
-    assert np.allclose(fit_kwargs["sample_weight"], weights)
     assert mock_model.predict.call_count == 2
 
 

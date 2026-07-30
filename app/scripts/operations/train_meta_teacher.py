@@ -26,7 +26,7 @@ TEACHER_PROB_CEIL = 0.95
 TEACHER_COLLAPSE_STD = 1e-3
 TEACHER_MIN_STD_RATIO = 0.5
 TEACHER_EXPAND_STD_TRIGGER = 0.02
-TEACHER_EXPAND_SCALE = 0.20
+TEACHER_EXPAND_SCALE = 0.35
 
 
 def expand_teacher_conviction(
@@ -72,13 +72,8 @@ def _calibrate_teacher_array(
         else:
             chosen = np.clip(calibrated, TEACHER_PROB_FLOOR, TEACHER_PROB_CEIL)
             source = "calibrated"
-    if float(np.std(chosen)) < TEACHER_EXPAND_STD_TRIGGER:
-        logger.warning(
-            "META_TRAIN: teacher com baixa dispersao (std=%.6f); expandindo conviction para labels meta.",
-            float(np.std(chosen)),
-        )
-        chosen = expand_teacher_conviction(chosen)
-        source = f"{source}+expand"
+    chosen = expand_teacher_conviction(chosen, scale=TEACHER_EXPAND_SCALE)
+    source = f"{source}+expand"
     return chosen.astype(np.float32), source
 
 
