@@ -29,7 +29,7 @@ if "%CONDA_ACTIVATE%"=="" (
 echo [AETHER] Etapa 1/2: Executando treino Deep Learning (TCN)...
 call "%~dp0_run_train.bat" "%CONDA_ACTIVATE%"
 if errorlevel 1 (
-    echo.
+    echo(
     echo [ERRO] Treino DL falhou. Treino do Meta-Classificador abortado para evitar race condition.
     pause
     exit /b 1
@@ -44,17 +44,17 @@ if errorlevel 1 (
 )
 
 :meta_start
-echo.
+echo(
 echo [AETHER] Etapa 3/3: Treino DL concluido com sucesso! Iniciando Meta-Classificador (LightGBM)...
 call "%~dp0_run_meta_train.bat" "%CONDA_ACTIVATE%"
 if errorlevel 1 (
-    echo.
+    echo(
     echo [ERRO] Treino do Meta-Classificador falhou.
     pause
     exit /b 1
 )
 
-echo.
+echo(
 echo [SUCESSO] Pipeline de treinamento AETHER concluido com sucesso!
 timeout /t 5 /nobreak > nul
 exit /b 0
