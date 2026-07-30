@@ -46,13 +46,14 @@ aether-quantum-engine/
 │   ├── run.py / train.py
 │   ├── aether_asyncio.py
 │   ├── src/             # 246 módulos Python (DDD)
-│   ├── tests/           # 305 arquivos test_*.py; cobertura 100% em src
+│   ├── tests/           # 306 arquivos test_*.py (incluindo test_execution_coverage_gaps.py); cobertura 100% em src
 │   └── scripts/         # operations, monitor, batch
 ├── config/settings.json # Runtime
 ├── data/                # state, session_state, dl/
 ├── docs/
 ├── infra/docker/        # Redis, Timescale, MinIO, Triton (repo R_10), meta-classifier
 └── linters/             # Ruff, Interrogate, Vulture, ≤300 linhas/arquivo
+
 ```
 
 ```

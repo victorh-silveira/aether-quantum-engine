@@ -1,6 +1,6 @@
 # Estrutura do repositório
 
-Layout de software com infraestrutura Docker local opcional (`infra/docker/`). O código de produção vive em **`app/src/`** com **246 módulos Python** organizados em quatro camadas DDD. Testes: **305** arquivos `test_*.py` em `app/tests/` com cobertura **100%** em `app/src`.
+Layout de software com infraestrutura Docker local opcional (`infra/docker/`). O código de produção vive em **`app/src/`** com **246 módulos Python** organizados em quatro camadas DDD. Testes: **306** arquivos `test_*.py` em `app/tests/` com cobertura **100%** em `app/src`.
 
 ```
 aether-quantum-engine/
@@ -457,7 +457,7 @@ app/tests/
     └── scripts/
 ```
 
-Convenção: espelha as camadas DDD. Cobertura obrigatória **100%** em `app/src/`. Contagem atual: **~287** arquivos `test_*.py`.
+Convenção: espelha as camadas DDD. Cobertura obrigatória **100%** em `app/src/`. Contagem atual: **306** arquivos `test_*.py` (incluindo `test_execution_coverage_gaps.py`).
 
 ---
 
