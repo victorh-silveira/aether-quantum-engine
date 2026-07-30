@@ -20,7 +20,7 @@ def _port_open(host: str = TS_HOST, port: int = TS_PORT, timeout: float = 3.0) -
 
 
 def _wsl(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(["wsl"] + list(args), capture_output=True)
+    return subprocess.run(["wsl"] + list(args), capture_output=True, check=False)
 
 
 def main() -> int:
@@ -40,7 +40,7 @@ def main() -> int:
         print(f"[AVISO] Docker Compose via WSL falhou: {stderr or 'desconhecido'}")
         return 1
     print("[AETHER] Aguardando TimescaleDB ficar acessivel...")
-    for i in range(30):
+    for _i in range(30):
         if _port_open():
             print("[AETHER] TimescaleDB pronto (porta 5432).")
             return 0
