@@ -37,9 +37,6 @@ if errorlevel 1 (
 
 echo(
 echo [AETHER] Etapa 2/3: Verificando infraestrutura Docker (TimescaleDB)...
-docker container inspect aether-timescaledb >nul 2>&1
-if not errorlevel 1 goto :meta_start
-echo [AETHER] Tentando iniciar TimescaleDB via Python...
 cd /d "%REPO_ROOT%"
 "%PYTHON_EXE%" app/scripts/operations/ensure_timescale.py
 if errorlevel 1 (

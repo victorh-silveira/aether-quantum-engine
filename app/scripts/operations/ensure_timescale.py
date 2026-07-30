@@ -1,7 +1,7 @@
-"""Tenta iniciar TimescaleDB via Docker Compose e aguarda healthcheck."""
+"""Verifica se TimescaleDB esta acessivel via TCP (porta mapeada do WSL) e tenta iniciar via WSL se necessario."""
 from __future__ import annotations
 
-import shutil
+import socket
 import subprocess
 import sys
 import time
@@ -9,39 +9,40 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DOCKER_DIR = REPO_ROOT / "infra" / "docker"
+TS_HOST = "127.0.0.1"
+TS_PORT = 5432
 
 
-def _find_docker() -> str:
-    for candidates in ("docker.exe", "docker"):
-        path = shutil.which(candidates)
-        if path:
-            return path
-    return "docker"
+def _port_open(host: str = TS_HOST, port: int = TS_PORT, timeout: float = 3.0) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(timeout)
+        return s.connect_ex((host, port)) == 0
 
 
-def _run(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(args, capture_output=True, shell=True)
+def _wsl(*args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(["wsl"] + list(args), capture_output=True)
 
 
 def main() -> int:
-    docker = _find_docker()
-    print("[AETHER] Subindo TimescaleDB via Docker Compose...")
-    r = _run(
-        docker, "compose",
-        "-f", str(DOCKER_DIR / "docker-compose.yml"),
-        "--project-directory", str(DOCKER_DIR),
-        "--env-file", str(REPO_ROOT / ".env"),
+    if _port_open():
+        print("[AETHER] TimescaleDB ja esta acessivel em localhost:5432.")
+        return 0
+    print("[AETHER] TimescaleDB nao respondeu em localhost:5432. Tentando iniciar via WSL...")
+    r = _wsl(
+        "docker", "compose",
+        "-f", str(DOCKER_DIR / "docker-compose.yml").replace("C:", "/mnt/c").replace("\\", "/"),
+        "--project-directory", str(DOCKER_DIR).replace("C:", "/mnt/c").replace("\\", "/"),
+        "--env-file", str(REPO_ROOT / ".env").replace("C:", "/mnt/c").replace("\\", "/"),
         "up", "-d", "timescaledb",
     )
     if r.returncode != 0:
         stderr = (r.stderr or b"").decode(errors="replace").strip()
-        print(f"[AVISO] Docker Compose falhou: {stderr or 'desconhecido'}")
+        print(f"[AVISO] Docker Compose via WSL falhou: {stderr or 'desconhecido'}")
         return 1
-    print("[AETHER] Aguardando TimescaleDB ficar saudavel...")
+    print("[AETHER] Aguardando TimescaleDB ficar acessivel...")
     for i in range(30):
-        hr = _run(docker, "exec", "aether-timescaledb", "pg_isready", "-U", "aether")
-        if hr.returncode == 0:
-            print("[AETHER] TimescaleDB pronto.")
+        if _port_open():
+            print("[AETHER] TimescaleDB pronto (porta 5432).")
             return 0
         time.sleep(2)
     print("[AVISO] Timeout ao aguardar TimescaleDB (60s).")
