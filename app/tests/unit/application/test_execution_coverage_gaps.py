@@ -39,7 +39,6 @@ def test_log_execution_blockers_forced_trade_mode():
     assert log_execution_blockers(executor_mock, {}) is None
 
 
-
 def test_log_execution_blockers_standard_flow():
     executor_mock = SimpleNamespace(
         orch=SimpleNamespace(_active_cycle_id=1, config={}, risk_manager=SimpleNamespace(consecutive_losses_linear=1)),
@@ -129,5 +128,3 @@ async def test_execution_manager_reversal_stake_floor():
     orders = [("R_100", TradeDirection.CALL, {"conviction": 0.6, "reversal_stake_floor": True})]
     await execute_cluster_orders(executor_mock, orders, 0.0, 1000.0)
     mock_place_order.assert_called_once()
-
-

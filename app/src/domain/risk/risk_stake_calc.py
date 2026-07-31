@@ -144,7 +144,8 @@ def calculate_stake_for_manager(
     weak_cap = float(rm.kelly_config.get("mandatory_weak_conviction_cap", 0.55))
     recovery_min = float(rm.kelly_config.get("recovery_min_conviction", 0.50))
     recover_score_floor = min(weak_cap, recovery_min)
-    mandatory_blocked = stake_regime == "RECOVER" and conviction + 1e-9 < recover_score_floor
+    recovery_allowed = rm._recovery_allowed(symbol, conviction, **kwargs)
+    mandatory_blocked = stake_regime == "RECOVER" and not recovery_allowed and conviction + 1e-9 < recover_score_floor
     if mandatory_blocked and float(loss_to_recover) <= 0.0:
         return 0.0
 
