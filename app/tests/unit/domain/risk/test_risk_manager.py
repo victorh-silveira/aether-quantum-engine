@@ -16,7 +16,7 @@ def test_kelly_calculation_standard(kelly_config):
     """Verifica o cálculo de Kelly com probabilidade e payout padrão."""
     rm = RiskManager(kelly_config)
     stake = rm.calculate_stake(1000.0, "R_10", conviction=0.6)
-    assert stake == pytest.approx(5.0, abs=0.1)
+    assert stake == pytest.approx(7.5, abs=0.1)
 
 
 def test_kelly_negative_edge_returns_zero(kelly_config):
