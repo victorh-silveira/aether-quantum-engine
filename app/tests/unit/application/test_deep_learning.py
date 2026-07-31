@@ -155,6 +155,13 @@ def test_train_and_predict():
     assert raw_short == 0.5
 
 
+def test_predict_next_direction_none_branch():
+    model = create_direction_model(arch="tcn")
+    prices = np.sin(np.linspace(0, 10, 120)) + 10.0
+    dir_res, prob, raw = predict_next_direction(model, prices, lookback=20, call_threshold=0.99, put_threshold=0.01)
+    assert dir_res is None
+
+
 def test_purged_splits():
     splits = purged_temporal_splits(200, 20, calib_ratio=0.15)
     assert splits is not None

@@ -61,7 +61,7 @@ def test_recover_mandatory_blocked_returns_zero_when_below_min(kelly_config):
     rm.consecutive_losses_linear = 1
     rm.soft_recovery_config = {"enabled": False}
     rm.dlambert_config = {"dlambert_enabled": False, "soft_recovery": {"enabled": False}}
-    rm._recovery_allowed = MagicMock(return_value=True)
+    rm._recovery_allowed = MagicMock(return_value=False)
     metrics = {"execute": False, "trade_score": 0.40, "raw_prob": 0.50}
     stake = calculate_stake_for_manager(
         rm,

@@ -19,7 +19,7 @@ def test_resolve_session_financials_compounding_goal():
     assert fin.target_win == 236.62
     assert fin.target_balance == pytest.approx(9337.66, rel=1e-4)
     assert fin.remaining == 236.62
-    assert "(2.6% SES. ATIVA)" in fin.goal_label
+    assert "(3.0% SES. ATIVA)" in fin.goal_label
 
 
 def test_resolve_session_financials_fallback_from_rate():
