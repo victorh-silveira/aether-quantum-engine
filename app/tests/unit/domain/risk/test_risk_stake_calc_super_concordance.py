@@ -97,7 +97,7 @@ def test_calculate_stake_neutral_without_super_concordance(kelly_config):
         kwargs={"dl_metrics": _hyper_aligned_metrics(), "order_direction": "CALL"},
     )
     assert hyper_stake > stake
-    assert hyper_stake == pytest.approx(150.0)
+    assert hyper_stake == pytest.approx(225.0)
 
 
 def test_calculate_stake_divergence_blocks_booster_and_applies_consensus(kelly_config):

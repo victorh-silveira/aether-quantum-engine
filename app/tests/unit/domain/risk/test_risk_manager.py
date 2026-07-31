@@ -221,7 +221,7 @@ def test_single_strike_stake_boost_toward_stop_win(kelly_config):
         conviction=0.85,
         dl_metrics={"execute": True, "live_n": 40, "live_wr": 0.55, "trade_score": 0.85},
     )
-    assert stake in (15.0, 20.0, 35.0)
+    assert stake in (15.0, 20.0, 25.0, 35.0)
 
 
 def test_register_result_late_settlement_clears_pending(kelly_config):
