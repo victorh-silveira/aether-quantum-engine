@@ -13,7 +13,7 @@ def test_resolve_session_financials_compounding_goal():
         session_start_balance=9101.04,
         session_target_win=236.62,
         session_profit=0.0,
-        compounding_rate=0.026,
+        compounding_rate=0.03,
     )
     fin = resolve_session_financials(state)
     assert fin.target_win == 236.62
@@ -28,11 +28,11 @@ def test_resolve_session_financials_fallback_from_rate():
         session_start_balance=9101.04,
         session_target_win=0.0,
         session_profit=10.0,
-        compounding_rate=0.026,
+        compounding_rate=0.03,
         compounding_enabled=True,
     )
     fin = resolve_session_financials(state)
-    expected_target = math.floor(9101.04 * 0.026 * 100) / 100
+    expected_target = math.floor(9101.04 * 0.03 * 100) / 100
     assert fin.target_win == expected_target
     assert fin.remaining == pytest.approx(expected_target - 10.0, rel=1e-4)
 
@@ -44,7 +44,7 @@ def test_resolve_session_financials_micro_fixed_fallback():
         session_target_win=0.0,
         session_profit=2.0,
         compounding_enabled=True,
-        compounding_rate=0.026,
+        compounding_rate=0.03,
         small_account_threshold=100.0,
         small_account_stop_win=10.0,
     )

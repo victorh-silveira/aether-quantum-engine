@@ -493,17 +493,17 @@ Logs: `ord=` (ordem enviada) sempre igual a `dl=` (direção prevista pelo DL), 
 | Recovery financeiro persistente | Estado de risco atrelado a `pending_total` (seção 8.1) |
 | Sizing | Kelly EXPLORE + Soft Recovery RECOVER (seção 8.3) |
 | Side equilibrium (LLN) | Small-N / large-N CALL/PUT (seção 8.4) |
-| Stop win por sessão ativa | Banca ≥ $100: `target_win = session_start_balance × compounding_rate_daily` (padrão 2,60%); banca < $100: stop win fixo `$10`; fast-path anti-deadlock |
+| Stop win por sessão ativa | Banca ≥ $100: `target_win = session_start_balance × compounding_rate_daily` (padrão 3,00%); banca < $100: stop win fixo `$10`; fast-path anti-deadlock |
 | Stop loss | Desativado — sem reset por relógio nem disjuntor de perda diária |
 
 ### 10.1 Juros compostos e controle operacional
 
-A meta segue a planilha de gerenciamento de juros compostos (`compounding_rate_daily: 0.026`), com override de micro-banca:
+A meta segue a planilha de gerenciamento de juros compostos (`compounding_rate_daily: 0.03`), com override de micro-banca:
 
 | Evento | Comportamento |
 |--------|---------------|
 | Boot do processo | Captura saldo Deriv (ou `session_start_balance` em settings) como `session_start_balance` |
-| Meta calculada (banca ≥ $100) | `target_win = session_start_balance × 0,026` (arredondada para baixo em centavos) |
+| Meta calculada (banca ≥ $100) | `target_win = session_start_balance × 0,03` (arredondada para baixo em centavos) |
 | Meta calculada (banca < $100) | `target_win = small_account_stop_win` (padrão `$10`), mesmo com compounding ativo |
 | Durante a sessão | `pnl_sessao = current_balance - session_start_balance` |
 | Meta atingida | Fast-path: `clear_current_session_redis_keys` → `cancel_settlement_queue_fast` → `graceful_shutdown(fast_path=True)` |
@@ -516,7 +516,7 @@ Parâmetros em `risk_management` / `risk_management.params`:
 | Chave | Padrão | Função |
 |-------|--------|--------|
 | `compounding_enabled` | `true` | Ativa meta composta por sessão |
-| `compounding_rate_daily` | `0.026` | Taxa de juros (2,60% sobre banca inicial ≥ $100) |
+| `compounding_rate_daily` | `0.03` | Taxa de juros (3,00% sobre banca inicial ≥ $100) |
 | `session_start_balance` | `null` | Override manual da banca inicial (senão usa saldo Deriv) |
 | `small_account_threshold` | `100.0` | Limiar abaixo do qual o stop win é fixo |
 | `small_account_stop_win` | `10.0` | Stop win fixo em dólares para micro-banca |

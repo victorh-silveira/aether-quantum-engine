@@ -20,7 +20,7 @@ Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (TCN,
 | Execução | **Mandatória** (`mandatory_trade_each_cycle: true`; `force` off) + alinhamento `price_zone` |
 | Fail-closed | Meta e Triton **opcionais** nos settings atuais (`require_meta_for_execution: false`; `infra.triton.enabled/require_for_execution: false`) |
 | Label | `label_mode: spot_forward` (`ma_trend` / Triple Barrier via config) |
-| Meta sessão | Stop win **2,60%** (`compounding_rate_daily: 0.026`); stop loss desativado |
+| Meta sessão | Stop win **3,00%** (`compounding_rate_daily: 0.03`); stop loss desativado |
 
 O mercado é tratado como série temporal ruidosa: a TCN estima `P(CALL)` (thresholds **0.51/0.49**); o meta-regressor LightGBM estima `predicted_payoff_edge`; o ranking usa `tcn × max(0.1, 1+z)`. Com `price_zone`, BUY alinha CALL e SELL alinha PUT; edge meta positivo pode **manter** o lado TCN/meta contra a zona (`align_or_keep_meta_side`).
 
@@ -335,7 +335,7 @@ Portões neutralizados em modo mandatário (não bloqueiam ciclo): cooldown pós
 | Side equilibrium (LLN) | `side_equilibrium` / `side_equilibrium_gate` |
 | Consensus entropy | `consensus_stake_penalty.consensus_kelly_retention` (`consensus_penalty_enabled: false`) |
 | Recovery persistente | `pending_loss` + `consecutive_losses_linear` + `last_loss_stake` |
-| Stop win sessão | `StopWinManager` + `compounding_rate_daily: 0.026` |
+| Stop win sessão | `StopWinManager` + `compounding_rate_daily: 0.03` |
 | Stop loss | Desativado |
 | Policy boot | `RiskPolicy` / `validate_engine_risk_config` |
 | Persistence | `execution_direction_persistence` → flip toxic escape / SKIP / FREEZE |
@@ -344,7 +344,7 @@ Portões neutralizados em modo mandatário (não bloqueiam ciclo): cooldown pós
 
 Facade: `domain/risk/risk_manager.RiskManager.calculate_stake`.
 
-**Sessão:** meta = `session_start_balance × 0.026` (banca ≥ $100) ou **$10** (banca &lt; $100). Log: `SESSAO INICIADA | Alvo de 2.60%: $… | Stop Loss: DESATIVADO`. Reiniciar o processo inicia sessão nova.
+**Sessão:** meta = `session_start_balance × 0.03` (banca ≥ $100) ou **$10** (banca &lt; $100). Log: `SESSAO INICIADA | Alvo de 3.00%: $… | Stop Loss: DESATIVADO`. Reiniciar o processo inicia sessão nova.
 
 ---
 

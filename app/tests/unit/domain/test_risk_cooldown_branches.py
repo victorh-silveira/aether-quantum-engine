@@ -132,7 +132,7 @@ def test_stake_block_reason_stop_win_with_persisted_target():
             "kelly": {"fraction": 0.1},
             "params": {
                 "compounding_enabled": True,
-                "compounding_rate_daily": 0.026,
+                "compounding_rate_daily": 0.03,
                 "payout_estimate": 0.95,
                 "stake_min": 1.0,
             },
