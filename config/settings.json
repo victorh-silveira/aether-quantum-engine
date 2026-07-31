@@ -466,7 +466,7 @@
             "price_zone": {
                 "bb_weight": 0.6,
                 "buy_max": 0.48,
-                "enabled": true,
+                "enabled": false,
                 "keltner_weight": 0.4,
                 "neutral_mode": "nearest",
                 "require_tcn_agreement": false,

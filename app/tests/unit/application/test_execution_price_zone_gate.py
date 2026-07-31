@@ -51,7 +51,7 @@ def test_resolve_price_zone_config_clamps_and_normalizes_weights():
     )
     assert cfg["sell_min"] == pytest.approx(0.4)
     assert cfg["bb_weight"] + cfg["keltner_weight"] == pytest.approx(1.0)
-    assert resolve_price_zone_config(None)["enabled"] is True
+    assert resolve_price_zone_config(None)["enabled"] is False
     assert resolve_price_zone_config(None)["neutral_mode"] == "nearest"
 
 
