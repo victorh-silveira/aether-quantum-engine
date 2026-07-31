@@ -57,7 +57,7 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin, ProposalSkipMixin)
         self.contract_stakes: dict[int, float] = {}
         self.contract_requested_stakes: dict[int, float] = {}
         self.init_symbol_loss_cooldown()
-        self._candle_interval_seconds = 900
+        self._candle_interval_seconds = 60
         self._cooldown_until_mono = 0.0
 
         self.active_contract_ids: list[int] = []

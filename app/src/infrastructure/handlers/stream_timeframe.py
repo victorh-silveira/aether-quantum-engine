@@ -9,9 +9,9 @@ from src.infrastructure.api.deriv_granularity import normalize_granularity_secon
 
 
 def resolve_dual_granularity(data_config: dict) -> tuple[int, int]:
-    """Resolve granularidade macro (DL M15) e micro (loop operacional M5)."""
-    macro = normalize_granularity_seconds(int(data_config.get("granularity", 900)))
-    micro_raw = int(data_config.get("micro_granularity", data_config.get("cycle_granularity", 300)))
+    """Resolve granularidade macro (DL M1) e micro (loop operacional M1)."""
+    macro = normalize_granularity_seconds(int(data_config.get("granularity", 60)))
+    micro_raw = int(data_config.get("micro_granularity", data_config.get("cycle_granularity", 60)))
     micro = normalize_granularity_seconds(micro_raw)
     return macro, micro
 

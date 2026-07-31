@@ -27,9 +27,9 @@ def test_resolve_dual_granularity_defaults():
 
 
 def test_resolve_dual_granularity_falls_back_to_m5_micro():
-    macro, micro = resolve_dual_granularity({"granularity": 900})
-    assert macro == 900
-    assert micro == 300
+    macro, micro = resolve_dual_granularity({"granularity": 60})
+    assert macro == 60
+    assert micro == 60
 
 
 def test_resolve_micro_fetch_count():

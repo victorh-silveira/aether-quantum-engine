@@ -33,7 +33,7 @@
     "data_handler": {
         "buffer_limit": 131072,
         "fetch_count": 23392,
-        "granularity": 900,
+        "granularity": 60,
         "history_bars": 15552,
         "history_fetch_chunk": 1000,
         "history_fetch_delay_seconds": 0.12,
@@ -41,7 +41,7 @@
         "history_fetch_rate_limit_max_delay": 20.0,
         "history_fetch_rate_limit_retries": 12,
         "history_fetch_symbol_delay_seconds": 0.25,
-        "micro_granularity": 300,
+        "micro_granularity": 60,
         "micro_history_bars": 5000,
         "min_required_points": 80,
         "startup_fetch_bars": 2048
@@ -198,7 +198,7 @@
             }
         },
         "inference_device": "auto",
-        "label_horizon_bars": 4,
+        "label_horizon_bars": 1,
         "label_ma_window": 8,
         "label_mode": "ma_trend",
         "label_smooth_bars": 2,
@@ -306,7 +306,7 @@
     "orchestrator": {
         "api_maintenance_fallback_seconds": 65.0,
         "broker_handshake_timeout_seconds": 90.0,
-        "cycle_interval_seconds": 300,
+        "cycle_interval_seconds": 60,
         "execution": {
             "align_rsi_trend": false,
             "bb_width_adaptive_squeeze": {
@@ -565,7 +565,7 @@
         "settlement_backoff_initial_seconds": 1.0,
         "settlement_backoff_max_seconds": 30.0,
         "settlement_tolerance_window_seconds": 90,
-        "signature_boundary_seconds": 120,
+        "signature_boundary_seconds": 60,
         "state_lock_acquire_timeout_seconds": 8.0,
         "stream_warm_up_delay_seconds": 0,
         "warm_up_live_data_timeout_seconds": 25.0,
@@ -663,7 +663,7 @@
             "compounding_enabled": true,
             "compounding_rate_daily": 0.03,
             "contract_type": "RISE_FALL",
-            "duration": 900,
+            "duration": 60,
             "duration_unit": "s",
             "payout_estimate": 0.82,
             "stake_min": 1.0

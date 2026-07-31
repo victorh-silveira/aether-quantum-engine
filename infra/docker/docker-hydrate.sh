@@ -32,11 +32,11 @@ if [ -z "$CURRENT_COUNT" ]; then
 fi
 
 if [ "$CURRENT_COUNT" -lt 48 ]; then
-  docker_ui_warn "fome de dados (${CURRENT_COUNT} barras) - hidratando lookback M15"
+  docker_ui_warn "fome de dados (${CURRENT_COUNT} barras) - hidratando lookback M1"
   "${COMPOSE[@]}" exec -T timescaledb psql -q -U "$PG_USER" -d "$PG_DB" -c "
     INSERT INTO ohlc_bars (time, symbol, epoch, granularity, open, high, low, close)
-    SELECT t, sym, EXTRACT(EPOCH FROM t)::bigint, 900, 100.0+(i*0.01), 100.5+(i*0.01), 99.5+(i*0.01), 100.1+(i*0.01)
-    FROM (SELECT NOW() - (i * INTERVAL '15 minutes') AS t, i FROM generate_series(1, 60) i) s
+    SELECT t, sym, EXTRACT(EPOCH FROM t)::bigint, 60, 100.0+(i*0.01), 100.5+(i*0.01), 99.5+(i*0.01), 100.1+(i*0.01)
+    FROM (SELECT NOW() - (i * INTERVAL '1 minute') AS t, i FROM generate_series(1, 60) i) s
     CROSS JOIN (SELECT 'R_10' AS sym) symbols
     ON CONFLICT DO NOTHING;" >/dev/null
   docker_ui_ok "lookback reidratado"

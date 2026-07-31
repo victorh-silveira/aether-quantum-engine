@@ -71,7 +71,7 @@ async def _data_ok(dsn: str, symbols: list[str]) -> bool:
         )
         counts: dict[tuple[str, int], int] = {(r["symbol"], r["granularity"]): r["total"] for r in (rows or [])}
         for sym in symbols:
-            for gran in (300, 600, 900):
+            for gran in (60,):
                 have = counts.get((sym, gran), 0)
                 if have < _MIN_BARS:
                     logger.info(

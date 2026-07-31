@@ -127,4 +127,4 @@ def test_resolve_signature_boundary_seconds_invalid_cadence_fallback(orch_ready)
     orch = orch_ready
     orch.config.setdefault("orchestrator", {})["signature_boundary_seconds"] = "bad"
     orch.config["orchestrator"]["cycle_interval_seconds"] = "bad"
-    assert resolve_signature_boundary_seconds(orch) == 300
+    assert resolve_signature_boundary_seconds(orch) == 60

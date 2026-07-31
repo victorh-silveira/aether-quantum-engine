@@ -43,18 +43,18 @@ def test_resolve_signature_boundary_seconds_uses_custom_boundary(orch_ready):
 
 
 def test_resolve_signature_boundary_seconds_defaults_when_config_missing():
-    assert resolve_signature_boundary_seconds(SimpleNamespace(config=None)) == 300
+    assert resolve_signature_boundary_seconds(SimpleNamespace(config=None)) == 60
 
 
 def test_resolve_signature_boundary_seconds_defaults_when_boundary_invalid(orch_ready):
     orch = orch_ready
     orch.config.setdefault("orchestrator", {})["signature_boundary_seconds"] = "invalid"
     orch.config["orchestrator"]["cycle_interval_seconds"] = "bad"
-    assert resolve_signature_boundary_seconds(orch) == 300
+    assert resolve_signature_boundary_seconds(orch) == 60
 
 
 def test_resolve_signature_boundary_seconds_defaults_when_config_invalid():
-    assert resolve_signature_boundary_seconds(SimpleNamespace(config={"orchestrator": "invalid"})) == 300
+    assert resolve_signature_boundary_seconds(SimpleNamespace(config={"orchestrator": "invalid"})) == 60
 
 
 def test_sanitize_quality_skip_decisions_ignores_invalid_payload():

@@ -6,7 +6,7 @@ import time
 from typing import Any
 
 
-DEFAULT_SIGNATURE_BOUNDARY_SECONDS = 300
+DEFAULT_SIGNATURE_BOUNDARY_SECONDS = 60
 
 __all__ = [
     "at_signature_boundary",

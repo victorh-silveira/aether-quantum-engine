@@ -24,7 +24,7 @@ from src.infrastructure.handlers.tick_buffer import TickBuffer
 
 
 class StreamHandler:
-    """Gerencia fluxos macro M15 (DL) e micro M5 (execucao) para multiplos simbolos."""
+    """Gerencia fluxos macro M1 (DL) e micro M1 (execucao) para multiplos simbolos."""
 
     def __init__(self, ws_manager: WebSocketManager, symbols: list[str], data_config: dict, *, market_writer=None):
         """Inicializa o manipulador."""
