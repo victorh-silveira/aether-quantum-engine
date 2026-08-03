@@ -62,7 +62,7 @@ Settings app: `infra.redis.url`, `infra.timescale.dsn`, `infra.minio`, `infra.tr
 ## Redis / Timescale / MinIO
 
 - Redis AOF `appendfsync everysec` (`redis.conf`)
-- Timescale: init `003_*.sql` + lifecycle `004_*.sql`; hydrate sintetico R_10 se micro&lt;360 ou macro&lt;80
+- Timescale: init `003_*.sql` + lifecycle `004_*.sql`; hydrate sintetico R_10 se micro&lt;360 ou macro&lt;80 (**nao** usar hydrate como unico historico para treino meta — preferir Deriv / `--source auto`)
 - MinIO: bucket `dl-models`
 
 ## Relacao com o motor

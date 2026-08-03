@@ -20,9 +20,10 @@ def test_resolve_deploy_ok_soft_fallback():
     assert resolve_deploy_ok(mini_ok=False, val_accuracy=0.48, val_brier=0.25, gate_cfg=cfg) is False
 
 
-def test_resolve_deploy_ok_force_ok():
+def test_resolve_deploy_ok_force_ok_requires_acc_floor():
     cfg = parse_deploy_gate_config({"deploy_gate": {"enabled": True, "force_ok": True}})
-    assert resolve_deploy_ok(mini_ok=False, val_accuracy=0.40, val_brier=0.30, gate_cfg=cfg) is True
+    assert resolve_deploy_ok(mini_ok=False, val_accuracy=0.55, val_brier=0.30, gate_cfg=cfg) is True
+    assert resolve_deploy_ok(mini_ok=False, val_accuracy=0.40, val_brier=0.30, gate_cfg=cfg) is False
 
 
 def test_deploy_params_for_eval_relaxes_thresholds():
@@ -42,7 +43,18 @@ def test_deploy_params_passthrough_when_not_relaxed():
     assert deploy_params_for_eval(params, {"eval_relaxed_gating": False}) == params
 
 
-def test_resolve_deploy_ok_mini_and_disabled():
-    cfg = {"enabled": False}
-    assert resolve_deploy_ok(mini_ok=True, val_accuracy=0.4, val_brier=0.9, gate_cfg=cfg) is True
-    assert resolve_deploy_ok(mini_ok=False, val_accuracy=0.4, val_brier=0.9, gate_cfg=cfg) is True
+def test_resolve_deploy_ok_mini_cannot_bypass_acc_floor():
+    cfg = {
+        "enabled": True,
+        "force_ok": False,
+        "soft_min_val_accuracy": 0.53,
+        "soft_max_brier": 0.24,
+    }
+    assert resolve_deploy_ok(mini_ok=True, val_accuracy=0.52, val_brier=0.20, gate_cfg=cfg) is False
+    assert resolve_deploy_ok(mini_ok=True, val_accuracy=0.54, val_brier=0.20, gate_cfg=cfg) is True
+
+
+def test_resolve_deploy_ok_disabled_still_respects_acc():
+    cfg = {"enabled": False, "soft_min_val_accuracy": 0.53, "soft_max_brier": 0.32}
+    assert resolve_deploy_ok(mini_ok=True, val_accuracy=0.40, val_brier=0.20, gate_cfg=cfg) is False
+    assert resolve_deploy_ok(mini_ok=False, val_accuracy=0.55, val_brier=0.20, gate_cfg=cfg) is True

@@ -51,7 +51,7 @@ def test_enforce_post_settlement_schedules_passive_reconcile(orchestrator_config
         assert orch._post_settlement_deadlock is False
         assert orch._post_settlement_incomplete_streak == 0
         orch.logger.info.assert_any_call(
-            "SETTLE: incompleto pos-liquidacao (streak=%d); reconciliacao passiva via portfolio",
+            "SETTLE.settle_reconcile: incompleto pos-liquidacao (streak=%d); reconciliacao passiva via portfolio",
             2,
         )
 

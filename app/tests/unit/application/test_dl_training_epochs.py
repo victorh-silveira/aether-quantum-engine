@@ -49,6 +49,45 @@ def test_fit_training_epochs_early_stopping():
     assert math.isfinite(avg)
 
 
+def test_fit_training_epochs_respects_min_epochs():
+    model = create_direction_model(arch="tcn")
+    x = np.random.randn(24, 12, INPUT_DIM).astype(np.float32)
+    y = np.array([1.0, 0.0] * 12, dtype=np.float32)
+    mask = np.ones(24, dtype=np.float32)
+    device = torch.device("cpu")
+
+    with (
+        patch(
+            "src.application.services.deep_learning.dl_training_epochs._validation_loss",
+            return_value=1.0,
+        ),
+        patch(
+            "src.application.services.deep_learning.dl_training_epochs.model_accuracy",
+            return_value=0.5,
+        ),
+    ):
+        _avg, _state, ran = fit_training_epochs(
+            model,
+            x,
+            y,
+            mask,
+            [1.0] * 24,
+            x,
+            y,
+            mask,
+            device,
+            epochs=20,
+            batch_size=8,
+            lr=0.001,
+            weight_decay=0.0,
+            label_smoothing=0.0,
+            focal_gamma=0.0,
+            early_stopping_patience=2,
+            min_epochs=5,
+        )
+    assert ran == 6
+
+
 def test_fit_training_epochs_disabled_runs_all_epochs():
     model = create_direction_model(arch="tcn")
     x = np.random.randn(24, 12, INPUT_DIM).astype(np.float32)

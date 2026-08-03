@@ -14,16 +14,37 @@ from src.infrastructure.api.websocket_manager import WebSocketManager
 from src.infrastructure.handlers.history_fetch import fetch_paginated_candle_history, parse_history_fetch_config
 
 
-logger = logging.getLogger("META_TRAIN")
+logger = logging.getLogger("AETH.meta")
 MIN_OHLC_ROWS = 96
 META_TRAIN_DEFAULT_BARS = 5000
 META_TRAIN_MAX_BARS = 5000
+META_TRAIN_MIN_QUALITY_BARS = 2000
+META_TRAIN_LOOKBACK_MARGIN = 64
 
 
 def resolve_meta_train_bars(bars: int) -> int:
     """Normaliza alvo de barras micro respeitando o teto da API ticks_history."""
     target = max(MIN_OHLC_ROWS, int(bars))
     return min(target, META_TRAIN_MAX_BARS)
+
+
+def meta_min_quality_bars(lookback: int = 360) -> int:
+    """Piso de barras para treino meta senior (lookback TCN + margem ou 2000)."""
+    return max(META_TRAIN_MIN_QUALITY_BARS, int(lookback) + META_TRAIN_LOOKBACK_MARGIN)
+
+
+def bundle_forward_is_flat(bundle: OhlcBundle, *, horizon_bars: int = 1) -> bool:
+    """True quando closes/forward return nao sustentam alvo continuo."""
+    closes = np.asarray(bundle.closes, dtype=np.float64)
+    if closes.size < 8:
+        return True
+    if len(np.unique(np.round(closes, decimals=8))) < 8:
+        return True
+    horizon = max(1, int(horizon_bars))
+    if len(closes) <= horizon:
+        return True
+    fwd = (closes[horizon:] - closes[:-horizon]).astype(np.float64)
+    return float(np.var(fwd)) <= 1e-12
 
 
 @dataclass(frozen=True)
@@ -309,6 +330,7 @@ async def resolve_training_bundles(
     source: str,
     require_exact_granularity: bool = True,
     seed_timescale_on_deriv: bool = True,
+    min_quality_bars: int | None = None,
 ) -> list[OhlcBundle]:
     granularities = _granularity_candidates(
         settings,
@@ -317,6 +339,7 @@ async def resolve_training_bundles(
     )
     mode = str(source or "auto").lower()
     bar_target = resolve_meta_train_bars(bars)
+    quality_floor = int(min_quality_bars) if min_quality_bars is not None else meta_min_quality_bars()
     bundles: list[OhlcBundle] = []
     if mode in {"auto", "timescale"}:
         bundles = await load_bundles_from_timescale(dsn, symbols, granularities, bar_target)
@@ -325,18 +348,35 @@ async def resolve_training_bundles(
                 assert_bundles_match_granularity(bundles, granularity)
             except RuntimeError:
                 bundles = []
+        if bundles:
+            short = [b for b in bundles if len(b.closes) < quality_floor]
+            flat = [b for b in bundles if bundle_forward_is_flat(b)]
+            if short or flat:
+                logger.warning(
+                    "META_TRAIN: Timescale rejeitado (curto=%d flat=%d floor=%d); fallback Deriv.",
+                    len(short),
+                    len(flat),
+                    quality_floor,
+                )
+                bundles = []
     if bundles:
         return bundles
     if mode == "timescale":
         detail = await _timescale_error(dsn, symbols, granularities)
         raise RuntimeError(detail)
     logger.warning(
-        "META_TRAIN: TimescaleDB sem dados em %ds; buscando historico na API Deriv.",
+        "META_TRAIN: TimescaleDB sem dados uteis em %ds; buscando historico na API Deriv.",
         int(granularity),
     )
     bundles = await load_bundles_from_deriv(settings, symbols, granularity, bar_target)
     if bundles:
         assert_bundles_match_granularity(bundles, granularity)
+        short = [b for b in bundles if len(b.closes) < quality_floor]
+        if short:
+            raise RuntimeError(
+                f"Historico Deriv insuficiente para meta senior "
+                f"(min {quality_floor} barras; obtido {[len(b.closes) for b in bundles]})."
+            )
         if seed_timescale_on_deriv:
             try:
                 written = await persist_bundles_to_timescale(dsn, bundles)

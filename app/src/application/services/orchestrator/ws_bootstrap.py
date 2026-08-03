@@ -133,7 +133,7 @@ async def subscribe_account_transactions(orch: Orchestrator) -> None:
         )
         orch.ws.subscribe("transaction", orch._on_transaction)
     except Exception as e:
-        orch.logger.warning("SETTLE: subscribe transaction falhou: %s", e)
+        orch.logger.warning("SETTLE.settle_subscribe: subscribe transaction falhou: %s", e)
 
 
 def _setup_trading_session_failure(orch: Orchestrator, exc: BaseException) -> bool:

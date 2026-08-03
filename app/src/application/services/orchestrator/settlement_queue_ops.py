@@ -9,8 +9,15 @@ from typing import Any
 
 import redis.asyncio as aioredis
 
-from src.application.services.log_dedupe import log_info_if_changed, log_warning_if_changed
 from src.application.services.orchestrator.settlement_ws_queries import fetch_profit_table
+from src.application.services.settle_log_dedupe import log_settle_info_if_changed, log_settle_warning_if_changed
+from src.presentation.terminal.settle_log import (
+    SETTLE_CONFIRM,
+    SETTLE_ENQUEUE,
+    SETTLE_ENQUEUE_ERR,
+    SETTLE_PROCESS,
+    SETTLE_READ,
+)
 
 
 REDIS_SETTLEMENT_QUEUE_KEY = "settlement:queue:priority"
@@ -88,21 +95,23 @@ async def push_to_redis_priority_queue(orch: Any, payload: dict) -> None:
             await client.zadd(REDIS_SETTLEMENT_QUEUE_KEY, {json.dumps(payload): c_id})
             enqueued.add(c_id)
             orch._settlement_redis_poll_at = 0.0
-        log_info_if_changed(
+        log_settle_info_if_changed(
             orch,
             orch.logger,
+            SETTLE_ENQUEUE,
             f"settle_redis_push:{c_id}",
             "queued",
-            "SETTLE: Contrato %s enfileirado no Redis por instabilidade.",
+            "Contrato %s enfileirado no Redis por instabilidade.",
             c_id,
         )
     except Exception as e:
-        log_warning_if_changed(
+        log_settle_warning_if_changed(
             orch,
             orch.logger,
+            SETTLE_ENQUEUE_ERR,
             f"settle_redis_push_err:{c_id}",
             str(e),
-            "SETTLE: Falha ao enfileirar no Redis: %s",
+            "Falha ao enfileirar no Redis: %s",
             e,
         )
 
@@ -149,12 +158,13 @@ async def _confirm_queued_item(orch: Any, client: Any, item_str: str) -> None:
                     await process_late_settlement_from_payload(orch, poc)
                 confirmed = True
     except Exception as exc:
-        log_warning_if_changed(
+        log_settle_warning_if_changed(
             orch,
             orch.logger,
+            SETTLE_CONFIRM,
             f"settle_confirm:{c_id}",
             str(exc),
-            "SETTLE: Falha ao confirmar P&L via API para cid=%d: %s",
+            "Falha ao confirmar P&L via API para cid=%d: %s",
             c_id,
             exc,
         )
@@ -178,22 +188,24 @@ async def process_redis_settlement_queue(orch: Any, *, force: bool = False) -> N
             items = await client.zrange(REDIS_SETTLEMENT_QUEUE_KEY, 0, -1)
             if not items:
                 return
-            log_info_if_changed(
+            log_settle_info_if_changed(
                 orch,
                 orch.logger,
+                SETTLE_PROCESS,
                 "settle_redis_process",
                 str(len(items)),
-                "SETTLE: Processando %d item(ns) da fila de prioridade do Redis.",
+                "Processando %d item(ns) da fila de prioridade do Redis.",
                 len(items),
             )
             for item_str in items:
                 await _confirm_queued_item(orch, client, item_str)
     except Exception as e:
-        log_warning_if_changed(
+        log_settle_warning_if_changed(
             orch,
             orch.logger,
+            SETTLE_READ,
             "settle_redis_read",
             str(e),
-            "SETTLE: Erro ao ler fila de prioridade do Redis: %s",
+            "Erro ao ler fila de prioridade do Redis: %s",
             e,
         )

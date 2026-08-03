@@ -28,7 +28,7 @@ async def _subscribe_open_contract_background(ws, contract_id: int, *, timeout: 
     try:
         await subscribe_open_contract(ws, int(contract_id), timeout=timeout)
     except Exception as e:
-        logger.warning("[%s] SETTLE: subscribe cid=%s falhou: %s", cid, int(contract_id), e)
+        logger.warning("[%s] SETTLE.settle_subscribe: subscribe cid=%s falhou: %s", cid, int(contract_id), e)
 
 
 def _emit_execution_ticket(executor, *, cycle_id: int, symbol, direction, stake, contract, metrics) -> None:

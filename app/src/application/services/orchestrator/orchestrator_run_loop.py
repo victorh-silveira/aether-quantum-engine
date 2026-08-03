@@ -77,7 +77,7 @@ def _enforce_post_settlement_deadlock_exit(orch: Any) -> None:
     if not deadlock and streak < 2:
         return
     orch.logger.info(
-        "SETTLE: incompleto pos-liquidacao (streak=%d); reconciliacao passiva via portfolio",
+        "SETTLE.settle_reconcile: incompleto pos-liquidacao (streak=%d); reconciliacao passiva via portfolio",
         streak,
     )
     try:
@@ -93,7 +93,7 @@ async def _run_passive_settlement_reconcile(orch: Any) -> None:
     cleaner = SettlementOrphanCleaner(orch)
     cleared = await cleaner.passive_reconcile()
     if cleared:
-        orch.logger.info("SETTLE: estado local alinhado ao broker; ciclo pode prosseguir")
+        orch.logger.info("SETTLE.settle_align: estado local alinhado ao broker; ciclo pode prosseguir")
 
 
 def _recovery_pending_total(orch: Any) -> float:

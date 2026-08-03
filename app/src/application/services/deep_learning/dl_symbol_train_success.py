@@ -173,5 +173,10 @@ def apply_successful_symbol_train(
         live_wr,
         live_n,
     )
+    if not bool(runtime.get("deploy_ok", False)):
+        logger.warning(
+            "DL TREINO | %s | deploy_ok=false (ACC<soft_min ou mini-deploy) — retreinar; nao iniciar meta",
+            symbol,
+        )
     logger.log(level, "")
     return norm_stats, train_loss

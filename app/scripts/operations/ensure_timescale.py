@@ -18,10 +18,10 @@ _DOCKER_DIR = _REPO_ROOT / "infra" / "docker"
 _TS_HOST = "127.0.0.1"
 _TS_PORT = 5432
 _DEFAULT_DSN = "postgresql://aether:aether@localhost:5432/aether"
-_MIN_BARS = 96
+_MIN_BARS = 2000
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
-logger = logging.getLogger("AETHER")
+logger = logging.getLogger("AETH.ops")
 
 
 def _port_open(timeout: float = 3.0) -> bool:

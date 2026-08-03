@@ -36,6 +36,9 @@ Ordem obrigatoria:
 5. EXEC / EMPTY / PAUSE — `gate_reason`
 6. RESOLVED / RISK — pending, linear, pnl_sess
 
+Knobs de telemetria: `logging.level` (INFO/DEBUG), `logging.quiet_channels` (SETTLE/WARMUP/flow em DEBUG).
+Prefixo opcional `[cN|SYM]` correlaciona o ciclo; tags SETTLE usam `SETTLE.{canal}:`.
+
 Marcar cada ciclo como: **processo ok** | **processo falhou** | **inconclusivo (N baixo)**.
 
 ## Pos-mortem (9 perguntas)

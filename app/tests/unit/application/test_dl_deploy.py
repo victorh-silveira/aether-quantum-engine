@@ -18,9 +18,11 @@ from src.domain.models.trade import TradeDirection
 
 def test_parse_deploy_gate_config_defaults():
     cfg = parse_deploy_gate_config({})
-    assert cfg["enabled"] is False
+    assert cfg["enabled"] is True
+    assert cfg["force_ok"] is False
     assert cfg["max_brier"] == 0.22
     assert cfg["max_eval_steps"] == 24
+    assert float(cfg["soft_min_val_accuracy"]) >= 0.53
 
 
 def test_deploy_eval_bar_indices_caps_steps():

@@ -18,7 +18,7 @@ from src.application.services.deep_learning.dl_model_checkpoint import load_mode
 from src.application.services.deep_learning.model import _model_raw_prob, normalize_sequences
 
 
-logger = logging.getLogger("META_TRAIN")
+logger = logging.getLogger("AETH.meta")
 
 TEACHER_BATCH_SIZE = 256
 TEACHER_PROB_FLOOR = 0.05

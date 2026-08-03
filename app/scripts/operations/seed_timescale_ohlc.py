@@ -23,7 +23,7 @@ from scripts.operations.train_meta_data import (
 )
 
 
-logger = logging.getLogger("META_TRAIN")
+logger = logging.getLogger("AETH.meta")
 DEFAULT_DSN = "postgresql://aether:aether@localhost:5432/aether"
 
 

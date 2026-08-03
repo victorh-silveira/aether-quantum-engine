@@ -1,12 +1,35 @@
 # Observabilidade e logs
 
-Presentation: `app/src/presentation/terminal/logger.py`. Dedupe: `log_dedupe.py`.
+Presentation: `app/src/presentation/terminal/logger.py`.
+Contexto: `log_context.py`. SETTLE: `settle_log.py`. SSOT: `logging_config.resolve_logging_config`.
+Dedupe: `log_dedupe.py`. Inventario: [`engineering-logging-inventory.md`](engineering-logging-inventory.md).
 
 ## Principios
 
 - Logs em PT-BR, sem emoji
 - Dedupe / spam filter para settlement e mensagens repetidas
 - Processo > narrativa: ler `gate_reason` antes do P&L
+- Logger unico do motor: `AETH` via `setup_logger` / `get_logger` (idempotente)
+- Treino: `AETH.meta` / `AETH.train` — sem `print` no caminho critico
+
+## Knobs SSOT (`logging`)
+
+| Chave | Default | Papel |
+|-------|---------|-------|
+| `level` | `INFO` | Nivel do logger AETH (`DEBUG` so para diagnostico) |
+| `log_file` | `logs/engine.log` | Persistencia |
+| `quiet_channels` | settle_enqueue, settle_process, ws_ping, warmup_poll, execution_flow | Canal → DEBUG via `log_settle` |
+
+## Contrato de tags
+
+| Tag | Nivel tipico | Frequencia | Consumidor |
+|-----|--------------|------------|------------|
+| CLUSTER / IND / KELLY / EXEC* / RESOLVED | INFO | ≤1/ciclo (dedupe) | session-review, live_monitor |
+| SETTLE.{canal} | INFO em estado; DEBUG se quiet | rate-limit canal+tick | settlement-debug |
+| WSS / AUTH / MINIO | INFO em transicao | evento | deriv-connect / infra |
+| EXECUTION_FLOW / WARMUP | INFO se mudou; quiet → DEBUG | dedupe | cycle-debug |
+
+Prefixo opcional de correlacao: `[cN|SYM]` (nao quebra regex `[CLUSTER]` do monitor).
 
 ## Tags tipicas do ciclo
 
@@ -27,7 +50,11 @@ Presentation: `app/src/presentation/terminal/logger.py`. Dedupe: `log_dedupe.py`
 
 ## Filtros
 
-- `SettlementSpamFilter` no logger de terminal reduz ruido SETTLE
-- Nao “consertar” ausencia de trade removendo dedupe
+- `BlankLineSquasher` — linhas em branco consecutivas
+- `CooldownDeduplicationFilter` — CICLO cooling-down / resfriamento (1×/tick)
+- `SettlementSpamFilter` — SETTLE/WARMUP/EXECUTION_FLOW por **canal+tick**
+- `log_dedupe` — responsabilidade de conteudo (quality/EXEC_EMPTY); Filter = anti-rajada
 
-Diagnostico completo: doutrina + skill `aether-session-review`.
+Nao “consertar” ausencia de trade removendo dedupe.
+
+Diagnostico: doutrina + skill `aether-session-review`.

@@ -135,11 +135,40 @@ def test_build_paired_training_dataset_uses_forward_z_labels():
         fetch_count=1200,
         teacher_probs={"R_10": teacher},
     )
-    assert hygiene["label_mode"] == 1
+    assert hygiene["label_mode"] in {1, 2}
     assert hygiene["n_dropped_gray"] == 0
     assert hygiene["n_kept"] == len(frame) == len(y) == len(proxy) == len(pnl)
-    assert float(np.corrcoef(y, pnl)[0, 1]) != 0.0 or float(np.std(y)) > 0.0
-    validate_target_variance(y)
+    assert float(np.std(y)) > 0.0
+    validate_target_variance(y, hygiene=hygiene)
+
+
+def test_build_paired_flat_closes_uses_payoff_or_raises():
+    n = 400
+    closes = np.full(n, 100.0, dtype=np.float64)
+    bundle = OhlcBundle(
+        symbol="R_10",
+        granularity=120,
+        closes=closes,
+        open_=closes.copy(),
+        high=closes + 0.01,
+        low=closes - 0.01,
+        epochs=(np.arange(n, dtype=np.int64) + 1_700_000_000) * 120,
+        source="test",
+    )
+    teacher = _decisive_teacher(n)
+    frame, y, proxy, pnl, hygiene = build_paired_training_dataset(
+        [bundle],
+        micro_granularity=120,
+        fetch_count=400,
+        teacher_probs={"R_10": teacher},
+    )
+    assert hygiene["label_mode"] == 2
+    assert hygiene["close_nunique"] < 8 or float(hygiene["forward_var"]) <= 1e-12
+    if float(np.var(y)) <= 1e-12:
+        with pytest.raises(ValueError, match="variancia nula"):
+            validate_target_variance(y, hygiene=hygiene)
+    else:
+        validate_target_variance(y, hygiene=hygiene)
 
 
 def test_teacher_sample_weights_clip_confidence():

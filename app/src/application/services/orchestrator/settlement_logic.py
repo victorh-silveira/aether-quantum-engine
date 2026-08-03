@@ -244,7 +244,7 @@ async def process_contract_settlement(orch: Any, data: dict):
             orch.logger,
             f"settle_broker_offline:{c_id}",
             "offline",
-            "SETTLE: Broker offline. Enfileirando contrato %d no Redis.",
+            "SETTLE.settle_broker: Broker offline. Enfileirando contrato %d no Redis.",
             c_id,
         )
         await push_to_redis_priority_queue(orch, data)

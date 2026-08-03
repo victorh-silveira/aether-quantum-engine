@@ -26,7 +26,7 @@ if not exist "%PYTHON_EXE%" (
 )
 cd /d "%REPO_ROOT%"
 echo [AETHER] Meta-classificador - conda=%ENV_NAME% python=%PYTHON_EXE% trials=%META_TRIALS% dir=%CD%
-"%PYTHON_EXE%" app/scripts/operations/train_meta_classifier.py --trials %META_TRIALS% --bars 5000
+"%PYTHON_EXE%" app/scripts/operations/train_meta_classifier.py --trials %META_TRIALS% --bars 5000 --source auto
 set "RC=%ERRORLEVEL%"
 if not "%RC%"=="0" (
     echo.

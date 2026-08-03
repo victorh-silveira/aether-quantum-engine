@@ -1,6 +1,6 @@
 ---
 description: Logging Aether — terminal logger, dedupe, spam filter
-globs: app/src/presentation/**/*.py,**/log_dedupe.py
+globs: app/src/presentation/**/*.py,**/log_dedupe.py,**/settle_log.py,**/log_context.py
 alwaysApply: false
 ---
 
@@ -9,4 +9,7 @@ alwaysApply: false
 - PT-BR, sem emoji; dedupe para ruido SETTLE/EXEC_EMPTY
 - Nao remover SettlementSpamFilter para “ver mais logs” em producao
 - Tags de ciclo: CLUSTER → KELLY → EXEC → RESOLVED (processo primeiro)
-- Doc: `docs/engineering-observability.md`
+- Motor: `get_logger("AETH")` / `setup_logger` idempotente; treino: `AETH.meta` / `AETH.train` (sem print)
+- Knobs: `logging.level`, `logging.quiet_channels` via `resolve_logging_config`
+- SETTLE: `log_settle(canal, …)` → `SETTLE.{canal}:`; quiet_channels → DEBUG
+- Doc: `docs/engineering-observability.md` + inventario `docs/engineering-logging-inventory.md`

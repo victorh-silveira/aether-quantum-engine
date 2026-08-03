@@ -31,10 +31,52 @@ GRAY_FILTER_HARD = 1
 GRAY_FILTER_SOFT = 0
 FORWARD_TARGET_ZSCORE_WINDOW = 64
 LABEL_MODE_FORWARD_Z = 1
+LABEL_MODE_PAYOFF = 2
+FWD_TARGET_VAR_FLOOR = 1e-12
+Z_COLLAPSE_MAX_RATIO = 0.50
 
 
 def _proxy_prob_from_past_return(past_return: np.ndarray) -> np.ndarray:
     return np.clip(0.5 + 0.15 * past_return, 0.05, 0.95).astype(np.float32)
+
+
+def _rolling_zscore_strict(values: np.ndarray, *, window: int = MICRO_ZSCORE_WINDOW) -> np.ndarray:
+    series = pd.Series(np.asarray(values, dtype=np.float64))
+    mean = series.rolling(window, min_periods=max(8, window // 8)).mean()
+    std = series.rolling(window, min_periods=max(8, window // 8)).std(ddof=0)
+    z = (series - mean) / std.replace(0.0, np.nan)
+    return z.to_numpy(dtype=np.float64)
+
+
+def _resolve_training_labels(
+    proxy: np.ndarray,
+    call_pnl: np.ndarray,
+    *,
+    closes: np.ndarray,
+    stake: float = META_TRAIN_REFERENCE_STAKE,
+) -> tuple[np.ndarray, dict[str, float | int]]:
+    fwd = np.asarray(call_pnl, dtype=np.float64)
+    fwd_var = float(np.var(fwd)) if fwd.size else 0.0
+    close_nunique = int(len(np.unique(np.round(np.asarray(closes, dtype=np.float64), decimals=8))))
+    bear = (-fwd).astype(np.float32)
+    meta: dict[str, float | int] = {
+        "forward_var": fwd_var,
+        "close_nunique": close_nunique,
+        "z_collapse_pct": 0,
+        "label_mode": int(LABEL_MODE_FORWARD_Z),
+    }
+    if fwd_var > FWD_TARGET_VAR_FLOOR and close_nunique >= 8:
+        z_raw = _rolling_zscore_strict(fwd, window=FORWARD_TARGET_ZSCORE_WINDOW)
+        collapse = float(np.mean(~np.isfinite(z_raw))) if z_raw.size else 1.0
+        meta["z_collapse_pct"] = int(round(100.0 * collapse))
+        z_filled = np.nan_to_num(z_raw, nan=0.0, posinf=0.0, neginf=0.0)
+        if collapse + 1e-12 < Z_COLLAPSE_MAX_RATIO and float(np.var(z_filled)) > FWD_TARGET_VAR_FLOOR:
+            labels = _winsorize_target(z_filled.astype(np.float32))
+            meta["label_mode"] = int(LABEL_MODE_FORWARD_Z)
+            return labels, meta
+    labels = _winsorize_target(_continuous_payoff_target(proxy, fwd.astype(np.float32), bear, stake=float(stake)))
+    meta["label_mode"] = int(LABEL_MODE_PAYOFF)
+    return labels, meta
 
 
 def teacher_decisive_mask(proxy: np.ndarray) -> np.ndarray:
@@ -240,8 +282,7 @@ def build_paired_training_dataset(
     reference_stake: float = META_TRAIN_REFERENCE_STAKE,
     fetch_count: int = META_TRAIN_DEFAULT_BARS,
     teacher_probs: dict[str, np.ndarray] | None = None,
-) -> tuple[pd.DataFrame, np.ndarray, np.ndarray, np.ndarray, dict[str, int]]:
-    _ = reference_stake
+) -> tuple[pd.DataFrame, np.ndarray, np.ndarray, np.ndarray, dict[str, Any]]:
     planned_fetch = int(fetch_count)
     if not bundles:
         raise RuntimeError("Treino meta-classificador exige ao menos um bundle OHLC.")
@@ -293,7 +334,13 @@ def build_paired_training_dataset(
         raise RuntimeError(f"Meta feature row divergente: esperado {META_FEATURE_DIM}, obtido {matrix.shape[1]}")
     proxy = primary_slice["prob_call"].to_numpy(dtype=np.float32)
     call_pnl = primary_slice["pnl"].to_numpy(dtype=np.float32)
-    labels = _winsorize_target(_forward_return_z_target(call_pnl))
+    close_slice = np.asarray(primary.closes, dtype=np.float64)[row_idx]
+    labels, label_meta = _resolve_training_labels(
+        proxy,
+        call_pnl,
+        closes=close_slice,
+        stake=float(reference_stake),
+    )
     n_kept = int(len(labels))
     frame = pd.DataFrame(matrix, columns=meta_classifier_column_names())
     hygiene = {
@@ -302,7 +349,12 @@ def build_paired_training_dataset(
         "n_gray_soft_retained": 0,
         "n_kept": n_kept,
         "gray_filter_mode": int(GRAY_FILTER_SOFT),
-        "label_mode": int(LABEL_MODE_FORWARD_Z),
+        "label_mode": int(label_meta["label_mode"]),
+        "forward_var": float(label_meta["forward_var"]),
+        "close_nunique": int(label_meta["close_nunique"]),
+        "z_collapse_pct": int(label_meta["z_collapse_pct"]),
+        "data_source": str(primary.source),
+        "bars_loaded": int(len(primary.closes)),
     }
     return frame, labels, proxy, call_pnl, hygiene
 

@@ -205,6 +205,7 @@ def parse_dl_params(
         "lookback": lookback,
         "epochs": int(dl_config.get("training_epochs", 50)),
         "early_stopping_patience": max(0, int(dl_config.get("early_stopping_patience", 6))),
+        "min_epochs": max(0, int(dl_config.get("min_epochs", 0))),
         "training_batch_size": int(dl_config.get("training_batch_size", 512)),
         "training_log_every_n_epochs": max(1, int(dl_config.get("training_log_every_n_epochs", 5))),
         "training_device": str(dl_config.get("training_device", "auto")).strip().lower(),

@@ -228,7 +228,7 @@ async def _apply_tolerance_window_recovery(orch: Any, *, window: float, failed_a
         orch.logger,
         "settle_tolerance",
         settle_content,
-        "SETTLE: janela tolerancia %.0fs | orphans=%d | tentativas=%d | estado reconciliado",
+        "SETTLE.settle_tolerance: janela tolerancia %.0fs | orphans=%d | tentativas=%d | estado reconciliado",
         window,
         settled,
         failed_attempts,

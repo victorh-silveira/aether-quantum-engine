@@ -21,7 +21,7 @@ from src.application.services.meta_classifier_cross_symbol import (
 from src.application.services.meta_classifier_features import meta_classifier_column_names
 
 
-logger = logging.getLogger("META_TRAIN")
+logger = logging.getLogger("AETH.meta")
 
 LGBM_QUIET_PARAMS: dict[str, Any] = {"verbose": -1, "warnings": False, "n_jobs": 2}
 OPTUNA_N_JOBS = 2

@@ -10,15 +10,16 @@ description: >-
 
 ## Ordem de diagnostico
 
-1. Settings: lookback, granularity macro/micro, label_mode
-2. Checkpoint: feat_dim=34, lookback e granularity compativeis (`dl_startup`)
-3. Device CUDA vs CPU; logs `DL:`
-4. ACC / val_accuracy vs `min_validation_accuracy_gate`
-5. Triton/meta opcionais — confirmar `enabled` / require flags
-6. Meta offline: `app/scripts/operations/train_meta_*`
+1. Settings: lookback, micro 120s, label_mode, `deploy_gate.enabled` / `force_ok`
+2. Checkpoint: feat_dim=34, lookback, `val_accuracy`, `deploy_ok`
+3. Early stop: `min_epochs` / patience; nao cortar antes do piso
+4. ACC: soft_min **0.53** — mini-deploy nao bypassa
+5. `launch-train.bat`: apos DL roda `check_dl_deploy_gate.py` antes do meta
+6. Meta: variance nula → Timescale flat; usar `--source auto` / Deriv; alvo payoff fallback
+7. Triton/meta HTTP opcionais — confirmar flags
 
 ## Anti-padroes
 
-Trocar label sem retreino; ignorar ACC; forcar trade por ACC baixo.
+Trocar label sem retreino; `force_ok=true`; treinar meta em hydrate sintetico; ignorar ACC.
 
 Doc: `docs/engineering-deep-learning.md`

@@ -13,6 +13,7 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `orchestrator.execution` | mandatory/force, price_zone, quality_gate, settlement, SIDE_EQ, sample_size_policy, hard_cal_margin_floor |
 | `risk_management` | Kelly, soft_recovery, stop-win, ACC gate, duration contrato |
 | `infra` | Redis, Timescale, MinIO, Triton, meta |
+| `logging` | level, log_file, quiet_channels |
 | `auth` / credenciais | PAT — ver [`deriv-api-aether.md`](deriv-api-aether.md) |
 
 ## Regra de knob novo

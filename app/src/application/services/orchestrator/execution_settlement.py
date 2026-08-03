@@ -67,7 +67,7 @@ async def _wait_broker_offline_settlement(exec_mgr: "ExecutionManager", poll: fl
         exec_mgr.logger,
         "settle_offline",
         pending_key,
-        "SETTLE: broker offline; aguardando reconexao (pend=%s)",
+        "SETTLE.settle_broker: broker offline; aguardando reconexao (pend=%s)",
         pending_key,
     )
     await _settlement_poll_delay(max(poll, 5.0))
@@ -105,7 +105,7 @@ async def _handle_stagnant_settlement(
     if pending:
         recovered = await backfill_pending_contracts(exec_mgr.orch, pending)
         if recovered:
-            exec_mgr.logger.info("SETTLE: Recuperados %d contratos via profit_table.", recovered)
+            exec_mgr.logger.info("SETTLE.settle_reconcile: Recuperados %d contratos via profit_table.", recovered)
     if exec_mgr.orch.risk_manager.active_contract_ids:
         pending_key = ",".join(str(x) for x in exec_mgr.orch.risk_manager.active_contract_ids)
         log_warning_if_changed(
@@ -126,7 +126,7 @@ async def run_settlement_watch(exec_mgr: "ExecutionManager") -> None:
     try:
         await wait_for_settlement(exec_mgr)
     except Exception as e:
-        exec_mgr.logger.error("SETTLE: falha no acompanhamento: %s", e)
+        exec_mgr.logger.error("SETTLE.settle_track: falha no acompanhamento: %s", e)
     finally:
         if exec_mgr.orch.running and not exec_mgr.orch.state.active_contracts:
             exec_mgr.orch.schedule_trading_cycle_after_settlement()

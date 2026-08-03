@@ -16,6 +16,7 @@
 | [engineering-settlement.md](engineering-settlement.md) | Fila Redis, tolerancia, profit_table, orphans |
 | [engineering-settings-ssot.md](engineering-settings-ssot.md) | Mapa de `settings.json` e regra de knobs novos |
 | [engineering-observability.md](engineering-observability.md) | Logger, dedupe, tags de log do ciclo |
+| [engineering-logging-inventory.md](engineering-logging-inventory.md) | Mapa de fontes de log (runtime/scripts/infra) |
 | [infra-docker.md](infra-docker.md) | Stack Docker hibrida: profiles `core/gpu/cpu/ml`, binds localhost, hydrate 120/600, smoke |
 | [deriv-api.md](deriv-api.md) | Referência Deriv + integração PAT/OTP (retries Cloudflare/5xx) |
 | [deriv-api-aether.md](deriv-api-aether.md) | Guia rápido Deriv para agentes (mapeamento Aether híbrido OTP/REST) |

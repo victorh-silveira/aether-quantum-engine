@@ -35,6 +35,7 @@ from src.application.services.orchestrator.warm_up_buffer_guard import trading_c
 from src.application.services.regime_micro_freeze import SIGNAL_SUSPENDED
 from src.application.services.strategy.decision_mode import resolve_decision_mode
 from src.infrastructure.market.timescale_correlation_worker import refresh_correlation_cache, start_correlation_worker
+from src.presentation.terminal.log_context import bind_log_context, clear_log_context
 
 
 __all__ = ("trading_cycle_entry_allowed", "prepare_orchestrator_run_loop", "run_trading_cycle_if_ready")
@@ -154,6 +155,7 @@ async def run_trading_cycle_if_ready(orch: Any) -> bool:
                 orch.logger.info("")
             orch._active_cycle_id = orch._cycle_seq
             orch._side_eq_log_keys = set()
+            bind_log_context(cycle_id=orch._active_cycle_id, symbol=getattr(orch, "anchor", None))
             ran = True
             if trading_cycle_warm_up_suspended(orch) != SIGNAL_SUSPENDED:
                 cluster_executed = await _execute_inference_cluster_cycle(orch)
@@ -169,6 +171,7 @@ async def run_trading_cycle_if_ready(orch: Any) -> bool:
         orch.logger.error(f"FALHA: Ciclo: {e}")
         ran = True
     finally:
+        clear_log_context()
         orch.is_trading = False
         if ran:
             mark_cycle_attempt_complete(orch)

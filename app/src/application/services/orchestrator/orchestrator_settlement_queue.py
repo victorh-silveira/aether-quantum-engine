@@ -99,7 +99,7 @@ class SettlementOrphanCleaner:
         try:
             portfolio = await fetch_portfolio(ws, timeout=wait)
         except Exception as exc:
-            orch.logger.info("SETTLE: orphan cleaner portfolio indisponivel (%s)", type(exc).__name__)
+            orch.logger.info("SETTLE.settle_orphan: orphan cleaner portfolio indisponivel (%s)", type(exc).__name__)
             return 0
         open_ids = {int(row.get("contract_id")) for row in portfolio if row.get("contract_id") is not None}
         settled = 0
@@ -110,10 +110,10 @@ class SettlementOrphanCleaner:
                 if await reconcile_single_contract(orch, c_id):
                     settled += 1
             except Exception as exc:
-                orch.logger.info("SETTLE: orphan cleaner cid=%d (%s)", c_id, type(exc).__name__)
+                orch.logger.info("SETTLE.settle_orphan: orphan cleaner cid=%d (%s)", c_id, type(exc).__name__)
         self._prune_local_orphans()
         if settled > 0:
-            orch.logger.info("SETTLE: orphan cleaner reconciliou %d contrato(s)", settled)
+            orch.logger.info("SETTLE.settle_orphan: orphan cleaner reconciliou %d contrato(s)", settled)
         return settled
 
     async def passive_reconcile(self, *, timeout: float | None = None) -> bool:
@@ -124,7 +124,7 @@ class SettlementOrphanCleaner:
         remaining = _known_contract_ids(orch)
         clear = len(remaining) == 0 and not bool(getattr(getattr(orch, "state", None), "active_contracts", {}) or {})
         orch.logger.info(
-            "SETTLE: reconciliacao passiva | orphans=%d | clear=%s | remaining=%d",
+            "SETTLE.settle_reconcile: reconciliacao passiva | orphans=%d | clear=%s | remaining=%d",
             settled,
             clear,
             len(remaining),

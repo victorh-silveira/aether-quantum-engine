@@ -24,6 +24,11 @@ echo [AETHER] Etapa 1/2: Executando treino Deep Learning (TCN)...
 call "%~dp0_run_train.bat" "%CONDA_ACTIVATE%"
 if errorlevel 1 goto :dl_fail
 
+echo [AETHER] Etapa 1b/3: Validando deploy/ACC do checkpoint DL...
+cd /d "%REPO_ROOT%"
+"%PYTHON_EXE%" app/scripts/operations/check_dl_deploy_gate.py --symbols R_10
+if errorlevel 1 goto :dl_gate_fail
+
 echo [AETHER] Etapa 2/3: Verificando infraestrutura Docker (TimescaleDB)...
 cd /d "%REPO_ROOT%"
 "%PYTHON_EXE%" app/scripts/operations/ensure_timescale.py
@@ -39,6 +44,11 @@ exit /b 0
 
 :dl_fail
 echo [ERRO] Treino DL falhou. Treino do Meta-Classificador abortado para evitar race condition.
+pause
+exit /b 1
+
+:dl_gate_fail
+echo [ERRO] Checkpoint DL sem deploy_ok/ACC>=0.53. Meta-Classificador abortado.
 pause
 exit /b 1
 

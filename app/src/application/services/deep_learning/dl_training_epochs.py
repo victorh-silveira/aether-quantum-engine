@@ -220,6 +220,7 @@ def fit_training_epochs(
     label_smoothing: float,
     focal_gamma: float,
     early_stopping_patience: int = 6,
+    min_epochs: int = 0,
     lr_scheduler: str = "cosine",
     progress_cb=None,
     delta_train: np.ndarray | None = None,
@@ -240,6 +241,7 @@ def fit_training_epochs(
     best_val_acc = -1.0
     patience = max(0, int(early_stopping_patience))
     patience_counter = 0
+    min_ep = max(0, int(min_epochs))
     total_epochs = max(1, epochs)
     epochs_ran = 0
     weight_arr = np.asarray(weights, dtype=np.float32)
@@ -277,7 +279,7 @@ def fit_training_epochs(
         if improved:
             best_state = improved_state
             patience_counter = 0
-        else:
+        elif epochs_ran >= min_ep:
             patience_counter += 1
             if patience > 0 and patience_counter >= patience:
                 break

@@ -36,6 +36,7 @@ aether-quantum-engine/
 │   ├── deriv-indices-algorithm.md
 │   ├── engineering-deep-learning.md
 │   ├── engineering-observability.md
+│   ├── engineering-logging-inventory.md
 │   ├── engineering-orchestrator.md
 │   ├── engineering-settlement.md
 │   ├── engineering-settings-ssot.md
@@ -422,7 +423,11 @@ presentation  →  application  →  domain
 
 | Módulo | Responsabilidade |
 |--------|------------------|
-| `terminal/logger.py` | `setup_logger`, `AetherFormatter`, `BlankLineSquasher`, `CooldownDeduplicationFilter` |
+| `terminal/logger.py` | `setup_logger` / `get_logger`, `AetherFormatter`, filtros Blank/Cooldown/Settlement |
+| `terminal/log_context.py` | `bind_log_context` / prefixo `[cN|SYM]` |
+| `terminal/logging_config.py` | `resolve_logging_config` (level, quiet_channels) |
+| `terminal/settle_log.py` | `log_settle` / `SETTLE.{canal}:` |
+
 
 ---
 

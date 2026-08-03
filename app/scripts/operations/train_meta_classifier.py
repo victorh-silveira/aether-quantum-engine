@@ -26,6 +26,7 @@ from scripts.operations.train_meta_data import (
     META_TRAIN_DEFAULT_BARS,
     OhlcBundle,
     assert_bundles_match_granularity,
+    meta_min_quality_bars,
     resolve_meta_train_bars,
     resolve_training_bundles,
 )
@@ -42,9 +43,10 @@ from scripts.operations.train_meta_vector import (
     resolve_contract_duration_seconds,
 )
 from src.application.services.deep_learning.dl_params import parse_dl_params
+from src.presentation.terminal.logger import setup_logger
 
 
-logger = logging.getLogger("META_TRAIN")
+logger = logging.getLogger("AETH.meta")
 DEFAULT_DSN = "postgresql://aether:aether@localhost:5432/aether"
 DEFAULT_OUTPUT = REPO_ROOT / "infra" / "docker" / "meta-models" / "meta_lgbm.pkl"
 MIN_TARGET_VARIANCE = 1e-12
@@ -71,15 +73,30 @@ def _micro_granularity(settings: dict[str, Any]) -> int:
     return int(data_cfg.get("micro_granularity", 120)) if isinstance(data_cfg, dict) else 120
 
 
-def validate_target_variance(y: np.ndarray, *, min_variance: float = MIN_TARGET_VARIANCE) -> None:
-    variance = float(np.var(np.asarray(y, dtype=np.float64)))
-    if variance <= float(min_variance):
-        raise ValueError(
-            "Dataset meta-classificador com variancia nula no alvo continuo detectado "
-            f"(target_variance={variance}). "
-            "Amplie o frame temporal com --bars 5000 ou busque historico em periodo de maior "
-            "estresse de mercado antes de retreinar o meta-regressor."
+def validate_target_variance(
+    y: np.ndarray,
+    *,
+    min_variance: float = MIN_TARGET_VARIANCE,
+    hygiene: dict[str, Any] | None = None,
+) -> None:
+    arr = np.asarray(y, dtype=np.float64)
+    variance = float(np.var(arr)) if arr.size else 0.0
+    if variance > float(min_variance):
+        return
+    detail = ""
+    if isinstance(hygiene, dict):
+        detail = (
+            f" n={hygiene.get('n_kept')} source={hygiene.get('data_source')} "
+            f"bars={hygiene.get('bars_loaded')} forward_var={hygiene.get('forward_var')} "
+            f"close_nunique={hygiene.get('close_nunique')} label_mode={hygiene.get('label_mode')} "
+            f"n_unique_y={len(np.unique(np.round(arr, decimals=8)))}."
         )
+    raise ValueError(
+        "Dataset meta-classificador com variancia nula no alvo continuo detectado "
+        f"(target_variance={variance}).{detail} "
+        "Amplie o frame temporal com --bars 5000 --source auto/deriv ou busque historico "
+        "em periodo de maior estresse de mercado antes de retreinar o meta-regressor."
+    )
 
 
 def target_variance(y: np.ndarray) -> float:
@@ -168,6 +185,9 @@ async def train_meta_classifier(
     export_min_zscore: float = META_EXPORT_MIN_ZSCORE,
 ) -> dict[str, Any]:
     required_gran = int(granularity)
+    dl = settings.get("deep_learning") if isinstance(settings.get("deep_learning"), dict) else {}
+    lookback = int(dl.get("lookback", 360)) if isinstance(dl, dict) else 360
+    quality_floor = meta_min_quality_bars(lookback)
     bundles = await resolve_training_bundles(
         settings=settings,
         dsn=dsn,
@@ -176,6 +196,7 @@ async def train_meta_classifier(
         bars=bars,
         source=source,
         require_exact_granularity=True,
+        min_quality_bars=quality_floor,
     )
     assert_bundles_match_granularity(bundles, required_gran)
     micro_gran = _micro_granularity(settings)
@@ -188,7 +209,7 @@ async def train_meta_classifier(
         fetch_count=resolve_meta_train_bars(bars),
         teacher_probs=teacher or None,
     )
-    validate_target_variance(y)
+    validate_target_variance(y, hygiene=hygiene)
     model, bundle_meta, train_mae, val_mae = run_optuna_study(
         frame,
         y,
@@ -228,7 +249,7 @@ def _parse_args(settings: dict[str, Any]) -> argparse.Namespace:
 
 def main() -> None:
     silence_asyncio_debug()
-    logging.basicConfig(level=logging.INFO)
+    setup_logger("AETH.meta", log_file=None)
     configure_meta_train_logging()
     settings = _load_settings()
     args = _parse_args(settings)
@@ -246,7 +267,7 @@ def main() -> None:
             export_min_zscore=float(args.export_min_zscore),
         )
     )
-    print(json.dumps(summary, indent=2))
+    logger.info("META summary | %s", json.dumps(summary, indent=2))
 
 
 if __name__ == "__main__":

@@ -13,6 +13,7 @@ from src.application.services.orchestrator.engine_mode import (
 )
 from src.domain.risk.risk_policy import validate_engine_risk_config
 from src.presentation.terminal.logger import setup_logger
+from src.presentation.terminal.logging_config import resolve_logging_config
 
 
 def load_engine_config(*, engine_mode: str = ENGINE_MODE_EXECUTE) -> tuple[dict[str, Any], logging.Logger]:
@@ -22,8 +23,13 @@ def load_engine_config(*, engine_mode: str = ENGINE_MODE_EXECUTE) -> tuple[dict[
     with config_path.open(encoding="utf-8") as f:
         config = json.load(f)
     apply_engine_mode(config, engine_mode)
-    log_file = config.get("logging", {}).get("log_file")
-    logger = setup_logger("AETH", log_file=log_file)
+    log_cfg = resolve_logging_config(config)
+    logger = setup_logger(
+        "AETH",
+        log_file=log_cfg["log_file"],
+        level=int(log_cfg["level"]),
+        quiet_channels=log_cfg["quiet_channels"],
+    )
     for issue in validate_engine_risk_config(config):
         logger.warning("CFG_RISK || %s", issue)
     return config, logger
