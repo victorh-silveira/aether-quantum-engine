@@ -5,11 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 from src.application.services.execution_direction_checks import (
-    has_meta_zscore_telemetry as _has_meta_zscore_telemetry,
     infer_dl_direction,
     initial_direction_checks,
     is_technically_blocked,
-    reject_on_quality_gate,
     seed_direction_metrics,
     sync_entry_metrics,
 )
@@ -21,9 +19,14 @@ from src.application.services.execution_direction_meta_edge import (
 from src.application.services.execution_direction_persistence import _apply_persistence_guard_skip
 from src.application.services.execution_price_zone_gate import (
     align_or_keep_meta_side,
-    apply_price_zone_gate,
+    apply_price_zone_gate_with_starvation,
 )
 from src.application.services.execution_quality_gate import ensure_direction_margin
+from src.application.services.execution_quality_reject import (
+    has_meta_zscore_telemetry as _has_meta_zscore_telemetry,
+    reject_on_quality_gate,
+)
+from src.application.services.execution_recovery_gates import RECOVERY_RERESOLVE_GATES
 from src.application.services.force_trade_mode import force_trade_every_cycle
 from src.application.services.live_signal_metrics import apply_live_calib_drift_soft, attach_live_signal_metrics
 from src.application.services.meta_classifier_stacking import resolve_meta_payoff_edge
@@ -36,19 +39,6 @@ from src.application.services.payoff_edge_zscore import attach_payoff_edge_zscor
 from src.application.services.side_equilibrium_gate import resolve_direction_with_side_equilibrium
 from src.domain.models.trade import TradeDirection
 
-
-_RECOVERY_RERESOLVE_GATES = frozenset(
-    {
-        "meta_shadow_inverted_veto",
-        "meta_payoff_negative_zscore_veto",
-        "meta_negative_edge",
-        "side_imbalance_flip_not_better",
-        "side_imbalance_thin_margin_flip",
-        "side_imbalance_both_sides",
-        "side_imbalance_flip_zone_conflict",
-        "side_imbalance_large_n_margin",
-    }
-)
 
 __all__ = (
     "_apply_persistence_guard_skip",
@@ -121,10 +111,16 @@ def _finalize_execution_metrics(
         }
     )
     ensure_direction_margin(metrics)
-    zone_reason = apply_price_zone_gate(
-        metrics, exec_dir, exec_cfg if isinstance(exec_cfg, dict) else {}, tcn_direction=dl_dir
+    zone_reason = apply_price_zone_gate_with_starvation(
+        metrics,
+        exec_dir,
+        exec_cfg if isinstance(exec_cfg, dict) else {},
+        tcn_direction=dl_dir,
+        skipped_cycles_counter=skipped_cycles_counter,
+        orch=orch,
+        force=bool(force or recovery_active),
     )
-    if zone_reason is not None and not (force or recovery_active):
+    if zone_reason is not None:
         metrics["quality_guard_reject"] = True
         metrics["regime_skip_cycle"] = True
         metrics["gate_reason"] = zone_reason
@@ -214,12 +210,12 @@ def resolve_execution_direction(
     if not force and active_cycle > 0 and int(prior.get("_direction_resolved_cycle") or 0) == active_cycle:
         gate = str(prior.get("gate_reason") or "")
         blocked = bool(prior.get("quality_guard_reject") or gate)
-        if blocked and not (recovery_active and gate in _RECOVERY_RERESOLVE_GATES):
+        if blocked and not (recovery_active and gate in RECOVERY_RERESOLVE_GATES):
             return None
         ready_name = str(prior.get("exec_direction") or prior.get("resolved_direction") or "").upper()
         if prior.get("execution_candidate_ready") and ready_name in {TradeDirection.CALL.name, TradeDirection.PUT.name}:
             return TradeDirection[ready_name], prior
-        if blocked and recovery_active and gate in _RECOVERY_RERESOLVE_GATES:
+        if blocked and recovery_active and gate in RECOVERY_RERESOLVE_GATES:
             if bool(prior.get("_recovery_reresolve_done") or prior.get("_resolved_under_recovery")):
                 return None
             prior["_recovery_reresolve_done"] = True
@@ -227,7 +223,12 @@ def resolve_execution_direction(
             prior.pop("quality_guard_reject", None)
             prior.pop("gate_reason", None)
             prior.pop("regime_skip_cycle", None)
-    checks = initial_direction_checks(entry, exec_cfg_dict, orch=orch)
+    checks = initial_direction_checks(
+        entry,
+        exec_cfg_dict,
+        orch=orch,
+        skipped_cycles_counter=skipped_cycles_counter,
+    )
     if checks is None:
         _stamp_direction_resolved_cycle(entry, active_cycle)
         return None
@@ -270,8 +271,9 @@ def resolve_execution_direction(
         "orch": orch,
     }
     if reject_on_quality_gate(entry, metrics, gate_probe, exec_cfg_dict, **kw):
-        _stamp_direction_resolved_cycle(entry, active_cycle)  # pragma: no cover
-        return None  # pragma: no cover
+        sync_entry_metrics(entry, metrics)
+        _stamp_direction_resolved_cycle(entry, active_cycle)
+        return None
     if bool(exec_cfg_dict.get("require_meta_for_execution", False)) and not meta_applied:
         metrics["gate_reason"] = "meta_unavailable"
         metrics["quality_guard_reject"] = True

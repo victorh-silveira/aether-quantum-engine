@@ -48,7 +48,7 @@ def test_align_or_keep_meta_side_keep_branches():
     )
     metrics2 = {"predicted_payoff_edge": 0.2, "meta_classifier_applied": True}
     with patch(
-        "src.application.services.execution_price_zone_gate.align_direction_to_price_zone",
+        "src.application.services.execution_price_zone_meta.align_direction_to_price_zone",
         return_value=TradeDirection.CALL,
     ):
         assert (
@@ -63,10 +63,10 @@ def test_align_or_keep_meta_side_keep_branches():
         )
 
 
-def test_align_or_keep_meta_side_meta_is_broken_drift_soft():
-    metrics = {"calib_drift_soft": True}
+def test_align_or_keep_meta_side_soft_drift_keeps_strong_tcn_lock():
+    metrics = {"calib_drift_soft": True, "direction_margin": 0.30, "calibrated_prob": 0.18}
     with patch(
-        "src.application.services.execution_price_zone_gate.align_direction_to_price_zone",
+        "src.application.services.execution_price_zone_meta.align_direction_to_price_zone",
         return_value=TradeDirection.CALL,
     ):
         assert (
@@ -77,8 +77,34 @@ def test_align_or_keep_meta_side_meta_is_broken_drift_soft():
                 predicted_edge=0.2,
                 meta_applied=True,
             )
+            == TradeDirection.PUT
+        )
+    assert metrics.get("tcn_direction_lock") is True
+
+
+def test_align_or_keep_meta_side_weak_margin_soft_drift_may_realign():
+    metrics = {"calib_drift_soft": True, "direction_margin": 0.02, "calibrated_prob": 0.51}
+    with (
+        patch(
+            "src.application.services.execution_price_zone_meta.align_direction_to_price_zone",
+            return_value=TradeDirection.CALL,
+        ),
+        patch(
+            "src.application.services.execution_price_zone_meta.align_direction_to_rsi_trend",
+            return_value=TradeDirection.CALL,
+        ) as rsi,
+    ):
+        assert (
+            align_or_keep_meta_side(
+                TradeDirection.PUT,
+                metrics,
+                dl_dir=TradeDirection.PUT,
+                predicted_edge=-0.1,
+                meta_applied=True,
+            )
             == TradeDirection.CALL
         )
+        rsi.assert_called_once()
 
 
 def test_finalize_toxic_escape_keeps_edge():
@@ -115,7 +141,7 @@ def test_finalize_toxic_escape_keeps_edge():
             return_value=False,
         ),
         patch(
-            "src.application.services.execution_direction_resolver.apply_price_zone_gate",
+            "src.application.services.execution_direction_resolver.apply_price_zone_gate_with_starvation",
             return_value=None,
         ),
         patch(
@@ -161,7 +187,7 @@ def test_negative_edge_skip_blocks_when_edge_below_floor():
         )
 
 
-def test_negative_edge_skip_starvation_waiver_edge_at_floor():
+def test_negative_edge_skip_allows_edge_at_or_above_floor():
     metrics = {"predicted_payoff_edge": -0.05, "meta_classifier_applied": True}
     with patch(
         "src.application.services.execution_direction_meta_edge._resolve_meta_edge_floor",
@@ -175,8 +201,25 @@ def test_negative_edge_skip_starvation_waiver_edge_at_floor():
             exec_cfg={},
         )
         assert result is False
-        assert metrics.get("meta_negative_edge_starvation_waiver") is True
-        assert metrics.get("meta_edge_floor") == -0.10
+        assert metrics.get("gate_reason") is None
+
+
+def test_negative_edge_skip_blocks_below_floor():
+    metrics = {"predicted_payoff_edge": -0.05, "meta_classifier_applied": True}
+    with patch(
+        "src.application.services.execution_direction_meta_edge._resolve_meta_edge_floor",
+        return_value=0.0,
+    ):
+        result = _negative_edge_skip(
+            metrics,
+            -0.05,
+            force=False,
+            meta_applied=True,
+            exec_cfg={},
+        )
+        assert result is True
+        assert metrics.get("gate_reason") == "meta_negative_edge"
+        assert metrics.get("meta_edge_floor") == 0.0
 
 
 def test_cycle_and_cooldown_invalid_cfg():

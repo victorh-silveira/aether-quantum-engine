@@ -58,7 +58,7 @@ def test_recovery_min_conviction_force_pending_and_single_loss():
         pending_loss={"R_10": 10.0},
         consecutive_losses_linear=1,
     )
-    assert value <= 0.58
+    assert value == pytest.approx(0.64)
 
 
 def test_recovery_dl_conviction_ok_rejects_low_val():

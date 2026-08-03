@@ -7,6 +7,7 @@ from typing import Any
 
 from src.application.services.force_trade_mode import force_trade_from_orch
 from src.application.services.infra_timing_config import resolve_orchestrator_timing_config
+from src.application.services.log_dedupe import log_info_if_changed
 from src.application.services.regime_micro_freeze import SIGNAL_SUSPENDED
 
 
@@ -18,16 +19,9 @@ def _timing(config: dict | None = None) -> dict:
     return resolve_orchestrator_timing_config(orch if isinstance(orch, dict) else None)
 
 
-_WARM_UP_GUARD_LOG_MESSAGE = (
-    "[AETHER] WARM_UP_GUARD | Aguardando estabilizacao do TickBuffer pos-reconexao. Coletando fluxo micro real."
-)
-_WARM_UP_WAIT_LOG_MESSAGE = (
-    "[AETHER] WARMUP_GUARD: Avaliando portao de aquecimento. Aguardando influxo de ticks reais da Deriv..."
-)
-_WARM_UP_WAIVER_LOG_MESSAGE = (
-    "[AETHER] WARMUP_TIMEOUT: Influxo de ticks vivos estagnado. "
-    "Forcando liberacao (Waiver) do loop mestre para evitar inanicao."
-)
+_WARM_UP_GUARD_LOG_MESSAGE = "[AETHER] WARMUP | aguardando estabilizacao do TickBuffer pos-reconexao"
+_WARM_UP_WAIT_LOG_MESSAGE = "[AETHER] WARMUP | aguardando ticks vivos da Deriv"
+_WARM_UP_WAIVER_LOG_MESSAGE = "[AETHER] WARMUP | timeout sem ticks vivos; liberando loop (waiver)"
 WARM_UP_CYCLE_SUSPENDED = SIGNAL_SUSPENDED
 
 
@@ -124,7 +118,7 @@ async def await_stream_warm_up_gate(
         return True
     logger = getattr(orch, "logger", None)
     if logger is not None:
-        logger.info(_WARM_UP_WAIT_LOG_MESSAGE)
+        log_info_if_changed(orch, logger, "warmup_wait", "wait", "%s", _WARM_UP_WAIT_LOG_MESSAGE)
     loop = asyncio.get_running_loop()
     deadline = loop.time() + max(0.0, float(timeout))
     saw_live = False

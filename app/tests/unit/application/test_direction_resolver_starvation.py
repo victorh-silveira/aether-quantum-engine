@@ -93,6 +93,7 @@ def test_resolve_thin_put_margin_rejected_by_quality_floor():
         symbol="R_10",
         skipped_cycles_counter=0,
         exec_cfg={
+            "hard_cal_margin_floor": 0.0,
             "quality_gate": {
                 "min_direction_margin": 0.03,
                 "min_payoff_edge": 0.02,

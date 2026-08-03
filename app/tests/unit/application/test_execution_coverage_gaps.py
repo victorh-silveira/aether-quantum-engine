@@ -7,10 +7,10 @@ from src.application.services.execution_price_zone_gate import align_or_keep_met
 from src.domain.models.trade import TradeDirection
 
 
-def test_align_or_keep_meta_side_soft_drift_broken():
-    metrics = {"calib_drift_soft": True}
+def test_align_or_keep_meta_side_soft_drift_keeps_strong_tcn():
+    metrics = {"calib_drift_soft": True, "direction_margin": 0.35, "calibrated_prob": 0.15}
     with patch(
-        "src.application.services.execution_price_zone_gate.align_direction_to_price_zone",
+        "src.application.services.execution_price_zone_meta.align_direction_to_price_zone",
         return_value=TradeDirection.CALL,
     ):
         assert (
@@ -21,8 +21,9 @@ def test_align_or_keep_meta_side_soft_drift_broken():
                 predicted_edge=0.2,
                 meta_applied=True,
             )
-            == TradeDirection.CALL
+            == TradeDirection.PUT
         )
+    assert metrics.get("tcn_direction_lock") is True
 
 
 def test_log_execution_blockers_forced_trade_mode():
@@ -54,7 +55,42 @@ def test_log_execution_blockers_standard_flow():
 def test_execution_manager_reversal_block_reason_branches():
     from src.application.services.orchestrator.execution_manager import ExecutionManager
 
-    orch_unblocked = SimpleNamespace(
+    orch_blocked = SimpleNamespace(
+        config={},
+        _active_cycle_id=1,
+        risk_manager=SimpleNamespace(
+            kelly_config={},
+            stake_block_reason=MagicMock(return_value="kelly_no_edge"),
+            consecutive_losses_linear=0,
+            pending_loss_total=lambda: 0.0,
+        ),
+    )
+    manager = ExecutionManager(orch_blocked)
+    orders = [("R_100", TradeDirection.CALL, {"raw_prob": 0.4, "trade_score": 0.6, "conviction": 0.6})]
+    result = manager._cluster_stake_block(orders, 1000.0)
+    assert result == "kelly_no_edge"
+    assert orders[0][1] == TradeDirection.CALL
+
+    orch_other = SimpleNamespace(
+        config={},
+        _active_cycle_id=1,
+        risk_manager=SimpleNamespace(
+            kelly_config={},
+            stake_block_reason=MagicMock(return_value="other_reason"),
+            consecutive_losses_linear=0,
+            pending_loss_total=lambda: 0.0,
+        ),
+    )
+    manager2 = ExecutionManager(orch_other)
+    orders2 = [("R_100", TradeDirection.PUT, {"raw_prob": 0.6, "trade_score": 0.6, "conviction": 0.6})]
+    assert manager2._cluster_stake_block(orders2, 1000.0) == "other_reason"
+    assert orders2[0][1] == TradeDirection.PUT
+
+
+def test_cluster_stake_block_never_flips_direction():
+    from src.application.services.orchestrator.execution_manager import ExecutionManager
+
+    orch = SimpleNamespace(
         config={},
         _active_cycle_id=1,
         risk_manager=SimpleNamespace(
@@ -64,41 +100,12 @@ def test_execution_manager_reversal_block_reason_branches():
             pending_loss_total=lambda: 0.0,
         ),
     )
-    manager1 = ExecutionManager(orch_unblocked)
-    orders1 = [("R_100", TradeDirection.CALL, {"raw_prob": 0.4, "trade_score": 0.6, "conviction": 0.6})]
-    result1 = manager1._cluster_stake_block(orders1, 1000.0)
-    assert result1 is None
-    assert orders1[0][1] == TradeDirection.PUT
-
-    orch_blocked = SimpleNamespace(
-        config={},
-        _active_cycle_id=1,
-        risk_manager=SimpleNamespace(
-            kelly_config={},
-            stake_block_reason=MagicMock(side_effect=["kelly_no_edge", "kelly_no_edge"]),
-            consecutive_losses_linear=1,
-            pending_loss_total=lambda: 5.0,
-        ),
-    )
-    manager2 = ExecutionManager(orch_blocked)
-    orders2 = [("R_100", TradeDirection.CALL, {"raw_prob": 0.4, "trade_score": 0.6, "conviction": 0.6})]
-    result2 = manager2._cluster_stake_block(orders2, 1000.0)
-    assert result2 == "kelly_no_edge"
-
-    orch_other_reason = SimpleNamespace(
-        config={},
-        _active_cycle_id=1,
-        risk_manager=SimpleNamespace(
-            kelly_config={},
-            stake_block_reason=MagicMock(side_effect=["kelly_no_edge", "other_reason"]),
-            consecutive_losses_linear=0,
-            pending_loss_total=lambda: 0.0,
-        ),
-    )
-    manager3 = ExecutionManager(orch_other_reason)
-    orders3 = [("R_100", TradeDirection.CALL, {"raw_prob": 0.4, "trade_score": 0.6, "conviction": 0.6})]
-    result3 = manager3._cluster_stake_block(orders3, 1000.0)
-    assert result3 == "kelly_no_edge"
+    manager = ExecutionManager(orch)
+    orders = [("R_10", TradeDirection.PUT, {"raw_prob": 0.35, "trade_score": 0.65, "conviction": 0.65})]
+    assert manager._cluster_stake_block(orders, 1000.0) == "kelly_no_edge"
+    assert orders[0][1] == TradeDirection.PUT
+    assert orch.risk_manager.stake_block_reason.call_count == 1
+    assert "flipped_from" not in orders[0][2]
 
 
 @pytest.mark.asyncio

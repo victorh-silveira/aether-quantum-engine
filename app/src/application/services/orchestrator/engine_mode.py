@@ -1,5 +1,9 @@
 """Modos de operacao do motor: treino dedicado ou execucao de trades."""
 
+from src.application.services.deep_learning.dl_horizon import resolve_label_horizon_bars
+from src.application.services.deep_learning.dl_params_timeframe import resolve_dl_granularity
+
+
 ENGINE_MODE_TRAIN = "train"
 ENGINE_MODE_EXECUTE = "execute"
 
@@ -16,7 +20,7 @@ def resolve_engine_mode(config: dict) -> str:
 
 
 def apply_engine_mode(config: dict, mode: str) -> dict:
-    """Grava engine_mode em config e devolve o dict atualizado."""
+    """Grava engine_mode e alinha label_horizon ao contrato na granularidade de treino."""
     chunk = config.get("orchestrator")
     if not isinstance(chunk, dict):
         chunk = {}
@@ -24,10 +28,15 @@ def apply_engine_mode(config: dict, mode: str) -> dict:
     chunk["engine_mode"] = mode
 
     if mode == ENGINE_MODE_TRAIN:
-        if "data_handler" in config:
-            config["data_handler"]["granularity"] = config["data_handler"].get("granularity", 60)
-        if "deep_learning" in config:
-            config["deep_learning"]["label_horizon_bars"] = 1
+        dl = config.get("deep_learning")
+        if not isinstance(dl, dict):
+            dl = {}
+            config["deep_learning"] = dl
+        data = config.get("data_handler") if isinstance(config.get("data_handler"), dict) else {}
+        risk = config.get("risk_management") if isinstance(config.get("risk_management"), dict) else {}
+        params = risk.get("params") if isinstance(risk.get("params"), dict) else {}
+        gran = resolve_dl_granularity(dl, data)
+        dl["label_horizon_bars"] = resolve_label_horizon_bars(gran, params, {})
     return config
 
 

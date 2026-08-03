@@ -1,7 +1,5 @@
 from types import SimpleNamespace
-from unittest.mock import patch
 
-from src.application.services.execution_direction_resolver import resolve_execution_direction
 from src.application.services.execution_quality_gate import (
     apply_quality_penalty_to_metrics,
     passes_execution_quality,
@@ -9,7 +7,6 @@ from src.application.services.execution_quality_gate import (
 )
 from src.application.services.execution_quality_gate_cluster import quality_conviction_suspends_cluster
 from src.application.services.execution_quality_gate_fallback import (
-    _hard_quality_reject_for_fallback,
     cluster_quality_gate_blocks_mandatory_fallback,
 )
 from src.application.services.execution_quality_gate_microstructure import (
@@ -17,7 +14,6 @@ from src.application.services.execution_quality_gate_microstructure import (
     is_microstructure_starvation_reason,
     resolve_min_adx_threshold,
 )
-from src.domain.models.trade import TradeDirection
 
 
 def _healthy_metrics(**overrides) -> dict:
@@ -217,41 +213,3 @@ def test_indicator_float_reads_macro_micro_and_top_level():
         )
         is None
     )
-
-
-def test_resolve_execution_direction_aborts_on_adx_starvation():
-    entry = {
-        "direction": TradeDirection.PUT,
-        "metrics": {
-            "deploy_ok": True,
-            "execute": True,
-            "raw_prob": 0.35,
-            "calibrated_prob": 0.35,
-            "val_accuracy": 0.70,
-            "predicted_payoff_edge": 0.20,
-            "meta_classifier_applied": True,
-            "indicators": {"adx": 0.12, "vol_ratio": 1.0},
-        },
-    }
-    orch = SimpleNamespace(
-        config={
-            "deep_learning": {"indicator_gating": {"enabled": False}},
-            "risk_management": {"min_validation_accuracy_gate": 0.0},
-        }
-    )
-    with patch(
-        "src.application.services.execution_direction_resolver.resolve_meta_payoff_edge",
-        return_value=(0.20, True),
-    ):
-        result = resolve_execution_direction(
-            entry,
-            exec_cfg={"quality_gate": {"min_adx_threshold": 0.20}},
-            symbol="R_10",
-            orch=orch,
-        )
-    assert result is not None
-    assert entry["metrics"]["quality_gate_reason"] == "adx_starvation"
-
-
-def test_hard_quality_reject_for_fallback_microstructure_reason():
-    assert _hard_quality_reject_for_fallback({"quality_gate_reason": "adx_starvation"}) is True

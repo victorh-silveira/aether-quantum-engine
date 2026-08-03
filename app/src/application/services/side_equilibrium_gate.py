@@ -6,6 +6,7 @@ import logging
 from typing import Any
 
 from src.application.services.execution_direction_discordance import _rsi_di_oppose_direction
+from src.application.services.execution_tcn_conviction import tcn_direction_lock_active
 from src.application.services.side_equilibrium_helpers import (
     alternate_side_is_preferable,
     flip_conflicts_price_zone,
@@ -115,6 +116,30 @@ def log_side_equilibrium(
     )
 
 
+def _block_side_eq(
+    metrics: dict[str, Any],
+    *,
+    gate_reason: str,
+    primary: SideEquilibriumDecision,
+    proposed: TradeDirection,
+    flip_rejected: bool = False,
+    zone_conflict: bool = False,
+    tcn_lock: bool = False,
+) -> None:
+    """Marca hard-skip SIDE_EQ como bloqueio de ciclo nas metricas."""
+    apply_side_equilibrium_to_metrics(metrics, primary, proposed=proposed)
+    metrics["side_eq_gate_done"] = True
+    metrics["side_eq_blocked"] = True
+    metrics["gate_reason"] = str(gate_reason)
+    metrics["quality_guard_reject"] = True
+    if flip_rejected:
+        metrics["side_eq_flip_rejected"] = True
+    if zone_conflict:
+        metrics["side_eq_flip_zone_conflict"] = True
+    if tcn_lock:
+        metrics["side_eq_tcn_lock"] = True
+
+
 def resolve_direction_with_side_equilibrium(
     orch: Any | None,
     symbol: str | None,
@@ -147,7 +172,8 @@ def resolve_direction_with_side_equilibrium(
         if gate.startswith("side_imbalance"):
             metrics.pop("gate_reason", None)
         return proposed
-    if positive_meta_edge_keeps_proposed(metrics):
+    toxic_primary = primary_side_is_toxic(primary)
+    if positive_meta_edge_keeps_proposed(metrics) and not toxic_primary:
         return soft_keep_proposed(
             metrics,
             primary,
@@ -160,7 +186,7 @@ def resolve_direction_with_side_equilibrium(
     alternate = evaluate_proposed_side_equilibrium(orch, symbol, opposite)
     log_side_equilibrium(alternate, symbol=str(symbol or "?"), proposed=opposite, orch=orch)
     if alternate.action == ACTION_HARD_SKIP:
-        if waive_hard:
+        if waive_hard and not toxic_primary:
             return soft_keep_proposed(
                 metrics,
                 primary,
@@ -174,12 +200,22 @@ def resolve_direction_with_side_equilibrium(
         metrics["gate_reason"] = str(alternate.reason or primary.reason or "side_imbalance_both_sides")
         metrics["quality_guard_reject"] = True
         return None
-    toxic_primary = primary_side_is_toxic(primary)
     prefer_alt = alternate_side_is_preferable(primary, alternate, opposite=opposite)
     thin_blocks = thin_margin_blocks_flip(metrics) and not toxic_primary
     senior_aligned = float(metrics.get("senior_trader_conviction", 0.0) or 0.0) >= 0.56
+    tcn_locked = tcn_direction_lock_active(metrics)
+    if tcn_locked:
+        _block_side_eq(
+            metrics,
+            gate_reason="side_imbalance_tcn_lock_skip",
+            primary=primary,
+            proposed=proposed,
+            flip_rejected=True,
+            tcn_lock=True,
+        )
+        return None
     if not prefer_alt or thin_blocks or senior_aligned:
-        if waive_hard or senior_aligned:
+        if (waive_hard or senior_aligned) and not toxic_primary:
             keep_reason = (
                 "side_eq_senior_keep"
                 if senior_aligned
@@ -192,17 +228,18 @@ def resolve_direction_with_side_equilibrium(
                 reason=keep_reason,
                 apply_metrics=apply_side_equilibrium_to_metrics,
             )
-        apply_side_equilibrium_to_metrics(metrics, primary, proposed=proposed)
-        metrics["side_eq_gate_done"] = True
-        metrics["side_eq_blocked"] = True
-        metrics["gate_reason"] = (
-            "side_imbalance_thin_margin_flip" if thin_blocks and prefer_alt else "side_imbalance_flip_not_better"
+        _block_side_eq(
+            metrics,
+            gate_reason=(
+                "side_imbalance_thin_margin_flip" if thin_blocks and prefer_alt else "side_imbalance_flip_not_better"
+            ),
+            primary=primary,
+            proposed=proposed,
+            flip_rejected=True,
         )
-        metrics["quality_guard_reject"] = True
-        metrics["side_eq_flip_rejected"] = True
         return None
     if _rsi_di_oppose_direction(metrics, opposite):
-        if waive_hard:
+        if waive_hard and not toxic_primary:
             return soft_keep_proposed(
                 metrics,
                 primary,
@@ -210,12 +247,13 @@ def resolve_direction_with_side_equilibrium(
                 reason="side_eq_recovery_rsi_keep",
                 apply_metrics=apply_side_equilibrium_to_metrics,
             )
-        apply_side_equilibrium_to_metrics(metrics, primary, proposed=proposed)
-        metrics["side_eq_gate_done"] = True
-        metrics["side_eq_blocked"] = True
-        metrics["gate_reason"] = "side_imbalance_rsi_trend_conflict"
-        metrics["quality_guard_reject"] = True
-        metrics["side_eq_flip_rejected"] = True
+        _block_side_eq(
+            metrics,
+            gate_reason="side_imbalance_rsi_trend_conflict",
+            primary=primary,
+            proposed=proposed,
+            flip_rejected=True,
+        )
         return None
     if flip_conflicts_price_zone(opposite, metrics) and not toxic_primary:
         if waive_hard:
@@ -226,13 +264,14 @@ def resolve_direction_with_side_equilibrium(
                 reason="side_eq_recovery_zone_keep",
                 apply_metrics=apply_side_equilibrium_to_metrics,
             )
-        apply_side_equilibrium_to_metrics(metrics, primary, proposed=proposed)
-        metrics["side_eq_gate_done"] = True
-        metrics["side_eq_blocked"] = True
-        metrics["gate_reason"] = "side_imbalance_flip_zone_conflict"
-        metrics["quality_guard_reject"] = True
-        metrics["side_eq_flip_rejected"] = True
-        metrics["side_eq_flip_zone_conflict"] = True
+        _block_side_eq(
+            metrics,
+            gate_reason="side_imbalance_flip_zone_conflict",
+            primary=primary,
+            proposed=proposed,
+            flip_rejected=True,
+            zone_conflict=True,
+        )
         return None
     if toxic_primary and flip_conflicts_price_zone(opposite, metrics):
         metrics["side_eq_toxic_zone_escape"] = True

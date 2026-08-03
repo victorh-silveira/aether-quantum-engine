@@ -39,13 +39,16 @@ class AetherWatchdog:
         *,
         stale_seconds: float = 30.0,
         poll_interval: float = 5.0,
+        reconnect_cooldown_seconds: float = 60.0,
     ) -> None:
         self._orch = orch
         self._stale_seconds = max(5.0, float(stale_seconds))
         self._poll_interval = max(1.0, float(poll_interval))
+        self._reconnect_cooldown = max(0.0, float(reconnect_cooldown_seconds))
         self._state = WatchdogState.HEALTHY
         self._task: asyncio.Task[None] | None = None
         self._recovering = asyncio.Lock()
+        self._last_reconnect_mono = 0.0
 
     @property
     def state(self) -> WatchdogState:
@@ -100,6 +103,13 @@ class AetherWatchdog:
             return
         if self._recovering.locked():
             return
+        if (
+            self._reconnect_cooldown > 0.0
+            and self._last_reconnect_mono > 0.0
+            and (now - self._last_reconnect_mono) < self._reconnect_cooldown
+        ):
+            self._state = WatchdogState.STALE_DATA
+            return
         self._state = WatchdogState.STALE_DATA
         await self._recover_stale_stream(now - max(last_tick, 0.0))
 
@@ -107,6 +117,13 @@ class AetherWatchdog:
         """Salva risco e reconecta WebSocket sem encerrar o motor."""
         async with self._recovering:
             orch = self._orch
+            now = asyncio.get_running_loop().time()
+            if (
+                self._reconnect_cooldown > 0.0
+                and self._last_reconnect_mono > 0.0
+                and (now - self._last_reconnect_mono) < self._reconnect_cooldown
+            ):
+                return
             logger.warning(
                 "WATCHDOG: STALE_DATA | ultimo tick ha %.1fs | reconectando stream",
                 stale_age,
@@ -116,6 +133,7 @@ class AetherWatchdog:
             except Exception as exc:
                 logger.warning("WATCHDOG: falha ao salvar snapshot antes do reconnect: %s", exc)
             ok = await stream_reconnect(orch)
+            self._last_reconnect_mono = asyncio.get_running_loop().time()
             if ok:
                 self._state = WatchdogState.HEALTHY
                 logger.info("WATCHDOG: ingestao restaurada apos reconnect")
@@ -141,6 +159,7 @@ def build_watchdog(orch: Any) -> AetherWatchdog | None:
         orch,
         stale_seconds=float(cfg.get("watchdog_stale_tick_seconds", 30.0)),
         poll_interval=float(cfg.get("watchdog_poll_interval_seconds", 5.0)),
+        reconnect_cooldown_seconds=float(cfg.get("watchdog_reconnect_cooldown_seconds", 60.0)),
     )
 
 

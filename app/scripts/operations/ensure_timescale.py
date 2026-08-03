@@ -1,4 +1,4 @@
-"""Verifica se TimescaleDB esta acessivel e populado, sementeia M5 via Deriv se vazio."""
+"""Verifica se TimescaleDB esta acessivel e populado, sementeia OHLC via Deriv se vazio."""
 
 from __future__ import annotations
 
@@ -34,21 +34,39 @@ def _wsl(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(["wsl"] + list(args), capture_output=True, check=False)
 
 
-def _settings_dsn() -> str:
+def _load_settings() -> dict:
     settings_path = _REPO_ROOT / "config" / "settings.json"
     if settings_path.is_file():
         try:
             raw = json.loads(settings_path.read_text(encoding="utf-8"))
-            infra = raw.get("infra", {})
-            chunk = infra.get("timescale", {}) if isinstance(infra, dict) else {}
-            if isinstance(chunk, dict) and chunk.get("dsn"):
-                return str(chunk["dsn"])
+            return raw if isinstance(raw, dict) else {}
         except (OSError, json.JSONDecodeError):
-            pass
+            return {}
+    return {}
+
+
+def _settings_dsn(settings: dict | None = None) -> str:
+    raw = settings if isinstance(settings, dict) else _load_settings()
+    infra = raw.get("infra", {})
+    chunk = infra.get("timescale", {}) if isinstance(infra, dict) else {}
+    if isinstance(chunk, dict) and chunk.get("dsn"):
+        return str(chunk["dsn"])
     return os.getenv("AETHER_TIMESCALE_DSN", _DEFAULT_DSN)
 
 
-async def _data_ok(dsn: str, symbols: list[str]) -> bool:
+def _required_granularities(settings: dict) -> list[int]:
+    data = settings.get("data_handler") if isinstance(settings.get("data_handler"), dict) else {}
+    micro = int(data.get("micro_granularity", 120) or 120)
+    macro = int(data.get("granularity", 600) or 600)
+    ordered = [micro, macro]
+    unique: list[int] = []
+    for value in ordered:
+        if value not in unique:
+            unique.append(value)
+    return unique
+
+
+async def _data_ok(dsn: str, symbols: list[str], granularities: list[int]) -> bool:
     try:
         import asyncpg  # noqa: PLC0415
     except ImportError:
@@ -71,13 +89,13 @@ async def _data_ok(dsn: str, symbols: list[str]) -> bool:
         )
         counts: dict[tuple[str, int], int] = {(r["symbol"], r["granularity"]): r["total"] for r in (rows or [])}
         for sym in symbols:
-            for gran in (60,):
-                have = counts.get((sym, gran), 0)
+            for gran in granularities:
+                have = counts.get((sym, int(gran)), 0)
                 if have < _MIN_BARS:
                     logger.info(
                         "[AETHER] TimescaleDB | %s gran=%ds tem %d barras (min=%d)",
                         sym,
-                        gran,
+                        int(gran),
                         have,
                         _MIN_BARS,
                     )
@@ -136,9 +154,11 @@ def main() -> int:
     if rc != 0:
         return rc
 
-    dsn = _settings_dsn()
+    settings = _load_settings()
+    dsn = _settings_dsn(settings)
     symbols = ["R_10"]
-    ok = asyncio.run(_data_ok(dsn, symbols))
+    granularities = _required_granularities(settings)
+    ok = asyncio.run(_data_ok(dsn, symbols, granularities))
     if ok:
         logger.info("[AETHER] TimescaleDB | dados OHLC suficientes.")
         return 0

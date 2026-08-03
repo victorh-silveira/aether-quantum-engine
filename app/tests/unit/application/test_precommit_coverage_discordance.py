@@ -6,16 +6,6 @@ from src.application.services.execution_direction_discordance import (
     apply_technical_agreement,
 )
 from src.application.services.execution_price_zone_gate import align_or_keep_meta_side
-from src.application.services.side_equilibrium_helpers import (
-    alternate_side_is_preferable,
-    flip_conflicts_price_zone,
-    primary_side_is_toxic,
-)
-from src.domain.analytics.side_equilibrium import (
-    ACTION_HARD_SKIP,
-    ACTION_PASS,
-    SideEquilibriumDecision,
-)
 from src.domain.models.trade import TradeDirection
 
 
@@ -32,6 +22,15 @@ def test_macro_indicator_float_and_rsi_di():
         is False
     )
     assert _rsi_di_oppose_direction({"macro_indicators": {"rsi": 0.50}}, TradeDirection.CALL) is False
+    assert _rsi_di_oppose_direction({"macro_indicators": {"rsi": 0.55}}, TradeDirection.PUT) is False
+    assert (
+        _rsi_di_oppose_direction(
+            {"macro_indicators": {"rsi": 0.60, "di_diff": 0.02}},
+            TradeDirection.PUT,
+        )
+        is False
+    )
+    assert _rsi_di_oppose_direction({"macro_indicators": {"rsi": 0.58}}, TradeDirection.PUT) is False
     assert (
         _rsi_di_oppose_direction(
             {"macro_indicators": {"rsi": 0.2, "di_diff": -0.1}},
@@ -41,11 +40,59 @@ def test_macro_indicator_float_and_rsi_di():
     )
 
 
+def test_apply_technical_agreement_margin_waives_discordance():
+    metrics = {
+        "call_votes": 1,
+        "put_votes": 3,
+        "trend_direction": "PUT",
+        "direction_margin": 0.11,
+        "calibrated_prob": 0.61,
+        "macro_indicators": {"rsi": 0.2, "di_diff": -0.2},
+    }
+    _, veto = apply_technical_agreement(
+        metrics,
+        TradeDirection.CALL,
+        0.61,
+        {
+            "discordance_veto_enabled": True,
+            "require_indicator_consensus": True,
+            "dynamic_threshold": {"require_indicator_consensus": True},
+        },
+        skipped_cycles_counter=0,
+    )
+    assert veto is False
+    assert metrics.get("indicator_discordance_margin_waiver") is True
+    assert metrics.get("gate_reason") is None
+
+
+def test_apply_technical_agreement_trend_needs_vote_opposition():
+    metrics = {
+        "call_votes": 3,
+        "put_votes": 1,
+        "trend_direction": "PUT",
+        "macro_indicators": {"rsi": 0.50},
+    }
+    _, veto = apply_technical_agreement(
+        metrics,
+        TradeDirection.CALL,
+        0.62,
+        {
+            "discordance_veto_enabled": True,
+            "require_indicator_consensus": True,
+            "dynamic_threshold": {"require_indicator_consensus": True},
+        },
+    )
+    assert veto is False
+    assert metrics.get("indicator_trend_discordance") is not True
+
+
 def test_apply_technical_agreement_vetoes():
     metrics = {
         "call_votes": 1,
         "put_votes": 3,
         "trend_direction": "PUT",
+        "direction_margin": 0.15,
+        "calibrated_prob": 0.65,
         "macro_indicators": {"rsi": 0.2, "di_diff": -0.2},
     }
     _, veto = apply_technical_agreement(
@@ -56,11 +103,62 @@ def test_apply_technical_agreement_vetoes():
             "discordance_veto_enabled": True,
             "require_indicator_consensus": False,
             "dynamic_threshold": {"require_indicator_consensus": True},
+            "discordance": {"waiver_margin": 0.40},
         },
     )
     assert veto is True
     assert metrics.get("indicator_side_discordance") is True
     assert metrics.get("indicator_trend_discordance") is True
+
+
+def test_apply_technical_agreement_starvation_waives_discordance():
+    metrics = {
+        "call_votes": 1,
+        "put_votes": 3,
+        "trend_direction": "PUT",
+        "direction_margin": 0.15,
+        "calibrated_prob": 0.65,
+        "macro_indicators": {"rsi": 0.2, "di_diff": -0.2},
+    }
+    _, veto = apply_technical_agreement(
+        metrics,
+        TradeDirection.CALL,
+        0.7,
+        {
+            "discordance_veto_enabled": True,
+            "require_indicator_consensus": True,
+            "dynamic_threshold": {"require_indicator_consensus": True},
+            "discordance": {"waiver_margin": 0.40},
+        },
+        skipped_cycles_counter=6,
+    )
+    assert veto is False
+    assert metrics.get("indicator_discordance_starvation_waiver") is True
+    assert metrics.get("gate_reason") is None
+
+
+def test_apply_technical_agreement_high_conviction_waives_discordance():
+    metrics = {
+        "call_votes": 0,
+        "put_votes": 4,
+        "trend_direction": "PUT",
+        "direction_margin": 0.30,
+        "calibrated_prob": 0.80,
+        "macro_indicators": {"rsi": 0.2, "di_diff": -0.2},
+    }
+    _, veto = apply_technical_agreement(
+        metrics,
+        TradeDirection.CALL,
+        0.80,
+        {
+            "discordance_veto_enabled": True,
+            "require_indicator_consensus": True,
+            "dynamic_threshold": {"require_indicator_consensus": True},
+        },
+        skipped_cycles_counter=0,
+    )
+    assert veto is False
+    assert metrics.get("indicator_discordance_conviction_waiver") is True
 
 
 def test_align_direction_to_rsi_trend():
@@ -135,7 +233,8 @@ def test_initial_direction_checks_discordance_reject():
     entry = {
         "direction": TradeDirection.CALL,
         "metrics": {
-            "calibrated_prob": 0.72,
+            "calibrated_prob": 0.65,
+            "direction_margin": 0.15,
             "deploy_ok": True,
             "execute": True,
             "call_votes": 0,
@@ -147,100 +246,37 @@ def test_initial_direction_checks_discordance_reject():
     assert (
         initial_direction_checks(
             entry,
-            {"discordance_veto_enabled": True, "require_indicator_consensus": True},
+            {
+                "discordance_veto_enabled": True,
+                "require_indicator_consensus": True,
+                "discordance": {"waiver_margin": 0.40},
+            },
         )
         is None
     )
     assert entry["metrics"].get("gate_reason") == "indicator_discordance"
+    assert entry["metrics"].get("indicator_discordance_kind") == "votes+side+trend"
 
 
-def test_side_eq_helpers():
-    pass_dec = SideEquilibriumDecision(action=ACTION_PASS, reason="ok", side_wr=0.55)
-    assert primary_side_is_toxic(pass_dec) is False
-    toxic = SideEquilibriumDecision(action=ACTION_HARD_SKIP, reason="x", side_wr=None)
-    assert primary_side_is_toxic(toxic) is True
-    assert flip_conflicts_price_zone(TradeDirection.CALL, {"price_zone_direction": "PUT"}) is True
-    alt = SideEquilibriumDecision(action=ACTION_PASS, reason="ok", side_wr=0.6, call_n=3, call_wins=2)
-    pri = SideEquilibriumDecision(action=ACTION_HARD_SKIP, reason="x", side_wr=None)
-    assert alternate_side_is_preferable(pri, alt, opposite=TradeDirection.CALL) is True
-    alt_none = SideEquilibriumDecision(action=ACTION_PASS, reason="ok", side_wr=None, call_n=3)
-    assert alternate_side_is_preferable(pri, alt_none, opposite=TradeDirection.CALL) is False
-    thin_alt = SideEquilibriumDecision(action=ACTION_PASS, reason="ok", side_wr=0.6, call_n=2, call_wins=1)
-    assert alternate_side_is_preferable(pri, thin_alt, opposite=TradeDirection.CALL) is False
-    weak_alt = SideEquilibriumDecision(action=ACTION_PASS, reason="ok", side_wr=0.50, call_n=3, call_wins=1)
-    toxic_pri = SideEquilibriumDecision(action=ACTION_HARD_SKIP, reason="x", side_wr=0.0)
-    assert alternate_side_is_preferable(toxic_pri, weak_alt, opposite=TradeDirection.CALL) is False
-    strong_alt = SideEquilibriumDecision(action=ACTION_PASS, reason="ok", side_wr=0.55, call_n=3, call_wins=2)
-    assert alternate_side_is_preferable(toxic_pri, strong_alt, opposite=TradeDirection.CALL) is True
-    better_alt = SideEquilibriumDecision(action=ACTION_PASS, reason="ok", side_wr=0.70, call_n=3, call_wins=2)
-    assert alternate_side_is_preferable(toxic_pri, better_alt, opposite=TradeDirection.CALL) is True
-
-
-def test_side_eq_gate_rsi_trend_conflict():
-    from unittest.mock import MagicMock, patch
-
-    from src.application.services.side_equilibrium_gate import resolve_direction_with_side_equilibrium
-
-    orch = MagicMock()
-
+def test_apply_technical_agreement_weak_tcn_defers_discordance():
     metrics = {
-        "macro_indicators": {"rsi": 0.65},
-        "price_zone_direction": "CALL",
+        "call_votes": 0,
+        "put_votes": 4,
+        "trend_direction": "PUT",
+        "direction_margin": 0.02,
+        "calibrated_prob": 0.52,
+        "macro_indicators": {"rsi": 0.2, "di_diff": -0.2},
     }
-    with patch("src.application.services.side_equilibrium_gate.evaluate_proposed_side_equilibrium") as mock_eval:
-        hard_skip = SideEquilibriumDecision(action=ACTION_HARD_SKIP, reason="side_imbalance_small_n")
-        pass_dec = SideEquilibriumDecision(action=ACTION_PASS, reason="ok", side_wr=0.6, put_n=5, put_wins=3)
-        mock_eval.side_effect = [hard_skip, pass_dec]
-        res = resolve_direction_with_side_equilibrium(orch, "R_10", TradeDirection.CALL, metrics, recovery_active=False)
-        assert res is None
-        assert metrics.get("gate_reason") == "side_imbalance_rsi_trend_conflict"
-
-        metrics2 = {"macro_indicators": {"rsi": 0.65}}
-        mock_eval.side_effect = [hard_skip, pass_dec]
-        res2 = resolve_direction_with_side_equilibrium(
-            orch, "R_10", TradeDirection.CALL, metrics2, recovery_active=True
-        )
-        assert res2 == TradeDirection.CALL
-
-
-def test_multi_bar_ema_trend_alignment():
-    from src.application.services.execution_direction_discordance import _multi_bar_ema_trend_alignment
-
-    assert _multi_bar_ema_trend_alignment({"macro_indicators": {"ema_9": 1.1, "ema_21": 1.0}}) == "CALL"
-    assert _multi_bar_ema_trend_alignment({"macro_indicators": {"ema_9": 1.0, "ema_21": 1.1}}) == "PUT"
-    assert _multi_bar_ema_trend_alignment({}) is None
-    assert _multi_bar_ema_trend_alignment({"macro_indicators": {"ema_9": 1.0}}) is None
-
-
-def test_align_direction_rsi_trend_hurst_above_50_extremes():
-    assert (
-        align_direction_to_rsi_trend(
-            TradeDirection.CALL,
-            {"macro_indicators": {"rsi": 0.85, "hurst": 0.60, "adx": 0.25}},
-        )
-        == TradeDirection.PUT
+    _, veto = apply_technical_agreement(
+        metrics,
+        TradeDirection.CALL,
+        0.52,
+        {
+            "discordance_veto_enabled": True,
+            "require_indicator_consensus": True,
+            "dynamic_threshold": {"require_indicator_consensus": True},
+        },
+        skipped_cycles_counter=0,
     )
-    assert (
-        align_direction_to_rsi_trend(
-            TradeDirection.PUT,
-            {"macro_indicators": {"rsi": 0.10, "hurst": 0.60, "adx": 0.25}},
-        )
-        == TradeDirection.CALL
-    )
-
-
-def test_align_direction_rsi_trend_ema_multi_bar():
-    assert (
-        align_direction_to_rsi_trend(
-            TradeDirection.CALL,
-            {"macro_indicators": {"rsi": 0.70, "hurst": 0.60, "ema_9": 1.1, "ema_21": 1.0}},
-        )
-        == TradeDirection.CALL
-    )
-    assert (
-        align_direction_to_rsi_trend(
-            TradeDirection.PUT,
-            {"macro_indicators": {"rsi": 0.30, "hurst": 0.60, "ema_9": 1.0, "ema_21": 1.1}},
-        )
-        == TradeDirection.PUT
-    )
+    assert veto is False
+    assert metrics.get("indicator_discordance_weak_tcn_defer") is True

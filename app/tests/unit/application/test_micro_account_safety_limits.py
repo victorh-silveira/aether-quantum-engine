@@ -20,9 +20,9 @@ def test_micro_capital_base_unit():
 
 
 def test_micro_capital_max_safe_stake_cap():
-    assert max_safe_stake_cap(100.0) == pytest.approx(3.50)
+    assert max_safe_stake_cap(100.0) == pytest.approx(2.50)
     assert max_safe_stake_cap(100.0, consecutive_losses_linear=4) == pytest.approx(4.20)
-    assert max_safe_stake_cap(300.0) == pytest.approx(10.50)
+    assert max_safe_stake_cap(300.0) == pytest.approx(7.50)
     soft = {"max_safe_stake_cap": 4.20}
     assert max_safe_stake_cap(80.0, consecutive_losses_linear=4, soft_recovery=soft) == pytest.approx(4.2)
     assert max_safe_stake_cap(70.0, consecutive_losses_linear=5, soft_recovery=soft) == pytest.approx(4.2)

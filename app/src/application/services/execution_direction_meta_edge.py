@@ -6,6 +6,7 @@ from typing import Any
 
 from src.application.services.execution_quality_gate import resolve_dynamic_quality_limits
 from src.application.services.execution_quality_gate_config import resolve_quality_gate_config
+from src.application.services.execution_tcn_conviction import tcn_high_conviction_active
 
 
 def _resolve_meta_edge_floor(
@@ -64,6 +65,9 @@ def _negative_edge_skip(
     """Bloqueia trades com edge abaixo do piso (min_payoff_edge via quality_gate)."""
     if force or not meta_applied or float(metrics.get("senior_trader_conviction", 0.0) or 0.0) >= 0.56:
         return False
+    if tcn_high_conviction_active(metrics):
+        metrics["meta_negative_edge_conviction_waiver"] = True
+        return False
     edge = metrics.get("predicted_payoff_edge")
     edge_v = float(predicted_edge) if edge is None else float(edge)
     floor = _resolve_meta_edge_floor(
@@ -75,9 +79,6 @@ def _negative_edge_skip(
         risk_manager=risk_manager,
     )
     if edge_v + 1e-12 >= floor:
-        if edge_v <= 0.0:
-            metrics["meta_negative_edge_starvation_waiver"] = True
-            metrics["meta_edge_floor"] = floor
         return False
     metrics["meta_edge_floor"] = floor
     metrics["gate_reason"] = "meta_negative_edge"

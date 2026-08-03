@@ -15,7 +15,11 @@ from src.application.services.deep_learning.dl_training_gate import min_dl_histo
 
 @pytest.fixture(autouse=True)
 def mock_torch_load(monkeypatch):
-    monkeypatch.setattr(torch, "load", lambda *args, **kwargs: {"feature_dim": FEATURE_DIM})
+    monkeypatch.setattr(
+        torch,
+        "load",
+        lambda *args, **kwargs: {"feature_dim": FEATURE_DIM, "lookback": 48, "granularity": 900},
+    )
 
 
 def test_inference_startup_enabled_when_online_training_false():
@@ -69,6 +73,7 @@ def test_all_symbols_have_checkpoints(tmp_path, monkeypatch):
         "src.application.services.deep_learning.dl_startup.resolve_dl_model_path",
         lambda _dl, symbol: tmp_path / f"{symbol}.pth",
     )
+    monkeypatch.setattr(torch, "load", lambda *a, **kw: {"feature_dim": FEATURE_DIM})
     assert all_symbols_have_checkpoints(["R_10"], {}) is True
     assert all_symbols_have_checkpoints(["R_10", "R_50"], {}) is False
 
@@ -77,12 +82,13 @@ def test_prepare_inference_run_loop_marks_bootstrap_done(tmp_path, monkeypatch):
     (tmp_path / "R_10.pth").write_bytes(b"1")
     orch = SimpleNamespace(
         symbols=["R_10"],
-        config={"deep_learning": {"online_training": False}},
+        config={"deep_learning": {"online_training": False}, "data_handler": {}},
     )
     monkeypatch.setattr(
         "src.application.services.deep_learning.dl_startup.resolve_dl_model_path",
         lambda _dl, symbol: tmp_path / f"{symbol}.pth",
     )
+    monkeypatch.setattr(torch, "load", lambda *a, **kw: {"feature_dim": FEATURE_DIM})
     assert prepare_inference_run_loop(orch) is True
     assert orch._dl_bootstrap_completed is True
 
@@ -107,9 +113,37 @@ def test_resolve_startup_fetch_bars_explicit_startup_fetch_bars(tmp_path, monkey
         "src.application.services.deep_learning.dl_startup.resolve_dl_model_path",
         lambda _dl, symbol: tmp_path / f"{symbol}.pth",
     )
+    monkeypatch.setattr(torch, "load", lambda *a, **kw: {"feature_dim": FEATURE_DIM})
     bars, mode = resolve_startup_fetch_bars(config, ["R_10"])
     assert mode == "inferencia"
     assert bars == 256
+
+
+def test_all_symbols_have_checkpoints_rejects_lookback_mismatch(tmp_path, monkeypatch):
+    path = tmp_path / "R_10.pth"
+    path.write_bytes(b"1")
+    monkeypatch.setattr(
+        "src.application.services.deep_learning.dl_startup.resolve_dl_model_path",
+        lambda _dl, symbol: tmp_path / f"{symbol}.pth",
+    )
+    monkeypatch.setattr(
+        torch,
+        "load",
+        lambda *a, **kw: {"feature_dim": FEATURE_DIM, "lookback": 128, "granularity": 60},
+    )
+    assert all_symbols_have_checkpoints(["R_10"], {"lookback": 72}, {"granularity": 600}) is False
+    monkeypatch.setattr(
+        torch,
+        "load",
+        lambda *a, **kw: {"feature_dim": FEATURE_DIM, "lookback": 72, "granularity": 60},
+    )
+    assert all_symbols_have_checkpoints(["R_10"], {"lookback": 72}, {"granularity": 600}) is False
+    monkeypatch.setattr(
+        torch,
+        "load",
+        lambda *a, **kw: {"feature_dim": FEATURE_DIM, "lookback": 72, "granularity": 600},
+    )
+    assert all_symbols_have_checkpoints(["R_10"], {"lookback": 72}, {"granularity": 600}) is True
 
 
 def test_prepare_inference_run_loop_false_without_checkpoint(tmp_path, monkeypatch):
@@ -120,6 +154,15 @@ def test_prepare_inference_run_loop_false_without_checkpoint(tmp_path, monkeypat
     monkeypatch.setattr(
         "src.application.services.deep_learning.dl_startup.resolve_dl_model_path",
         lambda _dl, symbol: tmp_path / f"{symbol}.pth",
+    )
+    assert prepare_inference_run_loop(orch) is False
+    assert not hasattr(orch, "_dl_bootstrap_completed")
+
+
+def test_prepare_inference_run_loop_false_when_online_training_enabled():
+    orch = SimpleNamespace(
+        symbols=["R_10"],
+        config={"deep_learning": {"online_training": True}, "data_handler": {}},
     )
     assert prepare_inference_run_loop(orch) is False
     assert not hasattr(orch, "_dl_bootstrap_completed")

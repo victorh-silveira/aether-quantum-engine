@@ -30,6 +30,28 @@ def test_apply_engine_mode(orch_config):
     assert orch_config["orchestrator"]["engine_mode"] == ENGINE_MODE_TRAIN
 
 
+def test_apply_engine_mode_aligns_label_horizon_to_micro_contract():
+    config = {
+        "orchestrator": {},
+        "data_handler": {"granularity": 600, "micro_granularity": 120},
+        "deep_learning": {"train_timeframe": "micro", "label_horizon_bars": 99},
+        "risk_management": {"params": {"duration": 120, "duration_unit": "s"}},
+    }
+    apply_engine_mode(config, ENGINE_MODE_TRAIN)
+    assert config["deep_learning"]["label_horizon_bars"] == 1
+
+
+def test_apply_engine_mode_aligns_label_horizon_when_contract_spans_bars():
+    config = {
+        "orchestrator": {},
+        "data_handler": {"granularity": 60, "micro_granularity": 60},
+        "deep_learning": {"train_timeframe": "macro", "label_horizon_bars": 99},
+        "risk_management": {"params": {"duration": 5, "duration_unit": "m"}},
+    }
+    apply_engine_mode(config, ENGINE_MODE_TRAIN)
+    assert config["deep_learning"]["label_horizon_bars"] == 5
+
+
 def test_apply_engine_mode_replaces_invalid_orchestrator():
     config: dict = {"orchestrator": "invalid"}
     apply_engine_mode(config, ENGINE_MODE_TRAIN)

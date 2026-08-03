@@ -139,7 +139,7 @@ def test_micro_residual_recovery_releases_gate_and_sizes_stake() -> None:
             return_value=(0.14, True),
         ),
         patch(
-            "src.application.services.execution_direction_checks.passes_execution_quality",
+            "src.application.services.execution_quality_reject.passes_execution_quality",
             return_value=True,
         ),
     ):

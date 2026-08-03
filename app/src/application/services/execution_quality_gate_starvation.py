@@ -12,12 +12,11 @@ from src.application.services.log_dedupe import LogDeduper, log_info_if_changed
 
 REDIS_SKIPPED_CYCLES_COUNTER_KEY = "state:risk:skipped_cycles_counter"
 _STARVATION_ESCAPE_LOG_PREFIX = (
-    "[AETHER] EXECUTION_FLOW | Válvula de inanição ativa. "
-    "Limite mitigado por decaimento temporal para min {min_direction_margin:.4f} | skipped_cycles={counter}"
+    "[AETHER] EXECUTION_FLOW | inanicao ativa | min={min_direction_margin:.4f} | skipped={counter}"
 )
 _PROGRESSIVE_CONVICTION_LOG_PREFIX = (
-    "[AETHER] EXECUTION_FLOW | Gatilho de Convicção Progressiva. "
-    "min_direction_margin={min_direction_margin:.4f} | factor={factor:.3f} | skipped_cycles={counter}"
+    "[AETHER] EXECUTION_FLOW | conviccao progressiva | min={min_direction_margin:.4f} | "
+    "factor={factor:.3f} | skipped={counter}"
 )
 
 

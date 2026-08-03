@@ -7,7 +7,7 @@ from typing import Any
 import torch
 
 from src.application.services.deep_learning.dl_features import FEATURE_DIM
-from src.application.services.deep_learning.dl_params import parse_dl_params
+from src.application.services.deep_learning.dl_params import parse_dl_params, resolve_dl_granularity
 from src.application.services.deep_learning.dl_symbol_runtime import resolve_dl_model_path
 from src.application.services.deep_learning.dl_training_gate import min_dl_inference_len
 from src.application.services.orchestrator.engine_mode import ENGINE_MODE_TRAIN, resolve_engine_mode
@@ -19,8 +19,14 @@ def inference_startup_enabled(dl_config: dict[str, Any] | None) -> bool:
     return not bool(dl_config.get("online_training", True))
 
 
-def all_symbols_have_checkpoints(symbols: list[str], dl_config: dict[str, Any]) -> bool:
+def all_symbols_have_checkpoints(
+    symbols: list[str],
+    dl_config: dict[str, Any],
+    data_config: dict[str, Any] | None = None,
+) -> bool:
     """Verifica se todos os simbolos possuem checkpoint PyTorch compativel no disco."""
+    expected_lookback = int(dl_config.get("lookback", 0) or 0)
+    expected_granularity = int(resolve_dl_granularity(dl_config, data_config))
     for symbol in symbols:
         path = resolve_dl_model_path(dl_config, str(symbol))
         if not path.is_file():
@@ -29,6 +35,14 @@ def all_symbols_have_checkpoints(symbols: list[str], dl_config: dict[str, Any]) 
             payload = torch.load(path, map_location=torch.device("cpu"), weights_only=True)
             feat_dim = int(payload.get("feature_dim", payload.get("input_dim", 0)))
             if feat_dim != FEATURE_DIM:
+                return False
+            if expected_lookback > 0 and int(payload.get("lookback", 0) or 0) != expected_lookback:
+                return False
+            if (
+                expected_granularity > 0
+                and "granularity" in payload
+                and int(payload["granularity"]) != expected_granularity
+            ):
                 return False
         except Exception:
             return False
@@ -44,7 +58,7 @@ def resolve_startup_fetch_bars(config: dict[str, Any], symbols: list[str]) -> tu
     if (
         is_training_mode
         or not inference_startup_enabled(dl_config)
-        or not all_symbols_have_checkpoints(symbols, dl_config)
+        or not all_symbols_have_checkpoints(symbols, dl_config, data_config)
     ):
         if "fetch_count" in data_config:
             return max(1, int(data_config["fetch_count"])), "treino"
@@ -62,9 +76,10 @@ def resolve_startup_fetch_bars(config: dict[str, Any], symbols: list[str]) -> tu
 def prepare_inference_run_loop(orch: Any) -> bool:
     """Marca bootstrap concluido quando modelos em disco estao prontos para operar."""
     dl_config = orch.config.get("deep_learning") or {}
+    data_config = orch.config.get("data_handler") or {}
     if not inference_startup_enabled(dl_config):
         return False
-    if not all_symbols_have_checkpoints(orch.symbols, dl_config):
+    if not all_symbols_have_checkpoints(orch.symbols, dl_config, data_config):
         return False
     orch._dl_bootstrap_completed = True
     return True

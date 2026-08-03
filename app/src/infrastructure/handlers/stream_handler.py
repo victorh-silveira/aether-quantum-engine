@@ -14,6 +14,7 @@ from src.infrastructure.handlers.stream_ohlc_fetch import fetch_candle_close_row
 from src.infrastructure.handlers.stream_reconnect import execute_stream_reconnect
 from src.infrastructure.handlers.stream_tick_sidecar import handle_stream_tick, persist_closed_bar
 from src.infrastructure.handlers.stream_timeframe import (
+    granularity_label,
     ohlc_payload_granularity,
     resolve_dual_granularity,
     resolve_micro_fetch_count,
@@ -105,17 +106,27 @@ class StreamHandler:
             if symbol_delay > 0:
                 await asyncio.sleep(symbol_delay)
         if self.symbols:
-            bars = len(self.macro_candles.get(self.symbols[0], []))
-            self.logger.info("DATA | buffer macro %d simbolos x %d velas M15", len(self.symbols), bars)
+            macro_bars = len(self.macro_candles.get(self.symbols[0], []))
+            micro_bars = len(self.micro_candles.get(self.symbols[0], []))
+            self.logger.info(
+                "DATA | buffer %d simbolos | macro=%s x%d | micro=%s x%d",
+                len(self.symbols),
+                granularity_label(self.macro_granularity),
+                macro_bars,
+                granularity_label(self.micro_granularity),
+                micro_bars,
+            )
         if not self.ws.is_running:
             raise ConnectionError("STREAM: WebSocket desconectado após sincronização histórica.")
         self.ws.subscribe("ohlc", self._on_candle)
         self.ws.subscribe("tick", self._on_tick)
         self.candle_callback = callback
         self.logger.debug(
-            "STRM: Ativando fluxos M15=%ss e M5=%ss para %d simbolos",
+            "STRM: Ativando fluxos macro=%ss (%s) e micro=%ss (%s) para %d simbolos",
             self.macro_granularity,
+            granularity_label(self.macro_granularity),
             self.micro_granularity,
+            granularity_label(self.micro_granularity),
             len(self.symbols),
         )
         await subscribe_candle_streams(self.ws, self.symbols, self.macro_granularity)
@@ -182,7 +193,7 @@ class StreamHandler:
             await self._apply_micro_candle(symbol, candle)
 
     async def _apply_macro_candle(self, symbol: str, candle: Candle):
-        """Atualiza buffer macro M15 e microestrutura por barra fechada."""
+        """Atualiza buffer macro e microestrutura por barra fechada."""
         if symbol not in self.macro_candles:
             return
         result = apply_candle_update(
@@ -205,7 +216,7 @@ class StreamHandler:
         self.tick_buffer.on_bar_update(symbol, candle.epoch)
 
     async def _apply_micro_candle(self, symbol: str, candle: Candle):
-        """Atualiza buffer micro M5 e dispara callback operacional."""
+        """Atualiza buffer micro e dispara callback operacional."""
         if symbol not in self.micro_candles:
             return
         apply_candle_update(
@@ -223,11 +234,11 @@ class StreamHandler:
         await handle_stream_tick(self, data)
 
     def get_numpy_series(self, symbol: str, field: str = "close") -> np.ndarray:
-        """Retorna serie numpy macro M15 para deep learning."""
+        """Retorna serie numpy macro para deep learning."""
         return self._series_from_store(self.macro_candles, symbol, field)
 
     def get_micro_numpy_series(self, symbol: str, field: str = "close") -> np.ndarray:
-        """Retorna serie numpy micro M5 para assinatura operacional."""
+        """Retorna serie numpy micro para assinatura operacional."""
         return self._series_from_store(self.micro_candles, symbol, field)
 
     @staticmethod
@@ -239,11 +250,11 @@ class StreamHandler:
         return np.array([getattr(c, field) for c in history])
 
     def get_last_candle_epoch(self, symbol: str) -> int | None:
-        """Retorna epoch da ultima vela macro M15."""
+        """Retorna epoch da ultima vela macro."""
         return self._last_epoch_from_store(self.macro_candles, symbol)
 
     def get_last_micro_candle_epoch(self, symbol: str) -> int | None:
-        """Retorna epoch da ultima vela micro M5."""
+        """Retorna epoch da ultima vela micro."""
         return self._last_epoch_from_store(self.micro_candles, symbol)
 
     @staticmethod

@@ -51,8 +51,10 @@ def test_resolve_price_zone_config_clamps_and_normalizes_weights():
     )
     assert cfg["sell_min"] == pytest.approx(0.4)
     assert cfg["bb_weight"] + cfg["keltner_weight"] == pytest.approx(1.0)
-    assert resolve_price_zone_config(None)["enabled"] is False
+    assert resolve_price_zone_config(None)["enabled"] is True
     assert resolve_price_zone_config(None)["neutral_mode"] == "nearest"
+    assert resolve_price_zone_config(None)["buy_max"] == pytest.approx(0.42)
+    assert resolve_price_zone_config(None)["sell_min"] == pytest.approx(0.58)
 
 
 def test_resolve_price_zone_nearest_mid_band():
@@ -121,7 +123,13 @@ def test_direction_allowed_buy_requires_call_and_trend():
 
 def test_direction_allowed_trend_from_votes_and_tcn_conflict():
     cfg = resolve_price_zone_config(_zone_cfg(require_trend_agreement=True, require_tcn_agreement=True))
-    metrics = {"call_votes": 5, "put_votes": 1, "dl_direction": "PUT"}
+    metrics = {
+        "call_votes": 5,
+        "put_votes": 1,
+        "dl_direction": "PUT",
+        "direction_margin": 0.20,
+        "calibrated_prob": 0.30,
+    }
     assert (
         direction_allowed_for_zone(ZONE_BUY, TradeDirection.CALL, metrics, cfg, tcn_direction=TradeDirection.CALL)
         is False
@@ -171,13 +179,45 @@ def test_apply_price_zone_gate_reasons():
     )
     assert (
         apply_price_zone_gate(
-            {"bb_pct_b": 0.2, "keltner": 0.2, "trend_direction": "CALL"},
+            {
+                "bb_pct_b": 0.2,
+                "keltner": 0.2,
+                "trend_direction": "CALL",
+                "direction_margin": 0.20,
+                "calibrated_prob": 0.30,
+            },
             TradeDirection.CALL,
             _zone_cfg(),
             tcn_direction=TradeDirection.PUT,
         )
         == "price_zone_tcn_conflict"
     )
+    assert (
+        apply_price_zone_gate(
+            {
+                "bb_pct_b": 0.2,
+                "keltner": 0.2,
+                "trend_direction": "CALL",
+                "direction_margin": 0.02,
+                "calibrated_prob": 0.52,
+            },
+            TradeDirection.CALL,
+            _zone_cfg(),
+            tcn_direction=TradeDirection.PUT,
+        )
+        is None
+    )
+    weak_metrics = {
+        "bb_pct_b": 0.2,
+        "keltner": 0.2,
+        "trend_direction": "CALL",
+        "direction_margin": 0.02,
+        "calibrated_prob": 0.52,
+    }
+    assert (
+        apply_price_zone_gate(weak_metrics, TradeDirection.CALL, _zone_cfg(), tcn_direction=TradeDirection.PUT) is None
+    )
+    assert weak_metrics.get("price_zone_tcn_weak_defer") is True
     assert apply_price_zone_gate({"bb_pct_b": 0.2}, TradeDirection.CALL, {"price_zone": {"enabled": False}}) is None
 
 

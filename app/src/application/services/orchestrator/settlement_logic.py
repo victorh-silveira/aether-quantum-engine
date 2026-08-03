@@ -7,6 +7,7 @@ from typing import Any
 from src.application.services.execution_quality_gate_starvation import (
     reset_quality_skipped_cycles_counter_for_orch,
 )
+from src.application.services.log_dedupe import log_warning_if_changed
 from src.application.services.market_audit_log import (
     format_settlement_audit_line,
     pop_contract_audit,
@@ -238,7 +239,14 @@ async def process_contract_settlement(orch: Any, data: dict):
     c_id = int(c_id)
 
     if not orch.ws.is_running:
-        orch.logger.warning("SETTLE: Broker offline. Enfileirando contrato %d no Redis.", c_id)
+        log_warning_if_changed(
+            orch,
+            orch.logger,
+            f"settle_broker_offline:{c_id}",
+            "offline",
+            "SETTLE: Broker offline. Enfileirando contrato %d no Redis.",
+            c_id,
+        )
         await push_to_redis_priority_queue(orch, data)
         return
 

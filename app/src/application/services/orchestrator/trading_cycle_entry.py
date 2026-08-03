@@ -81,7 +81,7 @@ async def acquire_trading_cycle_lock(orch: Any) -> bool:
 async def _execute_inference_cluster_cycle(orch: Any) -> bool:
     """Coleta inferencia DL e executa cluster quando o warm-up micro ja liberou o ciclo."""
     await prepare_quality_skipped_cycles_counter(orch)
-    orch.loss_tracker.prune_obsolete_direction_losses(max_age_seconds=120.0)
+    orch.loss_tracker.prune_obsolete_direction_losses(max_age_seconds=600.0)
     orch.logger.debug(
         "[C%04d] CICLO: coletando decisoes DL (%d simbolos)",
         orch._active_cycle_id,

@@ -19,7 +19,7 @@ Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (TCN,
 | Ciclo | **60 s** (`cycle_interval_seconds` / `signature_boundary_seconds`) |
 | Execução | **Mandatória** (`mandatory_trade_each_cycle: true`; `force` off) + alinhamento `price_zone` |
 | Fail-closed | Meta e Triton **opcionais** nos settings atuais (`require_meta_for_execution: false`; `infra.triton.enabled/require_for_execution: false`) |
-| Label | `label_mode: ma_trend` (`spot_forward` / Triple Barrier via config) |
+| Label | `label_mode: spot_forward` (`ma_trend` / Triple Barrier via config) |
 | Meta sessão | Stop win **3,00%** (`compounding_rate_daily: 0.03`); stop loss desativado |
 
 O mercado é tratado como série temporal ruidosa: a TCN estima `P(CALL)` (thresholds **0.55/0.45**); o meta-regressor LightGBM estima `predicted_payoff_edge`; o ranking usa `tcn × max(0.1, 1+z)`. Com `price_zone`, BUY alinha CALL e SELL alinha PUT; edge meta positivo pode **manter** o lado TCN/meta contra a zona (`align_or_keep_meta_side`).

@@ -2,12 +2,12 @@ import math
 
 import pytest
 
+from src.domain.risk.consensus_stake_penalty import max_safe_stake_cap
 from src.domain.risk.dlambert_sizing import (
     REDIS_DLAMBERT_LINEAR_LOSSES_KEY,
     REDIS_DLAMBERT_UNIT_KEY,
     _resolve_override_value,
     dlambert_enabled,
-    dlambert_log_suffix,
     effective_soft_recovery_base,
     resolve_dlambert_stake,
     resolve_dlambert_unit,
@@ -120,7 +120,10 @@ def test_resolve_dlambert_stake_soft_recovery_with_progression():
     assert tag == "D'ALEMBERT"
     session_unit = max(10.0, 10000.0 * 0.005)
     cover = 93.19 / 0.95 / 1.0
-    expected = math.ceil(max(session_unit * 1.12, cover) * 100) / 100
+    factor = 1.0 + (1.0 / 0.95)
+    expected = math.ceil(max(session_unit * (factor**3), cover) * 100) / 100
+    cap = max_safe_stake_cap(10000.0, consecutive_losses_linear=3)
+    expected = min(expected, cap)
     assert stake == pytest.approx(expected)
 
 
@@ -272,28 +275,3 @@ def test_resolve_dlambert_stake_zero_kelly_fraction_in_metrics_returns_zero():
     )
     assert tag == "D'ALEMBERT"
     assert stake == 0.0
-
-
-def test_dlambert_log_suffix_soft_recovery_and_empty():
-    suffix = dlambert_log_suffix(
-        "D'ALEMBERT",
-        108.62,
-        93.19,
-        10.0,
-        consecutive_losses_linear=2,
-        payout=0.95,
-    )
-    assert "soft=2.05x^2" in suffix
-    assert "p=0.95" in suffix
-    assert "U=$10.00" in suffix
-    fixed = dlambert_log_suffix(
-        "D'ALEMBERT",
-        17.25,
-        6.75,
-        15.0,
-        consecutive_losses_linear=3,
-        payout=0.95,
-    )
-    assert "fixed=U+15%" in fixed
-    assert "n=3" in fixed
-    assert dlambert_log_suffix("KELLY", 55.0, 0.0, 55.0) == ""

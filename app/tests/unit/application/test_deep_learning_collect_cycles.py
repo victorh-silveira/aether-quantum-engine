@@ -67,7 +67,7 @@ async def test_collect_skips_train_on_same_candle():
         val_accuracy=0.6,
         val_brier=0.2,
         deploy_ok=True,
-        granularity=60,
+        granularity=900,
     )
     orch.config["deep_learning"]["train_on_new_candle_only"] = True
     orch.config["deep_learning"]["min_val_accuracy"] = 0.0
@@ -105,7 +105,7 @@ async def test_collect_predict_runs_each_cycle_same_candle():
         val_accuracy=0.6,
         val_brier=0.2,
         deploy_ok=True,
-        granularity=60,
+        granularity=900,
     )
     orch.config["deep_learning"]["train_on_new_candle_only"] = True
     orch.config["deep_learning"]["min_val_accuracy"] = 0.0
@@ -207,7 +207,7 @@ async def test_collect_decisions_exceptions_and_load():
         path = Path(tmp) / "R_10.pth"
         model = MarketDirectionClassifier(input_dim=INPUT_DIM)
         stats = fit_norm_stats(np.zeros((5, INPUT_DIM), dtype=np.float32))
-        save_model_checkpoint(path, model, stats, last_candle_epoch=99, lookback=15, arch="tcn", granularity=60)
+        save_model_checkpoint(path, model, stats, last_candle_epoch=99, lookback=15, arch="tcn", granularity=900)
         orch.config["deep_learning"]["model_path_template"] = f"{tmp}/{{symbol}}.pth"
         if hasattr(orch, "_dl_runtime"):
             orch._dl_runtime.clear()

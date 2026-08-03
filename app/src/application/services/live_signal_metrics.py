@@ -8,6 +8,7 @@ from typing import Any
 
 from src.application.services.live_signal_metrics_config import load_live_signal_metrics_from_settings
 from src.application.services.log_dedupe import log_info_if_changed
+from src.domain.analytics.sample_size_policy import attach_sample_size_metrics, load_sample_size_policy
 
 
 logger = logging.getLogger("AETH")
@@ -119,6 +120,7 @@ def attach_live_signal_metrics(orch: Any | None, symbol: str, metrics: dict[str,
     metrics["live_wr"] = float(snap["live_wr"])
     metrics["live_brier"] = float(snap["live_brier"])
     metrics["live_ece"] = float(snap["live_ece"])
+    attach_sample_size_metrics(metrics, int(snap["live_n"]))
 
 
 def apply_live_calib_drift_soft(
@@ -127,7 +129,7 @@ def apply_live_calib_drift_soft(
     orch: Any | None = None,
     symbol: str | None = None,
 ) -> bool:
-    """Marca soft veto de calib drift quando ECE e WR divergem do raw."""
+    """Marca soft veto de calib drift so com N suficiente (Lei dos Grandes Numeros)."""
     n = int(metrics.get("live_n", 0) or 0)
     ece = metrics.get("live_ece")
     wr = metrics.get("live_wr")
@@ -135,6 +137,9 @@ def apply_live_calib_drift_soft(
     metrics["calib_drift_soft"] = False
     metrics["calib_drift_soft_penalty"] = 0.0
     if ece is None or wr is None or raw is None:
+        return False
+    policy = load_sample_size_policy()
+    if n < int(policy["calib_soft_min_n"]):
         return False
     raw_side = max(float(raw), 1.0 - float(raw))
     inconsistent = abs(float(wr) - float(raw_side)) > 0.12

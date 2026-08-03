@@ -135,10 +135,10 @@ async def test_push_to_redis_priority_queue_error_block(orch_ready):
             "src.application.services.orchestrator.settlement_queue_ops.get_redis_client",
             new=AsyncMock(return_value=mock_redis),
         ),
-        patch.object(orch.logger, "error") as mock_err,
+        patch.object(orch.logger, "warning") as mock_warn,
     ):
         await push_to_redis_priority_queue(orch, {"proposal_open_contract": {"contract_id": 999}})
-        mock_err.assert_called_once()
+        mock_warn.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -237,3 +237,64 @@ async def test_process_redis_settlement_queue_exception_handling(orch_ready):
     ):
         await process_redis_settlement_queue(orch)
         mock_warn.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_get_redis_client_uses_infra_url_and_timeouts():
+    from src.application.services.orchestrator.settlement_queue_ops import get_redis_client
+
+    orch = MagicMock()
+    orch.state_store = MagicMock(spec=[])
+    orch.config = {
+        "infra": {
+            "redis": {
+                "url": "redis://127.0.0.1:6379/0",
+                "socket_connect_timeout_seconds": 1.25,
+                "socket_timeout_seconds": 4.5,
+            }
+        }
+    }
+    fake = AsyncMock()
+    with patch(
+        "src.application.services.orchestrator.settlement_queue_ops.aioredis.from_url",
+        return_value=fake,
+    ) as from_url:
+        client = await get_redis_client(orch)
+    assert client is fake
+    assert from_url.call_args.args[0] == "redis://127.0.0.1:6379/0"
+    assert from_url.call_args.kwargs["socket_connect_timeout"] == pytest.approx(1.25)
+    assert from_url.call_args.kwargs["socket_timeout"] == pytest.approx(4.5)
+
+
+@pytest.mark.asyncio
+async def test_push_to_redis_priority_queue_dedupes_same_contract(orch_ready):
+    orch = orch_ready
+    mock_redis = AsyncMock()
+    with patch(
+        "src.application.services.orchestrator.settlement_queue_ops.get_redis_client",
+        new=AsyncMock(return_value=mock_redis),
+    ):
+        payload = {"proposal_open_contract": {"contract_id": 777, "is_settled": 1}}
+        await push_to_redis_priority_queue(orch, payload)
+        await push_to_redis_priority_queue(orch, payload)
+        await push_to_redis_priority_queue(orch, {"proposal_open_contract": {"contract_id": "bad"}})
+        await push_to_redis_priority_queue(orch, {"proposal_open_contract": {}})
+    assert mock_redis.zadd.await_count == 1
+    mock_redis.zremrangebyscore.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_get_redis_client_ignores_non_dict_redis_block():
+    from src.application.services.orchestrator.settlement_queue_ops import get_redis_client
+
+    orch = MagicMock()
+    orch.state_store = MagicMock(spec=[])
+    orch.config = {"redis": "bad"}
+    fake = AsyncMock()
+    with patch(
+        "src.application.services.orchestrator.settlement_queue_ops.aioredis.from_url",
+        return_value=fake,
+    ) as from_url:
+        assert await get_redis_client(orch) is fake
+    assert from_url.call_args.args[0] == "redis://127.0.0.1:6379/0"
+    assert from_url.call_args.kwargs["socket_timeout"] == pytest.approx(15.0)

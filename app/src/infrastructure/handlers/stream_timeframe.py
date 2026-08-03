@@ -28,7 +28,7 @@ def ohlc_payload_granularity(ohlc: dict, macro: int, micro: int) -> int:
 
 
 def resolve_micro_fetch_count(data_config: dict) -> int:
-    """Quantidade de velas M5 a sincronizar para o relogio operacional."""
+    """Quantidade de velas micro a sincronizar para o relogio operacional."""
     if "micro_fetch_count" in data_config:
         return max(1, int(data_config["micro_fetch_count"]))
     micro_bars = int(data_config.get("micro_history_bars", 0))
@@ -36,6 +36,18 @@ def resolve_micro_fetch_count(data_config: dict) -> int:
         return micro_bars
     startup = int(data_config.get("startup_fetch_bars", 512))
     return max(64, min(startup, 512))
+
+
+def granularity_label(seconds: int) -> str:
+    """Rotulo curto de timeframe a partir da granularidade em segundos."""
+    sec = max(1, int(seconds))
+    if sec >= 86400:
+        return f"D{sec // 86400}"
+    if sec >= 3600:
+        return f"H{sec // 3600}"
+    if sec >= 60:
+        return f"M{sec // 60}"
+    return f"S{sec}"
 
 
 async def subscribe_candle_streams(ws: Any, symbols: list[str], granularity: int) -> None:

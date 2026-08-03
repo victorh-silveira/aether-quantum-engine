@@ -220,6 +220,38 @@ async def test_stream_reconnect_helpers():
 
 
 @pytest.mark.asyncio
+async def test_watchdog_reconnect_cooldown_skips_repeat():
+    orch = MagicMock()
+    orch.running = True
+    orch.ws.is_running = True
+    orch.stream.is_synchronized = True
+    loop = asyncio.get_running_loop()
+    orch.stream.tick_buffer.last_tick_monotonic = MagicMock(return_value=loop.time() - 100.0)
+    orch._stream_ready_mono = 0.0
+    orch._save_full_state = AsyncMock()
+    orch.stream.reconnect_stream = AsyncMock(return_value=True)
+    watchdog = AetherWatchdog(orch, stale_seconds=30.0, reconnect_cooldown_seconds=90.0)
+    await watchdog._evaluate()
+    orch.stream.reconnect_stream.assert_awaited_once()
+    orch.stream.reconnect_stream.reset_mock()
+    await watchdog._evaluate()
+    orch.stream.reconnect_stream.assert_not_awaited()
+    assert watchdog.state == WatchdogState.STALE_DATA
+
+
+@pytest.mark.asyncio
+async def test_watchdog_recover_stale_stream_cooldown_early_return():
+    orch = MagicMock()
+    orch._save_full_state = AsyncMock()
+    orch.stream.reconnect_stream = AsyncMock(return_value=True)
+    watchdog = AetherWatchdog(orch, stale_seconds=30.0, reconnect_cooldown_seconds=90.0)
+    loop = asyncio.get_running_loop()
+    watchdog._last_reconnect_mono = loop.time()
+    await watchdog._recover_stale_stream(100.0)
+    orch.stream.reconnect_stream.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_start_ingestion_watchdog_disabled():
     orch = MagicMock()
     orch.config = {"orchestrator": {"watchdog_enabled": False}}

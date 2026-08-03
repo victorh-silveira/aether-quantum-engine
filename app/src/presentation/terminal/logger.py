@@ -34,7 +34,7 @@ class BlankLineSquasher(logging.Filter):
 
 
 class CooldownDeduplicationFilter(logging.Filter):
-    """Filtro de log que suprime mensagens de cooldown idênticas no mesmo tick do relógio do loop/segundo."""
+    """Filtro de log que suprime mensagens de cooldown idênticas no mesmo tick."""
 
     def __init__(self) -> None:
         """Inicializa o filtro com um dicionário de últimas mensagens vistas."""
@@ -55,6 +55,38 @@ class CooldownDeduplicationFilter(logging.Filter):
             if self._last_seen.get(key) == tick:
                 return False
             self._last_seen[key] = tick
+        return True
+
+
+class SettlementSpamFilter(logging.Filter):
+    """Suprime repeticoes identicas de SETTLE/WARMUP/EXECUTION_FLOW no mesmo segundo."""
+
+    def __init__(self) -> None:
+        """Inicializa o filtro com cache de ultima mensagem por canal."""
+        super().__init__()
+        self._last_seen: dict[str, int] = {}
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Descarta spam SETTLE/WARMUP/EXECUTION_FLOW repetido no mesmo segundo."""
+        msg = str(record.getMessage() or "")
+        markers = (
+            "Enfileirando contrato",
+            "enfileirado no Redis",
+            "Erro ao ler fila de prioridade do Redis",
+            "Falha ao enfileirar no Redis",
+            "[AETHER] EXECUTION_FLOW |",
+            "[AETHER] WARMUP |",
+        )
+        if not any(marker in msg for marker in markers):
+            return True
+        try:
+            loop = asyncio.get_running_loop()
+            tick = int(loop.time())
+        except RuntimeError:
+            tick = int(time.time())
+        if self._last_seen.get(msg) == tick:
+            return False
+        self._last_seen[msg] = tick
         return True
 
 
@@ -92,6 +124,7 @@ def setup_logger(name: str, log_file: str = None):
     logger.setLevel(logging.INFO)
     logger.addFilter(BlankLineSquasher())
     logger.addFilter(CooldownDeduplicationFilter())
+    logger.addFilter(SettlementSpamFilter())
 
     formatter = AetherFormatter("%(asctime)s | %(levelname)s | %(message)s", datefmt="%H:%M:%S")
 

@@ -59,13 +59,15 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
         orch._dl_runtime = {}
     if symbol not in orch._dl_runtime:
         path = resolve_dl_model_path(dl_config, symbol)
+        expected_lookback = int(params.get("lookback", 30))
+        expected_granularity = granularity_seconds(orch)
         loaded = load_model_checkpoint(path, params=params)
         calibrator = CalibratorState()
-        lookback = int(params.get("lookback", 30))
+        lookback = expected_lookback
         deploy_ok = False
         deploy_win_rate = 0.0
         session_trained = False
-        checkpoint_granularity = 60
+        checkpoint_granularity = expected_granularity
         if path.exists():
             try:
                 payload = torch.load(path, map_location=torch.device("cpu"), weights_only=True)
@@ -79,13 +81,26 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
                 norm_stats,
                 last_epoch,
                 calibrator,
-                lookback,
+                ckpt_lookback,
                 val_accuracy,
                 val_brier,
                 val_ece,
                 deploy_ok,
                 deploy_win_rate,
             ) = loaded
+            if int(ckpt_lookback) != expected_lookback or int(checkpoint_granularity) != int(expected_granularity):
+                logger.info(
+                    "DL: Checkpoint %s incompativel (lb=%s/%s gran=%s/%s); retreino.",
+                    symbol,
+                    ckpt_lookback,
+                    expected_lookback,
+                    checkpoint_granularity,
+                    expected_granularity,
+                )
+                loaded = None
+                checkpoint_granularity = expected_granularity
+        if loaded is not None:
+            lookback = int(ckpt_lookback)
             if bool(dl_config.get("online_training", True)):
                 session_trained = bool(deploy_ok) and float(val_brier) + 1e-9 < 0.99
             else:
@@ -108,6 +123,10 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
             val_accuracy = 0.0
             val_brier = 1.0
             val_ece = 1.0
+            deploy_ok = False
+            deploy_win_rate = 0.0
+            session_trained = False
+            calibrator = CalibratorState()
         inference_device = resolve_torch_device(dl_config, kind="inference")
         if not triton_enabled(orch.config):
             place_model(model, inference_device)

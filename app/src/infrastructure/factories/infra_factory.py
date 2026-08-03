@@ -49,8 +49,10 @@ def create_infra_services(config: dict[str, Any]) -> InfraServices:
     ts_cfg = cfg.get("timescale") if isinstance(cfg.get("timescale"), dict) else {}
     minio_cfg = cfg.get("minio") if isinstance(cfg.get("minio"), dict) else {}
     state_store = RedisStateStore(
-        url=str(redis_cfg.get("url", "redis://localhost:6379/0")),
+        url=str(redis_cfg.get("url", "redis://127.0.0.1:6379/0")),
         key_prefix=str(redis_cfg.get("key_prefix", "aether")),
+        socket_connect_timeout=float(redis_cfg.get("socket_connect_timeout_seconds", 2.0)),
+        socket_timeout=float(redis_cfg.get("socket_timeout_seconds", 15.0)),
     )
     market_writer = TimescaleMarketWriter(
         dsn=str(ts_cfg.get("dsn", "postgresql://aether:aether@localhost:5432/aether")),

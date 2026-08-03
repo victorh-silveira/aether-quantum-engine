@@ -6,6 +6,7 @@ from src.application.services.side_equilibrium_gate import (
 )
 from src.application.services.side_equilibrium_helpers import log_side_eq_flip, thin_margin_blocks_flip
 from src.application.services.side_equilibrium_store import record_side_equilibrium_outcome
+from src.domain.analytics.sample_size_policy import load_sample_size_policy
 from src.domain.analytics.side_equilibrium import ACTION_PASS, SideEquilibriumDecision
 from src.domain.models.trade import TradeDirection
 
@@ -16,7 +17,7 @@ def _orch_with_side_eq(**overrides):
             "execution": {
                 "side_equilibrium": {
                     "enabled": True,
-                    "small_window": 12,
+                    "small_window": 24,
                     "large_window": 100,
                     "n_min_small": 2,
                     "n_min_large": 40,
@@ -34,7 +35,12 @@ def _orch_with_side_eq(**overrides):
     return type("O", (), {"config": cfg, "_side_equilibrium_hist": {}})()
 
 
-def test_side_eq_rejects_flip_against_price_zone():
+def test_side_eq_rejects_flip_against_price_zone(monkeypatch):
+    policy = {**load_sample_size_policy(), "toxic_side_n_min": 3}
+    monkeypatch.setattr(
+        "src.application.services.side_equilibrium_helpers.load_sample_size_policy",
+        lambda override=None: dict(policy),
+    )
     orch = _orch_with_side_eq(n_min_small=2, wr_floor_small=0.40, freq_bias_max_small=0.70)
     for _ in range(4):
         record_side_equilibrium_outcome(orch, "R_10", direction="CALL", won=True)
@@ -51,9 +57,9 @@ def test_side_eq_rejects_flip_against_price_zone():
 
 def test_side_eq_toxic_escape_allows_flip_against_zone():
     orch = _orch_with_side_eq(n_min_small=2, wr_floor_small=0.40, freq_bias_max_small=0.70)
-    for _ in range(2):
+    for _ in range(8):
         record_side_equilibrium_outcome(orch, "R_10", direction="PUT", won=False)
-    for _ in range(3):
+    for _ in range(8):
         record_side_equilibrium_outcome(orch, "R_10", direction="CALL", won=True)
     metrics = {"price_zone_direction": "PUT"}
     chosen = resolve_direction_with_side_equilibrium(orch, "R_10", TradeDirection.PUT, metrics)
@@ -66,9 +72,9 @@ def test_side_eq_toxic_escape_allows_flip_against_zone():
 def test_side_eq_flip_logs_once_when_resolve_called_twice():
     orch = _orch_with_side_eq(n_min_small=2, wr_floor_small=0.40, freq_bias_max_small=0.70)
     orch._active_cycle_id = 7
-    for _ in range(2):
+    for _ in range(8):
         record_side_equilibrium_outcome(orch, "R_10", direction="PUT", won=False)
-    for _ in range(3):
+    for _ in range(8):
         record_side_equilibrium_outcome(orch, "R_10", direction="CALL", won=True)
     metrics: dict = {}
     with patch("src.application.services.side_equilibrium_helpers.logger") as mock_logger:
@@ -102,7 +108,7 @@ def test_side_eq_log_once_per_cycle_even_with_different_sides():
 
 def test_side_eq_both_sides_hard_skip_returns_none_and_blocks_replay():
     orch = _orch_with_side_eq(n_min_small=2, wr_floor_small=0.40, freq_bias_max_small=0.70)
-    for _ in range(2):
+    for _ in range(8):
         record_side_equilibrium_outcome(orch, "R_10", direction="PUT", won=False)
         record_side_equilibrium_outcome(orch, "R_10", direction="CALL", won=False)
     metrics: dict = {}
@@ -155,9 +161,9 @@ def test_thin_margin_blocks_flip_invalid_margin():
     assert thin_margin_blocks_flip({"direction_margin": object()}) is False
 
 
-def test_side_eq_recovery_keeps_when_both_sides_hard_skip():
+def test_side_eq_recovery_blocks_when_both_sides_hard_skip_toxic():
     orch = _orch_with_side_eq(n_min_small=2, wr_floor_small=0.40, freq_bias_max_small=0.70)
-    for _ in range(2):
+    for _ in range(8):
         record_side_equilibrium_outcome(orch, "R_10", direction="PUT", won=False)
         record_side_equilibrium_outcome(orch, "R_10", direction="CALL", won=False)
     metrics: dict = {}
@@ -168,17 +174,31 @@ def test_side_eq_recovery_keeps_when_both_sides_hard_skip():
         metrics,
         recovery_active=True,
     )
-    assert chosen == TradeDirection.PUT
-    assert metrics.get("side_eq_recovery_both_hard") is True
+    assert chosen is None
+    assert metrics.get("side_eq_blocked") is True
+    assert metrics.get("side_eq_recovery_both_hard") is not True
 
 
-def test_side_eq_recovery_keeps_on_zone_conflict():
+def test_side_eq_tcn_lock_skips_hard_skip_instead_of_soft_keep():
     orch = _orch_with_side_eq(n_min_small=2, wr_floor_small=0.40, freq_bias_max_small=0.70)
-    for _ in range(4):
-        record_side_equilibrium_outcome(orch, "R_10", direction="PUT", won=True)
-    for _ in range(4):
+    for _ in range(8):
         record_side_equilibrium_outcome(orch, "R_10", direction="PUT", won=False)
-    for _ in range(3):
+    for _ in range(8):
+        record_side_equilibrium_outcome(orch, "R_10", direction="CALL", won=True)
+    metrics = {"direction_margin": 0.35, "calibrated_prob": 0.15}
+    chosen = resolve_direction_with_side_equilibrium(orch, "R_10", TradeDirection.PUT, metrics)
+    assert chosen is None
+    assert metrics.get("side_eq_blocked") is True
+    assert metrics.get("gate_reason") == "side_imbalance_tcn_lock_skip"
+    assert metrics.get("side_eq_tcn_lock") is True
+    assert metrics.get("side_eq_tcn_lock_keep") is not True
+
+
+def test_side_eq_recovery_toxic_escapes_zone_instead_of_soft_keep():
+    orch = _orch_with_side_eq(n_min_small=2, wr_floor_small=0.40, freq_bias_max_small=0.70)
+    for _ in range(8):
+        record_side_equilibrium_outcome(orch, "R_10", direction="PUT", won=False)
+    for _ in range(8):
         record_side_equilibrium_outcome(orch, "R_10", direction="CALL", won=True)
     metrics = {"price_zone_direction": "PUT", "direction_margin": 0.08}
     chosen = resolve_direction_with_side_equilibrium(
@@ -188,5 +208,83 @@ def test_side_eq_recovery_keeps_on_zone_conflict():
         metrics,
         recovery_active=True,
     )
-    assert chosen == TradeDirection.PUT
+    assert chosen == TradeDirection.CALL
+    assert metrics.get("side_eq_toxic_zone_escape") is True
+    assert metrics.get("side_eq_recovery_zone_keep") is not True
+
+
+def test_side_eq_recovery_blocks_toxic_hard_skip():
+    orch = _orch_with_side_eq(n_min_small=2, wr_floor_small=0.40, freq_bias_max_small=0.70)
+    for _ in range(8):
+        record_side_equilibrium_outcome(orch, "R_10", direction="PUT", won=False)
+    metrics: dict = {"direction_margin": 0.012}
+    chosen = resolve_direction_with_side_equilibrium(
+        orch,
+        "R_10",
+        TradeDirection.PUT,
+        metrics,
+        recovery_active=True,
+    )
+    assert chosen is None
+    assert metrics.get("side_eq_blocked") is True
+    assert metrics.get("side_eq_recovery_keep") is not True
+
+
+def test_side_eq_mandatory_no_longer_waives_flip_not_better():
+    orch = _orch_with_side_eq(n_min_small=2, wr_floor_small=0.40, freq_bias_max_small=0.70)
+    for _ in range(2):
+        record_side_equilibrium_outcome(orch, "R_10", direction="PUT", won=False)
+    metrics: dict = {"direction_margin": 0.012, "predicted_payoff_edge": -0.02}
+    chosen = resolve_direction_with_side_equilibrium(
+        orch,
+        "R_10",
+        TradeDirection.PUT,
+        metrics,
+    )
+    assert chosen is None
+    assert metrics.get("gate_reason") == "side_imbalance_flip_not_better"
+    assert metrics.get("side_eq_mandatory_keep") is not True
+
+
+def test_side_eq_blocks_thin_margin_flip_outside_recovery(monkeypatch):
+    policy = {**load_sample_size_policy(), "toxic_side_n_min": 3}
+    monkeypatch.setattr(
+        "src.application.services.side_equilibrium_helpers.load_sample_size_policy",
+        lambda override=None: dict(policy),
+    )
+    orch = _orch_with_side_eq(n_min_small=2, wr_floor_small=0.40, freq_bias_max_small=0.70)
+    for _ in range(4):
+        record_side_equilibrium_outcome(orch, "R_10", direction="PUT", won=True)
+    for _ in range(4):
+        record_side_equilibrium_outcome(orch, "R_10", direction="PUT", won=False)
+    for _ in range(3):
+        record_side_equilibrium_outcome(orch, "R_10", direction="CALL", won=True)
+    metrics = {"direction_margin": 0.012}
+    chosen = resolve_direction_with_side_equilibrium(orch, "R_10", TradeDirection.PUT, metrics)
+    assert chosen is None
+    assert metrics.get("gate_reason") == "side_imbalance_thin_margin_flip"
+
+
+def test_side_eq_recovery_zone_keep_when_not_toxic(monkeypatch):
+    policy = {**load_sample_size_policy(), "toxic_side_n_min": 3}
+    monkeypatch.setattr(
+        "src.application.services.side_equilibrium_helpers.load_sample_size_policy",
+        lambda override=None: dict(policy),
+    )
+    orch = _orch_with_side_eq(n_min_small=2, wr_floor_small=0.40, freq_bias_max_small=0.70)
+    for _ in range(4):
+        record_side_equilibrium_outcome(orch, "R_10", direction="CALL", won=True)
+    for _ in range(4):
+        record_side_equilibrium_outcome(orch, "R_10", direction="CALL", won=False)
+    for _ in range(3):
+        record_side_equilibrium_outcome(orch, "R_10", direction="PUT", won=True)
+    metrics = {"price_zone_direction": "CALL", "direction_margin": 0.05}
+    chosen = resolve_direction_with_side_equilibrium(
+        orch,
+        "R_10",
+        TradeDirection.CALL,
+        metrics,
+        recovery_active=True,
+    )
+    assert chosen == TradeDirection.CALL
     assert metrics.get("side_eq_recovery_zone_keep") is True

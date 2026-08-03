@@ -5,6 +5,7 @@
 | [arquitetura.md](arquitetura.md) | Arquitetura runtime: DL 34D, meta 43D, direção modular, quality gates, Soft Recovery, settlement |
 | [structure.md](structure.md) | Layout do repositório e inventário de módulos Python em `app/src/` (**246**) |
 | [medallion.md](medallion.md) | Metodologia: TCN × meta Z-Score, price zone, Kelly + Soft Recovery, SIDE_EQ, starvation |
+| [sample-size-lln.md](sample-size-lln.md) | Lei dos Grandes Numeros: sample_size_policy, cold-start e anti vies dos pequenos numeros |
 | [infra-docker.md](infra-docker.md) | Stack Docker híbrida: profiles `core/gpu/ml`, hydrate/smoke, Triton `R_10`, meta-classifier |
 | [deriv-api.md](deriv-api.md) | Referência Deriv + integração PAT/OTP (retries Cloudflare/5xx) |
 | [deriv-api-aether.md](deriv-api-aether.md) | Guia rápido Deriv para agentes (mapeamento Aether híbrido OTP/REST) |

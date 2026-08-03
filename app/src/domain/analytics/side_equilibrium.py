@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from math import sqrt
 from typing import Any
 
+from src.domain.analytics.sample_size_policy import has_underperformance_evidence, load_sample_size_policy
 from src.domain.config_knobs import merge_settings_block, require_bool, require_float, require_int, require_keys
 
 
@@ -65,7 +66,7 @@ class SideEquilibriumConfig:
     enabled: bool = True
     small_window: int = 12
     large_window: int = 100
-    n_min_small: int = 2
+    n_min_small: int = 8
     n_min_large: int = 40
     wr_floor_small: float = 0.40
     wr_floor_large: float = 0.48
@@ -74,6 +75,7 @@ class SideEquilibriumConfig:
     break_even_wr: float = 0.55
     kelly_mult_soft: float = 0.55
     margin_boost_soft: float = 0.03
+    require_wr_significance: bool = True
 
 
 @dataclass(frozen=True)
@@ -114,6 +116,9 @@ def parse_side_equilibrium_config(raw: dict[str, Any] | None) -> SideEquilibrium
         keys,
         "orchestrator.execution.side_equilibrium",
     )
+    require_sig = True
+    if isinstance(raw, dict) and "require_wr_significance" in raw:
+        require_sig = bool(raw["require_wr_significance"])
     return SideEquilibriumConfig(
         enabled=require_bool(cfg, "enabled"),
         small_window=max(4, require_int(cfg, "small_window")),
@@ -127,6 +132,7 @@ def parse_side_equilibrium_config(raw: dict[str, Any] | None) -> SideEquilibrium
         break_even_wr=require_float(cfg, "break_even_wr"),
         kelly_mult_soft=max(0.05, min(1.0, require_float(cfg, "kelly_mult_soft"))),
         margin_boost_soft=max(0.0, require_float(cfg, "margin_boost_soft")),
+        require_wr_significance=require_sig,
     )
 
 
@@ -169,6 +175,16 @@ def _pack_decision(
     )
 
 
+def _side_wins(counts: SideCounts, side: str) -> int:
+    """Conta wins do lado CALL/PUT; zero para lado invalido."""
+    name = str(side).upper()
+    if name == "CALL":
+        return int(counts.call_wins)
+    if name == "PUT":
+        return int(counts.put_wins)
+    return 0
+
+
 def _evaluate_small_regime(
     counts: SideCounts,
     *,
@@ -178,22 +194,37 @@ def _evaluate_small_regime(
     freq: float,
     z_half: float,
     base: SideEquilibriumDecision,
+    proposed_side: str,
 ) -> SideEquilibriumDecision:
-    """Aplica regras hard-skip do regime small-N."""
+    """Aplica hard-skip small-N so com evidencia amostral (anti vies dos pequenos numeros)."""
     min_n = max(2, int(config.n_min_small))
     if counts.total < min_n or n_side < min_n:
         return _pack_decision(
             counts, action=ACTION_PASS, reason="small_n_insufficient", wr=wr, freq=freq, z_half=z_half
         )
-    bad_wr = wr is not None and wr + 1e-12 < config.wr_floor_small
+    wins = _side_wins(counts, proposed_side)
+    raw_bad_wr = wr is not None and wr + 1e-12 < config.wr_floor_small
+    if config.require_wr_significance and raw_bad_wr:
+        bad_wr = has_underperformance_evidence(
+            wins,
+            n_side,
+            p0=float(config.break_even_wr),
+            policy=load_sample_size_policy(),
+            min_n=int(config.n_min_small),
+        )
+    else:
+        bad_wr = raw_bad_wr
     hot_freq = freq + 1e-12 >= config.freq_bias_max_small
-    if not (bad_wr or (hot_freq and (wr is None or wr + 1e-12 < config.break_even_wr))):
+    freq_toxic = hot_freq and (wr is None or wr + 1e-12 < config.break_even_wr)
+    if not (bad_wr or freq_toxic):
         return base
     reason = "side_imbalance_small_n"
     if hot_freq and bad_wr:
         reason = "side_imbalance_small_n_freq_wr"
-    elif hot_freq:
+    elif hot_freq and freq_toxic:
         reason = "side_imbalance_small_n_freq"
+    elif bad_wr:
+        reason = "side_imbalance_small_n_wr_sig"
     return _pack_decision(counts, action=ACTION_HARD_SKIP, reason=reason, wr=wr, freq=freq, z_half=z_half)
 
 
@@ -245,5 +276,14 @@ def evaluate_side_equilibrium(
     if side not in {"CALL", "PUT"}:
         return base
     if regime == "small":
-        return _evaluate_small_regime(counts, config=config, wr=wr, n_side=n_side, freq=freq, z_half=z_half, base=base)
+        return _evaluate_small_regime(
+            counts,
+            config=config,
+            wr=wr,
+            n_side=n_side,
+            freq=freq,
+            z_half=z_half,
+            base=base,
+            proposed_side=side,
+        )
     return _evaluate_large_regime(counts, config=config, wr=wr, n_side=n_side, freq=freq, z_half=z_half, base=base)

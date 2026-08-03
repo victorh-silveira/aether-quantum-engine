@@ -94,3 +94,16 @@ async def test_redis_pipeline_writes_pending_loss():
     with patch.object(store, "_redis", AsyncMock(return_value=client)):
         await store.save_snapshot({"risk": {"consecutive_losses_linear": 2, "pending_loss": {"R_10": 3.0}}})
     assert pipe.hset.call_args_list
+
+
+@pytest.mark.asyncio
+async def test_redis_from_url_uses_socket_timeouts():
+    store = RedisStateStore(
+        url="redis://127.0.0.1:6379/0",
+        socket_connect_timeout=1.5,
+        socket_timeout=3.5,
+    )
+    with patch("redis.asyncio.from_url", return_value=AsyncMock()) as from_url:
+        await store.ping()
+    assert from_url.call_args.kwargs["socket_connect_timeout"] == pytest.approx(1.5)
+    assert from_url.call_args.kwargs["socket_timeout"] == pytest.approx(3.5)

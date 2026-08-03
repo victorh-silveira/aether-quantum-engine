@@ -21,8 +21,9 @@ Para arquitetura de código, ver [`arquitetura.md`](arquitetura.md).
 | Defesa contra ruído CSPRNG | Consensus Entropy Penalty no Kelly base — **desligado** (`consensus_penalty_enabled: false`) |
 | Persistência financeira | Recovery atrelado a `pending_loss`, não a WIN operacional isolado |
 | Soft recovery + caps | `soft_recovery_policy` ativo: amortiza pending em 2–5 ciclos com teto % banca |
-| Sizing | EXPLORE = Kelly (`fraction: 0.08`); RECOVER = Soft Recovery amortizado |
-| Side equilibrium (LLN) | `side_equilibrium`: small-N hard skip (+ flip); large-N soft Kelly; toxic escape mantém edge |
+| Sizing | EXPLORE = Kelly * `explore_stake_scale(N)`; RECOVER = Soft Recovery amortizado |
+| Side equilibrium (LLN) | `sample_size_policy` + `side_equilibrium`: hard-skip com N>=8 e evidencia; large-N soft Kelly |
+| Lei dos Grandes Numeros | WR/ECE live so pesam apos `evidence_n_min=20`; cold-start nao escala stake nem calib drift |
 | Meta por sessão ativa | Stop win de 2,60% composto (banca ≥ $100) ou fixo $10 (banca < $100) |
 | Sem disjuntor de perda | Stop loss interno desativado |
 | Isolamento de estado | `asyncio.Lock` serializa inferência, liquidação e persistência |
@@ -32,6 +33,22 @@ Para arquitetura de código, ver [`arquitetura.md`](arquitetura.md).
 | Settlement resiliente | Fila Redis `settlement:queue:priority`; tolerância **90 s**; alinhamento pós-EXEC_EMPTY |
 | Starvation escape | Após **6** quality skips decaem pisos; edge meta a partir de **8** skips até floor 0.0 |
 | Microestrutura HARD | Limiares ADX/`vol_ratio` configuráveis (settings atuais ADX **0.0**) |
+
+---
+
+## 1.1 Lei dos Grandes Numeros (operacional)
+
+Inspirado em Mlodinow (*O Andar do Bebado*, caps. 3–4): amostras pequenas sao ruido; a media so converge com volume. O motor trata isso como politica SSOT em `orchestrator.execution.sample_size_policy`.
+
+| Ideia do livro | No codigo |
+|----------------|-----------|
+| Lei dos Grandes Numeros (Bernoulli) | `evidence_n_min=20` / `large_n_min=40` antes de confiar em WR live, ECE e hard-skip por underperformance |
+| Vies dos Pequenos Numeros (Tversky/Kahneman) | `n_min_small=8`: 2–3 losses nao geram hard-skip nem toxic label |
+| Falacia do apostador | Recovery nao escala por “autocorrecao”; calib drift soft exige `calib_soft_min_n=15` |
+| Mao quente | `explore_stake_scale` e shrink bayesiano diluem streaks curtas em direcao ao prior |
+| Diluicao, nao magia | `empirical_rate_shrink` e `sample_reliability = n/(n+half_life)` |
+
+Modulo: `app/src/domain/analytics/sample_size_policy.py`. Integrado em SIDE_EQ, Kelly bayesiano, `apply_kelly_fraction_scale` (EXPLORE) e `apply_live_calib_drift_soft`.
 
 ---
 

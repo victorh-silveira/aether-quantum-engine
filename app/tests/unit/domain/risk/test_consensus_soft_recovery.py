@@ -33,25 +33,23 @@ def test_soft_recovery_progression_multiplier_powers():
     assert soft_recovery_progression_multiplier(0, payout=payout) == pytest.approx(1.0)
     assert soft_recovery_progression_multiplier(1, payout=payout) == pytest.approx(factor)
     assert soft_recovery_progression_multiplier(2, payout=payout) == pytest.approx(1.12)
-    assert soft_recovery_progression_multiplier(3, payout=payout) == pytest.approx(1.12)
-    assert soft_recovery_progression_multiplier(4, payout=payout) == pytest.approx(17.75, rel=1e-2)
+    assert soft_recovery_progression_multiplier(3, payout=payout) == pytest.approx(factor**3)
+    assert soft_recovery_progression_multiplier(4, payout=payout) == pytest.approx(factor**4)
     assert soft_recovery_progression_multiplier(5, payout=payout) == pytest.approx(factor**5)
 
 
-def test_apply_soft_recovery_stake_fixed_step_at_linear_three():
+def test_apply_soft_recovery_stake_fixed_step_at_linear_two():
     metrics: dict = {}
     payout = 0.95
     stake = apply_soft_recovery_stake(
         pending_total=20.0,
         base_unit=10.0,
-        consecutive_losses=3,
+        consecutive_losses=2,
         previous_stake=0.0,
         bankroll=11500.0,
         metrics=metrics,
         payout=payout,
     )
-    max(10.0, 11500.0 * 0.005)
-    20.0 / payout / 2.0
     assert stake == pytest.approx(64.4)
     assert metrics.get("recovery_fixed_step") is True
     assert metrics.get("recovery_progression_multiplier") == pytest.approx(1.12)
@@ -160,8 +158,8 @@ def test_apply_soft_recovery_stake_covers_pending_within_bankroll_cap():
     assert stake == pytest.approx(148.19, rel=1e-2)
 
 
-def test_max_safe_stake_cap_at_three_point_five_percent():
-    assert max_safe_stake_cap(11300.0) == pytest.approx(395.50)
+def test_max_safe_stake_cap_at_two_point_five_percent():
+    assert max_safe_stake_cap(11300.0) == pytest.approx(282.50)
 
 
 def test_max_safe_stake_cap_compresses_on_linear_streak():

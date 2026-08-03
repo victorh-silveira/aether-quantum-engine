@@ -163,5 +163,22 @@ def quality_conviction_suspends_cluster(orch: Any, decisions: dict) -> bool:
     if not is_microstructure_starvation_reason(suspend_reason):
         return False
     orch._quality_guard_last_reason = suspend_reason
-    log_quality_guard_suspension(orch, reason=suspend_reason)
+    log_reason = suspend_reason
+    for entry in decisions.values():
+        if not isinstance(entry, dict):
+            continue
+        metrics = entry.get("metrics")
+        if not isinstance(metrics, dict):
+            continue
+        if suspend_reason == "adx_starvation":
+            detail = metrics.get("quality_adx_detail")
+            if isinstance(detail, str) and detail:
+                log_reason = f"{suspend_reason} | {detail}"
+                break
+        if suspend_reason == "vol_ratio_starvation":
+            detail = metrics.get("quality_vol_ratio_detail")
+            if isinstance(detail, str) and detail:
+                log_reason = f"{suspend_reason} | {detail}"
+                break
+    log_quality_guard_suspension(orch, reason=log_reason)
     return True

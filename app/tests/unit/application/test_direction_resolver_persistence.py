@@ -61,7 +61,7 @@ def test_recovery_allows_opposite_side_after_loss_with_positive_edge():
 
 
 def test_resolve_keeps_put_when_meta_edge_positive_against_call_zone():
-    entry = _entry(direction=TradeDirection.PUT, calibrated_prob=0.35)
+    entry = _entry(direction=TradeDirection.PUT, calibrated_prob=0.40)
     entry["metrics"]["predicted_payoff_edge"] = 0.08
     entry["metrics"]["meta_classifier_applied"] = True
     entry["metrics"]["bb_pct_b"] = 0.20

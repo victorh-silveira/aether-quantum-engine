@@ -113,8 +113,8 @@ async def test_await_stream_warm_up_gate_waives_without_live_ticks(caplog):
     assert orch._warm_up_waiver_applied is True
     orch.logger.info.assert_called()
     orch.logger.warning.assert_called()
-    assert "WARMUP_GUARD: Avaliando portao" in str(orch.logger.info.call_args)
-    assert "WARMUP_TIMEOUT: Influxo de ticks vivos estagnado" in str(orch.logger.warning.call_args)
+    assert "WARMUP | aguardando ticks vivos" in str(orch.logger.info.call_args)
+    assert "WARMUP | timeout sem ticks vivos" in str(orch.logger.warning.call_args)
 
 
 @pytest.mark.asyncio

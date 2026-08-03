@@ -2,6 +2,15 @@
 
 from __future__ import annotations
 
+from typing import Any
+
+from src.application.services.execution_quality_gate_microstructure import resolve_skipped_cycles
+from src.application.services.execution_quality_gate_starvation import starvation_decay_factor
+from src.application.services.execution_tcn_conviction import (
+    tcn_direction_lock_active,
+    tcn_direction_margin,
+    tcn_high_conviction_active,
+)
 from src.domain.models.trade import TradeDirection
 
 
@@ -17,6 +26,22 @@ def _macro_indicator_float(metrics: dict, key: str) -> float | None:
     return None
 
 
+def _discordance_thresholds(exec_cfg: dict[str, Any] | None) -> dict[str, Any]:
+    """Resolve limiares de veto/waiver de discordance a partir do exec_cfg."""
+    cfg = exec_cfg if isinstance(exec_cfg, dict) else {}
+    block = cfg.get("discordance") if isinstance(cfg.get("discordance"), dict) else {}
+    return {
+        "vote_opp_min": float(block.get("vote_opp_min", 0.70)),
+        "vote_total_min": int(block.get("vote_total_min", 4)),
+        "rsi_bias_min": float(block.get("rsi_bias_min", 0.08)),
+        "rsi_solo_bias_min": float(block.get("rsi_solo_bias_min", 0.12)),
+        "di_abs_min": float(block.get("di_abs_min", 0.05)),
+        "waiver_margin": float(block.get("waiver_margin", 0.10)),
+        "trend_vote_opp_min": float(block.get("trend_vote_opp_min", 0.50)),
+        "meta_edge_waiver": float(block.get("meta_edge_waiver", 0.08)),
+    }
+
+
 def _multi_bar_rsi_alignment(rsi: float, horizon_bars: int = 4) -> str:
     """Avalia o RSI em relacao ao horizonte multi-candle para definir vies direcional."""
     r = float(rsi)
@@ -27,20 +52,31 @@ def _multi_bar_rsi_alignment(rsi: float, horizon_bars: int = 4) -> str:
     return "neutral"
 
 
-def _rsi_di_oppose_direction(metrics: dict, dl_dir: TradeDirection) -> bool:
+def _rsi_di_oppose_direction(
+    metrics: dict,
+    dl_dir: TradeDirection,
+    *,
+    rsi_bias_min: float = 0.08,
+    rsi_solo_bias_min: float = 0.12,
+    di_abs_min: float = 0.05,
+) -> bool:
     """True quando RSI e di_diff macro votam contra a direcao TCN com vies claro."""
     rsi = _macro_indicator_float(metrics, "rsi")
     di_diff = _macro_indicator_float(metrics, "di_diff")
     if rsi is None:
         return False
     rsi_bias = float(rsi) - 0.5
-    if abs(rsi_bias) < 0.01:
+    if abs(rsi_bias) + 1e-12 < float(rsi_bias_min):
         return False
     rsi_call = rsi_bias > 0.0
     want_call = dl_dir == TradeDirection.CALL
     if di_diff is not None:
+        if abs(float(di_diff)) + 1e-12 < float(di_abs_min):
+            return False
         di_call = float(di_diff) > 0.0
         return want_call not in {rsi_call, di_call}
+    if abs(rsi_bias) + 1e-12 < float(rsi_solo_bias_min):
+        return False
     return want_call != rsi_call
 
 
@@ -131,12 +167,40 @@ def align_direction_to_rsi_trend(dl_dir: TradeDirection, metrics: dict) -> Trade
     return dl_dir
 
 
-def apply_technical_agreement(metrics: dict, dl_dir: TradeDirection, prob: float, exec_cfg: dict) -> tuple[float, bool]:
+def _discordance_soft_waiver(metrics: dict[str, Any], thr: dict[str, Any]) -> bool:
+    """True quando margem TCN ou edge meta justificam manter o sinal apesar da discordance."""
+    if tcn_high_conviction_active(metrics):
+        metrics["indicator_discordance_conviction_waiver"] = True
+        return True
+    if tcn_direction_margin(metrics) + 1e-12 >= float(thr["waiver_margin"]):
+        metrics["indicator_discordance_margin_waiver"] = True
+        return True
+    edge_raw = metrics.get("predicted_payoff_edge")
+    if edge_raw is not None:
+        try:
+            if float(edge_raw) + 1e-12 >= float(thr["meta_edge_waiver"]):
+                metrics["indicator_discordance_edge_waiver"] = True
+                return True
+        except (TypeError, ValueError):
+            pass
+    return False
+
+
+def apply_technical_agreement(
+    metrics: dict,
+    dl_dir: TradeDirection,
+    prob: float,
+    exec_cfg: dict,
+    *,
+    skipped_cycles_counter: int | None = None,
+    orch: Any | None = None,
+) -> tuple[float, bool]:
     """Ajusta probabilidade e aplica bonus/penalidade por confluencia tecnica de indicadores."""
     call_votes, put_votes = int(metrics.get("call_votes", 0)), int(metrics.get("put_votes", 0))
     total = call_votes + put_votes
     opp = 0.0
     adjusted = prob
+    thr = _discordance_thresholds(exec_cfg)
     if total > 0:
         confluence = (call_votes / total) if dl_dir == TradeDirection.CALL else (put_votes / total)
         opp = 1.0 - confluence
@@ -155,22 +219,59 @@ def apply_technical_agreement(metrics: dict, dl_dir: TradeDirection, prob: float
             metrics["indicator_confluence_penalty"] = penalty
 
     discordance_enabled = bool(exec_cfg.get("discordance_veto_enabled", False))
-    vote_veto = bool(discordance_enabled and total >= 3 and opp + 1e-12 >= 0.60)
+    vote_veto = bool(
+        discordance_enabled and total >= int(thr["vote_total_min"]) and opp + 1e-12 >= float(thr["vote_opp_min"])
+    )
     trend_name = str(metrics.get("trend_direction") or "").upper()
     consensus_required = bool(exec_cfg.get("require_indicator_consensus", False))
     dt = exec_cfg.get("dynamic_threshold")
     if isinstance(dt, dict) and dt.get("require_indicator_consensus") is not None:
         consensus_required = bool(dt.get("require_indicator_consensus"))
+    trend_vote_ok = total <= 0 or opp + 1e-12 >= float(thr["trend_vote_opp_min"])
     trend_veto = bool(
-        discordance_enabled and consensus_required and trend_name in {"CALL", "PUT"} and trend_name != dl_dir.name
+        discordance_enabled
+        and consensus_required
+        and trend_name in {"CALL", "PUT"}
+        and trend_name != dl_dir.name
+        and trend_vote_ok
     )
-    side_veto = bool(discordance_enabled and _rsi_di_oppose_direction(metrics, dl_dir))
+    side_veto = bool(
+        discordance_enabled
+        and _rsi_di_oppose_direction(
+            metrics,
+            dl_dir,
+            rsi_bias_min=float(thr["rsi_bias_min"]),
+            rsi_solo_bias_min=float(thr["rsi_solo_bias_min"]),
+            di_abs_min=float(thr["di_abs_min"]),
+        )
+    )
     should_veto = bool(vote_veto or trend_veto or side_veto)
     if should_veto:
-        metrics["gate_reason"] = "indicator_discordance"
-        metrics["indicator_discordance_opp"] = float(opp)
+        kinds: list[str] = []
+        if vote_veto:
+            kinds.append("votes")
+            metrics["indicator_vote_discordance"] = True
         if side_veto:
+            kinds.append("side")
             metrics["indicator_side_discordance"] = True
         if trend_veto:
+            kinds.append("trend")
             metrics["indicator_trend_discordance"] = True
+        metrics["gate_reason"] = "indicator_discordance"
+        metrics["indicator_discordance_kind"] = "+".join(kinds) if kinds else "unknown"
+        metrics["indicator_discordance_opp"] = float(opp)
+        if _discordance_soft_waiver(metrics, thr):
+            metrics.pop("gate_reason", None)
+            should_veto = False
+        elif not tcn_direction_lock_active(metrics):
+            metrics["indicator_discordance_weak_tcn_defer"] = True
+            metrics.pop("gate_reason", None)
+            should_veto = False
+        else:
+            skipped = resolve_skipped_cycles(skipped_cycles_counter=skipped_cycles_counter, orch=orch)
+            decay = starvation_decay_factor(skipped, exec_cfg=exec_cfg if isinstance(exec_cfg, dict) else None)
+            if decay + 1e-12 < 1.0:
+                metrics["indicator_discordance_starvation_waiver"] = True
+                metrics.pop("gate_reason", None)
+                should_veto = False
     return adjusted, should_veto

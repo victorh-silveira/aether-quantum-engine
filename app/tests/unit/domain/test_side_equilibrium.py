@@ -15,10 +15,11 @@ from src.domain.analytics.side_equilibrium import (
 def test_parse_side_equilibrium_config_defaults():
     cfg = parse_side_equilibrium_config(None)
     assert cfg.enabled is True
-    assert cfg.small_window == 12
-    assert cfg.n_min_small == 3
+    assert cfg.small_window == 24
+    assert cfg.n_min_small == 8
     assert cfg.n_min_large == 40
     assert cfg.freq_bias_max_small == pytest.approx(0.70)
+    assert cfg.require_wr_significance is True
     assert parse_side_equilibrium_config({"n_min_small": 1}).n_min_small == 2
 
 
@@ -30,9 +31,17 @@ def test_small_n_hard_skip_on_hot_losing_call_side():
     assert "small_n" in decision.reason
 
 
-def test_small_n_hard_skip_after_two_put_losses():
+def test_small_n_two_put_losses_pass_under_lln_min_n():
     counts = SideCounts(call_n=0, call_wins=0, put_n=2, put_wins=0)
-    cfg = SideEquilibriumConfig(n_min_small=2, wr_floor_small=0.40, freq_bias_max_small=0.70)
+    cfg = SideEquilibriumConfig(n_min_small=8, wr_floor_small=0.40, freq_bias_max_small=0.70)
+    decision = evaluate_side_equilibrium(counts, "PUT", config=cfg, regime="small")
+    assert decision.action == ACTION_PASS
+    assert decision.reason == "small_n_insufficient"
+
+
+def test_small_n_legacy_freq_hard_skip_when_min_n_met():
+    counts = SideCounts(call_n=0, call_wins=0, put_n=8, put_wins=0)
+    cfg = SideEquilibriumConfig(n_min_small=8, wr_floor_small=0.40, freq_bias_max_small=0.70)
     decision = evaluate_side_equilibrium(counts, "PUT", config=cfg, regime="small")
     assert decision.action == ACTION_HARD_SKIP
     assert decision.freq_bias == pytest.approx(1.0)

@@ -9,6 +9,7 @@ from src.presentation.terminal.logger import (
     AetherFormatter,
     BlankLineSquasher,
     CooldownDeduplicationFilter,
+    SettlementSpamFilter,
     _FlushStreamHandler,
     setup_logger,
 )
@@ -118,5 +119,28 @@ async def test_cooldown_deduplication_filter_with_running_loop():
     rec1 = logging.LogRecord("AETH", logging.INFO, "", 0, "CICLO: cooling-down 15.0s pos-LOSS linear=2", (), None)
     rec2 = logging.LogRecord("AETH", logging.INFO, "", 0, "CICLO: cooling-down 15.0s pos-LOSS linear=2", (), None)
 
+    assert filt.filter(rec1) is True
+    assert filt.filter(rec2) is False
+
+
+def test_settlement_spam_filter_dedupes_identical_settle_lines():
+    filt = SettlementSpamFilter()
+    rec1 = logging.LogRecord(
+        "AETH", logging.WARNING, "", 0, "SETTLE: Broker offline. Enfileirando contrato 1 no Redis.", (), None
+    )
+    rec2 = logging.LogRecord(
+        "AETH", logging.WARNING, "", 0, "SETTLE: Broker offline. Enfileirando contrato 1 no Redis.", (), None
+    )
+    rec3 = logging.LogRecord("AETH", logging.INFO, "", 0, "[CLUSTER] M10 || R_10: PUT", (), None)
+    assert filt.filter(rec1) is True
+    assert filt.filter(rec2) is False
+    assert filt.filter(rec3) is True
+
+
+@pytest.mark.asyncio
+async def test_settlement_spam_filter_with_running_loop():
+    filt = SettlementSpamFilter()
+    rec1 = logging.LogRecord("AETH", logging.INFO, "", 0, "[AETHER] WARMUP | aguardando ticks vivos da Deriv", (), None)
+    rec2 = logging.LogRecord("AETH", logging.INFO, "", 0, "[AETHER] WARMUP | aguardando ticks vivos da Deriv", (), None)
     assert filt.filter(rec1) is True
     assert filt.filter(rec2) is False

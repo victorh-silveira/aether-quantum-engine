@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.application.services.execution_quality_gate_starvation import starvation_decay_factor
+from src.application.services.execution_tcn_conviction import tcn_high_conviction_active
+
 
 MICROSTRUCTURE_STARVATION_REASONS = frozenset(
     {
@@ -25,6 +28,7 @@ __all__ = [
     "resolve_min_adx_threshold",
     "resolve_min_validation_accuracy_gate",
     "resolve_min_vol_ratio",
+    "resolve_skipped_cycles",
 ]
 
 
@@ -36,6 +40,19 @@ def is_microstructure_starvation_reason(reason: Any) -> bool:
 def is_hard_quality_reject_reason(reason: Any) -> bool:
     """True quando a razao deve abortar o candidato no resolver."""
     return str(reason or "") in HARD_QUALITY_REJECT_REASONS
+
+
+def resolve_skipped_cycles(
+    *,
+    skipped_cycles_counter: int | None = None,
+    orch: Any | None = None,
+) -> int:
+    """Resolve contador de ciclos pulados por quality/inanicao."""
+    if skipped_cycles_counter is not None:
+        return max(0, int(skipped_cycles_counter))
+    if orch is not None:
+        return max(0, int(getattr(orch, "_quality_skipped_cycles_counter", 0) or 0))
+    return 0
 
 
 def _indicator_float(metrics: dict, key: str) -> float | None:
@@ -109,20 +126,37 @@ def apply_microstructure_starvation_veto(
     exec_cfg: dict | None = None,
     risk_manager: Any | None = None,
     orch: Any | None = None,
+    skipped_cycles_counter: int | None = None,
 ) -> str | None:
     """Aplica veto duro de inanicao; retorna reason ou None se liberado."""
-    min_adx = resolve_min_adx_threshold(exec_cfg)
+    skipped = resolve_skipped_cycles(skipped_cycles_counter=skipped_cycles_counter, orch=orch)
+    decay = starvation_decay_factor(skipped, exec_cfg=exec_cfg if isinstance(exec_cfg, dict) else None)
+    min_adx_base = resolve_min_adx_threshold(exec_cfg)
+    min_adx = float(min_adx_base) * float(decay)
+    metrics["quality_min_adx"] = float(min_adx)
+    metrics["quality_adx_decay_factor"] = float(decay)
     if min_adx > 0.0:
         adx = _indicator_float(metrics, "adx")
-        if adx is not None and adx + 1e-12 < min_adx:
-            return "adx_starvation"
-    min_vol = resolve_min_vol_ratio(orch, exec_cfg)
+        if adx is not None:
+            metrics["quality_adx"] = float(adx)
+            if adx + 1e-12 < min_adx:
+                metrics["quality_adx_detail"] = f"adx={float(adx):.3f} < min={float(min_adx):.3f}"
+                return "adx_starvation"
+    min_vol_base = resolve_min_vol_ratio(orch, exec_cfg)
+    min_vol = float(min_vol_base) * float(decay)
+    if tcn_high_conviction_active(metrics):
+        min_vol = 0.0
+        metrics["vol_ratio_conviction_waiver"] = True
+    metrics["quality_min_vol_ratio"] = float(min_vol)
     if min_vol > 0.0:
         vol_ratio = _indicator_float(metrics, "vol_ratio")
         if vol_ratio is None:
             vol_ratio = _indicator_float(metrics, "vol_ratio_short_long")
-        if vol_ratio is not None and vol_ratio + 1e-12 < min_vol:
-            return "vol_ratio_starvation"
+        if vol_ratio is not None:
+            metrics["quality_vol_ratio"] = float(vol_ratio)
+            if vol_ratio + 1e-12 < min_vol:
+                metrics["quality_vol_ratio_detail"] = f"vol_ratio={float(vol_ratio):.3f} < min={float(min_vol):.3f}"
+                return "vol_ratio_starvation"
     min_val = resolve_min_validation_accuracy_gate(orch, risk_manager)
     if min_val > 0.0:
         raw_val = metrics.get("val_accuracy")

@@ -4,18 +4,26 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.domain.analytics.sample_size_policy import explore_stake_scale
 from src.domain.risk.consensus_stake_penalty import consensus_kelly_retention
 from src.domain.risk.stake_sizing import clamp_kelly_stake, consensus_entropy_applies_min_stake
 
 
 def apply_kelly_fraction_scale(f_star: float, dl_metrics: dict | None) -> float:
-    """Atenua fracao Kelly quando resolver sinaliza execucao defensiva."""
+    """Atenua fracao Kelly quando resolver sinaliza execucao defensiva ou N pequeno."""
     if not isinstance(dl_metrics, dict):
         return f_star
+    out = float(f_star)
     frac_scale = float(dl_metrics.get("kelly_fraction_scale", 1.0))
     if frac_scale < 1.0:
-        return f_star * max(0.0, frac_scale)
-    return f_star
+        out = out * max(0.0, frac_scale)
+    regime = str(dl_metrics.get("stake_regime") or "EXPLORE").upper()
+    if regime == "EXPLORE" and "live_n" in dl_metrics:
+        live_n = int(dl_metrics.get("live_n", 0) or 0)
+        scale = float(dl_metrics.get("explore_stake_scale") or explore_stake_scale(live_n))
+        dl_metrics["explore_stake_scale"] = scale
+        out = out * scale
+    return out
 
 
 def apply_consensus_entropy_f_star(

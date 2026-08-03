@@ -8,7 +8,12 @@ def _candidate_block_reason(metrics: dict) -> str | None:
     """Extrai motivo de bloqueio sniper/quality do candidato."""
     reason = metrics.get("gate_reason") or metrics.get("quality_gate_reason")
     if isinstance(reason, str) and reason.strip():
-        return reason.strip()
+        label = reason.strip()
+        if label == "indicator_discordance":
+            kind = str(metrics.get("indicator_discordance_kind") or "").strip()
+            if kind:
+                return f"{label}:{kind}"
+        return label
     side_eq_hard = bool(metrics.get("side_eq_blocked"))
     soft_veto = str(metrics.get("meta_veto_mode") or "") == "soft" or metrics.get("signal_status") == "SOFT_VETO"
     ready = bool(metrics.get("execution_candidate_ready"))
@@ -73,7 +78,11 @@ def log_execution_blockers(executor, decisions: dict, *, pending: float = 0.0) -
             payload,
         )
     if float(pending) > 0.0:
-        executor.logger.info(
+        log_info_if_changed(
+            executor.orch,
+            executor.logger,
+            f"exec_empty_recovery:{cid}",
+            f"{float(pending):.2f}:{int(getattr(executor.orch.risk_manager, 'consecutive_losses_linear', 0))}",
             "[%s] EXEC_EMPTY || recovery sem ordem | pend=$%.2f | linear=%d",
             cid,
             float(pending),

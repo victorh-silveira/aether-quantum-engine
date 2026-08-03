@@ -5,6 +5,13 @@ from __future__ import annotations
 import math
 from typing import Any
 
+from src.domain.analytics.sample_size_policy import (
+    empirical_rate_shrink,
+    is_small_sample,
+    load_sample_size_policy,
+    sample_reliability,
+)
+
 
 def _shrink_toward_half(p: float, *, weight: float) -> float:
     """Aproxima p de 0.50 com peso weight."""
@@ -28,8 +35,9 @@ def _apply_live_quality_shrink(p: float, bag: dict[str, Any]) -> float:
 
 
 def _live_blend_weight(live_n: int, bag: dict[str, Any]) -> float:
-    """Calcula peso de blend live_wr com reducao por qualidade."""
-    w = min(0.55, float(live_n) / 64.0)
+    """Calcula peso de blend live_wr com reducao por qualidade e tamanho amostral."""
+    policy = load_sample_size_policy()
+    w = min(0.55, float(sample_reliability(live_n, policy=policy)))
     try:
         if bag.get("live_brier") is not None and float(bag["live_brier"]) > 0.24:
             w *= 0.5
@@ -51,22 +59,26 @@ def bayesian_win_rate(
     metrics: dict[str, Any] | None = None,
     dynamic_min_samples: int = 6,
 ) -> float:
-    """Estima p Kelly com prior de conviccao, live_wr e shrink por Brier/ECE/Z."""
+    """Estima p Kelly com prior de conviccao; live_wr so entra com N confiavel."""
     prior = max(0.45, min(0.70, float(conviction)))
     bag = metrics if isinstance(metrics, dict) else {}
     live_n = int(bag.get("live_n", 0) or 0)
     live_wr = bag.get("live_wr")
+    policy = load_sample_size_policy()
     p = prior
-    if live_n >= 20 and live_wr is not None:
+    evidence_n = int(policy["evidence_n_min"])
+    if live_n >= evidence_n and live_wr is not None and not is_small_sample(live_n, policy=policy):
         try:
             live_p = float(live_wr)
         except (TypeError, ValueError):
             live_p = prior
+        live_p = empirical_rate_shrink(live_p, n=live_n, prior=prior, policy=policy)
         w = _live_blend_weight(live_n, bag)
         p = (1.0 - w) * prior + w * live_p
         p = _apply_live_quality_shrink(p, bag)
-    elif rolling_wr is not None and int(rolling_n) >= int(dynamic_min_samples):
-        p = prior * 0.7 + float(rolling_wr) * 0.3
+    elif rolling_wr is not None and int(rolling_n) >= max(int(dynamic_min_samples), evidence_n // 2):
+        shrunk = empirical_rate_shrink(float(rolling_wr), n=int(rolling_n), prior=prior, policy=policy)
+        p = prior * 0.7 + float(shrunk) * 0.3
     z_raw = bag.get("meta_payoff_edge_zscore", bag.get("edge_zscore"))
     if z_raw is not None:
         try:

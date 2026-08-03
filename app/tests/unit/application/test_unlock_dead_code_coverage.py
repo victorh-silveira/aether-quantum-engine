@@ -87,6 +87,10 @@ def test_candidate_block_reason_quality_paths():
     assert _candidate_block_reason({"quality_guard_reject": True}) == "quality_guard_reject"
     assert _candidate_block_reason({"signal_status": "SIGNAL_SUSPENDED"}) == "SIGNAL_SUSPENDED"
     assert _candidate_block_reason({"gate_reason": "data"}) == "data"
+    assert (
+        _candidate_block_reason({"gate_reason": "indicator_discordance", "indicator_discordance_kind": "side+trend"})
+        == "indicator_discordance:side+trend"
+    )
     assert _candidate_block_reason({}) is None
 
 

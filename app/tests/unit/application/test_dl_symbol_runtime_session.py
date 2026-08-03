@@ -26,12 +26,16 @@ def _loaded_checkpoint(*, deploy_ok: bool, val_brier: float = 0.22):
 
 def test_get_symbol_runtime_marks_session_trained_when_deploy_ok_checkpoint():
     orch = MagicMock()
+    orch.config = {"data_handler": {"granularity": 60}, "deep_learning": {}}
     orch._dl_runtime = {}
     dl_config = {"model_path_template": "data/dl/{symbol}.pth"}
     params = {"lookback": 48, "arch": "tcn"}
-    with patch(
-        "src.application.services.deep_learning.dl_symbol_runtime.load_model_checkpoint",
-        return_value=_loaded_checkpoint(deploy_ok=True),
+    with (
+        patch(
+            "src.application.services.deep_learning.dl_symbol_runtime.load_model_checkpoint",
+            return_value=_loaded_checkpoint(deploy_ok=True),
+        ),
+        patch("pathlib.Path.exists", return_value=False),
     ):
         runtime = get_symbol_runtime(orch, "R_10", dl_config, params)
     assert runtime["session_trained"] is True
@@ -40,12 +44,16 @@ def test_get_symbol_runtime_marks_session_trained_when_deploy_ok_checkpoint():
 
 def test_get_symbol_runtime_keeps_session_untrained_without_deploy_ok():
     orch = MagicMock()
+    orch.config = {"data_handler": {"granularity": 60}, "deep_learning": {}}
     orch._dl_runtime = {}
     dl_config = {"model_path_template": "data/dl/{symbol}.pth"}
     params = {"lookback": 48, "arch": "tcn"}
-    with patch(
-        "src.application.services.deep_learning.dl_symbol_runtime.load_model_checkpoint",
-        return_value=_loaded_checkpoint(deploy_ok=False, val_brier=0.9),
+    with (
+        patch(
+            "src.application.services.deep_learning.dl_symbol_runtime.load_model_checkpoint",
+            return_value=_loaded_checkpoint(deploy_ok=False, val_brier=0.9),
+        ),
+        patch("pathlib.Path.exists", return_value=False),
     ):
         runtime = get_symbol_runtime(orch, "R_10", dl_config, params)
     assert runtime["session_trained"] is False
@@ -53,6 +61,7 @@ def test_get_symbol_runtime_keeps_session_untrained_without_deploy_ok():
 
 def test_get_symbol_runtime_reuses_checkpoint_when_online_training_disabled():
     orch = MagicMock()
+    orch.config = {"data_handler": {"granularity": 60}, "deep_learning": {}}
     orch._dl_runtime = {}
     dl_config = {
         "model_path_template": "data/dl/{symbol}.pth",
@@ -60,9 +69,12 @@ def test_get_symbol_runtime_reuses_checkpoint_when_online_training_disabled():
         "deploy_gate": {"force_ok": False},
     }
     params = {"lookback": 48, "arch": "tcn"}
-    with patch(
-        "src.application.services.deep_learning.dl_symbol_runtime.load_model_checkpoint",
-        return_value=_loaded_checkpoint(deploy_ok=False, val_brier=0.22),
+    with (
+        patch(
+            "src.application.services.deep_learning.dl_symbol_runtime.load_model_checkpoint",
+            return_value=_loaded_checkpoint(deploy_ok=False, val_brier=0.22),
+        ),
+        patch("pathlib.Path.exists", return_value=False),
     ):
         runtime = get_symbol_runtime(orch, "R_10", dl_config, params)
     assert runtime["session_trained"] is True
@@ -71,15 +83,19 @@ def test_get_symbol_runtime_reuses_checkpoint_when_online_training_disabled():
 
 def test_get_symbol_runtime_force_ok_overrides_deploy_flag():
     orch = MagicMock()
+    orch.config = {"data_handler": {"granularity": 60}, "deep_learning": {}}
     orch._dl_runtime = {}
     dl_config = {
         "model_path_template": "data/dl/{symbol}.pth",
         "deploy_gate": {"force_ok": True},
     }
     params = {"lookback": 48, "arch": "tcn"}
-    with patch(
-        "src.application.services.deep_learning.dl_symbol_runtime.load_model_checkpoint",
-        return_value=_loaded_checkpoint(deploy_ok=False, val_brier=0.9),
+    with (
+        patch(
+            "src.application.services.deep_learning.dl_symbol_runtime.load_model_checkpoint",
+            return_value=_loaded_checkpoint(deploy_ok=False, val_brier=0.9),
+        ),
+        patch("pathlib.Path.exists", return_value=False),
     ):
         runtime = get_symbol_runtime(orch, "R_10", dl_config, params)
     assert runtime["deploy_ok"] is True
@@ -87,6 +103,7 @@ def test_get_symbol_runtime_force_ok_overrides_deploy_flag():
 
 def test_get_symbol_runtime_exception_on_torch_load():
     orch = MagicMock()
+    orch.config = {"data_handler": {"granularity": 60}, "deep_learning": {}}
     orch._dl_runtime = {}
     dl_config = {"model_path_template": "data/dl/{symbol}.pth"}
     params = {"lookback": 48, "arch": "tcn"}
@@ -101,3 +118,19 @@ def test_get_symbol_runtime_exception_on_torch_load():
         runtime = get_symbol_runtime(orch, "R_10", dl_config, params)
     assert runtime["trained_granularity"] == 60
     assert runtime["deploy_ok"] is True
+
+
+def test_get_symbol_runtime_discards_lookback_mismatch():
+    orch = MagicMock()
+    orch.config = {"data_handler": {"granularity": 600}, "deep_learning": {}}
+    orch._dl_runtime = {}
+    dl_config = {"model_path_template": "data/dl/{symbol}.pth", "online_training": False}
+    params = {"lookback": 72, "arch": "tcn"}
+    with patch(
+        "src.application.services.deep_learning.dl_symbol_runtime.load_model_checkpoint",
+        return_value=_loaded_checkpoint(deploy_ok=True),
+    ):
+        runtime = get_symbol_runtime(orch, "R_10", dl_config, params)
+    assert runtime["session_trained"] is False
+    assert runtime["lookback"] == 72
+    assert runtime["trained_granularity"] == 600

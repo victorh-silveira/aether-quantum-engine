@@ -57,7 +57,7 @@ class ExecutionManager:
         symbol, direction, metrics = orders[0]
         conviction = resolve_stake_conviction(metrics, self.orch.risk_manager.kelly_config)
         dl_cfg = self.orch.config.get("deep_learning", {})
-        block_reason = self.orch.risk_manager.stake_block_reason(
+        return self.orch.risk_manager.stake_block_reason(
             bankroll,
             symbol,
             conviction=conviction,
@@ -67,67 +67,6 @@ class ExecutionManager:
             max_val_brier=float(dl_cfg.get("max_val_brier_execute", 0.28)),
             mandatory_trade_each_cycle=self._mandatory_trade_each_cycle(),
         )
-        if block_reason != "kelly_no_edge":
-            return block_reason
-        _orig_raw = metrics.get("raw_prob")
-        _orig_ts = metrics.get("trade_score")
-        _orig_conv = metrics.get("conviction")
-        flipped_dir = TradeDirection.CALL if direction == TradeDirection.PUT else TradeDirection.PUT
-        if _orig_raw is not None:
-            metrics["raw_prob"] = 1.0 - float(_orig_raw)
-        flipped_conviction = resolve_stake_conviction(metrics, self.orch.risk_manager.kelly_config)
-        if _orig_ts is not None:
-            metrics["trade_score"] = flipped_conviction
-        if _orig_conv is not None:
-            metrics["conviction"] = flipped_conviction
-        flipped_reason = self.orch.risk_manager.stake_block_reason(
-            bankroll,
-            symbol,
-            conviction=flipped_conviction,
-            cycle_id=int(self.orch._active_cycle_id),
-            dl_metrics=metrics,
-            order_direction=flipped_dir.name,
-            max_val_brier=float(dl_cfg.get("max_val_brier_execute", 0.28)),
-            mandatory_trade_each_cycle=self._mandatory_trade_each_cycle(),
-        )
-        if flipped_reason is None:
-            metrics["exec_direction"] = flipped_dir.name
-            metrics["resolved_direction"] = flipped_dir.name
-            metrics["dl_direction"] = flipped_dir.name
-            metrics["flipped_from"] = direction.name
-            orders[0] = (symbol, flipped_dir, metrics)
-            return None
-        if flipped_reason == "kelly_no_edge":
-            _in_recovery = bool(
-                int(getattr(self.orch.risk_manager, "consecutive_losses_linear", 0) or 0) > 0
-                or float(
-                    getattr(self.orch.risk_manager, "pending_loss_total", lambda: 0.0)()
-                    if callable(getattr(self.orch.risk_manager, "pending_loss_total", None))
-                    else 0.0
-                )
-                > 0.0
-            )
-            if not _in_recovery:
-                metrics["reversal_stake_floor"] = True
-                metrics["exec_direction"] = flipped_dir.name
-                metrics["resolved_direction"] = flipped_dir.name
-                metrics["flipped_from"] = direction.name
-                orders[0] = (symbol, flipped_dir, metrics)
-                return None
-            if _orig_raw is not None:
-                metrics["raw_prob"] = _orig_raw
-            if _orig_ts is not None:
-                metrics["trade_score"] = _orig_ts
-            if _orig_conv is not None:
-                metrics["conviction"] = _orig_conv
-            return block_reason
-        if _orig_raw is not None:
-            metrics["raw_prob"] = _orig_raw
-        if _orig_ts is not None:
-            metrics["trade_score"] = _orig_ts
-        if _orig_conv is not None:
-            metrics["conviction"] = _orig_conv
-        return block_reason
 
     def _log_execution_blockers(self, decisions: dict, *, pending: float = 0.0) -> None:
         """Registra motivo quando nenhuma ordem foi montada apesar de decisoes no ciclo."""

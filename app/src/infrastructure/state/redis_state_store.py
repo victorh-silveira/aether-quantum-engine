@@ -15,10 +15,20 @@ from src.infrastructure.state.redis_state_pipeline import write_state_bundle
 class RedisStateStore:
     """Persistencia de estado e assinaturas em Redis."""
 
-    def __init__(self, *, url: str, key_prefix: str = "aether", debounce_seconds: float = 1.0):
+    def __init__(
+        self,
+        *,
+        url: str,
+        key_prefix: str = "aether",
+        debounce_seconds: float = 1.0,
+        socket_connect_timeout: float = 2.0,
+        socket_timeout: float = 15.0,
+    ):
         self._url = url
         self._prefix = key_prefix.rstrip(":")
         self._debounce = max(0.0, float(debounce_seconds))
+        self._socket_connect_timeout = max(0.1, float(socket_connect_timeout))
+        self._socket_timeout = max(0.1, float(socket_timeout))
         self._client: aioredis.Redis | None = None
         self._last_snapshot_at = 0.0
         self._pending_snapshot: dict[str, Any] | None = None
@@ -31,7 +41,12 @@ class RedisStateStore:
     async def _redis(self) -> aioredis.Redis:
         """Retorna cliente Redis lazy singleton."""
         if self._client is None:
-            self._client = aioredis.from_url(self._url, decode_responses=True)
+            self._client = aioredis.from_url(
+                self._url,
+                decode_responses=True,
+                socket_connect_timeout=self._socket_connect_timeout,
+                socket_timeout=self._socket_timeout,
+            )
         return self._client
 
     async def save_snapshot(self, payload: dict[str, Any]) -> None:

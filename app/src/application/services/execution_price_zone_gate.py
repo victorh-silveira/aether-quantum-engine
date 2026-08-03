@@ -4,10 +4,30 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.application.services.execution_direction_discordance import align_direction_to_rsi_trend
+from src.application.services.execution_price_zone_align import align_direction_to_price_zone
+from src.application.services.execution_price_zone_meta import align_or_keep_meta_side
+from src.application.services.execution_quality_gate_microstructure import resolve_skipped_cycles
+from src.application.services.execution_quality_gate_starvation import starvation_decay_factor
 from src.application.services.execution_runtime_config import resolve_price_zone_config as _resolve_price_zone
+from src.application.services.execution_tcn_conviction import tcn_direction_lock_active, tcn_high_conviction_active
 from src.domain.config_knobs import merge_settings_block
 from src.domain.models.trade import TradeDirection
+
+
+__all__ = (
+    "ZONE_BUY",
+    "ZONE_NONE",
+    "ZONE_SELL",
+    "align_direction_to_price_zone",
+    "align_or_keep_meta_side",
+    "apply_price_zone_gate",
+    "apply_price_zone_gate_with_starvation",
+    "direction_allowed_for_zone",
+    "direction_for_price_zone",
+    "resolve_price_zone",
+    "resolve_price_zone_config",
+    "zone_score",
+)
 
 
 ZONE_BUY = "BUY"
@@ -140,7 +160,12 @@ def direction_allowed_for_zone(
     if not bool(conf.get("require_tcn_agreement", False)):
         return True
     tcn = _tcn_direction(metrics, tcn_direction)
-    return tcn is not None and tcn == direction
+    if tcn is not None and tcn == direction:
+        return True
+    if not tcn_direction_lock_active(metrics):
+        metrics["price_zone_tcn_weak_defer"] = True
+        return True
+    return False
 
 
 def _reject_reason(
@@ -206,61 +231,38 @@ def apply_price_zone_gate(
     return _reject_reason(zone, implied, metrics, conf, tcn)
 
 
-def align_direction_to_price_zone(
+def apply_price_zone_gate_with_starvation(
+    metrics: dict[str, Any],
     direction: TradeDirection,
-    metrics: dict[str, Any],
-) -> TradeDirection:
-    """Substitui o lado pelo da zona quando price_zone_direction estiver setado."""
-    if bool(metrics.get("side_eq_flipped")):
-        return direction
-    raw = str(metrics.get("price_zone_direction") or "").upper()
-    if raw == TradeDirection.CALL.name:
-        return TradeDirection.CALL
-    if raw == TradeDirection.PUT.name:
-        return TradeDirection.PUT
-    return direction
-
-
-def _meta_is_broken(metrics: dict[str, Any]) -> bool:
-    """True quando a calibracao esta degradada (ECE alto e WR baixo)."""
-    if bool(metrics.get("calib_drift_soft")):
-        return True
-    ece = metrics.get("live_ece")
-    wr = metrics.get("live_wr")
-    return bool(ece is not None and wr is not None and float(ece) > 0.5 and float(wr) < 0.3)
-
-
-def align_or_keep_meta_side(
-    exec_dir: TradeDirection,
-    metrics: dict[str, Any],
+    exec_cfg: dict[str, Any] | None,
     *,
-    dl_dir: TradeDirection,
-    predicted_edge: float | None = None,
-    meta_applied: bool = False,
-) -> TradeDirection:
-    """Mantem o lado meta com edge positivo; com edge <= 0 alinha a price zone."""
-    zone_side = str(metrics.get("price_zone_direction") or "").upper()
-    edge_raw = metrics.get("predicted_payoff_edge", predicted_edge)
-    edge_v = float(edge_raw) if edge_raw is not None else 0.0
-    applied = bool(meta_applied or metrics.get("meta_classifier_applied"))
-    model_broken = _meta_is_broken(metrics)
-    if (
-        applied
-        and edge_v > 0.0
-        and not model_broken
-        and zone_side in {TradeDirection.CALL.name, TradeDirection.PUT.name}
-        and zone_side != exec_dir.name
-    ):
-        metrics["price_zone_kept_meta_side"] = True
-        metrics["price_zone_skipped_side"] = zone_side
-        return exec_dir
-    aligned = align_direction_to_price_zone(exec_dir, metrics)
-    if aligned != exec_dir and applied and edge_v > 0.0 and not model_broken and aligned != dl_dir:
-        metrics["price_zone_kept_meta_side"] = True
-        return exec_dir
-    margin_v = float(metrics.get("direction_margin", 0.0))
-    if (edge_v <= 0.0 or margin_v < 0.025 or model_broken) and bool(metrics.get("rsi_trend_align_enabled", True)):
-        if model_broken:
-            metrics["meta_bypassed_due_to_drift"] = True
-        return align_direction_to_rsi_trend(aligned, metrics)
-    return aligned
+    tcn_direction: TradeDirection | None = None,
+    skipped_cycles_counter: int | None = None,
+    orch: Any | None = None,
+    force: bool = False,
+) -> str | None:
+    """Aplica price_zone; waiva sob starvation ou alta conviccao TCN."""
+    if force:
+        return None
+    reason = apply_price_zone_gate(
+        metrics,
+        direction,
+        exec_cfg,
+        tcn_direction=tcn_direction,
+    )
+    if reason is None:
+        return None
+    if tcn_high_conviction_active(metrics):
+        metrics["price_zone_conviction_waiver"] = True
+        metrics["price_zone_waived_reason"] = str(reason)
+        return None
+    skipped = resolve_skipped_cycles(skipped_cycles_counter=skipped_cycles_counter, orch=orch)
+    decay = starvation_decay_factor(
+        skipped,
+        exec_cfg=exec_cfg if isinstance(exec_cfg, dict) else None,
+    )
+    if decay + 1e-12 < 1.0:
+        metrics["price_zone_starvation_waiver"] = True
+        metrics["price_zone_waived_reason"] = str(reason)
+        return None
+    return reason

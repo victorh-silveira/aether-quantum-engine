@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from src.domain.analytics.sample_size_policy import load_sample_size_policy
 from src.domain.analytics.side_equilibrium import (
     ACTION_HARD_SKIP,
     ACTION_SOFT,
@@ -73,8 +74,15 @@ def soft_keep_proposed(
 
 
 def primary_side_is_toxic(primary: SideEquilibriumDecision) -> bool:
-    """True quando o lado primario esta em hard-skip toxico por WR baixo."""
+    """True quando o lado primario tem hard-skip com WR baixo e N minimo."""
     if primary.action != ACTION_HARD_SKIP:
+        return False
+    policy = load_sample_size_policy()
+    side_n = max(int(primary.call_n), int(primary.put_n))
+    if primary.side_wr is not None:
+        name_put = primary.put_n >= primary.call_n
+        side_n = int(primary.put_n if name_put else primary.call_n)
+    if side_n < int(policy["toxic_side_n_min"]):
         return False
     if primary.side_wr is None:
         return True
@@ -95,11 +103,12 @@ def alternate_side_is_preferable(
     *,
     opposite: TradeDirection,
 ) -> bool:
-    """Exige amostras e WR claros no alternativo antes de flipar o lado TCN."""
+    """Exige amostras grandes o bastante no alternativo antes de flipar o lado TCN."""
     alt_wr = alternate.side_wr
     pri_wr = primary.side_wr
     alt_n = int(alternate.call_n if opposite == TradeDirection.CALL else alternate.put_n)
-    if alt_n < 3 or alt_wr is None:
+    min_n = int(load_sample_size_policy()["toxic_side_n_min"])
+    if alt_n < min_n or alt_wr is None:
         return False
     if float(alt_wr) + 1e-12 < 0.55:
         return False

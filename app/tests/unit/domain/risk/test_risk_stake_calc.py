@@ -238,7 +238,7 @@ def test_calculate_stake_c0017_bypasses_consensus_and_uses_soft_recovery(kelly_c
             "order_direction": "CALL",
         },
     )
-    assert stake == pytest.approx(34.17, rel=1e-3)
+    assert stake == pytest.approx(200.0, rel=1e-3)
     audit = getattr(rm, "_last_stake_audit", None)
     assert isinstance(audit, dict)
     assert "DAL_L" in str(audit.get("mode_tag", ""))

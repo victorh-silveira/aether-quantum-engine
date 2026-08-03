@@ -10,6 +10,7 @@ from src.application.services.execution_quality_gate_drawdown import (
     resolve_session_stake_unit,
 )
 from src.application.services.execution_quality_gate_margin import (
+    apply_quality_margin_floor_waivers,
     direction_margin_from_probability,
     ensure_direction_margin,
     stamp_edge_without_direction,
@@ -209,9 +210,11 @@ def passes_execution_quality(
         skipped_cycles_counter=skipped_cycles_counter,
         orch=orch,
     )
-    margin_floor = float(limits["min_direction_margin"])
-    if metrics.get("senior_trader_conviction") or metrics.get("candle_color_direction") is not None:
-        margin_floor = 0.0
+    margin_floor = apply_quality_margin_floor_waivers(
+        metrics,
+        float(limits["min_direction_margin"]),
+        exec_cfg=exec_cfg,
+    )
     metrics["quality_gate_regime"] = str(limits["quality_regime"])
     metrics["quality_min_direction_margin"] = margin_floor
     metrics["quality_min_payoff_edge"] = float(limits["min_payoff_edge"])
@@ -224,6 +227,7 @@ def passes_execution_quality(
         exec_cfg=exec_cfg,
         risk_manager=risk_manager,
         orch=orch,
+        skipped_cycles_counter=int(limits["skipped_cycles_counter"]),
     )
     if starvation_reason is not None:
         metrics["quality_guard_reject"] = True

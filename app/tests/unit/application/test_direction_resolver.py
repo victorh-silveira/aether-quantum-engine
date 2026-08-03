@@ -124,10 +124,11 @@ def test_resolve_gray_zone_raw_prob_blocks_call_on_bull_with_meta():
         entry,
         symbol="R_10",
         exec_cfg={
+            "hard_cal_margin_floor": 0.0,
             "quality_gate": {
-                "min_direction_margin": 0.04,
-                "regular": {"min_direction_margin": 0.04, "min_payoff_edge": 0.0},
-            }
+                "min_direction_margin": 0.0,
+                "regular": {"min_direction_margin": 0.0, "min_payoff_edge": 0.0},
+            },
         },
     )
     assert result is not None
@@ -151,14 +152,15 @@ def test_resolve_rejects_weak_margin_without_meta():
         entry,
         symbol="R_10",
         exec_cfg={
+            "hard_cal_margin_floor": 0.04,
             "quality_gate": {
                 "min_direction_margin": 0.04,
                 "regular": {"min_direction_margin": 0.04, "min_payoff_edge": 0.0},
-            }
+            },
         },
     )
-    assert result is not None
-    assert result[0] == TradeDirection.CALL
+    assert result is None
+    assert entry["metrics"].get("gate_reason") == "cal_margin_floor"
 
 
 def test_resolve_returns_none_without_prob():

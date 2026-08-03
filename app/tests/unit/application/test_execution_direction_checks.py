@@ -53,6 +53,31 @@ def test_initial_direction_checks_blocks_low_adx_via_indicator_gating():
     assert entry["metrics"]["quality_guard_reject"] is True
 
 
+def test_initial_direction_checks_allows_low_adx_under_starvation_decay():
+    orch = SimpleNamespace(
+        config={
+            "deep_learning": {
+                "indicator_gating": {
+                    "adx_min": 0.20,
+                }
+            }
+        },
+        _quality_skipped_cycles_counter=9,
+    )
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {
+            "calibrated_prob": 0.72,
+            "indicators": {"adx": 0.10, "hurst": 0.60, "bb_pct_b": 0.30},
+            "execute": True,
+            "deploy_ok": True,
+        },
+    }
+    result = initial_direction_checks(entry, {"price_zone": {"enabled": False}}, orch=orch, skipped_cycles_counter=9)
+    assert result is not None
+    assert entry["metrics"].get("gate_reason") != "adx_min"
+
+
 def test_initial_direction_checks_rejects_hurst_noise_via_orch():
     orch = SimpleNamespace(
         config={

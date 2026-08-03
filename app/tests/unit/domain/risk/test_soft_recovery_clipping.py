@@ -56,15 +56,15 @@ def _micro_risk_config() -> dict:
 def test_resolve_soft_recovery_config_defaults_match_settings() -> None:
     soft = resolve_soft_recovery_config(None)
     assert soft["enabled"] is True
-    assert soft["max_safe_stake_cap"] == pytest.approx(4.20)
-    assert soft["max_safe_stake_pct"] == pytest.approx(0.035)
+    assert soft["max_safe_stake_cap"] == pytest.approx(3.0)
+    assert soft["max_safe_stake_pct"] == pytest.approx(0.025)
     assert soft["amort_cycles_min"] == 1
     assert soft["amort_cycles_max"] == 3
     assert soft["micro_residual_pending_max"] == pytest.approx(3.0)
     assert soft["micro_residual_zscore_floor"] == pytest.approx(0.01)
     assert soft["micro_residual_gbdt_waiver_skips"] == 4
     assert soft["fixed_step_linear_min"] == 2
-    assert soft["fixed_step_linear_max"] == 3
+    assert soft["fixed_step_linear_max"] == 2
     assert soft["fixed_step_unit_premium"] == pytest.approx(0.12)
     assert soft["small_account_hard_floor_threshold"] == pytest.approx(0.01)
     assert soft["small_account_hard_floor_pct"] == pytest.approx(0.01)
@@ -149,7 +149,7 @@ def test_soft_recovery_disabled_falls_back_to_kelly() -> None:
 
 def test_fixed_step_and_hard_floor_helpers() -> None:
     assert fixed_step_progression_multiplier(2) == pytest.approx(1.12)
-    assert fixed_step_progression_multiplier(3) == pytest.approx(1.12)
+    assert fixed_step_progression_multiplier(3) is None
     assert fixed_step_progression_multiplier(4) is None
     assert fixed_step_progression_multiplier(5) is None
     assert apply_small_account_hard_floor(4.20, 80.0) == pytest.approx(4.20)
@@ -166,10 +166,10 @@ def test_soft_recovery_policy_branches_and_tail_cap() -> None:
     assert configured_max_safe_stake_cap({"max_safe_stake_cap": "bad"}) is None
     assert configured_max_safe_stake_cap({"max_safe_stake_cap": -1.0}) is None
     assert configured_max_safe_stake_cap({"max_safe_stake_cap": 4.20}) == pytest.approx(4.20)
-    assert configured_max_safe_stake_pct(None) == pytest.approx(0.035)
+    assert configured_max_safe_stake_pct(None) == pytest.approx(0.025)
     assert configured_max_safe_stake_pct({"max_safe_stake_pct": 0.035}) == pytest.approx(0.035)
-    assert configured_max_safe_stake_pct({"max_safe_stake_pct": "bad"}) == pytest.approx(0.035)
-    assert configured_max_safe_stake_pct({"max_safe_stake_pct": -1.0}) == pytest.approx(0.035)
+    assert configured_max_safe_stake_pct({"max_safe_stake_pct": "bad"}) == pytest.approx(0.025)
+    assert configured_max_safe_stake_pct({"max_safe_stake_pct": -1.0}) == pytest.approx(0.025)
     assert configured_max_safe_stake_pct({"max_safe_stake_pct": 2.0}) == pytest.approx(1.0)
     rm = RiskManager(_micro_risk_config())
     rm.initial_bankroll = 100.0
@@ -179,7 +179,7 @@ def test_soft_recovery_policy_branches_and_tail_cap() -> None:
     assert rm.max_safe_tail_cap() == pytest.approx(4.20)
     assert soft_recovery_enabled({"soft_recovery": {"amort_cycles_min": 2}}) is True
     assert resolve_soft_recovery_config(None)["enabled"] is True
-    assert resolve_soft_recovery_config({"soft_recovery": "bad"})["max_safe_stake_cap"] == pytest.approx(4.20)
+    assert resolve_soft_recovery_config({"soft_recovery": "bad"})["max_safe_stake_cap"] == pytest.approx(3.0)
     assert cointegration_pair_score({"calibrated_prob": 0.7, "edge_zscore": -0.1}) == float("-inf")
     assert cointegration_pair_score({"calibrated_prob": 0.8, "edge_zscore": 1.5}) > 0.0
     assert select_cointegration_redirect_candidate([("R_50", TradeDirection.CALL, {"edge_zscore": 2.0})]) == []
