@@ -1,3 +1,5 @@
+## [1.74.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.74.1...v1.74.2) (2026-08-03)
+
 ## [1.74.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.74.0...v1.74.1) (2026-07-31)
 
 ## [1.74.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.73.8...v1.74.0) (2026-07-31)
