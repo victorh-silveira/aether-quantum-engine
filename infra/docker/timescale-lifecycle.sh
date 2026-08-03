@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 source "${SCRIPT_DIR}/docker-ui.sh"
+source "${SCRIPT_DIR}/compose-lib.sh"
 
 if [ ! -f "${REPO_ROOT}/infra/docker/docker-compose.yml" ]; then
   echo "timescale-lifecycle: execute a partir da raiz do repositorio" >&2
@@ -17,7 +18,8 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
-COMPOSE=(docker compose -f infra/docker/docker-compose.yml --project-directory infra/docker --env-file .env)
+mapfile -t COMPOSE_FLAGS < <(compose_args)
+COMPOSE=(docker compose "${COMPOSE_FLAGS[@]}")
 
 printf '  %sTimescale lifecycle%s\n' "${DOCKER_UI_BOLD}" "${DOCKER_UI_RESET}"
 docker_ui_nl

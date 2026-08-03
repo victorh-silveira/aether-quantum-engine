@@ -90,7 +90,7 @@ async def validate_infra_services(services: InfraServices, config: dict[str, Any
         if ok:
             logger.debug("INFRA: %s ok", label)
             continue
-        message = f"INFRA: {label} indisponivel em localhost; suba docker compose em infra/docker"
+        message = f"INFRA: {label} indisponivel em localhost; make docker-up-core|docker-up|docker-up-cpu"
         if fail_fast:
             raise ConnectionError(message)
         logger.warning(message)

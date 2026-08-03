@@ -1,0 +1,13 @@
+---
+description: Scripts e ops Aether — batch, monitor, clean_workspace, train_meta
+globs: app/scripts/**/*.py,app/scripts/**/*.sh
+alwaysApply: false
+---
+
+# Scripts
+
+- Ops via WSL; `clean_workspace.py` e o motor do pre-commit
+- Batch: launch-all / train; monitor: redis/state/ui
+- `train_meta_*` e treino offline do GBDT — nao misturar com hot path
+- Nao commitar artefatos gerados por clean/light-clean
+- Skill: `aether-ops-runbook`

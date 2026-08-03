@@ -1,0 +1,14 @@
+---
+description: Settlement Aether — fila Redis, tolerancia, reconcile
+globs: "**/settlement*.py,**/post_settlement*.py,app/src/application/services/orchestrator/settlement_queue_ops.py"
+alwaysApply: false
+---
+
+# Settlement
+
+- Fila: `settlement:queue:priority` (ZSET); enqueue idempotente por contract_id
+- Tolerancia ~90 s; poll minimo ~2 s; profit_table se estagnado
+- Nao apagar fila Redis sem auditar contratos abertos
+- Preservar spam filter / dedupe de logs SETTLE
+- Pending/linear soberanos apos WIN parcial
+- Doc: `docs/engineering-settlement.md`; skill: `aether-settlement-debug`

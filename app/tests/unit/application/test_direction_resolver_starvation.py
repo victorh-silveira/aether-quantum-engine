@@ -134,22 +134,23 @@ def test_resolve_defined_direction_with_positive_edge_passes():
 
 
 def test_resolve_negative_edge_allowed_under_starvation_floor():
-    entry = _entry(direction=TradeDirection.PUT, calibrated_prob=0.46)
+    entry = _entry(direction=TradeDirection.PUT, calibrated_prob=0.40)
     entry["metrics"]["predicted_payoff_edge"] = -0.04
     entry["metrics"]["meta_classifier_applied"] = True
     entry["metrics"]["edge_expectancy"] = "LOSS_EXPECTED"
-    entry["metrics"]["indicators"] = {"bb_width": 0.09, "adx": 0.25, "rsi": 0.4}
+    entry["metrics"]["indicators"] = {"bb_width": 0.09, "adx": 0.25, "rsi": 0.4, "hurst": 0.60}
     entry["metrics"]["flow_features"] = {"micro_tick_acceleration": 0.04}
     result = resolve_execution_direction(
         entry,
         symbol="R_10",
         skipped_cycles_counter=16,
         exec_cfg={
+            "hard_cal_margin_floor": 0.0,
             "quality_gate": {
                 "min_direction_margin": 0.0,
                 "min_payoff_edge": 0.0,
                 "regular": {"min_direction_margin": 0.0, "min_payoff_edge": 0.0},
-            }
+            },
         },
     )
     assert result is not None
@@ -190,7 +191,7 @@ def test_resolve_negative_edge_blocked_in_recovery_with_non_negative_floor():
 
 
 def test_resolve_aligns_negative_edge_put_to_buy_zone_under_starvation():
-    entry = _entry(direction=TradeDirection.PUT, calibrated_prob=0.46)
+    entry = _entry(direction=TradeDirection.PUT, calibrated_prob=0.40)
     entry["metrics"]["predicted_payoff_edge"] = -0.04
     entry["metrics"]["meta_classifier_applied"] = True
     entry["metrics"]["bb_pct_b"] = 0.20
@@ -198,12 +199,13 @@ def test_resolve_aligns_negative_edge_put_to_buy_zone_under_starvation():
     entry["metrics"]["edge_zscore"] = 0.0
     entry["metrics"]["meta_payoff_edge_zscore"] = 0.0
     entry["metrics"]["edge_zscore_samples"] = 20
-    entry["metrics"]["indicators"] = {"bb_width": 0.09, "adx": 0.25, "rsi": 0.4}
+    entry["metrics"]["indicators"] = {"bb_width": 0.09, "adx": 0.25, "rsi": 0.4, "hurst": 0.60}
     result = resolve_execution_direction(
         entry,
         symbol="R_10",
         skipped_cycles_counter=16,
         exec_cfg={
+            "hard_cal_margin_floor": 0.0,
             "price_zone": {
                 "enabled": True,
                 "buy_max": 0.48,

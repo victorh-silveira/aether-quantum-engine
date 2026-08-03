@@ -4,6 +4,8 @@ O Aether Quantum Engine herda a postura **Medallion** no sentido operacional: o 
 
 Para arquitetura de código, ver [`arquitetura.md`](arquitetura.md).
 
+Doutrina do copiloto LLM/Cursor (9 livros → constraints de engenharia): [`llm-trading-doctrine.md`](llm-trading-doctrine.md).
+
 ---
 
 ## 1. Princípios
@@ -49,6 +51,8 @@ Inspirado em Mlodinow (*O Andar do Bebado*, caps. 3–4): amostras pequenas sao 
 | Diluicao, nao magia | `empirical_rate_shrink` e `sample_reliability = n/(n+half_life)` |
 
 Modulo: `app/src/domain/analytics/sample_size_policy.py`. Integrado em SIDE_EQ, Kelly bayesiano, `apply_kelly_fraction_scale` (EXPLORE) e `apply_live_calib_drift_soft`.
+
+A doutrina LLM estende o mesmo raciocinio aos demais livros (Taleb, Duke, Douglas, Murphy, LTCM, etc.) em [`llm-trading-doctrine.md`](llm-trading-doctrine.md).
 
 ---
 
@@ -105,7 +109,7 @@ Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `
 | Scoring direcional | TCN define `dl_direction`; edge &gt; 0 pode manter lado contra price zone; compressão BB severa rebaixa para `0.52` |
 | Margem direcional | `direction_margin = abs(P(lado) − 0.50)`; thresholds **0.51/0.49**; piso regular **0.0** nos settings atuais |
 | Gate de qualidade | Dual soft + HARD microestrutura (limiares ADX atuais **0.0**); sniper stubs; meta opcional; consensus **off** |
-| Indicator gating | enabled; pisos ADX/`vol_ratio` **0.0**; `veto_on_noise` false |
+| Indicator gating | enabled; `adx_min` **0.16**; `veto_on_noise` true (Hurst **0.47–0.53**); `veto_missing_hurst` true |
 | Persistence guard | Após 2 perdas: **flip** toxic escape ou skip; `FREEZE` em congestão |
 | Rotulagem | Padrão `spot_forward`; `ma_trend` / Triple Barrier disponíveis via config |
 | Perda TCN assimétrica | Penalidade 2,5× para erro direcional em alta volatilidade |
@@ -182,7 +186,9 @@ Perfil em `config/settings.json` (settings atuais):
 | `orchestrator.*_timeout_*` / `infra.meta_classifier.*` / `api_config.stream_reconnect.*` | (settings) | Timing/infra fail-closed (sem defaults mágicos no Python) |
 | `indicator_gating.adx_min` | 0.20 | Piso ADX |
 | `indicator_gating.vol_ratio_min` | 0.65 | Piso vol_ratio |
-| `indicator_gating.veto_on_noise` | false | Sem veto por faixa Hurst de ruído |
+| `indicator_gating.veto_on_noise` | true | Veto Hurst em banda de ruido **0.47–0.53** |
+| `hard_cal_margin_floor` | 0.05 | Explore: SKIP se \|Cal−0.5\| &lt; 0.05 |
+| `align_rsi_trend` | true | SKIP `rsi_trend_misalign` se RSI/DI contra TCN |
 | `quality_gate.min_adx_threshold` | 0.20 | HARD ADX starvation |
 | `quality_gate.regular.min_direction_margin` | 0.0 | Piso de margem (regime regular) |
 | `quality_gate.min_direction_margin` | 0.0 | Piso de margem (recovery) |

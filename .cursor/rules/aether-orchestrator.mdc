@@ -1,0 +1,14 @@
+---
+description: Orquestrador Aether — ciclo 120s, locks, warmup, pos-settlement
+globs: app/src/application/services/orchestrator/**/*.py
+alwaysApply: false
+---
+
+# Orchestrator
+
+- Relogio: signature/ciclo **120 s**; micro 120 / macro 600 (legado m5/m15)
+- Pipeline: warmup → train gate → collect → resolve → execute → settle → post_settlement
+- Lock serializa inferencia, liquidacao e persistencia — nao bypassar
+- `force_trade_every_cycle` permanece false; EXEC_EMPTY pode ser processo correto
+- Watchdog: respeitar stale/cooldown; nao reduzir timeouts sem evidencia
+- Doc: `docs/engineering-orchestrator.md`; skill: `aether-cycle-debug`

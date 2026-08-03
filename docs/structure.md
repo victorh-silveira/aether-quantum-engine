@@ -27,15 +27,27 @@ aether-quantum-engine/
 │   └── python.json
 ├── data/                               # Runtime: state.json, session_state.json, dl/, deriv/
 ├── docs/
+│   ├── agent-coverage.md
 │   ├── arquitetura.md
+│   ├── binary-senior-playbook.md
 │   ├── CHANGELOG.md
 │   ├── deriv-api.md
 │   ├── deriv-api-aether.md
 │   ├── deriv-indices-algorithm.md
+│   ├── engineering-deep-learning.md
+│   ├── engineering-observability.md
+│   ├── engineering-orchestrator.md
+│   ├── engineering-settlement.md
+│   ├── engineering-settings-ssot.md
+│   ├── engineering-standards.md
 │   ├── infra-docker.md
+│   ├── llm-trading-doctrine.md
 │   ├── medallion.md
 │   ├── README.md
+│   ├── sample-size-lln.md
 │   └── structure.md
+├── AGENTS.md                           # Entrada Cursor/LLM
+├── .cursor/                            # rules + skills do agente
 ├── infra/docker/                       # Redis, TimescaleDB, MinIO, Triton, meta-classifier
 ├── linters/
 ├── Makefile
@@ -526,12 +538,13 @@ make app-lint
 make app-test
 make docker-up
 make docker-up-core
+make docker-up-cpu
 make docker-smoke
 make app-train
 make app-run
 make app-pre-commit-run
 ```
 
-Infra Docker híbrida: profiles `core`/`gpu`/`ml` (padrão `core,gpu,ml`). Detalhes em [`infra-docker.md`](infra-docker.md).
+Infra Docker hibrida: profiles `core` / `gpu`(+overlay NVIDIA) / `cpu` / `ml`. Detalhes em [`infra-docker.md`](infra-docker.md).
 
 Verificação estrutural: máximo **300 linhas** por arquivo em `app/src/` (estágio lint do `clean_workspace.py`).

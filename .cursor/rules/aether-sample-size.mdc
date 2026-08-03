@@ -1,0 +1,14 @@
+---
+description: Sample size / SIDE_EQ / live metrics — LLN e vies dos pequenos numeros (Mlodinow)
+globs: app/src/domain/analytics/**/*.py,app/src/application/services/side_equilibrium*.py,app/src/application/services/live_signal_metrics.py
+alwaysApply: false
+---
+
+# Sample size e SIDE_EQ
+
+- N pequeno = ruido. Nao hard-skip/flip/toxic com N abaixo dos pisos (`n_min_small`, `toxic_side_n_min`).
+- `live_wr` / ECE so pesam apos `evidence_n_min` / `calib_soft_min_n`.
+- Cold start: `explore_stake_scale_floor` comprime stake; nao “aprender” operando mais.
+- Large-N: soft penalty; nao narrativa de mao quente.
+- SSOT: `orchestrator.execution.sample_size_policy` + docs `sample-size-lln.md`.
+- Ao mudar knobs de N, atualizar doutrina/LLN se o significado operacional mudar.

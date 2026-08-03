@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.application.services.doctrine_invariants import resolve_hard_cal_margin_floor
 from src.application.services.execution_quality_gate import passes_execution_quality
 from src.application.services.execution_quality_gate_meta import evaluate_meta_payoff_quality
 from src.application.services.force_trade_mode import force_trade_every_cycle
@@ -68,7 +69,7 @@ def reject_on_quality_gate(
             metrics["quality_gate_reason"] = reason
             metrics["gate_reason"] = reason
             return True
-    hard = float(exec_cfg_dict.get("hard_cal_margin_floor", 0.04) or 0.0)
+    hard = resolve_hard_cal_margin_floor(exec_cfg_dict)
     if hard > 0.0 and not recovery_active:
         senior = metric_float(metrics, "senior_trader_conviction", default=0.0)
         waived = senior + 1e-12 >= 0.56

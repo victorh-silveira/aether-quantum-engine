@@ -7,12 +7,19 @@ APP_DIR=app
 CONDA_ENV ?= deriv-api
 DOCKER_DIR=infra/docker
 DOCKER_PROFILES ?= core,gpu,ml
+DOCKER_GPU ?= 1
 export COMPOSE_PROFILES := $(DOCKER_PROFILES)
-DOCKER_COMPOSE=docker compose -f $(DOCKER_DIR)/docker-compose.yml --project-directory $(DOCKER_DIR) --env-file .env
+export DOCKER_GPU
+DOCKER_COMPOSE_BASE=docker compose -f $(DOCKER_DIR)/docker-compose.yml
+ifeq ($(DOCKER_GPU),1)
+DOCKER_COMPOSE=$(DOCKER_COMPOSE_BASE) -f $(DOCKER_DIR)/docker-compose.gpu.yml --project-directory $(DOCKER_DIR) --env-file .env
+else
+DOCKER_COMPOSE=$(DOCKER_COMPOSE_BASE) --project-directory $(DOCKER_DIR) --env-file .env
+endif
 DOCKER_LOGS_TAIL ?= all
 
 define docker_service_name
-$(if $(filter triton,$(1)),aether-triton,$(1))
+$(if $(filter triton,$(1)),aether-triton,$(if $(filter meta,$(1)),aether-meta-classifier,$(1)))
 endef
 
 RESOLVE_PY := $(shell bash linters/git-hooks/bin/resolve_conda_python.sh 2>/dev/null || echo python)
@@ -29,7 +36,7 @@ RESET  := \033[0m
 
 .PHONY: app-install app-lint app-test app-security app-run app-train app-pre-commit \
 	app-pre-commit-run app-setup-wsl app-clean help helpo docker-up docker-up-core \
-	docker-down docker-clean docker-restart docker-reset docker-ps docker-logs \
+	docker-up-cpu docker-down docker-clean docker-restart docker-reset docker-ps docker-logs \
 	docker-bash docker-hydrate docker-rebuild docker-smoke timescale-lifecycle
 
 help:
@@ -54,15 +61,16 @@ help:
 	@echo -e "  $(GREEN)help / helpo$(RESET)       - Exibe este menu de ajuda interativo"
 	@echo -e ""
 	@echo -e "$(YELLOW)Comandos Disponiveis (Docker/Infra):$(RESET)"
-	@echo -e "  $(GREEN)docker-up$(RESET)          - Sobe stack completa (profiles: $(DOCKER_PROFILES))"
+	@echo -e "  $(GREEN)docker-up$(RESET)          - Stack completa GPU (profiles: $(DOCKER_PROFILES), DOCKER_GPU=$(DOCKER_GPU))"
 	@echo -e "  $(GREEN)docker-up-core$(RESET)     - Sobe so Redis, TimescaleDB e MinIO (profile core)"
+	@echo -e "  $(GREEN)docker-up-cpu$(RESET)      - Stack com Triton CPU (core,cpu,ml; sem overlay NVIDIA)"
 	@echo -e "  $(GREEN)docker-rebuild$(RESET)     - Rebuild do meta-classifier + up com profiles ativos"
 	@echo -e "  $(GREEN)docker-smoke$(RESET)       - Valida endpoints da stack (Redis/TS/MinIO/Triton/Meta)"
 	@echo -e "  $(GREEN)docker-down$(RESET)        - Para os containers PRESERVANDO os dados e volumes"
 	@echo -e "  $(GREEN)docker-restart$(RESET)     - Reinicia os containers da stack (volumes preservados)"
 	@echo -e "  $(GREEN)docker-reset$(RESET)       - $(RED)DESTRUTIVO$(RESET): Apaga volumes/dados e sobe stack limpa"
 	@echo -e "  $(GREEN)docker-clean$(RESET)       - $(RED)DESTRUTIVO$(RESET): Remove containers, redes e DELETA volumes"
-	@echo -e "  $(GREEN)docker-hydrate$(RESET)     - Hidrata TimescaleDB com lookback M15 se houver fome de dados"
+	@echo -e "  $(GREEN)docker-hydrate$(RESET)     - Hidrata TimescaleDB macro 600s / micro 120s (R_10)"
 	@echo -e "  $(GREEN)docker-ps$(RESET)          - Status dos containers"
 	@echo -e "  $(GREEN)docker-logs$(RESET)        - Logs (DOCKER_SERVICE=redis F=1 para seguir)"
 	@echo -e "  $(GREEN)docker-bash$(RESET)        - Shell interativo (DOCKER_SERVICE=triton|timescaledb)"
@@ -123,7 +131,12 @@ docker-up:
 docker-up-core:
 	@test -f .env || cp .env.example .env
 	@docker stop aether-triton aether-meta-classifier >/dev/null 2>&1 || true
-	@$(MAKE) --no-print-directory docker-up DOCKER_PROFILES=core
+	@$(MAKE) --no-print-directory docker-up DOCKER_PROFILES=core DOCKER_GPU=0
+
+docker-up-cpu:
+	@test -f .env || cp .env.example .env
+	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-up-cpu · Triton sem NVIDIA (mutuamente exclusivo com GPU)"'
+	@$(MAKE) --no-print-directory docker-up DOCKER_PROFILES=core,cpu,ml DOCKER_GPU=0
 
 docker-rebuild:
 	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-rebuild · meta-classifier + stack"'

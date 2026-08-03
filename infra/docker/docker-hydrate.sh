@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 source "${SCRIPT_DIR}/docker-ui.sh"
+source "${SCRIPT_DIR}/compose-lib.sh"
 
 if [ ! -f "${REPO_ROOT}/infra/docker/docker-compose.yml" ]; then
   echo "docker-hydrate: execute a partir da raiz do repositorio" >&2
@@ -18,30 +19,43 @@ if [ -f .env ]; then
   set +a
 fi
 
-COMPOSE=(docker compose -f infra/docker/docker-compose.yml --project-directory infra/docker --env-file .env)
+mapfile -t COMPOSE_FLAGS < <(compose_args)
+COMPOSE=(docker compose "${COMPOSE_FLAGS[@]}")
 PG_USER="${AETHER_PG_USER:-aether}"
 PG_DB="${AETHER_PG_DB:-aether}"
 
 printf '  %sHydrate TimescaleDB%s\n' "${DOCKER_UI_BOLD}" "${DOCKER_UI_RESET}"
 docker_ui_nl
 
-CURRENT_COUNT="$("${COMPOSE[@]}" exec -T timescaledb psql -U "$PG_USER" -d "$PG_DB" -t -A -c "SELECT count(*) FROM ohlc_bars;" 2>/dev/null || echo "0")"
-CURRENT_COUNT="$(echo "$CURRENT_COUNT" | tr -d '[:space:]')"
-if [ -z "$CURRENT_COUNT" ]; then
-  CURRENT_COUNT=0
+if ! "${COMPOSE[@]}" ps -q timescaledb 2>/dev/null | grep -q .; then
+  docker_ui_warn "timescaledb inativo - hydrate ignorado"
+  docker_ui_nl
+  exit 0
 fi
 
-if [ "$CURRENT_COUNT" -lt 48 ]; then
-  docker_ui_warn "fome de dados (${CURRENT_COUNT} barras) - hidratando lookback M1"
+MICRO_COUNT="$("${COMPOSE[@]}" exec -T timescaledb psql -U "$PG_USER" -d "$PG_DB" -t -A -c "SELECT count(*) FROM ohlc_bars WHERE symbol='R_10' AND granularity=120;" 2>/dev/null || echo "0")"
+MICRO_COUNT="$(echo "$MICRO_COUNT" | tr -d '[:space:]')"
+MACRO_COUNT="$("${COMPOSE[@]}" exec -T timescaledb psql -U "$PG_USER" -d "$PG_DB" -t -A -c "SELECT count(*) FROM ohlc_bars WHERE symbol='R_10' AND granularity=600;" 2>/dev/null || echo "0")"
+MACRO_COUNT="$(echo "$MACRO_COUNT" | tr -d '[:space:]')"
+if [ -z "$MICRO_COUNT" ]; then MICRO_COUNT=0; fi
+if [ -z "$MACRO_COUNT" ]; then MACRO_COUNT=0; fi
+
+if [ "$MICRO_COUNT" -lt 360 ] || [ "$MACRO_COUNT" -lt 80 ]; then
+  docker_ui_warn "fome de dados (micro120=${MICRO_COUNT} macro600=${MACRO_COUNT}) - hidratando R_10"
   "${COMPOSE[@]}" exec -T timescaledb psql -q -U "$PG_USER" -d "$PG_DB" -c "
     INSERT INTO ohlc_bars (time, symbol, epoch, granularity, open, high, low, close)
-    SELECT t, sym, EXTRACT(EPOCH FROM t)::bigint, 60, 100.0+(i*0.01), 100.5+(i*0.01), 99.5+(i*0.01), 100.1+(i*0.01)
-    FROM (SELECT NOW() - (i * INTERVAL '1 minute') AS t, i FROM generate_series(1, 60) i) s
-    CROSS JOIN (SELECT 'R_10' AS sym) symbols
+    SELECT t, 'R_10', EXTRACT(EPOCH FROM t)::bigint, 120,
+           100.0+(i*0.01), 100.5+(i*0.01), 99.5+(i*0.01), 100.1+(i*0.01)
+    FROM (SELECT NOW() - (i * INTERVAL '120 seconds') AS t, i FROM generate_series(1, 400) i) s
+    ON CONFLICT DO NOTHING;
+    INSERT INTO ohlc_bars (time, symbol, epoch, granularity, open, high, low, close)
+    SELECT t, 'R_10', EXTRACT(EPOCH FROM t)::bigint, 600,
+           100.0+(i*0.02), 100.8+(i*0.02), 99.2+(i*0.02), 100.2+(i*0.02)
+    FROM (SELECT NOW() - (i * INTERVAL '600 seconds') AS t, i FROM generate_series(1, 120) i) s
     ON CONFLICT DO NOTHING;" >/dev/null
-  docker_ui_ok "lookback reidratado"
+  docker_ui_ok "lookback macro/micro reidratado"
 else
-  docker_ui_ok "ohlc_bars (${CURRENT_COUNT} registros)"
+  docker_ui_ok "ohlc_bars R_10 (micro120=${MICRO_COUNT} macro600=${MACRO_COUNT})"
 fi
 
 docker_ui_nl

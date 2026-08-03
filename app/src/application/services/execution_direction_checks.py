@@ -14,6 +14,7 @@ from src.application.services.execution_direction_discordance import (
 from src.application.services.execution_price_zone_gate import apply_price_zone_gate_with_starvation
 from src.application.services.execution_quality_gate_microstructure import resolve_skipped_cycles
 from src.application.services.execution_quality_gate_starvation import starvation_decay_factor
+from src.application.services.execution_sniper_gates import hurst_regime_allowed
 from src.application.services.force_trade_mode import force_trade_every_cycle, synthesize_force_direction
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.soft_recovery_policy import negative_zscore_veto_floor_for_risk
@@ -206,6 +207,14 @@ def initial_direction_checks(
                 metrics["quality_adx_detail"] = f"adx={float(adx):.3f} < min={float(adx_min):.3f}"
                 sync_entry_metrics(entry, metrics)
                 return None
+    if not force and bool(gating_cfg.get("enabled", False)):
+        hurst = _macro_indicator_float(metrics, "hurst")
+        if not hurst_regime_allowed(hurst, gating_cfg):
+            metrics["quality_guard_reject"] = True
+            metrics["regime_skip_cycle"] = True
+            metrics["gate_reason"] = "hurst_missing" if hurst is None else "hurst_noise"
+            sync_entry_metrics(entry, metrics)
+            return None
     prob = direction_prob(entry)
     if prob is None:
         prob = 0.55 if dl_dir == TradeDirection.CALL else 0.45

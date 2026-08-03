@@ -1,0 +1,15 @@
+---
+description: Infra Aether — Redis, Timescale, MinIO, Triton, state stores
+globs: app/src/infrastructure/state/**/*.py,app/src/infrastructure/storage/**/*.py,app/src/infrastructure/market/**/*.py,app/src/infrastructure/inference/**/*.py,app/src/infrastructure/factories/**/*.py,infra/docker/**
+alwaysApply: false
+---
+
+# Infra
+
+- Motor no host; Redis/Timescale/MinIO/Triton/meta via Docker em `127.0.0.1`
+- Profiles: `core` / `gpu`(+`docker-compose.gpu.yml`) / `cpu` / `ml` — ver `docs/infra-docker.md`
+- Targets: `make docker-up`, `docker-up-cpu`, `docker-up-core`
+- Timeouts Redis: nao “consertar” lentidao removendo resiliencia
+- State: Redis + JSON; settlement em Redis ZSET
+- Triton/MinIO: sync de artefatos; sanity TorchScript
+- Skill: `aether-infra-stack`

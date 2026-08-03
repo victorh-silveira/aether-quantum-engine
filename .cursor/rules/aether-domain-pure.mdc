@@ -1,0 +1,13 @@
+---
+description: Domain puro Aether — sem I/O; risk overlap com aether-risk-sizing
+globs: app/src/domain/models/**/*.py,app/src/domain/math/**/*.py,app/src/domain/symbols/**/*.py,app/src/domain/config_knobs.py
+alwaysApply: false
+---
+
+# Domain
+
+- Domain nao importa application nem infrastructure
+- Sem I/O de rede/arquivo em `domain/` (exceto constantes/chaves Redis como strings)
+- Risco Kelly/recovery: tambem seguir `aether-risk-sizing.mdc` e doutrina
+- Analytics: sample_size / SIDE_EQ — ver `aether-sample-size.mdc`
+- Models/math: funcoes puras, testes deterministicos

@@ -97,14 +97,14 @@
             "min_win_rate": 0.55,
             "mini_bars": 120,
             "soft_max_brier": 0.24,
-            "soft_min_val_accuracy": 0.52
+            "soft_min_val_accuracy": 0.53
         },
         "early_stopping_patience": 15,
         "enabled": true,
         "focal_gamma": 2.5,
         "implied_vol_bars": 120,
         "indicator_gating": {
-            "adx_min": 0.12,
+            "adx_min": 0.16,
             "cmo_max": 1.0,
             "cmo_min": -1.0,
             "enabled": true,
@@ -112,11 +112,11 @@
             "hurst_min": 0.0,
             "keltner_pct_b_max": 999.0,
             "keltner_pct_b_min": -999.0,
-            "noise_hurst_hi": 0.55,
-            "noise_hurst_lo": 0.45,
+            "noise_hurst_hi": 0.53,
+            "noise_hurst_lo": 0.47,
             "strong_revert_max": 0.35,
             "strong_trend_min": 0.65,
-            "veto_missing_hurst": false,
+            "veto_missing_hurst": true,
             "veto_on_noise": true,
             "vol_ratio_max": 999.0,
             "vol_ratio_min": 0.35
@@ -137,8 +137,8 @@
                 "enabled": true,
                 "keltner_lower": 0.0,
                 "keltner_upper": 1.0,
-                "rsi_lower": 0.32,
-                "rsi_upper": 0.68
+                "rsi_lower": 0.28,
+                "rsi_upper": 0.72
             },
             "market_rank": {
                 "adx_strong_at_or_above": 0.24,
@@ -201,8 +201,8 @@
         "decision_threshold_call": 0.62,
         "decision_threshold_put": 0.38,
         "eval_brier_max": 0.22,
-        "eval_min_accuracy": 0.50,
-        "eval_settle_accuracy_min": 0.50,
+        "eval_min_accuracy": 0.5,
+        "eval_settle_accuracy_min": 0.5,
         "inference_device": "auto",
         "label_horizon_bars": 1,
         "label_ma_window": 8,
@@ -211,7 +211,7 @@
         "label_smoothing": 0.02,
         "learning_rate": 0.001,
         "live_signal_metrics": {
-            "drift_min_score": 0.50,
+            "drift_min_score": 0.5,
             "drift_score_factor": 0.72,
             "drift_soft_penalty": 0.08,
             "drift_soft_veto_n": 40,
@@ -316,8 +316,8 @@
         "broker_handshake_timeout_seconds": 90.0,
         "cycle_interval_seconds": 120,
         "execution": {
-            "hard_cal_margin_floor": 0.04,
-            "align_rsi_trend": false,
+            "hard_cal_margin_floor": 0.05,
+            "align_rsi_trend": true,
             "bb_width_adaptive_squeeze": {
                 "anomaly_ratio": 0.35,
                 "enabled": true,
@@ -336,9 +336,9 @@
             },
             "adverse_path": {
                 "enabled": true,
-                "rsi_bias_min": 0.08,
-                "rsi_hard_bias": 0.12,
-                "waiver_margin": 0.40
+                "rsi_bias_min": 0.1,
+                "rsi_hard_bias": 0.14,
+                "waiver_margin": 0.4
             },
             "direction_persistence": {
                 "same_direction_count_threshold": 2
@@ -346,12 +346,12 @@
             "discordance": {
                 "di_abs_min": 0.05,
                 "meta_edge_waiver": 0.08,
-                "rsi_bias_min": 0.08,
-                "rsi_solo_bias_min": 0.12,
-                "trend_vote_opp_min": 0.50,
-                "vote_opp_min": 0.70,
+                "rsi_bias_min": 0.1,
+                "rsi_solo_bias_min": 0.14,
+                "trend_vote_opp_min": 0.5,
+                "vote_opp_min": 0.7,
                 "vote_total_min": 4,
-                "waiver_margin": 0.10
+                "waiver_margin": 0.1
             },
             "discordance_veto_enabled": true,
             "diversify_after_loss_margin": 0.08,
@@ -440,7 +440,7 @@
                 "max_edge_without_margin": 999.0,
                 "max_zscore_without_margin": 999.0,
                 "min_direction_margin": 0.06,
-                "recovery_min_direction_margin": 0.10,
+                "recovery_min_direction_margin": 0.1,
                 "recovery_min_hurst": 0.48
             },
             "mandatory_trade_each_cycle": false,
@@ -509,8 +509,8 @@
                 "edge_without_direction_score_factor": 0.85,
                 "inverted_min_score": 0.0,
                 "mandatory_min_trade_score": 0.5,
-                "min_adx_threshold": 0.12,
-                "min_direction_margin": 0.08,
+                "min_adx_threshold": 0.16,
+                "min_direction_margin": 0.1,
                 "min_meta_payoff_zscore": 0.0,
                 "neutral_meta_payoff": {
                     "hi": 0.04,
@@ -530,7 +530,7 @@
                     "session_stake_unit_bankroll_pct": 0.0015
                 },
                 "regular": {
-                    "min_direction_margin": 0.08,
+                    "min_direction_margin": 0.1,
                     "min_payoff_edge": 0.0
                 },
                 "starvation": {
@@ -581,7 +581,7 @@
                 "n_min_small": 8,
                 "small_window": 24,
                 "wr_floor_large": 0.45,
-                "wr_floor_small": 0.40
+                "wr_floor_small": 0.4
             },
             "trend_period": 15,
             "trend_use_ema": true,
@@ -638,7 +638,7 @@
             "dynamic_min_samples": 6,
             "dynamic_win_rate": true,
             "fraction_base_retention": 0.6,
-            "fraction_compressed": 0.0020,
+            "fraction_compressed": 0.002,
             "fraction_reference": 0.0035,
             "high_conviction_stake_threshold": 0.0,
             "mandatory_min_trade_score": 0.0,
@@ -657,7 +657,7 @@
                 "losses_1": 0.64,
                 "losses_2": 0.66,
                 "losses_3": 0.68,
-                "losses_4": 0.70
+                "losses_4": 0.7
             },
             "recovery_force_min_trade_score": 0.65,
             "recovery_force_pending_min": 100,
@@ -696,7 +696,7 @@
             "default_payout": 0.95
         },
         "large_account_stop_win_pct": 3.0,
-        "min_validation_accuracy_gate": 0.52,
+        "min_validation_accuracy_gate": 0.53,
         "params": {
             "compounding_enabled": true,
             "compounding_rate_daily": 0.03,

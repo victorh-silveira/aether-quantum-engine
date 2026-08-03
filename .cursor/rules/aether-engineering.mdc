@@ -1,0 +1,14 @@
+---
+description: Engenharia Aether — WSL, 300 linhas, cobertura 100%, commitlint PT-BR
+alwaysApply: true
+---
+
+# Engenharia
+
+- Terminal: **WSL** apenas
+- `app/src/**/*.py` ≤ **300** linhas; cobrir 100% com testes
+- Sem comentarios no codigo; docstrings OK; sem emojis
+- Pre-commit: lint + test + security + cleanup; commit-msg commitlint
+- Commit: `tipo(escopo): assunto PT-BR` + corpo; escopos em `linters/commitlint.config.mjs`
+- SSOT de agentes: `AGENTS.md` + `docs/agent-coverage.md`
+- Nao afrouxar QA para “passar o hook”; corrigir causa

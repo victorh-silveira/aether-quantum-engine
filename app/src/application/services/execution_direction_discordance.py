@@ -235,16 +235,18 @@ def apply_technical_agreement(
         and trend_name != dl_dir.name
         and trend_vote_ok
     )
-    side_veto = bool(
-        discordance_enabled
-        and _rsi_di_oppose_direction(
-            metrics,
-            dl_dir,
-            rsi_bias_min=float(thr["rsi_bias_min"]),
-            rsi_solo_bias_min=float(thr["rsi_solo_bias_min"]),
-            di_abs_min=float(thr["di_abs_min"]),
-        )
+    rsi_oppose = _rsi_di_oppose_direction(
+        metrics,
+        dl_dir,
+        rsi_bias_min=float(thr["rsi_bias_min"]),
+        rsi_solo_bias_min=float(thr["rsi_solo_bias_min"]),
+        di_abs_min=float(thr["di_abs_min"]),
     )
+    side_veto = bool(discordance_enabled and rsi_oppose)
+    if bool(exec_cfg.get("align_rsi_trend", False)) and rsi_oppose and not _discordance_soft_waiver(metrics, thr):
+        metrics["gate_reason"] = "rsi_trend_misalign"
+        metrics["indicator_discordance_kind"] = "rsi_align"
+        return adjusted, True
     should_veto = bool(vote_veto or trend_veto or side_veto)
     if should_veto:
         kinds: list[str] = []

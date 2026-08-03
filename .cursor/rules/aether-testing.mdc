@@ -1,0 +1,13 @@
+---
+description: Testes Aether — espelho DDD, cobertura 100%, sem skips frageis
+globs: app/tests/**/*.py
+alwaysApply: false
+---
+
+# Testing
+
+- Espelhar camada: `tests/unit/{application,domain,infrastructure,presentation,scripts}/`
+- Cobertura **100%** em `app/src`; novo ramo = novo teste
+- Preferir unitario rapido; mock I/O; nao depender de Docker live nos unitarios
+- Ao mudar knobs, atualizar asserts de defaults SSOT
+- Skill: `aether-precommit`

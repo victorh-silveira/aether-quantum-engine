@@ -9,22 +9,22 @@ Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (TCN,
 | Aspecto | Valor atual (`config/settings.json`) |
 |---------|--------------------------------------|
 | Símbolos | `R_10` (âncora `R_10`) |
-| Granularidade OHLC (DL) | **60 s** (`data_handler.granularity`; chave de assinatura `m1`) |
-| Relógio operacional | **60 s** (`data_handler.micro_granularity`; chave de assinatura `m1`) |
-| Histórico para treino | **23392** barras macro (`training_history_bars`, ~16 dias @ 60 s) |
-| Lookback | **128** barras macro → tensor **`[1, 128, 34]`** (~2 h @ 60 s) |
+| Granularidade OHLC (DL) | **600 s** (`data_handler.granularity`; assinatura legado `m15`) |
+| Relógio operacional | **120 s** (`data_handler.micro_granularity`; assinatura legado `m5`) |
+| Histórico para treino | `training_history_bars` / `history_bars` conforme settings (macro 600 s) |
+| Lookback | **`deep_learning.lookback`** (settings atuais **360**) → tensor **`[1, lookback, 34]`** |
 | Features TCN | **34** (`FEATURE_DIM` em `dl_feature_build.py`) |
 | Features meta GBDT | **43** (`META_FEATURE_DIM` = 34 + 4 micro-vol + 3 cross + 2 flow) |
-| Contrato | `RISE_FALL`, duração **60 s** |
-| Ciclo | **60 s** (`cycle_interval_seconds` / `signature_boundary_seconds`) |
+| Contrato | `RISE_FALL`, duração **120 s** |
+| Ciclo | **120 s** (`cycle_interval_seconds` / `signature_boundary_seconds`) |
 | Execução | **Mandatória** (`mandatory_trade_each_cycle: true`; `force` off) + alinhamento `price_zone` |
 | Fail-closed | Meta e Triton **opcionais** nos settings atuais (`require_meta_for_execution: false`; `infra.triton.enabled/require_for_execution: false`) |
 | Label | `label_mode: spot_forward` (`ma_trend` / Triple Barrier via config) |
 | Meta sessão | Stop win **3,00%** (`compounding_rate_daily: 0.03`); stop loss desativado |
 
-O mercado é tratado como série temporal ruidosa: a TCN estima `P(CALL)` (thresholds **0.55/0.45**); o meta-regressor LightGBM estima `predicted_payoff_edge`; o ranking usa `tcn × max(0.1, 1+z)`. Com `price_zone`, BUY alinha CALL e SELL alinha PUT; edge meta positivo pode **manter** o lado TCN/meta contra a zona (`align_or_keep_meta_side`).
+O mercado é tratado como série temporal ruidosa: a TCN estima `P(CALL)` (thresholds **0.51/0.49**); o meta-regressor LightGBM estima `predicted_payoff_edge`; o ranking usa `tcn × max(0.1, 1+z)`. Com `price_zone`, BUY alinha CALL e SELL alinha PUT; edge meta positivo pode **manter** o lado TCN/meta contra a zona (`align_or_keep_meta_side`).
 
-**Invariante temporal:** inferências seguem `signature_boundary_seconds` (fallback `cycle_interval_seconds`, padrão **60 s**) via `get_data_state_signature()` — formato `m1b:{boundary};m1:...`.
+**Invariante temporal:** inferências seguem `signature_boundary_seconds` (fallback `cycle_interval_seconds`, padrão **120 s**) via `get_data_state_signature()` — formato legado `m5`/`m15` alinhado a 120 s / 600 s.
 
 **Válvula de starvation:** após **6** ciclos consecutivos bloqueados pelo quality gate, pisos de margem/edge/Z são atenuados (`execution_quality_gate_starvation.py`). O piso de edge meta relaxa a partir de **8** skips (`edge_decay_cycles`) até `edge_decay_floor: 0.0` (passo `0.08`). Em skips extremos (≥30), a válvula GBDT mitiga veto tabular prolongado.
 
@@ -221,7 +221,7 @@ META_FEATURE_DIM = 34 (TCN) + 4 (micro-vol zscores) + 3 (cross-symbol) + 2 (flow
 
 Montagem: `dl_predict_telemetry.prepare_meta_classifier_cross_symbol_bundle` → `extract_meta_feature_vector` → `prefetch_meta_payoff_for_decisions`.
 
-**Nota:** o container Docker legado pode declarar `FEATURE_DIM=39` (sem o bloco micro-vol de 4). O **app** é a fonte de verdade (**43D**). Treino offline e artefato `.pkl` devem alinhar com `META_FEATURE_DIM`.
+**Nota:** o container `aether-meta-classifier` declara `META_FEATURE_DIM = 43` (alinhado ao app). Treino offline e artefato `.pkl` devem usar a mesma dimensao.
 
 ### 5.3 Stacking runtime
 

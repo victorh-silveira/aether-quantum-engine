@@ -246,7 +246,13 @@ def test_build_mandatory_fallback_legacy_path_when_market_rank_empty():
             {
                 "R_10": {
                     "direction": TradeDirection.PUT,
-                    "metrics": bear_put_metrics(trade_score=0.55, raw_prob=0.42, calibrated_prob=0.42),
+                    "metrics": bear_put_metrics(
+                        trade_score=0.55,
+                        raw_prob=0.28,
+                        calibrated_prob=0.28,
+                        put_votes=5,
+                        call_votes=1,
+                    ),
                 }
             },
             recovery_active=False,

@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 source "${SCRIPT_DIR}/docker-ui.sh"
+source "${SCRIPT_DIR}/compose-lib.sh"
 
 if [ ! -f "${REPO_ROOT}/infra/docker/docker-compose.yml" ]; then
   echo "docker-wait-healthy: execute a partir da raiz do repositorio (compose nao encontrado)" >&2
@@ -17,7 +18,8 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
-COMPOSE=(docker compose -f infra/docker/docker-compose.yml --project-directory infra/docker --env-file .env)
+mapfile -t COMPOSE_FLAGS < <(compose_args)
+COMPOSE=(docker compose "${COMPOSE_FLAGS[@]}")
 TIMEOUT_SECS="${AETHER_DOCKER_HEALTH_TIMEOUT:-300}"
 INTERVAL_SECS=3
 
@@ -73,8 +75,8 @@ print_status() {
 main() {
   local elapsed=0
   local code=0
-  printf '  %sAguardando healthchecks%s (timeout %ss)\n' \
-    "${DOCKER_UI_DIM}" "${DOCKER_UI_RESET}" "${TIMEOUT_SECS}"
+  printf '  %sAguardando healthchecks%s (timeout %ss | DOCKER_GPU=%s)\n' \
+    "${DOCKER_UI_DIM}" "${DOCKER_UI_RESET}" "${TIMEOUT_SECS}" "${DOCKER_GPU:-1}"
   while [ "$elapsed" -lt "$TIMEOUT_SECS" ]; do
     code=0
     all_healthy || code=$?

@@ -39,7 +39,7 @@ def base_metrics(**overrides):
         "indicators": {
             "vol_ratio": 1.0,
             "adx": 0.25,
-            "hurst": 0.52,
+            "hurst": 0.58,
             "rsi": 0.52,
             "cmo": 0.10,
             "keltner": 0.50,

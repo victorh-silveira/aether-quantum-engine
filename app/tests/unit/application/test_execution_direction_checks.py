@@ -89,6 +89,7 @@ def test_initial_direction_checks_rejects_hurst_noise_via_orch():
                     "noise_hurst_hi": 0.55,
                     "strong_trend_min": 0.65,
                     "strong_revert_max": 0.35,
+                    "veto_missing_hurst": True,
                 }
             }
         }
@@ -97,12 +98,13 @@ def test_initial_direction_checks_rejects_hurst_noise_via_orch():
         "direction": TradeDirection.CALL,
         "metrics": {
             "calibrated_prob": 0.72,
-            "indicators": {"hurst": 0.50},
+            "indicators": {"hurst": 0.50, "adx": 0.30},
             "execute": True,
+            "deploy_ok": True,
         },
     }
-    assert initial_direction_checks(entry, {}, orch=orch) is not None
-    assert entry["metrics"].get("gate_reason") != "hurst_noise_veto"
+    assert initial_direction_checks(entry, {}, orch=orch) is None
+    assert entry["metrics"].get("gate_reason") == "hurst_noise"
 
 
 def test_initial_direction_checks_skips_neutral_signals():

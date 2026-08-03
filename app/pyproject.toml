@@ -115,7 +115,7 @@ asyncio_default_fixture_loop_scope = "function"
 markers = [
     "torch_cuda: testes que exigem resolucao real de dispositivo CUDA",
     "real_settlement_watch: testes que executam _run_settlement_watch real",
-    "docker: testes de integracao que exigem Redis, TimescaleDB e MinIO locais",
+    "docker: testes de integracao que exigem stack Docker local (Redis/Timescale/MinIO; Triton/Meta se up)",
 ]
 
 [tool.interrogate]

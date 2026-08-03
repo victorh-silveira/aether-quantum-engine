@@ -1,0 +1,14 @@
+---
+description: Deep Learning Aether — features, labels, checkpoint, Triton/meta
+globs: app/src/application/services/deep_learning/**/*.py
+alwaysApply: false
+---
+
+# Deep Learning
+
+- FEATURE_DIM **34**; lookback/granularity do checkpoint devem bater com settings
+- Label `spot_forward` padrao; mudar label exige retreino + hipotese
+- `train.py` vs `run.py`; meta offline em `scripts/operations/train_meta_*`
+- Triton/meta opcionais; nao assumir fail-closed sem settings
+- ACC / val_accuracy gate importa; nao ignorar deploy_gate
+- Doc: `docs/engineering-deep-learning.md`; skill: `aether-dl-train`

@@ -1,0 +1,12 @@
+---
+description: Logging Aether — terminal logger, dedupe, spam filter
+globs: app/src/presentation/**/*.py,**/log_dedupe.py
+alwaysApply: false
+---
+
+# Logging
+
+- PT-BR, sem emoji; dedupe para ruido SETTLE/EXEC_EMPTY
+- Nao remover SettlementSpamFilter para “ver mais logs” em producao
+- Tags de ciclo: CLUSTER → KELLY → EXEC → RESOLVED (processo primeiro)
+- Doc: `docs/engineering-observability.md`

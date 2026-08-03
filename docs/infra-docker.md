@@ -1,114 +1,70 @@
 # Infraestrutura Docker
 
-Stack local para o modo híbrido: motor no host (Conda/WSL), persistência e inferência em containers.
+Stack local **hibrida**: motor no host (Conda/WSL), persistencia e inferencia em containers. SSOT operacional deste doc; atalho em [`infra/docker/README.md`](../infra/docker/README.md).
 
-## Serviços
+## Servicos
 
-| Serviço | Porta | Uso |
-|---------|-------|-----|
-| Redis | 6379 | Estado, risco, assinaturas, starvation counter, fila `settlement:queue:priority` |
-| TimescaleDB | 5432 | Ticks e barras OHLC (macro **600 s** + micro **120 s**; prefixos de assinatura legado `m15`/`m5`) |
-| MinIO | 9000 / 9001 | Checkpoints Deep Learning / TorchScript |
-| Triton (`aether-triton`) | 8000 / 8001 | Inferência GPU TorchScript via gRPC; repo `infra/docker/triton-models/R_10` |
-| Meta-regressor (`aether-meta-classifier`) | **8005** | LightGBM HTTP; vetor **43D** (fonte de verdade no app); `POST /v2/predict_meta` |
+| Servico | Porta (localhost) | Profile | Limite tipico | Uso |
+|---------|-------------------|---------|---------------|-----|
+| Redis | `127.0.0.1:6379` | `core` | 256m | Estado, risco, `settlement:queue:priority` |
+| TimescaleDB | `127.0.0.1:5432` | `core` | 1g | Ticks + OHLC macro **600 s** / micro **120 s** |
+| MinIO | `127.0.0.1:9000` / `9001` | `core`, `gpu`, `cpu` | 512m | Checkpoints / TorchScript |
+| Triton (`aether-triton`) | `127.0.0.1:8000` / `8001` | `gpu` ou `cpu` | — | Inferencia TorchScript HTTP+gRPC |
+| Meta (`aether-meta-classifier`) | `127.0.0.1:8005` | `ml` | 512m | LightGBM HTTP **43D** |
 
-Subir tudo:
+Hardening: `restart: unless-stopped`, log rotate 10m×3, binds em **127.0.0.1**, `no-new-privileges` (onde aplicavel).
 
-```bash
-make docker-up
-```
+## Profiles e Make
 
-Pipeline: `host-prereq` → `triton-prereq` → `compose up` (profiles `DOCKER_PROFILES`, padrão `core,gpu,ml`) → wait healthy → `timescale-lifecycle` → `docker-hydrate` (seed OHLC macro/micro de `R_10`) → `docker-smoke`.
+| Target | Profiles | GPU overlay | Quando usar |
+|--------|----------|-------------|-------------|
+| `make docker-up` | `core,gpu,ml` (padrao) | sim (`DOCKER_GPU=1`) | Stack completa com NVIDIA |
+| `make docker-up-cpu` | `core,cpu,ml` | nao | Triton sem NVIDIA (WSL CPU) |
+| `make docker-up-core` | `core` | nao | So Redis/TS/MinIO (Triton off nos settings) |
 
-Nos settings atuais do app, Triton pode estar **desligado** (`infra.triton.enabled: false`) para demo/local; a stack Docker permanece disponível para reativar fail-closed (`require_for_execution: true`, timeout tipicamente 0,50–8 s conforme perfil).
+**Exclusao mutua:** nao misturar `docker-up` (GPU) e `docker-up-cpu` na mesma porta 8000/8001. Overlay: [`docker-compose.gpu.yml`](../infra/docker/docker-compose.gpu.yml).
 
-| Profile | Serviços | Comando |
-|---------|----------|---------|
-| `core` | redis, timescaledb, minio | `make docker-up-core` |
-| `gpu` | aether-triton (+ minio) | incluso em `docker-up` |
-| `ml` | aether-meta-classifier | incluso em `docker-up` |
+Pipeline `docker-up`: `host-prereq` → `triton-prereq` → compose up → wait healthy → timescale-lifecycle → hydrate (R_10 120/600) → smoke.
 
-Rebuild do meta: `make docker-rebuild`. Smoke isolado: `make docker-smoke`.
+Rebuild meta: `make docker-rebuild`. Smoke: `make docker-smoke` (falha se profile exige servico parado; meta exige JSON `ready`).
 
 ## GPU e Triton
 
-O serviço `aether-triton` usa `nvcr.io/nvidia/tritonserver:24.10-py3` com repositório em `infra/docker/triton-models` (bind mount). Requer **NVIDIA Container Toolkit** no WSL2. Compose declara `gpus: all` e reserva NVIDIA em `deploy.resources`.
+Imagem `nvcr.io/nvidia/tritonserver:24.10-py3`, repo bind `infra/docker/triton-models`. Flags: `--strict-readiness=false`, `--exit-on-error=false`. Health: `/v2/health/live`.
 
-### Fluxo de inferência
+Nos settings atuais o app pode ter `infra.triton.enabled: false`; a stack Docker permanece disponivel para fail-closed (`require_for_execution: true`).
 
-1. **Bootstrap**: `sync_all_symbols_to_triton` copia `latest_ts.pt` → `{symbol}/1/model.pt` + `config.pbtxt` com `fsync` antes do rename.
-2. **Load-over-load**: `wait_triton_models_stable` dispara `POST /v2/repository/models/{name}/load` sequencial (MODE_EXPLICIT) apenas para modelos com artefato novo ou ainda nao ready — **nunca** `/unload`; aguarda ready entre simbolos.
-3. **Sanity estressado**: `verify_triton_stressed_inference_async` (RSI/CMO/vol extremos); fail-fast se NaN/Inf ou prob fora de `[0, 1]`.
-4. **Produção**: `TritonGrpcClient` mantém canal `grpc.aio.insecure_channel` persistente, inferências paralelas (`asyncio.gather`) e timeout configurável (`infra.triton.infer_timeout_seconds`).
-5. **Fail-closed**: com `infra.triton.require_for_execution: true`, timeout não cai para TorchScript local em produção (nos settings atuais pode estar **false**).
-6. **Loop-aware**: `get_triton_grpc_client` recria o singleton se o event loop asyncio mudou (treinos em thread / `asyncio.run`).
-7. **Modelo**: artefato sincronizado em `triton-models/R_10/1/model.pt` (universo single-symbol).
-
-### Healthcheck Triton
-
-`--strict-readiness=false` e `--exit-on-error=false` toleram repositório parcial antes do treino. Healthcheck via `python3` + `urllib` em `/v2/health/live` (HTTP 8000).
+Fluxo no motor: sync MinIO → `triton-models` → load explicito → sanity estressado → `TritonGrpcClient` em `localhost:8001`.
 
 ## Meta-regressor LightGBM
 
-Serviço FastAPI na porta host **8005**. Artefatos em `infra/docker/meta-models/` (bind mount).
+Porta host **8005**. Artefatos em `infra/docker/meta-models/` (`.pkl` **nao** versionado). Profile `ml` so fica healthy apos `train_meta_*`.
 
 | Endpoint | Uso |
 |----------|-----|
-| `GET /health` | Healthcheck Docker |
-| `POST /v2/predict_meta` | Regressão tabular; entrada: probabilidade TCN + vetor meta; saída: `predicted_payoff_edge` |
+| `GET /health` | Exige `ready: true` |
+| `POST /v2/predict_meta` | Vetor **43D** → `predicted_payoff_edge` |
 
-Dimensão canônica no app: **`META_FEATURE_DIM = 43`** (34 TCN + 4 micro-vol + 3 cross + 2 flow). Indicadores micro (RSI, shadow, momentum de spread) indexados em **120 s** no TimescaleDB. O artefato `.pkl` e o treino offline (`train_meta_*.py`) devem alinhar com essa dimensão e com a proporção multi-timeframe **1:5** (120:600).
+Imagem: Python 3.13-slim, user nao-root `aether`.
 
-Treino offline: `train_meta_classifier.py`, `train_meta_optuna.py`, `train_meta_vector.py` (Optuna maximiza Information Ratio; anti-leakage por proxy de retorno passado).
+## Variaveis (`.env`)
 
-Variáveis no `.env`:
+| Variavel | Padrao |
+|----------|--------|
+| `AETHER_TRITON_HTTP` / `AETHER_TRITON_GRPC` | `localhost:8000` / `localhost:8001` |
+| `AETHER_META_CLASSIFIER_HTTP` | `http://localhost:8005` |
+| `AETHER_DOCKER_HEALTH_TIMEOUT` | `300` |
+| `DOCKER_PROFILES` / `COMPOSE_PROFILES` | `core,gpu,ml` |
+| `DOCKER_GPU` | `1` (use `0` com `docker-up-cpu`) |
 
-| Variável | Uso |
-|----------|-----|
-| `AETHER_META_CLASSIFIER_HTTP` | Endpoint (padrão `http://localhost:8005`) |
-| `AETHER_TRITON_GRPC` | gRPC (padrão `localhost:8001`) |
-| `AETHER_TRITON_HTTP` | HTTP (padrão `localhost:8000`) |
-| `AETHER_DOCKER_HEALTH_TIMEOUT` | Timeout do wait healthy em segundos (padrão `300`) |
-| `DOCKER_PROFILES` / `COMPOSE_PROFILES` | Profiles Compose (padrão Make: `core,gpu,ml`) |
+Settings app: `infra.redis.url`, `infra.timescale.dsn`, `infra.minio`, `infra.triton`, `infra.meta_classifier` — sempre **localhost** no hibrido.
 
-Config em `settings.json`:
+## Redis / Timescale / MinIO
 
-```json
-"triton": {
-  "enabled": true,
-  "grpc_url": "localhost:8001",
-  "http_url": "localhost:8000",
-  "infer_timeout_seconds": 0.50,
-  "require_for_execution": true,
-  "model_repo_path": "infra/docker/triton-models"
-},
-"meta_classifier": {
-  "enabled": true,
-  "http_url": "http://localhost:8005",
-  "timeout_seconds": 1.0
-}
-```
+- Redis AOF `appendfsync everysec` (`redis.conf`)
+- Timescale: init `003_*.sql` + lifecycle `004_*.sql`; hydrate sintetico R_10 se micro&lt;360 ou macro&lt;80
+- MinIO: bucket `dl-models`
 
-## Redis — pipeline atômico
+## Relacao com o motor
 
-`redis_state_pipeline.write_state_bundle` executa `MULTI/EXEC` com:
-
-- `state:snapshot` (JSON completo)
-- `state:risk` (hash: `consecutive_losses`, cooldowns, etc.)
-- `state:pending_loss` (hash por símbolo)
-- `session:current` (+ `start_balance` / `target_win`)
-- `recovery:skip_counter`
-- `state:risk:skipped_cycles_counter` (starvation do quality gate)
-- `market_sig`
-- `settlement:queue:priority` (ZSET; score = `contract_id`)
-
-Gravado em `orchestrator_persistence.save_full_state` sob `StateManager._state_lock`. Redis local usa AOF `appendfsync everysec` (`infra/docker/redis.conf`).
-
-## TimescaleDB e MinIO
-
-- Timescale: writers de ticks/barras + worker de correlação.
-- MinIO: source of truth remoto dos checkpoints; cache local em `data/dl/`.
-
-## Relação com o motor
-
-Com `infra.enabled: true`, o startup valida serviços (fail-fast), sincroniza Triton e executa sanity estressado **antes** do WebSocket Deriv. Detalhes de fluxo de software: [`arquitetura.md`](arquitetura.md).
+Com `infra.enabled: true`, startup valida Redis/Timescale/MinIO (fail-fast). Mensagem operacional: `make docker-up-core|docker-up|docker-up-cpu`. Detalhe de software: [`arquitetura.md`](arquitetura.md). Skill: `aether-infra-stack`.

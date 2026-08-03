@@ -1,0 +1,13 @@
+---
+description: Settings SSOT Aether — knobs fail-closed e parsers
+globs: config/settings.json,**/settings_knobs.py,**/config_knobs.py,**/execution_quality_gate_config.py,**/kelly_runtime_config.py,**/soft_recovery_config.py
+alwaysApply: false
+---
+
+# Settings SSOT
+
+- Knob novo = settings + resolve_* + teste + doc se mudar semantica
+- Nao hardcodar o mesmo default em tres lugares
+- Nao afrouxar: force_trade, hard_cal_margin_floor, min_payoff_edge, ACC gate, max_safe_stake_*, sample_size_policy
+- Auth/PAT: nao commitar segredos
+- Doc: `docs/engineering-settings-ssot.md`; skill: `aether-settings-change`

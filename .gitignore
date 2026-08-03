@@ -21,7 +21,11 @@ venv/
 .agent/
 .agents/
 .antigravity/
-.cursor/
+.cursor/*
+!.cursor/rules/
+!.cursor/rules/**
+!.cursor/skills/
+!.cursor/skills/**
 .gemini/
 
 # ---- IDEs E SISTEMA OPERACIONAL ----

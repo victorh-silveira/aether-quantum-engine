@@ -1,0 +1,13 @@
+---
+description: Deriv API/WS Aether — PAT/OTP, stream, websocket, retries
+globs: app/src/infrastructure/api/**/*.py,app/src/infrastructure/handlers/stream_*.py,app/src/infrastructure/api/websocket*.py
+alwaysApply: false
+---
+
+# Deriv API
+
+- Auth hibrida PAT+OTP; trading via WSS
+- Retries Cloudflare/5xx; nao hardcodar tokens em docs/commits
+- Stream dual-timeframe micro+macro; tick buffer por barra fechada
+- Guia agentes: `docs/deriv-api-aether.md`; referencia: `docs/deriv-api.md`
+- Skill: `aether-deriv-connect`

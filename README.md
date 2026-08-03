@@ -11,7 +11,7 @@ Motor quantitativo assíncrono para a Deriv: decisão por **Deep Learning** (TCN
 
 A operação divide-se em duas fases: **FASE TREINO** (nenhuma ordem até todos os modelos concluírem o treino da sessão) e **FASE OPERACAO** mandatária (`mandatory_trade_each_cycle: true`, `force_trade_every_cycle: false`): o ciclo tenta montar candidato a cada fronteira de **120 s**, com alinhamento de **zona de preço** (BB/Keltner: BUY→CALL / SELL→PUT; `require_trend_agreement` / `require_tcn_agreement` off). Nos settings atuais Triton e meta são **opcionais** para execução (`infra.triton.enabled/require_for_execution: false`; `require_meta_for_execution: false`); em stack Docker completa o Triton pode ser reativado fail-closed.
 
-Documentação: [arquitetura](docs/arquitetura.md) | [estrutura e módulos](docs/structure.md) | [metodologia quant](docs/medallion.md) | [infra Docker](docs/infra-docker.md) | [Deriv API](docs/deriv-api.md) | [Deriv para agentes](docs/deriv-api-aether.md) | [índice docs](docs/README.md)
+Documentação: [AGENTS.md](AGENTS.md) (agentes) | [matriz de cobertura](docs/agent-coverage.md) | [arquitetura](docs/arquitetura.md) | [estrutura e módulos](docs/structure.md) | [metodologia quant](docs/medallion.md) | [infra Docker](docs/infra-docker.md) | [Deriv API](docs/deriv-api.md) | [Deriv para agentes](docs/deriv-api-aether.md) | [índice docs](docs/README.md)
 
 Layout: `app/` (código e testes), `config/settings.json`, `docs/`, `linters/`. Ver [docs/structure.md](docs/structure.md).
 
@@ -35,7 +35,7 @@ Layout: `app/` (código e testes), `config/settings.json`, `docs/`, `linters/`. 
 | Concorrência | `StateManager` + barreira atômica | Lock serializa inferência, liquidação e persistência |
 | Inferência | `TritonGrpcClient` | Canal persistente; rebind por event loop |
 
-Ciclo do orquestrador: `orchestrator.cycle_interval_seconds` / `signature_boundary_seconds` (**120 s**). Contexto DL: `data_handler.granularity` (**600 s**, tensor `[1, 72, 34]`). Contrato: `risk_management.params.duration` (**120 s**, RISE_FALL alinhado ao fechamento micro). Proporção multi-timeframe **1:5** (120:600).
+Ciclo do orquestrador: `orchestrator.cycle_interval_seconds` / `signature_boundary_seconds` (**120 s**). Contexto DL: `data_handler.granularity` (**600 s**, tensor `[1, 360, 34]`). Contrato: `risk_management.params.duration` (**120 s**, RISE_FALL alinhado ao fechamento micro). Proporção multi-timeframe **1:5** (120:600).
 
 ---
 
@@ -47,7 +47,7 @@ Arquivo: [`config/settings.json`](config/settings.json)
 |-------|--------|
 | `symbols` / `anchor` | Universo (`R_10`; ancora `R_10`) |
 | `data_handler` | `granularity` (macro **600 s**), `micro_granularity` (**120 s**), `history_bars` / `training_history_bars` (**23328**), `fetch_count`, `buffer_limit` |
-| `deep_learning` | `arch`, `lookback` (**72**), `label_mode` (`spot_forward`), calibration (`neutral_half_width: 0.0`), thresholds **0.51/0.49**, `indicator_gating`, `deploy_gate` |
+| `deep_learning` | `arch`, `lookback` (**360**), `label_mode` (`spot_forward`), calibration (`neutral_half_width: 0.0`), thresholds **0.51/0.49**, `indicator_gating`, `deploy_gate` |
 | `orchestrator.execution` | `mandatory_trade_each_cycle: true`, `force_trade_every_cycle: false`, `price_zone`, `require_meta_for_execution: false`, `quality_gate` (starvation/edge decay), settlement **90 s** |
 | `risk_management.kelly` | Stake EXPLORE (`fraction: 0.08`, tetos 3,5%); compressão 40% fora de recovery |
 | `risk_management.soft_recovery` | RECOVER: amortização 2–5 ciclos, `max_safe_stake_pct: 0.035` |

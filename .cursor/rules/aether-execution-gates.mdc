@@ -1,0 +1,14 @@
+---
+description: Gates de execucao Aether — quality reject, price zone, path, playbook senior
+globs: app/src/application/services/execution_*.py
+alwaysApply: false
+---
+
+# Execution gates
+
+- `hard_cal_margin_floor` **0.05**; `min_payoff_edge>=0`; `align_rsi_trend` on → SKIP `rsi_trend_misalign`
+- ACC gate **0.53**; ADX sniper **0.16**; Hurst noise band + `veto_missing_hurst`
+- EXEC_EMPTY / `gate_reason` coerente = processo ok; nao forcar candidato
+- Catalogo SKIP: `execution_senior_skip.py` + `docs/binary-senior-playbook.md`
+- Recovery pode waivar piso calibrado; explore nao
+- Arquivos: `execution_quality_reject.py`, `execution_direction_discordance.py`, `execution_adverse_path_gate.py`

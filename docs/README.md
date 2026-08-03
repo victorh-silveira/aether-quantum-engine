@@ -2,17 +2,27 @@
 
 | Documento | Conteúdo |
 |-----------|----------|
+| [../AGENTS.md](../AGENTS.md) | Entrada para agentes Cursor/LLM |
+| [agent-coverage.md](agent-coverage.md) | Matriz 100%: doc + rule + skill por superficie |
 | [arquitetura.md](arquitetura.md) | Arquitetura runtime: DL 34D, meta 43D, direção modular, quality gates, Soft Recovery, settlement |
 | [structure.md](structure.md) | Layout do repositório e inventário de módulos Python em `app/src/` (**246**) |
 | [medallion.md](medallion.md) | Metodologia: TCN × meta Z-Score, price zone, Kelly + Soft Recovery, SIDE_EQ, starvation |
 | [sample-size-lln.md](sample-size-lln.md) | Lei dos Grandes Numeros: sample_size_policy, cold-start e anti vies dos pequenos numeros |
-| [infra-docker.md](infra-docker.md) | Stack Docker híbrida: profiles `core/gpu/ml`, hydrate/smoke, Triton `R_10`, meta-classifier |
+| [llm-trading-doctrine.md](llm-trading-doctrine.md) | Doutrina LLM/Cursor: 9 livros mapeados a gates, risco e anti-padroes de engenharia |
+| [binary-senior-playbook.md](binary-senior-playbook.md) | Playbook trader senior: CALL/PUT/SKIP, catalogo gate_reason, knobs 120s |
+| [engineering-standards.md](engineering-standards.md) | QA: pre-commit, cobertura 100%, 300 linhas, commitlint, contribuicao |
+| [engineering-orchestrator.md](engineering-orchestrator.md) | Ciclo do orquestrador, signature, locks, pos-settlement |
+| [engineering-deep-learning.md](engineering-deep-learning.md) | DL 34D, labels, treino/run, meta offline, Triton |
+| [engineering-settlement.md](engineering-settlement.md) | Fila Redis, tolerancia, profit_table, orphans |
+| [engineering-settings-ssot.md](engineering-settings-ssot.md) | Mapa de `settings.json` e regra de knobs novos |
+| [engineering-observability.md](engineering-observability.md) | Logger, dedupe, tags de log do ciclo |
+| [infra-docker.md](infra-docker.md) | Stack Docker hibrida: profiles `core/gpu/cpu/ml`, binds localhost, hydrate 120/600, smoke |
 | [deriv-api.md](deriv-api.md) | Referência Deriv + integração PAT/OTP (retries Cloudflare/5xx) |
 | [deriv-api-aether.md](deriv-api-aether.md) | Guia rápido Deriv para agentes (mapeamento Aether híbrido OTP/REST) |
 | [deriv-indices-algorithm.md](deriv-indices-algorithm.md) | Algoritmo CSPRNG dos índices Drift |
 | [CHANGELOG.md](CHANGELOG.md) | Histórico de versões |
 
-Ponto de entrada do projeto: [README.md](../README.md).
+Ponto de entrada do projeto: [README.md](../README.md). Agentes: [AGENTS.md](../AGENTS.md).
 
 ## Camadas DDD (resumo)
 
@@ -36,7 +46,7 @@ Regra: **domain** não importa application nem infrastructure. **Application** o
 | Item | Valor |
 |------|-------|
 | Universo | `R_10` (âncora `R_10`) |
-| DL | TCN, lookback **72**, macro **600 s**, `FEATURE_DIM=34`, label `spot_forward`, tensor `[1, 72, 34]` |
+| DL | TCN, lookback **360**, macro **600 s**, `FEATURE_DIM=34`, label `spot_forward`, tensor `[1, 360, 34]` |
 | Meta | LightGBM HTTP `:8005`, `META_FEATURE_DIM=43` (micro **120 s**); **opcional** para execução |
 | Relógio | Micro **120 s** + macro **600 s** (1:5); assinatura legado `m5b:…;m5:…;m15:…` |
 | Ciclo / assinatura | `cycle_interval_seconds` / `signature_boundary_seconds` = **120 s** |

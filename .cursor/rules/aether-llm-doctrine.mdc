@@ -1,0 +1,29 @@
+---
+description: Doutrina LLM Aether — processo > P&L; LLM nao decide trade; anti-padroes dos 9 livros
+alwaysApply: true
+---
+
+# Doutrina LLM Aether
+
+LLM/Cursor e copiloto de engenharia. Nao decide CALL/PUT em runtime (TCN + meta + gates). Doutrina completa: `docs/llm-trading-doctrine.md`.
+
+## Nunca propor
+
+- `force_trade_every_cycle=true` como “fix” de EXEC_EMPTY
+- `min_payoff_edge` negativo amplo ou `hard_cal_margin_floor` &lt; **0.05** sem mandato explicito
+- ACC gate &lt; **0.53** ou desligar `align_rsi_trend` sem hipotese
+- Inflar stake apos LOSS (revenge sizing) ou “operar mais para aprender” com N baixo
+- Remover caps (`max_safe_stake_*`), settlement Redis ou timeouts “temporariamente”
+- Julgar mudanca so pelo P&L de poucos ciclos
+
+## Sempre fazer
+
+- Distinguir EXPLORE vs RECOVER; recovery so com pending/linear
+- Exigir evidencia: `live_n`, Cal/Margin, Edge, `val_accuracy`
+- Tratar EXEC_EMPTY com `gate_reason` coerente como sucesso de processo (Duke)
+- Nomear o setup e o veto antes de mudar gate/risco (PlayBook)
+- Hipotese falsificavel para cada knob (Ellenberg)
+
+## Diagnostico de log
+
+Ordem: CLUSTER (Cal/Edge) → SIDE_EQ/META → IND → KELLY → EXEC/gate_reason → RESOLVED/pending. Proibido narrar “mao quente” ou “deve reverter”.
