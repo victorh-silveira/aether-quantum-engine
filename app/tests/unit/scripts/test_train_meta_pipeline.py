@@ -24,6 +24,7 @@ from scripts.operations.train_meta_optuna import (
     META_EXPORT_MAX_MAE_GAP,
     META_EXPORT_MIN_ZSCORE,
     OPTUNA_NEGATIVE_EDGE_PENALTY,
+    _hygiene_for_bundle,
     assert_export_mae_gap,
     assert_export_zscore_floor,
     build_paired_training_dataset,
@@ -201,6 +202,23 @@ def test_validate_target_variance_accepts_dispersed_target():
 def test_target_variance_returns_float_dispersion():
     y = np.array([0.1, -0.2, 0.3, -0.1], dtype=np.float32)
     assert target_variance(y) == pytest.approx(float(np.var(y)))
+
+
+def test_hygiene_for_bundle_preserves_mixed_types():
+    out = _hygiene_for_bundle(
+        {
+            "n_kept": 100,
+            "forward_var": 0.0125,
+            "data_source": "timescale",
+            "label_mode": np.int64(2),
+            "z_collapse_pct": np.float64(1.5),
+        }
+    )
+    assert out["n_kept"] == 100
+    assert out["forward_var"] == pytest.approx(0.0125)
+    assert out["data_source"] == "timescale"
+    assert out["label_mode"] == 2
+    assert out["z_collapse_pct"] == pytest.approx(1.5)
 
 
 def test_build_training_summary_includes_continuous_telemetry():

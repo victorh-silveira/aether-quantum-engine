@@ -15,7 +15,7 @@ Doutrina do copiloto LLM/Cursor (9 livros → constraints de engenharia): [`llm-
 | Sinais, não histórias | Direção CALL/PUT estritamente pela TCN (`P(CALL) > P(PUT)`) |
 | Horizonte curto | Contexto DL **600 s** (assinatura legado `m15`); execução **120 s** (assinatura legado `m5`); proporção multi-timeframe **1:5** (120:600); label atual `spot_forward` (Triple Barrier / `ma_trend` disponiveis via config) |
 | Acoplamento temporal | Inferências e rotações seguem `signature_boundary_seconds` (fallback `cycle_interval_seconds`, padrão **120 s**); fronteira `m5_boundary_epoch` (nome legado) |
-| Esteira mandatária | `mandatory_trade_each_cycle: true` + `price_zone` alinha BUY→CALL / SELL→PUT (`require_trend/tcn_agreement` off) |
+| Esteira mandatária | `mandatory_trade_each_cycle: true` (sem vetos de sinal/qualidade no codigo) |
 | Force trade | `force_trade_every_cycle: false` — sem síntese forçada de candidato |
 | Modelo pronto antes de operar | `FASE TREINO` suspende ordens até treino da sessão |
 | Fail-closed seletivo | Triton/meta **opcionais** nos settings atuais; podem ser reativados fail-closed na stack Docker |
@@ -93,7 +93,7 @@ Features de fluxo e microestrutura extraídas do `TickBuffer` e precomputação:
 | `volatility_shadow_ratio` | Razão entre a soma dos pavios (superior + inferior) da barra micro atual e a amplitude do desvio padrão do Keltner (ATR) |
 | `volatility_shadow_ratio_zscore` | Z-Score adaptativo histórico de 1024 períodos da razão de pavios, clipado a ±3.0 |
 
-Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `feature_vector` (34D TCN) como telemetria analítica e insumo do stacking — com vetoes HARD de microestrutura em ADX / `vol_ratio` / `val_accuracy` via `execution_quality_gate_microstructure`.
+Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `feature_vector` (34D TCN) como telemetria analitica e insumo do stacking — sem veto HARD de microestrutura no pipeline de execucao (escopo 1).
 
 ### 2.5 Perfil de qualidade atualizado
 
@@ -109,7 +109,7 @@ Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `
 | Scoring direcional | TCN define `dl_direction`; edge &gt; 0 pode manter lado contra price zone; compressão BB severa rebaixa para `0.52` |
 | Margem direcional | `direction_margin = abs(P(lado) − 0.50)`; thresholds **0.51/0.49**; piso regular **0.0** nos settings atuais |
 | Gate de qualidade | Dual soft + HARD microestrutura (limiares ADX atuais **0.0**); sniper stubs; meta opcional; consensus **off** |
-| Indicator gating | enabled; `adx_min` **0.16**; `veto_on_noise` true (Hurst **0.47–0.53**); `veto_missing_hurst` true |
+| Indicator gating | removido do pipeline; telemetria de indicadores permanece nas features |
 | Persistence guard | Após 2 perdas: **flip** toxic escape ou skip; `FREEZE` em congestão |
 | Rotulagem | Padrão `spot_forward`; `ma_trend` / Triple Barrier disponíveis via config |
 | Perda TCN assimétrica | Penalidade 2,5× para erro direcional em alta volatilidade |
@@ -177,28 +177,13 @@ Perfil em `config/settings.json` (settings atuais):
 | `label_mode` | `spot_forward` | Rotulagem spot-forward (padrão); `ma_trend` / `triple_barrier` via config |
 | `label_vol_window_bars` | 15 | Janela de σ para largura de barreira (tunável por símbolo) |
 | `label_vol_multiplier` | 1.0 | Multiplicador da barreira de volatilidade |
-| `indicator_gating.enabled` | true | Gate de indicadores |
-| `indicators.*` | (settings) | Periodos/multiplicadores/thresholds 100% JSON; mudar periodos exige retreino TCN |
-| `quality_gate.starvation.*` / `progressive_conviction.*` / `recovery_relax.*` | (settings) | Inanição, convicção progressiva e relax de recovery (SSOT JSON) |
-| `soft_recovery.*` / `recovery_state.*` / `kelly.*` runtime | (settings) | Soft recovery completo, extremos de recovery e turbo/compressão Kelly |
-| `loss_protection.disconnect.*` / `market_rank.composite.*` / `edge_zscore.*` | (settings) | Disconnect, ranking composto e janela Z operacional |
-| `live_signal_metrics.*` / `meta_payoff_veto.*` / `calibration.*` bounds | (settings) | Live ECE/drift, veto meta e temperatura/trust/TCN override |
-| `orchestrator.*_timeout_*` / `infra.meta_classifier.*` / `api_config.stream_reconnect.*` | (settings) | Timing/infra fail-closed (sem defaults mágicos no Python) |
-| `indicator_gating.adx_min` | 0.20 | Piso ADX |
-| `indicator_gating.vol_ratio_min` | 0.65 | Piso vol_ratio |
-| `indicator_gating.veto_on_noise` | true | Veto Hurst em banda de ruido **0.47–0.53** |
-| `hard_cal_margin_floor` | 0.05 | Explore: SKIP se \|Cal−0.5\| &lt; 0.05 |
-| `align_rsi_trend` | true | SKIP `rsi_trend_misalign` se RSI/DI contra TCN |
-| `quality_gate.min_adx_threshold` | 0.20 | HARD ADX starvation |
-| `quality_gate.regular.min_direction_margin` | 0.0 | Piso de margem (regime regular) |
-| `quality_gate.min_direction_margin` | 0.0 | Piso de margem (recovery) |
-| `quality_gate.mandatory_min_trade_score` | 0.52 | Piso de score em mandatory pick |
-| `mandatory_trade_each_cycle` | false | Sem ordem obrigatória a cada ciclo |
-| `force_trade_every_cycle` | false | Sem síntese forçada |
-| `price_zone.*` | enabled | Zona BB/Keltner; BUY→CALL / SELL→PUT; AND trend/TCN opcional (SSOT off) |
-| `require_meta_for_execution` | false | Meta **opcional** para execução |
+| `indicator_gating.*` | removido | Vetos de sinal retirados do codigo (escopo 1) |
+| `hard_cal_margin_floor` / `quality_gate.*` / `price_zone.*` / `align_rsi_trend` | removido | Sem rejeicao de sinal/qualidade no pipeline |
+| `mandatory_trade_each_cycle` | true | Esteira mandataria TCN→Kelly |
+| `force_trade_every_cycle` | false | Sem sintese forcada |
+| `require_meta_for_execution` | false | Meta **opcional** para execucao |
 | `bb_width_adaptive_squeeze.enabled` | false | Squeeze adaptativo desligado |
-| `loss_protection.min_direction_margin` | 0.0 | Piso de margem na proteção contra loss |
+| `loss_protection.min_direction_margin` | 0.0 | Piso de margem na protecao contra loss |
 | `loss_protection.max_edge_without_margin` | 999.0 | Cap edge sem margem |
 | `loss_protection.max_zscore_without_margin` | 999.0 | Cap Z sem margem |
 | `risk_management.kelly.max_stake_pct` | 0.035 | Teto Kelly efetivo |
@@ -495,7 +480,7 @@ Telemetria: `SIDE_EQ | SYMBOL SIDE | call=W/N put=W/N | bias=… wr=… | action
 
 | Flag | Efeito |
 |------|--------|
-| `mandatory_trade_each_cycle: true` | Esteira mandatária com alinhamento `price_zone` BUY/SELL |
+| `mandatory_trade_each_cycle: true` | Esteira mandataria TCN→Kelly sem vetos de sinal |
 | `mandatory_trade_each_cycle: true` | Esteira contínua (legado; desligado nos settings atuais) |
 | `require_meta_for_execution: false` | Meta opcional; Triton permanece fail-closed |
 | `include_anchor_trades` | Inclui âncora nas ordens do cluster |

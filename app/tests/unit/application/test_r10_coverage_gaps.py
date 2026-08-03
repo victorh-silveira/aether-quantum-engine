@@ -128,31 +128,27 @@ def test_attach_cross_symbol_features_with_configured_peer():
 
 
 @pytest.mark.asyncio
-async def test_execute_inference_cluster_records_skip_on_quality_reject(orch_ready):
+async def test_execute_inference_cluster_runs_without_quality_suspend(orch_ready):
     orch = orch_ready
     decisions = {
         "R_10": {
             "metrics": {
                 "calibrated_prob": 0.9,
                 "deploy_ok": True,
-                "quality_guard_reject": True,
             }
         }
     }
-    orch.executor.execute_cluster = AsyncMock(return_value=0)
+    orch.executor.execute_cluster = AsyncMock(return_value=1)
     with (
         patch(
             f"{TRADING_CYCLE_MODULE}.collect_deep_learning_decisions",
             new_callable=AsyncMock,
             return_value=decisions,
         ),
-        patch(f"{TRADING_CYCLE_MODULE}.quality_conviction_suspends_cluster", return_value=False),
         patch(f"{TRADING_CYCLE_MODULE}.session_persistence_blocks_trading_cycle", return_value=False),
-        patch(f"{TRADING_CYCLE_MODULE}.record_quality_guard_cycle_skip") as mock_record,
-        patch(f"{TRADING_CYCLE_MODULE}.prepare_quality_skipped_cycles_counter", new_callable=AsyncMock),
         patch(f"{TRADING_CYCLE_MODULE}.await_regime_freeze_yield", new_callable=AsyncMock),
         patch(f"{TRADING_CYCLE_MODULE}.refresh_correlation_cache", new_callable=AsyncMock),
     ):
         executed = await _execute_inference_cluster_cycle(orch)
-    assert executed is False
-    mock_record.assert_called_once_with(orch)
+    assert executed is True
+    orch.executor.execute_cluster.assert_awaited_once()

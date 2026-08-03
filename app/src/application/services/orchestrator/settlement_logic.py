@@ -4,9 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.application.services.execution_quality_gate_starvation import (
-    reset_quality_skipped_cycles_counter_for_orch,
-)
 from src.application.services.log_dedupe import log_warning_if_changed
 from src.application.services.market_audit_log import (
     format_settlement_audit_line,
@@ -110,7 +107,6 @@ async def _complete_contract_settlement(
 
     if profit >= 0.0 and sum(orch.risk_manager.pending_loss.values()) <= 0.0:
         await reset_recovery_skip_counter_for_orch(orch)
-        await reset_quality_skipped_cycles_counter_for_orch(orch)
 
     pnl = orch.risk_manager.total_session_profit
     target = resolve_stop_win_target(orch.config.get("risk_management", {}), orch.risk_manager.initial_bankroll)
@@ -180,7 +176,6 @@ async def process_late_settlement_from_payload(orch: Any, poc: dict) -> None:
         )
         if profit >= 0.0 and sum(orch.risk_manager.pending_loss.values()) <= 0.0:
             await reset_recovery_skip_counter_for_orch(orch)
-            await reset_quality_skipped_cycles_counter_for_orch(orch)
         if not orch.state.active_contracts and orch.running:
             orch.schedule_trading_cycle_after_settlement()
         await _finalize_settlement_persistence(orch)

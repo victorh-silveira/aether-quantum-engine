@@ -85,3 +85,22 @@ def resolve_deploy_ok(
     if not bool(gate_cfg.get("enabled", True)):
         return float(val_brier) + 1e-9 <= soft_brier
     return float(val_brier) + 1e-9 <= soft_brier
+
+
+def describe_deploy_block(
+    *,
+    mini_ok: bool,
+    val_accuracy: float,
+    val_brier: float,
+    gate_cfg: dict[str, Any],
+) -> str:
+    """Mensagem acionavel quando deploy_ok=false."""
+    soft_acc = float(gate_cfg.get("soft_min_val_accuracy", 0.53))
+    soft_brier = float(gate_cfg.get("soft_max_brier", 0.32))
+    if float(val_accuracy) + 1e-9 < soft_acc:
+        return f"ACC={val_accuracy:.4f}<soft_min={soft_acc:.4f}"
+    if mini_ok:
+        return "mini_ok mas gate rejeitou (inesperado)"
+    if float(val_brier) + 1e-9 > soft_brier:
+        return f"mini falhou e val_brier={val_brier:.4f}>soft_max={soft_brier:.4f}"
+    return "gate rejeitou sem motivo tipado"

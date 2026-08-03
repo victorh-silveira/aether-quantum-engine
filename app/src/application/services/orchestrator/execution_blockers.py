@@ -4,37 +4,25 @@ from src.application.services.force_trade_mode import force_trade_from_orch
 from src.application.services.log_dedupe import clear_log_channel, log_info_if_changed
 
 
+_TECHNICAL_REASONS = frozenset({"training", "data", "deploy", "predict_error"})
+
+
 def _candidate_block_reason(metrics: dict) -> str | None:
-    """Extrai motivo de bloqueio sniper/quality do candidato."""
-    reason = metrics.get("gate_reason") or metrics.get("quality_gate_reason")
-    if isinstance(reason, str) and reason.strip():
-        label = reason.strip()
-        if label == "indicator_discordance":
-            kind = str(metrics.get("indicator_discordance_kind") or "").strip()
-            if kind:
-                return f"{label}:{kind}"
-        return label
-    side_eq_hard = bool(metrics.get("side_eq_blocked"))
-    soft_veto = str(metrics.get("meta_veto_mode") or "") == "soft" or metrics.get("signal_status") == "SOFT_VETO"
-    ready = bool(metrics.get("execution_candidate_ready"))
-    mapping = (
-        (metrics.get("signal_status") == "SKIP", "neutral_signal_skip"),
-        (bool(metrics.get("quality_guard_reject")), "quality_guard_reject"),
-        (bool(side_eq_hard), str(metrics.get("side_eq_reason") or "side_imbalance_both_sides")),
-        (metrics.get("signal_status") == "SIGNAL_SUSPENDED", "SIGNAL_SUSPENDED"),
-        (bool(soft_veto), "meta_payoff_soft_zscore_veto"),
-        (str(metrics.get("price_zone") or "") == "NONE", "price_zone_none"),
-        (bool(metrics.get("persistence_guard_skip")), "persistence_guard_skip"),
-        (ready, "ready_not_selected"),
-    )
-    for hit, label in mapping:
-        if hit:
-            return label
+    """Extrai motivo tecnico de bloqueio do candidato."""
+    reason = metrics.get("gate_reason")
+    if isinstance(reason, str) and reason.strip() in _TECHNICAL_REASONS:
+        return reason.strip()
+    if metrics.get("deploy_ok") is False:
+        return "deploy"
+    if bool(metrics.get("execution_candidate_ready")):
+        return "ready_not_selected"
+    if metrics.get("signal_status") == "SIGNAL_SUSPENDED":
+        return "SIGNAL_SUSPENDED"
     return None
 
 
 def log_execution_blockers(executor, decisions: dict, *, pending: float = 0.0) -> None:
-    """Registra treino em andamento, rejeicoes sniper e recovery sem ordem."""
+    """Registra treino em andamento e bloqueios tecnicos sem ordem."""
     if force_trade_from_orch(executor.orch):
         return
     cid = f"C{int(executor.orch._active_cycle_id):04d}"

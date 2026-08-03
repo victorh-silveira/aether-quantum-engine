@@ -72,7 +72,7 @@ def test_get_symbol_runtime_reuses_checkpoint_when_online_training_disabled():
     with (
         patch(
             "src.application.services.deep_learning.dl_symbol_runtime.load_model_checkpoint",
-            return_value=_loaded_checkpoint(deploy_ok=False, val_brier=0.22),
+            return_value=_loaded_checkpoint(deploy_ok=False, val_brier=0.40),
         ),
         patch("pathlib.Path.exists", return_value=False),
     ):

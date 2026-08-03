@@ -114,19 +114,11 @@ async def test_trading_cycle_skips_epoch_advance_when_non_mandatory_quality_susp
 
 
 @pytest.mark.asyncio
-async def test_trading_cycle_keeps_starvation_counter_on_mandatory_execute(orch_ready):
+async def test_trading_cycle_executes_cluster_on_mandatory(orch_ready):
     orch = orch_ready
     orch._last_cluster_cycle_end = 0.0
     orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 0
-    orch._quality_skipped_cycles_counter = 5
-    weak_decisions = {
-        "R_10": {
-            "metrics": {
-                "calibrated_prob": 0.55,
-                "deploy_ok": True,
-            }
-        },
-    }
+    weak_decisions = {"R_10": {"metrics": {"calibrated_prob": 0.55, "deploy_ok": True}}}
     orch.executor.execute_cluster = AsyncMock()
     with (
         patch(
@@ -136,78 +128,6 @@ async def test_trading_cycle_keeps_starvation_counter_on_mandatory_execute(orch_
         ),
         patch(f"{TRADING_CYCLE_MODULE}.mark_bar_processed", new_callable=AsyncMock),
         patch(f"{TRADING_CYCLE_MODULE}.await_regime_freeze_yield", new_callable=AsyncMock),
-        patch(
-            f"{TRADING_CYCLE_MODULE}.prepare_quality_skipped_cycles_counter",
-            new_callable=AsyncMock,
-            return_value=5,
-        ),
     ):
-        orch._quality_skipped_cycles_counter = 5
         await run_trading_cycle_if_ready(orch)
     orch.executor.execute_cluster.assert_awaited_once()
-    assert orch._quality_skipped_cycles_counter == 5
-
-
-@pytest.mark.asyncio
-async def test_trading_cycle_increments_starvation_counter_on_non_mandatory_suspend(orch_ready):
-    orch = orch_ready
-    orch._last_cluster_cycle_end = 0.0
-    orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 0
-    orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = False
-    orch._quality_skipped_cycles_counter = 5
-    weak_decisions = {
-        "R_10": {
-            "metrics": {
-                "calibrated_prob": 0.55,
-            }
-        },
-    }
-    with (
-        patch(
-            f"{TRADING_CYCLE_MODULE}.collect_deep_learning_decisions",
-            new_callable=AsyncMock,
-            return_value=weak_decisions,
-        ),
-        patch(f"{TRADING_CYCLE_MODULE}.mark_bar_processed", new_callable=AsyncMock),
-        patch(f"{TRADING_CYCLE_MODULE}.await_regime_freeze_yield", new_callable=AsyncMock),
-        patch(f"{TRADING_CYCLE_MODULE}.record_quality_guard_cycle_skip") as mock_record,
-    ):
-        orch.executor.execute_cluster = AsyncMock()
-        await run_trading_cycle_if_ready(orch)
-    mock_record.assert_not_called()
-    orch.executor.execute_cluster.assert_awaited_once()
-
-
-@pytest.mark.asyncio
-async def test_trading_cycle_keeps_starvation_counter_on_execute_success(orch_ready):
-    orch = orch_ready
-    orch._last_cluster_cycle_end = 0.0
-    orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 0
-    orch._quality_skipped_cycles_counter = 5
-    strong_decisions = {
-        "R_10": {
-            "metrics": {
-                "calibrated_prob": 0.90,
-                "deploy_ok": True,
-            }
-        },
-    }
-    orch.executor.execute_cluster = AsyncMock()
-    with (
-        patch(
-            f"{TRADING_CYCLE_MODULE}.collect_deep_learning_decisions",
-            new_callable=AsyncMock,
-            return_value=strong_decisions,
-        ),
-        patch(f"{TRADING_CYCLE_MODULE}.mark_bar_processed", new_callable=AsyncMock),
-        patch(f"{TRADING_CYCLE_MODULE}.await_regime_freeze_yield", new_callable=AsyncMock),
-        patch(
-            f"{TRADING_CYCLE_MODULE}.prepare_quality_skipped_cycles_counter",
-            new_callable=AsyncMock,
-            return_value=5,
-        ),
-    ):
-        orch._quality_skipped_cycles_counter = 5
-        await run_trading_cycle_if_ready(orch)
-    orch.executor.execute_cluster.assert_awaited_once()
-    assert orch._quality_skipped_cycles_counter == 5

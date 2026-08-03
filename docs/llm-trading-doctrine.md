@@ -1,6 +1,6 @@
 # Doutrina LLM do Aether (9 livros)
 
-O LLM/Cursor e **copiloto de engenharia e auditoria**. Nao decide CALL/PUT em runtime. A decisao live permanece TCN + meta LightGBM + gates/Kelly em codigo.
+O LLM/Cursor e **copiloto de engenharia e auditoria**. Nao decide CALL/PUT em runtime. A decisao live permanece TCN + meta LightGBM + Kelly/caps em codigo (vetos de sinal/qualidade removidos por mandato operacional escopo 1).
 
 SSOT operacional: [`config/settings.json`](../config/settings.json). Metodologia: [`medallion.md`](medallion.md). Sample size: [`sample-size-lln.md`](sample-size-lln.md).
 
@@ -12,9 +12,9 @@ SSOT operacional: [`config/settings.json`](../config/settings.json). Metodologia
 
 **Anti-padrao do LLM:** afrouxar piso apos 2–3 WINs; tratar Cal 0.51 como sinal; aumentar stake porque “estava batendo”.
 
-**Regra no Aether:** explore exige margem calibrada e edge nao negativo; caps limitam cauda.
+**Regra no Aether:** caps limitam cauda; Cal/Edge sao telemetria de processo (nao veto de codigo apos escopo 1).
 
-**Ancoras:** `orchestrator.execution.hard_cal_margin_floor` (0.05); `quality_gate.min_payoff_edge` (0.0); `execution_quality_reject.py`; soft recovery caps.
+**Ancoras:** soft recovery caps; Kelly; `force_trade_every_cycle=false`.
 
 ---
 
@@ -24,7 +24,7 @@ SSOT operacional: [`config/settings.json`](../config/settings.json). Metodologia
 
 **Anti-padrao do LLM:** hard-skip ou flip apos 2 losses; misturar `live_wr` com N=1; “aprendemos rapido” via mais trades frios.
 
-**Regra no Aether:** `sample_size_policy` + SIDE_EQ; explore stake scale com N baixo.
+**Regra no Aether:** `sample_size_policy` (telemetria/sizing); explore stake scale com N baixo.
 
 **Ancoras:** `sample_size_policy` (`evidence_n_min=20`, `large_n_min=40`, `explore_stake_scale_floor=0.25`); `app/src/domain/analytics/sample_size_policy.py`; [`sample-size-lln.md`](sample-size-lln.md).
 

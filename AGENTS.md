@@ -21,12 +21,13 @@ Rules/skills versionadas: [`.cursor/rules/`](.cursor/rules/) e [`.cursor/skills/
 ## Proibicoes globais
 
 - `force_trade_every_cycle=true` como “fix” de EXEC_EMPTY
-- Zerar `hard_cal_margin_floor` ou `min_payoff_edge` negativo amplo sem mandato explicito
 - Revenge sizing apos LOSS; “operar mais para aprender” com N baixo
 - Remover caps de stake, fila de settlement ou timeouts “temporariamente”
 - Arquivos `app/src/**/*.py` acima de **300 linhas**
 - Cobertura de testes em `app/src` abaixo de **100%**
 - Assunto de commit em ingles; escopo fora do enum commitlint
+
+Nota operacional (escopo 1): vetos de sinal/qualidade (Hurst/ADX/RSI/cal floor/quality_gate/price_zone/SIDE_EQ block) foram **removidos do codigo**; SKIP restante e tecnico (`training`/`data`/`deploy`/`predict_error`) + Kelly/caps.
 
 ## Escopos commitlint
 

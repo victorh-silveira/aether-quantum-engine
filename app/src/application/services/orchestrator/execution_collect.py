@@ -6,7 +6,6 @@ from src.application.services.execution_loss_protection import (
     filter_loss_protection_candidates,
     filter_recovery_hurst_candidates,
 )
-from src.application.services.execution_quality_gate_fallback import cluster_quality_gate_blocks_mandatory_fallback
 from src.application.services.execution_symbols import (
     select_best_execution_candidate,
     select_mandatory_execution_candidate,
@@ -44,31 +43,16 @@ def apply_cointegration_redirect(
     return redirected if redirected else candidates
 
 
-def _quality_blocks_mandatory_fallback(exec_mgr, decisions: dict) -> bool:
-    """Encapsula bloqueio de fallback obrigatorio pelo quality gate em recovery."""
-    exec_cfg = exec_mgr.orch.config.get("orchestrator", {}).get("execution", {})
-    return cluster_quality_gate_blocks_mandatory_fallback(
-        decisions,
-        exec_cfg=exec_cfg if isinstance(exec_cfg, dict) else {},
-        risk_manager=getattr(exec_mgr.orch, "risk_manager", None),
-        trade_symbols=exec_mgr._trade_symbols(),
-    )
-
-
 def mandatory_fallback_if_empty(exec_mgr, decisions, candidates, **kwargs):
-    """Aplica fallback obrigatorio respeitando veto de qualidade em recovery."""
+    """Aplica fallback obrigatorio quando o pool de candidatos esta vazio."""
     mandatory = bool(kwargs.get("mandatory", exec_mgr._mandatory_trade_each_cycle()))
     if candidates or not mandatory:
         return candidates
-    if _quality_blocks_mandatory_fallback(exec_mgr, decisions):
-        return []
     return _mandatory_fallback_if_empty(exec_mgr, decisions, candidates, **kwargs)
 
 
 def resolve_mandatory_ultimate_candidate(exec_mgr, decisions, **kwargs):
-    """Ultimo recurso de candidato com veto de qualidade em recovery."""
-    if _quality_blocks_mandatory_fallback(exec_mgr, decisions):
-        return None, None
+    """Ultimo recurso de candidato em modo mandatario."""
     return _resolve_mandatory_ultimate_candidate(exec_mgr, decisions, **kwargs)
 
 

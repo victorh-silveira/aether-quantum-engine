@@ -73,7 +73,7 @@ def test_recovery_execution_eligible():
     assert recovery_execution_eligible(entry) is True
 
 
-def test_build_execution_candidate_stamps_calibrated_gray_zone_skip():
+def test_build_execution_candidate_allows_thin_cal_margin():
     entry = {
         "direction": TradeDirection.CALL,
         "metrics": {
@@ -86,4 +86,7 @@ def test_build_execution_candidate_stamps_calibrated_gray_zone_skip():
             "deploy_ok": True,
         },
     }
-    assert build_execution_candidate("R_10", entry) is None
+    built = build_execution_candidate("R_10", entry)
+    assert built is not None
+    assert built[0] == "R_10"
+    assert built[1] == TradeDirection.CALL

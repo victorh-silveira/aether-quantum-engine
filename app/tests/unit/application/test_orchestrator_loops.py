@@ -2,8 +2,6 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.application.services.direction_persistence_guard import log_regime_guard
-from src.application.services.direction_persistence_guard_helpers import reset_regime_guard_log_state
 from src.application.services.orchestrator.api_maintenance_guard import (
     _API_GUARD_LOG_MESSAGE,
     schedule_api_maintenance_hibernation,
@@ -137,12 +135,12 @@ async def test_run_trading_cycle_consecutive_freeze_never_sleeps(orch_ready):
 
 
 @pytest.mark.asyncio
-async def test_run_trading_cycle_freeze_log_emitted_once_per_cycle_id(orch_ready, caplog):
-    reset_regime_guard_log_state()
+async def test_run_trading_cycle_executes_with_frozen_decisions(orch_ready):
     orch = orch_ready
     orch._last_epoch = 120
     orch._last_cluster_cycle_end = 0.0
     orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 0
+    orch.executor.execute_cluster = AsyncMock(return_value=0)
 
     with (
         patch(
@@ -152,14 +150,11 @@ async def test_run_trading_cycle_freeze_log_emitted_once_per_cycle_id(orch_ready
         ),
         patch(f"{TRADING_CYCLE_MODULE}.mark_bar_processed", new_callable=AsyncMock),
         patch(f"{TRADING_CYCLE_MODULE}.refresh_correlation_cache", new_callable=AsyncMock),
-        caplog.at_level("INFO", logger="AETH"),
+        patch(f"{TRADING_CYCLE_MODULE}.await_regime_freeze_yield", new_callable=AsyncMock),
     ):
-        log_regime_guard(1, "FREEZE: SKIP CYCLE", 2)
-        log_regime_guard(1, "FREEZE: SKIP CYCLE", 2)
         await run_trading_cycle_if_ready(orch)
 
-    freeze_logs = [record for record in caplog.records if "FREEZE: SKIP CYCLE" in record.message]
-    assert len(freeze_logs) == 1
+    orch.executor.execute_cluster.assert_awaited_once()
 
 
 @pytest.mark.asyncio

@@ -247,18 +247,10 @@ def test_c0015_stacking_payload_allows_negative_edge_without_rejection(caplog):
             "src.application.services.execution_direction_resolver.attach_payoff_edge_zscore_metrics",
             side_effect=lambda metrics, edge, **kwargs: _stamp_negative_zscore(metrics),
         ),
-        patch(
-            "src.application.services.execution_direction_resolver.reject_on_quality_gate",
-            return_value=False,
-        ),
         caplog.at_level("INFO"),
     ):
-        result = resolve_execution_direction(
-            entry,
-            symbol="R_10",
-            exec_cfg={"quality_gate": {"min_payoff_edge": -1.0, "regular": {"min_payoff_edge": -1.0}}},
-        )
+        result = resolve_execution_direction(entry, symbol="R_10", exec_cfg={})
     assert result is not None
-    assert entry["metrics"].get("meta_negative_edge") is True
+    assert result[1].get("execution_candidate_ready") is True
     assert len(extract_meta_feature_vector(entry["metrics"])) == META_FEATURE_DIM
     assert not any("[D-SQUEEZE]" in record.message for record in caplog.records)

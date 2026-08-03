@@ -8,17 +8,8 @@ from typing import Any
 from src.application.services.deep_learning.decision_bridge import collect_deep_learning_decisions
 from src.application.services.deep_learning.dl_deferred_train import try_enqueue_next_bootstrap_training
 from src.application.services.deep_learning.dl_startup import prepare_inference_run_loop
-from src.application.services.execution_quality_gate_cluster import quality_conviction_suspends_cluster
-from src.application.services.execution_quality_gate_starvation import (
-    prepare_quality_skipped_cycles_counter,
-    record_quality_guard_cycle_skip,
-)
 from src.application.services.force_trade_mode import force_trade_from_orch
 from src.application.services.orchestrator.decision_mode_banner import emit_decision_engine_banner
-from src.application.services.orchestrator.execution_quality_skip_yield import (
-    await_quality_skip_yield,
-    sanitize_quality_skip_decisions,
-)
 from src.application.services.orchestrator.orchestrator_data_signature import seconds_until_next_signature_boundary
 from src.application.services.orchestrator.orchestrator_state_restore import mark_bar_processed
 from src.application.services.orchestrator.regime_freeze_yield import await_regime_freeze_yield
@@ -81,15 +72,12 @@ async def acquire_trading_cycle_lock(orch: Any) -> bool:
 
 async def _execute_inference_cluster_cycle(orch: Any) -> bool:
     """Coleta inferencia DL e executa cluster quando o warm-up micro ja liberou o ciclo."""
-    await prepare_quality_skipped_cycles_counter(orch)
     orch.loss_tracker.prune_obsolete_direction_losses(max_age_seconds=600.0)
     orch.logger.debug(
         "[C%04d] CICLO: coletando decisoes DL (%d simbolos)",
         orch._active_cycle_id,
         len(orch.symbols),
     )
-    post_lock_decisions = None
-    quality_skip_pending = False
     cluster_executed = False
     decisions = await collect_deep_learning_decisions(orch)
     if (
@@ -106,29 +94,10 @@ async def _execute_inference_cluster_cycle(orch: Any) -> bool:
         == 0
     ):
         await refresh_correlation_cache(orch)
-    if quality_conviction_suspends_cluster(orch, decisions):
-        sanitize_quality_skip_decisions(decisions)
-        post_lock_decisions = decisions
-        record_quality_guard_cycle_skip(orch)
-        quality_skip_pending = True
-    elif not session_persistence_blocks_trading_cycle(orch):
+    if not session_persistence_blocks_trading_cycle(orch):
         executed_count = await orch.executor.execute_cluster(decisions)
         cluster_executed = executed_count > 0 if isinstance(executed_count, (int, float)) else True
-        post_lock_decisions = decisions
-        if not cluster_executed:
-            any_quality_reject = any(
-                isinstance(entry, dict)
-                and isinstance(entry.get("metrics"), dict)
-                and entry["metrics"].get("quality_guard_reject")
-                for entry in decisions.values()
-            )
-            if any_quality_reject:
-                record_quality_guard_cycle_skip(orch)
-    if post_lock_decisions is not None:
-        if quality_skip_pending:
-            await await_quality_skip_yield(orch)
-        else:
-            await await_regime_freeze_yield(orch, post_lock_decisions)
+        await await_regime_freeze_yield(orch, decisions)
     return cluster_executed
 
 

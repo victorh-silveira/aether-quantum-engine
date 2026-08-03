@@ -140,7 +140,7 @@ def test_log_execution_blockers_reports_no_candidate(orch_config):
         assert any("EXEC_EMPTY" in str(c) and "no_candidate" in str(c) for c in mock_info.call_args_list)
 
 
-def test_log_execution_blockers_reports_soft_veto_and_price_zone(orch_config):
+def test_log_execution_blockers_reports_ready_and_no_candidate(orch_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
@@ -151,16 +151,16 @@ def test_log_execution_blockers_reports_soft_veto_and_price_zone(orch_config):
                 {
                     "R_10": {
                         "direction": TradeDirection.CALL,
-                        "metrics": {"meta_veto_mode": "soft", "signal_status": "SOFT_VETO"},
+                        "metrics": {"execution_candidate_ready": True},
                     }
                 },
             )
             orch.executor._log_execution_blockers(
-                {"R_10": {"direction": TradeDirection.CALL, "metrics": {"price_zone": "NONE"}}},
+                {"R_10": {"direction": TradeDirection.CALL, "metrics": {"calibrated_prob": 0.55}}},
             )
         joined = " ".join(str(c) for c in mock_info.call_args_list)
-        assert "meta_payoff_soft_zscore_veto" in joined
-        assert "price_zone_none" in joined
+        assert "ready_not_selected" in joined
+        assert "no_candidate" in joined
 
 
 @pytest.mark.asyncio

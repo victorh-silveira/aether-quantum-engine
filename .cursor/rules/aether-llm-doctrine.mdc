@@ -19,9 +19,9 @@ LLM/Cursor e copiloto de engenharia. Nao decide CALL/PUT em runtime (TCN + meta 
 ## Sempre fazer
 
 - Distinguir EXPLORE vs RECOVER; recovery so com pending/linear
-- Exigir evidencia: `live_n`, Cal/Margin, Edge, `val_accuracy`
-- Tratar EXEC_EMPTY com `gate_reason` coerente como sucesso de processo (Duke)
-- Nomear o setup e o veto antes de mudar gate/risco (PlayBook)
+- Exigir evidencia: `live_n`, Cal/Margin, Edge, `val_accuracy` (telemetria; vetos de sinal removidos do codigo)
+- Tratar EXEC_EMPTY tecnico (`training`/`data`/`deploy`/`predict_error`) como sucesso de processo quando coerente
+- Nomear o setup e o bloqueio tecnico antes de mudar risco (PlayBook)
 - Hipotese falsificavel para cada knob (Ellenberg)
 
 ## Diagnostico de log

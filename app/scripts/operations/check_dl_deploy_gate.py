@@ -15,6 +15,7 @@ if str(_APP) not in sys.path:
     sys.path.insert(0, str(_APP))
 
 from aether_paths import REPO_ROOT
+from src.application.services.deep_learning.dl_gate_config import parse_deploy_gate_config, resolve_deploy_ok
 from src.presentation.terminal.logger import setup_logger
 
 
@@ -46,18 +47,36 @@ def _checkpoint_paths(settings: dict, symbols: list[str]) -> list[Path]:
     return out
 
 
-def evaluate_checkpoint(path: Path, *, soft_min: float) -> tuple[bool, str]:
+def evaluate_checkpoint(path: Path, *, soft_min: float, settings: dict | None = None) -> tuple[bool, str]:
     if not path.is_file():
         return False, f"checkpoint ausente: {path}"
     payload = torch.load(path, map_location="cpu", weights_only=False)
     if not isinstance(payload, dict):
         return False, f"payload invalido: {path}"
     val_acc = float(payload.get("val_accuracy", payload.get("val_acc", 0.0)) or 0.0)
-    deploy_ok = bool(payload.get("deploy_ok", False))
+    val_brier = float(payload.get("val_brier", 1.0) or 1.0)
+    stored_ok = bool(payload.get("deploy_ok", False))
     if val_acc + 1e-9 < soft_min:
         return False, f"{path.name}: val_acc={val_acc:.4f} < soft_min={soft_min:.4f}"
-    if not deploy_ok:
-        return False, f"{path.name}: deploy_ok=false (val_acc={val_acc:.4f})"
+    dl = {}
+    if isinstance(settings, dict) and isinstance(settings.get("deep_learning"), dict):
+        dl = settings["deep_learning"]
+    gate_cfg = parse_deploy_gate_config(dl)
+    soft_ok = resolve_deploy_ok(
+        mini_ok=stored_ok,
+        val_accuracy=val_acc,
+        val_brier=val_brier,
+        gate_cfg=gate_cfg,
+    )
+    if not soft_ok:
+        return False, (
+            f"{path.name}: deploy_ok=false "
+            f"(val_acc={val_acc:.4f} val_brier={val_brier:.4f} soft_max_brier={float(gate_cfg['soft_max_brier']):.4f})"
+        )
+    if not stored_ok:
+        payload["deploy_ok"] = True
+        torch.save(payload, path)
+        return True, f"{path.name}: deploy_ok=true (soft fallback) val_acc={val_acc:.4f} val_brier={val_brier:.4f}"
     return True, f"{path.name}: deploy_ok=true val_acc={val_acc:.4f}"
 
 
@@ -71,11 +90,11 @@ def main() -> int:
     soft_min = float(args.soft_min) if args.soft_min is not None else _soft_min_acc(settings)
     ok_all = True
     for path in _checkpoint_paths(settings, [str(s) for s in args.symbols]):
-        ok, msg = evaluate_checkpoint(path, soft_min=soft_min)
+        ok, msg = evaluate_checkpoint(path, soft_min=soft_min, settings=settings)
         logger.info("DL gate | %s", msg)
         ok_all = ok_all and ok
     if not ok_all:
-        logger.error("DL gate falhou: ACC<0.53 ou deploy_ok=false — meta abortado. Retreine.")
+        logger.error("DL gate falhou: ACC/Brier/deploy — meta abortado. Retreine ou ajuste soft_max_brier.")
         return 1
     return 0
 

@@ -58,3 +58,26 @@ def test_resolve_deploy_ok_disabled_still_respects_acc():
     cfg = {"enabled": False, "soft_min_val_accuracy": 0.53, "soft_max_brier": 0.32}
     assert resolve_deploy_ok(mini_ok=True, val_accuracy=0.40, val_brier=0.20, gate_cfg=cfg) is False
     assert resolve_deploy_ok(mini_ok=False, val_accuracy=0.55, val_brier=0.20, gate_cfg=cfg) is True
+
+
+def test_resolve_deploy_ok_soft_fallback_near_coin_flip_brier():
+    cfg = parse_deploy_gate_config(
+        {
+            "deploy_gate": {
+                "enabled": True,
+                "force_ok": False,
+                "soft_min_val_accuracy": 0.53,
+                "soft_max_brier": 0.26,
+            }
+        }
+    )
+    assert resolve_deploy_ok(mini_ok=False, val_accuracy=0.566, val_brier=0.250, gate_cfg=cfg) is True
+    assert resolve_deploy_ok(mini_ok=False, val_accuracy=0.566, val_brier=0.270, gate_cfg=cfg) is False
+
+
+def test_describe_deploy_block_brier():
+    from src.application.services.deep_learning.dl_gate_config import describe_deploy_block
+
+    cfg = {"soft_min_val_accuracy": 0.53, "soft_max_brier": 0.26, "enabled": True}
+    msg = describe_deploy_block(mini_ok=False, val_accuracy=0.56, val_brier=0.27, gate_cfg=cfg)
+    assert "val_brier" in msg

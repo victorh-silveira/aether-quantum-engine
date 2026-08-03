@@ -65,7 +65,7 @@ def test_format_cluster_veto_and_metric_float_paths():
     assert "R_10: CALL (Prob:" in line and "NEUTRO_SKIP)" in line
     assert "R_25: CALL (Prob:" in line and "NEUTRO_SKIP)" in line
     assert "R_50: PUT (Prob:" in line and "NEUTRO_SKIP)" in line
-    assert "R_100: CALL (Prob:" in line and "ADX_STARVATION)" in line
+    assert "R_100: CALL (Prob:" in line and "SKIP:ADX_STARVATION)" in line
 
 
 def test_metric_float_skips_invalid_then_uses_default_in_cluster():

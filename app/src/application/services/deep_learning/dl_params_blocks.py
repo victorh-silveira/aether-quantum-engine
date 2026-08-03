@@ -115,30 +115,25 @@ def parse_calibration_config(dl_config: dict) -> dict[str, Any]:
 
 
 def parse_indicator_gating_config(dl_config: dict) -> dict[str, Any]:
-    """Resolve indicator_gating com merge de override parcial sobre o SSOT."""
-    override = dl_config.get("indicator_gating") if isinstance(dl_config, dict) else None
-    raw = merge_settings_block(
-        ("deep_learning", "indicator_gating"),
-        override if isinstance(override, dict) else None,
-    )
-    block = require_keys(raw, _INDICATOR_GATING_KEYS, "deep_learning.indicator_gating")
+    """Retorna bloco vazio: indicator_gating de veto foi removido do pipeline."""
+    _ = dl_config
     return {
-        "enabled": require_bool(block, "enabled"),
-        "hurst_min": require_float(block, "hurst_min"),
-        "hurst_max": require_float(block, "hurst_max"),
-        "adx_min": require_float(block, "adx_min"),
-        "vol_ratio_min": require_float(block, "vol_ratio_min"),
-        "vol_ratio_max": require_float(block, "vol_ratio_max"),
-        "cmo_min": require_float(block, "cmo_min"),
-        "cmo_max": require_float(block, "cmo_max"),
-        "keltner_pct_b_min": require_float(block, "keltner_pct_b_min"),
-        "keltner_pct_b_max": require_float(block, "keltner_pct_b_max"),
-        "veto_on_noise": require_bool(block, "veto_on_noise"),
-        "noise_hurst_lo": require_float(block, "noise_hurst_lo"),
-        "noise_hurst_hi": require_float(block, "noise_hurst_hi"),
-        "strong_trend_min": require_float(block, "strong_trend_min"),
-        "strong_revert_max": require_float(block, "strong_revert_max"),
-        "veto_missing_hurst": require_bool(block, "veto_missing_hurst"),
+        "enabled": False,
+        "hurst_min": 0.0,
+        "hurst_max": 1.0,
+        "adx_min": 0.0,
+        "vol_ratio_min": 0.0,
+        "vol_ratio_max": 999.0,
+        "cmo_min": -1.0,
+        "cmo_max": 1.0,
+        "keltner_pct_b_min": -999.0,
+        "keltner_pct_b_max": 999.0,
+        "veto_on_noise": False,
+        "noise_hurst_lo": 0.0,
+        "noise_hurst_hi": 0.0,
+        "strong_trend_min": 1.0,
+        "strong_revert_max": 0.0,
+        "veto_missing_hurst": False,
     }
 
 

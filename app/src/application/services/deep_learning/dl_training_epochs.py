@@ -189,17 +189,17 @@ def _checkpoint_if_improved(
     best_val_loss: float,
     best_val_acc: float,
 ) -> tuple[float, float, dict | None, bool]:
-    """Atualiza melhor checkpoint quando loss ou val_acc melhoram."""
+    """Atualiza metricas; grava pesos so quando val_acc melhora (restore senior)."""
     loss_improved = val_loss + 1e-9 < best_val_loss
     acc_improved = val_acc > best_val_acc + 1e-6
-    if not loss_improved and not acc_improved:
-        return best_val_loss, best_val_acc, None, False
     if loss_improved:
         best_val_loss = val_loss
+    best_state = None
     if acc_improved:
         best_val_acc = val_acc
-    best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
-    return best_val_loss, best_val_acc, best_state, True
+        best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+    improved_any = loss_improved or acc_improved
+    return best_val_loss, best_val_acc, best_state, improved_any
 
 
 def fit_training_epochs(
@@ -276,8 +276,9 @@ def fit_training_epochs(
             best_val_loss=best_val_loss,
             best_val_acc=best_val_acc,
         )
-        if improved:
+        if improved_state is not None:
             best_state = improved_state
+        if improved:
             patience_counter = 0
         elif epochs_ran >= min_ep:
             patience_counter += 1

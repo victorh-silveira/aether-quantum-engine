@@ -78,7 +78,7 @@ def _resolve_skip_reason(_entry: dict[str, Any], metrics: dict[str, Any]) -> str
     """Determina a razao de skip do simbolo no cluster."""
     gate_reason = metrics.get("gate_reason")
     if gate_reason:
-        return str(gate_reason).upper().strip()
+        return f"SKIP:{str(gate_reason).upper().strip()}"
     if metrics.get("quality_guard_reject"):
         return "NEUTRO_SKIP"
     if str(metrics.get("signal_status", "")).upper() == "SKIP":

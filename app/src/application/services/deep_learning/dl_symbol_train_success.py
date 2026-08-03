@@ -8,7 +8,7 @@ import numpy as np
 from src.application.services.deep_learning.dl_calibration import CalibratorState
 from src.application.services.deep_learning.dl_deploy import apply_deploy_to_runtime
 from src.application.services.deep_learning.dl_deploy_eval import evaluate_mini_deploy
-from src.application.services.deep_learning.dl_gate_config import resolve_deploy_ok
+from src.application.services.deep_learning.dl_gate_config import describe_deploy_block, resolve_deploy_ok
 from src.application.services.deep_learning.dl_horizon import contract_duration_seconds
 from src.application.services.deep_learning.dl_model_artifacts import schedule_model_upload
 from src.application.services.deep_learning.dl_retrain import clear_force_retrain, reset_bars_since_train
@@ -174,9 +174,16 @@ def apply_successful_symbol_train(
         live_n,
     )
     if not bool(runtime.get("deploy_ok", False)):
+        reason = describe_deploy_block(
+            mini_ok=bool(mini_ok),
+            val_accuracy=float(train_result.val_accuracy),
+            val_brier=float(train_result.val_brier),
+            gate_cfg=gate_cfg,
+        )
         logger.warning(
-            "DL TREINO | %s | deploy_ok=false (ACC<soft_min ou mini-deploy) — retreinar; nao iniciar meta",
+            "DL TREINO | %s | deploy_ok=false (%s) — retreinar; nao iniciar meta",
             symbol,
+            reason,
         )
     logger.log(level, "")
     return norm_stats, train_loss

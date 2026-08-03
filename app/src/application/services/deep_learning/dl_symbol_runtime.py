@@ -12,7 +12,7 @@ from aether_paths import repo_path
 from src.application.services.deep_learning.dl_calibration import CalibratorState
 from src.application.services.deep_learning.dl_device import log_device_once, place_model, resolve_torch_device
 from src.application.services.deep_learning.dl_features import FEATURE_DIM
-from src.application.services.deep_learning.dl_gate_config import parse_deploy_gate_config
+from src.application.services.deep_learning.dl_gate_config import parse_deploy_gate_config, resolve_deploy_ok
 from src.application.services.deep_learning.dl_params import resolve_dl_granularity
 from src.application.services.deep_learning.model import (
     create_direction_model,
@@ -23,6 +23,43 @@ from src.infrastructure.inference.triton_inference_client import triton_enabled
 
 
 logger = logging.getLogger("AETH")
+
+
+def _persist_deploy_ok_flag(path: Path, *, deploy_ok: bool) -> None:
+    """Atualiza so a flag deploy_ok no checkpoint sem retreinar."""
+    try:
+        payload = torch.load(path, map_location=torch.device("cpu"), weights_only=True)
+    except Exception as exc:
+        logger.debug("DL: falha ao reler checkpoint para deploy_ok em %s: %s", path, exc)
+        return
+    if not isinstance(payload, dict):
+        return
+    if bool(payload.get("deploy_ok", False)) == bool(deploy_ok):
+        return
+    payload["deploy_ok"] = bool(deploy_ok)
+    try:
+        torch.save(payload, path)
+    except Exception as exc:
+        logger.debug("DL: falha ao gravar deploy_ok em %s: %s", path, exc)
+
+
+def _effective_deploy_ok(
+    *,
+    stored_ok: bool,
+    val_accuracy: float,
+    val_brier: float,
+    dl_config: dict,
+) -> bool:
+    """Aplica force_ok / soft fallback SSOT sobre a flag persistida."""
+    gate_cfg = parse_deploy_gate_config(dl_config)
+    if bool(gate_cfg.get("force_ok", False)):
+        return True
+    return resolve_deploy_ok(
+        mini_ok=bool(stored_ok),
+        val_accuracy=float(val_accuracy),
+        val_brier=float(val_brier),
+        gate_cfg=gate_cfg,
+    )
 
 
 @contextmanager
@@ -105,8 +142,21 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
                 session_trained = bool(deploy_ok) and float(val_brier) + 1e-9 < 0.99
             else:
                 session_trained = float(val_brier) + 1e-9 < 0.99
-            if bool(parse_deploy_gate_config(dl_config).get("force_ok", False)):
-                deploy_ok = True
+            stored_ok = bool(deploy_ok)
+            deploy_ok = _effective_deploy_ok(
+                stored_ok=stored_ok,
+                val_accuracy=float(val_accuracy),
+                val_brier=float(val_brier),
+                dl_config=dl_config,
+            )
+            if deploy_ok and not stored_ok and path.exists():
+                _persist_deploy_ok_flag(path, deploy_ok=True)
+                logger.info(
+                    "DL: %s deploy_ok promovido por soft fallback (acc=%.4f brier=%.4f)",
+                    symbol,
+                    float(val_accuracy),
+                    float(val_brier),
+                )
             logger.debug("DL: Checkpoint carregado para %s em %s", symbol, path)
         else:
             model = create_direction_model(

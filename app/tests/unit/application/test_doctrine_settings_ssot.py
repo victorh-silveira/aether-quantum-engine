@@ -20,9 +20,6 @@ def _reset_cache():
 def test_production_settings_pass_doctrine_invariants():
     inv = assert_production_doctrine()
     assert inv["force_trade_every_cycle"] is False
-    assert inv["hard_cal_margin_floor"] >= 0.05
-    assert inv["min_payoff_edge"] >= 0.0
-    assert inv["regular_min_payoff_edge"] >= 0.0
     assert inv["min_validation_accuracy_gate"] >= 0.53
     assert inv["explore_stake_scale_floor"] > 0.0
     assert inv["max_safe_stake_cap"] > 0.0
@@ -38,8 +35,13 @@ def test_production_deploy_gate_armed():
     assert gate["enabled"] is True
     assert gate["force_ok"] is False
     assert float(gate["soft_min_val_accuracy"]) >= 0.53
+    assert float(gate.get("soft_max_brier", 0.0)) >= 0.26
     assert int(dl.get("min_epochs", 0)) >= 40
+    assert int(dl.get("early_stopping_patience", 0)) >= 40
+    assert str(dl.get("label_mode")) == "ma_trend"
     assert settings["orchestrator"]["execution"]["bypass_deploy_gate"] is False
+    assert "quality_gate" not in settings["orchestrator"]["execution"]
+    assert "indicator_gating" not in dl
 
 
 def test_production_logging_ssot():

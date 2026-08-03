@@ -12,9 +12,9 @@ Guia operacional DL para agentes. Detalhe de features: [`arquitetura.md`](arquit
 | Macro | **600 s** |
 | Micro / contrato | **120 s** |
 | Features | **34D** (`FEATURE_DIM`) |
-| Label | `spot_forward` (1 barra micro = contrato 120s) |
-| ACC / deploy | `soft_min_val_accuracy` **0.53**; `deploy_gate.enabled=true`, `force_ok=false` |
-| Early stop | `min_epochs` **40**, `early_stopping_patience` **25** |
+| Label | `ma_trend` (MA 8; horizonte 1 barra micro = contrato 120s) |
+| ACC / deploy | `soft_min_val_accuracy` **0.53**; `soft_max_brier` **0.26**; `force_ok=false` |
+| Early stop | `min_epochs` **40**, `early_stopping_patience` **40**; restore **best val_acc** |
 | Meta | LightGBM **43D** `predicted_payoff_edge` |
 
 ## Entry points
@@ -29,6 +29,8 @@ Guia operacional DL para agentes. Detalhe de features: [`arquitetura.md`](arquit
 ## Deploy gate (senior)
 
 `resolve_deploy_ok` exige `val_accuracy >= soft_min` **antes** de `mini_ok` / `force_ok`. Checkpoint com ACC 0.52 grava `deploy_ok=false`. Nao usar `force_ok=true` nem `bypass_deploy_gate=true` em producao.
+
+Checkpoint de treino restaura pesos do **melhor val_acc** (melhoria so de loss nao sobrescreve). Em R_10, `spot_forward` costuma platô ~0.52; `ma_trend` e o label SSOT atual.
 
 ## Meta — alvo e dados
 

@@ -6,7 +6,6 @@ import json
 from typing import Any
 
 from aether_paths import repo_path
-from src.application.services.execution_quality_gate_config import resolve_quality_gate_config
 from src.domain.config_knobs import require_bool, require_float, require_int, require_keys, require_mapping
 
 
@@ -62,7 +61,6 @@ _META_VETO_KEYS = (
 _REGIME_KEYS = ("chop_congestion_z_edge", "tick_accel_neutral_eps")
 _VOL_BOOST_KEYS = ("mandatory_score", "min_edge")
 _FORCE_KEYS = ("min_trade_score", "stake_min_floor", "stake_min_default", "direction_split")
-_PERSISTENCE_KEYS = ("same_direction_count_threshold",)
 _CROSS_CORR_KEYS = (
     "squeeze_vol_ratio_max",
     "min_margin",
@@ -222,52 +220,14 @@ def resolve_force_trade_config(exec_cfg: dict[str, Any] | None = None) -> dict[s
     return {k: require_float(raw, k) for k in _FORCE_KEYS}
 
 
-def resolve_direction_persistence_config(exec_cfg: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Resolve ou aplica resolve direction persistence config."""
-    raw = require_mapping(
-        _execution_block(exec_cfg), "direction_persistence", _PERSISTENCE_KEYS, "orchestrator.execution"
-    )
-    return {"same_direction_count_threshold": require_int(raw, "same_direction_count_threshold")}
-
-
 def resolve_cross_corr_config(exec_cfg: dict[str, Any] | None = None) -> dict[str, Any]:
     """Resolve ou aplica resolve cross corr config."""
     raw = require_mapping(_execution_block(exec_cfg), "cross_corr", _CROSS_CORR_KEYS, "orchestrator.execution")
     return {k: require_float(raw, k) for k in _CROSS_CORR_KEYS}
 
 
-def resolve_quality_gate_from_exec(exec_cfg: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Resolve ou aplica resolve quality gate from exec."""
-    return resolve_quality_gate_config(_execution_block(exec_cfg))
-
-
-def resolve_price_zone_config(exec_cfg: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Resolve ou aplica resolve price zone config."""
-    keys = (
-        "enabled",
-        "buy_max",
-        "sell_min",
-        "bb_weight",
-        "keltner_weight",
-        "neutral_mode",
-        "require_trend_agreement",
-        "require_tcn_agreement",
-    )
-    raw = require_mapping(_execution_block(exec_cfg), "price_zone", keys, "orchestrator.execution")
-    mode = str(raw["neutral_mode"]).strip().lower()
-    if mode not in {"reject", "nearest"}:
-        raise ValueError("orchestrator.execution.price_zone.neutral_mode invalido")
-    out = {
-        k: require_bool(raw, k) if k.startswith("require_") or k == "enabled" else require_float(raw, k)
-        for k in keys
-        if k != "neutral_mode"
-    }
-    out["neutral_mode"] = mode
-    return out
-
-
 def resolve_side_equilibrium_config(exec_cfg: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Resolve ou aplica resolve side equilibrium config."""
+    """Resolve config de telemetria side_equilibrium (sem bloqueio de execucao)."""
     keys = (
         "enabled",
         "small_window",

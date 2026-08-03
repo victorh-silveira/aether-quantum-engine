@@ -1,8 +1,7 @@
-"""Calculo e sincronizacao de direction_margin no quality gate."""
+"""Calculo e sincronizacao de direction_margin."""
 
 from __future__ import annotations
 
-import contextlib
 from typing import Any
 
 
@@ -64,36 +63,3 @@ def stamp_edge_without_direction(
     metrics["trade_score"] = compressed
     metrics["conviction"] = compressed
     metrics["edge_without_direction_penalty"] = max(0.0, float(base) - compressed)
-
-
-def apply_quality_margin_floor_waivers(
-    metrics: dict[str, Any],
-    margin_floor: float,
-    *,
-    exec_cfg: dict[str, Any] | None,
-) -> float:
-    """Aplica waivers de piso de margem por senior trader ou Z-Score meta forte."""
-    floor = float(margin_floor)
-    senior = 0.0
-    raw_senior = metrics.get("senior_trader_conviction")
-    if raw_senior is not None:
-        with contextlib.suppress(TypeError, ValueError):
-            senior = float(raw_senior)
-    if senior + 1e-12 >= 0.56:
-        metrics["quality_margin_senior_waiver"] = True
-        return 0.0
-    from src.application.services.execution_quality_gate_config import (  # noqa: PLC0415
-        resolve_quality_gate_config,
-    )
-
-    qg = resolve_quality_gate_config(exec_cfg)
-    z_min = float(qg.get("min_meta_payoff_zscore", 0.0) or 0.0)
-    z_raw = metrics.get("meta_payoff_edge_zscore")
-    if z_raw is None:
-        z_raw = metrics.get("edge_zscore")
-    if z_min > 0.0 and z_raw is not None:
-        with contextlib.suppress(TypeError, ValueError):
-            if float(z_raw) + 1e-12 >= z_min:
-                metrics["quality_margin_meta_z_waiver"] = True
-                return 0.0
-    return floor

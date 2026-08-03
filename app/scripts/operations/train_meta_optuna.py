@@ -132,6 +132,20 @@ def _purged_frame_split(
     return frame.iloc[:train_end], frame.iloc[val_start:], y[:train_end], y[val_start:], w_train
 
 
+def _hygiene_for_bundle(hygiene: dict[str, Any]) -> dict[str, Any]:
+    """Serializa hygiene misto (int/float/str) para bundle_meta sem forcar int."""
+    out: dict[str, Any] = {}
+    for key, value in hygiene.items():
+        name = str(key)
+        if isinstance(value, (bool, int, np.integer)):
+            out[name] = int(value)
+        elif isinstance(value, (float, np.floating)):
+            out[name] = float(value)
+        else:
+            out[name] = str(value)
+    return out
+
+
 def run_optuna_study(
     frame: pd.DataFrame,
     y: np.ndarray,
@@ -139,7 +153,7 @@ def run_optuna_study(
     trials: int,
     granularity: int | None = None,
     sample_weight: np.ndarray | None = None,
-    hygiene: dict[str, int] | None = None,
+    hygiene: dict[str, Any] | None = None,
 ) -> tuple[lgb.Booster, dict[str, Any], float, float]:
     configure_meta_train_logging()
     columns = meta_classifier_column_names()
@@ -247,7 +261,7 @@ def run_optuna_study(
         **best_params,
     }
     if hygiene:
-        bundle_meta.update({str(k): int(v) for k, v in hygiene.items()})
+        bundle_meta.update(_hygiene_for_bundle(hygiene))
     return model, bundle_meta, train_mae, val_mae
 
 

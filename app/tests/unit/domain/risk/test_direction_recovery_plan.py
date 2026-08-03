@@ -178,7 +178,7 @@ def test_meta_negative_edge_keeps_direction_without_flip():
     assert metrics.get("meta_negative_edge") is True
 
 
-def test_resolve_execution_direction_rejects_meta_negative_edge_without_force():
+def test_resolve_execution_direction_allows_meta_negative_edge_without_force():
     entry = {
         "direction": TradeDirection.CALL,
         "metrics": {
@@ -194,15 +194,13 @@ def test_resolve_execution_direction_rejects_meta_negative_edge_without_force():
     }
     metrics = entry["metrics"]
 
-    def _reject_edge(dl_dir, metrics_arg, predicted_edge, **kwargs):
-        metrics_arg["quality_guard_reject"] = True
+    def _keep_edge(dl_dir, metrics_arg, predicted_edge, **kwargs):
         metrics_arg["meta_negative_edge"] = True
-        metrics_arg["gate_reason"] = "meta_negative_edge"
         return dl_dir, float(kwargs.get("base_score", 0.51))
 
     with patch(
         "src.application.services.execution_direction_resolver.apply_meta_regression_edge",
-        side_effect=_reject_edge,
+        side_effect=_keep_edge,
     ):
         result = _finalize_execution_metrics(
             entry,
@@ -214,16 +212,10 @@ def test_resolve_execution_direction_rejects_meta_negative_edge_without_force():
             score=0.51,
             symbol="R_10",
             force=False,
-            exec_cfg={
-                "quality_gate": {
-                    "min_payoff_edge": 0.0,
-                    "regular": {"min_payoff_edge": 0.0},
-                    "recovery_relax": {"edge_floor": 0.0},
-                }
-            },
         )
-        assert result is None
-    assert metrics.get("meta_negative_edge") is True
+        assert result is not None
+        assert result[0] == TradeDirection.CALL
+    assert metrics.get("execution_candidate_ready") is True
 
 
 def test_include_anchor_trades_true_keeps_anchor_eligible():
