@@ -7,8 +7,9 @@ alwaysApply: false
 # Sample size e SIDE_EQ
 
 - N pequeno = ruido. Nao hard-skip/flip/toxic com N abaixo dos pisos (`n_min_small`, `toxic_side_n_min`).
+- Runtime: SIDE_EQ = **soft Kelly only** (`execution_side_eq_sizing`); dominio `hard_skip` mapeia para `kelly_mult`; sem veto de direcao.
 - `live_wr` / ECE so pesam apos `evidence_n_min` / `calib_soft_min_n`.
 - Cold start: `explore_stake_scale_floor` comprime stake; nao “aprender” operando mais.
 - Large-N: soft penalty; nao narrativa de mao quente.
-- SSOT: `orchestrator.execution.sample_size_policy` + docs `sample-size-lln.md`.
+- SSOT: `orchestrator.execution.sample_size_policy` + `side_equilibrium` + docs `sample-size-lln.md`.
 - Ao mudar knobs de N, atualizar doutrina/LLN se o significado operacional mudar.

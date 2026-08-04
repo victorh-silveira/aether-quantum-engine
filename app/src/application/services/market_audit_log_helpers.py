@@ -89,15 +89,18 @@ def _resolve_skip_reason(_entry: dict[str, Any], metrics: dict[str, Any]) -> str
 
 
 def resolve_cluster_timeframe(metrics: dict[str, Any] | None) -> str:
-    """Resolve a string representativa do timeframe do cluster."""
+    """Resolve TF do CLUSTER priorizando o decisor micro (contrato)."""
     if not isinstance(metrics, dict):
-        return "M5"
+        return "M2"
     data_handler = metrics.get("data_handler")
     if isinstance(data_handler, dict):
+        micro = data_handler.get("micro_granularity")
+        if micro is not None:
+            return _granularity_to_tf(int(micro))
         granularity = data_handler.get("granularity")
         if granularity is not None:
             return _granularity_to_tf(int(granularity))
-    return str(metrics.get("timeframe", metrics.get("tf", "M5")))
+    return str(metrics.get("timeframe", metrics.get("tf", "M2")))
 
 
 def _granularity_to_tf(seconds: int) -> str:

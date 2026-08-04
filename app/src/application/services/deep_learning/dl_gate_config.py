@@ -20,6 +20,9 @@ _DEPLOY_GATE_KEYS = (
     "eval_put_threshold_floor",
     "eval_call_threshold_default",
     "eval_put_threshold_default",
+    "reject_majority_collapse",
+    "max_label_call_frac_bias",
+    "min_minority_recall",
 )
 
 
@@ -46,6 +49,9 @@ def parse_deploy_gate_config(dl_config: dict) -> dict[str, Any]:
         "eval_put_threshold_floor": require_float(block, "eval_put_threshold_floor"),
         "eval_call_threshold_default": require_float(block, "eval_call_threshold_default"),
         "eval_put_threshold_default": require_float(block, "eval_put_threshold_default"),
+        "reject_majority_collapse": require_bool(block, "reject_majority_collapse"),
+        "max_label_call_frac_bias": require_float(block, "max_label_call_frac_bias"),
+        "min_minority_recall": require_float(block, "min_minority_recall"),
     }
 
 
@@ -72,12 +78,24 @@ def resolve_deploy_ok(
     val_accuracy: float,
     val_brier: float,
     gate_cfg: dict[str, Any],
+    label_call_frac: float | None = None,
+    minority_recall: float | None = None,
 ) -> bool:
     """Combina mini deploy com fallback por metricas de treino; ACC soft e piso duro."""
     soft_acc = float(gate_cfg.get("soft_min_val_accuracy", 0.53))
     soft_brier = float(gate_cfg.get("soft_max_brier", 0.32))
     if float(val_accuracy) + 1e-9 < soft_acc:
         return False
+    if bool(gate_cfg.get("reject_majority_collapse", False)):
+        bias_cap = float(gate_cfg.get("max_label_call_frac_bias", 0.20))
+        min_rec = float(gate_cfg.get("min_minority_recall", 0.25))
+        if (
+            label_call_frac is not None
+            and minority_recall is not None
+            and abs(float(label_call_frac) - 0.5) > bias_cap
+            and float(minority_recall) + 1e-9 < min_rec
+        ):
+            return False
     if bool(gate_cfg.get("force_ok", False)):
         return True
     if mini_ok:
@@ -93,12 +111,26 @@ def describe_deploy_block(
     val_accuracy: float,
     val_brier: float,
     gate_cfg: dict[str, Any],
+    label_call_frac: float | None = None,
+    minority_recall: float | None = None,
 ) -> str:
     """Mensagem acionavel quando deploy_ok=false."""
     soft_acc = float(gate_cfg.get("soft_min_val_accuracy", 0.53))
     soft_brier = float(gate_cfg.get("soft_max_brier", 0.32))
     if float(val_accuracy) + 1e-9 < soft_acc:
         return f"ACC={val_accuracy:.4f}<soft_min={soft_acc:.4f}"
+    if bool(gate_cfg.get("reject_majority_collapse", False)):
+        bias_cap = float(gate_cfg.get("max_label_call_frac_bias", 0.20))
+        min_rec = float(gate_cfg.get("min_minority_recall", 0.25))
+        if (
+            label_call_frac is not None
+            and minority_recall is not None
+            and abs(float(label_call_frac) - 0.5) > bias_cap
+            and float(minority_recall) + 1e-9 < min_rec
+        ):
+            return (
+                f"majority_collapse label_call={float(label_call_frac):.3f} minority_rec={float(minority_recall):.3f}"
+            )
     if mini_ok:
         return "mini_ok mas gate rejeitou (inesperado)"
     if float(val_brier) + 1e-9 > soft_brier:

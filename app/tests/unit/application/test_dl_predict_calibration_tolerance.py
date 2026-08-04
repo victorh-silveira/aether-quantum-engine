@@ -47,18 +47,18 @@ def test_calibration_outside_wide_band_keeps_call():
     assert mode == "calibrated"
 
 
-def test_calibration_tcn_macro_override_privileges_raw_call():
+def test_calibration_raw_extreme_keeps_calibrated_prob_call():
     prob, direction, mode = apply_calibration_neutral_tolerance(0.50, 0.85, None)
-    assert prob == pytest.approx(0.85)
+    assert prob == pytest.approx(0.50)
     assert direction == TradeDirection.CALL
-    assert mode == "tcn_macro_override"
+    assert mode == "raw_extreme"
 
 
-def test_calibration_tcn_macro_override_privileges_raw_put():
-    prob, direction, mode = apply_calibration_neutral_tolerance(0.50, 0.15, TradeDirection.CALL)
-    assert prob == pytest.approx(0.15)
+def test_calibration_raw_extreme_keeps_calibrated_prob_put():
+    prob, direction, mode = apply_calibration_neutral_tolerance(0.61, 0.15, TradeDirection.CALL)
+    assert prob == pytest.approx(0.61)
     assert direction == TradeDirection.CALL
-    assert mode == "tcn_macro_override"
+    assert mode == "raw_extreme"
 
 
 def test_calibration_outside_neutral_infers_when_direction_missing():

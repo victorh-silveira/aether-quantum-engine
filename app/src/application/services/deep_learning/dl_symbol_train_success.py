@@ -107,6 +107,8 @@ def apply_successful_symbol_train(
         val_accuracy=float(train_result.val_accuracy),
         val_brier=float(train_result.val_brier),
         gate_cfg=gate_cfg,
+        label_call_frac=float(getattr(train_result, "label_call_frac", 0.5)),
+        minority_recall=float(getattr(train_result, "minority_recall", 1.0)),
     )
     apply_deploy_to_runtime(
         runtime,
@@ -123,6 +125,9 @@ def apply_successful_symbol_train(
         label="holdout",
     )
     runtime["oos_sharpness"] = oos_sharpness
+    runtime["label_call_frac"] = float(getattr(train_result, "label_call_frac", 0.5))
+    runtime["pred_call_frac"] = float(getattr(train_result, "pred_call_frac", 0.5))
+    runtime["minority_recall"] = float(getattr(train_result, "minority_recall", 1.0))
     path = resolve_dl_model_path(dl_config, symbol)
     save_model_checkpoint(
         path,
@@ -159,7 +164,8 @@ def apply_successful_symbol_train(
     logger.log(
         level,
         "DL TREINO | %s | concluido em %.0fs | epocas=%d | loss=%.4f | val_acc=%.2f | brier=%.3f | "
-        "deploy=%s | settle_wr=%.2f | settle_brier=%.3f | label_wr=%.2f | live_wr=%.2f | live_n=%d",
+        "deploy=%s | settle_wr=%.2f | settle_brier=%.3f | label_wr=%.2f | live_wr=%.2f | live_n=%d | "
+        "label_call=%.2f | pred_call=%.2f | minority_rec=%.2f",
         symbol,
         time.monotonic() - started,
         int(getattr(train_result, "epochs_ran", 0)),
@@ -172,6 +178,9 @@ def apply_successful_symbol_train(
         float(runtime.get("deploy_label_win_rate", deploy_wr)),
         live_wr,
         live_n,
+        float(runtime.get("label_call_frac", 0.5)),
+        float(runtime.get("pred_call_frac", 0.5)),
+        float(runtime.get("minority_recall", 1.0)),
     )
     if not bool(runtime.get("deploy_ok", False)):
         reason = describe_deploy_block(
@@ -179,6 +188,8 @@ def apply_successful_symbol_train(
             val_accuracy=float(train_result.val_accuracy),
             val_brier=float(train_result.val_brier),
             gate_cfg=gate_cfg,
+            label_call_frac=float(getattr(train_result, "label_call_frac", 0.5)),
+            minority_recall=float(getattr(train_result, "minority_recall", 1.0)),
         )
         logger.warning(
             "DL TREINO | %s | deploy_ok=false (%s) — retreinar; nao iniciar meta",

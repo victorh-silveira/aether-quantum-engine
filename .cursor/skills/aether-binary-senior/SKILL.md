@@ -14,11 +14,15 @@ Ler `docs/binary-senior-playbook.md`.
 
 1. Bloqueio tecnico? (`training`/`data`/`deploy`/`predict_error`) — senao TCN segue
 2. Candidato `execution_candidate_ready`? Cal/Edge sao telemetria, nao veto
-3. ACC/deploy de treino ≥ 0.53 quando o tema for modelo
-4. Kelly/caps — `EXEC_PAUSE` e sizing, nao veto de direcao
-5. EXPLORE vs RECOVER — nao revenge sizing
+3. ACC/deploy de treino ≥ 0.53 quando o tema for modelo; checar `label_call_frac` / majority-collapse
+4. Lado enviesado no live ≠ SKIP tecnico — SIDE_EQ e **soft Kelly** (`execution_side_eq_sizing`), nao veto de direcao
+5. SCALE: `SCALE || … tape=… adapted=` e IND `SCALE: tcn=… tape=…` — sob `raw_extreme` pode **adaptar lado** (sem SKIP); discord/adapt amortece Kelly / corta DAL
+6. `raw_extreme` ≠ MACRO TF: Cal nao e substituido por raw; limiares `tcn_macro_*_override` so limiam raw
+7. Kelly/caps — `EXEC_PAUSE` e sizing, nao veto de direcao
+8. EXPLORE vs RECOVER — nao revenge sizing; discordance/adapt forca EXPLORE Kelly (sem DAL_Ln)
 
 ## Saida
 
 Veredito: **CALL elegivel** | **PUT elegivel** | **SKIP tecnico** | **bad fill** (processo falhou).
 Nunca recomendar `force_trade_every_cycle=true`.
+Nunca propor rearmar quality gate / veto de sinal por streak PUT/CALL.

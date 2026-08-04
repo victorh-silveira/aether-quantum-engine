@@ -107,13 +107,16 @@ def resolve_dlambert_stake(
 ) -> tuple[float, str]:
     """Resolve stake final Kelly ou Soft Recovery Adaptativo indexado ao payout."""
     soft = _soft_cfg(rm, dlambert_config)
+    metrics = dl_metrics if isinstance(dl_metrics, dict) else None
+    if metrics is not None and (bool(metrics.get("scale_force_explore")) or bool(metrics.get("scale_adapted"))):
+        resolve_dlambert_unit(kelly_base, rm)
+        return round_stake(float(kelly_base), recovery_linear=False), "KELLY"
     stress_recovery = soft_recovery_stress_active(
         recovery_active=recovery_active,
         pending_total=pending_total,
         consecutive_losses_linear=consecutive_losses_linear,
     )
     if stress_recovery and soft_recovery_enabled(dlambert_config, soft_recovery=soft):
-        metrics = dl_metrics if isinstance(dl_metrics, dict) else None
         resolved_f_star = f_star
         if resolved_f_star is None and metrics:
             resolved_f_star = (

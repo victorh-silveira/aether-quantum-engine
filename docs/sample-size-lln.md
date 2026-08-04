@@ -23,4 +23,8 @@ Politica operacional contra o vies dos pequenos numeros (Mlodinow / Tversky-Kahn
 3. Calib drift: ECE alto com N=1 e ignorado ate `calib_soft_min_n`.
 4. Large-N: soft penalty Kelly/margem, sem flip automatico por “mao quente”.
 
-Ver tambem [`medallion.md`](medallion.md) secao 1.1.
+## SIDE_EQ runtime = soft Kelly only
+
+No live, `hard_skip` de dominio em `side_equilibrium` e mapeado para **soft `kelly_mult`** em `execution_side_eq_sizing.apply_side_eq_kelly_sizing` (finalize do direction resolver). Nao ha SKIP/veto de direcao por SIDE_EQ; `side_eq_blocked` nao zera stake. Config: `orchestrator.execution.side_equilibrium.enabled=true`.
+
+Ver tambem [`medallion.md`](medallion.md) secao 1.1 / 8.5.

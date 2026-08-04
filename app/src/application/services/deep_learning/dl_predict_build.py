@@ -265,12 +265,13 @@ def build_prediction_entry(
     entry["metrics"]["call_votes"] = call_votes
     entry["metrics"]["put_votes"] = put_votes
     entry["metrics"]["indicators"] = indicators_data
-    entry["metrics"]["macro_indicators"] = indicators_data
     if len(series.get("log_return", [])) > 0:
         idx = len(series["log_return"]) - 1
         entry["metrics"]["feature_vector"] = build_feature_row(series, idx).tolist()
     entry["metrics"]["indicator_timeframe_seconds"] = int(params.get("granularity", 900))
     stamp_micro_frame_telemetry(_orch, str(symbol), entry["metrics"], params)
+    if not isinstance(entry["metrics"].get("macro_indicators"), dict):
+        entry["metrics"]["macro_indicators"] = indicators_data
     attach_dynamic_metrics(
         entry["metrics"],
         dynamic=dynamic,

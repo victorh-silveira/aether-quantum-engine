@@ -16,7 +16,8 @@ Enforcement no core: `doctrine_invariants.py` + testes `test_doctrine_*` / `test
 | Execution gates | [arquitetura.md](arquitetura.md) §6 | `aether-execution-gates.mdc` | `aether-session-review` |
 | Sample size / SIDE_EQ | [sample-size-lln.md](sample-size-lln.md) | `aether-sample-size.mdc` | `aether-session-review` |
 | Orchestrator / ciclo | [engineering-orchestrator.md](engineering-orchestrator.md) | `aether-orchestrator.mdc` | `aether-cycle-debug` |
-| DL / labels / calib | [engineering-deep-learning.md](engineering-deep-learning.md) | `aether-deep-learning.mdc` | `aether-dl-train` |
+| Scale vision MACRO/MICRO/MINI/MILI | [engineering-orchestrator.md](engineering-orchestrator.md) + [binary-senior-playbook.md](binary-senior-playbook.md) | `aether-execution-gates.mdc` | `aether-cycle-debug` + `aether-binary-senior` |
+| DL / labels / calib / vies de classe | [engineering-deep-learning.md](engineering-deep-learning.md) | `aether-deep-learning.mdc` | `aether-dl-train` |
 | Settlement / Redis fila | [engineering-settlement.md](engineering-settlement.md) | `aether-settlement.mdc` | `aether-settlement-debug` |
 | Infra Docker / state / storage / market / inference | [infra-docker.md](infra-docker.md) | `aether-infra.mdc` | `aether-infra-stack` |
 | Deriv API / WS / PAT | [deriv-api-aether.md](deriv-api-aether.md) | `aether-deriv-api.mdc` | `aether-deriv-connect` |
@@ -31,7 +32,8 @@ Enforcement no core: `doctrine_invariants.py` + testes `test_doctrine_*` / `test
 | Pasta | Linha da matriz |
 |-------|-----------------|
 | `app/src/application/services/orchestrator/` | Orchestrator / ciclo |
-| `app/src/application/services/deep_learning/` | DL / labels / calib |
+| `app/src/application/services/execution_scale_*.py` | Scale vision + adaptacao de fita (lado/sizing) |
+| `app/src/application/services/deep_learning/` | DL / labels / calib / vies de classe (sample_weighting, majority-collapse, regime via recency; `raw_extreme`) |
 | `app/src/application/services/execution_*.py` | Execution gates |
 | `app/src/domain/risk/` | Risco / Kelly |
 | `app/src/domain/analytics/` | Sample size / SIDE_EQ |

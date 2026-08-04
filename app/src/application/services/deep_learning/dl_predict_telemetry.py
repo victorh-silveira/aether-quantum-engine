@@ -17,15 +17,33 @@ def _series_last(series: dict, key: str, default: float = 0.0) -> float:
     return float(chunk[-1])
 
 
+def stamp_macro_frame_telemetry(orch: Any, symbol: str, metrics: dict[str, Any], params: dict[str, Any]) -> None:
+    """Anexa indicadores da serie MACRO real (600s), distinto do TCN micro."""
+    stream = getattr(orch, "stream", None)
+    if stream is None or not hasattr(stream, "get_numpy_series"):
+        return
+    closes = stream.get_numpy_series(str(symbol), "close")
+    if closes is None or len(closes) < 8:
+        return
+    macro_gran = int(params.get("granularity", getattr(stream, "macro_granularity", 600)) or 600)
+    series = precompute_price_series(closes, granularity=macro_gran, symbol=str(symbol))
+    metrics["macro_indicators"] = {
+        "rsi": _series_last(series, "rsi"),
+        "vol_ratio": _series_last(series, "vol_ratio_short_long"),
+        "adx": _series_last(series, "adx"),
+        "hurst": _series_last(series, "hurst"),
+    }
+
+
 def stamp_micro_frame_telemetry(orch: Any, symbol: str, metrics: dict[str, Any], params: dict[str, Any]) -> None:
-    """Anexa telemetria micro M5, fluxo de ticks e desvio Keltner para meta-classificador."""
+    """Anexa telemetria micro, fluxo de ticks e desvio Keltner para meta-classificador."""
     stream = getattr(orch, "stream", None)
     if stream is None or not hasattr(stream, "get_micro_numpy_series"):
         return
     closes = stream.get_micro_numpy_series(str(symbol), "close")
     if closes is None or len(closes) < 8:
         return
-    micro_gran = int(params.get("micro_granularity", 300))
+    micro_gran = int(params.get("micro_granularity", 120))
     high = stream.get_micro_numpy_series(str(symbol), "high")
     low = stream.get_micro_numpy_series(str(symbol), "low")
     open_ = stream.get_micro_numpy_series(str(symbol), "open")
@@ -50,6 +68,7 @@ def stamp_micro_frame_telemetry(orch: Any, symbol: str, metrics: dict[str, Any],
     if tick_buffer is not None and hasattr(tick_buffer, "live_tick_acceleration"):
         flow["micro_tick_acceleration"] = float(tick_buffer.live_tick_acceleration(str(symbol)))
     metrics["flow_features"] = flow
+    stamp_macro_frame_telemetry(orch, symbol, metrics, params)
 
 
 def prepare_meta_classifier_cross_symbol_bundle(

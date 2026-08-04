@@ -12,20 +12,17 @@ from src.infrastructure.handlers.history_fetch import fetch_paginated_candle_his
 from src.infrastructure.handlers.stream_candle_apply import apply_candle_update, candle_from_ohlc
 from src.infrastructure.handlers.stream_ohlc_fetch import fetch_candle_close_rows, fetch_candle_ohlc_rows
 from src.infrastructure.handlers.stream_reconnect import execute_stream_reconnect
+from src.infrastructure.handlers.stream_sync_start import sync_triple_candle_history
 from src.infrastructure.handlers.stream_tick_sidecar import handle_stream_tick, persist_closed_bar
 from src.infrastructure.handlers.stream_timeframe import (
-    granularity_label,
     ohlc_payload_granularity,
-    resolve_dual_granularity,
-    resolve_micro_fetch_count,
-    subscribe_candle_streams,
-    subscribe_tick_streams,
+    resolve_triple_granularity,
 )
 from src.infrastructure.handlers.tick_buffer import TickBuffer
 
 
 class StreamHandler:
-    """Gerencia fluxos macro M1 (DL) e micro M1 (execucao) para multiplos simbolos."""
+    """Gerencia fluxos MACRO/MICRO/MINI e ticks para multiplos simbolos."""
 
     def __init__(self, ws_manager: WebSocketManager, symbols: list[str], data_config: dict, *, market_writer=None):
         """Inicializa o manipulador."""
@@ -35,16 +32,18 @@ class StreamHandler:
         self._market_writer = market_writer
         self.history_limit = self.config.get("buffer_limit", 1000)
         self.logger = logging.getLogger("AETH")
-        self.macro_granularity, self.micro_granularity = resolve_dual_granularity(data_config)
+        self.macro_granularity, self.micro_granularity, self.mini_granularity = resolve_triple_granularity(data_config)
         self.granularity = self.macro_granularity
         self.macro_candles = {s: [] for s in symbols}
         self.micro_candles = {s: [] for s in symbols}
+        self.mini_candles = {s: [] for s in symbols}
         self.candles = self.macro_candles
         self.candle_callback = None
         self.is_synchronized = False
         self.tick_buffer = TickBuffer(symbols)
         self._last_macro_bar_epoch: dict[str, int | None] = dict.fromkeys(symbols)
         self._last_micro_bar_epoch: dict[str, int | None] = dict.fromkeys(symbols)
+        self._last_mini_bar_epoch: dict[str, int | None] = dict.fromkeys(symbols)
         self._reconnect_in_progress = False
 
     def _resolve_fetch_count(self) -> int:
@@ -67,73 +66,8 @@ class StreamHandler:
         return int(goal) <= 512
 
     async def start_candle_stream(self, callback):
-        """Ativa subscricoes macro/micro e busca historico paralelo."""
-        macro_count = self._resolve_fetch_count()
-        micro_count = resolve_micro_fetch_count(self.config)
-        quiet = self._history_sync_quiet(macro_count)
-        self.is_synchronized = False
-        if not self.ws.is_running:
-            raise ConnectionError("STREAM: WebSocket desconectado antes da sincronização.")
-        sync_log = self.logger.debug if quiet else self.logger.info
-        sync_log(
-            "DATA: Sincronizando historico | %d simbolos | macro=%ds x%d | micro=%ds x%d",
-            len(self.symbols),
-            self.macro_granularity,
-            macro_count,
-            self.micro_granularity,
-            micro_count,
-        )
-        fetch_cfg = parse_history_fetch_config(self.config)
-        total = len(self.symbols)
-        for index, symbol in enumerate(self.symbols, start=1):
-            sync_log("DATA: Historico %s (%d/%d) | iniciando", symbol, index, total)
-            await self._fetch_symbol_history(
-                symbol, macro_count, granularity=self.macro_granularity, store=self.macro_candles, quiet=quiet
-            )
-            await self._fetch_symbol_history(
-                symbol, micro_count, granularity=self.micro_granularity, store=self.micro_candles, quiet=quiet
-            )
-            bars = len(self.macro_candles.get(symbol, []))
-            sync_log(
-                "DATA: Historico %s (%d/%d) | macro=%d micro=%d",
-                symbol,
-                index,
-                total,
-                bars,
-                len(self.micro_candles[symbol]),
-            )
-            symbol_delay = float(fetch_cfg["symbol_delay"])
-            if symbol_delay > 0:
-                await asyncio.sleep(symbol_delay)
-        if self.symbols:
-            macro_bars = len(self.macro_candles.get(self.symbols[0], []))
-            micro_bars = len(self.micro_candles.get(self.symbols[0], []))
-            self.logger.info(
-                "DATA | buffer %d simbolos | macro=%s x%d | micro=%s x%d",
-                len(self.symbols),
-                granularity_label(self.macro_granularity),
-                macro_bars,
-                granularity_label(self.micro_granularity),
-                micro_bars,
-            )
-        if not self.ws.is_running:
-            raise ConnectionError("STREAM: WebSocket desconectado após sincronização histórica.")
-        self.ws.subscribe("ohlc", self._on_candle)
-        self.ws.subscribe("tick", self._on_tick)
-        self.candle_callback = callback
-        self.logger.debug(
-            "STRM: Ativando fluxos macro=%ss (%s) e micro=%ss (%s) para %d simbolos",
-            self.macro_granularity,
-            granularity_label(self.macro_granularity),
-            self.micro_granularity,
-            granularity_label(self.micro_granularity),
-            len(self.symbols),
-        )
-        await subscribe_candle_streams(self.ws, self.symbols, self.macro_granularity)
-        await subscribe_candle_streams(self.ws, self.symbols, self.micro_granularity)
-        await subscribe_tick_streams(self.ws, self.symbols)
-        self.is_synchronized = True
-        self.logger.debug("DATA: Sincronia concluída. Buffer histórico em conformidade.")
+        """Ativa subscricoes MACRO/MICRO/MINI e busca historico paralelo."""
+        await sync_triple_candle_history(self, callback)
 
     async def _fetch_symbol_history(
         self,
@@ -185,12 +119,14 @@ class StreamHandler:
             return
         o = data["ohlc"]
         symbol = o["symbol"]
-        gran = ohlc_payload_granularity(o, self.macro_granularity, self.micro_granularity)
+        gran = ohlc_payload_granularity(o, self.macro_granularity, self.micro_granularity, self.mini_granularity)
         candle = candle_from_ohlc(symbol, o)
         if gran == self.macro_granularity:
             await self._apply_macro_candle(symbol, candle)
         elif gran == self.micro_granularity:
             await self._apply_micro_candle(symbol, candle)
+        elif gran == self.mini_granularity:
+            await self._apply_mini_candle(symbol, candle)
 
     async def _apply_macro_candle(self, symbol: str, candle: Candle):
         """Atualiza buffer macro e microestrutura por barra fechada."""
@@ -229,6 +165,18 @@ class StreamHandler:
         if self.candle_callback:
             await self.candle_callback(candle)
 
+    async def _apply_mini_candle(self, symbol: str, candle: Candle):
+        """Atualiza buffer MINI (tape curto)."""
+        if symbol not in self.mini_candles:
+            return
+        apply_candle_update(
+            self.mini_candles,
+            self._last_mini_bar_epoch,
+            symbol,
+            candle,
+            limit=max(512, int(self.history_limit // 8)),
+        )
+
     async def _on_tick(self, data):
         """Processa ticks recebidos para microestrutura macro."""
         await handle_stream_tick(self, data)
@@ -240,6 +188,10 @@ class StreamHandler:
     def get_micro_numpy_series(self, symbol: str, field: str = "close") -> np.ndarray:
         """Retorna serie numpy micro para assinatura operacional."""
         return self._series_from_store(self.micro_candles, symbol, field)
+
+    def get_mini_numpy_series(self, symbol: str, field: str = "close") -> np.ndarray:
+        """Retorna serie numpy MINI para visao de tape curto."""
+        return self._series_from_store(self.mini_candles, symbol, field)
 
     @staticmethod
     def _series_from_store(store: dict[str, list], symbol: str, field: str) -> np.ndarray:

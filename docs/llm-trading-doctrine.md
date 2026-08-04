@@ -34,11 +34,11 @@ SSOT operacional: [`config/settings.json`](../config/settings.json). Metodologia
 
 **Insight:** esperanca, Bayes e taxa-base; mudanca de knob precisa de hipotese falsificavel.
 
-**Anti-padrao do LLM:** alterar threshold “porque o log ficou feio”; ignorar ACC de validacao; misturar prior e evidencia sem shrink.
+**Anti-padrao do LLM:** alterar threshold “porque o log ficou feio”; ignorar ACC de validacao; misturar prior e evidencia sem shrink; tratar streak de PUT LOSS como motivo para **rearmar quality gate** ou veto de sinal.
 
-**Regra no Aether:** Kelly bayesiano; gate de `val_accuracy`; calib drift so com N minimo.
+**Regra no Aether:** Kelly bayesiano; gate de `val_accuracy`; calib drift so com N minimo. Vies de lado corrige-se em **treino** (`sample_weighting` / majority-collapse) + **sizing** SIDE_EQ soft Kelly — nao reintroduzindo veto de qualidade.
 
-**Ancoras:** `risk_management.min_validation_accuracy_gate` (0.53); `soft_min_val_accuracy`; `apply_live_calib_drift_soft`; Kelly em `app/src/domain/risk/`.
+**Ancoras:** `risk_management.min_validation_accuracy_gate` (0.53); `soft_min_val_accuracy`; `deep_learning.sample_weighting`; `deploy_gate.reject_majority_collapse`; `execution_side_eq_sizing`; `apply_live_calib_drift_soft`; Kelly em `app/src/domain/risk/`.
 
 ---
 
@@ -119,11 +119,11 @@ SSOT operacional: [`config/settings.json`](../config/settings.json). Metodologia
 Ler o log nesta ordem (processo primeiro, P&L depois):
 
 1. **CLUSTER** — Prob / Cal / Margin / Edge. Cal ~0.50 com Margin &lt; `hard_cal_margin_floor` nao e setup.
-2. **SIDE_EQ / META_VETO** — bias e N; soft veto nao e licenca para forcar trade.
-3. **IND** — RSI/ADX/HURST/ATR/BBW como contexto; discordance e path adversa importam.
-4. **KELLY** — `mode=explore|recover`, `live_n`, `f*`. Cold start deve ter stake comprimida.
-5. **EXEC / EXEC_EMPTY / EXEC_PAUSE** — `gate_reason` coerente = processo ok.
-6. **RESOLVED / RISK** — WIN/LOSS atualiza pending; nao reescrever knobs por um ciclo.
+2. **SIDE_EQ** — bias e N; soft Kelly sizing apenas (nao SKIP de direcao; nao e licenca para forcar trade).
+3. **IND** — RSI/ADX/HURST/ATR/BBW como telemetria de contexto (vetos de sinal removidos).
+4. **KELLY** — `mode=explore|recover`, `live_n`, `f*`, `kelly_fraction_scale` (inclui SIDE_EQ soft). Cold start deve ter stake comprimida.
+5. **EXEC / EXEC_EMPTY / EXEC_PAUSE** — `gate_reason` tecnico coerente = processo ok.
+6. **RESOLVED / RISK** — WIN/LOSS atualiza pending; PUT loss ≠ rearmar quality gate; nao reescrever knobs por um ciclo.
 
 Narrativas proibidas no diagnostico: “estava quente”, “o mercado deve reverter”, “precisamos operar mais para aprender”.
 

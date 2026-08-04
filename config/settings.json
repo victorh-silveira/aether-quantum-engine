@@ -45,7 +45,10 @@
         "micro_history_bars": 23328,
         "micro_fetch_count": 23328,
         "min_required_points": 80,
-        "startup_fetch_bars": 512
+        "startup_fetch_bars": 512,
+        "mini_granularity": 60,
+        "mini_history_bars": 2048,
+        "mini_fetch_count": 2048
     },
     "deep_learning": {
         "arch": "tcn",
@@ -97,7 +100,10 @@
             "min_win_rate": 0.55,
             "mini_bars": 120,
             "soft_max_brier": 0.26,
-            "soft_min_val_accuracy": 0.53
+            "soft_min_val_accuracy": 0.53,
+            "reject_majority_collapse": true,
+            "max_label_call_frac_bias": 0.2,
+            "min_minority_recall": 0.25
         },
         "early_stopping_patience": 40,
         "min_epochs": 40,
@@ -181,8 +187,6 @@
                 "zscore_micro_window": 128
             }
         },
-        "decision_threshold_call": 0.62,
-        "decision_threshold_put": 0.38,
         "eval_brier_max": 0.22,
         "eval_min_accuracy": 0.53,
         "eval_settle_accuracy_min": 0.53,
@@ -243,7 +247,13 @@
         "weight_decay": 0.001,
         "require_deploy": false,
         "allow_undeployed_inference": true,
-        "calibration_margin_floor": 0.01
+        "calibration_margin_floor": 0.01,
+        "sample_weighting": {
+            "class_balance_enabled": true,
+            "class_balance_eps": 0.05,
+            "recency_enabled": true,
+            "recency_half_life_n": 2000
+        }
     },
     "infra": {
         "enabled": true,
@@ -504,7 +514,7 @@
             },
             "side_equilibrium": {
                 "break_even_wr": 0.55,
-                "enabled": false,
+                "enabled": true,
                 "freq_bias_max_large": 0.65,
                 "freq_bias_max_small": 0.7,
                 "kelly_mult_soft": 0.55,
@@ -525,7 +535,19 @@
             },
             "require_deploy": false,
             "bypass_deploy_gate": false,
-            "allow_undeployed": true
+            "allow_undeployed": true,
+            "scale_vision": {
+                "enabled": true,
+                "slope_bars": 5,
+                "kelly_mult_discord": 0.35,
+                "min_disagree_to_dampen": 2,
+                "block_recover_on_discord": true,
+                "use_last_bar": true,
+                "adapt_direction_enabled": true,
+                "adapt_require_raw_extreme": true,
+                "adapt_min_votes": 2,
+                "max_stake_pct_discord": 0.005
+            }
         },
         "idle_cycle_watchdog_seconds": 20,
         "post_settlement_breath_seconds": 0,

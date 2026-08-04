@@ -81,3 +81,68 @@ def test_describe_deploy_block_brier():
     cfg = {"soft_min_val_accuracy": 0.53, "soft_max_brier": 0.26, "enabled": True}
     msg = describe_deploy_block(mini_ok=False, val_accuracy=0.56, val_brier=0.27, gate_cfg=cfg)
     assert "val_brier" in msg
+
+
+def test_resolve_deploy_ok_rejects_majority_collapse():
+    cfg = {
+        "enabled": True,
+        "force_ok": False,
+        "soft_min_val_accuracy": 0.53,
+        "soft_max_brier": 0.32,
+        "reject_majority_collapse": True,
+        "max_label_call_frac_bias": 0.20,
+        "min_minority_recall": 0.25,
+    }
+    assert (
+        resolve_deploy_ok(
+            mini_ok=True,
+            val_accuracy=0.60,
+            val_brier=0.20,
+            gate_cfg=cfg,
+            label_call_frac=0.80,
+            minority_recall=0.10,
+        )
+        is False
+    )
+    assert (
+        resolve_deploy_ok(
+            mini_ok=True,
+            val_accuracy=0.60,
+            val_brier=0.20,
+            gate_cfg=cfg,
+            label_call_frac=0.55,
+            minority_recall=0.10,
+        )
+        is True
+    )
+
+
+def test_describe_deploy_block_majority_collapse():
+    from src.application.services.deep_learning.dl_gate_config import describe_deploy_block
+
+    cfg = {
+        "soft_min_val_accuracy": 0.53,
+        "soft_max_brier": 0.26,
+        "enabled": True,
+        "reject_majority_collapse": True,
+        "max_label_call_frac_bias": 0.20,
+        "min_minority_recall": 0.25,
+    }
+    msg = describe_deploy_block(
+        mini_ok=True,
+        val_accuracy=0.60,
+        val_brier=0.20,
+        gate_cfg=cfg,
+        label_call_frac=0.85,
+        minority_recall=0.05,
+    )
+    assert "majority_collapse" in msg
+
+
+def test_describe_deploy_block_remaining_branches():
+    from src.application.services.deep_learning.dl_gate_config import describe_deploy_block
+
+    cfg = {"soft_min_val_accuracy": 0.53, "soft_max_brier": 0.26, "enabled": True}
+    assert "soft_min" in describe_deploy_block(mini_ok=False, val_accuracy=0.40, val_brier=0.1, gate_cfg=cfg)
+    assert "inesperado" in describe_deploy_block(mini_ok=True, val_accuracy=0.60, val_brier=0.1, gate_cfg=cfg)
+    assert "sem motivo" in describe_deploy_block(mini_ok=False, val_accuracy=0.60, val_brier=0.1, gate_cfg=cfg)

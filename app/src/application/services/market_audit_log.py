@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.application.services.execution_scale_vision import format_scale_ind_token
 from src.application.services.market_audit_log_helpers import (
     cluster_symbol_token,
     indicator_snapshot,
@@ -77,15 +78,18 @@ def format_indicators_audit_line(cycle_id: int, symbol: str, metrics: dict[str, 
         or str(metrics.get("gate_reason") or "") == "neutral_clamp"
     ):
         neutral = "neutral_clamp"
-    elif neutral not in {"neutral_clamp", "tcn_macro_override", "calibrated"}:
+    elif neutral not in {"neutral_clamp", "tcn_macro_override", "raw_extreme", "calibrated", "neutral_zone"}:
         neutral = "na"
+
     meta_veto = str(metrics.get("meta_veto_mode") or "none")
+    scale_tok = format_scale_ind_token(metrics)
     return (
         f"[C{int(cycle_id):04d}] IND || "
         f"RSI: {rsi:>7.4f} | ADX: {adx:>7.4f} | HURST: {hurst:>7.4f} || "
         f"ATR: {atr:>8.4f} | BBW: {bbw:>8.4f} | VOL_R: {vol_r:>7.4f} || "
         f"Z: {z_edge:>+6.2f} | ACC: {acc:>6.4f} || "
-        f"MARGIN: {margin:>5.3f} | NEUTRAL: {neutral} | META_VETO: {meta_veto}"
+        f"MARGIN: {margin:>5.3f} | NEUTRAL: {neutral} | META_VETO: {meta_veto} || "
+        f"{scale_tok}"
     )
 
 

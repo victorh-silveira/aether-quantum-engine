@@ -14,10 +14,11 @@ from src.domain.models.trade import TradeDirection
 
 
 def test_resolve_cluster_timeframe_branches():
-    assert resolve_cluster_timeframe(None) == "M5"
-    assert resolve_cluster_timeframe({"data_handler": "x"}) == "M5"
+    assert resolve_cluster_timeframe(None) == "M2"
+    assert resolve_cluster_timeframe({"data_handler": "x"}) == "M2"
     assert resolve_cluster_timeframe({"data_handler": {"granularity": 900}}) == "M15"
     assert resolve_cluster_timeframe({"data_handler": {"micro_granularity": 300}}) == "M5"
+    assert resolve_cluster_timeframe({"data_handler": {"granularity": 600, "micro_granularity": 120}}) == "M2"
     assert resolve_cluster_timeframe({"data_handler": {"granularity": 120}}) == "M2"
     assert resolve_cluster_timeframe({"data_handler": {"granularity": 30}}) == "S30"
     assert resolve_cluster_timeframe({"data_handler": {"granularity": 86400}}) == "D1"
@@ -224,6 +225,8 @@ def test_format_indicators_audit_line():
     assert "MARGIN:" in line and "0.120" in line
     assert "NEUTRAL: calibrated" in line
     assert "META_VETO: none" in line
+    assert "SCALE: tcn=" in line
+    assert "adapted=0" in line
 
 
 def test_format_indicators_audit_line_ignores_none_and_invalid():

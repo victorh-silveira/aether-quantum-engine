@@ -27,7 +27,7 @@ Rules/skills versionadas: [`.cursor/rules/`](.cursor/rules/) e [`.cursor/skills/
 - Cobertura de testes em `app/src` abaixo de **100%**
 - Assunto de commit em ingles; escopo fora do enum commitlint
 
-Nota operacional (escopo 1): vetos de sinal/qualidade (Hurst/ADX/RSI/cal floor/quality_gate/price_zone/SIDE_EQ block) foram **removidos do codigo**; SKIP restante e tecnico (`training`/`data`/`deploy`/`predict_error`) + Kelly/caps.
+Nota operacional (escopo 1): vetos de sinal/qualidade (Hurst/ADX/RSI/cal floor/quality_gate/price_zone/SIDE_EQ block) foram **removidos do codigo**; SKIP restante e tecnico (`training`/`data`/`deploy`/`predict_error`) + Kelly/caps. Vies CALL/PUT: treino (`sample_weighting` / majority-collapse) + SIDE_EQ soft Kelly — nao rearmar veto de sinal.
 
 ## Escopos commitlint
 
@@ -48,8 +48,9 @@ Formato: `tipo(escopo): assunto em PT-BR` + corpo obrigatorio.
 | Risco / logs de sessao | doutrina + skill `aether-session-review` |
 | Knob em settings | `docs/engineering-settings-ssot.md` + skill `aether-settings-change` |
 | Ciclo / warmup | `docs/engineering-orchestrator.md` + skill `aether-cycle-debug` |
+| Scale vision / raw_extreme | `docs/engineering-orchestrator.md` + playbook + skills `aether-cycle-debug` / `aether-binary-senior` |
 | Settlement | `docs/engineering-settlement.md` + skill `aether-settlement-debug` |
-| DL / treino | `docs/engineering-deep-learning.md` + skill `aether-dl-train` |
+| DL / treino / vies de classe | `docs/engineering-deep-learning.md` + skill `aether-dl-train` |
 | Docker / Redis | `docs/infra-docker.md` + skill `aether-infra-stack` |
 | Deriv PAT/WS | `docs/deriv-api-aether.md` + skill `aether-deriv-connect` |
 | QA / pre-commit | `docs/engineering-standards.md` + skill `aether-precommit` |

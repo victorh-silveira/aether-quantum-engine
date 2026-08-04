@@ -12,6 +12,10 @@ from src.application.services.execution_direction_checks import (
     sync_entry_metrics,
 )
 from src.application.services.execution_quality_gate_margin import ensure_direction_margin
+from src.application.services.execution_scale_adapt import apply_scale_direction_adapt
+from src.application.services.execution_scale_sizing import apply_scale_kelly_sizing
+from src.application.services.execution_scale_vision import compute_scale_directions, format_scale_audit_line
+from src.application.services.execution_side_eq_sizing import apply_side_eq_kelly_sizing
 from src.application.services.force_trade_mode import force_trade_every_cycle
 from src.application.services.live_signal_metrics import apply_live_calib_drift_soft, attach_live_signal_metrics
 from src.application.services.meta_classifier_stacking import resolve_meta_payoff_edge
@@ -67,6 +71,14 @@ def _finalize_execution_metrics(
         }
     )
     ensure_direction_margin(metrics)
+    compute_scale_directions(orch, symbol, exec_dir, metrics)
+    exec_dir = apply_scale_direction_adapt(metrics, exec_dir)
+    metrics["exec_direction"] = exec_dir.name
+    metrics["resolved_direction"] = exec_dir.name
+    metrics["execution_candidate_ready"] = True
+    apply_side_eq_kelly_sizing(orch, symbol, exec_dir, metrics)
+    apply_scale_kelly_sizing(orch, symbol, exec_dir, metrics)
+    metrics["scale_audit"] = format_scale_audit_line(metrics)
     metrics.pop("quality_guard_reject", None)
     metrics.pop("regime_skip_cycle", None)
     metrics.pop("gate_reason", None)

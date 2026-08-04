@@ -26,6 +26,7 @@ from src.application.services.deep_learning.dl_params_timeframe import (
     resolve_dl_granularity,
     resolve_train_timeframe,
 )
+from src.application.services.deep_learning.dl_sample_weighting import parse_sample_weighting_config
 
 
 def bars_per_day(granularity_seconds: int) -> int:
@@ -270,4 +271,5 @@ def parse_dl_params(
     base["deploy_gate"] = gate
     base["indicator_gating"] = parse_indicator_gating_config(dl_config)
     base["calibration"] = parse_calibration_config(dl_config)
+    base["sample_weighting"] = parse_sample_weighting_config(dl_config)
     return base

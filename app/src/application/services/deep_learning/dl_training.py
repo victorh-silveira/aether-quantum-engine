@@ -15,12 +15,19 @@ from src.application.services.deep_learning.dl_device import (
     tensor_from_numpy,
 )
 from src.application.services.deep_learning.dl_features import extract_sequences
+from src.application.services.deep_learning.dl_sample_weighting import (
+    compose_train_weights,
+    label_call_fraction,
+    minority_class_recall,
+    parse_sample_weighting_config,
+)
 from src.application.services.deep_learning.dl_sequence_extract import sequence_price_deltas
 from src.application.services.deep_learning.dl_sharpness import mean_sharpness
 from src.application.services.deep_learning.dl_splits import purged_temporal_splits
 from src.application.services.deep_learning.dl_training_epochs import fit_training_epochs
 from src.application.services.deep_learning.model import (
     TrainResult,
+    _model_raw_prob,
     evaluate_calibrated_metrics,
     fit_norm_stats,
     model_accuracy,
@@ -106,12 +113,15 @@ def train_model_walkforward(
         label_ma_window=label_ma_window,
     )
     delta_train = delta_all[train_sl] if len(delta_all) == len(x_all) else None
-    weights = sample_weights if sample_weights and len(sample_weights) == len(y_train) else [1.0] * len(y_train)
-    pos_rate = float(np.mean(np.asarray(y_train, dtype=np.float64) >= 0.5)) if len(y_train) else 0.5
-    if abs(pos_rate - 0.5) > 0.05:
-        pos_w = max(1.0 - pos_rate, 1e-6) / max(pos_rate, 1e-6)
-        neg_w = max(pos_rate, 1e-6) / max(1.0 - pos_rate, 1e-6)
-        weights = [float(weights[i]) * (pos_w if float(y_train[i]) >= 0.5 else neg_w) for i in range(len(y_train))]
+    weighting_cfg = parse_sample_weighting_config(dl_config if isinstance(dl_config, dict) else None)
+    weights = compose_train_weights(
+        sample_weights,
+        y_train,
+        full_n=len(y_all),
+        train_index=train_sl,
+        weighting_cfg=weighting_cfg,
+    )
+    label_call_frac = label_call_fraction(y_train)
     patience = 6
     min_epochs = 0
     label_smoothing = 0.0
@@ -149,6 +159,15 @@ def train_model_walkforward(
         model.load_state_dict(best_state)
         place_model(model, device)
     val_accuracy = model_accuracy(model, x_val, y_val, mask_val)
+    raw_val = _model_raw_prob(model, x_val) if len(x_val) else np.asarray([], dtype=np.float32)
+    pred_call = np.asarray(raw_val >= 0.5, dtype=bool)
+    active = np.ones(len(y_val), dtype=bool)
+    if mask_val is not None and len(mask_val) == len(y_val):
+        active = np.asarray(mask_val) > 0.5
+    y_active = np.asarray(y_val)[active] if len(y_val) else np.asarray([])
+    pred_active = pred_call[active] if pred_call.size == len(y_val) else pred_call
+    minority_recall = minority_class_recall(y_active, pred_active)
+    pred_call_frac = float(np.mean(pred_active)) if getattr(pred_active, "size", 0) else 0.5
     model.eval()
     with torch.no_grad():
         raw_calib = (
@@ -174,7 +193,8 @@ def train_model_walkforward(
     )
     val_brier, val_ece = evaluate_calibrated_metrics(model, x_val, y_val, calibrator)
     logger.debug(
-        "DL_TRAIN: device=%s batch=%d epocas=%d/%d loss=%.4f val_acc=%.3f brier=%.3f ece=%.3f method=%s samples=%d sharpness=%.4f",
+        "DL_TRAIN: device=%s batch=%d epocas=%d/%d loss=%.4f val_acc=%.3f brier=%.3f ece=%.3f "
+        "method=%s samples=%d sharpness=%.4f label_call=%.3f pred_call=%.3f minority_rec=%.3f",
         device_label(device),
         max(1, int(batch_size)),
         epochs_ran,
@@ -186,6 +206,9 @@ def train_model_walkforward(
         calibrator.method,
         len(x_all),
         oos_sharpness,
+        label_call_frac,
+        pred_call_frac,
+        minority_recall,
     )
     return TrainResult(
         avg_loss=avg_loss,
@@ -199,6 +222,9 @@ def train_model_walkforward(
         calibrated_entropy=float(entropy_meta.get("calibrated_entropy", 0.0)),
         entropy_violation=bool(entropy_meta.get("entropy_violation", False)),
         oos_sharpness=float(oos_sharpness),
+        label_call_frac=float(label_call_frac),
+        pred_call_frac=float(pred_call_frac),
+        minority_recall=float(minority_recall),
     )
 
 

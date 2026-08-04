@@ -36,3 +36,6 @@ class TrainResult:
     calibrated_entropy: float = 0.0
     entropy_violation: bool = False
     oos_sharpness: float = 0.0
+    label_call_frac: float = 0.5
+    pred_call_frac: float = 0.5
+    minority_recall: float = 1.0

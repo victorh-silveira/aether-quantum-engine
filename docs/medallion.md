@@ -24,7 +24,7 @@ Doutrina do copiloto LLM/Cursor (9 livros → constraints de engenharia): [`llm-
 | Persistência financeira | Recovery atrelado a `pending_loss`, não a WIN operacional isolado |
 | Soft recovery + caps | `soft_recovery_policy` ativo: amortiza pending em 2–5 ciclos com teto % banca |
 | Sizing | EXPLORE = Kelly * `explore_stake_scale(N)`; RECOVER = Soft Recovery amortizado |
-| Side equilibrium (LLN) | `sample_size_policy` + `side_equilibrium`: hard-skip com N>=8 e evidencia; large-N soft Kelly |
+| Side equilibrium (LLN) | `sample_size_policy` + `side_equilibrium`: dominio pode marcar hard_skip; runtime aplica **so soft Kelly** (`execution_side_eq_sizing`) — sem veto de direcao |
 | Lei dos Grandes Numeros | WR/ECE live so pesam apos `evidence_n_min=20`; cold-start nao escala stake nem calib drift |
 | Meta por sessão ativa | Stop win de 2,60% composto (banca ≥ $100) ou fixo $10 (banca < $100) |
 | Sem disjuntor de perda | Stop loss interno desativado |
@@ -44,8 +44,8 @@ Inspirado em Mlodinow (*O Andar do Bebado*, caps. 3–4): amostras pequenas sao 
 
 | Ideia do livro | No codigo |
 |----------------|-----------|
-| Lei dos Grandes Numeros (Bernoulli) | `evidence_n_min=20` / `large_n_min=40` antes de confiar em WR live, ECE e hard-skip por underperformance |
-| Vies dos Pequenos Numeros (Tversky/Kahneman) | `n_min_small=8`: 2–3 losses nao geram hard-skip nem toxic label |
+| Lei dos Grandes Numeros (Bernoulli) | `evidence_n_min=20` / `large_n_min=40` antes de confiar em WR live, ECE e soft sizing por underperformance |
+| Vies dos Pequenos Numeros (Tversky/Kahneman) | `n_min_small=8`: 2–3 losses nao geram SKIP de direcao nem toxic label |
 | Falacia do apostador | Recovery nao escala por “autocorrecao”; calib drift soft exige `calib_soft_min_n=15` |
 | Mao quente | `explore_stake_scale` e shrink bayesiano diluem streaks curtas em direcao ao prior |
 | Diluicao, nao magia | `empirical_rate_shrink` e `sample_reliability = n/(n+half_life)` |
@@ -464,15 +464,15 @@ Durante a barreira, `session_persistence_write_active` impede que `trading_cycle
 
 ### 8.5 Side equilibrium — leis dos pequenos e grandes números
 
-Módulos: `domain/analytics/side_equilibrium.py`, `side_equilibrium_gate.py`, `side_equilibrium_store.py`. Config: `orchestrator.execution.side_equilibrium`.
+Politica de dominio: `domain/analytics/side_equilibrium.py` + store. Runtime live: `execution_side_eq_sizing.apply_side_eq_kelly_sizing` no finalize do direction resolver. Config: `orchestrator.execution.side_equilibrium` (`enabled: true`). O modulo legado `side_equilibrium_gate.py` (hard-skip / flip) **nao** e o path ativo de execucao.
 
-| Regime | Janela | `n_min` | Ação típica |
-|--------|--------|---------|-------------|
-| **Small-N** (lei dos pequenos números) | 12 trades | **2** | `hard_skip` se WR do lado &lt; `wr_floor_small` (0.40) ou frequência do lado ≥ `freq_bias_max_small` (0.70) |
-| **Large-N** (lei dos grandes números) | 100 trades | 40 | `soft_penalty`: `kelly_mult_soft` (0.55) e `margin_boost_soft` (0.03) se WR &lt; `wr_floor_large` (0.48) ou bias ≥ 0.65 |
+| Regime | Janela | `n_min` | Ação tipica no runtime |
+|--------|--------|---------|------------------------|
+| **Small-N** | small_window (24) | **8** | Dominio pode emitir `hard_skip`; sizing mapeia para soft `kelly_mult` (sem SKIP de direcao) |
+| **Large-N** | 100 trades | 40 | `soft_penalty`: `kelly_mult_soft` (0.55) em `kelly_fraction_scale` |
 | Amostra insuficiente | `n_side &lt; n_min` ou `total &lt; n_min` | — | `pass` (log `SIDE_EQ … action=pass`) |
 
-Telemetria: `SIDE_EQ | SYMBOL SIDE | call=W/N put=W/N | bias=… wr=… | action=…` (dedupe por ciclo/símbolo/lado). Outcomes em `process_contract_outcome`. Hard-skip no proposto **tenta o oposto** (`SIDE_EQ_FLIP`); com 2 PUT LOSS (wr=0, bias=1) flipa para CALL mantendo Soft Recovery/Kelly. Soft penalty escala `kelly_fraction_scale` (path Kelly EXPLORE).
+Telemetria: `SIDE_EQ | SYMBOL SIDE | call=W/N put=W/N | bias=… wr=… | action=…` (dedupe por ciclo/simbolo/lado). Outcomes em `process_contract_outcome`. `side_eq_blocked` permanece false; risk/collect nao zeram stake por hard_skip de dominio.
 
 ---
 

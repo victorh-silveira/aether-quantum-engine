@@ -68,3 +68,19 @@ def cap_final_stake(
     pct_cap = max(0.0, float(bankroll) * max_pct)
     capped = min(final_stake, safe_cap) if recovery_stress else min(final_stake, safe_cap, pct_cap)
     return capped, safe_cap
+
+
+def apply_scale_stake_cap(final_stake: float, bankroll: float, metrics: dict[str, Any] | None) -> float:
+    """Aplica teto max_stake_pct_discord quando ha discordancia ou adaptacao."""
+    if not isinstance(metrics, dict):
+        return float(final_stake)
+    if not (bool(metrics.get("scale_discordance")) or bool(metrics.get("scale_adapted"))):
+        return float(final_stake)
+    pct = metrics.get("scale_max_stake_pct")
+    if pct is None:
+        return float(final_stake)
+    try:
+        cap = max(0.0, float(bankroll) * float(pct))
+    except (TypeError, ValueError):
+        return float(final_stake)
+    return min(float(final_stake), cap)

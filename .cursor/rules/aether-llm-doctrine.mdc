@@ -18,12 +18,14 @@ LLM/Cursor e copiloto de engenharia. Nao decide CALL/PUT em runtime (TCN + meta 
 
 ## Sempre fazer
 
-- Distinguir EXPLORE vs RECOVER; recovery so com pending/linear
-- Exigir evidencia: `live_n`, Cal/Margin, Edge, `val_accuracy` (telemetria; vetos de sinal removidos do codigo)
+- Distinguir EXPLORE vs RECOVER; recovery so com pending/linear; `scale_force_explore` sob discordance forca EXPLORE
+- Exigir evidencia: `live_n`, Cal/Margin, Edge, `val_accuracy`, linha SCALE (telemetria; vetos de sinal removidos do codigo)
 - Tratar EXEC_EMPTY tecnico (`training`/`data`/`deploy`/`predict_error`) como sucesso de processo quando coerente
 - Nomear o setup e o bloqueio tecnico antes de mudar risco (PlayBook)
 - Hipotese falsificavel para cada knob (Ellenberg)
+- Vies de treino (label_call_frac / regime) corrige-se com sample_weighting + majority-collapse + SIDE_EQ soft Kelly — **nao** reintroduzir veto de sinal
+- `raw_extreme` ≠ timeframe MACRO: limiares `tcn_macro_*_override` so marcam raw extremo; **Cal nao e substituido**; Kelly usa Cal
 
 ## Diagnostico de log
 
-Ordem: CLUSTER (Cal/Edge) → SIDE_EQ/META → IND → KELLY → EXEC/gate_reason → RESOLVED/pending. Proibido narrar “mao quente” ou “deve reverter”.
+Ordem: CLUSTER (Cal/Edge, TF micro) → SCALE (MACRO/MICRO/MINI/MILI) → SIDE_EQ/META → IND → KELLY → EXEC/gate_reason → RESOLVED/pending. Proibido narrar “mao quente” ou “deve reverter”.

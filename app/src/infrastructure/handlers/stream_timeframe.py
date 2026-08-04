@@ -9,14 +9,26 @@ from src.infrastructure.api.deriv_granularity import normalize_granularity_secon
 
 
 def resolve_dual_granularity(data_config: dict) -> tuple[int, int]:
-    """Resolve granularidade macro (DL M1) e micro (loop operacional M1)."""
+    """Resolve granularidade macro (DL) e micro (loop operacional)."""
     macro = normalize_granularity_seconds(int(data_config.get("granularity", 60)))
     micro_raw = int(data_config.get("micro_granularity", data_config.get("cycle_granularity", 60)))
     micro = normalize_granularity_seconds(micro_raw)
     return macro, micro
 
 
-def ohlc_payload_granularity(ohlc: dict, macro: int, micro: int) -> int:
+def resolve_mini_granularity(data_config: dict) -> int:
+    """Resolve granularidade MINI (tape curto; default 60s)."""
+    raw = int(data_config.get("mini_granularity", 60))
+    return normalize_granularity_seconds(raw)
+
+
+def resolve_triple_granularity(data_config: dict) -> tuple[int, int, int]:
+    """Resolve MACRO/MICRO/MINI em segundos."""
+    macro, micro = resolve_dual_granularity(data_config)
+    return macro, micro, resolve_mini_granularity(data_config)
+
+
+def ohlc_payload_granularity(ohlc: dict, macro: int, micro: int, mini: int | None = None) -> int:
     """Identifica granularidade de um payload OHLC da Deriv."""
     raw = ohlc.get("granularity")
     if raw is not None:
@@ -24,6 +36,10 @@ def ohlc_payload_granularity(ohlc: dict, macro: int, micro: int) -> int:
     epoch = int(ohlc["open_time"])
     if epoch % macro == 0:
         return macro
+    if epoch % micro == 0:
+        return micro
+    if mini is not None:
+        return normalize_granularity_seconds(int(mini))
     return micro
 
 
@@ -36,6 +52,17 @@ def resolve_micro_fetch_count(data_config: dict) -> int:
         return micro_bars
     startup = int(data_config.get("startup_fetch_bars", 512))
     return max(64, min(startup, 512))
+
+
+def resolve_mini_fetch_count(data_config: dict) -> int:
+    """Quantidade de velas MINI a sincronizar."""
+    if "mini_fetch_count" in data_config:
+        return max(1, int(data_config["mini_fetch_count"]))
+    mini_bars = int(data_config.get("mini_history_bars", 0))
+    if mini_bars > 0:
+        return mini_bars
+    startup = int(data_config.get("startup_fetch_bars", 512))
+    return max(64, min(startup, 1024))
 
 
 def granularity_label(seconds: int) -> str:

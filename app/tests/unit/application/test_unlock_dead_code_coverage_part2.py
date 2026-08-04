@@ -55,7 +55,7 @@ def test_schedule_model_upload_success_return():
         schedule_model_upload(orch, "R_10", Path("checkpoint.pt"), arch="tcn")
 
 
-def test_revive_ready_side_eq_blocked_skipped():
+def test_revive_ready_keeps_side_eq_blocked_sizing_only():
     exec_mgr = MagicMock()
     exec_mgr._trade_symbols.return_value = ["R_10"]
     decisions = {
@@ -69,7 +69,8 @@ def test_revive_ready_side_eq_blocked_skipped():
         }
     }
     result = revive_ready_cluster_candidates(exec_mgr, decisions)
-    assert result == []
+    assert len(result) == 1
+    assert result[0][0] == "R_10"
 
 
 def test_settlement_timed_out_true():

@@ -62,7 +62,7 @@ def apply_calibration_neutral_tolerance(
     neutral_lo: float | None = None,
     neutral_hi: float | None = None,
 ) -> tuple[float, TradeDirection | None, str]:
-    """Aplica override TCN macro e zona neutra para movimento multi-candle."""
+    """Marca raw extremo sem substituir Cal; Kelly usa probabilidade calibrada."""
     raw = float(raw_prob)
     cal = float(calibrated_prob)
     tol = _tol()
@@ -71,10 +71,10 @@ def apply_calibration_neutral_tolerance(
     effective_neutral_hi = neutral_hi if neutral_hi is not None else 0.5 + half_width
     if raw > float(tol["tcn_macro_call_override"]):
         resolved = direction if direction is not None else TradeDirection.CALL
-        return raw, resolved, "tcn_macro_override"
+        return cal, resolved, "raw_extreme"
     if raw < float(tol["tcn_macro_put_override"]):
         resolved = direction if direction is not None else TradeDirection.PUT
-        return raw, resolved, "tcn_macro_override"
+        return cal, resolved, "raw_extreme"
     if direction is not None:
         return cal, direction, "calibrated"
     if _in_neutral_zone(cal, effective_neutral_lo, effective_neutral_hi):
