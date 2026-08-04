@@ -25,7 +25,7 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `max_label_call_frac_bias` | idem | padrao **0.20** |
 | `min_minority_recall` | idem | padrao **0.25** |
 | `side_equilibrium.enabled` | `orchestrator.execution` | soft Kelly only; sem veto de direcao |
-| `scale_vision.*` | `orchestrator.execution` | last-bar + adapt lado sob `raw_extreme`; `kelly_mult_discord` **0.35**; `max_stake_pct_discord` **0.005**; sem SKIP |
+| `scale_vision.*` | `orchestrator.execution` | last-bar prev+curr; adapt com `bar_pair` + `raw_extreme`/`strong_tape`; `kelly_mult_discord` **0.35**; sem SKIP |
 | `tcn_macro_call_override` / `tcn_macro_put_override` | `deep_learning.calibration` | limiar de **raw** para modo `raw_extreme`; Cal nao e substituido |
 | `mini_granularity` | `data_handler` | padrao **60** (MINI OHLC) |
 

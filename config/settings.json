@@ -545,6 +545,8 @@
                 "use_last_bar": true,
                 "adapt_direction_enabled": true,
                 "adapt_require_raw_extreme": true,
+                "adapt_require_bar_pair_agree": true,
+                "adapt_allow_strong_tape": true,
                 "adapt_min_votes": 2,
                 "max_stake_pct_discord": 0.005
             }

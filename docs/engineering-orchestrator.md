@@ -43,7 +43,7 @@ SSOT: `orchestrator.execution.scale_vision`. Escopo 1: **sem veto de sinal / sem
 | MINI / MICRO bar | Vela **anterior** + **atual** open→close (`use_last_bar`) |
 | MILI | Direcao do tick flow |
 | `scale_tape_consensus` | Maioria da fita (`adapt_min_votes`) |
-| `scale_adapted` | `exec_direction` adotou o consenso (ordem segue) |
+| `scale_adapted` | `exec_direction` adotou o consenso (ordem segue) se par MINI alinha + (`raw_extreme` ou fita forte) |
 | Soft sizing | `kelly_mult_discord` (**0.35**); `scale_force_explore` corta DAL; `max_stake_pct_discord` |
 
 Log: `SCALE || … tape=… adapted=0|1` e token no IND: `SCALE: tcn=… tape=… adapted=…`  

@@ -54,6 +54,8 @@ def test_parse_scale_vision_from_ssot():
     assert cfg["kelly_mult_discord"] <= 1.0
     assert cfg["adapt_direction_enabled"] is True
     assert cfg["use_last_bar"] is True
+    assert cfg["adapt_require_bar_pair_agree"] is True
+    assert cfg["adapt_allow_strong_tape"] is True
     assert cfg["adapt_min_votes"] >= 1
     assert cfg["max_stake_pct_discord"] > 0.0
 
@@ -87,6 +89,7 @@ def test_compute_scale_discordance():
     assert metrics["scale_mili_dir"] == "CALL"
     assert metrics["scale_discordance"] is True
     assert metrics["scale_tape_consensus"] == "CALL"
+    assert metrics["scale_tape_strong"] is True
     line = format_scale_audit_line(metrics)
     assert "MACRO=CALL" in line
     assert "mi_prev=CALL" in line

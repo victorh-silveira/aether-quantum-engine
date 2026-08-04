@@ -9,11 +9,20 @@ from src.domain.risk.dlambert_sizing import resolve_dlambert_stake
 from src.domain.risk.risk_stake_calc_helpers import apply_scale_stake_cap
 
 
-def test_adapt_direction_tape_vs_tcn_raw_extreme():
-    metrics = {
+def _pair_call(**extra):
+    base = {
         "scale_tape_consensus": "CALL",
-        "calibration_mode": "raw_extreme",
+        "scale_mini_prev_bar_dir": "CALL",
+        "scale_mini_bar_dir": "CALL",
+        "scale_tape_strong": True,
+        "scale_mili_dir": "CALL",
     }
+    base.update(extra)
+    return base
+
+
+def test_adapt_direction_tape_vs_tcn_raw_extreme():
+    metrics = _pair_call(calibration_mode="raw_extreme")
     out = apply_scale_direction_adapt(metrics, TradeDirection.PUT)
     assert out == TradeDirection.CALL
     assert metrics["scale_adapted"] is True
@@ -21,8 +30,30 @@ def test_adapt_direction_tape_vs_tcn_raw_extreme():
     assert metrics["scale_adapt_reason"] == "tape_vs_tcn"
 
 
-def test_adapt_requires_raw_extreme():
-    metrics = {"scale_tape_consensus": "CALL", "calibration_mode": "calibrated"}
+def test_adapt_strong_tape_without_raw_extreme():
+    metrics = _pair_call(calibration_mode="calibrated", scale_tape_strong=True)
+    out = apply_scale_direction_adapt(metrics, TradeDirection.PUT)
+    assert out == TradeDirection.CALL
+    assert metrics["scale_adapted"] is True
+    assert metrics["scale_adapt_reason"] == "tape_strong"
+
+
+def test_adapt_blocks_split_mini_pair_like_c1():
+    metrics = {
+        "scale_tape_consensus": "CALL",
+        "scale_mini_prev_bar_dir": "PUT",
+        "scale_mini_bar_dir": "CALL",
+        "scale_tape_strong": False,
+        "calibration_mode": "raw_extreme",
+    }
+    out = apply_scale_direction_adapt(metrics, TradeDirection.PUT)
+    assert out == TradeDirection.PUT
+    assert metrics["scale_adapted"] is False
+    assert metrics["scale_adapt_reason"] == "need_bar_pair"
+
+
+def test_adapt_requires_raw_extreme_when_tape_not_strong():
+    metrics = _pair_call(calibration_mode="calibrated", scale_tape_strong=False)
     out = apply_scale_direction_adapt(metrics, TradeDirection.PUT)
     assert out == TradeDirection.PUT
     assert metrics["scale_adapted"] is False
@@ -36,24 +67,68 @@ def test_adapt_no_consensus_keeps_tcn():
     assert metrics["scale_adapt_reason"] == "no_consensus"
 
 
+def test_adapt_when_raw_extreme_flag_off():
+    metrics = _pair_call(calibration_mode="calibrated", scale_tape_strong=False)
+    with patch(
+        "src.application.services.execution_scale_adapt.parse_scale_vision_config",
+        return_value={
+            "enabled": True,
+            "adapt_direction_enabled": True,
+            "adapt_require_raw_extreme": False,
+            "adapt_require_bar_pair_agree": True,
+            "adapt_allow_strong_tape": False,
+        },
+    ):
+        out = apply_scale_direction_adapt(metrics, TradeDirection.PUT)
+    assert out == TradeDirection.CALL
+    assert metrics["scale_adapt_reason"] == "tape_vs_tcn"
+
+
+def test_compute_tape_strong_via_micro_pair():
+    from src.application.services.execution_scale_tape import compute_tape_strong
+
+    metrics = {
+        "scale_mini_prev_bar_dir": "CALL",
+        "scale_mini_bar_dir": "CALL",
+        "scale_mili_dir": None,
+        "scale_micro_prev_bar_dir": "CALL",
+        "scale_micro_bar_dir": "CALL",
+    }
+    assert compute_tape_strong(metrics, "CALL") is True
+    assert compute_tape_strong({"scale_mini_prev_bar_dir": "PUT", "scale_mini_bar_dir": "CALL"}, "CALL") is False
+
+
 def test_adapt_aligned_consensus():
-    metrics = {"scale_tape_consensus": "PUT", "calibration_mode": "raw_extreme"}
+    metrics = _pair_call(scale_tape_consensus="PUT", scale_mini_prev_bar_dir="PUT", scale_mini_bar_dir="PUT")
+    metrics["calibration_mode"] = "raw_extreme"
     out = apply_scale_direction_adapt(metrics, TradeDirection.PUT)
     assert out == TradeDirection.PUT
     assert metrics["scale_adapt_reason"] == "aligned"
 
 
 def test_adapt_disabled_flags():
-    metrics = {"scale_tape_consensus": "CALL", "calibration_mode": "raw_extreme"}
+    metrics = _pair_call(calibration_mode="raw_extreme")
     with patch(
         "src.application.services.execution_scale_adapt.parse_scale_vision_config",
-        return_value={"enabled": False, "adapt_direction_enabled": True, "adapt_require_raw_extreme": True},
+        return_value={
+            "enabled": False,
+            "adapt_direction_enabled": True,
+            "adapt_require_raw_extreme": True,
+            "adapt_require_bar_pair_agree": True,
+            "adapt_allow_strong_tape": True,
+        },
     ):
         assert apply_scale_direction_adapt(metrics, TradeDirection.PUT) == TradeDirection.PUT
-    metrics2 = {"scale_tape_consensus": "CALL", "calibration_mode": "raw_extreme"}
+    metrics2 = _pair_call(calibration_mode="raw_extreme")
     with patch(
         "src.application.services.execution_scale_adapt.parse_scale_vision_config",
-        return_value={"enabled": True, "adapt_direction_enabled": False, "adapt_require_raw_extreme": True},
+        return_value={
+            "enabled": True,
+            "adapt_direction_enabled": False,
+            "adapt_require_raw_extreme": True,
+            "adapt_require_bar_pair_agree": True,
+            "adapt_allow_strong_tape": True,
+        },
     ):
         assert apply_scale_direction_adapt(metrics2, TradeDirection.PUT) == TradeDirection.PUT
         assert metrics2["scale_adapt_reason"] == "adapt_off"
@@ -171,3 +246,4 @@ def test_finalize_adapts_direction_under_raw_extreme():
     assert out["tcn_direction"] == "PUT"
     assert out["execution_candidate_ready"] is True
     assert out["scale_force_explore"] is True
+    assert out["scale_tape_strong"] is True

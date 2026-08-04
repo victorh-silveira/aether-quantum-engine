@@ -37,7 +37,7 @@ Triplo OHLC + ticks: telemetria, **adaptacao de lado** (fita vs TCN sob `raw_ext
 
 Log: `SCALE || … mi_prev=… mi_cur=… tape=… adapted=0|1` e no IND `SCALE: tcn=… tape=… mi_p=… mi=…`.  
 Modulos: `execution_scale_vision.py`, `execution_scale_adapt.py`, `execution_scale_sizing.py`, sync em `stream_sync_start.py`.  
-Adapt: consenso da fita usa **vela anterior e atual** (MINI/MICRO) + MILI; `adapt_min_votes` (**2**) + `adapt_require_raw_extreme`.  
+Adapt: consenso da fita exige **par MINI anterior+atual** alinhado; sob `raw_extreme` ou fita forte (`adapt_allow_strong_tape` + MILI/MICRO) adapta lado sem SKIP.  
 Soft: discord/adapt → `kelly_mult_discord` (**0.35**) + `scale_force_explore` (corta DAL) + `max_stake_pct_discord` (**0.005**). CLUSTER TF prefere micro (`M2`).
 
 ## `raw_extreme` (anti-override)

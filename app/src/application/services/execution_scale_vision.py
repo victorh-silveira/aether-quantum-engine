@@ -7,6 +7,14 @@ from typing import Any
 
 import numpy as np
 
+from src.application.services.execution_scale_tape import (
+    bar_direction_at,
+    compute_tape_strong,
+    last_bar_direction,
+    mini_bar_pair_agrees,
+    prev_bar_direction,
+    tape_consensus,
+)
 from src.domain.config_knobs import merge_settings_block, require_bool, require_float, require_int, require_keys
 from src.domain.models.trade import TradeDirection
 
@@ -20,8 +28,25 @@ _SCALE_VISION_KEYS = (
     "use_last_bar",
     "adapt_direction_enabled",
     "adapt_require_raw_extreme",
+    "adapt_require_bar_pair_agree",
+    "adapt_allow_strong_tape",
     "adapt_min_votes",
     "max_stake_pct_discord",
+)
+
+__all__ = (
+    "bar_direction_at",
+    "compute_scale_directions",
+    "compute_tape_strong",
+    "format_scale_audit_line",
+    "format_scale_ind_token",
+    "last_bar_direction",
+    "mili_direction_from_flow",
+    "mini_bar_pair_agrees",
+    "parse_scale_vision_config",
+    "prev_bar_direction",
+    "slope_direction",
+    "tape_consensus",
 )
 
 
@@ -44,6 +69,8 @@ def parse_scale_vision_config(raw: dict[str, Any] | None = None) -> dict[str, An
         "use_last_bar": require_bool(block, "use_last_bar"),
         "adapt_direction_enabled": require_bool(block, "adapt_direction_enabled"),
         "adapt_require_raw_extreme": require_bool(block, "adapt_require_raw_extreme"),
+        "adapt_require_bar_pair_agree": require_bool(block, "adapt_require_bar_pair_agree"),
+        "adapt_allow_strong_tape": require_bool(block, "adapt_allow_strong_tape"),
         "adapt_min_votes": max(1, require_int(block, "adapt_min_votes")),
         "max_stake_pct_discord": max(0.0, min(0.05, require_float(block, "max_stake_pct_discord"))),
     }
@@ -60,60 +87,6 @@ def slope_direction(closes: np.ndarray | list[float], *, bars: int = 5) -> str |
     if abs(delta) <= 1e-12:
         return None
     return TradeDirection.CALL.name if delta > 0.0 else TradeDirection.PUT.name
-
-
-def bar_direction_at(
-    opens: np.ndarray | list[float] | None,
-    closes: np.ndarray | list[float] | None,
-    *,
-    offset: int = -1,
-) -> str | None:
-    """Direcao CALL/PUT de uma vela por offset (-1 atual, -2 anterior); None se flat/ausente."""
-    o_arr = np.asarray(opens if opens is not None else [], dtype=np.float64).reshape(-1)
-    c_arr = np.asarray(closes if closes is not None else [], dtype=np.float64).reshape(-1)
-    n = min(int(o_arr.size), int(c_arr.size))
-    if n < 1:
-        return None
-    idx = int(offset) if int(offset) >= 0 else n + int(offset)
-    if idx < 0 or idx >= n:
-        return None
-    open_v = float(o_arr[idx])
-    close_v = float(c_arr[idx])
-    delta = close_v - open_v
-    if abs(delta) <= 1e-12:
-        return None
-    return TradeDirection.CALL.name if delta > 0.0 else TradeDirection.PUT.name
-
-
-def last_bar_direction(
-    opens: np.ndarray | list[float] | None,
-    closes: np.ndarray | list[float] | None,
-) -> str | None:
-    """Direcao CALL/PUT da vela atual (ultimo OHLC do buffer, em formacao)."""
-    return bar_direction_at(opens, closes, offset=-1)
-
-
-def prev_bar_direction(
-    opens: np.ndarray | list[float] | None,
-    closes: np.ndarray | list[float] | None,
-) -> str | None:
-    """Direcao CALL/PUT da vela anterior fechada (penultimo OHLC do buffer)."""
-    return bar_direction_at(opens, closes, offset=-2)
-
-
-def tape_consensus(dirs: list[str | None], *, min_votes: int = 2) -> str | None:
-    """Maioria CALL/PUT entre votos validos; None se empate ou votos insuficientes."""
-    need = max(1, int(min_votes))
-    votes = [d for d in dirs if d in {TradeDirection.CALL.name, TradeDirection.PUT.name}]
-    if len(votes) < need:
-        return None
-    call_n = sum(1 for d in votes if d == TradeDirection.CALL.name)
-    put_n = len(votes) - call_n
-    if call_n >= need and call_n > put_n:
-        return TradeDirection.CALL.name
-    if put_n >= need and put_n > call_n:
-        return TradeDirection.PUT.name
-    return None
 
 
 def mili_direction_from_flow(flow: dict[str, Any] | None, tick_buffer: Any | None, symbol: str) -> str | None:
@@ -165,6 +138,7 @@ def _seed_scale_metrics(metrics: dict[str, Any], micro_name: str | None) -> None
     metrics["scale_micro_bar_dir"] = None
     metrics["scale_micro_prev_bar_dir"] = None
     metrics["scale_tape_consensus"] = None
+    metrics["scale_tape_strong"] = False
     metrics["scale_agree_n"] = 0
     metrics["scale_disagree_n"] = 0
     metrics["scale_discordance"] = False
@@ -214,12 +188,7 @@ def compute_scale_directions(
     mini_curr = metrics["scale_mini_bar_dir"] if use_last_bar else None
     mini_prev = metrics["scale_mini_prev_bar_dir"] if use_last_bar else None
     mini_peer = mini_curr if mini_curr is not None else metrics["scale_mini_dir"]
-    peers = [
-        metrics["scale_macro_dir"],
-        mini_prev,
-        mini_peer,
-        metrics["scale_mili_dir"],
-    ]
+    peers = [metrics["scale_macro_dir"], mini_prev, mini_peer, metrics["scale_mili_dir"]]
     agree = 0
     disagree = 0
     if micro_name:
@@ -236,7 +205,7 @@ def compute_scale_directions(
     min_disagree = int(vision.get("min_disagree_to_dampen", 2))
     metrics["scale_discordance"] = bool(micro_name and disagree >= min_disagree)
     adapt_votes = int(vision.get("adapt_min_votes", 2))
-    metrics["scale_tape_consensus"] = tape_consensus(
+    consensus = tape_consensus(
         [
             metrics["scale_mini_prev_bar_dir"],
             metrics["scale_mini_bar_dir"],
@@ -246,6 +215,8 @@ def compute_scale_directions(
         ],
         min_votes=adapt_votes,
     )
+    metrics["scale_tape_consensus"] = consensus
+    metrics["scale_tape_strong"] = compute_tape_strong(metrics, consensus)
     metrics["scale_reason"] = "discord" if metrics["scale_discordance"] else "ok"
     return metrics
 
