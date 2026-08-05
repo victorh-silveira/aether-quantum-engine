@@ -551,6 +551,8 @@
                 "adapt_kelly_p_floor": 0.55,
                 "adapt_min_votes": 2,
                 "adapt_on_retraction": true,
+                "adapt_on_explosion": true,
+                "adapt_on_mili_tape": true,
                 "retraction_require_mili": true,
                 "retraction_use_tick_accel": true,
                 "max_stake_pct_discord": 0.005
@@ -614,7 +616,7 @@
             "micro_bankroll_pct": 0.01,
             "micro_bankroll_threshold": 250.0,
             "min_stake_pct": 0.0,
-            "neutral_bankroll_pct": 0.005,
+            "neutral_bankroll_pct": 0.0025,
             "payout_fallback": 0.9,
             "penalty_smoothing_trade_score_min": 0.7,
             "recovery_conviction_ladder": {
@@ -686,8 +688,8 @@
         "small_account_stop_win": 10.0,
         "small_account_threshold": 100.0,
         "soft_recovery": {
-            "amort_cycles_max": 3,
-            "amort_cycles_min": 1,
+            "amort_cycles_max": 5,
+            "amort_cycles_min": 2,
             "coing_redirect_drawdown_threshold": 10.0,
             "dust_pending_clear_max": 0.25,
             "enabled": true,

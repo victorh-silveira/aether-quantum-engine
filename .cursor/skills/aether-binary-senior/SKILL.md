@@ -16,9 +16,9 @@ Ler `docs/binary-senior-playbook.md`.
 2. Candidato `execution_candidate_ready`? Cal/Edge sao telemetria, nao veto
 3. ACC/deploy de treino ≥ 0.53 quando o tema for modelo; checar `label_call_frac` / majority-collapse
 4. Lado enviesado no live ≠ SKIP tecnico — SIDE_EQ e **soft Kelly** (`execution_side_eq_sizing`), nao veto de direcao
-5. SCALE: par MINI ou **retracao** (`mi_curr`+MILI vs TCN); `micro=retract|explos|chop`; dampen/force EXPLORE; Kelly `kelly_p_floor`
+5. SCALE: par MINI, **retracao**, **explosao** ou **mili+tape** vs TCN; `micro=retract|explos|chop`; dampen/force EXPLORE; Kelly `kelly_p_floor`
 6. `raw_extreme` ≠ MACRO TF: Cal nao e substituido por raw; limiares `tcn_macro_*_override` so limiam raw
-7. Kelly/caps — `EXEC_PAUSE` so `stop_win` / banca; **sem** `kelly_no_edge`; explore fino usa `neutral_bankroll_pct` (~0.5%), nao `$1`
+7. Kelly/caps — `EXEC_PAUSE` so `stop_win` / banca; **sem** `kelly_no_edge`; explore fino usa `neutral_bankroll_pct` (~0.25%), nao `$1`
 8. EXPLORE vs RECOVER — nao revenge sizing; discordance/adapt forca EXPLORE Kelly (sem DAL_Ln) **exceto** quando `pending_waives_scale_explore` e pending material (soft cover sob teto); `RECOVERY_INFEASIBLE`/`infeasible_force_explore` tambem forca EXPLORE (sem DAL no teto)
 
 ## Saida

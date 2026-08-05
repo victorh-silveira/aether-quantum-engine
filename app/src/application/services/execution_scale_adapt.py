@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.application.services.execution_scale_adapt_regimes import (
+    adapt_on_retraction as _adapt_on_retraction,
+    try_regime_adapts,
+)
 from src.application.services.execution_scale_micro import classify_micro_regime
 from src.application.services.execution_scale_tape import mini_bar_pair_agrees
 from src.application.services.execution_scale_vision import parse_scale_vision_config
@@ -12,27 +16,15 @@ from src.domain.risk.kelly_p_align import apply_kelly_side_p
 from src.domain.risk.kelly_runtime_config import load_kelly_runtime_from_settings
 
 
-def _adapt_on_retraction(
-    metrics: dict[str, Any], exec_dir: TradeDirection, cfg: dict[str, Any]
-) -> TradeDirection | None:
-    """Adapta ao lado vivo quando ha retracao confirmada contra o TCN."""
-    if not bool(cfg.get("adapt_on_retraction", True)):
-        return None
-    classify_micro_regime(metrics, exec_dir.name, cfg=cfg)
-    if not bool(metrics.get("scale_retraction_vs_tcn")):
-        return None
-    live = str(metrics.get("scale_micro_side") or "").upper()
-    if live not in {TradeDirection.CALL.name, TradeDirection.PUT.name}:
-        return None
-    if live == exec_dir.name:
-        return None
-    metrics["scale_adapted"] = True
-    metrics["scale_adapt_reason"] = "retraction"
-    return TradeDirection[live]
+__all__ = (
+    "apply_scale_direction_adapt",
+    "apply_scale_kelly_side_sync",
+    "_adapt_on_retraction",
+)
 
 
 def apply_scale_direction_adapt(metrics: dict[str, Any], exec_dir: TradeDirection) -> TradeDirection:
-    """Adapta exec_direction ao consenso da fita ou a retracao micro (sem SKIP)."""
+    """Adapta exec_direction ao consenso da fita ou a regimes micro (sem SKIP)."""
     cfg = parse_scale_vision_config(None)
     metrics["tcn_direction"] = exec_dir.name
     metrics.setdefault("scale_adapted", False)
@@ -46,18 +38,18 @@ def apply_scale_direction_adapt(metrics: dict[str, Any], exec_dir: TradeDirectio
         return exec_dir
     consensus = str(metrics.get("scale_tape_consensus") or "").upper()
     if consensus not in {TradeDirection.CALL.name, TradeDirection.PUT.name}:
-        retracted = _adapt_on_retraction(metrics, exec_dir, cfg)
-        if retracted is not None:
-            return retracted
+        regime = try_regime_adapts(metrics, exec_dir, cfg)
+        if regime is not None:
+            return regime
         metrics["scale_adapt_reason"] = "no_consensus"
         return exec_dir
     if consensus == exec_dir.name:
         metrics["scale_adapt_reason"] = "aligned"
         return exec_dir
     if bool(cfg.get("adapt_require_bar_pair_agree", True)) and not mini_bar_pair_agrees(metrics, consensus):
-        retracted = _adapt_on_retraction(metrics, exec_dir, cfg)
-        if retracted is not None:
-            return retracted
+        regime = try_regime_adapts(metrics, exec_dir, cfg)
+        if regime is not None:
+            return regime
         metrics["scale_adapt_reason"] = "need_bar_pair"
         return exec_dir
     mode = str(metrics.get("calibration_mode") or "")
@@ -69,9 +61,9 @@ def apply_scale_direction_adapt(metrics: dict[str, Any], exec_dir: TradeDirectio
         metrics["scale_adapt_reason"] = "tape_strong" if strong_ok and not raw_ok else "tape_vs_tcn"
         return adapted
     if bool(cfg.get("adapt_require_raw_extreme", True)):
-        retracted = _adapt_on_retraction(metrics, exec_dir, cfg)
-        if retracted is not None:
-            return retracted
+        regime = try_regime_adapts(metrics, exec_dir, cfg)
+        if regime is not None:
+            return regime
         metrics["scale_adapt_reason"] = "need_raw_extreme"
         return exec_dir
     adapted = TradeDirection[consensus]

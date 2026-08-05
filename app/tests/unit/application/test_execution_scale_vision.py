@@ -60,6 +60,8 @@ def test_parse_scale_vision_from_ssot():
     assert cfg["adapt_kelly_p_floor"] >= 0.51
     assert cfg["adapt_min_votes"] >= 1
     assert cfg["adapt_on_retraction"] is True
+    assert cfg["adapt_on_explosion"] is True
+    assert cfg["adapt_on_mili_tape"] is True
     assert cfg["retraction_require_mili"] is True
     assert cfg["retraction_use_tick_accel"] is True
     assert cfg["max_stake_pct_discord"] > 0.0

@@ -138,6 +138,8 @@ def test_adapt_on_retraction_disabled_and_no_consensus():
             "enabled": True,
             "adapt_direction_enabled": True,
             "adapt_on_retraction": False,
+            "adapt_on_explosion": False,
+            "adapt_on_mili_tape": False,
             "adapt_require_bar_pair_agree": True,
             "adapt_require_raw_extreme": True,
             "adapt_allow_strong_tape": True,
@@ -160,7 +162,7 @@ def test_adapt_on_retraction_same_side_noop():
         m["scale_micro_side"] = "CALL"
         return m
 
-    with patch("src.application.services.execution_scale_adapt.classify_micro_regime", side_effect=_fake):
+    with patch("src.application.services.execution_scale_adapt_regimes.classify_micro_regime", side_effect=_fake):
         assert _adapt_on_retraction(metrics, TradeDirection.CALL, {"adapt_on_retraction": True}) is None
 
 
@@ -176,7 +178,7 @@ def test_adapt_on_retraction_invalid_live_side():
         m["scale_micro_side"] = None
         return m
 
-    with patch("src.application.services.execution_scale_adapt.classify_micro_regime", side_effect=_fake):
+    with patch("src.application.services.execution_scale_adapt_regimes.classify_micro_regime", side_effect=_fake):
         assert _adapt_on_retraction(metrics, TradeDirection.CALL, {"adapt_on_retraction": True}) is None
 
 
@@ -227,7 +229,9 @@ def test_adapt_tape_without_raw_extreme_flag():
         return_value={
             "enabled": True,
             "adapt_direction_enabled": True,
-            "adapt_on_retraction": True,
+            "adapt_on_retraction": False,
+            "adapt_on_explosion": False,
+            "adapt_on_mili_tape": False,
             "adapt_require_bar_pair_agree": True,
             "adapt_require_raw_extreme": False,
             "adapt_allow_strong_tape": True,

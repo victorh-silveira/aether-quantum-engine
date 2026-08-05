@@ -1,5 +1,7 @@
 """Testes de soft cover SCALE e waiver de EXPLORE sob pending."""
 
+import pytest
+
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.dlambert_sizing import resolve_dlambert_stake
 from src.domain.risk.risk_stake_calc_helpers import apply_scale_stake_cap
@@ -31,8 +33,8 @@ def test_resolve_dlambert_pending_waives_scale_adapted_uses_soft_cover():
             "pending_waives_scale_explore": True,
             "material_pending_min": 0.5,
             "infeasible_force_explore": True,
-            "amort_cycles_min": 1,
-            "amort_cycles_max": 3,
+            "amort_cycles_min": 2,
+            "amort_cycles_max": 5,
         }
         last_loss_stake = 50.0
         dlambert_unit = 20.0
@@ -53,7 +55,12 @@ def test_resolve_dlambert_pending_waives_scale_adapted_uses_soft_cover():
         f_star=0.01,
     )
     assert tag == "D'ALEMBERT"
-    assert stake >= 51.0 / 0.82 - 1.0
+    session_unit = max(20.0, 10000.0 * 0.0025)
+    factor = 1.0 + (1.0 / 0.82)
+    cover = 51.0 / 0.82 / 4.0
+    expected = max(session_unit * factor, cover)
+    assert stake == pytest.approx(expected, rel=1e-2)
+    assert stake < 51.0 / 0.82
 
 
 def test_resolve_dlambert_skips_dal_on_scale_adapted_without_pending():

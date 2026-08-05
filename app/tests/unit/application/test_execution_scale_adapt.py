@@ -109,7 +109,11 @@ def test_adapt_blocks_split_mini_pair_like_c1():
 
 
 def test_adapt_requires_raw_extreme_when_tape_not_strong():
-    metrics = _pair_call(calibration_mode="calibrated", scale_tape_strong=False)
+    metrics = _pair_call(
+        calibration_mode="calibrated",
+        scale_tape_strong=False,
+        scale_mili_dir="PUT",
+    )
     out = apply_scale_direction_adapt(metrics, TradeDirection.PUT)
     assert out == TradeDirection.PUT
     assert metrics["scale_adapted"] is False

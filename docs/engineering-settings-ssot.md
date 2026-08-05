@@ -25,12 +25,13 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `max_label_call_frac_bias` | idem | padrao **0.20** |
 | `min_minority_recall` | idem | padrao **0.25** |
 | `side_equilibrium.enabled` | `orchestrator.execution` | soft Kelly only; sem veto de direcao |
-| `scale_vision.*` | `orchestrator.execution` | `adapt_on_retraction`; `retraction_require_mili`; micro=explos/retract/chop; sem SKIP |
+| `scale_vision.*` | `orchestrator.execution` | `adapt_on_retraction` / `adapt_on_explosion` / `adapt_on_mili_tape`; micro=explos/retract/chop; sem SKIP |
 | `kelly.kelly_p_floor` | `risk_management.kelly` | Piso de **probabilidade** para Kelly; garante `f*>0`; alias `adapt_kelly_p_floor` |
-| `kelly.neutral_bankroll_pct` | `risk_management.kelly` | Piso operacional de stake explore (**0.5%** banca) quando Kelly puro fica subcentavo; evita EXEC em `$1` broker |
+| `kelly.neutral_bankroll_pct` | `risk_management.kelly` | Piso operacional de stake explore (**0.25%** banca; contrato 30s / ciclo 60s) quando Kelly puro fica subcentavo; evita EXEC em `$1` broker |
 | `soft_recovery.infeasible_force_explore` | `risk_management.soft_recovery` | Default **true**: `RECOVERY_INFEASIBLE` ou cover≥cap → EXPLORE Kelly (sem DAL no teto) |
 | `soft_recovery.pending_waives_scale_explore` | `risk_management.soft_recovery` | Default **true**: pending material libera soft cover apesar de `scale_adapted`/`scale_force_explore` |
 | `soft_recovery.max_safe_stake_pct` | `risk_management.soft_recovery` | Teto RECOVER **5%** banca (mandato); linear2/3 dampen via knobs dedicados |
+| `soft_recovery.amort_cycles_min` / `amort_cycles_max` | `risk_management.soft_recovery` | Janela de amortizacao do cover `pending/payout` (**2–5**; alinhado medallion) |
 | `params.duration` | `risk_management.params` | Contrato RISE_FALL **30 s**; ciclo/micro OHLC **60 s** (híbrido) |
 | `data_handler.micro_granularity` / `granularity` | `data_handler` | Micro **60** / macro **300** (1:5) |
 | `deep_learning.lookback` | `deep_learning` | **720** barras micro (~12 h @ 60 s) |

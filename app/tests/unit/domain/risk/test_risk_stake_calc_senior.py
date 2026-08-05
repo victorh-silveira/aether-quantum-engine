@@ -56,7 +56,7 @@ def test_thin_edge_still_sizes_via_kelly_p_floor(kelly_config):
         kwargs={"dl_metrics": metrics, "order_direction": "CALL"},
     )
     assert stake > 0.0
-    assert stake >= bankroll * 0.005 - 1e-6
+    assert stake >= bankroll * 0.0025 - 1e-6
     assert float(metrics.get("kelly_side_p", 0.0)) >= 0.55
 
 

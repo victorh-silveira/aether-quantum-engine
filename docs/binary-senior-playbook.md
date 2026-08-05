@@ -37,7 +37,7 @@ Triplo OHLC + ticks: telemetria, **adaptacao de lado** (fita vs TCN sob `raw_ext
 
 Log: `SCALE || … mi_prev=… mi_cur=… tape=… micro=retract|explos|chop adapted=0|1` e no IND `SCALE: tcn=… tape=… micro=… mi_p=…`.  
 Modulos: `execution_scale_vision.py`, `execution_scale_micro.py`, `execution_scale_adapt.py`, `execution_scale_sizing.py`.  
-Adapt: par MINI (raw_extreme/fita forte) **ou** retracao (`mi_curr`+MILI contra TCN, mesmo com par rachado — `adapt_on_retraction`). Kelly `kelly_p_floor` **0.55**; explore fino `neutral_bankroll_pct` **0.5%**. Sem `kelly_no_edge` / sem SKIP por escala.  
+Adapt: par MINI (raw_extreme/fita forte), **retracao** (`mi_curr`+MILI vs TCN), **explosao** (par MINI+MILI vs TCN) ou **mili+tape** (MILI=tape contra TCN em chop/par rachado). Kelly `kelly_p_floor` **0.55**; explore fino `neutral_bankroll_pct` **0.25%** (frequencia 30s/60s). Sem `kelly_no_edge` / sem SKIP por escala.  
 Soft: discord/adapt/retracao/chop+mili_oppose → `kelly_mult_discord` + `scale_force_explore` + `max_stake_pct_discord`.
 Contrato Deriv **30 s**; label TCN em 1 barra micro (**60 s**) — gap consciente do pacote hibrido.
 

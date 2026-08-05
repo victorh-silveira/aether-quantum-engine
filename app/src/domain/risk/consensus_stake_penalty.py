@@ -29,7 +29,7 @@ from src.domain.risk.stake_target_proximity import apply_target_proximity_dampin
 
 
 def resolve_session_base_unit(bankroll: float, base_unit: float, metrics: dict | None) -> float:
-    """Resolve unidade base U como max(kelly, 0.15% banca) fora do D-SQUEEZE."""
+    """Resolve unidade base U como max(kelly, neutral_bankroll_pct banca) fora do D-SQUEEZE."""
     unit = max(float(base_unit), neutral_edge_dynamic_unit(bankroll))
     if isinstance(metrics, dict) and not _squeeze_floor_active(metrics):
         metrics["session_base_unit"] = unit

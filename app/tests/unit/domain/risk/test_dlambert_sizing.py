@@ -118,8 +118,8 @@ def test_resolve_dlambert_stake_soft_recovery_with_progression():
         payout=0.95,
     )
     assert tag == "D'ALEMBERT"
-    session_unit = max(10.0, 10000.0 * 0.005)
-    cover = 93.19 / 0.95 / 1.0
+    session_unit = max(10.0, 10000.0 * 0.0025)
+    cover = 93.19 / 0.95 / 2.0
     factor = 1.0 + (1.0 / 0.95)
     expected = math.ceil(max(session_unit * (factor**3), cover) * 100) / 100
     cap = max_safe_stake_cap(10000.0, consecutive_losses_linear=3)
@@ -147,10 +147,10 @@ def test_resolve_dlambert_stake_ignores_last_loss_stake_for_geometric_progressio
         payout=payout,
     )
     assert tag == "D'ALEMBERT"
-    session_base = max(17.89, 11926.67 * 0.005)
+    session_base = max(17.89, 11926.67 * 0.0025)
     geometric = session_base * factor
     cover_full = 36.72 / payout
-    amort_cycles = max(2, 5 - min(1, 3))
+    amort_cycles = 4
     cover_need = cover_full / float(amort_cycles)
     expected = math.ceil(max(geometric, cover_need) * 100) / 100
     assert stake == pytest.approx(expected)

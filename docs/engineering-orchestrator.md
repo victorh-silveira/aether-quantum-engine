@@ -36,7 +36,7 @@ warmup/buffer → training_gate → collect decisoes DL
 
 ## Scale vision (MACRO/MICRO/MINI/MILI)
 
-SSOT: `orchestrator.execution.scale_vision`. Escopo 1: **sem veto de sinal / sem SKIP por escala**. Sob `raw_extreme`/fita forte, adapta ao consenso da fita; sob **retracao** (`adapt_on_retraction`), adapta ao lado vivo `mi_curr`+MILI mesmo com par MINI rachado.
+SSOT: `orchestrator.execution.scale_vision`. Escopo 1: **sem veto de sinal / sem SKIP por escala**. Sob `raw_extreme`/fita forte, adapta ao consenso da fita; sob **retracao** (`adapt_on_retraction`), adapta ao lado vivo `mi_curr`+MILI mesmo com par MINI rachado; sob **explosao** (`adapt_on_explosion`) ou **mili+tape** (`adapt_on_mili_tape`) contra o TCN, adapta ao lado vivo curto (dampen/EXPLORE ja existente).
 
 | Campo | Papel |
 |-------|-------|
