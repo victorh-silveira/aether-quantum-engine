@@ -27,7 +27,7 @@ Rules/skills versionadas: [`.cursor/rules/`](.cursor/rules/) e [`.cursor/skills/
 - Cobertura de testes em `app/src` abaixo de **100%**
 - Assunto de commit em ingles; escopo fora do enum commitlint
 
-Nota operacional (escopo 1): vetos de sinal/qualidade (Hurst/ADX/RSI/cal floor/quality_gate/price_zone/SIDE_EQ block) foram **removidos do codigo**; SKIP restante e tecnico (`training`/`data`/`deploy`/`predict_error`) + Kelly/caps. Vies CALL/PUT: treino (`sample_weighting` / majority-collapse) + SIDE_EQ soft Kelly — nao rearmar veto de sinal.
+Nota operacional (**escopo 1.1**): quality gate amplo (Hurst/ADX/RSI/price_zone/SIDE_EQ block) permanece **fora**; SKIP = tecnico + `signal_skip` + veto ML `loss_clf_veto` (container `aether-loss-classifier`) + Kelly/caps. Vies CALL/PUT: treino + SIDE_EQ soft.
 
 ## Escopos commitlint
 
@@ -45,6 +45,7 @@ Formato: `tipo(escopo): assunto em PT-BR` + corpo obrigatorio.
 |--------|----------------|
 | Qualquer mudanca | este arquivo + `docs/agent-coverage.md` |
 | CALL/PUT/SKIP senior | `docs/binary-senior-playbook.md` + skill `aether-binary-senior` |
+| Loss-classifier / Docker ml | `docs/infra-docker.md` + skill `aether-infra-stack` |
 | Risco / logs de sessao | doutrina + skill `aether-session-review` |
 | Knob em settings | `docs/engineering-settings-ssot.md` + skill `aether-settings-change` |
 | Ciclo / warmup | `docs/engineering-orchestrator.md` + skill `aether-cycle-debug` |

@@ -1,8 +1,8 @@
 # Doutrina LLM do Aether (9 livros)
 
-O LLM/Cursor e **copiloto de engenharia e auditoria**. Nao decide CALL/PUT em runtime. A decisao live permanece TCN + meta LightGBM + Kelly/caps em codigo (vetos de sinal/qualidade removidos por mandato operacional escopo 1).
+O LLM/Cursor e **copiloto de engenharia e auditoria**. Nao decide CALL/PUT em runtime. A decisao live permanece TCN + meta LightGBM + Kelly/caps; **escopo 1.1** (mandato): catálogo minimo `signal_skip` (`mini_pair_oppose`, `cal_margin`) — sem restaurar quality gate amplo.
 
-SSOT operacional: [`config/settings.json`](../config/settings.json). Metodologia: [`medallion.md`](medallion.md). Sample size: [`sample-size-lln.md`](sample-size-lln.md).
+SSOT operacional: [`config/settings.json`](../config/settings.json). Metodologia: [`medallion.md`](medallion.md). Sample size: [`sample-size-lln.md`](sample-size-lln.md). Loss ML: [`infra-docker.md`](infra-docker.md) (`aether-loss-classifier`).
 
 ---
 
@@ -12,7 +12,7 @@ SSOT operacional: [`config/settings.json`](../config/settings.json). Metodologia
 
 **Anti-padrao do LLM:** afrouxar piso apos 2–3 WINs; tratar Cal 0.51 como sinal; aumentar stake porque “estava batendo”.
 
-**Regra no Aether:** caps limitam cauda; Cal/Edge sao telemetria de processo (nao veto de codigo apos escopo 1).
+**Regra no Aether:** caps limitam cauda; Cal/Edge sao telemetria; SKIP de margem so via `signal_skip.cal_margin` (floor SSOT **0.022**, waive pending) — nao quality gate generico.
 
 **Ancoras:** soft recovery caps (`max_safe_stake_pct` **0.05**); Kelly; `force_trade_every_cycle=false`; `infeasible_force_explore` (RECOVERY_INFEASIBLE → EXPLORE Kelly, sem DAL no teto); `pending_waives_scale_explore` (pending material libera soft cover sob discord/adapt).
 
@@ -34,9 +34,9 @@ SSOT operacional: [`config/settings.json`](../config/settings.json). Metodologia
 
 **Insight:** esperanca, Bayes e taxa-base; mudanca de knob precisa de hipotese falsificavel.
 
-**Anti-padrao do LLM:** alterar threshold “porque o log ficou feio”; ignorar ACC de validacao; misturar prior e evidencia sem shrink; tratar streak de PUT LOSS como motivo para **rearmar quality gate** ou veto de sinal.
+**Anti-padrao do LLM:** alterar threshold “porque o log ficou feio”; ignorar ACC de validacao; misturar prior e evidencia sem shrink; tratar streak de PUT LOSS como motivo para **rearmar quality gate** amplo (Hurst/ADX/RSI).
 
-**Regra no Aether:** Kelly bayesiano; gate de `val_accuracy`; calib drift so com N minimo. Vies de lado corrige-se em **treino** (`sample_weighting` / majority-collapse) + **sizing** SIDE_EQ soft Kelly — nao reintroduzindo veto de qualidade.
+**Regra no Aether:** Kelly bayesiano; gate de `val_accuracy`; calib drift so com N minimo. Vies de lado: treino + SIDE_EQ soft Kelly. SKIP sinal fechado (`signal_skip`) + veto ML nomeado `loss_clf_veto` (container; ≠ quality gate amplo).
 
 **Ancoras:** `risk_management.min_validation_accuracy_gate` (0.53); `soft_min_val_accuracy`; `deep_learning.sample_weighting`; `deploy_gate.reject_majority_collapse`; `execution_side_eq_sizing`; `apply_live_calib_drift_soft`; Kelly em `app/src/domain/risk/`.
 

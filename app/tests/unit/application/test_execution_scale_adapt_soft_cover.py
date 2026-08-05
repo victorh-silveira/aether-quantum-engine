@@ -126,6 +126,8 @@ def test_resolve_dlambert_skips_dal_on_scale_force_explore_when_waiver_off():
 
 
 def test_finalize_adapts_direction_under_raw_extreme():
+    from unittest.mock import patch
+
     import numpy as np
 
     from src.application.services.execution_direction_resolver import _finalize_execution_metrics
@@ -157,17 +159,27 @@ def test_finalize_adapts_direction_under_raw_extreme():
         tick_buffer = None
 
     orch = type("O", (), {"stream": Stream()})()
-    direction, out = _finalize_execution_metrics(
-        entry,
-        metrics,
-        TradeDirection.PUT,
-        0.2,
-        0.01,
-        meta_applied=False,
-        score=0.55,
-        symbol="R_10",
-        orch=orch,
-    )
+    with (
+        patch(
+            "src.application.services.execution_direction_resolver.apply_signal_skip_gates",
+            return_value=False,
+        ),
+        patch(
+            "src.application.services.execution_direction_resolver.apply_loss_classifier_gate",
+            return_value=False,
+        ),
+    ):
+        direction, out = _finalize_execution_metrics(
+            entry,
+            metrics,
+            TradeDirection.PUT,
+            0.2,
+            0.01,
+            meta_applied=False,
+            score=0.55,
+            symbol="R_10",
+            orch=orch,
+        )
     assert direction == TradeDirection.CALL
     assert out["scale_adapted"] is True
     assert out["tcn_direction"] == "PUT"

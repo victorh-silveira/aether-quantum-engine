@@ -67,6 +67,22 @@ def test_assert_production_doctrine_rejects_bad_explore_floor():
         assert_production_doctrine(settings)
 
 
+def test_assert_production_signal_skip_margin_bounds():
+    settings = copy.deepcopy(load_settings_json())
+    settings["orchestrator"]["execution"]["signal_skip"]["min_direction_margin"] = 0.01
+    with pytest.raises(ValueError, match="min_direction_margin"):
+        assert_production_doctrine(settings)
+    settings["orchestrator"]["execution"]["signal_skip"]["min_direction_margin"] = 0.06
+    with pytest.raises(ValueError, match="min_direction_margin"):
+        assert_production_doctrine(settings)
+
+
+def test_load_doctrine_signal_skip_from_ssot():
+    inv = load_doctrine_invariants()
+    assert inv["signal_skip_enabled"] is True
+    assert 0.015 <= float(inv["signal_skip_min_direction_margin"]) <= 0.05
+
+
 def test_assert_production_doctrine_rejects_bad_caps():
     settings = copy.deepcopy(load_settings_json())
     settings["risk_management"]["soft_recovery"]["max_safe_stake_pct"] = 0.0

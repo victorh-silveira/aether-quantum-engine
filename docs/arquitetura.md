@@ -207,6 +207,16 @@ Config atual: `arch: tcn`, `lookback: 72`, `label_mode: spot_forward`, threshold
 | Artefatos | `infra/docker/meta-models/*.pkl` |
 | Execução | Meta **opcional** (`require_meta_for_execution: false`); Triton permanece obrigatório |
 
+### Loss-classifier (sidecar HTTP)
+
+| Item | Valor |
+|------|-------|
+| Container | `aether-loss-classifier`, host **8006→8000** |
+| Endpoint | `POST /v1/predict_loss`, `POST /v1/learn`, `POST /v1/retrain` |
+| Cliente | `LossClassifierClient` + `loss_classifier_pool` |
+| Veto | `gate_reason=loss_clf_veto`; log `LOSS_CLF || VETO auto_learn=…` |
+| Artefatos | `infra/docker/loss-models/*.pkl` (bootstrap `train_loss_classifier.py`) |
+
 ### 5.2 Vetor 43D
 
 ```

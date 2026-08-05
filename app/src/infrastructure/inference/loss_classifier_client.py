@@ -1,0 +1,168 @@
+"""Cliente HTTP do loss-classifier (telemetria + veto fail-open)."""
+
+from __future__ import annotations
+
+import logging
+import os
+from typing import Any
+
+import httpx
+
+from src.domain.config_knobs import merge_settings_block, require_bool, require_float, require_int, require_keys
+from src.infrastructure.inference.loss_classifier_types import (
+    LossPredictRequest,
+    LossPredictResponse,
+    parse_loss_predict_response,
+)
+
+
+logger = logging.getLogger("AETH")
+
+
+def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Resolve infra.loss_classifier do SSOT."""
+    block = merge_settings_block(("infra", "loss_classifier"), raw)
+    require_keys(
+        block,
+        (
+            "enabled",
+            "http_url",
+            "timeout_seconds",
+            "max_connections",
+            "max_keepalive_connections",
+            "feature_dim",
+            "veto_p_loss_floor",
+            "ready_n",
+            "retrain_min_n",
+            "max_buffer",
+        ),
+        "infra.loss_classifier",
+    )
+    return {
+        "enabled": require_bool(block, "enabled"),
+        "http_url": str(block["http_url"]).rstrip("/"),
+        "timeout_seconds": require_float(block, "timeout_seconds"),
+        "max_connections": require_int(block, "max_connections"),
+        "max_keepalive_connections": require_int(block, "max_keepalive_connections"),
+        "feature_dim": require_int(block, "feature_dim"),
+        "veto_p_loss_floor": require_float(block, "veto_p_loss_floor"),
+        "ready_n": require_int(block, "ready_n"),
+        "retrain_min_n": require_int(block, "retrain_min_n"),
+        "max_buffer": require_int(block, "max_buffer"),
+    }
+
+
+def loss_classifier_enabled(config: dict[str, Any] | None) -> bool:
+    """Indica se loss-classifier esta habilitado na config raiz."""
+    if not isinstance(config, dict):
+        return bool(resolve_loss_classifier_config(None)["enabled"])
+    infra = config.get("infra")
+    chunk = infra.get("loss_classifier") if isinstance(infra, dict) else None
+    if isinstance(chunk, dict) and "enabled" in chunk:
+        return bool(chunk["enabled"])
+    return bool(resolve_loss_classifier_config(None)["enabled"])
+
+
+class LossClassifierClient:
+    """Cliente httpx assincrono para predict/learn do loss-classifier."""
+
+    def __init__(
+        self,
+        *,
+        base_url: str,
+        timeout: float,
+        enabled: bool,
+        veto_p_loss_floor: float,
+        max_connections: int = 8,
+        max_keepalive_connections: int = 4,
+    ) -> None:
+        self._enabled = bool(enabled)
+        self._veto_floor = float(veto_p_loss_floor)
+        self._client = httpx.AsyncClient(
+            base_url=base_url.rstrip("/"),
+            timeout=httpx.Timeout(float(timeout)),
+            limits=httpx.Limits(
+                max_connections=int(max_connections),
+                max_keepalive_connections=int(max_keepalive_connections),
+            ),
+        )
+
+    @property
+    def enabled(self) -> bool:
+        """True se chamadas remotas estao ativas."""
+        return self._enabled
+
+    async def aclose(self) -> None:
+        """Fecha o cliente HTTP."""
+        await self._client.aclose()
+
+    async def predict_loss(self, request: LossPredictRequest) -> LossPredictResponse:
+        """POST /v1/predict_loss; fail-open sem veto."""
+        empty: LossPredictResponse = {
+            "p_loss": 0.5,
+            "veto": False,
+            "auto_learn_applied": False,
+            "model_version": "none",
+            "n_train": 0,
+            "veto_ready": False,
+        }
+        if not self._enabled:
+            return empty
+        payload = {
+            "feature_vector": [float(v) for v in request["feature_vector"]],
+            "symbol": str(request.get("symbol") or ""),
+            "direction": str(request.get("direction") or ""),
+            "veto_p_loss_floor": float(request.get("veto_p_loss_floor") or self._veto_floor),
+        }
+        try:
+            response = await self._client.post("/v1/predict_loss", json=payload)
+            response.raise_for_status()
+            return parse_loss_predict_response(response.json())
+        except (httpx.TimeoutException, httpx.HTTPError, ValueError, TypeError, KeyError) as exc:
+            logger.warning("LOSS_CLF || FALLBACK predict | %s", exc)
+            return empty
+
+    async def learn(
+        self,
+        *,
+        feature_vector: list[float],
+        label: str,
+        contract_id: str = "",
+        symbol: str = "",
+    ) -> dict[str, Any]:
+        """POST /v1/learn fail-open."""
+        if not self._enabled:
+            return {"ok": False, "skipped": True}
+        payload = {
+            "feature_vector": [float(v) for v in feature_vector],
+            "label": str(label).upper(),
+            "contract_id": str(contract_id),
+            "symbol": str(symbol),
+        }
+        try:
+            response = await self._client.post("/v1/learn", json=payload)
+            response.raise_for_status()
+            body = response.json()
+            return body if isinstance(body, dict) else {"ok": True}
+        except (httpx.TimeoutException, httpx.HTTPError, ValueError, TypeError) as exc:
+            logger.warning("LOSS_CLF || FALLBACK learn | %s", exc)
+            return {"ok": False, "error": str(exc)}
+
+
+def build_loss_classifier_client_from_config(config: dict[str, Any] | None) -> LossClassifierClient:
+    """Factory a partir da config raiz do motor."""
+    cfg = resolve_loss_classifier_config(None)
+    if isinstance(config, dict):
+        infra = config.get("infra")
+        raw = infra.get("loss_classifier") if isinstance(infra, dict) else None
+        if isinstance(raw, dict):
+            cfg = resolve_loss_classifier_config(raw)
+    url = str(cfg["http_url"] or os.getenv("AETHER_LOSS_CLASSIFIER_HTTP", "http://localhost:8006"))
+    return LossClassifierClient(
+        base_url=url,
+        timeout=float(cfg["timeout_seconds"]),
+        enabled=bool(cfg["enabled"]),
+        veto_p_loss_floor=float(cfg["veto_p_loss_floor"]),
+        max_connections=int(cfg["max_connections"]),
+        max_keepalive_connections=int(cfg["max_keepalive_connections"]),
+    )

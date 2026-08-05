@@ -10,7 +10,8 @@ Stack local **hibrida**: motor no host (Conda/WSL), persistencia e inferencia em
 | TimescaleDB | `127.0.0.1:5432` | `core` | 1g | Ticks + OHLC macro **300 s** / micro **60 s** |
 | MinIO | `127.0.0.1:9000` / `9001` | `core`, `gpu`, `cpu` | 512m | Checkpoints / TorchScript |
 | Triton (`aether-triton`) | `127.0.0.1:8000` / `8001` | `gpu` ou `cpu` | — | Inferencia TorchScript HTTP+gRPC |
-| Meta (`aether-meta-classifier`) | `127.0.0.1:8005` | `ml` | 512m | LightGBM HTTP **43D** |
+| Meta (`aether-meta-classifier`) | `127.0.0.1:8005` | `ml` | 512m | LightGBM HTTP **43D** (hot-reload pkl) |
+| Loss (`aether-loss-classifier`) | `127.0.0.1:8006` | `ml` | 512m | LGBMClassifier **24D**; `/learn` auto-retrain; veto `loss_clf_veto` |
 
 Hardening: `restart: unless-stopped`, log rotate 10m×3, binds em **127.0.0.1**, `no-new-privileges` (onde aplicavel).
 
@@ -26,7 +27,7 @@ Hardening: `restart: unless-stopped`, log rotate 10m×3, binds em **127.0.0.1**,
 
 Pipeline `docker-up`: `host-prereq` → `triton-prereq` → compose up → wait healthy → timescale-lifecycle → hydrate (R_10 120/600) → smoke.
 
-Rebuild meta: `make docker-rebuild`. Smoke: `make docker-smoke` (falha se profile exige servico parado; meta exige JSON `ready`).
+Rebuild meta+loss: `make docker-rebuild`. Smoke: `make docker-smoke` (falha se profile exige servico parado; meta exige JSON `ready`+`model_loaded`; loss exige `ready`).
 
 ## GPU e Triton
 
@@ -53,17 +54,19 @@ Imagem: Python 3.13-slim, user nao-root `aether`.
 |----------|--------|
 | `AETHER_TRITON_HTTP` / `AETHER_TRITON_GRPC` | `localhost:8000` / `localhost:8001` |
 | `AETHER_META_CLASSIFIER_HTTP` | `http://localhost:8005` |
+| `AETHER_LOSS_CLASSIFIER_HTTP` | `http://localhost:8006` |
 | `AETHER_DOCKER_HEALTH_TIMEOUT` | `300` |
 | `DOCKER_PROFILES` / `COMPOSE_PROFILES` | `core,gpu,ml` |
 | `DOCKER_GPU` | `1` (use `0` com `docker-up-cpu`) |
 
-Settings app: `infra.redis.url`, `infra.timescale.dsn`, `infra.minio`, `infra.triton`, `infra.meta_classifier` — sempre **localhost** no hibrido.
+Settings app: `infra.redis.url`, `infra.timescale.dsn`, `infra.minio`, `infra.triton`, `infra.meta_classifier`, `infra.loss_classifier` — sempre **localhost** no hibrido.
 
 ## Redis / Timescale / MinIO
 
-- Redis AOF `appendfsync everysec` (`redis.conf`)
+- Redis AOF `appendfsync everysec` (`redis.conf`); health com `start_period`
 - Timescale: init `003_*.sql` + lifecycle `004_*.sql`; hydrate sintetico R_10 se micro&lt;360 ou macro&lt;80 (**nao** usar hydrate como unico historico para treino meta — preferir Deriv / `--source auto`)
-- MinIO: bucket `dl-models`
+- MinIO: bucket `dl-models`; health live + `start_period`
+- Loss-classifier: volume `loss-models/`; bootstrap opcional `python -m scripts.operations.train_loss_classifier`
 
 ## Relacao com o motor
 

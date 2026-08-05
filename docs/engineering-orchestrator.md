@@ -27,7 +27,7 @@ warmup/buffer → training_gate → collect decisoes DL
 | Run loop | `orchestrator_run_loop.py`, `engine_session.py` |
 | Assinatura dados | `orchestrator_data_signature.py` |
 | Collect | `execution_collect*.py` |
-| Direcao / escalas | `execution_direction_resolver.py`, `execution_scale_vision.py`, `execution_scale_micro.py`, `execution_scale_adapt.py`, `execution_scale_sizing.py` |
+| Direcao / escalas | `execution_direction_resolver.py`, `execution_scale_vision.py`, `execution_scale_micro.py`, `execution_scale_adapt.py`, `execution_scale_sizing.py`, `execution_signal_skip.py` |
 | Execucao | `execution_manager.py`, `execution_orders.py` |
 | Settlement | `settlement_*.py`, `orchestrator_settlement_queue.py` |
 | Pos-liquidacao | `post_settlement_*.py` |
@@ -36,7 +36,7 @@ warmup/buffer → training_gate → collect decisoes DL
 
 ## Scale vision (MACRO/MICRO/MINI/MILI)
 
-SSOT: `orchestrator.execution.scale_vision`. Escopo 1: **sem veto de sinal / sem SKIP por escala**. Sob `raw_extreme`/fita forte, adapta ao consenso da fita; sob **retracao** (`adapt_on_retraction`), adapta ao lado vivo `mi_curr`+MILI mesmo com par MINI rachado; sob **explosao** (`adapt_on_explosion`) ou **mili+tape** (`adapt_on_mili_tape`) contra o TCN, adapta ao lado vivo curto (dampen/EXPLORE ja existente).
+SSOT: `orchestrator.execution.scale_vision` + `signal_skip` (escopo **1.1**). SCALE adapta lado sem SKIP por escala; apos adapt, catálogo minimo pode marcar `mini_pair_oppose` / `cal_margin` (margem waive com pending). Sob `raw_extreme`/fita forte, adapta ao consenso da fita; sob **retracao** / **explosao** / **mili+tape** contra o TCN, adapta ao lado vivo curto (dampen/EXPLORE).
 
 | Campo | Papel |
 |-------|-------|

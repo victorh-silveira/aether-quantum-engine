@@ -61,13 +61,21 @@ def load_doctrine_invariants(settings: dict[str, Any] | None = None) -> dict[str
     if not isinstance(risk, dict) or "min_validation_accuracy_gate" not in risk:
         raise ValueError("risk_management.min_validation_accuracy_gate obrigatorio")
     cap, pct = _safe_stake(risk)
-    resolved = {
+    resolved: dict[str, Any] = {
         "force_trade_every_cycle": require_bool(execution, "force_trade_every_cycle"),
         "min_validation_accuracy_gate": require_float(risk, "min_validation_accuracy_gate"),
         "explore_stake_scale_floor": _explore_floor(execution),
         "max_safe_stake_cap": float(cap),
         "max_safe_stake_pct": float(pct),
+        "signal_skip_enabled": False,
+        "signal_skip_min_direction_margin": None,
     }
+    signal_skip = execution.get("signal_skip")
+    if isinstance(signal_skip, dict) and "enabled" in signal_skip:
+        resolved["signal_skip_enabled"] = require_bool(signal_skip, "enabled")
+        if resolved["signal_skip_enabled"]:
+            require_keys(signal_skip, ("min_direction_margin",), "orchestrator.execution.signal_skip")
+            resolved["signal_skip_min_direction_margin"] = require_float(signal_skip, "min_direction_margin")
     if use_cache:
         _CACHE["invariants"] = dict(resolved)
     return resolved
@@ -84,4 +92,8 @@ def assert_production_doctrine(settings: dict[str, Any] | None = None) -> dict[s
         raise ValueError("explore_stake_scale_floor deve ser > 0")
     if float(inv["max_safe_stake_cap"]) <= 0.0 or float(inv["max_safe_stake_pct"]) <= 0.0:
         raise ValueError("max_safe_stake_cap/pct devem ser > 0")
+    if inv["signal_skip_enabled"]:
+        floor = float(inv["signal_skip_min_direction_margin"])
+        if floor + 1e-12 < 0.015 or floor - 1e-12 > 0.05:
+            raise ValueError("signal_skip.min_direction_margin deve estar em [0.015, 0.05]")
     return inv

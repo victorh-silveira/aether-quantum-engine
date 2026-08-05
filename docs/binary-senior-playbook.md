@@ -1,16 +1,17 @@
 # Playbook trader senior — binarias 30s (`R_10`; micro OHLC 60s)
 
-Postura operacional (mandato escopo 1): **pipeline sem vetos de sinal/qualidade**. TCN resolve CALL/PUT; meta/edge/indicadores sao telemetria. SKIP apenas por bloqueio tecnico.
+Postura operacional (**escopo 1.1**, mandato): TCN resolve CALL/PUT; meta/edge/indicadores sao telemetria; SCALE adapta lado sem SKIP por escala. SKIP = tecnico **ou** catálogo minimo `signal_skip` (`mini_pair_oppose`, `cal_margin`).
 
-Hierarquia: TCN Cal/Margin (telemetria) → CALL/PUT (pode adaptar a fita sob `raw_extreme`) → Kelly/caps (soft: SIDE_EQ + scale_vision). Escopo 1: **sem veto de sinal / sem SKIP por escala**.
+Hierarquia: TCN Cal/Margin → CALL/PUT (SCALE adapt) → `signal_skip` → Kelly/caps (SIDE_EQ + scale soft). **Proibido** restaurar quality gate / Hurst/ADX/RSI/price_zone.
 
 ## Quando operar
 
 | Lado | Condicoes tipicas |
 |------|-------------------|
-| CALL | TCN CALL, ou fita adapta para CALL sob `raw_extreme` |
-| PUT | TCN PUT, ou fita adapta para PUT sob `raw_extreme` |
+| CALL | TCN CALL, ou fita adapta para CALL |
+| PUT | TCN PUT, ou fita adapta para PUT |
 | SKIP tecnico | `training` / `data` / `deploy` / `predict_error`, warm-up, stop-win, broker |
+| SKIP sinal 1.1 | `mini_pair_oppose` / `cal_margin` (SSOT; margem waive com pending) |
 
 ## Catalogo SKIP tecnico
 
@@ -22,7 +23,15 @@ Hierarquia: TCN Cal/Margin (telemetria) → CALL/PUT (pode adaptar a fita sob `r
 | `predict_error` | Falha de inferencia |
 | Kelly `EXEC_PAUSE` | `stop_win` / `bankroll_below_stake_min` (sizing; **sem** `kelly_no_edge`) |
 
-Vetos de sinal removidos do codigo: Hurst/ADX/RSI/discordance/adverse path/price zone, quality gate (cal floor, margin, meta edge, starvation), SIDE_EQ bloqueante, senior skip catalog.
+## Catalogo SKIP sinal (fechado)
+
+| Razao | Significado |
+|-------|-------------|
+| `mini_pair_oppose` | Par MINI unanime ≠ lado executado |
+| `cal_margin` | `direction_margin` &lt; `min_direction_margin` (default **0.022**); **waive** se pending ≥ dust |
+| `loss_clf_veto` | Container `aether-loss-classifier`: P(loss) ≥ floor e modelo ready; log `LOSS_CLF || VETO auto_learn=…` |
+
+Quality gate amplo (Hurst/ADX/RSI/discordance/price zone/SIDE_EQ block) permanece **fora** do codigo. Veto ML de loss: container `aether-loss-classifier` (`loss_clf_veto`, log `LOSS_CLF`).
 
 ## Escalas MACRO / MICRO / MINI / MILI
 
@@ -55,7 +64,7 @@ Viés estrutural de lado (ex.: PUT collapse, `label_call_frac` longe de 0.5) **n
 | Deploy | `reject_majority_collapse` / `max_label_call_frac_bias` / `min_minority_recall` |
 | Live | SIDE_EQ **soft Kelly** (`execution_side_eq_sizing`): atenua stake no lado toxico; **nunca** SKIP/veto de direcao; `side_eq_blocked` permanece false |
 
-Lado enviesado no log live ≠ SKIP tecnico. SKIP continua so `training`/`data`/`deploy`/`predict_error` (+ Kelly pause/caps).
+Lado enviesado no log live ≠ SKIP tecnico. SKIP = tecnico + catálogo `signal_skip` 1.1 (+ Kelly pause/caps).
 
 ## Knobs SSOT restantes (senior)
 
@@ -65,6 +74,7 @@ Lado enviesado no log live ≠ SKIP tecnico. SKIP continua so `training`/`data`/
 - `risk_management.soft_recovery.infeasible_force_explore: true` — `RECOVERY_INFEASIBLE` (ou cover ≥ cap) forca EXPLORE Kelly, nao DAL no teto
 - `pending_waives_scale_explore: true` — com pending material, soft cover/DAL nao e short-circuitado por discord/adapt; `max_stake_pct_discord` tambem e waivado
 - `orchestrator.execution.side_equilibrium.enabled: true` (soft sizing only)
-- `orchestrator.execution.scale_vision` (adaptacao de fita + soft sizing; sem veto/SKIP)
+- `orchestrator.execution.scale_vision` (adaptacao de fita + soft sizing; sem SKIP por escala)
+- `orchestrator.execution.signal_skip` (1.1: `mini_pair_oppose`, `cal_margin` @ **0.022**, waive pending)
 
-Ver doutrina [`llm-trading-doctrine.md`](llm-trading-doctrine.md) e [`engineering-settings-ssot.md`](engineering-settings-ssot.md).
+Ver doutrina [`llm-trading-doctrine.md`](llm-trading-doctrine.md), [`infra-docker.md`](infra-docker.md) (loss-classifier) e [`engineering-settings-ssot.md`](engineering-settings-ssot.md).

@@ -272,6 +272,18 @@
             },
             "timeout_seconds": 1.0
         },
+        "loss_classifier": {
+            "enabled": true,
+            "http_url": "http://localhost:8006",
+            "timeout_seconds": 1.0,
+            "max_connections": 8,
+            "max_keepalive_connections": 4,
+            "feature_dim": 24,
+            "veto_p_loss_floor": 0.62,
+            "ready_n": 24,
+            "retrain_min_n": 32,
+            "max_buffer": 2000
+        },
         "minio": {
             "bucket": "dl-models",
             "endpoint": "localhost:9000",
@@ -556,6 +568,13 @@
                 "retraction_require_mili": true,
                 "retraction_use_tick_accel": true,
                 "max_stake_pct_discord": 0.005
+            },
+            "signal_skip": {
+                "enabled": true,
+                "min_direction_margin": 0.022,
+                "waive_margin_on_pending": true,
+                "mini_pair_oppose_exec": true,
+                "pending_dust": 0.25
             }
         },
         "idle_cycle_watchdog_seconds": 20,

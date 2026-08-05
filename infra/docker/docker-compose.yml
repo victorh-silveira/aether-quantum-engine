@@ -26,6 +26,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+      start_period: 10s
     networks:
       - aether-net
 
@@ -64,6 +65,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 12
+      start_period: 20s
     networks:
       - aether-net
 
@@ -91,6 +93,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 12
+      start_period: 15s
     networks:
       - aether-net
 
@@ -129,7 +132,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 18
-      start_period: 45s
+      start_period: 60s
     networks:
       - aether-net
 
@@ -144,6 +147,43 @@ services:
       - "127.0.0.1:8005:8000"
     volumes:
       - ./meta-models:/models
+    mem_limit: 512m
+    cpus: 0.75
+    security_opt:
+      - no-new-privileges:true
+    logging: *aether-logging
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import json, urllib.request, sys; response = urllib.request.urlopen('http://localhost:8000/health'); payload = json.loads(response.read().decode()); sys.exit(0 if response.getcode() == 200 and payload.get('ready') is not False and payload.get('model_loaded') else 1)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 45s
+    networks:
+      - aether-net
+
+  aether-loss-classifier:
+    build:
+      context: ./loss-classifier
+      dockerfile: Dockerfile
+    container_name: aether-loss-classifier
+    profiles: [ml]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8006:8000"
+    volumes:
+      - ./loss-models:/models
+    environment:
+      LOSS_FEATURE_DIM: "24"
+      LOSS_READY_N: "24"
+      LOSS_RETRAIN_MIN_N: "32"
+      LOSS_MAX_BUFFER: "2000"
+      LOSS_VETO_P_LOSS_FLOOR: "0.62"
     mem_limit: 512m
     cpus: 0.75
     security_opt:

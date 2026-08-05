@@ -1,14 +1,15 @@
 ---
-description: Gates de execucao Aether — quality reject, price zone, path, playbook senior
+description: Gates de execucao Aether — signal_skip 1.1, loss_clf_veto, tecnico, SCALE soft
 globs: app/src/application/services/execution_*.py
 alwaysApply: false
 ---
 
 # Execution gates
 
-- `hard_cal_margin_floor` **0.05**; `min_payoff_edge>=0`; `align_rsi_trend` on → SKIP `rsi_trend_misalign`
-- ACC gate **0.53**; ADX sniper **0.16**; Hurst noise band + `veto_missing_hurst`
-- EXEC_EMPTY / `gate_reason` coerente = processo ok; nao forcar candidato
-- Catalogo SKIP: `execution_senior_skip.py` + `docs/binary-senior-playbook.md`
-- Recovery pode waivar piso calibrado; explore nao
-- Arquivos: `execution_quality_reject.py`, `execution_direction_discordance.py`, `execution_adverse_path_gate.py`
+- SKIP tecnico: `training` / `data` / `deploy` / `predict_error`
+- SKIP sinal (escopo **1.1**): SSOT `signal_skip` — `mini_pair_oppose`, `cal_margin` (waive pending)
+- Veto ML: container `aether-loss-classifier` → `gate_reason=loss_clf_veto`; log `LOSS_CLF || VETO auto_learn=0|1 …`
+- `min_direction_margin` padrao **0.022** em **[0.015, 0.05]**; nao restaurar quality gate / Hurst/ADX/RSI/price_zone
+- SCALE adapta lado + soft Kelly; **sem** SKIP por escala
+- EXEC_EMPTY / `gate_reason` coerente = processo ok
+- Catalogo: `docs/binary-senior-playbook.md` + `docs/infra-docker.md`

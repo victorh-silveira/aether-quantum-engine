@@ -65,6 +65,7 @@ class MetaPredictResult(BaseModel):
     predicted_payoff_edge: float
     meta_applied: bool
     edge_expectancy: str
+    model_version: str = ""
 
 
 def _classify_edge_expectancy(edge: float) -> str:
@@ -75,9 +76,12 @@ def _classify_edge_expectancy(edge: float) -> str:
     return "WIN_EXPECTED"
 
 
-app = FastAPI(title="Aether Meta-Regressor", version="2.0.0")
+app = FastAPI(title="Aether Meta-Regressor", version="2.1.0")
 _model_bundle: dict[str, Any] | None = None
+_model_path: Path | None = None
+_model_mtime: float = 0.0
 _model_load_error: str | None = None
+_n_loaded: int = 0
 
 
 def _resolve_feature_names(bundle: dict[str, Any]) -> list[str]:
@@ -102,8 +106,14 @@ def _build_feature_dataframe(bundle: dict[str, Any], feature_vector: list[float]
     return frame.loc[:, names]
 
 
+def _model_version() -> str:
+    if _model_path is not None:
+        return _model_path.name
+    return str((_model_bundle or {}).get("model_version") or "none")
+
+
 def _load_model_bundle() -> dict[str, Any] | None:
-    global _model_load_error
+    global _model_load_error, _model_path, _model_mtime, _n_loaded
     failures: list[str] = []
     if not MODELS_DIR.is_dir():
         _model_load_error = f"diretorio de modelos ausente: {MODELS_DIR}"
@@ -134,11 +144,31 @@ def _load_model_bundle() -> dict[str, Any] | None:
             logger.warning("Artefato %s sem metodo predict", path.name)
             continue
         _model_load_error = None
+        _model_path = path
+        _model_mtime = float(path.stat().st_mtime)
+        _n_loaded += 1
         feature_count = len(_resolve_feature_names(bundle))
         logger.info("Modelo meta-regressor carregado: %s | feature_dim=%d", path.name, feature_count)
         return bundle
     _model_load_error = "; ".join(failures) if failures else f"nenhum regressor valido em {MODELS_DIR}"
     return None
+
+
+def _maybe_hot_reload() -> None:
+    global _model_bundle, _model_mtime
+    if not MODELS_DIR.is_dir():
+        return
+    candidates = sorted(MODELS_DIR.glob("*.pkl"), key=lambda path: path.stat().st_mtime, reverse=True)
+    if not candidates:
+        return
+    latest = candidates[0]
+    mtime = float(latest.stat().st_mtime)
+    if _model_bundle is not None and mtime <= float(_model_mtime) + 1e-9:
+        return
+    bundle = _load_model_bundle()
+    if bundle is not None:
+        _model_bundle = bundle
+        logger.info("Hot-reload meta: %s", latest.name)
 
 
 def _regressor_unavailable_detail() -> str:
@@ -156,18 +186,35 @@ async def startup_load_model() -> None:
 
 
 @app.get("/health")
-async def health() -> dict[str, bool | str | int]:
+async def health() -> dict[str, Any]:
+    _maybe_hot_reload()
     names = _resolve_feature_names(_model_bundle) if _model_bundle is not None else list(DEFAULT_FEATURE_NAMES)
     return {
         "ready": _model_bundle is not None,
         "model_loaded": _model_bundle is not None,
         "feature_dim": len(names),
+        "model_path": str(_model_path) if _model_path else "",
+        "model_mtime": float(_model_mtime),
+        "model_version": _model_version(),
+        "n_loaded": int(_n_loaded),
         "load_error": _model_load_error or "",
+    }
+
+
+@app.get("/version")
+async def version() -> dict[str, Any]:
+    _maybe_hot_reload()
+    return {
+        "model_version": _model_version(),
+        "model_path": str(_model_path) if _model_path else "",
+        "feature_dim": META_FEATURE_DIM,
+        "ready": _model_bundle is not None,
     }
 
 
 @app.post("/v2/predict_meta", response_model=MetaPredictResult)
 async def predict_meta(payload: PredictMetaRequest) -> MetaPredictResult:
+    _maybe_hot_reload()
     bundle = _model_bundle
     if bundle is None:
         raise HTTPException(status_code=503, detail=_regressor_unavailable_detail())
@@ -182,9 +229,11 @@ async def predict_meta(payload: PredictMetaRequest) -> MetaPredictResult:
             predicted_payoff_edge=0.0,
             meta_applied=False,
             edge_expectancy="LOSS_EXPECTED",
+            model_version=_model_version(),
         )
     return MetaPredictResult(
         predicted_payoff_edge=edge,
         meta_applied=True,
         edge_expectancy=_classify_edge_expectancy(edge),
+        model_version=_model_version(),
     )

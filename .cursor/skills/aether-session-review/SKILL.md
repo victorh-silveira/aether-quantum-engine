@@ -30,12 +30,12 @@ Ordem obrigatoria:
 
 1. CLUSTER — Prob / Cal / Margin / Edge (telemetria); TF tipicamente micro **M1** (60 s)
 2. SCALE — MACRO/MICRO/MINI/MILI + `tape`/`adapted` (adaptacao sob raw_extreme; soft Kelly; sem SKIP por escala)
-3. EXEC / EMPTY / PAUSE — `gate_reason` tecnico ou Kelly; SIDE_EQ / scale = soft sizing (nao SKIP)
+3. EXEC / EMPTY / PAUSE — `gate_reason` tecnico ou `signal_skip` 1.1; SIDE_EQ / scale = soft sizing
 4. RESOLVED / RISK — pending, linear, pnl_sess
 
 Marcar cada ciclo como: **processo ok** | **processo falhou** | **inconclusivo (N baixo)**.
 
-Notas: `raw_extreme` mantem Cal para Kelly (nao e override MACRO TF). Escopo 1: sem veto de sinal / sem SKIP por escala.
+Notas: `raw_extreme` mantem Cal para Kelly (nao e override MACRO TF). Escopo **1.1**: catalogo `signal_skip` fechado; quality gate amplo fora.
 
 ## Pos-mortem (9 perguntas)
 

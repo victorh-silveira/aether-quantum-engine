@@ -1,4 +1,4 @@
-"""Motor de direcao TCN com telemetria meta-regressor (sem vetos de sinal)."""
+"""Motor de direcao TCN com telemetria meta e catalogo minimo de SKIP de sinal."""
 
 from __future__ import annotations
 
@@ -16,8 +16,10 @@ from src.application.services.execution_scale_adapt import apply_scale_direction
 from src.application.services.execution_scale_sizing import apply_scale_kelly_sizing
 from src.application.services.execution_scale_vision import compute_scale_directions, format_scale_audit_line
 from src.application.services.execution_side_eq_sizing import apply_side_eq_kelly_sizing
+from src.application.services.execution_signal_skip import apply_signal_skip_gates
 from src.application.services.force_trade_mode import force_trade_every_cycle
 from src.application.services.live_signal_metrics import apply_live_calib_drift_soft, attach_live_signal_metrics
+from src.application.services.loss_classifier_gate import apply_loss_classifier_gate
 from src.application.services.meta_classifier_stacking import resolve_meta_payoff_edge
 from src.application.services.meta_payoff_regression import apply_meta_regression_edge
 from src.application.services.payoff_edge_zscore import attach_payoff_edge_zscore_metrics
@@ -51,7 +53,7 @@ def _finalize_execution_metrics(
     orch: Any | None = None,
     force: bool = False,
 ) -> tuple[TradeDirection, dict]:
-    """Aplica telemetria meta e marca candidato pronto sem veto de sinal."""
+    """Aplica telemetria meta, SCALE e catalogo minimo de SKIP de sinal."""
     if symbol is not None:
         attach_live_signal_metrics(orch, symbol, metrics)
     apply_live_calib_drift_soft(metrics, orch=orch, symbol=symbol)
@@ -84,6 +86,9 @@ def _finalize_execution_metrics(
     metrics.pop("quality_guard_reject", None)
     metrics.pop("regime_skip_cycle", None)
     metrics.pop("gate_reason", None)
+    if orch is not None:
+        apply_signal_skip_gates(metrics, exec_dir, orch=orch, force=force)
+        apply_loss_classifier_gate(metrics, exec_dir, orch=orch, force=force, symbol=symbol)
     sync_entry_metrics(entry, metrics)
     return exec_dir, metrics
 

@@ -24,6 +24,8 @@ def test_production_settings_pass_doctrine_invariants():
     assert inv["explore_stake_scale_floor"] > 0.0
     assert inv["max_safe_stake_cap"] > 0.0
     assert inv["max_safe_stake_pct"] > 0.0
+    assert inv["signal_skip_enabled"] is True
+    assert 0.015 <= float(inv["signal_skip_min_direction_margin"]) <= 0.05
 
 
 def test_production_deploy_gate_armed():
@@ -42,6 +44,9 @@ def test_production_deploy_gate_armed():
     assert settings["orchestrator"]["execution"]["bypass_deploy_gate"] is False
     assert "quality_gate" not in settings["orchestrator"]["execution"]
     assert "indicator_gating" not in dl
+    skip = settings["orchestrator"]["execution"]["signal_skip"]
+    assert skip["enabled"] is True
+    assert 0.015 <= float(skip["min_direction_margin"]) <= 0.05
 
 
 def test_production_logging_ssot():

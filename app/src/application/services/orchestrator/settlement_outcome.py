@@ -15,6 +15,27 @@ from src.domain.risk.executed_stake_reconciliation import (
     resolve_executed_buy_stake,
 )
 from src.domain.risk.stop_win_target import resolve_stop_win_target
+from src.infrastructure.inference.loss_classifier_pool import learn_loss_via_config_sync
+
+
+def _feed_loss_classifier_learn(orch: Any, symbol: str, *, won: bool, contract_id: int) -> None:
+    """Envia sample WIN/LOSS ao loss-classifier (fail-open)."""
+    store = getattr(orch, "_loss_clf_vectors", None)
+    if not isinstance(store, dict):
+        return
+    vector = store.pop(str(symbol), None)
+    if not isinstance(vector, list) or not vector:
+        return
+    config = getattr(orch, "config", None)
+    if not isinstance(config, dict):
+        return
+    learn_loss_via_config_sync(
+        config,
+        feature_vector=vector,
+        label="WIN" if won else "LOSS",
+        contract_id=str(contract_id),
+        symbol=str(symbol),
+    )
 
 
 def process_contract_outcome(
@@ -63,6 +84,7 @@ def process_contract_outcome(
     )
     if dir_name:
         record_direction_outcome(sym, dir_name, won=profit >= 0.0)
+    _feed_loss_classifier_learn(orch, str(sym), won=profit >= 0.0, contract_id=int(c_id))
     if dir_name and abs(float(profit)) > 1e-12:
         record_side_equilibrium_outcome(
             orch,

@@ -64,7 +64,7 @@ help:
 	@echo -e "  $(GREEN)docker-up$(RESET)          - Stack completa GPU (profiles: $(DOCKER_PROFILES), DOCKER_GPU=$(DOCKER_GPU))"
 	@echo -e "  $(GREEN)docker-up-core$(RESET)     - Sobe so Redis, TimescaleDB e MinIO (profile core)"
 	@echo -e "  $(GREEN)docker-up-cpu$(RESET)      - Stack com Triton CPU (core,cpu,ml; sem overlay NVIDIA)"
-	@echo -e "  $(GREEN)docker-rebuild$(RESET)     - Rebuild do meta-classifier + up com profiles ativos"
+	@echo -e "  $(GREEN)docker-rebuild$(RESET)     - Rebuild meta+loss classifiers + up com profiles ativos"
 	@echo -e "  $(GREEN)docker-smoke$(RESET)       - Valida endpoints da stack (Redis/TS/MinIO/Triton/Meta)"
 	@echo -e "  $(GREEN)docker-down$(RESET)        - Para os containers PRESERVANDO os dados e volumes"
 	@echo -e "  $(GREEN)docker-restart$(RESET)     - Reinicia os containers da stack (volumes preservados)"
@@ -139,10 +139,10 @@ docker-up-cpu:
 	@$(MAKE) --no-print-directory docker-up DOCKER_PROFILES=core,cpu,ml DOCKER_GPU=0
 
 docker-rebuild:
-	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-rebuild · meta-classifier + stack"'
+	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-rebuild · meta+loss classifiers + stack"'
 	@test -f .env || cp .env.example .env
 	@bash infra/docker/triton-prereq.sh
-	$(DOCKER_COMPOSE) build --pull aether-meta-classifier
+	$(DOCKER_COMPOSE) build --pull aether-meta-classifier aether-loss-classifier
 	$(DOCKER_COMPOSE) up -d
 	@bash infra/docker/docker-wait-healthy.sh
 	@bash infra/docker/docker-smoke.sh

@@ -102,6 +102,18 @@ if profile_active ml; then
       docker_ui_ok "Meta-classifier"
     fi
   fi
+  require_service aether-loss-classifier Loss-classifier || true
+  if service_running aether-loss-classifier; then
+    checked=$((checked + 1))
+    loss_payload="$(curl -sf "http://127.0.0.1:8006/health" 2>/dev/null || true)"
+    if [ -z "$loss_payload" ]; then
+      smoke_fail "Loss-classifier" "/health"
+    elif ! printf '%s' "$loss_payload" | grep -q '"ready"[[:space:]]*:[[:space:]]*true'; then
+      smoke_fail "Loss-classifier" "ready=false"
+    else
+      docker_ui_ok "Loss-classifier"
+    fi
+  fi
 fi
 
 docker_ui_nl

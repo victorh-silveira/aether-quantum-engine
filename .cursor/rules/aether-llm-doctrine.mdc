@@ -10,7 +10,7 @@ LLM/Cursor e copiloto de engenharia. Nao decide CALL/PUT em runtime (TCN + meta 
 ## Nunca propor
 
 - `force_trade_every_cycle=true` como “fix” de EXEC_EMPTY
-- `min_payoff_edge` negativo amplo ou `hard_cal_margin_floor` &lt; **0.05** sem mandato explicito
+- `min_payoff_edge` negativo amplo ou `signal_skip.min_direction_margin` fora de **[0.015, 0.05]** / floor **0.05** sem mandato e evidencia de frequencia
 - ACC gate &lt; **0.53** ou desligar `align_rsi_trend` sem hipotese
 - Inflar stake apos LOSS (revenge sizing) ou “operar mais para aprender” com N baixo
 - Remover caps (`max_safe_stake_*`), settlement Redis ou timeouts “temporariamente”
@@ -19,11 +19,11 @@ LLM/Cursor e copiloto de engenharia. Nao decide CALL/PUT em runtime (TCN + meta 
 ## Sempre fazer
 
 - Distinguir EXPLORE vs RECOVER; recovery so com pending/linear; `scale_force_explore` sob discordance forca EXPLORE
-- Exigir evidencia: `live_n`, Cal/Margin, Edge, `val_accuracy`, linha SCALE (telemetria; vetos de sinal removidos do codigo)
-- Tratar EXEC_EMPTY tecnico (`training`/`data`/`deploy`/`predict_error`) como sucesso de processo quando coerente
-- Nomear o setup e o bloqueio tecnico antes de mudar risco (PlayBook)
-- Hipotese falsificavel para cada knob (Ellenberg)
-- Vies de treino (label_call_frac / regime) corrige-se com sample_weighting + majority-collapse + SIDE_EQ soft Kelly — **nao** reintroduzir veto de sinal
+- Exigir evidencia: `live_n`, Cal/Margin, Edge, `val_accuracy`, linha SCALE; SKIP sinal so via catalogo `signal_skip` (1.1)
+- Tratar EXEC_EMPTY tecnico ou `signal_skip` nomeado como sucesso de processo quando coerente
+- Nomear o setup e o bloqueio antes de mudar risco (PlayBook)
+- Hipotese falsificavel para cada knob (Ellenberg); pos-LOSS operacional → container `aether-loss-classifier` (/learn), nao skill offline
+- Vies de treino corrige-se com sample_weighting + majority-collapse + SIDE_EQ soft Kelly — **nao** rearmar quality gate amplo
 - `raw_extreme` ≠ timeframe MACRO: limiares `tcn_macro_*_override` so marcam raw extremo; **Cal nao e substituido**; Kelly usa Cal
 
 ## Diagnostico de log

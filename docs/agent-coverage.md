@@ -14,6 +14,7 @@ Enforcement no core: `doctrine_invariants.py` + testes `test_doctrine_*` / `test
 | Playbook senior binario | [binary-senior-playbook.md](binary-senior-playbook.md) | `aether-execution-gates.mdc` | `aether-binary-senior` |
 | Risco / Kelly | [medallion.md](medallion.md) + doutrina | `aether-risk-sizing.mdc` | `aether-session-review` |
 | Execution gates | [arquitetura.md](arquitetura.md) §6 | `aether-execution-gates.mdc` | `aether-session-review` |
+| Loss-classifier (Docker) | [infra-docker.md](infra-docker.md) | `aether-execution-gates.mdc` + `aether-infra.mdc` | `aether-infra-stack` |
 | Sample size / SIDE_EQ | [sample-size-lln.md](sample-size-lln.md) | `aether-sample-size.mdc` | `aether-session-review` |
 | Orchestrator / ciclo | [engineering-orchestrator.md](engineering-orchestrator.md) | `aether-orchestrator.mdc` | `aether-cycle-debug` |
 | Scale vision MACRO/MICRO/MINI/MILI | [engineering-orchestrator.md](engineering-orchestrator.md) + [binary-senior-playbook.md](binary-senior-playbook.md) | `aether-execution-gates.mdc` | `aether-cycle-debug` + `aether-binary-senior` |
@@ -34,7 +35,7 @@ Enforcement no core: `doctrine_invariants.py` + testes `test_doctrine_*` / `test
 | `app/src/application/services/orchestrator/` | Orchestrator / ciclo |
 | `app/src/application/services/execution_scale_*.py` | Scale vision + adaptacao de fita (lado/sizing) |
 | `app/src/application/services/deep_learning/` | DL / labels / calib / vies de classe (sample_weighting, majority-collapse, regime via recency; `raw_extreme`) |
-| `app/src/application/services/execution_*.py` | Execution gates |
+| `app/src/application/services/execution_*.py` | Execution gates + signal_skip |
 | `app/src/domain/risk/` | Risco / Kelly |
 | `app/src/domain/analytics/` | Sample size / SIDE_EQ |
 | `app/src/domain/models|math|symbols/` | Domain models/math/symbols |

@@ -10,7 +10,9 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `data_handler` | MACRO/MICRO/MINI granularity, history, buffer |
 | `deep_learning` | arch, lookback, labels, calib (`raw_extreme`), deploy, `sample_weighting` |
 | `orchestrator` | ciclo, warmup, watchdog, WS |
-| `orchestrator.execution` | mandatory/force, settlement, SIDE_EQ soft, `scale_vision`, sample_size_policy |
+| `orchestrator.execution` | mandatory/force, settlement, SIDE_EQ soft, `scale_vision`, `signal_skip`, sample_size_policy |
+| `infra.meta_classifier` | HTTP :8005; edge continuo 43D |
+| `infra.loss_classifier` | HTTP :8006; veto P(loss); `veto_p_loss_floor` **0.62**; auto-learn via `/learn` |
 | `risk_management` | Kelly, soft_recovery, stop-win, ACC gate, duration contrato |
 | `infra` | Redis, Timescale, MinIO, Triton, meta |
 | `logging` | level, log_file, quiet_channels |
@@ -25,7 +27,8 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `max_label_call_frac_bias` | idem | padrao **0.20** |
 | `min_minority_recall` | idem | padrao **0.25** |
 | `side_equilibrium.enabled` | `orchestrator.execution` | soft Kelly only; sem veto de direcao |
-| `scale_vision.*` | `orchestrator.execution` | `adapt_on_retraction` / `adapt_on_explosion` / `adapt_on_mili_tape`; micro=explos/retract/chop; sem SKIP |
+| `scale_vision.*` | `orchestrator.execution` | `adapt_on_retraction` / `adapt_on_explosion` / `adapt_on_mili_tape`; micro=explos/retract/chop; sem SKIP por escala |
+| `signal_skip.*` | `orchestrator.execution` | Escopo **1.1**: `mini_pair_oppose`, `cal_margin` (floor **0.022**, waive pending); sem quality gate amplo |
 | `kelly.kelly_p_floor` | `risk_management.kelly` | Piso de **probabilidade** para Kelly; garante `f*>0`; alias `adapt_kelly_p_floor` |
 | `kelly.neutral_bankroll_pct` | `risk_management.kelly` | Piso operacional de stake explore (**0.25%** banca; contrato 30s / ciclo 60s) quando Kelly puro fica subcentavo; evita EXEC em `$1` broker |
 | `soft_recovery.infeasible_force_explore` | `risk_management.soft_recovery` | Default **true**: `RECOVERY_INFEASIBLE` ou cover≥cap → EXPLORE Kelly (sem DAL no teto) |

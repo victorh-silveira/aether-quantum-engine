@@ -1,17 +1,24 @@
 """Logs de bloqueio de execucao quando nenhuma ordem e enviada."""
 
+from src.application.services.execution_signal_skip import SIGNAL_SKIP_REASONS
 from src.application.services.force_trade_mode import force_trade_from_orch
 from src.application.services.log_dedupe import clear_log_channel, log_info_if_changed
 
 
 _TECHNICAL_REASONS = frozenset({"training", "data", "deploy", "predict_error"})
+_SIGNAL_OR_ML = SIGNAL_SKIP_REASONS | frozenset({"loss_clf_veto"})
 
 
 def _candidate_block_reason(metrics: dict) -> str | None:
-    """Extrai motivo tecnico de bloqueio do candidato."""
+    """Extrai motivo tecnico, signal_skip ou loss_clf_veto."""
     reason = metrics.get("gate_reason")
-    if isinstance(reason, str) and reason.strip() in _TECHNICAL_REASONS:
-        return reason.strip()
+    if isinstance(reason, str) and reason.strip():
+        token = reason.strip()
+        if token in _TECHNICAL_REASONS or token in _SIGNAL_OR_ML:
+            return token
+    skip = metrics.get("signal_skip_reason")
+    if isinstance(skip, str) and skip.strip() in _SIGNAL_OR_ML:
+        return skip.strip()
     if metrics.get("deploy_ok") is False:
         return "deploy"
     if bool(metrics.get("execution_candidate_ready")):
