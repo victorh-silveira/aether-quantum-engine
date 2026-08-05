@@ -11,8 +11,8 @@ from src.application.services.execution_direction_checks import (
     seed_direction_metrics,
     sync_entry_metrics,
 )
-from src.application.services.execution_quality_gate_margin import ensure_direction_margin
-from src.application.services.execution_scale_adapt import apply_scale_direction_adapt
+from src.application.services.execution_quality_gate_margin import ensure_direction_margin, sync_direction_margin
+from src.application.services.execution_scale_adapt import apply_scale_direction_adapt, apply_scale_kelly_side_sync
 from src.application.services.execution_scale_sizing import apply_scale_kelly_sizing
 from src.application.services.execution_scale_vision import compute_scale_directions, format_scale_audit_line
 from src.application.services.execution_side_eq_sizing import apply_side_eq_kelly_sizing
@@ -76,6 +76,8 @@ def _finalize_execution_metrics(
     metrics["exec_direction"] = exec_dir.name
     metrics["resolved_direction"] = exec_dir.name
     metrics["execution_candidate_ready"] = True
+    apply_scale_kelly_side_sync(metrics, exec_dir)
+    sync_direction_margin(metrics, direction=exec_dir.name)
     apply_side_eq_kelly_sizing(orch, symbol, exec_dir, metrics)
     apply_scale_kelly_sizing(orch, symbol, exec_dir, metrics)
     metrics["scale_audit"] = format_scale_audit_line(metrics)

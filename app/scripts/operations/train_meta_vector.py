@@ -277,7 +277,7 @@ def _validate_sample_floor(rows: int, fetch_count: int) -> None:
 def build_paired_training_dataset(
     bundles: list[OhlcBundle],
     *,
-    micro_granularity: int = 120,
+    micro_granularity: int = 60,
     contract_duration_seconds: int | None = None,
     reference_stake: float = META_TRAIN_REFERENCE_STAKE,
     fetch_count: int = META_TRAIN_DEFAULT_BARS,
@@ -365,4 +365,4 @@ def resolve_contract_duration_seconds(settings: dict[str, Any]) -> int:
     if isinstance(params, dict) and params.get("duration") is not None:
         return max(1, int(params["duration"]))
     data = settings.get("data_handler") if isinstance(settings.get("data_handler"), dict) else {}
-    return max(1, int(data.get("micro_granularity", 120))) if isinstance(data, dict) else 120
+    return max(1, int(data.get("micro_granularity", 60))) if isinstance(data, dict) else 60

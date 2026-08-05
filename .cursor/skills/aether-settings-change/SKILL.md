@@ -15,6 +15,8 @@ description: >-
 3. Teste do default e do branch novo
 4. Atualizar doc se semantica operacional mudar (`engineering-settings-ssot`, medallion, doutrina)
 5. Nao afrouxar: force_trade, cal floor, edge floor, ACC gate, max_safe_stake_*, sample_size_policy sem mandato
+6. `kelly_p_floor` e piso de **p**; `neutral_bankroll_pct` e piso operacional de stake explore (nao broker `stake_min`)
+7. Nao reintroduzir `kelly_no_edge` como pause de sizing
 
 ## Proibido
 

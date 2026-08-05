@@ -19,12 +19,14 @@ def test_kelly_calculation_standard(kelly_config):
     assert stake == pytest.approx(6.54, abs=0.1)
 
 
-def test_kelly_negative_edge_returns_zero(kelly_config):
-    """Verifica retorno 0.0 em probabilidade sem edge."""
+def test_kelly_negative_edge_floors_p_and_sizes(kelly_config):
+    """Sem edge bruto: piso de p garante f*>0 e stake>0 (sem kelly_no_edge)."""
     kelly_config["params"]["payout_estimate"] = 0.01
+    kelly_config["kelly"]["kelly_p_floor"] = 0.55
+    kelly_config["kelly"]["fraction"] = 0.5
     rm = RiskManager(kelly_config)
-    stake = rm.calculate_stake(1000.0, "R_10", conviction=0.5)
-    assert stake == 0.0
+    stake = rm.calculate_stake(10000.0, "R_10", conviction=0.5)
+    assert stake > 0.0
 
 
 def test_kelly_stake_capped_by_max_safe_bankroll_pct(kelly_config):

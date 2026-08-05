@@ -13,6 +13,7 @@ from src.domain.risk.dlambert_sizing import (
     effective_soft_recovery_base,
     resolve_dlambert_stake,
 )
+from src.domain.risk.kelly_p_align import calculate_kelly_fraction
 from src.domain.risk.risk_recovery_state import clear_dust_pending_loss
 from src.domain.risk.risk_stake_calc_helpers import (
     apply_scale_stake_cap,
@@ -25,6 +26,7 @@ from src.domain.risk.risk_stake_flow import (
     emit_cycle_stake_log as _emit_cycle_stake_log,
     stop_win_target_reached as _stop_win_target_reached,
 )
+from src.domain.risk.soft_recovery_config import pending_waives_scale_explore
 from src.domain.risk.stake_sizing import (
     finalize_stake_with_min,
     resolve_stake_conviction,
@@ -56,20 +58,6 @@ def check_stake_preconditions_veto(symbol: str, *, apply_stop_win: bool, rm: Any
     """Retorna True apenas no veto de stop win; Drift Bias Lock desativado."""
     _ = (symbol, kwargs)
     return bool(_stop_win_target_reached(rm, apply_stop_win=apply_stop_win))
-
-
-def _calculate_kelly_fraction(
-    rm: Any,
-    symbol: str,
-    conviction: float,
-    dl_metrics: dict | None,
-) -> tuple[float, float, float]:
-    """Calcula fracao Kelly bruta e retorna (f, payout b, probabilidade p)."""
-    b = float(rm.risk_params.get("payout_estimate", 0.95))
-    metrics = dl_metrics if isinstance(dl_metrics, dict) else None
-    p = rm.effective_win_rate(symbol, conviction, metrics=metrics)
-    kelly_f = (b * p - (1.0 - p)) / b if b > 0 else 0.0
-    return kelly_f, b, p
 
 
 def _resolve_recovery_flags(
@@ -131,7 +119,10 @@ def calculate_stake_for_manager(
     dl_metrics = kwargs.get("dl_metrics")
     conviction = resolve_stake_conviction(_metrics_for_conviction(dl_metrics, conviction), rm.kelly_config)
     if isinstance(dl_metrics, dict):
-        if bool(dl_metrics.get("scale_force_explore")):
+        soft = getattr(rm, "soft_recovery_config", None)
+        if bool(dl_metrics.get("scale_force_explore")) and not pending_waives_scale_explore(
+            float(loss_to_recover), soft if isinstance(soft, dict) else None
+        ):
             stake_regime = "EXPLORE"
         dl_metrics["stake_regime"] = stake_regime
         if dl_metrics.get("signal_status") == "SKIP":
@@ -151,8 +142,12 @@ def calculate_stake_for_manager(
     if mandatory_blocked and float(loss_to_recover) <= 0.0:
         return 0.0
 
-    kelly_f, b, p = _calculate_kelly_fraction(
-        rm, symbol, conviction, dl_metrics if isinstance(dl_metrics, dict) else None
+    kelly_f, b, p = calculate_kelly_fraction(
+        rm,
+        symbol,
+        conviction,
+        dl_metrics if isinstance(dl_metrics, dict) else None,
+        order_direction=kwargs.get("order_direction"),
     )
     squeeze_sovereignty = d_squeeze_sovereignty_active(dl_metrics if isinstance(dl_metrics, dict) else None)
     recovery_active, recovery_stress, recovery_bypass_consensus, linear_losses = _resolve_recovery_flags(
@@ -204,6 +199,9 @@ def calculate_stake_for_manager(
         dl_metrics=dl_metrics if isinstance(dl_metrics, dict) else None,
         f_star=f_star,
     )
+    if isinstance(dl_metrics, dict) and bool(dl_metrics.get("recovery_force_explore")):
+        stake_regime = "EXPLORE"
+        dl_metrics["stake_regime"] = stake_regime
     mandatory_flag = _mandatory_trade_flag(kwargs, rm) and not mandatory_blocked
     final_stake = apply_turbo_edge_stake(final_stake, dl_metrics)
     final_stake, safe_cap = cap_final_stake(
@@ -223,15 +221,7 @@ def calculate_stake_for_manager(
         kelly_config=rm.kelly_config,
     )
     stake_min = float(rm.risk_params.get("stake_min", 1.0))
-    senior_conv = float(
-        (dl_metrics.get("senior_trader_conviction", 0.0) or 0.0) if isinstance(dl_metrics, dict) else 0.0
-    )
-    senior_override = senior_conv >= 0.56
-    if f_star <= 0.0 and senior_override:
-        f_star = max(f_star, 0.003)
-        kelly_base = max(kelly_base, bankroll * f_star)
-        final_stake = max(final_stake, kelly_base)
-    if ((mode_tag == "D'ALEMBERT" and final_stake <= stake_min) or f_star <= 0.0) and not mandatory_flag:
+    if mode_tag == "D'ALEMBERT" and final_stake <= stake_min and not mandatory_flag:
         return 0.0
     final_stake = finalize_stake_with_min(
         final_stake,
@@ -256,7 +246,14 @@ def calculate_stake_for_manager(
         payout=b,
     )
     final_stake = enforce_d_squeeze_stake_floor(final_stake, stake_min, dl_metrics, pending_total=loss_to_recover)
-    final_stake = apply_scale_stake_cap(final_stake, bankroll, dl_metrics if isinstance(dl_metrics, dict) else None)
+    soft = getattr(rm, "soft_recovery_config", None)
+    final_stake = apply_scale_stake_cap(
+        final_stake,
+        bankroll,
+        dl_metrics if isinstance(dl_metrics, dict) else None,
+        pending_total=float(loss_to_recover),
+        soft_recovery=soft if isinstance(soft, dict) else None,
+    )
     recovery_infeasible = bool(isinstance(dl_metrics, dict) and dl_metrics.get("recovery_infeasible"))
     if recovery_infeasible and not silent:
         rm.logger.info(

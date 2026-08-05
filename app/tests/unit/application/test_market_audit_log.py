@@ -14,10 +14,11 @@ from src.domain.models.trade import TradeDirection
 
 
 def test_resolve_cluster_timeframe_branches():
-    assert resolve_cluster_timeframe(None) == "M2"
-    assert resolve_cluster_timeframe({"data_handler": "x"}) == "M2"
+    assert resolve_cluster_timeframe(None) == "M1"
+    assert resolve_cluster_timeframe({"data_handler": "x"}) == "M1"
     assert resolve_cluster_timeframe({"data_handler": {"granularity": 900}}) == "M15"
     assert resolve_cluster_timeframe({"data_handler": {"micro_granularity": 300}}) == "M5"
+    assert resolve_cluster_timeframe({"data_handler": {"granularity": 300, "micro_granularity": 60}}) == "M1"
     assert resolve_cluster_timeframe({"data_handler": {"granularity": 600, "micro_granularity": 120}}) == "M2"
     assert resolve_cluster_timeframe({"data_handler": {"granularity": 120}}) == "M2"
     assert resolve_cluster_timeframe({"data_handler": {"granularity": 30}}) == "S30"

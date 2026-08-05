@@ -8,6 +8,7 @@ from src.domain.risk.kelly_f_star_adjustments import (
     apply_kelly_fraction_scale,
     kelly_base_with_consensus_floor,
 )
+from src.domain.risk.soft_recovery_config import pending_waives_scale_explore
 from src.domain.risk.stake_sizing import clamp_kelly_stake
 from src.domain.risk.super_concordance_kelly import apply_super_concordance_kelly_fraction
 
@@ -70,9 +71,18 @@ def cap_final_stake(
     return capped, safe_cap
 
 
-def apply_scale_stake_cap(final_stake: float, bankroll: float, metrics: dict[str, Any] | None) -> float:
+def apply_scale_stake_cap(
+    final_stake: float,
+    bankroll: float,
+    metrics: dict[str, Any] | None,
+    *,
+    pending_total: float = 0.0,
+    soft_recovery: dict[str, Any] | None = None,
+) -> float:
     """Aplica teto max_stake_pct_discord quando ha discordancia ou adaptacao."""
     if not isinstance(metrics, dict):
+        return float(final_stake)
+    if pending_waives_scale_explore(float(pending_total), soft_recovery):
         return float(final_stake)
     if not (bool(metrics.get("scale_discordance")) or bool(metrics.get("scale_adapted"))):
         return float(final_stake)

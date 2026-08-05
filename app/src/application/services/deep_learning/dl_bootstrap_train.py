@@ -24,6 +24,10 @@ from src.application.services.orchestrator.config_symbols import resolve_dl_trai
 
 logger = logging.getLogger("AETH")
 
+_STATUS_WAIT = "wait"
+_STATUS_OK = "ok"
+_STATUS_FAIL = "fail"
+
 
 def _ordered_bootstrap_symbols(orch) -> list[str]:
     """Lista simbolos pendentes de primeiro treino na ordem configurada."""
@@ -62,8 +66,8 @@ def _bootstrap_training_context(orch, symbol: str):
     return dl_config, params, min_len, granularity, runtime, prices, open_, high, low, micro
 
 
-async def _train_bootstrap_symbol(orch, symbol: str) -> bool:
-    """Treina um simbolo de bootstrap em thread e retorna False se faltar historico."""
+async def _train_bootstrap_symbol(orch, symbol: str) -> str:
+    """Treina um simbolo; retorna wait|ok|fail."""
     ctx = _bootstrap_training_context(orch, symbol)
     dl_config, params, min_len, granularity, runtime, prices, open_, high, low, micro = ctx
     if len(prices) < min_len:
@@ -73,7 +77,7 @@ async def _train_bootstrap_symbol(orch, symbol: str) -> bool:
             len(prices),
             min_len,
         )
-        return False
+        return _STATUS_WAIT
     epoch = candle_epoch(orch, symbol)
     await asyncio.to_thread(
         run_symbol_training,
@@ -90,7 +94,13 @@ async def _train_bootstrap_symbol(orch, symbol: str) -> bool:
         low=low,
         micro=micro,
     )
-    return True
+    if bool(runtime.get("export_ok")):
+        return _STATUS_OK
+    logger.error(
+        "DL TREINO | %s | export falhou (checkpoint nao atualizado) — nao iniciar meta",
+        symbol,
+    )
+    return _STATUS_FAIL
 
 
 async def run_initial_bootstrap_training(orch) -> None:
@@ -107,18 +117,22 @@ async def run_initial_bootstrap_training(orch) -> None:
     dl_config = orch.config.get("deep_learning", {})
     max_wait_rounds = max(1, int(dl_config.get("bootstrap_max_wait_rounds", 120)))
     wait_rounds = 0
+    failed: set[str] = set()
     while pending:
         progress = False
         actionable = False
-        for symbol in pending:
+        for symbol in list(pending):
             dl_config, params, _, _, runtime, _, _, _, _, _ = _bootstrap_training_context(orch, symbol)
             if not runtime_in_training(runtime, params):
                 continue
             actionable = True
-            if await _train_bootstrap_symbol(orch, symbol):
+            status = await _train_bootstrap_symbol(orch, symbol)
+            if status == _STATUS_OK:
                 progress = True
-        pending = _ordered_bootstrap_symbols(orch)
-        if not pending:
+            elif status == _STATUS_FAIL:
+                failed.add(symbol)
+        pending = [s for s in _ordered_bootstrap_symbols(orch) if s not in failed]
+        if not pending or failed:
             break
         if not progress and not actionable:
             break
@@ -135,11 +149,11 @@ async def run_initial_bootstrap_training(orch) -> None:
             await asyncio.sleep(float(gran))
 
 
-async def run_dl_training_session(orch) -> None:
-    """Treina simbolos configurados em sequencia ate concluir ou esgotar espera de historico."""
+async def run_dl_training_session(orch) -> bool:
+    """Treina simbolos configurados; False se algum export falhar ou ficar incompleto."""
     symbols = resolve_dl_train_symbols(orch.config)
     if not symbols:
-        return
+        return True
     logger.info("")
     logger.info(
         "DL | SESSAO TREINO | %d simbolo(s) | sequencial",
@@ -150,14 +164,20 @@ async def run_dl_training_session(orch) -> None:
     max_wait_rounds = max(1, int(dl_config.get("bootstrap_max_wait_rounds", 120)))
     wait_rounds = 0
     completed: set[str] = set()
-    while len(completed) < len(symbols):
+    failed: set[str] = set()
+    while len(completed) + len(failed) < len(symbols):
         progress = False
         for symbol in symbols:
-            if symbol in completed:
+            if symbol in completed or symbol in failed:
                 continue
-            if await _train_bootstrap_symbol(orch, symbol):
+            status = await _train_bootstrap_symbol(orch, symbol)
+            if status == _STATUS_OK:
                 completed.add(symbol)
                 progress = True
+            elif status == _STATUS_FAIL:
+                failed.add(symbol)
+        if failed:
+            break
         if len(completed) >= len(symbols):
             break
         if not progress:
@@ -171,3 +191,12 @@ async def run_dl_training_session(orch) -> None:
                 )
                 break
             await asyncio.sleep(float(gran))
+    ok = not failed and len(completed) == len(symbols)
+    if not ok:
+        logger.error(
+            "DL | sessao INCOMPLETA | export_ok=%d falha=%d pendente=%d — meta abortado",
+            len(completed),
+            len(failed),
+            len(symbols) - len(completed) - len(failed),
+        )
+    return ok

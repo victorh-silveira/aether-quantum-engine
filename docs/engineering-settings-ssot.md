@@ -25,8 +25,17 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `max_label_call_frac_bias` | idem | padrao **0.20** |
 | `min_minority_recall` | idem | padrao **0.25** |
 | `side_equilibrium.enabled` | `orchestrator.execution` | soft Kelly only; sem veto de direcao |
-| `scale_vision.*` | `orchestrator.execution` | last-bar prev+curr; adapt com `bar_pair` + `raw_extreme`/`strong_tape`; `kelly_mult_discord` **0.35**; sem SKIP |
+| `scale_vision.*` | `orchestrator.execution` | `adapt_on_retraction`; `retraction_require_mili`; micro=explos/retract/chop; sem SKIP |
+| `kelly.kelly_p_floor` | `risk_management.kelly` | Piso de **probabilidade** para Kelly; garante `f*>0`; alias `adapt_kelly_p_floor` |
+| `kelly.neutral_bankroll_pct` | `risk_management.kelly` | Piso operacional de stake explore (**0.5%** banca) quando Kelly puro fica subcentavo; evita EXEC em `$1` broker |
+| `soft_recovery.infeasible_force_explore` | `risk_management.soft_recovery` | Default **true**: `RECOVERY_INFEASIBLE` ou cover≥cap → EXPLORE Kelly (sem DAL no teto) |
+| `soft_recovery.pending_waives_scale_explore` | `risk_management.soft_recovery` | Default **true**: pending material libera soft cover apesar de `scale_adapted`/`scale_force_explore` |
+| `soft_recovery.max_safe_stake_pct` | `risk_management.soft_recovery` | Teto RECOVER **5%** banca (mandato); linear2/3 dampen via knobs dedicados |
+| `params.duration` | `risk_management.params` | Contrato RISE_FALL **30 s**; ciclo/micro OHLC **60 s** (híbrido) |
+| `data_handler.micro_granularity` / `granularity` | `data_handler` | Micro **60** / macro **300** (1:5) |
+| `deep_learning.lookback` | `deep_learning` | **720** barras micro (~12 h @ 60 s) |
 | `tcn_macro_call_override` / `tcn_macro_put_override` | `deep_learning.calibration` | limiar de **raw** para modo `raw_extreme`; Cal nao e substituido |
+| `calibration.method` | `deep_learning.calibration` | **auto** (Brier/ECE com piso de sharpness; fallback `identity`) |
 | `mini_granularity` | `data_handler` | padrao **60** (MINI OHLC) |
 
 Removidos: `decision_threshold_call` / `decision_threshold_put` (mortos). Modo `tcn_macro_override` (substituir Cal por raw) removido — usar `raw_extreme`.

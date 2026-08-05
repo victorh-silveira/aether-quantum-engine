@@ -280,7 +280,7 @@ def assert_export_zscore_floor(
     raise RuntimeError(
         f"Export meta bloqueado: oos_payoff_zscore_mean={zscore:.6f} < floor={float(floor):.6f} "
         f"e oos_information_ratio={ir:.6f} < min_ir={float(min_ir):.6f}. "
-        "Retreine com teacher TCN (data/dl), gran=120s, mais barras/trials ou features alinhadas ao runtime."
+        "Retreine com teacher TCN (data/dl), gran=60s, mais barras/trials ou features alinhadas ao runtime."
     )
 
 

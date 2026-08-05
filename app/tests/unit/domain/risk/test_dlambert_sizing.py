@@ -182,6 +182,7 @@ def test_resolve_dlambert_stake_caps_at_bankroll_pct_and_splits_pending():
     class RM:
         dlambert_unit = 100.0
         dlambert_config = {}
+        soft_recovery_config = {"enabled": True, "infeasible_force_explore": False}
         risk_params = {"payout_estimate": 0.95}
 
     stake, tag = resolve_dlambert_stake(
@@ -196,7 +197,9 @@ def test_resolve_dlambert_stake_caps_at_bankroll_pct_and_splits_pending():
         dl_metrics=metrics,
     )
     assert tag == "D'ALEMBERT"
-    assert stake == pytest.approx(200.0)
+    assert stake == pytest.approx(400.0)
+    assert metrics.get("recovery_infeasible") is True
+    assert metrics.get("recovery_force_explore") is False
 
 
 def test_resolve_dlambert_stake_falls_back_to_kelly_when_disabled():

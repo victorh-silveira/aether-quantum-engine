@@ -1,4 +1,4 @@
-# Playbook trader senior — binarias 120s (`R_10`)
+# Playbook trader senior — binarias 30s (`R_10`; micro OHLC 60s)
 
 Postura operacional (mandato escopo 1): **pipeline sem vetos de sinal/qualidade**. TCN resolve CALL/PUT; meta/edge/indicadores sao telemetria. SKIP apenas por bloqueio tecnico.
 
@@ -20,7 +20,7 @@ Hierarquia: TCN Cal/Margin (telemetria) → CALL/PUT (pode adaptar a fita sob `r
 | `data` | Buffer/historico insuficiente |
 | `deploy` | Checkpoint sem `deploy_ok` |
 | `predict_error` | Falha de inferencia |
-| Kelly `EXEC_PAUSE` | `kelly_no_edge` / stake 0 (sizing, nao veto de direcao) |
+| Kelly `EXEC_PAUSE` | `stop_win` / `bankroll_below_stake_min` (sizing; **sem** `kelly_no_edge`) |
 
 Vetos de sinal removidos do codigo: Hurst/ADX/RSI/discordance/adverse path/price zone, quality gate (cal floor, margin, meta edge, starvation), SIDE_EQ bloqueante, senior skip catalog.
 
@@ -30,15 +30,16 @@ Triplo OHLC + ticks: telemetria, **adaptacao de lado** (fita vs TCN sob `raw_ext
 
 | Escala | Fonte | Papel |
 |--------|-------|-------|
-| MACRO | OHLC **600 s** | Slope closes — contexto |
-| MICRO | OHLC **120 s** | TCN + last-bar na fita |
+| MACRO | OHLC **300 s** | Slope closes — contexto |
+| MICRO | OHLC **60 s** | TCN + last-bar na fita |
 | MINI | OHLC **60 s** | Last-bar anterior+atual + slope |
 | MILI | Tick flow | Fluxo intrabar |
 
-Log: `SCALE || … mi_prev=… mi_cur=… tape=… adapted=0|1` e no IND `SCALE: tcn=… tape=… mi_p=… mi=…`.  
-Modulos: `execution_scale_vision.py`, `execution_scale_adapt.py`, `execution_scale_sizing.py`, sync em `stream_sync_start.py`.  
-Adapt: consenso da fita exige **par MINI anterior+atual** alinhado; sob `raw_extreme` ou fita forte (`adapt_allow_strong_tape` + MILI/MICRO) adapta lado sem SKIP.  
-Soft: discord/adapt → `kelly_mult_discord` (**0.35**) + `scale_force_explore` (corta DAL) + `max_stake_pct_discord` (**0.005**). CLUSTER TF prefere micro (`M2`).
+Log: `SCALE || … mi_prev=… mi_cur=… tape=… micro=retract|explos|chop adapted=0|1` e no IND `SCALE: tcn=… tape=… micro=… mi_p=…`.  
+Modulos: `execution_scale_vision.py`, `execution_scale_micro.py`, `execution_scale_adapt.py`, `execution_scale_sizing.py`.  
+Adapt: par MINI (raw_extreme/fita forte) **ou** retracao (`mi_curr`+MILI contra TCN, mesmo com par rachado — `adapt_on_retraction`). Kelly `kelly_p_floor` **0.55**; explore fino `neutral_bankroll_pct` **0.5%**. Sem `kelly_no_edge` / sem SKIP por escala.  
+Soft: discord/adapt/retracao/chop+mili_oppose → `kelly_mult_discord` + `scale_force_explore` + `max_stake_pct_discord`.
+Contrato Deriv **30 s**; label TCN em 1 barra micro (**60 s**) — gap consciente do pacote hibrido.
 
 ## `raw_extreme` (anti-override)
 
@@ -60,7 +61,9 @@ Lado enviesado no log live ≠ SKIP tecnico. SKIP continua so `training`/`data`/
 
 - `force_trade_every_cycle: false` (proibido como “fix”)
 - `min_validation_accuracy_gate: 0.53` (treino/deploy)
-- Caps Kelly / `max_safe_stake_*`
+- Caps Kelly / `max_safe_stake_*` (`max_safe_stake_pct` **0.05** com mandato; linear2/3 via SSOT)
+- `risk_management.soft_recovery.infeasible_force_explore: true` — `RECOVERY_INFEASIBLE` (ou cover ≥ cap) forca EXPLORE Kelly, nao DAL no teto
+- `pending_waives_scale_explore: true` — com pending material, soft cover/DAL nao e short-circuitado por discord/adapt; `max_stake_pct_discord` tambem e waivado
 - `orchestrator.execution.side_equilibrium.enabled: true` (soft sizing only)
 - `orchestrator.execution.scale_vision` (adaptacao de fita + soft sizing; sem veto/SKIP)
 

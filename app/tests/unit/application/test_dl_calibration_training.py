@@ -160,3 +160,29 @@ def test_purged_splits_rejects_invalid_slice_ranges(monkeypatch):
         lambda *_args: False,
     )
     assert purged_temporal_splits(120, 20) is None
+
+
+def test_fit_calibrator_identity_method():
+    cal = fit_calibrator([0.9, 0.1], [1.0, 0.0], calibration_cfg={"method": "identity"})
+    assert cal.method == "identity"
+    assert cal.temperature == 1.0
+
+
+def test_guard_sharpness_keeps_better_of_collapsed_pair(monkeypatch):
+    from src.application.services.deep_learning import dl_calibration_fit as fit_mod
+    from src.application.services.deep_learning.dl_calibration import CalibratorState
+
+    preferred = CalibratorState(method="platt", platt_a=0.1, platt_b=0.0)
+    scores = {
+        id(preferred): (0.5, 0.2, 0.005),
+        "identity": (0.5, 0.2, 0.001),
+    }
+
+    def fake_score(cal, probs, labels):
+        if cal.method == "identity":
+            return scores["identity"]
+        return scores[id(preferred)]
+
+    monkeypatch.setattr(fit_mod, "_candidate_score", fake_score)
+    out = fit_mod._guard_sharpness(preferred, [0.9, 0.1], [1.0, 0.0], min_sharpness=0.03)
+    assert out is preferred

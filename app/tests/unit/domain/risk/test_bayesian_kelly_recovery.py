@@ -70,9 +70,15 @@ def test_recovery_infeasible_when_pending_exceeds_horizon():
     assert is_recovery_infeasible(5.0, 4.20, 0.95, soft) is False
 
 
-def test_soft_recovery_flags_infeasible_and_caps_without_cover_force():
+def test_soft_recovery_flags_infeasible_and_force_explore_unit():
     metrics: dict = {}
-    soft = {"enabled": True, "max_safe_stake_cap": 4.20, "amort_cycles_min": 2, "amort_cycles_max": 5}
+    soft = {
+        "enabled": True,
+        "max_safe_stake_cap": 4.20,
+        "amort_cycles_min": 2,
+        "amort_cycles_max": 5,
+        "infeasible_force_explore": True,
+    }
     stake = apply_soft_recovery_stake(
         pending_total=80.0,
         base_unit=1.0,
@@ -85,6 +91,60 @@ def test_soft_recovery_flags_infeasible_and_caps_without_cover_force():
     )
     cap = max_safe_stake_cap(90.0, consecutive_losses_linear=2, soft_recovery=soft)
     assert metrics.get("recovery_infeasible") is True
+    assert metrics.get("recovery_force_explore") is True
+    assert stake <= 1.0 + 1e-9
+    assert stake < cap
+
+
+def test_soft_recovery_cover_ge_cap_forces_explore():
+    metrics: dict = {}
+    soft = {
+        "enabled": True,
+        "amort_cycles_min": 2,
+        "amort_cycles_max": 5,
+        "max_safe_stake_pct": 0.025,
+        "infeasible_force_explore": True,
+    }
+    stake = apply_soft_recovery_stake(
+        pending_total=800.0,
+        base_unit=10.0,
+        consecutive_losses=2,
+        previous_stake=20.0,
+        bankroll=10000.0,
+        metrics=metrics,
+        payout=0.95,
+        soft_recovery=soft,
+    )
+    cap = max_safe_stake_cap(10000.0, consecutive_losses_linear=2, soft_recovery=soft)
+    assert metrics.get("recovery_infeasible") is True
+    assert metrics.get("recovery_force_explore") is True
+    assert float(metrics.get("recovery_cover_need", 0.0)) + 1e-12 >= cap
+    assert stake <= 50.0 + 1e-9
+    assert stake < cap
+
+
+def test_soft_recovery_infeasible_legacy_caps_without_force_explore():
+    metrics: dict = {}
+    soft = {
+        "enabled": True,
+        "max_safe_stake_cap": 4.20,
+        "amort_cycles_min": 2,
+        "amort_cycles_max": 5,
+        "infeasible_force_explore": False,
+    }
+    stake = apply_soft_recovery_stake(
+        pending_total=80.0,
+        base_unit=1.0,
+        consecutive_losses=2,
+        previous_stake=2.0,
+        bankroll=90.0,
+        metrics=metrics,
+        payout=0.95,
+        soft_recovery=soft,
+    )
+    cap = max_safe_stake_cap(90.0, consecutive_losses_linear=2, soft_recovery=soft)
+    assert metrics.get("recovery_infeasible") is True
+    assert metrics.get("recovery_force_explore") is False
     assert stake <= cap + 1e-9
 
 

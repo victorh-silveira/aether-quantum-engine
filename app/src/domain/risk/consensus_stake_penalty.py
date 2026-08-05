@@ -28,10 +28,6 @@ from src.domain.risk.stake_sizing import consensus_entropy_kelly_retention
 from src.domain.risk.stake_target_proximity import apply_target_proximity_damping
 
 
-_MAX_SAFE_STAKE_BANKROLL_PCT_LINEAR2 = 0.025
-_MAX_SAFE_STAKE_BANKROLL_PCT_LINEAR3 = 0.020
-
-
 def resolve_session_base_unit(bankroll: float, base_unit: float, metrics: dict | None) -> float:
     """Resolve unidade base U como max(kelly, 0.15% banca) fora do D-SQUEEZE."""
     unit = max(float(base_unit), neutral_edge_dynamic_unit(bankroll))
@@ -79,6 +75,7 @@ def apply_soft_recovery_stake(
             metrics["recovery_low_hurst_damped"] = bool(low_hurst_noise)
             metrics["recovery_progression_multiplier"] = 1.0
             metrics["recovery_infeasible"] = False
+            metrics["recovery_force_explore"] = False
         return explore
     factor = adaptive_recovery_progression_factor(payout, risk_params)
     resolved_payout = resolve_contract_payout(payout, risk_params)
@@ -89,8 +86,29 @@ def apply_soft_recovery_stake(
     stake = unit if losses <= 0 else unit * progression
     amort = resolve_amort_cycles(losses, soft_recovery)
     cover = pending / resolved_payout / float(amort)
-    infeasible = is_recovery_infeasible(pending, cap, resolved_payout, soft_recovery)
-    stake = min(stake, cap) if infeasible else max(stake, cover)
+    horizon_infeasible = is_recovery_infeasible(pending, cap, resolved_payout, soft_recovery)
+    cover_blocked = cover + 1e-12 >= cap
+    infeasible = bool(horizon_infeasible or cover_blocked)
+    force_explore = bool(soft["infeasible_force_explore"]) and infeasible
+    if force_explore:
+        explore = min(unit, cap)
+        if isinstance(metrics, dict):
+            metrics["recovery_soft_progression"] = factor
+            metrics["recovery_adaptive_payout"] = resolved_payout
+            metrics["recovery_soft_losses"] = losses
+            metrics["recovery_soft_anchor_stake"] = float(previous_stake) if float(previous_stake) > 0.0 else unit
+            metrics["recovery_cover_need"] = cover
+            metrics["recovery_amort_cycles"] = amort
+            metrics["recovery_fixed_step"] = (
+                fixed_step_progression_multiplier(losses, soft_recovery=soft_recovery) is not None
+            )
+            metrics["recovery_progression_multiplier"] = float(progression)
+            metrics["recovery_infeasible"] = True
+            metrics["recovery_force_explore"] = True
+            metrics["recovery_material_pending"] = True
+            metrics["recovery_near_stop_win_freeze"] = False
+        return explore
+    stake = min(stake, cap) if horizon_infeasible else max(stake, cover)
     if target > 0.0:
         stake = apply_target_proximity_damping(stake, target, pnl)
     if isinstance(metrics, dict):
@@ -105,6 +123,7 @@ def apply_soft_recovery_stake(
         )
         metrics["recovery_progression_multiplier"] = float(progression)
         metrics["recovery_infeasible"] = bool(infeasible)
+        metrics["recovery_force_explore"] = False
         metrics["recovery_material_pending"] = True
         metrics["recovery_near_stop_win_freeze"] = False
     return min(stake, cap)
@@ -126,10 +145,11 @@ def max_safe_stake_cap(
         )
         return apply_small_account_hard_floor(raw, bal, soft_recovery=soft_recovery)
     pct = configured_max_safe_stake_pct(soft_recovery)
+    soft = soft_cfg(soft_recovery)
     if linear >= 3:
-        pct = min(pct, _MAX_SAFE_STAKE_BANKROLL_PCT_LINEAR3)
+        pct = min(pct, float(soft["max_safe_stake_pct_linear3"]))
     elif linear >= 2:
-        pct = min(pct, _MAX_SAFE_STAKE_BANKROLL_PCT_LINEAR2)
+        pct = min(pct, float(soft["max_safe_stake_pct_linear2"]))
     return apply_small_account_hard_floor(bal * pct, bal, soft_recovery=soft_recovery)
 
 
@@ -149,7 +169,7 @@ def enforce_d_squeeze_stake_floor(
 
 
 def apply_neutral_edge_kelly_base(kelly_base: float, bankroll: float, metrics: dict | None) -> float:
-    """Eleva kelly_base ao piso dinamico de 0.15% da banca fora do D-SQUEEZE."""
+    """Eleva kelly_base ao piso dinamico neutral_bankroll_pct fora do D-SQUEEZE."""
     if isinstance(metrics, dict) and _squeeze_floor_active(metrics):
         return kelly_base
     return resolve_session_base_unit(bankroll, float(kelly_base), metrics)

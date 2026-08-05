@@ -50,6 +50,7 @@ def temperature_bounds() -> tuple[float, float]:
 _METHOD_TEMPERATURE_PLATT = "temperature_platt"
 _METHOD_PLATT = "platt"
 _METHOD_ISOTONIC = "isotonic"
+_METHOD_IDENTITY = "identity"
 
 
 @dataclass
@@ -106,6 +107,8 @@ def apply_platt(prob: float, calibrator: CalibratorState) -> float:
 def apply_calibrator(prob: float, calibrator: CalibratorState) -> float:
     """Aplica calibrador conforme metodo persistido no estado."""
     method = str(calibrator.method or _METHOD_TEMPERATURE_PLATT)
+    if method == _METHOD_IDENTITY:
+        return float(prob)
     if method == _METHOD_ISOTONIC:
         return apply_isotonic(prob, calibrator.isotonic_x, calibrator.isotonic_y)
     if method == _METHOD_PLATT:

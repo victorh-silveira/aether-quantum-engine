@@ -2,6 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from src.domain.risk.consensus_stake_penalty import max_safe_stake_cap
 from src.domain.risk.risk_stake_calc import calculate_stake_for_manager
 
 
@@ -65,7 +66,7 @@ def test_calculate_stake_consensus_penalty_reduces_stake(kelly_config):
     assert stake_diverged <= stake_aligned
 
 
-def test_calculate_stake_consensus_floor_uses_session_base_unit(kelly_config):
+def test_calculate_stake_consensus_uses_neutral_floor_when_kelly_tiny(kelly_config):
     rm = MagicMock()
     rm.config = kelly_config
     rm.kelly_config = {
@@ -76,8 +77,9 @@ def test_calculate_stake_consensus_floor_uses_session_base_unit(kelly_config):
         "consensus_cmo_weight": 0.30,
         "consensus_rsi_weight": 0.25,
         "consensus_entropy_exponent": 2.0,
-        "fraction": 0.50,
+        "fraction": 0.001,
         "max_stake_pct": 1.0,
+        "kelly_p_floor": 0.55,
     }
     rm.risk_params = {**kelly_config["params"], "stake_min": 1.0}
     rm.stake_max = 12000.0
@@ -86,7 +88,7 @@ def test_calculate_stake_consensus_floor_uses_session_base_unit(kelly_config):
     rm.pending_loss = {}
     rm.active_contract_ids = []
     rm.logger = MagicMock()
-    rm.effective_win_rate = MagicMock(return_value=0.80)
+    rm.effective_win_rate = MagicMock(side_effect=lambda _s, conviction, metrics=None: float(conviction))
     rm._recovery_allowed = MagicMock(return_value=False)
     _attach_dlambert(rm, kelly_config)
     metrics = {
@@ -105,6 +107,7 @@ def test_calculate_stake_consensus_floor_uses_session_base_unit(kelly_config):
         kwargs={"dl_metrics": metrics, "order_direction": "CALL"},
     )
     assert stake == pytest.approx(11800.0 * 0.005)
+    assert metrics.get("session_base_unit") == pytest.approx(11800.0 * 0.005)
 
 
 def test_calculate_stake_consensus_penalty_logs_retention(kelly_config):
@@ -188,7 +191,7 @@ def test_calculate_stake_d_squeeze_preserves_recovery_stake_with_pending(kelly_c
         kwargs={"dl_metrics": metrics, "order_direction": "CALL"},
     )
     assert stake > 50.0
-    assert stake <= 11800.0 * 0.02 + 1e-9
+    assert stake <= max_safe_stake_cap(11800.0, consecutive_losses_linear=3) + 1e-9
     assert metrics.get("d_squeeze_floor_waived_for_recovery") is True
     assert metrics.get("d_squeeze_recovery_waiver_revoked") is not True
 

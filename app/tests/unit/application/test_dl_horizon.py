@@ -34,3 +34,10 @@ def test_label_horizon_bars_for_tick_contract():
     risk = {"duration": 1, "duration_unit": "t"}
     assert resolve_label_horizon_bars(60, risk, {}) == 1
     assert resolve_label_horizon_bars(10, risk, {}) == 1
+
+
+def test_hybrid_contract_30s_micro_60s_horizon_rounds_to_one_bar():
+    risk = {"duration": 30, "duration_unit": "s"}
+    assert contract_duration_seconds(risk) == 30
+    assert resolve_label_horizon_bars(60, risk, {}) == 1
+    assert resolve_label_horizon_bars(60, risk, {"label_horizon_bars": 1}) == 1

@@ -38,6 +38,7 @@ def _base_rm(kelly_config):
 
 def test_calculate_stake_neutral_regime_uses_dynamic_bankroll_base(kelly_config):
     rm = _base_rm(kelly_config)
+    rm.effective_win_rate = MagicMock(side_effect=lambda _s, conviction, metrics=None: float(conviction))
     metrics = {
         "execute": True,
         "trade_score": 0.80,

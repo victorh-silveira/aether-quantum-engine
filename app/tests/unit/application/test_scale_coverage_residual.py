@@ -159,8 +159,8 @@ def test_stake_force_explore_on_scale_flag():
             }
         },
     )
-    assert stake >= 0.0
-    assert stake <= 5000.0 * 0.005 + 1e-9
+    assert stake > 5000.0 * 0.005
+    assert stake <= 5000.0 * 0.05 + 1e-9
 
 
 @pytest.mark.asyncio

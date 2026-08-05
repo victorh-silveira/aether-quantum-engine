@@ -1,4 +1,4 @@
-"""Ajustes de f* Kelly: consenso, escala defensiva e piso por divergencia."""
+"""Ajustes de f* Kelly: consenso, escala defensiva e clamp de banca."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from typing import Any
 
 from src.domain.analytics.sample_size_policy import explore_stake_scale
 from src.domain.risk.consensus_stake_penalty import consensus_kelly_retention
-from src.domain.risk.stake_sizing import clamp_kelly_stake, consensus_entropy_applies_min_stake
+from src.domain.risk.stake_sizing import clamp_kelly_stake
 
 
 def apply_kelly_fraction_scale(f_star: float, dl_metrics: dict | None) -> float:
@@ -64,13 +64,7 @@ def kelly_base_with_consensus_floor(
     sizing_conviction: float,
     stake_min: float = 1.0,
 ) -> float:
-    """Calcula kelly_base e cancela (retorna 0.0) quando f_star <= 0.0."""
-    if f_star <= 0.0:
-        return 0.0
-    kelly_base = clamp_kelly_stake(bankroll, bankroll * f_star, kelly_config, sizing_conviction)
-    if isinstance(dl_metrics, dict) and consensus_entropy_applies_min_stake(
-        float(dl_metrics.get("consensus_entropy_retention", 1.0)),
-        kelly_config,
-    ):
-        return stake_min
-    return kelly_base
+    """Calcula kelly_base via clamp percentual; stake_min nao inventa sizing."""
+    _ = (dl_metrics, stake_min)
+    f = max(0.0, float(f_star))
+    return clamp_kelly_stake(bankroll, bankroll * f, kelly_config, sizing_conviction)

@@ -106,6 +106,7 @@ def enqueue_deferred_symbol_training(
     for pending in tasks.values():
         if pending is not None and not pending.done():
             return
+    logger.info("DL: agendando retreino deferido | %s", sym)
     tasks[sym] = asyncio.create_task(_run_deferred_training(orch, sym, train_fn, train_args, train_kwargs))
 
 

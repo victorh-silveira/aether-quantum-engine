@@ -11,6 +11,8 @@ _SOFT_RECOVERY_KEYS = (
     "enabled",
     "max_safe_stake_cap",
     "max_safe_stake_pct",
+    "max_safe_stake_pct_linear2",
+    "max_safe_stake_pct_linear3",
     "amort_cycles_min",
     "amort_cycles_max",
     "coing_redirect_drawdown_threshold",
@@ -30,6 +32,8 @@ _SOFT_RECOVERY_KEYS = (
     "near_stop_win_freeze_pct",
     "material_pending_min",
     "linear_bankroll_pct",
+    "infeasible_force_explore",
+    "pending_waives_scale_explore",
 )
 
 _CACHE: dict[str, Any] = {"soft_recovery": None}
@@ -42,6 +46,8 @@ def require_soft_recovery(raw: dict[str, Any] | None) -> dict[str, Any]:
         "enabled": require_bool(block, "enabled"),
         "max_safe_stake_cap": require_float(block, "max_safe_stake_cap"),
         "max_safe_stake_pct": require_float(block, "max_safe_stake_pct"),
+        "max_safe_stake_pct_linear2": require_float(block, "max_safe_stake_pct_linear2"),
+        "max_safe_stake_pct_linear3": require_float(block, "max_safe_stake_pct_linear3"),
         "amort_cycles_min": require_int(block, "amort_cycles_min"),
         "amort_cycles_max": require_int(block, "amort_cycles_max"),
         "coing_redirect_drawdown_threshold": require_float(block, "coing_redirect_drawdown_threshold"),
@@ -61,6 +67,8 @@ def require_soft_recovery(raw: dict[str, Any] | None) -> dict[str, Any]:
         "near_stop_win_freeze_pct": require_float(block, "near_stop_win_freeze_pct"),
         "material_pending_min": require_float(block, "material_pending_min"),
         "linear_bankroll_pct": require_float(block, "linear_bankroll_pct"),
+        "infeasible_force_explore": require_bool(block, "infeasible_force_explore"),
+        "pending_waives_scale_explore": require_bool(block, "pending_waives_scale_explore"),
     }
 
 
@@ -97,3 +105,14 @@ def soft_cfg(soft_recovery: dict[str, Any] | None) -> dict[str, Any]:
         except (TypeError, ValueError):
             return load_soft_recovery_from_settings()
     return load_soft_recovery_from_settings()
+
+
+def pending_waives_scale_explore(
+    pending_total: float,
+    soft_recovery: dict[str, Any] | None = None,
+) -> bool:
+    """True quando pending material autoriza soft cover apesar de scale discord/adapt."""
+    cfg = soft_cfg(soft_recovery)
+    if not bool(cfg["pending_waives_scale_explore"]):
+        return False
+    return float(pending_total) + 1e-12 >= float(cfg["material_pending_min"])

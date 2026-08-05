@@ -200,7 +200,7 @@ def test_apply_neutral_edge_kelly_base_raises_to_bankroll_pct():
     assert metrics["session_base_unit"] == pytest.approx(55.0)
 
 
-def test_apply_neutral_edge_kelly_base_skips_when_kelly_already_higher():
+def test_apply_neutral_edge_kelly_base_preserves_higher_kelly():
     metrics = {}
     base = apply_neutral_edge_kelly_base(60.0, 11000.0, metrics)
     assert base == pytest.approx(60.0)

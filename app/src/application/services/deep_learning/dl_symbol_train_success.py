@@ -119,12 +119,19 @@ def apply_successful_symbol_train(
     calib_cfg = dl_config.get("calibration") if isinstance(dl_config, dict) else None
     sharpness_cfg = resolve_calibration_sharpness_cfg(calib_cfg if isinstance(calib_cfg, dict) else None)
     oos_sharpness = float(getattr(train_result, "oos_sharpness", 0.0))
-    assert_export_sharpness_value(
-        oos_sharpness,
-        floor=float(sharpness_cfg["min_oos_sharpness"]),
-        label="holdout",
-    )
+    raw_sharpness = float(getattr(train_result, "raw_sharpness", 0.0))
+    try:
+        assert_export_sharpness_value(
+            oos_sharpness,
+            floor=float(sharpness_cfg["min_oos_sharpness"]),
+            label="holdout",
+        )
+    except RuntimeError as exc:
+        raise RuntimeError(
+            f"{exc} (raw_sharpness={raw_sharpness:.4f} method={getattr(runtime.get('calibrator'), 'method', '?')})"
+        ) from exc
     runtime["oos_sharpness"] = oos_sharpness
+    runtime["raw_sharpness"] = raw_sharpness
     runtime["label_call_frac"] = float(getattr(train_result, "label_call_frac", 0.5))
     runtime["pred_call_frac"] = float(getattr(train_result, "pred_call_frac", 0.5))
     runtime["minority_recall"] = float(getattr(train_result, "minority_recall", 1.0))
@@ -156,6 +163,7 @@ def apply_successful_symbol_train(
         },
     )
     runtime["session_trained"] = True
+    runtime["export_ok"] = True
     clear_force_retrain(orch, symbol)
     reset_bars_since_train(orch, symbol)
     live_snap = live_signal_snapshot(orch, symbol) if orch is not None else {"live_wr": 0.0, "live_n": 0}

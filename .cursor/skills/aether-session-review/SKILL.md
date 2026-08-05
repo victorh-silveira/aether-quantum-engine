@@ -21,14 +21,14 @@ Ler `docs/llm-trading-doctrine.md` antes de concluir. LLM nao decide trade; aval
 
 1. Qual setup nomeado? (ex.: TCN resolve lado + Kelly; soft SIDE_EQ / scale_vision)
 2. Qual bloqueio tecnico explicito? (`training`/`data`/`deploy`/`predict_error`)
-3. Explore ou recover? Ha pending/linear? `scale_force_explore` bloqueou RECOVER?
+3. Explore ou recover? Ha pending/linear? `scale_force_explore` ou `RECOVERY_INFEASIBLE`/`recovery_force_explore` bloquearam RECOVER/DAL? Pending material com `pending_waives_scale_explore` deve liberar soft cover.
 4. Hipotese falsificavel da mudanca de knob (se houver)?
 
 ## During (leitura de log)
 
 Ordem obrigatoria:
 
-1. CLUSTER — Prob / Cal / Margin / Edge (telemetria); TF tipicamente micro **M2**
+1. CLUSTER — Prob / Cal / Margin / Edge (telemetria); TF tipicamente micro **M1** (60 s)
 2. SCALE — MACRO/MICRO/MINI/MILI + `tape`/`adapted` (adaptacao sob raw_extreme; soft Kelly; sem SKIP por escala)
 3. EXEC / EMPTY / PAUSE — `gate_reason` tecnico ou Kelly; SIDE_EQ / scale = soft sizing (nao SKIP)
 4. RESOLVED / RISK — pending, linear, pnl_sess

@@ -73,14 +73,35 @@ def mini_bar_pair_agrees(metrics: dict[str, Any], consensus: str) -> bool:
     return prev == side and curr == side
 
 
-def compute_tape_strong(metrics: dict[str, Any], consensus: str | None) -> bool:
-    """Fita forte: par MINI alinhado ao consenso e reforco MILI ou par MICRO."""
+def compute_tape_strong(
+    metrics: dict[str, Any],
+    consensus: str | None,
+    *,
+    mini_pair_sufficient: bool = True,
+) -> bool:
+    """Fita forte: par MINI alinhado; MILI/MICRO reforcam se mini_pair_sufficient=False."""
     side = str(consensus or "").upper()
     if not mini_bar_pair_agrees(metrics, side):
         return False
+    if mini_pair_sufficient:
+        return True
     mili = str(metrics.get("scale_mili_dir") or "").upper()
     if mili == side:
         return True
     mc_prev = str(metrics.get("scale_micro_prev_bar_dir") or "").upper()
     mc_curr = str(metrics.get("scale_micro_bar_dir") or "").upper()
     return mc_prev == side and mc_curr == side
+
+
+def mini_pair_opposes_tcn(metrics: dict[str, Any], tcn_dir: str | None) -> bool:
+    """True se par MINI unanime existe e discrepa do lado TCN."""
+    side = str(tcn_dir or "").upper()
+    if side not in {TradeDirection.CALL.name, TradeDirection.PUT.name}:
+        return False
+    prev = str(metrics.get("scale_mini_prev_bar_dir") or "").upper()
+    curr = str(metrics.get("scale_mini_bar_dir") or "").upper()
+    if prev not in {TradeDirection.CALL.name, TradeDirection.PUT.name}:
+        return False
+    if prev != curr:
+        return False
+    return prev != side

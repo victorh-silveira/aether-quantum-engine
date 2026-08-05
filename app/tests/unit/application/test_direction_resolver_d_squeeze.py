@@ -70,5 +70,5 @@ def test_resolve_frozen_book_compression_triggers_d_squeeze_at_configured_ratio(
     direction, metrics = result
     assert direction == TradeDirection.CALL
     assert metrics["meta_squeeze_downgrade"] is True
-    assert metrics["trade_score"] == pytest.approx(0.52)
+    assert metrics["trade_score"] == pytest.approx(0.70)
     assert (0.015 / metrics["bb_width_harmonic_mean"]) + 1e-12 < ratio

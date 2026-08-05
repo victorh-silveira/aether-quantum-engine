@@ -21,7 +21,7 @@ real_sleep = asyncio.sleep
 
 
 def test_settlement_tolerance_window_and_backoff_defaults():
-    assert resolve_settlement_tolerance_window(None, {}) == pytest.approx(90.0)
+    assert resolve_settlement_tolerance_window(None, {}) == pytest.approx(60.0)
     assert resolve_settlement_tolerance_window(None, {"settlement_tolerance_window_seconds": 90}) == pytest.approx(90.0)
     assert next_settlement_backoff_seconds(0) == pytest.approx(1.0)
     assert next_settlement_backoff_seconds(1) == pytest.approx(2.0)

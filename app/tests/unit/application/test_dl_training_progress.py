@@ -37,6 +37,37 @@ def test_train_walkforward_mini_batches():
     assert result is not None
 
 
+def test_train_walkforward_warns_when_oos_sharpness_collapses(caplog):
+    import logging
+
+    prices = np.sin(np.linspace(0, 12, 130)) + 10.0
+    model = create_direction_model(arch="tcn")
+    calls = {"n": 0}
+
+    def fake_sharp(_probs):
+        calls["n"] += 1
+        return 0.05 if calls["n"] == 1 else 0.001
+
+    with (
+        patch(
+            "src.application.services.deep_learning.dl_training.mean_sharpness",
+            side_effect=fake_sharp,
+        ),
+        caplog.at_level(logging.WARNING, logger="AETH"),
+    ):
+        result = train_model_walkforward(
+            model,
+            prices,
+            lookback=18,
+            epochs=1,
+            lr=0.001,
+            validation_bars=14,
+            dl_config={"calibration": {"min_oos_sharpness": 0.01, "min_calibration_sharpness": 0.01}},
+        )
+    assert result is not None
+    assert any("sharpness val_cal" in r.message for r in caplog.records)
+
+
 def test_train_walkforward_reports_progress():
     prices = np.sin(np.linspace(0, 12, 130)) + 10.0
     model = create_direction_model(arch="tcn")

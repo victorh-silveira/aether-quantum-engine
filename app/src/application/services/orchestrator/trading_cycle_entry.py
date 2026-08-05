@@ -52,7 +52,14 @@ def prepare_orchestrator_run_loop(orch: Any) -> None:
     emit_decision_engine_banner(orch.logger, orch.config, decision_mode=mode)
     start_correlation_worker(orch)
     if mode == "deep_learning" and not orch._dl_bootstrap_completed:
-        try_enqueue_next_bootstrap_training(orch)
+        dl_cfg = orch.config.get("deep_learning") or {}
+        if bool(dl_cfg.get("online_training", True)):
+            try_enqueue_next_bootstrap_training(orch)
+        else:
+            orch.logger.warning(
+                "DL: modelo nao pronto para inferencia (checkpoint ausente/incompativel). "
+                "Treino offline: app/scripts/batch/launch-train.bat — DEMO nao treina."
+            )
     orch.logger.info("")
     orch.logger.debug(
         "INIT: loop ativo | ciclo=%ds",

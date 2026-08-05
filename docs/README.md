@@ -9,7 +9,7 @@
 | [medallion.md](medallion.md) | Metodologia: TCN × meta Z-Score, price zone, Kelly + Soft Recovery, SIDE_EQ, starvation |
 | [sample-size-lln.md](sample-size-lln.md) | Lei dos Grandes Numeros: sample_size_policy, cold-start e anti vies dos pequenos numeros |
 | [llm-trading-doctrine.md](llm-trading-doctrine.md) | Doutrina LLM/Cursor: 9 livros mapeados a gates, risco e anti-padroes de engenharia |
-| [binary-senior-playbook.md](binary-senior-playbook.md) | Playbook trader senior: CALL/PUT/SKIP, catalogo gate_reason, knobs 120s |
+| [binary-senior-playbook.md](binary-senior-playbook.md) | Playbook trader senior: CALL/PUT/SKIP, catalogo gate_reason, knobs 30s (micro 60s) |
 | [engineering-standards.md](engineering-standards.md) | QA: pre-commit, cobertura 100%, 300 linhas, commitlint, contribuicao |
 | [engineering-orchestrator.md](engineering-orchestrator.md) | Ciclo do orquestrador, signature, locks, pos-settlement |
 | [engineering-deep-learning.md](engineering-deep-learning.md) | DL 34D, labels, treino/run, meta offline, Triton |
@@ -47,10 +47,10 @@ Regra: **domain** não importa application nem infrastructure. **Application** o
 | Item | Valor |
 |------|-------|
 | Universo | `R_10` (âncora `R_10`) |
-| DL | TCN, lookback **360**, macro **600 s**, `FEATURE_DIM=34`, label `spot_forward`, tensor `[1, 360, 34]` |
-| Meta | LightGBM HTTP `:8005`, `META_FEATURE_DIM=43` (micro **120 s**); **opcional** para execução |
-| Relógio | Micro **120 s** + macro **600 s** (1:5); assinatura legado `m5b:…;m5:…;m15:…` |
-| Ciclo / assinatura | `cycle_interval_seconds` / `signature_boundary_seconds` = **120 s** |
+| DL | TCN, lookback **720**, micro **60 s**, macro **300 s**, `FEATURE_DIM=34`, label `ma_trend`, tensor `[1, 720, 34]` |
+| Meta | LightGBM HTTP `:8005`, `META_FEATURE_DIM=43` (micro **60 s**); **opcional** para execução |
+| Relógio | Micro **60 s** + macro **300 s** (1:5); contrato **30 s** (híbrido); assinatura legado `m5b:…;m5:…;m15:…` |
+| Ciclo / assinatura | `cycle_interval_seconds` / `signature_boundary_seconds` = **60 s** |
 | Execução | **Mandatória** (`mandatory_trade_each_cycle: true`); `force_trade_every_cycle: false`; `price_zone` alinha BUY→CALL / SELL→PUT |
 | Fail-closed | Triton e meta **opcionais** nos settings atuais (`infra.triton.enabled/require_for_execution: false`; `require_meta_for_execution: false`) |
 | Calibração | `neutral_half_width: 0.0` (zona neutra **off**); thresholds CALL/PUT **0.51/0.49**; override TCN macro se raw &gt;0.65 ou &lt;0.35 |
@@ -62,5 +62,5 @@ Regra: **domain** não importa application nem infrastructure. **Application** o
 | Risco | Kelly EXPLORE (`fraction=0.08`, teto 3,5%) + Soft Recovery RECOVER (`max_safe_stake_pct=0.035`); SIDE_EQ LLN; stop win 2,60% (≥$100) / $10 (&lt;$100) |
 | Settlement | Tolerância **90 s**, reconciliação passiva; pós-EXEC_EMPTY alinha fronteira (cap `exec_empty_retry_seconds`) |
 | Watchdog | Stale tick **25 s** |
-| Histórico treino | **23328** barras (~162 dias @ 600 s) |
+| Histórico treino | **23328** barras (@ granularidade de treino; micro 60 s no SSOT atual) |
 | QA | Pre-commit: lint + testes **100%** cobertura (**305** `test_*.py`) + security; ≤300 linhas/arquivo |

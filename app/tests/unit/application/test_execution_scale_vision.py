@@ -56,7 +56,12 @@ def test_parse_scale_vision_from_ssot():
     assert cfg["use_last_bar"] is True
     assert cfg["adapt_require_bar_pair_agree"] is True
     assert cfg["adapt_allow_strong_tape"] is True
+    assert cfg["adapt_strong_mini_pair"] is True
+    assert cfg["adapt_kelly_p_floor"] >= 0.51
     assert cfg["adapt_min_votes"] >= 1
+    assert cfg["adapt_on_retraction"] is True
+    assert cfg["retraction_require_mili"] is True
+    assert cfg["retraction_use_tick_accel"] is True
     assert cfg["max_stake_pct_discord"] > 0.0
 
 
@@ -90,12 +95,15 @@ def test_compute_scale_discordance():
     assert metrics["scale_discordance"] is True
     assert metrics["scale_tape_consensus"] == "CALL"
     assert metrics["scale_tape_strong"] is True
+    assert metrics["scale_mini_pair_oppose"] is True
     line = format_scale_audit_line(metrics)
     assert "MACRO=CALL" in line
     assert "mi_prev=CALL" in line
     assert "mi_cur=CALL" in line
     assert "tape=CALL" in line
+    assert "micro=" in line
     assert "mi_p=CALL" in format_scale_ind_token(metrics)
+    assert "micro=" in format_scale_ind_token(metrics)
 
 
 def test_compute_scale_disabled():

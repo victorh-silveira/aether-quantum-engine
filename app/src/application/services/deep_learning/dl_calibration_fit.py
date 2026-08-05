@@ -1,6 +1,9 @@
 """Ajuste de calibradores no holdout de validacao Deep Learning."""
 
+import logging
+
 from src.application.services.deep_learning.dl_calibration import (
+    _METHOD_IDENTITY,
     _METHOD_ISOTONIC,
     _METHOD_PLATT,
     _METHOD_TEMPERATURE_PLATT,
@@ -16,6 +19,9 @@ from src.application.services.deep_learning.dl_calibration import (
 from src.application.services.deep_learning.dl_calibration_isotonic import fit_isotonic
 from src.application.services.deep_learning.dl_sharpness import mean_sharpness, resolve_calibration_sharpness_cfg
 from src.domain.math.probability_entropy import binary_entropy, entropy_penalty_factor
+
+
+logger = logging.getLogger("AETH")
 
 
 def fit_temperature(probs: list[float], labels: list[float]) -> float:
@@ -88,6 +94,11 @@ def _candidate_score(
     )
 
 
+def _build_identity() -> CalibratorState:
+    """Calibrador identidade (raw) — fallback quando o fit colapsa nitidez."""
+    return CalibratorState(method=_METHOD_IDENTITY, temperature=1.0, platt_a=1.0, platt_b=0.0)
+
+
 def _build_temperature_platt(probs: list[float], labels: list[float]) -> CalibratorState:
     """Monta calibrador temperatura + Platt."""
     temp = fit_temperature(probs, labels)
@@ -120,7 +131,7 @@ def _select_best_calibrator(
 ) -> CalibratorState:
     """Escolhe calibrador por Brier/ECE respeitando piso de sharpness."""
     if not candidates:
-        return CalibratorState()
+        return _build_identity()
     floor = float(min_sharpness)
     eligible = [item for item in candidates if item[3] + 1e-12 >= floor]
     if eligible:
@@ -128,6 +139,32 @@ def _select_best_calibrator(
         return ranked[0][0]
     ranked = sorted(candidates, key=lambda item: (-item[3], item[1], item[2]))
     return ranked[0][0]
+
+
+def _guard_sharpness(
+    preferred: CalibratorState,
+    probs: list[float],
+    labels: list[float],
+    *,
+    min_sharpness: float,
+) -> CalibratorState:
+    """Se o calibrador preferido colapsa nitidez, cai para identity quando raw passa o piso."""
+    _, _, sharp = _candidate_score(preferred, probs, labels)
+    floor = float(min_sharpness)
+    if sharp + 1e-12 >= floor:
+        return preferred
+    identity = _build_identity()
+    _, _, raw_sharp = _candidate_score(identity, probs, labels)
+    if raw_sharp + 1e-12 >= floor:
+        logger.warning(
+            "DL_CAL: calibrador %s colapsou sharpness=%.4f < min=%.4f; usando identity (raw_sharp=%.4f)",
+            preferred.method,
+            sharp,
+            floor,
+            raw_sharp,
+        )
+        return identity
+    return preferred if sharp >= raw_sharp else identity
 
 
 def calibrator_entropy_metrics(
@@ -160,29 +197,52 @@ def fit_calibrator(
     method = str(cfg.get("method", "auto")).strip().lower()
     isotonic_min = max(3, int(cfg.get("isotonic_min_samples", 20)))
     if not probs:
-        return CalibratorState()
-    if method == _METHOD_TEMPERATURE_PLATT:
-        return _build_temperature_platt(probs, labels)
-    if method == _METHOD_PLATT:
-        return _build_platt(probs, labels)
-    if method == _METHOD_ISOTONIC and len(probs) >= isotonic_min:
-        return _build_isotonic(probs, labels)
+        return _build_identity()
     sharpness_cfg = resolve_calibration_sharpness_cfg(cfg)
     min_sharpness = float(sharpness_cfg["min_calibration_sharpness"])
+    if method == _METHOD_TEMPERATURE_PLATT:
+        return _guard_sharpness(
+            _build_temperature_platt(probs, labels),
+            probs,
+            labels,
+            min_sharpness=min_sharpness,
+        )
+    if method == _METHOD_PLATT:
+        return _guard_sharpness(
+            _build_platt(probs, labels),
+            probs,
+            labels,
+            min_sharpness=min_sharpness,
+        )
+    if method == _METHOD_ISOTONIC and len(probs) >= isotonic_min:
+        return _guard_sharpness(
+            _build_isotonic(probs, labels),
+            probs,
+            labels,
+            min_sharpness=min_sharpness,
+        )
+    if method == _METHOD_IDENTITY:
+        return _build_identity()
     candidates: list[tuple[CalibratorState, float, float, float]] = []
-    cal_tp = _build_temperature_platt(probs, labels)
-    brier, ece, sharp = _candidate_score(cal_tp, probs, labels)
-    candidates.append((cal_tp, brier, ece, sharp))
-    cal_platt = _build_platt(probs, labels)
-    brier, ece, sharp = _candidate_score(cal_platt, probs, labels)
-    candidates.append((cal_platt, brier, ece, sharp))
+    for builder in (_build_temperature_platt, _build_platt):
+        cal = builder(probs, labels)
+        brier, ece, sharp = _candidate_score(cal, probs, labels)
+        candidates.append((cal, brier, ece, sharp))
     if len(probs) >= isotonic_min:
         cal_iso = _build_isotonic(probs, labels)
         brier, ece, sharp = _candidate_score(cal_iso, probs, labels)
         candidates.append((cal_iso, brier, ece, sharp))
+    identity = _build_identity()
+    brier, ece, sharp = _candidate_score(identity, probs, labels)
+    candidates.append((identity, brier, ece, sharp))
     if bool(cfg.get("auto_select_by_brier", True)):
         return _select_best_calibrator(candidates, min_sharpness=min_sharpness)
-    return cal_tp
+    return _guard_sharpness(
+        _build_temperature_platt(probs, labels),
+        probs,
+        labels,
+        min_sharpness=min_sharpness,
+    )
 
 
 def entropy_weight_penalty(probability: float, *, calibration_cfg: dict | None = None) -> float:

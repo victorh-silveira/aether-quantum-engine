@@ -9,14 +9,14 @@ Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (TCN,
 | Aspecto | Valor atual (`config/settings.json`) |
 |---------|--------------------------------------|
 | Símbolos | `R_10` (âncora `R_10`) |
-| Granularidade OHLC (DL) | **600 s** (`data_handler.granularity`; assinatura legado `m15`) |
-| Relógio operacional | **120 s** (`data_handler.micro_granularity`; assinatura legado `m5`) |
-| Histórico para treino | `training_history_bars` / `history_bars` conforme settings (macro 600 s) |
-| Lookback | **`deep_learning.lookback`** (settings atuais **360**) → tensor **`[1, lookback, 34]`** |
+| Granularidade OHLC (DL) | **300 s** (`data_handler.granularity`; assinatura legado `m15`) |
+| Relógio operacional | **60 s** (`data_handler.micro_granularity`; assinatura legado `m5`) |
+| Histórico para treino | `training_history_bars` / `history_bars` conforme settings (micro 60 s / macro 300 s) |
+| Lookback | **`deep_learning.lookback`** (settings atuais **720**) → tensor **`[1, lookback, 34]`** |
 | Features TCN | **34** (`FEATURE_DIM` em `dl_feature_build.py`) |
 | Features meta GBDT | **43** (`META_FEATURE_DIM` = 34 + 4 micro-vol + 3 cross + 2 flow) |
-| Contrato | `RISE_FALL`, duração **120 s** |
-| Ciclo | **120 s** (`cycle_interval_seconds` / `signature_boundary_seconds`) |
+| Contrato | `RISE_FALL`, duração **30 s** (híbrido vs micro 60 s) |
+| Ciclo | **60 s** (`cycle_interval_seconds` / `signature_boundary_seconds`) |
 | Execução | **Mandatória** (`mandatory_trade_each_cycle: true`; `force` off) + alinhamento `price_zone` |
 | Fail-closed | Meta e Triton **opcionais** nos settings atuais (`require_meta_for_execution: false`; `infra.triton.enabled/require_for_execution: false`) |
 | Label | `label_mode: spot_forward` (`ma_trend` / Triple Barrier via config) |
@@ -24,7 +24,7 @@ Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (TCN,
 
 O mercado é tratado como série temporal ruidosa: a TCN estima `P(CALL)` (thresholds **0.51/0.49**); o meta-regressor LightGBM estima `predicted_payoff_edge`; o ranking usa `tcn × max(0.1, 1+z)`. Com `price_zone`, BUY alinha CALL e SELL alinha PUT; edge meta positivo pode **manter** o lado TCN/meta contra a zona (`align_or_keep_meta_side`).
 
-**Invariante temporal:** inferências seguem `signature_boundary_seconds` (fallback `cycle_interval_seconds`, padrão **120 s**) via `get_data_state_signature()` — formato legado `m5`/`m15` alinhado a 120 s / 600 s.
+**Invariante temporal:** inferências seguem `signature_boundary_seconds` (fallback `cycle_interval_seconds`, padrão **60 s**) via `get_data_state_signature()` — formato legado `m5`/`m15` alinhado a 60 s / 300 s.
 
 **Válvula de starvation:** após **6** ciclos consecutivos bloqueados pelo quality gate, pisos de margem/edge/Z são atenuados (`execution_quality_gate_starvation.py`). O piso de edge meta relaxa a partir de **8** skips (`edge_decay_cycles`) até `edge_decay_floor: 0.0` (passo `0.08`). Em skips extremos (≥30), a válvula GBDT mitiga veto tabular prolongado.
 
@@ -132,9 +132,9 @@ flowchart TD
 
 | Componente | Função |
 |------------|--------|
-| `m5_boundary_epoch()` | Epoch alinhado ao bloco de **120 s** corrente (nome legado) |
-| Micro | `m5:{sym}@{epoch}` — relógio **120 s** |
-| Macro | `m15:{sym}@{epoch}` — relógio **600 s** |
+| `m5_boundary_epoch()` | Epoch alinhado ao bloco de **60 s** corrente (nome legado) |
+| Micro | `m5:{sym}@{epoch}` — relógio **60 s** |
+| Macro | `m15:{sym}@{epoch}` — relógio **300 s** |
 | Formato | `m5b:{boundary};m5:...;m15:...` |
 
 Cache inválido quando a assinatura muda; sem assinatura nova, o ciclo aguarda sem re-inferir.
@@ -225,7 +225,7 @@ Montagem: `dl_predict_telemetry.prepare_meta_classifier_cross_symbol_bundle` →
 
 ### 5.3 Stacking runtime
 
-1. Bundle cross-symbol + telemetria micro **120 s**
+1. Bundle cross-symbol + telemetria micro **60 s**
 2. Prefetch HTTP → `predicted_payoff_edge`
 3. `attach_payoff_edge_zscore_metrics` (janela adaptativa 15–45)
 4. `apply_meta_regression_edge`: edge > 0 mantém score TCN; edge < −0,15 + squeeze → `trade_score=0.52` (`[D-SQUEEZE]`)
@@ -303,7 +303,7 @@ Em modo mandatário, o quality guard emite telemetria `QUALITY_GUARD` / `EXECUTI
 ### 7.2 ExecutionManager
 
 - Stake via `RiskManager.calculate_stake` → `risk_stake_calc.calculate_stake_for_manager`
-- `TradeHandler.buy_with_parameters`: RISE_FALL **120 s**
+- `TradeHandler.buy_with_parameters`: RISE_FALL **30 s**
 - Reconciliação de stake downgrade Deriv (`executed_stake_reconciliation`)
 
 ### 7.3 Settlement
@@ -370,7 +370,7 @@ Watchdog: `AetherWatchdog` reconecta stream se ticks estagnarem (`watchdog_stale
 ## 10. Configuração (`config/settings.json`)
 
 ### `data_handler`
-`granularity` (**600**), `micro_granularity` (**120**), `history_bars` / `training_history_bars` (**23328**), `fetch_count`, `buffer_limit`, rate-limits de histórico.
+`granularity` (**300**), `micro_granularity` (**60**), `history_bars` / `training_history_bars` (**23328**), `fetch_count`, `buffer_limit`, rate-limits de histórico.
 
 ### `deep_learning`
 `arch`, `lookback` (**72**), `train_symbols`, `confidence_*` (**0.51/0.49**), `calibration.*` (`neutral_half_width: 0.0`), `indicator_gating.*`, `deploy_gate.*`, `label_mode` (`spot_forward`) + `label_*`, `tcn.channels`, `training_*`, `model_path_template`, `min_edge_execute`.
@@ -379,7 +379,7 @@ Watchdog: `AetherWatchdog` reconecta stream se ticks estagnarem (`watchdog_stale
 `cycle_interval_seconds` (**120**), `signature_boundary_seconds` (**120**), `watchdog_stale_tick_seconds` (**25**), `mandatory_trade_each_cycle`, `require_meta_for_execution` (**false**), `quality_gate.*` (`mandatory_min_trade_score: 0.50`, starvation/progressive_conviction/recovery_relax), `loss_protection.*` + `disconnect.*`, `bb_width_adaptive_squeeze.enabled` (**false**), `proposal_*`, `settlement_*` (**90 s** SSOT), `dynamic_threshold.*` (clamps inclusos), `warm_up_live_data_timeout_seconds` (**25**), `broker_handshake_timeout_seconds` (**15**), `state_lock_acquire_timeout_seconds` (**8**).
 
 ### `risk_management`
-`kelly.*` (`fraction: 0.08`, tetos 3,5% — EXPLORE), `soft_recovery.*` (`enabled: true`, `max_safe_stake_pct: 0.035` — RECOVER), `min_validation_accuracy_gate` (**0.63**), `params.*` (duration **120**, compounding, stake_min, payout_estimate), `small_account_*`.
+`kelly.*` (`fraction: 0.08`, tetos 3,5% — EXPLORE), `soft_recovery.*` (`enabled: true`, `max_safe_stake_pct: 0.035` — RECOVER), `min_validation_accuracy_gate` (**0.63**), `params.*` (duration **30**, compounding, stake_min, payout_estimate), `small_account_*`.
 
 ### `infra`
 Redis/Timescale/MinIO/Triton/meta_classifier URLs e timeouts (`infer_timeout_seconds: 0.50`).
@@ -428,7 +428,7 @@ flowchart LR
   subgraph exec
     COL[execution_collect]
     EM[ExecutionManager]
-    TH[TradeHandler RISE_FALL 120s]
+    TH[TradeHandler RISE_FALL 30s]
   end
   subgraph pos
     ST[settlement + Redis queue]

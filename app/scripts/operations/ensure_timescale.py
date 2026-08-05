@@ -56,8 +56,8 @@ def _settings_dsn(settings: dict | None = None) -> str:
 
 def _required_granularities(settings: dict) -> list[int]:
     data = settings.get("data_handler") if isinstance(settings.get("data_handler"), dict) else {}
-    micro = int(data.get("micro_granularity", 120) or 120)
-    macro = int(data.get("granularity", 600) or 600)
+    micro = int(data.get("micro_granularity", 60) or 60)
+    macro = int(data.get("granularity", 300) or 300)
     ordered = [micro, macro]
     unique: list[int] = []
     for value in ordered:

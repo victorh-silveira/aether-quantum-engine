@@ -6,6 +6,7 @@ from typing import Any
 
 from src.domain.risk.soft_recovery_config import (
     load_soft_recovery_from_settings,
+    pending_waives_scale_explore,
     require_soft_recovery,
     reset_soft_recovery_config_cache,
     resolve_soft_recovery_config,
@@ -230,6 +231,7 @@ __all__ = (
     "is_recovery_infeasible",
     "load_soft_recovery_from_settings",
     "negative_zscore_veto_floor_for_risk",
+    "pending_waives_scale_explore",
     "require_soft_recovery",
     "reset_soft_recovery_config_cache",
     "resolve_amort_cycles",
@@ -237,5 +239,6 @@ __all__ = (
     "resolve_negative_zscore_veto_floor",
     "resolve_soft_recovery_config",
     "risk_session_bankroll_pending",
+    "soft_cfg",
     "soft_recovery_enabled",
 )

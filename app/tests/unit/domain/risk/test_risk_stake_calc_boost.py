@@ -165,8 +165,8 @@ def test_calculate_stake_stop_win_kelly_boosts_when_dl_approved(kelly_config):
         "stop_win_kelly_min_fraction": 0.42,
         "stop_win_kelly_max_fraction": 1.0,
         "stop_win_kelly_conviction_strong": 0.72,
-        "fraction": 0.001,
-        "max_stake_pct": 0.004,
+        "fraction": 0.05,
+        "max_stake_pct": 0.02,
     }
     rm.risk_params = kelly_config["params"]
     rm.stake_max = 12000.0

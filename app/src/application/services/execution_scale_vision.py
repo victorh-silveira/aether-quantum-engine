@@ -7,16 +7,19 @@ from typing import Any
 
 import numpy as np
 
+from src.application.services.execution_scale_micro import classify_micro_regime, micro_regime_token
 from src.application.services.execution_scale_tape import (
     bar_direction_at,
     compute_tape_strong,
     last_bar_direction,
     mini_bar_pair_agrees,
+    mini_pair_opposes_tcn,
     prev_bar_direction,
     tape_consensus,
 )
 from src.domain.config_knobs import merge_settings_block, require_bool, require_float, require_int, require_keys
 from src.domain.models.trade import TradeDirection
+from src.domain.risk.kelly_runtime_config import load_kelly_runtime_from_settings
 
 
 _SCALE_VISION_KEYS = (
@@ -30,7 +33,12 @@ _SCALE_VISION_KEYS = (
     "adapt_require_raw_extreme",
     "adapt_require_bar_pair_agree",
     "adapt_allow_strong_tape",
+    "adapt_strong_mini_pair",
+    "adapt_kelly_p_floor",
     "adapt_min_votes",
+    "adapt_on_retraction",
+    "retraction_require_mili",
+    "retraction_use_tick_accel",
     "max_stake_pct_discord",
 )
 
@@ -71,7 +79,12 @@ def parse_scale_vision_config(raw: dict[str, Any] | None = None) -> dict[str, An
         "adapt_require_raw_extreme": require_bool(block, "adapt_require_raw_extreme"),
         "adapt_require_bar_pair_agree": require_bool(block, "adapt_require_bar_pair_agree"),
         "adapt_allow_strong_tape": require_bool(block, "adapt_allow_strong_tape"),
+        "adapt_strong_mini_pair": require_bool(block, "adapt_strong_mini_pair"),
+        "adapt_kelly_p_floor": float(load_kelly_runtime_from_settings()["kelly_p_floor"]),
         "adapt_min_votes": max(1, require_int(block, "adapt_min_votes")),
+        "adapt_on_retraction": require_bool(block, "adapt_on_retraction"),
+        "retraction_require_mili": require_bool(block, "retraction_require_mili"),
+        "retraction_use_tick_accel": require_bool(block, "retraction_use_tick_accel"),
         "max_stake_pct_discord": max(0.0, min(0.05, require_float(block, "max_stake_pct_discord"))),
     }
 
@@ -139,6 +152,11 @@ def _seed_scale_metrics(metrics: dict[str, Any], micro_name: str | None) -> None
     metrics["scale_micro_prev_bar_dir"] = None
     metrics["scale_tape_consensus"] = None
     metrics["scale_tape_strong"] = False
+    metrics["scale_mini_pair_oppose"] = False
+    metrics["scale_micro_regime"] = "chop"
+    metrics["scale_micro_side"] = None
+    metrics["scale_retraction_vs_tcn"] = False
+    metrics["scale_mili_oppose_tcn"] = False
     metrics["scale_agree_n"] = 0
     metrics["scale_disagree_n"] = 0
     metrics["scale_discordance"] = False
@@ -204,6 +222,11 @@ def compute_scale_directions(
     metrics["scale_disagree_n"] = int(disagree)
     min_disagree = int(vision.get("min_disagree_to_dampen", 2))
     metrics["scale_discordance"] = bool(micro_name and disagree >= min_disagree)
+    if micro_name and mini_pair_opposes_tcn(metrics, micro_name):
+        metrics["scale_discordance"] = True
+        metrics["scale_mini_pair_oppose"] = True
+    else:
+        metrics["scale_mini_pair_oppose"] = False
     adapt_votes = int(vision.get("adapt_min_votes", 2))
     consensus = tape_consensus(
         [
@@ -216,7 +239,12 @@ def compute_scale_directions(
         min_votes=adapt_votes,
     )
     metrics["scale_tape_consensus"] = consensus
-    metrics["scale_tape_strong"] = compute_tape_strong(metrics, consensus)
+    metrics["scale_tape_strong"] = compute_tape_strong(
+        metrics,
+        consensus,
+        mini_pair_sufficient=bool(vision.get("adapt_strong_mini_pair", True)),
+    )
+    classify_micro_regime(metrics, micro_name, cfg=vision)
     metrics["scale_reason"] = "discord" if metrics["scale_discordance"] else "ok"
     return metrics
 
@@ -225,6 +253,7 @@ def format_scale_audit_line(metrics: dict[str, Any] | None) -> str:
     """Linha SCALE para log IND/CLUSTER."""
     m = metrics if isinstance(metrics, dict) else {}
     adapted = 1 if bool(m.get("scale_adapted")) else 0
+    micro = micro_regime_token(m.get("scale_micro_regime"))
     return (
         f"SCALE || MACRO={m.get('scale_macro_dir') or '-'} "
         f"MICRO={m.get('scale_micro_dir') or '-'} "
@@ -235,6 +264,7 @@ def format_scale_audit_line(metrics: dict[str, Any] | None) -> str:
         f"mc_prev={m.get('scale_micro_prev_bar_dir') or '-'} "
         f"mc_cur={m.get('scale_micro_bar_dir') or '-'} "
         f"tape={m.get('scale_tape_consensus') or '-'} "
+        f"micro={micro} "
         f"agree={int(m.get('scale_agree_n') or 0)}/4 "
         f"discord={bool(m.get('scale_discordance'))} "
         f"adapted={adapted}"
@@ -250,4 +280,5 @@ def format_scale_ind_token(metrics: dict[str, Any] | None) -> str:
     mi_p = m.get("scale_mini_prev_bar_dir") or "-"
     mi = m.get("scale_mini_bar_dir") or m.get("scale_mini_dir") or "-"
     mili = m.get("scale_mili_dir") or "-"
-    return f"SCALE: tcn={tcn} tape={tape} adapted={adapted} mi_p={mi_p} mi={mi} mili={mili}"
+    micro = micro_regime_token(m.get("scale_micro_regime"))
+    return f"SCALE: tcn={tcn} tape={tape} adapted={adapted} micro={micro} mi_p={mi_p} mi={mi} mili={mili}"

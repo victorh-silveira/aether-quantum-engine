@@ -90,6 +90,7 @@ def test_recovery_infeasible_logs_when_not_silent(kelly_config):
         "max_safe_stake_cap": 4.20,
         "amort_cycles_min": 2,
         "amort_cycles_max": 5,
+        "infeasible_force_explore": True,
     }
     metrics = {"execute": True, "trade_score": 0.70, "raw_prob": 0.70}
     calculate_stake_for_manager(
@@ -103,3 +104,33 @@ def test_recovery_infeasible_logs_when_not_silent(kelly_config):
     )
     logged = " ".join(str(c) for c in rm.logger.info.call_args_list)
     assert "RECOVERY_INFEASIBLE" in logged or metrics.get("recovery_infeasible") is True
+    assert metrics.get("recovery_force_explore") is True
+    assert metrics.get("stake_regime") == "EXPLORE"
+
+
+def test_cross_veto_waiver_and_mandatory_weak_zero_pct_residual():
+    from src.domain.risk.consensus_stake_penalty import cross_veto_recovery_waiver_allowed
+    from src.domain.risk.risk_stake_calc import _apply_mandatory_weak_explore_cap
+    from src.domain.risk.soft_recovery_config import (
+        load_soft_recovery_from_settings,
+        reset_soft_recovery_config_cache,
+        resolve_soft_recovery_config,
+    )
+
+    rm = type("RM", (), {"consecutive_losses_linear": 5, "pending_loss": {"R_10": 260.0}})()
+    assert cross_veto_recovery_waiver_allowed({"raw_prob": 0.82}, direction="CALL", risk_manager=rm) is True
+    assert (
+        _apply_mandatory_weak_explore_cap(
+            10.0,
+            100.0,
+            stake_regime="EXPLORE",
+            mandatory_flag=True,
+            dl_execute=False,
+            kelly_config={"mandatory_weak_max_stake_pct": 0.0},
+        )
+        == 10.0
+    )
+    reset_soft_recovery_config_cache()
+    base = load_soft_recovery_from_settings()
+    flat = resolve_soft_recovery_config({"enabled": True, "max_safe_stake_cap": base["max_safe_stake_cap"]})
+    assert flat["infeasible_force_explore"] is True

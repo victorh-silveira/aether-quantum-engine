@@ -14,7 +14,7 @@ SSOT operacional: [`config/settings.json`](../config/settings.json). Metodologia
 
 **Regra no Aether:** caps limitam cauda; Cal/Edge sao telemetria de processo (nao veto de codigo apos escopo 1).
 
-**Ancoras:** soft recovery caps; Kelly; `force_trade_every_cycle=false`.
+**Ancoras:** soft recovery caps (`max_safe_stake_pct` **0.05**); Kelly; `force_trade_every_cycle=false`; `infeasible_force_explore` (RECOVERY_INFEASIBLE → EXPLORE Kelly, sem DAL no teto); `pending_waives_scale_explore` (pending material libera soft cover sob discord/adapt).
 
 ---
 

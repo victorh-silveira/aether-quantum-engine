@@ -12,6 +12,7 @@ from src.domain.risk.consensus_stake_penalty import (
     resolve_session_base_unit,
     soft_recovery_progression_multiplier,
 )
+from src.domain.risk.soft_recovery_config import pending_waives_scale_explore
 from src.domain.risk.soft_recovery_policy import soft_recovery_enabled
 from src.domain.risk.stake_sizing import round_stake
 
@@ -108,7 +109,10 @@ def resolve_dlambert_stake(
     """Resolve stake final Kelly ou Soft Recovery Adaptativo indexado ao payout."""
     soft = _soft_cfg(rm, dlambert_config)
     metrics = dl_metrics if isinstance(dl_metrics, dict) else None
-    if metrics is not None and (bool(metrics.get("scale_force_explore")) or bool(metrics.get("scale_adapted"))):
+    scale_blocks = metrics is not None and (
+        bool(metrics.get("scale_force_explore")) or bool(metrics.get("scale_adapted"))
+    )
+    if scale_blocks and not pending_waives_scale_explore(float(pending_total), soft):
         resolve_dlambert_unit(kelly_base, rm)
         return round_stake(float(kelly_base), recovery_linear=False), "KELLY"
     stress_recovery = soft_recovery_stress_active(
@@ -142,6 +146,9 @@ def resolve_dlambert_stake(
             session_pnl=float(getattr(rm, "total_session_profit", 0.0) or 0.0),
             target_win=float(getattr(rm, "daily_stop_win_target", 0.0) or 0.0),
         )
+        if metrics is not None and bool(metrics.get("recovery_force_explore")):
+            resolve_dlambert_unit(kelly_base, rm)
+            return round_stake(float(kelly_base), recovery_linear=False), "KELLY"
         rounded = round_stake(raw, recovery_linear=True)
         cap = max_safe_stake_cap(
             bankroll,

@@ -165,18 +165,19 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin, ProposalSkipMixin)
             if self.total_session_profit >= target:
                 return "stop_win"
 
-        if (
-            self.calculate_stake(
-                bankroll,
-                symbol,
-                conviction=conviction,
-                silent=True,
-                apply_stop_win=apply_stop_win,
-                **kwargs,
-            )
-            <= 0
-        ):
-            return "kelly_no_edge"
+        stake = self.calculate_stake(
+            bankroll,
+            symbol,
+            conviction=conviction,
+            silent=True,
+            apply_stop_win=apply_stop_win,
+            **kwargs,
+        )
+        if stake > 0:
+            return None
+        stake_min = float(self.risk_params.get("stake_min", 1.0))
+        if float(bankroll) + 1e-12 < stake_min:
+            return "bankroll_below_stake_min"
         return None
 
     def _recovery_dl_conviction_ok(self, dl_metrics: dict) -> bool:

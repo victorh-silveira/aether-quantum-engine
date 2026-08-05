@@ -158,17 +158,18 @@ def test_apply_soft_recovery_stake_covers_pending_within_bankroll_cap():
     assert stake == pytest.approx(148.19, rel=1e-2)
 
 
-def test_max_safe_stake_cap_at_two_point_five_percent():
-    assert max_safe_stake_cap(11300.0) == pytest.approx(282.50)
+def test_max_safe_stake_cap_at_five_percent():
+    assert max_safe_stake_cap(11300.0) == pytest.approx(565.0)
 
 
 def test_max_safe_stake_cap_compresses_on_linear_streak():
-    assert max_safe_stake_cap(10000.0, consecutive_losses_linear=2) == pytest.approx(250.0)
-    assert max_safe_stake_cap(10000.0, consecutive_losses_linear=3) == pytest.approx(200.0)
+    assert max_safe_stake_cap(10000.0, consecutive_losses_linear=2) == pytest.approx(450.0)
+    assert max_safe_stake_cap(10000.0, consecutive_losses_linear=3) == pytest.approx(400.0)
 
 
 def test_apply_soft_recovery_stake_respects_bankroll_cap():
     metrics: dict = {}
+    soft = {"infeasible_force_explore": False}
     stake = apply_soft_recovery_stake(
         pending_total=5000.0,
         base_unit=200.0,
@@ -177,8 +178,9 @@ def test_apply_soft_recovery_stake_respects_bankroll_cap():
         bankroll=10000.0,
         metrics=metrics,
         payout=0.70,
+        soft_recovery=soft,
     )
-    assert stake == pytest.approx(max_safe_stake_cap(10000.0, consecutive_losses_linear=8))
+    assert stake == pytest.approx(max_safe_stake_cap(10000.0, consecutive_losses_linear=8, soft_recovery=soft))
 
 
 def test_sequential_drawdown_stakes_grow_smoothly_not_geometric_two():
@@ -252,8 +254,13 @@ def test_small_account_hard_floor_caps_recovery_at_five_percent():
 
 
 def test_large_bankroll_max_safe_stake_uses_pct_not_abs_cap():
-    soft = {"max_safe_stake_cap": 4.20, "max_safe_stake_pct": 0.035}
-    assert max_safe_stake_cap(12000.0, consecutive_losses_linear=0, soft_recovery=soft) == pytest.approx(420.0)
-    assert max_safe_stake_cap(12000.0, consecutive_losses_linear=1, soft_recovery=soft) == pytest.approx(420.0)
+    soft = {
+        "max_safe_stake_cap": 4.20,
+        "max_safe_stake_pct": 0.05,
+        "max_safe_stake_pct_linear2": 0.025,
+        "max_safe_stake_pct_linear3": 0.020,
+    }
+    assert max_safe_stake_cap(12000.0, consecutive_losses_linear=0, soft_recovery=soft) == pytest.approx(600.0)
+    assert max_safe_stake_cap(12000.0, consecutive_losses_linear=1, soft_recovery=soft) == pytest.approx(600.0)
     assert max_safe_stake_cap(12000.0, consecutive_losses_linear=2, soft_recovery=soft) == pytest.approx(300.0)
     assert max_safe_stake_cap(12000.0, consecutive_losses_linear=3, soft_recovery=soft) == pytest.approx(240.0)

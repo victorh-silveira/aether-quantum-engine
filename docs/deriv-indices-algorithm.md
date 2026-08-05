@@ -38,16 +38,16 @@ Como prever a saída exata do CSPRNG é impossível, o foco é **exploração de
 
 O Aether utiliza **TCN** (padrão), **LSTM** ou **GRU** com conexões dilatadas ou recorrentes.
 
-- **Por que TCN?** Processa janelas longas de lookback (**72** barras × **600 s ≈ 12 h**) identificando persistência de tendência ou exaustão com menor ruído CSPRNG que horizontes curtos.
+- **Por que TCN?** Processa janelas longas de lookback (**720** barras × **60 s ≈ 12 h**) identificando persistência de tendência ou exaustão com menor ruído CSPRNG que horizontes curtos.
 - **34 features**: OHLC normalizado, indicadores técnicos, microestrutura de ticks e regime (Hurst, ADX, vol_ratio, CMO).
 - **Inferência**: Triton gRPC concorrente (`TritonGrpcClient`) quando `infra.triton.enabled`; fail-closed em produção (`require_for_execution: true`) — sem fallback eager local.
 - **Detecção de regime**: EMAs, inclinação, ADX e votos de trend (`dl_trend.py`) alimentam o scoring direcional.
 
 ### 2.2 Exaustão micro e meta-regressor
 
-Desvios extremos em microestrutura de **120 s** (RSI, Keltner, Bollinger, shadow de volatilidade, momentum de spread) alimentam o vetor tabular **43D** do `aether-meta-classifier` (`LGBMRegressor` huber, porta **8005**).
+Desvios extremos em microestrutura de **60 s** (RSI, Keltner, Bollinger, shadow de volatilidade, momentum de spread) alimentam o vetor tabular **43D** do `aether-meta-classifier` (`LGBMRegressor` huber, porta **8005**).
 
-- **Regressão de payoff**: TCN fornece direção macro (`dl_direction`); meta-regressor estima `predicted_payoff_edge` com features cross-symbol (`prob_delta`, `vol_ratio_diff`, `rsi_spread`) e fluxo micro 120 s (`micro_tick_acceleration`, `keltner_deviation_ratio`).
+- **Regressão de payoff**: TCN fornece direção (`dl_direction`); meta-regressor estima `predicted_payoff_edge` com features cross-symbol (`prob_delta`, `vol_ratio_diff`, `rsi_spread`) e fluxo micro 60 s (`micro_tick_acceleration`, `keltner_deviation_ratio`).
 - **Downgrade D-SQUEEZE** (`meta_payoff_regression`): quando `predicted_payoff_edge < -0.15` em squeeze micro (`bb_width < 0.06` ou `micro_tick_acceleration < 0`), rebaixa `trade_score=0.52` e emite log `[D-SQUEEZE]` — sem inverter direção. Nos settings atuais, snipers Hurst/BB-squeeze extremo são stubs (`False`); o veto HARD operacional é microestrutura (ADX / `vol_ratio` / `val_accuracy`).
 - **Treino offline**: alvo contínuo `Y = PnL_Real / Stake`; Optuna **maximiza Information Ratio** com constraint OOS payoff Z-Score ≥ +1,00; rotulagem TCN padrão **`spot_forward`** (`ma_trend` / `triple_barrier` disponíveis via config).
 - **Telemetria consultiva**: `execution_direction_cross_corr` e `execution_volatility_booster` permanecem como insumo analítico, sem veto autônomo.
@@ -69,15 +69,15 @@ Desvios extremos em microestrutura de **120 s** (RSI, Keltner, Bollinger, shadow
 - **FASE OPERACAO mandatária** (`mandatory_trade_each_cycle: true`): esteira contínua — candidatos DL tecnicamente válidos seguem para execução; redirect inter-símbolo quando âncora degradada.
 - **Resolução direcional**: TCN define `dl_direction`; meta-regressor refina stake via `predicted_payoff_edge` (meta opcional para execução); `execution_direction_checks` rejeita ciclo só por starvation de microestrutura.
 - **Deploy gate**: modelos com `deploy_ok=false` não entram no pool.
-- **Relógio**: ciclo e contrato em **120 s**; contexto DL em **600 s** — proporção **1:5** (prefixos de assinatura `m5`/`m15` são legado).
+- **Relógio**: ciclo **60 s**, contrato **30 s** (híbrido); contexto DL macro **300 s** — proporção micro:macro **1:5** (prefixos de assinatura `m5`/`m15` são legado).
 
 ### 2.5 Perfil de qualidade atual
 
 | Camada | Comportamento |
 |--------|---------------|
 | Bloqueio técnico | `data`, `predict_error`, `training`, `deploy_ok=false` |
-| Classificação macro | TCN em barras de **600 s** (`[1, 72, 34]`) define `dl_direction` |
-| Stacking tabular | Meta-regressor LightGBM micro **120 s** sobre vetor **43D** + probabilidade TCN; saída `predicted_payoff_edge`; meta opcional |
+| Classificação | TCN em barras micro **60 s** (`[1, 720, 34]`) define `dl_direction` |
+| Stacking tabular | Meta-regressor LightGBM micro **60 s** sobre vetor **43D** + probabilidade TCN; saída `predicted_payoff_edge`; meta opcional |
 | Veto HARD microestrutura | `adx_starvation`, `vol_ratio_starvation`, `val_accuracy_gate` (`min_adx` 0.20, `vol_ratio_min` 0.65, val ≥ 0.63) |
 | Downgrade squeeze | Edge `< -0.15` em compressão micro: `trade_score=0.52`; `[D-SQUEEZE]` (telemetria; sniper BB extremo stub) |
 | Margem direcional | `abs(P(lado_escolhido) − 0.50)` — CALL usa `calibrated_prob`; PUT usa `1 − prob`; hard gate **`min_direction_margin: 0.03`** |
@@ -110,7 +110,7 @@ Ver [arquitetura.md](arquitetura.md) seção 2.5 para o diagrama completo.
 ### 2.9 Normalização Adaptativa de Volatilidade & Válvula de Drift Proibido (Drift Bias Lock)
 
 #### 2.9.1 Estouro Dinâmico de Volatilidade e Clipping OOD
-Em regime de cauda hiperbólica, as variáveis de dispersão temporal `bb_width` e `atr_norm` são padronizadas com base na distribuição amostral das últimas 1024 velas macro (**600 s**):
+Em regime de cauda hiperbólica, as variáveis de dispersão temporal `bb_width` e `atr_norm` são padronizadas com base na distribuição amostral das últimas 1024 velas macro (**300 s**):
 \[Z = \frac{x - \text{mean}(X_{1024})}{\text{std}(X_{1024}) + 1e-10}\]
 Os inputs para o modelo LightGBM sofrem um clipping estrito a fim de mitigar desvios de distribuição de treino (OOD - Out-of-Distribution):
 \[Z_{\text{clipped}} = \max(-3.0, \min(3.0, Z))\]

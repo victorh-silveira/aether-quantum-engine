@@ -33,9 +33,9 @@ def test_apply_engine_mode(orch_config):
 def test_apply_engine_mode_aligns_label_horizon_to_micro_contract():
     config = {
         "orchestrator": {},
-        "data_handler": {"granularity": 600, "micro_granularity": 120},
+        "data_handler": {"granularity": 300, "micro_granularity": 60},
         "deep_learning": {"train_timeframe": "micro", "label_horizon_bars": 99},
-        "risk_management": {"params": {"duration": 120, "duration_unit": "s"}},
+        "risk_management": {"params": {"duration": 30, "duration_unit": "s"}},
     }
     apply_engine_mode(config, ENGINE_MODE_TRAIN)
     assert config["deep_learning"]["label_horizon_bars"] == 1

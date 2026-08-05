@@ -8,13 +8,14 @@ Guia operacional DL para agentes. Detalhe de features: [`arquitetura.md`](arquit
 |------|----------------|
 | Simbolo | `R_10` |
 | Arch | TCN |
-| Lookback | **360** → tensor `[1, 360, 34]` |
-| MACRO OHLC | **600 s** (`data_handler.granularity`) |
-| MICRO / contrato (TCN) | **120 s** (`micro_granularity`) |
+| Lookback | **720** → tensor `[1, 720, 34]` (~12 h @ 60 s) |
+| MACRO OHLC | **300 s** (`data_handler.granularity`) |
+| MICRO (TCN) | **60 s** (`micro_granularity`) |
+| Contrato | **30 s** RISE_FALL (hibrido; label 1 barra micro = 60 s) |
 | MINI OHLC | **60 s** (`mini_granularity`) |
 | MILI | Tick flow (nao OHLC) |
 | Features | **34D** (`FEATURE_DIM`) |
-| Label | `ma_trend` (MA 8; horizonte 1 barra micro = contrato 120s) |
+| Label | `ma_trend` (MA 8; horizonte 1 barra micro **60 s**; gap vs contrato 30 s) |
 | ACC / deploy | `soft_min_val_accuracy` **0.53**; `soft_max_brier` **0.26**; `force_ok=false` |
 | Early stop | `min_epochs` **40**, `early_stopping_patience` **40**; restore **best val_acc** |
 | Meta | LightGBM **43D** `predicted_payoff_edge` |
@@ -65,7 +66,18 @@ Modo legado `tcn_macro_override` foi substituido por `raw_extreme` em `dl_calibr
 - Kelly / sizing usam **Cal**, nao raw.
 - Nomes das chaves SSOT (`tcn_macro_*_override`) sao historicos: limiam extremo de **raw TCN**, nao o timeframe MACRO OHLC.
 
+`calibration.method=auto` + piso `min_calibration_sharpness` / `min_oos_sharpness` (**0.01**): se temperatura/Platt/isotonico colapsar nitidez, o fit cai para `identity` (raw). Export mede sharpness via `apply_calibrator_stable` (mesmo caminho do live).
+
 Visao multi-escala (MACRO/MICRO/MINI/MILI) e soft Kelly ficam fora do pacote DL — ver [`engineering-orchestrator.md`](engineering-orchestrator.md) e `orchestrator.execution.scale_vision`.
+
+## Pos-migrate hibrido 30s/60s
+
+1. Invalidar checkpoints `data/dl/*.pth`, TorchScript MinIO/Triton com `granularity=120`.
+2. Re-hydrate Timescale (`docker-hydrate.sh` / `ensure_timescale`) para OHLC **60** / **300**.
+3. Retreinar com **`launch-train.bat`** (TCN `lookback=720`, micro 60) + meta — **nao** via `launch-all-demo`.
+4. So depois: `launch-all-demo.bat`; validar CFG live `ohlc=60s`, `macro=300s`, `contrato=30s`.
+
+Com `online_training=false`, DEMO/`launch-all-demo` **nunca** agenda bootstrap; checkpoint ausente → warning + SKIP tecnico ate treino offline.
 
 ## Pacote
 

@@ -48,6 +48,7 @@ def _micro_risk_config() -> dict:
             "amort_cycles_min": 2,
             "amort_cycles_max": 5,
             "coing_redirect_drawdown_threshold": 15.00,
+            "infeasible_force_explore": False,
         },
         "params": {"payout_estimate": 0.95, "stake_min": 1.0},
     }
@@ -57,7 +58,9 @@ def test_resolve_soft_recovery_config_defaults_match_settings() -> None:
     soft = resolve_soft_recovery_config(None)
     assert soft["enabled"] is True
     assert soft["max_safe_stake_cap"] == pytest.approx(3.0)
-    assert soft["max_safe_stake_pct"] == pytest.approx(0.025)
+    assert soft["max_safe_stake_pct"] == pytest.approx(0.05)
+    assert soft["max_safe_stake_pct_linear2"] == pytest.approx(0.045)
+    assert soft["max_safe_stake_pct_linear3"] == pytest.approx(0.04)
     assert soft["amort_cycles_min"] == 1
     assert soft["amort_cycles_max"] == 3
     assert soft["micro_residual_pending_max"] == pytest.approx(3.0)
@@ -71,6 +74,8 @@ def test_resolve_soft_recovery_config_defaults_match_settings() -> None:
     assert soft["dust_pending_clear_max"] == pytest.approx(0.25)
     assert soft["near_stop_win_freeze_pct"] == pytest.approx(0.70)
     assert soft["material_pending_min"] == pytest.approx(0.5)
+    assert soft["infeasible_force_explore"] is True
+    assert soft["pending_waives_scale_explore"] is True
 
 
 def test_resolve_amort_cycles_bounds_from_soft_recovery() -> None:
@@ -166,10 +171,10 @@ def test_soft_recovery_policy_branches_and_tail_cap() -> None:
     assert configured_max_safe_stake_cap({"max_safe_stake_cap": "bad"}) is None
     assert configured_max_safe_stake_cap({"max_safe_stake_cap": -1.0}) is None
     assert configured_max_safe_stake_cap({"max_safe_stake_cap": 4.20}) == pytest.approx(4.20)
-    assert configured_max_safe_stake_pct(None) == pytest.approx(0.025)
+    assert configured_max_safe_stake_pct(None) == pytest.approx(0.05)
     assert configured_max_safe_stake_pct({"max_safe_stake_pct": 0.035}) == pytest.approx(0.035)
-    assert configured_max_safe_stake_pct({"max_safe_stake_pct": "bad"}) == pytest.approx(0.025)
-    assert configured_max_safe_stake_pct({"max_safe_stake_pct": -1.0}) == pytest.approx(0.025)
+    assert configured_max_safe_stake_pct({"max_safe_stake_pct": "bad"}) == pytest.approx(0.05)
+    assert configured_max_safe_stake_pct({"max_safe_stake_pct": -1.0}) == pytest.approx(0.05)
     assert configured_max_safe_stake_pct({"max_safe_stake_pct": 2.0}) == pytest.approx(1.0)
     rm = RiskManager(_micro_risk_config())
     rm.initial_bankroll = 100.0

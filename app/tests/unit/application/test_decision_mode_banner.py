@@ -11,14 +11,14 @@ def test_emit_decision_engine_banner_dl_enabled():
         {
             "deep_learning": {
                 "arch": "tcn",
-                "lookback": 360,
+                "lookback": 720,
                 "train_timeframe": "micro",
                 "confidence_call_threshold": 0.62,
                 "confidence_put_threshold": 0.38,
                 "online_training": False,
             },
-            "data_handler": {"granularity": 600, "micro_granularity": 120},
-            "risk_management": {"params": {"duration": 120, "duration_unit": "s"}},
+            "data_handler": {"granularity": 300, "micro_granularity": 60},
+            "risk_management": {"params": {"duration": 30, "duration_unit": "s"}},
             "orchestrator": {"execution": {"mandatory_trade_each_cycle": False}},
         },
         decision_mode="deep_learning",
@@ -27,11 +27,11 @@ def test_emit_decision_engine_banner_dl_enabled():
     fmt = logger.info.call_args.args[0]
     args = logger.info.call_args.args[1:]
     rendered = fmt % args
-    assert "ohlc=120s (micro)" in rendered
-    assert "macro=600s" in rendered
-    assert "micro=120s" in rendered
-    assert "contrato=120s" in rendered
-    assert "lb=360" in rendered
+    assert "ohlc=60s (micro)" in rendered
+    assert "macro=300s" in rendered
+    assert "micro=60s" in rendered
+    assert "contrato=30s" in rendered
+    assert "lb=720" in rendered
     assert "continuo" in rendered
 
 
@@ -41,13 +41,13 @@ def test_emit_decision_engine_banner_macro_train_timeframe():
         logger,
         {
             "deep_learning": {"arch": "tcn", "lookback": 72, "train_timeframe": "macro"},
-            "data_handler": {"granularity": 600, "micro_granularity": 120},
-            "risk_management": {"params": {"duration": 120, "duration_unit": "s"}},
+            "data_handler": {"granularity": 300, "micro_granularity": 60},
+            "risk_management": {"params": {"duration": 30, "duration_unit": "s"}},
         },
         decision_mode="deep_learning",
     )
     rendered = logger.info.call_args.args[0] % logger.info.call_args.args[1:]
-    assert "ohlc=600s (macro)" in rendered
+    assert "ohlc=300s (macro)" in rendered
 
 
 def test_emit_decision_engine_banner_inactive():
@@ -58,7 +58,9 @@ def test_emit_decision_engine_banner_inactive():
 
 
 def test_granularity_label_minutes_and_hours():
+    assert granularity_label(60) == "M1"
     assert granularity_label(120) == "M2"
+    assert granularity_label(300) == "M5"
     assert granularity_label(600) == "M10"
     assert granularity_label(3600) == "H1"
     assert granularity_label(86400) == "D1"

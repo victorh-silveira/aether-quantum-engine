@@ -21,11 +21,16 @@ async def run_orchestrator_training(orch) -> bool:
         orch.logger.error("INIT: Abortando treino (falha ao sincronizar velas OHLC).")
         return False
     emit_decision_engine_banner(orch.logger, orch.config, decision_mode=orch._decision_mode())
+    session_ok = True
     if orch._decision_mode() == "deep_learning":
-        await run_dl_training_session(orch)
-        orch._dl_bootstrap_completed = True
-        await upload_all_symbol_checkpoints(orch)
+        session_ok = await run_dl_training_session(orch)
+        orch._dl_bootstrap_completed = bool(session_ok)
+        if session_ok:
+            await upload_all_symbol_checkpoints(orch)
     await orch._save_full_state()
-    orch.logger.info("DL | sessao de treino finalizada")
+    if session_ok:
+        orch.logger.info("DL | sessao de treino finalizada")
+    else:
+        orch.logger.error("DL | sessao de treino FALHOU — checkpoint antigo nao deve ser usado")
     await orch.stop()
-    return True
+    return bool(session_ok)

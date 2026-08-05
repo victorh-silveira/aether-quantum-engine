@@ -126,14 +126,26 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
                 deploy_win_rate,
             ) = loaded
             if int(ckpt_lookback) != expected_lookback or int(checkpoint_granularity) != int(expected_granularity):
-                logger.info(
-                    "DL: Checkpoint %s incompativel (lb=%s/%s gran=%s/%s); retreino.",
-                    symbol,
-                    ckpt_lookback,
-                    expected_lookback,
-                    checkpoint_granularity,
-                    expected_granularity,
-                )
+                if bool(dl_config.get("online_training", True)):
+                    logger.info(
+                        "DL: Checkpoint %s incompativel (lb=%s/%s gran=%s/%s); retreino.",
+                        symbol,
+                        ckpt_lookback,
+                        expected_lookback,
+                        checkpoint_granularity,
+                        expected_granularity,
+                    )
+                else:
+                    logger.info(
+                        "DL: Checkpoint %s incompativel (lb=%s/%s gran=%s/%s); "
+                        "online_training=off — rode app/scripts/batch/launch-train.bat "
+                        "(treino separado do DEMO).",
+                        symbol,
+                        ckpt_lookback,
+                        expected_lookback,
+                        checkpoint_granularity,
+                        expected_granularity,
+                    )
                 loaded = None
                 checkpoint_granularity = expected_granularity
         if loaded is not None:

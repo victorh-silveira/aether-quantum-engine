@@ -70,7 +70,7 @@ def _resolve_dsn(settings: dict[str, Any]) -> str:
 
 def _micro_granularity(settings: dict[str, Any]) -> int:
     data_cfg = settings.get("data_handler", {}) if isinstance(settings.get("data_handler"), dict) else {}
-    return int(data_cfg.get("micro_granularity", 120)) if isinstance(data_cfg, dict) else 120
+    return int(data_cfg.get("micro_granularity", 60)) if isinstance(data_cfg, dict) else 60
 
 
 def validate_target_variance(

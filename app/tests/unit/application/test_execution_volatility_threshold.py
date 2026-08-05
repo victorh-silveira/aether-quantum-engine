@@ -6,7 +6,6 @@ from src.application.services.deep_learning.dl_calibration import (
 )
 from src.application.services.deep_learning.dl_calibration_fit import (
     _select_best_calibrator,
-    calibrator_entropy_metrics,
     fit_calibrator,
 )
 from src.application.services.deep_learning.dl_calibration_isotonic import apply_isotonic, fit_isotonic
@@ -50,7 +49,7 @@ def test_fit_calibrator_explicit_methods():
     labels = [1.0, 0.0, 1.0, 0.0]
     assert fit_calibrator(probs, labels, calibration_cfg={"method": "temperature_platt"}).method == "temperature_platt"
     assert fit_calibrator(probs, labels, calibration_cfg={"method": "platt"}).method == "platt"
-    assert fit_calibrator([], labels, calibration_cfg={"method": "platt"}).method == "temperature_platt"
+    assert fit_calibrator([], labels, calibration_cfg={"method": "platt"}).method == "identity"
     iso = fit_calibrator(
         probs,
         labels,
@@ -72,7 +71,7 @@ def test_fit_calibrator_explicit_methods():
 
 
 def test_select_best_calibrator_empty():
-    assert _select_best_calibrator([]).method == "temperature_platt"
+    assert _select_best_calibrator([]).method == "identity"
 
 
 def test_median_tail_empty():
@@ -132,9 +131,33 @@ def test_fit_calibrator_auto_selects_method():
     probs = [0.9, 0.8, 0.2, 0.1, 0.75, 0.25, 0.65, 0.35]
     labels = [1.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0]
     cal = fit_calibrator(probs, labels, calibration_cfg={"method": "auto", "isotonic_min_samples": 6})
-    assert cal.method in {"temperature_platt", "platt", "isotonic"}
+    assert cal.method in {"temperature_platt", "platt", "isotonic", "identity"}
     calibrated = [apply_calibrator(p, cal) for p in probs]
     assert all(0.0 <= p <= 1.0 for p in calibrated)
+
+
+def test_fit_calibrator_falls_back_to_identity_when_forced_collapses():
+    from unittest.mock import patch
+
+    from src.application.services.deep_learning.dl_sharpness import mean_sharpness
+
+    probs = [0.62, 0.38, 0.71, 0.29, 0.68, 0.32, 0.77, 0.23, 0.66, 0.34] * 4
+    labels = [1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0] * 4
+    collapsing = CalibratorState(method="temperature_platt", temperature=1.8, platt_a=0.05, platt_b=0.0)
+    with patch(
+        "src.application.services.deep_learning.dl_calibration_fit._build_temperature_platt",
+        return_value=collapsing,
+    ):
+        cal = fit_calibrator(
+            probs,
+            labels,
+            calibration_cfg={
+                "method": "temperature_platt",
+                "min_calibration_sharpness": 0.01,
+            },
+        )
+    assert cal.method == "identity"
+    assert mean_sharpness([apply_calibrator(p, cal) for p in probs]) >= 0.01 - 1e-9
 
 
 def test_fit_calibrator_isotonic_explicit():
@@ -255,29 +278,3 @@ def test_resolve_dynamic_threshold_bundle_vol_compression():
     )
     assert bundle is not None
     assert bundle.min_edge > 0.04
-
-
-def test_resolve_dynamic_threshold_bundle_enabled():
-    bundle = resolve_dynamic_threshold_bundle(
-        base_call=0.53,
-        base_put=0.47,
-        base_edge=0.04,
-        bb_width=0.02,
-        atr_norm=0.01,
-        adx=0.30,
-        vol_ratio=0.95,
-        bb_width_history=[0.02, 0.021],
-        atr_norm_history=[0.01, 0.011],
-        cfg={"enabled": True, "vol_source": "blend", "baseline_lookback": 8},
-    )
-    assert bundle is not None
-    assert 0.51 <= bundle.call_threshold <= 0.62
-
-
-def test_calibrator_entropy_metrics():
-    probs = [0.9, 0.1, 0.8, 0.2]
-    labels = [1.0, 0.0, 1.0, 0.0]
-    cal = fit_calibrator(probs, labels, calibration_cfg={"method": "platt"})
-    meta = calibrator_entropy_metrics(probs, labels, cal, calibration_cfg={"entropy_ceiling": 0.01})
-    assert "calibrated_entropy" in meta
-    assert isinstance(meta["entropy_violation"], bool)

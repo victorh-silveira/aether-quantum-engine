@@ -1,5 +1,7 @@
 from unittest.mock import MagicMock
 
+import pytest
+
 from src.domain.risk.kelly_f_star_adjustments import (
     apply_consensus_entropy_f_star,
     apply_kelly_fraction_scale,
@@ -11,15 +13,27 @@ def test_apply_kelly_fraction_scale_no_metrics():
     assert apply_kelly_fraction_scale(1.5, None) == 1.5
 
 
-def test_kelly_base_with_consensus_floor_uses_stake_min(kelly_config):
+def test_kelly_base_with_consensus_floor_clamps_without_stake_min(kelly_config):
     cfg = {
         **kelly_config["kelly"],
         "consensus_penalty_enabled": True,
         "consensus_max_cut": 0.50,
+        "max_stake_pct": 0.05,
+        "max_stake_pct_high_conviction": 0.05,
+        "high_conviction_stake_threshold": 1.01,
+        "max_bankroll_stake_fraction": 0.05,
+        "min_stake_pct": 0.0,
     }
     metrics = {"consensus_entropy_retention": 0.50}
     base = kelly_base_with_consensus_floor(1000.0, 0.5, metrics, cfg, 0.8, 1.0)
-    assert base == 1.0
+    assert base == pytest.approx(50.0)
+    assert base != 1.0
+
+
+def test_kelly_base_with_consensus_floor_zero_f_star(kelly_config):
+    cfg = {**kelly_config["kelly"], "max_stake_pct": 0.05, "min_stake_pct": 0.0}
+    base = kelly_base_with_consensus_floor(1000.0, 0.0, {}, cfg, 0.8, 1.0)
+    assert base == 0.0
 
 
 def test_apply_consensus_entropy_f_star_logs(kelly_config):

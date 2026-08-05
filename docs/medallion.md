@@ -13,8 +13,8 @@ Doutrina do copiloto LLM/Cursor (9 livros → constraints de engenharia): [`llm-
 | Princípio | No motor atual |
 |-----------|----------------|
 | Sinais, não histórias | Direção CALL/PUT estritamente pela TCN (`P(CALL) > P(PUT)`) |
-| Horizonte curto | Contexto DL **600 s** (assinatura legado `m15`); execução **120 s** (assinatura legado `m5`); proporção multi-timeframe **1:5** (120:600); label atual `spot_forward` (Triple Barrier / `ma_trend` disponiveis via config) |
-| Acoplamento temporal | Inferências e rotações seguem `signature_boundary_seconds` (fallback `cycle_interval_seconds`, padrão **120 s**); fronteira `m5_boundary_epoch` (nome legado) |
+| Horizonte curto | Contexto DL **300 s**; ciclo/micro OHLC **60 s**; contrato RISE_FALL **30 s** (hibrido); proporção multi-timeframe **1:5** (60:300); label `ma_trend` (1 barra micro = 60 s) |
+| Acoplamento temporal | Inferências e rotações seguem `signature_boundary_seconds` (fallback `cycle_interval_seconds`, padrão **60 s**); fronteira `m5_boundary_epoch` (nome legado) |
 | Esteira mandatária | `mandatory_trade_each_cycle: true` (sem vetos de sinal/qualidade no codigo) |
 | Force trade | `force_trade_every_cycle: false` — sem síntese forçada de candidato |
 | Modelo pronto antes de operar | `FASE TREINO` suspende ordens até treino da sessão |
@@ -66,11 +66,11 @@ A doutrina LLM estende o mesmo raciocinio aos demais livros (Taleb, Duke, Dougla
 |---------|----------------|
 | `R_10` | Universo operacional unico; ancora e unico simbolo de treino/execucao |
 
-Operação: contratos **RISE_FALL** de **120 s** (CALL = alta no período, PUT = queda).
+Operação: contratos **RISE_FALL** de **30 s** (CALL = alta no período, PUT = queda). Ciclo e OHLC micro em **60 s** (pacote híbrido; label TCN = 1 barra micro).
 
 ### 2.2 Telemetria de Volatilidade, Exaustão e Fluxo Micro
 
-Indicadores micro de **120 s** (RSI, `vol_ratio`, Keltner, `bb_width`, aceleração de ticks, shadow de volatilidade e momentum de spread) alimentam o container `aether-meta-classifier` (porta **8005**) via vetor **43D**, indexados na resolução amostral micro do TimescaleDB. O `LGBMRegressor` (huber) estima `predicted_payoff_edge` contínuo; o resolver preserva score orgânico da TCN quando o edge é positivo e aciona downgrade D-SQUEEZE quando o edge colapsa em microestrutura. Nos settings atuais, meta é **opcional** para execução.
+Indicadores micro de **60 s** (RSI, `vol_ratio`, Keltner, `bb_width`, aceleração de ticks, shadow de volatilidade e momentum de spread) alimentam o container `aether-meta-classifier` (porta **8005**) via vetor **43D**, indexados na resolução amostral micro do TimescaleDB. O `LGBMRegressor` (huber) estima `predicted_payoff_edge` contínuo; o resolver preserva score orgânico da TCN quando o edge é positivo e aciona downgrade D-SQUEEZE quando o edge colapsa em microestrutura. Nos settings atuais, meta é **opcional** para execução.
 
 **Spread de convicção cross-symbol** (triplet anexado em `prepare_meta_classifier_cross_symbol_bundle`; zeros no modo single-symbol):
 
@@ -86,7 +86,7 @@ Features de fluxo e microestrutura extraídas do `TickBuffer` e precomputação:
 
 | Feature | Descrição |
 |---------|-----------|
-| `micro_tick_acceleration` | Aceleração estocástica de ticks nos últimos 5 s do bloco micro corrente (120 s) |
+| `micro_tick_acceleration` | Aceleração estocástica de ticks nos últimos 5 s do bloco micro corrente (60 s) |
 | `keltner_deviation_ratio` | Distância fracionária do último tick ao centro do canal Keltner micro |
 | `micro_bid_ask_spread_momentum` | Taxa de variação de ticks aglutinados por sub-janelas de 5 segundos no bloco micro corrente |
 | `micro_bid_ask_spread_momentum_zscore` | Z-Score adaptativo histórico de 1024 períodos da variação de ticks, clipado a ±3.0 |
@@ -103,7 +103,7 @@ Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `
 | Calibração | Zona neutra **off** (`neutral_half_width: 0.0`); thresholds **0.51/0.49**; override TCN macro se raw&gt;0.65 ou &lt;0.35 |
 | Veto cruzado TCN-GBDT | Soft comprime score; hard com shadow; soft não hard-blocka o resolve |
 | Classificação macro | TCN processa lookback de ~12 h em barras de **600 s** (`[1, 72, 34]`); define direção (`dl_direction`) |
-| Stacking tabular | Meta-regressor LightGBM (micro **120 s**) sobre vetor **43D** + probabilidade TCN; saída `predicted_payoff_edge`; meta **opcional** |
+| Stacking tabular | Meta-regressor LightGBM (micro **60 s**) sobre vetor **43D** + probabilidade TCN; saída `predicted_payoff_edge`; meta **opcional** |
 | Z-Score de payoff | `payoff_edge_zscore`: janela adaptativa 15–45; classificação estatística do micro-edge |
 | Scoring de ranking | `market_decision_score = tcn × max(0.1, 1 + z)` |
 | Scoring direcional | TCN define `dl_direction`; edge &gt; 0 pode manter lado contra price zone; compressão BB severa rebaixa para `0.52` |
@@ -122,17 +122,17 @@ Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `
 
 ## 3. Blindagem multi-timeframe
 
-**Invariante 1:5:** o relógio operacional micro (`data_handler.micro_granularity` = **120 s**) e o contexto macro DL (`data_handler.granularity` = **600 s**) mantêm proporção fixa **1:5**. Cada bloco macro cobre exatamente cinco fronteiras micro; a assinatura `m5b:{boundary};m5:{sym}@{epoch};m15:...` (prefixos **legados**) e `seconds_until_next_signature_boundary` ancoram espera e invalidação de cache na virada cheia de **120 s**.
+**Invariante 1:5:** o relógio operacional micro (`data_handler.micro_granularity` = **60 s**) e o contexto macro DL (`data_handler.granularity` = **300 s**) mantêm proporção fixa **1:5**. Cada bloco macro cobre exatamente cinco fronteiras micro; a assinatura `m5b:{boundary};m5:{sym}@{epoch};m15:...` (prefixos **legados**) e `seconds_until_next_signature_boundary` ancoram espera e invalidação de cache na virada cheia de **60 s**. Contrato Deriv **30 s** (híbrido vs barra micro).
 
 | Camada | Timeframe | Papel |
 |--------|-----------|-------|
-| Deep Learning / TCN | Macro **600 s** | Tensor `[1, 72, 34]` ≈ 12 h de contexto macro |
-| Meta-regressor GBDT | Micro **120 s** | Regressão tabular **43D**; edge contínuo + downgrade D-SQUEEZE |
-| Orquestrador / contrato | Micro **120 s** | Ciclo a cada 120 s; RISE_FALL de 120 s |
+| Deep Learning / TCN | Micro **60 s** (lookback **720**) / macro **300 s** | Tensor micro `[1, 720, 34]` ≈ 12 h; contexto macro 1:5 |
+| Meta-regressor GBDT | Micro **60 s** | Regressão tabular **43D**; edge contínuo + downgrade D-SQUEEZE |
+| Orquestrador / contrato | Ciclo **60 s** / RISE_FALL **30 s** | Híbrido: settle 30 s; decisão na fronteira 60 s |
 | Resolução direcional | TCN + meta GBDT | `dl_direction` da TCN; meta refina score / D-SQUEEZE (opcional) |
-| Execução contínua | Micro **120 s** | Boleta CALL/PUT na virada do bloco quando há sinal válido |
+| Execução contínua | Ciclo **60 s** | Boleta CALL/PUT na virada do bloco quando há sinal válido |
 
-Com `granularity: 600` e `training_history_bars: 23328`:
+Com `granularity: 300` e `training_history_bars: 23328`:
 
 | Conceito | Barras | Tempo aproximado |
 |----------|--------|------------------|
@@ -166,7 +166,7 @@ Perfil em `config/settings.json` (settings atuais):
 
 | Parâmetro | Valor | Função |
 |-----------|-------|--------|
-| `calibration.method` | auto | Platt, isotonic ou temperatura+Platt no holdout |
+| `calibration.method` | auto | auto + piso sharpness; fallback `identity` se cal colapsar |
 | `calibration.neutral_half_width` | 0.0 | Zona neutra **off** |
 | `confidence_call_threshold` | 0.51 | Threshold CALL |
 | `confidence_put_threshold` | 0.49 | Threshold PUT |
@@ -203,7 +203,9 @@ Cover de recovery fraciona o passivo em `amort_cycles ∈ [2,5]` em vez de liqui
 |-----------|--------|--------|
 | `enabled` | true | Ativa soft recovery paramétrico |
 | `max_safe_stake_cap` | 4.20 | Teto absoluto só em micro-banca a partir de \(N\ge 4\) |
-| `max_safe_stake_pct` | 0.035 | Teto percentual de banca em conta ≥ $100 (alinhado ao Kelly) |
+| `max_safe_stake_pct` | 0.05 | Teto percentual de banca em conta ≥ $100 (mandato soft cover) |
+| `max_safe_stake_pct_linear2` / `linear3` | 0.045 / 0.04 | Dampen do teto sob stress linear |
+| `pending_waives_scale_explore` | true | Pending material libera soft cover sob discord/adapt |
 | `amort_cycles_min` / `amort_cycles_max` | 2 / 5 | Janela de amortização do cover `pending/payout` |
 | `coing_redirect_drawdown_threshold` | 15.00 | Limiar absoluto (USD) do Consensus Cointegration Redirect |
 | Passo fixo | n∈{3,4} → U×1.15 | Sem escalada exponencial nesses níveis |
@@ -393,7 +395,7 @@ Em recovery ativo, o sizing adota progressão adaptativa (`soft_recovery_policy`
 |-------|-------------|
 | `U` (`dlambert_unit`) | Unidade de recovery (pode ser override ou capturada na sessão) |
 | `consecutive_losses_linear` | Contador de stress / memória operacional |
-| `max_safe_stake_pct` | Teto defensivo % banca (default 3,5%) |
+| `max_safe_stake_pct` | Teto defensivo % banca (default **5%**) |
 | `max_safe_stake_cap` | Teto absoluto só em micro-banca |
 
 #### Retração em WIN parcial
@@ -445,7 +447,7 @@ Complementar à curva soft D'Alembert:
 - Rotação de símbolo após loss linear (`symbol_loss_rotation_cycles`); sem bônus fixo em `R_10`
 - Filtro de loss-protection com `min_direction_margin: 0.0` (caps edge/Z 999)
 - Trava Hurst N2+ (`recovery_hurst_gate`) — prioriza candidatos persistentes; N3+ sem Hurst bloqueia escalada
-- Teto de stake comprimido em linear ≥2 (2,5%) e ≥3 (2,0%)
+- Teto de stake comprimido em linear ≥2 (`max_safe_stake_pct_linear2`) e ≥3 (`max_safe_stake_pct_linear3`)
 
 ---
 
@@ -528,7 +530,7 @@ Parâmetros em `risk_management` / `risk_management.params`:
 | `session_start_balance` | `null` | Override manual da banca inicial (senão usa saldo Deriv) |
 | `small_account_threshold` | `100.0` | Limiar abaixo do qual o stop win é fixo |
 | `small_account_stop_win` | `10.0` | Stop win fixo em dólares para micro-banca |
-| `duration` | `120` | Duração do contrato RISE_FALL (s) |
+| `duration` | `30` | Duração do contrato RISE_FALL (s); ciclo/micro OHLC 60 s (híbrido) |
 
 Com `compounding_enabled: false`, o motor recorre ao alvo legado (`small_account_stop_win` / `large_account_stop_win_pct`).
 
@@ -594,7 +596,7 @@ onde \(H_2\) é a entropia de Shannon binária e \(p_s\) a probabilidade calibra
 ### 12.4 Válvula Dinâmica de Payoff GBDT
 Em estados extremos de inanição operacional (skips >= 30), o veto do classificador tabular é mitigado de forma cooperativa para evitar o congelamento permanente do soft recovery:
 - Se o contador `skipped_cycles_counter` atingir ou exceder 30 ciclos consecutivos pulados por qualidade, e houver concordância unânime de votos técnicos (6x0 no domínio), o veto do payoff do LightGBM ('Meta Payoff < min') é ignorado, permitindo que a força bruta limpe o passivo financeiro.
-- Sob **Micro Passivo Residual** (banca ≤ $250, `pending_total` ≤ $5 e < 5% da banca), o piso do veto `meta_payoff_negative_zscore_veto` relaxa de \(Z \ge -0.20\) para \(Z \ge -0.60\), a válvula de cointegração permanece fechada e o waiver GBDT antecipa para 6 skips — evitando loops `EXEC_EMPTY` em passivo centavado. Após `EXEC_EMPTY` em recovery, o orquestrador alinha o cooldown à fronteira de assinatura de **120 s** (sem retries fragmentados de 8s).
+- Sob **Micro Passivo Residual** (banca ≤ $250, `pending_total` ≤ $5 e < 5% da banca), o piso do veto `meta_payoff_negative_zscore_veto` relaxa de \(Z \ge -0.20\) para \(Z \ge -0.60\), a válvula de cointegração permanece fechada e o waiver GBDT antecipa para 6 skips — evitando loops `EXEC_EMPTY` em passivo centavado. Após `EXEC_EMPTY` em recovery, o orquestrador alinha o cooldown à fronteira de assinatura de **60 s** (sem retries fragmentados de 8s).
 
 ---
 

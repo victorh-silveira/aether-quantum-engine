@@ -134,3 +134,18 @@ def test_get_symbol_runtime_discards_lookback_mismatch():
     assert runtime["session_trained"] is False
     assert runtime["lookback"] == 72
     assert runtime["trained_granularity"] == 600
+
+
+def test_get_symbol_runtime_logs_retrain_when_online_training_and_mismatch():
+    orch = MagicMock()
+    orch.config = {"data_handler": {"granularity": 600}, "deep_learning": {}}
+    orch._dl_runtime = {}
+    dl_config = {"model_path_template": "data/dl/{symbol}.pth", "online_training": True}
+    params = {"lookback": 72, "arch": "tcn"}
+    with patch(
+        "src.application.services.deep_learning.dl_symbol_runtime.load_model_checkpoint",
+        return_value=_loaded_checkpoint(deploy_ok=True),
+    ):
+        runtime = get_symbol_runtime(orch, "R_10", dl_config, params)
+    assert runtime["session_trained"] is False
+    assert runtime["lookback"] == 72

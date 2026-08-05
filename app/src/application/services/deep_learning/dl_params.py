@@ -228,7 +228,7 @@ def parse_dl_params(
         "granularity": gran,
         "train_timeframe": train_tf,
         "micro_granularity": int(data_config.get("micro_granularity") or dl_config.get("micro_granularity") or gran),
-        "contract_duration": max(1, int(risk_params.get("duration", 120))),
+        "contract_duration": max(1, int(risk_params.get("duration", 30))),
         "contract_duration_seconds": contract_duration_seconds(risk_params),
         "risk_params": dict(risk_params),
         "rolling_retrain_bars": int(dl_config.get("rolling_retrain_bars", 3)),

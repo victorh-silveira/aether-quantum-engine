@@ -7,7 +7,7 @@ Stack local **hibrida**: motor no host (Conda/WSL), persistencia e inferencia em
 | Servico | Porta (localhost) | Profile | Limite tipico | Uso |
 |---------|-------------------|---------|---------------|-----|
 | Redis | `127.0.0.1:6379` | `core` | 256m | Estado, risco, `settlement:queue:priority` |
-| TimescaleDB | `127.0.0.1:5432` | `core` | 1g | Ticks + OHLC macro **600 s** / micro **120 s** |
+| TimescaleDB | `127.0.0.1:5432` | `core` | 1g | Ticks + OHLC macro **300 s** / micro **60 s** |
 | MinIO | `127.0.0.1:9000` / `9001` | `core`, `gpu`, `cpu` | 512m | Checkpoints / TorchScript |
 | Triton (`aether-triton`) | `127.0.0.1:8000` / `8001` | `gpu` ou `cpu` | — | Inferencia TorchScript HTTP+gRPC |
 | Meta (`aether-meta-classifier`) | `127.0.0.1:8005` | `ml` | 512m | LightGBM HTTP **43D** |

@@ -124,7 +124,7 @@ presentation  →  application  →  domain
 | `execution_symbols.py` | Símbolos elegíveis e ranking |
 | `execution_symbols_recovery.py` | Pool e ranking em recovery |
 | `execution_volatility_bb.py` | Bollinger width com vol implícita |
-| `execution_volatility_booster.py` | Modificador por estouro macro/micro (600 s / 120 s) |
+| `execution_volatility_booster.py` | Modificador por estouro macro/micro (300 s / 60 s) |
 | `execution_volatility_threshold.py` | Thresholds dinâmicos por regime |
 | `force_trade_mode.py` | Modo force-trade / mandatory |
 | `infra_timing_config.py` | Timeouts/reconnect/history/stream/meta/triton SSOT |
@@ -178,7 +178,7 @@ presentation  →  application  →  domain
 | `graceful_shutdown.py` | Encerramento gracioso |
 | `metrics_utils.py` | Métricas neutras do orquestrador |
 | `orchestrator_atomic_state.py` | Contexto atômico de leitura/escrita |
-| `orchestrator_data_signature.py` | `resolve_signature_boundary_seconds`, `seconds_until_next_signature_boundary`, assinatura micro+macro (prefixos legados `m5`/`m15` para 120/600 s) |
+| `orchestrator_data_signature.py` | `resolve_signature_boundary_seconds`, `seconds_until_next_signature_boundary`, assinatura micro+macro (prefixos legados `m5`/`m15` para 60/300 s) |
 | `orchestrator_persistence.py` | Snapshot atômico sessão/risco/mercado |
 | `orchestrator_run_loop.py` | Loop principal; recovery transparente pós-deadlock |
 | `orchestrator_settlement_queue.py` | Worker assíncrono: consome Redis priority + fila in-memory local |
@@ -359,7 +359,7 @@ presentation  →  application  →  domain
 |--------|------------------|
 | `stream_handler.py` | Fluxo em tempo real e histórico local |
 | `tick_buffer.py` | Buffer de ticks e microestrutura |
-| `stream_timeframe.py` | Granularidades macro/micro duplas (600 s / 120 s; assinatura legado m15/m5) |
+| `stream_timeframe.py` | Granularidades macro/micro duplas (300 s / 60 s; assinatura legado m15/m5) |
 | `stream_candle_apply.py` | Aplicação incremental de velas |
 | `stream_tick_sidecar.py` | Ingestão de ticks e persistência de barras |
 | `stream_ohlc_fetch.py` | Busca OHLC sem alterar buffer |
@@ -496,7 +496,7 @@ flowchart TD
   COL --> RANK[execution_market_rank]
   RANK --> SYM[execution_symbols]
   SYM --> EM[ExecutionManager fractional lots]
-  EM --> TH[TradeHandler RISE_FALL 120s]
+  EM --> TH[TradeHandler RISE_FALL 30s]
   TH --> ENQ[enqueue_contract_settlement]
   ENQ --> WQ[asyncio.Queue worker]
   WQ --> ST[settlement_logic]

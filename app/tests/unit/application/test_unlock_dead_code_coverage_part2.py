@@ -163,14 +163,13 @@ def test_recovery_infeasible_log():
         patch("src.domain.risk.risk_stake_calc.clear_dust_pending_loss"),
         patch("src.domain.risk.risk_stake_calc.resolve_stake_regime", return_value="EXPLORE"),
         patch("src.domain.risk.risk_stake_calc.resolve_stake_conviction", return_value=0.55),
-        patch("src.domain.risk.risk_stake_calc._calculate_kelly_fraction", return_value=(0.5, 0.95, 1.0)),
+        patch("src.domain.risk.risk_stake_calc.calculate_kelly_fraction", return_value=(0.5, 0.95, 1.0)),
         patch("src.domain.risk.risk_stake_calc.d_squeeze_sovereignty_active", return_value=False),
         patch("src.domain.risk.risk_stake_calc._resolve_recovery_flags", return_value=(False, False, False, 0)),
         patch("src.domain.risk.risk_stake_calc.resolve_f_star_and_kelly_base", return_value=(0.5, 100.0)),
         patch(
             "src.domain.risk.risk_stake_calc._apply_stop_win_kelly_boost", side_effect=lambda rm, **kw: kw["kelly_base"]
         ),
-        patch("src.domain.risk.risk_stake_calc.apply_neutral_edge_kelly_base", side_effect=lambda kb, br, dm: kb),
         patch("src.domain.risk.risk_stake_calc.resolve_dlambert_stake", return_value=(5.0, "EXPLORE")),
         patch("src.domain.risk.risk_stake_calc._mandatory_trade_flag", return_value=False),
         patch("src.domain.risk.risk_stake_calc.apply_turbo_edge_stake", side_effect=lambda fs, dm: fs),

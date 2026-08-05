@@ -199,3 +199,6 @@ def test_risk_manager_cointegration_redirect_suppressed():
     rm.initial_bankroll = 100.0
     rm.pending_loss = {"R_10": 1.0}
     assert rm.cointegration_redirect_active() is False
+    rm.initial_bankroll = 10000.0
+    rm.pending_loss = {"R_10": 3000.0}
+    assert isinstance(rm.cointegration_redirect_active(), bool)

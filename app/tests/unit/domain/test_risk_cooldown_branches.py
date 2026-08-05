@@ -151,27 +151,51 @@ def test_risk_manager_reset_session():
     assert rm.daily_stop_win_target == 5.0
 
 
-def test_stake_block_reason_kelly_no_edge():
+def test_stake_block_reason_never_kelly_no_edge():
     rm = RiskManager(
         {
-            "kelly": {"fraction": 0.01},
-            "params": {"payout_estimate": 0.5, "stake_min": 1.0},
+            "kelly": {
+                "fraction": 0.3,
+                "kelly_p_floor": 0.55,
+                "dynamic_win_rate": False,
+                "max_stake_pct": 0.05,
+                "max_bankroll_stake_fraction": 0.05,
+                "min_stake_pct": 0.0,
+            },
+            "params": {"payout_estimate": 0.82, "stake_min": 1.0},
         }
     )
-    rm.set_initial_bankroll(50.0)
-    assert rm.stake_block_reason(50.0, "R_10", conviction=0.05) == "kelly_no_edge"
-    assert rm.calculate_stake(50.0, "R_10", conviction=0.05) == 0.0
+    rm.set_initial_bankroll(10000.0)
+    assert rm.stake_block_reason(10000.0, "R_10", conviction=0.05) is None
+    assert rm.calculate_stake(10000.0, "R_10", conviction=0.05) > 0.0
 
 
-def test_stake_block_reason_kelly_no_edge_when_bankroll_below_stake_min():
+def test_stake_block_reason_bankroll_below_stake_min():
     rm = RiskManager(
         {
-            "kelly": {"fraction": 0.01},
-            "params": {"payout_estimate": 0.5, "stake_min": 1.0},
+            "kelly": {"fraction": 0.1, "kelly_p_floor": 0.55, "dynamic_win_rate": False},
+            "params": {"payout_estimate": 0.82, "stake_min": 1.0},
         }
     )
     rm.set_initial_bankroll(0.5)
-    assert rm.stake_block_reason(0.5, "R_10", conviction=0.05) == "kelly_no_edge"
+    assert rm.stake_block_reason(0.5, "R_10", conviction=0.05) == "bankroll_below_stake_min"
+
+
+def test_stake_block_reason_none_when_soft_veto_zeros_stake():
+    rm = RiskManager(
+        {
+            "kelly": {"fraction": 0.3, "kelly_p_floor": 0.55, "dynamic_win_rate": False},
+            "params": {"payout_estimate": 0.82, "stake_min": 1.0},
+        }
+    )
+    rm.set_initial_bankroll(10000.0)
+    reason = rm.stake_block_reason(
+        10000.0,
+        "R_10",
+        conviction=0.6,
+        dl_metrics={"execute": True, "meta_veto_mode": "soft", "senior_trader_conviction": 0.1},
+    )
+    assert reason is None
 
 
 def test_cooldown_mono_expiry_fallback_no_op():

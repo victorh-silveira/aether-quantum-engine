@@ -18,7 +18,7 @@ def test_force_retrain_and_clear():
     assert not (getattr(orch, "_dl_force_retrain", None) or {}).get("R_10")
 
 
-def test_online_training_disabled_skips_retrain():
+def test_online_training_disabled_skips_all_runtime_retrain():
     orch = SimpleNamespace(_dl_force_retrain={"R_10": True}, _dl_bars_since_train={"R_10": 99})
     runtime = {"last_candle_epoch": 0, "session_trained": False}
     params = {"online_training": False, "train_on_new_candle": True, "retrain_min_bars": 0}

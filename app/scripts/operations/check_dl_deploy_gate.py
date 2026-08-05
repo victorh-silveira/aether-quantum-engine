@@ -1,4 +1,4 @@
-"""Valida checkpoint DL apos treino: deploy_ok e ACC >= soft_min (padrao 0.53)."""
+"""Valida checkpoint DL apos treino: deploy_ok, ACC e geometria lookback/granularity."""
 
 from __future__ import annotations
 
@@ -34,6 +34,22 @@ def _soft_min_acc(settings: dict) -> float:
     return float(dl.get("min_val_accuracy", 0.53)) if isinstance(dl, dict) else 0.53
 
 
+def _expected_geometry(settings: dict) -> tuple[int | None, int | None]:
+    dl = settings.get("deep_learning") if isinstance(settings.get("deep_learning"), dict) else {}
+    data = settings.get("data_handler") if isinstance(settings.get("data_handler"), dict) else {}
+    if not isinstance(dl, dict):
+        return None, None
+    lookback = int(dl["lookback"]) if "lookback" in dl else None
+    tf = str(dl.get("train_timeframe", "micro")).strip().lower()
+    if not isinstance(data, dict):
+        return lookback, None
+    if tf in ("micro", "m5", "cycle", "settlement"):
+        gran = int(data["micro_granularity"]) if "micro_granularity" in data else None
+    else:
+        gran = int(data["granularity"]) if "granularity" in data else None
+    return lookback, gran
+
+
 def _checkpoint_paths(settings: dict, symbols: list[str]) -> list[Path]:
     dl = settings.get("deep_learning") if isinstance(settings.get("deep_learning"), dict) else {}
     template = (
@@ -53,6 +69,16 @@ def evaluate_checkpoint(path: Path, *, soft_min: float, settings: dict | None = 
     payload = torch.load(path, map_location="cpu", weights_only=False)
     if not isinstance(payload, dict):
         return False, f"payload invalido: {path}"
+    if isinstance(settings, dict):
+        exp_lb, exp_gran = _expected_geometry(settings)
+        got_lb = payload.get("lookback")
+        got_gran = payload.get("granularity")
+        if exp_lb is not None and got_lb is not None and int(got_lb) != int(exp_lb):
+            return False, f"{path.name}: lookback={got_lb} != settings={exp_lb} (treino incompleto / ckpt antigo)"
+        if exp_gran is not None and got_gran is not None and int(got_gran) != int(exp_gran):
+            return False, (
+                f"{path.name}: granularity={got_gran} != settings={exp_gran} (treino incompleto / ckpt antigo)"
+            )
     val_acc = float(payload.get("val_accuracy", payload.get("val_acc", 0.0)) or 0.0)
     val_brier = float(payload.get("val_brier", 1.0) or 1.0)
     stored_ok = bool(payload.get("deploy_ok", False))
@@ -94,7 +120,10 @@ def main() -> int:
         logger.info("DL gate | %s", msg)
         ok_all = ok_all and ok
     if not ok_all:
-        logger.error("DL gate falhou: ACC/Brier/deploy — meta abortado. Retreine ou ajuste soft_max_brier.")
+        logger.error(
+            "DL gate falhou: ACC/Brier/deploy/geometria — meta abortado. "
+            "Retreine ate exportar checkpoint compativel (lookback/granularity)."
+        )
         return 1
     return 0
 
