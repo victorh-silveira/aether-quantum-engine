@@ -36,7 +36,7 @@ async def test_minio_upload_creates_bucket(tmp_path):
     store._client = client
     src = tmp_path / "a.pth"
     src.write_bytes(b"1")
-    await store.upload("R_10", src, arch="tcn", metadata={"x": 1})
+    await store.upload("OTC_SPC", src, arch="tcn", metadata={"x": 1})
     client.make_bucket.assert_called_once()
 
 
@@ -51,7 +51,7 @@ async def test_minio_download_fail_and_head_false():
     )
 
     with patch("asyncio.to_thread", new=AsyncMock(side_effect=[False, False])):
-        assert await store.download_latest("R_10", arch="tcn", dest=Path("x.pth")) is False
+        assert await store.download_latest("OTC_SPC", arch="tcn", dest=Path("x.pth")) is False
         assert await store.head() is False
 
 
@@ -59,7 +59,7 @@ async def test_minio_download_fail_and_head_false():
 async def test_timescale_writer_closed_and_worker_error():
     writer = TimescaleMarketWriter(dsn="postgresql://u:p@localhost/db", flush_interval_ms=1.0)
     writer._closed = True
-    await writer.enqueue_tick(symbol="R_10", epoch_ms=1, price=1.0)
+    await writer.enqueue_tick(symbol="OTC_SPC", epoch_ms=1, price=1.0)
     with patch.object(writer, "_flush_batches", AsyncMock(side_effect=RuntimeError("boom"))):
         writer._ensure_worker()
         await writer._run_worker()
@@ -69,7 +69,7 @@ async def test_timescale_writer_closed_and_worker_error():
 async def test_timescale_worker_batch_timeout():
     writer = TimescaleMarketWriter(dsn="postgresql://u:p@localhost/db", flush_interval_ms=0.01, batch_limit=10)
     writer._closed = True
-    writer._queue.put_nowait(("tick", (1, "R_10", 1, 1.0)))
+    writer._queue.put_nowait(("tick", (1, "OTC_SPC", 1, 1.0)))
     with patch.object(writer, "_flush_batches", AsyncMock()) as flush_mock:
         await writer._run_worker()
     flush_mock.assert_awaited()
@@ -77,16 +77,16 @@ async def test_timescale_worker_batch_timeout():
 
 @pytest.mark.asyncio
 async def test_stream_handler_persist_bar_skips_without_writer():
-    stream = StreamHandler(MagicMock(), ["R_10"], {}, market_writer=None)
+    stream = StreamHandler(MagicMock(), ["OTC_SPC"], {}, market_writer=None)
     candle = MagicMock(open=1.0, high=2.0, low=0.5, close=1.5)
-    await persist_closed_bar(stream, "R_10", 1, candle, None, granularity=900)
+    await persist_closed_bar(stream, "OTC_SPC", 1, candle, None, granularity=900)
 
 
 @pytest.mark.asyncio
 async def test_timescale_enqueue_bar_when_closed():
     writer = TimescaleMarketWriter(dsn="postgresql://u:p@localhost/db")
     writer._closed = True
-    await writer.enqueue_bar(symbol="R_10", bar={"epoch": 1})
+    await writer.enqueue_bar(symbol="OTC_SPC", bar={"epoch": 1})
 
 
 @pytest.mark.asyncio
@@ -150,11 +150,11 @@ async def test_redis_lazy_client_init():
 @pytest.mark.asyncio
 async def test_stream_handler_tick_and_bar_with_writer():
     writer = AsyncMock()
-    stream = StreamHandler(MagicMock(), ["R_10"], {}, market_writer=writer)
-    await stream._on_tick({"tick": {"symbol": "R_10", "epoch": 1, "quote": 1.5}})
+    stream = StreamHandler(MagicMock(), ["OTC_SPC"], {}, market_writer=writer)
+    await stream._on_tick({"tick": {"symbol": "OTC_SPC", "epoch": 1, "quote": 1.5}})
     candle = MagicMock(open=1.0, high=2.0, low=0.5, close=1.5)
     micro = MagicMock(tick_count=2, mean_inter_tick_ms=1.0, price_velocity=0.1)
-    await persist_closed_bar(stream, "R_10", 10, candle, micro, granularity=900)
+    await persist_closed_bar(stream, "OTC_SPC", 10, candle, micro, granularity=900)
     writer.enqueue_tick.assert_awaited_once()
     writer.enqueue_bar.assert_awaited_once()
 
@@ -170,8 +170,8 @@ async def test_timescale_full_lifecycle():
     pool.close = AsyncMock()
     with patch("asyncpg.create_pool", AsyncMock(return_value=pool)):
         writer = TimescaleMarketWriter(dsn="postgresql://u:p@localhost/db", flush_interval_ms=0.02, batch_limit=1)
-        await writer.enqueue_tick(symbol="R_10", epoch_ms=1000, price=1.0)
-        await writer.enqueue_bar(symbol="R_10", bar={"epoch": 1, "granularity": 900, "open": 1.0})
+        await writer.enqueue_tick(symbol="OTC_SPC", epoch_ms=1000, price=1.0)
+        await writer.enqueue_bar(symbol="OTC_SPC", bar={"epoch": 1, "granularity": 900, "open": 1.0})
         await asyncio.sleep(0.05)
         await writer.flush()
         assert await writer.ping() is True
@@ -209,7 +209,7 @@ async def test_minio_download_inner_success(tmp_path):
         return fn()
 
     with patch("asyncio.to_thread", side_effect=_thread_run):
-        assert await store.download_latest("R_10", arch="tcn", dest=dest) is True
+        assert await store.download_latest("OTC_SPC", arch="tcn", dest=dest) is True
 
 
 @pytest.mark.asyncio
@@ -249,14 +249,14 @@ async def test_minio_download_raises(tmp_path):
         return fn()
 
     with patch("asyncio.to_thread", side_effect=_thread_run):
-        assert await store.download_latest("R_10", arch="tcn", dest=tmp_path / "x.pth") is False
+        assert await store.download_latest("OTC_SPC", arch="tcn", dest=tmp_path / "x.pth") is False
     await store.close()
 
 
 @pytest.mark.asyncio
 async def test_timescale_worker_logs_errors():
     writer = TimescaleMarketWriter(dsn="postgresql://u:p@localhost/db", flush_interval_ms=0.01, batch_limit=1)
-    writer._queue.put_nowait(("tick", (1, "R_10", 1, 1.0)))
+    writer._queue.put_nowait(("tick", (1, "OTC_SPC", 1, 1.0)))
     with patch.object(writer, "_flush_batches", AsyncMock(side_effect=RuntimeError("db"))):
         await writer._run_worker()
 
@@ -264,7 +264,7 @@ async def test_timescale_worker_logs_errors():
 @pytest.mark.asyncio
 async def test_timescale_flush_bar_only():
     writer = TimescaleMarketWriter(dsn="postgresql://u:p@localhost/db")
-    writer._queue.put_nowait(("bar", (1, "R_10", 1, 900, 1, 1, 1, 1, 1, 1, 1)))
+    writer._queue.put_nowait(("bar", (1, "OTC_SPC", 1, 900, 1, 1, 1, 1, 1, 1, 1)))
     with patch.object(writer, "_flush_batches", AsyncMock()) as flush_mock:
         await writer.flush()
     flush_mock.assert_awaited_once()
@@ -273,7 +273,7 @@ async def test_timescale_flush_bar_only():
 @pytest.mark.asyncio
 async def test_timescale_flush_tick_only():
     writer = TimescaleMarketWriter(dsn="postgresql://u:p@localhost/db")
-    writer._queue.put_nowait(("tick", (1, "R_10", 1, 1.0)))
+    writer._queue.put_nowait(("tick", (1, "OTC_SPC", 1, 1.0)))
     with patch.object(writer, "_flush_batches", AsyncMock()) as flush_mock:
         await writer.flush()
     flush_mock.assert_awaited_once()
@@ -283,7 +283,7 @@ async def test_timescale_flush_tick_only():
 async def test_timescale_worker_zero_timeout_break():
     writer = TimescaleMarketWriter(dsn="postgresql://u:p@localhost/db", flush_interval_ms=50.0, batch_limit=5)
     writer._closed = True
-    writer._queue.put_nowait(("tick", (1, "R_10", 1, 1.0)))
+    writer._queue.put_nowait(("tick", (1, "OTC_SPC", 1, 1.0)))
     loop = asyncio.get_running_loop()
     times = [100.0, 100.0, 100.1]
 

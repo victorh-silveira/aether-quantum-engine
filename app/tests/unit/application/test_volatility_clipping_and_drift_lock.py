@@ -15,7 +15,7 @@ def test_volatility_clipping_in_precompute_price_series():
     series = precompute_price_series(
         prices,
         granularity=15,
-        symbol="R_10",
+        symbol="OTC_SPC",
         high=high,
         low=low,
     )

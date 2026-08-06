@@ -16,20 +16,24 @@ def test_recovery_candidate_pool_keeps_all_directions():
 
 def test_recovery_select_prefers_different_symbol_after_put_loss():
     candidates = [
-        ("R_10", TradeDirection.PUT, {"execute": True, "trade_score": 0.40, "raw_prob": 0.40, "val_accuracy": 0.55}),
+        ("OTC_SPC", TradeDirection.PUT, {"execute": True, "trade_score": 0.40, "raw_prob": 0.40, "val_accuracy": 0.55}),
         ("R_75", TradeDirection.PUT, {"execute": True, "trade_score": 0.65, "val_accuracy": 0.55, "raw_prob": 0.45}),
     ]
-    best = select_best_execution_candidate(candidates, last_loss_symbol="R_10", recovery_active=True)
+    best = select_best_execution_candidate(candidates, last_loss_symbol="OTC_SPC", recovery_active=True)
     assert best is not None
     assert best[0] == "R_75"
 
 
 def test_select_best_picks_stronger_tcn_score_without_flip_bias():
     candidates = [
-        ("R_10", TradeDirection.CALL, {"trade_score": 0.45, "val_accuracy": 0.55, "execute": True, "raw_prob": 0.58}),
+        (
+            "OTC_SPC",
+            TradeDirection.CALL,
+            {"trade_score": 0.45, "val_accuracy": 0.55, "execute": True, "raw_prob": 0.58},
+        ),
         ("R_75", TradeDirection.PUT, {"trade_score": 0.64, "val_accuracy": 0.80, "execute": True, "raw_prob": 0.35}),
     ]
-    best = select_best_execution_candidate(candidates, last_loss_symbol="R_10", recovery_active=True)
+    best = select_best_execution_candidate(candidates, last_loss_symbol="OTC_SPC", recovery_active=True)
     assert best is not None
     assert best[0] == "R_75"
     assert best[1] == TradeDirection.PUT

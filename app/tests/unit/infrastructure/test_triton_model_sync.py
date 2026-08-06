@@ -17,19 +17,19 @@ from tests.unit.infrastructure.test_torchscript_sanity import _trace_model
 
 @pytest.mark.asyncio
 async def test_infer_symbols_async_batch(tmp_path):
-    tensors = {"R_10": np.zeros((1, 4, 34), dtype=np.float32)}
+    tensors = {"OTC_SPC": np.zeros((1, 4, 34), dtype=np.float32)}
     with patch(
         "src.infrastructure.inference.triton_inference_client.get_triton_grpc_client",
         new_callable=AsyncMock,
     ) as mock_get:
-        mock_get.return_value.infer_symbols_concurrent = AsyncMock(return_value={"R_10": 0.61})
+        mock_get.return_value.infer_symbols_concurrent = AsyncMock(return_value={"OTC_SPC": 0.61})
         out = await infer_symbols_async({"infra": {"triton": {"enabled": True}}}, tensors)
-    assert out["R_10"] == pytest.approx(0.61)
+    assert out["OTC_SPC"] == pytest.approx(0.61)
 
 
 @pytest.mark.asyncio
 async def test_sync_symbol_torchscript_to_triton_writes_model(tmp_path):
-    ts_path = tmp_path / "R_10_ts.pt"
+    ts_path = tmp_path / "OTC_SPC_ts.pt"
     _trace_model(ts_path, lookback=48)
     repo = tmp_path / "models"
 
@@ -38,7 +38,7 @@ async def test_sync_symbol_torchscript_to_triton_writes_model(tmp_path):
 
     ok, changed = await sync_symbol_torchscript_to_triton(
         _Store(),
-        "R_10",
+        "OTC_SPC",
         arch="tcn",
         local_ts_path=ts_path,
         lookback=48,
@@ -46,8 +46,8 @@ async def test_sync_symbol_torchscript_to_triton_writes_model(tmp_path):
     )
     assert ok is True
     assert changed is True
-    assert (repo / "R_10" / "1" / "model.pt").is_file()
-    assert (repo / "R_10" / "config.pbtxt").is_file()
+    assert (repo / "OTC_SPC" / "1" / "model.pt").is_file()
+    assert (repo / "OTC_SPC" / "config.pbtxt").is_file()
 
 
 @pytest.mark.asyncio
@@ -61,7 +61,7 @@ async def test_sync_symbol_download_torchscript_fails(tmp_path):
 
     ok, changed = await sync_symbol_torchscript_to_triton(
         _Store(),
-        "R_10",
+        "OTC_SPC",
         arch="tcn",
         local_ts_path=missing,
         lookback=48,
@@ -73,7 +73,7 @@ async def test_sync_symbol_download_torchscript_fails(tmp_path):
 
 @pytest.mark.asyncio
 async def test_sync_symbol_skips_unchanged_torchscript(tmp_path):
-    ts_path = tmp_path / "R_10_ts.pt"
+    ts_path = tmp_path / "OTC_SPC_ts.pt"
     _trace_model(ts_path, lookback=48)
     repo = tmp_path / "models"
 
@@ -82,7 +82,7 @@ async def test_sync_symbol_skips_unchanged_torchscript(tmp_path):
 
     ok1, changed1 = await sync_symbol_torchscript_to_triton(
         _Store(),
-        "R_10",
+        "OTC_SPC",
         arch="tcn",
         local_ts_path=ts_path,
         lookback=48,
@@ -90,7 +90,7 @@ async def test_sync_symbol_skips_unchanged_torchscript(tmp_path):
     )
     ok2, changed2 = await sync_symbol_torchscript_to_triton(
         _Store(),
-        "R_10",
+        "OTC_SPC",
         arch="tcn",
         local_ts_path=ts_path,
         lookback=48,
@@ -103,7 +103,7 @@ async def test_sync_symbol_skips_unchanged_torchscript(tmp_path):
 @pytest.mark.asyncio
 async def test_sync_all_symbols_no_synced_models(tmp_path):
     orch = MagicMock()
-    orch.symbols = ["R_10"]
+    orch.symbols = ["OTC_SPC"]
     orch.model_store = MagicMock()
     orch.config = {
         "deep_learning": {"arch": "tcn"},
@@ -122,7 +122,7 @@ async def test_sync_all_symbols_no_synced_models(tmp_path):
 @pytest.mark.asyncio
 async def test_sync_all_symbols_without_triton_reload(tmp_path):
     orch = MagicMock()
-    orch.symbols = ["R_10"]
+    orch.symbols = ["OTC_SPC"]
     orch.model_store = MagicMock()
     orch.config = {
         "deep_learning": {"arch": "tcn"},
@@ -173,16 +173,16 @@ def test_fsync_helpers_tolerate_os_errors(tmp_path):
 
 
 def test_repo_durability_barrier_fsyncs_existing_artifacts(tmp_path):
-    model_pt = tmp_path / "R_10" / "1" / "model.pt"
-    pbtxt = tmp_path / "R_10" / "config.pbtxt"
+    model_pt = tmp_path / "OTC_SPC" / "1" / "model.pt"
+    pbtxt = tmp_path / "OTC_SPC" / "config.pbtxt"
     model_pt.parent.mkdir(parents=True)
     model_pt.write_bytes(b"pt")
-    pbtxt.write_text("name: R_10\n", encoding="utf-8")
+    pbtxt.write_text("name: OTC_SPC\n", encoding="utf-8")
     with (
         patch("src.infrastructure.inference.triton_model_sync._fsync_path") as fsync_path,
         patch("src.infrastructure.inference.triton_model_sync._fsync_directory") as fsync_dir,
     ):
-        _repo_durability_barrier(tmp_path, ["R_10", "MISSING"])
+        _repo_durability_barrier(tmp_path, ["OTC_SPC", "MISSING"])
     assert fsync_path.call_count >= 2
     assert fsync_dir.call_count >= 2
 
@@ -190,7 +190,7 @@ def test_repo_durability_barrier_fsyncs_existing_artifacts(tmp_path):
 @pytest.mark.asyncio
 async def test_sync_all_symbols_raises_when_triton_not_ready(tmp_path):
     orch = MagicMock()
-    orch.symbols = ["R_10"]
+    orch.symbols = ["OTC_SPC"]
     orch.model_store = MagicMock()
     orch.config = {
         "deep_learning": {"arch": "tcn"},

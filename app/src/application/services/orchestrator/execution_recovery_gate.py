@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from src.application.services.execution_direction_resolver import is_technically_blocked
+from src.domain.risk.recovery_conviction import scaled_recovery_min_val_accuracy
 from src.domain.risk.recovery_hurst_gate import recovery_hurst_adjusted_floor
 from src.domain.risk.stake_sizing import raw_side_from_metrics
 
@@ -59,17 +60,7 @@ def recovery_min_val_accuracy(
     consecutive_losses: int = 0,
 ) -> float:
     """Piso de val_accuracy para recovery linear em recovery."""
-    base_val = float(kelly_config.get("recovery_min_val_accuracy", 0.50))
-
-    losses = int(consecutive_losses)
-    if losses == 2:
-        base_val = max(base_val, 0.52)
-    elif losses == 3:
-        base_val = max(base_val, 0.53)
-    elif losses >= 4:
-        base_val = max(base_val, 0.55)
-
-    return base_val
+    return scaled_recovery_min_val_accuracy(kelly_config, consecutive_losses=consecutive_losses)
 
 
 def cluster_entry_eligible(

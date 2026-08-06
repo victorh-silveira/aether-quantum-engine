@@ -1,3 +1,22 @@
+## [Unreleased]
+
+### Changed
+
+* **universe:** migra ancora/treino/execucao de Volatility `R_10` para S&P 500 OTC `OTC_SPC` (settings, `drift_symbols`, defaults DL, docs, skills, testes)
+* **timing:** pacote **somente M15** — contrato **15 m**, micro/MINI **900 s**, macro **3600 s** (H1 Deriv-valid), ciclo/assinatura **900 s**
+* **train:** remove seed Deriv bloqueante entre TCN e meta (`ensure_timescale --check-only`); cap wait bootstrap historico em **30 s** (nao sleep(gran=900))
+* **train:** corrige sync travado — macro **4500** era invalido na Deriv; fetch treino lean **2000** micro (+macro≤128, mini=0); logs com `g=` por stream
+* **train:** bootstrap passa a ler OHLC do `train_timeframe` (micro); backfill no buffer certo; meta default **2000** barras
+* **otc_spc/m15:** contrato/OHLC M15; ciclo/assinatura **15 s** (entrada continua); payout live **0.72**; settle tolerancia **300 s**; watchdog stale **600 s**; SIDE_EQ/sample_size densos; price_zone off
+* **scale_majority:** `adapt_on_majority_votes` conta TCN/tape/mili/mini_pair/RSI; lado com mais votos adapta EXEC
+* **stake_2pct:** explore piso **2%** banca (`neutral_bankroll_pct`/`min_stake_pct`); loss_clf soft nao esmaga U; RECOVER `cover_multiple` **2.0** (loss+win); tetos linear2/3 **5%**
+* **remove_calib_gray:** remove `hold_calib_gray` / `hold_cal_margin` / `adapt_*_cal_margin` / `calib_gray_*` soft Kelly+teto / log `CALIB_GRAY`
+* **risk:** piso explore **1%** / teto **5%**; loss-clf soft_max **2%** / soft_mult_high **0.40**
+* **startup:** remove `startup_fetch_bars: 512` (era &lt; lookback 720 → SKIP data); piso = `min_dl_inference_len`; sync lean tambem em inferencia
+* **cycle:** entrada continua — `cycle_interval`/`signature_boundary` **15 s**; EXEC_EMPTY retry cap **15 s** (nao espera fronteira M15)
+* **infer:** piso `inference_history_bars` sem double-count de lookback (~864 vs ~1456); evita SKIP:DATA quando API OTC_SPC entrega ~1.2k M15
+* **risk:** pos-LOSS sem flip DIR_LOCK (lado fica no TCN); cover RECOVER sem damping de stop-win; loss-clf soft waivado com pending
+
 ## [1.82.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.81.0...v1.82.0) (2026-08-05)
 
 ## [1.81.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.80.0...v1.81.0) (2026-08-05)

@@ -15,7 +15,7 @@ async def test_predict_symbol_decision_async_reuses_triton_cache():
     orch.config = {"infra": {"triton": {"enabled": True}}, "orchestrator": {"execution": {}}, "deep_learning": {}}
     cached_entry = {"direction": "CALL", "metrics": {"raw_prob": 0.62}}
     orch._dl_prediction_cache = {
-        "R_10": {"entry": cached_entry, "tensor_fingerprint": b"fp", "boundary_epoch": 100},
+        "OTC_SPC": {"entry": cached_entry, "tensor_fingerprint": b"fp", "boundary_epoch": 100},
     }
     runtime = {
         "lookback": 4,
@@ -53,7 +53,7 @@ async def test_predict_symbol_decision_async_reuses_triton_cache():
         }
         entry = await predict_symbol_decision_async(
             orch,
-            "R_10",
+            "OTC_SPC",
             MagicMock(),
             MagicMock(),
             MagicMock(),
@@ -71,7 +71,7 @@ async def test_predict_symbol_decision_async_returns_cache_on_exception():
     orch = MagicMock()
     orch.config = {"infra": {"triton": {"enabled": False}}, "orchestrator": {"execution": {}}, "deep_learning": {}}
     cached_entry = {"direction": "PUT", "metrics": {"raw_prob": 0.41}}
-    orch._dl_prediction_cache = {"R_10": {"entry": cached_entry, "tensor_fingerprint": b"x", "boundary_epoch": 1}}
+    orch._dl_prediction_cache = {"OTC_SPC": {"entry": cached_entry, "tensor_fingerprint": b"x", "boundary_epoch": 1}}
     runtime = {"lookback": 4, "val_accuracy": 0.5, "calibrator": None}
     with patch(
         "src.application.services.deep_learning.dl_predict_async.build_prediction_context",
@@ -79,7 +79,7 @@ async def test_predict_symbol_decision_async_returns_cache_on_exception():
     ):
         entry = await predict_symbol_decision_async(
             orch,
-            "R_10",
+            "OTC_SPC",
             MagicMock(),
             MagicMock(),
             MagicMock(),
@@ -95,7 +95,7 @@ async def test_predict_symbol_decision_async_partial_history_uses_cache():
     orch = MagicMock()
     orch.config = {"infra": {"triton": {"enabled": True}}, "orchestrator": {"execution": {}}, "deep_learning": {}}
     cached_entry = {"direction": "PUT", "metrics": {"raw_prob": 0.44}}
-    orch._dl_prediction_cache = {"R_10": {"entry": cached_entry, "tensor_fingerprint": b"x", "boundary_epoch": 1}}
+    orch._dl_prediction_cache = {"OTC_SPC": {"entry": cached_entry, "tensor_fingerprint": b"x", "boundary_epoch": 1}}
     runtime = {
         "lookback": 4,
         "norm_stats": FeatureNormStats(mean=np.zeros(34, dtype=np.float32), std=np.ones(34, dtype=np.float32)),
@@ -120,7 +120,7 @@ async def test_predict_symbol_decision_async_partial_history_uses_cache():
         }
         entry = await predict_symbol_decision_async(
             orch,
-            "R_10",
+            "OTC_SPC",
             MagicMock(),
             MagicMock(),
             MagicMock(),
@@ -136,7 +136,7 @@ async def test_predict_symbol_decision_async_eager_cache_hit():
     orch = MagicMock()
     orch.config = {"infra": {"triton": {"enabled": False}}, "orchestrator": {"execution": {}}, "deep_learning": {}}
     cached_entry = {"direction": "CALL", "metrics": {"raw_prob": 0.7}}
-    orch._dl_prediction_cache = {"R_10": {"entry": cached_entry, "tensor_fingerprint": b"x", "boundary_epoch": 1}}
+    orch._dl_prediction_cache = {"OTC_SPC": {"entry": cached_entry, "tensor_fingerprint": b"x", "boundary_epoch": 1}}
     runtime = {
         "lookback": 4,
         "norm_stats": FeatureNormStats(mean=np.zeros(34, dtype=np.float32), std=np.ones(34, dtype=np.float32)),
@@ -164,7 +164,7 @@ async def test_predict_symbol_decision_async_eager_cache_hit():
         }
         entry = await predict_symbol_decision_async(
             orch,
-            "R_10",
+            "OTC_SPC",
             MagicMock(),
             MagicMock(),
             MagicMock(),
@@ -193,7 +193,7 @@ async def test_predict_raw_prob_async_uses_prebuilt_tensor():
     ) as infer_mock:
         await predict_raw_prob_async(
             orch,
-            "R_10",
+            "OTC_SPC",
             np.linspace(1.0, 2.0, 20),
             runtime,
             {"lookback": 4},
@@ -235,7 +235,7 @@ async def test_predict_symbol_decision_async_raises_without_cache_on_partial_his
         }
         entry = await predict_symbol_decision_async(
             orch,
-            "R_10",
+            "OTC_SPC",
             MagicMock(),
             MagicMock(),
             MagicMock(),

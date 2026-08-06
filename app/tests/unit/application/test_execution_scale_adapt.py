@@ -25,15 +25,49 @@ def test_adapt_direction_tape_vs_tcn_raw_extreme():
     assert out == TradeDirection.CALL
     assert metrics["scale_adapted"] is True
     assert metrics["tcn_direction"] == "PUT"
-    assert metrics["scale_adapt_reason"] == "tape_vs_tcn"
+    assert metrics["scale_adapt_reason"] == "majority_votes"
 
 
-def test_adapt_strong_tape_without_raw_extreme():
-    metrics = _pair_call(calibration_mode="calibrated", scale_tape_strong=True)
+def test_adapt_strong_cal_allows_majority_vs_tcn():
+    metrics = _pair_call(calibration_mode="calibrated", direction_margin=0.07, scale_tape_strong=True)
     out = apply_scale_direction_adapt(metrics, TradeDirection.PUT)
     assert out == TradeDirection.CALL
     assert metrics["scale_adapted"] is True
-    assert metrics["scale_adapt_reason"] == "tape_strong"
+    assert metrics["scale_adapt_reason"] == "majority_votes"
+
+
+def test_adapt_pending_strong_cal_tape_without_majority():
+    metrics = _pair_call(
+        calibration_mode="calibrated",
+        direction_margin=0.12,
+        scale_tape_strong=True,
+        pending_loss_total=25.0,
+    )
+    with patch(
+        "src.application.services.execution_scale_adapt.parse_scale_vision_config",
+        return_value={
+            "enabled": True,
+            "adapt_direction_enabled": True,
+            "adapt_require_raw_extreme": False,
+            "adapt_require_bar_pair_agree": True,
+            "adapt_allow_strong_tape": True,
+            "adapt_on_retraction": True,
+            "adapt_on_explosion": True,
+            "adapt_on_mili_tape": True,
+            "adapt_on_majority_votes": False,
+        },
+    ):
+        out = apply_scale_direction_adapt(metrics, TradeDirection.PUT)
+    assert out == TradeDirection.CALL
+    assert metrics["scale_adapted"] is True
+
+
+def test_adapt_raw_extreme_flips_with_strong_cal_margin():
+    metrics = _pair_call(calibration_mode="raw_extreme", direction_margin=0.07)
+    out = apply_scale_direction_adapt(metrics, TradeDirection.PUT)
+    assert out == TradeDirection.CALL
+    assert metrics["scale_adapted"] is True
+    assert metrics["scale_adapt_reason"] == "majority_votes"
 
 
 def test_kelly_side_sync_floors_conviction_after_adapt():
@@ -137,6 +171,7 @@ def test_adapt_when_raw_extreme_flag_off():
             "adapt_require_raw_extreme": False,
             "adapt_require_bar_pair_agree": True,
             "adapt_allow_strong_tape": False,
+            "adapt_on_majority_votes": False,
         },
     ):
         out = apply_scale_direction_adapt(metrics, TradeDirection.PUT)
@@ -217,7 +252,7 @@ def test_adapt_disabled_flags():
 
 def test_sizing_on_adapted_sets_force_explore_and_cap():
     metrics = {"kelly_fraction_scale": 1.0, "scale_adapted": True, "scale_discordance": False}
-    apply_scale_kelly_sizing(None, "R_10", TradeDirection.CALL, metrics)
+    apply_scale_kelly_sizing(None, "OTC_SPC", TradeDirection.CALL, metrics)
     assert metrics["scale_force_explore"] is True
     assert metrics["kelly_fraction_scale"] < 1.0
     assert float(metrics["scale_max_stake_pct"]) > 0.0

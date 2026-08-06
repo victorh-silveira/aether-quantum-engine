@@ -56,11 +56,12 @@ def is_recovery_infeasible(
     cap = float(max_safe_cap)
     pay = float(payout)
     pending = float(pending_total)
+    cover_mult = max(1.0, float(cfg.get("cover_multiple", 1.0)))
     if pending <= 0.0:
         return False
     if cap <= 0.0 or pay <= 0.0:
         return True
-    return (pending / (cap * pay)) > float(amax)
+    return (pending * cover_mult / (cap * pay)) > float(amax)
 
 
 def configured_max_safe_stake_cap(soft_recovery: dict[str, Any] | None) -> float | None:

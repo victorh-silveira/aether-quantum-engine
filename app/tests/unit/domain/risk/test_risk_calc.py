@@ -74,11 +74,11 @@ def test_reconcile_settlement_profit_keeps_api_loss_when_executed_buy_missing():
 def test_register_result_pending_uses_executed_stake_after_reconciliation(kelly_config):
     rm = RiskManager(kelly_config)
     rm.active_contract_ids = [501]
-    rm.contract_to_symbol[501] = "R_10"
+    rm.contract_to_symbol[501] = "OTC_SPC"
     rm.contract_stakes[501] = 390.92
     bind_executed_stake_for_contract(rm.contract_stakes, 501, 332.28)
-    rm.register_result(-332.28, 501, symbol="R_10")
-    assert rm.pending_loss["R_10"] == pytest.approx(332.28)
+    rm.register_result(-332.28, 501, symbol="OTC_SPC")
+    assert rm.pending_loss["OTC_SPC"] == pytest.approx(332.28)
     assert rm.last_loss_stake == pytest.approx(332.28)
     assert rm.total_session_profit == pytest.approx(-332.28)
 
@@ -108,29 +108,29 @@ def test_fractional_payoff_residual_cents_ignores_structural_mismatch():
 
 
 def test_apply_fractional_payoff_residual_increases_pending_on_underpayment():
-    pending = {"R_10": 10.0}
-    apply_fractional_payoff_residual_to_pending(pending, "R_10", -0.02)
-    assert pending["R_10"] == pytest.approx(10.02)
+    pending = {"OTC_SPC": 10.0}
+    apply_fractional_payoff_residual_to_pending(pending, "OTC_SPC", -0.02)
+    assert pending["OTC_SPC"] == pytest.approx(10.02)
 
 
 def test_apply_fractional_payoff_residual_clears_symbol_when_overpayment_exhausts_pending():
-    pending = {"R_10": 0.02}
-    apply_fractional_payoff_residual_to_pending(pending, "R_10", 0.03)
-    assert "R_10" not in pending
+    pending = {"OTC_SPC": 0.02}
+    apply_fractional_payoff_residual_to_pending(pending, "OTC_SPC", 0.03)
+    assert "OTC_SPC" not in pending
 
 
 def test_apply_fractional_payoff_residual_reduces_pending_on_overpayment():
-    pending = {"R_10": 10.0}
-    apply_fractional_payoff_residual_to_pending(pending, "R_10", 0.03)
-    assert pending["R_10"] == pytest.approx(9.97)
+    pending = {"OTC_SPC": 10.0}
+    apply_fractional_payoff_residual_to_pending(pending, "OTC_SPC", 0.03)
+    assert pending["OTC_SPC"] == pytest.approx(9.97)
 
 
 def test_apply_contract_settlement_result_reconciles_fractional_win_residual(kelly_config):
     rm = RiskManager(kelly_config)
     rm.active_contract_ids = [901]
-    rm.contract_to_symbol[901] = "R_10"
+    rm.contract_to_symbol[901] = "OTC_SPC"
     rm.contract_stakes[901] = 100.0
-    rm.pending_loss["R_10"] = 20.0
+    rm.pending_loss["OTC_SPC"] = 20.0
     rm.begin_cluster(1)
-    apply_contract_settlement_result(rm, 94.99, 901, "R_10")
-    assert "R_10" not in rm.pending_loss
+    apply_contract_settlement_result(rm, 94.99, 901, "OTC_SPC")
+    assert "OTC_SPC" not in rm.pending_loss

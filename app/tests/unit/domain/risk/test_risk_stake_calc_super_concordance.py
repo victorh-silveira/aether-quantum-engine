@@ -80,7 +80,7 @@ def test_calculate_stake_neutral_without_super_concordance(kelly_config):
     stake = calculate_stake_for_manager(
         rm,
         10000.0,
-        "R_10",
+        "OTC_SPC",
         0.62,
         silent=True,
         apply_stop_win=False,
@@ -90,14 +90,14 @@ def test_calculate_stake_neutral_without_super_concordance(kelly_config):
     hyper_stake = calculate_stake_for_manager(
         hyper_rm,
         10000.0,
-        "R_10",
+        "OTC_SPC",
         0.82,
         silent=True,
         apply_stop_win=False,
         kwargs={"dl_metrics": _hyper_aligned_metrics(), "order_direction": "CALL"},
     )
     assert hyper_stake > stake
-    assert hyper_stake == pytest.approx(150.0)
+    assert hyper_stake == pytest.approx(500.0)
 
 
 def test_calculate_stake_divergence_blocks_booster_and_applies_consensus(kelly_config):
@@ -106,7 +106,7 @@ def test_calculate_stake_divergence_blocks_booster_and_applies_consensus(kelly_c
     calculate_stake_for_manager(
         rm,
         10000.0,
-        "R_10",
+        "OTC_SPC",
         0.80,
         silent=True,
         apply_stop_win=False,
@@ -119,7 +119,7 @@ def test_calculate_stake_divergence_blocks_booster_and_applies_consensus(kelly_c
     baseline_stake = calculate_stake_for_manager(
         baseline_rm,
         10000.0,
-        "R_10",
+        "OTC_SPC",
         0.80,
         silent=True,
         apply_stop_win=False,
@@ -131,7 +131,7 @@ def test_calculate_stake_divergence_blocks_booster_and_applies_consensus(kelly_c
     diverged_stake = calculate_stake_for_manager(
         diverged_rm,
         10000.0,
-        "R_10",
+        "OTC_SPC",
         0.80,
         silent=True,
         apply_stop_win=False,
@@ -148,12 +148,12 @@ def test_calculate_stake_super_concordance_expands_fraction(kelly_config):
     stake = calculate_stake_for_manager(
         rm,
         10000.0,
-        "R_10",
+        "OTC_SPC",
         0.82,
         silent=True,
         apply_stop_win=False,
         kwargs={"dl_metrics": metrics, "order_direction": "CALL"},
     )
     assert metrics.get("super_concordance_booster_active") is True
-    assert metrics.get("kelly_fraction_effective") == pytest.approx(0.09)
-    assert stake == pytest.approx(150.0)
+    assert metrics.get("kelly_fraction_effective") == pytest.approx(0.105)
+    assert stake == pytest.approx(500.0)

@@ -98,6 +98,6 @@ def test_apply_super_concordance_kelly_fraction_sets_metrics_flag():
         "CALL",
         recovery_active=False,
     )
-    assert f_star == pytest.approx(0.20 * 0.10 * 0.60 * 1.5)
+    assert f_star == pytest.approx(0.20 * 0.10 * 0.70 * 1.5)
     assert metrics["super_concordance_booster_active"] is True
-    assert metrics["kelly_fraction_effective"] == pytest.approx(0.09)
+    assert metrics["kelly_fraction_effective"] == pytest.approx(0.105)

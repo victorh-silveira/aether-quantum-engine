@@ -118,10 +118,8 @@ def test_resolve_dlambert_stake_soft_recovery_with_progression():
         payout=0.95,
     )
     assert tag == "D'ALEMBERT"
-    session_unit = max(10.0, 10000.0 * 0.0025)
-    cover = 93.19 / 0.95 / 2.0
-    factor = 1.0 + (1.0 / 0.95)
-    expected = math.ceil(max(session_unit * (factor**3), cover) * 100) / 100
+    cover = 93.19 / 0.95 * 2.0
+    expected = math.ceil(cover * 100) / 100
     cap = max_safe_stake_cap(10000.0, consecutive_losses_linear=3)
     expected = min(expected, cap)
     assert stake == pytest.approx(expected)
@@ -135,7 +133,6 @@ def test_resolve_dlambert_stake_ignores_last_loss_stake_for_geometric_progressio
         last_loss_stake = 36.72
 
     payout = 0.95
-    factor = 1.0 + (1.0 / payout)
     stake, tag = resolve_dlambert_stake(
         recovery_active=True,
         bankroll=11926.67,
@@ -147,12 +144,8 @@ def test_resolve_dlambert_stake_ignores_last_loss_stake_for_geometric_progressio
         payout=payout,
     )
     assert tag == "D'ALEMBERT"
-    session_base = max(17.89, 11926.67 * 0.0025)
-    geometric = session_base * factor
-    cover_full = 36.72 / payout
-    amort_cycles = 4
-    cover_need = cover_full / float(amort_cycles)
-    expected = math.ceil(max(geometric, cover_need) * 100) / 100
+    cover_need = 36.72 / payout * 2.0
+    expected = math.ceil(cover_need * 100) / 100
     assert stake == pytest.approx(expected)
 
 
@@ -173,7 +166,7 @@ def test_resolve_dlambert_stake_linear_losses_without_pending_use_base_unit():
         payout=0.95,
     )
     assert tag == "D'ALEMBERT"
-    assert stake == pytest.approx(50.0)
+    assert stake == pytest.approx(200.0)
 
 
 def test_resolve_dlambert_stake_caps_at_bankroll_pct_and_splits_pending():
@@ -197,7 +190,7 @@ def test_resolve_dlambert_stake_caps_at_bankroll_pct_and_splits_pending():
         dl_metrics=metrics,
     )
     assert tag == "D'ALEMBERT"
-    assert stake == pytest.approx(400.0)
+    assert stake == pytest.approx(500.0)
     assert metrics.get("recovery_infeasible") is True
     assert metrics.get("recovery_force_explore") is False
 

@@ -31,11 +31,11 @@ def _soft_path_rm(cfg: dict, **overrides):
 
 
 def test_calculate_stake_recover_uses_soft_not_double(kelly_config):
-    rm = _soft_path_rm(kelly_config, consecutive_losses_linear=2, last_loss_stake=2.0, pending_loss={"R_10": 3.0})
+    rm = _soft_path_rm(kelly_config, consecutive_losses_linear=2, last_loss_stake=2.0, pending_loss={"OTC_SPC": 3.0})
     stake = calculate_stake_for_manager(
         rm,
         bankroll=100.0,
-        symbol="R_10",
+        symbol="OTC_SPC",
         conviction=0.7,
         silent=False,
         apply_stop_win=False,
@@ -55,7 +55,7 @@ def test_calculate_stake_explore_uses_kelly(kelly_config):
     stake = calculate_stake_for_manager(
         rm,
         bankroll=10000.0,
-        symbol="R_10",
+        symbol="OTC_SPC",
         conviction=0.7,
         silent=False,
         apply_stop_win=False,
@@ -71,12 +71,12 @@ def test_calculate_stake_recover_uses_soft_from_kelly_loss(kelly_config):
         kelly_config,
         consecutive_losses_linear=1,
         last_loss_stake=38.46,
-        pending_loss={"R_10": 38.46},
+        pending_loss={"OTC_SPC": 38.46},
     )
     stake = calculate_stake_for_manager(
         rm,
         bankroll=12000.0,
-        symbol="R_10",
+        symbol="OTC_SPC",
         conviction=0.7,
         silent=False,
         apply_stop_win=False,
@@ -98,13 +98,13 @@ def test_calculate_stake_large_bankroll_soft_cap_uses_pct_not_abs(kelly_config):
         soft_recovery_config=soft,
         consecutive_losses_linear=1,
         last_loss_stake=20.0,
-        pending_loss={"R_10": 20.0},
+        pending_loss={"OTC_SPC": 20.0},
         initial_bankroll=12000.0,
     )
     stake = calculate_stake_for_manager(
         rm,
         bankroll=12000.0,
-        symbol="R_10",
+        symbol="OTC_SPC",
         conviction=0.7,
         silent=False,
         apply_stop_win=False,
@@ -124,7 +124,7 @@ def test_calculate_stake_explore_after_reset_uses_kelly(kelly_config):
     stake = calculate_stake_for_manager(
         rm,
         bankroll=10000.0,
-        symbol="R_10",
+        symbol="OTC_SPC",
         conviction=0.7,
         silent=False,
         apply_stop_win=False,

@@ -241,7 +241,7 @@ def _parse_args(settings: dict[str, Any]) -> argparse.Namespace:
     parser.add_argument("--granularity", type=int, default=default_gran)
     parser.add_argument("--bars", type=int, default=META_TRAIN_DEFAULT_BARS)
     parser.add_argument("--output", type=str, default=str(DEFAULT_OUTPUT))
-    parser.add_argument("--symbols", nargs="+", default=["R_10"])
+    parser.add_argument("--symbols", nargs="+", default=["OTC_SPC"])
     parser.add_argument("--source", choices=("auto", "timescale", "deriv"), default="auto")
     parser.add_argument("--export-min-zscore", type=float, default=META_EXPORT_MIN_ZSCORE)
     return parser.parse_args()

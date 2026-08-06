@@ -36,7 +36,7 @@ def _orch_with_hist(rows: list[tuple[str, bool]], *, enabled: bool = True):
                     }
                 }
             },
-            "_side_equilibrium_hist": {"R_10": deque(rows, maxlen=120)},
+            "_side_equilibrium_hist": {"OTC_SPC": deque(rows, maxlen=120)},
         },
     )()
 
@@ -44,7 +44,7 @@ def _orch_with_hist(rows: list[tuple[str, bool]], *, enabled: bool = True):
 def test_side_eq_sizing_disabled():
     orch = _orch_with_hist([("PUT", False)] * 20, enabled=False)
     metrics = {"kelly_fraction_scale": 1.0}
-    apply_side_eq_kelly_sizing(orch, "R_10", TradeDirection.PUT, metrics)
+    apply_side_eq_kelly_sizing(orch, "OTC_SPC", TradeDirection.PUT, metrics)
     assert metrics["side_eq_reason"] == "disabled"
     assert metrics["kelly_fraction_scale"] == 1.0
     assert metrics["side_eq_blocked"] is False
@@ -54,7 +54,7 @@ def test_side_eq_sizing_soft_reduces_kelly_on_toxic_put():
     rows = [("PUT", False)] * 30 + [("CALL", True)] * 10
     orch = _orch_with_hist(rows, enabled=True)
     metrics = {"kelly_fraction_scale": 1.0}
-    apply_side_eq_kelly_sizing(orch, "R_10", TradeDirection.PUT, metrics)
+    apply_side_eq_kelly_sizing(orch, "OTC_SPC", TradeDirection.PUT, metrics)
     assert metrics["side_eq_blocked"] is False
     assert metrics["side_eq_action"] == "soft_penalty"
     assert metrics["kelly_fraction_scale"] < 1.0
@@ -64,18 +64,18 @@ def test_side_eq_sizing_never_hard_skip_in_metrics():
     rows = [("PUT", False)] * 12
     orch = _orch_with_hist(rows, enabled=True)
     metrics = {"kelly_fraction_scale": 1.0}
-    apply_side_eq_kelly_sizing(orch, "R_10", TradeDirection.PUT, metrics)
+    apply_side_eq_kelly_sizing(orch, "OTC_SPC", TradeDirection.PUT, metrics)
     assert metrics["side_eq_action"] != "hard_skip"
     assert metrics.get("side_eq_blocked") is False
 
 
 def test_side_eq_sizing_no_orch_and_pass_path():
     metrics = {"kelly_fraction_scale": 1.0}
-    apply_side_eq_kelly_sizing(None, "R_10", TradeDirection.CALL, metrics)
+    apply_side_eq_kelly_sizing(None, "OTC_SPC", TradeDirection.CALL, metrics)
     assert metrics["side_eq_reason"] == "no_orch"
     orch = _orch_with_hist([("CALL", True)] * 20 + [("PUT", True)] * 20, enabled=True)
     metrics2 = {"kelly_fraction_scale": 1.0}
-    apply_side_eq_kelly_sizing(orch, "R_10", TradeDirection.CALL, metrics2)
+    apply_side_eq_kelly_sizing(orch, "OTC_SPC", TradeDirection.CALL, metrics2)
     assert metrics2["side_eq_kelly_mult"] == 1.0
     assert metrics2["side_eq_action"] == "pass"
 

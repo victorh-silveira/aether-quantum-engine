@@ -20,7 +20,7 @@ TRADING_CYCLE_MODULE = "src.application.services.orchestrator.trading_cycle_entr
 
 def _frozen_decisions():
     return {
-        "R_10": {
+        "OTC_SPC": {
             "metrics": {
                 "signal_status": SIGNAL_SUSPENDED,
                 "execute": True,

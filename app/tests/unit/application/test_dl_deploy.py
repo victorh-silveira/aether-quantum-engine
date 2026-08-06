@@ -84,7 +84,7 @@ def test_evaluate_mini_deploy_forces_local_predict():
     ) as mock_predict:
         evaluate_mini_deploy(
             orch,
-            "R_10",
+            "OTC_SPC",
             model,
             prices,
             stats,

@@ -18,8 +18,8 @@ def test_mandatory_fallback_candidates_returns_build_fallback_when_present():
         risk_manager=SimpleNamespace(consecutive_losses_linear=0),
         _quality_skipped_cycles_counter=0,
     )
-    exec_mgr = SimpleNamespace(_trade_symbols=lambda: ["R_10"], orch=orch)
-    fallback = ("R_10", TradeDirection.CALL, {"trade_score": 0.55})
+    exec_mgr = SimpleNamespace(_trade_symbols=lambda: ["OTC_SPC"], orch=orch)
+    fallback = ("OTC_SPC", TradeDirection.CALL, {"trade_score": 0.55})
     with (
         patch(
             "src.application.services.orchestrator.execution_collect_helpers.pick_entropy_fallback_candidate",
@@ -48,8 +48,8 @@ def test_mandatory_fallback_candidates_uses_force_trade_when_empty():
         risk_manager=SimpleNamespace(consecutive_losses_linear=0),
         _quality_skipped_cycles_counter=0,
     )
-    exec_mgr = SimpleNamespace(_trade_symbols=lambda: ["R_10"], orch=orch)
-    decisions = {"R_10": {"direction": None, "metrics": {"raw_prob": 0.61, "calibrated_prob": 0.61}}}
+    exec_mgr = SimpleNamespace(_trade_symbols=lambda: ["OTC_SPC"], orch=orch)
+    decisions = {"OTC_SPC": {"direction": None, "metrics": {"raw_prob": 0.61, "calibrated_prob": 0.61}}}
     with (
         patch(
             "src.application.services.orchestrator.execution_collect_helpers.pick_entropy_fallback_candidate",
@@ -70,7 +70,7 @@ def test_mandatory_fallback_candidates_uses_force_trade_when_empty():
             min_val=0.5,
         )
     assert len(picks) == 1
-    assert picks[0][0] == "R_10"
+    assert picks[0][0] == "OTC_SPC"
 
 
 def test_resolve_ultimate_mandatory_candidate_force_path():
@@ -78,8 +78,8 @@ def test_resolve_ultimate_mandatory_candidate_force_path():
         config={"orchestrator": {"execution": {"force_trade_every_cycle": True}}},
         risk_manager=SimpleNamespace(consecutive_losses_linear=0),
     )
-    exec_mgr = SimpleNamespace(_trade_symbols=lambda: ["R_10"], orch=orch)
-    decisions = {"R_10": {"direction": None, "metrics": {"raw_prob": 0.58}}}
+    exec_mgr = SimpleNamespace(_trade_symbols=lambda: ["OTC_SPC"], orch=orch)
+    decisions = {"OTC_SPC": {"direction": None, "metrics": {"raw_prob": 0.58}}}
     with (
         patch(
             "src.application.services.orchestrator.execution_collect_helpers.build_mandatory_fallback_candidate",
@@ -134,7 +134,7 @@ async def test_execute_cluster_orders_force_min_stake_when_kelly_zero():
     )
     count = await execute_cluster_orders(
         executor,
-        [("R_10", TradeDirection.CALL, {"execute": True, "raw_prob": 0.55})],
+        [("OTC_SPC", TradeDirection.CALL, {"execute": True, "raw_prob": 0.55})],
         0.0,
         100.0,
     )
@@ -151,6 +151,6 @@ def test_cluster_stake_block_bypassed_by_force_trade():
     executor = ExecutionManager.__new__(ExecutionManager)
     executor.orch = orch
     executor.logger = MagicMock()
-    orders = [("R_10", TradeDirection.CALL, {"conviction": 0.5})]
+    orders = [("OTC_SPC", TradeDirection.CALL, {"conviction": 0.5})]
     assert executor._cluster_stake_block(orders, 100.0) is None
     orch.risk_manager.stake_block_reason.assert_not_called()

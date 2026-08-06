@@ -52,10 +52,10 @@ def test_compute_cross_symbol_triplet_falls_back_to_indicators_bucket():
 
 def test_attach_cross_symbol_features_to_decisions():
     decisions = {
-        "R_10": {"direction": TradeDirection.CALL, "metrics": _metrics(prob=0.66, rsi=60.0, vol_ratio=1.1)},
+        "OTC_SPC": {"direction": TradeDirection.CALL, "metrics": _metrics(prob=0.66, rsi=60.0, vol_ratio=1.1)},
     }
     attach_cross_symbol_features_to_decisions(decisions)
-    metrics = decisions["R_10"]["metrics"]
+    metrics = decisions["OTC_SPC"]["metrics"]
     assert metrics["cross_symbol_features"]["cross_symbol_rsi_spread"] == pytest.approx(0.0)
     assert metrics["cross_symbol_features"]["cross_symbol_prob_delta"] == pytest.approx(0.0)
     vector = extract_meta_feature_vector(metrics)

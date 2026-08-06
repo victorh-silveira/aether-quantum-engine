@@ -7,7 +7,7 @@ import numpy as np
 
 from src.application.services.deep_learning.dl_bridge_helpers import (
     apply_symbol_loss_cooldown,
-    build_decision_entry,
+    guard_inference_price_history,
     parse_dl_params,
     pending_loss_total,
     recovery_gating_active,
@@ -50,13 +50,6 @@ _get_symbol_runtime = get_symbol_runtime
 _candle_epoch = candle_epoch
 _granularity_seconds = granularity_seconds
 _run_symbol_training = run_symbol_training
-
-
-def _insufficient_data_entry() -> dict:
-    """Monta entrada de decisao bloqueada por falta de historico de precos."""
-    entry = build_decision_entry(None, 0.0, execute=False, val_accuracy=0.0, edge=0.0, train_loss=None)
-    entry["metrics"]["gate_reason"] = "data"
-    return entry
 
 
 def _apply_deploy_gate(entry: dict, runtime: dict, dl_config: dict) -> dict:
@@ -165,11 +158,6 @@ async def _collect_symbol_decision(
     runtime = get_symbol_runtime(orch, symbol, dl_config, params)
     trained_granularity = runtime.get("trained_granularity", granularity)
     micro_full = load_symbol_microstructure(orch, symbol, len(prices_raw))
-
-    if len(prices_raw) < min_len:
-        logger.debug("DL: Historico insuficiente para %s (%d/%d velas).", symbol, len(prices_raw), min_len)
-        return _insufficient_data_entry(), None
-
     train_bars = int(params["training_history_bars"])
     prices, open_, high, low = slice_dl_ohlc_window(
         prices_raw,
@@ -192,11 +180,16 @@ async def _collect_symbol_decision(
     micro_inf = None
     if micro_full is not None:
         micro_inf = {k: v[-len(prices_inf) :] for k, v in micro_full.items()}
-    infer_min = max(int(params["lookback"]) + 5, infer_bars)
-    if len(prices_inf) < infer_min:
-        logger.debug("DL: Historico insuficiente para inferencia %s (%d/%d).", symbol, len(prices_inf), infer_min)
-        return _insufficient_data_entry(), None
-
+    blocked = guard_inference_price_history(
+        prices_raw,
+        prices_inf,
+        params,
+        min_len=min_len,
+        symbol=symbol,
+        logger=logger,
+    )
+    if blocked is not None:
+        return blocked, None
     epoch = candle_epoch(orch, symbol)
     train_loss = None
     train_reason = _maybe_schedule_training(

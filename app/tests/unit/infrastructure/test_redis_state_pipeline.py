@@ -23,7 +23,7 @@ async def test_write_state_bundle_transaction():
     await write_state_bundle(
         client,
         prefix="aether",
-        snapshot={"risk": {"consecutive_losses_linear": 1, "pending_loss": {"R_10": 4.0}}},
+        snapshot={"risk": {"consecutive_losses_linear": 1, "pending_loss": {"OTC_SPC": 4.0}}},
         session_hash={"day_key": 2},
         market_sig="mkt",
     )

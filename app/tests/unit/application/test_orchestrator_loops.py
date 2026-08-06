@@ -31,14 +31,14 @@ async def test_settlement_loss_reconciles_planned_vs_executed_stake(orch_ready):
         status=TradeStatus.OPEN,
         buy_price=332.28,
         payout=610.0,
-        symbol="R_10",
+        symbol="OTC_SPC",
         direction=TradeDirection.CALL,
         stake=390.92,
         expiry_time=0,
     )
     await orch.state.add_contract(contract)
     orch.risk_manager.active_contract_ids = [901]
-    orch.risk_manager.contract_to_symbol[901] = "R_10"
+    orch.risk_manager.contract_to_symbol[901] = "OTC_SPC"
     orch.risk_manager.contract_stakes[901] = 390.92
     orch.risk_manager.begin_cluster(1)
     data = {
@@ -56,14 +56,14 @@ async def test_settlement_loss_reconciles_planned_vs_executed_stake(orch_ready):
         await process_contract_settlement(orch, data)
         if orch._post_settlement_task is not None:
             await orch._post_settlement_task
-    assert orch.risk_manager.pending_loss.get("R_10") == pytest.approx(390.92)
+    assert orch.risk_manager.pending_loss.get("OTC_SPC") == pytest.approx(390.92)
     assert orch.risk_manager.last_loss_stake == pytest.approx(332.28)
     assert orch.risk_manager.total_session_profit == pytest.approx(-332.28)
 
 
 def _frozen_decisions():
     return {
-        "R_10": {
+        "OTC_SPC": {
             "metrics": {
                 "signal_status": SIGNAL_SUSPENDED,
                 "execute": True,
@@ -191,7 +191,7 @@ async def test_linear_reset_settlement_then_immediate_inference_runs_cleanly(orc
         status=TradeStatus.OPEN,
         buy_price=8.0,
         payout=14.0,
-        symbol="R_10",
+        symbol="OTC_SPC",
         direction=TradeDirection.PUT,
         stake=8.0,
         expiry_time=0,
@@ -202,7 +202,7 @@ async def test_linear_reset_settlement_then_immediate_inference_runs_cleanly(orc
         status=TradeStatus.OPEN,
         buy_price=8.0,
         payout=15.0,
-        symbol="R_10",
+        symbol="OTC_SPC",
         direction=TradeDirection.PUT,
         stake=8.0,
         expiry_time=0,
@@ -228,7 +228,7 @@ async def test_linear_reset_settlement_then_immediate_inference_runs_cleanly(orc
     }
     await orch.state.add_contract(loss_contract)
     orch.risk_manager.active_contract_ids = [431]
-    orch.risk_manager.contract_to_symbol[431] = "R_10"
+    orch.risk_manager.contract_to_symbol[431] = "OTC_SPC"
     orch.risk_manager.begin_cluster(1)
     with patch_instant_post_settlement_poll():
         await process_contract_settlement(orch, loss_data)
@@ -237,7 +237,7 @@ async def test_linear_reset_settlement_then_immediate_inference_runs_cleanly(orc
 
     await orch.state.add_contract(win_contract)
     orch.risk_manager.active_contract_ids = [432]
-    orch.risk_manager.contract_to_symbol[432] = "R_10"
+    orch.risk_manager.contract_to_symbol[432] = "OTC_SPC"
     orch.risk_manager.begin_cluster(1)
     with (
         patch_instant_post_settlement_poll(),

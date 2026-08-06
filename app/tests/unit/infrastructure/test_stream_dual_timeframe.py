@@ -17,7 +17,7 @@ from src.infrastructure.handlers.stream_timeframe import (
 def stream_handler():
     mock_ws = MagicMock()
     mock_ws.send = AsyncMock(return_value={"candles": []})
-    return StreamHandler(mock_ws, ["R_10"], {"granularity": 900, "micro_granularity": 300})
+    return StreamHandler(mock_ws, ["OTC_SPC"], {"granularity": 900, "micro_granularity": 300})
 
 
 def test_resolve_dual_granularity_defaults():
@@ -50,12 +50,12 @@ def test_ohlc_payload_granularity_infers_micro_from_epoch():
 
 
 def test_candle_from_ohlc_and_apply_update():
-    candle = candle_from_ohlc("R_10", {"open": 1.0, "high": 1.2, "low": 0.9, "close": 1.1, "open_time": 900})
-    store: dict[str, list] = {"R_10": []}
-    last: dict[str, int | None] = {"R_10": None}
-    result = apply_candle_update(store, last, "R_10", candle, limit=5)
+    candle = candle_from_ohlc("OTC_SPC", {"open": 1.0, "high": 1.2, "low": 0.9, "close": 1.1, "open_time": 900})
+    store: dict[str, list] = {"OTC_SPC": []}
+    last: dict[str, int | None] = {"OTC_SPC": None}
+    result = apply_candle_update(store, last, "OTC_SPC", candle, limit=5)
     assert result.event == "append"
-    assert len(store["R_10"]) == 1
+    assert len(store["OTC_SPC"]) == 1
 
 
 @pytest.mark.asyncio
@@ -63,7 +63,7 @@ async def test_stream_handler_on_macro_candle(stream_handler):
     await stream_handler._on_candle(
         {
             "ohlc": {
-                "symbol": "R_10",
+                "symbol": "OTC_SPC",
                 "open": 1.4,
                 "high": 1.5,
                 "low": 1.3,
@@ -73,7 +73,7 @@ async def test_stream_handler_on_macro_candle(stream_handler):
             }
         }
     )
-    assert stream_handler.macro_candles["R_10"][-1].close == 1.45
+    assert stream_handler.macro_candles["OTC_SPC"][-1].close == 1.45
 
 
 @pytest.mark.asyncio
@@ -83,7 +83,7 @@ async def test_stream_handler_on_micro_candle_invokes_callback(stream_handler):
     await stream_handler._on_candle(
         {
             "ohlc": {
-                "symbol": "R_10",
+                "symbol": "OTC_SPC",
                 "open": 1.0,
                 "high": 1.1,
                 "low": 0.9,
@@ -94,7 +94,7 @@ async def test_stream_handler_on_micro_candle_invokes_callback(stream_handler):
         }
     )
     callback.assert_awaited_once()
-    assert stream_handler.micro_candles["R_10"][-1].close == 1.05
+    assert stream_handler.micro_candles["OTC_SPC"][-1].close == 1.05
 
 
 @pytest.mark.asyncio
@@ -112,7 +112,7 @@ async def test_stream_handler_micro_candle_ignores_unknown_symbol(stream_handler
             }
         }
     )
-    assert stream_handler.micro_candles["R_10"] == []
+    assert stream_handler.micro_candles["OTC_SPC"] == []
 
 
 @pytest.mark.asyncio
@@ -130,28 +130,28 @@ async def test_stream_handler_macro_candle_ignores_unknown_symbol(stream_handler
             }
         }
     )
-    assert stream_handler.macro_candles["R_10"] == []
+    assert stream_handler.macro_candles["OTC_SPC"] == []
 
 
 def test_stream_handler_get_micro_numpy(stream_handler):
-    stream_handler.micro_candles["R_10"] = [Candle("R_10", 1.0, 1.1, 0.9, 1.05, datetime.now(), 60)]
-    series = stream_handler.get_micro_numpy_series("R_10")
+    stream_handler.micro_candles["OTC_SPC"] = [Candle("OTC_SPC", 1.0, 1.1, 0.9, 1.05, datetime.now(), 60)]
+    series = stream_handler.get_micro_numpy_series("OTC_SPC")
     assert series.tolist() == [1.05]
 
 
 def test_get_last_micro_candle_epoch(stream_handler):
-    stream_handler.micro_candles["R_10"] = [Candle("R_10", 1.0, 1.1, 0.9, 1.05, datetime.now(), 120)]
-    assert stream_handler.get_last_micro_candle_epoch("R_10") == 120
+    stream_handler.micro_candles["OTC_SPC"] = [Candle("OTC_SPC", 1.0, 1.1, 0.9, 1.05, datetime.now(), 120)]
+    assert stream_handler.get_last_micro_candle_epoch("OTC_SPC") == 120
 
 
 @pytest.mark.asyncio
 async def test_stream_handler_macro_buffer_limit():
     ws = MagicMock()
     ws.send = AsyncMock(return_value={"candles": []})
-    sh = StreamHandler(ws, ["R_10"], {"buffer_limit": 2, "granularity": 900, "micro_granularity": 300})
+    sh = StreamHandler(ws, ["OTC_SPC"], {"buffer_limit": 2, "granularity": 900, "micro_granularity": 300})
     await sh.start_candle_stream(AsyncMock())
     payload = {
-        "symbol": "R_10",
+        "symbol": "OTC_SPC",
         "open": 1.0,
         "high": 1.1,
         "low": 0.9,
@@ -162,4 +162,4 @@ async def test_stream_handler_macro_buffer_limit():
     await sh._on_candle({"ohlc": {**payload, "open_time": 900, "close": 1.05}})
     await sh._on_candle({"ohlc": {**payload, "open_time": 1800, "close": 1.1}})
     await sh._on_candle({"ohlc": {**payload, "open_time": 2700, "close": 1.2}})
-    assert len(sh.macro_candles["R_10"]) == 2
+    assert len(sh.macro_candles["OTC_SPC"]) == 2

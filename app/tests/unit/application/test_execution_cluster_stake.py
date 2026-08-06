@@ -11,10 +11,10 @@ def test_cluster_stake_block_passes_dl_metrics_to_stake_reason(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 7
-        orch.risk_manager.pending_loss["R_10"] = 100.0
+        orch.risk_manager.pending_loss["OTC_SPC"] = 100.0
         orders = [
             (
-                "R_10",
+                "OTC_SPC",
                 TradeDirection.PUT,
                 {
                     "conviction": 0.60,
@@ -42,7 +42,7 @@ async def test_execute_cluster_logs_recovery_banner(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 12
-        orch.risk_manager.pending_loss["R_10"] = 50.0
+        orch.risk_manager.pending_loss["OTC_SPC"] = 50.0
         orch.risk_manager.initial_bankroll = 10000.0
         with (
             patch.object(orch.executor.logger, "info") as mock_info,

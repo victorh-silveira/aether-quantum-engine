@@ -1,4 +1,4 @@
-"""Catalogo minimo de SKIP de sinal (escopo 1.1, mandato explicito)."""
+"""Catalogo minimo de atenuacao de sinal (escopo 1.1); soft Kelly sem flip de lado."""
 
 from __future__ import annotations
 
@@ -9,9 +9,6 @@ from src.domain.models.trade import TradeDirection
 
 
 _VALID = {TradeDirection.CALL.name, TradeDirection.PUT.name}
-_REASON_CAL_MARGIN = "cal_margin"
-_REASON_MINI_PAIR = "mini_pair_oppose"
-SIGNAL_SKIP_REASONS = frozenset({_REASON_CAL_MARGIN, _REASON_MINI_PAIR})
 
 
 def parse_signal_skip_config(raw: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -24,23 +21,52 @@ def parse_signal_skip_config(raw: dict[str, Any] | None = None) -> dict[str, Any
             "min_direction_margin",
             "waive_margin_on_pending",
             "mini_pair_oppose_exec",
+            "waive_mini_pair_min_margin",
+            "mini_pair_soft_kelly_mult",
+            "cal_margin_soft_kelly_mult",
             "pending_dust",
         ),
         "orchestrator.execution.signal_skip",
     )
+    soft_mult = require_float(block, "mini_pair_soft_kelly_mult")
+    if soft_mult <= 0.0 or soft_mult > 1.0:
+        raise ValueError("orchestrator.execution.signal_skip.mini_pair_soft_kelly_mult deve estar em (0, 1]")
+    cal_soft = require_float(block, "cal_margin_soft_kelly_mult")
+    if cal_soft <= 0.0 or cal_soft > 1.0:
+        raise ValueError("orchestrator.execution.signal_skip.cal_margin_soft_kelly_mult deve estar em (0, 1]")
     return {
         "enabled": require_bool(block, "enabled"),
         "min_direction_margin": require_float(block, "min_direction_margin"),
         "waive_margin_on_pending": require_bool(block, "waive_margin_on_pending"),
         "mini_pair_oppose_exec": require_bool(block, "mini_pair_oppose_exec"),
+        "waive_mini_pair_min_margin": require_float(block, "waive_mini_pair_min_margin"),
+        "mini_pair_soft_kelly_mult": soft_mult,
+        "cal_margin_soft_kelly_mult": cal_soft,
         "pending_dust": require_float(block, "pending_dust"),
     }
+
+
+def apply_kelly_soft(metrics: dict[str, Any], soft_mult: float, *, waived: str, flag: str) -> None:
+    """Atenua kelly_fraction_scale sem bloquear EXEC nem inverter CALL/PUT."""
+    scale = float(metrics.get("kelly_fraction_scale", 1.0) or 1.0)
+    metrics["kelly_fraction_scale"] = max(0.05, scale * float(soft_mult))
+    metrics[flag] = True
+    metrics[f"{flag}_kelly_mult"] = float(soft_mult)
+    metrics["signal_skip_waived"] = waived
 
 
 def _side(value: object) -> str | None:
     """Normaliza CALL/PUT ou None."""
     side = str(value or "").strip().upper()
     return side if side in _VALID else None
+
+
+def _direction_margin(metrics: dict[str, Any]) -> float:
+    """Le direction_margin numerica; 0.0 se ausente/invalida."""
+    try:
+        return float(metrics.get("direction_margin") or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def _pending_total(metrics: dict[str, Any], orch: Any | None) -> float:
@@ -82,12 +108,19 @@ def _mini_pair_opposes_exec(metrics: dict[str, Any], exec_dir: TradeDirection) -
     return prev != exec_dir.name
 
 
-def _stamp_skip(metrics: dict[str, Any], reason: str) -> None:
-    """Marca candidato como SKIP de sinal nomeado."""
-    metrics["execution_candidate_ready"] = False
-    metrics["gate_reason"] = reason
-    metrics["signal_skip_reason"] = reason
-    metrics["signal_status"] = f"SKIP:{reason.upper()}"
+def is_skip_signal_status(status: object) -> bool:
+    """True para SKIP tecnico legado (SKIP / SKIP:REASON)."""
+    token = str(status or "").strip().upper()
+    return token == "SKIP" or token.startswith("SKIP:")
+
+
+def metrics_block_execution(metrics: dict[str, Any] | None) -> bool:
+    """True so para bloqueio tecnico (ready=False ou SKIP legado). Sinal = soft Kelly."""
+    if not isinstance(metrics, dict):
+        return False
+    if metrics.get("execution_candidate_ready") is False:
+        return True
+    return is_skip_signal_status(metrics.get("signal_status"))
 
 
 def apply_signal_skip_gates(
@@ -97,8 +130,10 @@ def apply_signal_skip_gates(
     orch: Any | None = None,
     force: bool = False,
     cfg: dict[str, Any] | None = None,
+    symbol: str | None = None,
 ) -> bool:
-    """Aplica catálogo minimo; True se SKIP. Force-trade bypassa."""
+    """Aplica atenuacao soft Kelly; nunca inverte CALL/PUT."""
+    _ = symbol
     metrics.setdefault("signal_skip_reason", None)
     if force:
         return False
@@ -106,19 +141,25 @@ def apply_signal_skip_gates(
     if not bool(vision.get("enabled", True)):
         return False
     if bool(vision.get("mini_pair_oppose_exec", True)) and _mini_pair_opposes_exec(metrics, exec_dir):
-        _stamp_skip(metrics, _REASON_MINI_PAIR)
-        return True
+        apply_kelly_soft(
+            metrics,
+            float(vision.get("mini_pair_soft_kelly_mult", 0.55)),
+            waived="mini_pair_soft",
+            flag="mini_pair_soft",
+        )
+    margin = _direction_margin(metrics)
     floor = float(vision.get("min_direction_margin", 0.022))
-    try:
-        margin = float(metrics.get("direction_margin") or 0.0)
-    except (TypeError, ValueError):
-        margin = 0.0
-    if margin + 1e-12 >= floor:
-        return False
     pending = _pending_total(metrics, orch)
     dust = float(vision.get("pending_dust", 0.25))
+    if margin + 1e-12 >= floor:
+        return False
     if bool(vision.get("waive_margin_on_pending", True)) and pending + 1e-12 >= dust:
         metrics["signal_skip_waived"] = "cal_margin_pending"
         return False
-    _stamp_skip(metrics, _REASON_CAL_MARGIN)
-    return True
+    apply_kelly_soft(
+        metrics,
+        float(vision.get("cal_margin_soft_kelly_mult", 0.55)),
+        waived="cal_margin_soft",
+        flag="cal_margin_soft",
+    )
+    return False

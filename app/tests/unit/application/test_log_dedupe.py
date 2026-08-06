@@ -48,7 +48,7 @@ def test_log_dl_cycle_summary_dedupes_with_orch():
     logger = MagicMock()
     orch = Owner()
     decisions = {
-        "R_10": {
+        "OTC_SPC": {
             "direction": TradeDirection.CALL,
             "metrics": {"conviction": 0.70, "execute": True, "val_accuracy": 0.55, "cal_margin": 0.05},
         },

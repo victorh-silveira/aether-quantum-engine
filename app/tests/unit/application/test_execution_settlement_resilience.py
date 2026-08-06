@@ -55,7 +55,7 @@ async def test_reconcile_contracts_logs_non_transient_error(orch_config):
                 status=TradeStatus.OPEN,
                 buy_price=2.0,
                 payout=4.0,
-                symbol="R_10",
+                symbol="OTC_SPC",
                 direction=TradeDirection.CALL,
                 stake=2.0,
                 expiry_time=1,
@@ -90,7 +90,7 @@ async def test_reconcile_contracts_sleeps_between_contracts(orch_config):
                     status=TradeStatus.OPEN,
                     buy_price=2.0,
                     payout=4.0,
-                    symbol="R_10",
+                    symbol="OTC_SPC",
                     direction=TradeDirection.CALL,
                     stake=2.0,
                     expiry_time=1,
@@ -126,7 +126,7 @@ async def test_reconcile_contracts_marks_ws_offline_on_timeout(orch_config):
                 status=TradeStatus.OPEN,
                 buy_price=2.0,
                 payout=4.0,
-                symbol="R_10",
+                symbol="OTC_SPC",
                 direction=TradeDirection.CALL,
                 stake=2.0,
                 expiry_time=1,
@@ -149,7 +149,7 @@ async def test_wait_for_settlement_preserves_pending_when_broker_offline(orch_co
         orch = Orchestrator(orch_config, "token")
         orch.ws.is_running = False
         orch.risk_manager.active_contract_ids = [707]
-        orch.risk_manager.contract_to_symbol[707] = "R_10"
+        orch.risk_manager.contract_to_symbol[707] = "OTC_SPC"
         await orch.state.add_contract(
             Contract(
                 contract_id=707,
@@ -157,7 +157,7 @@ async def test_wait_for_settlement_preserves_pending_when_broker_offline(orch_co
                 status=TradeStatus.OPEN,
                 buy_price=18.0,
                 payout=33.0,
-                symbol="R_10",
+                symbol="OTC_SPC",
                 direction=TradeDirection.CALL,
                 stake=18.0,
                 expiry_time=1,
@@ -204,7 +204,7 @@ async def test_wait_for_settlement_stagnant_pauses_when_ws_drops(orch_config):
                 status=TradeStatus.OPEN,
                 buy_price=2.0,
                 payout=4.0,
-                symbol="R_10",
+                symbol="OTC_SPC",
                 direction=TradeDirection.CALL,
                 stake=2.0,
                 expiry_time=1,

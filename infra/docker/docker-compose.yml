@@ -181,9 +181,10 @@ services:
     environment:
       LOSS_FEATURE_DIM: "24"
       LOSS_READY_N: "24"
-      LOSS_RETRAIN_MIN_N: "32"
+      LOSS_RETRAIN_MIN_N: "24"
+      LOSS_RETRAIN_ON_LOSS_MIN_N: "2"
       LOSS_MAX_BUFFER: "2000"
-      LOSS_VETO_P_LOSS_FLOOR: "0.62"
+      LOSS_VETO_P_LOSS_FLOOR: "0.65"
     mem_limit: 512m
     cpus: 0.75
     security_opt:

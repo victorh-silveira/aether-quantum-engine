@@ -45,7 +45,7 @@ def test_run_symbol_training_persists_successful_train(tmp_path):
         ) as mock_save,
     ):
         stats, loss = run_symbol_training(
-            "R_10",
+            "OTC_SPC",
             runtime,
             prices,
             dl_config,
@@ -100,7 +100,7 @@ def test_run_symbol_training_wraps_export_sharpness_failure(tmp_path):
         ),
     ):
         run_symbol_training(
-            "R_10",
+            "OTC_SPC",
             runtime,
             prices,
             dl_config,

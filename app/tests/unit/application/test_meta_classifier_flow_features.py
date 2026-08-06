@@ -11,12 +11,12 @@ from src.application.services.meta_classifier_flow_features import (
 
 def test_flow_features_from_micro_series_returns_keys():
     closes = np.linspace(100.0, 110.0, 32, dtype=np.float64)
-    flow = flow_features_from_micro_series(closes, granularity=60, symbol="R_10")
+    flow = flow_features_from_micro_series(closes, granularity=60, symbol="OTC_SPC")
     assert list(flow.keys()) == list(FLOW_FEATURE_KEYS)
 
 
 def test_flow_features_from_micro_series_short_history_defaults():
-    flow = flow_features_from_micro_series(np.array([1.0, 2.0]), granularity=60, symbol="R_10")
+    flow = flow_features_from_micro_series(np.array([1.0, 2.0]), granularity=60, symbol="OTC_SPC")
     assert flow["micro_tick_acceleration"] == pytest.approx(0.0)
     assert flow["keltner_deviation_ratio"] == pytest.approx(0.0)
 
@@ -45,7 +45,7 @@ def test_flow_features_zero_acceleration_with_single_delta(monkeypatch):
         return original_diff(values)
 
     monkeypatch.setattr(np, "diff", fake_diff)
-    flow = flow_features_from_micro_series(closes, granularity=60, symbol="R_10")
+    flow = flow_features_from_micro_series(closes, granularity=60, symbol="OTC_SPC")
     assert flow["micro_tick_acceleration"] == pytest.approx(0.0)
 
 

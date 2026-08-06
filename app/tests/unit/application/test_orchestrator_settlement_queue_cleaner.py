@@ -14,7 +14,7 @@ async def test_maybe_run_orphan_cleaner_after_tolerance_window(orch_ready):
     orch._settlement_pending_since = 0.0
     with patch(
         "src.application.services.orchestrator.orchestrator_settlement_queue.time.monotonic",
-        side_effect=[10.0, 200.0, 200.0],
+        side_effect=[10.0, 400.0, 400.0],
     ):
         await _maybe_run_orphan_cleaner(orch)
         with patch(
@@ -34,7 +34,7 @@ async def test_maybe_run_orphan_cleaner_clears_pending_when_fully_reconciled(orc
     with (
         patch(
             "src.application.services.orchestrator.orchestrator_settlement_queue.time.monotonic",
-            return_value=200.0,
+            return_value=400.0,
         ),
         patch(
             "src.application.services.orchestrator.orchestrator_settlement_queue.SettlementOrphanCleaner.reconcile_stale_contracts",

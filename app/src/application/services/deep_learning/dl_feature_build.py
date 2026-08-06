@@ -33,8 +33,11 @@ FEATURE_DIM = MICRO_FEATURE_DIM + TRADITIONAL_FEATURE_DIM + VOLATILITY_FEATURE_D
 
 
 def symbol_vol_target(symbol: str) -> float:
-    """Volatilidade anualizada alvo do indice sintetico Deriv."""
-    parts = str(symbol).split("_")
+    """Volatilidade anualizada alvo por simbolo (equity OTC ou codigo Volatility)."""
+    key = str(symbol).upper()
+    if key == "OTC_SPC":
+        return 0.16
+    parts = key.split("_")
     try:
         return float(parts[-1]) / 100.0 if len(parts) >= 2 else 0.50
     except ValueError:
@@ -128,7 +131,7 @@ def precompute_price_series(
     prices: np.ndarray,
     *,
     granularity: int = 60,
-    symbol: str = "R_10",
+    symbol: str = "OTC_SPC",
     open_: np.ndarray | None = None,
     high: np.ndarray | None = None,
     low: np.ndarray | None = None,

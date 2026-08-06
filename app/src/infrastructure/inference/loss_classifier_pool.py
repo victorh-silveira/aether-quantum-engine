@@ -71,7 +71,7 @@ def predict_loss_via_config_sync(config: dict[str, Any], request: LossPredictReq
     except RuntimeError:
         return asyncio.run(_run())
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        return pool.submit(lambda: asyncio.run(_run())).result(timeout=5.0)
+        return pool.submit(lambda: asyncio.run(_run())).result(timeout=15.0)
 
 
 def learn_loss_via_config_sync(
@@ -101,4 +101,4 @@ def learn_loss_via_config_sync(
     except RuntimeError:
         return asyncio.run(_run())
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        return pool.submit(lambda: asyncio.run(_run())).result(timeout=5.0)
+        return pool.submit(lambda: asyncio.run(_run())).result(timeout=15.0)

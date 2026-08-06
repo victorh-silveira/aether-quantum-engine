@@ -72,12 +72,12 @@ def test_calibration_helpers():
 
 def test_outcome_weights():
     orch = type("O", (), {})()
-    record_symbol_outcome(orch, "R_10", won=True, candle_epoch=100)
+    record_symbol_outcome(orch, "OTC_SPC", won=True, candle_epoch=100)
     assert hasattr(orch, "_dl_outcome_flags")
-    assert sample_weights_for_symbol(orch, "R_10", 0) == []
-    record_symbol_outcome(orch, "R_10", won=False, candle_epoch=101)
-    record_symbol_outcome(orch, "R_10", won=False, candle_epoch=102)
-    weights = sample_weights_for_symbol(orch, "R_10", 10)
+    assert sample_weights_for_symbol(orch, "OTC_SPC", 0) == []
+    record_symbol_outcome(orch, "OTC_SPC", won=False, candle_epoch=101)
+    record_symbol_outcome(orch, "OTC_SPC", won=False, candle_epoch=102)
+    weights = sample_weights_for_symbol(orch, "OTC_SPC", 10)
     assert len(weights) == 10
     assert max(weights) > 1.0
 
@@ -85,9 +85,9 @@ def test_outcome_weights():
 def test_outcome_history_caps_at_eighty():
     orch = type("O", (), {})()
     for i in range(85):
-        record_symbol_outcome(orch, "R_10", won=bool(i % 2), candle_epoch=i)
-    assert len(orch._dl_outcome_flags["R_10"]) == 80
-    assert len(orch._dl_outcome_epochs["R_10"]) == 80
+        record_symbol_outcome(orch, "OTC_SPC", won=bool(i % 2), candle_epoch=i)
+    assert len(orch._dl_outcome_flags["OTC_SPC"]) == 80
+    assert len(orch._dl_outcome_epochs["OTC_SPC"]) == 80
 
 
 def test_train_model_walkforward_weighted():
@@ -125,20 +125,20 @@ def test_calibrate_conviction_legacy():
 def test_outcome_weights_dampen_after_win_streak():
     orch = type("O", (), {})()
     for _ in range(6):
-        record_symbol_outcome(orch, "R_10", won=True)
-    weights = sample_weights_for_symbol(orch, "R_10", 12)
+        record_symbol_outcome(orch, "OTC_SPC", won=True)
+    weights = sample_weights_for_symbol(orch, "OTC_SPC", 12)
     assert min(weights[-4:]) < 1.0
 
 
 def test_sample_weights_boost_labels_after_loss_direction():
     orch = type("O", (), {"_last_loss_direction": "CALL"})()
-    orch._dl_outcome_flags = {"R_10": [False]}
+    orch._dl_outcome_flags = {"OTC_SPC": [False]}
     targets = [1.0, 0.0, 1.0]
-    weights = sample_weights_for_symbol(orch, "R_10", 3, targets=targets)
+    weights = sample_weights_for_symbol(orch, "OTC_SPC", 3, targets=targets)
     assert weights[1] > weights[0]
     orch_put = type("O", (), {"_last_loss_direction": "PUT"})()
-    orch_put._dl_outcome_flags = {"R_10": [False]}
-    weights_put = sample_weights_for_symbol(orch_put, "R_10", 2, targets=[0.0, 1.0])
+    orch_put._dl_outcome_flags = {"OTC_SPC": [False]}
+    weights_put = sample_weights_for_symbol(orch_put, "OTC_SPC", 2, targets=[0.0, 1.0])
     assert weights_put[1] > weights_put[0]
 
 

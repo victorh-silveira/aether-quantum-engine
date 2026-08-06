@@ -94,3 +94,75 @@ def apply_scale_stake_cap(
     except (TypeError, ValueError):
         return float(final_stake)
     return min(float(final_stake), cap)
+
+
+def apply_named_soft_stake_cap(
+    final_stake: float,
+    bankroll: float,
+    metrics: dict[str, Any] | None,
+    *,
+    flag: str,
+    pct_key: str,
+    pending_total: float = 0.0,
+    soft_recovery: dict[str, Any] | None = None,
+) -> float:
+    """Teto percentual EXPLORE sob flag soft; waivado com pending material."""
+    if not isinstance(metrics, dict) or not bool(metrics.get(flag)):
+        return float(final_stake)
+    if pending_waives_scale_explore(float(pending_total), soft_recovery):
+        return float(final_stake)
+    raw = metrics.get(pct_key)
+    if raw is None:
+        return float(final_stake)
+    try:
+        pct = float(raw)
+    except (TypeError, ValueError):
+        return float(final_stake)
+    if pct <= 0.0:
+        return float(final_stake)
+    return min(float(final_stake), max(0.0, float(bankroll) * pct))
+
+
+def apply_loss_clf_soft_stake_cap(
+    final_stake: float,
+    bankroll: float,
+    metrics: dict[str, Any] | None,
+    *,
+    pending_total: float = 0.0,
+    soft_recovery: dict[str, Any] | None = None,
+) -> float:
+    """Teto sob loss_clf soft em EXPLORE; waivado com pending material (cover 100%)."""
+    return apply_named_soft_stake_cap(
+        final_stake,
+        bankroll,
+        metrics,
+        flag="loss_clf_soft",
+        pct_key="loss_clf_soft_max_stake_pct",
+        pending_total=pending_total,
+        soft_recovery=soft_recovery,
+    )
+
+
+def apply_post_kelly_stake_caps(
+    final_stake: float,
+    bankroll: float,
+    metrics: dict[str, Any] | None,
+    *,
+    pending_total: float = 0.0,
+    soft_recovery: dict[str, Any] | None = None,
+) -> float:
+    """Aplica tetos de escala e loss_clf soft apos Kelly/DAL."""
+    capped = apply_scale_stake_cap(
+        final_stake,
+        bankroll,
+        metrics,
+        pending_total=pending_total,
+        soft_recovery=soft_recovery,
+    )
+    return apply_loss_clf_soft_stake_cap(
+        capped,
+        bankroll,
+        metrics,
+        pending_total=pending_total,
+        soft_recovery=soft_recovery,
+    )

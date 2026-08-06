@@ -13,7 +13,7 @@ class _Stream:
 
 def test_load_symbol_close_ohlc_empty():
     orch = type("O", (), {"stream": _Stream({"close": np.array([])})})()
-    close, open_, high, low = load_symbol_close_ohlc(orch, "R_10")
+    close, open_, high, low = load_symbol_close_ohlc(orch, "OTC_SPC")
     assert len(close) == 0
     assert open_ is None
 
@@ -34,7 +34,7 @@ def test_load_symbol_close_ohlc_mismatched_lengths():
             )
         },
     )()
-    out_close, open_, high, low = load_symbol_close_ohlc(orch, "R_10")
+    out_close, open_, high, low = load_symbol_close_ohlc(orch, "OTC_SPC")
     assert len(out_close) == 8
     assert open_ is None and high is None and low is None
 
@@ -55,7 +55,7 @@ def test_load_symbol_close_ohlc_aligned():
             )
         },
     )()
-    c, o, h, low = load_symbol_close_ohlc(orch, "R_10")
+    c, o, h, low = load_symbol_close_ohlc(orch, "OTC_SPC")
     assert len(c) == 6 and o is not None and h is not None and low is not None
 
 
@@ -71,7 +71,7 @@ def test_load_symbol_close_ohlc_micro_timeframe():
             return base[field]
 
     orch = type("O", (), {"stream": _MicroStream()})()
-    c, o, h, low = load_symbol_close_ohlc(orch, "R_10", timeframe="micro")
+    c, o, h, low = load_symbol_close_ohlc(orch, "OTC_SPC", timeframe="micro")
     assert len(c) == 5 and o is not None and h is not None and low is not None
 
 
@@ -81,7 +81,7 @@ def test_load_symbol_close_ohlc_micro_empty():
             return np.array([])
 
     orch = type("O", (), {"stream": _MicroStream()})()
-    close, open_, high, low = load_symbol_close_ohlc(orch, "R_10", timeframe="micro")
+    close, open_, high, low = load_symbol_close_ohlc(orch, "OTC_SPC", timeframe="micro")
     assert len(close) == 0
     assert open_ is None and high is None and low is None
 

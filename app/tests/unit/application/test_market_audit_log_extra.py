@@ -61,7 +61,13 @@ class TestResolveMetaPayoffZscore:
 class TestStoreAndPopContractAudit:
     def test_store_and_pop_roundtrip(self):
         cid = "999"
-        data = {"symbol": "R_10", "direction": "CALL", "edge": 0.11, "meta_payoff_edge_zscore": -0.55, "raw_prob": 0.71}
+        data = {
+            "symbol": "OTC_SPC",
+            "direction": "CALL",
+            "edge": 0.11,
+            "meta_payoff_edge_zscore": -0.55,
+            "raw_prob": 0.71,
+        }
         store_contract_audit(cid, data)
         assert pop_contract_audit(cid) == data
 
@@ -78,7 +84,7 @@ class TestStoreAndPopContractAudit:
         store_contract_audit("", {"edge": 0.5})
 
     def test_store_legacy_no_kwargs(self):
-        store_contract_audit("ignored", "cid", symbol="R_10")
+        store_contract_audit("ignored", "cid", symbol="OTC_SPC")
 
     def test_store_legacy_positional_no_kwargs(self):
         store_contract_audit("x", "cid")
@@ -90,7 +96,7 @@ class TestStoreAndPopContractAudit:
         assert pop_contract_audit() == {}
 
     def test_store_legacy_too_few_args_kwargs(self):
-        store_contract_audit(42, symbol="R_10")
+        store_contract_audit(42, symbol="OTC_SPC")
 
     def test_store_legacy_empty_contract_id(self):
         store_contract_audit("x", "")

@@ -22,14 +22,14 @@ from src.domain.risk.stake_sizing import resolve_stake_regime
 
 def test_dust_residual_does_not_reopen_pending_after_win_clears_symbol():
     pending: dict[str, float] = {}
-    apply_fractional_payoff_residual_to_pending(pending, "R_10", -0.07)
+    apply_fractional_payoff_residual_to_pending(pending, "OTC_SPC", -0.07)
     assert pending == {}
 
 
 def test_dust_residual_still_increases_material_pending():
-    pending = {"R_10": 5.0}
-    apply_fractional_payoff_residual_to_pending(pending, "R_10", -0.07)
-    assert pending["R_10"] == pytest.approx(5.07)
+    pending = {"OTC_SPC": 5.0}
+    apply_fractional_payoff_residual_to_pending(pending, "OTC_SPC", -0.07)
+    assert pending["OTC_SPC"] == pytest.approx(5.07)
 
 
 def test_clear_dust_pending_returns_false_when_pending_not_dict():
@@ -39,7 +39,7 @@ def test_clear_dust_pending_returns_false_when_pending_not_dict():
 
 def test_clear_dust_pending_resets_to_explore():
     rm = SimpleNamespace(
-        pending_loss={"R_10": 0.07},
+        pending_loss={"OTC_SPC": 0.07},
         consecutive_losses_linear=3,
         last_loss_stake=2.0,
         soft_recovery_config={"dust_pending_clear_max": 0.25},
@@ -54,7 +54,7 @@ def test_clear_dust_pending_resets_to_explore():
 
 def test_cluster_win_with_dust_pending_returns_explore():
     rm = SimpleNamespace(
-        pending_loss={"R_10": 0.07},
+        pending_loss={"OTC_SPC": 0.07},
         consecutive_losses_linear=2,
         total_session_profit=8.0,
         last_loss_stake=1.5,
@@ -93,7 +93,7 @@ def test_near_stop_win_freeze_keeps_explore_unit_without_dal_escalation():
         session_pnl=8.5,
         target_win=10.0,
     )
-    assert stake == pytest.approx(1.0)
+    assert stake == pytest.approx(2.0)
     assert metrics.get("recovery_near_stop_win_freeze") is True
     assert metrics.get("recovery_progression_multiplier") == pytest.approx(1.0)
 
@@ -113,7 +113,7 @@ def test_immaterial_pending_skips_dal_progression():
         session_pnl=1.0,
         target_win=10.0,
     )
-    assert stake == pytest.approx(1.0)
+    assert stake == pytest.approx(2.0)
     assert metrics.get("recovery_material_pending") is False
 
 
@@ -145,7 +145,7 @@ def test_resolve_dlambert_stake_near_target_does_not_escalate_linear():
         dl_metrics=metrics,
     )
     assert tag == "D'ALEMBERT"
-    assert stake == pytest.approx(1.0)
+    assert stake == pytest.approx(2.0)
     assert metrics.get("recovery_near_stop_win_freeze") is True
 
 
@@ -157,7 +157,7 @@ def test_meta_negative_edge_keeps_weak_call_side():
         -0.12,
         meta_applied=True,
         base_score=0.51,
-        symbol="R_10",
+        symbol="OTC_SPC",
     )
     assert direction == TradeDirection.CALL
     assert score == pytest.approx(0.51)
@@ -210,7 +210,7 @@ def test_resolve_execution_direction_allows_meta_negative_edge_without_force():
             -0.10,
             meta_applied=True,
             score=0.51,
-            symbol="R_10",
+            symbol="OTC_SPC",
             force=False,
         )
         assert result is not None
@@ -219,9 +219,9 @@ def test_resolve_execution_direction_allows_meta_negative_edge_without_force():
 
 
 def test_include_anchor_trades_true_keeps_anchor_eligible():
-    symbols = ["R_10", "R_50"]
-    eligible = symbols_eligible_for_execution("R_10", symbols, include_anchor=True)
-    assert eligible == ["R_10", "R_50"]
+    symbols = ["OTC_SPC", "R_50"]
+    eligible = symbols_eligible_for_execution("OTC_SPC", symbols, include_anchor=True)
+    assert eligible == ["OTC_SPC", "R_50"]
 
 
 def test_soft_recovery_config_exposes_dust_and_freeze_defaults():

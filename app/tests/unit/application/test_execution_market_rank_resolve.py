@@ -32,7 +32,7 @@ def _exec_cfg(**extra):
 
 def test_resolve_uses_entry_direction():
     entry = _entry()
-    result = resolve_execution_direction(entry, symbol="R_10", exec_cfg=_exec_cfg())
+    result = resolve_execution_direction(entry, symbol="OTC_SPC", exec_cfg=_exec_cfg())
     assert result is not None
     assert result[0] == TradeDirection.CALL
 
@@ -44,7 +44,7 @@ def test_resolve_infers_from_raw_prob():
             "metrics"
         ],
     }
-    result = resolve_execution_direction(entry, symbol="R_10", exec_cfg=_exec_cfg())
+    result = resolve_execution_direction(entry, symbol="OTC_SPC", exec_cfg=_exec_cfg())
     assert result is not None
     assert result[0] == TradeDirection.PUT
 
@@ -68,7 +68,7 @@ def test_resolve_put_on_bear_with_low_prob():
         },
     )
     entry["direction"] = TradeDirection.PUT
-    result = resolve_execution_direction(entry, symbol="R_10", exec_cfg=_exec_cfg())
+    result = resolve_execution_direction(entry, symbol="OTC_SPC", exec_cfg=_exec_cfg())
     assert result is not None
     assert result[0] == TradeDirection.PUT
 
@@ -89,6 +89,6 @@ def test_resolve_low_accuracy_keeps_dl_side():
             "cmo": 0.05,
         },
     )
-    result = resolve_execution_direction(entry, symbol="R_10", exec_cfg=_exec_cfg())
+    result = resolve_execution_direction(entry, symbol="OTC_SPC", exec_cfg=_exec_cfg())
     assert result is not None
     assert result[0] == TradeDirection.CALL

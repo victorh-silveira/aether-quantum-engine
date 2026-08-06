@@ -142,12 +142,26 @@ async def fetch_paginated_candle_history(
         merged = merge_candle_pages(merged, batch)
         if len(merged) == before_merge:
             break
-        if chunk_index == 1 or chunk_index % 25 == 0 or len(merged) >= goal:
-            progress_log("DATA: %s | %d/%d velas", symbol, len(merged), goal)
+        if chunk_index == 1 or chunk_index % 10 == 0 or len(merged) >= goal:
+            progress_log(
+                "DATA: %s | g=%ss | %d/%d velas",
+                symbol,
+                granularity,
+                len(merged),
+                goal,
+            )
         end = int(history[0]["epoch"]) - 1
         if chunk_delay > 0:
             await asyncio.sleep(chunk_delay)
 
     if len(merged) > goal:
         merged = merged[-goal:]
+    if len(merged) < goal:
+        progress_log(
+            "DATA: %s | g=%ss | historico API esgotado em %d/%d velas",
+            symbol,
+            granularity,
+            len(merged),
+            goal,
+        )
     return merged

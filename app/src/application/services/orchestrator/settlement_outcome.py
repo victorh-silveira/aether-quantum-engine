@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from src.application.services.deep_learning.dl_outcomes import record_symbol_outcome
 from src.application.services.deep_learning.dl_retrain import mark_force_retrain
 from src.application.services.direction_loss_tracker import record_direction_outcome
 from src.application.services.live_signal_metrics import record_live_signal_outcome
+from src.application.services.loss_classifier_vectors import pop_loss_feature_vector
 from src.application.services.side_equilibrium_store import record_side_equilibrium_outcome
 from src.domain.risk.executed_stake_reconciliation import (
     bind_executed_stake_for_contract,
@@ -18,23 +20,42 @@ from src.domain.risk.stop_win_target import resolve_stop_win_target
 from src.infrastructure.inference.loss_classifier_pool import learn_loss_via_config_sync
 
 
+logger = logging.getLogger("AETH")
+
+
 def _feed_loss_classifier_learn(orch: Any, symbol: str, *, won: bool, contract_id: int) -> None:
     """Envia sample WIN/LOSS ao loss-classifier (fail-open)."""
-    store = getattr(orch, "_loss_clf_vectors", None)
-    if not isinstance(store, dict):
-        return
-    vector = store.pop(str(symbol), None)
+    vector = pop_loss_feature_vector(orch, str(symbol), int(contract_id))
     if not isinstance(vector, list) or not vector:
         return
     config = getattr(orch, "config", None)
     if not isinstance(config, dict):
         return
-    learn_loss_via_config_sync(
+    label = "WIN" if won else "LOSS"
+    result = learn_loss_via_config_sync(
         config,
         feature_vector=vector,
-        label="WIN" if won else "LOSS",
+        label=label,
         contract_id=str(contract_id),
         symbol=str(symbol),
+    )
+    if not isinstance(result, dict):
+        return
+    if result.get("skipped") or result.get("error"):
+        logger.warning(
+            "LOSS_CLF || LEARN falhou label=%s cid=%s detail=%s",
+            label,
+            contract_id,
+            result.get("error") or "skipped",
+        )
+        return
+    logger.info(
+        "LOSS_CLF || LEARN label=%s buffer_n=%s retrained=%d n_train=%s detail=%s",
+        label,
+        result.get("buffer_n", "-"),
+        1 if result.get("retrained") else 0,
+        result.get("n_train", "-"),
+        str(result.get("retrain_detail") or "-"),
     )
 
 

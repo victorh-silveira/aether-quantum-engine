@@ -32,7 +32,7 @@ def kelly_config():
             "max_stake_pct": 0.05,
             "recovery_sizing_conviction": 0.60,
             "recovery_min_conviction": 0.58,
-            "recovery_min_val_accuracy": 0.50,
+            "recovery_min_val_accuracy": 0.53,
             "stop_win_kelly_enabled": False,
         }
     )
@@ -53,7 +53,7 @@ def kelly_config():
             "dlambert_enabled": True,
             "recovery_sizing_conviction": 0.60,
             "recovery_min_conviction": 0.58,
-            "recovery_min_val_accuracy": 0.50,
+            "recovery_min_val_accuracy": 0.53,
         },
         "params": {"payout_estimate": 0.95, "stake_min": 1.0, "entry_cooldown_ticks": 0},
     }

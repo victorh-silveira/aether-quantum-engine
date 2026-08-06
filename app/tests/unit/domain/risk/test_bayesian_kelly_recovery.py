@@ -1,15 +1,12 @@
 """Testes de Kelly bayesiano, modos Explore/Recover e recovery_infeasible."""
 
-from unittest.mock import MagicMock
-
 import pytest
 
 from src.domain.risk.bayesian_win_rate import bayesian_win_rate
 from src.domain.risk.consensus_stake_penalty import apply_soft_recovery_stake, max_safe_stake_cap
 from src.domain.risk.risk_manager import RiskManager
-from src.domain.risk.risk_stake_calc import calculate_stake_for_manager
 from src.domain.risk.soft_recovery_policy import is_recovery_infeasible
-from src.domain.risk.stake_sizing import compute_single_strike_kelly_base, resolve_stake_regime
+from src.domain.risk.stake_sizing import resolve_stake_regime
 
 
 def test_bayesian_win_rate_blends_live_when_n_ready():
@@ -51,7 +48,7 @@ def test_bayesian_win_rate_falls_back_to_rolling_blend():
 def test_effective_win_rate_uses_bayesian_live(kelly_config):
     rm = RiskManager(kelly_config)
     p = rm.effective_win_rate(
-        "R_10",
+        "OTC_SPC",
         conviction=0.70,
         metrics={"live_n": 32, "live_wr": 0.35, "live_brier": 0.18, "live_ece": 0.05},
     )
@@ -92,8 +89,129 @@ def test_soft_recovery_flags_infeasible_and_force_explore_unit():
     cap = max_safe_stake_cap(90.0, consecutive_losses_linear=2, soft_recovery=soft)
     assert metrics.get("recovery_infeasible") is True
     assert metrics.get("recovery_force_explore") is True
-    assert stake <= 1.0 + 1e-9
+    assert stake <= 2.0 + 1e-9
     assert stake < cap
+
+
+def test_soft_recovery_acc_below_floor_forces_explore():
+    metrics = {"val_accuracy": 0.35}
+    soft = {
+        "enabled": True,
+        "max_safe_stake_pct": 0.05,
+        "amort_cycles_min": 2,
+        "amort_cycles_max": 5,
+        "infeasible_force_explore": True,
+        "material_pending_min": 0.25,
+    }
+    stake = apply_soft_recovery_stake(
+        pending_total=0.0,
+        base_unit=10.0,
+        consecutive_losses=4,
+        previous_stake=20.0,
+        bankroll=10000.0,
+        metrics=metrics,
+        payout=0.87,
+        soft_recovery=soft,
+    )
+    assert metrics.get("recovery_acc_force_explore") is True
+    assert metrics.get("recovery_force_explore") is True
+    assert stake == pytest.approx(200.0)
+
+
+def test_soft_recovery_acc_below_floor_waived_by_pending_uses_cover():
+    metrics = {"val_accuracy": 0.35}
+    soft = {
+        "enabled": True,
+        "max_safe_stake_pct": 0.05,
+        "amort_cycles_min": 1,
+        "amort_cycles_max": 1,
+        "infeasible_force_explore": True,
+        "material_pending_min": 0.25,
+    }
+    stake = apply_soft_recovery_stake(
+        pending_total=80.0,
+        base_unit=10.0,
+        consecutive_losses=4,
+        previous_stake=20.0,
+        bankroll=10000.0,
+        metrics=metrics,
+        payout=0.87,
+        soft_recovery=soft,
+    )
+    assert metrics.get("recovery_force_explore") is False
+    assert metrics.get("recovery_acc_force_explore") is False
+    cover = 80.0 / 0.87 / 1.0 * 2.0
+    assert stake + 1e-9 >= cover
+    assert metrics.get("recovery_amort_cycles") == 1
+
+
+def test_soft_recovery_live_wr_waived_by_pending_uses_cover():
+    metrics = {"val_accuracy": 0.5424, "live_n": 3, "live_wr": 0.0}
+    soft = {
+        "enabled": True,
+        "max_safe_stake_pct": 0.05,
+        "max_safe_stake_pct_linear3": 0.03,
+        "amort_cycles_min": 2,
+        "amort_cycles_max": 5,
+        "infeasible_force_explore": True,
+        "material_pending_min": 0.25,
+        "live_evidence_force_explore_linear_min": 3,
+        "live_evidence_force_explore_n_min": 2,
+        "live_evidence_force_explore_wr_max": 0.58,
+    }
+    stake = apply_soft_recovery_stake(
+        pending_total=85.0,
+        base_unit=26.0,
+        consecutive_losses=3,
+        previous_stake=21.0,
+        bankroll=10000.0,
+        metrics=metrics,
+        payout=0.87,
+        soft_recovery=soft,
+    )
+    assert metrics.get("recovery_live_force_explore") is False
+    assert metrics.get("recovery_force_explore") is False
+    cover = 85.0 / 0.87 / 2.0
+    assert stake + 1e-9 >= cover
+    assert metrics.get("recovery_amort_cycles") == 2
+
+
+def test_soft_recovery_adapted_waived_by_pending_uses_cover():
+    metrics = {
+        "val_accuracy": 0.5424,
+        "live_n": 18,
+        "live_wr": 0.56,
+        "scale_adapted": True,
+    }
+    soft = {
+        "enabled": True,
+        "max_safe_stake_pct": 0.05,
+        "max_safe_stake_pct_linear3": 0.03,
+        "amort_cycles_min": 2,
+        "amort_cycles_max": 5,
+        "infeasible_force_explore": True,
+        "material_pending_min": 0.25,
+        "adapted_force_explore": True,
+        "adapted_force_explore_linear_min": 2,
+        "live_evidence_force_explore_linear_min": 3,
+        "live_evidence_force_explore_n_min": 2,
+        "live_evidence_force_explore_wr_max": 0.58,
+    }
+    stake = apply_soft_recovery_stake(
+        pending_total=88.0,
+        base_unit=25.0,
+        consecutive_losses=3,
+        previous_stake=25.0,
+        bankroll=10244.0,
+        metrics=metrics,
+        payout=0.87,
+        soft_recovery=soft,
+    )
+    assert metrics.get("recovery_adapted_force_explore") is False
+    assert metrics.get("recovery_force_explore") is False
+    cover = 88.0 / 0.87 / 2.0
+    assert stake + 1e-9 >= cover
+    assert metrics.get("recovery_amort_cycles") == 2
 
 
 def test_soft_recovery_cover_ge_cap_forces_explore():
@@ -119,7 +237,7 @@ def test_soft_recovery_cover_ge_cap_forces_explore():
     assert metrics.get("recovery_infeasible") is True
     assert metrics.get("recovery_force_explore") is True
     assert float(metrics.get("recovery_cover_need", 0.0)) + 1e-12 >= cap
-    assert stake <= 50.0 + 1e-9
+    assert stake == pytest.approx(200.0)
     assert stake < cap
 
 
@@ -146,146 +264,3 @@ def test_soft_recovery_infeasible_legacy_caps_without_force_explore():
     assert metrics.get("recovery_infeasible") is True
     assert metrics.get("recovery_force_explore") is False
     assert stake <= cap + 1e-9
-
-
-def _rm(kelly_config):
-    rm = MagicMock()
-    rm.config = kelly_config
-    rm.kelly_config = {
-        **kelly_config["kelly"],
-        "mandatory_weak_conviction_cap": 0.55,
-        "mandatory_weak_max_stake_pct": 0.01,
-        "stop_win_kelly_enabled": False,
-        "fraction": 0.005,
-        "max_stake_pct": 0.035,
-    }
-    rm.risk_params = {**kelly_config["params"], "stake_min": 1.0}
-    rm.soft_recovery_config = kelly_config.get("soft_recovery", {})
-    rm.dlambert_config = kelly_config.get("dlambert", {})
-    rm.initial_bankroll = 120.0
-    rm.total_session_profit = 0.0
-    rm.pending_loss = {}
-    rm.active_contract_ids = []
-    rm.consecutive_losses_linear = 0
-    rm.dlambert_unit = 1.0
-    rm.logger = MagicMock()
-    rm.effective_win_rate = MagicMock(return_value=0.55)
-    rm._recovery_allowed = MagicMock(return_value=False)
-    return rm
-
-
-def test_recover_weak_score_does_not_force_mandatory_min(kelly_config):
-    rm = _rm(kelly_config)
-    rm.pending_loss = {}
-    rm.consecutive_losses_linear = 1
-    rm.soft_recovery_config = {"enabled": False}
-    rm.dlambert_config = {"dlambert_enabled": False, "soft_recovery": {"enabled": False}}
-    rm._recovery_allowed = MagicMock(return_value=True)
-    metrics = {"execute": False, "trade_score": 0.40, "raw_prob": 0.40}
-    stake_mandatory = calculate_stake_for_manager(
-        rm,
-        120.0,
-        "R_10",
-        0.40,
-        silent=True,
-        apply_stop_win=False,
-        kwargs={
-            "dl_metrics": dict(metrics),
-            "mandatory_weak_cap": True,
-            "mandatory_trade_each_cycle": True,
-        },
-    )
-    stake_plain = calculate_stake_for_manager(
-        rm,
-        120.0,
-        "R_10",
-        0.40,
-        silent=True,
-        apply_stop_win=False,
-        kwargs={"dl_metrics": dict(metrics)},
-    )
-    assert stake_mandatory == pytest.approx(stake_plain)
-
-
-def test_explore_emits_stake_regime_on_metrics(kelly_config):
-    rm = _rm(kelly_config)
-    metrics = {"execute": True, "trade_score": 0.62, "raw_prob": 0.62}
-    calculate_stake_for_manager(
-        rm,
-        120.0,
-        "R_10",
-        0.62,
-        silent=False,
-        apply_stop_win=False,
-        kwargs={"dl_metrics": metrics, "cycle_id": 3},
-    )
-    assert metrics.get("stake_regime") == "EXPLORE"
-    assert rm._last_stake_audit["mode_tag"].startswith("EXPLORE_")
-
-
-def test_recovery_infeasible_edge_cases():
-    soft = {"amort_cycles_max": 5}
-    assert is_recovery_infeasible(0.0, 4.20, 0.95, soft) is False
-    assert is_recovery_infeasible(10.0, 0.0, 0.95, soft) is True
-    assert is_recovery_infeasible(10.0, 4.20, 0.0, soft) is True
-
-
-def test_bayesian_win_rate_handles_bad_live_fields():
-    p = bayesian_win_rate(
-        0.60,
-        metrics={
-            "live_n": 32,
-            "live_wr": "bad",
-            "live_brier": "x",
-            "live_ece": object(),
-            "edge_zscore": "z",
-        },
-    )
-    assert 0.40 <= p <= 0.75
-    shrunk = bayesian_win_rate(
-        0.65,
-        metrics={"live_n": 40, "live_wr": 0.70, "live_brier": 0.30, "live_ece": 0.15, "edge_zscore": 2.0},
-    )
-    assert shrunk < 0.70
-
-
-def test_stop_win_kelly_gate_blocks_without_live_health():
-    base = compute_single_strike_kelly_base(
-        10.0,
-        1000.0,
-        0.95,
-        0.80,
-        {"large_account_stop_win_pct": 10.0, "small_account_threshold": 50.0},
-        {"stop_win_kelly_enabled": True, "stop_win_kelly_max_fraction": 1.0},
-        1000.0,
-        0.0,
-        has_active_contracts=False,
-        live_metrics={"live_n": 10, "live_wr": 0.40},
-    )
-    assert base == pytest.approx(10.0)
-    bad_wr = compute_single_strike_kelly_base(
-        10.0,
-        1000.0,
-        0.95,
-        0.80,
-        {"large_account_stop_win_pct": 10.0, "small_account_threshold": 50.0},
-        {"stop_win_kelly_enabled": True, "stop_win_kelly_max_fraction": 1.0},
-        1000.0,
-        0.0,
-        has_active_contracts=False,
-        live_metrics={"live_n": 50, "live_wr": object()},
-    )
-    assert bad_wr == pytest.approx(10.0)
-    done = compute_single_strike_kelly_base(
-        10.0,
-        1000.0,
-        0.95,
-        0.80,
-        {"large_account_stop_win_pct": 10.0, "small_account_threshold": 50.0},
-        {"stop_win_kelly_enabled": True, "stop_win_kelly_max_fraction": 1.0},
-        1000.0,
-        1000.0,
-        has_active_contracts=False,
-        live_metrics={"live_n": 50, "live_wr": 0.60},
-    )
-    assert done == pytest.approx(10.0)

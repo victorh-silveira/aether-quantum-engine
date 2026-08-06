@@ -15,18 +15,30 @@ from src.infrastructure.handlers.stream_timeframe import (
 )
 
 
+def _resolve_sync_targets(handler: Any) -> tuple[int, int, int]:
+    """Define quantas velas buscar; treino lean foca no micro (TCN)."""
+    lean = bool(handler.config.get("_startup_train_lean"))
+    startup = handler.config.get("_startup_fetch_count")
+    micro_default = resolve_micro_fetch_count(handler.config)
+    micro_count = max(1, int(startup)) if startup is not None else micro_default
+    if lean:
+        macro_count = min(128, micro_count)
+        return macro_count, micro_count, 0
+    macro_count = handler._resolve_fetch_count()
+    mini_count = resolve_mini_fetch_count(handler.config)
+    return macro_count, micro_count, mini_count
+
+
 async def sync_triple_candle_history(handler: Any, callback) -> None:
     """Busca historico triplo, assina fluxos e marca sincronia no handler."""
-    macro_count = handler._resolve_fetch_count()
-    micro_count = resolve_micro_fetch_count(handler.config)
-    mini_count = resolve_mini_fetch_count(handler.config)
-    quiet = handler._history_sync_quiet(macro_count)
+    macro_count, micro_count, mini_count = _resolve_sync_targets(handler)
+    quiet = handler._history_sync_quiet(max(macro_count, micro_count, mini_count, 1))
     handler.is_synchronized = False
     if not handler.ws.is_running:
         raise ConnectionError("STREAM: WebSocket desconectado antes da sincronização.")
     sync_log = handler.logger.debug if quiet else handler.logger.info
     sync_log(
-        "DATA: Sincronizando historico | %d simbolos | macro=%ds x%d | micro=%ds x%d | mini=%ds x%d",
+        "DATA: Sincronizando historico | %d simbolos | macro=%ds x%d | micro=%ds x%d | mini=%ds x%d%s",
         len(handler.symbols),
         handler.macro_granularity,
         macro_count,
@@ -34,20 +46,24 @@ async def sync_triple_candle_history(handler: Any, callback) -> None:
         micro_count,
         handler.mini_granularity,
         mini_count,
+        " | lean_treino" if bool(handler.config.get("_startup_train_lean")) else "",
     )
     fetch_cfg = parse_history_fetch_config(handler.config)
     total = len(handler.symbols)
     for index, symbol in enumerate(handler.symbols, start=1):
         sync_log("DATA: Historico %s (%d/%d) | iniciando", symbol, index, total)
-        await handler._fetch_symbol_history(
-            symbol, macro_count, granularity=handler.macro_granularity, store=handler.macro_candles, quiet=quiet
-        )
-        await handler._fetch_symbol_history(
-            symbol, micro_count, granularity=handler.micro_granularity, store=handler.micro_candles, quiet=quiet
-        )
-        await handler._fetch_symbol_history(
-            symbol, mini_count, granularity=handler.mini_granularity, store=handler.mini_candles, quiet=quiet
-        )
+        if macro_count > 0:
+            await handler._fetch_symbol_history(
+                symbol, macro_count, granularity=handler.macro_granularity, store=handler.macro_candles, quiet=quiet
+            )
+        if micro_count > 0:
+            await handler._fetch_symbol_history(
+                symbol, micro_count, granularity=handler.micro_granularity, store=handler.micro_candles, quiet=quiet
+            )
+        if mini_count > 0:
+            await handler._fetch_symbol_history(
+                symbol, mini_count, granularity=handler.mini_granularity, store=handler.mini_candles, quiet=quiet
+            )
         sync_log(
             "DATA: Historico %s (%d/%d) | macro=%d micro=%d mini=%d",
             symbol,
@@ -79,7 +95,8 @@ async def sync_triple_candle_history(handler: Any, callback) -> None:
     handler.candle_callback = callback
     await subscribe_candle_streams(handler.ws, handler.symbols, handler.macro_granularity)
     await subscribe_candle_streams(handler.ws, handler.symbols, handler.micro_granularity)
-    await subscribe_candle_streams(handler.ws, handler.symbols, handler.mini_granularity)
+    if mini_count > 0 or not bool(handler.config.get("_startup_train_lean")):
+        await subscribe_candle_streams(handler.ws, handler.symbols, handler.mini_granularity)
     await subscribe_tick_streams(handler.ws, handler.symbols)
     handler.is_synchronized = True
     handler.logger.debug("DATA: Sincronia concluída. Buffer histórico em conformidade.")

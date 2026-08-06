@@ -83,7 +83,7 @@ async def seed_timescale_ohlc(
 def _parse_args(settings: dict[str, Any]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Popula Timescale OHLC (micro+macro) via Deriv.")
     parser.add_argument("--bars", type=int, default=META_TRAIN_DEFAULT_BARS)
-    parser.add_argument("--symbols", nargs="+", default=["R_10"])
+    parser.add_argument("--symbols", nargs="+", default=["OTC_SPC"])
     parser.add_argument(
         "--granularity",
         type=int,

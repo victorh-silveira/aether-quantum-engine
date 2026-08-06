@@ -61,3 +61,94 @@ def test_production_logging_ssot():
     cfg = resolve_logging_config(settings)
     assert cfg["level"] == 20
     assert "settle_enqueue" in cfg["quiet_channels"]
+
+
+def test_production_loss_classifier_soft_veto_ssot():
+    from src.domain.config_knobs import load_settings_json
+    from src.infrastructure.inference.loss_classifier_client import resolve_loss_classifier_config
+
+    settings = load_settings_json()
+    block = settings["infra"]["loss_classifier"]
+    assert str(block["veto_mode"]).strip().lower() == "soft"
+    assert float(block["veto_p_loss_floor"]) == pytest.approx(0.65)
+    assert float(block["soft_kelly_mult"]) == pytest.approx(0.55)
+    assert float(block["soft_kelly_mult_high"]) == pytest.approx(0.40)
+    assert float(block["soft_p_loss_high"]) == pytest.approx(0.85)
+    assert float(block["soft_max_stake_pct_high"]) == pytest.approx(0.02)
+    assert float(block["timeout_seconds"]) == pytest.approx(8.0)
+    assert int(block["retrain_on_loss_min_n"]) == 2
+    resolved = resolve_loss_classifier_config(None)
+    assert resolved["veto_mode"] == "soft"
+    assert resolved["veto_p_loss_floor"] == pytest.approx(0.65)
+    assert resolved["soft_kelly_mult"] == pytest.approx(0.55)
+    assert resolved["soft_kelly_mult_high"] == pytest.approx(0.40)
+    assert resolved["soft_p_loss_high"] == pytest.approx(0.85)
+    assert resolved["soft_max_stake_pct_high"] == pytest.approx(0.02)
+    assert resolved["retrain_on_loss_min_n"] == 2
+    soft_rec = settings["risk_management"]["soft_recovery"]
+    assert int(soft_rec["amort_cycles_min"]) == 1
+    assert int(soft_rec["amort_cycles_max"]) == 1
+    skip = settings["orchestrator"]["execution"]["signal_skip"]
+    assert "direction_loss_lock_min" not in skip
+    assert "direction_loss_toxic_escape" not in skip
+    assert "direction_loss_flip_kelly_mult" not in skip
+    assert "direction_loss_both_soft_kelly_mult" not in skip
+    assert "direction_loss_lock_ttl_seconds" not in skip
+    assert float(skip["cal_margin_soft_kelly_mult"]) == pytest.approx(0.55)
+    assert "calib_gray_margin_floor" not in skip
+    assert "calib_gray_soft_kelly_mult" not in skip
+    assert "calib_gray_max_stake_pct" not in skip
+    assert float(skip["waive_mini_pair_min_margin"]) == pytest.approx(0.0)
+    scale = settings["orchestrator"]["execution"]["scale_vision"]
+    assert "adapt_min_cal_margin" not in scale
+    assert "adapt_max_cal_margin" not in scale
+    assert scale["adapt_on_majority_votes"] is True
+    assert int(scale["adapt_majority_min_votes"]) == 3
+    assert int(scale["adapt_majority_min_lead"]) == 1
+    assert scale["adapt_majority_include_rsi"] is True
+    assert scale["adapt_majority_include_micro_bar"] is False
+    data = settings["data_handler"]
+    assert int(data["micro_granularity"]) == 900
+    assert int(data["mini_granularity"]) == 900
+    assert int(data["granularity"]) == 3600
+    assert int(data["fetch_count"]) == 2000
+    assert int(data["micro_fetch_count"]) == 2000
+    assert int(data["mini_fetch_count"]) == 256
+    orch = settings["orchestrator"]
+    assert int(orch["cycle_interval_seconds"]) == 15
+    assert int(orch["signature_boundary_seconds"]) == 15
+    assert int(orch["exec_empty_retry_seconds"]) == 15
+    assert int(orch["settlement_tolerance_window_seconds"]) == 300
+    assert int(orch["watchdog_stale_tick_seconds"]) == 600
+    params = settings["risk_management"]["params"]
+    assert int(params["duration"]) == 15
+    assert str(params["duration_unit"]).lower() == "m"
+    assert float(params["payout_estimate"]) == pytest.approx(0.72)
+    kelly = settings["risk_management"]["kelly"]
+    assert float(kelly["default_payout"]) == pytest.approx(0.72)
+    assert float(kelly["payout_fallback"]) == pytest.approx(0.72)
+    assert bool(kelly["stop_win_kelly_enabled"]) is True
+    assert int(kelly["stop_win_kelly_cycles_target"]) == 4
+    assert int(kelly["stop_win_kelly_live_n_min"]) == 0
+    assert float(kelly["max_stake_pct"]) == pytest.approx(0.05)
+    assert float(kelly["max_bankroll_stake_fraction"]) == pytest.approx(0.05)
+    assert float(kelly["min_stake_pct"]) == pytest.approx(0.02)
+    assert float(kelly["neutral_bankroll_pct"]) == pytest.approx(0.02)
+    assert float(kelly["stop_win_max_stake_pct"]) == pytest.approx(0.05)
+    assert float(kelly["fraction"]) == pytest.approx(0.40)
+    soft_rec_caps = settings["risk_management"]["soft_recovery"]
+    assert float(soft_rec_caps["max_safe_stake_pct"]) == pytest.approx(0.05)
+    assert float(soft_rec_caps["max_safe_stake_pct_linear2"]) == pytest.approx(0.05)
+    assert float(soft_rec_caps["max_safe_stake_pct_linear3"]) == pytest.approx(0.05)
+    assert float(soft_rec_caps["linear_bankroll_pct"]) == pytest.approx(0.02)
+    assert float(soft_rec_caps["cover_multiple"]) == pytest.approx(2.0)
+    ssp = settings["orchestrator"]["execution"]["sample_size_policy"]
+    assert int(ssp["evidence_n_min"]) == 12
+    assert int(ssp["toxic_side_n_min"]) == 4
+    assert int(ssp["large_n_min"]) == 32
+    side_eq = settings["orchestrator"]["execution"]["side_equilibrium"]
+    assert int(side_eq["n_min_small"]) == 4
+    assert int(side_eq["large_window"]) == 64
+    assert settings["gating"]["price_zone_gate_enabled"] is False
+    dl = settings["deep_learning"]
+    assert int(dl["training_history_bars"]) == 2000

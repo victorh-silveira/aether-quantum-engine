@@ -4,7 +4,7 @@ import pytest
 
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.dlambert_sizing import resolve_dlambert_stake
-from src.domain.risk.risk_stake_calc_helpers import apply_scale_stake_cap
+from src.domain.risk.risk_stake_calc_helpers import apply_loss_clf_soft_stake_cap, apply_scale_stake_cap
 
 
 def test_stake_cap_discord_and_noop():
@@ -22,6 +22,24 @@ def test_stake_cap_discord_and_noop():
         soft_recovery={"pending_waives_scale_explore": True, "material_pending_min": 0.5},
     )
     assert waived == 100.0
+
+
+def test_loss_clf_soft_stake_cap_explore_only_waived_by_pending():
+    metrics = {"loss_clf_soft": True, "loss_clf_soft_max_stake_pct": 0.0025}
+    soft = {"pending_waives_scale_explore": True, "material_pending_min": 0.5}
+    assert apply_loss_clf_soft_stake_cap(94.0, 9773.0, metrics) == pytest.approx(24.4325)
+    assert apply_loss_clf_soft_stake_cap(20.0, 9773.0, metrics) == 20.0
+    assert apply_loss_clf_soft_stake_cap(94.0, 9773.0, {"loss_clf_soft": False}) == 94.0
+    assert apply_loss_clf_soft_stake_cap(94.0, 9773.0, None) == 94.0
+    assert apply_loss_clf_soft_stake_cap(94.0, 9773.0, {"loss_clf_soft": True}) == 94.0
+    waived = apply_loss_clf_soft_stake_cap(
+        94.0,
+        9773.0,
+        metrics,
+        pending_total=51.0,
+        soft_recovery=soft,
+    )
+    assert waived == pytest.approx(94.0)
 
 
 def test_resolve_dlambert_pending_waives_scale_adapted_uses_soft_cover():
@@ -55,12 +73,9 @@ def test_resolve_dlambert_pending_waives_scale_adapted_uses_soft_cover():
         f_star=0.01,
     )
     assert tag == "D'ALEMBERT"
-    session_unit = max(20.0, 10000.0 * 0.0025)
+    session_unit = max(20.0, 10000.0 * 0.02)
     factor = 1.0 + (1.0 / 0.82)
-    cover = 51.0 / 0.82 / 4.0
-    expected = max(session_unit * factor, cover)
-    assert stake == pytest.approx(expected, rel=1e-2)
-    assert stake < 51.0 / 0.82
+    assert stake == pytest.approx(session_unit * factor, rel=1e-2)
 
 
 def test_resolve_dlambert_skips_dal_on_scale_adapted_without_pending():
@@ -177,7 +192,7 @@ def test_finalize_adapts_direction_under_raw_extreme():
             0.01,
             meta_applied=False,
             score=0.55,
-            symbol="R_10",
+            symbol="OTC_SPC",
             orch=orch,
         )
     assert direction == TradeDirection.CALL

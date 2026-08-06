@@ -33,7 +33,7 @@ async def test_predict_meta_success_clears_fallback_dedupe_state(caplog):
     client._client.post = AsyncMock(side_effect=httpx.TimeoutException("timeout"))
     await client.predict_meta(
         build_meta_predict_request(
-            symbol="R_10",
+            symbol="OTC_SPC",
             metrics=_meta_metrics(),
             tcn_probability=0.62,
             direction="CALL",
@@ -47,7 +47,7 @@ async def test_predict_meta_success_clears_fallback_dedupe_state(caplog):
     with caplog.at_level("WARNING"):
         result = await client.predict_meta(
             build_meta_predict_request(
-                symbol="R_10",
+                symbol="OTC_SPC",
                 metrics=_meta_metrics(),
                 tcn_probability=0.62,
                 direction="CALL",

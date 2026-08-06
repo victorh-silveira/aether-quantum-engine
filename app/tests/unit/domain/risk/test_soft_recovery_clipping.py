@@ -59,10 +59,12 @@ def test_resolve_soft_recovery_config_defaults_match_settings() -> None:
     assert soft["enabled"] is True
     assert soft["max_safe_stake_cap"] == pytest.approx(3.0)
     assert soft["max_safe_stake_pct"] == pytest.approx(0.05)
-    assert soft["max_safe_stake_pct_linear2"] == pytest.approx(0.045)
-    assert soft["max_safe_stake_pct_linear3"] == pytest.approx(0.04)
-    assert soft["amort_cycles_min"] == 2
-    assert soft["amort_cycles_max"] == 5
+    assert soft["max_safe_stake_pct_linear2"] == pytest.approx(0.05)
+    assert soft["max_safe_stake_pct_linear3"] == pytest.approx(0.05)
+    assert soft["amort_cycles_min"] == 1
+    assert soft["amort_cycles_max"] == 1
+    assert soft["cover_multiple"] == pytest.approx(2.0)
+    assert soft["linear_bankroll_pct"] == pytest.approx(0.02)
     assert soft["micro_residual_pending_max"] == pytest.approx(3.0)
     assert soft["micro_residual_zscore_floor"] == pytest.approx(0.01)
     assert soft["micro_residual_gbdt_waiver_skips"] == 4
@@ -76,6 +78,11 @@ def test_resolve_soft_recovery_config_defaults_match_settings() -> None:
     assert soft["material_pending_min"] == pytest.approx(0.5)
     assert soft["infeasible_force_explore"] is True
     assert soft["pending_waives_scale_explore"] is True
+    assert soft["adapted_force_explore"] is True
+    assert soft["adapted_force_explore_linear_min"] == 2
+    assert soft["live_evidence_force_explore_linear_min"] == 3
+    assert soft["live_evidence_force_explore_n_min"] == 2
+    assert soft["live_evidence_force_explore_wr_max"] == pytest.approx(0.58)
 
 
 def test_resolve_amort_cycles_bounds_from_soft_recovery() -> None:
@@ -83,6 +90,9 @@ def test_resolve_amort_cycles_bounds_from_soft_recovery() -> None:
     assert resolve_amort_cycles(1, soft) == 4
     assert resolve_amort_cycles(2, soft) == 3
     assert resolve_amort_cycles(5, soft) == 2
+    full = {"amort_cycles_min": 1, "amort_cycles_max": 1}
+    assert resolve_amort_cycles(1, full) == 1
+    assert resolve_amort_cycles(8, full) == 1
 
 
 def test_soft_recovery_clipping_linear_five_micro_bank_is_exactly_four_twenty() -> None:
@@ -90,7 +100,7 @@ def test_soft_recovery_clipping_linear_five_micro_bank_is_exactly_four_twenty() 
     rm.initial_bankroll = 100.0
     rm.dlambert_unit = 1.0
     rm.consecutive_losses_linear = 5
-    rm.pending_loss = {"R_10": 22.0}
+    rm.pending_loss = {"OTC_SPC": 22.0}
     rm.last_loss_stake = 8.0
     rm.total_session_profit = -22.0
     rm.logger = MagicMock()
@@ -106,7 +116,7 @@ def test_soft_recovery_clipping_linear_five_micro_bank_is_exactly_four_twenty() 
 
     stake = rm.calculate_stake(
         100.0,
-        "R_10",
+        "OTC_SPC",
         0.70,
         silent=True,
         apply_stop_win=False,
@@ -136,13 +146,13 @@ def test_soft_recovery_disabled_falls_back_to_kelly() -> None:
     rm.initial_bankroll = 100.0
     rm.dlambert_unit = 1.0
     rm.consecutive_losses_linear = 5
-    rm.pending_loss = {"R_10": 22.0}
+    rm.pending_loss = {"OTC_SPC": 22.0}
     rm.logger = MagicMock()
     rm.effective_win_rate = MagicMock(return_value=0.62)
     rm._recovery_allowed = MagicMock(return_value=True)
     stake = rm.calculate_stake(
         100.0,
-        "R_10",
+        "OTC_SPC",
         0.70,
         silent=True,
         apply_stop_win=False,
@@ -179,7 +189,7 @@ def test_soft_recovery_policy_branches_and_tail_cap() -> None:
     rm = RiskManager(_micro_risk_config())
     rm.initial_bankroll = 100.0
     assert rm.max_safe_tail_cap() == pytest.approx(4.20)
-    assert rm.max_safe_tail_cap(1000.0) == pytest.approx(6.30)
+    assert rm.max_safe_tail_cap(1000.0) == pytest.approx(84.0)
     rm.initial_bankroll = 0.0
     assert rm.max_safe_tail_cap() == pytest.approx(4.20)
     assert soft_recovery_enabled({"soft_recovery": {"amort_cycles_min": 2}}) is True
@@ -188,19 +198,19 @@ def test_soft_recovery_policy_branches_and_tail_cap() -> None:
     assert cointegration_pair_score({"calibrated_prob": 0.7, "edge_zscore": -0.1}) == float("-inf")
     assert cointegration_pair_score({"calibrated_prob": 0.8, "edge_zscore": 1.5}) > 0.0
     assert select_cointegration_redirect_candidate([("R_50", TradeDirection.CALL, {"edge_zscore": 2.0})]) == []
-    alone = [("R_10", TradeDirection.CALL, {"calibrated_prob": 0.7, "edge_zscore": 1.0})]
+    alone = [("OTC_SPC", TradeDirection.CALL, {"calibrated_prob": 0.7, "edge_zscore": 1.0})]
     assert select_cointegration_redirect_candidate(alone) == alone
     pair = [
-        ("R_10", TradeDirection.CALL, {"calibrated_prob": 0.55, "edge_zscore": 0.4}),
+        ("OTC_SPC", TradeDirection.CALL, {"calibrated_prob": 0.55, "edge_zscore": 0.4}),
         ("R_50", TradeDirection.PUT, {"calibrated_prob": 0.80, "edge_zscore": 1.5}),
     ]
-    assert select_cointegration_redirect_candidate(pair)[0][0] == "R_10"
+    assert select_cointegration_redirect_candidate(pair)[0][0] == "OTC_SPC"
     multi = [
-        ("R_10", TradeDirection.CALL, {"calibrated_prob": 0.55, "edge_zscore": 0.4}),
+        ("OTC_SPC", TradeDirection.CALL, {"calibrated_prob": 0.55, "edge_zscore": 0.4}),
         ("R_50", TradeDirection.PUT, {"calibrated_prob": 0.80, "edge_zscore": 1.5}),
     ]
     with patch(
         "src.domain.risk.risk_recovery_state.DRIFT_PAIR_SYMBOLS",
-        frozenset({"R_10", "R_50"}),
+        frozenset({"OTC_SPC", "R_50"}),
     ):
         assert select_cointegration_redirect_candidate(multi)[0][0] == "R_50"

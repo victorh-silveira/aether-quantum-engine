@@ -148,7 +148,7 @@ def resolve_dlambert_stake(
         )
         if metrics is not None and bool(metrics.get("recovery_force_explore")):
             resolve_dlambert_unit(kelly_base, rm)
-            return round_stake(float(kelly_base), recovery_linear=False), "KELLY"
+            return round_stake(float(raw), recovery_linear=False), "KELLY"
         rounded = round_stake(raw, recovery_linear=True)
         cap = max_safe_stake_cap(
             bankroll,

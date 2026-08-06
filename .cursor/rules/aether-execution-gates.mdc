@@ -1,5 +1,5 @@
 ---
-description: Gates de execucao Aether — signal_skip 1.1, loss_clf_veto, tecnico, SCALE soft
+description: Gates de execucao Aether — signal_skip soft 1.1, loss_clf soft, tecnico, SCALE soft
 globs: app/src/application/services/execution_*.py
 alwaysApply: false
 ---
@@ -7,9 +7,8 @@ alwaysApply: false
 # Execution gates
 
 - SKIP tecnico: `training` / `data` / `deploy` / `predict_error`
-- SKIP sinal (escopo **1.1**): SSOT `signal_skip` — `mini_pair_oppose`, `cal_margin` (waive pending)
-- Veto ML: container `aether-loss-classifier` → `gate_reason=loss_clf_veto`; log `LOSS_CLF || VETO auto_learn=0|1 …`
+- Soft sinal (escopo **1.1**): SSOT `signal_skip` — mini/cal soft Kelly; sem flip pos-LOSS; sem hard SKIP de sinal
+- Loss ML: container `aether-loss-classifier` → default soft graduado; log `LOSS_CLF || SOFT`
 - `min_direction_margin` padrao **0.022** em **[0.015, 0.05]**; nao restaurar quality gate / Hurst/ADX/RSI/price_zone
 - SCALE adapta lado + soft Kelly; **sem** SKIP por escala
-- EXEC_EMPTY / `gate_reason` coerente = processo ok
-- Catalogo: `docs/binary-senior-playbook.md` + `docs/infra-docker.md`
+- EXEC_EMPTY so tecnico / Kelly pause; catalogo: `docs/binary-senior-playbook.md` + `docs/infra-docker.md`

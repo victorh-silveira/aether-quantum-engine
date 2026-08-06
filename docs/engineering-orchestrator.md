@@ -4,15 +4,15 @@ Ciclo operacional do motor. Inventario de arquivos: [`structure.md`](structure.m
 
 ## Relogio e triplo OHLC
 
-- Fronteira / ciclo: **`signature_boundary_seconds` / `cycle_interval_seconds` = 60 s** (prefixos legados `m5` / `m15` no codigo)
-- MACRO OHLC: **300 s** (`data_handler.granularity`)
-- MICRO OHLC (TCN decisor): **60 s** (`data_handler.micro_granularity`)
-- Contrato Deriv RISE_FALL: **30 s** (`risk_management.params.duration`) — hibrido: label/treino em 1 barra micro 60 s
-- MINI OHLC: **60 s** (`data_handler.mini_granularity`)
+- Fronteira / ciclo: **`signature_boundary_seconds` / `cycle_interval_seconds` = 15 s** (entrada continua; contrato Deriv permanece **15 m**)
+- MACRO OHLC: **3600 s** (`data_handler.granularity`)
+- MICRO OHLC (TCN decisor): **900 s** (`data_handler.micro_granularity`) — M15
+- Contrato Deriv RISE_FALL: **15 m** (`risk_management.params.duration` / `duration_unit: m`) — label = 1 barra micro
+- MINI OHLC: **900 s** (`data_handler.mini_granularity`) — alinhado ao M15
 - MILI: tick flow (velocity/acceleration), nao barra OHLC
 - Sync inicial: `stream_sync_start.py` (historico MACRO+MICRO+MINI + subscribe candles/ticks)
-- Proporcao MACRO:MICRO **1:5** (300:60)
-- Pos-settlement: `post_settlement_is_trading_wait_seconds` **35**; `settlement_tolerance_window_seconds` **60**
+- Proporcao MACRO:MICRO **1:5** (3600:900)
+- Pos-settlement: `post_settlement_is_trading_wait_seconds` **90**; `settlement_tolerance_window_seconds` **180**; `post_settlement_cycle_timeout_seconds` **1200**
 
 ## Pipeline do ciclo
 
@@ -36,7 +36,7 @@ warmup/buffer → training_gate → collect decisoes DL
 
 ## Scale vision (MACRO/MICRO/MINI/MILI)
 
-SSOT: `orchestrator.execution.scale_vision` + `signal_skip` (escopo **1.1**). SCALE adapta lado sem SKIP por escala; apos adapt, catálogo minimo pode marcar `mini_pair_oppose` / `cal_margin` (margem waive com pending). Sob `raw_extreme`/fita forte, adapta ao consenso da fita; sob **retracao** / **explosao** / **mili+tape** contra o TCN, adapta ao lado vivo curto (dampen/EXPLORE).
+SSOT: `orchestrator.execution.scale_vision` + `signal_skip` (escopo **1.1**). SCALE adapta lado sem SKIP por escala; apos adapt, catálogo minimo atenua com soft Kelly (`mini_pair_oppose` / `cal_margin`) — **sem** hard SKIP de sinal, **sem** flip pos-LOSS e **sem** zona cinza/`hold_cal_*`. Ordem adapt: **majority_votes** (TCN/tape/mili/mini_pair/RSI) → tape/`raw_extreme` → regimes explosao/retracao/mili+tape. `adapt_allow_strong_tape` **false**.
 
 | Campo | Papel |
 |-------|-------|
@@ -46,9 +46,9 @@ SSOT: `orchestrator.execution.scale_vision` + `signal_skip` (escopo **1.1**). SC
 | MILI | Direcao do tick flow |
 | `scale_micro_regime` | `explosion` / `retraction` / `chop` |
 | `scale_tape_consensus` | Maioria da fita (`adapt_min_votes`) |
-| `scale_adapted` | Par MINI + raw/forte **ou** retracao vs TCN; Kelly sync ao lado exec |
+| `scale_adapted` | Flip so sob `raw_extreme` ou margem fraca + regimes; Kelly sync ao lado exec |
 | Soft sizing | Discord/adapt/retracao/chop+mili_oppose → `kelly_mult_discord` + `scale_force_explore` |
-| Soft cover | Pending material + `pending_waives_scale_explore` → soft cover/DAL sob `max_safe_stake_pct` (waive discord) |
+| Soft cover | Pending material + `pending_waives_scale_explore` → cover fino; `adapted_force_explore` bloqueia DAL L2+ |
 
 Log: `SCALE || … tape=… micro=… adapted=0|1` e IND: `SCALE: tcn=… tape=… micro=… adapted=…`  
 CLUSTER TF: `resolve_cluster_timeframe` prefere `micro_granularity` → tipicamente **M2**.
@@ -68,8 +68,8 @@ Nao confundir com `raw_extreme` (calibracao DL): limiares `tcn_macro_*_override`
 | Ciclo nao dispara | signature, warmup buffer (MACRO/MICRO/MINI), idle watchdog |
 | So EXEC_EMPTY | bloqueio tecnico / Kelly — processo pode estar correto |
 | Stake baixo com SCALE discord/adapt | `kelly_mult_discord` + `max_stake_pct_discord` (esperado) |
-| RECOVER/EXPLORE_DAL nao arma | `scale_force_explore` / `scale_adapted` forca Kelly |
-| Lado ≠ TCN no EXEC | `scale_adapted` + `tape_vs_tcn` sob `raw_extreme` |
+| RECOVER/EXPLORE_DAL nao arma | `adapted_force_explore` / ACC / live_wr / `scale_force_explore` |
+| Lado ≠ TCN no EXEC | `scale_adapted` via **majority_votes**, tape/`raw_extreme` ou regimes (sem hold Cal) |
 | Travado apos trade | settlement queue / post_settlement |
 | Reconnect loop | watchdog stale + cooldown |
 

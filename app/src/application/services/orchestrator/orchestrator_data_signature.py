@@ -42,14 +42,14 @@ def resolve_signature_boundary_seconds(orch: Any) -> int:
     raw = orchestrator.get("signature_boundary_seconds")
     if raw is not None:
         try:
-            return max(60, int(raw))
+            return max(15, int(raw))
         except (TypeError, ValueError):
             pass
     cadence = orchestrator.get("cycle_interval_seconds")
     if cadence is not None:
         try:
             cadence_int = int(cadence)
-            if cadence_int >= 60:
+            if cadence_int >= 15:
                 return cadence_int
         except (TypeError, ValueError):
             pass

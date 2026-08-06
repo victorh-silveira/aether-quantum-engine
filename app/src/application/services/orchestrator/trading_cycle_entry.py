@@ -79,7 +79,6 @@ async def acquire_trading_cycle_lock(orch: Any) -> bool:
 
 async def _execute_inference_cluster_cycle(orch: Any) -> bool:
     """Coleta inferencia DL e executa cluster quando o warm-up micro ja liberou o ciclo."""
-    orch.loss_tracker.prune_obsolete_direction_losses(max_age_seconds=600.0)
     orch.logger.debug(
         "[C%04d] CICLO: coletando decisoes DL (%d simbolos)",
         orch._active_cycle_id,
@@ -142,7 +141,16 @@ async def run_trading_cycle_if_ready(orch: Any) -> bool:
                 else:
                     commit_trading_cycle_data_signature(orch)
                     if not force_trade_from_orch(orch):
-                        orch._cooldown_until = time.time() + seconds_until_next_signature_boundary(orch)
+                        boundary_wait = float(seconds_until_next_signature_boundary(orch))
+                        orch_cfg = orch.config.get("orchestrator") if isinstance(orch.config, dict) else {}
+                        if not isinstance(orch_cfg, dict):
+                            orch_cfg = {}
+                        try:
+                            empty_cap = float(orch_cfg.get("exec_empty_retry_seconds", 15))
+                        except (TypeError, ValueError):
+                            empty_cap = 15.0
+                        delay = min(max(boundary_wait, 1.0), max(5.0, empty_cap))
+                        orch._cooldown_until = time.time() + delay
     except Exception as e:
         orch.logger.error(f"FALHA: Ciclo: {e}")
         ran = True

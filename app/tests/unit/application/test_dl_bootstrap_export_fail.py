@@ -16,7 +16,7 @@ async def test_train_bootstrap_symbol_returns_false_when_history_short(orch_read
         "src.application.services.deep_learning.dl_bootstrap_train._bootstrap_training_context",
         return_value=({}, {"lookback": 32}, 3000, 60, {}, np.linspace(1.0, 2.0, 100), None, None, None, None),
     ):
-        status = await _train_bootstrap_symbol(orch, "R_10")
+        status = await _train_bootstrap_symbol(orch, "OTC_SPC")
     assert status == "wait"
 
 
@@ -51,7 +51,7 @@ async def test_train_bootstrap_symbol_fails_when_export_not_ok(orch_ready):
             side_effect=fake_thread,
         ),
     ):
-        status = await _train_bootstrap_symbol(orch, "R_10")
+        status = await _train_bootstrap_symbol(orch, "OTC_SPC")
     assert status == "fail"
 
 
@@ -61,7 +61,7 @@ async def test_run_initial_bootstrap_training_stops_on_export_fail(orch_ready):
     with (
         patch(
             "src.application.services.deep_learning.dl_bootstrap_train._ordered_bootstrap_symbols",
-            side_effect=[["R_10", "R_50"], ["R_50"], []],
+            side_effect=[["OTC_SPC", "R_50"], ["R_50"], []],
         ),
         patch(
             "src.application.services.deep_learning.dl_bootstrap_train._train_bootstrap_symbol",

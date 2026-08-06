@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import json
 import logging
@@ -150,17 +151,31 @@ def _ensure_timescaledb_running() -> int:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Garante TimescaleDB para treino meta")
+    parser.add_argument(
+        "--check-only",
+        action="store_true",
+        help="So valida porta/DSN; nao sementeia OHLC (meta usa --source auto)",
+    )
+    args = parser.parse_args()
     rc = _ensure_timescaledb_running()
     if rc != 0:
         return rc
 
     settings = _load_settings()
     dsn = _settings_dsn(settings)
-    symbols = ["R_10"]
+    symbols = ["OTC_SPC"]
     granularities = _required_granularities(settings)
     ok = asyncio.run(_data_ok(dsn, symbols, granularities))
     if ok:
         logger.info("[AETHER] TimescaleDB | dados OHLC suficientes.")
+        return 0
+
+    if bool(args.check_only):
+        logger.info(
+            "[AETHER] TimescaleDB | OHLC insuficiente gran=%s — seed pulado (--check-only); meta usara --source auto",
+            granularities,
+        )
         return 0
 
     logger.info("[AETHER] TimescaleDB | dados OHLC insuficientes - sementeando via Deriv...")

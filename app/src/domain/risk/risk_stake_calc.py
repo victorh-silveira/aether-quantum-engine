@@ -16,7 +16,7 @@ from src.domain.risk.dlambert_sizing import (
 from src.domain.risk.kelly_p_align import calculate_kelly_fraction
 from src.domain.risk.risk_recovery_state import clear_dust_pending_loss
 from src.domain.risk.risk_stake_calc_helpers import (
-    apply_scale_stake_cap,
+    apply_post_kelly_stake_caps,
     cap_final_stake,
     resolve_f_star_and_kelly_base,
 )
@@ -125,7 +125,10 @@ def calculate_stake_for_manager(
         ):
             stake_regime = "EXPLORE"
         dl_metrics["stake_regime"] = stake_regime
-        if dl_metrics.get("signal_status") == "SKIP":
+        status = str(dl_metrics.get("signal_status") or "").strip().upper()
+        if status == "SKIP" or status.startswith("SKIP:"):
+            return 0.0
+        if dl_metrics.get("execution_candidate_ready") is False:
             return 0.0
         if dl_metrics.get("meta_veto_mode") == "soft" or dl_metrics.get("signal_status") == "SOFT_VETO":
             senior_conv = float(dl_metrics.get("senior_trader_conviction", 0.0) or 0.0)
@@ -247,10 +250,11 @@ def calculate_stake_for_manager(
     )
     final_stake = enforce_d_squeeze_stake_floor(final_stake, stake_min, dl_metrics, pending_total=loss_to_recover)
     soft = getattr(rm, "soft_recovery_config", None)
-    final_stake = apply_scale_stake_cap(
+    metrics_dict = dl_metrics if isinstance(dl_metrics, dict) else None
+    final_stake = apply_post_kelly_stake_caps(
         final_stake,
         bankroll,
-        dl_metrics if isinstance(dl_metrics, dict) else None,
+        metrics_dict,
         pending_total=float(loss_to_recover),
         soft_recovery=soft if isinstance(soft, dict) else None,
     )

@@ -32,8 +32,14 @@ _SOFT_RECOVERY_KEYS = (
     "near_stop_win_freeze_pct",
     "material_pending_min",
     "linear_bankroll_pct",
+    "cover_multiple",
     "infeasible_force_explore",
     "pending_waives_scale_explore",
+    "adapted_force_explore",
+    "adapted_force_explore_linear_min",
+    "live_evidence_force_explore_linear_min",
+    "live_evidence_force_explore_n_min",
+    "live_evidence_force_explore_wr_max",
 )
 
 _CACHE: dict[str, Any] = {"soft_recovery": None}
@@ -42,14 +48,20 @@ _CACHE: dict[str, Any] = {"soft_recovery": None}
 def require_soft_recovery(raw: dict[str, Any] | None) -> dict[str, Any]:
     """Valida e normaliza o bloco soft_recovery completo."""
     block = require_keys(raw if isinstance(raw, dict) else None, _SOFT_RECOVERY_KEYS, "risk_management.soft_recovery")
+    amin = require_int(block, "amort_cycles_min")
+    amax = require_int(block, "amort_cycles_max")
+    if amin < 1:
+        raise ValueError("risk_management.soft_recovery.amort_cycles_min deve ser >= 1")
+    if amax < amin:
+        raise ValueError("risk_management.soft_recovery.amort_cycles_max deve ser >= amort_cycles_min")
     return {
         "enabled": require_bool(block, "enabled"),
         "max_safe_stake_cap": require_float(block, "max_safe_stake_cap"),
         "max_safe_stake_pct": require_float(block, "max_safe_stake_pct"),
         "max_safe_stake_pct_linear2": require_float(block, "max_safe_stake_pct_linear2"),
         "max_safe_stake_pct_linear3": require_float(block, "max_safe_stake_pct_linear3"),
-        "amort_cycles_min": require_int(block, "amort_cycles_min"),
-        "amort_cycles_max": require_int(block, "amort_cycles_max"),
+        "amort_cycles_min": amin,
+        "amort_cycles_max": amax,
         "coing_redirect_drawdown_threshold": require_float(block, "coing_redirect_drawdown_threshold"),
         "micro_residual_bankroll_max": require_float(block, "micro_residual_bankroll_max"),
         "micro_residual_pending_max": require_float(block, "micro_residual_pending_max"),
@@ -67,8 +79,14 @@ def require_soft_recovery(raw: dict[str, Any] | None) -> dict[str, Any]:
         "near_stop_win_freeze_pct": require_float(block, "near_stop_win_freeze_pct"),
         "material_pending_min": require_float(block, "material_pending_min"),
         "linear_bankroll_pct": require_float(block, "linear_bankroll_pct"),
+        "cover_multiple": max(1.0, min(5.0, require_float(block, "cover_multiple"))),
         "infeasible_force_explore": require_bool(block, "infeasible_force_explore"),
         "pending_waives_scale_explore": require_bool(block, "pending_waives_scale_explore"),
+        "adapted_force_explore": require_bool(block, "adapted_force_explore"),
+        "adapted_force_explore_linear_min": require_int(block, "adapted_force_explore_linear_min"),
+        "live_evidence_force_explore_linear_min": require_int(block, "live_evidence_force_explore_linear_min"),
+        "live_evidence_force_explore_n_min": require_int(block, "live_evidence_force_explore_n_min"),
+        "live_evidence_force_explore_wr_max": require_float(block, "live_evidence_force_explore_wr_max"),
     }
 
 

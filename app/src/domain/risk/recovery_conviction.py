@@ -21,6 +21,19 @@ def _runtime(kelly_config: dict) -> dict:
     return load_kelly_runtime_from_settings()
 
 
+def scaled_recovery_min_val_accuracy(kelly_config: dict, *, consecutive_losses: int = 0) -> float:
+    """Piso de val_accuracy para recovery; sobe com perdas lineares."""
+    base_val = float(kelly_config.get("recovery_min_val_accuracy", 0.53))
+    losses = int(consecutive_losses)
+    if losses >= 4:
+        return max(base_val, 0.55)
+    if losses >= 3:
+        return max(base_val, 0.54)
+    if losses == 2:
+        return max(base_val, 0.53)
+    return base_val
+
+
 def recovery_min_conviction(
     kelly_config: dict,
     dlambert_config: dict,
@@ -77,10 +90,9 @@ def recovery_dl_conviction_ok(
         pending_loss=pending_loss,
         consecutive_losses_linear=consecutive_losses_linear,
     )
-    min_val = (
-        float(cfg["recovery_min_val_accuracy"])
-        if "recovery_min_val_accuracy" in cfg
-        else float(runtime["recovery_min_val_accuracy"])
+    min_val = scaled_recovery_min_val_accuracy(
+        cfg if "recovery_min_val_accuracy" in cfg else runtime,
+        consecutive_losses=int(consecutive_losses_linear),
     )
     score = metric_float(dl_metrics, "trade_score", "conviction", "calibrated_prob", default=0.0)
     raw_side = raw_side_from_metrics(dl_metrics)
@@ -109,10 +121,9 @@ def recovery_dl_entry_allowed(
         return True
     cfg = _merged_config(kelly_config, dlambert_config)
     runtime = _runtime(kelly_config)
-    min_val = (
-        float(cfg["recovery_min_val_accuracy"])
-        if "recovery_min_val_accuracy" in cfg
-        else float(runtime["recovery_min_val_accuracy"])
+    min_val = scaled_recovery_min_val_accuracy(
+        cfg if "recovery_min_val_accuracy" in cfg else runtime,
+        consecutive_losses=int(consecutive_losses_linear),
     )
     val = metric_float(dl_metrics, "val_accuracy", default=0.0)
     if min_val > 0.0 and val + 1e-9 < min_val:

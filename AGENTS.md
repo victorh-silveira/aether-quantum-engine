@@ -9,6 +9,13 @@ Ponto de entrada para agentes Cursor/LLM neste repositorio.
 - Sem emojis em codigo, logs ou docs tecnicos
 - Sem comentarios no codigo (docstrings OK)
 
+## Universo operacional
+
+- Simbolo unico: **`OTC_SPC`** (S&P 500 OTC / dTrader) — **somente M15**
+- Relogio: contrato **15 m**; micro/MINI **900 s**; macro **3600 s**; ciclo **900 s**
+- SSOT: `config/settings.json` + `app/src/domain/symbols/drift_symbols.py`
+- Artefactos/treino antigos de Volatility (`R_10`) ou gran 60/300 sao invalidos apos migracao
+
 ## O que o LLM e / nao e
 
 - **E:** copiloto de engenharia e auditoria
@@ -27,7 +34,7 @@ Rules/skills versionadas: [`.cursor/rules/`](.cursor/rules/) e [`.cursor/skills/
 - Cobertura de testes em `app/src` abaixo de **100%**
 - Assunto de commit em ingles; escopo fora do enum commitlint
 
-Nota operacional (**escopo 1.1**): quality gate amplo (Hurst/ADX/RSI/price_zone/SIDE_EQ block) permanece **fora**; SKIP = tecnico + `signal_skip` + veto ML `loss_clf_veto` (container `aether-loss-classifier`) + Kelly/caps. Vies CALL/PUT: treino + SIDE_EQ soft.
+Nota operacional (**escopo 1.1**): quality gate amplo (Hurst/ADX/RSI/price_zone/SIDE_EQ block) permanece **fora**; EXEC_EMPTY = tecnico + Kelly/caps; `signal_skip` / loss-clf = **somente soft Kelly** (sem hard SKIP de sinal; sem flip pos-LOSS). Vies CALL/PUT: treino + SIDE_EQ soft.
 
 ## Escopos commitlint
 

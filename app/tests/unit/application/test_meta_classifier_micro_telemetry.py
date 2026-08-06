@@ -31,7 +31,7 @@ def test_series_last_defaults_on_missing_or_empty():
 
 def test_stamp_micro_frame_telemetry_attaches_micro_indicators():
     metrics: dict = {}
-    stamp_micro_frame_telemetry(_Orch(), "R_10", metrics, {"micro_granularity": 300})
+    stamp_micro_frame_telemetry(_Orch(), "OTC_SPC", metrics, {"micro_granularity": 300})
     assert "micro_indicators" in metrics
     assert "rsi" in metrics["micro_indicators"]
     assert "vol_ratio" in metrics["micro_indicators"]
@@ -41,5 +41,5 @@ def test_stamp_micro_frame_telemetry_attaches_micro_indicators():
 
 def test_stamp_micro_frame_telemetry_noop_without_stream():
     metrics: dict = {}
-    stamp_micro_frame_telemetry(object(), "R_10", metrics, {})
+    stamp_micro_frame_telemetry(object(), "OTC_SPC", metrics, {})
     assert "micro_indicators" not in metrics

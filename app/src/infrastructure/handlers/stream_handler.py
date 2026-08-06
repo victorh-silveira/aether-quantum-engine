@@ -60,9 +60,11 @@ class StreamHandler:
         return 500
 
     def _history_sync_quiet(self, goal: int) -> bool:
-        """Indica sync inicial curto (inferencia) com logs reduzidos."""
-        if self.config.get("_startup_fetch_count") is not None:
+        """Indica sync curto de inferencia com logs reduzidos (treino permanece verboso)."""
+        if self.config.get("_startup_quiet") is True:
             return True
+        if self.config.get("_startup_fetch_count") is not None:
+            return False
         return int(goal) <= 512
 
     async def start_candle_stream(self, callback):
@@ -96,19 +98,37 @@ class StreamHandler:
         self.logger.debug("DATA: Historico %s g=%ss | %d velas (alvo %d)", symbol, granularity, len(merged), count)
         return len(merged)
 
-    async def ensure_cluster_history(self, target: int) -> None:
-        """Continua backfill macro sequencial ate atingir o alvo de velas por simbolo."""
+    async def ensure_cluster_history(self, target: int, *, timeframe: str = "macro") -> None:
+        """Continua backfill do buffer de treino ate atingir o alvo de velas por simbolo."""
         goal = max(1, int(target))
         fetch_cfg = parse_history_fetch_config(self.config)
+        tf = str(timeframe).strip().lower()
+        if tf == "micro":
+            gran = self.micro_granularity
+            store = self.micro_candles
+            label = "micro"
+        elif tf == "mini":
+            gran = self.mini_granularity
+            store = self.mini_candles
+            label = "mini"
+        else:
+            gran = self.macro_granularity
+            store = self.macro_candles
+            label = "macro"
         for symbol in self.symbols:
-            before = len(self.macro_candles.get(symbol, []))
+            before = len(store.get(symbol, []))
             if before >= goal:
                 continue
-            after = await self._fetch_symbol_history(
-                symbol, goal, granularity=self.macro_granularity, store=self.macro_candles, fetch_cfg=fetch_cfg
-            )
+            after = await self._fetch_symbol_history(symbol, goal, granularity=gran, store=store, fetch_cfg=fetch_cfg)
             if after > before:
-                self.logger.info("DATA: Backfill %s | %d -> %d velas macro (alvo %d)", symbol, before, after, goal)
+                self.logger.info(
+                    "DATA: Backfill %s | %d -> %d velas %s (alvo %d)",
+                    symbol,
+                    before,
+                    after,
+                    label,
+                    goal,
+                )
             symbol_delay = float(fetch_cfg["symbol_delay"])
             if symbol_delay > 0:
                 await asyncio.sleep(symbol_delay)

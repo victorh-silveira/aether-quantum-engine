@@ -85,7 +85,7 @@ async def test_process_late_settlement_from_payload():
         "is_settled": 1,
         "status": "won",
         "profit": 2.0,
-        "underlying": "R_10",
+        "underlying": "OTC_SPC",
     }
     with (
         patch(

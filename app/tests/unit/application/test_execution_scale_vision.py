@@ -1,6 +1,7 @@
 """Testes de last-bar, consenso de fita e auditoria SCALE."""
 
 import numpy as np
+import pytest
 
 from src.application.services.execution_scale_vision import (
     bar_direction_at,
@@ -43,9 +44,9 @@ def test_tape_consensus():
 
 
 def test_mili_direction_from_flow():
-    assert mili_direction_from_flow({"price_velocity": 0.5}, None, "R_10") == "CALL"
-    assert mili_direction_from_flow({"micro_tick_acceleration": -1.0}, None, "R_10") == "PUT"
-    assert mili_direction_from_flow({}, None, "R_10") is None
+    assert mili_direction_from_flow({"price_velocity": 0.5}, None, "OTC_SPC") == "CALL"
+    assert mili_direction_from_flow({"micro_tick_acceleration": -1.0}, None, "OTC_SPC") == "PUT"
+    assert mili_direction_from_flow({}, None, "OTC_SPC") is None
 
 
 def test_parse_scale_vision_from_ssot():
@@ -55,13 +56,21 @@ def test_parse_scale_vision_from_ssot():
     assert cfg["adapt_direction_enabled"] is True
     assert cfg["use_last_bar"] is True
     assert cfg["adapt_require_bar_pair_agree"] is True
-    assert cfg["adapt_allow_strong_tape"] is True
+    assert cfg["adapt_allow_strong_tape"] is False
+    assert "adapt_max_cal_margin" not in cfg
+    assert "adapt_min_cal_margin" not in cfg
     assert cfg["adapt_strong_mini_pair"] is True
     assert cfg["adapt_kelly_p_floor"] >= 0.51
     assert cfg["adapt_min_votes"] >= 1
     assert cfg["adapt_on_retraction"] is True
     assert cfg["adapt_on_explosion"] is True
     assert cfg["adapt_on_mili_tape"] is True
+    assert cfg["adapt_on_majority_votes"] is True
+    assert cfg["adapt_majority_min_lead"] == 1
+    assert cfg["adapt_majority_min_votes"] == 3
+    assert cfg["adapt_majority_include_rsi"] is True
+    assert cfg["adapt_majority_include_micro_bar"] is False
+    assert cfg["adapt_majority_rsi_neutral"] == pytest.approx(0.5)
     assert cfg["retraction_require_mili"] is True
     assert cfg["retraction_use_tick_accel"] is True
     assert cfg["max_stake_pct_discord"] > 0.0
@@ -86,7 +95,7 @@ def test_compute_scale_discordance():
 
     orch = type("O", (), {"stream": Stream()})()
     metrics = {"flow_features": {"price_velocity": 1.0}}
-    compute_scale_directions(orch, "R_10", TradeDirection.PUT, metrics)
+    compute_scale_directions(orch, "OTC_SPC", TradeDirection.PUT, metrics)
     assert metrics["scale_micro_dir"] == "PUT"
     assert metrics["scale_macro_dir"] == "CALL"
     assert metrics["scale_mini_prev_bar_dir"] == "CALL"
@@ -106,11 +115,16 @@ def test_compute_scale_discordance():
     assert "micro=" in line
     assert "mi_p=CALL" in format_scale_ind_token(metrics)
     assert "micro=" in format_scale_ind_token(metrics)
+    metrics["scale_vote_call_n"] = 1
+    metrics["scale_vote_put_n"] = 3
+    assert "votes=C1/P3" in format_scale_ind_token(metrics)
+    assert format_scale_audit_line(None).startswith("SCALE ||")
+    assert "votes=" not in format_scale_ind_token(None)
 
 
 def test_compute_scale_disabled():
     metrics = {}
-    compute_scale_directions(None, "R_10", TradeDirection.CALL, metrics, cfg={"enabled": False})
+    compute_scale_directions(None, "OTC_SPC", TradeDirection.CALL, metrics, cfg={"enabled": False})
     assert metrics["scale_reason"] == "disabled"
 
 
@@ -127,7 +141,7 @@ def test_compute_scale_without_last_bar():
     metrics = {"flow_features": {"price_velocity": -1.0}}
     compute_scale_directions(
         type("O", (), {"stream": Stream()})(),
-        "R_10",
+        "OTC_SPC",
         TradeDirection.CALL,
         metrics,
         cfg={

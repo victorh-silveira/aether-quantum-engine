@@ -9,6 +9,8 @@ from typing import Any
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
+from buffer_io import buffer_class_counts, load_learn_buffer, save_learn_buffer
+from learn_policy import retrain_min_for_label, should_retrain_after_learn
 from runtime import fit_classifier, load_latest_classifier, persist_bundle, predict_p_loss
 
 
@@ -16,9 +18,10 @@ logger = logging.getLogger("LOSS_CLF")
 MODELS_DIR = Path(os.getenv("MODELS_DIR", "/models"))
 FEATURE_DIM = int(os.getenv("LOSS_FEATURE_DIM", "24"))
 READY_N = int(os.getenv("LOSS_READY_N", "24"))
-RETRAIN_MIN_N = int(os.getenv("LOSS_RETRAIN_MIN_N", "32"))
+RETRAIN_MIN_N = int(os.getenv("LOSS_RETRAIN_MIN_N", "24"))
+RETRAIN_ON_LOSS_MIN_N = int(os.getenv("LOSS_RETRAIN_ON_LOSS_MIN_N", "2"))
 MAX_BUFFER = int(os.getenv("LOSS_MAX_BUFFER", "2000"))
-VETO_P_LOSS_FLOOR = float(os.getenv("LOSS_VETO_P_LOSS_FLOOR", "0.62"))
+VETO_P_LOSS_FLOOR = float(os.getenv("LOSS_VETO_P_LOSS_FLOOR", "0.65"))
 FEATURE_NAMES = tuple(f"f_{index}" for index in range(FEATURE_DIM))
 
 
@@ -89,6 +92,23 @@ def _veto_ready() -> bool:
     return _model is not None and int(_n_train) >= int(READY_N)
 
 
+def _persist_buffer_unlocked() -> None:
+    save_learn_buffer(MODELS_DIR, _buffer_x, _buffer_y)
+
+
+def _load_buffer_unlocked() -> None:
+    global _buffer_x, _buffer_y
+    loaded = load_learn_buffer(MODELS_DIR)
+    if loaded is None:
+        return
+    _buffer_x, _buffer_y = loaded
+    if len(_buffer_y) > int(MAX_BUFFER):
+        overflow = len(_buffer_y) - int(MAX_BUFFER)
+        del _buffer_x[:overflow]
+        del _buffer_y[:overflow]
+    logger.info("Buffer learn carregado n=%d %s", len(_buffer_y), buffer_class_counts(_buffer_y))
+
+
 def _apply_bundle(bundle: dict[str, Any], path: Path | None, *, auto_learn: bool) -> None:
     global _model, _model_path, _model_mtime, _model_version, _n_train, _auto_learn_applied, _load_error
     _model = bundle["model"]
@@ -124,10 +144,11 @@ def _maybe_hot_reload() -> None:
     logger.info("Hot-reload loss: %s", path.name)
 
 
-def _fit_from_buffer() -> RetrainResult:
+def _fit_from_buffer(*, min_n: int | None = None) -> RetrainResult:
+    floor = int(min_n) if min_n is not None else int(RETRAIN_MIN_N)
     with _lock:
-        if len(_buffer_y) < int(RETRAIN_MIN_N):
-            return RetrainResult(ok=False, n_train=len(_buffer_y), model_version=_model_version, detail=f"n<{RETRAIN_MIN_N}")
+        if len(_buffer_y) < floor:
+            return RetrainResult(ok=False, n_train=len(_buffer_y), model_version=_model_version, detail=f"n<{floor}")
         if len(set(_buffer_y)) < 2:
             return RetrainResult(
                 ok=False, n_train=len(_buffer_y), model_version=_model_version, detail="precisa WIN e LOSS"
@@ -141,6 +162,7 @@ def _fit_from_buffer() -> RetrainResult:
             path,
             auto_learn=True,
         )
+        _persist_buffer_unlocked()
         logger.info("Retrain loss ok n=%d ver=%s", _n_train, _model_version)
         return RetrainResult(ok=True, n_train=_n_train, model_version=_model_version, detail="ok")
 
@@ -148,6 +170,7 @@ def _fit_from_buffer() -> RetrainResult:
 @app.on_event("startup")
 async def startup() -> None:
     with _lock:
+        _load_buffer_unlocked()
         _load_latest_model()
 
 
@@ -155,6 +178,7 @@ async def startup() -> None:
 async def health() -> dict[str, Any]:
     with _lock:
         _maybe_hot_reload()
+        counts = buffer_class_counts(_buffer_y)
         return {
             "ready": True,
             "model_loaded": _model is not None,
@@ -166,6 +190,8 @@ async def health() -> dict[str, Any]:
             "model_mtime": float(_model_mtime),
             "auto_learn_applied": bool(_auto_learn_applied),
             "buffer_n": len(_buffer_y),
+            "buffer_win": int(counts["win"]),
+            "buffer_loss": int(counts["loss"]),
             "load_error": _load_error,
         }
 
@@ -232,6 +258,11 @@ async def learn(payload: LearnRequest) -> dict[str, Any]:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     retrain_result: RetrainResult | None = None
+    fit_min = retrain_min_for_label(
+        label=label,
+        retrain_min_n=int(RETRAIN_MIN_N),
+        retrain_on_loss_min_n=int(RETRAIN_ON_LOSS_MIN_N),
+    )
     with _lock:
         _buffer_x.append(vector)
         _buffer_y.append(1 if label == "LOSS" else 0)
@@ -239,9 +270,15 @@ async def learn(payload: LearnRequest) -> dict[str, Any]:
             overflow = len(_buffer_y) - int(MAX_BUFFER)
             del _buffer_x[:overflow]
             del _buffer_y[:overflow]
-        should_retrain = len(_buffer_y) >= int(RETRAIN_MIN_N) and len(_buffer_y) % max(8, RETRAIN_MIN_N // 4) == 0
+        should_retrain = should_retrain_after_learn(
+            label=label,
+            buffer_n=len(_buffer_y),
+            retrain_min_n=int(RETRAIN_MIN_N),
+            retrain_on_loss_min_n=int(RETRAIN_ON_LOSS_MIN_N),
+        )
+        _persist_buffer_unlocked()
     if should_retrain:
-        retrain_result = _fit_from_buffer()
+        retrain_result = _fit_from_buffer(min_n=fit_min)
     with _lock:
         return {
             "ok": True,
@@ -250,6 +287,7 @@ async def learn(payload: LearnRequest) -> dict[str, Any]:
             "model_version": _model_version,
             "n_train": int(_n_train),
             "auto_learn_applied": bool(_auto_learn_applied),
+            "retrain_detail": str(retrain_result.detail) if retrain_result is not None else "",
         }
 
 

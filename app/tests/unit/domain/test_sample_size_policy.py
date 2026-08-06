@@ -30,25 +30,25 @@ def _reset_policy_cache():
 def test_sample_size_policy_ssot_defaults():
     cfg = load_sample_size_policy()
     assert cfg["enabled"] is True
-    assert cfg["evidence_n_min"] == 20
-    assert cfg["large_n_min"] == 40
-    assert cfg["calib_soft_min_n"] == 15
-    assert cfg["toxic_side_n_min"] == 8
+    assert cfg["evidence_n_min"] == 12
+    assert cfg["large_n_min"] == 32
+    assert cfg["calib_soft_min_n"] == 12
+    assert cfg["toxic_side_n_min"] == 4
     assert cfg["explore_stake_scale_floor"] == pytest.approx(0.25)
     assert cfg["z_sig_threshold"] == pytest.approx(1.64)
 
 
 def test_small_sample_is_noise_until_evidence_n():
     assert is_small_sample(0) is True
-    assert is_small_sample(19) is True
-    assert is_small_sample(20) is False
-    assert is_large_sample(39) is False
-    assert is_large_sample(40) is True
+    assert is_small_sample(11) is True
+    assert is_small_sample(12) is False
+    assert is_large_sample(31) is False
+    assert is_large_sample(32) is True
 
 
 def test_reliability_and_shrink_dilute_small_n():
     assert sample_reliability(0) == pytest.approx(0.0)
-    assert sample_reliability(20) == pytest.approx(0.5)
+    assert sample_reliability(16) == pytest.approx(0.5)
     shrunk = empirical_rate_shrink(0.0, n=2, prior=0.55)
     assert shrunk == pytest.approx(0.55 * (1.0 - sample_reliability(2)) + 0.0 * sample_reliability(2))
     assert shrunk > 0.45
@@ -56,15 +56,15 @@ def test_reliability_and_shrink_dilute_small_n():
 
 def test_underperformance_requires_evidence_n_not_two_losses():
     assert has_underperformance_evidence(0, 2, p0=0.55) is False
-    assert has_underperformance_evidence(0, 20, p0=0.55) is True
+    assert has_underperformance_evidence(0, 12, p0=0.55) is True
     assert has_underperformance_evidence(0, 8, p0=0.55, min_n=8) is True
     assert binomial_evidence_z(10, 20, 0.5) == pytest.approx(0.0)
 
 
 def test_explore_stake_scale_floor_on_cold_start():
     assert explore_stake_scale(0) == pytest.approx(0.25)
-    assert explore_stake_scale(20) > explore_stake_scale(0)
-    assert explore_stake_scale(40) == pytest.approx(1.0)
+    assert explore_stake_scale(12) > explore_stake_scale(0)
+    assert explore_stake_scale(32) == pytest.approx(1.0)
 
 
 def test_side_eq_two_losses_are_insufficient_under_lln_defaults():

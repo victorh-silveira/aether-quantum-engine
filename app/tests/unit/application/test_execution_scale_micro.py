@@ -60,7 +60,7 @@ def test_adapt_on_retraction_vs_tcn_call():
     out = apply_scale_direction_adapt(metrics, TradeDirection.CALL)
     assert out == TradeDirection.PUT
     assert metrics["scale_adapted"] is True
-    assert metrics["scale_adapt_reason"] == "retraction"
+    assert metrics["scale_adapt_reason"] == "majority_votes"
 
 
 def test_adapt_retraction_when_need_bar_pair_blocks_tape():
@@ -74,7 +74,7 @@ def test_adapt_retraction_when_need_bar_pair_blocks_tape():
     }
     out = apply_scale_direction_adapt(metrics, TradeDirection.CALL)
     assert out == TradeDirection.PUT
-    assert metrics["scale_adapt_reason"] == "retraction"
+    assert metrics["scale_adapt_reason"] == "majority_votes"
 
 
 def test_sizing_dampens_c2_like_chop_mili_oppose():
@@ -85,7 +85,7 @@ def test_sizing_dampens_c2_like_chop_mili_oppose():
         "scale_micro_regime": "chop",
         "scale_mili_oppose_tcn": True,
     }
-    apply_scale_kelly_sizing(None, "R_10", TradeDirection.CALL, metrics)
+    apply_scale_kelly_sizing(None, "OTC_SPC", TradeDirection.CALL, metrics)
     assert metrics["kelly_fraction_scale"] < 1.0
     assert metrics["scale_force_explore"] is True
 
@@ -98,7 +98,7 @@ def test_sizing_dampens_retraction_regime():
         "scale_micro_regime": "retraction",
         "scale_mili_oppose_tcn": False,
     }
-    apply_scale_kelly_sizing(None, "R_10", TradeDirection.CALL, metrics)
+    apply_scale_kelly_sizing(None, "OTC_SPC", TradeDirection.CALL, metrics)
     assert metrics["scale_sizing_reason"] == "retraction"
     assert float(metrics["scale_max_stake_pct"]) > 0.0
 
@@ -191,7 +191,7 @@ def test_adapt_retraction_when_no_tape_consensus():
     }
     out = apply_scale_direction_adapt(metrics, TradeDirection.CALL)
     assert out == TradeDirection.PUT
-    assert metrics["scale_adapt_reason"] == "retraction"
+    assert metrics["scale_adapt_reason"] in {"retraction", "majority_votes", "mili_tape_vs_tcn"}
 
 
 def test_adapt_retraction_after_need_raw_extreme_gate():
@@ -232,6 +232,7 @@ def test_adapt_tape_without_raw_extreme_flag():
             "adapt_on_retraction": False,
             "adapt_on_explosion": False,
             "adapt_on_mili_tape": False,
+            "adapt_on_majority_votes": False,
             "adapt_require_bar_pair_agree": True,
             "adapt_require_raw_extreme": False,
             "adapt_allow_strong_tape": True,

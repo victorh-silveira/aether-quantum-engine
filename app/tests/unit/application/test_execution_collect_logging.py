@@ -10,7 +10,7 @@ from tests.market_symbols import ANCHOR, PAIR
 def test_log_execution_decision_direct():
     exec_mgr = SimpleNamespace(logger=MagicMock())
     best = (
-        "R_10",
+        "OTC_SPC",
         TradeDirection.CALL,
         {
             "val_accuracy": 0.55,
@@ -27,7 +27,7 @@ def test_log_execution_decision_direct():
 def test_log_execution_decision_uses_cycle_fallback_when_cid_invalid():
     exec_mgr = SimpleNamespace(logger=MagicMock(), orch=SimpleNamespace(_active_cycle_id=9))
     best = (
-        "R_10",
+        "OTC_SPC",
         TradeDirection.PUT,
         {
             "val_accuracy": 0.61,

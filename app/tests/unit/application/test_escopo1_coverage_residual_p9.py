@@ -24,4 +24,4 @@ def test_side_equilibrium_redis_without_hset():
     )
     from src.application.services.side_equilibrium_store import record_side_equilibrium_outcome
 
-    record_side_equilibrium_outcome(orch, "R_10", direction="CALL", won=True)
+    record_side_equilibrium_outcome(orch, "OTC_SPC", direction="CALL", won=True)

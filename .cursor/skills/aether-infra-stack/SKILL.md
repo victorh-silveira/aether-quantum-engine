@@ -15,7 +15,7 @@ description: >-
 2. `make docker-up` (GPU), `docker-up-cpu` ou `docker-up-core`
 3. Health: binds `127.0.0.1`; Redis/TS/MinIO/Triton/Meta(:8005)/Loss(:8006)
 4. Meta: exige `.pkl` em `meta-models/` (`ready`+`model_loaded` no `/health`; hot-reload)
-5. Loss: `aether-loss-classifier` — telemetria sempre; veto quando `veto_ready`; `/learn` no settle
+5. Loss: `aether-loss-classifier` — default soft Kelly (floor 0.65); buffer persistido; `/learn` + retrain em LOSS (n≥2); motor `LOSS_CLF || LEARN` / `SOFT`
 6. Triton/meta/loss: so exigir no motor se settings `enabled`/`require_*` true
 7. Rebuild ML: `make docker-rebuild` (meta + loss)
 8. Nao desligar resiliencia para mascarar rede

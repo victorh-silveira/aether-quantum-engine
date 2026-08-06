@@ -11,7 +11,7 @@ TRADING_CYCLE_COLLECT = "src.application.services.orchestrator.trading_cycle_ent
 
 def strong_cycle_decisions() -> dict:
     return {
-        "R_10": {
+        "OTC_SPC": {
             "direction": TradeDirection.CALL,
             "metrics": {
                 "calibrated_prob": 0.70,

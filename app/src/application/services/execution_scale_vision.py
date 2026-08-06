@@ -7,7 +7,7 @@ from typing import Any
 
 import numpy as np
 
-from src.application.services.execution_scale_micro import classify_micro_regime, micro_regime_token
+from src.application.services.execution_scale_micro import classify_micro_regime
 from src.application.services.execution_scale_tape import (
     bar_direction_at,
     compute_tape_strong,
@@ -16,6 +16,10 @@ from src.application.services.execution_scale_tape import (
     mini_pair_opposes_tcn,
     prev_bar_direction,
     tape_consensus,
+)
+from src.application.services.execution_scale_vision_format import (
+    format_scale_audit_line,
+    format_scale_ind_token,
 )
 from src.domain.config_knobs import merge_settings_block, require_bool, require_float, require_int, require_keys
 from src.domain.models.trade import TradeDirection
@@ -39,6 +43,12 @@ _SCALE_VISION_KEYS = (
     "adapt_on_retraction",
     "adapt_on_explosion",
     "adapt_on_mili_tape",
+    "adapt_on_majority_votes",
+    "adapt_majority_min_lead",
+    "adapt_majority_min_votes",
+    "adapt_majority_include_rsi",
+    "adapt_majority_include_micro_bar",
+    "adapt_majority_rsi_neutral",
     "retraction_require_mili",
     "retraction_use_tick_accel",
     "max_stake_pct_discord",
@@ -87,6 +97,12 @@ def parse_scale_vision_config(raw: dict[str, Any] | None = None) -> dict[str, An
         "adapt_on_retraction": require_bool(block, "adapt_on_retraction"),
         "adapt_on_explosion": require_bool(block, "adapt_on_explosion"),
         "adapt_on_mili_tape": require_bool(block, "adapt_on_mili_tape"),
+        "adapt_on_majority_votes": require_bool(block, "adapt_on_majority_votes"),
+        "adapt_majority_min_lead": max(1, require_int(block, "adapt_majority_min_lead")),
+        "adapt_majority_min_votes": max(2, require_int(block, "adapt_majority_min_votes")),
+        "adapt_majority_include_rsi": require_bool(block, "adapt_majority_include_rsi"),
+        "adapt_majority_include_micro_bar": require_bool(block, "adapt_majority_include_micro_bar"),
+        "adapt_majority_rsi_neutral": max(0.0, min(1.0, require_float(block, "adapt_majority_rsi_neutral"))),
         "retraction_require_mili": require_bool(block, "retraction_require_mili"),
         "retraction_use_tick_accel": require_bool(block, "retraction_use_tick_accel"),
         "max_stake_pct_discord": max(0.0, min(0.05, require_float(block, "max_stake_pct_discord"))),
@@ -251,38 +267,3 @@ def compute_scale_directions(
     classify_micro_regime(metrics, micro_name, cfg=vision)
     metrics["scale_reason"] = "discord" if metrics["scale_discordance"] else "ok"
     return metrics
-
-
-def format_scale_audit_line(metrics: dict[str, Any] | None) -> str:
-    """Linha SCALE para log IND/CLUSTER."""
-    m = metrics if isinstance(metrics, dict) else {}
-    adapted = 1 if bool(m.get("scale_adapted")) else 0
-    micro = micro_regime_token(m.get("scale_micro_regime"))
-    return (
-        f"SCALE || MACRO={m.get('scale_macro_dir') or '-'} "
-        f"MICRO={m.get('scale_micro_dir') or '-'} "
-        f"MINI={m.get('scale_mini_dir') or '-'} "
-        f"MILI={m.get('scale_mili_dir') or '-'} "
-        f"mi_prev={m.get('scale_mini_prev_bar_dir') or '-'} "
-        f"mi_cur={m.get('scale_mini_bar_dir') or '-'} "
-        f"mc_prev={m.get('scale_micro_prev_bar_dir') or '-'} "
-        f"mc_cur={m.get('scale_micro_bar_dir') or '-'} "
-        f"tape={m.get('scale_tape_consensus') or '-'} "
-        f"micro={micro} "
-        f"agree={int(m.get('scale_agree_n') or 0)}/4 "
-        f"discord={bool(m.get('scale_discordance'))} "
-        f"adapted={adapted}"
-    )
-
-
-def format_scale_ind_token(metrics: dict[str, Any] | None) -> str:
-    """Token condensado SCALE para linha IND."""
-    m = metrics if isinstance(metrics, dict) else {}
-    tcn = m.get("tcn_direction") or m.get("scale_micro_dir") or "-"
-    tape = m.get("scale_tape_consensus") or "-"
-    adapted = 1 if bool(m.get("scale_adapted")) else 0
-    mi_p = m.get("scale_mini_prev_bar_dir") or "-"
-    mi = m.get("scale_mini_bar_dir") or m.get("scale_mini_dir") or "-"
-    mili = m.get("scale_mili_dir") or "-"
-    micro = micro_regime_token(m.get("scale_micro_regime"))
-    return f"SCALE: tcn={tcn} tape={tape} adapted={adapted} micro={micro} mi_p={mi_p} mi={mi} mili={mili}"

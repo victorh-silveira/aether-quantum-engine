@@ -14,6 +14,8 @@ from src.domain.risk.consensus_stake_helpers import (
     soft_recovery_progression_multiplier,
     turbo_edge_stake_multiplier,
 )
+from src.domain.risk.kelly_runtime_config import load_kelly_runtime_from_settings
+from src.domain.risk.recovery_conviction import scaled_recovery_min_val_accuracy
 from src.domain.risk.recovery_state_config import load_recovery_state_from_settings
 from src.domain.risk.soft_recovery_config import soft_cfg
 from src.domain.risk.soft_recovery_policy import (
@@ -28,9 +30,58 @@ from src.domain.risk.stake_sizing import consensus_entropy_kelly_retention
 from src.domain.risk.stake_target_proximity import apply_target_proximity_damping
 
 
+def _acc_below_recovery_floor(metrics: dict | None, consecutive_losses: int) -> bool:
+    """True quando val_accuracy live (presente) esta abaixo do piso escalado de recovery."""
+    if not isinstance(metrics, dict) or "val_accuracy" not in metrics:
+        return False
+    try:
+        acc = float(metrics.get("val_accuracy"))
+    except (TypeError, ValueError):
+        return False
+    runtime = load_kelly_runtime_from_settings()
+    floor = scaled_recovery_min_val_accuracy(
+        {"recovery_min_val_accuracy": float(runtime["recovery_min_val_accuracy"])},
+        consecutive_losses=int(consecutive_losses),
+    )
+    return floor > 0.0 and acc + 1e-9 < floor
+
+
+def _live_evidence_blocks_dal(metrics: dict | None, consecutive_losses: int, soft: dict[str, Any]) -> bool:
+    """True quando linear alto e live_wr fraco bloqueiam cover DAL (ACC de treino ainda ok)."""
+    if not isinstance(metrics, dict) or "live_wr" not in metrics:
+        return False
+    linear_min = int(soft["live_evidence_force_explore_linear_min"])
+    if int(consecutive_losses) < linear_min:
+        return False
+    try:
+        live_n = int(metrics.get("live_n") or 0)
+        live_wr = float(metrics["live_wr"])
+    except (TypeError, ValueError):
+        return False
+    n_min = int(soft["live_evidence_force_explore_n_min"])
+    wr_max = float(soft["live_evidence_force_explore_wr_max"])
+    return live_n >= n_min and live_wr + 1e-12 < wr_max
+
+
+def _adapted_blocks_dal(metrics: dict | None, consecutive_losses: int, soft: dict[str, Any]) -> bool:
+    """True quando scale_adapted e linear alto forcam EXPLORE (sem DAL L2+)."""
+    if not bool(soft.get("adapted_force_explore", True)):
+        return False
+    if not isinstance(metrics, dict) or not bool(metrics.get("scale_adapted")):
+        return False
+    return int(consecutive_losses) >= int(soft["adapted_force_explore_linear_min"])
+
+
+def _soft_floor_scale(metrics: dict | None) -> float:
+    """Piso neutral permanece 100% da banca SSOT (loss_clf soft nao esmaga U)."""
+    _ = metrics
+    return 1.0
+
+
 def resolve_session_base_unit(bankroll: float, base_unit: float, metrics: dict | None) -> float:
-    """Resolve unidade base U como max(kelly, neutral_bankroll_pct banca) fora do D-SQUEEZE."""
-    unit = max(float(base_unit), neutral_edge_dynamic_unit(bankroll))
+    """Resolve unidade base U como max(kelly, neutral*scale_loss_clf) fora do D-SQUEEZE."""
+    floor = neutral_edge_dynamic_unit(bankroll) * _soft_floor_scale(metrics)
+    unit = max(float(base_unit), floor)
     if isinstance(metrics, dict) and not _squeeze_floor_active(metrics):
         metrics["session_base_unit"] = unit
     return unit
@@ -63,7 +114,14 @@ def apply_soft_recovery_stake(
     cap = max_safe_stake_cap(bankroll, consecutive_losses_linear=consecutive_losses, soft_recovery=soft_recovery)
     hurst_val = metrics.get("hurst") if isinstance(metrics, dict) else None
     low_hurst_noise = hurst_val is not None and float(hurst_val) < 0.400
-    if pending <= 0.0 or not material_pending or near_stop_win or low_hurst_noise:
+    acc_force_explore = _acc_below_recovery_floor(metrics, consecutive_losses)
+    live_force_explore = _live_evidence_blocks_dal(metrics, consecutive_losses, soft)
+    adapted_force_explore = _adapted_blocks_dal(metrics, consecutive_losses, soft)
+    if material_pending:
+        quality_force_explore = False
+    else:
+        quality_force_explore = bool(acc_force_explore or live_force_explore or adapted_force_explore)
+    if pending <= 0.0 or not material_pending or near_stop_win or low_hurst_noise or quality_force_explore:
         explore = min(unit, cap)
         if isinstance(metrics, dict):
             metrics["recovery_soft_progression"] = 1.0
@@ -73,9 +131,12 @@ def apply_soft_recovery_stake(
             metrics["recovery_material_pending"] = bool(material_pending)
             metrics["recovery_near_stop_win_freeze"] = bool(near_stop_win)
             metrics["recovery_low_hurst_damped"] = bool(low_hurst_noise)
+            metrics["recovery_acc_force_explore"] = bool(acc_force_explore and not material_pending)
+            metrics["recovery_live_force_explore"] = bool(live_force_explore and not material_pending)
+            metrics["recovery_adapted_force_explore"] = bool(adapted_force_explore and not material_pending)
             metrics["recovery_progression_multiplier"] = 1.0
             metrics["recovery_infeasible"] = False
-            metrics["recovery_force_explore"] = False
+            metrics["recovery_force_explore"] = bool(quality_force_explore)
         return explore
     factor = adaptive_recovery_progression_factor(payout, risk_params)
     resolved_payout = resolve_contract_payout(payout, risk_params)
@@ -85,7 +146,8 @@ def apply_soft_recovery_stake(
     )
     stake = unit if losses <= 0 else unit * progression
     amort = resolve_amort_cycles(losses, soft_recovery)
-    cover = pending / resolved_payout / float(amort)
+    cover_mult = max(1.0, float(soft.get("cover_multiple", 1.0)))
+    cover = pending / resolved_payout / float(amort) * cover_mult
     horizon_infeasible = is_recovery_infeasible(pending, cap, resolved_payout, soft_recovery)
     cover_blocked = cover + 1e-12 >= cap
     infeasible = bool(horizon_infeasible or cover_blocked)
@@ -98,6 +160,7 @@ def apply_soft_recovery_stake(
             metrics["recovery_soft_losses"] = losses
             metrics["recovery_soft_anchor_stake"] = float(previous_stake) if float(previous_stake) > 0.0 else unit
             metrics["recovery_cover_need"] = cover
+            metrics["recovery_cover_multiple"] = cover_mult
             metrics["recovery_amort_cycles"] = amort
             metrics["recovery_fixed_step"] = (
                 fixed_step_progression_multiplier(losses, soft_recovery=soft_recovery) is not None
@@ -108,15 +171,20 @@ def apply_soft_recovery_stake(
             metrics["recovery_material_pending"] = True
             metrics["recovery_near_stop_win_freeze"] = False
         return explore
-    stake = min(stake, cap) if horizon_infeasible else max(stake, cover)
-    if target > 0.0:
-        stake = apply_target_proximity_damping(stake, target, pnl)
+    if int(amort) <= 1:
+        stake = float(cover)
+        progression = 1.0
+    else:
+        stake = min(stake, cap) if horizon_infeasible else max(stake, cover)
+        if target > 0.0:
+            stake = apply_target_proximity_damping(stake, target, pnl)
     if isinstance(metrics, dict):
         metrics["recovery_soft_progression"] = factor
         metrics["recovery_adaptive_payout"] = resolved_payout
         metrics["recovery_soft_losses"] = losses
         metrics["recovery_soft_anchor_stake"] = float(previous_stake) if float(previous_stake) > 0.0 else unit
         metrics["recovery_cover_need"] = cover
+        metrics["recovery_cover_multiple"] = cover_mult
         metrics["recovery_amort_cycles"] = amort
         metrics["recovery_fixed_step"] = (
             fixed_step_progression_multiplier(losses, soft_recovery=soft_recovery) is not None
@@ -126,6 +194,9 @@ def apply_soft_recovery_stake(
         metrics["recovery_force_explore"] = False
         metrics["recovery_material_pending"] = True
         metrics["recovery_near_stop_win_freeze"] = False
+        metrics["recovery_acc_force_explore"] = False
+        metrics["recovery_live_force_explore"] = False
+        metrics["recovery_adapted_force_explore"] = False
     return min(stake, cap)
 
 
@@ -169,10 +240,14 @@ def enforce_d_squeeze_stake_floor(
 
 
 def apply_neutral_edge_kelly_base(kelly_base: float, bankroll: float, metrics: dict | None) -> float:
-    """Eleva kelly_base ao piso dinamico neutral_bankroll_pct fora do D-SQUEEZE."""
+    """Eleva kelly_base ao piso neutral; so loss_clf soft escala o piso."""
     if isinstance(metrics, dict) and _squeeze_floor_active(metrics):
         return kelly_base
-    return resolve_session_base_unit(bankroll, float(kelly_base), metrics)
+    floor = neutral_edge_dynamic_unit(bankroll) * _soft_floor_scale(metrics)
+    base = max(float(kelly_base), floor)
+    if isinstance(metrics, dict) and not _squeeze_floor_active(metrics):
+        metrics["session_base_unit"] = base
+    return base
 
 
 def apply_turbo_edge_stake(final_stake: float, metrics: dict | None) -> float:

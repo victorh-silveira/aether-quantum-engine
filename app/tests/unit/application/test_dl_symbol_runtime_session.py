@@ -37,7 +37,7 @@ def test_get_symbol_runtime_marks_session_trained_when_deploy_ok_checkpoint():
         ),
         patch("pathlib.Path.exists", return_value=False),
     ):
-        runtime = get_symbol_runtime(orch, "R_10", dl_config, params)
+        runtime = get_symbol_runtime(orch, "OTC_SPC", dl_config, params)
     assert runtime["session_trained"] is True
     assert runtime["deploy_ok"] is True
 
@@ -55,7 +55,7 @@ def test_get_symbol_runtime_keeps_session_untrained_without_deploy_ok():
         ),
         patch("pathlib.Path.exists", return_value=False),
     ):
-        runtime = get_symbol_runtime(orch, "R_10", dl_config, params)
+        runtime = get_symbol_runtime(orch, "OTC_SPC", dl_config, params)
     assert runtime["session_trained"] is False
 
 
@@ -76,7 +76,7 @@ def test_get_symbol_runtime_reuses_checkpoint_when_online_training_disabled():
         ),
         patch("pathlib.Path.exists", return_value=False),
     ):
-        runtime = get_symbol_runtime(orch, "R_10", dl_config, params)
+        runtime = get_symbol_runtime(orch, "OTC_SPC", dl_config, params)
     assert runtime["session_trained"] is True
     assert runtime["deploy_ok"] is False
 
@@ -97,7 +97,7 @@ def test_get_symbol_runtime_force_ok_overrides_deploy_flag():
         ),
         patch("pathlib.Path.exists", return_value=False),
     ):
-        runtime = get_symbol_runtime(orch, "R_10", dl_config, params)
+        runtime = get_symbol_runtime(orch, "OTC_SPC", dl_config, params)
     assert runtime["deploy_ok"] is True
 
 
@@ -115,7 +115,7 @@ def test_get_symbol_runtime_exception_on_torch_load():
             return_value=_loaded_checkpoint(deploy_ok=True),
         ),
     ):
-        runtime = get_symbol_runtime(orch, "R_10", dl_config, params)
+        runtime = get_symbol_runtime(orch, "OTC_SPC", dl_config, params)
     assert runtime["trained_granularity"] == 60
     assert runtime["deploy_ok"] is True
 
@@ -130,7 +130,7 @@ def test_get_symbol_runtime_discards_lookback_mismatch():
         "src.application.services.deep_learning.dl_symbol_runtime.load_model_checkpoint",
         return_value=_loaded_checkpoint(deploy_ok=True),
     ):
-        runtime = get_symbol_runtime(orch, "R_10", dl_config, params)
+        runtime = get_symbol_runtime(orch, "OTC_SPC", dl_config, params)
     assert runtime["session_trained"] is False
     assert runtime["lookback"] == 72
     assert runtime["trained_granularity"] == 600
@@ -146,6 +146,6 @@ def test_get_symbol_runtime_logs_retrain_when_online_training_and_mismatch():
         "src.application.services.deep_learning.dl_symbol_runtime.load_model_checkpoint",
         return_value=_loaded_checkpoint(deploy_ok=True),
     ):
-        runtime = get_symbol_runtime(orch, "R_10", dl_config, params)
+        runtime = get_symbol_runtime(orch, "OTC_SPC", dl_config, params)
     assert runtime["session_trained"] is False
     assert runtime["lookback"] == 72

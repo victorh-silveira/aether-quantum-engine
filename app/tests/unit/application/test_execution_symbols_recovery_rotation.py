@@ -12,7 +12,7 @@ from tests.market_symbols import ALT_SYMBOL, ANCHOR, HEDGE_PEER_SYMBOL, PAIR
 def test_recovery_blocked_symbols_never_excludes():
     rm = SimpleNamespace(
         consecutive_losses_linear=0,
-        last_loss_symbol="R_10",
+        last_loss_symbol="OTC_SPC",
     )
     blocked = recovery_blocked_symbols(rm, {})
     assert blocked == frozenset()
@@ -21,16 +21,16 @@ def test_recovery_blocked_symbols_never_excludes():
 def test_recovery_blocked_symbols_rotates_after_linear_loss():
     rm = SimpleNamespace(
         consecutive_losses_linear=1,
-        last_loss_symbol="R_10",
+        last_loss_symbol="OTC_SPC",
     )
     blocked = recovery_blocked_symbols(rm, {"symbol_loss_rotation_cycles": 1})
-    assert blocked == frozenset({"R_10"})
+    assert blocked == frozenset({"OTC_SPC"})
 
 
 def test_recovery_blocked_symbols_respects_rotation_cycles():
     rm = SimpleNamespace(
         consecutive_losses_linear=1,
-        last_loss_symbol="R_10",
+        last_loss_symbol="OTC_SPC",
     )
     blocked = recovery_blocked_symbols(rm, {"symbol_loss_rotation_cycles": 2})
     assert blocked == frozenset()

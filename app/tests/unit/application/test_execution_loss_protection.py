@@ -21,7 +21,7 @@ def _candidate(**metrics):
         "calibrated_prob": 0.22,
     }
     base.update(metrics)
-    return ("R_10", TradeDirection.PUT, base)
+    return ("OTC_SPC", TradeDirection.PUT, base)
 
 
 def test_edge_conviction_disconnect_penalty_high_edge_low_margin():
@@ -76,8 +76,8 @@ def test_filter_loss_protection_candidates_keeps_fallback_pool():
 
 
 def test_filter_recovery_hurst_candidates_prefers_persistent_at_n2():
-    low = ("R_10", TradeDirection.PUT, {"indicators": {"hurst": 0.52}})
-    high = ("R_10", TradeDirection.PUT, {"indicators": {"hurst": 0.61}})
+    low = ("OTC_SPC", TradeDirection.PUT, {"indicators": {"hurst": 0.52}})
+    high = ("OTC_SPC", TradeDirection.PUT, {"indicators": {"hurst": 0.61}})
     filtered = filter_recovery_hurst_candidates(
         [low, high],
         kelly_cfg={"recovery_hurst_persistence_min": 0.58},
@@ -153,12 +153,12 @@ def test_filter_loss_protection_candidates_fallback_when_all_weak_normal_mode():
 
 
 def test_filter_recovery_hurst_candidates_returns_all_before_n2():
-    low = ("R_10", TradeDirection.PUT, {"indicators": {"hurst": 0.52}})
+    low = ("OTC_SPC", TradeDirection.PUT, {"indicators": {"hurst": 0.52}})
     assert filter_recovery_hurst_candidates([low], kelly_cfg={}, consecutive_losses=1) == [low]
 
 
 def test_filter_recovery_hurst_candidates_keeps_pool_at_n3_without_persistence():
-    low = ("R_10", TradeDirection.PUT, {"indicators": {"hurst": 0.52}})
+    low = ("OTC_SPC", TradeDirection.PUT, {"indicators": {"hurst": 0.52}})
     filtered = filter_recovery_hurst_candidates(
         [low],
         kelly_cfg={"recovery_hurst_persistence_min": 0.58},
@@ -212,7 +212,7 @@ def test_apply_loss_protection_penalties_reads_exec_direction_from_metrics():
 def test_candidate_passes_loss_protection_rejects_invalid_tuple():
     assert (
         candidate_passes_loss_protection(
-            ("R_10",),
+            ("OTC_SPC",),
             exec_cfg={},
             recovery_active=False,
             consecutive_losses=0,
@@ -224,7 +224,7 @@ def test_candidate_passes_loss_protection_rejects_invalid_tuple():
 def test_candidate_passes_loss_protection_rejects_invalid_metrics():
     assert (
         candidate_passes_loss_protection(
-            ("R_10", TradeDirection.PUT, "bad"),
+            ("OTC_SPC", TradeDirection.PUT, "bad"),
             exec_cfg={},
             recovery_active=False,
             consecutive_losses=0,
@@ -234,8 +234,8 @@ def test_candidate_passes_loss_protection_rejects_invalid_metrics():
 
 
 def test_filter_recovery_hurst_candidates_skips_malformed_items():
-    malformed = ("R_10", TradeDirection.PUT)
-    good = ("R_10", TradeDirection.PUT, {"indicators": {"hurst": 0.61}})
+    malformed = ("OTC_SPC", TradeDirection.PUT)
+    good = ("OTC_SPC", TradeDirection.PUT, {"indicators": {"hurst": 0.61}})
     filtered = filter_recovery_hurst_candidates(
         [malformed, good],
         kelly_cfg={"recovery_hurst_persistence_min": 0.58},
@@ -245,8 +245,8 @@ def test_filter_recovery_hurst_candidates_skips_malformed_items():
 
 
 def test_filter_recovery_hurst_candidates_skips_non_dict_metrics():
-    bad = ("R_10", TradeDirection.PUT, "metrics")
-    good = ("R_10", TradeDirection.PUT, {"indicators": {"hurst": 0.61}})
+    bad = ("OTC_SPC", TradeDirection.PUT, "metrics")
+    good = ("OTC_SPC", TradeDirection.PUT, {"indicators": {"hurst": 0.61}})
     filtered = filter_recovery_hurst_candidates(
         [bad, good],
         kelly_cfg={"recovery_hurst_persistence_min": 0.58},
@@ -256,7 +256,7 @@ def test_filter_recovery_hurst_candidates_skips_non_dict_metrics():
 
 
 def test_filter_recovery_hurst_candidates_keeps_pool_at_n2_without_persistence():
-    low = ("R_10", TradeDirection.PUT, {"indicators": {"hurst": 0.52}})
+    low = ("OTC_SPC", TradeDirection.PUT, {"indicators": {"hurst": 0.52}})
     assert filter_recovery_hurst_candidates(
         [low],
         kelly_cfg={"recovery_hurst_persistence_min": 0.58},

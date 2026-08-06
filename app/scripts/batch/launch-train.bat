@@ -26,12 +26,12 @@ if errorlevel 1 goto :dl_fail
 
 echo [AETHER] Etapa 1b/3: Validando deploy/ACC do checkpoint DL...
 cd /d "%REPO_ROOT%"
-"%PYTHON_EXE%" app/scripts/operations/check_dl_deploy_gate.py --symbols R_10
+"%PYTHON_EXE%" app/scripts/operations/check_dl_deploy_gate.py --symbols OTC_SPC
 if errorlevel 1 goto :dl_gate_fail
 
 echo [AETHER] Etapa 2/3: Verificando infraestrutura Docker (TimescaleDB)...
 cd /d "%REPO_ROOT%"
-"%PYTHON_EXE%" app/scripts/operations/ensure_timescale.py
+"%PYTHON_EXE%" app/scripts/operations/ensure_timescale.py --check-only
 if errorlevel 1 echo [AVISO] TimescaleDB nao disponivel. Meta-classificador usara API Deriv (fallback).
 
 echo [AETHER] Etapa 3/3: Treino DL concluido com sucesso! Iniciando Meta-Classificador (LightGBM)...

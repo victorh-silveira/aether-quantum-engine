@@ -46,7 +46,7 @@ def test_emit_invalid_regime_defaults_explore(kelly_config):
         bankroll=100.0,
         loss_to_recover=0.0,
         linear_losses=0,
-        symbol="R_10",
+        symbol="OTC_SPC",
         rec_info="",
         stake_regime="WEIRD",
         safe_cap=3.5,
@@ -66,7 +66,7 @@ def test_recover_mandatory_blocked_returns_zero_when_below_min(kelly_config):
     stake = calculate_stake_for_manager(
         rm,
         120.0,
-        "R_10",
+        "OTC_SPC",
         0.40,
         silent=True,
         apply_stop_win=False,
@@ -81,7 +81,7 @@ def test_recover_mandatory_blocked_returns_zero_when_below_min(kelly_config):
 
 def test_recovery_infeasible_logs_when_not_silent(kelly_config):
     rm = _rm(kelly_config)
-    rm.pending_loss = {"R_10": 80.0}
+    rm.pending_loss = {"OTC_SPC": 80.0}
     rm.consecutive_losses_linear = 2
     rm.dlambert_unit = 1.0
     rm._recovery_allowed = MagicMock(return_value=True)
@@ -96,7 +96,7 @@ def test_recovery_infeasible_logs_when_not_silent(kelly_config):
     calculate_stake_for_manager(
         rm,
         90.0,
-        "R_10",
+        "OTC_SPC",
         0.70,
         silent=False,
         apply_stop_win=False,
@@ -117,7 +117,7 @@ def test_cross_veto_waiver_and_mandatory_weak_zero_pct_residual():
         resolve_soft_recovery_config,
     )
 
-    rm = type("RM", (), {"consecutive_losses_linear": 5, "pending_loss": {"R_10": 260.0}})()
+    rm = type("RM", (), {"consecutive_losses_linear": 5, "pending_loss": {"OTC_SPC": 260.0}})()
     assert cross_veto_recovery_waiver_allowed({"raw_prob": 0.82}, direction="CALL", risk_manager=rm) is True
     assert (
         _apply_mandatory_weak_explore_cap(

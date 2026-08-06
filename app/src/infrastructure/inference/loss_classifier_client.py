@@ -31,13 +31,37 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
             "max_connections",
             "max_keepalive_connections",
             "feature_dim",
+            "veto_mode",
             "veto_p_loss_floor",
+            "soft_kelly_mult",
+            "soft_kelly_mult_high",
+            "soft_p_loss_high",
+            "soft_max_stake_pct_high",
             "ready_n",
             "retrain_min_n",
+            "retrain_on_loss_min_n",
             "max_buffer",
         ),
         "infra.loss_classifier",
     )
+    mode = str(block["veto_mode"]).strip().lower()
+    if mode != "soft":
+        raise ValueError("infra.loss_classifier.veto_mode deve ser soft (hard SKIP removido)")
+    soft_mult = require_float(block, "soft_kelly_mult")
+    if soft_mult <= 0.0 or soft_mult > 1.0:
+        raise ValueError("infra.loss_classifier.soft_kelly_mult deve estar em (0, 1]")
+    soft_high = require_float(block, "soft_kelly_mult_high")
+    if soft_high <= 0.0 or soft_high > 1.0:
+        raise ValueError("infra.loss_classifier.soft_kelly_mult_high deve estar em (0, 1]")
+    if soft_high > soft_mult + 1e-12:
+        raise ValueError("infra.loss_classifier.soft_kelly_mult_high deve ser <= soft_kelly_mult")
+    p_high = require_float(block, "soft_p_loss_high")
+    floor = require_float(block, "veto_p_loss_floor")
+    if p_high <= floor:
+        raise ValueError("infra.loss_classifier.soft_p_loss_high deve ser > veto_p_loss_floor")
+    stake_pct = require_float(block, "soft_max_stake_pct_high")
+    if stake_pct <= 0.0 or stake_pct > 0.05:
+        raise ValueError("infra.loss_classifier.soft_max_stake_pct_high deve estar em (0, 0.05]")
     return {
         "enabled": require_bool(block, "enabled"),
         "http_url": str(block["http_url"]).rstrip("/"),
@@ -45,9 +69,15 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
         "max_connections": require_int(block, "max_connections"),
         "max_keepalive_connections": require_int(block, "max_keepalive_connections"),
         "feature_dim": require_int(block, "feature_dim"),
-        "veto_p_loss_floor": require_float(block, "veto_p_loss_floor"),
+        "veto_mode": "soft",
+        "veto_p_loss_floor": floor,
+        "soft_kelly_mult": soft_mult,
+        "soft_kelly_mult_high": soft_high,
+        "soft_p_loss_high": p_high,
+        "soft_max_stake_pct_high": stake_pct,
         "ready_n": require_int(block, "ready_n"),
         "retrain_min_n": require_int(block, "retrain_min_n"),
+        "retrain_on_loss_min_n": require_int(block, "retrain_on_loss_min_n"),
         "max_buffer": require_int(block, "max_buffer"),
     }
 

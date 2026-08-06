@@ -153,8 +153,7 @@ def resolve_inference_history_bars(
         win = feature_windows(gran, indicators["windows"])
     else:
         win = feature_windows(gran)
-    warmup = max(
-        lookback,
+    indicator_warmup = max(
         implied,
         int(win["hurst_window"]),
         int(win["ema_50"]),
@@ -162,8 +161,9 @@ def resolve_inference_history_bars(
         int(win["bb_window"]),
         int(win["atr_window"]),
         int(win["rsi_period"]),
+        int(win.get("zscore_micro_window", 0) or 0),
     )
-    return warmup + lookback + 16
+    return max(1, indicator_warmup) + lookback + 16
 
 
 def parse_dl_params(
@@ -196,6 +196,23 @@ def parse_dl_params(
         label_smooth_bars=label_smooth_bars,
     )
     rnn = parse_rnn_config(dl_config)
+    indicators = (
+        resolve_indicator_config(dl_config)
+        if isinstance(dl_config.get("indicators"), dict)
+        else load_indicator_config_from_settings()
+    )
+    if "inference_history_bars" in dl_config:
+        inference_history_bars = max(1, int(dl_config["inference_history_bars"]))
+    else:
+        inference_history_bars = resolve_inference_history_bars(
+            {
+                "lookback": lookback,
+                "granularity": gran,
+                "implied_vol_bars": implied_vol_bars,
+                "indicators": {"windows": indicators["windows"]},
+            },
+            granularity=gran,
+        )
     base = {
         "arch": str(dl_config.get("arch", "tcn")).strip().lower(),
         "tcn_channels": parse_tcn_channels(dl_config),
@@ -234,14 +251,7 @@ def parse_dl_params(
         "rolling_retrain_bars": int(dl_config.get("rolling_retrain_bars", 3)),
         "retrain_min_bars": int(dl_config.get("retrain_min_bars", 1)),
         "training_history_bars": training_history_bars,
-        "inference_history_bars": (
-            max(1, int(dl_config["inference_history_bars"]))
-            if "inference_history_bars" in dl_config
-            else resolve_inference_history_bars(
-                {"lookback": lookback, "granularity": gran, "implied_vol_bars": implied_vol_bars},
-                granularity=gran,
-            )
-        ),
+        "inference_history_bars": inference_history_bars,
         "bars_per_day": bars_per_day(gran),
         "label_horizon_bars": label_horizon_bars,
         "label_smooth_bars": label_smooth_bars,
@@ -252,11 +262,6 @@ def parse_dl_params(
         "val_acc_live_blend": float(dl_config.get("val_acc_live_blend", 0.35)),
         "trend_alignment_required": bool(dl_config.get("trend_alignment_required", False)),
     }
-    indicators = (
-        resolve_indicator_config(dl_config)
-        if isinstance(dl_config.get("indicators"), dict)
-        else load_indicator_config_from_settings()
-    )
     exhaustion = indicators["exhaustion_filter"]
     base["indicators"] = indicators
     base["feature_windows"] = indicators["windows"]

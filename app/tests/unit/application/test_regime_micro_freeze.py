@@ -75,7 +75,7 @@ def test_chop_congestion_and_freeze():
 def test_log_d_squeeze_audit_runs():
     _prime_bb(0.050)
     metrics = {"indicators": {"bb_width": 0.015}, "predicted_payoff_edge": 0.1, "trade_score": 0.5}
-    log_d_squeeze_audit("R_10", metrics)
+    log_d_squeeze_audit("OTC_SPC", metrics)
 
 
 def test_d_squeeze_sovereignty_without_inversion():

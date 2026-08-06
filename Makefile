@@ -19,7 +19,14 @@ endif
 DOCKER_LOGS_TAIL ?= all
 
 define docker_service_name
-$(if $(filter triton,$(1)),aether-triton,$(if $(filter meta,$(1)),aether-meta-classifier,$(1)))
+$(strip $(or \
+	$(if $(filter redis aether-redis,$(1)),redis),\
+	$(if $(filter ts timescale timescaledb aether-timescaledb,$(1)),timescaledb),\
+	$(if $(filter minio aether-minio,$(1)),minio),\
+	$(if $(filter triton aether-triton,$(1)),aether-triton),\
+	$(if $(filter meta meta-classifier aether-meta-classifier,$(1)),aether-meta-classifier),\
+	$(if $(filter loss loss-classifier aether-loss-classifier,$(1)),aether-loss-classifier),\
+	$(1)))
 endef
 
 RESOLVE_PY := $(shell bash linters/git-hooks/bin/resolve_conda_python.sh 2>/dev/null || echo python)
@@ -70,10 +77,10 @@ help:
 	@echo -e "  $(GREEN)docker-restart$(RESET)     - Reinicia os containers da stack (volumes preservados)"
 	@echo -e "  $(GREEN)docker-reset$(RESET)       - $(RED)DESTRUTIVO$(RESET): Apaga volumes/dados e sobe stack limpa"
 	@echo -e "  $(GREEN)docker-clean$(RESET)       - $(RED)DESTRUTIVO$(RESET): Remove containers, redes e DELETA volumes"
-	@echo -e "  $(GREEN)docker-hydrate$(RESET)     - Hidrata TimescaleDB macro 600s / micro 120s (R_10)"
+	@echo -e "  $(GREEN)docker-hydrate$(RESET)     - Hidrata TimescaleDB macro 3600s / micro 900s (OTC_SPC M15)"
 	@echo -e "  $(GREEN)docker-ps$(RESET)          - Status dos containers"
-	@echo -e "  $(GREEN)docker-logs$(RESET)        - Logs (DOCKER_SERVICE=redis F=1 para seguir)"
-	@echo -e "  $(GREEN)docker-bash$(RESET)        - Shell interativo (DOCKER_SERVICE=triton|timescaledb)"
+	@echo -e "  $(GREEN)docker-logs$(RESET)        - Logs (DOCKER_SERVICE=redis|ts|minio|triton|meta|loss F=1)"
+	@echo -e "  $(GREEN)docker-bash$(RESET)        - Shell (DOCKER_SERVICE=redis|ts|minio|triton|meta|loss; default ts)"
 	@echo -e "  $(GREEN)timescale-lifecycle$(RESET) - Aplica compressao/retencao Timescale (idempotente)"
 	@echo -e "$(BLUE)========================================================================$(RESET)"
 

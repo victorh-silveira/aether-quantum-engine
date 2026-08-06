@@ -66,11 +66,12 @@ def resolve_startup_fetch_bars(config: dict[str, Any], symbols: list[str]) -> tu
         if history_bars > 0:
             return max(1, history_bars + warmup), "treino"
         return 500, "treino"
-    if "startup_fetch_bars" in data_config:
-        return max(1, int(data_config["startup_fetch_bars"])), "inferencia"
     risk_params = (config.get("risk_management") or {}).get("params") or {}
     params = parse_dl_params(dl_config, data_config, risk_params)
-    return min_dl_inference_len(params) + warmup, "inferencia"
+    floor = min_dl_inference_len(params) + max(0, warmup)
+    if "startup_fetch_bars" in data_config:
+        return max(floor, 1, int(data_config["startup_fetch_bars"])), "inferencia"
+    return floor, "inferencia"
 
 
 def prepare_inference_run_loop(orch: Any) -> bool:

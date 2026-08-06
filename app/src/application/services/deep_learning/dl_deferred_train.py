@@ -37,11 +37,12 @@ def try_enqueue_next_bootstrap_training(orch) -> None:
             continue
         if len(prices) < min_len:
             return
+        epoch = candle_epoch(orch, symbol, timeframe=str(params.get("train_timeframe", "macro")))
         enqueue_deferred_symbol_training(
             orch,
             symbol,
             train_fn=run_symbol_training,
-            train_args=(symbol, runtime, prices, dl_config, params, candle_epoch(orch, symbol), orch),
+            train_args=(symbol, runtime, prices, dl_config, params, epoch, orch),
             train_kwargs={
                 "granularity": granularity,
                 "open_": open_,

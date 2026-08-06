@@ -38,7 +38,7 @@ def test_synthesize_force_direction_and_candidate():
     direction = synthesize_force_direction({"metrics": {"calibrated_prob": 0.7, "deploy_ok": True}})
     assert direction == TradeDirection.CALL
     candidate = synthesize_force_trade_candidate(
-        ["R_10"],
-        {"R_10": {"metrics": {"calibrated_prob": 0.3, "deploy_ok": True}}},
+        ["OTC_SPC"],
+        {"OTC_SPC": {"metrics": {"calibrated_prob": 0.3, "deploy_ok": True}}},
     )
     assert candidate is not None

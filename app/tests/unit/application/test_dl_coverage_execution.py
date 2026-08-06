@@ -49,13 +49,13 @@ def test_candidate_score_same_symbol_penalty_in_recovery():
     penalized = candidate_execution_score(
         metrics,
         recovery_active=True,
-        symbol="R_10",
-        last_loss_symbol="R_10",
+        symbol="OTC_SPC",
+        last_loss_symbol="OTC_SPC",
     )
     diversified = candidate_execution_score(
         metrics,
         recovery_active=True,
-        symbol="R_10",
+        symbol="OTC_SPC",
         last_loss_symbol="R_50",
     )
     assert penalized < diversified
@@ -130,19 +130,19 @@ def test_hurst_skips_tiny_rs():
 
 
 def test_live_win_rate_insufficient_samples():
-    orch = SimpleNamespace(_dl_outcome_flags={"R_10": [True, False, True]})
-    assert live_win_rate(orch, "R_10") is None
+    orch = SimpleNamespace(_dl_outcome_flags={"OTC_SPC": [True, False, True]})
+    assert live_win_rate(orch, "OTC_SPC") is None
 
 
 def test_tick_dl_session_pauses_clears_zero():
-    orch = SimpleNamespace(_dl_session_pause={"R_10": 1})
+    orch = SimpleNamespace(_dl_session_pause={"OTC_SPC": 1})
     tick_dl_session_pauses(orch)
-    assert "R_10" in orch._dl_session_pause
+    assert "OTC_SPC" in orch._dl_session_pause
 
 
 def test_maybe_pause_noop_when_disabled():
-    orch = SimpleNamespace(_dl_outcome_flags={"R_10": [False, False, False]})
-    maybe_pause_symbol_session(orch, "R_10", max_losses_in_window=2, window_trades=3, pause_cycles=0)
+    orch = SimpleNamespace(_dl_outcome_flags={"OTC_SPC": [False, False, False]})
+    maybe_pause_symbol_session(orch, "OTC_SPC", max_losses_in_window=2, window_trades=3, pause_cycles=0)
     assert not hasattr(orch, "_dl_session_pause")
 
 
@@ -209,7 +209,7 @@ def test_evaluate_mini_deploy_micro_slice_runs():
     ) as mock_predict:
         ok, wr, brier = evaluate_mini_deploy(
             orch,
-            "R_10",
+            "OTC_SPC",
             model,
             prices,
             stats,
@@ -223,14 +223,14 @@ def test_evaluate_mini_deploy_micro_slice_runs():
 
 def test_apply_symbol_loss_cooldown_session_pause():
     orch = SimpleNamespace(risk_manager=MagicMock(is_symbol_on_loss_cooldown=MagicMock(return_value=False)))
-    orch._dl_session_pause = {"R_10": 3}
+    orch._dl_session_pause = {"OTC_SPC": 3}
     entry = {"metrics": {"execute": True}}
-    out = apply_symbol_loss_cooldown(orch, "R_10", entry)
+    out = apply_symbol_loss_cooldown(orch, "OTC_SPC", entry)
     assert out["metrics"].get("gate_reason") is None
     assert out["metrics"]["execute"] is True
 
 
 def test_apply_symbol_loss_cooldown_empty_entry():
     orch = SimpleNamespace(risk_manager=MagicMock())
-    assert apply_symbol_loss_cooldown(orch, "R_10", {}) == {}
-    assert apply_symbol_loss_cooldown(orch, "R_10", None) is None
+    assert apply_symbol_loss_cooldown(orch, "OTC_SPC", {}) == {}
+    assert apply_symbol_loss_cooldown(orch, "OTC_SPC", None) is None

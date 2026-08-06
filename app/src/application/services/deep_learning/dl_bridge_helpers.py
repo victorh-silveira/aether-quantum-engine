@@ -75,6 +75,58 @@ def build_decision_entry(
     return {"direction": direction, "metrics": metrics}
 
 
+def build_insufficient_data_entry() -> dict:
+    """Monta entrada de decisao bloqueada por falta de historico de precos."""
+    entry = build_decision_entry(None, 0.0, execute=False, val_accuracy=0.0, edge=0.0, train_loss=None)
+    entry["metrics"]["gate_reason"] = "data"
+    return entry
+
+
+def guard_inference_price_history(
+    prices_raw,
+    prices_inf,
+    params: dict,
+    *,
+    min_len: int,
+    symbol: str,
+    logger,
+) -> dict | None:
+    """Retorna entrada SKIP data se o buffer for curto demais; None quando ok."""
+    lookback_floor = int(params.get("lookback", 30)) + 5
+    infer_bars = int(params.get("inference_history_bars", min_len))
+    if len(prices_raw) < lookback_floor:
+        logger.warning(
+            "DL: Historico insuficiente para %s (%d/%d velas).",
+            symbol,
+            len(prices_raw),
+            lookback_floor,
+        )
+        return build_insufficient_data_entry()
+    if len(prices_raw) < min_len:
+        logger.warning(
+            "DL: Historico parcial para %s (%d/%d velas) | seguindo com buffer disponivel",
+            symbol,
+            len(prices_raw),
+            min_len,
+        )
+    if len(prices_inf) < lookback_floor:
+        logger.warning(
+            "DL: Historico insuficiente para inferencia %s (%d/%d).",
+            symbol,
+            len(prices_inf),
+            lookback_floor,
+        )
+        return build_insufficient_data_entry()
+    if len(prices_inf) < infer_bars:
+        logger.warning(
+            "DL: Inferencia com historico parcial %s (%d/%d alvo) | usando buffer disponivel",
+            symbol,
+            len(prices_inf),
+            infer_bars,
+        )
+    return None
+
+
 def recovery_gating_active(orch) -> bool:
     """Indica se ha perda pendente ou linear ativo para gating de recuperacao."""
     rm = getattr(orch, "risk_manager", None)
@@ -111,6 +163,8 @@ def apply_symbol_loss_cooldown(orch, symbol: str, entry: dict) -> dict:
 __all__ = [
     "apply_symbol_loss_cooldown",
     "build_decision_entry",
+    "build_insufficient_data_entry",
+    "guard_inference_price_history",
     "optional_float",
     "parse_dl_params",
     "pending_loss_total",

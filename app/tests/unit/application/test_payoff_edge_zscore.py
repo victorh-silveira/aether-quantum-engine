@@ -66,10 +66,10 @@ def test_reset_and_snapshot_buffer():
 
 
 def test_reset_payoff_edge_buffer_for_single_symbol():
-    apply_payoff_edge_zscore(0.42, symbol="R_10")
+    apply_payoff_edge_zscore(0.42, symbol="OTC_SPC")
     apply_payoff_edge_zscore(0.55, symbol="R_50")
-    reset_payoff_edge_buffer("R_10")
-    assert payoff_edge_buffer_snapshot("R_10") == ()
+    reset_payoff_edge_buffer("OTC_SPC")
+    assert payoff_edge_buffer_snapshot("OTC_SPC") == ()
     assert payoff_edge_buffer_snapshot("R_50") == (0.55,)
 
 
@@ -141,7 +141,7 @@ def test_resolve_adaptive_edge_window_uses_micro_indicators():
 def test_resolve_stable_edge_sequence_keeps_direction():
     result = None
     for edge in [1.28] * 10:
-        result = resolve_execution_direction(_resolver_entry(edge), symbol="R_10")
+        result = resolve_execution_direction(_resolver_entry(edge), symbol="OTC_SPC")
         assert result is not None
     assert result is not None
     assert abs(float(result[1]["edge_zscore"])) < 0.5
@@ -150,7 +150,7 @@ def test_resolve_stable_edge_sequence_keeps_direction():
 
 def test_resolve_edge_spike_records_high_zscore():
     for edge in [1.20] * 12:
-        resolve_execution_direction(_resolver_entry(edge), symbol="R_10")
-    result = resolve_execution_direction(_resolver_entry(1.45), symbol="R_10")
+        resolve_execution_direction(_resolver_entry(edge), symbol="OTC_SPC")
+    result = resolve_execution_direction(_resolver_entry(1.45), symbol="OTC_SPC")
     assert result is not None
     assert float(result[1]["edge_zscore"]) >= 0.5

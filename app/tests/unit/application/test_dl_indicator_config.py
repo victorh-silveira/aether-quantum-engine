@@ -56,6 +56,18 @@ def test_resolve_inference_history_bars_uses_indicator_windows():
         granularity=60,
     )
     assert n > 30
+    lookback = 720
+    n_m15 = resolve_inference_history_bars(
+        {
+            "lookback": lookback,
+            "implied_vol_bars": 120,
+            "indicators": {"windows": base["windows"]},
+        },
+        granularity=900,
+    )
+    assert n_m15 < 2 * lookback
+    assert n_m15 >= lookback + 16
+    assert n_m15 <= lookback + 128 + 16
 
 
 def test_indicators_from_config_uses_embedded_block():

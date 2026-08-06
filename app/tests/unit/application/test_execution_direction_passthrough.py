@@ -39,7 +39,7 @@ def test_resolve_execution_direction_pass_through_negative_edge():
             "indicators": {"hurst": 0.50, "adx": 0.10},
         }
     }
-    result = resolve_execution_direction(entry, exec_cfg={}, symbol="R_10")
+    result = resolve_execution_direction(entry, exec_cfg={}, symbol="OTC_SPC")
     assert result is not None
     direction, metrics = result
     assert direction in {TradeDirection.CALL, TradeDirection.PUT}

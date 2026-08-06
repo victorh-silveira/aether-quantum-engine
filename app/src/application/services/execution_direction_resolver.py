@@ -73,6 +73,19 @@ def _finalize_execution_metrics(
         }
     )
     ensure_direction_margin(metrics)
+    if orch is not None:
+        risk_manager = getattr(orch, "risk_manager", None)
+        total_fn = getattr(risk_manager, "pending_loss_total", None) if risk_manager is not None else None
+        if callable(total_fn):
+            try:
+                metrics["pending_loss_total"] = max(0.0, float(total_fn()))
+            except (TypeError, ValueError):
+                metrics.setdefault("pending_loss_total", 0.0)
+        elif risk_manager is not None and isinstance(getattr(risk_manager, "pending_loss", None), dict):
+            try:
+                metrics["pending_loss_total"] = max(0.0, float(sum(risk_manager.pending_loss.values())))
+            except (TypeError, ValueError):
+                metrics.setdefault("pending_loss_total", 0.0)
     compute_scale_directions(orch, symbol, exec_dir, metrics)
     exec_dir = apply_scale_direction_adapt(metrics, exec_dir)
     metrics["exec_direction"] = exec_dir.name
@@ -87,7 +100,7 @@ def _finalize_execution_metrics(
     metrics.pop("regime_skip_cycle", None)
     metrics.pop("gate_reason", None)
     if orch is not None:
-        apply_signal_skip_gates(metrics, exec_dir, orch=orch, force=force)
+        apply_signal_skip_gates(metrics, exec_dir, orch=orch, force=force, symbol=symbol)
         apply_loss_classifier_gate(metrics, exec_dir, orch=orch, force=force, symbol=symbol)
     sync_entry_metrics(entry, metrics)
     return exec_dir, metrics

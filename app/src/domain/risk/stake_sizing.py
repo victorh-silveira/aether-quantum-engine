@@ -188,7 +188,10 @@ def compute_single_strike_kelly_base(
         wr_ok = live_wr is not None and float(live_wr) >= 0.52
     except (TypeError, ValueError):
         wr_ok = False
-    if live_n < 40 or not wr_ok:
+    live_n_min = max(0, int(kelly_config.get("stop_win_kelly_live_n_min", 40)))
+    if live_n < live_n_min:
+        return kelly_base
+    if live_n > 0 and not wr_ok:
         return kelly_base
     target = resolve_stop_win_target(risk_config, initial_bankroll)
     remaining = max(0.0, target - float(total_session_profit))
@@ -215,6 +218,8 @@ def finalize_stake_with_min(
     mandatory: bool = False,
 ) -> float:
     """Garante stake minima ou zero quando conviccao, recovery ou execucao obrigatoria exigem entrada."""
+    if float(bankroll) + 1e-12 < float(stake_min):
+        return 0.0
     if final_stake <= 0.0 and not mandatory:
         return 0.0
     if conviction >= 0.50 or recovery_linear or mandatory:

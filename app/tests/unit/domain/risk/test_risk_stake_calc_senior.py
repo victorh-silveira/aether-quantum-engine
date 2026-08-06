@@ -30,7 +30,7 @@ def test_calculate_stake_soft_veto_with_senior_trader_conviction(kelly_config):
     stake = calculate_stake_for_manager(
         rm,
         5000.0,
-        "R_10",
+        "OTC_SPC",
         0.6,
         silent=True,
         apply_stop_win=True,
@@ -49,7 +49,7 @@ def test_thin_edge_still_sizes_via_kelly_p_floor(kelly_config):
     stake = calculate_stake_for_manager(
         rm,
         bankroll,
-        "R_10",
+        "OTC_SPC",
         0.51,
         silent=True,
         apply_stop_win=True,
@@ -65,7 +65,7 @@ def test_soft_veto_still_blocks_without_senior(kelly_config):
     stake = calculate_stake_for_manager(
         rm,
         5000.0,
-        "R_10",
+        "OTC_SPC",
         0.6,
         silent=True,
         apply_stop_win=True,

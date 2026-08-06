@@ -66,7 +66,7 @@ def test_apply_meta_regression_edge_loss_expected_keeps_direction():
         -0.25,
         meta_applied=True,
         base_score=0.68,
-        symbol="R_10",
+        symbol="OTC_SPC",
     )
     assert direction == TradeDirection.PUT
     assert score == pytest.approx(0.68)
@@ -87,7 +87,7 @@ def test_apply_meta_regression_edge_bb_compression_triggers_squeeze_even_positiv
             0.18,
             meta_applied=True,
             base_score=0.72,
-            symbol="R_10",
+            symbol="OTC_SPC",
         )
     assert direction == TradeDirection.CALL
     assert score == pytest.approx(float(resolve_meta_payoff_veto_config()["squeeze_trade_score"]))

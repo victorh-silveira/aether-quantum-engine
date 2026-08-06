@@ -7,9 +7,9 @@
 [![Pre-commit](https://img.shields.io/badge/Pre--commit-active-FAB040?logo=pre-commit&logoColor=white)](.pre-commit-config.yaml)
 [![CI](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml)
 
-Motor quantitativo assíncrono para a Deriv: decisão por **Deep Learning** (TCN/LSTM/GRU) no índice sintético **`R_10`** (Volatility 10), contratos **RISE_FALL** de **120 s** com contexto macro **600 s** (proporção **1:5**), meta-regressor LightGBM (**43D**) de expectativa de retorno contínuo (single-symbol), e **sizing Kelly + Soft Recovery** (Kelly em EXPLORE; Soft Recovery amortizado em RECOVER). As chaves de assinatura ainda usam prefixos legados `m5`/`m15` para os relógios configurados de **120 s** / **600 s**.
+Motor quantitativo assíncrono para a Deriv: decisão por **Deep Learning** (TCN/LSTM/GRU) no índice **S&P 500 OTC** (`OTC_SPC`), contratos **RISE_FALL** de **15 m** (somente **M15**) com micro/MINI **900 s** e contexto macro **3600 s** (proporção **1:5**), meta-regressor LightGBM (**43D**) de expectativa de retorno contínuo (single-symbol), e **sizing Kelly + Soft Recovery** (Kelly em EXPLORE; Soft Recovery amortizado em RECOVER). As chaves de assinatura ainda usam prefixos legados `m5`/`m15` para os relógios configurados de **900 s** / **3600 s**.
 
-A operação divide-se em duas fases: **FASE TREINO** (nenhuma ordem até todos os modelos concluírem o treino da sessão) e **FASE OPERACAO** mandatária (`mandatory_trade_each_cycle: true`, `force_trade_every_cycle: false`): o ciclo tenta montar candidato a cada fronteira de **120 s**, com alinhamento de **zona de preço** (BB/Keltner: BUY→CALL / SELL→PUT; `require_trend_agreement` / `require_tcn_agreement` off). Nos settings atuais Triton e meta são **opcionais** para execução (`infra.triton.enabled/require_for_execution: false`; `require_meta_for_execution: false`); em stack Docker completa o Triton pode ser reativado fail-closed.
+A operação divide-se em duas fases: **FASE TREINO** (nenhuma ordem até todos os modelos concluírem o treino da sessão) e **FASE OPERACAO** mandatária (`mandatory_trade_each_cycle: true`, `force_trade_every_cycle: false`): o ciclo tenta montar candidato a cada fronteira de **900 s** (M15). Nos settings atuais Triton e meta são **opcionais** para execução (`infra.triton.enabled/require_for_execution: false`; `require_meta_for_execution: false`); em stack Docker completa o Triton pode ser reativado fail-closed. Mercado com horário de sessão (não 24/7).
 
 Documentação: [AGENTS.md](AGENTS.md) (agentes) | [matriz de cobertura](docs/agent-coverage.md) | [arquitetura](docs/arquitetura.md) | [estrutura e módulos](docs/structure.md) | [metodologia quant](docs/medallion.md) | [infra Docker](docs/infra-docker.md) | [Deriv API](docs/deriv-api.md) | [Deriv para agentes](docs/deriv-api-aether.md) | [índice docs](docs/README.md)
 
@@ -45,14 +45,14 @@ Arquivo: [`config/settings.json`](config/settings.json)
 
 | Bloco | Função |
 |-------|--------|
-| `symbols` / `anchor` | Universo (`R_10`; ancora `R_10`) |
+| `symbols` / `anchor` | Universo (`OTC_SPC`; ancora `OTC_SPC`) |
 | `data_handler` | `granularity` (macro **600 s**), `micro_granularity` (**120 s**), `history_bars` / `training_history_bars` (**23328**), `fetch_count`, `buffer_limit` |
 | `deep_learning` | `arch`, `lookback` (**360**), `label_mode` (`spot_forward`), calibration (`neutral_half_width: 0.0`), thresholds **0.51/0.49**, `indicator_gating`, `deploy_gate` |
 | `orchestrator.execution` | `mandatory_trade_each_cycle: true`, `force_trade_every_cycle: false`, `price_zone`, `require_meta_for_execution: false`, `quality_gate` (starvation/edge decay), settlement **90 s** |
 | `risk_management.kelly` | Stake EXPLORE (`fraction: 0.08`, tetos 3,5%); compressão 40% fora de recovery |
 | `risk_management.soft_recovery` | RECOVER: amortização 2–5 ciclos, `max_safe_stake_pct: 0.035` |
 | `orchestrator.execution.side_equilibrium` | Leis dos pequenos/grandes números CALL/PUT (small-N hard skip; large-N soft Kelly) |
-| `infra` | Redis, Timescale, MinIO, Triton (`enabled`/`require_for_execution` opcionais nos settings atuais; repo `R_10`), meta-classifier |
+| `infra` | Redis, Timescale, MinIO, Triton (`enabled`/`require_for_execution` opcionais nos settings atuais; repo `OTC_SPC`), meta-classifier |
 
 ## Ambiente híbrido Docker
 
@@ -107,7 +107,7 @@ Copie `cp .env.example .env` e preencha o PAT. Validação Deriv: `python app/sc
 - **Stop win por sessão ativa**: meta = `banca_inicial × 2,60%` (banca ≥ $100) ou **$10** fixo (banca &lt; $100); `finalize_stop_win_shutdown` purge Redis + log CRITICAL + fast-path.
 - **Stop loss desativado**: sem disjuntor de perda diária interno.
 - **Lotes fracionados**: stakes acima de `max_single_stake_limit` (padrão $200) divididas em N ordens com proposta atômica por sub-lote; falha técnica de proposta aborta o cluster sem inflar `pending_loss`.
-- Cooldown por símbolo após sequência de losses (`symbol_loss_rotation_cycles`): com universo single-symbol (`R_10`) o default operacional e `0` para nao esvaziar o unico ativo.
+- Cooldown por símbolo após sequência de losses (`symbol_loss_rotation_cycles`): com universo single-symbol (`OTC_SPC`) o default operacional e `0` para nao esvaziar o unico ativo.
 - **Proteção contra loss** (`execution_loss_protection`): caps edge/Z **999**; `min_direction_margin` operacional **0.0** nos settings atuais.
 - **Starvation / edge**: após **6** quality skips os pisos decaem; o piso de `predicted_payoff_edge` relaxa a partir de **8** skips até `edge_decay_floor: 0.0`, com recovery relax até `-0.55`.
 
@@ -214,7 +214,7 @@ WSL: `make app-pre-commit-run`
 
 O motor exige `deep_learning.enabled: true` e checkpoints válidos em `data/dl/`. Treino e execução são processos separados — `train.py` grava os modelos; `run.py` só opera.
 
-Fluxo tipico single-symbol: treinar TCN `R_10` (`data/dl/R_10.pth` / `triton-models/R_10/`) → sync Triton se habilitado → treinar meta single-symbol (`--symbols R_10`). Artefatos Drift legados no disco nao sao apagados automaticamente.
+Fluxo tipico single-symbol: treinar TCN `OTC_SPC` (`data/dl/OTC_SPC.pth` / `triton-models/OTC_SPC/`) → sync Triton se habilitado → treinar meta single-symbol (`--symbols OTC_SPC`). Artefatos Drift legados no disco nao sao apagados automaticamente.
 
 ---
 

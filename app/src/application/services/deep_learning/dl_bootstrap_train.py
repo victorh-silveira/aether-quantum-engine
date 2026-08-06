@@ -27,6 +27,18 @@ logger = logging.getLogger("AETH")
 _STATUS_WAIT = "wait"
 _STATUS_OK = "ok"
 _STATUS_FAIL = "fail"
+_HISTORY_WAIT_CAP_SECONDS = 30.0
+
+
+def _history_wait_seconds(granularity: int, dl_config: dict | None = None) -> float:
+    """Espera curta entre retries de historico; nao escala com M15 (900s)."""
+    cfg = dl_config if isinstance(dl_config, dict) else {}
+    try:
+        cap = float(cfg.get("bootstrap_history_wait_cap_seconds", _HISTORY_WAIT_CAP_SECONDS))
+    except (TypeError, ValueError):
+        cap = _HISTORY_WAIT_CAP_SECONDS
+    cap = max(1.0, min(120.0, cap))
+    return min(float(max(1, int(granularity))), cap)
 
 
 def _ordered_bootstrap_symbols(orch) -> list[str]:
@@ -48,10 +60,12 @@ def _bootstrap_training_context(orch, symbol: str):
     data_config = orch.config.get("data_handler", {})
     risk_params = orch.config.get("risk_management", {}).get("params", {})
     params = parse_dl_params(dl_config, data_config, risk_params)
-    min_len = min_dl_history_len(params)
+    train_bars = int(params.get("training_history_bars", 0) or 0)
+    min_len = max(min_dl_history_len(params), train_bars)
     granularity = granularity_seconds(orch)
+    train_tf = str(params.get("train_timeframe", "macro"))
     runtime = get_symbol_runtime(orch, symbol, dl_config, params)
-    prices, open_, high, low = load_symbol_close_ohlc(orch, symbol)
+    prices, open_, high, low = load_symbol_close_ohlc(orch, symbol, timeframe=train_tf)
     micro_full = load_symbol_microstructure(orch, symbol, len(prices))
     prices, open_, high, low = slice_dl_ohlc_window(
         prices,
@@ -78,7 +92,7 @@ async def _train_bootstrap_symbol(orch, symbol: str) -> str:
             min_len,
         )
         return _STATUS_WAIT
-    epoch = candle_epoch(orch, symbol)
+    epoch = candle_epoch(orch, symbol, timeframe=str(params.get("train_timeframe", "macro")))
     await asyncio.to_thread(
         run_symbol_training,
         symbol,
@@ -139,14 +153,14 @@ async def run_initial_bootstrap_training(orch) -> None:
         if not progress:
             wait_rounds += 1
             _, params, min_len, _, _, _, _, _, _, _ = _bootstrap_training_context(orch, pending[0])
-            await orch.stream.ensure_cluster_history(min_len)
+            await orch.stream.ensure_cluster_history(min_len, timeframe=str(params.get("train_timeframe", "macro")))
             if wait_rounds >= max_wait_rounds:
                 logger.warning(
                     "DL TREINO | bootstrap | limite de %d ciclos aguardando historico",
                     max_wait_rounds,
                 )
                 break
-            await asyncio.sleep(float(gran))
+            await asyncio.sleep(_history_wait_seconds(gran, dl_config))
 
 
 async def run_dl_training_session(orch) -> bool:
@@ -183,14 +197,14 @@ async def run_dl_training_session(orch) -> bool:
         if not progress:
             wait_rounds += 1
             _, params, min_len, _, _, _, _, _, _, _ = _bootstrap_training_context(orch, symbols[0])
-            await orch.stream.ensure_cluster_history(min_len)
+            await orch.stream.ensure_cluster_history(min_len, timeframe=str(params.get("train_timeframe", "macro")))
             if wait_rounds >= max_wait_rounds:
                 logger.warning(
                     "DL TREINO | sessao | limite de %d ciclos aguardando historico",
                     max_wait_rounds,
                 )
                 break
-            await asyncio.sleep(float(gran))
+            await asyncio.sleep(_history_wait_seconds(gran, dl_config))
     ok = not failed and len(completed) == len(symbols)
     if not ok:
         logger.error(

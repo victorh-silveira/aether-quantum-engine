@@ -22,7 +22,7 @@ def test_squeeze_extreme_and_edge():
         bb_width_history=[0.05, 0.04, 0.03],
         vol_ratio=0.8,
         implied_vol_ratio=0.5,
-        symbol="R_10",
+        symbol="OTC_SPC",
     )
     assert isinstance(extreme, bool)
     assert 0.0 <= norm <= 1.0

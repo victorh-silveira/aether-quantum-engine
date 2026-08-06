@@ -46,11 +46,11 @@ def test_select_best_prefers_higher_score_not_opposite_side():
 
 def test_recovery_candidate_pool_skips_blocked_symbol():
     candidates = [
-        ("R_10", TradeDirection.CALL, {}),
+        ("OTC_SPC", TradeDirection.CALL, {}),
         ("R_75", TradeDirection.PUT, {}),
     ]
     pool = recovery_candidate_pool(
-        candidates, last_loss_symbol="R_10", recovery_active=True, skip_symbols=frozenset({"R_10"})
+        candidates, last_loss_symbol="OTC_SPC", recovery_active=True, skip_symbols=frozenset({"OTC_SPC"})
     )
     assert [c[0] for c in pool] == ["R_75"]
 

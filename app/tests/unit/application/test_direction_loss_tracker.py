@@ -24,23 +24,23 @@ def _reset_tracker():
 
 
 def test_record_direction_outcome_tracks_consecutive_losses():
-    record_direction_outcome("R_10", "CALL", won=False)
-    record_direction_outcome("R_10", "CALL", won=False)
-    assert consecutive_direction_losses("R_10", "CALL") == 2
-    assert anti_trend_lock_active("R_10", TradeDirection.CALL) is True
-    record_direction_outcome("R_10", "CALL", won=True)
-    assert consecutive_direction_losses("R_10", "CALL") == 0
+    record_direction_outcome("OTC_SPC", "CALL", won=False)
+    record_direction_outcome("OTC_SPC", "CALL", won=False)
+    assert consecutive_direction_losses("OTC_SPC", "CALL") == 2
+    assert anti_trend_lock_active("OTC_SPC", TradeDirection.CALL) is True
+    record_direction_outcome("OTC_SPC", "CALL", won=True)
+    assert consecutive_direction_losses("OTC_SPC", "CALL") == 0
 
 
 def test_direction_loss_tracker_snapshot():
-    record_direction_outcome("R_10", "PUT", won=False)
+    record_direction_outcome("OTC_SPC", "PUT", won=False)
     snap = direction_loss_tracker_snapshot()
-    assert snap["R_10"]["PUT"] == 1
+    assert snap["OTC_SPC"]["PUT"] == 1
 
 
 def test_consecutive_direction_losses_ignores_invalid_direction():
-    assert consecutive_direction_losses("R_10", "SIDE") == 0
-    record_direction_outcome("R_10", None, won=False)
+    assert consecutive_direction_losses("OTC_SPC", "SIDE") == 0
+    record_direction_outcome("OTC_SPC", None, won=False)
 
 
 def test_get_direction_loss_tracker_returns_singleton():
@@ -55,13 +55,13 @@ def test_prune_obsolete_direction_losses_expires_stale_memory():
         "src.application.services.direction_loss_tracker._cooperative_loop_time",
         side_effect=[100.0, 100.0, 225.0],
     ):
-        tracker.record_outcome("R_10", "PUT", won=False)
-        tracker.record_outcome("R_10", "PUT", won=False)
-        assert tracker.consecutive_losses("R_10", "PUT") == 2
-        assert tracker.anti_trend_lock_active("R_10", TradeDirection.PUT) is True
+        tracker.record_outcome("OTC_SPC", "PUT", won=False)
+        tracker.record_outcome("OTC_SPC", "PUT", won=False)
+        assert tracker.consecutive_losses("OTC_SPC", "PUT") == 2
+        assert tracker.anti_trend_lock_active("OTC_SPC", TradeDirection.PUT) is True
         tracker.prune_obsolete_direction_losses(max_age_seconds=120.0)
-    assert tracker.consecutive_losses("R_10", "PUT") == 0
-    assert tracker.anti_trend_lock_active("R_10", TradeDirection.PUT) is False
+    assert tracker.consecutive_losses("OTC_SPC", "PUT") == 0
+    assert tracker.anti_trend_lock_active("OTC_SPC", TradeDirection.PUT) is False
 
 
 def test_prune_obsolete_direction_losses_keeps_fresh_memory():
@@ -70,21 +70,21 @@ def test_prune_obsolete_direction_losses_keeps_fresh_memory():
         "src.application.services.direction_loss_tracker._cooperative_loop_time",
         side_effect=[100.0, 100.0, 200.0],
     ):
-        tracker.record_outcome("R_10", "PUT", won=False)
-        tracker.record_outcome("R_10", "PUT", won=False)
+        tracker.record_outcome("OTC_SPC", "PUT", won=False)
+        tracker.record_outcome("OTC_SPC", "PUT", won=False)
         tracker.prune_obsolete_direction_losses(max_age_seconds=120.0)
-    assert tracker.consecutive_losses("R_10", "PUT") == 2
+    assert tracker.consecutive_losses("OTC_SPC", "PUT") == 2
 
 
 def test_prune_obsolete_direction_losses_skips_entries_without_timestamp():
     tracker = DirectionLossTracker()
-    tracker._loss_tracker["R_10"] = {"CALL": 0, "PUT": 2}
+    tracker._loss_tracker["OTC_SPC"] = {"CALL": 0, "PUT": 2}
     with patch(
         "src.application.services.direction_loss_tracker._cooperative_loop_time",
         return_value=500.0,
     ):
         tracker.prune_obsolete_direction_losses(max_age_seconds=120.0)
-    assert tracker.consecutive_losses("R_10", "PUT") == 2
+    assert tracker.consecutive_losses("OTC_SPC", "PUT") == 2
 
 
 @pytest.mark.asyncio
@@ -93,10 +93,10 @@ async def test_prune_obsolete_direction_losses_uses_active_event_loop_clock():
     loop = asyncio.get_running_loop()
     base = loop.time()
     with patch.object(loop, "time", side_effect=[base, base, base + 125.0]):
-        tracker.record_outcome("R_10", "CALL", won=False)
-        tracker.record_outcome("R_10", "CALL", won=False)
+        tracker.record_outcome("OTC_SPC", "CALL", won=False)
+        tracker.record_outcome("OTC_SPC", "CALL", won=False)
         tracker.prune_obsolete_direction_losses(max_age_seconds=120.0)
-    assert tracker.consecutive_losses("R_10", "CALL") == 0
+    assert tracker.consecutive_losses("OTC_SPC", "CALL") == 0
 
 
 def test_cooperative_loop_time_falls_back_to_monotonic_without_event_loop():

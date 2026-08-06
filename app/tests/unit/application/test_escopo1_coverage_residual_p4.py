@@ -53,7 +53,7 @@ def test_apply_successful_symbol_train_deploy_warning():
         ),
         patch(
             "src.application.services.deep_learning.dl_symbol_train_success.resolve_dl_model_path",
-            return_value="x/R_10.pth",
+            return_value="x/OTC_SPC.pth",
         ),
         patch(
             "src.application.services.deep_learning.dl_symbol_train_success.resolve_deploy_ok",
@@ -61,7 +61,7 @@ def test_apply_successful_symbol_train_deploy_warning():
         ),
     ):
         apply_successful_symbol_train(
-            "R_10",
+            "OTC_SPC",
             runtime,
             train_result,
             orch=orch,
@@ -118,7 +118,7 @@ async def test_execute_cluster_orders_force_and_reversal_stake():
     ):
         count = await execute_cluster_orders(
             executor,
-            [("R_10", TradeDirection.CALL, {"execute": True})],
+            [("OTC_SPC", TradeDirection.CALL, {"execute": True})],
             0.0,
             1000.0,
         )
@@ -137,7 +137,7 @@ async def test_execute_cluster_orders_reversal_stake_floor():
         },
         risk_manager=SimpleNamespace(
             kelly_config={"neutral_bankroll_pct": 0.002, "stop_win_kelly_enabled": True},
-            pending_loss={"R_10": 1.0},
+            pending_loss={"OTC_SPC": 1.0},
             consecutive_losses_linear=2,
             pending_loss_total=lambda: 5.0,
             calculate_stake=MagicMock(return_value=0.0),
@@ -160,7 +160,7 @@ async def test_execute_cluster_orders_reversal_stake_floor():
     ):
         count = await execute_cluster_orders(
             executor,
-            [("R_10", TradeDirection.CALL, metrics)],
+            [("OTC_SPC", TradeDirection.CALL, metrics)],
             0.0,
             1000.0,
         )

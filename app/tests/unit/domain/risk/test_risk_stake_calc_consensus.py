@@ -48,7 +48,7 @@ def test_calculate_stake_consensus_penalty_reduces_stake(kelly_config):
     stake_aligned = calculate_stake_for_manager(
         rm,
         11800.0,
-        "R_10",
+        "OTC_SPC",
         0.80,
         silent=True,
         apply_stop_win=False,
@@ -57,7 +57,7 @@ def test_calculate_stake_consensus_penalty_reduces_stake(kelly_config):
     stake_diverged = calculate_stake_for_manager(
         rm,
         11800.0,
-        "R_10",
+        "OTC_SPC",
         0.80,
         silent=True,
         apply_stop_win=False,
@@ -100,14 +100,14 @@ def test_calculate_stake_consensus_uses_neutral_floor_when_kelly_tiny(kelly_conf
     stake = calculate_stake_for_manager(
         rm,
         11800.0,
-        "R_10",
+        "OTC_SPC",
         0.80,
         silent=True,
         apply_stop_win=False,
         kwargs={"dl_metrics": metrics, "order_direction": "CALL"},
     )
-    assert stake == pytest.approx(11800.0 * 0.0025)
-    assert metrics.get("session_base_unit") == pytest.approx(11800.0 * 0.0025)
+    assert stake == pytest.approx(11800.0 * 0.02)
+    assert metrics.get("session_base_unit") == pytest.approx(11800.0 * 0.02)
 
 
 def test_calculate_stake_consensus_penalty_logs_retention(kelly_config):
@@ -141,7 +141,7 @@ def test_calculate_stake_consensus_penalty_logs_retention(kelly_config):
     calculate_stake_for_manager(
         rm,
         11800.0,
-        "R_10",
+        "OTC_SPC",
         0.80,
         silent=False,
         apply_stop_win=False,
@@ -164,7 +164,7 @@ def test_calculate_stake_d_squeeze_preserves_recovery_stake_with_pending(kelly_c
     rm.stake_max = 12000.0
     rm.initial_bankroll = 11800.0
     rm.total_session_profit = -120.0
-    rm.pending_loss = {"R_10": 335.52}
+    rm.pending_loss = {"OTC_SPC": 335.52}
     rm.active_contract_ids = []
     rm.logger = MagicMock()
     rm.effective_win_rate = MagicMock(return_value=0.80)
@@ -184,7 +184,7 @@ def test_calculate_stake_d_squeeze_preserves_recovery_stake_with_pending(kelly_c
     stake = calculate_stake_for_manager(
         rm,
         11800.0,
-        "R_10",
+        "OTC_SPC",
         0.52,
         silent=True,
         apply_stop_win=False,
@@ -230,7 +230,7 @@ def test_calculate_stake_d_squeeze_revokes_recovery_waiver_at_floor(kelly_config
     stake = calculate_stake_for_manager(
         rm,
         11800.0,
-        "R_10",
+        "OTC_SPC",
         0.52,
         silent=True,
         apply_stop_win=False,

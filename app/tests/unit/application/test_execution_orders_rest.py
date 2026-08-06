@@ -27,7 +27,7 @@ async def test_place_order_rest_transport_schedules_settlement():
         status=TradeStatus.OPEN,
         buy_price=0.35,
         payout=0.66,
-        symbol="R_10",
+        symbol="OTC_SPC",
         direction=TradeDirection.CALL,
         stake=0.35,
         expiry_time=10,
@@ -37,7 +37,7 @@ async def test_place_order_rest_transport_schedules_settlement():
     executor = MagicMock()
     executor.orch = orch
     with patch("src.application.services.orchestrator.execution_orders.schedule_rest_contract_settlement") as sched:
-        out = await place_order(executor, "R_10", TradeDirection.CALL, 0.35)
+        out = await place_order(executor, "OTC_SPC", TradeDirection.CALL, 0.35)
     assert out is contract
     sched.assert_called_once()
     assert orch.state.balance == 99.65
@@ -62,7 +62,7 @@ async def test_place_order_rest_transport_refresh_balance_failure():
         status=TradeStatus.OPEN,
         buy_price=0.35,
         payout=0.66,
-        symbol="R_10",
+        symbol="OTC_SPC",
         direction=TradeDirection.PUT,
         stake=0.35,
         expiry_time=10,
@@ -72,5 +72,5 @@ async def test_place_order_rest_transport_refresh_balance_failure():
     executor = MagicMock()
     executor.orch = orch
     with patch("src.application.services.orchestrator.execution_orders.schedule_rest_contract_settlement"):
-        out = await place_order(executor, "R_10", TradeDirection.PUT, 0.35)
+        out = await place_order(executor, "OTC_SPC", TradeDirection.PUT, 0.35)
     assert out.contract_id == 6

@@ -22,13 +22,13 @@ def test_triton_http_base_url_adds_scheme():
 
 
 def test_get_triton_model_metadata_success():
-    payload = {"name": "R_10", "inputs": [{"shape": [-1, 48, 34]}]}
+    payload = {"name": "OTC_SPC", "inputs": [{"shape": [-1, 48, 34]}]}
     with patch(
         "src.infrastructure.inference.triton_http.read_http_response",
         return_value=json.dumps(payload).encode("utf-8"),
     ):
-        out = get_triton_model_metadata("http://localhost:8000", "R_10")
-    assert out["name"] == "R_10"
+        out = get_triton_model_metadata("http://localhost:8000", "OTC_SPC")
+    assert out["name"] == "OTC_SPC"
 
 
 def test_get_triton_model_metadata_error_field():
@@ -39,7 +39,7 @@ def test_get_triton_model_metadata_error_field():
         ),
         pytest.raises(RuntimeError, match="not found"),
     ):
-        get_triton_model_metadata("http://localhost:8000", "R_10")
+        get_triton_model_metadata("http://localhost:8000", "OTC_SPC")
 
 
 def test_get_triton_model_metadata_invalid_type():
@@ -50,7 +50,7 @@ def test_get_triton_model_metadata_invalid_type():
         ),
         pytest.raises(RuntimeError, match="invalida"),
     ):
-        get_triton_model_metadata("http://localhost:8000", "R_10")
+        get_triton_model_metadata("http://localhost:8000", "OTC_SPC")
 
 
 def test_triton_model_ready_true_and_false():
@@ -58,19 +58,19 @@ def test_triton_model_ready_true_and_false():
         "src.infrastructure.inference.triton_http.read_http_response",
         return_value=b"",
     ):
-        assert triton_model_ready("http://localhost:8000", "R_10") is True
+        assert triton_model_ready("http://localhost:8000", "OTC_SPC") is True
     for code in (400, 404, 503):
         with patch(
             "src.infrastructure.inference.triton_http.read_http_response",
             side_effect=urllib.error.HTTPError(
-                url="http://localhost:8000/v2/models/R_10/ready",
+                url="http://localhost:8000/v2/models/OTC_SPC/ready",
                 code=code,
                 msg="Not Ready",
                 hdrs=None,
                 fp=None,
             ),
         ):
-            assert triton_model_ready("http://localhost:8000", "R_10") is False
+            assert triton_model_ready("http://localhost:8000", "OTC_SPC") is False
 
 
 def test_triton_model_ready_reraises_unexpected_http_error():
@@ -78,7 +78,7 @@ def test_triton_model_ready_reraises_unexpected_http_error():
         patch(
             "src.infrastructure.inference.triton_http.read_http_response",
             side_effect=urllib.error.HTTPError(
-                url="http://localhost:8000/v2/models/R_10/ready",
+                url="http://localhost:8000/v2/models/OTC_SPC/ready",
                 code=500,
                 msg="Server Error",
                 hdrs=None,
@@ -87,7 +87,7 @@ def test_triton_model_ready_reraises_unexpected_http_error():
         ),
         pytest.raises(urllib.error.HTTPError),
     ):
-        triton_model_ready("http://localhost:8000", "R_10")
+        triton_model_ready("http://localhost:8000", "OTC_SPC")
 
 
 def test_wait_triton_models_ready_empty_list():
@@ -104,7 +104,7 @@ def test_wait_triton_models_ready_eventually():
     with patch("src.infrastructure.inference.triton_http.triton_model_ready", side_effect=_ready):
         ok = wait_triton_models_ready(
             "http://localhost:8000",
-            ["R_10"],
+            ["OTC_SPC"],
             timeout_seconds=2.0,
             poll_interval_seconds=0.01,
         )
@@ -115,7 +115,7 @@ def test_wait_triton_models_ready_timeout():
     with patch("src.infrastructure.inference.triton_http.triton_model_ready", return_value=False):
         ok = wait_triton_models_ready(
             "http://localhost:8000",
-            ["R_10"],
+            ["OTC_SPC"],
             timeout_seconds=0.2,
             poll_interval_seconds=0.05,
         )
@@ -125,10 +125,10 @@ def test_wait_triton_models_ready_timeout():
 def test_post_triton_repository_reload_list():
     with patch(
         "src.infrastructure.inference.triton_http.read_http_response",
-        return_value=json.dumps([{"name": "R_10"}]).encode("utf-8"),
+        return_value=json.dumps([{"name": "OTC_SPC"}]).encode("utf-8"),
     ):
         out = post_triton_repository_reload("localhost:8000")
-    assert out == [{"name": "R_10"}]
+    assert out == [{"name": "OTC_SPC"}]
 
 
 def test_post_triton_repository_reload_non_list():
@@ -149,9 +149,9 @@ def test_post_triton_model_load_posts_explicit_endpoint():
         return b""
 
     with patch("src.infrastructure.inference.triton_http.read_http_response", side_effect=_capture):
-        post_triton_model_load("http://localhost:8000", "R_10")
+        post_triton_model_load("http://localhost:8000", "OTC_SPC")
     assert captured["method"] == "POST"
-    assert captured["url"] == "http://localhost:8000/v2/repository/models/R_10/load"
+    assert captured["url"] == "http://localhost:8000/v2/repository/models/OTC_SPC/load"
 
 
 def test_load_triton_models_sequential_skips_blank_and_orders():
@@ -164,9 +164,9 @@ def test_load_triton_models_sequential_skips_blank_and_orders():
         patch("src.infrastructure.inference.triton_http.post_triton_model_load", side_effect=_load),
         patch("src.infrastructure.inference.triton_http.wait_triton_models_ready", return_value=True),
     ):
-        loaded = load_triton_models_sequential("http://localhost:8000", ["R_10", "", "R_50"])
-    assert loaded == ["R_10", "R_50"]
-    assert calls == ["R_10", "R_50"]
+        loaded = load_triton_models_sequential("http://localhost:8000", ["OTC_SPC", "", "R_50"])
+    assert loaded == ["OTC_SPC", "R_50"]
+    assert calls == ["OTC_SPC", "R_50"]
 
 
 def test_load_triton_models_sequential_raises_when_ready_times_out():
@@ -175,7 +175,7 @@ def test_load_triton_models_sequential_raises_when_ready_times_out():
         patch("src.infrastructure.inference.triton_http.wait_triton_models_ready", return_value=False),
         pytest.raises(TimeoutError, match="sem ready"),
     ):
-        load_triton_models_sequential("http://localhost:8000", ["R_10"])
+        load_triton_models_sequential("http://localhost:8000", ["OTC_SPC"])
 
 
 def test_fetch_triton_health_ready_ok():

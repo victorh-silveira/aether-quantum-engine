@@ -26,7 +26,7 @@ Enforcement no core: `doctrine_invariants.py` + testes `test_doctrine_*` / `test
 | Engenharia / QA / testes | [engineering-standards.md](engineering-standards.md) | `aether-engineering.mdc` + `aether-testing.mdc` | `aether-precommit` |
 | Logging / presentation | [engineering-observability.md](engineering-observability.md) + [engineering-logging-inventory.md](engineering-logging-inventory.md) | `aether-logging.mdc` | `aether-session-review` |
 | Scripts / ops | [structure.md](structure.md) §Scripts | `aether-scripts.mdc` | `aether-ops-runbook` |
-| Domain models/math/symbols | [structure.md](structure.md) §Domain | `aether-domain-pure.mdc` | — |
+| Domain models/math/symbols | [structure.md](structure.md) §Domain + [deriv-indices-algorithm.md](deriv-indices-algorithm.md) (`OTC_SPC`) | `aether-domain-pure.mdc` | — |
 
 ## Pastas DDD ↔ matriz
 

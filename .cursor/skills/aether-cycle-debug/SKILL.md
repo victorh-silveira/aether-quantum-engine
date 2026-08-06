@@ -12,7 +12,7 @@ description: >-
 
 1. Warmup / DATA buffer — MACRO 300s / MICRO 60s / MINI 60s (`stream_sync_start`)
 2. FASE TREINO vs OPERACAO
-3. Signature boundary 60 s — ciclo alinhado? Contrato Deriv 30 s (hibrido)
+3. Signature boundary **900 s** (M15) — ciclo alinhado? Contrato Deriv **15 m**
 4. CLUSTER TF — prefere micro (`M1`); Cal/Edge telemetria
 5. SCALE — `tape` / `adapted` / discord; adaptacao de lado sob `raw_extreme` (sem SKIP); sizing em `execution_scale_*`
 6. Locks / atomic state — deadlock?

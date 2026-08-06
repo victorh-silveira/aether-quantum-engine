@@ -183,7 +183,7 @@ def test_consensus_stake_floor_forces_retention_floor():
 
 
 def test_neutral_edge_dynamic_unit_at_11k_bankroll():
-    assert neutral_edge_dynamic_unit(11000.0) == pytest.approx(27.5)
+    assert neutral_edge_dynamic_unit(11000.0) == pytest.approx(220.0)
 
 
 def test_neutral_regime_preserves_full_retention_without_zscore_penalty():
@@ -196,14 +196,14 @@ def test_neutral_regime_preserves_full_retention_without_zscore_penalty():
 def test_apply_neutral_edge_kelly_base_raises_to_bankroll_pct():
     metrics = {}
     base = apply_neutral_edge_kelly_base(2.0, 11000.0, metrics)
-    assert base == pytest.approx(27.5)
-    assert metrics["session_base_unit"] == pytest.approx(27.5)
+    assert base == pytest.approx(220.0)
+    assert metrics["session_base_unit"] == pytest.approx(220.0)
 
 
 def test_apply_neutral_edge_kelly_base_preserves_higher_kelly():
     metrics = {}
-    base = apply_neutral_edge_kelly_base(60.0, 11000.0, metrics)
-    assert base == pytest.approx(60.0)
+    base = apply_neutral_edge_kelly_base(250.0, 11000.0, metrics)
+    assert base == pytest.approx(250.0)
 
 
 def test_apply_neutral_edge_kelly_base_skips_on_d_squeeze():

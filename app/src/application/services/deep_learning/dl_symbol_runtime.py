@@ -213,9 +213,18 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
     return orch._dl_runtime[symbol]
 
 
-def candle_epoch(orch, symbol: str) -> int:
-    """Obtem epoch da ultima vela disponivel no stream."""
-    getter = getattr(orch.stream, "get_last_candle_epoch", None)
+def candle_epoch(orch, symbol: str, *, timeframe: str | None = None) -> int:
+    """Obtem epoch da ultima vela do timeframe de treino (macro/micro)."""
+    stream = getattr(orch, "stream", None)
+    if stream is None:
+        return 0
+    tf = str(timeframe or "").strip().lower()
+    if tf == "micro":
+        getter = getattr(stream, "get_last_micro_candle_epoch", None)
+        if callable(getter):
+            epoch = getter(symbol)
+            return int(epoch) if epoch is not None else 0
+    getter = getattr(stream, "get_last_candle_epoch", None)
     if callable(getter):
         epoch = getter(symbol)
         return int(epoch) if epoch is not None else 0

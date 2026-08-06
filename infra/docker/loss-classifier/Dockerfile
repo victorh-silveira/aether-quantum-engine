@@ -10,14 +10,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY runtime.py app.py .
+COPY runtime.py learn_policy.py buffer_io.py app.py .
 
 ENV MODELS_DIR=/models
 ENV LOSS_FEATURE_DIM=24
 ENV LOSS_READY_N=24
-ENV LOSS_RETRAIN_MIN_N=32
+ENV LOSS_RETRAIN_MIN_N=24
+ENV LOSS_RETRAIN_ON_LOSS_MIN_N=2
 ENV LOSS_MAX_BUFFER=2000
-ENV LOSS_VETO_P_LOSS_FLOOR=0.62
+ENV LOSS_VETO_P_LOSS_FLOOR=0.65
 EXPOSE 8000
 
 USER aether

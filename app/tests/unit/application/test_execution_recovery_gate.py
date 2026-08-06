@@ -54,7 +54,7 @@ def test_recovery_min_signal_recovery_floor_below_mandatory():
 
 
 def test_recovery_min_val_accuracy_default():
-    assert recovery_min_val_accuracy({}) == 0.50
+    assert recovery_min_val_accuracy({}) == 0.53
 
 
 def test_recovery_min_signal_scaling_consecutive_losses():
@@ -85,12 +85,12 @@ def test_recovery_min_signal_hurst_log_adjustment():
 
 def test_recovery_min_val_accuracy_scaling_consecutive_losses():
     cfg = {
-        "recovery_min_val_accuracy": 0.50,
+        "recovery_min_val_accuracy": 0.53,
     }
-    assert recovery_min_val_accuracy(cfg, consecutive_losses=0) == 0.50
-    assert recovery_min_val_accuracy(cfg, consecutive_losses=1) == 0.50
-    assert recovery_min_val_accuracy(cfg, consecutive_losses=2) == 0.52
-    assert recovery_min_val_accuracy(cfg, consecutive_losses=3) == 0.53
+    assert recovery_min_val_accuracy(cfg, consecutive_losses=0) == 0.53
+    assert recovery_min_val_accuracy(cfg, consecutive_losses=1) == 0.53
+    assert recovery_min_val_accuracy(cfg, consecutive_losses=2) == 0.53
+    assert recovery_min_val_accuracy(cfg, consecutive_losses=3) == 0.54
     assert recovery_min_val_accuracy(cfg, consecutive_losses=4) == 0.55
 
 

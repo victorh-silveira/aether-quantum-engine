@@ -32,7 +32,7 @@ def test_collect_cluster_recovery_skip_symbol_retry():
             "risk_management": {"kelly": {}},
         },
         risk_manager=SimpleNamespace(
-            pending_loss={"R_10": 1.0},
+            pending_loss={"OTC_SPC": 1.0},
             consecutive_losses_linear=1,
             total_session_profit=-1.0,
         ),
@@ -43,9 +43,9 @@ def test_collect_cluster_recovery_skip_symbol_retry():
         orch=orch,
         logger=MagicMock(),
         _mandatory_trade_each_cycle=lambda: True,
-        _trade_symbols=lambda: ["R_10"],
+        _trade_symbols=lambda: ["OTC_SPC"],
     )
-    candidate = ("R_10", TradeDirection.CALL, {"trade_score": 0.6, "raw_prob": 0.6, "execute": True})
+    candidate = ("OTC_SPC", TradeDirection.CALL, {"trade_score": 0.6, "raw_prob": 0.6, "execute": True})
     with (
         patch(
             "src.application.services.orchestrator.execution_collect.gather_cluster_candidates",
@@ -69,7 +69,7 @@ def test_collect_cluster_recovery_skip_symbol_retry():
         ),
         patch(
             "src.application.services.orchestrator.execution_collect.extract_collect_params",
-            return_value=({}, frozenset({"R_10"}), 0.5, 0.5, 0.0, None, {}),
+            return_value=({}, frozenset({"OTC_SPC"}), 0.5, 0.5, 0.0, None, {}),
         ),
         patch(
             "src.application.services.orchestrator.execution_collect.resolve_mandatory_ultimate_candidate",
@@ -84,24 +84,24 @@ def test_collect_cluster_recovery_skip_symbol_retry():
             side_effect=lambda c, *_a: c,
         ),
     ):
-        orders = collect_cluster_orders(exec_mgr, {"R_10": {"metrics": {}}})
+        orders = collect_cluster_orders(exec_mgr, {"OTC_SPC": {"metrics": {}}})
     assert len(orders) == 1
 
 
 def test_cross_veto_recovery_waiver_delegates():
-    rm = SimpleNamespace(consecutive_losses_linear=5, pending_loss={"R_10": 260.0})
+    rm = SimpleNamespace(consecutive_losses_linear=5, pending_loss={"OTC_SPC": 260.0})
     assert cross_veto_recovery_waiver_allowed({"raw_prob": 0.82}, direction="CALL", risk_manager=rm) is True
 
 
 def test_mandatory_fallback_scored_none_uses_last_resort():
     orch = SimpleNamespace(_active_cycle_id=1, config={})
     decisions = {
-        "R_10": {
+        "OTC_SPC": {
             "direction": TradeDirection.CALL,
             "metrics": {"deploy_ok": True, "raw_prob": 0.7, "trade_score": 0.8, "val_accuracy": 0.6},
         }
     }
-    last = ("R_10", TradeDirection.CALL, decisions["R_10"]["metrics"])
+    last = ("OTC_SPC", TradeDirection.CALL, decisions["OTC_SPC"]["metrics"])
     with (
         patch(
             "src.application.services.execution_direction_fallback.pick_best_mandatory_candidate",
@@ -118,7 +118,7 @@ def test_mandatory_fallback_scored_none_uses_last_resort():
     ):
         assert (
             build_mandatory_fallback_candidate(
-                ["R_10"],
+                ["OTC_SPC"],
                 decisions,
                 recovery_active=False,
                 last_loss_symbol=None,
@@ -197,8 +197,8 @@ def test_risk_manager_cointegration_redirect_suppressed():
         }
     )
     rm.initial_bankroll = 100.0
-    rm.pending_loss = {"R_10": 1.0}
+    rm.pending_loss = {"OTC_SPC": 1.0}
     assert rm.cointegration_redirect_active() is False
     rm.initial_bankroll = 10000.0
-    rm.pending_loss = {"R_10": 3000.0}
+    rm.pending_loss = {"OTC_SPC": 3000.0}
     assert isinstance(rm.cointegration_redirect_active(), bool)

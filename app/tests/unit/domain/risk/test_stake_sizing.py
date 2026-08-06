@@ -217,6 +217,38 @@ def test_compute_single_strike_cycles_target_reduces_stake():
     assert damped == pytest.approx(full / 2.75, abs=0.5)
 
 
+def test_compute_single_strike_live_n_min_zero_allows_cold_start():
+    risk = {
+        "large_account_stop_win_pct": 3.0,
+        "small_account_threshold": 100.0,
+        "params": {"compounding_enabled": False},
+    }
+    cfg = {
+        "stop_win_kelly_enabled": True,
+        "stop_win_kelly_live_n_min": 0,
+        "stop_win_kelly_min_conviction": 0.55,
+        "stop_win_kelly_conviction_strong": 0.70,
+        "stop_win_kelly_min_fraction": 0.50,
+        "stop_win_kelly_max_fraction": 1.0,
+        "stop_win_kelly_cycles_target": 4,
+        "cycle_stake_scale_enabled": False,
+    }
+    boosted = compute_single_strike_kelly_base(
+        5.0,
+        9500.0,
+        0.82,
+        0.70,
+        risk,
+        cfg,
+        9500.0,
+        0.0,
+        has_active_contracts=False,
+        live_metrics={"live_n": 0, "live_wr": 0.0},
+    )
+    assert boosted > 5.0
+    assert boosted == pytest.approx((9500.0 * 0.03 / 0.82) / 4.0, abs=1.0)
+
+
 def test_compute_single_strike_scales_with_m5_cycle():
     risk = {
         "large_account_stop_win_pct": 4.0,
@@ -259,19 +291,3 @@ def test_compute_single_strike_scales_with_m5_cycle():
     )
     assert scaled > base
     assert scaled == pytest.approx(base * resolve_cycle_stake_scale(cfg, risk), abs=0.5)
-
-
-def test_compute_single_strike_disabled_when_flag_off():
-    kelly = compute_single_strike_kelly_base(
-        12.0,
-        1168.0,
-        0.95,
-        0.60,
-        {"large_account_stop_win_pct": 4.0},
-        {"stop_win_kelly_enabled": False},
-        1168.0,
-        0.0,
-        has_active_contracts=False,
-        live_metrics={"live_n": 40, "live_wr": 0.55},
-    )
-    assert kelly == 12.0

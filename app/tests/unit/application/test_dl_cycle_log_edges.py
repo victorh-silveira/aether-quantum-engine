@@ -11,7 +11,7 @@ from src.domain.models.trade import TradeDirection
 
 def test_build_dl_cycle_brief_exec_and_blocked():
     decisions = {
-        "R_10": {
+        "OTC_SPC": {
             "direction": TradeDirection.PUT,
             "metrics": {
                 "conviction": 0.75,
@@ -25,13 +25,13 @@ def test_build_dl_cycle_brief_exec_and_blocked():
         "R_50": {"direction": None, "metrics": {"gate_reason": "predict_error", "execute": False}},
     }
     line = build_dl_cycle_brief(decisions, recovery_active=False)
-    assert "exec R_10:PUT m=0.25 cal=0.25" in line
+    assert "exec OTC_SPC:PUT m=0.25 cal=0.25" in line
     assert "1 bloq" in line
 
 
 def test_build_dl_cycle_brief_all_training():
     decisions = {
-        "R_10": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}},
+        "OTC_SPC": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}},
         "R_50": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}},
     }
     line = build_dl_cycle_brief(decisions, recovery_active=False)
@@ -40,7 +40,7 @@ def test_build_dl_cycle_brief_all_training():
 
 def test_build_dl_cycle_brief_exec_with_training():
     decisions = {
-        "R_10": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}},
+        "OTC_SPC": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}},
         "R_50": {
             "direction": TradeDirection.PUT,
             "metrics": {
@@ -60,7 +60,7 @@ def test_build_dl_cycle_brief_exec_with_training():
 
 def test_build_dl_cycle_brief_all_blocked_without_raw_prob():
     decisions = {
-        "R_10": {"direction": None, "metrics": {"gate_reason": "predict_error", "execute": False}},
+        "OTC_SPC": {"direction": None, "metrics": {"gate_reason": "predict_error", "execute": False}},
     }
     line = build_dl_cycle_brief(decisions, recovery_active=False)
     assert "aguardando sinal" in line
@@ -68,7 +68,7 @@ def test_build_dl_cycle_brief_all_blocked_without_raw_prob():
 
 def test_build_dl_cycle_brief_partial_no_data():
     decisions = {
-        "R_10": {"direction": None, "metrics": {"gate_reason": "data", "execute": False}},
+        "OTC_SPC": {"direction": None, "metrics": {"gate_reason": "data", "execute": False}},
         "R_50": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}},
     }
     line = build_dl_cycle_brief(decisions, recovery_active=False)
@@ -77,7 +77,7 @@ def test_build_dl_cycle_brief_partial_no_data():
 
 def test_build_dl_cycle_brief_bias_tokens():
     decisions = {
-        "R_10": {
+        "OTC_SPC": {
             "direction": TradeDirection.PUT,
             "metrics": {
                 "execute": True,
@@ -96,7 +96,10 @@ def test_build_dl_cycle_brief_bias_tokens():
 
 def test_abstain_detail_mixed_blocked_and_valid():
     decisions = {
-        "R_10": {"direction": TradeDirection.CALL, "metrics": {"raw_prob": 0.62, "execute": True, "deploy_ok": True}},
+        "OTC_SPC": {
+            "direction": TradeDirection.CALL,
+            "metrics": {"raw_prob": 0.62, "execute": True, "deploy_ok": True},
+        },
         "R_50": {"direction": None, "metrics": {"gate_reason": "predict_error", "raw_prob": 0.52, "execute": False}},
     }
     detail = _abstain_detail(decisions)
@@ -104,7 +107,7 @@ def test_abstain_detail_mixed_blocked_and_valid():
 
 
 def test_format_brief_token_with_suffix():
-    token = _format_brief_token("R_10", TradeDirection.CALL, margin=0.05, cal=0.55, suffix=":edge")
+    token = _format_brief_token("OTC_SPC", TradeDirection.CALL, margin=0.05, cal=0.55, suffix=":edge")
     assert token.endswith(":edge")
     assert "m=0.05" in token
     assert "cal=0.55" in token
@@ -112,7 +115,7 @@ def test_format_brief_token_with_suffix():
 
 def test_build_dl_cycle_brief_former_neutral_resolves_direction():
     decisions = {
-        "R_10": {
+        "OTC_SPC": {
             "direction": None,
             "metrics": {
                 "execute": True,
@@ -125,13 +128,13 @@ def test_build_dl_cycle_brief_former_neutral_resolves_direction():
         },
     }
     line = build_dl_cycle_brief(decisions, recovery_active=False)
-    assert "exec R_10" in line
+    assert "exec OTC_SPC" in line
     assert "CALL" in line or "PUT" in line
 
 
 def test_build_dl_cycle_brief_partial_blocked_tail():
     decisions = {
-        "R_10": {
+        "OTC_SPC": {
             "direction": TradeDirection.CALL,
             "metrics": {
                 "execute": True,
@@ -151,7 +154,7 @@ def test_build_dl_cycle_brief_partial_blocked_tail():
 def test_brief_cycle_counts_marks_missing_direction_as_blocked():
     exec_tokens, bias_tokens, blocked, no_data, training = _brief_cycle_counts(
         {
-            "R_10": {"direction": None, "metrics": {"execute": True, "deploy_ok": True}},
+            "OTC_SPC": {"direction": None, "metrics": {"execute": True, "deploy_ok": True}},
         }
     )
     assert blocked == 1
@@ -161,7 +164,7 @@ def test_brief_cycle_counts_marks_missing_direction_as_blocked():
 
 def test_build_dl_cycle_brief_blocked_only_tail():
     decisions = {
-        "R_10": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}},
+        "OTC_SPC": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}},
         "R_50": {"direction": None, "metrics": {"execute": False, "deploy_ok": True}},
     }
     line = build_dl_cycle_brief(decisions, recovery_active=False)
@@ -170,7 +173,7 @@ def test_build_dl_cycle_brief_blocked_only_tail():
 
 def test_build_dl_cycle_brief_counts_block_when_direction_infer_fails():
     decisions = {
-        "R_10": {
+        "OTC_SPC": {
             "direction": TradeDirection.CALL,
             "metrics": {"gate_reason": "predict_error", "execute": False, "trade_score": 0.52},
         },
@@ -182,7 +185,7 @@ def test_build_dl_cycle_brief_counts_block_when_direction_infer_fails():
 
 def test_build_dl_cycle_brief_returns_blocked_count_when_partial_training():
     decisions = {
-        "R_10": {"direction": None, "metrics": {"gate_reason": "data", "execute": False}},
+        "OTC_SPC": {"direction": None, "metrics": {"gate_reason": "data", "execute": False}},
         "R_50": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}},
     }
     line = build_dl_cycle_brief(decisions, recovery_active=False)

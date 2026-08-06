@@ -16,8 +16,8 @@ from src.infrastructure.handlers.history_fetch import fetch_paginated_candle_his
 
 logger = logging.getLogger("AETH.meta")
 MIN_OHLC_ROWS = 96
-META_TRAIN_DEFAULT_BARS = 5000
-META_TRAIN_MAX_BARS = 5000
+META_TRAIN_DEFAULT_BARS = 2000
+META_TRAIN_MAX_BARS = 2000
 META_TRAIN_MIN_QUALITY_BARS = 2000
 META_TRAIN_LOOKBACK_MARGIN = 64
 
@@ -251,7 +251,7 @@ def _granularity_candidates(
     data_cfg = settings.get("data_handler", {}) if isinstance(settings.get("data_handler"), dict) else {}
     micro = int(data_cfg.get("micro_granularity", 60)) if isinstance(data_cfg, dict) else 60
     macro = int(data_cfg.get("granularity", 300)) if isinstance(data_cfg, dict) else 300
-    ordered = [int(preferred), micro, macro, 60, 300]
+    ordered = [int(preferred), micro, macro, 900, 3600, 60, 300]
     unique: list[int] = []
     for value in ordered:
         if value not in unique:

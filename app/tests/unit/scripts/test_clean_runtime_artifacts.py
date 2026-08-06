@@ -34,7 +34,7 @@ def test_meta_models_root_points_to_docker_bind_mount(tmp_path: Path):
 
 
 def test_is_docker_bind_mount_detects_nested_artifacts(tmp_path: Path):
-    triton_model = tmp_path / "infra" / "docker" / "triton-models" / "R_10" / "1" / "model.pt"
+    triton_model = tmp_path / "infra" / "docker" / "triton-models" / "OTC_SPC" / "1" / "model.pt"
     meta_model = tmp_path / "infra" / "docker" / "meta-models" / "meta_lgbm.pkl"
     other = tmp_path / "infra" / "docker" / "redis.conf"
     assert is_docker_bind_mount(triton_model, tmp_path)
@@ -47,7 +47,7 @@ def test_clean_runtime_artifacts_preserves_docker_bind_mounts(tmp_path: Path):
     data_root.mkdir()
     session = data_root / "session_state.json"
     session.write_text("{}", encoding="utf-8")
-    triton_model = tmp_path / "infra" / "docker" / "triton-models" / "R_10" / "1" / "model.pt"
+    triton_model = tmp_path / "infra" / "docker" / "triton-models" / "OTC_SPC" / "1" / "model.pt"
     triton_model.parent.mkdir(parents=True)
     triton_model.write_bytes(b"pt")
     triton_config = triton_model.parent.parent / "config.pbtxt"
@@ -73,7 +73,7 @@ def test_clean_repo_data_preserves_deriv_bindings(tmp_path: Path):
     data_root = tmp_path / "data"
     dl_root = data_root / "dl"
     dl_root.mkdir(parents=True)
-    checkpoint = dl_root / "R_10.pth"
+    checkpoint = dl_root / "OTC_SPC.pth"
     checkpoint.write_bytes(b"pth")
     state = data_root / "state.json"
     state.write_text("{}", encoding="utf-8")

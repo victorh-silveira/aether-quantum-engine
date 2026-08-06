@@ -42,6 +42,15 @@ def build_loss_feature_vector(
     tcn = str(metrics.get("tcn_direction") or metrics.get("dl_direction") or "").upper()
     tape = str(metrics.get("scale_tape_consensus") or "").upper()
     tape_vs = 1.0 if tcn and tape and tcn != tape else 0.0
+    mini_prev = str(metrics.get("scale_mini_prev_bar_dir") or "").upper()
+    mini_cur = str(metrics.get("scale_mini_bar_dir") or "").upper()
+    mini_oppose = (
+        1.0
+        if mini_prev in {TradeDirection.CALL.name, TradeDirection.PUT.name}
+        and mini_cur == mini_prev
+        and mini_prev != exec_dir.name
+        else 0.0
+    )
     pending_norm = _clip01(float(pending) / float(bankroll)) if bankroll > 1e-9 else _clip01(float(pending) / 1000.0)
     vector = [
         _clip01(_f(metrics, "direction_margin")),
@@ -67,7 +76,7 @@ def build_loss_feature_vector(
         _clip01(_f(metrics, "val_accuracy", _f(metrics, "acc", 0.55))),
         max(-3.0, min(3.0, _f(metrics, "edge_zscore"))),
         max(-3.0, min(3.0, _f(metrics, "bb_width_z", _f(metrics, "bbw", 0.0)))),
-        0.0,
+        mini_oppose,
     ]
     if len(vector) != LOSS_FEATURE_DIM:
         raise ValueError(f"loss feature dim {len(vector)} != {LOSS_FEATURE_DIM}")

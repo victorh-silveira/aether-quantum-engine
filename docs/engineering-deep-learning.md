@@ -6,16 +6,17 @@ Guia operacional DL para agentes. Detalhe de features: [`arquitetura.md`](arquit
 
 | Item | Valor tipico |
 |------|----------------|
-| Simbolo | `R_10` |
+| Simbolo | `OTC_SPC` |
 | Arch | TCN |
-| Lookback | **720** → tensor `[1, 720, 34]` (~12 h @ 60 s) |
-| MACRO OHLC | **300 s** (`data_handler.granularity`) |
-| MICRO (TCN) | **60 s** (`micro_granularity`) |
-| Contrato | **30 s** RISE_FALL (hibrido; label 1 barra micro = 60 s) |
-| MINI OHLC | **60 s** (`mini_granularity`) |
+| Lookback | **720** → tensor `[1, 720, 34]` (~7,5 dias @ 900 s) |
+| MACRO OHLC | **3600 s** (`data_handler.granularity`) |
+| MICRO (TCN) | **900 s** (`micro_granularity`) — M15 |
+| Contrato | **15 m** RISE_FALL (label 1 barra micro = 900 s) |
+| MINI OHLC | **900 s** (`mini_granularity`) |
+| Bootstrap wait | `bootstrap_history_wait_cap_seconds` **30** (nao dorme 900 s entre retries) |
 | MILI | Tick flow (nao OHLC) |
 | Features | **34D** (`FEATURE_DIM`) |
-| Label | `ma_trend` (MA 8; horizonte 1 barra micro **60 s**; gap vs contrato 30 s) |
+| Label | `ma_trend` (MA 8; horizonte 1 barra micro **900 s**; alinhado ao contrato M15) |
 | ACC / deploy | `soft_min_val_accuracy` **0.53**; `soft_max_brier` **0.26**; `force_ok=false` |
 | Early stop | `min_epochs` **40**, `early_stopping_patience` **40**; restore **best val_acc** |
 | Meta | LightGBM **43D** `predicted_payoff_edge` |
@@ -48,7 +49,7 @@ Telemetria de treino: `TrainResult.label_call_frac`, `pred_call_frac`, `minority
 
 Majority-collapse (alem do ACC): com `reject_majority_collapse=true`, rejeita se `|label_call_frac - 0.5| > max_label_call_frac_bias` (**0.20**) e `minority_recall < min_minority_recall` (**0.25**).
 
-Checkpoint de treino restaura pesos do **melhor val_acc** (melhoria so de loss nao sobrescreve). Em R_10, `spot_forward` costuma platô ~0.52; `ma_trend` e o label SSOT atual.
+Checkpoint de treino restaura pesos do **melhor val_acc** (melhoria so de loss nao sobrescreve). Em OTC_SPC, `spot_forward` costuma platô ~0.52; `ma_trend` e o label SSOT atual.
 
 ## Meta — alvo e dados
 

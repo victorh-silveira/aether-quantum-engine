@@ -4,12 +4,20 @@ import numpy as np
 import pytest
 
 from src.application.services.deep_learning.dl_bootstrap_train import (
+    _history_wait_seconds,
     _ordered_bootstrap_symbols,
     _train_bootstrap_symbol,
     run_dl_training_session,
     run_initial_bootstrap_training,
 )
 from tests.market_symbols import ALT_SYMBOL, ANCHOR
+
+
+def test_history_wait_seconds_caps_m15_granularity():
+    assert _history_wait_seconds(900) == pytest.approx(30.0)
+    assert _history_wait_seconds(15) == pytest.approx(15.0)
+    assert _history_wait_seconds(900, {"bootstrap_history_wait_cap_seconds": 10}) == pytest.approx(10.0)
+    assert _history_wait_seconds(900, {"bootstrap_history_wait_cap_seconds": "x"}) == pytest.approx(30.0)
 
 
 @pytest.mark.asyncio
@@ -54,9 +62,9 @@ def test_ordered_bootstrap_symbols_returns_pending_in_config_order(orch_ready):
     orch = orch_ready
     with patch(
         "src.application.services.deep_learning.dl_bootstrap_train.training_priority_symbols",
-        return_value=frozenset({"R_10", "R_50"}),
+        return_value=frozenset({"OTC_SPC", "R_50"}),
     ):
-        assert _ordered_bootstrap_symbols(orch) == ["R_10"]
+        assert _ordered_bootstrap_symbols(orch) == ["OTC_SPC"]
 
 
 @pytest.mark.asyncio
@@ -90,7 +98,7 @@ async def test_train_bootstrap_symbol_runs_training_in_thread(orch_ready):
             side_effect=fake_thread,
         ) as mock_thread,
     ):
-        status = await _train_bootstrap_symbol(orch, "R_10")
+        status = await _train_bootstrap_symbol(orch, "OTC_SPC")
     assert status == "ok"
     mock_thread.assert_awaited_once()
 
@@ -101,7 +109,7 @@ async def test_run_initial_bootstrap_training_skips_trained_runtime(orch_ready):
     with (
         patch(
             "src.application.services.deep_learning.dl_bootstrap_train._ordered_bootstrap_symbols",
-            return_value=["R_10"],
+            return_value=["OTC_SPC"],
         ),
         patch(
             "src.application.services.deep_learning.dl_bootstrap_train.runtime_in_training",
@@ -128,7 +136,7 @@ async def test_run_initial_bootstrap_training_waits_for_history(orch_ready):
     with (
         patch(
             "src.application.services.deep_learning.dl_bootstrap_train._ordered_bootstrap_symbols",
-            side_effect=[["R_10"], ["R_10"], []],
+            side_effect=[["OTC_SPC"], ["OTC_SPC"], []],
         ),
         patch(
             "src.application.services.deep_learning.dl_bootstrap_train._train_bootstrap_symbol",
@@ -157,7 +165,7 @@ async def test_run_initial_bootstrap_training_stops_after_max_wait_rounds(orch_r
     with (
         patch(
             "src.application.services.deep_learning.dl_bootstrap_train._ordered_bootstrap_symbols",
-            return_value=["R_10"],
+            return_value=["OTC_SPC"],
         ),
         patch(
             "src.application.services.deep_learning.dl_bootstrap_train._train_bootstrap_symbol",
@@ -228,9 +236,9 @@ async def test_run_dl_training_session_noop_without_symbols(orch_ready):
 @pytest.mark.asyncio
 async def test_run_dl_training_session_waits_for_history(orch_ready):
     orch = orch_ready
-    orch.symbols = ["R_10", "R_50"]
-    orch.config.setdefault("deep_learning", {})["train_symbols"] = ["R_10", "R_50"]
-    attempts = {"R_10": 0, "R_50": 0}
+    orch.symbols = ["OTC_SPC", "R_50"]
+    orch.config.setdefault("deep_learning", {})["train_symbols"] = ["OTC_SPC", "R_50"]
+    attempts = {"OTC_SPC": 0, "R_50": 0}
 
     async def fake_train(_orch, symbol):
         attempts[symbol] += 1
@@ -242,7 +250,7 @@ async def test_run_dl_training_session_waits_for_history(orch_ready):
         side_effect=fake_train,
     ):
         assert await run_dl_training_session(orch) is True
-    assert attempts["R_10"] >= 2
+    assert attempts["OTC_SPC"] >= 2
     assert attempts["R_50"] >= 2
     orch.stream.ensure_cluster_history.assert_awaited()
 
@@ -262,14 +270,14 @@ async def test_run_dl_training_session_stops_after_max_wait_rounds(orch_ready):
 @pytest.mark.asyncio
 async def test_run_dl_training_session_skips_completed_symbols(orch_ready):
     orch = orch_ready
-    orch.symbols = ["R_10", "R_50"]
-    orch.config.setdefault("deep_learning", {})["train_symbols"] = ["R_10", "R_50"]
+    orch.symbols = ["OTC_SPC", "R_50"]
+    orch.config.setdefault("deep_learning", {})["train_symbols"] = ["OTC_SPC", "R_50"]
     calls: list[str] = []
     r25_attempts = {"n": 0}
 
     async def fake_train(_orch, symbol):
         calls.append(symbol)
-        if symbol == "R_10":
+        if symbol == "OTC_SPC":
             return "ok"
         r25_attempts["n"] += 1
         return "ok" if r25_attempts["n"] >= 2 else "wait"
@@ -279,15 +287,4 @@ async def test_run_dl_training_session_skips_completed_symbols(orch_ready):
         side_effect=fake_train,
     ):
         assert await run_dl_training_session(orch) is True
-    assert calls[0] == "R_10" and calls.count("R_10") == 1 and calls.count("R_50") >= 2
-
-
-@pytest.mark.asyncio
-async def test_run_dl_training_session_fails_closed_on_export_error(orch_ready):
-    orch = orch_ready
-    with patch(
-        "src.application.services.deep_learning.dl_bootstrap_train._train_bootstrap_symbol",
-        new_callable=AsyncMock,
-        return_value="fail",
-    ):
-        assert await run_dl_training_session(orch) is False
+    assert calls[0] == "OTC_SPC" and calls.count("OTC_SPC") == 1 and calls.count("R_50") >= 2

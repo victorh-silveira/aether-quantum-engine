@@ -115,7 +115,7 @@ def test_stake_block_reason_stop_win():
     rm = RiskManager({"small_account_stop_win": 5.0, "small_account_threshold": 100.0, "params": {"stake_min": 1.0}})
     rm.set_initial_bankroll(50.0)
     rm.total_session_profit = 10.0
-    assert rm.stake_block_reason(50.0, "R_10") == "stop_win"
+    assert rm.stake_block_reason(50.0, "OTC_SPC") == "stop_win"
 
 
 def test_arm_cooldown_timer_no_op():
@@ -141,7 +141,7 @@ def test_stake_block_reason_stop_win_with_persisted_target():
     rm.set_initial_bankroll(1000.0)
     rm.daily_stop_win_target = 10.0
     rm.total_session_profit = 11.0
-    assert rm.stake_block_reason(1000.0, "R_10", conviction=0.6) == "stop_win"
+    assert rm.stake_block_reason(1000.0, "OTC_SPC", conviction=0.6) == "stop_win"
 
 
 def test_risk_manager_reset_session():
@@ -166,8 +166,8 @@ def test_stake_block_reason_never_kelly_no_edge():
         }
     )
     rm.set_initial_bankroll(10000.0)
-    assert rm.stake_block_reason(10000.0, "R_10", conviction=0.05) is None
-    assert rm.calculate_stake(10000.0, "R_10", conviction=0.05) > 0.0
+    assert rm.stake_block_reason(10000.0, "OTC_SPC", conviction=0.05) is None
+    assert rm.calculate_stake(10000.0, "OTC_SPC", conviction=0.05) > 0.0
 
 
 def test_stake_block_reason_bankroll_below_stake_min():
@@ -178,7 +178,7 @@ def test_stake_block_reason_bankroll_below_stake_min():
         }
     )
     rm.set_initial_bankroll(0.5)
-    assert rm.stake_block_reason(0.5, "R_10", conviction=0.05) == "bankroll_below_stake_min"
+    assert rm.stake_block_reason(0.5, "OTC_SPC", conviction=0.05) == "bankroll_below_stake_min"
 
 
 def test_stake_block_reason_none_when_soft_veto_zeros_stake():
@@ -191,7 +191,7 @@ def test_stake_block_reason_none_when_soft_veto_zeros_stake():
     rm.set_initial_bankroll(10000.0)
     reason = rm.stake_block_reason(
         10000.0,
-        "R_10",
+        "OTC_SPC",
         conviction=0.6,
         dl_metrics={"execute": True, "meta_veto_mode": "soft", "senior_trader_conviction": 0.1},
     )

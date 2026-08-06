@@ -15,9 +15,10 @@ from src.domain.analytics.side_equilibrium import (
 def test_parse_side_equilibrium_config_defaults():
     cfg = parse_side_equilibrium_config(None)
     assert cfg.enabled is True
-    assert cfg.small_window == 24
-    assert cfg.n_min_small == 8
-    assert cfg.n_min_large == 40
+    assert cfg.small_window == 16
+    assert cfg.n_min_small == 4
+    assert cfg.n_min_large == 24
+    assert cfg.large_window == 64
     assert cfg.freq_bias_max_small == pytest.approx(0.70)
     assert cfg.require_wr_significance is True
     assert parse_side_equilibrium_config({"n_min_small": 1}).n_min_small == 2

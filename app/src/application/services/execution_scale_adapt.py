@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.application.services.execution_scale_adapt_majority import adapt_on_majority_votes
 from src.application.services.execution_scale_adapt_regimes import (
     adapt_on_retraction as _adapt_on_retraction,
     try_regime_adapts,
@@ -24,7 +25,7 @@ __all__ = (
 
 
 def apply_scale_direction_adapt(metrics: dict[str, Any], exec_dir: TradeDirection) -> TradeDirection:
-    """Adapta exec_direction ao consenso da fita ou a regimes micro (sem SKIP)."""
+    """Adapta exec_direction ao consenso da fita, maioria de votos ou regimes micro."""
     cfg = parse_scale_vision_config(None)
     metrics["tcn_direction"] = exec_dir.name
     metrics.setdefault("scale_adapted", False)
@@ -36,6 +37,9 @@ def apply_scale_direction_adapt(metrics: dict[str, Any], exec_dir: TradeDirectio
     if not bool(cfg.get("adapt_direction_enabled", True)):
         metrics["scale_adapt_reason"] = "adapt_off"
         return exec_dir
+    majority = adapt_on_majority_votes(metrics, exec_dir, cfg)
+    if majority is not None:
+        return majority
     consensus = str(metrics.get("scale_tape_consensus") or "").upper()
     if consensus not in {TradeDirection.CALL.name, TradeDirection.PUT.name}:
         regime = try_regime_adapts(metrics, exec_dir, cfg)
@@ -54,7 +58,7 @@ def apply_scale_direction_adapt(metrics: dict[str, Any], exec_dir: TradeDirectio
         return exec_dir
     mode = str(metrics.get("calibration_mode") or "")
     raw_ok = mode == "raw_extreme"
-    strong_ok = bool(cfg.get("adapt_allow_strong_tape", True)) and bool(metrics.get("scale_tape_strong"))
+    strong_ok = bool(cfg.get("adapt_allow_strong_tape", False)) and bool(metrics.get("scale_tape_strong"))
     if raw_ok or strong_ok:
         adapted = TradeDirection[consensus]
         metrics["scale_adapted"] = True

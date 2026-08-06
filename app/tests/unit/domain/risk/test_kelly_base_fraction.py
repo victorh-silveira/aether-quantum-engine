@@ -12,12 +12,12 @@ def test_resolve_effective_kelly_fraction_attenuates_normal_regime():
     cfg = {"fraction": reference}
     assert resolve_effective_kelly_fraction(cfg, recovery_active=False) == pytest.approx(compressed)
     assert resolve_effective_kelly_fraction(cfg, recovery_active=True) == pytest.approx(reference)
-    assert pytest.approx(0.60) == retention
+    assert pytest.approx(0.70) == retention
 
 
 def test_resolve_effective_kelly_fraction_sixty_percent_reduction_generic():
     cfg = {"fraction": 0.005}
-    assert resolve_effective_kelly_fraction(cfg, recovery_active=False) == pytest.approx(0.003)
+    assert resolve_effective_kelly_fraction(cfg, recovery_active=False) == pytest.approx(0.0035)
     assert resolve_effective_kelly_fraction({"fraction": 0.0}, recovery_active=False) == pytest.approx(0.0)
 
 
