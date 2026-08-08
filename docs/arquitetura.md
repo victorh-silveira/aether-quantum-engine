@@ -1,6 +1,6 @@
 # Arquitetura — Aether Quantum Engine
 
-Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (TCN, LSTM ou GRU) no índice **`OTC_SPC`**. Metodologia quantitativa: [`medallion.md`](medallion.md). Inventário de módulos: [`structure.md`](structure.md). Infra Docker: [`infra-docker.md`](infra-docker.md).
+Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (TCN, LSTM ou GRU) no índice **`R_10`**. Metodologia quantitativa: [`medallion.md`](medallion.md). Inventário de módulos: [`structure.md`](structure.md). Infra Docker: [`infra-docker.md`](infra-docker.md).
 
 ---
 
@@ -8,15 +8,15 @@ Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (TCN,
 
 | Aspecto | Valor atual (`config/settings.json`) |
 |---------|--------------------------------------|
-| Símbolos | `OTC_SPC` (âncora `OTC_SPC`) |
+| Símbolos | `R_10` (âncora `R_10`) |
 | Granularidade OHLC (DL) | **3600 s** (`data_handler.granularity`; assinatura legado `m15`) |
-| Relógio operacional | **900 s** (`data_handler.micro_granularity`; M15; assinatura legado `m5`) |
-| Histórico para treino | `training_history_bars` / `history_bars` conforme settings (micro 900 s / macro 3600 s) |
+| Relógio operacional | **120 s** (`data_handler.micro_granularity`; M2) |
+| Histórico para treino | `training_history_bars` / `history_bars` conforme settings (micro **120 s** / macro **3600 s**) |
 | Lookback | **`deep_learning.lookback`** (settings atuais **720**) → tensor **`[1, lookback, 34]`** |
 | Features TCN | **34** (`FEATURE_DIM` em `dl_feature_build.py`) |
 | Features meta GBDT | **43** (`META_FEATURE_DIM` = 34 + 4 micro-vol + 3 cross + 2 flow) |
-| Contrato | `RISE_FALL`, duração **15 m** (somente M15; alinhado ao micro 900 s) |
-| Ciclo | **900 s** (`cycle_interval_seconds` / `signature_boundary_seconds`) |
+| Contrato | `RISE_FALL`, duração **2 m** (M2; alinhado ao micro **120 s**) |
+| Ciclo | **60 s** (`cycle_interval_seconds` / `signature_boundary_seconds`) |
 | Execução | **Mandatória** (`mandatory_trade_each_cycle: true`; `force` off) + alinhamento `price_zone` |
 | Fail-closed | Meta e Triton **opcionais** nos settings atuais (`require_meta_for_execution: false`; `infra.triton.enabled/require_for_execution: false`) |
 | Label | `label_mode: spot_forward` (`ma_trend` / Triple Barrier via config) |
@@ -24,7 +24,7 @@ Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (TCN,
 
 O mercado é tratado como série temporal ruidosa: a TCN estima `P(CALL)` (thresholds **0.51/0.49**); o meta-regressor LightGBM estima `predicted_payoff_edge`; o ranking usa `tcn × max(0.1, 1+z)`. Com `price_zone`, BUY alinha CALL e SELL alinha PUT; edge meta positivo pode **manter** o lado TCN/meta contra a zona (`align_or_keep_meta_side`).
 
-**Invariante temporal:** inferências seguem `signature_boundary_seconds` (fallback `cycle_interval_seconds`, padrão **900 s**) via `get_data_state_signature()` — formato legado `m5`/`m15` alinhado a 900 s / 3600 s (M15).
+**Invariante temporal:** inferências seguem `signature_boundary_seconds` (fallback `cycle_interval_seconds`, padrão **60 s**) via `get_data_state_signature()` — formato legado `m5`/`m15` alinhado a 900 s / 3600 s (M15).
 
 **Válvula de starvation:** após **6** ciclos consecutivos bloqueados pelo quality gate, pisos de margem/edge/Z são atenuados (`execution_quality_gate_starvation.py`). O piso de edge meta relaxa a partir de **8** skips (`edge_decay_cycles`) até `edge_decay_floor: 0.0` (passo `0.08`). Em skips extremos (≥30), a válvula GBDT mitiga veto tabular prolongado.
 
@@ -51,7 +51,7 @@ aether-quantum-engine/
 ├── config/settings.json # Runtime
 ├── data/                # state, session_state, dl/
 ├── docs/
-├── infra/docker/        # Redis, Timescale, MinIO, Triton (repo OTC_SPC), meta-classifier
+├── infra/docker/        # Redis, Timescale, MinIO, Triton (repo R_10), meta-classifier
 └── linters/             # Ruff, Interrogate, Vulture, ≤300 linhas/arquivo
 
 ```
@@ -110,7 +110,7 @@ flowchart TD
 4. `validate_infra_services` (fail-fast se `infra.enabled`) → `bootstrap_and_validate_models` (quando Triton/MinIO ativos):
    - MinIO → `{symbol}.pth` + `latest_ts.pt`
    - Sanity TorchScript multi-probe (`torchscript_sanity_probes`)
-   - Sync Triton (`triton_model_sync`) no repositório **`OTC_SPC`** + schema + stress infer
+   - Sync Triton (`triton_model_sync`) no repositório **`R_10`** + schema + stress infer
 5. Auth OTP (health PAT com retry em 502/503/504) → `bootstrap_active_session_targets` (meta 2,60%).
 6. Streams macro+micro+ticks → watchdog → settlement worker → loop principal.
 
@@ -214,8 +214,8 @@ Config atual: `arch: tcn`, `lookback: 72`, `label_mode: spot_forward`, threshold
 | Container | `aether-loss-classifier`, host **8006→8000** |
 | Endpoint | `POST /v1/predict_loss`, `POST /v1/learn`, `POST /v1/retrain` |
 | Cliente | `LossClassifierClient` + `loss_classifier_pool` |
-| Veto | Somente `veto_mode=soft` → atenua Kelly graduado (`LOSS_CLF || SOFT`); hard SKIP removido |
-| Artefatos | `infra/docker/loss-models/*.pkl` (bootstrap `train_loss_classifier.py`) |
+| Veto | Soft Kelly em `[0.65, 0.90)`; **FLIP** CALL↔PUT se `p_loss >= hard_p_loss_floor` (**0.90**, `veto_ready`; log `LOSS_CLF \|\| FLIP`); seed com p_loss real |
+| Artefatos | `infra/docker/loss-models/*.pkl`; `make docker-rebuild`/`docker-reset` limpam + seed predictivo (`veto_ready` se n>=ready_n) |
 
 ### 5.2 Vetor 43D
 

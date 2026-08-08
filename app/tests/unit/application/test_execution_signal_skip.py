@@ -24,6 +24,12 @@ def test_parse_signal_skip_from_ssot():
     assert cfg["mini_pair_soft_kelly_mult"] == 0.55
     assert cfg["cal_margin_soft_kelly_mult"] == 0.55
     assert cfg["pending_dust"] == 0.25
+    assert cfg["chop_pause_enabled"] is True
+    assert cfg["chop_adx_max"] == 0.22
+    assert cfg["chop_hurst_min"] == 0.47
+    assert cfg["chop_hurst_max"] == 0.53
+    assert cfg["chop_soft_kelly_mult"] == 0.55
+    assert cfg["neg_edge_soft_kelly_mult"] == 0.55
     assert "direction_loss_lock_min" not in cfg
     assert "direction_loss_toxic_escape" not in cfg
     assert "calib_gray_margin_floor" not in cfg
@@ -33,6 +39,12 @@ def test_parse_signal_skip_from_ssot():
         parse_signal_skip_config({"mini_pair_soft_kelly_mult": 0.0})
     with pytest.raises(ValueError, match="cal_margin_soft_kelly_mult"):
         parse_signal_skip_config({"cal_margin_soft_kelly_mult": 0.0})
+    with pytest.raises(ValueError, match="chop_soft_kelly_mult"):
+        parse_signal_skip_config({"chop_soft_kelly_mult": 0.0})
+    with pytest.raises(ValueError, match="neg_edge_soft_kelly_mult"):
+        parse_signal_skip_config({"neg_edge_soft_kelly_mult": 0.0})
+    with pytest.raises(ValueError, match="chop_hurst_max"):
+        parse_signal_skip_config({"chop_hurst_min": 0.60, "chop_hurst_max": 0.40})
 
 
 def test_metrics_block_execution_covers_prefixed_skip_and_ready():
@@ -116,7 +128,7 @@ def test_pending_map_fallback_and_bad_margin():
     orch = MagicMock()
     del orch.risk_manager.pending_loss_total
     type(orch.risk_manager).pending_loss_total = property(lambda self: None)
-    orch.risk_manager.pending_loss = {"OTC_SPC": 12.0}
+    orch.risk_manager.pending_loss = {"R_10": 12.0}
     assert apply_signal_skip_gates(metrics, TradeDirection.CALL, orch=orch) is False
     assert metrics.get("signal_skip_waived") == "cal_margin_pending"
 
@@ -139,7 +151,7 @@ def test_pending_total_edge_paths():
 
     orch_bad_map = MagicMock()
     orch_bad_map.risk_manager.pending_loss_total = "not_callable"
-    orch_bad_map.risk_manager.pending_loss = {"OTC_SPC": object()}
+    orch_bad_map.risk_manager.pending_loss = {"R_10": object()}
     assert _pending_total({}, orch_bad_map) == 0.0
 
     orch_empty = MagicMock()
@@ -260,8 +272,8 @@ def test_direction_loss_lock_removed_keeps_tcn_side():
     )
 
     reset_direction_persistence_tracker()
-    record_direction_outcome("OTC_SPC", "CALL", won=False)
-    record_direction_outcome("OTC_SPC", "CALL", won=False)
+    record_direction_outcome("R_10", "CALL", won=False)
+    record_direction_outcome("R_10", "CALL", won=False)
     metrics = {
         "scale_mini_prev_bar_dir": "PUT",
         "scale_mini_bar_dir": "PUT",
@@ -272,7 +284,7 @@ def test_direction_loss_lock_removed_keeps_tcn_side():
     }
     orch = MagicMock()
     orch._log_dedupe = {}
-    assert apply_signal_skip_gates(metrics, TradeDirection.CALL, orch=orch, symbol="OTC_SPC") is False
+    assert apply_signal_skip_gates(metrics, TradeDirection.CALL, orch=orch, symbol="R_10") is False
     assert metrics["exec_direction"] == "CALL"
     assert metrics["resolved_direction"] == "CALL"
     assert "dir_lock_flip_from" not in metrics

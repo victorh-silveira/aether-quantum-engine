@@ -23,14 +23,24 @@ def test_resolve_with_orch_applies_cal_margin_soft():
         },
     }
     orch = MagicMock()
-    orch.config = {"infra": {"loss_classifier": {"enabled": False}}}
+    orch.config = {
+        "infra": {"loss_classifier": {"enabled": False}},
+        "deep_learning": {"min_edge_execute": -0.99},
+        "risk_management": {"params": {"payout_estimate": 0.72}},
+    }
     orch._active_cycle_id = 0
     orch.risk_manager.pending_loss_total.return_value = 0.0
-    with patch(
-        "src.application.services.execution_direction_resolver.apply_loss_classifier_gate",
-        return_value=False,
+    with (
+        patch(
+            "src.application.services.execution_direction_resolver.apply_loss_classifier_gate",
+            return_value=False,
+        ),
+        patch(
+            "src.application.services.execution_direction_resolver.apply_negative_cal_edge_pause",
+            return_value=False,
+        ),
     ):
-        result = resolve_execution_direction(entry, symbol="OTC_SPC", orch=orch)
+        result = resolve_execution_direction(entry, symbol="R_10", orch=orch)
     assert result is not None
     _dir, metrics = result
     assert metrics.get("gate_reason") is None

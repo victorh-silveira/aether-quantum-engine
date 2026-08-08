@@ -44,9 +44,9 @@ def test_tape_consensus():
 
 
 def test_mili_direction_from_flow():
-    assert mili_direction_from_flow({"price_velocity": 0.5}, None, "OTC_SPC") == "CALL"
-    assert mili_direction_from_flow({"micro_tick_acceleration": -1.0}, None, "OTC_SPC") == "PUT"
-    assert mili_direction_from_flow({}, None, "OTC_SPC") is None
+    assert mili_direction_from_flow({"price_velocity": 0.5}, None, "R_10") == "CALL"
+    assert mili_direction_from_flow({"micro_tick_acceleration": -1.0}, None, "R_10") == "PUT"
+    assert mili_direction_from_flow({}, None, "R_10") is None
 
 
 def test_parse_scale_vision_from_ssot():
@@ -65,6 +65,7 @@ def test_parse_scale_vision_from_ssot():
     assert cfg["adapt_on_retraction"] is True
     assert cfg["adapt_on_explosion"] is True
     assert cfg["adapt_on_mili_tape"] is True
+    assert cfg["adapt_mili_tape_skip_chop"] is True
     assert cfg["adapt_on_majority_votes"] is True
     assert cfg["adapt_majority_min_lead"] == 1
     assert cfg["adapt_majority_min_votes"] == 3
@@ -95,7 +96,7 @@ def test_compute_scale_discordance():
 
     orch = type("O", (), {"stream": Stream()})()
     metrics = {"flow_features": {"price_velocity": 1.0}}
-    compute_scale_directions(orch, "OTC_SPC", TradeDirection.PUT, metrics)
+    compute_scale_directions(orch, "R_10", TradeDirection.PUT, metrics)
     assert metrics["scale_micro_dir"] == "PUT"
     assert metrics["scale_macro_dir"] == "CALL"
     assert metrics["scale_mini_prev_bar_dir"] == "CALL"
@@ -124,7 +125,7 @@ def test_compute_scale_discordance():
 
 def test_compute_scale_disabled():
     metrics = {}
-    compute_scale_directions(None, "OTC_SPC", TradeDirection.CALL, metrics, cfg={"enabled": False})
+    compute_scale_directions(None, "R_10", TradeDirection.CALL, metrics, cfg={"enabled": False})
     assert metrics["scale_reason"] == "disabled"
 
 
@@ -141,7 +142,7 @@ def test_compute_scale_without_last_bar():
     metrics = {"flow_features": {"price_velocity": -1.0}}
     compute_scale_directions(
         type("O", (), {"stream": Stream()})(),
-        "OTC_SPC",
+        "R_10",
         TradeDirection.CALL,
         metrics,
         cfg={
@@ -155,3 +156,48 @@ def test_compute_scale_without_last_bar():
     assert metrics["scale_mini_bar_dir"] is None
     assert metrics["scale_discordance"] is True
     assert "adapted=1" in format_scale_audit_line({**metrics, "scale_adapted": True})
+
+
+def test_compute_scale_uses_patched_ohlc_snapshot():
+    from src.application.services.deep_learning.dl_live_bar_patch import store_patched_ohlc_snapshot
+
+    class Stream:
+        def get_numpy_series(self, _symbol, _field="close"):
+            return np.array([1.0, 1.0, 1.0, 1.0, 1.0])
+
+        def get_mini_numpy_series(self, _symbol, field="close"):
+            if field == "open":
+                return np.array([1.0, 1.0, 1.0])
+            return np.array([1.0, 1.0, 1.0])
+
+        def get_micro_numpy_series(self, _symbol, field="close"):
+            if field == "open":
+                return np.array([1.0, 1.0, 1.0])
+            return np.array([1.0, 1.0, 1.0])
+
+        tick_buffer = None
+
+    orch = type("O", (), {"stream": Stream()})()
+    store_patched_ohlc_snapshot(
+        orch,
+        "R_10",
+        np.array([1.0, 1.0, 0.5]),
+        np.array([1.0, 1.0, 1.0]),
+        None,
+        None,
+    )
+    metrics = {"flow_features": {}}
+    compute_scale_directions(
+        orch,
+        "R_10",
+        TradeDirection.CALL,
+        metrics,
+        cfg={
+            "enabled": True,
+            "slope_bars": 5,
+            "min_disagree_to_dampen": 2,
+            "use_last_bar": True,
+            "adapt_min_votes": 2,
+        },
+    )
+    assert metrics["scale_micro_bar_dir"] == "PUT"

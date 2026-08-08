@@ -19,7 +19,7 @@ async def test_trading_cycle_logs_quality_guard_and_executes_in_mandatory_mode(o
     orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = True
     orch.executor.execute_cluster = AsyncMock()
     weak_decisions = {
-        "OTC_SPC": {
+        "R_10": {
             "metrics": {
                 "calibrated_prob": 0.55,
             }
@@ -47,7 +47,7 @@ async def test_trading_cycle_marks_cadence_after_mandatory_quality_telemetry(orc
     orch = orch_ready
     orch._last_cluster_cycle_end = 0.0
     orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 60
-    weak_decisions = {"OTC_SPC": {"metrics": {"calibrated_prob": 0.55}}}
+    weak_decisions = {"R_10": {"metrics": {"calibrated_prob": 0.55}}}
     orch.executor.execute_cluster = AsyncMock()
     with (
         patch(
@@ -72,7 +72,7 @@ async def test_trading_cycle_advances_epoch_when_mandatory_executes_weak_signal(
     orch.risk_manager.pending_loss_total = lambda: 0.0
     orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 0
     orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = True
-    weak_decisions = {"OTC_SPC": {"metrics": {"calibrated_prob": 0.55, "deploy_ok": True}}}
+    weak_decisions = {"R_10": {"metrics": {"calibrated_prob": 0.55, "deploy_ok": True}}}
     orch.executor.execute_cluster = AsyncMock()
     with (
         patch(
@@ -97,7 +97,7 @@ async def test_trading_cycle_skips_epoch_advance_when_non_mandatory_quality_susp
     orch.risk_manager.pending_loss_total = lambda: 0.0
     orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 0
     orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = False
-    weak_decisions = {"OTC_SPC": {"metrics": {"calibrated_prob": 0.55}}}
+    weak_decisions = {"R_10": {"metrics": {"calibrated_prob": 0.55}}}
     with (
         patch(
             f"{TRADING_CYCLE_MODULE}.collect_deep_learning_decisions",
@@ -118,7 +118,7 @@ async def test_trading_cycle_executes_cluster_on_mandatory(orch_ready):
     orch = orch_ready
     orch._last_cluster_cycle_end = 0.0
     orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 0
-    weak_decisions = {"OTC_SPC": {"metrics": {"calibrated_prob": 0.55, "deploy_ok": True}}}
+    weak_decisions = {"R_10": {"metrics": {"calibrated_prob": 0.55, "deploy_ok": True}}}
     orch.executor.execute_cluster = AsyncMock()
     with (
         patch(

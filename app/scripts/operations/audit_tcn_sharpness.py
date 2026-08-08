@@ -51,7 +51,7 @@ def _hist_bins(probs: list[float], *, bins: int = 10) -> list[tuple[float, float
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Auditoria de sharpness do TCN")
-    parser.add_argument("--symbol", default="OTC_SPC")
+    parser.add_argument("--symbol", default="R_10")
     parser.add_argument("--model-path", default="")
     parser.add_argument("--floor", type=float, default=0.0)
     parser.add_argument("--limit", type=int, default=512)

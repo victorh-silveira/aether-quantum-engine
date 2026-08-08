@@ -50,9 +50,9 @@ def test_apply_risk_snapshot_loss_fields():
     mgr = MagicMock()
     apply_risk_snapshot(
         mgr,
-        {"last_loss_symbol": "OTC_SPC", "last_loss_direction": "PUT"},
+        {"last_loss_symbol": "R_10", "last_loss_direction": "PUT"},
     )
-    assert mgr.last_loss_symbol == "OTC_SPC"
+    assert mgr.last_loss_symbol == "R_10"
 
 
 @pytest.mark.asyncio
@@ -116,7 +116,7 @@ async def test_bar_epoch_invalid_stored_value():
     orch.infra = MagicMock(enabled=True)
     orch.state_store = AsyncMock()
     orch.state_store.get_string.return_value = "bad"
-    assert await bar_epoch_already_processed(orch, "OTC_SPC", 1) is False
+    assert await bar_epoch_already_processed(orch, "R_10", 1) is False
 
 
 @pytest.mark.asyncio
@@ -144,10 +144,10 @@ async def test_model_artifacts_upload_and_schedule(tmp_path):
     orch.model_store.upload = AsyncMock()
     path = tmp_path / "m.pth"
     path.write_bytes(b"x")
-    await upload_model_checkpoint(orch, "OTC_SPC", path, arch="tcn")
-    schedule_model_upload(orch, "OTC_SPC", path, arch="tcn")
+    await upload_model_checkpoint(orch, "R_10", path, arch="tcn")
+    schedule_model_upload(orch, "R_10", path, arch="tcn")
     orch.infra.enabled = False
-    schedule_model_upload(orch, "OTC_SPC", path, arch="tcn")
+    schedule_model_upload(orch, "R_10", path, arch="tcn")
 
 
 @pytest.mark.asyncio
@@ -156,13 +156,13 @@ async def test_ensure_local_and_upload_all(tmp_path):
     orch.infra = MagicMock(enabled=True)
     orch.model_store.download_latest = AsyncMock(return_value=True)
     orch.model_store.upload = AsyncMock()
-    orch.symbols = ["OTC_SPC"]
+    orch.symbols = ["R_10"]
     orch.config = {
         "deep_learning": {"model_path_template": str(tmp_path / "{symbol}.pth"), "arch": "tcn"},
         "data_handler": {},
         "risk_management": {"params": {}},
     }
-    await ensure_local_model_checkpoint(orch, "OTC_SPC", orch.config["deep_learning"], {"arch": "tcn"})
-    file_path = tmp_path / "OTC_SPC.pth"
+    await ensure_local_model_checkpoint(orch, "R_10", orch.config["deep_learning"], {"arch": "tcn"})
+    file_path = tmp_path / "R_10.pth"
     file_path.write_bytes(b"z")
     await upload_all_symbol_checkpoints(orch)

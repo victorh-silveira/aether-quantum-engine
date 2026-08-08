@@ -128,9 +128,9 @@ def test_side_equilibrium_redis_async_and_timescale_task():
     )
     from src.application.services.side_equilibrium_store import record_side_equilibrium_outcome
 
-    record_side_equilibrium_outcome(orch, "OTC_SPC", direction="PUT", won=False)
+    record_side_equilibrium_outcome(orch, "R_10", direction="PUT", won=False)
     writer.enqueue_trade_outcome.side_effect = RuntimeError("ts down")
-    record_side_equilibrium_outcome(orch, "OTC_SPC", direction="PUT", won=False)
+    record_side_equilibrium_outcome(orch, "R_10", direction="PUT", won=False)
 
 
 def test_settlement_outcome_planned_stake():
@@ -145,7 +145,7 @@ def test_settlement_outcome_planned_stake():
             active_contract_ids=[],
             register_result=MagicMock(),
             pending_loss={},
-            contract_to_symbol={77: "OTC_SPC"},
+            contract_to_symbol={77: "R_10"},
             total_session_profit=0.0,
         ),
         _contract_cycle={77: 3},
@@ -188,7 +188,7 @@ def test_settlement_outcome_planned_stake():
     ):
         process_contract_outcome(
             orch,
-            {"buy_price": 2.5, "underlying": "OTC_SPC"},
+            {"buy_price": 2.5, "underlying": "R_10"},
             contract,
             77,
             1.0,
@@ -202,7 +202,7 @@ def test_settlement_outcome_planned_stake():
 def test_meta_payoff_veto_emergency_waiver_pending_map():
     from src.domain.risk.risk_recovery_state import meta_payoff_veto_emergency_waiver
 
-    rm = type("RM", (), {"consecutive_losses_linear": 5, "pending_loss": {"OTC_SPC": 260.0}})()
+    rm = type("RM", (), {"consecutive_losses_linear": 5, "pending_loss": {"R_10": 260.0}})()
     assert meta_payoff_veto_emergency_waiver({"raw_prob": 0.18}, direction="PUT", risk_manager=rm) is True
     rm2 = SimpleNamespace(consecutive_losses_linear=5, pending_loss_total=lambda: 260.0)
     assert meta_payoff_veto_emergency_waiver({"raw_prob": 0.82}, direction="CALL", risk_manager=rm2) is True

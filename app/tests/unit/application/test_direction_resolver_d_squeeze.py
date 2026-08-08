@@ -45,7 +45,7 @@ def test_resolve_soft_bb_compression_keeps_organic_score_at_configured_ratio():
     entry["metrics"]["meta_classifier_applied"] = True
     entry["metrics"]["indicators"] = {"bb_width": 0.041}
     entry["metrics"]["flow_features"] = {"micro_tick_acceleration": 0.02}
-    result = resolve_execution_direction(entry, symbol="OTC_SPC")
+    result = resolve_execution_direction(entry, symbol="R_10")
     assert result is not None
     direction, metrics = result
     assert direction == TradeDirection.CALL
@@ -65,7 +65,7 @@ def test_resolve_frozen_book_compression_triggers_d_squeeze_at_configured_ratio(
     entry["metrics"]["meta_classifier_applied"] = True
     entry["metrics"]["indicators"] = {"bb_width": 0.015}
     entry["metrics"]["flow_features"] = {"micro_tick_acceleration": 0.02}
-    result = resolve_execution_direction(entry, symbol="OTC_SPC")
+    result = resolve_execution_direction(entry, symbol="R_10")
     assert result is not None
     direction, metrics = result
     assert direction == TradeDirection.CALL

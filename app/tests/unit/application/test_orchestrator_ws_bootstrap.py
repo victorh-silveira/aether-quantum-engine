@@ -149,7 +149,7 @@ async def test_setup_trading_session_triton_bootstrap_timeout(orch_config):
 async def test_setup_trading_session_http_error(orch_config):
     orch = Orchestrator(orch_config)
     err = urllib.error.HTTPError(
-        url="http://localhost:8000/v2/models/OTC_SPC",
+        url="http://localhost:8000/v2/models/R_10",
         code=404,
         msg="Not Found",
         hdrs=None,

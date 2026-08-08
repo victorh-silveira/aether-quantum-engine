@@ -10,7 +10,7 @@ from src.domain.models.trade import TradeDirection
 
 def test_rank_eligible_skips_when_direction_unresolvable_after_build_fails():
     decisions = {
-        "OTC_SPC": {
+        "R_10": {
             "direction": TradeDirection.CALL,
             "metrics": {"trade_score": 0.55, "raw_prob": 0.58, "deploy_ok": True},
         },
@@ -30,7 +30,7 @@ def test_rank_eligible_skips_when_direction_unresolvable_after_build_fails():
         ),
     ):
         picked = pick_best_mandatory_candidate(
-            ["OTC_SPC"],
+            ["R_10"],
             decisions,
             recovery_active=False,
             last_loss_symbol=None,
@@ -40,7 +40,7 @@ def test_rank_eligible_skips_when_direction_unresolvable_after_build_fails():
 
 def test_pick_absolute_skips_when_direction_unresolvable_after_build_fails():
     decisions = {
-        "OTC_SPC": {
+        "R_10": {
             "direction": TradeDirection.CALL,
             "metrics": {"trade_score": 0.55, "raw_prob": 0.58, "deploy_ok": True},
         },
@@ -60,7 +60,7 @@ def test_pick_absolute_skips_when_direction_unresolvable_after_build_fails():
         ),
     ):
         picked = pick_absolute_mandatory_candidate(
-            ["OTC_SPC"],
+            ["R_10"],
             decisions,
             recovery_active=False,
             last_loss_symbol=None,
@@ -70,7 +70,7 @@ def test_pick_absolute_skips_when_direction_unresolvable_after_build_fails():
 
 def test_pick_best_uses_forced_candidate_when_market_build_fails():
     decisions = {
-        "OTC_SPC": {
+        "R_10": {
             "direction": TradeDirection.CALL,
             "metrics": {"trade_score": 0.55, "raw_prob": 0.58, "deploy_ok": True, "val_accuracy": 0.60},
         },
@@ -80,19 +80,19 @@ def test_pick_best_uses_forced_candidate_when_market_build_fails():
         return_value=None,
     ):
         picked = pick_best_mandatory_candidate(
-            ["OTC_SPC"],
+            ["R_10"],
             decisions,
             recovery_active=False,
             last_loss_symbol=None,
         )
     assert picked is not None
-    assert picked[0] in {"OTC_SPC", "R_50"}
+    assert picked[0] in {"R_10", "R_50"}
     assert picked[1] == TradeDirection.CALL
 
 
 def test_pick_absolute_mandatory_uses_forced_candidate_when_market_build_fails():
     decisions = {
-        "OTC_SPC": {
+        "R_10": {
             "direction": TradeDirection.CALL,
             "metrics": {"trade_score": 0.55, "raw_prob": 0.58, "deploy_ok": True, "val_accuracy": 0.60},
         },
@@ -102,15 +102,15 @@ def test_pick_absolute_mandatory_uses_forced_candidate_when_market_build_fails()
         return_value=None,
     ):
         picked = pick_absolute_mandatory_candidate(
-            ["OTC_SPC"],
+            ["R_10"],
             decisions,
             recovery_active=False,
             last_loss_symbol=None,
         )
     assert picked is not None
-    assert picked[0] in {"OTC_SPC", "R_50"}
+    assert picked[0] in {"R_10", "R_50"}
     assert picked[1] == TradeDirection.CALL
 
 
 def test_build_market_execution_candidate_returns_none_without_direction():
-    assert build_market_execution_candidate("OTC_SPC", {"direction": None, "metrics": {}}) is None
+    assert build_market_execution_candidate("R_10", {"direction": None, "metrics": {}}) is None

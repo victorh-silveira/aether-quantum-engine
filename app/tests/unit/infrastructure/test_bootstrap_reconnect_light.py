@@ -37,7 +37,7 @@ async def test_light_infra_model_healthcheck_minio_unavailable():
 @pytest.mark.asyncio
 async def test_stress_inference_called_once_across_boot_and_reconnect(tmp_path):
     orch = MagicMock()
-    orch.symbols = ["OTC_SPC"]
+    orch.symbols = ["R_10"]
     orch.config = {
         "deep_learning": {"enabled": True, "use_torchscript": True, "arch": "tcn", "lookback": 48},
         "data_handler": {},
@@ -50,9 +50,9 @@ async def test_stress_inference_called_once_across_boot_and_reconnect(tmp_path):
     orch.model_store.download_torchscript = AsyncMock(return_value=False)
     orch.model_store.load_manifest = AsyncMock(return_value={})
     orch._is_initial_boot = True
-    ckpt = tmp_path / "OTC_SPC.pth"
+    ckpt = tmp_path / "R_10.pth"
     ckpt.write_bytes(b"x")
-    ts_path = tmp_path / "OTC_SPC_ts.pt"
+    ts_path = tmp_path / "R_10_ts.pt"
     ts_path.write_bytes(b"ts")
 
     with (
@@ -94,7 +94,7 @@ async def test_stress_inference_called_once_across_boot_and_reconnect(tmp_path):
 @pytest.mark.asyncio
 async def test_bootstrap_train_mode_skips_triton_verify_without_torchscript(tmp_path):
     orch = MagicMock()
-    orch.symbols = ["OTC_SPC", "R_50"]
+    orch.symbols = ["R_10", "R_50"]
     orch.config = {
         "orchestrator": {"engine_mode": "train"},
         "deep_learning": {"enabled": True, "use_torchscript": True, "arch": "tcn", "lookback": 48},
@@ -107,7 +107,7 @@ async def test_bootstrap_train_mode_skips_triton_verify_without_torchscript(tmp_
     orch.model_store = MagicMock()
     orch.model_store.download_torchscript = AsyncMock(return_value=False)
     orch.model_store.load_manifest = AsyncMock(return_value={})
-    ckpt = tmp_path / "OTC_SPC.pth"
+    ckpt = tmp_path / "R_10.pth"
     ckpt.write_bytes(b"x")
     with (
         patch(
@@ -117,7 +117,7 @@ async def test_bootstrap_train_mode_skips_triton_verify_without_torchscript(tmp_
         ),
         patch(
             "src.application.services.deep_learning.dl_model_artifacts._scripted_path",
-            return_value=tmp_path / "OTC_SPC_ts.pt",
+            return_value=tmp_path / "R_10_ts.pt",
         ),
         patch(
             "src.application.services.deep_learning.dl_model_artifacts.sync_all_symbols_to_triton",
@@ -140,7 +140,7 @@ async def test_bootstrap_train_mode_skips_triton_verify_without_torchscript(tmp_
 @pytest.mark.asyncio
 async def test_bootstrap_execute_mode_requires_torchscript_for_triton(tmp_path):
     orch = MagicMock()
-    orch.symbols = ["OTC_SPC"]
+    orch.symbols = ["R_10"]
     orch.config = {
         "deep_learning": {"enabled": True, "use_torchscript": True, "arch": "tcn", "lookback": 48},
         "data_handler": {},
@@ -150,7 +150,7 @@ async def test_bootstrap_execute_mode_requires_torchscript_for_triton(tmp_path):
     orch.infra = MagicMock()
     orch.infra.enabled = False
     orch.model_store = object()
-    ckpt = tmp_path / "OTC_SPC.pth"
+    ckpt = tmp_path / "R_10.pth"
     ckpt.write_bytes(b"x")
     with (
         patch(
@@ -160,7 +160,7 @@ async def test_bootstrap_execute_mode_requires_torchscript_for_triton(tmp_path):
         ),
         patch(
             "src.application.services.deep_learning.dl_model_artifacts._scripted_path",
-            return_value=tmp_path / "OTC_SPC_ts.pt",
+            return_value=tmp_path / "R_10_ts.pt",
         ),
         patch(
             "src.application.services.deep_learning.dl_model_artifacts.sync_all_symbols_to_triton",
@@ -174,7 +174,7 @@ async def test_bootstrap_execute_mode_requires_torchscript_for_triton(tmp_path):
 @pytest.mark.asyncio
 async def test_bootstrap_marks_triton_ready_from_local_torchscript_without_sanity(tmp_path):
     orch = MagicMock()
-    orch.symbols = ["OTC_SPC"]
+    orch.symbols = ["R_10"]
     orch.config = {
         "deep_learning": {"enabled": True, "use_torchscript": False, "arch": "tcn", "lookback": 48},
         "data_handler": {},
@@ -184,9 +184,9 @@ async def test_bootstrap_marks_triton_ready_from_local_torchscript_without_sanit
     orch.infra = MagicMock()
     orch.infra.enabled = False
     orch.model_store = object()
-    ckpt = tmp_path / "OTC_SPC.pth"
+    ckpt = tmp_path / "R_10.pth"
     ckpt.write_bytes(b"x")
-    ts_path = tmp_path / "OTC_SPC_ts.pt"
+    ts_path = tmp_path / "R_10_ts.pt"
     ts_path.write_bytes(b"ts")
     with (
         patch(

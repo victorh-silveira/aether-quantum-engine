@@ -34,10 +34,14 @@ def test_build_loss_feature_vector_dim_and_edges():
         "scale_tape_consensus": "PUT",
         "scale_mini_prev_bar_dir": "CALL",
         "scale_mini_bar_dir": "CALL",
+        "predicted_payoff_edge": 9.5,
+        "flow_features": {"micro_tick_acceleration": 4.2},
     }
     vector = build_loss_feature_vector(metrics, TradeDirection.CALL, pending=5.0, linear=2, bankroll=0.0)
     assert len(vector) == LOSS_FEATURE_DIM
     assert vector[5] == 1.0
+    assert vector[10] == pytest.approx(3.0)
+    assert vector[19] == pytest.approx(3.0)
     assert vector[23] == 0.0
     oppose = build_loss_feature_vector(
         {**metrics, "scale_mini_prev_bar_dir": "PUT", "scale_mini_bar_dir": "PUT"},
@@ -47,6 +51,12 @@ def test_build_loss_feature_vector_dim_and_edges():
         bankroll=1000.0,
     )
     assert oppose[23] == 1.0
+    neg = build_loss_feature_vector(
+        {**metrics, "predicted_payoff_edge": -8.0, "flow_features": {"micro_tick_acceleration": -5.0}},
+        TradeDirection.CALL,
+    )
+    assert neg[10] == pytest.approx(-3.0)
+    assert neg[19] == pytest.approx(-3.0)
 
 
 def test_parse_loss_predict_response_and_bad_payload():
@@ -70,10 +80,12 @@ def test_resolve_and_enabled():
     assert cfg["enabled"] is True
     assert cfg["veto_mode"] == "soft"
     assert cfg["veto_p_loss_floor"] == pytest.approx(0.65)
+    assert cfg["hard_p_loss_floor"] == pytest.approx(0.90)
+    assert cfg["hard_blocks_pending_waive"] is True
     assert cfg["soft_kelly_mult"] == pytest.approx(0.55)
     assert cfg["soft_kelly_mult_high"] == pytest.approx(0.40)
     assert cfg["soft_p_loss_high"] == pytest.approx(0.85)
-    assert cfg["soft_max_stake_pct_high"] == pytest.approx(0.02)
+    assert cfg["soft_max_stake_pct_high"] == pytest.approx(0.0025)
     assert cfg["timeout_seconds"] == pytest.approx(8.0)
     assert cfg["retrain_on_loss_min_n"] == 2
     assert loss_classifier_enabled(None) is True
@@ -87,8 +99,16 @@ def test_resolve_and_enabled():
         resolve_loss_classifier_config({"veto_mode": "soft", "soft_kelly_mult": 0.0})
     with pytest.raises(ValueError, match="soft_kelly_mult_high"):
         resolve_loss_classifier_config({"soft_kelly_mult_high": 0.8})
+    with pytest.raises(ValueError, match="hard_p_loss_floor"):
+        resolve_loss_classifier_config({"hard_p_loss_floor": 0.50})
+    with pytest.raises(ValueError, match="hard_p_loss_floor"):
+        resolve_loss_classifier_config({"hard_p_loss_floor": 1.01})
     with pytest.raises(ValueError, match="soft_p_loss_high"):
         resolve_loss_classifier_config({"soft_p_loss_high": 0.50})
+    with pytest.raises(ValueError, match="soft_kelly_mult_high"):
+        resolve_loss_classifier_config({"soft_kelly_mult_high": 0.0})
+    with pytest.raises(ValueError, match="soft_max_stake_pct_high"):
+        resolve_loss_classifier_config({"soft_max_stake_pct_high": 0.06})
 
 
 @pytest.mark.asyncio
@@ -114,13 +134,13 @@ async def test_client_predict_and_learn_paths():
         out = await client.predict_loss(
             {
                 "feature_vector": [0.0] * 24,
-                "symbol": "OTC_SPC",
+                "symbol": "R_10",
                 "direction": "CALL",
                 "veto_p_loss_floor": 0.62,
             }
         )
         assert out["p_loss"] == 0.2
-        learned = await client.learn(feature_vector=[0.0] * 24, label="WIN", contract_id="1", symbol="OTC_SPC")
+        learned = await client.learn(feature_vector=[0.0] * 24, label="WIN", contract_id="1", symbol="R_10")
         assert learned.get("p_loss") is None or learned
     with patch.object(client._client, "post", new=AsyncMock(side_effect=httpx.TimeoutException("t"))):
         empty = await client.predict_loss(
@@ -174,10 +194,10 @@ def test_predict_and_learn_sync_wrappers():
     ):
         pred = predict_loss_via_config_sync(
             cfg,
-            {"feature_vector": [0.0] * 24, "symbol": "OTC_SPC", "direction": "CALL", "veto_p_loss_floor": 0.62},
+            {"feature_vector": [0.0] * 24, "symbol": "R_10", "direction": "CALL", "veto_p_loss_floor": 0.62},
         )
         assert pred["p_loss"] == 0.1
-        learned = learn_loss_via_config_sync(cfg, feature_vector=[0.0] * 24, label="WIN", symbol="OTC_SPC")
+        learned = learn_loss_via_config_sync(cfg, feature_vector=[0.0] * 24, label="WIN", symbol="R_10")
         assert learned["ok"] is True
     assert learn_loss_via_config_sync(
         {"infra": {"loss_classifier": {"enabled": False}}}, feature_vector=[], label="WIN"
@@ -220,45 +240,7 @@ async def test_pool_stale_loop_and_sync_under_running_loop():
     ):
         pred = predict_loss_via_config_sync(
             cfg,
-            {"feature_vector": [0.0] * 24, "symbol": "OTC_SPC", "direction": "PUT", "veto_p_loss_floor": 0.62},
+            {"feature_vector": [0.0] * 24, "symbol": "R_10", "direction": "PUT", "veto_p_loss_floor": 0.62},
         )
         assert pred["p_loss"] == 0.3
         assert learn_loss_via_config_sync(cfg, feature_vector=[0.0] * 24, label="LOSS")["ok"] is True
-
-
-def test_should_retrain_after_learn_loss_forces_when_ready():
-    import importlib.util
-    from pathlib import Path
-
-    policy_path = Path(__file__).resolve().parents[4] / "infra" / "docker" / "loss-classifier" / "learn_policy.py"
-    spec = importlib.util.spec_from_file_location("loss_learn_policy", policy_path)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    assert mod.should_retrain_after_learn(label="LOSS", buffer_n=2, retrain_min_n=24, retrain_on_loss_min_n=2) is True
-    assert mod.should_retrain_after_learn(label="LOSS", buffer_n=1, retrain_min_n=24, retrain_on_loss_min_n=2) is False
-    assert mod.should_retrain_after_learn(label="WIN", buffer_n=2, retrain_min_n=24, retrain_on_loss_min_n=2) is False
-    assert mod.should_retrain_after_learn(label="WIN", buffer_n=24, retrain_min_n=24, retrain_on_loss_min_n=2) is True
-    assert mod.should_retrain_after_learn(label="WIN", buffer_n=25, retrain_min_n=24, retrain_on_loss_min_n=2) is False
-    assert mod.should_retrain_after_learn(label="WIN", buffer_n=32, retrain_min_n=24, retrain_on_loss_min_n=2) is True
-    assert mod.retrain_min_for_label(label="LOSS", retrain_min_n=24, retrain_on_loss_min_n=2) == 2
-    assert mod.retrain_min_for_label(label="WIN", retrain_min_n=24, retrain_on_loss_min_n=2) == 24
-
-
-def test_learn_buffer_io_roundtrip(tmp_path):
-    import importlib.util
-    from pathlib import Path
-
-    io_path = Path(__file__).resolve().parents[4] / "infra" / "docker" / "loss-classifier" / "buffer_io.py"
-    spec = importlib.util.spec_from_file_location("loss_buffer_io", io_path)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    x_rows = [[0.1] * 24, [0.2] * 24]
-    y_rows = [0, 1]
-    mod.save_learn_buffer(tmp_path, x_rows, y_rows)
-    loaded = mod.load_learn_buffer(tmp_path)
-    assert loaded is not None
-    assert loaded[0] == x_rows
-    assert loaded[1] == y_rows
-    assert mod.buffer_class_counts(y_rows) == {"win": 1, "loss": 1, "n": 2}

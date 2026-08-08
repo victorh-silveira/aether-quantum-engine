@@ -120,9 +120,9 @@ def test_loss_protection_helpers_still_evaluate_blocks():
     )
     assert empty == []
     invalid_only = filter_loss_protection_candidates(
-        [("OTC_SPC", TradeDirection.PUT)],
+        [("R_10", TradeDirection.PUT)],
         exec_cfg={},
         recovery_active=False,
         consecutive_losses=0,
     )
-    assert invalid_only == [("OTC_SPC", TradeDirection.PUT)]
+    assert invalid_only == [("R_10", TradeDirection.PUT)]

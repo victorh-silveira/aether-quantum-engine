@@ -40,7 +40,7 @@ def test_effective_deploy_ok_soft_fallback():
 
 
 def test_persist_deploy_ok_flag(tmp_path: Path):
-    path = tmp_path / "OTC_SPC.pth"
+    path = tmp_path / "R_10.pth"
     torch.save({"deploy_ok": False, "val_accuracy": 0.56}, path)
     _persist_deploy_ok_flag(path, deploy_ok=True)
     payload = torch.load(path, map_location="cpu", weights_only=False)
@@ -48,7 +48,7 @@ def test_persist_deploy_ok_flag(tmp_path: Path):
 
 
 def test_get_symbol_runtime_promotes_soft_deploy(tmp_path: Path):
-    path = tmp_path / "OTC_SPC.pth"
+    path = tmp_path / "R_10.pth"
     model = create_direction_model(arch="tcn", input_dim=FEATURE_DIM)
     stats = fit_norm_stats(np.zeros((1, 32, FEATURE_DIM), dtype=np.float32))
     loaded = (
@@ -106,6 +106,6 @@ def test_get_symbol_runtime_promotes_soft_deploy(tmp_path: Path):
         ) as persist,
     ):
         path.write_bytes(b"x")
-        runtime = get_symbol_runtime(orch, "OTC_SPC", orch.config["deep_learning"], {"lookback": 32, "arch": "tcn"})
+        runtime = get_symbol_runtime(orch, "R_10", orch.config["deep_learning"], {"lookback": 32, "arch": "tcn"})
     assert runtime["deploy_ok"] is True
     persist.assert_called_once()

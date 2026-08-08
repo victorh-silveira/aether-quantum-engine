@@ -19,7 +19,7 @@ def test_scaled_recovery_min_val_accuracy_ladder():
 def test_recovery_min_conviction_escalates_with_linear_losses():
     cfg = {}
     dlambert = {"recovery_sizing_conviction": 0.58, "recovery_min_conviction": 0.64}
-    assert recovery_min_conviction(cfg, dlambert, pending_loss={"OTC_SPC": 5.0}, consecutive_losses_linear=4) >= 0.64
+    assert recovery_min_conviction(cfg, dlambert, pending_loss={"R_10": 5.0}, consecutive_losses_linear=4) >= 0.64
 
 
 def test_recovery_dl_entry_allowed_forced():
@@ -28,7 +28,7 @@ def test_recovery_dl_entry_allowed_forced():
         metrics,
         {},
         {"recovery_min_val_accuracy": 0.9},
-        pending_loss={"OTC_SPC": 1.0},
+        pending_loss={"R_10": 1.0},
         recovery_forced=True,
     )
 
@@ -46,7 +46,7 @@ def test_recovery_dl_conviction_ok_handles_vetoed_none_scores():
             metrics,
             {},
             {"recovery_min_val_accuracy": 0.50, "recovery_sizing_conviction": 0.58},
-            pending_loss={"OTC_SPC": 1.0},
+            pending_loss={"R_10": 1.0},
         )
         is True
     )
@@ -62,7 +62,7 @@ def test_recovery_min_conviction_force_pending_and_single_loss():
     value = recovery_min_conviction(
         cfg,
         dlambert,
-        pending_loss={"OTC_SPC": 10.0},
+        pending_loss={"R_10": 10.0},
         consecutive_losses_linear=1,
     )
     assert value == pytest.approx(0.64)
@@ -75,7 +75,7 @@ def test_recovery_dl_conviction_ok_rejects_low_val():
             metrics,
             {},
             {"recovery_min_val_accuracy": 0.50},
-            pending_loss={"OTC_SPC": 1.0},
+            pending_loss={"R_10": 1.0},
         )
         is False
     )
@@ -100,7 +100,7 @@ def test_recovery_dl_entry_allowed_rejects_deploy_false():
             metrics,
             {},
             {},
-            pending_loss={"OTC_SPC": 1.0},
+            pending_loss={"R_10": 1.0},
         )
         is False
     )

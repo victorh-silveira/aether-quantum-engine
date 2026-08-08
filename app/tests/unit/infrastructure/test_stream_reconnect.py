@@ -55,7 +55,7 @@ def _build_reconnect_mocks(
 
     stream = MagicMock()
     stream.candle_callback = AsyncMock()
-    stream.symbols = symbols or ["OTC_SPC"]
+    stream.symbols = symbols or ["R_10"]
     stream.macro_granularity = 900
     stream.micro_granularity = 300
     stream.ws = orch.ws
@@ -139,7 +139,7 @@ async def test_execute_stream_reconnect_schedules_warm_up_barrier():
 
 @pytest.mark.asyncio
 async def test_execute_stream_reconnect_skips_ohlc_on_continuous_session():
-    orch, stream = _build_reconnect_mocks(stream_ready_mono=999.0, symbols=["OTC_SPC", "R_50"])
+    orch, stream = _build_reconnect_mocks(stream_ready_mono=999.0, symbols=["R_10", "R_50"])
     with _reconnect_patches():
         ok = await execute_stream_reconnect(orch, stream)
     assert ok is True

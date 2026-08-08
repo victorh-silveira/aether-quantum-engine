@@ -14,7 +14,7 @@ async def test_execution_manager_log_line_contains_exec_and_direction(orch_confi
         orch = Orchestrator(orch_config, "token")
         with patch.object(orch.executor.logger, "debug") as mock_dbg:
             orch.executor._log_exec(
-                "OTC_SPC",
+                "R_10",
                 TradeDirection.CALL,
                 1.0,
                 {"conviction": 1.0},
@@ -39,9 +39,9 @@ def test_execution_manager_collect_orders_mandatory_includes_execute_false(orch_
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["mandatory_trade_each_cycle"] = True
-        orch.symbols = ["OTC_SPC", "R_50"]
+        orch.symbols = ["R_10", "R_50"]
         decisions = {
-            "OTC_SPC": {"direction": TradeDirection.CALL, "metrics": {"conviction": 0.8, "execute": False}},
+            "R_10": {"direction": TradeDirection.CALL, "metrics": {"conviction": 0.8, "execute": False}},
             "R_50": {
                 "direction": TradeDirection.PUT,
                 "metrics": bear_put_metrics(conviction=0.9, execute=True),
@@ -65,11 +65,11 @@ def test_collect_orders_mandatory_bypasses_selection_filter(orch_config):
                 "strong_edge": 0.99,
             }
         }
-        orch.symbols = ["OTC_SPC"]
+        orch.symbols = ["R_10"]
         orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["include_anchor_trades"] = True
         orch.config["orchestrator"]["execution"]["mandatory_trade_each_cycle"] = True
         decisions = {
-            "OTC_SPC": {
+            "R_10": {
                 "direction": TradeDirection.CALL,
                 "metrics": asymmetric_gate_safe_metrics(
                     execute=True,
@@ -91,10 +91,10 @@ async def test_execute_cluster_logs_exec_pause_on_stop_win(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 2
-        orch.symbols = ["OTC_SPC", "R_50"]
+        orch.symbols = ["R_10", "R_50"]
         orch.risk_manager.stake_block_reason = MagicMock(return_value="stop_win")
         decisions = {
-            "OTC_SPC": {
+            "R_10": {
                 "direction": TradeDirection.PUT,
                 "metrics": asymmetric_gate_safe_metrics(conviction=0.7, execute=True),
             },
@@ -116,7 +116,7 @@ async def test_execute_orders_skips_zero_stake_without_logging(orch_config):
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 9
         orch.risk_manager.calculate_stake = MagicMock(return_value=0.0)
-        orders = [("OTC_SPC", TradeDirection.CALL, {"conviction": 0.7})]
+        orders = [("R_10", TradeDirection.CALL, {"conviction": 0.7})]
         count = await orch.executor._execute_orders(orders, 0.0, 49.0)
         assert count == 0
 
@@ -132,10 +132,10 @@ def test_log_execution_blockers_reports_no_candidate(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 4
-        orch.symbols = ["OTC_SPC", "R_50"]
+        orch.symbols = ["R_10", "R_50"]
         with patch.object(orch.executor.logger, "info") as mock_info:
             orch.executor._log_execution_blockers(
-                {"OTC_SPC": {"direction": TradeDirection.PUT, "metrics": {"conviction": 0.7, "execute": True}}},
+                {"R_10": {"direction": TradeDirection.PUT, "metrics": {"conviction": 0.7, "execute": True}}},
             )
         assert any("EXEC_EMPTY" in str(c) and "no_candidate" in str(c) for c in mock_info.call_args_list)
 
@@ -145,18 +145,18 @@ def test_log_execution_blockers_reports_ready_and_no_candidate(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 8
-        orch.symbols = ["OTC_SPC"]
+        orch.symbols = ["R_10"]
         with patch.object(orch.executor.logger, "info") as mock_info:
             orch.executor._log_execution_blockers(
                 {
-                    "OTC_SPC": {
+                    "R_10": {
                         "direction": TradeDirection.CALL,
                         "metrics": {"execution_candidate_ready": True},
                     }
                 },
             )
             orch.executor._log_execution_blockers(
-                {"OTC_SPC": {"direction": TradeDirection.CALL, "metrics": {"calibrated_prob": 0.55}}},
+                {"R_10": {"direction": TradeDirection.CALL, "metrics": {"calibrated_prob": 0.55}}},
             )
         joined = " ".join(str(c) for c in mock_info.call_args_list)
         assert "ready_not_selected" in joined
@@ -169,9 +169,9 @@ async def test_execute_cluster_runs_with_dl_decisions(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 4
-        orch.symbols = ["OTC_SPC", "R_50"]
+        orch.symbols = ["R_10", "R_50"]
         decisions = {
-            "OTC_SPC": {
+            "R_10": {
                 "direction": TradeDirection.PUT,
                 "metrics": asymmetric_gate_safe_metrics(conviction=0.7, execute=True),
             },
@@ -187,10 +187,10 @@ async def test_execute_cluster_executes_when_stake_available(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 5
-        orch.symbols = ["OTC_SPC", "R_50"]
+        orch.symbols = ["R_10", "R_50"]
         orch.risk_manager.calculate_stake = MagicMock(return_value=2.0)
         decisions = {
-            "OTC_SPC": {
+            "R_10": {
                 "direction": TradeDirection.PUT,
                 "metrics": bear_put_metrics(conviction=0.7, execute=True),
             },

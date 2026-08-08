@@ -83,12 +83,12 @@ def test_parse_dl_params():
 
 def test_recovery_gating_active_when_pending_loss():
     orch = MagicMock()
-    orch.risk_manager.pending_loss = {"OTC_SPC": 100.92}
+    orch.risk_manager.pending_loss = {"R_10": 100.92}
     orch.risk_manager.consecutive_losses_linear = 0
     assert recovery_gating_active(orch) is True
     orch.risk_manager.pending_loss = {}
     assert recovery_gating_active(orch) is False
-    orch.risk_manager.pending_loss = {"OTC_SPC": "bad"}
+    orch.risk_manager.pending_loss = {"R_10": "bad"}
     assert recovery_gating_active(orch) is False
     orch.risk_manager = None
     assert recovery_gating_active(orch) is False
@@ -97,8 +97,8 @@ def test_recovery_gating_active_when_pending_loss():
 def test_resolve_dl_model_path_legacy():
     path = resolve_dl_model_path({"model_path": "data/legacy_model.pth"}, "X")
     assert path.name == "legacy_model.pth"
-    templated = resolve_dl_model_path({"model_path_template": "data/dl/{symbol}.pth"}, "OTC_SPC")
-    assert templated.name == "OTC_SPC.pth"
+    templated = resolve_dl_model_path({"model_path_template": "data/dl/{symbol}.pth"}, "R_10")
+    assert templated.name == "R_10.pth"
 
 
 def test_predict_symbol_decision_executes_on_confidence():
@@ -122,7 +122,7 @@ def test_predict_symbol_decision_executes_on_confidence():
         orch = type("O", (), {"config": {"deep_learning": {}}})()
         entry = predict_symbol_decision(
             orch,
-            "OTC_SPC",
+            "R_10",
             MarketDirectionClassifier(input_dim=INPUT_DIM),
             np.zeros(80),
             fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32)),

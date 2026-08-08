@@ -53,7 +53,7 @@ def test_try_enqueue_next_bootstrap_training_skips_when_not_bootstrap_reason(orc
     with (
         patch(
             "src.application.services.deep_learning.dl_deferred_train._ordered_bootstrap_symbols",
-            return_value=["OTC_SPC"],
+            return_value=["R_10"],
         ),
         patch(
             "src.application.services.deep_learning.dl_deferred_train._bootstrap_training_context",
@@ -80,7 +80,7 @@ def test_try_enqueue_next_bootstrap_training_stops_on_short_history(orch_ready):
     with (
         patch(
             "src.application.services.deep_learning.dl_deferred_train._ordered_bootstrap_symbols",
-            return_value=["OTC_SPC"],
+            return_value=["R_10"],
         ),
         patch(
             "src.application.services.deep_learning.dl_deferred_train._bootstrap_training_context",
@@ -107,7 +107,7 @@ def test_try_enqueue_skips_symbol_already_trained(orch_ready):
     with (
         patch(
             "src.application.services.deep_learning.dl_deferred_train._ordered_bootstrap_symbols",
-            return_value=["OTC_SPC", "R_50"],
+            return_value=["R_10", "R_50"],
         ),
         patch(
             "src.application.services.deep_learning.dl_deferred_train._bootstrap_training_context",

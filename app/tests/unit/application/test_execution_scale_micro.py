@@ -85,7 +85,7 @@ def test_sizing_dampens_c2_like_chop_mili_oppose():
         "scale_micro_regime": "chop",
         "scale_mili_oppose_tcn": True,
     }
-    apply_scale_kelly_sizing(None, "OTC_SPC", TradeDirection.CALL, metrics)
+    apply_scale_kelly_sizing(None, "R_10", TradeDirection.CALL, metrics)
     assert metrics["kelly_fraction_scale"] < 1.0
     assert metrics["scale_force_explore"] is True
 
@@ -98,7 +98,7 @@ def test_sizing_dampens_retraction_regime():
         "scale_micro_regime": "retraction",
         "scale_mili_oppose_tcn": False,
     }
-    apply_scale_kelly_sizing(None, "OTC_SPC", TradeDirection.CALL, metrics)
+    apply_scale_kelly_sizing(None, "R_10", TradeDirection.CALL, metrics)
     assert metrics["scale_sizing_reason"] == "retraction"
     assert float(metrics["scale_max_stake_pct"]) > 0.0
 

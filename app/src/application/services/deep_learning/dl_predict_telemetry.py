@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from src.application.services.deep_learning.dl_feature_build import precompute_price_series
+from src.application.services.deep_learning.dl_live_bar_patch import get_patched_ohlc_snapshot
 from src.application.services.meta_classifier_cross_symbol import attach_cross_symbol_features_to_decisions
 from src.application.services.meta_classifier_flow_features import flow_features_from_micro_series
 
@@ -40,13 +41,20 @@ def stamp_micro_frame_telemetry(orch: Any, symbol: str, metrics: dict[str, Any],
     stream = getattr(orch, "stream", None)
     if stream is None or not hasattr(stream, "get_micro_numpy_series"):
         return
-    closes = stream.get_micro_numpy_series(str(symbol), "close")
-    if closes is None or len(closes) < 8:
-        return
+    snap = get_patched_ohlc_snapshot(orch, str(symbol))
+    if isinstance(snap, dict) and snap.get("close") is not None and len(snap["close"]) >= 8:
+        closes = snap["close"]
+        high = snap.get("high")
+        low = snap.get("low")
+        open_ = snap.get("open")
+    else:
+        closes = stream.get_micro_numpy_series(str(symbol), "close")
+        if closes is None or len(closes) < 8:
+            return
+        high = stream.get_micro_numpy_series(str(symbol), "high")
+        low = stream.get_micro_numpy_series(str(symbol), "low")
+        open_ = stream.get_micro_numpy_series(str(symbol), "open")
     micro_gran = int(params.get("micro_granularity", 60))
-    high = stream.get_micro_numpy_series(str(symbol), "high")
-    low = stream.get_micro_numpy_series(str(symbol), "low")
-    open_ = stream.get_micro_numpy_series(str(symbol), "open")
     series = precompute_price_series(closes, granularity=micro_gran, symbol=str(symbol))
     metrics["micro_indicators"] = {
         "rsi": _series_last(series, "rsi"),

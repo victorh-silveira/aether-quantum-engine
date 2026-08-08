@@ -25,7 +25,7 @@ async def test_bulk_purchase_success():
                         "payout": "0.66",
                         "purchase_time": 100,
                         "start_time": 100,
-                        "shortcode": "CALL_OTC_SPC_0.66_100_220_S0P_0",
+                        "shortcode": "CALL_R_10_0.66_100_220_S0P_0",
                         "account_id": "DOT1",
                         "transaction_id": "1",
                     }
@@ -43,7 +43,7 @@ async def test_bulk_purchase_success():
                 "basis": "stake",
                 "contract_type": "CALL",
                 "currency": "USD",
-                "underlying_symbol": "OTC_SPC",
+                "underlying_symbol": "R_10",
                 "duration": 2,
                 "duration_unit": "m",
             },

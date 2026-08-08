@@ -26,12 +26,12 @@ async def test_deferred_training_chains_next_bootstrap_symbol():
     ):
         enqueue_deferred_symbol_training(
             orch,
-            "OTC_SPC",
+            "R_10",
             train_fn=train_fn,
-            train_args=("OTC_SPC",),
+            train_args=("R_10",),
             train_kwargs={"granularity": 60},
         )
-        await orch._dl_deferred_tasks["OTC_SPC"]
+        await orch._dl_deferred_tasks["R_10"]
 
     mock_chain.assert_called_once_with(orch)
 
@@ -47,16 +47,16 @@ async def test_enqueue_runs_training_in_background():
     ) as mock_thread:
         enqueue_deferred_symbol_training(
             orch,
-            "OTC_SPC",
+            "R_10",
             train_fn=train_fn,
-            train_args=("OTC_SPC",),
+            train_args=("R_10",),
             train_kwargs={"granularity": 60},
         )
-        task = orch._dl_deferred_tasks["OTC_SPC"]
+        task = orch._dl_deferred_tasks["R_10"]
         await task
 
     mock_thread.assert_awaited_once()
-    assert "OTC_SPC" not in (getattr(orch, "_dl_force_retrain", None) or {})
+    assert "R_10" not in (getattr(orch, "_dl_force_retrain", None) or {})
 
 
 @pytest.mark.asyncio
@@ -64,13 +64,13 @@ async def test_enqueue_skips_when_task_pending():
     orch = SimpleNamespace()
     pending = MagicMock()
     pending.done.return_value = False
-    orch._dl_deferred_tasks = {"OTC_SPC": pending}
+    orch._dl_deferred_tasks = {"R_10": pending}
     train_fn = MagicMock()
 
     with patch("src.application.services.deep_learning.dl_deferred_train.asyncio.create_task") as mock_create:
         enqueue_deferred_symbol_training(
             orch,
-            "OTC_SPC",
+            "R_10",
             train_fn=train_fn,
             train_args=(),
             train_kwargs={},
@@ -94,12 +94,12 @@ async def test_enqueue_logs_training_failure():
     ):
         enqueue_deferred_symbol_training(
             orch,
-            "OTC_SPC",
+            "R_10",
             train_fn=train_fn,
             train_args=(),
             train_kwargs={},
         )
-        await orch._dl_deferred_tasks["OTC_SPC"]
+        await orch._dl_deferred_tasks["R_10"]
 
     mock_logger.error.assert_called_once()
 
@@ -108,7 +108,7 @@ def test_cancel_deferred_symbol_training():
     orch = SimpleNamespace()
     pending = MagicMock()
     pending.done.return_value = False
-    orch._dl_deferred_tasks = {"OTC_SPC": pending}
+    orch._dl_deferred_tasks = {"R_10": pending}
     cancel_deferred_symbol_training(orch)
     pending.cancel.assert_called_once()
     assert orch._dl_deferred_tasks == {}
@@ -128,7 +128,7 @@ async def test_enqueue_defers_when_another_symbol_training():
     ):
         enqueue_deferred_symbol_training(
             orch,
-            "OTC_SPC",
+            "R_10",
             train_fn=MagicMock(),
             train_args=(),
             train_kwargs={},
@@ -141,8 +141,8 @@ async def test_enqueue_defers_when_another_symbol_training():
             train_kwargs={},
         )
         assert "R_50" not in orch._dl_deferred_tasks
-        assert "OTC_SPC" in orch._dl_deferred_tasks
-        await orch._dl_deferred_tasks["OTC_SPC"]
+        assert "R_10" in orch._dl_deferred_tasks
+        await orch._dl_deferred_tasks["R_10"]
 
 
 @pytest.mark.asyncio
@@ -150,12 +150,12 @@ async def test_enqueue_skips_duplicate_pending_symbol():
     orch = SimpleNamespace()
     pending = MagicMock()
     pending.done.return_value = False
-    orch._dl_deferred_tasks = {"OTC_SPC": pending}
+    orch._dl_deferred_tasks = {"R_10": pending}
 
     with patch("src.application.services.deep_learning.dl_deferred_train.asyncio.create_task") as mock_create:
         enqueue_deferred_symbol_training(
             orch,
-            "OTC_SPC",
+            "R_10",
             train_fn=MagicMock(),
             train_args=(),
             train_kwargs={},

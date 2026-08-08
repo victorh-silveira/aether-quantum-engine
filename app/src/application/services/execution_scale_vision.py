@@ -7,6 +7,7 @@ from typing import Any
 
 import numpy as np
 
+from src.application.services.deep_learning.dl_live_bar_patch import get_patched_ohlc_snapshot
 from src.application.services.execution_scale_micro import classify_micro_regime
 from src.application.services.execution_scale_tape import (
     bar_direction_at,
@@ -43,6 +44,7 @@ _SCALE_VISION_KEYS = (
     "adapt_on_retraction",
     "adapt_on_explosion",
     "adapt_on_mili_tape",
+    "adapt_mili_tape_skip_chop",
     "adapt_on_majority_votes",
     "adapt_majority_min_lead",
     "adapt_majority_min_votes",
@@ -97,6 +99,7 @@ def parse_scale_vision_config(raw: dict[str, Any] | None = None) -> dict[str, An
         "adapt_on_retraction": require_bool(block, "adapt_on_retraction"),
         "adapt_on_explosion": require_bool(block, "adapt_on_explosion"),
         "adapt_on_mili_tape": require_bool(block, "adapt_on_mili_tape"),
+        "adapt_mili_tape_skip_chop": require_bool(block, "adapt_mili_tape_skip_chop"),
         "adapt_on_majority_votes": require_bool(block, "adapt_on_majority_votes"),
         "adapt_majority_min_lead": max(1, require_int(block, "adapt_majority_min_lead")),
         "adapt_majority_min_votes": max(2, require_int(block, "adapt_majority_min_votes")),
@@ -216,8 +219,18 @@ def compute_scale_directions(
             mini_opens = _field_from_stream(stream, "get_mini_numpy_series", str(symbol), "open")
             metrics["scale_mini_bar_dir"] = last_bar_direction(mini_opens, mini_closes)
             metrics["scale_mini_prev_bar_dir"] = prev_bar_direction(mini_opens, mini_closes)
-            micro_closes = _closes_from_stream(stream, "get_micro_numpy_series", str(symbol))
-            micro_opens = _field_from_stream(stream, "get_micro_numpy_series", str(symbol), "open")
+            snap = get_patched_ohlc_snapshot(orch, str(symbol))
+            if isinstance(snap, dict) and snap.get("close") is not None and len(snap["close"]) > 0:
+                micro_closes = np.asarray(snap["close"], dtype=np.float64).reshape(-1)
+                open_snap = snap.get("open")
+                micro_opens = (
+                    np.asarray(open_snap, dtype=np.float64).reshape(-1)
+                    if open_snap is not None
+                    else _field_from_stream(stream, "get_micro_numpy_series", str(symbol), "open")
+                )
+            else:
+                micro_closes = _closes_from_stream(stream, "get_micro_numpy_series", str(symbol))
+                micro_opens = _field_from_stream(stream, "get_micro_numpy_series", str(symbol), "open")
             metrics["scale_micro_bar_dir"] = last_bar_direction(micro_opens, micro_closes)
             metrics["scale_micro_prev_bar_dir"] = prev_bar_direction(micro_opens, micro_closes)
     flow = metrics.get("flow_features") if isinstance(metrics.get("flow_features"), dict) else None

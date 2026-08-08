@@ -8,7 +8,7 @@ from src.application.services.execution_entropy_fallback import pick_entropy_fal
 from src.application.services.execution_mandatory_pick import pick_absolute_mandatory_candidate
 from src.application.services.execution_symbols_recovery import recovery_blocked_symbols
 from src.application.services.force_trade_mode import force_trade_from_orch, synthesize_force_trade_candidate
-from src.application.services.market_audit_log import format_indicators_audit_line
+from src.application.services.market_audit_log import emit_audit_info, format_indicators_audit_line
 from src.application.services.orchestrator.execution_recovery_gate import recovery_min_signal, recovery_min_val_accuracy
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.recovery_hurst_decay import increment_recovery_skip_counter, resolve_effective_hurst_min
@@ -226,7 +226,7 @@ def log_execution_decision(
     except (TypeError, ValueError):
         cycle_id = int(getattr(exec_mgr.orch, "_active_cycle_id", 0))
     _ = (candidates, decisions, effective_signal)
-    exec_mgr.logger.info(format_indicators_audit_line(cycle_id, str(best[0]), metrics))
+    emit_audit_info(exec_mgr.logger, format_indicators_audit_line(cycle_id, str(best[0]), metrics))
 
 
 def revive_ready_cluster_candidates(exec_mgr, decisions) -> list[tuple[str, TradeDirection, dict]]:

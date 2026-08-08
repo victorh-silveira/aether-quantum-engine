@@ -28,7 +28,7 @@ Ler `docs/llm-trading-doctrine.md` antes de concluir. LLM nao decide trade; aval
 
 Ordem obrigatoria:
 
-1. CLUSTER — Prob / Cal / Margin / Edge (telemetria); TF tipicamente micro **M15** (900 s)
+1. CLUSTER — Prob / Cal / Margin / Edge (telemetria); TF tipicamente micro **M2** (120 s)
 2. SCALE — MACRO/MICRO/MINI/MILI + `tape`/`adapted` (adaptacao sob raw_extreme; soft Kelly; sem SKIP por escala)
 3. EXEC / EMPTY / PAUSE — `gate_reason` tecnico ou `signal_skip` 1.1; SIDE_EQ / scale = soft sizing
 4. RESOLVED / RISK — pending, linear, pnl_sess

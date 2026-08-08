@@ -7,7 +7,7 @@ from scripts.operations.check_dl_deploy_gate import evaluate_checkpoint, main
 
 
 def test_evaluate_checkpoint_rejects_low_acc(tmp_path: Path):
-    path = tmp_path / "OTC_SPC.pth"
+    path = tmp_path / "R_10.pth"
     path.write_bytes(b"x")
     with patch("torch.load", return_value={"val_accuracy": 0.52, "deploy_ok": True}):
         ok, msg = evaluate_checkpoint(path, soft_min=0.53)
@@ -16,7 +16,7 @@ def test_evaluate_checkpoint_rejects_low_acc(tmp_path: Path):
 
 
 def test_evaluate_checkpoint_rejects_deploy_false(tmp_path: Path):
-    path = tmp_path / "OTC_SPC.pth"
+    path = tmp_path / "R_10.pth"
     path.write_bytes(b"x")
     with patch(
         "torch.load",
@@ -28,7 +28,7 @@ def test_evaluate_checkpoint_rejects_deploy_false(tmp_path: Path):
 
 
 def test_evaluate_checkpoint_soft_fallback_promotes_checkpoint(tmp_path: Path):
-    path = tmp_path / "OTC_SPC.pth"
+    path = tmp_path / "R_10.pth"
     path.write_bytes(b"x")
     payload = {"val_accuracy": 0.566, "val_brier": 0.250, "deploy_ok": False}
     settings = {
@@ -60,7 +60,7 @@ def test_evaluate_checkpoint_soft_fallback_promotes_checkpoint(tmp_path: Path):
 
 
 def test_evaluate_checkpoint_accepts_senior(tmp_path: Path):
-    path = tmp_path / "OTC_SPC.pth"
+    path = tmp_path / "R_10.pth"
     path.write_bytes(b"x")
     with patch("torch.load", return_value={"val_accuracy": 0.55, "deploy_ok": True}):
         ok, msg = evaluate_checkpoint(path, soft_min=0.53)
@@ -69,7 +69,7 @@ def test_evaluate_checkpoint_accepts_senior(tmp_path: Path):
 
 
 def test_evaluate_checkpoint_rejects_stale_geometry(tmp_path: Path):
-    path = tmp_path / "OTC_SPC.pth"
+    path = tmp_path / "R_10.pth"
     path.write_bytes(b"x")
     settings = {
         "deep_learning": {
@@ -109,7 +109,7 @@ def test_evaluate_checkpoint_rejects_stale_geometry(tmp_path: Path):
 
 
 def test_main_fails_when_checkpoint_missing(monkeypatch, tmp_path: Path):
-    monkeypatch.setattr("sys.argv", ["check_dl_deploy_gate.py", "--symbols", "OTC_SPC"])
+    monkeypatch.setattr("sys.argv", ["check_dl_deploy_gate.py", "--symbols", "R_10"])
     with (
         patch(
             "scripts.operations.check_dl_deploy_gate._checkpoint_paths",

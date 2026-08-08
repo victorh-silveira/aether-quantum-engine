@@ -88,10 +88,10 @@ async def test_ensure_cluster_history_mini_timeframe():
     ws.send = AsyncMock(return_value={"candles": page})
     sh = StreamHandler(
         ws,
-        ["OTC_SPC"],
+        ["R_10"],
         {
             "granularity": 3600,
-            "micro_granularity": 900,
+            "micro_granularity": 120,
             "mini_granularity": 300,
             "history_fetch_chunk": 10,
             "history_fetch_delay_seconds": 0,
@@ -99,7 +99,7 @@ async def test_ensure_cluster_history_mini_timeframe():
         },
     )
     await sh.ensure_cluster_history(4, timeframe="mini")
-    assert len(sh.mini_candles["OTC_SPC"]) == 4
+    assert len(sh.mini_candles["R_10"]) == 4
 
 
 @pytest.mark.asyncio
@@ -111,7 +111,7 @@ async def test_trading_cycle_empty_cap_invalid_and_orch_cfg():
     def _orch(config):
         orch = MagicMock()
         orch.config = config
-        orch.anchor = "OTC_SPC"
+        orch.anchor = "R_10"
         orch._last_epoch = 1
         orch._cycle_seq = 0
         orch.logger = MagicMock()

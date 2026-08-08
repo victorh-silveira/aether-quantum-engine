@@ -73,7 +73,7 @@ def test_resolve_dlambert_pending_waives_scale_adapted_uses_soft_cover():
         f_star=0.01,
     )
     assert tag == "D'ALEMBERT"
-    session_unit = max(20.0, 10000.0 * 0.02)
+    session_unit = max(20.0, 10000.0 * 0.0025)
     factor = 1.0 + (1.0 / 0.82)
     assert stake == pytest.approx(session_unit * factor, rel=1e-2)
 
@@ -192,7 +192,7 @@ def test_finalize_adapts_direction_under_raw_extreme():
             0.01,
             meta_applied=False,
             score=0.55,
-            symbol="OTC_SPC",
+            symbol="R_10",
             orch=orch,
         )
     assert direction == TradeDirection.CALL

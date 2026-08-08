@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
 import pytest
+import torch
 
 from src.application.services.deep_learning.dl_symbol_train_success import apply_successful_symbol_train
 from src.application.services.orchestrator.execution_manager_execute import execute_cluster_orders
@@ -25,7 +26,9 @@ class _FakePath:
         return StringIO(text)
 
 
-def test_apply_successful_symbol_train_deploy_warning():
+def test_apply_successful_symbol_train_deploy_warning(tmp_path):
+    ckpt = tmp_path / "R_10.pth"
+    torch.save({"deploy_ok": True, "val_brier": 0.22}, ckpt)
     runtime = {"val_accuracy": 0.56, "val_brier": 0.27}
     train_result = SimpleNamespace(
         norm_stats=MagicMock(),
@@ -53,7 +56,7 @@ def test_apply_successful_symbol_train_deploy_warning():
         ),
         patch(
             "src.application.services.deep_learning.dl_symbol_train_success.resolve_dl_model_path",
-            return_value="x/OTC_SPC.pth",
+            return_value=ckpt,
         ),
         patch(
             "src.application.services.deep_learning.dl_symbol_train_success.resolve_deploy_ok",
@@ -61,7 +64,7 @@ def test_apply_successful_symbol_train_deploy_warning():
         ),
     ):
         apply_successful_symbol_train(
-            "OTC_SPC",
+            "R_10",
             runtime,
             train_result,
             orch=orch,
@@ -76,6 +79,8 @@ def test_apply_successful_symbol_train_deploy_warning():
             level=logging.INFO,
             started=0.0,
         )
+    assert runtime.get("checkpoint_preserved") is True
+    assert runtime.get("session_trained") is False
 
 
 @pytest.mark.asyncio
@@ -118,7 +123,7 @@ async def test_execute_cluster_orders_force_and_reversal_stake():
     ):
         count = await execute_cluster_orders(
             executor,
-            [("OTC_SPC", TradeDirection.CALL, {"execute": True})],
+            [("R_10", TradeDirection.CALL, {"execute": True})],
             0.0,
             1000.0,
         )
@@ -137,7 +142,7 @@ async def test_execute_cluster_orders_reversal_stake_floor():
         },
         risk_manager=SimpleNamespace(
             kelly_config={"neutral_bankroll_pct": 0.002, "stop_win_kelly_enabled": True},
-            pending_loss={"OTC_SPC": 1.0},
+            pending_loss={"R_10": 1.0},
             consecutive_losses_linear=2,
             pending_loss_total=lambda: 5.0,
             calculate_stake=MagicMock(return_value=0.0),
@@ -160,7 +165,7 @@ async def test_execute_cluster_orders_reversal_stake_floor():
     ):
         count = await execute_cluster_orders(
             executor,
-            [("OTC_SPC", TradeDirection.CALL, metrics)],
+            [("R_10", TradeDirection.CALL, metrics)],
             0.0,
             1000.0,
         )

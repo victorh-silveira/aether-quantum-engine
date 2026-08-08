@@ -43,7 +43,7 @@ def test_bootstrap_training_context_loads_micro_timeframe(orch_ready):
             return_value={},
         ),
     ):
-        _dl, params, min_len, _g, _rt, prices, *_rest = _bootstrap_training_context(orch, "OTC_SPC")
+        _dl, params, min_len, _g, _rt, prices, *_rest = _bootstrap_training_context(orch, "R_10")
 
     mock_load.assert_called_once()
     assert mock_load.call_args.kwargs.get("timeframe") == "micro"

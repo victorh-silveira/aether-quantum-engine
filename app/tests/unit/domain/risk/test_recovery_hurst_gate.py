@@ -25,28 +25,28 @@ def test_hurst_floor_raises_when_low_hurst():
 
 def test_recovery_pool_requires_hurst_persistence():
     candidates = [
-        ("OTC_SPC", None, {"indicators": {"hurst": 0.50}}),
-        ("OTC_SPC", None, {"indicators": {"hurst": 0.52}}),
+        ("R_10", None, {"indicators": {"hurst": 0.50}}),
+        ("R_10", None, {"indicators": {"hurst": 0.52}}),
     ]
     assert recovery_pool_has_persistence(candidates, consecutive_losses=2, hurst_min=0.58) is False
 
 
 def test_recovery_pool_passes_with_one_persistent_symbol():
     candidates = [
-        ("OTC_SPC", None, {"indicators": {"hurst": 0.50}}),
-        ("OTC_SPC", None, {"indicators": {"hurst": 0.61}}),
+        ("R_10", None, {"indicators": {"hurst": 0.50}}),
+        ("R_10", None, {"indicators": {"hurst": 0.61}}),
     ]
     assert recovery_pool_has_persistence(candidates, consecutive_losses=2, hurst_min=0.58) is True
 
 
 def test_recovery_pool_skips_check_when_losses_below_two():
-    candidates = [("OTC_SPC", None, {"indicators": {"hurst": 0.40}})]
+    candidates = [("R_10", None, {"indicators": {"hurst": 0.40}})]
     assert recovery_pool_has_persistence(candidates, consecutive_losses=1) is True
 
 
 def test_recovery_pool_ignores_invalid_candidates():
-    assert recovery_pool_has_persistence([("OTC_SPC",)], consecutive_losses=2) is False
-    assert recovery_pool_has_persistence([("OTC_SPC", None, "bad")], consecutive_losses=2) is False
+    assert recovery_pool_has_persistence([("R_10",)], consecutive_losses=2) is False
+    assert recovery_pool_has_persistence([("R_10", None, "bad")], consecutive_losses=2) is False
 
 
 def test_recovery_loss_tier_floor_escalates_with_streak():

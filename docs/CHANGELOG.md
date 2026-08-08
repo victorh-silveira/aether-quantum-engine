@@ -2,19 +2,32 @@
 
 ### Changed
 
-* **universe:** migra ancora/treino/execucao de Volatility `R_10` para S&P 500 OTC `OTC_SPC` (settings, `drift_symbols`, defaults DL, docs, skills, testes)
+* **r10_m2_migration:** referencias residuais `OTC_SPC` → `R_10` (app, docs, skills, infra, testes); narrativa M15/900s → **M2/120s**; contrato **2 m**; `test_r10_coverage_gaps.py`; SSOT tests alinhados a `settings.json`
+
+* **train_api_shortfall:** treino DL e meta aceitam historico parcial se ≥ **95%** do alvo (`train_history_shortfall_ratio`); evita loop/erro quando Deriv esgota ~1984/2000 M15; `bootstrap_max_wait_rounds` **16**
+* **loss_clf_reset:** `loss-clf-reset.sh` limpa `loss-models/` sem criar `loss-models-backup-*`
+* **universe:** ancora/treino/execucao S&P 500 OTC `R_10` (settings, `drift_symbols`, defaults DL, docs, skills, testes); Volatility/legado e gran 60/300 invalidos
 * **timing:** pacote **somente M15** — contrato **15 m**, micro/MINI **900 s**, macro **3600 s** (H1 Deriv-valid), ciclo/assinatura **900 s**
 * **train:** remove seed Deriv bloqueante entre TCN e meta (`ensure_timescale --check-only`); cap wait bootstrap historico em **30 s** (nao sleep(gran=900))
 * **train:** corrige sync travado — macro **4500** era invalido na Deriv; fetch treino lean **2000** micro (+macro≤128, mini=0); logs com `g=` por stream
 * **train:** bootstrap passa a ler OHLC do `train_timeframe` (micro); backfill no buffer certo; meta default **2000** barras
-* **otc_spc/m15:** contrato/OHLC M15; ciclo/assinatura **15 s** (entrada continua); payout live **0.72**; settle tolerancia **300 s**; watchdog stale **600 s**; SIDE_EQ/sample_size densos; price_zone off
+* **cycle:** entrada a cada **1 m** — `cycle_interval`/`signature_boundary`/`exec_empty_retry` **60 s** (contrato permanece **15 m**)
+* **loss_clf_fresh:** cache DL miss quando `boundary_epoch` avanca; LOSS_CLF limpa flags stale e dedupe de log por `cycle_id` (`feature_dim` 24 intacto)
+* **dl_tick_patch:** path eager sempre re-infere; Triton cache por `cycle_id`; ultimo tick live patcha close/high/low da M15 em formacao antes do TCN (Prob/Cal dinamicos entre ciclos 60 s)
+* **dl_intrabar_micro:** microestrutura live na ultima barra + SCALE/flow no OHLC patchado (`_patched_ohlc`); DEBUG `tick_patch`
+* **loss_clf_calibrate:** floor FLIP **0.90**; fit `class_weight=balanced` + `min_child_samples=15`; retrain pos-LOSS bloqueado se buffer LOSS-heavy (`loss/n>0.60` ou `win<8`) exceto saida bootstrap (≥1 WIN+≥1 LOSS); vetor 24D clip edge idx10 + `micro_tick_acceleration` idx19; Prob/Cal e `p_loss` com **5** casas; limpeza+bootstrap embutidos em `make docker-rebuild` / `docker-reset` (`COLD_START`, `p_loss=0.50`, veto off ate retrain real)
+* **scale_mili_tape_chop:** `adapt_mili_tape_skip_chop` **true** — nao inverter TCN so com mili+tape em micro=chop (majority com lead permanece)
+* **otc_spc/m15:** contrato/OHLC M15; ciclo/assinatura **60 s** (entrada a cada 1 m); payout live **0.72**; settle tolerancia **300 s**; watchdog stale **600 s**; SIDE_EQ/sample_size densos; price_zone off
+* **loss_clf_flip:** `hard_p_loss_floor` **0.90** → **FLIP** CALL↔PUT **ancorado no TCN** so com `veto_ready`; bootstrap devolve `p_loss=0.50` (sem FLIP); soft Kelly em `[0.65, 0.90)` com `veto_ready`; saida bootstrap no `/learn` com ≥1 WIN+≥1 LOSS
+* **loss_clf_hard:** mandato **2026-08-07** — substituido por **loss_clf_flip** (floor **0.90**)
+* **loss_clf_flip_legacy:** floor **0.80** + FLIP no bootstrap removidos apos anti-TCN em cold-start
+* **regime_chop:** mandato **2026-08-07** — pausa M15 se ADX &lt; **0.22** e Hurst ∈ [**0.47**, **0.53**] (`SKIP:REGIME_CHOP`)
 * **scale_majority:** `adapt_on_majority_votes` conta TCN/tape/mili/mini_pair/RSI; lado com mais votos adapta EXEC
 * **stake_2pct:** explore piso **2%** banca (`neutral_bankroll_pct`/`min_stake_pct`); loss_clf soft nao esmaga U; RECOVER `cover_multiple` **2.0** (loss+win); tetos linear2/3 **5%**
 * **remove_calib_gray:** remove `hold_calib_gray` / `hold_cal_margin` / `adapt_*_cal_margin` / `calib_gray_*` soft Kelly+teto / log `CALIB_GRAY`
 * **risk:** piso explore **1%** / teto **5%**; loss-clf soft_max **2%** / soft_mult_high **0.40**
 * **startup:** remove `startup_fetch_bars: 512` (era &lt; lookback 720 → SKIP data); piso = `min_dl_inference_len`; sync lean tambem em inferencia
-* **cycle:** entrada continua — `cycle_interval`/`signature_boundary` **15 s**; EXEC_EMPTY retry cap **15 s** (nao espera fronteira M15)
-* **infer:** piso `inference_history_bars` sem double-count de lookback (~864 vs ~1456); evita SKIP:DATA quando API OTC_SPC entrega ~1.2k M15
+* **infer:** piso `inference_history_bars` sem double-count de lookback (~864 vs ~1456); evita SKIP:DATA quando API R_10 entrega ~1.2k M15
 * **risk:** pos-LOSS sem flip DIR_LOCK (lado fica no TCN); cover RECOVER sem damping de stop-win; loss-clf soft waivado com pending
 
 ## [1.82.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.81.0...v1.82.0) (2026-08-05)

@@ -4,14 +4,18 @@ Ciclo operacional do motor. Inventario de arquivos: [`structure.md`](structure.m
 
 ## Relogio e triplo OHLC
 
-- Fronteira / ciclo: **`signature_boundary_seconds` / `cycle_interval_seconds` = 15 s** (entrada continua; contrato Deriv permanece **15 m**)
+- Fronteira / ciclo: **`signature_boundary_seconds` / `cycle_interval_seconds` = 60 s** (entrada a cada 1 m; contrato Deriv permanece **2 m**)
+- Cache DL (`dl_predict_cache`): path **eager** (Triton off) **sempre** re-infere; path Triton chaveia `cycle_id` + `boundary_epoch` (nao reusa entry de outro ciclo)
+- Tick live: antes do TCN, `patch_forming_bar_with_live_tick` injeta o ultimo preco do `TickBuffer` no close/high/low da vela M2 em formacao; `patch_forming_bar_microstructure` sobrescreve a ultima linha de micro live; snapshot `_patched_ohlc` alimenta SCALE/flow no mesmo ciclo
+- `DL: inferencia em cuda` e `log_device_once` no load do modelo — **nao** um log por ciclo
+- LOSS_CLF: predict HTTP a cada `_finalize`; log dedupe por `loss_clf_*:{cycle_id}`; `feature_dim` **24** inalterado; HARD floor SSOT **0.80**
 - MACRO OHLC: **3600 s** (`data_handler.granularity`)
-- MICRO OHLC (TCN decisor): **900 s** (`data_handler.micro_granularity`) — M15
-- Contrato Deriv RISE_FALL: **15 m** (`risk_management.params.duration` / `duration_unit: m`) — label = 1 barra micro
-- MINI OHLC: **900 s** (`data_handler.mini_granularity`) — alinhado ao M15
+- MICRO OHLC (TCN decisor): **120 s** (`data_handler.micro_granularity`) — M2
+- Contrato Deriv RISE_FALL: **2 m** (`risk_management.params.duration` / `duration_unit: m`) — label = 1 barra micro
+- MINI OHLC: **120 s** (`data_handler.mini_granularity`) — alinhado ao M2
 - MILI: tick flow (velocity/acceleration), nao barra OHLC
 - Sync inicial: `stream_sync_start.py` (historico MACRO+MICRO+MINI + subscribe candles/ticks)
-- Proporcao MACRO:MICRO **1:5** (3600:900)
+- Proporcao MACRO:MICRO **30:1** (3600:120)
 - Pos-settlement: `post_settlement_is_trading_wait_seconds` **90**; `settlement_tolerance_window_seconds` **180**; `post_settlement_cycle_timeout_seconds` **1200**
 
 ## Pipeline do ciclo

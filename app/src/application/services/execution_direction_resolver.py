@@ -11,7 +11,9 @@ from src.application.services.execution_direction_checks import (
     seed_direction_metrics,
     sync_entry_metrics,
 )
+from src.application.services.execution_neg_edge import apply_negative_cal_edge_pause
 from src.application.services.execution_quality_gate_margin import ensure_direction_margin, sync_direction_margin
+from src.application.services.execution_regime_chop import apply_regime_chop_pause
 from src.application.services.execution_scale_adapt import apply_scale_direction_adapt, apply_scale_kelly_side_sync
 from src.application.services.execution_scale_sizing import apply_scale_kelly_sizing
 from src.application.services.execution_scale_vision import compute_scale_directions, format_scale_audit_line
@@ -102,6 +104,13 @@ def _finalize_execution_metrics(
     if orch is not None:
         apply_signal_skip_gates(metrics, exec_dir, orch=orch, force=force, symbol=symbol)
         apply_loss_classifier_gate(metrics, exec_dir, orch=orch, force=force, symbol=symbol)
+        ready_name = str(metrics.get("exec_direction") or exec_dir.name).upper()
+        if ready_name in {TradeDirection.CALL.name, TradeDirection.PUT.name}:
+            exec_dir = TradeDirection[ready_name]
+        apply_scale_kelly_side_sync(metrics, exec_dir)
+        sync_direction_margin(metrics, direction=exec_dir.name)
+    apply_regime_chop_pause(metrics, orch=orch, force=force)
+    apply_negative_cal_edge_pause(metrics, orch=orch, force=force)
     sync_entry_metrics(entry, metrics)
     return exec_dir, metrics
 

@@ -26,7 +26,7 @@ if errorlevel 1 goto :dl_fail
 
 echo [AETHER] Etapa 1b/3: Validando deploy/ACC do checkpoint DL...
 cd /d "%REPO_ROOT%"
-"%PYTHON_EXE%" app/scripts/operations/check_dl_deploy_gate.py --symbols OTC_SPC
+"%PYTHON_EXE%" app/scripts/operations/check_dl_deploy_gate.py --symbols R_10
 if errorlevel 1 goto :dl_gate_fail
 
 echo [AETHER] Etapa 2/3: Verificando infraestrutura Docker (TimescaleDB)...

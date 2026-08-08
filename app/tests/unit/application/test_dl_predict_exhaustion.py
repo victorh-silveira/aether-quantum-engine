@@ -47,7 +47,7 @@ def test_predict_exhaustion_does_not_block_execution():
     ):
         entry = predict_symbol_decision(
             orch,
-            "OTC_SPC",
+            "R_10",
             TemporalDirectionClassifier(input_dim=INPUT_DIM),
             prices,
             fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32)),

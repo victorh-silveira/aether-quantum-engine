@@ -167,7 +167,7 @@ async def test_run_post_settlement_retries_until_cycle_runs(orch_ready):
 async def test_schedule_prunes_stale_risk_ids(orch_ready):
     orch = orch_ready
     orch.risk_manager.active_contract_ids = [999]
-    orch.risk_manager.contract_to_symbol[999] = "OTC_SPC"
+    orch.risk_manager.contract_to_symbol[999] = "R_10"
     with (
         patch(
             TRADING_CYCLE_COLLECT,

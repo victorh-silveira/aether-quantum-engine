@@ -20,11 +20,11 @@ def test_log_execution_blockers_groups_training_symbols(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 6
-        orch.symbols = ["OTC_SPC", "R_50"]
+        orch.symbols = ["R_10", "R_50"]
         with patch.object(orch.executor.logger, "info") as mock_info:
             orch.executor._log_execution_blockers(
                 {
-                    "OTC_SPC": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}},
+                    "R_10": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}},
                     "R_50": {
                         "direction": None,
                         "metrics": {"gate_reason": "direction_margin", "execute": False},
@@ -32,7 +32,7 @@ def test_log_execution_blockers_groups_training_symbols(orch_config):
                 },
             )
         calls = [str(c) for c in mock_info.call_args_list]
-        assert any("DL_TREINO" in c and "OTC_SPC" in c for c in calls)
+        assert any("DL_TREINO" in c and "R_10" in c for c in calls)
         assert not any("EXEC_NONE" in c for c in calls)
 
 
@@ -41,8 +41,8 @@ def test_log_execution_blockers_training_dedupe_and_completion(orch_config):
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 7
-        orch.symbols = ["OTC_SPC"]
-        training = {"OTC_SPC": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}}}
+        orch.symbols = ["R_10"]
+        training = {"R_10": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}}}
         with (
             patch.object(orch.executor.logger, "info") as mock_info,
             patch.object(orch.executor.logger, "debug") as mock_debug,
@@ -51,7 +51,7 @@ def test_log_execution_blockers_training_dedupe_and_completion(orch_config):
             orch.executor._log_execution_blockers(training)
         assert sum("DL_TREINO" in str(c) for c in mock_info.call_args_list) == 1
         assert any("DL_TREINO" in str(c) for c in mock_debug.call_args_list)
-        trained = {"OTC_SPC": {"direction": None, "metrics": {"gate_reason": "conviction", "execute": False}}}
+        trained = {"R_10": {"direction": None, "metrics": {"gate_reason": "conviction", "execute": False}}}
         with patch.object(orch.executor.logger, "info") as mock_info_done:
             orch.executor._log_execution_blockers(trained)
         assert any("concluido" in str(c) for c in mock_info_done.call_args_list)
@@ -62,13 +62,13 @@ def test_log_execution_blockers_skips_symbol_without_decision_entry(orch_config)
         mock_ws_class.return_value.subscribe = MagicMock()
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 4
-        orch.symbols = ["OTC_SPC", "R_50"]
+        orch.symbols = ["R_10", "R_50"]
         with patch.object(orch.executor.logger, "info") as mock_info:
             orch.executor._log_execution_blockers(
-                {"OTC_SPC": {"direction": None, "metrics": {"gate_reason": "data", "execute": False}}},
+                {"R_10": {"direction": None, "metrics": {"gate_reason": "data", "execute": False}}},
             )
         calls = [str(c) for c in mock_info.call_args_list]
-        assert any("EXEC_EMPTY" in c and "OTC_SPC:data" in c for c in calls)
+        assert any("EXEC_EMPTY" in c and "R_10:data" in c for c in calls)
 
 
 def test_log_execution_blockers_recovery_empty_pool(orch_config):
@@ -95,7 +95,7 @@ async def test_execute_orders_maintenance_error_schedules_api_hibernation(orch_c
         loop_start = asyncio.get_running_loop().time()
         with patch.object(orch.executor.logger, "warning") as mock_warn:
             count = await orch.executor._execute_orders(
-                [("OTC_SPC", TradeDirection.CALL, {"conviction": 0.8})],
+                [("R_10", TradeDirection.CALL, {"conviction": 0.8})],
                 0.0,
                 100.0,
             )
@@ -117,7 +117,7 @@ async def test_execute_orders_generic_closed_error_emits_warning_without_hiberna
         orch.executor._place_order = AsyncMock(side_effect=RuntimeError("Trading session closed"))
         with patch.object(orch.executor.logger, "warning") as mock_warn:
             count = await orch.executor._execute_orders(
-                [("OTC_SPC", TradeDirection.CALL, {"conviction": 0.8})],
+                [("R_10", TradeDirection.CALL, {"conviction": 0.8})],
                 0.0,
                 100.0,
             )
@@ -137,5 +137,5 @@ async def test_place_order_maintenance_error_schedules_hibernation_before_raise(
         )
         loop_start = asyncio.get_running_loop().time()
         with pytest.raises(RuntimeError):
-            await place_order(orch.executor, "OTC_SPC", TradeDirection.CALL, 10.0)
+            await place_order(orch.executor, "R_10", TradeDirection.CALL, 10.0)
         assert orch._api_maintenance_until == pytest.approx(loop_start + _API_MAINTENANCE_FALLBACK_SECONDS, abs=1.0)

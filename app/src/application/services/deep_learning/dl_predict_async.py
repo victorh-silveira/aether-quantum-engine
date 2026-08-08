@@ -59,6 +59,7 @@ async def predict_symbol_decision_async(
     lookback = int(runtime.get("lookback", params["lookback"]))
     on_boundary = at_signature_boundary(orch)
     boundary_epoch = m5_boundary_epoch(orch)
+    cycle_id = int(getattr(orch, "_active_cycle_id", 0) or 0)
     use_triton = bool(triton_enabled(orch.config) and not force_local)
     try:
         ctx = build_prediction_context(
@@ -90,7 +91,13 @@ async def predict_symbol_decision_async(
                 )
                 tensor_fingerprint = inference_tensor_fingerprint(tensor)
             except PartialInferenceHistoryError:
-                cached = resolve_cached_prediction(orch, symbol, at_boundary=False)
+                cached = resolve_cached_prediction(
+                    orch,
+                    symbol,
+                    at_boundary=False,
+                    boundary_epoch=boundary_epoch,
+                    cycle_id=cycle_id,
+                )
                 if cached is not None:
                     return cached
                 raise
@@ -99,6 +106,8 @@ async def predict_symbol_decision_async(
                 symbol,
                 at_boundary=on_boundary,
                 tensor_fingerprint=tensor_fingerprint,
+                boundary_epoch=boundary_epoch,
+                cycle_id=cycle_id,
             )
             if cached is not None:
                 return cached
@@ -118,9 +127,7 @@ async def predict_symbol_decision_async(
                 prebuilt_tensor=tensor,
             )
         else:
-            cached = resolve_cached_prediction(orch, symbol, at_boundary=on_boundary)
-            if cached is not None:
-                return cached
+            logger.debug("DL: predict fresh cycle=%d symbol=%s", cycle_id, symbol)
             direction, prob, raw_prob = eager_local_predict(
                 ctx,
                 model=model,
@@ -159,10 +166,17 @@ async def predict_symbol_decision_async(
                 entry,
                 tensor_fingerprint=tensor_fingerprint,
                 boundary_epoch=boundary_epoch,
+                cycle_id=cycle_id,
             )
         return entry
     except Exception as e:
-        cached = resolve_cached_prediction(orch, symbol, at_boundary=False)
+        cached = resolve_cached_prediction(
+            orch,
+            symbol,
+            at_boundary=False,
+            boundary_epoch=boundary_epoch,
+            cycle_id=cycle_id,
+        )
         if cached is not None:
             return cached
         logger.error("DL: Falha na predicao para %s: %s", symbol, e)

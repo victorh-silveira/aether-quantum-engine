@@ -287,7 +287,7 @@ def build_paired_training_dataset(
     if not bundles:
         raise RuntimeError("Treino meta-classificador exige ao menos um bundle OHLC.")
     by_symbol = {bundle.symbol: bundle for bundle in bundles}
-    primary = by_symbol.get("OTC_SPC") or next(iter(by_symbol.values()))
+    primary = by_symbol.get("R_10") or next(iter(by_symbol.values()))
     duration = int(contract_duration_seconds) if contract_duration_seconds is not None else int(micro_granularity)
     label_horizon = _resolve_label_horizon_bars(
         int(primary.granularity),

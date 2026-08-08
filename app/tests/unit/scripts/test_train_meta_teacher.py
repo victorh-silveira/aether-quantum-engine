@@ -81,7 +81,7 @@ def test_calibrate_teacher_array_falls_back_when_isotonic_collapses():
 
 def test_infer_teacher_probs_for_bundle_length_and_warmup():
     lookback = 16
-    bundle = _bundle("OTC_SPC", n=80)
+    bundle = _bundle("R_10", n=80)
     model = create_direction_model(arch="tcn", input_dim=FEATURE_DIM)
     model.eval()
     probs = infer_teacher_probs_for_bundle(
@@ -97,7 +97,7 @@ def test_infer_teacher_probs_for_bundle_length_and_warmup():
 
 
 def test_infer_teacher_probs_from_checkpoints_loads_saved_model(tmp_path: Path):
-    bundle = _bundle("OTC_SPC", n=96)
+    bundle = _bundle("R_10", n=96)
     assert (
         infer_teacher_probs_from_checkpoints(
             [bundle],
@@ -108,7 +108,7 @@ def test_infer_teacher_probs_from_checkpoints_loads_saved_model(tmp_path: Path):
     lookback = 16
     model = create_direction_model(arch="tcn", input_dim=FEATURE_DIM)
     norm = _norm_for_bundle(bundle, lookback)
-    path = tmp_path / "OTC_SPC.pth"
+    path = tmp_path / "R_10.pth"
     save_model_checkpoint(
         path,
         model,
@@ -125,18 +125,18 @@ def test_infer_teacher_probs_from_checkpoints_loads_saved_model(tmp_path: Path):
         dl_params={"arch": "tcn"},
         batch_size=16,
     )
-    assert "OTC_SPC" in loaded
-    assert loaded["OTC_SPC"].shape == (len(bundle.closes),)
+    assert "R_10" in loaded
+    assert loaded["R_10"].shape == (len(bundle.closes),)
 
 
 def test_load_teacher_probs_from_checkpoints_embedded_arrays(tmp_path: Path):
-    path = tmp_path / "OTC_SPC.pth"
+    path = tmp_path / "R_10.pth"
     torch.save({"teacher_probs": np.linspace(0.2, 0.8, 40).astype(np.float32)}, path)
     loaded = load_teacher_probs_from_checkpoints(
-        ["OTC_SPC"],
+        ["R_10"],
         model_path_template=str(tmp_path / "{symbol}.pth"),
         lookback=16,
         repo_root=tmp_path,
     )
-    assert "OTC_SPC" in loaded
-    assert loaded["OTC_SPC"].shape == (40,)
+    assert "R_10" in loaded
+    assert loaded["R_10"].shape == (40,)

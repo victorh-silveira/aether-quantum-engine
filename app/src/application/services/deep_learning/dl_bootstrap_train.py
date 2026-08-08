@@ -16,6 +16,7 @@ from src.application.services.deep_learning.dl_symbol_runtime import (
 from src.application.services.deep_learning.dl_symbol_train import run_symbol_training
 from src.application.services.deep_learning.dl_training_gate import (
     min_dl_history_len,
+    resolve_train_ready_bars,
     runtime_in_training,
     training_priority_symbols,
 )
@@ -84,14 +85,22 @@ async def _train_bootstrap_symbol(orch, symbol: str) -> str:
     """Treina um simbolo; retorna wait|ok|fail."""
     ctx = _bootstrap_training_context(orch, symbol)
     dl_config, params, min_len, granularity, runtime, prices, open_, high, low, micro = ctx
-    if len(prices) < min_len:
+    ready, want, soft = resolve_train_ready_bars(params, len(prices))
+    if not ready:
         logger.warning(
             "DL TREINO | %s | historico insuficiente (%d/%d velas) | aguardando proximo ciclo",
             symbol,
             len(prices),
-            min_len,
+            want if want > 0 else min_len,
         )
         return _STATUS_WAIT
+    if soft:
+        logger.info(
+            "DL TREINO | %s | historico parcial API (%d/%d velas) — seguindo",
+            symbol,
+            len(prices),
+            want,
+        )
     epoch = candle_epoch(orch, symbol, timeframe=str(params.get("train_timeframe", "macro")))
     await asyncio.to_thread(
         run_symbol_training,

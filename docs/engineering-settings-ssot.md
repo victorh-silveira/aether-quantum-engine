@@ -6,13 +6,13 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 
 | Bloco | Papel |
 |-------|-------|
-| `symbols` / `anchor` | Universo unico **`OTC_SPC`** (S&P 500 OTC; nao Volatility) |
+| `symbols` / `anchor` | Universo unico **`R_10`** (Volatility 10 / Deriv) |
 | `data_handler` | MACRO/MICRO/MINI granularity, history, buffer |
-| `deep_learning` | arch, lookback, labels, calib (`raw_extreme`), deploy, `sample_weighting` |
+| `deep_learning` | arch, lookback, labels, calib (`raw_extreme`), deploy, `sample_weighting`; alvo treino **2000** barras M2 com `train_history_shortfall_ratio` **0.95** (API esgotada ~1980 segue); `bootstrap_max_wait_rounds` **16** |
 | `orchestrator` | ciclo, warmup, watchdog, WS |
 | `orchestrator.execution` | mandatory/force, settlement, SIDE_EQ soft, `scale_vision`, `signal_skip`, sample_size_policy |
 | `infra.meta_classifier` | HTTP :8005; edge continuo 43D |
-| `infra.loss_classifier` | HTTP :8006; `veto_mode` **soft** (atenua Kelly; log `LOSS_CLF \|\| SOFT`); floor **0.65**; `soft_kelly_mult` **0.55** → `soft_kelly_mult_high` **0.40** @ `soft_p_loss_high` **0.85**; teto stake EXPLORE `soft_max_stake_pct_high` **2%** (waivado com pending para cover); piso neutral so escala sob loss_clf soft; `ready_n`/`retrain_min_n` **24**; `retrain_on_loss_min_n` **2**; `timeout_seconds` **8**; buffer persistido |
+| `infra.loss_classifier` | HTTP :8006; `veto_mode` **soft** + banda flip: floor soft **0.65**; `hard_p_loss_floor` **0.90** (**FLIP** CALL↔PUT se `veto_ready`); seed bootstrap com **p_loss real** / `veto_ready` se `n_train>=ready_n`; `soft_kelly_mult` **0.55** → `soft_kelly_mult_high` **0.40** @ `soft_p_loss_high` **0.85**; teto stake EXPLORE `soft_max_stake_pct_high` **0.25%** (waivado com pending so na faixa soft); `ready_n`/`retrain_min_n` **24**; `retrain_on_loss_min_n` **2** (retrain pos-LOSS so com `buffer_win≥8` e `loss/n≤0.60`, exceto saida bootstrap com ≥1 WIN+≥1 LOSS); `timeout_seconds` **8**; fit `class_weight=balanced` / `min_child_samples=15` |
 | `risk_management` | Kelly, soft_recovery, stop-win, ACC gate, duration contrato |
 | `infra` | Redis, Timescale, MinIO, Triton, meta |
 | `logging` | level, log_file, quiet_channels |
@@ -27,12 +27,12 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `max_label_call_frac_bias` | idem | padrao **0.20** |
 | `min_minority_recall` | idem | padrao **0.25** |
 | `side_equilibrium.enabled` | `orchestrator.execution` | soft Kelly only; sem veto de direcao |
-| `scale_vision.*` | `orchestrator.execution` | `adapt_allow_strong_tape` **false**; **majority_votes** (TCN/tape/mili/RSI); explosion/mili/retract; **sem** `adapt_*_cal_margin` / hold cinza |
-| `signal_skip.*` | `orchestrator.execution` | Escopo **1.1**: mini/cal soft Kelly **0.55**; **sem** `calib_gray_*`; **sem** flip pos-LOSS; **sem** hard SKIP de sinal |
+| `scale_vision.*` | `orchestrator.execution` | `adapt_allow_strong_tape` **false**; **majority_votes** (TCN/tape/mili/RSI); explosion/mili/retract; `adapt_mili_tape_skip_chop` **true** (nao inverte TCN so com mili+tape em chop); **sem** `adapt_*_cal_margin` / hold cinza |
+| `signal_skip.*` | `orchestrator.execution` | Escopo **1.1**: mini/cal/chop/neg_edge soft Kelly **0.55**; **sem** `calib_gray_*`; **sem** flip pos-LOSS; `chop_pause_enabled` liga soft chop (ADX/Hurst ou SCALE); `chop_soft_kelly_mult` / `neg_edge_soft_kelly_mult` |
 | `scale_vision.adapt_on_majority_votes` | idem | Conta votos TCN/tape/mili/mini_pair/RSI; lideranca ≥`adapt_majority_min_lead` e n≥`adapt_majority_min_votes` → `majority_votes` |
 | `kelly.kelly_p_floor` | `risk_management.kelly` | Piso de **probabilidade** para Kelly; garante `f*>0`; alias `adapt_kelly_p_floor` |
-| `kelly.neutral_bankroll_pct` | `risk_management.kelly` | Piso operacional de stake explore (**2%** banca); loss_clf soft **nao** esmaga o piso |
-| `kelly.payout_fallback` / `params.payout_estimate` / `default_payout` | `risk_management` | Payout Deriv OTC_SPC M15 **0.72** (live; cover RECOVER = `cover_multiple * pending/0.72`) |
+| `kelly.neutral_bankroll_pct` | `risk_management.kelly` | Piso operacional de stake explore (**0.25%** banca M2); loss_clf soft **nao** esmaga o piso |
+| `kelly.payout_fallback` / `params.payout_estimate` / `default_payout` | `risk_management` | Payout Deriv R_10 M2 **0.72** (live; cover RECOVER = `cover_multiple * pending/0.72`) |
 | `kelly.stop_win_kelly_*` | `risk_management.kelly` | Boost stop-win ~**1h**: `enabled`, `cycles_target` **4**, `live_n_min` **0**, fracoes **0.70–1.0**, teto **5%** |
 | `soft_recovery.infeasible_force_explore` | `risk_management.soft_recovery` | Default **true**: `RECOVERY_INFEASIBLE` ou cover≥cap → EXPLORE Kelly (sem DAL no teto) |
 | `soft_recovery.pending_waives_scale_explore` | `risk_management.soft_recovery` | Default **true**: pending material libera soft cover apesar de `scale_adapted`/`scale_force_explore` |
@@ -42,16 +42,16 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `kelly.recovery_min_val_accuracy` | `risk_management.kelly` | Piso ACC live para DAL (**0.53**); sobe com linear; abaixo → EXPLORE (sem cover DAL) |
 | `soft_recovery.live_evidence_force_explore_*` | `risk_management.soft_recovery` | linear≥**3** + `live_n`≥**2** + `live_wr`&lt;**0.58** → EXPLORE (bloqueia DAL L3+ com ACC de treino ainda ok) |
 | `soft_recovery.amort_cycles_min` / `amort_cycles_max` | `risk_management.soft_recovery` | Cover em 1 ciclo (`amort=1`); stake = `cover_multiple * pending/payout` |
-| `infra.loss_classifier.soft_max_stake_pct_high` | `infra.loss_classifier` | Teto stake EXPLORE sob soft (**2%**); waivado com pending material; ACC baixo nao cancela cover |
-| `params.duration` | `risk_management.params` | Contrato RISE_FALL **15 m** (`duration_unit: m`) — universo `OTC_SPC` somente M15 |
-| `data_handler.micro_granularity` / `granularity` | `data_handler` | Micro/MINI **900** / macro **3600** (1:5; M15) |
-| `deep_learning.lookback` | `deep_learning` | **720** barras micro (~7,5 dias @ 900 s) |
-| `orchestrator.cycle_interval_seconds` / `signature_boundary_seconds` | `orchestrator` | **15 s** (entrada continua; nao espera fronteira M15); `exec_empty_retry` **15 s** |
-| `orchestrator.settlement_tolerance_window_seconds` | `orchestrator` | **300** (contrato 15 m) |
-| `orchestrator.watchdog_stale_tick_seconds` | `orchestrator` | **600** (OTC SPX quieto) |
+| `infra.loss_classifier.soft_max_stake_pct_high` | `infra.loss_classifier` | Teto stake EXPLORE sob soft (**0.25%**); waivado com pending material; ACC baixo nao cancela cover |
+| `params.duration` | `risk_management.params` | Contrato RISE_FALL **2 m** (`duration_unit: m`) — universo `R_10` M2 |
+| `data_handler.micro_granularity` / `granularity` | `data_handler` | Micro/MINI **120** / macro **3600** (M2) |
+| `deep_learning.lookback` | `deep_learning` | **720** barras micro @ **120 s** |
+| `orchestrator.cycle_interval_seconds` / `signature_boundary_seconds` | `orchestrator` | **60 s** (entrada a cada 1 m; nao espera fronteira M2); `exec_empty_retry` **60 s** |
+| `orchestrator.settlement_tolerance_window_seconds` | `orchestrator` | **300** (contrato 2 m) |
+| `orchestrator.watchdog_stale_tick_seconds` | `orchestrator` | **600** |
 | `tcn_macro_call_override` / `tcn_macro_put_override` | `deep_learning.calibration` | limiar de **raw** para modo `raw_extreme`; Cal nao e substituido |
 | `calibration.method` | `deep_learning.calibration` | **auto** (Brier/ECE com piso de sharpness; fallback `identity`) |
-| `mini_granularity` | `data_handler` | padrao **60** (MINI OHLC) |
+| `mini_granularity` | `data_handler` | padrao **120** (MINI OHLC M2) |
 
 Removidos: `decision_threshold_call` / `decision_threshold_put` (mortos). Modo `tcn_macro_override` (substituir Cal por raw) removido — usar `raw_extreme`. Removidos: `adapt_min_cal_margin` / `adapt_max_cal_margin` / `hold_calib_gray` / `hold_cal_margin` / `calib_gray_*` / log `CALIB_GRAY`.
 
@@ -70,7 +70,7 @@ Removidos: `decision_threshold_call` / `decision_threshold_put` (mortos). Modo `
 - `max_safe_stake_cap` / `max_safe_stake_pct`
 - `sample_size_policy.*`
 
-Vetos de sinal/qualidade (Hurst/ADX/RSI/cal floor/quality_gate/price_zone/SIDE_EQ block) foram **removidos do codigo** (mandato escopo 1). SIDE_EQ restante = soft Kelly sizing.
+Vetos de sinal/qualidade amplos (RSI/cal floor/quality_gate/price_zone/SIDE_EQ block) permanecem **fora** (escopo 1). Flip loss-clf (`hard_p_loss_floor`) permanece sob mandato **2026-08-07**; chop/neg_edge = soft Kelly continuo. SIDE_EQ restante = soft Kelly sizing.
 
 Playbook senior: [`binary-senior-playbook.md`](binary-senior-playbook.md).
 

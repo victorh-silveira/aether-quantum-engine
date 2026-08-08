@@ -84,11 +84,11 @@ def test_apply_soft_recovery_cover_multiple_doubles_need():
 
 def test_session_base_unit_at_eleven_point_five_k():
     unit = neutral_edge_dynamic_unit(11500.0)
-    assert unit == pytest.approx(230.0)
+    assert unit == pytest.approx(28.75)
     metrics: dict = {}
     resolved = resolve_session_base_unit(11500.0, 2.0, metrics)
-    assert resolved == pytest.approx(230.0)
-    assert metrics["session_base_unit"] == pytest.approx(230.0)
+    assert resolved == pytest.approx(28.75)
+    assert metrics["session_base_unit"] == pytest.approx(28.75)
 
 
 def test_apply_soft_recovery_stake_without_pending_returns_session_unit():
@@ -101,7 +101,7 @@ def test_apply_soft_recovery_stake_without_pending_returns_session_unit():
         metrics={},
         payout=0.95,
     )
-    assert stake == pytest.approx(230.0)
+    assert stake == pytest.approx(28.75)
 
 
 def test_apply_soft_recovery_stake_full_cover_amort_one_no_geometric():

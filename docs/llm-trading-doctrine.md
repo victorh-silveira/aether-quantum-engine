@@ -1,8 +1,8 @@
 # Doutrina LLM do Aether (9 livros)
 
-O LLM/Cursor e **copiloto de engenharia e auditoria**. Nao decide CALL/PUT em runtime. A decisao live permanece TCN + meta LightGBM + Kelly/caps; **escopo 1.1** (mandato): catálogo `signal_skip` (`mini_pair_oppose` / `cal_margin` = soft Kelly **0.55**) + loss-clf default **soft** — sem flip pos-LOSS e sem restaurar quality gate amplo.
+O LLM/Cursor e **copiloto de engenharia e auditoria**. Nao decide CALL/PUT em runtime. A decisao live permanece TCN + meta LightGBM + Kelly/caps; **escopo 1.1** + arquitetura continua R_10: catálogo `signal_skip` (`mini_pair_oppose` / `cal_margin` / chop / neg_edge = soft Kelly **0.55**); loss-clf soft na faixa media; **FLIP** CALL↔PUT **relativo ao TCN** se `p_loss >= 0.90` e `veto_ready` (log `LOSS_CLF || FLIP`; seed bootstrap com **p_loss real**) — sem revenge sizing pos-LOSS e sem reabrir quality gate amplo (RSI/price_zone/SIDE_EQ block).
 
-SSOT operacional: [`config/settings.json`](../config/settings.json). Metodologia: [`medallion.md`](medallion.md). Sample size: [`sample-size-lln.md`](sample-size-lln.md). Loss ML: [`infra-docker.md`](infra-docker.md) (`aether-loss-classifier`).
+SSOT operacional: [`config/settings.json`](../config/settings.json) — universo **`R_10`** (Volatility 10), contrato **2 m**, micro/MINI **120 s**, ciclo **60 s**. Metodologia: [`medallion.md`](medallion.md). Sample size: [`sample-size-lln.md`](sample-size-lln.md). Loss ML: [`infra-docker.md`](infra-docker.md) (`aether-loss-classifier`).
 
 ---
 
@@ -34,9 +34,9 @@ SSOT operacional: [`config/settings.json`](../config/settings.json). Metodologia
 
 **Insight:** esperanca, Bayes e taxa-base; mudanca de knob precisa de hipotese falsificavel.
 
-**Anti-padrao do LLM:** alterar threshold “porque o log ficou feio”; ignorar ACC de validacao; misturar prior e evidencia sem shrink; tratar streak de PUT LOSS como motivo para **rearmar quality gate** amplo (Hurst/ADX/RSI).
+**Anti-padrao do LLM:** alterar threshold “porque o log ficou feio”; ignorar ACC de validacao; misturar prior e evidencia sem shrink; tratar streak de PUT LOSS como motivo para **rearmar quality gate** amplo (RSI/price_zone).
 
-**Regra no Aether:** Kelly bayesiano; gate de `val_accuracy`; calib drift so com N minimo. Vies de lado: treino + SIDE_EQ soft Kelly. Catalogo sinal (`signal_skip`) + loss-clf = **somente soft Kelly** (`veto_mode=soft`; hard SKIP removido).
+**Regra no Aether:** Kelly bayesiano; gate de `val_accuracy`; calib drift so com N minimo. Vies de lado: treino + SIDE_EQ soft Kelly. Catalogo sinal (`signal_skip`) = soft Kelly; loss-clf = soft em `[veto_p_loss_floor, hard_p_loss_floor)` com `veto_ready` e **FLIP** CALL↔PUT **relativo ao TCN** se `p_loss >= hard_p_loss_floor` (**0.90**, `veto_ready`); bootstrap neutro; chop/neg_edge = soft Kelly continuo (sem `EXEC_EMPTY` de sinal).
 
 **Ancoras:** `risk_management.min_validation_accuracy_gate` (0.53); `soft_min_val_accuracy`; `deep_learning.sample_weighting`; `deploy_gate.reject_majority_collapse`; `execution_side_eq_sizing`; `apply_live_calib_drift_soft`; Kelly em `app/src/domain/risk/`.
 

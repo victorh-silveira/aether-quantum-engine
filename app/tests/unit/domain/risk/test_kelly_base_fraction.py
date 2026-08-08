@@ -17,10 +17,11 @@ def test_resolve_effective_kelly_fraction_attenuates_normal_regime():
 
 def test_resolve_effective_kelly_fraction_sixty_percent_reduction_generic():
     cfg = {"fraction": 0.005}
-    assert resolve_effective_kelly_fraction(cfg, recovery_active=False) == pytest.approx(0.0035)
+    assert resolve_effective_kelly_fraction(cfg, recovery_active=False) == pytest.approx(0.0025)
     assert resolve_effective_kelly_fraction({"fraction": 0.0}, recovery_active=False) == pytest.approx(0.0)
 
 
 def test_resolve_effective_kelly_fraction_honors_explicit_scale():
     cfg = {"fraction": 0.0035, "kelly_fraction_scale": 0.80}
     assert resolve_effective_kelly_fraction(cfg, recovery_active=False) == pytest.approx(0.0028)
+    assert resolve_effective_kelly_fraction({"fraction": -0.01}, recovery_active=False) == pytest.approx(0.0)

@@ -8,8 +8,8 @@ def test_cross_corr_reduces_dl_weight_on_divergent_high_correlation():
         "indicators": {"vol_ratio": 0.7, "di_diff": 0.2},
         "bb_squeeze": True,
     }
-    corr = {("OTC_SPC", "OTC_SPC"): 0.8}
-    adjusted = adjust_dl_weight_with_correlation(weights, "OTC_SPC", metrics, corr, min_margin=0.05)
+    corr = {("R_10", "R_10"): 0.8}
+    adjusted = adjust_dl_weight_with_correlation(weights, "R_10", metrics, corr, min_margin=0.05)
     assert adjusted["dl_raw_weight"] < weights["dl_raw_weight"]
 
 
@@ -19,6 +19,6 @@ def test_cross_corr_inactive_when_strong_consensus():
         "direction_margin": 0.2,
         "indicators": {"vol_ratio": 1.1, "di_diff": 0.0},
     }
-    corr = {("OTC_SPC", "R_50"): 0.9, ("R_50", "OTC_SPC"): 0.9}
-    adjusted = adjust_dl_weight_with_correlation(weights, "OTC_SPC", metrics, corr, min_margin=0.05)
+    corr = {("R_10", "R_50"): 0.9, ("R_50", "R_10"): 0.9}
+    adjusted = adjust_dl_weight_with_correlation(weights, "R_10", metrics, corr, min_margin=0.05)
     assert adjusted["dl_raw_weight"] == weights["dl_raw_weight"]

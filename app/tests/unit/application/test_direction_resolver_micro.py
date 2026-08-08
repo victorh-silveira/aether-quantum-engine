@@ -33,7 +33,7 @@ def test_resolve_call_keeps_dl_direction_without_tick_accel_gate():
     result = resolve_execution_direction(
         entry,
         infra_cfg={"meta_classifier": {"cross_symbol_prob_delta_mean": 0.10}},
-        symbol="OTC_SPC",
+        symbol="R_10",
     )
     assert result is not None
     assert result[0] == TradeDirection.CALL
@@ -60,7 +60,7 @@ def test_resolve_without_symbol_keeps_generic_call_path():
 
 def test_resolve_put_on_bull_follows_dl_direction():
     entry = _entry(direction=TradeDirection.PUT, raw_prob=0.38, calibrated_prob=0.30)
-    result = resolve_execution_direction(entry, symbol="OTC_SPC")
+    result = resolve_execution_direction(entry, symbol="R_10")
     assert result is not None
     assert result[0] == TradeDirection.PUT
 
@@ -70,7 +70,7 @@ def test_resolve_put_on_bear_with_positive_edge():
     entry["metrics"]["predicted_payoff_edge"] = 0.05
     entry["metrics"]["meta_classifier_applied"] = True
     entry["metrics"]["cross_symbol_features"] = {"cross_symbol_vol_ratio_diff": -0.1}
-    result = resolve_execution_direction(entry, symbol="OTC_SPC")
+    result = resolve_execution_direction(entry, symbol="R_10")
     assert result is not None
     assert result[0] == TradeDirection.PUT
 
@@ -81,7 +81,7 @@ def test_resolve_c0015_positive_edge_keeps_organic_score_without_squeeze():
     entry["metrics"]["meta_classifier_applied"] = True
     entry["metrics"]["indicators"] = {"bb_width": 0.09}
     entry["metrics"]["flow_features"] = {"micro_tick_acceleration": 0.04}
-    result = resolve_execution_direction(entry, symbol="OTC_SPC")
+    result = resolve_execution_direction(entry, symbol="R_10")
     assert result is not None
     direction, metrics = result
     assert direction == TradeDirection.CALL
@@ -100,7 +100,7 @@ def test_resolve_cross_prob_delta_mean_from_metrics():
     entry["metrics"]["cross_symbol_prob_delta_mean"] = 0.12
     entry["metrics"]["cross_symbol_features"] = {"cross_symbol_prob_delta": 0.20}
     entry["metrics"]["flow_features"] = {"micro_tick_acceleration": 0.03}
-    result = resolve_execution_direction(entry, symbol="OTC_SPC")
+    result = resolve_execution_direction(entry, symbol="R_10")
     assert result is not None
 
 
@@ -111,7 +111,7 @@ def test_resolve_without_prefetch_keeps_organic_score_when_meta_enabled_with_str
     result = resolve_execution_direction(
         entry,
         infra_cfg={"meta_classifier": {"enabled": True}},
-        symbol="OTC_SPC",
+        symbol="R_10",
     )
     assert result is not None
     direction, metrics = result

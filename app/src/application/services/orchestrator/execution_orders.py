@@ -4,6 +4,7 @@ import asyncio
 import logging
 
 from src.application.services.market_audit_log import (
+    emit_audit_info,
     format_execution_ticket_line,
     resolve_meta_payoff_zscore,
     resolve_predicted_edge,
@@ -38,7 +39,8 @@ def _emit_execution_ticket(executor, *, cycle_id: int, symbol, direction, stake,
         executor.orch.risk_manager,
         balance_fallback=getattr(getattr(executor.orch, "state", None), "balance", None),
     )
-    logger.info(
+    emit_audit_info(
+        logger,
         format_execution_ticket_line(
             cycle_id,
             direction=direction.name,
@@ -52,7 +54,7 @@ def _emit_execution_ticket(executor, *, cycle_id: int, symbol, direction, stake,
             linear=int(audit.get("linear", 0)),
             cap=float(audit.get("cap", 0.0)),
             recovery_infeasible=bool(audit.get("recovery_infeasible", False)),
-        )
+        ),
     )
     store_contract_audit(
         executor.orch,

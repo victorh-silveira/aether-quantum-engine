@@ -37,7 +37,7 @@ async def test_predict_raw_prob_async_triton_timeout_fallback():
     ):
         direction, prob, raw = await predict_raw_prob_async(
             orch,
-            "OTC_SPC",
+            "R_10",
             prices,
             runtime,
             {"lookback": 4, "confidence_call_threshold": 0.6, "confidence_put_threshold": 0.4},
@@ -71,7 +71,7 @@ async def test_predict_raw_prob_async_triton_timeout_fail_closed():
     ):
         direction, prob, raw = await predict_raw_prob_async(
             orch,
-            "OTC_SPC",
+            "R_10",
             np.linspace(1.0, 2.0, 20),
             runtime,
             {"lookback": 4},
@@ -108,7 +108,7 @@ async def test_predict_raw_prob_async_triton_timeout_fail_closed_via_exec_flag()
     ):
         direction, prob, raw = await predict_raw_prob_async(
             orch,
-            "OTC_SPC",
+            "R_10",
             np.linspace(1.0, 2.0, 20),
             runtime,
             {"lookback": 4},
@@ -142,7 +142,7 @@ async def test_predict_raw_prob_async_triton_timeout_without_local_model():
     ):
         direction, prob, raw = await predict_raw_prob_async(
             orch,
-            "OTC_SPC",
+            "R_10",
             np.linspace(1.0, 2.0, 20),
             runtime,
             {"lookback": 4},

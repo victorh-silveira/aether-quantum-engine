@@ -54,34 +54,25 @@ help:
 	@echo -e ""
 	@echo -e "$(YELLOW)Python:$(RESET) Conda $(CONDA_ENV) ($(PYTHON))"
 	@echo -e ""
-	@echo -e "$(YELLOW)Comandos Disponiveis (Aplicação):$(RESET)"
-	@echo -e "  $(GREEN)app-install$(RESET)        - Instala dependencias no Conda $(CONDA_ENV)"
-	@echo -e "  $(GREEN)app-lint$(RESET)           - Roda os linters e verificadores de formatacao (Ruff, etc.)"
-	@echo -e "  $(GREEN)app-test$(RESET)           - Roda os testes unitarios com pytest-xdist e cobertura 100%"
-	@echo -e "  $(GREEN)app-security$(RESET)       - Varre o projeto em busca de vulnerabilidades (bandit/pip-audit)"
-	@echo -e "  $(GREEN)app-run$(RESET)            - Inicia a execucao principal do motor quantico (run.py)"
-	@echo -e "  $(GREEN)app-train$(RESET)          - Treina modelos Deep Learning (train.py)"
-	@echo -e "  $(GREEN)app-pre-commit$(RESET)     - Instala e configura os git hooks locais de pre-commit"
-	@echo -e "  $(GREEN)app-pre-commit-run$(RESET) - Roda todos os hooks (pre-commit run --all-files)"
-	@echo -e "  $(GREEN)app-setup-wsl$(RESET)      - Configura Git, Conda e hooks no WSL (setup.sh)"
-	@echo -e "  $(GREEN)app-clean$(RESET)          - Limpa caches, logs e dados locais (preserva volumes Docker)"
-	@echo -e "  $(GREEN)help / helpo$(RESET)       - Exibe este menu de ajuda interativo"
+	@echo -e "$(YELLOW)App:$(RESET)"
+	@echo -e "  $(GREEN)app-run$(RESET)            - Sobe o motor (run.py)"
+	@echo -e "  $(GREEN)app-train$(RESET)          - Treina DL (train.py)"
+	@echo -e "  $(GREEN)app-test$(RESET)           - Testes + cobertura 100%"
+	@echo -e "  $(GREEN)app-lint$(RESET)           - Lint / format"
+	@echo -e "  $(GREEN)app-clean$(RESET)          - Limpa caches/logs locais"
+	@echo -e "  $(GREEN)app-install$(RESET)        - Pip no Conda $(CONDA_ENV)"
 	@echo -e ""
-	@echo -e "$(YELLOW)Comandos Disponiveis (Docker/Infra):$(RESET)"
-	@echo -e "  $(GREEN)docker-up$(RESET)          - Stack completa GPU (profiles: $(DOCKER_PROFILES), DOCKER_GPU=$(DOCKER_GPU))"
-	@echo -e "  $(GREEN)docker-up-core$(RESET)     - Sobe so Redis, TimescaleDB e MinIO (profile core)"
-	@echo -e "  $(GREEN)docker-up-cpu$(RESET)      - Stack com Triton CPU (core,cpu,ml; sem overlay NVIDIA)"
-	@echo -e "  $(GREEN)docker-rebuild$(RESET)     - Rebuild meta+loss classifiers + up com profiles ativos"
-	@echo -e "  $(GREEN)docker-smoke$(RESET)       - Valida endpoints da stack (Redis/TS/MinIO/Triton/Meta)"
-	@echo -e "  $(GREEN)docker-down$(RESET)        - Para os containers PRESERVANDO os dados e volumes"
-	@echo -e "  $(GREEN)docker-restart$(RESET)     - Reinicia os containers da stack (volumes preservados)"
-	@echo -e "  $(GREEN)docker-reset$(RESET)       - $(RED)DESTRUTIVO$(RESET): Apaga volumes/dados e sobe stack limpa"
-	@echo -e "  $(GREEN)docker-clean$(RESET)       - $(RED)DESTRUTIVO$(RESET): Remove containers, redes e DELETA volumes"
-	@echo -e "  $(GREEN)docker-hydrate$(RESET)     - Hidrata TimescaleDB macro 3600s / micro 900s (OTC_SPC M15)"
-	@echo -e "  $(GREEN)docker-ps$(RESET)          - Status dos containers"
-	@echo -e "  $(GREEN)docker-logs$(RESET)        - Logs (DOCKER_SERVICE=redis|ts|minio|triton|meta|loss F=1)"
-	@echo -e "  $(GREEN)docker-bash$(RESET)        - Shell (DOCKER_SERVICE=redis|ts|minio|triton|meta|loss; default ts)"
-	@echo -e "  $(GREEN)timescale-lifecycle$(RESET) - Aplica compressao/retencao Timescale (idempotente)"
+	@echo -e "$(YELLOW)Docker:$(RESET)"
+	@echo -e "  $(GREEN)docker-up$(RESET)          - Stack completa GPU"
+	@echo -e "  $(GREEN)docker-up-cpu$(RESET)      - Stack Triton CPU"
+	@echo -e "  $(GREEN)docker-up-core$(RESET)     - So Redis/Timescale/MinIO"
+	@echo -e "  $(GREEN)docker-rebuild$(RESET)     - Limpa loss-models, bootstrap cold-start, rebuild meta/loss e sobe"
+	@echo -e "  $(GREEN)docker-reset$(RESET)       - $(RED)DESTRUTIVO$(RESET): limpa loss-models + volumes, bootstrap e sobe stack"
+	@echo -e "  $(GREEN)docker-down$(RESET)        - Para containers (preserva dados)"
+	@echo -e "  $(GREEN)docker-restart$(RESET)     - Restart da stack"
+	@echo -e "  $(GREEN)docker-ps$(RESET)          - Status"
+	@echo -e "  $(GREEN)docker-logs$(RESET)        - Logs (DOCKER_SERVICE=... F=1)"
+	@echo -e "  $(GREEN)docker-smoke$(RESET)       - Smoke checks"
 	@echo -e "$(BLUE)========================================================================$(RESET)"
 
 helpo: help
@@ -146,8 +137,10 @@ docker-up-cpu:
 	@$(MAKE) --no-print-directory docker-up DOCKER_PROFILES=core,cpu,ml DOCKER_GPU=0
 
 docker-rebuild:
-	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-rebuild · meta+loss classifiers + stack"'
+	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-rebuild · limpa loss-models + bootstrap + rebuild meta/loss + up"'
 	@test -f .env || cp .env.example .env
+	@bash infra/docker/loss-clf-reset.sh clear
+	@cd $(APP_DIR) && LOKY_MAX_CPU_COUNT=$${LOKY_MAX_CPU_COUNT:-4} $(PYTHON) -m scripts.operations.train_loss_classifier
 	@bash infra/docker/triton-prereq.sh
 	$(DOCKER_COMPOSE) build --pull aether-meta-classifier aether-loss-classifier
 	$(DOCKER_COMPOSE) up -d
@@ -171,9 +164,11 @@ docker-restart:
 
 docker-reset:
 	@test -f .env || cp .env.example .env
-	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-reset · ATENCAO: dados e volumes serao apagados"'
-	@echo -e "$(RED)  Limpando remanescentes de runs (Redis/TimescaleDB/MinIO) e recriando a stack$(RESET)"
+	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-reset · ATENCAO: loss-models + volumes serao limpos"'
+	@echo -e "$(RED)  Limpando loss-models (backup) e volumes Redis/Timescale/MinIO; recria a stack$(RESET)"
 	@echo ""
+	@bash infra/docker/loss-clf-reset.sh clear
+	@cd $(APP_DIR) && LOKY_MAX_CPU_COUNT=$${LOKY_MAX_CPU_COUNT:-4} $(PYTHON) -m scripts.operations.train_loss_classifier
 	$(DOCKER_COMPOSE) down --volumes --remove-orphans
 	@$(MAKE) --no-print-directory docker-up
 
@@ -182,6 +177,7 @@ docker-clean:
 	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-clean · ATENCAO: volumes serao apagados"'
 	@echo -e "$(RED)  Removendo containers, redes e volumes (TimescaleDB/MinIO/Redis)$(RESET)"
 	@echo ""
+	@bash infra/docker/loss-clf-reset.sh clear
 	$(DOCKER_COMPOSE) down --volumes --remove-orphans
 	@echo ""
 	@$(DOCKER_COMPOSE) ps

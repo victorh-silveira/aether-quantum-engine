@@ -28,14 +28,14 @@ async def test_process_contract_settlement_ignores_premature_open_with_is_settle
         status=TradeStatus.OPEN,
         buy_price=5.85,
         payout=10.63,
-        symbol="OTC_SPC",
+        symbol="R_10",
         direction=TradeDirection.PUT,
         stake=5.85,
         expiry_time=0,
     )
     await orch.state.add_contract(contract)
     orch.risk_manager.active_contract_ids = [1694702639]
-    orch.risk_manager.contract_to_symbol[1694702639] = "OTC_SPC"
+    orch.risk_manager.contract_to_symbol[1694702639] = "R_10"
     orch.risk_manager.begin_cluster(1)
 
     with patch("src.application.services.orchestrator.post_settlement_cycle.asyncio.create_task") as mock_create:
@@ -67,14 +67,14 @@ async def test_process_contract_settlement_won(orch_ready):
         status=TradeStatus.OPEN,
         buy_price=10.0,
         payout=18.0,
-        symbol="OTC_SPC",
+        symbol="R_10",
         direction=TradeDirection.CALL,
         stake=10.0,
         expiry_time=0,
     )
     await orch.state.add_contract(contract)
     orch.risk_manager.active_contract_ids = [123]
-    orch.risk_manager.contract_to_symbol[123] = "OTC_SPC"
+    orch.risk_manager.contract_to_symbol[123] = "R_10"
     orch.risk_manager.begin_cluster(1)
 
     data = {
@@ -120,14 +120,14 @@ async def test_process_contract_settlement_lost(orch_ready):
         status=TradeStatus.OPEN,
         buy_price=5.0,
         payout=9.0,
-        symbol="OTC_SPC",
+        symbol="R_10",
         direction=TradeDirection.CALL,
         stake=5.0,
         expiry_time=0,
     )
     await orch.state.add_contract(contract)
     orch.risk_manager.active_contract_ids = [456]
-    orch.risk_manager.contract_to_symbol[456] = "OTC_SPC"
+    orch.risk_manager.contract_to_symbol[456] = "R_10"
     orch.risk_manager.begin_cluster(1)
     data = {
         "proposal_open_contract": {
@@ -154,7 +154,7 @@ async def test_process_contract_settlement_lost(orch_ready):
 
     assert orch.state.balance == 995.0
     assert orch._session_losses == 1
-    assert orch._last_loss_symbol == "OTC_SPC"
+    assert orch._last_loss_symbol == "R_10"
     assert orch._last_loss_direction == "CALL"
     assert len(orch._pending_result_logs) == 1
     assert 456 not in orch.risk_manager.active_contract_ids
@@ -200,14 +200,14 @@ async def test_process_contract_settlement_stop_win(orch_ready):
         status=TradeStatus.OPEN,
         buy_price=10.0,
         payout=18.0,
-        symbol="OTC_SPC",
+        symbol="R_10",
         direction=TradeDirection.CALL,
         stake=10.0,
         expiry_time=0,
     )
     await orch.state.add_contract(contract)
     orch.risk_manager.active_contract_ids = [777]
-    orch.risk_manager.contract_to_symbol[777] = "OTC_SPC"
+    orch.risk_manager.contract_to_symbol[777] = "R_10"
     orch.risk_manager.begin_cluster(1)
     orch.risk_manager.initial_bankroll = 1000.0
     orch.risk_manager.total_session_profit = 50.0

@@ -166,7 +166,7 @@ def test_resolve_dlambert_stake_linear_losses_without_pending_use_base_unit():
         payout=0.95,
     )
     assert tag == "D'ALEMBERT"
-    assert stake == pytest.approx(200.0)
+    assert stake == pytest.approx(50.0)
 
 
 def test_resolve_dlambert_stake_caps_at_bankroll_pct_and_splits_pending():

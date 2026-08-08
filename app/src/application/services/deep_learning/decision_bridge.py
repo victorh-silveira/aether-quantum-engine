@@ -15,6 +15,11 @@ from src.application.services.deep_learning.dl_bridge_helpers import (
 from src.application.services.deep_learning.dl_cycle_log import log_dl_cycle_summary
 from src.application.services.deep_learning.dl_deferred_train import enqueue_deferred_symbol_training
 from src.application.services.deep_learning.dl_gate_config import parse_deploy_gate_config
+from src.application.services.deep_learning.dl_live_bar_patch import (
+    patch_forming_bar_microstructure,
+    patch_forming_bar_with_live_tick,
+    store_patched_ohlc_snapshot,
+)
 from src.application.services.deep_learning.dl_market_data import load_symbol_close_ohlc, load_symbol_microstructure
 from src.application.services.deep_learning.dl_outcomes import tick_dl_session_pauses
 from src.application.services.deep_learning.dl_params import slice_dl_ohlc_window
@@ -155,9 +160,19 @@ async def _collect_symbol_decision(
         symbol,
         timeframe=str(params.get("train_timeframe", "macro")),
     )
+    prices_raw, open_raw, high_raw, low_raw = patch_forming_bar_with_live_tick(
+        orch,
+        symbol,
+        prices_raw,
+        open_raw,
+        high_raw,
+        low_raw,
+    )
+    store_patched_ohlc_snapshot(orch, symbol, prices_raw, open_raw, high_raw, low_raw)
     runtime = get_symbol_runtime(orch, symbol, dl_config, params)
     trained_granularity = runtime.get("trained_granularity", granularity)
     micro_full = load_symbol_microstructure(orch, symbol, len(prices_raw))
+    micro_full = patch_forming_bar_microstructure(orch, symbol, micro_full)
     train_bars = int(params["training_history_bars"])
     prices, open_, high, low = slice_dl_ohlc_window(
         prices_raw,

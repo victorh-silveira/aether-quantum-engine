@@ -124,6 +124,7 @@ def test_adapt_explosion_disabled_falls_to_mili_tape():
             "adapt_on_retraction": True,
             "adapt_on_explosion": False,
             "adapt_on_mili_tape": True,
+            "adapt_mili_tape_skip_chop": False,
             "adapt_on_majority_votes": False,
             "adapt_require_bar_pair_agree": True,
             "adapt_require_raw_extreme": True,
@@ -135,6 +136,81 @@ def test_adapt_explosion_disabled_falls_to_mili_tape():
         out = apply_scale_direction_adapt(metrics, TradeDirection.CALL)
     assert out == TradeDirection.PUT
     assert metrics["scale_adapt_reason"] == "mili_tape_vs_tcn"
+
+
+def test_adapt_mili_tape_skips_chop_keeps_tcn():
+    from src.application.services.execution_scale_adapt_regimes import adapt_on_mili_tape
+
+    metrics = {
+        "scale_tape_consensus": "PUT",
+        "scale_mili_dir": "PUT",
+        "scale_mini_prev_bar_dir": None,
+        "scale_mini_bar_dir": None,
+    }
+
+    def _fake_chop(m, _tcn, cfg=None):
+        m["scale_micro_regime"] = "chop"
+        return m
+
+    with patch(
+        "src.application.services.execution_scale_adapt_regimes.classify_micro_regime",
+        side_effect=_fake_chop,
+    ):
+        out = adapt_on_mili_tape(
+            metrics,
+            TradeDirection.CALL,
+            {"adapt_on_mili_tape": True, "adapt_mili_tape_skip_chop": True},
+        )
+    assert out is None
+
+
+def test_adapt_mili_tape_flips_outside_chop():
+    from src.application.services.execution_scale_adapt_regimes import adapt_on_mili_tape
+
+    metrics = {
+        "scale_tape_consensus": "PUT",
+        "scale_mili_dir": "PUT",
+    }
+
+    def _fake_retract(m, _tcn, cfg=None):
+        m["scale_micro_regime"] = "retraction"
+        return m
+
+    with patch(
+        "src.application.services.execution_scale_adapt_regimes.classify_micro_regime",
+        side_effect=_fake_retract,
+    ):
+        out = adapt_on_mili_tape(
+            metrics,
+            TradeDirection.CALL,
+            {"adapt_on_mili_tape": True, "adapt_mili_tape_skip_chop": True},
+        )
+    assert out == TradeDirection.PUT
+    assert metrics["scale_adapt_reason"] == "mili_tape_vs_tcn"
+
+
+def test_adapt_mili_tape_noop_when_mili_disagrees_with_tape():
+    from src.application.services.execution_scale_adapt_regimes import adapt_on_mili_tape
+
+    metrics = {
+        "scale_tape_consensus": "PUT",
+        "scale_mili_dir": "CALL",
+    }
+
+    def _fake_retract(m, _tcn, cfg=None):
+        m["scale_micro_regime"] = "retraction"
+        return m
+
+    with patch(
+        "src.application.services.execution_scale_adapt_regimes.classify_micro_regime",
+        side_effect=_fake_retract,
+    ):
+        out = adapt_on_mili_tape(
+            metrics,
+            TradeDirection.CALL,
+            {"adapt_on_mili_tape": True, "adapt_mili_tape_skip_chop": True},
+        )
+    assert out is None
 
 
 def test_adapt_explosion_invalid_live_side_noop():

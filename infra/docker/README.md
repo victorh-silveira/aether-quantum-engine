@@ -11,7 +11,8 @@ make docker-up          # core+gpu+ml + overlay NVIDIA
 make docker-up-cpu      # core+cpu+ml sem NVIDIA
 make docker-up-core     # so Redis/Timescale/MinIO
 make docker-smoke
-make docker-rebuild     # rebuild meta+loss + up
+make docker-rebuild     # limpa loss-models + bootstrap cold-start + rebuild meta/loss + up
+make docker-reset       # DESTRUTIVO: limpa loss-models + volumes + bootstrap + sobe
 ```
 
 Portas em `127.0.0.1`: Redis 6379, Timescale 5432, MinIO 9000/9001, Triton 8000/8001, Meta 8005, Loss 8006.

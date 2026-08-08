@@ -25,6 +25,12 @@ def parse_signal_skip_config(raw: dict[str, Any] | None = None) -> dict[str, Any
             "mini_pair_soft_kelly_mult",
             "cal_margin_soft_kelly_mult",
             "pending_dust",
+            "chop_pause_enabled",
+            "chop_adx_max",
+            "chop_hurst_min",
+            "chop_hurst_max",
+            "chop_soft_kelly_mult",
+            "neg_edge_soft_kelly_mult",
         ),
         "orchestrator.execution.signal_skip",
     )
@@ -34,6 +40,16 @@ def parse_signal_skip_config(raw: dict[str, Any] | None = None) -> dict[str, Any
     cal_soft = require_float(block, "cal_margin_soft_kelly_mult")
     if cal_soft <= 0.0 or cal_soft > 1.0:
         raise ValueError("orchestrator.execution.signal_skip.cal_margin_soft_kelly_mult deve estar em (0, 1]")
+    chop_soft = require_float(block, "chop_soft_kelly_mult")
+    if chop_soft <= 0.0 or chop_soft > 1.0:
+        raise ValueError("orchestrator.execution.signal_skip.chop_soft_kelly_mult deve estar em (0, 1]")
+    neg_soft = require_float(block, "neg_edge_soft_kelly_mult")
+    if neg_soft <= 0.0 or neg_soft > 1.0:
+        raise ValueError("orchestrator.execution.signal_skip.neg_edge_soft_kelly_mult deve estar em (0, 1]")
+    hurst_min = require_float(block, "chop_hurst_min")
+    hurst_max = require_float(block, "chop_hurst_max")
+    if hurst_max < hurst_min:
+        raise ValueError("orchestrator.execution.signal_skip.chop_hurst_max deve ser >= chop_hurst_min")
     return {
         "enabled": require_bool(block, "enabled"),
         "min_direction_margin": require_float(block, "min_direction_margin"),
@@ -43,6 +59,12 @@ def parse_signal_skip_config(raw: dict[str, Any] | None = None) -> dict[str, Any
         "mini_pair_soft_kelly_mult": soft_mult,
         "cal_margin_soft_kelly_mult": cal_soft,
         "pending_dust": require_float(block, "pending_dust"),
+        "chop_pause_enabled": require_bool(block, "chop_pause_enabled"),
+        "chop_adx_max": require_float(block, "chop_adx_max"),
+        "chop_hurst_min": hurst_min,
+        "chop_hurst_max": hurst_max,
+        "chop_soft_kelly_mult": chop_soft,
+        "neg_edge_soft_kelly_mult": neg_soft,
     }
 
 

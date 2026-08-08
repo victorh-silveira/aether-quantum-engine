@@ -1,8 +1,8 @@
-"""Simbolos de trading Deriv (universo single-symbol OTC_SPC)."""
+"""Simbolos de trading Deriv (universo single-symbol R_10)."""
 
-TRADING_SYMBOLS: tuple[str, ...] = ("OTC_SPC",)
+TRADING_SYMBOLS: tuple[str, ...] = ("R_10",)
 DRIFT_SYMBOLS: tuple[str, ...] = TRADING_SYMBOLS
-DEFAULT_ANCHOR = "OTC_SPC"
+DEFAULT_ANCHOR = "R_10"
 
 HEDGE_PEER: dict[str, str] = {}
 
@@ -18,7 +18,7 @@ def hedge_peer(symbol: str) -> str | None:
 
 
 def is_high_side(symbol: str) -> bool:
-    """True quando o simbolo esta no lado high do universo (vazio em OTC_SPC)."""
+    """True quando o simbolo esta no lado high do universo (vazio em R_10)."""
     return str(symbol) in HIGH_SIDE
 
 

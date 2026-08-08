@@ -1,4 +1,4 @@
-"""Cobertura residual para commit (SSOT stake 2%, majority, OTC_SPC)."""
+"""Cobertura residual para commit (SSOT stake 2%, majority, R_10)."""
 
 from __future__ import annotations
 
@@ -30,9 +30,7 @@ def test_guard_inference_partial_history_warnings(caplog):
     prices = np.linspace(1.0, 2.0, 40)
     params = {"lookback": 30, "inference_history_bars": 80}
     with caplog.at_level(logging.WARNING):
-        assert (
-            guard_inference_price_history(prices, prices, params, min_len=50, symbol="OTC_SPC", logger=logger) is None
-        )
+        assert guard_inference_price_history(prices, prices, params, min_len=50, symbol="R_10", logger=logger) is None
     assert "Historico parcial" in caplog.text
     assert "Inferencia com historico parcial" in caplog.text
 
@@ -42,11 +40,11 @@ def test_resolve_inference_history_bars_without_windows():
 
 
 def test_candle_epoch_micro_and_missing_stream():
-    assert candle_epoch(SimpleNamespace(stream=None), "OTC_SPC") == 0
+    assert candle_epoch(SimpleNamespace(stream=None), "R_10") == 0
     stream = SimpleNamespace(get_last_micro_candle_epoch=lambda _s: None)
-    assert candle_epoch(SimpleNamespace(stream=stream), "OTC_SPC", timeframe="micro") == 0
+    assert candle_epoch(SimpleNamespace(stream=stream), "R_10", timeframe="micro") == 0
     stream2 = SimpleNamespace(get_last_micro_candle_epoch=lambda _s: 99)
-    assert candle_epoch(SimpleNamespace(stream=stream2), "OTC_SPC", timeframe="micro") == 99
+    assert candle_epoch(SimpleNamespace(stream=stream2), "R_10", timeframe="micro") == 99
 
 
 def test_finalize_execution_metrics_pending_total_errors():
@@ -93,7 +91,7 @@ def test_finalize_execution_metrics_pending_total_errors():
             0.1,
             meta_applied=False,
             score=0.62,
-            symbol="OTC_SPC",
+            symbol="R_10",
             orch=orch,
         )
     assert metrics.get("pending_loss_total") == 0.0
@@ -135,7 +133,7 @@ def test_finalize_execution_metrics_pending_total_errors():
             0.1,
             meta_applied=False,
             score=0.62,
-            symbol="OTC_SPC",
+            symbol="R_10",
             orch=orch2,
         )
     assert metrics2.get("pending_loss_total") == 0.0
@@ -219,20 +217,20 @@ def test_metrics_block_execution_non_dict():
 def test_store_loss_feature_vector_rejects_empty():
     orch = SimpleNamespace()
     store_loss_feature_vector(orch, "", [1.0])
-    store_loss_feature_vector(orch, "OTC_SPC", [])
+    store_loss_feature_vector(orch, "R_10", [])
     assert getattr(orch, "_loss_clf_vectors", {}) == {}
 
 
 def test_feed_loss_classifier_learn_skip_paths(caplog):
     orch = MagicMock()
-    orch._loss_clf_vectors = {"OTC_SPC": [0.1] * 24, "cid:7": [0.2] * 24}
+    orch._loss_clf_vectors = {"R_10": [0.1] * 24, "cid:7": [0.2] * 24}
     orch.config = {"infra": {"loss_classifier": {"enabled": True}}}
     with patch(
         "src.application.services.orchestrator.settlement_outcome.learn_loss_via_config_sync",
         return_value=None,
     ):
-        _feed_loss_classifier_learn(orch, "OTC_SPC", won=True, contract_id=7)
-    orch._loss_clf_vectors = {"OTC_SPC": [0.1] * 24, "cid:8": [0.2] * 24}
+        _feed_loss_classifier_learn(orch, "R_10", won=True, contract_id=7)
+    orch._loss_clf_vectors = {"R_10": [0.1] * 24, "cid:8": [0.2] * 24}
     with (
         patch(
             "src.application.services.orchestrator.settlement_outcome.learn_loss_via_config_sync",
@@ -240,5 +238,5 @@ def test_feed_loss_classifier_learn_skip_paths(caplog):
         ),
         caplog.at_level(logging.WARNING),
     ):
-        _feed_loss_classifier_learn(orch, "OTC_SPC", won=False, contract_id=8)
+        _feed_loss_classifier_learn(orch, "R_10", won=False, contract_id=8)
     assert "LEARN falhou" in caplog.text

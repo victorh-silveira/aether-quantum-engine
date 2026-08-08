@@ -11,7 +11,14 @@ from pydantic import BaseModel, Field
 
 from buffer_io import buffer_class_counts, load_learn_buffer, save_learn_buffer
 from learn_policy import retrain_min_for_label, should_retrain_after_learn
-from runtime import fit_classifier, load_latest_classifier, persist_bundle, predict_p_loss
+from runtime import (
+    fit_classifier,
+    is_bootstrap_bundle,
+    load_latest_classifier,
+    persist_bundle,
+    predict_p_loss,
+    seed_bootstrap_classifier,
+)
 
 
 logger = logging.getLogger("LOSS_CLF")
@@ -53,6 +60,7 @@ class LossPredictResult(BaseModel):
     model_version: str
     n_train: int
     veto_ready: bool
+    bootstrap: bool = False
 
 
 class LearnRequest(BaseModel):
@@ -77,6 +85,7 @@ _model_mtime: float = 0.0
 _model_version: str = "none"
 _n_train: int = 0
 _auto_learn_applied: bool = False
+_bootstrap: bool = False
 _buffer_x: list[list[float]] = []
 _buffer_y: list[int] = []
 _load_error: str = ""
@@ -89,7 +98,9 @@ def _validate_vector(vector: list[float]) -> list[float]:
 
 
 def _veto_ready() -> bool:
-    return _model is not None and int(_n_train) >= int(READY_N)
+    if _model is None:
+        return False
+    return int(_n_train) >= int(READY_N)
 
 
 def _persist_buffer_unlocked() -> None:
@@ -110,13 +121,14 @@ def _load_buffer_unlocked() -> None:
 
 
 def _apply_bundle(bundle: dict[str, Any], path: Path | None, *, auto_learn: bool) -> None:
-    global _model, _model_path, _model_mtime, _model_version, _n_train, _auto_learn_applied, _load_error
+    global _model, _model_path, _model_mtime, _model_version, _n_train, _auto_learn_applied, _bootstrap, _load_error
     _model = bundle["model"]
     _model_path = path
     _model_mtime = float(path.stat().st_mtime) if path is not None and path.is_file() else 0.0
     _n_train = int(bundle.get("n_train") or 0)
     _model_version = str(bundle.get("model_version") or (path.name if path else "memory"))
     _auto_learn_applied = bool(auto_learn or bundle.get("auto_learn_applied"))
+    _bootstrap = False if _auto_learn_applied else is_bootstrap_bundle(bundle, version=_model_version)
     _load_error = ""
 
 
@@ -158,7 +170,13 @@ def _fit_from_buffer(*, min_n: int | None = None) -> RetrainResult:
             MODELS_DIR, model, len(_buffer_y), FEATURE_NAMES, FEATURE_DIM, auto_learn=True
         )
         _apply_bundle(
-            {"model": model, "n_train": len(_buffer_y), "model_version": path.stem, "auto_learn_applied": True},
+            {
+                "model": model,
+                "n_train": len(_buffer_y),
+                "model_version": path.stem,
+                "auto_learn_applied": True,
+                "bootstrap": False,
+            },
             path,
             auto_learn=True,
         )
@@ -171,7 +189,15 @@ def _fit_from_buffer(*, min_n: int | None = None) -> RetrainResult:
 async def startup() -> None:
     with _lock:
         _load_buffer_unlocked()
-        _load_latest_model()
+        if _load_latest_model():
+            return
+        seeded = seed_bootstrap_classifier(MODELS_DIR, FEATURE_DIM, FEATURE_NAMES)
+        if seeded is None:
+            logger.error("Falha ao semear loss-classifier em %s", MODELS_DIR)
+            return
+        bundle, path = seeded
+        _apply_bundle(bundle, path, auto_learn=False)
+        logger.info("Modelo loss semeado: %s n_train=%d veto_ready=%s", path.name, _n_train, _veto_ready())
 
 
 @app.get("/health")
@@ -189,6 +215,7 @@ async def health() -> dict[str, Any]:
             "model_path": str(_model_path) if _model_path else "",
             "model_mtime": float(_model_mtime),
             "auto_learn_applied": bool(_auto_learn_applied),
+            "bootstrap": bool(_bootstrap),
             "buffer_n": len(_buffer_y),
             "buffer_win": int(counts["win"]),
             "buffer_loss": int(counts["loss"]),
@@ -217,14 +244,7 @@ async def predict_loss(payload: PredictLossRequest) -> LossPredictResult:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         floor = float(payload.veto_p_loss_floor) if payload.veto_p_loss_floor is not None else VETO_P_LOSS_FLOOR
         if _model is None:
-            return LossPredictResult(
-                p_loss=0.5,
-                veto=False,
-                auto_learn_applied=False,
-                model_version=_model_version,
-                n_train=int(_n_train),
-                veto_ready=False,
-            )
+            raise HTTPException(status_code=503, detail="loss-classifier sem modelo carregado")
         try:
             p_loss = predict_p_loss(_model, vector)
         except Exception as exc:
@@ -236,6 +256,7 @@ async def predict_loss(payload: PredictLossRequest) -> LossPredictResult:
                 model_version=_model_version,
                 n_train=int(_n_train),
                 veto_ready=_veto_ready(),
+                bootstrap=bool(_bootstrap),
             )
         ready = _veto_ready()
         return LossPredictResult(
@@ -245,6 +266,7 @@ async def predict_loss(payload: PredictLossRequest) -> LossPredictResult:
             model_version=_model_version,
             n_train=int(_n_train),
             veto_ready=ready,
+            bootstrap=bool(_bootstrap),
         )
 
 
@@ -270,11 +292,15 @@ async def learn(payload: LearnRequest) -> dict[str, Any]:
             overflow = len(_buffer_y) - int(MAX_BUFFER)
             del _buffer_x[:overflow]
             del _buffer_y[:overflow]
+        counts = buffer_class_counts(_buffer_y)
         should_retrain = should_retrain_after_learn(
             label=label,
             buffer_n=len(_buffer_y),
             retrain_min_n=int(RETRAIN_MIN_N),
             retrain_on_loss_min_n=int(RETRAIN_ON_LOSS_MIN_N),
+            buffer_win=int(counts["win"]),
+            buffer_loss=int(counts["loss"]),
+            bootstrap_active=bool(_bootstrap),
         )
         _persist_buffer_unlocked()
     if should_retrain:

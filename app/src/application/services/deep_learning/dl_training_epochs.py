@@ -9,7 +9,12 @@ from torch import nn, optim
 
 from aether_paths import repo_path
 from src.application.services.deep_learning.dl_device import tensor_from_numpy
-from src.application.services.deep_learning.model import model_accuracy
+from src.application.services.deep_learning.dl_sharpness import mean_sharpness
+from src.application.services.deep_learning.dl_training_checkpoint import (
+    checkpoint_if_improved,
+    prefer_sharp_checkpoint,
+)
+from src.application.services.deep_learning.model import _model_raw_prob, model_accuracy
 
 
 def _aux_regression_weight() -> float:
@@ -181,27 +186,6 @@ def _mean_epoch_loss(
     return epoch_loss / max(batch_count, 1), batch_count
 
 
-def _checkpoint_if_improved(
-    model,
-    *,
-    val_loss: float,
-    val_acc: float,
-    best_val_loss: float,
-    best_val_acc: float,
-) -> tuple[float, float, dict | None, bool]:
-    """Atualiza metricas; grava pesos so quando val_acc melhora (restore senior)."""
-    loss_improved = val_loss + 1e-9 < best_val_loss
-    acc_improved = val_acc > best_val_acc + 1e-6
-    if loss_improved:
-        best_val_loss = val_loss
-    best_state = None
-    if acc_improved:
-        best_val_acc = val_acc
-        best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
-    improved_any = loss_improved or acc_improved
-    return best_val_loss, best_val_acc, best_state, improved_any
-
-
 def fit_training_epochs(
     model,
     x_train: np.ndarray,
@@ -224,6 +208,8 @@ def fit_training_epochs(
     lr_scheduler: str = "cosine",
     progress_cb=None,
     delta_train: np.ndarray | None = None,
+    min_oos_sharpness: float = 0.01,
+    min_val_accuracy: float = 0.53,
 ) -> tuple[float, None | dict, int]:
     """Executa epocas de treino com early stopping pela perda de validacao."""
     optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=max(0.0, weight_decay))
@@ -237,14 +223,19 @@ def fit_training_epochs(
     model.train()
     total_loss = 0.0
     best_state = None
+    best_sharp_state = None
     best_val_loss = float("inf")
     best_val_acc = -1.0
+    best_sharp_acc = -1.0
+    best_sharp_loss = float("inf")
     patience = max(0, int(early_stopping_patience))
     patience_counter = 0
     min_ep = max(0, int(min_epochs))
     total_epochs = max(1, epochs)
     epochs_ran = 0
     weight_arr = np.asarray(weights, dtype=np.float32)
+    sharp_floor = float(min_oos_sharpness)
+    acc_floor = float(min_val_accuracy)
     for epoch_idx in range(total_epochs):
         epochs_ran = epoch_idx + 1
         mean_epoch_loss, batch_count = _mean_epoch_loss(
@@ -267,17 +258,34 @@ def fit_training_epochs(
         total_loss += mean_epoch_loss
         val_acc = model_accuracy(model, x_val, y_val, mask_val)
         val_loss = _validation_loss(model, x_val, y_val, mask_val, device, focal_gamma=focal_gamma)
+        raw_val = _model_raw_prob(model, x_val) if len(x_val) else np.asarray([], dtype=np.float32)
+        val_sharp = mean_sharpness([float(p) for p in raw_val]) if len(raw_val) else 0.0
         if progress_cb is not None:
             progress_cb(epochs_ran, total_epochs, mean_epoch_loss, float(val_acc))
-        best_val_loss, best_val_acc, improved_state, improved = _checkpoint_if_improved(
+        (
+            best_val_loss,
+            best_val_acc,
+            best_sharp_acc,
+            best_sharp_loss,
+            improved_state,
+            sharp_state,
+            improved,
+        ) = checkpoint_if_improved(
             model,
             val_loss=val_loss,
             val_acc=float(val_acc),
+            val_sharpness=float(val_sharp),
+            min_sharpness=sharp_floor,
+            min_val_accuracy=acc_floor,
             best_val_loss=best_val_loss,
             best_val_acc=best_val_acc,
+            best_sharp_acc=best_sharp_acc,
+            best_sharp_loss=best_sharp_loss,
         )
         if improved_state is not None:
             best_state = improved_state
+        if sharp_state is not None:
+            best_sharp_state = sharp_state
         if improved:
             patience_counter = 0
         elif epochs_ran >= min_ep:
@@ -289,4 +297,4 @@ def fit_training_epochs(
         else:
             scheduler.step()
     avg = total_loss / max(epochs_ran, 1)
-    return avg, best_state, epochs_ran
+    return avg, prefer_sharp_checkpoint(best_state, best_sharp_state), epochs_ran

@@ -9,6 +9,7 @@ from src.application.services.deep_learning.dl_calibration import (
     _METHOD_TEMPERATURE_PLATT,
     CalibratorState,
     apply_calibrator,
+    apply_calibrator_stable,
     apply_temperature,
     brier_score,
     expected_calibration_error,
@@ -167,6 +168,34 @@ def _guard_sharpness(
     return preferred if sharp >= raw_sharp else identity
 
 
+def maybe_identity_on_oos_collapse(
+    preferred: CalibratorState,
+    *,
+    val_probs: list[float],
+    min_oos_sharpness: float,
+) -> tuple[CalibratorState, float]:
+    """Se o fit colapsa nitidez no OOS e o raw OOS passa o piso, usa identity."""
+    if not val_probs:
+        return preferred, 0.0
+    floor = float(min_oos_sharpness)
+    raw_oos = mean_sharpness(val_probs)
+    unstable = mean_sharpness(_calibrated_probs(val_probs, preferred))
+    stable = mean_sharpness([float(apply_calibrator_stable(float(p), preferred)) for p in val_probs])
+    oos_sharp = min(unstable, stable)
+    if oos_sharp + 1e-12 >= floor:
+        return preferred, stable
+    if raw_oos + 1e-12 >= floor and preferred.method != _METHOD_IDENTITY:
+        logger.warning(
+            "DL_CAL: OOS sharpness=%.4f < min=%.4f method=%s; usando identity (raw_oos=%.4f)",
+            oos_sharp,
+            floor,
+            preferred.method,
+            raw_oos,
+        )
+        return _build_identity(), raw_oos
+    return preferred, stable
+
+
 def calibrator_entropy_metrics(
     probs: list[float],
     _labels: list[float],
@@ -236,7 +265,8 @@ def fit_calibrator(
     brier, ece, sharp = _candidate_score(identity, probs, labels)
     candidates.append((identity, brier, ece, sharp))
     if bool(cfg.get("auto_select_by_brier", True)):
-        return _select_best_calibrator(candidates, min_sharpness=min_sharpness)
+        selected = _select_best_calibrator(candidates, min_sharpness=min_sharpness)
+        return _guard_sharpness(selected, probs, labels, min_sharpness=min_sharpness)
     return _guard_sharpness(
         _build_temperature_platt(probs, labels),
         probs,

@@ -59,8 +59,8 @@ def test_collect_cluster_orders_recovery_picks_dl_put_after_call_loss():
 
 def test_collect_cluster_orders_recovery_keeps_dl_direction_after_call_loss():
     orch = SimpleNamespace(
-        anchor="OTC_SPC",
-        symbols=["OTC_SPC"],
+        anchor="R_10",
+        symbols=["R_10"],
         config={
             "orchestrator": {
                 "execution": {
@@ -72,8 +72,8 @@ def test_collect_cluster_orders_recovery_keeps_dl_direction_after_call_loss():
             "deep_learning": {"recovery_gating": {}},
         },
         risk_manager=SimpleNamespace(
-            pending_loss={"OTC_SPC": 14.32},
-            last_loss_symbol="OTC_SPC",
+            pending_loss={"R_10": 14.32},
+            last_loss_symbol="R_10",
             consecutive_losses=1,
             consecutive_losses_linear=1,
             recovery_symbol_loss_streak={},
@@ -86,17 +86,17 @@ def test_collect_cluster_orders_recovery_keeps_dl_direction_after_call_loss():
         orch=orch,
         logger=MagicMock(),
         _mandatory_trade_each_cycle=lambda: True,
-        _trade_symbols=lambda: ["OTC_SPC"],
+        _trade_symbols=lambda: ["R_10"],
     )
     decisions = {
-        "OTC_SPC": {
+        "R_10": {
             "direction": TradeDirection.CALL,
             "metrics": asymmetric_gate_safe_metrics(trade_score=0.72, raw_prob=0.54),
         },
     }
     orders = collect_cluster_orders(exec_mgr, decisions)
     assert len(orders) == 1
-    assert orders[0][0] == "OTC_SPC"
+    assert orders[0][0] == "R_10"
     assert orders[0][1] == TradeDirection.CALL
 
 

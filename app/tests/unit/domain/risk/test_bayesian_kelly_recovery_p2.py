@@ -47,7 +47,7 @@ def test_recover_weak_score_does_not_force_mandatory_min(kelly_config):
     stake_mandatory = calculate_stake_for_manager(
         rm,
         120.0,
-        "OTC_SPC",
+        "R_10",
         0.40,
         silent=True,
         apply_stop_win=False,
@@ -60,7 +60,7 @@ def test_recover_weak_score_does_not_force_mandatory_min(kelly_config):
     stake_plain = calculate_stake_for_manager(
         rm,
         120.0,
-        "OTC_SPC",
+        "R_10",
         0.40,
         silent=True,
         apply_stop_win=False,
@@ -75,7 +75,7 @@ def test_explore_emits_stake_regime_on_metrics(kelly_config):
     calculate_stake_for_manager(
         rm,
         120.0,
-        "OTC_SPC",
+        "R_10",
         0.62,
         silent=False,
         apply_stop_win=False,

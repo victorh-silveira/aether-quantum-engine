@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
+
+
+os.environ.setdefault("LOKY_MAX_CPU_COUNT", "4")
 
 import joblib
 import lightgbm as lgb
@@ -39,11 +43,15 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     x_arr, y_arr = _synthetic_xy()
     model = lgb.LGBMClassifier(
-        n_estimators=40,
+        n_estimators=80,
         learning_rate=0.05,
         num_leaves=15,
-        min_child_samples=3,
+        min_child_samples=15,
+        class_weight="balanced",
+        subsample=0.9,
+        colsample_bytree=0.9,
         verbosity=-1,
+        n_jobs=1,
     )
     model.fit(x_arr, y_arr)
     version = "loss_bootstrap_synth"
@@ -55,6 +63,7 @@ def main() -> int:
             "feature_names": [f"f_{i}" for i in range(FEATURE_DIM)],
             "n_train": int(len(y_arr)),
             "auto_learn_applied": False,
+            "bootstrap": True,
             "model_version": version,
             "feature_dim": FEATURE_DIM,
         },

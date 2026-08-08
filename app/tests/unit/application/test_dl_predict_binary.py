@@ -27,7 +27,7 @@ def test_predict_abstains_on_gray_zone_raw_prob():
     ):
         entry = predict_symbol_decision(
             orch,
-            "OTC_SPC",
+            "R_10",
             TemporalDirectionClassifier(input_dim=INPUT_DIM),
             np.zeros(80),
             fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32)),
@@ -56,7 +56,7 @@ def test_predict_executes_on_strong_call():
     ):
         entry = predict_symbol_decision(
             orch,
-            "OTC_SPC",
+            "R_10",
             TemporalDirectionClassifier(input_dim=INPUT_DIM),
             np.zeros(80),
             fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32)),
@@ -85,7 +85,7 @@ def test_predict_weak_direction_still_executes():
     ):
         entry = predict_symbol_decision(
             orch,
-            "OTC_SPC",
+            "R_10",
             TemporalDirectionClassifier(input_dim=INPUT_DIM),
             np.zeros(80),
             fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32)),
@@ -132,7 +132,7 @@ def test_predict_includes_dynamic_threshold_metrics():
     ):
         entry = predict_symbol_decision(
             orch,
-            "OTC_SPC",
+            "R_10",
             TemporalDirectionClassifier(input_dim=INPUT_DIM),
             np.linspace(10.0, 11.0, 80),
             fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32)),
@@ -176,7 +176,7 @@ def test_predict_includes_trend_metrics():
     ):
         entry = predict_symbol_decision(
             orch,
-            "OTC_SPC",
+            "R_10",
             TemporalDirectionClassifier(input_dim=INPUT_DIM),
             prices,
             fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32)),
@@ -204,7 +204,7 @@ def test_predict_trend_conflict_does_not_block():
     ):
         entry = predict_symbol_decision(
             orch,
-            "OTC_SPC",
+            "R_10",
             TemporalDirectionClassifier(input_dim=INPUT_DIM),
             prices,
             fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32)),

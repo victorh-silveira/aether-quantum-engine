@@ -37,7 +37,7 @@ def test_calibrator_binomial_mandatory_peer_and_pool():
     ):
         assert (
             build_execution_candidate(
-                "OTC_SPC",
+                "R_10",
                 {"metrics": {}},
                 decisions={"R_25": {"metrics": {"x": 1}}},
             )
@@ -69,12 +69,12 @@ def test_entropy_and_fallback_paths():
     weak = {**good, "trade_score": 0.4, "conviction": 0.4, "calibrated_prob": 0.4, "raw_prob": 0.4}
     decisions = {
         "SKIP": {"direction": TradeDirection.CALL, "metrics": good},
-        "OTC_SPC": {"direction": TradeDirection.CALL, "metrics": good},
+        "R_10": {"direction": TradeDirection.CALL, "metrics": good},
         "R_50": {"direction": TradeDirection.CALL, "metrics": mid},
         "R_25": {"direction": TradeDirection.PUT, "metrics": weak},
         "DEAD": {"direction": TradeDirection.CALL, "metrics": good},
     }
-    candidate = ("OTC_SPC", TradeDirection.CALL, good)
+    candidate = ("R_10", TradeDirection.CALL, good)
     mid_candidate = ("R_50", TradeDirection.CALL, mid)
     with (
         patch(
@@ -86,7 +86,7 @@ def test_entropy_and_fallback_paths():
             return_value=candidate,
         ),
     ):
-        assert pick_entropy_fallback_candidate(["OTC_SPC"], decisions, orch=orch, cycle_id=0) is not None
+        assert pick_entropy_fallback_candidate(["R_10"], decisions, orch=orch, cycle_id=0) is not None
 
     def _build_by_symbol(symbol, entry, **kwargs):
         if symbol == "DEAD":
@@ -106,7 +106,7 @@ def test_entropy_and_fallback_paths():
         ),
     ):
         scored = _scored_fallback_pick(
-            ["SKIP", "R_25", "OTC_SPC", "R_50"],
+            ["SKIP", "R_25", "R_10", "R_50"],
             decisions,
             skip_symbols=frozenset({"SKIP"}),
             min_signal=0.5,
@@ -114,9 +114,9 @@ def test_entropy_and_fallback_paths():
             orch=orch,
         )
         assert scored is not None
-        assert scored[0] == "OTC_SPC"
+        assert scored[0] == "R_10"
         last = _last_resort_fallback_pick(
-            ["SKIP", "DEAD", "OTC_SPC"],
+            ["SKIP", "DEAD", "R_10"],
             decisions,
             skip_symbols=frozenset({"SKIP"}),
             min_signal=0.5,
@@ -140,7 +140,7 @@ def test_entropy_and_fallback_paths():
     ):
         assert (
             build_mandatory_fallback_candidate(
-                ["OTC_SPC"],
+                ["R_10"],
                 decisions,
                 recovery_active=False,
                 last_loss_symbol=None,

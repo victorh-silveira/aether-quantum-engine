@@ -74,7 +74,7 @@ async def test_orchestrator_owned_tasks_collects_registered_tree():
     wd = asyncio.create_task(_worker(), name="aether-watchdog")
     orch._settlement_worker_task = worker
     orch._ingestion_watchdog = SimpleNamespace(_task=wd)
-    orch._dl_deferred_tasks = {"OTC_SPC": deferred}
+    orch._dl_deferred_tasks = {"R_10": deferred}
     owned = _orchestrator_owned_tasks(orch)
     assert worker in owned
     assert deferred in owned

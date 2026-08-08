@@ -300,7 +300,7 @@ presentation  →  application  →  domain
 
 | Módulo | Responsabilidade |
 |--------|------------------|
-| `drift_symbols.py` | Universo `OTC_SPC`; `hedge_peer`, `is_high_side`, `sym_is_low_barrier` |
+| `drift_symbols.py` | Universo `R_10`; `hedge_peer`, `is_high_side`, `sym_is_low_barrier` |
 
 ### Risk (`domain/risk/`)
 

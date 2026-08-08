@@ -46,7 +46,7 @@ def test_calculate_stake_stop_win_kelly_boosts_from_raw_when_score_zero(kelly_co
     stake = calculate_stake_for_manager(
         rm,
         10000.0,
-        "OTC_SPC",
+        "R_10",
         0.0,
         silent=True,
         apply_stop_win=True,
@@ -73,7 +73,7 @@ def test_calculate_stake_dlambert_recovery_adds_linear_unit(kelly_config):
     rm.stake_max = 12000.0
     rm.initial_bankroll = 10000.0
     rm.total_session_profit = 0.0
-    rm.pending_loss = {"OTC_SPC": 200.0}
+    rm.pending_loss = {"R_10": 200.0}
     rm.active_contract_ids = []
     rm.last_loss_stake = 50.0
     rm.logger = MagicMock()
@@ -85,7 +85,7 @@ def test_calculate_stake_dlambert_recovery_adds_linear_unit(kelly_config):
     stake = calculate_stake_for_manager(
         rm,
         10000.0,
-        "OTC_SPC",
+        "R_10",
         0.0,
         silent=True,
         apply_stop_win=True,
@@ -139,7 +139,7 @@ def test_calculate_stake_mandatory_weak_boost_unlimited(kelly_config):
     stake = calculate_stake_for_manager(
         rm,
         10000.0,
-        "OTC_SPC",
+        "R_10",
         0.50,
         silent=True,
         apply_stop_win=True,
@@ -181,7 +181,7 @@ def test_calculate_stake_stop_win_kelly_boosts_when_dl_approved(kelly_config):
     stake = calculate_stake_for_manager(
         rm,
         1168.0,
-        "OTC_SPC",
+        "R_10",
         0.55,
         silent=True,
         apply_stop_win=True,
@@ -220,7 +220,7 @@ def test_calculate_stake_stop_win_kelly_silent_skips_boost_log(kelly_config):
     calculate_stake_for_manager(
         rm,
         1168.0,
-        "OTC_SPC",
+        "R_10",
         0.50,
         silent=True,
         apply_stop_win=True,

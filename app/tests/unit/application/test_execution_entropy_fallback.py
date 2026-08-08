@@ -17,13 +17,13 @@ def _entry(prob: float, *, calibrated: bool = True) -> dict:
 
 def test_entropy_fallback_picks_lowest_entropy():
     decisions = {
-        "OTC_SPC": _entry(0.82),
+        "R_10": _entry(0.82),
         "R_50": _entry(0.51),
     }
-    picked = pick_entropy_fallback_candidate(["OTC_SPC", "R_50"], decisions)
+    picked = pick_entropy_fallback_candidate(["R_10", "R_50"], decisions)
     assert picked is not None
     symbol, direction, metrics = picked
-    assert symbol == "OTC_SPC"
+    assert symbol == "R_10"
     assert direction in (TradeDirection.CALL, TradeDirection.PUT)
     assert metrics.get("execution_mode") == "EXEC_FALLBACK"
     assert metrics.get("fallback_reason") == "entropy_min"
@@ -33,7 +33,7 @@ def test_entropy_fallback_skips_technical_blocks():
     blocked = _entry(0.9)
     blocked["metrics"]["gate_reason"] = "predict_error"
     blocked["metrics"]["deploy_ok"] = False
-    decisions = {"OTC_SPC": blocked, "R_50": _entry(0.62)}
-    picked = pick_entropy_fallback_candidate(["OTC_SPC", "R_50"], decisions)
+    decisions = {"R_10": blocked, "R_50": _entry(0.62)}
+    picked = pick_entropy_fallback_candidate(["R_10", "R_50"], decisions)
     assert picked is not None
-    assert picked[0] in {"OTC_SPC", "R_50"}
+    assert picked[0] in {"R_10", "R_50"}

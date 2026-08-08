@@ -48,7 +48,7 @@ def test_bayesian_win_rate_falls_back_to_rolling_blend():
 def test_effective_win_rate_uses_bayesian_live(kelly_config):
     rm = RiskManager(kelly_config)
     p = rm.effective_win_rate(
-        "OTC_SPC",
+        "R_10",
         conviction=0.70,
         metrics={"live_n": 32, "live_wr": 0.35, "live_brier": 0.18, "live_ece": 0.05},
     )
@@ -115,7 +115,7 @@ def test_soft_recovery_acc_below_floor_forces_explore():
     )
     assert metrics.get("recovery_acc_force_explore") is True
     assert metrics.get("recovery_force_explore") is True
-    assert stake == pytest.approx(200.0)
+    assert stake == pytest.approx(25.0)
 
 
 def test_soft_recovery_acc_below_floor_waived_by_pending_uses_cover():
@@ -237,7 +237,7 @@ def test_soft_recovery_cover_ge_cap_forces_explore():
     assert metrics.get("recovery_infeasible") is True
     assert metrics.get("recovery_force_explore") is True
     assert float(metrics.get("recovery_cover_need", 0.0)) + 1e-12 >= cap
-    assert stake == pytest.approx(200.0)
+    assert stake == pytest.approx(25.0)
     assert stake < cap
 
 

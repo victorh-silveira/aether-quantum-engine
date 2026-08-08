@@ -164,7 +164,7 @@ def main() -> int:
 
     settings = _load_settings()
     dsn = _settings_dsn(settings)
-    symbols = ["OTC_SPC"]
+    symbols = ["R_10"]
     granularities = _required_granularities(settings)
     ok = asyncio.run(_data_ok(dsn, symbols, granularities))
     if ok:

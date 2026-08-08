@@ -252,7 +252,7 @@ def test_adapt_disabled_flags():
 
 def test_sizing_on_adapted_sets_force_explore_and_cap():
     metrics = {"kelly_fraction_scale": 1.0, "scale_adapted": True, "scale_discordance": False}
-    apply_scale_kelly_sizing(None, "OTC_SPC", TradeDirection.CALL, metrics)
+    apply_scale_kelly_sizing(None, "R_10", TradeDirection.CALL, metrics)
     assert metrics["scale_force_explore"] is True
     assert metrics["kelly_fraction_scale"] < 1.0
     assert float(metrics["scale_max_stake_pct"]) > 0.0

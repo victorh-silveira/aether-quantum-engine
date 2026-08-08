@@ -33,6 +33,6 @@ def test_resolve_dlambert_stake_infeasible_force_explore_returns_kelly():
         f_star=0.01,
     )
     assert tag == "KELLY"
-    assert stake == pytest.approx(200.0)
+    assert stake == pytest.approx(25.0)
     assert metrics.get("recovery_force_explore") is True
     assert metrics.get("recovery_infeasible") is True

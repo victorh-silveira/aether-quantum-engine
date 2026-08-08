@@ -43,16 +43,16 @@ def test_mandatory_pool_eligible_blocks_deploy():
 
 
 def test_market_decision_score_positive():
-    score = market_decision_score(_entry()["metrics"], symbol="OTC_SPC")
+    score = market_decision_score(_entry()["metrics"], symbol="R_10")
     assert score > 0.0
 
 
 def test_build_market_execution_candidate():
-    built = build_market_execution_candidate("OTC_SPC", _entry())
+    built = build_market_execution_candidate("R_10", _entry())
     assert built is not None
-    assert built[0] == "OTC_SPC"
+    assert built[0] == "R_10"
 
 
 def test_resolve_execution_direction_for_rank_entry():
-    result = resolve_execution_direction(_entry(), exec_cfg={}, symbol="OTC_SPC")
+    result = resolve_execution_direction(_entry(), exec_cfg={}, symbol="R_10")
     assert result is not None

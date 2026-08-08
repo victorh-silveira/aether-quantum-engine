@@ -21,7 +21,7 @@ def test_volatility_shadow_ratio_and_rolling_zscore():
     series = precompute_price_series(
         prices,
         granularity=60,
-        symbol="OTC_SPC",
+        symbol="R_10",
         open_=open_,
         high=high,
         low=low,
@@ -53,7 +53,7 @@ def test_micro_congestion_squeeze_veto():
 
     entry = build_prediction_entry(
         orch,
-        "OTC_SPC",
+        "R_10",
         prices,
         series,
         runtime,
@@ -92,7 +92,7 @@ async def test_chaotic_volatility_asymmetric_penalty():
     f_vec = [0.0] * 43
     f_vec[8] = 2.8  # > 2.5
     req = {
-        "symbol": "OTC_SPC",
+        "symbol": "R_10",
         "tcn_probability": 0.58,
         "direction": "CALL",
         "feature_vector": f_vec,
@@ -107,7 +107,7 @@ def test_consensus_cointegration_redirect():
     # Drawdown > 15% na conta de $100 -> pending_loss total > $15.00
     risk_mgr = SimpleNamespace(
         initial_bankroll=100.0,
-        pending_loss={"OTC_SPC": 10.0, "R_50": 6.0},
+        pending_loss={"R_10": 10.0, "R_50": 6.0},
         pending_loss_total=lambda: 16.0,
         consecutive_losses_linear=2,
         total_session_profit=-16.0,
@@ -125,11 +125,11 @@ def test_consensus_cointegration_redirect():
         orch=orch,
         logger=MagicMock(),
         _mandatory_trade_each_cycle=lambda: True,
-        _trade_symbols=lambda: ["OTC_SPC", "R_50"],
+        _trade_symbols=lambda: ["R_10", "R_50"],
     )
 
     decisions = {
-        "OTC_SPC": {
+        "R_10": {
             "direction": TradeDirection.CALL,
             "metrics": {
                 "execute": True,
@@ -162,16 +162,16 @@ def test_consensus_cointegration_redirect():
     ):
         # Mock do gather para retornar os candidatos
         mock_gather.return_value = [
-            ("OTC_SPC", TradeDirection.CALL, decisions["OTC_SPC"]["metrics"]),
-            ("OTC_SPC", TradeDirection.PUT, decisions["OTC_SPC"]["metrics"]),
+            ("R_10", TradeDirection.CALL, decisions["R_10"]["metrics"]),
+            ("R_10", TradeDirection.PUT, decisions["R_10"]["metrics"]),
         ]
         mock_loss.return_value = mock_gather.return_value
         mock_hurst.return_value = mock_gather.return_value
 
         res = collect_cluster_orders(exec_mgr, decisions)
-        # OTC_SPC deve ser preferível por ter menor entropia ou maior Z-score -> candidates filtrado para apenas 1 símbolo
+        # R_10 deve ser preferível por ter menor entropia ou maior Z-score -> candidates filtrado para apenas 1 símbolo
         assert len(res) == 1
-        assert res[0][0] in ("OTC_SPC", "OTC_SPC")
+        assert res[0][0] in ("R_10", "R_10")
 
 
 def test_sub_cent_reconciliation_exact_rounding():

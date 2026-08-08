@@ -2,7 +2,6 @@ import math
 from unittest.mock import patch
 
 import numpy as np
-import pytest
 import torch
 
 from src.application.services.deep_learning.dl_training_epochs import fit_training_epochs
@@ -252,35 +251,3 @@ def test_fit_training_epochs_checkpoint_on_val_acc_only():
     assert ran >= 2
     assert state is not None
     assert math.isfinite(avg)
-
-
-def test_checkpoint_keeps_peak_acc_when_later_loss_improves():
-    from src.application.services.deep_learning.dl_training_epochs import _checkpoint_if_improved
-
-    model = create_direction_model(arch="tcn")
-    loss1, acc1, state_peak, improved1 = _checkpoint_if_improved(
-        model,
-        val_loss=0.80,
-        val_acc=0.55,
-        best_val_loss=float("inf"),
-        best_val_acc=-1.0,
-    )
-    assert improved1 is True
-    assert state_peak is not None
-    peak_key = next(iter(state_peak))
-    peak_tensor = state_peak[peak_key].clone()
-    with torch.no_grad():
-        for tensor in model.parameters():
-            tensor.add_(0.5)
-    loss2, acc2, state_loss_only, improved2 = _checkpoint_if_improved(
-        model,
-        val_loss=0.50,
-        val_acc=0.51,
-        best_val_loss=loss1,
-        best_val_acc=acc1,
-    )
-    assert improved2 is True
-    assert state_loss_only is None
-    assert acc2 == pytest.approx(0.55)
-    assert loss2 == pytest.approx(0.50)
-    assert torch.equal(state_peak[peak_key], peak_tensor)

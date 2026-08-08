@@ -252,6 +252,7 @@ def parse_dl_params(
         "retrain_min_bars": int(dl_config.get("retrain_min_bars", 1)),
         "training_history_bars": training_history_bars,
         "inference_history_bars": inference_history_bars,
+        "train_history_shortfall_ratio": float(dl_config.get("train_history_shortfall_ratio", 0.95)),
         "bars_per_day": bars_per_day(gran),
         "label_horizon_bars": label_horizon_bars,
         "label_smooth_bars": label_smooth_bars,

@@ -1,6 +1,7 @@
 """Predicao por simbolo no bridge Deep Learning."""
 
 import asyncio
+import logging
 from typing import Any
 
 from src.application.services.deep_learning.dl_outcomes import blended_val_accuracy
@@ -10,12 +11,9 @@ from src.application.services.deep_learning.dl_predict_build import (
     build_prediction_entry,
     eager_local_predict,
 )
-from src.application.services.deep_learning.dl_predict_cache import (
-    resolve_cached_prediction,
-)
-from src.application.services.orchestrator.orchestrator_data_signature import (
-    at_signature_boundary,
-)
+
+
+logger = logging.getLogger("AETH")
 
 
 def predict_symbol_decision_sync(
@@ -41,7 +39,7 @@ def predict_symbol_decision_sync(
         float(runtime["val_accuracy"]),
         live_weight=float(params.get("val_acc_live_blend", 0.35)),
     )
-    on_boundary = at_signature_boundary(orch)
+    cycle_id = int(getattr(orch, "_active_cycle_id", 0) or 0)
     ctx = build_prediction_context(
         orch,
         symbol,
@@ -54,9 +52,7 @@ def predict_symbol_decision_sync(
         low=low,
         micro=micro,
     )
-    cached = resolve_cached_prediction(orch, symbol, at_boundary=on_boundary)
-    if cached is not None:
-        return cached
+    logger.debug("DL: predict fresh cycle=%d symbol=%s", cycle_id, symbol)
     direction, prob, raw_prob = eager_local_predict(
         ctx,
         model=model,

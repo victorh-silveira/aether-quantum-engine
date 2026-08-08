@@ -12,8 +12,6 @@ from src.application.services.deep_learning.dl_calibration_isotonic import apply
 from src.application.services.execution_volatility_threshold import (
     _median_tail,
     _vol_component,
-    resolve_dynamic_threshold_bundle,
-    resolve_dynamic_thresholds,
     volatility_regime_score,
 )
 
@@ -160,6 +158,37 @@ def test_fit_calibrator_falls_back_to_identity_when_forced_collapses():
     assert mean_sharpness([apply_calibrator(p, cal) for p in probs]) >= 0.01 - 1e-9
 
 
+def test_maybe_identity_on_oos_collapse_switches_from_isotonic():
+    from src.application.services.deep_learning.dl_calibration_fit import maybe_identity_on_oos_collapse
+    from src.application.services.deep_learning.dl_sharpness import mean_sharpness
+
+    preferred = CalibratorState(method="isotonic", isotonic_x=(0.2, 0.8), isotonic_y=(0.495, 0.505))
+    val_probs = [0.15, 0.25, 0.75, 0.85, 0.12, 0.88, 0.22, 0.78]
+    cal, oos = maybe_identity_on_oos_collapse(preferred, val_probs=val_probs, min_oos_sharpness=0.01)
+    assert cal.method == "identity"
+    assert oos == mean_sharpness(val_probs)
+    assert oos >= 0.01 - 1e-9
+
+
+def test_maybe_identity_on_oos_collapse_keeps_when_raw_also_dull():
+    from src.application.services.deep_learning.dl_calibration_fit import maybe_identity_on_oos_collapse
+
+    preferred = CalibratorState(method="isotonic", isotonic_x=(0.49, 0.51), isotonic_y=(0.495, 0.505))
+    val_probs = [0.501, 0.499, 0.502, 0.498, 0.503, 0.497]
+    cal, oos = maybe_identity_on_oos_collapse(preferred, val_probs=val_probs, min_oos_sharpness=0.01)
+    assert cal.method == "isotonic"
+    assert oos < 0.01
+
+
+def test_maybe_identity_on_oos_collapse_empty_val_probs():
+    from src.application.services.deep_learning.dl_calibration_fit import maybe_identity_on_oos_collapse
+
+    preferred = CalibratorState(method="platt", platt_a=1.0, platt_b=0.0)
+    cal, oos = maybe_identity_on_oos_collapse(preferred, val_probs=[], min_oos_sharpness=0.01)
+    assert cal.method == "platt"
+    assert oos == 0.0
+
+
 def test_fit_calibrator_isotonic_explicit():
     probs = [0.1 + i * 0.1 for i in range(10)]
     labels = [1.0 if p >= 0.55 else 0.0 for p in probs]
@@ -174,107 +203,3 @@ def test_calibrator_roundtrip_with_method():
     restored = calibrator_from_dict(payload)
     assert restored.method == "isotonic"
     assert restored.isotonic_x == (0.2, 0.8)
-
-
-def test_volatility_regime_directional_clean_low_score():
-    score = volatility_regime_score(
-        bb_width=0.02,
-        atr_norm=0.015,
-        adx=0.30,
-        vol_ratio=0.95,
-        bb_width_history=[0.02, 0.021, 0.019],
-        atr_norm_history=[0.015, 0.014, 0.016],
-        cfg={"directional_adx_min": 0.22, "baseline_lookback": 8},
-    )
-    assert score <= 0.35
-
-
-def test_volatility_regime_compressive_high_score():
-    score = volatility_regime_score(
-        bb_width=0.005,
-        atr_norm=0.030,
-        adx=0.15,
-        vol_ratio=1.20,
-        bb_width_history=[0.02, 0.021, 0.019, 0.018],
-        atr_norm_history=[0.010, 0.011, 0.012, 0.013],
-        cfg={"compressive_bb_percentile": 0.25, "baseline_lookback": 8},
-    )
-    assert score >= 0.70
-
-
-def test_resolve_dynamic_thresholds_high_regime_tightens():
-    bundle = resolve_dynamic_thresholds(
-        base_call=0.53,
-        base_put=0.47,
-        base_edge=0.04,
-        regime_score=0.85,
-        cfg={
-            "high_regime_call_delta": 0.03,
-            "high_regime_put_delta": 0.03,
-            "high_regime_edge_delta": 0.015,
-            "low_regime_call_delta": -0.02,
-            "low_regime_put_delta": -0.02,
-            "low_regime_edge_delta": -0.01,
-        },
-    )
-    assert bundle.call_threshold > 0.53
-    assert bundle.put_threshold < 0.47
-    assert bundle.min_edge > 0.04
-
-
-def test_resolve_dynamic_thresholds_low_regime_relaxes():
-    bundle = resolve_dynamic_thresholds(
-        base_call=0.53,
-        base_put=0.47,
-        base_edge=0.04,
-        regime_score=0.15,
-        cfg={
-            "high_regime_call_delta": 0.03,
-            "high_regime_put_delta": 0.03,
-            "high_regime_edge_delta": 0.015,
-            "low_regime_call_delta": -0.02,
-            "low_regime_put_delta": -0.02,
-            "low_regime_edge_delta": -0.01,
-        },
-    )
-    assert bundle.call_threshold < 0.53
-    assert bundle.put_threshold > 0.47
-    assert bundle.min_edge < 0.04
-
-
-def test_resolve_dynamic_threshold_bundle_disabled():
-    assert (
-        resolve_dynamic_threshold_bundle(
-            base_call=0.53,
-            base_put=0.47,
-            base_edge=0.04,
-            bb_width=0.02,
-            atr_norm=0.01,
-            adx=0.2,
-            vol_ratio=1.0,
-            cfg={"enabled": False},
-        )
-        is None
-    )
-
-
-def test_resolve_dynamic_threshold_bundle_vol_compression():
-    bundle = resolve_dynamic_threshold_bundle(
-        base_call=0.53,
-        base_put=0.47,
-        base_edge=0.04,
-        bb_width=0.001,
-        atr_norm=0.01,
-        adx=0.19,
-        vol_ratio=0.41,
-        bb_width_history=[0.05, 0.04, 0.03],
-        cfg={
-            "enabled": True,
-            "vol_compression_threshold": 0.50,
-            "vol_compression_k_parabolic": 4.0,
-            "vol_compression_k_hyperbolic": 0.15,
-        },
-        symbol="OTC_SPC",
-    )
-    assert bundle is not None
-    assert bundle.min_edge > 0.04

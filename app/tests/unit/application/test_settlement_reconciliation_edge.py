@@ -84,7 +84,7 @@ def test_known_contract_ids_skips_invalid_entries():
     orch = MagicMock()
     orch.state.active_contracts = {"bad": MagicMock(), 10: MagicMock()}
     orch.risk_manager.active_contract_ids = ["x", 11]
-    orch.risk_manager.contract_to_symbol = {None: "OTC_SPC", 12: "OTC_SPC"}
+    orch.risk_manager.contract_to_symbol = {None: "R_10", 12: "R_10"}
     assert _known_contract_ids(orch) == [10, 11, 12]
 
 
@@ -95,7 +95,7 @@ async def test_reconcile_profit_burst_skips_missing_row():
     orch.config = {"orchestrator": {"execution": {}}}
     orch.state.active_contracts = {}
     orch.risk_manager.active_contract_ids = []
-    orch.risk_manager.contract_to_symbol = {601: "OTC_SPC"}
+    orch.risk_manager.contract_to_symbol = {601: "R_10"}
     orch.ws = AsyncMock()
     orch.logger = MagicMock()
     orch._save_full_state = AsyncMock()
@@ -124,7 +124,7 @@ async def test_reconcile_profit_burst_skips_bad_payload():
     orch.config = {"orchestrator": {"execution": {}}}
     orch.state.active_contracts = {}
     orch.risk_manager.active_contract_ids = []
-    orch.risk_manager.contract_to_symbol = {602: "OTC_SPC"}
+    orch.risk_manager.contract_to_symbol = {602: "R_10"}
     orch.ws = AsyncMock()
     orch.logger = MagicMock()
     orch._save_full_state = AsyncMock()
@@ -157,7 +157,7 @@ async def test_reconcile_profit_burst_late_settlement_path():
     orch.config = {"orchestrator": {"execution": {}}}
     orch.state.active_contracts = {}
     orch.risk_manager.active_contract_ids = []
-    orch.risk_manager.contract_to_symbol = {602: "OTC_SPC"}
+    orch.risk_manager.contract_to_symbol = {602: "R_10"}
     orch.ws = AsyncMock()
     orch.logger = MagicMock()
     orch._save_full_state = AsyncMock()
@@ -192,7 +192,7 @@ async def test_reconcile_profit_burst_exception_recorded():
     orch.config = {"orchestrator": {"execution": {}}}
     orch.state.active_contracts = {}
     orch.risk_manager.active_contract_ids = []
-    orch.risk_manager.contract_to_symbol = {701: "OTC_SPC"}
+    orch.risk_manager.contract_to_symbol = {701: "R_10"}
     orch.ws = AsyncMock()
     orch.logger = MagicMock()
     orch._save_full_state = AsyncMock()

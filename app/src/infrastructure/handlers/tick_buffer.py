@@ -56,6 +56,25 @@ class TickBuffer:
         """Retorna timestamp monotonico do ultimo tick registrado."""
         return float(self._last_tick_monotonic)
 
+    def latest_price(self, symbol: str) -> float | None:
+        """Retorna o preco do ultimo tick live do simbolo, se houver."""
+        ticks = self._live.get(str(symbol))
+        if not ticks:
+            return None
+        try:
+            return float(ticks[-1][1])
+        except (TypeError, ValueError, IndexError):
+            return None
+
+    def live_tick_count(self, symbol: str) -> int:
+        """Quantidade de ticks live acumulados no simbolo."""
+        ticks = self._live.get(str(symbol))
+        return int(len(ticks)) if ticks is not None else 0
+
+    def forming_bar_micro_stats(self, symbol: str) -> BarMicrostructure:
+        """Agrega microestrutura dos ticks live da barra em formacao."""
+        return self._aggregate_bar(str(symbol))
+
     def record_tick(self, symbol: str, epoch_ms: int, price: float) -> None:
         """Registra um tick recebido do WebSocket."""
         if symbol not in self._live:

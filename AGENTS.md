@@ -11,10 +11,10 @@ Ponto de entrada para agentes Cursor/LLM neste repositorio.
 
 ## Universo operacional
 
-- Simbolo unico: **`OTC_SPC`** (S&P 500 OTC / dTrader) — **somente M15**
-- Relogio: contrato **15 m**; micro/MINI **900 s**; macro **3600 s**; ciclo **900 s**
+- Simbolo unico: **`R_10`** (Volatility 10 / Deriv) — **M2**
+- Relogio: contrato **2 m**; micro/MINI **120 s**; macro **3600 s**; ciclo **60 s**
 - SSOT: `config/settings.json` + `app/src/domain/symbols/drift_symbols.py`
-- Artefactos/treino antigos de Volatility (`R_10`) ou gran 60/300 sao invalidos apos migracao
+- Artefactos/treino antigos (OTC_SPC/M15 ou gran 60/300/900) sao invalidos apos migracao para **R_10** M2
 
 ## O que o LLM e / nao e
 
@@ -34,7 +34,7 @@ Rules/skills versionadas: [`.cursor/rules/`](.cursor/rules/) e [`.cursor/skills/
 - Cobertura de testes em `app/src` abaixo de **100%**
 - Assunto de commit em ingles; escopo fora do enum commitlint
 
-Nota operacional (**escopo 1.1**): quality gate amplo (Hurst/ADX/RSI/price_zone/SIDE_EQ block) permanece **fora**; EXEC_EMPTY = tecnico + Kelly/caps; `signal_skip` / loss-clf = **somente soft Kelly** (sem hard SKIP de sinal; sem flip pos-LOSS). Vies CALL/PUT: treino + SIDE_EQ soft.
+Nota operacional (**escopo 1.1** + arquitetura continua R_10): quality gate amplo (RSI/price_zone/SIDE_EQ block) permanece **fora**; `signal_skip` mini/cal = soft Kelly; **loss-clf** soft na faixa media (`veto_ready`) e **FLIP** CALL↔PUT **relativo ao TCN** se `p_loss >= hard_p_loss_floor` (**0.90**, so com `veto_ready`; seed bootstrap devolve **p_loss real**, sem COLD_START neutro); **chop** / **neg_edge** = soft Kelly (**0.55**) se ADX fraco + Hurst banda ou SCALE chop / Edge Cal &lt; `min_edge_execute` — sem `EXEC_EMPTY` de sinal. Sem revenge sizing pos-LOSS. Vies CALL/PUT: treino + SIDE_EQ soft.
 
 ## Escopos commitlint
 

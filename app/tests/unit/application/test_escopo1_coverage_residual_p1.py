@@ -149,10 +149,10 @@ def test_live_signal_metrics_drift_and_ece():
             },
         ),
     ):
-        assert apply_live_calib_drift_soft(metrics, orch=orch, symbol="OTC_SPC") is True
+        assert apply_live_calib_drift_soft(metrics, orch=orch, symbol="R_10") is True
         assert metrics.get("calib_drift_soft_veto") is True
     for i in range(8):
-        record_live_signal_outcome(orch, "OTC_SPC", won=i % 2 == 0, raw_prob=0.6, direction="CALL")
+        record_live_signal_outcome(orch, "R_10", won=i % 2 == 0, raw_prob=0.6, direction="CALL")
 
 
 def test_force_trade_and_quality_margin_branches():
@@ -166,7 +166,7 @@ def test_force_trade_and_quality_margin_branches():
             "calibration_mode": "neutral_clamp",
         }
     }
-    picked = synthesize_force_trade_candidate(["OTC_SPC"], {"OTC_SPC": entry}, orch=SimpleNamespace())
+    picked = synthesize_force_trade_candidate(["R_10"], {"R_10": entry}, orch=SimpleNamespace())
     assert picked is not None
     assert picked[2]["force_trade_every_cycle"] is True
     metrics = {"trade_score": 0.8, "predicted_payoff_edge": 0.2}
@@ -175,6 +175,6 @@ def test_force_trade_and_quality_margin_branches():
     sync_metrics = {"direction_call_score": 0.6, "direction_put_score": 0.4}
     sync_direction_margin(sync_metrics, direction="CALL")
     assert sync_metrics["direction_margin"] == pytest.approx(0.2)
-    rm = SimpleNamespace(pending_loss={"OTC_SPC": 1.0})
+    rm = SimpleNamespace(pending_loss={"R_10": 1.0})
     _, pending = read_risk_session_state(rm)
     assert pending == pytest.approx(1.0)

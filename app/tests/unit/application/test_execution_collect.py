@@ -220,7 +220,7 @@ def test_mandatory_fallback_if_empty_returns_early_when_not_mandatory():
     exec_mgr = SimpleNamespace(
         orch=SimpleNamespace(config={}),
         _mandatory_trade_each_cycle=lambda: True,
-        _trade_symbols=lambda: ["OTC_SPC"],
+        _trade_symbols=lambda: ["R_10"],
     )
     kept = mandatory_fallback_if_empty(
         exec_mgr,

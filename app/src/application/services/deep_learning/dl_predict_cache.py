@@ -1,4 +1,4 @@
-"""Cache de predicao DL por fronteira temporal e fingerprint de tensor."""
+"""Cache de predicao DL por fronteira temporal, cycle_id e fingerprint de tensor."""
 
 from __future__ import annotations
 
@@ -21,12 +21,14 @@ def store_prediction_cache(
     *,
     tensor_fingerprint: bytes,
     boundary_epoch: int,
+    cycle_id: int = 0,
 ) -> None:
-    """Persiste entrada de decisao indexada por simbolo e fingerprint."""
+    """Persiste entrada de decisao indexada por simbolo, ciclo e fingerprint."""
     prediction_cache(orch)[str(symbol)] = {
         "entry": entry,
         "tensor_fingerprint": tensor_fingerprint,
         "boundary_epoch": int(boundary_epoch),
+        "cycle_id": int(cycle_id),
     }
 
 
@@ -36,14 +38,28 @@ def resolve_cached_prediction(
     *,
     at_boundary: bool,
     tensor_fingerprint: bytes | None = None,
+    boundary_epoch: int | None = None,
+    cycle_id: int | None = None,
 ) -> dict[str, Any] | None:
-    """Retorna predicao em cache quando fora da fronteira ou tensor duplicado."""
+    """Retorna predicao em cache no mesmo cycle_id e boundary_epoch."""
     slot = prediction_cache(orch).get(str(symbol))
     if slot is None:
         return None
     entry = slot.get("entry")
     if not isinstance(entry, dict):
         return None
+    if cycle_id is not None and int(cycle_id) > 0:
+        try:
+            if int(slot.get("cycle_id", -1)) != int(cycle_id):
+                return None
+        except (TypeError, ValueError):
+            return None
+    if boundary_epoch is not None:
+        try:
+            if int(slot.get("boundary_epoch", -1)) != int(boundary_epoch):
+                return None
+        except (TypeError, ValueError):
+            return None
     if tensor_fingerprint is not None:
         if slot.get("tensor_fingerprint") == tensor_fingerprint:
             return entry

@@ -91,7 +91,7 @@ def test_resolve_execution_direction_calibration_neutral_drift_veto(
             "val_accuracy": 0.66,
         },
     }
-    result = resolve_execution_direction(entry, symbol="OTC_SPC")
+    result = resolve_execution_direction(entry, symbol="R_10")
     assert result is not None
     assert entry["metrics"].get("resolved_direction") is not None
     assert entry["metrics"].get("gate_reason") != CALIBRATION_NEUTRAL_DRIFT
@@ -110,7 +110,7 @@ def test_resolve_execution_direction_allows_same_side_calibration() -> None:
             "put_votes": 5,
         },
     }
-    result = resolve_execution_direction(entry, symbol="OTC_SPC")
+    result = resolve_execution_direction(entry, symbol="R_10")
     assert result is not None
     assert entry["metrics"].get("gate_reason") != CALIBRATION_NEUTRAL_DRIFT
 
@@ -124,18 +124,18 @@ def test_cointegration_redirect_armed_at_fifteen_percent_of_live_capital() -> No
 def test_select_cointegration_redirect_prefers_high_z_low_entropy() -> None:
     candidates = [
         ("R_50", TradeDirection.CALL, {"calibrated_prob": 0.9, "edge_zscore": 2.0}),
-        ("OTC_SPC", TradeDirection.CALL, {"calibrated_prob": 0.55, "edge_zscore": 0.4}),
+        ("R_10", TradeDirection.CALL, {"calibrated_prob": 0.55, "edge_zscore": 0.4}),
         ("R_75", TradeDirection.PUT, {"calibrated_prob": 0.80, "edge_zscore": 1.5}),
     ]
     selected = select_cointegration_redirect_candidate(candidates)
     assert len(selected) == 1
-    assert selected[0][0] == "OTC_SPC"
+    assert selected[0][0] == "R_10"
     assert cointegration_pair_score(candidates[1][2]) < cointegration_pair_score(candidates[2][2])
 
 
 def test_micro_tail_stake_cap_and_max_safe_flatten_at_linear_four() -> None:
     assert micro_tail_stake_cap(100.0) == pytest.approx(4.20)
     assert max_safe_stake_cap(100.0, consecutive_losses_linear=0) == pytest.approx(5.0)
-    assert max_safe_stake_cap(100.0, consecutive_losses_linear=4) == pytest.approx(8.40)
-    assert max_safe_stake_cap(100.0, consecutive_losses_linear=8) == pytest.approx(8.40)
+    assert max_safe_stake_cap(100.0, consecutive_losses_linear=4) == pytest.approx(1.05)
+    assert max_safe_stake_cap(100.0, consecutive_losses_linear=8) == pytest.approx(1.05)
     assert max_safe_stake_cap(10000.0, consecutive_losses_linear=4) == pytest.approx(500.0)

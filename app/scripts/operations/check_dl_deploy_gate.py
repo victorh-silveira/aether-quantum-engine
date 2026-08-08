@@ -110,7 +110,7 @@ def main() -> int:
     settings = _load_settings()
     logger = setup_logger("AETH.train", log_file=None)
     parser = argparse.ArgumentParser(description="Gate ACC/deploy apos treino DL.")
-    parser.add_argument("--symbols", nargs="+", default=["OTC_SPC"])
+    parser.add_argument("--symbols", nargs="+", default=["R_10"])
     parser.add_argument("--soft-min", type=float, default=None)
     args = parser.parse_args()
     soft_min = float(args.soft_min) if args.soft_min is not None else _soft_min_acc(settings)

@@ -6,7 +6,7 @@ Guia operacional DL para agentes. Detalhe de features: [`arquitetura.md`](arquit
 
 | Item | Valor tipico |
 |------|----------------|
-| Simbolo | `OTC_SPC` |
+| Simbolo | `R_10` |
 | Arch | TCN |
 | Lookback | **720** → tensor `[1, 720, 34]` (~7,5 dias @ 900 s) |
 | MACRO OHLC | **3600 s** (`data_handler.granularity`) |
@@ -49,7 +49,7 @@ Telemetria de treino: `TrainResult.label_call_frac`, `pred_call_frac`, `minority
 
 Majority-collapse (alem do ACC): com `reject_majority_collapse=true`, rejeita se `|label_call_frac - 0.5| > max_label_call_frac_bias` (**0.20**) e `minority_recall < min_minority_recall` (**0.25**).
 
-Checkpoint de treino restaura pesos do **melhor val_acc** (melhoria so de loss nao sobrescreve). Em OTC_SPC, `spot_forward` costuma platô ~0.52; `ma_trend` e o label SSOT atual.
+Checkpoint de treino restaura pesos do **melhor val_acc** (melhoria so de loss nao sobrescreve). Em R_10, `spot_forward` costuma platô ~0.52; `ma_trend` e o label SSOT atual.
 
 ## Meta — alvo e dados
 

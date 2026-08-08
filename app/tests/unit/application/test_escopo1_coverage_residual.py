@@ -36,13 +36,13 @@ from src.domain.risk.soft_recovery_policy import (
 def test_live_signal_metrics_roundtrip():
     orch = SimpleNamespace(_live_signal_metrics=None, _active_cycle_id=3)
     reset_live_signal_metrics(orch)
-    assert live_signal_snapshot(orch, "OTC_SPC")["live_n"] == 0
+    assert live_signal_snapshot(orch, "R_10")["live_n"] == 0
     for i in range(24):
-        record_live_signal_outcome(orch, "OTC_SPC", won=i % 2 == 0, raw_prob=0.62, direction="CALL")
-    snap = live_signal_snapshot(orch, "OTC_SPC")
+        record_live_signal_outcome(orch, "R_10", won=i % 2 == 0, raw_prob=0.62, direction="CALL")
+    snap = live_signal_snapshot(orch, "R_10")
     assert snap["live_n"] == 24
     metrics = {"raw_prob": 0.9, "live_n": 40, "live_ece": 0.9, "live_wr": 0.1, "trade_score": 0.8}
-    attach_live_signal_metrics(orch, "OTC_SPC", metrics)
+    attach_live_signal_metrics(orch, "R_10", metrics)
     from unittest.mock import patch
 
     with (
@@ -64,7 +64,7 @@ def test_live_signal_metrics_roundtrip():
             },
         ),
     ):
-        assert apply_live_calib_drift_soft(metrics, orch=orch, symbol="OTC_SPC") is True
+        assert apply_live_calib_drift_soft(metrics, orch=orch, symbol="R_10") is True
     assert load_live_signal_metrics_from_settings()["window"] >= 1
 
 
@@ -111,13 +111,13 @@ def test_side_eq_store_persist_paths():
         state_store=SimpleNamespace(client=client),
         timescale_writer=writer,
     )
-    record_side_equilibrium_outcome(orch, "OTC_SPC", direction="PUT", won=False, profit=-1.0, raw_prob=0.4)
-    assert snapshot_side_counts(orch, "OTC_SPC", window=10).put_n >= 1
+    record_side_equilibrium_outcome(orch, "R_10", direction="PUT", won=False, profit=-1.0, raw_prob=0.4)
+    assert snapshot_side_counts(orch, "R_10", window=10).put_n >= 1
     client.hset.side_effect = RuntimeError("boom")
-    record_side_equilibrium_outcome(orch, "OTC_SPC", direction="CALL", won=True)
+    record_side_equilibrium_outcome(orch, "R_10", direction="CALL", won=True)
     writer.enqueue_trade_outcome.side_effect = RuntimeError("ts")
-    record_side_equilibrium_outcome(orch, "OTC_SPC", direction="CALL", won=True)
-    assert record_side_equilibrium_outcome(orch, "OTC_SPC", direction="HOLD", won=True).call_n >= 0
+    record_side_equilibrium_outcome(orch, "R_10", direction="CALL", won=True)
+    assert record_side_equilibrium_outcome(orch, "R_10", direction="HOLD", won=True).call_n >= 0
 
 
 def test_market_rank_penalties_and_recovery():
@@ -135,12 +135,12 @@ def test_market_rank_penalties_and_recovery():
         "meta_squeeze_downgrade": True,
         "indicators": {"adx": 0.1, "vol_ratio": 0.5, "hurst": 0.7},
     }
-    score = market_decision_score(metrics, recovery_active=True, symbol="OTC_SPC", last_loss_symbol="OTC_SPC")
+    score = market_decision_score(metrics, recovery_active=True, symbol="R_10", last_loss_symbol="R_10")
     assert isinstance(score, float)
     metrics2 = dict(metrics)
     metrics2["indicators"] = {"adx": 0.5, "vol_ratio": 1.2, "hurst": 0.3}
     assert isinstance(
-        market_decision_score(metrics2, recovery_active=True, symbol="R_50", last_loss_symbol="OTC_SPC"), float
+        market_decision_score(metrics2, recovery_active=True, symbol="R_50", last_loss_symbol="R_10"), float
     )
 
 
@@ -150,8 +150,8 @@ def test_force_trade_more_branches():
         == TradeDirection.PUT
     )
     assert synthesize_force_direction({"metrics": {"calibrated_prob": "bad", "deploy_ok": True}}) is None
-    assert synthesize_force_trade_candidate(["OTC_SPC"], {"OTC_SPC": "bad"}) is None
-    assert synthesize_force_trade_candidate(["OTC_SPC"], {"OTC_SPC": {"metrics": {"deploy_ok": False}}}) is None
+    assert synthesize_force_trade_candidate(["R_10"], {"R_10": "bad"}) is None
+    assert synthesize_force_trade_candidate(["R_10"], {"R_10": {"metrics": {"deploy_ok": False}}}) is None
     assert synthesize_force_trade_candidate([], {}) is None
 
 

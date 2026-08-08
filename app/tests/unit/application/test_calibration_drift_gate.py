@@ -43,7 +43,7 @@ def test_calibration_neutral_axis_drift_ignores_missing_values():
 @pytest.mark.parametrize(("raw_prob", "calibrated_prob"), ((0.38, 0.55), (0.62, 0.45)))
 def test_resolve_execution_direction_allows_neutral_axis_drift(raw_prob, calibrated_prob):
     entry = _entry(raw_prob=raw_prob, calibrated_prob=calibrated_prob)
-    result = resolve_execution_direction(entry, symbol="OTC_SPC")
+    result = resolve_execution_direction(entry, symbol="R_10")
     assert result is not None
     assert entry["metrics"].get("gate_reason") != CALIBRATION_NEUTRAL_DRIFT
     assert entry["metrics"].get("resolved_direction") is not None
@@ -51,7 +51,7 @@ def test_resolve_execution_direction_allows_neutral_axis_drift(raw_prob, calibra
 
 def test_resolve_execution_direction_allows_aligned_calibration():
     entry = _entry(raw_prob=0.38, calibrated_prob=0.41, direction=TradeDirection.PUT)
-    result = resolve_execution_direction(entry, symbol="OTC_SPC")
+    result = resolve_execution_direction(entry, symbol="R_10")
     assert result is not None
     direction, metrics = result
     assert direction == TradeDirection.PUT
@@ -61,7 +61,7 @@ def test_resolve_execution_direction_allows_aligned_calibration():
 def test_apply_meta_regression_edge_keeps_direction_on_calibration_drift():
     metrics = {"raw_prob": 0.44, "calibrated_prob": 0.56}
     direction, score = apply_meta_regression_edge(
-        TradeDirection.PUT, metrics, 0.10, meta_applied=True, base_score=0.56, symbol="OTC_SPC"
+        TradeDirection.PUT, metrics, 0.10, meta_applied=True, base_score=0.56, symbol="R_10"
     )
     assert direction == TradeDirection.PUT
     assert score > 0.0

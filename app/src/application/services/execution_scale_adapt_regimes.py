@@ -61,8 +61,14 @@ def adapt_on_explosion(metrics: dict[str, Any], exec_dir: TradeDirection, cfg: d
 
 
 def adapt_on_mili_tape(metrics: dict[str, Any], exec_dir: TradeDirection, cfg: dict[str, Any]) -> TradeDirection | None:
-    """Adapta quando MILI e tape concordam contra o TCN (chop / par rachado)."""
+    """Adapta quando MILI e tape concordam contra o TCN (fora de chop se knob ativo)."""
     if not bool(cfg.get("adapt_on_mili_tape", True)):
+        return None
+    classify_micro_regime(metrics, exec_dir.name, cfg=cfg)
+    if (
+        bool(cfg.get("adapt_mili_tape_skip_chop", True))
+        and str(metrics.get("scale_micro_regime") or "").lower() == "chop"
+    ):
         return None
     mili = _side(metrics.get("scale_mili_dir"))
     tape = _side(metrics.get("scale_tape_consensus"))

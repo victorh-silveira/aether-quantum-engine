@@ -21,7 +21,7 @@ real_sleep = asyncio.sleep
 
 
 def test_settlement_tolerance_window_and_backoff_defaults():
-    assert resolve_settlement_tolerance_window(None, {}) == pytest.approx(300.0)
+    assert resolve_settlement_tolerance_window(None, {}) == pytest.approx(90.0)
     assert resolve_settlement_tolerance_window(None, {"settlement_tolerance_window_seconds": 90}) == pytest.approx(90.0)
     assert next_settlement_backoff_seconds(0) == pytest.approx(1.0)
     assert next_settlement_backoff_seconds(1) == pytest.approx(2.0)
@@ -33,7 +33,7 @@ async def test_settlement_orphan_cleaner_reconciles_missing_portfolio_ids(orch_r
     orch = orch_ready
     orch.ws.is_running = True
     orch.risk_manager.active_contract_ids = [101]
-    orch.risk_manager.contract_to_symbol[101] = "OTC_SPC"
+    orch.risk_manager.contract_to_symbol[101] = "R_10"
     orch.state.active_contracts = {101: object()}
     with (
         patch(
@@ -70,7 +70,7 @@ async def test_settlement_orphan_cleaner_prune_guards(orch_ready):
 def test_known_contract_ids_skips_invalid_and_missing_risk(orch_ready):
     orch = SimpleNamespace(state=SimpleNamespace(active_contracts={"bad": 1, "42": object()}), risk_manager=None)
     assert _known_contract_ids(orch) == [42]
-    orch.risk_manager = SimpleNamespace(active_contract_ids=["x", 7], contract_to_symbol={"y": "OTC_SPC", 9: "OTC_SPC"})
+    orch.risk_manager = SimpleNamespace(active_contract_ids=["x", 7], contract_to_symbol={"y": "R_10", 9: "R_10"})
     assert _known_contract_ids(orch) == [7, 9, 42]
 
 

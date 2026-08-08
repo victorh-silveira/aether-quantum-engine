@@ -96,13 +96,13 @@ def test_execution_blockers_deploy_ready_force_skip():
         _active_cycle_id=3,
         config={"orchestrator": {"execution": {"force_trade_every_cycle": True}}},
     )
-    executor._trade_symbols = MagicMock(return_value=["OTC_SPC"])
-    log_execution_blockers(executor, {"OTC_SPC": {"metrics": {"deploy_ok": False}}})
+    executor._trade_symbols = MagicMock(return_value=["R_10"])
+    log_execution_blockers(executor, {"R_10": {"metrics": {"deploy_ok": False}}})
     executor.orch.config = {"orchestrator": {"execution": {}}}
     log_execution_blockers(
         executor,
         {
-            "OTC_SPC": {"metrics": {"execution_candidate_ready": True}},
+            "R_10": {"metrics": {"execution_candidate_ready": True}},
             "R_50": {"metrics": {"signal_status": "SIGNAL_SUSPENDED"}},
         },
     )
@@ -119,8 +119,8 @@ def test_log_deduper_and_market_audit_helpers():
     owner._log_dedupe = {"ch": "x"}
     assert clear_log_channel(owner, "ch") == "x"
     assert cluster_symbol_token("", None) == "N/A"
-    assert cluster_symbol_token("r_10", None) == "R_10"
     assert cluster_symbol_token("otc_spc", None) == "OTC_SPC"
+    assert cluster_symbol_token("R_10", None) == "R_10"
 
 
 def test_meta_payoff_shadow_inverted_and_hard():

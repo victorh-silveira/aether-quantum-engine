@@ -10,7 +10,7 @@ from tests.market_symbols import ANCHOR, PAIR
 def test_log_execution_decision_direct():
     exec_mgr = SimpleNamespace(logger=MagicMock())
     best = (
-        "OTC_SPC",
+        "R_10",
         TradeDirection.CALL,
         {
             "val_accuracy": 0.55,
@@ -21,13 +21,15 @@ def test_log_execution_decision_direct():
         },
     )
     log_execution_decision(exec_mgr, "C0001", best, [best], 0.55)
-    assert exec_mgr.logger.info.called
+    assert exec_mgr.logger.info.call_count >= 4
+    first = exec_mgr.logger.info.call_args_list[0].args[1]
+    assert first.startswith("[C0001] IND ||")
 
 
 def test_log_execution_decision_uses_cycle_fallback_when_cid_invalid():
     exec_mgr = SimpleNamespace(logger=MagicMock(), orch=SimpleNamespace(_active_cycle_id=9))
     best = (
-        "OTC_SPC",
+        "R_10",
         TradeDirection.PUT,
         {
             "val_accuracy": 0.61,
@@ -38,7 +40,9 @@ def test_log_execution_decision_uses_cycle_fallback_when_cid_invalid():
         },
     )
     log_execution_decision(exec_mgr, "Cbad", best, [best], 0.61)
-    assert exec_mgr.logger.info.called
+    assert exec_mgr.logger.info.call_count >= 4
+    first = exec_mgr.logger.info.call_args_list[0].args[1]
+    assert first.startswith("[C0009] IND ||")
 
 
 def test_collect_cluster_orders_covers_logging():

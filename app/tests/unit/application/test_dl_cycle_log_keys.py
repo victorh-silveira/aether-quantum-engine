@@ -6,42 +6,42 @@ from src.domain.models.trade import TradeDirection
 
 def test_build_dl_cycle_brief_key():
     decisions = {
-        "OTC_SPC": {"direction": TradeDirection.CALL, "metrics": {"execute": True, "conviction": 0.65}},
+        "R_10": {"direction": TradeDirection.CALL, "metrics": {"execute": True, "conviction": 0.65}},
         "R_50": {"direction": None, "metrics": {"execute": False, "gate_reason": "predict_error"}},
     }
     key = build_dl_cycle_brief_key(decisions, recovery_active=False)
-    assert "OTC_SPC:CALL" in key
+    assert "R_10:CALL" in key
     assert "c=" not in key
     assert "1 bloq" in key
 
     decisions_infer = {
-        "OTC_SPC": {"direction": TradeDirection.CALL, "metrics": {"execute": False, "trade_score": 0.52}},
+        "R_10": {"direction": TradeDirection.CALL, "metrics": {"execute": False, "trade_score": 0.52}},
     }
     with patch("src.application.services.deep_learning.dl_cycle_brief.infer_dl_direction", return_value=None):
         key_infer = build_dl_cycle_brief_key(decisions_infer, recovery_active=False)
     assert "sem exec" in key_infer
 
-    decisions_train = {"OTC_SPC": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}}}
+    decisions_train = {"R_10": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}}}
     key_train = build_dl_cycle_brief_key(decisions_train, recovery_active=False)
     assert "TREINO INICIAL" in key_train
 
-    decisions_nd = {"OTC_SPC": {"direction": None, "metrics": {"gate_reason": "data", "execute": False}}}
+    decisions_nd = {"R_10": {"direction": None, "metrics": {"gate_reason": "data", "execute": False}}}
     key_nd = build_dl_cycle_brief_key(decisions_nd, recovery_active=False)
     assert "sem dados" in key_nd
 
     decisions_bp = {
-        "OTC_SPC": {
+        "R_10": {
             "direction": TradeDirection.CALL,
             "metrics": {"gate_reason": "edge", "execute": False, "raw_prob": 0.58},
         }
     }
     key_bp = build_dl_cycle_brief_key(decisions_bp, recovery_active=False)
-    assert "sinal OTC_SPC:CALL:edge" in key_bp
+    assert "sinal R_10:CALL:edge" in key_bp
 
 
 def test_build_dl_cycle_brief_key_no_data_and_blocked_mixed():
     decisions = {
-        "OTC_SPC": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}},
+        "R_10": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}},
         "R_50": {"direction": None, "metrics": {"gate_reason": "data", "execute": False}},
     }
     key = build_dl_cycle_brief_key(decisions, recovery_active=False)
@@ -49,7 +49,7 @@ def test_build_dl_cycle_brief_key_no_data_and_blocked_mixed():
     assert "1 treinando" in key
 
     decisions_other = {
-        "OTC_SPC": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}},
+        "R_10": {"direction": None, "metrics": {"gate_reason": "training", "execute": False}},
         "R_50": {"direction": None, "metrics": {"gate_reason": "predict_error", "execute": False}},
     }
     key_other = build_dl_cycle_brief_key(decisions_other, recovery_active=False)
@@ -59,7 +59,7 @@ def test_build_dl_cycle_brief_key_no_data_and_blocked_mixed():
 
 def test_build_dl_cycle_brief_key_blocked_count_fallback():
     decisions = {
-        "OTC_SPC": {"direction": None, "metrics": {"gate_reason": "predict_error", "execute": False}},
+        "R_10": {"direction": None, "metrics": {"gate_reason": "predict_error", "execute": False}},
     }
     key = build_dl_cycle_brief_key(decisions, recovery_active=False)
     assert "aguardando sinal" in key or "bloq" in key
@@ -67,7 +67,7 @@ def test_build_dl_cycle_brief_key_blocked_count_fallback():
 
 def test_build_dl_cycle_brief_key_bias_branch():
     decisions = {
-        "OTC_SPC": {
+        "R_10": {
             "direction": TradeDirection.PUT,
             "metrics": {
                 "execute": False,
@@ -86,7 +86,7 @@ def test_build_dl_cycle_brief_key_bias_branch():
 
 def test_build_dl_cycle_brief_key_strips_raw_from_all_blocked_detail():
     decisions = {
-        "OTC_SPC": {
+        "R_10": {
             "direction": None,
             "metrics": {"gate_reason": "predict_error", "raw_prob": 0.52, "execute": False},
         },
@@ -98,13 +98,13 @@ def test_build_dl_cycle_brief_key_strips_raw_from_all_blocked_detail():
 
 def test_build_dl_cycle_brief_key_strips_raw_from_blocked_detail():
     decisions = {
-        "OTC_SPC": {"direction": None, "metrics": {"gate_reason": "edge", "execute": False, "raw_prob": 0.58}},
+        "R_10": {"direction": None, "metrics": {"gate_reason": "edge", "execute": False, "raw_prob": 0.58}},
     }
     key = build_dl_cycle_brief_key(decisions, recovery_active=False)
     assert "r0.58" not in key
 
     decisions = {
-        "OTC_SPC": {"direction": None, "metrics": {"gate_reason": "predict_error", "execute": False}},
+        "R_10": {"direction": None, "metrics": {"gate_reason": "predict_error", "execute": False}},
     }
     line = build_dl_cycle_brief(decisions, recovery_active=False)
     assert "aguardando sinal" in line or "bloq" in line

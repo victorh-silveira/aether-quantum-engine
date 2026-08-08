@@ -58,7 +58,7 @@ def test_side_payoff_from_probability_put():
 
 def test_parallel_drift_regime_exposes_low_relative_conviction_spread():
     decisions = {
-        "OTC_SPC": {
+        "R_10": {
             "direction": TradeDirection.CALL,
             "metrics": {
                 "calibrated_prob": 0.62,
@@ -68,14 +68,14 @@ def test_parallel_drift_regime_exposes_low_relative_conviction_spread():
         },
     }
     attach_cross_symbol_features_to_decisions(decisions)
-    spread = cross_symbol_conviction_spread(decisions["OTC_SPC"]["metrics"])
+    spread = cross_symbol_conviction_spread(decisions["R_10"]["metrics"])
     assert spread == pytest.approx(0.0)
 
 
 @pytest.mark.asyncio
 async def test_prefetch_meta_payoff_for_decisions_with_cross_symbol_payload():
     decisions = {
-        "OTC_SPC": {"direction": TradeDirection.CALL, "metrics": _metrics_with_cross()},
+        "R_10": {"direction": TradeDirection.CALL, "metrics": _metrics_with_cross()},
     }
     cfg = {"infra": {"meta_classifier": {"enabled": True, "http_url": "http://localhost:8005"}}}
     with patch(
@@ -90,7 +90,7 @@ async def test_prefetch_meta_payoff_for_decisions_with_cross_symbol_payload():
         )
         get_client.return_value = client
         await prefetch_meta_payoff_for_decisions(decisions, cfg)
-    metrics = decisions["OTC_SPC"]["metrics"]
+    metrics = decisions["R_10"]["metrics"]
     assert metrics["predicted_payoff_edge"] == pytest.approx(0.12)
     assert metrics["trade_score"] == pytest.approx(0.62)
     assert "cross_symbol_features" in metrics
@@ -102,7 +102,7 @@ async def test_prefetch_meta_payoff_for_decisions_with_cross_symbol_payload():
 @pytest.mark.asyncio
 async def test_prefetch_meta_payoff_attaches_cross_symbol_when_missing():
     decisions = {
-        "OTC_SPC": {
+        "R_10": {
             "direction": TradeDirection.CALL,
             "metrics": {
                 "calibrated_prob": 0.66,
@@ -125,8 +125,8 @@ async def test_prefetch_meta_payoff_attaches_cross_symbol_when_missing():
         get_client.return_value = client
         prepare_meta_classifier_cross_symbol_bundle(MagicMock(), decisions, {"micro_granularity": 300})
         await prefetch_meta_payoff_for_decisions(decisions, cfg)
-    assert "cross_symbol_features" in decisions["OTC_SPC"]["metrics"]
-    assert decisions["OTC_SPC"]["metrics"]["cross_symbol_features"]["cross_symbol_prob_delta"] == pytest.approx(0.0)
+    assert "cross_symbol_features" in decisions["R_10"]["metrics"]
+    assert decisions["R_10"]["metrics"]["cross_symbol_features"]["cross_symbol_prob_delta"] == pytest.approx(0.0)
 
 
 def test_prepare_meta_classifier_bundle_skips_invalid_entries():
@@ -152,7 +152,7 @@ def test_apply_meta_regression_edge_to_metrics_put_side():
 def test_resolve_meta_payoff_edge_uses_prefetched_value():
     metrics = {"predicted_payoff_edge": 0.18, "meta_classifier_applied": True}
     edge, applied = resolve_meta_payoff_edge(
-        symbol="OTC_SPC",
+        symbol="R_10",
         metrics=metrics,
         direction=TradeDirection.CALL,
         tcn_probability=0.62,
@@ -167,7 +167,7 @@ def test_resolve_meta_payoff_edge_without_prefetch_returns_neutral():
     metrics = _metrics_with_cross()
     cfg = {"infra": {"meta_classifier": {"enabled": True, "http_url": "http://localhost:8005"}}}
     edge, applied = resolve_meta_payoff_edge(
-        symbol="OTC_SPC",
+        symbol="R_10",
         metrics=metrics,
         direction=TradeDirection.CALL,
         tcn_probability=0.62,
@@ -182,7 +182,7 @@ def test_resolve_meta_payoff_edge_without_prefetch_even_when_enabled():
     metrics = _metrics_with_cross()
     cfg = {"infra": {"meta_classifier": {"enabled": True}}}
     edge, applied = resolve_meta_payoff_edge(
-        symbol="OTC_SPC",
+        symbol="R_10",
         metrics=metrics,
         direction=TradeDirection.CALL,
         tcn_probability=0.62,
@@ -249,7 +249,7 @@ def test_c0015_stacking_payload_allows_negative_edge_without_rejection(caplog):
         ),
         caplog.at_level("INFO"),
     ):
-        result = resolve_execution_direction(entry, symbol="OTC_SPC", exec_cfg={})
+        result = resolve_execution_direction(entry, symbol="R_10", exec_cfg={})
     assert result is not None
     assert result[1].get("execution_candidate_ready") is True
     assert len(extract_meta_feature_vector(entry["metrics"])) == META_FEATURE_DIM

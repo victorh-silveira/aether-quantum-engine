@@ -11,7 +11,7 @@ def test_log_dl_cycle_with_scale_audit_dedupes():
     logger = MagicMock()
     orch = SimpleNamespace(_active_cycle_id=1, config={"data_handler": {"micro_granularity": 120}})
     decisions = {
-        "OTC_SPC": {
+        "R_10": {
             "direction": TradeDirection.CALL,
             "metrics": {
                 "conviction": 0.70,

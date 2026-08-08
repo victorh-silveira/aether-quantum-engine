@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from src.application.services.execution_scale_vision import format_scale_ind_token
@@ -18,6 +19,7 @@ from src.application.services.market_audit_log_helpers import (
 
 
 __all__ = [
+    "emit_audit_info",
     "format_cluster_audit_line",
     "format_execution_ticket_line",
     "format_indicators_audit_line",
@@ -31,6 +33,14 @@ __all__ = [
     "resolve_stake_mode_tag",
     "store_contract_audit",
 ]
+
+
+def emit_audit_info(logger: logging.Logger, message: str) -> None:
+    """Emite cada linha de auditoria como INFO separado (prefixo [cN|SYM] por linha)."""
+    for part in str(message or "").splitlines():
+        line = part.strip()
+        if line:
+            logger.info("%s", line)
 
 
 def format_cluster_audit_line(
@@ -60,7 +70,7 @@ def _indicator_float(snap: dict[str, Any], key: str, default: float = 0.0) -> fl
 
 
 def format_indicators_audit_line(cycle_id: int, symbol: str, metrics: dict[str, Any]) -> str:
-    """Monta linha compacta de indicadores e microestrutura alinhada por colunas."""
+    """Monta telemetria IND em multiplas linhas curtas."""
     _ = symbol
     snap = indicator_snapshot(metrics)
     rsi = _indicator_float(snap, "rsi")
@@ -72,6 +82,7 @@ def format_indicators_audit_line(cycle_id: int, symbol: str, metrics: dict[str, 
     z_edge = metric_float(metrics, "edge_zscore", "meta_payoff_edge_zscore", default=0.0)
     acc = metric_float(metrics, "val_accuracy", default=0.0)
     margin = metric_float(metrics, "direction_margin", default=0.0)
+    cal_edge = metric_float(metrics, "cal_side_edge", default=resolve_predicted_edge(metrics))
     neutral = str(metrics.get("calibration_mode") or metrics.get("gate_reason") or "na")
     if (
         str(metrics.get("calibration_mode") or "") == "neutral_clamp"
@@ -80,16 +91,15 @@ def format_indicators_audit_line(cycle_id: int, symbol: str, metrics: dict[str, 
         neutral = "neutral_clamp"
     elif neutral not in {"neutral_clamp", "tcn_macro_override", "raw_extreme", "calibrated", "neutral_zone"}:
         neutral = "na"
-
     meta_veto = str(metrics.get("meta_veto_mode") or "none")
     scale_tok = format_scale_ind_token(metrics)
+    prefix = f"[C{int(cycle_id):04d}] IND"
     return (
-        f"[C{int(cycle_id):04d}] IND || "
-        f"RSI: {rsi:>7.4f} | ADX: {adx:>7.4f} | HURST: {hurst:>7.4f} || "
-        f"ATR: {atr:>8.4f} | BBW: {bbw:>8.4f} | VOL_R: {vol_r:>7.4f} || "
-        f"Z: {z_edge:>+6.2f} | ACC: {acc:>6.4f} || "
-        f"MARGIN: {margin:>5.3f} | NEUTRAL: {neutral} | META_VETO: {meta_veto} || "
-        f"{scale_tok}"
+        f"{prefix} || RSI: {rsi:>7.4f} | ADX: {adx:>7.4f} | HURST: {hurst:>7.4f}\n"
+        f"{prefix} || ATR: {atr:>8.4f} | BBW: {bbw:>8.4f} | VOL_R: {vol_r:>7.4f}\n"
+        f"{prefix} || Z: {z_edge:>+6.2f} | ACC: {acc:>6.4f} | MARGIN: {margin:>5.3f} | "
+        f"CAL_EDGE: {cal_edge:>+.3f}\n"
+        f"{prefix} || NEUTRAL: {neutral} | META_VETO: {meta_veto} || {scale_tok}"
     )
 
 
@@ -155,14 +165,14 @@ def format_execution_ticket_line(
     cap: float = 0.0,
     recovery_infeasible: bool = False,
 ) -> str:
-    """Monta linha unica de risco e boleta EXEC."""
+    """Monta boleta EXEC em multiplas linhas curtas."""
     infeas = " | RECOVERY_INFEASIBLE" if recovery_infeasible else ""
+    prefix = f"[C{int(cycle_id):04d}] EXEC"
     return (
-        f"[C{int(cycle_id):04d}] EXEC || {direction} [{symbol}] || "
-        f"STAKE: {float(stake):.2f} ({mode_tag}) | "
-        f"PEND: {float(pending):.2f} | LIN: {int(linear)} | CAP: {float(cap):.2f} | "
-        f"BANCA: {float(bankroll):.2f}{infeas} || "
-        f"CID: {int(contract_id)} | PAY: {float(payout):.2f}"
+        f"{prefix} || {direction} [{symbol}] || STAKE: {float(stake):.2f} ({mode_tag}){infeas}\n"
+        f"{prefix} || PEND: {float(pending):.2f} | LIN: {int(linear)} | CAP: {float(cap):.2f} | "
+        f"BANCA: {float(bankroll):.2f}\n"
+        f"{prefix} || CID: {int(contract_id)} | PAY: {float(payout):.2f}"
     )
 
 

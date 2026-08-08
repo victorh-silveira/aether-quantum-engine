@@ -52,14 +52,14 @@ def test_calculate_stake_neutral_regime_uses_dynamic_bankroll_base(kelly_config)
     stake = calculate_stake_for_manager(
         rm,
         11000.0,
-        "OTC_SPC",
+        "R_10",
         0.80,
         silent=True,
         apply_stop_win=False,
         kwargs={"dl_metrics": metrics, "order_direction": "PUT"},
     )
-    assert stake == pytest.approx(220.0)
-    assert metrics.get("session_base_unit") == pytest.approx(220.0)
+    assert stake == pytest.approx(27.5)
+    assert metrics.get("session_base_unit") == pytest.approx(27.5)
 
 
 def test_calculate_stake_turbo_edge_doubles_final_stake(kelly_config):
@@ -80,7 +80,7 @@ def test_calculate_stake_turbo_edge_doubles_final_stake(kelly_config):
     stake_base = calculate_stake_for_manager(
         rm,
         11000.0,
-        "OTC_SPC",
+        "R_10",
         0.80,
         silent=True,
         apply_stop_win=False,
@@ -89,20 +89,20 @@ def test_calculate_stake_turbo_edge_doubles_final_stake(kelly_config):
     stake_turbo = calculate_stake_for_manager(
         rm,
         11000.0,
-        "OTC_SPC",
+        "R_10",
         0.80,
         silent=True,
         apply_stop_win=False,
         kwargs={"dl_metrics": turbo_metrics, "order_direction": "PUT"},
     )
-    assert stake_base == pytest.approx(220.0)
+    assert stake_base == pytest.approx(27.5)
     assert stake_turbo == pytest.approx(min(stake_base * 2.0, 11000.0 * 0.035))
     assert turbo_metrics.get("consensus_turbo_edge_active") is True
 
 
 def test_calculate_stake_c0007_turbo_on_clean_recovery_base(kelly_config):
     rm = _base_rm(kelly_config)
-    rm.pending_loss = {"OTC_SPC": 36.72}
+    rm.pending_loss = {"R_10": 36.72}
     rm.consecutive_losses_linear = 1
     rm.dlambert_unit = 17.89
     rm.last_loss_stake = 36.72
@@ -129,17 +129,17 @@ def test_calculate_stake_c0007_turbo_on_clean_recovery_base(kelly_config):
     stake_neutral = calculate_stake_for_manager(
         rm,
         bankroll,
-        "OTC_SPC",
+        "R_10",
         0.80,
         silent=True,
         apply_stop_win=False,
         kwargs={"dl_metrics": dict(neutral_metrics), "order_direction": "PUT"},
     )
-    assert stake_neutral == pytest.approx(298.67, rel=1e-2)
+    assert stake_neutral == pytest.approx(37.34, rel=1e-2)
     stake_turbo = calculate_stake_for_manager(
         rm,
         bankroll,
-        "OTC_SPC",
+        "R_10",
         0.80,
         silent=True,
         apply_stop_win=False,
@@ -166,7 +166,7 @@ def test_calculate_stake_d_squeeze_keeps_floor_not_turbo(kelly_config):
     stake = calculate_stake_for_manager(
         rm,
         11000.0,
-        "OTC_SPC",
+        "R_10",
         0.52,
         silent=True,
         apply_stop_win=False,

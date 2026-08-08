@@ -59,20 +59,20 @@ def test_select_best_execution_candidate_picks_highest_score():
 
 def test_candidate_execution_score_recovery_weights_val_accuracy():
     metrics = {"trade_score": 0.80, "raw_prob": 0.80, "val_accuracy": 0.40, "execute": True}
-    normal = candidate_execution_score(metrics, recovery_active=False, symbol="OTC_SPC")
+    normal = candidate_execution_score(metrics, recovery_active=False, symbol="R_10")
     recovery = candidate_execution_score(
         metrics,
         recovery_active=True,
-        symbol="OTC_SPC",
+        symbol="R_10",
         exec_direction=TradeDirection.CALL,
-        last_loss_symbol="OTC_SPC",
+        last_loss_symbol="R_10",
     )
     high_val = candidate_execution_score(
         {"trade_score": 0.80, "raw_prob": 0.80, "val_accuracy": 0.60, "execute": True},
         recovery_active=True,
-        symbol="OTC_SPC",
+        symbol="R_10",
         exec_direction=TradeDirection.CALL,
-        last_loss_symbol="OTC_SPC",
+        last_loss_symbol="R_10",
     )
     assert high_val > recovery
     assert recovery < normal
@@ -86,7 +86,7 @@ def test_candidate_execution_score_uses_exec_direction_from_metrics():
         "execute": True,
         "exec_direction": "PUT",
     }
-    score = candidate_execution_score(metrics, recovery_active=False, symbol="OTC_SPC")
+    score = candidate_execution_score(metrics, recovery_active=False, symbol="R_10")
     assert score > 0.0
 
 

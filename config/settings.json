@@ -1,5 +1,5 @@
 {
-    "anchor": "OTC_SPC",
+    "anchor": "R_10",
     "api_config": {
         "deriv_app_id": "",
         "history_fetch": {
@@ -41,19 +41,20 @@
         "history_fetch_rate_limit_max_delay": 30.0,
         "history_fetch_rate_limit_retries": 12,
         "history_fetch_symbol_delay_seconds": 0.5,
-        "micro_granularity": 900,
+        "micro_granularity": 120,
         "micro_history_bars": 2000,
         "micro_fetch_count": 2000,
         "min_required_points": 80,
-        "mini_granularity": 900,
+        "mini_granularity": 120,
         "mini_history_bars": 256,
         "mini_fetch_count": 256
     },
     "deep_learning": {
         "arch": "tcn",
         "aux_regression_weight": 0.15,
-        "bootstrap_max_wait_rounds": 240,
+        "bootstrap_max_wait_rounds": 16,
         "bootstrap_history_wait_cap_seconds": 30,
+        "train_history_shortfall_ratio": 0.95,
         "calib_ratio": 0.2,
         "calibration": {
             "auto_select_by_brier": true,
@@ -233,7 +234,7 @@
         },
         "train_on_new_candle_only": true,
         "train_symbols": [
-            "OTC_SPC"
+            "R_10"
         ],
         "train_timeframe": "micro",
         "training_batch_size": 64,
@@ -281,14 +282,17 @@
             "feature_dim": 24,
             "veto_mode": "soft",
             "veto_p_loss_floor": 0.65,
+            "hard_p_loss_floor": 0.90,
+            "hard_blocks_pending_waive": true,
             "soft_kelly_mult": 0.55,
             "soft_kelly_mult_high": 0.40,
             "soft_p_loss_high": 0.85,
-            "soft_max_stake_pct_high": 0.02,
+            "soft_max_stake_pct_high": 0.0025,
             "ready_n": 24,
             "retrain_min_n": 24,
             "retrain_on_loss_min_n": 2,
-            "max_buffer": 2000
+            "max_buffer": 2000,
+            "flip_require_auto_learn": true
         },
         "minio": {
             "bucket": "dl-models",
@@ -333,8 +337,8 @@
     "orchestrator": {
         "api_maintenance_fallback_seconds": 90.0,
         "broker_handshake_timeout_seconds": 90.0,
-        "cycle_interval_seconds": 15,
-        "exec_empty_retry_seconds": 15,
+        "cycle_interval_seconds": 60,
+        "exec_empty_retry_seconds": 60,
         "execution": {
             "bb_width_adaptive_squeeze": {
                 "anomaly_ratio": 0.35,
@@ -572,6 +576,7 @@
                 "adapt_on_retraction": true,
                 "adapt_on_explosion": true,
                 "adapt_on_mili_tape": true,
+                "adapt_mili_tape_skip_chop": true,
                 "adapt_on_majority_votes": true,
                 "adapt_majority_min_lead": 1,
                 "adapt_majority_min_votes": 3,
@@ -590,26 +595,32 @@
                 "waive_mini_pair_min_margin": 0.0,
                 "mini_pair_soft_kelly_mult": 0.55,
                 "cal_margin_soft_kelly_mult": 0.55,
-                "pending_dust": 0.25
+                "pending_dust": 0.25,
+                "chop_pause_enabled": true,
+                "chop_adx_max": 0.22,
+                "chop_hurst_min": 0.47,
+                "chop_hurst_max": 0.53,
+                "chop_soft_kelly_mult": 0.55,
+                "neg_edge_soft_kelly_mult": 0.55
             }
         },
         "idle_cycle_watchdog_seconds": 1200,
         "post_settlement_breath_seconds": 0,
-        "post_settlement_is_trading_wait_seconds": 150,
+        "post_settlement_is_trading_wait_seconds": 90,
         "reconcile_interval_seconds": 5,
         "recovery_pending_warm_up_max_seconds": 12.0,
         "recovery_warm_up_delay_seconds": 5.0,
         "settlement_backoff_initial_seconds": 1.0,
         "settlement_backoff_max_seconds": 30.0,
-        "settlement_tolerance_window_seconds": 300,
-        "signature_boundary_seconds": 15,
+        "settlement_tolerance_window_seconds": 90,
+        "signature_boundary_seconds": 60,
         "state_lock_acquire_timeout_seconds": 8.0,
         "stream_warm_up_delay_seconds": 0,
         "warm_up_live_data_timeout_seconds": 45.0,
         "watchdog_enabled": true,
         "watchdog_poll_interval_seconds": 15,
         "watchdog_reconnect_cooldown_seconds": 90,
-        "watchdog_stale_tick_seconds": 600,
+        "watchdog_stale_tick_seconds": 300,
         "ws_connect": {
             "max_attempts": 5,
             "open_timeout_seconds": 25.0,
@@ -630,7 +641,7 @@
             "consensus_min_retention": 0.5,
             "consensus_penalty_enabled": false,
             "consensus_rsi_weight": 0.25,
-            "cycle_stake_baseline_seconds": 900,
+            "cycle_stake_baseline_seconds": 120,
             "cycle_stake_exponent": 0.55,
             "cycle_stake_scale_enabled": false,
             "cycle_stake_use_contract_duration": true,
@@ -638,20 +649,20 @@
             "dynamic_min_samples": 6,
             "dynamic_win_rate": true,
             "fraction_base_retention": 0.70,
-            "fraction_compressed": 0.01,
-            "fraction_reference": 0.015,
+            "fraction_compressed": 0.0025,
+            "fraction_reference": 0.005,
             "high_conviction_stake_threshold": 0.0,
             "kelly_p_floor": 0.55,
             "mandatory_min_trade_score": 0.0,
             "mandatory_weak_conviction_cap": 0.55,
-            "mandatory_weak_max_stake_pct": 0.015,
+            "mandatory_weak_max_stake_pct": 0.0025,
             "max_bankroll_stake_fraction": 0.05,
             "max_stake_pct": 0.05,
             "max_stake_pct_high_conviction": 0.05,
-            "micro_bankroll_pct": 0.02,
+            "micro_bankroll_pct": 0.0025,
             "micro_bankroll_threshold": 250.0,
-            "min_stake_pct": 0.02,
-            "neutral_bankroll_pct": 0.02,
+            "min_stake_pct": 0.0025,
+            "neutral_bankroll_pct": 0.0025,
             "payout_fallback": 0.72,
             "penalty_smoothing_trade_score_min": 0.7,
             "recovery_conviction_ladder": {
@@ -692,7 +703,7 @@
             "turbo_live_n_min": 12,
             "min_stake": 1.0,
             "fallback_stake": 1.0,
-            "fraction": 0.40,
+            "fraction": 0.08,
             "enabled": true,
             "max_stake_percent": 0.05,
             "default_payout": 0.72
@@ -703,7 +714,7 @@
             "compounding_enabled": true,
             "compounding_rate_daily": 0.03,
             "contract_type": "RISE_FALL",
-            "duration": 15,
+            "duration": 2,
             "duration_unit": "m",
             "payout_estimate": 0.72,
             "stake_min": 1.0
@@ -733,7 +744,7 @@
             "fixed_step_linear_min": 2,
             "fixed_step_unit_premium": 0.12,
             "gbdt_waiver_skip_cycles": 20,
-            "linear_bankroll_pct": 0.02,
+            "linear_bankroll_pct": 0.0025,
             "cover_multiple": 2.0,
             "infeasible_force_explore": true,
             "pending_waives_scale_explore": true,
@@ -759,7 +770,7 @@
         }
     },
     "symbols": [
-        "OTC_SPC"
+        "R_10"
     ],
     "trading": {
         "mode": "demo"

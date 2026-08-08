@@ -47,7 +47,7 @@ def test_mandatory_execution_eligible_accepts_soft_gate_reasons():
 
 def test_build_execution_candidate_returns_none_without_direction():
     entry = {"direction": None, "metrics": {"execute": True}}
-    assert build_execution_candidate("OTC_SPC", entry) is None
+    assert build_execution_candidate("R_10", entry) is None
 
 
 def test_build_candidate_uses_dl_direction():
@@ -55,8 +55,8 @@ def test_build_candidate_uses_dl_direction():
         "direction": TradeDirection.CALL,
         "metrics": {"execute": False, "conviction": 0.61, "raw_prob": 0.52, "calibrated_prob": 0.70, "deploy_ok": True},
     }
-    sym, exec_dir, metrics = build_execution_candidate("OTC_SPC", entry)
-    assert sym in {"OTC_SPC", "R_50"}
+    sym, exec_dir, metrics = build_execution_candidate("R_10", entry)
+    assert sym in {"R_10", "R_50"}
     assert exec_dir == TradeDirection.CALL
     assert metrics["dl_direction"] == "CALL"
     assert metrics["exec_direction"] == "CALL"
@@ -86,7 +86,7 @@ def test_build_execution_candidate_allows_thin_cal_margin():
             "deploy_ok": True,
         },
     }
-    built = build_execution_candidate("OTC_SPC", entry)
+    built = build_execution_candidate("R_10", entry)
     assert built is not None
-    assert built[0] == "OTC_SPC"
+    assert built[0] == "R_10"
     assert built[1] == TradeDirection.CALL

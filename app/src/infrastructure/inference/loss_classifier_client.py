@@ -33,6 +33,8 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
             "feature_dim",
             "veto_mode",
             "veto_p_loss_floor",
+            "hard_p_loss_floor",
+            "hard_blocks_pending_waive",
             "soft_kelly_mult",
             "soft_kelly_mult_high",
             "soft_p_loss_high",
@@ -41,12 +43,13 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
             "retrain_min_n",
             "retrain_on_loss_min_n",
             "max_buffer",
+            "flip_require_auto_learn",
         ),
         "infra.loss_classifier",
     )
     mode = str(block["veto_mode"]).strip().lower()
     if mode != "soft":
-        raise ValueError("infra.loss_classifier.veto_mode deve ser soft (hard SKIP removido)")
+        raise ValueError("infra.loss_classifier.veto_mode deve ser soft (hard band via hard_p_loss_floor)")
     soft_mult = require_float(block, "soft_kelly_mult")
     if soft_mult <= 0.0 or soft_mult > 1.0:
         raise ValueError("infra.loss_classifier.soft_kelly_mult deve estar em (0, 1]")
@@ -57,8 +60,13 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
         raise ValueError("infra.loss_classifier.soft_kelly_mult_high deve ser <= soft_kelly_mult")
     p_high = require_float(block, "soft_p_loss_high")
     floor = require_float(block, "veto_p_loss_floor")
+    hard_floor = require_float(block, "hard_p_loss_floor")
     if p_high <= floor:
         raise ValueError("infra.loss_classifier.soft_p_loss_high deve ser > veto_p_loss_floor")
+    if hard_floor <= floor:
+        raise ValueError("infra.loss_classifier.hard_p_loss_floor deve ser > veto_p_loss_floor")
+    if hard_floor > 1.0:
+        raise ValueError("infra.loss_classifier.hard_p_loss_floor deve estar em (veto_p_loss_floor, 1]")
     stake_pct = require_float(block, "soft_max_stake_pct_high")
     if stake_pct <= 0.0 or stake_pct > 0.05:
         raise ValueError("infra.loss_classifier.soft_max_stake_pct_high deve estar em (0, 0.05]")
@@ -71,6 +79,8 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
         "feature_dim": require_int(block, "feature_dim"),
         "veto_mode": "soft",
         "veto_p_loss_floor": floor,
+        "hard_p_loss_floor": hard_floor,
+        "hard_blocks_pending_waive": require_bool(block, "hard_blocks_pending_waive"),
         "soft_kelly_mult": soft_mult,
         "soft_kelly_mult_high": soft_high,
         "soft_p_loss_high": p_high,
@@ -79,6 +89,7 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
         "retrain_min_n": require_int(block, "retrain_min_n"),
         "retrain_on_loss_min_n": require_int(block, "retrain_on_loss_min_n"),
         "max_buffer": require_int(block, "max_buffer"),
+        "flip_require_auto_learn": require_bool(block, "flip_require_auto_learn"),
     }
 
 
@@ -135,6 +146,7 @@ class LossClassifierClient:
             "model_version": "none",
             "n_train": 0,
             "veto_ready": False,
+            "bootstrap": False,
         }
         if not self._enabled:
             return empty

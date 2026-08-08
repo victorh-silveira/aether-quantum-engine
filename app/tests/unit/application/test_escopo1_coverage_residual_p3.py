@@ -62,7 +62,7 @@ def test_recovery_pending_and_align_exec_empty():
 @pytest.mark.asyncio
 async def test_await_exec_empty_signature_alignment_paths():
     orch = SimpleNamespace(
-        risk_manager=SimpleNamespace(pending_loss={"OTC_SPC": 5.0}),
+        risk_manager=SimpleNamespace(pending_loss={"R_10": 5.0}),
         config={"orchestrator": {"exec_empty_retry_seconds": 45}},
         _cooldown_until=0.0,
     )
@@ -148,9 +148,9 @@ async def test_run_orchestrator_main_loop_cooldown_branch():
 
 
 def test_regime_freeze_propagate_and_micro_freeze():
-    decisions = {"x": "bad", "OTC_SPC": {"metrics": "bad"}}
+    decisions = {"x": "bad", "R_10": {"metrics": "bad"}}
     propagate_cluster_signal_suspended(decisions)
-    assert decisions["OTC_SPC"]["metrics"]["signal_status"] == "SIGNAL_SUSPENDED"
+    assert decisions["R_10"]["metrics"]["signal_status"] == "SIGNAL_SUSPENDED"
     metrics = {
         "micro_indicators": {"tick_acceleration": 0.0, "bb_width": 0.01},
         "predicted_payoff_edge_zscore": -2.0,
@@ -164,7 +164,7 @@ def test_regime_freeze_propagate_and_micro_freeze():
 
 def test_side_equilibrium_store_branches():
     orch = SimpleNamespace(_side_equilibrium_hist=None, config={"orchestrator": {"execution": {}}})
-    assert snapshot_side_counts(orch, "OTC_SPC", window=5).total == 0
+    assert snapshot_side_counts(orch, "R_10", window=5).total == 0
     assert SideCounts(call_n=0).wr("CALL") is None
     client = MagicMock()
     client.hset = MagicMock(return_value=object())
@@ -176,7 +176,7 @@ def test_side_equilibrium_store_branches():
     )
     from src.application.services.side_equilibrium_store import record_side_equilibrium_outcome
 
-    record_side_equilibrium_outcome(orch2, "OTC_SPC", direction="CALL", won=True)
+    record_side_equilibrium_outcome(orch2, "R_10", direction="CALL", won=True)
     client.hset = MagicMock(return_value=None)
 
 

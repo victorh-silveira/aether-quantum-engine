@@ -36,7 +36,7 @@ def test_schedule_model_upload_exception_caught():
 
     orch = SimpleNamespace(infra=SimpleNamespace(enabled=True), loop=_FakeLoop())
     with patch("src.application.services.deep_learning.dl_model_artifacts.upload_model_checkpoint"):
-        schedule_model_upload(orch, "OTC_SPC", Path("checkpoint.pt"), arch="tcn")
+        schedule_model_upload(orch, "R_10", Path("checkpoint.pt"), arch="tcn")
 
 
 def test_schedule_model_upload_success_return():
@@ -52,14 +52,14 @@ def test_schedule_model_upload_success_return():
 
     orch = SimpleNamespace(infra=SimpleNamespace(enabled=True), loop=_OkLoop())
     with patch("src.application.services.deep_learning.dl_model_artifacts.upload_model_checkpoint"):
-        schedule_model_upload(orch, "OTC_SPC", Path("checkpoint.pt"), arch="tcn")
+        schedule_model_upload(orch, "R_10", Path("checkpoint.pt"), arch="tcn")
 
 
 def test_revive_ready_keeps_side_eq_blocked_sizing_only():
     exec_mgr = MagicMock()
-    exec_mgr._trade_symbols.return_value = ["OTC_SPC"]
+    exec_mgr._trade_symbols.return_value = ["R_10"]
     decisions = {
-        "OTC_SPC": {
+        "R_10": {
             "direction": TradeDirection.CALL,
             "metrics": {
                 "execution_candidate_ready": True,
@@ -70,7 +70,7 @@ def test_revive_ready_keeps_side_eq_blocked_sizing_only():
     }
     result = revive_ready_cluster_candidates(exec_mgr, decisions)
     assert len(result) == 1
-    assert result[0][0] == "OTC_SPC"
+    assert result[0][0] == "R_10"
 
 
 def test_settlement_timed_out_true():
@@ -149,7 +149,7 @@ def test_recovery_infeasible_log():
     from src.domain.risk.risk_stake_calc import calculate_stake_for_manager
 
     rm = MagicMock()
-    rm.pending_loss = {"OTC_SPC": 100.0}
+    rm.pending_loss = {"R_10": 100.0}
     rm.consecutive_losses_linear = 0
     rm.dlambert_unit = 0.0
     rm.kelly_config = {"mandatory_weak_conviction_cap": 0.55, "recovery_min_conviction": 0.50}
@@ -181,7 +181,7 @@ def test_recovery_infeasible_log():
         patch("src.domain.risk.risk_stake_calc.effective_soft_recovery_base"),
     ):
         calculate_stake_for_manager(
-            rm, bankroll=1000.0, symbol="OTC_SPC", conviction=0.65, silent=False, apply_stop_win=False, kwargs=kwargs
+            rm, bankroll=1000.0, symbol="R_10", conviction=0.65, silent=False, apply_stop_win=False, kwargs=kwargs
         )
 
     rm.logger.info.assert_called()

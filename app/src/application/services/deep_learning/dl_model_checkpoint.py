@@ -20,6 +20,22 @@ from src.application.services.deep_learning.dl_model_types import CHECKPOINT_VER
 logger = logging.getLogger("AETH")
 
 
+def should_replace_checkpoint(path: Path, *, deploy_ok: bool) -> bool:
+    """Evita sobrescrever checkpoint deploy_ok=true com treino rejeitado."""
+    if bool(deploy_ok):
+        return True
+    if not path.exists():
+        return True
+    try:
+        payload = torch.load(path, map_location="cpu", weights_only=True)
+    except Exception as exc:
+        logger.debug("DL: falha ao inspecionar checkpoint existente %s: %s", path, exc)
+        return True
+    if not isinstance(payload, dict):
+        return True
+    return not bool(payload.get("deploy_ok", False))
+
+
 def _scripted_path(path: Path) -> Path:
     """Retorna caminho do artefato TorchScript associado ao checkpoint."""
     return path.with_name(path.stem + "_ts.pt")

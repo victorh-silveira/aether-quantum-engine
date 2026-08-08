@@ -19,33 +19,33 @@ def mock_ws():
 @pytest.fixture
 def stream_handler(mock_ws):
     config = {"buffer_limit": 10, "fetch_count": 3, "granularity": 900, "micro_granularity": 300}
-    return StreamHandler(mock_ws, ["OTC_SPC"], config)
+    return StreamHandler(mock_ws, ["R_10"], config)
 
 
 def test_resolve_fetch_count_explicit(mock_ws):
-    sh = StreamHandler(mock_ws, ["OTC_SPC"], {"fetch_count": 320})
+    sh = StreamHandler(mock_ws, ["R_10"], {"fetch_count": 320})
     assert sh._resolve_fetch_count() == 320
 
 
 def test_resolve_fetch_count_from_history_bars(mock_ws):
-    sh = StreamHandler(mock_ws, ["OTC_SPC"], {"history_bars": 288, "history_warmup_bars": 32})
+    sh = StreamHandler(mock_ws, ["R_10"], {"history_bars": 288, "history_warmup_bars": 32})
     assert sh._resolve_fetch_count() == 320
 
 
 def test_resolve_fetch_count_default(mock_ws):
-    sh = StreamHandler(mock_ws, ["OTC_SPC"], {"granularity": 900})
+    sh = StreamHandler(mock_ws, ["R_10"], {"granularity": 900})
     assert sh._resolve_fetch_count() == 500
 
 
 def test_resolve_fetch_count_startup_override(mock_ws):
-    sh = StreamHandler(mock_ws, ["OTC_SPC"], {"fetch_count": 15616, "_startup_fetch_count": 192})
+    sh = StreamHandler(mock_ws, ["R_10"], {"fetch_count": 15616, "_startup_fetch_count": 192})
     assert sh._resolve_fetch_count() == 192
     sh.config.pop("_startup_fetch_count", None)
     assert sh._resolve_fetch_count() == 15616
 
 
 def test_history_sync_quiet_for_small_fetch_goal(mock_ws):
-    sh = StreamHandler(mock_ws, ["OTC_SPC"], {"fetch_count": 256})
+    sh = StreamHandler(mock_ws, ["R_10"], {"fetch_count": 256})
     assert sh._history_sync_quiet(256) is True
     assert sh._history_sync_quiet(1000) is False
     sh.config["_startup_fetch_count"] = 5000
@@ -59,7 +59,7 @@ def test_resolve_sync_targets_train_lean_skips_mini(mock_ws):
 
     sh = StreamHandler(
         mock_ws,
-        ["OTC_SPC"],
+        ["R_10"],
         {
             "fetch_count": 2000,
             "micro_fetch_count": 2000,
@@ -79,7 +79,7 @@ def test_resolve_sync_targets_live_keeps_triple(mock_ws):
 
     sh = StreamHandler(
         mock_ws,
-        ["OTC_SPC"],
+        ["R_10"],
         {
             "fetch_count": 2000,
             "micro_fetch_count": 2000,
@@ -93,13 +93,13 @@ def test_resolve_sync_targets_live_keeps_triple(mock_ws):
 
 
 def test_stream_handler_normalizes_unsupported_granularity(mock_ws):
-    sh = StreamHandler(mock_ws, ["OTC_SPC"], {"granularity": 10})
+    sh = StreamHandler(mock_ws, ["R_10"], {"granularity": 10})
     assert sh.macro_granularity == 60
 
 
 def test_stream_handler_get_numpy(stream_handler):
-    stream_handler.macro_candles["OTC_SPC"] = [Candle("OTC_SPC", 1.0, 1.1, 0.9, 1.05, datetime.now(), 1000)]
-    series = stream_handler.get_numpy_series("OTC_SPC")
+    stream_handler.macro_candles["R_10"] = [Candle("R_10", 1.0, 1.1, 0.9, 1.05, datetime.now(), 1000)]
+    series = stream_handler.get_numpy_series("R_10")
     assert series.tolist() == [1.05]
 
 
@@ -117,20 +117,20 @@ def test_stream_handler_unknown_symbol(stream_handler):
 
 def test_get_last_candle_epoch(stream_handler):
     assert stream_handler.get_last_candle_epoch("UNKNOWN") is None
-    stream_handler.macro_candles["OTC_SPC"] = [Candle("OTC_SPC", 1.0, 1.1, 0.9, 1.05, datetime.now(), 1600000123)]
-    assert stream_handler.get_last_candle_epoch("OTC_SPC") == 1600000123
+    stream_handler.macro_candles["R_10"] = [Candle("R_10", 1.0, 1.1, 0.9, 1.05, datetime.now(), 1600000123)]
+    assert stream_handler.get_last_candle_epoch("R_10") == 1600000123
 
 
 @pytest.mark.asyncio
 async def test_stream_handler_candle_error(stream_handler):
     await stream_handler._on_candle({"invalid": "data"})
-    assert len(stream_handler.macro_candles["OTC_SPC"]) == 0
+    assert len(stream_handler.macro_candles["R_10"]) == 0
 
 
 @pytest.mark.asyncio
 async def test_stream_handler_start_stream_fails_when_ws_disconnected(mock_ws):
     config = {"buffer_limit": 10, "fetch_count": 3, "granularity": 900, "micro_granularity": 300}
-    sh = StreamHandler(mock_ws, ["OTC_SPC"], config)
+    sh = StreamHandler(mock_ws, ["R_10"], config)
     mock_ws.is_running = False
     with pytest.raises(ConnectionError):
         await sh.start_candle_stream(AsyncMock())
@@ -140,7 +140,7 @@ async def test_stream_handler_start_stream_fails_when_ws_disconnected(mock_ws):
 @pytest.mark.asyncio
 async def test_stream_handler_start_stream_fails_after_history_sync(mock_ws):
     config = {"buffer_limit": 10, "fetch_count": 3, "granularity": 900, "micro_granularity": 300}
-    sh = StreamHandler(mock_ws, ["OTC_SPC"], config)
+    sh = StreamHandler(mock_ws, ["R_10"], config)
     mock_ws.is_running = True
 
     async def drop_after_history(*_args, **_kwargs):
@@ -159,8 +159,8 @@ async def test_fetch_candle_closes_returns_closes(mock_ws):
     mock_ws.send = AsyncMock(
         return_value={"candles": [{"close": "100.1"}, {"close": "100.2"}, {"open": 1, "close": 100.3}]}
     )
-    sh = StreamHandler(mock_ws, ["OTC_SPC"], {"buffer_limit": 10})
-    closes = await sh.fetch_candle_closes("OTC_SPC", 900, 5)
+    sh = StreamHandler(mock_ws, ["R_10"], {"buffer_limit": 10})
+    closes = await sh.fetch_candle_closes("R_10", 900, 5)
     assert closes == [100.1, 100.2, 100.3]
     req = mock_ws.send.await_args.args[0]
     assert req["granularity"] == 900
@@ -169,40 +169,40 @@ async def test_fetch_candle_closes_returns_closes(mock_ws):
 @pytest.mark.asyncio
 async def test_fetch_candle_closes_unknown_symbol(mock_ws):
     mock_ws.is_running = True
-    sh = StreamHandler(mock_ws, ["OTC_SPC"], {})
+    sh = StreamHandler(mock_ws, ["R_10"], {})
     assert await sh.fetch_candle_closes("OTHER", 900, 5) == []
 
 
 @pytest.mark.asyncio
 async def test_fetch_candle_closes_zero_or_ws_down(mock_ws):
     mock_ws.is_running = False
-    sh = StreamHandler(mock_ws, ["OTC_SPC"], {})
-    assert await sh.fetch_candle_closes("OTC_SPC", 60, 3) == []
-    assert await sh.fetch_candle_closes("OTC_SPC", 60, 0) == []
+    sh = StreamHandler(mock_ws, ["R_10"], {})
+    assert await sh.fetch_candle_closes("R_10", 60, 3) == []
+    assert await sh.fetch_candle_closes("R_10", 60, 0) == []
 
 
 @pytest.mark.asyncio
 async def test_fetch_candle_closes_api_error(mock_ws):
     mock_ws.is_running = True
     mock_ws.send = AsyncMock(return_value={"error": {"code": "x"}})
-    sh = StreamHandler(mock_ws, ["OTC_SPC"], {})
-    assert await sh.fetch_candle_closes("OTC_SPC", 900, 2) == []
+    sh = StreamHandler(mock_ws, ["R_10"], {})
+    assert await sh.fetch_candle_closes("R_10", 900, 2) == []
 
 
 @pytest.mark.asyncio
 async def test_fetch_candle_closes_send_raises(mock_ws):
     mock_ws.is_running = True
     mock_ws.send = AsyncMock(side_effect=RuntimeError("x"))
-    sh = StreamHandler(mock_ws, ["OTC_SPC"], {})
-    assert await sh.fetch_candle_closes("OTC_SPC", 900, 2) == []
+    sh = StreamHandler(mock_ws, ["R_10"], {})
+    assert await sh.fetch_candle_closes("R_10", 900, 2) == []
 
 
 @pytest.mark.asyncio
 async def test_fetch_candle_closes_skips_invalid_rows(mock_ws):
     mock_ws.is_running = True
     mock_ws.send = AsyncMock(return_value={"candles": [{"close": "10"}, {"invalid": True}, {"close": "not-float"}]})
-    sh = StreamHandler(mock_ws, ["OTC_SPC"], {})
-    assert await sh.fetch_candle_closes("OTC_SPC", 900, 10) == [10.0]
+    sh = StreamHandler(mock_ws, ["R_10"], {})
+    assert await sh.fetch_candle_closes("R_10", 900, 10) == [10.0]
 
 
 @pytest.mark.asyncio
@@ -216,40 +216,40 @@ async def test_fetch_candle_ohlc_returns_tuples(mock_ws):
             ]
         }
     )
-    sh = StreamHandler(mock_ws, ["OTC_SPC"], {"buffer_limit": 10})
-    rows = await sh.fetch_candle_ohlc("OTC_SPC", 900, 5)
+    sh = StreamHandler(mock_ws, ["R_10"], {"buffer_limit": 10})
+    rows = await sh.fetch_candle_ohlc("R_10", 900, 5)
     assert rows == [(1.0, 2.0, 0.5, 1.5), (2.0, 3.0, 1.0, 2.5)]
 
 
 @pytest.mark.asyncio
 async def test_fetch_candle_ohlc_unknown_symbol(mock_ws):
     mock_ws.is_running = True
-    sh = StreamHandler(mock_ws, ["OTC_SPC"], {})
+    sh = StreamHandler(mock_ws, ["R_10"], {})
     assert await sh.fetch_candle_ohlc("OTHER", 900, 5) == []
 
 
 @pytest.mark.asyncio
 async def test_fetch_candle_ohlc_zero_or_ws_down(mock_ws):
     mock_ws.is_running = False
-    sh = StreamHandler(mock_ws, ["OTC_SPC"], {})
-    assert await sh.fetch_candle_ohlc("OTC_SPC", 60, 3) == []
-    assert await sh.fetch_candle_ohlc("OTC_SPC", 60, 0) == []
+    sh = StreamHandler(mock_ws, ["R_10"], {})
+    assert await sh.fetch_candle_ohlc("R_10", 60, 3) == []
+    assert await sh.fetch_candle_ohlc("R_10", 60, 0) == []
 
 
 @pytest.mark.asyncio
 async def test_fetch_candle_ohlc_api_error(mock_ws):
     mock_ws.is_running = True
     mock_ws.send = AsyncMock(return_value={"error": {"code": "x"}})
-    sh = StreamHandler(mock_ws, ["OTC_SPC"], {})
-    assert await sh.fetch_candle_ohlc("OTC_SPC", 900, 2) == []
+    sh = StreamHandler(mock_ws, ["R_10"], {})
+    assert await sh.fetch_candle_ohlc("R_10", 900, 2) == []
 
 
 @pytest.mark.asyncio
 async def test_fetch_candle_ohlc_send_raises(mock_ws):
     mock_ws.is_running = True
     mock_ws.send = AsyncMock(side_effect=RuntimeError("x"))
-    sh = StreamHandler(mock_ws, ["OTC_SPC"], {})
-    assert await sh.fetch_candle_ohlc("OTC_SPC", 900, 2) == []
+    sh = StreamHandler(mock_ws, ["R_10"], {})
+    assert await sh.fetch_candle_ohlc("R_10", 900, 2) == []
 
 
 @pytest.mark.asyncio
@@ -264,8 +264,8 @@ async def test_fetch_candle_ohlc_skips_invalid_rows(mock_ws):
             ]
         }
     )
-    sh = StreamHandler(mock_ws, ["OTC_SPC"], {})
-    assert await sh.fetch_candle_ohlc("OTC_SPC", 900, 10) == [(1.0, 2.0, 1.0, 1.0)]
+    sh = StreamHandler(mock_ws, ["R_10"], {})
+    assert await sh.fetch_candle_ohlc("R_10", 900, 10) == [(1.0, 2.0, 1.0, 1.0)]
 
 
 @pytest.mark.asyncio

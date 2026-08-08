@@ -26,7 +26,7 @@ _CFG = {
 
 
 def test_pending_loss_total_and_recovery_flag():
-    pending = {"OTC_SPC": 4.0, "OTHER": 2.5}
+    pending = {"R_10": 4.0, "OTHER": 2.5}
     assert pending_loss_total(pending) == pytest.approx(6.5)
     assert recovery_financially_active(pending) is True
     assert recovery_financially_active({}) is False
@@ -40,7 +40,7 @@ def test_apply_dlambert_partial_win_retraction_noop_at_zero():
 
 def test_cluster_win_retracts_linear_while_pending():
     rm = type("RM", (), {})()
-    rm.pending_loss = {"OTC_SPC": 12.0}
+    rm.pending_loss = {"R_10": 12.0}
     rm.consecutive_losses_linear = 2
     rm.total_session_profit = -8.0
     rm.last_loss_stake = 10.0
@@ -113,7 +113,7 @@ def test_consensus_kelly_retention_non_dict_metrics():
 
 def test_cluster_loss_increments_linear_counter():
     rm = type("RM", (), {})()
-    rm.pending_loss = {"OTC_SPC": 5.0}
+    rm.pending_loss = {"R_10": 5.0}
     rm.consecutive_losses_linear = 1
     rm.total_session_profit = -12.0
     rm.logger = type("L", (), {"info": lambda *a, **k: None})()
@@ -126,17 +126,17 @@ def test_cluster_loss_increments_linear_counter():
 def test_linear_retraction_on_partial_win_with_pending(kelly_config):
     rm = RiskManager(kelly_config)
     rm.active_contract_ids = [1]
-    rm.register_result(-10.0, 1, "OTC_SPC")
+    rm.register_result(-10.0, 1, "R_10")
     assert rm.consecutive_losses_linear == 1
     assert rm.recovery_financially_active()
 
     rm.active_contract_ids = [2]
-    rm.register_result(3.0, 2, "OTC_SPC")
+    rm.register_result(3.0, 2, "R_10")
     assert rm.consecutive_losses_linear == 1
     assert rm.pending_loss_total() == pytest.approx(7.0)
 
     rm.active_contract_ids = [3]
-    rm.register_result(8.0, 3, "OTC_SPC")
+    rm.register_result(8.0, 3, "R_10")
     assert rm.consecutive_losses_linear == 0
     assert not rm.recovery_financially_active()
 
@@ -155,13 +155,13 @@ def test_cross_veto_recovery_waiver_allowed_rejects_invalid_inputs():
 
 
 def test_meta_payoff_veto_emergency_waiver_pending_total_path():
-    rm = type("RM", (), {"consecutive_losses_linear": 5, "pending_loss": {"OTC_SPC": 260.0}})()
+    rm = type("RM", (), {"consecutive_losses_linear": 5, "pending_loss": {"R_10": 260.0}})()
     metrics = {"raw_prob": 0.82}
     assert meta_payoff_veto_emergency_waiver(metrics, direction="CALL", risk_manager=rm) is True
 
 
 def test_meta_payoff_veto_emergency_waiver_rejects_missing_raw_prob():
-    rm = type("RM", (), {"consecutive_losses_linear": 5, "pending_loss": {"OTC_SPC": 260.0}})()
+    rm = type("RM", (), {"consecutive_losses_linear": 5, "pending_loss": {"R_10": 260.0}})()
     assert meta_payoff_veto_emergency_waiver({}, direction="PUT", risk_manager=rm) is False
 
 

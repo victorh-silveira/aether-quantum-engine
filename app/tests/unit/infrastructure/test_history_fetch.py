@@ -19,13 +19,13 @@ def test_is_rate_limit_error():
 
 
 def test_merge_candle_pages_empty_batch():
-    existing = [Candle("OTC_SPC", 1, 1, 1, 1, None, 200)]
+    existing = [Candle("R_10", 1, 1, 1, 1, None, 200)]
     assert merge_candle_pages(existing, []) == existing
 
 
 def test_merge_candle_pages_deduplicates():
-    older = [Candle("OTC_SPC", 1, 1, 1, 1, None, 100)]
-    newer = [Candle("OTC_SPC", 1, 1, 1, 1, None, 200), Candle("OTC_SPC", 1, 1, 1, 1, None, 100)]
+    older = [Candle("R_10", 1, 1, 1, 1, None, 100)]
+    newer = [Candle("R_10", 1, 1, 1, 1, None, 200), Candle("R_10", 1, 1, 1, 1, None, 100)]
     merged = merge_candle_pages(newer, older)
     assert [c.epoch for c in merged] == [100, 200]
 
@@ -49,7 +49,7 @@ async def test_fetch_paginated_retries_rate_limit():
     )
     out = await fetch_paginated_candle_history(
         ws,
-        symbol="OTC_SPC",
+        symbol="R_10",
         granularity=60,
         target=1,
         fetch_cfg=cfg,
@@ -61,14 +61,14 @@ async def test_fetch_paginated_retries_rate_limit():
 
 @pytest.mark.asyncio
 async def test_fetch_paginated_resumes_existing():
-    existing = [Candle("OTC_SPC", 1, 1, 1, 1, None, 3000)]
+    existing = [Candle("R_10", 1, 1, 1, 1, None, 3000)]
     older = [{"open": 1.0, "high": 1.1, "low": 0.9, "close": 1.02, "epoch": 1000 + i} for i in range(2)]
     ws = AsyncMock()
     ws.send = AsyncMock(return_value={"candles": older})
     cfg = parse_history_fetch_config({"history_fetch_chunk": 10, "history_fetch_delay_seconds": 0})
     out = await fetch_paginated_candle_history(
         ws,
-        symbol="OTC_SPC",
+        symbol="R_10",
         granularity=60,
         target=3,
         fetch_cfg=cfg,
@@ -84,12 +84,12 @@ async def test_fetch_paginated_resumes_existing():
 
 @pytest.mark.asyncio
 async def test_fetch_paginated_returns_when_target_already_met():
-    existing = [Candle("OTC_SPC", 1, 1, 1, 1, None, 100 + i) for i in range(3)]
+    existing = [Candle("R_10", 1, 1, 1, 1, None, 100 + i) for i in range(3)]
     ws = AsyncMock()
     cfg = parse_history_fetch_config({"history_fetch_delay_seconds": 0})
     out = await fetch_paginated_candle_history(
         ws,
-        symbol="OTC_SPC",
+        symbol="R_10",
         granularity=60,
         target=2,
         fetch_cfg=cfg,
@@ -107,7 +107,7 @@ async def test_fetch_paginated_stops_on_fatal_error():
     cfg = parse_history_fetch_config({"history_fetch_delay_seconds": 0})
     out = await fetch_paginated_candle_history(
         ws,
-        symbol="OTC_SPC",
+        symbol="R_10",
         granularity=60,
         target=5,
         fetch_cfg=cfg,
@@ -126,7 +126,7 @@ async def test_fetch_paginated_waits_between_chunks():
     with patch("src.infrastructure.handlers.history_fetch.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
         out = await fetch_paginated_candle_history(
             ws,
-            symbol="OTC_SPC",
+            symbol="R_10",
             granularity=60,
             target=2,
             fetch_cfg=cfg,
@@ -145,7 +145,7 @@ async def test_fetch_paginated_continues_after_partial_first_page():
     cfg = parse_history_fetch_config({"history_fetch_chunk": 1000, "history_fetch_delay_seconds": 0})
     out = await fetch_paginated_candle_history(
         ws,
-        symbol="OTC_SPC",
+        symbol="R_10",
         granularity=60,
         target=1001,
         fetch_cfg=cfg,

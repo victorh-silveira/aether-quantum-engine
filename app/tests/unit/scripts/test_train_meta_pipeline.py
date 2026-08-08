@@ -16,6 +16,7 @@ from scripts.operations.train_meta_classifier import (
 from scripts.operations.train_meta_data import (
     META_TRAIN_MAX_BARS,
     OhlcBundle,
+    meta_bars_meet_quality,
     resolve_meta_train_bars,
 )
 from scripts.operations.train_meta_optuna import (
@@ -46,7 +47,7 @@ from src.application.services.meta_classifier_features import meta_classifier_co
 GRAY_KEEP_FLOOR = 96
 
 
-def _synthetic_bundle(symbol: str = "OTC_SPC", *, n: int = 280, phase: float = 0.0) -> OhlcBundle:
+def _synthetic_bundle(symbol: str = "R_10", *, n: int = 280, phase: float = 0.0) -> OhlcBundle:
     flat_head = np.full(120, 100.0)
     t = np.linspace(0, 14 * np.pi, n - 200)
     wiggle = 100.0 + 2.5 * np.sin(t + phase) + 0.2 * np.cos(3 * t)
@@ -80,7 +81,7 @@ def test_build_paired_training_dataset_accepts_fetch_below_history():
         [bundle],
         micro_granularity=120,
         fetch_count=5000,
-        teacher_probs={"OTC_SPC": _decisive_teacher(len(bundle.closes))},
+        teacher_probs={"R_10": _decisive_teacher(len(bundle.closes))},
     )
     assert len(frame) >= GRAY_KEEP_FLOOR
     assert hygiene["n_kept"] == len(frame) == len(y) == len(proxy)
@@ -92,7 +93,7 @@ def test_build_paired_training_dataset_accepts_fetch_below_history():
 def test_build_paired_training_dataset_rejects_insufficient_history():
     closes = np.linspace(100.0, 101.0, 40)
     bundle = OhlcBundle(
-        symbol="OTC_SPC",
+        symbol="R_10",
         granularity=60,
         closes=closes,
         open_=closes - 0.01,
@@ -116,7 +117,7 @@ def test_build_paired_training_dataset_single_symbol_shape():
         [bundle],
         micro_granularity=120,
         fetch_count=5000,
-        teacher_probs={"OTC_SPC": _decisive_teacher(len(bundle.closes), seed=3)},
+        teacher_probs={"R_10": _decisive_teacher(len(bundle.closes), seed=3)},
     )
     assert len(frame) >= int(5000 * INNER_JOIN_MIN_SAMPLE_RATIO) - 40
     assert frame.shape[1] == META_FEATURE_DIM
@@ -134,7 +135,7 @@ def test_build_paired_training_dataset_uses_forward_z_labels():
         [bundle],
         micro_granularity=120,
         fetch_count=1200,
-        teacher_probs={"OTC_SPC": teacher},
+        teacher_probs={"R_10": teacher},
     )
     assert hygiene["label_mode"] in {1, 2}
     assert hygiene["n_dropped_gray"] == 0
@@ -147,7 +148,7 @@ def test_build_paired_flat_closes_uses_payoff_or_raises():
     n = 400
     closes = np.full(n, 100.0, dtype=np.float64)
     bundle = OhlcBundle(
-        symbol="OTC_SPC",
+        symbol="R_10",
         granularity=120,
         closes=closes,
         open_=closes.copy(),
@@ -161,7 +162,7 @@ def test_build_paired_flat_closes_uses_payoff_or_raises():
         [bundle],
         micro_granularity=120,
         fetch_count=400,
-        teacher_probs={"OTC_SPC": teacher},
+        teacher_probs={"R_10": teacher},
     )
     assert hygiene["label_mode"] == 2
     assert hygiene["close_nunique"] < 8 or float(hygiene["forward_var"]) <= 1e-12
@@ -186,6 +187,18 @@ def test_resolve_meta_train_bars_defaults_and_caps():
     assert resolve_meta_train_bars(1024) == 1024
     assert resolve_meta_train_bars(8000) == META_TRAIN_MAX_BARS
     assert resolve_meta_train_bars(10) >= 96
+
+
+def test_meta_bars_meet_quality_accepts_api_shortfall():
+    ok, soft = meta_bars_meet_quality(1984, 2000, shortfall_ratio=0.95)
+    assert ok is True
+    assert soft is True
+    ok2, soft2 = meta_bars_meet_quality(1800, 2000, shortfall_ratio=0.95)
+    assert ok2 is False
+    assert soft2 is False
+    ok3, soft3 = meta_bars_meet_quality(2000, 2000, shortfall_ratio=0.95)
+    assert ok3 is True
+    assert soft3 is False
 
 
 def test_validate_target_variance_rejects_flat_target():
@@ -228,7 +241,7 @@ def test_build_training_summary_includes_continuous_telemetry():
         bundles,
         micro_granularity=120,
         fetch_count=280,
-        teacher_probs={"OTC_SPC": teacher},
+        teacher_probs={"R_10": teacher},
     )
     summary = build_training_summary(
         frame=frame,
@@ -247,7 +260,7 @@ def test_build_training_summary_includes_continuous_telemetry():
             "n_kept": len(frame),
         },
         output_path=Path("meta_lgbm.pkl"),
-        symbols=["OTC_SPC"],
+        symbols=["R_10"],
         bundles=bundles,
     )
     assert "cross_symbol_prob_delta_mean" in summary
@@ -307,7 +320,7 @@ def test_build_paired_training_dataset_has_continuous_target_and_named_columns()
         [bundle],
         micro_granularity=120,
         fetch_count=280,
-        teacher_probs={"OTC_SPC": _decisive_teacher(len(bundle.closes), seed=11)},
+        teacher_probs={"R_10": _decisive_teacher(len(bundle.closes), seed=11)},
     )
     columns = meta_classifier_column_names()
     assert list(frame.columns) == columns

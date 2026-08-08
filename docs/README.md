@@ -9,7 +9,7 @@
 | [medallion.md](medallion.md) | Metodologia: TCN × meta Z-Score, price zone, Kelly + Soft Recovery, SIDE_EQ, starvation |
 | [sample-size-lln.md](sample-size-lln.md) | Lei dos Grandes Numeros: sample_size_policy, cold-start e anti vies dos pequenos numeros |
 | [llm-trading-doctrine.md](llm-trading-doctrine.md) | Doutrina LLM/Cursor: 9 livros mapeados a gates, risco e anti-padroes de engenharia |
-| [binary-senior-playbook.md](binary-senior-playbook.md) | Playbook trader senior: CALL/PUT/SKIP, catalogo gate_reason, knobs M15 (micro 900s) |
+| [binary-senior-playbook.md](binary-senior-playbook.md) | Playbook trader senior: CALL/PUT/SKIP, catalogo gate_reason, knobs M2 (micro 120s) |
 | [engineering-standards.md](engineering-standards.md) | QA: pre-commit, cobertura 100%, 300 linhas, commitlint, contribuicao |
 | [engineering-orchestrator.md](engineering-orchestrator.md) | Ciclo do orquestrador, signature, locks, pos-settlement |
 | [engineering-deep-learning.md](engineering-deep-learning.md) | DL 34D, labels, treino/run, meta offline, Triton |
@@ -20,7 +20,7 @@
 | [infra-docker.md](infra-docker.md) | Stack Docker hibrida: profiles `core/gpu/cpu/ml`, binds localhost, hydrate 120/600, smoke |
 | [deriv-api.md](deriv-api.md) | Referência Deriv + integração PAT/OTP (retries Cloudflare/5xx) |
 | [deriv-api-aether.md](deriv-api-aether.md) | Guia rápido Deriv para agentes (mapeamento Aether híbrido OTP/REST) |
-| [deriv-indices-algorithm.md](deriv-indices-algorithm.md) | Universo `OTC_SPC` (S&P 500 OTC) e migracao |
+| [deriv-indices-algorithm.md](deriv-indices-algorithm.md) | Universo `R_10` (Volatility 10 M2) e migracao |
 | [CHANGELOG.md](CHANGELOG.md) | Histórico de versões |
 
 Ponto de entrada do projeto: [README.md](../README.md). Agentes: [AGENTS.md](../AGENTS.md).
@@ -46,11 +46,11 @@ Regra: **domain** não importa application nem infrastructure. **Application** o
 
 | Item | Valor |
 |------|-------|
-| Universo | `OTC_SPC` (âncora `OTC_SPC`) |
-| DL | TCN, lookback **720**, micro **900 s**, macro **3600 s**, `FEATURE_DIM=34`, label `ma_trend`, tensor `[1, 720, 34]` |
-| Meta | LightGBM HTTP `:8005`, `META_FEATURE_DIM=43` (micro **900 s**); **opcional** para execução |
-| Relógio | Micro/MINI **900 s** + macro **3600 s** (1:5); contrato **15 m** (somente M15); assinatura legado `m5b:…;m5:…;m15:…` |
-| Ciclo / assinatura | `cycle_interval_seconds` / `signature_boundary_seconds` = **15 s** (entrada continua; contrato **15 m**) |
+| Universo | `R_10` (âncora `R_10`) |
+| DL | TCN, lookback **720**, micro **120 s**, macro **3600 s**, `FEATURE_DIM=34`, label `ma_trend`, tensor `[1, 720, 34]` |
+| Meta | LightGBM HTTP `:8005`, `META_FEATURE_DIM=43` (micro **120 s**); **opcional** para execução |
+| Relógio | Micro/MINI **120 s** + macro **3600 s**; contrato **2 m** (M2); assinatura legado `m5b:…;m5:…;m15:…` |
+| Ciclo / assinatura | `cycle_interval_seconds` / `signature_boundary_seconds` = **60 s** (entrada a cada 1 m; contrato **2 m**) |
 | Execução | **Mandatória** (`mandatory_trade_each_cycle: true`); `force_trade_every_cycle: false`; `price_zone` alinha BUY→CALL / SELL→PUT |
 | Fail-closed | Triton e meta **opcionais** nos settings atuais (`infra.triton.enabled/require_for_execution: false`; `require_meta_for_execution: false`) |
 | Calibração | `neutral_half_width: 0.0` (zona neutra **off**); thresholds CALL/PUT **0.51/0.49**; override TCN macro se raw &gt;0.65 ou &lt;0.35 |
@@ -59,8 +59,8 @@ Regra: **domain** não importa application nem infrastructure. **Application** o
 | Quality gate | Pisos regulares de margem/edge/ADX **0.0** (esteira contínua); starvation a partir de **6** skips; edge decay a partir de **8** (`edge_decay_floor` → 0.0) |
 | Recovery relax | `recovery_relax.edge_floor: -0.55` com `linear≥2` e pending |
 | Discordance | `discordance_veto_enabled: false` (módulo `execution_direction_discordance` disponível) |
-| Risco | Kelly EXPLORE (`fraction=0.40`, piso **1%** / teto **5%**) + Soft Recovery RECOVER (`max_safe_stake_pct=0.05`, payout **0.72**); stop-win Kelly **4 ciclos/1h**; stop win 3% (≥$100) / $10 (&lt;$100) |
+| Risco | Kelly EXPLORE (`fraction=0.08`, piso **0.25%** / teto **5%**) + Soft Recovery RECOVER (`max_safe_stake_pct=0.05`, payout **0.72**); stop-win Kelly **4 ciclos/1h**; stop win 3% (≥$100) / $10 (&lt;$100) |
 | Settlement | Tolerância **90 s**, reconciliação passiva; pós-EXEC_EMPTY alinha fronteira (cap `exec_empty_retry_seconds`) |
 | Watchdog | Stale tick **25 s** |
-| Histórico treino | **2000** barras micro M15 (~21d); sync lean no treino (macro≤128, mini=0) |
+| Histórico treino | **2000** barras micro M2; sync lean no treino (macro≤128, mini=0) |
 | QA | Pre-commit: lint + testes **100%** cobertura (**305** `test_*.py`) + security; ≤300 linhas/arquivo |

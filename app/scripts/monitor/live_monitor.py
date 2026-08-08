@@ -52,7 +52,24 @@ _CLUSTER_TOKEN_RE = re.compile(
     r"\))?",
     re.IGNORECASE,
 )
-_EXEC_RE = re.compile(
+_EXEC_HEAD_RE = re.compile(
+    r"\]\s*EXEC\s*\|\|\s*(?P<ord>CALL|PUT)\s+\[(?P<symbol>[A-Z][A-Z0-9_]*)\]\s*\|\|\s*"
+    r"STAKE:\s*(?P<stake>-?[\d.]+)\s+\((?P<mode>[A-Z0-9_]+)\)"
+    r"(?:\s*\|\s*RECOVERY_INFEASIBLE)?",
+    re.IGNORECASE,
+)
+_EXEC_BOOK_RE = re.compile(
+    r"\]\s*EXEC\s*\|\|\s*PEND:\s*(?P<pend>-?[\d.]+)"
+    r"(?:\s*\|\s*LIN:\s*(?P<lin>-?\d+))?"
+    r"(?:\s*\|\s*CAP:\s*(?P<cap>-?[\d.]+))?"
+    r"\s*\|\s*BANCA:\s*(?P<banca>-?[\d.]+)",
+    re.IGNORECASE,
+)
+_EXEC_TAIL_RE = re.compile(
+    r"\]\s*EXEC\s*\|\|\s*CID:\s*(?P<cid>\d+)\s*\|\s*PAY:\s*(?P<pay>-?[\d.]+)",
+    re.IGNORECASE,
+)
+_EXEC_LEGACY_RE = re.compile(
     r"\]\s*EXEC\s*\|\|\s*(?P<ord>CALL|PUT)\s+\[(?P<symbol>[A-Z][A-Z0-9_]*)\]\s*\|\|\s*"
     r"STAKE:\s*(?P<stake>-?[\d.]+)\s+\((?P<mode>[A-Z0-9_]+)\)\s*\|\s*"
     r"PEND:\s*(?P<pend>-?[\d.]+)"
@@ -64,7 +81,17 @@ _EXEC_RE = re.compile(
     r"CID:\s*(?P<cid>\d+)\s*\|\s*PAY:\s*(?P<pay>-?[\d.]+)",
     re.IGNORECASE,
 )
-_IND_RE = re.compile(
+_IND_Z_RE = re.compile(
+    r"\]\s*IND\s*\|\|\s*Z:\s*(?P<z_edge>[+-]?[\d.]+)\s*\|\s*ACC:\s*(?P<acc>[+-]?[\d.]+)"
+    r"(?:\s*\|\s*MARGIN:\s*(?P<margin>[+-]?[\d.]+))?"
+    r"(?:\s*\|\s*CAL_EDGE:\s*(?P<cal_edge>[+-]?[\d.]+))?",
+    re.IGNORECASE,
+)
+_IND_NEUTRAL_RE = re.compile(
+    r"\]\s*IND\s*\|\|\s*NEUTRAL:\s*(?P<neutral>\S+)\s*\|\s*META_VETO:\s*(?P<meta_veto>\S+)",
+    re.IGNORECASE,
+)
+_IND_LEGACY_RE = re.compile(
     r"\]\s*IND\s*\|\|\s*"
     r"RSI:\s*(?P<rsi>[+-]?[\d.]+)\s*\|\s*ADX:\s*(?P<adx>[+-]?[\d.]+)\s*\|\s*HURST:\s*(?P<hurst>[+-]?[\d.]+)\s*\|\|\s*"
     r"ATR:\s*(?P<atr>[+-]?[\d.]+)\s*\|\s*BBW:\s*(?P<bbw>[+-]?[\d.]+)\s*\|\s*VOL_R:\s*(?P<vol_r>[+-]?[\d.]+)\s*\|\|\s*"
@@ -72,6 +99,7 @@ _IND_RE = re.compile(
     r"(?:\s*\|\|\s*MARGIN:\s*(?P<margin>[+-]?[\d.]+)\s*\|\s*NEUTRAL:\s*(?P<neutral>\S+)\s*\|\s*META_VETO:\s*(?P<meta_veto>\S+))?",
     re.IGNORECASE,
 )
+
 _SESSION_START_RE = re.compile(r"Alvo de [\d.]+%:\s*\$([\d,]+\.?\d*)", re.IGNORECASE)
 _SESSION_START_FIXED_RE = re.compile(r"Alvo fixo micro-banca:\s*\$([\d,]+\.?\d*)", re.IGNORECASE)
 
@@ -130,52 +158,99 @@ class LogParser:
     def _parse_ind(self, line: str) -> None:
         if "IND ||" not in line:
             return
-        match = _IND_RE.search(line)
-        if not match:
-            return
         try:
-            z_edge = float(match.group("z_edge"))
-            acc = float(match.group("acc"))
-            extras = f"Z={z_edge:+.2f} ACC={acc:.4f}"
-            margin = match.group("margin")
-            if margin is not None:
-                extras += f" MARGIN={float(margin):.3f}"
-            neutral = match.group("neutral")
-            if neutral is not None:
-                extras += f" NEUTRAL={neutral}"
-            meta_veto = match.group("meta_veto")
-            if meta_veto is not None:
-                extras += f" META_VETO={meta_veto}"
-            self.state.last_telemetry["metrics"] = extras
+            legacy = _IND_LEGACY_RE.search(line)
+            z_match = _IND_Z_RE.search(line)
+            n_match = _IND_NEUTRAL_RE.search(line)
+            match = legacy or z_match
+            if match is None and n_match is None:
+                return
+            prev = str(self.state.last_telemetry.get("metrics") or "")
+            extras = prev
+            if match is not None and match.groupdict().get("z_edge") is not None:
+                z_edge = float(match.group("z_edge"))
+                acc = float(match.group("acc"))
+                chunk = f"Z={z_edge:+.2f} ACC={acc:.4f}"
+                margin = match.groupdict().get("margin")
+                if margin is not None:
+                    chunk += f" MARGIN={float(margin):.3f}"
+                cal_edge = match.groupdict().get("cal_edge")
+                if cal_edge is not None:
+                    chunk += f" CAL_EDGE={float(cal_edge):+.3f}"
+                extras = chunk if not prev else f"{prev} {chunk}"
+            src = n_match or match
+            if src is not None:
+                neutral = src.groupdict().get("neutral")
+                if neutral is not None:
+                    extras = f"{extras} NEUTRAL={neutral}".strip()
+                meta_veto = src.groupdict().get("meta_veto")
+                if meta_veto is not None:
+                    extras = f"{extras} META_VETO={meta_veto}".strip()
+            if extras:
+                self.state.last_telemetry["metrics"] = extras
         except Exception as exc:
             logger.error("Parser Error IND: %s", exc)
 
     def _parse_exec(self, line: str) -> None:
         if "EXEC ||" not in line:
             return
-        match = _EXEC_RE.search(line)
-        if not match:
-            return
         try:
-            self.state.last_telemetry["symbol"] = match.group("symbol").upper()
-            self.state.last_telemetry["dir"] = match.group("ord").upper()
-            self.state.last_telemetry["dl_dir"] = match.group("ord").upper()
-            stake = float(match.group("stake"))
-            self.state.last_telemetry["conv"] = f"{stake:.2f}"
-            mode = match.group("mode")
-            pend = float(match.group("pend"))
-            pay = float(match.group("pay"))
-            lin = match.group("lin")
-            cap = match.group("cap")
-            extras = f"mode={mode} pend={pend:.2f} pay={pay:.2f}"
-            if lin is not None:
-                extras += f" lin={lin}"
-            if cap is not None:
-                extras += f" cap={float(cap):.2f}"
-            self.state.last_telemetry["metrics"] = extras
-            banca = float(match.group("banca"))
-            if banca > 0.0:
-                self.state.balance = banca
+            legacy = _EXEC_LEGACY_RE.search(line)
+            head = _EXEC_HEAD_RE.search(line)
+            book = _EXEC_BOOK_RE.search(line)
+            tail = _EXEC_TAIL_RE.search(line)
+            if legacy is not None:
+                match = legacy
+                self.state.last_telemetry["symbol"] = match.group("symbol").upper()
+                self.state.last_telemetry["dir"] = match.group("ord").upper()
+                self.state.last_telemetry["dl_dir"] = match.group("ord").upper()
+                stake = float(match.group("stake"))
+                self.state.last_telemetry["conv"] = f"{stake:.2f}"
+                mode = match.group("mode")
+                pend = float(match.group("pend"))
+                pay = float(match.group("pay"))
+                lin = match.group("lin")
+                cap = match.group("cap")
+                extras = f"mode={mode} pend={pend:.2f} pay={pay:.2f}"
+                if lin is not None:
+                    extras += f" lin={lin}"
+                if cap is not None:
+                    extras += f" cap={float(cap):.2f}"
+                self.state.last_telemetry["metrics"] = extras
+                banca = float(match.group("banca"))
+                if banca > 0.0:
+                    self.state.balance = banca
+                return
+            prev = str(self.state.last_telemetry.get("metrics") or "")
+            if head is not None:
+                self.state.last_telemetry["symbol"] = head.group("symbol").upper()
+                self.state.last_telemetry["dir"] = head.group("ord").upper()
+                self.state.last_telemetry["dl_dir"] = head.group("ord").upper()
+                stake = float(head.group("stake"))
+                self.state.last_telemetry["conv"] = f"{stake:.2f}"
+                mode = head.group("mode")
+                chunk = f"mode={mode}"
+                prev = f"{prev} {chunk}".strip() if prev else chunk
+                self.state.last_telemetry["metrics"] = prev
+            if book is not None:
+                pend = float(book.group("pend"))
+                lin = book.group("lin")
+                cap = book.group("cap")
+                chunk = f"pend={pend:.2f}"
+                if lin is not None:
+                    chunk += f" lin={lin}"
+                if cap is not None:
+                    chunk += f" cap={float(cap):.2f}"
+                prev = str(self.state.last_telemetry.get("metrics") or "")
+                self.state.last_telemetry["metrics"] = f"{prev} {chunk}".strip() if prev else chunk
+                banca = float(book.group("banca"))
+                if banca > 0.0:
+                    self.state.balance = banca
+            if tail is not None:
+                pay = float(tail.group("pay"))
+                chunk = f"pay={pay:.2f}"
+                prev = str(self.state.last_telemetry.get("metrics") or "")
+                self.state.last_telemetry["metrics"] = f"{prev} {chunk}".strip() if prev else chunk
         except Exception as exc:
             logger.error("Parser Error EXEC: %s", exc)
 

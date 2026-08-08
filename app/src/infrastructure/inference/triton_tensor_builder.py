@@ -31,7 +31,7 @@ def build_inference_tensor(
     norm_stats: FeatureNormStats,
     *,
     granularity: int = 60,
-    symbol: str = "OTC_SPC",
+    symbol: str = "R_10",
     open_: np.ndarray | None = None,
     high: np.ndarray | None = None,
     low: np.ndarray | None = None,

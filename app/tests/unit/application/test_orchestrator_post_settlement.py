@@ -110,14 +110,14 @@ async def test_settlement_win_triggers_real_next_cycle(orch_ready):
         status=TradeStatus.OPEN,
         buy_price=5.83,
         payout=10.60,
-        symbol="OTC_SPC",
+        symbol="R_10",
         direction=TradeDirection.PUT,
         stake=5.83,
         expiry_time=0,
     )
     await orch.state.add_contract(contract)
     orch.risk_manager.active_contract_ids = [1692883719]
-    orch.risk_manager.contract_to_symbol[1692883719] = "OTC_SPC"
+    orch.risk_manager.contract_to_symbol[1692883719] = "R_10"
     orch.risk_manager.begin_cluster(1)
 
     with (
@@ -159,14 +159,14 @@ async def test_settlement_loss_triggers_real_next_cycle(orch_ready):
         status=TradeStatus.OPEN,
         buy_price=5.85,
         payout=10.63,
-        symbol="OTC_SPC",
+        symbol="R_10",
         direction=TradeDirection.PUT,
         stake=5.85,
         expiry_time=0,
     )
     await orch.state.add_contract(contract)
     orch.risk_manager.active_contract_ids = [1694702639]
-    orch.risk_manager.contract_to_symbol[1694702639] = "OTC_SPC"
+    orch.risk_manager.contract_to_symbol[1694702639] = "R_10"
     orch.risk_manager.begin_cluster(1)
 
     with (

@@ -1,8 +1,8 @@
-# Indice OTC SP 500 (`OTC_SPC`) — somente M15
+# Indice Volatility 10 (`R_10`) — M2
 
-Universo operacional unico: **`OTC_SPC`** (S&P 500 OTC). Preco de mercado real (horario de sessao). Timeframe operacional **somente M15**.
+Universo operacional unico: **`R_10`** (Volatility 10 / Deriv). Serie sintetica 24/7 com alvo de volatilidade ~10% anualizada. Timeframe operacional **M2** (micro/MINI **120 s**).
 
-Referencia: [dTrader OTC_SPC M15](https://dtrader.deriv.com/?chart_type=candle&interval=15m&symbol=OTC_SPC&trade_type=rise_fall).
+Referencia: [dTrader R_10 M2](https://dtrader.deriv.com/?chart_type=candle&interval=2m&symbol=R_10&trade_type=rise_fall).
 
 ---
 
@@ -10,15 +10,15 @@ Referencia: [dTrader OTC_SPC M15](https://dtrader.deriv.com/?chart_type=candle&i
 
 | Item | Valor |
 |------|--------|
-| Simbolo API | `OTC_SPC` |
-| Contrato | `RISE_FALL` **15 m** (`duration=15`, `duration_unit=m`) |
-| Micro / MINI OHLC | **900 s** (M15) |
-| Macro OHLC | **3600 s** (1:5) |
-| Ciclo / assinatura | **15 s** (entrada continua; contrato permanece **15 m**) |
-| Lookback TCN | **720** barras micro (~7,5 dias) |
-| Payout SSOT | **0.72** (live OTC_SPC M15; cover = `pending/0.72`) |
+| Simbolo API | `R_10` |
+| Contrato | `RISE_FALL` **2 m** (`duration=2`, `duration_unit=m`) |
+| Micro / MINI OHLC | **120 s** (M2) |
+| Macro OHLC | **3600 s** (1:30) |
+| Ciclo / assinatura | **60 s** (entrada a cada 1 m; contrato permanece **2 m**) |
+| Lookback TCN | **720** barras micro |
+| Payout SSOT | **0.72** (live R_10 M2; cover = `pending/0.72`) |
 | Settle wait / tolerancia | poll **0.5 s** / **300 s**; timeout pos-ciclo **1200 s** |
-| Watchdog stale tick | **600 s** (OTC pode ficar quieto fora do horario US) |
+| Watchdog stale tick | **600 s** |
 
 SSOT: `config/settings.json` + `app/src/domain/symbols/drift_symbols.py`.
 
@@ -26,7 +26,7 @@ SSOT: `config/settings.json` + `app/src/domain/symbols/drift_symbols.py`.
 
 ## 2. Pipeline
 
-- TCN em barras M15; Cal/Margin; SCALE adapta sem hard SKIP.
+- TCN em barras M2; Cal/Margin; SCALE adapta sem hard SKIP.
 - Soft Kelly: `signal_skip` / loss-clf (sem flip de lado pos-LOSS).
 - EXPLORE Kelly / RECOVER cover `pending/payout` (`amort` 1/1).
 
@@ -34,9 +34,9 @@ SSOT: `config/settings.json` + `app/src/domain/symbols/drift_symbols.py`.
 
 ## 3. Migracao
 
-1. Invalidar checkpoints de gran **60/300** e contratos **30 s**.
-2. Re-hidratar Timescale **900/3600**; retreinar TCN/meta/loss-clf.
-3. Confirmar `contracts_for` autenticado: Rise/Fall **15 m** disponivel no horario de mercado.
+1. Invalidar checkpoints de gran **60/300/900** (legado OTC_SPC M15) e contratos **15 m**.
+2. Re-hidratar Timescale **120/3600**; retreinar TCN/meta/loss-clf.
+3. Confirmar `contracts_for` autenticado: Rise/Fall **2 m** disponivel.
 
 ---
 

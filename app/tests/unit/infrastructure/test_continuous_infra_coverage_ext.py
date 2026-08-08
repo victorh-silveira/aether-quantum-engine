@@ -45,7 +45,7 @@ async def test_refresh_correlation_handles_exception():
         "infra": {"timescale": {"dsn": "postgresql://x"}, "triton": {}},
         "data_handler": {},
     }
-    orch.symbols = ["OTC_SPC"]
+    orch.symbols = ["R_10"]
     with patch(
         "src.infrastructure.market.timescale_correlation_worker.fetch_correlation_matrix",
         new_callable=AsyncMock,
@@ -95,7 +95,7 @@ async def test_infer_symbol_async_2d_tensor():
     ):
         prob = await infer_symbol_async(
             {"infra": {"triton": {"enabled": True}}},
-            "OTC_SPC",
+            "R_10",
             np.zeros((4, 34), dtype=np.float32),
         )
     assert prob == pytest.approx(0.55)
@@ -110,7 +110,7 @@ async def test_sync_symbol_download_returns_false(tmp_path):
 
     ok, changed = await sync_symbol_torchscript_to_triton(
         Store(),
-        "OTC_SPC",
+        "R_10",
         arch="tcn",
         local_ts_path=tmp_path / "missing.pt",
         lookback=48,
@@ -122,16 +122,14 @@ async def test_sync_symbol_download_returns_false(tmp_path):
 def test_correlation_reader_log_returns_edges():
     assert _log_returns([1.0]).size == 0
     assert _log_returns([0.0, 1.0]).size == 0
-    short = compute_correlation_matrix({"OTC_SPC": [1.0, 1.01, 1.02], "R_50": [2.0, 2.01]})
-    assert short[("OTC_SPC", "R_50")] == 0.0
+    short = compute_correlation_matrix({"R_10": [1.0, 1.01, 1.02], "R_50": [2.0, 2.01]})
+    assert short[("R_10", "R_50")] == 0.0
     with patch(
         "src.infrastructure.market.timescale_correlation_reader.np.corrcoef",
         return_value=np.array([[1.0, float("nan")], [float("nan"), 1.0]]),
     ):
-        nan_matrix = compute_correlation_matrix(
-            {"OTC_SPC": [1.0, 1.1, 1.2, 1.3, 1.4], "R_50": [2.0, 2.1, 2.2, 2.3, 2.4]}
-        )
-    assert nan_matrix[("OTC_SPC", "R_50")] == 0.0
+        nan_matrix = compute_correlation_matrix({"R_10": [1.0, 1.1, 1.2, 1.3, 1.4], "R_50": [2.0, 2.1, 2.2, 2.3, 2.4]})
+    assert nan_matrix[("R_10", "R_50")] == 0.0
 
 
 def test_correlation_cache_invalid_payload():

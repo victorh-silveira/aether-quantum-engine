@@ -147,7 +147,7 @@ def test_settlement_spam_filter_dedupes_identical_settle_lines():
         (),
         None,
     )
-    rec3 = logging.LogRecord("AETH", logging.INFO, "", 0, "[CLUSTER] M10 || OTC_SPC: PUT", (), None)
+    rec3 = logging.LogRecord("AETH", logging.INFO, "", 0, "[CLUSTER] M10 || R_10: PUT", (), None)
     assert filt.filter(rec1) is True
     assert filt.filter(rec2) is False
     assert filt.filter(rec3) is True
@@ -205,12 +205,12 @@ def test_log_settle_quiet_channel_uses_debug():
 
 def test_aether_formatter_prefixes_context_without_breaking_cluster():
     clear_log_context()
-    bind_log_context(cycle_id=3, symbol="OTC_SPC")
+    bind_log_context(cycle_id=3, symbol="R_10")
     formatter = AetherFormatter("%(levelname)s | %(message)s")
-    record = logging.LogRecord("AETH", logging.INFO, "", 0, "[CLUSTER] M10 || OTC_SPC: PUT", (), None)
+    record = logging.LogRecord("AETH", logging.INFO, "", 0, "[CLUSTER] M10 || R_10: PUT", (), None)
     out = formatter.format(record)
     clear_log_context()
-    assert "[c3|OTC_SPC]" in out
+    assert "[c3|R_10]" in out
     assert "[CLUSTER]" in out
 
 
@@ -221,8 +221,8 @@ def test_format_log_context_prefix_partial_fields():
     bind_log_context(cycle_id=9)
     assert format_log_context_prefix() == "[c9] "
     clear_log_context()
-    bind_log_context(symbol="OTC_SPC")
-    assert format_log_context_prefix() == "[OTC_SPC] "
+    bind_log_context(symbol="R_10")
+    assert format_log_context_prefix() == "[R_10] "
     clear_log_context()
     assert format_log_context_prefix() == ""
 
@@ -245,7 +245,7 @@ def test_live_monitor_cluster_regex_still_matches_prefixed_line():
     import re
 
     cluster_re = re.compile(r"\[CLUSTER\]\s+(?P<tf>\S+)\s+\|\|\s+(?P<body>.+)$", re.IGNORECASE)
-    line = "12:00:00 | INFO | [c3|OTC_SPC] [CLUSTER] M10 || OTC_SPC: PUT (Prob: 0.55 Cal: 0.60)"
+    line = "12:00:00 | INFO | [c3|R_10] [CLUSTER] M10 || R_10: PUT (Prob: 0.55 Cal: 0.60)"
     match = cluster_re.search(line)
     assert match is not None
     assert match.group("tf") == "M10"

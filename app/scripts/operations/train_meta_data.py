@@ -33,6 +33,40 @@ def meta_min_quality_bars(lookback: int = 360) -> int:
     return max(META_TRAIN_MIN_QUALITY_BARS, int(lookback) + META_TRAIN_LOOKBACK_MARGIN)
 
 
+def meta_bars_meet_quality(
+    available: int,
+    quality_floor: int,
+    *,
+    shortfall_ratio: float = 0.95,
+) -> tuple[bool, bool]:
+    """True se bars bastam; segundo valor True quando shortfall API foi aceito."""
+    have = int(available)
+    floor = max(MIN_OHLC_ROWS, int(quality_floor))
+    if have >= floor:
+        return True, False
+    hard = max(MIN_OHLC_ROWS, META_TRAIN_LOOKBACK_MARGIN)
+    if have < hard:
+        return False, False
+    try:
+        ratio = float(shortfall_ratio)
+    except (TypeError, ValueError):
+        ratio = 0.95
+    ratio = min(1.0, max(0.80, ratio))
+    if have + 1e-12 >= float(floor) * ratio:
+        return True, True
+    return False, False
+
+
+def _shortfall_ratio_from_settings(settings: dict[str, Any] | None) -> float:
+    dl = settings.get("deep_learning") if isinstance(settings, dict) else None
+    if not isinstance(dl, dict):
+        return 0.95
+    try:
+        return float(dl.get("train_history_shortfall_ratio", 0.95))
+    except (TypeError, ValueError):
+        return 0.95
+
+
 def bundle_forward_is_flat(bundle: OhlcBundle, *, horizon_bars: int = 1) -> bool:
     """True quando closes/forward return nao sustentam alvo continuo."""
     closes = np.asarray(bundle.closes, dtype=np.float64)
@@ -251,7 +285,7 @@ def _granularity_candidates(
     data_cfg = settings.get("data_handler", {}) if isinstance(settings.get("data_handler"), dict) else {}
     micro = int(data_cfg.get("micro_granularity", 60)) if isinstance(data_cfg, dict) else 60
     macro = int(data_cfg.get("granularity", 300)) if isinstance(data_cfg, dict) else 300
-    ordered = [int(preferred), micro, macro, 900, 3600, 60, 300]
+    ordered = [int(preferred), micro, macro, 120, 3600, 60, 300, 900]
     unique: list[int] = []
     for value in ordered:
         if value not in unique:
@@ -340,6 +374,7 @@ async def resolve_training_bundles(
     mode = str(source or "auto").lower()
     bar_target = resolve_meta_train_bars(bars)
     quality_floor = int(min_quality_bars) if min_quality_bars is not None else meta_min_quality_bars()
+    shortfall_ratio = _shortfall_ratio_from_settings(settings)
     bundles: list[OhlcBundle] = []
     if mode in {"auto", "timescale"}:
         bundles = await load_bundles_from_timescale(dsn, symbols, granularities, bar_target)
@@ -349,7 +384,11 @@ async def resolve_training_bundles(
             except RuntimeError:
                 bundles = []
         if bundles:
-            short = [b for b in bundles if len(b.closes) < quality_floor]
+            short = [
+                b
+                for b in bundles
+                if not meta_bars_meet_quality(len(b.closes), quality_floor, shortfall_ratio=shortfall_ratio)[0]
+            ]
             flat = [b for b in bundles if bundle_forward_is_flat(b)]
             if short or flat:
                 logger.warning(
@@ -371,11 +410,20 @@ async def resolve_training_bundles(
     bundles = await load_bundles_from_deriv(settings, symbols, granularity, bar_target)
     if bundles:
         assert_bundles_match_granularity(bundles, granularity)
-        short = [b for b in bundles if len(b.closes) < quality_floor]
-        if short:
-            raise RuntimeError(
-                f"Historico Deriv insuficiente para meta senior "
-                f"(min {quality_floor} barras; obtido {[len(b.closes) for b in bundles]})."
+        soft_accepted = False
+        for bundle in bundles:
+            ok, soft = meta_bars_meet_quality(len(bundle.closes), quality_floor, shortfall_ratio=shortfall_ratio)
+            if not ok:
+                raise RuntimeError(
+                    f"Historico Deriv insuficiente para meta senior "
+                    f"(min {quality_floor} barras; obtido {[len(b.closes) for b in bundles]})."
+                )
+            soft_accepted = soft_accepted or soft
+        if soft_accepted:
+            logger.info(
+                "META_TRAIN: historico parcial API (%s/%d) — seguindo",
+                [len(b.closes) for b in bundles],
+                quality_floor,
             )
         if seed_timescale_on_deriv:
             try:

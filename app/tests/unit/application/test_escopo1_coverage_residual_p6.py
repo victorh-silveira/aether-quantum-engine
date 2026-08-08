@@ -44,7 +44,7 @@ class _FakePath:
 def test_residual_gaps_execution_quality_rank_force_fallback():
     linear, pending = read_risk_session_state(None, pending_loss_total=2.5)
     assert pending == pytest.approx(2.5)
-    assert synthesize_force_trade_candidate(["OTC_SPC"], "not-dict") is None
+    assert synthesize_force_trade_candidate(["R_10"], "not-dict") is None
     metrics_soft = {
         "live_n": 50,
         "live_brier": 0.35,
@@ -60,12 +60,12 @@ def test_residual_gaps_execution_quality_rank_force_fallback():
     assert market_decision_score(metrics_soft) != market_decision_score({**metrics_soft, "live_brier": 0.1})
     orch = SimpleNamespace(_active_cycle_id=1, config={})
     decisions = {
-        "OTC_SPC": {
+        "R_10": {
             "direction": TradeDirection.CALL,
             "metrics": {"deploy_ok": True, "raw_prob": 0.7, "trade_score": 0.8, "val_accuracy": 0.6},
         }
     }
-    last = ("OTC_SPC", TradeDirection.CALL, decisions["OTC_SPC"]["metrics"])
+    last = ("R_10", TradeDirection.CALL, decisions["R_10"]["metrics"])
     with (
         patch(
             "src.application.services.execution_direction_fallback.pick_best_mandatory_candidate",
@@ -77,7 +77,7 @@ def test_residual_gaps_execution_quality_rank_force_fallback():
         ),
     ):
         picked = build_mandatory_fallback_candidate(
-            ["OTC_SPC"],
+            ["R_10"],
             decisions,
             recovery_active=False,
             last_loss_symbol=None,
@@ -160,7 +160,7 @@ def test_live_signal_drift_resolved_conviction_and_raw_side():
             },
         ),
     ):
-        apply_live_calib_drift_soft(metrics, orch=orch, symbol="OTC_SPC")
+        apply_live_calib_drift_soft(metrics, orch=orch, symbol="R_10")
     metrics2 = {"live_n": 20, "live_ece": 0.5, "live_wr": 0.1, "raw_prob": 0.9, "resolved_conviction": 0.75}
     with (
         patch(
@@ -181,7 +181,7 @@ def test_live_signal_drift_resolved_conviction_and_raw_side():
             },
         ),
     ):
-        apply_live_calib_drift_soft(metrics2, orch=orch, symbol="OTC_SPC")
+        apply_live_calib_drift_soft(metrics2, orch=orch, symbol="R_10")
 
 
 def test_execution_blockers_deploy_and_signal_suspended():
@@ -190,12 +190,12 @@ def test_execution_blockers_deploy_and_signal_suspended():
         _active_cycle_id=5,
         config={"orchestrator": {"execution": {}}},
     )
-    executor._trade_symbols = MagicMock(return_value=["OTC_SPC", "R_50"])
+    executor._trade_symbols = MagicMock(return_value=["R_10", "R_50"])
     executor.logger = logging.getLogger("test.blockers")
     log_execution_blockers(
         executor,
         {
-            "OTC_SPC": {"metrics": {"deploy_ok": False}},
+            "R_10": {"metrics": {"deploy_ok": False}},
             "R_50": {"metrics": {"signal_status": "SIGNAL_SUSPENDED"}},
         },
     )

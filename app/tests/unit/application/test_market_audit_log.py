@@ -1,6 +1,8 @@
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 from src.application.services.market_audit_log import (
+    emit_audit_info,
     format_cluster_audit_line,
     format_execution_ticket_line,
     format_indicators_audit_line,
@@ -11,6 +13,17 @@ from src.application.services.market_audit_log import (
     resolve_stake_mode_tag,
 )
 from src.domain.models.trade import TradeDirection
+
+
+def test_emit_audit_info_splits_multiline():
+    logger = MagicMock()
+    emit_audit_info(logger, "[C0001] IND || A\n[C0001] IND || B\n\n[C0001] IND || C")
+    assert logger.info.call_count == 3
+    assert logger.info.call_args_list[0].args == ("%s", "[C0001] IND || A")
+    assert logger.info.call_args_list[1].args == ("%s", "[C0001] IND || B")
+    assert logger.info.call_args_list[2].args == ("%s", "[C0001] IND || C")
+    emit_audit_info(logger, "   \n  ")
+    assert logger.info.call_count == 3
 
 
 def test_resolve_cluster_timeframe_branches():
@@ -29,14 +42,14 @@ def test_resolve_cluster_timeframe_branches():
 
 
 def test_format_settlement_audit_line_default_tag_flat_keep():
-    line = format_settlement_audit_line(1, "WIN", 2.0, "CALL", "OTC_SPC", 0.1)
+    line = format_settlement_audit_line(1, "WIN", 2.0, "CALL", "R_10", 0.1)
     assert "FLAT_KEEP" in line
     assert resolve_settlement_tag(profit=1.0, linear_before=2) == "RESET_LINEAR"
 
 
 def test_format_cluster_veto_and_metric_float_paths():
     decisions = {
-        "OTC_SPC": {
+        "R_10": {
             "direction": "CALL",
             "metrics": {
                 "exec_direction": "CALL",
@@ -53,7 +66,7 @@ def test_format_cluster_veto_and_metric_float_paths():
             "direction": None,
             "metrics": {"execute": False, "deploy_ok": True, "dl_direction": "PUT"},
         },
-        "OTC_SPC0": {
+        "R_100": {
             "direction": TradeDirection.CALL,
             "metrics": {
                 "raw_prob": object(),
@@ -64,15 +77,15 @@ def test_format_cluster_veto_and_metric_float_paths():
         },
     }
     line = format_cluster_audit_line(decisions, timeframe="M5")
-    assert "OTC_SPC: CALL (Prob:" in line and "NEUTRO_SKIP)" in line
+    assert "R_10: CALL (Prob:" in line and "NEUTRO_SKIP)" in line
     assert "R_25: CALL (Prob:" in line and "NEUTRO_SKIP)" in line
     assert "R_50: PUT (Prob:" in line and "NEUTRO_SKIP)" in line
-    assert "OTC_SPC0: CALL (Prob:" in line and "SKIP:ADX_STARVATION)" in line
+    assert "R_100: CALL (Prob:" in line and "SKIP:ADX_STARVATION)" in line
 
 
 def test_metric_float_skips_invalid_then_uses_default_in_cluster():
     decisions = {
-        "OTC_SPC": {
+        "R_10": {
             "direction": TradeDirection.PUT,
             "metrics": {
                 "raw_prob": object(),
@@ -82,7 +95,7 @@ def test_metric_float_skips_invalid_then_uses_default_in_cluster():
         }
     }
     line = format_cluster_audit_line(decisions, timeframe="M5")
-    assert "OTC_SPC: PUT (Prob: 0.500 Cal: 0.500 Margin: 0.000 Edge: +0.000)" in line
+    assert "R_10: PUT (Prob: 0.50000 Cal: 0.50000 Margin: 0.000 Edge: +0.000)" in line
 
 
 def test_indicator_float_none_branch():
@@ -103,7 +116,7 @@ def test_format_settlement_audit_line():
         "WIN",
         1.63,
         "CALL",
-        "OTC_SPC",
+        "R_10",
         0.1234,
         settlement_tag="RESET_LINEAR",
     )
@@ -116,7 +129,7 @@ def test_format_settlement_audit_line_loss_cooldown():
         "LOSS",
         -1.0,
         "PUT",
-        "OTC_SPC",
+        "R_10",
         -0.05,
         settlement_tag=resolve_settlement_tag(profit=-1.0, linear_before=0),
     )
@@ -125,7 +138,7 @@ def test_format_settlement_audit_line_loss_cooldown():
 
 def test_format_cluster_audit_line():
     decisions = {
-        "OTC_SPC": {
+        "R_10": {
             "direction": TradeDirection.PUT,
             "metrics": {
                 "raw_prob": 0.377,
@@ -140,7 +153,7 @@ def test_format_cluster_audit_line():
     }
     line = format_cluster_audit_line(decisions, timeframe="M5")
     assert line.startswith("[CLUSTER] M5 || ")
-    assert "OTC_SPC: PUT (Prob: 0.623 Cal: 0.635 Margin: 0.135 Edge: +0.238)" in line
+    assert "R_10: PUT (Prob: 0.62300 Cal: 0.63500 Margin: 0.135 Edge: +0.238)" in line
     assert "R_50: CALL (Prob:" in line and "NEUTRO_SKIP)" in line
 
 
@@ -148,7 +161,7 @@ def test_format_execution_ticket_line():
     line = format_execution_ticket_line(
         6,
         direction="PUT",
-        symbol="OTC_SPC",
+        symbol="R_10",
         stake=2.06,
         mode_tag="RECOVER_DAL_L1",
         pending=1.62,
@@ -159,12 +172,9 @@ def test_format_execution_ticket_line():
         cap=4.20,
         recovery_infeasible=False,
     )
-    assert line == (
-        "[C0006] EXEC || PUT [OTC_SPC] || "
-        "STAKE: 2.06 (RECOVER_DAL_L1) | PEND: 1.62 | LIN: 1 | CAP: 4.20 | "
-        "BANCA: 87.69 || "
-        "CID: 1129497159 | PAY: 1.79"
-    )
+    assert "[C0006] EXEC || PUT [R_10] || STAKE: 2.06 (RECOVER_DAL_L1)" in line
+    assert "[C0006] EXEC || PEND: 1.62 | LIN: 1 | CAP: 4.20 | BANCA: 87.69" in line
+    assert "[C0006] EXEC || CID: 1129497159 | PAY: 1.79" in line
 
 
 def test_resolve_stake_mode_tag():
@@ -184,7 +194,7 @@ def test_format_settlement_audit_line_with_finance_telemetry():
         "WIN",
         1.5,
         "CALL",
-        "OTC_SPC",
+        "R_10",
         0.1,
         pending=2.0,
         linear=1,
@@ -213,7 +223,7 @@ def test_format_indicators_audit_line():
         "calibration_mode": "calibrated",
         "meta_veto_mode": "none",
     }
-    line = format_indicators_audit_line(6, "OTC_SPC", metrics)
+    line = format_indicators_audit_line(6, "R_10", metrics)
     assert line.startswith("[C0006] IND || ")
     assert "RSI:" in line and "0.4859" in line
     assert "ADX:" in line and "0.2017" in line
@@ -224,15 +234,17 @@ def test_format_indicators_audit_line():
     assert "Z:" in line and "+0.60" in line
     assert "ACC:" in line and "0.6433" in line
     assert "MARGIN:" in line and "0.120" in line
+    assert "CAL_EDGE:" in line
     assert "NEUTRAL: calibrated" in line
     assert "META_VETO: none" in line
     assert "SCALE: tcn=" in line
     assert "adapted=0" in line
+    assert line.count("\n") == 3
 
 
 def test_format_indicators_audit_line_ignores_none_and_invalid():
     metrics = {"indicators": {"rsi": None, "hurst": 0.61, "adx": "bad"}, "val_accuracy": 0.5}
-    line = format_indicators_audit_line(5, "OTC_SPC", metrics)
+    line = format_indicators_audit_line(5, "R_10", metrics)
     assert "0.6100" in line
     assert "RSI:" in line
     assert "0.0000" in line
@@ -245,7 +257,7 @@ def test_format_indicators_audit_line_marks_neutral_clamp():
         "gate_reason": "neutral_clamp",
         "meta_veto_mode": "soft",
     }
-    line = format_indicators_audit_line(7, "OTC_SPC", metrics)
+    line = format_indicators_audit_line(7, "R_10", metrics)
     assert "NEUTRAL: neutral_clamp" in line
     assert "META_VETO: soft" in line
 

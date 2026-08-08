@@ -20,12 +20,12 @@ async def test_contract_update_buffers_result_logs_during_dispatch(orch_config):
             status=TradeStatus.OPEN,
             buy_price=10.0,
             payout=18.0,
-            symbol="OTC_SPC",
+            symbol="R_10",
             direction=TradeDirection.PUT,
             stake=10.0,
             expiry_time=0,
         )
-        orch.risk_manager.contract_to_symbol[1] = "OTC_SPC"
+        orch.risk_manager.contract_to_symbol[1] = "R_10"
         orch.risk_manager.active_contract_ids = [1]
         data = {
             "proposal_open_contract": {
@@ -59,12 +59,12 @@ async def test_contract_update_increments_loss_counter(orch_config):
             status=TradeStatus.OPEN,
             buy_price=10.0,
             payout=18.0,
-            symbol="OTC_SPC",
+            symbol="R_10",
             direction=TradeDirection.CALL,
             stake=10.0,
             expiry_time=0,
         )
-        orch.risk_manager.contract_to_symbol[2] = "OTC_SPC"
+        orch.risk_manager.contract_to_symbol[2] = "R_10"
         data = {
             "proposal_open_contract": {
                 "contract_id": 2,

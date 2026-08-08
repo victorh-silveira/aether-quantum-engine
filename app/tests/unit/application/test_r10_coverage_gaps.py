@@ -25,12 +25,12 @@ def _metrics(*, prob: float, rsi: float, vol_ratio: float) -> dict:
 
 
 def _peer_for_primary(symbol: str) -> str | None:
-    return "PEER_B" if symbol == "OTC_SPC" else None
+    return "PEER_B" if symbol == "R_10" else None
 
 
 def test_maybe_schedule_training_skips_non_first_bootstrap_symbol():
     orch = MagicMock()
-    orch.symbols = ["OTC_SPC", "PEER_B"]
+    orch.symbols = ["R_10", "PEER_B"]
     runtime = {"deploy_ok": False}
     prices = np.linspace(1.0, 2.0, 32)
     dl_config = {}
@@ -53,7 +53,7 @@ def test_maybe_schedule_training_skips_non_first_bootstrap_symbol():
             params,
             100,
             600,
-            frozenset({"OTC_SPC", "PEER_B"}),
+            frozenset({"R_10", "PEER_B"}),
             None,
             None,
             None,
@@ -66,11 +66,11 @@ def test_maybe_schedule_training_skips_non_first_bootstrap_symbol():
 def test_symbol_order_deprioritizes_last_loss_symbol_in_core():
     with patch(
         "src.application.services.execution_mandatory_pick.TRADING_SYMBOLS",
-        ("OTC_SPC", "PEER_B"),
+        ("R_10", "PEER_B"),
     ):
-        order = _symbol_order(["OTC_SPC", "PEER_B", "PEER_C"], "OTC_SPC", skip_symbols=frozenset())
+        order = _symbol_order(["R_10", "PEER_B", "PEER_C"], "R_10", skip_symbols=frozenset())
     assert order[0] == "PEER_B"
-    assert "OTC_SPC" in order
+    assert "R_10" in order
 
 
 def test_entropy_fallback_uses_raw_prob_when_calibrated_missing():
@@ -83,9 +83,9 @@ def test_entropy_fallback_uses_raw_prob_when_calibrated_missing():
             "dynamic_put_threshold": 0.47,
         },
     }
-    picked = pick_entropy_fallback_candidate(["OTC_SPC"], {"OTC_SPC": entry})
+    picked = pick_entropy_fallback_candidate(["R_10"], {"R_10": entry})
     assert picked is not None
-    assert picked[0] == "OTC_SPC"
+    assert picked[0] == "R_10"
 
 
 @patch("src.application.services.execution_entropy_fallback.ANCHOR_BULL", "PEER_BULL")
@@ -115,7 +115,7 @@ def test_compute_cross_symbol_triplet_zeros_when_same_metrics_object():
 
 def test_attach_cross_symbol_features_with_configured_peer():
     decisions = {
-        "OTC_SPC": {"metrics": _metrics(prob=0.66, rsi=60.0, vol_ratio=1.1)},
+        "R_10": {"metrics": _metrics(prob=0.66, rsi=60.0, vol_ratio=1.1)},
         "PEER_B": {"metrics": _metrics(prob=0.41, rsi=44.0, vol_ratio=0.92)},
     }
     with patch(
@@ -123,7 +123,7 @@ def test_attach_cross_symbol_features_with_configured_peer():
         side_effect=_peer_for_primary,
     ):
         attach_cross_symbol_features_to_decisions(decisions)
-    spread = decisions["OTC_SPC"]["metrics"]["cross_symbol_features"]["cross_symbol_rsi_spread"]
+    spread = decisions["R_10"]["metrics"]["cross_symbol_features"]["cross_symbol_rsi_spread"]
     assert spread == pytest.approx(16.0)
 
 
@@ -131,7 +131,7 @@ def test_attach_cross_symbol_features_with_configured_peer():
 async def test_execute_inference_cluster_runs_without_quality_suspend(orch_ready):
     orch = orch_ready
     decisions = {
-        "OTC_SPC": {
+        "R_10": {
             "metrics": {
                 "calibrated_prob": 0.9,
                 "deploy_ok": True,

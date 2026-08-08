@@ -62,8 +62,8 @@ def cluster_symbol_token(symbol: str | None, entry: dict[str, Any] | None = None
     display_edge = resolve_predicted_edge(metrics, direction=direction)
     skip = _resolve_skip_reason(entry, metrics)
     if skip:
-        return f"{sym}: {direction} (Prob: {raw_p:.3f} Cal: {cal_p:.3f} | {skip})"
-    return f"{sym}: {direction} (Prob: {raw_p:.3f} Cal: {cal_p:.3f} Margin: {margin:.3f} Edge: {display_edge:+.3f})"
+        return f"{sym}: {direction} (Prob: {raw_p:.5f} Cal: {cal_p:.5f} | {skip})"
+    return f"{sym}: {direction} (Prob: {raw_p:.5f} Cal: {cal_p:.5f} Margin: {margin:.3f} Edge: {display_edge:+.3f})"
 
 
 def _safe_float(value: Any, default: float) -> float:

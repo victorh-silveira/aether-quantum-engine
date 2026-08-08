@@ -6,7 +6,11 @@ import numpy as np
 import torch
 
 from src.application.services.deep_learning.dl_calibration import apply_calibrator_stable
-from src.application.services.deep_learning.dl_calibration_fit import calibrator_entropy_metrics, fit_calibrator
+from src.application.services.deep_learning.dl_calibration_fit import (
+    calibrator_entropy_metrics,
+    fit_calibrator,
+    maybe_identity_on_oos_collapse,
+)
 from src.application.services.deep_learning.dl_device import (
     device_label,
     log_device_once,
@@ -55,7 +59,7 @@ def train_model_walkforward(
     label_mode: str = "ma_trend",
     label_ma_window: int = 5,
     implied_vol_bars: int = 60,
-    symbol: str = "OTC_SPC",
+    symbol: str = "R_10",
     open_: np.ndarray | None = None,
     high: np.ndarray | None = None,
     low: np.ndarray | None = None,
@@ -154,6 +158,16 @@ def train_model_walkforward(
         min_epochs=min_epochs,
         progress_cb=progress_cb,
         delta_train=delta_train,
+        min_oos_sharpness=float(
+            resolve_calibration_sharpness_cfg(
+                (dl_config or {}).get("calibration") if isinstance(dl_config, dict) else None
+            )["min_oos_sharpness"]
+        ),
+        min_val_accuracy=float(
+            (((dl_config or {}).get("deploy_gate") or {}).get("soft_min_val_accuracy", 0.53))
+            if isinstance(dl_config, dict)
+            else 0.53
+        ),
     )
     if best_state is not None:
         model.load_state_dict(best_state)
@@ -184,24 +198,24 @@ def train_model_walkforward(
         [float(y) for y in y_calib],
         calibration_cfg=calibration_cfg if isinstance(calibration_cfg, dict) else None,
     )
-    calibrated_holdout = [float(apply_calibrator_stable(float(p), calibrator)) for p in raw_probs]
     raw_sharpness = mean_sharpness(raw_probs)
     raw_val = _model_raw_prob(model, x_val) if len(x_val) else np.asarray([], dtype=np.float32)
     val_probs = [float(p) for p in raw_val]
-    calibrated_val = [float(apply_calibrator_stable(float(p), calibrator)) for p in val_probs]
-    oos_sharpness = mean_sharpness(calibrated_val) if calibrated_val else mean_sharpness(calibrated_holdout)
     sharp_floor = float(
         resolve_calibration_sharpness_cfg(calibration_cfg if isinstance(calibration_cfg, dict) else None)[
             "min_oos_sharpness"
         ]
     )
-    if raw_sharpness + 1e-12 >= sharp_floor and oos_sharpness + 1e-12 < sharp_floor:
-        logger.warning(
-            "DL_TRAIN: sharpness val_cal=%.4f < calib_raw=%.4f method=%s — gate pode bloquear export",
-            oos_sharpness,
-            raw_sharpness,
-            calibrator.method,
+    if val_probs:
+        calibrator, oos_sharpness = maybe_identity_on_oos_collapse(
+            calibrator,
+            val_probs=val_probs,
+            min_oos_sharpness=sharp_floor,
         )
+        raw_sharpness = mean_sharpness(val_probs)
+    else:
+        calibrated_holdout = [float(apply_calibrator_stable(float(p), calibrator)) for p in raw_probs]
+        oos_sharpness = mean_sharpness(calibrated_holdout)
     entropy_meta = calibrator_entropy_metrics(
         [float(p) for p in raw_calib],
         [float(y) for y in y_calib],
