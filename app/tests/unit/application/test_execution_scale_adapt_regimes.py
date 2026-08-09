@@ -18,11 +18,9 @@ def test_adapt_c0001_like_majority_votes_flips_put():
         "rsi": 0.4035,
     }
     out = apply_scale_direction_adapt(metrics, TradeDirection.CALL)
-    assert out == TradeDirection.PUT
-    assert metrics["scale_adapted"] is True
-    assert metrics["scale_adapt_reason"] == "majority_votes"
-    assert metrics["scale_vote_put_n"] == 3
-    assert metrics["scale_vote_call_n"] == 1
+    assert out == TradeDirection.CALL
+    assert metrics["scale_adapted"] is False
+    assert metrics["scale_adapt_reason"] == "chop_hold"
 
 
 def test_adapt_tape_mili_majority_without_rsi():
@@ -36,9 +34,8 @@ def test_adapt_tape_mili_majority_without_rsi():
         "direction_margin": 0.009,
     }
     out = apply_scale_direction_adapt(metrics, TradeDirection.CALL)
-    assert out == TradeDirection.PUT
-    assert metrics["scale_adapted"] is True
-    assert metrics["scale_adapt_reason"] == "majority_votes"
+    assert out == TradeDirection.CALL
+    assert metrics["scale_adapt_reason"] == "chop_hold"
 
 
 def test_adapt_c4_like_mili_tape_vs_tcn_when_mini_pair_split():
@@ -52,9 +49,9 @@ def test_adapt_c4_like_mili_tape_vs_tcn_when_mini_pair_split():
         "direction_margin": 0.02,
     }
     out = apply_scale_direction_adapt(metrics, TradeDirection.CALL)
-    assert out == TradeDirection.PUT
-    assert metrics["scale_adapted"] is True
-    assert metrics["scale_adapt_reason"] == "majority_votes"
+    assert out == TradeDirection.CALL
+    assert metrics["scale_adapted"] is False
+    assert metrics["scale_adapt_reason"] == "chop_hold"
     assert metrics["scale_micro_regime"] == "chop"
 
 
@@ -125,6 +122,8 @@ def test_adapt_explosion_disabled_falls_to_mili_tape():
             "adapt_on_explosion": False,
             "adapt_on_mili_tape": True,
             "adapt_mili_tape_skip_chop": False,
+            "adapt_skip_chop": False,
+            "adapt_require_cal_agree": False,
             "adapt_on_majority_votes": False,
             "adapt_require_bar_pair_agree": True,
             "adapt_require_raw_extreme": True,
@@ -250,6 +249,8 @@ def test_adapt_explosion_invalid_live_side_noop():
             "adapt_on_explosion": True,
             "adapt_on_mili_tape": False,
             "adapt_on_majority_votes": False,
+            "adapt_skip_chop": False,
+            "adapt_require_cal_agree": False,
             "adapt_require_bar_pair_agree": True,
             "adapt_require_raw_extreme": True,
             "adapt_allow_strong_tape": True,

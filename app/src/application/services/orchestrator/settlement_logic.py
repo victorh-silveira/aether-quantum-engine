@@ -89,12 +89,6 @@ async def _complete_contract_settlement(
     audit_raw_prob: float | None = None,
 ) -> None:
     """Processa liquidação, risco e persistencia sob lock atomico."""
-    if result_line is not None:
-        if orch._buffer_result_logs:
-            orch._pending_result_logs.append(result_line)
-        else:
-            orch.logger.info(result_line)
-
     _process_contract_outcome(
         orch,
         c,
@@ -104,6 +98,14 @@ async def _complete_contract_settlement(
         audit_direction=audit_direction,
         audit_raw_prob=audit_raw_prob,
     )
+    if result_line is not None:
+        learn = str(getattr(orch, "_last_loss_clf_learn", "") or "").strip()
+        line = f"{result_line} | LEARN: {learn}" if learn and "LEARN:" not in result_line else result_line
+        if orch._buffer_result_logs:
+            orch._pending_result_logs.append(line)
+        else:
+            orch.logger.info(line)
+        orch._last_loss_clf_learn = None
 
     if profit >= 0.0 and sum(orch.risk_manager.pending_loss.values()) <= 0.0:
         await reset_recovery_skip_counter_for_orch(orch)
@@ -147,23 +149,6 @@ async def process_late_settlement_from_payload(orch: Any, poc: dict) -> None:
     record_meta_payoff_shadow_pair(z_score=z_score, profit=profit, orch=orch)
     linear_before = int(getattr(orch.risk_manager, "consecutive_losses_linear", 0) or 0)
     stake_audit = resolve_stake_audit_context(orch.risk_manager)
-    orch.logger.info(
-        "%s || API: %s (late)",
-        format_settlement_audit_line(
-            orch._contract_cycle.get(c_id, 0),
-            outcome,
-            profit,
-            direction,
-            str(sym),
-            edge,
-            settlement_tag=resolve_settlement_tag(profit=profit, linear_before=linear_before),
-            pending=float(stake_audit.get("pending", 0.0)),
-            linear=int(stake_audit.get("linear", linear_before)),
-            mode_tag=str(stake_audit.get("mode_tag") or ""),
-            recovery_infeasible=bool(stake_audit.get("recovery_infeasible", False)),
-        ),
-        api_status_raw.lower() or "-",
-    )
     async with orchestrator_atomic_state_context(orch):
         _process_contract_outcome(
             orch,
@@ -174,6 +159,26 @@ async def process_late_settlement_from_payload(orch: Any, poc: dict) -> None:
             audit_direction=direction,
             audit_raw_prob=raw_prob,
         )
+        learn = str(getattr(orch, "_last_loss_clf_learn", "") or "").strip()
+        orch.logger.info(
+            "%s || API: %s (late)",
+            format_settlement_audit_line(
+                orch._contract_cycle.get(c_id, 0),
+                outcome,
+                profit,
+                direction,
+                str(sym),
+                edge,
+                settlement_tag=resolve_settlement_tag(profit=profit, linear_before=linear_before),
+                pending=float(stake_audit.get("pending", 0.0)),
+                linear=int(stake_audit.get("linear", linear_before)),
+                mode_tag=str(stake_audit.get("mode_tag") or ""),
+                recovery_infeasible=bool(stake_audit.get("recovery_infeasible", False)),
+                learn_detail=learn or None,
+            ),
+            api_status_raw.lower() or "-",
+        )
+        orch._last_loss_clf_learn = None
         if profit >= 0.0 and sum(orch.risk_manager.pending_loss.values()) <= 0.0:
             await reset_recovery_skip_counter_for_orch(orch)
         if not orch.state.active_contracts and orch.running:

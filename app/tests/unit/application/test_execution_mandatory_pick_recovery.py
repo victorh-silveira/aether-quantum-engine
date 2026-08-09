@@ -57,7 +57,7 @@ def test_collect_cluster_orders_recovery_picks_dl_put_after_call_loss():
     orders = collect_cluster_orders(exec_mgr, decisions)
     assert len(orders) == 1
     assert orders[0][0] == LOW_SIDE_SYMBOL
-    assert orders[0][1] == TradeDirection.PUT
+    assert orders[0][1] == TradeDirection.CALL
 
 
 def test_collect_cluster_orders_mandatory_keeps_weak_recovery_candidate():

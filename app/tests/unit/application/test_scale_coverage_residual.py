@@ -32,7 +32,7 @@ def test_log_scale_lines_branches():
         orch=None,
         cycle_id=2,
     )
-    assert logger.info.call_count == 1
+    assert logger.debug.call_count == 1
 
 
 def test_stamp_macro_frame_telemetry_paths():
@@ -223,7 +223,7 @@ def test_log_scale_from_scale_micro_dir_without_audit():
         orch=None,
         cycle_id=3,
     )
-    assert logger.info.call_count == 1
+    assert logger.debug.call_count == 1
 
 
 def test_closes_none_and_agree_peer():

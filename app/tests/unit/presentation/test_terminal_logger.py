@@ -147,7 +147,7 @@ def test_settlement_spam_filter_dedupes_identical_settle_lines():
         (),
         None,
     )
-    rec3 = logging.LogRecord("AETH", logging.INFO, "", 0, "[CLUSTER] M10 || R_10: PUT", (), None)
+    rec3 = logging.LogRecord("AETH", logging.INFO, "", 0, "[CLUSTER] || M10 || R_10: PUT", (), None)
     assert filt.filter(rec1) is True
     assert filt.filter(rec2) is False
     assert filt.filter(rec3) is True
@@ -207,7 +207,7 @@ def test_aether_formatter_prefixes_context_without_breaking_cluster():
     clear_log_context()
     bind_log_context(cycle_id=3, symbol="R_10")
     formatter = AetherFormatter("%(levelname)s | %(message)s")
-    record = logging.LogRecord("AETH", logging.INFO, "", 0, "[CLUSTER] M10 || R_10: PUT", (), None)
+    record = logging.LogRecord("AETH", logging.INFO, "", 0, "[CLUSTER] || M10 || R_10: PUT", (), None)
     out = formatter.format(record)
     clear_log_context()
     assert "[c3|R_10]" in out
@@ -244,8 +244,11 @@ def test_extract_settle_channel_edge_cases():
 def test_live_monitor_cluster_regex_still_matches_prefixed_line():
     import re
 
-    cluster_re = re.compile(r"\[CLUSTER\]\s+(?P<tf>\S+)\s+\|\|\s+(?P<body>.+)$", re.IGNORECASE)
-    line = "12:00:00 | INFO | [c3|R_10] [CLUSTER] M10 || R_10: PUT (Prob: 0.55 Cal: 0.60)"
+    cluster_re = re.compile(
+        r"\[CLUSTER\](?:\s*\|\|)?\s+(?P<tf>\S+)\s+\|\|\s+(?P<body>.+)$",
+        re.IGNORECASE,
+    )
+    line = "12:00:00 | INFO | [c3|R_10] [CLUSTER] || M10 || R_10: PUT (Prob: 0.55 Cal: 0.60)"
     match = cluster_re.search(line)
     assert match is not None
     assert match.group("tf") == "M10"

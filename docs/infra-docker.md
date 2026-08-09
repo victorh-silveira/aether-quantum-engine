@@ -11,7 +11,7 @@ Stack local **hibrida**: motor no host (Conda/WSL), persistencia e inferencia em
 | MinIO | `127.0.0.1:9000` / `9001` | `core`, `gpu`, `cpu` | 512m | Checkpoints / TorchScript |
 | Triton (`aether-triton`) | `127.0.0.1:8000` / `8001` | `gpu` ou `cpu` | — | Inferencia TorchScript HTTP+gRPC |
 | Meta (`aether-meta-classifier`) | `127.0.0.1:8005` | `ml` | 512m | LightGBM HTTP **43D** (hot-reload pkl) |
-| Loss (`aether-loss-classifier`) | `127.0.0.1:8006` | `ml` | 512m | LGBMClassifier **24D**; buffer `learn_buffer.pkl` no volume; `/learn` + retrain WIN no passo `retrain_min_n`; retrain pos-LOSS so se `buffer_win≥8` e `loss/n≤0.60`; soft Kelly floor **0.65** / hard **0.80** |
+| Loss (`aether-loss-classifier`) | `127.0.0.1:8006` | `ml` | 512m | LGBMClassifier **24D**; buffer `learn_buffer.pkl` no volume; `/learn` + retrain WIN no passo `retrain_min_n`; saida bootstrap `LOSS_BOOTSTRAP_EXIT_N` **48** + reject fit colapsado; retrain pos-LOSS so se `buffer_win≥8` e `loss/n≤0.60`; soft Kelly floor **0.65** / hard **0.80** |
 
 Hardening: `restart: unless-stopped`, log rotate 10m×3, binds em **127.0.0.1**, `no-new-privileges` (onde aplicavel).
 
@@ -80,7 +80,7 @@ Settings app: `infra.redis.url`, `infra.timescale.dsn`, `infra.minio`, `infra.tr
 - Timescale: init `003_*.sql` + lifecycle `004_*.sql`; hydrate sintetico R_10 se micro&lt;360 ou macro&lt;80 (**nao** usar hydrate como unico historico para treino meta — preferir Deriv / `--source auto`)
 - MinIO: bucket `dl-models`; health live + `start_period`
 - Loss-classifier: volume `loss-models/`; bootstrap opcional `python -m scripts.operations.train_loss_classifier`
-- **Reset operacional:** `make docker-rebuild` ou `make docker-reset` — limpa pkls, gera/seed `loss_bootstrap_synth` (`class_weight=balanced`, `min_child_samples=15`). Seed devolve **p_loss real** via `predict_proba` com `veto_ready=true` se `n_train>=ready_n` (**24**); sem `COLD_START` / sem `p_loss=0.50` neutro. Floor FLIP **0.90**.
+- **Reset operacional:** `make docker-rebuild` ou `make docker-reset` — limpa pkls, gera/seed `loss_bootstrap_synth` (`class_weight=balanced`, `min_child_samples=15`). Seed devolve **p_loss real** via `predict_proba` com `veto_ready=true` se `n_train>=ready_n` (**24**); sem `COLD_START` / sem `p_loss=0.50` neutro. Saida bootstrap exige buffer ≥**48** (`LOSS_BOOTSTRAP_EXIT_N`); fit live colapsado e rejeitado (`collapsed_reject`). Floor FLIP **0.90**.
 
 ## Relacao com o motor
 

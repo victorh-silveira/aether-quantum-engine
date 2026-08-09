@@ -40,7 +40,7 @@ def test_collect_cluster_orders_recovery_executes_best_available_signal():
     orders = collect_cluster_orders(exec_mgr, decisions)
     assert len(orders) == 1
     assert orders[0][0] == ANCHOR
-    assert orders[0][1] == TradeDirection.CALL
+    assert orders[0][1] == TradeDirection.PUT
 
 
 def test_collect_cluster_orders_includes_recovery_candidate_with_raw_prob():
@@ -80,7 +80,7 @@ def test_collect_cluster_orders_includes_recovery_candidate_with_raw_prob():
     orders = collect_cluster_orders(exec_mgr, decisions)
     assert len(orders) == 1
     assert orders[0][0] == ALT_SYMBOL
-    assert orders[0][1] == TradeDirection.PUT
+    assert orders[0][1] == TradeDirection.CALL
 
 
 def test_collect_cluster_orders_bolts_weak_signal_continuously():
@@ -144,7 +144,7 @@ def test_collect_cluster_orders_bolts_weak_signal_continuously():
     assert len(orders) == 1
     symbol, direction, _metrics = orders[0]
     assert symbol == ALT_SYMBOL
-    assert direction == TradeDirection.PUT
+    assert direction == TradeDirection.CALL
 
     orch = SimpleNamespace(
         anchor=ANCHOR,

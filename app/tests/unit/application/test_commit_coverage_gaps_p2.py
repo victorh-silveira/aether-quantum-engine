@@ -6,12 +6,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.domain.risk.consensus_stake_penalty import (
-    _acc_below_recovery_floor,
-    _adapted_blocks_dal,
-    _live_evidence_blocks_dal,
-    apply_soft_recovery_stake,
+from src.domain.risk.consensus_recovery_gates import (
+    acc_below_recovery_floor,
+    adapted_blocks_dal,
+    live_evidence_blocks_dal,
 )
+from src.domain.risk.consensus_stake_penalty import apply_soft_recovery_stake
 from src.domain.risk.risk_stake_calc_helpers import apply_named_soft_stake_cap
 from src.domain.risk.soft_recovery_config import load_soft_recovery_from_settings, require_soft_recovery
 from src.domain.risk.stake_sizing import finalize_stake_with_min
@@ -31,6 +31,7 @@ def test_soft_recovery_and_stake_helpers_branches():
 
     assert finalize_stake_with_min(0.0, 1.0, 100.0, 0.4, recovery_linear=False) == 0.0
     assert finalize_stake_with_min(0.5, 1.0, 0.8, 0.6, recovery_linear=False) == 0.0
+    assert finalize_stake_with_min(0.0, 1.0, 100.0, 0.49, recovery_linear=False, mandatory=False) == 0.0
 
     assert (
         apply_named_soft_stake_cap(
@@ -52,13 +53,20 @@ def test_soft_recovery_and_stake_helpers_branches():
         )
         == 10.0
     )
+    assert apply_named_soft_stake_cap(
+        10.0,
+        100.0,
+        {"loss_clf_soft": True, "loss_clf_soft_max_stake_pct": 0.05},
+        flag="loss_clf_soft",
+        pct_key="loss_clf_soft_max_stake_pct",
+    ) == pytest.approx(5.0)
 
     soft_cfg = dict(load_soft_recovery_from_settings())
-    assert _acc_below_recovery_floor({"val_accuracy": "bad"}, 2) is False
-    assert _live_evidence_blocks_dal({"live_wr": 0.1}, 1, soft_cfg) is False
-    assert _live_evidence_blocks_dal({"live_n": "x", "live_wr": "y"}, 5, soft_cfg) is False
+    assert acc_below_recovery_floor({"val_accuracy": "bad"}, 2) is False
+    assert live_evidence_blocks_dal({"live_wr": 0.1}, 1, soft_cfg) is False
+    assert live_evidence_blocks_dal({"live_n": "x", "live_wr": "y"}, 5, soft_cfg) is False
     soft_cfg["adapted_force_explore"] = False
-    assert _adapted_blocks_dal({"scale_adapted": True}, 5, soft_cfg) is False
+    assert adapted_blocks_dal({"scale_adapted": True}, 5, soft_cfg) is False
     apply_soft_recovery_stake(
         pending_total=0.0,
         base_unit=2.0,

@@ -43,7 +43,7 @@ def test_clear_dust_pending_resets_to_explore():
         consecutive_losses_linear=3,
         last_loss_stake=2.0,
         soft_recovery_config={"dust_pending_clear_max": 0.25},
-        logger=SimpleNamespace(info=lambda *a, **k: None),
+        logger=SimpleNamespace(info=lambda *a, **k: None, debug=lambda *a, **k: None),
     )
     assert clear_dust_pending_loss(rm) is True
     assert rm.pending_loss == {}
@@ -59,7 +59,7 @@ def test_cluster_win_with_dust_pending_returns_explore():
         total_session_profit=8.0,
         last_loss_stake=1.5,
         soft_recovery_config={"dust_pending_clear_max": 0.25},
-        logger=SimpleNamespace(info=lambda *a, **k: None),
+        logger=SimpleNamespace(info=lambda *a, **k: None, debug=lambda *a, **k: None),
     )
     reset = apply_cluster_profit_to_recovery_state(rm, 1.0)
     assert reset is True

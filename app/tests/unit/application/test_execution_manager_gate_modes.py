@@ -52,7 +52,7 @@ async def test_execute_cluster_mandatory_skips_exec_none_when_execute_false(orch
             patch.object(orch.executor, "_execute_orders", new_callable=AsyncMock, return_value=1) as mock_exec,
         ):
             await orch.executor.execute_cluster(decisions)
-        assert any("IND ||" in str(c) or "[CLUSTER]" in str(c) for c in mock_info.call_args_list)
+        assert any("[IND]" in str(c) or "[GATES]" in str(c) for c in mock_info.call_args_list)
         mock_exec.assert_awaited_once()
         assert len(mock_exec.await_args.args[0]) == 1
 
@@ -171,7 +171,7 @@ def test_collect_orders_continuous_keeps_weak_technically_valid_candidate(orch_c
         }
         orders = orch.executor._collect_orders(decisions)
         assert len(orders) == 1
-        assert orders[0][1] == TradeDirection.CALL
+        assert orders[0][1] == TradeDirection.PUT
 
 
 @pytest.mark.asyncio

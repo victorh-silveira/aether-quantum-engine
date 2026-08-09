@@ -18,7 +18,7 @@ Dedupe: `log_dedupe.py`. Inventario: [`engineering-logging-inventory.md`](engine
 |-------|---------|-------|
 | `level` | `INFO` | Nivel do logger AETH (`DEBUG` so para diagnostico) |
 | `log_file` | `logs/engine.log` | Persistencia |
-| `quiet_channels` | settle_enqueue, settle_process, ws_ping, warmup_poll, execution_flow | Canal → DEBUG via `log_settle` |
+| `quiet_channels` | settle_enqueue, settle_process, settle_tolerance, settle_read, ws_ping, warmup_poll, execution_flow | Canal → DEBUG via `log_settle` |
 
 ## Contrato de tags
 
@@ -26,7 +26,9 @@ Dedupe: `log_dedupe.py`. Inventario: [`engineering-logging-inventory.md`](engine
 |-----|--------------|------------|------------|
 | CLUSTER / IND / KELLY / EXEC* / RESOLVED | INFO | ≤1/ciclo (dedupe) | session-review, live_monitor |
 | SETTLE.{canal} | INFO em estado; DEBUG se quiet | rate-limit canal+tick | settlement-debug |
-| WSS / AUTH / MINIO | INFO em transicao | evento | deriv-connect / infra |
+| WSS / AUTH / MINIO | INFO no boot; DEBUG em reconexao (exceto AVISO/ERRO) | evento | deriv-connect / infra |
+| RECOV (restaurado / ciclo liberado) | INFO | reconexao | cycle-debug |
+| CICLO pos-liq / SRE / RECONCILE portfolio | DEBUG | rotina settle | settlement-debug |
 | EXECUTION_FLOW / WARMUP | INFO se mudou; quiet → DEBUG | dedupe | cycle-debug |
 
 Prefixo opcional de correlacao: `[cN|SYM]` (nao quebra regex `[CLUSTER]` do monitor).

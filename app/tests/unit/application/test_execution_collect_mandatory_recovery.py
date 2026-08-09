@@ -54,7 +54,7 @@ def test_collect_cluster_orders_recovery_picks_dl_put_after_call_loss():
     orders = collect_cluster_orders(exec_mgr, decisions)
     assert len(orders) == 1
     assert orders[0][0] == LOW_SIDE_SYMBOL
-    assert orders[0][1] == TradeDirection.PUT
+    assert orders[0][1] == TradeDirection.CALL
 
 
 def test_collect_cluster_orders_recovery_keeps_dl_direction_after_call_loss():
@@ -97,7 +97,7 @@ def test_collect_cluster_orders_recovery_keeps_dl_direction_after_call_loss():
     orders = collect_cluster_orders(exec_mgr, decisions)
     assert len(orders) == 1
     assert orders[0][0] == "R_10"
-    assert orders[0][1] == TradeDirection.CALL
+    assert orders[0][1] == TradeDirection.PUT
 
 
 def test_collect_cluster_orders_recovery_bolts_hard_meta_reject():
@@ -161,7 +161,7 @@ def test_collect_cluster_orders_recovery_bolts_hard_meta_reject():
     assert len(orders) == 1
     symbol, direction, _metrics = orders[0]
     assert symbol == PAIR
-    assert direction == TradeDirection.PUT
+    assert direction == TradeDirection.CALL
 
 
 def test_collect_cluster_orders_recovery_allows_soft_tcn_entropy_fallback():
@@ -205,7 +205,7 @@ def test_collect_cluster_orders_recovery_allows_soft_tcn_entropy_fallback():
     orders = collect_cluster_orders(exec_mgr, decisions)
     assert len(orders) == 1
     assert orders[0][0] == PAIR
-    assert orders[0][1] == TradeDirection.PUT
+    assert orders[0][1] == TradeDirection.CALL
     orch = SimpleNamespace(
         anchor=ANCHOR,
         symbols=[ANCHOR],

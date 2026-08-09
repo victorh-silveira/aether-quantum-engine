@@ -49,14 +49,13 @@ def _feed_loss_classifier_learn(orch: Any, symbol: str, *, won: bool, contract_i
             result.get("error") or "skipped",
         )
         return
-    logger.info(
-        "LOSS_CLF || LEARN label=%s buffer_n=%s retrained=%d n_train=%s detail=%s",
-        label,
-        result.get("buffer_n", "-"),
-        1 if result.get("retrained") else 0,
-        result.get("n_train", "-"),
-        str(result.get("retrain_detail") or "-"),
+    detail = (
+        f"label={label} buffer_n={result.get('buffer_n', '-')} "
+        f"retrained={1 if result.get('retrained') else 0} "
+        f"n_train={result.get('n_train', '-')} detail={result.get('retrain_detail') or '-'}"
     )
+    orch._last_loss_clf_learn = detail
+    logger.debug("LOSS_CLF || LEARN %s", detail)
 
 
 def process_contract_outcome(

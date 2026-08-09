@@ -105,6 +105,7 @@ class Orchestrator:
         self.last_data_signature = ""
         self._stream_ready_mono = 0.0
         self._is_initial_boot = True
+        self._streams_ever_started = False
         self._ingestion_watchdog = None
         self._profit_table_audit_task: asyncio.Task | None = None
 

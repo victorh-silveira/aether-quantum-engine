@@ -64,6 +64,7 @@ Modo legado `tcn_macro_override` foi substituido por `raw_extreme` em `dl_calibr
 
 - Se `raw` > `tcn_macro_call_override` ou `raw` < `tcn_macro_put_override`, o modo vira `raw_extreme`.
 - **Cal nao e substituido por raw**; retorno mantem probabilidade calibrada.
+- Com Cal na banda neutra (`calibration_neutral_drift` **[0.47, 0.53]**; drift degenerado `[0.5,0.5]` rejeitado), o **lado** segue o limiar raw (`raw_dir`), nao Cal≥0.5.
 - Kelly / sizing usam **Cal**, nao raw.
 - Nomes das chaves SSOT (`tcn_macro_*_override`) sao historicos: limiam extremo de **raw TCN**, nao o timeframe MACRO OHLC.
 

@@ -6,7 +6,7 @@ import asyncio
 import time
 from typing import Any
 
-from src.application.services.log_dedupe import log_info_if_changed
+from src.application.services.log_dedupe import log_debug_if_changed
 from src.application.services.orchestrator.graceful_shutdown import graceful_shutdown
 from src.application.services.orchestrator.orchestrator_data_signature import seconds_until_next_signature_boundary
 from src.application.services.orchestrator.orchestrator_settlement_queue import (
@@ -25,6 +25,8 @@ from src.application.services.orchestrator.settlement_utils import (
     clear_contract_metadata,
     prune_orphan_contract_ids,
 )
+from src.application.services.settle_log_dedupe import log_settle_info_if_changed
+from src.presentation.terminal.settle_log import SETTLE_TOLERANCE
 
 
 _MAX_POST_SETTLEMENT_CYCLE_ATTEMPTS = 32
@@ -130,7 +132,7 @@ async def _clean_stale_settlement_and_redis_counters(orch: Any) -> None:
         pipe.delete("recovery:skip_counter")
         pipe.delete("settlement:queue:priority")
         await pipe.execute()
-        log_info_if_changed(
+        log_debug_if_changed(
             orch,
             orch.logger,
             "sre_redis_clean",
@@ -145,7 +147,7 @@ def _record_post_settlement_incomplete(orch: Any) -> None:
     """Registra tentativa incompleta sem forcar deadlock apos 2 ciclos."""
     streak = int(getattr(orch, "_post_settlement_incomplete_streak", 0)) + 1
     orch._post_settlement_incomplete_streak = streak
-    log_info_if_changed(
+    log_debug_if_changed(
         orch,
         orch.logger,
         "post_settle_incomplete",
@@ -173,7 +175,7 @@ async def _attempt_post_settlement_trading_cycle(orch: Any, orch_cfg: dict) -> b
             return bool(getattr(orch, "_last_cycle_cluster_executed", False))
         except TimeoutError:
             orch.is_trading = False
-            orch.logger.info("CICLO: timeout pos-liquidacao (%.0fs); backoff na janela de tolerancia", cycle_timeout)
+            orch.logger.debug("CICLO: timeout pos-liquidacao (%.0fs); backoff na janela de tolerancia", cycle_timeout)
             return False
     finally:
         orch._dl_fast_cycle = False
@@ -223,12 +225,13 @@ async def _apply_tolerance_window_recovery(orch: Any, *, window: float, failed_a
     orch._post_settlement_incomplete_streak = 0
     clear_post_settlement_polling_state(orch)
     settle_content = f"{window:.0f}|{int(settled)}"
-    log_info_if_changed(
+    log_settle_info_if_changed(
         orch,
         orch.logger,
+        SETTLE_TOLERANCE,
         "settle_tolerance",
         settle_content,
-        "SETTLE.settle_tolerance: janela tolerancia %.0fs | orphans=%d | tentativas=%d | estado reconciliado",
+        "janela tolerancia %.0fs | orphans=%d | tentativas=%d | estado reconciliado",
         window,
         settled,
         failed_attempts,

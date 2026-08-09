@@ -136,6 +136,7 @@ def _log_scale_lines(logger, decisions: dict[str, dict], *, orch=None, cycle_id:
             continue
         message = f"[c{int(cycle_id)}|{symbol}] {line}"
         if orch is None:
-            logger.info("%s", message)
+            logger.debug("%s", message)
             continue
-        log_info_if_changed(orch, logger, f"scale:{cycle_id}:{symbol}", str(line), "%s", message)
+        logger.debug("%s", message)
+        _ = (cycle_id, symbol, line)

@@ -6,7 +6,6 @@ import logging
 from typing import Any
 
 from src.application.services.execution_signal_skip import apply_kelly_soft
-from src.application.services.log_dedupe import log_info_if_changed
 from src.domain.config_knobs import merge_settings_block, require_bool, require_float, require_keys
 
 
@@ -95,11 +94,7 @@ def apply_regime_chop_pause(
     metrics["regime_chop_via_scale"] = bool(scale_chop and not hurst_band)
     metrics.pop("regime_chop_pause", None)
     if orch is not None:
-        log_info_if_changed(
-            orch,
-            logger,
-            "regime_chop_soft",
-            f"{adx:.4f}:{hurst:.4f}:{int(scale_chop)}:{soft_mult:.2f}",
+        logger.debug(
             "REGIME || CHOP_SOFT adx=%.4f hurst=%.4f scale_chop=%s kelly_mult=%.2f",
             float(adx),
             float(hurst),

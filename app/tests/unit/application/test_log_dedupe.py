@@ -6,6 +6,7 @@ from src.application.services.deep_learning.dl_cycle_log import log_dl_cycle_sum
 from src.application.services.log_dedupe import (
     LogDeduper,
     clear_log_channel,
+    log_debug_if_changed,
     log_info_if_changed,
     log_warning_if_changed,
 )
@@ -24,6 +25,16 @@ def test_log_info_if_changed_dedupes_repeats():
     log_info_if_changed(owner, logger, "ch", "b", "%s", "b")
     assert logger.info.call_count == 2
     assert logger.debug.call_count == 1
+
+
+def test_log_debug_if_changed_updates_cache():
+    owner = Owner()
+    logger = MagicMock()
+    log_debug_if_changed(owner, logger, "dbg", "a", "%s", "a")
+    log_debug_if_changed(owner, logger, "dbg", "a", "%s", "a")
+    log_debug_if_changed(owner, logger, "dbg", "b", "%s", "b")
+    assert logger.debug.call_count == 3
+    assert owner._log_dedupe["dbg"] == "b"
 
 
 def test_log_warning_if_changed_dedupes_repeats():

@@ -69,12 +69,12 @@ def apply_calibration_neutral_tolerance(
     half_width = float(tol["neutral_calibration_half_width"])
     effective_neutral_lo = neutral_lo if neutral_lo is not None else 0.5 - half_width
     effective_neutral_hi = neutral_hi if neutral_hi is not None else 0.5 + half_width
-    if raw > float(tol["tcn_macro_call_override"]):
-        resolved = direction if direction is not None else TradeDirection.CALL
-        return cal, resolved, "raw_extreme"
-    if raw < float(tol["tcn_macro_put_override"]):
-        resolved = direction if direction is not None else TradeDirection.PUT
-        return cal, resolved, "raw_extreme"
+    if raw > float(tol["tcn_macro_call_override"]) or raw < float(tol["tcn_macro_put_override"]):
+        raw_dir = TradeDirection.CALL if raw > float(tol["tcn_macro_call_override"]) else TradeDirection.PUT
+        if _in_neutral_zone(cal, effective_neutral_lo, effective_neutral_hi):
+            return cal, raw_dir, "raw_extreme"
+        cal_dir = TradeDirection.CALL if cal + 1e-12 >= 0.5 else TradeDirection.PUT
+        return cal, cal_dir, "raw_extreme"
     if direction is not None:
         return cal, direction, "calibrated"
     if _in_neutral_zone(cal, effective_neutral_lo, effective_neutral_hi):

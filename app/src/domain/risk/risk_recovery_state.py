@@ -47,7 +47,7 @@ def clear_dust_pending_loss(risk_manager: Any, *, soft_recovery: dict[str, Any] 
         risk_manager.last_loss_stake = 0.0
     logger = getattr(risk_manager, "logger", None)
     if logger is not None:
-        logger.info(
+        logger.debug(
             "RISK: Dust pending cleared | was=$%.2f | max=$%.2f | regime=EXPLORE",
             total,
             dust_max,
@@ -87,7 +87,7 @@ def apply_cluster_profit_to_recovery_state(risk_manager, cluster_profit: float) 
     linear = int(getattr(risk_manager, "consecutive_losses_linear", 0))
     if cluster_profit < 0.0:
         risk_manager.consecutive_losses_linear = linear + 1
-        risk_manager.logger.info(
+        risk_manager.logger.debug(
             "RISK: Ciclo negativo (P&L: $%.2f) | pend=$%.2f | pnl_sess=$%+.2f | linear=%d",
             cluster_profit,
             pending,
@@ -96,7 +96,7 @@ def apply_cluster_profit_to_recovery_state(risk_manager, cluster_profit: float) 
         )
         return False
     if dust_cleared:
-        risk_manager.logger.info(
+        risk_manager.logger.debug(
             "RISK: WIN operacional com dust clear (P&L: $%.2f) | pnl_sess=$%+.2f | regime=EXPLORE",
             cluster_profit,
             pnl_sess,
@@ -105,7 +105,7 @@ def apply_cluster_profit_to_recovery_state(risk_manager, cluster_profit: float) 
         return True
     if pending > 0.0:
         apply_dlambert_partial_win_retraction(risk_manager)
-        risk_manager.logger.info(
+        risk_manager.logger.debug(
             "RISK: WIN operacional (P&L: $%.2f) | pend=$%.2f | pnl_sess=$%+.2f | linear=%d",
             cluster_profit,
             pending,
@@ -115,7 +115,7 @@ def apply_cluster_profit_to_recovery_state(risk_manager, cluster_profit: float) 
         return False
     linear_reset = linear_before > 0 or linear > 0
     if linear_reset:
-        risk_manager.logger.info(
+        risk_manager.logger.debug(
             "RISK: Recovery financeiro zerado (P&L: $%.2f) | pnl_sess=$%+.2f | reset linear",
             cluster_profit,
             pnl_sess,
@@ -131,7 +131,7 @@ def log_partial_win_recovery(risk_manager, profit: float) -> float:
     """Registra lucro parcial que ainda nao extingue o pending_loss da sessao."""
     pending_after = pending_loss_total(risk_manager.pending_loss)
     if pending_after > 0.0:
-        risk_manager.logger.info(
+        risk_manager.logger.debug(
             "RISK: Lucro parcial $%.2f | pend=$%.2f | pnl_sess=$%+.2f | linear=%d",
             profit,
             pending_after,

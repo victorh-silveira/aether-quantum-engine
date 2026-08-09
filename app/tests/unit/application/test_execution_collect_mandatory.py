@@ -175,7 +175,7 @@ def test_collect_cluster_orders_skips_entry_without_inferable_direction():
     orders = collect_cluster_orders(exec_mgr, decisions)
     assert len(orders) == 1
     assert orders[0][0] == PAIR
-    assert orders[0][1] == TradeDirection.PUT
+    assert orders[0][1] == TradeDirection.CALL
 
 
 def test_collect_cluster_orders_blocks_symbol_after_linear_loss():

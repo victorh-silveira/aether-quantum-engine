@@ -45,9 +45,9 @@ async def test_execute_cluster_logs_recovery_banner(orch_config):
         orch.risk_manager.pending_loss["R_10"] = 50.0
         orch.risk_manager.initial_bankroll = 10000.0
         with (
-            patch.object(orch.executor.logger, "info") as mock_info,
+            patch.object(orch.executor.logger, "debug") as mock_debug,
             patch.object(orch.executor, "_collect_orders", return_value=[]),
             patch.object(orch.executor, "_execute_orders", new_callable=AsyncMock, return_value=0),
         ):
             await orch.executor.execute_cluster({})
-        assert any("RISK: RECOVERY" in str(c) for c in mock_info.call_args_list)
+        assert any("RISK: RECOVERY" in str(c) for c in mock_debug.call_args_list)

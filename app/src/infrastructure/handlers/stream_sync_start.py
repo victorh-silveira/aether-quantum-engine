@@ -78,7 +78,7 @@ async def sync_triple_candle_history(handler: Any, callback) -> None:
             await asyncio.sleep(symbol_delay)
     if handler.symbols:
         sym0 = handler.symbols[0]
-        handler.logger.info(
+        sync_log(
             "DATA | buffer %d simbolos | macro=%s x%d | micro=%s x%d | mini=%s x%d",
             len(handler.symbols),
             granularity_label(handler.macro_granularity),

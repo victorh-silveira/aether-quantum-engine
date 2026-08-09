@@ -12,7 +12,7 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `orchestrator` | ciclo, warmup, watchdog, WS |
 | `orchestrator.execution` | mandatory/force, settlement, SIDE_EQ soft, `scale_vision`, `signal_skip`, sample_size_policy |
 | `infra.meta_classifier` | HTTP :8005; edge continuo 43D |
-| `infra.loss_classifier` | HTTP :8006; `veto_mode` **soft** + banda flip: floor soft **0.65**; `hard_p_loss_floor` **0.90** (**FLIP** CALL↔PUT se `veto_ready`); seed bootstrap com **p_loss real** / `veto_ready` se `n_train>=ready_n`; `soft_kelly_mult` **0.55** → `soft_kelly_mult_high` **0.40** @ `soft_p_loss_high` **0.85**; teto stake EXPLORE `soft_max_stake_pct_high` **0.25%** (waivado com pending so na faixa soft); `ready_n`/`retrain_min_n` **24**; `retrain_on_loss_min_n` **2** (retrain pos-LOSS so com `buffer_win≥8` e `loss/n≤0.60`, exceto saida bootstrap com ≥1 WIN+≥1 LOSS); `timeout_seconds` **8**; fit `class_weight=balanced` / `min_child_samples=15` |
+| `infra.loss_classifier` | HTTP :8006; `veto_mode` **soft** + banda flip: floor soft **0.65**; `hard_p_loss_floor` **0.90** (**FLIP** CALL↔PUT se `veto_ready`); seed bootstrap com **p_loss real** / `veto_ready` se `n_train>=ready_n`; `flip_require_auto_learn` + `flip_allow_seed_on_scale_discord` (FLIP seed so se SCALE nao confirma TCN); `soft_kelly_mult` **0.55** → `soft_kelly_mult_high` **0.40** @ `soft_p_loss_high` **0.85**; teto stake EXPLORE `soft_max_stake_pct_high` **0.25%**; `ready_n`/`retrain_min_n` **24**; `LOSS_BOOTSTRAP_EXIT_N` **48** (saida bootstrap so com buffer ≥48 + WIN/LOSS; fit colapsado `p~0.5` rejeitado / motor loga `DEGEN`); `retrain_on_loss_min_n` **2** (pos-LOSS com `buffer_win≥8` e `loss/n≤0.60`); `timeout_seconds` **8** |
 | `risk_management` | Kelly, soft_recovery, stop-win, ACC gate, duration contrato |
 | `infra` | Redis, Timescale, MinIO, Triton, meta |
 | `logging` | level, log_file, quiet_channels |
@@ -27,7 +27,7 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `max_label_call_frac_bias` | idem | padrao **0.20** |
 | `min_minority_recall` | idem | padrao **0.25** |
 | `side_equilibrium.enabled` | `orchestrator.execution` | soft Kelly only; sem veto de direcao |
-| `scale_vision.*` | `orchestrator.execution` | `adapt_allow_strong_tape` **false**; **majority_votes** (TCN/tape/mili/RSI); explosion/mili/retract; `adapt_mili_tape_skip_chop` **true** (nao inverte TCN so com mili+tape em chop); **sem** `adapt_*_cal_margin` / hold cinza |
+| `scale_vision.*` | `orchestrator.execution` | `adapt_allow_strong_tape` **false**; **majority_votes** (TCN/tape/mili/RSI); `adapt_majority_min_lead` **2**; `adapt_skip_chop` **true** (hold TCN em micro=chop); `adapt_require_cal_agree` **true** (nao adapta contra Cal); `adapt_mili_tape_skip_chop` **true**; **sem** `adapt_*_cal_margin` / hold cinza |
 | `signal_skip.*` | `orchestrator.execution` | Escopo **1.1**: mini/cal/chop/neg_edge soft Kelly **0.55**; **sem** `calib_gray_*`; **sem** flip pos-LOSS; `chop_pause_enabled` liga soft chop (ADX/Hurst ou SCALE); `chop_soft_kelly_mult` / `neg_edge_soft_kelly_mult` |
 | `scale_vision.adapt_on_majority_votes` | idem | Conta votos TCN/tape/mili/mini_pair/RSI; lideranca ≥`adapt_majority_min_lead` e n≥`adapt_majority_min_votes` → `majority_votes` |
 | `kelly.kelly_p_floor` | `risk_management.kelly` | Piso de **probabilidade** para Kelly; garante `f*>0`; alias `adapt_kelly_p_floor` |
@@ -50,6 +50,7 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `orchestrator.settlement_tolerance_window_seconds` | `orchestrator` | **300** (contrato 2 m) |
 | `orchestrator.watchdog_stale_tick_seconds` | `orchestrator` | **600** |
 | `tcn_macro_call_override` / `tcn_macro_put_override` | `deep_learning.calibration` | limiar de **raw** para modo `raw_extreme`; Cal nao e substituido |
+| `calibration_neutral_drift` | `deep_learning.calibration` | banda neutra efetiva **[0.47, 0.53]**; drift degenerado `[0.5,0.5]` e rejeitado (cai em `neutral_half_width`) |
 | `calibration.method` | `deep_learning.calibration` | **auto** (Brier/ECE com piso de sharpness; fallback `identity`) |
 | `mini_granularity` | `data_handler` | padrao **120** (MINI OHLC M2) |
 

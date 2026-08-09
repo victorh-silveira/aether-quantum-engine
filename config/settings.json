@@ -59,8 +59,8 @@
         "calibration": {
             "auto_select_by_brier": true,
             "calibration_neutral_drift": [
-                0.5,
-                0.5
+                0.47,
+                0.53
             ],
             "entropy_ceiling": 0.88,
             "entropy_floor": 0.01,
@@ -292,7 +292,9 @@
             "retrain_min_n": 24,
             "retrain_on_loss_min_n": 2,
             "max_buffer": 2000,
-            "flip_require_auto_learn": true
+            "flip_require_auto_learn": true,
+            "flip_allow_seed_on_scale_discord": true,
+            "flip_allow_seed_on_cal_discord": true
         },
         "minio": {
             "bucket": "dl-models",
@@ -329,6 +331,8 @@
         "quiet_channels": [
             "settle_enqueue",
             "settle_process",
+            "settle_tolerance",
+            "settle_read",
             "ws_ping",
             "warmup_poll",
             "execution_flow"
@@ -577,8 +581,10 @@
                 "adapt_on_explosion": true,
                 "adapt_on_mili_tape": true,
                 "adapt_mili_tape_skip_chop": true,
+                "adapt_skip_chop": true,
+                "adapt_require_cal_agree": true,
                 "adapt_on_majority_votes": true,
-                "adapt_majority_min_lead": 1,
+                "adapt_majority_min_lead": 2,
                 "adapt_majority_min_votes": 3,
                 "adapt_majority_include_rsi": true,
                 "adapt_majority_include_micro_bar": false,

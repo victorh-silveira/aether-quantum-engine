@@ -1,15 +1,14 @@
-from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from src.application.services.market_audit_log import (
     emit_audit_info,
     format_cluster_audit_line,
     format_execution_ticket_line,
-    format_indicators_audit_line,
+    format_gates_audit_line,
+    format_kelly_audit_line,
     format_settlement_audit_line,
     resolve_cluster_timeframe,
     resolve_settlement_tag,
-    resolve_stake_audit_context,
     resolve_stake_mode_tag,
 )
 from src.domain.models.trade import TradeDirection
@@ -17,11 +16,11 @@ from src.domain.models.trade import TradeDirection
 
 def test_emit_audit_info_splits_multiline():
     logger = MagicMock()
-    emit_audit_info(logger, "[C0001] IND || A\n[C0001] IND || B\n\n[C0001] IND || C")
+    emit_audit_info(logger, "[IND] || A\n[IND] || B\n\n[IND] || C")
     assert logger.info.call_count == 3
-    assert logger.info.call_args_list[0].args == ("%s", "[C0001] IND || A")
-    assert logger.info.call_args_list[1].args == ("%s", "[C0001] IND || B")
-    assert logger.info.call_args_list[2].args == ("%s", "[C0001] IND || C")
+    assert logger.info.call_args_list[0].args == ("%s", "[IND] || A")
+    assert logger.info.call_args_list[1].args == ("%s", "[IND] || B")
+    assert logger.info.call_args_list[2].args == ("%s", "[IND] || C")
     emit_audit_info(logger, "   \n  ")
     assert logger.info.call_count == 3
 
@@ -98,12 +97,6 @@ def test_metric_float_skips_invalid_then_uses_default_in_cluster():
     assert "R_10: PUT (Prob: 0.50000 Cal: 0.50000 Margin: 0.000 Edge: +0.000)" in line
 
 
-def test_indicator_float_none_branch():
-    from src.application.services.market_audit_log import _indicator_float
-
-    assert _indicator_float({}, "some_key") == 0.0
-
-
 def test_metric_float_conversion_error_branch():
     from src.application.services.market_audit_log_helpers import metric_float
 
@@ -120,7 +113,7 @@ def test_format_settlement_audit_line():
         0.1234,
         settlement_tag="RESET_LINEAR",
     )
-    assert line == "[C0003] RESOLVED || STATUS: WIN  | P&L:   +1.63 | RESET_LINEAR"
+    assert line == "[RESOLVED] || STATUS: WIN  | P&L:   +1.63 | RESET_LINEAR | PEND: n/a | LIN: n/a | MODE: n/a"
 
 
 def test_format_settlement_audit_line_loss_cooldown():
@@ -133,7 +126,13 @@ def test_format_settlement_audit_line_loss_cooldown():
         -0.05,
         settlement_tag=resolve_settlement_tag(profit=-1.0, linear_before=0),
     )
-    assert line == "[C0003] RESOLVED || STATUS: LOSS | P&L:   -1.00 | COOLDOWN_L1"
+    assert line.startswith("[RESOLVED] || STATUS: LOSS | P&L:   -1.00 | COOLDOWN_L1")
+    assert resolve_settlement_tag(profit=-1.0, linear_before=2) == "COOLDOWN_L3"
+
+
+def test_format_settlement_audit_line_default_loss_tag():
+    line = format_settlement_audit_line(4, "LOSS", -2.0, "PUT", "R_10", -0.2)
+    assert "COOLDOWN_L1" in line
 
 
 def test_format_cluster_audit_line():
@@ -152,8 +151,8 @@ def test_format_cluster_audit_line():
         },
     }
     line = format_cluster_audit_line(decisions, timeframe="M5")
-    assert line.startswith("[CLUSTER] M5 || ")
-    assert "R_10: PUT (Prob: 0.62300 Cal: 0.63500 Margin: 0.135 Edge: +0.238)" in line
+    assert line.startswith("[CLUSTER] || M5 || ")
+    assert "R_10: PUT (Prob: 0.62300 Cal: 0.63500 Margin: 0.135 Edge: +0.092)" in line
     assert "R_50: CALL (Prob:" in line and "NEUTRO_SKIP)" in line
 
 
@@ -172,9 +171,10 @@ def test_format_execution_ticket_line():
         cap=4.20,
         recovery_infeasible=False,
     )
-    assert "[C0006] EXEC || PUT [R_10] || STAKE: 2.06 (RECOVER_DAL_L1)" in line
-    assert "[C0006] EXEC || PEND: 1.62 | LIN: 1 | CAP: 4.20 | BANCA: 87.69" in line
-    assert "[C0006] EXEC || CID: 1129497159 | PAY: 1.79" in line
+    assert line.startswith("[EXEC] || PUT [R_10] || STAKE: 2.06 (RECOVER_DAL_L1)")
+    assert "PEND: 1.62" in line and "LIN: 1" in line and "CAP: 4.20" in line
+    assert "BANCA: 87.69" in line and "CID: 1129497159" in line and "PAY: 1.79" in line
+    assert "\n" not in line
 
 
 def test_resolve_stake_mode_tag():
@@ -200,101 +200,79 @@ def test_format_settlement_audit_line_with_finance_telemetry():
         linear=1,
         mode_tag="RECOVER_DAL_L1",
         recovery_infeasible=True,
+        learn_detail="label=WIN buffer_n=1",
     )
+    assert line.startswith("[RESOLVED] ||")
     assert "PEND: 2.00" in line
     assert "LIN: 1" in line
     assert "MODE: RECOVER_DAL_L1" in line
     assert "RECOVERY_INFEASIBLE" in line
+    assert "LEARN: label=WIN buffer_n=1" in line
 
 
-def test_format_indicators_audit_line():
+def test_format_gates_audit_line():
     metrics = {
-        "indicators": {
-            "rsi": 0.4859,
-            "adx": 0.2017,
-            "hurst": 0.5671,
-            "atr_norm": -0.9558,
-            "bb_width": -0.2226,
-            "vol_ratio": 1.0720,
-        },
-        "edge_zscore": 0.60,
-        "val_accuracy": 0.6433,
-        "direction_margin": 0.12,
-        "calibration_mode": "calibrated",
-        "meta_veto_mode": "none",
+        "loss_clf_soft": True,
+        "loss_clf_p_loss": 0.86,
+        "loss_clf_soft_kelly_mult": 0.4,
+        "loss_clf_auto_learn": False,
+        "loss_clf_n_train": 64,
+        "regime_chop_soft": True,
+        "regime_chop_adx": 0.16,
+        "regime_chop_hurst": 0.48,
+        "regime_chop_via_scale": True,
+        "cal_side_edge": -0.09,
+        "cal_side_edge_floor": 0.04,
+        "signal_skip_waived": "neg_edge_soft",
+        "exec_direction": "CALL",
     }
-    line = format_indicators_audit_line(6, "R_10", metrics)
-    assert line.startswith("[C0006] IND || ")
-    assert "RSI:" in line and "0.4859" in line
-    assert "ADX:" in line and "0.2017" in line
-    assert "HURST:" in line and "0.5671" in line
-    assert "ATR:" in line and "-0.9558" in line
-    assert "BBW:" in line and "-0.2226" in line
-    assert "VOL_R:" in line and "1.0720" in line
-    assert "Z:" in line and "+0.60" in line
-    assert "ACC:" in line and "0.6433" in line
-    assert "MARGIN:" in line and "0.120" in line
-    assert "CAL_EDGE:" in line
-    assert "NEUTRAL: calibrated" in line
-    assert "META_VETO: none" in line
-    assert "SCALE: tcn=" in line
-    assert "adapted=0" in line
-    assert line.count("\n") == 3
-
-
-def test_format_indicators_audit_line_ignores_none_and_invalid():
-    metrics = {"indicators": {"rsi": None, "hurst": 0.61, "adx": "bad"}, "val_accuracy": 0.5}
-    line = format_indicators_audit_line(5, "R_10", metrics)
-    assert "0.6100" in line
-    assert "RSI:" in line
-    assert "0.0000" in line
-
-
-def test_format_indicators_audit_line_marks_neutral_clamp():
-    metrics = {
-        "indicators": {"rsi": 0.5, "adx": 0.2, "hurst": 0.5},
-        "direction_margin": 0.01,
-        "gate_reason": "neutral_clamp",
-        "meta_veto_mode": "soft",
-    }
-    line = format_indicators_audit_line(7, "R_10", metrics)
-    assert "NEUTRAL: neutral_clamp" in line
-    assert "META_VETO: soft" in line
-
-
-def test_resolve_stake_audit_context_from_audit():
-    rm = SimpleNamespace(
-        _last_stake_audit={
-            "mode_tag": "RECOVER_DAL_L1",
-            "pending": 1.5,
-            "bankroll": 90.0,
-            "linear_losses": 1,
-            "cap": 4.2,
-            "recovery_infeasible": False,
-        },
-        pending_loss_total=lambda: 9.0,
-        bankroll=80.0,
+    line = format_gates_audit_line(metrics)
+    assert line.startswith("[GATES] || LOSS_CLF: SOFT")
+    assert "CHOP adx=" in line
+    assert "NEG_EDGE side=CALL" in line
+    flip_line = format_gates_audit_line(
+        {
+            "loss_clf_flip": True,
+            "loss_clf_p_loss": 0.91,
+            "loss_clf_auto_learn": True,
+            "loss_clf_n_train": 12,
+        }
     )
-    audit = resolve_stake_audit_context(rm)
-    assert audit["mode_tag"] == "RECOVER_DAL_L1"
-    assert audit["pending"] == 1.5
-    assert audit["bankroll"] == 90.0
-    assert audit["linear"] == 1
-    assert audit["cap"] == 4.2
-
-
-def test_resolve_stake_audit_context_fallback_balance():
-    rm = SimpleNamespace(
-        bankroll=70.0,
-        initial_bankroll=70.0,
-        pending_loss_total=lambda: 2.0,
-        consecutive_losses_linear=0,
+    assert "FLIP auto=1" in flip_line
+    block_line = format_gates_audit_line(
+        {
+            "loss_clf_flip_blocked": "scale_consensus",
+            "loss_clf_p_loss": 0.91,
+            "loss_clf_soft_kelly_mult": 0.4,
+            "loss_clf_auto_learn": False,
+        }
     )
-    audit = resolve_stake_audit_context(rm, balance_fallback=88.5)
-    assert audit["mode_tag"] == "EXPLORE_KELLY"
-    assert audit["pending"] == 2.0
-    assert audit["bankroll"] == 88.5
+    assert "FLIP_BLOCK:scale_consensus" in block_line
+    ok_line = format_gates_audit_line(
+        {
+            "loss_clf_p_loss": 0.42,
+            "loss_clf_auto_learn": True,
+            "loss_clf_n_train": 8,
+            "loss_clf_veto_ready": True,
+            "loss_clf_model_version": "v1",
+        }
+    )
+    assert "LOSS_CLF: OK auto=1" in ok_line
 
 
-def test_format_cluster_audit_line_empty():
-    assert format_cluster_audit_line({}, timeframe="M5") == "[CLUSTER] M5 || EMPTY"
+def test_format_kelly_audit_line():
+    line = format_kelly_audit_line(
+        {"conviction": 0.58, "live_wr": 0.5, "live_n": 4, "f_star": 0.001},
+        stake=22.5,
+        mode_tag="EXPLORE_KELLY",
+        audit={"mode_tag": "EXPLORE_KELLY"},
+    )
+    assert line.startswith("[KELLY] || p=0.5800")
+    assert "stake=22.50 (EXPLORE_KELLY)" in line
+    custom_mode = format_kelly_audit_line(
+        {"conviction": 0.58, "stake_regime": "recover"},
+        stake=10.0,
+        mode_tag="CUSTOM",
+        audit={},
+    )
+    assert "mode=recover" in custom_mode

@@ -1,6 +1,7 @@
 """Testes do classificador micro explosion/retraction/chop."""
 
 from src.application.services.execution_scale_adapt import apply_scale_direction_adapt
+from src.application.services.execution_scale_adapt_majority import collect_scale_side_votes
 from src.application.services.execution_scale_micro import classify_micro_regime, micro_regime_token
 from src.application.services.execution_scale_sizing import apply_scale_kelly_sizing
 from src.domain.models.trade import TradeDirection
@@ -60,7 +61,7 @@ def test_adapt_on_retraction_vs_tcn_call():
     out = apply_scale_direction_adapt(metrics, TradeDirection.CALL)
     assert out == TradeDirection.PUT
     assert metrics["scale_adapted"] is True
-    assert metrics["scale_adapt_reason"] == "majority_votes"
+    assert metrics["scale_adapt_reason"] == "retraction"
 
 
 def test_adapt_retraction_when_need_bar_pair_blocks_tape():
@@ -74,7 +75,7 @@ def test_adapt_retraction_when_need_bar_pair_blocks_tape():
     }
     out = apply_scale_direction_adapt(metrics, TradeDirection.CALL)
     assert out == TradeDirection.PUT
-    assert metrics["scale_adapt_reason"] == "majority_votes"
+    assert metrics["scale_adapt_reason"] == "retraction"
 
 
 def test_sizing_dampens_c2_like_chop_mili_oppose():
@@ -140,6 +141,9 @@ def test_adapt_on_retraction_disabled_and_no_consensus():
             "adapt_on_retraction": False,
             "adapt_on_explosion": False,
             "adapt_on_mili_tape": False,
+            "adapt_on_majority_votes": False,
+            "adapt_skip_chop": False,
+            "adapt_require_cal_agree": False,
             "adapt_require_bar_pair_agree": True,
             "adapt_require_raw_extreme": True,
             "adapt_allow_strong_tape": True,
@@ -242,3 +246,12 @@ def test_adapt_tape_without_raw_extreme_flag():
         out = apply_scale_direction_adapt(metrics, TradeDirection.CALL)
     assert out == TradeDirection.PUT
     assert metrics["scale_adapt_reason"] == "tape_vs_tcn"
+
+
+def test_majority_votes_rsi_from_indicators_skips_invalid():
+    payload = collect_scale_side_votes({"indicators": {"rsi": "bad"}}, TradeDirection.CALL, include_rsi=True)
+    assert payload["scale_vote_n"] == 1
+    payload2 = collect_scale_side_votes({"indicators": {"rsi": 0.62}}, TradeDirection.PUT, include_rsi=True)
+    assert "rsi:CALL" in payload2["scale_vote_sources"]
+    payload3 = collect_scale_side_votes({"indicators": {"rsi": 0.5}}, TradeDirection.CALL, include_rsi=True)
+    assert payload3["scale_vote_n"] == 1

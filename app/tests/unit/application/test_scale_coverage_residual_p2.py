@@ -24,4 +24,6 @@ def test_log_dl_cycle_with_scale_audit_dedupes():
     }
     log_dl_cycle_summary(logger, decisions, recovery_active=False, pending_loss_total=0.0, orch=orch)
     log_dl_cycle_summary(logger, decisions, recovery_active=False, pending_loss_total=0.0, orch=orch)
-    assert logger.info.call_count == 2
+    scale_calls = [c for c in logger.debug.call_args_list if "SCALE" in str(c)]
+    assert logger.info.call_count == 1
+    assert len(scale_calls) == 2

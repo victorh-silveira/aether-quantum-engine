@@ -16,6 +16,7 @@ _KNOWN_QUIET = (
             "settle_enqueue",
             "settle_process",
             "settle_read",
+            "settle_tolerance",
             "ws_ping",
             "warmup_poll",
             "execution_flow",

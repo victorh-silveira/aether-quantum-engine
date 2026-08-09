@@ -182,7 +182,7 @@ def calculate_stake_for_manager(
         sizing_conviction=sizing_conviction,
         conviction=conviction,
         dl_execute=dl_execute,
-        recovery_active=recovery_active,
+        recovery_active=bool(recovery_active) or bool(loss_to_recover) or bool(recovery_stress),
         apply_stop_win=apply_stop_win,
         silent=silent,
         live_metrics=dl_metrics if isinstance(dl_metrics, dict) else None,
@@ -260,7 +260,7 @@ def calculate_stake_for_manager(
     )
     recovery_infeasible = bool(isinstance(dl_metrics, dict) and dl_metrics.get("recovery_infeasible"))
     if recovery_infeasible and not silent:
-        rm.logger.info(
+        rm.logger.debug(
             "RECOVERY_INFEASIBLE | pending=%.2f | cap=%.2f | linear=%d | mode=%s",
             float(loss_to_recover),
             float(safe_cap),
@@ -270,7 +270,7 @@ def calculate_stake_for_manager(
     live_wr = dl_metrics.get("live_wr") if isinstance(dl_metrics, dict) else None
     live_n = int(dl_metrics.get("live_n", 0) or 0) if isinstance(dl_metrics, dict) else 0
     if not silent:
-        rm.logger.info(
+        rm.logger.debug(
             "KELLY | p=%.4f | live_wr=%s | live_n=%d | f*=%.6f | mode=%s",
             float(p),
             f"{float(live_wr):.4f}" if live_wr is not None else "n/a",

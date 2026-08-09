@@ -132,4 +132,4 @@ def test_calculate_stake_explore_after_reset_uses_kelly(kelly_config):
     )
     assert stake > 1.0
     assert rm._last_stake_audit["mode_tag"] == "EXPLORE_KELLY"
-    rm.logger.info.assert_called()
+    rm.logger.debug.assert_called()

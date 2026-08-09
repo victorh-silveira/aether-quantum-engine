@@ -180,7 +180,8 @@ async def _try_optional_otp_trading_ws(orch: Orchestrator) -> bool:
         await subscribe_account_transactions(orch)
         orch.trading_transport = "ws"
         orch.trade_handler.trading_transport = "ws"
-        orch.logger.info(
+        auth_log = orch.logger.debug if bool(getattr(orch, "_streams_ever_started", False)) else orch.logger.info
+        auth_log(
             "AUTH: PAT+OTP ok conta=%s saldo=%.2f (trading via WSS)",
             session.account_id,
             orch.state.balance,
@@ -254,9 +255,11 @@ async def start_orchestrator_streams(orch: Orchestrator) -> bool:
             try:
                 bars, mode = resolve_startup_fetch_bars(orch.config, orch.symbols)
                 orch.stream.config["_startup_fetch_count"] = bars
-                orch.stream.config["_startup_quiet"] = False
+                reconnect_quiet = bool(getattr(orch, "_streams_ever_started", False))
+                orch.stream.config["_startup_quiet"] = reconnect_quiet
                 orch.stream.config["_startup_train_lean"] = True
-                orch.logger.info(
+                boot_log = orch.logger.debug if reconnect_quiet else orch.logger.info
+                boot_log(
                     "DATA: Startup %s | %d simbolos | alvo %d velas micro (lean)",
                     mode,
                     len(orch.symbols),
@@ -267,6 +270,7 @@ async def start_orchestrator_streams(orch: Orchestrator) -> bool:
                 orch.stream.config.pop("_startup_quiet", None)
                 orch.stream.config.pop("_startup_train_lean", None)
                 orch._stream_ready_at = time.time()
+                orch._streams_ever_started = True
                 return True
             except ConnectionError as e:
                 if attempt >= retries:

@@ -7,7 +7,7 @@ from collections import deque
 from typing import Any
 
 from src.application.services.live_signal_metrics_config import load_live_signal_metrics_from_settings
-from src.application.services.log_dedupe import log_info_if_changed
+from src.application.services.log_dedupe import log_debug_if_changed
 from src.domain.analytics.sample_size_policy import attach_sample_size_metrics, load_sample_size_policy
 
 
@@ -77,7 +77,7 @@ def record_live_signal_outcome(
     hist.append((bool(won), float(prob), float(label)))
     snap = live_signal_snapshot(orch, sym)
     if int(snap.get("live_n", 0)) >= int(_live()["min_rank"]) and int(snap.get("live_n", 0)) % 8 == 0:
-        logger.info(
+        logger.debug(
             "LIVE_SIGNAL | %s | wr=%.2f | brier=%.3f | ece=%.3f | n=%d",
             sym,
             float(snap.get("live_wr", 0.0)),
@@ -150,7 +150,7 @@ def apply_live_calib_drift_soft(
     metrics["calib_drift_reason"] = "CALIB_DRIFT_SOFT"
     if orch is not None:
         cycle = int(getattr(orch, "_active_cycle_id", 0) or 0)
-        log_info_if_changed(
+        log_debug_if_changed(
             orch,
             logger,
             f"calib_drift_soft:{cycle}:{symbol or '?'}",

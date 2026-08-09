@@ -184,8 +184,8 @@ def test_recovery_infeasible_log():
             rm, bankroll=1000.0, symbol="R_10", conviction=0.65, silent=False, apply_stop_win=False, kwargs=kwargs
         )
 
-    rm.logger.info.assert_called()
-    first_call = rm.logger.info.call_args_list[0]
+    rm.logger.debug.assert_called()
+    first_call = rm.logger.debug.call_args_list[0]
     assert "RECOVERY_INFEASIBLE" in first_call[0][0]
 
 

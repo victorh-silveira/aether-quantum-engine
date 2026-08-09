@@ -136,7 +136,7 @@ async def reconcile_after_ws_recovery(orch: Any) -> ReconciliationResult:
     try:
         portfolio = await fetch_portfolio(orch.ws, timeout=timeout)
         open_ids = _open_ids_from_portfolio(portfolio)
-        orch.logger.info("RECONCILE: portfolio %d abertos", len(open_ids))
+        orch.logger.debug("RECONCILE: portfolio %d abertos", len(open_ids))
         await _reconcile_known_offline(orch, open_ids=open_ids, settled_ids=settled_ids, result=result)
         await _settle_from_profit_burst(
             orch,
@@ -154,7 +154,7 @@ async def reconcile_after_ws_recovery(orch: Any) -> ReconciliationResult:
         orch._reconciliation_pending = False
         orch._reconciliation_active = False
         result.duration_ms = (time.monotonic() - started) * 1000.0
-        orch.logger.info(
+        orch.logger.debug(
             "RECONCILE: auditoria pos-RECOV concluida settled=%d erros=%d",
             result.settled_count,
             len(result.errors),

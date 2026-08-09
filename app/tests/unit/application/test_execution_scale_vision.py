@@ -66,8 +66,10 @@ def test_parse_scale_vision_from_ssot():
     assert cfg["adapt_on_explosion"] is True
     assert cfg["adapt_on_mili_tape"] is True
     assert cfg["adapt_mili_tape_skip_chop"] is True
+    assert cfg["adapt_skip_chop"] is True
+    assert cfg["adapt_require_cal_agree"] is True
     assert cfg["adapt_on_majority_votes"] is True
-    assert cfg["adapt_majority_min_lead"] == 1
+    assert cfg["adapt_majority_min_lead"] == 2
     assert cfg["adapt_majority_min_votes"] == 3
     assert cfg["adapt_majority_include_rsi"] is True
     assert cfg["adapt_majority_include_micro_bar"] is False

@@ -71,6 +71,30 @@ def test_should_retrain_after_learn_loss_forces_when_ready():
             buffer_loss=1,
             bootstrap_active=True,
         )
+        is False
+    )
+    assert (
+        mod.should_retrain_after_learn(
+            label="LOSS",
+            buffer_n=24,
+            retrain_min_n=24,
+            retrain_on_loss_min_n=2,
+            buffer_win=12,
+            buffer_loss=12,
+            bootstrap_active=True,
+        )
+        is False
+    )
+    assert (
+        mod.should_retrain_after_learn(
+            label="LOSS",
+            buffer_n=48,
+            retrain_min_n=24,
+            retrain_on_loss_min_n=2,
+            buffer_win=24,
+            buffer_loss=24,
+            bootstrap_active=True,
+        )
         is True
     )
     assert (
@@ -84,6 +108,9 @@ def test_should_retrain_after_learn_loss_forces_when_ready():
             bootstrap_active=True,
         )
         is False
+    )
+    assert (
+        mod.retrain_min_for_label(label="LOSS", retrain_min_n=24, retrain_on_loss_min_n=2, bootstrap_active=True) == 48
     )
     assert mod.should_retrain_after_learn(label="WIN", buffer_n=2, retrain_min_n=24, retrain_on_loss_min_n=2) is False
     assert mod.should_retrain_after_learn(label="WIN", buffer_n=24, retrain_min_n=24, retrain_on_loss_min_n=2) is True
@@ -117,6 +144,33 @@ def test_fit_classifier_accepts_imbalanced_classes():
     assert mod.is_bootstrap_bundle({"bootstrap": False, "model_version": "loss_1_n40"}) is False
 
 
+def test_is_collapsed_classifier_detects_constant_probs(monkeypatch):
+    import importlib.util
+    from pathlib import Path
+
+    runtime_path = Path(__file__).resolve().parents[4] / "infra" / "docker" / "loss-classifier" / "runtime.py"
+    spec = importlib.util.spec_from_file_location("loss_runtime_collapse", runtime_path)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    class _Flat:
+        def predict_proba(self, _arr):
+            return [[0.5, 0.5]]
+
+        classes_ = [0, 1]
+
+    assert mod.is_collapsed_classifier(_Flat(), [[0.0] * 24, [1.0] * 24]) is True
+
+
+def test_is_collapsed_p_loss_helper():
+    from src.application.services.loss_classifier_flip import is_collapsed_p_loss
+
+    assert is_collapsed_p_loss({"auto_learn_applied": True, "p_loss": 0.5}) is True
+    assert is_collapsed_p_loss({"auto_learn_applied": True, "p_loss": 0.86}) is False
+    assert is_collapsed_p_loss({"auto_learn_applied": False, "p_loss": 0.5}) is False
+
+
 def test_learn_buffer_io_roundtrip(tmp_path):
     import importlib.util
     from pathlib import Path
@@ -139,10 +193,16 @@ def test_learn_buffer_io_roundtrip(tmp_path):
 def test_loss_classifier_flip_helpers():
     from src.application.services.loss_classifier_flip import (
         apply_loss_flip,
+        cal_disagrees_ref,
+        is_collapsed_p_loss,
         is_seed_model,
         resolve_soft_kelly_mult,
         scale_confirms_ref,
     )
+
+    assert is_collapsed_p_loss({"auto_learn_applied": True, "p_loss": "bad"}) is True
+    assert cal_disagrees_ref({"calibrated_prob": "bad"}, TradeDirection.CALL) is False
+    assert cal_disagrees_ref({"calibrated_prob": 0.44}, TradeDirection.CALL) is True
 
     assert is_seed_model({"auto_learn_applied": False}, require_auto_learn=False) is False
     assert is_seed_model({"auto_learn_applied": False}, require_auto_learn=True) is True
@@ -150,6 +210,8 @@ def test_loss_classifier_flip_helpers():
     assert scale_confirms_ref(metrics, TradeDirection.CALL) is False
     put_votes = {"scale_vote_call_n": 0, "scale_vote_put_n": 5}
     assert scale_confirms_ref(put_votes, TradeDirection.PUT) is True
+    call_votes = {"scale_vote_call_n": 4, "scale_vote_put_n": 1}
+    assert scale_confirms_ref(call_votes, TradeDirection.CALL) is True
     cfg = {
         "veto_p_loss_floor": 0.50,
         "soft_p_loss_high": 0.85,

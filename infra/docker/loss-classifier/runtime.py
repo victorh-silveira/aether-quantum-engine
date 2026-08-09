@@ -89,6 +89,22 @@ def predict_p_loss(model: Any, vector: list[float]) -> float:
     return float(proba[-1])
 
 
+def is_collapsed_classifier(
+    model: Any,
+    buffer_x: list[list[float]],
+    *,
+    min_std: float = 0.02,
+    min_range: float = 0.05,
+) -> bool:
+    if not buffer_x:
+        return True
+    probs = np.asarray([predict_p_loss(model, row) for row in buffer_x], dtype=np.float64)
+    if probs.size < 2:
+        return True
+    spread = float(probs.max() - probs.min())
+    return float(probs.std()) < float(min_std) or spread < float(min_range)
+
+
 def seed_bootstrap_classifier(
     models_dir: Path,
     feature_dim: int,

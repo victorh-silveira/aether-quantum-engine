@@ -61,6 +61,40 @@ def test_calibration_raw_extreme_keeps_calibrated_prob_put():
     assert mode == "raw_extreme"
 
 
+def test_calibration_raw_extreme_prefers_cal_when_outside_neutral():
+    prob, direction, mode = apply_calibration_neutral_tolerance(0.55, 0.10, TradeDirection.PUT)
+    assert prob == pytest.approx(0.55)
+    assert direction == TradeDirection.CALL
+    assert mode == "raw_extreme"
+
+
+def test_calibration_raw_extreme_keeps_raw_when_cal_neutral():
+    prob, direction, mode = apply_calibration_neutral_tolerance(0.50, 0.10, TradeDirection.PUT)
+    assert prob == pytest.approx(0.50)
+    assert direction == TradeDirection.PUT
+    assert mode == "raw_extreme"
+
+
+def test_calibration_raw_extreme_ignores_passed_dir_when_cal_neutral():
+    prob, direction, mode = apply_calibration_neutral_tolerance(0.51, 0.05, TradeDirection.CALL)
+    assert prob == pytest.approx(0.51)
+    assert direction == TradeDirection.PUT
+    assert mode == "raw_extreme"
+
+
+def test_calibration_raw_extreme_session_band_prefers_raw_put():
+    prob, direction, mode = apply_calibration_neutral_tolerance(
+        0.52,
+        0.05,
+        TradeDirection.CALL,
+        neutral_lo=0.47,
+        neutral_hi=0.53,
+    )
+    assert prob == pytest.approx(0.52)
+    assert direction == TradeDirection.PUT
+    assert mode == "raw_extreme"
+
+
 def test_calibration_outside_neutral_infers_when_direction_missing():
     prob, direction, mode = apply_calibration_neutral_tolerance(0.60, 0.55, None)
     assert prob == pytest.approx(0.60)

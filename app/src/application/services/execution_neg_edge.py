@@ -6,7 +6,6 @@ import logging
 from typing import Any
 
 from src.application.services.execution_signal_skip import apply_kelly_soft
-from src.application.services.log_dedupe import log_info_if_changed
 from src.application.services.market_audit_log_helpers import resolve_predicted_edge
 from src.domain.config_knobs import merge_settings_block, require_float, require_keys
 
@@ -101,11 +100,7 @@ def apply_negative_cal_edge_pause(
     apply_kelly_soft(metrics, mult, waived="neg_edge_soft", flag="neg_edge_soft")
     metrics.pop("neg_edge_pause", None)
     if orch is not None:
-        log_info_if_changed(
-            orch,
-            logger,
-            "neg_edge_soft",
-            f"{direction}:{edge:.4f}:{floor:.4f}:{mult:.2f}",
+        logger.debug(
             "EDGE || NEG_SOFT side=%s edge=%+.4f floor=%.4f kelly_mult=%.2f",
             direction,
             edge,

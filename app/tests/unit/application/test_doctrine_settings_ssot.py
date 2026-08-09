@@ -58,9 +58,11 @@ def test_production_logging_ssot():
     assert block["level"] == "INFO"
     assert block["log_file"]
     assert "settle_enqueue" in block["quiet_channels"]
+    assert "settle_tolerance" in block["quiet_channels"]
     cfg = resolve_logging_config(settings)
     assert cfg["level"] == 20
     assert "settle_enqueue" in cfg["quiet_channels"]
+    assert "settle_tolerance" in cfg["quiet_channels"]
 
 
 def test_production_loss_classifier_soft_veto_ssot():
@@ -80,6 +82,8 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert float(block["timeout_seconds"]) == pytest.approx(8.0)
     assert int(block["retrain_on_loss_min_n"]) == 2
     assert bool(block["flip_require_auto_learn"]) is True
+    assert bool(block["flip_allow_seed_on_scale_discord"]) is True
+    assert bool(block["flip_allow_seed_on_cal_discord"]) is True
     resolved = resolve_loss_classifier_config(None)
     assert resolved["veto_mode"] == "soft"
     assert resolved["veto_p_loss_floor"] == pytest.approx(0.65)
@@ -91,6 +95,8 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert resolved["soft_max_stake_pct_high"] == pytest.approx(0.0025)
     assert resolved["retrain_on_loss_min_n"] == 2
     assert resolved["flip_require_auto_learn"] is True
+    assert resolved["flip_allow_seed_on_scale_discord"] is True
+    assert resolved["flip_allow_seed_on_cal_discord"] is True
     soft_rec = settings["risk_management"]["soft_recovery"]
     assert int(soft_rec["amort_cycles_min"]) == 1
     assert int(soft_rec["amort_cycles_max"]) == 1
@@ -116,8 +122,10 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert "adapt_max_cal_margin" not in scale
     assert scale["adapt_on_majority_votes"] is True
     assert scale["adapt_mili_tape_skip_chop"] is True
+    assert scale["adapt_skip_chop"] is True
+    assert scale["adapt_require_cal_agree"] is True
     assert int(scale["adapt_majority_min_votes"]) == 3
-    assert int(scale["adapt_majority_min_lead"]) == 1
+    assert int(scale["adapt_majority_min_lead"]) == 2
     assert scale["adapt_majority_include_rsi"] is True
     assert scale["adapt_majority_include_micro_bar"] is False
     data = settings["data_handler"]

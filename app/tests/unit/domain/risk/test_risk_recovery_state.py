@@ -6,6 +6,7 @@ from src.domain.risk.risk_recovery_state import (
     apply_cluster_profit_to_recovery_state,
     apply_dlambert_partial_win_retraction,
     critical_recovery_stress,
+    log_partial_win_recovery,
     meta_payoff_veto_emergency_waiver,
     pending_loss_total,
     recovery_financially_active,
@@ -44,7 +45,7 @@ def test_cluster_win_retracts_linear_while_pending():
     rm.consecutive_losses_linear = 2
     rm.total_session_profit = -8.0
     rm.last_loss_stake = 10.0
-    rm.logger = type("L", (), {"info": lambda *a, **k: None})()
+    rm.logger = type("L", (), {"info": lambda *a, **k: None, "debug": lambda *a, **k: None})()
 
     apply_cluster_profit_to_recovery_state(rm, 3.0)
 
@@ -58,7 +59,7 @@ def test_cluster_win_resets_when_pending_cleared():
     rm.consecutive_losses_linear = 2
     rm.total_session_profit = 4.0
     rm.last_loss_stake = 10.0
-    rm.logger = type("L", (), {"info": lambda *a, **k: None})()
+    rm.logger = type("L", (), {"info": lambda *a, **k: None, "debug": lambda *a, **k: None})()
 
     reset = apply_cluster_profit_to_recovery_state(rm, 5.0)
 
@@ -116,7 +117,7 @@ def test_cluster_loss_increments_linear_counter():
     rm.pending_loss = {"R_10": 5.0}
     rm.consecutive_losses_linear = 1
     rm.total_session_profit = -12.0
-    rm.logger = type("L", (), {"info": lambda *a, **k: None})()
+    rm.logger = type("L", (), {"info": lambda *a, **k: None, "debug": lambda *a, **k: None})()
 
     apply_cluster_profit_to_recovery_state(rm, -4.0)
 
@@ -171,3 +172,12 @@ def test_meta_payoff_veto_emergency_waiver_without_risk_manager():
 
 def test_tcn_macro_ultra_extreme_conviction_rejects_unknown_direction():
     assert tcn_macro_ultra_extreme_conviction(0.10, "HOLD") is False
+
+
+def test_log_partial_win_recovery_emits_when_pending_remains():
+    rm = type("RM", (), {})()
+    rm.pending_loss = {"R_10": 3.0}
+    rm.consecutive_losses_linear = 1
+    rm.total_session_profit = -1.0
+    rm.logger = type("L", (), {"info": lambda *a, **k: None, "debug": lambda *a, **k: None})()
+    assert log_partial_win_recovery(rm, 1.0) == pytest.approx(3.0)

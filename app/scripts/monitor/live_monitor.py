@@ -38,7 +38,7 @@ logging.basicConfig(level=logging.ERROR, filename=str(repo_path("logs", "monitor
 logger = logging.getLogger("MONITOR")
 
 _CLUSTER_RE = re.compile(
-    r"\[CLUSTER\]\s+(?P<tf>\S+)\s+\|\|\s+(?P<body>.+)$",
+    r"\[CLUSTER\](?:\s*\|\|)?\s+(?P<tf>\S+)\s+\|\|\s+(?P<body>.+)$",
     re.IGNORECASE,
 )
 _CLUSTER_TOKEN_RE = re.compile(
@@ -53,50 +53,54 @@ _CLUSTER_TOKEN_RE = re.compile(
     re.IGNORECASE,
 )
 _EXEC_HEAD_RE = re.compile(
-    r"\]\s*EXEC\s*\|\|\s*(?P<ord>CALL|PUT)\s+\[(?P<symbol>[A-Z][A-Z0-9_]*)\]\s*\|\|\s*"
+    r"\[EXEC\]\s*\|\|\s*(?P<ord>CALL|PUT)\s+\[(?P<symbol>[A-Z][A-Z0-9_]*)\]\s*\|\|\s*"
     r"STAKE:\s*(?P<stake>-?[\d.]+)\s+\((?P<mode>[A-Z0-9_]+)\)"
     r"(?:\s*\|\s*RECOVERY_INFEASIBLE)?",
     re.IGNORECASE,
 )
 _EXEC_BOOK_RE = re.compile(
-    r"\]\s*EXEC\s*\|\|\s*PEND:\s*(?P<pend>-?[\d.]+)"
+    r"\[EXEC\]\s*\|\|\s*PEND:\s*(?P<pend>-?[\d.]+)"
     r"(?:\s*\|\s*LIN:\s*(?P<lin>-?\d+))?"
     r"(?:\s*\|\s*CAP:\s*(?P<cap>-?[\d.]+))?"
     r"\s*\|\s*BANCA:\s*(?P<banca>-?[\d.]+)",
     re.IGNORECASE,
 )
 _EXEC_TAIL_RE = re.compile(
-    r"\]\s*EXEC\s*\|\|\s*CID:\s*(?P<cid>\d+)\s*\|\s*PAY:\s*(?P<pay>-?[\d.]+)",
+    r"\[EXEC\]\s*\|\|\s*CID:\s*(?P<cid>\d+)\s*\|\s*PAY:\s*(?P<pay>-?[\d.]+)",
     re.IGNORECASE,
 )
 _EXEC_LEGACY_RE = re.compile(
-    r"\]\s*EXEC\s*\|\|\s*(?P<ord>CALL|PUT)\s+\[(?P<symbol>[A-Z][A-Z0-9_]*)\]\s*\|\|\s*"
+    r"\[EXEC\]\s*\|\|\s*(?P<ord>CALL|PUT)\s+\[(?P<symbol>[A-Z][A-Z0-9_]*)\]\s*\|\|\s*"
     r"STAKE:\s*(?P<stake>-?[\d.]+)\s+\((?P<mode>[A-Z0-9_]+)\)\s*\|\s*"
     r"PEND:\s*(?P<pend>-?[\d.]+)"
     r"(?:\s*\|\s*LIN:\s*(?P<lin>-?\d+))?"
     r"(?:\s*\|\s*CAP:\s*(?P<cap>-?[\d.]+))?"
     r"\s*\|\s*BANCA:\s*(?P<banca>-?[\d.]+)"
     r"(?:\s*\|\s*RECOVERY_INFEASIBLE)?"
-    r"\s*\|\|\s*"
+    r"\s*(?:\|\||\|)\s*"
     r"CID:\s*(?P<cid>\d+)\s*\|\s*PAY:\s*(?P<pay>-?[\d.]+)",
     re.IGNORECASE,
 )
 _IND_Z_RE = re.compile(
-    r"\]\s*IND\s*\|\|\s*Z:\s*(?P<z_edge>[+-]?[\d.]+)\s*\|\s*ACC:\s*(?P<acc>[+-]?[\d.]+)"
+    r"\[IND\]\s*\|\|\s*.*?\bZ:\s*(?P<z_edge>[+-]?[\d.]+)\s*\|\s*ACC:\s*(?P<acc>[+-]?[\d.]+)"
     r"(?:\s*\|\s*MARGIN:\s*(?P<margin>[+-]?[\d.]+))?"
     r"(?:\s*\|\s*CAL_EDGE:\s*(?P<cal_edge>[+-]?[\d.]+))?",
     re.IGNORECASE,
 )
 _IND_NEUTRAL_RE = re.compile(
-    r"\]\s*IND\s*\|\|\s*NEUTRAL:\s*(?P<neutral>\S+)\s*\|\s*META_VETO:\s*(?P<meta_veto>\S+)",
+    r"\[IND\]\s*\|\|\s*.*?\bNEUTRAL:\s*(?P<neutral>\S+)\s*\|\s*META_VETO:\s*(?P<meta_veto>\S+)",
     re.IGNORECASE,
 )
 _IND_LEGACY_RE = re.compile(
-    r"\]\s*IND\s*\|\|\s*"
-    r"RSI:\s*(?P<rsi>[+-]?[\d.]+)\s*\|\s*ADX:\s*(?P<adx>[+-]?[\d.]+)\s*\|\s*HURST:\s*(?P<hurst>[+-]?[\d.]+)\s*\|\|\s*"
-    r"ATR:\s*(?P<atr>[+-]?[\d.]+)\s*\|\s*BBW:\s*(?P<bbw>[+-]?[\d.]+)\s*\|\s*VOL_R:\s*(?P<vol_r>[+-]?[\d.]+)\s*\|\|\s*"
+    r"\[IND\]\s*\|\|\s*"
+    r"RSI:\s*(?P<rsi>[+-]?[\d.]+)\s*\|\s*ADX:\s*(?P<adx>[+-]?[\d.]+)\s*\|\s*HURST:\s*(?P<hurst>[+-]?[\d.]+)"
+    r"(?:\s*\|\||\s*\|)\s*"
+    r"ATR:\s*(?P<atr>[+-]?[\d.]+)\s*\|\s*BBW:\s*(?P<bbw>[+-]?[\d.]+)\s*\|\s*VOL_R:\s*(?P<vol_r>[+-]?[\d.]+)"
+    r"(?:\s*\|\||\s*\|)\s*"
     r"Z:\s*(?P<z_edge>[+-]?[\d.]+)\s*\|\s*ACC:\s*(?P<acc>[+-]?[\d.]+)"
-    r"(?:\s*\|\|\s*MARGIN:\s*(?P<margin>[+-]?[\d.]+)\s*\|\s*NEUTRAL:\s*(?P<neutral>\S+)\s*\|\s*META_VETO:\s*(?P<meta_veto>\S+))?",
+    r"(?:.*?\bMARGIN:\s*(?P<margin>[+-]?[\d.]+))?"
+    r"(?:.*?\bCAL_EDGE:\s*(?P<cal_edge>[+-]?[\d.]+))?"
+    r"(?:.*?\bNEUTRAL:\s*(?P<neutral>\S+)\s*\|\s*META_VETO:\s*(?P<meta_veto>\S+))?",
     re.IGNORECASE,
 )
 
@@ -156,7 +160,7 @@ class LogParser:
             logger.error("Parser Error CLUSTER: %s", exc)
 
     def _parse_ind(self, line: str) -> None:
-        if "IND ||" not in line:
+        if "[IND]" not in line and "IND ||" not in line:
             return
         try:
             legacy = _IND_LEGACY_RE.search(line)
@@ -192,7 +196,7 @@ class LogParser:
             logger.error("Parser Error IND: %s", exc)
 
     def _parse_exec(self, line: str) -> None:
-        if "EXEC ||" not in line:
+        if "[EXEC]" not in line and "EXEC ||" not in line:
             return
         try:
             legacy = _EXEC_LEGACY_RE.search(line)

@@ -39,7 +39,7 @@ def apply_stop_win_kelly_boost(
         live_metrics=live_metrics,
     )
     if boosted > kelly_base and not silent:
-        rm.logger.info(
+        rm.logger.debug(
             "RISK: STOP WIN KELLY | stake $%.2f -> $%.2f (meta sessao)",
             kelly_base,
             boosted,

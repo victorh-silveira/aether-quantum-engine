@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.domain.risk.kelly_runtime_config import load_kelly_runtime_from_settings
+
 
 # Cache em memória para os contratos de auditoria
 _CONTRACT_AUDIT_STORE: dict[str, Any] = {}
@@ -19,7 +21,7 @@ def resolve_meta_payoff_zscore(metrics: dict[str, Any] | None) -> float:
 def resolve_predicted_edge(
     metrics: dict[str, Any],
     direction: str | None = None,
-    payout: float = 0.95,
+    payout: float | None = None,
 ) -> float:
     """Calcula o edge previsto. Se direction for fornecido, edge é direcional (pode ser negativo)."""
     if not isinstance(metrics, dict):
@@ -35,7 +37,10 @@ def resolve_predicted_edge(
         p = 1.0 - p
     elif not direction:
         p = max(p, 1.0 - p)
-    return float((p * (1.0 + payout)) - 1.0)
+    pay = payout
+    if pay is None:
+        pay = float(load_kelly_runtime_from_settings()["payout_fallback"])
+    return float((p * (1.0 + float(pay))) - 1.0)
 
 
 def cluster_symbol_token(symbol: str | None, entry: dict[str, Any] | None = None) -> str:

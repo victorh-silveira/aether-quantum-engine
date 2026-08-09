@@ -14,6 +14,7 @@ from learn_policy import retrain_min_for_label, should_retrain_after_learn
 from runtime import (
     fit_classifier,
     is_bootstrap_bundle,
+    is_collapsed_classifier,
     load_latest_classifier,
     persist_bundle,
     predict_p_loss,
@@ -27,6 +28,7 @@ FEATURE_DIM = int(os.getenv("LOSS_FEATURE_DIM", "24"))
 READY_N = int(os.getenv("LOSS_READY_N", "24"))
 RETRAIN_MIN_N = int(os.getenv("LOSS_RETRAIN_MIN_N", "24"))
 RETRAIN_ON_LOSS_MIN_N = int(os.getenv("LOSS_RETRAIN_ON_LOSS_MIN_N", "2"))
+BOOTSTRAP_EXIT_N = int(os.getenv("LOSS_BOOTSTRAP_EXIT_N", "48"))
 MAX_BUFFER = int(os.getenv("LOSS_MAX_BUFFER", "2000"))
 VETO_P_LOSS_FLOOR = float(os.getenv("LOSS_VETO_P_LOSS_FLOOR", "0.65"))
 FEATURE_NAMES = tuple(f"f_{index}" for index in range(FEATURE_DIM))
@@ -86,6 +88,7 @@ _model_version: str = "none"
 _n_train: int = 0
 _auto_learn_applied: bool = False
 _bootstrap: bool = False
+_degenerate: bool = False
 _buffer_x: list[list[float]] = []
 _buffer_y: list[int] = []
 _load_error: str = ""
@@ -98,7 +101,7 @@ def _validate_vector(vector: list[float]) -> list[float]:
 
 
 def _veto_ready() -> bool:
-    if _model is None:
+    if _model is None or bool(_degenerate):
         return False
     return int(_n_train) >= int(READY_N)
 
@@ -121,7 +124,8 @@ def _load_buffer_unlocked() -> None:
 
 
 def _apply_bundle(bundle: dict[str, Any], path: Path | None, *, auto_learn: bool) -> None:
-    global _model, _model_path, _model_mtime, _model_version, _n_train, _auto_learn_applied, _bootstrap, _load_error
+    global _model, _model_path, _model_mtime, _model_version, _n_train
+    global _auto_learn_applied, _bootstrap, _degenerate, _load_error
     _model = bundle["model"]
     _model_path = path
     _model_mtime = float(path.stat().st_mtime) if path is not None and path.is_file() else 0.0
@@ -129,6 +133,7 @@ def _apply_bundle(bundle: dict[str, Any], path: Path | None, *, auto_learn: bool
     _model_version = str(bundle.get("model_version") or (path.name if path else "memory"))
     _auto_learn_applied = bool(auto_learn or bundle.get("auto_learn_applied"))
     _bootstrap = False if _auto_learn_applied else is_bootstrap_bundle(bundle, version=_model_version)
+    _degenerate = bool(bundle.get("degenerate"))
     _load_error = ""
 
 
@@ -159,6 +164,14 @@ def _maybe_hot_reload() -> None:
 def _fit_from_buffer(*, min_n: int | None = None) -> RetrainResult:
     floor = int(min_n) if min_n is not None else int(RETRAIN_MIN_N)
     with _lock:
+        exit_n = max(int(READY_N), int(BOOTSTRAP_EXIT_N))
+        if bool(_bootstrap) and int(_n_train) >= int(READY_N) and len(_buffer_y) < exit_n:
+            return RetrainResult(
+                ok=False,
+                n_train=len(_buffer_y),
+                model_version=_model_version,
+                detail=f"seed_keep n<{exit_n}",
+            )
         if len(_buffer_y) < floor:
             return RetrainResult(ok=False, n_train=len(_buffer_y), model_version=_model_version, detail=f"n<{floor}")
         if len(set(_buffer_y)) < 2:
@@ -166,6 +179,14 @@ def _fit_from_buffer(*, min_n: int | None = None) -> RetrainResult:
                 ok=False, n_train=len(_buffer_y), model_version=_model_version, detail="precisa WIN e LOSS"
             )
         model = fit_classifier(_buffer_x, _buffer_y)
+        if is_collapsed_classifier(model, _buffer_x):
+            logger.warning("Retrain loss rejeitado colapso n=%d", len(_buffer_y))
+            return RetrainResult(
+                ok=False,
+                n_train=len(_buffer_y),
+                model_version=_model_version,
+                detail="collapsed_reject",
+            )
         path = persist_bundle(
             MODELS_DIR, model, len(_buffer_y), FEATURE_NAMES, FEATURE_DIM, auto_learn=True
         )
@@ -176,6 +197,7 @@ def _fit_from_buffer(*, min_n: int | None = None) -> RetrainResult:
                 "model_version": path.stem,
                 "auto_learn_applied": True,
                 "bootstrap": False,
+                "degenerate": False,
             },
             path,
             auto_learn=True,
@@ -216,6 +238,7 @@ async def health() -> dict[str, Any]:
             "model_mtime": float(_model_mtime),
             "auto_learn_applied": bool(_auto_learn_applied),
             "bootstrap": bool(_bootstrap),
+            "degenerate": bool(_degenerate),
             "buffer_n": len(_buffer_y),
             "buffer_win": int(counts["win"]),
             "buffer_loss": int(counts["loss"]),
@@ -280,11 +303,6 @@ async def learn(payload: LearnRequest) -> dict[str, Any]:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     retrain_result: RetrainResult | None = None
-    fit_min = retrain_min_for_label(
-        label=label,
-        retrain_min_n=int(RETRAIN_MIN_N),
-        retrain_on_loss_min_n=int(RETRAIN_ON_LOSS_MIN_N),
-    )
     with _lock:
         _buffer_x.append(vector)
         _buffer_y.append(1 if label == "LOSS" else 0)
@@ -293,6 +311,14 @@ async def learn(payload: LearnRequest) -> dict[str, Any]:
             del _buffer_x[:overflow]
             del _buffer_y[:overflow]
         counts = buffer_class_counts(_buffer_y)
+        boot = bool(_bootstrap)
+        fit_min = retrain_min_for_label(
+            label=label,
+            retrain_min_n=int(RETRAIN_MIN_N),
+            retrain_on_loss_min_n=int(RETRAIN_ON_LOSS_MIN_N),
+            bootstrap_active=boot,
+            bootstrap_exit_n=int(BOOTSTRAP_EXIT_N),
+        )
         should_retrain = should_retrain_after_learn(
             label=label,
             buffer_n=len(_buffer_y),
@@ -300,7 +326,8 @@ async def learn(payload: LearnRequest) -> dict[str, Any]:
             retrain_on_loss_min_n=int(RETRAIN_ON_LOSS_MIN_N),
             buffer_win=int(counts["win"]),
             buffer_loss=int(counts["loss"]),
-            bootstrap_active=bool(_bootstrap),
+            bootstrap_active=boot,
+            bootstrap_exit_n=int(BOOTSTRAP_EXIT_N),
         )
         _persist_buffer_unlocked()
     if should_retrain:

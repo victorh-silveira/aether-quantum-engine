@@ -1,24 +1,29 @@
+from types import SimpleNamespace
+
 import pytest
 
 from src.application.services.market_audit_log import (
+    format_cluster_audit_line,
+    format_indicators_audit_line,
     pop_contract_audit,
     resolve_meta_payoff_zscore,
     resolve_predicted_edge,
+    resolve_stake_audit_context,
     store_contract_audit,
 )
 
 
 class TestResolvePredictedEdge:
     def test_returns_edge_from_calibrated_prob(self):
-        edge = resolve_predicted_edge({"calibrated_prob": 0.7})
+        edge = resolve_predicted_edge({"calibrated_prob": 0.7}, payout=0.95)
         assert edge == pytest.approx((0.7 * 1.95) - 1.0)
 
     def test_falls_back_to_raw_prob(self):
-        edge = resolve_predicted_edge({"raw_prob": 0.65})
+        edge = resolve_predicted_edge({"raw_prob": 0.65}, payout=0.95)
         assert edge == pytest.approx((0.65 * 1.95) - 1.0)
 
     def test_defaults_to_0_5_when_no_prob_key(self):
-        edge = resolve_predicted_edge({"some_key": 1.0})
+        edge = resolve_predicted_edge({"some_key": 1.0}, payout=0.95)
         assert edge == pytest.approx((0.5 * 1.95) - 1.0)
 
     def test_returns_0_for_non_dict_input(self):
@@ -30,12 +35,16 @@ class TestResolvePredictedEdge:
         assert edge == 0.0
 
     def test_uses_dominant_prob_when_below_0_5(self):
-        edge = resolve_predicted_edge({"raw_prob": 0.3})
+        edge = resolve_predicted_edge({"raw_prob": 0.3}, payout=0.95)
         assert edge == pytest.approx((0.7 * 1.95) - 1.0)
 
     def test_accepts_custom_payout(self):
         edge = resolve_predicted_edge({"calibrated_prob": 0.8}, payout=0.90)
         assert edge == pytest.approx((0.8 * 1.90) - 1.0)
+
+    def test_defaults_to_kelly_payout_fallback(self):
+        edge = resolve_predicted_edge({"calibrated_prob": 0.7})
+        assert edge == pytest.approx((0.7 * 1.72) - 1.0)
 
 
 class TestResolveMetaPayoffZscore:
@@ -110,3 +119,97 @@ class TestStoreAndPopContractAudit:
         from src.application.services.market_audit_log_helpers import metric_float
 
         assert metric_float(None, "trade_score", default=0.5) == 0.5
+
+
+def test_format_indicators_audit_line():
+    metrics = {
+        "indicators": {
+            "rsi": 0.4859,
+            "adx": 0.2017,
+            "hurst": 0.5671,
+            "atr_norm": -0.9558,
+            "bb_width": -0.2226,
+            "vol_ratio": 1.0720,
+        },
+        "edge_zscore": 0.60,
+        "val_accuracy": 0.6433,
+        "direction_margin": 0.12,
+        "calibration_mode": "calibrated",
+        "meta_veto_mode": "none",
+    }
+    line = format_indicators_audit_line(6, "R_10", metrics)
+    assert line.startswith("[IND] || ")
+    assert "RSI:" in line and "0.4859" in line
+    assert "ADX:" in line and "0.2017" in line
+    assert "HURST:" in line and "0.5671" in line
+    assert "ATR:" in line and "-0.9558" in line
+    assert "BBW:" in line and "-0.2226" in line
+    assert "VOL_R:" in line and "1.0720" in line
+    assert "Z:" in line and "+0.60" in line
+    assert "ACC:" in line and "0.6433" in line
+    assert "MARGIN:" in line and "0.120" in line
+    assert "CAL_EDGE:" in line
+    assert "NEUTRAL: calibrated" in line
+    assert "META_VETO: none" in line
+    assert "SCALE: tcn=" in line
+    assert "adapted=0" in line
+    assert line.count("\n") == 3
+    assert all(part.startswith("[IND] ||") for part in line.splitlines())
+
+
+def test_format_indicators_audit_line_ignores_none_and_invalid():
+    metrics = {"indicators": {"rsi": None, "hurst": 0.61, "adx": "bad"}, "val_accuracy": 0.5}
+    line = format_indicators_audit_line(5, "R_10", metrics)
+    assert "0.6100" in line
+    assert "RSI:" in line
+    assert "0.0000" in line
+
+
+def test_format_indicators_audit_line_marks_neutral_clamp():
+    metrics = {
+        "indicators": {"rsi": 0.5, "adx": 0.2, "hurst": 0.5},
+        "direction_margin": 0.01,
+        "gate_reason": "neutral_clamp",
+        "meta_veto_mode": "soft",
+    }
+    line = format_indicators_audit_line(7, "R_10", metrics)
+    assert "NEUTRAL: neutral_clamp" in line
+    assert "META_VETO: soft" in line
+
+
+def test_resolve_stake_audit_context_from_audit():
+    rm = SimpleNamespace(
+        _last_stake_audit={
+            "mode_tag": "RECOVER_DAL_L1",
+            "pending": 1.5,
+            "bankroll": 90.0,
+            "linear_losses": 1,
+            "cap": 4.2,
+            "recovery_infeasible": False,
+        },
+        pending_loss_total=lambda: 9.0,
+        bankroll=80.0,
+    )
+    audit = resolve_stake_audit_context(rm)
+    assert audit["mode_tag"] == "RECOVER_DAL_L1"
+    assert audit["pending"] == 1.5
+    assert audit["bankroll"] == 90.0
+    assert audit["linear"] == 1
+    assert audit["cap"] == 4.2
+
+
+def test_resolve_stake_audit_context_fallback_balance():
+    rm = SimpleNamespace(
+        bankroll=70.0,
+        initial_bankroll=70.0,
+        pending_loss_total=lambda: 2.0,
+        consecutive_losses_linear=0,
+    )
+    audit = resolve_stake_audit_context(rm, balance_fallback=88.5)
+    assert audit["mode_tag"] == "EXPLORE_KELLY"
+    assert audit["pending"] == 2.0
+    assert audit["bankroll"] == 88.5
+
+
+def test_format_cluster_audit_line_empty():
+    assert format_cluster_audit_line({}, timeframe="M5") == "[CLUSTER] || M5 || EMPTY"

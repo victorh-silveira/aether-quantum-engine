@@ -41,7 +41,7 @@ async def test_contract_update_buffers_result_logs_during_dispatch(orch_config):
         assert mock_info.call_count == 0
         assert len(orch._pending_result_logs) == 1
         joined = "\n".join(orch._pending_result_logs)
-        assert "[C0000] RESOLVED || STATUS: WIN" in joined
+        assert "[RESOLVED] || STATUS: WIN" in joined
         assert "P&L:" in joined
         assert "+10.00" in joined
 

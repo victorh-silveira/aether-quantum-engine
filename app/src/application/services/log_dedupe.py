@@ -31,6 +31,11 @@ def log_info_if_changed(owner, logger: logging.Logger, channel: str, content: st
     _log_if_changed(owner, logger, "info", channel, content, message, *args)
 
 
+def log_debug_if_changed(owner, logger: logging.Logger, channel: str, content: str, message: str, *args) -> None:
+    """Loga DEBUG quando o conteudo do canal muda; atualiza cache de dedupe."""
+    _log_if_changed(owner, logger, "debug", channel, content, message, *args)
+
+
 def log_warning_if_changed(owner, logger: logging.Logger, channel: str, content: str, message: str, *args) -> None:
     """Loga WARNING quando o conteudo do canal muda; repeticoes identicas vao para DEBUG."""
     _log_if_changed(owner, logger, "warning", channel, content, message, *args)

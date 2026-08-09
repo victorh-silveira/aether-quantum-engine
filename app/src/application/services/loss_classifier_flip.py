@@ -29,6 +29,17 @@ def is_seed_model(response: dict[str, Any], *, require_auto_learn: bool) -> bool
     return not bool(response.get("auto_learn_applied"))
 
 
+def is_collapsed_p_loss(response: dict[str, Any], *, eps: float = 0.02) -> bool:
+    """True quando auto_learn devolve p_loss ~0.5 (modelo live degenerado)."""
+    if not bool(response.get("auto_learn_applied")):
+        return False
+    try:
+        p_loss = float(response.get("p_loss"))
+    except (TypeError, ValueError):
+        return True
+    return abs(p_loss - 0.5) < float(eps)
+
+
 def scale_confirms_ref(metrics: dict[str, Any], ref_dir: TradeDirection) -> bool:
     """True se tape ou maioria de votos confirma o lado TCN (nao inverter)."""
     tape = str(metrics.get("scale_tape_consensus") or "").strip().upper()
@@ -42,6 +53,18 @@ def scale_confirms_ref(metrics: dict[str, Any], ref_dir: TradeDirection) -> bool
     if ref_dir == TradeDirection.CALL and vc >= vp + 2:
         return True
     return ref_dir == TradeDirection.PUT and vp >= vc + 2
+
+
+def cal_disagrees_ref(metrics: dict[str, Any], ref_dir: TradeDirection) -> bool:
+    """True se calibrated_prob (P(CALL)) aponta o lado oposto ao TCN."""
+    if "calibrated_prob" not in metrics or metrics.get("calibrated_prob") is None:
+        return False
+    try:
+        cal = float(metrics["calibrated_prob"])
+    except (TypeError, ValueError):
+        return False
+    cal_dir = TradeDirection.CALL if cal + 1e-12 >= 0.5 else TradeDirection.PUT
+    return cal_dir != ref_dir
 
 
 def apply_loss_flip(metrics: dict[str, Any], ref_dir: TradeDirection, *, cfg: dict[str, Any]) -> TradeDirection:

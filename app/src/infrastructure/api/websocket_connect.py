@@ -157,7 +157,7 @@ async def connect_wss_with_ip_failover(
             )
             _state["last_good_ip"] = ip
             if len(targets) > 1:
-                logger.info("WSS: handshake OK via %s (host=%s)", ip, host)
+                logger.debug("WSS: handshake OK via %s (host=%s)", ip, host)
             return ws
         except websockets.InvalidStatus as exc:
             status = _status_code(exc)

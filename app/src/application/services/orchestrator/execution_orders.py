@@ -6,6 +6,7 @@ import logging
 from src.application.services.market_audit_log import (
     emit_audit_info,
     format_execution_ticket_line,
+    format_kelly_audit_line,
     resolve_meta_payoff_zscore,
     resolve_predicted_edge,
     resolve_stake_audit_context,
@@ -39,6 +40,17 @@ def _emit_execution_ticket(executor, *, cycle_id: int, symbol, direction, stake,
         executor.orch.risk_manager,
         balance_fallback=getattr(getattr(executor.orch, "state", None), "balance", None),
     )
+    mode_tag = str(audit.get("mode_tag") or "EXPLORE_KELLY")
+    metrics_dict = metrics if isinstance(metrics, dict) else {}
+    emit_audit_info(
+        logger,
+        format_kelly_audit_line(
+            metrics_dict,
+            stake=float(stake),
+            mode_tag=mode_tag,
+            audit=audit,
+        ),
+    )
     emit_audit_info(
         logger,
         format_execution_ticket_line(
@@ -46,7 +58,7 @@ def _emit_execution_ticket(executor, *, cycle_id: int, symbol, direction, stake,
             direction=direction.name,
             symbol=str(symbol),
             stake=float(stake),
-            mode_tag=str(audit.get("mode_tag") or "EXPLORE_KELLY"),
+            mode_tag=mode_tag,
             pending=float(audit.get("pending", 0.0)),
             bankroll=float(audit.get("bankroll", 0.0)),
             contract_id=int(contract.contract_id),
@@ -100,9 +112,8 @@ async def place_order(executor, symbol, direction, stake, duration=None, metrics
                 symbol, direction, attempt_stake, params=params
             )
             if attempt_stake + 1e-9 < float(stake):
-                logger.info(
-                    "[%s] PROPOSAL_RETRY | %s stake $%.2f -> $%.2f",
-                    cid,
+                logger.debug(
+                    "[PROPOSAL] || RETRY %s stake $%.2f -> $%.2f",
                     symbol,
                     float(stake),
                     float(attempt_stake),

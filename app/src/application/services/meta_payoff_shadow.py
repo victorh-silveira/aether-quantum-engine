@@ -108,7 +108,7 @@ def record_meta_payoff_shadow_pair(
         orch._meta_payoff_shadow_ready = shadow_ready(orch)
         orch._meta_payoff_hard_veto_allowed = meta_hard_veto_allowed(orch)
     if corr is not None and len(_z_pnl_pairs) >= int(_shadow()["min_pairs"]) and len(_z_pnl_pairs) % 8 == 0:
-        logger.info(
+        logger.debug(
             "META_SHADOW | corr(z,pnl)=%+.3f | n=%d | window=%d | hard=%s",
             corr,
             len(_z_pnl_pairs),

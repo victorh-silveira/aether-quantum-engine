@@ -145,11 +145,7 @@ class ExecutionManager:
                     self.orch.risk_manager.initial_bankroll,
                 )
                 pnl = float(self.orch.risk_manager.total_session_profit)
-                log_info_if_changed(
-                    self.orch,
-                    self.logger,
-                    "recovery_status",
-                    f"{pending:.2f}|{pnl:+.2f}|{sw:.2f}",
+                self.logger.debug(
                     "[%s] RISK: RECOVERY | pend=$%.2f | pnl_sessao=$%+.2f | stop_win=$%.2f",
                     cid,
                     pending,

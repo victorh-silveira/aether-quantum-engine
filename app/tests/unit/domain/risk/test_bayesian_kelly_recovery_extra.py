@@ -102,7 +102,7 @@ def test_recovery_infeasible_logs_when_not_silent(kelly_config):
         apply_stop_win=False,
         kwargs={"dl_metrics": metrics, "cycle_id": 11},
     )
-    logged = " ".join(str(c) for c in rm.logger.info.call_args_list)
+    logged = " ".join(str(c) for c in rm.logger.debug.call_args_list + rm.logger.info.call_args_list)
     assert "RECOVERY_INFEASIBLE" in logged or metrics.get("recovery_infeasible") is True
     assert metrics.get("recovery_force_explore") is True
     assert metrics.get("stake_regime") == "EXPLORE"

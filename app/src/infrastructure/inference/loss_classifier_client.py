@@ -44,6 +44,8 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
             "retrain_on_loss_min_n",
             "max_buffer",
             "flip_require_auto_learn",
+            "flip_allow_seed_on_scale_discord",
+            "flip_allow_seed_on_cal_discord",
         ),
         "infra.loss_classifier",
     )
@@ -90,6 +92,8 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
         "retrain_on_loss_min_n": require_int(block, "retrain_on_loss_min_n"),
         "max_buffer": require_int(block, "max_buffer"),
         "flip_require_auto_learn": require_bool(block, "flip_require_auto_learn"),
+        "flip_allow_seed_on_scale_discord": require_bool(block, "flip_allow_seed_on_scale_discord"),
+        "flip_allow_seed_on_cal_discord": require_bool(block, "flip_allow_seed_on_cal_discord"),
     }
 
 
