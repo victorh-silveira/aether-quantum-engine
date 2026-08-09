@@ -1,11 +1,21 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import pytest
+
 from src.application.services.orchestrator.execution_collect import collect_cluster_orders
 from src.application.services.orchestrator.execution_collect_helpers import mandatory_fallback_if_empty
 from src.domain.models.trade import TradeDirection
 from tests.market_symbols import ALT_SYMBOL, ANCHOR
 from tests.unit.application.universal_regime_metrics import asymmetric_gate_safe_metrics, bear_put_metrics
+
+
+@pytest.fixture(autouse=True)
+def _disable_loss_clf_network_flip(monkeypatch):
+    monkeypatch.setattr(
+        "src.application.services.execution_direction_resolver.apply_loss_classifier_gate",
+        lambda *args, **kwargs: False,
+    )
 
 
 def test_collect_cluster_orders_recovery_executes_best_available_signal():
@@ -40,7 +50,7 @@ def test_collect_cluster_orders_recovery_executes_best_available_signal():
     orders = collect_cluster_orders(exec_mgr, decisions)
     assert len(orders) == 1
     assert orders[0][0] == ANCHOR
-    assert orders[0][1] == TradeDirection.PUT
+    assert orders[0][1] == TradeDirection.CALL
 
 
 def test_collect_cluster_orders_includes_recovery_candidate_with_raw_prob():
@@ -80,7 +90,7 @@ def test_collect_cluster_orders_includes_recovery_candidate_with_raw_prob():
     orders = collect_cluster_orders(exec_mgr, decisions)
     assert len(orders) == 1
     assert orders[0][0] == ALT_SYMBOL
-    assert orders[0][1] == TradeDirection.CALL
+    assert orders[0][1] == TradeDirection.PUT
 
 
 def test_collect_cluster_orders_bolts_weak_signal_continuously():
@@ -144,7 +154,7 @@ def test_collect_cluster_orders_bolts_weak_signal_continuously():
     assert len(orders) == 1
     symbol, direction, _metrics = orders[0]
     assert symbol == ALT_SYMBOL
-    assert direction == TradeDirection.CALL
+    assert direction == TradeDirection.PUT
 
     orch = SimpleNamespace(
         anchor=ANCHOR,

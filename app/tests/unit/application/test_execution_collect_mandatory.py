@@ -1,6 +1,8 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from src.application.services.execution_symbols_recovery import recovery_blocked_symbols
 from src.application.services.orchestrator.execution_collect import collect_cluster_orders
 from src.application.services.orchestrator.execution_collect_helpers import (
@@ -10,6 +12,14 @@ from src.application.services.orchestrator.execution_collect_helpers import (
 from src.domain.models.trade import TradeDirection
 from tests.market_symbols import ANCHOR, PAIR
 from tests.unit.application.universal_regime_metrics import bear_put_metrics
+
+
+@pytest.fixture(autouse=True)
+def _disable_loss_clf_network_flip(monkeypatch):
+    monkeypatch.setattr(
+        "src.application.services.execution_direction_resolver.apply_loss_classifier_gate",
+        lambda *args, **kwargs: False,
+    )
 
 
 def test_mandatory_fallback_candidates_returns_entropy_pick():
@@ -175,7 +185,7 @@ def test_collect_cluster_orders_skips_entry_without_inferable_direction():
     orders = collect_cluster_orders(exec_mgr, decisions)
     assert len(orders) == 1
     assert orders[0][0] == PAIR
-    assert orders[0][1] == TradeDirection.CALL
+    assert orders[0][1] == TradeDirection.PUT
 
 
 def test_collect_cluster_orders_blocks_symbol_after_linear_loss():

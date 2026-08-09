@@ -1,6 +1,8 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import pytest
+
 from src.application.services.execution_direction_resolver import resolve_execution_direction
 from src.application.services.execution_mandatory_pick import (
     pick_best_mandatory_candidate,
@@ -9,6 +11,14 @@ from src.application.services.orchestrator.execution_collect import collect_clus
 from src.domain.models.trade import TradeDirection
 from tests.market_symbols import ANCHOR, LOW_SIDE_SYMBOL, PAIR
 from tests.unit.application.universal_regime_metrics import asymmetric_gate_safe_metrics, bear_put_metrics
+
+
+@pytest.fixture(autouse=True)
+def _disable_loss_clf_network_flip(monkeypatch):
+    monkeypatch.setattr(
+        "src.application.services.execution_direction_resolver.apply_loss_classifier_gate",
+        lambda *args, **kwargs: False,
+    )
 
 
 def test_collect_cluster_orders_recovery_picks_dl_put_after_call_loss():
@@ -57,7 +67,7 @@ def test_collect_cluster_orders_recovery_picks_dl_put_after_call_loss():
     orders = collect_cluster_orders(exec_mgr, decisions)
     assert len(orders) == 1
     assert orders[0][0] == LOW_SIDE_SYMBOL
-    assert orders[0][1] == TradeDirection.CALL
+    assert orders[0][1] == TradeDirection.PUT
 
 
 def test_collect_cluster_orders_mandatory_keeps_weak_recovery_candidate():

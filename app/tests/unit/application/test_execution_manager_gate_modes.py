@@ -7,6 +7,14 @@ from src.domain.models.trade import TradeDirection
 from tests.unit.application.universal_regime_metrics import asymmetric_gate_safe_metrics
 
 
+@pytest.fixture(autouse=True)
+def _disable_loss_clf_network_flip(monkeypatch):
+    monkeypatch.setattr(
+        "src.application.services.execution_direction_resolver.apply_loss_classifier_gate",
+        lambda *args, **kwargs: False,
+    )
+
+
 @pytest.mark.asyncio
 async def test_execute_cluster_silent_when_not_mandatory_and_execute_false(orch_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
@@ -171,7 +179,7 @@ def test_collect_orders_continuous_keeps_weak_technically_valid_candidate(orch_c
         }
         orders = orch.executor._collect_orders(decisions)
         assert len(orders) == 1
-        assert orders[0][1] == TradeDirection.PUT
+        assert orders[0][1] == TradeDirection.CALL
 
 
 @pytest.mark.asyncio

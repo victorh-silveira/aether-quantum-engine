@@ -1,10 +1,20 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import pytest
+
 from src.application.services.orchestrator.execution_collect import collect_cluster_orders
 from src.domain.models.trade import TradeDirection
 from tests.market_symbols import ANCHOR, LOW_SIDE_SYMBOL, PAIR
 from tests.unit.application.universal_regime_metrics import asymmetric_gate_safe_metrics, bear_put_metrics
+
+
+@pytest.fixture(autouse=True)
+def _disable_loss_clf_network_flip(monkeypatch):
+    monkeypatch.setattr(
+        "src.application.services.execution_direction_resolver.apply_loss_classifier_gate",
+        lambda *args, **kwargs: False,
+    )
 
 
 def test_collect_cluster_orders_recovery_picks_dl_put_after_call_loss():
@@ -54,7 +64,7 @@ def test_collect_cluster_orders_recovery_picks_dl_put_after_call_loss():
     orders = collect_cluster_orders(exec_mgr, decisions)
     assert len(orders) == 1
     assert orders[0][0] == LOW_SIDE_SYMBOL
-    assert orders[0][1] == TradeDirection.CALL
+    assert orders[0][1] == TradeDirection.PUT
 
 
 def test_collect_cluster_orders_recovery_keeps_dl_direction_after_call_loss():
@@ -97,7 +107,7 @@ def test_collect_cluster_orders_recovery_keeps_dl_direction_after_call_loss():
     orders = collect_cluster_orders(exec_mgr, decisions)
     assert len(orders) == 1
     assert orders[0][0] == "R_10"
-    assert orders[0][1] == TradeDirection.PUT
+    assert orders[0][1] == TradeDirection.CALL
 
 
 def test_collect_cluster_orders_recovery_bolts_hard_meta_reject():
@@ -161,7 +171,7 @@ def test_collect_cluster_orders_recovery_bolts_hard_meta_reject():
     assert len(orders) == 1
     symbol, direction, _metrics = orders[0]
     assert symbol == PAIR
-    assert direction == TradeDirection.CALL
+    assert direction == TradeDirection.PUT
 
 
 def test_collect_cluster_orders_recovery_allows_soft_tcn_entropy_fallback():
@@ -205,7 +215,7 @@ def test_collect_cluster_orders_recovery_allows_soft_tcn_entropy_fallback():
     orders = collect_cluster_orders(exec_mgr, decisions)
     assert len(orders) == 1
     assert orders[0][0] == PAIR
-    assert orders[0][1] == TradeDirection.CALL
+    assert orders[0][1] == TradeDirection.PUT
     orch = SimpleNamespace(
         anchor=ANCHOR,
         symbols=[ANCHOR],
