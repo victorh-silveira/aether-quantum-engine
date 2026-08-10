@@ -297,7 +297,8 @@
             "flip_allow_seed_on_cal_discord": true,
             "flip_cal_discord_margin": 0.03,
             "flip_require_pos_edge": true,
-            "flip_min_edge_execute": 0.04
+            "flip_min_edge_execute": 0.04,
+            "flip_waive_on_closed_candle": true
         },
         "minio": {
             "bucket": "dl-models",
@@ -590,7 +591,7 @@
                 "adapt_majority_min_lead": 2,
                 "adapt_majority_min_votes": 3,
                 "adapt_majority_include_rsi": true,
-                "adapt_majority_include_micro_bar": false,
+                "adapt_majority_include_micro_bar": true,
                 "adapt_majority_rsi_neutral": 0.5,
                 "retraction_require_mili": true,
                 "retraction_use_tick_accel": true,
@@ -611,7 +612,8 @@
                 "chop_hurst_max": 0.53,
                 "chop_soft_kelly_mult": 0.55,
                 "neg_edge_soft_kelly_mult": 0.55,
-                "neg_edge_hard_skip": true
+                "neg_edge_hard_skip": true,
+                "neg_edge_soft_when_closed_candle_agree": true
             }
         },
         "idle_cycle_watchdog_seconds": 1200,

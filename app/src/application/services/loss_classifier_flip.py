@@ -8,6 +8,17 @@ from src.application.services.market_audit_log_helpers import resolve_predicted_
 from src.domain.models.trade import TradeDirection
 
 
+def closed_micro_candle_side(metrics: dict[str, Any] | None) -> str | None:
+    """Lado da ultima vela micro fechada (CALL/PUT) quando disponivel."""
+    if not isinstance(metrics, dict):
+        return None
+    for key in ("closed_micro_candle_dir", "scale_micro_prev_bar_dir"):
+        side = str(metrics.get(key) or "").strip().upper()
+        if side in {TradeDirection.CALL.name, TradeDirection.PUT.name}:
+            return side
+    return None
+
+
 def resolve_soft_kelly_mult(p_loss: float, cfg: dict[str, Any]) -> float:
     """Interpola soft Kelly entre floor e p_loss alto (maior risco → menor mult)."""
     floor = float(cfg["veto_p_loss_floor"])
@@ -101,11 +112,18 @@ def resolve_flip_waivers(
     ):
         scale_block = False
         metrics["loss_clf_flip_cal_overrides_scale"] = True
+    flip_target = TradeDirection.PUT if ref_dir == TradeDirection.CALL else TradeDirection.CALL
+    candle = closed_micro_candle_side(metrics)
+    if scale_block and candle == flip_target.name and bool(cfg.get("flip_waive_on_closed_candle", True)):
+        scale_block = False
+        metrics["loss_clf_flip_candle_waive_scale"] = True
     return seed_block, scale_block
 
 
 def flip_reason_token(metrics: dict[str, Any]) -> str:
     """Razao curta de FLIP para telemetria GATES."""
+    if metrics.get("loss_clf_flip_candle_waive_scale") or metrics.get("loss_clf_flip_candle_waive_edge"):
+        return "candle"
     if metrics.get("loss_clf_flip_cal_overrides_scale"):
         return "cal_ovr"
     if metrics.get("loss_clf_flip_seed_discord"):
@@ -123,7 +141,13 @@ def post_flip_edge_ok(metrics: dict[str, Any], flipped: TradeDirection, *, cfg: 
     edge = resolve_predicted_edge(metrics, direction=flipped.name)
     metrics["loss_clf_flip_edge"] = float(edge)
     metrics["loss_clf_flip_edge_floor"] = float(floor)
-    return float(edge) + 1e-12 >= floor
+    if float(edge) + 1e-12 >= floor:
+        return True
+    candle = closed_micro_candle_side(metrics)
+    if candle == flipped.name and bool(cfg.get("flip_waive_on_closed_candle", True)):
+        metrics["loss_clf_flip_candle_waive_edge"] = True
+        return True
+    return False
 
 
 def apply_loss_flip(metrics: dict[str, Any], ref_dir: TradeDirection, *, cfg: dict[str, Any]) -> TradeDirection:

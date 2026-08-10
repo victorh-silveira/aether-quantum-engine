@@ -32,6 +32,7 @@ def parse_signal_skip_config(raw: dict[str, Any] | None = None) -> dict[str, Any
             "chop_soft_kelly_mult",
             "neg_edge_soft_kelly_mult",
             "neg_edge_hard_skip",
+            "neg_edge_soft_when_closed_candle_agree",
         ),
         "orchestrator.execution.signal_skip",
     )
@@ -67,6 +68,7 @@ def parse_signal_skip_config(raw: dict[str, Any] | None = None) -> dict[str, Any
         "chop_soft_kelly_mult": chop_soft,
         "neg_edge_soft_kelly_mult": neg_soft,
         "neg_edge_hard_skip": require_bool(block, "neg_edge_hard_skip"),
+        "neg_edge_soft_when_closed_candle_agree": require_bool(block, "neg_edge_soft_when_closed_candle_agree"),
     }
 
 

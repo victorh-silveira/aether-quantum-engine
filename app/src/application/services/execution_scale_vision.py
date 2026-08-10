@@ -177,6 +177,7 @@ def _seed_scale_metrics(metrics: dict[str, Any], micro_name: str | None) -> None
     metrics["scale_mini_prev_bar_dir"] = None
     metrics["scale_micro_bar_dir"] = None
     metrics["scale_micro_prev_bar_dir"] = None
+    metrics["closed_micro_candle_dir"] = None
     metrics["scale_tape_consensus"] = None
     metrics["scale_tape_strong"] = False
     metrics["scale_mini_pair_oppose"] = False
@@ -237,6 +238,7 @@ def compute_scale_directions(
                 micro_opens = _field_from_stream(stream, "get_micro_numpy_series", str(symbol), "open")
             metrics["scale_micro_bar_dir"] = last_bar_direction(micro_opens, micro_closes)
             metrics["scale_micro_prev_bar_dir"] = prev_bar_direction(micro_opens, micro_closes)
+            metrics["closed_micro_candle_dir"] = metrics["scale_micro_prev_bar_dir"]
     flow = metrics.get("flow_features") if isinstance(metrics.get("flow_features"), dict) else None
     tick_buffer = getattr(stream, "tick_buffer", None) if stream is not None else None
     metrics["scale_mili_dir"] = mili_direction_from_flow(flow, tick_buffer, str(symbol))

@@ -20,10 +20,10 @@ Universo: **Volatility 10** (`R_10`) — **M2** (contrato **2 m**; ciclo **120 s
 3. ACC/deploy de treino >= 0.53 quando o tema for modelo; checar `label_call_frac` / majority-collapse
 4. Cal/Margin/Edge — telemetria; Kelly usa Cal
 5. SCALE adapt? majority_votes / tape / mili — sem SKIP por escala
-6. Loss-clf: soft vs FLIP (`p_loss>=0.90`, `veto_ready`); seed com p_loss real (sem COLD_START)
-7. Chop/neg_edge: soft Kelly (`CHOP_SOFT` / `NEG_SOFT`); sem EXEC_EMPTY de sinal
+6. Loss-clf: soft vs FLIP (`p_loss>=0.90`, `veto_ready`); seed com p_loss real; waiver SCALE/edge se vela micro fechada confirma o alvo
+7. Chop = soft Kelly; **neg_edge** = hard-skip por padrao (`NEG_HARD` / EXEC_EMPTY); soft se lado == vela fechada (`NEG_EDGE candle`)
 8. RECOVER vs EXPLORE; pending/cover; caps **5%**; explore piso **0.25%** (M2); Kelly `fraction` **0.08**
-9. EXEC_EMPTY tecnico = sucesso de processo quando coerente; soft sinal continua EXEC
+9. EXEC_EMPTY tecnico = sucesso de processo quando coerente; soft sinal (incl. candle neg_edge) continua EXEC
 
 ## Proibido
 

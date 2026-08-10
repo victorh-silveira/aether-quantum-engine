@@ -49,6 +49,7 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
             "flip_cal_discord_margin",
             "flip_require_pos_edge",
             "flip_min_edge_execute",
+            "flip_waive_on_closed_candle",
         ),
         "infra.loss_classifier",
     )
@@ -106,6 +107,7 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
         "flip_cal_discord_margin": cal_margin,
         "flip_require_pos_edge": require_bool(block, "flip_require_pos_edge"),
         "flip_min_edge_execute": min_edge,
+        "flip_waive_on_closed_candle": require_bool(block, "flip_waive_on_closed_candle"),
     }
 
 

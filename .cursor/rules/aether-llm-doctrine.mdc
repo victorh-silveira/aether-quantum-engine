@@ -19,11 +19,11 @@ LLM/Cursor e copiloto de engenharia. Nao decide CALL/PUT em runtime (TCN + meta 
 ## Sempre fazer
 
 - Distinguir EXPLORE vs RECOVER; recovery so com pending/linear; `scale_force_explore` sob discordance forca EXPLORE
-- Exigir evidencia: `live_n`, Cal/Margin, Edge, `val_accuracy`, linha SCALE; soft sinal via catalogo `signal_skip` (1.1) / chop / loss-clf soft; **neg_edge** hard-skip sob mandato **2026-08-09**; flip `loss_clf` relativo ao TCN sob mandato **2026-08-07**
+- Exigir evidencia: `live_n`, Cal/Margin, Edge, `val_accuracy`, linha SCALE; soft sinal via catalogo `signal_skip` (1.1) / chop / loss-clf soft; **neg_edge** hard-skip sob mandato **2026-08-09** (excecao soft se lado == vela micro fechada, mandato **2026-08-10**); flip `loss_clf` relativo ao TCN sob mandato **2026-08-07** (waiver SCALE/edge com vela fechada)
 - Tratar EXEC_EMPTY tecnico como sucesso de processo quando coerente (`neg_edge` incluido); soft sinal (mini/cal/chop) continua EXEC
 - Nomear o setup e o bloqueio antes de mudar risco (PlayBook)
 - Hipotese falsificavel para cada knob (Ellenberg); pos-LOSS operacional → container `aether-loss-classifier` (/learn), nao skill offline
-- Vies de treino corrige-se com sample_weighting + majority-collapse + SIDE_EQ soft Kelly — **nao** rearmar quality gate amplo (RSI/price_zone); flip loss-clf autorizado; chop = soft Kelly continuo; neg_edge = hard-skip
+- Vies de treino corrige-se com sample_weighting + majority-collapse + SIDE_EQ soft Kelly — **nao** rearmar quality gate amplo (RSI/price_zone); flip loss-clf autorizado; chop = soft Kelly continuo; neg_edge = hard-skip salvo soft candle-agree (**2026-08-10**)
 - `raw_extreme` ≠ timeframe MACRO: limiares `tcn_macro_*_override` so marcam raw extremo; **Cal nao e substituido**; Kelly usa Cal
 
 ## Diagnostico de log

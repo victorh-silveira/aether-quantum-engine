@@ -6,6 +6,7 @@ import logging
 from typing import Any
 
 from src.application.services.execution_signal_skip import apply_kelly_soft
+from src.application.services.loss_classifier_flip import closed_micro_candle_side
 from src.application.services.market_audit_log_helpers import resolve_predicted_edge
 from src.domain.config_knobs import merge_settings_block, require_bool, require_float, require_keys
 
@@ -18,7 +19,7 @@ def parse_neg_edge_soft_config(raw: dict[str, Any] | None = None) -> dict[str, A
     block = merge_settings_block(("orchestrator", "execution", "signal_skip"), raw)
     require_keys(
         block,
-        ("neg_edge_soft_kelly_mult", "neg_edge_hard_skip"),
+        ("neg_edge_soft_kelly_mult", "neg_edge_hard_skip", "neg_edge_soft_when_closed_candle_agree"),
         "orchestrator.execution.signal_skip",
     )
     soft_mult = require_float(block, "neg_edge_soft_kelly_mult")
@@ -27,6 +28,7 @@ def parse_neg_edge_soft_config(raw: dict[str, Any] | None = None) -> dict[str, A
     return {
         "neg_edge_soft_kelly_mult": soft_mult,
         "neg_edge_hard_skip": require_bool(block, "neg_edge_hard_skip"),
+        "neg_edge_soft_when_closed_candle_agree": require_bool(block, "neg_edge_soft_when_closed_candle_agree"),
     }
 
 
@@ -134,18 +136,24 @@ def apply_negative_cal_edge_pause(
     if edge + 1e-12 >= floor:
         return False
     cfg = _neg_edge_cfg(orch)
-    if bool(cfg["neg_edge_hard_skip"]):
+    candle_agree = False
+    if bool(cfg.get("neg_edge_soft_when_closed_candle_agree", False)):
+        candle_agree = closed_micro_candle_side(metrics) == direction
+    if bool(cfg["neg_edge_hard_skip"]) and not candle_agree:
         _apply_neg_edge_hard(metrics, direction=direction, edge=edge, floor=floor)
         return True
     mult = _soft_mult_from_orch(orch, soft_mult)
     apply_kelly_soft(metrics, mult, waived="neg_edge_soft", flag="neg_edge_soft")
+    if candle_agree:
+        metrics["neg_edge_candle_soft"] = True
     metrics.pop("neg_edge_pause", None)
     if orch is not None:
         logger.debug(
-            "EDGE || NEG_SOFT side=%s edge=%+.4f floor=%.4f kelly_mult=%.2f",
+            "EDGE || NEG_SOFT side=%s edge=%+.4f floor=%.4f kelly_mult=%.2f candle=%d",
             direction,
             edge,
             floor,
             mult,
+            1 if candle_agree else 0,
         )
     return True

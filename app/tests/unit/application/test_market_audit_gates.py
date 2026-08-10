@@ -53,6 +53,17 @@ def test_format_gates_audit_line():
     assert "NEG_EDGE soft" in soft_gap
     assert "raw_edge=" in soft_gap
     assert "be=0.581" in soft_gap
+    candle_gap = format_gates_audit_line(
+        {
+            "cal_side_edge": -0.02,
+            "cal_side_edge_floor": 0.04,
+            "signal_skip_waived": "neg_edge_soft",
+            "neg_edge_candle_soft": True,
+            "exec_direction": "PUT",
+            "loss_clf_p_loss": -1.0,
+        }
+    )
+    assert "NEG_EDGE candle side=PUT" in candle_gap
     flip_line = format_gates_audit_line(
         {
             "loss_clf_flip": True,

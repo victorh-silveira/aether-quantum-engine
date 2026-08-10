@@ -53,7 +53,11 @@ def collect_scale_side_votes(
     if mini_prev is not None and mini_cur is not None and mini_prev == mini_cur:
         votes.append(("mini_pair", mini_cur))
     if include_micro_bar:
-        micro = _side(metrics.get("scale_micro_bar_dir"))
+        micro = _side(
+            metrics.get("closed_micro_candle_dir")
+            or metrics.get("scale_micro_prev_bar_dir")
+            or metrics.get("scale_micro_bar_dir")
+        )
         if micro is not None:
             votes.append(("micro_bar", micro))
     if include_rsi:

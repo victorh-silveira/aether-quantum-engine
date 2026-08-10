@@ -31,6 +31,7 @@ def test_parse_signal_skip_from_ssot():
     assert cfg["chop_soft_kelly_mult"] == 0.55
     assert cfg["neg_edge_soft_kelly_mult"] == 0.55
     assert cfg["neg_edge_hard_skip"] is True
+    assert cfg["neg_edge_soft_when_closed_candle_agree"] is True
     assert "direction_loss_lock_min" not in cfg
     assert "direction_loss_toxic_escape" not in cfg
     assert "calib_gray_margin_floor" not in cfg

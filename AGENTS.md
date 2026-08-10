@@ -34,7 +34,7 @@ Rules/skills versionadas: [`.cursor/rules/`](.cursor/rules/) e [`.cursor/skills/
 - Cobertura de testes em `app/src` abaixo de **100%**
 - Assunto de commit em ingles; escopo fora do enum commitlint
 
-Nota operacional (**escopo 1.1** + arquitetura continua R_10): quality gate amplo (RSI/price_zone/SIDE_EQ block) permanece **fora**; `signal_skip` mini/cal = soft Kelly; **loss-clf** soft na faixa media (`veto_ready`) e **FLIP** CALL↔PUT **relativo ao TCN** se `p_loss >= hard_p_loss_floor` (**0.90**, so com `veto_ready`; seed bootstrap devolve **p_loss real**, sem COLD_START neutro); **chop** = soft Kelly (**0.55**); **neg_edge** = hard-skip (`gate_reason=neg_edge`) se Edge Cal &lt; `min_edge_execute` (**mandato 2026-08-09**). Sem revenge sizing pos-LOSS. Vies CALL/PUT: treino + SIDE_EQ soft.
+Nota operacional (**escopo 1.1** + arquitetura continua R_10): quality gate amplo (RSI/price_zone/SIDE_EQ block) permanece **fora**; `signal_skip` mini/cal = soft Kelly; **loss-clf** soft na faixa media (`veto_ready`) e **FLIP** CALL↔PUT **relativo ao TCN** se `p_loss >= hard_p_loss_floor` (**0.90**, so com `veto_ready`; seed bootstrap devolve **p_loss real**, sem COLD_START neutro); **chop** = soft Kelly (**0.55**); **neg_edge** = hard-skip (`gate_reason=neg_edge`) se Edge Cal &lt; `min_edge_execute` (**mandato 2026-08-09**), **exceto** lado == vela micro fechada (`neg_edge_soft_when_closed_candle_agree`) → soft Kelly (**mandato 2026-08-10**); FLIP pode waiver SCALE/edge se a vela fechada confirma o alvo (`flip_waive_on_closed_candle`). Sem revenge sizing pos-LOSS. Vies CALL/PUT: treino + SIDE_EQ soft.
 
 ## Escopos commitlint
 

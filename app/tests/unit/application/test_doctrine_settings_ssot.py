@@ -103,6 +103,7 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert resolved["flip_cal_discord_margin"] == pytest.approx(0.03)
     assert resolved["flip_require_pos_edge"] is True
     assert resolved["flip_min_edge_execute"] == pytest.approx(0.04)
+    assert resolved["flip_waive_on_closed_candle"] is True
     soft_rec = settings["risk_management"]["soft_recovery"]
     assert int(soft_rec["amort_cycles_min"]) == 1
     assert int(soft_rec["amort_cycles_max"]) == 1
@@ -120,6 +121,7 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert float(skip["chop_soft_kelly_mult"]) == pytest.approx(0.55)
     assert float(skip["neg_edge_soft_kelly_mult"]) == pytest.approx(0.55)
     assert bool(skip["neg_edge_hard_skip"]) is True
+    assert bool(skip["neg_edge_soft_when_closed_candle_agree"]) is True
     assert "calib_gray_margin_floor" not in skip
     assert "calib_gray_soft_kelly_mult" not in skip
     assert "calib_gray_max_stake_pct" not in skip
@@ -134,7 +136,7 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert int(scale["adapt_majority_min_votes"]) == 3
     assert int(scale["adapt_majority_min_lead"]) == 2
     assert scale["adapt_majority_include_rsi"] is True
-    assert scale["adapt_majority_include_micro_bar"] is False
+    assert scale["adapt_majority_include_micro_bar"] is True
     data = settings["data_handler"]
     assert int(data["micro_granularity"]) == 120
     assert int(data["mini_granularity"]) == 120

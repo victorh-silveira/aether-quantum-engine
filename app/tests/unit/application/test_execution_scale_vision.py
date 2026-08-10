@@ -72,7 +72,7 @@ def test_parse_scale_vision_from_ssot():
     assert cfg["adapt_majority_min_lead"] == 2
     assert cfg["adapt_majority_min_votes"] == 3
     assert cfg["adapt_majority_include_rsi"] is True
-    assert cfg["adapt_majority_include_micro_bar"] is False
+    assert cfg["adapt_majority_include_micro_bar"] is True
     assert cfg["adapt_majority_rsi_neutral"] == pytest.approx(0.5)
     assert cfg["retraction_require_mili"] is True
     assert cfg["retraction_use_tick_accel"] is True

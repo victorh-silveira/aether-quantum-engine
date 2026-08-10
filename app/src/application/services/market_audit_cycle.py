@@ -87,7 +87,8 @@ def format_gates_audit_line(metrics: dict[str, Any]) -> str:
         neg_tok = f"NEG_EDGE hard side={neg_side} edge={edge:+.4f}{gap} floor={floor:.4f}"
         skip = "neg_edge"
     elif waived == "neg_edge_soft" or floor > 1e-12:
-        neg_tok = f"NEG_EDGE soft side={neg_side} edge={edge:+.4f}{gap} floor={floor:.4f}"
+        tag = "candle" if bool(metrics.get("neg_edge_candle_soft")) else "soft"
+        neg_tok = f"NEG_EDGE {tag} side={neg_side} edge={edge:+.4f}{gap} floor={floor:.4f}"
         skip = waived if waived else "-"
     else:
         neg_tok = "NEG_EDGE off"
