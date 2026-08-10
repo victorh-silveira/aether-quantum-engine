@@ -21,6 +21,7 @@ def test_format_gates_audit_line():
     assert line.startswith("[GATES] || LOSS_CLF: SOFT")
     assert "CHOP adx=" in line
     assert "\n[GATES] || NEG_EDGE soft side=CALL" in line
+    assert "FUSION:" in line
     hard_neg = format_gates_audit_line(
         {
             "gate_reason": "neg_edge",
@@ -38,7 +39,7 @@ def test_format_gates_audit_line():
     assert "raw_edge=" in hard_neg
     assert "be=0.581" in hard_neg
     assert "skip=neg_edge" in hard_neg
-    assert hard_neg.count("[GATES]") == 2
+    assert hard_neg.count("[GATES]") == 3
     soft_gap = format_gates_audit_line(
         {
             "cal_side_edge": -0.09,
@@ -132,3 +133,25 @@ def test_format_gates_audit_line():
         }
     )
     assert "LOSS_CLF: OK auto=1" in ok_line
+    fusion_line = format_gates_audit_line(
+        {
+            "fusion_applied": True,
+            "fusion_ev_call": -0.05,
+            "fusion_ev_put": 0.02,
+            "fusion_p_eff": 0.60,
+            "fusion_reason": "ev_put",
+            "exec_direction": "PUT",
+            "loss_clf_p_loss": -1.0,
+        }
+    )
+    assert "FUSION: side=PUT" in fusion_line
+    assert "why=ev_put" in fusion_line
+    seed_cndl = format_gates_audit_line(
+        {
+            "loss_clf_flip_blocked": "seed_candle",
+            "loss_clf_p_loss": 0.96,
+            "loss_clf_soft_kelly_mult": 0.4,
+            "loss_clf_auto_learn": False,
+        }
+    )
+    assert "FLIP_BLOCK:seed_candle" in seed_cndl

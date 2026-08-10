@@ -32,6 +32,6 @@ description: >-
 
 Trocar label sem retreino; `force_ok=true`; treinar meta em hydrate sintetico; ignorar ACC; restaurar checkpoint so por loss; tratar vies de classe com veto de sinal live em vez de balance/recency/collapse; baixar `min_oos_sharpness` para “passar” export; tratar `[SUCESSO]` do bat se o gate/treino falhou; operar Volatility checkpoints no simbolo `R_10`.
 
-Com `online_training=false` (SSOT atual): o motor **nao** treina no DEMO/`launch-all-demo` — rode `launch-train.bat` (TCN+meta) antes. Checkpoint incompativel → SKIP tecnico ate treino offline.
+Com `online_training=true` (SSOT): DEMO sobe com checkpoint se existir; retreino TCN deferido a cada settle + vela/rolling. Loss/meta `/learn` a cada trade.
 
 Doc: `docs/engineering-deep-learning.md`

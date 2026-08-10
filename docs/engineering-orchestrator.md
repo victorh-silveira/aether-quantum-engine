@@ -31,7 +31,7 @@ warmup/buffer → training_gate → collect decisoes DL
 | Run loop | `orchestrator_run_loop.py`, `engine_session.py` |
 | Assinatura dados | `orchestrator_data_signature.py` |
 | Collect | `execution_collect*.py` |
-| Direcao / escalas | `execution_direction_resolver.py`, `execution_scale_vision.py`, `execution_scale_micro.py`, `execution_scale_adapt.py`, `execution_scale_sizing.py`, `execution_signal_skip.py` |
+| Direcao / escalas | `execution_direction_resolver.py`, `execution_direction_fusion.py`, `execution_scale_vision.py`, `execution_scale_micro.py`, `execution_scale_adapt.py`, `execution_scale_sizing.py`, `execution_signal_skip.py` |
 | Execucao | `execution_manager.py`, `execution_orders.py` |
 | Settlement | `settlement_*.py`, `orchestrator_settlement_queue.py` |
 | Pos-liquidacao | `post_settlement_*.py` |

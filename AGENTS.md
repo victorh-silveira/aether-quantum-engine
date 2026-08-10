@@ -15,6 +15,7 @@ Ponto de entrada para agentes Cursor/LLM neste repositorio.
 - Relogio: contrato **2 m**; micro/MINI **120 s**; macro **3600 s**; ciclo **120 s**
 - SSOT: `config/settings.json` + `app/src/domain/symbols/drift_symbols.py`
 - Artefactos/treino antigos (OTC_SPC/M15 ou gran 60/300/900) sao invalidos apos migracao para **R_10** M2
+- Runtime: `online_training` **true** — TCN retreina em background a cada settle; loss-clf e meta `/learn` a cada trade (rebuild containers ml apos mudar env)
 
 ## O que o LLM e / nao e
 
@@ -34,7 +35,7 @@ Rules/skills versionadas: [`.cursor/rules/`](.cursor/rules/) e [`.cursor/skills/
 - Cobertura de testes em `app/src` abaixo de **100%**
 - Assunto de commit em ingles; escopo fora do enum commitlint
 
-Nota operacional (**escopo 1.1** + arquitetura continua R_10): quality gate amplo (RSI/price_zone/SIDE_EQ block) permanece **fora**; `signal_skip` mini/cal = soft Kelly; **loss-clf** soft na faixa media (`veto_ready`) e **FLIP** CALL↔PUT **relativo ao TCN** se `p_loss >= hard_p_loss_floor` (**0.90**, so com `veto_ready`; seed bootstrap devolve **p_loss real**, sem COLD_START neutro); **nunca FLIP** se Edge Cal do TCN >= floor (`FLIP_BLOCK:tcn_edge`); `p_loss >= flip_waive_scale_above_p_loss` (**0.95**) override seed/SCALE (`why=p_ovr`) + soft neg_edge; vela no alvo usa `flip_candle_p_loss_floor` (**0.85**) so se TCN fraco; soft candle/p_ovr so se edge >= **−0.05** e sem `FLIP_BLOCK`; **chop** = soft Kelly (**0.55**); **neg_edge** = hard-skip salvo excecoes candle/p_ovr acima. Sem revenge sizing pos-LOSS. Vies CALL/PUT: treino + SIDE_EQ soft.
+Nota operacional (**escopo 1.1** + arquitetura continua R_10): quality gate amplo (RSI/price_zone/SIDE_EQ block) permanece **fora**; `signal_skip` mini/cal = soft Kelly; **loss-clf** soft na faixa media (`veto_ready`) e **FLIP** CALL↔PUT **relativo ao TCN** se `p_loss >= hard_p_loss_floor` (**0.90**, so com `veto_ready`; seed bootstrap devolve **p_loss real**, sem COLD_START neutro; saida bootstrap `LOSS_BOOTSTRAP_EXIT_N` **16** / retrain LOSS com `min_win` **4**); **nunca FLIP** se Edge Cal do TCN >= floor (`FLIP_BLOCK:tcn_edge`); sob seed (`auto=0`) `flip_seed_block_against_closed_candle` bloqueia FLIP contra vela (`FLIP_BLOCK:seed_candle`) e `flip_seed_waive_edge_min` (**−0.08**) — `p_ovr` nao fura vela; live (`auto=1`) usa `flip_waive_edge_min` (**−1.0**); vela no alvo usa `flip_candle_p_loss_floor` (**0.85**) so se TCN fraco; **fusao EV** (`scale_vision.fusion_*`, `fusion_meta_ev_weight` **0.10**) escolhe CALL/PUT por argmax EV, com telemetria `[GATES] || FUSION`; **chop** = soft Kelly (**0.55**); **neg_edge** = soft Kelly continuo (`neg_edge_hard_skip` **false**, `neg_edge_soft_min_edge` **−1.0**); sob seed, soft mult **0.25** e hard-skip so se edge &lt; `neg_edge_deep_edge_floor` (**−0.12**). Sem revenge sizing pos-LOSS. Vies CALL/PUT: treino + SIDE_EQ soft.
 
 ## Escopos commitlint
 

@@ -10,7 +10,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from buffer_io import buffer_class_counts, load_learn_buffer, save_learn_buffer
-from learn_policy import retrain_min_for_label, should_retrain_after_learn
+from learn_policy import retrain_min_for_label, retrain_skipped_reason, should_retrain_after_learn
 from runtime import (
     fit_classifier,
     is_bootstrap_bundle,
@@ -26,10 +26,11 @@ logger = logging.getLogger("LOSS_CLF")
 MODELS_DIR = Path(os.getenv("MODELS_DIR", "/models"))
 FEATURE_DIM = int(os.getenv("LOSS_FEATURE_DIM", "24"))
 READY_N = int(os.getenv("LOSS_READY_N", "24"))
-RETRAIN_MIN_N = int(os.getenv("LOSS_RETRAIN_MIN_N", "24"))
-RETRAIN_ON_LOSS_MIN_N = int(os.getenv("LOSS_RETRAIN_ON_LOSS_MIN_N", "2"))
-BOOTSTRAP_EXIT_N = int(os.getenv("LOSS_BOOTSTRAP_EXIT_N", "48"))
+RETRAIN_MIN_N = int(os.getenv("LOSS_RETRAIN_MIN_N", "1"))
+RETRAIN_ON_LOSS_MIN_N = int(os.getenv("LOSS_RETRAIN_ON_LOSS_MIN_N", "1"))
+BOOTSTRAP_EXIT_N = int(os.getenv("LOSS_BOOTSTRAP_EXIT_N", "16"))
 MAX_BUFFER = int(os.getenv("LOSS_MAX_BUFFER", "2000"))
+MIN_WIN_FOR_LOSS_RETRAIN = int(os.getenv("LOSS_MIN_WIN_FOR_LOSS_RETRAIN", "1"))
 VETO_P_LOSS_FLOOR = float(os.getenv("LOSS_VETO_P_LOSS_FLOOR", "0.65"))
 FEATURE_NAMES = tuple(f"f_{index}" for index in range(FEATURE_DIM))
 
@@ -164,13 +165,20 @@ def _maybe_hot_reload() -> None:
 def _fit_from_buffer(*, min_n: int | None = None) -> RetrainResult:
     floor = int(min_n) if min_n is not None else int(RETRAIN_MIN_N)
     with _lock:
-        exit_n = max(int(READY_N), int(BOOTSTRAP_EXIT_N))
-        if bool(_bootstrap) and int(_n_train) >= int(READY_N) and len(_buffer_y) < exit_n:
+        exit_n = int(BOOTSTRAP_EXIT_N)
+        if bool(_bootstrap) and len(_buffer_y) < exit_n and len(set(_buffer_y)) < 2:
             return RetrainResult(
                 ok=False,
                 n_train=len(_buffer_y),
                 model_version=_model_version,
                 detail=f"seed_keep n<{exit_n}",
+            )
+        if bool(_bootstrap) and len(_buffer_y) < floor:
+            return RetrainResult(
+                ok=False,
+                n_train=len(_buffer_y),
+                model_version=_model_version,
+                detail=f"seed_keep n<{floor}",
             )
         if len(_buffer_y) < floor:
             return RetrainResult(ok=False, n_train=len(_buffer_y), model_version=_model_version, detail=f"n<{floor}")
@@ -303,6 +311,7 @@ async def learn(payload: LearnRequest) -> dict[str, Any]:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     retrain_result: RetrainResult | None = None
+    skip_reason = "ok"
     with _lock:
         _buffer_x.append(vector)
         _buffer_y.append(1 if label == "LOSS" else 0)
@@ -326,12 +335,29 @@ async def learn(payload: LearnRequest) -> dict[str, Any]:
             retrain_on_loss_min_n=int(RETRAIN_ON_LOSS_MIN_N),
             buffer_win=int(counts["win"]),
             buffer_loss=int(counts["loss"]),
+            min_win_for_loss_retrain=int(MIN_WIN_FOR_LOSS_RETRAIN),
             bootstrap_active=boot,
             bootstrap_exit_n=int(BOOTSTRAP_EXIT_N),
+        )
+        skip_reason = retrain_skipped_reason(
+            label=label,
+            buffer_n=len(_buffer_y),
+            retrain_min_n=int(RETRAIN_MIN_N),
+            retrain_on_loss_min_n=int(RETRAIN_ON_LOSS_MIN_N),
+            buffer_win=int(counts["win"]),
+            buffer_loss=int(counts["loss"]),
+            min_win_for_loss_retrain=int(MIN_WIN_FOR_LOSS_RETRAIN),
+            bootstrap_active=boot,
+            bootstrap_exit_n=int(BOOTSTRAP_EXIT_N),
+            should_retrain=should_retrain,
         )
         _persist_buffer_unlocked()
     if should_retrain:
         retrain_result = _fit_from_buffer(min_n=fit_min)
+        if retrain_result is not None and not retrain_result.ok:
+            skip_reason = str(retrain_result.detail or "fit_failed")
+        elif retrain_result is not None and retrain_result.ok:
+            skip_reason = "ok"
     with _lock:
         return {
             "ok": True,
@@ -341,6 +367,7 @@ async def learn(payload: LearnRequest) -> dict[str, Any]:
             "n_train": int(_n_train),
             "auto_learn_applied": bool(_auto_learn_applied),
             "retrain_detail": str(retrain_result.detail) if retrain_result is not None else "",
+            "retrain_skipped_reason": skip_reason,
         }
 
 

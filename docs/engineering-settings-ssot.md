@@ -11,8 +11,8 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `deep_learning` | arch, lookback, labels, calib (`raw_extreme`), deploy, `sample_weighting`; alvo treino **2000** barras M2 com `train_history_shortfall_ratio` **0.95** (API esgotada ~1980 segue); `bootstrap_max_wait_rounds` **16** |
 | `orchestrator` | ciclo, warmup, watchdog, WS |
 | `orchestrator.execution` | mandatory/force, settlement, SIDE_EQ soft, `scale_vision`, `signal_skip`, sample_size_policy |
-| `infra.meta_classifier` | HTTP :8005; edge continuo 43D |
-| `infra.loss_classifier` | HTTP :8006; `veto_mode` **soft** + banda flip: floor soft **0.65**; `hard_p_loss_floor` **0.90**; `flip_block_when_tcn_pos_edge` **true** (nao FLIP se Edge TCN >= **0.04**); `flip_waive_scale_above_p_loss` **0.95**; `flip_candle_p_loss_floor` **0.85** (so TCN fraco); `flip_waive_edge_min` **-0.05**; seed/`flip_allow_seed_on_scale_discord`; `flip_waive_on_closed_candle`; soft Kelly **0.55→0.40**; `timeout_seconds` **8** |
+| `infra.meta_classifier` | HTTP :8005; edge continuo 43D; `online_learn` **true**; `/v1/learn` a cada settle (`retrain_min_n` **1**); `timeout_seconds` **8** |
+| `infra.loss_classifier` | HTTP :8006; `veto_mode` **soft** + banda flip: floor soft **0.65**; `hard_p_loss_floor` **0.90**; `flip_block_when_tcn_pos_edge` **true** (nao FLIP se Edge TCN >= **0.04**); `flip_waive_scale_above_p_loss` **0.95**; `flip_candle_p_loss_floor` **0.85** (so TCN fraco); `flip_waive_edge_min` **-1.0** (live); `flip_seed_block_against_closed_candle` **true** + `flip_seed_waive_edge_min` **-0.08**; seed/`flip_allow_seed_on_scale_discord`; `flip_waive_on_closed_candle`; soft Kelly **0.55→0.40**; `timeout_seconds` **8** |
 | `risk_management` | Kelly, soft_recovery, stop-win, ACC gate, duration contrato |
 | `infra` | Redis, Timescale, MinIO, Triton, meta |
 | `logging` | level, log_file, quiet_channels |
@@ -27,8 +27,8 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `max_label_call_frac_bias` | idem | padrao **0.20**; aplica a `|pred-0.5|`, `|pred-label|` ou `|label-0.5|` junto com `min_minority_recall` |
 | `min_minority_recall` | idem | padrao **0.25** |
 | `side_equilibrium.enabled` | `orchestrator.execution` | soft Kelly only; sem veto de direcao |
-| `scale_vision.*` | `orchestrator.execution` | `adapt_allow_strong_tape` **false**; **majority_votes** (TCN/tape/mili/RSI + vela micro fechada se `adapt_majority_include_micro_bar` **true**); `adapt_majority_min_lead` **2**; `adapt_skip_chop` **true** (hold TCN em micro=chop); `adapt_require_cal_agree` **true** (nao adapta contra Cal); `adapt_mili_tape_skip_chop` **true**; **sem** `adapt_*_cal_margin` / hold cinza |
-| `signal_skip.*` | `orchestrator.execution` | Escopo **1.1**: mini/cal/chop soft Kelly **0.55**; **neg_edge_hard_skip** **true**; soft candle/p_ovr so se edge >= `neg_edge_soft_min_edge` (**-0.05**) e sem `FLIP_BLOCK`; Edge = `Cal*(1+b)-1`; floor **0.04** exige Cal ≳ **0.605** |
+| `scale_vision.*` | `orchestrator.execution` | `adapt_allow_strong_tape` **false**; **majority_votes** (TCN/tape/mili/RSI + vela micro fechada se `adapt_majority_include_micro_bar` **true**); `adapt_majority_min_lead` **2**; `adapt_skip_chop` **true** (hold TCN em micro=chop); `adapt_require_cal_agree` **true** (nao adapta contra Cal); `adapt_mili_tape_skip_chop` **true**; **fusao EV** `fusion_enabled` **true** + `fusion_replace_adapt_flip` **true** (argmax EV CALL/PUT com pesos MACRO/vela/MINI/MILI/tape/loss/meta; `fusion_meta_ev_weight` **0.10**; `fusion_tcn_shrink_near_half` **0.40**; bloqueio `fusion_block_when_tcn_pos_edge`; log `[GATES] \|\| FUSION`); **sem** `adapt_*_cal_margin` / hold cinza |
+| `signal_skip.*` | `orchestrator.execution` | Escopo **1.1**: mini/cal/chop soft Kelly **0.55**; **neg_edge_hard_skip** **false**; soft continuo com `neg_edge_soft_min_edge` (**-1.0**); sob seed `neg_edge_bootstrap_soft_kelly_mult` **0.25** + hard so se edge &lt; `neg_edge_deep_edge_floor` (**-0.12**); Edge = `Cal*(1+b)-1`; floor **0.04** exige Cal ≳ **0.605** para edge positivo |
 | `scale_vision.adapt_on_majority_votes` | idem | Conta votos TCN/tape/mili/mini_pair/RSI; lideranca ≥`adapt_majority_min_lead` e n≥`adapt_majority_min_votes` → `majority_votes` |
 | `kelly.kelly_p_floor` | `risk_management.kelly` | Piso de **probabilidade** para Kelly; garante `f*>0`; alias `adapt_kelly_p_floor` |
 | `kelly.neutral_bankroll_pct` | `risk_management.kelly` | Piso operacional de stake explore (**0.25%** banca M2); loss_clf soft **nao** esmaga o piso |
@@ -71,7 +71,7 @@ Removidos: `decision_threshold_call` / `decision_threshold_put` (mortos). Modo `
 - `max_safe_stake_cap` / `max_safe_stake_pct`
 - `sample_size_policy.*`
 
-Vetos de sinal/qualidade amplos (RSI/cal floor/quality_gate/price_zone/SIDE_EQ block) permanecem **fora** (escopo 1). Flip loss-clf (`hard_p_loss_floor`) permanece sob mandato **2026-08-07** (+ `flip_waive_on_closed_candle`); chop = soft Kelly continuo; **neg_edge** = hard-skip sob mandato **2026-08-09**, com soft candle-agree sob **2026-08-10**. SIDE_EQ restante = soft Kelly sizing.
+Vetos de sinal/qualidade amplos (RSI/cal floor/quality_gate/price_zone/SIDE_EQ block) permanecem **fora** (escopo 1). Flip loss-clf (`hard_p_loss_floor`) permanece sob mandato **2026-08-07** (+ `flip_waive_on_closed_candle`, `flip_waive_edge_min` **-1.0** live; seed: `flip_seed_block_against_closed_candle` + `flip_seed_waive_edge_min` **-0.08**); chop e **neg_edge** = soft Kelly continuo (`neg_edge_hard_skip` **false**), com hard bootstrap profundo (`neg_edge_deep_edge_floor`). SIDE_EQ restante = soft Kelly sizing. Apos mudar env do loss-clf: **restart** `aether-loss-classifier`.
 
 Playbook senior: [`binary-senior-playbook.md`](binary-senior-playbook.md).
 

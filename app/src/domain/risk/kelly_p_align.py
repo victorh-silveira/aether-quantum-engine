@@ -56,7 +56,12 @@ def calculate_kelly_fraction(
 
 
 def _read_call_prob(metrics: dict[str, Any]) -> float | None:
-    """Extrai P(CALL) de calibrated_prob ou raw_prob."""
+    """Extrai P(CALL); prefere fusion_p_call quando fusao EV aplicada."""
+    if bool(metrics.get("fusion_applied")) and metrics.get("fusion_p_call") is not None:
+        try:
+            return float(metrics["fusion_p_call"])
+        except (TypeError, ValueError):
+            pass
     for key in ("calibrated_prob", "raw_prob"):
         raw = metrics.get(key)
         if raw is None:

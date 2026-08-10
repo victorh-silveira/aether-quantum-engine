@@ -11,6 +11,7 @@ from src.application.services.execution_direction_checks import (
     seed_direction_metrics,
     sync_entry_metrics,
 )
+from src.application.services.execution_direction_fusion import apply_direction_fusion, parse_direction_fusion_config
 from src.application.services.execution_neg_edge import apply_negative_cal_edge_pause
 from src.application.services.execution_quality_gate_margin import ensure_direction_margin, sync_direction_margin
 from src.application.services.execution_regime_chop import apply_regime_chop_pause
@@ -89,7 +90,20 @@ def _finalize_execution_metrics(
             except (TypeError, ValueError):
                 metrics.setdefault("pending_loss_total", 0.0)
     compute_scale_directions(orch, symbol, exec_dir, metrics)
-    exec_dir = apply_scale_direction_adapt(metrics, exec_dir)
+    fusion_raw = None
+    if orch is not None and isinstance(getattr(orch, "config", None), dict):
+        orch_block = orch.config.get("orchestrator")
+        if isinstance(orch_block, dict):
+            ex_block = orch_block.get("execution")
+            if isinstance(ex_block, dict) and isinstance(ex_block.get("scale_vision"), dict):
+                fusion_raw = ex_block["scale_vision"]
+    fusion_cfg = parse_direction_fusion_config(fusion_raw)
+    replace_adapt = bool(fusion_cfg.get("fusion_enabled")) and bool(fusion_cfg.get("fusion_replace_adapt_flip"))
+    if not replace_adapt:
+        exec_dir = apply_scale_direction_adapt(metrics, exec_dir)
+    else:
+        metrics.setdefault("scale_adapted", False)
+        metrics.setdefault("scale_adapt_reason", "fusion_replace")
     metrics["exec_direction"] = exec_dir.name
     metrics["resolved_direction"] = exec_dir.name
     metrics["execution_candidate_ready"] = True
@@ -107,6 +121,11 @@ def _finalize_execution_metrics(
         ready_name = str(metrics.get("exec_direction") or exec_dir.name).upper()
         if ready_name in {TradeDirection.CALL.name, TradeDirection.PUT.name}:
             exec_dir = TradeDirection[ready_name]
+        exec_dir = apply_direction_fusion(metrics, exec_dir, orch=orch, cfg=fusion_cfg)
+        apply_scale_kelly_side_sync(metrics, exec_dir)
+        sync_direction_margin(metrics, direction=exec_dir.name)
+    elif bool(fusion_cfg.get("fusion_enabled")):
+        exec_dir = apply_direction_fusion(metrics, exec_dir, orch=orch, cfg=fusion_cfg)
         apply_scale_kelly_side_sync(metrics, exec_dir)
         sync_direction_margin(metrics, direction=exec_dir.name)
     apply_regime_chop_pause(metrics, orch=orch, force=force)

@@ -54,7 +54,7 @@ def should_retrain_symbol(
         return False, ""
     forced = getattr(orch, "_dl_force_retrain", None) or {}
     if forced.get(str(symbol)):
-        return True, "loss_retrain"
+        return True, "trade_retrain"
     last_epoch = int(runtime.get("last_candle_epoch", 0))
     if not runtime.get("session_trained", False) or last_epoch == 0:
         return True, "bootstrap"

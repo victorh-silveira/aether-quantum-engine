@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +10,14 @@ import joblib
 import pandas as pd
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field, model_validator
+
+from learn_runtime import (
+    fit_regressor,
+    load_learn_buffer,
+    persist_regressor_bundle,
+    save_learn_buffer,
+    should_retrain_meta,
+)
 
 
 logger = logging.getLogger("META")
@@ -68,6 +77,13 @@ class MetaPredictResult(BaseModel):
     model_version: str = ""
 
 
+class LearnMetaRequest(BaseModel):
+    feature_vector: list[float]
+    target: float
+    contract_id: str = ""
+    symbol: str = ""
+
+
 def _classify_edge_expectancy(edge: float) -> str:
     if edge <= 0.0:
         return "LOSS_EXPECTED"
@@ -82,6 +98,12 @@ _model_path: Path | None = None
 _model_mtime: float = 0.0
 _model_load_error: str | None = None
 _n_loaded: int = 0
+_buffer_x: list[list[float]] = []
+_buffer_y: list[float] = []
+_lock = threading.Lock()
+RETRAIN_MIN_N = int(os.getenv("META_RETRAIN_MIN_N", "1"))
+MAX_BUFFER = int(os.getenv("META_MAX_BUFFER", "2000"))
+BUFFER_PATH = MODELS_DIR / "meta_learn_buffer.pkl"
 
 
 def _resolve_feature_names(bundle: dict[str, Any]) -> list[str]:
@@ -179,10 +201,13 @@ def _regressor_unavailable_detail() -> str:
 
 @app.on_event("startup")
 async def startup_load_model() -> None:
-    global _model_bundle
+    global _model_bundle, _buffer_x, _buffer_y
     _model_bundle = _load_model_bundle()
     if _model_bundle is None:
         logger.error(_regressor_unavailable_detail())
+    xs, ys = load_learn_buffer(BUFFER_PATH)
+    _buffer_x = xs
+    _buffer_y = ys
 
 
 @app.get("/health")
@@ -197,6 +222,7 @@ async def health() -> dict[str, Any]:
         "model_mtime": float(_model_mtime),
         "model_version": _model_version(),
         "n_loaded": int(_n_loaded),
+        "buffer_n": len(_buffer_y),
         "load_error": _model_load_error or "",
     }
 
@@ -237,3 +263,62 @@ async def predict_meta(payload: PredictMetaRequest) -> MetaPredictResult:
         edge_expectancy=_classify_edge_expectancy(edge),
         model_version=_model_version(),
     )
+
+
+@app.post("/v1/learn")
+async def learn(payload: LearnMetaRequest) -> dict[str, Any]:
+    global _model_bundle, _model_path, _model_mtime
+    vector = [float(v) for v in payload.feature_vector]
+    if len(vector) != META_FEATURE_DIM:
+        raise HTTPException(status_code=400, detail=f"feature_vector deve ter {META_FEATURE_DIM}")
+    retrained = False
+    detail = "buffered"
+    with _lock:
+        _buffer_x.append(vector)
+        _buffer_y.append(float(payload.target))
+        if len(_buffer_y) > int(MAX_BUFFER):
+            overflow = len(_buffer_y) - int(MAX_BUFFER)
+            del _buffer_x[:overflow]
+            del _buffer_y[:overflow]
+        save_learn_buffer(BUFFER_PATH, _buffer_x, _buffer_y)
+        n = len(_buffer_y)
+        do_fit = should_retrain_meta(buffer_n=n, retrain_min_n=int(RETRAIN_MIN_N))
+        xs = list(_buffer_x)
+        ys = list(_buffer_y)
+        names = _resolve_feature_names(_model_bundle) if _model_bundle is not None else list(DEFAULT_FEATURE_NAMES)
+    if do_fit:
+        try:
+            model = fit_regressor(xs, ys)
+            path = persist_regressor_bundle(
+                MODELS_DIR,
+                model,
+                n_train=len(ys),
+                feature_names=names,
+                feature_dim=META_FEATURE_DIM,
+            )
+            with _lock:
+                _model_bundle = {
+                    "model": model,
+                    "model_type": "regressor",
+                    "feature_names": names,
+                    "n_train": len(ys),
+                    "auto_learn_applied": True,
+                    "model_version": path.name,
+                    "feature_dim": META_FEATURE_DIM,
+                }
+                _model_path = path
+                _model_mtime = float(path.stat().st_mtime)
+            retrained = True
+            detail = "ok"
+            logger.info("META learn fit n=%d path=%s", len(ys), path.name)
+        except Exception as exc:
+            detail = str(exc)
+            logger.warning("META learn fit falhou: %s", exc)
+    return {
+        "ok": True,
+        "buffer_n": n,
+        "retrained": retrained,
+        "n_train": n,
+        "retrain_detail": detail,
+        "model_version": _model_version(),
+    }

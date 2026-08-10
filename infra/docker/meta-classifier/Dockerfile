@@ -10,9 +10,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app.py .
+COPY app.py learn_runtime.py .
 
 ENV MODELS_DIR=/models
+ENV META_RETRAIN_MIN_N=1
+ENV META_MAX_BUFFER=2000
 EXPOSE 8000
 
 USER aether

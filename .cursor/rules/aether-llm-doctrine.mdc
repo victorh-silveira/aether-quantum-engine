@@ -19,11 +19,11 @@ LLM/Cursor e copiloto de engenharia. Nao decide CALL/PUT em runtime (TCN + meta 
 ## Sempre fazer
 
 - Distinguir EXPLORE vs RECOVER; recovery so com pending/linear; `scale_force_explore` sob discordance forca EXPLORE
-- Exigir evidencia: `live_n`, Cal/Margin, Edge, `val_accuracy`, linha SCALE; soft sinal via catalogo `signal_skip` (1.1) / chop / loss-clf soft; **neg_edge** hard-skip sob mandato **2026-08-09** (excecao soft se lado == vela micro fechada, mandato **2026-08-10**); flip `loss_clf` relativo ao TCN sob mandato **2026-08-07** (waiver SCALE/edge com vela fechada)
-- Tratar EXEC_EMPTY tecnico como sucesso de processo quando coerente (`neg_edge` incluido); soft sinal (mini/cal/chop) continua EXEC
+- Exigir evidencia: `live_n`, Cal/Margin, Edge, `val_accuracy`, linha SCALE; soft sinal via catalogo `signal_skip` (1.1) / chop / loss-clf soft; **fusao EV** (`scale_vision.fusion_*`, log `[GATES] || FUSION`) escolhe CALL/PUT por argmax; **neg_edge** soft Kelly continuo (`neg_edge_hard_skip=false`); sob seed soft **0.25** e hard so se edge &lt; `neg_edge_deep_edge_floor` (**−0.12**); flip `loss_clf` relativo ao TCN sob mandato **2026-08-07** (live `flip_waive_edge_min=-1.0`; seed: `seed_candle` + `flip_seed_waive_edge_min=-0.08`)
+- Tratar EXEC_EMPTY tecnico como sucesso de processo quando coerente; soft sinal (mini/cal/chop/neg_edge) continua EXEC — EMPTY de sinal `neg_edge` so seed profundo ou override
 - Nomear o setup e o bloqueio antes de mudar risco (PlayBook)
-- Hipotese falsificavel para cada knob (Ellenberg); pos-LOSS operacional → container `aether-loss-classifier` (/learn), nao skill offline
-- Vies de treino corrige-se com sample_weighting + majority-collapse + SIDE_EQ soft Kelly — **nao** rearmar quality gate amplo (RSI/price_zone); flip loss-clf autorizado; chop = soft Kelly continuo; neg_edge = hard-skip salvo soft candle-agree (**2026-08-10**)
+- Hipotese falsificavel para cada knob (Ellenberg); pos-LOSS operacional → container `aether-loss-classifier` (/learn), nao skill offline; restart do container apos mudar `LOSS_BOOTSTRAP_EXIT_N`
+- Vies de treino corrige-se com sample_weighting + majority-collapse + SIDE_EQ soft Kelly — **nao** rearmar quality gate amplo (RSI/price_zone); flip loss-clf autorizado; chop = soft Kelly continuo; neg_edge = soft Kelly continuo (hard so seed profundo ou override)
 - `raw_extreme` ≠ timeframe MACRO: limiares `tcn_macro_*_override` so marcam raw extremo; **Cal nao e substituido**; Kelly usa Cal
 
 ## Diagnostico de log

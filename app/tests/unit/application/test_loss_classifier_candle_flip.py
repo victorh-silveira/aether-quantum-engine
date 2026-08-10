@@ -111,7 +111,7 @@ def test_post_flip_edge_ok_waives_when_candle_agrees():
         "flip_require_pos_edge": True,
         "flip_min_edge_execute": 0.04,
         "flip_waive_on_closed_candle": True,
-        "flip_waive_edge_min": -0.05,
+        "flip_waive_edge_min": -1.0,
     }
     assert post_flip_edge_ok(metrics, TradeDirection.PUT, cfg=cfg) is True
     assert metrics.get("loss_clf_flip_candle_waive_edge") is True
@@ -136,6 +136,18 @@ def test_post_flip_edge_ok_rejects_deep_negative_even_with_candle():
     assert post_flip_edge_ok(metrics, TradeDirection.CALL, cfg=cfg) is False
 
 
+def test_post_flip_edge_ok_waives_deep_negative_with_ssot_min():
+    metrics = {"calibrated_prob": 0.36, "closed_micro_candle_dir": "CALL"}
+    cfg = {
+        "flip_require_pos_edge": True,
+        "flip_min_edge_execute": 0.04,
+        "flip_waive_on_closed_candle": True,
+        "flip_waive_edge_min": -1.0,
+    }
+    assert post_flip_edge_ok(metrics, TradeDirection.CALL, cfg=cfg) is True
+    assert metrics.get("loss_clf_flip_candle_waive_edge") is True
+
+
 def test_post_flip_edge_ok_waives_on_p_ovr():
     metrics = {
         "calibrated_prob": 0.56,
@@ -146,7 +158,7 @@ def test_post_flip_edge_ok_waives_on_p_ovr():
         "flip_require_pos_edge": True,
         "flip_min_edge_execute": 0.04,
         "flip_waive_on_closed_candle": True,
-        "flip_waive_edge_min": -0.05,
+        "flip_waive_edge_min": -1.0,
     }
     assert post_flip_edge_ok(metrics, TradeDirection.CALL, cfg=cfg) is True
     assert metrics.get("loss_clf_flip_p_ovr_waive_edge") is True

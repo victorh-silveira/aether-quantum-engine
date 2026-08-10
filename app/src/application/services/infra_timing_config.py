@@ -6,7 +6,14 @@ import json
 from typing import Any
 
 from aether_paths import repo_path
-from src.domain.config_knobs import merge_settings_block, require_float, require_int, require_keys, require_mapping
+from src.domain.config_knobs import (
+    merge_settings_block,
+    require_bool,
+    require_float,
+    require_int,
+    require_keys,
+    require_mapping,
+)
 
 
 _ORCH_TIMING_KEYS = (
@@ -39,7 +46,15 @@ _HISTORY_FETCH_KEYS = (
     "rate_limit_max_delay",
 )
 _META_SHADOW_KEYS = ("window", "min_pairs", "ready_n", "hard_corr_floor", "soft_only_corr_ceiling")
-_META_CLIENT_KEYS = ("timeout_seconds", "max_connections", "max_keepalive_connections", "shadow")
+_META_CLIENT_KEYS = (
+    "timeout_seconds",
+    "max_connections",
+    "max_keepalive_connections",
+    "online_learn",
+    "retrain_min_n",
+    "max_buffer",
+    "shadow",
+)
 
 _CACHE: dict[str, Any] = {}
 
@@ -133,6 +148,9 @@ def resolve_meta_classifier_infra_config(infra: dict[str, Any] | None = None) ->
         "timeout_seconds": require_float(raw, "timeout_seconds"),
         "max_connections": require_int(raw, "max_connections"),
         "max_keepalive_connections": require_int(raw, "max_keepalive_connections"),
+        "online_learn": require_bool(raw, "online_learn"),
+        "retrain_min_n": require_int(raw, "retrain_min_n"),
+        "max_buffer": require_int(raw, "max_buffer"),
         "shadow": {
             "window": require_int(shadow, "window"),
             "min_pairs": require_int(shadow, "min_pairs"),

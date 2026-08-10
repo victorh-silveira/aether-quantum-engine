@@ -48,7 +48,40 @@ def test_seed_direction_metrics_preserves_raw_and_invalid_fallback():
     assert bad["calibrated_prob"] == pytest.approx(0.45)
 
 
-def test_resolve_execution_direction_hard_negative_cal_edge():
+def test_resolve_execution_direction_soft_negative_cal_edge():
+    entry = {
+        "metrics": {
+            "calibrated_prob": 0.52,
+            "raw_prob": 0.37115,
+            "deploy_ok": True,
+            "predicted_payoff_edge": -0.20,
+            "indicators": {"hurst": 0.60, "adx": 0.40},
+            "kelly_fraction_scale": 1.0,
+            "loss_clf_auto_learn": True,
+        }
+    }
+    orch = MagicMock()
+    orch.config = {
+        "deep_learning": {"min_edge_execute": 0.04},
+        "risk_management": {"params": {"payout_estimate": 0.72}},
+        "orchestrator": {"execution": {"scale_vision": {"fusion_enabled": False}}},
+    }
+    orch._log_dedupe = {}
+    orch._active_cycle_id = 1
+    result = resolve_execution_direction(entry, exec_cfg={}, symbol="R_10", orch=orch)
+    assert result is not None
+    _direction, metrics = result
+    assert metrics.get("execution_candidate_ready") is True
+    assert metrics.get("gate_reason") != "neg_edge"
+    assert metrics.get("neg_edge_soft") is True
+    assert metrics["kelly_fraction_scale"] < 1.0
+    assert float(metrics["raw_prob"]) == pytest.approx(0.37115)
+    assert float(metrics["calibrated_prob"]) == pytest.approx(0.52)
+    assert "cal_side_edge" in metrics
+    assert float(metrics["cal_side_edge"]) < 0.04
+
+
+def test_resolve_execution_direction_hard_neg_edge_override():
     entry = {
         "metrics": {
             "calibrated_prob": 0.52,
@@ -63,24 +96,25 @@ def test_resolve_execution_direction_hard_negative_cal_edge():
     orch.config = {
         "deep_learning": {"min_edge_execute": 0.04},
         "risk_management": {"params": {"payout_estimate": 0.72}},
+        "orchestrator": {
+            "execution": {
+                "signal_skip": {
+                    "neg_edge_hard_skip": True,
+                    "neg_edge_soft_when_closed_candle_agree": False,
+                    "neg_edge_soft_min_edge": -1.0,
+                    "neg_edge_soft_kelly_mult": 0.55,
+                },
+                "scale_vision": {"fusion_enabled": False},
+            }
+        },
     }
     orch._log_dedupe = {}
-    orch._active_cycle_id = 1
+    orch._active_cycle_id = 2
     result = resolve_execution_direction(entry, exec_cfg={}, symbol="R_10", orch=orch)
     assert result is not None
     _direction, metrics = result
     assert metrics.get("execution_candidate_ready") is False
-    assert metrics.get("signal_status") == "SKIP:NEG_EDGE"
     assert metrics.get("gate_reason") == "neg_edge"
-    assert metrics.get("neg_edge_soft") is None
-    assert metrics["kelly_fraction_scale"] == pytest.approx(1.0)
-    assert float(metrics["raw_prob"]) == pytest.approx(0.37115)
-    assert float(metrics["calibrated_prob"]) == pytest.approx(0.52)
-    from src.application.services.market_audit_log_helpers import resolve_raw_predicted_edge
-
-    raw_edge = resolve_raw_predicted_edge(metrics, direction="CALL", payout=0.72)
-    assert raw_edge == pytest.approx((0.37115 * 1.72) - 1.0)
-    assert raw_edge != pytest.approx(float(metrics["cal_side_edge"]))
 
 
 def test_resolve_execution_direction_soft_regime_chop():

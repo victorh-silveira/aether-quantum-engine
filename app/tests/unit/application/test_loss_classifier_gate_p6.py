@@ -214,3 +214,48 @@ def test_tcn_pos_edge_blocks_flip_keeps_side():
     assert metrics["exec_direction"] == "PUT"
     assert metrics["loss_clf_flip_blocked"] == "tcn_pos_edge"
     assert metrics["loss_clf_soft"] is True
+
+
+def test_candle_flip_call_to_put_with_weak_cal_executes():
+    orch = _orch(13)
+    metrics = {
+        "execution_candidate_ready": True,
+        "exec_direction": "CALL",
+        "tcn_direction": "CALL",
+        "calibrated_prob": 0.53,
+        "closed_micro_candle_dir": "PUT",
+        "scale_tape_consensus": "CALL",
+        "scale_vote_call_n": 3,
+        "scale_vote_put_n": 1,
+        "kelly_fraction_scale": 1.0,
+    }
+    with (
+        patch(
+            "src.application.services.loss_classifier_gate.predict_loss_via_config_sync",
+            return_value={
+                "p_loss": 0.92,
+                "veto": True,
+                "auto_learn_applied": True,
+                "model_version": "loss_candle_flip",
+                "n_train": 48,
+                "veto_ready": True,
+                "bootstrap": False,
+            },
+        ),
+        patch(
+            "src.application.services.loss_classifier_gate.resolve_loss_classifier_config",
+            return_value=_soft_cfg(
+                flip_waive_on_closed_candle=True,
+                flip_candle_p_loss_floor=0.85,
+                flip_waive_edge_min=-1.0,
+                flip_block_when_tcn_pos_edge=True,
+                flip_min_edge_execute=0.04,
+            ),
+        ),
+    ):
+        assert apply_loss_classifier_gate(metrics, TradeDirection.CALL, orch=orch, symbol="R_10") is False
+    assert metrics.get("loss_clf_flip") is True
+    assert metrics["exec_direction"] == "PUT"
+    assert metrics.get("loss_clf_flip_blocked") is None
+    assert metrics.get("loss_clf_flip_candle_waive_edge") is True
+    assert metrics["execution_candidate_ready"] is True

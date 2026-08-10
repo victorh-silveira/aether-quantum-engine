@@ -12,6 +12,10 @@ from src.application.services.market_audit_log import (
     resolve_predicted_edge,
     store_contract_audit,
 )
+from src.application.services.meta_classifier_vectors import (
+    bind_meta_feature_vector_to_contract,
+    store_meta_feature_vector,
+)
 from src.application.services.orchestrator.api_maintenance_guard import handle_broker_maintenance_error
 from src.application.services.orchestrator.execution_proposal import is_proposal_runtime_error
 from src.domain.models.trade import TradeDirection
@@ -85,6 +89,10 @@ async def execute_cluster_orders(
                 await executor.orch.state.add_contract(res)
                 executor.orch._contract_cycle[int(res.contract_id)] = int(executor.orch._active_cycle_id)
                 bind_loss_feature_vector_to_contract(executor.orch, str(symbol), int(res.contract_id))
+                meta_vec = order_metrics.get("meta_feature_vector")
+                if isinstance(meta_vec, list) and meta_vec:
+                    store_meta_feature_vector(executor.orch, str(symbol), list(meta_vec))
+                    bind_meta_feature_vector_to_contract(executor.orch, str(symbol), int(res.contract_id))
                 store_contract_audit(
                     executor.orch,
                     int(res.contract_id),

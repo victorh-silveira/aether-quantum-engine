@@ -30,9 +30,11 @@ def test_parse_signal_skip_from_ssot():
     assert cfg["chop_hurst_max"] == 0.53
     assert cfg["chop_soft_kelly_mult"] == 0.55
     assert cfg["neg_edge_soft_kelly_mult"] == 0.55
-    assert cfg["neg_edge_hard_skip"] is True
+    assert cfg["neg_edge_hard_skip"] is False
     assert cfg["neg_edge_soft_when_closed_candle_agree"] is True
-    assert cfg["neg_edge_soft_min_edge"] == pytest.approx(-0.05)
+    assert cfg["neg_edge_soft_min_edge"] == pytest.approx(-1.0)
+    assert cfg["neg_edge_bootstrap_soft_kelly_mult"] == pytest.approx(0.25)
+    assert cfg["neg_edge_deep_edge_floor"] == pytest.approx(-0.12)
     assert "direction_loss_lock_min" not in cfg
     assert "direction_loss_toxic_escape" not in cfg
     assert "calib_gray_margin_floor" not in cfg
@@ -296,4 +298,3 @@ def test_direction_loss_lock_removed_keeps_tcn_side():
     assert metrics["kelly_fraction_scale"] == pytest.approx(0.55)
     assert metrics.get("gate_reason") is None
     assert metrics_block_execution(metrics) is False
-    reset_direction_persistence_tracker()

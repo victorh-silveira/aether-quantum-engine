@@ -37,13 +37,15 @@ def _gates_block_token(blocked: str) -> str:
         return "scale"
     if key in {"neg_edge", "seed"}:
         return key
+    if key in {"seed_candle", "seed_cndl"}:
+        return "seed_candle"
     if key in {"tcn_pos_edge", "tcn_edge", "pos_edge"}:
         return "tcn_edge"
     return key or "na"
 
 
 def format_gates_audit_line(metrics: dict[str, Any]) -> str:
-    """Compacta LOSS_CLF+CHOP e NEG_EDGE em duas linhas [GATES]."""
+    """Compacta LOSS_CLF+CHOP, NEG_EDGE e FUSION em linhas [GATES]."""
     p_loss = _f(metrics, "loss_clf_p_loss", default=-1.0)
     soft = bool(metrics.get("loss_clf_soft"))
     flipped = bool(metrics.get("loss_clf_flip"))
@@ -86,18 +88,31 @@ def format_gates_audit_line(metrics: dict[str, Any]) -> str:
     be = resolve_edge_breakeven_p()
     gap = f" raw_edge={raw_edge:+.4f} be={be:.3f}"
     if gate == "neg_edge" or status == "SKIP:NEG_EDGE":
-        neg_tok = f"NEG_EDGE hard side={neg_side} edge={edge:+.4f}{gap} floor={floor:.4f}"
+        tag = "boot_deep" if bool(metrics.get("neg_edge_bootstrap_deep")) else "hard"
+        neg_tok = f"NEG_EDGE {tag} side={neg_side} edge={edge:+.4f}{gap} floor={floor:.4f}"
         skip = "neg_edge"
     elif waived == "neg_edge_soft" or floor > 1e-12:
         tag = "candle" if bool(metrics.get("neg_edge_candle_soft")) else "soft"
         if bool(metrics.get("neg_edge_p_ovr_soft")):
             tag = "p_ovr"
+        if bool(metrics.get("neg_edge_bootstrap_soft")):
+            tag = f"boot_{tag}"
         neg_tok = f"NEG_EDGE {tag} side={neg_side} edge={edge:+.4f}{gap} floor={floor:.4f}"
         skip = waived if waived else "-"
     else:
         neg_tok = "NEG_EDGE off"
         skip = waived if waived else "-"
-    return f"[GATES] || LOSS_CLF: {loss_tok} | {chop_tok}\n[GATES] || {neg_tok} | skip={skip}"
+    fusion_side = str(metrics.get("exec_direction") or metrics.get("resolved_direction") or "-")
+    if bool(metrics.get("fusion_applied")):
+        ev_c = _f(metrics, "fusion_ev_call", default=0.0)
+        ev_p = _f(metrics, "fusion_ev_put", default=0.0)
+        p_eff = _f(metrics, "fusion_p_eff", default=0.0)
+        fusion_why = str(metrics.get("fusion_reason") or "ok")
+        fusion_tok = f"FUSION: side={fusion_side} ev_c={ev_c:+.3f} ev_p={ev_p:+.3f} p_eff={p_eff:.3f} why={fusion_why}"
+    else:
+        fusion_why = str(metrics.get("fusion_reason") or "idle")
+        fusion_tok = f"FUSION: off why={fusion_why}"
+    return f"[GATES] || LOSS_CLF: {loss_tok} | {chop_tok}\n[GATES] || {neg_tok} | skip={skip}\n[GATES] || {fusion_tok}"
 
 
 def format_indicators_audit_line(cycle_id: int, symbol: str, metrics: dict[str, Any]) -> str:

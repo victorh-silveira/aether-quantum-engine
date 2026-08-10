@@ -78,9 +78,9 @@ def prepare_inference_run_loop(orch: Any) -> bool:
     """Marca bootstrap concluido quando modelos em disco estao prontos para operar."""
     dl_config = orch.config.get("deep_learning") or {}
     data_config = orch.config.get("data_handler") or {}
-    if not inference_startup_enabled(dl_config):
-        return False
     if not all_symbols_have_checkpoints(orch.symbols, dl_config, data_config):
+        return False
+    if not inference_startup_enabled(dl_config) and resolve_engine_mode(orch.config) == ENGINE_MODE_TRAIN:
         return False
     orch._dl_bootstrap_completed = True
     return True

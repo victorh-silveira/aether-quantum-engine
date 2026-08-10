@@ -80,7 +80,8 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert float(block["soft_p_loss_high"]) == pytest.approx(0.85)
     assert float(block["soft_max_stake_pct_high"]) == pytest.approx(0.0025)
     assert float(block["timeout_seconds"]) == pytest.approx(8.0)
-    assert int(block["retrain_on_loss_min_n"]) == 2
+    assert int(block["retrain_min_n"]) == 1
+    assert int(block["retrain_on_loss_min_n"]) == 1
     assert bool(block["flip_require_auto_learn"]) is True
     assert bool(block["flip_allow_seed_on_scale_discord"]) is True
     assert bool(block["flip_allow_seed_on_cal_discord"]) is True
@@ -96,7 +97,8 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert resolved["soft_kelly_mult_high"] == pytest.approx(0.40)
     assert resolved["soft_p_loss_high"] == pytest.approx(0.85)
     assert resolved["soft_max_stake_pct_high"] == pytest.approx(0.0025)
-    assert resolved["retrain_on_loss_min_n"] == 2
+    assert resolved["retrain_min_n"] == 1
+    assert resolved["retrain_on_loss_min_n"] == 1
     assert resolved["flip_require_auto_learn"] is True
     assert resolved["flip_allow_seed_on_scale_discord"] is True
     assert resolved["flip_allow_seed_on_cal_discord"] is True
@@ -107,7 +109,9 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert resolved["flip_candle_p_loss_floor"] == pytest.approx(0.85)
     assert resolved["flip_waive_scale_above_p_loss"] == pytest.approx(0.95)
     assert resolved["flip_block_when_tcn_pos_edge"] is True
-    assert resolved["flip_waive_edge_min"] == pytest.approx(-0.05)
+    assert resolved["flip_waive_edge_min"] == pytest.approx(-1.0)
+    assert resolved["flip_seed_block_against_closed_candle"] is True
+    assert resolved["flip_seed_waive_edge_min"] == pytest.approx(-0.08)
     soft_rec = settings["risk_management"]["soft_recovery"]
     assert int(soft_rec["amort_cycles_min"]) == 1
     assert int(soft_rec["amort_cycles_max"]) == 1
@@ -124,9 +128,11 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert float(skip["chop_hurst_max"]) == pytest.approx(0.53)
     assert float(skip["chop_soft_kelly_mult"]) == pytest.approx(0.55)
     assert float(skip["neg_edge_soft_kelly_mult"]) == pytest.approx(0.55)
-    assert bool(skip["neg_edge_hard_skip"]) is True
+    assert bool(skip["neg_edge_hard_skip"]) is False
     assert bool(skip["neg_edge_soft_when_closed_candle_agree"]) is True
-    assert float(skip["neg_edge_soft_min_edge"]) == pytest.approx(-0.05)
+    assert float(skip["neg_edge_soft_min_edge"]) == pytest.approx(-1.0)
+    assert float(skip["neg_edge_bootstrap_soft_kelly_mult"]) == pytest.approx(0.25)
+    assert float(skip["neg_edge_deep_edge_floor"]) == pytest.approx(-0.12)
     assert "calib_gray_margin_floor" not in skip
     assert "calib_gray_soft_kelly_mult" not in skip
     assert "calib_gray_max_stake_pct" not in skip
@@ -142,10 +148,35 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert int(scale["adapt_majority_min_lead"]) == 2
     assert scale["adapt_majority_include_rsi"] is True
     assert scale["adapt_majority_include_micro_bar"] is True
+    assert scale["fusion_enabled"] is True
+    assert scale["fusion_replace_adapt_flip"] is True
+    assert float(scale["fusion_w_macro"]) == pytest.approx(0.35)
+    assert float(scale["fusion_w_micro_bar"]) == pytest.approx(0.45)
+    assert float(scale["fusion_w_mini"]) == pytest.approx(0.25)
+    assert float(scale["fusion_w_mili"]) == pytest.approx(0.10)
+    assert float(scale["fusion_w_tape"]) == pytest.approx(0.20)
+    assert float(scale["fusion_meta_ev_weight"]) == pytest.approx(0.10)
+    assert float(scale["fusion_loss_weight"]) == pytest.approx(0.80)
+    assert float(scale["fusion_tcn_shrink_near_half"]) == pytest.approx(0.40)
+    assert scale["fusion_block_when_tcn_pos_edge"] is True
+    assert float(scale["fusion_min_edge_execute"]) == pytest.approx(0.04)
+    from src.application.services.execution_direction_fusion import parse_direction_fusion_config
+
+    fusion = parse_direction_fusion_config({})
+    assert fusion["fusion_enabled"] is True
+    assert fusion["fusion_replace_adapt_flip"] is True
     data = settings["data_handler"]
     assert int(data["micro_granularity"]) == 120
     assert int(data["mini_granularity"]) == 120
     assert int(data["granularity"]) == 3600
+    dl = settings["deep_learning"]
+    assert bool(dl["online_training"]) is True
+    assert int(dl["rolling_retrain_bars"]) == 1
+    meta = settings["infra"]["meta_classifier"]
+    assert bool(meta["online_learn"]) is True
+    assert int(meta["retrain_min_n"]) == 1
+    assert int(meta["max_buffer"]) == 2000
+    assert float(meta["timeout_seconds"]) == pytest.approx(8.0)
     assert int(data["fetch_count"]) == 2000
     assert int(data["micro_fetch_count"]) == 2000
     assert int(data["mini_fetch_count"]) == 256

@@ -16,6 +16,7 @@ from src.application.services.loss_classifier_flip import (
     resolve_flip_waivers,
     resolve_soft_kelly_mult,
     revert_loss_flip,
+    seed_candle_blocks_flip,
     tcn_pos_edge_blocks_flip,
 )
 from src.application.services.loss_classifier_gate_support import (
@@ -106,8 +107,14 @@ def apply_loss_classifier_gate(
     soft_floor = float(cfg["veto_p_loss_floor"])
     seed_block, scale_block = resolve_flip_waivers(metrics, response, ref_dir, cfg=cfg, p_loss=p_loss)
     pos_edge_block = tcn_pos_edge_blocks_flip(metrics, ref_dir, cfg=cfg)
+    seed_candle_block = seed_candle_blocks_flip(metrics, response, ref_dir, cfg=cfg)
     can_flip = (
-        bool(veto_ready) and p_loss + 1e-12 >= flip_floor and not seed_block and not scale_block and not pos_edge_block
+        bool(veto_ready)
+        and p_loss + 1e-12 >= flip_floor
+        and not seed_block
+        and not scale_block
+        and not pos_edge_block
+        and not seed_candle_block
     )
     if can_flip:
         flipped = apply_loss_flip(metrics, ref_dir, cfg=cfg)
@@ -149,9 +156,15 @@ def apply_loss_classifier_gate(
             flip_floor,
         )
         return False
-    if bool(veto_ready) and p_loss + 1e-12 >= flip_floor and (seed_block or scale_block or pos_edge_block):
+    if (
+        bool(veto_ready)
+        and p_loss + 1e-12 >= flip_floor
+        and (seed_block or scale_block or pos_edge_block or seed_candle_block)
+    ):
         if pos_edge_block:
             metrics["loss_clf_flip_blocked"] = "tcn_pos_edge"
+        elif seed_candle_block:
+            metrics["loss_clf_flip_blocked"] = "seed_candle"
         else:
             metrics["loss_clf_flip_blocked"] = "scale_consensus" if scale_block else "seed"
         log_debug_if_changed(

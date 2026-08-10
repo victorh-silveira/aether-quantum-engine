@@ -34,6 +34,8 @@ def parse_signal_skip_config(raw: dict[str, Any] | None = None) -> dict[str, Any
             "neg_edge_hard_skip",
             "neg_edge_soft_when_closed_candle_agree",
             "neg_edge_soft_min_edge",
+            "neg_edge_bootstrap_soft_kelly_mult",
+            "neg_edge_deep_edge_floor",
         ),
         "orchestrator.execution.signal_skip",
     )
@@ -52,6 +54,12 @@ def parse_signal_skip_config(raw: dict[str, Any] | None = None) -> dict[str, Any
     soft_min = require_float(block, "neg_edge_soft_min_edge")
     if soft_min > 0.0 or soft_min < -1.0:
         raise ValueError("orchestrator.execution.signal_skip.neg_edge_soft_min_edge deve estar em [-1, 0]")
+    boot_mult = require_float(block, "neg_edge_bootstrap_soft_kelly_mult")
+    if boot_mult <= 0.0 or boot_mult > 1.0:
+        raise ValueError("orchestrator.execution.signal_skip.neg_edge_bootstrap_soft_kelly_mult deve estar em (0, 1]")
+    deep_floor = require_float(block, "neg_edge_deep_edge_floor")
+    if deep_floor > 0.0 or deep_floor < -1.0:
+        raise ValueError("orchestrator.execution.signal_skip.neg_edge_deep_edge_floor deve estar em [-1, 0]")
     hurst_min = require_float(block, "chop_hurst_min")
     hurst_max = require_float(block, "chop_hurst_max")
     if hurst_max < hurst_min:
@@ -74,6 +82,8 @@ def parse_signal_skip_config(raw: dict[str, Any] | None = None) -> dict[str, Any
         "neg_edge_hard_skip": require_bool(block, "neg_edge_hard_skip"),
         "neg_edge_soft_when_closed_candle_agree": require_bool(block, "neg_edge_soft_when_closed_candle_agree"),
         "neg_edge_soft_min_edge": soft_min,
+        "neg_edge_bootstrap_soft_kelly_mult": boot_mult,
+        "neg_edge_deep_edge_floor": deep_floor,
     }
 
 

@@ -13,7 +13,7 @@ def test_force_retrain_and_clear():
     orch = SimpleNamespace()
     mark_force_retrain(orch, "R_10")
     ok, reason = should_retrain_symbol(orch, "R_10", {}, {"train_on_new_candle": False}, 1)
-    assert ok and reason == "loss_retrain"
+    assert ok and reason == "trade_retrain"
     clear_force_retrain(orch, "R_10")
     assert not (getattr(orch, "_dl_force_retrain", None) or {}).get("R_10")
 

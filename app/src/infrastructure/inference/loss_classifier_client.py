@@ -54,6 +54,8 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
             "flip_waive_scale_above_p_loss",
             "flip_block_when_tcn_pos_edge",
             "flip_waive_edge_min",
+            "flip_seed_block_against_closed_candle",
+            "flip_seed_waive_edge_min",
         ),
         "infra.loss_classifier",
     )
@@ -97,6 +99,9 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
     waive_edge_min = require_float(block, "flip_waive_edge_min")
     if waive_edge_min > 0.0 or waive_edge_min < -1.0:
         raise ValueError("infra.loss_classifier.flip_waive_edge_min deve estar em [-1, 0]")
+    seed_waive_edge = require_float(block, "flip_seed_waive_edge_min")
+    if seed_waive_edge > 0.0 or seed_waive_edge < -1.0:
+        raise ValueError("infra.loss_classifier.flip_seed_waive_edge_min deve estar em [-1, 0]")
     return {
         "enabled": require_bool(block, "enabled"),
         "http_url": str(block["http_url"]).rstrip("/"),
@@ -127,6 +132,8 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
         "flip_waive_scale_above_p_loss": scale_override,
         "flip_block_when_tcn_pos_edge": require_bool(block, "flip_block_when_tcn_pos_edge"),
         "flip_waive_edge_min": waive_edge_min,
+        "flip_seed_block_against_closed_candle": require_bool(block, "flip_seed_block_against_closed_candle"),
+        "flip_seed_waive_edge_min": seed_waive_edge,
     }
 
 

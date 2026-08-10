@@ -70,6 +70,40 @@ async def close_meta_classifier_client() -> None:
             await client.aclose()
 
 
+def learn_meta_via_config_sync(
+    config: dict[str, Any],
+    *,
+    feature_vector: list[float],
+    target: float,
+    contract_id: str = "",
+    symbol: str = "",
+) -> dict[str, Any]:
+    """Learn sincrona fail-open do meta-regressor."""
+
+    async def _run() -> dict[str, Any]:
+        """Executa learn no cliente singleton compartilhado."""
+        if not meta_classifier_enabled(config):
+            return {"ok": False, "skipped": True}
+        infra = config.get("infra") if isinstance(config, dict) else {}
+        chunk = infra.get("meta_classifier") if isinstance(infra, dict) else {}
+        if isinstance(chunk, dict) and not bool(chunk.get("online_learn", True)):
+            return {"ok": False, "skipped": True}
+        client = await get_meta_classifier_client(config)
+        return await client.learn(
+            feature_vector=feature_vector,
+            target=target,
+            contract_id=contract_id,
+            symbol=symbol,
+        )
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(_run())
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(lambda: asyncio.run(_run())).result(timeout=meta_classifier_timeout(config) + 8.0)
+
+
 def predict_meta_via_config_sync(
     config: dict[str, Any],
     request: MetaPredictRequest,

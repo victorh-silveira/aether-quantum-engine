@@ -40,6 +40,7 @@ def test_neg_edge_soft_when_side_agrees_closed_candle():
         "calibrated_prob": 0.56,
         "kelly_fraction_scale": 1.0,
         "closed_micro_candle_dir": "CALL",
+        "loss_clf_auto_learn": True,
     }
     assert apply_negative_cal_edge_pause(metrics, orch=_orch_skip()) is True
     assert metrics.get("gate_reason") != "neg_edge"
@@ -61,7 +62,24 @@ def test_neg_edge_hard_when_candle_agree_but_edge_too_deep():
     assert metrics_block_execution(metrics) is True
 
 
-def test_neg_edge_hard_when_flip_blocked_even_with_candle():
+def test_neg_edge_soft_deep_edge_when_soft_min_wide():
+    metrics = {
+        "execution_candidate_ready": True,
+        "exec_direction": "CALL",
+        "calibrated_prob": 0.53,
+        "kelly_fraction_scale": 1.0,
+        "closed_micro_candle_dir": "PUT",
+        "loss_clf_auto_learn": True,
+    }
+    orch = _orch_skip(neg_edge_hard_skip=False, neg_edge_soft_min_edge=-1.0)
+    assert apply_negative_cal_edge_pause(metrics, orch=orch) is True
+    assert metrics.get("gate_reason") != "neg_edge"
+    assert metrics["neg_edge_soft"] is True
+    assert metrics["execution_candidate_ready"] is True
+    assert metrics_block_execution(metrics) is False
+
+
+def test_neg_edge_soft_when_flip_blocked_and_candle_with_hard_on():
     metrics = {
         "execution_candidate_ready": True,
         "exec_direction": "CALL",
@@ -69,10 +87,12 @@ def test_neg_edge_hard_when_flip_blocked_even_with_candle():
         "kelly_fraction_scale": 1.0,
         "closed_micro_candle_dir": "CALL",
         "loss_clf_flip_blocked": "neg_edge",
+        "loss_clf_auto_learn": True,
     }
     assert apply_negative_cal_edge_pause(metrics, orch=_orch_skip()) is True
-    assert metrics.get("gate_reason") == "neg_edge"
-    assert metrics_block_execution(metrics) is True
+    assert metrics.get("gate_reason") != "neg_edge"
+    assert metrics.get("neg_edge_candle_soft") is True
+    assert metrics_block_execution(metrics) is False
 
 
 def test_neg_edge_soft_when_loss_clf_p_ovr_flip():
@@ -84,6 +104,7 @@ def test_neg_edge_soft_when_loss_clf_p_ovr_flip():
         "closed_micro_candle_dir": "PUT",
         "loss_clf_flip": True,
         "loss_clf_flip_scale_p_override": True,
+        "loss_clf_auto_learn": True,
     }
     assert apply_negative_cal_edge_pause(metrics, orch=_orch_skip()) is True
     assert metrics.get("gate_reason") != "neg_edge"

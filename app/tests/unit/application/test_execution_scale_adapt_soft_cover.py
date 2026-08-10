@@ -173,7 +173,14 @@ def test_finalize_adapts_direction_under_raw_extreme():
 
         tick_buffer = None
 
-    orch = type("O", (), {"stream": Stream()})()
+    orch = type(
+        "O",
+        (),
+        {
+            "stream": Stream(),
+            "config": {"orchestrator": {"execution": {"scale_vision": {"fusion_enabled": False}}}},
+        },
+    )()
     with (
         patch(
             "src.application.services.execution_direction_resolver.apply_signal_skip_gates",

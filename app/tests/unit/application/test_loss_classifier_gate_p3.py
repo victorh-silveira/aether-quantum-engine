@@ -23,7 +23,7 @@ def test_should_retrain_after_learn_loss_forces_when_ready():
             buffer_n=10,
             retrain_min_n=24,
             retrain_on_loss_min_n=2,
-            buffer_win=8,
+            buffer_win=4,
             buffer_loss=2,
         )
         is True
@@ -70,30 +70,33 @@ def test_should_retrain_after_learn_loss_forces_when_ready():
             buffer_win=1,
             buffer_loss=1,
             bootstrap_active=True,
+            bootstrap_exit_n=16,
         )
         is False
     )
     assert (
         mod.should_retrain_after_learn(
             label="LOSS",
-            buffer_n=24,
+            buffer_n=8,
             retrain_min_n=24,
             retrain_on_loss_min_n=2,
-            buffer_win=12,
-            buffer_loss=12,
+            buffer_win=4,
+            buffer_loss=4,
             bootstrap_active=True,
+            bootstrap_exit_n=16,
         )
-        is False
+        is True
     )
     assert (
         mod.should_retrain_after_learn(
             label="LOSS",
-            buffer_n=48,
+            buffer_n=16,
             retrain_min_n=24,
             retrain_on_loss_min_n=2,
-            buffer_win=24,
-            buffer_loss=24,
+            buffer_win=8,
+            buffer_loss=8,
             bootstrap_active=True,
+            bootstrap_exit_n=16,
         )
         is True
     )
@@ -106,18 +109,67 @@ def test_should_retrain_after_learn_loss_forces_when_ready():
             buffer_win=0,
             buffer_loss=2,
             bootstrap_active=True,
+            bootstrap_exit_n=16,
         )
         is False
     )
     assert (
-        mod.retrain_min_for_label(label="LOSS", retrain_min_n=24, retrain_on_loss_min_n=2, bootstrap_active=True) == 48
+        mod.retrain_min_for_label(
+            label="LOSS",
+            retrain_min_n=24,
+            retrain_on_loss_min_n=2,
+            bootstrap_active=True,
+            bootstrap_exit_n=16,
+        )
+        == 8
     )
-    assert mod.should_retrain_after_learn(label="WIN", buffer_n=2, retrain_min_n=24, retrain_on_loss_min_n=2) is False
-    assert mod.should_retrain_after_learn(label="WIN", buffer_n=24, retrain_min_n=24, retrain_on_loss_min_n=2) is True
-    assert mod.should_retrain_after_learn(label="WIN", buffer_n=25, retrain_min_n=24, retrain_on_loss_min_n=2) is False
-    assert mod.should_retrain_after_learn(label="WIN", buffer_n=32, retrain_min_n=24, retrain_on_loss_min_n=2) is True
-    assert mod.retrain_min_for_label(label="LOSS", retrain_min_n=24, retrain_on_loss_min_n=2) == 2
-    assert mod.retrain_min_for_label(label="WIN", retrain_min_n=24, retrain_on_loss_min_n=2) == 24
+    assert mod.retrain_skipped_reason(
+        label="LOSS",
+        buffer_n=4,
+        retrain_min_n=24,
+        retrain_on_loss_min_n=2,
+        buffer_win=2,
+        buffer_loss=2,
+        bootstrap_active=True,
+        bootstrap_exit_n=16,
+    ).startswith("bootstrap_wait:")
+    assert mod.should_retrain_after_learn(label="WIN", buffer_n=2, retrain_min_n=1, retrain_on_loss_min_n=1) is False
+    assert (
+        mod.should_retrain_after_learn(
+            label="WIN",
+            buffer_n=2,
+            retrain_min_n=1,
+            retrain_on_loss_min_n=1,
+            buffer_win=1,
+            buffer_loss=1,
+        )
+        is True
+    )
+    assert (
+        mod.should_retrain_after_learn(
+            label="WIN",
+            buffer_n=3,
+            retrain_min_n=1,
+            retrain_on_loss_min_n=1,
+            buffer_win=2,
+            buffer_loss=1,
+        )
+        is True
+    )
+    assert (
+        mod.should_retrain_after_learn(
+            label="LOSS",
+            buffer_n=3,
+            retrain_min_n=1,
+            retrain_on_loss_min_n=1,
+            buffer_win=2,
+            buffer_loss=1,
+            min_win_for_loss_retrain=1,
+        )
+        is True
+    )
+    assert mod.retrain_min_for_label(label="LOSS", retrain_min_n=1, retrain_on_loss_min_n=1) == 1
+    assert mod.retrain_min_for_label(label="WIN", retrain_min_n=1, retrain_on_loss_min_n=1) == 1
 
 
 def test_fit_classifier_accepts_imbalanced_classes():

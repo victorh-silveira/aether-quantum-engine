@@ -181,6 +181,32 @@ class MetaClassifierClient:
                 "edge_expectancy": "LOSS_EXPECTED",
             }
 
+    async def learn(
+        self,
+        *,
+        feature_vector: list[float],
+        target: float,
+        contract_id: str = "",
+        symbol: str = "",
+    ) -> dict[str, Any]:
+        """POST /v1/learn fail-open."""
+        if not self._enabled:
+            return {"ok": False, "skipped": True}
+        assert_meta_feature_vector_dim([float(v) for v in feature_vector])
+        payload = {
+            "feature_vector": [float(v) for v in feature_vector],
+            "target": float(target),
+            "contract_id": str(contract_id),
+            "symbol": str(symbol),
+        }
+        try:
+            response = await self._client.post("/v1/learn", json=payload)
+            response.raise_for_status()
+            data = response.json()
+            return data if isinstance(data, dict) else {"ok": False, "error": "invalid_json"}
+        except (httpx.TimeoutException, httpx.HTTPError, ValueError, TypeError) as exc:
+            return {"ok": False, "error": str(exc)}
+
     async def predict_meta_batch(
         self,
         requests: list[tuple[MetaPredictRequest, float]],

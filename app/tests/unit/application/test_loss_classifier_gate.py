@@ -87,7 +87,8 @@ def test_resolve_and_enabled():
     assert cfg["soft_p_loss_high"] == pytest.approx(0.85)
     assert cfg["soft_max_stake_pct_high"] == pytest.approx(0.0025)
     assert cfg["timeout_seconds"] == pytest.approx(8.0)
-    assert cfg["retrain_on_loss_min_n"] == 2
+    assert cfg["retrain_on_loss_min_n"] == 1
+    assert cfg["retrain_min_n"] == 1
     assert loss_classifier_enabled(None) is True
     assert loss_classifier_enabled({"infra": {"loss_classifier": {"enabled": False}}}) is False
     assert loss_classifier_enabled({"infra": {}}) is True

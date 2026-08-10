@@ -220,9 +220,9 @@
         "min_edge_execute": 0.04,
         "min_val_accuracy": 0.53,
         "model_path_template": "data/dl/{symbol}.pth",
-        "online_training": false,
+        "online_training": true,
         "retrain_min_bars": 1,
-        "rolling_retrain_bars": 3,
+        "rolling_retrain_bars": 1,
         "tcn": {
             "channels": [
                 96,
@@ -264,6 +264,9 @@
             "http_url": "http://localhost:8005",
             "max_connections": 10,
             "max_keepalive_connections": 5,
+            "online_learn": true,
+            "retrain_min_n": 1,
+            "max_buffer": 2000,
             "shadow": {
                 "hard_corr_floor": 0.01,
                 "min_pairs": 12,
@@ -271,7 +274,7 @@
                 "soft_only_corr_ceiling": 0.05,
                 "window": 64
             },
-            "timeout_seconds": 1.0
+            "timeout_seconds": 8.0
         },
         "loss_classifier": {
             "enabled": true,
@@ -289,8 +292,8 @@
             "soft_p_loss_high": 0.85,
             "soft_max_stake_pct_high": 0.0025,
             "ready_n": 24,
-            "retrain_min_n": 24,
-            "retrain_on_loss_min_n": 2,
+            "retrain_min_n": 1,
+            "retrain_on_loss_min_n": 1,
             "max_buffer": 2000,
             "flip_require_auto_learn": true,
             "flip_allow_seed_on_scale_discord": true,
@@ -302,7 +305,9 @@
             "flip_candle_p_loss_floor": 0.85,
             "flip_waive_scale_above_p_loss": 0.95,
             "flip_block_when_tcn_pos_edge": true,
-            "flip_waive_edge_min": -0.05
+            "flip_waive_edge_min": -1.0,
+            "flip_seed_block_against_closed_candle": true,
+            "flip_seed_waive_edge_min": -0.08
         },
         "minio": {
             "bucket": "dl-models",
@@ -599,7 +604,19 @@
                 "adapt_majority_rsi_neutral": 0.5,
                 "retraction_require_mili": true,
                 "retraction_use_tick_accel": true,
-                "max_stake_pct_discord": 0.01
+                "max_stake_pct_discord": 0.01,
+                "fusion_enabled": true,
+                "fusion_replace_adapt_flip": true,
+                "fusion_w_macro": 0.35,
+                "fusion_w_micro_bar": 0.45,
+                "fusion_w_mini": 0.25,
+                "fusion_w_mili": 0.10,
+                "fusion_w_tape": 0.20,
+                "fusion_meta_ev_weight": 0.10,
+                "fusion_loss_weight": 0.80,
+                "fusion_tcn_shrink_near_half": 0.40,
+                "fusion_block_when_tcn_pos_edge": true,
+                "fusion_min_edge_execute": 0.04
             },
             "signal_skip": {
                 "enabled": true,
@@ -616,9 +633,11 @@
                 "chop_hurst_max": 0.53,
                 "chop_soft_kelly_mult": 0.55,
                 "neg_edge_soft_kelly_mult": 0.55,
-                "neg_edge_hard_skip": true,
+                "neg_edge_hard_skip": false,
                 "neg_edge_soft_when_closed_candle_agree": true,
-                "neg_edge_soft_min_edge": -0.05
+                "neg_edge_soft_min_edge": -1.0,
+                "neg_edge_bootstrap_soft_kelly_mult": 0.25,
+                "neg_edge_deep_edge_floor": -0.12
             }
         },
         "idle_cycle_watchdog_seconds": 1200,

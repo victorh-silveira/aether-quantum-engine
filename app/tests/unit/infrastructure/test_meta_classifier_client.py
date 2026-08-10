@@ -32,7 +32,7 @@ def test_meta_classifier_enabled_from_config():
     cfg = {"infra": {"meta_classifier": {"enabled": True}}}
     assert meta_classifier_enabled(cfg) is True
     assert meta_classifier_http_url(cfg) == "http://localhost:8005"
-    assert meta_classifier_timeout(cfg) == 1.0
+    assert meta_classifier_timeout(cfg) == pytest.approx(8.0)
 
 
 def test_assert_meta_feature_vector_dim_accepts_canonical_43():

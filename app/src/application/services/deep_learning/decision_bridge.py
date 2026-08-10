@@ -110,7 +110,8 @@ def _maybe_schedule_training(
     """Decide se agenda treino deferred para o simbolo e retorna o motivo."""
     do_train, reason = should_retrain_symbol(orch, symbol, runtime, params, epoch)
     bootstrap_train = reason == "bootstrap"
-    may_schedule_train = training_enabled(orch) or bootstrap_train
+    online = bool(params.get("online_training", False))
+    may_schedule_train = training_enabled(orch) or bootstrap_train or (online and do_train)
     if not may_schedule_train:
         return None
 

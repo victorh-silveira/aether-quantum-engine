@@ -16,9 +16,11 @@ from src.application.services.execution_signal_skip import metrics_block_executi
 def test_parse_neg_edge_soft_from_ssot():
     cfg = parse_neg_edge_soft_config({})
     assert cfg["neg_edge_soft_kelly_mult"] == pytest.approx(0.55)
-    assert cfg["neg_edge_hard_skip"] is True
+    assert cfg["neg_edge_hard_skip"] is False
     assert cfg["neg_edge_soft_when_closed_candle_agree"] is True
-    assert cfg["neg_edge_soft_min_edge"] == pytest.approx(-0.05)
+    assert cfg["neg_edge_soft_min_edge"] == pytest.approx(-1.0)
+    assert cfg["neg_edge_bootstrap_soft_kelly_mult"] == pytest.approx(0.25)
+    assert cfg["neg_edge_deep_edge_floor"] == pytest.approx(-0.12)
     with pytest.raises(ValueError, match="neg_edge_soft_min_edge"):
         parse_neg_edge_soft_config({"neg_edge_soft_min_edge": 0.05})
 
@@ -60,6 +62,7 @@ def test_neg_edge_soft_when_hard_disabled():
         "exec_direction": "PUT",
         "calibrated_prob": 0.481,
         "kelly_fraction_scale": 1.0,
+        "loss_clf_auto_learn": True,
     }
     orch = MagicMock()
     orch.config = {
@@ -130,9 +133,12 @@ def test_neg_edge_payout_and_min_edge_fallbacks():
         "exec_direction": "CALL",
         "calibrated_prob": 0.40,
         "kelly_fraction_scale": 1.0,
+        "loss_clf_auto_learn": True,
     }
     assert apply_negative_cal_edge_pause(metrics, orch=None, min_edge=0.04, payout=0.72, soft_mult=0.55) is True
-    assert metrics["gate_reason"] == "neg_edge"
+    assert metrics["execution_candidate_ready"] is True
+    assert metrics["neg_edge_soft"] is True
+    assert metrics.get("gate_reason") != "neg_edge"
     bad_orch = MagicMock()
     bad_orch.config = {
         "risk_management": {"params": {"payout_estimate": "x"}},
@@ -177,9 +183,21 @@ def test_neg_edge_hard_clears_prior_soft_waive_and_malformed_orch():
         "signal_skip_waived": "neg_edge_soft",
         "neg_edge_soft": True,
     }
-    bad = MagicMock()
-    bad.config = "x"
-    assert apply_negative_cal_edge_pause(metrics, orch=bad, min_edge=0.04, payout=0.72) is True
+    hard_orch = MagicMock()
+    hard_orch.config = {
+        "orchestrator": {
+            "execution": {
+                "signal_skip": {
+                    "neg_edge_soft_kelly_mult": 0.55,
+                    "neg_edge_hard_skip": True,
+                    "neg_edge_soft_when_closed_candle_agree": False,
+                    "neg_edge_soft_min_edge": -1.0,
+                }
+            }
+        },
+    }
+    hard_orch._log_dedupe = {}
+    assert apply_negative_cal_edge_pause(metrics, orch=hard_orch, min_edge=0.04, payout=0.72) is True
     assert metrics["gate_reason"] == "neg_edge"
     assert metrics.get("signal_skip_waived") is None
     orch2 = MagicMock()
@@ -189,8 +207,10 @@ def test_neg_edge_hard_clears_prior_soft_waive_and_malformed_orch():
         "exec_direction": "PUT",
         "calibrated_prob": 0.55,
         "kelly_fraction_scale": 1.0,
+        "loss_clf_auto_learn": True,
     }
     assert apply_negative_cal_edge_pause(metrics2, orch=orch2, min_edge=0.04, payout=0.72) is True
+    assert metrics2["neg_edge_soft"] is True
     orch3 = MagicMock()
     orch3.config = {"orchestrator": {"execution": "x"}}
     metrics3 = {
@@ -198,8 +218,10 @@ def test_neg_edge_hard_clears_prior_soft_waive_and_malformed_orch():
         "exec_direction": "CALL",
         "calibrated_prob": 0.40,
         "kelly_fraction_scale": 1.0,
+        "loss_clf_auto_learn": True,
     }
     assert apply_negative_cal_edge_pause(metrics3, orch=orch3, min_edge=0.04, payout=0.72) is True
+    assert metrics3["neg_edge_soft"] is True
 
 
 def test_neg_edge_soft_mult_override_with_orch():
@@ -208,6 +230,7 @@ def test_neg_edge_soft_mult_override_with_orch():
         "exec_direction": "PUT",
         "calibrated_prob": 0.481,
         "kelly_fraction_scale": 1.0,
+        "loss_clf_auto_learn": True,
     }
     orch = MagicMock()
     orch.config = {
