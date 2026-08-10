@@ -11,11 +11,11 @@ from src.application.services.loss_classifier_features import build_loss_feature
 from src.application.services.loss_classifier_flip import (
     apply_loss_flip,
     apply_soft_kelly,
-    cal_disagrees_ref,
     is_collapsed_p_loss,
-    is_seed_model,
+    post_flip_edge_ok,
+    resolve_flip_waivers,
     resolve_soft_kelly_mult,
-    scale_confirms_ref,
+    revert_loss_flip,
 )
 from src.application.services.loss_classifier_vectors import store_loss_feature_vector
 from src.domain.models.trade import TradeDirection
@@ -35,6 +35,12 @@ _STALE_LOSS_CLF_KEYS = (
     "loss_clf_flip",
     "loss_clf_flip_ref",
     "loss_clf_flip_blocked",
+    "loss_clf_flip_reason",
+    "loss_clf_flip_edge",
+    "loss_clf_flip_edge_floor",
+    "loss_clf_flip_seed_discord",
+    "loss_clf_flip_seed_cal_discord",
+    "loss_clf_flip_cal_overrides_scale",
     "loss_clf_soft",
     "loss_clf_soft_waived_pending",
     "loss_clf_soft_kelly_mult",
@@ -187,21 +193,33 @@ def apply_loss_classifier_gate(
     auto_flag = 1 if response["auto_learn_applied"] else 0
     flip_floor = float(cfg["hard_p_loss_floor"])
     soft_floor = float(cfg["veto_p_loss_floor"])
-    seed_block = is_seed_model(response, require_auto_learn=bool(cfg.get("flip_require_auto_learn", True)))
-    scale_block = scale_confirms_ref(metrics, ref_dir)
-    cal_discord = cal_disagrees_ref(metrics, ref_dir)
-    if seed_block and not scale_block and bool(cfg.get("flip_allow_seed_on_scale_discord", True)):
-        seed_block = False
-        metrics["loss_clf_flip_seed_discord"] = True
-    if seed_block and cal_discord and bool(cfg.get("flip_allow_seed_on_cal_discord", True)):
-        seed_block = False
-        metrics["loss_clf_flip_seed_cal_discord"] = True
-    if scale_block and cal_discord and bool(cfg.get("flip_allow_seed_on_cal_discord", True)):
-        scale_block = False
-        metrics["loss_clf_flip_cal_overrides_scale"] = True
+    seed_block, scale_block = resolve_flip_waivers(metrics, response, ref_dir, cfg=cfg)
     can_flip = bool(veto_ready) and p_loss + 1e-12 >= flip_floor and not seed_block and not scale_block
     if can_flip:
         flipped = apply_loss_flip(metrics, ref_dir, cfg=cfg)
+        if not post_flip_edge_ok(metrics, flipped, cfg=cfg):
+            revert_loss_flip(metrics, ref_dir, reason="neg_edge")
+            log_debug_if_changed(
+                orch,
+                logger,
+                f"loss_clf_flip_block:{cycle_id}",
+                f"{response['model_version']}:neg_edge:{ref_dir.name}:{p_loss:.5f}",
+                "LOSS_CLF || FLIP_BLOCK reason=%s side=%s p_loss=%.5f keep_tcn=1",
+                "neg_edge",
+                ref_dir.name,
+                p_loss,
+            )
+            _emit_soft(
+                orch,
+                metrics,
+                cfg=cfg,
+                response=response,
+                p_loss=p_loss,
+                pending=pending,
+                cycle_id=cycle_id,
+                auto_flag=auto_flag,
+            )
+            return False
         log_debug_if_changed(
             orch,
             logger,
@@ -218,7 +236,7 @@ def apply_loss_classifier_gate(
         )
         return False
     if bool(veto_ready) and p_loss + 1e-12 >= flip_floor and (seed_block or scale_block):
-        metrics["loss_clf_flip_blocked"] = "seed" if seed_block else "scale_consensus"
+        metrics["loss_clf_flip_blocked"] = "scale_consensus" if scale_block else "seed"
         log_debug_if_changed(
             orch,
             logger,

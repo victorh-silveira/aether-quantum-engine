@@ -194,6 +194,7 @@ def test_loss_classifier_flip_helpers():
     from src.application.services.loss_classifier_flip import (
         apply_loss_flip,
         cal_disagrees_ref,
+        flip_reason_token,
         is_collapsed_p_loss,
         is_seed_model,
         resolve_soft_kelly_mult,
@@ -203,6 +204,10 @@ def test_loss_classifier_flip_helpers():
     assert is_collapsed_p_loss({"auto_learn_applied": True, "p_loss": "bad"}) is True
     assert cal_disagrees_ref({"calibrated_prob": "bad"}, TradeDirection.CALL) is False
     assert cal_disagrees_ref({"calibrated_prob": 0.44}, TradeDirection.CALL) is True
+    assert cal_disagrees_ref({"calibrated_prob": 0.52}, TradeDirection.PUT, margin=0.03) is False
+    assert cal_disagrees_ref({"calibrated_prob": 0.55}, TradeDirection.PUT, margin=0.03) is True
+    assert flip_reason_token({"loss_clf_flip_seed_cal_discord": True}) == "seed_cal"
+    assert flip_reason_token({}) == "ok"
 
     assert is_seed_model({"auto_learn_applied": False}, require_auto_learn=False) is False
     assert is_seed_model({"auto_learn_applied": False}, require_auto_learn=True) is True

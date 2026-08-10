@@ -236,9 +236,12 @@ def test_format_gates_audit_line():
             "loss_clf_p_loss": 0.91,
             "loss_clf_auto_learn": True,
             "loss_clf_n_train": 12,
+            "loss_clf_flip_ref": "PUT",
+            "exec_direction": "CALL",
+            "loss_clf_flip_reason": "cal_ovr",
         }
     )
-    assert "FLIP auto=1" in flip_line
+    assert "FLIP PUT->CALL why=cal_ovr auto=1" in flip_line
     block_line = format_gates_audit_line(
         {
             "loss_clf_flip_blocked": "scale_consensus",
@@ -247,7 +250,24 @@ def test_format_gates_audit_line():
             "loss_clf_auto_learn": False,
         }
     )
-    assert "FLIP_BLOCK:scale_consensus" in block_line
+    assert "FLIP_BLOCK:scale" in block_line
+    neg_block = format_gates_audit_line(
+        {
+            "loss_clf_flip_blocked": "neg_edge",
+            "loss_clf_p_loss": 0.95,
+            "loss_clf_soft_kelly_mult": 0.4,
+            "loss_clf_auto_learn": False,
+        }
+    )
+    assert "FLIP_BLOCK:neg_edge" in neg_block
+    other_block = format_gates_audit_line(
+        {
+            "loss_clf_flip_blocked": "custom_reason",
+            "loss_clf_p_loss": 0.91,
+            "loss_clf_soft_kelly_mult": 0.4,
+        }
+    )
+    assert "FLIP_BLOCK:custom_reason" in other_block
     ok_line = format_gates_audit_line(
         {
             "loss_clf_p_loss": 0.42,

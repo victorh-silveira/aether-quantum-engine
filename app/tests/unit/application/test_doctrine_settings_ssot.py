@@ -84,6 +84,9 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert bool(block["flip_require_auto_learn"]) is True
     assert bool(block["flip_allow_seed_on_scale_discord"]) is True
     assert bool(block["flip_allow_seed_on_cal_discord"]) is True
+    assert float(block["flip_cal_discord_margin"]) == pytest.approx(0.03)
+    assert bool(block["flip_require_pos_edge"]) is True
+    assert float(block["flip_min_edge_execute"]) == pytest.approx(0.04)
     resolved = resolve_loss_classifier_config(None)
     assert resolved["veto_mode"] == "soft"
     assert resolved["veto_p_loss_floor"] == pytest.approx(0.65)
@@ -97,6 +100,9 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert resolved["flip_require_auto_learn"] is True
     assert resolved["flip_allow_seed_on_scale_discord"] is True
     assert resolved["flip_allow_seed_on_cal_discord"] is True
+    assert resolved["flip_cal_discord_margin"] == pytest.approx(0.03)
+    assert resolved["flip_require_pos_edge"] is True
+    assert resolved["flip_min_edge_execute"] == pytest.approx(0.04)
     soft_rec = settings["risk_management"]["soft_recovery"]
     assert int(soft_rec["amort_cycles_min"]) == 1
     assert int(soft_rec["amort_cycles_max"]) == 1

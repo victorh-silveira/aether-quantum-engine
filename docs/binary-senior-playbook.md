@@ -14,7 +14,7 @@ Hierarquia: TCN Cal/Margin → CALL/PUT (SCALE adapt) → soft `signal_skip` / l
 | PUT | TCN PUT, ou fita adapta para PUT |
 | SKIP tecnico | `training` / `data` / `deploy` / `predict_error`, warm-up, stop-win, broker |
 | Soft sinal 1.1 | `mini_pair_oppose` / `cal_margin` / loss-clf faixa media → soft Kelly; lado pos-LOSS permanece no TCN |
-| Flip loss-clf | `p_loss >= hard_p_loss_floor` (**0.90**) e `veto_ready` e **auto_learn** e SCALE nao confirma TCN → FLIP; seed/bootstrap → `FLIP_BLOCK` + soft |
+| Flip loss-clf | `p_loss >= hard_p_loss_floor` (**0.90**) e `veto_ready`; SCALE confirma TCN bloqueia (seed nao anula SCALE por Cal); Cal discord exige `|cal-0.5|>=0.03`; pos-FLIP edge < `min_edge_execute` → `FLIP_BLOCK:neg_edge` + soft; seed so com SCALE discord (ou Cal forte sem tape TCN) |
 | Chop soft | ADX &lt; **0.22** e (Hurst ∈ [**0.47**, **0.53**] ou SCALE micro=chop) → soft Kelly **0.55**; log `REGIME \|\| CHOP_SOFT` |
 | `majority_votes` | Mais votos PUT ou CALL (tape/mili/RSI vs TCN) → adapta lado |
 
@@ -35,7 +35,7 @@ Hierarquia: TCN Cal/Margin → CALL/PUT (SCALE adapt) → soft `signal_skip` / l
 | `mini_pair_oppose` | Par MINI unanime ≠ lado executado → **sempre** soft Kelly (`mini_pair_soft_kelly_mult` **0.55**); sem hard SKIP |
 | `cal_margin` | `direction_margin` &lt; `min_direction_margin` → soft Kelly; waive com pending material |
 | `loss_clf_soft` | Container loss-clf: atenua Kelly; log `LOSS_CLF \|\| SOFT` |
-| `loss_clf_flip` | `p_loss >= 0.90` + `veto_ready` + `auto_learn` + SCALE nao confirma TCN → FLIP; senao `FLIP_BLOCK` + soft |
+| `loss_clf_flip` | `p_loss >= 0.90` + `veto_ready` + waivers seed/scale + edge pos-FLIP ≥ floor → FLIP (`from→to`/`why` em `[GATES]`); senao `FLIP_BLOCK` (seed/scale/neg_edge) + soft |
 | `regime_chop` | ADX/Hurst (ou SCALE chop) → soft Kelly (`chop_soft_kelly_mult` **0.55**); log `REGIME \|\| CHOP_SOFT` |
 | `neg_edge` | Edge Cal do lado &lt; `min_edge_execute` → soft Kelly (`neg_edge_soft_kelly_mult` **0.55**); log `EDGE \|\| NEG_SOFT` |
 

@@ -21,6 +21,11 @@ def _soft_cfg(**overrides):
         "soft_p_loss_high": 0.85,
         "soft_max_stake_pct_high": 0.0025,
         "flip_require_auto_learn": True,
+        "flip_allow_seed_on_scale_discord": True,
+        "flip_allow_seed_on_cal_discord": True,
+        "flip_cal_discord_margin": 0.03,
+        "flip_require_pos_edge": False,
+        "flip_min_edge_execute": 0.04,
     }
     base.update(overrides)
     return base

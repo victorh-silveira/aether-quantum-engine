@@ -109,6 +109,10 @@ def test_resolve_and_enabled():
         resolve_loss_classifier_config({"soft_kelly_mult_high": 0.0})
     with pytest.raises(ValueError, match="soft_max_stake_pct_high"):
         resolve_loss_classifier_config({"soft_max_stake_pct_high": 0.06})
+    with pytest.raises(ValueError, match="flip_cal_discord_margin"):
+        resolve_loss_classifier_config({"flip_cal_discord_margin": 0.5})
+    with pytest.raises(ValueError, match="flip_min_edge_execute"):
+        resolve_loss_classifier_config({"flip_min_edge_execute": 0.9})
 
 
 @pytest.mark.asyncio

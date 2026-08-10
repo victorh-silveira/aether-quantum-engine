@@ -28,6 +28,16 @@ def _snap_f(snap: dict[str, Any], key: str, default: float = 0.0) -> float:
         return default
 
 
+def _gates_block_token(blocked: str) -> str:
+    """Normaliza razao de FLIP_BLOCK para telemetria curta."""
+    key = str(blocked or "").strip().lower()
+    if key in {"scale_consensus", "scale"}:
+        return "scale"
+    if key in {"neg_edge", "seed"}:
+        return key
+    return key or "na"
+
+
 def format_gates_audit_line(metrics: dict[str, Any]) -> str:
     """Compacta LOSS_CLF + CHOP + NEG_EDGE em uma linha [GATES]."""
     p_loss = _f(metrics, "loss_clf_p_loss", default=-1.0)
@@ -39,10 +49,15 @@ def format_gates_audit_line(metrics: dict[str, Any]) -> str:
     ver = str(metrics.get("loss_clf_model_version") or "-")
     veto_ready = 1 if metrics.get("loss_clf_veto_ready") else 0
     soft_mult = _f(metrics, "loss_clf_soft_kelly_mult", default=0.0)
+    ref = str(metrics.get("loss_clf_flip_ref") or "").strip().upper()
+    flip_side = str(metrics.get("exec_direction") or metrics.get("resolved_direction") or "").strip().upper()
+    why = str(metrics.get("loss_clf_flip_reason") or "").strip() or "ok"
     if flipped:
-        loss_tok = f"FLIP auto={auto_learn} p={p_loss:.5f} n={n_train}"
+        from_to = f"{ref}->{flip_side}" if ref and flip_side else flip_side or "-"
+        loss_tok = f"FLIP {from_to} why={why} auto={auto_learn} p={p_loss:.5f} n={n_train}"
     elif blocked:
-        loss_tok = f"FLIP_BLOCK:{blocked} auto={auto_learn} p={p_loss:.5f} soft={soft_mult:.2f}"
+        blk = _gates_block_token(blocked)
+        loss_tok = f"FLIP_BLOCK:{blk} auto={auto_learn} p={p_loss:.5f} soft={soft_mult:.2f}"
     elif soft and p_loss >= 0.0:
         loss_tok = f"SOFT auto={auto_learn} p={p_loss:.5f} mult={soft_mult:.2f} n={n_train}"
     elif p_loss >= 0.0:
@@ -59,9 +74,9 @@ def format_gates_audit_line(metrics: dict[str, Any]) -> str:
     edge = _f(metrics, "cal_side_edge", default=resolve_predicted_edge(metrics))
     floor = _f(metrics, "cal_side_edge_floor", default=0.0)
     waived = str(metrics.get("signal_skip_waived") or "")
-    side = str(metrics.get("exec_direction") or metrics.get("resolved_direction") or "-")
+    neg_side = str(metrics.get("exec_direction") or metrics.get("resolved_direction") or "-")
     if waived == "neg_edge_soft" or floor > 1e-12:
-        neg_tok = f"NEG_EDGE side={side} edge={edge:+.4f} floor={floor:.4f}"
+        neg_tok = f"NEG_EDGE side={neg_side} edge={edge:+.4f} floor={floor:.4f}"
     else:
         neg_tok = "NEG_EDGE off"
     skip = waived if waived else "-"

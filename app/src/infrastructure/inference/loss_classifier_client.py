@@ -46,6 +46,9 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
             "flip_require_auto_learn",
             "flip_allow_seed_on_scale_discord",
             "flip_allow_seed_on_cal_discord",
+            "flip_cal_discord_margin",
+            "flip_require_pos_edge",
+            "flip_min_edge_execute",
         ),
         "infra.loss_classifier",
     )
@@ -72,6 +75,12 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
     stake_pct = require_float(block, "soft_max_stake_pct_high")
     if stake_pct <= 0.0 or stake_pct > 0.05:
         raise ValueError("infra.loss_classifier.soft_max_stake_pct_high deve estar em (0, 0.05]")
+    cal_margin = require_float(block, "flip_cal_discord_margin")
+    if cal_margin < 0.0 or cal_margin > 0.2:
+        raise ValueError("infra.loss_classifier.flip_cal_discord_margin deve estar em [0, 0.2]")
+    min_edge = require_float(block, "flip_min_edge_execute")
+    if min_edge < 0.0 or min_edge > 0.5:
+        raise ValueError("infra.loss_classifier.flip_min_edge_execute deve estar em [0, 0.5]")
     return {
         "enabled": require_bool(block, "enabled"),
         "http_url": str(block["http_url"]).rstrip("/"),
@@ -94,6 +103,9 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
         "flip_require_auto_learn": require_bool(block, "flip_require_auto_learn"),
         "flip_allow_seed_on_scale_discord": require_bool(block, "flip_allow_seed_on_scale_discord"),
         "flip_allow_seed_on_cal_discord": require_bool(block, "flip_allow_seed_on_cal_discord"),
+        "flip_cal_discord_margin": cal_margin,
+        "flip_require_pos_edge": require_bool(block, "flip_require_pos_edge"),
+        "flip_min_edge_execute": min_edge,
     }
 
 
