@@ -2,7 +2,7 @@
 
 O LLM/Cursor e **copiloto de engenharia e auditoria**. Nao decide CALL/PUT em runtime. A decisao live permanece TCN + meta LightGBM + Kelly/caps; **escopo 1.1** + arquitetura continua R_10: catálogo `signal_skip` (`mini_pair_oppose` / `cal_margin` / chop = soft Kelly **0.55**); **neg_edge** = hard-skip (`gate_reason=neg_edge`) se Edge Cal do lado &lt; `min_edge_execute` (**mandato 2026-08-09**); loss-clf soft na faixa media; **FLIP** CALL↔PUT **relativo ao TCN** se `p_loss >= 0.90` e `veto_ready` (log `LOSS_CLF || FLIP`; seed bootstrap com **p_loss real**) — sem revenge sizing pos-LOSS e sem reabrir quality gate amplo (RSI/price_zone/SIDE_EQ block).
 
-SSOT operacional: [`config/settings.json`](../config/settings.json) — universo **`R_10`** (Volatility 10), contrato **2 m**, micro/MINI **120 s**, ciclo **60 s**. Metodologia: [`medallion.md`](medallion.md). Sample size: [`sample-size-lln.md`](sample-size-lln.md). Loss ML: [`infra-docker.md`](infra-docker.md) (`aether-loss-classifier`).
+SSOT operacional: [`config/settings.json`](../config/settings.json) — universo **`R_10`** (Volatility 10), contrato **2 m**, micro/MINI **120 s**, ciclo **120 s**. Metodologia: [`medallion.md`](medallion.md). Sample size: [`sample-size-lln.md`](sample-size-lln.md). Loss ML: [`infra-docker.md`](infra-docker.md) (`aether-loss-classifier`).
 
 ---
 

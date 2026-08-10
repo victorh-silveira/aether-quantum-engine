@@ -11,7 +11,7 @@ description: >-
 
 Ler `docs/binary-senior-playbook.md` e `docs/deriv-indices-algorithm.md`.
 
-Universo: **Volatility 10** (`R_10`) — **M2** (contrato **2 m**; ciclo **60 s**; micro/MINI **120 s**).
+Universo: **Volatility 10** (`R_10`) — **M2** (contrato **2 m**; ciclo **120 s**; micro/MINI **120 s**).
 
 ## Checklist (escopo 1.1)
 

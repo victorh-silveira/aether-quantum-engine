@@ -85,6 +85,73 @@ def test_apply_successful_symbol_train_deploy_warning(tmp_path):
     assert torch.load(ckpt, map_location="cpu", weights_only=False)["deploy_ok"] is False
 
 
+def test_apply_successful_symbol_train_preserves_export_when_disk_deployable(tmp_path):
+    ckpt = tmp_path / "R_10.pth"
+    torch.save(
+        {
+            "deploy_ok": True,
+            "val_accuracy": 0.556,
+            "val_brier": 0.24,
+            "label_call_frac": 0.44,
+            "pred_call_frac": 0.66,
+            "minority_recall": 0.38,
+        },
+        ckpt,
+    )
+    runtime = {"val_accuracy": 0.50, "val_brier": 0.27}
+    train_result = SimpleNamespace(
+        norm_stats=MagicMock(),
+        val_accuracy=0.50,
+        val_brier=0.27,
+        calibrator=None,
+        val_ece=0.1,
+        avg_loss=0.4,
+        epochs_ran=40,
+        oos_sharpness=0.05,
+        label_call_frac=0.49,
+        pred_call_frac=0.36,
+        minority_recall=0.65,
+    )
+    gate_cfg = {"enabled": True, "soft_min_val_accuracy": 0.53, "soft_max_brier": 0.26}
+    dl_config = {"model_path_template": "x/{symbol}.pth", "deploy_gate": gate_cfg}
+    orch = MagicMock()
+    with (
+        patch(
+            "src.application.services.deep_learning.dl_symbol_train_success.evaluate_mini_deploy",
+            return_value=(False, 0.5, 0.27),
+        ),
+        patch(
+            "src.application.services.deep_learning.dl_symbol_train_success.save_model_checkpoint",
+        ),
+        patch(
+            "src.application.services.deep_learning.dl_symbol_train_success.schedule_model_upload",
+        ),
+        patch(
+            "src.application.services.deep_learning.dl_symbol_train_success.resolve_dl_model_path",
+            return_value=ckpt,
+        ),
+    ):
+        apply_successful_symbol_train(
+            "R_10",
+            runtime,
+            train_result,
+            orch=orch,
+            model=MagicMock(),
+            prices=np.linspace(1.0, 2.0, 80),
+            norm_stats=train_result.norm_stats,
+            params={"lookback": 32, "arch": "tcn"},
+            dl_config=dl_config,
+            gate_cfg=gate_cfg,
+            candle_epoch_value=1,
+            granularity=120,
+            level=logging.INFO,
+            started=0.0,
+        )
+    assert runtime.get("checkpoint_preserved") is True
+    assert runtime.get("export_ok") is True
+    assert torch.load(ckpt, map_location="cpu", weights_only=False)["deploy_ok"] is True
+
+
 def test_demote_preserved_checkpoint_branches(tmp_path):
     from src.application.services.deep_learning.dl_symbol_train_success import _demote_preserved_checkpoint
 
@@ -96,6 +163,20 @@ def test_demote_preserved_checkpoint_branches(tmp_path):
     already = tmp_path / "already.pth"
     torch.save({"deploy_ok": False}, already)
     _demote_preserved_checkpoint(already)
+    keep = tmp_path / "keep.pth"
+    torch.save(
+        {
+            "deploy_ok": True,
+            "val_accuracy": 0.556,
+            "val_brier": 0.24,
+            "label_call_frac": 0.44,
+            "pred_call_frac": 0.66,
+            "minority_recall": 0.38,
+        },
+        keep,
+    )
+    _demote_preserved_checkpoint(keep)
+    assert torch.load(keep, map_location="cpu", weights_only=False)["deploy_ok"] is True
     with patch("torch.load", side_effect=RuntimeError("boom")):
         _demote_preserved_checkpoint(already)
 

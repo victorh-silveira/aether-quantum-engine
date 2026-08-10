@@ -6,7 +6,7 @@ alwaysApply: false
 
 # Orchestrator
 
-- Relogio: signature/ciclo **60 s**; micro **120** / macro **3600**; contrato Deriv **2 m** (`R_10`)
+- Relogio: signature/ciclo **120 s**; micro **120** / macro **3600**; contrato Deriv **2 m** (`R_10`)
 - Pipeline: warmup → train gate → collect → resolve → execute → settle → post_settlement
 - Lock serializa inferencia, liquidacao e persistencia — nao bypassar
 - `force_trade_every_cycle` permanece false; EXEC_EMPTY pode ser processo correto

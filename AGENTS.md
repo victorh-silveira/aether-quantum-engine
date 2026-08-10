@@ -12,7 +12,7 @@ Ponto de entrada para agentes Cursor/LLM neste repositorio.
 ## Universo operacional
 
 - Simbolo unico: **`R_10`** (Volatility 10 / Deriv) — **M2**
-- Relogio: contrato **2 m**; micro/MINI **120 s**; macro **3600 s**; ciclo **60 s**
+- Relogio: contrato **2 m**; micro/MINI **120 s**; macro **3600 s**; ciclo **120 s**
 - SSOT: `config/settings.json` + `app/src/domain/symbols/drift_symbols.py`
 - Artefactos/treino antigos (OTC_SPC/M15 ou gran 60/300/900) sao invalidos apos migracao para **R_10** M2
 

@@ -147,13 +147,13 @@ def test_meta_payoff_shadow_inverted_and_hard():
 
 def test_orchestrator_data_signature_bad_config():
     orch = SimpleNamespace(config="bad", symbols=[], stream=None)
-    assert resolve_signature_boundary_seconds(orch) == 60
+    assert resolve_signature_boundary_seconds(orch) == 120
     orch2 = SimpleNamespace(
         config={"orchestrator": {"signature_boundary_seconds": "bad", "cycle_interval_seconds": "x"}},
         symbols=[],
         stream=SimpleNamespace(micro_candles={}, macro_candles={}),
     )
-    assert resolve_signature_boundary_seconds(orch2) == 60
+    assert resolve_signature_boundary_seconds(orch2) == 120
     assert get_data_state_signature(orch2) == ""
 
 

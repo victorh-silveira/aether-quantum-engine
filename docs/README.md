@@ -50,7 +50,7 @@ Regra: **domain** não importa application nem infrastructure. **Application** o
 | DL | TCN, lookback **720**, micro **120 s**, macro **3600 s**, `FEATURE_DIM=34`, label `ma_trend`, tensor `[1, 720, 34]` |
 | Meta | LightGBM HTTP `:8005`, `META_FEATURE_DIM=43` (micro **120 s**); **opcional** para execução |
 | Relógio | Micro/MINI **120 s** + macro **3600 s**; contrato **2 m** (M2); assinatura legado `m5b:…;m5:…;m15:…` |
-| Ciclo / assinatura | `cycle_interval_seconds` / `signature_boundary_seconds` = **60 s** (entrada a cada 1 m; contrato **2 m**) |
+| Ciclo / assinatura | `cycle_interval_seconds` / `signature_boundary_seconds` = **120 s** (sync fecho M2; contrato **2 m**) |
 | Execução | **Mandatória** (`mandatory_trade_each_cycle: true`); `force_trade_every_cycle: false`; `price_zone` alinha BUY→CALL / SELL→PUT |
 | Fail-closed | Triton e meta **opcionais** nos settings atuais (`infra.triton.enabled/require_for_execution: false`; `require_meta_for_execution: false`) |
 | Calibração | `neutral_half_width: 0.0` (zona neutra **off**); thresholds CALL/PUT **0.51/0.49**; override TCN macro se raw &gt;0.65 ou &lt;0.35 |

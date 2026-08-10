@@ -143,9 +143,9 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert int(data["micro_fetch_count"]) == 2000
     assert int(data["mini_fetch_count"]) == 256
     orch = settings["orchestrator"]
-    assert int(orch["cycle_interval_seconds"]) == 60
-    assert int(orch["signature_boundary_seconds"]) == 60
-    assert int(orch["exec_empty_retry_seconds"]) == 60
+    assert int(orch["cycle_interval_seconds"]) == 120
+    assert int(orch["signature_boundary_seconds"]) == 120
+    assert int(orch["exec_empty_retry_seconds"]) == 120
     assert int(orch["settlement_tolerance_window_seconds"]) == 90
     assert int(orch["watchdog_stale_tick_seconds"]) == 300
     assert int(orch["post_settlement_is_trading_wait_seconds"]) == 90

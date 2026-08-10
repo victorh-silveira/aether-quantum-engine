@@ -2,7 +2,7 @@
 
 Postura operacional (**escopo 1.1** + arquitetura continua R_10): TCN resolve CALL/PUT; meta/edge/indicadores sao telemetria; SCALE adapta lado sem SKIP por escala. SKIP = tecnico (inclui **neg_edge** hard sob mandato **2026-08-09**); loss-clf alto = **FLIP** CALL↔PUT (`p_loss>=0.90`, `veto_ready`); catálogo soft `signal_skip` mini/cal/chop e loss-clf faixa media = soft Kelly (sem revenge sizing pos-LOSS).
 
-Universo: **Volatility 10** (`R_10`) — **M2** (contrato **2 m**, ciclo **60 s**, micro/MINI **120 s**, macro **3600 s**).
+Universo: **Volatility 10** (`R_10`) — **M2** (contrato **2 m**, ciclo **120 s**, micro/MINI **120 s**, macro **3600 s**).
 
 Hierarquia: TCN Cal/Margin → CALL/PUT (SCALE adapt) → soft `signal_skip` / loss-clf soft → loss-clf **FLIP** / chop soft → **neg_edge hard** → Kelly/caps. **Proibido** reabrir quality gate amplo (RSI/price_zone/SIDE_EQ block).
 

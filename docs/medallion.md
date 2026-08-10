@@ -14,7 +14,7 @@ Doutrina do copiloto LLM/Cursor (9 livros → constraints de engenharia): [`llm-
 |-----------|----------------|
 | Sinais, não histórias | Direção CALL/PUT estritamente pela TCN (`P(CALL) > P(PUT)`) |
 | Horizonte curto | Contexto DL **3600 s**; ciclo/micro OHLC **120 s** (M2); contrato RISE_FALL **2 m**; proporção multi-timeframe **1:30** (120:3600); label `ma_trend` (1 barra micro = 120 s) |
-| Acoplamento temporal | Inferências e rotações seguem `signature_boundary_seconds` (fallback `cycle_interval_seconds`, padrão **60 s**); fronteira `m5_boundary_epoch` (nome legado) |
+| Acoplamento temporal | Inferências e rotações seguem `signature_boundary_seconds` (fallback `cycle_interval_seconds`, padrão **120 s**); fronteira `m5_boundary_epoch` (nome legado) |
 | Esteira mandatária | `mandatory_trade_each_cycle: true` (sem vetos de sinal/qualidade no codigo) |
 | Force trade | `force_trade_every_cycle: false` — sem síntese forçada de candidato |
 | Modelo pronto antes de operar | `FASE TREINO` suspende ordens até treino da sessão |
@@ -122,7 +122,7 @@ Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `
 
 ## 3. Blindagem multi-timeframe
 
-**Invariante 1:30:** o relógio operacional micro (`data_handler.micro_granularity` = **120 s**) e o contexto macro DL (`data_handler.granularity` = **3600 s**) mantêm proporção **1:30**. Cada bloco macro cobre exatamente trinta fronteiras micro; a assinatura `m5b:{boundary};m5:{sym}@{epoch};m15:...` (prefixos **legados**) e `seconds_until_next_signature_boundary` ancoram espera e invalidação de cache na cadência de ciclo **60 s** (micro **120 s**). Contrato Deriv **2 m** (alinhado à barra M2).
+**Invariante 1:30:** o relógio operacional micro (`data_handler.micro_granularity` = **120 s**) e o contexto macro DL (`data_handler.granularity` = **3600 s**) mantêm proporção **1:30**. Cada bloco macro cobre exatamente trinta fronteiras micro; a assinatura `m5b:{boundary};m5:{sym}@{epoch};m15:...` (prefixos **legados**) e `seconds_until_next_signature_boundary` ancoram espera e invalidação de cache na cadência de ciclo **120 s** (sync com micro **120 s**). Contrato Deriv **2 m** (alinhado à barra M2).
 
 | Camada | Timeframe | Papel |
 |--------|-----------|-------|

@@ -93,7 +93,7 @@ def test_metric_float_skips_invalid_then_uses_default_in_cluster():
         }
     }
     line = format_cluster_audit_line(decisions, timeframe="M5")
-    assert "R_10: PUT (Prob: 0.50000 Cal: 0.50000 Margin: 0.000 Edge: +0.000" in line
+    assert "R_10: PUT (Prob: 0.50000 p_call: 0.50000 p_put: 0.50000 Margin: 0.000 Edge: +0.000" in line
     assert "raw_edge:" in line and "be=0.581" in line
 
 
@@ -152,7 +152,7 @@ def test_format_cluster_audit_line():
     }
     line = format_cluster_audit_line(decisions, timeframe="M5")
     assert line.startswith("[CLUSTER] || M5 || ")
-    assert "R_10: PUT (Prob: 0.62300 Cal: 0.63500 Margin: 0.135 Edge: +0.092" in line
+    assert "R_10: PUT (Prob: 0.62300 p_call: 0.36500 p_put: 0.63500 Margin: 0.135 Edge: +0.092" in line
     assert "raw_edge:" in line and "be=0.581" in line
     assert "R_50: CALL (Prob:" in line and "NEUTRO_SKIP)" in line
 

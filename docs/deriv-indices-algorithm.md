@@ -14,7 +14,7 @@ Referencia: [dTrader R_10 M2](https://dtrader.deriv.com/?chart_type=candle&inter
 | Contrato | `RISE_FALL` **2 m** (`duration=2`, `duration_unit=m`) |
 | Micro / MINI OHLC | **120 s** (M2) |
 | Macro OHLC | **3600 s** (1:30) |
-| Ciclo / assinatura | **60 s** (entrada a cada 1 m; contrato permanece **2 m**) |
+| Ciclo / assinatura | **120 s** (alinhado ao fecho da vela M2; contrato **2 m**) |
 | Lookback TCN | **720** barras micro |
 | Payout SSOT | **0.72** (live R_10 M2; cover = `pending/0.72`) |
 | Settle wait / tolerancia | poll **0.5 s** / **300 s**; timeout pos-ciclo **1200 s** |

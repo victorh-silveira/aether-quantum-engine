@@ -20,7 +20,7 @@ def test_format_gates_audit_line():
     line = format_gates_audit_line(metrics)
     assert line.startswith("[GATES] || LOSS_CLF: SOFT")
     assert "CHOP adx=" in line
-    assert "NEG_EDGE soft side=CALL" in line
+    assert "\n[GATES] || NEG_EDGE soft side=CALL" in line
     hard_neg = format_gates_audit_line(
         {
             "gate_reason": "neg_edge",
@@ -38,6 +38,7 @@ def test_format_gates_audit_line():
     assert "raw_edge=" in hard_neg
     assert "be=0.581" in hard_neg
     assert "skip=neg_edge" in hard_neg
+    assert hard_neg.count("[GATES]") == 2
     soft_gap = format_gates_audit_line(
         {
             "cal_side_edge": -0.09,

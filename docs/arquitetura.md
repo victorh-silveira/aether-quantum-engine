@@ -16,7 +16,7 @@ Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (TCN,
 | Features TCN | **34** (`FEATURE_DIM` em `dl_feature_build.py`) |
 | Features meta GBDT | **43** (`META_FEATURE_DIM` = 34 + 4 micro-vol + 3 cross + 2 flow) |
 | Contrato | `RISE_FALL`, duração **2 m** (M2; alinhado ao micro **120 s**) |
-| Ciclo | **60 s** (`cycle_interval_seconds` / `signature_boundary_seconds`) |
+| Ciclo | **120 s** (`cycle_interval_seconds` / `signature_boundary_seconds`; sync M2) |
 | Execução | **Mandatória** (`mandatory_trade_each_cycle: true`; `force` off) + alinhamento `price_zone` |
 | Fail-closed | Meta e Triton **opcionais** nos settings atuais (`require_meta_for_execution: false`; `infra.triton.enabled/require_for_execution: false`) |
 | Label | `label_mode: spot_forward` (`ma_trend` / Triple Barrier via config) |
@@ -24,7 +24,7 @@ Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (TCN,
 
 O mercado é tratado como série temporal ruidosa: a TCN estima `P(CALL)` (thresholds **0.51/0.49**); o meta-regressor LightGBM estima `predicted_payoff_edge`; o ranking usa `tcn × max(0.1, 1+z)`. Com `price_zone`, BUY alinha CALL e SELL alinha PUT; edge meta positivo pode **manter** o lado TCN/meta contra a zona (`align_or_keep_meta_side`).
 
-**Invariante temporal:** inferências seguem `signature_boundary_seconds` (fallback `cycle_interval_seconds`, padrão **60 s**) via `get_data_state_signature()` — formato legado `m5`/`m15` alinhado a 900 s / 3600 s (M15).
+**Invariante temporal:** inferências seguem `signature_boundary_seconds` (fallback `cycle_interval_seconds`, padrão **120 s**) via `get_data_state_signature()` — formato legado `m5`/`m15` alinhado a 900 s / 3600 s (M15).
 
 **Válvula de starvation:** após **6** ciclos consecutivos bloqueados pelo quality gate, pisos de margem/edge/Z são atenuados (`execution_quality_gate_starvation.py`). O piso de edge meta relaxa a partir de **8** skips (`edge_decay_cycles`) até `edge_decay_floor: 0.0` (passo `0.08`). Em skips extremos (≥30), a válvula GBDT mitiga veto tabular prolongado.
 

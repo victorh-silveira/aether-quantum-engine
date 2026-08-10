@@ -344,8 +344,8 @@
     "orchestrator": {
         "api_maintenance_fallback_seconds": 90.0,
         "broker_handshake_timeout_seconds": 90.0,
-        "cycle_interval_seconds": 60,
-        "exec_empty_retry_seconds": 60,
+        "cycle_interval_seconds": 120,
+        "exec_empty_retry_seconds": 120,
         "execution": {
             "bb_width_adaptive_squeeze": {
                 "anomaly_ratio": 0.35,
@@ -623,7 +623,7 @@
         "settlement_backoff_initial_seconds": 1.0,
         "settlement_backoff_max_seconds": 30.0,
         "settlement_tolerance_window_seconds": 90,
-        "signature_boundary_seconds": 60,
+        "signature_boundary_seconds": 120,
         "state_lock_acquire_timeout_seconds": 8.0,
         "stream_warm_up_delay_seconds": 0,
         "warm_up_live_data_timeout_seconds": 45.0,

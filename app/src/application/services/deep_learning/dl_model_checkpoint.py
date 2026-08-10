@@ -13,6 +13,7 @@ from src.application.services.deep_learning.dl_calibration import (
     calibrator_to_dict,
 )
 from src.application.services.deep_learning.dl_features import FEATURE_DIM
+from src.application.services.deep_learning.dl_gate_config import parse_deploy_gate_config, resolve_deploy_ok
 from src.application.services.deep_learning.dl_model_factory import create_direction_model
 from src.application.services.deep_learning.dl_model_types import CHECKPOINT_VERSION, DEFAULT_ARCH, FeatureNormStats
 
@@ -20,8 +21,13 @@ from src.application.services.deep_learning.dl_model_types import CHECKPOINT_VER
 logger = logging.getLogger("AETH")
 
 
-def should_replace_checkpoint(path: Path, *, deploy_ok: bool) -> bool:
-    """Evita sobrescrever checkpoint deploy_ok=true com treino rejeitado."""
+def should_replace_checkpoint(
+    path: Path,
+    *,
+    deploy_ok: bool,
+    val_accuracy: float | None = None,
+) -> bool:
+    """Evita sobrescrever ckpt deploy_ok ou com ACC melhor por treino rejeitado."""
     if bool(deploy_ok):
         return True
     if not path.exists():
@@ -33,7 +39,39 @@ def should_replace_checkpoint(path: Path, *, deploy_ok: bool) -> bool:
         return True
     if not isinstance(payload, dict):
         return True
-    return not bool(payload.get("deploy_ok", False))
+    if bool(payload.get("deploy_ok", False)):
+        return False
+    if val_accuracy is None:
+        return True
+    old_acc = float(payload.get("val_accuracy", 0.0) or 0.0)
+    return float(val_accuracy) > old_acc + 1e-9
+
+
+def checkpoint_meta_ready(path: Path) -> bool:
+    """True se o arquivo em disco permite seguir para meta (deploy_ok ou soft gate)."""
+    try:
+        if not path.is_file():
+            return False
+        payload = torch.load(path, map_location="cpu", weights_only=True)
+    except Exception as exc:
+        logger.debug("DL: falha ao avaliar meta-ready %s: %s", path, exc)
+        return False
+    if not isinstance(payload, dict):
+        return False
+    if bool(payload.get("deploy_ok", False)):
+        return True
+    gate_cfg = parse_deploy_gate_config({})
+    return bool(
+        resolve_deploy_ok(
+            mini_ok=False,
+            val_accuracy=float(payload.get("val_accuracy", 0.0) or 0.0),
+            val_brier=float(payload.get("val_brier", 1.0) or 1.0),
+            gate_cfg=gate_cfg,
+            label_call_frac=payload.get("label_call_frac"),
+            pred_call_frac=payload.get("pred_call_frac"),
+            minority_recall=payload.get("minority_recall"),
+        )
+    )
 
 
 def _scripted_path(path: Path) -> Path:

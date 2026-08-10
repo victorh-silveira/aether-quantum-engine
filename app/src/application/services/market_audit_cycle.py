@@ -41,7 +41,7 @@ def _gates_block_token(blocked: str) -> str:
 
 
 def format_gates_audit_line(metrics: dict[str, Any]) -> str:
-    """Compacta LOSS_CLF + CHOP + NEG_EDGE em uma linha [GATES]."""
+    """Compacta LOSS_CLF+CHOP e NEG_EDGE em duas linhas [GATES]."""
     p_loss = _f(metrics, "loss_clf_p_loss", default=-1.0)
     soft = bool(metrics.get("loss_clf_soft"))
     flipped = bool(metrics.get("loss_clf_flip"))
@@ -92,7 +92,7 @@ def format_gates_audit_line(metrics: dict[str, Any]) -> str:
     else:
         neg_tok = "NEG_EDGE off"
         skip = waived if waived else "-"
-    return f"[GATES] || LOSS_CLF: {loss_tok} | {chop_tok} | {neg_tok} | skip={skip}"
+    return f"[GATES] || LOSS_CLF: {loss_tok} | {chop_tok}\n[GATES] || {neg_tok} | skip={skip}"
 
 
 def format_indicators_audit_line(cycle_id: int, symbol: str, metrics: dict[str, Any]) -> str:

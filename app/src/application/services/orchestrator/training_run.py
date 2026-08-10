@@ -31,6 +31,6 @@ async def run_orchestrator_training(orch) -> bool:
     if session_ok:
         orch.logger.info("DL | sessao de treino finalizada")
     else:
-        orch.logger.error("DL | sessao de treino FALHOU — checkpoint antigo nao deve ser usado")
+        orch.logger.error("DL | sessao de treino FALHOU — sem checkpoint deployavel para meta")
     await orch.stop()
     return bool(session_ok)

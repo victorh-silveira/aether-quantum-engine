@@ -21,11 +21,14 @@ def test_log_execution_decision_direct():
         },
     )
     log_execution_decision(exec_mgr, "C0001", best, [best], 0.55)
-    assert exec_mgr.logger.info.call_count >= 2
+    assert exec_mgr.logger.info.call_count >= 3
     first = exec_mgr.logger.info.call_args_list[0].args[1]
     second = exec_mgr.logger.info.call_args_list[1].args[1]
-    assert first.startswith("[GATES] ||")
-    assert second.startswith("[IND] ||")
+    third = exec_mgr.logger.info.call_args_list[2].args[1]
+    assert first.startswith("[GATES] || LOSS_CLF:")
+    assert second.startswith("[GATES] ||")
+    assert "NEG_EDGE" in second or "skip=" in second
+    assert third.startswith("[IND] ||")
 
 
 def test_log_execution_decision_uses_cycle_fallback_when_cid_invalid():
@@ -42,9 +45,9 @@ def test_log_execution_decision_uses_cycle_fallback_when_cid_invalid():
         },
     )
     log_execution_decision(exec_mgr, "Cbad", best, [best], 0.61)
-    assert exec_mgr.logger.info.call_count >= 2
-    second = exec_mgr.logger.info.call_args_list[1].args[1]
-    assert second.startswith("[IND] ||")
+    assert exec_mgr.logger.info.call_count >= 3
+    third = exec_mgr.logger.info.call_args_list[2].args[1]
+    assert third.startswith("[IND] ||")
 
 
 def test_collect_cluster_orders_covers_logging():

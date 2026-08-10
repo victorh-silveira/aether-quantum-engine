@@ -1,7 +1,7 @@
 ---
 name: aether-cycle-debug
 description: >-
-  Depura ciclo do orquestrador Aether (warmup, signature 60s, training gate,
+  Depura ciclo do orquestrador Aether (warmup, signature 120s, training gate,
   EXEC_EMPTY sistemico, watchdog). Use when the cycle stalls, no trades fire,
   warmup hangs, or signature/boundary issues appear in logs.
 ---

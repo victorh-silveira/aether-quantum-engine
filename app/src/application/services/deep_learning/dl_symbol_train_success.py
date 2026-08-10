@@ -10,10 +10,17 @@ import torch
 from src.application.services.deep_learning.dl_calibration import CalibratorState
 from src.application.services.deep_learning.dl_deploy import apply_deploy_to_runtime
 from src.application.services.deep_learning.dl_deploy_eval import evaluate_mini_deploy
-from src.application.services.deep_learning.dl_gate_config import describe_deploy_block, resolve_deploy_ok
+from src.application.services.deep_learning.dl_gate_config import (
+    describe_deploy_block,
+    parse_deploy_gate_config,
+    resolve_deploy_ok,
+)
 from src.application.services.deep_learning.dl_horizon import contract_duration_seconds
 from src.application.services.deep_learning.dl_model_artifacts import schedule_model_upload
-from src.application.services.deep_learning.dl_model_checkpoint import should_replace_checkpoint
+from src.application.services.deep_learning.dl_model_checkpoint import (
+    checkpoint_meta_ready,
+    should_replace_checkpoint,
+)
 from src.application.services.deep_learning.dl_retrain import clear_force_retrain, reset_bars_since_train
 from src.application.services.deep_learning.dl_sharpness import (
     assert_export_sharpness_value,
@@ -28,7 +35,7 @@ logger = logging.getLogger("AETH")
 
 
 def _demote_preserved_checkpoint(path: Path) -> None:
-    """Marca deploy_ok=false no ckpt preservado apos rejeicao do treino novo."""
+    """Rebaixa deploy_ok so se o ckpt preservado falhar o soft gate local."""
     try:
         if not path.is_file():
             return
@@ -36,6 +43,22 @@ def _demote_preserved_checkpoint(path: Path) -> None:
         if not isinstance(payload, dict):
             return
         if payload.get("deploy_ok") is False:
+            return
+        gate_cfg = parse_deploy_gate_config({})
+        still_ok = resolve_deploy_ok(
+            mini_ok=False,
+            val_accuracy=float(payload.get("val_accuracy", 0.0) or 0.0),
+            val_brier=float(payload.get("val_brier", 1.0) or 1.0),
+            gate_cfg=gate_cfg,
+            label_call_frac=payload.get("label_call_frac"),
+            pred_call_frac=payload.get("pred_call_frac"),
+            minority_recall=payload.get("minority_recall"),
+        )
+        if still_ok:
+            logger.info(
+                "DL TREINO | checkpoint %s preservado deploy_ok=true (metricas locais ok)",
+                path.name,
+            )
             return
         payload["deploy_ok"] = False
         torch.save(payload, path)
@@ -157,7 +180,11 @@ def apply_successful_symbol_train(
     runtime["pred_call_frac"] = float(getattr(train_result, "pred_call_frac", 0.5))
     runtime["minority_recall"] = float(getattr(train_result, "minority_recall", 1.0))
     path = Path(resolve_dl_model_path(dl_config, symbol))
-    persist = should_replace_checkpoint(path, deploy_ok=bool(runtime.get("deploy_ok", False)))
+    persist = should_replace_checkpoint(
+        path,
+        deploy_ok=bool(runtime.get("deploy_ok", False)),
+        val_accuracy=float(runtime.get("val_accuracy", 0.0) or 0.0),
+    )
     if persist:
         save_model_checkpoint(
             path,
@@ -201,14 +228,24 @@ def apply_successful_symbol_train(
             minority_recall=float(getattr(train_result, "minority_recall", 1.0)),
         )
         logger.warning(
-            "DL TREINO | %s | novo treino rejeitado (%s); checkpoint anterior preservado — export_ok=false (meta abortado)",
+            "DL TREINO | %s | novo treino rejeitado (%s); checkpoint anterior preservado",
             symbol,
             reason,
         )
         runtime["session_trained"] = False
-        runtime["export_ok"] = False
         runtime["checkpoint_preserved"] = True
         _demote_preserved_checkpoint(path)
+        runtime["export_ok"] = checkpoint_meta_ready(path)
+        if runtime["export_ok"]:
+            logger.info(
+                "DL TREINO | %s | meta liberada com checkpoint preservado (deployavel em disco)",
+                symbol,
+            )
+        else:
+            logger.error(
+                "DL TREINO | %s | sem checkpoint deployavel — meta abortado",
+                symbol,
+            )
     clear_force_retrain(orch, symbol)
     reset_bars_since_train(orch, symbol)
     live_snap = live_signal_snapshot(orch, symbol) if orch is not None else {"live_wr": 0.0, "live_n": 0}

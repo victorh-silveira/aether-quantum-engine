@@ -89,7 +89,9 @@ def cluster_symbol_token(symbol: str | None, entry: dict[str, Any] | None = None
         direction = "CALL" if cal_p + 1e-12 >= 0.5 else "PUT"
     is_put = direction == "PUT"
     raw_display = 1.0 - raw_p if is_put else raw_p
-    cal_display = 1.0 - cal_p if is_put else cal_p
+    cal_call = _safe_float(metrics.get("calibrated_call_prob"), cal_p)
+    cal_put = _safe_float(metrics.get("calibrated_put_prob"), 1.0 - cal_p)
+    dual_cal = f"p_call: {cal_call:.5f} p_put: {cal_put:.5f}"
     display_edge = resolve_predicted_edge(metrics, direction=direction)
     raw_edge = resolve_raw_predicted_edge(metrics, direction=direction)
     be = resolve_edge_breakeven_p()
@@ -98,12 +100,12 @@ def cluster_symbol_token(symbol: str | None, entry: dict[str, Any] | None = None
         gate = str(metrics.get("gate_reason") or "").strip().lower()
         if gate == "neg_edge" or "NEG_EDGE" in str(skip).upper():
             return (
-                f"{sym}: {direction} (Prob: {raw_display:.5f} Cal: {cal_display:.5f} "
+                f"{sym}: {direction} (Prob: {raw_display:.5f} {dual_cal} "
                 f"Edge: {display_edge:+.3f} raw_edge: {raw_edge:+.3f} be={be:.3f} | {skip})"
             )
-        return f"{sym}: {direction} (Prob: {raw_display:.5f} Cal: {cal_display:.5f} | {skip})"
+        return f"{sym}: {direction} (Prob: {raw_display:.5f} {dual_cal} | {skip})"
     return (
-        f"{sym}: {direction} (Prob: {raw_display:.5f} Cal: {cal_display:.5f} "
+        f"{sym}: {direction} (Prob: {raw_display:.5f} {dual_cal} "
         f"Margin: {margin:.3f} Edge: {display_edge:+.3f} "
         f"raw_edge: {raw_edge:+.3f} be={be:.3f})"
     )

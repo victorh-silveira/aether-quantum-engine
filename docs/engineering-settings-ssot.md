@@ -46,7 +46,7 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `params.duration` | `risk_management.params` | Contrato RISE_FALL **2 m** (`duration_unit: m`) — universo `R_10` M2 |
 | `data_handler.micro_granularity` / `granularity` | `data_handler` | Micro/MINI **120** / macro **3600** (M2) |
 | `deep_learning.lookback` | `deep_learning` | **720** barras micro @ **120 s** |
-| `orchestrator.cycle_interval_seconds` / `signature_boundary_seconds` | `orchestrator` | **60 s** (entrada a cada 1 m; nao espera fronteira M2); `exec_empty_retry` **60 s** |
+| `orchestrator.cycle_interval_seconds` / `signature_boundary_seconds` | `orchestrator` | **120 s** (alinhado ao fecho da vela M2 / contrato 2 m); `exec_empty_retry` **120 s** |
 | `orchestrator.settlement_tolerance_window_seconds` | `orchestrator` | **300** (contrato 2 m) |
 | `orchestrator.watchdog_stale_tick_seconds` | `orchestrator` | **600** |
 | `tcn_macro_call_override` / `tcn_macro_put_override` | `deep_learning.calibration` | limiar de **raw** para modo `raw_extreme`; Cal nao e substituido |

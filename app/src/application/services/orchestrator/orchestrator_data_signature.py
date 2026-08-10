@@ -6,7 +6,7 @@ import time
 from typing import Any
 
 
-DEFAULT_SIGNATURE_BOUNDARY_SECONDS = 60
+DEFAULT_SIGNATURE_BOUNDARY_SECONDS = 120
 
 __all__ = [
     "at_signature_boundary",
@@ -35,7 +35,7 @@ def _orchestrator_cfg(orch: Any) -> dict:
 
 
 def resolve_signature_boundary_seconds(orch: Any) -> int:
-    """Le fronteira de assinatura em segundos (padrao M5 = 300s)."""
+    """Le fronteira de assinatura em segundos (padrao M2 = 120s)."""
     orchestrator = _orchestrator_cfg(orch)
     if not orchestrator:
         return DEFAULT_SIGNATURE_BOUNDARY_SECONDS
