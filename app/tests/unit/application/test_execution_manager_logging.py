@@ -96,7 +96,7 @@ async def test_execute_cluster_logs_exec_pause_on_stop_win(orch_config):
         decisions = {
             "R_10": {
                 "direction": TradeDirection.PUT,
-                "metrics": asymmetric_gate_safe_metrics(conviction=0.7, execute=True),
+                "metrics": bear_put_metrics(conviction=0.7, execute=True),
             },
         }
         with (
@@ -173,7 +173,7 @@ async def test_execute_cluster_runs_with_dl_decisions(orch_config):
         decisions = {
             "R_10": {
                 "direction": TradeDirection.PUT,
-                "metrics": asymmetric_gate_safe_metrics(conviction=0.7, execute=True),
+                "metrics": bear_put_metrics(conviction=0.7, execute=True),
             },
         }
         with patch.object(orch.executor, "_execute_orders", new_callable=AsyncMock, return_value=0) as mock_exec:
