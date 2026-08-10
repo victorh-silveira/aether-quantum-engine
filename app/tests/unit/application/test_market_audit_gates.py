@@ -64,6 +64,26 @@ def test_format_gates_audit_line():
         }
     )
     assert "NEG_EDGE candle side=PUT" in candle_gap
+    p_ovr_gap = format_gates_audit_line(
+        {
+            "cal_side_edge": -0.08,
+            "cal_side_edge_floor": 0.04,
+            "signal_skip_waived": "neg_edge_soft",
+            "neg_edge_p_ovr_soft": True,
+            "exec_direction": "PUT",
+            "loss_clf_p_loss": -1.0,
+        }
+    )
+    assert "NEG_EDGE p_ovr side=PUT" in p_ovr_gap
+    tcn_block = format_gates_audit_line(
+        {
+            "loss_clf_flip_blocked": "tcn_pos_edge",
+            "loss_clf_p_loss": 0.95,
+            "loss_clf_soft_kelly_mult": 0.4,
+            "loss_clf_auto_learn": False,
+        }
+    )
+    assert "FLIP_BLOCK:tcn_edge" in tcn_block
     flip_line = format_gates_audit_line(
         {
             "loss_clf_flip": True,

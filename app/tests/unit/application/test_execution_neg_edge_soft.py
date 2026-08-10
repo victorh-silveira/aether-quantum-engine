@@ -1,0 +1,77 @@
+"""Soft neg_edge: candle-agree, piso de profundidade e p_ovr."""
+
+from __future__ import annotations
+
+from unittest.mock import MagicMock
+
+import pytest
+
+from src.application.services.execution_neg_edge import apply_negative_cal_edge_pause
+from src.application.services.execution_signal_skip import metrics_block_execution, parse_signal_skip_config
+
+
+def test_parse_signal_skip_rejects_soft_min_edge():
+    with pytest.raises(ValueError, match="neg_edge_soft_min_edge"):
+        parse_signal_skip_config({"neg_edge_soft_min_edge": 0.1})
+
+
+def _orch_skip(**overrides):
+    block = {
+        "neg_edge_soft_kelly_mult": 0.55,
+        "neg_edge_hard_skip": True,
+        "neg_edge_soft_when_closed_candle_agree": True,
+        "neg_edge_soft_min_edge": -0.12,
+    }
+    block.update(overrides)
+    orch = MagicMock()
+    orch.config = {
+        "deep_learning": {"min_edge_execute": 0.04},
+        "risk_management": {"params": {"payout_estimate": 0.72}},
+        "orchestrator": {"execution": {"signal_skip": block}},
+    }
+    orch._log_dedupe = {}
+    return orch
+
+
+def test_neg_edge_soft_when_side_agrees_closed_candle():
+    metrics = {
+        "execution_candidate_ready": True,
+        "exec_direction": "CALL",
+        "calibrated_prob": 0.55,
+        "kelly_fraction_scale": 1.0,
+        "closed_micro_candle_dir": "CALL",
+    }
+    assert apply_negative_cal_edge_pause(metrics, orch=_orch_skip()) is True
+    assert metrics.get("gate_reason") != "neg_edge"
+    assert metrics.get("neg_edge_candle_soft") is True
+    assert metrics["kelly_fraction_scale"] == pytest.approx(0.55)
+    assert metrics_block_execution(metrics) is False
+
+
+def test_neg_edge_hard_when_candle_agree_but_edge_too_deep():
+    metrics = {
+        "execution_candidate_ready": True,
+        "exec_direction": "CALL",
+        "calibrated_prob": 0.36,
+        "kelly_fraction_scale": 1.0,
+        "closed_micro_candle_dir": "CALL",
+    }
+    assert apply_negative_cal_edge_pause(metrics, orch=_orch_skip()) is True
+    assert metrics.get("gate_reason") == "neg_edge"
+    assert metrics_block_execution(metrics) is True
+
+
+def test_neg_edge_soft_when_loss_clf_p_ovr_flip():
+    metrics = {
+        "execution_candidate_ready": True,
+        "exec_direction": "PUT",
+        "calibrated_prob": 0.47,
+        "kelly_fraction_scale": 1.0,
+        "closed_micro_candle_dir": "CALL",
+        "loss_clf_flip": True,
+        "loss_clf_flip_scale_p_override": True,
+    }
+    assert apply_negative_cal_edge_pause(metrics, orch=_orch_skip()) is True
+    assert metrics.get("gate_reason") != "neg_edge"
+    assert metrics.get("neg_edge_p_ovr_soft") is True
+    assert metrics_block_execution(metrics) is False

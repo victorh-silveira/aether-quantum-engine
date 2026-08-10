@@ -113,6 +113,12 @@ def test_resolve_and_enabled():
         resolve_loss_classifier_config({"flip_cal_discord_margin": 0.5})
     with pytest.raises(ValueError, match="flip_min_edge_execute"):
         resolve_loss_classifier_config({"flip_min_edge_execute": 0.9})
+    with pytest.raises(ValueError, match="flip_candle_p_loss_floor"):
+        resolve_loss_classifier_config({"flip_candle_p_loss_floor": 0.50})
+    with pytest.raises(ValueError, match="flip_waive_scale_above_p_loss"):
+        resolve_loss_classifier_config({"flip_waive_scale_above_p_loss": 0.80})
+    with pytest.raises(ValueError, match="flip_waive_edge_min"):
+        resolve_loss_classifier_config({"flip_waive_edge_min": 0.05})
 
 
 @pytest.mark.asyncio

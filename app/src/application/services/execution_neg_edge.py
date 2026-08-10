@@ -19,16 +19,25 @@ def parse_neg_edge_soft_config(raw: dict[str, Any] | None = None) -> dict[str, A
     block = merge_settings_block(("orchestrator", "execution", "signal_skip"), raw)
     require_keys(
         block,
-        ("neg_edge_soft_kelly_mult", "neg_edge_hard_skip", "neg_edge_soft_when_closed_candle_agree"),
+        (
+            "neg_edge_soft_kelly_mult",
+            "neg_edge_hard_skip",
+            "neg_edge_soft_when_closed_candle_agree",
+            "neg_edge_soft_min_edge",
+        ),
         "orchestrator.execution.signal_skip",
     )
     soft_mult = require_float(block, "neg_edge_soft_kelly_mult")
     if soft_mult <= 0.0 or soft_mult > 1.0:
         raise ValueError("orchestrator.execution.signal_skip.neg_edge_soft_kelly_mult deve estar em (0, 1]")
+    soft_min = require_float(block, "neg_edge_soft_min_edge")
+    if soft_min > 0.0 or soft_min < -1.0:
+        raise ValueError("orchestrator.execution.signal_skip.neg_edge_soft_min_edge deve estar em [-1, 0]")
     return {
         "neg_edge_soft_kelly_mult": soft_mult,
         "neg_edge_hard_skip": require_bool(block, "neg_edge_hard_skip"),
         "neg_edge_soft_when_closed_candle_agree": require_bool(block, "neg_edge_soft_when_closed_candle_agree"),
+        "neg_edge_soft_min_edge": soft_min,
     }
 
 
@@ -97,6 +106,8 @@ def _apply_neg_edge_hard(metrics: dict[str, Any], *, direction: str, edge: float
     metrics["signal_status"] = "SKIP:NEG_EDGE"
     metrics.pop("neg_edge_soft", None)
     metrics.pop("neg_edge_soft_kelly_mult", None)
+    metrics.pop("neg_edge_candle_soft", None)
+    metrics.pop("neg_edge_p_ovr_soft", None)
     if str(metrics.get("signal_skip_waived") or "") == "neg_edge_soft":
         metrics.pop("signal_skip_waived", None)
     metrics.pop("neg_edge_pause", None)
@@ -139,13 +150,21 @@ def apply_negative_cal_edge_pause(
     candle_agree = False
     if bool(cfg.get("neg_edge_soft_when_closed_candle_agree", False)):
         candle_agree = closed_micro_candle_side(metrics) == direction
-    if bool(cfg["neg_edge_hard_skip"]) and not candle_agree:
+    p_ovr_flip = bool(metrics.get("loss_clf_flip")) and (
+        bool(metrics.get("loss_clf_flip_scale_p_override")) or bool(metrics.get("loss_clf_flip_seed_p_override"))
+    )
+    soft_min = float(cfg.get("neg_edge_soft_min_edge", -1.0))
+    soft_too_deep = edge + 1e-12 < soft_min
+    allow_soft = (candle_agree or p_ovr_flip) and not soft_too_deep
+    if bool(cfg["neg_edge_hard_skip"]) and not allow_soft:
         _apply_neg_edge_hard(metrics, direction=direction, edge=edge, floor=floor)
         return True
     mult = _soft_mult_from_orch(orch, soft_mult)
     apply_kelly_soft(metrics, mult, waived="neg_edge_soft", flag="neg_edge_soft")
     if candle_agree:
         metrics["neg_edge_candle_soft"] = True
+    if p_ovr_flip:
+        metrics["neg_edge_p_ovr_soft"] = True
     metrics.pop("neg_edge_pause", None)
     if orch is not None:
         logger.debug(

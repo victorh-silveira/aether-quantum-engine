@@ -37,6 +37,8 @@ def _gates_block_token(blocked: str) -> str:
         return "scale"
     if key in {"neg_edge", "seed"}:
         return key
+    if key in {"tcn_pos_edge", "tcn_edge", "pos_edge"}:
+        return "tcn_edge"
     return key or "na"
 
 
@@ -88,6 +90,8 @@ def format_gates_audit_line(metrics: dict[str, Any]) -> str:
         skip = "neg_edge"
     elif waived == "neg_edge_soft" or floor > 1e-12:
         tag = "candle" if bool(metrics.get("neg_edge_candle_soft")) else "soft"
+        if bool(metrics.get("neg_edge_p_ovr_soft")):
+            tag = "p_ovr"
         neg_tok = f"NEG_EDGE {tag} side={neg_side} edge={edge:+.4f}{gap} floor={floor:.4f}"
         skip = waived if waived else "-"
     else:

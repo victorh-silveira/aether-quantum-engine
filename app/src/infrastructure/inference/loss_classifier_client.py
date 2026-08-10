@@ -50,6 +50,10 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
             "flip_require_pos_edge",
             "flip_min_edge_execute",
             "flip_waive_on_closed_candle",
+            "flip_candle_p_loss_floor",
+            "flip_waive_scale_above_p_loss",
+            "flip_block_when_tcn_pos_edge",
+            "flip_waive_edge_min",
         ),
         "infra.loss_classifier",
     )
@@ -82,6 +86,17 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
     min_edge = require_float(block, "flip_min_edge_execute")
     if min_edge < 0.0 or min_edge > 0.5:
         raise ValueError("infra.loss_classifier.flip_min_edge_execute deve estar em [0, 0.5]")
+    candle_floor = require_float(block, "flip_candle_p_loss_floor")
+    if candle_floor < floor or candle_floor > hard_floor + 1e-12:
+        raise ValueError(
+            "infra.loss_classifier.flip_candle_p_loss_floor deve estar em [veto_p_loss_floor, hard_p_loss_floor]"
+        )
+    scale_override = require_float(block, "flip_waive_scale_above_p_loss")
+    if scale_override < hard_floor or scale_override > 1.0:
+        raise ValueError("infra.loss_classifier.flip_waive_scale_above_p_loss deve estar em [hard_p_loss_floor, 1]")
+    waive_edge_min = require_float(block, "flip_waive_edge_min")
+    if waive_edge_min > 0.0 or waive_edge_min < -1.0:
+        raise ValueError("infra.loss_classifier.flip_waive_edge_min deve estar em [-1, 0]")
     return {
         "enabled": require_bool(block, "enabled"),
         "http_url": str(block["http_url"]).rstrip("/"),
@@ -108,6 +123,10 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
         "flip_require_pos_edge": require_bool(block, "flip_require_pos_edge"),
         "flip_min_edge_execute": min_edge,
         "flip_waive_on_closed_candle": require_bool(block, "flip_waive_on_closed_candle"),
+        "flip_candle_p_loss_floor": candle_floor,
+        "flip_waive_scale_above_p_loss": scale_override,
+        "flip_block_when_tcn_pos_edge": require_bool(block, "flip_block_when_tcn_pos_edge"),
+        "flip_waive_edge_min": waive_edge_min,
     }
 
 

@@ -86,12 +86,54 @@ def cal_disagrees_ref(
     return abs(cal - 0.5) + 1e-12 >= float(margin)
 
 
+def tcn_pos_edge_blocks_flip(
+    metrics: dict[str, Any],
+    ref_dir: TradeDirection,
+    *,
+    cfg: dict[str, Any],
+) -> bool:
+    """True se o lado TCN ja tem Edge Cal >= floor — nao inverter setup +EV."""
+    if not bool(cfg.get("flip_block_when_tcn_pos_edge", True)):
+        return False
+    floor = float(cfg.get("flip_min_edge_execute", 0.04))
+    edge = float(resolve_predicted_edge(metrics, direction=ref_dir.name))
+    metrics["loss_clf_tcn_side_edge"] = edge
+    if edge + 1e-12 >= floor:
+        metrics["loss_clf_flip_block_tcn_pos_edge"] = True
+        return True
+    return False
+
+
+def resolve_flip_p_loss_floor(
+    metrics: dict[str, Any],
+    ref_dir: TradeDirection,
+    *,
+    cfg: dict[str, Any],
+) -> float:
+    """Floor efetivo de FLIP; vela no alvo so baixa floor se Edge TCN estiver fraco."""
+    hard = float(cfg["hard_p_loss_floor"])
+    min_edge = float(cfg.get("flip_min_edge_execute", 0.04))
+    tcn_edge = float(resolve_predicted_edge(metrics, direction=ref_dir.name))
+    metrics["loss_clf_tcn_side_edge"] = tcn_edge
+    if tcn_edge + 1e-12 >= min_edge:
+        return hard
+    candle_floor = float(cfg.get("flip_candle_p_loss_floor", hard))
+    flip_target = TradeDirection.PUT if ref_dir == TradeDirection.CALL else TradeDirection.CALL
+    if closed_micro_candle_side(metrics) == flip_target.name and bool(cfg.get("flip_waive_on_closed_candle", True)):
+        floor = min(hard, max(0.0, candle_floor))
+        if floor + 1e-12 < hard:
+            metrics["loss_clf_flip_candle_floor"] = True
+        return floor
+    return hard
+
+
 def resolve_flip_waivers(
     metrics: dict[str, Any],
     response: dict[str, Any],
     ref_dir: TradeDirection,
     *,
     cfg: dict[str, Any],
+    p_loss: float = 0.0,
 ) -> tuple[bool, bool]:
     """Aplica waivers de seed/scale; Cal so anula SCALE com auto_learn."""
     seed_block = is_seed_model(response, require_auto_learn=bool(cfg.get("flip_require_auto_learn", True)))
@@ -117,12 +159,24 @@ def resolve_flip_waivers(
     if scale_block and candle == flip_target.name and bool(cfg.get("flip_waive_on_closed_candle", True)):
         scale_block = False
         metrics["loss_clf_flip_candle_waive_scale"] = True
+    override = float(cfg.get("flip_waive_scale_above_p_loss", 1.01))
+    if p_loss + 1e-12 >= override:
+        if scale_block:
+            scale_block = False
+            metrics["loss_clf_flip_scale_p_override"] = True
+        if seed_block:
+            seed_block = False
+            metrics["loss_clf_flip_seed_p_override"] = True
     return seed_block, scale_block
 
 
 def flip_reason_token(metrics: dict[str, Any]) -> str:
     """Razao curta de FLIP para telemetria GATES."""
     if metrics.get("loss_clf_flip_candle_waive_scale") or metrics.get("loss_clf_flip_candle_waive_edge"):
+        return "candle"
+    if metrics.get("loss_clf_flip_scale_p_override") or metrics.get("loss_clf_flip_seed_p_override"):
+        return "p_ovr"
+    if metrics.get("loss_clf_flip_candle_floor"):
         return "candle"
     if metrics.get("loss_clf_flip_cal_overrides_scale"):
         return "cal_ovr"
@@ -142,6 +196,12 @@ def post_flip_edge_ok(metrics: dict[str, Any], flipped: TradeDirection, *, cfg: 
     metrics["loss_clf_flip_edge"] = float(edge)
     metrics["loss_clf_flip_edge_floor"] = float(floor)
     if float(edge) + 1e-12 >= floor:
+        return True
+    soft_min = float(cfg.get("flip_waive_edge_min", -1.0))
+    if float(edge) + 1e-12 < soft_min:
+        return False
+    if metrics.get("loss_clf_flip_scale_p_override") or metrics.get("loss_clf_flip_seed_p_override"):
+        metrics["loss_clf_flip_p_ovr_waive_edge"] = True
         return True
     candle = closed_micro_candle_side(metrics)
     if candle == flipped.name and bool(cfg.get("flip_waive_on_closed_candle", True)):

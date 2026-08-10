@@ -18,38 +18,9 @@ def test_parse_neg_edge_soft_from_ssot():
     assert cfg["neg_edge_soft_kelly_mult"] == pytest.approx(0.55)
     assert cfg["neg_edge_hard_skip"] is True
     assert cfg["neg_edge_soft_when_closed_candle_agree"] is True
-
-
-def test_neg_edge_soft_when_side_agrees_closed_candle():
-    metrics = {
-        "execution_candidate_ready": True,
-        "exec_direction": "PUT",
-        "calibrated_prob": 0.57,
-        "kelly_fraction_scale": 1.0,
-        "closed_micro_candle_dir": "PUT",
-    }
-    orch = MagicMock()
-    orch.config = {
-        "deep_learning": {"min_edge_execute": 0.04},
-        "risk_management": {"params": {"payout_estimate": 0.72}},
-        "orchestrator": {
-            "execution": {
-                "signal_skip": {
-                    "neg_edge_soft_kelly_mult": 0.55,
-                    "neg_edge_hard_skip": True,
-                    "neg_edge_soft_when_closed_candle_agree": True,
-                }
-            }
-        },
-    }
-    orch._log_dedupe = {}
-    assert apply_negative_cal_edge_pause(metrics, orch=orch) is True
-    assert metrics["execution_candidate_ready"] is True
-    assert metrics.get("gate_reason") != "neg_edge"
-    assert metrics.get("neg_edge_soft") is True
-    assert metrics.get("neg_edge_candle_soft") is True
-    assert metrics["kelly_fraction_scale"] == pytest.approx(0.55)
-    assert metrics_block_execution(metrics) is False
+    assert cfg["neg_edge_soft_min_edge"] == pytest.approx(-0.12)
+    with pytest.raises(ValueError, match="neg_edge_soft_min_edge"):
+        parse_neg_edge_soft_config({"neg_edge_soft_min_edge": 0.05})
 
 
 def test_neg_edge_hard_blocks_negative_cal_side_edge():
