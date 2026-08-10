@@ -610,7 +610,8 @@
                 "chop_hurst_min": 0.47,
                 "chop_hurst_max": 0.53,
                 "chop_soft_kelly_mult": 0.55,
-                "neg_edge_soft_kelly_mult": 0.55
+                "neg_edge_soft_kelly_mult": 0.55,
+                "neg_edge_hard_skip": true
             }
         },
         "idle_cycle_watchdog_seconds": 1200,

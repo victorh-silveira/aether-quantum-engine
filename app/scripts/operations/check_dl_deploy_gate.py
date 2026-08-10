@@ -88,16 +88,31 @@ def evaluate_checkpoint(path: Path, *, soft_min: float, settings: dict | None = 
     if isinstance(settings, dict) and isinstance(settings.get("deep_learning"), dict):
         dl = settings["deep_learning"]
     gate_cfg = parse_deploy_gate_config(dl)
+    label_call = payload.get("label_call_frac")
+    pred_call = payload.get("pred_call_frac")
+    minority_rec = payload.get("minority_recall")
+    if bool(gate_cfg.get("reject_majority_collapse", False)) and (
+        label_call is None or pred_call is None or minority_rec is None
+    ):
+        return False, (
+            f"{path.name}: telemetria de collapse ausente "
+            "(label_call_frac/pred_call_frac/minority_recall) — retreine com gate atual"
+        )
     soft_ok = resolve_deploy_ok(
         mini_ok=stored_ok,
         val_accuracy=val_acc,
         val_brier=val_brier,
         gate_cfg=gate_cfg,
+        label_call_frac=float(label_call) if label_call is not None else None,
+        pred_call_frac=float(pred_call) if pred_call is not None else None,
+        minority_recall=float(minority_rec) if minority_rec is not None else None,
     )
     if not soft_ok:
         return False, (
             f"{path.name}: deploy_ok=false "
-            f"(val_acc={val_acc:.4f} val_brier={val_brier:.4f} soft_max_brier={float(gate_cfg['soft_max_brier']):.4f})"
+            f"(val_acc={val_acc:.4f} val_brier={val_brier:.4f} "
+            f"pred_call={pred_call} minority_rec={minority_rec} "
+            f"soft_max_brier={float(gate_cfg['soft_max_brier']):.4f})"
         )
     if not stored_ok:
         payload["deploy_ok"] = True

@@ -72,6 +72,36 @@ def deploy_params_for_eval(params: dict[str, Any], gate_cfg: dict[str, Any]) -> 
     return out
 
 
+def _majority_collapse_hit(
+    gate_cfg: dict[str, Any],
+    *,
+    label_call_frac: float | None,
+    pred_call_frac: float | None,
+    minority_recall: float | None,
+) -> bool:
+    """True quando pred/label colapsam e minority_recall fica abaixo do piso."""
+    if not bool(gate_cfg.get("reject_majority_collapse", False)):
+        return False
+    if minority_recall is None:
+        return False
+    bias_cap = float(gate_cfg.get("max_label_call_frac_bias", 0.20))
+    min_rec = float(gate_cfg.get("min_minority_recall", 0.25))
+    if float(minority_recall) + 1e-9 >= min_rec:
+        return False
+    skewed = False
+    if pred_call_frac is not None and abs(float(pred_call_frac) - 0.5) > bias_cap:
+        skewed = True
+    if (
+        pred_call_frac is not None
+        and label_call_frac is not None
+        and abs(float(pred_call_frac) - float(label_call_frac)) > bias_cap
+    ):
+        skewed = True
+    if label_call_frac is not None and abs(float(label_call_frac) - 0.5) > bias_cap:
+        skewed = True
+    return skewed
+
+
 def resolve_deploy_ok(
     *,
     mini_ok: bool,
@@ -79,6 +109,7 @@ def resolve_deploy_ok(
     val_brier: float,
     gate_cfg: dict[str, Any],
     label_call_frac: float | None = None,
+    pred_call_frac: float | None = None,
     minority_recall: float | None = None,
 ) -> bool:
     """Combina mini deploy com fallback por metricas de treino; ACC soft e piso duro."""
@@ -86,16 +117,13 @@ def resolve_deploy_ok(
     soft_brier = float(gate_cfg.get("soft_max_brier", 0.32))
     if float(val_accuracy) + 1e-9 < soft_acc:
         return False
-    if bool(gate_cfg.get("reject_majority_collapse", False)):
-        bias_cap = float(gate_cfg.get("max_label_call_frac_bias", 0.20))
-        min_rec = float(gate_cfg.get("min_minority_recall", 0.25))
-        if (
-            label_call_frac is not None
-            and minority_recall is not None
-            and abs(float(label_call_frac) - 0.5) > bias_cap
-            and float(minority_recall) + 1e-9 < min_rec
-        ):
-            return False
+    if _majority_collapse_hit(
+        gate_cfg,
+        label_call_frac=label_call_frac,
+        pred_call_frac=pred_call_frac,
+        minority_recall=minority_recall,
+    ):
+        return False
     if bool(gate_cfg.get("force_ok", False)):
         return True
     if mini_ok:
@@ -112,6 +140,7 @@ def describe_deploy_block(
     val_brier: float,
     gate_cfg: dict[str, Any],
     label_call_frac: float | None = None,
+    pred_call_frac: float | None = None,
     minority_recall: float | None = None,
 ) -> str:
     """Mensagem acionavel quando deploy_ok=false."""
@@ -119,18 +148,16 @@ def describe_deploy_block(
     soft_brier = float(gate_cfg.get("soft_max_brier", 0.32))
     if float(val_accuracy) + 1e-9 < soft_acc:
         return f"ACC={val_accuracy:.4f}<soft_min={soft_acc:.4f}"
-    if bool(gate_cfg.get("reject_majority_collapse", False)):
-        bias_cap = float(gate_cfg.get("max_label_call_frac_bias", 0.20))
-        min_rec = float(gate_cfg.get("min_minority_recall", 0.25))
-        if (
-            label_call_frac is not None
-            and minority_recall is not None
-            and abs(float(label_call_frac) - 0.5) > bias_cap
-            and float(minority_recall) + 1e-9 < min_rec
-        ):
-            return (
-                f"majority_collapse label_call={float(label_call_frac):.3f} minority_rec={float(minority_recall):.3f}"
-            )
+    if _majority_collapse_hit(
+        gate_cfg,
+        label_call_frac=label_call_frac,
+        pred_call_frac=pred_call_frac,
+        minority_recall=minority_recall,
+    ):
+        pred_s = f"{float(pred_call_frac):.3f}" if pred_call_frac is not None else "n/a"
+        label_s = f"{float(label_call_frac):.3f}" if label_call_frac is not None else "n/a"
+        rec_s = f"{float(minority_recall):.3f}" if minority_recall is not None else "n/a"
+        return f"majority_collapse label_call={label_s} pred_call={pred_s} minority_rec={rec_s}"
     if mini_ok:
         return "mini_ok mas gate rejeitou (inesperado)"
     if float(val_brier) + 1e-9 > soft_brier:

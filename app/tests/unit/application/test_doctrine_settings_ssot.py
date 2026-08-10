@@ -119,6 +119,7 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert float(skip["chop_hurst_max"]) == pytest.approx(0.53)
     assert float(skip["chop_soft_kelly_mult"]) == pytest.approx(0.55)
     assert float(skip["neg_edge_soft_kelly_mult"]) == pytest.approx(0.55)
+    assert bool(skip["neg_edge_hard_skip"]) is True
     assert "calib_gray_margin_floor" not in skip
     assert "calib_gray_soft_kelly_mult" not in skip
     assert "calib_gray_max_stake_pct" not in skip

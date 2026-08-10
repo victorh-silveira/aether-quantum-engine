@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 
 import numpy as np
+import torch
 
 from src.application.services.deep_learning.dl_calibration import CalibratorState
 from src.application.services.deep_learning.dl_deploy import apply_deploy_to_runtime
@@ -24,6 +25,23 @@ from src.application.services.live_signal_metrics import live_signal_snapshot
 
 
 logger = logging.getLogger("AETH")
+
+
+def _demote_preserved_checkpoint(path: Path) -> None:
+    """Marca deploy_ok=false no ckpt preservado apos rejeicao do treino novo."""
+    try:
+        if not path.is_file():
+            return
+        payload = torch.load(path, map_location="cpu", weights_only=True)
+        if not isinstance(payload, dict):
+            return
+        if payload.get("deploy_ok") is False:
+            return
+        payload["deploy_ok"] = False
+        torch.save(payload, path)
+        logger.warning("DL TREINO | checkpoint %s rebaixado deploy_ok=false apos rejeicao", path.name)
+    except Exception as exc:
+        logger.debug("DL TREINO | falha ao rebaixar checkpoint %s: %s", path, exc)
 
 
 def _log_horizon_gap(
@@ -110,6 +128,7 @@ def apply_successful_symbol_train(
         val_brier=float(train_result.val_brier),
         gate_cfg=gate_cfg,
         label_call_frac=float(getattr(train_result, "label_call_frac", 0.5)),
+        pred_call_frac=float(getattr(train_result, "pred_call_frac", 0.5)),
         minority_recall=float(getattr(train_result, "minority_recall", 1.0)),
     )
     apply_deploy_to_runtime(
@@ -154,6 +173,9 @@ def apply_successful_symbol_train(
             deploy_ok=runtime["deploy_ok"],
             deploy_win_rate=runtime["deploy_win_rate"],
             granularity=granularity,
+            label_call_frac=float(runtime.get("label_call_frac", 0.5)),
+            pred_call_frac=float(runtime.get("pred_call_frac", 0.5)),
+            minority_recall=float(runtime.get("minority_recall", 1.0)),
         )
         schedule_model_upload(
             orch,
@@ -175,16 +197,18 @@ def apply_successful_symbol_train(
             val_brier=float(train_result.val_brier),
             gate_cfg=gate_cfg,
             label_call_frac=float(getattr(train_result, "label_call_frac", 0.5)),
+            pred_call_frac=float(getattr(train_result, "pred_call_frac", 0.5)),
             minority_recall=float(getattr(train_result, "minority_recall", 1.0)),
         )
         logger.warning(
-            "DL TREINO | %s | novo treino rejeitado (%s); checkpoint deploy_ok=true preservado — gate/meta podem seguir",
+            "DL TREINO | %s | novo treino rejeitado (%s); checkpoint anterior preservado — export_ok=false (meta abortado)",
             symbol,
             reason,
         )
         runtime["session_trained"] = False
-        runtime["export_ok"] = True
+        runtime["export_ok"] = False
         runtime["checkpoint_preserved"] = True
+        _demote_preserved_checkpoint(path)
     clear_force_retrain(orch, symbol)
     reset_bars_since_train(orch, symbol)
     live_snap = live_signal_snapshot(orch, symbol) if orch is not None else {"live_wr": 0.0, "live_n": 0}
@@ -218,6 +242,7 @@ def apply_successful_symbol_train(
             val_brier=float(train_result.val_brier),
             gate_cfg=gate_cfg,
             label_call_frac=float(getattr(train_result, "label_call_frac", 0.5)),
+            pred_call_frac=float(getattr(train_result, "pred_call_frac", 0.5)),
             minority_recall=float(getattr(train_result, "minority_recall", 1.0)),
         )
         logger.warning(

@@ -152,7 +152,7 @@ def test_finalize_adapts_direction_under_raw_extreme():
         "calibration_mode": "raw_extreme",
         "flow_features": {"price_velocity": 1.0},
         "kelly_fraction_scale": 1.0,
-        "calibrated_prob": 0.55,
+        "calibrated_prob": 0.65,
         "trade_score": 0.52,
         "conviction": 0.52,
     }

@@ -7,6 +7,7 @@ import pytest
 from src.application.services.execution_direction_checks import (
     initial_direction_checks,
     is_technically_blocked,
+    seed_direction_metrics,
 )
 from src.application.services.execution_direction_resolver import resolve_execution_direction
 from src.domain.models.trade import TradeDirection
@@ -34,10 +35,24 @@ def test_is_technically_blocked_deploy_and_training():
     assert is_technically_blocked({"metrics": {"deploy_ok": True, "calibrated_prob": 0.7}}) is False
 
 
-def test_resolve_execution_direction_soft_negative_cal_edge():
+def test_seed_direction_metrics_preserves_raw_and_invalid_fallback():
+    metrics = {"raw_prob": 0.37115, "calibrated_prob": 0.52}
+    score = seed_direction_metrics(metrics, dl_dir=TradeDirection.CALL, prob=0.52)
+    assert score == pytest.approx(0.52)
+    assert metrics["raw_prob"] == pytest.approx(0.37115)
+    assert metrics["calibrated_prob"] == pytest.approx(0.52)
+    assert metrics["raw_call_prob"] == pytest.approx(0.37115)
+    bad = {"raw_prob": object()}
+    seed_direction_metrics(bad, dl_dir=TradeDirection.PUT, prob=0.45)
+    assert bad["raw_prob"] == pytest.approx(0.45)
+    assert bad["calibrated_prob"] == pytest.approx(0.45)
+
+
+def test_resolve_execution_direction_hard_negative_cal_edge():
     entry = {
         "metrics": {
             "calibrated_prob": 0.52,
+            "raw_prob": 0.37115,
             "deploy_ok": True,
             "predicted_payoff_edge": -0.20,
             "indicators": {"hurst": 0.60, "adx": 0.40},
@@ -54,10 +69,18 @@ def test_resolve_execution_direction_soft_negative_cal_edge():
     result = resolve_execution_direction(entry, exec_cfg={}, symbol="R_10", orch=orch)
     assert result is not None
     _direction, metrics = result
-    assert metrics.get("execution_candidate_ready") is True
-    assert metrics.get("signal_status") != "SKIP:NEG_EDGE"
-    assert metrics.get("neg_edge_soft") is True
-    assert metrics["kelly_fraction_scale"] <= 0.55 + 1e-9
+    assert metrics.get("execution_candidate_ready") is False
+    assert metrics.get("signal_status") == "SKIP:NEG_EDGE"
+    assert metrics.get("gate_reason") == "neg_edge"
+    assert metrics.get("neg_edge_soft") is None
+    assert metrics["kelly_fraction_scale"] == pytest.approx(1.0)
+    assert float(metrics["raw_prob"]) == pytest.approx(0.37115)
+    assert float(metrics["calibrated_prob"]) == pytest.approx(0.52)
+    from src.application.services.market_audit_log_helpers import resolve_raw_predicted_edge
+
+    raw_edge = resolve_raw_predicted_edge(metrics, direction="CALL", payout=0.72)
+    assert raw_edge == pytest.approx((0.37115 * 1.72) - 1.0)
+    assert raw_edge != pytest.approx(float(metrics["cal_side_edge"]))
 
 
 def test_resolve_execution_direction_soft_regime_chop():

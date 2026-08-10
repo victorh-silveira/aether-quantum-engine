@@ -24,11 +24,11 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 |------|-------|------|
 | `sample_weighting.*` | `deep_learning` | class_balance + recency (`recency_half_life_n` default 2000) |
 | `reject_majority_collapse` | `deep_learning.deploy_gate` | rejeita collapse de classe no deploy |
-| `max_label_call_frac_bias` | idem | padrao **0.20** |
+| `max_label_call_frac_bias` | idem | padrao **0.20**; aplica a `|pred-0.5|`, `|pred-label|` ou `|label-0.5|` junto com `min_minority_recall` |
 | `min_minority_recall` | idem | padrao **0.25** |
 | `side_equilibrium.enabled` | `orchestrator.execution` | soft Kelly only; sem veto de direcao |
 | `scale_vision.*` | `orchestrator.execution` | `adapt_allow_strong_tape` **false**; **majority_votes** (TCN/tape/mili/RSI); `adapt_majority_min_lead` **2**; `adapt_skip_chop` **true** (hold TCN em micro=chop); `adapt_require_cal_agree` **true** (nao adapta contra Cal); `adapt_mili_tape_skip_chop` **true**; **sem** `adapt_*_cal_margin` / hold cinza |
-| `signal_skip.*` | `orchestrator.execution` | Escopo **1.1**: mini/cal/chop/neg_edge soft Kelly **0.55**; **sem** `calib_gray_*`; **sem** flip pos-LOSS; `chop_pause_enabled` liga soft chop (ADX/Hurst ou SCALE); `chop_soft_kelly_mult` / `neg_edge_soft_kelly_mult` |
+| `signal_skip.*` | `orchestrator.execution` | Escopo **1.1**: mini/cal/chop soft Kelly **0.55**; **neg_edge_hard_skip** **true** (Edge Cal &lt; `min_edge_execute` → EXEC_EMPTY `gate_reason=neg_edge`, mandato **2026-08-09**); Edge = `Cal*(1+b)-1` (Kelly **nao** usa raw); com `b=0.72` floor **0.04** exige Cal ≳ **0.605**; telemetria `raw_edge`/`be` no `[CLUSTER]` (sempre com Edge) e `[GATES]` sob skip/EXEC_EMPTY; **sem** `calib_gray_*`; **sem** flip pos-LOSS; `chop_pause_enabled` liga soft chop (ADX/Hurst ou SCALE); `chop_soft_kelly_mult` / `neg_edge_soft_kelly_mult` (soft so se hard=false) |
 | `scale_vision.adapt_on_majority_votes` | idem | Conta votos TCN/tape/mili/mini_pair/RSI; lideranca ≥`adapt_majority_min_lead` e n≥`adapt_majority_min_votes` → `majority_votes` |
 | `kelly.kelly_p_floor` | `risk_management.kelly` | Piso de **probabilidade** para Kelly; garante `f*>0`; alias `adapt_kelly_p_floor` |
 | `kelly.neutral_bankroll_pct` | `risk_management.kelly` | Piso operacional de stake explore (**0.25%** banca M2); loss_clf soft **nao** esmaga o piso |
@@ -71,7 +71,7 @@ Removidos: `decision_threshold_call` / `decision_threshold_put` (mortos). Modo `
 - `max_safe_stake_cap` / `max_safe_stake_pct`
 - `sample_size_policy.*`
 
-Vetos de sinal/qualidade amplos (RSI/cal floor/quality_gate/price_zone/SIDE_EQ block) permanecem **fora** (escopo 1). Flip loss-clf (`hard_p_loss_floor`) permanece sob mandato **2026-08-07**; chop/neg_edge = soft Kelly continuo. SIDE_EQ restante = soft Kelly sizing.
+Vetos de sinal/qualidade amplos (RSI/cal floor/quality_gate/price_zone/SIDE_EQ block) permanecem **fora** (escopo 1). Flip loss-clf (`hard_p_loss_floor`) permanece sob mandato **2026-08-07**; chop = soft Kelly continuo; **neg_edge** = hard-skip sob mandato **2026-08-09**. SIDE_EQ restante = soft Kelly sizing.
 
 Playbook senior: [`binary-senior-playbook.md`](binary-senior-playbook.md).
 

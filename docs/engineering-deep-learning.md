@@ -47,7 +47,7 @@ Telemetria de treino: `TrainResult.label_call_frac`, `pred_call_frac`, `minority
 
 `resolve_deploy_ok` exige `val_accuracy >= soft_min` **antes** de `mini_ok` / `force_ok`. Checkpoint com ACC 0.52 grava `deploy_ok=false`. Nao usar `force_ok=true` nem `bypass_deploy_gate=true` em producao.
 
-Majority-collapse (alem do ACC): com `reject_majority_collapse=true`, rejeita se `|label_call_frac - 0.5| > max_label_call_frac_bias` (**0.20**) e `minority_recall < min_minority_recall` (**0.25**).
+Majority-collapse (alem do ACC): com `reject_majority_collapse=true`, rejeita se `minority_recall < min_minority_recall` (**0.25**) e houver vies (`|pred_call_frac-0.5|`, `|pred_call_frac-label_call_frac|` ou `|label_call_frac-0.5|` &gt; `max_label_call_frac_bias` **0.20`). Labels balanceados com `pred_call` colapsado (ex. 0.83) tambem falham o gate.
 
 Checkpoint de treino restaura pesos do **melhor val_acc** (melhoria so de loss nao sobrescreve). Em R_10, `spot_forward` costuma platô ~0.52; `ma_trend` e o label SSOT atual.
 

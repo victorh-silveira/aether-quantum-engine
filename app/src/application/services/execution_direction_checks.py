@@ -56,19 +56,25 @@ def clamp01(v: float) -> float:
 
 def seed_direction_metrics(metrics: dict, *, dl_dir: TradeDirection, prob: float) -> float:
     """Inicializa scores e margem direcional a partir da probabilidade TCN."""
-    call, put = prob, 1.0 - prob
+    cal = float(prob)
+    call, put = cal, 1.0 - cal
+    raw_existing = metrics.get("raw_prob")
+    try:
+        raw = float(raw_existing) if raw_existing is not None else cal
+    except (TypeError, ValueError):
+        raw = cal
     metrics.update(
         {
             "dl_direction": dl_dir.name,
             "resolved_direction": dl_dir.name,
-            "raw_prob": prob,
-            "raw_call_prob": call,
-            "raw_put_prob": put,
-            "raw_margin": abs(prob - 0.5),
-            "calibrated_prob": prob,
+            "raw_prob": raw,
+            "raw_call_prob": raw,
+            "raw_put_prob": 1.0 - raw,
+            "raw_margin": abs(raw - 0.5),
+            "calibrated_prob": cal,
             "calibrated_call_prob": call,
             "calibrated_put_prob": put,
-            "direction_margin": abs(prob - 0.5),
+            "direction_margin": abs(cal - 0.5),
         }
     )
     return max(call, put)

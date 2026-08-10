@@ -2,9 +2,10 @@
 
 from src.application.services.force_trade_mode import force_trade_from_orch
 from src.application.services.log_dedupe import clear_log_channel, log_info_if_changed
+from src.application.services.market_audit_log import emit_audit_info, format_gates_audit_line
 
 
-_TECHNICAL_REASONS = frozenset({"training", "data", "deploy", "predict_error"})
+_TECHNICAL_REASONS = frozenset({"training", "data", "deploy", "predict_error", "neg_edge"})
 
 
 def _candidate_block_reason(metrics: dict) -> str | None:
@@ -42,6 +43,8 @@ def log_execution_blockers(executor, decisions: dict, *, pending: float = 0.0) -
         reason = _candidate_block_reason(metrics)
         if reason:
             blocked.append(f"{symbol}:{reason}")
+            if reason == "neg_edge" and isinstance(metrics, dict):
+                emit_audit_info(executor.logger, format_gates_audit_line(metrics))
         else:
             blocked.append(f"{symbol}:no_candidate")
     if training:

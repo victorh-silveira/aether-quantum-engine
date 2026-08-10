@@ -6,8 +6,10 @@ from src.application.services.market_audit_log import (
     format_cluster_audit_line,
     format_indicators_audit_line,
     pop_contract_audit,
+    resolve_edge_breakeven_p,
     resolve_meta_payoff_zscore,
     resolve_predicted_edge,
+    resolve_raw_predicted_edge,
     resolve_stake_audit_context,
     store_contract_audit,
 )
@@ -45,6 +47,30 @@ class TestResolvePredictedEdge:
     def test_defaults_to_kelly_payout_fallback(self):
         edge = resolve_predicted_edge({"calibrated_prob": 0.7})
         assert edge == pytest.approx((0.7 * 1.72) - 1.0)
+
+    def test_cal_0533_b072_identity_negative(self):
+        edge = resolve_predicted_edge({"calibrated_prob": 0.533}, payout=0.72)
+        assert edge == pytest.approx(-0.08324, abs=1e-5)
+        assert edge < 0.0
+
+    def test_cal_0605_b072_meets_min_edge_floor(self):
+        edge = resolve_predicted_edge({"calibrated_prob": 0.605}, payout=0.72)
+        assert edge == pytest.approx((0.605 * 1.72) - 1.0)
+        assert edge >= 0.04
+
+    def test_raw_edge_gap_vs_cal_edge(self):
+        metrics = {"calibrated_prob": 0.53, "raw_prob": 0.99}
+        cal_edge = resolve_predicted_edge(metrics, direction="CALL", payout=0.72)
+        raw_edge = resolve_raw_predicted_edge(metrics, direction="CALL", payout=0.72)
+        assert cal_edge < 0.0
+        assert raw_edge > 0.0
+        assert raw_edge == pytest.approx((0.99 * 1.72) - 1.0)
+        assert resolve_edge_breakeven_p(0.72) == pytest.approx(1.0 / 1.72)
+
+    def test_raw_edge_missing_returns_zero(self):
+        assert resolve_raw_predicted_edge({}, direction="CALL", payout=0.72) == 0.0
+        assert resolve_raw_predicted_edge(None) == 0.0  # type: ignore[arg-type]
+        assert resolve_raw_predicted_edge({"raw_prob": "x"}, payout=0.72) == 0.0
 
 
 class TestResolveMetaPayoffZscore:
@@ -213,3 +239,58 @@ def test_resolve_stake_audit_context_fallback_balance():
 
 def test_format_cluster_audit_line_empty():
     assert format_cluster_audit_line({}, timeframe="M5") == "[CLUSTER] || M5 || EMPTY"
+
+
+def test_format_cluster_neg_edge_shows_raw_edge_and_be():
+    decisions = {
+        "R_10": {
+            "direction": "CALL",
+            "metrics": {
+                "raw_prob": 0.99,
+                "calibrated_prob": 0.533,
+                "exec_direction": "CALL",
+                "gate_reason": "neg_edge",
+                "signal_status": "SKIP:NEG_EDGE",
+            },
+        }
+    }
+    line = format_cluster_audit_line(decisions, timeframe="M2")
+    assert "raw_edge:" in line
+    assert "be=0.581" in line
+    assert "Edge: -0.083" in line
+    assert "NEG_EDGE" in line or "neg_edge" in line
+
+
+def test_format_cluster_edge_gap_before_gate():
+    decisions = {
+        "R_10": {
+            "direction": "CALL",
+            "metrics": {
+                "raw_prob": 0.98783,
+                "calibrated_prob": 0.53338,
+                "exec_direction": "CALL",
+            },
+        }
+    }
+    line = format_cluster_audit_line(decisions, timeframe="M2")
+    assert "Edge: -0.083" in line
+    assert "raw_edge: +0.699" in line
+    assert "be=0.581" in line
+    assert "Margin: 0.033" in line
+
+
+def test_format_cluster_leans_call_when_direction_missing():
+    decisions = {
+        "R_10": {
+            "direction": None,
+            "metrics": {
+                "raw_prob": 0.37115,
+                "calibrated_prob": 0.52497,
+            },
+        }
+    }
+    line = format_cluster_audit_line(decisions, timeframe="M2")
+    assert "R_10: CALL (" in line
+    assert "raw_edge: -0.362" in line
+    assert "Edge: -0.097" in line
+    assert "be=0.581" in line

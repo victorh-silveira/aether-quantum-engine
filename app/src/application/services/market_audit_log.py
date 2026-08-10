@@ -16,8 +16,10 @@ from src.application.services.market_audit_log_helpers import (
     cluster_symbol_token,
     pop_contract_audit,
     resolve_cluster_timeframe,
+    resolve_edge_breakeven_p,
     resolve_meta_payoff_zscore,
     resolve_predicted_edge,
+    resolve_raw_predicted_edge,
     store_contract_audit,
 )
 
@@ -32,8 +34,10 @@ __all__ = [
     "format_settlement_audit_line",
     "pop_contract_audit",
     "resolve_cluster_timeframe",
+    "resolve_edge_breakeven_p",
     "resolve_meta_payoff_zscore",
     "resolve_predicted_edge",
+    "resolve_raw_predicted_edge",
     "resolve_settlement_tag",
     "resolve_stake_audit_context",
     "resolve_stake_mode_tag",

@@ -8,7 +8,9 @@ from src.application.services.execution_scale_vision import format_scale_ind_tok
 from src.application.services.market_audit_log_helpers import (
     indicator_snapshot,
     metric_float,
+    resolve_edge_breakeven_p,
     resolve_predicted_edge,
+    resolve_raw_predicted_edge,
 )
 
 
@@ -75,11 +77,21 @@ def format_gates_audit_line(metrics: dict[str, Any]) -> str:
     floor = _f(metrics, "cal_side_edge_floor", default=0.0)
     waived = str(metrics.get("signal_skip_waived") or "")
     neg_side = str(metrics.get("exec_direction") or metrics.get("resolved_direction") or "-")
-    if waived == "neg_edge_soft" or floor > 1e-12:
-        neg_tok = f"NEG_EDGE side={neg_side} edge={edge:+.4f} floor={floor:.4f}"
+    gate = str(metrics.get("gate_reason") or "").strip().lower()
+    status = str(metrics.get("signal_status") or "").strip().upper()
+    side_dir = neg_side if neg_side in {"CALL", "PUT"} else None
+    raw_edge = resolve_raw_predicted_edge(metrics, direction=side_dir)
+    be = resolve_edge_breakeven_p()
+    gap = f" raw_edge={raw_edge:+.4f} be={be:.3f}"
+    if gate == "neg_edge" or status == "SKIP:NEG_EDGE":
+        neg_tok = f"NEG_EDGE hard side={neg_side} edge={edge:+.4f}{gap} floor={floor:.4f}"
+        skip = "neg_edge"
+    elif waived == "neg_edge_soft" or floor > 1e-12:
+        neg_tok = f"NEG_EDGE soft side={neg_side} edge={edge:+.4f}{gap} floor={floor:.4f}"
+        skip = waived if waived else "-"
     else:
         neg_tok = "NEG_EDGE off"
-    skip = waived if waived else "-"
+        skip = waived if waived else "-"
     return f"[GATES] || LOSS_CLF: {loss_tok} | {chop_tok} | {neg_tok} | skip={skip}"
 
 

@@ -81,6 +81,23 @@ def test_apply_successful_symbol_train_deploy_warning(tmp_path):
         )
     assert runtime.get("checkpoint_preserved") is True
     assert runtime.get("session_trained") is False
+    assert runtime.get("export_ok") is False
+    assert torch.load(ckpt, map_location="cpu", weights_only=False)["deploy_ok"] is False
+
+
+def test_demote_preserved_checkpoint_branches(tmp_path):
+    from src.application.services.deep_learning.dl_symbol_train_success import _demote_preserved_checkpoint
+
+    missing = tmp_path / "missing.pth"
+    _demote_preserved_checkpoint(missing)
+    bad = tmp_path / "bad.pth"
+    torch.save([1, 2, 3], bad)
+    _demote_preserved_checkpoint(bad)
+    already = tmp_path / "already.pth"
+    torch.save({"deploy_ok": False}, already)
+    _demote_preserved_checkpoint(already)
+    with patch("torch.load", side_effect=RuntimeError("boom")):
+        _demote_preserved_checkpoint(already)
 
 
 @pytest.mark.asyncio

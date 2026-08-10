@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.domain.risk.kelly_p_align import kelly_breakeven_p
 from src.domain.risk.kelly_runtime_config import load_kelly_runtime_from_settings
 
 
@@ -43,6 +44,29 @@ def resolve_predicted_edge(
     return float((p * (1.0 + float(pay))) - 1.0)
 
 
+def resolve_raw_predicted_edge(
+    metrics: dict[str, Any],
+    direction: str | None = None,
+    payout: float | None = None,
+) -> float:
+    """Edge do lado usando raw_prob (telemetria do gap vs Cal; nao alimenta Kelly)."""
+    if not isinstance(metrics, dict) or metrics.get("raw_prob") is None:
+        return 0.0
+    try:
+        raw = float(metrics["raw_prob"])
+    except (TypeError, ValueError):
+        return 0.0
+    return resolve_predicted_edge({"calibrated_prob": raw}, direction=direction, payout=payout)
+
+
+def resolve_edge_breakeven_p(payout: float | None = None) -> float:
+    """Probabilidade de breakeven Kelly para o payout SSOT (default payout_fallback)."""
+    pay = payout
+    if pay is None:
+        pay = float(load_kelly_runtime_from_settings()["payout_fallback"])
+    return float(kelly_breakeven_p(float(pay)))
+
+
 def cluster_symbol_token(symbol: str | None, entry: dict[str, Any] | None = None) -> str:
     """Normaliza e retorna a tag/token do símbolo no cluster com dados da entry."""
     if not symbol:
@@ -61,14 +85,28 @@ def cluster_symbol_token(symbol: str | None, entry: dict[str, Any] | None = None
         or metrics.get("dl_direction")
     )
     direction = str(raw_dir).replace("TradeDirection.", "").upper() if raw_dir is not None else "N/A"
+    if direction not in {"CALL", "PUT"}:
+        direction = "CALL" if cal_p + 1e-12 >= 0.5 else "PUT"
     is_put = direction == "PUT"
-    raw_p = 1.0 - raw_p if is_put else raw_p
-    cal_p = 1.0 - cal_p if is_put else cal_p
+    raw_display = 1.0 - raw_p if is_put else raw_p
+    cal_display = 1.0 - cal_p if is_put else cal_p
     display_edge = resolve_predicted_edge(metrics, direction=direction)
+    raw_edge = resolve_raw_predicted_edge(metrics, direction=direction)
+    be = resolve_edge_breakeven_p()
     skip = _resolve_skip_reason(entry, metrics)
     if skip:
-        return f"{sym}: {direction} (Prob: {raw_p:.5f} Cal: {cal_p:.5f} | {skip})"
-    return f"{sym}: {direction} (Prob: {raw_p:.5f} Cal: {cal_p:.5f} Margin: {margin:.3f} Edge: {display_edge:+.3f})"
+        gate = str(metrics.get("gate_reason") or "").strip().lower()
+        if gate == "neg_edge" or "NEG_EDGE" in str(skip).upper():
+            return (
+                f"{sym}: {direction} (Prob: {raw_display:.5f} Cal: {cal_display:.5f} "
+                f"Edge: {display_edge:+.3f} raw_edge: {raw_edge:+.3f} be={be:.3f} | {skip})"
+            )
+        return f"{sym}: {direction} (Prob: {raw_display:.5f} Cal: {cal_display:.5f} | {skip})"
+    return (
+        f"{sym}: {direction} (Prob: {raw_display:.5f} Cal: {cal_display:.5f} "
+        f"Margin: {margin:.3f} Edge: {display_edge:+.3f} "
+        f"raw_edge: {raw_edge:+.3f} be={be:.3f})"
+    )
 
 
 def _safe_float(value: Any, default: float) -> float:

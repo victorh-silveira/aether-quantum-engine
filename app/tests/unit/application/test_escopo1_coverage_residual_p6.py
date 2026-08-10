@@ -199,3 +199,34 @@ def test_execution_blockers_deploy_and_signal_suspended():
             "R_50": {"metrics": {"signal_status": "SIGNAL_SUSPENDED"}},
         },
     )
+
+
+def test_execution_blockers_neg_edge_emits_gates():
+    executor = MagicMock()
+    executor.orch = SimpleNamespace(
+        _active_cycle_id=7,
+        config={"orchestrator": {"execution": {}}},
+        risk_manager=SimpleNamespace(consecutive_losses_linear=0),
+    )
+    executor._trade_symbols = MagicMock(return_value=["R_10"])
+    executor.logger = MagicMock()
+    log_execution_blockers(
+        executor,
+        {
+            "R_10": {
+                "metrics": {
+                    "gate_reason": "neg_edge",
+                    "signal_status": "SKIP:NEG_EDGE",
+                    "cal_side_edge": -0.083,
+                    "cal_side_edge_floor": 0.04,
+                    "calibrated_prob": 0.533,
+                    "raw_prob": 0.99,
+                    "exec_direction": "CALL",
+                    "loss_clf_p_loss": -1.0,
+                }
+            }
+        },
+    )
+    info_msgs = [" ".join(str(a) for a in c.args) for c in executor.logger.info.call_args_list]
+    assert any("NEG_EDGE hard" in m and "raw_edge=" in m and "be=0.581" in m for m in info_msgs)
+    assert any("EXEC_EMPTY" in m and "neg_edge" in m for m in info_msgs)

@@ -30,6 +30,7 @@ def test_parse_signal_skip_from_ssot():
     assert cfg["chop_hurst_max"] == 0.53
     assert cfg["chop_soft_kelly_mult"] == 0.55
     assert cfg["neg_edge_soft_kelly_mult"] == 0.55
+    assert cfg["neg_edge_hard_skip"] is True
     assert "direction_loss_lock_min" not in cfg
     assert "direction_loss_toxic_escape" not in cfg
     assert "calib_gray_margin_floor" not in cfg
@@ -247,6 +248,7 @@ def test_candidate_block_reason_ignores_signal_soft_reasons():
     assert _candidate_block_reason({"gate_reason": "cal_margin"}) is None
     assert _candidate_block_reason({"signal_skip_reason": "cal_margin", "gate_reason": None}) is None
     assert _candidate_block_reason({"gate_reason": "training"}) == "training"
+    assert _candidate_block_reason({"gate_reason": "neg_edge"}) == "neg_edge"
     assert _candidate_block_reason({"gate_reason": "loss_clf_veto"}) is None
     assert _candidate_block_reason({"execution_candidate_ready": True}) == "ready_not_selected"
 

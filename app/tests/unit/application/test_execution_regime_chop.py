@@ -25,6 +25,7 @@ def test_parse_regime_chop_from_ssot():
     assert skip["chop_pause_enabled"] is True
     assert skip["chop_soft_kelly_mult"] == pytest.approx(0.55)
     assert skip["neg_edge_soft_kelly_mult"] == pytest.approx(0.55)
+    assert skip["neg_edge_hard_skip"] is True
     with pytest.raises(ValueError, match="chop_hurst_max"):
         parse_regime_chop_config({"chop_hurst_min": 0.60, "chop_hurst_max": 0.40})
     with pytest.raises(ValueError, match="chop_soft_kelly_mult"):

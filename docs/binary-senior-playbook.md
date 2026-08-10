@@ -1,10 +1,10 @@
 # Playbook trader senior — binarias M2 (`R_10`; OHLC 120s)
 
-Postura operacional (**escopo 1.1** + arquitetura continua R_10): TCN resolve CALL/PUT; meta/edge/indicadores sao telemetria; SCALE adapta lado sem SKIP por escala. SKIP = tecnico; loss-clf alto = **FLIP** CALL↔PUT (`p_loss>=0.90`, `veto_ready`); catálogo `signal_skip` mini/cal, chop, Edge Cal fraco e loss-clf faixa media = soft Kelly (sem revenge sizing pos-LOSS).
+Postura operacional (**escopo 1.1** + arquitetura continua R_10): TCN resolve CALL/PUT; meta/edge/indicadores sao telemetria; SCALE adapta lado sem SKIP por escala. SKIP = tecnico (inclui **neg_edge** hard sob mandato **2026-08-09**); loss-clf alto = **FLIP** CALL↔PUT (`p_loss>=0.90`, `veto_ready`); catálogo soft `signal_skip` mini/cal/chop e loss-clf faixa media = soft Kelly (sem revenge sizing pos-LOSS).
 
 Universo: **Volatility 10** (`R_10`) — **M2** (contrato **2 m**, ciclo **60 s**, micro/MINI **120 s**, macro **3600 s**).
 
-Hierarquia: TCN Cal/Margin → CALL/PUT (SCALE adapt) → soft `signal_skip` / loss-clf soft → loss-clf **FLIP** / chop soft / neg_edge soft → Kelly/caps. **Proibido** reabrir quality gate amplo (RSI/price_zone/SIDE_EQ block).
+Hierarquia: TCN Cal/Margin → CALL/PUT (SCALE adapt) → soft `signal_skip` / loss-clf soft → loss-clf **FLIP** / chop soft → **neg_edge hard** → Kelly/caps. **Proibido** reabrir quality gate amplo (RSI/price_zone/SIDE_EQ block).
 
 ## Quando operar
 
@@ -12,7 +12,7 @@ Hierarquia: TCN Cal/Margin → CALL/PUT (SCALE adapt) → soft `signal_skip` / l
 |------|-------------------|
 | CALL | TCN CALL, ou fita adapta para CALL |
 | PUT | TCN PUT, ou fita adapta para PUT |
-| SKIP tecnico | `training` / `data` / `deploy` / `predict_error`, warm-up, stop-win, broker |
+| SKIP tecnico | `training` / `data` / `deploy` / `predict_error` / `neg_edge`, warm-up, stop-win, broker |
 | Soft sinal 1.1 | `mini_pair_oppose` / `cal_margin` / loss-clf faixa media → soft Kelly; lado pos-LOSS permanece no TCN |
 | Flip loss-clf | `p_loss >= hard_p_loss_floor` (**0.90**) e `veto_ready`; SCALE confirma TCN bloqueia (seed nao anula SCALE por Cal); Cal discord exige `|cal-0.5|>=0.03`; pos-FLIP edge < `min_edge_execute` → `FLIP_BLOCK:neg_edge` + soft; seed so com SCALE discord (ou Cal forte sem tape TCN) |
 | Chop soft | ADX &lt; **0.22** e (Hurst ∈ [**0.47**, **0.53**] ou SCALE micro=chop) → soft Kelly **0.55**; log `REGIME \|\| CHOP_SOFT` |
@@ -26,9 +26,10 @@ Hierarquia: TCN Cal/Margin → CALL/PUT (SCALE adapt) → soft `signal_skip` / l
 | `data` | Buffer/historico insuficiente |
 | `deploy` | Checkpoint sem `deploy_ok` |
 | `predict_error` | Falha de inferencia |
+| `neg_edge` | Edge Cal do lado &lt; `min_edge_execute` (**mandato 2026-08-09**) |
 | Kelly `EXEC_PAUSE` | `stop_win` / `bankroll_below_stake_min` (sizing; **sem** `kelly_no_edge`) |
 
-## Catalogo sinal / ML (soft; sem EXEC_EMPTY de sinal)
+## Catalogo sinal / ML (soft + neg_edge hard)
 
 | Razao | Significado |
 |-------|-------------|
@@ -37,9 +38,9 @@ Hierarquia: TCN Cal/Margin → CALL/PUT (SCALE adapt) → soft `signal_skip` / l
 | `loss_clf_soft` | Container loss-clf: atenua Kelly; log `LOSS_CLF \|\| SOFT` |
 | `loss_clf_flip` | `p_loss >= 0.90` + `veto_ready` + waivers seed/scale + edge pos-FLIP ≥ floor → FLIP (`from→to`/`why` em `[GATES]`); senao `FLIP_BLOCK` (seed/scale/neg_edge) + soft |
 | `regime_chop` | ADX/Hurst (ou SCALE chop) → soft Kelly (`chop_soft_kelly_mult` **0.55**); log `REGIME \|\| CHOP_SOFT` |
-| `neg_edge` | Edge Cal do lado &lt; `min_edge_execute` → soft Kelly (`neg_edge_soft_kelly_mult` **0.55**); log `EDGE \|\| NEG_SOFT` |
+| `neg_edge` | Edge Cal do lado &lt; `min_edge_execute` → **hard-skip** (`gate_reason=neg_edge`, EXEC_EMPTY); log `EDGE \|\| NEG_HARD` (**mandato 2026-08-09**) |
 
-Quality gate amplo (RSI/discordance/price zone/SIDE_EQ block) permanece **fora** do codigo. Chop/neg_edge sao soft Kelly (arquitetura continua); flip loss-clf permanece sob mandato **2026-08-07**.
+Quality gate amplo (RSI/discordance/price zone/SIDE_EQ block) permanece **fora** do codigo. Chop permanece soft Kelly; **neg_edge** e hard-skip sob mandato **2026-08-09**; flip loss-clf permanece sob mandato **2026-08-07**.
 
 ## Escalas MACRO / MICRO / MINI / MILI
 
@@ -59,6 +60,10 @@ Contrato Deriv **2 m**; label TCN = 1 barra micro (**120 s**).
 ## `raw_extreme` (anti-override)
 
 Modo de calibracao `raw_extreme` **substituiu** `tcn_macro_override`: raw extremo **nao** substitui Cal; Kelly usa probabilidade calibrada. Chaves SSOT `tcn_macro_call_override` / `tcn_macro_put_override` so limiam raw extremo — **nao** sao timeframe MACRO.
+
+## Edge Cal (identidade Kelly)
+
+Edge = `p_side * (1 + b) - 1` com **p = Cal** do lado (nunca raw). Com `b=0.72`: breakeven `be ≈ 0.581`; floor `min_edge_execute` **0.04** exige Cal ≳ **0.605**. Cal~0.53 → Edge~−0.08 e hard-skip `neg_edge` e matematica correta. `[CLUSTER]` inclui `raw_edge` + `be` sempre que Edge e exibido (CLUSTER sai antes do hard-skip); `[GATES]` sob `neg_edge`/EXEC_EMPTY repete o gap. So telemetria — raw extremo ≠ Kelly.
 
 ## Vies CALL/PUT (pos-escopo 1)
 

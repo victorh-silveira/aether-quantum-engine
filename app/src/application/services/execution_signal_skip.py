@@ -31,6 +31,7 @@ def parse_signal_skip_config(raw: dict[str, Any] | None = None) -> dict[str, Any
             "chop_hurst_max",
             "chop_soft_kelly_mult",
             "neg_edge_soft_kelly_mult",
+            "neg_edge_hard_skip",
         ),
         "orchestrator.execution.signal_skip",
     )
@@ -65,6 +66,7 @@ def parse_signal_skip_config(raw: dict[str, Any] | None = None) -> dict[str, Any
         "chop_hurst_max": hurst_max,
         "chop_soft_kelly_mult": chop_soft,
         "neg_edge_soft_kelly_mult": neg_soft,
+        "neg_edge_hard_skip": require_bool(block, "neg_edge_hard_skip"),
     }
 
 

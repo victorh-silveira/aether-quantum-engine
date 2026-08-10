@@ -4,7 +4,6 @@ from src.application.services.market_audit_log import (
     emit_audit_info,
     format_cluster_audit_line,
     format_execution_ticket_line,
-    format_gates_audit_line,
     format_kelly_audit_line,
     format_settlement_audit_line,
     resolve_cluster_timeframe,
@@ -94,7 +93,8 @@ def test_metric_float_skips_invalid_then_uses_default_in_cluster():
         }
     }
     line = format_cluster_audit_line(decisions, timeframe="M5")
-    assert "R_10: PUT (Prob: 0.50000 Cal: 0.50000 Margin: 0.000 Edge: +0.000)" in line
+    assert "R_10: PUT (Prob: 0.50000 Cal: 0.50000 Margin: 0.000 Edge: +0.000" in line
+    assert "raw_edge:" in line and "be=0.581" in line
 
 
 def test_metric_float_conversion_error_branch():
@@ -152,7 +152,8 @@ def test_format_cluster_audit_line():
     }
     line = format_cluster_audit_line(decisions, timeframe="M5")
     assert line.startswith("[CLUSTER] || M5 || ")
-    assert "R_10: PUT (Prob: 0.62300 Cal: 0.63500 Margin: 0.135 Edge: +0.092)" in line
+    assert "R_10: PUT (Prob: 0.62300 Cal: 0.63500 Margin: 0.135 Edge: +0.092" in line
+    assert "raw_edge:" in line and "be=0.581" in line
     assert "R_50: CALL (Prob:" in line and "NEUTRO_SKIP)" in line
 
 
@@ -208,76 +209,6 @@ def test_format_settlement_audit_line_with_finance_telemetry():
     assert "MODE: RECOVER_DAL_L1" in line
     assert "RECOVERY_INFEASIBLE" in line
     assert "LEARN: label=WIN buffer_n=1" in line
-
-
-def test_format_gates_audit_line():
-    metrics = {
-        "loss_clf_soft": True,
-        "loss_clf_p_loss": 0.86,
-        "loss_clf_soft_kelly_mult": 0.4,
-        "loss_clf_auto_learn": False,
-        "loss_clf_n_train": 64,
-        "regime_chop_soft": True,
-        "regime_chop_adx": 0.16,
-        "regime_chop_hurst": 0.48,
-        "regime_chop_via_scale": True,
-        "cal_side_edge": -0.09,
-        "cal_side_edge_floor": 0.04,
-        "signal_skip_waived": "neg_edge_soft",
-        "exec_direction": "CALL",
-    }
-    line = format_gates_audit_line(metrics)
-    assert line.startswith("[GATES] || LOSS_CLF: SOFT")
-    assert "CHOP adx=" in line
-    assert "NEG_EDGE side=CALL" in line
-    flip_line = format_gates_audit_line(
-        {
-            "loss_clf_flip": True,
-            "loss_clf_p_loss": 0.91,
-            "loss_clf_auto_learn": True,
-            "loss_clf_n_train": 12,
-            "loss_clf_flip_ref": "PUT",
-            "exec_direction": "CALL",
-            "loss_clf_flip_reason": "cal_ovr",
-        }
-    )
-    assert "FLIP PUT->CALL why=cal_ovr auto=1" in flip_line
-    block_line = format_gates_audit_line(
-        {
-            "loss_clf_flip_blocked": "scale_consensus",
-            "loss_clf_p_loss": 0.91,
-            "loss_clf_soft_kelly_mult": 0.4,
-            "loss_clf_auto_learn": False,
-        }
-    )
-    assert "FLIP_BLOCK:scale" in block_line
-    neg_block = format_gates_audit_line(
-        {
-            "loss_clf_flip_blocked": "neg_edge",
-            "loss_clf_p_loss": 0.95,
-            "loss_clf_soft_kelly_mult": 0.4,
-            "loss_clf_auto_learn": False,
-        }
-    )
-    assert "FLIP_BLOCK:neg_edge" in neg_block
-    other_block = format_gates_audit_line(
-        {
-            "loss_clf_flip_blocked": "custom_reason",
-            "loss_clf_p_loss": 0.91,
-            "loss_clf_soft_kelly_mult": 0.4,
-        }
-    )
-    assert "FLIP_BLOCK:custom_reason" in other_block
-    ok_line = format_gates_audit_line(
-        {
-            "loss_clf_p_loss": 0.42,
-            "loss_clf_auto_learn": True,
-            "loss_clf_n_train": 8,
-            "loss_clf_veto_ready": True,
-            "loss_clf_model_version": "v1",
-        }
-    )
-    assert "LOSS_CLF: OK auto=1" in ok_line
 
 
 def test_format_kelly_audit_line():

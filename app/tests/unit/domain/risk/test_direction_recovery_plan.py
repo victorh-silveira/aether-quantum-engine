@@ -184,8 +184,8 @@ def test_resolve_execution_direction_allows_meta_negative_edge_without_force():
         "metrics": {
             "execute": True,
             "deploy_ok": True,
-            "raw_prob": 0.51,
-            "calibrated_prob": 0.51,
+            "raw_prob": 0.65,
+            "calibrated_prob": 0.65,
             "val_accuracy": 0.55,
             "predicted_payoff_edge": -0.10,
             "meta_classifier_applied": True,
@@ -206,7 +206,7 @@ def test_resolve_execution_direction_allows_meta_negative_edge_without_force():
             entry,
             metrics,
             TradeDirection.CALL,
-            0.51,
+            0.65,
             -0.10,
             meta_applied=True,
             score=0.51,
@@ -216,6 +216,7 @@ def test_resolve_execution_direction_allows_meta_negative_edge_without_force():
         assert result is not None
         assert result[0] == TradeDirection.CALL
     assert metrics.get("execution_candidate_ready") is True
+    assert metrics.get("gate_reason") != "neg_edge"
 
 
 def test_include_anchor_trades_true_keeps_anchor_eligible():

@@ -68,6 +68,9 @@ def save_model_checkpoint(
     deploy_ok: bool | None = None,
     deploy_win_rate: float | None = None,
     granularity: int | None = None,
+    label_call_frac: float | None = None,
+    pred_call_frac: float | None = None,
+    minority_recall: float | None = None,
 ) -> None:
     """Persiste checkpoint com calibrador e metadados de arquitetura."""
     arch = arch or DEFAULT_ARCH
@@ -96,6 +99,12 @@ def save_model_checkpoint(
         payload["deploy_win_rate"] = float(deploy_win_rate)
     if granularity is not None:
         payload["granularity"] = int(granularity)
+    if label_call_frac is not None:
+        payload["label_call_frac"] = float(label_call_frac)
+    if pred_call_frac is not None:
+        payload["pred_call_frac"] = float(pred_call_frac)
+    if minority_recall is not None:
+        payload["minority_recall"] = float(minority_recall)
     torch.save(payload, path)
     _save_torchscript(model, path, lookback=lookback)
 
