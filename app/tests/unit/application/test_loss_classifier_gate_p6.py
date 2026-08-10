@@ -177,3 +177,40 @@ def test_collapsed_p_loss_disables_veto_and_logs_degen():
         assert apply_loss_classifier_gate(metrics, TradeDirection.CALL, orch=orch, symbol="R_10") is False
     assert metrics.get("loss_clf_collapsed") is True
     assert metrics.get("loss_clf_veto_ready") is False
+
+
+def test_tcn_pos_edge_blocks_flip_keeps_side():
+    orch = _orch(9)
+    metrics = {
+        "execution_candidate_ready": True,
+        "exec_direction": "PUT",
+        "tcn_direction": "PUT",
+        "scale_tape_consensus": "CALL",
+        "scale_vote_call_n": 3,
+        "scale_vote_put_n": 0,
+        "kelly_fraction_scale": 1.0,
+        "calibrated_prob": 0.36,
+    }
+    with (
+        patch(
+            "src.application.services.loss_classifier_gate.predict_loss_via_config_sync",
+            return_value={
+                "p_loss": 0.95,
+                "veto": True,
+                "auto_learn_applied": True,
+                "model_version": "loss_pos_edge",
+                "n_train": 40,
+                "veto_ready": True,
+                "bootstrap": False,
+            },
+        ),
+        patch(
+            "src.application.services.loss_classifier_gate.resolve_loss_classifier_config",
+            return_value=_soft_cfg(flip_block_when_tcn_pos_edge=True),
+        ),
+    ):
+        assert apply_loss_classifier_gate(metrics, TradeDirection.PUT, orch=orch, symbol="R_10") is False
+    assert metrics.get("loss_clf_flip") is not True
+    assert metrics["exec_direction"] == "PUT"
+    assert metrics["loss_clf_flip_blocked"] == "tcn_pos_edge"
+    assert metrics["loss_clf_soft"] is True
