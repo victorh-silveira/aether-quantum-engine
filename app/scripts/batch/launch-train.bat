@@ -20,27 +20,37 @@ if "%CONDA_ACTIVATE%"=="" echo [ERRO] Nao foi possivel localizar o activate.bat 
 if "%CONDA_ACTIVATE%"=="" pause
 if "%CONDA_ACTIVATE%"=="" exit /b 1
 
-echo [AETHER] Etapa 1/2: Executando treino Deep Learning (TCN)...
+echo [AETHER] Etapa 0/4: Sanitizando run anterior (checkpoints/meta/loss/triton/data)...
+cd /d "%REPO_ROOT%"
+"%PYTHON_EXE%" app/scripts/operations/sanitize_fresh_run.py
+if errorlevel 1 goto :sanitize_fail
+
+echo [AETHER] Etapa 1/4: Executando treino Deep Learning (TCN)...
 call "%~dp0_run_train.bat" "%CONDA_ACTIVATE%"
 if errorlevel 1 goto :dl_fail
 
-echo [AETHER] Etapa 1b/3: Validando deploy/ACC do checkpoint DL...
+echo [AETHER] Etapa 1b/4: Validando deploy/ACC do checkpoint DL...
 cd /d "%REPO_ROOT%"
 "%PYTHON_EXE%" app/scripts/operations/check_dl_deploy_gate.py --symbols R_10
 if errorlevel 1 goto :dl_gate_fail
 
-echo [AETHER] Etapa 2/3: Verificando infraestrutura Docker (TimescaleDB)...
+echo [AETHER] Etapa 2/4: Verificando infraestrutura Docker (TimescaleDB)...
 cd /d "%REPO_ROOT%"
 "%PYTHON_EXE%" app/scripts/operations/ensure_timescale.py --check-only
 if errorlevel 1 echo [AVISO] TimescaleDB nao disponivel. Meta-classificador usara API Deriv (fallback).
 
-echo [AETHER] Etapa 3/3: Treino DL concluido com sucesso! Iniciando Meta-Classificador (LightGBM)...
+echo [AETHER] Etapa 3/4: Treino DL concluido com sucesso! Iniciando Meta-Classificador (LightGBM)...
 call "%~dp0_run_meta_train.bat" "%CONDA_ACTIVATE%"
 if errorlevel 1 goto :meta_fail
 
 echo [SUCESSO] Pipeline de treinamento AETHER concluido com sucesso!
 timeout /t 5 /nobreak > nul
 exit /b 0
+
+:sanitize_fail
+echo [ERRO] Sanitizacao da run anterior falhou. Treino abortado.
+pause
+exit /b 1
 
 :dl_fail
 echo [ERRO] Treino DL falhou. Treino do Meta-Classificador abortado para evitar race condition.

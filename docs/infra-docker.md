@@ -38,7 +38,7 @@ Logs de um servico: `make docker-logs DOCKER_SERVICE=<alias>`. Aliases Make → 
 
 Pipeline `docker-up`: `host-prereq` → `triton-prereq` → compose up → wait healthy → timescale-lifecycle → hydrate (R_10 120/600) → smoke.
 
-Rebuild meta+loss: `make docker-rebuild` (limpa `loss-models/` + seed `loss_bootstrap_synth` com predict real / `veto_ready`). Reset destrutivo: `make docker-reset`. Smoke: `make docker-smoke` (falha se profile exige servico parado; meta exige JSON `ready`+`model_loaded`; loss exige `ready`).
+Rebuild meta+loss: `make docker-rebuild` (sanitiza run host com `--keep-meta-bundle`, limpa `loss-models/` + seed `loss_bootstrap_synth`). Reset destrutivo: `make docker-reset` (sanitiza + `down --volumes`). Sanitizacao total (inclui `meta_lgbm.pkl` e `data/dl/*.pth`): `make sanitize-run` ou etapa 0 de `launch-train.bat`. Smoke: `make docker-smoke`.
 
 ## GPU e Triton
 

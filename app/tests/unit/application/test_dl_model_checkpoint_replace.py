@@ -11,10 +11,10 @@ def test_should_replace_when_deploy_ok_true(tmp_path: Path):
     assert should_replace_checkpoint(path, deploy_ok=True) is True
 
 
-def test_should_preserve_existing_deploy_ok(tmp_path: Path):
+def test_should_replace_even_when_existing_deploy_ok(tmp_path: Path):
     path = tmp_path / "R_10.pth"
     torch.save({"deploy_ok": True, "val_brier": 0.22}, path)
-    assert should_replace_checkpoint(path, deploy_ok=False) is False
+    assert should_replace_checkpoint(path, deploy_ok=False) is True
 
 
 def test_should_replace_when_existing_not_deploy_ok(tmp_path: Path):
@@ -23,10 +23,10 @@ def test_should_replace_when_existing_not_deploy_ok(tmp_path: Path):
     assert should_replace_checkpoint(path, deploy_ok=False, val_accuracy=0.52) is True
 
 
-def test_should_preserve_better_acc_when_both_undeployed(tmp_path: Path):
+def test_should_replace_even_when_old_acc_better(tmp_path: Path):
     path = tmp_path / "R_10.pth"
     torch.save({"deploy_ok": False, "val_accuracy": 0.556}, path)
-    assert should_replace_checkpoint(path, deploy_ok=False, val_accuracy=0.5176) is False
+    assert should_replace_checkpoint(path, deploy_ok=False, val_accuracy=0.5176) is True
 
 
 def test_should_replace_when_val_accuracy_none(tmp_path: Path):

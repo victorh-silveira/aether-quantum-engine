@@ -44,7 +44,9 @@ RESET  := \033[0m
 .PHONY: app-install app-lint app-test app-security app-run app-train app-pre-commit \
 	app-pre-commit-run app-setup-wsl app-clean help helpo docker-up docker-up-core \
 	docker-up-cpu docker-down docker-clean docker-restart docker-reset docker-ps docker-logs \
-	docker-bash docker-hydrate docker-rebuild docker-smoke timescale-lifecycle
+	docker-bash docker-hydrate docker-rebuild docker-smoke timescale-lifecycle sanitize-run \
+	sanitize-run-docker
+
 
 help:
 	@echo -e "$(BLUE)========================================================================$(RESET)"
@@ -67,7 +69,8 @@ help:
 	@echo -e "  $(GREEN)docker-up-cpu$(RESET)      - Stack Triton CPU"
 	@echo -e "  $(GREEN)docker-up-core$(RESET)     - So Redis/Timescale/MinIO"
 	@echo -e "  $(GREEN)docker-rebuild$(RESET)     - Limpa loss-models, bootstrap cold-start, rebuild meta/loss e sobe"
-	@echo -e "  $(GREEN)docker-reset$(RESET)       - $(RED)DESTRUTIVO$(RESET): limpa loss-models + volumes, bootstrap e sobe stack"
+	@echo -e "  $(GREEN)docker-reset$(RESET)       - $(RED)DESTRUTIVO$(RESET): sanitiza run + loss-models + volumes, bootstrap e sobe stack"
+	@echo -e "  $(GREEN)sanitize-run$(RESET)       - $(RED)DESTRUTIVO$(RESET): limpa checkpoints DL/meta/loss/triton e data/ (exceto deriv)"
 	@echo -e "  $(GREEN)docker-down$(RESET)        - Para containers (preserva dados)"
 	@echo -e "  $(GREEN)docker-restart$(RESET)     - Restart da stack"
 	@echo -e "  $(GREEN)docker-ps$(RESET)          - Status"
@@ -109,6 +112,14 @@ app-setup-wsl:
 app-clean:
 	$(PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --stage clean
 
+sanitize-run:
+	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "sanitize-run · limpa checkpoints e artefactos da run anterior"'
+	$(PYTHON) $(APP_DIR)/scripts/operations/sanitize_fresh_run.py
+
+sanitize-run-docker:
+	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "sanitize-run-docker · limpa run (mantem meta_lgbm.pkl ate train)"'
+	$(PYTHON) $(APP_DIR)/scripts/operations/sanitize_fresh_run.py --keep-meta-bundle
+
 docker-up:
 	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-up · Aether stack (profiles: $(DOCKER_PROFILES))"'
 	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_step 1 6 "Host prerequisites"'
@@ -137,8 +148,9 @@ docker-up-cpu:
 	@$(MAKE) --no-print-directory docker-up DOCKER_PROFILES=core,cpu,ml DOCKER_GPU=0
 
 docker-rebuild:
-	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-rebuild · limpa loss-models + bootstrap + rebuild meta/loss + up"'
+	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-rebuild · sanitiza run + limpa loss-models + bootstrap + rebuild meta/loss + up"'
 	@test -f .env || cp .env.example .env
+	@$(MAKE) --no-print-directory sanitize-run-docker
 	@bash infra/docker/loss-clf-reset.sh clear
 	@cd $(APP_DIR) && LOKY_MAX_CPU_COUNT=$${LOKY_MAX_CPU_COUNT:-4} $(PYTHON) -m scripts.operations.train_loss_classifier
 	@bash infra/docker/triton-prereq.sh
@@ -164,9 +176,10 @@ docker-restart:
 
 docker-reset:
 	@test -f .env || cp .env.example .env
-	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-reset · ATENCAO: loss-models + volumes serao limpos"'
-	@echo -e "$(RED)  Limpando loss-models (backup) e volumes Redis/Timescale/MinIO; recria a stack$(RESET)"
+	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-reset · ATENCAO: sanitiza run + loss-models + volumes"'
+	@echo -e "$(RED)  Limpando checkpoints/artefactos + loss-models + volumes Redis/Timescale/MinIO; recria a stack$(RESET)"
 	@echo ""
+	@$(MAKE) --no-print-directory sanitize-run-docker
 	@bash infra/docker/loss-clf-reset.sh clear
 	@cd $(APP_DIR) && LOKY_MAX_CPU_COUNT=$${LOKY_MAX_CPU_COUNT:-4} $(PYTHON) -m scripts.operations.train_loss_classifier
 	$(DOCKER_COMPOSE) down --volumes --remove-orphans

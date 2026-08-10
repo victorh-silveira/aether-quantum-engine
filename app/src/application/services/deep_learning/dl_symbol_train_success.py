@@ -5,22 +5,16 @@ import time
 from pathlib import Path
 
 import numpy as np
-import torch
 
 from src.application.services.deep_learning.dl_calibration import CalibratorState
 from src.application.services.deep_learning.dl_deploy import apply_deploy_to_runtime
 from src.application.services.deep_learning.dl_deploy_eval import evaluate_mini_deploy
 from src.application.services.deep_learning.dl_gate_config import (
     describe_deploy_block,
-    parse_deploy_gate_config,
     resolve_deploy_ok,
 )
 from src.application.services.deep_learning.dl_horizon import contract_duration_seconds
 from src.application.services.deep_learning.dl_model_artifacts import schedule_model_upload
-from src.application.services.deep_learning.dl_model_checkpoint import (
-    checkpoint_meta_ready,
-    should_replace_checkpoint,
-)
 from src.application.services.deep_learning.dl_retrain import clear_force_retrain, reset_bars_since_train
 from src.application.services.deep_learning.dl_sharpness import (
     assert_export_sharpness_value,
@@ -32,39 +26,6 @@ from src.application.services.live_signal_metrics import live_signal_snapshot
 
 
 logger = logging.getLogger("AETH")
-
-
-def _demote_preserved_checkpoint(path: Path) -> None:
-    """Rebaixa deploy_ok so se o ckpt preservado falhar o soft gate local."""
-    try:
-        if not path.is_file():
-            return
-        payload = torch.load(path, map_location="cpu", weights_only=True)
-        if not isinstance(payload, dict):
-            return
-        if payload.get("deploy_ok") is False:
-            return
-        gate_cfg = parse_deploy_gate_config({})
-        still_ok = resolve_deploy_ok(
-            mini_ok=False,
-            val_accuracy=float(payload.get("val_accuracy", 0.0) or 0.0),
-            val_brier=float(payload.get("val_brier", 1.0) or 1.0),
-            gate_cfg=gate_cfg,
-            label_call_frac=payload.get("label_call_frac"),
-            pred_call_frac=payload.get("pred_call_frac"),
-            minority_recall=payload.get("minority_recall"),
-        )
-        if still_ok:
-            logger.info(
-                "DL TREINO | checkpoint %s preservado deploy_ok=true (metricas locais ok)",
-                path.name,
-            )
-            return
-        payload["deploy_ok"] = False
-        torch.save(payload, path)
-        logger.warning("DL TREINO | checkpoint %s rebaixado deploy_ok=false apos rejeicao", path.name)
-    except Exception as exc:
-        logger.debug("DL TREINO | falha ao rebaixar checkpoint %s: %s", path, exc)
 
 
 def _log_horizon_gap(
@@ -180,72 +141,38 @@ def apply_successful_symbol_train(
     runtime["pred_call_frac"] = float(getattr(train_result, "pred_call_frac", 0.5))
     runtime["minority_recall"] = float(getattr(train_result, "minority_recall", 1.0))
     path = Path(resolve_dl_model_path(dl_config, symbol))
-    persist = should_replace_checkpoint(
+    save_model_checkpoint(
         path,
-        deploy_ok=bool(runtime.get("deploy_ok", False)),
-        val_accuracy=float(runtime.get("val_accuracy", 0.0) or 0.0),
+        model,
+        norm_stats,
+        candle_epoch_value,
+        lookback=params["lookback"],
+        calibrator=runtime["calibrator"],
+        arch=params["arch"],
+        val_accuracy=runtime["val_accuracy"],
+        val_brier=runtime["val_brier"],
+        val_ece=runtime["val_ece"],
+        deploy_ok=runtime["deploy_ok"],
+        deploy_win_rate=runtime["deploy_win_rate"],
+        granularity=granularity,
+        label_call_frac=float(runtime.get("label_call_frac", 0.5)),
+        pred_call_frac=float(runtime.get("pred_call_frac", 0.5)),
+        minority_recall=float(runtime.get("minority_recall", 1.0)),
     )
-    if persist:
-        save_model_checkpoint(
-            path,
-            model,
-            norm_stats,
-            candle_epoch_value,
-            lookback=params["lookback"],
-            calibrator=runtime["calibrator"],
-            arch=params["arch"],
-            val_accuracy=runtime["val_accuracy"],
-            val_brier=runtime["val_brier"],
-            val_ece=runtime["val_ece"],
-            deploy_ok=runtime["deploy_ok"],
-            deploy_win_rate=runtime["deploy_win_rate"],
-            granularity=granularity,
-            label_call_frac=float(runtime.get("label_call_frac", 0.5)),
-            pred_call_frac=float(runtime.get("pred_call_frac", 0.5)),
-            minority_recall=float(runtime.get("minority_recall", 1.0)),
-        )
-        schedule_model_upload(
-            orch,
-            symbol,
-            path,
-            arch=str(params["arch"]),
-            metadata={
-                "val_accuracy": runtime["val_accuracy"],
-                "calibrated_entropy": runtime.get("calibrated_entropy"),
-                "entropy_violation": runtime.get("entropy_violation"),
-            },
-        )
-        runtime["session_trained"] = bool(runtime.get("deploy_ok", False))
-        runtime["export_ok"] = bool(runtime.get("deploy_ok", False))
-    else:
-        reason = describe_deploy_block(
-            mini_ok=bool(mini_ok),
-            val_accuracy=float(train_result.val_accuracy),
-            val_brier=float(train_result.val_brier),
-            gate_cfg=gate_cfg,
-            label_call_frac=float(getattr(train_result, "label_call_frac", 0.5)),
-            pred_call_frac=float(getattr(train_result, "pred_call_frac", 0.5)),
-            minority_recall=float(getattr(train_result, "minority_recall", 1.0)),
-        )
-        logger.warning(
-            "DL TREINO | %s | novo treino rejeitado (%s); checkpoint anterior preservado",
-            symbol,
-            reason,
-        )
-        runtime["session_trained"] = False
-        runtime["checkpoint_preserved"] = True
-        _demote_preserved_checkpoint(path)
-        runtime["export_ok"] = checkpoint_meta_ready(path)
-        if runtime["export_ok"]:
-            logger.info(
-                "DL TREINO | %s | meta liberada com checkpoint preservado (deployavel em disco)",
-                symbol,
-            )
-        else:
-            logger.error(
-                "DL TREINO | %s | sem checkpoint deployavel — meta abortado",
-                symbol,
-            )
+    schedule_model_upload(
+        orch,
+        symbol,
+        path,
+        arch=str(params["arch"]),
+        metadata={
+            "val_accuracy": runtime["val_accuracy"],
+            "calibrated_entropy": runtime.get("calibrated_entropy"),
+            "entropy_violation": runtime.get("entropy_violation"),
+        },
+    )
+    runtime["session_trained"] = bool(runtime.get("deploy_ok", False))
+    runtime["export_ok"] = bool(runtime.get("deploy_ok", False))
+    runtime["checkpoint_preserved"] = False
     clear_force_retrain(orch, symbol)
     reset_bars_since_train(orch, symbol)
     live_snap = live_signal_snapshot(orch, symbol) if orch is not None else {"live_wr": 0.0, "live_n": 0}
@@ -272,7 +199,7 @@ def apply_successful_symbol_train(
         float(runtime.get("pred_call_frac", 0.5)),
         float(runtime.get("minority_recall", 1.0)),
     )
-    if not bool(runtime.get("deploy_ok", False)) and not bool(runtime.get("checkpoint_preserved", False)):
+    if not bool(runtime.get("deploy_ok", False)):
         reason = describe_deploy_block(
             mini_ok=bool(mini_ok),
             val_accuracy=float(train_result.val_accuracy),

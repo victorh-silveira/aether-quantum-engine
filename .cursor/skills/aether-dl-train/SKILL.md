@@ -26,6 +26,7 @@ description: >-
 14. Pos-migrate M2: invalidar pth/TorchScript antigos (gran 60/300/900 ou contrato 15m), re-hydrate Timescale **120/3600**, retreinar TCN+meta
 15. Universo **`R_10`**: artefactos Volatility/legado invalidos; sync MinIO/Triton com nome `R_10`
 16. Gap TCN→meta: `launch-train` usa `ensure_timescale.py --check-only` (sem seed Deriv entre etapas); bootstrap wait cap **30 s**; shortfall API ≥ **95%** do alvo (`train_history_shortfall_ratio`) em TCN **e** meta (ex.: 1984/2000)
+17. Run fresca: `sanitize_fresh_run` no inicio de `launch-train`; `make docker-reset` sanitiza + volumes; treino **nao** preserva checkpoint anterior
 
 
 ## Anti-padroes

@@ -26,7 +26,8 @@ Guia operacional DL para agentes. Detalhe de features: [`arquitetura.md`](arquit
 | Comando | Papel |
 |---------|-------|
 | `train.py` / `app/train.py` | treino TCN |
-| `app/scripts/batch/launch-train.bat` | DL → gate ACC/deploy → Timescale → meta |
+| `app/scripts/batch/launch-train.bat` | sanitiza run → DL → gate ACC/deploy → Timescale → meta |
+| `app/scripts/operations/sanitize_fresh_run.py` | limpa `data/dl`, meta/loss pkls, Triton bins e estado em `data/` |
 | `app/scripts/operations/check_dl_deploy_gate.py` | aborta meta se ACC&lt;0.53 ou `deploy_ok=false` |
 | `app/scripts/operations/train_meta_*.py` | treino offline do meta (`--source auto`) |
 
@@ -45,7 +46,7 @@ Telemetria de treino: `TrainResult.label_call_frac`, `pred_call_frac`, `minority
 
 ## Deploy gate (senior)
 
-`resolve_deploy_ok` exige `val_accuracy >= soft_min` **antes** de `mini_ok` / `force_ok`. Checkpoint com ACC 0.52 grava `deploy_ok=false`. Nao usar `force_ok=true` nem `bypass_deploy_gate=true` em producao.
+`resolve_deploy_ok` exige `val_accuracy >= soft_min` **antes** de `mini_ok` / `force_ok`. Checkpoint com ACC 0.52 grava `deploy_ok=false`. Treino rejeitado **sempre sobrescreve** o `.pth` anterior (sem preservar deploy antigo). Nao usar `force_ok=true` nem `bypass_deploy_gate=true` em producao.
 
 Majority-collapse (alem do ACC): com `reject_majority_collapse=true`, rejeita se `minority_recall < min_minority_recall` (**0.25**) e houver vies (`|pred_call_frac-0.5|`, `|pred_call_frac-label_call_frac|` ou `|label_call_frac-0.5|` &gt; `max_label_call_frac_bias` **0.20`). Labels balanceados com `pred_call` colapsado (ex. 0.83) tambem falham o gate.
 

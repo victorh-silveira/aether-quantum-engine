@@ -436,13 +436,14 @@ presentation  →  application  →  domain
 |---------|--------|
 | `batch/launch-all-demo.bat` | Launcher demo Windows |
 | `batch/launch-all-live.bat` | Launcher live Windows |
-| `batch/launch-train.bat` | Launcher treino Windows |
+| `batch/launch-train.bat` | Launcher treino Windows (sanitiza run antes) |
 | `monitor/live_monitor.py` | Monitor Rich ao vivo |
 | `monitor/monitor_redis.py` | Inspeção Redis |
 | `monitor/monitor_state.py` | Inspeção de estado |
 | `monitor/monitor_ui.py` | UI de monitoramento |
 | `operations/clean_workspace.py` | Lint, pytest, segurança, limpeza (pre-commit) |
 | `operations/clean_workspace_stage.py` | Estágios isolados do clean_workspace |
+| `operations/sanitize_fresh_run.py` | Limpa checkpoints/artefactos da run anterior |
 | `operations/clean_runtime_artifacts.py` | Limpeza de artefatos de runtime |
 | `operations/deriv_pat_connect.py` | Conexão/teste PAT Deriv |
 | `operations/reset_demo_balance.py` | Reset de saldo demo |

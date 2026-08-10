@@ -27,24 +27,9 @@ def should_replace_checkpoint(
     deploy_ok: bool,
     val_accuracy: float | None = None,
 ) -> bool:
-    """Evita sobrescrever ckpt deploy_ok ou com ACC melhor por treino rejeitado."""
-    if bool(deploy_ok):
-        return True
-    if not path.exists():
-        return True
-    try:
-        payload = torch.load(path, map_location="cpu", weights_only=True)
-    except Exception as exc:
-        logger.debug("DL: falha ao inspecionar checkpoint existente %s: %s", path, exc)
-        return True
-    if not isinstance(payload, dict):
-        return True
-    if bool(payload.get("deploy_ok", False)):
-        return False
-    if val_accuracy is None:
-        return True
-    old_acc = float(payload.get("val_accuracy", 0.0) or 0.0)
-    return float(val_accuracy) > old_acc + 1e-9
+    """Sempre substitui: run fresca nao preserva checkpoint anterior."""
+    _ = (path, deploy_ok, val_accuracy)
+    return True
 
 
 def checkpoint_meta_ready(path: Path) -> bool:
