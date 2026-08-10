@@ -107,7 +107,7 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert resolved["flip_candle_p_loss_floor"] == pytest.approx(0.85)
     assert resolved["flip_waive_scale_above_p_loss"] == pytest.approx(0.95)
     assert resolved["flip_block_when_tcn_pos_edge"] is True
-    assert resolved["flip_waive_edge_min"] == pytest.approx(-0.12)
+    assert resolved["flip_waive_edge_min"] == pytest.approx(-0.05)
     soft_rec = settings["risk_management"]["soft_recovery"]
     assert int(soft_rec["amort_cycles_min"]) == 1
     assert int(soft_rec["amort_cycles_max"]) == 1
@@ -126,7 +126,7 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert float(skip["neg_edge_soft_kelly_mult"]) == pytest.approx(0.55)
     assert bool(skip["neg_edge_hard_skip"]) is True
     assert bool(skip["neg_edge_soft_when_closed_candle_agree"]) is True
-    assert float(skip["neg_edge_soft_min_edge"]) == pytest.approx(-0.12)
+    assert float(skip["neg_edge_soft_min_edge"]) == pytest.approx(-0.05)
     assert "calib_gray_margin_floor" not in skip
     assert "calib_gray_soft_kelly_mult" not in skip
     assert "calib_gray_max_stake_pct" not in skip

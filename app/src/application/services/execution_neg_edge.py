@@ -155,7 +155,8 @@ def apply_negative_cal_edge_pause(
     )
     soft_min = float(cfg.get("neg_edge_soft_min_edge", -1.0))
     soft_too_deep = edge + 1e-12 < soft_min
-    allow_soft = (candle_agree or p_ovr_flip) and not soft_too_deep
+    flip_blocked = bool(str(metrics.get("loss_clf_flip_blocked") or "").strip())
+    allow_soft = (candle_agree or p_ovr_flip) and not soft_too_deep and not flip_blocked
     if bool(cfg["neg_edge_hard_skip"]) and not allow_soft:
         _apply_neg_edge_hard(metrics, direction=direction, edge=edge, floor=floor)
         return True

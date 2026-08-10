@@ -12,7 +12,7 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `orchestrator` | ciclo, warmup, watchdog, WS |
 | `orchestrator.execution` | mandatory/force, settlement, SIDE_EQ soft, `scale_vision`, `signal_skip`, sample_size_policy |
 | `infra.meta_classifier` | HTTP :8005; edge continuo 43D |
-| `infra.loss_classifier` | HTTP :8006; `veto_mode` **soft** + banda flip: floor soft **0.65**; `hard_p_loss_floor` **0.90**; `flip_block_when_tcn_pos_edge` **true** (nao FLIP se Edge TCN >= **0.04**); `flip_waive_scale_above_p_loss` **0.95**; `flip_candle_p_loss_floor` **0.85** (so TCN fraco); `flip_waive_edge_min` **-0.12**; seed/`flip_allow_seed_on_scale_discord`; `flip_waive_on_closed_candle`; soft Kelly **0.55→0.40**; `timeout_seconds` **8** |
+| `infra.loss_classifier` | HTTP :8006; `veto_mode` **soft** + banda flip: floor soft **0.65**; `hard_p_loss_floor` **0.90**; `flip_block_when_tcn_pos_edge` **true** (nao FLIP se Edge TCN >= **0.04**); `flip_waive_scale_above_p_loss` **0.95**; `flip_candle_p_loss_floor` **0.85** (so TCN fraco); `flip_waive_edge_min` **-0.05**; seed/`flip_allow_seed_on_scale_discord`; `flip_waive_on_closed_candle`; soft Kelly **0.55→0.40**; `timeout_seconds` **8** |
 | `risk_management` | Kelly, soft_recovery, stop-win, ACC gate, duration contrato |
 | `infra` | Redis, Timescale, MinIO, Triton, meta |
 | `logging` | level, log_file, quiet_channels |
@@ -28,7 +28,7 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `min_minority_recall` | idem | padrao **0.25** |
 | `side_equilibrium.enabled` | `orchestrator.execution` | soft Kelly only; sem veto de direcao |
 | `scale_vision.*` | `orchestrator.execution` | `adapt_allow_strong_tape` **false**; **majority_votes** (TCN/tape/mili/RSI + vela micro fechada se `adapt_majority_include_micro_bar` **true**); `adapt_majority_min_lead` **2**; `adapt_skip_chop` **true** (hold TCN em micro=chop); `adapt_require_cal_agree` **true** (nao adapta contra Cal); `adapt_mili_tape_skip_chop` **true**; **sem** `adapt_*_cal_margin` / hold cinza |
-| `signal_skip.*` | `orchestrator.execution` | Escopo **1.1**: mini/cal/chop soft Kelly **0.55**; **neg_edge_hard_skip** **true**; **neg_edge_soft_when_closed_candle_agree** **true** com **neg_edge_soft_min_edge** **-0.12** (edge mais negativo → hard); Edge = `Cal*(1+b)-1`; floor **0.04** exige Cal ≳ **0.605** |
+| `signal_skip.*` | `orchestrator.execution` | Escopo **1.1**: mini/cal/chop soft Kelly **0.55**; **neg_edge_hard_skip** **true**; soft candle/p_ovr so se edge >= `neg_edge_soft_min_edge` (**-0.05**) e sem `FLIP_BLOCK`; Edge = `Cal*(1+b)-1`; floor **0.04** exige Cal ≳ **0.605** |
 | `scale_vision.adapt_on_majority_votes` | idem | Conta votos TCN/tape/mili/mini_pair/RSI; lideranca ≥`adapt_majority_min_lead` e n≥`adapt_majority_min_votes` → `majority_votes` |
 | `kelly.kelly_p_floor` | `risk_management.kelly` | Piso de **probabilidade** para Kelly; garante `f*>0`; alias `adapt_kelly_p_floor` |
 | `kelly.neutral_bankroll_pct` | `risk_management.kelly` | Piso operacional de stake explore (**0.25%** banca M2); loss_clf soft **nao** esmaga o piso |

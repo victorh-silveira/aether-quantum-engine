@@ -302,7 +302,7 @@
             "flip_candle_p_loss_floor": 0.85,
             "flip_waive_scale_above_p_loss": 0.95,
             "flip_block_when_tcn_pos_edge": true,
-            "flip_waive_edge_min": -0.12
+            "flip_waive_edge_min": -0.05
         },
         "minio": {
             "bucket": "dl-models",
@@ -618,7 +618,7 @@
                 "neg_edge_soft_kelly_mult": 0.55,
                 "neg_edge_hard_skip": true,
                 "neg_edge_soft_when_closed_candle_agree": true,
-                "neg_edge_soft_min_edge": -0.12
+                "neg_edge_soft_min_edge": -0.05
             }
         },
         "idle_cycle_watchdog_seconds": 1200,
