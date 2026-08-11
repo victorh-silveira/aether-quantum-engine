@@ -19,14 +19,14 @@ def _series_last(series: dict, key: str, default: float = 0.0) -> float:
 
 
 def stamp_macro_frame_telemetry(orch: Any, symbol: str, metrics: dict[str, Any], params: dict[str, Any]) -> None:
-    """Anexa indicadores da serie MACRO real (300s), distinto do TCN micro."""
+    """Anexa indicadores da serie MACRO real (3600s H1), distinto do TCN micro."""
     stream = getattr(orch, "stream", None)
     if stream is None or not hasattr(stream, "get_numpy_series"):
         return
     closes = stream.get_numpy_series(str(symbol), "close")
     if closes is None or len(closes) < 8:
         return
-    macro_gran = int(params.get("granularity", getattr(stream, "macro_granularity", 300)) or 300)
+    macro_gran = int(params.get("granularity", getattr(stream, "macro_granularity", 3600)) or 3600)
     series = precompute_price_series(closes, granularity=macro_gran, symbol=str(symbol))
     metrics["macro_indicators"] = {
         "rsi": _series_last(series, "rsi"),
@@ -54,7 +54,7 @@ def stamp_micro_frame_telemetry(orch: Any, symbol: str, metrics: dict[str, Any],
         high = stream.get_micro_numpy_series(str(symbol), "high")
         low = stream.get_micro_numpy_series(str(symbol), "low")
         open_ = stream.get_micro_numpy_series(str(symbol), "open")
-    micro_gran = int(params.get("micro_granularity", 60))
+    micro_gran = int(params.get("micro_granularity", 120))
     series = precompute_price_series(closes, granularity=micro_gran, symbol=str(symbol))
     metrics["micro_indicators"] = {
         "rsi": _series_last(series, "rsi"),

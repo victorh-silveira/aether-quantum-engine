@@ -71,7 +71,7 @@ class Orchestrator:
         self.trading_transport = "ws"
         self.deriv_account_id = ""
         self.risk_manager = RiskManager(config["risk_management"])
-        gran = int(config.get("data_handler", {}).get("micro_granularity", 300))
+        gran = int(config.get("data_handler", {}).get("micro_granularity", 120))
         self.risk_manager.set_candle_interval_seconds(gran)
         self.state = TradingState()
         self.persistence = JsonStateStore() if not self.infra.enabled else PersistenceManager()

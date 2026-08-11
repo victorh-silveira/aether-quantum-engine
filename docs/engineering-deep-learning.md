@@ -8,15 +8,16 @@ Guia operacional DL para agentes. Detalhe de features: [`arquitetura.md`](arquit
 |------|----------------|
 | Simbolo | `R_10` |
 | Arch | TCN |
-| Lookback | **720** → tensor `[1, 720, 34]` (~7,5 dias @ 900 s) |
+| Lookback | **720** → tensor `[1, 720, 34]` (~1 dia @ 120 s) |
 | MACRO OHLC | **3600 s** (`data_handler.granularity`) |
-| MICRO (TCN) | **900 s** (`micro_granularity`) — M15 |
-| Contrato | **15 m** RISE_FALL (label 1 barra micro = 900 s) |
-| MINI OHLC | **900 s** (`mini_granularity`) |
-| Bootstrap wait | `bootstrap_history_wait_cap_seconds` **30** (nao dorme 900 s entre retries) |
+| MICRO (TCN) | **120 s** (`micro_granularity`) — M2 |
+| Contrato | **2 m** RISE_FALL (label 1 barra micro = 120 s) |
+| MINI OHLC | **120 s** (`mini_granularity`) |
+| Bootstrap wait | `bootstrap_history_wait_cap_seconds` **30** (nao dorme a granularidade inteira entre retries) |
 | MILI | Tick flow (nao OHLC) |
 | Features | **34D** (`FEATURE_DIM`) |
-| Label | `ma_trend` (MA 8; horizonte 1 barra micro **900 s**; alinhado ao contrato M15) |
+| Label | `ma_trend` (MA 8; horizonte 1 barra micro **120 s**; alinhado ao contrato M2) |
+| Online training | **false** (DEMO usa checkpoint do `launch-train`) |
 | ACC / deploy | `soft_min_val_accuracy` **0.53**; `soft_max_brier` **0.26**; `force_ok=false` |
 | Early stop | `min_epochs` **40**, `early_stopping_patience` **40**; restore **best val_acc** |
 | Meta | LightGBM **43D** `predicted_payoff_edge` |

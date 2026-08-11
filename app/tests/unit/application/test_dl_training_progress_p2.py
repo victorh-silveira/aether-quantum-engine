@@ -179,3 +179,38 @@ def test_run_symbol_training_handles_training_exception():
     assert stats is runtime["norm_stats"]
     assert loss is None
     assert runtime["deploy_ok"] is False
+
+
+def test_run_symbol_training_logs_preview_label_balance():
+    orch = MagicMock()
+    runtime = {
+        "model": create_direction_model(arch="tcn"),
+        "norm_stats": MagicMock(),
+        "calibrator": MagicMock(),
+    }
+    dl_config = {"deploy_gate": {"enabled": False}}
+    params = _training_params()
+    prices = np.linspace(1.0, 2.0, 80)
+    y_preview = np.array([1.0, 0.0, 1.0, 1.0], dtype=np.float64)
+    with (
+        patch(
+            "src.application.services.deep_learning.dl_symbol_train.extract_sequences",
+            return_value=(None, y_preview, None),
+        ),
+        patch(
+            "src.application.services.deep_learning.dl_symbol_train.train_model_walkforward",
+            return_value=None,
+        ),
+        patch("src.application.services.deep_learning.dl_symbol_train.logger.log") as mock_log,
+    ):
+        run_symbol_training(
+            "R_10",
+            runtime,
+            prices,
+            dl_config,
+            params,
+            100,
+            orch,
+            granularity=120,
+        )
+    assert any("labels up" in str(call.args[1]) for call in mock_log.call_args_list)

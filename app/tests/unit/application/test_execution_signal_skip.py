@@ -34,7 +34,7 @@ def test_parse_signal_skip_from_ssot():
     assert cfg["neg_edge_soft_when_closed_candle_agree"] is True
     assert cfg["neg_edge_soft_min_edge"] == pytest.approx(-1.0)
     assert cfg["neg_edge_bootstrap_soft_kelly_mult"] == pytest.approx(0.25)
-    assert cfg["neg_edge_deep_edge_floor"] == pytest.approx(-1.0)
+    assert cfg["neg_edge_deep_edge_floor"] == pytest.approx(-0.12)
     assert "direction_loss_lock_min" not in cfg
     assert "direction_loss_toxic_escape" not in cfg
     assert "calib_gray_margin_floor" not in cfg

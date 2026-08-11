@@ -4,7 +4,7 @@
 |-----------|----------|
 | [../AGENTS.md](../AGENTS.md) | Entrada para agentes Cursor/LLM |
 | [agent-coverage.md](agent-coverage.md) | Matriz 100%: doc + rule + skill por superficie |
-| [arquitetura.md](arquitetura.md) | Arquitetura runtime: DL 34D, meta 43D, direção modular, quality gates, Soft Recovery, settlement |
+| [arquitetura.md](arquitetura.md) | Arquitetura runtime: DL 34D, meta 43D, fusao EV, signal_skip 1.1, Soft Recovery, settlement |
 | [structure.md](structure.md) | Layout do repositório e inventário de módulos Python em `app/src/` (**246**) |
 | [medallion.md](medallion.md) | Metodologia: TCN × meta Z-Score, price zone, Kelly + Soft Recovery, SIDE_EQ, starvation |
 | [sample-size-lln.md](sample-size-lln.md) | Lei dos Grandes Numeros: sample_size_policy, cold-start e anti vies dos pequenos numeros |
@@ -51,7 +51,7 @@ Regra: **domain** não importa application nem infrastructure. **Application** o
 | Meta | LightGBM HTTP `:8005`, `META_FEATURE_DIM=43` (micro **120 s**); **opcional** para execução |
 | Relógio | Micro/MINI **120 s** + macro **3600 s**; contrato **2 m** (M2); assinatura legado `m5b:…;m5:…;m15:…` |
 | Ciclo / assinatura | `cycle_interval_seconds` / `signature_boundary_seconds` = **120 s** (sync fecho M2; contrato **2 m**) |
-| Execução | **Mandatória** (`mandatory_trade_each_cycle: true`); `force_trade_every_cycle: false`; `price_zone` alinha BUY→CALL / SELL→PUT |
+| Execução | `mandatory_trade_each_cycle: false`; `force_trade_every_cycle: false`; `invert_exec_side: false`; fusao EV + signal_skip 1.1 (quality gate amplo **fora**) |
 | Fail-closed | Triton e meta **opcionais** nos settings atuais (`infra.triton.enabled/require_for_execution: false`; `require_meta_for_execution: false`) |
 | Calibração | `neutral_half_width: 0.0` (zona neutra **off**); thresholds CALL/PUT **0.51/0.49**; override TCN macro se raw &gt;0.65 ou &lt;0.35 |
 | Direção | Resolver modular (`checks` → `persistence` → `meta_edge` → `finalize`); SIDE_EQ antecipado; toxic escape **mantém** edge positivo |
@@ -61,6 +61,6 @@ Regra: **domain** não importa application nem infrastructure. **Application** o
 | Discordance | `discordance_veto_enabled: false` (módulo `execution_direction_discordance` disponível) |
 | Risco | Kelly EXPLORE (`fraction=0.08`, piso **0.25%** / teto **5%**) + Soft Recovery RECOVER (`max_safe_stake_pct=0.05`, payout **0.72**); stop-win Kelly **4 ciclos/1h**; stop win 3% (≥$100) / $10 (&lt;$100) |
 | Settlement | Tolerância **90 s**, reconciliação passiva; pós-EXEC_EMPTY alinha fronteira (cap `exec_empty_retry_seconds`) |
-| Watchdog | Stale tick **25 s** |
+| Watchdog | Stale tick **300 s** |
 | Histórico treino | **2000** barras micro M2; sync lean no treino (macro≤128, mini=0) |
 | QA | Pre-commit: lint + testes **100%** cobertura (**305** `test_*.py`) + security; ≤300 linhas/arquivo |

@@ -241,7 +241,7 @@ async def _apply_tolerance_window_recovery(orch: Any, *, window: float, failed_a
 
 async def _run_post_settlement_retry_loop(orch: Any, orch_cfg: dict, poll: float) -> None:
     """Retenta ciclo com backoff exponencial dentro da janela de 120s."""
-    trading_wait_limit = float(orch_cfg.get("post_settlement_is_trading_wait_seconds", 35.0))
+    trading_wait_limit = float(orch_cfg.get("post_settlement_is_trading_wait_seconds", 90.0))
     window = resolve_settlement_tolerance_window(orch, orch_cfg)
     window_deadline = time.monotonic() + window
     failed_attempts = 0

@@ -50,7 +50,7 @@ def should_retrain_symbol(
     candle_epoch: int,
 ) -> tuple[bool, str]:
     """Indica se o simbolo deve treinar neste ciclo e o motivo."""
-    if not params.get("online_training", True) or _deferred_train_pending(orch, symbol):
+    if not params.get("online_training", False) or _deferred_train_pending(orch, symbol):
         return False, ""
     forced = getattr(orch, "_dl_force_retrain", None) or {}
     if forced.get(str(symbol)):

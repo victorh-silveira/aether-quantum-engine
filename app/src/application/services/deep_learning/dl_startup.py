@@ -16,7 +16,7 @@ from src.application.services.orchestrator.engine_mode import ENGINE_MODE_TRAIN,
 def inference_startup_enabled(dl_config: dict[str, Any] | None) -> bool:
     """Indica se o motor deve iniciar em modo inferencia sem retreino."""
     dl_config = dl_config or {}
-    return not bool(dl_config.get("online_training", True))
+    return not bool(dl_config.get("online_training", False))
 
 
 def all_symbols_have_checkpoints(

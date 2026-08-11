@@ -41,7 +41,7 @@ async def refresh_correlation_cache(orch: Any) -> None:
     ts_cfg = orch.config.get("infra", {}).get("timescale", {})
     dsn = str(ts_cfg.get("dsn", "postgresql://aether:aether@localhost:5432/aether"))
     data_cfg = orch.config.get("data_handler", {}) or {}
-    granularity = int(data_cfg.get("granularity", 60))
+    granularity = int(data_cfg.get("granularity", 3600))
     bars = int(cfg.get("correlation_bars", 120))
     symbols = [str(s) for s in getattr(orch, "symbols", [])]
     if not symbols:
@@ -67,7 +67,7 @@ async def _correlation_worker_loop(orch: Any) -> None:
         for _ in range(every):
             if not getattr(orch, "running", False):
                 return
-            await asyncio.sleep(float(orch.config.get("orchestrator", {}).get("cycle_interval_seconds", 300)))
+            await asyncio.sleep(float(orch.config.get("orchestrator", {}).get("cycle_interval_seconds", 120)))
 
 
 def start_correlation_worker(orch: Any) -> None:

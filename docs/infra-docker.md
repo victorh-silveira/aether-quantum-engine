@@ -36,7 +36,7 @@ Logs de um servico: `make docker-logs DOCKER_SERVICE=<alias>`. Aliases Make → 
 
 **Exclusao mutua:** nao misturar `docker-up` (GPU) e `docker-up-cpu` na mesma porta 8000/8001. Overlay: [`docker-compose.gpu.yml`](../infra/docker/docker-compose.gpu.yml).
 
-Pipeline `docker-up`: `host-prereq` → `triton-prereq` → compose up → wait healthy → timescale-lifecycle → hydrate (R_10 120/600) → smoke.
+Pipeline `docker-up`: `host-prereq` → `triton-prereq` → compose up → wait healthy → timescale-lifecycle → hydrate (R_10 120/3600) → smoke.
 
 Rebuild meta+loss: `make docker-rebuild` (sanitiza run host com `--keep-meta-bundle`, limpa `loss-models/` + seed `loss_bootstrap_synth`). Reset destrutivo: `make docker-reset` (sanitiza + `down --volumes`). Sanitizacao total (inclui `meta_lgbm.pkl` e `data/dl/*.pth`): `make sanitize-run` ou etapa 0 de `launch-train.bat`. Smoke: processo meta pode subir sem `.pkl` (aviso); modelo so apos `launch-train`.
 

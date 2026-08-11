@@ -187,7 +187,7 @@ async def predict_symbol_decision_async(
             val_accuracy=val_accuracy,
             edge=0.0,
             train_loss=train_loss,
-            contract_duration=int(params.get("contract_duration", 300)),
+            contract_duration=int(params.get("contract_duration", 120)),
         )
         entry["metrics"]["gate_reason"] = "predict_error"
         return entry

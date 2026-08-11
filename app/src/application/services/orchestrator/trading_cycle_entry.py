@@ -53,7 +53,7 @@ def prepare_orchestrator_run_loop(orch: Any) -> None:
     start_correlation_worker(orch)
     if mode == "deep_learning" and not orch._dl_bootstrap_completed:
         dl_cfg = orch.config.get("deep_learning") or {}
-        if bool(dl_cfg.get("online_training", True)):
+        if bool(dl_cfg.get("online_training", False)):
             try_enqueue_next_bootstrap_training(orch)
         else:
             orch.logger.warning(

@@ -12,7 +12,7 @@ def test_resolve_triple_and_mini():
     cfg = {"granularity": 300, "micro_granularity": 60, "mini_granularity": 60}
     macro, micro, mini = resolve_triple_granularity(cfg)
     assert (macro, micro, mini) == (300, 60, 60)
-    assert resolve_mini_granularity({}) == 60
+    assert resolve_mini_granularity({}) == 120
     assert resolve_mini_fetch_count({"mini_fetch_count": 100}) == 100
 
 

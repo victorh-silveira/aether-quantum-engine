@@ -90,6 +90,7 @@ def orch_config():
 @pytest.fixture
 def orch_config_train(orch_config):
     apply_engine_mode(orch_config, ENGINE_MODE_TRAIN)
+    orch_config["deep_learning"]["online_training"] = True
     return orch_config
 
 

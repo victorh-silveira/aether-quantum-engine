@@ -25,7 +25,7 @@ def mock_torch_load(monkeypatch):
 def test_inference_startup_enabled_when_online_training_false():
     assert inference_startup_enabled({"online_training": False}) is True
     assert inference_startup_enabled({"online_training": True}) is False
-    assert inference_startup_enabled({}) is False
+    assert inference_startup_enabled({}) is True
 
 
 def test_resolve_startup_fetch_bars_inference_mode(tmp_path, monkeypatch):

@@ -32,7 +32,7 @@ _HISTORY_WAIT_CAP_SECONDS = 30.0
 
 
 def _history_wait_seconds(granularity: int, dl_config: dict | None = None) -> float:
-    """Espera curta entre retries de historico; nao escala com M15 (900s)."""
+    """Espera curta entre retries de historico; nao escala com a granularidade inteira (ex. macro 3600s)."""
     cfg = dl_config if isinstance(dl_config, dict) else {}
     try:
         cap = float(cfg.get("bootstrap_history_wait_cap_seconds", _HISTORY_WAIT_CAP_SECONDS))

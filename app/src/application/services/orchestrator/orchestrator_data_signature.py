@@ -1,4 +1,4 @@
-"""Assinatura multi-timeframe M5+M15 com fronteira de 300s para invalidacao de cache."""
+"""Assinatura multi-timeframe M2+H1 (prefixos legado m5/m15) com fronteira de 120s para invalidacao de cache."""
 
 from __future__ import annotations
 
@@ -57,7 +57,7 @@ def resolve_signature_boundary_seconds(orch: Any) -> int:
 
 
 def seconds_until_next_signature_boundary(orch: Any, *, now: float | None = None) -> float:
-    """Calcula segundos restantes ate a proxima fronteira M5 (multiplo de 300s)."""
+    """Calcula segundos restantes ate a proxima fronteira de assinatura (multiplo de boundary; SSOT 120s M2)."""
     boundary = resolve_signature_boundary_seconds(orch)
     now_ts = _resolve_now(now)
     next_boundary = (int(now_ts) // boundary + 1) * boundary
@@ -75,7 +75,7 @@ def at_signature_boundary(orch: Any, *, now: float | None = None, tolerance: flo
 
 
 def m5_boundary_epoch(orch: Any, *, now: float | None = None) -> int:
-    """Retorna epoch Unix truncado em multiplos exatos da fronteira operacional (M5)."""
+    """Retorna epoch Unix truncado em multiplos exatos da fronteira operacional (nome legado m5; SSOT M2 120s)."""
     boundary = resolve_signature_boundary_seconds(orch)
     now_ts = _resolve_now(now)
     clock_boundary = int(now_ts // boundary) * boundary
@@ -99,7 +99,7 @@ def _last_candle_epoch(candles: list) -> int | None:
 
 
 def get_data_state_signature(orch: Any, *, now: float | None = None) -> str:
-    """Monta assinatura M5+M15 com fronteira M5 obrigatoria (m5b + m5:{sym}@{epoch})."""
+    """Monta assinatura M2+H1 com prefixos legado m5b/m5/m15 (m5b + m5:{sym}@{epoch})."""
     stream = getattr(orch, "stream", None)
     if stream is None:
         return ""

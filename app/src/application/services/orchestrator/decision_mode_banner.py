@@ -28,7 +28,7 @@ def emit_decision_engine_banner(
         macro_sec = int(data_cfg.get("granularity") or ohlc_sec)
         micro_sec = int(data_cfg.get("micro_granularity") or ohlc_sec)
         contract_sec = contract_duration_seconds(risk_params if isinstance(risk_params, dict) else {})
-        online = bool(dl_cfg.get("online_training", True))
+        online = bool(dl_cfg.get("online_training", False))
         logger.info(
             "CFG | DL/%s | ohlc=%ss (%s) lb=%s | macro=%ss micro=%ss | thr=%s/%s | contrato=%ss | treino_online=%s | continuo",
             dl_cfg.get("arch", "tcn"),

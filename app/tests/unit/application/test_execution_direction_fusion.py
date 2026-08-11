@@ -21,12 +21,15 @@ def test_parse_direction_fusion_from_ssot():
     assert cfg["fusion_w_micro_bar"] == pytest.approx(0.45)
     assert cfg["fusion_loss_weight"] == pytest.approx(0.80)
     assert cfg["fusion_tcn_shrink_near_half"] == pytest.approx(0.40)
-    assert cfg["fusion_block_when_tcn_pos_edge"] is False
+    assert cfg["fusion_block_when_tcn_pos_edge"] is True
     assert cfg["fusion_weak_ev_soft_kelly_mult"] == pytest.approx(0.40)
+    assert cfg["fusion_weak_ev_seed_soft_kelly_mult"] == pytest.approx(0.25)
     with pytest.raises(ValueError, match="fusion_tcn_shrink_near_half"):
         parse_direction_fusion_config({"fusion_tcn_shrink_near_half": 1.5})
     with pytest.raises(ValueError, match="fusion_weak_ev_soft_kelly_mult"):
         parse_direction_fusion_config({"fusion_weak_ev_soft_kelly_mult": 0.0})
+    with pytest.raises(ValueError, match="fusion_weak_ev_seed_soft_kelly_mult"):
+        parse_direction_fusion_config({"fusion_weak_ev_seed_soft_kelly_mult": 0.0})
 
 
 def test_fusion_weak_ev_applies_soft_kelly():
@@ -40,6 +43,7 @@ def test_fusion_weak_ev_applies_soft_kelly():
         "scale_tape_consensus": "CALL",
         "closed_micro_candle_dir": "CALL",
         "loss_clf_p_loss": 0.20,
+        "loss_clf_auto_learn": True,
         "execution_candidate_ready": True,
         "exec_direction": "CALL",
         "kelly_fraction_scale": 1.0,
@@ -54,6 +58,7 @@ def test_fusion_weak_ev_applies_soft_kelly():
             "fusion_meta_ev_weight": 0.0,
             "fusion_loss_weight": 0.0,
             "fusion_tcn_shrink_near_half": 0.0,
+            "fusion_block_when_tcn_pos_edge": False,
             "fusion_min_edge_execute": 0.04,
             "fusion_weak_ev_soft_kelly_mult": 0.40,
         }
@@ -63,7 +68,48 @@ def test_fusion_weak_ev_applies_soft_kelly():
     assert metrics["fusion_applied"] is True
     assert float(metrics["fusion_chosen_ev"]) < 0.04
     assert metrics.get("fusion_weak_ev_soft") is True
+    assert metrics.get("fusion_weak_ev_seed") is not True
     assert float(metrics["kelly_fraction_scale"]) == pytest.approx(0.40)
+
+
+def test_fusion_weak_ev_seed_dual_neg_softens_harder():
+    metrics = {
+        "calibrated_prob": 0.51,
+        "tcn_direction": "CALL",
+        "scale_micro_dir": "CALL",
+        "scale_macro_dir": "CALL",
+        "scale_mini_dir": "CALL",
+        "scale_mili_dir": "CALL",
+        "scale_tape_consensus": "CALL",
+        "closed_micro_candle_dir": "CALL",
+        "loss_clf_p_loss": 0.20,
+        "loss_clf_auto_learn": False,
+        "execution_candidate_ready": True,
+        "exec_direction": "CALL",
+        "kelly_fraction_scale": 1.0,
+    }
+    cfg = parse_direction_fusion_config(
+        {
+            "fusion_w_macro": 0.0,
+            "fusion_w_micro_bar": 0.0,
+            "fusion_w_mini": 0.0,
+            "fusion_w_mili": 0.0,
+            "fusion_w_tape": 0.0,
+            "fusion_meta_ev_weight": 0.0,
+            "fusion_loss_weight": 0.0,
+            "fusion_tcn_shrink_near_half": 0.0,
+            "fusion_block_when_tcn_pos_edge": False,
+            "fusion_min_edge_execute": 0.04,
+            "fusion_weak_ev_soft_kelly_mult": 0.40,
+            "fusion_weak_ev_seed_soft_kelly_mult": 0.25,
+        }
+    )
+    chosen = apply_direction_fusion(metrics, TradeDirection.CALL, cfg=cfg)
+    assert chosen in (TradeDirection.CALL, TradeDirection.PUT)
+    assert float(metrics["fusion_ev_call"]) < 0.0
+    assert float(metrics["fusion_ev_put"]) < 0.0
+    assert metrics.get("fusion_weak_ev_seed") is True
+    assert float(metrics["kelly_fraction_scale"]) == pytest.approx(0.25)
 
 
 def test_fusion_picks_put_when_tape_and_loss_oppose_weak_call():

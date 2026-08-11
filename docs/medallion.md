@@ -15,18 +15,18 @@ Doutrina do copiloto LLM/Cursor (9 livros → constraints de engenharia): [`llm-
 | Sinais, não histórias | Direção CALL/PUT estritamente pela TCN (`P(CALL) > P(PUT)`) |
 | Horizonte curto | Contexto DL **3600 s**; ciclo/micro OHLC **120 s** (M2); contrato RISE_FALL **2 m**; proporção multi-timeframe **1:30** (120:3600); label `ma_trend` (1 barra micro = 120 s) |
 | Acoplamento temporal | Inferências e rotações seguem `signature_boundary_seconds` (fallback `cycle_interval_seconds`, padrão **120 s**); fronteira `m5_boundary_epoch` (nome legado) |
-| Esteira mandatária | `mandatory_trade_each_cycle: true` (sem vetos de sinal/qualidade no codigo) |
+| Esteira continua | `mandatory_trade_each_cycle: false` (sem vetos de sinal/qualidade amplos; fusao EV + signal_skip 1.1) |
 | Force trade | `force_trade_every_cycle: false` — sem síntese forçada de candidato |
 | Modelo pronto antes de operar | `FASE TREINO` suspende ordens até treino da sessão |
 | Fail-closed seletivo | Triton/meta **opcionais** nos settings atuais; podem ser reativados fail-closed na stack Docker |
 | Feedback real | Win rate live misturado em `val_accuracy`; retreino após loss |
 | Defesa contra ruido / discordancia | Consensus Entropy Penalty no Kelly base — **desligado** (`consensus_penalty_enabled: false`) |
 | Persistência financeira | Recovery atrelado a `pending_loss`, não a WIN operacional isolado |
-| Soft recovery + caps | `soft_recovery_policy` ativo: cover 100% do pending em 1 WIN com teto % banca |
-| Sizing | EXPLORE = Kelly * `explore_stake_scale(N)`; RECOVER = Soft Recovery amortizado |
+| Soft recovery + caps | `soft_recovery_policy` ativo: cover amortizado (`cover_multiple` **1.25**, amort **4–6**) com teto % banca |
+| Sizing | EXPLORE = Kelly * `explore_stake_scale(N)`; RECOVER = Soft Recovery amortizado (sem revenge) |
 | Side equilibrium (LLN) | `sample_size_policy` + `side_equilibrium`: dominio pode marcar hard_skip; runtime aplica **so soft Kelly** (`execution_side_eq_sizing`) — sem veto de direcao |
 | Lei dos Grandes Numeros | WR/ECE live so pesam apos `evidence_n_min=20`; cold-start nao escala stake nem calib drift |
-| Meta por sessão ativa | Stop win de 2,60% composto (banca ≥ $100) ou fixo $10 (banca < $100) |
+| Meta por sessão ativa | Stop win de **3,00%** composto (banca ≥ $100) ou fixo $10 (banca < $100) |
 | Sem disjuntor de perda | Stop loss interno desativado |
 | Isolamento de estado | `asyncio.Lock` serializa inferência, liquidação e persistência |
 | Persistence guard | Após 2 losses: **flip** toxic escape se o oposto estiver livre; senão skip; FREEZE em congestão micro |
@@ -179,7 +179,7 @@ Perfil em `config/settings.json` (settings atuais):
 | `label_vol_multiplier` | 1.0 | Multiplicador da barreira de volatilidade |
 | `indicator_gating.*` | removido | Vetos de sinal retirados do codigo (escopo 1) |
 | `hard_cal_margin_floor` / `quality_gate.*` / `price_zone.*` / `align_rsi_trend` | removido | Sem rejeicao de sinal/qualidade no pipeline |
-| `mandatory_trade_each_cycle` | true | Esteira mandataria TCN→Kelly |
+| `mandatory_trade_each_cycle` | false | Esteira continua TCN→fusao→Kelly (sem mandato de trade a cada ciclo) |
 | `force_trade_every_cycle` | false | Sem sintese forcada |
 | `require_meta_for_execution` | false | Meta **opcional** para execucao |
 | `bb_width_adaptive_squeeze.enabled` | false | Squeeze adaptativo desligado |
@@ -193,7 +193,7 @@ Perfil em `config/settings.json` (settings atuais):
 | `infra.triton.infer_timeout_seconds` | 0.50 | Timeout gRPC de inferência |
 | `consensus_penalty_enabled` | false | Consensus Entropy Penalty **desligado** |
 | `orchestrator.settlement_tolerance_window_seconds` | 90 | Janela de settlement |
-| `orchestrator.watchdog_stale_tick_seconds` | 25 | Watchdog de inanição |
+| `orchestrator.watchdog_stale_tick_seconds` | 300 | Watchdog de inanição |
 
 Cover de recovery dimensiona `pending/payout` em **um** trade (amort **1/1**) para WIN liquidar o passivo, sujeito a `max_safe_stake_*`. Turbo de stake (Z≥1.5) **nunca** ultrapassa `max_safe_stake_cap` pós-multiplicador. Z-Score de edge é bufferizado **por símbolo**. Boot emite `CFG_RISK` via `validate_engine_risk_config` / `RiskPolicy`. Labels train/deploy compartilham `LabelSpec` (`horizon` + `smooth_bars`); treino meta usa proxy de retorno **passado**, não forward.
 
@@ -242,7 +242,7 @@ O buffer histórico **não** avança durante recovery ou com `linear_losses > 0`
 
 ### 5.1 Redirect inter-símbolo (modo contínuo)
 
-Com `mandatory_trade_each_cycle: true`, `try_inter_symbol_zscore_redirect` evita inanição operacional sem forçar entrada degradada:
+Com `mandatory_trade_each_cycle: false`, `try_inter_symbol_zscore_redirect` permanece disponivel para redirecionar ranking sem forçar entrada degradada:
 
 | Gatilho | Limiar |
 |---------|--------|
@@ -304,7 +304,7 @@ Esta seção documenta as diretrizes matemáticas que corrigem a **inanição po
 
 #### Problema: reset cego vs. realidade financeira
 
-Em execução contínua (`mandatory_trade_each_cycle: true`), o motor pode registrar um **WIN operacional** (P&L positivo no contrato liquidado) enquanto o **saldo acumulado da sessão** (`total_session_profit`) permanece negativo e o **drawdown pendente** (`pending_loss`) ainda carrega valor a recuperar.
+Em execução continua (`mandatory_trade_each_cycle: false`), o motor pode registrar um **WIN operacional** (P&L positivo no contrato liquidado) enquanto o **saldo acumulado da sessão** (`total_session_profit`) permanece negativo e o **drawdown pendente** (`pending_loss`) ainda carrega valor a recuperar.
 
 O critério legado — resetar `consecutive_losses` a zero após qualquer cluster com P&L ≥ 0 — tratava **resultado operacional isolado** como **recuperação financeira completa**. Isso gerava assimetria negativa:
 
@@ -482,9 +482,8 @@ Telemetria: `SIDE_EQ | SYMBOL SIDE | call=W/N put=W/N | bias=… wr=… | action
 
 | Flag | Efeito |
 |------|--------|
-| `mandatory_trade_each_cycle: true` | Esteira mandataria TCN→Kelly sem vetos de sinal |
-| `mandatory_trade_each_cycle: true` | Esteira contínua (legado; desligado nos settings atuais) |
-| `require_meta_for_execution: false` | Meta opcional; Triton permanece fail-closed |
+| `mandatory_trade_each_cycle: false` | Esteira continua TCN→fusao EV→Kelly; signal_skip 1.1 soft; quality gate amplo fora |
+| `require_meta_for_execution: false` | Meta opcional; Triton permanece configuravel |
 | `include_anchor_trades` | Inclui âncora nas ordens do cluster |
 | `diversify_after_loss_margin` | Prefere símbolo alternativo quando scores são próximos |
 

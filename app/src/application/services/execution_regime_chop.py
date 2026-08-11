@@ -71,7 +71,7 @@ def apply_regime_chop_pause(
     if status == "SKIP" or status.startswith("SKIP:"):
         return False
     vision = cfg if isinstance(cfg, dict) and "chop_pause_enabled" in cfg else parse_regime_chop_config(cfg)
-    if not bool(vision.get("chop_pause_enabled", True)):
+    if not bool(vision.get("chop_pause_enabled", False)):
         return False
     adx = _indicator_float(metrics, "adx")
     hurst = _indicator_float(metrics, "hurst")

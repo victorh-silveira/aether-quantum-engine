@@ -1,15 +1,16 @@
 ---
-description: Risco/sizing Aether — Kelly, soft recovery, caps (Taleb, Bernstein, LTCM, Douglas)
+description: Risco/sizing Aether — Kelly, soft recovery amortizado, stop-win, caps (Taleb, Bernstein, LTCM, Douglas)
 globs: app/src/domain/risk/**/*.py
 alwaysApply: false
 ---
 
 # Risco e sizing
 
-- Soft recovery amortiza `pending_loss`; nao escalar por “o mercado deve” (Douglas/Bernstein).
+- Soft recovery: stake = cover amortizado (`cover_multiple` **1.25**, amort **4–6**); linear3 teto **2.5%**; nao `max(exponencial, cover)` revenge.
 - Preservar `max_safe_stake_cap` / `max_safe_stake_pct`; leverage mata (LTCM).
-- EXPLORE usa Kelly × `explore_stake_scale(N)`; nao misturar regime RECOVER sem pending.
+- EXPLORE usa Kelly × `explore_stake_scale(N)`; piso explore **0.25%** banca; nao misturar regime RECOVER sem pending.
+- Stop-win composto **3%** (e piso $10) — `EXEC_PAUSE` tecnico; boost Kelly stop-win ate **5%** sob knobs dedicados.
 - Cooldown linear apos loss; anti revenge sizing.
-- Mudanca de ladder/conviction: hipotese + metrica; nao reagir a streak curta (Taleb).
+- Mudanca de ladder/conviction: hipotese + metrica (`live_n`); nao reagir a streak curta (Taleb); WR ≠ edge.
 - Stop-loss interno desativado por politica — nao reativar sem pedido explicito do usuario.
 - Testes obrigatorios ao tocar Kelly/recovery; pre-commit 100%.

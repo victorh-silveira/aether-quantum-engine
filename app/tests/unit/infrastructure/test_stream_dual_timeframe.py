@@ -26,10 +26,10 @@ def test_resolve_dual_granularity_defaults():
     assert micro == 300
 
 
-def test_resolve_dual_granularity_falls_back_to_m5_micro():
+def test_resolve_dual_granularity_falls_back_to_m2_micro():
     macro, micro = resolve_dual_granularity({"granularity": 60})
     assert macro == 60
-    assert micro == 60
+    assert micro == 120
 
 
 def test_resolve_micro_fetch_count():

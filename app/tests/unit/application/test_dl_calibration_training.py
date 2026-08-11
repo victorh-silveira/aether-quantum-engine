@@ -72,6 +72,7 @@ def test_calibration_helpers():
 
 def test_outcome_weights():
     orch = type("O", (), {})()
+    assert sample_weights_for_symbol(orch, "R_10", 5) == [1.0] * 5
     record_symbol_outcome(orch, "R_10", won=True, candle_epoch=100)
     assert hasattr(orch, "_dl_outcome_flags")
     assert sample_weights_for_symbol(orch, "R_10", 0) == []

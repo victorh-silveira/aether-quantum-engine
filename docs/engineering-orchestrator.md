@@ -8,7 +8,7 @@ Ciclo operacional do motor. Inventario de arquivos: [`structure.md`](structure.m
 - Cache DL (`dl_predict_cache`): path **eager** (Triton off) **sempre** re-infere; path Triton chaveia `cycle_id` + `boundary_epoch` (nao reusa entry de outro ciclo)
 - Tick live: antes do TCN, `patch_forming_bar_with_live_tick` injeta o ultimo preco do `TickBuffer` no close/high/low da vela M2 em formacao; `patch_forming_bar_microstructure` sobrescreve a ultima linha de micro live; snapshot `_patched_ohlc` alimenta SCALE/flow no mesmo ciclo
 - `DL: inferencia em cuda` e `log_device_once` no load do modelo — **nao** um log por ciclo
-- LOSS_CLF: predict HTTP a cada `_finalize`; log dedupe por `loss_clf_*:{cycle_id}`; `feature_dim` **24** inalterado; HARD floor SSOT **0.80**
+- LOSS_CLF: predict HTTP a cada `_finalize`; log dedupe por `loss_clf_*:{cycle_id}`; `feature_dim` **24**; hard FLIP floor SSOT **0.90** + `flip_require_auto_learn` **true**
 - MACRO OHLC: **3600 s** (`data_handler.granularity`)
 - MICRO OHLC (TCN decisor): **120 s** (`data_handler.micro_granularity`) — M2
 - Contrato Deriv RISE_FALL: **2 m** (`risk_management.params.duration` / `duration_unit: m`) — label = 1 barra micro
@@ -16,7 +16,7 @@ Ciclo operacional do motor. Inventario de arquivos: [`structure.md`](structure.m
 - MILI: tick flow (velocity/acceleration), nao barra OHLC
 - Sync inicial: `stream_sync_start.py` (historico MACRO+MICRO+MINI + subscribe candles/ticks)
 - Proporcao MACRO:MICRO **30:1** (3600:120)
-- Pos-settlement: `post_settlement_is_trading_wait_seconds` **90**; `settlement_tolerance_window_seconds` **180**; `post_settlement_cycle_timeout_seconds` **1200**
+- Pos-settlement: `post_settlement_is_trading_wait_seconds` **90**; `settlement_tolerance_window_seconds` **90**; `post_settlement_cycle_timeout_seconds` **1200**; `watchdog_stale_tick_seconds` **300**
 
 ## Pipeline do ciclo
 
@@ -62,7 +62,7 @@ Nao confundir com `raw_extreme` (calibracao DL): limiares `tcn_macro_*_override`
 ## Gates de fase
 
 - **FASE TREINO:** sem ordens ate modelos da sessao prontos
-- **FASE OPERACAO:** `mandatory_trade_each_cycle: true`, `force_trade_every_cycle: false`
+- **FASE OPERACAO:** `mandatory_trade_each_cycle: false`, `force_trade_every_cycle: false`, `invert_exec_side: false`, `online_training: false`
 - Lock/barreira serializa inferencia, liquidacao e persistencia
 
 ## Diagnostico rapido

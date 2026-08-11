@@ -117,7 +117,7 @@ def round_stake(value: float, *, recovery_linear: bool) -> float:
 
 
 def resolve_cycle_stake_scale(kelly_config: dict[str, Any], risk_config: dict[str, Any]) -> float:
-    """Escala stake pelo tempo de rodada (contrato M15 ou ciclo do orquestrador)."""
+    """Escala stake pelo tempo de rodada (contrato M2 / ciclo do orquestrador)."""
     if not kelly_config.get("cycle_stake_scale_enabled", True):
         return 1.0
     baseline = float(kelly_config.get("cycle_stake_baseline_seconds", 60))

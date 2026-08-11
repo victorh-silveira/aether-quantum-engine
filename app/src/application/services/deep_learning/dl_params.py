@@ -42,7 +42,7 @@ def resolve_training_history_bars(dl_config: dict, data_config: dict | None = No
         return max(1, int(dl_config["training_history_bars"]))
     if "history_bars" in data_config:
         return max(1, int(data_config["history_bars"]))
-    gran = int(data_config.get("granularity") or dl_config.get("granularity") or 60)
+    gran = int(data_config.get("granularity") or dl_config.get("granularity") or 3600)
     days = float(dl_config.get("training_history_days", 90.0))
     return max(1, int(bars_per_day(gran) * days))
 
@@ -146,7 +146,7 @@ def resolve_inference_history_bars(
 ) -> int:
     """Barras minimas de OHLC para montar features na inferencia (nao no treino)."""
     lookback = max(1, int(params.get("lookback", 30)))
-    gran = max(1, int(granularity or params.get("granularity") or 60))
+    gran = max(1, int(granularity or params.get("granularity") or 3600))
     implied = max(1, int(params.get("implied_vol_bars", 60)))
     indicators = params.get("indicators")
     if isinstance(indicators, dict) and isinstance(indicators.get("windows"), dict):
@@ -240,12 +240,12 @@ def parse_dl_params(
         "confidence_call_threshold": float(dl_config.get("confidence_call_threshold", 0.75)),
         "confidence_put_threshold": float(dl_config.get("confidence_put_threshold", 0.25)),
         "train_on_new_candle": bool(dl_config.get("train_on_new_candle_only", True)),
-        "online_training": bool(dl_config.get("online_training", True)),
+        "online_training": bool(dl_config.get("online_training", False)),
         "weight_decay": float(dl_config.get("weight_decay", 0.0002)),
         "granularity": gran,
         "train_timeframe": train_tf,
-        "micro_granularity": int(data_config.get("micro_granularity") or dl_config.get("micro_granularity") or gran),
-        "contract_duration": max(1, int(risk_params.get("duration", 30))),
+        "micro_granularity": int(data_config.get("micro_granularity") or dl_config.get("micro_granularity") or 120),
+        "contract_duration": max(1, int(risk_params.get("duration", 2))),
         "contract_duration_seconds": contract_duration_seconds(risk_params),
         "risk_params": dict(risk_params),
         "rolling_retrain_bars": int(dl_config.get("rolling_retrain_bars", 3)),

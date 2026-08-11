@@ -9,7 +9,7 @@
 
 Motor quantitativo assíncrono para a Deriv: decisão por **Deep Learning** (TCN/LSTM/GRU) no índice **Volatility 10** (`R_10`), contratos **RISE_FALL** de **2 m** (**M2**) com micro/MINI **120 s** e contexto macro **3600 s**, meta-regressor LightGBM (**43D**) de expectativa de retorno contínuo (single-symbol), e **sizing Kelly + Soft Recovery** (Kelly em EXPLORE; Soft Recovery amortizado em RECOVER). As chaves de assinatura ainda usam prefixos legados `m5`/`m15` para compatibilidade de cache.
 
-A operação divide-se em duas fases: **FASE TREINO** (nenhuma ordem até todos os modelos concluírem o treino da sessão) e **FASE OPERACAO** mandatária (`mandatory_trade_each_cycle: true`, `force_trade_every_cycle: false`): o ciclo tenta montar candidato a cada **120 s** (fronteira de assinatura alinhada ao fecho M2). Nos settings atuais Triton e meta são **opcionais** para execução (`infra.triton.enabled/require_for_execution: false`; `require_meta_for_execution: false`); em stack Docker completa o Triton pode ser reativado fail-closed. Mercado Volatility **24/7**.
+A operação divide-se em duas fases: **FASE TREINO** (nenhuma ordem até checkpoint/sessão prontos; `online_training` **false** no DEMO) e **FASE OPERACAO** continua (`mandatory_trade_each_cycle: false`, `force_trade_every_cycle: false`, `invert_exec_side: false`): o ciclo avalia candidato a cada **120 s** via TCN + fusao EV + signal_skip 1.1. Nos settings atuais Triton e meta são **opcionais** para execução (`infra.triton.enabled/require_for_execution: false`; `require_meta_for_execution: false`); em stack Docker completa o Triton pode ser reativado fail-closed. Mercado Volatility **24/7**.
 
 Documentação: [AGENTS.md](AGENTS.md) (agentes) | [matriz de cobertura](docs/agent-coverage.md) | [arquitetura](docs/arquitetura.md) | [estrutura e módulos](docs/structure.md) | [metodologia quant](docs/medallion.md) | [infra Docker](docs/infra-docker.md) | [Deriv API](docs/deriv-api.md) | [Deriv para agentes](docs/deriv-api-aether.md) | [índice docs](docs/README.md)
 
@@ -21,7 +21,7 @@ Layout: `app/` (código e testes), `config/settings.json`, `docs/`, `linters/`. 
 
 | Etapa | Componente | Descrição |
 |-------|------------|-----------|
-| Dados | `StreamHandler` + `TickBuffer` + `AetherWatchdog` | WebSocket Deriv dual-timeframe: OHLC macro **600 s** (assinatura legado `m15`) para DL/regimes + OHLC micro **120 s** (assinatura legado `m5`) para gatilho do ciclo; ticks agregados por barra fechada; watchdog reconecta stream em inanição (>**25 s**) |
+| Dados | `StreamHandler` + `TickBuffer` + `AetherWatchdog` | WebSocket Deriv dual-timeframe: OHLC macro **3600 s** (assinatura legado `m15`) para DL/regimes + OHLC micro **120 s** (assinatura legado `m5`) para gatilho do ciclo; ticks agregados por barra fechada; watchdog reconecta stream em inanição (`watchdog_stale_tick_seconds` **300**) |
 | Fases | `_training_phase_gate` | Suspende a operação até todos os modelos concluírem o treino da sessão |
 | Predição DL | `decision_bridge` + `dl_predict_*` + TCN | **34 features** TCN; bundle meta **43D**; Triton gRPC opcional (timeout settings **8 s** quando ligado) |
 | Meta GBDT | `meta_classifier_client` + `aether-meta-classifier` | Regressão tabular **43D**; `predicted_payoff_edge` contínuo (opcional para execução) |
@@ -46,11 +46,11 @@ Arquivo: [`config/settings.json`](config/settings.json)
 | Bloco | Função |
 |-------|--------|
 | `symbols` / `anchor` | Universo (`R_10`; ancora `R_10`) |
-| `data_handler` | `granularity` (macro **600 s**), `micro_granularity` (**120 s**), `history_bars` / `training_history_bars` (**23328**), `fetch_count`, `buffer_limit` |
-| `deep_learning` | `arch`, `lookback` (**360**), `label_mode` (`spot_forward`), calibration (`neutral_half_width: 0.0`), thresholds **0.51/0.49**, `indicator_gating`, `deploy_gate` |
-| `orchestrator.execution` | `mandatory_trade_each_cycle: true`, `force_trade_every_cycle: false`, `price_zone`, `require_meta_for_execution: false`, `quality_gate` (starvation/edge decay), settlement **90 s** |
-| `risk_management.kelly` | Stake EXPLORE (`fraction: 0.08`, tetos 3,5%); compressão 40% fora de recovery |
-| `risk_management.soft_recovery` | RECOVER: amortização 2–5 ciclos, `max_safe_stake_pct: 0.035` |
+| `data_handler` | `granularity` (macro **3600 s**), `micro_granularity` / `mini_granularity` (**120 s**), historico treino tipico **2000** barras micro M2 |
+| `deep_learning` | `arch`, `lookback` (**720**), `online_training` **false**, calibration (`neutral_half_width: 0.0`), thresholds **0.51/0.49**, `deploy_gate` |
+| `orchestrator.execution` | `mandatory_trade_each_cycle: false`, `force_trade_every_cycle: false`, `invert_exec_side: false`, `scale_vision.fusion_*`, `signal_skip` 1.1, settlement **90 s** |
+| `risk_management.kelly` | Stake EXPLORE (`fraction: 0.08`, piso **0.25%**, tetos stop-win Kelly ate **5%**) |
+| `risk_management.soft_recovery` | RECOVER: amort **4–6**, cover **1.25**, linear3 **2.5%** |
 | `orchestrator.execution.side_equilibrium` | Leis dos pequenos/grandes números CALL/PUT (small-N hard skip; large-N soft Kelly) |
 | `infra` | Redis, Timescale, MinIO, Triton (`enabled`/`require_for_execution` opcionais nos settings atuais; repo `R_10`), meta-classifier |
 
@@ -116,7 +116,7 @@ Copie `cp .env.example .env` e preencha o PAT. Validação Deriv: `python app/sc
 ## Fases, recovery e execução
 
 - **FASE TREINO**: ao iniciar a sessão, todo símbolo retreina pelo menos uma vez. Enquanto qualquer modelo não concluir, nenhuma ordem é enviada.
-- **FASE OPERACAO mandatária** (`mandatory_trade_each_cycle: true`, `force_trade_every_cycle: false`): a cada fronteira de **120 s** o motor monta candidato; `price_zone` alinha lado (BUY→CALL / SELL→PUT) sem exigir acordo de tendência/TCN.
+- **FASE OPERACAO** continua (`mandatory_trade_each_cycle: false`, `force_trade_every_cycle: false`): a cada fronteira de **120 s** o motor avalia candidato via TCN + fusao EV + signal_skip 1.1 (quality gate amplo **fora**).
 - **Bloqueio absoluto** somente para falhas técnicas: `data`, `predict_error`, `training`, `deploy_ok=false`, e (quando Triton fail-closed estiver ligado) timeout de inferência / reconciliação pendente.
 - **Ranking TCN × Z-Score**: `market_decision_score = tcn × max(0.1, 1+z)` — LightGBM validado ranqueia acima de TCN bruto degradado.
 - **Gatilho D-SQUEEZE (`[D-SQUEEZE]`)**: quando `predicted_payoff_edge < -0.15` em compressão micro (`bb_width < 0.06` ou `micro_tick_acceleration < 0`), o resolver rebaixa `trade_score` para **0.52**, comprimindo stake — sem inverter a direção da TCN. `bb_width_adaptive_squeeze` está **desabilitado** nos settings atuais.

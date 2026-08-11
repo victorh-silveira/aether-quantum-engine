@@ -9,5 +9,6 @@ alwaysApply: false
 - Knob novo = settings + resolve_* + teste + doc se mudar semantica
 - Nao hardcodar o mesmo default em tres lugares
 - Nao afrouxar: force_trade, hard_cal_margin_floor, min_payoff_edge, ACC gate, max_safe_stake_*, sample_size_policy
+- Proteger doutrina de lado/sizing: `infra.loss_classifier.flip_*` (`flip_require_auto_learn`, `flip_seed_*`, `flip_block_when_tcn_pos_edge`), `orchestrator.execution.scale_vision.fusion_*` (`fusion_block_when_tcn_pos_edge`, soft **0.40/0.25**), `signal_skip.neg_edge_*`, `invert_exec_side`, `online_training`, caps recovery
 - Auth/PAT: nao commitar segredos
 - Doc: `docs/engineering-settings-ssot.md`; skill: `aether-settings-change`

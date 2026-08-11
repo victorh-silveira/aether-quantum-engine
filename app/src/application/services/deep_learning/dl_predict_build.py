@@ -56,7 +56,7 @@ def build_prediction_context(
     micro=None,
 ) -> dict[str, Any]:
     """Prepara series, thresholds dinamicos e calibrador para predicao DL."""
-    gran = int(granularity or params.get("granularity", 60))
+    gran = int(granularity or params.get("granularity", 3600))
     calibrator = runtime.get("calibrator") or CalibratorState()
     runtime["calibrator"] = calibrator
     series = precompute_price_series(
@@ -239,7 +239,7 @@ def build_prediction_entry(
         raw_prob=raw_prob,
         val_brier=float(runtime.get("val_brier", 1.0)),
         val_ece=float(runtime.get("val_ece", 1.0)),
-        contract_duration=int(params.get("contract_duration", 300)),
+        contract_duration=int(params.get("contract_duration", 120)),
     )
     _ = calibration_mode
     entry["metrics"]["gate_reason"] = None
@@ -268,7 +268,7 @@ def build_prediction_entry(
     if len(series.get("log_return", [])) > 0:
         idx = len(series["log_return"]) - 1
         entry["metrics"]["feature_vector"] = build_feature_row(series, idx).tolist()
-    entry["metrics"]["indicator_timeframe_seconds"] = int(params.get("granularity", 900))
+    entry["metrics"]["indicator_timeframe_seconds"] = int(params.get("granularity", 3600))
     stamp_micro_frame_telemetry(_orch, str(symbol), entry["metrics"], params)
     if not isinstance(entry["metrics"].get("macro_indicators"), dict):
         entry["metrics"]["macro_indicators"] = indicators_data

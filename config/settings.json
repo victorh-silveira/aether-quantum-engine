@@ -295,7 +295,7 @@
             "retrain_min_n": 1,
             "retrain_on_loss_min_n": 1,
             "max_buffer": 2000,
-            "flip_require_auto_learn": false,
+            "flip_require_auto_learn": true,
             "flip_allow_seed_on_scale_discord": true,
             "flip_allow_seed_on_cal_discord": true,
             "flip_cal_discord_margin": 0.03,
@@ -304,10 +304,10 @@
             "flip_waive_on_closed_candle": true,
             "flip_candle_p_loss_floor": 0.85,
             "flip_waive_scale_above_p_loss": 0.95,
-            "flip_block_when_tcn_pos_edge": false,
+            "flip_block_when_tcn_pos_edge": true,
             "flip_waive_edge_min": -1.0,
-            "flip_seed_block_against_closed_candle": false,
-            "flip_seed_waive_edge_min": -1.0
+            "flip_seed_block_against_closed_candle": true,
+            "flip_seed_waive_edge_min": -0.08
         },
         "minio": {
             "bucket": "dl-models",
@@ -616,9 +616,10 @@
                 "fusion_meta_ev_weight": 0.10,
                 "fusion_loss_weight": 0.80,
                 "fusion_tcn_shrink_near_half": 0.40,
-                "fusion_block_when_tcn_pos_edge": false,
+                "fusion_block_when_tcn_pos_edge": true,
                 "fusion_min_edge_execute": 0.04,
-                "fusion_weak_ev_soft_kelly_mult": 0.40
+                "fusion_weak_ev_soft_kelly_mult": 0.40,
+                "fusion_weak_ev_seed_soft_kelly_mult": 0.25
             },
             "signal_skip": {
                 "enabled": true,
@@ -639,7 +640,7 @@
                 "neg_edge_soft_when_closed_candle_agree": true,
                 "neg_edge_soft_min_edge": -1.0,
                 "neg_edge_bootstrap_soft_kelly_mult": 0.25,
-                "neg_edge_deep_edge_floor": -1.0
+                "neg_edge_deep_edge_floor": -0.12
             }
         },
         "idle_cycle_watchdog_seconds": 1200,

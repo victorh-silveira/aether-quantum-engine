@@ -24,8 +24,37 @@ def _reset_cache():
 def test_load_doctrine_invariants_from_ssot():
     inv = load_doctrine_invariants()
     assert inv["force_trade_every_cycle"] is False
+    assert inv["mandatory_trade_each_cycle"] is False
+    assert inv["invert_exec_side"] is False
+    assert inv["online_training"] is False
+    assert inv["flip_require_auto_learn"] is True
+    assert inv["flip_seed_waive_edge_min"] == pytest.approx(-0.08)
+    assert inv["fusion_block_when_tcn_pos_edge"] is True
+    assert inv["neg_edge_deep_edge_floor"] == pytest.approx(-0.12)
+    assert inv["watchdog_stale_tick_seconds"] == 300
+    assert inv["settlement_tolerance_window_seconds"] == 90
+    assert inv["post_settlement_is_trading_wait_seconds"] == 90
+    assert inv["amort_cycles_min"] == 4
+    assert inv["amort_cycles_max"] == 6
+    assert inv["cover_multiple"] == pytest.approx(1.25)
+    assert inv["max_safe_stake_pct_linear3"] == pytest.approx(0.025)
+    assert inv["large_account_stop_win_pct"] == pytest.approx(3.0)
     assert inv["min_validation_accuracy_gate"] >= 0.53
     assert inv["explore_stake_scale_floor"] > 0.0
+
+
+def test_assert_production_doctrine_rejects_online_training():
+    settings = copy.deepcopy(load_settings_json())
+    settings["deep_learning"]["online_training"] = True
+    with pytest.raises(ValueError, match="online_training"):
+        assert_production_doctrine(settings)
+
+
+def test_assert_production_doctrine_rejects_flip_seed_waive():
+    settings = copy.deepcopy(load_settings_json())
+    settings["infra"]["loss_classifier"]["flip_require_auto_learn"] = False
+    with pytest.raises(ValueError, match="flip_require_auto_learn"):
+        assert_production_doctrine(settings)
 
 
 def test_load_doctrine_invariants_missing_execution():
@@ -109,3 +138,103 @@ def test_load_doctrine_sample_policy_not_dict():
     settings["orchestrator"]["execution"]["sample_size_policy"] = []
     with pytest.raises(ValueError, match="sample_size_policy"):
         load_doctrine_invariants(settings)
+
+
+def test_load_doctrine_missing_infra_loss():
+    settings = copy.deepcopy(load_settings_json())
+    del settings["infra"]
+    with pytest.raises(ValueError, match="infra"):
+        load_doctrine_invariants(settings)
+    settings = copy.deepcopy(load_settings_json())
+    del settings["infra"]["loss_classifier"]
+    with pytest.raises(ValueError, match="loss_classifier"):
+        load_doctrine_invariants(settings)
+
+
+def test_load_doctrine_missing_fusion_and_neg_edge():
+    settings = copy.deepcopy(load_settings_json())
+    del settings["orchestrator"]["execution"]["scale_vision"]["fusion_block_when_tcn_pos_edge"]
+    with pytest.raises(ValueError, match="fusion_block"):
+        load_doctrine_invariants(settings)
+    settings = copy.deepcopy(load_settings_json())
+    del settings["orchestrator"]["execution"]["signal_skip"]["neg_edge_deep_edge_floor"]
+    with pytest.raises(ValueError, match="neg_edge_deep"):
+        load_doctrine_invariants(settings)
+
+
+def test_load_doctrine_missing_stop_win_and_online():
+    settings = copy.deepcopy(load_settings_json())
+    del settings["risk_management"]["large_account_stop_win_pct"]
+    with pytest.raises(ValueError, match="large_account_stop_win_pct"):
+        load_doctrine_invariants(settings)
+    settings = copy.deepcopy(load_settings_json())
+    del settings["deep_learning"]["online_training"]
+    with pytest.raises(ValueError, match="online_training"):
+        load_doctrine_invariants(settings)
+
+
+def test_load_doctrine_missing_recovery_timing_keys():
+    settings = copy.deepcopy(load_settings_json())
+    del settings["risk_management"]["soft_recovery"]["amort_cycles_min"]
+    with pytest.raises(ValueError, match="amort_cycles"):
+        load_doctrine_invariants(settings)
+    settings = copy.deepcopy(load_settings_json())
+    del settings["orchestrator"]["watchdog_stale_tick_seconds"]
+    with pytest.raises(ValueError, match="watchdog_stale_tick"):
+        load_doctrine_invariants(settings)
+
+
+def test_assert_production_rejects_ssot_knobs():
+    settings = copy.deepcopy(load_settings_json())
+    settings["orchestrator"]["execution"]["mandatory_trade_each_cycle"] = True
+    with pytest.raises(ValueError, match="mandatory_trade"):
+        assert_production_doctrine(settings)
+    settings = copy.deepcopy(load_settings_json())
+    settings["orchestrator"]["execution"]["invert_exec_side"] = True
+    with pytest.raises(ValueError, match="invert_exec_side"):
+        assert_production_doctrine(settings)
+    settings = copy.deepcopy(load_settings_json())
+    settings["infra"]["loss_classifier"]["flip_seed_waive_edge_min"] = -1.0
+    with pytest.raises(ValueError, match="flip_seed_waive"):
+        assert_production_doctrine(settings)
+    settings = copy.deepcopy(load_settings_json())
+    settings["orchestrator"]["execution"]["scale_vision"]["fusion_block_when_tcn_pos_edge"] = False
+    with pytest.raises(ValueError, match="fusion_block"):
+        assert_production_doctrine(settings)
+    settings = copy.deepcopy(load_settings_json())
+    settings["orchestrator"]["execution"]["signal_skip"]["neg_edge_deep_edge_floor"] = -1.0
+    with pytest.raises(ValueError, match="neg_edge_deep"):
+        assert_production_doctrine(settings)
+    settings = copy.deepcopy(load_settings_json())
+    settings["orchestrator"]["watchdog_stale_tick_seconds"] = 30
+    with pytest.raises(ValueError, match="watchdog_stale"):
+        assert_production_doctrine(settings)
+    settings = copy.deepcopy(load_settings_json())
+    settings["orchestrator"]["settlement_tolerance_window_seconds"] = 300
+    with pytest.raises(ValueError, match="settlement_tolerance"):
+        assert_production_doctrine(settings)
+    settings = copy.deepcopy(load_settings_json())
+    settings["orchestrator"]["post_settlement_is_trading_wait_seconds"] = 35
+    with pytest.raises(ValueError, match="post_settlement"):
+        assert_production_doctrine(settings)
+    settings = copy.deepcopy(load_settings_json())
+    settings["risk_management"]["soft_recovery"]["amort_cycles_max"] = 9
+    with pytest.raises(ValueError, match="amort_cycles"):
+        assert_production_doctrine(settings)
+    settings = copy.deepcopy(load_settings_json())
+    settings["risk_management"]["soft_recovery"]["cover_multiple"] = 2.0
+    with pytest.raises(ValueError, match="cover_multiple"):
+        assert_production_doctrine(settings)
+    settings = copy.deepcopy(load_settings_json())
+    settings["risk_management"]["soft_recovery"]["max_safe_stake_pct_linear3"] = 0.05
+    with pytest.raises(ValueError, match="linear3"):
+        assert_production_doctrine(settings)
+    settings = copy.deepcopy(load_settings_json())
+    settings["risk_management"]["large_account_stop_win_pct"] = 2.6
+    with pytest.raises(ValueError, match="large_account_stop_win"):
+        assert_production_doctrine(settings)
+
+
+def test_assert_production_ok_from_ssot():
+    inv = assert_production_doctrine()
+    assert inv["online_training"] is False

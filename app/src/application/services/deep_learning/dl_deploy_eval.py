@@ -113,7 +113,7 @@ def evaluate_mini_deploy(
     sim_runtime["deploy_ok"] = True
     max_steps = int(cfg.get("max_eval_steps", 24))
     label_spec = LabelSpec.from_dl_config(params)
-    gran = int(params.get("granularity") or runtime.get("granularity") or 60)
+    gran = int(params.get("granularity") or runtime.get("granularity") or 3600)
     settlement_horizon = resolve_settlement_horizon_bars(params, gran)
     settlement_spec = LabelSpec(
         horizon_bars=settlement_horizon,

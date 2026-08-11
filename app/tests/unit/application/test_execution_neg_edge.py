@@ -20,7 +20,7 @@ def test_parse_neg_edge_soft_from_ssot():
     assert cfg["neg_edge_soft_when_closed_candle_agree"] is True
     assert cfg["neg_edge_soft_min_edge"] == pytest.approx(-1.0)
     assert cfg["neg_edge_bootstrap_soft_kelly_mult"] == pytest.approx(0.25)
-    assert cfg["neg_edge_deep_edge_floor"] == pytest.approx(-1.0)
+    assert cfg["neg_edge_deep_edge_floor"] == pytest.approx(-0.12)
     with pytest.raises(ValueError, match="neg_edge_soft_min_edge"):
         parse_neg_edge_soft_config({"neg_edge_soft_min_edge": 0.05})
 

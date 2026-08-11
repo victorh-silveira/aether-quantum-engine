@@ -124,7 +124,7 @@ presentation  →  application  →  domain
 | `execution_symbols.py` | Símbolos elegíveis e ranking |
 | `execution_symbols_recovery.py` | Pool e ranking em recovery |
 | `execution_volatility_bb.py` | Bollinger width com vol implícita |
-| `execution_volatility_booster.py` | Modificador por estouro macro/micro (3600 s / 900 s) |
+| `execution_volatility_booster.py` | Modificador por estouro macro/micro (3600 s / 120 s) |
 | `execution_volatility_threshold.py` | Thresholds dinâmicos por regime |
 | `force_trade_mode.py` | Modo force-trade / mandatory |
 | `infra_timing_config.py` | Timeouts/reconnect/history/stream/meta/triton SSOT |
@@ -358,7 +358,7 @@ presentation  →  application  →  domain
 |--------|------------------|
 | `stream_handler.py` | Fluxo em tempo real e histórico local |
 | `tick_buffer.py` | Buffer de ticks e microestrutura |
-| `stream_timeframe.py` | Granularidades macro/micro duplas (3600 s / 900 s; assinatura legado m15/m5) |
+| `stream_timeframe.py` | Granularidades macro/micro duplas (3600 s / 120 s; assinatura legado m15/m5) |
 | `stream_candle_apply.py` | Aplicação incremental de velas |
 | `stream_tick_sidecar.py` | Ingestão de ticks e persistência de barras |
 | `stream_ohlc_fetch.py` | Busca OHLC sem alterar buffer |

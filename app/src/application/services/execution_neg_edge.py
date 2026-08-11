@@ -173,7 +173,7 @@ def apply_negative_cal_edge_pause(
         return False
     cfg = _neg_edge_cfg(orch)
     candle_agree = False
-    if bool(cfg.get("neg_edge_soft_when_closed_candle_agree", False)):
+    if bool(cfg.get("neg_edge_soft_when_closed_candle_agree", True)):
         candle_agree = closed_micro_candle_side(metrics) == direction
     p_ovr_flip = bool(metrics.get("loss_clf_flip")) and (
         bool(metrics.get("loss_clf_flip_scale_p_override")) or bool(metrics.get("loss_clf_flip_seed_p_override"))
@@ -182,7 +182,7 @@ def apply_negative_cal_edge_pause(
     soft_too_deep = edge + 1e-12 < soft_min
     allow_soft = (candle_agree or p_ovr_flip) and not soft_too_deep
     auto_learn = bool(metrics.get("loss_clf_auto_learn"))
-    deep_floor = float(cfg.get("neg_edge_deep_edge_floor", -1.0))
+    deep_floor = float(cfg.get("neg_edge_deep_edge_floor", -0.12))
     if (not auto_learn) and edge + 1e-12 < deep_floor:
         _apply_neg_edge_hard(metrics, direction=direction, edge=edge, floor=floor)
         metrics["neg_edge_bootstrap_deep"] = True

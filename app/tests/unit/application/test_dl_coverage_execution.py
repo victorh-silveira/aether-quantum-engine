@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
+import torch
 
 from src.application.services.deep_learning.dl_bridge_helpers import apply_symbol_loss_cooldown
 from src.application.services.deep_learning.dl_deploy_eval import evaluate_mini_deploy
@@ -78,7 +79,14 @@ def test_load_checkpoint_invalid_torchscript(tmp_path):
         val_ece=0.1,
         deploy_ok=True,
         deploy_win_rate=0.6,
+        label_call_frac=0.44,
+        pred_call_frac=0.66,
+        minority_recall=0.38,
     )
+    payload = torch.load(path, map_location="cpu", weights_only=True)
+    assert payload["label_call_frac"] == pytest.approx(0.44)
+    assert payload["pred_call_frac"] == pytest.approx(0.66)
+    assert payload["minority_recall"] == pytest.approx(0.38)
     bad_ts = path.with_name(path.stem + "_ts.pt")
     bad_ts.write_bytes(b"not-script")
     loaded = load_model_checkpoint(path, params={"use_torchscript": True})

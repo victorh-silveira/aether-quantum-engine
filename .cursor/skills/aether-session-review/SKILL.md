@@ -19,41 +19,43 @@ Ler `docs/llm-trading-doctrine.md` antes de concluir. LLM nao decide trade; aval
 
 ## Pre-trade (PlayBook)
 
-1. Qual setup nomeado? (ex.: TCN resolve lado + Kelly; soft SIDE_EQ / scale_vision)
-2. Qual bloqueio tecnico explicito? (`training`/`data`/`deploy`/`predict_error`)
-3. Explore ou recover? Ha pending/linear? `scale_force_explore` ou `RECOVERY_INFEASIBLE`/`recovery_force_explore` bloquearam RECOVER/DAL? Pending material com `pending_waives_scale_explore` deve liberar soft cover.
+1. Qual setup nomeado? (ex.: TCN resolve lado + fusao EV + Kelly; soft SIDE_EQ / scale_vision)
+2. Qual bloqueio tecnico explicito? (`training`/`data`/`deploy`/`predict_error` / stop-win)
+3. Explore ou recover? Ha pending/linear? Recovery = cover amortizado (**1.25**, amort **4–6**). `scale_force_explore` ou `RECOVERY_INFEASIBLE`/`recovery_force_explore` bloquearam RECOVER/DAL? Pending material com `pending_waives_scale_explore` deve liberar soft cover.
 4. Hipotese falsificavel da mudanca de knob (se houver)?
+5. Alvo de negocio: stop-win **3%** composto — progresso de processo, nao “mao quente”
 
 ## During (leitura de log)
 
 Ordem obrigatoria:
 
-1. CLUSTER — Prob / Cal / Margin / Edge (telemetria); TF tipicamente micro **M2** (120 s)
+1. CLUSTER — Prob / Cal / Margin / Edge (telemetria); TF tipicamente micro **M2** (120 s); anotar `live_n`
 2. SCALE — MACRO/MICRO/MINI/MILI + `tape`/`adapted` (adaptacao sob raw_extreme; soft Kelly; sem SKIP por escala)
-3. EXEC / EMPTY / PAUSE — `gate_reason` tecnico ou `signal_skip` 1.1; SIDE_EQ / scale = soft sizing
-4. RESOLVED / RISK — pending, linear, pnl_sess
+3. GATES — `[GATES] || FUSION` (`ev_c`/`ev_p`/`why`); `LOSS_CLF` SOFT vs FLIP; `FLIP_BLOCK:seed_candle|tcn_edge|seed|scale`; NEG_EDGE soft
+4. EXEC / EMPTY / PAUSE — `gate_reason` tecnico ou `signal_skip` 1.1; SIDE_EQ / scale = soft sizing; stop-win = `EXEC_PAUSE`
+5. RESOLVED / RISK — pending, linear, pnl_sess vs alvo **3%**
 
 Marcar cada ciclo como: **processo ok** | **processo falhou** | **inconclusivo (N baixo)**.
 
-Notas: `raw_extreme` mantem Cal para Kelly (nao e override MACRO TF). Escopo **1.1**: catalogo `signal_skip` fechado; quality gate amplo fora.
+Notas: `raw_extreme` mantem Cal para Kelly (nao e override MACRO TF). Escopo **1.1**: catalogo `signal_skip` fechado; quality gate amplo fora. WR bruto ≠ edge — P&L pode falhar com WR “bom” se lado/sizing errados.
 
 ## Pos-mortem (9 perguntas)
 
-1. Taleb: confundimos streak com edge?
-2. Mlodinow: N suficiente para a conclusao?
+1. Taleb: confundimos streak com edge? WR de sessao vs Cal/Edge medio?
+2. Mlodinow: `live_n` suficiente para a conclusao?
 3. Ellenberg: taxa-base / ACC / Bayes respeitados? Comparar taxa-base do **lado no treino** (`label_call_frac`) vs distribuicao live CALL/PUT — vies de treino ≠ motivo para rearmar quality gate.
-4. Duke: julgamos processo ou so P&L?
-5. Bernstein: risco estava limitado (caps, pending)? SIDE_EQ / scale soft Kelly vs SKIP indevido?
+4. Duke: julgamos processo ou so P&L de poucos ciclos?
+5. Bernstein: risco estava limitado (caps, pending, amort **4–6**, cover **1.25**)? SIDE_EQ / scale soft Kelly vs SKIP indevido?
 6. Douglas: houve revenge sizing ou troca de regras mid-session?
-7. PlayBook: setup e bloqueio tecnico estavam escritos?
-8. Murphy: TA substituiu a TCN ou so filtrou telemetria (SCALE)?
-9. LTCM: algum fail-safe tecnico (deploy/ACC/caps) foi removido?
+7. PlayBook: setup e bloqueio tecnico estavam escritos? Houve chuva de FLIP seed (`auto=0`) vs `FLIP_BLOCK`?
+8. Murphy: TA substituiu a TCN ou so filtrou telemetria (SCALE/fusao)?
+9. LTCM: algum fail-safe tecnico (deploy/ACC/caps/`flip_require_auto_learn`) foi removido?
 
 ## Saida esperada
 
 Resposta curta em PT-BR:
 
 - Veredito do processo (nao “sorte”)
-- Ciclos problematicos com `gate_reason` tecnico / Cal / Edge / SCALE discord
+- Ciclos problematicos com `gate_reason` / Cal / Edge / FUSION / `FLIP_BLOCK` / SCALE discord
 - Acoes: manter knobs | ajuste minimo nomeado | retreino se ACC estruturalmente baixo
-- Nunca recomendar `force_trade_every_cycle=true` como correcao
+- Nunca recomendar `force_trade_every_cycle=true` como correcao; nunca rearmar quality gate amplo

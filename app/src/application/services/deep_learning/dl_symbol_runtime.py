@@ -132,7 +132,7 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
                 deploy_win_rate,
             ) = loaded
             if int(ckpt_lookback) != expected_lookback or int(checkpoint_granularity) != int(expected_granularity):
-                if bool(dl_config.get("online_training", True)):
+                if bool(dl_config.get("online_training", False)):
                     logger.info(
                         "DL: Checkpoint %s incompativel (lb=%s/%s gran=%s/%s); retreino.",
                         symbol,
@@ -156,7 +156,7 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
                 checkpoint_granularity = expected_granularity
         if loaded is not None:
             lookback = int(ckpt_lookback)
-            if bool(dl_config.get("online_training", True)):
+            if bool(dl_config.get("online_training", False)):
                 session_trained = bool(deploy_ok) and float(val_brier) + 1e-9 < 0.99
             else:
                 session_trained = float(val_brier) + 1e-9 < 0.99

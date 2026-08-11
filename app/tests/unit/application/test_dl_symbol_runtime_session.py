@@ -46,7 +46,7 @@ def test_get_symbol_runtime_keeps_session_untrained_without_deploy_ok():
     orch = MagicMock()
     orch.config = {"data_handler": {"granularity": 60}, "deep_learning": {}}
     orch._dl_runtime = {}
-    dl_config = {"model_path_template": "data/dl/{symbol}.pth"}
+    dl_config = {"model_path_template": "data/dl/{symbol}.pth", "online_training": True}
     params = {"lookback": 48, "arch": "tcn"}
     with (
         patch(

@@ -157,7 +157,7 @@ def build_watchdog(orch: Any) -> AetherWatchdog | None:
     cfg = _watchdog_cfg(orch)
     return AetherWatchdog(
         orch,
-        stale_seconds=float(cfg.get("watchdog_stale_tick_seconds", 30.0)),
+        stale_seconds=float(cfg.get("watchdog_stale_tick_seconds", 300.0)),
         poll_interval=float(cfg.get("watchdog_poll_interval_seconds", 5.0)),
         reconnect_cooldown_seconds=float(cfg.get("watchdog_reconnect_cooldown_seconds", 60.0)),
     )

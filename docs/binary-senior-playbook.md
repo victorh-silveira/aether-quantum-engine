@@ -13,9 +13,9 @@ Hierarquia: TCN Cal/Margin → SCALE dirs → soft `signal_skip` / loss-clf → 
 | CALL | TCN CALL, fusao EV_CALL >= EV_PUT, ou fita/adapt |
 | PUT | TCN PUT, fusao EV_PUT > EV_CALL, ou fita/adapt |
 | SKIP tecnico | `training` / `data` / `deploy` / `predict_error`, warm-up, stop-win, broker; `neg_edge` hard so com override ou seed+edge &lt; **−0.12** |
-| Soft sinal 1.1 | `mini_pair_oppose` / `cal_margin` / loss-clf; chop soft off no experimento; `neg_edge` soft (`deep_floor` **-1.0**); fusao usa `fusion_p_eff`; EV fraco → soft Kelly; `invert_exec_side` **false** (codigo seletivo `ev_call` disponivel) |
-| Fusao multi-escala | `fusion_enabled`: p_eff (Cal + MACRO/vela/MINI/MILI/tape + loss continuo + meta **0.10**); `fusion_block_when_tcn_pos_edge` preserva TCN so se Cal **e** raw +EV; telemetria `[GATES] \|\| FUSION` + `fusion_ev_*` / `fusion_p_eff` |
-| Flip loss-clf | `p_loss >= hard_p_loss_floor` (**0.90**) e `veto_ready`; **bloqueia FLIP** se Edge Cal **e** raw_edge do TCN >= floor (`FLIP_BLOCK:tcn_edge`; Cal+/raw− nao trava); sob seed, vela fechada == TCN bloqueia (`FLIP_BLOCK:seed_candle`; `p_ovr` nao fura); seed edge min **−0.08**; live `flip_waive_edge_min` **−1.0**; vela no alvo floor **0.85** so se TCN fraco |
+| Soft sinal 1.1 | `mini_pair_oppose` / `cal_margin` / loss-clf; chop soft off no experimento; `neg_edge` soft (`deep_floor` **−0.12**); fusao usa `fusion_p_eff`; EV fraco → soft Kelly **0.40** (seed+ambos EV&lt;0 → **0.25**); `invert_exec_side` **false** |
+| Fusao multi-escala | `fusion_enabled`: p_eff (Cal + MACRO/vela/MINI/MILI/tape + loss continuo + meta **0.10**); `fusion_block_when_tcn_pos_edge` **true** preserva TCN so se Cal **e** raw +EV; telemetria `[GATES] \|\| FUSION` + `fusion_ev_*` / `fusion_p_eff` |
+| Flip loss-clf | `p_loss >= hard_p_loss_floor` (**0.90**) e `veto_ready` + `flip_require_auto_learn` (**true**: seed so SOFT); **bloqueia FLIP** se Edge Cal **e** raw_edge do TCN >= floor (`FLIP_BLOCK:tcn_edge`; Cal+/raw− nao trava); sob seed, vela fechada == TCN bloqueia (`FLIP_BLOCK:seed_candle`; `p_ovr` nao fura); seed edge min **−0.08**; live `flip_waive_edge_min` **−1.0**; vela no alvo floor **0.85** so se TCN fraco |
 | Chop soft | ADX &lt; **0.22** e (Hurst ∈ [**0.47**, **0.53**] ou SCALE micro=chop) → soft Kelly **0.55**; log `REGIME \|\| CHOP_SOFT` |
 | `majority_votes` | Mais votos PUT ou CALL (tape/mili/RSI vs TCN) → adapta lado (se `fusion_replace_adapt_flip` **false**) |
 

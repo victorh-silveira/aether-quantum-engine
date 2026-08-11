@@ -82,7 +82,7 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert float(block["timeout_seconds"]) == pytest.approx(8.0)
     assert int(block["retrain_min_n"]) == 1
     assert int(block["retrain_on_loss_min_n"]) == 1
-    assert bool(block["flip_require_auto_learn"]) is False
+    assert bool(block["flip_require_auto_learn"]) is True
     assert bool(block["flip_allow_seed_on_scale_discord"]) is True
     assert bool(block["flip_allow_seed_on_cal_discord"]) is True
     assert float(block["flip_cal_discord_margin"]) == pytest.approx(0.03)
@@ -99,7 +99,7 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert resolved["soft_max_stake_pct_high"] == pytest.approx(0.0025)
     assert resolved["retrain_min_n"] == 1
     assert resolved["retrain_on_loss_min_n"] == 1
-    assert resolved["flip_require_auto_learn"] is False
+    assert resolved["flip_require_auto_learn"] is True
     assert resolved["flip_allow_seed_on_scale_discord"] is True
     assert resolved["flip_allow_seed_on_cal_discord"] is True
     assert resolved["flip_cal_discord_margin"] == pytest.approx(0.03)
@@ -108,10 +108,10 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert resolved["flip_waive_on_closed_candle"] is True
     assert resolved["flip_candle_p_loss_floor"] == pytest.approx(0.85)
     assert resolved["flip_waive_scale_above_p_loss"] == pytest.approx(0.95)
-    assert resolved["flip_block_when_tcn_pos_edge"] is False
+    assert resolved["flip_block_when_tcn_pos_edge"] is True
     assert resolved["flip_waive_edge_min"] == pytest.approx(-1.0)
-    assert resolved["flip_seed_block_against_closed_candle"] is False
-    assert resolved["flip_seed_waive_edge_min"] == pytest.approx(-1.0)
+    assert resolved["flip_seed_block_against_closed_candle"] is True
+    assert resolved["flip_seed_waive_edge_min"] == pytest.approx(-0.08)
     soft_rec = settings["risk_management"]["soft_recovery"]
     assert int(soft_rec["amort_cycles_min"]) == 4
     assert int(soft_rec["amort_cycles_max"]) == 6
@@ -137,7 +137,7 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert bool(skip["neg_edge_soft_when_closed_candle_agree"]) is True
     assert float(skip["neg_edge_soft_min_edge"]) == pytest.approx(-1.0)
     assert float(skip["neg_edge_bootstrap_soft_kelly_mult"]) == pytest.approx(0.25)
-    assert float(skip["neg_edge_deep_edge_floor"]) == pytest.approx(-1.0)
+    assert float(skip["neg_edge_deep_edge_floor"]) == pytest.approx(-0.12)
     assert "calib_gray_margin_floor" not in skip
     assert "calib_gray_soft_kelly_mult" not in skip
     assert "calib_gray_max_stake_pct" not in skip
@@ -163,17 +163,21 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert float(scale["fusion_meta_ev_weight"]) == pytest.approx(0.10)
     assert float(scale["fusion_loss_weight"]) == pytest.approx(0.80)
     assert float(scale["fusion_tcn_shrink_near_half"]) == pytest.approx(0.40)
-    assert scale["fusion_block_when_tcn_pos_edge"] is False
+    assert scale["fusion_block_when_tcn_pos_edge"] is True
     assert float(scale["fusion_min_edge_execute"]) == pytest.approx(0.04)
     assert float(scale["fusion_weak_ev_soft_kelly_mult"]) == pytest.approx(0.40)
+    assert float(scale["fusion_weak_ev_seed_soft_kelly_mult"]) == pytest.approx(0.25)
     assert bool(settings["orchestrator"]["execution"]["invert_exec_side"]) is False
+    assert bool(settings["orchestrator"]["execution"]["mandatory_trade_each_cycle"]) is False
+    assert float(settings["risk_management"]["large_account_stop_win_pct"]) == pytest.approx(3.0)
     from src.application.services.execution_direction_fusion import parse_direction_fusion_config
 
     fusion = parse_direction_fusion_config({})
     assert fusion["fusion_enabled"] is True
     assert fusion["fusion_replace_adapt_flip"] is True
     assert float(fusion["fusion_weak_ev_soft_kelly_mult"]) == pytest.approx(0.40)
-    assert fusion["fusion_block_when_tcn_pos_edge"] is False
+    assert float(fusion["fusion_weak_ev_seed_soft_kelly_mult"]) == pytest.approx(0.25)
+    assert fusion["fusion_block_when_tcn_pos_edge"] is True
     data = settings["data_handler"]
     assert int(data["micro_granularity"]) == 120
     assert int(data["mini_granularity"]) == 120

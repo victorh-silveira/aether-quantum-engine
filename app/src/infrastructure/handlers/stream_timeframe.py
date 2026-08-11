@@ -10,15 +10,15 @@ from src.infrastructure.api.deriv_granularity import normalize_granularity_secon
 
 def resolve_dual_granularity(data_config: dict) -> tuple[int, int]:
     """Resolve granularidade macro (DL) e micro (loop operacional)."""
-    macro = normalize_granularity_seconds(int(data_config.get("granularity", 60)))
-    micro_raw = int(data_config.get("micro_granularity", data_config.get("cycle_granularity", 60)))
+    macro = normalize_granularity_seconds(int(data_config.get("granularity", 3600)))
+    micro_raw = int(data_config.get("micro_granularity", data_config.get("cycle_granularity", 120)))
     micro = normalize_granularity_seconds(micro_raw)
     return macro, micro
 
 
 def resolve_mini_granularity(data_config: dict) -> int:
-    """Resolve granularidade MINI (tape curto; default 60s)."""
-    raw = int(data_config.get("mini_granularity", 60))
+    """Resolve granularidade MINI (tape curto; default 120s M2)."""
+    raw = int(data_config.get("mini_granularity", 120))
     return normalize_granularity_seconds(raw)
 
 

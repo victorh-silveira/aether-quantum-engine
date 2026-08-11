@@ -13,7 +13,7 @@ def min_dl_inference_len(params: dict) -> int:
 
 def min_dl_history_len(params: dict) -> int:
     """Calcula o minimo de velas OHLC exigidas para treino e inferencia DL."""
-    if not params.get("online_training", True):
+    if not params.get("online_training", False):
         return min_dl_inference_len(params)
     split_floor = int(params["lookback"]) + int(params["validation_bars"]) + 20
     train_window = int(params.get("training_history_bars", 0))

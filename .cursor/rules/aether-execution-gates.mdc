@@ -1,14 +1,15 @@
 ---
-description: Gates de execucao Aether — signal_skip soft 1.1, loss_clf soft, tecnico, SCALE soft
+description: Gates de execucao Aether — fusao EV, signal_skip soft 1.1, loss_clf FLIP/soft, tecnico, SCALE soft
 globs: app/src/application/services/execution_*.py
 alwaysApply: false
 ---
 
 # Execution gates
 
-- SKIP tecnico: `training` / `data` / `deploy` / `predict_error`
-- Soft sinal (escopo **1.1**): SSOT `signal_skip` — mini/cal soft Kelly; sem flip pos-LOSS; sem hard SKIP de sinal
-- Loss ML: container `aether-loss-classifier` → default soft graduado; log `LOSS_CLF || SOFT`
+- SKIP tecnico: `training` / `data` / `deploy` / `predict_error` / stop-win `EXEC_PAUSE`
+- Soft sinal (escopo **1.1**): SSOT `signal_skip` — mini/cal/chop soft Kelly; **neg_edge** soft continuo (`neg_edge_deep_edge_floor` **−0.12** sob seed); sem flip pos-LOSS; sem hard SKIP de sinal no default
+- **Fusao EV** (`execution_direction_fusion*`): argmax CALL/PUT; `fusion_block_when_tcn_pos_edge` **true**; soft EV fraco **0.40** / seed dual-EV&lt;0 **0.25**; telemetria `[GATES] || FUSION`
+- Loss ML: container `aether-loss-classifier` → soft graduado; FLIP so com `p_loss>=0.90` + `veto_ready` + `flip_require_auto_learn` **true** (seed = SOFT); `FLIP_BLOCK:seed_candle|tcn_edge|seed|scale`
 - `min_direction_margin` padrao **0.022** em **[0.015, 0.05]**; nao restaurar quality gate / Hurst/ADX/RSI/price_zone
-- SCALE adapta lado + soft Kelly; **sem** SKIP por escala
-- EXEC_EMPTY so tecnico / Kelly pause; catalogo: `docs/binary-senior-playbook.md` + `docs/infra-docker.md`
+- SCALE adapta lado + soft Kelly; **sem** SKIP por escala; `invert_exec_side` **false**
+- EXEC_EMPTY so tecnico / Kelly pause; catalogo: `docs/binary-senior-playbook.md` + `docs/engineering-settings-ssot.md` + `docs/infra-docker.md`

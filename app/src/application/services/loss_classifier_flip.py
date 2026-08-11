@@ -214,7 +214,7 @@ def flip_reason_token(metrics: dict[str, Any]) -> str:
 
 def post_flip_edge_ok(metrics: dict[str, Any], flipped: TradeDirection, *, cfg: dict[str, Any]) -> bool:
     """False se edge pos-FLIP < floor e sem waiver candle/p_ovr (piso flip_waive_edge_min)."""
-    if not bool(cfg.get("flip_require_pos_edge", True)):
+    if not bool(cfg.get("flip_require_pos_edge", False)):
         return True
     floor = float(cfg.get("flip_min_edge_execute", 0.04))
     edge = resolve_predicted_edge(metrics, direction=flipped.name)
