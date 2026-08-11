@@ -49,6 +49,9 @@ def _effective_deploy_ok(
     val_accuracy: float,
     val_brier: float,
     dl_config: dict,
+    label_call_frac: float | None = None,
+    pred_call_frac: float | None = None,
+    minority_recall: float | None = None,
 ) -> bool:
     """Aplica force_ok / soft fallback SSOT sobre a flag persistida."""
     gate_cfg = parse_deploy_gate_config(dl_config)
@@ -59,6 +62,9 @@ def _effective_deploy_ok(
         val_accuracy=float(val_accuracy),
         val_brier=float(val_brier),
         gate_cfg=gate_cfg,
+        label_call_frac=label_call_frac,
+        pred_call_frac=pred_call_frac,
+        minority_recall=minority_recall,
     )
 
 
@@ -155,11 +161,21 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
             else:
                 session_trained = float(val_brier) + 1e-9 < 0.99
             stored_ok = bool(deploy_ok)
+            collapse_meta: dict = {}
+            try:
+                payload = torch.load(path, map_location=torch.device("cpu"), weights_only=True)
+                if isinstance(payload, dict):
+                    collapse_meta = payload
+            except Exception:
+                collapse_meta = {}
             deploy_ok = _effective_deploy_ok(
                 stored_ok=stored_ok,
                 val_accuracy=float(val_accuracy),
                 val_brier=float(val_brier),
                 dl_config=dl_config,
+                label_call_frac=collapse_meta.get("label_call_frac"),
+                pred_call_frac=collapse_meta.get("pred_call_frac"),
+                minority_recall=collapse_meta.get("minority_recall"),
             )
             if deploy_ok and not stored_ok and path.exists():
                 _persist_deploy_ok_flag(path, deploy_ok=True)

@@ -182,9 +182,6 @@ def test_settlement_outcome_planned_stake():
         patch(
             "src.application.services.orchestrator.settlement_outcome.record_side_equilibrium_outcome",
         ),
-        patch(
-            "src.application.services.orchestrator.settlement_outcome.mark_force_retrain",
-        ),
     ):
         process_contract_outcome(
             orch,

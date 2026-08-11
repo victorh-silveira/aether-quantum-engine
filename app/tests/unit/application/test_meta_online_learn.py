@@ -40,7 +40,7 @@ def test_meta_vector_early_returns():
     assert pop_meta_feature_vector(orch, "R_10", 99) == [0.2] * 43
 
 
-def test_should_retrain_meta_every_sample():
+def test_should_retrain_meta_requires_lgbm_min_samples():
     import importlib.util
     from pathlib import Path
 
@@ -49,8 +49,12 @@ def test_should_retrain_meta_every_sample():
     assert spec is not None and spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    assert mod.should_retrain_meta(buffer_n=1, retrain_min_n=1) is True
-    assert mod.should_retrain_meta(buffer_n=0, retrain_min_n=1) is False
+    assert mod.meta_retrain_floor(1) == 2
+    assert mod.should_retrain_meta(buffer_n=1, retrain_min_n=1) is False
+    assert mod.should_retrain_meta(buffer_n=2, retrain_min_n=1) is True
+    assert mod.should_retrain_meta(buffer_n=1, retrain_min_n=2) is False
+    assert mod.should_retrain_meta(buffer_n=2, retrain_min_n=2) is True
+    assert mod.should_retrain_meta(buffer_n=0, retrain_min_n=2) is False
 
 
 def test_feed_meta_classifier_learn_paths(caplog):

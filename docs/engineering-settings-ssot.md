@@ -10,8 +10,8 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `data_handler` | MACRO/MICRO/MINI granularity, history, buffer |
 | `deep_learning` | arch, lookback, labels, calib (`raw_extreme`), deploy, `sample_weighting`; alvo treino **2000** barras M2 com `train_history_shortfall_ratio` **0.95** (API esgotada ~1980 segue); `bootstrap_max_wait_rounds` **16** |
 | `orchestrator` | ciclo, warmup, watchdog, WS |
-| `orchestrator.execution` | mandatory/force, settlement, SIDE_EQ soft, `scale_vision`, `signal_skip`, sample_size_policy |
-| `infra.meta_classifier` | HTTP :8005; edge continuo 43D; `online_learn` **true**; `/v1/learn` a cada settle (`retrain_min_n` **1**); `timeout_seconds` **8** |
+| `orchestrator.execution` | mandatory/force, **`invert_exec_side`** (experimento: inverte CALL/PUT apos gates), settlement, SIDE_EQ soft, `scale_vision`, `signal_skip`, sample_size_policy |
+| `infra.meta_classifier` | HTTP :8005; edge continuo 43D; `online_learn` **true**; `/v1/learn` a cada settle (`retrain_min_n` **2**, piso LGBM); `timeout_seconds` **8** |
 | `infra.loss_classifier` | HTTP :8006; `veto_mode` **soft** + banda flip: floor soft **0.65**; `hard_p_loss_floor` **0.90**; `flip_block_when_tcn_pos_edge` **true** (nao FLIP se Edge TCN >= **0.04**); `flip_waive_scale_above_p_loss` **0.95**; `flip_candle_p_loss_floor` **0.85** (so TCN fraco); `flip_waive_edge_min` **-1.0** (live); `flip_seed_block_against_closed_candle` **true** + `flip_seed_waive_edge_min` **-0.08**; seed/`flip_allow_seed_on_scale_discord`; `flip_waive_on_closed_candle`; soft Kelly **0.55→0.40**; `timeout_seconds` **8** |
 | `risk_management` | Kelly, soft_recovery, stop-win, ACC gate, duration contrato |
 | `infra` | Redis, Timescale, MinIO, Triton, meta |
@@ -27,7 +27,7 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `max_label_call_frac_bias` | idem | padrao **0.20**; aplica a `|pred-0.5|`, `|pred-label|` ou `|label-0.5|` junto com `min_minority_recall` |
 | `min_minority_recall` | idem | padrao **0.25** |
 | `side_equilibrium.enabled` | `orchestrator.execution` | soft Kelly only; sem veto de direcao |
-| `scale_vision.*` | `orchestrator.execution` | `adapt_allow_strong_tape` **false**; **majority_votes** (TCN/tape/mili/RSI + vela micro fechada se `adapt_majority_include_micro_bar` **true**); `adapt_majority_min_lead` **2**; `adapt_skip_chop` **true** (hold TCN em micro=chop); `adapt_require_cal_agree` **true** (nao adapta contra Cal); `adapt_mili_tape_skip_chop` **true**; **fusao EV** `fusion_enabled` **true** + `fusion_replace_adapt_flip` **true** (argmax EV CALL/PUT com pesos MACRO/vela/MINI/MILI/tape/loss/meta; `fusion_meta_ev_weight` **0.10**; `fusion_tcn_shrink_near_half` **0.40**; bloqueio `fusion_block_when_tcn_pos_edge`; log `[GATES] \|\| FUSION`); **sem** `adapt_*_cal_margin` / hold cinza |
+| `scale_vision.*` | `orchestrator.execution` | `adapt_allow_strong_tape` **false**; **majority_votes** (TCN/tape/mili/RSI + vela micro fechada se `adapt_majority_include_micro_bar` **true**); `adapt_majority_min_lead` **2**; `adapt_skip_chop` **true** (hold TCN em micro=chop); `adapt_require_cal_agree` **true** (nao adapta contra Cal); `adapt_mili_tape_skip_chop` **true**; **fusao EV** `fusion_enabled` **true** + `fusion_replace_adapt_flip` **true** (argmax EV CALL/PUT com pesos MACRO/vela/MINI/MILI/tape/loss/meta; `fusion_meta_ev_weight` **0.10**; `fusion_tcn_shrink_near_half` **0.40**; bloqueio `fusion_block_when_tcn_pos_edge`; soft Kelly se EV escolhido &lt; `fusion_min_edge_execute` via `fusion_weak_ev_soft_kelly_mult` **0.40**; log `[GATES] \|\| FUSION`); **sem** `adapt_*_cal_margin` / hold cinza |
 | `signal_skip.*` | `orchestrator.execution` | Escopo **1.1**: mini/cal/chop soft Kelly **0.55**; **neg_edge_hard_skip** **false**; soft continuo com `neg_edge_soft_min_edge` (**-1.0**); sob seed `neg_edge_bootstrap_soft_kelly_mult` **0.25** + hard so se edge &lt; `neg_edge_deep_edge_floor` (**-0.12**); Edge = `Cal*(1+b)-1`; floor **0.04** exige Cal ≳ **0.605** para edge positivo |
 | `scale_vision.adapt_on_majority_votes` | idem | Conta votos TCN/tape/mili/mini_pair/RSI; lideranca ≥`adapt_majority_min_lead` e n≥`adapt_majority_min_votes` → `majority_votes` |
 | `kelly.kelly_p_floor` | `risk_management.kelly` | Piso de **probabilidade** para Kelly; garante `f*>0`; alias `adapt_kelly_p_floor` |
@@ -37,11 +37,11 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `soft_recovery.infeasible_force_explore` | `risk_management.soft_recovery` | Default **true**: `RECOVERY_INFEASIBLE` ou cover≥cap → EXPLORE Kelly (sem DAL no teto) |
 | `soft_recovery.pending_waives_scale_explore` | `risk_management.soft_recovery` | Default **true**: pending material libera soft cover apesar de `scale_adapted`/`scale_force_explore` |
 | `soft_recovery.adapted_force_explore` | `risk_management.soft_recovery` | Default **true**: `scale_adapted` + linear≥**2** → EXPLORE (bloqueia DAL L2/L3 sob adapt) |
-| `soft_recovery.cover_multiple` | `risk_management.soft_recovery` | Multiplo do cover (**2.0**) — WIN zera pending e deixa lucro ~pending |
-| `soft_recovery.max_safe_stake_pct` | `risk_management.soft_recovery` | Teto RECOVER **5%** banca (linear2/3 tambem **5%**) |
+| `soft_recovery.cover_multiple` | `risk_management.soft_recovery` | Multiplo do cover (**1.25**) — amortiza pending sem progressao geometrica |
+| `soft_recovery.max_safe_stake_pct` | `risk_management.soft_recovery` | Teto RECOVER **5%** banca; linear2 **4%**; linear3+ **2.5%** |
 | `kelly.recovery_min_val_accuracy` | `risk_management.kelly` | Piso ACC live para DAL (**0.53**); sobe com linear; abaixo → EXPLORE (sem cover DAL) |
-| `soft_recovery.live_evidence_force_explore_*` | `risk_management.soft_recovery` | linear≥**3** + `live_n`≥**2** + `live_wr`&lt;**0.58** → EXPLORE (bloqueia DAL L3+ com ACC de treino ainda ok) |
-| `soft_recovery.amort_cycles_min` / `amort_cycles_max` | `risk_management.soft_recovery` | Cover em 1 ciclo (`amort=1`); stake = `cover_multiple * pending/payout` |
+| `soft_recovery.live_evidence_force_explore_*` | `risk_management.soft_recovery` | linear≥**3** + `live_n`≥**2** + `live_wr`&lt;**0.62** → EXPLORE (bloqueia DAL L3+ com ACC de treino ainda ok) |
+| `soft_recovery.amort_cycles_min` / `amort_cycles_max` | `risk_management.soft_recovery` | Amort **4–6**; stake RECOVER = `cover_multiple * pending/payout/amort` (sem `max` com progressao exponencial) |
 | `infra.loss_classifier.soft_max_stake_pct_high` | `infra.loss_classifier` | Teto stake EXPLORE sob soft (**0.25%**); waivado com pending material; ACC baixo nao cancela cover |
 | `params.duration` | `risk_management.params` | Contrato RISE_FALL **2 m** (`duration_unit: m`) — universo `R_10` M2 |
 | `data_handler.micro_granularity` / `granularity` | `data_handler` | Micro/MINI **120** / macro **3600** (M2) |

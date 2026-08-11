@@ -24,20 +24,32 @@ def test_flip_reason_token_candle():
 
 
 def test_tcn_pos_edge_blocks_flip():
-    metrics = {"calibrated_prob": 0.36}
+    metrics = {"calibrated_prob": 0.36, "raw_prob": 0.36}
     cfg = {"flip_block_when_tcn_pos_edge": True, "flip_min_edge_execute": 0.04}
     assert tcn_pos_edge_blocks_flip(metrics, TradeDirection.PUT, cfg=cfg) is True
     assert metrics.get("loss_clf_flip_block_tcn_pos_edge") is True
-    weak = {"calibrated_prob": 0.52}
+    weak = {"calibrated_prob": 0.52, "raw_prob": 0.52}
     assert tcn_pos_edge_blocks_flip(weak, TradeDirection.CALL, cfg=cfg) is False
     assert (
         tcn_pos_edge_blocks_flip(
-            {"calibrated_prob": 0.36},
+            {"calibrated_prob": 0.36, "raw_prob": 0.36},
             TradeDirection.PUT,
             cfg={"flip_block_when_tcn_pos_edge": False, "flip_min_edge_execute": 0.04},
         )
         is False
     )
+
+
+def test_tcn_pos_edge_allows_flip_when_cal_pos_raw_neg():
+    metrics = {"calibrated_prob": 0.24, "raw_prob": 0.49}
+    cfg = {
+        "flip_block_when_tcn_pos_edge": True,
+        "flip_min_edge_execute": 0.04,
+        "flip_tcn_pos_edge_raw_floor": 0.0,
+    }
+    assert tcn_pos_edge_blocks_flip(metrics, TradeDirection.PUT, cfg=cfg) is False
+    assert metrics.get("loss_clf_flip_cal_raw_discord") is True
+    assert metrics.get("loss_clf_flip_block_tcn_pos_edge") is None
 
 
 def test_flip_reason_token_candle_floor():

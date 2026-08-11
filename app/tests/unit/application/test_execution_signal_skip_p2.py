@@ -27,6 +27,7 @@ def test_resolve_with_orch_applies_cal_margin_soft():
         "infra": {"loss_classifier": {"enabled": False}},
         "deep_learning": {"min_edge_execute": -0.99},
         "risk_management": {"params": {"payout_estimate": 0.72}},
+        "orchestrator": {"execution": {"scale_vision": {"fusion_enabled": False}}},
     }
     orch._active_cycle_id = 0
     orch.risk_manager.pending_loss_total.return_value = 0.0

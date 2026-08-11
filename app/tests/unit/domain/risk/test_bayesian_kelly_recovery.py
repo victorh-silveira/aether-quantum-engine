@@ -125,6 +125,7 @@ def test_soft_recovery_acc_below_floor_waived_by_pending_uses_cover():
         "max_safe_stake_pct": 0.05,
         "amort_cycles_min": 1,
         "amort_cycles_max": 1,
+        "cover_multiple": 2.0,
         "infeasible_force_explore": True,
         "material_pending_min": 0.25,
     }
@@ -153,6 +154,7 @@ def test_soft_recovery_live_wr_waived_by_pending_uses_cover():
         "max_safe_stake_pct_linear3": 0.03,
         "amort_cycles_min": 2,
         "amort_cycles_max": 5,
+        "cover_multiple": 1.0,
         "infeasible_force_explore": True,
         "material_pending_min": 0.25,
         "live_evidence_force_explore_linear_min": 3,
@@ -189,6 +191,7 @@ def test_soft_recovery_adapted_waived_by_pending_uses_cover():
         "max_safe_stake_pct_linear3": 0.03,
         "amort_cycles_min": 2,
         "amort_cycles_max": 5,
+        "cover_multiple": 1.0,
         "infeasible_force_explore": True,
         "material_pending_min": 0.25,
         "adapted_force_explore": True,

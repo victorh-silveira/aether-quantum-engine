@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field, model_validator
 from learn_runtime import (
     fit_regressor,
     load_learn_buffer,
+    meta_retrain_floor,
     persist_regressor_bundle,
     save_learn_buffer,
     should_retrain_meta,
@@ -101,7 +102,7 @@ _n_loaded: int = 0
 _buffer_x: list[list[float]] = []
 _buffer_y: list[float] = []
 _lock = threading.Lock()
-RETRAIN_MIN_N = int(os.getenv("META_RETRAIN_MIN_N", "1"))
+RETRAIN_MIN_N = int(os.getenv("META_RETRAIN_MIN_N", "2"))
 MAX_BUFFER = int(os.getenv("META_MAX_BUFFER", "2000"))
 BUFFER_PATH = MODELS_DIR / "meta_learn_buffer.pkl"
 
@@ -272,6 +273,7 @@ async def learn(payload: LearnMetaRequest) -> dict[str, Any]:
     if len(vector) != META_FEATURE_DIM:
         raise HTTPException(status_code=400, detail=f"feature_vector deve ter {META_FEATURE_DIM}")
     retrained = False
+    floor = meta_retrain_floor(int(RETRAIN_MIN_N))
     detail = "buffered"
     with _lock:
         _buffer_x.append(vector)
@@ -286,7 +288,9 @@ async def learn(payload: LearnMetaRequest) -> dict[str, Any]:
         xs = list(_buffer_x)
         ys = list(_buffer_y)
         names = _resolve_feature_names(_model_bundle) if _model_bundle is not None else list(DEFAULT_FEATURE_NAMES)
-    if do_fit:
+    if not do_fit:
+        detail = f"wait:{n}/{floor}"
+    else:
         try:
             model = fit_regressor(xs, ys)
             path = persist_regressor_bundle(

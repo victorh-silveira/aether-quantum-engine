@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
+from src.application.services.execution_signal_skip import apply_kelly_soft
 from src.application.services.loss_classifier_flip import closed_micro_candle_side, tcn_pos_edge_blocks_flip
 from src.application.services.market_audit_log_helpers import resolve_predicted_edge
 from src.domain.config_knobs import merge_settings_block, require_bool, require_float, require_keys
@@ -26,6 +27,7 @@ _FUSION_KEYS = (
     "fusion_tcn_shrink_near_half",
     "fusion_block_when_tcn_pos_edge",
     "fusion_min_edge_execute",
+    "fusion_weak_ev_soft_kelly_mult",
 )
 
 __all__ = (
@@ -64,12 +66,16 @@ def parse_direction_fusion_config(raw: dict[str, Any] | None = None) -> dict[str
     min_edge = require_float(block, "fusion_min_edge_execute")
     if min_edge < 0.0 or min_edge > 0.5:
         raise ValueError("orchestrator.execution.scale_vision.fusion_min_edge_execute deve estar em [0, 0.5]")
+    weak_soft = require_float(block, "fusion_weak_ev_soft_kelly_mult")
+    if weak_soft <= 0.0 or weak_soft > 1.0:
+        raise ValueError("orchestrator.execution.scale_vision.fusion_weak_ev_soft_kelly_mult deve estar em (0, 1]")
     return {
         "fusion_enabled": require_bool(block, "fusion_enabled"),
         "fusion_replace_adapt_flip": require_bool(block, "fusion_replace_adapt_flip"),
         "fusion_tcn_shrink_near_half": shrink,
         "fusion_block_when_tcn_pos_edge": require_bool(block, "fusion_block_when_tcn_pos_edge"),
         "fusion_min_edge_execute": min_edge,
+        "fusion_weak_ev_soft_kelly_mult": weak_soft,
         **weights,
     }
 
@@ -281,4 +287,11 @@ def apply_direction_fusion(
     metrics["exec_direction"] = chosen.name
     metrics["resolved_direction"] = chosen.name
     metrics["execution_candidate_ready"] = True
+    chosen_ev = float(ev_call if chosen == TradeDirection.CALL else ev_put)
+    min_edge = float(vision.get("fusion_min_edge_execute", 0.04))
+    metrics["fusion_chosen_ev"] = chosen_ev
+    if chosen_ev + 1e-12 < min_edge:
+        soft_mult = float(vision.get("fusion_weak_ev_soft_kelly_mult", 0.40))
+        apply_kelly_soft(metrics, soft_mult, waived="fusion_weak_ev", flag="fusion_weak_ev_soft")
+        metrics["fusion_weak_ev"] = chosen_ev
     return chosen

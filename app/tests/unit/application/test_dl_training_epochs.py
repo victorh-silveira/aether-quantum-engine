@@ -22,7 +22,7 @@ def test_fit_training_epochs_early_stopping():
             side_effect=lambda *_args, **_kwargs: next(val_losses),
         ),
         patch(
-            "src.application.services.deep_learning.dl_training_epochs.model_accuracy",
+            "src.application.services.deep_learning.dl_training_checkpoint.model_accuracy",
             return_value=0.5,
         ),
     ):
@@ -62,7 +62,7 @@ def test_fit_training_epochs_respects_min_epochs():
             return_value=1.0,
         ),
         patch(
-            "src.application.services.deep_learning.dl_training_epochs.model_accuracy",
+            "src.application.services.deep_learning.dl_training_checkpoint.model_accuracy",
             return_value=0.5,
         ),
     ):
@@ -101,7 +101,7 @@ def test_fit_training_epochs_disabled_runs_all_epochs():
             return_value=1.0,
         ),
         patch(
-            "src.application.services.deep_learning.dl_training_epochs.model_accuracy",
+            "src.application.services.deep_learning.dl_training_checkpoint.model_accuracy",
             return_value=0.5,
         ),
     ):
@@ -185,7 +185,7 @@ def test_fit_training_epochs_reduce_on_plateau_scheduler():
             return_value=0.7,
         ),
         patch(
-            "src.application.services.deep_learning.dl_training_epochs.model_accuracy",
+            "src.application.services.deep_learning.dl_training_checkpoint.model_accuracy",
             return_value=0.55,
         ),
     ):
@@ -226,7 +226,7 @@ def test_fit_training_epochs_checkpoint_on_val_acc_only():
             return_value=0.7,
         ),
         patch(
-            "src.application.services.deep_learning.dl_training_epochs.model_accuracy",
+            "src.application.services.deep_learning.dl_training_checkpoint.model_accuracy",
             side_effect=lambda *_args, **_kwargs: next(acc_values),
         ),
     ):

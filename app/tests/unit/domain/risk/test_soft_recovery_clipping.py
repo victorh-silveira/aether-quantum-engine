@@ -59,17 +59,17 @@ def test_resolve_soft_recovery_config_defaults_match_settings() -> None:
     assert soft["enabled"] is True
     assert soft["max_safe_stake_cap"] == pytest.approx(3.0)
     assert soft["max_safe_stake_pct"] == pytest.approx(0.05)
-    assert soft["max_safe_stake_pct_linear2"] == pytest.approx(0.05)
-    assert soft["max_safe_stake_pct_linear3"] == pytest.approx(0.05)
-    assert soft["amort_cycles_min"] == 1
-    assert soft["amort_cycles_max"] == 1
-    assert soft["cover_multiple"] == pytest.approx(2.0)
+    assert soft["max_safe_stake_pct_linear2"] == pytest.approx(0.04)
+    assert soft["max_safe_stake_pct_linear3"] == pytest.approx(0.025)
+    assert soft["amort_cycles_min"] == 4
+    assert soft["amort_cycles_max"] == 6
+    assert soft["cover_multiple"] == pytest.approx(1.25)
     assert soft["linear_bankroll_pct"] == pytest.approx(0.0025)
     assert soft["micro_residual_pending_max"] == pytest.approx(3.0)
     assert soft["micro_residual_zscore_floor"] == pytest.approx(0.01)
     assert soft["micro_residual_gbdt_waiver_skips"] == 4
     assert soft["fixed_step_linear_min"] == 2
-    assert soft["fixed_step_linear_max"] == 2
+    assert soft["fixed_step_linear_max"] == 4
     assert soft["fixed_step_unit_premium"] == pytest.approx(0.12)
     assert soft["small_account_hard_floor_threshold"] == pytest.approx(0.01)
     assert soft["small_account_hard_floor_pct"] == pytest.approx(0.01)
@@ -82,7 +82,7 @@ def test_resolve_soft_recovery_config_defaults_match_settings() -> None:
     assert soft["adapted_force_explore_linear_min"] == 2
     assert soft["live_evidence_force_explore_linear_min"] == 3
     assert soft["live_evidence_force_explore_n_min"] == 2
-    assert soft["live_evidence_force_explore_wr_max"] == pytest.approx(0.58)
+    assert soft["live_evidence_force_explore_wr_max"] == pytest.approx(0.62)
 
 
 def test_resolve_amort_cycles_bounds_from_soft_recovery() -> None:
@@ -164,8 +164,8 @@ def test_soft_recovery_disabled_falls_back_to_kelly() -> None:
 
 def test_fixed_step_and_hard_floor_helpers() -> None:
     assert fixed_step_progression_multiplier(2) == pytest.approx(1.12)
-    assert fixed_step_progression_multiplier(3) is None
-    assert fixed_step_progression_multiplier(4) is None
+    assert fixed_step_progression_multiplier(3) == pytest.approx(1.12)
+    assert fixed_step_progression_multiplier(4) == pytest.approx(1.12)
     assert fixed_step_progression_multiplier(5) is None
     assert apply_small_account_hard_floor(4.20, 80.0) == pytest.approx(4.20)
     assert apply_small_account_hard_floor(4.20, 100.0) == pytest.approx(4.20)

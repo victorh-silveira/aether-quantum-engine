@@ -66,6 +66,7 @@ def test_minority_class_recall_put_minority():
 def test_parse_sample_weighting_from_ssot():
     cfg = parse_sample_weighting_config({})
     assert cfg["class_balance_enabled"] is True
+    assert float(cfg["class_balance_eps"]) == 0.0
     assert cfg["recency_half_life_n"] >= 1
 
 

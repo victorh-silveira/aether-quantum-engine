@@ -1,6 +1,6 @@
 """Pass-through de direcao TCN com soft Kelly chop/edge e loss-clf."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -126,7 +126,22 @@ def test_resolve_execution_direction_soft_regime_chop():
             "kelly_fraction_scale": 1.0,
         }
     }
-    result = resolve_execution_direction(entry, exec_cfg={}, symbol="R_10")
+    orch = MagicMock()
+    orch.config = {"orchestrator": {"execution": {"scale_vision": {"fusion_enabled": False}}}}
+    orch._log_dedupe = {}
+    orch._active_cycle_id = 3
+    chop_cfg = {
+        "chop_pause_enabled": True,
+        "chop_adx_max": 0.22,
+        "chop_hurst_min": 0.47,
+        "chop_hurst_max": 0.53,
+        "chop_soft_kelly_mult": 0.55,
+    }
+    with patch(
+        "src.application.services.execution_regime_chop.parse_regime_chop_config",
+        return_value=chop_cfg,
+    ):
+        result = resolve_execution_direction(entry, exec_cfg={}, symbol="R_10", orch=orch)
     assert result is not None
     _direction, metrics = result
     assert metrics.get("execution_candidate_ready") is True

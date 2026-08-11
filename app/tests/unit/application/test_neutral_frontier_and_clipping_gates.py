@@ -138,4 +138,4 @@ def test_micro_tail_stake_cap_and_max_safe_flatten_at_linear_four() -> None:
     assert max_safe_stake_cap(100.0, consecutive_losses_linear=0) == pytest.approx(5.0)
     assert max_safe_stake_cap(100.0, consecutive_losses_linear=4) == pytest.approx(1.05)
     assert max_safe_stake_cap(100.0, consecutive_losses_linear=8) == pytest.approx(1.05)
-    assert max_safe_stake_cap(10000.0, consecutive_losses_linear=4) == pytest.approx(500.0)
+    assert max_safe_stake_cap(10000.0, consecutive_losses_linear=4) == pytest.approx(250.0)

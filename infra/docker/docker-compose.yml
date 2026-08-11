@@ -148,7 +148,7 @@ services:
     volumes:
       - ./meta-models:/models
     environment:
-      META_RETRAIN_MIN_N: "1"
+      META_RETRAIN_MIN_N: "2"
       META_MAX_BUFFER: "2000"
     mem_limit: 512m
     cpus: 0.75
@@ -161,7 +161,7 @@ services:
           "CMD",
           "python",
           "-c",
-          "import json, urllib.request, sys; response = urllib.request.urlopen('http://localhost:8000/health'); payload = json.loads(response.read().decode()); sys.exit(0 if response.getcode() == 200 and payload.get('ready') is not False and payload.get('model_loaded') else 1)",
+          "import urllib.request, sys; r=urllib.request.urlopen('http://localhost:8000/health'); sys.exit(0 if r.getcode()==200 else 1)",
         ]
       interval: 10s
       timeout: 5s

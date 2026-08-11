@@ -102,16 +102,33 @@ def format_gates_audit_line(metrics: dict[str, Any]) -> str:
     else:
         neg_tok = "NEG_EDGE off"
         skip = waived if waived else "-"
-    fusion_side = str(metrics.get("exec_direction") or metrics.get("resolved_direction") or "-")
+    fusion_side = str(
+        metrics.get("fusion_side_pre_invert")
+        or metrics.get("exec_direction")
+        or metrics.get("resolved_direction")
+        or "-"
+    )
+    exec_side = str(metrics.get("exec_direction") or metrics.get("resolved_direction") or "-")
     if bool(metrics.get("fusion_applied")):
         ev_c = _f(metrics, "fusion_ev_call", default=0.0)
         ev_p = _f(metrics, "fusion_ev_put", default=0.0)
         p_eff = _f(metrics, "fusion_p_eff", default=0.0)
         fusion_why = str(metrics.get("fusion_reason") or "ok")
-        fusion_tok = f"FUSION: side={fusion_side} ev_c={ev_c:+.3f} ev_p={ev_p:+.3f} p_eff={p_eff:.3f} why={fusion_why}"
+        soft_ev = ""
+        if bool(metrics.get("fusion_weak_ev_soft")):
+            soft_ev = f" soft_ev={_f(metrics, 'fusion_chosen_ev', default=0.0):+.3f}"
+        fusion_tok = (
+            f"FUSION: side={fusion_side} ev_c={ev_c:+.3f} ev_p={ev_p:+.3f} p_eff={p_eff:.3f} why={fusion_why}{soft_ev}"
+        )
     else:
         fusion_why = str(metrics.get("fusion_reason") or "idle")
         fusion_tok = f"FUSION: off why={fusion_why}"
+    if bool(metrics.get("invert_exec_side")):
+        inv_from = str(metrics.get("invert_from") or "-")
+        fusion_tok = f"{fusion_tok} | INVERT {inv_from}->{exec_side}"
+    elif str(metrics.get("invert_skipped_reason") or ""):
+        skip_why = str(metrics.get("invert_skipped_reason"))
+        fusion_tok = f"{fusion_tok} | INVERT skip={skip_why}"
     return f"[GATES] || LOSS_CLF: {loss_tok} | {chop_tok}\n[GATES] || {neg_tok} | skip={skip}\n[GATES] || {fusion_tok}"
 
 

@@ -10,7 +10,7 @@ Stack local **hibrida**: motor no host (Conda/WSL), persistencia e inferencia em
 | TimescaleDB | `127.0.0.1:5432` | `core` | 1g | Ticks + OHLC macro **3600 s** / micro **120 s** (M2) |
 | MinIO | `127.0.0.1:9000` / `9001` | `core`, `gpu`, `cpu` | 512m | Checkpoints / TorchScript |
 | Triton (`aether-triton`) | `127.0.0.1:8000` / `8001` | `gpu` ou `cpu` | — | Inferencia TorchScript HTTP+gRPC |
-| Meta (`aether-meta-classifier`) | `127.0.0.1:8005` | `ml` | 512m | LGBMRegressor **43D**; `/v2/predict_meta` + `/v1/learn` online a cada settle (`META_RETRAIN_MIN_N` **1**); buffer `meta_learn_buffer.pkl` |
+| Meta (`aether-meta-classifier`) | `127.0.0.1:8005` | `ml` | 512m | LGBMRegressor **43D**; `/v2/predict_meta` + `/v1/learn` online a cada settle (`META_RETRAIN_MIN_N` **2**); buffer `meta_learn_buffer.pkl` |
 | Loss (`aether-loss-classifier`) | `127.0.0.1:8006` | `ml` | 512m | LGBMClassifier **24D**; buffer `learn_buffer.pkl` no volume; `/learn` + retrain **a cada trade** (WIN+LOSS no buffer; `LOSS_RETRAIN_MIN_N` **1**); saida bootstrap `LOSS_BOOTSTRAP_EXIT_N` **16** (floor efetivo ≥**8**); soft Kelly floor **0.65** / hard FLIP **0.90** |
 
 Hardening: `restart: unless-stopped`, log rotate 10m×3, binds em **127.0.0.1**, `no-new-privileges` (onde aplicavel).
@@ -38,7 +38,7 @@ Logs de um servico: `make docker-logs DOCKER_SERVICE=<alias>`. Aliases Make → 
 
 Pipeline `docker-up`: `host-prereq` → `triton-prereq` → compose up → wait healthy → timescale-lifecycle → hydrate (R_10 120/600) → smoke.
 
-Rebuild meta+loss: `make docker-rebuild` (sanitiza run host com `--keep-meta-bundle`, limpa `loss-models/` + seed `loss_bootstrap_synth`). Reset destrutivo: `make docker-reset` (sanitiza + `down --volumes`). Sanitizacao total (inclui `meta_lgbm.pkl` e `data/dl/*.pth`): `make sanitize-run` ou etapa 0 de `launch-train.bat`. Smoke: `make docker-smoke`.
+Rebuild meta+loss: `make docker-rebuild` (sanitiza run host com `--keep-meta-bundle`, limpa `loss-models/` + seed `loss_bootstrap_synth`). Reset destrutivo: `make docker-reset` (sanitiza + `down --volumes`). Sanitizacao total (inclui `meta_lgbm.pkl` e `data/dl/*.pth`): `make sanitize-run` ou etapa 0 de `launch-train.bat`. Smoke: processo meta pode subir sem `.pkl` (aviso); modelo so apos `launch-train`.
 
 ## GPU e Triton
 

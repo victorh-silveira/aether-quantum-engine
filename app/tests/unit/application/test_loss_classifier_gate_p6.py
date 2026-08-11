@@ -190,6 +190,7 @@ def test_tcn_pos_edge_blocks_flip_keeps_side():
         "scale_vote_put_n": 0,
         "kelly_fraction_scale": 1.0,
         "calibrated_prob": 0.36,
+        "raw_prob": 0.36,
     }
     with (
         patch(

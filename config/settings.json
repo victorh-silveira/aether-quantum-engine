@@ -220,9 +220,9 @@
         "min_edge_execute": 0.04,
         "min_val_accuracy": 0.53,
         "model_path_template": "data/dl/{symbol}.pth",
-        "online_training": true,
-        "retrain_min_bars": 1,
-        "rolling_retrain_bars": 1,
+        "online_training": false,
+        "retrain_min_bars": 12,
+        "rolling_retrain_bars": 48,
         "tcn": {
             "channels": [
                 96,
@@ -251,7 +251,7 @@
         "calibration_margin_floor": 0.01,
         "sample_weighting": {
             "class_balance_enabled": true,
-            "class_balance_eps": 0.05,
+            "class_balance_eps": 0.0,
             "recency_enabled": true,
             "recency_half_life_n": 2000
         }
@@ -265,7 +265,7 @@
             "max_connections": 10,
             "max_keepalive_connections": 5,
             "online_learn": true,
-            "retrain_min_n": 1,
+            "retrain_min_n": 2,
             "max_buffer": 2000,
             "shadow": {
                 "hard_corr_floor": 0.01,
@@ -295,19 +295,19 @@
             "retrain_min_n": 1,
             "retrain_on_loss_min_n": 1,
             "max_buffer": 2000,
-            "flip_require_auto_learn": true,
+            "flip_require_auto_learn": false,
             "flip_allow_seed_on_scale_discord": true,
             "flip_allow_seed_on_cal_discord": true,
             "flip_cal_discord_margin": 0.03,
-            "flip_require_pos_edge": true,
+            "flip_require_pos_edge": false,
             "flip_min_edge_execute": 0.04,
             "flip_waive_on_closed_candle": true,
             "flip_candle_p_loss_floor": 0.85,
             "flip_waive_scale_above_p_loss": 0.95,
-            "flip_block_when_tcn_pos_edge": true,
+            "flip_block_when_tcn_pos_edge": false,
             "flip_waive_edge_min": -1.0,
-            "flip_seed_block_against_closed_candle": true,
-            "flip_seed_waive_edge_min": -0.08
+            "flip_seed_block_against_closed_candle": false,
+            "flip_seed_waive_edge_min": -1.0
         },
         "minio": {
             "bucket": "dl-models",
@@ -437,6 +437,7 @@
                 "stake_min_floor": 0.01
             },
             "force_trade_every_cycle": false,
+            "invert_exec_side": false,
             "fractional_lot_stagger_base_us": 100.0,
             "fractional_lot_stagger_jitter_us": 50.0,
             "include_anchor_trades": true,
@@ -615,8 +616,9 @@
                 "fusion_meta_ev_weight": 0.10,
                 "fusion_loss_weight": 0.80,
                 "fusion_tcn_shrink_near_half": 0.40,
-                "fusion_block_when_tcn_pos_edge": true,
-                "fusion_min_edge_execute": 0.04
+                "fusion_block_when_tcn_pos_edge": false,
+                "fusion_min_edge_execute": 0.04,
+                "fusion_weak_ev_soft_kelly_mult": 0.40
             },
             "signal_skip": {
                 "enabled": true,
@@ -627,7 +629,7 @@
                 "mini_pair_soft_kelly_mult": 0.55,
                 "cal_margin_soft_kelly_mult": 0.55,
                 "pending_dust": 0.25,
-                "chop_pause_enabled": true,
+                "chop_pause_enabled": false,
                 "chop_adx_max": 0.22,
                 "chop_hurst_min": 0.47,
                 "chop_hurst_max": 0.53,
@@ -637,7 +639,7 @@
                 "neg_edge_soft_when_closed_candle_agree": true,
                 "neg_edge_soft_min_edge": -1.0,
                 "neg_edge_bootstrap_soft_kelly_mult": 0.25,
-                "neg_edge_deep_edge_floor": -0.12
+                "neg_edge_deep_edge_floor": -1.0
             }
         },
         "idle_cycle_watchdog_seconds": 1200,
@@ -771,29 +773,29 @@
         "small_account_stop_win": 10.0,
         "small_account_threshold": 100.0,
         "soft_recovery": {
-            "amort_cycles_max": 1,
-            "amort_cycles_min": 1,
+            "amort_cycles_max": 6,
+            "amort_cycles_min": 4,
             "coing_redirect_drawdown_threshold": 10.0,
             "dust_pending_clear_max": 0.25,
             "enabled": true,
-            "fixed_step_linear_max": 2,
+            "fixed_step_linear_max": 4,
             "fixed_step_linear_min": 2,
             "fixed_step_unit_premium": 0.12,
             "gbdt_waiver_skip_cycles": 20,
             "linear_bankroll_pct": 0.0025,
-            "cover_multiple": 2.0,
+            "cover_multiple": 1.25,
             "infeasible_force_explore": true,
             "pending_waives_scale_explore": true,
             "adapted_force_explore": true,
             "adapted_force_explore_linear_min": 2,
             "live_evidence_force_explore_linear_min": 3,
             "live_evidence_force_explore_n_min": 2,
-            "live_evidence_force_explore_wr_max": 0.58,
+            "live_evidence_force_explore_wr_max": 0.62,
             "material_pending_min": 0.5,
             "max_safe_stake_cap": 3.0,
             "max_safe_stake_pct": 0.05,
-            "max_safe_stake_pct_linear2": 0.05,
-            "max_safe_stake_pct_linear3": 0.05,
+            "max_safe_stake_pct_linear2": 0.04,
+            "max_safe_stake_pct_linear3": 0.025,
             "micro_residual_bankroll_max": 200.0,
             "micro_residual_gbdt_waiver_skips": 4,
             "micro_residual_pending_max": 3.0,

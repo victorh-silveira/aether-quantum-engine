@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.application.services.market_audit_log_helpers import resolve_predicted_edge
+from src.application.services.market_audit_log_helpers import resolve_predicted_edge, resolve_raw_predicted_edge
 from src.domain.models.trade import TradeDirection
 
 
@@ -92,16 +92,22 @@ def tcn_pos_edge_blocks_flip(
     *,
     cfg: dict[str, Any],
 ) -> bool:
-    """True se o lado TCN ja tem Edge Cal >= floor — nao inverter setup +EV."""
+    """True se Cal e raw do lado TCN estao +EV — nao inverter setup real."""
     if not bool(cfg.get("flip_block_when_tcn_pos_edge", True)):
         return False
     floor = float(cfg.get("flip_min_edge_execute", 0.04))
     edge = float(resolve_predicted_edge(metrics, direction=ref_dir.name))
     metrics["loss_clf_tcn_side_edge"] = edge
-    if edge + 1e-12 >= floor:
-        metrics["loss_clf_flip_block_tcn_pos_edge"] = True
-        return True
-    return False
+    if edge + 1e-12 < floor:
+        return False
+    raw = float(resolve_raw_predicted_edge(metrics, direction=ref_dir.name))
+    metrics["loss_clf_tcn_side_raw_edge"] = raw
+    raw_floor = float(cfg.get("flip_tcn_pos_edge_raw_floor", 0.0))
+    if raw + 1e-12 < raw_floor:
+        metrics["loss_clf_flip_cal_raw_discord"] = True
+        return False
+    metrics["loss_clf_flip_block_tcn_pos_edge"] = True
+    return True
 
 
 def resolve_flip_p_loss_floor(

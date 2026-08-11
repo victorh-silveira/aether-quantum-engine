@@ -117,3 +117,26 @@ def test_sharp_checkpoint_prefers_lower_val_loss():
     assert second is not None
     assert sl2 == pytest.approx(0.40)
     assert sa2 == pytest.approx(0.54)
+
+
+def test_checkpoint_skips_majority_collapse_peak():
+    from src.application.services.deep_learning.dl_training_checkpoint import checkpoint_if_improved
+
+    model = create_direction_model(arch="tcn")
+    _l, _a, _sa, _sl, state, sharp, improved = checkpoint_if_improved(
+        model,
+        val_loss=0.40,
+        val_acc=0.58,
+        val_sharpness=0.05,
+        min_sharpness=0.01,
+        min_val_accuracy=0.53,
+        best_val_loss=float("inf"),
+        best_val_acc=-1.0,
+        best_sharp_acc=-1.0,
+        best_sharp_loss=float("inf"),
+        collapse_hit=True,
+    )
+    assert state is None
+    assert sharp is None
+    assert improved is True
+    assert _a == pytest.approx(-1.0)

@@ -19,6 +19,7 @@ from src.application.services.deep_learning.dl_device import (
     tensor_from_numpy,
 )
 from src.application.services.deep_learning.dl_features import extract_sequences
+from src.application.services.deep_learning.dl_gate_config import parse_deploy_gate_config
 from src.application.services.deep_learning.dl_sample_weighting import (
     compose_train_weights,
     label_call_fraction,
@@ -168,6 +169,7 @@ def train_model_walkforward(
             if isinstance(dl_config, dict)
             else 0.53
         ),
+        deploy_gate_cfg=(parse_deploy_gate_config(dl_config) if isinstance(dl_config, dict) else None),
     )
     if best_state is not None:
         model.load_state_dict(best_state)

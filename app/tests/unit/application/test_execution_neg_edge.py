@@ -20,7 +20,7 @@ def test_parse_neg_edge_soft_from_ssot():
     assert cfg["neg_edge_soft_when_closed_candle_agree"] is True
     assert cfg["neg_edge_soft_min_edge"] == pytest.approx(-1.0)
     assert cfg["neg_edge_bootstrap_soft_kelly_mult"] == pytest.approx(0.25)
-    assert cfg["neg_edge_deep_edge_floor"] == pytest.approx(-0.12)
+    assert cfg["neg_edge_deep_edge_floor"] == pytest.approx(-1.0)
     with pytest.raises(ValueError, match="neg_edge_soft_min_edge"):
         parse_neg_edge_soft_config({"neg_edge_soft_min_edge": 0.05})
 
@@ -248,3 +248,17 @@ def test_neg_edge_soft_mult_override_with_orch():
     assert apply_negative_cal_edge_pause(metrics, orch=orch, soft_mult=0.40) is True
     assert metrics["neg_edge_soft"] is True
     assert metrics["kelly_fraction_scale"] == pytest.approx(0.40)
+
+
+def test_neg_edge_fusion_p_eff_invalid_falls_back_to_cal():
+    from src.application.services.execution_neg_edge import _resolve_neg_side_edge
+
+    metrics = {
+        "fusion_applied": True,
+        "fusion_p_eff": "bad",
+        "calibrated_prob": 0.40,
+        "exec_direction": "PUT",
+    }
+    edge = _resolve_neg_side_edge(metrics, "PUT", 0.72)
+    assert metrics.get("neg_edge_used_fusion_p_eff") is not True
+    assert isinstance(edge, float)

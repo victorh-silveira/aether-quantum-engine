@@ -116,7 +116,6 @@ def apply_soft_recovery_stake(
     progression = soft_recovery_progression_multiplier(
         losses, payout=payout, risk_params=risk_params, soft_recovery=soft_recovery
     )
-    stake = unit if losses <= 0 else unit * progression
     amort = resolve_amort_cycles(losses, soft_recovery)
     cover_mult = max(1.0, float(soft.get("cover_multiple", 1.0)))
     cover = pending / resolved_payout / float(amort) * cover_mult
@@ -143,13 +142,11 @@ def apply_soft_recovery_stake(
             metrics["recovery_material_pending"] = True
             metrics["recovery_near_stop_win_freeze"] = False
         return explore
+    stake = float(cover)
     if int(amort) <= 1:
-        stake = float(cover)
         progression = 1.0
-    else:
-        stake = min(stake, cap) if horizon_infeasible else max(stake, cover)
-        if target > 0.0:
-            stake = apply_target_proximity_damping(stake, target, pnl)
+    elif target > 0.0:
+        stake = apply_target_proximity_damping(stake, target, pnl)
     if isinstance(metrics, dict):
         metrics["recovery_soft_progression"] = factor
         metrics["recovery_adaptive_payout"] = resolved_payout

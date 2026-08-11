@@ -9,12 +9,11 @@ from torch import nn, optim
 
 from aether_paths import repo_path
 from src.application.services.deep_learning.dl_device import tensor_from_numpy
-from src.application.services.deep_learning.dl_sharpness import mean_sharpness
 from src.application.services.deep_learning.dl_training_checkpoint import (
     checkpoint_if_improved,
     prefer_sharp_checkpoint,
+    val_collapse_hit,
 )
-from src.application.services.deep_learning.model import _model_raw_prob, model_accuracy
 
 
 def _aux_regression_weight() -> float:
@@ -210,6 +209,7 @@ def fit_training_epochs(
     delta_train: np.ndarray | None = None,
     min_oos_sharpness: float = 0.01,
     min_val_accuracy: float = 0.53,
+    deploy_gate_cfg: dict | None = None,
 ) -> tuple[float, None | dict, int]:
     """Executa epocas de treino com early stopping pela perda de validacao."""
     optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=max(0.0, weight_decay))
@@ -256,10 +256,8 @@ def fit_training_epochs(
                 model.load_state_dict(best_state)
             continue
         total_loss += mean_epoch_loss
-        val_acc = model_accuracy(model, x_val, y_val, mask_val)
         val_loss = _validation_loss(model, x_val, y_val, mask_val, device, focal_gamma=focal_gamma)
-        raw_val = _model_raw_prob(model, x_val) if len(x_val) else np.asarray([], dtype=np.float32)
-        val_sharp = mean_sharpness([float(p) for p in raw_val]) if len(raw_val) else 0.0
+        val_acc, val_sharp, collapse_hit = val_collapse_hit(model, x_val, y_val, mask_val, deploy_gate_cfg)
         if progress_cb is not None:
             progress_cb(epochs_ran, total_epochs, mean_epoch_loss, float(val_acc))
         (
@@ -281,6 +279,7 @@ def fit_training_epochs(
             best_val_acc=best_val_acc,
             best_sharp_acc=best_sharp_acc,
             best_sharp_loss=best_sharp_loss,
+            collapse_hit=bool(collapse_hit),
         )
         if improved_state is not None:
             best_state = improved_state
@@ -296,5 +295,4 @@ def fit_training_epochs(
             scheduler.step(val_loss)
         else:
             scheduler.step()
-    avg = total_loss / max(epochs_ran, 1)
-    return avg, prefer_sharp_checkpoint(best_state, best_sharp_state), epochs_ran
+    return total_loss / max(epochs_ran, 1), prefer_sharp_checkpoint(best_state, best_sharp_state), epochs_ran

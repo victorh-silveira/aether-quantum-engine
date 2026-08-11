@@ -129,6 +129,21 @@ def _apply_neg_edge_hard(metrics: dict[str, Any], *, direction: str, edge: float
     )
 
 
+def _resolve_neg_side_edge(metrics: dict[str, Any], direction: str, pay: float) -> float:
+    """Edge do lado para neg_edge; apos fusao usa fusion_p_eff (argmax EV), senao Cal."""
+    if bool(metrics.get("fusion_applied")) and metrics.get("fusion_p_eff") is not None:
+        try:
+            p_eff = float(metrics["fusion_p_eff"])
+        except (TypeError, ValueError):
+            p_eff = None
+        if p_eff is not None and 0.0 < p_eff < 1.0:
+            edge = float(p_eff) * (1.0 + float(pay)) - 1.0
+            metrics["neg_edge_used_fusion_p_eff"] = True
+            metrics["neg_edge_fusion_p_eff"] = float(p_eff)
+            return edge
+    return float(resolve_predicted_edge(metrics, direction=direction, payout=pay))
+
+
 def apply_negative_cal_edge_pause(
     metrics: dict[str, Any],
     *,
@@ -151,7 +166,7 @@ def apply_negative_cal_edge_pause(
         return False
     pay = float(payout) if payout is not None else _payout_from_orch(orch)
     floor = float(min_edge) if min_edge is not None else _min_edge_from_orch(orch)
-    edge = float(resolve_predicted_edge(metrics, direction=direction, payout=pay))
+    edge = _resolve_neg_side_edge(metrics, direction, pay)
     metrics["cal_side_edge"] = edge
     metrics["cal_side_edge_floor"] = floor
     if edge + 1e-12 >= floor:

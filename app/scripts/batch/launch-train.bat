@@ -25,6 +25,12 @@ cd /d "%REPO_ROOT%"
 "%PYTHON_EXE%" app/scripts/operations/sanitize_fresh_run.py
 if errorlevel 1 goto :sanitize_fail
 
+echo [AETHER] Etapa 0b/4: Regenerando bootstrap do loss-classifier...
+cd /d "%REPO_ROOT%\app"
+"%PYTHON_EXE%" -m scripts.operations.train_loss_classifier
+if errorlevel 1 goto :loss_bootstrap_fail
+cd /d "%REPO_ROOT%"
+
 echo [AETHER] Etapa 1/4: Executando treino Deep Learning (TCN)...
 call "%~dp0_run_train.bat" "%CONDA_ACTIVATE%"
 if errorlevel 1 goto :dl_fail
@@ -49,6 +55,11 @@ exit /b 0
 
 :sanitize_fail
 echo [ERRO] Sanitizacao da run anterior falhou. Treino abortado.
+pause
+exit /b 1
+
+:loss_bootstrap_fail
+echo [ERRO] Bootstrap do loss-classifier falhou apos sanitizacao. Treino abortado.
 pause
 exit /b 1
 

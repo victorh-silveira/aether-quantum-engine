@@ -16,13 +16,13 @@ from src.application.services.execution_signal_skip import metrics_block_executi
 
 def test_parse_regime_chop_from_ssot():
     cfg = parse_regime_chop_config({})
-    assert cfg["chop_pause_enabled"] is True
+    assert cfg["chop_pause_enabled"] is False
     assert cfg["chop_adx_max"] == pytest.approx(0.22)
     assert cfg["chop_hurst_min"] == pytest.approx(0.47)
     assert cfg["chop_hurst_max"] == pytest.approx(0.53)
     assert cfg["chop_soft_kelly_mult"] == pytest.approx(0.55)
     skip = parse_signal_skip_config({})
-    assert skip["chop_pause_enabled"] is True
+    assert skip["chop_pause_enabled"] is False
     assert skip["chop_soft_kelly_mult"] == pytest.approx(0.55)
     assert skip["neg_edge_soft_kelly_mult"] == pytest.approx(0.55)
     assert skip["neg_edge_hard_skip"] is False
@@ -30,6 +30,18 @@ def test_parse_regime_chop_from_ssot():
         parse_regime_chop_config({"chop_hurst_min": 0.60, "chop_hurst_max": 0.40})
     with pytest.raises(ValueError, match="chop_soft_kelly_mult"):
         parse_regime_chop_config({"chop_soft_kelly_mult": 0.0})
+
+
+def _chop_on(**overrides):
+    cfg = {
+        "chop_pause_enabled": True,
+        "chop_adx_max": 0.22,
+        "chop_hurst_min": 0.47,
+        "chop_hurst_max": 0.53,
+        "chop_soft_kelly_mult": 0.55,
+    }
+    cfg.update(overrides)
+    return cfg
 
 
 def test_chop_soft_attenuates_random_walk_band():
@@ -40,7 +52,7 @@ def test_chop_soft_attenuates_random_walk_band():
     }
     orch = MagicMock()
     orch._log_dedupe = {}
-    assert apply_regime_chop_pause(metrics, orch=orch) is True
+    assert apply_regime_chop_pause(metrics, orch=orch, cfg=_chop_on()) is True
     assert metrics["execution_candidate_ready"] is True
     assert metrics.get("signal_status") != "SKIP:REGIME_CHOP"
     assert metrics.get("gate_reason") is None
@@ -56,7 +68,7 @@ def test_chop_soft_via_scale_micro_when_hurst_outside_band():
         "indicators": {"adx": 0.18, "hurst": 0.56},
         "scale_micro_regime": "chop",
     }
-    assert apply_regime_chop_pause(metrics) is True
+    assert apply_regime_chop_pause(metrics, cfg=_chop_on()) is True
     assert metrics["regime_chop_via_scale"] is True
     assert metrics["regime_chop_soft"] is True
     assert metrics["execution_candidate_ready"] is True
@@ -64,20 +76,26 @@ def test_chop_soft_via_scale_micro_when_hurst_outside_band():
 
 def test_chop_soft_skips_outside_band_or_missing():
     assert (
-        apply_regime_chop_pause({"execution_candidate_ready": True, "indicators": {"adx": 0.30, "hurst": 0.50}})
+        apply_regime_chop_pause(
+            {"execution_candidate_ready": True, "indicators": {"adx": 0.30, "hurst": 0.50}},
+            cfg=_chop_on(),
+        )
         is False
     )
     assert (
-        apply_regime_chop_pause({"execution_candidate_ready": True, "indicators": {"adx": 0.10, "hurst": 0.42}})
+        apply_regime_chop_pause(
+            {"execution_candidate_ready": True, "indicators": {"adx": 0.10, "hurst": 0.42}},
+            cfg=_chop_on(),
+        )
         is False
     )
-    assert apply_regime_chop_pause({"execution_candidate_ready": True, "indicators": {}}) is False
+    assert apply_regime_chop_pause({"execution_candidate_ready": True, "indicators": {}}, cfg=_chop_on()) is False
     micro = {
         "execution_candidate_ready": True,
         "kelly_fraction_scale": 1.0,
         "micro_indicators": {"adx": 0.15, "hurst": 0.49},
     }
-    assert apply_regime_chop_pause(micro) is True
+    assert apply_regime_chop_pause(micro, cfg=_chop_on()) is True
     assert micro["regime_chop_soft"] is True
 
 
@@ -104,13 +122,15 @@ def test_chop_force_and_disabled_and_already_skipped():
     bad_ind = {
         "execution_candidate_ready": True,
         "indicators": {"adx": "x", "hurst": 0.50},
+        "kelly_fraction_scale": 1.0,
     }
-    assert apply_regime_chop_pause(bad_ind) is False
+    assert apply_regime_chop_pause(bad_ind, cfg=_chop_on()) is False
     with_orch = SimpleNamespace(_log_dedupe={})
     assert (
         apply_regime_chop_pause(
             {"execution_candidate_ready": True, "indicators": {"adx": None, "hurst": 0.50}},
             orch=with_orch,
+            cfg=_chop_on(),
         )
         is False
     )

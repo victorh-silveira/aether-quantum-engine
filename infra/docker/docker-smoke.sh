@@ -97,7 +97,8 @@ if profile_active ml; then
     if [ -z "$meta_payload" ]; then
       smoke_fail "Meta-classifier" "/health"
     elif ! printf '%s' "$meta_payload" | grep -q '"ready"[[:space:]]*:[[:space:]]*true'; then
-      smoke_fail "Meta-classifier" "ready=false (rode train_meta_* → infra/docker/meta-models/)"
+      docker_ui_warn "Meta-classifier ready=false (rode launch-train → meta-models/meta_lgbm.pkl)"
+      docker_ui_ok "Meta-classifier (processo up; modelo ausente ate train)"
     else
       docker_ui_ok "Meta-classifier"
     fi

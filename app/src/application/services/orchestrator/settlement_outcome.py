@@ -6,7 +6,6 @@ import logging
 from typing import Any
 
 from src.application.services.deep_learning.dl_outcomes import record_symbol_outcome
-from src.application.services.deep_learning.dl_retrain import mark_force_retrain
 from src.application.services.direction_loss_tracker import record_direction_outcome
 from src.application.services.live_signal_metrics import record_live_signal_outcome
 from src.application.services.loss_classifier_vectors import pop_loss_feature_vector
@@ -179,7 +178,6 @@ def process_contract_outcome(
         orch._session_losses += 1
         orch._last_loss_symbol = sym
         orch._last_loss_direction = dir_name or ""
-    mark_force_retrain(orch, sym)
 
     if not orch.risk_manager.active_contract_ids:
         log_cluster_summary(orch)

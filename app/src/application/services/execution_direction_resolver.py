@@ -12,6 +12,7 @@ from src.application.services.execution_direction_checks import (
     sync_entry_metrics,
 )
 from src.application.services.execution_direction_fusion import apply_direction_fusion, parse_direction_fusion_config
+from src.application.services.execution_invert_side import apply_invert_exec_side
 from src.application.services.execution_neg_edge import apply_negative_cal_edge_pause
 from src.application.services.execution_quality_gate_margin import ensure_direction_margin, sync_direction_margin
 from src.application.services.execution_regime_chop import apply_regime_chop_pause
@@ -130,6 +131,12 @@ def _finalize_execution_metrics(
         sync_direction_margin(metrics, direction=exec_dir.name)
     apply_regime_chop_pause(metrics, orch=orch, force=force)
     apply_negative_cal_edge_pause(metrics, orch=orch, force=force)
+    ready_name = str(metrics.get("exec_direction") or exec_dir.name).upper()
+    if ready_name in {TradeDirection.CALL.name, TradeDirection.PUT.name}:
+        exec_dir = TradeDirection[ready_name]
+    exec_dir = apply_invert_exec_side(metrics, exec_dir, orch=orch)
+    apply_scale_kelly_side_sync(metrics, exec_dir)
+    sync_direction_margin(metrics, direction=exec_dir.name)
     sync_entry_metrics(entry, metrics)
     return exec_dir, metrics
 

@@ -73,9 +73,8 @@ def test_resolve_dlambert_pending_waives_scale_adapted_uses_soft_cover():
         f_star=0.01,
     )
     assert tag == "D'ALEMBERT"
-    session_unit = max(20.0, 10000.0 * 0.0025)
-    factor = 1.0 + (1.0 / 0.82)
-    assert stake == pytest.approx(session_unit * factor, rel=1e-2)
+    cover = 51.0 / 0.82 / 4.0 * 1.25
+    assert stake == pytest.approx(cover, rel=1e-2)
 
 
 def test_resolve_dlambert_skips_dal_on_scale_adapted_without_pending():

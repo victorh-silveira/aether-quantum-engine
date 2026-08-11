@@ -78,5 +78,12 @@ def persist_regressor_bundle(
     return path
 
 
+META_FIT_MIN_N = 2
+
+
+def meta_retrain_floor(retrain_min_n: int) -> int:
+    return max(META_FIT_MIN_N, int(retrain_min_n))
+
+
 def should_retrain_meta(*, buffer_n: int, retrain_min_n: int) -> bool:
-    return int(buffer_n) >= max(1, int(retrain_min_n))
+    return int(buffer_n) >= meta_retrain_floor(retrain_min_n)

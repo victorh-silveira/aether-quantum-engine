@@ -129,12 +129,49 @@ def test_neg_edge_bootstrap_deep_hard_skip():
     orch.config = {
         "deep_learning": {"min_edge_execute": 0.04},
         "risk_management": {"params": {"payout_estimate": 0.72}},
+        "orchestrator": {
+            "execution": {
+                "signal_skip": {
+                    "neg_edge_soft_kelly_mult": 0.55,
+                    "neg_edge_hard_skip": False,
+                    "neg_edge_soft_when_closed_candle_agree": True,
+                    "neg_edge_soft_min_edge": -1.0,
+                    "neg_edge_bootstrap_soft_kelly_mult": 0.25,
+                    "neg_edge_deep_edge_floor": -0.12,
+                }
+            }
+        },
     }
     orch._log_dedupe = {}
     assert apply_negative_cal_edge_pause(metrics, orch=orch) is True
     assert metrics.get("gate_reason") == "neg_edge"
     assert metrics.get("neg_edge_bootstrap_deep") is True
     assert metrics["execution_candidate_ready"] is False
+
+
+def test_neg_edge_uses_fusion_p_eff_avoids_boot_deep_empty():
+    metrics = {
+        "execution_candidate_ready": True,
+        "exec_direction": "PUT",
+        "calibrated_prob": 0.55,
+        "fusion_applied": True,
+        "fusion_p_eff": 0.707,
+        "fusion_reason": "ev_put",
+        "kelly_fraction_scale": 1.0,
+        "loss_clf_auto_learn": False,
+        "closed_micro_candle_dir": "PUT",
+    }
+    orch = MagicMock()
+    orch.config = {
+        "deep_learning": {"min_edge_execute": 0.04},
+        "risk_management": {"params": {"payout_estimate": 0.72}},
+    }
+    assert apply_negative_cal_edge_pause(metrics, orch=orch) is False
+    assert metrics.get("gate_reason") != "neg_edge"
+    assert metrics.get("neg_edge_bootstrap_deep") is not True
+    assert metrics.get("neg_edge_used_fusion_p_eff") is True
+    assert metrics["execution_candidate_ready"] is True
+    assert float(metrics["cal_side_edge"]) > 0.04
 
 
 def test_neg_edge_auto_learn_stays_soft_on_deep_edge():

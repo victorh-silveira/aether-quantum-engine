@@ -120,7 +120,7 @@ async def _train_bootstrap_symbol(orch, symbol: str) -> str:
     if bool(runtime.get("export_ok")):
         return _STATUS_OK
     logger.error(
-        "DL TREINO | %s | export falhou (checkpoint nao atualizado) — nao iniciar meta",
+        "DL TREINO | %s | deploy_ok=false (export_ok=false) — nao iniciar meta",
         symbol,
     )
     return _STATUS_FAIL

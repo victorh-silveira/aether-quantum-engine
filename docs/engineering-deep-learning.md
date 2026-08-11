@@ -80,7 +80,7 @@ Visao multi-escala (MACRO/MICRO/MINI/MILI) e soft Kelly ficam fora do pacote DL 
 3. Retreinar com **`launch-train.bat`** (TCN `lookback=720`, micro 60) + meta — **nao** via `launch-all-demo`.
 4. So depois: `launch-all-demo.bat`; validar CFG live `ohlc=60s`, `macro=300s`, `contrato=30s`.
 
-Com `online_training=true` (SSOT), o motor agenda retreino TCN deferido a cada settle (`mark_force_retrain` / `trade_retrain`) e tambem por vela/rolling; serializado em background para nao bloquear o ciclo. Meta e loss-clf fazem `/v1/learn` a cada trade.
+Com `online_training=false` (SSOT), a DEMO nao agenda retreino TCN em runtime (nem settle nem rolling); usa o checkpoint do `launch-train`. Para reativar, `online_training=true` + `rolling_retrain_bars` / `retrain_min_bars` (sem `mark_force_retrain` no settle). Meta e loss-clf fazem `/v1/learn` a cada trade.
 
 ## Pacote
 
