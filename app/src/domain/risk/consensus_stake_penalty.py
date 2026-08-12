@@ -23,7 +23,11 @@ from src.domain.risk.consensus_stake_helpers import (
 )
 from src.domain.risk.recovery_state_config import load_recovery_state_from_settings
 from src.domain.risk.soft_recovery_config import soft_cfg
-from src.domain.risk.soft_recovery_explore import forced_explore_stake, soft_floor_scale
+from src.domain.risk.soft_recovery_explore import (
+    apply_forced_explore_early,
+    forced_explore_stake,
+    soft_floor_scale,
+)
 from src.domain.risk.soft_recovery_policy import (
     apply_small_account_hard_floor,
     configured_max_safe_stake_cap,
@@ -89,47 +93,29 @@ def apply_soft_recovery_stake(
         or quality_force_explore
     )
     if force_early:
-        if near_stop_win:
-            reason = "near_stop"
-        elif low_hurst_noise:
-            reason = "low_hurst"
-        elif chop_neg_dampen:
-            reason = "neg_edge"
-        elif quality_force_explore:
-            reason = "quality"
-        else:
-            reason = "no_material_pending"
-        explore = forced_explore_stake(
+        return apply_forced_explore_early(
             bankroll=bankroll,
             pending=pending,
-            material_pending=bool(material_pending and pending > 0.0),
+            material_pending=material_pending,
             consecutive_losses=consecutive_losses,
+            previous_stake=previous_stake,
+            unit=unit,
             payout=payout,
             risk_params=risk_params,
             soft=soft,
+            soft_recovery=soft_recovery,
             target=target,
             pnl=pnl,
             cap=cap,
             metrics=metrics,
-            reason=reason,
+            near_stop_win=near_stop_win,
+            low_hurst_noise=low_hurst_noise,
+            chop_neg_dampen=chop_neg_dampen,
+            acc_force_explore=acc_force_explore,
+            live_force_explore=live_force_explore,
+            adapted_force_explore=adapted_force_explore,
+            quality_force_explore=quality_force_explore,
         )
-        if isinstance(metrics, dict):
-            metrics["recovery_soft_progression"] = 1.0
-            metrics["recovery_soft_losses"] = max(0, int(consecutive_losses))
-            metrics["recovery_soft_anchor_stake"] = float(previous_stake) if float(previous_stake) > 0.0 else unit
-            metrics["recovery_material_pending"] = bool(material_pending)
-            metrics["recovery_near_stop_win_freeze"] = bool(near_stop_win)
-            metrics["recovery_low_hurst_damped"] = bool(low_hurst_noise)
-            metrics["recovery_chop_neg_edge_damped"] = bool(chop_neg_dampen)
-            metrics["recovery_acc_force_explore"] = bool(acc_force_explore and not material_pending)
-            metrics["recovery_live_force_explore"] = bool(live_force_explore and not material_pending)
-            metrics["recovery_adapted_force_explore"] = bool(adapted_force_explore and not material_pending)
-            metrics["recovery_progression_multiplier"] = 1.0
-            metrics["recovery_infeasible"] = False
-            metrics["recovery_force_explore"] = bool(
-                quality_force_explore or low_hurst_noise or chop_neg_dampen or near_stop_win
-            )
-        return explore
     factor = adaptive_recovery_progression_factor(payout, risk_params)
     resolved_payout = resolve_contract_payout(payout, risk_params)
     losses = max(0, int(consecutive_losses))

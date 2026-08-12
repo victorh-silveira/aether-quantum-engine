@@ -37,7 +37,7 @@ Ordem obrigatoria:
 
 Marcar cada ciclo como: **processo ok** | **processo falhou** | **inconclusivo (N baixo)**.
 
-Notas: `raw_extreme` mantem Cal para Kelly (nao e override MACRO TF). Escopo **1.1**: catalogo `signal_skip` fechado; quality gate amplo fora. WR bruto ≠ edge — P&L pode falhar com WR “bom” se lado/sizing errados. Soft (`fusion_weak_ev` / `neg_edge_soft`) continua EXEC — seletividade de lado vem dos guards TCN/vela/auto_learn, nao de SKIP amplo. Se `FUSION p_eff` alto e Kelly `p≈be` → regressao (`kelly_used_fusion_p_eff`). Se `[RESOLVED] PEND` nao cai apos WIN → regressao de audit. Se `f*≈0` / `p≈be` / Margin~0 e stake ≈ primeira Kelly boa da sessao (`dlambert_unit` sticky) sob `neg_edge_soft` / near_stop / `recovery_force_explore` → **regressao U sticky** (tamanho deve ser piso `neutral_bankroll_pct` ou cover∩piso, nao revenge via U).
+Notas: `raw_extreme` mantem Cal para Kelly (nao e override MACRO TF). Escopo **1.1**: catalogo `signal_skip` fechado; quality gate amplo fora. WR bruto ≠ edge — P&L pode falhar com WR “bom” se lado/sizing errados. Soft (`fusion_weak_ev` / `neg_edge_soft`) continua EXEC — seletividade de lado vem dos guards TCN/vela/auto_learn, nao de SKIP amplo. Se `FUSION p_eff` alto e Kelly `p≈be` → regressao (`kelly_used_fusion_p_eff`). Se `[RESOLVED] PEND` nao cai apos WIN → regressao de audit. Se `f*≈0` / `p≈be` / Margin~0 e stake ≈ primeira Kelly boa da sessao (`dlambert_unit` sticky) sob `neg_edge_soft` / near_stop / `recovery_force_explore` → **regressao U sticky** (EXPLORE forçado = piso `neutral_bankroll_pct`; cover so no DAL). Se soft + PEND material + stake ≈ CAP linear3 → **regressao cover-pleno** (revenge via cover sob soft).
 
 ## Pos-mortem (9 perguntas)
 

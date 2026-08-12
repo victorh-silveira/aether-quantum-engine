@@ -60,7 +60,7 @@ SSOT operacional: [`config/settings.json`](../config/settings.json) — universo
 
 **Anti-padrao do LLM:** reinventar stop-loss interno; recovery sem pending; sizing sem teto de banca.
 
-**Regra no Aether:** soft recovery amortiza `pending_loss`; stop-win ativo; damping de proximidade da meta (`target_damping_*`) comeca em **1.0** e cai ate **0.50** — nao esmaga cover no arranque; stop-loss interno desativado por politica — nao reativar sem mandato explicito. EXPLORE forçado (`neg_edge_soft` / near_stop / `infeasible_force_explore` / `f*≈0`) usa piso `neutral_bankroll_pct` ou cover∩piso — **nunca** `dlambert_unit` sticky da primeira Kelly boa como tamanho de ordem (regressao U sticky).
+**Regra no Aether:** soft recovery amortiza `pending_loss`; stop-win ativo; damping de proximidade da meta (`target_damping_*`) comeca em **1.0** e cai ate **0.50** — nao esmaga cover no arranque; stop-loss interno desativado por politica — nao reativar sem mandato explicito. EXPLORE forçado (`neg_edge_soft` / near_stop / quality / `f*≈0` / infeasible) usa piso `neutral_bankroll_pct` — **nunca** cover amortizado sob soft (revenge via teto linear3); **nunca** `dlambert_unit` sticky da primeira Kelly boa como tamanho de ordem. Cover amortizado so no caminho RECOVER/DAL com edge nao soft. Soft + PEND material + stake ≈ CAP linear3 = regressao cover-pleno.
 
 **Ancoras:** `soft_recovery_policy`; `soft_recovery_explore.py`; `pending_loss`; stop-win composto; `stake_target_proximity.py`; `app/src/domain/risk/risk_recovery_state.py`.
 

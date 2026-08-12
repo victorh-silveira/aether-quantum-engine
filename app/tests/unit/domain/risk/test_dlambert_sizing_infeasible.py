@@ -120,6 +120,7 @@ def test_resolve_dlambert_stake_force_explore_tiny_f_star_clamps():
         f_star=1e-12,
     )
     assert tag == "KELLY"
-    assert stake == pytest.approx(15.78, rel=1e-2)
+    assert stake == pytest.approx(27.5)
     assert stake < 110.0
     assert metrics.get("recovery_force_explore") is True
+    assert metrics.get("recovery_explore_used_cover") is False

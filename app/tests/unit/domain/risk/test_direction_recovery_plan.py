@@ -94,9 +94,11 @@ def test_near_stop_win_freeze_uses_neutral_floor_not_sticky_unit():
         target_win=10.0,
     )
     assert stake == pytest.approx(0.25)
+    assert stake < 12.0
     assert metrics.get("recovery_near_stop_win_freeze") is True
     assert metrics.get("recovery_force_explore") is True
     assert metrics.get("recovery_force_explore_reason") == "near_stop"
+    assert metrics.get("recovery_explore_used_cover") is False
     assert metrics.get("recovery_progression_multiplier") == pytest.approx(1.0)
 
 
@@ -119,7 +121,7 @@ def test_immaterial_pending_uses_neutral_floor_not_base_unit():
     assert metrics.get("recovery_material_pending") is False
 
 
-def test_resolve_dlambert_stake_near_target_force_explore_neutral_floor():
+def test_resolve_dlambert_stake_near_target_force_explore_floor():
     class RM:
         dlambert_unit = 1.0
         dlambert_config = {"dlambert_enabled": True}
@@ -151,6 +153,7 @@ def test_resolve_dlambert_stake_near_target_force_explore_neutral_floor():
     assert stake == pytest.approx(0.25)
     assert metrics.get("recovery_near_stop_win_freeze") is True
     assert metrics.get("recovery_force_explore") is True
+    assert metrics.get("recovery_explore_used_cover") is False
 
 
 def test_meta_negative_edge_keeps_weak_call_side():

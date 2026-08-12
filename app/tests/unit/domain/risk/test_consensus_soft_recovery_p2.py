@@ -30,11 +30,11 @@ def test_apply_soft_recovery_stake_dampens_on_indicator_hurst():
         payout=0.95,
         metrics=metrics,
     )
-    cover = 80.0 / 0.95 * 2.0
-    assert stake < cover
-    assert stake == pytest.approx(28.75)
+    floor = 11500.0 * 0.0025
+    assert stake == pytest.approx(floor)
     assert metrics.get("recovery_low_hurst_damped") is True
     assert metrics.get("recovery_force_explore") is True
+    assert metrics.get("recovery_explore_used_cover") is False
 
 
 def test_apply_soft_recovery_stake_dampens_on_chop_neg_edge():
@@ -52,11 +52,11 @@ def test_apply_soft_recovery_stake_dampens_on_chop_neg_edge():
         payout=0.95,
         metrics=metrics,
     )
-    cover = 80.0 / 0.95 * 2.0
-    assert stake < cover
-    assert stake == pytest.approx(28.75)
+    floor = 11500.0 * 0.0025
+    assert stake == pytest.approx(floor)
     assert metrics.get("recovery_chop_neg_edge_damped") is True
     assert metrics.get("recovery_force_explore") is True
+    assert metrics.get("recovery_explore_used_cover") is False
 
 
 def test_apply_soft_recovery_stake_dampens_on_neg_edge_alone():
@@ -74,16 +74,15 @@ def test_apply_soft_recovery_stake_dampens_on_neg_edge_alone():
         payout=0.95,
         metrics=metrics,
     )
-    cover = 80.0 / 0.95 * 2.0
-    assert stake < cover
-    assert stake == pytest.approx(28.75)
+    floor = 11500.0 * 0.0025
+    assert stake == pytest.approx(floor)
     assert metrics.get("recovery_chop_neg_edge_damped") is True
     assert metrics.get("recovery_force_explore") is True
     assert metrics.get("recovery_force_explore_reason") == "neg_edge"
-    assert metrics.get("recovery_explore_used_cover") is True
+    assert metrics.get("recovery_explore_used_cover") is False
 
 
-def test_neg_edge_sticky_unit_110_uses_neutral_floor_not_u():
+def test_neg_edge_sticky_unit_110_uses_floor_not_u_nor_cover():
     metrics = {"neg_edge_soft": True}
     soft = {
         "material_pending_min": 0.25,
@@ -102,11 +101,13 @@ def test_neg_edge_sticky_unit_110_uses_neutral_floor_not_u():
         metrics=metrics,
         soft_recovery=soft,
     )
+    cover = 90.0 / 0.95 / 3.0 * 1.5
     floor = 11000.0 * 0.0025
     assert stake == pytest.approx(floor)
+    assert stake < cover
     assert stake < 110.0
     assert metrics.get("recovery_force_explore_reason") == "neg_edge"
-    assert metrics.get("recovery_explore_used_cover") is True
+    assert metrics.get("recovery_explore_used_cover") is False
 
 
 def test_neg_edge_without_pending_uses_neutral_floor_not_sticky_u():
@@ -180,6 +181,38 @@ def test_dal_normal_pending_without_neg_edge_keeps_cover():
     cover = 90.0 / 0.95 / float(amort) * 1.5
     assert metrics.get("recovery_force_explore") is False
     assert stake == pytest.approx(cover, rel=1e-3)
+
+
+def test_neg_edge_large_pending_sets_infeasible_with_floor():
+    metrics = {"neg_edge_soft": True}
+    soft = {
+        "material_pending_min": 0.25,
+        "cover_multiple": 1.5,
+        "amort_cycles_min": 2,
+        "amort_cycles_max": 4,
+        "max_safe_stake_pct": 0.025,
+        "max_safe_stake_pct_linear3": 0.025,
+        "infeasible_force_explore": True,
+        "near_stop_win_freeze_pct": 0.99,
+    }
+    stake = apply_soft_recovery_stake(
+        pending_total=1026.50,
+        base_unit=110.0,
+        consecutive_losses=10,
+        previous_stake=25.0,
+        bankroll=9976.0,
+        payout=0.95,
+        metrics=metrics,
+        soft_recovery=soft,
+    )
+    floor = 9976.0 * 0.0025
+    cap = 9976.0 * 0.025
+    assert stake == pytest.approx(floor)
+    assert stake < cap
+    assert metrics.get("recovery_force_explore") is True
+    assert metrics.get("recovery_force_explore_reason") == "neg_edge"
+    assert metrics.get("recovery_explore_used_cover") is False
+    assert metrics.get("recovery_infeasible") is True
 
 
 def test_small_account_hard_floor_caps_recovery_at_five_percent():
