@@ -135,7 +135,9 @@ def test_calculate_stake_c0007_turbo_on_clean_recovery_base(kelly_config):
         apply_stop_win=False,
         kwargs={"dl_metrics": dict(neutral_metrics), "order_direction": "PUT"},
     )
-    assert stake_neutral == pytest.approx(7.37, rel=5e-2)
+    amort = 4
+    cover = 36.72 / 0.95 / float(amort) * float(rm.soft_recovery_config.get("cover_multiple", 1.5))
+    assert stake_neutral == pytest.approx(cover, rel=5e-2)
     stake_turbo = calculate_stake_for_manager(
         rm,
         bankroll,

@@ -14,20 +14,24 @@ def _damping_knobs():
 
 def test_resolve_target_proximity_damping_at_session_start():
     floor, span = _damping_knobs()
+    assert floor == pytest.approx(0.50)
+    assert span == pytest.approx(0.50)
+    assert resolve_target_proximity_damping(101.20, 0.0) == pytest.approx(1.0)
     assert resolve_target_proximity_damping(101.20, 0.0) == pytest.approx(floor + span)
-    assert pytest.approx(floor + span) == floor + span
 
 
 def test_resolve_target_proximity_damping_at_half_target():
+    floor, span = _damping_knobs()
     target = 101.20
     pnl = target * 0.50
-    assert resolve_target_proximity_damping(target, pnl) == pytest.approx(0.31)
+    assert resolve_target_proximity_damping(target, pnl) == pytest.approx(floor + span * 0.50)
 
 
 def test_resolve_target_proximity_damping_at_ninety_percent_target():
+    floor, span = _damping_knobs()
     target = 101.20
     pnl = target * 0.90
-    assert resolve_target_proximity_damping(target, pnl) == pytest.approx(0.07, abs=0.01)
+    assert resolve_target_proximity_damping(target, pnl) == pytest.approx(floor + span * 0.10, abs=0.01)
 
 
 def test_resolve_target_proximity_damping_at_target_floor():

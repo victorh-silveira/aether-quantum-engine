@@ -18,7 +18,8 @@ description: >-
 5. Loss: `aether-loss-classifier` — soft Kelly floor **0.65**; hard FLIP **0.90** so com `veto_ready` + `flip_require_auto_learn` **true** (seed/`auto=0` = SOFT ate sair bootstrap); `LOSS_BOOTSTRAP_EXIT_N` **16**; buffer persistido; `/learn` + retrain a cada trade; motor `LOSS_CLF || LEARN` / `SOFT` / `FLIP_BLOCK:*`
 6. Apos mudar env do loss-clf: **restart** `aether-loss-classifier`
 7. Triton/meta/loss: so exigir no motor se settings `enabled`/`require_*` true
-8. Rebuild ML: `make docker-rebuild` (meta + loss)
-9. Nao desligar resiliencia para mascarar rede
+8. Recarregar ML apos treino: `make docker-rebuild` (rebuild meta/loss, **nao** sanitiza `data/dl`)
+9. Ciclo fresco (apaga TCN/volumes): `make docker-reset` — depois `launch-train`
+10. Nao desligar resiliencia para mascarar rede
 
 Skill irma: `aether-settlement-debug` se a fila Redis for o sintoma.

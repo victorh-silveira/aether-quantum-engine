@@ -12,7 +12,7 @@ make docker-up-cpu      # core+cpu+ml sem NVIDIA
 make docker-up-core     # so Redis/Timescale/MinIO
 make docker-smoke
 make sanitize-run       # DESTRUTIVO: limpa data/dl + meta/loss/triton + data runtime
-make docker-rebuild     # sanitiza (mantem meta_lgbm) + loss bootstrap + rebuild meta/loss + up
+make docker-rebuild     # rebuild meta/loss e recarrega pkls (preserva TCN e meta_lgbm)
 make docker-reset       # DESTRUTIVO: sanitiza + limpa volumes + bootstrap + sobe
 ```
 

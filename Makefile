@@ -68,10 +68,10 @@ help:
 	@echo -e "  $(GREEN)docker-up$(RESET)          - Stack completa GPU"
 	@echo -e "  $(GREEN)docker-up-cpu$(RESET)      - Stack Triton CPU"
 	@echo -e "  $(GREEN)docker-up-core$(RESET)     - So Redis/Timescale/MinIO"
-	@echo -e "  $(GREEN)docker-rebuild$(RESET)     - Sanitiza run (mantem meta_lgbm), bootstrap loss, rebuild meta/loss e sobe"
+	@echo -e "  $(GREEN)docker-rebuild$(RESET)     - Rebuild meta/loss e recarrega pkls (preserva TCN e meta_lgbm)"
 	@echo -e "  $(GREEN)docker-reset$(RESET)       - $(RED)DESTRUTIVO$(RESET): sanitiza run + loss-models + volumes, bootstrap e sobe stack"
 	@echo -e "  $(GREEN)sanitize-run$(RESET)       - $(RED)DESTRUTIVO$(RESET): limpa checkpoints DL/meta/loss/triton e data/ (exceto deriv)"
-	@echo -e "  $(GREEN)sanitize-run-docker$(RESET)- Sanitiza run mantendo meta_lgbm.pkl (uso interno do rebuild/reset)"
+	@echo -e "  $(GREEN)sanitize-run-docker$(RESET)- Sanitiza run mantendo meta_lgbm.pkl (uso interno do docker-reset)"
 	@echo -e "  $(GREEN)docker-down$(RESET)        - Para containers (preserva dados)"
 	@echo -e "  $(GREEN)docker-restart$(RESET)     - Restart da stack"
 	@echo -e "  $(GREEN)docker-ps$(RESET)          - Status"
@@ -118,7 +118,7 @@ sanitize-run:
 	$(PYTHON) $(APP_DIR)/scripts/operations/sanitize_fresh_run.py
 
 sanitize-run-docker:
-	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "sanitize-run-docker · limpa run (mantem meta_lgbm.pkl ate train)"'
+	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "sanitize-run-docker · limpa TCN/loss/estado (mantem meta_lgbm.pkl)"'
 	$(PYTHON) $(APP_DIR)/scripts/operations/sanitize_fresh_run.py --keep-meta-bundle
 
 docker-up:
@@ -149,11 +149,11 @@ docker-up-cpu:
 	@$(MAKE) --no-print-directory docker-up DOCKER_PROFILES=core,cpu,ml DOCKER_GPU=0
 
 docker-rebuild:
-	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-rebuild · sanitiza run + limpa loss-models + bootstrap + rebuild meta/loss + up"'
+	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-rebuild · rebuild meta/loss (preserva data/dl e meta_lgbm.pkl)"'
 	@test -f .env || cp .env.example .env
-	@$(MAKE) --no-print-directory sanitize-run-docker
-	@bash infra/docker/loss-clf-reset.sh clear
-	@cd $(APP_DIR) && LOKY_MAX_CPU_COUNT=$${LOKY_MAX_CPU_COUNT:-4} $(PYTHON) -m scripts.operations.train_loss_classifier
+	@if [ ! -f $(DOCKER_DIR)/loss-models/loss_bootstrap_synth.pkl ]; then \
+		cd $(APP_DIR) && LOKY_MAX_CPU_COUNT=$${LOKY_MAX_CPU_COUNT:-4} $(PYTHON) -m scripts.operations.train_loss_classifier; \
+	fi
 	@bash infra/docker/triton-prereq.sh
 	$(DOCKER_COMPOSE) build --pull aether-meta-classifier aether-loss-classifier
 	$(DOCKER_COMPOSE) up -d --force-recreate aether-meta-classifier aether-loss-classifier

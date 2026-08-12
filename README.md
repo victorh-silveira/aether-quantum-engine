@@ -50,7 +50,7 @@ Arquivo: [`config/settings.json`](config/settings.json)
 | `deep_learning` | `arch`, `lookback` (**720**), `online_training` **false**, calibration (`neutral_half_width: 0.0`), thresholds **0.51/0.49**, `deploy_gate` |
 | `orchestrator.execution` | `mandatory_trade_each_cycle: false`, `force_trade_every_cycle: false`, `invert_exec_side: false`, `scale_vision.fusion_*`, `signal_skip` 1.1, settlement **90 s** |
 | `risk_management.kelly` | Stake EXPLORE (`fraction: 0.08`, piso **0.25%**, tetos stop-win Kelly ate **5%**) |
-| `risk_management.soft_recovery` | RECOVER: amort **4–6**, cover **1.25**, linear3 **2.5%** |
+| `risk_management.soft_recovery` | RECOVER: amort **2–4**, cover **1.50**, linear3 **2.5%** |
 | `orchestrator.execution.side_equilibrium` | Leis dos pequenos/grandes números CALL/PUT (small-N hard skip; large-N soft Kelly) |
 | `infra` | Redis, Timescale, MinIO, Triton (`enabled`/`require_for_execution` opcionais nos settings atuais; repo `R_10`), meta-classifier |
 
@@ -68,7 +68,7 @@ Pipeline: `host-prereq` → `triton-prereq` → `compose up` (profiles `DOCKER_P
 |--------|-----|
 | `make docker-up` | Stack completa (core+gpu+ml) |
 | `make docker-up-core` | Só Redis, Timescale e MinIO |
-| `make docker-rebuild` | Rebuild do meta-classifier + up |
+| `make docker-rebuild` | Rebuild meta/loss e recarrega pkls (preserva TCN) |
 | `make docker-smoke` | Valida endpoints da stack |
 
 Compose declara GPU via `gpus: all`. Detalhes em [docs/infra-docker.md](docs/infra-docker.md).

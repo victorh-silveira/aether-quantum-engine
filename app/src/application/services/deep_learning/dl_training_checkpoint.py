@@ -15,6 +15,14 @@ from src.application.services.deep_learning.dl_sharpness import mean_sharpness
 from src.application.services.deep_learning.model import _model_raw_prob, model_accuracy
 
 
+MAX_STABLE_VAL_LOSS = 0.70
+
+
+def _ce_stable(val_loss: float) -> bool:
+    """True quando a CE de validacao esta abaixo do piso de chute aleatorio."""
+    return float(val_loss) + 1e-9 < MAX_STABLE_VAL_LOSS
+
+
 def checkpoint_if_improved(
     model,
     *,
@@ -29,9 +37,10 @@ def checkpoint_if_improved(
     best_sharp_loss: float,
     collapse_hit: bool = False,
 ) -> tuple[float, float, float, float, dict | None, dict | None, bool]:
-    """Atualiza picos de loss/acc e o melhor estado sharp com menor val_loss."""
+    """Atualiza picos estaveis (CE < 0.70); sharp prefere maior val_acc (loss desempata)."""
     loss_improved = val_loss + 1e-9 < best_val_loss
-    acc_improved = (not bool(collapse_hit)) and val_acc > best_val_acc + 1e-6
+    stable = _ce_stable(val_loss)
+    acc_improved = bool(stable) and (not bool(collapse_hit)) and val_acc > best_val_acc + 1e-6
     if loss_improved:
         best_val_loss = val_loss
     best_state = None
@@ -41,11 +50,11 @@ def checkpoint_if_improved(
         best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
     sharp_ok = float(val_sharpness) + 1e-12 >= float(min_sharpness)
     acc_floor_ok = float(val_acc) + 1e-9 >= float(min_val_accuracy)
-    if sharp_ok and acc_floor_ok and not bool(collapse_hit):
-        first_sharp = best_sharp_loss == float("inf")
-        loss_better = float(val_loss) + 1e-9 < float(best_sharp_loss)
-        same_loss_better_acc = abs(float(val_loss) - float(best_sharp_loss)) <= 1e-9 and val_acc > best_sharp_acc + 1e-6
-        if first_sharp or loss_better or same_loss_better_acc:
+    if sharp_ok and acc_floor_ok and stable and not bool(collapse_hit):
+        first_sharp = best_sharp_acc < 0.0
+        acc_better = val_acc > best_sharp_acc + 1e-6
+        same_acc_better_loss = abs(val_acc - best_sharp_acc) <= 1e-6 and float(val_loss) + 1e-9 < float(best_sharp_loss)
+        if first_sharp or acc_better or same_acc_better_loss:
             best_sharp_acc = val_acc
             best_sharp_loss = float(val_loss)
             best_sharp_state = (

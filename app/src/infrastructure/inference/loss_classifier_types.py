@@ -24,6 +24,7 @@ class LossPredictResponse(TypedDict):
     n_train: int
     veto_ready: bool
     bootstrap: bool
+    collapsed: bool
 
 
 def parse_loss_predict_response(payload: object) -> LossPredictResponse:
@@ -38,4 +39,5 @@ def parse_loss_predict_response(payload: object) -> LossPredictResponse:
         "n_train": int(payload.get("n_train") or 0),
         "veto_ready": bool(payload.get("veto_ready", False)),
         "bootstrap": bool(payload.get("bootstrap", False)),
+        "collapsed": bool(payload.get("collapsed", False)),
     }

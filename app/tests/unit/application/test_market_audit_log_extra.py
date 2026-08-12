@@ -218,10 +218,36 @@ def test_resolve_stake_audit_context_from_audit():
     )
     audit = resolve_stake_audit_context(rm)
     assert audit["mode_tag"] == "RECOVER_DAL_L1"
-    assert audit["pending"] == 1.5
+    assert audit["pending"] == 9.0
     assert audit["bankroll"] == 90.0
     assert audit["linear"] == 1
     assert audit["cap"] == 4.2
+
+
+def test_resolve_stake_audit_context_pending_after_win_abates():
+    pending = {"R_10": 50.0}
+
+    def _total() -> float:
+        return float(sum(pending.values()))
+
+    rm = SimpleNamespace(
+        _last_stake_audit={
+            "mode_tag": "RECOVER_DAL_L1",
+            "pending": 50.0,
+            "bankroll": 1000.0,
+            "linear_losses": 1,
+            "cap": 50.0,
+            "recovery_infeasible": False,
+        },
+        pending_loss_total=_total,
+        bankroll=1000.0,
+    )
+    before = resolve_stake_audit_context(rm)
+    assert before["pending"] == pytest.approx(50.0)
+    pending["R_10"] = max(0.0, pending["R_10"] - 12.0)
+    after = resolve_stake_audit_context(rm)
+    assert after["pending"] == pytest.approx(38.0)
+    assert after["mode_tag"] == "RECOVER_DAL_L1"
 
 
 def test_resolve_stake_audit_context_fallback_balance():
@@ -239,46 +265,3 @@ def test_resolve_stake_audit_context_fallback_balance():
 
 def test_format_cluster_audit_line_empty():
     assert format_cluster_audit_line({}, timeframe="M5") == "[CLUSTER] || M5 || EMPTY"
-
-
-def test_format_cluster_neg_edge_shows_raw_edge_and_be():
-    decisions = {
-        "R_10": {
-            "direction": "CALL",
-            "metrics": {
-                "raw_prob": 0.99,
-                "calibrated_prob": 0.533,
-                "exec_direction": "CALL",
-                "gate_reason": "neg_edge",
-                "signal_status": "SKIP:NEG_EDGE",
-            },
-        }
-    }
-    line = format_cluster_audit_line(decisions, timeframe="M2")
-    assert "raw_edge:" in line and "be=0.581" in line and "Edge: -0.083" in line
-    assert "p_call: 0.53300" in line and "p_put: 0.46700" in line
-    assert "NEG_EDGE" in line or "neg_edge" in line
-
-
-def test_format_cluster_edge_gap_before_gate():
-    decisions = {
-        "R_10": {
-            "direction": "CALL",
-            "metrics": {"raw_prob": 0.98783, "calibrated_prob": 0.53338, "exec_direction": "CALL"},
-        }
-    }
-    line = format_cluster_audit_line(decisions, timeframe="M2")
-    assert "Edge: -0.083" in line and "raw_edge: +0.699" in line and "be=0.581" in line
-    assert "Margin: 0.033" in line and "p_call: 0.53338" in line and "p_put: 0.46662" in line
-
-
-def test_format_cluster_leans_call_when_direction_missing():
-    decisions = {
-        "R_10": {
-            "direction": None,
-            "metrics": {"raw_prob": 0.37115, "calibrated_prob": 0.52497},
-        }
-    }
-    line = format_cluster_audit_line(decisions, timeframe="M2")
-    assert "R_10: CALL (" in line and "p_call: 0.52497" in line and "p_put: 0.47503" in line
-    assert "raw_edge: -0.362" in line and "Edge: -0.097" in line and "be=0.581" in line

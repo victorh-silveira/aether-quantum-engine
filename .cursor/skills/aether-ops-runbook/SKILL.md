@@ -24,7 +24,8 @@ description: >-
 - Executar no **WSL**
 - Nao versionar caches limpos pelo stage clean
 - Antes de launch live: Docker core saudavel + settings revisados
-- Ciclo fresco: `make docker-reset` → `launch-train.bat` → `launch-all-*` (train limpa checkpoints; reset limpa volumes)
+- Diario: `make docker-up` → `launch-train.bat` → `make docker-rebuild` → `launch-all-*` (rebuild recarrega pkls; **nao** apaga TCN)
+- Ciclo fresco: `make docker-reset` → `launch-train.bat` → `make docker-rebuild` → `launch-all-*` (reset limpa volumes/TCN; train gera checkpoints)
 - Treino rejeitado pelo gate **nao** preserva checkpoint anterior; `deploy_ok=false` aborta meta
 
 Docs: `docs/structure.md` §Scripts, `docs/engineering-standards.md`

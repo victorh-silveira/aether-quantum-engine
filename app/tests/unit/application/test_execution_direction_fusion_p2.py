@@ -106,19 +106,72 @@ def test_fusion_raw_and_payout_helpers():
     assert mod._loss_logit_bonus({"loss_clf_p_loss": None}, "CALL", {"fusion_loss_weight": 0.8}) == 0.0
     assert (
         mod._loss_logit_bonus(
-            {"loss_clf_p_loss": 0.9, "loss_clf_flip_ref": "CALL"},
+            {"loss_clf_p_loss": 0.9, "loss_clf_flip_ref": "CALL", "loss_clf_auto_learn": True},
             "CALL",
-            {"fusion_loss_weight": 0.8},
+            {"fusion_loss_weight": 0.8, "fusion_loss_requires_auto_learn": True},
         )
         < 0.0
     )
     assert (
         mod._loss_logit_bonus(
-            {"loss_clf_p_loss": 0.9, "loss_clf_flip_ref": "CALL"},
+            {"loss_clf_p_loss": 0.9, "loss_clf_flip_ref": "CALL", "loss_clf_auto_learn": True},
             "PUT",
-            {"fusion_loss_weight": 0.8},
+            {"fusion_loss_weight": 0.8, "fusion_loss_requires_auto_learn": True},
         )
         > 0.0
+    )
+    assert (
+        mod._loss_logit_bonus(
+            {"loss_clf_p_loss": 0.95, "loss_clf_flip_ref": "CALL", "loss_clf_auto_learn": False},
+            "PUT",
+            {
+                "fusion_loss_weight": 0.8,
+                "fusion_loss_requires_auto_learn": True,
+                "fusion_loss_seed_weight_mult": 0.0,
+            },
+        )
+        == 0.0
+    )
+    assert (
+        mod._loss_logit_bonus(
+            {"loss_clf_p_loss": 0.95, "loss_clf_flip_ref": "CALL", "loss_clf_auto_learn": False},
+            "PUT",
+            {
+                "fusion_loss_weight": 0.8,
+                "fusion_loss_requires_auto_learn": True,
+                "fusion_loss_seed_weight_mult": 0.10,
+            },
+        )
+        > 0.0
+    )
+    assert (
+        mod._loss_logit_bonus(
+            {"loss_clf_p_loss": "bad", "loss_clf_flip_ref": "CALL", "loss_clf_auto_learn": True},
+            "PUT",
+            {"fusion_loss_weight": 0.8, "fusion_loss_requires_auto_learn": True},
+        )
+        == 0.0
+    )
+    assert (
+        mod._loss_logit_bonus(
+            {"loss_clf_p_loss": 0.9, "loss_clf_auto_learn": True},
+            "PUT",
+            {"fusion_loss_weight": 0.8, "fusion_loss_requires_auto_learn": True},
+        )
+        == 0.0
+    )
+    assert (
+        mod._loss_logit_bonus(
+            {
+                "loss_clf_p_loss": 0.95,
+                "loss_clf_flip_ref": "CALL",
+                "loss_clf_auto_learn": True,
+                "loss_clf_collapsed": True,
+            },
+            "PUT",
+            {"fusion_loss_weight": 0.8, "fusion_loss_requires_auto_learn": True},
+        )
+        == 0.0
     )
     stay = {"calibrated_prob": 0.7, "tcn_direction": "CALL", "exec_direction": "CALL"}
     cfg_stay = parse_direction_fusion_config(
@@ -136,6 +189,32 @@ def test_fusion_raw_and_payout_helpers():
     )
     assert apply_direction_fusion(stay, TradeDirection.CALL, cfg=cfg_stay) == TradeDirection.CALL
     assert stay.get("fusion_switched") is False
+    candle_off = {
+        "calibrated_prob": 0.55,
+        "tcn_direction": "CALL",
+        "exec_direction": "CALL",
+        "closed_micro_candle_side": "CALL",
+        "scale_micro_dir": "PUT",
+        "scale_macro_dir": "PUT",
+        "scale_mini_dir": "PUT",
+        "scale_mili_dir": "PUT",
+        "scale_tape_dir": "PUT",
+    }
+    cfg_candle_off = parse_direction_fusion_config(
+        {
+            "fusion_block_when_tcn_pos_edge": False,
+            "fusion_block_when_tcn_candle_agree": False,
+            "fusion_tcn_shrink_near_half": 0.0,
+            "fusion_min_edge_execute": 0.0,
+        }
+    )
+    with patch(
+        "src.application.services.execution_direction_fusion.closed_micro_candle_side",
+        return_value="CALL",
+    ):
+        out = apply_direction_fusion(candle_off, TradeDirection.CALL, cfg=cfg_candle_off)
+    assert out in {TradeDirection.CALL, TradeDirection.PUT}
+    assert candle_off.get("fusion_reason") != "tcn_candle_agree"
 
 
 def test_precommit_cov_gaps_startup_neg_flip_meta():

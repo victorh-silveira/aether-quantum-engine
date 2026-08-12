@@ -191,6 +191,7 @@ class LossClassifierClient:
             "n_train": 0,
             "veto_ready": False,
             "bootstrap": False,
+            "collapsed": False,
         }
         if not self._enabled:
             return empty

@@ -38,8 +38,14 @@ def test_production_deploy_gate_armed():
     assert gate["force_ok"] is False
     assert float(gate["soft_min_val_accuracy"]) >= 0.53
     assert float(gate.get("soft_max_brier", 0.0)) >= 0.26
-    assert int(dl.get("min_epochs", 0)) >= 40
-    assert int(dl.get("early_stopping_patience", 0)) >= 40
+    assert float(gate.get("max_brier", 0.0)) == pytest.approx(0.26)
+    assert int(dl.get("min_epochs", 0)) >= 20
+    assert int(dl.get("early_stopping_patience", 0)) >= 16
+    assert float(dl.get("weight_decay", 0.0)) == pytest.approx(0.001)
+    assert float(dl.get("tcn", {}).get("dropout", 0.0)) == pytest.approx(0.25)
+    assert float(dl.get("learning_rate", 0.0)) == pytest.approx(0.001)
+    assert int(dl.get("train_deploy_retries", 0)) >= 3
+    assert int(dl.get("sample_weighting", {}).get("recency_half_life_n", 0)) == 2000
     assert str(dl.get("label_mode")) == "ma_trend"
     assert settings["orchestrator"]["execution"]["bypass_deploy_gate"] is False
     assert "quality_gate" not in settings["orchestrator"]["execution"]
@@ -113,9 +119,9 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert resolved["flip_seed_block_against_closed_candle"] is True
     assert resolved["flip_seed_waive_edge_min"] == pytest.approx(-0.08)
     soft_rec = settings["risk_management"]["soft_recovery"]
-    assert int(soft_rec["amort_cycles_min"]) == 4
-    assert int(soft_rec["amort_cycles_max"]) == 6
-    assert float(soft_rec["cover_multiple"]) == pytest.approx(1.25)
+    assert int(soft_rec["amort_cycles_min"]) == 2
+    assert int(soft_rec["amort_cycles_max"]) == 4
+    assert float(soft_rec["cover_multiple"]) == pytest.approx(1.5)
     assert float(soft_rec["max_safe_stake_pct_linear2"]) == pytest.approx(0.04)
     assert float(soft_rec["max_safe_stake_pct_linear3"]) == pytest.approx(0.025)
     assert int(soft_rec["fixed_step_linear_max"]) == 4
@@ -161,9 +167,12 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert float(scale["fusion_w_mili"]) == pytest.approx(0.10)
     assert float(scale["fusion_w_tape"]) == pytest.approx(0.20)
     assert float(scale["fusion_meta_ev_weight"]) == pytest.approx(0.10)
-    assert float(scale["fusion_loss_weight"]) == pytest.approx(0.80)
-    assert float(scale["fusion_tcn_shrink_near_half"]) == pytest.approx(0.40)
+    assert float(scale["fusion_loss_weight"]) == pytest.approx(0.45)
+    assert float(scale["fusion_tcn_shrink_near_half"]) == pytest.approx(0.25)
     assert scale["fusion_block_when_tcn_pos_edge"] is True
+    assert scale["fusion_block_when_tcn_candle_agree"] is True
+    assert scale["fusion_loss_requires_auto_learn"] is True
+    assert float(scale["fusion_loss_seed_weight_mult"]) == pytest.approx(0.0)
     assert float(scale["fusion_min_edge_execute"]) == pytest.approx(0.04)
     assert float(scale["fusion_weak_ev_soft_kelly_mult"]) == pytest.approx(0.40)
     assert float(scale["fusion_weak_ev_seed_soft_kelly_mult"]) == pytest.approx(0.25)
@@ -178,6 +187,11 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert float(fusion["fusion_weak_ev_soft_kelly_mult"]) == pytest.approx(0.40)
     assert float(fusion["fusion_weak_ev_seed_soft_kelly_mult"]) == pytest.approx(0.25)
     assert fusion["fusion_block_when_tcn_pos_edge"] is True
+    assert fusion["fusion_block_when_tcn_candle_agree"] is True
+    assert fusion["fusion_loss_requires_auto_learn"] is True
+    assert float(fusion["fusion_loss_seed_weight_mult"]) == pytest.approx(0.0)
+    assert float(fusion["fusion_loss_weight"]) == pytest.approx(0.45)
+    assert float(fusion["fusion_tcn_shrink_near_half"]) == pytest.approx(0.25)
     data = settings["data_handler"]
     assert int(data["micro_granularity"]) == 120
     assert int(data["mini_granularity"]) == 120
@@ -216,14 +230,18 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert float(kelly["max_bankroll_stake_fraction"]) == pytest.approx(0.05)
     assert float(kelly["min_stake_pct"]) == pytest.approx(0.0025)
     assert float(kelly["neutral_bankroll_pct"]) == pytest.approx(0.0025)
+    assert float(kelly["target_damping_floor"]) == pytest.approx(0.50)
+    assert float(kelly["target_damping_span"]) == pytest.approx(0.50)
     assert float(kelly["stop_win_max_stake_pct"]) == pytest.approx(0.05)
     assert float(kelly["fraction"]) == pytest.approx(0.08)
+    ssp = settings["orchestrator"]["execution"]["sample_size_policy"]
+    assert float(ssp["explore_stake_scale_floor"]) == pytest.approx(0.40)
     soft_rec_caps = settings["risk_management"]["soft_recovery"]
     assert float(soft_rec_caps["max_safe_stake_pct"]) == pytest.approx(0.05)
     assert float(soft_rec_caps["max_safe_stake_pct_linear2"]) == pytest.approx(0.04)
     assert float(soft_rec_caps["max_safe_stake_pct_linear3"]) == pytest.approx(0.025)
     assert float(soft_rec_caps["linear_bankroll_pct"]) == pytest.approx(0.0025)
-    assert float(soft_rec_caps["cover_multiple"]) == pytest.approx(1.25)
+    assert float(soft_rec_caps["cover_multiple"]) == pytest.approx(1.5)
     ssp = settings["orchestrator"]["execution"]["sample_size_policy"]
     assert int(ssp["evidence_n_min"]) == 12
     assert int(ssp["toxic_side_n_min"]) == 4

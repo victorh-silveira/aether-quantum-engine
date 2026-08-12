@@ -13,8 +13,12 @@ from src.domain.risk.consensus_stake_penalty import (
     soft_recovery_progression_multiplier,
 )
 from src.domain.risk.soft_recovery_config import pending_waives_scale_explore
+from src.domain.risk.soft_recovery_explore import neutral_explore_floor
 from src.domain.risk.soft_recovery_policy import soft_recovery_enabled
 from src.domain.risk.stake_sizing import round_stake
+
+
+_F_STAR_EXPLORE_EPS = 1e-9
 
 
 REDIS_DLAMBERT_UNIT_KEY = "session:current:dlambert_unit"
@@ -112,20 +116,22 @@ def resolve_dlambert_stake(
     scale_blocks = metrics is not None and (
         bool(metrics.get("scale_force_explore")) or bool(metrics.get("scale_adapted"))
     )
+    resolved_f_star = f_star
+    if resolved_f_star is None and metrics:
+        resolved_f_star = metrics.get("f_star") if metrics.get("f_star") is not None else metrics.get("kelly_fraction")
+    weak_f_star = resolved_f_star is not None and float(resolved_f_star) <= _F_STAR_EXPLORE_EPS
     if scale_blocks and not pending_waives_scale_explore(float(pending_total), soft):
         resolve_dlambert_unit(kelly_base, rm)
-        return round_stake(float(kelly_base), recovery_linear=False), "KELLY"
+        stake = float(kelly_base)
+        if weak_f_star:
+            stake = min(stake, neutral_explore_floor(bankroll, metrics))
+        return round_stake(stake, recovery_linear=False), "KELLY"
     stress_recovery = soft_recovery_stress_active(
         recovery_active=recovery_active,
         pending_total=pending_total,
         consecutive_losses_linear=consecutive_losses_linear,
     )
     if stress_recovery and soft_recovery_enabled(dlambert_config, soft_recovery=soft):
-        resolved_f_star = f_star
-        if resolved_f_star is None and metrics:
-            resolved_f_star = (
-                metrics.get("f_star") if metrics.get("f_star") is not None else metrics.get("kelly_fraction")
-            )
         if (kelly_base <= 0.0 and resolved_f_star is None) or (
             resolved_f_star is not None and float(resolved_f_star) <= 0.0
         ):
@@ -148,7 +154,10 @@ def resolve_dlambert_stake(
         )
         if metrics is not None and bool(metrics.get("recovery_force_explore")):
             resolve_dlambert_unit(kelly_base, rm)
-            return round_stake(float(raw), recovery_linear=False), "KELLY"
+            explore = float(raw)
+            if weak_f_star:
+                explore = min(explore, neutral_explore_floor(bankroll, metrics))
+            return round_stake(explore, recovery_linear=False), "KELLY"
         rounded = round_stake(raw, recovery_linear=True)
         cap = max_safe_stake_cap(
             bankroll,
@@ -157,7 +166,10 @@ def resolve_dlambert_stake(
         )
         return min(rounded, cap), "D'ALEMBERT"
     resolve_dlambert_unit(kelly_base, rm)
-    return round_stake(float(kelly_base), recovery_linear=False), "KELLY"
+    stake = float(kelly_base)
+    if weak_f_star:
+        stake = min(stake, neutral_explore_floor(bankroll, metrics))
+    return round_stake(stake, recovery_linear=False), "KELLY"
 
 
 def dlambert_log_suffix(

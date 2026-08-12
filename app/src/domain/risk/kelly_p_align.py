@@ -111,15 +111,26 @@ def apply_kelly_side_p(
     direction = _resolve_direction(metrics, order_direction)
     adapted_sync = False
     if isinstance(metrics, dict) and direction is not None:
-        cal = _read_call_prob(metrics)
-        if cal is not None:
-            base = side_confidence(cal, direction, metrics=metrics)
-            adapted_sync = bool(metrics.get("scale_adapted")) and str(
-                metrics.get("tcn_direction") or ""
-            ).upper() not in (
-                "",
-                direction,
-            )
+        used_fusion_eff = False
+        if bool(metrics.get("fusion_applied")) and metrics.get("fusion_p_eff") is not None:
+            exec_side = str(metrics.get("exec_direction") or metrics.get("resolved_direction") or "").strip().upper()
+            if exec_side in ("", direction):
+                try:
+                    base = float(metrics["fusion_p_eff"])
+                    used_fusion_eff = True
+                    metrics["kelly_used_fusion_p_eff"] = True
+                except (TypeError, ValueError):
+                    used_fusion_eff = False
+        if not used_fusion_eff:
+            cal = _read_call_prob(metrics)
+            if cal is not None:
+                base = side_confidence(cal, direction, metrics=metrics)
+                adapted_sync = bool(metrics.get("scale_adapted")) and str(
+                    metrics.get("tcn_direction") or ""
+                ).upper() not in (
+                    "",
+                    direction,
+                )
     p = max(base, floor)
     if payout is not None:
         p = ensure_kelly_edge_p(p, float(payout), kelly_config)

@@ -18,8 +18,9 @@ Guia operacional DL para agentes. Detalhe de features: [`arquitetura.md`](arquit
 | Features | **34D** (`FEATURE_DIM`) |
 | Label | `ma_trend` (MA 8; horizonte 1 barra micro **120 s**; alinhado ao contrato M2) |
 | Online training | **false** (DEMO usa checkpoint do `launch-train`) |
-| ACC / deploy | `soft_min_val_accuracy` **0.53**; `soft_max_brier` **0.26**; `force_ok=false` |
-| Early stop | `min_epochs` **40**, `early_stopping_patience` **40**; restore **best val_acc** |
+| ACC / deploy | `soft_min_val_accuracy` **0.53**; `max_brier` / `soft_max_brier` **0.26**; `force_ok=false` |
+| Retries | `train_deploy_retries` **5** (reseed + reset de pesos) |
+| Early stop | `min_epochs` **20**, `early_stopping_patience` **16**; patience so em ganho de **val_acc** com **BCE** CE&lt;**0.70** (monitor de val ignora `focal_gamma`); restore **best val_acc** sharp |
 | Meta | LightGBM **43D** `predicted_payoff_edge` |
 
 ## Entry points
@@ -28,7 +29,8 @@ Guia operacional DL para agentes. Detalhe de features: [`arquitetura.md`](arquit
 |---------|-------|
 | `train.py` / `app/train.py` | treino TCN |
 | `app/scripts/batch/launch-train.bat` | sanitiza run → DL → gate ACC/deploy → Timescale → meta |
-| `app/scripts/operations/sanitize_fresh_run.py` | limpa `data/dl`, meta/loss pkls, Triton bins e estado em `data/` |
+| `make docker-rebuild` | recarrega meta/loss apos o treino (**nao** apaga `data/dl`) |
+| `app/scripts/operations/sanitize_fresh_run.py` | limpa `data/dl`, meta/loss pkls, Triton bins e estado em `data/` (so train/reset) |
 | `app/scripts/operations/check_dl_deploy_gate.py` | aborta meta se ACC&lt;0.53 ou `deploy_ok=false` |
 | `app/scripts/operations/train_meta_*.py` | treino offline do meta (`--source auto`) |
 
@@ -49,9 +51,9 @@ Telemetria de treino: `TrainResult.label_call_frac`, `pred_call_frac`, `minority
 
 `resolve_deploy_ok` exige `val_accuracy >= soft_min` **antes** de `mini_ok` / `force_ok`. Checkpoint com ACC 0.52 grava `deploy_ok=false`. Treino rejeitado **sempre sobrescreve** o `.pth` anterior (sem preservar deploy antigo). Nao usar `force_ok=true` nem `bypass_deploy_gate=true` em producao.
 
-Majority-collapse (alem do ACC): com `reject_majority_collapse=true`, rejeita se `minority_recall < min_minority_recall` (**0.25**) e houver vies (`|pred_call_frac-0.5|`, `|pred_call_frac-label_call_frac|` ou `|label_call_frac-0.5|` &gt; `max_label_call_frac_bias` **0.20`). Labels balanceados com `pred_call` colapsado (ex. 0.83) tambem falham o gate.
+Majority-collapse (alem do ACC): com `reject_majority_collapse=true`, rejeita se a fracao predita colapsa (`|pred_call_frac-0.5|` ou `|pred_call_frac-label_call_frac|` &gt; `max_label_call_frac_bias` **0.20**) — mesmo com `minority_recall` acima do piso (ex.: labels ~0.5 e `pred_call=0.24`). Alternativa: label viesado (`|label_call_frac-0.5|` &gt; bias) **e** `minority_recall < min_minority_recall` (**0.25**). Checkpoint de treino nao promove pico com `collapse_hit`.
 
-Checkpoint de treino restaura pesos do **melhor val_acc** (melhoria so de loss nao sobrescreve). Em R_10, `spot_forward` costuma platô ~0.52; `ma_trend` e o label SSOT atual.
+Checkpoint de treino restaura o melhor estado **sharp** por **maior val_acc** apenas se a **BCE** de validacao &lt; **0.70** (abaixo de chute aleatorio; pico da epoca 1 com loss 0.80 e ignorado). `focal_gamma` afeta so o treino — nao o monitor de checkpoint. Loss so desempata. Em R_10, `spot_forward` costuma platô ~0.52; `ma_trend` e o label SSOT atual.
 
 ## Meta — alvo e dados
 

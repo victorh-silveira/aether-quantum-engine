@@ -74,11 +74,23 @@ def _fusion_and_skip(execution: dict[str, Any]) -> dict[str, Any]:
     scale = execution.get("scale_vision")
     if not isinstance(scale, dict) or "fusion_block_when_tcn_pos_edge" not in scale:
         raise ValueError("orchestrator.execution.scale_vision.fusion_block_when_tcn_pos_edge obrigatorio")
+    require_keys(
+        scale,
+        (
+            "fusion_block_when_tcn_candle_agree",
+            "fusion_loss_requires_auto_learn",
+            "fusion_loss_seed_weight_mult",
+        ),
+        "orchestrator.execution.scale_vision",
+    )
     skip = execution.get("signal_skip")
     if not isinstance(skip, dict) or "neg_edge_deep_edge_floor" not in skip:
         raise ValueError("orchestrator.execution.signal_skip.neg_edge_deep_edge_floor obrigatorio")
     return {
         "fusion_block_when_tcn_pos_edge": require_bool(scale, "fusion_block_when_tcn_pos_edge"),
+        "fusion_block_when_tcn_candle_agree": require_bool(scale, "fusion_block_when_tcn_candle_agree"),
+        "fusion_loss_requires_auto_learn": require_bool(scale, "fusion_loss_requires_auto_learn"),
+        "fusion_loss_seed_weight_mult": require_float(scale, "fusion_loss_seed_weight_mult"),
         "neg_edge_deep_edge_floor": require_float(skip, "neg_edge_deep_edge_floor"),
     }
 
@@ -177,6 +189,12 @@ def assert_production_doctrine(settings: dict[str, Any] | None = None) -> dict[s
         raise ValueError("flip_seed_waive_edge_min deve ser -0.08")
     if not inv["fusion_block_when_tcn_pos_edge"]:
         raise ValueError("fusion_block_when_tcn_pos_edge deve ser true")
+    if not inv["fusion_block_when_tcn_candle_agree"]:
+        raise ValueError("fusion_block_when_tcn_candle_agree deve ser true")
+    if not inv["fusion_loss_requires_auto_learn"]:
+        raise ValueError("fusion_loss_requires_auto_learn deve ser true")
+    if float(inv["fusion_loss_seed_weight_mult"]) > 0.15 + 1e-12:
+        raise ValueError("fusion_loss_seed_weight_mult deve ser <= 0.15")
     if abs(float(inv["neg_edge_deep_edge_floor"]) + 0.12) > 1e-9:
         raise ValueError("neg_edge_deep_edge_floor deve ser -0.12")
     if int(inv["watchdog_stale_tick_seconds"]) != 300:
@@ -185,10 +203,10 @@ def assert_production_doctrine(settings: dict[str, Any] | None = None) -> dict[s
         raise ValueError("settlement_tolerance_window_seconds deve ser 90")
     if int(inv["post_settlement_is_trading_wait_seconds"]) != 90:
         raise ValueError("post_settlement_is_trading_wait_seconds deve ser 90")
-    if int(inv["amort_cycles_min"]) != 4 or int(inv["amort_cycles_max"]) != 6:
-        raise ValueError("amort_cycles deve ser 4-6")
-    if abs(float(inv["cover_multiple"]) - 1.25) > 1e-9:
-        raise ValueError("cover_multiple deve ser 1.25")
+    if int(inv["amort_cycles_min"]) != 2 or int(inv["amort_cycles_max"]) != 4:
+        raise ValueError("amort_cycles deve ser 2-4")
+    if abs(float(inv["cover_multiple"]) - 1.5) > 1e-9:
+        raise ValueError("cover_multiple deve ser 1.5")
     if abs(float(inv["max_safe_stake_pct_linear3"]) - 0.025) > 1e-9:
         raise ValueError("max_safe_stake_pct_linear3 deve ser 0.025")
     if abs(float(inv["large_account_stop_win_pct"]) - 3.0) > 1e-9:

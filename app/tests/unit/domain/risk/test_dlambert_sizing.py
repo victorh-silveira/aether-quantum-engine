@@ -118,7 +118,7 @@ def test_resolve_dlambert_stake_soft_recovery_with_progression():
         payout=0.95,
     )
     assert tag == "D'ALEMBERT"
-    cover = 93.19 / 0.95 / 4.0 * 1.25
+    cover = 93.19 / 0.95 / 2.0 * 1.5
     expected = math.ceil(cover * 100) / 100
     cap = max_safe_stake_cap(10000.0, consecutive_losses_linear=3)
     expected = min(expected, cap)
@@ -144,17 +144,18 @@ def test_resolve_dlambert_stake_ignores_last_loss_stake_for_geometric_progressio
         payout=payout,
     )
     assert tag == "D'ALEMBERT"
-    cover_need = 36.72 / payout / 5.0 * 1.25
+    cover_need = 36.72 / payout / 3.0 * 1.5
     expected = math.ceil(cover_need * 100) / 100
     assert stake == pytest.approx(expected)
 
 
-def test_resolve_dlambert_stake_linear_losses_without_pending_use_base_unit():
+def test_resolve_dlambert_stake_linear_losses_without_pending_uses_neutral_floor():
     class RM:
         dlambert_unit = 50.0
         dlambert_config = {}
         risk_params = {"payout_estimate": 0.95}
 
+    metrics: dict = {}
     stake, tag = resolve_dlambert_stake(
         recovery_active=True,
         bankroll=10000.0,
@@ -164,9 +165,13 @@ def test_resolve_dlambert_stake_linear_losses_without_pending_use_base_unit():
         consecutive_losses_linear=3,
         pending_total=0.0,
         payout=0.95,
+        dl_metrics=metrics,
+        f_star=0.01,
     )
     assert tag == "D'ALEMBERT"
-    assert stake == pytest.approx(50.0)
+    assert stake == pytest.approx(25.0)
+    assert metrics.get("recovery_force_explore") is False
+    assert stake < float(RM.dlambert_unit)
 
 
 def test_resolve_dlambert_stake_caps_at_bankroll_pct_and_splits_pending():

@@ -97,6 +97,15 @@ def _loss_logit_bonus(metrics: dict[str, Any], side: str, cfg: dict[str, Any]) -
     weight = float(cfg["fusion_loss_weight"])
     if weight <= 0.0 or metrics.get("loss_clf_p_loss") is None:
         return 0.0
+    if metrics.get("loss_clf_collapsed"):
+        return 0.0
+    requires_auto = bool(cfg.get("fusion_loss_requires_auto_learn", True))
+    auto = bool(metrics.get("loss_clf_auto_learn"))
+    if requires_auto and not auto:
+        seed_mult = float(cfg.get("fusion_loss_seed_weight_mult", 0.0))
+        if seed_mult <= 0.0:
+            return 0.0
+        weight = weight * seed_mult
     try:
         p_loss = float(metrics.get("loss_clf_p_loss"))
     except (TypeError, ValueError):
@@ -110,6 +119,26 @@ def _loss_logit_bonus(metrics: dict[str, Any], side: str, cfg: dict[str, Any]) -
     if side == ref:
         return -strength
     return strength
+
+
+def _apply_tcn_candle_agree_guard(
+    metrics: dict[str, Any],
+    *,
+    vision: dict[str, Any],
+    tcn_dir: TradeDirection,
+    chosen: TradeDirection,
+    p_effs: dict[str, float],
+) -> TradeDirection:
+    """Mantem TCN quando vela micro fechada concorda e fusao tentaria inverter."""
+    if not bool(vision.get("fusion_block_when_tcn_candle_agree", True)):
+        return chosen
+    candle = closed_micro_candle_side(metrics)
+    if candle is None or candle != tcn_dir.name or chosen == tcn_dir:
+        return chosen
+    metrics["fusion_blocked_tcn_candle"] = True
+    metrics["fusion_reason"] = "tcn_candle_agree"
+    metrics["fusion_p_eff"] = float(p_effs[tcn_dir.name])
+    return tcn_dir
 
 
 def _payout(orch: Any | None) -> float:
@@ -218,6 +247,7 @@ def apply_direction_fusion(
         reason = "ev_put"
     metrics["fusion_reason"] = reason
     metrics["fusion_p_eff"] = float(p_effs[chosen.name])
+    chosen = _apply_tcn_candle_agree_guard(metrics, vision=vision, tcn_dir=tcn_dir, chosen=chosen, p_effs=p_effs)
     metrics["fusion_applied"] = True
     if chosen != exec_dir:
         metrics["fusion_switched"] = True

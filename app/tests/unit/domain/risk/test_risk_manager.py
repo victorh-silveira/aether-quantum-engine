@@ -18,7 +18,7 @@ def test_kelly_calculation_standard(kelly_config):
     stake = rm.calculate_stake(1000.0, "R_10", conviction=0.6)
     floor = 1000.0 * float(kelly_config["kelly"]["neutral_bankroll_pct"])
     assert stake >= floor - 1e-9
-    assert stake == pytest.approx(7.64, abs=0.2)
+    assert stake == pytest.approx(12.52, abs=0.2)
 
 
 def test_kelly_negative_edge_floors_p_and_sizes(kelly_config):
@@ -36,7 +36,7 @@ def test_kelly_stake_capped_by_max_safe_bankroll_pct(kelly_config):
     kelly_config["kelly"]["fraction"] = 1.0
     rm = RiskManager(kelly_config)
     stake = rm.calculate_stake(1000.0, "R_10", conviction=0.8)
-    assert stake == pytest.approx(30.5, abs=0.2)
+    assert stake == pytest.approx(35.0, abs=0.2)
 
 
 def test_kelly_high_conviction_scales_within_safe_cap(kelly_config):
@@ -50,7 +50,7 @@ def test_kelly_high_conviction_scales_within_safe_cap(kelly_config):
     low = rm.calculate_stake(1000.0, "R_10", conviction=0.7)
     high = rm.calculate_stake(1000.0, "R_10", conviction=0.9)
     assert high > low
-    assert high == pytest.approx(24.4, abs=0.1)
+    assert high == pytest.approx(35.0, abs=0.1)
 
 
 def test_kelly_dynamic_win_rate(kelly_config):
@@ -94,7 +94,7 @@ def test_kelly_intelligent_recovery(kelly_config):
         dl_metrics={"execute": True, "trade_score": 0.65, "val_accuracy": 0.55},
     )
     assert stake_high >= stake_low
-    assert stake_low == pytest.approx(10.0 / 0.95 / 4.0 * 1.25, rel=1e-2)
+    assert stake_low == pytest.approx(10.0 / 0.95 / 4.0 * 1.5, rel=1e-2)
 
     rm.active_contract_ids = [2]
     rm.register_result(57.49, 2, "R_10")
@@ -118,7 +118,7 @@ def test_dlambert_after_partial_win(kelly_config):
         conviction=0.61,
         dl_metrics={"execute": True, "trade_score": 0.65, "val_accuracy": 0.55},
     )
-    assert stake == pytest.approx(8.54 / 0.95 / 4.0 * 1.25, rel=1e-2)
+    assert stake == pytest.approx(8.54 / 0.95 / 4.0 * 1.5, rel=1e-2)
 
 
 def test_stake_zero_when_bankroll_below_min(kelly_config):

@@ -1,7 +1,12 @@
+import math
+from unittest.mock import patch
+
+import numpy as np
 import pytest
 import torch
 
-from src.application.services.deep_learning.model import create_direction_model
+from src.application.services.deep_learning.dl_training_epochs import fit_training_epochs
+from src.application.services.deep_learning.model import INPUT_DIM, create_direction_model
 
 
 def test_checkpoint_keeps_peak_acc_when_later_loss_improves():
@@ -10,7 +15,7 @@ def test_checkpoint_keeps_peak_acc_when_later_loss_improves():
     model = create_direction_model(arch="tcn")
     loss1, acc1, _sharp1, _sl1, state_peak, _sharp_state1, improved1 = checkpoint_if_improved(
         model,
-        val_loss=0.80,
+        val_loss=0.65,
         val_acc=0.55,
         val_sharpness=0.05,
         min_sharpness=0.01,
@@ -37,7 +42,7 @@ def test_checkpoint_keeps_peak_acc_when_later_loss_improves():
         best_val_loss=loss1,
         best_val_acc=acc1,
         best_sharp_acc=acc1,
-        best_sharp_loss=0.80,
+        best_sharp_loss=0.65,
     )
     assert improved2 is True
     assert state_loss_only is None
@@ -55,7 +60,7 @@ def test_prefer_sharp_checkpoint_over_dull_peak():
     model = create_direction_model(arch="tcn")
     _l, _a, sharp_acc, sharp_loss, dull_state, sharp_state, _imp = checkpoint_if_improved(
         model,
-        val_loss=0.7,
+        val_loss=0.65,
         val_acc=0.56,
         val_sharpness=0.002,
         min_sharpness=0.01,
@@ -85,14 +90,14 @@ def test_prefer_sharp_checkpoint_over_dull_peak():
     assert sharp_loss2 == pytest.approx(0.55)
 
 
-def test_sharp_checkpoint_prefers_lower_val_loss():
+def test_sharp_checkpoint_prefers_higher_val_acc():
     from src.application.services.deep_learning.dl_training_checkpoint import checkpoint_if_improved
 
     model = create_direction_model(arch="tcn")
     _l, _a, sa, sl, _bs, first, _i = checkpoint_if_improved(
         model,
         val_loss=0.60,
-        val_acc=0.55,
+        val_acc=0.61,
         val_sharpness=0.04,
         min_sharpness=0.01,
         min_val_accuracy=0.53,
@@ -114,9 +119,43 @@ def test_sharp_checkpoint_prefers_lower_val_loss():
         best_sharp_acc=sa,
         best_sharp_loss=sl,
     )
+    assert second is None
+    assert sl2 == pytest.approx(0.60)
+    assert sa2 == pytest.approx(0.61)
+
+
+def test_sharp_checkpoint_same_acc_prefers_lower_loss():
+    from src.application.services.deep_learning.dl_training_checkpoint import checkpoint_if_improved
+
+    model = create_direction_model(arch="tcn")
+    _l, _a, sa, sl, _bs, first, _i = checkpoint_if_improved(
+        model,
+        val_loss=0.60,
+        val_acc=0.55,
+        val_sharpness=0.04,
+        min_sharpness=0.01,
+        min_val_accuracy=0.53,
+        best_val_loss=float("inf"),
+        best_val_acc=-1.0,
+        best_sharp_acc=-1.0,
+        best_sharp_loss=float("inf"),
+    )
+    assert first is not None
+    _l2, _a2, sa2, sl2, _bs2, second, _i2 = checkpoint_if_improved(
+        model,
+        val_loss=0.40,
+        val_acc=0.55,
+        val_sharpness=0.05,
+        min_sharpness=0.01,
+        min_val_accuracy=0.53,
+        best_val_loss=_l,
+        best_val_acc=_a,
+        best_sharp_acc=sa,
+        best_sharp_loss=sl,
+    )
     assert second is not None
     assert sl2 == pytest.approx(0.40)
-    assert sa2 == pytest.approx(0.54)
+    assert sa2 == pytest.approx(0.55)
 
 
 def test_checkpoint_skips_majority_collapse_peak():
@@ -140,3 +179,81 @@ def test_checkpoint_skips_majority_collapse_peak():
     assert sharp is None
     assert improved is True
     assert _a == pytest.approx(-1.0)
+
+
+def test_checkpoint_skips_unstable_high_ce_acc_peak():
+    from src.application.services.deep_learning.dl_training_checkpoint import checkpoint_if_improved
+
+    model = create_direction_model(arch="tcn")
+    _l, _a, _sa, _sl, state, sharp, improved = checkpoint_if_improved(
+        model,
+        val_loss=0.80,
+        val_acc=0.56,
+        val_sharpness=0.05,
+        min_sharpness=0.01,
+        min_val_accuracy=0.53,
+        best_val_loss=float("inf"),
+        best_val_acc=-1.0,
+        best_sharp_acc=-1.0,
+        best_sharp_loss=float("inf"),
+    )
+    assert state is None
+    assert sharp is None
+    assert improved is True
+    assert _a == pytest.approx(-1.0)
+    _l2, acc2, _sa2, _sl2, state2, sharp2, _imp2 = checkpoint_if_improved(
+        model,
+        val_loss=0.65,
+        val_acc=0.55,
+        val_sharpness=0.05,
+        min_sharpness=0.01,
+        min_val_accuracy=0.53,
+        best_val_loss=_l,
+        best_val_acc=_a,
+        best_sharp_acc=_sa,
+        best_sharp_loss=_sl,
+    )
+    assert state2 is not None
+    assert sharp2 is not None
+    assert acc2 == pytest.approx(0.55)
+
+
+def test_fit_training_epochs_checkpoint_on_val_acc_only():
+    model = create_direction_model(arch="tcn")
+    x = np.random.randn(24, 12, INPUT_DIM).astype(np.float32)
+    y = np.array([1.0, 0.0] * 12, dtype=np.float32)
+    mask = np.ones(24, dtype=np.float32)
+    device = torch.device("cpu")
+    acc_values = iter([0.5, 0.52, 0.52, 0.52])
+
+    with (
+        patch(
+            "src.application.services.deep_learning.dl_training_epochs._validation_loss",
+            return_value=0.65,
+        ),
+        patch(
+            "src.application.services.deep_learning.dl_training_checkpoint.model_accuracy",
+            side_effect=lambda *_args, **_kwargs: next(acc_values),
+        ),
+    ):
+        avg, state, ran = fit_training_epochs(
+            model,
+            x,
+            y,
+            mask,
+            [1.0] * 24,
+            x,
+            y,
+            mask,
+            device,
+            epochs=4,
+            batch_size=8,
+            lr=0.001,
+            weight_decay=0.0,
+            label_smoothing=0.0,
+            focal_gamma=0.0,
+            early_stopping_patience=2,
+        )
+    assert ran >= 2
+    assert state is not None
+    assert math.isfinite(avg)

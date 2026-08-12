@@ -221,6 +221,7 @@ def test_is_collapsed_p_loss_helper():
     assert is_collapsed_p_loss({"auto_learn_applied": True, "p_loss": 0.5}) is True
     assert is_collapsed_p_loss({"auto_learn_applied": True, "p_loss": 0.86}) is False
     assert is_collapsed_p_loss({"auto_learn_applied": False, "p_loss": 0.5}) is False
+    assert is_collapsed_p_loss({"auto_learn_applied": False, "p_loss": 0.95, "collapsed": True}) is True
 
 
 def test_learn_buffer_io_roundtrip(tmp_path):

@@ -256,7 +256,7 @@ def fit_training_epochs(
                 model.load_state_dict(best_state)
             continue
         total_loss += mean_epoch_loss
-        val_loss = _validation_loss(model, x_val, y_val, mask_val, device, focal_gamma=focal_gamma)
+        val_loss = _validation_loss(model, x_val, y_val, mask_val, device, focal_gamma=0.0)
         val_acc, val_sharp, collapse_hit = val_collapse_hit(model, x_val, y_val, mask_val, deploy_gate_cfg)
         if progress_cb is not None:
             progress_cb(epochs_ran, total_epochs, mean_epoch_loss, float(val_acc))
@@ -267,7 +267,7 @@ def fit_training_epochs(
             best_sharp_loss,
             improved_state,
             sharp_state,
-            improved,
+            _improved,
         ) = checkpoint_if_improved(
             model,
             val_loss=val_loss,
@@ -283,14 +283,13 @@ def fit_training_epochs(
         )
         if improved_state is not None:
             best_state = improved_state
-        if sharp_state is not None:
-            best_sharp_state = sharp_state
-        if improved:
             patience_counter = 0
         elif epochs_ran >= min_ep:
             patience_counter += 1
             if patience > 0 and patience_counter >= patience:
                 break
+        if sharp_state is not None:
+            best_sharp_state = sharp_state
         if scheduler_mode == "reduce_on_plateau":
             scheduler.step(val_loss)
         else:

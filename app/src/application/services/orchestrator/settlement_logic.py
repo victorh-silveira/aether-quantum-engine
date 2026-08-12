@@ -87,6 +87,7 @@ async def _complete_contract_settlement(
     result_line: str | None = None,
     audit_direction: str | None = None,
     audit_raw_prob: float | None = None,
+    resolved_meta: dict[str, Any] | None = None,
 ) -> None:
     """Processa liquidação, risco e persistencia sob lock atomico."""
     _process_contract_outcome(
@@ -98,6 +99,25 @@ async def _complete_contract_settlement(
         audit_direction=audit_direction,
         audit_raw_prob=audit_raw_prob,
     )
+    if result_line is None and isinstance(resolved_meta, dict):
+        stake_audit = resolve_stake_audit_context(orch.risk_manager)
+        linear_before = int(resolved_meta.get("linear_before", 0) or 0)
+        learn = str(getattr(orch, "_last_loss_clf_learn", "") or "").strip()
+        result_line = format_settlement_audit_line(
+            orch._contract_cycle.get(c_id, 0),
+            str(resolved_meta.get("outcome") or ""),
+            profit,
+            resolved_meta.get("direction"),
+            str(resolved_meta.get("symbol") or ""),
+            float(resolved_meta.get("edge") or 0.0),
+            settlement_tag=resolve_settlement_tag(profit=profit, linear_before=linear_before),
+            pending=float(stake_audit.get("pending", 0.0)),
+            linear=int(stake_audit.get("linear", linear_before)),
+            mode_tag=str(stake_audit.get("mode_tag") or ""),
+            recovery_infeasible=bool(stake_audit.get("recovery_infeasible", False)),
+            learn_detail=learn or None,
+        )
+        orch._last_loss_clf_learn = None
     if result_line is not None:
         learn = str(getattr(orch, "_last_loss_clf_learn", "") or "").strip()
         line = f"{result_line} | LEARN: {learn}" if learn and "LEARN:" not in result_line else result_line
@@ -148,7 +168,6 @@ async def process_late_settlement_from_payload(orch: Any, poc: dict) -> None:
     _, direction, edge, z_score, raw_prob = pop_contract_audit(orch, c_id)
     record_meta_payoff_shadow_pair(z_score=z_score, profit=profit, orch=orch)
     linear_before = int(getattr(orch.risk_manager, "consecutive_losses_linear", 0) or 0)
-    stake_audit = resolve_stake_audit_context(orch.risk_manager)
     async with orchestrator_atomic_state_context(orch):
         _process_contract_outcome(
             orch,
@@ -159,6 +178,7 @@ async def process_late_settlement_from_payload(orch: Any, poc: dict) -> None:
             audit_direction=direction,
             audit_raw_prob=raw_prob,
         )
+        stake_audit = resolve_stake_audit_context(orch.risk_manager)
         learn = str(getattr(orch, "_last_loss_clf_learn", "") or "").strip()
         orch.logger.info(
             "%s || API: %s (late)",
@@ -191,26 +211,11 @@ async def _process_confirmed_settlement(orch: Any, data: dict, contract: Any) ->
     c = data["proposal_open_contract"]
     c_id = int(c["contract_id"])
     profit = float(c.get("profit", 0.0))
-    api_status_raw = (c.get("status") or "").strip()
-    outcome = api_settlement_label(api_status_raw, profit)
+    outcome = api_settlement_label((c.get("status") or "").strip(), profit)
     sym = orch.risk_manager.contract_to_symbol.get(c_id, c.get("underlying", "UNK"))
     _, direction, edge, z_score, raw_prob = pop_contract_audit(orch, c_id)
     record_meta_payoff_shadow_pair(z_score=z_score, profit=profit, orch=orch)
     linear_before = int(getattr(orch.risk_manager, "consecutive_losses_linear", 0) or 0)
-    stake_audit = resolve_stake_audit_context(orch.risk_manager)
-    result_line = format_settlement_audit_line(
-        orch._contract_cycle.get(c_id, 0),
-        outcome,
-        profit,
-        direction,
-        str(sym),
-        edge,
-        settlement_tag=resolve_settlement_tag(profit=profit, linear_before=linear_before),
-        pending=float(stake_audit.get("pending", 0.0)),
-        linear=int(stake_audit.get("linear", linear_before)),
-        mode_tag=str(stake_audit.get("mode_tag") or ""),
-        recovery_infeasible=bool(stake_audit.get("recovery_infeasible", False)),
-    )
     async with orchestrator_atomic_state_context(orch):
         await _complete_contract_settlement(
             orch,
@@ -218,9 +223,15 @@ async def _process_confirmed_settlement(orch: Any, data: dict, contract: Any) ->
             contract,
             c_id,
             profit,
-            result_line=result_line,
             audit_direction=direction,
             audit_raw_prob=raw_prob,
+            resolved_meta={
+                "outcome": outcome,
+                "direction": direction,
+                "symbol": sym,
+                "edge": edge,
+                "linear_before": linear_before,
+            },
         )
 
 

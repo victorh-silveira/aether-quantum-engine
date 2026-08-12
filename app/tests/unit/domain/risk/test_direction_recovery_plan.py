@@ -74,7 +74,7 @@ def test_cluster_win_with_dust_pending_returns_explore():
     )
 
 
-def test_near_stop_win_freeze_keeps_explore_unit_without_dal_escalation():
+def test_near_stop_win_freeze_uses_neutral_floor_not_sticky_unit():
     soft = {
         "material_pending_min": 1.0,
         "near_stop_win_freeze_pct": 0.80,
@@ -93,12 +93,14 @@ def test_near_stop_win_freeze_keeps_explore_unit_without_dal_escalation():
         session_pnl=8.5,
         target_win=10.0,
     )
-    assert stake == pytest.approx(1.0)
+    assert stake == pytest.approx(0.25)
     assert metrics.get("recovery_near_stop_win_freeze") is True
+    assert metrics.get("recovery_force_explore") is True
+    assert metrics.get("recovery_force_explore_reason") == "near_stop"
     assert metrics.get("recovery_progression_multiplier") == pytest.approx(1.0)
 
 
-def test_immaterial_pending_skips_dal_progression():
+def test_immaterial_pending_uses_neutral_floor_not_base_unit():
     soft = {"material_pending_min": 1.0, "near_stop_win_freeze_pct": 0.80}
     metrics: dict = {}
     stake = apply_soft_recovery_stake(
@@ -113,11 +115,11 @@ def test_immaterial_pending_skips_dal_progression():
         session_pnl=1.0,
         target_win=10.0,
     )
-    assert stake == pytest.approx(1.0)
+    assert stake == pytest.approx(0.25)
     assert metrics.get("recovery_material_pending") is False
 
 
-def test_resolve_dlambert_stake_near_target_does_not_escalate_linear():
+def test_resolve_dlambert_stake_near_target_force_explore_neutral_floor():
     class RM:
         dlambert_unit = 1.0
         dlambert_config = {"dlambert_enabled": True}
@@ -143,10 +145,12 @@ def test_resolve_dlambert_stake_near_target_does_not_escalate_linear():
         pending_total=12.0,
         payout=0.95,
         dl_metrics=metrics,
+        f_star=0.01,
     )
-    assert tag == "D'ALEMBERT"
-    assert stake == pytest.approx(1.0)
+    assert tag == "KELLY"
+    assert stake == pytest.approx(0.25)
     assert metrics.get("recovery_near_stop_win_freeze") is True
+    assert metrics.get("recovery_force_explore") is True
 
 
 def test_meta_negative_edge_keeps_weak_call_side():

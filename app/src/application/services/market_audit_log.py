@@ -97,7 +97,7 @@ def resolve_stake_audit_context(rm: Any, *, balance_fallback: float | None = Non
     if isinstance(audit, dict):
         return {
             "mode_tag": str(audit.get("mode_tag") or mode_tag),
-            "pending": float(audit.get("pending", pending)),
+            "pending": pending,
             "bankroll": float(audit.get("bankroll", bankroll)),
             "linear": int(audit.get("linear_losses", linear)),
             "cap": float(audit.get("cap", cap)),

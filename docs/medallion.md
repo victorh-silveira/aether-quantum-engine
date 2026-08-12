@@ -22,7 +22,7 @@ Doutrina do copiloto LLM/Cursor (9 livros → constraints de engenharia): [`llm-
 | Feedback real | Win rate live misturado em `val_accuracy`; retreino após loss |
 | Defesa contra ruido / discordancia | Consensus Entropy Penalty no Kelly base — **desligado** (`consensus_penalty_enabled: false`) |
 | Persistência financeira | Recovery atrelado a `pending_loss`, não a WIN operacional isolado |
-| Soft recovery + caps | `soft_recovery_policy` ativo: cover amortizado (`cover_multiple` **1.25**, amort **4–6**) com teto % banca |
+| Soft recovery + caps | `soft_recovery_policy` ativo: cover amortizado (`cover_multiple` **1.50**, amort **2–4**) com teto % banca |
 | Sizing | EXPLORE = Kelly * `explore_stake_scale(N)`; RECOVER = Soft Recovery amortizado (sem revenge) |
 | Side equilibrium (LLN) | `sample_size_policy` + `side_equilibrium`: dominio pode marcar hard_skip; runtime aplica **so soft Kelly** (`execution_side_eq_sizing`) — sem veto de direcao |
 | Lei dos Grandes Numeros | WR/ECE live so pesam apos `evidence_n_min=20`; cold-start nao escala stake nem calib drift |

@@ -30,13 +30,16 @@ def test_load_doctrine_invariants_from_ssot():
     assert inv["flip_require_auto_learn"] is True
     assert inv["flip_seed_waive_edge_min"] == pytest.approx(-0.08)
     assert inv["fusion_block_when_tcn_pos_edge"] is True
+    assert inv["fusion_block_when_tcn_candle_agree"] is True
+    assert inv["fusion_loss_requires_auto_learn"] is True
+    assert inv["fusion_loss_seed_weight_mult"] == pytest.approx(0.0)
     assert inv["neg_edge_deep_edge_floor"] == pytest.approx(-0.12)
     assert inv["watchdog_stale_tick_seconds"] == 300
     assert inv["settlement_tolerance_window_seconds"] == 90
     assert inv["post_settlement_is_trading_wait_seconds"] == 90
-    assert inv["amort_cycles_min"] == 4
-    assert inv["amort_cycles_max"] == 6
-    assert inv["cover_multiple"] == pytest.approx(1.25)
+    assert inv["amort_cycles_min"] == 2
+    assert inv["amort_cycles_max"] == 4
+    assert inv["cover_multiple"] == pytest.approx(1.5)
     assert inv["max_safe_stake_pct_linear3"] == pytest.approx(0.025)
     assert inv["large_account_stop_win_pct"] == pytest.approx(3.0)
     assert inv["min_validation_accuracy_gate"] >= 0.53
@@ -200,6 +203,18 @@ def test_assert_production_rejects_ssot_knobs():
     settings = copy.deepcopy(load_settings_json())
     settings["orchestrator"]["execution"]["scale_vision"]["fusion_block_when_tcn_pos_edge"] = False
     with pytest.raises(ValueError, match="fusion_block"):
+        assert_production_doctrine(settings)
+    settings = copy.deepcopy(load_settings_json())
+    settings["orchestrator"]["execution"]["scale_vision"]["fusion_block_when_tcn_candle_agree"] = False
+    with pytest.raises(ValueError, match="fusion_block_when_tcn_candle_agree"):
+        assert_production_doctrine(settings)
+    settings = copy.deepcopy(load_settings_json())
+    settings["orchestrator"]["execution"]["scale_vision"]["fusion_loss_requires_auto_learn"] = False
+    with pytest.raises(ValueError, match="fusion_loss_requires_auto_learn"):
+        assert_production_doctrine(settings)
+    settings = copy.deepcopy(load_settings_json())
+    settings["orchestrator"]["execution"]["scale_vision"]["fusion_loss_seed_weight_mult"] = 0.5
+    with pytest.raises(ValueError, match="fusion_loss_seed_weight_mult"):
         assert_production_doctrine(settings)
     settings = copy.deepcopy(load_settings_json())
     settings["orchestrator"]["execution"]["signal_skip"]["neg_edge_deep_edge_floor"] = -1.0

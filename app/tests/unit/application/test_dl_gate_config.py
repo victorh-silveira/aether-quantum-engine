@@ -127,6 +127,42 @@ def test_resolve_deploy_ok_rejects_majority_collapse():
         )
         is False
     )
+    assert (
+        resolve_deploy_ok(
+            mini_ok=True,
+            val_accuracy=0.56,
+            val_brier=0.24,
+            gate_cfg=cfg,
+            label_call_frac=0.51,
+            pred_call_frac=0.24,
+            minority_recall=0.26,
+        )
+        is False
+    )
+    assert (
+        resolve_deploy_ok(
+            mini_ok=True,
+            val_accuracy=0.58,
+            val_brier=0.22,
+            gate_cfg=cfg,
+            label_call_frac=0.30,
+            pred_call_frac=0.55,
+            minority_recall=0.40,
+        )
+        is False
+    )
+    assert (
+        resolve_deploy_ok(
+            mini_ok=True,
+            val_accuracy=0.58,
+            val_brier=0.22,
+            gate_cfg=cfg,
+            label_call_frac=0.51,
+            pred_call_frac=0.50,
+            minority_recall=0.40,
+        )
+        is True
+    )
 
 
 def test_describe_deploy_block_majority_collapse():

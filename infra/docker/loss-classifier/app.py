@@ -64,6 +64,7 @@ class LossPredictResult(BaseModel):
     n_train: int
     veto_ready: bool
     bootstrap: bool = False
+    collapsed: bool = False
 
 
 class LearnRequest(BaseModel):
@@ -90,6 +91,7 @@ _n_train: int = 0
 _auto_learn_applied: bool = False
 _bootstrap: bool = False
 _degenerate: bool = False
+_collapsed: bool = False
 _buffer_x: list[list[float]] = []
 _buffer_y: list[int] = []
 _load_error: str = ""
@@ -126,7 +128,7 @@ def _load_buffer_unlocked() -> None:
 
 def _apply_bundle(bundle: dict[str, Any], path: Path | None, *, auto_learn: bool) -> None:
     global _model, _model_path, _model_mtime, _model_version, _n_train
-    global _auto_learn_applied, _bootstrap, _degenerate, _load_error
+    global _auto_learn_applied, _bootstrap, _degenerate, _collapsed, _load_error
     _model = bundle["model"]
     _model_path = path
     _model_mtime = float(path.stat().st_mtime) if path is not None and path.is_file() else 0.0
@@ -135,6 +137,7 @@ def _apply_bundle(bundle: dict[str, Any], path: Path | None, *, auto_learn: bool
     _auto_learn_applied = bool(auto_learn or bundle.get("auto_learn_applied"))
     _bootstrap = False if _auto_learn_applied else is_bootstrap_bundle(bundle, version=_model_version)
     _degenerate = bool(bundle.get("degenerate"))
+    _collapsed = bool(bundle.get("collapsed", False))
     _load_error = ""
 
 
@@ -165,6 +168,7 @@ def _maybe_hot_reload() -> None:
 def _fit_from_buffer(*, min_n: int | None = None) -> RetrainResult:
     floor = int(min_n) if min_n is not None else int(RETRAIN_MIN_N)
     with _lock:
+        global _collapsed
         exit_n = int(BOOTSTRAP_EXIT_N)
         if bool(_bootstrap) and len(_buffer_y) < exit_n and len(set(_buffer_y)) < 2:
             return RetrainResult(
@@ -172,6 +176,13 @@ def _fit_from_buffer(*, min_n: int | None = None) -> RetrainResult:
                 n_train=len(_buffer_y),
                 model_version=_model_version,
                 detail=f"seed_keep n<{exit_n}",
+            )
+        if bool(_bootstrap) and len(_buffer_y) < int(READY_N):
+            return RetrainResult(
+                ok=False,
+                n_train=len(_buffer_y),
+                model_version=_model_version,
+                detail=f"seed_keep n<{int(READY_N)}",
             )
         if bool(_bootstrap) and len(_buffer_y) < floor:
             return RetrainResult(
@@ -188,6 +199,7 @@ def _fit_from_buffer(*, min_n: int | None = None) -> RetrainResult:
             )
         model = fit_classifier(_buffer_x, _buffer_y)
         if is_collapsed_classifier(model, _buffer_x):
+            _collapsed = True
             logger.warning("Retrain loss rejeitado colapso n=%d", len(_buffer_y))
             return RetrainResult(
                 ok=False,
@@ -206,10 +218,12 @@ def _fit_from_buffer(*, min_n: int | None = None) -> RetrainResult:
                 "auto_learn_applied": True,
                 "bootstrap": False,
                 "degenerate": False,
+                "collapsed": False,
             },
             path,
             auto_learn=True,
         )
+        _collapsed = False
         _persist_buffer_unlocked()
         logger.info("Retrain loss ok n=%d ver=%s", _n_train, _model_version)
         return RetrainResult(ok=True, n_train=_n_train, model_version=_model_version, detail="ok")
@@ -247,6 +261,7 @@ async def health() -> dict[str, Any]:
             "auto_learn_applied": bool(_auto_learn_applied),
             "bootstrap": bool(_bootstrap),
             "degenerate": bool(_degenerate),
+            "collapsed": bool(_collapsed),
             "buffer_n": len(_buffer_y),
             "buffer_win": int(counts["win"]),
             "buffer_loss": int(counts["loss"]),
@@ -288,6 +303,7 @@ async def predict_loss(payload: PredictLossRequest) -> LossPredictResult:
                 n_train=int(_n_train),
                 veto_ready=_veto_ready(),
                 bootstrap=bool(_bootstrap),
+                collapsed=bool(_collapsed),
             )
         ready = _veto_ready()
         return LossPredictResult(
@@ -298,6 +314,7 @@ async def predict_loss(payload: PredictLossRequest) -> LossPredictResult:
             n_train=int(_n_train),
             veto_ready=ready,
             bootstrap=bool(_bootstrap),
+            collapsed=bool(_collapsed),
         )
 
 

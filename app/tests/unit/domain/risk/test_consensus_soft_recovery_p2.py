@@ -79,6 +79,107 @@ def test_apply_soft_recovery_stake_dampens_on_neg_edge_alone():
     assert stake == pytest.approx(28.75)
     assert metrics.get("recovery_chop_neg_edge_damped") is True
     assert metrics.get("recovery_force_explore") is True
+    assert metrics.get("recovery_force_explore_reason") == "neg_edge"
+    assert metrics.get("recovery_explore_used_cover") is True
+
+
+def test_neg_edge_sticky_unit_110_uses_neutral_floor_not_u():
+    metrics = {"neg_edge_soft": True}
+    soft = {
+        "material_pending_min": 0.25,
+        "cover_multiple": 1.5,
+        "amort_cycles_min": 2,
+        "amort_cycles_max": 4,
+        "max_safe_stake_pct": 0.05,
+    }
+    stake = apply_soft_recovery_stake(
+        pending_total=90.0,
+        base_unit=110.48,
+        consecutive_losses=1,
+        previous_stake=110.48,
+        bankroll=11000.0,
+        payout=0.95,
+        metrics=metrics,
+        soft_recovery=soft,
+    )
+    floor = 11000.0 * 0.0025
+    assert stake == pytest.approx(floor)
+    assert stake < 110.0
+    assert metrics.get("recovery_force_explore_reason") == "neg_edge"
+    assert metrics.get("recovery_explore_used_cover") is True
+
+
+def test_neg_edge_without_pending_uses_neutral_floor_not_sticky_u():
+    metrics = {"neg_edge_soft": True}
+    soft = {"material_pending_min": 0.25, "max_safe_stake_pct": 0.05}
+    stake = apply_soft_recovery_stake(
+        pending_total=0.0,
+        base_unit=110.48,
+        consecutive_losses=0,
+        previous_stake=110.48,
+        bankroll=11000.0,
+        payout=0.95,
+        metrics=metrics,
+        soft_recovery=soft,
+    )
+    assert stake == pytest.approx(27.5)
+    assert metrics.get("recovery_explore_used_cover") is False
+    assert metrics.get("recovery_force_explore_reason") == "neg_edge"
+    assert metrics.get("recovery_force_explore") is True
+
+
+def test_infeasible_force_explore_sticky_u_uses_neutral_floor():
+    metrics: dict = {}
+    soft = {
+        "enabled": True,
+        "max_safe_stake_pct": 0.025,
+        "amort_cycles_min": 2,
+        "amort_cycles_max": 5,
+        "infeasible_force_explore": True,
+        "material_pending_min": 0.25,
+    }
+    stake = apply_soft_recovery_stake(
+        pending_total=800.0,
+        base_unit=110.48,
+        consecutive_losses=2,
+        previous_stake=110.48,
+        bankroll=10000.0,
+        metrics=metrics,
+        payout=0.95,
+        soft_recovery=soft,
+    )
+    assert metrics.get("recovery_infeasible") is True
+    assert metrics.get("recovery_force_explore") is True
+    assert metrics.get("recovery_force_explore_reason") == "infeasible"
+    assert stake == pytest.approx(25.0)
+    assert metrics.get("recovery_explore_used_cover") is False
+
+
+def test_dal_normal_pending_without_neg_edge_keeps_cover():
+    metrics = {"indicators": {"hurst": 0.55}}
+    soft = {
+        "material_pending_min": 0.25,
+        "cover_multiple": 1.5,
+        "amort_cycles_min": 2,
+        "amort_cycles_max": 4,
+        "max_safe_stake_pct": 0.05,
+        "infeasible_force_explore": True,
+        "near_stop_win_freeze_pct": 0.99,
+    }
+    stake = apply_soft_recovery_stake(
+        pending_total=90.0,
+        base_unit=110.48,
+        consecutive_losses=1,
+        previous_stake=50.0,
+        bankroll=11000.0,
+        payout=0.95,
+        metrics=metrics,
+        soft_recovery=soft,
+    )
+    amort = 3
+    cover = 90.0 / 0.95 / float(amort) * 1.5
+    assert metrics.get("recovery_force_explore") is False
+    assert stake == pytest.approx(cover, rel=1e-3)
 
 
 def test_small_account_hard_floor_caps_recovery_at_five_percent():

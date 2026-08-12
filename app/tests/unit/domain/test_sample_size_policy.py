@@ -34,7 +34,7 @@ def test_sample_size_policy_ssot_defaults():
     assert cfg["large_n_min"] == 32
     assert cfg["calib_soft_min_n"] == 12
     assert cfg["toxic_side_n_min"] == 4
-    assert cfg["explore_stake_scale_floor"] == pytest.approx(0.25)
+    assert cfg["explore_stake_scale_floor"] == pytest.approx(0.4)
     assert cfg["z_sig_threshold"] == pytest.approx(1.64)
 
 
@@ -62,7 +62,7 @@ def test_underperformance_requires_evidence_n_not_two_losses():
 
 
 def test_explore_stake_scale_floor_on_cold_start():
-    assert explore_stake_scale(0) == pytest.approx(0.25)
+    assert explore_stake_scale(0) == pytest.approx(0.4)
     assert explore_stake_scale(12) > explore_stake_scale(0)
     assert explore_stake_scale(32) == pytest.approx(1.0)
 

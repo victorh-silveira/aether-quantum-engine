@@ -17,18 +17,18 @@ Runtime SSOT: `R_10` M2; `online_training` **false**; `invert_exec_side` **false
 - Inflar stake apos LOSS (revenge sizing) ou “operar mais para aprender” com N baixo
 - Remover caps (`max_safe_stake_*`), settlement Redis ou timeouts “temporariamente”
 - Julgar mudanca so pelo P&L de poucos ciclos; confiar WR bruto sem Cal/Edge/`live_n`
-- Afrouxar `flip_require_auto_learn` / `fusion_block_when_tcn_pos_edge` / `neg_edge_deep_edge_floor` sem mandato
+- Afrouxar `flip_require_auto_learn` / `fusion_block_when_tcn_pos_edge` / `fusion_block_when_tcn_candle_agree` / `fusion_loss_requires_auto_learn` / `neg_edge_deep_edge_floor` sem mandato
 
 ## Sempre fazer
 
-- Distinguir EXPLORE vs RECOVER; recovery = cover amortizado (**1.25**, amort **4–6**, linear3 **2.5%**); `scale_force_explore` sob discordance forca EXPLORE
-- Exigir evidencia: `live_n`, Cal/Margin, Edge, `val_accuracy`, linha SCALE; soft sinal via catalogo `signal_skip` (1.1) / chop / loss-clf soft; **fusao EV** (`scale_vision.fusion_*`, `fusion_block_when_tcn_pos_edge` **true**, soft EV fraco **0.40**, seed+ambos EV&lt;0 **0.25**, log `[GATES] || FUSION`) escolhe CALL/PUT por argmax; **neg_edge** soft Kelly continuo (`neg_edge_hard_skip=false`); sob seed soft **0.25** e hard so se edge &lt; `neg_edge_deep_edge_floor` (**−0.12**); flip `loss_clf` relativo ao TCN com `flip_require_auto_learn` **true** (seed so SOFT; live `flip_waive_edge_min=-1.0`; seed: `FLIP_BLOCK:seed_candle` + `flip_seed_waive_edge_min=-0.08`)
+- Distinguir EXPLORE vs RECOVER; recovery = cover amortizado (**1.50**, amort **2–4**, linear3 **2.5%**); damping inicio **1.0** / perto stop-win **0.50**; RECOVER stake = cover×damping (`f*` so gate); `scale_force_explore` sob discordance forca EXPLORE; EXPLORE forçado / `f*≈0` / soft sinal → piso `neutral_bankroll_pct` ou cover∩piso — **nunca** `dlambert_unit` sticky como tamanho de ordem
+- Exigir evidencia: `live_n`, Cal/Margin, Edge, `val_accuracy`, linha SCALE; soft sinal via catalogo `signal_skip` (1.1) / chop / loss-clf soft; **fusao EV** (`scale_vision.fusion_*`, `fusion_block_when_tcn_pos_edge` **true**, `fusion_block_when_tcn_candle_agree` **true**, `fusion_loss_requires_auto_learn` **true**, soft EV fraco **0.40**, seed+ambos EV&lt;0 **0.25**, log `[GATES] || FUSION`) escolhe CALL/PUT por argmax; Kelly usa `fusion_p_eff` do lado escolhido; seed **nao** alimenta loss_bonus; TCN==vela → `why=tcn_candle_agree`; **neg_edge** soft Kelly continuo (`neg_edge_hard_skip=false`); sob seed soft **0.25** e hard so se edge &lt; `neg_edge_deep_edge_floor` (**−0.12**); flip `loss_clf` relativo ao TCN com `flip_require_auto_learn` **true** (seed so SOFT; live `flip_waive_edge_min=-1.0`; seed: `FLIP_BLOCK:seed_candle` + `flip_seed_waive_edge_min=-0.08`)
 - Tratar EXEC_EMPTY tecnico como sucesso de processo quando coerente; soft sinal (mini/cal/chop/neg_edge) continua EXEC — EMPTY de sinal `neg_edge` so seed profundo ou override
 - Nomear o setup e o bloqueio antes de mudar risco (PlayBook)
 - Hipotese falsificavel para cada knob (Ellenberg); pos-LOSS operacional → container `aether-loss-classifier` (/learn), nao skill offline; restart do container apos mudar `LOSS_BOOTSTRAP_EXIT_N`
 - Vies de treino corrige-se com sample_weighting + majority-collapse + SIDE_EQ soft Kelly — **nao** rearmar quality gate amplo (RSI/price_zone); flip loss-clf autorizado sob guards; chop = soft Kelly continuo; neg_edge = soft Kelly continuo (hard so seed profundo ou override)
-- `raw_extreme` ≠ timeframe MACRO: limiares `tcn_macro_*_override` so marcam raw extremo; **Cal nao e substituido**; Kelly usa Cal
+- `raw_extreme` ≠ timeframe MACRO: limiares `tcn_macro_*_override` so marcam raw extremo; **Cal nao e substituido**; com fusao, Kelly prioriza `fusion_p_eff` (nao `1-fusion_p_call` floored)
 
 ## Diagnostico de log
 
-Ordem: CLUSTER (Cal/Edge, TF micro M2) → SCALE → `[GATES] || FUSION` / `FLIP_BLOCK:*` / LOSS_CLF → SIDE_EQ/META → IND → KELLY → EXEC/gate_reason → RESOLVED/pending. Proibido narrar “mao quente” ou “deve reverter”.
+Ordem: CLUSTER (Cal/Edge, TF micro M2) → SCALE → `[GATES] || FUSION` / `FLIP_BLOCK:*` / LOSS_CLF → SIDE_EQ/META → IND → KELLY → EXEC/gate_reason → RESOLVED/pending. Se `auto=0` e FUSION != TCN com vela==TCN → regressao. Se `FUSION p_eff` alto e Kelly `p≈be` → regressao de alinhamento. Se `[RESOLVED] PEND` nao cai apos WIN → regressao de audit. Se `f*≈0`/`p≈be` e stake ≈ 1ª Kelly da sessao sob soft/freeze → regressao U sticky. Proibido narrar “mao quente” ou “deve reverter”.

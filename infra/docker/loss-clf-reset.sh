@@ -68,7 +68,7 @@ validate_health_seeded() {
 
 case "${MODE}" in
   clear)
-    docker_ui_banner "loss-models clear · limpa bind-mount (chamado por docker-rebuild/reset)"
+    docker_ui_banner "loss-models clear · limpa bind-mount (chamado por docker-reset)"
     docker_ui_step 1 2 "Parar ${SERVICE}"
     stop_loss_if_running
     docker_ui_step 2 2 "Limpeza de ${MODELS_DIR}"

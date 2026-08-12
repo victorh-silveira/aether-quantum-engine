@@ -5,7 +5,12 @@ from __future__ import annotations
 import asyncio
 import logging
 
+import numpy as np
+import torch
+
 from src.application.services.deep_learning.dl_bridge_helpers import parse_dl_params
+from src.application.services.deep_learning.dl_calibration import CalibratorState
+from src.application.services.deep_learning.dl_features import FEATURE_DIM
 from src.application.services.deep_learning.dl_market_data import load_symbol_close_ohlc, load_symbol_microstructure
 from src.application.services.deep_learning.dl_params import slice_dl_ohlc_window
 from src.application.services.deep_learning.dl_symbol_runtime import (
@@ -20,6 +25,7 @@ from src.application.services.deep_learning.dl_training_gate import (
     runtime_in_training,
     training_priority_symbols,
 )
+from src.application.services.deep_learning.model import create_direction_model, fit_norm_stats
 from src.application.services.orchestrator.config_symbols import resolve_dl_train_symbols
 
 
@@ -29,6 +35,44 @@ _STATUS_WAIT = "wait"
 _STATUS_OK = "ok"
 _STATUS_FAIL = "fail"
 _HISTORY_WAIT_CAP_SECONDS = 30.0
+
+
+def _train_deploy_attempts(dl_config: dict | None) -> int:
+    """Numero de tentativas de treino ate deploy_ok (1..8)."""
+    cfg = dl_config if isinstance(dl_config, dict) else {}
+    try:
+        return max(1, min(8, int(cfg.get("train_deploy_retries", 3))))
+    except (TypeError, ValueError):
+        return 3
+
+
+def _reseed_for_attempt(attempt: int) -> None:
+    """Fixa seed deterministica por tentativa para explorar inits distintos."""
+    seed = 17_011 + int(attempt) * 1_009
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
+def _reset_runtime_model_for_retry(runtime: dict, params: dict) -> None:
+    """Recria pesos do runtime apos tentativa sem deploy_ok."""
+    lookback = int(params.get("lookback", runtime.get("lookback", 32)))
+    runtime["model"] = create_direction_model(
+        arch=params.get("arch", "tcn"),
+        input_dim=FEATURE_DIM,
+        tcn_channels=params.get("tcn_channels"),
+        tcn_dropout=float(params.get("tcn_dropout", 0.2)),
+        rnn_hidden_size=int(params.get("rnn_hidden_size", 64)),
+        rnn_num_layers=int(params.get("rnn_num_layers", 2)),
+        rnn_dropout=float(params.get("rnn_dropout", 0.2)),
+    )
+    runtime["norm_stats"] = fit_norm_stats(np.zeros((1, lookback, FEATURE_DIM), dtype=np.float32))
+    runtime["calibrator"] = CalibratorState()
+    runtime["deploy_ok"] = False
+    runtime["export_ok"] = False
+    runtime["session_trained"] = False
+    runtime["val_accuracy"] = 0.0
+    runtime["val_brier"] = 1.0
 
 
 def _history_wait_seconds(granularity: int, dl_config: dict | None = None) -> float:
@@ -102,23 +146,34 @@ async def _train_bootstrap_symbol(orch, symbol: str) -> str:
             want,
         )
     epoch = candle_epoch(orch, symbol, timeframe=str(params.get("train_timeframe", "macro")))
-    await asyncio.to_thread(
-        run_symbol_training,
-        symbol,
-        runtime,
-        prices,
-        dl_config,
-        params,
-        epoch,
-        orch,
-        granularity=granularity,
-        open_=open_,
-        high=high,
-        low=low,
-        micro=micro,
-    )
-    if bool(runtime.get("export_ok")):
-        return _STATUS_OK
+    attempts = _train_deploy_attempts(dl_config)
+    for attempt in range(1, attempts + 1):
+        if attempt > 1:
+            logger.warning(
+                "DL TREINO | %s | retentativa %d/%d apos deploy_ok=false",
+                symbol,
+                attempt,
+                attempts,
+            )
+            _reset_runtime_model_for_retry(runtime, params)
+        _reseed_for_attempt(attempt)
+        await asyncio.to_thread(
+            run_symbol_training,
+            symbol,
+            runtime,
+            prices,
+            dl_config,
+            params,
+            epoch,
+            orch,
+            granularity=granularity,
+            open_=open_,
+            high=high,
+            low=low,
+            micro=micro,
+        )
+        if bool(runtime.get("export_ok")):
+            return _STATUS_OK
     logger.error(
         "DL TREINO | %s | deploy_ok=false (export_ok=false) — nao iniciar meta",
         symbol,

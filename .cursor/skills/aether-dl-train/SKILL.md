@@ -14,11 +14,11 @@ description: >-
 2. Telemetria de lado: `label_call_frac` / `pred_call_frac` / `minority_recall` no treino
 3. Balance: `deep_learning.sample_weighting.class_balance_*` via `compose_train_weights`
 4. Recency: `recency_enabled` / `recency_half_life_n` (default **2000**)
-5. Deploy collapse: `reject_majority_collapse` + `max_label_call_frac_bias` (0.20) + `min_minority_recall` (0.25)
+5. Deploy collapse: `reject_majority_collapse` — pred skew (`|pred-0.5|` / `|pred-label|` > **0.20**) rejeita sozinho; label skew + `min_minority_recall` (**0.25**)
 6. Checkpoint: feat_dim=34, lookback **720**, granularity micro **120**, `val_accuracy`, `deploy_ok`
-7. Early stop: `min_epochs` / patience; restore **best val_acc** (nao so loss)
+7. Early stop: `min_epochs` **20** / patience **16**; restore so pico com **BCE** val CE&lt;**0.70** (monitor de val **ignora** `focal_gamma`; nao epoca 1 com loss 0.80); sharp sem collapse
 8. ACC: soft_min **0.53** — mini-deploy nao bypassa
-9. Sharpness: `min_oos_sharpness` **0.01**; se temperature/Platt colapsar → fit cai para `identity` (nao baixar o piso)
+9. Brier mini: `max_brier` **0.26** (= `soft_max_brier`); sharpness `min_oos_sharpness` **0.01**
 10. Fail-closed: export falhou → `train.py` exit!=0; gate rejeita ckpt com lookback/granularity != settings; meta nao roda
 11. `launch-train.bat`: apos DL roda `check_dl_deploy_gate.py` antes do meta
 12. Meta: variance nula → Timescale flat; usar `--source auto` / Deriv; alvo payoff fallback; gran meta **120s**
@@ -27,7 +27,9 @@ description: >-
 15. Universo **`R_10`**: artefactos Volatility/legado invalidos; sync MinIO/Triton com nome `R_10`
 16. Gap TCN→meta: `launch-train` usa `ensure_timescale.py --check-only` (sem seed Deriv entre etapas); bootstrap wait cap **30 s**; shortfall API ≥ **95%** do alvo (`train_history_shortfall_ratio`) em TCN **e** meta (ex.: 1984/2000)
 17. Run fresca: `sanitize_fresh_run` no inicio de `launch-train`; `make docker-reset` sanitiza + volumes; treino **nao** preserva checkpoint anterior
-
+18. Anti-overfit R_10: `weight_decay` **0.001**, `tcn.dropout` **0.25**, `learning_rate` **0.001**, `recency_half_life_n` **2000**
+19. Retries: `train_deploy_retries` **5** (reseed + reset de pesos apos `deploy_ok=false`)
+20. Pos-treino: `make docker-rebuild` recarrega meta/loss **sem** apagar `data/dl` (nao chamar `sanitize-run` depois do train)
 
 ## Anti-padroes
 

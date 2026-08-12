@@ -72,6 +72,21 @@ def deploy_params_for_eval(params: dict[str, Any], gate_cfg: dict[str, Any]) -> 
     return out
 
 
+def _pred_side_skew(
+    *,
+    label_call_frac: float | None,
+    pred_call_frac: float | None,
+    bias_cap: float,
+) -> bool:
+    """True quando a fracao predita foge de 0.5 ou do label alem do bias_cap."""
+    if pred_call_frac is None:
+        return False
+    pred = float(pred_call_frac)
+    if abs(pred - 0.5) > bias_cap:
+        return True
+    return label_call_frac is not None and abs(pred - float(label_call_frac)) > bias_cap
+
+
 def _majority_collapse_hit(
     gate_cfg: dict[str, Any],
     *,
@@ -79,27 +94,22 @@ def _majority_collapse_hit(
     pred_call_frac: float | None,
     minority_recall: float | None,
 ) -> bool:
-    """True quando pred/label colapsam e minority_recall fica abaixo do piso."""
+    """True em colapso preditivo ou label viesado com minority_recall abaixo do piso."""
     if not bool(gate_cfg.get("reject_majority_collapse", False)):
-        return False
-    if minority_recall is None:
         return False
     bias_cap = float(gate_cfg.get("max_label_call_frac_bias", 0.20))
     min_rec = float(gate_cfg.get("min_minority_recall", 0.25))
+    if _pred_side_skew(
+        label_call_frac=label_call_frac,
+        pred_call_frac=pred_call_frac,
+        bias_cap=bias_cap,
+    ):
+        return True
+    if minority_recall is None:
+        return False
     if float(minority_recall) + 1e-9 >= min_rec:
         return False
-    skewed = False
-    if pred_call_frac is not None and abs(float(pred_call_frac) - 0.5) > bias_cap:
-        skewed = True
-    if (
-        pred_call_frac is not None
-        and label_call_frac is not None
-        and abs(float(pred_call_frac) - float(label_call_frac)) > bias_cap
-    ):
-        skewed = True
-    if label_call_frac is not None and abs(float(label_call_frac) - 0.5) > bias_cap:
-        skewed = True
-    return skewed
+    return label_call_frac is not None and abs(float(label_call_frac) - 0.5) > bias_cap
 
 
 def resolve_deploy_ok(

@@ -19,6 +19,9 @@ _FUSION_KEYS = (
     "fusion_loss_weight",
     "fusion_tcn_shrink_near_half",
     "fusion_block_when_tcn_pos_edge",
+    "fusion_block_when_tcn_candle_agree",
+    "fusion_loss_requires_auto_learn",
+    "fusion_loss_seed_weight_mult",
     "fusion_min_edge_execute",
     "fusion_weak_ev_soft_kelly_mult",
     "fusion_weak_ev_seed_soft_kelly_mult",
@@ -54,6 +57,9 @@ def parse_direction_fusion_config(raw: dict[str, Any] | None = None) -> dict[str
         if val < 0.0 or val > 2.0:
             raise ValueError(f"orchestrator.execution.scale_vision.{key} deve estar em [0, 2]")
         weights[key] = val
+    seed_mult = require_float(block, "fusion_loss_seed_weight_mult")
+    if seed_mult < 0.0 or seed_mult > 0.15:
+        raise ValueError("orchestrator.execution.scale_vision.fusion_loss_seed_weight_mult deve estar em [0, 0.15]")
     min_edge = require_float(block, "fusion_min_edge_execute")
     if min_edge < 0.0 or min_edge > 0.5:
         raise ValueError("orchestrator.execution.scale_vision.fusion_min_edge_execute deve estar em [0, 0.5]")
@@ -70,6 +76,9 @@ def parse_direction_fusion_config(raw: dict[str, Any] | None = None) -> dict[str
         "fusion_replace_adapt_flip": require_bool(block, "fusion_replace_adapt_flip"),
         "fusion_tcn_shrink_near_half": shrink,
         "fusion_block_when_tcn_pos_edge": require_bool(block, "fusion_block_when_tcn_pos_edge"),
+        "fusion_block_when_tcn_candle_agree": require_bool(block, "fusion_block_when_tcn_candle_agree"),
+        "fusion_loss_requires_auto_learn": require_bool(block, "fusion_loss_requires_auto_learn"),
+        "fusion_loss_seed_weight_mult": seed_mult,
         "fusion_min_edge_execute": min_edge,
         "fusion_weak_ev_soft_kelly_mult": weak_soft,
         "fusion_weak_ev_seed_soft_kelly_mult": seed_soft,

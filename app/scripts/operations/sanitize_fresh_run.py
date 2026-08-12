@@ -1,4 +1,7 @@
-"""Limpa checkpoints e artefactos de run anterior antes de train/docker-reset."""
+"""Limpa checkpoints e artefactos de run anterior antes de train/docker-reset.
+
+Nao usar em docker-rebuild pos-treino: isso apaga data/dl e o TCN recem-exportado.
+"""
 
 from __future__ import annotations
 
@@ -125,7 +128,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--keep-meta-bundle",
         action="store_true",
-        help="Preserva meta_lgbm.pkl (docker-reset/rebuild antes do train).",
+        help="Preserva meta_lgbm.pkl (docker-reset antes do train).",
     )
     args = parser.parse_args(argv)
     counts = sanitize_fresh_run(

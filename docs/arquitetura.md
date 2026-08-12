@@ -215,7 +215,7 @@ Config atual: `arch: tcn`, `lookback: 72`, `label_mode: spot_forward`, threshold
 | Endpoint | `POST /v1/predict_loss`, `POST /v1/learn`, `POST /v1/retrain` |
 | Cliente | `LossClassifierClient` + `loss_classifier_pool` |
 | Veto | Soft Kelly em `[0.65, 0.90)`; **FLIP** CALL↔PUT se `p_loss >= hard_p_loss_floor` (**0.90**, `veto_ready`; log `LOSS_CLF \|\| FLIP`); seed com p_loss real |
-| Artefatos | `infra/docker/loss-models/*.pkl`; `make docker-rebuild`/`docker-reset` limpam + seed predictivo (`veto_ready` se n>=ready_n) |
+| Artefatos | `infra/docker/loss-models/*.pkl`; `make docker-reset` limpa + seed predictivo (`veto_ready` se n>=ready_n); `docker-rebuild` recarrega sem apagar TCN |
 
 ### 5.2 Vetor 43D
 
@@ -391,7 +391,7 @@ Watchdog: `AetherWatchdog` reconecta stream se ticks estagnarem (`watchdog_stale
 `cycle_interval_seconds` (**120**), `signature_boundary_seconds` (**120**), `watchdog_stale_tick_seconds` (**300**), `mandatory_trade_each_cycle` (**false**), `invert_exec_side` (**false**), `require_meta_for_execution` (**false**), `scale_vision.fusion_*` + `signal_skip` 1.1, `settlement_*` (**90 s** SSOT), `post_settlement_is_trading_wait_seconds` (**90**), `warm_up_live_data_timeout_seconds`, `broker_handshake_timeout_seconds`, `state_lock_acquire_timeout_seconds`.
 
 ### `risk_management`
-`kelly.*` (`fraction: 0.08`, explore piso **0.25%**, tetos stop-win Kelly ate **5%**), `soft_recovery.*` (amort **4–6**, cover **1.25**, linear3 **2.5%**), `min_validation_accuracy_gate` (**0.53**), `params.*` (duration **2** m, compounding **0.03**, stake_min, payout_estimate **0.72**), `small_account_*`.
+`kelly.*` (`fraction: 0.08`, explore piso **0.25%**, tetos stop-win Kelly ate **5%**), `soft_recovery.*` (amort **2–4**, cover **1.50**, linear3 **2.5%**), `min_validation_accuracy_gate` (**0.53**), `params.*` (duration **2** m, compounding **0.03**, stake_min, payout_estimate **0.72**), `small_account_*`.
 
 ### `infra`
 Redis/Timescale/MinIO/Triton/meta_classifier URLs e timeouts (`infer_timeout_seconds: 0.50`).

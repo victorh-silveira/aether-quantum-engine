@@ -38,7 +38,7 @@ Logs de um servico: `make docker-logs DOCKER_SERVICE=<alias>`. Aliases Make → 
 
 Pipeline `docker-up`: `host-prereq` → `triton-prereq` → compose up → wait healthy → timescale-lifecycle → hydrate (R_10 120/3600) → smoke.
 
-Rebuild meta+loss: `make docker-rebuild` (sanitiza run host com `--keep-meta-bundle`, limpa `loss-models/` + seed `loss_bootstrap_synth`). Reset destrutivo: `make docker-reset` (sanitiza + `down --volumes`). Sanitizacao total (inclui `meta_lgbm.pkl` e `data/dl/*.pth`): `make sanitize-run` ou etapa 0 de `launch-train.bat`. Smoke: processo meta pode subir sem `.pkl` (aviso); modelo so apos `launch-train`.
+Fluxo diario: `make docker-up` → `launch-train.bat` (sanitiza + treina TCN/meta) → `make docker-rebuild` (reconstroi imagens meta/loss e recarrega pkls **sem** apagar `data/dl`). Rebuild **nao** chama `sanitize_fresh_run`. Reset destrutivo: `make docker-reset` (sanitiza TCN/loss/estado, mantem `meta_lgbm.pkl`, `down --volumes`). Sanitizacao total (inclui `meta_lgbm.pkl` e `data/dl/*.pth`): `make sanitize-run` ou etapa 0 de `launch-train.bat`. Smoke: processo meta pode subir sem `.pkl` (aviso); modelo so apos `launch-train`.
 
 ## GPU e Triton
 
@@ -80,7 +80,7 @@ Settings app: `infra.redis.url`, `infra.timescale.dsn`, `infra.minio`, `infra.tr
 - Timescale: init `003_*.sql` + lifecycle `004_*.sql`; hydrate sintetico R_10 se micro&lt;360 ou macro&lt;80 (**nao** usar hydrate como unico historico para treino meta — preferir Deriv / `--source auto`)
 - MinIO: bucket `dl-models`; health live + `start_period`
 - Loss-classifier: volume `loss-models/`; bootstrap opcional `python -m scripts.operations.train_loss_classifier`
-- **Reset operacional:** `make docker-rebuild` ou `make docker-reset` — limpa pkls, gera/seed `loss_bootstrap_synth` (`class_weight=balanced`, `min_child_samples=15`). Seed devolve **p_loss real** via `predict_proba` com `veto_ready=true` se `n_train>=ready_n` (**24**); sem `COLD_START` / sem `p_loss=0.50` neutro. Saida bootstrap exige buffer ≥**16** (`LOSS_BOOTSTRAP_EXIT_N`) com ≥1 WIN e ≥1 LOSS (floor efetivo ≥**8**); fit live colapsado e rejeitado (`collapsed_reject`). LEARN loga `retrain_skipped_reason`. Floor FLIP **0.90**. Apos rebuild do container, esperar `auto=1` em ~8–16 settles mistos.
+- **Reset operacional:** `make docker-reset` — limpa pkls/TCN/volumes e gera seed `loss_bootstrap_synth` (`class_weight=balanced`, `min_child_samples=15`). Seed devolve **p_loss real** via `predict_proba` com `veto_ready=true` se `n_train>=ready_n` (**24**); sem `COLD_START` / sem `p_loss=0.50` neutro. Saida bootstrap exige buffer ≥**16** (`LOSS_BOOTSTRAP_EXIT_N`) com ≥1 WIN e ≥1 LOSS; primeiro fit promove so com `n>=LOSS_READY_N` (**24**) e rejeita colapso (`collapsed_reject`, flag `collapsed` no `/predict`). LEARN loga `retrain_skipped_reason`. Floor FLIP **0.90**. Apos reset, esperar `auto=1` apos ≥**24** settles mistos. `make docker-rebuild` so recarrega os containers meta/loss (preserva TCN e `meta_lgbm.pkl`).
 
 ## Relacao com o motor
 

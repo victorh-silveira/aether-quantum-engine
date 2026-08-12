@@ -68,9 +68,11 @@ def test_parse_loss_predict_response_and_bad_payload():
             "model_version": "v1",
             "n_train": 40,
             "veto_ready": True,
+            "collapsed": True,
         }
     )
     assert parsed["veto"] is True
+    assert parsed["collapsed"] is True
     with pytest.raises(TypeError):
         parse_loss_predict_response([])
 

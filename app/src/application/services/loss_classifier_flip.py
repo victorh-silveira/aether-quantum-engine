@@ -42,7 +42,9 @@ def is_seed_model(response: dict[str, Any], *, require_auto_learn: bool) -> bool
 
 
 def is_collapsed_p_loss(response: dict[str, Any], *, eps: float = 0.02) -> bool:
-    """True quando auto_learn devolve p_loss ~0.5 (modelo live degenerado)."""
+    """True quando o servico marca colapso ou auto_learn devolve p_loss ~0.5."""
+    if bool(response.get("collapsed")):
+        return True
     if not bool(response.get("auto_learn_applied")):
         return False
     try:

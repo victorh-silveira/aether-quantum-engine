@@ -6,7 +6,7 @@ alwaysApply: false
 
 # Risco e sizing
 
-- Soft recovery: stake = cover amortizado (`cover_multiple` **1.25**, amort **4–6**); linear3 teto **2.5%**; nao `max(exponencial, cover)` revenge.
+- Soft recovery: stake = cover amortizado (`cover_multiple` **1.50**, amort **2–4**); linear3 teto **2.5%**; nao `max(exponencial, cover)` revenge; `f*` so gate em RECOVER.
 - Preservar `max_safe_stake_cap` / `max_safe_stake_pct`; leverage mata (LTCM).
 - EXPLORE usa Kelly × `explore_stake_scale(N)`; piso explore **0.25%** banca; nao misturar regime RECOVER sem pending.
 - Stop-win composto **3%** (e piso $10) — `EXEC_PAUSE` tecnico; boost Kelly stop-win ate **5%** sob knobs dedicados.
