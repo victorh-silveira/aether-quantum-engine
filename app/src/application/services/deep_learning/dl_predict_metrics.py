@@ -1,7 +1,31 @@
 """Anexa metricas dinamicas e de squeeze ao entry DL."""
 
+from src.application.services.deep_learning.dl_congestion import series_last as _series_last
 from src.application.services.execution_volatility_bb import squeeze_extreme_regime
 from src.application.services.execution_volatility_threshold import DynamicThresholds
+
+
+def indicators_from_series(series: dict) -> dict[str, float]:
+    """Extrai snapshot de indicadores da ultima barra."""
+    return {
+        "open": _series_last(series, "open"),
+        "close": _series_last(series, "close"),
+        "high": _series_last(series, "high"),
+        "low": _series_last(series, "low"),
+        "hurst": _series_last(series, "hurst"),
+        "adx": _series_last(series, "adx"),
+        "vol_ratio": _series_last(series, "vol_ratio_short_long"),
+        "implied_vol_ratio": _series_last(series, "implied_vol_ratio", 1.0),
+        "bb_width": _series_last(series, "bb_width"),
+        "atr_norm": _series_last(series, "atr_norm"),
+        "cmo": _series_last(series, "cmo"),
+        "keltner": _series_last(series, "keltner_pct_b"),
+        "bb_pct_b": _series_last(series, "bb_pct_b", 0.5),
+        "rsi": _series_last(series, "rsi"),
+        "macd": _series_last(series, "macd"),
+        "macd_sig": _series_last(series, "macd_signal"),
+        "di_diff": _series_last(series, "di_diff"),
+    }
 
 
 def attach_dynamic_metrics(

@@ -11,6 +11,7 @@ from src.application.services.deep_learning.dl_calibration import (
     calibrator_from_dict,
     calibrator_to_dict,
     cap_calibrated_to_raw_band,
+    clamp_calibrated_call_to_raw_band,
     expected_calibration_error,
     logit_to_prob,
     raw_side_conviction,
@@ -62,6 +63,25 @@ def test_calibration_helpers():
     assert cap_calibrated_to_raw_band(0.55, 0.70, 0.0) == pytest.approx(0.70)
     capped_score = calibrate_trade_score(0.24, 0.55, cal, max_calibrated_raw_gap=0.18)
     assert capped_score <= cap_calibrated_to_raw_band(0.24, 1.0, 0.18) + 1e-6
+    uncapped, was_off, gap_off = clamp_calibrated_call_to_raw_band(0.40, 0.70, 0.0)
+    assert uncapped == pytest.approx(0.70)
+    assert was_off is False
+    assert gap_off == pytest.approx(0.30)
+    clamped, was_capped, gap = clamp_calibrated_call_to_raw_band(0.415, 0.251, 0.08)
+    assert was_capped is True
+    assert clamped == pytest.approx(0.415 - 0.08, abs=1e-9)
+    assert gap == pytest.approx(abs(0.251 - 0.415), abs=1e-9)
+    put_lo = 1.0 - min(1.0, 0.415 + 0.08)
+    put_hi = 1.0 - max(0.0, 0.415 - 0.08)
+    assert put_lo <= (1.0 - clamped) <= put_hi
+    same, same_capped, _ = clamp_calibrated_call_to_raw_band(0.50, 0.52, 0.08)
+    assert same_capped is False
+    assert same == pytest.approx(0.52)
+    edge_hi, edge_capped, _ = clamp_calibrated_call_to_raw_band(0.10, 0.90, 0.08)
+    assert edge_capped is True
+    assert edge_hi == pytest.approx(0.18)
+    edge_lo, _, _ = clamp_calibrated_call_to_raw_band(0.90, 0.10, 0.08)
+    assert edge_lo == pytest.approx(0.82)
     assert apply_calibrator(0.7, cal) > 0.0
     assert brier_score([0.8, 0.2], [1.0, 0.0]) < 0.5
     assert expected_calibration_error([0.8, 0.2], [1.0, 0.0]) >= 0.0

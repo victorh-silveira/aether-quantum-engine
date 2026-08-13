@@ -112,3 +112,4 @@ def test_run_symbol_training_wraps_export_sharpness_failure(tmp_path):
     assert runtime["export_ok"] is False
     assert runtime["session_trained"] is False
     assert runtime["deploy_ok"] is False
+    assert (tmp_path / "R_10.pth").is_file()

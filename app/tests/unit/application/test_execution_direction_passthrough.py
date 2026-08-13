@@ -48,16 +48,17 @@ def test_seed_direction_metrics_preserves_raw_and_invalid_fallback():
     assert bad["calibrated_prob"] == pytest.approx(0.45)
 
 
-def test_resolve_execution_direction_soft_negative_cal_edge():
+def test_resolve_execution_direction_soft_subfloor_cal_edge():
     entry = {
         "metrics": {
-            "calibrated_prob": 0.52,
-            "raw_prob": 0.37115,
+            "calibrated_prob": 0.59,
+            "raw_prob": 0.59,
             "deploy_ok": True,
-            "predicted_payoff_edge": -0.20,
+            "predicted_payoff_edge": 0.01,
             "indicators": {"hurst": 0.60, "adx": 0.40},
             "kelly_fraction_scale": 1.0,
             "loss_clf_auto_learn": True,
+            "tcn_direction": "CALL",
         }
     }
     orch = MagicMock()
@@ -68,17 +69,55 @@ def test_resolve_execution_direction_soft_negative_cal_edge():
     }
     orch._log_dedupe = {}
     orch._active_cycle_id = 1
-    result = resolve_execution_direction(entry, exec_cfg={}, symbol="R_10", orch=orch)
+    with patch(
+        "src.application.services.execution_direction_resolver.apply_loss_classifier_gate",
+        return_value=False,
+    ):
+        result = resolve_execution_direction(entry, exec_cfg={}, symbol="R_10", orch=orch)
     assert result is not None
     _direction, metrics = result
     assert metrics.get("execution_candidate_ready") is True
     assert metrics.get("gate_reason") != "neg_edge"
     assert metrics.get("neg_edge_soft") is True
     assert metrics["kelly_fraction_scale"] < 1.0
-    assert float(metrics["raw_prob"]) == pytest.approx(0.37115)
-    assert float(metrics["calibrated_prob"]) == pytest.approx(0.52)
+    assert float(metrics["raw_prob"]) == pytest.approx(0.59)
+    assert float(metrics["calibrated_prob"]) == pytest.approx(0.59)
     assert "cal_side_edge" in metrics
-    assert float(metrics["cal_side_edge"]) < 0.04
+    assert 0.0 < float(metrics["cal_side_edge"]) < 0.04
+
+
+def test_resolve_execution_direction_hard_nonpositive_cal_edge():
+    entry = {
+        "metrics": {
+            "calibrated_prob": 0.52,
+            "raw_prob": 0.52,
+            "deploy_ok": True,
+            "predicted_payoff_edge": -0.20,
+            "indicators": {"hurst": 0.60, "adx": 0.40},
+            "kelly_fraction_scale": 1.0,
+            "loss_clf_auto_learn": True,
+            "tcn_direction": "CALL",
+        }
+    }
+    orch = MagicMock()
+    orch.config = {
+        "deep_learning": {"min_edge_execute": 0.04},
+        "risk_management": {"params": {"payout_estimate": 0.72}},
+        "orchestrator": {"execution": {"scale_vision": {"fusion_enabled": False}}},
+    }
+    orch._log_dedupe = {}
+    orch._active_cycle_id = 3
+    with patch(
+        "src.application.services.execution_direction_resolver.apply_loss_classifier_gate",
+        return_value=False,
+    ):
+        result = resolve_execution_direction(entry, exec_cfg={}, symbol="R_10", orch=orch)
+    assert result is not None
+    _direction, metrics = result
+    assert metrics.get("execution_candidate_ready") is False
+    assert metrics.get("gate_reason") == "neg_edge"
+    assert metrics.get("neg_edge_nonpositive_hard") is True
+    assert metrics.get("neg_edge_soft") is None
 
 
 def test_resolve_execution_direction_hard_neg_edge_override():

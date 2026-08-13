@@ -37,7 +37,7 @@ def test_neg_edge_soft_when_side_agrees_closed_candle():
     metrics = {
         "execution_candidate_ready": True,
         "exec_direction": "CALL",
-        "calibrated_prob": 0.56,
+        "calibrated_prob": 0.59,
         "kelly_fraction_scale": 1.0,
         "closed_micro_candle_dir": "CALL",
         "loss_clf_auto_learn": True,
@@ -45,11 +45,12 @@ def test_neg_edge_soft_when_side_agrees_closed_candle():
     assert apply_negative_cal_edge_pause(metrics, orch=_orch_skip()) is True
     assert metrics.get("gate_reason") != "neg_edge"
     assert metrics.get("neg_edge_candle_soft") is True
+    assert 0.0 < float(metrics["cal_side_edge"]) < 0.04
     assert metrics["kelly_fraction_scale"] == pytest.approx(0.55)
     assert metrics_block_execution(metrics) is False
 
 
-def test_neg_edge_hard_when_candle_agree_but_edge_too_deep():
+def test_neg_edge_hard_when_candle_agree_but_edge_nonpositive():
     metrics = {
         "execution_candidate_ready": True,
         "exec_direction": "CALL",
@@ -59,14 +60,16 @@ def test_neg_edge_hard_when_candle_agree_but_edge_too_deep():
     }
     assert apply_negative_cal_edge_pause(metrics, orch=_orch_skip()) is True
     assert metrics.get("gate_reason") == "neg_edge"
+    assert metrics.get("neg_edge_nonpositive_hard") is True
+    assert metrics.get("neg_edge_soft") is None
     assert metrics_block_execution(metrics) is True
 
 
-def test_neg_edge_soft_deep_edge_when_soft_min_wide():
+def test_neg_edge_soft_subfloor_when_soft_min_wide():
     metrics = {
         "execution_candidate_ready": True,
         "exec_direction": "CALL",
-        "calibrated_prob": 0.53,
+        "calibrated_prob": 0.59,
         "kelly_fraction_scale": 1.0,
         "closed_micro_candle_dir": "PUT",
         "loss_clf_auto_learn": True,
@@ -75,6 +78,7 @@ def test_neg_edge_soft_deep_edge_when_soft_min_wide():
     assert apply_negative_cal_edge_pause(metrics, orch=orch) is True
     assert metrics.get("gate_reason") != "neg_edge"
     assert metrics["neg_edge_soft"] is True
+    assert 0.0 < float(metrics["cal_side_edge"]) < 0.04
     assert metrics["execution_candidate_ready"] is True
     assert metrics_block_execution(metrics) is False
 
@@ -83,7 +87,7 @@ def test_neg_edge_soft_when_flip_blocked_and_candle_with_hard_on():
     metrics = {
         "execution_candidate_ready": True,
         "exec_direction": "CALL",
-        "calibrated_prob": 0.56,
+        "calibrated_prob": 0.59,
         "kelly_fraction_scale": 1.0,
         "closed_micro_candle_dir": "CALL",
         "loss_clf_flip_blocked": "neg_edge",
@@ -99,7 +103,7 @@ def test_neg_edge_soft_when_loss_clf_p_ovr_flip():
     metrics = {
         "execution_candidate_ready": True,
         "exec_direction": "CALL",
-        "calibrated_prob": 0.56,
+        "calibrated_prob": 0.59,
         "kelly_fraction_scale": 1.0,
         "closed_micro_candle_dir": "PUT",
         "loss_clf_flip": True,

@@ -19,6 +19,7 @@ from src.application.services.deep_learning.model import (
     fit_norm_stats,
     load_model_checkpoint,
 )
+from src.application.services.deep_learning.tf_sweep_score import checkpoint_settle_eligible
 from src.infrastructure.inference.triton_inference_client import triton_enabled
 
 
@@ -52,10 +53,14 @@ def _effective_deploy_ok(
     label_call_frac: float | None = None,
     pred_call_frac: float | None = None,
     minority_recall: float | None = None,
+    checkpoint_payload: dict | None = None,
+    settings: dict | None = None,
 ) -> bool:
-    """Aplica force_ok / soft fallback SSOT sobre a flag persistida."""
+    """Aplica force_ok / settle / soft fallback SSOT sobre a flag persistida."""
     gate_cfg = parse_deploy_gate_config(dl_config)
     if bool(gate_cfg.get("force_ok", False)):
+        return True
+    if checkpoint_settle_eligible(checkpoint_payload, settings):
         return True
     return resolve_deploy_ok(
         mini_ok=bool(stored_ok),
@@ -168,6 +173,7 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
                     collapse_meta = payload
             except Exception:
                 collapse_meta = {}
+            settings = orch.config if isinstance(getattr(orch, "config", None), dict) else None
             deploy_ok = _effective_deploy_ok(
                 stored_ok=stored_ok,
                 val_accuracy=float(val_accuracy),
@@ -176,12 +182,16 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
                 label_call_frac=collapse_meta.get("label_call_frac"),
                 pred_call_frac=collapse_meta.get("pred_call_frac"),
                 minority_recall=collapse_meta.get("minority_recall"),
+                checkpoint_payload=collapse_meta if isinstance(collapse_meta, dict) else None,
+                settings=settings,
             )
             if deploy_ok and not stored_ok and path.exists():
                 _persist_deploy_ok_flag(path, deploy_ok=True)
+                via = "settle" if checkpoint_settle_eligible(collapse_meta, settings) else "soft fallback"
                 logger.info(
-                    "DL: %s deploy_ok promovido por soft fallback (acc=%.4f brier=%.4f)",
+                    "DL: %s deploy_ok promovido por %s (acc=%.4f brier=%.4f)",
                     symbol,
+                    via,
                     float(val_accuracy),
                     float(val_brier),
                 )

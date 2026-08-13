@@ -153,7 +153,7 @@ def apply_negative_cal_edge_pause(
     payout: float | None = None,
     soft_mult: float | None = None,
 ) -> bool:
-    """Soft Kelly continuo se Edge Cal < floor; hard-skip so com neg_edge_hard_skip=true."""
+    """Soft Kelly se 0 < edge < floor; hard se edge <= 0 ou hard_skip/deep seed."""
     if force:
         return False
     if metrics.get("execution_candidate_ready") is False:
@@ -172,6 +172,15 @@ def apply_negative_cal_edge_pause(
     if edge + 1e-12 >= floor:
         return False
     cfg = _neg_edge_cfg(orch)
+    auto_learn = bool(metrics.get("loss_clf_auto_learn"))
+    deep_floor = float(cfg.get("neg_edge_deep_edge_floor", -0.12))
+    if edge + 1e-12 <= 0.0:
+        _apply_neg_edge_hard(metrics, direction=direction, edge=edge, floor=floor)
+        if (not auto_learn) and edge + 1e-12 < deep_floor:
+            metrics["neg_edge_bootstrap_deep"] = True
+        else:
+            metrics["neg_edge_nonpositive_hard"] = True
+        return True
     candle_agree = False
     if bool(cfg.get("neg_edge_soft_when_closed_candle_agree", True)):
         candle_agree = closed_micro_candle_side(metrics) == direction
@@ -181,12 +190,6 @@ def apply_negative_cal_edge_pause(
     soft_min = float(cfg.get("neg_edge_soft_min_edge", -1.0))
     soft_too_deep = edge + 1e-12 < soft_min
     allow_soft = (candle_agree or p_ovr_flip) and not soft_too_deep
-    auto_learn = bool(metrics.get("loss_clf_auto_learn"))
-    deep_floor = float(cfg.get("neg_edge_deep_edge_floor", -0.12))
-    if (not auto_learn) and edge + 1e-12 < deep_floor:
-        _apply_neg_edge_hard(metrics, direction=direction, edge=edge, floor=floor)
-        metrics["neg_edge_bootstrap_deep"] = True
-        return True
     if bool(cfg["neg_edge_hard_skip"]) and not allow_soft:
         _apply_neg_edge_hard(metrics, direction=direction, edge=edge, floor=floor)
         return True

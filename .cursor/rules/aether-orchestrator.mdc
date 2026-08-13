@@ -1,12 +1,12 @@
 ---
-description: Orquestrador Aether — ciclo M2, locks, warmup, pos-settlement
+description: Orquestrador Aether — ciclo M3, locks, warmup, pos-settlement
 globs: app/src/application/services/orchestrator/**/*.py
 alwaysApply: false
 ---
 
 # Orchestrator
 
-- Relogio: signature/ciclo **120 s**; micro/MINI **120** / macro **3600**; contrato Deriv **2 m** (`R_10`)
+- Relogio: signature/ciclo **180 s**; micro/MINI **180** / macro **7200**; contrato Deriv **3 m** (`R_10` M3)
 - Pipeline: warmup → train gate → collect → resolve → execute → settle → post_settlement
 - Lock serializa inferencia, liquidacao e persistencia — nao bypassar
 - `mandatory_trade_each_cycle` **false**; `force_trade_every_cycle` **false**; `invert_exec_side` **false**; `online_training` **false**

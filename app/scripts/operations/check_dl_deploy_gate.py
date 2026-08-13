@@ -1,4 +1,4 @@
-"""Valida checkpoint DL apos treino: deploy_ok, ACC e geometria lookback/granularity."""
+"""Valida checkpoint DL apos treino: deploy_ok, ACC/settle e geometria."""
 
 from __future__ import annotations
 
@@ -16,6 +16,8 @@ if str(_APP) not in sys.path:
 
 from aether_paths import REPO_ROOT
 from src.application.services.deep_learning.dl_gate_config import parse_deploy_gate_config, resolve_deploy_ok
+from src.application.services.deep_learning.tf_sweep_config import load_tf_sweep_knobs
+from src.application.services.deep_learning.tf_sweep_score import checkpoint_settle_eligible, implied_breakeven
 from src.presentation.terminal.logger import setup_logger
 
 
@@ -63,6 +65,18 @@ def _checkpoint_paths(settings: dict, symbols: list[str]) -> list[Path]:
     return out
 
 
+def _settle_gate_ok(payload: dict, settings: dict | None) -> tuple[bool, str]:
+    """Aceita ckpt do sweep quando settle_wr passa o mesmo criterio de elegibilidade."""
+    if not checkpoint_settle_eligible(payload, settings):
+        return False, ""
+    settle = float(payload.get("deploy_settlement_win_rate") or 0.0)
+    settle_n = int(payload.get("deploy_settlement_n") or 0)
+    be = implied_breakeven(0.72)
+    if isinstance(settings, dict):
+        be = implied_breakeven(float(load_tf_sweep_knobs(settings)["payout_for_breakeven"]))
+    return True, (f"settle_ok settle_wr={settle:.4f} n={settle_n} edge_vs_be={settle - be:.4f}")
+
+
 def evaluate_checkpoint(path: Path, *, soft_min: float, settings: dict | None = None) -> tuple[bool, str]:
     if not path.is_file():
         return False, f"checkpoint ausente: {path}"
@@ -79,6 +93,12 @@ def evaluate_checkpoint(path: Path, *, soft_min: float, settings: dict | None = 
             return False, (
                 f"{path.name}: granularity={got_gran} != settings={exp_gran} (treino incompleto / ckpt antigo)"
             )
+    settle_ok, settle_msg = _settle_gate_ok(payload, settings)
+    if settle_ok:
+        if not bool(payload.get("deploy_ok", False)):
+            payload["deploy_ok"] = True
+            torch.save(payload, path)
+        return True, f"{path.name}: deploy_ok=true ({settle_msg})"
     val_acc = float(payload.get("val_accuracy", payload.get("val_acc", 0.0)) or 0.0)
     val_brier = float(payload.get("val_brier", 1.0) or 1.0)
     stored_ok = bool(payload.get("deploy_ok", False))
@@ -136,7 +156,7 @@ def main() -> int:
         ok_all = ok_all and ok
     if not ok_all:
         logger.error(
-            "DL gate falhou: ACC/Brier/deploy/geometria — meta abortado. "
+            "DL gate falhou: ACC/Brier/settle/geometria — meta abortado. "
             "Retreine ate exportar checkpoint compativel (lookback/granularity)."
         )
         return 1

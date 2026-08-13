@@ -131,5 +131,5 @@ def test_predict_symbol_decision_executes_on_confidence():
             None,
         )
     assert entry["metrics"]["execute"] is True
-    assert entry["metrics"]["trade_score"] == 0.80
+    assert entry["metrics"]["trade_score"] == 0.51
     assert entry["metrics"]["raw_prob"] == 0.80

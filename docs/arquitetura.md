@@ -9,14 +9,14 @@ Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (TCN,
 | Aspecto | Valor atual (`config/settings.json`) |
 |---------|--------------------------------------|
 | Símbolos | `R_10` (âncora `R_10`) |
-| Granularidade OHLC (DL) | **3600 s** (`data_handler.granularity`; assinatura legado `m15`) |
-| Relógio operacional | **120 s** (`data_handler.micro_granularity`; M2) |
-| Histórico para treino | `training_history_bars` / `history_bars` conforme settings (micro **120 s** / macro **3600 s**) |
-| Lookback | **`deep_learning.lookback`** (settings atuais **720**) → tensor **`[1, lookback, 34]`** |
+| Granularidade OHLC (DL) | **7200 s** (`data_handler.granularity`; assinatura legado `m15`) |
+| Relógio operacional | **180 s** (`data_handler.micro_granularity`; M3) |
+| Histórico para treino | `training_history_bars` / `history_bars` conforme settings (micro **180 s** / macro **7200 s**) |
+| Lookback | **`deep_learning.lookback`** (settings atuais **480**) → tensor **`[1, lookback, 34]`** |
 | Features TCN | **34** (`FEATURE_DIM` em `dl_feature_build.py`) |
 | Features meta GBDT | **43** (`META_FEATURE_DIM` = 34 + 4 micro-vol + 3 cross + 2 flow) |
-| Contrato | `RISE_FALL`, duração **2 m** (M2; alinhado ao micro **120 s**) |
-| Ciclo | **120 s** (`cycle_interval_seconds` / `signature_boundary_seconds`; sync M2) |
+| Contrato | `RISE_FALL`, duração **3 m** (M3; alinhado ao micro **180 s**) |
+| Ciclo | **180 s** (`cycle_interval_seconds` / `signature_boundary_seconds`; sync M3) |
 | Execução | `mandatory_trade_each_cycle: false`; `force` off; `invert_exec_side: false`; fusao EV + signal_skip 1.1 (quality gate amplo **fora**) |
 | Fail-closed | Meta e Triton **opcionais** nos settings atuais (`require_meta_for_execution: false`; `infra.triton.enabled/require_for_execution: false`) |
 | Label | `label_mode: spot_forward` (`ma_trend` / Triple Barrier via config) |
@@ -24,7 +24,7 @@ Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (TCN,
 
 O mercado é tratado como série temporal ruidosa: a TCN estima `P(CALL)` (thresholds **0.51/0.49**); o meta-regressor LightGBM estima `predicted_payoff_edge`; o ranking usa `tcn × max(0.1, 1+z)`. Com `price_zone`, BUY alinha CALL e SELL alinha PUT; edge meta positivo pode **manter** o lado TCN/meta contra a zona (`align_or_keep_meta_side`).
 
-**Invariante temporal:** inferências seguem `signature_boundary_seconds` (fallback `cycle_interval_seconds`, padrão **120 s**) via `get_data_state_signature()` — formato legado `m5`/`m15` alinhado a **120 s** (micro M2) / **3600 s** (macro).
+**Invariante temporal:** inferências seguem `signature_boundary_seconds` (fallback `cycle_interval_seconds`, padrão **180 s**) via `get_data_state_signature()` — formato legado `m5`/`m15` alinhado a **180 s** (micro M3) / **7200 s** (macro); ratio macro:micro **1:40**.
 
 **Válvula de starvation:** após **6** ciclos consecutivos bloqueados pelo quality gate, pisos de margem/edge/Z são atenuados (`execution_quality_gate_starvation.py`). O piso de edge meta relaxa a partir de **8** skips (`edge_decay_cycles`) até `edge_decay_floor: 0.0` (passo `0.08`). Em skips extremos (≥30), a válvula GBDT mitiga veto tabular prolongado.
 
@@ -132,9 +132,9 @@ flowchart TD
 
 | Componente | Função |
 |------------|--------|
-| `m5_boundary_epoch()` | Epoch alinhado ao bloco de **120 s** corrente (nome legado) |
-| Micro | `m5:{sym}@{epoch}` — relógio **120 s** (M2) |
-| Macro | `m15:{sym}@{epoch}` — relógio **3600 s** |
+| `m5_boundary_epoch()` | Epoch alinhado ao bloco de **180 s** corrente (nome legado) |
+| Micro | `m5:{sym}@{epoch}` — relógio **180 s** (M3) |
+| Macro | `m15:{sym}@{epoch}` — relógio **7200 s** |
 | Formato | `m5b:{boundary};m5:...;m15:...` |
 
 Cache inválido quando a assinatura muda; sem assinatura nova, o ciclo aguarda sem re-inferir.
@@ -171,7 +171,7 @@ Normalização anti-leakage: `fit_norm_stats` **somente** no split de treino (`d
 | Checkpoint | `data/dl/{symbol}.pth` + TorchScript / MinIO |
 | Deploy gate | `dl_deploy_eval` com **`force_local=True`** (avalia modelo em memória, sem Triton) |
 
-Config atual: `arch: tcn`, `lookback: 72`, `label_mode: spot_forward`, thresholds **0.51** / **0.49**, `neutral_half_width: 0.0`.
+Config atual: `arch: tcn`, `lookback: 480`, `label_mode: spot_forward`, thresholds **0.51** / **0.49**, `neutral_half_width: 0.0`.
 
 ### 4.3 Treino de sessão
 
@@ -235,7 +235,7 @@ Montagem: `dl_predict_telemetry.prepare_meta_classifier_cross_symbol_bundle` →
 
 ### 5.3 Stacking runtime
 
-1. Bundle cross-symbol + telemetria micro **120 s**
+1. Bundle cross-symbol + telemetria micro **180 s**
 2. Prefetch HTTP → `predicted_payoff_edge`
 3. `attach_payoff_edge_zscore_metrics` (janela adaptativa 15–45)
 4. `apply_meta_regression_edge`: edge > 0 mantém score TCN; edge < −0,15 + squeeze → `trade_score=0.52` (`[D-SQUEEZE]`)
@@ -315,7 +315,7 @@ Em modo mandatário, o quality guard emite telemetria `QUALITY_GUARD` / `EXECUTI
 ### 7.2 ExecutionManager
 
 - Stake via `RiskManager.calculate_stake` → `risk_stake_calc.calculate_stake_for_manager`
-- `TradeHandler.buy_with_parameters`: RISE_FALL **2 m**
+- `TradeHandler.buy_with_parameters`: RISE_FALL **3 m**
 - Reconciliação de stake downgrade Deriv (`executed_stake_reconciliation`)
 
 ### 7.3 Settlement
@@ -382,16 +382,16 @@ Watchdog: `AetherWatchdog` reconecta stream se ticks estagnarem (`watchdog_stale
 ## 10. Configuração (`config/settings.json`)
 
 ### `data_handler`
-`granularity` (**3600**), `micro_granularity` / `mini_granularity` (**120**), `history_bars` / `training_history_bars` conforme settings (treino tipico **2000** micro M2), `fetch_count`, `buffer_limit`, rate-limits de histórico.
+`granularity` (**7200**), `micro_granularity` / `mini_granularity` (**180**), `history_bars` / `training_history_bars` conforme settings (treino tipico **2000** micro M3), `fetch_count`, `buffer_limit`, rate-limits de histórico.
 
 ### `deep_learning`
-`arch`, `lookback` (**720**), `train_symbols`, `confidence_*` (**0.51/0.49**), `calibration.*` (`neutral_half_width: 0.0`), `online_training` (**false**), `deploy_gate.*`, `label_mode` + `label_*`, `tcn.channels`, `training_*`, `model_path_template`, `min_edge_execute`.
+`arch`, `lookback` (**480**), `train_symbols`, `confidence_*` (**0.51/0.49**), `calibration.*` (`neutral_half_width: 0.0`), `online_training` (**false**), `deploy_gate.*`, `label_mode` + `label_*`, `tcn.channels`, `training_*`, `model_path_template`, `min_edge_execute`.
 
 ### `orchestrator` / `orchestrator.execution`
-`cycle_interval_seconds` (**120**), `signature_boundary_seconds` (**120**), `watchdog_stale_tick_seconds` (**300**), `mandatory_trade_each_cycle` (**false**), `invert_exec_side` (**false**), `require_meta_for_execution` (**false**), `scale_vision.fusion_*` + `signal_skip` 1.1, `settlement_*` (**90 s** SSOT), `post_settlement_is_trading_wait_seconds` (**90**), `warm_up_live_data_timeout_seconds`, `broker_handshake_timeout_seconds`, `state_lock_acquire_timeout_seconds`.
+`cycle_interval_seconds` (**180**), `signature_boundary_seconds` (**180**), `exec_empty_retry_seconds` (**180**), `watchdog_stale_tick_seconds` (**300**), `mandatory_trade_each_cycle` (**false**), `invert_exec_side` (**false**), `require_meta_for_execution` (**false**), `scale_vision.fusion_*` + `signal_skip` 1.1, `settlement_*` (**90 s** SSOT), `post_settlement_is_trading_wait_seconds` (**90**), `warm_up_live_data_timeout_seconds`, `broker_handshake_timeout_seconds`, `state_lock_acquire_timeout_seconds`.
 
 ### `risk_management`
-`kelly.*` (`fraction: 0.08`, explore piso **0.25%**, tetos stop-win Kelly ate **5%**), `soft_recovery.*` (amort **2–4**, cover **1.50**, linear3 **2.5%**), `min_validation_accuracy_gate` (**0.53**), `params.*` (duration **2** m, compounding **0.03**, stake_min, payout_estimate **0.72**), `small_account_*`.
+`kelly.*` (`fraction: 0.08`, explore piso **0.25%**, tetos stop-win Kelly ate **5%**), `soft_recovery.*` (amort **1/1**, cover **1.50**, linear3 **2.5%**), `min_validation_accuracy_gate` (**0.53**), `params.*` (duration **3** m, compounding **0.03**, stake_min, payout_estimate **0.72**), `large_account_stop_win_pct` (**3.0**), `small_account_*`.
 
 ### `infra`
 Redis/Timescale/MinIO/Triton/meta_classifier URLs e timeouts (`infer_timeout_seconds: 0.50`).

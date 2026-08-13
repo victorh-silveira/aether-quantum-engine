@@ -21,7 +21,7 @@ def test_parse_deploy_gate_config_defaults():
     assert cfg["enabled"] is True
     assert cfg["force_ok"] is False
     assert cfg["max_brier"] == 0.26
-    assert cfg["max_eval_steps"] == 24
+    assert cfg["max_eval_steps"] == 48
     assert float(cfg["soft_min_val_accuracy"]) >= 0.53
 
 

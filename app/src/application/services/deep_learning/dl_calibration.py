@@ -173,6 +173,26 @@ def cap_calibrated_to_raw_band(raw_prob: float, score: float, max_gap: float) ->
     return min(float(score), ceiling)
 
 
+def clamp_calibrated_call_to_raw_band(
+    raw_prob: float,
+    calibrated_prob: float,
+    max_gap: float,
+) -> tuple[float, bool, float]:
+    """Clipa p_call calibrado em [raw±gap]; espelha PUT via 1-p_call.
+
+    Retorna (p_call_capped, was_capped, abs_gap_before).
+    """
+    raw = float(raw_prob)
+    cal = float(calibrated_prob)
+    gap_abs = abs(cal - raw)
+    if float(max_gap) <= 0.0:
+        return cal, False, gap_abs
+    lo = max(0.0, raw - float(max_gap))
+    hi = min(1.0, raw + float(max_gap))
+    capped = min(hi, max(lo, cal))
+    return capped, abs(capped - cal) > 1e-12, gap_abs
+
+
 def calibrate_trade_score(
     raw_prob: float,
     val_accuracy: float,

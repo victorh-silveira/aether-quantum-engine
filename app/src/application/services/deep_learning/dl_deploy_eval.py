@@ -97,10 +97,12 @@ def evaluate_mini_deploy(
     """Simula ultimas barras com gating atual e retorna deploy_ok, win_rate, brier."""
     cfg = gate_cfg or parse_deploy_gate_config(params if "deploy_gate" in params else {})
     if not cfg.get("enabled", True):
+        runtime["deploy_settlement_n"] = 0
         return True, float(runtime.get("val_accuracy", 0.5)), float(runtime.get("val_brier", 1.0))
     lookback = int(runtime.get("lookback", params["lookback"]))
     mini = max(lookback + 5, int(cfg["mini_bars"]))
     if len(prices) < mini + 2:
+        runtime["deploy_settlement_n"] = 0
         return False, 0.0, float(runtime.get("val_brier", 1.0))
     start = len(prices) - mini
     wins = 0
@@ -150,6 +152,7 @@ def evaluate_mini_deploy(
         runtime["deploy_settlement_win_rate"] = 0.0
         runtime["deploy_settlement_brier"] = float(runtime.get("val_brier", 1.0))
         runtime["deploy_label_win_rate"] = 0.0
+        runtime["deploy_settlement_n"] = int(total)
         return False, 0.0, float(runtime.get("val_brier", 1.0))
     win_rate = wins / float(total)
     val_brier = brier_acc / float(total)
@@ -159,6 +162,7 @@ def evaluate_mini_deploy(
     runtime["deploy_settlement_win_rate"] = float(settlement_wr)
     runtime["deploy_settlement_brier"] = float(settlement_brier)
     runtime["deploy_settlement_horizon_bars"] = int(settlement_horizon)
+    runtime["deploy_settlement_n"] = int(total)
     min_wr = float(cfg["min_win_rate"])
     max_brier = float(cfg["max_brier"])
     deploy_ok = settlement_brier + 1e-9 < max_brier and settlement_wr + 1e-9 >= min_wr

@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "defaults": {
+    "anchor_micro_granularity": 120,
+    "label_horizon_bars": 1,
+    "duration_unit": "m",
+    "train_timeframe": "micro",
+    "scale_wallclock": true
+  },
+  "candidates": [
+    {
+      "tf": "M1",
+      "enabled": true,
+      "micro_granularity": 60,
+      "macro_granularity": 1800,
+      "duration": 1
+    },
+    {
+      "tf": "M2",
+      "enabled": true,
+      "micro_granularity": 120,
+      "macro_granularity": 3600,
+      "duration": 2
+    },
+    {
+      "tf": "M3",
+      "enabled": true,
+      "micro_granularity": 180,
+      "macro_granularity": 7200,
+      "duration": 3
+    },
+    {
+      "tf": "M5",
+      "enabled": true,
+      "micro_granularity": 300,
+      "macro_granularity": 14400,
+      "duration": 5
+    },
+    {
+      "tf": "M10",
+      "enabled": true,
+      "micro_granularity": 600,
+      "macro_granularity": 28800,
+      "duration": 10
+    },
+    {
+      "tf": "M15",
+      "enabled": true,
+      "micro_granularity": 900,
+      "macro_granularity": 28800,
+      "duration": 15
+    },
+    {
+      "tf": "M30",
+      "enabled": true,
+      "micro_granularity": 1800,
+      "macro_granularity": 86400,
+      "duration": 30
+    }
+  ]
+}

@@ -197,6 +197,7 @@ def apply_direction_fusion(
     block_cfg = {
         "flip_block_when_tcn_pos_edge": bool(vision.get("fusion_block_when_tcn_pos_edge", True)),
         "flip_min_edge_execute": float(vision.get("fusion_min_edge_execute", 0.04)),
+        "flip_tcn_pos_edge_raw_floor": float(vision.get("fusion_min_edge_execute", 0.04)),
     }
     if tcn_pos_edge_blocks_flip(metrics, tcn_dir, cfg=block_cfg):
         metrics["fusion_reason"] = "tcn_pos_edge"

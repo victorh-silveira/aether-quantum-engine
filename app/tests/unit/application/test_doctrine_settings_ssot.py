@@ -119,8 +119,8 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert resolved["flip_seed_block_against_closed_candle"] is True
     assert resolved["flip_seed_waive_edge_min"] == pytest.approx(-0.08)
     soft_rec = settings["risk_management"]["soft_recovery"]
-    assert int(soft_rec["amort_cycles_min"]) == 2
-    assert int(soft_rec["amort_cycles_max"]) == 4
+    assert int(soft_rec["amort_cycles_min"]) == 1
+    assert int(soft_rec["amort_cycles_max"]) == 1
     assert float(soft_rec["cover_multiple"]) == pytest.approx(1.5)
     assert float(soft_rec["max_safe_stake_pct_linear2"]) == pytest.approx(0.04)
     assert float(soft_rec["max_safe_stake_pct_linear3"]) == pytest.approx(0.025)
@@ -193,9 +193,9 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert float(fusion["fusion_loss_weight"]) == pytest.approx(0.45)
     assert float(fusion["fusion_tcn_shrink_near_half"]) == pytest.approx(0.25)
     data = settings["data_handler"]
-    assert int(data["micro_granularity"]) == 120
-    assert int(data["mini_granularity"]) == 120
-    assert int(data["granularity"]) == 3600
+    assert int(data["micro_granularity"]) == 180
+    assert int(data["mini_granularity"]) == 180
+    assert int(data["granularity"]) == 7200
     dl = settings["deep_learning"]
     assert bool(dl["online_training"]) is False
     assert int(dl["rolling_retrain_bars"]) == 48
@@ -205,19 +205,19 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert int(meta["retrain_min_n"]) == 2
     assert int(meta["max_buffer"]) == 2000
     assert float(meta["timeout_seconds"]) == pytest.approx(8.0)
-    assert int(data["fetch_count"]) == 2000
-    assert int(data["micro_fetch_count"]) == 2000
+    assert int(data["fetch_count"]) == 1333
+    assert int(data["micro_fetch_count"]) == 1333
     assert int(data["mini_fetch_count"]) == 256
     orch = settings["orchestrator"]
-    assert int(orch["cycle_interval_seconds"]) == 120
-    assert int(orch["signature_boundary_seconds"]) == 120
-    assert int(orch["exec_empty_retry_seconds"]) == 120
+    assert int(orch["cycle_interval_seconds"]) == 180
+    assert int(orch["signature_boundary_seconds"]) == 180
+    assert int(orch["exec_empty_retry_seconds"]) == 180
     assert int(orch["settlement_tolerance_window_seconds"]) == 90
     assert int(orch["watchdog_stale_tick_seconds"]) == 300
     assert int(orch["post_settlement_is_trading_wait_seconds"]) == 90
-    assert int(settings["risk_management"]["kelly"]["cycle_stake_baseline_seconds"]) == 120
+    assert int(settings["risk_management"]["kelly"]["cycle_stake_baseline_seconds"]) == 180
     params = settings["risk_management"]["params"]
-    assert int(params["duration"]) == 2
+    assert int(params["duration"]) == 3
     assert str(params["duration_unit"]).lower() == "m"
     assert float(params["payout_estimate"]) == pytest.approx(0.72)
     kelly = settings["risk_management"]["kelly"]
@@ -251,6 +251,20 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert int(side_eq["large_window"]) == 64
     assert settings["gating"]["price_zone_gate_enabled"] is False
     dl = settings["deep_learning"]
-    assert int(dl["training_history_bars"]) == 2000
+    assert int(dl["training_history_bars"]) == 1333
     assert float(dl["train_history_shortfall_ratio"]) == pytest.approx(0.95)
     assert int(dl["bootstrap_max_wait_rounds"]) == 16
+    cal = dl["calibration"]
+    assert float(cal["temperature_min"]) == pytest.approx(1.0)
+    assert float(cal["max_calibrated_raw_gap"]) == pytest.approx(0.08)
+    tf_sweep = dl["tf_sweep"]
+    assert bool(tf_sweep["enabled"]) is True
+    assert bool(tf_sweep["run_in_launch_train"]) is True
+    assert bool(tf_sweep["auto_promote"]) is True
+    assert int(tf_sweep["train_deploy_retries"]) == 1
+    assert bool(tf_sweep["disable_infra_during_sweep"]) is True
+    assert int(tf_sweep["min_settle_n"]) == 16
+    assert int(tf_sweep["min_history_bars"]) == 800
+    assert "launch_only" not in tf_sweep
+    assert float(tf_sweep["min_edge_vs_breakeven"]) == pytest.approx(0.03)
+    assert str(tf_sweep["candidates_path"]).endswith("tf_sweep_candidates.json")

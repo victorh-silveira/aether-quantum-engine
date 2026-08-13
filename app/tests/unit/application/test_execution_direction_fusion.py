@@ -209,6 +209,26 @@ def test_fusion_keeps_tcn_when_pos_edge_blocks():
     assert metrics["fusion_reason"] == "tcn_pos_edge"
 
 
+def test_fusion_skips_tcn_pos_edge_when_raw_below_floor():
+    metrics = {
+        "calibrated_prob": 0.251,
+        "raw_prob": 0.415,
+        "tcn_direction": "PUT",
+        "scale_macro_dir": "CALL",
+        "scale_tape_consensus": "CALL",
+        "closed_micro_candle_dir": "CALL",
+        "loss_clf_p_loss": 0.90,
+        "loss_clf_flip_ref": "PUT",
+        "loss_clf_auto_learn": True,
+        "exec_direction": "PUT",
+    }
+    cfg = parse_direction_fusion_config({"fusion_block_when_tcn_pos_edge": True, "fusion_min_edge_execute": 0.04})
+    chosen = apply_direction_fusion(metrics, TradeDirection.PUT, cfg=cfg)
+    assert metrics.get("fusion_blocked_tcn_pos_edge") is not True
+    assert metrics["fusion_reason"] != "tcn_pos_edge"
+    assert chosen in {TradeDirection.CALL, TradeDirection.PUT}
+
+
 def test_fusion_allows_ev_when_cal_pos_raw_neg():
     metrics = {
         "calibrated_prob": 0.24,

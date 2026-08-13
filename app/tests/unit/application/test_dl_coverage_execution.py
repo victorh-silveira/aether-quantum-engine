@@ -82,8 +82,10 @@ def test_load_checkpoint_invalid_torchscript(tmp_path):
         label_call_frac=0.44,
         pred_call_frac=0.66,
         minority_recall=0.38,
+        training_history_bars=1333,
     )
     payload = torch.load(path, map_location="cpu", weights_only=True)
+    assert payload["training_history_bars"] == 1333
     assert payload["label_call_frac"] == pytest.approx(0.44)
     assert payload["pred_call_frac"] == pytest.approx(0.66)
     assert payload["minority_recall"] == pytest.approx(0.38)

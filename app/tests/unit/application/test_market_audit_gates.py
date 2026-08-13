@@ -155,3 +155,16 @@ def test_format_gates_audit_line():
         }
     )
     assert "FLIP_BLOCK:seed_candle" in seed_cndl
+    boot_deep = format_gates_audit_line(
+        {
+            "gate_reason": "neg_edge",
+            "signal_status": "SKIP:NEG_EDGE",
+            "neg_edge_bootstrap_deep": True,
+            "cal_side_edge": -0.20,
+            "cal_side_edge_floor": 0.04,
+            "calibrated_prob": 0.40,
+            "raw_prob": 0.40,
+            "exec_direction": "PUT",
+        }
+    )
+    assert "NEG_EDGE boot_deep side=PUT" in boot_deep

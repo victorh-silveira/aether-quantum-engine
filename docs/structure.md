@@ -13,7 +13,7 @@ aether-quantum-engine/
 │   ├── requirements.txt
 │   ├── requirements-dev.txt
 │   ├── scripts/
-│   │   ├── batch/                      # launch-all-demo, launch-all-live, launch-train, _run_*
+│   │   ├── batch/                      # launch-all-demo, launch-train, _run_*
 │   │   ├── monitor/                    # live_monitor, monitor_redis, monitor_state, monitor_ui
 │   │   ├── operations/                 # clean_workspace, deriv_pat_connect, train_meta_*
 │   │   └── wsl/setup.sh
@@ -124,7 +124,7 @@ presentation  →  application  →  domain
 | `execution_symbols.py` | Símbolos elegíveis e ranking |
 | `execution_symbols_recovery.py` | Pool e ranking em recovery |
 | `execution_volatility_bb.py` | Bollinger width com vol implícita |
-| `execution_volatility_booster.py` | Modificador por estouro macro/micro (3600 s / 120 s) |
+| `execution_volatility_booster.py` | Modificador por estouro macro/micro (7200 s / 180 s) |
 | `execution_volatility_threshold.py` | Thresholds dinâmicos por regime |
 | `force_trade_mode.py` | Modo force-trade / mandatory |
 | `infra_timing_config.py` | Timeouts/reconnect/history/stream/meta/triton SSOT |
@@ -177,7 +177,7 @@ presentation  →  application  →  domain
 | `graceful_shutdown.py` | Encerramento gracioso |
 | `metrics_utils.py` | Métricas neutras do orquestrador |
 | `orchestrator_atomic_state.py` | Contexto atômico de leitura/escrita |
-| `orchestrator_data_signature.py` | `resolve_signature_boundary_seconds`, `seconds_until_next_signature_boundary`, assinatura micro+macro (prefixos legados `m5`/`m15` para 900/3600 s) |
+| `orchestrator_data_signature.py` | `resolve_signature_boundary_seconds`, `seconds_until_next_signature_boundary`, assinatura micro+macro (prefixos legados `m5`/`m15` para 180/7200 s) |
 | `orchestrator_persistence.py` | Snapshot atômico sessão/risco/mercado |
 | `orchestrator_run_loop.py` | Loop principal; recovery transparente pós-deadlock |
 | `orchestrator_settlement_queue.py` | Worker assíncrono: consome Redis priority + fila in-memory local |
@@ -358,7 +358,7 @@ presentation  →  application  →  domain
 |--------|------------------|
 | `stream_handler.py` | Fluxo em tempo real e histórico local |
 | `tick_buffer.py` | Buffer de ticks e microestrutura |
-| `stream_timeframe.py` | Granularidades macro/micro duplas (3600 s / 120 s; assinatura legado m15/m5) |
+| `stream_timeframe.py` | Granularidades macro/micro duplas (7200 s / 180 s; assinatura legado m15/m5) |
 | `stream_candle_apply.py` | Aplicação incremental de velas |
 | `stream_tick_sidecar.py` | Ingestão de ticks e persistência de barras |
 | `stream_ohlc_fetch.py` | Busca OHLC sem alterar buffer |
@@ -435,7 +435,6 @@ presentation  →  application  →  domain
 | Caminho | Função |
 |---------|--------|
 | `batch/launch-all-demo.bat` | Launcher demo Windows |
-| `batch/launch-all-live.bat` | Launcher live Windows |
 | `batch/launch-train.bat` | Launcher treino Windows (sanitiza run antes) |
 | `monitor/live_monitor.py` | Monitor Rich ao vivo |
 | `monitor/monitor_redis.py` | Inspeção Redis |

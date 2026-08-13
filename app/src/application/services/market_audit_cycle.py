@@ -88,7 +88,12 @@ def format_gates_audit_line(metrics: dict[str, Any]) -> str:
     be = resolve_edge_breakeven_p()
     gap = f" raw_edge={raw_edge:+.4f} be={be:.3f}"
     if gate == "neg_edge" or status == "SKIP:NEG_EDGE":
-        tag = "boot_deep" if bool(metrics.get("neg_edge_bootstrap_deep")) else "hard"
+        if bool(metrics.get("neg_edge_bootstrap_deep")):
+            tag = "boot_deep"
+        elif bool(metrics.get("neg_edge_nonpositive_hard")):
+            tag = "nonpos"
+        else:
+            tag = "hard"
         neg_tok = f"NEG_EDGE {tag} side={neg_side} edge={edge:+.4f}{gap} floor={floor:.4f}"
         skip = "neg_edge"
     elif waived == "neg_edge_soft" or floor > 1e-12:

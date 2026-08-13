@@ -61,8 +61,8 @@ def test_resolve_soft_recovery_config_defaults_match_settings() -> None:
     assert soft["max_safe_stake_pct"] == pytest.approx(0.05)
     assert soft["max_safe_stake_pct_linear2"] == pytest.approx(0.04)
     assert soft["max_safe_stake_pct_linear3"] == pytest.approx(0.025)
-    assert soft["amort_cycles_min"] == 2
-    assert soft["amort_cycles_max"] == 4
+    assert soft["amort_cycles_min"] == 1
+    assert soft["amort_cycles_max"] == 1
     assert soft["cover_multiple"] == pytest.approx(1.5)
     assert soft["linear_bankroll_pct"] == pytest.approx(0.0025)
     assert soft["micro_residual_pending_max"] == pytest.approx(3.0)

@@ -5,8 +5,8 @@ from src.application.services.deep_learning.dl_feature_build import _feature_win
 
 def test_feature_windows_for_60s_granularity():
     windows = _feature_windows(60)
-    assert windows["rsi_period"] == 14
-    assert windows["bb_window"] == 20
+    assert windows["rsi_period"] == 9
+    assert windows["bb_window"] == 13
 
 
 def test_precompute_price_series_includes_hurst_and_micro():

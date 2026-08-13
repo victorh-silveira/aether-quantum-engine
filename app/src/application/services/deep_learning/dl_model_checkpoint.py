@@ -90,7 +90,12 @@ def save_model_checkpoint(
     val_ece: float | None = None,
     deploy_ok: bool | None = None,
     deploy_win_rate: float | None = None,
+    deploy_settlement_win_rate: float | None = None,
+    deploy_settlement_brier: float | None = None,
+    deploy_settlement_n: int | None = None,
+    oos_sharpness: float | None = None,
     granularity: int | None = None,
+    training_history_bars: int | None = None,
     label_call_frac: float | None = None,
     pred_call_frac: float | None = None,
     minority_recall: float | None = None,
@@ -120,8 +125,18 @@ def save_model_checkpoint(
         payload["deploy_ok"] = bool(deploy_ok)
     if deploy_win_rate is not None:
         payload["deploy_win_rate"] = float(deploy_win_rate)
+    if deploy_settlement_win_rate is not None:
+        payload["deploy_settlement_win_rate"] = float(deploy_settlement_win_rate)
+    if deploy_settlement_brier is not None:
+        payload["deploy_settlement_brier"] = float(deploy_settlement_brier)
+    if deploy_settlement_n is not None:
+        payload["deploy_settlement_n"] = int(deploy_settlement_n)
+    if oos_sharpness is not None:
+        payload["oos_sharpness"] = float(oos_sharpness)
     if granularity is not None:
         payload["granularity"] = int(granularity)
+    if training_history_bars is not None:
+        payload["training_history_bars"] = int(training_history_bars)
     if label_call_frac is not None:
         payload["label_call_frac"] = float(label_call_frac)
     if pred_call_frac is not None:

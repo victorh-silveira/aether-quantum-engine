@@ -7,7 +7,7 @@ Stack local **hibrida**: motor no host (Conda/WSL), persistencia e inferencia em
 | Servico | Porta (localhost) | Profile | Limite tipico | Uso |
 |---------|-------------------|---------|---------------|-----|
 | Redis | `127.0.0.1:6379` | `core` | 256m | Estado, risco, `settlement:queue:priority` |
-| TimescaleDB | `127.0.0.1:5432` | `core` | 1g | Ticks + OHLC macro **3600 s** / micro **120 s** (M2) |
+| TimescaleDB | `127.0.0.1:5432` | `core` | 1g | Ticks + OHLC macro **7200 s** / micro **180 s** (M3) |
 | MinIO | `127.0.0.1:9000` / `9001` | `core`, `gpu`, `cpu` | 512m | Checkpoints / TorchScript |
 | Triton (`aether-triton`) | `127.0.0.1:8000` / `8001` | `gpu` ou `cpu` | — | Inferencia TorchScript HTTP+gRPC |
 | Meta (`aether-meta-classifier`) | `127.0.0.1:8005` | `ml` | 512m | LGBMRegressor **43D**; `/v2/predict_meta` + `/v1/learn` online a cada settle (`META_RETRAIN_MIN_N` **2**); buffer `meta_learn_buffer.pkl` |
@@ -36,7 +36,7 @@ Logs de um servico: `make docker-logs DOCKER_SERVICE=<alias>`. Aliases Make → 
 
 **Exclusao mutua:** nao misturar `docker-up` (GPU) e `docker-up-cpu` na mesma porta 8000/8001. Overlay: [`docker-compose.gpu.yml`](../infra/docker/docker-compose.gpu.yml).
 
-Pipeline `docker-up`: `host-prereq` → `triton-prereq` → compose up → wait healthy → timescale-lifecycle → hydrate (R_10 120/3600) → smoke.
+Pipeline `docker-up`: `host-prereq` → `triton-prereq` → compose up → wait healthy → timescale-lifecycle → hydrate (R_10 180/7200) → smoke.
 
 Fluxo diario: `make docker-up` → `launch-train.bat` (sanitiza + treina TCN/meta) → `make docker-rebuild` (reconstroi imagens meta/loss e recarrega pkls **sem** apagar `data/dl`). Rebuild **nao** chama `sanitize_fresh_run`. Reset destrutivo: `make docker-reset` (sanitiza TCN/loss/estado, mantem `meta_lgbm.pkl`, `down --volumes`). Sanitizacao total (inclui `meta_lgbm.pkl` e `data/dl/*.pth`): `make sanitize-run` ou etapa 0 de `launch-train.bat`. Smoke: processo meta pode subir sem `.pkl` (aviso); modelo so apos `launch-train`.
 

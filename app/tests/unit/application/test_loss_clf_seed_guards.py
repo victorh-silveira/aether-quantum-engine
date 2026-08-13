@@ -174,11 +174,11 @@ def test_neg_edge_uses_fusion_p_eff_avoids_boot_deep_empty():
     assert float(metrics["cal_side_edge"]) > 0.04
 
 
-def test_neg_edge_auto_learn_stays_soft_on_deep_edge():
+def test_neg_edge_auto_learn_stays_soft_on_subfloor_edge():
     metrics = {
         "execution_candidate_ready": True,
-        "exec_direction": "PUT",
-        "calibrated_prob": 0.56,
+        "exec_direction": "CALL",
+        "calibrated_prob": 0.59,
         "kelly_fraction_scale": 1.0,
         "loss_clf_auto_learn": True,
     }
@@ -190,4 +190,5 @@ def test_neg_edge_auto_learn_stays_soft_on_deep_edge():
     assert apply_negative_cal_edge_pause(metrics, orch=orch) is True
     assert metrics.get("gate_reason") != "neg_edge"
     assert metrics["neg_edge_soft"] is True
+    assert 0.0 < float(metrics["cal_side_edge"]) < 0.04
     assert metrics["execution_candidate_ready"] is True

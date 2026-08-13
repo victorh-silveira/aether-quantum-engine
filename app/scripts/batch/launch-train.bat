@@ -20,36 +20,38 @@ if "%CONDA_ACTIVATE%"=="" echo [ERRO] Nao foi possivel localizar o activate.bat 
 if "%CONDA_ACTIVATE%"=="" pause
 if "%CONDA_ACTIVATE%"=="" exit /b 1
 
-echo [AETHER] Etapa 0/4: Sanitizando run anterior (checkpoints/meta/loss/triton/data)...
+echo [AETHER] Etapa 0/5: Sanitizando run anterior (checkpoints/meta/loss/triton/data)...
 cd /d "%REPO_ROOT%"
 "%PYTHON_EXE%" app/scripts/operations/sanitize_fresh_run.py
 if errorlevel 1 goto :sanitize_fail
 
-echo [AETHER] Etapa 0b/4: Regenerando bootstrap do loss-classifier...
+echo [AETHER] Etapa 0b/5: Regenerando bootstrap do loss-classifier...
 cd /d "%REPO_ROOT%\app"
 "%PYTHON_EXE%" -m scripts.operations.train_loss_classifier
 if errorlevel 1 goto :loss_bootstrap_fail
 cd /d "%REPO_ROOT%"
 
-echo [AETHER] Etapa 1/4: Executando treino Deep Learning (TCN)...
-call "%~dp0_run_train.bat" "%CONDA_ACTIVATE%"
-if errorlevel 1 goto :dl_fail
+echo [AETHER] Etapa 1/5: Sweep multi-TF + promote do vencedor (TCN)...
+cd /d "%REPO_ROOT%"
+"%PYTHON_EXE%" app/scripts/operations/run_launch_train_tf_pipeline.py %*
+if errorlevel 1 goto :tf_sweep_fail
 
-echo [AETHER] Etapa 1b/4: Validando deploy/ACC do checkpoint DL...
+echo [AETHER] Etapa 1b/5: Validando deploy/ACC do checkpoint DL promovido...
 cd /d "%REPO_ROOT%"
 "%PYTHON_EXE%" app/scripts/operations/check_dl_deploy_gate.py --symbols R_10
 if errorlevel 1 goto :dl_gate_fail
 
-echo [AETHER] Etapa 2/4: Verificando infraestrutura Docker (TimescaleDB)...
+echo [AETHER] Etapa 2/5: Verificando infraestrutura Docker (TimescaleDB)...
 cd /d "%REPO_ROOT%"
 "%PYTHON_EXE%" app/scripts/operations/ensure_timescale.py --check-only
 if errorlevel 1 echo [AVISO] TimescaleDB nao disponivel. Meta-classificador usara API Deriv (fallback).
 
-echo [AETHER] Etapa 3/4: Treino DL concluido com sucesso! Iniciando Meta-Classificador (LightGBM)...
+echo [AETHER] Etapa 3/5: Meta-Classificador (LightGBM) no TF promovido...
 call "%~dp0_run_meta_train.bat" "%CONDA_ACTIVATE%"
 if errorlevel 1 goto :meta_fail
 
-echo [SUCESSO] Pipeline de treinamento AETHER concluido com sucesso!
+echo [SUCESSO] Pipeline launch-train (sweep multi-TF + meta) concluido!
+echo [AETHER] Rode make docker-rebuild e sync MinIO/Triton antes da DEMO.
 timeout /t 5 /nobreak > nul
 exit /b 0
 
@@ -63,8 +65,9 @@ echo [ERRO] Bootstrap do loss-classifier falhou apos sanitizacao. Treino abortad
 pause
 exit /b 1
 
-:dl_fail
-echo [ERRO] Treino DL falhou. Treino do Meta-Classificador abortado para evitar race condition.
+:tf_sweep_fail
+echo [ERRO] Sweep multi-TF / promote falhou (nenhum TF elegivel ou treino). Meta abortado.
+echo [AETHER] Fallback single-TF: set tf_sweep.run_in_launch_train=false e use _run_train.bat.
 pause
 exit /b 1
 

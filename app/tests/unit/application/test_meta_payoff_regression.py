@@ -75,9 +75,9 @@ def test_apply_meta_regression_edge_loss_expected_keeps_direction():
 
 
 def test_apply_meta_regression_edge_bb_compression_triggers_squeeze_even_positive_edge(caplog):
-    _prime_bb(0.050)
+    _prime_bb(0.060)
     metrics = {
-        "indicators": {"bb_width": 0.015},
+        "indicators": {"bb_width": 0.010},
         "flow_features": {"micro_tick_acceleration": 0.05},
     }
     with caplog.at_level("INFO"):

@@ -5,7 +5,11 @@ from __future__ import annotations
 from typing import Any
 
 from src.application.services.deep_learning.dl_bridge_helpers import build_decision_entry
-from src.application.services.deep_learning.dl_calibration import CalibratorState, calibrate_trade_score
+from src.application.services.deep_learning.dl_calibration import (
+    CalibratorState,
+    calibrate_trade_score,
+    clamp_calibrated_call_to_raw_band,
+)
 from src.application.services.deep_learning.dl_calibration_tolerance import (
     apply_calibration_neutral_tolerance,
 )
@@ -21,7 +25,10 @@ from src.application.services.deep_learning.dl_gating import (
 )
 from src.application.services.deep_learning.dl_indicator_config import load_indicator_config_from_settings
 from src.application.services.deep_learning.dl_params_blocks import parse_dynamic_threshold_config
-from src.application.services.deep_learning.dl_predict_metrics import attach_dynamic_metrics
+from src.application.services.deep_learning.dl_predict_metrics import (
+    attach_dynamic_metrics,
+    indicators_from_series,
+)
 from src.application.services.deep_learning.dl_predict_telemetry import (
     prepare_meta_classifier_cross_symbol_bundle,
     stamp_micro_frame_telemetry,
@@ -145,29 +152,6 @@ def eager_local_predict(
         )
 
 
-def _indicators_from_series(series: dict) -> dict[str, float]:
-    """Extrai snapshot de indicadores da ultima barra."""
-    return {
-        "open": _series_last(series, "open"),
-        "close": _series_last(series, "close"),
-        "high": _series_last(series, "high"),
-        "low": _series_last(series, "low"),
-        "hurst": _series_last(series, "hurst"),
-        "adx": _series_last(series, "adx"),
-        "vol_ratio": _series_last(series, "vol_ratio_short_long"),
-        "implied_vol_ratio": _series_last(series, "implied_vol_ratio", 1.0),
-        "bb_width": _series_last(series, "bb_width"),
-        "atr_norm": _series_last(series, "atr_norm"),
-        "cmo": _series_last(series, "cmo"),
-        "keltner": _series_last(series, "keltner_pct_b"),
-        "bb_pct_b": _series_last(series, "bb_pct_b", 0.5),
-        "rsi": _series_last(series, "rsi"),
-        "macd": _series_last(series, "macd"),
-        "macd_sig": _series_last(series, "macd_signal"),
-        "di_diff": _series_last(series, "di_diff"),
-    }
-
-
 def build_prediction_entry(
     _orch: Any,
     symbol: str,
@@ -192,7 +176,7 @@ def build_prediction_entry(
     vol_ratio = _series_last(series, "vol_ratio_short_long")
     implied_vol_ratio = _series_last(series, "implied_vol_ratio", 1.0)
     trend_dir, trend_type, trend_period, call_votes, put_votes = calculate_trend_direction(prices, series, exec_cfg)
-    indicators_data = _indicators_from_series(series)
+    indicators_data = indicators_from_series(series)
     pivot = (call_threshold + put_threshold) * 0.5
     neutral_lo, neutral_hi = resolve_calibration_neutral_band(
         params.get("calibration") if isinstance(params.get("calibration"), dict) else None
@@ -206,6 +190,9 @@ def build_prediction_entry(
         neutral_hi=neutral_hi,
     )
     raw_prob = float(raw_prob)
+    cal_cfg = params.get("calibration") if isinstance(params.get("calibration"), dict) else {}
+    max_gap = float(cal_cfg.get("max_calibrated_raw_gap", 0.08))
+    calibrated_prob, cal_capped, cal_raw_gap = clamp_calibrated_call_to_raw_band(raw_prob, calibrated_prob, max_gap)
     horizon_bars = max(1, int(params.get("label_horizon_bars", 1)))
     calibrated_edge = resolve_calibrated_edge(calibrated_prob, raw_prob=raw_prob, horizon_bars=horizon_bars)
     calibrator = runtime.get("calibrator")
@@ -213,6 +200,7 @@ def build_prediction_entry(
         raw_prob,
         val_accuracy,
         calibrator,
+        max_calibrated_raw_gap=max_gap,
         deploy_ok=runtime.get("deploy_ok", True),
         is_put=resolved_dir == TradeDirection.PUT if resolved_dir is not None else False,
     )
@@ -248,6 +236,8 @@ def build_prediction_entry(
     entry["metrics"]["calibrated_prob"] = calibrated_prob
     entry["metrics"]["calibration_mode"] = calibration_mode
     entry["metrics"]["calibrated_edge"] = calibrated_edge
+    entry["metrics"]["cal_raw_gap_capped"] = bool(cal_capped)
+    entry["metrics"]["cal_raw_gap"] = float(cal_raw_gap)
     entry["metrics"]["raw_margin"] = abs(raw_prob - 0.5)
     entry["metrics"]["cal_margin"] = abs(float(calibrated_prob) - 0.5)
     entry["metrics"]["direction_margin"] = abs(float(calibrated_prob) - 0.5)

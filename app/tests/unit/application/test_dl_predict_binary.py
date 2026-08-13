@@ -94,7 +94,7 @@ def test_predict_weak_direction_still_executes():
             None,
         )
     assert entry["direction"] == TradeDirection.PUT
-    assert entry["metrics"]["trade_score"] == pytest.approx(0.58, abs=1e-6)
+    assert entry["metrics"]["trade_score"] == pytest.approx(0.51, abs=1e-6)
     assert entry["metrics"]["execute"] is True
     assert entry["metrics"]["gate_reason"] is None
 

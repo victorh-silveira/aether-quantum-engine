@@ -39,6 +39,62 @@ def test_effective_deploy_ok_soft_fallback():
     assert _effective_deploy_ok(stored_ok=False, val_accuracy=0.566, val_brier=0.270, dl_config=dl) is False
 
 
+def test_effective_deploy_ok_settle_bypasses_low_acc():
+    dl = {
+        "training_history_bars": 1333,
+        "tf_sweep": {
+            "min_edge_vs_breakeven": 0.03,
+            "min_settle_n": 16,
+            "min_history_bars": 800,
+            "payout_for_breakeven": 0.72,
+        },
+        "deploy_gate": {
+            "enabled": True,
+            "force_ok": False,
+            "soft_min_val_accuracy": 0.53,
+            "soft_max_brier": 0.26,
+            "reject_majority_collapse": True,
+            "max_label_call_frac_bias": 0.20,
+            "min_minority_recall": 0.25,
+        },
+    }
+    settings = {"deep_learning": dl, "data_handler": {"micro_granularity": 180}}
+    payload = {
+        "deploy_settlement_win_rate": 0.6774,
+        "deploy_settlement_n": 31,
+        "training_history_bars": 1333,
+        "label_call_frac": 0.48,
+        "pred_call_frac": 0.0,
+        "minority_recall": 1.0,
+    }
+    assert (
+        _effective_deploy_ok(
+            stored_ok=True,
+            val_accuracy=0.4941,
+            val_brier=0.252,
+            dl_config=dl,
+            label_call_frac=0.48,
+            pred_call_frac=0.0,
+            minority_recall=1.0,
+            checkpoint_payload=payload,
+            settings=settings,
+        )
+        is True
+    )
+    assert (
+        _effective_deploy_ok(
+            stored_ok=True,
+            val_accuracy=0.4941,
+            val_brier=0.252,
+            dl_config=dl,
+            label_call_frac=0.48,
+            pred_call_frac=0.0,
+            minority_recall=1.0,
+        )
+        is False
+    )
+
+
 def test_persist_deploy_ok_flag(tmp_path: Path):
     path = tmp_path / "R_10.pth"
     torch.save({"deploy_ok": False, "val_accuracy": 0.56}, path)

@@ -78,7 +78,7 @@ def test_get_symbol_runtime_reuses_checkpoint_when_online_training_disabled():
     ):
         runtime = get_symbol_runtime(orch, "R_10", dl_config, params)
     assert runtime["session_trained"] is True
-    assert runtime["deploy_ok"] is False
+    assert runtime["deploy_ok"] is True
 
 
 def test_get_symbol_runtime_force_ok_overrides_deploy_flag():

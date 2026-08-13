@@ -37,8 +37,8 @@ def test_load_doctrine_invariants_from_ssot():
     assert inv["watchdog_stale_tick_seconds"] == 300
     assert inv["settlement_tolerance_window_seconds"] == 90
     assert inv["post_settlement_is_trading_wait_seconds"] == 90
-    assert inv["amort_cycles_min"] == 2
-    assert inv["amort_cycles_max"] == 4
+    assert inv["amort_cycles_min"] == 1
+    assert inv["amort_cycles_max"] == 1
     assert inv["cover_multiple"] == pytest.approx(1.5)
     assert inv["max_safe_stake_pct_linear3"] == pytest.approx(0.025)
     assert inv["large_account_stop_win_pct"] == pytest.approx(3.0)

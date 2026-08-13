@@ -203,8 +203,8 @@ def assert_production_doctrine(settings: dict[str, Any] | None = None) -> dict[s
         raise ValueError("settlement_tolerance_window_seconds deve ser 90")
     if int(inv["post_settlement_is_trading_wait_seconds"]) != 90:
         raise ValueError("post_settlement_is_trading_wait_seconds deve ser 90")
-    if int(inv["amort_cycles_min"]) != 2 or int(inv["amort_cycles_max"]) != 4:
-        raise ValueError("amort_cycles deve ser 2-4")
+    if int(inv["amort_cycles_min"]) != 1 or int(inv["amort_cycles_max"]) != 1:
+        raise ValueError("amort_cycles deve ser 1-1")
     if abs(float(inv["cover_multiple"]) - 1.5) > 1e-9:
         raise ValueError("cover_multiple deve ser 1.5")
     if abs(float(inv["max_safe_stake_pct_linear3"]) - 0.025) > 1e-9:

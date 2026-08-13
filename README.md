@@ -7,9 +7,9 @@
 [![Pre-commit](https://img.shields.io/badge/Pre--commit-active-FAB040?logo=pre-commit&logoColor=white)](.pre-commit-config.yaml)
 [![CI](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml)
 
-Motor quantitativo assíncrono para a Deriv: decisão por **Deep Learning** (TCN/LSTM/GRU) no índice **Volatility 10** (`R_10`), contratos **RISE_FALL** de **2 m** (**M2**) com micro/MINI **120 s** e contexto macro **3600 s**, meta-regressor LightGBM (**43D**) de expectativa de retorno contínuo (single-symbol), e **sizing Kelly + Soft Recovery** (Kelly em EXPLORE; Soft Recovery amortizado em RECOVER). As chaves de assinatura ainda usam prefixos legados `m5`/`m15` para compatibilidade de cache.
+Motor quantitativo assíncrono para a Deriv: decisão por **Deep Learning** (TCN/LSTM/GRU) no índice **Volatility 10** (`R_10`), contratos **RISE_FALL** de **3 m** (**M3**) com micro/MINI **180 s** e contexto macro **7200 s** (ratio **1:40**), meta-regressor LightGBM (**43D**) de expectativa de retorno contínuo (single-symbol), e **sizing Kelly + Soft Recovery** (Kelly em EXPLORE; Soft Recovery cover pleno amort **1/1** em RECOVER). As chaves de assinatura ainda usam prefixos legados `m5`/`m15` para compatibilidade de cache.
 
-A operação divide-se em duas fases: **FASE TREINO** (nenhuma ordem até checkpoint/sessão prontos; `online_training` **false** no DEMO) e **FASE OPERACAO** continua (`mandatory_trade_each_cycle: false`, `force_trade_every_cycle: false`, `invert_exec_side: false`): o ciclo avalia candidato a cada **120 s** via TCN + fusao EV + signal_skip 1.1. Nos settings atuais Triton e meta são **opcionais** para execução (`infra.triton.enabled/require_for_execution: false`; `require_meta_for_execution: false`); em stack Docker completa o Triton pode ser reativado fail-closed. Mercado Volatility **24/7**.
+A operação divide-se em duas fases: **FASE TREINO** (nenhuma ordem até checkpoint/sessão prontos; `online_training` **false** no DEMO) e **FASE OPERACAO** continua (`mandatory_trade_each_cycle: false`, `force_trade_every_cycle: false`, `invert_exec_side: false`): o ciclo avalia candidato a cada **180 s** via TCN + fusao EV + signal_skip 1.1. Nos settings atuais Triton e meta são **opcionais** para execução (`infra.triton.enabled/require_for_execution: false`; `require_meta_for_execution: false`); em stack Docker completa o Triton pode ser reativado fail-closed. Mercado Volatility **24/7**.
 
 Documentação: [AGENTS.md](AGENTS.md) (agentes) | [matriz de cobertura](docs/agent-coverage.md) | [arquitetura](docs/arquitetura.md) | [estrutura e módulos](docs/structure.md) | [metodologia quant](docs/medallion.md) | [infra Docker](docs/infra-docker.md) | [Deriv API](docs/deriv-api.md) | [Deriv para agentes](docs/deriv-api-aether.md) | [índice docs](docs/README.md)
 
@@ -21,7 +21,7 @@ Layout: `app/` (código e testes), `config/settings.json`, `docs/`, `linters/`. 
 
 | Etapa | Componente | Descrição |
 |-------|------------|-----------|
-| Dados | `StreamHandler` + `TickBuffer` + `AetherWatchdog` | WebSocket Deriv dual-timeframe: OHLC macro **3600 s** (assinatura legado `m15`) para DL/regimes + OHLC micro **120 s** (assinatura legado `m5`) para gatilho do ciclo; ticks agregados por barra fechada; watchdog reconecta stream em inanição (`watchdog_stale_tick_seconds` **300**) |
+| Dados | `StreamHandler` + `TickBuffer` + `AetherWatchdog` | WebSocket Deriv dual-timeframe: OHLC macro **7200 s** (assinatura legado `m15`) para DL/regimes + OHLC micro **180 s** (assinatura legado `m5`) para gatilho do ciclo; ticks agregados por barra fechada; watchdog reconecta stream em inanição (`watchdog_stale_tick_seconds` **300**) |
 | Fases | `_training_phase_gate` | Suspende a operação até todos os modelos concluírem o treino da sessão |
 | Predição DL | `decision_bridge` + `dl_predict_*` + TCN | **34 features** TCN; bundle meta **43D**; Triton gRPC opcional (timeout settings **8 s** quando ligado) |
 | Meta GBDT | `meta_classifier_client` + `aether-meta-classifier` | Regressão tabular **43D**; `predicted_payoff_edge` contínuo (opcional para execução) |
@@ -30,12 +30,12 @@ Layout: `app/` (código e testes), `config/settings.json`, `docs/`, `linters/`. 
 | Rotulagem DL | `dl_labels` + `LabelSpec` | Padrão `spot_forward`; `ma_trend` / Triple Barrier via config |
 | Quality / starvation | `execution_quality_gate*` | Dual soft TCN+meta; pisos regulares de margem/ADX **0.0**; starvation a partir de **6** skips; edge decay a partir de **8** (`edge_decay_floor` → 0.0) |
 | Ranking | `execution_market_rank` | Score `tcn × max(0.1, 1+z)` |
-| Execução | `ExecutionManager` + lotes fracionados | Proposta atômica; RISE_FALL **120 s** |
-| Risco | `RiskManager` + Kelly / Soft Recovery | `EXPLORE_KELLY` (fraction 0.08, teto 3,5%); Soft Recovery amortizado em RECOVER (`max_safe_stake_pct`) |
+| Execução | `ExecutionManager` + lotes fracionados | Proposta atômica; RISE_FALL **3 m** |
+| Risco | `RiskManager` + Kelly / Soft Recovery | `EXPLORE_KELLY` (fraction 0.08, teto 3,5%); Soft Recovery cover pleno amort **1/1** em RECOVER (`cover_multiple` **1.50**, `max_safe_stake_pct`) |
 | Concorrência | `StateManager` + barreira atômica | Lock serializa inferência, liquidação e persistência |
 | Inferência | `TritonGrpcClient` | Canal persistente; rebind por event loop |
 
-Ciclo do orquestrador: `orchestrator.cycle_interval_seconds` / `signature_boundary_seconds` (**120 s**). Contexto DL: `data_handler.granularity` (**600 s**, tensor `[1, 360, 34]`). Contrato: `risk_management.params.duration` (**120 s**, RISE_FALL alinhado ao fechamento micro). Proporção multi-timeframe **1:5** (120:600).
+Ciclo do orquestrador: `orchestrator.cycle_interval_seconds` / `signature_boundary_seconds` / `exec_empty_retry_seconds` (**180 s**). Contexto DL: `data_handler.granularity` (**7200 s**), micro/MINI **180 s**, tensor `[1, 480, 34]` (`deep_learning.lookback` **480**). Contrato: `risk_management.params.duration` (**3 m**, RISE_FALL alinhado ao fechamento micro). Proporção multi-timeframe **1:40** (180:7200).
 
 ---
 
@@ -46,11 +46,11 @@ Arquivo: [`config/settings.json`](config/settings.json)
 | Bloco | Função |
 |-------|--------|
 | `symbols` / `anchor` | Universo (`R_10`; ancora `R_10`) |
-| `data_handler` | `granularity` (macro **3600 s**), `micro_granularity` / `mini_granularity` (**120 s**), historico treino tipico **2000** barras micro M2 |
-| `deep_learning` | `arch`, `lookback` (**720**), `online_training` **false**, calibration (`neutral_half_width: 0.0`), thresholds **0.51/0.49**, `deploy_gate` |
+| `data_handler` | `granularity` (macro **7200 s**), `micro_granularity` / `mini_granularity` (**180 s**), historico treino tipico **2000** barras micro M3 |
+| `deep_learning` | `arch`, `lookback` (**480**), `online_training` **false**, calibration (`neutral_half_width: 0.0`), thresholds **0.51/0.49**, `deploy_gate` |
 | `orchestrator.execution` | `mandatory_trade_each_cycle: false`, `force_trade_every_cycle: false`, `invert_exec_side: false`, `scale_vision.fusion_*`, `signal_skip` 1.1, settlement **90 s** |
 | `risk_management.kelly` | Stake EXPLORE (`fraction: 0.08`, piso **0.25%**, tetos stop-win Kelly ate **5%**) |
-| `risk_management.soft_recovery` | RECOVER: amort **2–4**, cover **1.50**, linear3 **2.5%** |
+| `risk_management.soft_recovery` | RECOVER: amort **1/1**, cover **1.50**, linear3 **2.5%** |
 | `orchestrator.execution.side_equilibrium` | Leis dos pequenos/grandes números CALL/PUT (small-N hard skip; large-N soft Kelly) |
 | `infra` | Redis, Timescale, MinIO, Triton (`enabled`/`require_for_execution` opcionais nos settings atuais; repo `R_10`), meta-classifier |
 
@@ -99,12 +99,12 @@ Copie `cp .env.example .env` e preencha o PAT. Validação Deriv: `python app/sc
 
 - **Kelly + Soft Recovery** (`risk_stake_calc` + `soft_recovery_policy`):
   - **EXPLORE** (`pending_loss == 0` e `consecutive_losses_linear == 0`): stake = Kelly fracionário (`fraction: 0.08`, compressão 40%, teto **3,5%** da banca) — tag `EXPLORE_KELLY`.
-  - **RECOVER** (`pending_loss > 0` ou `linear >= 1`): Soft Recovery amortizado em 2–5 ciclos, teto `max_safe_stake_pct` — tag `RECOVER_DAL_Ln`.
-- Soft Recovery amortiza `pending` em 2–5 ciclos com teto `max_safe_stake_pct` (3,5%).
+  - **RECOVER** (`pending_loss > 0` ou `linear >= 1`): Soft Recovery cover pleno (`cover_multiple` **1.50**, amort **1/1**), teto `max_safe_stake_pct` — tag `RECOVER_DAL_Ln`.
+- Soft Recovery cobre `pending/payout * cover_multiple` em **1** ciclo (amort **1/1**) com teto `max_safe_stake_pct` / linear3 **2.5%**.
 - **Consensus Entropy Penalty**: presente no código; nos settings atuais `consensus_penalty_enabled: false`.
 - **Side equilibrium (LLN)**: `side_equilibrium` — small-N (janela 12, `n_min=2`) hard skip se WR baixo ou frequência enviesada; large-N (janela 100, `n_min=40`) soft penalty (`kelly_mult_soft` → escala f*). Com contagens 0/0 o gate faz `pass` (amostra insuficiente) — esperado no início da sessão.
 - **Recovery financeiro persistente**: WIN operacional **não** zera `consecutive_losses` enquanto `pending_loss > 0`; reconciliação de stake downgrade preserva drawdown real.
-- **Stop win por sessão ativa**: meta = `banca_inicial × 2,60%` (banca ≥ $100) ou **$10** fixo (banca &lt; $100); `finalize_stop_win_shutdown` purge Redis + log CRITICAL + fast-path.
+- **Stop win por sessão ativa**: meta = `banca_inicial × 3,00%` (banca ≥ $100) ou **$10** fixo (banca &lt; $100); `finalize_stop_win_shutdown` purge Redis + log CRITICAL + fast-path.
 - **Stop loss desativado**: sem disjuntor de perda diária interno.
 - **Lotes fracionados**: stakes acima de `max_single_stake_limit` (padrão $200) divididas em N ordens com proposta atômica por sub-lote; falha técnica de proposta aborta o cluster sem inflar `pending_loss`.
 - Cooldown por símbolo após sequência de losses (`symbol_loss_rotation_cycles`): com universo single-symbol (`R_10`) o default operacional e `0` para nao esvaziar o unico ativo.
@@ -116,18 +116,18 @@ Copie `cp .env.example .env` e preencha o PAT. Validação Deriv: `python app/sc
 ## Fases, recovery e execução
 
 - **FASE TREINO**: ao iniciar a sessão, todo símbolo retreina pelo menos uma vez. Enquanto qualquer modelo não concluir, nenhuma ordem é enviada.
-- **FASE OPERACAO** continua (`mandatory_trade_each_cycle: false`, `force_trade_every_cycle: false`): a cada fronteira de **120 s** o motor avalia candidato via TCN + fusao EV + signal_skip 1.1 (quality gate amplo **fora**).
+- **FASE OPERACAO** continua (`mandatory_trade_each_cycle: false`, `force_trade_every_cycle: false`): a cada fronteira de **180 s** o motor avalia candidato via TCN + fusao EV + signal_skip 1.1 (quality gate amplo **fora**).
 - **Bloqueio absoluto** somente para falhas técnicas: `data`, `predict_error`, `training`, `deploy_ok=false`, e (quando Triton fail-closed estiver ligado) timeout de inferência / reconciliação pendente.
 - **Ranking TCN × Z-Score**: `market_decision_score = tcn × max(0.1, 1+z)` — LightGBM validado ranqueia acima de TCN bruto degradado.
 - **Gatilho D-SQUEEZE (`[D-SQUEEZE]`)**: quando `predicted_payoff_edge < -0.15` em compressão micro (`bb_width < 0.06` ou `micro_tick_acceleration < 0`), o resolver rebaixa `trade_score` para **0.52**, comprimindo stake — sem inverter a direção da TCN. `bb_width_adaptive_squeeze` está **desabilitado** nos settings atuais.
-- **Recovery**: Soft Recovery amortizado após loss linear; reset de risco somente quando `pending_loss` zera.
+- **Recovery**: Soft Recovery cover pleno (amort **1/1**, `cover_multiple` **1.50**) após loss linear; reset de risco somente quando `pending_loss` zera.
 - **Loss protection**: caps edge/Z 999; quality guard em modo mandatório prioriza esteira contínua (soft alone não congela o cluster).
 - **Settlement**: janela de tolerância **90 s** com reconciliação passiva (portfolio + Redis); pós-EXEC_EMPTY em recovery alinha a próxima fronteira (cap de retry).
 - **Starvation**: após **6** quality skips, pisos decaem; edge meta relaxa a partir de **8** skips; Convicção Progressiva (−20%/5 skips em recovery).
 - **Persistence / SIDE_EQ**: após 2 losses no mesmo lado tenta flip (toxic escape, edge positivo preservado); SIDE_EQ hard-skip tenta o oposto e pode marcar `side_eq_escape_edge_kept`.
 - **Reconexão**: `release_trading_cycle_after_reconnect` invalida assinatura/epoch e reduz warm-up micro quando há `pending_loss`; log `RECOV: ciclo liberado`.
-- **Assinatura**: gravada somente após cluster executado; quality skip não consome o candle. Prefixos legados `m5`/`m15` mapeiam 120/600 s.
-- **Watchdog de ingestão**: em modo contínuo, reconecta WebSocket se ticks pararem por >**25 s** (`watchdog_stale_tick_seconds`), persistindo snapshot de risco antes.
+- **Assinatura**: gravada somente após cluster executado; quality skip não consome o candle. Prefixos legados `m5`/`m15` mapeiam 180/7200 s.
+- **Watchdog de ingestão**: em modo contínuo, reconecta WebSocket se ticks pararem por >**300 s** (`watchdog_stale_tick_seconds`), persistindo snapshot de risco antes.
 - **Deriv API**: REST/PAT com retry em 502/503/504 e respeito a `retry_after` Cloudflare.
 
 ---
@@ -142,7 +142,7 @@ Logs em `logs/engine.log` (formato `AetherFormatter`):
 - `EXEC_SEL` — símbolo escolhido com `ord=`, `dl=`, métricas `s`/`v`/`r`, indicadores e alternativas
 - `EXPLORE_KELLY`, `RECOVER_DAL_Ln`, `RISK: RECOVERY`, `RISK: WIN operacional` — sizing Kelly/Soft e estado de recovery
 - `SIDE_EQ` — equilíbrio CALL/PUT (leis dos pequenos/grandes números)
-- `SESSAO INICIADA | Alvo de 2,60%: $XX.XX | Stop Loss: DESATIVADO` — bootstrap de meta por sessão ativa
+- `SESSAO INICIADA | Alvo de 3,00%: $XX.XX | Stop Loss: DESATIVADO` — bootstrap de meta por sessão ativa
 - `TRITON_TIMEOUT_FALLBACK`, `WATCHDOG: STALE_DATA` — resiliência de inferência e ingestão
 - `[AETHER] STOP_WIN` — meta atingida; purge Redis; encerramento CRITICAL
 - `meta_payoff_edge_zscore` / `edge_zscore` — Z-Score estatístico do edge LightGBM no ranking
@@ -210,7 +210,7 @@ WSL: `make app-pre-commit-run`
 3. Suba a infra: `make docker-up` (quando `infra.enabled: true`).
 4. Treine os modelos: `python train.py` ou `app/scripts/batch/launch-train.bat`.
 5. Valide checkpoints DL em `data/dl/`.
-6. Execute o motor: `python run.py`, `make run` ou `launch-all-demo.bat` / `launch-all-live.bat`.
+6. Execute o motor: `python run.py`, `make run` ou `launch-all-demo.bat`.
 
 O motor exige `deep_learning.enabled: true` e checkpoints válidos em `data/dl/`. Treino e execução são processos separados — `train.py` grava os modelos; `run.py` só opera.
 

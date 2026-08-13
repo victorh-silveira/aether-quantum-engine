@@ -132,9 +132,14 @@ def apply_successful_symbol_train(
             label="holdout",
         )
     except RuntimeError as exc:
-        raise RuntimeError(
-            f"{exc} (raw_sharpness={raw_sharpness:.4f} method={getattr(runtime.get('calibrator'), 'method', '?')})"
-        ) from exc
+        logger.warning(
+            "DL TREINO | %s | sharpness abaixo do piso — deploy_ok=false | %s (raw_sharpness=%.4f method=%s)",
+            symbol,
+            exc,
+            raw_sharpness,
+            getattr(runtime.get("calibrator"), "method", "?"),
+        )
+        runtime["deploy_ok"] = False
     runtime["oos_sharpness"] = oos_sharpness
     runtime["raw_sharpness"] = raw_sharpness
     runtime["label_call_frac"] = float(getattr(train_result, "label_call_frac", 0.5))
@@ -154,7 +159,12 @@ def apply_successful_symbol_train(
         val_ece=runtime["val_ece"],
         deploy_ok=runtime["deploy_ok"],
         deploy_win_rate=runtime["deploy_win_rate"],
+        deploy_settlement_win_rate=float(runtime.get("deploy_settlement_win_rate", 0.0)),
+        deploy_settlement_brier=float(runtime.get("deploy_settlement_brier", runtime.get("val_brier", 1.0))),
+        deploy_settlement_n=int(runtime.get("deploy_settlement_n", 0) or 0),
+        oos_sharpness=float(runtime.get("oos_sharpness", 0.0)),
         granularity=granularity,
+        training_history_bars=int(params.get("training_history_bars") or 0) or None,
         label_call_frac=float(runtime.get("label_call_frac", 0.5)),
         pred_call_frac=float(runtime.get("pred_call_frac", 0.5)),
         minority_recall=float(runtime.get("minority_recall", 1.0)),
