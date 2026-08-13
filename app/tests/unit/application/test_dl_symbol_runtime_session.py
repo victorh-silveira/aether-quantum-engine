@@ -66,13 +66,13 @@ def test_get_symbol_runtime_reuses_checkpoint_when_online_training_disabled():
     dl_config = {
         "model_path_template": "data/dl/{symbol}.pth",
         "online_training": False,
-        "deploy_gate": {"force_ok": False},
+        "deploy_gate": {"force_ok": False, "soft_max_brier": 0.26},
     }
     params = {"lookback": 48, "arch": "tcn"}
     with (
         patch(
             "src.application.services.deep_learning.dl_symbol_runtime.load_model_checkpoint",
-            return_value=_loaded_checkpoint(deploy_ok=False, val_brier=0.40),
+            return_value=_loaded_checkpoint(deploy_ok=False, val_brier=0.25),
         ),
         patch("pathlib.Path.exists", return_value=False),
     ):
