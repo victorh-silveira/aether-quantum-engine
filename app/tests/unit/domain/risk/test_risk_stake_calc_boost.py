@@ -66,10 +66,20 @@ def test_calculate_stake_stop_win_kelly_boosts_from_raw_when_score_zero(kelly_co
 
 
 def test_calculate_stake_dlambert_recovery_adds_linear_unit(kelly_config):
+    kelly_config = dict(kelly_config)
+    kelly_config["soft_recovery"] = {
+        **kelly_config["soft_recovery"],
+        "amort_cycles_min": 2,
+        "amort_cycles_max": 5,
+        "max_safe_stake_pct": 0.05,
+        "max_safe_stake_cap": 500.0,
+    }
+    kelly_config["params"] = {**kelly_config["params"], "payout_estimate": 0.95}
     rm = MagicMock()
     rm.config = kelly_config
     rm.kelly_config = kelly_config["kelly"]
     rm.risk_params = kelly_config["params"]
+    rm.soft_recovery_config = kelly_config["soft_recovery"]
     rm.stake_max = 12000.0
     rm.initial_bankroll = 10000.0
     rm.total_session_profit = 0.0

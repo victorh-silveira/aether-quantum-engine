@@ -32,25 +32,26 @@ def _micro_risk_config() -> dict:
     return {
         "kelly": {
             "fraction": 0.005,
-            "max_stake_pct": 0.035,
-            "max_bankroll_stake_fraction": 0.035,
+            "max_stake_pct": 0.05,
+            "max_bankroll_stake_fraction": 0.05,
             "dynamic_win_rate": False,
             "consensus_penalty_enabled": False,
             "stop_win_kelly_enabled": False,
             "recovery_sizing_conviction": 0.50,
             "recovery_min_conviction": 0.50,
-            "recovery_min_val_accuracy": 0.50,
+            "recovery_min_val_accuracy": 0.53,
         },
         "soft_recovery": {
             "enabled": True,
             "max_safe_stake_cap": 4.20,
-            "max_safe_stake_pct": 0.035,
-            "amort_cycles_min": 2,
-            "amort_cycles_max": 5,
+            "max_safe_stake_pct": 0.05,
+            "amort_cycles_min": 1,
+            "amort_cycles_max": 1,
+            "cover_multiple": 1.50,
             "coing_redirect_drawdown_threshold": 15.00,
             "infeasible_force_explore": False,
         },
-        "params": {"payout_estimate": 0.95, "stake_min": 1.0},
+        "params": {"payout_estimate": 0.72, "stake_min": 1.0},
     }
 
 

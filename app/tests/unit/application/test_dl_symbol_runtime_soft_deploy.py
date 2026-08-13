@@ -121,7 +121,7 @@ def test_get_symbol_runtime_promotes_soft_deploy(tmp_path: Path):
     )
     orch = MagicMock()
     orch.config = {
-        "data_handler": {"micro_granularity": 120},
+        "data_handler": {"micro_granularity": 180},
         "deep_learning": {
             "online_training": False,
             "deploy_gate": {

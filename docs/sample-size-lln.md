@@ -8,11 +8,11 @@ Politica operacional contra o vies dos pequenos numeros (Mlodinow / Tversky-Kahn
 
 | Knob | Padrao | Efeito |
 |------|--------|--------|
-| `evidence_n_min` | 20 | Minimo para misturar live_wr no Kelly e declarar underperformance |
-| `large_n_min` | 40 | Amostra grande (soft SIDE_EQ / ranking) |
-| `n_min_small` (side_eq) | 8 | Abaixo disso: `small_n_insufficient` (pass) |
-| `calib_soft_min_n` | 15 | Abaixo: sem `CALIB_DRIFT_SOFT` |
-| `toxic_side_n_min` | 8 | Toxic escape / flip so com N do lado |
+| `evidence_n_min` | 12 | Minimo para misturar live_wr no Kelly e declarar underperformance |
+| `large_n_min` | 32 | Amostra grande (soft SIDE_EQ / ranking) |
+| `n_min_small` (side_eq) | 4 | Abaixo disso: `small_n_insufficient` (pass) |
+| `calib_soft_min_n` | 12 | Abaixo: sem `CALIB_DRIFT_SOFT` |
+| `toxic_side_n_min` | 4 | Toxic escape / flip so com N do lado |
 | `explore_stake_scale_floor` | 0.40 | Teto relativo de stake EXPLORE com N=0 |
 | `z_sig_threshold` | 1.64 | Evidencia binomial (~90%) para hard-skip por WR |
 

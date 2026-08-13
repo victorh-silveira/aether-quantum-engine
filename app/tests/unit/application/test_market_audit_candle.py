@@ -50,11 +50,11 @@ def test_format_candle_outcome_line_contains_side_and_window():
 
 
 def test_resolve_micro_granularity_from_stream_and_settings():
-    orch = SimpleNamespace(stream=SimpleNamespace(micro_granularity=120), config={})
-    assert resolve_micro_granularity_seconds(orch) == 120
-    orch2 = SimpleNamespace(stream=None, config={"data_handler": {"micro_granularity": 120}})
-    assert resolve_micro_granularity_seconds(orch2) == 120
-    assert resolve_micro_granularity_seconds(None) == 120
+    orch = SimpleNamespace(stream=SimpleNamespace(micro_granularity=180), config={})
+    assert resolve_micro_granularity_seconds(orch) == 180
+    orch2 = SimpleNamespace(stream=None, config={"data_handler": {"micro_granularity": 180}})
+    assert resolve_micro_granularity_seconds(orch2) == 180
+    assert resolve_micro_granularity_seconds(None) == 180
 
 
 def test_last_closed_micro_candle_rejects_bad_store():
@@ -64,12 +64,12 @@ def test_last_closed_micro_candle_rejects_bad_store():
 
 def test_resolve_micro_granularity_invalid_falls_back():
     orch = SimpleNamespace(stream=SimpleNamespace(micro_granularity="bad"), config={})
-    assert resolve_micro_granularity_seconds(orch) == 120
+    assert resolve_micro_granularity_seconds(orch) == 180
     orch2 = SimpleNamespace(
         stream=None,
         config={"data_handler": {"micro_granularity": "x"}},
     )
-    assert resolve_micro_granularity_seconds(orch2) == 120
+    assert resolve_micro_granularity_seconds(orch2) == 180
 
 
 def test_format_candle_outcome_line_non_minute_granularity():

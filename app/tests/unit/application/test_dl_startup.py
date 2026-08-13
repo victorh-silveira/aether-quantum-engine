@@ -110,7 +110,7 @@ def test_resolve_startup_fetch_bars_explicit_startup_fetch_bars(tmp_path, monkey
             "startup_fetch_bars": 256,
             "history_warmup_bars": 0,
             "granularity": 3600,
-            "micro_granularity": 120,
+            "micro_granularity": 180,
         },
         "deep_learning": {
             "online_training": False,
@@ -118,7 +118,7 @@ def test_resolve_startup_fetch_bars_explicit_startup_fetch_bars(tmp_path, monkey
             "train_timeframe": "micro",
             "implied_vol_bars": 16,
         },
-        "risk_management": {"params": {"duration": 2, "duration_unit": "m"}},
+        "risk_management": {"params": {"duration": 3, "duration_unit": "m"}},
     }
     monkeypatch.setattr(
         "src.application.services.deep_learning.dl_startup.resolve_dl_model_path",
@@ -127,7 +127,7 @@ def test_resolve_startup_fetch_bars_explicit_startup_fetch_bars(tmp_path, monkey
     monkeypatch.setattr(
         torch,
         "load",
-        lambda *a, **kw: {"feature_dim": FEATURE_DIM, "lookback": 48, "granularity": 120},
+        lambda *a, **kw: {"feature_dim": FEATURE_DIM, "lookback": 48, "granularity": 180},
     )
     bars, mode = resolve_startup_fetch_bars(config, ["R_10"])
     assert mode == "inferencia"
@@ -137,14 +137,14 @@ def test_resolve_startup_fetch_bars_explicit_startup_fetch_bars(tmp_path, monkey
 def test_resolve_startup_fetch_bars_floors_below_lookback(tmp_path, monkeypatch):
     (tmp_path / "R_10.pth").write_bytes(b"1")
     config = {
-        "data_handler": {"startup_fetch_bars": 512, "history_warmup_bars": 64, "micro_granularity": 120},
+        "data_handler": {"startup_fetch_bars": 512, "history_warmup_bars": 64, "micro_granularity": 180},
         "deep_learning": {
             "online_training": False,
             "lookback": 720,
             "train_timeframe": "micro",
             "implied_vol_bars": 60,
         },
-        "risk_management": {"params": {"duration": 2, "duration_unit": "m"}},
+        "risk_management": {"params": {"duration": 3, "duration_unit": "m"}},
     }
     monkeypatch.setattr(
         "src.application.services.deep_learning.dl_startup.resolve_dl_model_path",
@@ -153,7 +153,7 @@ def test_resolve_startup_fetch_bars_floors_below_lookback(tmp_path, monkeypatch)
     monkeypatch.setattr(
         torch,
         "load",
-        lambda *a, **kw: {"feature_dim": FEATURE_DIM, "lookback": 720, "granularity": 120},
+        lambda *a, **kw: {"feature_dim": FEATURE_DIM, "lookback": 720, "granularity": 180},
     )
     bars, mode = resolve_startup_fetch_bars(config, ["R_10"])
     assert mode == "inferencia"

@@ -54,7 +54,7 @@ def stamp_micro_frame_telemetry(orch: Any, symbol: str, metrics: dict[str, Any],
         high = stream.get_micro_numpy_series(str(symbol), "high")
         low = stream.get_micro_numpy_series(str(symbol), "low")
         open_ = stream.get_micro_numpy_series(str(symbol), "open")
-    micro_gran = int(params.get("micro_granularity", 120))
+    micro_gran = int(params.get("micro_granularity", 180))
     series = precompute_price_series(closes, granularity=micro_gran, symbol=str(symbol))
     metrics["micro_indicators"] = {
         "rsi": _series_last(series, "rsi"),

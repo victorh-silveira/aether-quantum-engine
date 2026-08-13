@@ -124,7 +124,7 @@ def resolve_deploy_ok(
 ) -> bool:
     """Combina mini deploy com fallback por metricas de treino; ACC soft e piso duro."""
     soft_acc = float(gate_cfg.get("soft_min_val_accuracy", 0.53))
-    soft_brier = float(gate_cfg.get("soft_max_brier", 0.32))
+    soft_brier = float(gate_cfg.get("soft_max_brier", 0.26))
     if float(val_accuracy) + 1e-9 < soft_acc:
         return False
     if _majority_collapse_hit(
@@ -155,7 +155,7 @@ def describe_deploy_block(
 ) -> str:
     """Mensagem acionavel quando deploy_ok=false."""
     soft_acc = float(gate_cfg.get("soft_min_val_accuracy", 0.53))
-    soft_brier = float(gate_cfg.get("soft_max_brier", 0.32))
+    soft_brier = float(gate_cfg.get("soft_max_brier", 0.26))
     if float(val_accuracy) + 1e-9 < soft_acc:
         return f"ACC={val_accuracy:.4f}<soft_min={soft_acc:.4f}"
     if _majority_collapse_hit(

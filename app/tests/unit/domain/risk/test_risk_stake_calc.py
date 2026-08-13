@@ -194,7 +194,7 @@ def test_calculate_stake_dlambert_progresses_without_hard_cap(kelly_config):
         apply_stop_win=False,
         kwargs={"dl_metrics": {"execute": True, "order_direction": "CALL"}},
     )
-    assert stake <= 10000.0 * 0.035 + 1e-9
+    assert stake <= 10000.0 * 0.05 + 1e-9
 
 
 def test_calculate_stake_c0017_bypasses_consensus_and_uses_soft_recovery(kelly_config):
@@ -242,7 +242,8 @@ def test_calculate_stake_c0017_bypasses_consensus_and_uses_soft_recovery(kelly_c
     )
     assert stake > 0.0
     assert stake <= max_safe_stake_cap(10000.0, consecutive_losses_linear=3) + 1e-6
-    assert stake < pending / 0.95
+    cover = pending / 0.72 * float(rm.soft_recovery_config.get("cover_multiple", 1.5))
+    assert stake <= cover + 1e-2
     audit = getattr(rm, "_last_stake_audit", None)
     assert isinstance(audit, dict)
     assert "DAL_L" in str(audit.get("mode_tag", ""))

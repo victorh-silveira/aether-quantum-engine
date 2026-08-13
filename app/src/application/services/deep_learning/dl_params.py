@@ -244,7 +244,7 @@ def parse_dl_params(
         "weight_decay": float(dl_config.get("weight_decay", 0.0002)),
         "granularity": gran,
         "train_timeframe": train_tf,
-        "micro_granularity": int(data_config.get("micro_granularity") or dl_config.get("micro_granularity") or 120),
+        "micro_granularity": int(data_config.get("micro_granularity") or dl_config.get("micro_granularity") or 180),
         "contract_duration": max(1, int(risk_params.get("duration", 2))),
         "contract_duration_seconds": contract_duration_seconds(risk_params),
         "risk_params": dict(risk_params),

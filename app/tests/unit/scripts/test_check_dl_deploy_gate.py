@@ -30,7 +30,7 @@ def test_evaluate_checkpoint_accepts_settle_despite_low_acc(tmp_path: Path):
             },
             "deploy_gate": {"soft_min_val_accuracy": 0.53},
         },
-        "data_handler": {"micro_granularity": 120, "granularity": 3600},
+        "data_handler": {"micro_granularity": 180, "granularity": 7200},
     }
     payload = {
         "val_accuracy": 0.4667,
@@ -38,7 +38,7 @@ def test_evaluate_checkpoint_accepts_settle_despite_low_acc(tmp_path: Path):
         "deploy_settlement_win_rate": 0.6923,
         "deploy_settlement_n": 26,
         "lookback": 720,
-        "granularity": 120,
+        "granularity": 180,
         **_COLLAPSE_OK,
     }
     with patch("torch.load", return_value=payload), patch("torch.save") as save_mock:

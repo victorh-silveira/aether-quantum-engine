@@ -110,7 +110,16 @@ def test_calculate_stake_pending_waives_scale_force_explore(kelly_config):
 
 
 def test_dlambert_stake_min_zero_f_star_aborts(kelly_config):
+    kelly_config = dict(kelly_config)
+    kelly_config["params"] = {**kelly_config["params"], "stake_min": 5.0}
+    kelly_config["soft_recovery"] = {
+        **kelly_config["soft_recovery"],
+        "max_safe_stake_cap": 0.5,
+        "infeasible_force_explore": False,
+    }
     rm = _mock_rm(kelly_config)
+    rm.soft_recovery_config = kelly_config["soft_recovery"]
+    rm.risk_params = kelly_config["params"]
     rm._recovery_allowed = MagicMock(return_value=True)
     rm.pending_loss = {"R_10": 0.50}
     rm.consecutive_losses_linear = 1

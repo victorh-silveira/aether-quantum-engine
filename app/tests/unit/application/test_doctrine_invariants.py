@@ -43,7 +43,7 @@ def test_load_doctrine_invariants_from_ssot():
     assert inv["max_safe_stake_pct_linear3"] == pytest.approx(0.025)
     assert inv["large_account_stop_win_pct"] == pytest.approx(3.0)
     assert inv["min_validation_accuracy_gate"] >= 0.53
-    assert inv["explore_stake_scale_floor"] > 0.0
+    assert inv["explore_stake_scale_floor"] == pytest.approx(0.40)
 
 
 def test_assert_production_doctrine_rejects_online_training():
@@ -97,6 +97,9 @@ def test_assert_production_doctrine_rejects_bad_explore_floor():
     settings["orchestrator"]["execution"]["sample_size_policy"]["explore_stake_scale_floor"] = 0.0
     with pytest.raises(ValueError, match="explore_stake_scale_floor"):
         assert_production_doctrine(settings)
+    settings["orchestrator"]["execution"]["sample_size_policy"]["explore_stake_scale_floor"] = 0.25
+    with pytest.raises(ValueError, match="explore_stake_scale_floor"):
+        assert_production_doctrine(settings)
 
 
 def test_assert_production_signal_skip_margin_bounds():
@@ -104,7 +107,7 @@ def test_assert_production_signal_skip_margin_bounds():
     settings["orchestrator"]["execution"]["signal_skip"]["min_direction_margin"] = 0.01
     with pytest.raises(ValueError, match="min_direction_margin"):
         assert_production_doctrine(settings)
-    settings["orchestrator"]["execution"]["signal_skip"]["min_direction_margin"] = 0.06
+    settings["orchestrator"]["execution"]["signal_skip"]["min_direction_margin"] = 0.03
     with pytest.raises(ValueError, match="min_direction_margin"):
         assert_production_doctrine(settings)
 
@@ -112,7 +115,7 @@ def test_assert_production_signal_skip_margin_bounds():
 def test_load_doctrine_signal_skip_from_ssot():
     inv = load_doctrine_invariants()
     assert inv["signal_skip_enabled"] is True
-    assert 0.015 <= float(inv["signal_skip_min_direction_margin"]) <= 0.05
+    assert float(inv["signal_skip_min_direction_margin"]) == pytest.approx(0.022)
 
 
 def test_assert_production_doctrine_rejects_bad_caps():

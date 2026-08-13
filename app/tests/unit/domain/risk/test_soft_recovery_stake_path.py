@@ -31,7 +31,7 @@ def _soft_path_rm(cfg: dict, **overrides):
 
 
 def test_calculate_stake_recover_uses_soft_not_double(kelly_config):
-    rm = _soft_path_rm(kelly_config, consecutive_losses_linear=2, last_loss_stake=2.0, pending_loss={"R_10": 3.0})
+    rm = _soft_path_rm(kelly_config, consecutive_losses_linear=2, last_loss_stake=2.0, pending_loss={"R_10": 1.5})
     stake = calculate_stake_for_manager(
         rm,
         bankroll=100.0,
@@ -43,6 +43,7 @@ def test_calculate_stake_recover_uses_soft_not_double(kelly_config):
     )
     assert stake != pytest.approx(4.0)
     assert stake <= 4.20 + 1e-9
+    assert stake > 0.0
     assert rm._last_stake_audit["mode_tag"] == "RECOVER_DAL_L2"
     assert rm._last_stake_audit["stake_regime"] == "RECOVER"
 

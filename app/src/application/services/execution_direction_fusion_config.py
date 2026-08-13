@@ -58,8 +58,8 @@ def parse_direction_fusion_config(raw: dict[str, Any] | None = None) -> dict[str
             raise ValueError(f"orchestrator.execution.scale_vision.{key} deve estar em [0, 2]")
         weights[key] = val
     seed_mult = require_float(block, "fusion_loss_seed_weight_mult")
-    if seed_mult < 0.0 or seed_mult > 0.15:
-        raise ValueError("orchestrator.execution.scale_vision.fusion_loss_seed_weight_mult deve estar em [0, 0.15]")
+    if abs(seed_mult) > 1e-12:
+        raise ValueError("orchestrator.execution.scale_vision.fusion_loss_seed_weight_mult deve ser 0.0")
     min_edge = require_float(block, "fusion_min_edge_execute")
     if min_edge < 0.0 or min_edge > 0.5:
         raise ValueError("orchestrator.execution.scale_vision.fusion_min_edge_execute deve estar em [0, 0.5]")

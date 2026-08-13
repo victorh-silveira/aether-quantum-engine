@@ -53,7 +53,7 @@ Regra: **domain** não importa application nem infrastructure. **Application** o
 | Ciclo / assinatura | `cycle_interval_seconds` / `signature_boundary_seconds` = **180 s** (sync fecho M3; contrato **3 m**); `exec_empty_retry` **180 s** |
 | Execução | `mandatory_trade_each_cycle: false`; `force_trade_every_cycle: false`; `invert_exec_side: false`; fusao EV + signal_skip 1.1 (quality gate amplo **fora**) |
 | Fail-closed | Triton e meta **opcionais** nos settings atuais (`infra.triton.enabled/require_for_execution: false`; `require_meta_for_execution: false`) |
-| Calibração | `neutral_half_width: 0.0` (zona neutra **off**); thresholds CALL/PUT **0.51/0.49**; override TCN macro se raw &gt;0.65 ou &lt;0.35 |
+| Calibração | `neutral_half_width: 0.0` (zona neutra **off**); thresholds CALL/PUT **0.62/0.38**; override TCN macro se raw &gt;0.65 ou &lt;0.35 |
 | Direção | Resolver modular (`checks` → `persistence` → `meta_edge` → `finalize`); SIDE_EQ antecipado; toxic escape **mantém** edge positivo |
 | Persistence | Threshold **2** losses: tenta **flip** para o oposto (`side_eq_toxic_escape`); se o oposto também estiver saturado → skip |
 | Quality gate | Pisos regulares de margem/edge/ADX **0.0** (esteira contínua); starvation a partir de **6** skips; edge decay a partir de **8** (`edge_decay_floor` → 0.0) |

@@ -55,7 +55,7 @@ Sem `CONTRIBUTING.md` separado: este doc + AGENTS sao o SSOT de contribuicao.
 
 ## Enforcement da doutrina no core
 
-Modulo `app/src/application/services/doctrine_invariants.py` tipa knobs da doutrina (`hard_cal_margin_floor`, edge floors, ACC, sample_size, caps). Testes:
+Modulo `app/src/application/services/doctrine_invariants.py` tipa knobs da doutrina (edge floors, ACC, sample_size, caps, fusion/neg_edge). Testes:
 
 - `tests/unit/application/test_doctrine_invariants.py`
 - `tests/unit/application/test_doctrine_settings_ssot.py` (congela `settings.json` de producao)

@@ -107,7 +107,7 @@ def test_calculate_stake_c0007_turbo_on_clean_recovery_base(kelly_config):
     rm.dlambert_unit = 17.89
     rm.last_loss_stake = 36.72
     rm._recovery_allowed = MagicMock(return_value=True)
-    rm.risk_params = {**kelly_config["params"], "stake_min": 1.0, "payout_estimate": 0.95}
+    rm.risk_params = {**kelly_config["params"], "stake_min": 1.0, "payout_estimate": 0.72}
     neutral_metrics = {
         "execute": True,
         "trade_score": 0.80,
@@ -135,8 +135,8 @@ def test_calculate_stake_c0007_turbo_on_clean_recovery_base(kelly_config):
         apply_stop_win=False,
         kwargs={"dl_metrics": dict(neutral_metrics), "order_direction": "PUT"},
     )
-    amort = 4
-    cover = 36.72 / 0.95 / float(amort) * float(rm.soft_recovery_config.get("cover_multiple", 1.5))
+    amort = 1
+    cover = 36.72 / 0.72 / float(amort) * float(rm.soft_recovery_config.get("cover_multiple", 1.5))
     assert stake_neutral == pytest.approx(cover, rel=5e-2)
     stake_turbo = calculate_stake_for_manager(
         rm,

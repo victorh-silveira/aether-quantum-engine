@@ -11,13 +11,13 @@ def test_resolve_deploy_ok_soft_fallback():
             "deploy_gate": {
                 "enabled": True,
                 "force_ok": False,
-                "soft_min_val_accuracy": 0.50,
-                "soft_max_brier": 0.32,
+                "soft_min_val_accuracy": 0.53,
+                "soft_max_brier": 0.26,
             }
         }
     )
-    assert resolve_deploy_ok(mini_ok=False, val_accuracy=0.52, val_brier=0.25, gate_cfg=cfg) is True
-    assert resolve_deploy_ok(mini_ok=False, val_accuracy=0.48, val_brier=0.25, gate_cfg=cfg) is False
+    assert resolve_deploy_ok(mini_ok=False, val_accuracy=0.54, val_brier=0.25, gate_cfg=cfg) is True
+    assert resolve_deploy_ok(mini_ok=False, val_accuracy=0.52, val_brier=0.25, gate_cfg=cfg) is False
 
 
 def test_resolve_deploy_ok_force_ok_requires_acc_floor():
@@ -55,7 +55,7 @@ def test_resolve_deploy_ok_mini_cannot_bypass_acc_floor():
 
 
 def test_resolve_deploy_ok_disabled_still_respects_acc():
-    cfg = {"enabled": False, "soft_min_val_accuracy": 0.53, "soft_max_brier": 0.32}
+    cfg = {"enabled": False, "soft_min_val_accuracy": 0.53, "soft_max_brier": 0.26}
     assert resolve_deploy_ok(mini_ok=True, val_accuracy=0.40, val_brier=0.20, gate_cfg=cfg) is False
     assert resolve_deploy_ok(mini_ok=False, val_accuracy=0.55, val_brier=0.20, gate_cfg=cfg) is True
 
@@ -88,7 +88,7 @@ def test_resolve_deploy_ok_rejects_majority_collapse():
         "enabled": True,
         "force_ok": False,
         "soft_min_val_accuracy": 0.53,
-        "soft_max_brier": 0.32,
+        "soft_max_brier": 0.26,
         "reject_majority_collapse": True,
         "max_label_call_frac_bias": 0.20,
         "min_minority_recall": 0.25,

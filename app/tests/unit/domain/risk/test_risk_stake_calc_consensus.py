@@ -151,8 +151,17 @@ def test_calculate_stake_consensus_penalty_logs_retention(kelly_config):
 
 
 def test_calculate_stake_d_squeeze_preserves_recovery_stake_with_pending(kelly_config):
+    kelly_config = dict(kelly_config)
+    kelly_config["soft_recovery"] = {
+        **kelly_config["soft_recovery"],
+        "amort_cycles_min": 2,
+        "amort_cycles_max": 5,
+        "max_safe_stake_cap": 500.0,
+        "max_safe_stake_pct": 0.05,
+    }
     rm = MagicMock()
     rm.config = kelly_config
+    rm.soft_recovery_config = kelly_config["soft_recovery"]
     rm.kelly_config = {
         **kelly_config["kelly"],
         "consensus_penalty_enabled": True,

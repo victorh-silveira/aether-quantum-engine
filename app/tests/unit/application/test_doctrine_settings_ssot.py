@@ -21,11 +21,11 @@ def test_production_settings_pass_doctrine_invariants():
     inv = assert_production_doctrine()
     assert inv["force_trade_every_cycle"] is False
     assert inv["min_validation_accuracy_gate"] >= 0.53
-    assert inv["explore_stake_scale_floor"] > 0.0
+    assert inv["explore_stake_scale_floor"] == pytest.approx(0.40)
     assert inv["max_safe_stake_cap"] > 0.0
     assert inv["max_safe_stake_pct"] > 0.0
     assert inv["signal_skip_enabled"] is True
-    assert 0.015 <= float(inv["signal_skip_min_direction_margin"]) <= 0.05
+    assert float(inv["signal_skip_min_direction_margin"]) == pytest.approx(0.022)
 
 
 def test_production_deploy_gate_armed():
@@ -37,7 +37,7 @@ def test_production_deploy_gate_armed():
     assert gate["enabled"] is True
     assert gate["force_ok"] is False
     assert float(gate["soft_min_val_accuracy"]) >= 0.53
-    assert float(gate.get("soft_max_brier", 0.0)) >= 0.26
+    assert float(gate.get("soft_max_brier", 0.0)) == pytest.approx(0.26)
     assert float(gate.get("max_brier", 0.0)) == pytest.approx(0.26)
     assert int(dl.get("min_epochs", 0)) >= 20
     assert int(dl.get("early_stopping_patience", 0)) >= 16
@@ -47,12 +47,14 @@ def test_production_deploy_gate_armed():
     assert int(dl.get("train_deploy_retries", 0)) >= 3
     assert int(dl.get("sample_weighting", {}).get("recency_half_life_n", 0)) == 2000
     assert str(dl.get("label_mode")) == "ma_trend"
+    assert int(dl.get("lookback", 0)) == 480
+    assert float(dl.get("min_edge_execute", 0.0)) == pytest.approx(0.04)
     assert settings["orchestrator"]["execution"]["bypass_deploy_gate"] is False
     assert "quality_gate" not in settings["orchestrator"]["execution"]
     assert "indicator_gating" not in dl
     skip = settings["orchestrator"]["execution"]["signal_skip"]
     assert skip["enabled"] is True
-    assert 0.015 <= float(skip["min_direction_margin"]) <= 0.05
+    assert float(skip["min_direction_margin"]) == pytest.approx(0.022)
 
 
 def test_production_logging_ssot():
@@ -234,6 +236,7 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert float(kelly["target_damping_span"]) == pytest.approx(0.50)
     assert float(kelly["stop_win_max_stake_pct"]) == pytest.approx(0.05)
     assert float(kelly["fraction"]) == pytest.approx(0.08)
+    assert float(kelly["kelly_p_floor"]) == pytest.approx(0.55)
     ssp = settings["orchestrator"]["execution"]["sample_size_policy"]
     assert float(ssp["explore_stake_scale_floor"]) == pytest.approx(0.40)
     soft_rec_caps = settings["risk_management"]["soft_recovery"]

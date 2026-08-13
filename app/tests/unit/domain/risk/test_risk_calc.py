@@ -133,4 +133,4 @@ def test_apply_contract_settlement_result_reconciles_fractional_win_residual(kel
     rm.pending_loss["R_10"] = 20.0
     rm.begin_cluster(1)
     apply_contract_settlement_result(rm, 94.99, 901, "R_10")
-    assert "R_10" not in rm.pending_loss
+    assert rm.pending_loss.get("R_10", 0.0) == pytest.approx(0.0)

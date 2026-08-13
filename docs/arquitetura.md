@@ -19,10 +19,10 @@ Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (TCN,
 | Ciclo | **180 s** (`cycle_interval_seconds` / `signature_boundary_seconds`; sync M3) |
 | Execução | `mandatory_trade_each_cycle: false`; `force` off; `invert_exec_side: false`; fusao EV + signal_skip 1.1 (quality gate amplo **fora**) |
 | Fail-closed | Meta e Triton **opcionais** nos settings atuais (`require_meta_for_execution: false`; `infra.triton.enabled/require_for_execution: false`) |
-| Label | `label_mode: spot_forward` (`ma_trend` / Triple Barrier via config) |
+| Label | `label_mode: ma_trend` (`spot_forward` / Triple Barrier via config) |
 | Meta sessão | Stop win **3,00%** (`compounding_rate_daily: 0.03`); stop loss desativado |
 
-O mercado é tratado como série temporal ruidosa: a TCN estima `P(CALL)` (thresholds **0.51/0.49**); o meta-regressor LightGBM estima `predicted_payoff_edge`; o ranking usa `tcn × max(0.1, 1+z)`. Com `price_zone`, BUY alinha CALL e SELL alinha PUT; edge meta positivo pode **manter** o lado TCN/meta contra a zona (`align_or_keep_meta_side`).
+O mercado é tratado como série temporal ruidosa: a TCN estima `P(CALL)` (thresholds **0.62/0.38**); o meta-regressor LightGBM estima `predicted_payoff_edge`; o ranking usa `tcn × max(0.1, 1+z)`. Com `price_zone` (hoje **off**), BUY alinharia CALL e SELL PUT; edge meta positivo pode **manter** o lado TCN/meta contra a zona (`align_or_keep_meta_side`).
 
 **Invariante temporal:** inferências seguem `signature_boundary_seconds` (fallback `cycle_interval_seconds`, padrão **180 s**) via `get_data_state_signature()` — formato legado `m5`/`m15` alinhado a **180 s** (micro M3) / **7200 s** (macro); ratio macro:micro **1:40**.
 
@@ -32,7 +32,7 @@ O mercado é tratado como série temporal ruidosa: a TCN estima `P(CALL)` (thres
 
 **Dynamic Recovery Relaxation:** com `linear >= 2` e `pending_loss > 0`, os pisos de TCN Margin e Meta Payoff caem linearmente com o passivo (`execution_quality_gate_drawdown.py`); `recovery_relax.edge_floor: -0.55`.
 
-**Calibração (settings atuais):** `neutral_half_width: 0.0` — zona neutra **OFF**; thresholds CALL/PUT **0.51/0.49**. Em `dl_calibration_tolerance` / `dl_predict_build`, se `raw_prob > 0.65` ou `< 0.35`, a TCN macro prevalece sobre a calibração de curto prazo.
+**Calibração (settings atuais):** `neutral_half_width: 0.0` — zona neutra **OFF**; thresholds CALL/PUT **0.62/0.38**. Em `dl_calibration_tolerance` / `dl_predict_build`, se `raw_prob > 0.65` ou `< 0.35`, a TCN macro prevalece sobre a calibração de curto prazo.
 
 **Settlement:** janela de tolerância **90 s** com reconciliação passiva (`portfolio` + Redis); pós-EXEC_EMPTY em recovery alinha a fronteira de assinatura (cap `exec_empty_retry_seconds`).
 
@@ -171,7 +171,7 @@ Normalização anti-leakage: `fit_norm_stats` **somente** no split de treino (`d
 | Checkpoint | `data/dl/{symbol}.pth` + TorchScript / MinIO |
 | Deploy gate | `dl_deploy_eval` com **`force_local=True`** (avalia modelo em memória, sem Triton) |
 
-Config atual: `arch: tcn`, `lookback: 480`, `label_mode: spot_forward`, thresholds **0.51** / **0.49**, `neutral_half_width: 0.0`.
+Config atual: `arch: tcn`, `lookback: 480`, `label_mode: ma_trend`, thresholds **0.62** / **0.38**, `neutral_half_width: 0.0`.
 
 ### 4.3 Treino de sessão
 
@@ -273,7 +273,7 @@ Runtime atual: TCN ancora Cal → soft `signal_skip` / loss-clf → **fusao EV**
 
 | Etapa | Comportamento |
 |-------|---------------|
-| `infer_dl_direction` | TCN: `P(CALL) ≥ pivot` → CALL, senão PUT (thresholds **0.51/0.49**) |
+| `infer_dl_direction` | TCN: `P(CALL) ≥ pivot` → CALL, senão PUT (thresholds **0.62/0.38**) |
 | Meta edge | Refina score / D-SQUEEZE (meta opcional); edge abaixo do piso dinâmico → `meta_negative_edge` |
 | Persistence | Flip CALL↔PUT com `side_eq_toxic_escape` **ou** `persistence_guard_skip` |
 | Bloqueio absoluto | `deploy_ok=false`, `gate_reason ∈ {data, predict_error, training}`; Triton fail-closed só se configurado |
@@ -385,7 +385,7 @@ Watchdog: `AetherWatchdog` reconecta stream se ticks estagnarem (`watchdog_stale
 `granularity` (**7200**), `micro_granularity` / `mini_granularity` (**180**), `history_bars` / `training_history_bars` conforme settings (treino tipico **2000** micro M3), `fetch_count`, `buffer_limit`, rate-limits de histórico.
 
 ### `deep_learning`
-`arch`, `lookback` (**480**), `train_symbols`, `confidence_*` (**0.51/0.49**), `calibration.*` (`neutral_half_width: 0.0`), `online_training` (**false**), `deploy_gate.*`, `label_mode` + `label_*`, `tcn.channels`, `training_*`, `model_path_template`, `min_edge_execute`.
+`arch`, `lookback` (**480**), `train_symbols`, `confidence_*` (**0.62/0.38**), `calibration.*` (`neutral_half_width: 0.0`), `online_training` (**false**), `deploy_gate.*`, `label_mode` + `label_*`, `tcn.channels`, `training_*`, `model_path_template`, `min_edge_execute`.
 
 ### `orchestrator` / `orchestrator.execution`
 `cycle_interval_seconds` (**180**), `signature_boundary_seconds` (**180**), `exec_empty_retry_seconds` (**180**), `watchdog_stale_tick_seconds` (**300**), `mandatory_trade_each_cycle` (**false**), `invert_exec_side` (**false**), `require_meta_for_execution` (**false**), `scale_vision.fusion_*` + `signal_skip` 1.1, `settlement_*` (**90 s** SSOT), `post_settlement_is_trading_wait_seconds` (**90**), `warm_up_live_data_timeout_seconds`, `broker_handshake_timeout_seconds`, `state_lock_acquire_timeout_seconds`.

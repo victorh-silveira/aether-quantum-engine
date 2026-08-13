@@ -26,7 +26,7 @@ SSOT operacional: [`config/settings.json`](../config/settings.json) — universo
 
 **Regra no Aether:** `sample_size_policy` (telemetria/sizing); explore stake scale com N baixo.
 
-**Ancoras:** `sample_size_policy` (`evidence_n_min=20`, `large_n_min=40`, `explore_stake_scale_floor=0.40`); `app/src/domain/analytics/sample_size_policy.py`; [`sample-size-lln.md`](sample-size-lln.md).
+**Ancoras:** `sample_size_policy` (`evidence_n_min=12`, `large_n_min=32`, `explore_stake_scale_floor=0.40`); `app/src/domain/analytics/sample_size_policy.py`; [`sample-size-lln.md`](sample-size-lln.md).
 
 ---
 
@@ -118,7 +118,7 @@ SSOT operacional: [`config/settings.json`](../config/settings.json) — universo
 
 Ler o log nesta ordem (processo primeiro, P&L depois):
 
-1. **CLUSTER** — Prob / Cal / Margin / Edge. Cal ~0.50 com Margin &lt; `hard_cal_margin_floor` nao e setup.
+1. **CLUSTER** — Prob / Cal / Margin / Edge. Margin fraca vs `signal_skip.min_direction_margin` (**0.022**) → soft Kelly (`cal_margin_soft`); nao ha `hard_cal_margin_floor` (removido).
 2. **SIDE_EQ** — bias e N; soft Kelly sizing apenas (nao SKIP de direcao; nao e licenca para forcar trade).
 3. **IND** — RSI/ADX/HURST/ATR/BBW como telemetria de contexto (vetos de sinal removidos).
 4. **KELLY** — `mode=explore|recover`, `live_n`, `f*`, `kelly_fraction_scale` (inclui SIDE_EQ soft). Com fusao, `p` deve rastrear `fusion_p_eff` (nao breakeven se `p_eff` alto). Cold start: `explore_stake_scale_floor` **0.40**. RECOVER: stake = cover pleno (`cover_multiple` **1.50**, amort **1/1**); `f*` so gate. Se `[RESOLVED] PEND` nao cai apos WIN → regressao de audit.

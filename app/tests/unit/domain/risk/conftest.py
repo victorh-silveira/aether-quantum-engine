@@ -40,9 +40,10 @@ def kelly_config():
         {
             "enabled": True,
             "max_safe_stake_cap": 4.20,
-            "max_safe_stake_pct": 0.035,
-            "amort_cycles_min": 2,
-            "amort_cycles_max": 5,
+            "max_safe_stake_pct": 0.05,
+            "amort_cycles_min": 1,
+            "amort_cycles_max": 1,
+            "cover_multiple": 1.50,
             "coing_redirect_drawdown_threshold": 15.00,
         }
     )
@@ -55,5 +56,5 @@ def kelly_config():
             "recovery_min_conviction": 0.58,
             "recovery_min_val_accuracy": 0.53,
         },
-        "params": {"payout_estimate": 0.95, "stake_min": 1.0, "entry_cooldown_ticks": 0},
+        "params": {"payout_estimate": 0.72, "stake_min": 1.0, "entry_cooldown_ticks": 0},
     }

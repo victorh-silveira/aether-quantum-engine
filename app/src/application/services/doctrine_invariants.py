@@ -193,8 +193,8 @@ def assert_production_doctrine(settings: dict[str, Any] | None = None) -> dict[s
         raise ValueError("fusion_block_when_tcn_candle_agree deve ser true")
     if not inv["fusion_loss_requires_auto_learn"]:
         raise ValueError("fusion_loss_requires_auto_learn deve ser true")
-    if float(inv["fusion_loss_seed_weight_mult"]) > 0.15 + 1e-12:
-        raise ValueError("fusion_loss_seed_weight_mult deve ser <= 0.15")
+    if abs(float(inv["fusion_loss_seed_weight_mult"])) > 1e-12:
+        raise ValueError("fusion_loss_seed_weight_mult deve ser 0.0")
     if abs(float(inv["neg_edge_deep_edge_floor"]) + 0.12) > 1e-9:
         raise ValueError("neg_edge_deep_edge_floor deve ser -0.12")
     if int(inv["watchdog_stale_tick_seconds"]) != 300:
@@ -213,12 +213,12 @@ def assert_production_doctrine(settings: dict[str, Any] | None = None) -> dict[s
         raise ValueError("large_account_stop_win_pct deve ser 3.0")
     if float(inv["min_validation_accuracy_gate"]) + 1e-12 < _PRODUCTION_MIN_ACC:
         raise ValueError(f"min_validation_accuracy_gate < {_PRODUCTION_MIN_ACC}")
-    if float(inv["explore_stake_scale_floor"]) <= 0.0:
-        raise ValueError("explore_stake_scale_floor deve ser > 0")
+    if abs(float(inv["explore_stake_scale_floor"]) - 0.40) > 1e-9:
+        raise ValueError("explore_stake_scale_floor deve ser 0.40")
     if float(inv["max_safe_stake_cap"]) <= 0.0 or float(inv["max_safe_stake_pct"]) <= 0.0:
         raise ValueError("max_safe_stake_cap/pct devem ser > 0")
     if inv["signal_skip_enabled"]:
         floor = float(inv["signal_skip_min_direction_margin"])
-        if floor + 1e-12 < 0.015 or floor - 1e-12 > 0.05:
-            raise ValueError("signal_skip.min_direction_margin deve estar em [0.015, 0.05]")
+        if abs(floor - 0.022) > 1e-9:
+            raise ValueError("signal_skip.min_direction_margin deve ser 0.022")
     return inv

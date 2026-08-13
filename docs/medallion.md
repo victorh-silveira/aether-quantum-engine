@@ -25,12 +25,12 @@ Doutrina do copiloto LLM/Cursor (9 livros → constraints de engenharia): [`llm-
 | Soft recovery + caps | `soft_recovery_policy` ativo: cover pleno (`cover_multiple` **1.50**, amort **1/1**) com teto % banca |
 | Sizing | EXPLORE = Kelly * `explore_stake_scale(N)`; RECOVER = Soft Recovery cover pleno (amort **1/1**, sem revenge) |
 | Side equilibrium (LLN) | `sample_size_policy` + `side_equilibrium`: dominio pode marcar hard_skip; runtime aplica **so soft Kelly** (`execution_side_eq_sizing`) — sem veto de direcao |
-| Lei dos Grandes Numeros | WR/ECE live so pesam apos `evidence_n_min=20`; cold-start nao escala stake nem calib drift |
+| Lei dos Grandes Numeros | WR/ECE live so pesam apos `evidence_n_min=12`; cold-start nao escala stake nem calib drift |
 | Meta por sessão ativa | Stop win de **3,00%** composto (banca ≥ $100) ou fixo $10 (banca < $100) |
 | Sem disjuntor de perda | Stop loss interno desativado |
 | Isolamento de estado | `asyncio.Lock` serializa inferência, liquidação e persistência |
 | Persistence guard | Após 2 losses: **flip** toxic escape se o oposto estiver livre; senão skip; FREEZE em congestão micro |
-| Calibração | Zona neutra **off** (`neutral_half_width: 0.0`); thresholds **0.51/0.49**; override TCN macro se raw&gt;0.65 ou &lt;0.35 |
+| Calibração | Zona neutra **off** (`neutral_half_width: 0.0`); thresholds **0.62/0.38**; override TCN macro se raw&gt;0.65 ou &lt;0.35 |
 | Veto Cruzado TCN-GBDT | Soft veto comprime score (não hard-blocka resolve); hard com shadow; meta opcional |
 | Settlement resiliente | Fila Redis `settlement:queue:priority`; tolerância **90 s**; alinhamento pós-EXEC_EMPTY |
 | Starvation escape | Após **6** quality skips decaem pisos; edge meta a partir de **8** skips até floor 0.0 |
@@ -44,7 +44,7 @@ Inspirado em Mlodinow (*O Andar do Bebado*, caps. 3–4): amostras pequenas sao 
 
 | Ideia do livro | No codigo |
 |----------------|-----------|
-| Lei dos Grandes Numeros (Bernoulli) | `evidence_n_min=20` / `large_n_min=40` antes de confiar em WR live, ECE e soft sizing por underperformance |
+| Lei dos Grandes Numeros (Bernoulli) | `evidence_n_min=12` / `large_n_min=32` antes de confiar em WR live, ECE e soft sizing por underperformance |
 | Vies dos Pequenos Numeros (Tversky/Kahneman) | `n_min_small=8`: 2–3 losses nao geram SKIP de direcao nem toxic label |
 | Falacia do apostador | Recovery nao escala por “autocorrecao”; calib drift soft exige `calib_soft_min_n=15` |
 | Mao quente | `explore_stake_scale` e shrink bayesiano diluem streaks curtas em direcao ao prior |
@@ -100,14 +100,14 @@ Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `
 | Camada | Comportamento |
 |--------|---------------|
 | Bloqueio técnico | `data`, `predict_error`, `training`, `deploy_ok=false`, Triton fail-closed |
-| Calibração | Zona neutra **off** (`neutral_half_width: 0.0`); thresholds **0.51/0.49**; override TCN macro se raw&gt;0.65 ou &lt;0.35 |
+| Calibração | Zona neutra **off** (`neutral_half_width: 0.0`); thresholds **0.62/0.38**; override TCN macro se raw&gt;0.65 ou &lt;0.35 |
 | Veto cruzado TCN-GBDT | Soft comprime score; hard com shadow; soft não hard-blocka o resolve |
 | Classificação macro | TCN processa lookback **480** em barras micro **180 s** (`[1, 480, 34]`; ~24 h); define direção (`dl_direction`) |
 | Stacking tabular | Meta-regressor LightGBM (micro **180 s**) sobre vetor **43D** + probabilidade TCN; saída `predicted_payoff_edge`; meta **opcional** |
 | Z-Score de payoff | `payoff_edge_zscore`: janela adaptativa 15–45; classificação estatística do micro-edge |
 | Scoring de ranking | `market_decision_score = tcn × max(0.1, 1 + z)` |
 | Scoring direcional | TCN define `dl_direction`; edge &gt; 0 pode manter lado contra price zone; compressão BB severa rebaixa para `0.52` |
-| Margem direcional | `direction_margin = abs(P(lado) − 0.50)`; thresholds **0.51/0.49**; piso regular **0.0** nos settings atuais |
+| Margem direcional | `direction_margin = abs(P(lado) − 0.50)`; thresholds **0.62/0.38**; soft Kelly se Margin &lt; `signal_skip.min_direction_margin` (**0.022**) |
 | Gate de qualidade | Dual soft + HARD microestrutura (limiares ADX atuais **0.0**); sniper stubs; meta opcional; consensus **off** |
 | Indicator gating | removido do pipeline; telemetria de indicadores permanece nas features |
 | Persistence guard | Após 2 perdas: **flip** toxic escape ou skip; `FREEZE` em congestão |
@@ -132,11 +132,11 @@ Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `
 | Resolução direcional | TCN + meta GBDT | `dl_direction` da TCN; meta refina score / D-SQUEEZE (opcional) |
 | Execução contínua | Ciclo **180 s** | Boleta CALL/PUT na cadência M3 quando há sinal válido |
 
-Com `lookback: 480`, `micro_granularity: 180` e `history_bars: 2000` (SSOT atual):
+Com `lookback: 480`, `micro_granularity: 180` e `training_history_bars: 1333` (SSOT treino DL; `data_handler.history_bars` permanece **2000** para buffer):
 
 | Conceito | Barras | Tempo aproximado |
 |----------|--------|------------------|
-| Histórico de treino | 2000 | ~4,2 dias (@ 180 s) |
+| Histórico de treino | 1333 | ~2,8 dias (@ 180 s) |
 | Lookback | 480 | **~24 h** de contexto por sequência (@ 180 s) |
 | Validação holdout | ~15% | proporcional ao split |
 
@@ -496,7 +496,7 @@ Logs: `ord=` (ordem enviada) sempre igual a `dl=` (direção prevista pelo DL), 
 | Mecanismo | Papel |
 |-----------|-------|
 | Kelly fracionário | Sizing EXPLORE com win rate dinâmico; compressão 40% fora de recovery (`fraction: 0.08`) |
-| Target Proximity Damping | Amortecimento linear da stake Kelly conforme `pnl_sessao` se aproxima de `target_win` (piso 0.40×) |
+| Target Proximity Damping | Amortecimento linear da stake Kelly conforme `pnl_sessao` se aproxima de `target_win` (piso `target_damping_floor` **0.50** + span **0.50**; arranque **1.0**) |
 | Consensus Entropy Penalty | Presente no código; **desligado** nos settings atuais (seção 7) |
 | Penalty Smoothing | Convergência adaptativa em recovery quando consensus estiver ligado (seção 8.2) |
 | Recovery financeiro persistente | Estado de risco atrelado a `pending_total` (seção 8.1) |
@@ -538,7 +538,7 @@ Com `compounding_enabled: false`, o motor recorre ao alvo legado (`small_account
 Evita superexposição quando a sessão já capturou a maior parte do stop win:
 
 1. **Kelly base** — `resolve_effective_kelly_fraction` usa `kelly.fraction` de config (**0,08**), com target proximity em regime EXPLORE (consensus off).
-2. **Amortecimento dinâmico** — após o Kelly bruto, `apply_kelly_target_proximity_damping` multiplica a stake por `0.40 + 0.60 × remaining_target_pct`.
+2. **Amortecimento dinâmico** — após o Kelly bruto, `apply_kelly_target_proximity_damping` multiplica a stake por `target_damping_floor + target_damping_span × remaining_target_pct` (**0.50 + 0.50 × remaining**; arranque **1.0**, perto-meta **0.50**).
 3. **Exemplo** — meta $101.20, Kelly bruto $45.56: com `pnl_sessao = 0` permanece $45.56×1.0 (já atenuado pela fração base); com 90% da meta (`pnl ≈ $91.08`) o fator cai para 0.46 (~$20.96).
 
 Fora de recovery, este amortecimento define o `Kelly_base`. Em RECOVER com Soft Recovery, a stake amortiza `pending` sob `max_safe_stake_pct`.

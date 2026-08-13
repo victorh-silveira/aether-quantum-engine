@@ -117,7 +117,7 @@ def test_stake_force_explore_on_scale_flag():
             "max_bet_pct": 0.05,
             "min_bet": 0.35,
             "payout_rate": 0.87,
-            "explore_stake_scale_floor": 0.25,
+            "explore_stake_scale_floor": 0.40,
             "mandatory_weak_conviction_cap": 0.55,
             "recovery_min_conviction": 0.50,
         },

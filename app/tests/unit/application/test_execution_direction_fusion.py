@@ -33,6 +33,8 @@ def test_parse_direction_fusion_from_ssot():
     with pytest.raises(ValueError, match="fusion_weak_ev_seed_soft_kelly_mult"):
         parse_direction_fusion_config({"fusion_weak_ev_seed_soft_kelly_mult": 0.0})
     with pytest.raises(ValueError, match="fusion_loss_seed_weight_mult"):
+        parse_direction_fusion_config({"fusion_loss_seed_weight_mult": 0.10})
+    with pytest.raises(ValueError, match="fusion_loss_seed_weight_mult"):
         parse_direction_fusion_config({"fusion_loss_seed_weight_mult": 0.2})
 
 
