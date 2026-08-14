@@ -1,4 +1,4 @@
-"""Promocao atomica do vencedor do sweep multi-TF para o SSOT."""
+"""Promocao atomica do vencedor do sweep de horizonte para o SSOT."""
 
 from __future__ import annotations
 
@@ -14,12 +14,17 @@ from src.application.services.deep_learning.tf_sweep_config import (
     candidate_artifact_dir,
     resolve_repo_path,
 )
-from src.application.services.deep_learning.tf_sweep_scale import apply_tf_wallclock_scale
 from src.application.services.deep_learning.tf_sweep_score import pick_tf_winner
+from src.application.services.deep_learning.tf_sweep_symbols import (
+    clear_other_live_checkpoints,
+    normalize_sweep_symbol,
+    patch_settings_for_symbol,
+    write_trading_symbols_module,
+)
 
 
 def patch_settings_for_candidate(settings: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
-    """Retorna copia de settings com gran/contrato/ciclo e escala wall-clock do TF."""
+    """Retorna copia de settings com contrato/ciclo/horizon da celula (sem reescalar lookback)."""
     out = copy.deepcopy(settings)
     micro = int(candidate["micro_granularity"])
     macro = int(candidate["macro_granularity"])
@@ -55,7 +60,10 @@ def patch_settings_for_candidate(settings: dict[str, Any], candidate: dict[str, 
     orch["cycle_interval_seconds"] = micro
     orch["signature_boundary_seconds"] = micro
     orch["exec_empty_retry_seconds"] = micro
-    apply_tf_wallclock_scale(out, micro)
+    if candidate.get("lookback") is not None:
+        dl["lookback"] = int(candidate["lookback"])
+    if candidate.get("history_bars") is not None:
+        dl["training_history_bars"] = int(candidate["history_bars"])
     return out
 
 
@@ -64,14 +72,17 @@ def patch_settings_for_sweep_train(
     candidate: dict[str, Any],
     *,
     artifact_root: str,
+    symbol: str = "R_10",
     train_deploy_retries: int = 1,
     disable_infra: bool = True,
 ) -> dict[str, Any]:
-    """Settings de treino isolado: path de ckpt em data/dl/sweep/{tf}."""
+    """Settings de treino isolado: path de ckpt em data/dl/sweep/{symbol}/{tf}."""
     out = patch_settings_for_candidate(settings, candidate)
+    patch_settings_for_symbol(out, symbol)
     dl = out["deep_learning"]
     tf = str(candidate["tf"]).strip().upper()
-    dl["model_path_template"] = f"{artifact_root.rstrip('/')}/{tf}/{{symbol}}.pth"
+    sym = normalize_sweep_symbol(symbol)
+    dl["model_path_template"] = f"{artifact_root.rstrip('/')}/{sym}/{tf}/{{symbol}}.pth"
     dl["train_deploy_retries"] = max(1, int(train_deploy_retries))
     if disable_infra:
         infra = out.setdefault("infra", {})
@@ -87,9 +98,10 @@ def checkpoint_paths_for_tf(
     symbol: str = "R_10",
     repo_root: Path | None = None,
 ) -> tuple[Path, Path]:
-    """Retorna (pth, torchscript) no diretorio do TF."""
-    folder = candidate_artifact_dir(artifact_root, tf, repo_root=repo_root)
-    return folder / f"{symbol}.pth", folder / f"{symbol}_ts.pt"
+    """Retorna (pth, torchscript) no diretorio do simbolo+TF."""
+    folder = candidate_artifact_dir(artifact_root, tf, symbol=symbol, repo_root=repo_root)
+    sym = normalize_sweep_symbol(symbol)
+    return folder / f"{sym}.pth", folder / f"{sym}_ts.pt"
 
 
 def _stamp_checkpoint_deploy_ok(path: Path) -> None:
@@ -134,18 +146,21 @@ def promote_winner_from_leaderboard(
     settings: dict[str, Any],
     *,
     artifact_root: str,
-    symbol: str = "R_10",
+    symbol: str | None = None,
     dest_dir: Path | None = None,
     repo_root: Path | None = None,
     copy_artifacts: bool = True,
+    write_symbols_module: bool = True,
+    symbols_module_path: Path | None = None,
 ) -> tuple[dict[str, Any] | None, dict[str, Any], list[Path]]:
-    """Escolhe vencedor, patcha settings e opcionalmente copia artefactos.
+    """Escolhe vencedor, patcha settings/simbolo e opcionalmente copia artefactos.
 
     Retorna (winner_or_none, settings_out, copied_paths). Sem elegivel: settings intacto.
     """
     winner = pick_tf_winner(rows)
     if winner is None:
         return None, settings, []
+    win_symbol = normalize_sweep_symbol(symbol or winner.get("symbol") or "R_10")
     candidate = {
         "tf": winner["tf"],
         "micro_granularity": int(winner.get("granularity") or winner.get("micro_granularity")),
@@ -159,18 +174,23 @@ def promote_winner_from_leaderboard(
         "train_timeframe": "micro",
     }
     patched = patch_settings_for_candidate(settings, candidate)
+    patch_settings_for_symbol(patched, win_symbol)
     dl = patched.setdefault("deep_learning", {})
     if isinstance(dl, dict):
         dl["model_path_template"] = "data/dl/{symbol}.pth"
+    if write_symbols_module:
+        write_trading_symbols_module(win_symbol, path=symbols_module_path)
     copied: list[Path] = []
     if copy_artifacts:
+        dest = dest_dir if dest_dir is not None else resolve_repo_path("data/dl", repo_root=repo_root)
         copied = promote_artifacts(
             artifact_root=artifact_root,
             tf=str(winner["tf"]),
-            symbol=symbol,
-            dest_dir=dest_dir,
+            symbol=win_symbol,
+            dest_dir=dest,
             repo_root=repo_root,
         )
+        clear_other_live_checkpoints(dest, win_symbol)
     return winner, patched, copied
 
 

@@ -12,7 +12,7 @@ description: >-
 
 1. Warmup / DATA buffer — MACRO **7200 s** / MICRO **180 s** / MINI **180 s** (`stream_sync_start`)
 2. FASE TREINO vs OPERACAO (`mandatory_trade_each_cycle` **false**; `online_training` **false**)
-3. Signature boundary **180 s** — ciclo alinhado? Contrato Deriv **3 m** (micro OHLC **180 s**)
+3. Signature boundary **180 s** — ciclo alinhado? Contrato Deriv **N × 3 min** (N do ultimo `[HORIZON] winner`; micro OHLC **180 s**)
 4. CLUSTER TF — micro **M3**; Cal/Edge telemetria
 5. SCALE — `tape` / `adapted` / discord; fusao EV `[GATES] || FUSION`; adaptacao de lado sob `raw_extreme` (sem SKIP); sizing em `execution_scale_*`
 6. Locks / atomic state — deadlock?

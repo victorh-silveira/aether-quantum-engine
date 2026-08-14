@@ -31,14 +31,14 @@ cd /d "%REPO_ROOT%\app"
 if errorlevel 1 goto :loss_bootstrap_fail
 cd /d "%REPO_ROOT%"
 
-echo [AETHER] Etapa 1/5: Sweep multi-TF + promote do vencedor (TCN)...
+echo [AETHER] Etapa 1/5: Sweep horizonte N (H1/H2/H3/H5) + promote do mais assertivo...
 cd /d "%REPO_ROOT%"
 "%PYTHON_EXE%" app/scripts/operations/run_launch_train_tf_pipeline.py %*
-if errorlevel 1 goto :tf_sweep_fail
+if errorlevel 1 goto :horizon_fail
 
-echo [AETHER] Etapa 1b/5: Validando deploy/ACC do checkpoint DL promovido...
+echo [AETHER] Etapa 1b/5: Validando deploy/ACC do checkpoint DL...
 cd /d "%REPO_ROOT%"
-"%PYTHON_EXE%" app/scripts/operations/check_dl_deploy_gate.py --symbols R_10
+"%PYTHON_EXE%" app/scripts/operations/check_dl_deploy_gate.py
 if errorlevel 1 goto :dl_gate_fail
 
 echo [AETHER] Etapa 2/5: Verificando infraestrutura Docker (TimescaleDB)...
@@ -46,11 +46,11 @@ cd /d "%REPO_ROOT%"
 "%PYTHON_EXE%" app/scripts/operations/ensure_timescale.py --check-only
 if errorlevel 1 echo [AVISO] TimescaleDB nao disponivel. Meta-classificador usara API Deriv (fallback).
 
-echo [AETHER] Etapa 3/5: Meta-Classificador (LightGBM) no TF promovido...
+echo [AETHER] Etapa 3/5: Meta-Classificador (LightGBM) no SSOT...
 call "%~dp0_run_meta_train.bat" "%CONDA_ACTIVATE%"
 if errorlevel 1 goto :meta_fail
 
-echo [SUCESSO] Pipeline launch-train (sweep multi-TF + meta) concluido!
+echo [SUCESSO] Pipeline launch-train (TCN + meta) concluido!
 echo [AETHER] Rode make docker-rebuild e sync MinIO/Triton antes da DEMO.
 timeout /t 5 /nobreak > nul
 exit /b 0
@@ -65,9 +65,9 @@ echo [ERRO] Bootstrap do loss-classifier falhou apos sanitizacao. Treino abortad
 pause
 exit /b 1
 
-:tf_sweep_fail
-echo [ERRO] Sweep multi-TF / promote falhou (nenhum TF elegivel ou treino). Meta abortado.
-echo [AETHER] Fallback single-TF: set tf_sweep.run_in_launch_train=false e use _run_train.bat.
+:horizon_fail
+echo [ERRO] Treino TCN / sweep / promote falhou. Meta abortado.
+echo [AETHER] Criterio: settle_wr>=be+0.03, n>=16, history>=800. Horizonte N in {1,2,3,5} (R_10 M3).
 pause
 exit /b 1
 

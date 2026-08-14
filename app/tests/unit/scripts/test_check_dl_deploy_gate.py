@@ -22,7 +22,7 @@ def test_evaluate_checkpoint_accepts_settle_despite_low_acc(tmp_path: Path):
     settings = {
         "deep_learning": {
             "training_history_bars": 2000,
-            "tf_sweep": {
+            "horizon_sweep": {
                 "min_edge_vs_breakeven": 0.03,
                 "min_settle_n": 16,
                 "min_history_bars": 800,
@@ -156,6 +156,60 @@ def test_evaluate_checkpoint_rejects_stale_geometry(tmp_path: Path):
         ok, msg = evaluate_checkpoint(path, soft_min=0.53, settings=settings)
     assert ok is False
     assert "lookback" in msg
+
+
+def test_evaluate_checkpoint_rejects_stale_horizon(tmp_path: Path):
+    path = tmp_path / "R_10.pth"
+    path.write_bytes(b"x")
+    settings = {
+        "deep_learning": {
+            "lookback": 480,
+            "label_horizon_bars": 3,
+            "train_timeframe": "micro",
+            "deploy_gate": {"soft_min_val_accuracy": 0.53},
+        },
+        "data_handler": {"micro_granularity": 180, "granularity": 7200},
+    }
+    with patch(
+        "torch.load",
+        return_value={
+            "val_accuracy": 0.55,
+            "deploy_ok": True,
+            "lookback": 480,
+            "granularity": 180,
+            "label_horizon_bars": 1,
+            **_COLLAPSE_OK,
+        },
+    ):
+        ok, msg = evaluate_checkpoint(path, soft_min=0.53, settings=settings)
+    assert ok is False
+    assert "label_horizon_bars" in msg
+
+
+def test_evaluate_checkpoint_rejects_missing_horizon(tmp_path: Path):
+    path = tmp_path / "R_10.pth"
+    path.write_bytes(b"x")
+    settings = {
+        "deep_learning": {
+            "lookback": 480,
+            "label_horizon_bars": 3,
+            "train_timeframe": "micro",
+        },
+        "data_handler": {"micro_granularity": 180, "granularity": 7200},
+    }
+    with patch(
+        "torch.load",
+        return_value={
+            "val_accuracy": 0.55,
+            "deploy_ok": True,
+            "lookback": 480,
+            "granularity": 180,
+            **_COLLAPSE_OK,
+        },
+    ):
+        ok, msg = evaluate_checkpoint(path, soft_min=0.53, settings=settings)
+    assert ok is False
+    assert "label_horizon_bars" in msg
 
 
 def test_main_fails_when_checkpoint_missing(monkeypatch, tmp_path: Path):

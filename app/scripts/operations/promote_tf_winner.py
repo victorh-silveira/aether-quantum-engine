@@ -1,4 +1,4 @@
-"""Promove o vencedor do leaderboard multi-TF para settings + data/dl."""
+"""Promove o vencedor do leaderboard de horizonte para settings + data/dl."""
 
 from __future__ import annotations
 
@@ -35,14 +35,18 @@ def load_leaderboard(path: Path, knobs: dict) -> list[dict]:
 
 def main(argv: list[str] | None = None) -> int:
     """CLI de promocao fail-closed do TF vencedor."""
-    parser = argparse.ArgumentParser(description="Promove vencedor do TF sweep para SSOT")
+    parser = argparse.ArgumentParser(description="Promove vencedor do sweep de horizonte para SSOT")
     parser.add_argument("--dry-run", action="store_true", help="Nao grava settings nem copia ckpt")
     parser.add_argument(
         "--leaderboard",
         default=None,
-        help="Path do leaderboard (default: deep_learning.tf_sweep.leaderboard_path)",
+        help="Path do leaderboard (default: deep_learning.horizon_sweep.leaderboard_path)",
     )
-    parser.add_argument("--symbol", default="R_10")
+    parser.add_argument(
+        "--symbol",
+        default=None,
+        help="Override do simbolo promovido (default: coluna symbol do winner)",
+    )
     args = parser.parse_args(argv)
     log = setup_logger("TF_SWEEP")
     settings = load_settings_json()
@@ -52,12 +56,13 @@ def main(argv: list[str] | None = None) -> int:
     preview = pick_tf_winner(rows)
     if preview is None:
         log.error(
-            "[TF_SWEEP] nenhum TF elegivel (deploy_ok e ACC >= be+%.3f); SSOT intacto",
+            "[TF_SWEEP] nenhum TF elegivel (settle_wr>=be+%.3f); SSOT intacto",
             float(knobs["min_edge_vs_breakeven"]),
         )
         return 1
     log.info(
-        "[TF_SWEEP] winner=%s acc=%.4f edge_vs_be=%.4f score=%s",
+        "[TF_SWEEP] winner=%s/%s acc=%.4f edge_vs_be=%.4f score=%s",
+        preview.get("symbol"),
         preview.get("tf"),
         float(preview.get("val_accuracy") or 0.0),
         float(preview.get("edge_vs_be") or 0.0),
@@ -70,7 +75,7 @@ def main(argv: list[str] | None = None) -> int:
         rows,
         settings,
         artifact_root=str(knobs["artifact_root"]),
-        symbol=str(args.symbol),
+        symbol=str(args.symbol) if args.symbol else None,
         copy_artifacts=True,
     )
     if winner is None:
@@ -81,7 +86,8 @@ def main(argv: list[str] | None = None) -> int:
     backup.write_text(settings_path.read_text(encoding="utf-8"), encoding="utf-8")
     write_json(settings_path, patched)
     log.info(
-        "[TF_SWEEP] promovido tf=%s settings=%s backup=%s ckpts=%s",
+        "[TF_SWEEP] promovido symbol=%s tf=%s settings=%s backup=%s ckpts=%s",
+        patched.get("anchor") or winner.get("symbol"),
         winner.get("tf"),
         settings_path,
         backup,

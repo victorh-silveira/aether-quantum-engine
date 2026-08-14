@@ -49,8 +49,8 @@ Regra: **domain** não importa application nem infrastructure. **Application** o
 | Universo | `R_10` (âncora `R_10`) |
 | DL | TCN, lookback **480**, micro **180 s**, macro **7200 s**, `FEATURE_DIM=34`, label `ma_trend`, tensor `[1, 480, 34]` |
 | Meta | LightGBM HTTP `:8005`, `META_FEATURE_DIM=43` (micro **180 s**); **opcional** para execução |
-| Relógio | Micro/MINI **180 s** + macro **7200 s**; contrato **3 m** (M3); ratio **1:40**; assinatura legado `m5b:…;m5:…;m15:…` |
-| Ciclo / assinatura | `cycle_interval_seconds` / `signature_boundary_seconds` = **180 s** (sync fecho M3; contrato **3 m**); `exec_empty_retry` **180 s** |
+| Relógio | Micro/MINI **180 s** + macro **7200 s**; contrato **N × 3 min** (N eleito no treino); ratio **1:40**; assinatura legado `m5b:…;m5:…;m15:…` |
+| Ciclo / assinatura | `cycle_interval_seconds` / `signature_boundary_seconds` = **180 s** (sync fecho M3); `exec_empty_retry` **180 s** |
 | Execução | `mandatory_trade_each_cycle: false`; `force_trade_every_cycle: false`; `invert_exec_side: false`; fusao EV + signal_skip 1.1 (quality gate amplo **fora**) |
 | Fail-closed | Triton e meta **opcionais** nos settings atuais (`infra.triton.enabled/require_for_execution: false`; `require_meta_for_execution: false`) |
 | Calibração | `neutral_half_width: 0.0` (zona neutra **off**); thresholds CALL/PUT **0.62/0.38**; override TCN macro se raw &gt;0.65 ou &lt;0.35 |

@@ -48,6 +48,8 @@ def test_production_deploy_gate_armed():
     assert int(dl.get("sample_weighting", {}).get("recency_half_life_n", 0)) == 2000
     assert str(dl.get("label_mode")) == "ma_trend"
     assert int(dl.get("lookback", 0)) == 480
+    assert int(dl.get("label_horizon_bars", 0)) == 3
+    assert int(settings["risk_management"]["params"]["duration"]) == int(dl.get("label_horizon_bars", 0)) * 3
     assert float(dl.get("min_edge_execute", 0.0)) == pytest.approx(0.04)
     assert settings["orchestrator"]["execution"]["bypass_deploy_gate"] is False
     assert "quality_gate" not in settings["orchestrator"]["execution"]
@@ -113,7 +115,7 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert resolved["flip_cal_discord_margin"] == pytest.approx(0.03)
     assert resolved["flip_require_pos_edge"] is False
     assert resolved["flip_min_edge_execute"] == pytest.approx(0.04)
-    assert resolved["flip_waive_on_closed_candle"] is True
+    assert resolved["flip_waive_on_closed_candle"] is False
     assert resolved["flip_candle_p_loss_floor"] == pytest.approx(0.85)
     assert resolved["flip_waive_scale_above_p_loss"] == pytest.approx(0.95)
     assert resolved["flip_block_when_tcn_pos_edge"] is True
@@ -218,9 +220,12 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert int(orch["watchdog_stale_tick_seconds"]) == 300
     assert int(orch["post_settlement_is_trading_wait_seconds"]) == 90
     assert int(settings["risk_management"]["kelly"]["cycle_stake_baseline_seconds"]) == 180
+    assert settings.get("anchor") == "R_10"
+    assert list(settings.get("symbols") or []) == ["R_10"]
+    assert list(dl.get("train_symbols") or []) == ["R_10"]
+    assert int(settings["risk_management"]["params"]["duration"]) == 9
+    assert str(settings["risk_management"]["params"]["duration_unit"]) == "m"
     params = settings["risk_management"]["params"]
-    assert int(params["duration"]) == 3
-    assert str(params["duration_unit"]).lower() == "m"
     assert float(params["payout_estimate"]) == pytest.approx(0.72)
     kelly = settings["risk_management"]["kelly"]
     assert float(kelly["default_payout"]) == pytest.approx(0.72)
@@ -260,14 +265,16 @@ def test_production_loss_classifier_soft_veto_ssot():
     cal = dl["calibration"]
     assert float(cal["temperature_min"]) == pytest.approx(1.0)
     assert float(cal["max_calibrated_raw_gap"]) == pytest.approx(0.08)
-    tf_sweep = dl["tf_sweep"]
-    assert bool(tf_sweep["enabled"]) is True
-    assert bool(tf_sweep["run_in_launch_train"]) is True
-    assert bool(tf_sweep["auto_promote"]) is True
-    assert int(tf_sweep["train_deploy_retries"]) == 1
-    assert bool(tf_sweep["disable_infra_during_sweep"]) is True
-    assert int(tf_sweep["min_settle_n"]) == 16
-    assert int(tf_sweep["min_history_bars"]) == 800
-    assert "launch_only" not in tf_sweep
-    assert float(tf_sweep["min_edge_vs_breakeven"]) == pytest.approx(0.03)
-    assert str(tf_sweep["candidates_path"]).endswith("tf_sweep_candidates.json")
+    assert "tf_sweep" not in dl
+    h_sweep = dl["horizon_sweep"]
+    assert bool(h_sweep["enabled"]) is True
+    assert bool(h_sweep["run_in_launch_train"]) is True
+    assert bool(h_sweep["auto_promote"]) is True
+    assert int(h_sweep["train_deploy_retries"]) == 1
+    assert bool(h_sweep["disable_infra_during_sweep"]) is True
+    assert int(h_sweep["min_settle_n"]) == 16
+    assert int(h_sweep["min_history_bars"]) == 800
+    assert "launch_only" not in h_sweep
+    assert float(h_sweep["min_edge_vs_breakeven"]) == pytest.approx(0.03)
+    assert list(h_sweep["n_bars"]) == [1, 2, 3, 5]
+    assert list(h_sweep["symbols"]) == ["R_10"]

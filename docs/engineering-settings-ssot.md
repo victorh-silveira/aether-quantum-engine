@@ -49,11 +49,13 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `soft_recovery.live_evidence_force_explore_*` | `risk_management.soft_recovery` | linear≥**3** + `live_n`≥**2** + `live_wr`&lt;**0.62** → EXPLORE (bloqueia DAL L3+ com ACC de treino ainda ok) |
 | `soft_recovery.amort_cycles_min` / `amort_cycles_max` | `risk_management.soft_recovery` | Amort **1/1**; stake RECOVER = `cover_multiple * pending/payout` (cover pleno; sem `max` com progressao exponencial; `f*` so gate) |
 | `infra.loss_classifier.soft_max_stake_pct_high` | `infra.loss_classifier` | Teto stake EXPLORE sob soft (**0.25%**); waivado com pending material; ACC baixo nao cancela cover |
-| `params.duration` | `risk_management.params` | Contrato RISE_FALL **3 m** (`duration_unit: m`) — universo `R_10` M3 |
+| `params.duration` | `risk_management.params` | Contrato RISE_FALL **N × 3 min** (`duration_unit: m`) — N eleito no `horizon_sweep`; placeholder **9** |
+| `deep_learning.label_horizon_bars` | `deep_learning` | **N** alinhado a duration (invariante `duration == N × 3` no M3); placeholder **3** |
+| `horizon_sweep.*` | `deep_learning` | Grade **n_bars=[1,2,3,5]**; `run_in_launch_train` **true**; pisos settle be+0.03, n≥16, history≥800 |
 | `data_handler.micro_granularity` / `granularity` | `data_handler` | Micro/MINI **180** / macro **7200** (M3; ratio **1:40**) |
 | `deep_learning.lookback` | `deep_learning` | **480** barras micro @ **180 s** (tensor `[1, 480, 34]`; ~24 h) |
-| `orchestrator.cycle_interval_seconds` / `signature_boundary_seconds` | `orchestrator` | **180 s** (alinhado ao fecho da vela M3 / contrato 3 m); `exec_empty_retry` **180 s** |
-| `orchestrator.settlement_tolerance_window_seconds` | `orchestrator` | **90** (contrato 3 m) |
+| `orchestrator.cycle_interval_seconds` / `signature_boundary_seconds` | `orchestrator` | **180 s** (alinhado ao fecho da vela M3); `exec_empty_retry` **180 s** |
+| `orchestrator.settlement_tolerance_window_seconds` | `orchestrator` | **90** (slack pos-expiry) |
 | `orchestrator.watchdog_stale_tick_seconds` | `orchestrator` | **300** |
 | `orchestrator.post_settlement_is_trading_wait_seconds` | `orchestrator` | **90** |
 | `tcn_macro_call_override` / `tcn_macro_put_override` | `deep_learning.calibration` | limiar de **raw** para modo `raw_extreme`; Cal nao e substituido |

@@ -11,13 +11,13 @@ Ponto de entrada para agentes Cursor/LLM neste repositorio.
 
 ## Universo operacional
 
-- Simbolo unico: **`R_10`** (Volatility 10 / Deriv) — TF micro SSOT atual **M3** (vencedor do ultimo `promote_tf_winner`; ate promover de novo, permanece M3)
-- Relogio: contrato **1:1** com micro (hoje **3 m**); micro/MINI = `micro_granularity` (hoje **180 s**); macro = `data_handler.granularity` (hoje **7200 s**); ciclo/signature = micro
-- SSOT: `config/settings.json` + `app/src/domain/symbols/drift_symbols.py`; candidatos de sweep em `config/tf_sweep_candidates.json`
-- Artefactos/treino com granularity/lookback ≠ settings sao invalidos (gate fail-closed); apos promote, retreinar meta e `make docker-rebuild`
-- Sweep multi-TF e **offline** e roda **dentro do `launch-train.bat`**; grid **M1–M30** (1 tentativa, escala wall-clock ancora M2); elegivel so **settle_wr** ≥ be+0.03 com **settle_n≥16** e historico ≥800; fallback single-TF: `tf_sweep.run_in_launch_train=false`
+- Simbolo unico em runtime: **R_10** (Volatility 10)
+- Relogio: micro/MINI **180 s** (M3); macro **7200 s**; ciclo/signature **180 s**; TCN estima deslocamento em **N velas** (nao o close da proxima barra). **N ∈ {1,2,3,5}** e eleito no `launch-train` (`horizon_sweep`); contrato = **N × 3 min**; placeholder ate o promote: **9 m** / `label_horizon_bars=3`
+- SSOT: `config/settings.json` + `app/src/domain/symbols/drift_symbols.py`
+- Artefactos/treino com granularity/lookback/horizon ≠ settings sao invalidos (gate fail-closed); apos mudar TF/horizonte, retreinar TCN+meta e `make docker-rebuild`
+- Sweep de horizonte **on** no launch-train (`horizon_sweep.run_in_launch_train=true`): treina H1/H2/H3/H5, elege o mais assertivo com **settle_wr** ≥ be+0.03, **settle_n≥16**, historico ≥800
 - Runtime: `online_training` **false** — DEMO usa checkpoint TCN do `launch-train` (sem retreino deferido no settle); loss-clf e meta `/learn` a cada trade (rebuild containers ml apos mudar env)
-- Runtime: `orchestrator.execution.invert_exec_side` **false** (codigo seletivo `ev_call` permanece para experimento pontual). Fusao EV fraca (EV &lt; `fusion_min_edge_execute`) → soft Kelly `fusion_weak_ev_soft_kelly_mult` **0.40**; sob seed com ambos EV &lt; 0 → `fusion_weak_ev_seed_soft_kelly_mult` **0.25**. Kelly ancorado em `fusion_p_eff` do lado escolhido quando `fusion_applied`. Recovery: amort **1/1**, cover **1.50**, stake = cover pleno `pending/payout*1.50` (sem exponencial; `f*` so gate em RECOVER); linear3 teto **2.5%**; damping stop-win inicio **1.0** (`target_damping_floor` **0.50** + `span` **0.50**) e perto-meta **0.50**. Explore cold-start: `explore_stake_scale_floor` **0.40**.
+- Runtime: `orchestrator.execution.invert_exec_side` **false** (codigo seletivo `ev_call` permanece para experimento pontual). Fusao EV fraca (EV &lt; `fusion_min_edge_execute`) → soft Kelly `fusion_weak_ev_soft_kelly_mult` **0.40**; sob seed com ambos EV &lt; 0 → `fusion_weak_ev_seed_soft_kelly_mult` **0.25**. Kelly ancorado em `fusion_p_eff` do lado escolhido quando `fusion_applied`. Recovery: amort **1/1**, cover **1.50**, stake = cover pleno `pending/payout*1.50` (sem exponencial; `f*` so gate em RECOVER); **PEND material nao e forçado a EXPLORE** por Hurst baixo / NEG_EDGE soft / quality (so near-stop freeze ou cover inviavel); linear3 teto **2.5%**; damping stop-win inicio **1.0** (`target_damping_floor` **0.50** + `span` **0.50**) e perto-meta **0.50**. Explore cold-start: `explore_stake_scale_floor` **0.40**. Loss-clf: `flip_waive_on_closed_candle` **false** (sem sync FLIP→vela).
 
 ## O que o LLM e / nao e
 
@@ -62,7 +62,7 @@ Formato: `tipo(escopo): assunto em PT-BR` + corpo obrigatorio.
 | Scale vision / raw_extreme | `docs/engineering-orchestrator.md` + playbook + skills `aether-cycle-debug` / `aether-binary-senior` |
 | Settlement | `docs/engineering-settlement.md` + skill `aether-settlement-debug` |
 | DL / treino / vies de classe | `docs/engineering-deep-learning.md` + skill `aether-dl-train` |
-| Sweep multi-TF / promote TF | `docs/engineering-deep-learning.md` (secao Sweep) + skill `aether-dl-train` |
+| Sweep horizonte N / promote | `docs/engineering-deep-learning.md` (secao Sweep) + skill `aether-dl-train` |
 | Docker / Redis | `docs/infra-docker.md` + skill `aether-infra-stack` |
 | Deriv PAT/WS | `docs/deriv-api-aether.md` + skill `aether-deriv-connect` |
 | QA / pre-commit | `docs/engineering-standards.md` + skill `aether-precommit` |

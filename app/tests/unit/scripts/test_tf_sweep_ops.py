@@ -1,4 +1,4 @@
-"""Testes CLI do promote/sweep TF."""
+"""Testes CLI do promote/sweep de horizonte."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from scripts.operations.sweep_train_timeframes import (
     main as sweep_main,
     run_tf_sweep,
 )
-from src.application.services.deep_learning.tf_sweep_config import load_tf_sweep_knobs
+from src.application.services.deep_learning.horizon_sweep import load_horizon_sweep_knobs
 from src.application.services.deep_learning.tf_sweep_score import enrich_leaderboard_row
 
 
@@ -20,7 +20,7 @@ def test_sweep_main_dry_run(tmp_path: Path, monkeypatch):
     settings = {
         "data_handler": {},
         "deep_learning": {
-            "tf_sweep": {
+            "horizon_sweep": {
                 "enabled": True,
                 "artifact_root": "art",
                 "leaderboard_path": "art/lb.json",
@@ -31,30 +31,9 @@ def test_sweep_main_dry_run(tmp_path: Path, monkeypatch):
     }
     with (
         patch("scripts.operations.sweep_train_timeframes.load_settings_json", return_value=settings),
-        patch(
-            "scripts.operations.sweep_train_timeframes.resolve_enabled_candidates",
-            return_value=[
-                {
-                    "tf": "M2",
-                    "micro_granularity": 120,
-                    "macro_granularity": 3600,
-                    "mini_granularity": 120,
-                    "duration": 2,
-                    "duration_unit": "m",
-                    "lookback": 720,
-                    "history_bars": 2000,
-                    "label_horizon_bars": 1,
-                    "train_timeframe": "micro",
-                }
-            ],
-        ),
         patch("scripts.operations.sweep_train_timeframes.REPO_ROOT", tmp_path),
-        patch(
-            "scripts.operations.sweep_train_timeframes.load_tf_sweep_knobs",
-            return_value=load_tf_sweep_knobs(settings),
-        ),
     ):
-        assert sweep_main(["--dry-run", "--only", "M2"]) == 0
+        assert sweep_main(["--dry-run", "--only", "H1"]) == 0
     assert (tmp_path / "art" / "lb.json").is_file()
 
 
@@ -72,7 +51,7 @@ def test_promote_main_fail_closed(tmp_path: Path):
         "enabled": True,
     }
     row = enrich_leaderboard_row(
-        {"tf": "M2", "deploy_ok": True, "val_accuracy": 0.55, "val_brier": 0.24},
+        {"tf": "H1", "deploy_ok": True, "val_accuracy": 0.55, "val_brier": 0.24},
         knobs=knobs,
     )
     (tmp_path / "lb.json").write_text(json.dumps({"version": 1, "rows": [row]}), encoding="utf-8")
@@ -98,16 +77,16 @@ def test_promote_main_dry_run_ok(tmp_path: Path):
     }
     row = enrich_leaderboard_row(
         {
-            "tf": "M5",
+            "tf": "H5",
             "deploy_ok": True,
             "val_accuracy": 0.54,
             "settle_wr": 0.65,
             "settle_n": 24,
             "history_bars": 2000,
             "val_brier": 0.22,
-            "granularity": 300,
-            "macro_granularity": 14400,
-            "duration": 5,
+            "granularity": 180,
+            "macro_granularity": 7200,
+            "duration": 15,
         },
         knobs=knobs,
     )
@@ -133,7 +112,7 @@ def test_launch_train_pipeline_dry_and_no_eligible(tmp_path: Path, monkeypatch):
 
     settings = {
         "deep_learning": {
-            "tf_sweep": {
+            "horizon_sweep": {
                 "enabled": True,
                 "run_in_launch_train": True,
                 "auto_promote": True,
@@ -145,15 +124,15 @@ def test_launch_train_pipeline_dry_and_no_eligible(tmp_path: Path, monkeypatch):
         "risk_management": {"params": {"payout_estimate": 0.72}},
         "data_handler": {},
         "orchestrator": {
-            "cycle_interval_seconds": 120,
-            "signature_boundary_seconds": 120,
-            "exec_empty_retry_seconds": 120,
+            "cycle_interval_seconds": 180,
+            "signature_boundary_seconds": 180,
+            "exec_empty_retry_seconds": 180,
         },
     }
-    knobs = load_tf_sweep_knobs(settings)
+    knobs = load_horizon_sweep_knobs(settings)
     board = [
         enrich_leaderboard_row(
-            {"tf": "M2", "deploy_ok": True, "val_accuracy": 0.55, "val_brier": 0.24},
+            {"tf": "H1", "deploy_ok": True, "val_accuracy": 0.55, "val_brier": 0.24},
             knobs=knobs,
         )
     ]
@@ -161,10 +140,6 @@ def test_launch_train_pipeline_dry_and_no_eligible(tmp_path: Path, monkeypatch):
         patch(
             "scripts.operations.run_launch_train_tf_pipeline.load_settings_json",
             return_value=settings,
-        ),
-        patch(
-            "scripts.operations.run_launch_train_tf_pipeline.load_tf_sweep_knobs",
-            return_value=knobs,
         ),
         patch(
             "scripts.operations.run_launch_train_tf_pipeline.run_tf_sweep",
@@ -185,7 +160,7 @@ def test_launch_train_pipeline_promotes_winner(tmp_path: Path):
 
     settings = {
         "deep_learning": {
-            "tf_sweep": {
+            "horizon_sweep": {
                 "enabled": True,
                 "run_in_launch_train": True,
                 "auto_promote": True,
@@ -196,20 +171,20 @@ def test_launch_train_pipeline_promotes_winner(tmp_path: Path):
         },
         "risk_management": {"params": {"payout_estimate": 0.72}},
     }
-    knobs = load_tf_sweep_knobs(settings)
+    knobs = load_horizon_sweep_knobs(settings)
     board = [
         enrich_leaderboard_row(
             {
-                "tf": "M5",
+                "tf": "H5",
                 "deploy_ok": True,
                 "val_accuracy": 0.54,
                 "settle_wr": 0.65,
                 "settle_n": 24,
                 "history_bars": 2000,
                 "val_brier": 0.22,
-                "granularity": 300,
-                "macro_granularity": 14400,
-                "duration": 5,
+                "granularity": 180,
+                "macro_granularity": 7200,
+                "duration": 15,
             },
             knobs=knobs,
         )
@@ -218,10 +193,6 @@ def test_launch_train_pipeline_promotes_winner(tmp_path: Path):
         patch(
             "scripts.operations.run_launch_train_tf_pipeline.load_settings_json",
             return_value=settings,
-        ),
-        patch(
-            "scripts.operations.run_launch_train_tf_pipeline.load_tf_sweep_knobs",
-            return_value=knobs,
         ),
         patch(
             "scripts.operations.run_launch_train_tf_pipeline.run_tf_sweep",
@@ -238,25 +209,22 @@ def test_launch_train_pipeline_promotes_winner(tmp_path: Path):
     ):
         assert run_launch_train_tf_pipeline() == 0
         promo.assert_called_once()
+        promo.reset_mock()
+        assert run_launch_train_tf_pipeline(skip_promote=True) == 0
+        promo.assert_not_called()
 
 
 def test_launch_train_pipeline_fallback_single(tmp_path: Path):
     from scripts.operations.run_launch_train_tf_pipeline import run_launch_train_tf_pipeline
 
-    knobs = {
-        "enabled": False,
-        "run_in_launch_train": False,
-        "min_edge_vs_breakeven": 0.03,
-        "artifact_root": "art",
-    }
     with (
         patch(
             "scripts.operations.run_launch_train_tf_pipeline.load_settings_json",
             return_value={},
         ),
         patch(
-            "scripts.operations.run_launch_train_tf_pipeline.load_tf_sweep_knobs",
-            return_value=knobs,
+            "scripts.operations.run_launch_train_tf_pipeline.load_horizon_sweep_knobs",
+            return_value={"enabled": False, "run_in_launch_train": False},
         ),
         patch("scripts.operations.run_launch_train_tf_pipeline.REPO_ROOT", tmp_path),
         patch(
@@ -266,17 +234,18 @@ def test_launch_train_pipeline_fallback_single(tmp_path: Path):
     ):
         assert run_launch_train_tf_pipeline() == 0
         sp.assert_called_once()
+        assert run_launch_train_tf_pipeline(dry_run=True) == 0
 
 
 def test_run_tf_sweep_dry_writes_overlay(tmp_path: Path):
     settings = {
-        "data_handler": {"micro_granularity": 120},
-        "deep_learning": {"lookback": 720},
-        "risk_management": {"params": {"duration": 2, "duration_unit": "m"}, "kelly": {}},
+        "data_handler": {"micro_granularity": 180},
+        "deep_learning": {"lookback": 480},
+        "risk_management": {"params": {"duration": 9, "duration_unit": "m"}, "kelly": {}},
         "orchestrator": {
-            "cycle_interval_seconds": 120,
-            "signature_boundary_seconds": 120,
-            "exec_empty_retry_seconds": 120,
+            "cycle_interval_seconds": 180,
+            "signature_boundary_seconds": 180,
+            "exec_empty_retry_seconds": 180,
         },
     }
     knobs = {
@@ -289,17 +258,18 @@ def test_run_tf_sweep_dry_writes_overlay(tmp_path: Path):
         "soft_max_brier": 0.26,
         "artifact_root": "art",
         "leaderboard_path": "art/lb.json",
+        "symbols": ["R_10"],
     }
     cand = {
-        "tf": "M3",
+        "tf": "H3",
         "micro_granularity": 180,
         "macro_granularity": 7200,
         "mini_granularity": 180,
-        "duration": 3,
+        "duration": 9,
         "duration_unit": "m",
-        "lookback": 720,
-        "history_bars": 2000,
-        "label_horizon_bars": 1,
+        "lookback": 480,
+        "history_bars": 1333,
+        "label_horizon_bars": 3,
         "train_timeframe": "micro",
     }
     board = run_tf_sweep(
@@ -310,10 +280,121 @@ def test_run_tf_sweep_dry_writes_overlay(tmp_path: Path):
         repo_root=tmp_path,
     )
     assert board[0]["error"] == "dry_run"
-    overlay = tmp_path / "art" / "M3" / "settings_overlay.json"
+    assert board[0]["symbol"] == "R_10"
+    overlay = tmp_path / "art" / "R_10" / "H3" / "settings_overlay.json"
     assert overlay.is_file()
-    import json
-
     payload = json.loads(overlay.read_text(encoding="utf-8"))
     assert payload["infra"]["enabled"] is False
     assert payload["deep_learning"]["train_deploy_retries"] == 1
+    assert payload["anchor"] == "R_10"
+    assert payload["symbols"] == ["R_10"]
+    assert payload["deep_learning"]["lookback"] == 480
+    assert payload["deep_learning"]["label_horizon_bars"] == 3
+
+
+def test_run_tf_sweep_with_mock_train(tmp_path: Path):
+    settings = {
+        "data_handler": {"micro_granularity": 180},
+        "deep_learning": {"lookback": 480},
+        "risk_management": {"params": {"duration": 9, "duration_unit": "m"}, "kelly": {}},
+        "orchestrator": {
+            "cycle_interval_seconds": 180,
+            "signature_boundary_seconds": 180,
+            "exec_empty_retry_seconds": 180,
+        },
+    }
+    knobs = {
+        "payout_for_breakeven": 0.72,
+        "min_edge_vs_breakeven": 0.03,
+        "weight_edge": 1.0,
+        "weight_brier": 0.5,
+        "weight_sharpness": 0.25,
+        "weight_meta_ir": 0.25,
+        "soft_max_brier": 0.26,
+        "artifact_root": "art",
+        "leaderboard_path": "art/lb.json",
+        "symbols": ["R_10"],
+        "min_settle_n": 16,
+        "min_history_bars": 800,
+    }
+    cand = {
+        "tf": "H3",
+        "micro_granularity": 180,
+        "macro_granularity": 7200,
+        "mini_granularity": 180,
+        "duration": 9,
+        "duration_unit": "m",
+        "lookback": 480,
+        "history_bars": 1333,
+        "label_horizon_bars": 3,
+        "train_timeframe": "micro",
+    }
+
+    def _train(_patched, _candidate, _art, symbol):
+        return {
+            "deploy_ok": True,
+            "val_accuracy": 0.54,
+            "val_brier": 0.22,
+            "settle_wr": 0.65,
+            "settle_n": 24,
+            "history_bars": 1333,
+            "symbol": symbol,
+        }
+
+    board = run_tf_sweep(
+        settings=settings,
+        knobs=knobs,
+        candidates=[cand],
+        train_fn=_train,
+        repo_root=tmp_path,
+    )
+    assert board[0]["eligible"] is True
+    assert board[0]["tf"] == "H3"
+    assert (tmp_path / "art" / "lb.json").is_file()
+
+
+def test_run_tf_sweep_multi_symbol_dry(tmp_path: Path):
+    settings = {
+        "data_handler": {"micro_granularity": 180},
+        "deep_learning": {"lookback": 480},
+        "risk_management": {"params": {"duration": 9, "duration_unit": "m"}, "kelly": {}},
+        "orchestrator": {
+            "cycle_interval_seconds": 180,
+            "signature_boundary_seconds": 180,
+            "exec_empty_retry_seconds": 180,
+        },
+    }
+    knobs = {
+        "payout_for_breakeven": 0.72,
+        "min_edge_vs_breakeven": 0.03,
+        "weight_edge": 1.0,
+        "weight_brier": 0.5,
+        "weight_sharpness": 0.25,
+        "weight_meta_ir": 0.25,
+        "soft_max_brier": 0.26,
+        "artifact_root": "art",
+        "leaderboard_path": "art/lb.json",
+        "symbols": ["R_10", "R_25"],
+    }
+    cand = {
+        "tf": "H1",
+        "micro_granularity": 180,
+        "macro_granularity": 7200,
+        "mini_granularity": 180,
+        "duration": 3,
+        "duration_unit": "m",
+        "lookback": 480,
+        "history_bars": 1333,
+        "label_horizon_bars": 1,
+        "train_timeframe": "micro",
+    }
+    board = run_tf_sweep(
+        settings=settings,
+        knobs=knobs,
+        candidates=[cand],
+        dry_run=True,
+        repo_root=tmp_path,
+    )
+    assert len(board) == 2
+    assert {row["symbol"] for row in board} == {"R_10", "R_25"}
+    assert (tmp_path / "art" / "R_25" / "H1" / "settings_overlay.json").is_file()

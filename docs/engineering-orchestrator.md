@@ -4,14 +4,14 @@ Ciclo operacional do motor. Inventario de arquivos: [`structure.md`](structure.m
 
 ## Relogio e triplo OHLC
 
-- Fronteira / ciclo: **`signature_boundary_seconds` / `cycle_interval_seconds` = 180 s** (sync com fecho da vela M3; contrato Deriv **3 m**); `exec_empty_retry_seconds` **180**
+- Fronteira / ciclo: **`signature_boundary_seconds` / `cycle_interval_seconds` = 180 s** (sync com fecho da vela M3; contrato Deriv **N × 3 min**); `exec_empty_retry_seconds` **180**
 - Cache DL (`dl_predict_cache`): path **eager** (Triton off) **sempre** re-infere; path Triton chaveia `cycle_id` + `boundary_epoch` (nao reusa entry de outro ciclo)
 - Tick live: antes do TCN, `patch_forming_bar_with_live_tick` injeta o ultimo preco do `TickBuffer` no close/high/low da vela M3 em formacao; `patch_forming_bar_microstructure` sobrescreve a ultima linha de micro live; snapshot `_patched_ohlc` alimenta SCALE/flow no mesmo ciclo
 - `DL: inferencia em cuda` e `log_device_once` no load do modelo — **nao** um log por ciclo
 - LOSS_CLF: predict HTTP a cada `_finalize`; log dedupe por `loss_clf_*:{cycle_id}`; `feature_dim` **24**; hard FLIP floor SSOT **0.90** + `flip_require_auto_learn` **true**
 - MACRO OHLC: **7200 s** (`data_handler.granularity`)
 - MICRO OHLC (TCN decisor): **180 s** (`data_handler.micro_granularity`) — M3
-- Contrato Deriv RISE_FALL: **3 m** (`risk_management.params.duration` / `duration_unit: m`) — label = 1 barra micro
+- Contrato Deriv RISE_FALL: **N × 3 min** (`risk_management.params.duration`) — N eleito no launch-train (`horizon_sweep`, grade 1/2/3/5); label = **N barras** micro; frequencia maxima ≈ 1 trade / contrato (ciclo bloqueado com contrato aberto)
 - MINI OHLC: **180 s** (`data_handler.mini_granularity`) — alinhado ao M3
 - MILI: tick flow (velocity/acceleration), nao barra OHLC
 - Sync inicial: `stream_sync_start.py` (historico MACRO+MICRO+MINI + subscribe candles/ticks)

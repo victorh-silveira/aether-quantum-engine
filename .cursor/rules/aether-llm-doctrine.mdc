@@ -7,7 +7,7 @@ alwaysApply: true
 
 LLM/Cursor e copiloto de engenharia. Nao decide CALL/PUT em runtime (TCN + meta + gates/fusao). Doutrina completa: `docs/llm-trading-doctrine.md`.
 
-Runtime SSOT: `R_10` M3 (micro/contrato **180 s** / **3 m**); `online_training` **false**; `invert_exec_side` **false**; stop-win **3%** composto = metrica de sessao (nao “mao quente”).
+Runtime SSOT: **R_10** M3, micro **180 s**; contrato **N × 3 min** com N eleito no `launch-train` (`horizon_sweep`, grade **1/2/3/5**); placeholder ate promote: **9 m** / 3 barras; `online_training` **false**; `invert_exec_side` **false**; stop-win **3%** composto = metrica de sessao (nao “mao quente”).
 
 ## Nunca propor
 

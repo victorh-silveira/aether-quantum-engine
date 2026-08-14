@@ -42,7 +42,7 @@ def test_effective_deploy_ok_soft_fallback():
 def test_effective_deploy_ok_settle_bypasses_low_acc():
     dl = {
         "training_history_bars": 1333,
-        "tf_sweep": {
+        "horizon_sweep": {
             "min_edge_vs_breakeven": 0.03,
             "min_settle_n": 16,
             "min_history_bars": 800,

@@ -192,7 +192,7 @@
     "eval_min_accuracy": 0.53,
     "eval_settle_accuracy_min": 0.53,
     "inference_device": "auto",
-    "label_horizon_bars": 1,
+    "label_horizon_bars": 3,
     "label_ma_window": 5,
     "label_mode": "ma_trend",
     "label_smooth_bars": 1,
@@ -256,21 +256,17 @@
       "recency_enabled": true,
       "recency_half_life_n": 2000
     },
-    "tf_sweep": {
+    "horizon_sweep": {
       "enabled": true,
       "run_in_launch_train": true,
       "auto_promote": true,
       "train_deploy_retries": 1,
       "disable_infra_during_sweep": true,
-      "candidates_path": "config/tf_sweep_candidates.json",
+      "n_bars": [1, 2, 3, 5],
+      "symbols": ["R_10"],
       "min_edge_vs_breakeven": 0.03,
       "min_settle_n": 16,
       "min_history_bars": 800,
-      "weight_edge": 1.0,
-      "weight_brier": 0.5,
-      "weight_sharpness": 0.25,
-      "weight_meta_ir": 0.25,
-      "soft_max_brier": 0.26,
       "leaderboard_path": "data/dl/sweep/leaderboard.json",
       "artifact_root": "data/dl/sweep"
     }
@@ -320,7 +316,7 @@
       "flip_cal_discord_margin": 0.03,
       "flip_require_pos_edge": false,
       "flip_min_edge_execute": 0.04,
-      "flip_waive_on_closed_candle": true,
+      "flip_waive_on_closed_candle": false,
       "flip_candle_p_loss_floor": 0.85,
       "flip_waive_scale_above_p_loss": 0.95,
       "flip_block_when_tcn_pos_edge": true,
@@ -775,7 +771,7 @@
       "compounding_enabled": true,
       "compounding_rate_daily": 0.03,
       "contract_type": "RISE_FALL",
-      "duration": 3,
+      "duration": 9,
       "duration_unit": "m",
       "payout_estimate": 0.72,
       "stake_min": 1.0

@@ -6,49 +6,51 @@ Guia operacional DL para agentes. Detalhe de features: [`arquitetura.md`](arquit
 
 | Item | Valor tipico |
 |------|----------------|
-| Simbolo | `R_10` |
+| Simbolo | **R_10** (Volatility 10) |
 | Arch | TCN |
 | Lookback | **480** → tensor `[1, 480, 34]` (~24 h @ 180 s) |
 | MACRO OHLC | **7200 s** (`data_handler.granularity`) |
 | MICRO (TCN) | **180 s** (`micro_granularity`) — M3 |
-| Contrato | **3 m** RISE_FALL (label 1 barra micro = 180 s) |
+| Contrato | **N × 3 min** RISE_FALL (N ∈ {1,2,3,5} eleito no launch-train; placeholder **9 m** / 3 barras) |
 | MINI OHLC | **180 s** (`mini_granularity`) |
 | Bootstrap wait | `bootstrap_history_wait_cap_seconds` **30** (nao dorme a granularidade inteira entre retries) |
 | MILI | Tick flow (nao OHLC) |
 | Features | **34D** (`FEATURE_DIM`) |
-| Label | `ma_trend` (MA 8; horizonte 1 barra micro **180 s**; alinhado ao contrato M3) |
+| Label | `ma_trend` (MA 5; horizonte **N barras** micro = N×180 s; alinhado ao contrato promovido) |
 | Online training | **false** (DEMO usa checkpoint do `launch-train`) |
 | ACC / deploy | `soft_min_val_accuracy` **0.53**; `max_brier` / `soft_max_brier` **0.26**; `force_ok=false` |
 | Retries | `train_deploy_retries` **5** (reseed + reset de pesos) |
 | Early stop | `min_epochs` **20**, `early_stopping_patience` **16**; patience so em ganho de **val_acc** com **BCE** CE&lt;**0.70** (monitor de val ignora `focal_gamma`); restore **best val_acc** sharp |
 | Meta | LightGBM **43D** `predicted_payoff_edge` |
-| Sweep multi-TF | Offline: `sweep_train_timeframes.py` + `promote_tf_winner.py`; manifesto [`config/tf_sweep_candidates.json`](../config/tf_sweep_candidates.json); escala wall-clock ancora M2; elegivel so **settle_wr** ≥ be + `min_edge_vs_breakeven` (**0.03**); 1 tentativa/TF; TF SSOT = vencedor do ultimo promote (hoje **M3**) |
+| Sweep horizonte N | **On** no launch-train (`horizon_sweep.run_in_launch_train=true`): grade **1/2/3/5**; duration = N×3 min; elegivel **settle_wr** ≥ be+**0.03**, n≥16, history≥800; promote grava duration + `label_horizon_bars` |
 
 ## Entry points
 
 | Comando | Papel |
 |---------|-------|
 | `train.py` / `app/train.py` | treino TCN |
-| `app/scripts/batch/launch-train.bat` | sanitize → **sweep multi-TF + promote** → gate ACC → Timescale → meta |
-| `app/scripts/operations/run_launch_train_tf_pipeline.py` | orquestra sweep+promote chamado pelo launch-train (`run_in_launch_train` / `auto_promote`) |
+| `app/scripts/batch/launch-train.bat` | sanitize → sweep horizonte N (H1–H5) + promote → gate → Timescale → meta |
+| `app/scripts/operations/run_launch_train_tf_pipeline.py` | orquestra sweep horizonte N + promote (fallback `train.py` se `horizon_sweep.run_in_launch_train=false`) |
 | `make docker-rebuild` | recarrega meta/loss apos o treino (**nao** apaga `data/dl`) |
 | `app/scripts/operations/sanitize_fresh_run.py` | limpa `data/dl`, meta/loss pkls, Triton bins e estado em `data/` (so train/reset) |
-| `app/scripts/operations/check_dl_deploy_gate.py` | aborta meta se geometria invalida; aceita **settle_wr** elegivel (mesmos knobs do sweep) ou ACC≥0.53 + soft path |
-| `app/scripts/operations/train_meta_*.py` | treino offline do meta (`--source auto`) |
-| `app/scripts/operations/sweep_train_timeframes.py` | sweep TCN por TF (M1–M30); artefactos em `data/dl/sweep/{tf}`; leaderboard JSON |
-| `app/scripts/operations/promote_tf_winner.py` | promove vencedor elegivel para `settings.json` + `data/dl` (fail-closed se nenhum) |
+| `app/scripts/operations/check_dl_deploy_gate.py` | aborta meta se geometria invalida; aceita **settle_wr** elegivel (mesmos knobs do sweep) ou ACC≥0.53 + soft path; simbolos de `settings.symbols` |
+| `app/scripts/operations/train_meta_*.py` | treino offline do meta (`--source auto`; simbolos de settings) |
+| `app/scripts/operations/sweep_train_timeframes.py` | loop de celulas H1–H5; artefactos em `data/dl/sweep/R_10/H{N}`; leaderboard JSON |
+| `app/scripts/operations/promote_tf_winner.py` | promove vencedor elegivel para `settings.json` + `drift_symbols.py` + `data/dl` (fail-closed se nenhum) |
 
-## Sweep multi-TF (offline)
+## Sweep de horizonte N (launch-train)
 
-Pipeline **offline** embutido no **`launch-train.bat`** (nao troca TF por ciclo ao vivo):
+O TCN estima deslocamento em **N velas M3**. O `launch-train` **nao fixa N=3**: treina a grade `{1,2,3,5}` (contratos 3/6/9/15 min), loga `[HORIZON]` por celula e promove o mais assertivo (`settle_wr` ≥ be+0.03, n≥16, history≥800). Artefactos em `data/dl/sweep/R_10/H{N}/`. Placeholder no SSOT ate o primeiro promote: duration **9** / `label_horizon_bars` **3**.
 
-1. Manifesto [`config/tf_sweep_candidates.json`](../config/tf_sweep_candidates.json) — **M1–M30** enabled, contrato **1:1** com a vela, MACRO de contexto. Janelas DL/live em **barras** sao escaladas para wall-clock da ancora **M2=120s** (`tf_sweep_scale.py`: lookback, history, RSI/BB/…, label MA, `slope_bars`, etc.).
-2. `run_launch_train_tf_pipeline.py` limpa `data/dl/sweep`, treina cada TF com ckpt isolado (`data/dl/sweep/{TF}/`), **infra/MinIO off** no sweep, **1 tentativa** (`train_deploy_retries=1`, sem retries), grava leaderboard.
+Pipeline **offline** (nao troca N por ciclo ao vivo):
+
+1. `horizon_sweep.n_bars` no SSOT — celulas **H1/H2/H3/H5** no relogio M3 (lookback/history copiados, sem reescalar wall-clock). Simbolo **R_10**.
+2. `run_launch_train_tf_pipeline.py` limpa `data/dl/sweep`, treina cada celula com ckpt isolado (`data/dl/sweep/R_10/H{N}/`), **infra/MinIO off** no sweep, **1 tentativa** (`train_deploy_retries=1`), grava leaderboard.
 3. Elegivel: **`settle_wr` ≥ be + 0.03** **e** `settle_n ≥ min_settle_n` (**16**) **e** `history_bars ≥ min_history_bars` (**800**). Label ACC e so telemetria.
-4. Com `auto_promote=true` (default), promove vencedor para `settings.json` + `data/dl/` (carimba `deploy_ok`) — **fail-closed** se nenhum elegivel (meta nao roda).
-5. Gate ACC + meta no TF promovido. Depois: `make docker-rebuild` + sync MinIO/Triton.
+4. Com `auto_promote=true` (default), promove vencedor para `settings.json` (`duration` + `label_horizon_bars`) + `data/dl/` (carimba `deploy_ok`) — **fail-closed** se nenhum elegivel (meta nao roda).
+5. Gate ACC/settle + meta no SSOT promovido. Depois: `make docker-rebuild` + sync MinIO/Triton.
 
-Knobs: `tf_sweep.run_in_launch_train` / `auto_promote` / `train_deploy_retries` / `disable_infra_during_sweep`. Fallback single-TF: `run_in_launch_train=false`. Flags CLI: `--only M2 M5`, `--dry-run`, `--skip-promote`. H1–D1 fora do v1.
+Knobs: `horizon_sweep.n_bars` / `run_in_launch_train` / pisos settle. Flags CLI: `--only H1 H3`, `--dry-run`, `--skip-promote`.
 
 ## Sample weighting (vies de classe + dinamica)
 

@@ -96,6 +96,7 @@ def save_model_checkpoint(
     oos_sharpness: float | None = None,
     granularity: int | None = None,
     training_history_bars: int | None = None,
+    label_horizon_bars: int | None = None,
     label_call_frac: float | None = None,
     pred_call_frac: float | None = None,
     minority_recall: float | None = None,
@@ -137,6 +138,8 @@ def save_model_checkpoint(
         payload["granularity"] = int(granularity)
     if training_history_bars is not None:
         payload["training_history_bars"] = int(training_history_bars)
+    if label_horizon_bars is not None:
+        payload["label_horizon_bars"] = max(1, int(label_horizon_bars))
     if label_call_frac is not None:
         payload["label_call_frac"] = float(label_call_frac)
     if pred_call_frac is not None:

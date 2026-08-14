@@ -82,16 +82,10 @@ def apply_soft_recovery_stake(
     adapted_force_explore = adapted_blocks_dal(metrics, consecutive_losses, soft)
     if material_pending:
         quality_force_explore = False
+        force_early = bool(near_stop_win)
     else:
         quality_force_explore = bool(acc_force_explore or live_force_explore or adapted_force_explore)
-    force_early = (
-        pending <= 0.0
-        or not material_pending
-        or near_stop_win
-        or low_hurst_noise
-        or chop_neg_dampen
-        or quality_force_explore
-    )
+        force_early = True
     if force_early:
         return apply_forced_explore_early(
             bankroll=bankroll,

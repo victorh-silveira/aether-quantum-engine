@@ -15,7 +15,7 @@ Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (TCN,
 | Lookback | **`deep_learning.lookback`** (settings atuais **480**) → tensor **`[1, lookback, 34]`** |
 | Features TCN | **34** (`FEATURE_DIM` em `dl_feature_build.py`) |
 | Features meta GBDT | **43** (`META_FEATURE_DIM` = 34 + 4 micro-vol + 3 cross + 2 flow) |
-| Contrato | `RISE_FALL`, duração **3 m** (M3; alinhado ao micro **180 s**) |
+| Contrato | `RISE_FALL`, duração **N × 3 min** (N velas M3; N eleito no launch-train) |
 | Ciclo | **180 s** (`cycle_interval_seconds` / `signature_boundary_seconds`; sync M3) |
 | Execução | `mandatory_trade_each_cycle: false`; `force` off; `invert_exec_side: false`; fusao EV + signal_skip 1.1 (quality gate amplo **fora**) |
 | Fail-closed | Meta e Triton **opcionais** nos settings atuais (`require_meta_for_execution: false`; `infra.triton.enabled/require_for_execution: false`) |
@@ -315,7 +315,7 @@ Em modo mandatário, o quality guard emite telemetria `QUALITY_GUARD` / `EXECUTI
 ### 7.2 ExecutionManager
 
 - Stake via `RiskManager.calculate_stake` → `risk_stake_calc.calculate_stake_for_manager`
-- `TradeHandler.buy_with_parameters`: RISE_FALL **3 m**
+- `TradeHandler.buy_with_parameters`: RISE_FALL **N × 3 min**
 - Reconciliação de stake downgrade Deriv (`executed_stake_reconciliation`)
 
 ### 7.3 Settlement

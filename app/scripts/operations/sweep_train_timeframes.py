@@ -1,4 +1,4 @@
-"""Sweep offline de treino TCN por timeframe (artefactos isolados + leaderboard)."""
+"""Sweep offline de treino TCN por simbolo+timeframe (artefactos isolados + leaderboard)."""
 
 from __future__ import annotations
 
@@ -18,10 +18,13 @@ if str(_APP) not in sys.path:
 import torch
 
 from aether_paths import REPO_ROOT
+from src.application.services.deep_learning.horizon_sweep import (
+    build_horizon_candidates,
+    load_horizon_sweep_knobs,
+)
 from src.application.services.deep_learning.tf_sweep_config import (
     candidate_artifact_dir,
     load_tf_sweep_knobs,
-    resolve_enabled_candidates,
     resolve_repo_path,
 )
 from src.application.services.deep_learning.tf_sweep_promote import (
@@ -29,11 +32,15 @@ from src.application.services.deep_learning.tf_sweep_promote import (
     write_json,
 )
 from src.application.services.deep_learning.tf_sweep_score import enrich_leaderboard_row
+from src.application.services.deep_learning.tf_sweep_symbols import (
+    normalize_sweep_symbol,
+    resolve_sweep_symbols,
+)
 from src.domain.config_knobs import load_settings_json
 from src.presentation.terminal.logger import setup_logger
 
 
-TrainFn = Callable[[dict[str, Any], dict[str, Any], Path], dict[str, Any]]
+TrainFn = Callable[[dict[str, Any], dict[str, Any], Path, str], dict[str, Any]]
 
 
 def _read_checkpoint_metrics(path: Path) -> dict[str, Any]:
@@ -84,24 +91,27 @@ def default_train_candidate(
     patched_settings: dict[str, Any],
     candidate: dict[str, Any],
     artifact_dir: Path,
+    symbol: str,
 ) -> dict[str, Any]:
-    """Treina um TF via train.py com settings temporariamente patchados."""
+    """Treina um simbolo+TF via train.py com settings temporariamente patchados."""
     _ = patched_settings
     artifact_dir.mkdir(parents=True, exist_ok=True)
     settings_path = REPO_ROOT / "config" / "settings.json"
     backup = _swap_settings(settings_path, patched_settings)
+    sym = normalize_sweep_symbol(symbol)
     try:
-        cmd = [
-            sys.executable,
-            str(REPO_ROOT / "app" / "train.py"),
-        ]
-        proc = subprocess.run(cmd, cwd=str(REPO_ROOT / "app"), check=False)
-        pth = artifact_dir / "R_10.pth"
+        proc = subprocess.run(
+            [sys.executable, str(REPO_ROOT / "app" / "train.py")],
+            cwd=str(REPO_ROOT / "app"),
+            check=False,
+        )
+        pth = artifact_dir / f"{sym}.pth"
         metrics = _read_checkpoint_metrics(pth)
         metrics["train_exit_code"] = int(proc.returncode)
         if proc.returncode != 0 and metrics.get("error") is None:
             metrics["error"] = f"train.py exit={proc.returncode}"
         metrics["tf"] = candidate["tf"]
+        metrics["symbol"] = sym
         return metrics
     finally:
         _restore_settings(settings_path, backup)
@@ -113,9 +123,11 @@ def build_row_from_metrics(
     *,
     knobs: dict[str, Any],
     artifact_dir: Path,
+    symbol: str,
 ) -> dict[str, Any]:
     """Monta linha do leaderboard a partir de metricas de ckpt/meta."""
     raw = {
+        "symbol": normalize_sweep_symbol(symbol),
         "tf": candidate["tf"],
         "granularity": candidate["micro_granularity"],
         "micro_granularity": candidate["micro_granularity"],
@@ -151,41 +163,62 @@ def run_tf_sweep(
     candidates: list[dict[str, Any]] | None = None,
     train_fn: TrainFn | None = None,
     only_tf: set[str] | None = None,
+    only_symbols: set[str] | None = None,
     dry_run: bool = False,
     repo_root: Path | None = None,
 ) -> list[dict[str, Any]]:
-    """Executa o sweep e devolve leaderboard enriquecido."""
+    """Executa o sweep simbolo×TF e devolve leaderboard enriquecido."""
     root = repo_root if repo_root is not None else REPO_ROOT
     full = settings if isinstance(settings, dict) else load_settings_json()
     sweep_knobs = knobs if isinstance(knobs, dict) else load_tf_sweep_knobs(full)
-    rows_in = candidates if candidates is not None else resolve_enabled_candidates()
+    rows_in = candidates if candidates is not None else build_horizon_candidates(full)
     if only_tf:
         wanted = {t.strip().upper() for t in only_tf}
         rows_in = [c for c in rows_in if c["tf"] in wanted]
+    symbols = resolve_sweep_symbols(sweep_knobs)
+    if only_symbols:
+        wanted_sym = {normalize_sweep_symbol(s) for s in only_symbols}
+        symbols = [s for s in symbols if s in wanted_sym]
     trainer = train_fn or default_train_candidate
     board: list[dict[str, Any]] = []
-    for candidate in rows_in:
-        art = candidate_artifact_dir(str(sweep_knobs["artifact_root"]), candidate["tf"], repo_root=root)
-        patched = patch_settings_for_sweep_train(
-            full,
-            candidate,
-            artifact_root=str(sweep_knobs["artifact_root"]),
-            train_deploy_retries=int(sweep_knobs.get("train_deploy_retries", 1)),
-            disable_infra=bool(sweep_knobs.get("disable_infra_during_sweep", True)),
-        )
-        if dry_run:
-            metrics = {
-                "deploy_ok": False,
-                "val_accuracy": 0.0,
-                "val_brier": 1.0,
-                "oos_sharpness": 0.0,
-                "error": "dry_run",
-                "train_exit_code": 0,
-            }
-            write_json(art / "settings_overlay.json", patched)
-        else:
-            metrics = trainer(patched, candidate, art)
-        board.append(build_row_from_metrics(candidate, metrics, knobs=sweep_knobs, artifact_dir=art))
+    for symbol in symbols:
+        for candidate in rows_in:
+            art = candidate_artifact_dir(
+                str(sweep_knobs["artifact_root"]),
+                candidate["tf"],
+                symbol=symbol,
+                repo_root=root,
+            )
+            patched = patch_settings_for_sweep_train(
+                full,
+                candidate,
+                artifact_root=str(sweep_knobs["artifact_root"]),
+                symbol=symbol,
+                train_deploy_retries=int(sweep_knobs.get("train_deploy_retries", 1)),
+                disable_infra=bool(sweep_knobs.get("disable_infra_during_sweep", True)),
+            )
+            if dry_run:
+                metrics = {
+                    "deploy_ok": False,
+                    "val_accuracy": 0.0,
+                    "val_brier": 1.0,
+                    "oos_sharpness": 0.0,
+                    "error": "dry_run",
+                    "train_exit_code": 0,
+                    "symbol": symbol,
+                }
+                write_json(art / "settings_overlay.json", patched)
+            else:
+                metrics = trainer(patched, candidate, art, symbol)
+            board.append(
+                build_row_from_metrics(
+                    candidate,
+                    metrics,
+                    knobs=sweep_knobs,
+                    artifact_dir=art,
+                    symbol=symbol,
+                )
+            )
     leaderboard_path = resolve_repo_path(str(sweep_knobs["leaderboard_path"]), repo_root=root)
     write_json(
         leaderboard_path,
@@ -193,6 +226,7 @@ def run_tf_sweep(
             "version": 1,
             "payout_for_breakeven": sweep_knobs["payout_for_breakeven"],
             "min_edge_vs_breakeven": sweep_knobs["min_edge_vs_breakeven"],
+            "symbols": symbols,
             "rows": board,
         },
     )
@@ -200,35 +234,53 @@ def run_tf_sweep(
 
 
 def main(argv: list[str] | None = None) -> int:
-    """CLI do sweep multi-TF."""
-    parser = argparse.ArgumentParser(description="Sweep de treino multi-TF (offline)")
-    parser.add_argument("--dry-run", action="store_true", help="So grava overlays e leaderboard vazio")
-    parser.add_argument("--only", nargs="*", default=None, help="Filtra TFs (ex.: M2 M5)")
+    """CLI do sweep de horizonte H1-H5 (offline)."""
+    parser = argparse.ArgumentParser(description="Sweep de treino de horizonte H1-H5 (offline)")
+    parser.add_argument("--dry-run", action="store_true", help="So grava overlays e leaderboard")
+    parser.add_argument("--only", nargs="*", default=None, help="Filtra celulas (ex.: H1 H3)")
+    parser.add_argument("--only-symbol", nargs="*", default=None, help="Filtra simbolos (ex.: R_10)")
     parser.add_argument("--from-checkpoints", action="store_true", help="So le ckpts ja existentes")
     args = parser.parse_args(argv)
-    log = setup_logger("TF_SWEEP")
-    knobs = load_tf_sweep_knobs()
+    log = setup_logger("HORIZON")
+    settings = load_settings_json()
+    knobs = load_horizon_sweep_knobs(settings)
     if not knobs.get("enabled", True):
-        log.error("tf_sweep.enabled=false")
+        log.error("horizon_sweep.enabled=false")
         return 2
-    only = set(args.only) if args.only else None
+    only = {t.strip().upper() for t in args.only} if args.only else None
+    only_sym = set(args.only_symbol) if args.only_symbol else None
 
-    def _from_ckpt(patched: dict[str, Any], candidate: dict[str, Any], art: Path) -> dict[str, Any]:
+    def _from_ckpt(
+        patched: dict[str, Any],
+        candidate: dict[str, Any],
+        art: Path,
+        symbol: str,
+    ) -> dict[str, Any]:
         _ = (patched, candidate)
-        return _read_checkpoint_metrics(art / "R_10.pth")
+        metrics = _read_checkpoint_metrics(art / f"{normalize_sweep_symbol(symbol)}.pth")
+        metrics["symbol"] = normalize_sweep_symbol(symbol)
+        return metrics
 
     train_fn: TrainFn | None = _from_ckpt if args.from_checkpoints else None
-    board = run_tf_sweep(knobs=knobs, only_tf=only, dry_run=bool(args.dry_run), train_fn=train_fn)
+    board = run_tf_sweep(
+        knobs=knobs,
+        candidates=build_horizon_candidates(settings, n_bars=knobs.get("n_bars")),
+        only_tf=only,
+        only_symbols=only_sym,
+        dry_run=bool(args.dry_run),
+        train_fn=train_fn,
+    )
     eligible = [r for r in board if r.get("eligible")]
     log.info(
-        "[TF_SWEEP] candidatos=%s elegiveis=%s leaderboard=%s",
+        "[HORIZON] candidatos=%s elegiveis=%s leaderboard=%s",
         len(board),
         len(eligible),
         knobs["leaderboard_path"],
     )
     for row in board:
         log.info(
-            "[TF_SWEEP] tf=%s settle=%.4f label_acc=%.4f edge_vs_be=%.4f deploy=%s eligible=%s score=%s err=%s",
+            "[HORIZON] symbol=%s tf=%s settle=%.4f label_acc=%.4f edge_vs_be=%.4f deploy=%s eligible=%s score=%s err=%s",
+            row.get("symbol"),
             row.get("tf"),
             float(row.get("rank_wr") or row.get("settle_wr") or 0.0),
             float(row.get("val_accuracy") or 0.0),

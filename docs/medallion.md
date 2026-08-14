@@ -13,7 +13,7 @@ Doutrina do copiloto LLM/Cursor (9 livros → constraints de engenharia): [`llm-
 | Princípio | No motor atual |
 |-----------|----------------|
 | Sinais, não histórias | Direção CALL/PUT estritamente pela TCN (`P(CALL) > P(PUT)`) |
-| Horizonte curto | Contexto DL **7200 s**; ciclo/micro OHLC **180 s** (M3); contrato RISE_FALL **3 m**; proporção multi-timeframe **1:40** (180:7200); label `ma_trend` (1 barra micro = 180 s) |
+| Horizonte curto | Contexto DL **7200 s**; ciclo/micro OHLC **180 s** (M3); contrato RISE_FALL **N × 3 min** (N eleito no treino); proporção multi-timeframe **1:40** (180:7200); label `ma_trend` (horizonte N barras micro) |
 | Acoplamento temporal | Inferências e rotações seguem `signature_boundary_seconds` (fallback `cycle_interval_seconds`, padrão **180 s**); fronteira `m5_boundary_epoch` (nome legado) |
 | Esteira continua | `mandatory_trade_each_cycle: false` (sem vetos de sinal/qualidade amplos; fusao EV + signal_skip 1.1) |
 | Force trade | `force_trade_every_cycle: false` — sem síntese forçada de candidato |
@@ -66,7 +66,7 @@ A doutrina LLM estende o mesmo raciocinio aos demais livros (Taleb, Duke, Dougla
 |---------|----------------|
 | `R_10` | Universo operacional unico; ancora e unico simbolo de treino/execucao |
 
-Operação: contratos **RISE_FALL** de **3 m** (CALL = alta no período, PUT = queda). Ciclo **180 s**; OHLC micro/MINI em **180 s** (M3; label TCN = 1 barra micro).
+Operação: contratos **RISE_FALL** de **N × 3 min** (CALL = alta no período de N velas M3, PUT = queda). Ciclo **180 s**; OHLC micro/MINI em **180 s** (M3; label TCN = N barras micro, N eleito no launch-train).
 
 ### 2.2 Telemetria de Volatilidade, Exaustão e Fluxo Micro
 
@@ -122,13 +122,13 @@ Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `
 
 ## 3. Blindagem multi-timeframe
 
-**Invariante 1:40:** o relógio operacional micro (`data_handler.micro_granularity` = **180 s**) e o contexto macro DL (`data_handler.granularity` = **7200 s**) mantêm proporção **1:40**. Cada bloco macro cobre exatamente quarenta fronteiras micro; a assinatura `m5b:{boundary};m5:{sym}@{epoch};m15:...` (prefixos **legados**) e `seconds_until_next_signature_boundary` ancoram espera e invalidação de cache na cadência de ciclo **180 s** (sync com micro **180 s**). Contrato Deriv **3 m** (alinhado à barra M3).
+**Invariante 1:40:** o relógio operacional micro (`data_handler.micro_granularity` = **180 s**) e o contexto macro DL (`data_handler.granularity` = **7200 s**) mantêm proporção **1:40**. Cada bloco macro cobre exatamente quarenta fronteiras micro; a assinatura `m5b:{boundary};m5:{sym}@{epoch};m15:...` (prefixos **legados**) e `seconds_until_next_signature_boundary` ancoram espera e invalidação de cache na cadência de ciclo **180 s** (sync com micro **180 s**). Contrato Deriv **N × 3 min** (N velas M3; N ∈ {1,2,3,5} eleito no treino).
 
 | Camada | Timeframe | Papel |
 |--------|-----------|-------|
 | Deep Learning / TCN | Micro **180 s** (lookback **480**) / macro **7200 s** | Tensor micro `[1, 480, 34]` ≈ 24 h; contexto macro 1:40 |
 | Meta-regressor GBDT | Micro **180 s** | Regressão tabular **43D**; edge contínuo + downgrade D-SQUEEZE |
-| Orquestrador / contrato | Ciclo **180 s** / RISE_FALL **3 m** | M3: settle alinhado à barra micro 180 s |
+| Orquestrador / contrato | Ciclo **180 s** / RISE_FALL **N × 3 min** | M3: settle em T+N velas |
 | Resolução direcional | TCN + meta GBDT | `dl_direction` da TCN; meta refina score / D-SQUEEZE (opcional) |
 | Execução contínua | Ciclo **180 s** | Boleta CALL/PUT na cadência M3 quando há sinal válido |
 

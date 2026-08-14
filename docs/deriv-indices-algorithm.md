@@ -11,10 +11,10 @@ Referencia: [dTrader R_10 M3](https://dtrader.deriv.com/?chart_type=candle&inter
 | Item | Valor |
 |------|--------|
 | Simbolo API | `R_10` |
-| Contrato | `RISE_FALL` **3 m** (`duration=3`, `duration_unit=m`) |
+| Contrato | `RISE_FALL` **N × 3 min** (`duration=N*3`, `duration_unit=m`; N ∈ {1,2,3,5} eleito no treino) |
 | Micro / MINI OHLC | **180 s** (M3) |
 | Macro OHLC | **7200 s** (ratio macro:micro **1:40**) |
-| Ciclo / assinatura | **180 s** (alinhado ao fecho da vela M3; contrato **3 m**); `exec_empty_retry` **180 s** |
+| Ciclo / assinatura | **180 s** (alinhado ao fecho da vela M3); `exec_empty_retry` **180 s** |
 | Lookback TCN | **480** barras micro (`[1, 480, 34]`; ~24 h @ 180 s) |
 | Payout SSOT | **0.72** (live R_10 M3; cover = `pending/0.72`) |
 | Soft Recovery | amort **1/1**, `cover_multiple` **1.50** (cover pleno) |
@@ -38,7 +38,7 @@ SSOT: `config/settings.json` + `app/src/domain/symbols/drift_symbols.py`.
 
 1. Invalidar checkpoints de gran **60/120/300/900** (legado OTC_SPC M15 / M2) e contratos **2 m** / **15 m**.
 2. Re-hidratar Timescale **180/7200**; retreinar TCN/meta/loss-clf.
-3. Confirmar `contracts_for` autenticado: Rise/Fall **3 m** disponivel.
+3. Confirmar `contracts_for` autenticado: Rise/Fall **3/6/9/15 m** disponivel (grade N).
 
 ---
 

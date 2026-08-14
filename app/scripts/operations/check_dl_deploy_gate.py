@@ -36,20 +36,21 @@ def _soft_min_acc(settings: dict) -> float:
     return float(dl.get("min_val_accuracy", 0.53)) if isinstance(dl, dict) else 0.53
 
 
-def _expected_geometry(settings: dict) -> tuple[int | None, int | None]:
+def _expected_geometry(settings: dict) -> tuple[int | None, int | None, int | None]:
     dl = settings.get("deep_learning") if isinstance(settings.get("deep_learning"), dict) else {}
     data = settings.get("data_handler") if isinstance(settings.get("data_handler"), dict) else {}
     if not isinstance(dl, dict):
-        return None, None
+        return None, None, None
     lookback = int(dl["lookback"]) if "lookback" in dl else None
+    horizon = int(dl["label_horizon_bars"]) if "label_horizon_bars" in dl else None
     tf = str(dl.get("train_timeframe", "micro")).strip().lower()
     if not isinstance(data, dict):
-        return lookback, None
+        return lookback, None, horizon
     if tf in ("micro", "m5", "cycle", "settlement"):
         gran = int(data["micro_granularity"]) if "micro_granularity" in data else None
     else:
         gran = int(data["granularity"]) if "granularity" in data else None
-    return lookback, gran
+    return lookback, gran, horizon
 
 
 def _checkpoint_paths(settings: dict, symbols: list[str]) -> list[Path]:
@@ -84,14 +85,19 @@ def evaluate_checkpoint(path: Path, *, soft_min: float, settings: dict | None = 
     if not isinstance(payload, dict):
         return False, f"payload invalido: {path}"
     if isinstance(settings, dict):
-        exp_lb, exp_gran = _expected_geometry(settings)
+        exp_lb, exp_gran, exp_h = _expected_geometry(settings)
         got_lb = payload.get("lookback")
         got_gran = payload.get("granularity")
+        got_h = payload.get("label_horizon_bars")
         if exp_lb is not None and got_lb is not None and int(got_lb) != int(exp_lb):
             return False, f"{path.name}: lookback={got_lb} != settings={exp_lb} (treino incompleto / ckpt antigo)"
         if exp_gran is not None and got_gran is not None and int(got_gran) != int(exp_gran):
             return False, (
                 f"{path.name}: granularity={got_gran} != settings={exp_gran} (treino incompleto / ckpt antigo)"
+            )
+        if exp_h is not None and (got_h is None or int(got_h) != int(exp_h)):
+            return False, (
+                f"{path.name}: label_horizon_bars={got_h} != settings={exp_h} (treino incompleto / ckpt antigo)"
             )
     settle_ok, settle_msg = _settle_gate_ok(payload, settings)
     if settle_ok:
@@ -145,19 +151,21 @@ def main() -> int:
     settings = _load_settings()
     logger = setup_logger("AETH.train", log_file=None)
     parser = argparse.ArgumentParser(description="Gate ACC/deploy apos treino DL.")
-    parser.add_argument("--symbols", nargs="+", default=["R_10"])
+    parser.add_argument("--symbols", nargs="+", default=None)
     parser.add_argument("--soft-min", type=float, default=None)
     args = parser.parse_args()
     soft_min = float(args.soft_min) if args.soft_min is not None else _soft_min_acc(settings)
+    raw_symbols = args.symbols if args.symbols is not None else settings.get("symbols") or ["R_10"]
+    symbols = [str(s) for s in raw_symbols]
     ok_all = True
-    for path in _checkpoint_paths(settings, [str(s) for s in args.symbols]):
+    for path in _checkpoint_paths(settings, symbols):
         ok, msg = evaluate_checkpoint(path, soft_min=soft_min, settings=settings)
         logger.info("DL gate | %s", msg)
         ok_all = ok_all and ok
     if not ok_all:
         logger.error(
             "DL gate falhou: ACC/Brier/settle/geometria — meta abortado. "
-            "Retreine ate exportar checkpoint compativel (lookback/granularity)."
+            "Retreine ate exportar checkpoint compativel (lookback/granularity/horizon)."
         )
         return 1
     return 0

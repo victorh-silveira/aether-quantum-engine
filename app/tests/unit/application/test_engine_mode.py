@@ -52,6 +52,28 @@ def test_apply_engine_mode_aligns_label_horizon_when_contract_spans_bars():
     assert config["deep_learning"]["label_horizon_bars"] == 5
 
 
+def test_apply_engine_mode_aligns_r10_m3_nine_minute_horizon():
+    config = {
+        "orchestrator": {},
+        "data_handler": {"granularity": 7200, "micro_granularity": 180},
+        "deep_learning": {"train_timeframe": "micro", "label_horizon_bars": 1},
+        "risk_management": {"params": {"duration": 9, "duration_unit": "m"}},
+    }
+    apply_engine_mode(config, ENGINE_MODE_TRAIN)
+    assert config["deep_learning"]["label_horizon_bars"] == 3
+
+
+def test_apply_engine_mode_aligns_r10_m3_fifteen_minute_horizon():
+    config = {
+        "orchestrator": {},
+        "data_handler": {"granularity": 7200, "micro_granularity": 180},
+        "deep_learning": {"train_timeframe": "micro", "label_horizon_bars": 1},
+        "risk_management": {"params": {"duration": 15, "duration_unit": "m"}},
+    }
+    apply_engine_mode(config, ENGINE_MODE_TRAIN)
+    assert config["deep_learning"]["label_horizon_bars"] == 5
+
+
 def test_apply_engine_mode_replaces_invalid_orchestrator():
     config: dict = {"orchestrator": "invalid"}
     apply_engine_mode(config, ENGINE_MODE_TRAIN)

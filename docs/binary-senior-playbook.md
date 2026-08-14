@@ -2,7 +2,7 @@
 
 Postura operacional (**escopo 1.1** + arquitetura continua R_10): TCN ancora Cal; **fusao EV** multi-escala (`fusion_*`) escolhe CALL/PUT; meta/edge/indicadores sao telemetria; SCALE telemetria + adapt quando fusao nao substitui. SKIP tecnico = treino/dados/deploy/broker/stop-win; **neg_edge** hard se `edge <= 0` (soft so se `0 < edge < min_edge_execute`); loss-clf alto alimenta fusao/FLIP; catálogo soft `signal_skip` mini/cal/chop = soft Kelly (sem revenge sizing pos-LOSS).
 
-Universo: **Volatility 10** (`R_10`) — **M3** (contrato **3 m**, ciclo **180 s**, micro/MINI **180 s**, macro **7200 s**).
+Universo: **Volatility 10** (`R_10`) — **M3** (contrato **N × 3 min**, N eleito no treino; ciclo **180 s**, micro/MINI **180 s**, macro **7200 s**).
 
 Hierarquia: TCN Cal/Margin → SCALE dirs → soft `signal_skip` / loss-clf → **fusao EV** (argmax CALL/PUT) → chop soft → **neg_edge** (soft subfloor / hard EV≤0) → Kelly/caps. **Proibido** reabrir quality gate amplo (RSI/price_zone/SIDE_EQ block).
 
@@ -55,7 +55,7 @@ Triplo OHLC + ticks: telemetria, **adaptacao de lado** e soft Kelly — **nunca 
 
 Log: `SCALE || … mi_prev=… mi_cur=… tape=… micro=retract|explos|chop adapted=0|1` e no IND `SCALE: tcn=… tape=… votes=C#/P# …`.  
 Adapt: **majority_votes** (TCN/tape/mili/RSI) sem hold Cal; tape sob `raw_extreme`; regimes **retracao** / **explosao** / **mili+tape** (mili+tape **nao** adapta em micro=chop; `adapt_mili_tape_skip_chop`). `adapt_allow_strong_tape` **false**. Kelly `kelly_p_floor` **0.55**; com fusao ancora em `fusion_p_eff`; explore piso `neutral_bankroll_pct` **0.25%** + `explore_stake_scale_floor` **0.40**; `fraction` **0.08**; RECOVER cover pleno (`cover_multiple` **1.50**, amort **1/1**; `f*` so gate); damping stop-win inicio **1.0** / perto-meta **0.50**; teto linear3 **2.5%**; payout **0.72**; stop-win Kelly **4 ciclos/1h**. Sem `kelly_no_edge` / sem SKIP por escala / **sem** zona cinza.
-Contrato Deriv **3 m**; label TCN = 1 barra micro (**180 s**).
+Contrato Deriv **N × 3 min** (N ∈ {1,2,3,5} eleito no launch-train); label TCN = **N barras** micro. Sem overlap: ciclo bloqueado com contrato aberto.
 
 ## `raw_extreme` (anti-override)
 

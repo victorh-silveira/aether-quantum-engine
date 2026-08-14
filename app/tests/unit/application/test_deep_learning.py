@@ -216,9 +216,11 @@ def test_checkpoint_save_load():
             calibrator=calibrator,
             arch="tcn",
             granularity=60,
+            label_horizon_bars=3,
         )
         payload = torch.load(path, map_location=torch.device("cpu"), weights_only=False)
         assert payload["granularity"] == 60
+        assert payload["label_horizon_bars"] == 3
         loaded = load_model_checkpoint(path)
         assert loaded is not None
         m2, s2, epoch, cal, lookback, val_acc, val_brier, val_ece, deploy_ok, deploy_wr = loaded

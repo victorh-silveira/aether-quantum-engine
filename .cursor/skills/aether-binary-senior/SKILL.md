@@ -11,7 +11,7 @@ description: >-
 
 Ler `docs/binary-senior-playbook.md` e `docs/deriv-indices-algorithm.md`.
 
-Universo: **Volatility 10** (`R_10`) — **M3** (contrato **3 m**; ciclo **180 s**; micro/MINI **180 s**; macro **7200 s**).
+Universo: **Volatility 10** (`R_10`) — **M3** (contrato **N × 3 min**, N eleito no treino; ciclo **180 s**; micro/MINI **180 s**; macro **7200 s**).
 
 ## Checklist (escopo 1.1)
 

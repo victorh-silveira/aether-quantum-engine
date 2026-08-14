@@ -18,7 +18,7 @@ def hedge_peer(symbol: str) -> str | None:
 
 
 def is_high_side(symbol: str) -> bool:
-    """True quando o simbolo esta no lado high do universo (vazio em R_10)."""
+    """True quando o simbolo esta no lado high do universo (vazio em single-symbol)."""
     return str(symbol) in HIGH_SIDE
 
 

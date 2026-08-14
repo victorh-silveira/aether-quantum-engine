@@ -165,6 +165,7 @@ def apply_successful_symbol_train(
         oos_sharpness=float(runtime.get("oos_sharpness", 0.0)),
         granularity=granularity,
         training_history_bars=int(params.get("training_history_bars") or 0) or None,
+        label_horizon_bars=max(1, int(params.get("label_horizon_bars", 1))),
         label_call_frac=float(runtime.get("label_call_frac", 0.5)),
         pred_call_frac=float(runtime.get("pred_call_frac", 0.5)),
         minority_recall=float(runtime.get("minority_recall", 1.0)),

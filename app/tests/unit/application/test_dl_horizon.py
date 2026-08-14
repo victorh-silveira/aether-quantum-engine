@@ -13,6 +13,8 @@ def test_label_horizon_bars_aligns_contract_to_granularity():
     assert resolve_label_horizon_bars(60, risk, {}) == 1
     assert resolve_label_horizon_bars(900, risk, {}) == 1
     assert resolve_label_horizon_bars(60, {"duration": 5, "duration_unit": "m"}, {}) == 5
+    assert resolve_label_horizon_bars(180, {"duration": 9, "duration_unit": "m"}, {}) == 3
+    assert resolve_label_horizon_bars(180, {"duration": 15, "duration_unit": "m"}, {}) == 5
 
 
 def test_label_horizon_explicit_override():
