@@ -13,6 +13,16 @@ from src.domain.risk.stake_sizing import clamp_kelly_stake
 from src.domain.risk.super_concordance_kelly import apply_super_concordance_kelly_fraction
 
 
+_SOFT_SIGNAL_FLAGS = (
+    "loss_clf_soft",
+    "cal_margin_soft",
+    "neg_edge_soft",
+    "mini_pair_soft",
+    "regime_chop_soft",
+    "fusion_weak_ev_soft",
+)
+
+
 def resolve_f_star_and_kelly_base(
     rm: Any,
     *,
@@ -143,6 +153,33 @@ def apply_loss_clf_soft_stake_cap(
     )
 
 
+def apply_signal_soft_stake_cap(
+    final_stake: float,
+    bankroll: float,
+    metrics: dict[str, Any] | None,
+    *,
+    pending_total: float = 0.0,
+    soft_recovery: dict[str, Any] | None = None,
+) -> float:
+    """Teto EXPLORE so com soft_signal_max_stake_pct explicito; soft so atenua f*."""
+    if not isinstance(metrics, dict):
+        return float(final_stake)
+    if not any(bool(metrics.get(flag)) for flag in _SOFT_SIGNAL_FLAGS):
+        return float(final_stake)
+    if pending_waives_scale_explore(float(pending_total), soft_recovery):
+        return float(final_stake)
+    raw = metrics.get("soft_signal_max_stake_pct")
+    if raw is None:
+        return float(final_stake)
+    try:
+        pct = float(raw)
+    except (TypeError, ValueError):
+        return float(final_stake)
+    if pct <= 0.0:
+        return float(final_stake)
+    return min(float(final_stake), max(0.0, float(bankroll) * pct))
+
+
 def apply_post_kelly_stake_caps(
     final_stake: float,
     bankroll: float,
@@ -151,7 +188,7 @@ def apply_post_kelly_stake_caps(
     pending_total: float = 0.0,
     soft_recovery: dict[str, Any] | None = None,
 ) -> float:
-    """Aplica tetos de escala e loss_clf soft apos Kelly/DAL."""
+    """Aplica tetos de escala e soft de sinal apos Kelly/DAL."""
     capped = apply_scale_stake_cap(
         final_stake,
         bankroll,
@@ -159,7 +196,14 @@ def apply_post_kelly_stake_caps(
         pending_total=pending_total,
         soft_recovery=soft_recovery,
     )
-    return apply_loss_clf_soft_stake_cap(
+    capped = apply_loss_clf_soft_stake_cap(
+        capped,
+        bankroll,
+        metrics,
+        pending_total=pending_total,
+        soft_recovery=soft_recovery,
+    )
+    return apply_signal_soft_stake_cap(
         capped,
         bankroll,
         metrics,

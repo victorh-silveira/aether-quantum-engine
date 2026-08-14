@@ -79,7 +79,37 @@ def test_recover_mandatory_blocked_returns_zero_when_below_min(kelly_config):
     assert stake == 0.0
 
 
-def test_recovery_infeasible_logs_when_not_silent(kelly_config):
+def test_recovery_force_explore_near_stop_sets_explore_regime(kelly_config):
+    rm = _rm(kelly_config)
+    rm.pending_loss = {"R_10": 40.0}
+    rm.consecutive_losses_linear = 1
+    rm.dlambert_unit = 5.0
+    rm.total_session_profit = 250.0
+    rm.daily_stop_win_target = 100.0
+    rm._recovery_allowed = MagicMock(return_value=True)
+    rm.soft_recovery_config = {
+        **dict(rm.soft_recovery_config or {}),
+        "enabled": True,
+        "near_stop_win_freeze_pct": 0.70,
+        "material_pending_min": 0.25,
+        "cover_multiple": 1.5,
+        "max_safe_stake_pct": 0.05,
+        "amort_cycles_min": 1,
+        "amort_cycles_max": 1,
+    }
+    metrics = {"execute": True, "trade_score": 0.70, "raw_prob": 0.70}
+    calculate_stake_for_manager(
+        rm,
+        10000.0,
+        "R_10",
+        0.70,
+        silent=True,
+        apply_stop_win=False,
+        kwargs={"dl_metrics": metrics, "cycle_id": 12},
+    )
+    assert metrics.get("recovery_force_explore") is True
+    assert metrics.get("stake_regime") == "EXPLORE"
+
     rm = _rm(kelly_config)
     rm.pending_loss = {"R_10": 80.0}
     rm.consecutive_losses_linear = 2
@@ -91,6 +121,8 @@ def test_recovery_infeasible_logs_when_not_silent(kelly_config):
         "amort_cycles_min": 2,
         "amort_cycles_max": 5,
         "infeasible_force_explore": True,
+        "material_pending_min": 0.25,
+        "cover_multiple": 1.5,
     }
     metrics = {"execute": True, "trade_score": 0.70, "raw_prob": 0.70}
     calculate_stake_for_manager(
@@ -104,8 +136,9 @@ def test_recovery_infeasible_logs_when_not_silent(kelly_config):
     )
     logged = " ".join(str(c) for c in rm.logger.debug.call_args_list + rm.logger.info.call_args_list)
     assert "RECOVERY_INFEASIBLE" in logged or metrics.get("recovery_infeasible") is True
-    assert metrics.get("recovery_force_explore") is True
-    assert metrics.get("stake_regime") == "EXPLORE"
+    assert metrics.get("recovery_force_explore") is False
+    assert metrics.get("recovery_infeasible_cap_stake") is True
+    assert metrics.get("stake_regime") == "RECOVER"
 
 
 def test_cross_veto_waiver_and_mandatory_weak_zero_pct_residual():

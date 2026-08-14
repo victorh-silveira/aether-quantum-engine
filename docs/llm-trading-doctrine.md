@@ -14,7 +14,7 @@ SSOT operacional: [`config/settings.json`](../config/settings.json) — universo
 
 **Regra no Aether:** caps limitam cauda; Cal/Edge sao telemetria; margem fraca via `signal_skip.cal_margin` (floor SSOT **0.022** → soft Kelly, waive pending) — nao quality gate generico.
 
-**Ancoras:** soft recovery caps (`max_safe_stake_pct` **0.05**); Kelly; `force_trade_every_cycle=false`; `infeasible_force_explore` (RECOVERY_INFEASIBLE → EXPLORE Kelly, sem DAL no teto); `pending_waives_scale_explore` (pending material libera soft cover sob discord/adapt).
+**Ancoras:** soft recovery caps (`max_safe_stake_pct` **0.05**); Kelly; `force_trade_every_cycle=false`; cover inviavel (`RECOVERY_INFEASIBLE`) com PEND material → stake = **CAP** (cover parcial, DAL); `pending_waives_scale_explore` (pending material libera soft cover sob discord/adapt).
 
 ---
 
@@ -60,7 +60,7 @@ SSOT operacional: [`config/settings.json`](../config/settings.json) — universo
 
 **Anti-padrao do LLM:** reinventar stop-loss interno; recovery sem pending; sizing sem teto de banca.
 
-**Regra no Aether:** soft recovery usa cover pleno de `pending_loss` (amort **1/1**, `cover_multiple` **1.50**); stop-win ativo; damping de proximidade da meta (`target_damping_*`) comeca em **1.0** e cai ate **0.50** — com amort=1 o damping de stake nao dilui o cover; stop-loss interno desativado por politica — nao reativar sem mandato explicito. EXPLORE forçado (`neg_edge_soft` / near_stop / quality / `f*≈0` / infeasible) usa piso `neutral_bankroll_pct` — **nunca** cover pleno sob soft (revenge via teto linear3); **nunca** `dlambert_unit` sticky da primeira Kelly boa como tamanho de ordem. Cover pleno so no caminho RECOVER/DAL com edge nao soft. Soft + PEND material + stake ≈ CAP linear3 = regressao cover-pleno.
+**Regra no Aether:** soft recovery usa cover pleno de `pending_loss` (amort **1/1**, `cover_multiple` **1.50**); stop-win ativo; damping de proximidade da meta (`target_damping_*`) comeca em **1.0** e cai ate **0.50** — com amort=1 o damping de stake nao dilui o cover; stop-loss interno desativado por politica — nao reativar sem mandato explicito. EXPLORE forçado (`neg_edge_soft` / near_stop / quality / `f*≈0`) usa piso `neutral_bankroll_pct` — **nunca** cover pleno sob soft sem PEND (revenge); **nunca** `dlambert_unit` sticky da primeira Kelly boa como tamanho de ordem. Cover inviavel com PEND material → stake = **CAP** (parcial DAL, telemetria `RECOVERY_INFEASIBLE`). Cover pleno so no caminho RECOVER/DAL quando cover ≤ CAP. Soft + PEND material + stake ≈ CAP linear3 sem inviabilidade = regressao cover-pleno.
 
 **Ancoras:** `soft_recovery_policy`; `soft_recovery_explore.py`; `pending_loss`; stop-win composto; `stake_target_proximity.py`; `app/src/domain/risk/risk_recovery_state.py`.
 

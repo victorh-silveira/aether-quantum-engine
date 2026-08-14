@@ -8,7 +8,11 @@ from src.domain.risk.consensus_stake_helpers import (
     neutral_edge_dynamic_unit,
     resolve_contract_payout,
 )
-from src.domain.risk.soft_recovery_policy import is_recovery_infeasible, resolve_amort_cycles
+from src.domain.risk.soft_recovery_policy import (
+    fixed_step_progression_multiplier,
+    is_recovery_infeasible,
+    resolve_amort_cycles,
+)
 from src.domain.risk.stake_target_proximity import apply_target_proximity_damping
 
 
@@ -191,6 +195,47 @@ def apply_forced_explore_early(
         soft_infeasible=soft_infeasible,
     )
     return explore
+
+
+def mark_dal_cover_metrics(
+    metrics: dict | None,
+    *,
+    factor: float,
+    resolved_payout: float,
+    losses: int,
+    previous_stake: float,
+    unit: float,
+    cover: float,
+    cover_mult: float,
+    amort: int,
+    progression: float,
+    soft_recovery: dict[str, Any] | None,
+    infeasible: bool,
+    force_explore: bool,
+    cap_stake: bool = False,
+) -> None:
+    """Telemetria comum do caminho DAL (cover / CAP parcial / explore legado)."""
+    if not isinstance(metrics, dict):
+        return
+    metrics["recovery_soft_progression"] = float(factor)
+    metrics["recovery_adaptive_payout"] = float(resolved_payout)
+    metrics["recovery_soft_losses"] = max(0, int(losses))
+    metrics["recovery_soft_anchor_stake"] = float(previous_stake) if float(previous_stake) > 0.0 else float(unit)
+    metrics["recovery_cover_need"] = float(cover)
+    metrics["recovery_cover_multiple"] = float(cover_mult)
+    metrics["recovery_amort_cycles"] = int(amort)
+    metrics["recovery_fixed_step"] = fixed_step_progression_multiplier(losses, soft_recovery=soft_recovery) is not None
+    metrics["recovery_progression_multiplier"] = float(progression)
+    metrics["recovery_infeasible"] = bool(infeasible)
+    metrics["recovery_force_explore"] = bool(force_explore)
+    metrics["recovery_material_pending"] = True
+    metrics["recovery_near_stop_win_freeze"] = False
+    if cap_stake:
+        metrics["recovery_infeasible_cap_stake"] = True
+    if not force_explore:
+        metrics["recovery_acc_force_explore"] = False
+        metrics["recovery_live_force_explore"] = False
+        metrics["recovery_adapted_force_explore"] = False
 
 
 def forced_explore_stake(

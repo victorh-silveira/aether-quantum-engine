@@ -3,7 +3,7 @@ import pytest
 from src.domain.risk.dlambert_sizing import resolve_dlambert_stake
 
 
-def test_resolve_dlambert_stake_infeasible_force_explore_returns_kelly():
+def test_resolve_dlambert_stake_infeasible_material_pending_returns_cap_dal():
     class RM:
         dlambert_unit = 10.0
         dlambert_config = {}
@@ -13,6 +13,8 @@ def test_resolve_dlambert_stake_infeasible_force_explore_returns_kelly():
             "amort_cycles_max": 5,
             "max_safe_stake_pct": 0.025,
             "infeasible_force_explore": True,
+            "material_pending_min": 0.25,
+            "cover_multiple": 1.5,
         }
         risk_params = {"payout_estimate": 0.95}
         last_loss_stake = 20.0
@@ -32,11 +34,11 @@ def test_resolve_dlambert_stake_infeasible_force_explore_returns_kelly():
         dl_metrics=metrics,
         f_star=0.01,
     )
-    assert tag == "KELLY"
-    assert stake == pytest.approx(25.0)
-    assert metrics.get("recovery_force_explore") is True
+    assert tag == "D'ALEMBERT"
+    assert stake == pytest.approx(250.0)
+    assert metrics.get("recovery_force_explore") is False
     assert metrics.get("recovery_infeasible") is True
-    assert metrics.get("recovery_force_explore_reason") == "infeasible"
+    assert metrics.get("recovery_infeasible_cap_stake") is True
 
 
 def test_resolve_dlambert_stake_weak_f_star_clamps_sticky_kelly_to_floor():

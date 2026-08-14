@@ -122,7 +122,7 @@ def test_neg_edge_without_pending_uses_neutral_floor_not_sticky_u():
     assert metrics.get("recovery_force_explore") is True
 
 
-def test_infeasible_force_explore_sticky_u_uses_neutral_floor():
+def test_infeasible_with_material_pending_stakes_at_cap():
     metrics: dict = {}
     soft = {
         "enabled": True,
@@ -131,6 +131,7 @@ def test_infeasible_force_explore_sticky_u_uses_neutral_floor():
         "amort_cycles_max": 5,
         "infeasible_force_explore": True,
         "material_pending_min": 0.25,
+        "cover_multiple": 1.5,
     }
     stake = apply_soft_recovery_stake(
         pending_total=800.0,
@@ -143,10 +144,9 @@ def test_infeasible_force_explore_sticky_u_uses_neutral_floor():
         soft_recovery=soft,
     )
     assert metrics.get("recovery_infeasible") is True
-    assert metrics.get("recovery_force_explore") is True
-    assert metrics.get("recovery_force_explore_reason") == "infeasible"
-    assert stake == pytest.approx(25.0)
-    assert metrics.get("recovery_explore_used_cover") is False
+    assert metrics.get("recovery_force_explore") is False
+    assert metrics.get("recovery_infeasible_cap_stake") is True
+    assert stake == pytest.approx(250.0)
 
 
 def test_dal_normal_pending_without_neg_edge_keeps_cover():
@@ -176,7 +176,7 @@ def test_dal_normal_pending_without_neg_edge_keeps_cover():
     assert stake == pytest.approx(cover, rel=1e-3)
 
 
-def test_neg_edge_large_pending_sets_infeasible_with_floor():
+def test_neg_edge_large_pending_sets_infeasible_at_cap():
     metrics = {"neg_edge_soft": True}
     soft = {
         "material_pending_min": 0.25,
@@ -198,13 +198,10 @@ def test_neg_edge_large_pending_sets_infeasible_with_floor():
         metrics=metrics,
         soft_recovery=soft,
     )
-    floor = 9976.0 * 0.0025
     cap = 9976.0 * 0.025
-    assert stake == pytest.approx(floor)
-    assert stake < cap
-    assert metrics.get("recovery_force_explore") is True
-    assert metrics.get("recovery_force_explore_reason") == "infeasible"
-    assert metrics.get("recovery_explore_used_cover") is False
+    assert stake == pytest.approx(cap)
+    assert metrics.get("recovery_force_explore") is False
+    assert metrics.get("recovery_infeasible_cap_stake") is True
     assert metrics.get("recovery_infeasible") is True
 
 

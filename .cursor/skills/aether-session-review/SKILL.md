@@ -21,7 +21,7 @@ Ler `docs/llm-trading-doctrine.md` antes de concluir. LLM nao decide trade; aval
 
 1. Qual setup nomeado? (ex.: TCN resolve lado + fusao EV + Kelly; soft SIDE_EQ / scale_vision)
 2. Qual bloqueio tecnico explicito? (`training`/`data`/`deploy`/`predict_error` / stop-win)
-3. Explore ou recover? Ha pending/linear? Recovery = cover pleno (**1.50**, amort **1/1**); damping inicio **1.0** / perto-meta **0.50** (amort=1 nao dilui cover); RECOVER stake ≠ `bankroll×f*` (`f*` so gate). `scale_force_explore` ou `RECOVERY_INFEASIBLE`/`recovery_force_explore` bloquearam RECOVER/DAL? Pending material com `pending_waives_scale_explore` deve liberar soft cover.
+3. Explore ou recover? Ha pending/linear? Recovery = cover pleno (**1.50**, amort **1/1**); damping inicio **1.0** / perto-meta **0.50** (amort=1 nao dilui cover); RECOVER stake ≠ `bankroll×f*` (`f*` so gate). `scale_force_explore` bloqueou RECOVER? `RECOVERY_INFEASIBLE` com PEND deve stake=**CAP** (parcial), nao piso explore. Pending material com `pending_waives_scale_explore` deve liberar soft cover.
 4. Hipotese falsificavel da mudanca de knob (se houver)?
 5. Alvo de negocio: stop-win **3%** composto — progresso de processo, nao “mao quente”
 

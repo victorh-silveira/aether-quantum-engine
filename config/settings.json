@@ -192,7 +192,7 @@
     "eval_min_accuracy": 0.53,
     "eval_settle_accuracy_min": 0.53,
     "inference_device": "auto",
-    "label_horizon_bars": 3,
+    "label_horizon_bars": 5,
     "label_ma_window": 5,
     "label_mode": "ma_trend",
     "label_smooth_bars": 1,
@@ -262,8 +262,15 @@
       "auto_promote": true,
       "train_deploy_retries": 1,
       "disable_infra_during_sweep": true,
-      "n_bars": [1, 2, 3, 5],
-      "symbols": ["R_10"],
+      "n_bars": [
+        1,
+        2,
+        3,
+        5
+      ],
+      "symbols": [
+        "R_10"
+      ],
       "min_edge_vs_breakeven": 0.03,
       "min_settle_n": 16,
       "min_history_bars": 800,
@@ -305,7 +312,7 @@
       "soft_kelly_mult": 0.55,
       "soft_kelly_mult_high": 0.4,
       "soft_p_loss_high": 0.85,
-      "soft_max_stake_pct_high": 0.0025,
+      "soft_max_stake_pct_high": 0.01,
       "ready_n": 24,
       "retrain_min_n": 1,
       "retrain_on_loss_min_n": 1,
@@ -771,7 +778,7 @@
       "compounding_enabled": true,
       "compounding_rate_daily": 0.03,
       "contract_type": "RISE_FALL",
-      "duration": 9,
+      "duration": 15,
       "duration_unit": "m",
       "payout_estimate": 0.72,
       "stake_min": 1.0

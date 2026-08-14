@@ -268,10 +268,13 @@ def revert_loss_flip(metrics: dict[str, Any], ref_dir: TradeDirection, *, reason
 
 
 def apply_soft_kelly(metrics: dict[str, Any], mult: float, *, p_loss: float, cfg: dict[str, Any]) -> None:
-    """Atenua kelly_fraction_scale e marca teto de stake abaixo do piso explore."""
+    """Atenua kelly_fraction_scale; teto absoluto so sem FLIP_BLOCK (keep TCN)."""
     scale = float(metrics.get("kelly_fraction_scale", 1.0) or 1.0)
     metrics["kelly_fraction_scale"] = max(0.05, scale * float(mult))
     metrics["loss_clf_soft"] = True
     metrics["loss_clf_soft_kelly_mult"] = float(mult)
-    metrics["loss_clf_soft_max_stake_pct"] = float(cfg["soft_max_stake_pct_high"])
+    if str(metrics.get("loss_clf_flip_blocked") or "").strip():
+        metrics.pop("loss_clf_soft_max_stake_pct", None)
+    else:
+        metrics["loss_clf_soft_max_stake_pct"] = float(cfg["soft_max_stake_pct_high"])
     _ = p_loss

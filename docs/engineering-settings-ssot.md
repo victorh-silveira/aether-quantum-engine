@@ -40,7 +40,7 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `kelly.neutral_bankroll_pct` | `risk_management.kelly` | Piso operacional de stake explore (**0.25%** banca M3); loss_clf soft **nao** esmaga o piso |
 | `kelly.payout_fallback` / `params.payout_estimate` / `default_payout` | `risk_management` | Payout Deriv R_10 M3 **0.72** (live; cover RECOVER = `cover_multiple * pending/0.72`) |
 | `kelly.stop_win_kelly_*` | `risk_management.kelly` | Boost stop-win ~**1h**: `enabled`, `cycles_target` **4**, `live_n_min` **0**, fracoes **0.70–1.0**, teto **5%** |
-| `soft_recovery.infeasible_force_explore` | `risk_management.soft_recovery` | Default **true**: `RECOVERY_INFEASIBLE` ou cover≥cap → EXPLORE Kelly (sem DAL no teto) |
+| `soft_recovery.infeasible_force_explore` | `risk_management.soft_recovery` | Com PEND material, cover≥cap → stake=**CAP** (parcial); flag so afeta ramo legado sem passivo material |
 | `soft_recovery.pending_waives_scale_explore` | `risk_management.soft_recovery` | Default **true**: pending material libera soft cover apesar de `scale_adapted`/`scale_force_explore` |
 | `soft_recovery.adapted_force_explore` | `risk_management.soft_recovery` | Default **true**: `scale_adapted` + linear≥**2** → EXPLORE (bloqueia DAL L2/L3 sob adapt) |
 | `soft_recovery.cover_multiple` | `risk_management.soft_recovery` | Multiplo do cover (**1.50**) — cover pleno `pending/payout` em 1 ciclo (sem progressao geometrica) |
@@ -48,7 +48,7 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `kelly.recovery_min_val_accuracy` | `risk_management.kelly` | Piso ACC live para DAL (**0.53**); sobe com linear; abaixo → EXPLORE (sem cover DAL) |
 | `soft_recovery.live_evidence_force_explore_*` | `risk_management.soft_recovery` | linear≥**3** + `live_n`≥**2** + `live_wr`&lt;**0.62** → EXPLORE (bloqueia DAL L3+ com ACC de treino ainda ok) |
 | `soft_recovery.amort_cycles_min` / `amort_cycles_max` | `risk_management.soft_recovery` | Amort **1/1**; stake RECOVER = `cover_multiple * pending/payout` (cover pleno; sem `max` com progressao exponencial; `f*` so gate) |
-| `infra.loss_classifier.soft_max_stake_pct_high` | `infra.loss_classifier` | Teto stake EXPLORE sob soft (**0.25%**); waivado com pending material; ACC baixo nao cancela cover |
+| `infra.loss_classifier.soft_max_stake_pct_high` | `infra.loss_classifier` | Teto stake EXPLORE sob soft (**1%**); waivado com pending material e com `FLIP_BLOCK` (keep TCN so atenua f*); ACC baixo nao cancela cover |
 | `params.duration` | `risk_management.params` | Contrato RISE_FALL **N × 3 min** (`duration_unit: m`) — N eleito no `horizon_sweep`; placeholder **9** |
 | `deep_learning.label_horizon_bars` | `deep_learning` | **N** alinhado a duration (invariante `duration == N × 3` no M3); placeholder **3** |
 | `horizon_sweep.*` | `deep_learning` | Grade **n_bars=[1,2,3,5]**; `run_in_launch_train` **true**; pisos settle be+0.03, n≥16, history≥800 |

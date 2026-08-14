@@ -83,7 +83,7 @@ Viés estrutural de lado **nao** se corrige reintroduzindo veto de sinal nem qua
 - `risk_management.soft_recovery.cover_multiple: 1.50` — RECOVER = cover pleno `pending/payout*1.50`
 - `risk_management.kelly.neutral_bankroll_pct` / `min_stake_pct` **0.0025** — explore piso **0.25%** banca (M3)
 - `risk_management.kelly.fraction` **0.08** — Kelly fracionario baixo (alta frequencia)
-- `risk_management.soft_recovery.infeasible_force_explore: true` — `RECOVERY_INFEASIBLE` (ou cover ≥ cap) forca EXPLORE Kelly, nao DAL no teto
+- `risk_management.soft_recovery`: cover inviavel com PEND material → stake no **CAP** (parcial), telemetria `RECOVERY_INFEASIBLE`; nao abandona recovery no piso explore
 - `soft_recovery.live_evidence_force_explore_*` — linear≥3 com `live_wr` &lt; **0.62** forca EXPLORE (evita DAL L3+ enquanto ACC de checkpoint ainda passa)
 - `pending_waives_scale_explore: true` — com pending material, soft cover/DAL nao e short-circuitado por discord/adapt
 - `risk_management.soft_recovery.amort_cycles_*` **1/1** — stake RECOVER = cover pleno (sem progressao geometrica); caps `max_safe_stake_*`

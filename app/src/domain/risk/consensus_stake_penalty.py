@@ -25,14 +25,13 @@ from src.domain.risk.recovery_state_config import load_recovery_state_from_setti
 from src.domain.risk.soft_recovery_config import soft_cfg
 from src.domain.risk.soft_recovery_explore import (
     apply_forced_explore_early,
-    forced_explore_stake,
+    mark_dal_cover_metrics,
     soft_floor_scale,
 )
 from src.domain.risk.soft_recovery_policy import (
     apply_small_account_hard_floor,
     configured_max_safe_stake_cap,
     configured_max_safe_stake_pct,
-    fixed_step_progression_multiplier,
     is_recovery_infeasible,
     resolve_amort_cycles,
 )
@@ -122,63 +121,45 @@ def apply_soft_recovery_stake(
     horizon_infeasible = is_recovery_infeasible(pending, cap, resolved_payout, soft_recovery)
     cover_blocked = cover + 1e-12 >= cap
     infeasible = bool(horizon_infeasible or cover_blocked)
-    force_explore = bool(soft["infeasible_force_explore"]) and infeasible
-    if force_explore:
-        explore = forced_explore_stake(
-            bankroll=bankroll,
-            pending=pending,
-            material_pending=False,
-            consecutive_losses=losses,
-            payout=payout,
-            risk_params=risk_params,
-            soft=soft,
-            target=target,
-            pnl=pnl,
-            cap=cap,
-            metrics=metrics,
-            reason="infeasible",
+    if infeasible and material_pending and pending > 0.0:
+        stake = min(float(cover), float(cap))
+        mark_dal_cover_metrics(
+            metrics,
+            factor=factor,
+            resolved_payout=resolved_payout,
+            losses=losses,
+            previous_stake=previous_stake,
+            unit=unit,
+            cover=cover,
+            cover_mult=cover_mult,
+            amort=amort,
+            progression=progression,
+            soft_recovery=soft_recovery,
+            infeasible=True,
+            force_explore=False,
+            cap_stake=True,
         )
-        if isinstance(metrics, dict):
-            metrics["recovery_soft_progression"] = factor
-            metrics["recovery_adaptive_payout"] = resolved_payout
-            metrics["recovery_soft_losses"] = losses
-            metrics["recovery_soft_anchor_stake"] = float(previous_stake) if float(previous_stake) > 0.0 else unit
-            metrics["recovery_cover_need"] = cover
-            metrics["recovery_cover_multiple"] = cover_mult
-            metrics["recovery_amort_cycles"] = amort
-            metrics["recovery_fixed_step"] = (
-                fixed_step_progression_multiplier(losses, soft_recovery=soft_recovery) is not None
-            )
-            metrics["recovery_progression_multiplier"] = float(progression)
-            metrics["recovery_infeasible"] = True
-            metrics["recovery_force_explore"] = True
-            metrics["recovery_material_pending"] = True
-            metrics["recovery_near_stop_win_freeze"] = False
-        return explore
+        return stake
     stake = float(cover)
     if int(amort) <= 1:
         progression = 1.0
     elif target > 0.0:
         stake = apply_target_proximity_damping(stake, target, pnl)
-    if isinstance(metrics, dict):
-        metrics["recovery_soft_progression"] = factor
-        metrics["recovery_adaptive_payout"] = resolved_payout
-        metrics["recovery_soft_losses"] = losses
-        metrics["recovery_soft_anchor_stake"] = float(previous_stake) if float(previous_stake) > 0.0 else unit
-        metrics["recovery_cover_need"] = cover
-        metrics["recovery_cover_multiple"] = cover_mult
-        metrics["recovery_amort_cycles"] = amort
-        metrics["recovery_fixed_step"] = (
-            fixed_step_progression_multiplier(losses, soft_recovery=soft_recovery) is not None
-        )
-        metrics["recovery_progression_multiplier"] = float(progression)
-        metrics["recovery_infeasible"] = bool(infeasible)
-        metrics["recovery_force_explore"] = False
-        metrics["recovery_material_pending"] = True
-        metrics["recovery_near_stop_win_freeze"] = False
-        metrics["recovery_acc_force_explore"] = False
-        metrics["recovery_live_force_explore"] = False
-        metrics["recovery_adapted_force_explore"] = False
+    mark_dal_cover_metrics(
+        metrics,
+        factor=factor,
+        resolved_payout=resolved_payout,
+        losses=losses,
+        previous_stake=previous_stake,
+        unit=unit,
+        cover=cover,
+        cover_mult=cover_mult,
+        amort=amort,
+        progression=progression,
+        soft_recovery=soft_recovery,
+        infeasible=bool(infeasible),
+        force_explore=False,
+    )
     return min(stake, cap)
 
 

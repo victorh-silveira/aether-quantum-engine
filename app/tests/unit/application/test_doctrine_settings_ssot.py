@@ -48,7 +48,7 @@ def test_production_deploy_gate_armed():
     assert int(dl.get("sample_weighting", {}).get("recency_half_life_n", 0)) == 2000
     assert str(dl.get("label_mode")) == "ma_trend"
     assert int(dl.get("lookback", 0)) == 480
-    assert int(dl.get("label_horizon_bars", 0)) == 3
+    assert int(dl.get("label_horizon_bars", 0)) == 5
     assert int(settings["risk_management"]["params"]["duration"]) == int(dl.get("label_horizon_bars", 0)) * 3
     assert float(dl.get("min_edge_execute", 0.0)) == pytest.approx(0.04)
     assert settings["orchestrator"]["execution"]["bypass_deploy_gate"] is False
@@ -88,7 +88,7 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert float(block["soft_kelly_mult"]) == pytest.approx(0.55)
     assert float(block["soft_kelly_mult_high"]) == pytest.approx(0.40)
     assert float(block["soft_p_loss_high"]) == pytest.approx(0.85)
-    assert float(block["soft_max_stake_pct_high"]) == pytest.approx(0.0025)
+    assert float(block["soft_max_stake_pct_high"]) == pytest.approx(0.01)
     assert float(block["timeout_seconds"]) == pytest.approx(8.0)
     assert int(block["retrain_min_n"]) == 1
     assert int(block["retrain_on_loss_min_n"]) == 1
@@ -106,7 +106,7 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert resolved["soft_kelly_mult"] == pytest.approx(0.55)
     assert resolved["soft_kelly_mult_high"] == pytest.approx(0.40)
     assert resolved["soft_p_loss_high"] == pytest.approx(0.85)
-    assert resolved["soft_max_stake_pct_high"] == pytest.approx(0.0025)
+    assert resolved["soft_max_stake_pct_high"] == pytest.approx(0.01)
     assert resolved["retrain_min_n"] == 1
     assert resolved["retrain_on_loss_min_n"] == 1
     assert resolved["flip_require_auto_learn"] is True
@@ -223,7 +223,7 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert settings.get("anchor") == "R_10"
     assert list(settings.get("symbols") or []) == ["R_10"]
     assert list(dl.get("train_symbols") or []) == ["R_10"]
-    assert int(settings["risk_management"]["params"]["duration"]) == 9
+    assert int(settings["risk_management"]["params"]["duration"]) == 15
     assert str(settings["risk_management"]["params"]["duration_unit"]) == "m"
     params = settings["risk_management"]["params"]
     assert float(params["payout_estimate"]) == pytest.approx(0.72)

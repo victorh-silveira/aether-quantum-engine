@@ -67,7 +67,7 @@ def test_recovery_infeasible_when_pending_exceeds_horizon():
     assert is_recovery_infeasible(5.0, 4.20, 0.95, soft) is False
 
 
-def test_soft_recovery_flags_infeasible_and_force_explore_unit():
+def test_soft_recovery_flags_infeasible_stakes_at_cap():
     metrics: dict = {}
     soft = {
         "enabled": True,
@@ -75,6 +75,8 @@ def test_soft_recovery_flags_infeasible_and_force_explore_unit():
         "amort_cycles_min": 2,
         "amort_cycles_max": 5,
         "infeasible_force_explore": True,
+        "material_pending_min": 0.25,
+        "cover_multiple": 1.5,
     }
     stake = apply_soft_recovery_stake(
         pending_total=80.0,
@@ -88,9 +90,9 @@ def test_soft_recovery_flags_infeasible_and_force_explore_unit():
     )
     cap = max_safe_stake_cap(90.0, consecutive_losses_linear=2, soft_recovery=soft)
     assert metrics.get("recovery_infeasible") is True
-    assert metrics.get("recovery_force_explore") is True
-    assert stake <= 2.0 + 1e-9
-    assert stake < cap
+    assert metrics.get("recovery_force_explore") is False
+    assert metrics.get("recovery_infeasible_cap_stake") is True
+    assert stake == pytest.approx(cap)
 
 
 def test_soft_recovery_acc_below_floor_forces_explore():
@@ -217,7 +219,7 @@ def test_soft_recovery_adapted_waived_by_pending_uses_cover():
     assert metrics.get("recovery_amort_cycles") == 2
 
 
-def test_soft_recovery_cover_ge_cap_forces_explore():
+def test_soft_recovery_cover_ge_cap_stakes_at_cap():
     metrics: dict = {}
     soft = {
         "enabled": True,
@@ -225,6 +227,8 @@ def test_soft_recovery_cover_ge_cap_forces_explore():
         "amort_cycles_max": 5,
         "max_safe_stake_pct": 0.025,
         "infeasible_force_explore": True,
+        "material_pending_min": 0.25,
+        "cover_multiple": 1.5,
     }
     stake = apply_soft_recovery_stake(
         pending_total=800.0,
@@ -238,10 +242,10 @@ def test_soft_recovery_cover_ge_cap_forces_explore():
     )
     cap = max_safe_stake_cap(10000.0, consecutive_losses_linear=2, soft_recovery=soft)
     assert metrics.get("recovery_infeasible") is True
-    assert metrics.get("recovery_force_explore") is True
+    assert metrics.get("recovery_force_explore") is False
+    assert metrics.get("recovery_infeasible_cap_stake") is True
     assert float(metrics.get("recovery_cover_need", 0.0)) + 1e-12 >= cap
-    assert stake == pytest.approx(25.0)
-    assert stake < cap
+    assert stake == pytest.approx(cap)
 
 
 def test_soft_recovery_infeasible_legacy_caps_without_force_explore():
