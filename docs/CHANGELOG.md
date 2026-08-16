@@ -5,6 +5,9 @@
 * **higienizacao:** remove codigo/scripts mortos; limpa JSON orfao (`gating`/`risk` top-level, duplicatas ws/history); hydrate Timescale **60/7200**; alias `make pre-commit`
 * **contrato_ops_m5:** contrato live **5 m** fixo; promote grava `label_horizon_bars` (SSOT atual **55** / H55); gap label N vs settle 5 min
 * **launch_train_logs:** pos-sweep denso; celula **CRITICAL** + `why=`; grade **H15–H60** = horizonte N em M1 (nao TF M15/900s)
+* **always_apply_rules:** todas as rules Cursor com `alwaysApply: true`; pytest com 2 workers sob RAM &lt; 6 GiB
+
+## [2.9.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.8.6...v2.9.0) (2026-08-16)
 
 ## [2.8.6](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.8.5...v2.8.6) (2026-08-14)
 
