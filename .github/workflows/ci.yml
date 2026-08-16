@@ -1,4 +1,5 @@
 name: CI
+run-name: CI ${{ github.ref_name }} @ ${{ github.sha }}
 
 on:
   push:
@@ -25,6 +26,7 @@ concurrency:
 jobs:
   quality:
     name: Qualidade - Lint
+    if: ${{ github.event_name != 'push' || (github.event.head_commit != null && !contains(github.event.head_commit.message, 'Merge branch') && !contains(github.event.head_commit.message, 'merge origin/')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -40,6 +42,7 @@ jobs:
 
   tests:
     name: Testes - Pytest
+    if: ${{ github.event_name != 'push' || (github.event.head_commit != null && !contains(github.event.head_commit.message, 'Merge branch') && !contains(github.event.head_commit.message, 'merge origin/')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -52,6 +55,7 @@ jobs:
 
   security:
     name: Segurança - Auditoria
+    if: ${{ github.event_name != 'push' || (github.event.head_commit != null && !contains(github.event.head_commit.message, 'Merge branch') && !contains(github.event.head_commit.message, 'merge origin/')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -68,7 +72,7 @@ jobs:
     name: Release - Versão
     needs: [quality, tests, security]
 
-    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+    if: ${{ (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.event.head_commit != null && !contains(github.event.head_commit.message, 'Merge branch') && !contains(github.event.head_commit.message, 'merge origin/'))) && github.ref == 'refs/heads/main' }}
 
     runs-on: ubuntu-latest
     timeout-minutes: 10

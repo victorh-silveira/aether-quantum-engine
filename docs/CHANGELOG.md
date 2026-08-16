@@ -6,6 +6,7 @@
 * **contrato_ops_m5:** contrato live **5 m** fixo; promote grava `label_horizon_bars` (SSOT atual **55** / H55); gap label N vs settle 5 min
 * **launch_train_logs:** pos-sweep denso; celula **CRITICAL** + `why=`; grade **H15–H60** = horizonte N em M1 (nao TF M15/900s)
 * **always_apply_rules:** todas as rules Cursor com `alwaysApply: true`; pytest com 2 workers sob RAM &lt; 6 GiB
+* **ci_skip_merge:** CI ignora pushes cujo commit e `Merge branch` / `merge origin/`; `run-name` estavel (sem titulo de merge)
 
 ## [2.9.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.8.6...v2.9.0) (2026-08-16)
 
@@ -1452,10 +1453,6 @@
 
 * feat(orchestrator): remove codigo morto e arquivo nao utilizado
 
-## 2026-05-18 (657df0cb)
-
-* Merge branch 'main' of https://github.com/victorh-silveira/aether-quantum-engine
-
 ## 2026-05-18 (6aef7c87)
 
 * feat(llm): adiciona exemplo de resposta valida no system prompt
@@ -1463,10 +1460,6 @@
 ## 2026-05-18 (845c5b2f)
 
 * chore(release): 1.2.0 [skip ci]
-
-## 2026-05-18 (3735507a)
-
-* Merge branch 'main' of https://github.com/victorh-silveira/aether-quantum-engine
 
 ## 2026-05-18 (95c67dfc)
 
@@ -1483,10 +1476,6 @@
 ## 2026-05-18 (fc4a7fcd)
 
 * chore(release): 1.0.1 [skip ci]
-
-## 2026-05-18 (a793ea35)
-
-* Merge branch 'main' of https://github.com/victorh-silveira/aether-quantum-engine
 
 ## 2026-05-18 (189777f4)
 
