@@ -13,7 +13,7 @@ Doutrina do copiloto LLM/Cursor (9 livros → constraints de engenharia): [`llm-
 | Princípio | No motor atual |
 |-----------|----------------|
 | Sinais, não histórias | Direção CALL/PUT estritamente pela TCN (`P(CALL) > P(PUT)`) |
-| Horizonte curto | Contexto DL **7200 s**; ciclo/micro OHLC **60 s** (M1); contrato RISE_FALL **5 m** (ops fixo); label `ma_trend` (horizonte N barras micro, N ∈ {15,20,…,60} eleito no treino; **SSOT atual N=50**); proporção multi-timeframe **1:120** (60:7200) |
+| Horizonte curto | Contexto DL **7200 s**; ciclo/micro OHLC **60 s** (M1); contrato RISE_FALL **5 m** (ops fixo); label `ma_trend` (horizonte N barras micro, N ∈ {15,20,…,60} eleito no treino; **SSOT atual N=55**); proporção multi-timeframe **1:120** (60:7200) |
 | Acoplamento temporal | Inferências e rotações seguem `signature_boundary_seconds` (fallback `cycle_interval_seconds`, padrão **60 s**); fronteira `m5_boundary_epoch` (nome legado) |
 | Esteira continua | `mandatory_trade_each_cycle: false` (sem vetos de sinal/qualidade amplos; fusao EV + signal_skip 1.1) |
 | Force trade | `force_trade_every_cycle: false` — sem síntese forçada de candidato |
@@ -66,7 +66,7 @@ A doutrina LLM estende o mesmo raciocinio aos demais livros (Taleb, Duke, Dougla
 |---------|----------------|
 | `R_10` | Universo operacional unico; ancora e unico simbolo de treino/execucao |
 
-Operação: contratos **RISE_FALL** de **5 m** (CALL = alta no período do contrato, PUT = queda). Ciclo **60 s**; OHLC micro/MINI em **60 s** (M1; label TCN = N barras micro, N ∈ {15,20,…,60} eleito no launch-train; **SSOT atual N=50**; gap intencional vs settle 5 min).
+Operação: contratos **RISE_FALL** de **5 m** (CALL = alta no período do contrato, PUT = queda). Ciclo **60 s**; OHLC micro/MINI em **60 s** (M1; label TCN = N barras micro, N ∈ {15,20,…,60} eleito no launch-train; **SSOT atual N=55**; gap intencional vs settle 5 min).
 
 ### 2.2 Telemetria de Volatilidade, Exaustão e Fluxo Micro
 
@@ -122,7 +122,7 @@ Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `
 
 ## 3. Blindagem multi-timeframe
 
-**Invariante 1:120:** o relógio operacional micro (`data_handler.micro_granularity` = **60 s**) e o contexto macro DL (`data_handler.granularity` = **7200 s**) mantêm proporção **1:120**. Cada bloco macro cobre exatamente cento e vinte fronteiras micro; a assinatura `m5b:{boundary};m5:{sym}@{epoch};m15:...` (prefixos **legados**) e `seconds_until_next_signature_boundary` ancoram espera e invalidação de cache na cadência de ciclo **60 s** (sync com micro **60 s**). Contrato Deriv **5 m** (ops fixo); label TCN **N** velas M1 (N ∈ {15,20,…,60} eleito no treino; **SSOT atual N=50**).
+**Invariante 1:120:** o relógio operacional micro (`data_handler.micro_granularity` = **60 s**) e o contexto macro DL (`data_handler.granularity` = **7200 s**) mantêm proporção **1:120**. Cada bloco macro cobre exatamente cento e vinte fronteiras micro; a assinatura `m5b:{boundary};m5:{sym}@{epoch};m15:...` (prefixos **legados**) e `seconds_until_next_signature_boundary` ancoram espera e invalidação de cache na cadência de ciclo **60 s** (sync com micro **60 s**). Contrato Deriv **5 m** (ops fixo); label TCN **N** velas M1 (N ∈ {15,20,…,60} eleito no treino; **SSOT atual N=55**).
 
 | Camada | Timeframe | Papel |
 |--------|-----------|-------|
@@ -527,7 +527,7 @@ Parâmetros em `risk_management` / `risk_management.params`:
 | `session_start_balance` | `null` | Override manual da banca inicial (senão usa saldo Deriv) |
 | `small_account_threshold` | `100.0` | Limiar abaixo do qual o stop win é fixo |
 | `small_account_stop_win` | `10.0` | Stop win fixo em dólares para micro-banca |
-| `duration` | `5` | Duração do contrato RISE_FALL (**m**); ops fixo via `ops_contract_duration_minutes`; ciclo/micro OHLC **60 s** (M1); label TCN = `label_horizon_bars` (**50** apos ultimo promote; grade 15/20/…/60) |
+| `duration` | `5` | Duração do contrato RISE_FALL (**m**); ops fixo via `ops_contract_duration_minutes`; ciclo/micro OHLC **60 s** (M1); label TCN = `label_horizon_bars` (**55** apos ultimo promote; grade H15–H60 em M1) |
 
 Com `compounding_enabled: false`, o motor recorre ao alvo legado (`small_account_stop_win` / `large_account_stop_win_pct`).
 

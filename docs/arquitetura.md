@@ -15,7 +15,7 @@ Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (TCN,
 | Lookback | **`deep_learning.lookback`** (settings atuais **480**) → tensor **`[1, lookback, 34]`** |
 | Features TCN | **34** (`FEATURE_DIM` em `dl_feature_build.py`) |
 | Features meta GBDT | **43** (`META_FEATURE_DIM` = 34 + 4 micro-vol + 3 cross + 2 flow) |
-| Contrato | `RISE_FALL`, duração **5 m** (ops fixo); label TCN **N** velas M1 (N ∈ {15,20,…,60} eleito no launch-train; **SSOT atual N=50**) |
+| Contrato | `RISE_FALL`, duração **5 m** (ops fixo); label TCN **N** velas M1 (N ∈ {15,20,…,60} eleito no launch-train; **SSOT atual N=55**) |
 | Ciclo | **60 s** (`cycle_interval_seconds` / `signature_boundary_seconds`; sync M1) |
 | Execução | `mandatory_trade_each_cycle: false`; `force` off; `invert_exec_side: false`; fusao EV + signal_skip 1.1 (quality gate amplo **fora**) |
 | Fail-closed | Meta **opcional** nos settings atuais (`require_meta_for_execution: false`); TCN eager/CUDA local |
@@ -313,7 +313,7 @@ Em modo mandatário, o quality guard emite telemetria `QUALITY_GUARD` / `EXECUTI
 ### 7.2 ExecutionManager
 
 - Stake via `RiskManager.calculate_stake` → `risk_stake_calc.calculate_stake_for_manager`
-- `TradeHandler.buy_with_parameters`: RISE_FALL **5 m** (ops fixo; label H50)
+- `TradeHandler.buy_with_parameters`: RISE_FALL **5 m** (ops fixo; label H55)
 - Reconciliação de stake downgrade Deriv (`executed_stake_reconciliation`)
 
 ### 7.3 Settlement
@@ -389,7 +389,7 @@ Watchdog: `AetherWatchdog` reconecta stream se ticks estagnarem (`watchdog_stale
 `cycle_interval_seconds` (**60**), `signature_boundary_seconds` (**60**), `exec_empty_retry_seconds` (**60**), `watchdog_stale_tick_seconds` (**300**), `mandatory_trade_each_cycle` (**false**), `invert_exec_side` (**false**), `require_meta_for_execution` (**false**), `scale_vision.fusion_*` + `signal_skip` 1.1, `settlement_*` (**90 s** SSOT), `post_settlement_is_trading_wait_seconds` (**90**), `warm_up_live_data_timeout_seconds`, `broker_handshake_timeout_seconds`, `state_lock_acquire_timeout_seconds`.
 
 ### `risk_management`
-`kelly.*` (`fraction: 0.08`, explore piso **0.25%**, tetos stop-win Kelly ate **5%**), `soft_recovery.*` (amort **1/1**, cover **1.50**, linear3 **2.5%**), `min_validation_accuracy_gate` (**0.53**), `params.*` (duration **5** m via `ops_contract_duration_minutes`; `label_horizon_bars` **50**, compounding **0.03**, stake_min, payout_estimate **0.72**), `large_account_stop_win_pct` (**3.0**), `small_account_*`.
+`kelly.*` (`fraction: 0.08`, explore piso **0.25%**, tetos stop-win Kelly ate **5%**), `soft_recovery.*` (amort **1/1**, cover **1.50**, linear3 **2.5%**), `min_validation_accuracy_gate` (**0.53**), `params.*` (duration **5** m via `ops_contract_duration_minutes`; `label_horizon_bars` **55**, compounding **0.03**, stake_min, payout_estimate **0.72**), `large_account_stop_win_pct` (**3.0**), `small_account_*`.
 
 ### `infra`
 Redis/Timescale/MinIO/meta_classifier/loss_classifier URLs e timeouts.

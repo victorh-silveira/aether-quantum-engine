@@ -6,7 +6,7 @@ alwaysApply: false
 
 # Orchestrator
 
-- Relogio: signature/ciclo **60 s**; micro/MINI **60** / macro **7200**; contrato Deriv **5 m** (ops fixo); label TCN **SSOT atual N=50** (H50; grade sweep H15–H60); `R_10` M1
+- Relogio: signature/ciclo **60 s**; micro/MINI **60** / macro **7200**; contrato Deriv **5 m** (ops fixo); label TCN **SSOT atual N=55** (H55; grade sweep H15–H60 = N em M1, nao TF M15); `R_10` M1
 - Pipeline: warmup → train gate → collect → resolve → execute → settle → post_settlement
 - Lock serializa inferencia, liquidacao e persistencia — nao bypassar
 - `mandatory_trade_each_cycle` **false**; `force_trade_every_cycle` **false**; `invert_exec_side` **false**; `online_training` **false**

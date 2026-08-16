@@ -11,7 +11,7 @@ Ciclo operacional do motor. Inventario de arquivos: [`structure.md`](structure.m
 - LOSS_CLF: predict HTTP a cada `_finalize`; log dedupe por `loss_clf_*:{cycle_id}`; `feature_dim` **24**; hard FLIP floor SSOT **0.90** + `flip_require_auto_learn` **true**
 - MACRO OHLC: **7200 s** (`data_handler.granularity`)
 - MICRO OHLC (TCN decisor): **60 s** (`data_handler.micro_granularity`) — M1
-- Contrato Deriv RISE_FALL: **5 m** (`risk_management.params.duration`, via `ops_contract_duration_minutes`); label TCN = **N barras** micro (N ∈ {15,20,…,60} eleito no launch-train; **SSOT atual N=50**); gap intencional label vs settle; frequencia maxima ≈ 1 trade / contrato (ciclo bloqueado com contrato aberto)
+- Contrato Deriv RISE_FALL: **5 m** (`risk_management.params.duration`, via `ops_contract_duration_minutes`); label TCN = **N barras** micro (N ∈ {15,20,…,60} eleito no launch-train; **SSOT atual N=55**); gap intencional label vs settle; frequencia maxima ≈ 1 trade / contrato (ciclo bloqueado com contrato aberto)
 - MINI OHLC: **60 s** (`data_handler.mini_granularity`) — alinhado ao M1
 - MILI: tick flow (velocity/acceleration), nao barra OHLC
 - Sync inicial: `stream_sync_start.py` (historico MACRO+MICRO+MINI + subscribe candles/ticks)

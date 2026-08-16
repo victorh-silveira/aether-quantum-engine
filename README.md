@@ -7,7 +7,7 @@
 [![Pre-commit](https://img.shields.io/badge/Pre--commit-active-FAB040?logo=pre-commit&logoColor=white)](.pre-commit-config.yaml)
 [![CI](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml)
 
-Motor quantitativo assíncrono para a Deriv: decisão por **Deep Learning** (TCN/LSTM/GRU) no índice **Volatility 10** (`R_10`), contratos **RISE_FALL** de **5 m (M5)** com label TCN em **N velas M1** (N ∈ {15,20,…,60} eleito no treino; **SSOT atual N=50** / H50; gap intencional vs settle 5 min), micro/MINI **60 s** e contexto macro **7200 s** (ratio **1:120**), meta-regressor LightGBM (**43D**) de expectativa de retorno contínuo (single-symbol), e **sizing Kelly + Soft Recovery** (Kelly em EXPLORE; Soft Recovery cover pleno amort **1/1** em RECOVER). As chaves de assinatura ainda usam prefixos legados `m5`/`m15` para compatibilidade de cache. Sem Triton: inferência eager/CUDA local; Docker profiles `core,ml`.
+Motor quantitativo assíncrono para a Deriv: decisão por **Deep Learning** (TCN/LSTM/GRU) no índice **Volatility 10** (`R_10`), contratos **RISE_FALL** de **5 m (M5)** com label TCN em **N velas M1** (N ∈ {15,20,…,60} eleito no treino; **SSOT atual N=55** / H55; gap intencional vs settle 5 min), micro/MINI **60 s** e contexto macro **7200 s** (ratio **1:120**), meta-regressor LightGBM (**43D**) de expectativa de retorno contínuo (single-symbol), e **sizing Kelly + Soft Recovery** (Kelly em EXPLORE; Soft Recovery cover pleno amort **1/1** em RECOVER). As chaves de assinatura ainda usam prefixos legados `m5`/`m15` para compatibilidade de cache. Sem Triton: inferência eager/CUDA local; Docker profiles `core,ml`.
 
 A operação divide-se em duas fases: **FASE TREINO** (nenhuma ordem até checkpoint/sessão prontos; `online_training` **false** no DEMO) e **FASE OPERACAO** continua (`mandatory_trade_each_cycle: false`, `force_trade_every_cycle: false`, `invert_exec_side: false`): o ciclo avalia candidato a cada **60 s** via TCN + fusao EV + signal_skip 1.1. Meta é **opcional** para execução (`require_meta_for_execution: false`); inferência TCN = eager/CUDA local no host. Mercado Volatility **24/7**.
 
@@ -30,12 +30,12 @@ Layout: `app/` (código e testes), `config/settings.json`, `docs/`, `linters/`. 
 | Rotulagem DL | `dl_labels` + `LabelSpec` | SSOT `ma_trend`; `spot_forward` / Triple Barrier via config |
 | Quality / starvation | `execution_quality_gate*` | Dual soft TCN+meta; pisos regulares de margem/ADX **0.0**; starvation a partir de **6** skips; edge decay a partir de **8** (`edge_decay_floor` → 0.0) |
 | Ranking | `execution_market_rank` | Score `tcn × max(0.1, 1+z)` |
-| Execução | `ExecutionManager` + lotes fracionados | Proposta atômica; RISE_FALL **5 m** (ops fixo; label H50) |
+| Execução | `ExecutionManager` + lotes fracionados | Proposta atômica; RISE_FALL **5 m** (ops fixo; label H55) |
 | Risco | `RiskManager` + Kelly / Soft Recovery | `EXPLORE_KELLY` (fraction 0.08, teto 3,5%); Soft Recovery cover pleno amort **1/1** em RECOVER (`cover_multiple` **1.50**, `max_safe_stake_pct`) |
 | Concorrência | `StateManager` + barreira atômica | Lock serializa inferência, liquidação e persistência |
 | Inferência | PyTorch eager / CUDA | Checkpoint local `data/dl/`; motor no host |
 
-Ciclo do orquestrador: `orchestrator.cycle_interval_seconds` / `signature_boundary_seconds` / `exec_empty_retry_seconds` (**60 s**). Contexto DL: `data_handler.granularity` (**7200 s**), micro/MINI **60 s**, tensor `[1, 480, 34]` (`deep_learning.lookback` **480**). Contrato: `risk_management.params.duration` (**5** m, via `horizon_sweep.ops_contract_duration_minutes`); label `deep_learning.label_horizon_bars` (**50** apos ultimo promote). Proporção multi-timeframe **1:120** (60:7200).
+Ciclo do orquestrador: `orchestrator.cycle_interval_seconds` / `signature_boundary_seconds` / `exec_empty_retry_seconds` (**60 s**). Contexto DL: `data_handler.granularity` (**7200 s**), micro/MINI **60 s**, tensor `[1, 480, 34]` (`deep_learning.lookback` **480**). Contrato: `risk_management.params.duration` (**5** m, via `horizon_sweep.ops_contract_duration_minutes`); label `deep_learning.label_horizon_bars` (**55** apos ultimo promote). Proporção multi-timeframe **1:120** (60:7200).
 
 ---
 

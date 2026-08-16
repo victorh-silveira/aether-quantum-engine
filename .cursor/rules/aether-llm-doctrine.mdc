@@ -7,7 +7,7 @@ alwaysApply: true
 
 LLM/Cursor e copiloto de engenharia. Nao decide CALL/PUT em runtime (TCN + meta + gates/fusao). Doutrina completa: `docs/llm-trading-doctrine.md`.
 
-Runtime SSOT: **R_10** M1, micro **60 s**; sweep label **N ∈ {15,20,…,60}** no `launch-train` (`horizon_sweep`); **SSOT atual `label_horizon_bars=50`** (H50); contrato ops **fixo 5 m** (`ops_contract_duration_minutes=5` → `params.duration=5`; promote **nao** exporta duration); gap intencional TCN=N velas vs settle 5 min; ratio macro:micro **1:120**; `online_training` **false**; `invert_exec_side` **false**; stop-win **3%** composto = metrica de sessao (nao “mao quente”). `quiet_train_logs` → celula **CRITICAL** + pos-sweep denso. Sem Triton: inferencia eager/CUDA local; Docker profiles `core,ml`.
+Runtime SSOT: **R_10** M1, micro **60 s**; sweep label **N ∈ {15,20,…,60}** no `launch-train` (`horizon_sweep`); **SSOT atual `label_horizon_bars=55`** (H55); contrato ops **fixo 5 m** (`ops_contract_duration_minutes=5` → `params.duration=5`; promote **nao** exporta duration); gap intencional TCN=N velas vs settle 5 min; ratio macro:micro **1:120**; `online_training` **false**; `invert_exec_side` **false**; stop-win **3%** composto = metrica de sessao (nao “mao quente”). `quiet_train_logs` → celula **CRITICAL** + pos-sweep denso. Sem Triton: inferencia eager/CUDA local; Docker profiles `core,ml`.
 
 ## Nunca propor
 

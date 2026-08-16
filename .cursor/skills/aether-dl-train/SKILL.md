@@ -10,7 +10,7 @@ description: >-
 
 ## Ordem de diagnostico
 
-1. Settings: lookback **480**, micro **60s** (M1), `horizon_sweep` N∈{15,20,…,60}, label **N** (**SSOT atual `label_horizon_bars=50`**), contrato ops **5 m** (`ops_contract_duration_minutes=5` → `params.duration=5`), `quiet_train_logs` **true**, `label_mode=ma_trend`, `deploy_gate.enabled` / `force_ok`
+1. Settings: lookback **480**, micro **60s** (M1), `horizon_sweep` N∈{15,20,…,60}, label **N** (**SSOT atual `label_horizon_bars=55`**), contrato ops **5 m** (`ops_contract_duration_minutes=5` → `params.duration=5`), `quiet_train_logs` **true**, `label_mode=ma_trend`, `deploy_gate.enabled` / `force_ok`
 2. Telemetria de lado: `label_call_frac` / `pred_call_frac` / `minority_recall` no treino
 3. Balance: `deep_learning.sample_weighting.class_balance_*` via `compose_train_weights`
 4. Recency: `recency_enabled` / `recency_half_life_n` (default **2000**)
@@ -30,7 +30,7 @@ description: >-
 18. Anti-overfit: `weight_decay` **0.001**, `tcn.dropout` **0.25**, `learning_rate` **0.001**, `recency_half_life_n` **2000**
 19. Retries: `train_deploy_retries` **1** no sweep lean (reseed so se knob >1)
 20. Pos-treino: `make docker-rebuild` recarrega meta/loss **sem** apagar `data/dl` (nao chamar `sanitize-run` depois do train)
-21. Sweep de horizonte no **launch-train** (`horizon_sweep.run_in_launch_train=true`): grade **M15→H1 de 5 em 5** (15/20/…/60; treino por celula `duration=N` alinhado ao label); elegivel so **settle_wr** ≥ be+0.03 com **settle_n≥16** e **history≥800**; log `[HORIZON] cell i/N …` (1 linha/celula, `why=` se deploy=0); pos-sweep denso (`board candidatos/elegiveis/skip`, winner, promote paths relativos, Timescale check-only 1 linha, `[META] ok` 1 linha); `quiet_train_logs` **true** sobe overlay da celula para **CRITICAL** (sem AVISO/ERRO de train; DEMO INFO intacto); promote copia ckpt + grava `label_horizon_bars` (**nao** exporta `duration` ops; ops fixo via `ops_contract_duration_minutes`)
+21. Sweep de horizonte no **launch-train** (`horizon_sweep.run_in_launch_train=true`): grade **H15–H60** (N=15/20/…/60 em M1 — **nao** TF M15/900s; treino por celula `duration=N` alinhado ao label); elegivel so **settle_wr** ≥ be+0.03 com **settle_n≥16** e **history≥800**; log `[HORIZON] cell i/N …` (1 linha/celula, `why=` se deploy=0); pos-sweep denso (`board candidatos/elegiveis/skip`, winner, promote paths relativos, Timescale check-only 1 linha, `[META] ok` 1 linha); `quiet_train_logs` **true** sobe overlay da celula para **CRITICAL** (sem AVISO/ERRO de train; DEMO INFO intacto); promote copia ckpt + grava `label_horizon_bars` (**nao** exporta `duration` ops; ops fixo via `ops_contract_duration_minutes`)
 22. Cal overconfident: live clipa p_call em `[raw±max_calibrated_raw_gap]` (**0.08**); flag `cal_raw_gap_capped`; `temperature_min` **1.0**; `tcn_pos_edge` exige raw_edge ≥ `fusion_min_edge_execute` (**0.04**) — sintoma CLUSTER Prob≈BE + p_lado≫0.7 + `why=tcn_pos_edge` = regressao
 
 ## Anti-padroes

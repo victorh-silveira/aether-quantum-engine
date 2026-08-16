@@ -11,7 +11,7 @@ Guia operacional DL para agentes. Detalhe de features: [`arquitetura.md`](arquit
 | Lookback | **480** → tensor `[1, 480, 34]` (~8 h @ 60 s) |
 | MACRO OHLC | **7200 s** (`data_handler.granularity`) |
 | MICRO (TCN) | **60 s** (`micro_granularity`) — M1 |
-| Contrato | **5 m** RISE_FALL (ops fixo via `ops_contract_duration_minutes=5` → `params.duration=5`); label **N** ∈ {15,20,…,60} eleito no launch-train (**SSOT atual `label_horizon_bars=50`** / H50; gap intencional vs settle 5 min) |
+| Contrato | **5 m** RISE_FALL (ops fixo via `ops_contract_duration_minutes=5` → `params.duration=5`); label **N** ∈ {15,20,…,60} eleito no launch-train (**SSOT atual `label_horizon_bars=55`** / H55; gap intencional vs settle 5 min) |
 | MINI OHLC | **60 s** (`mini_granularity`) |
 | Bootstrap wait | `bootstrap_history_wait_cap_seconds` **30** (nao dorme a granularidade inteira entre retries) |
 | MILI | Tick flow (nao OHLC) |
@@ -29,7 +29,7 @@ Guia operacional DL para agentes. Detalhe de features: [`arquitetura.md`](arquit
 | Comando | Papel |
 |---------|-------|
 | `train.py` / `app/train.py` | treino TCN |
-| `app/scripts/batch/launch-train.bat` | sanitize → sweep horizonte N (M15–H1) + promote → gate → Timescale → meta |
+| `app/scripts/batch/launch-train.bat` | sanitize → sweep horizonte N (H15–H60 em M1) + promote → gate → Timescale → meta |
 | `app/scripts/operations/run_launch_train_tf_pipeline.py` | orquestra sweep horizonte N + promote (fallback `train.py` se `horizon_sweep.run_in_launch_train=false`) |
 | `make docker-rebuild` | recarrega meta/loss apos o treino (**nao** apaga `data/dl`) |
 | `app/scripts/operations/sanitize_fresh_run.py` | limpa `data/dl`, meta/loss pkls e estado em `data/` (so train/reset) |
@@ -40,7 +40,7 @@ Guia operacional DL para agentes. Detalhe de features: [`arquitetura.md`](arquit
 
 ## Sweep de horizonte N (launch-train)
 
-O TCN estima deslocamento em **N velas M1**. O `launch-train` treina a grade **M15→H1 de 5 em 5** (`duration_minutes`/`n_bars` = 15/20/…/60; treino por celula `duration=N` alinhado ao label), loga **uma** linha `[HORIZON] cell i/N …` por celula (com `why=` se deploy=0) e pos-sweep denso (`board candidatos/elegiveis/skip`, winner, promote com paths relativos; Timescale `--check-only` e `[META] ok` em 1 linha cada; sem dump JSON/params), e promove o mais assertivo (`settle_wr` ≥ be+0.03, n≥16, history≥800). Artefactos em `data/dl/sweep/R_10/H{N}/`. **SSOT atual** (ultimo promote): `label_horizon_bars` **50** (H50); contrato ops **5 m** (fixo; promote **nao** exporta duration).
+O TCN estima deslocamento em **N velas M1**. O `launch-train` treina a grade **H15–H60** (`duration_minutes`/`n_bars` = 15/20/…/60 em M1 — **nao** TF M15/900s; treino por celula `duration=N` alinhado ao label), loga **uma** linha `[HORIZON] cell i/N …` por celula (com `why=` se deploy=0) e pos-sweep denso (`board candidatos/elegiveis/skip`, winner, promote com paths relativos; Timescale `--check-only` e `[META] ok` em 1 linha cada; sem dump JSON/params), e promove o mais assertivo (`settle_wr` ≥ be+0.03, n≥16, history≥800). Artefactos em `data/dl/sweep/R_10/H{N}/`. **SSOT atual** (ultimo promote): `label_horizon_bars` **55** (H55); contrato ops **5 m** (fixo; promote **nao** exporta duration).
 
 Pipeline **offline** (nao troca N por ciclo ao vivo):
 
@@ -103,7 +103,7 @@ Visao multi-escala (MACRO/MICRO/MINI/MILI) e soft Kelly ficam fora do pacote DL 
 1. Invalidar checkpoints `data/dl/*.pth` e TorchScript MinIO com `granularity`/`lookback` ≠ settings (ex.: legado **180**/7200 M3, **120**/3600 ou lookback **720**).
 2. Re-hydrate Timescale (`docker-hydrate.sh` / `ensure_timescale`) para OHLC micro/MINI **60** / macro **7200**.
 3. Retreinar com **`launch-train.bat`** (TCN `lookback=480`, micro **60**, label N promovido; contrato ops **5 m**) + meta — **nao** via `launch-all-demo`.
-4. So depois: `launch-all-demo.bat`; validar CFG live `ohlc=60s`, `macro=7200s`, `contrato=5 m`, `label_horizon_bars=50`.
+4. So depois: `launch-all-demo.bat`; validar CFG live `ohlc=60s`, `macro=7200s`, `contrato=5 m`, `label_horizon_bars=55`.
 
 Com `online_training=false` (SSOT), a DEMO nao agenda retreino TCN em runtime (nem settle nem rolling); usa o checkpoint do `launch-train`. Para reativar, `online_training=true` + `rolling_retrain_bars` / `retrain_min_bars` (sem `mark_force_retrain` no settle). Meta e loss-clf fazem `/v1/learn` a cada trade.
 

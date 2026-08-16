@@ -1,3 +1,11 @@
+## [Unreleased]
+
+### Changed
+
+* **higienizacao:** remove codigo/scripts mortos; limpa JSON orfao (`gating`/`risk` top-level, duplicatas ws/history); hydrate Timescale **60/7200**; alias `make pre-commit`
+* **contrato_ops_m5:** contrato live **5 m** fixo; promote grava `label_horizon_bars` (SSOT atual **55** / H55); gap label N vs settle 5 min
+* **launch_train_logs:** pos-sweep denso; celula **CRITICAL** + `why=`; grade **H15–H60** = horizonte N em M1 (nao TF M15/900s)
+
 ## [2.8.6](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.8.5...v2.8.6) (2026-08-14)
 
 ## [2.8.5](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.8.4...v2.8.5) (2026-08-14)
@@ -32,27 +40,6 @@
 ## [2.1.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.0.0...v2.1.0) (2026-08-09)
 
 ## [2.0.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v1.82.0...v2.0.0) (2026-08-08)
-
-## [Unreleased]
-
-### Changed
-
-* **contrato_ops_m5:** contrato live **5 m** fixo (`ops_contract_duration_minutes` → `params.duration`); promote grava so `label_horizon_bars` do winner (SSOT atual **50** / H50); docs/skills alinhados ao gap label N vs settle 5 min
-* **launch_train_logs:** pos-sweep denso (board/winner/promote/Timescale/`[META] ok`); `quiet_train_logs` sobe celula a **CRITICAL** + `why=` se deploy=0; sanitize/loss/meta sem dump de path; SSOT docs/rules/skills em N=50
-
-* **r10_m2_migration:** referencias residuais `OTC_SPC` → `R_10` (app, docs, skills, infra, testes); narrativa M15/900s → **M2/120s**; contrato **2 m**; `test_r10_coverage_gaps.py`; SSOT tests alinhados a `settings.json`
-
-* **train_api_shortfall:** treino DL e meta aceitam historico parcial se ≥ **95%** do alvo (`train_history_shortfall_ratio`); evita loop/erro quando Deriv esgota ~1984/2000 M15; `bootstrap_max_wait_rounds` **16**
-* **loss_clf_reset:** `loss-clf-reset.sh` limpa `loss-models/` sem criar `loss-models-backup-*`
-* **universe:** ancora/treino/execucao S&P 500 OTC `R_10` (settings, `drift_symbols`, defaults DL, docs, skills, testes); Volatility/legado e gran 60/300 invalidos
-* **timing:** pacote **somente M15** — contrato **15 m**, micro/MINI **900 s**, macro **3600 s** (H1 Deriv-valid), ciclo/assinatura **900 s**
-* **train:** remove seed Deriv bloqueante entre TCN e meta (`ensure_timescale --check-only`); cap wait bootstrap historico em **30 s** (nao sleep(gran=900))
-* **train:** corrige sync travado — macro **4500** era invalido na Deriv; fetch treino lean **2000** micro (+macro≤128, mini=0); logs com `g=` por stream
-* **train:** bootstrap passa a ler OHLC do `train_timeframe` (micro); backfill no buffer certo; meta default **2000** barras
-* **cycle:** entrada a cada **1 m** — `cycle_interval`/`signature_boundary`/`exec_empty_retry` **60 s** (contrato permanece **15 m**)
-* **loss_clf_fresh:** cache DL miss quando `boundary_epoch` avanca; LOSS_CLF limpa flags stale e dedupe de log por `cycle_id` (`feature_dim` 24 intacto)
-* **dl_tick_patch:** path eager sempre re-infere; cache por `cycle_id`; ultimo tick live patcha close/high/low da M15 em formacao antes do TCN (Prob/Cal dinamicos entre ciclos 60 s)
-* **dl_intrabar_micro:** microestrutura live na ultima barra + SCALE/flow no OHLC patchado (`_patched_ohlc`); DEBUG `tick_patch`
 * **loss_clf_calibrate:** floor FLIP **0.90**; fit `class_weight=balanced` + `min_child_samples=15`; retrain pos-LOSS bloqueado se buffer LOSS-heavy (`loss/n>0.60` ou `win<8`) exceto saida bootstrap (≥1 WIN+≥1 LOSS); vetor 24D clip edge idx10 + `micro_tick_acceleration` idx19; Prob/Cal e `p_loss` com **5** casas; limpeza+bootstrap embutidos em `make docker-rebuild` / `docker-reset` (`COLD_START`, `p_loss=0.50`, veto off ate retrain real)
 * **scale_mili_tape_chop:** `adapt_mili_tape_skip_chop` **true** — nao inverter TCN so com mili+tape em micro=chop (majority com lead permanece)
 * **otc_spc/m15:** contrato/OHLC M15; ciclo/assinatura **60 s** (entrada a cada 1 m); payout live **0.72**; settle tolerancia **300 s**; watchdog stale **600 s**; SIDE_EQ/sample_size densos; price_zone off

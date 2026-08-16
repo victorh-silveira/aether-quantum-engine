@@ -11,7 +11,7 @@ description: >-
 
 Ler `docs/binary-senior-playbook.md` e `docs/deriv-indices-algorithm.md`.
 
-Universo: **Volatility 10** (`R_10`) — **M1** (contrato ops **5 m / M5**; label TCN **N** ∈ {15,20,…,60}, **SSOT atual N=50** / H50; ciclo **60 s**; micro/MINI **60 s**; macro **7200 s**; ratio **1:120**).
+Universo: **Volatility 10** (`R_10`) — **M1** (contrato ops **5 m / M5**; label TCN **N** ∈ {15,20,…,60}, **SSOT atual N=55** / H55; ciclo **60 s**; micro/MINI **60 s**; macro **7200 s**; ratio **1:120**).
 
 ## Checklist (escopo 1.1)
 

@@ -11,7 +11,7 @@ Referencia: [dTrader R_10 M1](https://dtrader.deriv.com/?chart_type=candle&inter
 | Item | Valor |
 |------|--------|
 | Simbolo API | `R_10` |
-| Contrato | `RISE_FALL` **5 m** (`duration=5`, `duration_unit=m` via `ops_contract_duration_minutes`; label TCN N ∈ {15,20,…,60} eleito no treino; **SSOT atual `label_horizon_bars=50`**) |
+| Contrato | `RISE_FALL` **5 m** (`duration=5`, `duration_unit=m` via `ops_contract_duration_minutes`; label TCN N ∈ {15,20,…,60} eleito no treino; **SSOT atual `label_horizon_bars=55`**) |
 | Micro / MINI OHLC | **60 s** (M1) |
 | Macro OHLC | **7200 s** (ratio macro:micro **1:120**) |
 | Ciclo / assinatura | **60 s** (alinhado ao fecho da vela M1); `exec_empty_retry` **60 s** |

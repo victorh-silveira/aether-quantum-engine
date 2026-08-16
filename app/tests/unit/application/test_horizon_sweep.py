@@ -1,4 +1,4 @@
-"""Testes do sweep de horizonte N barras (R_10 M1, M15..H1)."""
+"""Testes do sweep de horizonte N barras (R_10 M1, H15..H60)."""
 
 from __future__ import annotations
 

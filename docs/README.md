@@ -49,7 +49,7 @@ Regra: **domain** não importa application nem infrastructure. **Application** o
 | Universo | `R_10` (âncora `R_10`) |
 | DL | TCN, lookback **480**, micro **60 s**, macro **7200 s**, `FEATURE_DIM=34`, label `ma_trend`, tensor `[1, 480, 34]` |
 | Meta | LightGBM HTTP `:8005`, `META_FEATURE_DIM=43` (micro **60 s**); **opcional** para execução |
-| Relógio | Micro/MINI **60 s** + macro **7200 s**; contrato ops **5 m (M5)**; label TCN **N** ∈ {15,20,…,60} (**SSOT atual N=50**); ratio **1:120**; assinatura legado `m5b:…;m5:…;m15:…` |
+| Relógio | Micro/MINI **60 s** + macro **7200 s**; contrato ops **5 m (M5)**; label TCN **N** ∈ {15,20,…,60} (**SSOT atual N=55**); ratio **1:120**; assinatura legado `m5b:…;m5:…;m15:…` |
 | Ciclo / assinatura | `cycle_interval_seconds` / `signature_boundary_seconds` = **60 s** (sync fecho M1); `exec_empty_retry` **60 s** |
 | Execução | `mandatory_trade_each_cycle: false`; `force_trade_every_cycle: false`; `invert_exec_side: false`; fusao EV + signal_skip 1.1 (quality gate amplo **fora**) |
 | Fail-closed | Meta **opcional** nos settings atuais (`require_meta_for_execution: false`); TCN eager/CUDA local |

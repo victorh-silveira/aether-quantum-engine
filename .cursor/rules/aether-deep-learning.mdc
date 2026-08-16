@@ -7,7 +7,7 @@ alwaysApply: false
 # Deep Learning
 
 - FEATURE_DIM **34**; lookback/granularity/`label_horizon_bars` do checkpoint devem bater com settings
-- Label SSOT `ma_trend`; horizonte **N=50** (H50) apos ultimo promote; contrato ops **5 m** (gap intencional vs label N); mudar label/N exige retreino + hipotese
+- Label SSOT `ma_trend`; horizonte **N=55** (H55) apos ultimo promote; contrato ops **5 m** (gap intencional vs label N); mudar label/N exige retreino + hipotese
 - Sweep `horizon_sweep`: grade H15–H60; `quiet_train_logs` → overlay celula **CRITICAL** + linha cell com `why=` se deploy=0; pos-sweep denso (board/winner/promote/Timescale/meta)
 - `train.py` vs `run.py`; meta offline em `scripts/operations/train_meta_*`
 - Inferencia TCN = eager/CUDA local; meta HTTP opcional — nao assumir fail-closed sem settings
