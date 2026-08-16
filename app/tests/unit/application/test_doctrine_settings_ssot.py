@@ -48,7 +48,7 @@ def test_production_deploy_gate_armed():
     assert int(dl.get("sample_weighting", {}).get("recency_half_life_n", 0)) == 2000
     assert str(dl.get("label_mode")) == "ma_trend"
     assert int(dl.get("lookback", 0)) == 480
-    assert int(dl.get("label_horizon_bars", 0)) == 50
+    assert int(dl.get("label_horizon_bars", 0)) == 55
     assert int(settings["risk_management"]["params"]["duration"]) == 5
     assert str(settings["risk_management"]["params"]["duration_unit"]) == "m"
     assert int(dl["horizon_sweep"]["ops_contract_duration_minutes"]) == 5
@@ -259,7 +259,10 @@ def test_production_loss_classifier_soft_veto_ssot():
     side_eq = settings["orchestrator"]["execution"]["side_equilibrium"]
     assert int(side_eq["n_min_small"]) == 4
     assert int(side_eq["large_window"]) == 64
-    assert settings["gating"]["price_zone_gate_enabled"] is False
+    assert "gating" not in settings
+    assert "risk" not in settings
+    assert "ws_connect_max_attempts" not in settings.get("api_config", {})
+    assert "history_fetch_chunk" not in settings.get("data_handler", {})
     dl = settings["deep_learning"]
     assert int(dl["training_history_bars"]) == 1333
     assert float(dl["train_history_shortfall_ratio"]) == pytest.approx(0.95)

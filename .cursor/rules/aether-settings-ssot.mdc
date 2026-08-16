@@ -1,6 +1,6 @@
 ---
 description: Settings SSOT Aether — knobs fail-closed e parsers
-globs: config/settings.json,**/settings_knobs.py,**/config_knobs.py,**/execution_quality_gate_config.py,**/kelly_runtime_config.py,**/soft_recovery_config.py
+globs: config/settings.json,**/config_knobs.py,**/execution_quality_gate_config.py,**/kelly_runtime_config.py,**/soft_recovery_config.py
 alwaysApply: false
 ---
 

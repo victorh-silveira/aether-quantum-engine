@@ -87,7 +87,7 @@ chmod +x linters/git-hooks/bin/resolve_conda_python.sh linters/git-hooks/bin/pyt
 if [ -f "$ROOT/infra/docker/host-prereq.sh" ]; then
   bash "$ROOT/infra/docker/host-prereq.sh" || true
 fi
-make pre-commit
+make app-pre-commit
 
 py="$(bash linters/git-hooks/bin/resolve_conda_python.sh)"
 echo ""

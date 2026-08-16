@@ -64,6 +64,7 @@ Formato: `tipo(escopo): assunto em PT-BR` + corpo obrigatorio.
 | DL / treino / vies de classe | `docs/engineering-deep-learning.md` + skill `aether-dl-train` |
 | Sweep horizonte N / promote | `docs/engineering-deep-learning.md` (secao Sweep) + skill `aether-dl-train` |
 | Docker / Redis | `docs/infra-docker.md` + skill `aether-infra-stack` |
+| Launch-train / sanitize / monitores | `docs/structure.md` §Scripts + skill `aether-ops-runbook` |
 | Deriv PAT/WS | `docs/deriv-api-aether.md` + skill `aether-deriv-connect` |
 | QA / pre-commit | `docs/engineering-standards.md` + skill `aether-precommit` |
 

@@ -1,11 +1,11 @@
 # Aether Quantum Engine — Release {VERSION}
 
-CI gerou uma nova versao do motor **Deriv Rise/Fall** (modo simples e/ou LLM via Ollama).
+CI gerou uma nova versao do motor **Deriv Rise/Fall** (TCN + meta + gates).
 
 ### Detalhes
 - **Versao:** `{VERSION}`
 - **Data:** `{DATE}`
-- **Config:** `config/settings.json` (`llm`, `risk_management`, `orchestrator`)
+- **Config:** `config/settings.json` (`deep_learning`, `risk_management`, `orchestrator`)
 
 ### Historico
 {CHANGELOG}

@@ -36,5 +36,5 @@ for py in python3.13 python3 python; do
   fi
 done
 
-echo "pre-commit nao encontrado. Rode: conda activate deriv-api && pip install pre-commit && make pre-commit" >&2
+echo "pre-commit nao encontrado. Rode: conda activate deriv-api && pip install pre-commit && make app-pre-commit" >&2
 exit 1

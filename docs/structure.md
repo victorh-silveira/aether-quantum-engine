@@ -141,7 +141,6 @@ presentation  →  application  →  domain
 | `meta_payoff_regression.py` | Edge LightGBM + soft score (sem flip de lado; sem hard veto de sinal) |
 | `payoff_edge_zscore.py` | Z-Score adaptativo (janela 15–45) sobre `predicted_payoff_edge` |
 | `regime_micro_freeze.py` | Freeze micro de regime |
-| `settings_knobs.py` | Facades de knobs de aplicacao sobre config_knobs |
 | `side_equilibrium_gate.py` | Gate SIDE_EQ na execucao |
 | `side_equilibrium_store.py` | Store de equilibrio CALL/PUT |
 
@@ -435,12 +434,10 @@ Inferência TCN: eager/CUDA local no host (`dl_predict*`); sem servidor de infer
 | `monitor/monitor_redis.py` | Inspeção Redis |
 | `monitor/monitor_state.py` | Inspeção de estado |
 | `monitor/monitor_ui.py` | UI de monitoramento |
-| `operations/clean_workspace.py` | Lint, pytest, segurança, limpeza (pre-commit) |
-| `operations/clean_workspace_stage.py` | Estágios isolados do clean_workspace |
+| `operations/clean_workspace.py` | Lint, pytest, segurança, limpeza (pre-commit); inclui `clean_runtime_artifacts` |
 | `operations/sanitize_fresh_run.py` | Limpa checkpoints/artefactos da run anterior |
-| `operations/clean_runtime_artifacts.py` | Limpeza de artefatos de runtime |
 | `operations/deriv_pat_connect.py` | Conexão/teste PAT Deriv |
-| `operations/reset_demo_balance.py` | Reset de saldo demo |
+| `operations/reset_demo_balance.py` | CLI reset de saldo demo |
 | `operations/train_meta_classifier.py` | Treino do meta-classificador |
 | `operations/train_meta_data.py` | Preparação de dados meta |
 | `operations/train_meta_optuna.py` | Otimização Optuna meta (max IR) |

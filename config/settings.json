@@ -24,23 +24,13 @@
       "retry_backoff": 1.5,
       "retry_delay_seconds": 4.0,
       "subscribe_transaction_timeout_seconds": 10.0
-    },
-    "ws_connect_max_attempts": 6,
-    "ws_connect_open_timeout_seconds": 25,
-    "ws_connect_retry_backoff": 1.5,
-    "ws_connect_retry_delay_seconds": 4
+    }
   },
   "data_handler": {
     "buffer_limit": 131072,
     "fetch_count": 1333,
     "granularity": 7200,
     "history_bars": 2000,
-    "history_fetch_chunk": 1000,
-    "history_fetch_delay_seconds": 0.25,
-    "history_fetch_rate_limit_backoff": 1.5,
-    "history_fetch_rate_limit_max_delay": 30.0,
-    "history_fetch_rate_limit_retries": 12,
-    "history_fetch_symbol_delay_seconds": 0.5,
     "micro_granularity": 60,
     "micro_history_bars": 1333,
     "micro_fetch_count": 1333,
@@ -192,7 +182,7 @@
     "eval_min_accuracy": 0.53,
     "eval_settle_accuracy_min": 0.53,
     "inference_device": "auto",
-    "label_horizon_bars": 50,
+    "label_horizon_bars": 55,
     "label_ma_window": 5,
     "label_mode": "ma_trend",
     "label_smooth_bars": 1,
@@ -848,19 +838,5 @@
   ],
   "trading": {
     "mode": "demo"
-  },
-  "gating": {
-    "calibration_margin_floor": 0.01,
-    "floor": 0.01,
-    "min_trade_score": 0.01,
-    "force_trade_every_cycle": false,
-    "side_equilibrium_enabled": true,
-    "price_zone_gate_enabled": false,
-    "microstructure_starvation_veto_enabled": false
-  },
-  "risk": {
-    "recovery_min_trade_score": 0.0001,
-    "min_trade_score": 0.0001,
-    "zscore_threshold": -999.0
   }
 }

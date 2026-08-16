@@ -34,7 +34,7 @@ RESET  := \033[0m
 .DEFAULT_GOAL := help
 
 .PHONY: app-install app-lint app-test app-security app-run app-train app-pre-commit \
-	app-pre-commit-run app-setup-wsl app-clean help helpo docker-up docker-up-core \
+	app-pre-commit-run pre-commit app-setup-wsl app-clean help docker-up docker-up-core \
 	docker-down docker-clean docker-restart docker-reset docker-ps docker-logs \
 	docker-bash docker-hydrate docker-rebuild docker-smoke timescale-lifecycle sanitize-run \
 	sanitize-run-docker
@@ -70,7 +70,7 @@ help:
 	@echo -e "  $(GREEN)docker-smoke$(RESET)       - Smoke checks"
 	@echo -e "$(BLUE)========================================================================$(RESET)"
 
-helpo: help
+pre-commit: app-pre-commit
 
 app-install:
 	$(PYTHON) -m pip install --upgrade pip

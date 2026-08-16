@@ -50,8 +50,8 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `soft_recovery.amort_cycles_min` / `amort_cycles_max` | `risk_management.soft_recovery` | Amort **1/1**; stake RECOVER = `cover_multiple * pending/payout` (cover pleno; sem `max` com progressao exponencial; `f*` so gate) |
 | `infra.loss_classifier.soft_max_stake_pct_high` | `infra.loss_classifier` | Teto stake EXPLORE sob soft (**1%**); waivado com pending material e com `FLIP_BLOCK` (keep TCN so atenua f*); ACC baixo nao cancela cover |
 | `params.duration` | `risk_management.params` | Contrato RISE_FALL **5 m** (`duration_unit: m`) — fixo via `horizon_sweep.ops_contract_duration_minutes` (**5**); promote **nao** exporta duration do winner |
-| `deep_learning.label_horizon_bars` | `deep_learning` | **N** velas M1 do TCN (grade sweep 15/20/…/60); **SSOT atual 50** (H50); gap intencional vs `params.duration=5` |
-| `horizon_sweep.*` | `deep_learning` | Grade **duration_minutes/n_bars=[15..60 step 5]**; `ops_contract_duration_minutes` **5**; `quiet_train_logs` **true** (celula **CRITICAL** + `why=` se deploy=0; pos-sweep denso); `run_in_launch_train` **true**; pisos settle be+0.03, n≥16, history≥800 |
+| `deep_learning.label_horizon_bars` | `deep_learning` | **N** velas M1 do TCN (grade sweep **H15–H60** = N em M1, **nao** TF M15/900s); **SSOT atual 55** (H55); gap intencional vs `params.duration=5` |
+| `horizon_sweep.*` | `deep_learning` | Grade **duration_minutes/n_bars=[15..60 step 5]** (celulas H{N} no relogio M1); `ops_contract_duration_minutes` **5**; `quiet_train_logs` **true** (celula **CRITICAL** + `why=` se deploy=0; pos-sweep denso); `run_in_launch_train` **true**; pisos settle be+0.03, n≥16, history≥800 |
 | `data_handler.micro_granularity` / `granularity` | `data_handler` | Micro/MINI **60** / macro **7200** (M1; ratio **1:120**) |
 | `deep_learning.lookback` | `deep_learning` | **480** barras micro @ **60 s** (tensor `[1, 480, 34]`; ~8 h) |
 | `orchestrator.cycle_interval_seconds` / `signature_boundary_seconds` | `orchestrator` | **60 s** (alinhado ao fecho da vela M1); `exec_empty_retry` **60 s** |
@@ -65,7 +65,7 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `temperature_min` | `deep_learning.calibration` | **1.0** — impede afiar logits (T&lt;1) no fit |
 | `mini_granularity` | `data_handler` | padrao **60** (MINI OHLC M1) |
 
-Removidos: `decision_threshold_call` / `decision_threshold_put` (mortos). Modo `tcn_macro_override` (substituir Cal por raw) removido — usar `raw_extreme`. Removidos: `adapt_min_cal_margin` / `adapt_max_cal_margin` / `hold_calib_gray` / `hold_cal_margin` / `calib_gray_*` / log `CALIB_GRAY`.
+Removidos: `decision_threshold_call` / `decision_threshold_put` (mortos). Modo `tcn_macro_override` (substituir Cal por raw) removido — usar `raw_extreme`. Removidos: `adapt_min_cal_margin` / `adapt_max_cal_margin` / `hold_calib_gray` / `hold_cal_margin` / `calib_gray_*` / log `CALIB_GRAY`. Removidos (higiene): bloco top-level `gating` / `risk` (nao confundir com `risk_management` nem `snapshot["risk"]`); `api_config.ws_connect_*` flat (usar `orchestrator.ws_connect` / `api_config.ws_connect`); `data_handler.history_fetch_*` (usar `api_config.history_fetch`).
 
 ## Regra de knob novo
 
