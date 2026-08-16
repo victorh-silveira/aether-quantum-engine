@@ -1,7 +1,7 @@
 ---
 description: Domain puro Aether — sem I/O; risk overlap com aether-risk-sizing
 globs: app/src/domain/models/**/*.py,app/src/domain/math/**/*.py,app/src/domain/symbols/**/*.py,app/src/domain/config_knobs.py
-alwaysApply: false
+alwaysApply: true
 ---
 
 # Domain

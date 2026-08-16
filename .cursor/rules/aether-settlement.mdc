@@ -1,7 +1,7 @@
 ---
 description: Settlement Aether — fila Redis, tolerancia, reconcile
 globs: "**/settlement*.py,**/post_settlement*.py,app/src/application/services/orchestrator/settlement_queue_ops.py"
-alwaysApply: false
+alwaysApply: true
 ---
 
 # Settlement

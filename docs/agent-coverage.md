@@ -54,5 +54,4 @@ Enforcement no core: `doctrine_invariants.py` + testes `test_doctrine_*` / `test
 
 ## Rules alwaysApply
 
-- `aether-llm-doctrine.mdc` — processo > P&L
-- `aether-engineering.mdc` — QA/WSL/300 linhas/cobertura/commitlint
+Todas as rules em `.cursor/rules/*.mdc` estao com `alwaysApply: true` (doutrina, engenharia, dominio, ops, deps, higiene).

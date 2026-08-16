@@ -1,7 +1,7 @@
 ---
 description: Sample size / SIDE_EQ / live metrics — LLN e vies dos pequenos numeros (Mlodinow)
 globs: app/src/domain/analytics/**/*.py,app/src/application/services/side_equilibrium*.py,app/src/application/services/live_signal_metrics.py
-alwaysApply: false
+alwaysApply: true
 ---
 
 # Sample size e SIDE_EQ

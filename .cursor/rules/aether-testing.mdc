@@ -1,7 +1,7 @@
 ---
 description: Testes Aether — espelho DDD, cobertura 100%, sem skips frageis
 globs: app/tests/**/*.py
-alwaysApply: false
+alwaysApply: true
 ---
 
 # Testing

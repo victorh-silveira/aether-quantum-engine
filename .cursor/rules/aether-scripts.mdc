@@ -1,7 +1,7 @@
 ---
 description: Scripts e ops Aether — batch, monitor, clean_workspace, train_meta
 globs: app/scripts/**/*.py,app/scripts/**/*.sh
-alwaysApply: false
+alwaysApply: true
 ---
 
 # Scripts

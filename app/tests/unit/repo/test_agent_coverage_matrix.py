@@ -62,6 +62,11 @@ def test_agent_coverage_matrix_docs_exist():
             assert path.is_file(), f"doc ausente: {rel}"
 
 
-def test_always_apply_rules_listed_on_disk():
-    for name in ("aether-llm-doctrine.mdc", "aether-engineering.mdc"):
-        assert (repo_path(".cursor", "rules") / name).is_file()
+def test_all_rules_are_always_apply():
+    rules_dir = repo_path(".cursor", "rules")
+    files = sorted(rules_dir.glob("*.mdc"))
+    assert files
+    for path in files:
+        text = path.read_text(encoding="utf-8")
+        assert "alwaysApply: true" in text, f"{path.name} sem alwaysApply: true"
+        assert "alwaysApply: false" not in text, f"{path.name} ainda false"

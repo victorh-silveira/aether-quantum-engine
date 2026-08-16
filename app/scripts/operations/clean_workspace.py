@@ -135,6 +135,7 @@ def resolve_test_execution_profile() -> TestExecutionProfile:
     if avail is None:
         return TestExecutionProfile("fallback", max(2, min(4, cpu_cap)), None)
     tiers = (
+        (6, "ram-6gb", 2),
         (8, "ram-8gb", 4),
         (16, "ram-16gb", 6),
         (32, "ram-32gb", 8),

@@ -1,7 +1,7 @@
 ---
 description: Higienizacao do repo — morto comprovado, ondas seguras, never-delete
 globs: "docs/structure.md,docs/agent-coverage.md,AGENTS.md,Makefile,.gitignore,**/docker-compose*.yml,config/settings.json"
-alwaysApply: false
+alwaysApply: true
 ---
 
 # Repo hygiene

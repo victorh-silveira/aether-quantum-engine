@@ -1,7 +1,7 @@
 ---
 description: Gates de execucao Aether — fusao EV, signal_skip soft 1.1, loss_clf FLIP/soft, tecnico, SCALE soft
 globs: app/src/application/services/execution_*.py
-alwaysApply: false
+alwaysApply: true
 ---
 
 # Execution gates

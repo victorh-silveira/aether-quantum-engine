@@ -1,7 +1,7 @@
 ---
 description: Infra Aether — Redis, Timescale, MinIO, meta, loss, state stores
 globs: app/src/infrastructure/state/**/*.py,app/src/infrastructure/storage/**/*.py,app/src/infrastructure/market/**/*.py,app/src/infrastructure/inference/**/*.py,app/src/infrastructure/factories/**/*.py,infra/docker/**
-alwaysApply: false
+alwaysApply: true
 ---
 
 # Infra

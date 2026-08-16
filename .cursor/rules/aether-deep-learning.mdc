@@ -1,7 +1,7 @@
 ---
 description: Deep Learning Aether — features, labels, checkpoint, meta
 globs: app/src/application/services/deep_learning/**/*.py
-alwaysApply: false
+alwaysApply: true
 ---
 
 # Deep Learning

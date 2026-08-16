@@ -1,7 +1,7 @@
 ---
 description: Logging Aether — terminal logger, dedupe, spam filter
 globs: app/src/presentation/**/*.py,**/log_dedupe.py,**/settle_log.py,**/log_context.py
-alwaysApply: false
+alwaysApply: true
 ---
 
 # Logging

@@ -1,7 +1,7 @@
 ---
 description: Deriv API/WS Aether — PAT/OTP, stream, websocket, retries
 globs: app/src/infrastructure/api/**/*.py,app/src/infrastructure/handlers/stream_*.py,app/src/infrastructure/api/websocket*.py
-alwaysApply: false
+alwaysApply: true
 ---
 
 # Deriv API
