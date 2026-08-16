@@ -13,4 +13,5 @@ alwaysApply: true
 - SSOT de agentes: `AGENTS.md` + `docs/agent-coverage.md`
 - Deps Python: `docs/engineering-python-deps.md` + rule `aether-python-deps` (anti-redundancia)
 - Higienizacao: `docs/engineering-repo-hygiene.md` + skill `aether-repo-hygiene` (morto comprovado)
+- Fechamento: `docs/engineering-surface-sync.md` + skill `aether-surface-sync` (sync superficie + pre-commit)
 - Nao afrouxar QA para “passar o hook”; corrigir causa

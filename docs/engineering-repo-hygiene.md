@@ -4,6 +4,7 @@ Runbook para auditar e remover morto comprovado sem quebrar DEMO/SSOT.
 
 Rule: `aether-repo-hygiene.mdc`. Skill: `aether-repo-hygiene`.
 Deps pip: [`engineering-python-deps.md`](engineering-python-deps.md) + skill `aether-python-deps`.
+Fechamento de mudanca (sync docs/rules/skills + pre-commit): [`engineering-surface-sync.md`](engineering-surface-sync.md) + skill `aether-surface-sync`.
 
 ## Objetivo
 

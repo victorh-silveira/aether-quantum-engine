@@ -13,6 +13,7 @@
 | [engineering-standards.md](engineering-standards.md) | QA: pre-commit, cobertura 100%, 300 linhas, commitlint, contribuicao |
 | [engineering-python-deps.md](engineering-python-deps.md) | Pins pip: anti-redundancia, Polars-only (pandas proibido), ABI numpy/torch |
 | [engineering-repo-hygiene.md](engineering-repo-hygiene.md) | Higienizacao: ondas seguras, morto comprovado, never-delete |
+| [engineering-surface-sync.md](engineering-surface-sync.md) | Fechamento: sync docs/rules/skills + pre-commit + anti-sujeira |
 | [engineering-orchestrator.md](engineering-orchestrator.md) | Ciclo do orquestrador, signature, locks, pos-settlement |
 | [engineering-deep-learning.md](engineering-deep-learning.md) | DL 34D, labels, treino/run, meta offline, inferência local |
 | [engineering-settlement.md](engineering-settlement.md) | Fila Redis, tolerancia, profit_table, orphans |

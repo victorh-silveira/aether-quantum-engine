@@ -1,0 +1,13 @@
+---
+description: Fechamento de mudanca — sync superficie agentes, pre-commit e anti-sujeira
+alwaysApply: true
+---
+
+# Surface sync
+
+- Toda mudanca **material** (codigo, settings, infra, doutrina, gates, deps) fecha com sync da superficie de agentes: docs `.md` afetados, rules `.cursor/rules`, skills `.cursor/skills`, `AGENTS.md`, `docs/agent-coverage.md`
+- Rodar pre-commit no **WSL** (`make app-pre-commit-run` ou hooks no commit); nao entregar com QA vermelho nem afrouxar cobertura 100%
+- Antes do commit: sem `_tmp*`, `COMMIT_MSG.txt`, caches orfaos, imports mortos ou refs stale em docs/matriz
+- Semantica nova = atualizar rule/skill/doc da linha da matriz; skill nova = linha em `agent-coverage` + `AGENTS.md`
+- Higiene profunda (purge): skill `aether-repo-hygiene`; falha de hook: `aether-precommit`
+- Doc: `docs/engineering-surface-sync.md`; skill: `aether-surface-sync`

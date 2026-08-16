@@ -69,6 +69,7 @@ Formato: `tipo(escopo): assunto em PT-BR` + corpo obrigatorio.
 | QA / pre-commit | `docs/engineering-standards.md` + skill `aether-precommit` |
 | Deps Python / requirements | `docs/engineering-python-deps.md` + skill `aether-python-deps` |
 | Higienizacao do repositorio | `docs/engineering-repo-hygiene.md` + skill `aether-repo-hygiene` |
+| Fechamento de mudanca (sync superficie) | `docs/engineering-surface-sync.md` + skill `aether-surface-sync` |
 
 Inventario de modulos: [`docs/structure.md`](docs/structure.md)  
 Arquitetura runtime: [`docs/arquitetura.md`](docs/arquitetura.md)

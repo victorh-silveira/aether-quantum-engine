@@ -35,3 +35,5 @@ Apagar linha da matriz `agent-coverage`; remover redis/timescale/minio/meta/loss
 ## Entrega
 
 Lista do que saiu + o que ficou de proposito + hashes de commit por onda.
+
+Apos mudanca material (mesmo sem purge): skill `aether-surface-sync`.
