@@ -14,7 +14,6 @@ from src.application.services.orchestrator.settlement_queue_ops import cancel_se
 from src.application.services.orchestrator.watchdog_service import stop_ingestion_watchdog
 from src.infrastructure.factories.infra_factory import close_infra_services
 from src.infrastructure.inference.meta_classifier_pool import close_meta_classifier_client
-from src.infrastructure.inference.triton_grpc_client import close_triton_grpc_client
 
 
 _INFRA_TASK_PREFIXES = ("httpx",)
@@ -38,17 +37,6 @@ _APP_TASK_MARKERS = (
     "schedule_recovery_skip_counter_increment",
     "aether-watchdog",
 )
-
-
-async def _close_triton_if_enabled(orch: Any) -> None:
-    """Fecha pool gRPC Triton quando habilitado na configuracao."""
-    infra_cfg = orch.config.get("infra") if isinstance(orch.config, dict) else {}
-    if not isinstance(infra_cfg, dict):
-        return
-    triton_cfg = infra_cfg.get("triton") if isinstance(infra_cfg.get("triton"), dict) else {}
-    if not bool(triton_cfg.get("enabled", False)):
-        return
-    await close_triton_grpc_client()
 
 
 def _task_label(task: asyncio.Task[Any]) -> str:
@@ -139,7 +127,7 @@ async def _cancel_pending_loop_tasks(orch: Any) -> None:
 
 
 async def close_infrastructure_connections(orch: Any) -> None:
-    """Aguarda fechamento de Triton, Timescale, Redis e WebSocket."""
+    """Aguarda fechamento de Timescale, Redis e WebSocket."""
     if getattr(orch, "_infra_shutdown_done", False):
         return
     orch._infra_shutdown_done = True
@@ -154,7 +142,6 @@ async def close_infrastructure_connections(orch: Any) -> None:
     cancel_deferred_symbol_training(orch)
     await stop_ingestion_watchdog(orch)
     await clear_current_session_redis_keys(orch)
-    await _close_triton_if_enabled(orch)
     await close_meta_classifier_client()
     infra = getattr(orch, "infra", None)
     if infra is not None:

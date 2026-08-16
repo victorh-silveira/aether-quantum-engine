@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from src.application.services.orchestrator.orchestrator_data_signature import (
+    at_signature_boundary,
     get_data_state_signature,
     m1_boundary_epoch,
     m5_boundary_epoch,
@@ -210,3 +211,10 @@ def test_signature_epoch_allows_retry_after_skip_without_commit(orch_ready):
     assert orch.last_data_signature == ""
     orch.last_data_signature = fixed_sig
     assert _signature_epoch_blocks_cycle(orch) is True
+
+
+def test_at_signature_boundary_true_and_false():
+    orch = SimpleNamespace(config={"orchestrator": {"signature_boundary_seconds": 60}})
+    assert at_signature_boundary(orch, now=1_700_001_000.0, tolerance=1.0) is True
+    assert at_signature_boundary(orch, now=1_700_001_030.0, tolerance=1.0) is False
+    assert at_signature_boundary(orch, now=1_700_001_059.2, tolerance=1.0) is True

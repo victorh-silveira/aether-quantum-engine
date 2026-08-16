@@ -2,9 +2,6 @@
 
 compose_args() {
   local args=(-f infra/docker/docker-compose.yml)
-  if [ "${DOCKER_GPU:-1}" = "1" ]; then
-    args+=(-f infra/docker/docker-compose.gpu.yml)
-  fi
   args+=(--project-directory infra/docker)
   if [ -f .env ]; then
     args+=(--env-file .env)
@@ -13,7 +10,7 @@ compose_args() {
 }
 
 compose_profiles_csv() {
-  echo "${COMPOSE_PROFILES:-${DOCKER_PROFILES:-core,gpu,ml}}" | tr -d ' '
+  echo "${COMPOSE_PROFILES:-${DOCKER_PROFILES:-core,ml}}" | tr -d ' '
 }
 
 profile_active() {

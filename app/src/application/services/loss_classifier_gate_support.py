@@ -63,7 +63,7 @@ def clear_stale_loss_clf_metrics(metrics: dict[str, Any]) -> None:
 
 def resolve_tcn_ref(metrics: dict[str, Any], exec_dir: TradeDirection) -> TradeDirection:
     """Ancora features/FLIP no TCN; fallback no lado pos-SCALE se TCN ausente."""
-    name = str(metrics.get("tcn_direction") or "").strip().upper()
+    name = str(metrics.get("tcn_direction") or metrics.get("dl_direction") or "").strip().upper()
     if name == TradeDirection.CALL.name:
         return TradeDirection.CALL
     if name == TradeDirection.PUT.name:

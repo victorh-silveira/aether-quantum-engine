@@ -29,9 +29,9 @@ Ler `docs/llm-trading-doctrine.md` antes de concluir. LLM nao decide trade; aval
 
 Ordem obrigatoria:
 
-1. CLUSTER — Prob / Cal / Margin / Edge (telemetria); TF tipicamente micro **M3** (180 s); anotar `live_n`
+1. CLUSTER — Prob / Cal / Margin / Edge (telemetria); TF tipicamente micro **M1** (60 s); anotar `live_n`
 2. SCALE — MACRO/MICRO/MINI/MILI + `tape`/`adapted` (adaptacao sob raw_extreme; soft Kelly; sem SKIP por escala)
-3. GATES — `[GATES] || FUSION` (`ev_c`/`ev_p`/`why`); `why=tcn_candle_agree` = TCN==vela (switch bloqueado); `LOSS_CLF` SOFT vs FLIP; `FLIP_BLOCK:seed_candle|tcn_edge|seed|scale`; NEG_EDGE soft. Se `auto=0` e FUSION != TCN com vela==TCN → regressao (seed nao pode puxar lado via loss_bonus).
+3. GATES — `[GATES] || FUSION` (`ev_c`/`ev_p`/`why`) **antes** de loss-clf; `why=tcn_candle_agree` = TCN==vela (switch bloqueado); depois `LOSS_CLF` SOFT vs FLIP (ref TCN); `FLIP_BLOCK:seed_candle|tcn_edge|seed|scale`; NEG_EDGE soft. Caveat: `fusion_loss_weight` nao ve `p_loss` do mesmo ciclo (FLIP apos fusao); seed `loss_bonus=0`. Se `auto=0` e FUSION != TCN com vela==TCN → regressao (seed nao pode puxar lado via loss_bonus).
 4. EXEC / EMPTY / PAUSE — `gate_reason` tecnico ou `signal_skip` 1.1; SIDE_EQ / scale = soft sizing; stop-win = `EXEC_PAUSE`
 5. RESOLVED / RISK — pending, linear, pnl_sess vs alvo **3%**
 

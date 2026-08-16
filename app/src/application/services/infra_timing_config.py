@@ -159,13 +159,3 @@ def resolve_meta_classifier_infra_config(infra: dict[str, Any] | None = None) ->
             "soft_only_corr_ceiling": require_float(shadow, "soft_only_corr_ceiling"),
         },
     }
-
-
-def resolve_triton_infer_timeout(infra: dict[str, Any] | None = None) -> float:
-    """Resolve ou aplica resolve triton infer timeout."""
-    cfg = infra if isinstance(infra, dict) else _load_settings().get("infra")
-    parent = cfg if isinstance(cfg, dict) else {}
-    triton = parent.get("triton")
-    if not isinstance(triton, dict) or "infer_timeout_seconds" not in triton:
-        raise ValueError("infra.triton.infer_timeout_seconds obrigatorio")
-    return float(triton["infer_timeout_seconds"])

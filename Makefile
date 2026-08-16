@@ -6,16 +6,9 @@ SHELL := /bin/bash
 APP_DIR=app
 CONDA_ENV ?= deriv-api
 DOCKER_DIR=infra/docker
-DOCKER_PROFILES ?= core,gpu,ml
-DOCKER_GPU ?= 1
+DOCKER_PROFILES ?= core,ml
 export COMPOSE_PROFILES := $(DOCKER_PROFILES)
-export DOCKER_GPU
-DOCKER_COMPOSE_BASE=docker compose -f $(DOCKER_DIR)/docker-compose.yml
-ifeq ($(DOCKER_GPU),1)
-DOCKER_COMPOSE=$(DOCKER_COMPOSE_BASE) -f $(DOCKER_DIR)/docker-compose.gpu.yml --project-directory $(DOCKER_DIR) --env-file .env
-else
-DOCKER_COMPOSE=$(DOCKER_COMPOSE_BASE) --project-directory $(DOCKER_DIR) --env-file .env
-endif
+DOCKER_COMPOSE=docker compose -f $(DOCKER_DIR)/docker-compose.yml --project-directory $(DOCKER_DIR) --env-file .env
 DOCKER_LOGS_TAIL ?= all
 
 define docker_service_name
@@ -23,7 +16,6 @@ $(strip $(or \
 	$(if $(filter redis aether-redis,$(1)),redis),\
 	$(if $(filter ts timescale timescaledb aether-timescaledb,$(1)),timescaledb),\
 	$(if $(filter minio aether-minio,$(1)),minio),\
-	$(if $(filter triton aether-triton,$(1)),aether-triton),\
 	$(if $(filter meta meta-classifier aether-meta-classifier,$(1)),aether-meta-classifier),\
 	$(if $(filter loss loss-classifier aether-loss-classifier,$(1)),aether-loss-classifier),\
 	$(1)))
@@ -43,7 +35,7 @@ RESET  := \033[0m
 
 .PHONY: app-install app-lint app-test app-security app-run app-train app-pre-commit \
 	app-pre-commit-run app-setup-wsl app-clean help helpo docker-up docker-up-core \
-	docker-up-cpu docker-down docker-clean docker-restart docker-reset docker-ps docker-logs \
+	docker-down docker-clean docker-restart docker-reset docker-ps docker-logs \
 	docker-bash docker-hydrate docker-rebuild docker-smoke timescale-lifecycle sanitize-run \
 	sanitize-run-docker
 
@@ -65,12 +57,11 @@ help:
 	@echo -e "  $(GREEN)app-install$(RESET)        - Pip no Conda $(CONDA_ENV)"
 	@echo -e ""
 	@echo -e "$(YELLOW)Docker:$(RESET)"
-	@echo -e "  $(GREEN)docker-up$(RESET)          - Stack completa GPU"
-	@echo -e "  $(GREEN)docker-up-cpu$(RESET)      - Stack Triton CPU"
+	@echo -e "  $(GREEN)docker-up$(RESET)          - Stack completa (core+ml)"
 	@echo -e "  $(GREEN)docker-up-core$(RESET)     - So Redis/Timescale/MinIO"
 	@echo -e "  $(GREEN)docker-rebuild$(RESET)     - Rebuild meta/loss e recarrega pkls (preserva TCN e meta_lgbm)"
 	@echo -e "  $(GREEN)docker-reset$(RESET)       - $(RED)DESTRUTIVO$(RESET): sanitiza run + loss-models + volumes, bootstrap e sobe stack"
-	@echo -e "  $(GREEN)sanitize-run$(RESET)       - $(RED)DESTRUTIVO$(RESET): limpa checkpoints DL/meta/loss/triton e data/ (exceto deriv)"
+	@echo -e "  $(GREEN)sanitize-run$(RESET)       - $(RED)DESTRUTIVO$(RESET): limpa checkpoints DL/meta/loss e data/ (exceto deriv)"
 	@echo -e "  $(GREEN)sanitize-run-docker$(RESET)- Sanitiza run mantendo meta_lgbm.pkl (uso interno do docker-reset)"
 	@echo -e "  $(GREEN)docker-down$(RESET)        - Para containers (preserva dados)"
 	@echo -e "  $(GREEN)docker-restart$(RESET)     - Restart da stack"
@@ -123,30 +114,23 @@ sanitize-run-docker:
 
 docker-up:
 	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-up · Aether stack (profiles: $(DOCKER_PROFILES))"'
-	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_step 1 6 "Host prerequisites"'
+	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_step 1 5 "Host prerequisites"'
 	@bash infra/docker/host-prereq.sh
-	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_step 2 6 "Triton model layout"'
-	@bash infra/docker/triton-prereq.sh
 	@test -f .env || cp .env.example .env
-	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_step 3 6 "Compose up"'
+	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_step 2 5 "Compose up"'
 	$(DOCKER_COMPOSE) up -d
-	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_step 4 6 "Healthchecks"'
+	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_step 3 5 "Healthchecks"'
 	@bash infra/docker/docker-wait-healthy.sh
-	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_step 5 6 "Timescale lifecycle + hydrate"'
+	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_step 4 5 "Timescale lifecycle + hydrate"'
 	@bash infra/docker/timescale-lifecycle.sh
 	@bash infra/docker/docker-hydrate.sh
-	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_step 6 6 "Smoke checks"'
+	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_step 5 5 "Smoke checks"'
 	@bash infra/docker/docker-smoke.sh
 
 docker-up-core:
 	@test -f .env || cp .env.example .env
-	@docker stop aether-triton aether-meta-classifier >/dev/null 2>&1 || true
-	@$(MAKE) --no-print-directory docker-up DOCKER_PROFILES=core DOCKER_GPU=0
-
-docker-up-cpu:
-	@test -f .env || cp .env.example .env
-	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-up-cpu · Triton sem NVIDIA (mutuamente exclusivo com GPU)"'
-	@$(MAKE) --no-print-directory docker-up DOCKER_PROFILES=core,cpu,ml DOCKER_GPU=0
+	@docker stop aether-meta-classifier aether-loss-classifier >/dev/null 2>&1 || true
+	@$(MAKE) --no-print-directory docker-up DOCKER_PROFILES=core
 
 docker-rebuild:
 	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-rebuild · rebuild meta/loss (preserva data/dl e meta_lgbm.pkl)"'
@@ -154,7 +138,6 @@ docker-rebuild:
 	@if [ ! -f $(DOCKER_DIR)/loss-models/loss_bootstrap_synth.pkl ]; then \
 		cd $(APP_DIR) && LOKY_MAX_CPU_COUNT=$${LOKY_MAX_CPU_COUNT:-4} $(PYTHON) -m scripts.operations.train_loss_classifier; \
 	fi
-	@bash infra/docker/triton-prereq.sh
 	$(DOCKER_COMPOSE) build --pull aether-meta-classifier aether-loss-classifier
 	$(DOCKER_COMPOSE) up -d --force-recreate aether-meta-classifier aether-loss-classifier
 	$(DOCKER_COMPOSE) up -d

@@ -232,17 +232,14 @@ def run_optuna_study(
     val_oos_zscore = payoff_zscore_mean(y_val, val_pred)
     ir_unit = float(val_ir / math.sqrt(n_val)) if n_val > 0 else 0.0
     logger.info(
-        "Optuna concluido | val_zscore=%.6f | val_ir=%.6f | val_ir_unit=%.6f | n_val=%d | "
-        "val_mae=%.6f | train_mae=%.6f | gran=%s | params=%s | trials=%d",
+        "Optuna concluido | z=%.3f ir=%.2f n_val=%d mae=%.3f trials=%d depth=%s lr=%s",
         val_oos_zscore,
         val_ir,
-        ir_unit,
         n_val,
         val_mae,
-        train_mae,
-        granularity if granularity is not None else "n/a",
-        best_params,
         trials,
+        best_params.get("max_depth"),
+        f"{float(best_params.get('learning_rate') or 0.0):.4f}",
     )
     bundle_meta = {
         "model_type": "regressor",

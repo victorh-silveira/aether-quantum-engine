@@ -1,4 +1,4 @@
-"""Testes do sweep de horizonte N barras (R_10 M3)."""
+"""Testes do sweep de horizonte N barras (R_10 M1, M15..H1)."""
 
 from __future__ import annotations
 
@@ -11,42 +11,55 @@ from src.application.services.deep_learning.horizon_sweep import (
     build_horizon_candidates,
     duration_minutes_for_n,
     load_horizon_sweep_knobs,
+    n_bars_from_durations,
+    parse_duration_minutes,
     parse_n_bars,
 )
 from src.application.services.deep_learning.tf_sweep_score import enrich_leaderboard_row, pick_tf_winner
 
 
-def test_duration_minutes_matches_m3_grid():
-    assert duration_minutes_for_n(1) == 3
-    assert duration_minutes_for_n(2) == 6
-    assert duration_minutes_for_n(3) == 9
-    assert duration_minutes_for_n(5) == 15
+def test_duration_minutes_matches_m1_grid():
+    assert duration_minutes_for_n(15) == 15
+    assert duration_minutes_for_n(20) == 20
+    assert duration_minutes_for_n(60) == 60
+    assert duration_minutes_for_n(15, micro_seconds=60) == 15
     assert duration_minutes_for_n(5, micro_seconds=180) == 15
 
 
 def test_parse_n_bars_default_and_dedupe():
     assert parse_n_bars(None) == DEFAULT_N_BARS
     assert parse_n_bars([]) == DEFAULT_N_BARS
-    assert parse_n_bars([1, 2, 2, 3, 5]) == (1, 2, 3, 5)
+    assert parse_n_bars([15, 20, 20, 60]) == (15, 20, 60)
+
+
+def test_n_bars_from_durations_requires_exact_multiple():
+    assert n_bars_from_durations((15, 20, 60), micro_seconds=60) == (15, 20, 60)
+    with pytest.raises(ValueError, match="multiplo"):
+        n_bars_from_durations((20,), micro_seconds=180)
 
 
 def test_build_horizon_candidates_defaults_without_settings():
     rows = build_horizon_candidates({})
-    assert [r["tf"] for r in rows] == ["H1", "H2", "H3", "H5"]
+    assert [r["tf"] for r in rows] == [f"H{n}" for n in DEFAULT_N_BARS]
     assert rows[0]["lookback"] == 480
-    override = build_horizon_candidates({}, n_bars=[1, 5])
-    assert [r["tf"] for r in override] == ["H1", "H5"]
-    assert override[1]["duration"] == 15
+    override = build_horizon_candidates({}, n_bars=[15, 60])
+    assert [r["tf"] for r in override] == ["H15", "H60"]
+    assert override[0]["duration"] == 15
+    assert override[1]["duration"] == 60
     settings = {
-        "data_handler": {"micro_granularity": 180, "mini_granularity": 180, "granularity": 7200},
-        "deep_learning": {"lookback": 480, "training_history_bars": 1333, "horizon_sweep": {"n_bars": [1, 2, 3, 5]}},
+        "data_handler": {"micro_granularity": 60, "mini_granularity": 60, "granularity": 7200},
+        "deep_learning": {
+            "lookback": 480,
+            "training_history_bars": 1333,
+            "horizon_sweep": {"duration_minutes": [15, 30, 60]},
+        },
     }
     rows = build_horizon_candidates(settings)
-    assert [r["tf"] for r in rows] == ["H1", "H2", "H3", "H5"]
-    assert [r["label_horizon_bars"] for r in rows] == [1, 2, 3, 5]
-    assert [r["duration"] for r in rows] == [3, 6, 9, 15]
+    assert [r["tf"] for r in rows] == ["H15", "H30", "H60"]
+    assert [r["label_horizon_bars"] for r in rows] == [15, 30, 60]
+    assert [r["duration"] for r in rows] == [15, 30, 60]
     for row in rows:
-        assert row["micro_granularity"] == 180
+        assert row["micro_granularity"] == 60
         assert row["macro_granularity"] == 7200
         assert row["lookback"] == 480
         assert row["history_bars"] == 1333
@@ -55,22 +68,32 @@ def test_build_horizon_candidates_defaults_without_settings():
 
 def test_load_horizon_sweep_knobs_from_ssot():
     knobs = load_horizon_sweep_knobs()
-    assert knobs["n_bars"] == [1, 2, 3, 5]
+    assert knobs["n_bars"] == list(DEFAULT_N_BARS)
+    assert knobs["duration_minutes"] == list(DEFAULT_N_BARS)
     assert knobs["run_in_launch_train"] is True
     assert knobs["enabled"] is True
-    knobs = load_horizon_sweep_knobs({"deep_learning": {}, "risk_management": {"params": {"payout_estimate": 0.72}}})
+    knobs = load_horizon_sweep_knobs(
+        {
+            "data_handler": {"micro_granularity": 60},
+            "deep_learning": {},
+            "risk_management": {"params": {"payout_estimate": 0.72}},
+        }
+    )
     assert knobs["enabled"] is True
     assert knobs["run_in_launch_train"] is True
-    assert knobs["n_bars"] == [1, 2, 3, 5]
+    assert knobs["n_bars"] == list(DEFAULT_N_BARS)
     assert knobs["min_edge_vs_breakeven"] == pytest.approx(0.03)
     assert knobs["min_settle_n"] == 16
     assert knobs["min_history_bars"] == 800
     assert knobs["auto_promote"] is True
+    assert knobs["ops_contract_duration_minutes"] == 5
+    assert knobs["quiet_train_logs"] is True
     custom = load_horizon_sweep_knobs(
         {
+            "data_handler": {"micro_granularity": 60},
             "deep_learning": {
                 "horizon_sweep": {
-                    "n_bars": [1, 5],
+                    "duration_minutes": [15, 60],
                     "payout_for_breakeven": 0.80,
                     "symbols": ["R_10"],
                     "enabled": True,
@@ -80,20 +103,28 @@ def test_load_horizon_sweep_knobs_from_ssot():
             "risk_management": {},
         }
     )
-    assert custom["n_bars"] == [1, 5]
+    assert custom["n_bars"] == [15, 60]
+    assert custom["duration_minutes"] == [15, 60]
     assert custom["payout_for_breakeven"] == pytest.approx(0.80)
     assert custom["run_in_launch_train"] is False
     assert custom["symbols"] == ["R_10"]
+    assert parse_duration_minutes([15, 15, 20]) == (15, 20)
 
 
 def test_pick_horizon_winner_among_eligible():
-    knobs = load_horizon_sweep_knobs({"deep_learning": {}, "risk_management": {"params": {"payout_estimate": 0.72}}})
+    knobs = load_horizon_sweep_knobs(
+        {
+            "data_handler": {"micro_granularity": 60},
+            "deep_learning": {},
+            "risk_management": {"params": {"payout_estimate": 0.72}},
+        }
+    )
     rows = [
         enrich_leaderboard_row(
             {
-                "tf": "H1",
-                "label_horizon_bars": 1,
-                "duration": 3,
+                "tf": "H15",
+                "label_horizon_bars": 15,
+                "duration": 15,
                 "deploy_ok": True,
                 "val_accuracy": 0.60,
                 "settle_wr": 0.62,
@@ -105,9 +136,9 @@ def test_pick_horizon_winner_among_eligible():
         ),
         enrich_leaderboard_row(
             {
-                "tf": "H3",
-                "label_horizon_bars": 3,
-                "duration": 9,
+                "tf": "H30",
+                "label_horizon_bars": 30,
+                "duration": 30,
                 "deploy_ok": True,
                 "val_accuracy": 0.54,
                 "settle_wr": 0.70,
@@ -119,9 +150,9 @@ def test_pick_horizon_winner_among_eligible():
         ),
         enrich_leaderboard_row(
             {
-                "tf": "H5",
-                "label_horizon_bars": 5,
-                "duration": 15,
+                "tf": "H60",
+                "label_horizon_bars": 60,
+                "duration": 60,
                 "deploy_ok": True,
                 "val_accuracy": 0.58,
                 "settle_wr": 0.50,
@@ -134,19 +165,19 @@ def test_pick_horizon_winner_among_eligible():
     ]
     winner = pick_tf_winner(rows)
     assert winner is not None
-    assert winner["tf"] == "H3"
-    assert int(winner["label_horizon_bars"]) == 3
+    assert winner["tf"] == "H30"
+    assert int(winner["label_horizon_bars"]) == 30
 
 
 def test_launch_train_pipeline_runs_horizon():
     from scripts.operations.run_launch_train_tf_pipeline import run_launch_train_tf_pipeline
 
     settings = {
-        "data_handler": {"micro_granularity": 180, "mini_granularity": 180, "granularity": 7200},
+        "data_handler": {"micro_granularity": 60, "mini_granularity": 60, "granularity": 7200},
         "deep_learning": {
             "lookback": 480,
             "training_history_bars": 1333,
-            "horizon_sweep": {"enabled": True, "run_in_launch_train": True, "n_bars": [1, 2, 3, 5]},
+            "horizon_sweep": {"enabled": True, "run_in_launch_train": True, "duration_minutes": [15, 30, 60]},
         },
         "risk_management": {"params": {"payout_estimate": 0.72}},
     }
@@ -166,5 +197,5 @@ def test_launch_train_pipeline_runs_horizon():
         assert run_launch_train_tf_pipeline() == 1
     sp.assert_not_called()
     cands = captured.get("candidates") or []
-    assert [c["tf"] for c in cands] == ["H1", "H2", "H3", "H5"]
+    assert [c["tf"] for c in cands] == ["H15", "H30", "H60"]
     assert captured["knobs"]["run_in_launch_train"] is True

@@ -11,5 +11,6 @@ alwaysApply: false
 - Tags de ciclo: CLUSTER → SCALE → `[GATES] || FUSION` / `FLIP_BLOCK` / LOSS_CLF → KELLY → EXEC → RESOLVED (processo primeiro)
 - Motor: `get_logger("AETH")` / `setup_logger` idempotente; treino: `AETH.meta` / `AETH.train` (sem print)
 - Knobs: `logging.level`, `logging.quiet_channels` via `resolve_logging_config`
+- Sweep launch-train: `horizon_sweep.quiet_train_logs` **true** sobe overlay da celula para **CRITICAL**; falha resumida em `why=` na linha `[HORIZON] cell`
 - SETTLE: `log_settle(canal, …)` → `SETTLE.{canal}:`; quiet_channels → DEBUG
 - Doc: `docs/engineering-observability.md` + inventario `docs/engineering-logging-inventory.md`

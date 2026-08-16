@@ -141,7 +141,7 @@ def test_get_symbol_runtime_promotes_soft_deploy(tmp_path: Path):
                 "eval_put_threshold_default": 0.25,
             },
         },
-        "infra": {"triton": {"enabled": False}},
+        "infra": {},
     }
     del orch._dl_runtime
     with (
@@ -152,10 +152,6 @@ def test_get_symbol_runtime_promotes_soft_deploy(tmp_path: Path):
         patch(
             "src.application.services.deep_learning.dl_symbol_runtime.load_model_checkpoint",
             return_value=loaded,
-        ),
-        patch(
-            "src.application.services.deep_learning.dl_symbol_runtime.triton_enabled",
-            return_value=False,
         ),
         patch(
             "src.application.services.deep_learning.dl_symbol_runtime._persist_deploy_ok_flag",

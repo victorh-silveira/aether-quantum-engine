@@ -250,7 +250,7 @@ class Orchestrator:
         await persist_full_state_unlocked(self)
 
     async def close_infrastructure_connections(self) -> None:
-        """Encerra Triton, Timescale, Redis e WebSocket antes do exit."""
+        """Encerra Timescale, Redis e WebSocket antes do exit."""
         await close_infrastructure_connections(self)
 
     async def stop(self) -> None:

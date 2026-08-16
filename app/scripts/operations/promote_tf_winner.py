@@ -33,10 +33,22 @@ def load_leaderboard(path: Path, knobs: dict) -> list[dict]:
     return [enrich_leaderboard_row(row, knobs=knobs) for row in raw["rows"] if isinstance(row, dict)]
 
 
+def _rel_repo(path: Path) -> str:
+    try:
+        return str(path.resolve().relative_to(REPO_ROOT.resolve())).replace("\\", "/")
+    except ValueError:
+        return path.name
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI de promocao fail-closed do TF vencedor."""
     parser = argparse.ArgumentParser(description="Promove vencedor do sweep de horizonte para SSOT")
     parser.add_argument("--dry-run", action="store_true", help="Nao grava settings nem copia ckpt")
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Sem log de preview winner (pipeline HORIZON ja logou)",
+    )
     parser.add_argument(
         "--leaderboard",
         default=None,
@@ -60,14 +72,15 @@ def main(argv: list[str] | None = None) -> int:
             float(knobs["min_edge_vs_breakeven"]),
         )
         return 1
-    log.info(
-        "[TF_SWEEP] winner=%s/%s acc=%.4f edge_vs_be=%.4f score=%s",
-        preview.get("symbol"),
-        preview.get("tf"),
-        float(preview.get("val_accuracy") or 0.0),
-        float(preview.get("edge_vs_be") or 0.0),
-        preview.get("score"),
-    )
+    if not args.quiet:
+        log.info(
+            "[TF_SWEEP] winner=%s/%s acc=%.4f edge_vs_be=%.4f score=%s",
+            preview.get("symbol"),
+            preview.get("tf"),
+            float(preview.get("val_accuracy") or 0.0),
+            float(preview.get("edge_vs_be") or 0.0),
+            preview.get("score"),
+        )
     if args.dry_run:
         log.info("[TF_SWEEP] dry-run: sem gravar settings/ckpt")
         return 0
@@ -85,15 +98,18 @@ def main(argv: list[str] | None = None) -> int:
     backup = settings_path.with_suffix(".json.pre_tf_promote.bak")
     backup.write_text(settings_path.read_text(encoding="utf-8"), encoding="utf-8")
     write_json(settings_path, patched)
-    log.info(
-        "[TF_SWEEP] promovido symbol=%s tf=%s settings=%s backup=%s ckpts=%s",
-        patched.get("anchor") or winner.get("symbol"),
-        winner.get("tf"),
-        settings_path,
-        backup,
-        [str(p) for p in copied],
+    label_n = int(
+        (patched.get("deep_learning") or {}).get("label_horizon_bars") or winner.get("label_horizon_bars") or 0
     )
-    log.info("[TF_SWEEP] rode make docker-rebuild e sync MinIO/Triton apos promocao")
+    ops_m = int((patched.get("risk_management") or {}).get("params", {}).get("duration") or 0)
+    ckpt = _rel_repo(copied[0]) if copied else "data/dl/{symbol}.pth"
+    log.info(
+        "[TF_SWEEP] promovido %s label_N=%s ops=%sm ckpt=%s",
+        winner.get("tf"),
+        label_n,
+        ops_m,
+        ckpt,
+    )
     return 0
 
 

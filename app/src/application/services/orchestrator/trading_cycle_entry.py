@@ -91,7 +91,7 @@ async def _execute_inference_cluster_cycle(orch: Any) -> bool:
         % max(
             1,
             int(
-                (orch.config.get("infra", {}).get("triton", {}) or {}).get(
+                (orch.config.get("infra", {}).get("correlation", {}) or {}).get(
                     "correlation_refresh_cycles",
                     5,
                 )

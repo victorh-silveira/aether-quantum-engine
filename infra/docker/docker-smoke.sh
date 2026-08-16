@@ -77,18 +77,6 @@ if profile_active core; then
   fi
 fi
 
-if profile_active gpu || profile_active cpu; then
-  require_service aether-triton Triton || true
-  if service_running aether-triton; then
-    checked=$((checked + 1))
-    if ! curl -sf "http://127.0.0.1:8000/v2/health/live" >/dev/null 2>&1; then
-      smoke_fail "Triton" "/v2/health/live"
-    else
-      docker_ui_ok "Triton"
-    fi
-  fi
-fi
-
 if profile_active ml; then
   require_service aether-meta-classifier Meta-classifier || true
   if service_running aether-meta-classifier; then

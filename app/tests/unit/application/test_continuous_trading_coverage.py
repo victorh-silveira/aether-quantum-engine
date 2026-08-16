@@ -8,7 +8,6 @@ from src.application.services.deep_learning.dl_model_types import FeatureNormSta
 from src.application.services.deep_learning.dl_predict import predict_symbol_decision
 from src.application.services.deep_learning.dl_predict_async import predict_symbol_decision_async
 from src.application.services.deep_learning.dl_predict_metrics import attach_dynamic_metrics
-from src.application.services.deep_learning.dl_predict_triton import predict_raw_prob_async
 from src.application.services.execution_direction_cross_corr import (
     adjust_dl_weight_with_correlation,
     cached_correlation_matrix,
@@ -16,59 +15,6 @@ from src.application.services.execution_direction_cross_corr import (
 from src.application.services.execution_entropy_fallback import pick_entropy_fallback_candidate
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.kelly_f_star_adjustments import apply_kelly_fraction_scale
-from src.infrastructure.inference.triton_tensor_builder import PartialInferenceHistoryError, build_inference_tensor
-
-
-@pytest.mark.asyncio
-async def test_predict_raw_prob_async_triton_path():
-    orch = MagicMock()
-    orch.config = {"infra": {"triton": {"enabled": True}}}
-    runtime = {
-        "lookback": 4,
-        "norm_stats": FeatureNormStats(mean=np.zeros(34, dtype=np.float32), std=np.ones(34, dtype=np.float32)),
-        "calibrator": None,
-    }
-    prices = np.linspace(1.0, 2.0, 20)
-    with patch(
-        "src.application.services.deep_learning.dl_predict_triton.infer_symbol_async",
-        new_callable=AsyncMock,
-        return_value=0.62,
-    ):
-        direction, prob, raw = await predict_raw_prob_async(
-            orch,
-            "R_10",
-            prices,
-            runtime,
-            {"lookback": 4, "confidence_call_threshold": 0.6, "confidence_put_threshold": 0.4},
-            granularity=60,
-            call_threshold=0.6,
-            put_threshold=0.4,
-        )
-    assert direction == TradeDirection.CALL
-    assert prob == pytest.approx(0.62)
-
-
-@pytest.mark.asyncio
-async def test_predict_raw_prob_async_eager_without_model():
-    orch = MagicMock()
-    orch.config = {"infra": {"triton": {"enabled": False}}}
-    runtime = {"lookback": 4, "norm_stats": None, "model": None}
-    direction, prob, raw = await predict_raw_prob_async(
-        orch,
-        "R_10",
-        np.linspace(1.0, 2.0, 20),
-        runtime,
-        {"lookback": 4},
-        granularity=60,
-    )
-    assert direction is None
-    assert prob == 0.5
-
-
-def test_build_inference_tensor_raises_on_short_history():
-    stats = FeatureNormStats(mean=np.zeros(34, dtype=np.float32), std=np.ones(34, dtype=np.float32))
-    with pytest.raises(PartialInferenceHistoryError):
-        build_inference_tensor(np.array([1.0, 2.0]), 8, stats)
 
 
 def test_entropy_fallback_returns_none_without_prob():
@@ -124,7 +70,7 @@ def test_predict_symbol_decision_exception_path():
 @pytest.mark.asyncio
 async def test_predict_symbol_decision_async_eager_path():
     orch = MagicMock()
-    orch.config = {"infra": {"triton": {"enabled": False}}, "orchestrator": {"execution": {}}, "deep_learning": {}}
+    orch.config = {"infra": {}, "orchestrator": {"execution": {}}, "deep_learning": {}}
     runtime = {
         "model": MagicMock(),
         "norm_stats": FeatureNormStats(mean=np.zeros(34, dtype=np.float32), std=np.ones(34, dtype=np.float32)),
@@ -196,14 +142,14 @@ def test_entropy_fallback_skips_blocked_symbol():
 
 
 @pytest.mark.asyncio
-async def test_bootstrap_calls_triton_sync_and_schema_probe(tmp_path):
+async def test_bootstrap_validates_local_torchscript(tmp_path):
     orch = MagicMock()
     orch.symbols = ["R_10"]
     orch.config = {
         "deep_learning": {"enabled": True, "arch": "tcn", "lookback": 48},
         "data_handler": {},
         "risk_management": {"params": {}},
-        "infra": {"triton": {"enabled": True}},
+        "infra": {},
     }
     ckpt = tmp_path / "R_10.pth"
     ckpt.write_bytes(b"x")
@@ -222,20 +168,6 @@ async def test_bootstrap_calls_triton_sync_and_schema_probe(tmp_path):
             "src.application.services.deep_learning.dl_model_artifacts._scripted_path",
             return_value=ts_path,
         ),
-        patch(
-            "src.application.services.deep_learning.dl_model_artifacts.sync_all_symbols_to_triton",
-            new_callable=AsyncMock,
-        ) as mock_sync,
-        patch(
-            "src.application.services.deep_learning.dl_model_artifacts.verify_triton_schema_alignment_async",
-            new_callable=AsyncMock,
-        ) as mock_schema,
-        patch(
-            "src.application.services.deep_learning.dl_model_artifacts.verify_triton_stressed_inference_async",
-            new_callable=AsyncMock,
-        ) as mock_stress,
     ):
         await bootstrap_and_validate_models(orch)
-    mock_sync.assert_awaited_once()
-    mock_schema.assert_awaited_once()
-    mock_stress.assert_awaited_once()
+    store.sanity_check_torchscript.assert_awaited_once()

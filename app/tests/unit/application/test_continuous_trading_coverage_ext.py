@@ -5,7 +5,6 @@ import pytest
 
 from src.application.services.deep_learning.dl_model_types import FeatureNormStats
 from src.application.services.deep_learning.dl_predict_async import predict_symbol_decision_async
-from src.application.services.deep_learning.dl_predict_triton import predict_raw_prob_async
 from src.application.services.execution_direction_cross_corr import (
     adjust_dl_weight_with_correlation,
     cached_correlation_matrix,
@@ -14,76 +13,6 @@ from src.application.services.execution_direction_resolver import resolve_execut
 from src.application.services.execution_entropy_fallback import pick_entropy_fallback_candidate
 from src.application.services.orchestrator.trading_cycle_entry import run_trading_cycle_if_ready
 from src.domain.models.trade import TradeDirection
-
-
-@pytest.mark.asyncio
-async def test_predict_raw_prob_async_put_and_neutral():
-    orch = MagicMock()
-    orch.config = {"infra": {"triton": {"enabled": True}}}
-    runtime = {
-        "lookback": 4,
-        "norm_stats": FeatureNormStats(mean=np.zeros(34, dtype=np.float32), std=np.ones(34, dtype=np.float32)),
-        "calibrator": None,
-    }
-    prices = np.linspace(1.0, 2.0, 20)
-    with patch(
-        "src.application.services.deep_learning.dl_predict_triton.infer_symbol_async",
-        new_callable=AsyncMock,
-        return_value=0.35,
-    ):
-        direction, prob, raw = await predict_raw_prob_async(
-            orch,
-            "R_10",
-            prices,
-            runtime,
-            {"lookback": 4},
-            granularity=60,
-            call_threshold=0.6,
-            put_threshold=0.4,
-        )
-    assert direction == TradeDirection.PUT
-    with patch(
-        "src.application.services.deep_learning.dl_predict_triton.infer_symbol_async",
-        new_callable=AsyncMock,
-        return_value=0.5,
-    ):
-        direction, prob, raw = await predict_raw_prob_async(
-            orch,
-            "R_10",
-            prices,
-            runtime,
-            {"lookback": 4},
-            granularity=60,
-            call_threshold=0.6,
-            put_threshold=0.4,
-        )
-    assert direction is None
-
-
-@pytest.mark.asyncio
-async def test_predict_raw_prob_async_eager_branch():
-    orch = MagicMock()
-    orch.config = {"infra": {"triton": {"enabled": False}}}
-    model = MagicMock()
-    runtime = {
-        "lookback": 4,
-        "norm_stats": FeatureNormStats(mean=np.zeros(34, dtype=np.float32), std=np.ones(34, dtype=np.float32)),
-        "model": model,
-        "calibrator": None,
-    }
-    with patch(
-        "src.application.services.deep_learning.dl_predict_triton.predict_next_direction",
-        return_value=(TradeDirection.CALL, 0.7, 0.7),
-    ):
-        direction, prob, raw = await predict_raw_prob_async(
-            orch,
-            "R_10",
-            np.linspace(1.0, 2.0, 20),
-            runtime,
-            {"lookback": 4},
-            granularity=60,
-        )
-    assert direction == TradeDirection.CALL
 
 
 def test_entropy_fallback_build_returns_none(monkeypatch):
@@ -136,7 +65,7 @@ async def test_trading_cycle_refreshes_correlation_on_interval():
     orch._reconciliation_pending = False
     orch.config = {
         "orchestrator": {"cycle_interval_seconds": 0},
-        "infra": {"triton": {"correlation_refresh_cycles": 1}},
+        "infra": {"correlation": {"correlation_refresh_cycles": 1}},
         "deep_learning": {"enabled": True},
     }
     orch.running = True
@@ -172,9 +101,9 @@ async def test_trading_cycle_refreshes_correlation_on_interval():
 
 
 @pytest.mark.asyncio
-async def test_predict_symbol_decision_async_triton_path():
+async def test_predict_symbol_decision_async_eager_path():
     orch = MagicMock()
-    orch.config = {"infra": {"triton": {"enabled": True}}, "orchestrator": {"execution": {}}, "deep_learning": {}}
+    orch.config = {"infra": {}, "orchestrator": {"execution": {}}, "deep_learning": {}}
     runtime = {
         "lookback": 4,
         "norm_stats": FeatureNormStats(mean=np.zeros(34, dtype=np.float32), std=np.ones(34, dtype=np.float32)),
@@ -186,25 +115,23 @@ async def test_predict_symbol_decision_async_triton_path():
     }
     with (
         patch(
-            "src.application.services.deep_learning.dl_predict_async.predict_raw_prob_async",
-            new_callable=AsyncMock,
+            "src.application.services.deep_learning.dl_predict_async.eager_local_predict",
             return_value=(TradeDirection.PUT, 0.35, 0.35),
         ),
-        patch("src.application.services.deep_learning.dl_predict_build.precompute_price_series") as mock_series,
+        patch(
+            "src.application.services.deep_learning.dl_predict_async.build_prediction_entry",
+            return_value={"direction": TradeDirection.PUT},
+        ),
+        patch("src.application.services.deep_learning.dl_predict_async.build_prediction_context") as ctx_mock,
     ):
-        mock_series.return_value = {
-            "bb_width": np.array([0.1]),
-            "atr_norm": np.array([0.1]),
-            "adx": np.array([0.2]),
-            "vol_ratio_short_long": np.array([1.0]),
-            "implied_vol_ratio": np.array([1.0]),
-            "hurst": np.array([0.5]),
-            "cmo": np.array([0.0]),
-            "keltner_pct_b": np.array([0.5]),
-            "rsi": np.array([0.5]),
-            "macd": np.array([0.0]),
-            "macd_signal": np.array([0.0]),
-            "di_diff": np.array([0.0]),
+        ctx_mock.return_value = {
+            "gran": 60,
+            "series": {},
+            "dynamic": {},
+            "dynamic_cfg": {},
+            "call_threshold": 0.6,
+            "put_threshold": 0.4,
+            "exec_cfg": {},
         }
         entry = await predict_symbol_decision_async(
             orch,

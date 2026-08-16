@@ -10,6 +10,7 @@ from typing import Any
 
 import torch
 
+from src.application.services.deep_learning.horizon_sweep import load_horizon_sweep_knobs
 from src.application.services.deep_learning.tf_sweep_config import (
     candidate_artifact_dir,
     resolve_repo_path,
@@ -23,14 +24,27 @@ from src.application.services.deep_learning.tf_sweep_symbols import (
 )
 
 
-def patch_settings_for_candidate(settings: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
-    """Retorna copia de settings com contrato/ciclo/horizon da celula (sem reescalar lookback)."""
+def patch_settings_for_candidate(
+    settings: dict[str, Any],
+    candidate: dict[str, Any],
+    *,
+    ops_contract_duration_minutes: int | None = None,
+) -> dict[str, Any]:
+    """Retorna copia de settings com ciclo/horizon da celula (sem reescalar lookback).
+
+    Treino (ops=None): params.duration = duration da celula.
+    Promote (ops=int): params.duration fixo em ops; label_horizon_bars vem do winner.
+    """
     out = copy.deepcopy(settings)
     micro = int(candidate["micro_granularity"])
     macro = int(candidate["macro_granularity"])
     mini = int(candidate.get("mini_granularity") or micro)
-    duration = int(candidate["duration"])
-    duration_unit = str(candidate.get("duration_unit") or "m")
+    if ops_contract_duration_minutes is None:
+        duration = int(candidate["duration"])
+        duration_unit = str(candidate.get("duration_unit") or "m")
+    else:
+        duration = max(1, int(ops_contract_duration_minutes))
+        duration_unit = "m"
     label_h = int(candidate.get("label_horizon_bars") or 1)
     data = out.setdefault("data_handler", {})
     if not isinstance(data, dict):
@@ -75,6 +89,7 @@ def patch_settings_for_sweep_train(
     symbol: str = "R_10",
     train_deploy_retries: int = 1,
     disable_infra: bool = True,
+    quiet_train_logs: bool | None = None,
 ) -> dict[str, Any]:
     """Settings de treino isolado: path de ckpt em data/dl/sweep/{symbol}/{tf}."""
     out = patch_settings_for_candidate(settings, candidate)
@@ -88,6 +103,16 @@ def patch_settings_for_sweep_train(
         infra = out.setdefault("infra", {})
         if isinstance(infra, dict):
             infra["enabled"] = False
+    quiet = quiet_train_logs
+    if quiet is None:
+        h_src = settings.get("deep_learning") if isinstance(settings.get("deep_learning"), dict) else {}
+        h_block = h_src.get("horizon_sweep") if isinstance(h_src, dict) else {}
+        quiet = bool(h_block.get("quiet_train_logs", True)) if isinstance(h_block, dict) else True
+    if quiet:
+        log_block = out.setdefault("logging", {})
+        if isinstance(log_block, dict):
+            log_block["level"] = "CRITICAL"
+        dl["training_log_every_n_epochs"] = 10**9
     return out
 
 
@@ -173,7 +198,8 @@ def promote_winner_from_leaderboard(
         "label_horizon_bars": int(winner.get("label_horizon_bars") or 1),
         "train_timeframe": "micro",
     }
-    patched = patch_settings_for_candidate(settings, candidate)
+    ops_m = int(load_horizon_sweep_knobs(settings)["ops_contract_duration_minutes"])
+    patched = patch_settings_for_candidate(settings, candidate, ops_contract_duration_minutes=ops_m)
     patch_settings_for_symbol(patched, win_symbol)
     dl = patched.setdefault("deep_learning", {})
     if isinstance(dl, dict):

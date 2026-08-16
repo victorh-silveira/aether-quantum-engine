@@ -39,8 +39,19 @@ def _sweep_active(knobs: dict[str, Any]) -> bool:
     return bool(knobs.get("enabled", True)) and bool(knobs.get("run_in_launch_train", True))
 
 
-def _log_board(log, tag: str, board: list[dict[str, Any]], _knobs: dict[str, Any]) -> None:
+def _log_board(log, tag: str, board: list[dict[str, Any]], knobs: dict[str, Any]) -> None:
     eligible = [r for r in board if r.get("eligible")]
+    skipped = [str(r.get("tf") or "") for r in board if not r.get("eligible")]
+    skip_s = ",".join(t for t in skipped if t) or "-"
+    if bool(knobs.get("quiet_train_logs", True)):
+        log.info(
+            "[%s] board candidatos=%s elegiveis=%s skip=[%s]",
+            tag,
+            len(board),
+            len(eligible),
+            skip_s,
+        )
+        return
     log.info("[%s] candidatos=%s elegiveis=%s", tag, len(board), len(eligible))
     for row in board:
         log.info(
@@ -83,12 +94,14 @@ def _finish_sweep(
         )
         return 1
     n_bars = int(winner.get("label_horizon_bars") or 0)
-    duration = int(winner.get("duration") or 0)
+    train_duration = int(winner.get("duration") or 0)
+    ops_m = int(knobs.get("ops_contract_duration_minutes") or 5)
     log.info(
-        "[%s] winner N=%s duration=%sm tf=%s settle=%.4f edge_vs_be=%.4f (mais assertivo)",
+        "[%s] winner N=%s train_duration=%sm ops_duration=%sm tf=%s settle=%.4f edge_vs_be=%.4f (mais assertivo)",
         tag,
         n_bars,
-        duration,
+        train_duration,
+        ops_m,
         winner.get("tf"),
         float(winner.get("rank_wr") or winner.get("settle_wr") or 0.0),
         float(winner.get("edge_vs_be") or 0.0),
@@ -101,7 +114,7 @@ def _finish_sweep(
             winner.get("tf"),
         )
         return 0
-    return int(promote_main([]))
+    return int(promote_main(["--quiet"]))
 
 
 def run_launch_train_tf_pipeline(
@@ -117,7 +130,7 @@ def run_launch_train_tf_pipeline(
     if _sweep_active(h_knobs):
         clear_sweep_artifacts(str(h_knobs["artifact_root"]), repo_root=REPO_ROOT)
         candidates = build_horizon_candidates(settings, n_bars=h_knobs["n_bars"])
-        log.info("[HORIZON] iniciando sweep N=%s (R_10 M3)", h_knobs.get("n_bars"))
+        log.info("[HORIZON] iniciando sweep N=%s (R_10 M1)", h_knobs.get("n_bars"))
         board = run_tf_sweep(
             settings=settings,
             knobs=h_knobs,

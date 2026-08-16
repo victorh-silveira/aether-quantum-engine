@@ -14,7 +14,7 @@ async def test_graceful_shutdown_fast_path_cancels_settlement_queue():
     orch._infra_shutdown_done = False
     orch.running = True
     orch._post_settlement_task = None
-    orch.config = {"infra": {"triton": {"enabled": False}}}
+    orch.config = {"infra": {}}
     orch.infra = None
     orch.ws = AsyncMock()
     with (
@@ -44,7 +44,7 @@ async def test_graceful_shutdown_cancels_pending_tasks_before_infra_close():
     orch._infra_shutdown_done = False
     orch.running = True
     orch._post_settlement_task = None
-    orch.config = {"infra": {"triton": {"enabled": False}}}
+    orch.config = {"infra": {}}
     orch.infra = None
     orch.ws = AsyncMock()
     started = asyncio.Event()
@@ -71,7 +71,7 @@ async def test_graceful_shutdown_non_fast_path_awaits_post_settlement_task():
     orch = MagicMock()
     orch._infra_shutdown_done = False
     orch.running = True
-    orch.config = {"infra": {"triton": {"enabled": False}}}
+    orch.config = {"infra": {}}
     orch.infra = None
     orch.ws = AsyncMock()
 

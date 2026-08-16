@@ -4,18 +4,18 @@ Ciclo operacional do motor. Inventario de arquivos: [`structure.md`](structure.m
 
 ## Relogio e triplo OHLC
 
-- Fronteira / ciclo: **`signature_boundary_seconds` / `cycle_interval_seconds` = 180 s** (sync com fecho da vela M3; contrato Deriv **N × 3 min**); `exec_empty_retry_seconds` **180**
-- Cache DL (`dl_predict_cache`): path **eager** (Triton off) **sempre** re-infere; path Triton chaveia `cycle_id` + `boundary_epoch` (nao reusa entry de outro ciclo)
-- Tick live: antes do TCN, `patch_forming_bar_with_live_tick` injeta o ultimo preco do `TickBuffer` no close/high/low da vela M3 em formacao; `patch_forming_bar_microstructure` sobrescreve a ultima linha de micro live; snapshot `_patched_ohlc` alimenta SCALE/flow no mesmo ciclo
+- Fronteira / ciclo: **`signature_boundary_seconds` / `cycle_interval_seconds` = 60 s** (sync com fecho da vela M1; contrato Deriv **5 m**); `exec_empty_retry_seconds` **60**
+- Cache DL (`dl_predict_cache`): path **eager** **sempre** re-infere; chaveia `cycle_id` + `boundary_epoch` (nao reusa entry de outro ciclo)
+- Tick live: antes do TCN, `patch_forming_bar_with_live_tick` injeta o ultimo preco do `TickBuffer` no close/high/low da vela M1 em formacao; `patch_forming_bar_microstructure` sobrescreve a ultima linha de micro live; snapshot `_patched_ohlc` alimenta SCALE/flow no mesmo ciclo
 - `DL: inferencia em cuda` e `log_device_once` no load do modelo — **nao** um log por ciclo
 - LOSS_CLF: predict HTTP a cada `_finalize`; log dedupe por `loss_clf_*:{cycle_id}`; `feature_dim` **24**; hard FLIP floor SSOT **0.90** + `flip_require_auto_learn` **true**
 - MACRO OHLC: **7200 s** (`data_handler.granularity`)
-- MICRO OHLC (TCN decisor): **180 s** (`data_handler.micro_granularity`) — M3
-- Contrato Deriv RISE_FALL: **N × 3 min** (`risk_management.params.duration`) — N eleito no launch-train (`horizon_sweep`, grade 1/2/3/5); label = **N barras** micro; frequencia maxima ≈ 1 trade / contrato (ciclo bloqueado com contrato aberto)
-- MINI OHLC: **180 s** (`data_handler.mini_granularity`) — alinhado ao M3
+- MICRO OHLC (TCN decisor): **60 s** (`data_handler.micro_granularity`) — M1
+- Contrato Deriv RISE_FALL: **5 m** (`risk_management.params.duration`, via `ops_contract_duration_minutes`); label TCN = **N barras** micro (N ∈ {15,20,…,60} eleito no launch-train; **SSOT atual N=50**); gap intencional label vs settle; frequencia maxima ≈ 1 trade / contrato (ciclo bloqueado com contrato aberto)
+- MINI OHLC: **60 s** (`data_handler.mini_granularity`) — alinhado ao M1
 - MILI: tick flow (velocity/acceleration), nao barra OHLC
 - Sync inicial: `stream_sync_start.py` (historico MACRO+MICRO+MINI + subscribe candles/ticks)
-- Proporcao MACRO:MICRO **40:1** (7200:180)
+- Proporcao MACRO:MICRO **120:1** (7200:60)
 - Pos-settlement: `post_settlement_is_trading_wait_seconds` **90**; `settlement_tolerance_window_seconds` **90**; `post_settlement_cycle_timeout_seconds` **1200**; `watchdog_stale_tick_seconds` **300**
 
 ## Pipeline do ciclo
@@ -55,7 +55,7 @@ SSOT: `orchestrator.execution.scale_vision` + `signal_skip` (escopo **1.1**). SC
 | Soft cover | Pending material + `pending_waives_scale_explore` → cover fino; `adapted_force_explore` bloqueia DAL L2+ |
 
 Log: `SCALE || … tape=… micro=… adapted=0|1` e IND: `SCALE: tcn=… tape=… micro=… adapted=…`  
-CLUSTER TF: `resolve_cluster_timeframe` prefere `micro_granularity` → tipicamente **M3**.
+CLUSTER TF: `resolve_cluster_timeframe` prefere `micro_granularity` → tipicamente **M1**.
 
 Nao confundir com `raw_extreme` (calibracao DL): limiares `tcn_macro_*_override` sao de **raw TCN**, nao da escala MACRO OHLC. Ver [`engineering-deep-learning.md`](engineering-deep-learning.md).
 

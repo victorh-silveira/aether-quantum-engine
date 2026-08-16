@@ -1,17 +1,14 @@
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 import torch
 from torch import nn
 
 from src.application.services.deep_learning.dl_features import FEATURE_DIM
-from src.infrastructure.inference.triton_grpc_client import TritonInferenceTimeout
 from src.infrastructure.storage.torchscript_sanity import (
-    assert_triton_probability,
     validate_manifest_schema,
     verify_torchscript_artifact,
     verify_torchscript_artifact_async,
-    verify_triton_stressed_inference_async,
 )
 from src.infrastructure.storage.torchscript_sanity_probes import build_sanity_probe_tensors
 
@@ -59,136 +56,6 @@ def test_validate_manifest_schema_norm_std_length():
             lookback=48,
             feature_dim=FEATURE_DIM,
         )
-
-
-def test_assert_triton_probability_rejects_inf():
-    with pytest.raises(RuntimeError, match="NaN"):
-        assert_triton_probability(float("inf"), model_name="R_10")
-
-
-@pytest.mark.asyncio
-async def test_verify_triton_stressed_inference_empty_symbols():
-    await verify_triton_stressed_inference_async({}, [], lookback=48, feature_dim=FEATURE_DIM)
-
-
-@pytest.mark.asyncio
-async def test_verify_triton_stressed_inference_missing_response():
-    cfg = {"infra": {"triton": {"enabled": True, "grpc_url": "localhost:8001"}}}
-    mock_client = MagicMock()
-    mock_client.infer_symbols_concurrent = AsyncMock(return_value={})
-    with (
-        patch(
-            "src.infrastructure.storage.torchscript_sanity.get_triton_grpc_client",
-            AsyncMock(return_value=mock_client),
-        ),
-        pytest.raises(RuntimeError, match="sem resposta"),
-    ):
-        await verify_triton_stressed_inference_async(cfg, ["R_10"], lookback=48, feature_dim=FEATURE_DIM)
-
-
-@pytest.mark.asyncio
-async def test_verify_triton_stressed_inference_async():
-    cfg = {
-        "infra": {
-            "triton": {
-                "enabled": True,
-                "grpc_url": "localhost:8001",
-                "bootstrap_infer_timeout_seconds": 5.0,
-            }
-        }
-    }
-    mock_client = MagicMock()
-    mock_client.infer_symbols_concurrent = AsyncMock(return_value={"R_10": 0.55})
-    with patch(
-        "src.infrastructure.storage.torchscript_sanity.get_triton_grpc_client",
-        AsyncMock(return_value=mock_client),
-    ):
-        await verify_triton_stressed_inference_async(cfg, ["R_10"], lookback=48, feature_dim=FEATURE_DIM)
-    mock_client.infer_symbols_concurrent.assert_awaited_once()
-    assert mock_client.infer_symbols_concurrent.await_args.kwargs["timeout"] == pytest.approx(5.0)
-
-
-@pytest.mark.asyncio
-async def test_verify_triton_stressed_inference_retries_after_timeout():
-    cfg = {
-        "infra": {
-            "triton": {
-                "enabled": True,
-                "grpc_url": "localhost:8001",
-                "bootstrap_infer_timeout_seconds": 5.0,
-            }
-        }
-    }
-    mock_client = MagicMock()
-    mock_client.infer_symbols_concurrent = AsyncMock(
-        side_effect=[
-            TritonInferenceTimeout("batch timeout"),
-            {"R_10": 0.55},
-        ],
-    )
-    with (
-        patch(
-            "src.infrastructure.storage.torchscript_sanity.get_triton_grpc_client",
-            AsyncMock(return_value=mock_client),
-        ),
-        patch("src.infrastructure.storage.torchscript_sanity.asyncio.sleep", new_callable=AsyncMock),
-    ):
-        await verify_triton_stressed_inference_async(cfg, ["R_10"], lookback=48, feature_dim=FEATURE_DIM)
-    assert mock_client.infer_symbols_concurrent.await_count == 2
-
-
-@pytest.mark.asyncio
-async def test_verify_triton_stressed_inference_exhausts_retries_on_timeout():
-    cfg = {
-        "infra": {
-            "triton": {
-                "enabled": True,
-                "grpc_url": "localhost:8001",
-                "bootstrap_infer_timeout_seconds": 5.0,
-            }
-        }
-    }
-    mock_client = MagicMock()
-    mock_client.infer_symbols_concurrent = AsyncMock(side_effect=TritonInferenceTimeout("batch timeout"))
-    with (
-        patch(
-            "src.infrastructure.storage.torchscript_sanity.get_triton_grpc_client",
-            AsyncMock(return_value=mock_client),
-        ),
-        patch("src.infrastructure.storage.torchscript_sanity.asyncio.sleep", new_callable=AsyncMock),
-        pytest.raises(TritonInferenceTimeout),
-    ):
-        await verify_triton_stressed_inference_async(cfg, ["R_10"], lookback=48, feature_dim=FEATURE_DIM)
-    assert mock_client.infer_symbols_concurrent.await_count == 3
-
-
-@pytest.mark.asyncio
-async def test_verify_triton_stressed_inference_none_response():
-    cfg = {"infra": {"triton": {"enabled": True, "grpc_url": "localhost:8001", "bootstrap_infer_timeout_seconds": 5.0}}}
-    mock_client = MagicMock()
-    mock_client.infer_symbols_concurrent = AsyncMock(return_value=None)
-    with (
-        patch(
-            "src.infrastructure.storage.torchscript_sanity.get_triton_grpc_client", AsyncMock(return_value=mock_client)
-        ),
-        pytest.raises(RuntimeError, match="sem resposta"),
-    ):
-        await verify_triton_stressed_inference_async(cfg, ["R_10"], lookback=48, feature_dim=FEATURE_DIM)
-
-
-@pytest.mark.asyncio
-async def test_verify_triton_stressed_inference_fail_fast_on_oob():
-    cfg = {"infra": {"triton": {"enabled": True, "grpc_url": "localhost:8001"}}}
-    mock_client = MagicMock()
-    mock_client.infer_symbols_concurrent = AsyncMock(return_value={"R_10": 1.2})
-    with (
-        patch(
-            "src.infrastructure.storage.torchscript_sanity.get_triton_grpc_client",
-            AsyncMock(return_value=mock_client),
-        ),
-        pytest.raises(RuntimeError, match="fora"),
-    ):
-        await verify_triton_stressed_inference_async(cfg, ["R_10"], lookback=48, feature_dim=FEATURE_DIM)
 
 
 @pytest.mark.asyncio

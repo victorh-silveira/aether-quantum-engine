@@ -67,7 +67,13 @@ def _required_granularities(settings: dict) -> list[int]:
     return unique
 
 
-async def _data_ok(dsn: str, symbols: list[str], granularities: list[int]) -> bool:
+async def _data_ok(
+    dsn: str,
+    symbols: list[str],
+    granularities: list[int],
+    *,
+    log_shortfalls: bool = True,
+) -> bool:
     try:
         import asyncpg  # noqa: PLC0415
     except ImportError:
@@ -93,13 +99,14 @@ async def _data_ok(dsn: str, symbols: list[str], granularities: list[int]) -> bo
             for gran in granularities:
                 have = counts.get((sym, int(gran)), 0)
                 if have < _MIN_BARS:
-                    logger.info(
-                        "[AETHER] TimescaleDB | %s gran=%ds tem %d barras (min=%d)",
-                        sym,
-                        int(gran),
-                        have,
-                        _MIN_BARS,
-                    )
+                    if log_shortfalls:
+                        logger.info(
+                            "[AETHER] TimescaleDB | %s gran=%ds tem %d barras (min=%d)",
+                            sym,
+                            int(gran),
+                            have,
+                            _MIN_BARS,
+                        )
                     return False
         return True
     finally:
@@ -119,9 +126,10 @@ def _seed_timescale(symbols: list[str]) -> int:
     return 0
 
 
-def _ensure_timescaledb_running() -> int:
+def _ensure_timescaledb_running(*, quiet: bool = False) -> int:
     if _port_open():
-        logger.info("[AETHER] TimescaleDB acessivel em localhost:5432.")
+        if not quiet:
+            logger.info("[AETHER] TimescaleDB acessivel em localhost:5432.")
         return 0
     logger.info("[AETHER] TimescaleDB nao respondeu. Tentando iniciar via WSL...")
     r = _wsl(
@@ -158,7 +166,8 @@ def main() -> int:
         help="So valida porta/DSN; nao sementeia OHLC (meta usa --source auto)",
     )
     args = parser.parse_args()
-    rc = _ensure_timescaledb_running()
+    check_only = bool(args.check_only)
+    rc = _ensure_timescaledb_running(quiet=check_only)
     if rc != 0:
         return rc
 
@@ -166,14 +175,22 @@ def main() -> int:
     dsn = _settings_dsn(settings)
     symbols = ["R_10"]
     granularities = _required_granularities(settings)
-    ok = asyncio.run(_data_ok(dsn, symbols, granularities))
+    ok = asyncio.run(_data_ok(dsn, symbols, granularities, log_shortfalls=not check_only))
     if ok:
-        logger.info("[AETHER] TimescaleDB | dados OHLC suficientes.")
+        if check_only:
+            logger.info(
+                "[AETHER] Timescale check-only: ok porta=%s ohlc=ok gran=%s",
+                _TS_PORT,
+                granularities,
+            )
+        else:
+            logger.info("[AETHER] TimescaleDB | dados OHLC suficientes.")
         return 0
 
-    if bool(args.check_only):
+    if check_only:
         logger.info(
-            "[AETHER] TimescaleDB | OHLC insuficiente gran=%s — seed pulado (--check-only); meta usara --source auto",
+            "[AETHER] Timescale check-only: ok porta=%s ohlc=insuficiente gran=%s → meta --source auto",
+            _TS_PORT,
             granularities,
         )
         return 0

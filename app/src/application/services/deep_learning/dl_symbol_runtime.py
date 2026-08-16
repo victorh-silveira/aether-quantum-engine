@@ -20,7 +20,6 @@ from src.application.services.deep_learning.model import (
     load_model_checkpoint,
 )
 from src.application.services.deep_learning.tf_sweep_score import checkpoint_settle_eligible
-from src.infrastructure.inference.triton_inference_client import triton_enabled
 
 
 logger = logging.getLogger("AETH")
@@ -216,9 +215,8 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
             session_trained = False
             calibrator = CalibratorState()
         inference_device = resolve_torch_device(dl_config, kind="inference")
-        if not triton_enabled(orch.config):
-            place_model(model, inference_device)
-            log_device_once(inference_device, context="inferencia")
+        place_model(model, inference_device)
+        log_device_once(inference_device, context="inferencia")
         orch._dl_runtime[symbol] = {
             "model": model,
             "norm_stats": norm_stats,

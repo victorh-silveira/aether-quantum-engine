@@ -115,7 +115,7 @@ def test_predict_symbol_decision_async_via_asyncio_run():
     orch = MagicMock()
     orch.config = {
         "deep_learning": {"enabled": True},
-        "infra": {"triton": {"enabled": False}},
+        "infra": {},
         "data_handler": {},
         "risk_management": {"params": {}},
     }

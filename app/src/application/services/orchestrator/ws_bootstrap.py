@@ -17,7 +17,6 @@ from src.infrastructure.api.deriv_rest_client import DerivRestError, select_acco
 from src.infrastructure.factories.infra_factory import validate_infra_services
 from src.infrastructure.inference.meta_classifier_client import meta_classifier_enabled
 from src.infrastructure.inference.meta_classifier_pool import bootstrap_meta_classifier_client
-from src.infrastructure.inference.triton_grpc_client import TritonInferenceTimeout
 
 
 if TYPE_CHECKING:
@@ -141,12 +140,7 @@ def _setup_trading_session_failure(orch: Orchestrator, exc: BaseException) -> bo
     if isinstance(exc, DerivRestError):
         orch.logger.error("INIT: Deriv REST falhou: %s", exc)
     elif isinstance(exc, urllib.error.HTTPError):
-        orch.logger.error("INIT: HTTP %s em %s (infra/Triton)", exc.code, exc.url)
-    elif isinstance(exc, TritonInferenceTimeout):
-        orch.logger.error(
-            "INIT: Triton inferencia excedeu timeout no bootstrap (%s). Modelos podem estar recarregando na GPU.",
-            exc,
-        )
+        orch.logger.error("INIT: HTTP %s em %s (infra)", exc.code, exc.url)
     elif isinstance(exc, RuntimeError) and "HANDSHAKE_TIMEOUT" in str(exc):
         orch.logger.error("%s", exc)
     elif isinstance(exc, (ConnectionError, TimeoutError, OSError)):

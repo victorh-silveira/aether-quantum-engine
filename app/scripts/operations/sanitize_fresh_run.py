@@ -29,10 +29,8 @@ RemoveFn = Callable[[Path], None]
 def _default_remove(path: Path) -> None:
     if path.is_dir():
         shutil.rmtree(path)
-        print(f"Removido diretorio: {path}")
         return
     path.unlink(missing_ok=True)
-    print(f"Removido arquivo: {path}")
 
 
 def _clear_glob(root: Path, patterns: tuple[str, ...], remove: RemoveFn) -> int:
@@ -84,24 +82,13 @@ def clear_bind_model_dir(
     return removed
 
 
-def clear_triton_model_bins(repo_root: Path, remove: RemoveFn) -> int:
-    root = repo_root / "infra" / "docker" / "triton-models"
-    if not root.is_dir():
-        return 0
-    removed = 0
-    for model_pt in root.glob("*/*/model.pt"):
-        remove(model_pt)
-        removed += 1
-    return removed
-
-
 def sanitize_fresh_run(
     repo_root: Path,
     *,
     remove: RemoveFn | None = None,
     keep_meta_bundle: bool = False,
 ) -> dict[str, int]:
-    """Remove checkpoints DL, pkls meta/loss, bins Triton e estado em data/ (exceto deriv)."""
+    """Remove checkpoints DL, pkls meta/loss e estado em data/ (exceto deriv)."""
     rem = remove or _default_remove
     meta_keep = META_BUNDLE_NAMES if keep_meta_bundle else frozenset()
     return {
@@ -113,7 +100,6 @@ def sanitize_fresh_run(
             keep_names=meta_keep,
         ),
         "loss": clear_bind_model_dir(repo_root / "infra" / "docker" / "loss-models", rem),
-        "triton": clear_triton_model_bins(repo_root, rem),
     }
 
 
@@ -137,9 +123,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     total = sum(counts.values())
     print(
-        "Sanitizacao OK | "
-        f"dl={counts['dl']} data={counts['data_runtime']} "
-        f"meta={counts['meta']} loss={counts['loss']} triton={counts['triton']} total={total}"
+        f"[AETHER] sanitize ok dl={counts['dl']} data={counts['data_runtime']} "
+        f"meta={counts['meta']} loss={counts['loss']} total={total}"
     )
     return 0
 

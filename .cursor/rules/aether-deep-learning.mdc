@@ -1,16 +1,17 @@
 ---
-description: Deep Learning Aether — features, labels, checkpoint, Triton/meta
+description: Deep Learning Aether — features, labels, checkpoint, meta
 globs: app/src/application/services/deep_learning/**/*.py
 alwaysApply: false
 ---
 
 # Deep Learning
 
-- FEATURE_DIM **34**; lookback/granularity do checkpoint devem bater com settings
-- Label `spot_forward` padrao; mudar label exige retreino + hipotese
+- FEATURE_DIM **34**; lookback/granularity/`label_horizon_bars` do checkpoint devem bater com settings
+- Label SSOT `ma_trend`; horizonte **N=50** (H50) apos ultimo promote; contrato ops **5 m** (gap intencional vs label N); mudar label/N exige retreino + hipotese
+- Sweep `horizon_sweep`: grade H15–H60; `quiet_train_logs` → overlay celula **CRITICAL** + linha cell com `why=` se deploy=0; pos-sweep denso (board/winner/promote/Timescale/meta)
 - `train.py` vs `run.py`; meta offline em `scripts/operations/train_meta_*`
-- Triton/meta opcionais; nao assumir fail-closed sem settings
-- ACC / val_accuracy gate importa; nao ignorar deploy_gate
+- Inferencia TCN = eager/CUDA local; meta HTTP opcional — nao assumir fail-closed sem settings
+- ACC / val_accuracy gate importa; nao ignorar deploy_gate; gate pos-promote tambem aceita settle elegivel
 - Sample weighting SSOT: `deep_learning.sample_weighting` — class balance + recency (`recency_half_life_n` default **2000**); `compose_train_weights` no walkforward
 - Majority-collapse no deploy: `reject_majority_collapse`, `max_label_call_frac_bias` (0.20), `min_minority_recall` (0.25); telemetria `label_call_frac` / `pred_call_frac` / `minority_recall`
 - Calibracao: modo `raw_extreme` substituiu `tcn_macro_override` — raw extremo **nao** substitui Cal; Kelly usa Cal; chaves `tcn_macro_*_override` so limiam raw (nao sao TF MACRO OHLC)

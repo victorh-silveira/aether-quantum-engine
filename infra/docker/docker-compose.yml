@@ -72,7 +72,7 @@ services:
   minio:
     image: minio/minio:RELEASE.2025-04-22T22-12-26Z
     container_name: aether-minio
-    profiles: [core, gpu, cpu]
+    profiles: [core]
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -94,45 +94,6 @@ services:
       timeout: 5s
       retries: 12
       start_period: 15s
-    networks:
-      - aether-net
-
-  aether-triton:
-    image: nvcr.io/nvidia/tritonserver:24.10-py3
-    container_name: aether-triton
-    profiles: [gpu, cpu]
-    restart: unless-stopped
-    command:
-      [
-        "tritonserver",
-        "--model-repository=/models",
-        "--model-control-mode=explicit",
-        "--load-model=*",
-        "--strict-readiness=false",
-        "--exit-on-error=false",
-        "--allow-gpu-metrics=true",
-      ]
-    ports:
-      - "127.0.0.1:8000:8000"
-      - "127.0.0.1:8001:8001"
-    volumes:
-      - ./triton-models:/models
-    depends_on:
-      minio:
-        condition: service_healthy
-    logging: *aether-logging
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python3",
-          "-c",
-          "import urllib.request; import sys; response = urllib.request.urlopen('http://localhost:8000/v2/health/live'); sys.exit(0 if response.getcode() == 200 else 1)",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 18
-      start_period: 60s
     networks:
       - aether-net
 

@@ -69,7 +69,7 @@ def main() -> int:
         },
         path,
     )
-    print(f"wrote {path}")
+    print(f"[AETHER] loss-bootstrap ok out=infra/docker/loss-models/{path.name}")
     return 0
 
 

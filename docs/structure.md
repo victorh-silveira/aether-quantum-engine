@@ -49,7 +49,7 @@ aether-quantum-engine/
 │   └── structure.md
 ├── AGENTS.md                           # Entrada Cursor/LLM
 ├── .cursor/                            # rules + skills do agente
-├── infra/docker/                       # Redis, TimescaleDB, MinIO, Triton, meta-classifier
+├── infra/docker/                       # Redis, TimescaleDB, MinIO, meta-classifier, loss-classifier
 ├── linters/
 ├── Makefile
 ├── README.md
@@ -71,7 +71,7 @@ presentation  →  application  →  domain
 |--------|-------|---------|------------------|
 | Application | `application/services/` | ~161 | Casos de uso: orquestração, DL, execução modular, meta-classificador, guards |
 | Domain | `domain/` | ~39 | Lógica pura: risco Kelly + Soft Recovery, AntiTrendLock (política), RiskPolicy, modelos, side_equilibrium |
-| Infrastructure | `infrastructure/` | ~45 | Adaptadores: Deriv API (retry 5xx), Redis, Triton, MinIO, Timescale |
+| Infrastructure | `infrastructure/` | ~45 | Adaptadores: Deriv API (retry 5xx), Redis, MinIO, Timescale |
 | Presentation | `presentation/` | 1 | Logging de terminal |
 
 ---
@@ -124,10 +124,10 @@ presentation  →  application  →  domain
 | `execution_symbols.py` | Símbolos elegíveis e ranking |
 | `execution_symbols_recovery.py` | Pool e ranking em recovery |
 | `execution_volatility_bb.py` | Bollinger width com vol implícita |
-| `execution_volatility_booster.py` | Modificador por estouro macro/micro (7200 s / 180 s) |
+| `execution_volatility_booster.py` | Modificador por estouro macro/micro (7200 s / 60 s) |
 | `execution_volatility_threshold.py` | Thresholds dinâmicos por regime |
 | `force_trade_mode.py` | Modo force-trade / mandatory |
-| `infra_timing_config.py` | Timeouts/reconnect/history/stream/meta/triton SSOT |
+| `infra_timing_config.py` | Timeouts/reconnect/history/stream/meta SSOT |
 | `live_signal_metrics.py` | - |
 | `live_signal_metrics_config.py` | Knobs de telemetria live_signal_metrics |
 | `log_dedupe.py` | `LogDeduper` — deduplicação por canal/minuto; `log_info_if_changed` / `log_warning_if_changed` |
@@ -177,7 +177,7 @@ presentation  →  application  →  domain
 | `graceful_shutdown.py` | Encerramento gracioso |
 | `metrics_utils.py` | Métricas neutras do orquestrador |
 | `orchestrator_atomic_state.py` | Contexto atômico de leitura/escrita |
-| `orchestrator_data_signature.py` | `resolve_signature_boundary_seconds`, `seconds_until_next_signature_boundary`, assinatura micro+macro (prefixos legados `m5`/`m15` para 180/7200 s) |
+| `orchestrator_data_signature.py` | `resolve_signature_boundary_seconds`, `seconds_until_next_signature_boundary`, assinatura micro+macro (prefixos legados `m5`/`m15` para 60/7200 s) |
 | `orchestrator_persistence.py` | Snapshot atômico sessão/risco/mercado |
 | `orchestrator_run_loop.py` | Loop principal; recovery transparente pós-deadlock |
 | `orchestrator_settlement_queue.py` | Worker assíncrono: consome Redis priority + fila in-memory local |
@@ -252,7 +252,6 @@ presentation  →  application  →  domain
 | `dl_predict_cache.py` | Cache de predição por fingerprint |
 | `dl_predict_metrics.py` | Métricas dinâmicas e squeeze no entry |
 | `dl_predict_telemetry.py` | Telemetria micro + bundle cross-symbol meta |
-| `dl_predict_triton.py` | Predição via Triton (fail-closed obrigatório em produção) |
 | `dl_retrain.py` | Agenda retreino por vela/loss/janela |
 | `dl_sequence_extract.py` | Sequências TCN a partir de OHLC |
 | `dl_splits.py` | Splits temporais purged com embargo |
@@ -358,7 +357,7 @@ presentation  →  application  →  domain
 |--------|------------------|
 | `stream_handler.py` | Fluxo em tempo real e histórico local |
 | `tick_buffer.py` | Buffer de ticks e microestrutura |
-| `stream_timeframe.py` | Granularidades macro/micro duplas (7200 s / 180 s; assinatura legado m15/m5) |
+| `stream_timeframe.py` | Granularidades macro/micro duplas (7200 s / 60 s; assinatura legado m15/m5) |
 | `stream_candle_apply.py` | Aplicação incremental de velas |
 | `stream_tick_sidecar.py` | Ingestão de ticks e persistência de barras |
 | `stream_ohlc_fetch.py` | Busca OHLC sem alterar buffer |
@@ -382,15 +381,11 @@ presentation  →  application  →  domain
 
 | Módulo | Responsabilidade |
 |--------|------------------|
-| `triton_inference_client.py` | Facade de inferência Triton |
-| `triton_grpc_client.py` | Cliente gRPC aio persistente |
-| `triton_http.py` | HTTP para Triton |
-| `triton_model_sync.py` | Sync TorchScript MinIO → Triton |
-| `triton_model_metadata.py` | Metadados HTTP de modelos |
-| `triton_tensor_builder.py` | Montagem de tensores OHLC |
 | `meta_classifier_client.py` | Cliente HTTP meta-classificador |
 | `meta_classifier_pool.py` | Pool singleton do cliente meta |
 | `meta_classifier_types.py` | Tipos de payload meta |
+
+Inferência TCN: eager/CUDA local no host (`dl_predict*`); sem servidor de inferência no compose.
 
 ### Storage (`infrastructure/storage/`)
 
@@ -398,7 +393,7 @@ presentation  →  application  →  domain
 |--------|------------------|
 | `minio_model_store.py` | Armazenamento MinIO de checkpoints |
 | `local_model_store.py` | Checkpoints locais (testes/cache) |
-| `torchscript_sanity.py` | Validação forward pass TorchScript/Triton |
+| `torchscript_sanity.py` | Validação forward pass TorchScript |
 | `torchscript_sanity_probes.py` | Tensores de stress para sanidade |
 
 ### Market (`infrastructure/market/`)
@@ -435,7 +430,7 @@ presentation  →  application  →  domain
 | Caminho | Função |
 |---------|--------|
 | `batch/launch-all-demo.bat` | Launcher demo Windows |
-| `batch/launch-train.bat` | Launcher treino Windows (sanitiza run antes) |
+| `batch/launch-train.bat` | Launcher treino Windows: sanitize → sweep H15–H60 + promote → gate → Timescale → meta (logs densos) |
 | `monitor/live_monitor.py` | Monitor Rich ao vivo |
 | `monitor/monitor_redis.py` | Inspeção Redis |
 | `monitor/monitor_state.py` | Inspeção de estado |
@@ -482,7 +477,7 @@ Convenção: espelha as camadas DDD. Cobertura obrigatória **100%** em `app/src
 ```mermaid
 flowchart TD
   BR[decision_bridge] --> BUNDLE[dl_predict_build 34D TCN]
-  BUNDLE --> PRED[dl_predict_triton gRPC 0.50s]
+  BUNDLE --> PRED[dl_predict eager/CUDA]
   PRED --> META[meta_classifier_client 43D]
   META --> RES[execution_direction_resolver]
   RES --> CHK[execution_direction_checks]
@@ -528,8 +523,7 @@ flowchart TD
 | `data/state.json` | Estado geral legado |
 | `data/session_state.json` | Métricas da sessão ativa |
 | `data/dl/{symbol}.pth` | Checkpoints PyTorch |
-| `data/dl/{symbol}_ts.pt` | TorchScript para Triton |
-| `infra/docker/triton-models/{symbol}/` | Layout Triton |
+| `data/dl/{symbol}_ts.pt` | TorchScript (artefato local/MinIO) |
 | `infra/docker/meta-models/` | LightGBM `.pkl` (43D) |
 
 ---
@@ -542,13 +536,12 @@ make app-lint
 make app-test
 make docker-up
 make docker-up-core
-make docker-up-cpu
 make docker-smoke
 make app-train
 make app-run
 make app-pre-commit-run
 ```
 
-Infra Docker hibrida: profiles `core` / `gpu`(+overlay NVIDIA) / `cpu` / `ml`. Detalhes em [`infra-docker.md`](infra-docker.md).
+Infra Docker hibrida: profiles `core` / `ml`. Detalhes em [`infra-docker.md`](infra-docker.md).
 
 Verificação estrutural: máximo **300 linhas** por arquivo em `app/src/` (estágio lint do `clean_workspace.py`).

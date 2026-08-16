@@ -1,15 +1,14 @@
 # Infraestrutura Docker
 
-Stack local **hibrida**: motor no host (Conda/WSL), persistencia e inferencia em containers. SSOT operacional deste doc; atalho em [`infra/docker/README.md`](../infra/docker/README.md).
+Stack local **hibrida**: motor no host (Conda/WSL) com inferencia TCN **eager/CUDA local**; persistencia e sidecars ML em containers. SSOT operacional deste doc; atalho em [`infra/docker/README.md`](../infra/docker/README.md).
 
 ## Servicos
 
 | Servico | Porta (localhost) | Profile | Limite tipico | Uso |
 |---------|-------------------|---------|---------------|-----|
 | Redis | `127.0.0.1:6379` | `core` | 256m | Estado, risco, `settlement:queue:priority` |
-| TimescaleDB | `127.0.0.1:5432` | `core` | 1g | Ticks + OHLC macro **7200 s** / micro **180 s** (M3) |
-| MinIO | `127.0.0.1:9000` / `9001` | `core`, `gpu`, `cpu` | 512m | Checkpoints / TorchScript |
-| Triton (`aether-triton`) | `127.0.0.1:8000` / `8001` | `gpu` ou `cpu` | — | Inferencia TorchScript HTTP+gRPC |
+| TimescaleDB | `127.0.0.1:5432` | `core` | 1g | Ticks + OHLC macro **7200 s** / micro **60 s** (M1) |
+| MinIO | `127.0.0.1:9000` / `9001` | `core` | 512m | Checkpoints / TorchScript |
 | Meta (`aether-meta-classifier`) | `127.0.0.1:8005` | `ml` | 512m | LGBMRegressor **43D**; `/v2/predict_meta` + `/v1/learn` online a cada settle (`META_RETRAIN_MIN_N` **2**); buffer `meta_learn_buffer.pkl` |
 | Loss (`aether-loss-classifier`) | `127.0.0.1:8006` | `ml` | 512m | LGBMClassifier **24D**; buffer `learn_buffer.pkl` no volume; `/learn` + retrain **a cada trade** (WIN+LOSS no buffer; `LOSS_RETRAIN_MIN_N` **1**); saida bootstrap `LOSS_BOOTSTRAP_EXIT_N` **16** (floor efetivo ≥**8**); soft Kelly floor **0.65** / hard FLIP **0.90** |
 
@@ -22,33 +21,23 @@ Logs de um servico: `make docker-logs DOCKER_SERVICE=<alias>`. Aliases Make → 
 | `redis`, `aether-redis` | `redis` |
 | `ts`, `timescale`, `timescaledb`, `aether-timescaledb` | `timescaledb` |
 | `minio`, `aether-minio` | `minio` |
-| `triton`, `aether-triton` | `aether-triton` |
 | `meta`, `meta-classifier`, `aether-meta-classifier` | `aether-meta-classifier` |
 | `loss`, `loss-classifier`, `aether-loss-classifier` | `aether-loss-classifier` |
 
 ## Profiles e Make
 
-| Target | Profiles | GPU overlay | Quando usar |
-|--------|----------|-------------|-------------|
-| `make docker-up` | `core,gpu,ml` (padrao) | sim (`DOCKER_GPU=1`) | Stack completa com NVIDIA |
-| `make docker-up-cpu` | `core,cpu,ml` | nao | Triton sem NVIDIA (WSL CPU) |
-| `make docker-up-core` | `core` | nao | So Redis/TS/MinIO (Triton off nos settings) |
+| Target | Profiles | Quando usar |
+|--------|----------|-------------|
+| `make docker-up` | `core,ml` (padrao) | Stack completa: Redis/TS/MinIO + meta + loss |
+| `make docker-up-core` | `core` | So Redis/TS/MinIO |
 
-**Exclusao mutua:** nao misturar `docker-up` (GPU) e `docker-up-cpu` na mesma porta 8000/8001. Overlay: [`docker-compose.gpu.yml`](../infra/docker/docker-compose.gpu.yml).
-
-Pipeline `docker-up`: `host-prereq` → `triton-prereq` → compose up → wait healthy → timescale-lifecycle → hydrate (R_10 180/7200) → smoke.
+Pipeline `docker-up`: `host-prereq` → compose up → wait healthy → timescale-lifecycle → hydrate (R_10 micro/macro) → smoke.
 
 Fluxo diario: `make docker-up` → `launch-train.bat` (sanitiza + treina TCN/meta) → `make docker-rebuild` (reconstroi imagens meta/loss e recarrega pkls **sem** apagar `data/dl`). Rebuild **nao** chama `sanitize_fresh_run`. Reset destrutivo: `make docker-reset` (sanitiza TCN/loss/estado, mantem `meta_lgbm.pkl`, `down --volumes`). Sanitizacao total (inclui `meta_lgbm.pkl` e `data/dl/*.pth`): `make sanitize-run` ou etapa 0 de `launch-train.bat`. Smoke: processo meta pode subir sem `.pkl` (aviso); modelo so apos `launch-train`.
 
-## GPU e Triton
+## Inferencia TCN (host)
 
-Imagem `nvcr.io/nvidia/tritonserver:24.10-py3`, repo bind `infra/docker/triton-models`. Flags: `--strict-readiness=false`, `--exit-on-error=false`. Health: `/v2/health/live`.
-
-Layout de modelo deve ser `model.<backend>` (ex.: TorchScript); pasta `R_10` sem backend gera `Invalid model name` no log Triton — o motor hibrido usa CUDA local quando Triton nao carrega o simbolo.
-
-Nos settings atuais o app pode ter `infra.triton.enabled: false`; a stack Docker permanece disponivel para fail-closed (`require_for_execution: true`).
-
-Fluxo no motor: sync MinIO → `triton-models` → load explicito → sanity estressado → `TritonGrpcClient` em `localhost:8001`.
+TCN roda no processo do motor (PyTorch eager / CUDA local) a partir de checkpoints em `data/dl/`. MinIO guarda artefactos; nao ha servidor de inferencia no compose. Sanity de TorchScript (quando aplicavel) e local ao host.
 
 ## Meta-regressor LightGBM
 
@@ -65,14 +54,12 @@ Imagem: Python 3.13-slim, user nao-root `aether`.
 
 | Variavel | Padrao |
 |----------|--------|
-| `AETHER_TRITON_HTTP` / `AETHER_TRITON_GRPC` | `localhost:8000` / `localhost:8001` |
 | `AETHER_META_CLASSIFIER_HTTP` | `http://localhost:8005` |
 | `AETHER_LOSS_CLASSIFIER_HTTP` | `http://localhost:8006` |
 | `AETHER_DOCKER_HEALTH_TIMEOUT` | `300` |
-| `DOCKER_PROFILES` / `COMPOSE_PROFILES` | `core,gpu,ml` |
-| `DOCKER_GPU` | `1` (use `0` com `docker-up-cpu`) |
+| `DOCKER_PROFILES` / `COMPOSE_PROFILES` | `core,ml` |
 
-Settings app: `infra.redis.url`, `infra.timescale.dsn`, `infra.minio`, `infra.triton`, `infra.meta_classifier`, `infra.loss_classifier` — sempre **localhost** no hibrido.
+Settings app: `infra.redis.url`, `infra.timescale.dsn`, `infra.minio`, `infra.meta_classifier`, `infra.loss_classifier` — sempre **localhost** no hibrido.
 
 ## Redis / Timescale / MinIO
 
@@ -84,4 +71,4 @@ Settings app: `infra.redis.url`, `infra.timescale.dsn`, `infra.minio`, `infra.tr
 
 ## Relacao com o motor
 
-Com `infra.enabled: true`, startup valida Redis/Timescale/MinIO (fail-fast). Mensagem operacional: `make docker-up-core|docker-up|docker-up-cpu`. Detalhe de software: [`arquitetura.md`](arquitetura.md). Skill: `aether-infra-stack`.
+Com `infra.enabled: true`, startup valida Redis/Timescale/MinIO (fail-fast). Mensagem operacional: `make docker-up-core|docker-up`. Detalhe de software: [`arquitetura.md`](arquitetura.md). Skill: `aether-infra-stack`.

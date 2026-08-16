@@ -17,7 +17,7 @@
 | Histórico OHLC | `ticks_history` no gateway **publico** (`style: candles`) |
 | Stream ao vivo | Dupla assinatura OHLC no WSS usado (publico ou OTP) |
 | Keep-alive | Ping no `WebSocketManager` |
-| Inferência DL | Triton gRPC local; ver [infra-docker.md](infra-docker.md) |
+| Inferência DL | Eager/CUDA local no host; ver [infra-docker.md](infra-docker.md) |
 
 ### Regras oficiais (resumo)
 

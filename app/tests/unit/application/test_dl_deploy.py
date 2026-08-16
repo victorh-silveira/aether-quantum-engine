@@ -55,7 +55,7 @@ def test_evaluate_mini_deploy_insufficient_history():
 
 
 def test_evaluate_mini_deploy_forces_local_predict():
-    orch = type("O", (), {"config": {"infra": {"triton": {"enabled": True}}}})()
+    orch = type("O", (), {"config": {"infra": {}}})()
     model = create_direction_model(input_dim=FEATURE_DIM)
     stats = fit_norm_stats(np.zeros((1, 32, FEATURE_DIM), dtype=np.float32))
     runtime = {

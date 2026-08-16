@@ -94,8 +94,17 @@ def test_promote_main_dry_run_ok(tmp_path: Path):
     with (
         patch("scripts.operations.promote_tf_winner.load_settings_json", return_value={}),
         patch("scripts.operations.promote_tf_winner.load_tf_sweep_knobs", return_value=knobs),
+        patch("scripts.operations.promote_tf_winner.setup_logger") as setup_log,
     ):
+        log = setup_log.return_value
         assert promote_main(["--leaderboard", str(tmp_path / "lb.json"), "--dry-run"]) == 0
+        preview_msgs = [c.args[0] for c in log.info.call_args_list if c.args and "winner=" in str(c.args[0])]
+        assert preview_msgs
+        log.reset_mock()
+        assert promote_main(["--leaderboard", str(tmp_path / "lb.json"), "--dry-run", "--quiet"]) == 0
+        quiet_preview = [c.args[0] for c in log.info.call_args_list if c.args and "winner=" in str(c.args[0])]
+        assert quiet_preview == []
+        assert any("dry-run" in str(c.args[0]) for c in log.info.call_args_list if c.args)
 
 
 def test_launch_train_pipeline_dry_and_no_eligible(tmp_path: Path, monkeypatch):
@@ -235,6 +244,94 @@ def test_launch_train_pipeline_fallback_single(tmp_path: Path):
         assert run_launch_train_tf_pipeline() == 0
         sp.assert_called_once()
         assert run_launch_train_tf_pipeline(dry_run=True) == 0
+
+
+def test_format_horizon_cell_line_and_quiet_board(tmp_path: Path):
+    from scripts.operations.run_launch_train_tf_pipeline import _log_board
+    from scripts.operations.sweep_train_timeframes import _format_horizon_cell_line
+    from src.presentation.terminal.logger import setup_logger
+
+    _ = tmp_path
+    row = {
+        "tf": "H25",
+        "label_horizon_bars": 25,
+        "settle_wr": 0.6944,
+        "settle_n": 36,
+        "val_accuracy": 0.7697,
+        "edge_vs_be": 0.113,
+        "deploy_ok": True,
+        "eligible": True,
+        "train_exit_code": 0,
+    }
+    line = _format_horizon_cell_line(index=3, total=10, row=row)
+    assert "cell 3/10 H25 N=25" in line
+    assert "eligible=1" in line
+    assert "deploy=1" in line
+    assert "why=" not in line
+
+    fail_row = dict(row)
+    fail_row["deploy_ok"] = False
+    fail_row["eligible"] = False
+    fail_row["train_exit_code"] = 1
+    fail_row["pred_call_frac"] = 0.70
+    fail_row["label_call_frac"] = 0.46
+    fail_line = _format_horizon_cell_line(index=4, total=10, row=fail_row)
+    assert "why=collapse" in fail_line
+    assert "exit=1" in fail_line
+
+    knobs = {
+        "quiet_train_logs": True,
+        "payout_for_breakeven": 0.72,
+        "min_edge_vs_breakeven": 0.03,
+        "min_settle_n": 16,
+        "min_history_bars": 800,
+        "weight_edge": 1.0,
+        "weight_brier": 0.5,
+        "weight_sharpness": 0.25,
+        "weight_meta_ir": 0.25,
+        "soft_max_brier": 0.26,
+    }
+    board = [
+        enrich_leaderboard_row(
+            {
+                "tf": "H15",
+                "deploy_ok": True,
+                "val_accuracy": 0.7,
+                "settle_wr": 0.55,
+                "settle_n": 40,
+                "history_bars": 1333,
+                "val_brier": 0.22,
+            },
+            knobs=knobs,
+        ),
+        enrich_leaderboard_row(
+            {
+                "tf": "H25",
+                "deploy_ok": True,
+                "val_accuracy": 0.77,
+                "settle_wr": 0.69,
+                "settle_n": 36,
+                "history_bars": 1333,
+                "val_brier": 0.22,
+            },
+            knobs=knobs,
+        ),
+    ]
+    assert board[0]["eligible"] is False
+    assert board[1]["eligible"] is True
+    log = setup_logger("HORIZON_TEST")
+    with patch.object(log, "info") as info:
+        _log_board(log, "HORIZON", board, knobs)
+    assert info.call_count == 1
+    fmt = str(info.call_args.args[0])
+    assert "board candidatos=%s" in fmt
+    assert info.call_args.args[1:] == ("HORIZON", 2, 1, "H15")
+    detail_tfs = [
+        c.args[3]
+        for c in info.call_args_list
+        if len(c.args) > 3 and "tf=%s" in str(c.args[0]) and "symbol=%s" in str(c.args[0])
+    ]
+    assert detail_tfs == []
 
 
 def test_run_tf_sweep_dry_writes_overlay(tmp_path: Path):

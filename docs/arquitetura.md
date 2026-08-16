@@ -10,21 +10,21 @@ Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (TCN,
 |---------|--------------------------------------|
 | Símbolos | `R_10` (âncora `R_10`) |
 | Granularidade OHLC (DL) | **7200 s** (`data_handler.granularity`; assinatura legado `m15`) |
-| Relógio operacional | **180 s** (`data_handler.micro_granularity`; M3) |
-| Histórico para treino | `training_history_bars` / `history_bars` conforme settings (micro **180 s** / macro **7200 s**) |
+| Relógio operacional | **60 s** (`data_handler.micro_granularity`; M1) |
+| Histórico para treino | `training_history_bars` / `history_bars` conforme settings (micro **60 s** / macro **7200 s**) |
 | Lookback | **`deep_learning.lookback`** (settings atuais **480**) → tensor **`[1, lookback, 34]`** |
 | Features TCN | **34** (`FEATURE_DIM` em `dl_feature_build.py`) |
 | Features meta GBDT | **43** (`META_FEATURE_DIM` = 34 + 4 micro-vol + 3 cross + 2 flow) |
-| Contrato | `RISE_FALL`, duração **N × 3 min** (N velas M3; N eleito no launch-train) |
-| Ciclo | **180 s** (`cycle_interval_seconds` / `signature_boundary_seconds`; sync M3) |
+| Contrato | `RISE_FALL`, duração **5 m** (ops fixo); label TCN **N** velas M1 (N ∈ {15,20,…,60} eleito no launch-train; **SSOT atual N=50**) |
+| Ciclo | **60 s** (`cycle_interval_seconds` / `signature_boundary_seconds`; sync M1) |
 | Execução | `mandatory_trade_each_cycle: false`; `force` off; `invert_exec_side: false`; fusao EV + signal_skip 1.1 (quality gate amplo **fora**) |
-| Fail-closed | Meta e Triton **opcionais** nos settings atuais (`require_meta_for_execution: false`; `infra.triton.enabled/require_for_execution: false`) |
+| Fail-closed | Meta **opcional** nos settings atuais (`require_meta_for_execution: false`); TCN eager/CUDA local |
 | Label | `label_mode: ma_trend` (`spot_forward` / Triple Barrier via config) |
 | Meta sessão | Stop win **3,00%** (`compounding_rate_daily: 0.03`); stop loss desativado |
 
 O mercado é tratado como série temporal ruidosa: a TCN estima `P(CALL)` (thresholds **0.62/0.38**); o meta-regressor LightGBM estima `predicted_payoff_edge`; o ranking usa `tcn × max(0.1, 1+z)`. Com `price_zone` (hoje **off**), BUY alinharia CALL e SELL PUT; edge meta positivo pode **manter** o lado TCN/meta contra a zona (`align_or_keep_meta_side`).
 
-**Invariante temporal:** inferências seguem `signature_boundary_seconds` (fallback `cycle_interval_seconds`, padrão **180 s**) via `get_data_state_signature()` — formato legado `m5`/`m15` alinhado a **180 s** (micro M3) / **7200 s** (macro); ratio macro:micro **1:40**.
+**Invariante temporal:** inferências seguem `signature_boundary_seconds` (fallback `cycle_interval_seconds`, padrão **60 s**) via `get_data_state_signature()` — formato legado `m5`/`m15` alinhado a **60 s** (micro M1) / **7200 s** (macro); ratio macro:micro **1:120**.
 
 **Válvula de starvation:** após **6** ciclos consecutivos bloqueados pelo quality gate, pisos de margem/edge/Z são atenuados (`execution_quality_gate_starvation.py`). O piso de edge meta relaxa a partir de **8** skips (`edge_decay_cycles`) até `edge_decay_floor: 0.0` (passo `0.08`). Em skips extremos (≥30), a válvula GBDT mitiga veto tabular prolongado.
 
@@ -51,7 +51,7 @@ aether-quantum-engine/
 ├── config/settings.json # Runtime
 ├── data/                # state, session_state, dl/
 ├── docs/
-├── infra/docker/        # Redis, Timescale, MinIO, Triton (repo R_10), meta-classifier
+├── infra/docker/        # Redis, Timescale, MinIO, meta-classifier, loss-classifier
 └── linters/             # Ruff, Interrogate, Vulture, ≤300 linhas/arquivo
 
 ```
@@ -66,7 +66,7 @@ presentation  →  application  →  domain
 |--------|-------|-------|
 | Application | `application/services/` | Orquestração, DL, direção modular, quality gates, meta |
 | Domain | `domain/` | Risco Kelly + Soft Recovery (`soft_recovery_policy`), `RiskPolicy`, modelos, math |
-| Infrastructure | `infrastructure/` | Deriv WS/REST (retry 5xx), Redis, Triton, MinIO, Timescale |
+| Infrastructure | `infrastructure/` | Deriv WS/REST (retry 5xx), Redis, MinIO, Timescale |
 | Presentation | `presentation/` | Logger terminal |
 
 Regra: **domain** não importa application nem infrastructure. Implementações concretas vêm de `infra_factory.create_infra_services`.
@@ -84,7 +84,7 @@ flowchart TD
   TC --> SIG[get_data_state_signature micro+macro]
   TC --> LOCK[orchestrator_atomic_state_context]
   LOCK --> DL[collect_deep_learning_decisions]
-  DL --> TRI[TritonGrpcClient / force_local no deploy gate]
+  DL --> LOCAL[PyTorch eager / CUDA local]
   DL --> BUNDLE[prepare_meta_classifier_cross_symbol_bundle]
   BUNDLE --> META[prefetch_meta_payoff_for_decisions]
   META --> RES[resolve_execution_direction]
@@ -107,10 +107,10 @@ flowchart TD
 1. `app/run.py` carrega `config/settings.json` + PAT (`.env`: `AETHER_DERIV_PAT`, `AETHER_DERIV_APP_ID`) via `aether_asyncio.run`.
 2. `Orchestrator.__init__`: `create_infra_services`, `AuthManager`, `WebSocketManager`, `StreamHandler`, `TradeHandler`, `RiskManager`, `StateManager`, `ExecutionManager`.
 3. `validate_engine_risk_config` / `RiskPolicy` no boot (`risk_policy.py`).
-4. `validate_infra_services` (fail-fast se `infra.enabled`) → `bootstrap_and_validate_models` (quando Triton/MinIO ativos):
-   - MinIO → `{symbol}.pth` + `latest_ts.pt`
-   - Sanity TorchScript multi-probe (`torchscript_sanity_probes`)
-   - Sync Triton (`triton_model_sync`) no repositório **`R_10`** + schema + stress infer
+4. `validate_infra_services` (fail-fast se `infra.enabled`) → `bootstrap_and_validate_models` (quando MinIO/checkpoints ativos):
+   - MinIO → `{symbol}.pth` + artefactos locais
+   - Sanity TorchScript multi-probe (`torchscript_sanity_probes`) quando aplicavel
+   - Load TCN local (eager/CUDA) + schema + stress infer
 5. Auth OTP (health PAT com retry em 502/503/504) → `bootstrap_active_session_targets` (meta 2,60%).
 6. Streams macro+micro+ticks → watchdog → settlement worker → loop principal.
 
@@ -132,8 +132,8 @@ flowchart TD
 
 | Componente | Função |
 |------------|--------|
-| `m5_boundary_epoch()` | Epoch alinhado ao bloco de **180 s** corrente (nome legado) |
-| Micro | `m5:{sym}@{epoch}` — relógio **180 s** (M3) |
+| `m5_boundary_epoch()` | Epoch alinhado ao bloco de **60 s** corrente (nome legado) |
+| Micro | `m5:{sym}@{epoch}` — relógio **60 s** (M1) |
 | Macro | `m15:{sym}@{epoch}` — relógio **7200 s** |
 | Formato | `m5b:{boundary};m5:...;m15:...` |
 
@@ -156,7 +156,7 @@ Módulos: `dl_feature_build.py` (séries), `dl_feature_matrix.py` (linhas/matriz
 
 **Config 100% JSON:** períodos, multiplicadores e thresholds de indicadores vivem em `deep_learning.indicators` (`config/settings.json`). O Python só resolve via `resolve_indicator_config` / `load_indicator_config_from_settings` — sem magic numbers de indicador no código. Mudar períodos sem retreinar o TCN altera a distribuição das features (fingerprint inválido até retreino).
 
-**SSOT de knobs de runtime:** thresholds de negócio, timing/infra e parsers DL restantes também vivem só em `config/settings.json` (quality_gate/starvation/recovery_relax, soft_recovery, recovery_state, kelly runtime, loss_protection.disconnect, market_rank.composite, edge_zscore operacional, live_signal_metrics, meta_payoff_veto, regime/force/cross_corr, timeouts orchestrator/meta/triton/stream/history/shadow, aux_regression_weight, calibration bounds, dynamic_threshold clamps, price_zone, side_equilibrium, deploy_gate). Resolvers `resolve_*_config` / `*_from_settings` são fail-closed (chave ausente = `ValueError`). Exclusões: dims de tensor, enums/reason strings, chaves Redis, epsilons `1e-9`/`1e-12`.
+**SSOT de knobs de runtime:** thresholds de negócio, timing/infra e parsers DL restantes também vivem só em `config/settings.json` (quality_gate/starvation/recovery_relax, soft_recovery, recovery_state, kelly runtime, loss_protection.disconnect, market_rank.composite, edge_zscore operacional, live_signal_metrics, meta_payoff_veto, regime/force/cross_corr, timeouts orchestrator/meta/stream/history/shadow, aux_regression_weight, calibration bounds, dynamic_threshold clamps, price_zone, side_equilibrium, deploy_gate). Resolvers `resolve_*_config` / `*_from_settings` são fail-closed (chave ausente = `ValueError`). Exclusões: dims de tensor, enums/reason strings, chaves Redis, epsilons `1e-9`/`1e-12`.
 
 Normalização anti-leakage: `fit_norm_stats` **somente** no split de treino (`dl_splits` purged/embargo).
 
@@ -169,7 +169,7 @@ Normalização anti-leakage: `fit_norm_stats` **somente** no split de treino (`d
 | Perda | Focal assimétrica alta vol (`dl_training_epochs._masked_loss`) |
 | Labels | `dl_labels.LabelSpec` — `spot_forward` / `ma_trend` / `triple_barrier` |
 | Checkpoint | `data/dl/{symbol}.pth` + TorchScript / MinIO |
-| Deploy gate | `dl_deploy_eval` com **`force_local=True`** (avalia modelo em memória, sem Triton) |
+| Deploy gate | `dl_deploy_eval` com **`force_local=True`** (avalia modelo em memória) |
 
 Config atual: `arch: tcn`, `lookback: 480`, `label_mode: ma_trend`, thresholds **0.62** / **0.38**, `neutral_half_width: 0.0`.
 
@@ -185,10 +185,8 @@ Config atual: `arch: tcn`, `lookback: 480`, `label_mode: ma_trend`, thresholds *
 
 `predict_symbol_decision_async` (`dl_predict_async.py`):
 
-- Triton quando habilitado e **não** `force_local`
-- Timeout `infra.triton.infer_timeout_seconds` (settings atuais **8 s** quando Triton ligado); com `require_for_execution: true` → fail-closed sem fallback local em produção
-- Path sync (`dl_predict.py`) usado pelo mini-deploy de treino: `force_local=True` evita gRPC em thread de treino (bug `Future attached to a different loop`)
-- Cliente gRPC loop-aware: `triton_grpc_client.get_triton_grpc_client` recria canal se o event loop mudou
+- Inferência eager/CUDA local no host
+- Path sync (`dl_predict.py`) usado pelo mini-deploy de treino: `force_local=True` evita conflito de event loop em thread de treino
 - Cache por fingerprint do tensor (`dl_predict_cache`)
 - Calibração: `dl_calibration_tolerance` — override TCN macro quando raw &gt;0.65 ou &lt;0.35; zona neutra **off** (`neutral_half_width: 0.0`)
 
@@ -205,7 +203,7 @@ Config atual: `arch: tcn`, `lookback: 480`, `label_mode: ma_trend`, thresholds *
 | Cliente | `MetaClassifierClient` + `meta_classifier_pool` (rebind por loop) |
 | Timeout | 1,0 s; fallback `predicted_payoff_edge=0.0` |
 | Artefatos | `infra/docker/meta-models/*.pkl` |
-| Execução | Meta **opcional** (`require_meta_for_execution: false`); Triton permanece obrigatório |
+| Execução | Meta **opcional** (`require_meta_for_execution: false`) |
 
 ### Loss-classifier (sidecar HTTP)
 
@@ -235,7 +233,7 @@ Montagem: `dl_predict_telemetry.prepare_meta_classifier_cross_symbol_bundle` →
 
 ### 5.3 Stacking runtime
 
-1. Bundle cross-symbol + telemetria micro **180 s**
+1. Bundle cross-symbol + telemetria micro **60 s**
 2. Prefetch HTTP → `predicted_payoff_edge`
 3. `attach_payoff_edge_zscore_metrics` (janela adaptativa 15–45)
 4. `apply_meta_regression_edge`: edge > 0 mantém score TCN; edge < −0,15 + squeeze → `trade_score=0.52` (`[D-SQUEEZE]`)
@@ -255,7 +253,7 @@ Scripts: `train_meta_vector.py`, `train_meta_data.py`, `train_meta_classifier.py
 
 ## 6. Direção, fusao EV e gates (escopo 1.1)
 
-Runtime atual: TCN ancora Cal → soft `signal_skip` / loss-clf → **fusao EV** (`execution_direction_fusion`) escolhe CALL/PUT → Kelly/caps. Quality gate amplo (RSI/price_zone/SIDE_EQ block) permanece **fora** do codigo; starvation/recovery_relax abaixo sao legado de modulos ainda presentes, nao o eixo operacional.
+Runtime atual: TCN ancora Cal → SCALE → soft `signal_skip` → **fusao EV** (`execution_direction_fusion`) escolhe CALL/PUT → **loss-clf FLIP** (ref TCN, ultimo) → neg_edge/Kelly/caps. Nota: `fusion_loss_weight` nao ve o `p_loss` do mesmo ciclo (FLIP apos fusao); sob seed, `loss_bonus` ja e **0**. Quality gate amplo (RSI/price_zone/SIDE_EQ block) permanece **fora** do codigo; starvation/recovery_relax abaixo sao legado de modulos ainda presentes, nao o eixo operacional.
 
 ### 6.1 Motor de direção (modular)
 
@@ -276,7 +274,7 @@ Runtime atual: TCN ancora Cal → soft `signal_skip` / loss-clf → **fusao EV**
 | `infer_dl_direction` | TCN: `P(CALL) ≥ pivot` → CALL, senão PUT (thresholds **0.62/0.38**) |
 | Meta edge | Refina score / D-SQUEEZE (meta opcional); edge abaixo do piso dinâmico → `meta_negative_edge` |
 | Persistence | Flip CALL↔PUT com `side_eq_toxic_escape` **ou** `persistence_guard_skip` |
-| Bloqueio absoluto | `deploy_ok=false`, `gate_reason ∈ {data, predict_error, training}`; Triton fail-closed só se configurado |
+| Bloqueio absoluto | `deploy_ok=false`, `gate_reason ∈ {data, predict_error, training}` |
 
 ### 6.2 Quality gate dual soft + HARD microestrutura
 
@@ -315,7 +313,7 @@ Em modo mandatário, o quality guard emite telemetria `QUALITY_GUARD` / `EXECUTI
 ### 7.2 ExecutionManager
 
 - Stake via `RiskManager.calculate_stake` → `risk_stake_calc.calculate_stake_for_manager`
-- `TradeHandler.buy_with_parameters`: RISE_FALL **N × 3 min**
+- `TradeHandler.buy_with_parameters`: RISE_FALL **5 m** (ops fixo; label H50)
 - Reconciliação de stake downgrade Deriv (`executed_stake_reconciliation`)
 
 ### 7.3 Settlement
@@ -367,11 +365,11 @@ Facade: `domain/risk/risk_manager.RiskManager.calculate_stake`.
 | Redis | 6379 | Estado atômico, settlement ZSET, starvation counter |
 | TimescaleDB | 5432 | Ticks/OHLC; correlação |
 | MinIO | 9000/9001 | Checkpoints TCN/TorchScript |
-| Triton | 8000/8001 | Inferência GPU gRPC |
 | Meta-classifier | 8005 | LightGBM HTTP |
+| Loss-classifier | 8006 | Loss-clf HTTP |
 | Deriv | WS/REST | Auth PAT, streams, propostas |
 
-Config `infra.*`: `enabled`, `fail_fast`, `redis`, `timescale`, `minio`, `triton` (`infer_timeout_seconds: 0.50`, `require_for_execution`), `meta_classifier`.
+Config `infra.*`: `enabled`, `fail_fast`, `redis`, `timescale`, `minio`, `meta_classifier`, `loss_classifier`.
 
 Persistência: `redis_state_pipeline.write_state_bundle` (MULTI/EXEC) — snapshot, risk hash, pending_loss, session keys, skip counters, market_sig, settlement queue.
 
@@ -382,25 +380,25 @@ Watchdog: `AetherWatchdog` reconecta stream se ticks estagnarem (`watchdog_stale
 ## 10. Configuração (`config/settings.json`)
 
 ### `data_handler`
-`granularity` (**7200**), `micro_granularity` / `mini_granularity` (**180**), `history_bars` / `training_history_bars` conforme settings (treino tipico **2000** micro M3), `fetch_count`, `buffer_limit`, rate-limits de histórico.
+`granularity` (**7200**), `micro_granularity` / `mini_granularity` (**60**), `history_bars` / `training_history_bars` conforme settings (treino tipico **2000** micro M1), `fetch_count`, `buffer_limit`, rate-limits de histórico.
 
 ### `deep_learning`
 `arch`, `lookback` (**480**), `train_symbols`, `confidence_*` (**0.62/0.38**), `calibration.*` (`neutral_half_width: 0.0`), `online_training` (**false**), `deploy_gate.*`, `label_mode` + `label_*`, `tcn.channels`, `training_*`, `model_path_template`, `min_edge_execute`.
 
 ### `orchestrator` / `orchestrator.execution`
-`cycle_interval_seconds` (**180**), `signature_boundary_seconds` (**180**), `exec_empty_retry_seconds` (**180**), `watchdog_stale_tick_seconds` (**300**), `mandatory_trade_each_cycle` (**false**), `invert_exec_side` (**false**), `require_meta_for_execution` (**false**), `scale_vision.fusion_*` + `signal_skip` 1.1, `settlement_*` (**90 s** SSOT), `post_settlement_is_trading_wait_seconds` (**90**), `warm_up_live_data_timeout_seconds`, `broker_handshake_timeout_seconds`, `state_lock_acquire_timeout_seconds`.
+`cycle_interval_seconds` (**60**), `signature_boundary_seconds` (**60**), `exec_empty_retry_seconds` (**60**), `watchdog_stale_tick_seconds` (**300**), `mandatory_trade_each_cycle` (**false**), `invert_exec_side` (**false**), `require_meta_for_execution` (**false**), `scale_vision.fusion_*` + `signal_skip` 1.1, `settlement_*` (**90 s** SSOT), `post_settlement_is_trading_wait_seconds` (**90**), `warm_up_live_data_timeout_seconds`, `broker_handshake_timeout_seconds`, `state_lock_acquire_timeout_seconds`.
 
 ### `risk_management`
-`kelly.*` (`fraction: 0.08`, explore piso **0.25%**, tetos stop-win Kelly ate **5%**), `soft_recovery.*` (amort **1/1**, cover **1.50**, linear3 **2.5%**), `min_validation_accuracy_gate` (**0.53**), `params.*` (duration **3** m, compounding **0.03**, stake_min, payout_estimate **0.72**), `large_account_stop_win_pct` (**3.0**), `small_account_*`.
+`kelly.*` (`fraction: 0.08`, explore piso **0.25%**, tetos stop-win Kelly ate **5%**), `soft_recovery.*` (amort **1/1**, cover **1.50**, linear3 **2.5%**), `min_validation_accuracy_gate` (**0.53**), `params.*` (duration **5** m via `ops_contract_duration_minutes`; `label_horizon_bars` **50**, compounding **0.03**, stake_min, payout_estimate **0.72**), `large_account_stop_win_pct` (**3.0**), `small_account_*`.
 
 ### `infra`
-Redis/Timescale/MinIO/Triton/meta_classifier URLs e timeouts (`infer_timeout_seconds: 0.50`).
+Redis/Timescale/MinIO/meta_classifier/loss_classifier URLs e timeouts.
 
 ---
 
 ## 11. Observabilidade e QA
 
-Marcadores de log frequentes: `QUALITY_GUARD`, `EXECUTION_FLOW`, `REGIME_GUARD`, `D-SQUEEZE`, `TRITON_TIMEOUT_*`, `META_CLASSIFIER_FALLBACK`, `STOP_WIN`, `SESSAO INICIADA`, `DATA_SIG`.
+Marcadores de log frequentes: `QUALITY_GUARD`, `EXECUTION_FLOW`, `REGIME_GUARD`, `D-SQUEEZE`, `META_CLASSIFIER_FALLBACK`, `STOP_WIN`, `SESSAO INICIADA`, `DATA_SIG`.
 
 Pre-commit (`clean_workspace.py`):
 
@@ -425,7 +423,7 @@ flowchart LR
   end
   subgraph dl
     FEAT[dl_features 34D]
-    TRITON[TritonGrpcClient opcional]
+    LOCAL[eager CUDA local]
     PRED[dl_predict]
     TELE[dl_predict_telemetry]
     META[meta 43D GBDT]
@@ -449,7 +447,7 @@ flowchart LR
   end
   WS --> SH --> TB
   WD -->|STALE_DATA| SH
-  SH --> FEAT --> TRITON --> PRED --> TELE --> META --> RES --> CHK --> PSIST --> EDGE --> QG --> COL --> EM --> TH
+  SH --> FEAT --> LOCAL --> PRED --> TELE --> META --> RES --> CHK --> PSIST --> EDGE --> QG --> COL --> EM --> TH
   TH --> ST --> RM
   COL --> LOCK
   ST --> LOCK

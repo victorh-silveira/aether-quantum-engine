@@ -1,8 +1,7 @@
-"""Tensores de stress para forward pass de sanidade TorchScript e Triton."""
+"""Tensores de stress para forward pass de sanidade TorchScript local."""
 
 from __future__ import annotations
 
-import numpy as np
 import torch
 
 
@@ -24,11 +23,6 @@ def build_stressed_regime_probe_tensor(lookback: int, feature_dim: int) -> torch
     tensor[:, :, FEATURE_CMO_IDX] = STRESSED_CMO
     tensor[:, :, FEATURE_VOL_RATIO_IDX] = STRESSED_VOL_RATIO
     return tensor
-
-
-def build_stressed_regime_probe_ndarray(lookback: int, feature_dim: int) -> np.ndarray:
-    """Versao NumPy do probe estressado para inferencia Triton."""
-    return build_stressed_regime_probe_tensor(lookback, feature_dim).numpy()
 
 
 def build_sanity_probe_tensors(

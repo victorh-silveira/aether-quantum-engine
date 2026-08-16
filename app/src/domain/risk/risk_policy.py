@@ -12,7 +12,6 @@ class RiskPolicy:
 
     mandatory_trade_each_cycle: bool
     require_meta_for_execution: bool
-    require_triton_for_execution: bool
     max_stake_pct: float
     max_bankroll_stake_fraction: float
     recovery_min_trade_score: float
@@ -33,13 +32,9 @@ def load_risk_policy(config: dict[str, Any] | None) -> RiskPolicy:
     kelly = risk.get("kelly", {}) if isinstance(risk.get("kelly"), dict) else {}
     dl = cfg.get("deep_learning", {}) if isinstance(cfg.get("deep_learning"), dict) else {}
     deploy = dl.get("deploy_gate", {}) if isinstance(dl.get("deploy_gate"), dict) else {}
-    infra = cfg.get("infra", {}) if isinstance(cfg.get("infra"), dict) else {}
-    triton = infra.get("triton", {}) if isinstance(infra.get("triton"), dict) else {}
-    require_triton = bool(triton.get("require_for_execution", exec_cfg.get("require_triton_for_execution", False)))
     return RiskPolicy(
         mandatory_trade_each_cycle=bool(exec_cfg.get("mandatory_trade_each_cycle", False)),
         require_meta_for_execution=bool(exec_cfg.get("require_meta_for_execution", True)),
-        require_triton_for_execution=require_triton,
         max_stake_pct=float(kelly.get("max_stake_pct", 0.035)),
         max_bankroll_stake_fraction=float(kelly.get("max_bankroll_stake_fraction", 0.035)),
         recovery_min_trade_score=float(kelly.get("recovery_min_trade_score", 0.64)),

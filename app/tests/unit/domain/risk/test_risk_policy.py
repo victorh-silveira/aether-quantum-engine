@@ -7,12 +7,11 @@ def test_load_risk_policy_reads_nested_defaults():
             "orchestrator": {"execution": {"mandatory_trade_each_cycle": False, "require_meta_for_execution": True}},
             "risk_management": {"kelly": {"max_stake_pct": 0.02, "max_bankroll_stake_fraction": 0.02}},
             "deep_learning": {"deploy_gate": {"enabled": True}},
-            "infra": {"triton": {"require_for_execution": True}},
+            "infra": {},
         }
     )
     assert policy.mandatory_trade_each_cycle is False
     assert policy.require_meta_for_execution is True
-    assert policy.require_triton_for_execution is True
     assert policy.max_stake_pct == 0.02
     assert policy.deploy_gate_enabled is True
 

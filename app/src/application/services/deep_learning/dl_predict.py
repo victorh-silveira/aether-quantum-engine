@@ -103,7 +103,7 @@ def predict_symbol_decision(
     micro=None,
     force_local: bool = False,
 ) -> dict:
-    """Gera predicao DL sync (local ou remota via loop se necessario)."""
+    """Gera predicao DL sync (eager local via loop se necessario)."""
     if force_local:
         return predict_symbol_decision_sync(
             orch,
@@ -135,6 +135,5 @@ def predict_symbol_decision(
             high=high,
             low=low,
             micro=micro,
-            force_local=force_local,
         )
     )

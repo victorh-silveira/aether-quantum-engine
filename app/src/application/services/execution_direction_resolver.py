@@ -68,6 +68,7 @@ def _finalize_execution_metrics(
         metrics.pop("signal_status", None)
         metrics["force_trade_every_cycle"] = True
     metrics["meta_veto_mode"] = "none"
+    metrics["tcn_direction"] = dl_dir.name
     metrics.update(
         {
             "exec_direction": exec_dir.name,
@@ -118,11 +119,14 @@ def _finalize_execution_metrics(
     metrics.pop("gate_reason", None)
     if orch is not None:
         apply_signal_skip_gates(metrics, exec_dir, orch=orch, force=force, symbol=symbol)
-        apply_loss_classifier_gate(metrics, exec_dir, orch=orch, force=force, symbol=symbol)
+        exec_dir = apply_direction_fusion(metrics, exec_dir, orch=orch, cfg=fusion_cfg)
+        apply_scale_kelly_side_sync(metrics, exec_dir)
+        sync_direction_margin(metrics, direction=exec_dir.name)
+        tcn_ref = TradeDirection[str(metrics.get("tcn_direction") or dl_dir.name).upper()]
+        apply_loss_classifier_gate(metrics, tcn_ref, orch=orch, force=force, symbol=symbol)
         ready_name = str(metrics.get("exec_direction") or exec_dir.name).upper()
         if ready_name in {TradeDirection.CALL.name, TradeDirection.PUT.name}:
             exec_dir = TradeDirection[ready_name]
-        exec_dir = apply_direction_fusion(metrics, exec_dir, orch=orch, cfg=fusion_cfg)
         apply_scale_kelly_side_sync(metrics, exec_dir)
         sync_direction_margin(metrics, direction=exec_dir.name)
     elif bool(fusion_cfg.get("fusion_enabled")):

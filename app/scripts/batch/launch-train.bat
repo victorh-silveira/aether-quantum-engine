@@ -20,63 +20,63 @@ if "%CONDA_ACTIVATE%"=="" echo [ERRO] Nao foi possivel localizar o activate.bat 
 if "%CONDA_ACTIVATE%"=="" pause
 if "%CONDA_ACTIVATE%"=="" exit /b 1
 
-echo [AETHER] Etapa 0/5: Sanitizando run anterior (checkpoints/meta/loss/triton/data)...
+echo [AETHER] launch-train: sanitize -^> sweep H15..H60 -^> gate -^> meta -^> rebuild
+echo [AETHER] 0/5 sanitize run anterior...
 cd /d "%REPO_ROOT%"
 "%PYTHON_EXE%" app/scripts/operations/sanitize_fresh_run.py
 if errorlevel 1 goto :sanitize_fail
 
-echo [AETHER] Etapa 0b/5: Regenerando bootstrap do loss-classifier...
+echo [AETHER] 0b/5 loss-classifier bootstrap...
 cd /d "%REPO_ROOT%\app"
 "%PYTHON_EXE%" -m scripts.operations.train_loss_classifier
 if errorlevel 1 goto :loss_bootstrap_fail
 cd /d "%REPO_ROOT%"
 
-echo [AETHER] Etapa 1/5: Sweep horizonte N (H1/H2/H3/H5) + promote do mais assertivo...
+echo [AETHER] 1/5 sweep horizonte + promote (ops duration M5 fixo)...
 cd /d "%REPO_ROOT%"
 "%PYTHON_EXE%" app/scripts/operations/run_launch_train_tf_pipeline.py %*
 if errorlevel 1 goto :horizon_fail
 
-echo [AETHER] Etapa 1b/5: Validando deploy/ACC do checkpoint DL...
+echo [AETHER] 1b/5 gate deploy/settle do checkpoint...
 cd /d "%REPO_ROOT%"
 "%PYTHON_EXE%" app/scripts/operations/check_dl_deploy_gate.py
 if errorlevel 1 goto :dl_gate_fail
 
-echo [AETHER] Etapa 2/5: Verificando infraestrutura Docker (TimescaleDB)...
+echo [AETHER] 2/5 Timescale check-only...
 cd /d "%REPO_ROOT%"
 "%PYTHON_EXE%" app/scripts/operations/ensure_timescale.py --check-only
-if errorlevel 1 echo [AVISO] TimescaleDB nao disponivel. Meta-classificador usara API Deriv (fallback).
+if errorlevel 1 echo [AVISO] Timescale indisponivel; meta usara API Deriv.
 
-echo [AETHER] Etapa 3/5: Meta-Classificador (LightGBM) no SSOT...
+echo [AETHER] 3/5 meta LightGBM...
 call "%~dp0_run_meta_train.bat" "%CONDA_ACTIVATE%"
 if errorlevel 1 goto :meta_fail
 
-echo [SUCESSO] Pipeline launch-train (TCN + meta) concluido!
-echo [AETHER] Rode make docker-rebuild e sync MinIO/Triton antes da DEMO.
+echo [SUCESSO] launch-train OK (TCN + meta).
+echo [AETHER] Proximo: make docker-rebuild + sync MinIO, depois DEMO.
 timeout /t 5 /nobreak > nul
 exit /b 0
 
 :sanitize_fail
-echo [ERRO] Sanitizacao da run anterior falhou. Treino abortado.
+echo [ERRO] Sanitize falhou; treino abortado.
 pause
 exit /b 1
 
 :loss_bootstrap_fail
-echo [ERRO] Bootstrap do loss-classifier falhou apos sanitizacao. Treino abortado.
+echo [ERRO] Bootstrap loss-classifier falhou; treino abortado.
 pause
 exit /b 1
 
 :horizon_fail
-echo [ERRO] Treino TCN / sweep / promote falhou. Meta abortado.
-echo [AETHER] Criterio: settle_wr>=be+0.03, n>=16, history>=800. Horizonte N in {1,2,3,5} (R_10 M3).
+echo [ERRO] Sweep/promote falhou. Criterio: settle_wr^>=be+0.03, n^>=16, history^>=800.
 pause
 exit /b 1
 
 :dl_gate_fail
-echo [ERRO] Checkpoint DL sem deploy_ok/ACC>=0.53. Meta-Classificador abortado.
+echo [ERRO] Checkpoint sem deploy_ok/settle elegivel; meta abortado.
 pause
 exit /b 1
 
 :meta_fail
-echo [ERRO] Treino do Meta-Classificador falhou.
+echo [ERRO] Meta-classificador falhou.
 pause
 exit /b 1

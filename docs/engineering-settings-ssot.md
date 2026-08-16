@@ -8,13 +8,13 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 |-------|-------|
 | `symbols` / `anchor` | Universo unico **`R_10`** (Volatility 10 / Deriv) |
 | `data_handler` | MACRO/MICRO/MINI granularity, history, buffer |
-| `deep_learning` | arch, lookback, labels, calib (`raw_extreme`), deploy, `sample_weighting`; alvo treino **2000** barras M3 com `train_history_shortfall_ratio` **0.95** (API esgotada ~1980 segue); `bootstrap_max_wait_rounds` **16** |
+| `deep_learning` | arch, lookback, labels, calib (`raw_extreme`), deploy, `sample_weighting`; alvo treino **2000** barras M1 com `train_history_shortfall_ratio` **0.95** (API esgotada ~1980 segue); `bootstrap_max_wait_rounds` **16** |
 | `orchestrator` | ciclo, warmup, watchdog, WS |
 | `orchestrator.execution` | mandatory/force, **`invert_exec_side`** (experimento: inverte CALL/PUT apos gates), settlement, SIDE_EQ soft, `scale_vision`, `signal_skip`, sample_size_policy |
 | `infra.meta_classifier` | HTTP :8005; edge continuo 43D; `online_learn` **true**; `/v1/learn` a cada settle (`retrain_min_n` **2**, piso LGBM); `timeout_seconds` **8** |
 | `infra.loss_classifier` | HTTP :8006; `veto_mode` **soft** + banda flip: floor soft **0.65**; `hard_p_loss_floor` **0.90**; `flip_require_auto_learn` **true**; `flip_block_when_tcn_pos_edge` **true** (nao FLIP se Edge TCN >= **0.04**); `flip_waive_scale_above_p_loss` **0.95**; `flip_candle_p_loss_floor` **0.85** (so TCN fraco); `flip_waive_edge_min` **-1.0** (live); `flip_seed_block_against_closed_candle` **true** + `flip_seed_waive_edge_min` **-0.08**; seed/`flip_allow_seed_on_scale_discord`; `flip_waive_on_closed_candle`; soft Kelly **0.55→0.40**; `timeout_seconds` **8** |
 | `risk_management` | Kelly, soft_recovery, stop-win, ACC gate, duration contrato |
-| `infra` | Redis, Timescale, MinIO, Triton, meta |
+| `infra` | Redis, Timescale, MinIO, meta, loss |
 | `logging` | level, log_file, quiet_channels |
 | `auth` / credenciais | PAT — ver [`deriv-api-aether.md`](deriv-api-aether.md) |
 
@@ -26,7 +26,7 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `reject_majority_collapse` | `deep_learning.deploy_gate` | rejeita collapse de classe no deploy |
 | `max_label_call_frac_bias` | idem | padrao **0.20**; `|pred-0.5|` / `|pred-label|` bastam; `|label-0.5|` exige tambem `min_minority_recall` |
 | `min_minority_recall` | idem | padrao **0.25** (via label viesado) |
-| `early_stopping_patience` / `min_epochs` | `deep_learning` | **16** / **20** (anti-overfit R_10 M3) |
+| `early_stopping_patience` / `min_epochs` | `deep_learning` | **16** / **20** (anti-overfit R_10 M1) |
 | `weight_decay` / `tcn.dropout` / `learning_rate` | idem | **0.001** / **0.25** / **0.001** |
 | `max_brier` / `soft_max_brier` / `eval_brier_max` | `deploy_gate` / DL | **0.26** (mini alinhado ao soft) |
 | `train_deploy_retries` | `deep_learning` | **5** tentativas com reseed ate `deploy_ok` |
@@ -37,8 +37,8 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `kelly.kelly_p_floor` | `risk_management.kelly` | Piso de **probabilidade** para Kelly; garante `f*>0`; alias `adapt_kelly_p_floor`; com `fusion_applied`, Kelly ancora em `fusion_p_eff` do lado escolhido |
 | `kelly.target_damping_floor` / `target_damping_span` | `risk_management.kelly` | Damping stop-win: inicio sessao **1.0** (`floor` **0.50** + `span` **0.50`); perto da meta **0.50** (cover RECOVER nao esmagado no arranque) |
 | `sample_size_policy.explore_stake_scale_floor` | `orchestrator.execution` | Piso relativo EXPLORE cold-start (**0.40**); doutrina exige `>0` |
-| `kelly.neutral_bankroll_pct` | `risk_management.kelly` | Piso operacional de stake explore (**0.25%** banca M3); loss_clf soft **nao** esmaga o piso |
-| `kelly.payout_fallback` / `params.payout_estimate` / `default_payout` | `risk_management` | Payout Deriv R_10 M3 **0.72** (live; cover RECOVER = `cover_multiple * pending/0.72`) |
+| `kelly.neutral_bankroll_pct` | `risk_management.kelly` | Piso operacional de stake explore (**0.25%** banca M1); loss_clf soft **nao** esmaga o piso |
+| `kelly.payout_fallback` / `params.payout_estimate` / `default_payout` | `risk_management` | Payout Deriv R_10 M1 **0.72** (live; cover RECOVER = `cover_multiple * pending/0.72`) |
 | `kelly.stop_win_kelly_*` | `risk_management.kelly` | Boost stop-win ~**1h**: `enabled`, `cycles_target` **4**, `live_n_min` **0**, fracoes **0.70–1.0**, teto **5%** |
 | `soft_recovery.infeasible_force_explore` | `risk_management.soft_recovery` | Com PEND material, cover≥cap → stake=**CAP** (parcial); flag so afeta ramo legado sem passivo material |
 | `soft_recovery.pending_waives_scale_explore` | `risk_management.soft_recovery` | Default **true**: pending material libera soft cover apesar de `scale_adapted`/`scale_force_explore` |
@@ -49,12 +49,12 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `soft_recovery.live_evidence_force_explore_*` | `risk_management.soft_recovery` | linear≥**3** + `live_n`≥**2** + `live_wr`&lt;**0.62** → EXPLORE (bloqueia DAL L3+ com ACC de treino ainda ok) |
 | `soft_recovery.amort_cycles_min` / `amort_cycles_max` | `risk_management.soft_recovery` | Amort **1/1**; stake RECOVER = `cover_multiple * pending/payout` (cover pleno; sem `max` com progressao exponencial; `f*` so gate) |
 | `infra.loss_classifier.soft_max_stake_pct_high` | `infra.loss_classifier` | Teto stake EXPLORE sob soft (**1%**); waivado com pending material e com `FLIP_BLOCK` (keep TCN so atenua f*); ACC baixo nao cancela cover |
-| `params.duration` | `risk_management.params` | Contrato RISE_FALL **N × 3 min** (`duration_unit: m`) — N eleito no `horizon_sweep`; placeholder **9** |
-| `deep_learning.label_horizon_bars` | `deep_learning` | **N** alinhado a duration (invariante `duration == N × 3` no M3); placeholder **3** |
-| `horizon_sweep.*` | `deep_learning` | Grade **n_bars=[1,2,3,5]**; `run_in_launch_train` **true**; pisos settle be+0.03, n≥16, history≥800 |
-| `data_handler.micro_granularity` / `granularity` | `data_handler` | Micro/MINI **180** / macro **7200** (M3; ratio **1:40**) |
-| `deep_learning.lookback` | `deep_learning` | **480** barras micro @ **180 s** (tensor `[1, 480, 34]`; ~24 h) |
-| `orchestrator.cycle_interval_seconds` / `signature_boundary_seconds` | `orchestrator` | **180 s** (alinhado ao fecho da vela M3); `exec_empty_retry` **180 s** |
+| `params.duration` | `risk_management.params` | Contrato RISE_FALL **5 m** (`duration_unit: m`) — fixo via `horizon_sweep.ops_contract_duration_minutes` (**5**); promote **nao** exporta duration do winner |
+| `deep_learning.label_horizon_bars` | `deep_learning` | **N** velas M1 do TCN (grade sweep 15/20/…/60); **SSOT atual 50** (H50); gap intencional vs `params.duration=5` |
+| `horizon_sweep.*` | `deep_learning` | Grade **duration_minutes/n_bars=[15..60 step 5]**; `ops_contract_duration_minutes` **5**; `quiet_train_logs` **true** (celula **CRITICAL** + `why=` se deploy=0; pos-sweep denso); `run_in_launch_train` **true**; pisos settle be+0.03, n≥16, history≥800 |
+| `data_handler.micro_granularity` / `granularity` | `data_handler` | Micro/MINI **60** / macro **7200** (M1; ratio **1:120**) |
+| `deep_learning.lookback` | `deep_learning` | **480** barras micro @ **60 s** (tensor `[1, 480, 34]`; ~8 h) |
+| `orchestrator.cycle_interval_seconds` / `signature_boundary_seconds` | `orchestrator` | **60 s** (alinhado ao fecho da vela M1); `exec_empty_retry` **60 s** |
 | `orchestrator.settlement_tolerance_window_seconds` | `orchestrator` | **90** (slack pos-expiry) |
 | `orchestrator.watchdog_stale_tick_seconds` | `orchestrator` | **300** |
 | `orchestrator.post_settlement_is_trading_wait_seconds` | `orchestrator` | **90** |
@@ -63,7 +63,7 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `calibration.method` | `deep_learning.calibration` | **auto** (Brier/ECE com piso de sharpness; fallback `identity`) |
 | `max_calibrated_raw_gap` | `deep_learning.calibration` | **0.08** — banda simetrica p_call∈[raw±gap] no live (`cal_raw_gap_capped`) |
 | `temperature_min` | `deep_learning.calibration` | **1.0** — impede afiar logits (T&lt;1) no fit |
-| `mini_granularity` | `data_handler` | padrao **180** (MINI OHLC M3) |
+| `mini_granularity` | `data_handler` | padrao **60** (MINI OHLC M1) |
 
 Removidos: `decision_threshold_call` / `decision_threshold_put` (mortos). Modo `tcn_macro_override` (substituir Cal por raw) removido — usar `raw_extreme`. Removidos: `adapt_min_cal_margin` / `adapt_max_cal_margin` / `hold_calib_gray` / `hold_cal_margin` / `calib_gray_*` / log `CALIB_GRAY`.
 

@@ -10,7 +10,6 @@ from src.application.services.orchestrator.ws_bootstrap import (
     subscribe_account_transactions,
 )
 from src.infrastructure.api.deriv_rest_client import DerivRestError, DerivTradingSession
-from src.infrastructure.inference.triton_grpc_client import TritonInferenceTimeout
 
 
 def _patch_rest_balance(balance: float = 100.0, account_id: str = "DOT1"):
@@ -132,24 +131,10 @@ async def test_setup_trading_session_success(orch_config):
 
 
 @pytest.mark.asyncio
-async def test_setup_trading_session_triton_bootstrap_timeout(orch_config):
-    orch = Orchestrator(orch_config)
-    with (
-        patch(
-            "src.application.services.orchestrator.ws_bootstrap.validate_infra_services",
-            AsyncMock(side_effect=TritonInferenceTimeout("batch infer timeout 0.850s for 2 symbols")),
-        ),
-        patch.object(orch.logger, "error") as mock_error,
-    ):
-        assert await setup_trading_session(orch) is False
-    assert any("Triton inferencia excedeu timeout" in str(c) for c in mock_error.call_args_list)
-
-
-@pytest.mark.asyncio
 async def test_setup_trading_session_http_error(orch_config):
     orch = Orchestrator(orch_config)
     err = urllib.error.HTTPError(
-        url="http://localhost:8000/v2/models/R_10",
+        url="http://localhost:8005/health",
         code=404,
         msg="Not Found",
         hdrs=None,

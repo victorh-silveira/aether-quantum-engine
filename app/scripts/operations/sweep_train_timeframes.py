@@ -69,6 +69,9 @@ def _read_checkpoint_metrics(path: Path) -> dict[str, Any]:
         "settle_n": int(payload.get("deploy_settlement_n") or 0),
         "lookback": int(payload.get("lookback") or 0),
         "granularity_ckpt": int(payload.get("granularity") or 0),
+        "label_call_frac": float(payload.get("label_call_frac") or 0.5),
+        "pred_call_frac": float(payload.get("pred_call_frac") or 0.5),
+        "minority_recall": float(payload.get("minority_recall") or 1.0),
         "error": None,
     }
 
@@ -152,8 +155,50 @@ def build_row_from_metrics(
         "artifact_dir": str(artifact_dir),
         "error": metrics.get("error"),
         "train_exit_code": metrics.get("train_exit_code"),
+        "label_call_frac": metrics.get("label_call_frac"),
+        "pred_call_frac": metrics.get("pred_call_frac"),
+        "minority_recall": metrics.get("minority_recall"),
     }
     return enrich_leaderboard_row(raw, knobs=knobs)
+
+
+def _cell_deploy_why(row: dict[str, Any]) -> str:
+    if bool(row.get("deploy_ok")):
+        return ""
+    pred = row.get("pred_call_frac")
+    label = row.get("label_call_frac")
+    if pred is not None and (
+        abs(float(pred) - 0.5) > 0.20 or (label is not None and abs(float(pred) - float(label)) > 0.20)
+    ):
+        return "collapse"
+    if float(row.get("val_brier") or 1.0) > 0.26 + 1e-12:
+        return "brier"
+    if float(row.get("val_accuracy") or 0.0) + 1e-9 < 0.53:
+        return "acc"
+    if int(row.get("train_exit_code") or 0) != 0:
+        return "exit"
+    return "deploy"
+
+
+def _format_horizon_cell_line(
+    *,
+    index: int,
+    total: int,
+    row: dict[str, Any],
+) -> str:
+    edge = float(row.get("edge_vs_be") or 0.0)
+    line = (
+        f"[HORIZON] cell {index}/{total} {row.get('tf')} N={int(row.get('label_horizon_bars') or 0)} "
+        f"settle={float(row.get('rank_wr') or row.get('settle_wr') or 0.0):.3f} "
+        f"n={int(row.get('settle_n') or 0)} "
+        f"acc={float(row.get('val_accuracy') or 0.0):.3f} "
+        f"edge={edge:+.3f} "
+        f"deploy={1 if row.get('deploy_ok') else 0} "
+        f"eligible={1 if row.get('eligible') else 0} "
+        f"exit={int(row.get('train_exit_code') or 0)}"
+    )
+    why = _cell_deploy_why(row)
+    return f"{line} why={why}" if why else line
 
 
 def run_tf_sweep(
@@ -180,9 +225,14 @@ def run_tf_sweep(
         wanted_sym = {normalize_sweep_symbol(s) for s in only_symbols}
         symbols = [s for s in symbols if s in wanted_sym]
     trainer = train_fn or default_train_candidate
+    quiet = bool(sweep_knobs.get("quiet_train_logs", True))
+    log = setup_logger("HORIZON")
     board: list[dict[str, Any]] = []
+    total = max(1, len(symbols) * len(rows_in))
+    index = 0
     for symbol in symbols:
         for candidate in rows_in:
+            index += 1
             art = candidate_artifact_dir(
                 str(sweep_knobs["artifact_root"]),
                 candidate["tf"],
@@ -196,6 +246,7 @@ def run_tf_sweep(
                 symbol=symbol,
                 train_deploy_retries=int(sweep_knobs.get("train_deploy_retries", 1)),
                 disable_infra=bool(sweep_knobs.get("disable_infra_during_sweep", True)),
+                quiet_train_logs=quiet,
             )
             if dry_run:
                 metrics = {
@@ -210,15 +261,15 @@ def run_tf_sweep(
                 write_json(art / "settings_overlay.json", patched)
             else:
                 metrics = trainer(patched, candidate, art, symbol)
-            board.append(
-                build_row_from_metrics(
-                    candidate,
-                    metrics,
-                    knobs=sweep_knobs,
-                    artifact_dir=art,
-                    symbol=symbol,
-                )
+            row = build_row_from_metrics(
+                candidate,
+                metrics,
+                knobs=sweep_knobs,
+                artifact_dir=art,
+                symbol=symbol,
             )
+            board.append(row)
+            log.info(_format_horizon_cell_line(index=index, total=total, row=row))
     leaderboard_path = resolve_repo_path(str(sweep_knobs["leaderboard_path"]), repo_root=root)
     write_json(
         leaderboard_path,
@@ -271,6 +322,16 @@ def main(argv: list[str] | None = None) -> int:
         train_fn=train_fn,
     )
     eligible = [r for r in board if r.get("eligible")]
+    skipped = [str(r.get("tf") or "") for r in board if not r.get("eligible")]
+    skip_s = ",".join(t for t in skipped if t) or "-"
+    if bool(knobs.get("quiet_train_logs", True)):
+        log.info(
+            "[HORIZON] board candidatos=%s elegiveis=%s skip=[%s]",
+            len(board),
+            len(eligible),
+            skip_s,
+        )
+        return 0
     log.info(
         "[HORIZON] candidatos=%s elegiveis=%s leaderboard=%s",
         len(board),

@@ -13,12 +13,12 @@ Doutrina do copiloto LLM/Cursor (9 livros → constraints de engenharia): [`llm-
 | Princípio | No motor atual |
 |-----------|----------------|
 | Sinais, não histórias | Direção CALL/PUT estritamente pela TCN (`P(CALL) > P(PUT)`) |
-| Horizonte curto | Contexto DL **7200 s**; ciclo/micro OHLC **180 s** (M3); contrato RISE_FALL **N × 3 min** (N eleito no treino); proporção multi-timeframe **1:40** (180:7200); label `ma_trend` (horizonte N barras micro) |
-| Acoplamento temporal | Inferências e rotações seguem `signature_boundary_seconds` (fallback `cycle_interval_seconds`, padrão **180 s**); fronteira `m5_boundary_epoch` (nome legado) |
+| Horizonte curto | Contexto DL **7200 s**; ciclo/micro OHLC **60 s** (M1); contrato RISE_FALL **5 m** (ops fixo); label `ma_trend` (horizonte N barras micro, N ∈ {15,20,…,60} eleito no treino; **SSOT atual N=50**); proporção multi-timeframe **1:120** (60:7200) |
+| Acoplamento temporal | Inferências e rotações seguem `signature_boundary_seconds` (fallback `cycle_interval_seconds`, padrão **60 s**); fronteira `m5_boundary_epoch` (nome legado) |
 | Esteira continua | `mandatory_trade_each_cycle: false` (sem vetos de sinal/qualidade amplos; fusao EV + signal_skip 1.1) |
 | Force trade | `force_trade_every_cycle: false` — sem síntese forçada de candidato |
 | Modelo pronto antes de operar | `FASE TREINO` suspende ordens até treino da sessão |
-| Fail-closed seletivo | Triton/meta **opcionais** nos settings atuais; podem ser reativados fail-closed na stack Docker |
+| Fail-closed seletivo | Meta **opcional** nos settings atuais; TCN eager/CUDA local |
 | Feedback real | Win rate live misturado em `val_accuracy`; retreino após loss |
 | Defesa contra ruido / discordancia | Consensus Entropy Penalty no Kelly base — **desligado** (`consensus_penalty_enabled: false`) |
 | Persistência financeira | Recovery atrelado a `pending_loss`, não a WIN operacional isolado |
@@ -66,11 +66,11 @@ A doutrina LLM estende o mesmo raciocinio aos demais livros (Taleb, Duke, Dougla
 |---------|----------------|
 | `R_10` | Universo operacional unico; ancora e unico simbolo de treino/execucao |
 
-Operação: contratos **RISE_FALL** de **N × 3 min** (CALL = alta no período de N velas M3, PUT = queda). Ciclo **180 s**; OHLC micro/MINI em **180 s** (M3; label TCN = N barras micro, N eleito no launch-train).
+Operação: contratos **RISE_FALL** de **5 m** (CALL = alta no período do contrato, PUT = queda). Ciclo **60 s**; OHLC micro/MINI em **60 s** (M1; label TCN = N barras micro, N ∈ {15,20,…,60} eleito no launch-train; **SSOT atual N=50**; gap intencional vs settle 5 min).
 
 ### 2.2 Telemetria de Volatilidade, Exaustão e Fluxo Micro
 
-Indicadores micro de **180 s** (RSI, `vol_ratio`, Keltner, `bb_width`, aceleração de ticks, shadow de volatilidade e momentum de spread) alimentam o container `aether-meta-classifier` (porta **8005**) via vetor **43D**, indexados na resolução amostral micro do TimescaleDB. O `LGBMRegressor` (huber) estima `predicted_payoff_edge` contínuo; o resolver preserva score orgânico da TCN quando o edge é positivo e aciona downgrade D-SQUEEZE quando o edge colapsa em microestrutura. Nos settings atuais, meta é **opcional** para execução.
+Indicadores micro de **60 s** (RSI, `vol_ratio`, Keltner, `bb_width`, aceleração de ticks, shadow de volatilidade e momentum de spread) alimentam o container `aether-meta-classifier` (porta **8005**) via vetor **43D**, indexados na resolução amostral micro do TimescaleDB. O `LGBMRegressor` (huber) estima `predicted_payoff_edge` contínuo; o resolver preserva score orgânico da TCN quando o edge é positivo e aciona downgrade D-SQUEEZE quando o edge colapsa em microestrutura. Nos settings atuais, meta é **opcional** para execução.
 
 **Spread de convicção cross-symbol** (triplet anexado em `prepare_meta_classifier_cross_symbol_bundle`; zeros no modo single-symbol):
 
@@ -86,7 +86,7 @@ Features de fluxo e microestrutura extraídas do `TickBuffer` e precomputação:
 
 | Feature | Descrição |
 |---------|-----------|
-| `micro_tick_acceleration` | Aceleração estocástica de ticks no bloco micro corrente (180 s / M3) |
+| `micro_tick_acceleration` | Aceleração estocástica de ticks no bloco micro corrente (60 s / M1) |
 | `keltner_deviation_ratio` | Distância fracionária do último tick ao centro do canal Keltner micro |
 | `micro_bid_ask_spread_momentum` | Taxa de variação de ticks aglutinados por sub-janelas de 5 segundos no bloco micro corrente |
 | `micro_bid_ask_spread_momentum_zscore` | Z-Score adaptativo histórico de 1024 períodos da variação de ticks, clipado a ±3.0 |
@@ -99,11 +99,11 @@ Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `
 
 | Camada | Comportamento |
 |--------|---------------|
-| Bloqueio técnico | `data`, `predict_error`, `training`, `deploy_ok=false`, Triton fail-closed |
+| Bloqueio técnico | `data`, `predict_error`, `training`, `deploy_ok=false` |
 | Calibração | Zona neutra **off** (`neutral_half_width: 0.0`); thresholds **0.62/0.38**; override TCN macro se raw&gt;0.65 ou &lt;0.35 |
 | Veto cruzado TCN-GBDT | Soft comprime score; hard com shadow; soft não hard-blocka o resolve |
-| Classificação macro | TCN processa lookback **480** em barras micro **180 s** (`[1, 480, 34]`; ~24 h); define direção (`dl_direction`) |
-| Stacking tabular | Meta-regressor LightGBM (micro **180 s**) sobre vetor **43D** + probabilidade TCN; saída `predicted_payoff_edge`; meta **opcional** |
+| Classificação macro | TCN processa lookback **480** em barras micro **60 s** (`[1, 480, 34]`; ~8 h); define direção (`dl_direction`) |
+| Stacking tabular | Meta-regressor LightGBM (micro **60 s**) sobre vetor **43D** + probabilidade TCN; saída `predicted_payoff_edge`; meta **opcional** |
 | Z-Score de payoff | `payoff_edge_zscore`: janela adaptativa 15–45; classificação estatística do micro-edge |
 | Scoring de ranking | `market_decision_score = tcn × max(0.1, 1 + z)` |
 | Scoring direcional | TCN define `dl_direction`; edge &gt; 0 pode manter lado contra price zone; compressão BB severa rebaixa para `0.52` |
@@ -111,7 +111,7 @@ Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `
 | Gate de qualidade | Dual soft + HARD microestrutura (limiares ADX atuais **0.0**); sniper stubs; meta opcional; consensus **off** |
 | Indicator gating | removido do pipeline; telemetria de indicadores permanece nas features |
 | Persistence guard | Após 2 perdas: **flip** toxic escape ou skip; `FREEZE` em congestão |
-| Rotulagem | Padrão `spot_forward`; `ma_trend` / Triple Barrier disponíveis via config |
+| Rotulagem | SSOT `ma_trend`; `spot_forward` / Triple Barrier disponiveis via config |
 | Perda TCN assimétrica | Penalidade 2,5× para erro direcional em alta volatilidade |
 | Optuna meta | Maximiza Information Ratio; constraint OOS payoff Z-Score ≥ +1,00 |
 | Gerenciamento de risco | Kelly EXPLORE + Soft Recovery RECOVER (`soft_recovery.enabled: true`, `kelly.fraction: 0.08`, tetos 3,5%); `loss_protection.min_direction_margin: 0.0` |
@@ -122,22 +122,22 @@ Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `
 
 ## 3. Blindagem multi-timeframe
 
-**Invariante 1:40:** o relógio operacional micro (`data_handler.micro_granularity` = **180 s**) e o contexto macro DL (`data_handler.granularity` = **7200 s**) mantêm proporção **1:40**. Cada bloco macro cobre exatamente quarenta fronteiras micro; a assinatura `m5b:{boundary};m5:{sym}@{epoch};m15:...` (prefixos **legados**) e `seconds_until_next_signature_boundary` ancoram espera e invalidação de cache na cadência de ciclo **180 s** (sync com micro **180 s**). Contrato Deriv **N × 3 min** (N velas M3; N ∈ {1,2,3,5} eleito no treino).
+**Invariante 1:120:** o relógio operacional micro (`data_handler.micro_granularity` = **60 s**) e o contexto macro DL (`data_handler.granularity` = **7200 s**) mantêm proporção **1:120**. Cada bloco macro cobre exatamente cento e vinte fronteiras micro; a assinatura `m5b:{boundary};m5:{sym}@{epoch};m15:...` (prefixos **legados**) e `seconds_until_next_signature_boundary` ancoram espera e invalidação de cache na cadência de ciclo **60 s** (sync com micro **60 s**). Contrato Deriv **5 m** (ops fixo); label TCN **N** velas M1 (N ∈ {15,20,…,60} eleito no treino; **SSOT atual N=50**).
 
 | Camada | Timeframe | Papel |
 |--------|-----------|-------|
-| Deep Learning / TCN | Micro **180 s** (lookback **480**) / macro **7200 s** | Tensor micro `[1, 480, 34]` ≈ 24 h; contexto macro 1:40 |
-| Meta-regressor GBDT | Micro **180 s** | Regressão tabular **43D**; edge contínuo + downgrade D-SQUEEZE |
-| Orquestrador / contrato | Ciclo **180 s** / RISE_FALL **N × 3 min** | M3: settle em T+N velas |
+| Deep Learning / TCN | Micro **60 s** (lookback **480**) / macro **7200 s** | Tensor micro `[1, 480, 34]` ≈ 8 h; contexto macro 1:120 |
+| Meta-regressor GBDT | Micro **60 s** | Regressão tabular **43D**; edge contínuo + downgrade D-SQUEEZE |
+| Orquestrador / contrato | Ciclo **60 s** / RISE_FALL **5 m** | Settle ops em T+5 min; label TCN em N velas |
 | Resolução direcional | TCN + meta GBDT | `dl_direction` da TCN; meta refina score / D-SQUEEZE (opcional) |
-| Execução contínua | Ciclo **180 s** | Boleta CALL/PUT na cadência M3 quando há sinal válido |
+| Execução contínua | Ciclo **60 s** | Boleta CALL/PUT na cadência M1 quando há sinal válido |
 
-Com `lookback: 480`, `micro_granularity: 180` e `training_history_bars: 1333` (SSOT treino DL; `data_handler.history_bars` permanece **2000** para buffer):
+Com `lookback: 480`, `micro_granularity: 60` e `training_history_bars: 1333` (SSOT treino DL; `data_handler.history_bars` permanece **2000** para buffer):
 
 | Conceito | Barras | Tempo aproximado |
 |----------|--------|------------------|
-| Histórico de treino | 1333 | ~2,8 dias (@ 180 s) |
-| Lookback | 480 | **~24 h** de contexto por sequência (@ 180 s) |
+| Histórico de treino | 1333 | ~0,9 dia (@ 60 s) |
+| Lookback | 480 | **~8 h** de contexto por sequência (@ 60 s) |
 | Validação holdout | ~15% | proporcional ao split |
 
 ---
@@ -149,7 +149,7 @@ Ordem lógica de uma entrada:
 1. **Fase** — todos os modelos com treino da sessão concluído.
 2. **Dados** — histórico suficiente (`gate_reason=data`).
 3. **Treinamento** — modelo do símbolo treinado na sessão (`gate_reason=training`).
-4. **Predição DL** — inferência Triton quando habilitado (timeout settings; fail-closed opcional); `raw_prob`/`calibrated_prob` e indicadores calculados.
+4. **Predição DL** — inferência eager/CUDA local; `raw_prob`/`calibrated_prob` e indicadores calculados.
 5. **Bundle cross-symbol** — `prepare_meta_classifier_cross_symbol_bundle` coleta telemetria micro em paralelo e anexa spreads cross-symbol.
 6. **Stacking tabular** — `MetaClassifierClient` envia probabilidade TCN + vetor **43D** ao `aether-meta-classifier`; retorna `predicted_payoff_edge` (opcional para execução).
 7. **Calibração** — `dl_calibration_tolerance`: zona neutra ON (`neutral_half_width: 0.04`); override TCN macro em raw extremos.
@@ -160,7 +160,7 @@ Ordem lógica de uma entrada:
 12. **Seleção** — `market_decision_score` multiplicativo (TCN × fator Z-Score); redirect inter-símbolo quando âncora degradada.
 13. **Risco** — Kelly em EXPLORE (`fraction: 0.08`, teto 3,5%); Soft Recovery com cover **100%** do pending em 1 WIN (`amort_cycles` **1/1**, `cover_multiple` **1.50**, teto `max_safe_stake_pct`); stop win por sessão (3,00% composto ou $10 fixo se banca < $100). Stop loss interno desativado.
 
-Bloqueio absoluto para falhas técnicas (`data`, `predict_error`, `training`, `deploy_ok=false`, Triton) e reconciliação pendente. Vetoes HARD de microestrutura bloqueiam independentemente do soft. Não há vetos táticos autônomos de quality guard soft, cooldown pós-LOSS, blackout de broker ou stubs sniper.
+Bloqueio absoluto para falhas técnicas (`data`, `predict_error`, `training`, `deploy_ok=false`) e reconciliação pendente. Vetoes HARD de microestrutura bloqueiam independentemente do soft. Não há vetos táticos autônomos de quality guard soft, cooldown pós-LOSS, blackout de broker ou stubs sniper.
 
 Perfil em `config/settings.json` (settings atuais):
 
@@ -174,7 +174,7 @@ Perfil em `config/settings.json` (settings atuais):
 | `min_val_accuracy` | 0.60 | Piso de acurácia de validação (treino/deploy) |
 | `min_validation_accuracy_gate` | — | Sem piso hard nos settings atuais |
 | `min_edge_execute` | 0.0 | Edge base (advisory) |
-| `label_mode` | `spot_forward` | Rotulagem spot-forward (padrão); `ma_trend` / `triple_barrier` via config |
+| `label_mode` | `ma_trend` | Rotulagem SSOT; `spot_forward` / `triple_barrier` via config |
 | `label_vol_window_bars` | 15 | Janela de σ para largura de barreira (tunável por símbolo) |
 | `label_vol_multiplier` | 1.0 | Multiplicador da barreira de volatilidade |
 | `indicator_gating.*` | removido | Vetos de sinal retirados do codigo (escopo 1) |
@@ -189,8 +189,6 @@ Perfil em `config/settings.json` (settings atuais):
 | `risk_management.kelly.max_stake_pct` | 0.035 | Teto Kelly efetivo |
 | `risk_management.kelly.max_bankroll_stake_fraction` | 0.035 | Teto de fração de banca alinhado ao Kelly |
 | `risk_management.kelly.fraction` | 0.08 | Fração Kelly base (EXPLORE; compressão 40% fora de recovery) |
-| `infra.triton.require_for_execution` | true | Timeout Triton falha fechado (sem fallback eager local) |
-| `infra.triton.infer_timeout_seconds` | 0.50 | Timeout gRPC de inferência |
 | `consensus_penalty_enabled` | false | Consensus Entropy Penalty **desligado** |
 | `orchestrator.settlement_tolerance_window_seconds` | 90 | Janela de settlement |
 | `orchestrator.watchdog_stale_tick_seconds` | 300 | Watchdog de inanição |
@@ -483,7 +481,7 @@ Telemetria: `SIDE_EQ | SYMBOL SIDE | call=W/N put=W/N | bias=… wr=… | action
 | Flag | Efeito |
 |------|--------|
 | `mandatory_trade_each_cycle: false` | Esteira continua TCN→fusao EV→Kelly; signal_skip 1.1 soft; quality gate amplo fora |
-| `require_meta_for_execution: false` | Meta opcional; Triton permanece configuravel |
+| `require_meta_for_execution: false` | Meta opcional |
 | `include_anchor_trades` | Inclui âncora nas ordens do cluster |
 | `diversify_after_loss_margin` | Prefere símbolo alternativo quando scores são próximos |
 
@@ -529,7 +527,7 @@ Parâmetros em `risk_management` / `risk_management.params`:
 | `session_start_balance` | `null` | Override manual da banca inicial (senão usa saldo Deriv) |
 | `small_account_threshold` | `100.0` | Limiar abaixo do qual o stop win é fixo |
 | `small_account_stop_win` | `10.0` | Stop win fixo em dólares para micro-banca |
-| `duration` | `3` | Duração do contrato RISE_FALL (**m**); ciclo/micro OHLC **180 s** (M3) |
+| `duration` | `5` | Duração do contrato RISE_FALL (**m**); ops fixo via `ops_contract_duration_minutes`; ciclo/micro OHLC **60 s** (M1); label TCN = `label_horizon_bars` (**50** apos ultimo promote; grade 15/20/…/60) |
 
 Com `compounding_enabled: false`, o motor recorre ao alvo legado (`small_account_stop_win` / `large_account_stop_win_pct`).
 

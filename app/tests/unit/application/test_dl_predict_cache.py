@@ -1,30 +1,10 @@
 from types import SimpleNamespace
 
-import numpy as np
-import pytest
-
-from src.application.services.deep_learning.dl_model_types import FeatureNormStats
 from src.application.services.deep_learning.dl_predict_cache import (
     prediction_cache,
     resolve_cached_prediction,
     store_prediction_cache,
 )
-from src.infrastructure.inference.triton_tensor_builder import (
-    PartialInferenceHistoryError,
-    build_inference_tensor,
-    inference_tensor_fingerprint,
-    resolve_sequence_end_index,
-)
-
-
-def test_resolve_sequence_end_index_raises_on_short_history():
-    with pytest.raises(PartialInferenceHistoryError):
-        resolve_sequence_end_index(4, 8)
-
-
-def test_inference_tensor_fingerprint_is_stable():
-    tensor = np.ones((1, 8, 4), dtype=np.float32)
-    assert inference_tensor_fingerprint(tensor) == inference_tensor_fingerprint(tensor.copy())
 
 
 def test_store_and_resolve_cached_prediction_outside_boundary():
@@ -211,12 +191,3 @@ def test_prediction_cache_initializes_on_orchestrator():
     cache = prediction_cache(orch)
     assert cache is orch._dl_prediction_cache
     assert cache == prediction_cache(orch)
-
-
-def test_build_inference_tensor_raises_partial_history():
-    stats = FeatureNormStats(
-        mean=np.zeros(34, dtype=np.float32),
-        std=np.ones(34, dtype=np.float32),
-    )
-    with pytest.raises(PartialInferenceHistoryError):
-        build_inference_tensor(np.array([1.0, 2.0]), 8, stats)

@@ -75,8 +75,8 @@ print_status() {
 main() {
   local elapsed=0
   local code=0
-  printf '  %sAguardando healthchecks%s (timeout %ss | DOCKER_GPU=%s)\n' \
-    "${DOCKER_UI_DIM}" "${DOCKER_UI_RESET}" "${TIMEOUT_SECS}" "${DOCKER_GPU:-1}"
+  printf '  %sAguardando healthchecks%s (timeout %ss | profiles=%s)\n' \
+    "${DOCKER_UI_DIM}" "${DOCKER_UI_RESET}" "${TIMEOUT_SECS}" "${COMPOSE_PROFILES:-${DOCKER_PROFILES:-core,ml}}"
   while [ "$elapsed" -lt "$TIMEOUT_SECS" ]; do
     code=0
     all_healthy || code=$?

@@ -41,11 +41,11 @@
     "history_fetch_rate_limit_max_delay": 30.0,
     "history_fetch_rate_limit_retries": 12,
     "history_fetch_symbol_delay_seconds": 0.5,
-    "micro_granularity": 180,
+    "micro_granularity": 60,
     "micro_history_bars": 1333,
     "micro_fetch_count": 1333,
     "min_required_points": 80,
-    "mini_granularity": 180,
+    "mini_granularity": 60,
     "mini_history_bars": 256,
     "mini_fetch_count": 256
   },
@@ -192,7 +192,7 @@
     "eval_min_accuracy": 0.53,
     "eval_settle_accuracy_min": 0.53,
     "inference_device": "auto",
-    "label_horizon_bars": 5,
+    "label_horizon_bars": 50,
     "label_ma_window": 5,
     "label_mode": "ma_trend",
     "label_smooth_bars": 1,
@@ -260,13 +260,33 @@
       "enabled": true,
       "run_in_launch_train": true,
       "auto_promote": true,
+      "ops_contract_duration_minutes": 5,
+      "quiet_train_logs": true,
       "train_deploy_retries": 1,
       "disable_infra_during_sweep": true,
+      "duration_minutes": [
+        15,
+        20,
+        25,
+        30,
+        35,
+        40,
+        45,
+        50,
+        55,
+        60
+      ],
       "n_bars": [
-        1,
-        2,
-        3,
-        5
+        15,
+        20,
+        25,
+        30,
+        35,
+        40,
+        45,
+        50,
+        55,
+        60
       ],
       "symbols": [
         "R_10"
@@ -345,19 +365,9 @@
     "timescale": {
       "dsn": "postgresql://aether:aether@localhost:5432/aether"
     },
-    "triton": {
-      "bootstrap_infer_timeout_seconds": 10.0,
+    "correlation": {
       "correlation_bars": 120,
-      "correlation_refresh_cycles": 3,
-      "enabled": false,
-      "grpc_url": "localhost:8001",
-      "http_url": "localhost:8000",
-      "infer_timeout_seconds": 8.0,
-      "model_control_mode": "explicit",
-      "model_repo_path": "infra/docker/triton-models",
-      "poll_ready_seconds": 0.35,
-      "require_for_execution": false,
-      "wait_ready_seconds": 45.0
+      "correlation_refresh_cycles": 3
     }
   },
   "logging": {
@@ -376,8 +386,8 @@
   "orchestrator": {
     "api_maintenance_fallback_seconds": 90.0,
     "broker_handshake_timeout_seconds": 90.0,
-    "cycle_interval_seconds": 180,
-    "exec_empty_retry_seconds": 180,
+    "cycle_interval_seconds": 60,
+    "exec_empty_retry_seconds": 60,
     "execution": {
       "bb_width_adaptive_squeeze": {
         "anomaly_ratio": 0.35,
@@ -677,7 +687,7 @@
     "settlement_backoff_initial_seconds": 1.0,
     "settlement_backoff_max_seconds": 30.0,
     "settlement_tolerance_window_seconds": 90,
-    "signature_boundary_seconds": 180,
+    "signature_boundary_seconds": 60,
     "state_lock_acquire_timeout_seconds": 8.0,
     "stream_warm_up_delay_seconds": 0,
     "warm_up_live_data_timeout_seconds": 45.0,
@@ -705,7 +715,7 @@
       "consensus_min_retention": 0.5,
       "consensus_penalty_enabled": false,
       "consensus_rsi_weight": 0.25,
-      "cycle_stake_baseline_seconds": 180,
+      "cycle_stake_baseline_seconds": 60,
       "cycle_stake_exponent": 0.55,
       "cycle_stake_scale_enabled": false,
       "cycle_stake_use_contract_duration": true,
@@ -778,7 +788,7 @@
       "compounding_enabled": true,
       "compounding_rate_daily": 0.03,
       "contract_type": "RISE_FALL",
-      "duration": 15,
+      "duration": 5,
       "duration_unit": "m",
       "payout_estimate": 0.72,
       "stake_min": 1.0

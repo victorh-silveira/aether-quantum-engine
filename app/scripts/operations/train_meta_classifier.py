@@ -166,9 +166,8 @@ def _teacher_probs(
         dl_params=dl_params,
     )
     if loaded:
-        logger.info("META_TRAIN: teacher TCN carregado para %s", ",".join(sorted(loaded)))
-    else:
-        logger.warning("META_TRAIN: teacher TCN ausente; usando proxy de retorno passado.")
+        return loaded
+    logger.warning("[META] teacher ausente; proxy de retorno passado")
     return loaded
 
 
@@ -220,7 +219,7 @@ async def train_meta_classifier(
     assert_export_zscore_floor(bundle_meta, floor=float(export_min_zscore))
     assert_export_mae_gap(train_mae, val_mae)
     _export_model(model, bundle_meta, output_path)
-    summary = build_training_summary(
+    return build_training_summary(
         frame=frame,
         y=y,
         train_mae=train_mae,
@@ -230,8 +229,6 @@ async def train_meta_classifier(
         symbols=symbols,
         bundles=bundles,
     )
-    logger.info("Meta-regressor exportado: %s", summary)
-    return summary
 
 
 def _parse_args(settings: dict[str, Any]) -> argparse.Namespace:
@@ -272,7 +269,22 @@ def main() -> None:
             export_min_zscore=float(args.export_min_zscore),
         )
     )
-    logger.info("META summary | %s", json.dumps(summary, indent=2))
+    out_path = Path(str(summary.get("output") or args.output))
+    try:
+        out_rel = str(out_path.resolve().relative_to(REPO_ROOT.resolve())).replace("\\", "/")
+    except ValueError:
+        out_rel = out_path.name
+    logger.info(
+        "[META] ok samples=%s n_val=%s ir=%.2f z=%.2f mae=%.2f gran=%s src=%s out=%s",
+        summary.get("samples"),
+        summary.get("n_val"),
+        float(summary.get("oos_information_ratio") or 0.0),
+        float(summary.get("oos_payoff_zscore_mean") or 0.0),
+        float(summary.get("best_val_mae") or 0.0),
+        summary.get("granularity"),
+        summary.get("data_source"),
+        out_rel,
+    )
 
 
 if __name__ == "__main__":

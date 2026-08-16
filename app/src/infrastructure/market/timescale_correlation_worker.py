@@ -25,10 +25,10 @@ class _CorrelationWorkerState:
 _state = _CorrelationWorkerState()
 
 
-def _triton_cfg(config: dict) -> dict:
+def _correlation_cfg(config: dict) -> dict:
     """Extrai configuracao de correlacao do bloco infra."""
     infra = config.get("infra") if isinstance(config, dict) else {}
-    chunk = infra.get("triton") if isinstance(infra, dict) else {}
+    chunk = infra.get("correlation") if isinstance(infra, dict) else {}
     return chunk if isinstance(chunk, dict) else {}
 
 
@@ -37,7 +37,7 @@ async def refresh_correlation_cache(orch: Any) -> None:
     infra = getattr(orch, "infra", None)
     if infra is None or not infra.enabled:
         return
-    cfg = _triton_cfg(orch.config)
+    cfg = _correlation_cfg(orch.config)
     ts_cfg = orch.config.get("infra", {}).get("timescale", {})
     dsn = str(ts_cfg.get("dsn", "postgresql://aether:aether@localhost:5432/aether"))
     data_cfg = orch.config.get("data_handler", {}) or {}
@@ -60,7 +60,7 @@ async def refresh_correlation_cache(orch: Any) -> None:
 
 async def _correlation_worker_loop(orch: Any) -> None:
     """Loop periodico de refresh da matriz de correlacao."""
-    cfg = _triton_cfg(orch.config)
+    cfg = _correlation_cfg(orch.config)
     every = max(1, int(cfg.get("correlation_refresh_cycles", 5)))
     while getattr(orch, "running", False):
         await refresh_correlation_cache(orch)

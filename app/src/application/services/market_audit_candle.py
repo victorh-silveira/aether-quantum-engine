@@ -37,7 +37,7 @@ def last_closed_micro_candle(stream: Any, symbol: str) -> Candle | None:
 
 
 def resolve_micro_granularity_seconds(orch: Any) -> int:
-    """Resolve granularidade micro do stream ou settings (padrao 180)."""
+    """Resolve granularidade micro do stream ou settings (padrao 60)."""
     stream = getattr(orch, "stream", None) if orch is not None else None
     if stream is not None:
         raw = getattr(stream, "micro_granularity", None)
@@ -54,14 +54,14 @@ def resolve_micro_granularity_seconds(orch: Any) -> int:
                 return max(1, int(data["micro_granularity"]))
             except (TypeError, ValueError):
                 pass
-    return 180
+    return 60
 
 
 def format_candle_outcome_line(
     symbol: str,
     candle: Candle,
     *,
-    granularity: int = 180,
+    granularity: int = 60,
 ) -> str:
     """Linha [CANDLE] com lado OHLC e janela temporal da vela fechada."""
     side = candle_binary_side(candle)

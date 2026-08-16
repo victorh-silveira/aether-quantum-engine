@@ -16,10 +16,6 @@ def _compose_text() -> str:
     return repo_path("infra", "docker", "docker-compose.yml").read_text(encoding="utf-8")
 
 
-def _gpu_overlay_text() -> str:
-    return repo_path("infra", "docker", "docker-compose.gpu.yml").read_text(encoding="utf-8")
-
-
 def test_compose_base_has_hardening_and_localhost_binds():
     text = _compose_text()
     assert "restart: unless-stopped" in text
@@ -27,20 +23,18 @@ def test_compose_base_has_hardening_and_localhost_binds():
     assert "127.0.0.1:6379:6379" in text
     assert "127.0.0.1:5432:5432" in text
     assert "127.0.0.1:9000:9000" in text
-    assert "127.0.0.1:8000:8000" in text
     assert "127.0.0.1:8005:8000" in text
+    assert "127.0.0.1:8006:8000" in text
     assert "mem_limit: 256m" in text
     assert "no-new-privileges:true" in text
     assert "gpus:" not in text
-    assert "profiles: [gpu, cpu]" in text
-    assert "profiles: [core, gpu, cpu]" in text
+    assert "aether-triton" not in text
+    assert "profiles: [core]" in text
+    assert "profiles: [ml]" in text
 
 
-def test_compose_gpu_overlay_declares_nvidia():
-    text = _gpu_overlay_text()
-    assert "gpus: all" in text
-    assert "nvidia" in text
-    assert "aether-triton" in text
+def test_compose_gpu_overlay_removed():
+    assert not repo_path("infra", "docker", "docker-compose.gpu.yml").is_file()
 
 
 def test_timescale_orphan_conf_removed():
@@ -54,14 +48,15 @@ def test_meta_dockerfile_non_root_and_healthcheck():
     assert repo_path("infra", "docker", "meta-classifier", ".dockerignore").is_file()
 
 
-def test_compose_lib_and_env_example_document_gpu_knobs():
+def test_compose_lib_and_env_example_document_ml_knobs():
     lib = repo_path("infra", "docker", "compose-lib.sh").read_text(encoding="utf-8")
     env = repo_path(".env.example").read_text(encoding="utf-8")
-    assert "DOCKER_GPU" in lib
-    assert "docker-compose.gpu.yml" in lib
-    assert "AETHER_TRITON_HTTP" in env
+    assert "DOCKER_PROFILES" in lib
+    assert "docker-compose.gpu.yml" not in lib
+    assert "AETHER_TRITON_HTTP" not in env
     assert "AETHER_META_CLASSIFIER_HTTP" in env
-    assert "DOCKER_PROFILES" in env
+    assert "AETHER_LOSS_CLASSIFIER_HTTP" in env
+    assert "DOCKER_PROFILES=core,ml" in env
 
 
 def test_compose_loss_classifier_env_ssot():
@@ -102,8 +97,7 @@ def test_live_core_stack_localhost():
 
 
 @pytest.mark.docker
-def test_live_triton_and_meta_when_up():
-    triton_up = _http_ok("http://127.0.0.1:8000/v2/health/live")
+def test_live_meta_when_up():
     meta_up = False
     meta_ready = False
     try:
@@ -113,9 +107,6 @@ def test_live_triton_and_meta_when_up():
             meta_ready = bool(payload.get("ready"))
     except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError):
         pass
-    if not triton_up and not meta_up:
-        pytest.skip("Triton/Meta nao estao no ar")
-    if triton_up:
-        assert triton_up is True
-    if meta_up:
-        assert meta_ready is True
+    if not meta_up:
+        pytest.skip("Meta classifier nao esta no ar")
+    assert meta_ready is True

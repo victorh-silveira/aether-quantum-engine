@@ -19,10 +19,7 @@ if str(APP_ROOT) not in sys.path:
 
 RemoveFn = Callable[[Path], None]
 PRESERVED_DATA_CHILDREN = frozenset({"deriv", "dl"})
-DOCKER_BIND_MOUNTS_RELATIVE = (
-    Path("infra") / "docker" / "triton-models",
-    Path("infra") / "docker" / "meta-models",
-)
+DOCKER_BIND_MOUNTS_RELATIVE = (Path("infra") / "docker" / "meta-models",)
 _CACHE_NAMES = (".pytest_cache", ".ruff_cache", ".coverage", "htmlcov", "dist", "build", ".mypy_cache")
 _SKIP_WALK_DIRS = frozenset({".venv", "venv", ".git", ".idea", ".vscode"})
 _STAGE_MODULES: dict[str, tuple[str, ...]] = {
@@ -61,12 +58,8 @@ def docker_bind_mount_roots(repo_root: Path) -> tuple[Path, ...]:
     return tuple(repo_root / relative for relative in DOCKER_BIND_MOUNTS_RELATIVE)
 
 
-def triton_models_root(repo_root: Path) -> Path:
-    return repo_root / DOCKER_BIND_MOUNTS_RELATIVE[0]
-
-
 def meta_models_root(repo_root: Path) -> Path:
-    return repo_root / DOCKER_BIND_MOUNTS_RELATIVE[1]
+    return repo_root / DOCKER_BIND_MOUNTS_RELATIVE[0]
 
 
 def is_docker_bind_mount(path: Path, repo_root: Path) -> bool:

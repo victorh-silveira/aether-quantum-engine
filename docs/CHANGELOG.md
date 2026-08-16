@@ -2,6 +2,9 @@
 
 ## [2.8.5](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.8.4...v2.8.5) (2026-08-14)
 
+### Removed
+* **infra:** servidor de inferencia gRPC removido da stack Docker; TCN = eager/CUDA local; profiles `core`/`ml` apenas
+
 ## [2.8.4](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.8.3...v2.8.4) (2026-08-13)
 
 ## [2.8.3](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.8.2...v2.8.3) (2026-08-13)
@@ -34,6 +37,9 @@
 
 ### Changed
 
+* **contrato_ops_m5:** contrato live **5 m** fixo (`ops_contract_duration_minutes` → `params.duration`); promote grava so `label_horizon_bars` do winner (SSOT atual **50** / H50); docs/skills alinhados ao gap label N vs settle 5 min
+* **launch_train_logs:** pos-sweep denso (board/winner/promote/Timescale/`[META] ok`); `quiet_train_logs` sobe celula a **CRITICAL** + `why=` se deploy=0; sanitize/loss/meta sem dump de path; SSOT docs/rules/skills em N=50
+
 * **r10_m2_migration:** referencias residuais `OTC_SPC` → `R_10` (app, docs, skills, infra, testes); narrativa M15/900s → **M2/120s**; contrato **2 m**; `test_r10_coverage_gaps.py`; SSOT tests alinhados a `settings.json`
 
 * **train_api_shortfall:** treino DL e meta aceitam historico parcial se ≥ **95%** do alvo (`train_history_shortfall_ratio`); evita loop/erro quando Deriv esgota ~1984/2000 M15; `bootstrap_max_wait_rounds` **16**
@@ -45,7 +51,7 @@
 * **train:** bootstrap passa a ler OHLC do `train_timeframe` (micro); backfill no buffer certo; meta default **2000** barras
 * **cycle:** entrada a cada **1 m** — `cycle_interval`/`signature_boundary`/`exec_empty_retry` **60 s** (contrato permanece **15 m**)
 * **loss_clf_fresh:** cache DL miss quando `boundary_epoch` avanca; LOSS_CLF limpa flags stale e dedupe de log por `cycle_id` (`feature_dim` 24 intacto)
-* **dl_tick_patch:** path eager sempre re-infere; Triton cache por `cycle_id`; ultimo tick live patcha close/high/low da M15 em formacao antes do TCN (Prob/Cal dinamicos entre ciclos 60 s)
+* **dl_tick_patch:** path eager sempre re-infere; cache por `cycle_id`; ultimo tick live patcha close/high/low da M15 em formacao antes do TCN (Prob/Cal dinamicos entre ciclos 60 s)
 * **dl_intrabar_micro:** microestrutura live na ultima barra + SCALE/flow no OHLC patchado (`_patched_ohlc`); DEBUG `tick_patch`
 * **loss_clf_calibrate:** floor FLIP **0.90**; fit `class_weight=balanced` + `min_child_samples=15`; retrain pos-LOSS bloqueado se buffer LOSS-heavy (`loss/n>0.60` ou `win<8`) exceto saida bootstrap (≥1 WIN+≥1 LOSS); vetor 24D clip edge idx10 + `micro_tick_acceleration` idx19; Prob/Cal e `p_loss` com **5** casas; limpeza+bootstrap embutidos em `make docker-rebuild` / `docker-reset` (`COLD_START`, `p_loss=0.50`, veto off ate retrain real)
 * **scale_mili_tape_chop:** `adapt_mili_tape_skip_chop` **true** — nao inverter TCN so com mili+tape em micro=chop (majority com lead permanece)
@@ -235,10 +241,10 @@
 
 ### Changed
 * **execution:** esteira **mandatoria** (`mandatory_trade_each_cycle: true`); zona neutra **off**; thresholds **0.51/0.49**
-* **quality:** pisos regulares de margem/ADX **0.0** para reduzir EXEC_EMPTY; Triton/meta opcionais nos settings atuais
+* **quality:** pisos regulares de margem/ADX **0.0** para reduzir EXEC_EMPTY; meta opcional nos settings atuais
 * **price_zone:** `align_or_keep_meta_side` mantem lado meta com edge > 0 contra a zona
 * **docs:** corrige Unreleased — recovery e Soft Recovery (nao Martingale multiplicativo)
-* **triton:** repositorio de modelo `R_10` (substitui layout legado RDBEAR/RDBULL)
+* **models:** repositorio de modelo `R_10` (substitui layout legado RDBEAR/RDBULL)
 
 ### Removed
 * **direction:** gate `recovery_same_side_negative_edge` (bloqueava recovery no mesmo lado)
@@ -332,7 +338,7 @@
 * **risk:** defer martingale obrigatorio em vol > 1.10 (N2+), teto 2.5% banca por ordem deferida
 * **risk:** decaimento logaritmico do piso Hurst em recovery N3+ com drawdown severo de sessao
 * **infra:** auditoria FEAT_DIM via manifest MinIO e forward pass multi-probe (Z-scores extremos) no startup
-* **infra:** container `aether-triton` (GPU) com inferencia gRPC assincrona; sync MinIO para `infra/docker/triton-models`
+* **infra:** sync MinIO de TorchScript e sanity forward pass no startup (inferencia no host)
 * **execution:** trading continuo obrigatorio (`CONTINUOUS`); quality gate virou penalidade sem SKIP operacional
 * **execution:** fallback por menor entropia de Shannon (`EXEC_FALLBACK`) e resolucao Softmax em conflito DL/exaustao (`EXEC_DIVERGENT`)
 * **execution:** peso DL ajustado por matriz de correlacao cruzada (TimescaleDB + cache Redis)

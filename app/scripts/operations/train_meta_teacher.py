@@ -9,6 +9,7 @@ from typing import Any
 import numpy as np
 import torch
 
+from aether_paths import REPO_ROOT
 from scripts.operations.train_meta_data import OhlcBundle
 from src.application.services.deep_learning.dl_calibration import CalibratorState, apply_calibrator
 from src.application.services.deep_learning.dl_device import place_model, resolve_torch_device
@@ -165,9 +166,12 @@ def infer_teacher_probs_from_checkpoints(
             continue
         loaded[str(bundle.symbol)] = probs.astype(np.float32)
         active = probs[int(lookback) - 1 :] if int(lookback) > 0 else probs
+        try:
+            path_rel = str(Path(path).resolve().relative_to(REPO_ROOT.resolve())).replace("\\", "/")
+        except ValueError:
+            path_rel = Path(path).name
         logger.info(
-            "META_TRAIN: teacher TCN inferido | %s | n=%d | lookback=%d | "
-            "prob[min/mean/max]=%.3f/%.3f/%.3f | gray_pct=%.1f%% | path=%s",
+            "[META] teacher %s n=%d lb=%d p=%.2f/%.2f/%.2f gray=%.0f%% ckpt=%s",
             bundle.symbol,
             int(probs.size),
             int(lookback),
@@ -175,7 +179,7 @@ def infer_teacher_probs_from_checkpoints(
             float(np.mean(active)),
             float(np.max(active)),
             float(100.0 * np.mean((active > 0.47) & (active < 0.53))),
-            path,
+            path_rel,
         )
     return loaded
 

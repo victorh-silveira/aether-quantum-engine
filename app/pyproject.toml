@@ -81,9 +81,7 @@ convention = "google"
 "src/infrastructure/api/deriv_rest_client.py" = ["S310"]
 "src/infrastructure/api/deriv_pat_binding.py" = ["S310"]
 "src/infrastructure/api/deriv_pat_session.py" = ["S310"]
-"src/infrastructure/inference/triton_http.py" = ["S310"]
 "tests/**/*.py" = ["ARG001", "ARG005", "S101", "S106", "S310", "PLC0415"]
-"src/infrastructure/inference/triton_grpc_client.py" = ["N818"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -115,7 +113,7 @@ asyncio_default_fixture_loop_scope = "function"
 markers = [
     "torch_cuda: testes que exigem resolucao real de dispositivo CUDA",
     "real_settlement_watch: testes que executam _run_settlement_watch real",
-    "docker: testes de integracao que exigem stack Docker local (Redis/Timescale/MinIO; Triton/Meta se up)",
+    "docker: testes de integracao que exigem stack Docker local (Redis/Timescale/MinIO/Meta/Loss se up)",
 ]
 
 [tool.interrogate]

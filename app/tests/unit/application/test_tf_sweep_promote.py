@@ -57,8 +57,23 @@ def test_patch_settings_aligns_contract_and_cycle():
     assert patched["deep_learning"]["indicators"]["windows"]["rsi_period"] == 14
     assert patched["orchestrator"]["execution"]["scale_vision"]["slope_bars"] == 5
     assert settings["data_handler"]["micro_granularity"] == 120
+    ops_fixed = patch_settings_for_candidate(
+        settings,
+        {**cand, "duration": 50, "label_horizon_bars": 50},
+        ops_contract_duration_minutes=5,
+    )
+    assert ops_fixed["risk_management"]["params"]["duration"] == 5
+    assert ops_fixed["deep_learning"]["label_horizon_bars"] == 50
     train = patch_settings_for_sweep_train(settings, cand, artifact_root="data/dl/sweep")
+    assert train["risk_management"]["params"]["duration"] == 5
     assert train["deep_learning"]["model_path_template"] == "data/dl/sweep/R_10/M5/{symbol}.pth"
+    assert train["logging"]["level"] == "CRITICAL"
+    assert int(train["deep_learning"]["training_log_every_n_epochs"]) >= 10**9
+    noisy = patch_settings_for_sweep_train(settings, cand, artifact_root="data/dl/sweep", quiet_train_logs=False)
+    assert noisy.get("logging", {}).get("level") != "CRITICAL" or "level" not in noisy.get("logging", {})
+    assert int(noisy["deep_learning"].get("training_log_every_n_epochs") or 0) < 10**9 or (
+        "training_log_every_n_epochs" not in noisy["deep_learning"]
+    )
     assert train["deep_learning"]["train_deploy_retries"] == 1
     assert train["infra"]["enabled"] is False
     assert train["anchor"] == "R_10"
@@ -88,7 +103,7 @@ def test_promote_fail_closed_and_copy(tmp_path: Path):
         }
     )
     artifact_root = "sweep_art"
-    tf_dir = tmp_path / artifact_root / "R_10" / "M5"
+    tf_dir = tmp_path / artifact_root / "R_10" / "H50"
     tf_dir.mkdir(parents=True)
     torch.save({"deploy_ok": False, "val_accuracy": 0.65, "val_brier": 0.22}, tf_dir / "R_10.pth")
     (tf_dir / "R_10_ts.pt").write_bytes(b"ts")
@@ -98,7 +113,11 @@ def test_promote_fail_closed_and_copy(tmp_path: Path):
         "anchor": "R_10",
         "symbols": ["R_10"],
         "data_handler": {"micro_granularity": 120, "mini_granularity": 120, "granularity": 3600},
-        "deep_learning": {"lookback": 720, "model_path_template": "data/dl/{symbol}.pth"},
+        "deep_learning": {
+            "lookback": 720,
+            "model_path_template": "data/dl/{symbol}.pth",
+            "horizon_sweep": {"ops_contract_duration_minutes": 5},
+        },
         "risk_management": {"params": {"duration": 2, "duration_unit": "m"}, "kelly": {}},
         "orchestrator": {
             "cycle_interval_seconds": 120,
@@ -127,21 +146,21 @@ def test_promote_fail_closed_and_copy(tmp_path: Path):
     good = enrich_leaderboard_row(
         {
             "symbol": "R_10",
-            "tf": "M5",
+            "tf": "H50",
             "deploy_ok": False,
             "val_accuracy": 0.54,
             "settle_wr": 0.65,
             "settle_n": 24,
             "val_brier": 0.22,
-            "granularity": 300,
-            "micro_granularity": 300,
-            "macro_granularity": 14400,
-            "mini_granularity": 300,
-            "duration": 5,
+            "granularity": 60,
+            "micro_granularity": 60,
+            "macro_granularity": 7200,
+            "mini_granularity": 60,
+            "duration": 50,
             "duration_unit": "m",
-            "lookback": 288,
-            "history_bars": 2000,
-            "label_horizon_bars": 1,
+            "lookback": 480,
+            "history_bars": 1333,
+            "label_horizon_bars": 50,
         },
         knobs=knobs,
     )
@@ -155,9 +174,10 @@ def test_promote_fail_closed_and_copy(tmp_path: Path):
         write_symbols_module=True,
         symbols_module_path=drift_path,
     )
-    assert winner is not None and winner["tf"] == "M5"
-    assert patched["data_handler"]["micro_granularity"] == 300
+    assert winner is not None and winner["tf"] == "H50"
+    assert patched["data_handler"]["micro_granularity"] == 60
     assert patched["risk_management"]["params"]["duration"] == 5
+    assert patched["deep_learning"]["label_horizon_bars"] == 50
     assert patched["anchor"] == "R_10"
     assert patched["symbols"] == ["R_10"]
     stamped = torch.load(dest / "R_10.pth", map_location="cpu", weights_only=True)
@@ -235,7 +255,7 @@ def test_config_edge_paths_and_template(tmp_path: Path):
     assert knobs2["min_settle_n"] == 16
     assert knobs2["min_history_bars"] == 800
     assert knobs2["symbols"] == ["R_10"]
-    assert knobs2["n_bars"] == [1, 2, 3, 5]
+    assert knobs2["n_bars"] == [15, 20, 25, 30, 35, 40, 45, 50, 55, 60]
     assert "launch_only" not in knobs2
     assert candidate_model_template("data/dl/sweep", "h5") == "data/dl/sweep/R_10/H5/{symbol}.pth"
     assert candidate_model_template("data/dl/sweep", "h5", symbol="R_75") == "data/dl/sweep/R_75/H5/{symbol}.pth"

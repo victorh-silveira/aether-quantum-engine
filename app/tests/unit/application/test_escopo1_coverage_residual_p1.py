@@ -24,7 +24,6 @@ from src.application.services.force_trade_mode import (
 from src.application.services.infra_timing_config import (
     resolve_history_fetch_config,
     resolve_stream_reconnect_config,
-    resolve_triton_infer_timeout,
 )
 from src.application.services.live_signal_metrics import _ece, apply_live_calib_drift_soft, record_live_signal_outcome
 from src.application.services.live_signal_metrics_config import (
@@ -114,8 +113,6 @@ def test_infra_timing_config_branches(monkeypatch):
     assert flat["max_attempts"] == 9
     hist = resolve_history_fetch_config({"chunk": 500, "delay_seconds": 0.1})
     assert hist["chunk"] == 500
-    with pytest.raises(ValueError, match="infer_timeout"):
-        resolve_triton_infer_timeout({})
 
 
 def test_live_signal_metrics_config_paths():
