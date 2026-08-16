@@ -1,3 +1,5 @@
+## [2.10.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.9.0...v2.10.0) (2026-08-16)
+
 ## [2.9.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.8.6...v2.9.0) (2026-08-16)
 
 ## [2.8.6](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.8.5...v2.8.6) (2026-08-14)
@@ -48,4 +50,3 @@
 * **startup:** remove `startup_fetch_bars: 512` (era &lt; lookback 720 → SKIP data); piso = `min_dl_inference_len`; sync lean tambem em inferencia
 * **infer:** piso `inference_history_bars` sem double-count de lookback (~864 vs ~1456); evita SKIP:DATA quando API R_10 entrega ~1.2k M15
 * **risk:** pos-LOSS sem flip DIR_LOCK (lado fica no TCN); cover RECOVER sem damping de stop-win; loss-clf soft waivado com pending
-
