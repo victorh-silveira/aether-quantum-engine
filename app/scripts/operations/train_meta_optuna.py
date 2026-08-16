@@ -9,7 +9,7 @@ from typing import Any
 import lightgbm as lgb
 import numpy as np
 import optuna
-import pandas as pd
+import polars as pl
 from sklearn.metrics import mean_absolute_error
 
 from scripts.operations.train_meta_vector import build_paired_training_dataset
@@ -50,10 +50,18 @@ def configure_meta_train_logging() -> None:
         pass
 
 
+def _feature_frame(frame: pl.DataFrame | np.ndarray) -> pl.DataFrame:
+    columns = meta_classifier_column_names()
+    if isinstance(frame, pl.DataFrame):
+        return frame.select(columns)
+    matrix = np.asarray(frame, dtype=np.float64)
+    return pl.DataFrame({name: matrix[:, idx] for idx, name in enumerate(columns)}).select(columns)
+
+
 def train_lgbm_candidate(
-    x_train: pd.DataFrame,
+    x_train: pl.DataFrame,
     y_train: np.ndarray,
-    x_val: pd.DataFrame,
+    x_val: pl.DataFrame,
     y_val: np.ndarray,
     params: dict[str, Any],
     *,
@@ -61,16 +69,18 @@ def train_lgbm_candidate(
     early_stopping: bool = True,
 ) -> tuple[lgb.Booster, float, float]:
     columns = meta_classifier_column_names()
-    x_train = pd.DataFrame(x_train, columns=columns).loc[:, columns]
-    x_val = pd.DataFrame(x_val, columns=columns).loc[:, columns]
+    x_train = _feature_frame(x_train)
+    x_val = _feature_frame(x_val)
+    x_train_np = x_train.to_numpy()
+    x_val_np = x_val.to_numpy()
     merged = {**LGBM_QUIET_PARAMS, **params}
     train_set = lgb.Dataset(
-        x_train,
+        x_train_np,
         label=y_train,
         feature_name=columns,
         weight=np.asarray(sample_weight, dtype=np.float64) if sample_weight is not None else None,
     )
-    val_set = lgb.Dataset(x_val, label=y_val, reference=train_set)
+    val_set = lgb.Dataset(x_val_np, label=y_val, reference=train_set)
     model = lgb.train(
         {"objective": LGBM_REGRESSION_OBJECTIVE, "verbosity": -1, "seed": 42, **merged},
         train_set,
@@ -78,8 +88,8 @@ def train_lgbm_candidate(
         valid_sets=[val_set],
         callbacks=[lgb.early_stopping(int(LGBM_EARLY_STOPPING_ROUNDS), verbose=False)] if early_stopping else [],
     )
-    train_pred = model.predict(x_train.loc[:, columns])
-    val_pred = model.predict(x_val.loc[:, columns])
+    train_pred = model.predict(x_train_np)
+    val_pred = model.predict(x_val_np)
     train_mae = float(mean_absolute_error(y_train, train_pred))
     val_mae = float(mean_absolute_error(y_val, val_pred))
     return model, train_mae, val_mae
@@ -113,23 +123,29 @@ def _mae_gap_ratio(train_mae: float, val_mae: float) -> float:
 
 
 def _purged_frame_split(
-    frame: pd.DataFrame,
+    frame: pl.DataFrame,
     y: np.ndarray,
     *,
     sample_weight: np.ndarray | None = None,
     embargo: int = PURGED_SPLIT_EMBARGO,
-) -> tuple[pd.DataFrame, pd.DataFrame, np.ndarray, np.ndarray, np.ndarray | None]:
-    sample_count = int(len(frame))
+) -> tuple[pl.DataFrame, pl.DataFrame, np.ndarray, np.ndarray, np.ndarray | None]:
+    sample_count = int(frame.height)
     val_size = max(32, int(sample_count * 0.15))
     train_end = sample_count - val_size - max(0, int(embargo))
     weights = None if sample_weight is None else np.asarray(sample_weight, dtype=np.float64)
     if train_end < 32 or val_size < 8:
         cut = max(1, int(sample_count * 0.8))
         w_train = None if weights is None else weights[:cut]
-        return frame.iloc[:cut], frame.iloc[cut:], y[:cut], y[cut:], w_train
+        return frame.slice(0, cut), frame.slice(cut, sample_count - cut), y[:cut], y[cut:], w_train
     val_start = train_end + max(0, int(embargo))
     w_train = None if weights is None else weights[:train_end]
-    return frame.iloc[:train_end], frame.iloc[val_start:], y[:train_end], y[val_start:], w_train
+    return (
+        frame.slice(0, train_end),
+        frame.slice(val_start, sample_count - val_start),
+        y[:train_end],
+        y[val_start:],
+        w_train,
+    )
 
 
 def _hygiene_for_bundle(hygiene: dict[str, Any]) -> dict[str, Any]:
@@ -147,7 +163,7 @@ def _hygiene_for_bundle(hygiene: dict[str, Any]) -> dict[str, Any]:
 
 
 def run_optuna_study(
-    frame: pd.DataFrame,
+    frame: pl.DataFrame,
     y: np.ndarray,
     *,
     trials: int,
@@ -156,14 +172,14 @@ def run_optuna_study(
     hygiene: dict[str, Any] | None = None,
 ) -> tuple[lgb.Booster, dict[str, Any], float, float]:
     configure_meta_train_logging()
-    columns = meta_classifier_column_names()
-    frame = pd.DataFrame(frame, columns=columns).loc[:, columns]
+    frame = _feature_frame(frame)
     x_train, x_val, y_train, y_val, w_train = _purged_frame_split(
         frame,
         y,
         sample_weight=sample_weight,
     )
-    n_val = int(len(x_val))
+    n_val = int(x_val.height)
+    x_val_np = x_val.to_numpy()
 
     def objective(trial: optuna.Trial) -> float:
         params = {
@@ -188,7 +204,7 @@ def run_optuna_study(
         trial.set_user_attr("mae_gap", float(gap))
         if gap > META_EXPORT_MAX_MAE_GAP + 1e-12:
             return float(OPTUNA_OVERFIT_PENALTY)
-        val_pred = model.predict(x_val.loc[:, columns])
+        val_pred = model.predict(x_val_np)
         oos_zscore = payoff_zscore_mean(y_val, val_pred)
         oos_ir = information_ratio_from_predictions(y_val, val_pred)
         trial.set_user_attr("oos_payoff_zscore_mean", float(oos_zscore))
@@ -227,7 +243,7 @@ def run_optuna_study(
             "Export meta bloqueado: melhor trial ainda overfitou no refit final "
             f"(val_mae/train_mae={_mae_gap_ratio(train_mae, val_mae):.3f})."
         )
-    val_pred = model.predict(x_val.loc[:, columns])
+    val_pred = model.predict(x_val_np)
     val_ir = information_ratio_from_predictions(y_val, val_pred)
     val_oos_zscore = payoff_zscore_mean(y_val, val_pred)
     ir_unit = float(val_ir / math.sqrt(n_val)) if n_val > 0 else 0.0

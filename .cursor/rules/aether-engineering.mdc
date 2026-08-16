@@ -12,4 +12,5 @@ alwaysApply: true
 - Commit: `tipo(escopo): assunto PT-BR` + corpo; escopos em `linters/commitlint.config.mjs`
 - SSOT de agentes: `AGENTS.md` + `docs/agent-coverage.md`
 - Deps Python: `docs/engineering-python-deps.md` + rule `aether-python-deps` (anti-redundancia)
+- Higienizacao: `docs/engineering-repo-hygiene.md` + skill `aether-repo-hygiene` (morto comprovado)
 - Nao afrouxar QA para “passar o hook”; corrigir causa

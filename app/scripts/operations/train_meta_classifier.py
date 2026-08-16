@@ -18,7 +18,7 @@ if str(_APP) not in sys.path:
 
 import joblib
 import numpy as np
-import pandas as pd
+import polars as pl
 
 from aether_asyncio import run_async, silence_asyncio_debug
 from aether_paths import REPO_ROOT
@@ -105,7 +105,7 @@ def target_variance(y: np.ndarray) -> float:
 
 def build_training_summary(
     *,
-    frame: pd.DataFrame,
+    frame: pl.DataFrame,
     y: np.ndarray,
     train_mae: float,
     val_mae: float,

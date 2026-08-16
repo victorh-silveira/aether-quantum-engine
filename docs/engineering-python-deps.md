@@ -8,17 +8,17 @@ Rule: `aether-python-deps.mdc`. Skill: `aether-python-deps`.
 
 1. Declarar todo pacote com `import` / `from` em codigo first-party no requirements do ambiente correspondente.
 2. Nao pinar ferramenta so-transitiva ja coberta pelo wrapper (ex.: `coverage` sob `pytest-cov`).
-3. Uma lib por papel; excecao documentada: dual-stack DataFrame.
+3. Uma lib por papel; **DataFrame = somente Polars** (`pandas` proibido).
 4. Apos mudar `numpy` / `torch` / `scikit-learn`: smoke import + `pip check` no WSL antes do commit.
 
-## Dual-stack DataFrame (intencional)
+## DataFrame SSOT (Polars-only)
 
 | Lib | Papel |
 |-----|--------|
-| `polars` | Features DL runtime (`dl_feature_indicators*`) |
-| `pandas` | Meta tabular / LightGBM / scripts `train_meta_*` / Docker meta |
+| `polars` | Unica lib de DataFrame (features DL + meta tabular + Docker meta) |
+| `numpy` | Arrays / borda LightGBM (`to_numpy`); nao substitui DataFrame |
 
-Proibido: misturar pandas e polars no mesmo modulo; adicionar 3a lib DF (`modin`, `dask`, `cudf`, etc.) sem mandato.
+Proibido: `pandas`, `to_pandas()`, dual-stack, 3a lib DF (`modin`, `dask`, `cudf`, etc.).
 
 ## joblib
 
@@ -34,7 +34,7 @@ Pins atuais: `numpy==2.4.6`, `torch==2.10.0`, `scikit-learn==1.6.1`. Ao bump:
 
 ```bash
 python -m pip check
-python -c "import numpy, torch, sklearn, joblib, pandas, polars; print(numpy.__version__, torch.__version__)"
+python -c "import numpy, torch, sklearn, joblib, polars; print(numpy.__version__, torch.__version__)"
 ```
 
 Falhas de C-extension / ARRAY_API = regressao de ABI; corrigir pins antes de merge.

@@ -1,4 +1,4 @@
-pandas==2.2.3
+polars==1.23.0
 fastapi==0.115.12
 uvicorn[standard]==0.34.0
 numpy==2.4.6

@@ -7,8 +7,7 @@ python-dotenv==1.2.2           # Carrega variáveis de ambiente a partir de um a
 
 # ---- PROCESSAMENTO DE DADOS ----
 numpy==2.4.6                   # Computação numérica de alta performance e manipulação de arrays multidimensionais
-pandas==2.3.3                  # DataFrames meta tabular / LightGBM / Docker meta (nao misturar com polars no mesmo modulo)
-polars==1.23.0                 # DataFrames features DL runtime (TCN); dual-stack SSOT com pandas — sem 3a lib DF
+polars==1.23.0                 # Unica lib de DataFrame SSOT (features DL + meta tabular); pandas proibido
 
 # ---- INTERFACE & UI ----
 rich==15.0.0                   # Renderização de texto formatado, cores, tabelas e logs bonitos no terminal

@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import lightgbm as lgb
 import numpy as np
 import optuna
-import pandas as pd
+import polars as pl
 import pytest
 
 from scripts.operations.train_meta_classifier import (
@@ -324,9 +324,9 @@ def test_build_paired_training_dataset_has_continuous_target_and_named_columns()
     )
     columns = meta_classifier_column_names()
     assert list(frame.columns) == columns
-    assert isinstance(frame, pd.DataFrame)
+    assert isinstance(frame, pl.DataFrame)
     assert frame.shape[1] == META_FEATURE_DIM == len(columns) == 43
-    assert len(frame) == len(y) == len(proxy) == len(pnl) == hygiene["n_kept"]
+    assert frame.height == len(y) == len(proxy) == len(pnl) == hygiene["n_kept"]
     assert np.issubdtype(y.dtype, np.floating)
     assert target_variance(y) > 0.0
     validate_target_variance(y)
@@ -344,10 +344,10 @@ def test_train_lgbm_candidate_uses_train_api():
     columns = meta_classifier_column_names()
     rows = 40
     rng = np.random.default_rng(7)
-    frame = pd.DataFrame(rng.random((rows, len(columns))), columns=columns)
+    frame = pl.DataFrame({name: rng.random(rows) for name in columns})
     split = 32
-    x_train = frame.iloc[:split]
-    x_val = frame.iloc[split:]
+    x_train = frame.slice(0, split)
+    x_val = frame.slice(split, rows - split)
     y_train = rng.uniform(-0.5, 0.5, size=split).astype(np.float32)
     y_val = rng.uniform(-0.5, 0.5, size=rows - split).astype(np.float32)
     weights = np.linspace(0.2, 1.0, split, dtype=np.float64)

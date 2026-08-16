@@ -68,6 +68,7 @@ Formato: `tipo(escopo): assunto em PT-BR` + corpo obrigatorio.
 | Deriv PAT/WS | `docs/deriv-api-aether.md` + skill `aether-deriv-connect` |
 | QA / pre-commit | `docs/engineering-standards.md` + skill `aether-precommit` |
 | Deps Python / requirements | `docs/engineering-python-deps.md` + skill `aether-python-deps` |
+| Higienizacao do repositorio | `docs/engineering-repo-hygiene.md` + skill `aether-repo-hygiene` |
 
 Inventario de modulos: [`docs/structure.md`](docs/structure.md)  
 Arquitetura runtime: [`docs/arquitetura.md`](docs/arquitetura.md)

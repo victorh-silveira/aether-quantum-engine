@@ -1,5 +1,5 @@
 ---
-description: Dependencias Python — anti-redundancia, dual-stack pandas/polars, ABI numpy
+description: Dependencias Python — anti-redundancia, Polars-only, ABI numpy
 globs: "**/requirements*.txt"
 alwaysApply: false
 ---
@@ -7,7 +7,8 @@ alwaysApply: false
 # Python deps
 
 - Declarar o que o codigo importa; nao pinar so-transitivo (`coverage` sob `pytest-cov`)
-- Dual-stack SSOT: `polars` = features DL; `pandas` = meta tabular; sem misturar no mesmo modulo; sem 3a lib DF
+- DataFrame SSOT: **somente Polars**; `pandas` / `to_pandas` / dual-stack proibidos; sem 3a lib DF
 - Manter `joblib` pin se houver `import joblib` (meta/loss)
+- LightGBM: NumPy na borda via `DataFrame.to_numpy()`
 - Bump `numpy`/`torch`/`sklearn` exige `pip check` + smoke import no WSL
 - Doc: `docs/engineering-python-deps.md`; skill: `aether-python-deps`

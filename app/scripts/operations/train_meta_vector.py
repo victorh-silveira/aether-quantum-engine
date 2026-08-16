@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
-import pandas as pd
+import polars as pl
 
 from scripts.operations.train_meta_data import META_TRAIN_DEFAULT_BARS, OhlcBundle
 from src.application.services.deep_learning.dl_feature_build import precompute_price_series
@@ -41,11 +41,13 @@ def _proxy_prob_from_past_return(past_return: np.ndarray) -> np.ndarray:
 
 
 def _rolling_zscore_strict(values: np.ndarray, *, window: int = MICRO_ZSCORE_WINDOW) -> np.ndarray:
-    series = pd.Series(np.asarray(values, dtype=np.float64))
-    mean = series.rolling(window, min_periods=max(8, window // 8)).mean()
-    std = series.rolling(window, min_periods=max(8, window // 8)).std(ddof=0)
-    z = (series - mean) / std.replace(0.0, np.nan)
-    return z.to_numpy(dtype=np.float64)
+    arr = np.asarray(values, dtype=np.float64)
+    min_samples = max(8, window // 8)
+    series = pl.Series(arr)
+    mean = series.rolling_mean(window_size=window, min_samples=min_samples).to_numpy()
+    std = series.rolling_std(window_size=window, min_samples=min_samples, ddof=0).to_numpy()
+    std_safe = np.where(std == 0.0, np.nan, std)
+    return (arr - mean) / std_safe
 
 
 def _resolve_training_labels(
@@ -108,11 +110,8 @@ def _forward_return_z_target(
 
 
 def _rolling_zscore(values: np.ndarray, *, window: int = MICRO_ZSCORE_WINDOW) -> np.ndarray:
-    series = pd.Series(np.asarray(values, dtype=np.float64))
-    mean = series.rolling(window, min_periods=max(8, window // 8)).mean()
-    std = series.rolling(window, min_periods=max(8, window // 8)).std(ddof=0)
-    z = (series - mean) / std.replace(0.0, np.nan)
-    return np.nan_to_num(z.to_numpy(dtype=np.float64), nan=0.0, posinf=0.0, neginf=0.0)
+    z = _rolling_zscore_strict(values, window=window)
+    return np.nan_to_num(z, nan=0.0, posinf=0.0, neginf=0.0)
 
 
 def _continuous_payoff_target(
@@ -139,9 +138,9 @@ def _flow_arrays(closes: np.ndarray, series: dict) -> tuple[np.ndarray, np.ndarr
         keltner_dev = np.zeros(len(closes), dtype=np.float64)
     else:
         keltner_dev = np.asarray(keltner_pct, dtype=np.float64) - 0.5
-    delta = pd.Series(closes, dtype=np.float64).diff()
-    tick_accel = delta.diff().rolling(5, min_periods=2).mean().fillna(0.0).to_numpy(dtype=np.float64)
-    return tick_accel, keltner_dev
+    delta = pl.Series(np.asarray(closes, dtype=np.float64)).diff()
+    tick_accel = delta.diff().rolling_mean(window_size=5, min_samples=2).fill_null(0.0).to_numpy()
+    return np.asarray(tick_accel, dtype=np.float64), keltner_dev
 
 
 def _micro_vol_arrays(
@@ -150,8 +149,9 @@ def _micro_vol_arrays(
     low: np.ndarray,
     series: dict,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    close_s = pd.Series(closes, dtype=np.float64)
-    momentum = close_s.diff().rolling(5, min_periods=2).mean().fillna(0.0).to_numpy(dtype=np.float64)
+    close_s = pl.Series(np.asarray(closes, dtype=np.float64))
+    momentum = close_s.diff().rolling_mean(window_size=5, min_samples=2).fill_null(0.0).to_numpy()
+    momentum = np.asarray(momentum, dtype=np.float64)
     momentum_z = np.asarray(
         [clip_feature_zscore(float(v)) for v in _rolling_zscore(momentum)],
         dtype=np.float64,
@@ -216,7 +216,7 @@ def _symbol_frame(
     *,
     label_horizon_bars: int,
     teacher_probs: dict[str, np.ndarray] | None = None,
-) -> tuple[pd.DataFrame, np.ndarray]:
+) -> tuple[pl.DataFrame, np.ndarray]:
     series = precompute_price_series(
         bundle.closes,
         granularity=bundle.granularity,
@@ -245,8 +245,9 @@ def _symbol_frame(
     )
     tick_accel, keltner_dev = _flow_arrays(closes, series)
     mom, mom_z, shadow, shadow_z = _micro_vol_arrays(closes, bundle.high, bundle.low, series)
-    frame = pd.DataFrame(
+    frame = pl.DataFrame(
         {
+            "epoch": bundle.epochs.astype(np.int64),
             "prob_call": proxy.astype(np.float64),
             "pnl": pnl.astype(np.float64),
             "rsi": rsi,
@@ -257,8 +258,7 @@ def _symbol_frame(
             "micro_bid_ask_spread_momentum_zscore": mom_z,
             "volatility_shadow_ratio": shadow,
             "volatility_shadow_ratio_zscore": shadow_z,
-        },
-        index=pd.Index(bundle.epochs.astype(np.int64), name="epoch"),
+        }
     )
     return frame, features
 
@@ -282,7 +282,7 @@ def build_paired_training_dataset(
     reference_stake: float = META_TRAIN_REFERENCE_STAKE,
     fetch_count: int = META_TRAIN_DEFAULT_BARS,
     teacher_probs: dict[str, np.ndarray] | None = None,
-) -> tuple[pd.DataFrame, np.ndarray, np.ndarray, np.ndarray, dict[str, Any]]:
+) -> tuple[pl.DataFrame, np.ndarray, np.ndarray, np.ndarray, dict[str, Any]]:
     planned_fetch = int(fetch_count)
     if not bundles:
         raise RuntimeError("Treino meta-classificador exige ao menos um bundle OHLC.")
@@ -299,30 +299,30 @@ def build_paired_training_dataset(
         label_horizon_bars=label_horizon,
         teacher_probs=teacher_probs,
     )
-    epoch_index = df_primary.index.sort_values()
-    paired_cap = len(epoch_index)
+    sorted_df = df_primary.sort("epoch")
+    paired_cap = int(sorted_df.height)
     rows = paired_cap - FEATURE_LOOKBACK_SKIP - max(2, label_horizon)
     if rows <= 0:
         raise RuntimeError("Historico insuficiente para montar features meta single-symbol.")
     effective_fetch = min(planned_fetch, paired_cap)
     _validate_sample_floor(rows, effective_fetch)
     start = FEATURE_LOOKBACK_SKIP
-    end = start + rows
-    epoch_slice = epoch_index[start:end]
-    primary_slice = df_primary.loc[epoch_slice]
-    epoch_to_row = {int(epoch): row for row, epoch in enumerate(df_primary.index.astype(np.int64))}
+    primary_slice = sorted_df.slice(start, rows)
+    orig_epochs = df_primary["epoch"].to_numpy()
+    epoch_to_row = {int(epoch): row for row, epoch in enumerate(orig_epochs)}
+    epoch_slice = primary_slice["epoch"].to_numpy()
     row_idx = np.asarray([epoch_to_row[int(epoch)] for epoch in epoch_slice], dtype=np.int64)
     base_features = primary_features[row_idx]
     zeros = np.zeros(len(epoch_slice), dtype=np.float64)
-    flow_tick = primary_slice["tick_accel"].to_numpy(dtype=np.float64)
-    flow_keltner = primary_slice["keltner_dev"].to_numpy(dtype=np.float64)
+    flow_tick = primary_slice["tick_accel"].to_numpy().astype(np.float64)
+    flow_keltner = primary_slice["keltner_dev"].to_numpy().astype(np.float64)
     matrix = np.column_stack(
         [
             base_features,
-            primary_slice["micro_bid_ask_spread_momentum"].to_numpy(dtype=np.float32),
-            primary_slice["micro_bid_ask_spread_momentum_zscore"].to_numpy(dtype=np.float32),
-            primary_slice["volatility_shadow_ratio"].to_numpy(dtype=np.float32),
-            primary_slice["volatility_shadow_ratio_zscore"].to_numpy(dtype=np.float32),
+            primary_slice["micro_bid_ask_spread_momentum"].to_numpy().astype(np.float32),
+            primary_slice["micro_bid_ask_spread_momentum_zscore"].to_numpy().astype(np.float32),
+            primary_slice["volatility_shadow_ratio"].to_numpy().astype(np.float32),
+            primary_slice["volatility_shadow_ratio_zscore"].to_numpy().astype(np.float32),
             zeros,
             zeros,
             zeros,
@@ -332,8 +332,8 @@ def build_paired_training_dataset(
     ).astype(np.float32)
     if matrix.shape[1] != META_FEATURE_DIM:
         raise RuntimeError(f"Meta feature row divergente: esperado {META_FEATURE_DIM}, obtido {matrix.shape[1]}")
-    proxy = primary_slice["prob_call"].to_numpy(dtype=np.float32)
-    call_pnl = primary_slice["pnl"].to_numpy(dtype=np.float32)
+    proxy = primary_slice["prob_call"].to_numpy().astype(np.float32)
+    call_pnl = primary_slice["pnl"].to_numpy().astype(np.float32)
     close_slice = np.asarray(primary.closes, dtype=np.float64)[row_idx]
     labels, label_meta = _resolve_training_labels(
         proxy,
@@ -342,7 +342,8 @@ def build_paired_training_dataset(
         stake=float(reference_stake),
     )
     n_kept = int(len(labels))
-    frame = pd.DataFrame(matrix, columns=meta_classifier_column_names())
+    columns = meta_classifier_column_names()
+    frame = pl.DataFrame({name: matrix[:, idx] for idx, name in enumerate(columns)})
     hygiene = {
         "n_before_gray_filter": n_kept,
         "n_dropped_gray": 0,

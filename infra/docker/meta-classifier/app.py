@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import joblib
-import pandas as pd
+import polars as pl
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field, model_validator
 
@@ -119,14 +119,13 @@ def _resolve_feature_names(bundle: dict[str, Any]) -> list[str]:
     return list(DEFAULT_FEATURE_NAMES)
 
 
-def _build_feature_dataframe(bundle: dict[str, Any], feature_vector: list[float]) -> pd.DataFrame:
+def _build_feature_dataframe(bundle: dict[str, Any], feature_vector: list[float]) -> pl.DataFrame:
     names = _resolve_feature_names(bundle)
     expected = len(names)
     if len(feature_vector) != expected:
         raise ValueError(f"feature_vector deve ter {expected} elementos, recebeu {len(feature_vector)}")
     row = [float(value) for value in feature_vector]
-    frame = pd.DataFrame([row], columns=names)
-    return frame.loc[:, names]
+    return pl.DataFrame({name: [row[idx]] for idx, name in enumerate(names)}).select(names)
 
 
 def _model_version() -> str:
@@ -248,7 +247,7 @@ async def predict_meta(payload: PredictMetaRequest) -> MetaPredictResult:
     model = bundle["model"]
     try:
         input_features_dataframe = _build_feature_dataframe(bundle, payload.feature_vector)
-        raw_edge = model.predict(input_features_dataframe)[0]
+        raw_edge = model.predict(input_features_dataframe.to_numpy())[0]
         edge = float(raw_edge)
     except Exception as exc:
         logger.warning("Inferencia meta-regressor falhou: %s", exc)

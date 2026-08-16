@@ -27,6 +27,7 @@ Enforcement no core: `doctrine_invariants.py` + testes `test_doctrine_*` / `test
 | Settings / knobs SSOT | [engineering-settings-ssot.md](engineering-settings-ssot.md) | `aether-settings-ssot.mdc` | `aether-settings-change` |
 | Engenharia / QA / testes | [engineering-standards.md](engineering-standards.md) | `aether-engineering.mdc` + `aether-testing.mdc` | `aether-precommit` |
 | Deps Python / requirements | [engineering-python-deps.md](engineering-python-deps.md) | `aether-python-deps.mdc` | `aether-python-deps` |
+| Higienizacao do repositorio | [engineering-repo-hygiene.md](engineering-repo-hygiene.md) | `aether-repo-hygiene.mdc` | `aether-repo-hygiene` |
 | Logging / presentation | [engineering-observability.md](engineering-observability.md) + [engineering-logging-inventory.md](engineering-logging-inventory.md) | `aether-logging.mdc` | `aether-session-review` |
 | Scripts / ops | [structure.md](structure.md) §Scripts | `aether-scripts.mdc` | `aether-ops-runbook` |
 | Domain models/math/symbols | [structure.md](structure.md) §Domain + [deriv-indices-algorithm.md](deriv-indices-algorithm.md) (`R_10`) | `aether-domain-pure.mdc` | — |

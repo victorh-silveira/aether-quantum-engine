@@ -1,0 +1,13 @@
+---
+description: Higienizacao do repo — morto comprovado, ondas seguras, never-delete
+globs: "docs/structure.md,docs/agent-coverage.md,AGENTS.md,Makefile,.gitignore,**/docker-compose*.yml,config/settings.json"
+alwaysApply: false
+---
+
+# Repo hygiene
+
+- So remover com evidencia (grep/import/compose/matriz); ondas: codigo → JSON SSOT → alinhamentos → deps
+- Nunca apagar skills/docs indexados, redis/timescale/minio/meta/loss, `__init__` de pacote, caps/settlement
+- Dual inventarios: `docs/agent-coverage.md` + `AGENTS.md`; deps via `aether-python-deps`
+- QA pre-commit por onda; commits PT-BR (`repo`/`config`/`infra`/`deps`)
+- Doc: `docs/engineering-repo-hygiene.md`; skill: `aether-repo-hygiene`
