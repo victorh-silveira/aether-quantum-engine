@@ -7,8 +7,8 @@ python-dotenv==1.2.2           # Carrega variáveis de ambiente a partir de um a
 
 # ---- PROCESSAMENTO DE DADOS ----
 numpy==2.4.6                   # Computação numérica de alta performance e manipulação de arrays multidimensionais
-pandas==2.3.3                  # Manipulação e análise de dados estruturados em DataFrames (base estrutural)
-polars==1.23.0                 # DataFrame library extremamente rápida e otimizada em Rust para grandes volumes de dados
+pandas==2.3.3                  # DataFrames meta tabular / LightGBM / Docker meta (nao misturar com polars no mesmo modulo)
+polars==1.23.0                 # DataFrames features DL runtime (TCN); dual-stack SSOT com pandas — sem 3a lib DF
 
 # ---- INTERFACE & UI ----
 rich==15.0.0                   # Renderização de texto formatado, cores, tabelas e logs bonitos no terminal
@@ -25,4 +25,4 @@ torch==2.10.0                  # Framework principal de Deep Learning (PyTorch) 
 lightgbm==4.6.0                # Framework de Gradient Boosting baseado em árvores de decisão para alta performance em dados tabulares
 optuna==4.2.1                  # Framework de otimização de hiperparâmetros automatizada (Hyperparameter Tuning)
 scikit-learn==1.6.1            # Biblioteca clássica de Machine Learning para pré-processamento, métricas e modelos básicos
-joblib==1.4.2                  # Otimização de pipelines, paralelização de tarefas e serialização de objetos Python (salvar modelos)
+joblib==1.4.2                  # Serializacao explicita meta/loss (import direto; nao depender so do transitivo sklearn)

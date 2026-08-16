@@ -11,6 +11,7 @@
 | [llm-trading-doctrine.md](llm-trading-doctrine.md) | Doutrina LLM/Cursor: 9 livros mapeados a gates, risco e anti-padroes de engenharia |
 | [binary-senior-playbook.md](binary-senior-playbook.md) | Playbook trader senior: CALL/PUT/SKIP, catalogo gate_reason, knobs M1 (micro 60s) |
 | [engineering-standards.md](engineering-standards.md) | QA: pre-commit, cobertura 100%, 300 linhas, commitlint, contribuicao |
+| [engineering-python-deps.md](engineering-python-deps.md) | Pins pip: anti-redundancia, dual-stack pandas/polars, ABI numpy/torch |
 | [engineering-orchestrator.md](engineering-orchestrator.md) | Ciclo do orquestrador, signature, locks, pos-settlement |
 | [engineering-deep-learning.md](engineering-deep-learning.md) | DL 34D, labels, treino/run, meta offline, inferência local |
 | [engineering-settlement.md](engineering-settlement.md) | Fila Redis, tolerancia, profit_table, orphans |

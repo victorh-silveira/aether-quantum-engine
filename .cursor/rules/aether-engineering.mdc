@@ -11,4 +11,5 @@ alwaysApply: true
 - Pre-commit: lint + test + security + cleanup; commit-msg commitlint
 - Commit: `tipo(escopo): assunto PT-BR` + corpo; escopos em `linters/commitlint.config.mjs`
 - SSOT de agentes: `AGENTS.md` + `docs/agent-coverage.md`
+- Deps Python: `docs/engineering-python-deps.md` + rule `aether-python-deps` (anti-redundancia)
 - Nao afrouxar QA para “passar o hook”; corrigir causa

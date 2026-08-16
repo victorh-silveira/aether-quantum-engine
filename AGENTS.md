@@ -67,6 +67,7 @@ Formato: `tipo(escopo): assunto em PT-BR` + corpo obrigatorio.
 | Launch-train / sanitize / monitores | `docs/structure.md` §Scripts + skill `aether-ops-runbook` |
 | Deriv PAT/WS | `docs/deriv-api-aether.md` + skill `aether-deriv-connect` |
 | QA / pre-commit | `docs/engineering-standards.md` + skill `aether-precommit` |
+| Deps Python / requirements | `docs/engineering-python-deps.md` + skill `aether-python-deps` |
 
 Inventario de modulos: [`docs/structure.md`](docs/structure.md)  
 Arquitetura runtime: [`docs/arquitetura.md`](docs/arquitetura.md)
