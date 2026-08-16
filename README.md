@@ -1,11 +1,17 @@
-# Aether Quantum Engine 2.0
+# Aether Quantum Engine
 
 [![Python](https://img.shields.io/badge/Python-3.13.12-3776AB?logo=python&logoColor=white)](app/.python-version)
-[![Lint](https://img.shields.io/badge/Lint-ruff%20%7C%20interrogate-3776AB?logo=ruff&logoColor=white)](.github/actions/lint/action.yml)
-[![Tests](https://img.shields.io/badge/Tests-pytest-0F9D58?logo=pytest&logoColor=white)](app/tests/unit)
-[![Coverage](https://img.shields.io/badge/Coverage-100%25-0F9D58?logo=codecov&logoColor=white)](app/tests/unit)
-[![Pre-commit](https://img.shields.io/badge/Pre--commit-active-FAB040?logo=pre-commit&logoColor=white)](.pre-commit-config.yaml)
+[![Coverage](https://img.shields.io/badge/Coverage-100%25%20gate-0F9D58?logo=codecov&logoColor=white)](app/tests/unit)
+[![Architecture](https://img.shields.io/badge/Architecture-Clean%20%7C%20Domain--pure-1F4E79)](docs/arquitetura.md)
+[![Asyncio](https://img.shields.io/badge/Runtime-asyncio%20%7C%20WSL-00599C?logo=python&logoColor=white)](AGENTS.md)
+[![QA](https://img.shields.io/badge/QA-ruff%20%7C%20pre--commit%20%7C%20bandit-FAB040?logo=pre-commit&logoColor=white)](.pre-commit-config.yaml)
+[![PyTorch](https://img.shields.io/badge/DL-PyTorch%20TCN%20H55-EE4C2C?logo=pytorch&logoColor=white)](docs/engineering-deep-learning.md)
+[![Polars](https://img.shields.io/badge/DataFrame-Polars%20SSOT-CD792C)](docs/engineering-python-deps.md)
+[![Quant](https://img.shields.io/badge/Risk-Kelly%20%7C%20Soft%20Recovery-0B3D91)](docs/llm-trading-doctrine.md)
+[![Infra](https://img.shields.io/badge/Infra-Redis%20%7C%20Timescale%20%7C%20MinIO-DC382D?logo=redis&logoColor=white)](docs/infra-docker.md)
+[![Deriv](https://img.shields.io/badge/Market-Deriv%20R__10%20%7C%20RISE__FALL%20M5-111111)](docs/deriv-api-aether.md)
 [![CI](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/victorh-silveira/aether-quantum-engine?display_name=tag&label=Release)](https://github.com/victorh-silveira/aether-quantum-engine/releases)
 
 Motor quantitativo assíncrono para a Deriv: decisão por **Deep Learning** (TCN/LSTM/GRU) no índice **Volatility 10** (`R_10`), contratos **RISE_FALL** de **5 m (M5)** com label TCN em **N velas M1** (N ∈ {15,20,…,60} eleito no treino; **SSOT atual N=55** / H55; gap intencional vs settle 5 min), micro/MINI **60 s** e contexto macro **7200 s** (ratio **1:120**), meta-regressor LightGBM (**43D**) de expectativa de retorno contínuo (single-symbol), e **sizing Kelly + Soft Recovery** (Kelly em EXPLORE; Soft Recovery cover pleno amort **1/1** em RECOVER). As chaves de assinatura ainda usam prefixos legados `m5`/`m15` para compatibilidade de cache. Sem Triton: inferência eager/CUDA local; Docker profiles `core,ml`.
 
