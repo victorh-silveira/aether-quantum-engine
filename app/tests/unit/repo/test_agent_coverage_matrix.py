@@ -58,7 +58,7 @@ def test_agent_coverage_matrix_docs_exist():
         cols = [c.strip() for c in row.strip("|").split("|")]
         doc_cell = cols[1]
         for _label, rel in _DOC_LINK_RE.findall(doc_cell):
-            path = docs_root / rel
+            path = (docs_root / rel).resolve()
             assert path.is_file(), f"doc ausente: {rel}"
 
 

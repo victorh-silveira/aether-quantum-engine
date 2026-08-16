@@ -3,6 +3,7 @@
 | Documento | Conteúdo |
 |-----------|----------|
 | [../AGENTS.md](../AGENTS.md) | Entrada para agentes Cursor/LLM |
+| [../prompt-model.md](../prompt-model.md) | Contrato reutilizavel: DDD/hexagonal/TDD/DX para scaffold de novos repos |
 | [agent-coverage.md](agent-coverage.md) | Matriz 100%: doc + rule + skill por superficie |
 | [arquitetura.md](arquitetura.md) | Arquitetura runtime: DL 34D, meta 43D, fusao EV, signal_skip 1.1, Soft Recovery, settlement |
 | [structure.md](structure.md) | Layout do repositório e inventário de módulos Python em `app/src/` (**246**) |

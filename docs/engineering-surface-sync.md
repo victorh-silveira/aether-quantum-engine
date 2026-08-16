@@ -20,6 +20,7 @@ Complementa:
 | Docker / meta / loss | `infra-docker` + rule/skill infra |
 | Nova skill ou rule | `docs/agent-coverage.md` + tabela em `AGENTS.md` |
 | Deps pip | `engineering-python-deps` + rule/skill deps |
+| Contrato de engenharia / scaffold | `prompt-model.md` (raiz) + rule `aether-engineering` |
 
 ## Ordem de fechamento
 

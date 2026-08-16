@@ -14,4 +14,5 @@ alwaysApply: true
 - Deps Python: `docs/engineering-python-deps.md` + rule `aether-python-deps` (anti-redundancia)
 - Higienizacao: `docs/engineering-repo-hygiene.md` + skill `aether-repo-hygiene` (morto comprovado)
 - Fechamento: `docs/engineering-surface-sync.md` + skill `aether-surface-sync` (sync superficie + pre-commit)
+- Scaffold cross-repo: `prompt-model.md` (contrato DDD/hexagonal/TDD/DX)
 - Nao afrouxar QA para “passar o hook”; corrigir causa
