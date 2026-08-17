@@ -39,8 +39,8 @@ def parse_signal_skip_config(raw: dict[str, Any] | None = None) -> dict[str, Any
             "anti_loss_seed_discord_enabled",
             "anti_loss_p_loss_floor",
             "anti_loss_require_seed",
-            "anti_loss_hard_skip_explore",
-            "anti_loss_recover_soft_kelly_mult",
+            "anti_loss_hard_skip",
+            "anti_loss_soft_kelly_mult",
             "anti_loss_require_tcn_pos_edge",
         ),
         "orchestrator.execution.signal_skip",
@@ -69,9 +69,9 @@ def parse_signal_skip_config(raw: dict[str, Any] | None = None) -> dict[str, Any
     anti_floor = require_float(block, "anti_loss_p_loss_floor")
     if anti_floor < 0.0 or anti_floor > 1.0:
         raise ValueError("orchestrator.execution.signal_skip.anti_loss_p_loss_floor deve estar em [0, 1]")
-    anti_soft = require_float(block, "anti_loss_recover_soft_kelly_mult")
+    anti_soft = require_float(block, "anti_loss_soft_kelly_mult")
     if anti_soft <= 0.0 or anti_soft > 1.0:
-        raise ValueError("orchestrator.execution.signal_skip.anti_loss_recover_soft_kelly_mult deve estar em (0, 1]")
+        raise ValueError("orchestrator.execution.signal_skip.anti_loss_soft_kelly_mult deve estar em (0, 1]")
     hurst_min = require_float(block, "chop_hurst_min")
     hurst_max = require_float(block, "chop_hurst_max")
     if hurst_max < hurst_min:
@@ -99,8 +99,8 @@ def parse_signal_skip_config(raw: dict[str, Any] | None = None) -> dict[str, Any
         "anti_loss_seed_discord_enabled": require_bool(block, "anti_loss_seed_discord_enabled"),
         "anti_loss_p_loss_floor": anti_floor,
         "anti_loss_require_seed": require_bool(block, "anti_loss_require_seed"),
-        "anti_loss_hard_skip_explore": require_bool(block, "anti_loss_hard_skip_explore"),
-        "anti_loss_recover_soft_kelly_mult": anti_soft,
+        "anti_loss_hard_skip": require_bool(block, "anti_loss_hard_skip"),
+        "anti_loss_soft_kelly_mult": anti_soft,
         "anti_loss_require_tcn_pos_edge": require_bool(block, "anti_loss_require_tcn_pos_edge"),
     }
 

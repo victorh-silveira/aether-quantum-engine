@@ -21,36 +21,6 @@ def _side(value: object) -> str | None:
     return side if side in _VALID else None
 
 
-def _pending_total(metrics: dict[str, Any], orch: Any | None) -> float:
-    """Le pending material de metrics ou RiskManager do orquestrador."""
-    for key in ("pending_loss_total", "pending_total", "recovery_pending"):
-        raw = metrics.get(key)
-        if raw is None:
-            continue
-        try:
-            return max(0.0, float(raw))
-        except (TypeError, ValueError):
-            continue
-    if orch is None:
-        return 0.0
-    risk_manager = getattr(orch, "risk_manager", None)
-    if risk_manager is None:
-        return 0.0
-    total_fn = getattr(risk_manager, "pending_loss_total", None)
-    if callable(total_fn):
-        try:
-            return max(0.0, float(total_fn()))
-        except (TypeError, ValueError):
-            return 0.0
-    pending_map = getattr(risk_manager, "pending_loss", None)
-    if isinstance(pending_map, dict):
-        try:
-            return max(0.0, float(sum(pending_map.values())))
-        except (TypeError, ValueError):
-            return 0.0
-    return 0.0
-
-
 def _p_loss(metrics: dict[str, Any]) -> float | None:
     """Le loss_clf_p_loss numerico ou None."""
     raw = metrics.get("loss_clf_p_loss")
@@ -92,7 +62,8 @@ def evaluate_anti_loss_seed_discord(
     cfg: dict[str, Any],
     orch: Any | None = None,
 ) -> dict[str, Any]:
-    """Decide skip duro (explore) ou soft Kelly (recover) sob padrao seed+discord."""
+    """Decide SKIP duro (EXPLORE e RECOVER) sob padrao seed+discord; soft so se hard_skip off."""
+    _ = orch
     out = {"active": False, "skip": False, "soft": False, "reason": None, "soft_mult": None}
     if not bool(cfg.get("anti_loss_seed_discord_enabled", False)):
         return out
@@ -110,19 +81,16 @@ def evaluate_anti_loss_seed_discord(
         return out
     if bool(cfg.get("anti_loss_require_tcn_pos_edge", True)) and not _tcn_pos_edge_locked(metrics, tcn):
         return out
-    dust = float(cfg.get("pending_dust", 0.25))
-    pending = _pending_total(metrics, orch)
-    material = pending + 1e-12 >= dust
     out["active"] = True
     out["reason"] = "seed_discord"
     metrics["anti_loss_p_loss"] = p_loss
     metrics["anti_loss_tcn"] = tcn.name
     metrics["anti_loss_candle"] = candle
-    if material or not bool(cfg.get("anti_loss_hard_skip_explore", True)):
-        out["soft"] = True
-        out["soft_mult"] = float(cfg.get("anti_loss_recover_soft_kelly_mult", 0.25))
+    if bool(cfg.get("anti_loss_hard_skip", True)):
+        out["skip"] = True
         return out
-    out["skip"] = True
+    out["soft"] = True
+    out["soft_mult"] = float(cfg.get("anti_loss_soft_kelly_mult", 0.25))
     return out
 
 
@@ -133,7 +101,7 @@ def apply_anti_loss_seed_discord(
     force: bool = False,
     cfg: dict[str, Any] | None = None,
 ) -> bool:
-    """Aplica SKIP duro explore ou soft Kelly recover; True se skipou EXEC."""
+    """Aplica SKIP duro seed+discord (tambem com PEND); True se skipou EXEC."""
     if force:
         return False
     if metrics.get("execution_candidate_ready") is False:

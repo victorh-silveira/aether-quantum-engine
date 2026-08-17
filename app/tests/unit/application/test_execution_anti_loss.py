@@ -33,13 +33,13 @@ def test_parse_anti_loss_knobs_from_ssot():
     assert cfg["anti_loss_seed_discord_enabled"] is True
     assert cfg["anti_loss_p_loss_floor"] == pytest.approx(0.85)
     assert cfg["anti_loss_require_seed"] is True
-    assert cfg["anti_loss_hard_skip_explore"] is True
-    assert cfg["anti_loss_recover_soft_kelly_mult"] == pytest.approx(0.25)
+    assert cfg["anti_loss_hard_skip"] is True
+    assert cfg["anti_loss_soft_kelly_mult"] == pytest.approx(0.25)
     assert cfg["anti_loss_require_tcn_pos_edge"] is True
     with pytest.raises(ValueError, match="anti_loss_p_loss_floor"):
         parse_signal_skip_config({"anti_loss_p_loss_floor": 1.5})
-    with pytest.raises(ValueError, match="anti_loss_recover_soft_kelly_mult"):
-        parse_signal_skip_config({"anti_loss_recover_soft_kelly_mult": 0.0})
+    with pytest.raises(ValueError, match="anti_loss_soft_kelly_mult"):
+        parse_signal_skip_config({"anti_loss_soft_kelly_mult": 0.0})
 
 
 def test_anti_loss_explore_hard_skip():
@@ -52,15 +52,14 @@ def test_anti_loss_explore_hard_skip():
     assert metrics_block_execution(metrics) is True
 
 
-def test_anti_loss_recover_soft_only():
+def test_anti_loss_recover_pend_hard_skip():
     metrics = _base_metrics(pending_loss_total=1.5)
     cfg = parse_signal_skip_config({})
-    assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is False
-    assert metrics.get("gate_reason") is None
-    assert metrics["execution_candidate_ready"] is True
-    assert metrics["anti_loss_soft"] is True
-    assert metrics["kelly_fraction_scale"] == pytest.approx(0.25)
-    assert metrics_block_execution(metrics) is False
+    assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is True
+    assert metrics["gate_reason"] == "anti_loss_seed_discord"
+    assert metrics["execution_candidate_ready"] is False
+    assert metrics.get("anti_loss_soft") is None
+    assert metrics_block_execution(metrics) is True
 
 
 def test_anti_loss_live_auto_learn_noop():
@@ -127,14 +126,6 @@ def test_anti_loss_missing_p_loss_and_bad_side():
     assert apply_anti_loss_seed_discord(no_candle, cfg=cfg) is False
 
 
-def test_anti_loss_pending_orch_none_without_keys():
-    cfg = parse_signal_skip_config({})
-    metrics = _base_metrics()
-    for key in ("pending_loss_total", "pending_total", "recovery_pending"):
-        metrics.pop(key, None)
-    assert apply_anti_loss_seed_discord(metrics, orch=None, cfg=cfg) is True
-
-
 def test_anti_loss_tcn_lock_via_loss_clf_and_fusion_reason():
     cfg = parse_signal_skip_config({})
     via_loss = _base_metrics(fusion_blocked_tcn_pos_edge=False, loss_clf_flip_block_tcn_pos_edge=True)
@@ -148,74 +139,14 @@ def test_anti_loss_tcn_lock_via_loss_clf_and_fusion_reason():
 
 
 def test_anti_loss_soft_when_hard_skip_disabled():
-    metrics = _base_metrics()
-    cfg = parse_signal_skip_config({"anti_loss_hard_skip_explore": False})
+    metrics = _base_metrics(pending_loss_total=2.0)
+    cfg = parse_signal_skip_config({"anti_loss_hard_skip": False})
     assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is False
     assert metrics["anti_loss_soft"] is True
+    assert metrics["kelly_fraction_scale"] == pytest.approx(0.25)
+    assert metrics["execution_candidate_ready"] is True
 
 
-def test_anti_loss_pending_from_orch_paths():
-    from types import SimpleNamespace
-    from unittest.mock import MagicMock
-
-    cfg = parse_signal_skip_config({})
+def test_anti_loss_parse_ssot_default_cfg():
     metrics = _base_metrics()
-    metrics["pending_loss_total"] = "bad"
-    orch = SimpleNamespace(risk_manager=None)
-    assert apply_anti_loss_seed_discord(metrics, orch=orch, cfg=cfg) is True
-
-    metrics2 = _base_metrics()
-    metrics2.pop("pending_loss_total", None)
-    orch2 = SimpleNamespace(risk_manager=SimpleNamespace(pending_loss_total=MagicMock(side_effect=ValueError("x"))))
-    assert apply_anti_loss_seed_discord(metrics2, orch=orch2, cfg=cfg) is True
-
-    metrics3 = _base_metrics()
-    for key in ("pending_loss_total", "pending_total", "recovery_pending"):
-        metrics3.pop(key, None)
-
-    class RmMap:
-        pending_loss = {"a": 2.0}
-
-    orch3 = SimpleNamespace(risk_manager=RmMap())
-    assert apply_anti_loss_seed_discord(metrics3, orch=orch3, cfg=cfg) is False
-    assert metrics3["anti_loss_soft"] is True
-
-    metrics4 = _base_metrics()
-    for key in ("pending_loss_total", "pending_total", "recovery_pending"):
-        metrics4.pop(key, None)
-
-    class RmBadMap:
-        pending_loss = {"a": "x"}
-
-    orch4 = SimpleNamespace(risk_manager=RmBadMap())
-    assert apply_anti_loss_seed_discord(metrics4, orch=orch4, cfg=cfg) is True
-
-    metrics5 = _base_metrics()
-    for key in ("pending_loss_total", "pending_total", "recovery_pending"):
-        metrics5.pop(key, None)
-
-    class RmNotMap:
-        pending_loss = "nope"
-
-    orch5 = SimpleNamespace(risk_manager=RmNotMap())
-    assert apply_anti_loss_seed_discord(metrics5, orch=orch5, cfg=cfg) is True
-
-    metrics6 = _base_metrics(pending_total=3.0)
-    metrics6.pop("pending_loss_total", None)
-    assert apply_anti_loss_seed_discord(metrics6, cfg=cfg) is False
-    assert metrics6["anti_loss_soft"] is True
-
-    metrics7 = _base_metrics()
-    for key in ("pending_loss_total", "pending_total", "recovery_pending"):
-        metrics7.pop(key, None)
-
-    class RmFn:
-        @staticmethod
-        def pending_loss_total():
-            return 4.0
-
-    orch7 = SimpleNamespace(risk_manager=RmFn())
-    assert apply_anti_loss_seed_discord(metrics7, orch=orch7, cfg=cfg) is False
-
-    metrics8 = _base_metrics()
-    assert apply_anti_loss_seed_discord(metrics8) is True
+    assert apply_anti_loss_seed_discord(metrics) is True

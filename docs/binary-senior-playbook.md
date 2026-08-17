@@ -12,8 +12,8 @@ Hierarquia: TCN Cal/Margin → SCALE dirs → soft `signal_skip` → **fusao EV*
 |------|-------------------|
 | CALL | TCN CALL, fusao EV_CALL >= EV_PUT, ou fita/adapt |
 | PUT | TCN PUT, fusao EV_PUT > EV_CALL, ou fita/adapt |
-| SKIP tecnico | `training` / `data` / `deploy` / `predict_error`, warm-up, stop-win, broker; `neg_edge` hard se `edge <= 0` (ou override / seed+edge &lt; **−0.12**); `anti_loss_seed_discord` sob seed+`p_loss` alto+vela≠TCN em EXPLORE |
-| Soft sinal 1.1 | `mini_pair_oppose` / `cal_margin` / loss-clf; chop soft; `neg_edge` soft so se `0 < edge < min_edge_execute`; anti-loss soft Kelly **0.25** em RECOVER (PEND material); fusao usa `fusion_p_eff`; EV fraco → soft Kelly **0.40** (seed+ambos EV&lt;0 → **0.25**); `invert_exec_side` **false** |
+| SKIP tecnico | `training` / `data` / `deploy` / `predict_error`, warm-up, stop-win, broker; `neg_edge` hard se `edge <= 0` (ou override / seed+edge &lt; **−0.12**); `anti_loss_seed_discord` sob seed+`p_loss` alto+vela≠TCN (EXPLORE e RECOVER) |
+| Soft sinal 1.1 | `mini_pair_oppose` / `cal_margin` / loss-clf; chop soft; `neg_edge` soft so se `0 < edge < min_edge_execute`; fusao usa `fusion_p_eff`; EV fraco → soft Kelly **0.40** (seed+ambos EV&lt;0 → **0.25**); `invert_exec_side` **false** |
 | Fusao multi-escala | `fusion_enabled`: p_eff (Cal + MACRO/vela/MINI/MILI/tape + loss continuo + meta **0.10**); `fusion_loss_weight` **0.45** so com `auto=1` — **nao** incorpora o FLIP do mesmo ciclo; `fusion_block_when_tcn_pos_edge` **true** preserva TCN so se Cal **e** raw +EV; `fusion_block_when_tcn_candle_agree` **true** preserva TCN se vela==TCN (`why=tcn_candle_agree`); telemetria `[GATES] \|\| FUSION` + `fusion_ev_*` / `fusion_p_eff` |
 | Flip loss-clf | Apos fusao: `p_loss >= hard_p_loss_floor` (**0.90**) e `veto_ready` + `flip_require_auto_learn` (**true**: seed so SOFT); **bloqueia FLIP** se Edge Cal **e** raw_edge do TCN >= floor (`FLIP_BLOCK:tcn_edge`; Cal+/raw− nao trava); sob seed, vela fechada == TCN bloqueia (`FLIP_BLOCK:seed_candle`; `p_ovr` nao fura); seed edge min **−0.08**; live `flip_waive_edge_min` **−1.0**; vela no alvo floor **0.85** so se TCN fraco |
 | Chop soft | ADX &lt; **0.22** e (Hurst ∈ [**0.47**, **0.53**] ou SCALE micro=chop) → soft Kelly **0.55**; log `REGIME \|\| CHOP_SOFT` |
@@ -28,7 +28,7 @@ Hierarquia: TCN Cal/Margin → SCALE dirs → soft `signal_skip` → **fusao EV*
 | `deploy` | Checkpoint sem `deploy_ok` |
 | `predict_error` | Falha de inferencia |
 | `neg_edge` | **Hard** se `edge <= 0` (ou `neg_edge_hard_skip` **true**, ou seed+edge &lt; `neg_edge_deep_edge_floor` **−0.12**); soft Kelly so se `0 < edge < min_edge_execute` |
-| `anti_loss_seed_discord` | Seed (`auto=0`) + `p_loss >= anti_loss_p_loss_floor` (**0.85**) + vela≠TCN + TCN pos_edge: **hard SKIP** em EXPLORE; em RECOVER (PEND) so soft Kelly **0.25** (cover soberano) |
+| `anti_loss_seed_discord` | Seed (`auto=0`) + `p_loss >= anti_loss_p_loss_floor` (**0.85**) + vela≠TCN + TCN pos_edge: **hard SKIP** em EXPLORE e RECOVER (`anti_loss_hard_skip` **true**); soft so se hard_skip **false** |
 | Kelly `EXEC_PAUSE` | `stop_win` / `bankroll_below_stake_min` (sizing; **sem** `kelly_no_edge`) |
 
 ## Catalogo sinal / ML (soft + neg_edge soft)
@@ -41,7 +41,7 @@ Hierarquia: TCN Cal/Margin → SCALE dirs → soft `signal_skip` → **fusao EV*
 | `loss_clf_flip` | `p_loss >= 0.90` + `veto_ready` + waivers; seed: `seed_candle` / `flip_seed_waive_edge_min` **−0.08**; live: `flip_waive_edge_min` **−1.0** → FLIP (`from→to`/`why` em `[GATES]`); senao `FLIP_BLOCK` (seed_candle/seed/scale/neg_edge/tcn_edge) + soft |
 | `regime_chop` | ADX/Hurst (ou SCALE chop) → soft Kelly (`chop_soft_kelly_mult` **0.55**); log `REGIME \|\| CHOP_SOFT` |
 | `neg_edge` | Edge Cal do lado &lt; `min_edge_execute` → soft Kelly (`neg_edge_soft_min_edge` **−1.0**; seed mult **0.25**); hard so seed+edge &lt; **−0.12** ou override |
-| `anti_loss_soft` | Mesmo padrao seed+discord com PEND material → soft Kelly (`anti_loss_recover_soft_kelly_mult` **0.25**); telemetria `[GATES] \|\| ANTI_LOSS` |
+| `anti_loss_soft` | So se `anti_loss_hard_skip` **false**: soft Kelly (`anti_loss_soft_kelly_mult` **0.25**); telemetria `[GATES] \|\| ANTI_LOSS` |
 
 Quality gate amplo (RSI/discordance/price zone/SIDE_EQ block) permanece **fora** do codigo. Loss-clf live apos ~8–16 settles mistos (`auto=1`); restart container apos mudar `LOSS_BOOTSTRAP_EXIT_N`.
 ## Escalas MACRO / MICRO / MINI / MILI

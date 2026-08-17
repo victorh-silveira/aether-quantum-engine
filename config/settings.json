@@ -669,8 +669,8 @@
         "anti_loss_seed_discord_enabled": true,
         "anti_loss_p_loss_floor": 0.85,
         "anti_loss_require_seed": true,
-        "anti_loss_hard_skip_explore": true,
-        "anti_loss_recover_soft_kelly_mult": 0.25,
+        "anti_loss_hard_skip": true,
+        "anti_loss_soft_kelly_mult": 0.25,
         "anti_loss_require_tcn_pos_edge": true
       }
     },
