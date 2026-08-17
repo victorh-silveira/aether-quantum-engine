@@ -2,8 +2,11 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import pytest
+
 from src.application.services.market_audit_candle import (
     candle_binary_side,
+    closed_micro_candle_body_from_stream,
     closed_micro_candle_dir_from_stream,
     format_candle_outcome_line,
     last_closed_micro_candle,
@@ -40,6 +43,10 @@ def test_closed_micro_candle_dir_from_stream_call_put_doji():
     assert closed_micro_candle_dir_from_stream(stream_put, "R_10") == "PUT"
     assert closed_micro_candle_dir_from_stream(stream_doji, "R_10") is None
     assert closed_micro_candle_dir_from_stream(None, "R_10") is None
+    assert closed_micro_candle_body_from_stream(stream_call, "R_10") == pytest.approx(0.2)
+    assert closed_micro_candle_body_from_stream(stream_put, "R_10") == pytest.approx(0.2)
+    assert closed_micro_candle_body_from_stream(stream_doji, "R_10") is None
+    assert closed_micro_candle_body_from_stream(None, "R_10") is None
 
 
 def test_last_closed_micro_candle_uses_penultimate():

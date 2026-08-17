@@ -57,6 +57,37 @@ def test_format_gates_audit_line():
     assert "ANTI_LOSS skip why=seed_discord" in anti_line
     assert "side=PUT candle=CALL" in anti_line
     assert "skip=anti_loss_seed_discord" in anti_line
+    weak_line = format_gates_audit_line(
+        {
+            "anti_loss_seed_discord": True,
+            "anti_loss_why": "seed_weak_candle",
+            "anti_loss_p_loss": 0.91,
+            "anti_loss_tcn": "PUT",
+            "anti_loss_candle": "PUT",
+            "anti_loss_body": 0.038,
+            "gate_reason": "anti_loss_seed_discord",
+            "signal_status": "SKIP:ANTI_LOSS_SEED_DISCORD",
+            "loss_clf_p_loss": 0.91,
+            "exec_direction": "PUT",
+        }
+    )
+    assert "ANTI_LOSS skip why=seed_weak_candle" in weak_line
+    assert "candle=PUT body=0.038" in weak_line
+    bad_body_line = format_gates_audit_line(
+        {
+            "anti_loss_seed_discord": True,
+            "anti_loss_why": "seed_weak_candle",
+            "anti_loss_p_loss": 0.91,
+            "anti_loss_tcn": "PUT",
+            "anti_loss_candle": "PUT",
+            "anti_loss_body": "x",
+            "gate_reason": "anti_loss_seed_discord",
+            "signal_status": "SKIP:ANTI_LOSS_SEED_DISCORD",
+            "loss_clf_p_loss": 0.91,
+            "exec_direction": "PUT",
+        }
+    )
+    assert "body=" not in bad_body_line.split("ANTI_LOSS", 1)[-1]
     anti_soft = format_gates_audit_line(
         {
             "anti_loss_seed_discord": True,

@@ -267,3 +267,4 @@ def test_compute_scale_closed_micro_matches_candle_not_prev_bar():
     assert metrics["scale_micro_prev_bar_dir"] == "CALL"
     assert metrics["scale_micro_bar_dir"] == "PUT"
     assert metrics["closed_micro_candle_dir"] == "PUT"
+    assert metrics["closed_micro_candle_body"] == pytest.approx(0.2)

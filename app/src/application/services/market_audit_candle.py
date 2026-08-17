@@ -45,6 +45,17 @@ def closed_micro_candle_dir_from_stream(stream: Any, symbol: str) -> str | None:
     return side if side in {"CALL", "PUT"} else None
 
 
+def closed_micro_candle_body_from_stream(stream: Any, symbol: str) -> float | None:
+    """Corpo |c-o| da vela do [CANDLE]; None se ausente ou DOJI."""
+    candle = last_closed_micro_candle(stream, symbol)
+    if candle is None:
+        return None
+    body = abs(float(candle.close) - float(candle.open))
+    if body <= _EPS:
+        return None
+    return body
+
+
 def resolve_micro_granularity_seconds(orch: Any) -> int:
     """Resolve granularidade micro do stream ou settings (padrao 60)."""
     stream = getattr(orch, "stream", None) if orch is not None else None

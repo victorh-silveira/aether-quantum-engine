@@ -36,10 +36,13 @@ def test_parse_anti_loss_knobs_from_ssot():
     assert cfg["anti_loss_hard_skip"] is True
     assert cfg["anti_loss_soft_kelly_mult"] == pytest.approx(0.25)
     assert cfg["anti_loss_require_tcn_pos_edge"] is True
+    assert cfg["anti_loss_min_candle_body"] == pytest.approx(0.10)
     with pytest.raises(ValueError, match="anti_loss_p_loss_floor"):
         parse_signal_skip_config({"anti_loss_p_loss_floor": 1.5})
     with pytest.raises(ValueError, match="anti_loss_soft_kelly_mult"):
         parse_signal_skip_config({"anti_loss_soft_kelly_mult": 0.0})
+    with pytest.raises(ValueError, match="anti_loss_min_candle_body"):
+        parse_signal_skip_config({"anti_loss_min_candle_body": -0.1})
 
 
 def test_anti_loss_explore_hard_skip():
@@ -72,7 +75,7 @@ def test_anti_loss_live_auto_learn_noop():
 
 
 def test_anti_loss_candle_agrees_noop():
-    metrics = _base_metrics(closed_micro_candle_dir="PUT")
+    metrics = _base_metrics(closed_micro_candle_dir="PUT", closed_micro_candle_body=0.174)
     cfg = parse_signal_skip_config({})
     assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is False
     assert metrics.get("anti_loss_seed_discord") is None
@@ -83,9 +86,19 @@ def test_anti_loss_c5_agrees_ignores_prev_bar_lag():
     metrics.pop("closed_micro_candle_dir")
     metrics["scale_micro_prev_bar_dir"] = "CALL"
     metrics["scale_micro_bar_dir"] = "PUT"
+    metrics["closed_micro_candle_body"] = 0.174
     cfg = parse_signal_skip_config({})
     assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is False
     assert metrics.get("anti_loss_seed_discord") is None
+
+
+def test_anti_loss_c21_weak_body_skips():
+    metrics = _base_metrics(closed_micro_candle_dir="PUT", closed_micro_candle_body=0.038)
+    cfg = parse_signal_skip_config({})
+    assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is True
+    assert metrics["anti_loss_why"] == "seed_weak_candle"
+    assert metrics["anti_loss_body"] == pytest.approx(0.038)
+    assert metrics["gate_reason"] == "anti_loss_seed_discord"
 
 
 def test_anti_loss_disabled_noop():
@@ -133,7 +146,22 @@ def test_anti_loss_missing_p_loss_and_bad_side():
     assert apply_anti_loss_seed_discord(bad_side, cfg=cfg) is False
     no_candle = _base_metrics()
     no_candle.pop("closed_micro_candle_dir", None)
-    assert apply_anti_loss_seed_discord(no_candle, cfg=cfg) is False
+    assert apply_anti_loss_seed_discord(no_candle, cfg=cfg) is True
+    assert no_candle["anti_loss_why"] == "seed_discord"
+    assert no_candle["anti_loss_candle"] == "-"
+
+
+def test_anti_loss_invalid_body_treated_weak():
+    cfg = parse_signal_skip_config({})
+    nan_body = _base_metrics(closed_micro_candle_dir="PUT", closed_micro_candle_body=float("nan"))
+    assert apply_anti_loss_seed_discord(nan_body, cfg=cfg) is True
+    assert nan_body["anti_loss_why"] == "seed_weak_candle"
+    neg = _base_metrics(closed_micro_candle_dir="PUT", closed_micro_candle_body=-0.2)
+    assert apply_anti_loss_seed_discord(neg, cfg=cfg) is True
+    bad = _base_metrics(closed_micro_candle_dir="PUT", closed_micro_candle_body="x")
+    assert apply_anti_loss_seed_discord(bad, cfg=cfg) is True
+    inf_body = _base_metrics(closed_micro_candle_dir="PUT", closed_micro_candle_body=float("inf"))
+    assert apply_anti_loss_seed_discord(inf_body, cfg=cfg) is True
 
 
 def test_anti_loss_tcn_lock_via_loss_clf_and_fusion_reason():

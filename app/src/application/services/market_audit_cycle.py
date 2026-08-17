@@ -140,7 +140,14 @@ def format_gates_audit_line(metrics: dict[str, Any]) -> str:
         p_anti = _f(metrics, "anti_loss_p_loss", default=p_loss if p_loss >= 0.0 else 0.0)
         side_anti = str(metrics.get("anti_loss_tcn") or neg_side or "-")
         candle_anti = str(metrics.get("anti_loss_candle") or "-")
-        anti_tok = f"ANTI_LOSS {mode} why={why} p={p_anti:.5f} side={side_anti} candle={candle_anti}"
+        body_raw = metrics.get("anti_loss_body")
+        body_tok = ""
+        if body_raw is not None:
+            try:
+                body_tok = f" body={float(body_raw):.3f}"
+            except (TypeError, ValueError):
+                body_tok = ""
+        anti_tok = f"ANTI_LOSS {mode} why={why} p={p_anti:.5f} side={side_anti} candle={candle_anti}{body_tok}"
         if mode == "skip":
             skip = "anti_loss_seed_discord"
     else:

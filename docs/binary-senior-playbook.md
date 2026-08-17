@@ -12,7 +12,7 @@ Hierarquia: TCN Cal/Margin → SCALE dirs → soft `signal_skip` → **fusao EV*
 |------|-------------------|
 | CALL | TCN CALL, fusao EV_CALL >= EV_PUT, ou fita/adapt |
 | PUT | TCN PUT, fusao EV_PUT > EV_CALL, ou fita/adapt |
-| SKIP tecnico | `training` / `data` / `deploy` / `predict_error`, warm-up, stop-win, broker; `neg_edge` hard se `edge <= 0` (ou override / seed+edge &lt; **−0.12**); `anti_loss_seed_discord` sob seed+`p_loss` alto+vela≠TCN (EXPLORE e RECOVER) |
+| SKIP tecnico | `training` / `data` / `deploy` / `predict_error`, warm-up, stop-win, broker; `neg_edge` hard se `edge <= 0` (ou override / seed+edge &lt; **−0.12**); `anti_loss_seed_discord` sob seed+`p_loss` alto se a vela do `[CANDLE]` nao confirma o TCN com corpo **0.10** (EXPLORE e RECOVER) |
 | Soft sinal 1.1 | `mini_pair_oppose` / `cal_margin` / loss-clf; chop soft; `neg_edge` soft so se `0 < edge < min_edge_execute`; fusao usa `fusion_p_eff`; EV fraco → soft Kelly **0.40** (seed+ambos EV&lt;0 → **0.25**); `invert_exec_side` **false** |
 | Fusao multi-escala | `fusion_enabled`: p_eff (Cal + MACRO/vela/MINI/MILI/tape + loss continuo + meta **0.10**); `fusion_loss_weight` **0.45** so com `auto=1` — **nao** incorpora o FLIP do mesmo ciclo; `fusion_block_when_tcn_pos_edge` **true** preserva TCN so se Cal **e** raw +EV; `fusion_block_when_tcn_candle_agree` **true** preserva TCN se vela==TCN (`why=tcn_candle_agree`); telemetria `[GATES] \|\| FUSION` + `fusion_ev_*` / `fusion_p_eff` |
 | Flip loss-clf | Apos fusao: `p_loss >= hard_p_loss_floor` (**0.90**) e `veto_ready` + `flip_require_auto_learn` (**true**: seed so SOFT); **bloqueia FLIP** se Edge Cal **e** raw_edge do TCN >= floor (`FLIP_BLOCK:tcn_edge`; Cal+/raw− nao trava); sob seed, vela fechada == TCN bloqueia (`FLIP_BLOCK:seed_candle`; `p_ovr` nao fura); seed edge min **−0.08**; live `flip_waive_edge_min` **−1.0**; vela no alvo floor **0.85** so se TCN fraco |
@@ -28,7 +28,7 @@ Hierarquia: TCN Cal/Margin → SCALE dirs → soft `signal_skip` → **fusao EV*
 | `deploy` | Checkpoint sem `deploy_ok` |
 | `predict_error` | Falha de inferencia |
 | `neg_edge` | **Hard** se `edge <= 0` (ou `neg_edge_hard_skip` **true**, ou seed+edge &lt; `neg_edge_deep_edge_floor` **−0.12**); soft Kelly so se `0 < edge < min_edge_execute` |
-| `anti_loss_seed_discord` | Seed (`auto=0`) + `p_loss >= anti_loss_p_loss_floor` (**0.85**) + vela≠TCN + TCN pos_edge: **hard SKIP** em EXPLORE e RECOVER (`anti_loss_hard_skip` **true**); soft so se hard_skip **false**; vela do gate = vela do `[CANDLE]`, nao a anterior do snapshot |
+| `anti_loss_seed_discord` | Seed (`auto=0`) + `p_loss >= anti_loss_p_loss_floor` (**0.85**) + TCN pos_edge: **hard SKIP** em EXPLORE e RECOVER se a vela do `[CANDLE]` nao confirma o TCN com corpo minimo **0.10** (discord, DOJI ou ruido); `anti_loss_hard_skip` **true**; soft so se hard_skip **false** |
 | Kelly `EXEC_PAUSE` | `stop_win` / `bankroll_below_stake_min` (sizing; **sem** `kelly_no_edge`) |
 
 ## Catalogo sinal / ML (soft + neg_edge soft)

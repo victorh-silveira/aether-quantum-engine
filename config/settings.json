@@ -671,7 +671,8 @@
         "anti_loss_require_seed": true,
         "anti_loss_hard_skip": true,
         "anti_loss_soft_kelly_mult": 0.25,
-        "anti_loss_require_tcn_pos_edge": true
+        "anti_loss_require_tcn_pos_edge": true,
+        "anti_loss_min_candle_body": 0.10
       }
     },
     "idle_cycle_watchdog_seconds": 1200,

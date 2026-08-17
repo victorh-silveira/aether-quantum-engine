@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from math import isfinite
 from typing import Any
 
 from src.application.services.execution_signal_skip import apply_kelly_soft, parse_signal_skip_config
@@ -40,6 +41,27 @@ def _tcn_dir(metrics: dict[str, Any]) -> TradeDirection | None:
     return TradeDirection[name]
 
 
+def _candle_body(metrics: dict[str, Any]) -> float | None:
+    """Le closed_micro_candle_body numerico ou None."""
+    raw = metrics.get("closed_micro_candle_body")
+    if raw is None:
+        return None
+    try:
+        body = float(raw)
+    except (TypeError, ValueError):
+        return None
+    if not isfinite(body) or body < 0.0:
+        return None
+    return body
+
+
+def _agree_strong(candle: str | None, tcn: TradeDirection, body: float | None, min_body: float) -> bool:
+    """True se vela == TCN e |c-o| atinge o piso de corpo."""
+    if candle is None or candle != tcn.name or body is None:
+        return False
+    return body + 1e-12 >= float(min_body)
+
+
 def _tcn_pos_edge_locked(metrics: dict[str, Any], tcn: TradeDirection) -> bool:
     """True se fusao/loss-clf ja travaram TCN por pos_edge Cal+raw."""
     if bool(metrics.get("fusion_blocked_tcn_pos_edge")):
@@ -62,7 +84,7 @@ def evaluate_anti_loss_seed_discord(
     cfg: dict[str, Any],
     orch: Any | None = None,
 ) -> dict[str, Any]:
-    """Decide SKIP duro (EXPLORE e RECOVER) sob padrao seed+discord; soft so se hard_skip off."""
+    """Decide SKIP duro (EXPLORE e RECOVER) se a vela nao confirma o TCN com corpo minimo."""
     _ = orch
     out = {"active": False, "skip": False, "soft": False, "reason": None, "soft_mult": None}
     if not bool(cfg.get("anti_loss_seed_discord_enabled", False)):
@@ -76,16 +98,22 @@ def evaluate_anti_loss_seed_discord(
     if p_loss + 1e-12 < floor:
         return out
     tcn = _tcn_dir(metrics)
-    candle = closed_micro_candle_side(metrics)
-    if tcn is None or candle is None or candle == tcn.name:
+    if tcn is None:
         return out
     if bool(cfg.get("anti_loss_require_tcn_pos_edge", True)) and not _tcn_pos_edge_locked(metrics, tcn):
         return out
+    candle = closed_micro_candle_side(metrics)
+    body = _candle_body(metrics)
+    min_body = float(cfg.get("anti_loss_min_candle_body", 0.10))
+    if _agree_strong(candle, tcn, body, min_body):
+        return out
     out["active"] = True
-    out["reason"] = "seed_discord"
+    out["reason"] = "seed_weak_candle" if candle == tcn.name else "seed_discord"
     metrics["anti_loss_p_loss"] = p_loss
     metrics["anti_loss_tcn"] = tcn.name
-    metrics["anti_loss_candle"] = candle
+    metrics["anti_loss_candle"] = candle or "-"
+    if body is not None:
+        metrics["anti_loss_body"] = body
     if bool(cfg.get("anti_loss_hard_skip", True)):
         out["skip"] = True
         return out
