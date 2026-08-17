@@ -20,6 +20,7 @@ _SOFT_SIGNAL_FLAGS = (
     "mini_pair_soft",
     "regime_chop_soft",
     "fusion_weak_ev_soft",
+    "anti_loss_soft",
 )
 
 

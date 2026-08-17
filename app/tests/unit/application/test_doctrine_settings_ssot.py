@@ -150,6 +150,12 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert float(skip["neg_edge_soft_min_edge"]) == pytest.approx(-1.0)
     assert float(skip["neg_edge_bootstrap_soft_kelly_mult"]) == pytest.approx(0.25)
     assert float(skip["neg_edge_deep_edge_floor"]) == pytest.approx(-0.12)
+    assert bool(skip["anti_loss_seed_discord_enabled"]) is True
+    assert float(skip["anti_loss_p_loss_floor"]) == pytest.approx(0.85)
+    assert bool(skip["anti_loss_require_seed"]) is True
+    assert bool(skip["anti_loss_hard_skip_explore"]) is True
+    assert float(skip["anti_loss_recover_soft_kelly_mult"]) == pytest.approx(0.25)
+    assert bool(skip["anti_loss_require_tcn_pos_edge"]) is True
     assert "calib_gray_margin_floor" not in skip
     assert "calib_gray_soft_kelly_mult" not in skip
     assert "calib_gray_max_stake_pct" not in skip

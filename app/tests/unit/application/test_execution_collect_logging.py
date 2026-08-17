@@ -21,16 +21,13 @@ def test_log_execution_decision_direct():
         },
     )
     log_execution_decision(exec_mgr, "C0001", best, [best], 0.55)
-    assert exec_mgr.logger.info.call_count >= 4
-    first = exec_mgr.logger.info.call_args_list[0].args[1]
-    second = exec_mgr.logger.info.call_args_list[1].args[1]
-    third = exec_mgr.logger.info.call_args_list[2].args[1]
-    fourth = exec_mgr.logger.info.call_args_list[3].args[1]
-    assert first.startswith("[GATES] || LOSS_CLF:")
-    assert second.startswith("[GATES] ||")
-    assert "NEG_EDGE" in second or "skip=" in second
-    assert third.startswith("[GATES] || FUSION:")
-    assert fourth.startswith("[IND] ||")
+    assert exec_mgr.logger.info.call_count >= 5
+    payloads = [c.args[1] for c in exec_mgr.logger.info.call_args_list]
+    assert payloads[0].startswith("[GATES] || LOSS_CLF:")
+    assert "NEG_EDGE" in payloads[1] or "skip=" in payloads[1]
+    assert payloads[2].startswith("[GATES] || FUSION:")
+    assert payloads[3].startswith("[GATES] || ANTI_LOSS")
+    assert any(str(p).startswith("[IND] ||") for p in payloads)
 
 
 def test_log_execution_decision_uses_cycle_fallback_when_cid_invalid():
@@ -47,9 +44,10 @@ def test_log_execution_decision_uses_cycle_fallback_when_cid_invalid():
         },
     )
     log_execution_decision(exec_mgr, "Cbad", best, [best], 0.61)
-    assert exec_mgr.logger.info.call_count >= 4
-    fourth = exec_mgr.logger.info.call_args_list[3].args[1]
-    assert fourth.startswith("[IND] ||")
+    assert exec_mgr.logger.info.call_count >= 5
+    payloads = [c.args[1] for c in exec_mgr.logger.info.call_args_list]
+    assert any(str(p).startswith("[IND] ||") for p in payloads)
+    assert any(str(p).startswith("[GATES] || ANTI_LOSS") for p in payloads)
 
 
 def test_collect_cluster_orders_covers_logging():

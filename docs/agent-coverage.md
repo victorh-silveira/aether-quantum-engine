@@ -42,7 +42,7 @@ Enforcement no core: `doctrine_invariants.py` + testes `test_doctrine_*` / `test
 | `app/src/application/services/execution_scale_*.py` | Scale vision + adaptacao de fita (lado/sizing) |
 | `app/src/application/services/execution_direction_fusion*.py` | Fusao EV multi-escala |
 | `app/src/application/services/deep_learning/` | DL / labels / calib / vies de classe (sample_weighting, majority-collapse, regime via recency; `raw_extreme`) |
-| `app/src/application/services/execution_*.py` | Execution gates + signal_skip + fusao |
+| `app/src/application/services/execution_*.py` | Execution gates + signal_skip + fusao + anti-loss |
 | `app/src/domain/risk/` | Risco / Kelly |
 | `app/src/domain/analytics/` | Sample size / SIDE_EQ |
 | `app/src/domain/models|math|symbols/` | Domain models/math/symbols |

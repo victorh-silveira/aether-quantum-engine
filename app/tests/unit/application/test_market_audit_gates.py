@@ -39,7 +39,38 @@ def test_format_gates_audit_line():
     assert "raw_edge=" in hard_neg
     assert "be=0.581" in hard_neg
     assert "skip=neg_edge" in hard_neg
-    assert hard_neg.count("[GATES]") == 3
+    assert hard_neg.count("[GATES]") == 4
+    assert "ANTI_LOSS off" in hard_neg
+    anti_line = format_gates_audit_line(
+        {
+            "anti_loss_seed_discord": True,
+            "anti_loss_why": "seed_discord",
+            "anti_loss_p_loss": 0.93,
+            "anti_loss_tcn": "PUT",
+            "anti_loss_candle": "CALL",
+            "gate_reason": "anti_loss_seed_discord",
+            "signal_status": "SKIP:ANTI_LOSS_SEED_DISCORD",
+            "loss_clf_p_loss": 0.93,
+            "exec_direction": "PUT",
+        }
+    )
+    assert "ANTI_LOSS skip why=seed_discord" in anti_line
+    assert "side=PUT candle=CALL" in anti_line
+    assert "skip=anti_loss_seed_discord" in anti_line
+    anti_soft = format_gates_audit_line(
+        {
+            "anti_loss_seed_discord": True,
+            "anti_loss_soft": True,
+            "anti_loss_why": "seed_discord",
+            "anti_loss_p_loss": 0.91,
+            "anti_loss_tcn": "PUT",
+            "anti_loss_candle": "CALL",
+            "loss_clf_p_loss": 0.91,
+            "exec_direction": "PUT",
+            "signal_skip_waived": "anti_loss_soft",
+        }
+    )
+    assert "ANTI_LOSS soft why=seed_discord" in anti_soft
     soft_gap = format_gates_audit_line(
         {
             "cal_side_edge": -0.09,
