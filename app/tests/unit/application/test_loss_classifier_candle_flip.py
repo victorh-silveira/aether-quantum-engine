@@ -11,7 +11,9 @@ from src.domain.models.trade import TradeDirection
 
 def test_closed_micro_candle_side_prefers_explicit():
     assert closed_micro_candle_side({"closed_micro_candle_dir": "PUT"}) == "PUT"
-    assert closed_micro_candle_side({"scale_micro_prev_bar_dir": "CALL"}) == "CALL"
+    assert closed_micro_candle_side({"closed_micro_candle_dir": "PUT", "scale_micro_bar_dir": "CALL"}) == "PUT"
+    assert closed_micro_candle_side({"scale_micro_bar_dir": "CALL", "scale_micro_prev_bar_dir": "PUT"}) == "CALL"
+    assert closed_micro_candle_side({"scale_micro_prev_bar_dir": "CALL"}) is None
     assert closed_micro_candle_side({}) is None
     assert closed_micro_candle_side(None) is None
     assert closed_micro_candle_side("PUT") is None

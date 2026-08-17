@@ -1,8 +1,11 @@
 """Testes de last-bar, consenso de fita e auditoria SCALE."""
 
+from datetime import UTC, datetime
+
 import numpy as np
 import pytest
 
+from src.application.services.deep_learning.dl_live_bar_patch import store_patched_ohlc_snapshot
 from src.application.services.execution_scale_vision import (
     bar_direction_at,
     compute_scale_directions,
@@ -15,6 +18,7 @@ from src.application.services.execution_scale_vision import (
     slope_direction,
     tape_consensus,
 )
+from src.domain.models.market_data import Candle
 from src.domain.models.trade import TradeDirection
 
 
@@ -161,8 +165,6 @@ def test_compute_scale_without_last_bar():
 
 
 def test_compute_scale_uses_patched_ohlc_snapshot():
-    from src.application.services.deep_learning.dl_live_bar_patch import store_patched_ohlc_snapshot
-
     class Stream:
         def get_numpy_series(self, _symbol, _field="close"):
             return np.array([1.0, 1.0, 1.0, 1.0, 1.0])
@@ -203,3 +205,65 @@ def test_compute_scale_uses_patched_ohlc_snapshot():
         },
     )
     assert metrics["scale_micro_bar_dir"] == "PUT"
+
+
+def test_compute_scale_closed_micro_matches_candle_not_prev_bar():
+    def _c(epoch: int, open_: float, close: float) -> Candle:
+        return Candle(
+            symbol="R_10",
+            open=open_,
+            high=max(open_, close),
+            low=min(open_, close),
+            close=close,
+            time=datetime.fromtimestamp(epoch, tz=UTC),
+            epoch=epoch,
+        )
+
+    prev_call = _c(60, 1.0, 1.2)
+    closed_put = _c(120, 1.2, 1.0)
+    forming = _c(180, 1.0, 1.0)
+
+    class Stream:
+        micro_candles = {"R_10": [prev_call, closed_put, forming]}
+
+        def get_numpy_series(self, _symbol, _field="close"):
+            return np.array([1.0, 1.0, 1.0, 1.0, 1.0])
+
+        def get_mini_numpy_series(self, _symbol, field="close"):
+            if field == "open":
+                return np.array([1.0, 1.0, 1.0])
+            return np.array([1.0, 1.0, 1.0])
+
+        def get_micro_numpy_series(self, _symbol, field="close"):
+            if field == "open":
+                return np.array([1.0, 1.0])
+            return np.array([1.0, 1.0])
+
+        tick_buffer = None
+
+    orch = type("O", (), {"stream": Stream()})()
+    store_patched_ohlc_snapshot(
+        orch,
+        "R_10",
+        np.array([1.2, 1.0]),
+        np.array([1.0, 1.2]),
+        None,
+        None,
+    )
+    metrics = {"flow_features": {}}
+    compute_scale_directions(
+        orch,
+        "R_10",
+        TradeDirection.PUT,
+        metrics,
+        cfg={
+            "enabled": True,
+            "slope_bars": 5,
+            "min_disagree_to_dampen": 2,
+            "use_last_bar": True,
+            "adapt_min_votes": 2,
+        },
+    )
+    assert metrics["scale_micro_prev_bar_dir"] == "CALL"
+    assert metrics["scale_micro_bar_dir"] == "PUT"
+    assert metrics["closed_micro_candle_dir"] == "PUT"

@@ -28,7 +28,7 @@ Hierarquia: TCN Cal/Margin → SCALE dirs → soft `signal_skip` → **fusao EV*
 | `deploy` | Checkpoint sem `deploy_ok` |
 | `predict_error` | Falha de inferencia |
 | `neg_edge` | **Hard** se `edge <= 0` (ou `neg_edge_hard_skip` **true**, ou seed+edge &lt; `neg_edge_deep_edge_floor` **−0.12**); soft Kelly so se `0 < edge < min_edge_execute` |
-| `anti_loss_seed_discord` | Seed (`auto=0`) + `p_loss >= anti_loss_p_loss_floor` (**0.85**) + vela≠TCN + TCN pos_edge: **hard SKIP** em EXPLORE e RECOVER (`anti_loss_hard_skip` **true**); soft so se hard_skip **false** |
+| `anti_loss_seed_discord` | Seed (`auto=0`) + `p_loss >= anti_loss_p_loss_floor` (**0.85**) + vela≠TCN + TCN pos_edge: **hard SKIP** em EXPLORE e RECOVER (`anti_loss_hard_skip` **true**); soft so se hard_skip **false**; vela do gate = vela do `[CANDLE]`, nao a anterior do snapshot |
 | Kelly `EXEC_PAUSE` | `stop_win` / `bankroll_below_stake_min` (sizing; **sem** `kelly_no_edge`) |
 
 ## Catalogo sinal / ML (soft + neg_edge soft)

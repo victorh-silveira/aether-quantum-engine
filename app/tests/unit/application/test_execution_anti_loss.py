@@ -78,6 +78,16 @@ def test_anti_loss_candle_agrees_noop():
     assert metrics.get("anti_loss_seed_discord") is None
 
 
+def test_anti_loss_c5_agrees_ignores_prev_bar_lag():
+    metrics = _base_metrics()
+    metrics.pop("closed_micro_candle_dir")
+    metrics["scale_micro_prev_bar_dir"] = "CALL"
+    metrics["scale_micro_bar_dir"] = "PUT"
+    cfg = parse_signal_skip_config({})
+    assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is False
+    assert metrics.get("anti_loss_seed_discord") is None
+
+
 def test_anti_loss_disabled_noop():
     metrics = _base_metrics()
     cfg = parse_signal_skip_config({"anti_loss_seed_discord_enabled": False})

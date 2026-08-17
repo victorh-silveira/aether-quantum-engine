@@ -12,7 +12,7 @@ def closed_micro_candle_side(metrics: dict[str, Any] | None) -> str | None:
     """Lado da ultima vela micro fechada (CALL/PUT) quando disponivel."""
     if not isinstance(metrics, dict):
         return None
-    for key in ("closed_micro_candle_dir", "scale_micro_prev_bar_dir"):
+    for key in ("closed_micro_candle_dir", "scale_micro_bar_dir"):
         side = str(metrics.get(key) or "").strip().upper()
         if side in {TradeDirection.CALL.name, TradeDirection.PUT.name}:
             return side

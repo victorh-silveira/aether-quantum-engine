@@ -8,7 +8,7 @@ alwaysApply: true
 
 - SKIP tecnico: `training` / `data` / `deploy` / `predict_error` / stop-win `EXEC_PAUSE`
 - Soft sinal (escopo **1.1**): SSOT `signal_skip` — mini/cal/chop soft Kelly; **neg_edge** soft se `0 < edge < min_edge_execute`; **hard** se `edge <= 0` (`gate_reason=neg_edge`); seed `boot_deep` se edge &lt; `neg_edge_deep_edge_floor` (**−0.12**); `neg_edge_hard_skip` **false**
-- **Anti-loss seed discord** (`anti_loss_*`): sob seed + `p_loss`≥**0.85** + vela≠TCN + TCN pos_edge → **hard SKIP** EXPLORE e RECOVER (`gate_reason=anti_loss_seed_discord`); soft Kelly so se `anti_loss_hard_skip` **false**; log `[GATES] || ANTI_LOSS`
+- **Anti-loss seed discord** (`anti_loss_*`): sob seed + `p_loss`≥**0.85** + vela≠TCN + TCN pos_edge → **hard SKIP** EXPLORE e RECOVER (`gate_reason=anti_loss_seed_discord`); vela do gate = vela do `[CANDLE]`, nao a anterior do snapshot; soft Kelly so se `anti_loss_hard_skip` **false**; log `[GATES] || ANTI_LOSS`
 - **Fusao EV** (`execution_direction_fusion*`): argmax CALL/PUT; `fusion_block_when_tcn_pos_edge` **true**; soft EV fraco **0.40** / seed dual-EV&lt;0 **0.25**; telemetria `[GATES] || FUSION`
 - Loss ML: container `aether-loss-classifier` → soft graduado; FLIP so com `p_loss>=0.90` + `veto_ready` + `flip_require_auto_learn` **true** (seed = SOFT); `FLIP_BLOCK:seed_candle|tcn_edge|seed|scale`
 - `min_direction_margin` padrao **0.022** em **[0.015, 0.05]**; nao restaurar quality gate / Hurst/ADX/RSI/price_zone

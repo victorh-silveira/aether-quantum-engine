@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 
 from src.application.services.market_audit_candle import (
     candle_binary_side,
+    closed_micro_candle_dir_from_stream,
     format_candle_outcome_line,
     last_closed_micro_candle,
     log_closed_candle_outcomes,
@@ -28,6 +29,17 @@ def test_candle_binary_side_call_put_doji():
     assert candle_binary_side(_candle("R_10", 100, 1.0, 1.1)) == "CALL"
     assert candle_binary_side(_candle("R_10", 100, 1.1, 1.0)) == "PUT"
     assert candle_binary_side(_candle("R_10", 100, 1.0, 1.0)) == "DOJI"
+
+
+def test_closed_micro_candle_dir_from_stream_call_put_doji():
+    forming = _candle("R_10", 240, 1.0, 1.0)
+    stream_call = SimpleNamespace(micro_candles={"R_10": [_candle("R_10", 120, 1.0, 1.2), forming]})
+    stream_put = SimpleNamespace(micro_candles={"R_10": [_candle("R_10", 120, 1.2, 1.0), forming]})
+    stream_doji = SimpleNamespace(micro_candles={"R_10": [_candle("R_10", 120, 1.0, 1.0), forming]})
+    assert closed_micro_candle_dir_from_stream(stream_call, "R_10") == "CALL"
+    assert closed_micro_candle_dir_from_stream(stream_put, "R_10") == "PUT"
+    assert closed_micro_candle_dir_from_stream(stream_doji, "R_10") is None
+    assert closed_micro_candle_dir_from_stream(None, "R_10") is None
 
 
 def test_last_closed_micro_candle_uses_penultimate():

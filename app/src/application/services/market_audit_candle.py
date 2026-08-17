@@ -36,6 +36,15 @@ def last_closed_micro_candle(stream: Any, symbol: str) -> Candle | None:
     return candle if isinstance(candle, Candle) else None
 
 
+def closed_micro_candle_dir_from_stream(stream: Any, symbol: str) -> str | None:
+    """Lado CALL/PUT da vela do [CANDLE]; None se ausente ou DOJI."""
+    candle = last_closed_micro_candle(stream, symbol)
+    if candle is None:
+        return None
+    side = candle_binary_side(candle)
+    return side if side in {"CALL", "PUT"} else None
+
+
 def resolve_micro_granularity_seconds(orch: Any) -> int:
     """Resolve granularidade micro do stream ou settings (padrao 60)."""
     stream = getattr(orch, "stream", None) if orch is not None else None

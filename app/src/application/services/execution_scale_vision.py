@@ -22,6 +22,7 @@ from src.application.services.execution_scale_vision_format import (
     format_scale_audit_line,
     format_scale_ind_token,
 )
+from src.application.services.market_audit_candle import closed_micro_candle_dir_from_stream
 from src.domain.config_knobs import merge_settings_block, require_bool, require_float, require_int, require_keys
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.kelly_runtime_config import load_kelly_runtime_from_settings
@@ -238,7 +239,7 @@ def compute_scale_directions(
                 micro_opens = _field_from_stream(stream, "get_micro_numpy_series", str(symbol), "open")
             metrics["scale_micro_bar_dir"] = last_bar_direction(micro_opens, micro_closes)
             metrics["scale_micro_prev_bar_dir"] = prev_bar_direction(micro_opens, micro_closes)
-            metrics["closed_micro_candle_dir"] = metrics["scale_micro_prev_bar_dir"]
+        metrics["closed_micro_candle_dir"] = closed_micro_candle_dir_from_stream(stream, str(symbol))
     flow = metrics.get("flow_features") if isinstance(metrics.get("flow_features"), dict) else None
     tick_buffer = getattr(stream, "tick_buffer", None) if stream is not None else None
     metrics["scale_mili_dir"] = mili_direction_from_flow(flow, tick_buffer, str(symbol))
