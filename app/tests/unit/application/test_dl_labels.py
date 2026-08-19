@@ -43,8 +43,10 @@ def test_resolve_label_helpers():
     assert resolve_label_smooth_bars({}) == 1
     assert resolve_label_smooth_bars({"label_smooth_bars": 5}) == 5
     assert resolve_label_ma_window({"label_ma_window": 8}) == 8
-    assert resolve_label_mode({}) == "ma_trend"
+    assert resolve_label_mode({}) == "supertrend_atr"
     assert resolve_label_mode({"label_mode": "spot_forward"}) == "spot_forward"
+    assert resolve_label_mode({"label_mode": "supertrend"}) == "supertrend_atr"
+    assert resolve_label_mode({"label_mode": "ma_trend"}) == "ma_trend"
     assert resolve_implied_vol_bars({"implied_vol_bars": 60}) == 60
 
 
