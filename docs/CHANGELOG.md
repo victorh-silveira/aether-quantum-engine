@@ -1,3 +1,9 @@
+## [2.16.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.16.0...v2.16.1) (2026-08-19)
+
+### Correcoes de Bug
+
+* **scripts:** corrige recursao infinita no fallback do launch-train ([d4fcd3b](https://github.com/victorh-silveira/aether-quantum-engine/commit/d4fcd3b169bb73b9d54d3e49224f03378bb9d01e))
+
 ## [2.16.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.15.0...v2.16.0) (2026-08-19)
 
 ### Funcionalidades
