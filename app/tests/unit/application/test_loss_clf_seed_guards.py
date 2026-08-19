@@ -170,10 +170,9 @@ def test_neg_edge_blocks_fusion_p_eff_when_cal_nonpositive():
         "risk_management": {"params": {"payout_estimate": 0.72}},
     }
     assert apply_negative_cal_edge_pause(metrics, orch=orch) is True
-    assert metrics.get("gate_reason") == "neg_edge"
-    assert metrics["execution_candidate_ready"] is False
-    assert metrics.get("neg_edge_used_fusion_p_eff") is not True
-    assert metrics.get("neg_edge_fusion_blocked") is True
+    assert metrics.get("gate_reason") != "neg_edge"
+    assert metrics["execution_candidate_ready"] is True
+    assert metrics.get("neg_edge_fusion_waived") is True
     assert float(metrics["cal_side_edge"]) <= 0.0
 
 

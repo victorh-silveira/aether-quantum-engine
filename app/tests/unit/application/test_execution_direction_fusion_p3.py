@@ -30,9 +30,9 @@ def test_fusion_then_neg_edge_hard_when_cal_nonpositive():
     assert chosen == TradeDirection.PUT
     paused = apply_negative_cal_edge_pause(metrics, orch=None, min_edge=0.04, payout=0.72)
     assert paused is True
-    assert metrics["execution_candidate_ready"] is False
-    assert metrics.get("gate_reason") == "neg_edge"
-    assert metrics.get("neg_edge_used_fusion_p_eff") is not True
+    assert metrics["execution_candidate_ready"] is True
+    assert metrics.get("gate_reason") != "neg_edge"
+    assert metrics.get("neg_edge_fusion_waived") is True
     assert float(metrics["cal_side_edge"]) <= 0.0
 
 
@@ -61,12 +61,24 @@ def test_fusion_put_seed_empty_when_cal_nonpositive():
         (),
         {
             "config": {
-                "deep_learning": {"min_edge_execute": 0.04},
                 "risk_management": {"params": {"payout_estimate": 0.72}},
+                "deep_learning": {"min_edge_execute": 0.04},
+                "orchestrator": {
+                    "execution": {
+                        "signal_skip": {
+                            "neg_edge_soft_kelly_mult": 0.55,
+                            "neg_edge_hard_skip": True,
+                            "neg_edge_soft_when_closed_candle_agree": True,
+                            "neg_edge_soft_min_edge": -1.0,
+                            "neg_edge_bootstrap_soft_kelly_mult": 0.25,
+                            "neg_edge_deep_edge_floor": -0.12,
+                        }
+                    }
+                },
             }
         },
     )()
     assert apply_negative_cal_edge_pause(metrics, orch=orch) is True
-    assert metrics.get("gate_reason") == "neg_edge"
-    assert metrics["execution_candidate_ready"] is False
-    assert metrics.get("neg_edge_fusion_blocked") is True
+    assert metrics["execution_candidate_ready"] is True
+    assert metrics.get("gate_reason") != "neg_edge"
+    assert metrics.get("neg_edge_fusion_waived") is True

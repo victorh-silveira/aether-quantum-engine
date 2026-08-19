@@ -169,9 +169,9 @@ def test_neg_edge_replay_c1_put_cluster_neg_fusion_pos():
         "risk_management": {"params": {"payout_estimate": 0.72}},
     }
     assert apply_negative_cal_edge_pause(metrics, orch=orch) is True
-    assert metrics["gate_reason"] == "neg_edge"
-    assert metrics["execution_candidate_ready"] is False
-    assert metrics.get("neg_edge_fusion_blocked") is True
+    assert metrics["execution_candidate_ready"] is True
+    assert metrics.get("gate_reason") != "neg_edge"
+    assert metrics.get("neg_edge_fusion_waived") is True
     assert float(metrics["cal_side_edge"]) == pytest.approx(-0.109, abs=0.002)
 
 
@@ -194,9 +194,9 @@ def test_neg_edge_replay_c2_call_cluster_neg_fusion_pos():
         "risk_management": {"params": {"payout_estimate": 0.72}},
     }
     assert apply_negative_cal_edge_pause(metrics, orch=orch) is True
-    assert metrics["gate_reason"] == "neg_edge"
-    assert metrics["execution_candidate_ready"] is False
-    assert metrics.get("neg_edge_fusion_blocked") is True
+    assert metrics["execution_candidate_ready"] is True
+    assert metrics.get("gate_reason") != "neg_edge"
+    assert metrics.get("neg_edge_fusion_waived") is True
     assert float(metrics["cal_side_edge"]) == pytest.approx(-0.131, abs=0.003)
 
 

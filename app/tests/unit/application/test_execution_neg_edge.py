@@ -92,8 +92,8 @@ def test_neg_edge_nonpositive_hard_blocks_even_when_soft_enabled():
         "calibrated_prob": 0.481,
         "kelly_fraction_scale": 1.0,
         "loss_clf_auto_learn": True,
-        "closed_micro_candle_dir": "PUT",
-        "ops_window_candle_dir": "PUT",
+        "closed_micro_candle_dir": "CALL",
+        "ops_window_candle_dir": "CALL",
     }
     orch = MagicMock()
     orch.config = {
@@ -119,6 +119,41 @@ def test_neg_edge_nonpositive_hard_blocks_even_when_soft_enabled():
     assert metrics.get("neg_edge_soft") is None
     assert float(metrics["cal_side_edge"]) <= 0.0
     assert metrics_block_execution(metrics) is True
+
+
+def test_neg_edge_fusion_or_candle_agree_waives_hard_skip():
+    metrics = {
+        "execution_candidate_ready": True,
+        "exec_direction": "PUT",
+        "calibrated_prob": 0.481,
+        "kelly_fraction_scale": 1.0,
+        "loss_clf_auto_learn": True,
+        "closed_micro_candle_dir": "PUT",
+        "ops_window_candle_dir": "PUT",
+        "neg_edge_fusion_p_eff": 0.88,
+    }
+    orch = MagicMock()
+    orch.config = {
+        "deep_learning": {"min_edge_execute": 0.04},
+        "risk_management": {"params": {"payout_estimate": 0.72}},
+        "orchestrator": {
+            "execution": {
+                "signal_skip": {
+                    "neg_edge_soft_kelly_mult": 0.55,
+                    "neg_edge_hard_skip": False,
+                    "neg_edge_soft_when_closed_candle_agree": True,
+                    "neg_edge_soft_min_edge": -1.0,
+                    "neg_edge_bootstrap_soft_kelly_mult": 0.25,
+                    "neg_edge_deep_edge_floor": -0.12,
+                }
+            }
+        },
+    }
+    assert apply_negative_cal_edge_pause(metrics, orch=orch) is True
+    assert metrics["execution_candidate_ready"] is True
+    assert metrics.get("neg_edge_fusion_waived") is True
+    assert metrics.get("neg_edge_fusion_pos_edge") is True
+    assert metrics_block_execution(metrics) is False
 
 
 def test_neg_edge_hard_skip_positive_subfloor_without_allow_soft():

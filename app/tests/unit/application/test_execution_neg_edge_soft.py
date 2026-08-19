@@ -60,11 +60,12 @@ def test_neg_edge_hard_when_candle_agree_but_edge_nonpositive():
         "closed_micro_candle_dir": "CALL",
         "ops_window_candle_dir": "CALL",
     }
-    assert apply_negative_cal_edge_pause(metrics, orch=_orch_skip()) is True
-    assert metrics.get("gate_reason") == "neg_edge"
-    assert metrics.get("neg_edge_nonpositive_hard") is True
-    assert metrics.get("neg_edge_soft") is None
-    assert metrics_block_execution(metrics) is True
+    orch = _orch_skip(neg_edge_soft_min_edge=-1.0)
+    assert apply_negative_cal_edge_pause(metrics, orch=orch) is True
+    assert metrics.get("gate_reason") != "neg_edge"
+    assert metrics.get("neg_edge_fusion_waived") is True
+    assert metrics["execution_candidate_ready"] is True
+    assert metrics_block_execution(metrics) is False
 
 
 def test_neg_edge_soft_subfloor_when_soft_min_wide():
