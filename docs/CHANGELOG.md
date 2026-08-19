@@ -1,3 +1,9 @@
+## [2.15.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.14.0...v2.15.0) (2026-08-19)
+
+### Funcionalidades
+
+* **config:** recalibra janelas de indicadores para contrato 5m ([29c5ecf](https://github.com/victorh-silveira/aether-quantum-engine/commit/29c5ecf7fca7c3a382a651e2191a0d251549a403))
+
 ## [2.14.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.13.0...v2.14.0) (2026-08-19)
 
 ### Funcionalidades
