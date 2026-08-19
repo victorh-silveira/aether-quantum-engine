@@ -142,7 +142,7 @@ def build_proposal_request(
     is_multiplier = p_cfg.get("contract_type") == "MULTIPLIER"
     request: dict[str, Any] = {
         "proposal": 1,
-        "amount": stake,
+        "amount": round(float(stake), 2),
         "basis": "stake",
         "contract_type": resolve_api_contract_type(direction, p_cfg),
         "currency": "USD",
