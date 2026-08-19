@@ -1,3 +1,11 @@
+## [2.12.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.12.1...v2.12.2) (2026-08-19)
+
+### Correcoes de Bug
+
+* **engine:** exige corpo minimo da vela no anti-loss ([f8985b5](https://github.com/victorh-silveira/aether-quantum-engine/commit/f8985b5419498e40dfc6b195b9935b2f9f6f4d6e))
+* **orchestrator:** estabiliza treino, gates de execucao e makefile ([1695670](https://github.com/victorh-silveira/aether-quantum-engine/commit/1695670d2e424245b4d548cbfe559831db2271a9))
+* **release:** fixa versao do conventionalcommits para compatibilidade com sem-rel ([a5264e2](https://github.com/victorh-silveira/aether-quantum-engine/commit/a5264e2692be49b1548a6eedc9cd2caa77e6f08d))
+
 ## [2.12.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.12.0...v2.12.1) (2026-08-17)
 
 ## [2.12.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.11.0...v2.12.0) (2026-08-17)
