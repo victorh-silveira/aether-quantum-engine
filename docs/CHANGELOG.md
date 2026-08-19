@@ -1,3 +1,9 @@
+## [2.18.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.17.0...v2.18.0) (2026-08-19)
+
+### Funcionalidades
+
+* **orchestrator:** ativar protecao anti-loss contra discordancia de vela ([5842b39](https://github.com/victorh-silveira/aether-quantum-engine/commit/5842b3985cabc8c51356f8e70b2d16248b5acaa3))
+
 ## [2.17.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.16.2...v2.17.0) (2026-08-19)
 
 ### Funcionalidades
