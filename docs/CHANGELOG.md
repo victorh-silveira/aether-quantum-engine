@@ -1,3 +1,9 @@
+## [2.18.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.18.0...v2.18.1) (2026-08-19)
+
+### Correcoes de Bug
+
+* **orchestrator:** reduzir peso micro bar na fusao EV ([1d13e42](https://github.com/victorh-silveira/aether-quantum-engine/commit/1d13e42df19a9badfd896a2a45a68c2993a77139))
+
 ## [2.18.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.17.0...v2.18.0) (2026-08-19)
 
 ### Funcionalidades
