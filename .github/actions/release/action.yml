@@ -26,7 +26,7 @@ runs:
           @semantic-release/git \
           @semantic-release/exec \
           @semantic-release/github \
-          conventional-changelog-conventionalcommits
+          conventional-changelog-conventionalcommits@^8.0.0
 
     - name: Executar semantic-release
       shell: bash
