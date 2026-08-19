@@ -1,3 +1,9 @@
+## [2.14.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.13.0...v2.14.0) (2026-08-19)
+
+### Funcionalidades
+
+* **infra:** refatora modelos e fit adaptativo dos microservicos ml ([3335dd5](https://github.com/victorh-silveira/aether-quantum-engine/commit/3335dd5f24e1935d25479cb2224670fa4867e5fb))
+
 ## [2.13.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.12.2...v2.13.0) (2026-08-19)
 
 ### Funcionalidades
