@@ -96,8 +96,8 @@
       "max_label_call_frac_bias": 0.2,
       "min_minority_recall": 0.25
     },
-    "early_stopping_patience": 16,
-    "min_epochs": 20,
+    "early_stopping_patience": 25,
+    "min_epochs": 35,
     "enabled": true,
     "focal_gamma": 1.0,
     "implied_vol_bars": 80,
@@ -227,9 +227,9 @@
       "R_10"
     ],
     "train_timeframe": "micro",
-    "training_batch_size": 64,
+    "training_batch_size": 128,
     "training_device": "auto",
-    "training_epochs": 200,
+    "training_epochs": 300,
     "training_history_bars": 1333,
     "training_history_days": 21,
     "training_log_every_n_epochs": 1000000000,

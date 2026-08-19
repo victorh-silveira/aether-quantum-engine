@@ -39,6 +39,7 @@ def resolve_torch_device(dl_config: dict[str, Any] | None, *, kind: str) -> torc
         logger.warning("DL: %s pediu CUDA mas GPU indisponivel; usando CPU.", kind)
         return torch.device("cpu")
     if torch.cuda.is_available():
+        torch.backends.cudnn.benchmark = True
         return torch.device("cuda:0")
     return torch.device("cpu")
 
