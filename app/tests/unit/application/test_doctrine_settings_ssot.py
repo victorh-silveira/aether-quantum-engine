@@ -160,7 +160,7 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert bool(skip["anti_loss_live_weak_candle_enabled"]) is True
     assert bool(skip["anti_loss_live_confirm_enabled"]) is False
     assert float(skip["anti_loss_live_confirm_min_body"]) == pytest.approx(0.05)
-    assert bool(skip["anti_loss_live_exec_candle_enabled"]) is False
+    assert bool(skip["anti_loss_live_exec_candle_enabled"]) is True
     assert "anti_loss_hard_skip_explore" not in skip and "anti_loss_recover_soft_kelly_mult" not in skip
     assert "calib_gray_margin_floor" not in skip
     assert "calib_gray_soft_kelly_mult" not in skip

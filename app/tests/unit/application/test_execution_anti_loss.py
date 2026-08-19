@@ -40,7 +40,7 @@ def test_parse_anti_loss_knobs_from_ssot():
     assert cfg["anti_loss_live_weak_candle_enabled"] is True
     assert cfg["anti_loss_live_confirm_enabled"] is False
     assert cfg["anti_loss_live_confirm_min_body"] == pytest.approx(0.05)
-    assert cfg["anti_loss_live_exec_candle_enabled"] is False
+    assert cfg["anti_loss_live_exec_candle_enabled"] is True
     with pytest.raises(ValueError, match="anti_loss_p_loss_floor"):
         parse_signal_skip_config({"anti_loss_p_loss_floor": 1.5})
     with pytest.raises(ValueError, match="anti_loss_soft_kelly_mult"):
