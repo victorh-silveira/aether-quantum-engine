@@ -1,3 +1,9 @@
+## [2.16.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.16.1...v2.16.2) (2026-08-19)
+
+### Correcoes de Bug
+
+* **app:** sincroniza resolve_label_mode com supertrend_atr ([360193e](https://github.com/victorh-silveira/aether-quantum-engine/commit/360193e6d046a38b991636119124e028c2edd670))
+
 ## [2.16.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.16.0...v2.16.1) (2026-08-19)
 
 ### Correcoes de Bug
