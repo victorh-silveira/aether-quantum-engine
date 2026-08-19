@@ -633,7 +633,7 @@
         "fusion_enabled": true,
         "fusion_replace_adapt_flip": true,
         "fusion_w_macro": 0.45,
-        "fusion_w_micro_bar": 0.85,
+        "fusion_w_micro_bar": 0.1,
         "fusion_w_mini": 0.25,
         "fusion_w_mili": 0.1,
         "fusion_w_tape": 0.45,

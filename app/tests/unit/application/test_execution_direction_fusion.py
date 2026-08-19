@@ -17,7 +17,7 @@ def test_parse_direction_fusion_from_ssot():
     assert cfg["fusion_enabled"] is True
     assert cfg["fusion_replace_adapt_flip"] is True
     assert cfg["fusion_w_macro"] == pytest.approx(0.45)
-    assert cfg["fusion_w_micro_bar"] == pytest.approx(0.85)
+    assert cfg["fusion_w_micro_bar"] == pytest.approx(0.10)
     assert cfg["fusion_loss_weight"] == pytest.approx(0.45)
     assert cfg["fusion_tcn_shrink_near_half"] == pytest.approx(0.25)
     assert cfg["fusion_block_when_tcn_pos_edge"] is True

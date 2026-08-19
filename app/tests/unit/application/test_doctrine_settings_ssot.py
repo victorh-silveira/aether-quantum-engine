@@ -180,7 +180,7 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert scale["fusion_enabled"] is True
     assert scale["fusion_replace_adapt_flip"] is True
     assert float(scale["fusion_w_macro"]) == pytest.approx(0.45)
-    assert float(scale["fusion_w_micro_bar"]) == pytest.approx(0.85)
+    assert float(scale["fusion_w_micro_bar"]) == pytest.approx(0.10)
     assert float(scale["fusion_w_mini"]) == pytest.approx(0.25)
     assert float(scale["fusion_w_mili"]) == pytest.approx(0.10)
     assert float(scale["fusion_w_tape"]) == pytest.approx(0.45)
