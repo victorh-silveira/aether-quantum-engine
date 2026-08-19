@@ -39,14 +39,18 @@ def save_learn_buffer(path: Path, xs: list[list[float]], ys: list[float]) -> Non
 
 
 def fit_regressor(buffer_x: list[list[float]], buffer_y: list[float]) -> Any:
+    n_samples = len(buffer_y)
+    min_child = max(2, min(5, n_samples // 3))
     model = lgb.LGBMRegressor(
-        n_estimators=80,
-        learning_rate=0.05,
-        num_leaves=15,
-        min_child_samples=5,
-        subsample=0.9,
-        colsample_bytree=0.9,
+        n_estimators=60,
+        learning_rate=0.04,
+        num_leaves=12,
+        min_child_samples=min_child,
+        subsample=0.85,
+        colsample_bytree=0.85,
+        reg_lambda=0.1,
         verbosity=-1,
+        random_state=42,
     )
     model.fit(np.asarray(buffer_x, dtype=np.float64), np.asarray(buffer_y, dtype=np.float64))
     return model

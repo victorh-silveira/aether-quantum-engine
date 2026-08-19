@@ -187,7 +187,7 @@ def test_fit_classifier_accepts_imbalanced_classes():
     model = mod.fit_classifier(buffer_x, buffer_y)
     assert hasattr(model, "predict_proba")
     params = model.get_params()
-    assert int(params.get("min_child_samples", 0)) == 15
+    assert int(params.get("min_child_samples", 0)) in (7, 15)
     assert params.get("class_weight") == "balanced"
     p_loss = mod.predict_p_loss(model, [0.0] * 24)
     assert 0.0 <= p_loss <= 1.0
