@@ -1,3 +1,9 @@
+## [2.17.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.16.2...v2.17.0) (2026-08-19)
+
+### Funcionalidades
+
+* **orchestrator:** desbloquear execucao com kelly real na fusao ([0997232](https://github.com/victorh-silveira/aether-quantum-engine/commit/09972324763334f97c62122270f2ff51a920b892))
+
 ## [2.16.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.16.1...v2.16.2) (2026-08-19)
 
 ### Correcoes de Bug
