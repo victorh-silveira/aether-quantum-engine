@@ -139,11 +139,11 @@ def run_launch_train_tf_pipeline(
             dry_run=dry_run,
         )
         return _finish_sweep(log, "HORIZON", board, h_knobs, skip_promote=skip_promote, dry_run=dry_run)
-    log.info("[HORIZON] desligado; fallback train.py")
+    log.info("[HORIZON] desligado; executando treino TCN direto (app/train.py)")
     if dry_run:
         return 0
     proc = subprocess.run(
-        [sys.executable, str(REPO_ROOT / "train.py")],
+        [sys.executable, str(REPO_ROOT / "app" / "train.py")],
         cwd=str(REPO_ROOT),
         check=False,
     )
