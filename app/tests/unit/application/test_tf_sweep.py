@@ -195,7 +195,7 @@ def test_knobs_read_horizon_sweep():
     assert "leaderboard.json" in knobs["leaderboard_path"]
     assert knobs["artifact_root"] == "data/dl/sweep"
     assert knobs["n_bars"] == [15, 20, 25, 30, 35, 40, 45, 50, 55, 60]
-    assert knobs["run_in_launch_train"] is True
+    assert bool(knobs["enabled"]) is True
     assert knobs["symbols"] == ["R_10"]
 
 

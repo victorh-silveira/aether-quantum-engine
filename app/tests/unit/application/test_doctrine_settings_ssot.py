@@ -44,11 +44,11 @@ def test_production_deploy_gate_armed():
     assert float(dl.get("weight_decay", 0.0)) == pytest.approx(0.001)
     assert float(dl.get("tcn", {}).get("dropout", 0.0)) == pytest.approx(0.25)
     assert float(dl.get("learning_rate", 0.0)) == pytest.approx(0.001)
-    assert int(dl.get("train_deploy_retries", 0)) >= 3
+    assert int(dl.get("train_deploy_retries", 0)) >= 1
     assert int(dl.get("sample_weighting", {}).get("recency_half_life_n", 0)) == 2000
-    assert str(dl.get("label_mode")) == "ma_trend"
+    assert str(dl.get("label_mode")) == "supertrend_atr"
     assert int(dl.get("lookback", 0)) == 480
-    assert int(dl.get("label_horizon_bars", 0)) == 45
+    assert int(dl.get("label_horizon_bars", 0)) == 5
     assert int(settings["risk_management"]["params"]["duration"]) == 5
     assert str(settings["risk_management"]["params"]["duration_unit"]) == "m"
     assert int(dl["horizon_sweep"]["ops_contract_duration_minutes"]) == 5
@@ -285,7 +285,7 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert "tf_sweep" not in dl
     h_sweep = dl["horizon_sweep"]
     assert bool(h_sweep["enabled"]) is True
-    assert bool(h_sweep["run_in_launch_train"]) is True
+    assert bool(h_sweep["run_in_launch_train"]) is False
     assert bool(h_sweep["auto_promote"]) is True
     assert int(h_sweep["ops_contract_duration_minutes"]) == 5
     assert bool(h_sweep["quiet_train_logs"]) is True

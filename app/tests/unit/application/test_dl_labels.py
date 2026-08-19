@@ -65,3 +65,20 @@ def test_label_spec_embargo_bars():
     spec = LabelSpec(horizon_bars=1, smooth_bars=5)
     assert spec.embargo_bars == 5
     assert LabelSpec.from_dl_config({"label_horizon_bars": 2, "label_smooth_bars": 3}).embargo_bars == 4
+
+
+def test_binary_label_supertrend_atr():
+    from src.application.services.deep_learning.dl_labels import LABEL_MODE_SUPERTREND_ATR, _supertrend_direction
+
+    prices = np.linspace(100.0, 150.0, 50)
+    assert _supertrend_direction(prices, 5) == 1
+    assert _supertrend_direction(prices, 40) == 1
+    assert binary_label_at_index(prices, 20, 5, label_mode=LABEL_MODE_SUPERTREND_ATR) is True
+
+    prices_down = np.linspace(150.0, 100.0, 50)
+    assert _supertrend_direction(prices_down, 40) == -1
+    assert binary_label_at_index(prices_down, 20, 5, label_mode=LABEL_MODE_SUPERTREND_ATR) is False
+    prices_flat = np.full(50, 100.0)
+    assert _supertrend_direction(prices_flat, 40) == 1
+    prices_flat_step = np.array([100.0] * 30 + [100.1, 100.0])
+    assert _supertrend_direction(prices_flat_step, 31) == -1

@@ -70,7 +70,6 @@ def test_load_horizon_sweep_knobs_from_ssot():
     knobs = load_horizon_sweep_knobs()
     assert knobs["n_bars"] == list(DEFAULT_N_BARS)
     assert knobs["duration_minutes"] == list(DEFAULT_N_BARS)
-    assert knobs["run_in_launch_train"] is True
     assert knobs["enabled"] is True
     knobs = load_horizon_sweep_knobs(
         {

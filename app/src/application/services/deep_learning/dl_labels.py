@@ -9,6 +9,7 @@ import numpy as np
 
 LABEL_MODE_SPOT = "spot_forward"
 LABEL_MODE_MA_TREND = "ma_trend"
+LABEL_MODE_SUPERTREND_ATR = "supertrend_atr"
 
 
 @dataclass(frozen=True)
@@ -59,6 +60,22 @@ def _regime_threshold(ma_window: int, horizon_bars: int) -> float:
     return max(0.0002, 0.0005 * float(horizon_bars) / float(max(1, ma_window)))
 
 
+def _supertrend_direction(prices: np.ndarray, index: int, period: int = 10, multiplier: float = 2.0) -> int:
+    """Calcula a direcao do SuperTrend na barra index (+1 CALL, -1 PUT)."""
+    start = max(0, index - max(period * 3, 30))
+    seg = prices[start : index + 1]
+    if len(seg) < period + 1:
+        return 1 if prices[index] >= prices[max(0, index - 1)] else -1
+    diffs = np.abs(np.diff(seg))
+    atr = float(np.mean(diffs[-period:]))
+    diff_trend = float(seg[-1] - seg[0])
+    if diff_trend > atr * multiplier * 0.5:
+        return 1
+    if diff_trend < -atr * multiplier * 0.5:
+        return -1
+    return 1 if seg[-1] >= seg[-2] else -1
+
+
 def binary_label_at_index(
     prices: np.ndarray,
     index: int,
@@ -68,11 +85,18 @@ def binary_label_at_index(
     label_mode: str = LABEL_MODE_SPOT,
     ma_window: int = 5,
 ) -> bool:
-    """Retorna True para CALL conforme modo ma_trend (suave) ou spot_forward."""
+    """Retorna True para CALL conforme modo supertrend_atr, ma_trend ou spot_forward."""
     forward = _forward_mean(prices, index, horizon_bars, smooth_bars)
     if forward is None:
         return False
     mode = str(label_mode).strip().lower()
+    if mode == LABEL_MODE_SUPERTREND_ATR:
+        st_dir = _supertrend_direction(prices, index)
+        diff = forward - float(prices[index])
+        threshold = _regime_threshold(ma_window, horizon_bars) * float(prices[index])
+        if st_dir == 1:
+            return diff >= -threshold
+        return diff > threshold
     if mode == LABEL_MODE_MA_TREND:
         current = _rolling_mean(prices, index, ma_window)
         threshold = _regime_threshold(ma_window, horizon_bars)

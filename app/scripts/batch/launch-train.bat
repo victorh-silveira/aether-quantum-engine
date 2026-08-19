@@ -20,7 +20,7 @@ if "%CONDA_ACTIVATE%"=="" echo [ERRO] Nao foi possivel localizar o activate.bat 
 if "%CONDA_ACTIVATE%"=="" pause
 if "%CONDA_ACTIVATE%"=="" exit /b 1
 
-echo [AETHER] launch-train: sanitize -^> sweep H15..H60 -^> gate -^> meta -^> rebuild
+echo [AETHER] launch-train: sanitize -^> treino DL 5m -^> gate -^> meta -^> rebuild
 echo [AETHER] 0/5 sanitize run anterior...
 cd /d "%REPO_ROOT%"
 "%PYTHON_EXE%" app/scripts/operations/sanitize_fresh_run.py
@@ -32,7 +32,7 @@ cd /d "%REPO_ROOT%\app"
 if errorlevel 1 goto :loss_bootstrap_fail
 cd /d "%REPO_ROOT%"
 
-echo [AETHER] 1/5 sweep horizonte + promote (ops duration M5 fixo)...
+echo [AETHER] 1/5 treino TCN direto (contrato M5 fixo)...
 cd /d "%REPO_ROOT%"
 "%PYTHON_EXE%" app/scripts/operations/run_launch_train_tf_pipeline.py %*
 if errorlevel 1 goto :horizon_fail

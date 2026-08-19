@@ -49,7 +49,7 @@ help:
 	@echo -e ""
 	@echo -e "$(YELLOW)App:$(RESET)"
 	@echo -e "  $(GREEN)app-run$(RESET)            - Sobe o motor em execucao real/demo (run.py)"
-	@echo -e "  $(GREEN)app-train$(RESET)          - Pipeline completo de treino (sweep H15..H60 -> promote -> meta)"
+	@echo -e "  $(GREEN)app-train$(RESET)          - Pipeline completo de treino DL 5m (TCN + meta-classificador)"
 	@echo -e "  $(GREEN)app-test$(RESET)           - Testes automatizados + cobertura 100%"
 	@echo -e "  $(GREEN)app-lint$(RESET)           - Lint / format (Ruff + Interrogate + Vulture)"
 	@echo -e "  $(GREEN)app-security$(RESET)       - Auditoria de seguranca de codigo (Bandit)"

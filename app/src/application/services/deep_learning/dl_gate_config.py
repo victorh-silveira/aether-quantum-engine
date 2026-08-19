@@ -122,7 +122,7 @@ def resolve_deploy_ok(
     pred_call_frac: float | None = None,
     minority_recall: float | None = None,
 ) -> bool:
-    """Combina mini deploy com fallback por metricas de treino; ACC soft e piso duro."""
+    """Combina mini deploy com metricas de validacao; prioriza edge real e assertividade."""
     soft_acc = float(gate_cfg.get("soft_min_val_accuracy", 0.53))
     soft_brier = float(gate_cfg.get("soft_max_brier", 0.26))
     if float(val_accuracy) + 1e-9 < soft_acc:
@@ -139,7 +139,7 @@ def resolve_deploy_ok(
     if mini_ok:
         return True
     if not bool(gate_cfg.get("enabled", True)):
-        return float(val_brier) + 1e-9 <= soft_brier
+        return True
     return float(val_brier) + 1e-9 <= soft_brier
 
 

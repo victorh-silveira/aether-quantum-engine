@@ -182,9 +182,9 @@
     "eval_min_accuracy": 0.53,
     "eval_settle_accuracy_min": 0.53,
     "inference_device": "auto",
-    "label_horizon_bars": 45,
+    "label_horizon_bars": 5,
     "label_ma_window": 5,
-    "label_mode": "ma_trend",
+    "label_mode": "supertrend_atr",
     "label_smooth_bars": 1,
     "label_smoothing": 0.0,
     "learning_rate": 0.001,
@@ -232,14 +232,14 @@
     "training_epochs": 200,
     "training_history_bars": 1333,
     "training_history_days": 21,
-    "training_log_every_n_epochs": 10,
+    "training_log_every_n_epochs": 1000000000,
     "val_acc_live_blend": 0.2,
     "validation_ratio": 0.2,
     "weight_decay": 0.001,
     "require_deploy": false,
     "allow_undeployed_inference": true,
     "calibration_margin_floor": 0.01,
-    "train_deploy_retries": 5,
+    "train_deploy_retries": 1,
     "sample_weighting": {
       "class_balance_enabled": true,
       "class_balance_eps": 0.0,
@@ -248,7 +248,7 @@
     },
     "horizon_sweep": {
       "enabled": true,
-      "run_in_launch_train": true,
+      "run_in_launch_train": false,
       "auto_promote": true,
       "ops_contract_duration_minutes": 5,
       "quiet_train_logs": true,
@@ -289,7 +289,7 @@
     }
   },
   "infra": {
-    "enabled": true,
+    "enabled": false,
     "fail_fast": true,
     "meta_classifier": {
       "enabled": true,

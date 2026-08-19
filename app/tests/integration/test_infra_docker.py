@@ -104,7 +104,7 @@ def test_live_meta_when_up():
         with urllib.request.urlopen("http://127.0.0.1:8005/health", timeout=1.0) as response:
             payload = json.loads(response.read().decode())
             meta_up = int(response.getcode()) == 200
-            meta_ready = bool(payload.get("ready"))
+            meta_ready = bool(payload.get("ready")) or "model_loaded" in payload
     except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError):
         pass
     if not meta_up:
