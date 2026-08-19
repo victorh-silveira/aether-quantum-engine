@@ -1,3 +1,10 @@
+## [2.16.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.15.0...v2.16.0) (2026-08-19)
+
+### Funcionalidades
+
+* **app:** ativa aceleracao cuda rtx 4060 e recalibra early stopping ([d03bd80](https://github.com/victorh-silveira/aether-quantum-engine/commit/d03bd80f3d54da888be268679ca94a1c62265e42))
+* **infra:** aprimora telemetria de hidratacao m1 e h2 no timescale ([d3a536e](https://github.com/victorh-silveira/aether-quantum-engine/commit/d3a536e21c9213ea98516b6bd5e14337bd193f98))
+
 ## [2.15.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.14.0...v2.15.0) (2026-08-19)
 
 ### Funcionalidades
