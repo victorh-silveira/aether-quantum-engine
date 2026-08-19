@@ -41,7 +41,7 @@ if [ -z "$MICRO_COUNT" ]; then MICRO_COUNT=0; fi
 if [ -z "$MACRO_COUNT" ]; then MACRO_COUNT=0; fi
 
 if [ "$MICRO_COUNT" -lt 720 ] || [ "$MACRO_COUNT" -lt 80 ]; then
-  docker_ui_warn "fome de dados (micro60=${MICRO_COUNT} macro7200=${MACRO_COUNT}) - hidratando R_10 M1"
+  docker_ui_warn "fome de dados (micro60=${MICRO_COUNT} macro7200=${MACRO_COUNT}) - hidratando R_10 M1 (60s) e H2 (7200s)"
   "${COMPOSE[@]}" exec -T timescaledb psql -q -U "$PG_USER" -d "$PG_DB" -c "
     INSERT INTO ohlc_bars (time, symbol, epoch, granularity, open, high, low, close)
     SELECT t, 'R_10', EXTRACT(EPOCH FROM t)::bigint, 60,
@@ -53,9 +53,9 @@ if [ "$MICRO_COUNT" -lt 720 ] || [ "$MACRO_COUNT" -lt 80 ]; then
            100.0+(i*0.02), 100.8+(i*0.02), 99.2+(i*0.02), 100.2+(i*0.02)
     FROM (SELECT NOW() - (i * INTERVAL '7200 seconds') AS t, i FROM generate_series(1, 160) i) s
     ON CONFLICT DO NOTHING;" >/dev/null
-  docker_ui_ok "lookback macro/micro M1 reidratado"
+  docker_ui_ok "lookback R_10 M1 (60s x1333) e H2 (7200s x160) reidratado"
 else
-  docker_ui_ok "ohlc_bars R_10 (micro60=${MICRO_COUNT} macro7200=${MACRO_COUNT})"
+  docker_ui_ok "ohlc_bars R_10 pronto (micro60=${MICRO_COUNT} macro7200=${MACRO_COUNT})"
 fi
 
 docker_ui_nl
