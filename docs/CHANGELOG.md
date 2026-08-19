@@ -1,3 +1,9 @@
+## [2.13.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.12.2...v2.13.0) (2026-08-19)
+
+### Funcionalidades
+
+* **app:** migra para rotulagem supertrend_atr e treino focado 5m ([62b3c59](https://github.com/victorh-silveira/aether-quantum-engine/commit/62b3c59a06671a3ab2734ab653d365c9519d38a1))
+
 ## [2.12.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.12.1...v2.12.2) (2026-08-19)
 
 ### Correcoes de Bug
