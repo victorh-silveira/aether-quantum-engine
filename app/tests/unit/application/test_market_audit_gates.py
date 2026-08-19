@@ -18,10 +18,12 @@ def test_format_gates_audit_line():
         "exec_direction": "CALL",
     }
     line = format_gates_audit_line(metrics)
-    assert line.startswith("[GATES] || LOSS_CLF: SOFT")
+    gates = line.split("\n")
+    assert gates[0].startswith("[GATES] || FUSION:")
+    assert gates[1].startswith("[GATES] || LOSS_CLF: SOFT")
+    assert gates[2].startswith("[GATES] || ANTI_LOSS")
+    assert gates[3].startswith("[GATES] || NEG_EDGE soft side=CALL")
     assert "CHOP adx=" in line
-    assert "\n[GATES] || NEG_EDGE soft side=CALL" in line
-    assert "FUSION:" in line
     hard_neg = format_gates_audit_line(
         {
             "gate_reason": "neg_edge",

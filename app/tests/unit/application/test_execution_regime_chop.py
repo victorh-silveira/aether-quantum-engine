@@ -16,13 +16,13 @@ from src.application.services.execution_signal_skip import metrics_block_executi
 
 def test_parse_regime_chop_from_ssot():
     cfg = parse_regime_chop_config({})
-    assert cfg["chop_pause_enabled"] is False
+    assert cfg["chop_pause_enabled"] is True
     assert cfg["chop_adx_max"] == pytest.approx(0.22)
     assert cfg["chop_hurst_min"] == pytest.approx(0.47)
     assert cfg["chop_hurst_max"] == pytest.approx(0.53)
     assert cfg["chop_soft_kelly_mult"] == pytest.approx(0.55)
     skip = parse_signal_skip_config({})
-    assert skip["chop_pause_enabled"] is False
+    assert skip["chop_pause_enabled"] is True
     assert skip["chop_soft_kelly_mult"] == pytest.approx(0.55)
     assert skip["neg_edge_soft_kelly_mult"] == pytest.approx(0.55)
     assert skip["neg_edge_hard_skip"] is False

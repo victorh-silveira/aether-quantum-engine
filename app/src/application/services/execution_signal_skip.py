@@ -43,6 +43,10 @@ def parse_signal_skip_config(raw: dict[str, Any] | None = None) -> dict[str, Any
             "anti_loss_soft_kelly_mult",
             "anti_loss_require_tcn_pos_edge",
             "anti_loss_min_candle_body",
+            "anti_loss_live_weak_candle_enabled",
+            "anti_loss_live_confirm_enabled",
+            "anti_loss_live_confirm_min_body",
+            "anti_loss_live_exec_candle_enabled",
         ),
         "orchestrator.execution.signal_skip",
     )
@@ -76,6 +80,11 @@ def parse_signal_skip_config(raw: dict[str, Any] | None = None) -> dict[str, Any
     anti_body = require_float(block, "anti_loss_min_candle_body")
     if anti_body < 0.0:
         raise ValueError("orchestrator.execution.signal_skip.anti_loss_min_candle_body deve ser >= 0")
+    confirm_min = require_float(block, "anti_loss_live_confirm_min_body")
+    if confirm_min <= anti_body:
+        raise ValueError(
+            "orchestrator.execution.signal_skip.anti_loss_live_confirm_min_body deve ser > anti_loss_min_candle_body"
+        )
     hurst_min = require_float(block, "chop_hurst_min")
     hurst_max = require_float(block, "chop_hurst_max")
     if hurst_max < hurst_min:
@@ -107,6 +116,10 @@ def parse_signal_skip_config(raw: dict[str, Any] | None = None) -> dict[str, Any
         "anti_loss_soft_kelly_mult": anti_soft,
         "anti_loss_require_tcn_pos_edge": require_bool(block, "anti_loss_require_tcn_pos_edge"),
         "anti_loss_min_candle_body": anti_body,
+        "anti_loss_live_weak_candle_enabled": require_bool(block, "anti_loss_live_weak_candle_enabled"),
+        "anti_loss_live_confirm_enabled": require_bool(block, "anti_loss_live_confirm_enabled"),
+        "anti_loss_live_confirm_min_body": confirm_min,
+        "anti_loss_live_exec_candle_enabled": require_bool(block, "anti_loss_live_exec_candle_enabled"),
     }
 
 

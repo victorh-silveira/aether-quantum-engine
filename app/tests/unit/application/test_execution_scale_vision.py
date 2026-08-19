@@ -81,6 +81,7 @@ def test_parse_scale_vision_from_ssot():
     assert cfg["retraction_require_mili"] is True
     assert cfg["retraction_use_tick_accel"] is True
     assert cfg["max_stake_pct_discord"] > 0.0
+    assert cfg["ops_window_bars"] == 5
 
 
 def test_compute_scale_discordance():
@@ -119,6 +120,7 @@ def test_compute_scale_discordance():
     assert "mi_prev=CALL" in line
     assert "mi_cur=CALL" in line
     assert "tape=CALL" in line
+    assert "ops=-" in line
     assert "micro=" in line
     assert "mi_p=CALL" in format_scale_ind_token(metrics)
     assert "micro=" in format_scale_ind_token(metrics)
@@ -268,3 +270,5 @@ def test_compute_scale_closed_micro_matches_candle_not_prev_bar():
     assert metrics["scale_micro_bar_dir"] == "PUT"
     assert metrics["closed_micro_candle_dir"] == "PUT"
     assert metrics["closed_micro_candle_body"] == pytest.approx(0.2)
+    assert metrics["ops_window_stamped"] is False
+    assert metrics["ops_window_candle_dir"] is None

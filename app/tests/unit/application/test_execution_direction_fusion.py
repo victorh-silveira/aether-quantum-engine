@@ -16,15 +16,15 @@ def test_parse_direction_fusion_from_ssot():
     cfg = parse_direction_fusion_config({})
     assert cfg["fusion_enabled"] is True
     assert cfg["fusion_replace_adapt_flip"] is True
-    assert cfg["fusion_w_macro"] == pytest.approx(0.35)
-    assert cfg["fusion_w_micro_bar"] == pytest.approx(0.45)
+    assert cfg["fusion_w_macro"] == pytest.approx(0.45)
+    assert cfg["fusion_w_micro_bar"] == pytest.approx(0.85)
     assert cfg["fusion_loss_weight"] == pytest.approx(0.45)
     assert cfg["fusion_tcn_shrink_near_half"] == pytest.approx(0.25)
     assert cfg["fusion_block_when_tcn_pos_edge"] is True
     assert cfg["fusion_block_when_tcn_candle_agree"] is True
     assert cfg["fusion_loss_requires_auto_learn"] is True
     assert cfg["fusion_loss_seed_weight_mult"] == pytest.approx(0.0)
-    assert cfg["fusion_weak_ev_soft_kelly_mult"] == pytest.approx(0.40)
+    assert cfg["fusion_weak_ev_soft_kelly_mult"] == pytest.approx(0.50)
     assert cfg["fusion_weak_ev_seed_soft_kelly_mult"] == pytest.approx(0.25)
     with pytest.raises(ValueError, match="fusion_tcn_shrink_near_half"):
         parse_direction_fusion_config({"fusion_tcn_shrink_near_half": 1.5})
@@ -47,7 +47,7 @@ def test_fusion_seed_high_p_loss_keeps_tcn_when_candle_agrees():
         "scale_mini_dir": "PUT",
         "scale_mili_dir": "PUT",
         "scale_tape_consensus": "PUT",
-        "closed_micro_candle_dir": "CALL",
+        "ops_window_candle_dir": "CALL",
         "loss_clf_p_loss": 0.95,
         "loss_clf_flip_ref": "CALL",
         "loss_clf_auto_learn": False,
@@ -72,7 +72,7 @@ def test_fusion_auto_learn_can_switch_when_candle_discords():
         "scale_mini_bar_dir": "PUT",
         "scale_mili_dir": "PUT",
         "scale_tape_consensus": "PUT",
-        "closed_micro_candle_dir": "PUT",
+        "ops_window_candle_dir": "PUT",
         "loss_clf_p_loss": 0.92,
         "loss_clf_flip_ref": "CALL",
         "loss_clf_auto_learn": True,
@@ -95,7 +95,7 @@ def test_fusion_weak_ev_applies_soft_kelly():
         "scale_mini_dir": "CALL",
         "scale_mili_dir": "CALL",
         "scale_tape_consensus": "CALL",
-        "closed_micro_candle_dir": "CALL",
+        "ops_window_candle_dir": "CALL",
         "loss_clf_p_loss": 0.20,
         "loss_clf_auto_learn": True,
         "execution_candidate_ready": True,
@@ -135,7 +135,7 @@ def test_fusion_weak_ev_seed_dual_neg_softens_harder():
         "scale_mini_dir": "CALL",
         "scale_mili_dir": "CALL",
         "scale_tape_consensus": "CALL",
-        "closed_micro_candle_dir": "CALL",
+        "ops_window_candle_dir": "CALL",
         "loss_clf_p_loss": 0.20,
         "loss_clf_auto_learn": False,
         "execution_candidate_ready": True,
@@ -176,7 +176,7 @@ def test_fusion_picks_put_when_tape_and_loss_oppose_weak_call():
         "scale_mini_bar_dir": "PUT",
         "scale_mili_dir": "PUT",
         "scale_tape_consensus": "PUT",
-        "closed_micro_candle_dir": "PUT",
+        "ops_window_candle_dir": "PUT",
         "loss_clf_p_loss": 0.92,
         "loss_clf_flip_ref": "CALL",
         "loss_clf_auto_learn": True,
@@ -198,8 +198,8 @@ def test_fusion_keeps_tcn_when_pos_edge_blocks():
         "calibrated_prob": 0.70,
         "raw_prob": 0.70,
         "tcn_direction": "CALL",
-        "scale_macro_dir": "PUT",
-        "closed_micro_candle_dir": "PUT",
+        "scale_macro_dir": "CALL",
+        "ops_window_candle_dir": "CALL",
         "loss_clf_p_loss": 0.95,
         "loss_clf_flip_ref": "CALL",
         "exec_direction": "CALL",
@@ -218,7 +218,7 @@ def test_fusion_skips_tcn_pos_edge_when_raw_below_floor():
         "tcn_direction": "PUT",
         "scale_macro_dir": "CALL",
         "scale_tape_consensus": "CALL",
-        "closed_micro_candle_dir": "CALL",
+        "ops_window_candle_dir": "CALL",
         "loss_clf_p_loss": 0.90,
         "loss_clf_flip_ref": "PUT",
         "loss_clf_auto_learn": True,
@@ -238,7 +238,7 @@ def test_fusion_allows_ev_when_cal_pos_raw_neg():
         "tcn_direction": "PUT",
         "scale_macro_dir": "CALL",
         "scale_tape_consensus": "CALL",
-        "closed_micro_candle_dir": "CALL",
+        "ops_window_candle_dir": "CALL",
         "loss_clf_p_loss": 0.95,
         "loss_clf_flip_ref": "PUT",
         "loss_clf_auto_learn": True,

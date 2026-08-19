@@ -209,7 +209,7 @@ def test_fusion_raw_and_payout_helpers():
         }
     )
     with patch(
-        "src.application.services.execution_direction_fusion.closed_micro_candle_side",
+        "src.application.services.execution_direction_fusion.ops_window_candle_side",
         return_value="CALL",
     ):
         out = apply_direction_fusion(candle_off, TradeDirection.CALL, cfg=cfg_candle_off)
@@ -243,7 +243,7 @@ def test_precommit_cov_gaps_startup_neg_flip_meta():
         parse_signal_skip_config({"neg_edge_deep_edge_floor": -1.5})
     assert (
         seed_candle_blocks_flip(
-            {"closed_micro_candle_dir": "CALL"},
+            {"closed_micro_candle_dir": "CALL", "ops_window_candle_dir": "CALL"},
             {"auto_learn_applied": False},
             TradeDirection.CALL,
             cfg={"flip_seed_block_against_closed_candle": False},

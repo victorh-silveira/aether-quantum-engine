@@ -11,7 +11,7 @@ Guia operacional DL para agentes. Detalhe de features: [`arquitetura.md`](arquit
 | Lookback | **480** → tensor `[1, 480, 34]` (~8 h @ 60 s) |
 | MACRO OHLC | **7200 s** (`data_handler.granularity`) |
 | MICRO (TCN) | **60 s** (`micro_granularity`) — M1 |
-| Contrato | **5 m** RISE_FALL (ops fixo via `ops_contract_duration_minutes=5` → `params.duration=5`); label **N** ∈ {15,20,…,60} eleito no launch-train (**SSOT atual `label_horizon_bars=55`** / H55; gap intencional vs settle 5 min) |
+| Contrato | **5 m** RISE_FALL (ops fixo via `ops_contract_duration_minutes=5` → `params.duration=5`); label **N** ∈ {15,20,…,60} eleito no launch-train (**SSOT atual `label_horizon_bars=45`** / H45; gap intencional vs settle 5 min) |
 | MINI OHLC | **60 s** (`mini_granularity`) |
 | Bootstrap wait | `bootstrap_history_wait_cap_seconds` **30** (nao dorme a granularidade inteira entre retries) |
 | MILI | Tick flow (nao OHLC) |
@@ -40,7 +40,7 @@ Guia operacional DL para agentes. Detalhe de features: [`arquitetura.md`](arquit
 
 ## Sweep de horizonte N (launch-train)
 
-O TCN estima deslocamento em **N velas M1**. O `launch-train` treina a grade **H15–H60** (`duration_minutes`/`n_bars` = 15/20/…/60 em M1 — **nao** TF M15/900s; treino por celula `duration=N` alinhado ao label), loga **uma** linha `[HORIZON] cell i/N …` por celula (com `why=` se deploy=0) e pos-sweep denso (`board candidatos/elegiveis/skip`, winner, promote com paths relativos; Timescale `--check-only` e `[META] ok` em 1 linha cada; sem dump JSON/params), e promove o mais assertivo (`settle_wr` ≥ be+0.03, n≥16, history≥800). Artefactos em `data/dl/sweep/R_10/H{N}/`. **SSOT atual** (ultimo promote): `label_horizon_bars` **55** (H55); contrato ops **5 m** (fixo; promote **nao** exporta duration).
+O TCN estima deslocamento em **N velas M1**. O `launch-train` treina a grade **H15–H60** (`duration_minutes`/`n_bars` = 15/20/…/60 em M1 — **nao** TF M15/900s; treino por celula `duration=N` alinhado ao label), loga **uma** linha `[HORIZON] cell i/N …` por celula (com `why=` se deploy=0) e pos-sweep denso (`board candidatos/elegiveis/skip`, winner, promote com paths relativos; Timescale `--check-only` e `[META] ok` em 1 linha cada; sem dump JSON/params), e promove o mais assertivo (`settle_wr` ≥ be+0.03, n≥16, history≥800). Artefactos em `data/dl/sweep/R_10/H{N}/`. **SSOT atual** (ultimo promote): `label_horizon_bars` **45** (H45); contrato ops **5 m** (fixo; promote **nao** exporta duration).
 
 Pipeline **offline** (nao troca N por ciclo ao vivo):
 

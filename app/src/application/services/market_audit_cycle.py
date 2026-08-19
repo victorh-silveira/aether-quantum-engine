@@ -45,7 +45,7 @@ def _gates_block_token(blocked: str) -> str:
 
 
 def format_gates_audit_line(metrics: dict[str, Any]) -> str:
-    """Compacta LOSS_CLF+CHOP, NEG_EDGE, FUSION e ANTI_LOSS em linhas [GATES]."""
+    """Compacta FUSION, LOSS_CLF+CHOP, ANTI_LOSS e NEG_EDGE na ordem do pipeline."""
     p_loss = _f(metrics, "loss_clf_p_loss", default=-1.0)
     soft = bool(metrics.get("loss_clf_soft"))
     flipped = bool(metrics.get("loss_clf_flip"))
@@ -138,7 +138,7 @@ def format_gates_audit_line(metrics: dict[str, Any]) -> str:
         mode = "skip" if gate == "anti_loss_seed_discord" or status == "SKIP:ANTI_LOSS_SEED_DISCORD" else "soft"
         why = str(metrics.get("anti_loss_why") or "seed_discord")
         p_anti = _f(metrics, "anti_loss_p_loss", default=p_loss if p_loss >= 0.0 else 0.0)
-        side_anti = str(metrics.get("anti_loss_tcn") or neg_side or "-")
+        side_anti = str(metrics.get("anti_loss_side") or metrics.get("anti_loss_tcn") or neg_side or "-")
         candle_anti = str(metrics.get("anti_loss_candle") or "-")
         body_raw = metrics.get("anti_loss_body")
         body_tok = ""
@@ -153,10 +153,10 @@ def format_gates_audit_line(metrics: dict[str, Any]) -> str:
     else:
         anti_tok = "ANTI_LOSS off"
     return (
-        f"[GATES] || LOSS_CLF: {loss_tok} | {chop_tok}\n"
-        f"[GATES] || {neg_tok} | skip={skip}\n"
         f"[GATES] || {fusion_tok}\n"
-        f"[GATES] || {anti_tok}"
+        f"[GATES] || LOSS_CLF: {loss_tok} | {chop_tok}\n"
+        f"[GATES] || {anti_tok}\n"
+        f"[GATES] || {neg_tok} | skip={skip}"
     )
 
 

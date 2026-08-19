@@ -48,7 +48,7 @@ def test_production_deploy_gate_armed():
     assert int(dl.get("sample_weighting", {}).get("recency_half_life_n", 0)) == 2000
     assert str(dl.get("label_mode")) == "ma_trend"
     assert int(dl.get("lookback", 0)) == 480
-    assert int(dl.get("label_horizon_bars", 0)) == 55
+    assert int(dl.get("label_horizon_bars", 0)) == 45
     assert int(settings["risk_management"]["params"]["duration"]) == 5
     assert str(settings["risk_management"]["params"]["duration_unit"]) == "m"
     assert int(dl["horizon_sweep"]["ops_contract_duration_minutes"]) == 5
@@ -120,7 +120,7 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert resolved["flip_waive_on_closed_candle"] is False
     assert resolved["flip_candle_p_loss_floor"] == pytest.approx(0.85)
     assert resolved["flip_waive_scale_above_p_loss"] == pytest.approx(0.95)
-    assert resolved["flip_block_when_tcn_pos_edge"] is True
+    assert resolved["flip_block_when_tcn_pos_edge"] is True and resolved["flip_waive_tcn_pos_edge_on_discord"] is True
     assert resolved["flip_waive_edge_min"] == pytest.approx(-1.0)
     assert resolved["flip_seed_block_against_closed_candle"] is True
     assert resolved["flip_seed_waive_edge_min"] == pytest.approx(-0.08)
@@ -139,7 +139,7 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert "direction_loss_both_soft_kelly_mult" not in skip
     assert "direction_loss_lock_ttl_seconds" not in skip
     assert float(skip["cal_margin_soft_kelly_mult"]) == pytest.approx(0.55)
-    assert bool(skip["chop_pause_enabled"]) is False
+    assert bool(skip["chop_pause_enabled"]) is True
     assert float(skip["chop_adx_max"]) == pytest.approx(0.22)
     assert float(skip["chop_hurst_min"]) == pytest.approx(0.47)
     assert float(skip["chop_hurst_max"]) == pytest.approx(0.53)
@@ -156,9 +156,12 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert bool(skip["anti_loss_hard_skip"]) is True
     assert float(skip["anti_loss_soft_kelly_mult"]) == pytest.approx(0.25)
     assert bool(skip["anti_loss_require_tcn_pos_edge"]) is True
-    assert float(skip["anti_loss_min_candle_body"]) == pytest.approx(0.10)
-    assert "anti_loss_hard_skip_explore" not in skip
-    assert "anti_loss_recover_soft_kelly_mult" not in skip
+    assert float(skip["anti_loss_min_candle_body"]) == pytest.approx(0.02)
+    assert bool(skip["anti_loss_live_weak_candle_enabled"]) is True
+    assert bool(skip["anti_loss_live_confirm_enabled"]) is False
+    assert float(skip["anti_loss_live_confirm_min_body"]) == pytest.approx(0.05)
+    assert bool(skip["anti_loss_live_exec_candle_enabled"]) is False
+    assert "anti_loss_hard_skip_explore" not in skip and "anti_loss_recover_soft_kelly_mult" not in skip
     assert "calib_gray_margin_floor" not in skip
     assert "calib_gray_soft_kelly_mult" not in skip
     assert "calib_gray_max_stake_pct" not in skip
@@ -176,20 +179,20 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert scale["adapt_majority_include_micro_bar"] is True
     assert scale["fusion_enabled"] is True
     assert scale["fusion_replace_adapt_flip"] is True
-    assert float(scale["fusion_w_macro"]) == pytest.approx(0.35)
-    assert float(scale["fusion_w_micro_bar"]) == pytest.approx(0.45)
+    assert float(scale["fusion_w_macro"]) == pytest.approx(0.45)
+    assert float(scale["fusion_w_micro_bar"]) == pytest.approx(0.85)
     assert float(scale["fusion_w_mini"]) == pytest.approx(0.25)
     assert float(scale["fusion_w_mili"]) == pytest.approx(0.10)
-    assert float(scale["fusion_w_tape"]) == pytest.approx(0.20)
+    assert float(scale["fusion_w_tape"]) == pytest.approx(0.45)
     assert float(scale["fusion_meta_ev_weight"]) == pytest.approx(0.10)
     assert float(scale["fusion_loss_weight"]) == pytest.approx(0.45)
     assert float(scale["fusion_tcn_shrink_near_half"]) == pytest.approx(0.25)
     assert scale["fusion_block_when_tcn_pos_edge"] is True
-    assert scale["fusion_block_when_tcn_candle_agree"] is True
+    assert scale["fusion_block_when_tcn_candle_agree"] is True and int(scale["ops_window_bars"]) == 5
     assert scale["fusion_loss_requires_auto_learn"] is True
     assert float(scale["fusion_loss_seed_weight_mult"]) == pytest.approx(0.0)
     assert float(scale["fusion_min_edge_execute"]) == pytest.approx(0.04)
-    assert float(scale["fusion_weak_ev_soft_kelly_mult"]) == pytest.approx(0.40)
+    assert float(scale["fusion_weak_ev_soft_kelly_mult"]) == pytest.approx(0.50)
     assert float(scale["fusion_weak_ev_seed_soft_kelly_mult"]) == pytest.approx(0.25)
     assert bool(settings["orchestrator"]["execution"]["invert_exec_side"]) is False
     assert bool(settings["orchestrator"]["execution"]["mandatory_trade_each_cycle"]) is False
@@ -199,7 +202,7 @@ def test_production_loss_classifier_soft_veto_ssot():
     fusion = parse_direction_fusion_config({})
     assert fusion["fusion_enabled"] is True
     assert fusion["fusion_replace_adapt_flip"] is True
-    assert float(fusion["fusion_weak_ev_soft_kelly_mult"]) == pytest.approx(0.40)
+    assert float(fusion["fusion_weak_ev_soft_kelly_mult"]) == pytest.approx(0.50)
     assert float(fusion["fusion_weak_ev_seed_soft_kelly_mult"]) == pytest.approx(0.25)
     assert fusion["fusion_block_when_tcn_pos_edge"] is True
     assert fusion["fusion_block_when_tcn_candle_agree"] is True

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from contextlib import suppress
 from typing import Any
 
 import numpy as np
@@ -13,6 +12,7 @@ from src.application.services.execution_scale_tape import (
     bar_direction_at,
     compute_tape_strong,
     last_bar_direction,
+    mili_direction_from_flow,
     mini_bar_pair_agrees,
     mini_pair_opposes_tcn,
     prev_bar_direction,
@@ -25,7 +25,9 @@ from src.application.services.execution_scale_vision_format import (
 from src.application.services.market_audit_candle import (
     closed_micro_candle_body_from_stream,
     closed_micro_candle_dir_from_stream,
+    last_closed_micro_candle,
 )
+from src.application.services.market_audit_ops_window import stamp_ops_window_metrics
 from src.domain.config_knobs import merge_settings_block, require_bool, require_float, require_int, require_keys
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.kelly_runtime_config import load_kelly_runtime_from_settings
@@ -34,6 +36,7 @@ from src.domain.risk.kelly_runtime_config import load_kelly_runtime_from_setting
 _SCALE_VISION_KEYS = (
     "enabled",
     "slope_bars",
+    "ops_window_bars",
     "kelly_mult_discord",
     "min_disagree_to_dampen",
     "block_recover_on_discord",
@@ -91,6 +94,7 @@ def parse_scale_vision_config(raw: dict[str, Any] | None = None) -> dict[str, An
     return {
         "enabled": require_bool(block, "enabled"),
         "slope_bars": max(2, require_int(block, "slope_bars")),
+        "ops_window_bars": max(1, require_int(block, "ops_window_bars")),
         "kelly_mult_discord": max(0.05, min(1.0, require_float(block, "kelly_mult_discord"))),
         "min_disagree_to_dampen": max(1, require_int(block, "min_disagree_to_dampen")),
         "block_recover_on_discord": require_bool(block, "block_recover_on_discord"),
@@ -133,28 +137,6 @@ def slope_direction(closes: np.ndarray | list[float], *, bars: int = 5) -> str |
     return TradeDirection.CALL.name if delta > 0.0 else TradeDirection.PUT.name
 
 
-def mili_direction_from_flow(flow: dict[str, Any] | None, tick_buffer: Any | None, symbol: str) -> str | None:
-    """Direcao MILI a partir de velocity/acceleration de ticks."""
-    vel = 0.0
-    accel = 0.0
-    if isinstance(flow, dict):
-        try:
-            vel = float(flow.get("price_velocity") or flow.get("micro_tick_velocity") or 0.0)
-        except (TypeError, ValueError):
-            vel = 0.0
-        try:
-            accel = float(flow.get("micro_tick_acceleration") or flow.get("price_acceleration") or 0.0)
-        except (TypeError, ValueError):
-            accel = 0.0
-    if tick_buffer is not None and hasattr(tick_buffer, "live_tick_acceleration"):
-        with suppress(Exception):
-            accel = float(tick_buffer.live_tick_acceleration(str(symbol)))
-    score = vel + 0.5 * accel
-    if abs(score) <= 1e-12:
-        return None
-    return TradeDirection.CALL.name if score > 0.0 else TradeDirection.PUT.name
-
-
 def _closes_from_stream(stream: Any, getter: str, symbol: str) -> np.ndarray:
     """Le serie close do stream via getter nomeado."""
     return _field_from_stream(stream, getter, symbol, "close")
@@ -183,6 +165,11 @@ def _seed_scale_metrics(metrics: dict[str, Any], micro_name: str | None) -> None
     metrics["scale_micro_prev_bar_dir"] = None
     metrics["closed_micro_candle_dir"] = None
     metrics["closed_micro_candle_body"] = None
+    metrics["closed_micro_candle_stamped"] = False
+    metrics["ops_window_candle_dir"] = None
+    metrics["ops_window_candle_body"] = None
+    metrics["ops_window_stamped"] = False
+    metrics["ops_window_bars"] = None
     metrics["scale_tape_consensus"] = None
     metrics["scale_tape_strong"] = False
     metrics["scale_mini_pair_oppose"] = False
@@ -243,8 +230,16 @@ def compute_scale_directions(
                 micro_opens = _field_from_stream(stream, "get_micro_numpy_series", str(symbol), "open")
             metrics["scale_micro_bar_dir"] = last_bar_direction(micro_opens, micro_closes)
             metrics["scale_micro_prev_bar_dir"] = prev_bar_direction(micro_opens, micro_closes)
+        closed_candle = last_closed_micro_candle(stream, str(symbol))
+        metrics["closed_micro_candle_stamped"] = closed_candle is not None
         metrics["closed_micro_candle_dir"] = closed_micro_candle_dir_from_stream(stream, str(symbol))
         metrics["closed_micro_candle_body"] = closed_micro_candle_body_from_stream(stream, str(symbol))
+        stamp_ops_window_metrics(
+            metrics,
+            stream,
+            str(symbol),
+            bars=int(vision.get("ops_window_bars", 5)),
+        )
     flow = metrics.get("flow_features") if isinstance(metrics.get("flow_features"), dict) else None
     tick_buffer = getattr(stream, "tick_buffer", None) if stream is not None else None
     metrics["scale_mili_dir"] = mili_direction_from_flow(flow, tick_buffer, str(symbol))

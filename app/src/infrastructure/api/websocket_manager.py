@@ -84,8 +84,8 @@ class WebSocketManager:
                         )
                     self.is_running = True
                     self.logger.debug("WSS: Conexao estabelecida com sucesso.")
-                    asyncio.create_task(self._listen())
-                    asyncio.create_task(self._ping_loop())
+                    self._listen_task = asyncio.create_task(self._listen())
+                    self._ping_task = asyncio.create_task(self._ping_loop())
                     return
                 except websockets.InvalidStatus as exc:
                     response = getattr(exc, "response", None)
@@ -132,8 +132,12 @@ class WebSocketManager:
     async def close(self):
         """Encerra a conexao WebSocket de forma graciosa."""
         self.is_running = False
+        for task in (getattr(self, "_listen_task", None), getattr(self, "_ping_task", None)):
+            if task is not None and not task.done():
+                task.cancel()
         if self.ws:
             await self.ws.close()
+            self.ws = None
             self.uri = ""
             self.logger.debug("WSS: Conexao encerrada.")
 
@@ -215,14 +219,15 @@ class WebSocketManager:
         request["req_id"] = self.req_id_counter
         actual_timeout = timeout or self.request_timeout
         cmd = next((k for k in request if k != "req_id"), "unknown")
-        future = asyncio.get_event_loop().create_future()
+        loop = asyncio.get_running_loop()
+        future = loop.create_future()
         self.callbacks[self.req_id_counter] = future
 
-        started = asyncio.get_event_loop().time()
+        started = loop.time()
         await self.ws.send(json.dumps(request))
         try:
             result = await asyncio.wait_for(future, timeout=actual_timeout)
-            self.last_rtt_seconds = max(0.001, asyncio.get_event_loop().time() - started)
+            self.last_rtt_seconds = max(0.001, loop.time() - started)
             return result
         except TimeoutError:
             if cmd != "ping":

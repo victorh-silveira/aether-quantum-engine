@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import suppress
 from typing import Any
 
 import numpy as np
@@ -30,6 +31,28 @@ def bar_direction_at(
     if abs(delta) <= 1e-12:
         return None
     return TradeDirection.CALL.name if delta > 0.0 else TradeDirection.PUT.name
+
+
+def mili_direction_from_flow(flow: dict[str, Any] | None, tick_buffer: Any | None, symbol: str) -> str | None:
+    """Direcao MILI a partir de velocity/acceleration de ticks."""
+    vel = 0.0
+    accel = 0.0
+    if isinstance(flow, dict):
+        try:
+            vel = float(flow.get("price_velocity") or flow.get("micro_tick_velocity") or 0.0)
+        except (TypeError, ValueError):
+            vel = 0.0
+        try:
+            accel = float(flow.get("micro_tick_acceleration") or flow.get("price_acceleration") or 0.0)
+        except (TypeError, ValueError):
+            accel = 0.0
+    if tick_buffer is not None and hasattr(tick_buffer, "live_tick_acceleration"):
+        with suppress(Exception):
+            accel = float(tick_buffer.live_tick_acceleration(str(symbol)))
+    score = vel + 0.5 * accel
+    if abs(score) <= 1e-12:
+        return None
+    return TradeDirection.CALL.name if score > 0.0 else TradeDirection.PUT.name
 
 
 def last_bar_direction(

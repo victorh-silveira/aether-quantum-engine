@@ -6,8 +6,8 @@ import logging
 from typing import Any
 
 from src.application.services.execution_signal_skip import apply_kelly_soft
-from src.application.services.loss_classifier_flip import closed_micro_candle_side
 from src.application.services.market_audit_log_helpers import resolve_predicted_edge
+from src.application.services.market_audit_ops_window import ops_window_candle_side
 from src.domain.config_knobs import merge_settings_block, require_bool, require_float, require_keys
 
 
@@ -129,19 +129,25 @@ def _apply_neg_edge_hard(metrics: dict[str, Any], *, direction: str, edge: float
     )
 
 
+def _stamp_fusion_p_eff(metrics: dict[str, Any]) -> None:
+    """Grava fusion_p_eff so para telemetria; nao alimenta o gate."""
+    if not bool(metrics.get("fusion_applied")):
+        return
+    raw = metrics.get("fusion_p_eff")
+    try:
+        p_eff = float(raw)
+    except (TypeError, ValueError):
+        return
+    if 0.0 < p_eff < 1.0:
+        metrics["neg_edge_fusion_p_eff"] = p_eff
+
+
 def _resolve_neg_side_edge(metrics: dict[str, Any], direction: str, pay: float) -> float:
-    """Edge do lado para neg_edge; apos fusao usa fusion_p_eff (argmax EV), senao Cal."""
-    if bool(metrics.get("fusion_applied")) and metrics.get("fusion_p_eff") is not None:
-        try:
-            p_eff = float(metrics["fusion_p_eff"])
-        except (TypeError, ValueError):
-            p_eff = None
-        if p_eff is not None and 0.0 < p_eff < 1.0:
-            edge = float(p_eff) * (1.0 + float(pay)) - 1.0
-            metrics["neg_edge_used_fusion_p_eff"] = True
-            metrics["neg_edge_fusion_p_eff"] = float(p_eff)
-            return edge
-    return float(resolve_predicted_edge(metrics, direction=direction, payout=pay))
+    """Edge Cal TCN do lado; fusion_p_eff nao substitui o gate."""
+    _stamp_fusion_p_eff(metrics)
+    edge = float(resolve_predicted_edge(metrics, direction=direction, payout=pay))
+    metrics["neg_edge_tcn_cal_edge"] = edge
+    return edge
 
 
 def apply_negative_cal_edge_pause(
@@ -153,7 +159,7 @@ def apply_negative_cal_edge_pause(
     payout: float | None = None,
     soft_mult: float | None = None,
 ) -> bool:
-    """Soft Kelly se 0 < edge < floor; hard se edge <= 0 ou hard_skip/deep seed."""
+    """Soft Kelly se 0 < Cal TCN < floor; hard se Cal TCN <= 0 (fusion_p_eff nao lava)."""
     if force:
         return False
     if metrics.get("execution_candidate_ready") is False:
@@ -175,6 +181,10 @@ def apply_negative_cal_edge_pause(
     auto_learn = bool(metrics.get("loss_clf_auto_learn"))
     deep_floor = float(cfg.get("neg_edge_deep_edge_floor", -0.12))
     if edge + 1e-12 <= 0.0:
+        if metrics.get("neg_edge_fusion_p_eff") is not None:
+            fusion_edge = float(metrics["neg_edge_fusion_p_eff"]) * (1.0 + pay) - 1.0
+            if fusion_edge + 1e-12 > 0.0:
+                metrics["neg_edge_fusion_blocked"] = True
         _apply_neg_edge_hard(metrics, direction=direction, edge=edge, floor=floor)
         if (not auto_learn) and edge + 1e-12 < deep_floor:
             metrics["neg_edge_bootstrap_deep"] = True
@@ -183,7 +193,7 @@ def apply_negative_cal_edge_pause(
         return True
     candle_agree = False
     if bool(cfg.get("neg_edge_soft_when_closed_candle_agree", True)):
-        candle_agree = closed_micro_candle_side(metrics) == direction
+        candle_agree = ops_window_candle_side(metrics) == direction
     p_ovr_flip = bool(metrics.get("loss_clf_flip")) and (
         bool(metrics.get("loss_clf_flip_scale_p_override")) or bool(metrics.get("loss_clf_flip_seed_p_override"))
     )

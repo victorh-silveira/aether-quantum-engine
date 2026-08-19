@@ -14,12 +14,12 @@ from src.domain.models.trade import TradeDirection
 
 
 def test_seed_candle_blocks_flip_when_candle_agrees_tcn():
-    metrics = {"closed_micro_candle_dir": "CALL"}
+    metrics = {"ops_window_candle_dir": "CALL"}
     response = {"auto_learn_applied": False}
     cfg = {"flip_seed_block_against_closed_candle": True}
     assert seed_candle_blocks_flip(metrics, response, TradeDirection.CALL, cfg=cfg) is True
     assert metrics.get("loss_clf_flip_block_seed_candle") is True
-    live = {"closed_micro_candle_dir": "CALL"}
+    live = {"ops_window_candle_dir": "CALL"}
     assert (
         seed_candle_blocks_flip(
             live,
@@ -35,6 +35,7 @@ def test_post_flip_edge_ok_uses_seed_waive_min():
     metrics = {
         "calibrated_prob": 0.56,
         "closed_micro_candle_dir": "CALL",
+        "ops_window_candle_dir": "CALL",
         "loss_clf_auto_learn": False,
         "loss_clf_flip_scale_p_override": True,
     }
@@ -63,6 +64,7 @@ def test_gate_seed_candle_blocks_p_ovr_against_closed_candle():
         "tcn_direction": "CALL",
         "calibrated_prob": 0.56,
         "closed_micro_candle_dir": "CALL",
+        "ops_window_candle_dir": "CALL",
         "scale_tape_consensus": "CALL",
         "scale_vote_call_n": 3,
         "scale_vote_put_n": 0,
@@ -149,7 +151,7 @@ def test_neg_edge_bootstrap_deep_hard_skip():
     assert metrics["execution_candidate_ready"] is False
 
 
-def test_neg_edge_uses_fusion_p_eff_avoids_boot_deep_empty():
+def test_neg_edge_blocks_fusion_p_eff_when_cal_nonpositive():
     metrics = {
         "execution_candidate_ready": True,
         "exec_direction": "PUT",
@@ -160,18 +162,19 @@ def test_neg_edge_uses_fusion_p_eff_avoids_boot_deep_empty():
         "kelly_fraction_scale": 1.0,
         "loss_clf_auto_learn": False,
         "closed_micro_candle_dir": "PUT",
+        "ops_window_candle_dir": "PUT",
     }
     orch = MagicMock()
     orch.config = {
         "deep_learning": {"min_edge_execute": 0.04},
         "risk_management": {"params": {"payout_estimate": 0.72}},
     }
-    assert apply_negative_cal_edge_pause(metrics, orch=orch) is False
-    assert metrics.get("gate_reason") != "neg_edge"
-    assert metrics.get("neg_edge_bootstrap_deep") is not True
-    assert metrics.get("neg_edge_used_fusion_p_eff") is True
-    assert metrics["execution_candidate_ready"] is True
-    assert float(metrics["cal_side_edge"]) > 0.04
+    assert apply_negative_cal_edge_pause(metrics, orch=orch) is True
+    assert metrics.get("gate_reason") == "neg_edge"
+    assert metrics["execution_candidate_ready"] is False
+    assert metrics.get("neg_edge_used_fusion_p_eff") is not True
+    assert metrics.get("neg_edge_fusion_blocked") is True
+    assert float(metrics["cal_side_edge"]) <= 0.0
 
 
 def test_neg_edge_auto_learn_stays_soft_on_subfloor_edge():

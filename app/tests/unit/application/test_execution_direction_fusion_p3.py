@@ -10,12 +10,13 @@ from src.application.services.execution_neg_edge import apply_negative_cal_edge_
 from src.domain.models.trade import TradeDirection
 
 
-def test_fusion_then_neg_edge_stays_soft_exec():
+def test_fusion_then_neg_edge_hard_when_cal_nonpositive():
     metrics = {
         "calibrated_prob": 0.53,
         "tcn_direction": "CALL",
         "scale_macro_dir": "PUT",
         "closed_micro_candle_dir": "PUT",
+        "ops_window_candle_dir": "PUT",
         "scale_tape_consensus": "PUT",
         "loss_clf_p_loss": 0.91,
         "loss_clf_flip_ref": "CALL",
@@ -28,21 +29,20 @@ def test_fusion_then_neg_edge_stays_soft_exec():
     chosen = apply_direction_fusion(metrics, TradeDirection.CALL, cfg=cfg)
     assert chosen == TradeDirection.PUT
     paused = apply_negative_cal_edge_pause(metrics, orch=None, min_edge=0.04, payout=0.72)
-    assert metrics["execution_candidate_ready"] is True
-    assert metrics.get("gate_reason") != "neg_edge"
-    if paused:
-        assert metrics.get("neg_edge_soft") is True or metrics.get("neg_edge_used_fusion_p_eff") is True
-    else:
-        assert metrics.get("neg_edge_used_fusion_p_eff") is True
-        assert float(metrics["cal_side_edge"]) + 1e-12 >= 0.04
+    assert paused is True
+    assert metrics["execution_candidate_ready"] is False
+    assert metrics.get("gate_reason") == "neg_edge"
+    assert metrics.get("neg_edge_used_fusion_p_eff") is not True
+    assert float(metrics["cal_side_edge"]) <= 0.0
 
 
-def test_fusion_put_seed_executes_when_p_eff_positive():
+def test_fusion_put_seed_empty_when_cal_nonpositive():
     metrics = {
         "calibrated_prob": 0.55,
         "raw_prob": 0.58,
         "tcn_direction": "CALL",
         "closed_micro_candle_dir": "PUT",
+        "ops_window_candle_dir": "PUT",
         "scale_tape_consensus": "PUT",
         "scale_macro_dir": "PUT",
         "loss_clf_p_loss": 0.90,
@@ -66,7 +66,7 @@ def test_fusion_put_seed_executes_when_p_eff_positive():
             }
         },
     )()
-    assert apply_negative_cal_edge_pause(metrics, orch=orch) is False
-    assert metrics.get("gate_reason") != "neg_edge"
-    assert metrics["execution_candidate_ready"] is True
-    assert metrics.get("neg_edge_used_fusion_p_eff") is True
+    assert apply_negative_cal_edge_pause(metrics, orch=orch) is True
+    assert metrics.get("gate_reason") == "neg_edge"
+    assert metrics["execution_candidate_ready"] is False
+    assert metrics.get("neg_edge_fusion_blocked") is True

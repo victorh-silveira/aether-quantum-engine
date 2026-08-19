@@ -148,7 +148,7 @@ def test_post_flip_neg_edge_blocks_without_scale():
         assert apply_loss_classifier_gate(metrics, TradeDirection.PUT, orch=orch, symbol="R_10") is False
     assert metrics.get("loss_clf_flip") is not True
     assert metrics["exec_direction"] == "PUT"
-    assert metrics["loss_clf_flip_blocked"] == "neg_edge"
+    assert metrics["loss_clf_flip_blocked"] == "seed"
     assert metrics["loss_clf_soft"] is True
 
 
@@ -185,9 +185,11 @@ def test_tcn_pos_edge_blocks_flip_keeps_side():
         "execution_candidate_ready": True,
         "exec_direction": "PUT",
         "tcn_direction": "PUT",
-        "scale_tape_consensus": "CALL",
-        "scale_vote_call_n": 3,
-        "scale_vote_put_n": 0,
+        "scale_tape_consensus": "PUT",
+        "scale_vote_call_n": 0,
+        "scale_vote_put_n": 3,
+        "closed_micro_candle_dir": "PUT",
+        "ops_window_candle_dir": "PUT",
         "kelly_fraction_scale": 1.0,
         "calibrated_prob": 0.36,
         "raw_prob": 0.36,
@@ -225,6 +227,7 @@ def test_candle_flip_call_to_put_with_weak_cal_executes():
         "tcn_direction": "CALL",
         "calibrated_prob": 0.53,
         "closed_micro_candle_dir": "PUT",
+        "ops_window_candle_dir": "PUT",
         "scale_tape_consensus": "CALL",
         "scale_vote_call_n": 3,
         "scale_vote_put_n": 1,

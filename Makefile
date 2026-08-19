@@ -33,11 +33,10 @@ RESET  := \033[0m
 
 .DEFAULT_GOAL := help
 
-.PHONY: app-install app-lint app-test app-security app-run app-train app-pre-commit \
-	app-pre-commit-run pre-commit app-setup-wsl app-clean help docker-up docker-up-core \
-	docker-down docker-clean docker-restart docker-reset docker-ps docker-logs \
-	docker-bash docker-hydrate docker-rebuild docker-smoke timescale-lifecycle sanitize-run \
-	sanitize-run-docker
+.PHONY: app-run app-train app-test app-lint app-security app-clean app-install \
+	app-pre-commit app-pre-commit-run app-setup-wsl help docker-up docker-down \
+	docker-restart docker-rebuild docker-reset docker-clean docker-ps docker-logs \
+	docker-smoke docker-bash docker-hydrate docker-timescale-lifecycle
 
 
 help:
@@ -49,28 +48,31 @@ help:
 	@echo -e "$(YELLOW)Python:$(RESET) Conda $(CONDA_ENV) ($(PYTHON))"
 	@echo -e ""
 	@echo -e "$(YELLOW)App:$(RESET)"
-	@echo -e "  $(GREEN)app-run$(RESET)            - Sobe o motor (run.py)"
-	@echo -e "  $(GREEN)app-train$(RESET)          - Treina DL (train.py)"
-	@echo -e "  $(GREEN)app-test$(RESET)           - Testes + cobertura 100%"
-	@echo -e "  $(GREEN)app-lint$(RESET)           - Lint / format"
-	@echo -e "  $(GREEN)app-clean$(RESET)          - Limpa caches/logs locais"
-	@echo -e "  $(GREEN)app-install$(RESET)        - Pip no Conda $(CONDA_ENV)"
+	@echo -e "  $(GREEN)app-run$(RESET)            - Sobe o motor em execucao real/demo (run.py)"
+	@echo -e "  $(GREEN)app-train$(RESET)          - Pipeline completo de treino (sweep H15..H60 -> promote -> meta)"
+	@echo -e "  $(GREEN)app-test$(RESET)           - Testes automatizados + cobertura 100%"
+	@echo -e "  $(GREEN)app-lint$(RESET)           - Lint / format (Ruff + Interrogate + Vulture)"
+	@echo -e "  $(GREEN)app-security$(RESET)       - Auditoria de seguranca de codigo (Bandit)"
+	@echo -e "  $(GREEN)app-clean$(RESET)          - Limpa caches, artefactos e logs locais"
+	@echo -e "  $(GREEN)app-install$(RESET)        - Instala dependencias no Conda $(CONDA_ENV)"
+	@echo -e "  $(GREEN)app-pre-commit$(RESET)     - Instala e valida githooks pre-commit"
+	@echo -e "  $(GREEN)app-pre-commit-run$(RESET) - Executa pre-commit em todos os arquivos"
 	@echo -e ""
 	@echo -e "$(YELLOW)Docker:$(RESET)"
-	@echo -e "  $(GREEN)docker-up$(RESET)          - Stack completa (core+ml)"
-	@echo -e "  $(GREEN)docker-up-core$(RESET)     - So Redis/Timescale/MinIO"
-	@echo -e "  $(GREEN)docker-rebuild$(RESET)     - Rebuild meta/loss e recarrega pkls (preserva TCN e meta_lgbm)"
+	@echo -e "  $(GREEN)docker-up$(RESET)          - Sobe a stack completa (core + ml)"
+	@echo -e "  $(GREEN)docker-rebuild$(RESET)     - Rebuilda meta/loss e recarrega pkls (preserva TCN e meta_lgbm)"
 	@echo -e "  $(GREEN)docker-reset$(RESET)       - $(RED)DESTRUTIVO$(RESET): sanitiza run + loss-models + volumes, bootstrap e sobe stack"
-	@echo -e "  $(GREEN)sanitize-run$(RESET)       - $(RED)DESTRUTIVO$(RESET): limpa checkpoints DL/meta/loss e data/ (exceto deriv)"
-	@echo -e "  $(GREEN)sanitize-run-docker$(RESET)- Sanitiza run mantendo meta_lgbm.pkl (uso interno do docker-reset)"
-	@echo -e "  $(GREEN)docker-down$(RESET)        - Para containers (preserva dados)"
-	@echo -e "  $(GREEN)docker-restart$(RESET)     - Restart da stack"
-	@echo -e "  $(GREEN)docker-ps$(RESET)          - Status"
-	@echo -e "  $(GREEN)docker-logs$(RESET)        - Logs (DOCKER_SERVICE=... F=1)"
-	@echo -e "  $(GREEN)docker-smoke$(RESET)       - Smoke checks"
+	@echo -e "  $(GREEN)docker-clean$(RESET)       - $(RED)DESTRUTIVO$(RESET): para e remove containers, redes e volumes da stack"
+	@echo -e "  $(GREEN)docker-down$(RESET)        - Para os containers da stack (preserva dados e volumes)"
+	@echo -e "  $(GREEN)docker-restart$(RESET)     - Reinicia os containers da stack (preserva dados)"
+	@echo -e "  $(GREEN)docker-ps$(RESET)          - Exibe o status atual dos containers"
+	@echo -e "  $(GREEN)docker-logs$(RESET)        - Exibe logs em tempo real (DOCKER_SERVICE=... F=1)"
+	@echo -e "  $(GREEN)docker-smoke$(RESET)       - Executa smoke checks e verificacao de saude da stack"
 	@echo -e "$(BLUE)========================================================================$(RESET)"
 
-pre-commit: app-pre-commit
+# ------------------------------------------------------------------------------
+# App Targets
+# ------------------------------------------------------------------------------
 
 app-install:
 	$(PYTHON) -m pip install --upgrade pip
@@ -85,11 +87,14 @@ app-test:
 app-security:
 	$(PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --stage security
 
+app-clean:
+	$(PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --stage clean
+
 app-run:
 	$(PYTHON) run.py
 
 app-train:
-	$(PYTHON) train.py
+	$(PYTHON) $(APP_DIR)/scripts/operations/run_launch_train_tf_pipeline.py
 
 app-pre-commit:
 	bash linters/git-hooks/install.sh
@@ -101,15 +106,16 @@ app-pre-commit-run:
 app-setup-wsl:
 	bash app/scripts/wsl/setup.sh
 
-app-clean:
-	$(PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --stage clean
+# ------------------------------------------------------------------------------
+# Docker Targets
+# ------------------------------------------------------------------------------
 
-sanitize-run:
-	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "sanitize-run · limpa checkpoints e artefactos da run anterior"'
+docker-sanitize-run:
+	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-sanitize-run · limpa checkpoints e artefactos da run anterior"'
 	$(PYTHON) $(APP_DIR)/scripts/operations/sanitize_fresh_run.py
 
-sanitize-run-docker:
-	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "sanitize-run-docker · limpa TCN/loss/estado (mantem meta_lgbm.pkl)"'
+docker-sanitize-run-keep-meta:
+	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-sanitize-run-keep-meta · limpa TCN/loss/estado (mantem meta_lgbm.pkl)"'
 	$(PYTHON) $(APP_DIR)/scripts/operations/sanitize_fresh_run.py --keep-meta-bundle
 
 docker-up:
@@ -127,11 +133,6 @@ docker-up:
 	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_step 5 5 "Smoke checks"'
 	@bash infra/docker/docker-smoke.sh
 
-docker-up-core:
-	@test -f .env || cp .env.example .env
-	@docker stop aether-meta-classifier aether-loss-classifier >/dev/null 2>&1 || true
-	@$(MAKE) --no-print-directory docker-up DOCKER_PROFILES=core
-
 docker-rebuild:
 	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-rebuild · rebuild meta/loss (preserva data/dl e meta_lgbm.pkl)"'
 	@test -f .env || cp .env.example .env
@@ -144,7 +145,7 @@ docker-rebuild:
 	@bash infra/docker/docker-wait-healthy.sh
 	@bash infra/docker/docker-smoke.sh
 
-timescale-lifecycle:
+docker-timescale-lifecycle:
 	@bash infra/docker/timescale-lifecycle.sh
 
 docker-down:
@@ -164,7 +165,7 @@ docker-reset:
 	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-reset · ATENCAO: sanitiza run + loss-models + volumes"'
 	@echo -e "$(RED)  Limpando checkpoints/artefactos + loss-models + volumes Redis/Timescale/MinIO; recria a stack$(RESET)"
 	@echo ""
-	@$(MAKE) --no-print-directory sanitize-run-docker
+	@$(MAKE) --no-print-directory docker-sanitize-run-keep-meta
 	@bash infra/docker/loss-clf-reset.sh clear
 	@cd $(APP_DIR) && LOKY_MAX_CPU_COUNT=$${LOKY_MAX_CPU_COUNT:-4} $(PYTHON) -m scripts.operations.train_loss_classifier
 	$(DOCKER_COMPOSE) down --volumes --remove-orphans
@@ -195,3 +196,9 @@ docker-logs:
 
 docker-bash:
 	$(DOCKER_COMPOSE) exec -it $(call docker_service_name,$(or $(DOCKER_SERVICE),timescaledb)) sh -c 'if [ -x /bin/bash ]; then exec /bin/bash; else exec /bin/sh; fi'
+
+# ------------------------------------------------------------------------------
+# Aliases de Compatibilidade
+# ------------------------------------------------------------------------------
+pre-commit: app-pre-commit
+timescale-lifecycle: docker-timescale-lifecycle

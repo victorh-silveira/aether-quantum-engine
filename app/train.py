@@ -38,5 +38,8 @@ if __name__ == "__main__":
     except SystemExit:
         raise
     except Exception as exc:
+        import traceback
+
+        traceback.print_exc()
         print(f"ERRO fatal ao iniciar treino: {exc}", flush=True)
         raise SystemExit(1) from exc

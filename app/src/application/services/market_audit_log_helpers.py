@@ -134,9 +134,22 @@ def _resolve_skip_reason(_entry: dict[str, Any], metrics: dict[str, Any]) -> str
 
 
 def resolve_cluster_timeframe(metrics: dict[str, Any] | None) -> str:
-    """Resolve TF do CLUSTER priorizando o decisor micro (contrato)."""
+    """Resolve TF do CLUSTER priorizando a duracao do contrato de operacoes (M5)."""
     if not isinstance(metrics, dict):
-        return "M3"
+        return "M5"
+    risk = metrics.get("risk_management")
+    if isinstance(risk, dict):
+        params = risk.get("params")
+        if isinstance(params, dict) and params.get("duration") is not None:
+            dur = int(params["duration"])
+            unit = str(params.get("duration_unit") or "m").lower()
+            if unit.startswith("m"):
+                return f"M{dur}"
+            if unit.startswith("s"):
+                return _granularity_to_tf(dur)
+    sweep = metrics.get("horizon_sweep")
+    if isinstance(sweep, dict) and sweep.get("ops_contract_duration_minutes") is not None:
+        return f"M{int(sweep['ops_contract_duration_minutes'])}"
     data_handler = metrics.get("data_handler")
     if isinstance(data_handler, dict):
         micro = data_handler.get("micro_granularity")
@@ -145,7 +158,7 @@ def resolve_cluster_timeframe(metrics: dict[str, Any] | None) -> str:
         granularity = data_handler.get("granularity")
         if granularity is not None:
             return _granularity_to_tf(int(granularity))
-    return str(metrics.get("timeframe", metrics.get("tf", "M3")))
+    return str(metrics.get("timeframe", metrics.get("tf", "M5")))
 
 
 def _granularity_to_tf(seconds: int) -> str:

@@ -24,7 +24,7 @@ def test_parse_signal_skip_from_ssot():
     assert cfg["mini_pair_soft_kelly_mult"] == 0.55
     assert cfg["cal_margin_soft_kelly_mult"] == 0.55
     assert cfg["pending_dust"] == 0.25
-    assert cfg["chop_pause_enabled"] is False
+    assert cfg["chop_pause_enabled"] is True
     assert cfg["chop_adx_max"] == 0.22
     assert cfg["chop_hurst_min"] == 0.47
     assert cfg["chop_hurst_max"] == 0.53

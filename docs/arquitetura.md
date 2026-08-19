@@ -253,7 +253,7 @@ Scripts: `train_meta_vector.py`, `train_meta_data.py`, `train_meta_classifier.py
 
 ## 6. Direção, fusao EV e gates (escopo 1.1)
 
-Runtime atual: TCN ancora Cal → SCALE → soft `signal_skip` → **fusao EV** (`execution_direction_fusion`) escolhe CALL/PUT → **loss-clf FLIP** (ref TCN, ultimo) → neg_edge/Kelly/caps. Nota: `fusion_loss_weight` nao ve o `p_loss` do mesmo ciclo (FLIP apos fusao); sob seed, `loss_bonus` ja e **0**. Quality gate amplo (RSI/price_zone/SIDE_EQ block) permanece **fora** do codigo; starvation/recovery_relax abaixo sao legado de modulos ainda presentes, nao o eixo operacional.
+Runtime atual: TCN ancora Cal → SCALE → soft `signal_skip` → **fusao EV** (`execution_direction_fusion`) escolhe CALL/PUT → **loss-clf FLIP** (ref TCN, ultimo) → **neg_edge** (Cal TCN; `fusion_p_eff` nao lava) / Kelly (`fusion_p_eff` so apos o gate) / caps. Nota: `fusion_loss_weight` nao ve o `p_loss` do mesmo ciclo (FLIP apos fusao); sob seed, `loss_bonus` ja e **0**. Quality gate amplo (RSI/price_zone/SIDE_EQ block) permanece **fora** do codigo; starvation/recovery_relax abaixo sao legado de modulos ainda presentes, nao o eixo operacional.
 
 ### 6.1 Motor de direção (modular)
 

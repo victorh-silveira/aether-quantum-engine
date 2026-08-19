@@ -62,6 +62,28 @@ def reset_direction_loss_tracker():
 
 
 @pytest.fixture(autouse=True)
+def isolate_loss_classifier_http(request):
+    """Unitarios nao consultam o container loss-clf (p_loss idle / sem FLIP)."""
+    if request.node.get_closest_marker("real_loss_classifier"):
+        yield
+        return
+    idle = {
+        "p_loss": 0.5,
+        "veto": False,
+        "auto_learn_applied": True,
+        "model_version": "test_idle",
+        "n_train": 0,
+        "veto_ready": False,
+        "bootstrap": False,
+    }
+    with patch(
+        "src.application.services.loss_classifier_gate.predict_loss_via_config_sync",
+        return_value=idle,
+    ):
+        yield
+
+
+@pytest.fixture(autouse=True)
 def block_os_hard_exit():
     """Impede os._exit de encerrar o runner durante a suíte de testes."""
     with patch("os._exit"):

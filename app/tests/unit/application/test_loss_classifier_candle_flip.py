@@ -54,6 +54,57 @@ def test_tcn_pos_edge_allows_flip_when_cal_pos_raw_neg():
     assert metrics.get("loss_clf_flip_block_tcn_pos_edge") is None
 
 
+def test_tcn_pos_edge_waives_when_tape_opposes():
+    metrics = {
+        "calibrated_prob": 0.36,
+        "raw_prob": 0.36,
+        "scale_tape_consensus": "CALL",
+        "closed_micro_candle_dir": "PUT",
+        "ops_window_candle_dir": "PUT",
+    }
+    cfg = {
+        "flip_block_when_tcn_pos_edge": True,
+        "flip_min_edge_execute": 0.04,
+        "flip_waive_tcn_pos_edge_on_discord": True,
+    }
+    assert tcn_pos_edge_blocks_flip(metrics, TradeDirection.PUT, cfg=cfg) is False
+    assert metrics.get("loss_clf_flip_tcn_edge_waive_discord") is True
+    assert metrics.get("loss_clf_flip_block_tcn_pos_edge") is None
+
+
+def test_tcn_pos_edge_waives_when_candle_opposes():
+    metrics = {
+        "calibrated_prob": 0.36,
+        "raw_prob": 0.36,
+        "closed_micro_candle_dir": "CALL",
+        "ops_window_candle_dir": "CALL",
+    }
+    cfg = {
+        "flip_block_when_tcn_pos_edge": True,
+        "flip_min_edge_execute": 0.04,
+        "flip_waive_tcn_pos_edge_on_discord": True,
+    }
+    assert tcn_pos_edge_blocks_flip(metrics, TradeDirection.PUT, cfg=cfg) is False
+    assert metrics.get("loss_clf_flip_tcn_edge_waive_discord") is True
+
+
+def test_tcn_pos_edge_keeps_block_when_tape_and_candle_agree():
+    metrics = {
+        "calibrated_prob": 0.36,
+        "raw_prob": 0.36,
+        "scale_tape_consensus": "PUT",
+        "closed_micro_candle_dir": "PUT",
+        "ops_window_candle_dir": "PUT",
+    }
+    cfg = {
+        "flip_block_when_tcn_pos_edge": True,
+        "flip_min_edge_execute": 0.04,
+        "flip_waive_tcn_pos_edge_on_discord": True,
+    }
+    assert tcn_pos_edge_blocks_flip(metrics, TradeDirection.PUT, cfg=cfg) is True
+    assert metrics.get("loss_clf_flip_block_tcn_pos_edge") is True
+
+
 def test_flip_reason_token_candle_floor():
     assert flip_reason_token({"loss_clf_flip_candle_floor": True}) == "candle"
 
@@ -64,6 +115,7 @@ def test_flip_waives_scale_when_closed_candle_opposes_tcn():
         "scale_vote_call_n": 4,
         "scale_vote_put_n": 0,
         "closed_micro_candle_dir": "PUT",
+        "ops_window_candle_dir": "PUT",
         "calibrated_prob": 0.57,
     }
     response = {"auto_learn_applied": True, "p_loss": 0.96}
@@ -86,6 +138,7 @@ def test_flip_p_loss_override_clears_seed_and_scale():
         "scale_vote_call_n": 4,
         "scale_vote_put_n": 0,
         "closed_micro_candle_dir": "CALL",
+        "ops_window_candle_dir": "CALL",
         "calibrated_prob": 0.52,
     }
     response = {"auto_learn_applied": False, "p_loss": 0.957}
@@ -98,14 +151,14 @@ def test_flip_p_loss_override_clears_seed_and_scale():
         "flip_waive_scale_above_p_loss": 0.95,
     }
     seed_block, scale_block = resolve_flip_waivers(metrics, response, TradeDirection.CALL, cfg=cfg, p_loss=0.957)
-    assert seed_block is False
+    assert seed_block is True
     assert scale_block is False
     assert metrics.get("loss_clf_flip_scale_p_override") is True
-    assert metrics.get("loss_clf_flip_seed_p_override") is True
+    assert metrics.get("loss_clf_flip_seed_p_override") is not True
 
 
 def test_flip_candle_lowers_p_loss_floor():
-    metrics = {"closed_micro_candle_dir": "PUT", "calibrated_prob": 0.52}
+    metrics = {"ops_window_candle_dir": "PUT", "calibrated_prob": 0.52}
     cfg = {
         "hard_p_loss_floor": 0.90,
         "flip_candle_p_loss_floor": 0.85,
@@ -114,13 +167,20 @@ def test_flip_candle_lowers_p_loss_floor():
     }
     assert resolve_flip_p_loss_floor(metrics, TradeDirection.CALL, cfg=cfg) == 0.85
     assert metrics.get("loss_clf_flip_candle_floor") is True
-    assert resolve_flip_p_loss_floor({"closed_micro_candle_dir": "CALL"}, TradeDirection.CALL, cfg=cfg) == 0.90
-    strong = {"closed_micro_candle_dir": "CALL", "calibrated_prob": 0.36}
+    assert (
+        resolve_flip_p_loss_floor(
+            {"closed_micro_candle_dir": "CALL", "ops_window_candle_dir": "CALL"},
+            TradeDirection.CALL,
+            cfg=cfg,
+        )
+        == 0.90
+    )
+    strong = {"ops_window_candle_dir": "CALL", "calibrated_prob": 0.36}
     assert resolve_flip_p_loss_floor(strong, TradeDirection.PUT, cfg=cfg) == 0.90
 
 
 def test_post_flip_edge_ok_waives_when_candle_agrees():
-    metrics = {"calibrated_prob": 0.44, "closed_micro_candle_dir": "PUT"}
+    metrics = {"calibrated_prob": 0.44, "ops_window_candle_dir": "PUT"}
     cfg = {
         "flip_require_pos_edge": True,
         "flip_min_edge_execute": 0.04,
@@ -131,7 +191,7 @@ def test_post_flip_edge_ok_waives_when_candle_agrees():
     assert metrics.get("loss_clf_flip_candle_waive_edge") is True
     assert (
         post_flip_edge_ok(
-            {"calibrated_prob": 0.57, "closed_micro_candle_dir": "CALL"},
+            {"calibrated_prob": 0.57, "ops_window_candle_dir": "CALL"},
             TradeDirection.PUT,
             cfg=cfg,
         )
@@ -140,7 +200,7 @@ def test_post_flip_edge_ok_waives_when_candle_agrees():
 
 
 def test_post_flip_edge_ok_rejects_deep_negative_even_with_candle():
-    metrics = {"calibrated_prob": 0.36, "closed_micro_candle_dir": "CALL"}
+    metrics = {"calibrated_prob": 0.36, "ops_window_candle_dir": "CALL"}
     cfg = {
         "flip_require_pos_edge": True,
         "flip_min_edge_execute": 0.04,
@@ -151,7 +211,7 @@ def test_post_flip_edge_ok_rejects_deep_negative_even_with_candle():
 
 
 def test_post_flip_edge_ok_waives_deep_negative_with_ssot_min():
-    metrics = {"calibrated_prob": 0.36, "closed_micro_candle_dir": "CALL"}
+    metrics = {"calibrated_prob": 0.36, "ops_window_candle_dir": "CALL"}
     cfg = {
         "flip_require_pos_edge": True,
         "flip_min_edge_execute": 0.04,
@@ -166,6 +226,7 @@ def test_post_flip_edge_ok_waives_on_p_ovr():
     metrics = {
         "calibrated_prob": 0.56,
         "closed_micro_candle_dir": "CALL",
+        "ops_window_candle_dir": "CALL",
         "loss_clf_flip_scale_p_override": True,
     }
     cfg = {

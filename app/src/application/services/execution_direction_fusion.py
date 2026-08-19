@@ -7,8 +7,9 @@ from typing import Any
 
 from src.application.services.execution_direction_fusion_config import parse_direction_fusion_config
 from src.application.services.execution_signal_skip import apply_kelly_soft
-from src.application.services.loss_classifier_flip import closed_micro_candle_side, tcn_pos_edge_blocks_flip
+from src.application.services.loss_classifier_flip import tcn_pos_edge_blocks_flip
 from src.application.services.market_audit_log_helpers import resolve_predicted_edge
+from src.application.services.market_audit_ops_window import ops_window_candle_side
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.kelly_p_align import resolve_kelly_p_floor
 from src.domain.risk.kelly_runtime_config import load_kelly_runtime_from_settings
@@ -85,7 +86,7 @@ def _evidence(metrics: dict[str, Any], side: str, cfg: dict[str, Any]) -> float:
         if token is None or weight <= 0.0:
             continue
         total += weight if token == side else -weight
-    candle = closed_micro_candle_side(metrics)
+    candle = ops_window_candle_side(metrics)
     w_bar = float(cfg["fusion_w_micro_bar"])
     if candle is not None and w_bar > 0.0:
         total += w_bar if candle == side else -w_bar
@@ -129,10 +130,10 @@ def _apply_tcn_candle_agree_guard(
     chosen: TradeDirection,
     p_effs: dict[str, float],
 ) -> TradeDirection:
-    """Mantem TCN quando vela micro fechada concorda e fusao tentaria inverter."""
+    """Mantem TCN quando a janela ops concorda e a fusao tentaria inverter."""
     if not bool(vision.get("fusion_block_when_tcn_candle_agree", True)):
         return chosen
-    candle = closed_micro_candle_side(metrics)
+    candle = ops_window_candle_side(metrics)
     if candle is None or candle != tcn_dir.name or chosen == tcn_dir:
         return chosen
     metrics["fusion_blocked_tcn_candle"] = True
@@ -198,6 +199,7 @@ def apply_direction_fusion(
         "flip_block_when_tcn_pos_edge": bool(vision.get("fusion_block_when_tcn_pos_edge", True)),
         "flip_min_edge_execute": float(vision.get("fusion_min_edge_execute", 0.04)),
         "flip_tcn_pos_edge_raw_floor": float(vision.get("fusion_min_edge_execute", 0.04)),
+        "flip_waive_tcn_pos_edge_on_discord": True,
     }
     if tcn_pos_edge_blocks_flip(metrics, tcn_dir, cfg=block_cfg):
         metrics["fusion_reason"] = "tcn_pos_edge"

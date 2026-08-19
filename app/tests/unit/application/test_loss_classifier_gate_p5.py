@@ -117,7 +117,7 @@ def test_scale_consensus_blocks_flip_even_with_auto_learn():
     assert metrics["loss_clf_flip_blocked"] == "scale_consensus"
 
 
-def test_seed_flip_allowed_when_scale_discord_and_high_p_loss():
+def test_seed_scale_discord_does_not_flip():
     orch = _orch(6)
     metrics = {
         "execution_candidate_ready": True,
@@ -148,10 +148,10 @@ def test_seed_flip_allowed_when_scale_discord_and_high_p_loss():
         ),
     ):
         assert apply_loss_classifier_gate(metrics, TradeDirection.CALL, orch=orch, symbol="R_10") is False
-    assert metrics.get("loss_clf_flip") is True
-    assert metrics["exec_direction"] == "PUT"
-    assert metrics.get("loss_clf_flip_seed_discord") is True
-    assert metrics.get("loss_clf_flip_reason") == "seed_discord"
+    assert metrics.get("loss_clf_flip") is not True
+    assert metrics["exec_direction"] == "CALL"
+    assert metrics["loss_clf_flip_blocked"] == "seed"
+    assert metrics.get("loss_clf_soft") is True
 
 
 def test_seed_weak_cal_with_scale_confirm_blocks_flip():
@@ -225,5 +225,5 @@ def test_seed_strong_cal_still_cannot_override_scale():
         assert apply_loss_classifier_gate(metrics, TradeDirection.PUT, orch=orch, symbol="R_10") is False
     assert metrics.get("loss_clf_flip") is not True
     assert metrics["loss_clf_flip_blocked"] == "scale_consensus"
-    assert metrics.get("loss_clf_flip_seed_cal_discord") is True
+    assert metrics.get("loss_clf_flip_seed_cal_discord") is not True
     assert metrics.get("loss_clf_flip_cal_overrides_scale") is not True

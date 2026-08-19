@@ -1,7 +1,5 @@
 """Selecao de checkpoint de treino TCN (val_acc + sharpness + val_loss)."""
 
-from __future__ import annotations
-
 from typing import Any
 
 import numpy as np
@@ -15,7 +13,7 @@ from src.application.services.deep_learning.dl_sharpness import mean_sharpness
 from src.application.services.deep_learning.model import _model_raw_prob, model_accuracy
 
 
-MAX_STABLE_VAL_LOSS = 0.70
+MAX_STABLE_VAL_LOSS = 0.72
 
 
 def _ce_stable(val_loss: float) -> bool:

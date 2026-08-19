@@ -1,12 +1,16 @@
-"""Gate anti-loss: seed + p_loss alto + vela discordante do TCN."""
+"""Gate anti-loss: seed + p_loss alto + vela fraca live."""
 
 from __future__ import annotations
 
-from math import isfinite
 from typing import Any
 
 from src.application.services.execution_signal_skip import apply_kelly_soft, parse_signal_skip_config
-from src.application.services.loss_classifier_flip import closed_micro_candle_side, tcn_pos_edge_blocks_flip
+from src.application.services.loss_classifier_flip import tcn_pos_edge_blocks_flip
+from src.application.services.market_audit_ops_window import (
+    ops_window_candle_body,
+    ops_window_candle_side,
+    ops_window_stamped,
+)
 from src.domain.models.trade import TradeDirection
 
 
@@ -41,25 +45,52 @@ def _tcn_dir(metrics: dict[str, Any]) -> TradeDirection | None:
     return TradeDirection[name]
 
 
+def _exec_dir(metrics: dict[str, Any]) -> TradeDirection | None:
+    """Resolve direcao EXEC pos-fusao a partir de metrics."""
+    name = _side(metrics.get("exec_direction"))
+    if name is None:
+        return None
+    return TradeDirection[name]
+
+
 def _candle_body(metrics: dict[str, Any]) -> float | None:
-    """Le closed_micro_candle_body numerico ou None."""
-    raw = metrics.get("closed_micro_candle_body")
-    if raw is None:
-        return None
-    try:
-        body = float(raw)
-    except (TypeError, ValueError):
-        return None
-    if not isfinite(body) or body < 0.0:
-        return None
-    return body
+    """Le corpo liquido da janela ops."""
+    return ops_window_candle_body(metrics)
 
 
-def _agree_strong(candle: str | None, tcn: TradeDirection, body: float | None, min_body: float) -> bool:
-    """True se vela == TCN e |c-o| atinge o piso de corpo."""
-    if candle is None or candle != tcn.name or body is None:
+def _weak_candle(candle: str | None, body: float | None, min_body: float) -> bool:
+    """True se vela ausente ou corpo abaixo do piso minimo."""
+    if candle is None:
+        return True
+    if body is None:
+        return True
+    return body + 1e-12 < float(min_body)
+
+
+def _agree_strong(candle: str | None, side: TradeDirection, body: float | None, min_body: float) -> bool:
+    """True se vela == lado ancora e corpo atinge o piso."""
+    if candle is None or candle != side.name or body is None:
         return False
     return body + 1e-12 >= float(min_body)
+
+
+def _candle_stamped(metrics: dict[str, Any]) -> bool:
+    """True se a janela ops N foi stampada neste ciclo."""
+    return ops_window_stamped(metrics)
+
+
+def _live_weak_reason(candle: str | None) -> str:
+    """Motivo telemetria para ramo live em vela fraca."""
+    if candle is None:
+        return "live_no_candle"
+    return "live_weak_candle"
+
+
+def _live_confirm_reason(candle: str | None, side: TradeDirection) -> str:
+    """Motivo telemetria quando a vela nao confirma o lado ancora no piso live."""
+    if candle is None or candle != side.name:
+        return "live_discord_weak"
+    return "live_confirm_weak"
 
 
 def _tcn_pos_edge_locked(metrics: dict[str, Any], tcn: TradeDirection) -> bool:
@@ -74,8 +105,81 @@ def _tcn_pos_edge_locked(metrics: dict[str, Any], tcn: TradeDirection) -> bool:
         "flip_block_when_tcn_pos_edge": True,
         "flip_min_edge_execute": 0.04,
         "flip_tcn_pos_edge_raw_floor": 0.04,
+        "flip_waive_tcn_pos_edge_on_discord": False,
     }
     return bool(tcn_pos_edge_blocks_flip(metrics, tcn, cfg=block_cfg))
+
+
+def _stamp_anti_loss_metrics(
+    metrics: dict[str, Any],
+    *,
+    tcn: TradeDirection,
+    candle: str | None,
+    body: float | None,
+    reason: str,
+    p_loss: float | None = None,
+    side: TradeDirection | None = None,
+) -> None:
+    """Grava telemetria compartilhada do anti-loss."""
+    if p_loss is not None:
+        metrics["anti_loss_p_loss"] = p_loss
+    metrics["anti_loss_tcn"] = tcn.name
+    if side is not None:
+        metrics["anti_loss_side"] = side.name
+    metrics["anti_loss_candle"] = candle or "-"
+    if body is not None:
+        metrics["anti_loss_body"] = body
+    metrics["anti_loss_why"] = reason
+
+
+def _finalize_anti_loss_decision(
+    out: dict[str, Any],
+    *,
+    cfg: dict[str, Any],
+    reason: str,
+) -> dict[str, Any]:
+    """Marca decisao ativa e hard/soft conforme SSOT."""
+    out["active"] = True
+    out["reason"] = reason
+    if bool(cfg.get("anti_loss_hard_skip", True)):
+        out["skip"] = True
+        return out
+    out["soft"] = True
+    out["soft_mult"] = float(cfg.get("anti_loss_soft_kelly_mult", 0.25))
+    return out
+
+
+def _evaluate_live_anti_loss(
+    metrics: dict[str, Any],
+    *,
+    cfg: dict[str, Any],
+    tcn: TradeDirection,
+    candle: str | None,
+    body: float | None,
+    min_body: float,
+) -> dict[str, Any]:
+    """Ramo live: hard SKIP se vela fraca, exec!=vela ou nao confirma EXEC no piso live."""
+    out = {"active": False, "skip": False, "soft": False, "reason": None, "soft_mult": None}
+    exec_side = _exec_dir(metrics)
+    anchor = exec_side if exec_side is not None else tcn
+    if bool(cfg.get("anti_loss_live_weak_candle_enabled", True)) and _weak_candle(candle, body, min_body):
+        reason = _live_weak_reason(candle)
+        _stamp_anti_loss_metrics(metrics, tcn=tcn, candle=candle, body=body, reason=reason, side=anchor)
+        return _finalize_anti_loss_decision(out, cfg=cfg, reason=reason)
+    if (
+        bool(cfg.get("anti_loss_live_exec_candle_enabled", True))
+        and exec_side is not None
+        and candle is not None
+        and exec_side.name != candle
+    ):
+        _stamp_anti_loss_metrics(metrics, tcn=tcn, candle=candle, body=body, reason="live_exec_discord", side=exec_side)
+        return _finalize_anti_loss_decision(out, cfg=cfg, reason="live_exec_discord")
+    confirm_min = float(cfg.get("anti_loss_live_confirm_min_body", 0.05))
+    if bool(cfg.get("anti_loss_live_confirm_enabled", True)) and not _agree_strong(candle, anchor, body, confirm_min):
+        reason = _live_confirm_reason(candle, anchor)
+        _stamp_anti_loss_metrics(metrics, tcn=tcn, candle=candle, body=body, reason=reason, side=anchor)
+        return _finalize_anti_loss_decision(out, cfg=cfg, reason=reason)
+    return out
 
 
 def evaluate_anti_loss_seed_discord(
@@ -84,12 +188,27 @@ def evaluate_anti_loss_seed_discord(
     cfg: dict[str, Any],
     orch: Any | None = None,
 ) -> dict[str, Any]:
-    """Decide SKIP duro (EXPLORE e RECOVER) se a vela nao confirma o TCN com corpo minimo."""
+    """Decide SKIP se vela live fraca ou seed+discord sem confirmacao forte."""
     _ = orch
     out = {"active": False, "skip": False, "soft": False, "reason": None, "soft_mult": None}
     if not bool(cfg.get("anti_loss_seed_discord_enabled", False)):
         return out
-    if bool(cfg.get("anti_loss_require_seed", True)) and bool(metrics.get("loss_clf_auto_learn")):
+    tcn = _tcn_dir(metrics)
+    if tcn is None:
+        return out
+    candle = ops_window_candle_side(metrics)
+    body = _candle_body(metrics)
+    min_body = float(cfg.get("anti_loss_min_candle_body", 0.10))
+    if _candle_stamped(metrics):
+        return _evaluate_live_anti_loss(
+            metrics,
+            cfg=cfg,
+            tcn=tcn,
+            candle=candle,
+            body=body,
+            min_body=min_body,
+        )
+    if bool(metrics.get("loss_clf_auto_learn")):
         return out
     p_loss = _p_loss(metrics)
     if p_loss is None:
@@ -97,29 +216,13 @@ def evaluate_anti_loss_seed_discord(
     floor = float(cfg.get("anti_loss_p_loss_floor", 0.85))
     if p_loss + 1e-12 < floor:
         return out
-    tcn = _tcn_dir(metrics)
-    if tcn is None:
-        return out
     if bool(cfg.get("anti_loss_require_tcn_pos_edge", True)) and not _tcn_pos_edge_locked(metrics, tcn):
         return out
-    candle = closed_micro_candle_side(metrics)
-    body = _candle_body(metrics)
-    min_body = float(cfg.get("anti_loss_min_candle_body", 0.10))
     if _agree_strong(candle, tcn, body, min_body):
         return out
-    out["active"] = True
-    out["reason"] = "seed_weak_candle" if candle == tcn.name else "seed_discord"
-    metrics["anti_loss_p_loss"] = p_loss
-    metrics["anti_loss_tcn"] = tcn.name
-    metrics["anti_loss_candle"] = candle or "-"
-    if body is not None:
-        metrics["anti_loss_body"] = body
-    if bool(cfg.get("anti_loss_hard_skip", True)):
-        out["skip"] = True
-        return out
-    out["soft"] = True
-    out["soft_mult"] = float(cfg.get("anti_loss_soft_kelly_mult", 0.25))
-    return out
+    reason = "seed_weak_candle" if candle == tcn.name else "seed_discord"
+    _stamp_anti_loss_metrics(metrics, tcn=tcn, candle=candle, body=body, reason=reason, p_loss=p_loss)
+    return _finalize_anti_loss_decision(out, cfg=cfg, reason=reason)
 
 
 def apply_anti_loss_seed_discord(

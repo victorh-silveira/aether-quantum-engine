@@ -23,10 +23,10 @@ def test_log_execution_decision_direct():
     log_execution_decision(exec_mgr, "C0001", best, [best], 0.55)
     assert exec_mgr.logger.info.call_count >= 5
     payloads = [c.args[1] for c in exec_mgr.logger.info.call_args_list]
-    assert payloads[0].startswith("[GATES] || LOSS_CLF:")
-    assert "NEG_EDGE" in payloads[1] or "skip=" in payloads[1]
-    assert payloads[2].startswith("[GATES] || FUSION:")
-    assert payloads[3].startswith("[GATES] || ANTI_LOSS")
+    assert payloads[0].startswith("[GATES] || FUSION:")
+    assert payloads[1].startswith("[GATES] || LOSS_CLF:")
+    assert payloads[2].startswith("[GATES] || ANTI_LOSS")
+    assert "NEG_EDGE" in payloads[3] or "skip=" in payloads[3]
     assert any(str(p).startswith("[IND] ||") for p in payloads)
 
 

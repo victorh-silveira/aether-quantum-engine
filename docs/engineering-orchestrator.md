@@ -12,6 +12,7 @@ Ciclo operacional do motor. Inventario de arquivos: [`structure.md`](structure.m
 - MACRO OHLC: **7200 s** (`data_handler.granularity`)
 - MICRO OHLC (TCN decisor): **60 s** (`data_handler.micro_granularity`) — M1
 - Contrato Deriv RISE_FALL: **5 m** (`risk_management.params.duration`, via `ops_contract_duration_minutes`); label TCN = **N barras** micro (N ∈ {15,20,…,60} eleito no launch-train; **SSOT atual N=55**); gap intencional label vs settle; frequencia maxima ≈ 1 trade / contrato (ciclo bloqueado com contrato aberto)
+- Confirmacao de lado/SKIP: janela `scale_vision.ops_window_bars` **5** (open da 1a M1 fechada → close da ultima); `[CANDLE]` M1 last-bar so telemetria
 - MINI OHLC: **60 s** (`data_handler.mini_granularity`) — alinhado ao M1
 - MILI: tick flow (velocity/acceleration), nao barra OHLC
 - Sync inicial: `stream_sync_start.py` (historico MACRO+MICRO+MINI + subscribe candles/ticks)

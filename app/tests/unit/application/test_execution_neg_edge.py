@@ -93,6 +93,7 @@ def test_neg_edge_nonpositive_hard_blocks_even_when_soft_enabled():
         "kelly_fraction_scale": 1.0,
         "loss_clf_auto_learn": True,
         "closed_micro_candle_dir": "PUT",
+        "ops_window_candle_dir": "PUT",
     }
     orch = MagicMock()
     orch.config = {
@@ -128,6 +129,7 @@ def test_neg_edge_hard_skip_positive_subfloor_without_allow_soft():
         "kelly_fraction_scale": 1.0,
         "loss_clf_auto_learn": True,
         "closed_micro_candle_dir": "PUT",
+        "ops_window_candle_dir": "PUT",
     }
     orch = MagicMock()
     orch.config = {

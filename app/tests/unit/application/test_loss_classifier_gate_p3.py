@@ -260,6 +260,7 @@ def test_loss_classifier_flip_helpers():
     assert cal_disagrees_ref({"calibrated_prob": 0.52}, TradeDirection.PUT, margin=0.03) is False
     assert cal_disagrees_ref({"calibrated_prob": 0.55}, TradeDirection.PUT, margin=0.03) is True
     assert flip_reason_token({"loss_clf_flip_seed_cal_discord": True}) == "seed_cal"
+    assert flip_reason_token({"loss_clf_flip_seed_discord": True}) == "seed_discord"
     assert flip_reason_token({}) == "ok"
 
     assert is_seed_model({"auto_learn_applied": False}, require_auto_learn=False) is False

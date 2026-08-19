@@ -22,6 +22,7 @@ def format_scale_audit_line(metrics: dict[str, Any] | None) -> str:
         f"mc_prev={m.get('scale_micro_prev_bar_dir') or '-'} "
         f"mc_cur={m.get('scale_micro_bar_dir') or '-'} "
         f"tape={m.get('scale_tape_consensus') or '-'} "
+        f"ops={m.get('ops_window_candle_dir') or '-'} "
         f"micro={micro} "
         f"agree={int(m.get('scale_agree_n') or 0)}/4 "
         f"discord={bool(m.get('scale_discordance'))} "

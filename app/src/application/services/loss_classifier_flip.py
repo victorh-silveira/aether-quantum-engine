@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from src.application.services.market_audit_log_helpers import resolve_predicted_edge, resolve_raw_predicted_edge
+from src.application.services.market_audit_ops_window import ops_window_candle_side
 from src.domain.models.trade import TradeDirection
 
 
@@ -88,6 +89,15 @@ def cal_disagrees_ref(
     return abs(cal - 0.5) + 1e-12 >= float(margin)
 
 
+def _tape_or_candle_opposes_ref(metrics: dict[str, Any], ref_dir: TradeDirection) -> bool:
+    """True se tape SCALE ou vela fechada aponta o lado oposto ao TCN."""
+    tape = str(metrics.get("scale_tape_consensus") or "").strip().upper()
+    if tape in {TradeDirection.CALL.name, TradeDirection.PUT.name} and tape != ref_dir.name:
+        return True
+    candle = ops_window_candle_side(metrics)
+    return candle is not None and candle != ref_dir.name
+
+
 def tcn_pos_edge_blocks_flip(
     metrics: dict[str, Any],
     ref_dir: TradeDirection,
@@ -108,6 +118,9 @@ def tcn_pos_edge_blocks_flip(
     if raw + 1e-12 < raw_floor:
         metrics["loss_clf_flip_cal_raw_discord"] = True
         return False
+    if bool(cfg.get("flip_waive_tcn_pos_edge_on_discord", False)) and _tape_or_candle_opposes_ref(metrics, ref_dir):
+        metrics["loss_clf_flip_tcn_edge_waive_discord"] = True
+        return False
     metrics["loss_clf_flip_block_tcn_pos_edge"] = True
     return True
 
@@ -127,7 +140,7 @@ def resolve_flip_p_loss_floor(
         return hard
     candle_floor = float(cfg.get("flip_candle_p_loss_floor", hard))
     flip_target = TradeDirection.PUT if ref_dir == TradeDirection.CALL else TradeDirection.CALL
-    if closed_micro_candle_side(metrics) == flip_target.name and bool(cfg.get("flip_waive_on_closed_candle", True)):
+    if ops_window_candle_side(metrics) == flip_target.name and bool(cfg.get("flip_waive_on_closed_candle", True)):
         floor = min(hard, max(0.0, candle_floor))
         if floor + 1e-12 < hard:
             metrics["loss_clf_flip_candle_floor"] = True
@@ -147,7 +160,7 @@ def seed_candle_blocks_flip(
         return False
     if not bool(cfg.get("flip_seed_block_against_closed_candle", True)):
         return False
-    candle = closed_micro_candle_side(metrics)
+    candle = ops_window_candle_side(metrics)
     if candle is None or candle != ref_dir.name:
         return False
     metrics["loss_clf_flip_block_seed_candle"] = True
@@ -162,17 +175,11 @@ def resolve_flip_waivers(
     cfg: dict[str, Any],
     p_loss: float = 0.0,
 ) -> tuple[bool, bool]:
-    """Aplica waivers de seed/scale; Cal so anula SCALE com auto_learn."""
+    """Aplica waivers de scale; seed auto=0 permanece bloqueado (p_ovr nao fura)."""
     seed_block = is_seed_model(response, require_auto_learn=bool(cfg.get("flip_require_auto_learn", True)))
     scale_block = scale_confirms_ref(metrics, ref_dir)
     cal_margin = float(cfg.get("flip_cal_discord_margin", 0.03))
     cal_discord = cal_disagrees_ref(metrics, ref_dir, margin=cal_margin)
-    if seed_block and not scale_block and bool(cfg.get("flip_allow_seed_on_scale_discord", True)):
-        seed_block = False
-        metrics["loss_clf_flip_seed_discord"] = True
-    if seed_block and cal_discord and bool(cfg.get("flip_allow_seed_on_cal_discord", True)):
-        seed_block = False
-        metrics["loss_clf_flip_seed_cal_discord"] = True
     if (
         scale_block
         and cal_discord
@@ -182,18 +189,14 @@ def resolve_flip_waivers(
         scale_block = False
         metrics["loss_clf_flip_cal_overrides_scale"] = True
     flip_target = TradeDirection.PUT if ref_dir == TradeDirection.CALL else TradeDirection.CALL
-    candle = closed_micro_candle_side(metrics)
+    candle = ops_window_candle_side(metrics)
     if scale_block and candle == flip_target.name and bool(cfg.get("flip_waive_on_closed_candle", True)):
         scale_block = False
         metrics["loss_clf_flip_candle_waive_scale"] = True
     override = float(cfg.get("flip_waive_scale_above_p_loss", 1.01))
-    if p_loss + 1e-12 >= override:
-        if scale_block:
-            scale_block = False
-            metrics["loss_clf_flip_scale_p_override"] = True
-        if seed_block:
-            seed_block = False
-            metrics["loss_clf_flip_seed_p_override"] = True
+    if p_loss + 1e-12 >= override and scale_block:
+        scale_block = False
+        metrics["loss_clf_flip_scale_p_override"] = True
     return seed_block, scale_block
 
 
@@ -232,7 +235,7 @@ def post_flip_edge_ok(metrics: dict[str, Any], flipped: TradeDirection, *, cfg: 
     if metrics.get("loss_clf_flip_scale_p_override") or metrics.get("loss_clf_flip_seed_p_override"):
         metrics["loss_clf_flip_p_ovr_waive_edge"] = True
         return True
-    candle = closed_micro_candle_side(metrics)
+    candle = ops_window_candle_side(metrics)
     if candle == flipped.name and bool(cfg.get("flip_waive_on_closed_candle", True)):
         metrics["loss_clf_flip_candle_waive_edge"] = True
         return True
