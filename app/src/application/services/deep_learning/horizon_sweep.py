@@ -139,7 +139,7 @@ def build_horizon_candidates(
     history = (
         int(dl["training_history_bars"])
         if isinstance(dl, dict) and dl.get("training_history_bars") is not None
-        else 1333
+        else 1500
     )
     h_block = dl.get("horizon_sweep") if isinstance(dl, dict) and isinstance(dl.get("horizon_sweep"), dict) else {}
     if n_bars is not None:

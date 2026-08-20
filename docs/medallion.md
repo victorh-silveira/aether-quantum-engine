@@ -132,11 +132,11 @@ Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `
 | Resolução direcional | TCN + meta GBDT | `dl_direction` da TCN; meta refina score / D-SQUEEZE (opcional) |
 | Execução contínua | Ciclo **60 s** | Boleta CALL/PUT na cadência M1 quando há sinal válido |
 
-Com `lookback: 480`, `micro_granularity: 60` e `training_history_bars: 1333` (SSOT treino DL; `data_handler.history_bars` permanece **2000** para buffer):
+Com `lookback: 480`, `micro_granularity: 60` e `training_history_bars: 1500` (SSOT treino DL; `data_handler.history_bars` permanece **2000** para buffer):
 
 | Conceito | Barras | Tempo aproximado |
 |----------|--------|------------------|
-| Histórico de treino | 1333 | ~0,9 dia (@ 60 s) |
+| Histórico de treino | 1500 | ~1,0 dia (@ 60 s) |
 | Lookback | 480 | **~8 h** de contexto por sequência (@ 60 s) |
 | Validação holdout | ~15% | proporcional ao split |
 
