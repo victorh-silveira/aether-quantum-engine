@@ -1,3 +1,9 @@
+## [2.24.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.23.1...v2.24.0) (2026-08-20)
+
+### Funcionalidades
+
+* **engine:** calibrar label smoothing para 0.04 e expandir validacao meta para 25% ([4b47b4c](https://github.com/victorh-silveira/aether-quantum-engine/commit/4b47b4c1bd91cf42891cc27aff8511f76c3acd0c))
+
 ## [2.23.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.23.0...v2.23.1) (2026-08-20)
 
 ### Correcoes de Bug
