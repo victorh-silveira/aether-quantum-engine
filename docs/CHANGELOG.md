@@ -1,3 +1,9 @@
+## [2.22.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.22.1...v2.22.2) (2026-08-20)
+
+### Correcoes de Bug
+
+* **scripts:** usar arrays contiguos e thread unica no LightGBM para estabilidade no Windows ([a20c630](https://github.com/victorh-silveira/aether-quantum-engine/commit/a20c63064d336ca08ef22e914f4e6884b25b42c9))
+
 ## [2.22.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.22.0...v2.22.1) (2026-08-20)
 
 ### Correcoes de Bug
