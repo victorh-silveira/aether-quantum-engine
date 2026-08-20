@@ -1,3 +1,9 @@
+## [2.20.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.19.0...v2.20.0) (2026-08-20)
+
+### Funcionalidades
+
+* **engine:** expandir buffer de treino para 5000 barras e calibrar anti-overfit ([9736ec2](https://github.com/victorh-silveira/aether-quantum-engine/commit/9736ec24b7a978c274af16a66b5e374bdf2a2ee5))
+
 ## [2.19.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.18.3...v2.19.0) (2026-08-20)
 
 ### Funcionalidades
