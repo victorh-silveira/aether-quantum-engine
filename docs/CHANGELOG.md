@@ -1,3 +1,9 @@
+## [2.18.3](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.18.2...v2.18.3) (2026-08-20)
+
+### Correcoes de Bug
+
+* **engine:** preservar estado sharp de validacao e calibrar patience ([860aa29](https://github.com/victorh-silveira/aether-quantum-engine/commit/860aa2937a38eab2259d705fec2d2c0863131673))
+
 ## [2.18.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.18.1...v2.18.2) (2026-08-20)
 
 ### Correcoes de Bug
