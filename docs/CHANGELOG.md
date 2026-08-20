@@ -1,3 +1,9 @@
+## [2.23.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.23.0...v2.23.1) (2026-08-20)
+
+### Correcoes de Bug
+
+* **config:** ajustar label_smoothing para 0.08 visando Brier estavel com stride=5 ([cb358ea](https://github.com/victorh-silveira/aether-quantum-engine/commit/cb358ea8006b243184f76651a9f45e13f40cf803))
+
 ## [2.23.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.22.2...v2.23.0) (2026-08-20)
 
 ### Funcionalidades
