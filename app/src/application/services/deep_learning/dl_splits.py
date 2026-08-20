@@ -12,8 +12,9 @@ def purged_temporal_splits(
     *,
     calib_ratio: float = 0.15,
     embargo: int = 1,
+    stride: int = 1,
 ) -> tuple[slice, slice, slice] | None:
-    """Divide amostras em treino, validacao e calibracao com embargo."""
+    """Divide amostras em treino, validacao e calibracao com embargo e stride."""
     if sample_count < 20:
         return None
     val_size = max(5, int(validation_bars))
@@ -32,4 +33,5 @@ def purged_temporal_splits(
     calib_end = min(sample_count, calib_start + calib_size)
     if not splits_valid(val_end, val_start, calib_end, calib_start):
         return None
-    return slice(0, train_end), slice(val_start, val_end), slice(calib_start, calib_end)
+    step = max(1, int(stride))
+    return slice(0, train_end), slice(val_start, val_end, step), slice(calib_start, calib_end, step)

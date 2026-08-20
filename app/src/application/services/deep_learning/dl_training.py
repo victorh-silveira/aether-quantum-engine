@@ -93,6 +93,7 @@ def train_model_walkforward(
         validation_bars,
         calib_ratio=calib_ratio,
         embargo=max(1, int(label_horizon_bars) + int(label_smooth_bars) - 1),
+        stride=max(1, int(label_horizon_bars)),
     )
     if splits is None:
         logger.debug(

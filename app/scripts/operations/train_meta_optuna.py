@@ -139,11 +139,17 @@ def _purged_frame_split(
         return frame.slice(0, cut), frame.slice(cut, sample_count - cut), y[:cut], y[cut:], w_train
     val_start = train_end + max(0, int(embargo))
     w_train = None if weights is None else weights[:train_end]
+    val_frame = frame.slice(val_start, sample_count - val_start)
+    val_y = y[val_start:]
+    # Subamostragem com passo stride=5 para eliminar sobreposição temporal de 5 minutos
+    step = 5
+    val_frame_sub = val_frame.gather(list(range(0, int(val_frame.height), step)))
+    val_y_sub = val_y[::step]
     return (
         frame.slice(0, train_end),
-        frame.slice(val_start, sample_count - val_start),
+        val_frame_sub,
         y[:train_end],
-        y[val_start:],
+        val_y_sub,
         w_train,
     )
 
