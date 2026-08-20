@@ -23,8 +23,8 @@ from src.application.services.meta_classifier_features import meta_classifier_co
 
 logger = logging.getLogger("AETH.meta")
 
-LGBM_QUIET_PARAMS: dict[str, Any] = {"verbose": -1, "warnings": False, "n_jobs": 2}
-OPTUNA_N_JOBS = 2
+LGBM_QUIET_PARAMS: dict[str, Any] = {"verbose": -1, "warnings": False, "n_jobs": 1}
+OPTUNA_N_JOBS = 1
 LGBM_REGRESSION_OBJECTIVE = "huber"
 LGBM_N_ESTIMATORS = 1000
 OPTUNA_OOS_PAYOFF_ZSCORE_MIN = 0.04
@@ -71,16 +71,19 @@ def train_lgbm_candidate(
     columns = meta_classifier_column_names()
     x_train = _feature_frame(x_train)
     x_val = _feature_frame(x_val)
-    x_train_np = x_train.to_numpy()
-    x_val_np = x_val.to_numpy()
+    x_train_np = np.ascontiguousarray(x_train.to_numpy(), dtype=np.float64)
+    x_val_np = np.ascontiguousarray(x_val.to_numpy(), dtype=np.float64)
+    y_train_arr = np.ascontiguousarray(y_train, dtype=np.float64)
+    y_val_arr = np.ascontiguousarray(y_val, dtype=np.float64)
     merged = {**LGBM_QUIET_PARAMS, **params}
     train_set = lgb.Dataset(
         x_train_np,
-        label=y_train,
+        label=y_train_arr,
         feature_name=columns,
-        weight=np.asarray(sample_weight, dtype=np.float64) if sample_weight is not None else None,
+        weight=np.ascontiguousarray(sample_weight, dtype=np.float64) if sample_weight is not None else None,
+        free_raw_data=False,
     )
-    val_set = lgb.Dataset(x_val_np, label=y_val, reference=train_set)
+    val_set = lgb.Dataset(x_val_np, label=y_val_arr, reference=train_set, free_raw_data=False)
     model = lgb.train(
         {"objective": LGBM_REGRESSION_OBJECTIVE, "verbosity": -1, "seed": 42, **merged},
         train_set,
