@@ -16,9 +16,9 @@ from src.infrastructure.handlers.history_fetch import fetch_paginated_candle_his
 
 logger = logging.getLogger("AETH.meta")
 MIN_OHLC_ROWS = 96
-META_TRAIN_DEFAULT_BARS = 2000
-META_TRAIN_MAX_BARS = 2000
-META_TRAIN_MIN_QUALITY_BARS = 2000
+META_TRAIN_DEFAULT_BARS = 5000
+META_TRAIN_MAX_BARS = 5000
+META_TRAIN_MIN_QUALITY_BARS = 5000
 META_TRAIN_LOOKBACK_MARGIN = 64
 
 
