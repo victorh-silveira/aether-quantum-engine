@@ -6,6 +6,7 @@ from src.application.services.deep_learning.dl_calibration import (
     _METHOD_IDENTITY,
     _METHOD_ISOTONIC,
     _METHOD_PLATT,
+    _METHOD_TEMPERATURE,
     _METHOD_TEMPERATURE_PLATT,
     CalibratorState,
     apply_calibrator,
@@ -98,6 +99,12 @@ def _candidate_score(
 def _build_identity() -> CalibratorState:
     """Calibrador identidade (raw) — fallback quando o fit colapsa nitidez."""
     return CalibratorState(method=_METHOD_IDENTITY, temperature=1.0, platt_a=1.0, platt_b=0.0)
+
+
+def _build_temperature(probs: list[float], labels: list[float]) -> CalibratorState:
+    """Monta calibrador puramente por temperatura."""
+    temp = fit_temperature(probs, labels)
+    return CalibratorState(method=_METHOD_TEMPERATURE, temperature=temp, platt_a=1.0, platt_b=0.0)
 
 
 def _build_temperature_platt(probs: list[float], labels: list[float]) -> CalibratorState:
@@ -253,7 +260,7 @@ def fit_calibrator(
     if method == _METHOD_IDENTITY:
         return _build_identity()
     candidates: list[tuple[CalibratorState, float, float, float]] = []
-    for builder in (_build_temperature_platt, _build_platt):
+    for builder in (_build_temperature, _build_temperature_platt, _build_platt):
         cal = builder(probs, labels)
         brier, ece, sharp = _candidate_score(cal, probs, labels)
         candidates.append((cal, brier, ece, sharp))

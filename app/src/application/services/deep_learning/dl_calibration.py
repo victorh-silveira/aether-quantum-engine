@@ -48,6 +48,7 @@ def temperature_bounds() -> tuple[float, float]:
 
 
 _METHOD_TEMPERATURE_PLATT = "temperature_platt"
+_METHOD_TEMPERATURE = "temperature"
 _METHOD_PLATT = "platt"
 _METHOD_ISOTONIC = "isotonic"
 _METHOD_IDENTITY = "identity"
@@ -117,6 +118,8 @@ def apply_calibrator(prob: float, calibrator: CalibratorState) -> float:
         max(float(calibrator.temperature), _calib_bounds()["temperature_min"]), _calib_bounds()["temperature_max"]
     )
     tempered = apply_temperature(prob, temp)
+    if method == _METHOD_TEMPERATURE:
+        return tempered
     return apply_platt(tempered, calibrator)
 
 
