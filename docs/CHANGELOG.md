@@ -1,3 +1,13 @@
+## [2.19.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.18.3...v2.19.0) (2026-08-20)
+
+### Funcionalidades
+
+* **config:** padronizar campo amostral em multiplos de 10 e N>=1000 ([d6f6a15](https://github.com/victorh-silveira/aether-quantum-engine/commit/d6f6a154f172ee65b5252fd333c7d209bfe303ec))
+
+### Correcoes de Bug
+
+* **infra:** atualizar artefato do meta modelo lgbm otimizado ([115fb3c](https://github.com/victorh-silveira/aether-quantum-engine/commit/115fb3ce6e55ca114f4cfac42c47d8fb45058bda))
+
 ## [2.18.3](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.18.2...v2.18.3) (2026-08-20)
 
 ### Correcoes de Bug
