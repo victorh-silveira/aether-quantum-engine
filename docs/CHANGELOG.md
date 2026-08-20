@@ -1,3 +1,9 @@
+## [2.22.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.21.1...v2.22.0) (2026-08-20)
+
+### Funcionalidades
+
+* **engine:** implementar subamostragem stride=H na validacao para estrita independencia IID ([83d75cd](https://github.com/victorh-silveira/aether-quantum-engine/commit/83d75cd4df7f243277d1fb9b5eaa2f1cb23b9d0c))
+
 ## [2.21.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.21.0...v2.21.1) (2026-08-20)
 
 ### Correcoes de Bug
