@@ -1,3 +1,9 @@
+## [2.21.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.21.0...v2.21.1) (2026-08-20)
+
+### Correcoes de Bug
+
+* **config:** aplicar label smoothing e ajustar temperature scaling para controle de Brier ([d86a327](https://github.com/victorh-silveira/aether-quantum-engine/commit/d86a327446686020293a79b65f42d22fe18ec08b))
+
 ## [2.21.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.20.0...v2.21.0) (2026-08-20)
 
 ### Funcionalidades
