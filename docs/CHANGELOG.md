@@ -1,3 +1,9 @@
+## [2.21.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.20.0...v2.21.0) (2026-08-20)
+
+### Funcionalidades
+
+* **infra:** expandir dataset para 5000 barras e regularizar Optuna ([26f324f](https://github.com/victorh-silveira/aether-quantum-engine/commit/26f324f49427a2b9506a14552dee645dc96f68d5))
+
 ## [2.20.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.19.0...v2.20.0) (2026-08-20)
 
 ### Funcionalidades
