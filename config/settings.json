@@ -96,8 +96,8 @@
       "max_label_call_frac_bias": 0.2,
       "min_minority_recall": 0.25
     },
-    "early_stopping_patience": 25,
-    "min_epochs": 35,
+    "early_stopping_patience": 300,
+    "min_epochs": 300,
     "enabled": true,
     "focal_gamma": 1.0,
     "implied_vol_bars": 80,
