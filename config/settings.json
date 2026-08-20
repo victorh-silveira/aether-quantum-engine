@@ -117,8 +117,8 @@
         "enabled": true,
         "keltner_lower": 0.0,
         "keltner_upper": 1.0,
-        "rsi_lower": 0.28,
-        "rsi_upper": 0.72
+        "rsi_lower": 0.30,
+        "rsi_upper": 0.70
       },
       "market_rank": {
         "adx_strong_at_or_above": 0.24,
@@ -604,7 +604,7 @@
         "enabled": true,
         "slope_bars": 3,
         "ops_window_bars": 5,
-        "kelly_mult_discord": 0.35,
+        "kelly_mult_discord": 0.25,
         "min_disagree_to_dampen": 2,
         "block_recover_on_discord": true,
         "use_last_bar": true,
