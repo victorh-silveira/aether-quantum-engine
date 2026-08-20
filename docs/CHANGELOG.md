@@ -1,3 +1,9 @@
+## [2.23.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.22.2...v2.23.0) (2026-08-20)
+
+### Funcionalidades
+
+* **engine:** adicionar calibrador puro de temperatura nos candidatos de ajuste ([1c99953](https://github.com/victorh-silveira/aether-quantum-engine/commit/1c999533235c0f0a847df0983765211bb31db17f))
+
 ## [2.22.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.22.1...v2.22.2) (2026-08-20)
 
 ### Correcoes de Bug
