@@ -166,12 +166,13 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
                 session_trained = float(val_brier) + 1e-9 < 0.99
             stored_ok = bool(deploy_ok)
             collapse_meta: dict = {}
-            try:
-                payload = torch.load(path, map_location=torch.device("cpu"), weights_only=True)
-                if isinstance(payload, dict):
-                    collapse_meta = payload
-            except Exception:
-                collapse_meta = {}
+            if path.is_file():
+                try:
+                    payload = torch.load(path, map_location=torch.device("cpu"), weights_only=True)
+                    if isinstance(payload, dict):
+                        collapse_meta = payload
+                except Exception:
+                    collapse_meta = {}
             settings = orch.config if isinstance(getattr(orch, "config", None), dict) else None
             deploy_ok = _effective_deploy_ok(
                 stored_ok=stored_ok,

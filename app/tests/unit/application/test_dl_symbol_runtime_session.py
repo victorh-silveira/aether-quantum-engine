@@ -35,6 +35,7 @@ def test_get_symbol_runtime_marks_session_trained_when_deploy_ok_checkpoint():
             "src.application.services.deep_learning.dl_symbol_runtime.load_model_checkpoint",
             return_value=_loaded_checkpoint(deploy_ok=True),
         ),
+        patch("pathlib.Path.is_file", return_value=False),
         patch("pathlib.Path.exists", return_value=False),
     ):
         runtime = get_symbol_runtime(orch, "R_10", dl_config, params)
@@ -53,6 +54,7 @@ def test_get_symbol_runtime_keeps_session_untrained_without_deploy_ok():
             "src.application.services.deep_learning.dl_symbol_runtime.load_model_checkpoint",
             return_value=_loaded_checkpoint(deploy_ok=False, val_brier=0.9),
         ),
+        patch("pathlib.Path.is_file", return_value=False),
         patch("pathlib.Path.exists", return_value=False),
     ):
         runtime = get_symbol_runtime(orch, "R_10", dl_config, params)
@@ -74,6 +76,7 @@ def test_get_symbol_runtime_reuses_checkpoint_when_online_training_disabled():
             "src.application.services.deep_learning.dl_symbol_runtime.load_model_checkpoint",
             return_value=_loaded_checkpoint(deploy_ok=False, val_brier=0.25),
         ),
+        patch("pathlib.Path.is_file", return_value=False),
         patch("pathlib.Path.exists", return_value=False),
     ):
         runtime = get_symbol_runtime(orch, "R_10", dl_config, params)
@@ -95,6 +98,7 @@ def test_get_symbol_runtime_force_ok_overrides_deploy_flag():
             "src.application.services.deep_learning.dl_symbol_runtime.load_model_checkpoint",
             return_value=_loaded_checkpoint(deploy_ok=False, val_brier=0.9),
         ),
+        patch("pathlib.Path.is_file", return_value=False),
         patch("pathlib.Path.exists", return_value=False),
     ):
         runtime = get_symbol_runtime(orch, "R_10", dl_config, params)
