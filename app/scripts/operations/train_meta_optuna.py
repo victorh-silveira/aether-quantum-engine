@@ -133,7 +133,7 @@ def _purged_frame_split(
     embargo: int = PURGED_SPLIT_EMBARGO,
 ) -> tuple[pl.DataFrame, pl.DataFrame, np.ndarray, np.ndarray, np.ndarray | None]:
     sample_count = int(frame.height)
-    val_size = max(32, int(sample_count * 0.15))
+    val_size = max(32, int(sample_count * 0.25))
     train_end = sample_count - val_size - max(0, int(embargo))
     weights = None if sample_weight is None else np.asarray(sample_weight, dtype=np.float64)
     if train_end < 32 or val_size < 8:

@@ -186,7 +186,7 @@
     "label_ma_window": 5,
     "label_mode": "supertrend_atr",
     "label_smooth_bars": 1,
-    "label_smoothing": 0.08,
+    "label_smoothing": 0.04,
     "learning_rate": 0.001,
     "live_signal_metrics": {
       "drift_min_score": 0.5,
