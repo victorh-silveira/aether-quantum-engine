@@ -1,3 +1,9 @@
+## [2.18.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.18.1...v2.18.2) (2026-08-20)
+
+### Correcoes de Bug
+
+* **infra:** formatar amount com duas casas decimais no bulk purchase ([962c11f](https://github.com/victorh-silveira/aether-quantum-engine/commit/962c11f5783549a6943f408da9129d903d409fed))
+
 ## [2.18.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.18.0...v2.18.1) (2026-08-19)
 
 ### Correcoes de Bug
