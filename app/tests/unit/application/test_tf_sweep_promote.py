@@ -159,7 +159,7 @@ def test_promote_fail_closed_and_copy(tmp_path: Path):
             "duration": 50,
             "duration_unit": "m",
             "lookback": 480,
-            "history_bars": 1500,
+            "history_bars": 5000,
             "label_horizon_bars": 50,
         },
         knobs=knobs,

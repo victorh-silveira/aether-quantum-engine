@@ -50,7 +50,7 @@ def test_build_horizon_candidates_defaults_without_settings():
         "data_handler": {"micro_granularity": 60, "mini_granularity": 60, "granularity": 7200},
         "deep_learning": {
             "lookback": 480,
-            "training_history_bars": 1500,
+            "training_history_bars": 5000,
             "horizon_sweep": {"duration_minutes": [15, 30, 60]},
         },
     }
@@ -62,7 +62,7 @@ def test_build_horizon_candidates_defaults_without_settings():
         assert row["micro_granularity"] == 60
         assert row["macro_granularity"] == 7200
         assert row["lookback"] == 480
-        assert row["history_bars"] == 1500
+        assert row["history_bars"] == 5000
         assert row["duration_unit"] == "m"
 
 
@@ -128,7 +128,7 @@ def test_pick_horizon_winner_among_eligible():
                 "val_accuracy": 0.60,
                 "settle_wr": 0.62,
                 "settle_n": 24,
-                "history_bars": 1500,
+                "history_bars": 5000,
                 "val_brier": 0.22,
             },
             knobs=knobs,
@@ -142,7 +142,7 @@ def test_pick_horizon_winner_among_eligible():
                 "val_accuracy": 0.54,
                 "settle_wr": 0.70,
                 "settle_n": 24,
-                "history_bars": 1500,
+                "history_bars": 5000,
                 "val_brier": 0.21,
             },
             knobs=knobs,
@@ -156,7 +156,7 @@ def test_pick_horizon_winner_among_eligible():
                 "val_accuracy": 0.58,
                 "settle_wr": 0.50,
                 "settle_n": 24,
-                "history_bars": 1500,
+                "history_bars": 5000,
                 "val_brier": 0.20,
             },
             knobs=knobs,
@@ -175,7 +175,7 @@ def test_launch_train_pipeline_runs_horizon():
         "data_handler": {"micro_granularity": 60, "mini_granularity": 60, "granularity": 7200},
         "deep_learning": {
             "lookback": 480,
-            "training_history_bars": 1500,
+            "training_history_bars": 5000,
             "horizon_sweep": {"enabled": True, "run_in_launch_train": True, "duration_minutes": [15, 30, 60]},
         },
         "risk_management": {"params": {"payout_estimate": 0.72}},

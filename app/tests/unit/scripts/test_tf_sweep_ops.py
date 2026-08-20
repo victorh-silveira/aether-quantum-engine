@@ -299,7 +299,7 @@ def test_format_horizon_cell_line_and_quiet_board(tmp_path: Path):
                 "val_accuracy": 0.7,
                 "settle_wr": 0.55,
                 "settle_n": 40,
-                "history_bars": 1500,
+                "history_bars": 5000,
                 "val_brier": 0.22,
             },
             knobs=knobs,
@@ -311,7 +311,7 @@ def test_format_horizon_cell_line_and_quiet_board(tmp_path: Path):
                 "val_accuracy": 0.77,
                 "settle_wr": 0.69,
                 "settle_n": 36,
-                "history_bars": 1500,
+                "history_bars": 5000,
                 "val_brier": 0.22,
             },
             knobs=knobs,
@@ -365,7 +365,7 @@ def test_run_tf_sweep_dry_writes_overlay(tmp_path: Path):
         "duration": 9,
         "duration_unit": "m",
         "lookback": 480,
-        "history_bars": 1500,
+        "history_bars": 5000,
         "label_horizon_bars": 3,
         "train_timeframe": "micro",
     }
@@ -422,7 +422,7 @@ def test_run_tf_sweep_with_mock_train(tmp_path: Path):
         "duration": 9,
         "duration_unit": "m",
         "lookback": 480,
-        "history_bars": 1500,
+        "history_bars": 5000,
         "label_horizon_bars": 3,
         "train_timeframe": "micro",
     }
@@ -434,7 +434,7 @@ def test_run_tf_sweep_with_mock_train(tmp_path: Path):
             "val_brier": 0.22,
             "settle_wr": 0.65,
             "settle_n": 24,
-            "history_bars": 1500,
+            "history_bars": 5000,
             "symbol": symbol,
         }
 
@@ -481,7 +481,7 @@ def test_run_tf_sweep_multi_symbol_dry(tmp_path: Path):
         "duration": 3,
         "duration_unit": "m",
         "lookback": 480,
-        "history_bars": 1500,
+        "history_bars": 5000,
         "label_horizon_bars": 1,
         "train_timeframe": "micro",
     }

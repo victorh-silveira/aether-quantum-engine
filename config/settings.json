@@ -27,13 +27,13 @@
     }
   },
   "data_handler": {
-    "buffer_limit": 131072,
-    "fetch_count": 1500,
+    "buffer_limit": 262144,
+    "fetch_count": 5000,
     "granularity": 7200,
-    "history_bars": 2000,
+    "history_bars": 10000,
     "micro_granularity": 60,
-    "micro_history_bars": 1500,
-    "micro_fetch_count": 1500,
+    "micro_history_bars": 5000,
+    "micro_fetch_count": 5000,
     "min_required_points": 80,
     "mini_granularity": 60,
     "mini_history_bars": 260,
@@ -87,7 +87,7 @@
       "force_ok": false,
       "max_brier": 0.26,
       "max_eval_steps": 48,
-      "min_trades": 30,
+      "min_trades": 100,
       "min_win_rate": 0.55,
       "mini_bars": 80,
       "soft_max_brier": 0.26,
@@ -96,8 +96,8 @@
       "max_label_call_frac_bias": 0.2,
       "min_minority_recall": 0.25
     },
-    "early_stopping_patience": 30,
-    "min_epochs": 30,
+    "early_stopping_patience": 12,
+    "min_epochs": 15,
     "enabled": true,
     "focal_gamma": 1.0,
     "implied_vol_bars": 80,
@@ -220,7 +220,7 @@
         64,
         32
       ],
-      "dropout": 0.25
+      "dropout": 0.35
     },
     "train_on_new_candle_only": true,
     "train_symbols": [
@@ -230,12 +230,12 @@
     "training_batch_size": 128,
     "training_device": "auto",
     "training_epochs": 300,
-    "training_history_bars": 1500,
+    "training_history_bars": 5000,
     "training_history_days": 21,
     "training_log_every_n_epochs": 1,
     "val_acc_live_blend": 0.2,
     "validation_ratio": 0.2,
-    "weight_decay": 0.001,
+    "weight_decay": 0.005,
     "require_deploy": false,
     "allow_undeployed_inference": true,
     "calibration_margin_floor": 0.01,

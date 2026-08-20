@@ -39,10 +39,10 @@ def test_production_deploy_gate_armed():
     assert float(gate["soft_min_val_accuracy"]) >= 0.53
     assert float(gate.get("soft_max_brier", 0.0)) == pytest.approx(0.26)
     assert float(gate.get("max_brier", 0.0)) == pytest.approx(0.26)
-    assert int(dl.get("min_epochs", 0)) >= 20
-    assert int(dl.get("early_stopping_patience", 0)) >= 16
-    assert float(dl.get("weight_decay", 0.0)) == pytest.approx(0.001)
-    assert float(dl.get("tcn", {}).get("dropout", 0.0)) == pytest.approx(0.25)
+    assert int(dl.get("min_epochs", 0)) >= 15
+    assert int(dl.get("early_stopping_patience", 0)) >= 12
+    assert float(dl.get("weight_decay", 0.0)) == pytest.approx(0.005)
+    assert float(dl.get("tcn", {}).get("dropout", 0.0)) == pytest.approx(0.35)
     assert float(dl.get("learning_rate", 0.0)) == pytest.approx(0.001)
     assert int(dl.get("train_deploy_retries", 0)) >= 1
     assert int(dl.get("sample_weighting", {}).get("recency_half_life_n", 0)) == 2000
@@ -223,8 +223,8 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert int(meta["retrain_min_n"]) == 2
     assert int(meta["max_buffer"]) == 2000
     assert float(meta["timeout_seconds"]) == pytest.approx(8.0)
-    assert int(data["fetch_count"]) == 1500
-    assert int(data["micro_fetch_count"]) == 1500
+    assert int(data["fetch_count"]) == 5000
+    assert int(data["micro_fetch_count"]) == 5000
     assert int(data["mini_fetch_count"]) == 260
     orch = settings["orchestrator"]
     assert int(orch["cycle_interval_seconds"]) == 60
@@ -276,7 +276,7 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert "ws_connect_max_attempts" not in settings.get("api_config", {})
     assert "history_fetch_chunk" not in settings.get("data_handler", {})
     dl = settings["deep_learning"]
-    assert int(dl["training_history_bars"]) == 1500
+    assert int(dl["training_history_bars"]) == 5000
     assert float(dl["train_history_shortfall_ratio"]) == pytest.approx(0.95)
     assert int(dl["bootstrap_max_wait_rounds"]) == 16
     cal = dl["calibration"]
