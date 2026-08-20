@@ -1,3 +1,9 @@
+## [2.22.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.22.0...v2.22.1) (2026-08-20)
+
+### Correcoes de Bug
+
+* **scripts:** usar gather_every no Polars para subamostragem stride=5 ([2369a22](https://github.com/victorh-silveira/aether-quantum-engine/commit/2369a2209b8023ad9490b5160d4c39682d7dfec9))
+
 ## [2.22.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.21.1...v2.22.0) (2026-08-20)
 
 ### Funcionalidades
