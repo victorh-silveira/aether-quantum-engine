@@ -75,8 +75,8 @@
       "trust_blend_span": 0.25,
       "val_acc_trust_floor": 0.01
     },
-    "confidence_call_threshold": 0.60,
-    "confidence_put_threshold": 0.40,
+    "confidence_call_threshold": 0.55,
+    "confidence_put_threshold": 0.45,
     "deploy_gate": {
       "enabled": true,
       "eval_call_threshold_cap": 0.65,
@@ -99,7 +99,7 @@
     "early_stopping_patience": 12,
     "min_epochs": 15,
     "enabled": true,
-    "focal_gamma": 2.0,
+    "focal_gamma": 1.0,
     "implied_vol_bars": 80,
     "indicators": {
       "congestion": {
@@ -186,7 +186,7 @@
     "label_ma_window": 5,
     "label_mode": "supertrend_atr",
     "label_smooth_bars": 1,
-    "label_smoothing": 0.04,
+    "label_smoothing": 0.015,
     "learning_rate": 0.001,
     "live_signal_metrics": {
       "drift_min_score": 0.5,
