@@ -1,3 +1,9 @@
+## [2.25.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.24.0...v2.25.0) (2026-08-21)
+
+### Funcionalidades
+
+* **config:** reequilibrar thresholds de confianca e regularizar Optuna ([70a4215](https://github.com/victorh-silveira/aether-quantum-engine/commit/70a42152f0cce8f4b3a5689849b09cdb92d5e217))
+
 ## [2.24.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.23.1...v2.24.0) (2026-08-20)
 
 ### Funcionalidades
