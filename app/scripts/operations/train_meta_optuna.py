@@ -192,12 +192,12 @@ def run_optuna_study(
 
     def objective(trial: optuna.Trial) -> float:
         params = {
-            "max_depth": trial.suggest_int("max_depth", 2, 4),
-            "learning_rate": trial.suggest_float("learning_rate", 0.003, 0.08, log=True),
-            "num_leaves": trial.suggest_int("num_leaves", 4, 16),
-            "min_child_samples": trial.suggest_int("min_child_samples", 30, 150),
-            "reg_lambda": trial.suggest_float("reg_lambda", 1.0, 50.0, log=True),
-            "feature_fraction": trial.suggest_float("feature_fraction", 0.50, 0.75),
+            "max_depth": trial.suggest_int("max_depth", 2, 3),
+            "learning_rate": trial.suggest_float("learning_rate", 0.003, 0.05, log=True),
+            "num_leaves": trial.suggest_int("num_leaves", 3, 8),
+            "min_child_samples": trial.suggest_int("min_child_samples", 40, 180),
+            "reg_lambda": trial.suggest_float("reg_lambda", 5.0, 100.0, log=True),
+            "feature_fraction": trial.suggest_float("feature_fraction", 0.40, 0.70),
             "subsample_freq": trial.suggest_int("subsample_freq", 1, 10),
             "n_jobs": OPTUNA_N_JOBS,
         }
