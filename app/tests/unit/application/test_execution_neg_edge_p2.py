@@ -20,9 +20,9 @@ def test_neg_edge_payout_and_min_edge_fallbacks():
         "loss_clf_auto_learn": True,
     }
     assert apply_negative_cal_edge_pause(metrics, orch=None, min_edge=0.04, payout=0.72, soft_mult=0.55) is True
-    assert metrics["execution_candidate_ready"] is True
-    assert metrics["neg_edge_soft"] is True
-    assert metrics.get("gate_reason") != "neg_edge"
+    assert metrics["execution_candidate_ready"] is False
+    assert metrics["signal_status"] == "SKIP:NEG_EDGE"
+    assert metrics.get("gate_reason") == "neg_edge"
     bad_orch = MagicMock()
     bad_orch.config = {
         "risk_management": {"params": {"payout_estimate": "x"}},
@@ -94,7 +94,7 @@ def test_neg_edge_hard_clears_prior_soft_waive_and_malformed_orch():
         "loss_clf_auto_learn": True,
     }
     assert apply_negative_cal_edge_pause(metrics2, orch=orch2, min_edge=0.04, payout=0.72) is True
-    assert metrics2["neg_edge_soft"] is True
+    assert metrics2["gate_reason"] == "neg_edge"
     orch3 = MagicMock()
     orch3.config = {"orchestrator": {"execution": "x"}}
     metrics3 = {
@@ -105,7 +105,7 @@ def test_neg_edge_hard_clears_prior_soft_waive_and_malformed_orch():
         "loss_clf_auto_learn": True,
     }
     assert apply_negative_cal_edge_pause(metrics3, orch=orch3, min_edge=0.04, payout=0.72) is True
-    assert metrics3["neg_edge_soft"] is True
+    assert metrics3["gate_reason"] == "neg_edge"
 
 
 def test_neg_edge_soft_mult_override_with_orch():
@@ -130,8 +130,8 @@ def test_neg_edge_soft_mult_override_with_orch():
         },
     }
     assert apply_negative_cal_edge_pause(metrics, orch=orch, soft_mult=0.40) is True
-    assert metrics["neg_edge_soft"] is True
-    assert metrics["kelly_fraction_scale"] == pytest.approx(0.40)
+    assert metrics["gate_reason"] == "neg_edge"
+    assert metrics["execution_candidate_ready"] is False
 
 
 def test_neg_edge_fusion_p_eff_invalid_falls_back_to_cal():
@@ -169,9 +169,8 @@ def test_neg_edge_replay_c1_put_cluster_neg_fusion_pos():
         "risk_management": {"params": {"payout_estimate": 0.72}},
     }
     assert apply_negative_cal_edge_pause(metrics, orch=orch) is True
-    assert metrics["execution_candidate_ready"] is True
-    assert metrics.get("gate_reason") != "neg_edge"
-    assert metrics.get("neg_edge_fusion_waived") is True
+    assert metrics["execution_candidate_ready"] is False
+    assert metrics.get("gate_reason") == "neg_edge"
     assert float(metrics["cal_side_edge"]) == pytest.approx(-0.109, abs=0.002)
 
 
@@ -194,9 +193,8 @@ def test_neg_edge_replay_c2_call_cluster_neg_fusion_pos():
         "risk_management": {"params": {"payout_estimate": 0.72}},
     }
     assert apply_negative_cal_edge_pause(metrics, orch=orch) is True
-    assert metrics["execution_candidate_ready"] is True
-    assert metrics.get("gate_reason") != "neg_edge"
-    assert metrics.get("neg_edge_fusion_waived") is True
+    assert metrics["execution_candidate_ready"] is False
+    assert metrics.get("gate_reason") == "neg_edge"
     assert float(metrics["cal_side_edge"]) == pytest.approx(-0.131, abs=0.003)
 
 

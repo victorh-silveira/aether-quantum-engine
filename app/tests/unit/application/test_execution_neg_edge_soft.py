@@ -44,11 +44,9 @@ def test_neg_edge_soft_when_side_agrees_closed_candle():
         "loss_clf_auto_learn": True,
     }
     assert apply_negative_cal_edge_pause(metrics, orch=_orch_skip()) is True
-    assert metrics.get("gate_reason") != "neg_edge"
-    assert metrics.get("neg_edge_candle_soft") is True
+    assert metrics.get("gate_reason") == "neg_edge"
     assert 0.0 < float(metrics["cal_side_edge"]) < 0.04
-    assert metrics["kelly_fraction_scale"] == pytest.approx(0.55)
-    assert metrics_block_execution(metrics) is False
+    assert metrics_block_execution(metrics) is True
 
 
 def test_neg_edge_hard_when_candle_agree_but_edge_nonpositive():
@@ -62,10 +60,9 @@ def test_neg_edge_hard_when_candle_agree_but_edge_nonpositive():
     }
     orch = _orch_skip(neg_edge_soft_min_edge=-1.0)
     assert apply_negative_cal_edge_pause(metrics, orch=orch) is True
-    assert metrics.get("gate_reason") != "neg_edge"
-    assert metrics.get("neg_edge_fusion_waived") is True
-    assert metrics["execution_candidate_ready"] is True
-    assert metrics_block_execution(metrics) is False
+    assert metrics.get("gate_reason") == "neg_edge"
+    assert metrics["execution_candidate_ready"] is False
+    assert metrics_block_execution(metrics) is True
 
 
 def test_neg_edge_soft_subfloor_when_soft_min_wide():
@@ -80,11 +77,10 @@ def test_neg_edge_soft_subfloor_when_soft_min_wide():
     }
     orch = _orch_skip(neg_edge_hard_skip=False, neg_edge_soft_min_edge=-1.0)
     assert apply_negative_cal_edge_pause(metrics, orch=orch) is True
-    assert metrics.get("gate_reason") != "neg_edge"
-    assert metrics["neg_edge_soft"] is True
+    assert metrics.get("gate_reason") == "neg_edge"
     assert 0.0 < float(metrics["cal_side_edge"]) < 0.04
-    assert metrics["execution_candidate_ready"] is True
-    assert metrics_block_execution(metrics) is False
+    assert metrics["execution_candidate_ready"] is False
+    assert metrics_block_execution(metrics) is True
 
 
 def test_neg_edge_soft_when_flip_blocked_and_candle_with_hard_on():
@@ -99,9 +95,8 @@ def test_neg_edge_soft_when_flip_blocked_and_candle_with_hard_on():
         "loss_clf_auto_learn": True,
     }
     assert apply_negative_cal_edge_pause(metrics, orch=_orch_skip()) is True
-    assert metrics.get("gate_reason") != "neg_edge"
-    assert metrics.get("neg_edge_candle_soft") is True
-    assert metrics_block_execution(metrics) is False
+    assert metrics.get("gate_reason") == "neg_edge"
+    assert metrics_block_execution(metrics) is True
 
 
 def test_neg_edge_soft_when_loss_clf_p_ovr_flip():
@@ -117,6 +112,5 @@ def test_neg_edge_soft_when_loss_clf_p_ovr_flip():
         "loss_clf_auto_learn": True,
     }
     assert apply_negative_cal_edge_pause(metrics, orch=_orch_skip()) is True
-    assert metrics.get("gate_reason") != "neg_edge"
-    assert metrics.get("neg_edge_p_ovr_soft") is True
-    assert metrics_block_execution(metrics) is False
+    assert metrics.get("gate_reason") == "neg_edge"
+    assert metrics_block_execution(metrics) is True

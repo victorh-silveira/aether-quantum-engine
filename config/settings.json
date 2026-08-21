@@ -651,7 +651,7 @@
       "signal_skip": {
         "enabled": true,
         "min_direction_margin": 0.022,
-        "waive_margin_on_pending": true,
+        "waive_margin_on_pending": false,
         "mini_pair_oppose_exec": true,
         "waive_mini_pair_min_margin": 0.0,
         "mini_pair_soft_kelly_mult": 0.55,

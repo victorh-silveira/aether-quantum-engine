@@ -18,7 +18,7 @@ def test_parse_signal_skip_from_ssot():
     cfg = parse_signal_skip_config({})
     assert cfg["enabled"] is True
     assert cfg["min_direction_margin"] == 0.022
-    assert cfg["waive_margin_on_pending"] is True
+    assert cfg["waive_margin_on_pending"] is False
     assert cfg["mini_pair_oppose_exec"] is True
     assert cfg["waive_mini_pair_min_margin"] == 0.0
     assert cfg["mini_pair_soft_kelly_mult"] == 0.55
@@ -118,7 +118,8 @@ def test_cal_margin_waived_when_pending_material():
         "direction_margin": 0.020,
         "pending_loss_total": 27.0,
     }
-    assert apply_signal_skip_gates(metrics, TradeDirection.CALL) is False
+    cfg = parse_signal_skip_config({"waive_margin_on_pending": True})
+    assert apply_signal_skip_gates(metrics, TradeDirection.CALL, cfg=cfg) is False
     assert metrics.get("signal_skip_waived") == "cal_margin_pending"
     assert metrics.get("gate_reason") is None
 
@@ -134,7 +135,8 @@ def test_pending_map_fallback_and_bad_margin():
     del orch.risk_manager.pending_loss_total
     type(orch.risk_manager).pending_loss_total = property(lambda self: None)
     orch.risk_manager.pending_loss = {"R_10": 12.0}
-    assert apply_signal_skip_gates(metrics, TradeDirection.CALL, orch=orch) is False
+    cfg = parse_signal_skip_config({"waive_margin_on_pending": True})
+    assert apply_signal_skip_gates(metrics, TradeDirection.CALL, orch=orch, cfg=cfg) is False
     assert metrics.get("signal_skip_waived") == "cal_margin_pending"
 
 
@@ -205,20 +207,12 @@ def test_adapted_explosion_high_margin_passes():
 
 
 def test_force_bypasses_signal_skip():
-    metrics = {
-        "scale_mini_prev_bar_dir": "PUT",
-        "scale_mini_bar_dir": "PUT",
-        "direction_margin": 0.01,
-    }
+    metrics = {"scale_mini_prev_bar_dir": "PUT", "scale_mini_bar_dir": "PUT", "direction_margin": 0.01}
     assert apply_signal_skip_gates(metrics, TradeDirection.CALL, force=True) is False
 
 
 def test_disabled_catalog_noop():
-    metrics = {
-        "scale_mini_prev_bar_dir": "PUT",
-        "scale_mini_bar_dir": "PUT",
-        "direction_margin": 0.01,
-    }
+    metrics = {"scale_mini_prev_bar_dir": "PUT", "scale_mini_bar_dir": "PUT", "direction_margin": 0.01}
     assert (
         apply_signal_skip_gates(
             metrics,
@@ -243,7 +237,8 @@ def test_pending_from_orch_risk_manager():
     }
     orch = MagicMock()
     orch.risk_manager.pending_loss_total.return_value = 40.0
-    assert apply_signal_skip_gates(metrics, TradeDirection.CALL, orch=orch) is False
+    cfg = parse_signal_skip_config({"waive_margin_on_pending": True})
+    assert apply_signal_skip_gates(metrics, TradeDirection.CALL, orch=orch, cfg=cfg) is False
     assert metrics.get("signal_skip_waived") == "cal_margin_pending"
 
 

@@ -120,10 +120,9 @@ def test_fusion_weak_ev_applies_soft_kelly():
     chosen = apply_direction_fusion(metrics, TradeDirection.CALL, cfg=cfg)
     assert chosen in (TradeDirection.CALL, TradeDirection.PUT)
     assert metrics["fusion_applied"] is True
-    assert float(metrics["fusion_chosen_ev"]) < 0.04
-    assert metrics.get("fusion_weak_ev_soft") is True
-    assert metrics.get("fusion_weak_ev_seed") is not True
-    assert float(metrics["kelly_fraction_scale"]) == pytest.approx(0.40)
+    assert metrics["execution_candidate_ready"] is False
+    assert metrics["signal_status"] == "SKIP:FUSION_NEGATIVE_EV"
+    assert metrics["gate_reason"] == "fusion_negative_ev"
 
 
 def test_fusion_weak_ev_seed_dual_neg_softens_harder():
@@ -162,8 +161,8 @@ def test_fusion_weak_ev_seed_dual_neg_softens_harder():
     assert chosen in (TradeDirection.CALL, TradeDirection.PUT)
     assert float(metrics["fusion_ev_call"]) < 0.0
     assert float(metrics["fusion_ev_put"]) < 0.0
-    assert metrics.get("fusion_weak_ev_seed") is True
-    assert float(metrics["kelly_fraction_scale"]) == pytest.approx(0.25)
+    assert metrics["execution_candidate_ready"] is False
+    assert metrics["signal_status"] == "SKIP:FUSION_NEGATIVE_EV"
 
 
 def test_fusion_picks_put_when_tape_and_loss_oppose_weak_call():
@@ -233,10 +232,13 @@ def test_fusion_skips_tcn_pos_edge_when_raw_below_floor():
 
 def test_fusion_allows_ev_when_cal_pos_raw_neg():
     metrics = {
-        "calibrated_prob": 0.24,
-        "raw_prob": 0.49,
-        "tcn_direction": "PUT",
+        "calibrated_prob": 0.70,
+        "raw_prob": 0.35,
+        "tcn_direction": "CALL",
+        "scale_micro_dir": "CALL",
         "scale_macro_dir": "CALL",
+        "scale_mini_dir": "CALL",
+        "scale_mili_dir": "CALL",
         "scale_tape_consensus": "CALL",
         "ops_window_candle_dir": "CALL",
         "loss_clf_p_loss": 0.95,
@@ -244,28 +246,14 @@ def test_fusion_allows_ev_when_cal_pos_raw_neg():
         "loss_clf_auto_learn": True,
         "exec_direction": "PUT",
     }
-    cfg = parse_direction_fusion_config({"fusion_block_when_tcn_pos_edge": True})
-    chosen = apply_direction_fusion(metrics, TradeDirection.PUT, cfg=cfg)
-    assert metrics.get("fusion_blocked_tcn_pos_edge") is not True
-    assert metrics.get("loss_clf_flip_cal_raw_discord") is True
-    assert chosen == TradeDirection.CALL
-    assert metrics["fusion_reason"] == "ev_call"
-
-
-def test_fusion_tie_falls_back_to_cal():
-    metrics = {
-        "calibrated_prob": 0.55,
-        "tcn_direction": "CALL",
-        "exec_direction": "CALL",
-    }
     cfg = parse_direction_fusion_config(
         {
             "fusion_enabled": True,
-            "fusion_w_macro": 0.0,
-            "fusion_w_micro_bar": 0.0,
-            "fusion_w_mini": 0.0,
-            "fusion_w_mili": 0.0,
-            "fusion_w_tape": 0.0,
+            "fusion_w_macro": 0.45,
+            "fusion_w_micro_bar": 0.10,
+            "fusion_w_mini": 0.25,
+            "fusion_w_mili": 0.10,
+            "fusion_w_tape": 0.45,
             "fusion_meta_ev_weight": 0.0,
             "fusion_loss_weight": 0.0,
             "fusion_tcn_shrink_near_half": 0.0,
@@ -276,7 +264,8 @@ def test_fusion_tie_falls_back_to_cal():
     )
     chosen = apply_direction_fusion(metrics, TradeDirection.CALL, cfg=cfg)
     assert chosen == TradeDirection.CALL
-    assert metrics["fusion_reason"] in {"ev_call", "tie_cal"}
+    assert metrics["fusion_reason"] == "ev_call"
+    assert metrics["execution_candidate_ready"] is True
 
 
 def test_fusion_kelly_prefers_fusion_p_eff():

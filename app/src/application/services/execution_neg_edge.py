@@ -5,9 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from src.application.services.execution_signal_skip import apply_kelly_soft
 from src.application.services.market_audit_log_helpers import resolve_predicted_edge
-from src.application.services.market_audit_ops_window import ops_window_candle_side
 from src.domain.config_knobs import merge_settings_block, require_bool, require_float, require_keys
 
 
@@ -102,13 +100,6 @@ def _neg_edge_cfg(orch: Any | None) -> dict[str, Any]:
     return parse_neg_edge_soft_config(_signal_skip_raw(orch))
 
 
-def _soft_mult_from_orch(orch: Any | None, override: float | None = None) -> float:
-    """Le neg_edge_soft_kelly_mult do SSOT signal_skip."""
-    if override is not None:
-        return max(0.05, min(1.0, float(override)))
-    return float(_neg_edge_cfg(orch)["neg_edge_soft_kelly_mult"])
-
-
 def _apply_neg_edge_hard(metrics: dict[str, Any], *, direction: str, edge: float, floor: float) -> None:
     """Marca EXEC_EMPTY tecnico por Edge Cal abaixo do floor."""
     metrics["execution_candidate_ready"] = False
@@ -159,7 +150,8 @@ def apply_negative_cal_edge_pause(
     payout: float | None = None,
     soft_mult: float | None = None,
 ) -> bool:
-    """Soft Kelly se 0 < Cal TCN < floor; hard se Cal TCN <= 0 (fusion_p_eff nao lava)."""
+    """Hard veto se Cal TCN < floor ou Cal TCN <= 0."""
+    _ = soft_mult
     if force:
         return False
     if metrics.get("execution_candidate_ready") is False:
@@ -175,59 +167,14 @@ def apply_negative_cal_edge_pause(
     edge = _resolve_neg_side_edge(metrics, direction, pay)
     metrics["cal_side_edge"] = edge
     metrics["cal_side_edge_floor"] = floor
-    if edge + 1e-12 >= floor:
-        return False
     cfg = _neg_edge_cfg(orch)
     auto_learn = bool(metrics.get("loss_clf_auto_learn"))
     deep_floor = float(cfg.get("neg_edge_deep_edge_floor", -0.12))
-    fusion_edge = 0.0
-    has_fusion_pos_edge = False
-    if metrics.get("neg_edge_fusion_p_eff") is not None:
-        fusion_edge = float(metrics["neg_edge_fusion_p_eff"]) * (1.0 + pay) - 1.0
-        if fusion_edge + 1e-12 > 0.0:
-            has_fusion_pos_edge = True
-            metrics["neg_edge_fusion_pos_edge"] = True
-    candle_agree = False
-    if bool(cfg.get("neg_edge_soft_when_closed_candle_agree", True)):
-        candle_agree = ops_window_candle_side(metrics) == direction
-    p_ovr_flip = bool(metrics.get("loss_clf_flip")) and (
-        bool(metrics.get("loss_clf_flip_scale_p_override")) or bool(metrics.get("loss_clf_flip_seed_p_override"))
-    )
-    if edge + 1e-12 <= 0.0:
-        if not (has_fusion_pos_edge or candle_agree or p_ovr_flip):
-            _apply_neg_edge_hard(metrics, direction=direction, edge=edge, floor=floor)
-            if (not auto_learn) and edge + 1e-12 < deep_floor:
-                metrics["neg_edge_bootstrap_deep"] = True
-            else:
-                metrics["neg_edge_nonpositive_hard"] = True
-            return True
-        metrics["neg_edge_fusion_waived"] = True
-    soft_min = float(cfg.get("neg_edge_soft_min_edge", -1.0))
-    soft_too_deep = edge + 1e-12 < soft_min
-    allow_soft = (candle_agree or p_ovr_flip or has_fusion_pos_edge) and not soft_too_deep
-    if bool(cfg["neg_edge_hard_skip"]) and not allow_soft:
+    if edge + 1e-12 < floor or edge + 1e-12 <= 0.0:
         _apply_neg_edge_hard(metrics, direction=direction, edge=edge, floor=floor)
+        if (not auto_learn) and edge + 1e-12 < deep_floor:
+            metrics["neg_edge_bootstrap_deep"] = True
+        else:
+            metrics["neg_edge_nonpositive_hard"] = True
         return True
-    if not (has_fusion_pos_edge and not candle_agree):
-        mult = _soft_mult_from_orch(orch, soft_mult)
-        if soft_mult is None and not auto_learn:
-            mult = float(cfg.get("neg_edge_bootstrap_soft_kelly_mult", mult))
-        apply_kelly_soft(metrics, mult, waived="neg_edge_soft", flag="neg_edge_soft")
-    else:
-        metrics["neg_edge_kelly_real"] = True
-    if candle_agree:
-        metrics["neg_edge_candle_soft"] = True
-    if p_ovr_flip:
-        metrics["neg_edge_p_ovr_soft"] = True
-    if not auto_learn:
-        metrics["neg_edge_bootstrap_soft"] = True
-    metrics.pop("neg_edge_pause", None)
-    if orch is not None:
-        logger.debug(
-            "EDGE || NEG_WAIVED side=%s edge=%+.4f fusion_edge=%+.4f candle=%d",
-            direction,
-            edge,
-            fusion_edge,
-            1 if candle_agree else 0,
-        )
-    return True
+    return False

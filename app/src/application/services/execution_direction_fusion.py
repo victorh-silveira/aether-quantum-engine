@@ -239,6 +239,13 @@ def apply_direction_fusion(
     metrics["fusion_ev_put"] = ev_put
     metrics["fusion_p_call"] = float(p_effs[TradeDirection.CALL.name])
     metrics["fusion_p_put"] = float(p_effs[TradeDirection.PUT.name])
+    if max(ev_call, ev_put) <= 0.0:
+        metrics["fusion_reason"] = "negative_ev_abstain"
+        metrics["execution_candidate_ready"] = False
+        metrics["signal_status"] = "SKIP:FUSION_NEGATIVE_EV"
+        metrics["gate_reason"] = "fusion_negative_ev"
+        metrics["fusion_applied"] = True
+        return tcn_dir
     if abs(ev_call - ev_put) <= 1e-12:
         chosen = TradeDirection.CALL if float(p_call) + 1e-12 >= 0.5 else TradeDirection.PUT
         reason = "tie_cal"
@@ -264,9 +271,6 @@ def apply_direction_fusion(
     metrics["fusion_chosen_ev"] = chosen_ev
     if chosen_ev + 1e-12 < float(vision.get("fusion_min_edge_execute", 0.04)):
         soft = float(vision.get("fusion_weak_ev_soft_kelly_mult", 0.40))
-        if ev_call < 0.0 and ev_put < 0.0 and not bool(metrics.get("loss_clf_auto_learn")):
-            soft = float(vision.get("fusion_weak_ev_seed_soft_kelly_mult", 0.25))
-            metrics["fusion_weak_ev_seed"] = True
         apply_kelly_soft(metrics, soft, waived="fusion_weak_ev", flag="fusion_weak_ev_soft")
         metrics["fusion_weak_ev"] = chosen_ev
     return chosen

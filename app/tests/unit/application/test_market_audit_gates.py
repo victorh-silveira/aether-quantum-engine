@@ -232,3 +232,28 @@ def test_format_gates_audit_line():
         }
     )
     assert "NEG_EDGE boot_deep side=PUT" in boot_deep
+    nonpos = format_gates_audit_line(
+        {
+            "gate_reason": "neg_edge",
+            "signal_status": "SKIP:NEG_EDGE",
+            "neg_edge_nonpositive_hard": True,
+            "cal_side_edge": -0.05,
+            "cal_side_edge_floor": 0.04,
+            "calibrated_prob": 0.45,
+            "raw_prob": 0.45,
+            "exec_direction": "PUT",
+        }
+    )
+    assert "NEG_EDGE nonpos side=PUT" in nonpos
+    boot_soft = format_gates_audit_line(
+        {
+            "signal_skip_waived": "neg_edge_soft",
+            "neg_edge_bootstrap_soft": True,
+            "cal_side_edge": 0.02,
+            "cal_side_edge_floor": 0.04,
+            "calibrated_prob": 0.58,
+            "raw_prob": 0.58,
+            "exec_direction": "CALL",
+        }
+    )
+    assert "NEG_EDGE boot_soft side=CALL" in boot_soft

@@ -26,9 +26,8 @@ def test_anti_loss_replay_c1_exec_put_window_put_passes():
     assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is False
     assert metrics.get("anti_loss_why") is None
     assert apply_negative_cal_edge_pause(metrics, min_edge=0.04, payout=0.72) is True
-    assert metrics["execution_candidate_ready"] is True
-    assert metrics.get("gate_reason") != "neg_edge"
-    assert metrics.get("neg_edge_fusion_waived") is True
+    assert metrics["execution_candidate_ready"] is False
+    assert metrics.get("gate_reason") == "neg_edge"
     assert float(metrics["cal_side_edge"]) < 0.0
 
 
