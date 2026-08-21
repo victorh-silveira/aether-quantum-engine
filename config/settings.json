@@ -323,7 +323,7 @@
       "soft_kelly_mult_high": 0.4,
       "soft_p_loss_high": 0.85,
       "soft_max_stake_pct_high": 0.01,
-      "ready_n": 24,
+      "ready_n": 30,
       "retrain_min_n": 1,
       "retrain_on_loss_min_n": 1,
       "max_buffer": 2000,
