@@ -1,3 +1,9 @@
+## [2.27.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.26.0...v2.27.0) (2026-08-21)
+
+### Funcionalidades
+
+* **config:** calibrar thresholds empiricos 0.48/0.32 ([7c5e2e0](https://github.com/victorh-silveira/aether-quantum-engine/commit/7c5e2e0356f36de4cb3d752db92387b7c195888b))
+
 ## [2.26.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.25.0...v2.26.0) (2026-08-21)
 
 ### Funcionalidades
