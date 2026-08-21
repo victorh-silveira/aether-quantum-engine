@@ -75,8 +75,8 @@
       "trust_blend_span": 0.25,
       "val_acc_trust_floor": 0.01
     },
-    "confidence_call_threshold": 0.55,
-    "confidence_put_threshold": 0.45,
+    "confidence_call_threshold": 0.48,
+    "confidence_put_threshold": 0.32,
     "deploy_gate": {
       "enabled": true,
       "eval_call_threshold_cap": 0.65,
