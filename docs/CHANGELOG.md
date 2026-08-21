@@ -1,3 +1,9 @@
+## [2.29.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.28.0...v2.29.0) (2026-08-21)
+
+### Funcionalidades
+
+* **infra:** elevar ready_n do loss_classifier para 30 amostras ([5363d3c](https://github.com/victorh-silveira/aether-quantum-engine/commit/5363d3ca9c0353b1488d89a6956aa64d1cdd40d8))
+
 ## [2.28.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.27.1...v2.28.0) (2026-08-21)
 
 ### Funcionalidades
