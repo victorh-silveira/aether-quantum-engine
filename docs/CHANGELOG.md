@@ -1,3 +1,9 @@
+## [2.26.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.25.0...v2.26.0) (2026-08-21)
+
+### Funcionalidades
+
+* **config:** calibrar thresholds 0.55/0.45 e label_smoothing 0.015 ([43ffb5e](https://github.com/victorh-silveira/aether-quantum-engine/commit/43ffb5ea5b75ff16ffb10fd6e7a477573124170b))
+
 ## [2.25.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.24.0...v2.25.0) (2026-08-21)
 
 ### Funcionalidades
