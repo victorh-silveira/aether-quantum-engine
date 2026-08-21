@@ -1,3 +1,9 @@
+## [2.28.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.27.1...v2.28.0) (2026-08-21)
+
+### Funcionalidades
+
+* **config:** restaurar amortecimento de Brier com label smoothing e focal loss ([b69c1ec](https://github.com/victorh-silveira/aether-quantum-engine/commit/b69c1ec78cde0c8106c0f9d739944ea272e39803))
+
 ## [2.27.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.27.0...v2.27.1) (2026-08-21)
 
 ### Correcoes de Bug
