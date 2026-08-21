@@ -52,7 +52,7 @@ def test_production_deploy_gate_armed():
     assert int(settings["risk_management"]["params"]["duration"]) == 5
     assert str(settings["risk_management"]["params"]["duration_unit"]) == "m"
     assert int(dl["horizon_sweep"]["ops_contract_duration_minutes"]) == 5
-    assert float(dl.get("min_edge_execute", 0.0)) == pytest.approx(0.04)
+    assert float(dl.get("min_edge_execute", 0.0)) == pytest.approx(0.06)
     assert settings["orchestrator"]["execution"]["bypass_deploy_gate"] is False
     assert "quality_gate" not in settings["orchestrator"]["execution"]
     assert "indicator_gating" not in dl
@@ -191,7 +191,7 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert scale["fusion_block_when_tcn_candle_agree"] is True and int(scale["ops_window_bars"]) == 5
     assert scale["fusion_loss_requires_auto_learn"] is True
     assert float(scale["fusion_loss_seed_weight_mult"]) == pytest.approx(0.0)
-    assert float(scale["fusion_min_edge_execute"]) == pytest.approx(0.04)
+    assert float(scale["fusion_min_edge_execute"]) == pytest.approx(0.06)
     assert float(scale["fusion_weak_ev_soft_kelly_mult"]) == pytest.approx(0.50)
     assert float(scale["fusion_weak_ev_seed_soft_kelly_mult"]) == pytest.approx(0.25)
     assert bool(settings["orchestrator"]["execution"]["invert_exec_side"]) is False

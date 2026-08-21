@@ -207,7 +207,7 @@
       "hidden_size": 64,
       "num_layers": 2
     },
-    "min_edge_execute": 0.04,
+    "min_edge_execute": 0.06,
     "min_val_accuracy": 0.53,
     "model_path_template": "data/dl/{symbol}.pth",
     "online_training": false,
@@ -644,7 +644,7 @@
         "fusion_block_when_tcn_candle_agree": true,
         "fusion_loss_requires_auto_learn": true,
         "fusion_loss_seed_weight_mult": 0.0,
-        "fusion_min_edge_execute": 0.04,
+        "fusion_min_edge_execute": 0.06,
         "fusion_weak_ev_soft_kelly_mult": 0.5,
         "fusion_weak_ev_seed_soft_kelly_mult": 0.25
       },
