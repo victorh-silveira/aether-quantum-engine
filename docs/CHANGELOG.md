@@ -1,3 +1,9 @@
+## [2.27.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.27.0...v2.27.1) (2026-08-21)
+
+### Correcoes de Bug
+
+* **engine:** alinhar calculo de gray no log do teacher ao SSOT ([f4e4651](https://github.com/victorh-silveira/aether-quantum-engine/commit/f4e4651eeb62a6ba6f058fb9b9f83692c2b434d0))
+
 ## [2.27.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.26.0...v2.27.0) (2026-08-21)
 
 ### Funcionalidades
