@@ -75,8 +75,8 @@
       "trust_blend_span": 0.25,
       "val_acc_trust_floor": 0.01
     },
-    "confidence_call_threshold": 0.48,
-    "confidence_put_threshold": 0.32,
+    "confidence_call_threshold": 0.46,
+    "confidence_put_threshold": 0.34,
     "deploy_gate": {
       "enabled": true,
       "eval_call_threshold_cap": 0.65,
@@ -183,7 +183,7 @@
     "eval_settle_accuracy_min": 0.53,
     "inference_device": "auto",
     "label_horizon_bars": 5,
-    "label_ma_window": 5,
+    "label_ma_window": 3,
     "label_mode": "supertrend_atr",
     "label_smooth_bars": 1,
     "label_smoothing": 0.055,
@@ -200,14 +200,14 @@
       "window": 64,
       "wr_raw_inconsistent_gap": 0.12
     },
-    "lookback": 480,
+    "lookback": 240,
     "lr_scheduler": "cosine",
     "lstm": {
       "dropout": 0.2,
       "hidden_size": 64,
       "num_layers": 2
     },
-    "min_edge_execute": 0.06,
+    "min_edge_execute": 0.035,
     "min_val_accuracy": 0.53,
     "model_path_template": "data/dl/{symbol}.pth",
     "online_training": false,
@@ -644,7 +644,7 @@
         "fusion_block_when_tcn_candle_agree": true,
         "fusion_loss_requires_auto_learn": true,
         "fusion_loss_seed_weight_mult": 0.0,
-        "fusion_min_edge_execute": 0.06,
+        "fusion_min_edge_execute": 0.035,
         "fusion_weak_ev_soft_kelly_mult": 0.5,
         "fusion_weak_ev_seed_soft_kelly_mult": 0.25
       },
