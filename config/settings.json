@@ -68,8 +68,8 @@
       "platt_b_default": 0.0,
       "tcn_macro_call_override": 0.82,
       "tcn_macro_put_override": 0.18,
-      "temperature_default": 1.2,
-      "temperature_max": 2.5,
+      "temperature_default": 1.25,
+      "temperature_max": 2.8,
       "temperature_min": 1.0,
       "trust_blend_floor": 0.01,
       "trust_blend_span": 0.25,
@@ -96,7 +96,7 @@
       "max_label_call_frac_bias": 0.2,
       "min_minority_recall": 0.25
     },
-    "early_stopping_patience": 12,
+    "early_stopping_patience": 17,
     "min_epochs": 15,
     "enabled": true,
     "focal_gamma": 2.0,
@@ -186,7 +186,7 @@
     "label_ma_window": 5,
     "label_mode": "supertrend_atr",
     "label_smooth_bars": 1,
-    "label_smoothing": 0.045,
+    "label_smoothing": 0.055,
     "learning_rate": 0.001,
     "live_signal_metrics": {
       "drift_min_score": 0.5,
