@@ -125,7 +125,7 @@ def _finalize_execution_metrics(
         sync_direction_margin(metrics, direction=exec_dir.name)
         tcn_ref = TradeDirection[str(metrics.get("tcn_direction") or dl_dir.name).upper()]
         apply_loss_classifier_gate(metrics, tcn_ref, orch=orch, force=force, symbol=symbol)
-        apply_anti_loss_seed_discord(metrics, orch=orch, force=force)
+        apply_anti_loss_seed_discord(metrics, orch=orch, force=force, symbol=symbol)
         ready_name = str(metrics.get("exec_direction") or exec_dir.name).upper()
         if ready_name in {TradeDirection.CALL.name, TradeDirection.PUT.name}:
             exec_dir = TradeDirection[ready_name]

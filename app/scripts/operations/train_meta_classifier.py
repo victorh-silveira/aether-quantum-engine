@@ -186,7 +186,7 @@ async def train_meta_classifier(
     required_gran = int(granularity)
     dl = settings.get("deep_learning") if isinstance(settings.get("deep_learning"), dict) else {}
     lookback = int(dl.get("lookback", 360)) if isinstance(dl, dict) else 360
-    quality_floor = meta_min_quality_bars(lookback)
+    quality_floor = meta_min_quality_bars(lookback, target_bars=bars)
     bundles = await resolve_training_bundles(
         settings=settings,
         dsn=dsn,

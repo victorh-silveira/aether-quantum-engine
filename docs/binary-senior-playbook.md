@@ -4,18 +4,18 @@ Postura operacional (**escopo 1.1** + arquitetura continua R_10): TCN ancora Cal
 
 Universo: **Volatility 10** (`R_10`) — **M1** (contrato ops **5 m / M5**; label TCN **N** ∈ {15,20,…,60}, **SSOT atual N=45**; ciclo **60 s**, micro/MINI **60 s**, macro **7200 s**, ratio **1:120**).
 
-Hierarquia: TCN Cal/Margin → SCALE dirs → soft `signal_skip` → **fusao EV** (argmax CALL/PUT) → **loss-clf FLIP** (ref TCN, ultimo) → **anti-loss seed discord** → chop soft → **neg_edge** (Cal TCN: soft subfloor / hard EV≤0; `fusion_p_eff` so Kelly apos o gate) → Kelly/caps. Caveat: `fusion_loss_weight` **nao** ve o `p_loss` do mesmo ciclo (FLIP ocorre apos a fusao); sob seed, `loss_bonus` ja e **0**. **Proibido** reabrir quality gate amplo (RSI/price_zone/SIDE_EQ block).
+Hierarquia: TCN Cal/Margin → SCALE dirs → soft `signal_skip` → **fusao EV** (argmax CALL/PUT) → **loss-clf FLIP** (ref TCN, ultimo) → **anti-loss com microestrutura estrita** (EMA Slope M5 + Zero Bypass Vela M5 + RSI Momentum) → chop soft → **neg_edge** (Cal TCN: soft subfloor / hard EV≤0 / Trava Z-Score Pânico; `fusion_p_eff` so Kelly apos o gate) → Kelly/caps. Caveat: `fusion_loss_weight` **nao** ve o `p_loss` do mesmo ciclo (FLIP ocorre apos a fusao); sob seed, `loss_bonus` ja e **0**. **Proibido** reabrir quality gate amplo legado.
 
 ## Quando operar
 
 | Lado | Condicoes tipicas |
 |------|-------------------|
-| CALL | TCN CALL, fusao EV_CALL >= EV_PUT, ou fita/adapt |
-| PUT | TCN PUT, fusao EV_PUT > EV_CALL, ou fita/adapt |
-| SKIP tecnico | `training` / `data` / `deploy` / `predict_error`, warm-up, stop-win, broker; `neg_edge` hard se Edge Cal TCN `<= 0` (`fusion_p_eff` nao libera; ou override / seed+Cal &lt; **−0.12**); `anti_loss_seed_discord` sob seed unstamped+`p_loss` alto+pos_edge, live janela stampada+corpo liquido fraco (corpo &lt; **0.10**), live+exec≠janela, ou live+nao `agree_strong` do **EXEC** vs janela (corpo liquido &lt; **0.75**) (EXPLORE e RECOVER) |
+| CALL | TCN CALL, fusao EV_CALL >= EV_PUT, Preço > EMA9 > EMA21 com EMA21 slope >= 0, RSI_M5 >= 0.40, candle M5 fechado CALL |
+| PUT | TCN PUT, fusao EV_PUT > EV_CALL, Preço < EMA9 < EMA21 com EMA21 slope <= 0, RSI_M5 <= 0.60, candle M5 fechado PUT |
+| SKIP tecnico | `training` / `data` / `deploy` / `predict_error`, warm-up, stop-win, broker; `neg_edge` hard se Edge Cal TCN `<= 0` (`fusion_p_eff` nao libera); `neg_edge_zscore_panic` se CALL com $Z < -2.0$ ou PUT com $Z > +2.0$; `anti_loss_ema_slope` se EMA21 slope M5 for contrária; `anti_loss_rsi_momentum` se RSI M5 fora de faixa; `live_exec_discord` se vela M5 fechar contrária; `anti_loss_seed_discord` sob seed unstamped+`p_loss` alto+pos_edge |
 | Soft sinal 1.1 | `mini_pair_oppose` / `cal_margin` / loss-clf; chop soft; `neg_edge` soft so se `0 < Cal TCN < min_edge_execute`; Kelly usa `fusion_p_eff` so apos Cal TCN passar neg_edge; EV fraco → soft Kelly **0.40** (seed+ambos EV&lt;0 → **0.25**); `invert_exec_side` **false** |
 | Fusao multi-escala | `fusion_enabled`: p_eff (Cal + MACRO/janela ops/MINI/MILI/tape + loss continuo + meta **0.10**); `fusion_loss_weight` **0.45** so com `auto=1` — **nao** incorpora o FLIP do mesmo ciclo; `fusion_block_when_tcn_pos_edge` **true** preserva TCN so se Cal **e** raw +EV; `fusion_block_when_tcn_candle_agree` **true** preserva TCN se janela ops N=5==TCN (`why=tcn_candle_agree`); telemetria `[GATES] \|\| FUSION` + `fusion_ev_*` / `fusion_p_eff`. **M1 last-bar = log; confirmacao = janela N=5.** |
-| Flip loss-clf | Apos fusao: `p_loss >= hard_p_loss_floor` (**0.90**) e `veto_ready` + `flip_require_auto_learn` (**true**: seed so SOFT; `p_ovr`/`seed_discord` nao FLIP); **bloqueia FLIP** se Edge Cal **e** raw_edge do TCN >= floor **e** tape/janela ops confirmam TCN (`FLIP_BLOCK:tcn_edge`; `flip_waive_tcn_pos_edge_on_discord` **true** se tape ou janela ≠ TCN; Cal+/raw− nao trava); sob seed, janela == TCN bloqueia (`FLIP_BLOCK:seed_candle`; `p_ovr` nao fura); seed edge min **−0.08**; live `flip_waive_edge_min` **−1.0**; janela no alvo floor **0.85** so se TCN fraco |
+| Flip loss-clf | Apos fusao: `p_loss >= hard_p_loss_floor` (**0.90**) e `veto_ready` + `flip_require_auto_learn` (**true**: seed so SOFT; `p_ovr`/`seed_discord` nao FLIP); **bloqueia FLIP** se Edge Cal **e** raw_edge do TCN >= floor **e** tape/janela ops confirmam TCN (`FLIP_BLOCK:tcn_edge`; tape ou janela ≠ TCN → `flip_waive_tcn_pos_edge_on_discord`); Cal+/raw− libera; sob seed, janela == TCN bloqueia (`FLIP_BLOCK:seed_candle`; `p_ovr` nao fura); seed edge min **−0.08**; live `flip_waive_edge_min` **−1.0**; janela no alvo floor **0.85** so se TCN fraco |
 | Chop soft | ADX &lt; **0.22** e (Hurst ∈ [**0.47**, **0.53**] ou SCALE micro=chop) → soft Kelly **0.55**; log `REGIME \|\| CHOP_SOFT` |
 | `majority_votes` | Mais votos PUT ou CALL (tape/mili/RSI vs TCN) → adapta lado (se `fusion_replace_adapt_flip` **false**) |
 
@@ -28,7 +28,11 @@ Hierarquia: TCN Cal/Margin → SCALE dirs → soft `signal_skip` → **fusao EV*
 | `deploy` | Checkpoint sem `deploy_ok` |
 | `predict_error` | Falha de inferencia |
 | `neg_edge` | **Hard** se Edge Cal TCN do lado `<= 0` (`fusion_p_eff` nao substitui; ou `neg_edge_hard_skip` **true**, ou seed+Cal &lt; `neg_edge_deep_edge_floor` **−0.12**); soft Kelly so se `0 < Cal < min_edge_execute` |
-| `anti_loss_seed_discord` | **Seed** unstamped + `p_loss >= anti_loss_p_loss_floor` (**0.85**) + TCN pos_edge: **hard SKIP** se a **janela ops N=5** nao confirma o TCN com corpo minimo **0.10**. **Live** (janela stampada, mesmo `auto=0`): tier fraco (`anti_loss_live_weak_candle_enabled` **true**) se corpo liquido &lt; **0.10** ou janela ausente; SKIP se exec≠janela (`anti_loss_live_exec_candle_enabled` **true**, `why=live_exec_discord`); gate unificado (`anti_loss_live_confirm_enabled` **true**) SKIP se a janela nao confirma o **lado EXEC** (pos-fusao/FLIP) com corpo &gt;= `anti_loss_live_confirm_min_body` (**0.25**) — discord exec≠janela (`why=live_discord_weak` so se exec_candle off) ou agree fraco (`why=live_confirm_weak`); `anti_loss_hard_skip` **true**; soft so se hard_skip **false**. `[CANDLE]` M1 e so telemetria. |
+| `neg_edge_zscore_panic` | Veto de pânico bilateral: CALL vetado se $Z < -2.0$ (faca caindo); PUT vetado se $Z > +2.0$ (explosão compradora) |
+| `anti_loss_ema_slope` | Veto de inclinação de 3 barras na EMA21 M5 (CALL exige $\text{EMA}_{21}[-1] \ge \text{EMA}_{21}[-3]$; PUT exige inverso) |
+| `anti_loss_rsi_momentum` | Veto de fraqueza/momentum: CALL vetado se $\text{RSI} < 0.40$; PUT vetado se $\text{RSI} > 0.60$ |
+| `live_exec_discord` | Veto estrito mandatório de vela contrária (sinal CALL com candle M5 PUT, ou inverso) |
+| `anti_loss_seed_discord` | **Seed** unstamped + `p_loss >= anti_loss_p_loss_floor` (**0.85**) + TCN pos_edge: **hard SKIP** se a **janela ops N=5** nao confirma o TCN com corpo minimo **0.10**. **Live** (janela stampada, mesmo `auto=0`): tier fraco se corpo liquido &lt; **0.10** ou ausente. |
 | Kelly `EXEC_PAUSE` | `stop_win` / `bankroll_below_stake_min` (sizing; **sem** `kelly_no_edge`) |
 
 ## Catalogo sinal / ML (soft + neg_edge soft)

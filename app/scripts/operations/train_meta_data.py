@@ -28,8 +28,10 @@ def resolve_meta_train_bars(bars: int) -> int:
     return min(target, META_TRAIN_MAX_BARS)
 
 
-def meta_min_quality_bars(lookback: int = 360) -> int:
-    """Piso de barras para treino meta senior (lookback TCN + margem ou 2000)."""
+def meta_min_quality_bars(lookback: int = 360, target_bars: int | None = None) -> int:
+    """Piso de barras para treino meta senior."""
+    if target_bars is not None and int(target_bars) < META_TRAIN_MIN_QUALITY_BARS:
+        return max(MIN_OHLC_ROWS, int(lookback) + META_TRAIN_LOOKBACK_MARGIN)
     return max(META_TRAIN_MIN_QUALITY_BARS, int(lookback) + META_TRAIN_LOOKBACK_MARGIN)
 
 

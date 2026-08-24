@@ -6,9 +6,6 @@ import time
 from typing import Any
 
 from src.application.services.auth_manager import AuthManager
-from src.application.services.deep_learning.decision_bridge import (
-    collect_deep_learning_decisions as collect_deep_learning_decisions,
-)
 from src.application.services.deep_learning.dl_retrain import tick_bars_since_train
 from src.application.services.direction_loss_tracker import DirectionLossTracker, get_direction_loss_tracker
 from src.application.services.orchestrator.config_symbols import normalize_symbols_and_anchor

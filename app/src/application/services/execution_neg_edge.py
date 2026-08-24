@@ -64,14 +64,55 @@ def _payout_from_orch(orch: Any | None) -> float:
         return 0.72
 
 
-def _min_edge_from_orch(orch: Any | None) -> float:
-    """Le deep_learning.min_edge_execute; default 0.0."""
+def _is_recovery_active(orch: Any | None, metrics: dict[str, Any] | None = None) -> bool:
+    """True se recovery esta ativo no orch ou metrics."""
+    if metrics is not None and bool(metrics.get("recovery_mode")):
+        return True
+    if orch is None:
+        return False
+    risk_mgr = getattr(orch, "risk_manager", None)
+    if risk_mgr is None:
+        return False
+    pending_total = 0.0
+    pending_dict = getattr(risk_mgr, "pending_loss", None)
+    if isinstance(pending_dict, dict):
+        try:
+            pending_total = sum(float(v) for v in pending_dict.values())
+        except (TypeError, ValueError):
+            pass
+    consec_losses = 0
+    raw_consec = getattr(risk_mgr, "consecutive_losses_linear", 0)
+    try:
+        consec_losses = int(raw_consec)
+    except (TypeError, ValueError):
+        pass
+    return pending_total > 0.0 or consec_losses > 0
+
+
+def _min_edge_from_orch(orch: Any | None, metrics: dict[str, Any] | None = None) -> float:
+    """Le piso escalonado de Edge para modo Normal (explore) vs Recuperacao (recovery)."""
     if orch is None:
         return 0.0
     config = getattr(orch, "config", None)
     if not isinstance(config, dict):
         return 0.0
     dl = config.get("deep_learning") if isinstance(config.get("deep_learning"), dict) else {}
+    signal_skip = config.get("orchestrator", {}).get("execution", {}).get("signal_skip", {}) if isinstance(config.get("orchestrator"), dict) else {}
+    is_rec = _is_recovery_active(orch, metrics)
+    if is_rec:
+        rec_floor = signal_skip.get("min_edge_recovery", dl.get("min_edge_recovery"))
+        if rec_floor is not None:
+            try:
+                return max(0.0, float(rec_floor))
+            except (TypeError, ValueError):
+                pass
+    else:
+        exp_floor = signal_skip.get("min_edge_explore", dl.get("min_edge_explore"))
+        if exp_floor is not None:
+            try:
+                return max(0.0, float(exp_floor))
+            except (TypeError, ValueError):
+                pass
     try:
         return max(0.0, float(dl.get("min_edge_execute", 0.0)))
     except (TypeError, ValueError):
@@ -163,10 +204,26 @@ def apply_negative_cal_edge_pause(
     if direction not in {"CALL", "PUT"}:
         return False
     pay = float(payout) if payout is not None else _payout_from_orch(orch)
-    floor = float(min_edge) if min_edge is not None else _min_edge_from_orch(orch)
+    floor = float(min_edge) if min_edge is not None else _min_edge_from_orch(orch, metrics=metrics)
     edge = _resolve_neg_side_edge(metrics, direction, pay)
     metrics["cal_side_edge"] = edge
     metrics["cal_side_edge_floor"] = floor
+    z_val = metrics.get("edge_zscore", metrics.get("meta_payoff_edge_zscore"))
+    if z_val is not None:
+        try:
+            z_float = float(z_val)
+            if direction == "CALL" and z_float < -2.0:
+                metrics["execution_candidate_ready"] = False
+                metrics["gate_reason"] = "neg_edge_zscore_panic"
+                metrics["signal_status"] = "SKIP:NEG_EDGE_ZSCORE_PANIC"
+                return True
+            if direction == "PUT" and z_float > 2.0:
+                metrics["execution_candidate_ready"] = False
+                metrics["gate_reason"] = "neg_edge_zscore_panic"
+                metrics["signal_status"] = "SKIP:NEG_EDGE_ZSCORE_PANIC"
+                return True
+        except (TypeError, ValueError):
+            pass
     cfg = _neg_edge_cfg(orch)
     auto_learn = bool(metrics.get("loss_clf_auto_learn"))
     deep_floor = float(cfg.get("neg_edge_deep_edge_floor", -0.12))

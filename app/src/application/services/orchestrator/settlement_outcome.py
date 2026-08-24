@@ -178,6 +178,8 @@ def process_contract_outcome(
         orch._session_losses += 1
         orch._last_loss_symbol = sym
         orch._last_loss_direction = dir_name or ""
+        from src.application.services.orchestrator.post_settlement_loss_cooldown import schedule_post_loss_cooldown
+        schedule_post_loss_cooldown(orch)
 
     if not orch.risk_manager.active_contract_ids:
         log_cluster_summary(orch)

@@ -31,9 +31,9 @@ Ordem obrigatoria:
 
 1. CLUSTER — Prob / Cal / Margin / Edge (telemetria); TF tipicamente micro **M1** (60 s); anotar `live_n`
 2. SCALE — MACRO/MICRO/MINI/MILI + `tape`/`adapted` (adaptacao sob raw_extreme; soft Kelly; sem SKIP por escala)
-3. GATES — `[GATES] || FUSION` (`ev_c`/`ev_p`/`why`) **antes** de loss-clf; `why=tcn_candle_agree` = TCN==janela ops N=5 (switch bloqueado); depois `LOSS_CLF` SOFT vs FLIP (ref TCN); `FLIP_BLOCK:seed_candle|tcn_edge|seed|scale`; depois `[GATES] || ANTI_LOSS`; NEG_EDGE soft. Caveat: `fusion_loss_weight` nao ve `p_loss` do mesmo ciclo (FLIP apos fusao); seed `loss_bonus=0`. Se `auto=0` e FUSION != TCN com janela==TCN → regressao (seed nao pode puxar lado via loss_bonus). **M1 last-bar = log; confirmacao = janela N=5.**
-4. EXEC / EMPTY / PAUSE — `gate_reason` tecnico ou `signal_skip` 1.1; SIDE_EQ / scale = soft sizing; stop-win = `EXEC_PAUSE`
-5. RESOLVED / RISK — pending, linear, pnl_sess vs alvo **3%**
+3. GATES — `[GATES] || FUSION` (`ev_c`/`ev_p`/`why`) **antes** de loss-clf; `why=tcn_candle_agree` = TCN==janela ops N=5 (switch bloqueado); depois `LOSS_CLF` SOFT vs FLIP (ref TCN); `FLIP_BLOCK:seed_candle|tcn_edge|seed|scale`; depois `[GATES] || ANTI_LOSS` com microestrutura estrita (EMA slope M5, zero bypass vela M5 contrária, RSI momentum); por fim NEG_EDGE (hard se Cal<=0 ou trava de pânico Z-score bilateral). Caveat: `fusion_loss_weight` nao ve `p_loss` do mesmo ciclo (FLIP apos fusao); seed `loss_bonus=0`. Se `auto=0` e FUSION != TCN com janela==TCN → regressao (seed nao pode puxar lado via loss_bonus). **M1 last-bar = log; confirmacao = janela N=5.**
+4. EXEC / EMPTY / PAUSE / COOLDOWN — `gate_reason` tecnico (`anti_loss_ema_slope`, `anti_loss_rsi_momentum`, `live_exec_discord`, `neg_edge_zscore_panic`) ou `signal_skip` 1.1; SIDE_EQ / scale = soft sizing; stop-win = `EXEC_PAUSE`; cooldown pós-loss = 120s se $L_2+$.
+5. RESOLVED / RISK — pending, linear, pnl_sess vs alvo **3%**; polling de 2.0s em caso de estagnação de liquidação.
 
 Marcar cada ciclo como: **processo ok** | **processo falhou** | **inconclusivo (N baixo)**.
 

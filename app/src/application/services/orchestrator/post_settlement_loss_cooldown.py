@@ -1,9 +1,8 @@
-"""Compatibilidade pos-LOSS sem barreira temporal (ciclos continuos)."""
-
-from __future__ import annotations
-
+import asyncio
+import time
 from typing import Any
 
+from src.application.services.log_dedupe import log_info_if_changed
 from src.application.services.regime_micro_freeze import SIGNAL_SUSPENDED
 
 
@@ -11,53 +10,81 @@ COOLDOWN_CYCLE_SUSPENDED = SIGNAL_SUSPENDED
 
 
 def post_loss_cooldown_delay_seconds(linear_losses: int) -> float:
-    """Retorna zero: resfriamento pos-LOSS desativado."""
-    _ = linear_losses
+    """Pausa de 2 ciclos (120s) quando linear_losses >= 2."""
+    if int(linear_losses or 0) >= 2:
+        return 120.0
     return 0.0
 
 
 def post_loss_cooldown_active(last_outcome: str, linear_losses: int) -> bool:
-    """Retorna False: resfriamento pos-LOSS desativado."""
-    _ = (last_outcome, linear_losses)
-    return False
+    """True se ultimo trade foi LOSS e linear >= 2."""
+    return str(last_outcome or "").upper() == "LOSS" and int(linear_losses or 0) >= 2
 
 
 def orchestrator_cooldown_until(orch: Any) -> float:
-    """Retorna zero: sem barreira temporal ativa."""
-    _ = orch
-    return 0.0
+    """Retorna timestamp limite de resfriamento."""
+    return float(getattr(orch, "_cooldown_until", 0.0) or 0.0)
 
 
 def orchestrator_cooldown_active(orch: Any, *, now: float | None = None) -> bool:
-    """Retorna False: ciclos nunca suspensos por cooldown pos-LOSS."""
-    _ = (orch, now)
-    return False
+    """True enquanto o timestamp de cooldown estiver no futuro."""
+    deadline = orchestrator_cooldown_until(orch)
+    if deadline <= 0.0:
+        return False
+    current = float(now if now is not None else time.time())
+    return current < deadline
 
 
 def orchestrator_cooldown_remaining(orch: Any, *, now: float | None = None) -> float:
-    """Retorna zero: sem tempo restante de resfriamento."""
-    _ = (orch, now)
-    return 0.0
+    """Tempo restante de resfriamento em segundos."""
+    deadline = orchestrator_cooldown_until(orch)
+    if deadline <= 0.0:
+        return 0.0
+    current = float(now if now is not None else time.time())
+    return max(0.0, deadline - current)
 
 
 def schedule_post_loss_cooldown(orch: Any) -> float:
-    """Nao agenda resfriamento pos-LOSS."""
-    _ = orch
-    return 0.0
+    """Agenda pausa tecnica de 2 ciclos (120s) se linear >= 2."""
+    rm = getattr(orch, "risk_manager", None)
+    linear = int(getattr(rm, "consecutive_losses_linear", 0) or 0)
+    outcome = getattr(orch, "_last_settlement_outcome", "")
+    if not post_loss_cooldown_active(outcome, linear):
+        return 0.0
+    delay = post_loss_cooldown_delay_seconds(linear)
+    orch._cooldown_until = time.time() + delay
+    return delay
 
 
 def log_trading_cycle_cooldown_skip(orch: Any) -> None:
-    """Nao emite logs de resfriamento pos-LOSS."""
-    _ = orch
+    """Emite log deduplicado de cooldown pos-loss consecutivo."""
+    logger = getattr(orch, "logger", None)
+    if logger is None:
+        return
+    rem = orchestrator_cooldown_remaining(orch)
+    cid = f"C{int(getattr(orch, '_active_cycle_id', 0) or 0):04d}"
+    log_info_if_changed(
+        orch,
+        logger,
+        "loss_cooldown_skip",
+        f"{rem:.0f}",
+        "[%s] COOLDOWN || pausa tecnica pos-loss (LIN>=2) | restante=%.0fs",
+        cid,
+        rem,
+    )
 
 
 def post_loss_cooldown_blocks_trading_cycle(orch: Any) -> bool:
-    """Nunca bloqueia entrada de ciclo por cooldown pos-LOSS."""
-    _ = orch
-    return False
+    """True se o motor estiver em resfriamento pos-loss."""
+    active = orchestrator_cooldown_active(orch)
+    if active:
+        log_trading_cycle_cooldown_skip(orch)
+    return active
 
 
 async def await_post_loss_cooldown(orch: Any) -> float:
-    """Nao retém o loop apos liquidacao."""
-    _ = orch
-    return 0.0
+    """Aguarda resfriamento antes do proximo ciclo."""
+    rem = orchestrator_cooldown_remaining(orch)
+    if rem > 0.0:
+        await asyncio.sleep(min(rem, 5.0))
+    return rem

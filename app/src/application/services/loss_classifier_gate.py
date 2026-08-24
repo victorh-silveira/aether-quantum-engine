@@ -172,11 +172,22 @@ def apply_loss_classifier_gate(
             logger,
             f"loss_clf_flip_block:{cycle_id}",
             f"{response['model_version']}:{metrics['loss_clf_flip_blocked']}:{ref_dir.name}:{p_loss:.5f}",
-            "LOSS_CLF || FLIP_BLOCK reason=%s side=%s p_loss=%.5f keep_tcn=1",
+            "LOSS_CLF || FLIP_BLOCK reason=%s side=%s p_loss=%.5f veto_abstain=1",
             metrics["loss_clf_flip_blocked"],
             ref_dir.name,
             p_loss,
         )
+        is_mature = (
+            bool(veto_ready)
+            and bool(response.get("auto_learn_applied"))
+            and int(response.get("n_train", 0)) >= 24
+            and bool(cfg.get("hard_blocks_flip_block", False))
+        )
+        if is_mature:
+            metrics["execution_candidate_ready"] = False
+            metrics["gate_reason"] = "loss_clf_hard"
+            metrics["signal_status"] = "SKIP:LOSS_CLF_HARD"
+            return True
     if bool(veto_ready) and p_loss + 1e-12 >= soft_floor:
         emit_loss_clf_soft(
             orch,

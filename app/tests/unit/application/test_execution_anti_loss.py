@@ -200,3 +200,79 @@ def test_anti_loss_live_auto_unstamped_does_not_seed():
     cfg = parse_signal_skip_config({})
     assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is False
     assert metrics.get("anti_loss_seed_discord") is None
+
+
+def test_anti_loss_live_exec_discord_strict():
+    """Testa veto mandatorio se sinal CALL e vela PUT, independente do tamanho do corpo."""
+    metrics = _base_metrics(
+        ops_window_stamped=True,
+        exec_direction="CALL",
+        resolved_direction="CALL",
+        ops_window_candle_dir="PUT",
+        ops_window_candle_body=0.001,
+        indicators={"rsi": 0.50},
+    )
+    cfg = parse_signal_skip_config({})
+    assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is True
+    assert metrics["execution_candidate_ready"] is False
+    assert metrics["gate_reason"] == "live_exec_discord"
+    assert metrics["signal_status"] == "SKIP:LIVE_EXEC_DISCORD"
+
+
+def test_anti_loss_rsi_momentum_veto():
+    """Testa veto de CALL para RSI < 0.40 e PUT para RSI > 0.60."""
+    metrics_call = _base_metrics(
+        ops_window_stamped=True,
+        exec_direction="CALL",
+        resolved_direction="CALL",
+        ops_window_candle_dir="CALL",
+        ops_window_candle_body=0.5,
+        indicators={"rsi": 0.38},
+    )
+    cfg = parse_signal_skip_config({})
+    assert apply_anti_loss_seed_discord(metrics_call, cfg=cfg) is True
+    assert metrics_call["gate_reason"] == "anti_loss_rsi_momentum"
+    assert metrics_call["signal_status"] == "SKIP:ANTI_LOSS_RSI_MOMENTUM"
+
+    metrics_put = _base_metrics(
+        ops_window_stamped=True,
+        exec_direction="PUT",
+        resolved_direction="PUT",
+        ops_window_candle_dir="PUT",
+        ops_window_candle_body=0.5,
+        indicators={"rsi": 0.62},
+    )
+    assert apply_anti_loss_seed_discord(metrics_put, cfg=cfg) is True
+    assert metrics_put["gate_reason"] == "anti_loss_rsi_momentum"
+    assert metrics_put["signal_status"] == "SKIP:ANTI_LOSS_RSI_MOMENTUM"
+
+
+def test_anti_loss_ema_slope_veto():
+    """Testa veto de EMA slope quando EMA21[-1] < EMA21[-3] para CALL."""
+    from unittest.mock import MagicMock
+
+    import numpy as np
+
+    stream = MagicMock()
+    # Closes descendentes onde EMA21[-1] < EMA21[-3]
+    closes = np.linspace(5000, 4800, 30)
+    # Colocamos o ultimo close acima da EMA9 temporariamente (repique), mas a EMA21 segue inclinando para baixo
+    closes[-1] = closes[-2] + 20.0
+    stream.get_mini_numpy_series.return_value = closes
+    orch = MagicMock()
+    orch.stream = stream
+    orch.symbols = ["R_10"]
+    orch.anchor = "R_10"
+
+    metrics = _base_metrics(
+        ops_window_stamped=True,
+        exec_direction="CALL",
+        resolved_direction="CALL",
+        ops_window_candle_dir="CALL",
+        ops_window_candle_body=0.5,
+        indicators={"rsi": 0.50},
+    )
+    cfg = parse_signal_skip_config({})
+    assert apply_anti_loss_seed_discord(metrics, orch=orch, cfg=cfg) is True
+    assert metrics["gate_reason"] in {"anti_loss_ema_slope", "anti_loss_ema_trend"}
+

@@ -82,7 +82,7 @@ def test_anti_loss_live_pos_edge_not_required_for_discord():
 
 
 def test_anti_loss_live_invalid_body_weak_skip():
-    metrics = _live_metrics(closed_micro_candle_dir="PUT", closed_micro_candle_stamped=True)
+    metrics = _live_metrics(closed_micro_candle_dir="CALL", closed_micro_candle_stamped=True)
     metrics.pop("closed_micro_candle_body", None)
     metrics.pop("ops_window_candle_body", None)
     cfg = parse_signal_skip_config({})

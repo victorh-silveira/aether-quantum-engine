@@ -6,11 +6,16 @@ alwaysApply: true
 
 # Execution gates
 
-- SKIP tecnico: `training` / `data` / `deploy` / `predict_error` / stop-win `EXEC_PAUSE`
-- Soft sinal (escopo **1.1**): SSOT `signal_skip` — mini/cal/chop soft Kelly; **neg_edge** le Edge Cal TCN do lado (nao `fusion_p_eff`); soft se `0 < Cal < min_edge_execute`; **hard** se Cal `<= 0` (`gate_reason=neg_edge`; `fusion_p_eff` nao libera EXEC); seed `boot_deep` se Cal &lt; `neg_edge_deep_edge_floor` (**−0.12**); `neg_edge_hard_skip` **false**
-- **Anti-loss** (`anti_loss_*`): **seed** unstamped + `p_loss`≥**0.85** + TCN pos_edge → **hard SKIP** se a **janela ops N=5** nao confirma TCN com corpo ≥ **0.10**; **live** (janela stampada, mesmo `auto=0`): tier fraco (corpo liquido &lt; **0.10** ou ausente) + SKIP se exec≠janela (`live_exec_discord`) + gate unificado SKIP se a janela nao confirma o **lado EXEC** (`anti_loss_live_confirm_min_body` **0.25** no corpo liquido das 5 M1); `gate_reason=anti_loss_seed_discord`; soft Kelly so se `anti_loss_hard_skip` **false**; log `[GATES] || ANTI_LOSS`. **M1 last-bar = log; confirmacao = janela N=5.**
+- SKIP tecnico: `training` / `data` / `deploy` / `predict_error` / stop-win `EXEC_PAUSE` / `anti_loss_ema_slope` / `anti_loss_rsi_momentum` / `live_exec_discord` / `neg_edge_zscore_panic`
+- Soft sinal (escopo **1.1**): SSOT `signal_skip` — mini/cal/chop soft Kelly; **neg_edge** le Edge Cal TCN do lado (nao `fusion_p_eff`); soft se `0 < Cal < min_edge_execute`; **hard** se Cal `<= 0` (`gate_reason=neg_edge`; `fusion_p_eff` nao libera EXEC); trava de pânico Z-score bilateral: CALL vetado se $Z < -2.0$, PUT vetado se $Z > +2.0$ (`gate_reason=neg_edge_zscore_panic`); seed `boot_deep` se Cal &lt; `neg_edge_deep_edge_floor` (**−0.12**); `neg_edge_hard_skip` **false**
+- **Anti-loss com microestrutura estrita** (`anti_loss_*`):
+  - **EMA Slope & Trend M5**: CALL exige `Preço > EMA9 > EMA21` E `EMA21[-1] >= EMA21[-3]` (inclinação ascendente/flat de 3 barras M5); PUT exige `Preço < EMA9 < EMA21` E `EMA21[-1] <= EMA21[-3]`. Se a inclinação for contrária, emite veto rígido `why=anti_loss_ema_slope` e cancela a ordem.
+  - **Zero Bypass de Vela M5**: Se intenção for CALL e candle anterior M5 for PUT (`close < open`), ou vice-versa, veto obrigatório `live_exec_discord` (sem tolerância por corpo pequeno).
+  - **RSI Momentum**: Vetar CALL se $\text{RSI}_{\text{M5}} < 0.40$ (fraqueza estrutural); vetar PUT se $\text{RSI}_{\text{M5}} > 0.60$ (`why=anti_loss_rsi_momentum`).
+  - **Seed**: unstamped + `p_loss`≥**0.85** + TCN pos_edge → **hard SKIP** se a **janela ops N=5** nao confirma TCN com corpo ≥ **0.10**; **live**: tier fraco (corpo líquido &lt; **0.10** ou ausente); `gate_reason=anti_loss_seed_discord`; log `[GATES] || ANTI_LOSS`. **M1 last-bar = log; confirmação = janela N=5.**
 - **Fusao EV** (`execution_direction_fusion*`): argmax CALL/PUT; `fusion_block_when_tcn_pos_edge` **true**; `fusion_block_when_tcn_candle_agree` **true** se janela ops==TCN (`why=tcn_candle_agree`); soft EV fraco **0.50** / seed dual-EV&lt;0 **0.25**; telemetria `[GATES] || FUSION`
 - Loss ML: container `aether-loss-classifier` → soft graduado; FLIP so com `p_loss>=0.90` + `veto_ready` + `flip_require_auto_learn` **true** (seed = SOFT); `FLIP_BLOCK:seed_candle|tcn_edge|seed|scale`; `flip_waive_tcn_pos_edge_on_discord` **true** libera `tcn_edge` se tape ou **janela ops** ≠ TCN
 - `min_direction_margin` padrao **0.022** em **[0.015, 0.05]**; nao restaurar quality gate / Hurst/ADX/RSI/price_zone
 - SCALE adapta lado + soft Kelly; **sem** SKIP por escala; `invert_exec_side` **false**
-- EXEC_EMPTY so tecnico / Kelly pause; catalogo: `docs/binary-senior-playbook.md` + `docs/engineering-settings-ssot.md` + `docs/infra-docker.md`
+- Cooldown técnico: 2 ciclos ($120\,\text{s}$) após $L_2+$ (`consecutive_losses_linear >= 2`); transição suave ($0\,\text{s}$) em $L_1$.
+- EXEC_EMPTY tecnico = sucesso de processo quando coerente; catalogo: `docs/binary-senior-playbook.md` + `docs/engineering-settings-ssot.md` + `docs/infra-docker.md`

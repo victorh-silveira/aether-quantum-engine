@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import numpy as np
+
 from src.application.services.execution_signal_skip import apply_kelly_soft, parse_signal_skip_config
 from src.application.services.loss_classifier_flip import tcn_pos_edge_blocks_flip
 from src.application.services.market_audit_ops_window import (
@@ -18,6 +20,89 @@ __all__ = ("apply_anti_loss_seed_discord", "evaluate_anti_loss_seed_discord")
 
 _VALID = {TradeDirection.CALL.name, TradeDirection.PUT.name}
 _GATE = "anti_loss_seed_discord"
+
+
+def _calc_ema_series(series: np.ndarray, period: int) -> np.ndarray | None:
+    """Calcula a serie completa da EMA exponencial."""
+    if len(series) < period:
+        return None
+    alpha = 2.0 / (period + 1.0)
+    out = np.zeros(len(series), dtype=np.float64)
+    out[0] = float(series[0])
+    for i in range(1, len(series)):
+        out[i] = alpha * float(series[i]) + (1.0 - alpha) * out[i - 1]
+    return out
+
+
+def _calc_ema(series: np.ndarray, period: int) -> float | None:
+    """Calcula o ultimo valor da EMA exponencial para a serie."""
+    s = _calc_ema_series(series, period)
+    return float(s[-1]) if s is not None and len(s) > 0 else None
+
+
+def _check_mini_ema_trend_and_slope(
+    orch: Any | None,
+    symbol: str | None,
+    side: TradeDirection,
+) -> tuple[bool, str | None]:
+    """Valida alinhamento (Preco vs EMA9 vs EMA21) e slope da EMA21 (3 barras M5)."""
+    if orch is None or not symbol:
+        return True, None
+    stream = getattr(orch, "stream", None)
+    if stream is None or not hasattr(stream, "get_mini_numpy_series"):
+        return True, None
+    closes = stream.get_mini_numpy_series(str(symbol), "close")
+    if len(closes) < 9:
+        return True, None
+    ema9 = _calc_ema(closes, 9)
+    if ema9 is None:
+        return True, None
+    last_close = float(closes[-1])
+    ema21_series = _calc_ema_series(closes, 21) if len(closes) >= 21 else None
+    if side == TradeDirection.CALL:
+        if last_close < ema9 - 1e-6:
+            return False, "anti_loss_ema_trend"
+        if ema21_series is not None:
+            ema21_last = float(ema21_series[-1])
+            if ema9 < ema21_last - 1e-6:
+                return False, "anti_loss_ema_trend"
+            if len(ema21_series) >= 3 and ema21_last < float(ema21_series[-3]) - 1e-6:
+                return False, "anti_loss_ema_slope"
+    elif side == TradeDirection.PUT:
+        if last_close > ema9 + 1e-6:
+            return False, "anti_loss_ema_trend"
+        if ema21_series is not None:
+            ema21_last = float(ema21_series[-1])
+            if ema9 > ema21_last + 1e-6:
+                return False, "anti_loss_ema_trend"
+            if len(ema21_series) >= 3 and ema21_last > float(ema21_series[-3]) + 1e-6:
+                return False, "anti_loss_ema_slope"
+    return True, None
+
+
+def _check_rsi_filter(
+    metrics: dict[str, Any],
+    side: TradeDirection,
+) -> bool:
+    """True se RSI intradiario for valido: CALL >= 0.40 e PUT <= 0.60."""
+    indicators = metrics.get("indicators") or {}
+    micro = metrics.get("micro_indicators") or {}
+    rsi_val = indicators.get("rsi")
+    if rsi_val is None and isinstance(micro, dict):
+        rsi_val = micro.get("rsi")
+    if rsi_val is None:
+        return True
+    try:
+        rsi = float(rsi_val)
+        if rsi > 1.0:
+            rsi = rsi / 100.0
+    except (TypeError, ValueError):
+        return True
+    if side == TradeDirection.CALL and rsi < 0.40:
+        return False
+    if side == TradeDirection.PUT and rsi > 0.60:
+        return False
+    return True
 
 
 def _side(value: object) -> str | None:
@@ -157,23 +242,34 @@ def _evaluate_live_anti_loss(
     candle: str | None,
     body: float | None,
     min_body: float,
+    orch: Any | None = None,
+    symbol: str | None = None,
 ) -> dict[str, Any]:
-    """Ramo live: hard SKIP se vela fraca, exec!=vela ou nao confirma EXEC no piso live."""
+    """Ramo live: hard SKIP se vela contraria, EMA slope/trend contra, RSI momentum ou vela fraca."""
     out = {"active": False, "skip": False, "soft": False, "reason": None, "soft_mult": None}
     exec_side = _exec_dir(metrics)
     anchor = exec_side if exec_side is not None else tcn
-    if bool(cfg.get("anti_loss_live_weak_candle_enabled", True)) and _weak_candle(candle, body, min_body):
+    if not _check_rsi_filter(metrics, anchor):
+        _stamp_anti_loss_metrics(metrics, tcn=tcn, candle=candle, body=body, reason="anti_loss_rsi_momentum", side=anchor)
+        return _finalize_anti_loss_decision(out, cfg=cfg, reason="anti_loss_rsi_momentum")
+    ema_ok, ema_reason = _check_mini_ema_trend_and_slope(orch, symbol, anchor)
+    if not ema_ok:
+        why = ema_reason or "anti_loss_ema_trend"
+        _stamp_anti_loss_metrics(metrics, tcn=tcn, candle=candle, body=body, reason=why, side=anchor)
+        return _finalize_anti_loss_decision(out, cfg=cfg, reason=why)
+    if (
+        bool(cfg.get("anti_loss_live_exec_candle_enabled", True))
+        and candle is not None
+        and anchor.name != candle
+    ):
+        _stamp_anti_loss_metrics(metrics, tcn=tcn, candle=candle, body=body, reason="live_exec_discord", side=anchor)
+        return _finalize_anti_loss_decision(out, cfg=cfg, reason="live_exec_discord")
+    atr_val = metrics.get("atr")
+    effective_min_body = max(min_body, float(atr_val) * 0.5) if atr_val is not None and float(atr_val) > 0.0 else min_body
+    if bool(cfg.get("anti_loss_live_weak_candle_enabled", True)) and _weak_candle(candle, body, effective_min_body):
         reason = _live_weak_reason(candle)
         _stamp_anti_loss_metrics(metrics, tcn=tcn, candle=candle, body=body, reason=reason, side=anchor)
         return _finalize_anti_loss_decision(out, cfg=cfg, reason=reason)
-    if (
-        bool(cfg.get("anti_loss_live_exec_candle_enabled", True))
-        and exec_side is not None
-        and candle is not None
-        and exec_side.name != candle
-    ):
-        _stamp_anti_loss_metrics(metrics, tcn=tcn, candle=candle, body=body, reason="live_exec_discord", side=exec_side)
-        return _finalize_anti_loss_decision(out, cfg=cfg, reason="live_exec_discord")
     confirm_min = float(cfg.get("anti_loss_live_confirm_min_body", 0.05))
     if bool(cfg.get("anti_loss_live_confirm_enabled", True)) and not _agree_strong(candle, anchor, body, confirm_min):
         reason = _live_confirm_reason(candle, anchor)
@@ -187,9 +283,9 @@ def evaluate_anti_loss_seed_discord(
     *,
     cfg: dict[str, Any],
     orch: Any | None = None,
+    symbol: str | None = None,
 ) -> dict[str, Any]:
     """Decide SKIP se vela live fraca ou seed+discord sem confirmacao forte."""
-    _ = orch
     out = {"active": False, "skip": False, "soft": False, "reason": None, "soft_mult": None}
     if not bool(cfg.get("anti_loss_seed_discord_enabled", False)):
         return out
@@ -207,6 +303,8 @@ def evaluate_anti_loss_seed_discord(
             candle=candle,
             body=body,
             min_body=min_body,
+            orch=orch,
+            symbol=symbol,
         )
     if bool(metrics.get("loss_clf_auto_learn")):
         return out
@@ -231,6 +329,7 @@ def apply_anti_loss_seed_discord(
     orch: Any | None = None,
     force: bool = False,
     cfg: dict[str, Any] | None = None,
+    symbol: str | None = None,
 ) -> bool:
     """Aplica SKIP duro seed+discord (tambem com PEND); True se skipou EXEC."""
     if force:
@@ -238,17 +337,20 @@ def apply_anti_loss_seed_discord(
     if metrics.get("execution_candidate_ready") is False:
         return False
     vision = cfg if isinstance(cfg, dict) else parse_signal_skip_config(None)
-    decision = evaluate_anti_loss_seed_discord(metrics, cfg=vision, orch=orch)
+    sym = symbol or getattr(orch, "anchor", None) or list(getattr(orch, "symbols", []))[0] if getattr(orch, "symbols", None) else None
+    decision = evaluate_anti_loss_seed_discord(metrics, cfg=vision, orch=orch, symbol=sym)
     if not decision["active"]:
         metrics.pop("anti_loss_seed_discord", None)
         metrics.pop("anti_loss_soft", None)
         return False
     metrics["anti_loss_seed_discord"] = True
-    metrics["anti_loss_why"] = str(decision.get("reason") or "seed_discord")
+    reason = str(decision.get("reason") or "seed_discord")
+    metrics["anti_loss_why"] = reason
     if decision["skip"]:
         metrics["execution_candidate_ready"] = False
-        metrics["gate_reason"] = _GATE
-        metrics["signal_status"] = "SKIP:ANTI_LOSS_SEED_DISCORD"
+        _KNOWN_REASONS = {"anti_loss_rsi_momentum", "anti_loss_rsi_trend", "anti_loss_ema_trend", "anti_loss_ema_slope", "live_exec_discord"}
+        metrics["gate_reason"] = reason if reason in _KNOWN_REASONS else _GATE
+        metrics["signal_status"] = f"SKIP:{metrics['gate_reason'].upper()}"
         metrics.pop("anti_loss_soft", None)
         return True
     if decision["soft"]:

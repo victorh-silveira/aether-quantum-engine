@@ -144,8 +144,7 @@ def _purged_frame_split(
     w_train = None if weights is None else weights[:train_end]
     val_frame = frame.slice(val_start, sample_count - val_start)
     val_y = y[val_start:]
-    # Subamostragem com passo stride=5 para eliminar sobreposicao temporal de 5 minutos
-    step = 5
+    step = 1 if val_frame.height < 50 else 5
     val_frame_sub = val_frame.gather_every(step)
     val_y_sub = val_y[::step]
     return (
@@ -190,14 +189,18 @@ def run_optuna_study(
     n_val = int(x_val.height)
     x_val_np = x_val.to_numpy()
 
+    train_rows = int(x_train.height)
+    min_child_hi = max(5, min(180, train_rows // 4))
+    min_child_lo = max(4, min(40, min_child_hi // 2))
+
     def objective(trial: optuna.Trial) -> float:
         params = {
-            "max_depth": trial.suggest_int("max_depth", 2, 3),
-            "learning_rate": trial.suggest_float("learning_rate", 0.003, 0.05, log=True),
-            "num_leaves": trial.suggest_int("num_leaves", 3, 8),
-            "min_child_samples": trial.suggest_int("min_child_samples", 40, 180),
-            "reg_lambda": trial.suggest_float("reg_lambda", 5.0, 100.0, log=True),
-            "feature_fraction": trial.suggest_float("feature_fraction", 0.40, 0.70),
+            "max_depth": trial.suggest_int("max_depth", 2, 4),
+            "learning_rate": trial.suggest_float("learning_rate", 0.005, 0.12, log=True),
+            "num_leaves": trial.suggest_int("num_leaves", 3, 10),
+            "min_child_samples": trial.suggest_int("min_child_samples", min_child_lo, min_child_hi),
+            "reg_lambda": trial.suggest_float("reg_lambda", 1.0, 100.0, log=True),
+            "feature_fraction": trial.suggest_float("feature_fraction", 0.40, 0.85),
             "subsample_freq": trial.suggest_int("subsample_freq", 1, 10),
             "n_jobs": OPTUNA_N_JOBS,
         }
@@ -220,7 +223,8 @@ def run_optuna_study(
         trial.set_user_attr("oos_information_ratio", float(oos_ir))
         if float(oos_zscore) <= 0.0:
             return float(OPTUNA_NEGATIVE_EDGE_PENALTY)
-        return float(oos_zscore) + OPTUNA_IR_TIEBREAK_WEIGHT * float(oos_ir)
+        confidence_scale = min(1.0, math.sqrt(max(1, n_val) / 64.0))
+        return (float(oos_zscore) + OPTUNA_IR_TIEBREAK_WEIGHT * float(oos_ir)) * confidence_scale
 
     study = optuna.create_study(direction="maximize")
     study.optimize(objective, n_trials=trials, show_progress_bar=False, n_jobs=OPTUNA_N_JOBS)

@@ -34,7 +34,7 @@ __all__ = ("trading_cycle_entry_allowed", "prepare_orchestrator_run_loop", "run_
 
 def prepare_orchestrator_run_loop(orch: Any) -> None:
     """Inicializa estado do loop principal apos streams e banner de decisao."""
-    orch._last_cluster_cycle_end = time.time()
+    orch._last_cluster_cycle_end = 0.0
     orch._cooldown_until = 0.0
     orch._cooldown_skip_logged_until = 0.0
     orch._api_maintenance_until = 0.0

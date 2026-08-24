@@ -41,7 +41,8 @@ def resolve_amort_cycles(consecutive_losses: int, soft_recovery: dict[str, Any] 
     span = amax - amin
     losses = max(0, int(consecutive_losses))
     cycles = amax - min(losses, span)
-    return max(amin, min(amax, cycles))
+    res = max(amin, min(amax, cycles))
+    return res
 
 
 def is_recovery_infeasible(

@@ -250,14 +250,16 @@ async def start_orchestrator_streams(orch: Orchestrator) -> bool:
                 bars, mode = resolve_startup_fetch_bars(orch.config, orch.symbols)
                 orch.stream.config["_startup_fetch_count"] = bars
                 reconnect_quiet = bool(getattr(orch, "_streams_ever_started", False))
-                orch.stream.config["_startup_quiet"] = reconnect_quiet
-                orch.stream.config["_startup_train_lean"] = True
+                is_train = training_enabled(orch)
+                if is_train:
+                    orch.stream.config["_startup_train_lean"] = True
                 boot_log = orch.logger.debug if reconnect_quiet else orch.logger.info
                 boot_log(
-                    "DATA: Startup %s | %d simbolos | alvo %d velas micro (lean)",
+                    "DATA: Startup %s | %d simbolos | alvo %d velas micro%s",
                     mode,
                     len(orch.symbols),
                     bars,
+                    " (lean)" if is_train else "",
                 )
                 await orch.stream.start_candle_stream(orch._on_candle)
                 orch.stream.config.pop("_startup_fetch_count", None)

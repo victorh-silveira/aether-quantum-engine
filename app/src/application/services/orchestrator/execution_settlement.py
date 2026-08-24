@@ -116,7 +116,7 @@ async def _handle_stagnant_settlement(
             "EXEC: Liquidacao estagnada; aguardando profit_table (pend=%s)",
             pending_key,
         )
-        await _settlement_poll_delay(max(poll, 5.0))
+        await _settlement_poll_delay(2.0)
         return "continue"
     return "break"
 

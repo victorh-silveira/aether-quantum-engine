@@ -1,6 +1,7 @@
 """Treino walk-forward TCN com split purged e calibracao."""
 
 import logging
+import math
 
 import numpy as np
 import torch
@@ -138,7 +139,10 @@ def train_model_walkforward(
         min_epochs = max(0, int(dl_config.get("min_epochs", 0)))
         label_smoothing = float(dl_config.get("label_smoothing", 0.0))
         focal_gamma = float(dl_config.get("focal_gamma", 0.0))
-        lr_scheduler = str(dl_config.get("lr_scheduler", "cosine")).strip().lower()
+    train_n = len(x_train)
+    power = max(3, int(math.floor(math.log2(max(1, train_n / 4))))) if train_n > 0 else 3
+    dynamic_cap = 32 if int(granularity) >= 86400 or train_n <= 120 else int(batch_size)
+    effective_batch = max(8, min(dynamic_cap, 1 << power))
     avg_loss, best_state, epochs_ran = fit_training_epochs(
         model,
         x_train,
@@ -150,7 +154,7 @@ def train_model_walkforward(
         mask_val,
         device,
         epochs=epochs,
-        batch_size=batch_size,
+        batch_size=effective_batch,
         lr=lr,
         weight_decay=weight_decay,
         label_smoothing=label_smoothing,

@@ -5,7 +5,23 @@ from src.application.services.log_dedupe import clear_log_channel, log_info_if_c
 from src.application.services.market_audit_log import emit_audit_info, format_gates_audit_line
 
 
-_TECHNICAL_REASONS = frozenset({"training", "data", "deploy", "predict_error", "neg_edge", "anti_loss_seed_discord"})
+_TECHNICAL_REASONS = frozenset(
+    {
+        "training",
+        "data",
+        "deploy",
+        "predict_error",
+        "neg_edge",
+        "neg_edge_zscore_panic",
+        "anti_loss_seed_discord",
+        "anti_loss_rsi_momentum",
+        "anti_loss_rsi_trend",
+        "anti_loss_ema_trend",
+        "anti_loss_ema_slope",
+        "live_exec_discord",
+        "loss_clf_hard",
+    }
+)
 
 
 def _candidate_block_reason(metrics: dict) -> str | None:
@@ -43,10 +59,12 @@ def log_execution_blockers(executor, decisions: dict, *, pending: float = 0.0) -
         reason = _candidate_block_reason(metrics)
         if reason:
             blocked.append(f"{symbol}:{reason}")
-            if reason in {"neg_edge", "anti_loss_seed_discord"} and isinstance(metrics, dict):
+            if isinstance(metrics, dict):
                 emit_audit_info(executor.logger, format_gates_audit_line(metrics))
         else:
             blocked.append(f"{symbol}:no_candidate")
+            if isinstance(metrics, dict) and metrics.get("tcn_direction"):
+                emit_audit_info(executor.logger, format_gates_audit_line(metrics))
     if training:
         log_info_if_changed(
             executor.orch,

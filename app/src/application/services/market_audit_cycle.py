@@ -135,7 +135,7 @@ def format_gates_audit_line(metrics: dict[str, Any]) -> str:
         skip_why = str(metrics.get("invert_skipped_reason"))
         fusion_tok = f"{fusion_tok} | INVERT skip={skip_why}"
     if bool(metrics.get("anti_loss_seed_discord")):
-        mode = "skip" if gate == "anti_loss_seed_discord" or status == "SKIP:ANTI_LOSS_SEED_DISCORD" else "soft"
+        mode = "skip" if (gate.startswith("anti_loss") or gate == "live_exec_discord" or status.startswith("SKIP:ANTI_LOSS") or status.startswith("SKIP:LIVE_EXEC")) else "soft"
         why = str(metrics.get("anti_loss_why") or "seed_discord")
         p_anti = _f(metrics, "anti_loss_p_loss", default=p_loss if p_loss >= 0.0 else 0.0)
         side_anti = str(metrics.get("anti_loss_side") or metrics.get("anti_loss_tcn") or neg_side or "-")
@@ -148,8 +148,8 @@ def format_gates_audit_line(metrics: dict[str, Any]) -> str:
             except (TypeError, ValueError):
                 body_tok = ""
         anti_tok = f"ANTI_LOSS {mode} why={why} p={p_anti:.5f} side={side_anti} candle={candle_anti}{body_tok}"
-        if mode == "skip":
-            skip = "anti_loss_seed_discord"
+        if mode == "skip" or status.startswith("SKIP:"):
+            skip = gate if gate else why
     else:
         anti_tok = "ANTI_LOSS off"
     return (

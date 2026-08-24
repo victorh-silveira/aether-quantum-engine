@@ -232,10 +232,10 @@ def fit_calibrator(
     cfg = calibration_cfg if isinstance(calibration_cfg, dict) else {}
     method = str(cfg.get("method", "auto")).strip().lower()
     isotonic_min = max(3, int(cfg.get("isotonic_min_samples", 20)))
-    if not probs:
-        return _build_identity()
     sharpness_cfg = resolve_calibration_sharpness_cfg(cfg)
     min_sharpness = float(sharpness_cfg["min_calibration_sharpness"])
+    if len(probs) <= 30 and bool(cfg.get("small_sample_identity", True)):
+        return _build_identity()
     if method == _METHOD_TEMPERATURE_PLATT:
         return _guard_sharpness(
             _build_temperature_platt(probs, labels),

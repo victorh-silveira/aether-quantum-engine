@@ -229,3 +229,29 @@ def test_neg_edge_respects_force_and_prior_skip():
 def test_parse_neg_edge_soft_rejects_out_of_range():
     with pytest.raises(ValueError, match="neg_edge_soft_kelly_mult"):
         parse_neg_edge_soft_config({"neg_edge_soft_kelly_mult": 1.5})
+
+
+def test_neg_edge_zscore_panic_veto_bilateral():
+    """Testa trava de panico: CALL vetado se Z < -2.0 e PUT vetado se Z > +2.0."""
+    metrics_call = {
+        "execution_candidate_ready": True,
+        "exec_direction": "CALL",
+        "calibrated_prob": 0.80,
+        "edge_zscore": -2.45,
+    }
+    assert apply_negative_cal_edge_pause(metrics_call, min_edge=0.01, payout=0.95) is True
+    assert metrics_call["execution_candidate_ready"] is False
+    assert metrics_call["gate_reason"] == "neg_edge_zscore_panic"
+    assert metrics_call["signal_status"] == "SKIP:NEG_EDGE_ZSCORE_PANIC"
+
+    metrics_put = {
+        "execution_candidate_ready": True,
+        "exec_direction": "PUT",
+        "calibrated_prob": 0.80,
+        "edge_zscore": +2.30,
+    }
+    assert apply_negative_cal_edge_pause(metrics_put, min_edge=0.01, payout=0.95) is True
+    assert metrics_put["execution_candidate_ready"] is False
+    assert metrics_put["gate_reason"] == "neg_edge_zscore_panic"
+    assert metrics_put["signal_status"] == "SKIP:NEG_EDGE_ZSCORE_PANIC"
+
