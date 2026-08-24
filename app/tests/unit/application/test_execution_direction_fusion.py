@@ -21,7 +21,7 @@ def test_parse_direction_fusion_from_ssot():
     assert cfg["fusion_loss_weight"] == pytest.approx(0.45)
     assert cfg["fusion_tcn_shrink_near_half"] == pytest.approx(0.25)
     assert cfg["fusion_block_when_tcn_pos_edge"] is True
-    assert cfg["fusion_block_when_tcn_candle_agree"] is True
+    assert cfg["fusion_block_when_tcn_candle_agree"] is False
     assert cfg["fusion_loss_requires_auto_learn"] is True
     assert cfg["fusion_loss_seed_weight_mult"] == pytest.approx(0.0)
     assert cfg["fusion_weak_ev_soft_kelly_mult"] == pytest.approx(0.50)
@@ -54,7 +54,7 @@ def test_fusion_seed_high_p_loss_keeps_tcn_when_candle_agrees():
         "execution_candidate_ready": True,
         "exec_direction": "CALL",
     }
-    cfg = parse_direction_fusion_config({})
+    cfg = parse_direction_fusion_config({"fusion_block_when_tcn_candle_agree": True})
     chosen = apply_direction_fusion(metrics, TradeDirection.CALL, cfg=cfg)
     assert chosen == TradeDirection.CALL
     assert metrics.get("fusion_blocked_tcn_candle") is True

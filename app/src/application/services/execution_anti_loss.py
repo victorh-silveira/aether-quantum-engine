@@ -44,6 +44,7 @@ def _check_mini_ema_trend_and_slope(
     orch: Any | None,
     symbol: str | None,
     side: TradeDirection,
+    metrics: dict[str, Any] | None = None,
 ) -> tuple[bool, str | None]:
     """Valida alinhamento e slope da EMA21 no timeframe M5."""
     if orch is None or not symbol:
@@ -59,19 +60,24 @@ def _check_mini_ema_trend_and_slope(
         return True, None
     last_close = float(closes[-1])
     ema21_series = _calc_ema_series(closes, 21) if len(closes) >= 21 else None
+    tol = 0.50
+    if metrics is not None:
+        atr_val = metrics.get("atr")
+        if atr_val is not None and float(atr_val) > 0.0:
+            tol = max(tol, float(atr_val) * 0.4)
     if side == TradeDirection.CALL:
-        if last_close < ema9 - 1e-4:
+        if last_close < ema9 - tol:
             return False, "anti_loss_ema_trend"
         if ema21_series is not None and len(ema21_series) >= 3:
             ema21_last = float(ema21_series[-1])
-            if ema21_last < float(ema21_series[-3]) - 0.05:
+            if ema21_last < float(ema21_series[-3]) - 0.10:
                 return False, "anti_loss_ema_slope"
     elif side == TradeDirection.PUT:
-        if last_close > ema9 + 1e-4:
+        if last_close > ema9 + tol:
             return False, "anti_loss_ema_trend"
         if ema21_series is not None and len(ema21_series) >= 3:
             ema21_last = float(ema21_series[-1])
-            if ema21_last > float(ema21_series[-3]) + 0.05:
+            if ema21_last > float(ema21_series[-3]) + 0.10:
                 return False, "anti_loss_ema_slope"
     return True, None
 
@@ -248,7 +254,7 @@ def _evaluate_live_anti_loss(
     if not _check_rsi_filter(metrics, anchor):
         _stamp_anti_loss_metrics(metrics, tcn=tcn, candle=candle, body=body, reason="anti_loss_rsi_momentum", side=anchor)
         return _finalize_anti_loss_decision(out, cfg=cfg, reason="anti_loss_rsi_momentum")
-    ema_ok, ema_reason = _check_mini_ema_trend_and_slope(orch, symbol, anchor)
+    ema_ok, ema_reason = _check_mini_ema_trend_and_slope(orch, symbol, anchor, metrics=metrics)
     if not ema_ok:
         why = ema_reason or "anti_loss_ema_trend"
         _stamp_anti_loss_metrics(metrics, tcn=tcn, candle=candle, body=body, reason=why, side=anchor)
