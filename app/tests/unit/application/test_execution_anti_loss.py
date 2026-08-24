@@ -220,14 +220,14 @@ def test_anti_loss_live_exec_discord_strict():
 
 
 def test_anti_loss_rsi_momentum_veto():
-    """Testa veto de CALL para RSI < 0.40 e PUT para RSI > 0.60."""
+    """Testa veto de CALL para RSI < 0.32 e PUT para RSI > 0.68."""
     metrics_call = _base_metrics(
         ops_window_stamped=True,
         exec_direction="CALL",
         resolved_direction="CALL",
         ops_window_candle_dir="CALL",
         ops_window_candle_body=0.5,
-        indicators={"rsi": 0.38},
+        indicators={"rsi": 0.30},
     )
     cfg = parse_signal_skip_config({})
     assert apply_anti_loss_seed_discord(metrics_call, cfg=cfg) is True
@@ -240,7 +240,7 @@ def test_anti_loss_rsi_momentum_veto():
         resolved_direction="PUT",
         ops_window_candle_dir="PUT",
         ops_window_candle_body=0.5,
-        indicators={"rsi": 0.62},
+        indicators={"rsi": 0.70},
     )
     assert apply_anti_loss_seed_discord(metrics_put, cfg=cfg) is True
     assert metrics_put["gate_reason"] == "anti_loss_rsi_momentum"

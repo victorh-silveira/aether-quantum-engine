@@ -175,8 +175,16 @@ def _stamp_fusion_p_eff(metrics: dict[str, Any]) -> None:
 
 
 def _resolve_neg_side_edge(metrics: dict[str, Any], direction: str, pay: float) -> float:
-    """Edge Cal TCN do lado; fusion_p_eff nao substitui o gate."""
+    """Edge do lado pretendido (usa fusion_p_eff se a fusao foi aplicada, ou Cal TCN)."""
     _stamp_fusion_p_eff(metrics)
+    if bool(metrics.get("fusion_applied")) and metrics.get("fusion_p_eff") is not None:
+        try:
+            p = float(metrics["fusion_p_eff"])
+            edge = float((p * (1.0 + pay)) - 1.0)
+            metrics["neg_edge_tcn_cal_edge"] = edge
+            return edge
+        except (TypeError, ValueError):
+            pass
     edge = float(resolve_predicted_edge(metrics, direction=direction, payout=pay))
     metrics["neg_edge_tcn_cal_edge"] = edge
     return edge
@@ -191,7 +199,7 @@ def apply_negative_cal_edge_pause(
     payout: float | None = None,
     soft_mult: float | None = None,
 ) -> bool:
-    """Hard veto se Cal TCN < floor ou Cal TCN <= 0."""
+    """Veto de Edge negativo ou Z-Score panico."""
     _ = soft_mult
     if force:
         return False
@@ -227,11 +235,21 @@ def apply_negative_cal_edge_pause(
     cfg = _neg_edge_cfg(orch)
     auto_learn = bool(metrics.get("loss_clf_auto_learn"))
     deep_floor = float(cfg.get("neg_edge_deep_edge_floor", -0.12))
-    if edge + 1e-12 < floor or edge + 1e-12 <= 0.0:
-        _apply_neg_edge_hard(metrics, direction=direction, edge=edge, floor=floor)
-        if (not auto_learn) and edge + 1e-12 < deep_floor:
-            metrics["neg_edge_bootstrap_deep"] = True
-        else:
-            metrics["neg_edge_nonpositive_hard"] = True
-        return True
+    hard_skip = bool(cfg.get("neg_edge_hard_skip", False))
+    if edge + 1e-12 <= 0.0 or hard_skip:
+        if edge + 1e-12 < floor or edge + 1e-12 <= 0.0:
+            _apply_neg_edge_hard(metrics, direction=direction, edge=edge, floor=floor)
+            if (not auto_learn) and edge + 1e-12 < deep_floor:
+                metrics["neg_edge_bootstrap_deep"] = True
+            else:
+                metrics["neg_edge_nonpositive_hard"] = True
+            return True
+    elif edge + 1e-12 < floor:
+        soft_kelly = float(cfg.get("neg_edge_soft_kelly_mult", 0.55))
+        metrics["neg_edge_soft"] = True
+        metrics["neg_edge_soft_kelly_mult"] = soft_kelly
+        metrics["signal_skip_waived"] = "neg_edge_soft"
+        cur_scale = float(metrics.get("kelly_fraction_scale", 1.0))
+        metrics["kelly_fraction_scale"] = cur_scale * soft_kelly
+        return False
     return False

@@ -45,7 +45,7 @@ def _check_mini_ema_trend_and_slope(
     symbol: str | None,
     side: TradeDirection,
 ) -> tuple[bool, str | None]:
-    """Valida alinhamento (Preco vs EMA9 vs EMA21) e slope da EMA21 (3 barras M5)."""
+    """Valida alinhamento e slope da EMA21 no timeframe M5."""
     if orch is None or not symbol:
         return True, None
     stream = getattr(orch, "stream", None)
@@ -60,22 +60,18 @@ def _check_mini_ema_trend_and_slope(
     last_close = float(closes[-1])
     ema21_series = _calc_ema_series(closes, 21) if len(closes) >= 21 else None
     if side == TradeDirection.CALL:
-        if last_close < ema9 - 1e-6:
+        if last_close < ema9 - 1e-4:
             return False, "anti_loss_ema_trend"
-        if ema21_series is not None:
+        if ema21_series is not None and len(ema21_series) >= 3:
             ema21_last = float(ema21_series[-1])
-            if ema9 < ema21_last - 1e-6:
-                return False, "anti_loss_ema_trend"
-            if len(ema21_series) >= 3 and ema21_last < float(ema21_series[-3]) - 1e-6:
+            if ema21_last < float(ema21_series[-3]) - 0.05:
                 return False, "anti_loss_ema_slope"
     elif side == TradeDirection.PUT:
-        if last_close > ema9 + 1e-6:
+        if last_close > ema9 + 1e-4:
             return False, "anti_loss_ema_trend"
-        if ema21_series is not None:
+        if ema21_series is not None and len(ema21_series) >= 3:
             ema21_last = float(ema21_series[-1])
-            if ema9 > ema21_last + 1e-6:
-                return False, "anti_loss_ema_trend"
-            if len(ema21_series) >= 3 and ema21_last > float(ema21_series[-3]) + 1e-6:
+            if ema21_last > float(ema21_series[-3]) + 0.05:
                 return False, "anti_loss_ema_slope"
     return True, None
 
@@ -84,7 +80,7 @@ def _check_rsi_filter(
     metrics: dict[str, Any],
     side: TradeDirection,
 ) -> bool:
-    """True se RSI intradiario for valido: CALL >= 0.40 e PUT <= 0.60."""
+    """True se RSI intradiario for valido: CALL >= 0.32 e PUT <= 0.68."""
     indicators = metrics.get("indicators") or {}
     micro = metrics.get("micro_indicators") or {}
     rsi_val = indicators.get("rsi")
@@ -98,9 +94,9 @@ def _check_rsi_filter(
             rsi = rsi / 100.0
     except (TypeError, ValueError):
         return True
-    if side == TradeDirection.CALL and rsi < 0.40:
+    if side == TradeDirection.CALL and rsi < 0.32:
         return False
-    if side == TradeDirection.PUT and rsi > 0.60:
+    if side == TradeDirection.PUT and rsi > 0.68:
         return False
     return True
 
