@@ -1,3 +1,9 @@
+## [2.31.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.30.0...v2.31.0) (2026-08-25)
+
+### Funcionalidades
+
+* **all:** migracao completa para SP 500 M15 e Kelly Single-Strike 1% ([3873e72](https://github.com/victorh-silveira/aether-quantum-engine/commit/3873e7217ac0f732e528dbb36818cbedfc10904f))
+
 ## [2.30.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.29.0...v2.30.0) (2026-08-25)
 
 ### Funcionalidades
