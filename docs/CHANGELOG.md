@@ -1,3 +1,9 @@
+## [2.31.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.31.0...v2.31.1) (2026-08-25)
+
+### Correcoes de Bug
+
+* **domain:** atualizar simbolo oficial SP 500 para OTC_SPC ([d330408](https://github.com/victorh-silveira/aether-quantum-engine/commit/d330408dfb98d9da5304baa5717e939f3a3b083a))
+
 ## [2.31.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.30.0...v2.31.0) (2026-08-25)
 
 ### Funcionalidades
