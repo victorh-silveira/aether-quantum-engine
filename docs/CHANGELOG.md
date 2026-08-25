@@ -1,3 +1,9 @@
+## [2.31.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.31.1...v2.31.2) (2026-08-25)
+
+### Melhorias de Performance
+
+* **config:** otimizar lookback e historico de treino para OTC_SPC ([61c121d](https://github.com/victorh-silveira/aether-quantum-engine/commit/61c121d815cf11af3251b0fafdd2f6824aad0add))
+
 ## [2.31.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.31.0...v2.31.1) (2026-08-25)
 
 ### Correcoes de Bug
