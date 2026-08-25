@@ -1,3 +1,23 @@
+## [2.30.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.29.0...v2.30.0) (2026-08-25)
+
+### Funcionalidades
+
+* **orchestrator:** desativar trava de vela na fusao e tolerar pullbacks na EMA ([32abc43](https://github.com/victorh-silveira/aether-quantum-engine/commit/32abc43d9159c67c57bfb0a63cb1c10c6689d34b))
+* **orchestrator:** harmonizar limiares operacionais e integrar edge pos-fusao ([b988d11](https://github.com/victorh-silveira/aether-quantum-engine/commit/b988d1109d96701d5d1348b52b28fc78be294965))
+* **orchestrator:** implementar filtros de microestrutura M5, regras estritas de gates e sincronizar skills de trader senior ([40a4e6b](https://github.com/victorh-silveira/aether-quantum-engine/commit/40a4e6b75af4d0911aca039d7efe442f4ab1a75e))
+
+### Correcoes de Bug
+
+* **config:** elevar piso minimo de borda para seis centesimos ([42dffc4](https://github.com/victorh-silveira/aether-quantum-engine/commit/42dffc4df9b07c876bf5fe5e6984e651605159d5))
+* **dl:** ajustar suavizacao de rotulo temperatura e paciencia ([4afb15d](https://github.com/victorh-silveira/aether-quantum-engine/commit/4afb15d4424316b6bf7082a232b0bfe077d71414))
+* **orchestrator:** bloquear execucao em borda negativa e fusao neutra ([cd7b491](https://github.com/victorh-silveira/aether-quantum-engine/commit/cd7b49143e672636d3d8f79c68b033565b0774b7))
+* **orchestrator:** flexibilizar limiar de borda e acelerar deteccao de tendencia ([07b8338](https://github.com/victorh-silveira/aether-quantum-engine/commit/07b833886a9d2e7f65f0a6aa00051ee567a72733))
+* **repo:** alinhar QA local ao CI e SSOT de producao ([29e10ba](https://github.com/victorh-silveira/aether-quantum-engine/commit/29e10ba11176a01b9933ee59a56196d920524503))
+
+### Refatoracoes Tecnicas
+
+* **orchestrator:** modularizar anti-loss em helper dedicado com 100% cov ([dae9791](https://github.com/victorh-silveira/aether-quantum-engine/commit/dae979135706b6d21ab44173558053fb09c46738))
+
 ## [2.29.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.28.0...v2.29.0) (2026-08-21)
 
 ### Funcionalidades
