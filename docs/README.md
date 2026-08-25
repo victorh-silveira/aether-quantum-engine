@@ -24,7 +24,7 @@
 | [infra-docker.md](infra-docker.md) | Stack Docker hibrida: profiles `core/ml`, binds localhost, hydrate, smoke |
 | [deriv-api.md](deriv-api.md) | Referência Deriv + integração PAT/OTP (retries Cloudflare/5xx) |
 | [deriv-api-aether.md](deriv-api-aether.md) | Guia rápido Deriv para agentes (mapeamento Aether híbrido OTP/REST) |
-| [deriv-indices-algorithm.md](deriv-indices-algorithm.md) | Universo `R_10` (Volatility 10 M1) e migracao |
+| [deriv-indices-algorithm.md](deriv-indices-algorithm.md) | Mercado Real S&P 500 `OTC_SPC` (M15 / D1) |
 | [CHANGELOG.md](CHANGELOG.md) | Histórico de versões |
 
 Ponto de entrada do projeto: [README.md](../README.md). Agentes: [AGENTS.md](../AGENTS.md).
@@ -40,7 +40,7 @@ presentation  →  application  →  domain
 | Camada | Papel |
 |--------|-------|
 | Application | Orquestração, DL, direção modular, quality gates, meta |
-| Domain | Risco Kelly + Soft Recovery (`soft_recovery_policy`), `RiskPolicy`, modelos, math, `side_equilibrium` |
+| Domain | Risco Kelly Single-Strike 1% + Soft Recovery (`soft_recovery_policy`), `RiskPolicy`, modelos, math, `side_equilibrium` |
 | Infrastructure | Deriv (REST/WS com retry), Redis, MinIO, Timescale |
 | Presentation | Logger terminal |
 
@@ -50,21 +50,17 @@ Regra: **domain** não importa application nem infrastructure. **Application** o
 
 | Item | Valor |
 |------|-------|
-| Universo | `R_10` (âncora `R_10`) |
-| DL | TCN, lookback **480**, micro **60 s**, macro **7200 s**, `FEATURE_DIM=34`, label `ma_trend`, tensor `[1, 480, 34]` |
-| Meta | LightGBM HTTP `:8005`, `META_FEATURE_DIM=43` (micro **60 s**); **opcional** para execução |
-| Relógio | Micro/MINI **60 s** + macro **7200 s**; contrato ops **5 m (M5)**; label TCN **N** ∈ {15,20,…,60} (**SSOT atual N=55**); ratio **1:120**; assinatura legado `m5b:…;m5:…;m15:…` |
-| Ciclo / assinatura | `cycle_interval_seconds` / `signature_boundary_seconds` = **60 s** (sync fecho M1); `exec_empty_retry` **60 s** |
-| Execução | `mandatory_trade_each_cycle: false`; `force_trade_every_cycle: false`; `invert_exec_side: false`; fusao EV + signal_skip 1.1 (quality gate amplo **fora**) |
+| Universo | `OTC_SPC` (âncora `OTC_SPC`) |
+| DL | TCN, lookback **20**, micro **900 s** (M15), macro **86400 s** (D1), `FEATURE_DIM=34`, label `supertrend_atr`, tensor `[1, 20, 34]` |
+| Meta | LightGBM HTTP `:8005`, `META_FEATURE_DIM=43` (micro **900 s**); **opcional** para execução |
+| Relógio | Micro/MINI **900 s** (M15) + macro **86400 s** (D1); contrato ops **15 m (M15)**; label TCN **N=1** vela M15; ratio **1:96**; ciclo **900 s** |
+| Ciclo / assinatura | `cycle_interval_seconds` / `signature_boundary_seconds` = **900 s** (sync fecho M15); `exec_empty_retry` **900 s** |
+| Execução | `mandatory_trade_each_cycle: false`; `force_trade_every_cycle: false`; `invert_exec_side: false`; fusao EV + anti-loss microestrutura M15 + signal_skip 1.1 |
 | Fail-closed | Meta **opcional** nos settings atuais (`require_meta_for_execution: false`); TCN eager/CUDA local |
-| Calibração | `neutral_half_width: 0.0` (zona neutra **off**); thresholds CALL/PUT **0.62/0.38**; override TCN macro se raw &gt;0.65 ou &lt;0.35 |
-| Direção | Resolver modular (`checks` → `persistence` → `meta_edge` → `finalize`); SIDE_EQ antecipado; toxic escape **mantém** edge positivo |
-| Persistence | Threshold **2** losses: tenta **flip** para o oposto (`side_eq_toxic_escape`); se o oposto também estiver saturado → skip |
-| Quality gate | Pisos regulares de margem/edge/ADX **0.0** (esteira contínua); starvation a partir de **6** skips; edge decay a partir de **8** (`edge_decay_floor` → 0.0) |
-| Recovery relax | `recovery_relax.edge_floor: -0.55` com `linear≥2` e pending |
-| Discordance | `discordance_veto_enabled: false` (módulo `execution_direction_discordance` disponível) |
-| Risco | Kelly EXPLORE (`fraction=0.08`, piso **0.25%** / teto **5%**) + Soft Recovery RECOVER (`max_safe_stake_pct=0.05`, payout **0.72**); stop-win Kelly **4 ciclos/1h**; stop win 3% (≥$100) / $10 (&lt;$100) |
-| Settlement | Tolerância **600 s**, reconciliação passiva; pós-EXEC_EMPTY alinha fronteira (cap `exec_empty_retry_seconds`) |
+| Calibração | Thresholds CALL/PUT **0.46/0.34**; override TCN macro se raw &gt;0.82 ou &lt;0.18 |
+| Direção | Resolver modular com anti-loss microestrutura M15 (EMA slope 9/21, RSI momentum) |
+| Risco | Kelly Single-Strike 1% (`fraction=0.08`, alvo 1% da banca em payout 0.85 em 1 tacada M15); Soft Recovery RECOVER |
+| Settlement | Tolerância **600 s**, reconciliação passiva; pós-EXEC_EMPTY alinha fronteira |
 | Watchdog | Stale tick **300 s** |
-| Histórico treino | **2000** barras micro M1; sync lean no treino (macro≤128, mini=0) |
-| QA | Pre-commit: lint + testes **100%** cobertura (**305** `test_*.py`) + security; ≤300 linhas/arquivo |
+| Histórico treino | **100** barras diárias D1 |
+| QA | Pre-commit: lint + testes **100%** cobertura + security; ≤300 linhas/arquivo |

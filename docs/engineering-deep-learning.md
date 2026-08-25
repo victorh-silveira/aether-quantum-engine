@@ -6,23 +6,22 @@ Guia operacional DL para agentes. Detalhe de features: [`arquitetura.md`](arquit
 
 | Item | Valor tipico |
 |------|----------------|
-| Simbolo | **R_10** (Volatility 10) |
+| Simbolo | **OTC_SPC** (S&P 500) |
 | Arch | TCN |
-| Lookback | **480** → tensor `[1, 480, 34]` (~8 h @ 60 s) |
-| MACRO OHLC | **7200 s** (`data_handler.granularity`) |
-| MICRO (TCN) | **60 s** (`micro_granularity`) — M1 |
-| Contrato | **5 m** RISE_FALL (ops fixo via `ops_contract_duration_minutes=5` → `params.duration=5`); label **N** ∈ {15,20,…,60} eleito no launch-train (**SSOT atual `label_horizon_bars=45`** / H45; gap intencional vs settle 5 min) |
-| MINI OHLC | **60 s** (`mini_granularity`) |
+| Lookback | **20** → tensor `[1, 20, 34]` |
+| MACRO OHLC | **86400 s** (D1, `data_handler.granularity`) |
+| MICRO (TCN) | **900 s** (`micro_granularity`) — M15 |
+| Contrato | **15 m** RISE_FALL (ops fixo M15); label TCN **N=1** vela M15 (`supertrend_atr`) |
+| MINI OHLC | **900 s** (`mini_granularity`) |
 | Bootstrap wait | `bootstrap_history_wait_cap_seconds` **30** (nao dorme a granularidade inteira entre retries) |
 | MILI | Tick flow (nao OHLC) |
 | Features | **34D** (`FEATURE_DIM`) |
-| Label | `ma_trend` (MA 5; horizonte **N barras** micro = N×60 s; **nao** igual ao duration ops) |
+| Label | `supertrend_atr` (SuperTrend + Volatility ATR Band filter) |
 | Online training | **false** (DEMO usa checkpoint do `launch-train`) |
-| ACC / deploy | `soft_min_val_accuracy` **0.53**; `max_brier` / `soft_max_brier` **0.26**; `force_ok=false` |
-| Retries | `train_deploy_retries` **5** (reseed + reset de pesos) |
-| Early stop | `min_epochs` **20**, `early_stopping_patience` **16**; patience so em ganho de **val_acc** com **BCE** CE&lt;**0.70** (monitor de val ignora `focal_gamma`); restore **best val_acc** sharp |
+| ACC / deploy | `soft_min_val_accuracy` **0.53**; `max_brier` / `soft_max_brier` **0.28**; `force_ok=false` |
+| Retries | `train_deploy_retries` **6** (reseed + reset de pesos) |
+| Early stop | `min_epochs` **15**, `early_stopping_patience` **17** |
 | Meta | LightGBM **43D** `predicted_payoff_edge` |
-| Sweep horizonte N | **On** no launch-train (`horizon_sweep.run_in_launch_train=true`): grade **15/20/…/60**; treino por celula `duration=N` alinhado ao label; `quiet_train_logs` **true** (subprocess da celula em **CRITICAL** — sem AVISO/ERRO de collapse; motivo curto em `why=` na linha cell; DEMO INFO intacto); elegivel **settle_wr** ≥ be+**0.03**, n≥16, history≥800; pos-sweep denso (board resumo + winner/promote + Timescale/meta 1 linha cada); promote copia ckpt + grava `label_horizon_bars` (**nao** exporta duration ops; ops via `ops_contract_duration_minutes`) |
 
 ## Entry points
 

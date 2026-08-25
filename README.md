@@ -5,17 +5,17 @@
 [![Architecture](https://img.shields.io/badge/Architecture-Clean%20%7C%20Domain--pure-1F4E79)](docs/arquitetura.md)
 [![Asyncio](https://img.shields.io/badge/Runtime-asyncio%20%7C%20WSL-00599C?logo=python&logoColor=white)](AGENTS.md)
 [![QA](https://img.shields.io/badge/QA-ruff%20%7C%20pre--commit%20%7C%20bandit-FAB040?logo=pre-commit&logoColor=white)](.pre-commit-config.yaml)
-[![PyTorch](https://img.shields.io/badge/DL-PyTorch%20TCN%20H55-EE4C2C?logo=pytorch&logoColor=white)](docs/engineering-deep-learning.md)
+[![PyTorch](https://img.shields.io/badge/DL-PyTorch%20TCN%20M15-EE4C2C?logo=pytorch&logoColor=white)](docs/engineering-deep-learning.md)
 [![Polars](https://img.shields.io/badge/DataFrame-Polars%20SSOT-CD792C)](docs/engineering-python-deps.md)
-[![Quant](https://img.shields.io/badge/Risk-Kelly%20%7C%20Soft%20Recovery-0B3D91)](docs/llm-trading-doctrine.md)
+[![Quant](https://img.shields.io/badge/Risk-Kelly%20Single--Strike%201%25-0B3D91)](docs/llm-trading-doctrine.md)
 [![Infra](https://img.shields.io/badge/Infra-Redis%20%7C%20Timescale%20%7C%20MinIO-DC382D?logo=redis&logoColor=white)](docs/infra-docker.md)
-[![Deriv](https://img.shields.io/badge/Market-Deriv%20R__10%20%7C%20RISE__FALL%20M5-111111)](docs/deriv-api-aether.md)
+[![Deriv](https://img.shields.io/badge/Market-Deriv%20OTC__SPC%20%7C%20RISE__FALL%20M15-111111)](docs/deriv-api-aether.md)
 [![CI](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/victorh-silveira/aether-quantum-engine?display_name=tag&label=Release)](https://github.com/victorh-silveira/aether-quantum-engine/releases)
 
-Motor quantitativo assíncrono para a Deriv: decisão por **Deep Learning** (TCN/LSTM/GRU) no índice **Volatility 10** (`R_10`), contratos **RISE_FALL** de **5 m (M5)** com label TCN em **N velas M1** (N ∈ {15,20,…,60} eleito no treino; **SSOT atual N=55** / H55; gap intencional vs settle 5 min), micro/MINI **60 s** e contexto macro **7200 s** (ratio **1:120**), meta-regressor LightGBM (**43D**) de expectativa de retorno contínuo (single-symbol), e **sizing Kelly + Soft Recovery** (Kelly em EXPLORE; Soft Recovery cover pleno amort **1/1** em RECOVER). As chaves de assinatura ainda usam prefixos legados `m5`/`m15` para compatibilidade de cache. Sem Triton: inferência eager/CUDA local; Docker profiles `core,ml`.
+Motor quantitativo assíncrono para a Deriv: decisão por **Deep Learning** (TCN/LSTM/GRU) no índice do mercado real S&P 500 **US 500** (`OTC_SPC`), contratos **RISE_FALL** de **15 m (M15)** com label TCN em **N=1 vela M15** (`supertrend_atr`), micro/MINI **900 s** e contexto macro D1 **86400 s** (100 barras diárias de treino), meta-regressor LightGBM (**43D**) de expectativa de retorno contínuo (single-symbol), e **sizing Kelly Single-Strike** (alvo de 1.0% da banca em tacada única M15; Soft Recovery cover pleno amort **1/1** em RECOVER). Sem Triton: inferência eager/CUDA local; Docker profiles `core,ml`.
 
-A operação divide-se em duas fases: **FASE TREINO** (nenhuma ordem até checkpoint/sessão prontos; `online_training` **false** no DEMO) e **FASE OPERACAO** continua (`mandatory_trade_each_cycle: false`, `force_trade_every_cycle: false`, `invert_exec_side: false`): o ciclo avalia candidato a cada **60 s** via TCN + fusao EV + signal_skip 1.1. Meta é **opcional** para execução (`require_meta_for_execution: false`); inferência TCN = eager/CUDA local no host. Mercado Volatility **24/7**.
+A operação divide-se em duas fases: **FASE TREINO** (nenhuma ordem até checkpoint/sessão prontos; `online_training` **false** no DEMO) e **FASE OPERACAO** continua (`mandatory_trade_each_cycle: false`, `force_trade_every_cycle: false`, `invert_exec_side: false`): o ciclo avalia candidato a cada **900 s** (fechamento da barra M15) via TCN + fusao EV + microestrutura balanceada M15 + signal_skip 1.1. Meta é **opcional** para execução (`require_meta_for_execution: false`); inferência TCN = eager/CUDA local no host.
 
 Documentação: [AGENTS.md](AGENTS.md) (agentes) | [matriz de cobertura](docs/agent-coverage.md) | [arquitetura](docs/arquitetura.md) | [estrutura e módulos](docs/structure.md) | [metodologia quant](docs/medallion.md) | [infra Docker](docs/infra-docker.md) | [Deriv API](docs/deriv-api.md) | [Deriv para agentes](docs/deriv-api-aether.md) | [índice docs](docs/README.md)
 
@@ -27,21 +27,21 @@ Layout: `app/` (código e testes), `config/settings.json`, `docs/`, `linters/`. 
 
 | Etapa | Componente | Descrição |
 |-------|------------|-----------|
-| Dados | `StreamHandler` + `TickBuffer` + `AetherWatchdog` | WebSocket Deriv dual-timeframe: OHLC macro **7200 s** (assinatura legado `m15`) para DL/regimes + OHLC micro **60 s** (assinatura legado `m5`) para gatilho do ciclo; ticks agregados por barra fechada; watchdog reconecta stream em inanição (`watchdog_stale_tick_seconds` **300**) |
+| Dados | `StreamHandler` + `TickBuffer` + `AetherWatchdog` | WebSocket Deriv dual-timeframe: OHLC macro **86400 s** (D1) para DL/regimes + OHLC micro **900 s** (M15) para gatilho do ciclo; ticks agregados por barra fechada; watchdog reconecta stream em inanição (`watchdog_stale_tick_seconds` **300**) |
 | Fases | `_training_phase_gate` | Suspende a operação até todos os modelos concluírem o treino da sessão |
 | Predição DL | `decision_bridge` + `dl_predict_*` + TCN | **34 features** TCN; bundle meta **43D**; inferência eager/CUDA local |
 | Meta GBDT | `meta_classifier_client` + `aether-meta-classifier` | Regressão tabular **43D**; `predicted_payoff_edge` contínuo (opcional para execução) |
 | Z-Score payoff | `payoff_edge_zscore` | Janela adaptativa 15–45; `meta_payoff_edge_zscore` |
-| Direção | `execution_direction_*` (resolver + checks + persistence + meta_edge + discordance) | TCN define lado (thresholds **0.51/0.49**); zona neutra **off**; persistence pode **flipar** (toxic escape) ou skip; SIDE_EQ antecipado; D-SQUEEZE rebaixa score |
-| Rotulagem DL | `dl_labels` + `LabelSpec` | SSOT `ma_trend`; `spot_forward` / Triple Barrier via config |
-| Quality / starvation | `execution_quality_gate*` | Dual soft TCN+meta; pisos regulares de margem/ADX **0.0**; starvation a partir de **6** skips; edge decay a partir de **8** (`edge_decay_floor` → 0.0) |
+| Direção | `execution_direction_*` (resolver + checks + persistence + meta_edge + discordance) | TCN define lado (thresholds **0.46/0.34**); zona neutra **off**; anti-loss microestrutura M15; SIDE_EQ antecipado |
+| Rotulagem DL | `dl_labels` + `LabelSpec` | SSOT `supertrend_atr` (horizonte N=1 vela M15) |
+| Quality / starvation | `execution_quality_gate*` | Dual soft TCN+meta; pisos regulares de margem/ADX **0.0**; starvation a partir de **6** skips; edge decay a partir de **8** |
 | Ranking | `execution_market_rank` | Score `tcn × max(0.1, 1+z)` |
-| Execução | `ExecutionManager` + lotes fracionados | Proposta atômica; RISE_FALL **5 m** (ops fixo; label H55) |
-| Risco | `RiskManager` + Kelly / Soft Recovery | `EXPLORE_KELLY` (fraction 0.08, teto 3,5%); Soft Recovery cover pleno amort **1/1** em RECOVER (`cover_multiple` **1.50**, `max_safe_stake_pct`) |
+| Execução | `ExecutionManager` + lotes fracionados | Proposta atômica; RISE_FALL **15 m** (ops fixo M15) |
+| Risco | `RiskManager` + Kelly Single-Strike / Soft Recovery | Kelly Single-Strike 1% (alvo de 1% da banca em payout 0.85); Soft Recovery cover pleno amort **1/1** em RECOVER (`cover_multiple` **1.50**, `max_safe_stake_pct`) |
 | Concorrência | `StateManager` + barreira atômica | Lock serializa inferência, liquidação e persistência |
 | Inferência | PyTorch eager / CUDA | Checkpoint local `data/dl/`; motor no host |
 
-Ciclo do orquestrador: `orchestrator.cycle_interval_seconds` / `signature_boundary_seconds` / `exec_empty_retry_seconds` (**60 s**). Contexto DL: `data_handler.granularity` (**7200 s**), micro/MINI **60 s**, tensor `[1, 480, 34]` (`deep_learning.lookback` **480**). Contrato: `risk_management.params.duration` (**5** m, via `horizon_sweep.ops_contract_duration_minutes`); label `deep_learning.label_horizon_bars` (**55** apos ultimo promote). Proporção multi-timeframe **1:120** (60:7200).
+Ciclo do orquestrador: `orchestrator.cycle_interval_seconds` / `signature_boundary_seconds` / `exec_empty_retry_seconds` (**900 s**). Contexto DL: `data_handler.granularity` (**86400 s**), micro/MINI **900 s**, tensor `[1, 20, 34]` (`deep_learning.lookback` **20**). Contrato: `risk_management.params.duration` (**15** m); label `deep_learning.label_horizon_bars` (**1** vela M15).
 
 ---
 
@@ -51,11 +51,11 @@ Arquivo: [`config/settings.json`](config/settings.json)
 
 | Bloco | Função |
 |-------|--------|
-| `symbols` / `anchor` | Universo (`R_10`; ancora `R_10`) |
-| `data_handler` | `granularity` (macro **7200 s**), `micro_granularity` / `mini_granularity` (**60 s**), historico treino tipico **2000** barras micro M1 |
-| `deep_learning` | `arch`, `lookback` (**480**), `online_training` **false**, calibration (`neutral_half_width: 0.0`), thresholds **0.51/0.49**, `deploy_gate` |
+| `symbols` / `anchor` | Universo (`OTC_SPC`; ancora `OTC_SPC`) |
+| `data_handler` | `granularity` (macro **86400 s**), `micro_granularity` / `mini_granularity` (**900 s**), historico treino **100** barras D1 |
+| `deep_learning` | `arch`, `lookback` (**20**), `online_training` **false**, calibration, thresholds **0.46/0.34**, `deploy_gate` |
 | `orchestrator.execution` | `mandatory_trade_each_cycle: false`, `force_trade_every_cycle: false`, `invert_exec_side: false`, `scale_vision.fusion_*`, `signal_skip` 1.1, settlement **600 s** |
-| `risk_management.kelly` | Stake EXPLORE (`fraction: 0.08`, piso **0.25%**, tetos stop-win Kelly ate **5%**) |
+| `risk_management.kelly` | Stake Kelly Single-Strike 1% (`fraction: 0.08`, stop-win Kelly **1%**, tetos stop-win ate **5%**) |
 | `risk_management.soft_recovery` | RECOVER: amort **1/1**, cover **1.50**, linear3 **2.5%** |
 | `orchestrator.execution.side_equilibrium` | Leis dos pequenos/grandes números CALL/PUT (small-N hard skip; large-N soft Kelly) |
 | `infra` | Redis, Timescale, MinIO, meta-classifier, loss-classifier |
