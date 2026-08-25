@@ -44,7 +44,7 @@ def test_production_deploy_gate_armed():
     assert int(dl.get("train_deploy_retries", 0)) >= 1
     assert int(dl.get("sample_weighting", {}).get("recency_half_life_n", 0)) == 365
     assert str(dl.get("label_mode")) == "supertrend_atr"
-    assert int(dl.get("lookback", 0)) == 30
+    assert int(dl.get("lookback", 0)) == 20
     assert int(dl.get("label_horizon_bars", 0)) == 1
     assert int(settings["risk_management"]["params"]["duration"]) == 15
     assert str(settings["risk_management"]["params"]["duration_unit"]) == "m"
@@ -220,9 +220,9 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert int(meta["retrain_min_n"]) == 2
     assert int(meta["max_buffer"]) == 2000
     assert float(meta["timeout_seconds"]) == pytest.approx(8.0)
-    assert int(data["fetch_count"]) == 120
-    assert int(data["micro_fetch_count"]) == 120
-    assert int(data["mini_fetch_count"]) == 120
+    assert int(data["fetch_count"]) == 100
+    assert int(data["micro_fetch_count"]) == 100
+    assert int(data["mini_fetch_count"]) == 100
     orch = settings["orchestrator"]
     assert int(orch["cycle_interval_seconds"]) == 900
     assert int(orch["signature_boundary_seconds"]) == 900
@@ -273,7 +273,7 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert "ws_connect_max_attempts" not in settings.get("api_config", {})
     assert "history_fetch_chunk" not in settings.get("data_handler", {})
     dl = settings["deep_learning"]
-    assert int(dl["training_history_bars"]) == 120
+    assert int(dl["training_history_bars"]) == 100
     assert float(dl["train_history_shortfall_ratio"]) == pytest.approx(0.95)
     assert int(dl["bootstrap_max_wait_rounds"]) == 16
     cal = dl["calibration"]

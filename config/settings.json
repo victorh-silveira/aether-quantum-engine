@@ -28,16 +28,16 @@
   },
   "data_handler": {
     "buffer_limit": 262144,
-    "fetch_count": 120,
+    "fetch_count": 100,
     "granularity": 86400,
-    "history_bars": 120,
+    "history_bars": 100,
     "micro_granularity": 900,
-    "micro_history_bars": 120,
-    "micro_fetch_count": 120,
+    "micro_history_bars": 100,
+    "micro_fetch_count": 100,
     "min_required_points": 40,
     "mini_granularity": 900,
-    "mini_history_bars": 120,
-    "mini_fetch_count": 120
+    "mini_history_bars": 100,
+    "mini_fetch_count": 100
   },
   "deep_learning": {
     "arch": "tcn",
@@ -93,7 +93,7 @@
       "soft_max_brier": 0.28,
       "soft_min_val_accuracy": 0.53,
       "reject_majority_collapse": true,
-      "max_label_call_frac_bias": 0.30,
+      "max_label_call_frac_bias": 0.25,
       "min_minority_recall": 0.25
     },
     "early_stopping_patience": 17,
@@ -200,7 +200,7 @@
       "window": 64,
       "wr_raw_inconsistent_gap": 0.12
     },
-    "lookback": 30,
+    "lookback": 20,
     "lr_scheduler": "cosine",
     "lstm": {
       "dropout": 0.2,
@@ -230,8 +230,8 @@
     "training_batch_size": 128,
     "training_device": "auto",
     "training_epochs": 300,
-    "training_history_bars": 120,
-    "training_history_days": 120,
+    "training_history_bars": 100,
+    "training_history_days": 100,
     "training_log_every_n_epochs": 1,
     "val_acc_live_blend": 0.2,
     "validation_ratio": 0.2,
