@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
-import numpy as np
-
+from src.application.services.execution_anti_loss_helpers import (
+    check_mini_ema_trend_and_slope,
+    check_rsi_filter,
+)
 from src.application.services.execution_signal_skip import apply_kelly_soft, parse_signal_skip_config
 from src.application.services.loss_classifier_flip import tcn_pos_edge_blocks_flip
 from src.application.services.market_audit_ops_window import (
@@ -20,91 +22,6 @@ __all__ = ("apply_anti_loss_seed_discord", "evaluate_anti_loss_seed_discord")
 
 _VALID = {TradeDirection.CALL.name, TradeDirection.PUT.name}
 _GATE = "anti_loss_seed_discord"
-
-
-def _calc_ema_series(series: np.ndarray, period: int) -> np.ndarray | None:
-    """Calcula a serie completa da EMA exponencial."""
-    if len(series) < period:
-        return None
-    alpha = 2.0 / (period + 1.0)
-    out = np.zeros(len(series), dtype=np.float64)
-    out[0] = float(series[0])
-    for i in range(1, len(series)):
-        out[i] = alpha * float(series[i]) + (1.0 - alpha) * out[i - 1]
-    return out
-
-
-def _calc_ema(series: np.ndarray, period: int) -> float | None:
-    """Calcula o ultimo valor da EMA exponencial para a serie."""
-    s = _calc_ema_series(series, period)
-    return float(s[-1]) if s is not None and len(s) > 0 else None
-
-
-def _check_mini_ema_trend_and_slope(
-    orch: Any | None,
-    symbol: str | None,
-    side: TradeDirection,
-    metrics: dict[str, Any] | None = None,
-) -> tuple[bool, str | None]:
-    """Valida alinhamento e slope da EMA21 no timeframe M5."""
-    if orch is None or not symbol:
-        return True, None
-    stream = getattr(orch, "stream", None)
-    if stream is None or not hasattr(stream, "get_mini_numpy_series"):
-        return True, None
-    closes = stream.get_mini_numpy_series(str(symbol), "close")
-    if len(closes) < 9:
-        return True, None
-    ema9 = _calc_ema(closes, 9)
-    if ema9 is None:
-        return True, None
-    last_close = float(closes[-1])
-    ema21_series = _calc_ema_series(closes, 21) if len(closes) >= 21 else None
-    tol = 0.50
-    if metrics is not None:
-        atr_val = metrics.get("atr")
-        if atr_val is not None and float(atr_val) > 0.0:
-            tol = max(tol, float(atr_val) * 0.4)
-    if side == TradeDirection.CALL:
-        if last_close < ema9 - tol:
-            return False, "anti_loss_ema_trend"
-        if ema21_series is not None and len(ema21_series) >= 3:
-            ema21_last = float(ema21_series[-1])
-            if ema21_last < float(ema21_series[-3]) - 0.10:
-                return False, "anti_loss_ema_slope"
-    elif side == TradeDirection.PUT:
-        if last_close > ema9 + tol:
-            return False, "anti_loss_ema_trend"
-        if ema21_series is not None and len(ema21_series) >= 3:
-            ema21_last = float(ema21_series[-1])
-            if ema21_last > float(ema21_series[-3]) + 0.10:
-                return False, "anti_loss_ema_slope"
-    return True, None
-
-
-def _check_rsi_filter(
-    metrics: dict[str, Any],
-    side: TradeDirection,
-) -> bool:
-    """True se RSI intradiario for valido: CALL >= 0.32 e PUT <= 0.68."""
-    indicators = metrics.get("indicators") or {}
-    micro = metrics.get("micro_indicators") or {}
-    rsi_val = indicators.get("rsi")
-    if rsi_val is None and isinstance(micro, dict):
-        rsi_val = micro.get("rsi")
-    if rsi_val is None:
-        return True
-    try:
-        rsi = float(rsi_val)
-        if rsi > 1.0:
-            rsi = rsi / 100.0
-    except (TypeError, ValueError):
-        return True
-    if side == TradeDirection.CALL and rsi < 0.32:
-        return False
-    if side == TradeDirection.PUT and rsi > 0.68:
-        return False
-    return True
 
 
 def _side(value: object) -> str | None:
@@ -251,10 +168,10 @@ def _evaluate_live_anti_loss(
     out = {"active": False, "skip": False, "soft": False, "reason": None, "soft_mult": None}
     exec_side = _exec_dir(metrics)
     anchor = exec_side if exec_side is not None else tcn
-    if not _check_rsi_filter(metrics, anchor):
+    if not check_rsi_filter(metrics, anchor):
         _stamp_anti_loss_metrics(metrics, tcn=tcn, candle=candle, body=body, reason="anti_loss_rsi_momentum", side=anchor)
         return _finalize_anti_loss_decision(out, cfg=cfg, reason="anti_loss_rsi_momentum")
-    ema_ok, ema_reason = _check_mini_ema_trend_and_slope(orch, symbol, anchor, metrics=metrics)
+    ema_ok, ema_reason = check_mini_ema_trend_and_slope(orch, symbol, anchor, metrics=metrics)
     if not ema_ok:
         why = ema_reason or "anti_loss_ema_trend"
         _stamp_anti_loss_metrics(metrics, tcn=tcn, candle=candle, body=body, reason=why, side=anchor)
