@@ -35,7 +35,7 @@ async def test_run_trading_cycle_waits_for_open_contract_settlement(orch_config)
 async def test_on_candle_throttling_and_cooldown(orch_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
         orch = Orchestrator(orch_config, "token")
-        candle = MagicMock(symbol="R_10")
+        candle = MagicMock(symbol=orch.anchor)
 
         orch.risk_manager.is_on_cooldown = MagicMock(return_value=False)
         await orch._on_candle(candle)
@@ -239,8 +239,8 @@ async def test_run_trading_cycle_invokes_inference_on_m5_signature_shift(orch_co
         orch = Orchestrator(orch_config, "token")
         orch.stream.is_synchronized = True
         orch.ws.is_running = True
-        orch.stream.macro_candles = {"R_10": [_bear_candle(_MACRO_EPOCH)]}
-        orch.stream.micro_candles = {"R_10": [_bear_candle(_MICRO_EPOCH)]}
+        orch.stream.macro_candles = {orch.anchor: [_bear_candle(_MACRO_EPOCH)]}
+        orch.stream.micro_candles = {orch.anchor: [_bear_candle(_MICRO_EPOCH)]}
         orch._last_epoch = _MICRO_EPOCH
         orch._last_processed_epoch = _MICRO_EPOCH
         orch.last_data_signature = get_data_state_signature(orch, now=float(_MICRO_EPOCH + 5))

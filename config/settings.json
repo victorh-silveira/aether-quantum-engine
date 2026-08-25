@@ -1,5 +1,5 @@
 {
-  "anchor": "R_10",
+  "anchor": "stp_500",
   "api_config": {
     "deriv_app_id": "",
     "history_fetch": {
@@ -28,14 +28,14 @@
   },
   "data_handler": {
     "buffer_limit": 262144,
-    "fetch_count": 128,
+    "fetch_count": 120,
     "granularity": 86400,
-    "history_bars": 128,
-    "micro_granularity": 60,
-    "micro_history_bars": 140,
-    "micro_fetch_count": 140,
+    "history_bars": 120,
+    "micro_granularity": 900,
+    "micro_history_bars": 120,
+    "micro_fetch_count": 120,
     "min_required_points": 40,
-    "mini_granularity": 300,
+    "mini_granularity": 900,
     "mini_history_bars": 120,
     "mini_fetch_count": 120
   },
@@ -224,7 +224,7 @@
     },
     "train_on_new_candle_only": true,
     "train_symbols": [
-      "R_10"
+      "stp_500"
     ],
     "train_timeframe": "macro",
     "training_batch_size": 128,
@@ -250,24 +250,24 @@
       "enabled": false,
       "run_in_launch_train": false,
       "auto_promote": false,
-      "ops_contract_duration_minutes": 1440,
+      "ops_contract_duration_minutes": 15,
       "quiet_train_logs": true,
       "train_deploy_retries": 1,
       "disable_infra_during_sweep": true,
       "duration_minutes": [
-        1440,
-        2880,
-        4320,
-        7200
+        15,
+        30,
+        45,
+        60
       ],
       "n_bars": [
         1,
         2,
         3,
-        5
+        4
       ],
       "symbols": [
-        "R_10"
+        "stp_500"
       ],
       "min_edge_vs_breakeven": 0.03,
       "min_settle_n": 16,
@@ -365,8 +365,8 @@
   "orchestrator": {
     "api_maintenance_fallback_seconds": 90.0,
     "broker_handshake_timeout_seconds": 90.0,
-    "cycle_interval_seconds": 60,
-    "exec_empty_retry_seconds": 60,
+    "cycle_interval_seconds": 900,
+    "exec_empty_retry_seconds": 900,
     "execution": {
       "bb_width_adaptive_squeeze": {
         "anomaly_ratio": 0.35,
@@ -681,7 +681,7 @@
     "settlement_backoff_initial_seconds": 1.0,
     "settlement_backoff_max_seconds": 30.0,
     "settlement_tolerance_window_seconds": 600,
-    "signature_boundary_seconds": 60,
+    "signature_boundary_seconds": 900,
     "state_lock_acquire_timeout_seconds": 8.0,
     "stream_warm_up_delay_seconds": 0,
     "warm_up_live_data_timeout_seconds": 45.0,
@@ -709,7 +709,7 @@
       "consensus_min_retention": 0.5,
       "consensus_penalty_enabled": false,
       "consensus_rsi_weight": 0.25,
-      "cycle_stake_baseline_seconds": 60,
+      "cycle_stake_baseline_seconds": 900,
       "cycle_stake_exponent": 0.55,
       "cycle_stake_scale_enabled": false,
       "cycle_stake_use_contract_duration": true,
@@ -731,7 +731,7 @@
       "micro_bankroll_threshold": 250.0,
       "min_stake_pct": 0.0025,
       "neutral_bankroll_pct": 0.0025,
-      "payout_fallback": 0.72,
+      "payout_fallback": 0.85,
       "penalty_smoothing_trade_score_min": 0.7,
       "recovery_conviction_ladder": {
         "losses_1": 0.64,
@@ -754,13 +754,13 @@
       "recovery_min_val_accuracy": 0.53,
       "recovery_sizing_conviction": 0.62,
       "stake_conviction_min_raw": 0.0,
-      "stop_win_kelly_conviction_strong": 0.68,
-      "stop_win_kelly_cycles_target": 4,
+      "stop_win_kelly_conviction_strong": 0.65,
+      "stop_win_kelly_cycles_target": 1,
       "stop_win_kelly_enabled": true,
       "stop_win_kelly_live_n_min": 0,
       "stop_win_kelly_max_fraction": 1.0,
-      "stop_win_kelly_min_conviction": 0.55,
-      "stop_win_kelly_min_fraction": 0.7,
+      "stop_win_kelly_min_conviction": 0.52,
+      "stop_win_kelly_min_fraction": 1.0,
       "stop_win_max_stake_pct": 0.05,
       "symbol_loss_rotation_cycles": 0,
       "target_damping_floor": 0.5,
@@ -774,17 +774,17 @@
       "fraction": 0.08,
       "enabled": true,
       "max_stake_percent": 0.05,
-      "default_payout": 0.72
+      "default_payout": 0.85
     },
-    "large_account_stop_win_pct": 3.0,
+    "large_account_stop_win_pct": 1.0,
     "min_validation_accuracy_gate": 0.53,
     "params": {
       "compounding_enabled": true,
-      "compounding_rate_daily": 0.03,
+      "compounding_rate_daily": 0.01,
       "contract_type": "RISE_FALL",
-      "duration": 5,
+      "duration": 15,
       "duration_unit": "m",
-      "payout_estimate": 0.72,
+      "payout_estimate": 0.85,
       "stake_min": 1.0
     },
     "recovery_state": {
@@ -838,7 +838,7 @@
     }
   },
   "symbols": [
-    "R_10"
+    "stp_500"
   ],
   "trading": {
     "mode": "demo"

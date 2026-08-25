@@ -11,7 +11,6 @@ from src.application.services.loss_classifier_flip import tcn_pos_edge_blocks_fl
 from src.application.services.market_audit_log_helpers import resolve_predicted_edge
 from src.application.services.market_audit_ops_window import ops_window_candle_side
 from src.domain.models.trade import TradeDirection
-from src.domain.risk.kelly_p_align import resolve_kelly_p_floor
 from src.domain.risk.kelly_runtime_config import load_kelly_runtime_from_settings
 
 
@@ -216,13 +215,12 @@ def apply_direction_fusion(
     shrink = float(vision.get("fusion_tcn_shrink_near_half", 0.0))
     p_anchor = _shrink_near_half(float(p_call), shrink)
     pay = _payout(orch)
-    floor = resolve_kelly_p_floor(load_kelly_runtime_from_settings())
     scores: dict[str, float] = {}
     p_effs: dict[str, float] = {}
     for side in (TradeDirection.CALL.name, TradeDirection.PUT.name):
         p_side = p_anchor if side == TradeDirection.CALL.name else 1.0 - p_anchor
         z = _logit(p_side) + _evidence(metrics, side, vision) + _loss_logit_bonus(metrics, side, vision)
-        p_eff = max(floor, min(1.0 - 1e-6, _sigmoid(z)))
+        p_eff = max(1e-6, min(1.0 - 1e-6, _sigmoid(z)))
         p_effs[side] = p_eff
         scores[side] = p_eff * (1.0 + pay) - 1.0
     meta_w = float(vision.get("fusion_meta_ev_weight", 0.0))

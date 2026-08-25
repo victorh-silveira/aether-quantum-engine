@@ -17,7 +17,7 @@ def test_format_cluster_neg_edge_shows_raw_edge_and_be():
         }
     }
     line = format_cluster_audit_line(decisions, timeframe="M2")
-    assert "raw_edge:" in line and "be=0.581" in line and "Edge: -0.083" in line
+    assert "raw_edge:" in line and "be=0.541" in line and "Edge: -0.014" in line
     assert "p_call: 0.53300" in line and "p_put: 0.46700" in line
     assert "NEG_EDGE" in line or "neg_edge" in line
 
@@ -30,7 +30,7 @@ def test_format_cluster_edge_gap_before_gate():
         }
     }
     line = format_cluster_audit_line(decisions, timeframe="M2")
-    assert "Edge: -0.083" in line and "raw_edge: +0.699" in line and "be=0.581" in line
+    assert "Edge: -0.013" in line and "raw_edge: +0.827" in line and "be=0.541" in line
     assert "Margin: 0.033" in line and "p_call: 0.53338" in line and "p_put: 0.46662" in line
 
 

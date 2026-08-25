@@ -9,7 +9,7 @@ alwaysApply: true
 - Soft recovery: stake = cover pleno (`cover_multiple` **1.50**, amort **1/1**); linear3 teto **2.5%**; nao `max(exponencial, cover)` revenge; `f*` so gate em RECOVER; PEND material → cover (nao EXPLORE por Hurst/NEG_EDGE/quality).
 - Preservar `max_safe_stake_cap` / `max_safe_stake_pct`; leverage mata (LTCM).
 - EXPLORE usa Kelly × `explore_stake_scale(N)`; piso explore **0.25%** banca; nao misturar regime RECOVER sem pending.
-- Stop-win composto **3%** (e piso $10) — `EXEC_PAUSE` tecnico; boost Kelly stop-win ate **5%** sob knobs dedicados.
+- Stop-win composto **1.0%** (e piso $10) — `EXEC_PAUSE` tecnico; boost Kelly single-strike projetado para atingir 1% em 1 tacada M15 com payout ~85% ($\text{Stake} \approx 1.18\%$).
 - Cooldown linear apos loss; anti revenge sizing.
 - Mudanca de ladder/conviction: hipotese + metrica (`live_n`); nao reagir a streak curta (Taleb); WR ≠ edge.
 - Stop-loss interno desativado por politica — nao reativar sem pedido explicito do usuario.

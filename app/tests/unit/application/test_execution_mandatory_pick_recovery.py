@@ -108,7 +108,7 @@ def test_collect_cluster_orders_mandatory_keeps_weak_recovery_candidate():
     assert orders[0][0] == ANCHOR
 
     decisions = {
-        "R_10": {
+        ANCHOR: {
             "direction": TradeDirection.CALL,
             "metrics": {
                 "trade_score": 0.62,
@@ -119,35 +119,35 @@ def test_collect_cluster_orders_mandatory_keeps_weak_recovery_candidate():
         },
     }
     picked = pick_best_mandatory_candidate(
-        ["R_10", "R_50"],
+        [ANCHOR, "R_50"],
         decisions,
         recovery_active=True,
-        last_loss_symbol="R_10",
+        last_loss_symbol=ANCHOR,
         min_signal=0.45,
         min_val=0.50,
     )
     assert picked is not None
-    assert picked[0] in {"R_10", "R_50"}
+    assert picked[0] in {ANCHOR, "R_50"}
 
 
 def test_pick_best_mandatory_skips_hedge_when_peer_blocked():
     decisions = {
-        "R_10": {
+        ANCHOR: {
             "direction": TradeDirection.CALL,
             "metrics": {"trade_score": 0.60, "raw_prob": 0.62, "deploy_ok": True, "val_accuracy": 0.60},
         },
     }
     picked = pick_best_mandatory_candidate(
-        ["R_10", "R_50"],
+        [ANCHOR, "R_50"],
         decisions,
         recovery_active=True,
-        last_loss_symbol="R_10",
-        skip_symbols=frozenset({"R_10"}),
+        last_loss_symbol=ANCHOR,
+        skip_symbols=frozenset({ANCHOR}),
         min_signal=0.45,
         min_val=0.50,
     )
     assert picked is not None
-    assert picked[0] in {"R_10", "R_50"}
+    assert picked[0] in {ANCHOR, "R_50"}
 
 
 def test_resolve_weak_without_ctx_keeps_dl_side():

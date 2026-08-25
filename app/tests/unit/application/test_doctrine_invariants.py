@@ -41,7 +41,7 @@ def test_load_doctrine_invariants_from_ssot():
     assert inv["amort_cycles_max"] == 1
     assert inv["cover_multiple"] == pytest.approx(1.5)
     assert inv["max_safe_stake_pct_linear3"] == pytest.approx(0.025)
-    assert inv["large_account_stop_win_pct"] == pytest.approx(3.0)
+    assert inv["large_account_stop_win_pct"] == pytest.approx(1.0)
     assert inv["min_validation_accuracy_gate"] >= 0.53
     assert inv["explore_stake_scale_floor"] == pytest.approx(0.40)
 

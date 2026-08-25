@@ -59,8 +59,9 @@ def runtime_in_training(runtime: dict, params: dict) -> bool:
 
 def training_priority_symbols(orch, dl_config: dict, params: dict) -> frozenset[str]:
     """Lista simbolos sem primeiro treino valido que tem prioridade no slot de treino."""
+    symbols = getattr(orch, "symbols", None) or TRADING_SYMBOLS
     pending = []
-    for symbol in TRADING_SYMBOLS:
+    for symbol in symbols:
         runtime = get_symbol_runtime(orch, symbol, dl_config, params)
         if runtime_in_training(runtime, params):
             pending.append(str(symbol))

@@ -39,7 +39,7 @@ def test_format_gates_audit_line():
     assert "NEG_EDGE hard side=CALL" in hard_neg
     assert "edge=-0.0830" in hard_neg
     assert "raw_edge=" in hard_neg
-    assert "be=0.581" in hard_neg
+    assert "be=0.541" in hard_neg
     assert "skip=neg_edge" in hard_neg
     assert hard_neg.count("[GATES]") == 4
     assert "ANTI_LOSS off" in hard_neg
@@ -117,7 +117,7 @@ def test_format_gates_audit_line():
     )
     assert "NEG_EDGE soft" in soft_gap
     assert "raw_edge=" in soft_gap
-    assert "be=0.581" in soft_gap
+    assert "be=0.541" in soft_gap
     candle_gap = format_gates_audit_line(
         {
             "cal_side_edge": -0.02,

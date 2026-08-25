@@ -19,11 +19,11 @@ def test_resolve_contract_payout_uses_api_value():
 
 
 def test_resolve_contract_payout_falls_back_to_ssot():
-    assert resolve_contract_payout(None, {}) == pytest.approx(0.72)
+    assert resolve_contract_payout(None, {}) == pytest.approx(0.85)
 
 
 def test_resolve_contract_payout_ignores_invalid_values():
-    assert resolve_contract_payout("bad", {"payout_estimate": "oops"}) == pytest.approx(0.72)
+    assert resolve_contract_payout("bad", {"payout_estimate": "oops"}) == pytest.approx(0.85)
 
 
 def test_soft_recovery_progression_multiplier_powers():

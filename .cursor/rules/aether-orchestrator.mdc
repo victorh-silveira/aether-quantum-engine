@@ -6,11 +6,11 @@ alwaysApply: true
 
 # Orchestrator
 
-- Relogio: signature/ciclo **60 s**; micro/MINI **60** / macro **7200**; contrato Deriv **5 m** (ops fixo); label TCN **SSOT atual N=55** (H55; grade sweep H15–H60 = N em M1, nao TF M15); `R_10` M1
+- Relogio: signature/ciclo **900 s**; micro/MINI **900 s** / macro **86400 s** (D1, 120 barras); contrato Deriv **15 m** (ops fixo M15); label TCN **SSOT atual N=1 vela M15**; símbolo **stp_500** M15
 - Pipeline: warmup → train gate → collect → resolve → execute → settle → post_settlement
 - Lock serializa inferencia, liquidacao e persistencia — nao bypassar
 - `mandatory_trade_each_cycle` **false**; `force_trade_every_cycle` **false**; `invert_exec_side` **false**; `online_training` **false**
-- EXEC_EMPTY pode ser processo correto; stop-win **3%** → `EXEC_PAUSE` (nao forcar trade)
+- EXEC_EMPTY pode ser processo correto; stop-win **1.0%** (Kelly Single-Strike) → `EXEC_PAUSE` (nao forcar trade)
 - Watchdog: `watchdog_stale_tick_seconds` **300**; respeitar stale/cooldown
 - Pos-settlement wait **90 s**; tolerancia settle **600 s**; timeout ciclo pos-settle **1200 s**
 - Doc: `docs/engineering-orchestrator.md`; skill: `aether-cycle-debug`

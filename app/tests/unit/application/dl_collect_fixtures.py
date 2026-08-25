@@ -33,9 +33,12 @@ class MockOrchestrator:
         self.symbols = symbols
         self.temp_dir = tempfile.mkdtemp()
         self.config = {
+            "symbols": symbols,
+            "anchor": symbols[0] if symbols else ANCHOR,
             "data_handler": {"granularity": 900},
             "deep_learning": {
                 "enabled": dl_enabled,
+                "train_symbols": symbols,
                 "lookback": 15,
                 "training_history_bars": 60,
                 "inference_history_bars": 35,

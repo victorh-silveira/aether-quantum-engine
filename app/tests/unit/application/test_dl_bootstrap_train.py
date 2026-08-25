@@ -61,9 +61,9 @@ def test_ordered_bootstrap_symbols_returns_pending_in_config_order(orch_ready):
     orch = orch_ready
     with patch(
         "src.application.services.deep_learning.dl_bootstrap_train.training_priority_symbols",
-        return_value=frozenset({"R_10", "R_50"}),
+        return_value=frozenset({orch.symbols[0], "ALT_SYM"}),
     ):
-        assert _ordered_bootstrap_symbols(orch) == ["R_10"]
+        assert _ordered_bootstrap_symbols(orch) == [orch.symbols[0]]
 
 
 @pytest.mark.asyncio

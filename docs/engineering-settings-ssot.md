@@ -6,14 +6,14 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 
 | Bloco | Papel |
 |-------|-------|
-| `symbols` / `anchor` | Universo unico **`R_10`** (Volatility 10 / Deriv) |
-| `data_handler` | MACRO/MICRO/MINI granularity, history, buffer |
-| `deep_learning` | arch, lookback, labels, calib (`raw_extreme`), deploy, `sample_weighting`; alvo treino **2000** barras M1 com `train_history_shortfall_ratio` **0.95** (API esgotada ~1980 segue); `bootstrap_max_wait_rounds` **16** |
-| `orchestrator` | ciclo, warmup, watchdog, WS |
+| `symbols` / `anchor` | Universo unico **`stp_500`** (S&P 500 / Deriv) |
+| `data_handler` | MACRO/MICRO/MINI granularity: M15 (**900 s**), macro D1 (**86400 s**), history 120 barras |
+| `deep_learning` | arch, lookback, labels, calib (`raw_extreme`), deploy, `sample_weighting`; treino em 120 velas diarias |
+| `orchestrator` | ciclo (**900 s**), signature boundary (**900 s**), warmup, watchdog, WS |
 | `orchestrator.execution` | mandatory/force, **`invert_exec_side`** (experimento: inverte CALL/PUT apos gates), settlement, SIDE_EQ soft, `scale_vision`, `signal_skip`, sample_size_policy |
 | `infra.meta_classifier` | HTTP :8005; edge continuo 43D; `online_learn` **true**; `/v1/learn` a cada settle (`retrain_min_n` **2**, piso LGBM); `timeout_seconds` **8** |
-| `infra.loss_classifier` | HTTP :8006; `veto_mode` **soft** + banda flip: floor soft **0.65**; `hard_p_loss_floor` **0.90**; `flip_require_auto_learn` **true**; `flip_block_when_tcn_pos_edge` **true** (nao FLIP se Edge TCN >= **0.04**); `flip_waive_tcn_pos_edge_on_discord` **true** (tape ou janela ops ≠ TCN libera `tcn_edge`); `flip_waive_scale_above_p_loss` **0.95**; `flip_candle_p_loss_floor` **0.85** (so TCN fraco); `flip_waive_edge_min` **-1.0** (live); `flip_seed_block_against_closed_candle` **true** + `flip_seed_waive_edge_min` **-0.08**; seed `auto=0` so SOFT (`p_ovr`/`flip_allow_seed_on_scale_discord` nao furam FLIP); `flip_waive_on_closed_candle`; soft Kelly **0.55→0.40**; `timeout_seconds` **8** |
-| `risk_management` | Kelly, soft_recovery, stop-win, ACC gate, duration contrato |
+| `infra.loss_classifier` | HTTP :8006; `veto_mode` **soft** + banda flip: floor soft **0.65**; `hard_p_loss_floor` **0.90**; `flip_require_auto_learn` **true**; soft Kelly **0.55→0.40**; `timeout_seconds` **8** |
+| `risk_management` | Kelly Single-Strike (**1% da banca em 1 trade M15**, payout **0.85**), soft_recovery, stop-win **1.0%**, duration contrato **15 m** |
 | `infra` | Redis, Timescale, MinIO, meta, loss |
 | `logging` | level, log_file, quiet_channels |
 | `auth` / credenciais | PAT — ver [`deriv-api-aether.md`](deriv-api-aether.md) |

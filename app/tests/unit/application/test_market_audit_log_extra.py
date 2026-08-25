@@ -46,7 +46,7 @@ class TestResolvePredictedEdge:
 
     def test_defaults_to_kelly_payout_fallback(self):
         edge = resolve_predicted_edge({"calibrated_prob": 0.7})
-        assert edge == pytest.approx((0.7 * 1.72) - 1.0)
+        assert edge == pytest.approx((0.7 * 1.85) - 1.0)
 
     def test_cal_0533_b072_identity_negative(self):
         edge = resolve_predicted_edge({"calibrated_prob": 0.533}, payout=0.72)

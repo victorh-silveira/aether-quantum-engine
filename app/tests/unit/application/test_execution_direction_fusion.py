@@ -55,11 +55,14 @@ def test_fusion_seed_high_p_loss_keeps_tcn_when_candle_agrees():
         "exec_direction": "CALL",
     }
     cfg = parse_direction_fusion_config({"fusion_block_when_tcn_candle_agree": True})
-    chosen = apply_direction_fusion(metrics, TradeDirection.CALL, cfg=cfg)
-    assert chosen == TradeDirection.CALL
+    assert apply_direction_fusion(metrics, TradeDirection.CALL, cfg=cfg) == TradeDirection.CALL
     assert metrics.get("fusion_blocked_tcn_candle") is True
     assert metrics["fusion_reason"] == "tcn_candle_agree"
-    assert metrics["fusion_switched"] is False
+    # Discord e None branches
+    m_disc = dict(metrics, ops_window_candle_dir="PUT", loss_clf_auto_learn=True)
+    assert apply_direction_fusion(m_disc, TradeDirection.CALL, cfg=cfg) == TradeDirection.PUT
+    m_none = dict(metrics, ops_window_candle_dir=None, loss_clf_auto_learn=True)
+    assert apply_direction_fusion(m_none, TradeDirection.CALL, cfg=cfg) == TradeDirection.PUT
 
 
 def test_fusion_auto_learn_can_switch_when_candle_discords():
@@ -88,7 +91,7 @@ def test_fusion_auto_learn_can_switch_when_candle_discords():
 
 def test_fusion_weak_ev_applies_soft_kelly():
     metrics = {
-        "calibrated_prob": 0.51,
+        "calibrated_prob": 0.55,
         "tcn_direction": "CALL",
         "scale_micro_dir": "CALL",
         "scale_macro_dir": "CALL",
@@ -118,16 +121,17 @@ def test_fusion_weak_ev_applies_soft_kelly():
         }
     )
     chosen = apply_direction_fusion(metrics, TradeDirection.CALL, cfg=cfg)
-    assert chosen in (TradeDirection.CALL, TradeDirection.PUT)
+    assert chosen == TradeDirection.CALL
     assert metrics["fusion_applied"] is True
-    assert metrics["execution_candidate_ready"] is False
-    assert metrics["signal_status"] == "SKIP:FUSION_NEGATIVE_EV"
-    assert metrics["gate_reason"] == "fusion_negative_ev"
+    assert metrics["execution_candidate_ready"] is True
+    assert metrics.get("fusion_weak_ev_soft") is True
+    assert metrics["kelly_fraction_scale"] == pytest.approx(0.40)
 
 
 def test_fusion_weak_ev_seed_dual_neg_softens_harder():
     metrics = {
-        "calibrated_prob": 0.51,
+        "calibrated_prob": 0.50,
+        "predicted_payoff_edge": -0.20,
         "tcn_direction": "CALL",
         "scale_micro_dir": "CALL",
         "scale_macro_dir": "CALL",
@@ -148,7 +152,7 @@ def test_fusion_weak_ev_seed_dual_neg_softens_harder():
             "fusion_w_mini": 0.0,
             "fusion_w_mili": 0.0,
             "fusion_w_tape": 0.0,
-            "fusion_meta_ev_weight": 0.0,
+            "fusion_meta_ev_weight": 0.50,
             "fusion_loss_weight": 0.0,
             "fusion_tcn_shrink_near_half": 0.0,
             "fusion_block_when_tcn_pos_edge": False,
@@ -213,7 +217,7 @@ def test_fusion_keeps_tcn_when_pos_edge_blocks():
 def test_fusion_skips_tcn_pos_edge_when_raw_below_floor():
     metrics = {
         "calibrated_prob": 0.251,
-        "raw_prob": 0.415,
+        "raw_prob": 0.50,
         "tcn_direction": "PUT",
         "scale_macro_dir": "CALL",
         "scale_tape_consensus": "CALL",

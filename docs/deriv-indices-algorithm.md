@@ -1,8 +1,6 @@
-# Indice Volatility 10 (`R_10`) — M1
+# Mercado Real S&P 500 (`stp_500` / `US_500`) — M15
 
-Universo operacional unico: **`R_10`** (Volatility 10 / Deriv). Serie sintetica 24/7 com alvo de volatilidade ~10% anualizada. Timeframe operacional **M1** (micro/MINI **60 s**).
-
-Referencia: [dTrader R_10 M1](https://dtrader.deriv.com/?chart_type=candle&interval=60&symbol=R_10&trade_type=rise_fall).
+Universo operacional unico: **`stp_500`** (S&P 500 / Deriv). Ativo do mercado real com contrato direcional RISE/FALL em M15. Timeframe operacional **M15** (micro/MINI **900 s**), com treinamento em **D1 (86400 s)** em **120 velas diarias**.
 
 ---
 
@@ -10,15 +8,15 @@ Referencia: [dTrader R_10 M1](https://dtrader.deriv.com/?chart_type=candle&inter
 
 | Item | Valor |
 |------|--------|
-| Simbolo API | `R_10` |
-| Contrato | `RISE_FALL` **5 m** (`duration=5`, `duration_unit=m` via `ops_contract_duration_minutes`; label TCN N ∈ {15,20,…,60} eleito no treino; **SSOT atual `label_horizon_bars=55`**) |
-| Micro / MINI OHLC | **60 s** (M1) |
-| Macro OHLC | **7200 s** (ratio macro:micro **1:120**) |
-| Ciclo / assinatura | **60 s** (alinhado ao fecho da vela M1); `exec_empty_retry` **60 s** |
-| Lookback TCN | **480** barras micro (`[1, 480, 34]`; ~8 h @ 60 s) |
-| Payout SSOT | **0.72** (live R_10 M1; cover = `pending/0.72`) |
+| Simbolo API | `stp_500` |
+| Contrato | `RISE_FALL` **15 m** (`duration=15`, `duration_unit=m`, `label_horizon_bars=1`) |
+| Micro / MINI OHLC | **900 s** (M15) |
+| Macro OHLC | **86400 s** (D1 / 120 velas de treino) |
+| Ciclo / assinatura | **900 s** (alinhado ao fecho da vela M15); `exec_empty_retry` **900 s** |
+| Lookback TCN | **120** barras |
+| Payout SSOT | **0.85** (85% mercado real) |
 | Soft Recovery | amort **1/1**, `cover_multiple` **1.50** (cover pleno) |
-| Stop-win | `large_account_stop_win_pct` **3.0%** composto |
+| Stop-win | `compounding_rate_daily` **1.0%** / Single-Strike 1 trade |
 | Settle wait / tolerancia | poll **0.5 s** / tolerancia **600 s**; timeout pos-ciclo **1200 s** |
 | Watchdog stale tick | **300 s** |
 

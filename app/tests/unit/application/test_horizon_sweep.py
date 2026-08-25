@@ -68,8 +68,8 @@ def test_build_horizon_candidates_defaults_without_settings():
 
 def test_load_horizon_sweep_knobs_from_ssot():
     knobs = load_horizon_sweep_knobs()
-    assert knobs["n_bars"] == [1, 2, 3, 5]
-    assert knobs["duration_minutes"] == [1, 2, 3, 5]
+    assert knobs["n_bars"] == [1, 2, 3, 4]
+    assert knobs["duration_minutes"] == [15, 30, 45, 60]
     assert knobs["enabled"] is False
     knobs = load_horizon_sweep_knobs(
         {

@@ -194,9 +194,9 @@ def test_knobs_read_horizon_sweep():
     assert knobs["min_edge_vs_breakeven"] == pytest.approx(0.03)
     assert "leaderboard.json" in knobs["leaderboard_path"]
     assert knobs["artifact_root"] == "data/dl/sweep"
-    assert knobs["n_bars"] == [1, 2, 3, 5]
+    assert knobs["n_bars"] == [1, 2, 3, 4]
     assert bool(knobs["enabled"]) is False
-    assert knobs["symbols"] == ["R_10"]
+    assert knobs["symbols"] == ["STP_500"]
 
 
 def test_tf_score_settle_n_and_history_fallbacks():

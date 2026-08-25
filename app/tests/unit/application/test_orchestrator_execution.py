@@ -19,7 +19,7 @@ async def test_execute_cluster_dispatches_when_decisions_present(orch_config):
         orch = Orchestrator(orch_config, "token")
         orch.state.balance = 1000.0
         decisions = {
-            "R_10": {
+            orch.anchor: {
                 "direction": TradeDirection.CALL,
                 "metrics": {
                     "conviction": 1.0,
@@ -32,7 +32,7 @@ async def test_execute_cluster_dispatches_when_decisions_present(orch_config):
                     "pattern_tags": ["BULL_FLAG"],
                 },
             },
-            "R_50": {
+            "ALT_SYM": {
                 "direction": TradeDirection.CALL,
                 "metrics": {
                     "conviction": 0.9,
@@ -48,14 +48,14 @@ async def test_execute_cluster_dispatches_when_decisions_present(orch_config):
         }
 
         async def _place_order_with_buffer(symbol, direction, stake, **_kw):
-            orch._pending_result_logs = ["   | RESULT: R_10  | CALL | WIN  | P&L: $+1.00 | api=won"]
+            orch._pending_result_logs = [f"   | RESULT: {symbol}  | CALL | WIN  | P&L: $+1.00 | api=won"]
             return Contract(
                 contract_id=1,
                 proposal_id="p1",
                 status=TradeStatus.OPEN,
                 buy_price=1.0,
                 payout=2.0,
-                symbol="R_10",
+                symbol=symbol,
                 direction=TradeDirection.CALL,
                 stake=1.0,
                 expiry_time=0,

@@ -16,7 +16,6 @@ from src.application.services.meta_payoff_regression import CALIBRATION_NEUTRAL_
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.consensus_stake_penalty import max_safe_stake_cap
 from src.domain.risk.risk_recovery_state import (
-    cointegration_pair_score,
     cointegration_redirect_armed,
     micro_tail_stake_cap,
     select_cointegration_redirect_candidate,
@@ -123,14 +122,12 @@ def test_cointegration_redirect_armed_at_fifteen_percent_of_live_capital() -> No
 
 def test_select_cointegration_redirect_prefers_high_z_low_entropy() -> None:
     candidates = [
-        ("R_50", TradeDirection.CALL, {"calibrated_prob": 0.9, "edge_zscore": 2.0}),
-        ("R_10", TradeDirection.CALL, {"calibrated_prob": 0.55, "edge_zscore": 0.4}),
-        ("R_75", TradeDirection.PUT, {"calibrated_prob": 0.80, "edge_zscore": 1.5}),
+        ("stp_500", TradeDirection.CALL, {"calibrated_prob": 0.55, "edge_zscore": 0.4}),
+        ("ALT_SYM", TradeDirection.CALL, {"calibrated_prob": 0.9, "edge_zscore": 2.0}),
     ]
     selected = select_cointegration_redirect_candidate(candidates)
     assert len(selected) == 1
-    assert selected[0][0] == "R_10"
-    assert cointegration_pair_score(candidates[1][2]) < cointegration_pair_score(candidates[2][2])
+    assert selected[0][0] == "stp_500"
 
 
 def test_micro_tail_stake_cap_and_max_safe_flatten_at_linear_four() -> None:

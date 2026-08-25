@@ -47,7 +47,7 @@ def test_auto_learn_cal_override_then_neg_edge_reverts():
         "execution_candidate_ready": True,
         "exec_direction": "PUT",
         "tcn_direction": "PUT",
-        "calibrated_prob": 0.58,
+        "calibrated_prob": 0.60,
         "scale_tape_consensus": "PUT",
         "scale_vote_call_n": 0,
         "scale_vote_put_n": 4,
@@ -68,7 +68,7 @@ def test_auto_learn_cal_override_then_neg_edge_reverts():
         ),
         patch(
             "src.application.services.loss_classifier_gate.resolve_loss_classifier_config",
-            return_value=_soft_cfg(),
+            return_value=_soft_cfg(flip_min_edge_execute=0.15),
         ),
     ):
         assert apply_loss_classifier_gate(metrics, TradeDirection.PUT, orch=orch, symbol="R_10") is False

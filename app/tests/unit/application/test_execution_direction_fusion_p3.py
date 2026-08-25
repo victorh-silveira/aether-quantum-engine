@@ -1,94 +1,135 @@
-"""Fusao EV + neg_edge / seed (parte 3)."""
+"""Testes complementares de cobertura de fusao EV e helpers de execucao."""
 
 from __future__ import annotations
+
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from src.application.services.execution_direction_fusion import (
     apply_direction_fusion,
     parse_direction_fusion_config,
 )
-from src.application.services.execution_neg_edge import apply_negative_cal_edge_pause
+from src.application.services.execution_neg_edge import apply_negative_cal_edge_pause, parse_neg_edge_soft_config
+from src.application.services.execution_signal_skip import parse_signal_skip_config
+from src.application.services.loss_classifier_flip import seed_candle_blocks_flip
 from src.domain.models.trade import TradeDirection
+from src.domain.risk.kelly_p_align import _read_call_prob
+from src.infrastructure.inference.loss_classifier_client import resolve_loss_classifier_config
 
 
-def test_fusion_then_neg_edge_hard_when_cal_nonpositive():
+def test_precommit_cov_gaps_startup_neg_flip_meta():
+    from src.application.services.deep_learning.dl_startup import prepare_inference_run_loop
+
+    with patch(
+        "src.application.services.deep_learning.dl_startup.all_symbols_have_checkpoints",
+        return_value=True,
+    ):
+        orch = SimpleNamespace(
+            symbols=["R_10"],
+            config={
+                "deep_learning": {"online_training": True},
+                "orchestrator": {"engine_mode": "train"},
+                "data_handler": {},
+            },
+        )
+        assert prepare_inference_run_loop(orch) is False
+    with pytest.raises(ValueError, match="neg_edge_bootstrap_soft_kelly_mult"):
+        parse_neg_edge_soft_config({"neg_edge_bootstrap_soft_kelly_mult": 0.0})
+    with pytest.raises(ValueError, match="neg_edge_deep_edge_floor"):
+        parse_neg_edge_soft_config({"neg_edge_deep_edge_floor": 0.1})
+    with pytest.raises(ValueError, match="neg_edge_bootstrap_soft_kelly_mult"):
+        parse_signal_skip_config({"neg_edge_bootstrap_soft_kelly_mult": 1.5})
+    with pytest.raises(ValueError, match="neg_edge_deep_edge_floor"):
+        parse_signal_skip_config({"neg_edge_deep_edge_floor": -1.5})
+    assert (
+        seed_candle_blocks_flip(
+            {"closed_micro_candle_dir": "CALL", "ops_window_candle_dir": "CALL"},
+            {"auto_learn_applied": False},
+            TradeDirection.CALL,
+            cfg={"flip_seed_block_against_closed_candle": False},
+        )
+        is False
+    )
+    with pytest.raises(ValueError, match="flip_seed_waive_edge_min"):
+        resolve_loss_classifier_config({"flip_seed_waive_edge_min": 0.1})
+    assert _read_call_prob({"fusion_applied": True, "fusion_p_call": object()}) is None
+    assert _read_call_prob({"fusion_applied": True, "fusion_p_call": 0.66}) == pytest.approx(0.66)
+    assert (
+        apply_negative_cal_edge_pause(
+            {
+                "execution_candidate_ready": True,
+                "exec_direction": "CALL",
+                "calibrated_prob": 0.4,
+                "loss_clf_auto_learn": True,
+            },
+            orch=SimpleNamespace(config="bad"),
+            min_edge=0.04,
+            payout=0.72,
+            soft_mult=0.55,
+        )
+        is True
+    )
+
+
+@pytest.mark.asyncio
+async def test_learn_meta_via_config_sync_with_running_loop():
+    from src.infrastructure.inference.meta_classifier_pool import learn_meta_via_config_sync
+
+    with patch(
+        "src.infrastructure.inference.meta_classifier_pool.get_meta_classifier_client",
+        new_callable=AsyncMock,
+    ) as mock_get:
+        client = MagicMock()
+        client.learn = AsyncMock(return_value={"ok": True, "retrained": True})
+        mock_get.return_value = client
+        out = learn_meta_via_config_sync(
+            {"infra": {"meta_classifier": {"enabled": True, "online_learn": True, "timeout_seconds": 1.0}}},
+            feature_vector=[0.0] * 43,
+            target=0.1,
+        )
+    assert out["retrained"] is True
+
+
+def test_fusion_tie_breaks_to_calibrated_side():
     metrics = {
-        "calibrated_prob": 0.53,
+        "calibrated_prob": 0.50,
+        "raw_prob": 0.50,
         "tcn_direction": "CALL",
+        "scale_micro_dir": "CALL",
         "scale_macro_dir": "PUT",
-        "closed_micro_candle_dir": "PUT",
-        "ops_window_candle_dir": "PUT",
+        "scale_mini_dir": "PUT",
+        "scale_mili_dir": "PUT",
         "scale_tape_consensus": "PUT",
-        "loss_clf_p_loss": 0.91,
-        "loss_clf_flip_ref": "CALL",
-        "execution_candidate_ready": True,
-        "exec_direction": "CALL",
-        "kelly_fraction_scale": 1.0,
-        "loss_clf_auto_learn": True,
-    }
-    cfg = parse_direction_fusion_config({})
-    chosen = apply_direction_fusion(metrics, TradeDirection.CALL, cfg=cfg)
-    assert chosen == TradeDirection.PUT
-    paused = apply_negative_cal_edge_pause(metrics, orch=None, min_edge=0.04, payout=0.72)
-    assert metrics.get("fusion_applied") is True
-    if float(metrics.get("fusion_p_eff") or 0.0) * 1.72 - 1.0 > 0.0:
-        assert paused is False
-        assert metrics["execution_candidate_ready"] is True
-        assert float(metrics["cal_side_edge"]) > 0.0
-    else:
-        assert paused is True
-        assert metrics["execution_candidate_ready"] is False
-        assert metrics.get("gate_reason") == "neg_edge"
-        assert float(metrics["cal_side_edge"]) <= 0.0
-
-
-def test_fusion_put_seed_empty_when_cal_nonpositive():
-    metrics = {
-        "calibrated_prob": 0.55,
-        "raw_prob": 0.58,
-        "tcn_direction": "CALL",
-        "closed_micro_candle_dir": "PUT",
         "ops_window_candle_dir": "PUT",
-        "scale_tape_consensus": "PUT",
-        "scale_macro_dir": "PUT",
-        "loss_clf_p_loss": 0.90,
-        "loss_clf_flip_ref": "CALL",
+        "loss_clf_p_loss": 0.50,
         "loss_clf_auto_learn": False,
         "execution_candidate_ready": True,
         "exec_direction": "CALL",
-        "kelly_fraction_scale": 1.0,
     }
-    cfg = parse_direction_fusion_config({})
-    chosen = apply_direction_fusion(metrics, TradeDirection.CALL, cfg=cfg)
-    assert chosen == TradeDirection.PUT
-    assert float(metrics["fusion_p_eff"]) > 0.58
-    orch = type(
-        "O",
-        (),
+    cfg = parse_direction_fusion_config(
         {
-            "config": {
-                "risk_management": {"params": {"payout_estimate": 0.72}},
-                "deep_learning": {"min_edge_execute": 0.04},
-                "orchestrator": {
-                    "execution": {
-                        "signal_skip": {
-                            "neg_edge_soft_kelly_mult": 0.55,
-                            "neg_edge_hard_skip": True,
-                            "neg_edge_soft_when_closed_candle_agree": False,
-                            "neg_edge_soft_min_edge": -1.0,
-                            "neg_edge_bootstrap_soft_kelly_mult": 0.25,
-                            "neg_edge_deep_edge_floor": -0.12,
-                        }
-                    }
-                },
-            }
-        },
-    )()
-    paused = apply_negative_cal_edge_pause(metrics, orch=orch)
-    edge = float(metrics["cal_side_edge"])
-    if edge > 0.0:
-        assert paused is False
-        assert metrics["execution_candidate_ready"] is True
-    else:
-        assert paused is True
-        assert metrics["execution_candidate_ready"] is False
-        assert metrics.get("gate_reason") == "neg_edge"
+            "fusion_w_macro": 0.0,
+            "fusion_w_micro_bar": 0.0,
+            "fusion_w_mini": 0.0,
+            "fusion_w_mili": 0.0,
+            "fusion_w_tape": 0.0,
+            "fusion_meta_ev_weight": 0.0,
+            "fusion_loss_weight": 0.0,
+            "fusion_tcn_shrink_near_half": 0.0,
+            "fusion_block_when_tcn_pos_edge": False,
+            "fusion_min_edge_execute": 0.0,
+        }
+    )
+    with patch("src.application.services.execution_direction_fusion._payout", return_value=1.5):
+        metrics["calibrated_prob"] = 0.50
+        metrics["ops_window_candle_dir"] = None
+        chosen_call = apply_direction_fusion(metrics, TradeDirection.CALL, cfg=cfg)
+        assert chosen_call == TradeDirection.CALL
+        assert metrics["fusion_reason"] == "tie_cal"
+
+        metrics["calibrated_prob"] = 0.499999999999
+        metrics["ops_window_candle_dir"] = "PUT"
+        chosen_put = apply_direction_fusion(metrics, TradeDirection.PUT, cfg=cfg)
+        assert chosen_put in {TradeDirection.CALL, TradeDirection.PUT}

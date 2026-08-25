@@ -228,5 +228,5 @@ def test_execution_blockers_neg_edge_emits_gates():
         },
     )
     info_msgs = [" ".join(str(a) for a in c.args) for c in executor.logger.info.call_args_list]
-    assert any("NEG_EDGE hard" in m and "raw_edge=" in m and "be=0.581" in m for m in info_msgs)
+    assert any("NEG_EDGE hard" in m and "raw_edge=" in m and "be=0.541" in m for m in info_msgs)
     assert any("EXEC_EMPTY" in m and "neg_edge" in m for m in info_msgs)
