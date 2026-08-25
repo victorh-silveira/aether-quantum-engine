@@ -1,12 +1,12 @@
 ---
-description: Mercado Real S&P 500 (stp_500) — Macroeconomia, sessões de NY, liquidez e particularidades vs sintéticos
+description: Mercado Real S&P 500 (OTC_SPC) — Macroeconomia, sessões de NY, liquidez e particularidades vs sintéticos
 globs: app/src/**/*.py
 alwaysApply: true
 ---
 
-# S&P 500 Real Market Rules (`stp_500`)
+# S&P 500 Real Market Rules (`OTC_SPC`)
 
-- **Ativo Central**: `stp_500` (Standard & Poor's 500 Index / Deriv).
+- **Ativo Central**: `OTC_SPC` (Standard & Poor's 500 Real Market Index OTC / Deriv).
 - **Timeframes**: Operacional em **M15** (`900 s`); Treinamento em diário **D1** (`86400 s`, 120 barras de histórico).
 - **Duração do Contrato**: **15 minutos** fixos (`params.duration = 15`, `params.duration_unit = "m"`).
 
@@ -19,7 +19,7 @@ alwaysApply: true
    - Diferente dos índices sintéticos (contínuos 24/7 sem interrupção), o mercado real reage a eventos macroeconômicos (CPI, NFP, Decisões de Juros do FED).
    - O indicador `supertrend_atr` e as médias móveis `EMA9/21` em 15m capturam a tendência genuína de fluxo institucional.
 3. **Payout e Breakeven**:
-   - Payout médio da Deriv no `stp_500`: **85%** (`0.85`).
+   - Payout médio da Deriv no `OTC_SPC`: **85%** (`0.85`).
    - Breakeven estatístico: $p_{\text{be}} = \frac{1}{1 + 0.85} \approx 0.54054 \implies 54.1\%$.
    - Toda operação deve comprovar $\text{Edge} = p_{\text{eff}} \times 1.85 - 1.0 > 0$.
 4. **Dimensionamento Single-Strike**:

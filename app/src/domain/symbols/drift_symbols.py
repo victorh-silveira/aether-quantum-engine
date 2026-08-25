@@ -1,8 +1,8 @@
-"""Simbolos de trading Deriv (universo single-symbol stp_500)."""
+"""Simbolos de trading Deriv (universo single-symbol OTC_SPC - S&P 500 Real Market)."""
 
-TRADING_SYMBOLS: tuple[str, ...] = ("stp_500",)
+TRADING_SYMBOLS: tuple[str, ...] = ("OTC_SPC",)
 DRIFT_SYMBOLS: tuple[str, ...] = TRADING_SYMBOLS
-DEFAULT_ANCHOR = "stp_500"
+DEFAULT_ANCHOR = "OTC_SPC"
 
 HEDGE_PEER: dict[str, str] = {}
 

@@ -1,6 +1,6 @@
-# Mercado Real S&P 500 (`stp_500` / `US_500`) — M15
+# Mercado Real S&P 500 (`OTC_SPC` / `US 500`) — M15
 
-Universo operacional unico: **`stp_500`** (S&P 500 / Deriv). Ativo do mercado real com contrato direcional RISE/FALL em M15. Timeframe operacional **M15** (micro/MINI **900 s**), com treinamento em **D1 (86400 s)** em **120 velas diarias**.
+Universo operacional unico: **`OTC_SPC`** (S&P 500 / Deriv). Ativo do mercado real com contrato direcional RISE/FALL em M15. Timeframe operacional **M15** (micro/MINI **900 s**), com treinamento em **D1 (86400 s)** em **120 velas diarias**.
 
 ---
 
@@ -8,7 +8,7 @@ Universo operacional unico: **`stp_500`** (S&P 500 / Deriv). Ativo do mercado re
 
 | Item | Valor |
 |------|--------|
-| Simbolo API | `stp_500` |
+| Simbolo API | `OTC_SPC` |
 | Contrato | `RISE_FALL` **15 m** (`duration=15`, `duration_unit=m`, `label_horizon_bars=1`) |
 | Micro / MINI OHLC | **900 s** (M15) |
 | Macro OHLC | **86400 s** (D1 / 120 velas de treino) |

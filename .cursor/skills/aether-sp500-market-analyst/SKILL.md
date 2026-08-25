@@ -1,7 +1,7 @@
 ---
 name: aether-sp500-market-analyst
 description: >-
-  Analisa o comportamento do mercado real S&P 500 (stp_500 / US_500) em timeframe M15 (900s),
+  Analisa o comportamento do mercado real S&P 500 (OTC_SPC / US 500) em timeframe M15 (900s),
   correlacionando dinamica de sessoes (NY Open, London), volatilidade ATR, medias de 15m e regime macro D1 (120 velas).
 ---
 
@@ -10,7 +10,7 @@ description: >-
 Especialista em dinâmicas do mercado real S&P 500 para opções binárias e contratos direcionais na Deriv.
 
 ## Universo Operacional
-- **Símbolo**: `stp_500` (ou `US_500` / `frxUSD500`)
+- **Símbolo**: `OTC_SPC` (US 500 / S&P 500 Real Market Index OTC)
 - **Micro / Operacional**: M15 (900 segundos)
 - **Macro / Treinamento**: D1 (86.400 segundos), histórico de 120 velas diárias
 - **Duração do Contrato**: 15 minutos fixos (`params.duration = 15`, `duration_unit = "m"`)

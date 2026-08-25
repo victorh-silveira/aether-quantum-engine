@@ -11,7 +11,7 @@ Ponto de entrada para agentes Cursor/LLM neste repositorio.
 
 ## Universo operacional
 
-- Simbolo unico em runtime: **stp_500** (S&P 500 / Deriv)
+- Simbolo unico em runtime: **OTC_SPC** (S&P 500 / Deriv)
 - Relogio: micro/MINI **900 s** (M15); macro **86400 s** (D1, 120 velas diarias); ciclo/signature **900 s**; TCN estima deslocamento em **N=1 vela M15** alinhado ao contrato ops **fixo 15 m (M15)** (`label_horizon_bars=1`, `risk_management.params.duration=15`, `duration_unit="m"`). Rotulagem: **supertrend_atr** (SuperTrend + Volatility ATR Band filter).
 - SSOT: `config/settings.json` + `app/src/domain/symbols/drift_symbols.py`
 - Artefactos/treino com granularity/lookback/horizon ≠ settings sao invalidos (gate fail-closed); apos mudar TF/horizonte, retreinar TCN+meta e `make docker-rebuild`

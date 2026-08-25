@@ -120,9 +120,9 @@ async def test_collect_gives_training_slot_priority_to_untrained_symbols():
 @pytest.mark.asyncio
 async def test_collect_enqueues_all_symbols_when_none_in_training():
     prices = np.sin(np.linspace(0, 10, 90)) + 10.0
-    orch = MockOrchestrator(["stp_500"], prices, train_mode=True)
-    orch.symbols = ["stp_500"]
-    orch.config["symbols"] = ["stp_500"]
+    orch = MockOrchestrator(["OTC_SPC"], prices, train_mode=True)
+    orch.symbols = ["OTC_SPC"]
+    orch.config["symbols"] = ["OTC_SPC"]
     entry = {
         "direction": TradeDirection.CALL,
         "metrics": {"execute": True, "conviction": 0.62, "trade_score": 0.62, "val_accuracy": 0.55},
@@ -159,7 +159,7 @@ async def test_collect_enqueues_all_symbols_when_none_in_training():
     ):
         await collect_deep_learning_decisions(orch)
     enqueued = [call.args[1] for call in mock_enqueue.call_args_list]
-    assert enqueued == ["stp_500"]
+    assert enqueued == ["OTC_SPC"]
 
 
 def test_runtime_in_training_uses_brier_floor():

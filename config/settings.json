@@ -1,5 +1,5 @@
 {
-  "anchor": "stp_500",
+  "anchor": "OTC_SPC",
   "api_config": {
     "deriv_app_id": "",
     "history_fetch": {
@@ -224,7 +224,7 @@
     },
     "train_on_new_candle_only": true,
     "train_symbols": [
-      "stp_500"
+      "OTC_SPC"
     ],
     "train_timeframe": "macro",
     "training_batch_size": 128,
@@ -267,7 +267,7 @@
         4
       ],
       "symbols": [
-        "stp_500"
+        "OTC_SPC"
       ],
       "min_edge_vs_breakeven": 0.03,
       "min_settle_n": 16,
@@ -838,7 +838,7 @@
     }
   },
   "symbols": [
-    "stp_500"
+    "OTC_SPC"
   ],
   "trading": {
     "mode": "demo"

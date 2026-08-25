@@ -3,15 +3,15 @@ name: aether-binary-senior
 description: >-
   Avalia sessoes live no estilo trader senior de opcoes binarias M15
   (CALL/PUT/SKIP tecnico ou signal_skip 1.1; OHLC 900s) no indice
-  stp_500 (S&P 500). Use when analyzing CLUSTER/Cal/Edge logs, gate_reason
-  tecnico, or when the user mentions playbook senior, SKIP, S&P 500, M15, ou binarias stp_500.
+  OTC_SPC (S&P 500). Use when analyzing CLUSTER/Cal/Edge logs, gate_reason
+  tecnico, or when the user mentions playbook senior, SKIP, S&P 500, M15, ou binarias OTC_SPC.
 ---
 
-# Playbook senior binario (`stp_500` / M15)
+# Playbook senior binario (`OTC_SPC` / M15)
 
 Ler `docs/binary-senior-playbook.md` e `docs/deriv-indices-algorithm.md`.
 
-Universo: **S&P 500** (`stp_500`) — **M15** (contrato ops **15 m / M15**; label TCN **N=1 vela M15**; ciclo **900 s**; micro/MINI **900 s**; macro **86400 s**; ratio **1:96**).
+Universo: **S&P 500** (`OTC_SPC`) — **M15** (contrato ops **15 m / M15**; label TCN **N=1 vela M15**; ciclo **900 s**; micro/MINI **900 s**; macro **86400 s**; ratio **1:96**).
 
 ## Checklist (escopo 1.1)
 

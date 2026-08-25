@@ -196,7 +196,7 @@ def test_knobs_read_horizon_sweep():
     assert knobs["artifact_root"] == "data/dl/sweep"
     assert knobs["n_bars"] == [1, 2, 3, 4]
     assert bool(knobs["enabled"]) is False
-    assert knobs["symbols"] == ["STP_500"]
+    assert knobs["symbols"] == ["OTC_SPC"]
 
 
 def test_tf_score_settle_n_and_history_fallbacks():
