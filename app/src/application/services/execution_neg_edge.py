@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from contextlib import suppress
 from typing import Any
 
 from src.application.services.market_audit_log_helpers import resolve_predicted_edge
@@ -76,16 +77,12 @@ def _is_recovery_active(orch: Any | None, metrics: dict[str, Any] | None = None)
     pending_total = 0.0
     pending_dict = getattr(risk_mgr, "pending_loss", None)
     if isinstance(pending_dict, dict):
-        try:
+        with suppress(TypeError, ValueError):
             pending_total = sum(float(v) for v in pending_dict.values())
-        except (TypeError, ValueError):
-            pass
     consec_losses = 0
     raw_consec = getattr(risk_mgr, "consecutive_losses_linear", 0)
-    try:
+    with suppress(TypeError, ValueError):
         consec_losses = int(raw_consec)
-    except (TypeError, ValueError):
-        pass
     return pending_total > 0.0 or consec_losses > 0
 
 
@@ -97,7 +94,11 @@ def _min_edge_from_orch(orch: Any | None, metrics: dict[str, Any] | None = None)
     if not isinstance(config, dict):
         return 0.0
     dl = config.get("deep_learning") if isinstance(config.get("deep_learning"), dict) else {}
-    signal_skip = config.get("orchestrator", {}).get("execution", {}).get("signal_skip", {}) if isinstance(config.get("orchestrator"), dict) else {}
+    signal_skip = (
+        config.get("orchestrator", {}).get("execution", {}).get("signal_skip", {})
+        if isinstance(config.get("orchestrator"), dict)
+        else {}
+    )
     is_rec = _is_recovery_active(orch, metrics)
     if is_rec:
         rec_floor = signal_skip.get("min_edge_recovery", dl.get("min_edge_recovery"))
@@ -180,11 +181,12 @@ def _resolve_neg_side_edge(metrics: dict[str, Any], direction: str, pay: float) 
     if bool(metrics.get("fusion_applied")) and metrics.get("fusion_p_eff") is not None:
         try:
             p = float(metrics["fusion_p_eff"])
+        except (TypeError, ValueError):
+            p = None
+        if p is not None and 0.0 < p < 1.0:
             edge = float((p * (1.0 + pay)) - 1.0)
             metrics["neg_edge_tcn_cal_edge"] = edge
             return edge
-        except (TypeError, ValueError):
-            pass
     edge = float(resolve_predicted_edge(metrics, direction=direction, payout=pay))
     metrics["neg_edge_tcn_cal_edge"] = edge
     return edge

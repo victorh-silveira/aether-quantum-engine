@@ -10,6 +10,7 @@ from src.application.services.direction_loss_tracker import record_direction_out
 from src.application.services.live_signal_metrics import record_live_signal_outcome
 from src.application.services.loss_classifier_vectors import pop_loss_feature_vector
 from src.application.services.meta_classifier_vectors import pop_meta_feature_vector
+from src.application.services.orchestrator.post_settlement_loss_cooldown import schedule_post_loss_cooldown
 from src.application.services.side_equilibrium_store import record_side_equilibrium_outcome
 from src.domain.risk.executed_stake_reconciliation import (
     bind_executed_stake_for_contract,
@@ -178,7 +179,6 @@ def process_contract_outcome(
         orch._session_losses += 1
         orch._last_loss_symbol = sym
         orch._last_loss_direction = dir_name or ""
-        from src.application.services.orchestrator.post_settlement_loss_cooldown import schedule_post_loss_cooldown
         schedule_post_loss_cooldown(orch)
 
     if not orch.risk_manager.active_contract_ids:

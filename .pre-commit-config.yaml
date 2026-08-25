@@ -16,7 +16,7 @@ repos:
 
       - id: test
         name: Testes (pytest + cobertura 100% em src)
-        entry: python app/scripts/operations/clean_workspace.py --stage test
+        entry: python app/scripts/operations/clean_workspace.py --stage test --coverage-fail-under 100
         language: system
         pass_filenames: false
         always_run: true

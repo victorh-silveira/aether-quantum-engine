@@ -32,7 +32,7 @@ Doutrina do copiloto LLM/Cursor (9 livros → constraints de engenharia): [`llm-
 | Persistence guard | Após 2 losses: **flip** toxic escape se o oposto estiver livre; senão skip; FREEZE em congestão micro |
 | Calibração | Zona neutra **off** (`neutral_half_width: 0.0`); thresholds **0.62/0.38**; override TCN macro se raw&gt;0.65 ou &lt;0.35 |
 | Veto Cruzado TCN-GBDT | Soft veto comprime score (não hard-blocka resolve); hard com shadow; meta opcional |
-| Settlement resiliente | Fila Redis `settlement:queue:priority`; tolerância **90 s**; alinhamento pós-EXEC_EMPTY |
+| Settlement resiliente | Fila Redis `settlement:queue:priority`; tolerância **600 s**; alinhamento pós-EXEC_EMPTY |
 | Starvation escape | Após **6** quality skips decaem pisos; edge meta a partir de **8** skips até floor 0.0 |
 | Microestrutura HARD | Limiares ADX/`vol_ratio` configuráveis (settings atuais ADX **0.0**) |
 
@@ -107,7 +107,7 @@ Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `
 | Z-Score de payoff | `payoff_edge_zscore`: janela adaptativa 15–45; classificação estatística do micro-edge |
 | Scoring de ranking | `market_decision_score = tcn × max(0.1, 1 + z)` |
 | Scoring direcional | TCN define `dl_direction`; edge &gt; 0 pode manter lado contra price zone; compressão BB severa rebaixa para `0.52` |
-| Margem direcional | `direction_margin = abs(P(lado) − 0.50)`; thresholds **0.62/0.38**; soft Kelly se Margin &lt; `signal_skip.min_direction_margin` (**0.022**) |
+| Margem direcional | `direction_margin = abs(P(lado) − 0.50)`; thresholds **0.62/0.38**; soft Kelly se Margin &lt; `signal_skip.min_direction_margin` (**0.005**) |
 | Gate de qualidade | Dual soft + HARD microestrutura (limiares ADX atuais **0.0**); sniper stubs; meta opcional; consensus **off** |
 | Indicator gating | removido do pipeline; telemetria de indicadores permanece nas features |
 | Persistence guard | Após 2 perdas: **flip** toxic escape ou skip; `FREEZE` em congestão |
@@ -190,7 +190,7 @@ Perfil em `config/settings.json` (settings atuais):
 | `risk_management.kelly.max_bankroll_stake_fraction` | 0.035 | Teto de fração de banca alinhado ao Kelly |
 | `risk_management.kelly.fraction` | 0.08 | Fração Kelly base (EXPLORE; compressão 40% fora de recovery) |
 | `consensus_penalty_enabled` | false | Consensus Entropy Penalty **desligado** |
-| `orchestrator.settlement_tolerance_window_seconds` | 90 | Janela de settlement |
+| `orchestrator.settlement_tolerance_window_seconds` | 600 | Janela de settlement |
 | `orchestrator.watchdog_stale_tick_seconds` | 300 | Watchdog de inanição |
 
 Cover de recovery dimensiona `pending/payout` em **um** trade (amort **1/1**) para WIN liquidar o passivo, sujeito a `max_safe_stake_*`. Turbo de stake (Z≥1.5) **nunca** ultrapassa `max_safe_stake_cap` pós-multiplicador. Z-Score de edge é bufferizado **por símbolo**. Boot emite `CFG_RISK` via `validate_engine_risk_config` / `RiskPolicy`. Labels train/deploy compartilham `LabelSpec` (`horizon` + `smooth_bars`); treino meta usa proxy de retorno **passado**, não forward.

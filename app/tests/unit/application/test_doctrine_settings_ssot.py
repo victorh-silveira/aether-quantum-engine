@@ -25,7 +25,7 @@ def test_production_settings_pass_doctrine_invariants():
     assert inv["max_safe_stake_cap"] > 0.0
     assert inv["max_safe_stake_pct"] > 0.0
     assert inv["signal_skip_enabled"] is True
-    assert float(inv["signal_skip_min_direction_margin"]) == pytest.approx(0.022)
+    assert float(inv["signal_skip_min_direction_margin"]) == pytest.approx(0.005)
 
 
 def test_production_deploy_gate_armed():
@@ -37,28 +37,28 @@ def test_production_deploy_gate_armed():
     assert gate["enabled"] is True
     assert gate["force_ok"] is False
     assert float(gate["soft_min_val_accuracy"]) >= 0.53
-    assert float(gate.get("soft_max_brier", 0.0)) == pytest.approx(0.26)
-    assert float(gate.get("max_brier", 0.0)) == pytest.approx(0.26)
+    assert float(gate.get("soft_max_brier", 0.0)) == pytest.approx(0.28)
+    assert float(gate.get("max_brier", 0.0)) == pytest.approx(0.28)
     assert int(dl.get("min_epochs", 0)) >= 15
     assert int(dl.get("early_stopping_patience", 0)) >= 12
     assert float(dl.get("weight_decay", 0.0)) == pytest.approx(0.005)
     assert float(dl.get("tcn", {}).get("dropout", 0.0)) == pytest.approx(0.35)
     assert float(dl.get("learning_rate", 0.0)) == pytest.approx(0.001)
     assert int(dl.get("train_deploy_retries", 0)) >= 1
-    assert int(dl.get("sample_weighting", {}).get("recency_half_life_n", 0)) == 2000
+    assert int(dl.get("sample_weighting", {}).get("recency_half_life_n", 0)) == 365
     assert str(dl.get("label_mode")) == "supertrend_atr"
-    assert int(dl.get("lookback", 0)) == 240
-    assert int(dl.get("label_horizon_bars", 0)) == 5
+    assert int(dl.get("lookback", 0)) == 30
+    assert int(dl.get("label_horizon_bars", 0)) == 1
     assert int(settings["risk_management"]["params"]["duration"]) == 5
     assert str(settings["risk_management"]["params"]["duration_unit"]) == "m"
-    assert int(dl["horizon_sweep"]["ops_contract_duration_minutes"]) == 5
-    assert float(dl.get("min_edge_execute", 0.0)) == pytest.approx(0.035)
+    assert int(dl["horizon_sweep"]["ops_contract_duration_minutes"]) == 1440
+    assert float(dl.get("min_edge_execute", 0.0)) == pytest.approx(0.01)
     assert settings["orchestrator"]["execution"]["bypass_deploy_gate"] is False
     assert "quality_gate" not in settings["orchestrator"]["execution"]
     assert "indicator_gating" not in dl
     skip = settings["orchestrator"]["execution"]["signal_skip"]
     assert skip["enabled"] is True
-    assert float(skip["min_direction_margin"]) == pytest.approx(0.022)
+    assert float(skip["min_direction_margin"]) == pytest.approx(0.005)
 
 
 def test_production_logging_ssot():
@@ -138,12 +138,12 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert "direction_loss_flip_kelly_mult" not in skip
     assert "direction_loss_both_soft_kelly_mult" not in skip
     assert "direction_loss_lock_ttl_seconds" not in skip
-    assert float(skip["cal_margin_soft_kelly_mult"]) == pytest.approx(0.55)
-    assert bool(skip["chop_pause_enabled"]) is True
-    assert float(skip["chop_adx_max"]) == pytest.approx(0.22)
-    assert float(skip["chop_hurst_min"]) == pytest.approx(0.47)
-    assert float(skip["chop_hurst_max"]) == pytest.approx(0.53)
-    assert float(skip["chop_soft_kelly_mult"]) == pytest.approx(0.55)
+    assert float(skip["cal_margin_soft_kelly_mult"]) == pytest.approx(0.75)
+    assert bool(skip["chop_pause_enabled"]) is False
+    assert float(skip["chop_adx_max"]) == pytest.approx(0.10)
+    assert float(skip["chop_hurst_min"]) == pytest.approx(0.45)
+    assert float(skip["chop_hurst_max"]) == pytest.approx(0.55)
+    assert float(skip["chop_soft_kelly_mult"]) == pytest.approx(0.75)
     assert float(skip["neg_edge_soft_kelly_mult"]) == pytest.approx(0.55)
     assert bool(skip["neg_edge_hard_skip"]) is False
     assert bool(skip["neg_edge_soft_when_closed_candle_agree"]) is True
@@ -181,14 +181,14 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert scale["fusion_replace_adapt_flip"] is True
     assert float(scale["fusion_w_macro"]) == pytest.approx(0.45)
     assert float(scale["fusion_w_micro_bar"]) == pytest.approx(0.10)
-    assert float(scale["fusion_w_mini"]) == pytest.approx(0.25)
-    assert float(scale["fusion_w_mili"]) == pytest.approx(0.10)
+    assert float(scale["fusion_w_mini"]) == pytest.approx(0.05)
+    assert float(scale["fusion_w_mili"]) == pytest.approx(0.02)
     assert float(scale["fusion_w_tape"]) == pytest.approx(0.45)
     assert float(scale["fusion_meta_ev_weight"]) == pytest.approx(0.10)
     assert float(scale["fusion_loss_weight"]) == pytest.approx(0.45)
     assert float(scale["fusion_tcn_shrink_near_half"]) == pytest.approx(0.25)
     assert scale["fusion_block_when_tcn_pos_edge"] is True
-    assert scale["fusion_block_when_tcn_candle_agree"] is True and int(scale["ops_window_bars"]) == 5
+    assert scale["fusion_block_when_tcn_candle_agree"] is False and int(scale["ops_window_bars"]) == 3
     assert scale["fusion_loss_requires_auto_learn"] is True
     assert float(scale["fusion_loss_seed_weight_mult"]) == pytest.approx(0.0)
     assert float(scale["fusion_min_edge_execute"]) == pytest.approx(0.035)
@@ -205,15 +205,15 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert float(fusion["fusion_weak_ev_soft_kelly_mult"]) == pytest.approx(0.50)
     assert float(fusion["fusion_weak_ev_seed_soft_kelly_mult"]) == pytest.approx(0.25)
     assert fusion["fusion_block_when_tcn_pos_edge"] is True
-    assert fusion["fusion_block_when_tcn_candle_agree"] is True
+    assert fusion["fusion_block_when_tcn_candle_agree"] is False
     assert fusion["fusion_loss_requires_auto_learn"] is True
     assert float(fusion["fusion_loss_seed_weight_mult"]) == pytest.approx(0.0)
     assert float(fusion["fusion_loss_weight"]) == pytest.approx(0.45)
     assert float(fusion["fusion_tcn_shrink_near_half"]) == pytest.approx(0.25)
     data = settings["data_handler"]
     assert int(data["micro_granularity"]) == 60
-    assert int(data["mini_granularity"]) == 60
-    assert int(data["granularity"]) == 7200
+    assert int(data["mini_granularity"]) == 300
+    assert int(data["granularity"]) == 86400
     dl = settings["deep_learning"]
     assert bool(dl["online_training"]) is False
     assert int(dl["rolling_retrain_bars"]) == 48
@@ -223,14 +223,14 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert int(meta["retrain_min_n"]) == 2
     assert int(meta["max_buffer"]) == 2000
     assert float(meta["timeout_seconds"]) == pytest.approx(8.0)
-    assert int(data["fetch_count"]) == 5000
-    assert int(data["micro_fetch_count"]) == 5000
-    assert int(data["mini_fetch_count"]) == 260
+    assert int(data["fetch_count"]) == 128
+    assert int(data["micro_fetch_count"]) == 140
+    assert int(data["mini_fetch_count"]) == 120
     orch = settings["orchestrator"]
     assert int(orch["cycle_interval_seconds"]) == 60
     assert int(orch["signature_boundary_seconds"]) == 60
     assert int(orch["exec_empty_retry_seconds"]) == 60
-    assert int(orch["settlement_tolerance_window_seconds"]) == 90
+    assert int(orch["settlement_tolerance_window_seconds"]) == 600
     assert int(orch["watchdog_stale_tick_seconds"]) == 300
     assert int(orch["post_settlement_is_trading_wait_seconds"]) == 90
     assert int(settings["risk_management"]["kelly"]["cycle_stake_baseline_seconds"]) == 60
@@ -276,7 +276,7 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert "ws_connect_max_attempts" not in settings.get("api_config", {})
     assert "history_fetch_chunk" not in settings.get("data_handler", {})
     dl = settings["deep_learning"]
-    assert int(dl["training_history_bars"]) == 5000
+    assert int(dl["training_history_bars"]) == 120
     assert float(dl["train_history_shortfall_ratio"]) == pytest.approx(0.95)
     assert int(dl["bootstrap_max_wait_rounds"]) == 16
     cal = dl["calibration"]
@@ -284,10 +284,10 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert float(cal["max_calibrated_raw_gap"]) == pytest.approx(0.08)
     assert "tf_sweep" not in dl
     h_sweep = dl["horizon_sweep"]
-    assert bool(h_sweep["enabled"]) is True
+    assert bool(h_sweep["enabled"]) is False
     assert bool(h_sweep["run_in_launch_train"]) is False
-    assert bool(h_sweep["auto_promote"]) is True
-    assert int(h_sweep["ops_contract_duration_minutes"]) == 5
+    assert bool(h_sweep["auto_promote"]) is False
+    assert int(h_sweep["ops_contract_duration_minutes"]) == 1440
     assert bool(h_sweep["quiet_train_logs"]) is True
     assert int(h_sweep["train_deploy_retries"]) == 1
     assert bool(h_sweep["disable_infra_during_sweep"]) is True
@@ -295,6 +295,6 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert int(h_sweep["min_history_bars"]) == 800
     assert "launch_only" not in h_sweep
     assert float(h_sweep["min_edge_vs_breakeven"]) == pytest.approx(0.03)
-    assert list(h_sweep["n_bars"]) == [15, 20, 25, 30, 35, 40, 45, 50, 55, 60]
-    assert list(h_sweep["duration_minutes"]) == [15, 20, 25, 30, 35, 40, 45, 50, 55, 60]
+    assert list(h_sweep["n_bars"]) == [1, 2, 3, 5]
+    assert list(h_sweep["duration_minutes"]) == [1440, 2880, 4320, 7200]
     assert list(h_sweep["symbols"]) == ["R_10"]

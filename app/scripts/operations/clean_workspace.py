@@ -383,6 +383,53 @@ def stage_test(fail_under: int = 100) -> None:
     _release_parent_memory()
 
 
+def _resolve_gitleaks_bin() -> str | None:
+    found = shutil.which("gitleaks")
+    if found:
+        return found
+    for candidate in ("/usr/bin/gitleaks", "/usr/local/bin/gitleaks"):
+        if Path(candidate).is_file() and os.access(candidate, os.X_OK):
+            return candidate
+    return None
+
+
+def _repo_root_for_bash(path: Path) -> str:
+    posix = path.resolve().as_posix()
+    if len(posix) >= 2 and posix[1] == ":":
+        drive = posix[0].lower()
+        return f"/mnt/{drive}{posix[2:]}"
+    return posix
+
+
+def _run_gitleaks() -> None:
+    print("\n>>> Executando: Gitleaks Secret Scan")
+    source = _repo_root_for_bash(REPO_ROOT)
+    args = ["detect", "--source", source, "--verbose", "--redact"]
+    commands: list[list[str]] = []
+    binary = _resolve_gitleaks_bin()
+    if binary is not None:
+        commands.append([binary, *args])
+    bash = shutil.which("bash")
+    if bash is not None:
+        commands.append(
+            [
+                bash,
+                "-lc",
+                f'gitleaks detect --source "{source}" --verbose --redact',
+            ]
+        )
+    for command in commands:
+        try:
+            subprocess.run(command, check=True, cwd=str(REPO_ROOT), text=True, shell=False)
+            return
+        except FileNotFoundError:
+            continue
+        except OSError:
+            continue
+    print("[ERRO] gitleaks nao encontrado no PATH (mesmo gate do CI/CD).")
+    sys.exit(1)
+
+
 def stage_security() -> None:
     run_tool("bandit", ["-r", "src", "-c", "pyproject.toml"], "Bandit Security Scan")
     ignored_vulns = ["PYSEC-2022-42969", "PYSEC-2026-139", "CVE-2025-3000", "PYSEC-2026-3447"]
@@ -391,6 +438,7 @@ def stage_security() -> None:
         run_tool("pip_audit", ignore_args, "Pip-audit Vulnerability Scan")
     except subprocess.CalledProcessError:
         print("[AVISO] Pip-audit encontrou vulnerabilidades no ambiente global de pacotes Python.")
+    _run_gitleaks()
 
 
 def main() -> None:

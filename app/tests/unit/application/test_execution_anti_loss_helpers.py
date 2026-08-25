@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from unittest.mock import MagicMock
+
 import numpy as np
 
 from src.application.services.execution_anti_loss_helpers import (
@@ -17,7 +18,7 @@ from src.domain.models.trade import TradeDirection
 def test_calc_ema_series_and_calc_ema():
     assert calc_ema_series(np.array([10.0]), 5) is None
     assert calc_ema(np.array([10.0]), 5) is None
-    
+
     prices = np.array([10.0, 11.0, 12.0, 13.0, 14.0, 15.0])
     s = calc_ema_series(prices, 3)
     assert s is not None
@@ -28,11 +29,11 @@ def test_calc_ema_series_and_calc_ema():
 def test_check_mini_ema_trend_and_slope_guards():
     assert check_mini_ema_trend_and_slope(None, "R_10", TradeDirection.CALL) == (True, None)
     assert check_mini_ema_trend_and_slope(MagicMock(), "", TradeDirection.CALL) == (True, None)
-    
+
     orch = MagicMock()
     orch.stream = None
     assert check_mini_ema_trend_and_slope(orch, "R_10", TradeDirection.CALL) == (True, None)
-    
+
     stream = MagicMock()
     stream.get_mini_numpy_series.return_value = np.array([10.0, 11.0])
     orch.stream = stream
@@ -43,12 +44,12 @@ def test_check_mini_ema_trend_and_slope_full_branches():
     orch = MagicMock()
     stream = MagicMock()
     orch.stream = stream
-    
+
     # Alta com ATR
     closes_up = np.linspace(100.0, 200.0, 30)
     stream.get_mini_numpy_series.return_value = closes_up
     assert check_mini_ema_trend_and_slope(orch, "R_10", TradeDirection.CALL, metrics={"atr": 2.0}) == (True, None)
-    
+
     # CALL com preco muito abaixo da EMA9
     closes_call_bad = np.linspace(100.0, 200.0, 30)
     closes_call_bad[-1] = 50.0
@@ -64,7 +65,7 @@ def test_check_mini_ema_trend_and_slope_full_branches():
     ok, reason = check_mini_ema_trend_and_slope(orch, "R_10", TradeDirection.CALL)
     assert ok is False
     assert reason == "anti_loss_ema_slope"
-    
+
     # PUT com preco muito acima da EMA9
     closes_put_bad = np.linspace(200.0, 100.0, 30)
     closes_put_bad[-1] = 250.0

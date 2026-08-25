@@ -30,12 +30,12 @@ def test_load_doctrine_invariants_from_ssot():
     assert inv["flip_require_auto_learn"] is True
     assert inv["flip_seed_waive_edge_min"] == pytest.approx(-0.08)
     assert inv["fusion_block_when_tcn_pos_edge"] is True
-    assert inv["fusion_block_when_tcn_candle_agree"] is True
+    assert inv["fusion_block_when_tcn_candle_agree"] is False
     assert inv["fusion_loss_requires_auto_learn"] is True
     assert inv["fusion_loss_seed_weight_mult"] == pytest.approx(0.0)
     assert inv["neg_edge_deep_edge_floor"] == pytest.approx(-0.12)
     assert inv["watchdog_stale_tick_seconds"] == 300
-    assert inv["settlement_tolerance_window_seconds"] == 90
+    assert inv["settlement_tolerance_window_seconds"] == 600
     assert inv["post_settlement_is_trading_wait_seconds"] == 90
     assert inv["amort_cycles_min"] == 1
     assert inv["amort_cycles_max"] == 1
@@ -115,7 +115,7 @@ def test_assert_production_signal_skip_margin_bounds():
 def test_load_doctrine_signal_skip_from_ssot():
     inv = load_doctrine_invariants()
     assert inv["signal_skip_enabled"] is True
-    assert float(inv["signal_skip_min_direction_margin"]) == pytest.approx(0.022)
+    assert float(inv["signal_skip_min_direction_margin"]) == pytest.approx(0.005)
 
 
 def test_assert_production_doctrine_rejects_bad_caps():
@@ -208,7 +208,7 @@ def test_assert_production_rejects_ssot_knobs():
     with pytest.raises(ValueError, match="fusion_block"):
         assert_production_doctrine(settings)
     settings = copy.deepcopy(load_settings_json())
-    settings["orchestrator"]["execution"]["scale_vision"]["fusion_block_when_tcn_candle_agree"] = False
+    settings["orchestrator"]["execution"]["scale_vision"]["fusion_block_when_tcn_candle_agree"] = True
     with pytest.raises(ValueError, match="fusion_block_when_tcn_candle_agree"):
         assert_production_doctrine(settings)
     settings = copy.deepcopy(load_settings_json())

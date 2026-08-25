@@ -1,5 +1,5 @@
 name: Segurança do código
-description: Bandit, pip-audit (CVEs) e varredura Gitleaks
+description: Bandit, pip-audit e Gitleaks via clean_workspace (mesmo motor do pre-commit)
 
 runs:
   using: composite
@@ -31,10 +31,6 @@ runs:
         sudo mv /tmp/gitleaks /usr/local/bin/gitleaks
         gitleaks version
 
-    - name: Clean workspace — segurança
+    - name: Clean workspace — segurança (Bandit + pip-audit + Gitleaks)
       shell: bash
       run: python app/scripts/operations/clean_workspace.py --stage security
-
-    - name: Gitleaks — vazamento de segredos no repositório
-      shell: bash
-      run: gitleaks detect --source . --verbose --redact

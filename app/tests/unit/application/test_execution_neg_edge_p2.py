@@ -19,10 +19,10 @@ def test_neg_edge_payout_and_min_edge_fallbacks():
         "kelly_fraction_scale": 1.0,
         "loss_clf_auto_learn": True,
     }
-    assert apply_negative_cal_edge_pause(metrics, orch=None, min_edge=0.04, payout=0.72, soft_mult=0.55) is True
-    assert metrics["execution_candidate_ready"] is False
-    assert metrics["signal_status"] == "SKIP:NEG_EDGE"
-    assert metrics.get("gate_reason") == "neg_edge"
+    assert apply_negative_cal_edge_pause(metrics, orch=None, min_edge=0.04, payout=0.72, soft_mult=0.55) is False
+    assert metrics["execution_candidate_ready"] is True
+    assert metrics.get("neg_edge_soft") is True
+    assert metrics.get("signal_skip_waived") == "neg_edge_soft"
     bad_orch = MagicMock()
     bad_orch.config = {
         "risk_management": {"params": {"payout_estimate": "x"}},
@@ -32,6 +32,10 @@ def test_neg_edge_payout_and_min_edge_fallbacks():
                 "signal_skip": {
                     "neg_edge_soft_kelly_mult": 0.55,
                     "neg_edge_hard_skip": True,
+                    "neg_edge_soft_when_closed_candle_agree": False,
+                    "neg_edge_soft_min_edge": -1.0,
+                    "neg_edge_bootstrap_soft_kelly_mult": 0.25,
+                    "neg_edge_deep_edge_floor": -0.12,
                 }
             }
         },
@@ -89,7 +93,7 @@ def test_neg_edge_hard_clears_prior_soft_waive_and_malformed_orch():
     metrics2 = {
         "execution_candidate_ready": True,
         "exec_direction": "CALL",
-        "calibrated_prob": 0.59,
+        "calibrated_prob": 0.50,
         "kelly_fraction_scale": 1.0,
         "loss_clf_auto_learn": True,
     }
@@ -100,7 +104,7 @@ def test_neg_edge_hard_clears_prior_soft_waive_and_malformed_orch():
     metrics3 = {
         "execution_candidate_ready": True,
         "exec_direction": "CALL",
-        "calibrated_prob": 0.59,
+        "calibrated_prob": 0.50,
         "kelly_fraction_scale": 1.0,
         "loss_clf_auto_learn": True,
     }
@@ -125,13 +129,19 @@ def test_neg_edge_soft_mult_override_with_orch():
                 "signal_skip": {
                     "neg_edge_soft_kelly_mult": 0.55,
                     "neg_edge_hard_skip": False,
+                    "neg_edge_soft_when_closed_candle_agree": True,
+                    "neg_edge_soft_min_edge": -1.0,
+                    "neg_edge_bootstrap_soft_kelly_mult": 0.25,
+                    "neg_edge_deep_edge_floor": -0.12,
                 }
             }
         },
     }
-    assert apply_negative_cal_edge_pause(metrics, orch=orch, soft_mult=0.40) is True
-    assert metrics["gate_reason"] == "neg_edge"
-    assert metrics["execution_candidate_ready"] is False
+    assert apply_negative_cal_edge_pause(metrics, orch=orch, soft_mult=0.40) is False
+    assert metrics.get("gate_reason") is None
+    assert metrics["execution_candidate_ready"] is True
+    assert metrics.get("neg_edge_soft") is True
+    assert metrics["kelly_fraction_scale"] == pytest.approx(0.55)
 
 
 def test_neg_edge_fusion_p_eff_invalid_falls_back_to_cal():
@@ -168,10 +178,10 @@ def test_neg_edge_replay_c1_put_cluster_neg_fusion_pos():
         "deep_learning": {"min_edge_execute": 0.04},
         "risk_management": {"params": {"payout_estimate": 0.72}},
     }
-    assert apply_negative_cal_edge_pause(metrics, orch=orch) is True
-    assert metrics["execution_candidate_ready"] is False
-    assert metrics.get("gate_reason") == "neg_edge"
-    assert float(metrics["cal_side_edge"]) == pytest.approx(-0.109, abs=0.002)
+    assert apply_negative_cal_edge_pause(metrics, orch=orch) is False
+    assert metrics["execution_candidate_ready"] is True
+    assert metrics.get("gate_reason") is None
+    assert float(metrics["cal_side_edge"]) == pytest.approx((0.612 * 1.72) - 1.0, abs=0.002)
 
 
 def test_neg_edge_replay_c2_call_cluster_neg_fusion_pos():
@@ -192,10 +202,10 @@ def test_neg_edge_replay_c2_call_cluster_neg_fusion_pos():
         "deep_learning": {"min_edge_execute": 0.04},
         "risk_management": {"params": {"payout_estimate": 0.72}},
     }
-    assert apply_negative_cal_edge_pause(metrics, orch=orch) is True
-    assert metrics["execution_candidate_ready"] is False
-    assert metrics.get("gate_reason") == "neg_edge"
-    assert float(metrics["cal_side_edge"]) == pytest.approx(-0.131, abs=0.003)
+    assert apply_negative_cal_edge_pause(metrics, orch=orch) is False
+    assert metrics["execution_candidate_ready"] is True
+    assert metrics.get("gate_reason") is None
+    assert float(metrics["cal_side_edge"]) == pytest.approx((0.626 * 1.72) - 1.0, abs=0.003)
 
 
 def test_neg_edge_passes_when_tcn_cal_edge_above_floor():

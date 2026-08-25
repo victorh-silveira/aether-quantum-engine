@@ -34,7 +34,7 @@ O mercado é tratado como série temporal ruidosa: a TCN estima `P(CALL)` (thres
 
 **Calibração (settings atuais):** `neutral_half_width: 0.0` — zona neutra **OFF**; thresholds CALL/PUT **0.62/0.38**. Em `dl_calibration_tolerance` / `dl_predict_build`, se `raw_prob > 0.65` ou `< 0.35`, a TCN macro prevalece sobre a calibração de curto prazo.
 
-**Settlement:** janela de tolerância **90 s** com reconciliação passiva (`portfolio` + Redis); pós-EXEC_EMPTY em recovery alinha a fronteira de assinatura (cap `exec_empty_retry_seconds`).
+**Settlement:** janela de tolerância **600 s** com reconciliação passiva (`portfolio` + Redis); pós-EXEC_EMPTY em recovery alinha a fronteira de assinatura (cap `exec_empty_retry_seconds`).
 
 ---
 
@@ -290,7 +290,7 @@ Runtime atual: TCN ancora Cal → SCALE → soft `signal_skip` → **fusao EV** 
 | Calibração | `dl_calibration_tolerance` | Zona neutra **off**; override TCN em raw extremos |
 | Loss protection | `execution_loss_protection` | Caps edge/Z 999; margem operacional **0.0** |
 | Meta soft | `meta_payoff_regression` | Soft comprime score sob squeeze; sem hard-block do resolve |
-| Settlement | `orchestrator_settlement_queue` | Janela **90 s** + orphan cleaner |
+| Settlement | `orchestrator_settlement_queue` | Janela **600 s** + orphan cleaner |
 
 Em modo mandatário, o quality guard emite telemetria `QUALITY_GUARD` / `EXECUTION_FLOW` e delega ao mandatory pick em vez de congelar a esteira por soft alone.
 
@@ -386,7 +386,7 @@ Watchdog: `AetherWatchdog` reconecta stream se ticks estagnarem (`watchdog_stale
 `arch`, `lookback` (**480**), `train_symbols`, `confidence_*` (**0.62/0.38**), `calibration.*` (`neutral_half_width: 0.0`), `online_training` (**false**), `deploy_gate.*`, `label_mode` + `label_*`, `tcn.channels`, `training_*`, `model_path_template`, `min_edge_execute`.
 
 ### `orchestrator` / `orchestrator.execution`
-`cycle_interval_seconds` (**60**), `signature_boundary_seconds` (**60**), `exec_empty_retry_seconds` (**60**), `watchdog_stale_tick_seconds` (**300**), `mandatory_trade_each_cycle` (**false**), `invert_exec_side` (**false**), `require_meta_for_execution` (**false**), `scale_vision.fusion_*` + `signal_skip` 1.1, `settlement_*` (**90 s** SSOT), `post_settlement_is_trading_wait_seconds` (**90**), `warm_up_live_data_timeout_seconds`, `broker_handshake_timeout_seconds`, `state_lock_acquire_timeout_seconds`.
+`cycle_interval_seconds` (**60**), `signature_boundary_seconds` (**60**), `exec_empty_retry_seconds` (**60**), `watchdog_stale_tick_seconds` (**300**), `mandatory_trade_each_cycle` (**false**), `invert_exec_side` (**false**), `require_meta_for_execution` (**false**), `scale_vision.fusion_*` + `signal_skip` 1.1, `settlement_tolerance_window_seconds` (**600**), `post_settlement_is_trading_wait_seconds` (**90**), `warm_up_live_data_timeout_seconds`, `broker_handshake_timeout_seconds`, `state_lock_acquire_timeout_seconds`.
 
 ### `risk_management`
 `kelly.*` (`fraction: 0.08`, explore piso **0.25%**, tetos stop-win Kelly ate **5%**), `soft_recovery.*` (amort **1/1**, cover **1.50**, linear3 **2.5%**), `min_validation_accuracy_gate` (**0.53**), `params.*` (duration **5** m via `ops_contract_duration_minutes`; `label_horizon_bars` **55**, compounding **0.03**, stake_min, payout_estimate **0.72**), `large_account_stop_win_pct` (**3.0**), `small_account_*`.

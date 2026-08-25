@@ -85,8 +85,6 @@ def check_rsi_filter(
             rsi = rsi / 100.0
     except (TypeError, ValueError):
         return True
-    if side == TradeDirection.CALL and rsi < 0.32:
-        return False
-    if side == TradeDirection.PUT and rsi > 0.68:
-        return False
-    return True
+    call_blocked = side == TradeDirection.CALL and rsi < 0.32
+    put_blocked = side == TradeDirection.PUT and rsi > 0.68
+    return not (call_blocked or put_blocked)

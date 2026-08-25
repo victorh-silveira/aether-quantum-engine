@@ -11,17 +11,17 @@ Padroes obrigatorios para contribuicao e agentes. Entrada: [`AGENTS.md`](../AGEN
 
 ## Pre-commit
 
-[`.pre-commit-config.yaml`](../.pre-commit-config.yaml) chama `app/scripts/operations/clean_workspace.py`:
+[`.pre-commit-config.yaml`](../.pre-commit-config.yaml) e as actions em [`.github/actions/`](../.github/actions/) chamam o mesmo motor `app/scripts/operations/clean_workspace.py` (paridade bidirecional):
 
-| Stage | O que faz |
-|-------|-----------|
-| lint | Ruff, Interrogate, Vulture, limite de linhas |
-| test | pytest + cobertura **100%** em `app/src` |
-| security | Bandit + pip-audit |
-| cleanup | caches/artefatos locais |
-| commit-msg | commitlint (`linters/commitlint.config.mjs`) |
+| Stage | O que faz | Pre-commit | CI |
+|-------|-----------|------------|-----|
+| lint | Ruff, Interrogate, Vulture, limite de linhas | `--stage lint` | `--stage lint` |
+| test | pytest + cobertura **100%** em `app/src` | `--stage test --coverage-fail-under 100` | idem |
+| security | Bandit + pip-audit + Gitleaks | `--stage security` | idem (CI instala `gitleaks` no PATH antes) |
+| cleanup | caches/artefatos locais | `--stage clean --light-clean` | (local) |
+| commit-msg | commitlint (`linters/commitlint.config.mjs`) | hook | (local) |
 
-Rodar: `pre-commit run --all-files` (no WSL, a partir da raiz do repo).
+Rodar: `make app-pre-commit-run` ou `pre-commit run --all-files` (WSL, raiz do repo). Gitleaks precisa estar no PATH local.
 
 ## Commitlint
 

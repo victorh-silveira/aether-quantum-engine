@@ -68,9 +68,9 @@ def test_build_horizon_candidates_defaults_without_settings():
 
 def test_load_horizon_sweep_knobs_from_ssot():
     knobs = load_horizon_sweep_knobs()
-    assert knobs["n_bars"] == list(DEFAULT_N_BARS)
-    assert knobs["duration_minutes"] == list(DEFAULT_N_BARS)
-    assert knobs["enabled"] is True
+    assert knobs["n_bars"] == [1, 2, 3, 5]
+    assert knobs["duration_minutes"] == [1, 2, 3, 5]
+    assert knobs["enabled"] is False
     knobs = load_horizon_sweep_knobs(
         {
             "data_handler": {"micro_granularity": 60},
@@ -92,7 +92,7 @@ def test_load_horizon_sweep_knobs_from_ssot():
             "data_handler": {"micro_granularity": 60},
             "deep_learning": {
                 "horizon_sweep": {
-                    "duration_minutes": [15, 60],
+                    "n_bars": [15, 60],
                     "payout_for_breakeven": 0.80,
                     "symbols": ["R_10"],
                     "enabled": True,
@@ -108,6 +108,19 @@ def test_load_horizon_sweep_knobs_from_ssot():
     assert custom["run_in_launch_train"] is False
     assert custom["symbols"] == ["R_10"]
     assert parse_duration_minutes([15, 15, 20]) == (15, 20)
+    n_prefers = load_horizon_sweep_knobs(
+        {
+            "data_handler": {"micro_granularity": 60},
+            "deep_learning": {
+                "horizon_sweep": {
+                    "n_bars": [1, 2, 3, 5],
+                    "duration_minutes": [1440, 2880, 4320, 7200],
+                }
+            },
+        }
+    )
+    assert n_prefers["n_bars"] == [1, 2, 3, 5]
+    assert n_prefers["duration_minutes"] == [1, 2, 3, 5]
 
 
 def test_pick_horizon_winner_among_eligible():

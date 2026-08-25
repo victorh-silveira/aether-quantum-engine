@@ -275,4 +275,3 @@ def test_anti_loss_ema_slope_veto():
     cfg = parse_signal_skip_config({})
     assert apply_anti_loss_seed_discord(metrics, orch=orch, cfg=cfg) is True
     assert metrics["gate_reason"] in {"anti_loss_ema_slope", "anti_loss_ema_trend"}
-

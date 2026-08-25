@@ -43,29 +43,33 @@ def test_apply_isotonic_single_knot_and_fallback():
 
 
 def test_fit_calibrator_explicit_methods():
-    probs = [0.9, 0.1, 0.8, 0.2]
-    labels = [1.0, 0.0, 1.0, 0.0]
-    assert fit_calibrator(probs, labels, calibration_cfg={"method": "temperature_platt"}).method == "temperature_platt"
-    assert fit_calibrator(probs, labels, calibration_cfg={"method": "platt"}).method == "platt"
+    probs = [0.9, 0.1, 0.8, 0.2] * 10
+    labels = [1.0, 0.0, 1.0, 0.0] * 10
+    cfg_base = {"small_sample_identity": False}
+    assert (
+        fit_calibrator(probs, labels, calibration_cfg={**cfg_base, "method": "temperature_platt"}).method
+        == "temperature_platt"
+    )
+    assert fit_calibrator(probs, labels, calibration_cfg={**cfg_base, "method": "platt"}).method == "platt"
     assert fit_calibrator([], labels, calibration_cfg={"method": "platt"}).method == "identity"
     iso = fit_calibrator(
         probs,
         labels,
-        calibration_cfg={"method": "isotonic", "isotonic_min_samples": 20},
+        calibration_cfg={**cfg_base, "method": "isotonic", "isotonic_min_samples": 20},
     )
     assert iso.method in {"temperature_platt", "platt", "isotonic"}
     forced = fit_calibrator(
         probs,
         labels,
-        calibration_cfg={"method": "auto", "auto_select_by_brier": False},
+        calibration_cfg={**cfg_base, "method": "auto", "auto_select_by_brier": False},
     )
     assert forced.method == "temperature_platt"
     sparse_iso = fit_calibrator(
-        probs,
-        labels,
-        calibration_cfg={"method": "isotonic", "isotonic_min_samples": 20},
+        probs[:4],
+        labels[:4],
+        calibration_cfg={**cfg_base, "method": "isotonic", "isotonic_min_samples": 20},
     )
-    assert sparse_iso.method in {"temperature_platt", "platt", "isotonic"}
+    assert sparse_iso.method in {"temperature_platt", "platt", "isotonic", "identity"}
 
 
 def test_select_best_calibrator_empty():
@@ -126,10 +130,14 @@ def test_apply_isotonic_edges():
 
 
 def test_fit_calibrator_auto_selects_method():
-    probs = [0.9, 0.8, 0.2, 0.1, 0.75, 0.25, 0.65, 0.35]
-    labels = [1.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0]
-    cal = fit_calibrator(probs, labels, calibration_cfg={"method": "auto", "isotonic_min_samples": 6})
-    assert cal.method in {"temperature_platt", "platt", "isotonic", "identity"}
+    probs = [0.9, 0.8, 0.2, 0.1, 0.75, 0.25, 0.65, 0.35] * 5
+    labels = [1.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0] * 5
+    cal = fit_calibrator(
+        probs,
+        labels,
+        calibration_cfg={"method": "auto", "isotonic_min_samples": 6, "small_sample_identity": False},
+    )
+    assert cal.method in {"temperature_platt", "platt", "isotonic", "identity", "temperature"}
     calibrated = [apply_calibrator(p, cal) for p in probs]
     assert all(0.0 <= p <= 1.0 for p in calibrated)
 
@@ -152,6 +160,7 @@ def test_fit_calibrator_falls_back_to_identity_when_forced_collapses():
             calibration_cfg={
                 "method": "temperature_platt",
                 "min_calibration_sharpness": 0.01,
+                "small_sample_identity": False,
             },
         )
     assert cal.method == "identity"
@@ -190,9 +199,13 @@ def test_maybe_identity_on_oos_collapse_empty_val_probs():
 
 
 def test_fit_calibrator_isotonic_explicit():
-    probs = [0.1 + i * 0.1 for i in range(10)]
+    probs = [0.1 + i * 0.1 for i in range(10)] * 4
     labels = [1.0 if p >= 0.55 else 0.0 for p in probs]
-    cal = fit_calibrator(probs, labels, calibration_cfg={"method": "isotonic", "isotonic_min_samples": 8})
+    cal = fit_calibrator(
+        probs,
+        labels,
+        calibration_cfg={"method": "isotonic", "isotonic_min_samples": 8, "small_sample_identity": False},
+    )
     assert cal.method == "isotonic"
     assert len(cal.isotonic_x) >= 2
 

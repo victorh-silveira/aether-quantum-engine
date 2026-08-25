@@ -64,7 +64,7 @@ Regra: **domain** não importa application nem infrastructure. **Application** o
 | Recovery relax | `recovery_relax.edge_floor: -0.55` com `linear≥2` e pending |
 | Discordance | `discordance_veto_enabled: false` (módulo `execution_direction_discordance` disponível) |
 | Risco | Kelly EXPLORE (`fraction=0.08`, piso **0.25%** / teto **5%**) + Soft Recovery RECOVER (`max_safe_stake_pct=0.05`, payout **0.72**); stop-win Kelly **4 ciclos/1h**; stop win 3% (≥$100) / $10 (&lt;$100) |
-| Settlement | Tolerância **90 s**, reconciliação passiva; pós-EXEC_EMPTY alinha fronteira (cap `exec_empty_retry_seconds`) |
+| Settlement | Tolerância **600 s**, reconciliação passiva; pós-EXEC_EMPTY alinha fronteira (cap `exec_empty_retry_seconds`) |
 | Watchdog | Stale tick **300 s** |
 | Histórico treino | **2000** barras micro M1; sync lean no treino (macro≤128, mini=0) |
 | QA | Pre-commit: lint + testes **100%** cobertura (**305** `test_*.py`) + security; ≤300 linhas/arquivo |

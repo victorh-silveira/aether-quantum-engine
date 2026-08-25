@@ -86,11 +86,15 @@ def load_horizon_sweep_knobs(settings: dict[str, Any] | None = None) -> dict[str
         if isinstance(data, dict) and data.get("micro_granularity") is not None
         else M1_SECONDS
     )
-    durations = parse_duration_minutes(block.get("duration_minutes"))
-    if durations is not None:
-        bars = list(n_bars_from_durations(durations, micro_seconds=micro))
+    raw_n = block.get("n_bars")
+    if isinstance(raw_n, (list, tuple)) and raw_n:
+        bars = list(parse_n_bars(raw_n))
     else:
-        bars = list(parse_n_bars(block.get("n_bars")))
+        durations = parse_duration_minutes(block.get("duration_minutes"))
+        if durations is not None:
+            bars = list(n_bars_from_durations(durations, micro_seconds=micro))
+        else:
+            bars = list(parse_n_bars(None))
     ops_dur = block.get("ops_contract_duration_minutes")
     return {
         "enabled": bool(block.get("enabled", True)),
@@ -145,11 +149,15 @@ def build_horizon_candidates(
     if n_bars is not None:
         bars = parse_n_bars(n_bars)
     else:
-        durations = parse_duration_minutes(h_block.get("duration_minutes"))
-        if durations is not None:
-            bars = n_bars_from_durations(durations, micro_seconds=micro)
+        raw_n = h_block.get("n_bars")
+        if isinstance(raw_n, (list, tuple)) and raw_n:
+            bars = parse_n_bars(raw_n)
         else:
-            bars = parse_n_bars(h_block.get("n_bars"))
+            durations = parse_duration_minutes(h_block.get("duration_minutes"))
+            if durations is not None:
+                bars = n_bars_from_durations(durations, micro_seconds=micro)
+            else:
+                bars = parse_n_bars(None)
     out: list[dict[str, Any]] = []
     for n in bars:
         out.append(

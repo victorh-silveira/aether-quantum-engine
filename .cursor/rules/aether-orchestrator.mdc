@@ -12,5 +12,5 @@ alwaysApply: true
 - `mandatory_trade_each_cycle` **false**; `force_trade_every_cycle` **false**; `invert_exec_side` **false**; `online_training` **false**
 - EXEC_EMPTY pode ser processo correto; stop-win **3%** → `EXEC_PAUSE` (nao forcar trade)
 - Watchdog: `watchdog_stale_tick_seconds` **300**; respeitar stale/cooldown
-- Pos-settlement wait **90 s**; tolerancia settle **90 s**; timeout ciclo pos-settle **1200 s**
+- Pos-settlement wait **90 s**; tolerancia settle **600 s**; timeout ciclo pos-settle **1200 s**
 - Doc: `docs/engineering-orchestrator.md`; skill: `aether-cycle-debug`

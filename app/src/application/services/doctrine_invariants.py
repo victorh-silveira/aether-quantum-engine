@@ -189,8 +189,8 @@ def assert_production_doctrine(settings: dict[str, Any] | None = None) -> dict[s
         raise ValueError("flip_seed_waive_edge_min deve ser -0.08")
     if not inv["fusion_block_when_tcn_pos_edge"]:
         raise ValueError("fusion_block_when_tcn_pos_edge deve ser true")
-    if not inv["fusion_block_when_tcn_candle_agree"]:
-        raise ValueError("fusion_block_when_tcn_candle_agree deve ser true")
+    if inv["fusion_block_when_tcn_candle_agree"]:
+        raise ValueError("fusion_block_when_tcn_candle_agree deve ser false")
     if not inv["fusion_loss_requires_auto_learn"]:
         raise ValueError("fusion_loss_requires_auto_learn deve ser true")
     if abs(float(inv["fusion_loss_seed_weight_mult"])) > 1e-12:
@@ -199,8 +199,8 @@ def assert_production_doctrine(settings: dict[str, Any] | None = None) -> dict[s
         raise ValueError("neg_edge_deep_edge_floor deve ser -0.12")
     if int(inv["watchdog_stale_tick_seconds"]) != 300:
         raise ValueError("watchdog_stale_tick_seconds deve ser 300")
-    if int(inv["settlement_tolerance_window_seconds"]) != 90:
-        raise ValueError("settlement_tolerance_window_seconds deve ser 90")
+    if int(inv["settlement_tolerance_window_seconds"]) != 600:
+        raise ValueError("settlement_tolerance_window_seconds deve ser 600")
     if int(inv["post_settlement_is_trading_wait_seconds"]) != 90:
         raise ValueError("post_settlement_is_trading_wait_seconds deve ser 90")
     if int(inv["amort_cycles_min"]) != 1 or int(inv["amort_cycles_max"]) != 1:
@@ -219,6 +219,6 @@ def assert_production_doctrine(settings: dict[str, Any] | None = None) -> dict[s
         raise ValueError("max_safe_stake_cap/pct devem ser > 0")
     if inv["signal_skip_enabled"]:
         floor = float(inv["signal_skip_min_direction_margin"])
-        if abs(floor - 0.022) > 1e-9:
-            raise ValueError("signal_skip.min_direction_margin deve ser 0.022")
+        if abs(floor - 0.005) > 1e-9:
+            raise ValueError("signal_skip.min_direction_margin deve ser 0.005")
     return inv

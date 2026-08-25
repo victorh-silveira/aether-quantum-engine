@@ -194,8 +194,8 @@ def test_knobs_read_horizon_sweep():
     assert knobs["min_edge_vs_breakeven"] == pytest.approx(0.03)
     assert "leaderboard.json" in knobs["leaderboard_path"]
     assert knobs["artifact_root"] == "data/dl/sweep"
-    assert knobs["n_bars"] == [15, 20, 25, 30, 35, 40, 45, 50, 55, 60]
-    assert bool(knobs["enabled"]) is True
+    assert knobs["n_bars"] == [1, 2, 3, 5]
+    assert bool(knobs["enabled"]) is False
     assert knobs["symbols"] == ["R_10"]
 
 

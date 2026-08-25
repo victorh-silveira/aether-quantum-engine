@@ -54,7 +54,7 @@ Arquivo: [`config/settings.json`](config/settings.json)
 | `symbols` / `anchor` | Universo (`R_10`; ancora `R_10`) |
 | `data_handler` | `granularity` (macro **7200 s**), `micro_granularity` / `mini_granularity` (**60 s**), historico treino tipico **2000** barras micro M1 |
 | `deep_learning` | `arch`, `lookback` (**480**), `online_training` **false**, calibration (`neutral_half_width: 0.0`), thresholds **0.51/0.49**, `deploy_gate` |
-| `orchestrator.execution` | `mandatory_trade_each_cycle: false`, `force_trade_every_cycle: false`, `invert_exec_side: false`, `scale_vision.fusion_*`, `signal_skip` 1.1, settlement **90 s** |
+| `orchestrator.execution` | `mandatory_trade_each_cycle: false`, `force_trade_every_cycle: false`, `invert_exec_side: false`, `scale_vision.fusion_*`, `signal_skip` 1.1, settlement **600 s** |
 | `risk_management.kelly` | Stake EXPLORE (`fraction: 0.08`, piso **0.25%**, tetos stop-win Kelly ate **5%**) |
 | `risk_management.soft_recovery` | RECOVER: amort **1/1**, cover **1.50**, linear3 **2.5%** |
 | `orchestrator.execution.side_equilibrium` | Leis dos pequenos/grandes números CALL/PUT (small-N hard skip; large-N soft Kelly) |
@@ -127,7 +127,7 @@ Copie `cp .env.example .env` e preencha o PAT. Validação Deriv: `python app/sc
 - **Gatilho D-SQUEEZE (`[D-SQUEEZE]`)**: quando `predicted_payoff_edge < -0.15` em compressão micro (`bb_width < 0.06` ou `micro_tick_acceleration < 0`), o resolver rebaixa `trade_score` para **0.52**, comprimindo stake — sem inverter a direção da TCN. `bb_width_adaptive_squeeze` está **desabilitado** nos settings atuais.
 - **Recovery**: Soft Recovery cover pleno (amort **1/1**, `cover_multiple` **1.50**) após loss linear; reset de risco somente quando `pending_loss` zera.
 - **Loss protection**: caps edge/Z 999; quality guard em modo mandatório prioriza esteira contínua (soft alone não congela o cluster).
-- **Settlement**: janela de tolerância **90 s** com reconciliação passiva (portfolio + Redis); pós-EXEC_EMPTY em recovery alinha a próxima fronteira (cap de retry).
+- **Settlement**: janela de tolerância **600 s** com reconciliação passiva (portfolio + Redis); pós-EXEC_EMPTY em recovery alinha a próxima fronteira (cap de retry).
 - **Starvation**: após **6** quality skips, pisos decaem; edge meta relaxa a partir de **8** skips; Convicção Progressiva (−20%/5 skips em recovery).
 - **Persistence / SIDE_EQ**: após 2 losses no mesmo lado tenta flip (toxic escape, edge positivo preservado); SIDE_EQ hard-skip tenta o oposto e pode marcar `side_eq_escape_edge_kept`.
 - **Reconexão**: `release_trading_cycle_after_reconnect` invalida assinatura/epoch e reduz warm-up micro quando há `pending_loss`; log `RECOV: ciclo liberado`.

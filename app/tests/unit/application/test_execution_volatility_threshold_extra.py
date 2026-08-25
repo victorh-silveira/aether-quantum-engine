@@ -22,7 +22,7 @@ def test_resolve_dynamic_threshold_bundle_enabled():
 def test_calibrator_entropy_metrics():
     probs = [0.9, 0.1, 0.8, 0.2]
     labels = [1.0, 0.0, 1.0, 0.0]
-    cal = fit_calibrator(probs, labels, calibration_cfg={"method": "platt"})
+    cal = fit_calibrator(probs, labels, calibration_cfg={"method": "platt", "small_sample_identity": False})
     meta = calibrator_entropy_metrics(probs, labels, cal, calibration_cfg={"entropy_ceiling": 0.01})
     assert "calibrated_entropy" in meta
     assert isinstance(meta["entropy_violation"], bool)

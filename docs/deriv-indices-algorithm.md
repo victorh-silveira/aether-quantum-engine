@@ -19,7 +19,7 @@ Referencia: [dTrader R_10 M1](https://dtrader.deriv.com/?chart_type=candle&inter
 | Payout SSOT | **0.72** (live R_10 M1; cover = `pending/0.72`) |
 | Soft Recovery | amort **1/1**, `cover_multiple` **1.50** (cover pleno) |
 | Stop-win | `large_account_stop_win_pct` **3.0%** composto |
-| Settle wait / tolerancia | poll **0.5 s** / tolerancia **90 s**; timeout pos-ciclo **1200 s** |
+| Settle wait / tolerancia | poll **0.5 s** / tolerancia **600 s**; timeout pos-ciclo **1200 s** |
 | Watchdog stale tick | **300 s** |
 
 SSOT: `config/settings.json` + `app/src/domain/symbols/drift_symbols.py`.

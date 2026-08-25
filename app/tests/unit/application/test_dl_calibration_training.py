@@ -49,8 +49,12 @@ def test_calibration_helpers():
     assert shrink_toward_fifty(0.9, 0.75) == pytest.approx(0.9)
     assert shrink_toward_fifty(0.65, 0.48) > 0.56
     assert shrink_toward_fifty(0.65, 0.0) > 0.56
-    cal = fit_calibrator([0.9, 0.1, 0.8, 0.2], [1.0, 0.0, 1.0, 0.0])
-    assert 0.75 <= cal.temperature <= 2.5 or cal.method == "isotonic"
+    cal = fit_calibrator(
+        [0.9, 0.1, 0.8, 0.2] * 10,
+        [1.0, 0.0, 1.0, 0.0] * 10,
+        calibration_cfg={"small_sample_identity": False},
+    )
+    assert 0.75 <= cal.temperature <= 2.5 or cal.method in {"isotonic", "temperature", "temperature_platt", "platt"}
     assert fit_temperature([], []) == 1.0
     a_val, b_val = fit_platt_logistic([0.9, 0.1, 0.8, 0.2], [1.0, 0.0, 1.0, 0.0])
     assert isinstance(a_val, float)

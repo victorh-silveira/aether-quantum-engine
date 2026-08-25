@@ -22,6 +22,13 @@ __all__ = ("apply_anti_loss_seed_discord", "evaluate_anti_loss_seed_discord")
 
 _VALID = {TradeDirection.CALL.name, TradeDirection.PUT.name}
 _GATE = "anti_loss_seed_discord"
+_KNOWN_REASONS = {
+    "anti_loss_rsi_momentum",
+    "anti_loss_rsi_trend",
+    "anti_loss_ema_trend",
+    "anti_loss_ema_slope",
+    "live_exec_discord",
+}
 
 
 def _side(value: object) -> str | None:
@@ -169,22 +176,22 @@ def _evaluate_live_anti_loss(
     exec_side = _exec_dir(metrics)
     anchor = exec_side if exec_side is not None else tcn
     if not check_rsi_filter(metrics, anchor):
-        _stamp_anti_loss_metrics(metrics, tcn=tcn, candle=candle, body=body, reason="anti_loss_rsi_momentum", side=anchor)
+        _stamp_anti_loss_metrics(
+            metrics, tcn=tcn, candle=candle, body=body, reason="anti_loss_rsi_momentum", side=anchor
+        )
         return _finalize_anti_loss_decision(out, cfg=cfg, reason="anti_loss_rsi_momentum")
     ema_ok, ema_reason = check_mini_ema_trend_and_slope(orch, symbol, anchor, metrics=metrics)
     if not ema_ok:
         why = ema_reason or "anti_loss_ema_trend"
         _stamp_anti_loss_metrics(metrics, tcn=tcn, candle=candle, body=body, reason=why, side=anchor)
         return _finalize_anti_loss_decision(out, cfg=cfg, reason=why)
-    if (
-        bool(cfg.get("anti_loss_live_exec_candle_enabled", True))
-        and candle is not None
-        and anchor.name != candle
-    ):
+    if bool(cfg.get("anti_loss_live_exec_candle_enabled", True)) and candle is not None and anchor.name != candle:
         _stamp_anti_loss_metrics(metrics, tcn=tcn, candle=candle, body=body, reason="live_exec_discord", side=anchor)
         return _finalize_anti_loss_decision(out, cfg=cfg, reason="live_exec_discord")
     atr_val = metrics.get("atr")
-    effective_min_body = max(min_body, float(atr_val) * 0.5) if atr_val is not None and float(atr_val) > 0.0 else min_body
+    effective_min_body = (
+        max(min_body, float(atr_val) * 0.5) if atr_val is not None and float(atr_val) > 0.0 else min_body
+    )
     if bool(cfg.get("anti_loss_live_weak_candle_enabled", True)) and _weak_candle(candle, body, effective_min_body):
         reason = _live_weak_reason(candle)
         _stamp_anti_loss_metrics(metrics, tcn=tcn, candle=candle, body=body, reason=reason, side=anchor)
@@ -256,7 +263,11 @@ def apply_anti_loss_seed_discord(
     if metrics.get("execution_candidate_ready") is False:
         return False
     vision = cfg if isinstance(cfg, dict) else parse_signal_skip_config(None)
-    sym = symbol or getattr(orch, "anchor", None) or list(getattr(orch, "symbols", []))[0] if getattr(orch, "symbols", None) else None
+    sym = (
+        symbol or getattr(orch, "anchor", None) or list(getattr(orch, "symbols", []))[0]
+        if getattr(orch, "symbols", None)
+        else None
+    )
     decision = evaluate_anti_loss_seed_discord(metrics, cfg=vision, orch=orch, symbol=sym)
     if not decision["active"]:
         metrics.pop("anti_loss_seed_discord", None)
@@ -267,7 +278,6 @@ def apply_anti_loss_seed_discord(
     metrics["anti_loss_why"] = reason
     if decision["skip"]:
         metrics["execution_candidate_ready"] = False
-        _KNOWN_REASONS = {"anti_loss_rsi_momentum", "anti_loss_rsi_trend", "anti_loss_ema_trend", "anti_loss_ema_slope", "live_exec_discord"}
         metrics["gate_reason"] = reason if reason in _KNOWN_REASONS else _GATE
         metrics["signal_status"] = f"SKIP:{metrics['gate_reason'].upper()}"
         metrics.pop("anti_loss_soft", None)

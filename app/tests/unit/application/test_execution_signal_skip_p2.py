@@ -12,13 +12,14 @@ def test_resolve_with_orch_applies_cal_margin_soft():
         "metrics": {
             "execute": True,
             "deploy_ok": True,
-            "raw_prob": 0.51,
-            "calibrated_prob": 0.51,
+            "raw_prob": 0.501,
+            "calibrated_prob": 0.501,
             "val_accuracy": 0.70,
             "predicted_payoff_edge": 0.06,
             "meta_classifier_applied": True,
             "scale_mini_prev_bar_dir": "CALL",
             "scale_mini_bar_dir": "CALL",
+            "direction_margin": 0.002,
             "kelly_fraction_scale": 1.0,
         },
     }

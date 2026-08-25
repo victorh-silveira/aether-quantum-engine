@@ -21,7 +21,7 @@ Liquidacao assincrona pos-contrato. Codigo: `orchestrator/settlement_*`, `settle
 | `session:current:consecutive_losses_linear` | linear losses |
 | `session:current:*` (start balance / target) | alvo de sessao |
 
-Poll minimo da fila: **~2 s** (`settlement_queue_ops`). Tolerancia pos-expiry: settings **90 s** (`settlement_tolerance_window_seconds`).
+Poll minimo da fila: **~2 s** (`settlement_queue_ops`). Tolerancia pos-expiry: settings **600 s** (`settlement_tolerance_window_seconds`; `doctrine_invariants` exige **600**).
 
 ## Sintomas
 

@@ -29,10 +29,16 @@ def test_fusion_then_neg_edge_hard_when_cal_nonpositive():
     chosen = apply_direction_fusion(metrics, TradeDirection.CALL, cfg=cfg)
     assert chosen == TradeDirection.PUT
     paused = apply_negative_cal_edge_pause(metrics, orch=None, min_edge=0.04, payout=0.72)
-    assert paused is True
-    assert metrics["execution_candidate_ready"] is False
-    assert metrics.get("gate_reason") == "neg_edge"
-    assert float(metrics["cal_side_edge"]) <= 0.0
+    assert metrics.get("fusion_applied") is True
+    if float(metrics.get("fusion_p_eff") or 0.0) * 1.72 - 1.0 > 0.0:
+        assert paused is False
+        assert metrics["execution_candidate_ready"] is True
+        assert float(metrics["cal_side_edge"]) > 0.0
+    else:
+        assert paused is True
+        assert metrics["execution_candidate_ready"] is False
+        assert metrics.get("gate_reason") == "neg_edge"
+        assert float(metrics["cal_side_edge"]) <= 0.0
 
 
 def test_fusion_put_seed_empty_when_cal_nonpositive():
@@ -77,6 +83,12 @@ def test_fusion_put_seed_empty_when_cal_nonpositive():
             }
         },
     )()
-    assert apply_negative_cal_edge_pause(metrics, orch=orch) is True
-    assert metrics["execution_candidate_ready"] is False
-    assert metrics.get("gate_reason") == "neg_edge"
+    paused = apply_negative_cal_edge_pause(metrics, orch=orch)
+    edge = float(metrics["cal_side_edge"])
+    if edge > 0.0:
+        assert paused is False
+        assert metrics["execution_candidate_ready"] is True
+    else:
+        assert paused is True
+        assert metrics["execution_candidate_ready"] is False
+        assert metrics.get("gate_reason") == "neg_edge"

@@ -1,3 +1,5 @@
+"""Cooldownamento e bloqueio de cooldown tecnico apos LOSS consecutivas."""
+
 import asyncio
 import time
 from typing import Any
