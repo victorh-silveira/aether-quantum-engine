@@ -144,9 +144,9 @@ services:
       - ./loss-models:/models
     environment:
       LOSS_FEATURE_DIM: "24"
-      LOSS_READY_N: "24"
+      LOSS_READY_N: "8"
       LOSS_RETRAIN_MIN_N: "1"
-      LOSS_BOOTSTRAP_EXIT_N: "16"
+      LOSS_BOOTSTRAP_EXIT_N: "8"
       LOSS_RETRAIN_ON_LOSS_MIN_N: "1"
       LOSS_MIN_WIN_FOR_LOSS_RETRAIN: "1"
       LOSS_MAX_BUFFER: "2000"

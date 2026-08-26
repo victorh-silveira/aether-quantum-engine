@@ -113,35 +113,21 @@ def _all_closed_micro_candles(stream: Any, symbol: str) -> list[Candle]:
 
 
 def log_closed_candle_outcomes(logger: Any, orch: Any, decisions: dict[str, Any]) -> None:
-    """Emite [CANDLE] por simbolo do ciclo usando a janela de operacoes M5 fechada."""
+    """Emite [CANDLE] por simbolo do ciclo usando a janela de operacoes fechada."""
     if orch is None:
         return
     stream = getattr(orch, "stream", None)
     symbols = list(decisions.keys()) if isinstance(decisions, dict) else []
     if not symbols:
         symbols = list(getattr(orch, "symbols", []) or [])
+    gran = resolve_micro_granularity_seconds(orch)
     for symbol in symbols:
         closed = _all_closed_micro_candles(stream, str(symbol))
         if not closed:
             continue
-        if len(closed) >= 5:
-            window = closed[-5:]
-            first, last = window[0], window[-1]
-            synthetic = Candle(
-                symbol=str(symbol),
-                open=float(first.open),
-                high=max(float(c.high) for c in window),
-                low=min(float(c.low) for c in window),
-                close=float(last.close),
-                time=last.time,
-                epoch=int(last.epoch),
-            )
-            line = format_candle_outcome_line(str(symbol), synthetic, granularity=300, start_epoch=int(first.epoch))
-            log_key = str(int(first.epoch))
-        else:
-            candle = closed[-1]
-            line = format_candle_outcome_line(str(symbol), candle, granularity=60)
-            log_key = str(int(candle.epoch))
+        candle = closed[-1]
+        line = format_candle_outcome_line(str(symbol), candle, granularity=gran)
+        log_key = str(int(candle.epoch))
         log_info_if_changed(
             orch,
             logger,
