@@ -45,24 +45,27 @@ def check_mini_ema_trend_and_slope(
     ema9 = float(calc_ema(closes, 9))
     last_close = float(closes[-1])
     ema21_series = calc_ema_series(closes, 21) if len(closes) >= 21 else None
-    tol = 0.50
+    base_tol = max(0.50, last_close * 0.001)
+    tol = base_tol
     if metrics is not None:
         atr_val = metrics.get("atr")
         if atr_val is not None and float(atr_val) > 0.0:
-            tol = max(tol, float(atr_val) * 0.4)
+            tol = max(base_tol, float(atr_val) * 0.4)
     if side == TradeDirection.CALL:
         if last_close < ema9 - tol:
             return False, "anti_loss_ema_trend"
         if ema21_series is not None and len(ema21_series) >= 3:
             ema21_last = float(ema21_series[-1])
-            if ema21_last < float(ema21_series[-3]) - 0.10:
+            slope_tol = max(0.10, last_close * 0.0002)
+            if ema21_last < float(ema21_series[-3]) - slope_tol:
                 return False, "anti_loss_ema_slope"
     elif side == TradeDirection.PUT:
         if last_close > ema9 + tol:
             return False, "anti_loss_ema_trend"
         if ema21_series is not None and len(ema21_series) >= 3:
             ema21_last = float(ema21_series[-1])
-            if ema21_last > float(ema21_series[-3]) + 0.10:
+            slope_tol = max(0.10, last_close * 0.0002)
+            if ema21_last > float(ema21_series[-3]) + slope_tol:
                 return False, "anti_loss_ema_slope"
     return True, None
 
