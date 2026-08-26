@@ -19,7 +19,7 @@ from src.application.services.meta_classifier_features import (
 
 FEATURE_LOOKBACK_SKIP = 32
 META_TRAIN_REFERENCE_STAKE = 1.0
-INNER_JOIN_MIN_SAMPLE_RATIO = 0.65
+INNER_JOIN_MIN_SAMPLE_RATIO = 0.50
 TCN_CALL_PROXY_THRESHOLD = 0.53
 TCN_PUT_PROXY_THRESHOLD = 0.47
 MICRO_ZSCORE_WINDOW = 1024
@@ -287,7 +287,7 @@ def build_paired_training_dataset(
     if not bundles:
         raise RuntimeError("Treino meta-classificador exige ao menos um bundle OHLC.")
     by_symbol = {bundle.symbol: bundle for bundle in bundles}
-    primary = by_symbol.get("R_10") or next(iter(by_symbol.values()))
+    primary = by_symbol.get("OTC_SPC") or next(iter(by_symbol.values()))
     duration = int(contract_duration_seconds) if contract_duration_seconds is not None else int(micro_granularity)
     label_horizon = _resolve_label_horizon_bars(
         int(primary.granularity),
