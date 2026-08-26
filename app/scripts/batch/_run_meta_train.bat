@@ -25,8 +25,8 @@ if not exist "%PYTHON_EXE%" (
     )
 )
 cd /d "%REPO_ROOT%"
-echo [AETHER] Meta-classificador trials=%META_TRIALS% source=auto bars=120
-"%PYTHON_EXE%" app/scripts/operations/train_meta_classifier.py --trials %META_TRIALS% --bars 120 --source auto
+echo [AETHER] Meta-classificador trials=%META_TRIALS% source=auto bars=100
+"%PYTHON_EXE%" app/scripts/operations/train_meta_classifier.py --trials %META_TRIALS% --bars 100 --source auto
 set "RC=%ERRORLEVEL%"
 if not "%RC%"=="0" (
     echo.

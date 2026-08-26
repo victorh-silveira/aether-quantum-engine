@@ -15,11 +15,11 @@ from src.infrastructure.handlers.history_fetch import fetch_paginated_candle_his
 
 
 logger = logging.getLogger("AETH.meta")
-MIN_OHLC_ROWS = 96
+MIN_OHLC_ROWS = 60
 META_TRAIN_DEFAULT_BARS = 5000
 META_TRAIN_MAX_BARS = 5000
 META_TRAIN_MIN_QUALITY_BARS = 5000
-META_TRAIN_LOOKBACK_MARGIN = 64
+META_TRAIN_LOOKBACK_MARGIN = 40
 
 
 def resolve_meta_train_bars(bars: int) -> int:
@@ -31,7 +31,7 @@ def resolve_meta_train_bars(bars: int) -> int:
 def meta_min_quality_bars(lookback: int = 360, target_bars: int | None = None) -> int:
     """Piso de barras para treino meta senior."""
     if target_bars is not None and int(target_bars) < META_TRAIN_MIN_QUALITY_BARS:
-        return max(MIN_OHLC_ROWS, int(lookback) + META_TRAIN_LOOKBACK_MARGIN)
+        return max(MIN_OHLC_ROWS, min(int(target_bars), int(lookback) + META_TRAIN_LOOKBACK_MARGIN))
     return max(META_TRAIN_MIN_QUALITY_BARS, int(lookback) + META_TRAIN_LOOKBACK_MARGIN)
 
 

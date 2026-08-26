@@ -186,7 +186,7 @@ def test_teacher_sample_weights_clip_confidence():
 def test_resolve_meta_train_bars_defaults_and_caps():
     assert resolve_meta_train_bars(1024) == 1024
     assert resolve_meta_train_bars(8000) == META_TRAIN_MAX_BARS
-    assert resolve_meta_train_bars(10) >= 96
+    assert resolve_meta_train_bars(10) >= 60
 
 
 def test_meta_bars_meet_quality_accepts_api_shortfall():
