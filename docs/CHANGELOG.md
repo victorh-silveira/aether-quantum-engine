@@ -1,3 +1,9 @@
+## [2.31.5](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.31.4...v2.31.5) (2026-08-26)
+
+### Correcoes de Bug
+
+* **orchestrator:** calibrar tolerancia dinamica de microestrutura ema para escala sp500 ([87f5dcf](https://github.com/victorh-silveira/aether-quantum-engine/commit/87f5dcfdbe57de2dda976d41d485f590b557cfd1))
+
 ## [2.31.4](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.31.3...v2.31.4) (2026-08-26)
 
 ### Correcoes de Bug
