@@ -187,6 +187,12 @@ def _evaluate_live_anti_loss(
         return _finalize_anti_loss_decision(out, cfg=cfg, reason=why)
     if bool(cfg.get("anti_loss_live_exec_candle_enabled", True)) and candle is not None and anchor.name != candle:
         _stamp_anti_loss_metrics(metrics, tcn=tcn, candle=candle, body=body, reason="live_exec_discord", side=anchor)
+        if orch is not None and bool(metrics.get("anti_loss_allow_candle_flip", True)) and candle in {TradeDirection.CALL.name, TradeDirection.PUT.name}:
+            new_side = TradeDirection[candle]
+            metrics["exec_direction"], metrics["resolved_direction"] = new_side.name, new_side.name
+            metrics["anti_loss_flipped_to_candle"], metrics["anti_loss_why"] = True, "live_exec_flip_to_candle"
+            out.update({"active": True, "reason": "live_exec_flip_to_candle", "soft": True, "soft_mult": float(cfg.get("anti_loss_soft_kelly_mult", 0.75))})
+            return out
         return _finalize_anti_loss_decision(out, cfg=cfg, reason="live_exec_discord")
     atr_val = metrics.get("atr")
     effective_min_body = (
