@@ -1,3 +1,14 @@
+## [2.32.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.31.5...v2.32.0) (2026-08-26)
+
+### Funcionalidades
+
+* **orchestrator:** alinhar telemetria candle para granularidade micro m15 e acelerar loss clf bootstrap ([217c977](https://github.com/victorh-silveira/aether-quantum-engine/commit/217c9779c252014f22160d1aba2b026eed8f15d8))
+* **orchestrator:** inverter direcao inteligentemente para a vela em discordancia ao inves de vetar ([351bc5a](https://github.com/victorh-silveira/aether-quantum-engine/commit/351bc5ac73ae598f8c205900d733e02516f93b6b))
+
+### Correcoes de Bug
+
+* **orchestrator:** sincronizar ssot de loss classifier e inversao inteligente anti-loss ([488b846](https://github.com/victorh-silveira/aether-quantum-engine/commit/488b846f85a8965652473b3f132f459f84af2525))
+
 ## [2.31.5](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.31.4...v2.31.5) (2026-08-26)
 
 ### Correcoes de Bug
