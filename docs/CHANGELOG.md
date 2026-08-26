@@ -1,3 +1,13 @@
+## [2.31.3](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.31.2...v2.31.3) (2026-08-26)
+
+### Correcoes de Bug
+
+* **scripts:** calibrar piso de barras e testes do meta para M15 ([75211c0](https://github.com/victorh-silveira/aether-quantum-engine/commit/75211c000ddd58db4279843b58640b548bc2c43d))
+
+### Documentacao
+
+* **all:** atualizar documentacao e readmes para OTC_SPC e M15 ([b899ba7](https://github.com/victorh-silveira/aether-quantum-engine/commit/b899ba75037c04df08c41c9d81c0a94d4f72c3f3))
+
 ## [2.31.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.31.1...v2.31.2) (2026-08-25)
 
 ### Melhorias de Performance
