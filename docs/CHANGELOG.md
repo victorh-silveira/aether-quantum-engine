@@ -1,3 +1,9 @@
+## [2.31.4](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.31.3...v2.31.4) (2026-08-26)
+
+### Correcoes de Bug
+
+* **scripts:** calibrar proporcao de amostras do dataset meta para M15 ([008f9db](https://github.com/victorh-silveira/aether-quantum-engine/commit/008f9dbd5db9ab743058fbd180399e9a480f7fb2))
+
 ## [2.31.3](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.31.2...v2.31.3) (2026-08-26)
 
 ### Correcoes de Bug
