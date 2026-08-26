@@ -40,7 +40,7 @@ def check_mini_ema_trend_and_slope(
     if stream is None or not hasattr(stream, "get_mini_numpy_series"):
         return True, None
     closes = stream.get_mini_numpy_series(str(symbol), "close")
-    if len(closes) < 9:
+    if closes is None or len(closes) < 9:
         return True, None
     ema9 = float(calc_ema(closes, 9))
     last_close = float(closes[-1])

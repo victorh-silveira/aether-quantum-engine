@@ -61,12 +61,12 @@ def test_compose_lib_and_env_example_document_ml_knobs():
 
 def test_compose_loss_classifier_env_ssot():
     text = _compose_text()
-    assert 'LOSS_READY_N: "24"' in text
-    assert 'LOSS_BOOTSTRAP_EXIT_N: "16"' in text
+    assert 'LOSS_READY_N: "8"' in text
+    assert 'LOSS_BOOTSTRAP_EXIT_N: "8"' in text
     assert 'LOSS_MIN_WIN_FOR_LOSS_RETRAIN: "1"' in text
     dockerfile = repo_path("infra", "docker", "loss-classifier", "Dockerfile").read_text(encoding="utf-8")
-    assert "LOSS_READY_N=24" in dockerfile
-    assert "LOSS_BOOTSTRAP_EXIT_N=16" in dockerfile
+    assert "LOSS_READY_N=8" in dockerfile
+    assert "LOSS_BOOTSTRAP_EXIT_N=8" in dockerfile
     assert "LOSS_MIN_WIN_FOR_LOSS_RETRAIN=1" in dockerfile
 
 

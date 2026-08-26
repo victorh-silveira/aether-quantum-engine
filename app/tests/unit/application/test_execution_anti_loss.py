@@ -41,14 +41,14 @@ def test_parse_anti_loss_knobs_from_ssot():
     assert cfg["anti_loss_live_confirm_enabled"] is False
     assert cfg["anti_loss_live_confirm_min_body"] == pytest.approx(0.05)
     assert cfg["anti_loss_live_exec_candle_enabled"] is True
-    with pytest.raises(ValueError, match="anti_loss_p_loss_floor"):
-        parse_signal_skip_config({"anti_loss_p_loss_floor": 1.5})
-    with pytest.raises(ValueError, match="anti_loss_soft_kelly_mult"):
-        parse_signal_skip_config({"anti_loss_soft_kelly_mult": 0.0})
-    with pytest.raises(ValueError, match="anti_loss_min_candle_body"):
-        parse_signal_skip_config({"anti_loss_min_candle_body": -0.1})
-    with pytest.raises(ValueError, match="anti_loss_live_confirm_min_body"):
-        parse_signal_skip_config({"anti_loss_live_confirm_min_body": 0.01})
+    for key, val in (
+        ("anti_loss_p_loss_floor", 1.5),
+        ("anti_loss_soft_kelly_mult", 0.0),
+        ("anti_loss_min_candle_body", -0.1),
+        ("anti_loss_live_confirm_min_body", 0.01),
+    ):
+        with pytest.raises(ValueError, match=key):
+            parse_signal_skip_config({key: val})
 
 
 def test_anti_loss_explore_hard_skip():
@@ -203,7 +203,7 @@ def test_anti_loss_live_auto_unstamped_does_not_seed():
 
 
 def test_anti_loss_live_exec_discord_strict():
-    """Testa veto mandatorio se sinal CALL e vela PUT, independente do tamanho do corpo."""
+    """Testa veto mandatorio se sinal CALL e vela PUT sem orquestrador."""
     metrics = _base_metrics(
         ops_window_stamped=True,
         exec_direction="CALL",
@@ -217,6 +217,33 @@ def test_anti_loss_live_exec_discord_strict():
     assert metrics["execution_candidate_ready"] is False
     assert metrics["gate_reason"] == "live_exec_discord"
     assert metrics["signal_status"] == "SKIP:LIVE_EXEC_DISCORD"
+
+
+def test_anti_loss_live_exec_flip_to_candle():
+    """Testa inversao inteligente para o lado da vela com orch ativo."""
+    from unittest.mock import MagicMock
+
+    orch = MagicMock()
+    orch.stream = MagicMock()
+    orch.symbols = ["R_10"]
+    orch.anchor = "R_10"
+    orch.stream.get_mini_numpy_series.return_value = None
+
+    metrics = _base_metrics(
+        ops_window_stamped=True,
+        exec_direction="CALL",
+        resolved_direction="CALL",
+        ops_window_candle_dir="PUT",
+        ops_window_candle_body=2.5,
+        indicators={"rsi": 0.50},
+    )
+    cfg = parse_signal_skip_config({})
+    assert apply_anti_loss_seed_discord(metrics, orch=orch, cfg=cfg) is False
+    assert metrics["exec_direction"] == "PUT"
+    assert metrics["resolved_direction"] == "PUT"
+    assert metrics["anti_loss_flipped_to_candle"] is True
+    assert metrics["anti_loss_why"] == "live_exec_flip_to_candle"
+    assert metrics["anti_loss_soft"] is True
 
 
 def test_anti_loss_rsi_momentum_veto():
@@ -259,11 +286,7 @@ def test_anti_loss_ema_slope_veto():
     # Colocamos o ultimo close acima da EMA9 temporariamente (repique), mas a EMA21 segue inclinando para baixo
     closes[-1] = closes[-2] + 20.0
     stream.get_mini_numpy_series.return_value = closes
-    orch = MagicMock()
-    orch.stream = stream
-    orch.symbols = ["R_10"]
-    orch.anchor = "R_10"
-
+    orch = MagicMock(stream=stream, symbols=["R_10"], anchor="R_10")
     metrics = _base_metrics(
         ops_window_stamped=True,
         exec_direction="CALL",

@@ -64,44 +64,24 @@ def _exec_dir(metrics: dict[str, Any]) -> TradeDirection | None:
     return TradeDirection[name]
 
 
-def _candle_body(metrics: dict[str, Any]) -> float | None:
-    """Le corpo liquido da janela ops."""
-    return ops_window_candle_body(metrics)
-
-
 def _weak_candle(candle: str | None, body: float | None, min_body: float) -> bool:
     """True se vela ausente ou corpo abaixo do piso minimo."""
-    if candle is None:
-        return True
-    if body is None:
-        return True
-    return body + 1e-12 < float(min_body)
+    return candle is None or body is None or body + 1e-12 < float(min_body)
 
 
 def _agree_strong(candle: str | None, side: TradeDirection, body: float | None, min_body: float) -> bool:
     """True se vela == lado ancora e corpo atinge o piso."""
-    if candle is None or candle != side.name or body is None:
-        return False
-    return body + 1e-12 >= float(min_body)
-
-
-def _candle_stamped(metrics: dict[str, Any]) -> bool:
-    """True se a janela ops N foi stampada neste ciclo."""
-    return ops_window_stamped(metrics)
+    return candle == side.name and body is not None and body + 1e-12 >= float(min_body)
 
 
 def _live_weak_reason(candle: str | None) -> str:
     """Motivo telemetria para ramo live em vela fraca."""
-    if candle is None:
-        return "live_no_candle"
-    return "live_weak_candle"
+    return "live_no_candle" if candle is None else "live_weak_candle"
 
 
 def _live_confirm_reason(candle: str | None, side: TradeDirection) -> str:
     """Motivo telemetria quando a vela nao confirma o lado ancora no piso live."""
-    if candle is None or candle != side.name:
-        return "live_discord_weak"
-    return "live_confirm_weak"
+    return "live_discord_weak" if candle != side.name else "live_confirm_weak"
 
 
 def _tcn_pos_edge_locked(metrics: dict[str, Any], tcn: TradeDirection) -> bool:
@@ -187,11 +167,18 @@ def _evaluate_live_anti_loss(
         return _finalize_anti_loss_decision(out, cfg=cfg, reason=why)
     if bool(cfg.get("anti_loss_live_exec_candle_enabled", True)) and candle is not None and anchor.name != candle:
         _stamp_anti_loss_metrics(metrics, tcn=tcn, candle=candle, body=body, reason="live_exec_discord", side=anchor)
-        if orch is not None and bool(metrics.get("anti_loss_allow_candle_flip", True)) and candle in {TradeDirection.CALL.name, TradeDirection.PUT.name}:
+        if orch is not None and bool(metrics.get("anti_loss_allow_candle_flip", True)) and candle in _VALID:
             new_side = TradeDirection[candle]
             metrics["exec_direction"], metrics["resolved_direction"] = new_side.name, new_side.name
             metrics["anti_loss_flipped_to_candle"], metrics["anti_loss_why"] = True, "live_exec_flip_to_candle"
-            out.update({"active": True, "reason": "live_exec_flip_to_candle", "soft": True, "soft_mult": float(cfg.get("anti_loss_soft_kelly_mult", 0.75))})
+            out.update(
+                {
+                    "active": True,
+                    "reason": "live_exec_flip_to_candle",
+                    "soft": True,
+                    "soft_mult": float(cfg.get("anti_loss_soft_kelly_mult", 0.75)),
+                }
+            )
             return out
         return _finalize_anti_loss_decision(out, cfg=cfg, reason="live_exec_discord")
     atr_val = metrics.get("atr")
@@ -225,9 +212,9 @@ def evaluate_anti_loss_seed_discord(
     if tcn is None:
         return out
     candle = ops_window_candle_side(metrics)
-    body = _candle_body(metrics)
+    body = ops_window_candle_body(metrics)
     min_body = float(cfg.get("anti_loss_min_candle_body", 0.10))
-    if _candle_stamped(metrics):
+    if ops_window_stamped(metrics):
         return _evaluate_live_anti_loss(
             metrics,
             cfg=cfg,
