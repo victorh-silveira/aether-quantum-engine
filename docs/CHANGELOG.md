@@ -1,3 +1,9 @@
+## [2.34.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.33.0...v2.34.0) (2026-08-27)
+
+### Funcionalidades
+
+* **orchestrator:** desativar gates e skips de anti-loss e discordancia ([3c26e33](https://github.com/victorh-silveira/aether-quantum-engine/commit/3c26e33f9cd937d5ee97f3f62dba84edf2934b71))
+
 ## [2.33.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.32.0...v2.33.0) (2026-08-27)
 
 ### Funcionalidades
