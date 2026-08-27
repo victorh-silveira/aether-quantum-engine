@@ -83,3 +83,16 @@ def test_resolve_max_stake_pct_high_conviction():
     }
     assert resolve_max_stake_pct(cfg, 0.70) == 0.02
     assert resolve_max_stake_pct(cfg, 0.90) == 0.04
+
+
+def test_is_stop_win_reached_tolerance():
+    from src.domain.risk.stop_win_target import is_stop_win_reached
+
+    assert is_stop_win_reached(0.0, 100.0) is False
+    assert is_stop_win_reached(100.0, 100.0) is True
+    assert is_stop_win_reached(98.0, 100.0) is True
+    assert is_stop_win_reached(97.9, 100.0) is False
+    rc = {"params": {"stop_win_target_tolerance_ratio": 0.95}}
+    assert is_stop_win_reached(95.0, 100.0, risk_config=rc) is True
+    assert is_stop_win_reached(94.9, 100.0, risk_config=rc) is False
+    assert is_stop_win_reached(100.0, 0.0) is False

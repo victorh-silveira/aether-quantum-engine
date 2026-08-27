@@ -11,6 +11,7 @@ import numpy as np
 import optuna
 import polars as pl
 from sklearn.metrics import mean_absolute_error
+from sklearn.model_selection import TimeSeriesSplit
 
 from scripts.operations.train_meta_vector import build_paired_training_dataset
 from src.application.services.deep_learning.dl_features import FEATURE_DIM
@@ -181,6 +182,7 @@ def run_optuna_study(
 ) -> tuple[lgb.Booster, dict[str, Any], float, float]:
     configure_meta_train_logging()
     frame = _feature_frame(frame)
+    sample_count = int(frame.height)
     x_train, x_val, y_train, y_val, w_train = _purged_frame_split(
         frame,
         y,
@@ -190,20 +192,56 @@ def run_optuna_study(
     x_val_np = x_val.to_numpy()
 
     train_rows = int(x_train.height)
-    min_child_hi = max(5, min(180, train_rows // 4))
-    min_child_lo = max(4, min(40, min_child_hi // 2))
+    min_child_hi = max(4, min(180, train_rows // 4))
+    min_child_lo = max(2, min(40, min_child_hi // 2))
+
+    use_cv = sample_count < 150
+    if use_cv:
+        cv_splits = 3
+        tscv = TimeSeriesSplit(n_splits=cv_splits)
+        frame_np = frame.to_numpy()
 
     def objective(trial: optuna.Trial) -> float:
         params = {
-            "max_depth": trial.suggest_int("max_depth", 2, 4),
+            "max_depth": trial.suggest_int("max_depth", 1 if use_cv else 2, 4),
             "learning_rate": trial.suggest_float("learning_rate", 0.005, 0.12, log=True),
-            "num_leaves": trial.suggest_int("num_leaves", 3, 10),
+            "num_leaves": trial.suggest_int("num_leaves", 2 if use_cv else 3, 10),
             "min_child_samples": trial.suggest_int("min_child_samples", min_child_lo, min_child_hi),
-            "reg_lambda": trial.suggest_float("reg_lambda", 1.0, 100.0, log=True),
+            "reg_lambda": trial.suggest_float("reg_lambda", 0.1 if use_cv else 1.0, 100.0, log=True),
             "feature_fraction": trial.suggest_float("feature_fraction", 0.40, 0.85),
             "subsample_freq": trial.suggest_int("subsample_freq", 1, 10),
             "n_jobs": OPTUNA_N_JOBS,
         }
+        if use_cv:
+            fold_z, fold_ir, fold_gaps = [], [], []
+            for tr_idx, v_idx in tscv.split(frame_np):
+                f_tr, f_v = frame[tr_idx], frame[v_idx]
+                y_tr, y_v = y[tr_idx], y[v_idx]
+                w_tr_fold = None if sample_weight is None else np.asarray(sample_weight, dtype=np.float64)[tr_idx]
+                m_fold, tr_mae, val_mae = train_lgbm_candidate(
+                    f_tr,
+                    y_tr,
+                    f_v,
+                    y_v,
+                    params,
+                    sample_weight=w_tr_fold,
+                )
+                gap = _mae_gap_ratio(tr_mae, val_mae)
+                if gap > META_EXPORT_MAX_MAE_GAP + 1e-12:
+                    return float(OPTUNA_OVERFIT_PENALTY)
+                fold_gaps.append(gap)
+                preds = m_fold.predict(f_v.to_numpy())
+                fold_z.append(payoff_zscore_mean(y_v, preds))
+                fold_ir.append(information_ratio_from_predictions(y_v, preds))
+            mean_z = float(np.mean(fold_z))
+            mean_ir = float(np.mean(fold_ir))
+            trial.set_user_attr("mae_gap", float(np.mean(fold_gaps)))
+            trial.set_user_attr("oos_payoff_zscore_mean", mean_z)
+            trial.set_user_attr("oos_information_ratio", mean_ir)
+            if mean_z <= 0.0:
+                return float(OPTUNA_NEGATIVE_EDGE_PENALTY)
+            return mean_z + OPTUNA_IR_TIEBREAK_WEIGHT * mean_ir
+
         model, train_mae, val_mae = train_lgbm_candidate(
             x_train,
             y_train,
@@ -251,14 +289,14 @@ def run_optuna_study(
         best_params,
         sample_weight=w_train,
     )
-    if _mae_gap_ratio(train_mae, val_mae) > META_EXPORT_MAX_MAE_GAP + 1e-12:
+    if not use_cv and _mae_gap_ratio(train_mae, val_mae) > META_EXPORT_MAX_MAE_GAP + 1e-12:
         raise RuntimeError(
             "Export meta bloqueado: melhor trial ainda overfitou no refit final "
             f"(val_mae/train_mae={_mae_gap_ratio(train_mae, val_mae):.3f})."
         )
     val_pred = model.predict(x_val_np)
-    val_ir = information_ratio_from_predictions(y_val, val_pred)
-    val_oos_zscore = payoff_zscore_mean(y_val, val_pred)
+    val_ir = best_ir if use_cv else information_ratio_from_predictions(y_val, val_pred)
+    val_oos_zscore = best_z if use_cv else payoff_zscore_mean(y_val, val_pred)
     ir_unit = float(val_ir / math.sqrt(n_val)) if n_val > 0 else 0.0
     logger.info(
         "Optuna concluido | z=%.3f ir=%.2f n_val=%d mae=%.3f trials=%d depth=%s lr=%s",

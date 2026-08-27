@@ -39,16 +39,23 @@ def test_parse_signal_skip_from_ssot():
     assert "calib_gray_margin_floor" not in cfg
     assert "calib_gray_soft_kelly_mult" not in cfg
     assert "calib_gray_max_stake_pct" not in cfg
-    with pytest.raises(ValueError, match="mini_pair_soft_kelly_mult"):
-        parse_signal_skip_config({"mini_pair_soft_kelly_mult": 0.0})
-    with pytest.raises(ValueError, match="cal_margin_soft_kelly_mult"):
-        parse_signal_skip_config({"cal_margin_soft_kelly_mult": 0.0})
-    with pytest.raises(ValueError, match="chop_soft_kelly_mult"):
-        parse_signal_skip_config({"chop_soft_kelly_mult": 0.0})
-    with pytest.raises(ValueError, match="neg_edge_soft_kelly_mult"):
-        parse_signal_skip_config({"neg_edge_soft_kelly_mult": 0.0})
-    with pytest.raises(ValueError, match="chop_hurst_max"):
-        parse_signal_skip_config({"chop_hurst_min": 0.60, "chop_hurst_max": 0.40})
+    assert cfg["anti_loss_allow_candle_flip"] is False
+    for k, v in (
+        ("mini_pair_soft_kelly_mult", 0.0),
+        ("cal_margin_soft_kelly_mult", 0.0),
+        ("chop_soft_kelly_mult", 0.0),
+        ("neg_edge_soft_kelly_mult", 0.0),
+        ("neg_edge_soft_min_edge", 0.5),
+        ("neg_edge_bootstrap_soft_kelly_mult", 0.0),
+        ("neg_edge_deep_edge_floor", 0.5),
+        ("anti_loss_p_loss_floor", -0.1),
+        ("anti_loss_soft_kelly_mult", 0.0),
+        ("anti_loss_min_candle_body", -0.1),
+        ("anti_loss_live_confirm_min_body", 0.01),
+        ("chop_hurst_max", 0.40),
+    ):
+        with pytest.raises(ValueError):
+            parse_signal_skip_config({"chop_hurst_min": 0.60, k: v} if k == "chop_hurst_max" else {k: v})
 
 
 def test_metrics_block_execution_covers_prefixed_skip_and_ready():

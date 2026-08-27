@@ -11,13 +11,13 @@ Ponto de entrada para agentes Cursor/LLM neste repositorio.
 
 ## Universo operacional
 
-- Simbolo unico em runtime: **OTC_SPC** (S&P 500 / Deriv)
-- Relogio: micro/MINI **900 s** (M15); macro **86400 s** (D1, 100 velas diarias); ciclo/signature **900 s**; TCN estima deslocamento em **N=1 vela M15** alinhado ao contrato ops **fixo 15 m (M15)** (`label_horizon_bars=1`, `risk_management.params.duration=15`, `duration_unit="m"`). Rotulagem: **supertrend_atr** (SuperTrend + Volatility ATR Band filter).
+- Universo operacional: **OTC_SPC** (S&P 500 / Deriv)
+- Relogio: micro/MINI **900 s** (M15); macro **86400 s** (D1, 100 velas diarias); ciclo/cadência **120 s** (2m); TCN estima deslocamento em **N=1 vela M15** alinhado ao contrato ops **fixo 15 m (M15)** (`label_horizon_bars=1`, `risk_management.params.duration=15`, `duration_unit="m"`). Rotulagem: **supertrend_atr** (SuperTrend + Volatility ATR Band filter).
 - SSOT: `config/settings.json` + `app/src/domain/symbols/drift_symbols.py`
 - Artefactos/treino com granularity/lookback/horizon ≠ settings sao invalidos (gate fail-closed); apos mudar TF/horizonte, retreinar TCN+meta e `make docker-rebuild`
 - Treino DL em velas diarias (D1 com 100 barras de historico), elegendo modelo assertivo com **settle_wr** ≥ be+0.03 ou acc ≥ 0.53; deploy reformulado priorizando Edge real vs Breakeven.
 - Runtime: `online_training` **false** — DEMO usa checkpoint TCN do `launch-train` (sem retreino deferido no settle); loss-clf e meta `/learn` a cada trade (rebuild containers ml apos mudar env)
-- Runtime: `orchestrator.execution.invert_exec_side` **false**. Payout base mercado real: **0.85** (85%). Sizing Kelly: projetado para atingir **1% da banca em tacada única M15** (`compounding_rate_daily = 0.01`, `stop_win_kelly_cycles_target = 1`, `stop_win_kelly_min_fraction = 1.0`, `stop_win_kelly_max_fraction = 1.0`, `max_stake_pct = 0.05`). Ao bater a meta de 1%, encerra a sessão imediatamente com STOP_WIN. Soft Kelly em fusão EV fraca, anti-loss com microestrutura balanceada em barras de 15m.
+- Runtime: `orchestrator.execution.invert_exec_side` **false**. Payout base mercado real: **0.85** (85%). Sizing Kelly: projetado para atingir **4,31% da banca em tacada única M15** (`compounding_rate_daily = 0.0431`, `stop_win_kelly_cycles_target = 1`, `stop_win_kelly_min_fraction = 1.0`, `stop_win_kelly_max_fraction = 1.0`, `max_stake_pct = 0.05`). Ao bater a meta de 4,31% (equivalente a 3% ao dia em 21 dias úteis compostos), encerra a sessão imediatamente com STOP_WIN. Soft Kelly em fusão EV fraca, anti-loss com microestrutura balanceada em barras de 15m.
 
 ## O que o LLM e / nao e
 
@@ -37,7 +37,7 @@ Rules/skills versionadas: [`.cursor/rules/`](.cursor/rules/) e [`.cursor/skills/
 - Cobertura de testes em `app/src` abaixo de **100%**
 - Assunto de commit em ingles; escopo fora do enum commitlint
 
-Nota operacional (**S&P 500 M15** + arquitetura continua): micro/mini em 900s; pipeline: SCALE → **fusao EV** → **loss-clf FLIP** → **anti-loss com microestrutura M15** (EMA slope 9/21 em 15m; RSI momentum: CALL vetado se $RSI < 0.38$, PUT vetado se $RSI > 0.62$; confirmação de janela `ops_window_bars = 3`) → **neg_edge** com trava de pânico Z-score bilateral ($Z < -2.0$ para CALL / $Z > +2.0$ para PUT gerando `SKIP:NEG_EDGE_ZSCORE_PANIC`). Sizing: tacada única para 1% da banca $\text{Stake} = \frac{\text{Meta}}{\text{Payout}} = \frac{0.01 \times \text{Banca}}{0.85} \approx 1,18\%$. Sem revenge sizing pós-loss.
+Nota operacional (**S&P 500 M15** + arquitetura continua): micro/mini em 900s; pipeline: SCALE → **fusao EV** → **loss-clf FLIP** → **anti-loss com microestrutura M15** (EMA slope 9/21 em 15m; RSI momentum: CALL vetado se $RSI < 0.38$, PUT vetado se $RSI > 0.62$; confirmação de janela `ops_window_bars = 3`) → **neg_edge** com trava de pânico Z-score bilateral ($Z < -2.0$ para CALL / $Z > +2.0$ para PUT gerando `SKIP:NEG_EDGE_ZSCORE_PANIC`). Sizing: tacada única para 4,31% da banca $\text{Stake} = \frac{\text{Meta}}{\text{Payout}} = \frac{0.0431 \times \text{Banca}}{0.85} \approx 5,07\% \to \text{cap } 5,0\%$. Sem revenge sizing pós-loss.
 
 ## Escopos commitlint
 

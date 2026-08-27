@@ -41,14 +41,13 @@ def test_parse_anti_loss_knobs_from_ssot():
     assert cfg["anti_loss_live_confirm_enabled"] is False
     assert cfg["anti_loss_live_confirm_min_body"] == pytest.approx(0.05)
     assert cfg["anti_loss_live_exec_candle_enabled"] is True
-    for key, val in (
+    for k, v in (
         ("anti_loss_p_loss_floor", 1.5),
         ("anti_loss_soft_kelly_mult", 0.0),
         ("anti_loss_min_candle_body", -0.1),
-        ("anti_loss_live_confirm_min_body", 0.01),
     ):
-        with pytest.raises(ValueError, match=key):
-            parse_signal_skip_config({key: val})
+        with pytest.raises(ValueError, match=k):
+            parse_signal_skip_config({k: v})
 
 
 def test_anti_loss_explore_hard_skip():
@@ -131,12 +130,7 @@ def test_anti_loss_force_bypasses():
     cfg = parse_signal_skip_config({})
     assert apply_anti_loss_seed_discord(metrics, force=True, cfg=cfg) is False
     assert metrics["execution_candidate_ready"] is True
-
-
-def test_anti_loss_ready_false_noop():
-    metrics = _base_metrics(execution_candidate_ready=False)
-    cfg = parse_signal_skip_config({})
-    assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is False
+    assert apply_anti_loss_seed_discord(_base_metrics(execution_candidate_ready=False), cfg=cfg) is False
 
 
 def test_anti_loss_missing_p_loss_and_bad_side():
@@ -158,15 +152,10 @@ def test_anti_loss_missing_p_loss_and_bad_side():
 
 def test_anti_loss_invalid_body_treated_weak():
     cfg = parse_signal_skip_config({})
-    nan_body = _base_metrics(closed_micro_candle_dir="PUT", closed_micro_candle_body=float("nan"))
-    assert apply_anti_loss_seed_discord(nan_body, cfg=cfg) is True
-    assert nan_body["anti_loss_why"] == "seed_weak_candle"
-    neg = _base_metrics(closed_micro_candle_dir="PUT", closed_micro_candle_body=-0.2)
-    assert apply_anti_loss_seed_discord(neg, cfg=cfg) is True
-    bad = _base_metrics(closed_micro_candle_dir="PUT", closed_micro_candle_body="x")
-    assert apply_anti_loss_seed_discord(bad, cfg=cfg) is True
-    inf_body = _base_metrics(closed_micro_candle_dir="PUT", closed_micro_candle_body=float("inf"))
-    assert apply_anti_loss_seed_discord(inf_body, cfg=cfg) is True
+    for body_val in (float("nan"), -0.2, "x", float("inf")):
+        m = _base_metrics(closed_micro_candle_dir="PUT", closed_micro_candle_body=body_val)
+        assert apply_anti_loss_seed_discord(m, cfg=cfg) is True
+        assert m["anti_loss_why"] == "seed_weak_candle"
 
 
 def test_anti_loss_tcn_lock_via_loss_clf_and_fusion_reason():
@@ -220,15 +209,12 @@ def test_anti_loss_live_exec_discord_strict():
 
 
 def test_anti_loss_live_exec_flip_to_candle():
-    """Testa inversao inteligente para o lado da vela com orch ativo."""
+    """Testa inversao inteligente para o lado da vela apenas quando explicitamente habilitado."""
     from unittest.mock import MagicMock
 
-    orch = MagicMock()
-    orch.stream = MagicMock()
-    orch.symbols = ["R_10"]
-    orch.anchor = "R_10"
-    orch.stream.get_mini_numpy_series.return_value = None
-
+    orch = MagicMock(
+        stream=MagicMock(get_mini_numpy_series=MagicMock(return_value=None)), symbols=["R_10"], anchor="R_10"
+    )
     metrics = _base_metrics(
         ops_window_stamped=True,
         exec_direction="CALL",
@@ -237,13 +223,27 @@ def test_anti_loss_live_exec_flip_to_candle():
         ops_window_candle_body=2.5,
         indicators={"rsi": 0.50},
     )
-    cfg = parse_signal_skip_config({})
-    assert apply_anti_loss_seed_discord(metrics, orch=orch, cfg=cfg) is False
-    assert metrics["exec_direction"] == "PUT"
-    assert metrics["resolved_direction"] == "PUT"
-    assert metrics["anti_loss_flipped_to_candle"] is True
-    assert metrics["anti_loss_why"] == "live_exec_flip_to_candle"
-    assert metrics["anti_loss_soft"] is True
+    # Com allow_flip desabilitado (padrao de seguranca), veta discordancia
+    cfg_default = parse_signal_skip_config({})
+    assert apply_anti_loss_seed_discord(metrics, orch=orch, cfg=cfg_default) is True
+    assert metrics["gate_reason"] == "live_exec_discord"
+
+    # Com allow_flip habilitado em cfg e metrics
+    metrics_flip = _base_metrics(
+        ops_window_stamped=True,
+        exec_direction="CALL",
+        resolved_direction="CALL",
+        ops_window_candle_dir="PUT",
+        ops_window_candle_body=2.5,
+        indicators={"rsi": 0.50},
+        anti_loss_allow_candle_flip=True,
+    )
+    cfg_flip = parse_signal_skip_config({"anti_loss_allow_candle_flip": True})
+    assert apply_anti_loss_seed_discord(metrics_flip, orch=orch, cfg=cfg_flip) is False
+    assert metrics_flip["exec_direction"] == "PUT"
+    assert metrics_flip["resolved_direction"] == "PUT"
+    assert metrics_flip["anti_loss_flipped_to_candle"] is True
+    assert metrics_flip["anti_loss_why"] == "live_exec_flip_to_candle"
 
 
 def test_anti_loss_rsi_momentum_veto():

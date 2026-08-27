@@ -134,3 +134,23 @@ def persisted_session_target(rm: Any) -> float | None:
     if isinstance(val, (int, float)) and float(val) > 0.0:
         return float(val)
     return None
+
+
+def is_stop_win_reached(
+    total_session_profit: float,
+    target_win: float,
+    *,
+    risk_config: dict[str, Any] | None = None,
+) -> bool:
+    """Verifica se o lucro atingiu ou superou o limiar de tolerancia da meta (padrao 98%)."""
+    target = float(target_win)
+    profit = float(total_session_profit)
+    if target <= 0.0:
+        return False
+    if profit + 1e-9 >= target:
+        return True
+    rc = risk_config or {}
+    params = rc.get("params") if isinstance(rc.get("params"), dict) else {}
+    tol = float(params.get("stop_win_target_tolerance_ratio", 0.98))
+    tol = max(0.80, min(1.0, tol))
+    return profit + 1e-9 >= target * tol

@@ -47,6 +47,7 @@ def parse_signal_skip_config(raw: dict[str, Any] | None = None) -> dict[str, Any
             "anti_loss_live_confirm_enabled",
             "anti_loss_live_confirm_min_body",
             "anti_loss_live_exec_candle_enabled",
+            "anti_loss_allow_candle_flip",
         ),
         "orchestrator.execution.signal_skip",
     )
@@ -120,6 +121,7 @@ def parse_signal_skip_config(raw: dict[str, Any] | None = None) -> dict[str, Any
         "anti_loss_live_confirm_enabled": require_bool(block, "anti_loss_live_confirm_enabled"),
         "anti_loss_live_confirm_min_body": confirm_min,
         "anti_loss_live_exec_candle_enabled": require_bool(block, "anti_loss_live_exec_candle_enabled"),
+        "anti_loss_allow_candle_flip": require_bool(block, "anti_loss_allow_candle_flip"),
     }
 
 

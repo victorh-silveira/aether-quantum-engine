@@ -365,8 +365,8 @@
   "orchestrator": {
     "api_maintenance_fallback_seconds": 90.0,
     "broker_handshake_timeout_seconds": 90.0,
-    "cycle_interval_seconds": 900,
-    "exec_empty_retry_seconds": 900,
+    "cycle_interval_seconds": 120,
+    "exec_empty_retry_seconds": 120,
     "execution": {
       "bb_width_adaptive_squeeze": {
         "anomaly_ratio": 0.35,
@@ -669,7 +669,8 @@
         "anti_loss_live_weak_candle_enabled": true,
         "anti_loss_live_confirm_enabled": false,
         "anti_loss_live_confirm_min_body": 0.05,
-        "anti_loss_live_exec_candle_enabled": true
+        "anti_loss_live_exec_candle_enabled": true,
+        "anti_loss_allow_candle_flip": false
       }
     },
     "idle_cycle_watchdog_seconds": 1200,
@@ -776,11 +777,11 @@
       "max_stake_percent": 0.05,
       "default_payout": 0.85
     },
-    "large_account_stop_win_pct": 1.0,
+    "large_account_stop_win_pct": 4.31,
     "min_validation_accuracy_gate": 0.53,
     "params": {
       "compounding_enabled": true,
-      "compounding_rate_daily": 0.01,
+      "compounding_rate_daily": 0.0431,
       "contract_type": "RISE_FALL",
       "duration": 15,
       "duration_unit": "m",

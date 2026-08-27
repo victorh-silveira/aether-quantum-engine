@@ -20,7 +20,7 @@ from src.domain.risk.risk_recovery_state import (
 from src.domain.risk.risk_stake_calc import calculate_stake_for_manager
 from src.domain.risk.soft_recovery_policy import cointegration_valve_suppressed, resolve_soft_recovery_config
 from src.domain.risk.stake_target_proximity import apply_target_proximity_damping
-from src.domain.risk.stop_win_target import persisted_session_target, resolve_stop_win_target
+from src.domain.risk.stop_win_target import is_stop_win_reached, persisted_session_target, resolve_stop_win_target
 from src.domain.risk.symbol_loss_cooldown import SymbolLossCooldownMixin
 
 
@@ -162,7 +162,7 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin, ProposalSkipMixin)
                 self.initial_bankroll,
                 persisted_target=persisted_session_target(self),
             )
-            if self.total_session_profit >= target:
+            if is_stop_win_reached(self.total_session_profit, target, risk_config=self.config):
                 return "stop_win"
 
         stake = self.calculate_stake(

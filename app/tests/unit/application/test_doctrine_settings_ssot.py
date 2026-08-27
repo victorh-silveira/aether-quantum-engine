@@ -193,7 +193,7 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert float(scale["fusion_weak_ev_seed_soft_kelly_mult"]) == pytest.approx(0.25)
     assert bool(settings["orchestrator"]["execution"]["invert_exec_side"]) is False
     assert bool(settings["orchestrator"]["execution"]["mandatory_trade_each_cycle"]) is False
-    assert float(settings["risk_management"]["large_account_stop_win_pct"]) == pytest.approx(1.0)
+    assert float(settings["risk_management"]["large_account_stop_win_pct"]) == pytest.approx(4.31)
     from src.application.services.execution_direction_fusion import parse_direction_fusion_config
 
     fusion = parse_direction_fusion_config({})
@@ -224,9 +224,9 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert int(data["micro_fetch_count"]) == 100
     assert int(data["mini_fetch_count"]) == 100
     orch = settings["orchestrator"]
-    assert int(orch["cycle_interval_seconds"]) == 900
+    assert int(orch["cycle_interval_seconds"]) == 120
     assert int(orch["signature_boundary_seconds"]) == 900
-    assert int(orch["exec_empty_retry_seconds"]) == 900
+    assert int(orch["exec_empty_retry_seconds"]) == 120
     assert int(orch["settlement_tolerance_window_seconds"]) == 600
     assert int(orch["watchdog_stale_tick_seconds"]) == 300
     assert int(orch["post_settlement_is_trading_wait_seconds"]) == 90

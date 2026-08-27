@@ -209,8 +209,8 @@ def assert_production_doctrine(settings: dict[str, Any] | None = None) -> dict[s
         raise ValueError("cover_multiple deve ser 1.5")
     if abs(float(inv["max_safe_stake_pct_linear3"]) - 0.025) > 1e-9:
         raise ValueError("max_safe_stake_pct_linear3 deve ser 0.025")
-    if abs(float(inv["large_account_stop_win_pct"]) - 1.0) > 1e-9:
-        raise ValueError("large_account_stop_win_pct deve ser 1.0")
+    if float(inv["large_account_stop_win_pct"]) <= 0.0 or float(inv["large_account_stop_win_pct"]) > 5.0:
+        raise ValueError("large_account_stop_win_pct deve estar em (0.0, 5.0]")
     if float(inv["min_validation_accuracy_gate"]) + 1e-12 < _PRODUCTION_MIN_ACC:
         raise ValueError(f"min_validation_accuracy_gate < {_PRODUCTION_MIN_ACC}")
     if abs(float(inv["explore_stake_scale_floor"]) - 0.40) > 1e-9:
