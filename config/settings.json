@@ -662,14 +662,14 @@
         "anti_loss_seed_discord_enabled": true,
         "anti_loss_p_loss_floor": 0.85,
         "anti_loss_require_seed": true,
-        "anti_loss_hard_skip": true,
-        "anti_loss_soft_kelly_mult": 0.25,
+        "anti_loss_hard_skip": false,
+        "anti_loss_soft_kelly_mult": 1.0,
         "anti_loss_require_tcn_pos_edge": true,
         "anti_loss_min_candle_body": 0.02,
-        "anti_loss_live_weak_candle_enabled": true,
+        "anti_loss_live_weak_candle_enabled": false,
         "anti_loss_live_confirm_enabled": false,
         "anti_loss_live_confirm_min_body": 0.05,
-        "anti_loss_live_exec_candle_enabled": true,
+        "anti_loss_live_exec_candle_enabled": false,
         "anti_loss_allow_candle_flip": false
       }
     },

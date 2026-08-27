@@ -138,7 +138,7 @@ def test_anti_loss_live_follows_window_not_last_m1():
         "fusion_blocked_tcn_pos_edge": True,
         "kelly_fraction_scale": 1.0,
     }
-    cfg = parse_signal_skip_config({"anti_loss_live_confirm_enabled": True})
+    cfg = parse_signal_skip_config({"anti_loss_live_confirm_enabled": True, "anti_loss_hard_skip": True})
     assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is True
     assert metrics["anti_loss_why"] == "live_confirm_weak"
 

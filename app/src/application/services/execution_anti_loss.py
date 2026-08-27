@@ -165,7 +165,7 @@ def _evaluate_live_anti_loss(
         why = ema_reason or "anti_loss_ema_trend"
         _stamp_anti_loss_metrics(metrics, tcn=tcn, candle=candle, body=body, reason=why, side=anchor)
         return _finalize_anti_loss_decision(out, cfg=cfg, reason=why)
-    if bool(cfg.get("anti_loss_live_exec_candle_enabled", True)) and candle is not None and anchor.name != candle:
+    if bool(cfg.get("anti_loss_live_exec_candle_enabled", False)) and candle is not None and anchor.name != candle:
         _stamp_anti_loss_metrics(metrics, tcn=tcn, candle=candle, body=body, reason="live_exec_discord", side=anchor)
         allow_flip = bool(cfg.get("anti_loss_allow_candle_flip", False)) and bool(
             metrics.get("anti_loss_allow_candle_flip", False)
@@ -209,7 +209,7 @@ def evaluate_anti_loss_seed_discord(
 ) -> dict[str, Any]:
     """Decide SKIP se vela live fraca ou seed+discord sem confirmacao forte."""
     out = {"active": False, "skip": False, "soft": False, "reason": None, "soft_mult": None}
-    if not bool(cfg.get("anti_loss_seed_discord_enabled", False)):
+    if not bool(cfg.get("anti_loss_seed_discord_enabled", True)):
         return out
     tcn = _tcn_dir(metrics)
     if tcn is None:
