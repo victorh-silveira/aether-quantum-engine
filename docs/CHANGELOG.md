@@ -1,3 +1,9 @@
+## [2.33.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.32.0...v2.33.0) (2026-08-27)
+
+### Funcionalidades
+
+* **orchestrator:** atualizar meta stop win 4.31, cadencia e anti-loss ([809606e](https://github.com/victorh-silveira/aether-quantum-engine/commit/809606ea424ddbe52adf22fcab1496a89d332f30))
+
 ## [2.32.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.31.5...v2.32.0) (2026-08-26)
 
 ### Funcionalidades
