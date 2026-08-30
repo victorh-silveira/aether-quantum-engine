@@ -1,3 +1,9 @@
+## [2.39.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.38.0...v2.39.0) (2026-08-30)
+
+### Funcionalidades
+
+* **risk:** permitir execucao de sinal puro TCN com soft Kelly em EV fraco ([9ae5d21](https://github.com/victorh-silveira/aether-quantum-engine/commit/9ae5d21cd31ec1eb544d9d98265dd330fb0e4b9c))
+
 ## [2.38.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.37.0...v2.38.0) (2026-08-30)
 
 ### Funcionalidades
