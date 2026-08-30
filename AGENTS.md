@@ -71,7 +71,7 @@ Formato: `tipo(escopo): assunto em PT-BR` + corpo obrigatorio.
 | Higienizacao do repositorio | `docs/engineering-repo-hygiene.md` + skill `aether-repo-hygiene` |
 | Fechamento de mudanca (sync superficie) | `docs/engineering-surface-sync.md` + skill `aether-surface-sync` |
 | Scaffold / contrato de engenharia | `prompt-model.md` + skill `aether-surface-sync` |
-| Volatility 75 (1s) Index / Sinteticos | `docs/deriv-indices-algorithm.md` + rule `aether-sp500-market.mdc` + skill `aether-sp500-market-analyst` |
+| Volatility 75 (1s) Index / Sinteticos | `docs/deriv-indices-algorithm.md` + rule `aether-v75-market.mdc` + skill `aether-v75-market-analyst` |
 | Sizing Single-Strike 1% / Payout 0.85 | `docs/medallion.md` + rule `aether-risk-sizing.mdc` + skill `aether-single-strike-risk` |
 | Verificador de Sinais & Microestrutura M15 | `docs/binary-senior-playbook.md` + rule `aether-execution-gates.mdc` + skill `aether-m15-signal-verifier` |
 

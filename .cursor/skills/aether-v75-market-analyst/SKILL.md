@@ -1,8 +1,8 @@
 ---
-name: aether-sp500-market-analyst
+name: aether-v75-market-analyst
 description: >-
   Analisa o comportamento do índice de volatilidade 75 (1s) (1HZ75V) em timeframe M15 (900s),
-  correlacionando dinamica de volatilidade continua 24/7, ATR, medias de 15m e regime macro D1 (120 velas).
+  correlacionando dinamica de volatilidade continua 24/7, ATR, medias de 15m e regime macro D1 (365 velas).
 ---
 
 # Volatility 75 (1s) Market Analyst (M15 / D1)
