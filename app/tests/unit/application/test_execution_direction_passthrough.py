@@ -102,7 +102,9 @@ def test_resolve_execution_direction_hard_nonpositive_cal_edge():
     orch.config = {
         "deep_learning": {"min_edge_execute": 0.04},
         "risk_management": {"params": {"payout_estimate": 0.72}},
-        "orchestrator": {"execution": {"scale_vision": {"fusion_enabled": False}}},
+        "orchestrator": {
+            "execution": {"scale_vision": {"fusion_enabled": False}, "signal_skip": {"neg_edge_hard_skip": True}}
+        },
     }
     orch._log_dedupe = {}
     orch._active_cycle_id = 3

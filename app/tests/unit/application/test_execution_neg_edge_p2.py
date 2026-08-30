@@ -1,7 +1,6 @@
 """Testes do hard-skip (e soft legado) por Edge Cal abaixo do piso (parte 2)."""
 
-from __future__ import annotations
-
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -97,8 +96,8 @@ def test_neg_edge_hard_clears_prior_soft_waive_and_malformed_orch():
         "kelly_fraction_scale": 1.0,
         "loss_clf_auto_learn": True,
     }
-    assert apply_negative_cal_edge_pause(metrics2, orch=orch2, min_edge=0.04, payout=0.72) is True
-    assert metrics2["gate_reason"] == "neg_edge"
+    assert apply_negative_cal_edge_pause(metrics2, orch=orch2, min_edge=0.04, payout=0.72) is False
+    assert metrics2.get("neg_edge_soft") is True
     orch3 = MagicMock()
     orch3.config = {"orchestrator": {"execution": "x"}}
     metrics3 = {
@@ -108,8 +107,11 @@ def test_neg_edge_hard_clears_prior_soft_waive_and_malformed_orch():
         "kelly_fraction_scale": 1.0,
         "loss_clf_auto_learn": True,
     }
-    assert apply_negative_cal_edge_pause(metrics3, orch=orch3, min_edge=0.04, payout=0.72) is True
-    assert metrics3["gate_reason"] == "neg_edge"
+    assert apply_negative_cal_edge_pause(metrics3, orch=orch3, min_edge=0.04, payout=0.72) is False
+    assert metrics3.get("neg_edge_soft") is True
+    orch4 = MagicMock()
+    orch4.config = {"orchestrator": {"execution": {"signal_skip": "x"}}}
+    assert apply_negative_cal_edge_pause(dict(metrics3), orch=orch4, min_edge=0.04, payout=0.72) is False
 
 
 def test_neg_edge_soft_mult_override_with_orch():
@@ -247,6 +249,7 @@ def test_neg_edge_hard_without_fusion_blocked_when_p_eff_also_neg():
         "fusion_p_eff": 0.50,
         "kelly_fraction_scale": 1.0,
     }
-    assert apply_negative_cal_edge_pause(metrics, min_edge=0.04, payout=0.72) is True
+    orch = SimpleNamespace(config={"orchestrator": {"execution": {"signal_skip": {"neg_edge_hard_skip": True}}}})
+    assert apply_negative_cal_edge_pause(metrics, orch=orch, min_edge=0.04, payout=0.72) is True
     assert metrics.get("gate_reason") == "neg_edge"
     assert metrics.get("neg_edge_fusion_blocked") is not True

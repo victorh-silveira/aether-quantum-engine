@@ -137,7 +137,7 @@ def test_neg_edge_bootstrap_deep_hard_skip():
             "execution": {
                 "signal_skip": {
                     "neg_edge_soft_kelly_mult": 0.55,
-                    "neg_edge_hard_skip": False,
+                    "neg_edge_hard_skip": True,
                     "neg_edge_soft_when_closed_candle_agree": True,
                     "neg_edge_soft_min_edge": -1.0,
                     "neg_edge_bootstrap_soft_kelly_mult": 0.25,

@@ -89,7 +89,8 @@ def test_neg_edge_hard_without_fusion_wash():
         "calibrated_prob": 0.50,
         "kelly_fraction_scale": 1.0,
     }
-    assert apply_negative_cal_edge_pause(metrics, min_edge=0.04, payout=0.72) is True
+    orch = SimpleNamespace(config={"orchestrator": {"execution": {"signal_skip": {"neg_edge_hard_skip": True}}}})
+    assert apply_negative_cal_edge_pause(metrics, orch=orch, min_edge=0.04, payout=0.72) is True
     assert metrics["gate_reason"] == "neg_edge"
 
 

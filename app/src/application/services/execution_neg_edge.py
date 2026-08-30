@@ -238,7 +238,7 @@ def apply_negative_cal_edge_pause(
     auto_learn = bool(metrics.get("loss_clf_auto_learn"))
     deep_floor = float(cfg.get("neg_edge_deep_edge_floor", -0.12))
     hard_skip = bool(cfg.get("neg_edge_hard_skip", False))
-    if edge + 1e-12 <= 0.0 or hard_skip:
+    if hard_skip:
         if edge + 1e-12 < floor or edge + 1e-12 <= 0.0:
             _apply_neg_edge_hard(metrics, direction=direction, edge=edge, floor=floor)
             if (not auto_learn) and edge + 1e-12 < deep_floor:
@@ -246,7 +246,7 @@ def apply_negative_cal_edge_pause(
             else:
                 metrics["neg_edge_nonpositive_hard"] = True
             return True
-    elif edge + 1e-12 < floor:
+    elif edge + 1e-12 < floor or edge + 1e-12 <= 0.0:
         soft_kelly = float(cfg.get("neg_edge_soft_kelly_mult", 0.55))
         metrics["neg_edge_soft"] = True
         metrics["neg_edge_soft_kelly_mult"] = soft_kelly

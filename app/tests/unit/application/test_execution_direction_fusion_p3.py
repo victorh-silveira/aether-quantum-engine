@@ -64,7 +64,7 @@ def test_precommit_cov_gaps_startup_neg_flip_meta():
                 "calibrated_prob": 0.4,
                 "loss_clf_auto_learn": True,
             },
-            orch=SimpleNamespace(config="bad"),
+            orch=SimpleNamespace(config={"orchestrator": {"execution": {"signal_skip": {"neg_edge_hard_skip": True}}}}),
             min_edge=0.04,
             payout=0.72,
             soft_mult=0.55,

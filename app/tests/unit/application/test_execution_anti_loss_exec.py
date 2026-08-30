@@ -1,6 +1,6 @@
 """Anti-loss live ancora em EXEC vs janela; replay dump 13:16."""
 
-from __future__ import annotations
+from types import SimpleNamespace
 
 from src.application.services.execution_anti_loss import apply_anti_loss_seed_discord
 from src.application.services.execution_neg_edge import apply_negative_cal_edge_pause
@@ -25,7 +25,8 @@ def test_anti_loss_replay_c1_exec_put_window_put_passes():
     cfg = parse_signal_skip_config({})
     assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is False
     assert metrics.get("anti_loss_why") is None
-    assert apply_negative_cal_edge_pause(metrics, min_edge=0.04, payout=0.72) is True
+    orch = SimpleNamespace(config={"orchestrator": {"execution": {"signal_skip": {"neg_edge_hard_skip": True}}}})
+    assert apply_negative_cal_edge_pause(metrics, orch=orch, min_edge=0.04, payout=0.72) is True
     assert metrics["execution_candidate_ready"] is False
     assert metrics.get("gate_reason") == "neg_edge"
     assert float(metrics["cal_side_edge"]) < 0.0
