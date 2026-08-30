@@ -1,3 +1,9 @@
+## [2.41.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.40.0...v2.41.0) (2026-08-30)
+
+### Funcionalidades
+
+* **risk:** ativar anti_loss_hard_skip para vetar trades contra tendencia com P(loss) alto ([810fe76](https://github.com/victorh-silveira/aether-quantum-engine/commit/810fe7650aad20354f6c469b6047eeaa4eb68d58))
+
 ## [2.40.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.39.0...v2.40.0) (2026-08-30)
 
 ### Funcionalidades
