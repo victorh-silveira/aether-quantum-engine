@@ -1,3 +1,9 @@
+## [2.37.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.36.0...v2.37.0) (2026-08-30)
+
+### Funcionalidades
+
+* **config:** expandir historico de treino para 365 velas D1 e 500 M15 ([aabeffe](https://github.com/victorh-silveira/aether-quantum-engine/commit/aabeffee30c655b7348dd9e6953a823ae173cef6))
+
 ## [2.36.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.35.0...v2.36.0) (2026-08-30)
 
 ### Funcionalidades
