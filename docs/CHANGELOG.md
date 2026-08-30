@@ -1,3 +1,9 @@
+## [2.42.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.41.0...v2.42.0) (2026-08-30)
+
+### Funcionalidades
+
+* **orchestrator:** habilitar inversao inteligente de direcao para o candle ([dcf2c13](https://github.com/victorh-silveira/aether-quantum-engine/commit/dcf2c13fcadb1593fe4b3167d61ddec9b8d650b6))
+
 ## [2.41.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.40.0...v2.41.0) (2026-08-30)
 
 ### Funcionalidades
