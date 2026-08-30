@@ -1,3 +1,13 @@
+## [2.38.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.37.0...v2.38.0) (2026-08-30)
+
+### Funcionalidades
+
+* **engine:** garantir soberania estrita de 100% da direcao TCN sem inversoes de fusao ([fea33c9](https://github.com/victorh-silveira/aether-quantum-engine/commit/fea33c943528a9f04ee982a00f7824c3aa221200))
+
+### Refatoracoes Tecnicas
+
+* **repo:** renomear rules e skills de mercado para v75 ([f7a31f1](https://github.com/victorh-silveira/aether-quantum-engine/commit/f7a31f15dd975843be580ca65719cfe590229148))
+
 ## [2.37.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.36.0...v2.37.0) (2026-08-30)
 
 ### Funcionalidades
