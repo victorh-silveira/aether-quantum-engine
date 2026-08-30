@@ -28,16 +28,16 @@
   },
   "data_handler": {
     "buffer_limit": 262144,
-    "fetch_count": 100,
+    "fetch_count": 365,
     "granularity": 86400,
-    "history_bars": 100,
+    "history_bars": 365,
     "micro_granularity": 900,
-    "micro_history_bars": 100,
-    "micro_fetch_count": 100,
+    "micro_history_bars": 500,
+    "micro_fetch_count": 500,
     "min_required_points": 40,
     "mini_granularity": 900,
-    "mini_history_bars": 100,
-    "mini_fetch_count": 100
+    "mini_history_bars": 500,
+    "mini_fetch_count": 500
   },
   "deep_learning": {
     "arch": "tcn",
@@ -200,7 +200,7 @@
       "window": 64,
       "wr_raw_inconsistent_gap": 0.12
     },
-    "lookback": 20,
+    "lookback": 30,
     "lr_scheduler": "cosine",
     "lstm": {
       "dropout": 0.2,
@@ -230,8 +230,8 @@
     "training_batch_size": 128,
     "training_device": "auto",
     "training_epochs": 300,
-    "training_history_bars": 100,
-    "training_history_days": 100,
+    "training_history_bars": 365,
+    "training_history_days": 365,
     "training_log_every_n_epochs": 1,
     "val_acc_live_blend": 0.2,
     "validation_ratio": 0.2,

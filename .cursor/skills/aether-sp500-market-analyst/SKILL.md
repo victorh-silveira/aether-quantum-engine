@@ -11,8 +11,8 @@ Especialista em dinâmicas do índice sintético Volatility 75 (1s) (`1HZ75V`) p
 
 ## Universo Operacional
 - **Símbolo**: `1HZ75V` (Volatility 75 (1s) Index / Deriv)
-- **Micro / Operacional**: M15 (900 segundos)
-- **Macro / Treinamento**: D1 (86.400 segundos), histórico de 120 velas diárias
+- **Micro / Operacional**: M15 (900 segundos, 500 velas)
+- **Macro / Treinamento**: D1 (86.400 segundos), histórico de 365 velas diárias (1 ano)
 - **Duração do Contrato**: 15 minutos fixos (`params.duration = 15`, `duration_unit = "m"`)
 - **Payout Médio**: ~85% a ~95% (`payout = 0.85`)
 

@@ -51,7 +51,7 @@ Regra: **domain** não importa application nem infrastructure. **Application** o
 | Item | Valor |
 |------|-------|
 | Universo | `1HZ75V` (âncora `1HZ75V`) |
-| DL | TCN, lookback **20**, micro **900 s** (M15), macro **86400 s** (D1), `FEATURE_DIM=34`, label `supertrend_atr`, tensor `[1, 20, 34]` |
+| DL | TCN, lookback **30**, micro **900 s** (500 velas M15), macro **86400 s** (365 velas D1), `FEATURE_DIM=34`, label `triple_barrier`, tensor `[1, 30, 34]` |
 | Meta | LightGBM HTTP `:8005`, `META_FEATURE_DIM=43` (micro **900 s**); **opcional** para execução |
 | Relógio | Micro/MINI **900 s** (M15) + macro **86400 s** (D1); contrato ops **15 m (M15)**; label TCN **N=1** vela M15; ratio **1:96**; ciclo **900 s** |
 | Ciclo / assinatura | `cycle_interval_seconds` / `signature_boundary_seconds` = **900 s** (sync fecho M15); `exec_empty_retry` **900 s** |

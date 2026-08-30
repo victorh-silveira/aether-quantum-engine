@@ -7,7 +7,7 @@ alwaysApply: true
 # Orchestrator
 
 - **Símbolo Único**: `1HZ75V` (Volatility 75 (1s) Index Deriv).
-- **Timeframes**: Micro/MINI em **900 s** (15m); Macro em **86400 s** (D1 com 120 barras de histórico).
+- **Timeframes**: Micro/MINI em **900 s** (15m, 500 barras); Macro em **86400 s** (D1 com 365 barras de histórico). Lookback TCN: **30**.
 - **Contrato**: Duração fixa de **15 minutos** (`duration=15`, `duration_unit="m"`); Label TCN **SSOT atual N=1 vela M15**.
 - Pipeline: warmup → train gate → collect → resolve → execute → settle → post_settlement
 - Lock serializa inferencia, liquidacao e persistencia — nao bypassar

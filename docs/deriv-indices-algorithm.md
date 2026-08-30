@@ -10,10 +10,10 @@ Universo operacional unico: **`1HZ75V`** (Volatility 75 (1s) Index / Deriv). Ati
 |------|--------|
 | Simbolo API | `1HZ75V` |
 | Contrato | `RISE_FALL` **15 m** (`duration=15`, `duration_unit=m`, `label_horizon_bars=1`) |
-| Micro / MINI OHLC | **900 s** (M15) |
-| Macro OHLC | **86400 s** (D1 / 100 velas de treino) |
+| Micro / MINI OHLC | **900 s** (M15, 500 velas) |
+| Macro OHLC | **86400 s** (D1 / 365 velas de treino - 1 ano) |
 | Ciclo / assinatura | **900 s** (alinhado ao fecho da vela M15); `exec_empty_retry` **900 s** |
-| Lookback TCN | **20** barras |
+| Lookback TCN | **30** barras |
 | Payout SSOT | **0.85** (85% payout base) |
 | Soft Recovery | amort **1/1**, `cover_multiple` **1.50** (cover pleno) |
 | Stop-win | `compounding_rate_daily` **1.0%** / Single-Strike 1 trade |

@@ -7,7 +7,7 @@ alwaysApply: true
 # Volatility 75 (1s) Index Rules (`1HZ75V`)
 
 - **Ativo Central**: `1HZ75V` (Volatility 75 (1s) Index / Deriv).
-- **Timeframes**: Operacional em **M15** (`900 s`); Treinamento em diário **D1** (`86400 s`, 120 barras de histórico).
+- **Timeframes**: Operacional em **M15** (`900 s`, 500 barras); Treinamento em diário **D1** (`86400 s`, 365 barras de histórico). Lookback: **30**.
 - **Duração do Contrato**: **15 minutos** fixos (`params.duration = 15`, `params.duration_unit = "m"`).
 
 ## Particularidades do Índice de Volatilidade 75 (1s)
