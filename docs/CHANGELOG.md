@@ -1,3 +1,9 @@
+## [2.36.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.35.0...v2.36.0) (2026-08-30)
+
+### Funcionalidades
+
+* **engine:** implementar Triple Barrier Method para previsao de alta precisao ([5e2a126](https://github.com/victorh-silveira/aether-quantum-engine/commit/5e2a1261965f1b2c49ae35d9c478c6cdeea7ee95))
+
 ## [2.35.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.34.0...v2.35.0) (2026-08-30)
 
 ### Funcionalidades
