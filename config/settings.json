@@ -75,8 +75,8 @@
       "trust_blend_span": 0.25,
       "val_acc_trust_floor": 0.01
     },
-    "confidence_call_threshold": 0.46,
-    "confidence_put_threshold": 0.34,
+    "confidence_call_threshold": 0.58,
+    "confidence_put_threshold": 0.42,
     "deploy_gate": {
       "enabled": true,
       "eval_call_threshold_cap": 0.65,
@@ -91,7 +91,7 @@
       "min_win_rate": 0.55,
       "mini_bars": 20,
       "soft_max_brier": 0.28,
-      "soft_min_val_accuracy": 0.53,
+      "soft_min_val_accuracy": 0.55,
       "reject_majority_collapse": true,
       "max_label_call_frac_bias": 0.25,
       "min_minority_recall": 0.25
@@ -179,12 +179,12 @@
       }
     },
     "eval_brier_max": 0.28,
-    "eval_min_accuracy": 0.53,
-    "eval_settle_accuracy_min": 0.53,
+    "eval_min_accuracy": 0.55,
+    "eval_settle_accuracy_min": 0.55,
     "inference_device": "auto",
     "label_horizon_bars": 1,
     "label_ma_window": 3,
-    "label_mode": "supertrend_atr",
+    "label_mode": "triple_barrier",
     "label_smooth_bars": 1,
     "label_smoothing": 0.08,
     "learning_rate": 0.001,

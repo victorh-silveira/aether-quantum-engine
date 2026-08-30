@@ -31,9 +31,11 @@ def resolve_label_ma_window(dl_config: dict[str, Any] | None) -> int:
 
 
 def resolve_label_mode(dl_config: dict[str, Any] | None) -> str:
-    """Modo do rotulo: supertrend_atr, spot_forward ou ma_trend."""
+    """Modo do rotulo: triple_barrier, supertrend_atr, spot_forward ou ma_trend."""
     dl_config = dl_config or {}
-    raw = str(dl_config.get("label_mode", "supertrend_atr")).strip().lower()
+    raw = str(dl_config.get("label_mode", "triple_barrier")).strip().lower()
+    if raw in ("triple", "triple_barrier", "barrier"):
+        return "triple_barrier"
     if raw in ("spot", "spot_forward", "next_candle"):
         return "spot_forward"
     if raw in ("supertrend", "supertrend_atr", "st_atr"):

@@ -16,7 +16,7 @@ Guia operacional DL para agentes. Detalhe de features: [`arquitetura.md`](arquit
 | Bootstrap wait | `bootstrap_history_wait_cap_seconds` **30** (nao dorme a granularidade inteira entre retries) |
 | MILI | Tick flow (nao OHLC) |
 | Features | **34D** (`FEATURE_DIM`) |
-| Label | `supertrend_atr` (SuperTrend + Volatility ATR Band filter) |
+| Label | `triple_barrier` (Triple Barrier Method: Log-Vol Barriers + Expiry) |
 | Online training | **false** (DEMO usa checkpoint do `launch-train`) |
 | ACC / deploy | `soft_min_val_accuracy` **0.53**; `max_brier` / `soft_max_brier` **0.28**; `force_ok=false` |
 | Retries | `train_deploy_retries` **6** (reseed + reset de pesos) |

@@ -10,6 +10,7 @@ import numpy as np
 LABEL_MODE_SPOT = "spot_forward"
 LABEL_MODE_MA_TREND = "ma_trend"
 LABEL_MODE_SUPERTREND_ATR = "supertrend_atr"
+LABEL_MODE_TRIPLE_BARRIER = "triple_barrier"
 
 
 @dataclass(frozen=True)
@@ -76,6 +77,36 @@ def _supertrend_direction(prices: np.ndarray, index: int, period: int = 10, mult
     return 1 if seg[-1] >= seg[-2] else -1
 
 
+def _triple_barrier_direction(
+    prices: np.ndarray,
+    index: int,
+    horizon_bars: int,
+    lookback_vol: int = 20,
+    barrier_mult: float = 1.0,
+) -> bool:
+    """Avalia o primeiro toque entre barreira superior, inferior e vertical temporal."""
+    start_vol = max(0, index - lookback_vol)
+    vol_seg = prices[start_vol : index + 1]
+    if len(vol_seg) > 1:
+        log_rets = np.diff(np.log(np.maximum(vol_seg, 1e-8)))
+        sigma = float(np.std(log_rets)) if len(log_rets) > 0 else 0.001
+    else:
+        sigma = 0.001
+    dyn_barrier = max(0.0003, sigma * barrier_mult) * float(prices[index])
+    upper_barrier = prices[index] + dyn_barrier
+    lower_barrier = prices[index] - dyn_barrier
+
+    max_check = min(len(prices), index + max(1, int(horizon_bars)) + 1)
+    for step_idx in range(index + 1, max_check):
+        p = prices[step_idx]
+        if p >= upper_barrier:
+            return True
+        if p <= lower_barrier:
+            return False
+    final_p = prices[min(len(prices) - 1, index + max(1, int(horizon_bars)))]
+    return bool(final_p >= prices[index])
+
+
 def binary_label_at_index(
     prices: np.ndarray,
     index: int,
@@ -85,11 +116,13 @@ def binary_label_at_index(
     label_mode: str = LABEL_MODE_SPOT,
     ma_window: int = 5,
 ) -> bool:
-    """Retorna True para CALL conforme modo supertrend_atr, ma_trend ou spot_forward."""
+    """Retorna True para CALL conforme modo triple_barrier, supertrend_atr, ma_trend ou spot_forward."""
     forward = _forward_mean(prices, index, horizon_bars, smooth_bars)
     if forward is None:
         return False
     mode = str(label_mode).strip().lower()
+    if mode in (LABEL_MODE_TRIPLE_BARRIER, "triple", "barrier"):
+        return _triple_barrier_direction(prices, index, horizon_bars)
     if mode == LABEL_MODE_SUPERTREND_ATR:
         st_dir = _supertrend_direction(prices, index)
         diff = forward - float(prices[index])

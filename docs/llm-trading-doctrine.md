@@ -2,7 +2,7 @@
 
 O LLM/Cursor e **copiloto de engenharia e auditoria**. Nao decide CALL/PUT em runtime. A decisao live permanece TCN + meta LightGBM + Kelly/caps + **fusao EV multi-escala** (`execution_direction_fusion`); **escopo 1.1** + arquitetura continua 1HZ75V: catálogo `signal_skip` (`mini_pair_oppose` / `cal_margin` / chop = soft Kelly **0.55**); **neg_edge** le Edge Cal TCN do lado (`CLUSTER`, nao `fusion_p_eff`); soft se `0 < Cal < min_edge_execute` (`neg_edge_hard_skip` **false**, `neg_edge_soft_min_edge` **−1.0**); **hard** se Cal `<= 0` (`fusion_p_eff` nao libera EXEC); **Anti-loss** com microestrutura M15 estrita (EMA slope 9/21 em 15m; RSI momentum; janela de confirmação M15). `invert_exec_side` **false**; `online_training` **false**; stop-win **1%** Kelly Single-Strike.
 
-SSOT operacional: [`config/settings.json`](../config/settings.json) — universo **`1HZ75V`** (Volatility 75 (1s) Index), contrato ops **15 m (M15)**, label TCN **N=1** vela M15 (`supertrend_atr`), micro/MINI **900 s** (M15), ciclo **900 s**, macro **86400 s** (D1). Metodologia: [`medallion.md`](medallion.md). Sample size: [`sample-size-lln.md`](sample-size-lln.md). Loss ML: [`infra-docker.md`](infra-docker.md) (`aether-loss-classifier`).
+SSOT operacional: [`config/settings.json`](../config/settings.json) — universo **`1HZ75V`** (Volatility 75 (1s) Index), contrato ops **15 m (M15)**, label TCN **N=1** vela M15 (`triple_barrier`), micro/MINI **900 s** (M15), ciclo **900 s**, macro **86400 s** (D1). Metodologia: [`medallion.md`](medallion.md). Sample size: [`sample-size-lln.md`](sample-size-lln.md). Loss ML: [`infra-docker.md`](infra-docker.md) (`aether-loss-classifier`).
 
 ---
 

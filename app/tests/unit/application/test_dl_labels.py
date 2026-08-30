@@ -43,7 +43,9 @@ def test_resolve_label_helpers():
     assert resolve_label_smooth_bars({}) == 1
     assert resolve_label_smooth_bars({"label_smooth_bars": 5}) == 5
     assert resolve_label_ma_window({"label_ma_window": 8}) == 8
-    assert resolve_label_mode({}) == "supertrend_atr"
+    assert resolve_label_mode({}) == "triple_barrier"
+    assert resolve_label_mode({"label_mode": "triple_barrier"}) == "triple_barrier"
+    assert resolve_label_mode({"label_mode": "triple"}) == "triple_barrier"
     assert resolve_label_mode({"label_mode": "spot_forward"}) == "spot_forward"
     assert resolve_label_mode({"label_mode": "supertrend"}) == "supertrend_atr"
     assert resolve_label_mode({"label_mode": "ma_trend"}) == "ma_trend"
@@ -84,3 +86,44 @@ def test_binary_label_supertrend_atr():
     assert _supertrend_direction(prices_flat, 40) == 1
     prices_flat_step = np.array([100.0] * 30 + [100.1, 100.0])
     assert _supertrend_direction(prices_flat_step, 31) == -1
+
+
+def test_binary_label_triple_barrier():
+    from src.application.services.deep_learning.dl_labels import (
+        LABEL_MODE_TRIPLE_BARRIER,
+        _triple_barrier_direction,
+    )
+
+    prices_up = np.linspace(100.0, 150.0, 50)
+    assert _triple_barrier_direction(prices_up, 20, 5) is True
+    assert binary_label_at_index(prices_up, 20, 5, label_mode=LABEL_MODE_TRIPLE_BARRIER) is True
+
+    prices_down = np.linspace(150.0, 100.0, 50)
+    assert _triple_barrier_direction(prices_down, 20, 5) is False
+    assert binary_label_at_index(prices_down, 20, 5, label_mode=LABEL_MODE_TRIPLE_BARRIER) is False
+
+    # Primeiro toque inferior rápido
+    prices_touch_lower = np.array([100.0] * 20 + [100.0, 95.0, 105.0, 105.0])
+    assert _triple_barrier_direction(prices_touch_lower, 20, 3) is False
+
+    # Primeiro toque superior rápido
+    prices_touch_upper = np.array([100.0] * 20 + [100.0, 105.0, 95.0, 95.0])
+    assert _triple_barrier_direction(prices_touch_upper, 20, 3) is True
+
+    # Sem tocar barreiras, fechando no mesmo nivel
+    prices_flat = np.full(50, 100.0)
+    assert _triple_barrier_direction(prices_flat, 20, 2) is True
+
+    # Teste de vol_seg <= 1 (linha 94)
+    assert _triple_barrier_direction(prices_flat[:1], 0, 1) is True
+
+
+def test_forward_mean_out_of_bounds_and_empty_sequence():
+    # Linha 55: forward_end > len(prices)
+    prices = np.array([100.0, 101.0, 102.0])
+    assert binary_label_at_index(prices, index=2, horizon_bars=5) is False
+
+    # Linha 156: sequence_labels com array curto
+    short_prices = np.array([100.0, 101.0])
+    t, m = sequence_labels(short_prices, lookback=10, horizon_bars=1)
+    assert len(t) == 0 and len(m) == 0

@@ -12,7 +12,7 @@ Ponto de entrada para agentes Cursor/LLM neste repositorio.
 ## Universo operacional
 
 - Universo operacional: **1HZ75V** (Volatility 75 (1s) Index / Deriv)
-- Relogio: micro/MINI **900 s** (M15); macro **86400 s** (D1, 100 velas diarias); ciclo/cadência **120 s** (2m); TCN estima deslocamento em **N=1 vela M15** alinhado ao contrato ops **fixo 15 m (M15)** (`label_horizon_bars=1`, `risk_management.params.duration=15`, `duration_unit="m"`). Rotulagem: **supertrend_atr** (SuperTrend + Volatility ATR Band filter).
+- Relogio: micro/MINI **900 s** (M15); macro **86400 s** (D1, 100 velas diarias); ciclo/cadência **120 s** (2m); TCN estima deslocamento em **N=1 vela M15** alinhado ao contrato ops **fixo 15 m (M15)** (`label_horizon_bars=1`, `risk_management.params.duration=15`, `duration_unit="m"`). Rotulagem: **triple_barrier** (Triple Barrier Method: Upper/Lower Log-Vol Barriers + Vertical Expiry Barrier).
 - SSOT: `config/settings.json` + `app/src/domain/symbols/drift_symbols.py`
 - Artefactos/treino com granularity/lookback/horizon ≠ settings sao invalidos (gate fail-closed); apos mudar TF/horizonte, retreinar TCN+meta e `make docker-rebuild`
 - Treino DL em velas diarias (D1 com 100 barras de historico), elegendo modelo assertivo com **settle_wr** ≥ be+0.03 ou acc ≥ 0.53; deploy reformulado priorizando Edge real vs Breakeven.
