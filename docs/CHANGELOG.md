@@ -1,3 +1,9 @@
+## [2.35.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.34.0...v2.35.0) (2026-08-30)
+
+### Funcionalidades
+
+* **domain:** migrar ativo operacional para Volatility 75 (1s) ([02ef879](https://github.com/victorh-silveira/aether-quantum-engine/commit/02ef8792860c506e85eb1bfe1e62ad88bbbcec62))
+
 ## [2.34.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.33.0...v2.34.0) (2026-08-27)
 
 ### Funcionalidades
