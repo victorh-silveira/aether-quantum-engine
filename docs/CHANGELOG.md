@@ -1,3 +1,9 @@
+## [2.40.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.39.0...v2.40.0) (2026-08-30)
+
+### Funcionalidades
+
+* **risk:** permitir execucao de sinal com edge negativo via soft Kelly ([fe7c7cd](https://github.com/victorh-silveira/aether-quantum-engine/commit/fe7c7cdbff4999a5104ac7782bc48859a54bfc57))
+
 ## [2.39.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.38.0...v2.39.0) (2026-08-30)
 
 ### Funcionalidades
