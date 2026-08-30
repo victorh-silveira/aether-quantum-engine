@@ -1,6 +1,6 @@
-# Mercado Real S&P 500 (`OTC_SPC` / `US 500`) — M15
+# Volatility 75 (1s) Index (`1HZ75V`) — M15
 
-Universo operacional unico: **`OTC_SPC`** (S&P 500 / Deriv). Ativo do mercado real com contrato direcional RISE/FALL em M15. Timeframe operacional **M15** (micro/MINI **900 s**), com treinamento em **D1 (86400 s)** em **100 velas diarias**.
+Universo operacional unico: **`1HZ75V`** (Volatility 75 (1s) Index / Deriv). Ativo sintético contínuo 24/7 com contrato direcional RISE/FALL em M15. Timeframe operacional **M15** (micro/MINI **900 s**), com treinamento em **D1 (86400 s)** em **100 velas diarias**.
 
 ---
 
@@ -8,13 +8,13 @@ Universo operacional unico: **`OTC_SPC`** (S&P 500 / Deriv). Ativo do mercado re
 
 | Item | Valor |
 |------|--------|
-| Simbolo API | `OTC_SPC` |
+| Simbolo API | `1HZ75V` |
 | Contrato | `RISE_FALL` **15 m** (`duration=15`, `duration_unit=m`, `label_horizon_bars=1`) |
 | Micro / MINI OHLC | **900 s** (M15) |
 | Macro OHLC | **86400 s** (D1 / 100 velas de treino) |
 | Ciclo / assinatura | **900 s** (alinhado ao fecho da vela M15); `exec_empty_retry` **900 s** |
 | Lookback TCN | **20** barras |
-| Payout SSOT | **0.85** (85% mercado real) |
+| Payout SSOT | **0.85** (85% payout base) |
 | Soft Recovery | amort **1/1**, `cover_multiple` **1.50** (cover pleno) |
 | Stop-win | `compounding_rate_daily` **1.0%** / Single-Strike 1 trade |
 | Settle wait / tolerancia | poll **0.5 s** / tolerancia **600 s**; timeout pos-ciclo **1200 s** |

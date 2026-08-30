@@ -24,7 +24,7 @@
 | [infra-docker.md](infra-docker.md) | Stack Docker hibrida: profiles `core/ml`, binds localhost, hydrate, smoke |
 | [deriv-api.md](deriv-api.md) | Referência Deriv + integração PAT/OTP (retries Cloudflare/5xx) |
 | [deriv-api-aether.md](deriv-api-aether.md) | Guia rápido Deriv para agentes (mapeamento Aether híbrido OTP/REST) |
-| [deriv-indices-algorithm.md](deriv-indices-algorithm.md) | Mercado Real S&P 500 `OTC_SPC` (M15 / D1) |
+| [deriv-indices-algorithm.md](deriv-indices-algorithm.md) | Volatility 75 (1s) Index `1HZ75V` (M15 / D1) |
 | [CHANGELOG.md](CHANGELOG.md) | Histórico de versões |
 
 Ponto de entrada do projeto: [README.md](../README.md). Agentes: [AGENTS.md](../AGENTS.md).
@@ -50,7 +50,7 @@ Regra: **domain** não importa application nem infrastructure. **Application** o
 
 | Item | Valor |
 |------|-------|
-| Universo | `OTC_SPC` (âncora `OTC_SPC`) |
+| Universo | `1HZ75V` (âncora `1HZ75V`) |
 | DL | TCN, lookback **20**, micro **900 s** (M15), macro **86400 s** (D1), `FEATURE_DIM=34`, label `supertrend_atr`, tensor `[1, 20, 34]` |
 | Meta | LightGBM HTTP `:8005`, `META_FEATURE_DIM=43` (micro **900 s**); **opcional** para execução |
 | Relógio | Micro/MINI **900 s** (M15) + macro **86400 s** (D1); contrato ops **15 m (M15)**; label TCN **N=1** vela M15; ratio **1:96**; ciclo **900 s** |

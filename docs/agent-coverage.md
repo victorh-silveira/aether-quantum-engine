@@ -32,8 +32,8 @@ Enforcement no core: `doctrine_invariants.py` + testes `test_doctrine_*` / `test
 | Contrato prompt-modelo | [prompt-model.md](../prompt-model.md) | `aether-engineering.mdc` | `aether-surface-sync` |
 | Logging / presentation | [engineering-observability.md](engineering-observability.md) + [engineering-logging-inventory.md](engineering-logging-inventory.md) | `aether-logging.mdc` | `aether-session-review` |
 | Scripts / ops | [structure.md](structure.md) §Scripts | `aether-scripts.mdc` | `aether-ops-runbook` |
-| Domain models/math/symbols | [structure.md](structure.md) §Domain + [deriv-indices-algorithm.md](deriv-indices-algorithm.md) (`OTC_SPC`) | `aether-domain-pure.mdc` | — |
-| Mercado Real S&P 500 | [deriv-indices-algorithm.md](deriv-indices-algorithm.md) | `aether-sp500-market.mdc` | `aether-sp500-market-analyst` |
+| Domain models/math/symbols | [structure.md](structure.md) §Domain + [deriv-indices-algorithm.md](deriv-indices-algorithm.md) (`1HZ75V`) | `aether-domain-pure.mdc` | — |
+| Volatility 75 (1s) Index | [deriv-indices-algorithm.md](deriv-indices-algorithm.md) | `aether-sp500-market.mdc` | `aether-sp500-market-analyst` |
 | Kelly Single-Strike 1% | [medallion.md](medallion.md) + [llm-trading-doctrine.md](llm-trading-doctrine.md) | `aether-risk-sizing.mdc` | `aether-single-strike-risk` |
 | Verificador de Sinais M15 | [binary-senior-playbook.md](binary-senior-playbook.md) | `aether-execution-gates.mdc` | `aether-m15-signal-verifier` |
 

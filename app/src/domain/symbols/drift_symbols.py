@@ -1,8 +1,8 @@
-"""Simbolos de trading Deriv (universo single-symbol OTC_SPC - S&P 500 Real Market)."""
+"""Simbolos de trading Deriv (universo single-symbol 1HZ75V - Volatility 75 (1s) Index)."""
 
-TRADING_SYMBOLS: tuple[str, ...] = ("OTC_SPC",)
+TRADING_SYMBOLS: tuple[str, ...] = ("1HZ75V",)
 DRIFT_SYMBOLS: tuple[str, ...] = TRADING_SYMBOLS
-DEFAULT_ANCHOR = "OTC_SPC"
+DEFAULT_ANCHOR = "1HZ75V"
 
 HEDGE_PEER: dict[str, str] = {}
 

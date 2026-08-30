@@ -231,9 +231,9 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert int(orch["watchdog_stale_tick_seconds"]) == 300
     assert int(orch["post_settlement_is_trading_wait_seconds"]) == 90
     assert int(settings["risk_management"]["kelly"]["cycle_stake_baseline_seconds"]) == 900
-    assert settings.get("anchor") == "OTC_SPC"
-    assert list(settings.get("symbols") or []) == ["OTC_SPC"]
-    assert list(dl.get("train_symbols") or []) == ["OTC_SPC"]
+    assert settings.get("anchor") == "1HZ75V"
+    assert list(settings.get("symbols") or []) == ["1HZ75V"]
+    assert list(dl.get("train_symbols") or []) == ["1HZ75V"]
     assert int(settings["risk_management"]["params"]["duration"]) == 15
     assert str(settings["risk_management"]["params"]["duration_unit"]) == "m"
     params = settings["risk_management"]["params"]
@@ -294,4 +294,4 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert float(h_sweep["min_edge_vs_breakeven"]) == pytest.approx(0.03)
     assert list(h_sweep["n_bars"]) == [1, 2, 3, 4]
     assert list(h_sweep["duration_minutes"]) == [15, 30, 45, 60]
-    assert list(h_sweep["symbols"]) == ["OTC_SPC"]
+    assert list(h_sweep["symbols"]) == ["1HZ75V"]

@@ -1,25 +1,25 @@
 ---
-description: Mercado Real S&P 500 (OTC_SPC) — Macroeconomia, sessões de NY, liquidez e particularidades vs sintéticos
+description: Indice de Volatilidade 75 (1s) (1HZ75V) — Sinteticos Deriv 24/7, dinamica de microestrutura e volatilidade continua
 globs: app/src/**/*.py
 alwaysApply: true
 ---
 
-# S&P 500 Real Market Rules (`OTC_SPC`)
+# Volatility 75 (1s) Index Rules (`1HZ75V`)
 
-- **Ativo Central**: `OTC_SPC` (Standard & Poor's 500 Real Market Index OTC / Deriv).
+- **Ativo Central**: `1HZ75V` (Volatility 75 (1s) Index / Deriv).
 - **Timeframes**: Operacional em **M15** (`900 s`); Treinamento em diário **D1** (`86400 s`, 120 barras de histórico).
 - **Duração do Contrato**: **15 minutos** fixos (`params.duration = 15`, `params.duration_unit = "m"`).
 
-## Particularidades do Mercado Real vs Sintéticos
+## Particularidades do Índice de Volatilidade 75 (1s)
 
-1. **Horários de Liquidez (Sessão de Nova York)**:
-   - Pico de volume e direcionalidade ocorre entre 09:30 e 16:00 EST (horário de NY).
-   - Sessões asiáticas/noturnas possuem menor volatilidade relativa, propensas a consolidações em canais estreitos.
-2. **Volatilidade e Gaps**:
-   - Diferente dos índices sintéticos (contínuos 24/7 sem interrupção), o mercado real reage a eventos macroeconômicos (CPI, NFP, Decisões de Juros do FED).
-   - O indicador `supertrend_atr` e as médias móveis `EMA9/21` em 15m capturam a tendência genuína de fluxo institucional.
+1. **Mercado Sintético Contínuo 24/7**:
+   - Operação ininterrupta sem fechamento de mercado ou gaps de fim de semana.
+   - Geração determinística de volatilidade com tick constante de 1 segundo.
+2. **Volatilidade e Momentum**:
+   - O ativo simula volatilidade constante com alta velocidade de reversão e tendência fractal.
+   - O indicador `supertrend_atr` e as médias móveis `EMA9/21` em 15m capturam a tendência genuína de fluxo.
 3. **Payout e Breakeven**:
-   - Payout médio da Deriv no `OTC_SPC`: **85%** (`0.85`).
+   - Payout médio da Deriv no `1HZ75V`: **85%** (`0.85`) a **95%**.
    - Breakeven estatístico: $p_{\text{be}} = \frac{1}{1 + 0.85} \approx 0.54054 \implies 54.1\%$.
    - Toda operação deve comprovar $\text{Edge} = p_{\text{eff}} \times 1.85 - 1.0 > 0$.
 4. **Dimensionamento Single-Strike**:

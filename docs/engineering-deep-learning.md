@@ -6,7 +6,7 @@ Guia operacional DL para agentes. Detalhe de features: [`arquitetura.md`](arquit
 
 | Item | Valor tipico |
 |------|----------------|
-| Simbolo | **OTC_SPC** (S&P 500) |
+| Simbolo | **1HZ75V** (Volatility 75 (1s)) |
 | Arch | TCN |
 | Lookback | **20** → tensor `[1, 20, 34]` |
 | MACRO OHLC | **86400 s** (D1, `data_handler.granularity`) |

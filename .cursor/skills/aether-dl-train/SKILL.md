@@ -24,7 +24,7 @@ description: >-
 12. Meta: variance nula → Timescale flat; usar `--source auto` / Deriv; alvo payoff fallback; gran meta = micro SSOT (hoje **60s**)
 13. Meta HTTP opcional — confirmar flags; TCN = eager/CUDA local
 14. Pos-promote horizonte: invalidar pth/TorchScript de N anterior, retreinar TCN+meta (ja feito no launch-train)
-15. Universo runtime = **OTC_SPC**; label N eleito no launch-train (contrato ops permanece **15 m**); artefactos legados ou outro TF/N invalidos; sync MinIO com **OTC_SPC**
+15. Universo runtime = **1HZ75V**; label N eleito no launch-train (contrato ops permanece **15 m**); artefactos legados ou outro TF/N invalidos; sync MinIO com **1HZ75V**
 16. Gap TCN→meta: `launch-train` usa `ensure_timescale.py --check-only` (sem seed Deriv entre etapas); bootstrap wait cap **30 s**; shortfall API ≥ **95%** do alvo (`train_history_shortfall_ratio`) em TCN **e** meta
 17. Run fresca: `sanitize_fresh_run` no inicio de `launch-train`; `make docker-reset` sanitiza + volumes; treino **nao** preserva checkpoint anterior
 18. Anti-overfit: `weight_decay` **0.001**, `tcn.dropout` **0.25**, `learning_rate` **0.001**, `recency_half_life_n` **2000**
@@ -35,7 +35,7 @@ description: >-
 
 ## Anti-padroes
 
-Trocar label sem retreino; `force_ok=true`; treinar meta em hydrate sintetico; ignorar ACC no path label sem settle elegivel; restaurar checkpoint so por loss; tratar vies de classe com veto de sinal live em vez de balance/recency/collapse; baixar `min_oos_sharpness` para “passar” export; tratar `[SUCESSO]` do bat se o gate/treino falhou; operar Volatility checkpoints no simbolo `OTC_SPC`; promover N com **settle_wr** abaixo de be+margem ou N/historico abaixo do piso; trocar horizonte ao vivo por ciclo; fixar `label_horizon_bars` sem o sweep de horizonte.
+Trocar label sem retreino; `force_ok=true`; treinar meta em hydrate sintetico; ignorar ACC no path label sem settle elegivel; restaurar checkpoint so por loss; tratar vies de classe com veto de sinal live em vez de balance/recency/collapse; baixar `min_oos_sharpness` para “passar” export; tratar `[SUCESSO]` do bat se o gate/treino falhou; operar Volatility checkpoints no simbolo `1HZ75V`; promover N com **settle_wr** abaixo de be+margem ou N/historico abaixo do piso; trocar horizonte ao vivo por ciclo; fixar `label_horizon_bars` sem o sweep de horizonte.
 
 Com `online_training=false` (SSOT): DEMO sobe com checkpoint do `launch-train` e nao retreina TCN em runtime. Loss/meta `/learn` a cada trade.
 

@@ -1,8 +1,8 @@
-# Playbook trader senior — binarias M15 (`OTC_SPC`; OHLC 900s)
+# Playbook trader senior — binarias M15 (`1HZ75V`; OHLC 900s)
 
-Postura operacional (**escopo 1.1** + arquitetura continua OTC_SPC): TCN ancora Cal; **fusao EV** multi-escala (`fusion_*`) escolhe CALL/PUT; depois **loss-clf FLIP** (ref TCN); meta/edge/indicadores sao telemetria; SCALE telemetria + adapt quando fusao nao substitui. SKIP tecnico = treino/dados/deploy/broker/stop-win; **neg_edge** hard se Edge Cal TCN (`CLUSTER`) `<= 0` (`fusion_p_eff` nao lava; soft so se `0 < Cal < min_edge_execute`); catálogo soft `signal_skip` mini/cal/chop = soft Kelly (sem revenge sizing pos-LOSS).
+Postura operacional (**escopo 1.1** + arquitetura continua 1HZ75V): TCN ancora Cal; **fusao EV** multi-escala (`fusion_*`) escolhe CALL/PUT; depois **loss-clf FLIP** (ref TCN); meta/edge/indicadores sao telemetria; SCALE telemetria + adapt quando fusao nao substitui. SKIP tecnico = treino/dados/deploy/broker/stop-win; **neg_edge** hard se Edge Cal TCN (`CLUSTER`) `<= 0` (`fusion_p_eff` nao lava; soft so se `0 < Cal < min_edge_execute`); catálogo soft `signal_skip` mini/cal/chop = soft Kelly (sem revenge sizing pos-LOSS).
 
-Universo: **S&P 500 Mercado Real** (`OTC_SPC`) — **M15** (contrato ops **15 m / M15**; label TCN **N=1** vela M15; ciclo **900 s**, micro/MINI **900 s**, macro **86400 s** (D1), ratio **1:96**).
+Universo: **Volatility 75 (1s) Index** (`1HZ75V`) — **M15** (contrato ops **15 m / M15**; label TCN **N=1** vela M15; ciclo **900 s**, micro/MINI **900 s**, macro **86400 s** (D1), ratio **1:96**).
 
 Hierarquia: TCN Cal/Margin → SCALE dirs → soft `signal_skip` → **fusao EV** (argmax CALL/PUT) → **loss-clf FLIP** (ref TCN, ultimo) → **anti-loss com microestrutura estrita** (EMA Slope M15 + Zero Bypass Vela M15 + RSI Momentum) → chop soft → **neg_edge** (Cal TCN: soft subfloor / hard EV≤0 / Trava Z-Score Pânico; `fusion_p_eff` so Kelly apos o gate) → Kelly Single-Strike / caps. Caveat: `fusion_loss_weight` **nao** ve o `p_loss` do mesmo ciclo (FLIP ocorre apos a fusao); sob seed, `loss_bonus` ja e **0**. **Proibido** reabrir quality gate amplo legado.
 

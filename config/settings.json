@@ -1,5 +1,5 @@
 {
-  "anchor": "OTC_SPC",
+  "anchor": "1HZ75V",
   "api_config": {
     "deriv_app_id": "",
     "history_fetch": {
@@ -224,7 +224,7 @@
     },
     "train_on_new_candle_only": true,
     "train_symbols": [
-      "OTC_SPC"
+      "1HZ75V"
     ],
     "train_timeframe": "macro",
     "training_batch_size": 128,
@@ -267,7 +267,7 @@
         4
       ],
       "symbols": [
-        "OTC_SPC"
+        "1HZ75V"
       ],
       "min_edge_vs_breakeven": 0.03,
       "min_settle_n": 16,
@@ -839,7 +839,7 @@
     }
   },
   "symbols": [
-    "OTC_SPC"
+    "1HZ75V"
   ],
   "trading": {
     "mode": "demo"

@@ -11,7 +11,7 @@ Ponto de entrada para agentes Cursor/LLM neste repositorio.
 
 ## Universo operacional
 
-- Universo operacional: **OTC_SPC** (S&P 500 / Deriv)
+- Universo operacional: **1HZ75V** (Volatility 75 (1s) Index / Deriv)
 - Relogio: micro/MINI **900 s** (M15); macro **86400 s** (D1, 100 velas diarias); ciclo/cadência **120 s** (2m); TCN estima deslocamento em **N=1 vela M15** alinhado ao contrato ops **fixo 15 m (M15)** (`label_horizon_bars=1`, `risk_management.params.duration=15`, `duration_unit="m"`). Rotulagem: **supertrend_atr** (SuperTrend + Volatility ATR Band filter).
 - SSOT: `config/settings.json` + `app/src/domain/symbols/drift_symbols.py`
 - Artefactos/treino com granularity/lookback/horizon ≠ settings sao invalidos (gate fail-closed); apos mudar TF/horizonte, retreinar TCN+meta e `make docker-rebuild`
@@ -37,7 +37,7 @@ Rules/skills versionadas: [`.cursor/rules/`](.cursor/rules/) e [`.cursor/skills/
 - Cobertura de testes em `app/src` abaixo de **100%**
 - Assunto de commit em ingles; escopo fora do enum commitlint
 
-Nota operacional (**S&P 500 M15** + arquitetura continua): micro/mini em 900s; pipeline: SCALE → **fusao EV** → **loss-clf FLIP** → **anti-loss com microestrutura M15** (EMA slope 9/21 em 15m; RSI momentum: CALL vetado se $RSI < 0.38$, PUT vetado se $RSI > 0.62$; confirmação de janela `ops_window_bars = 3`) → **neg_edge** com trava de pânico Z-score bilateral ($Z < -2.0$ para CALL / $Z > +2.0$ para PUT gerando `SKIP:NEG_EDGE_ZSCORE_PANIC`). Sizing: tacada única para 4,31% da banca $\text{Stake} = \frac{\text{Meta}}{\text{Payout}} = \frac{0.0431 \times \text{Banca}}{0.85} \approx 5,07\% \to \text{cap } 5,0\%$. Sem revenge sizing pós-loss.
+Nota operacional (**Volatility 75 (1s) M15** + arquitetura continua): micro/mini em 900s; pipeline: SCALE → **fusao EV** → **loss-clf FLIP** → **anti-loss com microestrutura M15** (EMA slope 9/21 em 15m; RSI momentum: CALL vetado se $RSI < 0.38$, PUT vetado se $RSI > 0.62$; confirmação de janela `ops_window_bars = 3`) → **neg_edge** com trava de pânico Z-score bilateral ($Z < -2.0$ para CALL / $Z > +2.0$ para PUT gerando `SKIP:NEG_EDGE_ZSCORE_PANIC`). Sizing: tacada única para 4,31% da banca $\text{Stake} = \frac{\text{Meta}}{\text{Payout}} = \frac{0.0431 \times \text{Banca}}{0.85} \approx 5,07\% \to \text{cap } 5,0\%$. Sem revenge sizing pós-loss.
 
 ## Escopos commitlint
 
@@ -71,7 +71,7 @@ Formato: `tipo(escopo): assunto em PT-BR` + corpo obrigatorio.
 | Higienizacao do repositorio | `docs/engineering-repo-hygiene.md` + skill `aether-repo-hygiene` |
 | Fechamento de mudanca (sync superficie) | `docs/engineering-surface-sync.md` + skill `aether-surface-sync` |
 | Scaffold / contrato de engenharia | `prompt-model.md` + skill `aether-surface-sync` |
-| Mercado Real S&P 500 / NY Session | `docs/deriv-indices-algorithm.md` + rule `aether-sp500-market.mdc` + skill `aether-sp500-market-analyst` |
+| Volatility 75 (1s) Index / Sinteticos | `docs/deriv-indices-algorithm.md` + rule `aether-sp500-market.mdc` + skill `aether-sp500-market-analyst` |
 | Sizing Single-Strike 1% / Payout 0.85 | `docs/medallion.md` + rule `aether-risk-sizing.mdc` + skill `aether-single-strike-risk` |
 | Verificador de Sinais & Microestrutura M15 | `docs/binary-senior-playbook.md` + rule `aether-execution-gates.mdc` + skill `aether-m15-signal-verifier` |
 

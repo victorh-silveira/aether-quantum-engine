@@ -9,11 +9,11 @@
 [![Polars](https://img.shields.io/badge/DataFrame-Polars%20SSOT-CD792C)](docs/engineering-python-deps.md)
 [![Quant](https://img.shields.io/badge/Risk-Kelly%20Single--Strike%201%25-0B3D91)](docs/llm-trading-doctrine.md)
 [![Infra](https://img.shields.io/badge/Infra-Redis%20%7C%20Timescale%20%7C%20MinIO-DC382D?logo=redis&logoColor=white)](docs/infra-docker.md)
-[![Deriv](https://img.shields.io/badge/Market-Deriv%20OTC__SPC%20%7C%20RISE__FALL%20M15-111111)](docs/deriv-api-aether.md)
+[![Deriv](https://img.shields.io/badge/Market-Deriv%201HZ75V%20%7C%20RISE__FALL%20M15-111111)](docs/deriv-api-aether.md)
 [![CI](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/victorh-silveira/aether-quantum-engine?display_name=tag&label=Release)](https://github.com/victorh-silveira/aether-quantum-engine/releases)
 
-Motor quantitativo assíncrono para a Deriv: decisão por **Deep Learning** (TCN/LSTM/GRU) no índice do mercado real S&P 500 **US 500** (`OTC_SPC`), contratos **RISE_FALL** de **15 m (M15)** com label TCN em **N=1 vela M15** (`supertrend_atr`), micro/MINI **900 s** e contexto macro D1 **86400 s** (100 barras diárias de treino), meta-regressor LightGBM (**43D**) de expectativa de retorno contínuo (single-symbol), e **sizing Kelly Single-Strike** (alvo de 1.0% da banca em tacada única M15; Soft Recovery cover pleno amort **1/1** em RECOVER). Sem Triton: inferência eager/CUDA local; Docker profiles `core,ml`.
+Motor quantitativo assíncrono para a Deriv: decisão por **Deep Learning** (TCN/LSTM/GRU) no índice sintético de volatilidade **Volatility 75 (1s)** (`1HZ75V`), contratos **RISE_FALL** de **15 m (M15)** com label TCN em **N=1 vela M15** (`supertrend_atr`), micro/MINI **900 s** e contexto macro D1 **86400 s** (100 barras diárias de treino), meta-regressor LightGBM (**43D**) de expectativa de retorno contínuo (single-symbol), e **sizing Kelly Single-Strike** (alvo de 1.0% da banca em tacada única M15; Soft Recovery cover pleno amort **1/1** em RECOVER). Sem Triton: inferência eager/CUDA local; Docker profiles `core,ml`.
 
 A operação divide-se em duas fases: **FASE TREINO** (nenhuma ordem até checkpoint/sessão prontos; `online_training` **false** no DEMO) e **FASE OPERACAO** continua (`mandatory_trade_each_cycle: false`, `force_trade_every_cycle: false`, `invert_exec_side: false`): o ciclo avalia candidato a cada **900 s** (fechamento da barra M15) via TCN + fusao EV + microestrutura balanceada M15 + signal_skip 1.1. Meta é **opcional** para execução (`require_meta_for_execution: false`); inferência TCN = eager/CUDA local no host.
 
@@ -51,7 +51,7 @@ Arquivo: [`config/settings.json`](config/settings.json)
 
 | Bloco | Função |
 |-------|--------|
-| `symbols` / `anchor` | Universo (`OTC_SPC`; ancora `OTC_SPC`) |
+| `symbols` / `anchor` | Universo (`1HZ75V`; ancora `1HZ75V`) |
 | `data_handler` | `granularity` (macro **86400 s**), `micro_granularity` / `mini_granularity` (**900 s**), historico treino **100** barras D1 |
 | `deep_learning` | `arch`, `lookback` (**20**), `online_training` **false**, calibration, thresholds **0.46/0.34**, `deploy_gate` |
 | `orchestrator.execution` | `mandatory_trade_each_cycle: false`, `force_trade_every_cycle: false`, `invert_exec_side: false`, `scale_vision.fusion_*`, `signal_skip` 1.1, settlement **600 s** |

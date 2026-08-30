@@ -7,7 +7,7 @@ alwaysApply: true
 
 LLM/Cursor e copiloto de engenharia. Nao decide CALL/PUT em runtime (TCN + meta + gates/fusao). Doutrina completa: `docs/llm-trading-doctrine.md`.
 
-Runtime SSOT: **OTC_SPC** M15, micro/MINI **900 s**; macro **86400 s** (D1, 120 barras); contrato ops **fixo 15 m (M15)** (`label_horizon_bars=1`, `risk_management.params.duration=15`, `duration_unit="m"`); rotulagem `supertrend_atr`; payout real **0.85** (breakeven $p_{\text{be}} \approx 0.541$); `online_training` **false**; `invert_exec_side` **false**; stop-win **1.0%** composto = atingido em tacada única via Kelly Single-Strike ($\text{Stake} \approx 1,18\%$). `quiet_train_logs` → celula **CRITICAL** + pos-sweep denso. Sem Triton: inferencia eager/CUDA local; Docker profiles `core,ml`.
+Runtime SSOT: **1HZ75V** M15, micro/MINI **900 s**; macro **86400 s** (D1, 120 barras); contrato ops **fixo 15 m (M15)** (`label_horizon_bars=1`, `risk_management.params.duration=15`, `duration_unit="m"`); rotulagem `supertrend_atr`; payout real **0.85** (breakeven $p_{\text{be}} \approx 0.541$); `online_training` **false**; `invert_exec_side` **false**; stop-win **1.0%** composto = atingido em tacada única via Kelly Single-Strike ($\text{Stake} \approx 1,18\%$). `quiet_train_logs` → celula **CRITICAL** + pos-sweep denso. Sem Triton: inferencia eager/CUDA local; Docker profiles `core,ml`.
 
 ## Nunca propor
 

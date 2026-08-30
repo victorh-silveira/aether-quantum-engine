@@ -119,7 +119,7 @@ def test_log_deduper_and_market_audit_helpers():
     owner._log_dedupe = {"ch": "x"}
     assert clear_log_channel(owner, "ch") == "x"
     assert cluster_symbol_token("", None) == "N/A"
-    assert cluster_symbol_token("otc_spc", None) == "OTC_SPC"
+    assert cluster_symbol_token("1hz75v", None) == "1HZ75V"
     assert cluster_symbol_token("R_10", None) == "R_10"
 
 

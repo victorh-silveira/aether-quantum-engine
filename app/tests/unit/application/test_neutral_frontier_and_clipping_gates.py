@@ -122,12 +122,12 @@ def test_cointegration_redirect_armed_at_fifteen_percent_of_live_capital() -> No
 
 def test_select_cointegration_redirect_prefers_high_z_low_entropy() -> None:
     candidates = [
-        ("OTC_SPC", TradeDirection.CALL, {"calibrated_prob": 0.55, "edge_zscore": 0.4}),
+        ("1HZ75V", TradeDirection.CALL, {"calibrated_prob": 0.55, "edge_zscore": 0.4}),
         ("ALT_SYM", TradeDirection.CALL, {"calibrated_prob": 0.9, "edge_zscore": 2.0}),
     ]
     selected = select_cointegration_redirect_candidate(candidates)
     assert len(selected) == 1
-    assert selected[0][0] == "OTC_SPC"
+    assert selected[0][0] == "1HZ75V"
 
 
 def test_micro_tail_stake_cap_and_max_safe_flatten_at_linear_four() -> None:

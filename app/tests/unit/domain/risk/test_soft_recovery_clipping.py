@@ -199,19 +199,19 @@ def test_soft_recovery_policy_branches_and_tail_cap() -> None:
     assert cointegration_pair_score({"calibrated_prob": 0.7, "edge_zscore": -0.1}) == float("-inf")
     assert cointegration_pair_score({"calibrated_prob": 0.8, "edge_zscore": 1.5}) > 0.0
     assert select_cointegration_redirect_candidate([("R_50", TradeDirection.CALL, {"edge_zscore": 2.0})]) == []
-    alone = [("OTC_SPC", TradeDirection.CALL, {"calibrated_prob": 0.7, "edge_zscore": 1.0})]
+    alone = [("1HZ75V", TradeDirection.CALL, {"calibrated_prob": 0.7, "edge_zscore": 1.0})]
     assert select_cointegration_redirect_candidate(alone) == alone
     pair = [
-        ("OTC_SPC", TradeDirection.CALL, {"calibrated_prob": 0.55, "edge_zscore": 0.4}),
+        ("1HZ75V", TradeDirection.CALL, {"calibrated_prob": 0.55, "edge_zscore": 0.4}),
         ("R_50", TradeDirection.PUT, {"calibrated_prob": 0.80, "edge_zscore": 1.5}),
     ]
-    assert select_cointegration_redirect_candidate(pair)[0][0] == "OTC_SPC"
+    assert select_cointegration_redirect_candidate(pair)[0][0] == "1HZ75V"
     multi = [
-        ("OTC_SPC", TradeDirection.CALL, {"calibrated_prob": 0.55, "edge_zscore": 0.4}),
+        ("1HZ75V", TradeDirection.CALL, {"calibrated_prob": 0.55, "edge_zscore": 0.4}),
         ("R_50", TradeDirection.PUT, {"calibrated_prob": 0.80, "edge_zscore": 1.5}),
     ]
     with patch(
         "src.domain.risk.risk_recovery_state.DRIFT_PAIR_SYMBOLS",
-        frozenset({"OTC_SPC", "R_50"}),
+        frozenset({"1HZ75V", "R_50"}),
     ):
         assert select_cointegration_redirect_candidate(multi)[0][0] == "R_50"

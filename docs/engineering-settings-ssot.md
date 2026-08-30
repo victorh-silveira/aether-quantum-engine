@@ -6,7 +6,7 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 
 | Bloco | Papel |
 |-------|-------|
-| `symbols` / `anchor` | Universo unico **`OTC_SPC`** (S&P 500 / Deriv) |
+| `symbols` / `anchor` | Universo unico **`1HZ75V`** (Volatility 75 (1s) Index / Deriv) |
 | `data_handler` | MACRO/MICRO/MINI granularity: M15 (**900 s**), macro D1 (**86400 s**), history 120 barras |
 | `deep_learning` | arch, lookback, labels, calib (`raw_extreme`), deploy, `sample_weighting`; treino em 120 velas diarias |
 | `orchestrator` | ciclo (**900 s**), signature boundary (**900 s**), warmup, watchdog, WS |

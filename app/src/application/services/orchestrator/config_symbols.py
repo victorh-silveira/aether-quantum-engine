@@ -3,7 +3,7 @@
 
 def normalize_symbols_and_anchor(config: dict) -> tuple[str, list[str]]:
     """Deriva âncora e símbolos ativos (symbols menos excluded_symbols)."""
-    anchor = str(config.get("anchor", "OTC_SPC"))
+    anchor = str(config.get("anchor", "1HZ75V"))
     strategy = config.get("strategy", {})
     raw = config.get("symbols") or [anchor]
     excluded = {str(x) for x in ((strategy or {}).get("excluded_symbols") or [])}
