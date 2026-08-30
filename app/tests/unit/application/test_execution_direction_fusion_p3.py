@@ -127,9 +127,10 @@ def test_fusion_tie_breaks_to_calibrated_side():
         metrics["ops_window_candle_dir"] = None
         chosen_call = apply_direction_fusion(metrics, TradeDirection.CALL, cfg=cfg)
         assert chosen_call == TradeDirection.CALL
-        assert metrics["fusion_reason"] == "tie_cal"
+        assert metrics["fusion_reason"] == "pure_tcn"
 
         metrics["calibrated_prob"] = 0.499999999999
+        metrics["tcn_direction"] = "PUT"
         metrics["ops_window_candle_dir"] = "PUT"
         chosen_put = apply_direction_fusion(metrics, TradeDirection.PUT, cfg=cfg)
-        assert chosen_put in {TradeDirection.CALL, TradeDirection.PUT}
+        assert chosen_put == TradeDirection.PUT

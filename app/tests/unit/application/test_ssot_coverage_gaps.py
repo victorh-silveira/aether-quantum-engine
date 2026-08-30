@@ -20,7 +20,6 @@ from src.application.services.deep_learning.dl_calibration_fit import (
     fit_temperature,
 )
 from src.application.services.deep_learning.dl_training_epochs import _shuffled_batch_indices
-from src.application.services.execution_direction_fusion import _apply_tcn_candle_agree_guard
 from src.application.services.execution_neg_edge import apply_negative_cal_edge_pause
 from src.application.services.execution_regime_chop import apply_regime_chop_pause
 from src.application.services.execution_signal_skip import apply_signal_skip_gates
@@ -81,24 +80,6 @@ def test_shuffled_batch_indices_single_batch_when_size_ge_n():
     batches = _shuffled_batch_indices(5, 10)
     assert len(batches) == 1
     assert sorted(batches[0].tolist()) == list(range(5))
-
-
-def test_fusion_candle_agree_guard_direct():
-    metrics = {
-        "ops_window_candle_dir": "CALL",
-        "fusion_p_eff": 0.70,
-    }
-    p_effs = {"CALL": 0.70, "PUT": 0.40}
-    vision = {"fusion_block_when_tcn_candle_agree": True}
-    out = _apply_tcn_candle_agree_guard(
-        metrics,
-        vision=vision,
-        tcn_dir=TradeDirection.CALL,
-        chosen=TradeDirection.PUT,
-        p_effs=p_effs,
-    )
-    assert out == TradeDirection.CALL
-    assert metrics["fusion_reason"] == "tcn_candle_agree"
 
 
 def test_neg_edge_hard_without_fusion_wash():

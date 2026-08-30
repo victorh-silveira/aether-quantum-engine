@@ -6,7 +6,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.application.services.execution_direction_fusion import _apply_tcn_candle_agree_guard
 from src.application.services.execution_neg_edge import apply_negative_cal_edge_pause
 from src.application.services.orchestrator.post_settlement_loss_cooldown import (
     await_post_loss_cooldown,
@@ -15,19 +14,6 @@ from src.application.services.orchestrator.post_settlement_loss_cooldown import 
     schedule_post_loss_cooldown,
 )
 from src.domain.models.trade import TradeDirection
-
-
-def test_fusion_candle_agree_early_return_when_same_side():
-    metrics = {"ops_window_candle_dir": "CALL"}
-    out = _apply_tcn_candle_agree_guard(
-        metrics,
-        vision={"fusion_block_when_tcn_candle_agree": True},
-        tcn_dir=TradeDirection.CALL,
-        chosen=TradeDirection.CALL,
-        p_effs={"CALL": 0.7, "PUT": 0.3},
-    )
-    assert out == TradeDirection.CALL
-    assert metrics.get("fusion_reason") is None
 
 
 def test_neg_edge_recovery_and_malformed_paths():

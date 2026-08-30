@@ -21,6 +21,14 @@ def test_parse_fusion_rejects_weight_and_min_edge():
         parse_direction_fusion_config({"fusion_min_edge_execute": 0.9})
 
 
+def test_shrink_near_half_branches():
+    from src.application.services.execution_direction_fusion import _shrink_near_half
+
+    assert _shrink_near_half(0.52, 0.0) == pytest.approx(0.52)
+    assert _shrink_near_half(0.52, 0.25) < 0.52
+    assert _shrink_near_half(0.48, 0.25) > 0.48
+
+
 def test_fusion_disabled_and_no_cal_and_meta_bad():
     metrics = {"calibrated_prob": 0.55, "exec_direction": "CALL"}
     disabled = parse_direction_fusion_config({"fusion_enabled": False})

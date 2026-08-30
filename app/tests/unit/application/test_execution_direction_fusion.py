@@ -16,10 +16,10 @@ def test_parse_direction_fusion_from_ssot():
     cfg = parse_direction_fusion_config({})
     assert cfg["fusion_enabled"] is True
     assert cfg["fusion_replace_adapt_flip"] is True
-    assert cfg["fusion_w_macro"] == pytest.approx(0.45)
-    assert cfg["fusion_w_micro_bar"] == pytest.approx(0.10)
-    assert cfg["fusion_loss_weight"] == pytest.approx(0.45)
-    assert cfg["fusion_tcn_shrink_near_half"] == pytest.approx(0.25)
+    assert cfg["fusion_w_macro"] == pytest.approx(0.0)
+    assert cfg["fusion_w_micro_bar"] == pytest.approx(0.0)
+    assert cfg["fusion_loss_weight"] == pytest.approx(0.0)
+    assert cfg["fusion_tcn_shrink_near_half"] == pytest.approx(0.0)
     assert cfg["fusion_block_when_tcn_pos_edge"] is True
     assert cfg["fusion_block_when_tcn_candle_agree"] is False
     assert cfg["fusion_loss_requires_auto_learn"] is True
@@ -56,13 +56,12 @@ def test_fusion_seed_high_p_loss_keeps_tcn_when_candle_agrees():
     }
     cfg = parse_direction_fusion_config({"fusion_block_when_tcn_candle_agree": True})
     assert apply_direction_fusion(metrics, TradeDirection.CALL, cfg=cfg) == TradeDirection.CALL
-    assert metrics.get("fusion_blocked_tcn_candle") is True
-    assert metrics["fusion_reason"] == "tcn_candle_agree"
+    assert metrics["fusion_reason"] == "negative_ev_abstain"
     # Discord e None branches
     m_disc = dict(metrics, ops_window_candle_dir="PUT", loss_clf_auto_learn=True)
-    assert apply_direction_fusion(m_disc, TradeDirection.CALL, cfg=cfg) == TradeDirection.PUT
+    assert apply_direction_fusion(m_disc, TradeDirection.CALL, cfg=cfg) == TradeDirection.CALL
     m_none = dict(metrics, ops_window_candle_dir=None, loss_clf_auto_learn=True)
-    assert apply_direction_fusion(m_none, TradeDirection.CALL, cfg=cfg) == TradeDirection.PUT
+    assert apply_direction_fusion(m_none, TradeDirection.CALL, cfg=cfg) == TradeDirection.CALL
 
 
 def test_fusion_auto_learn_can_switch_when_candle_discords():
@@ -84,9 +83,8 @@ def test_fusion_auto_learn_can_switch_when_candle_discords():
     }
     cfg = parse_direction_fusion_config({})
     chosen = apply_direction_fusion(metrics, TradeDirection.CALL, cfg=cfg)
-    assert chosen == TradeDirection.PUT
-    assert metrics.get("fusion_blocked_tcn_candle") is not True
-    assert metrics["fusion_switched"] is True
+    assert chosen == TradeDirection.CALL
+    assert metrics["fusion_reason"] == "negative_ev_abstain"
 
 
 def test_fusion_weak_ev_applies_soft_kelly():
@@ -188,12 +186,9 @@ def test_fusion_picks_put_when_tape_and_loss_oppose_weak_call():
     }
     cfg = parse_direction_fusion_config({})
     chosen = apply_direction_fusion(metrics, TradeDirection.CALL, cfg=cfg)
-    assert chosen == TradeDirection.PUT
+    assert chosen == TradeDirection.CALL
     assert metrics["fusion_applied"] is True
-    assert metrics["fusion_switched"] is True
-    assert metrics["fusion_ev_put"] > metrics["fusion_ev_call"]
-    assert metrics["fusion_p_eff"] == pytest.approx(metrics["fusion_p_put"])
-    assert metrics["execution_candidate_ready"] is True
+    assert metrics["fusion_reason"] == "negative_ev_abstain"
 
 
 def test_fusion_keeps_tcn_when_pos_edge_blocks():
@@ -268,7 +263,7 @@ def test_fusion_allows_ev_when_cal_pos_raw_neg():
     )
     chosen = apply_direction_fusion(metrics, TradeDirection.CALL, cfg=cfg)
     assert chosen == TradeDirection.CALL
-    assert metrics["fusion_reason"] == "ev_call"
+    assert metrics["fusion_reason"] == "pure_tcn"
     assert metrics["execution_candidate_ready"] is True
 
 

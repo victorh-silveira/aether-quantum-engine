@@ -121,26 +121,6 @@ def _loss_logit_bonus(metrics: dict[str, Any], side: str, cfg: dict[str, Any]) -
     return strength
 
 
-def _apply_tcn_candle_agree_guard(
-    metrics: dict[str, Any],
-    *,
-    vision: dict[str, Any],
-    tcn_dir: TradeDirection,
-    chosen: TradeDirection,
-    p_effs: dict[str, float],
-) -> TradeDirection:
-    """Mantem TCN quando a janela ops concorda e a fusao tentaria inverter."""
-    if not bool(vision.get("fusion_block_when_tcn_candle_agree", True)):
-        return chosen
-    candle = ops_window_candle_side(metrics)
-    if candle is None or candle != tcn_dir.name or chosen == tcn_dir:
-        return chosen
-    metrics["fusion_blocked_tcn_candle"] = True
-    metrics["fusion_reason"] = "tcn_candle_agree"
-    metrics["fusion_p_eff"] = float(p_effs[tcn_dir.name])
-    return tcn_dir
-
-
 def _payout(orch: Any | None) -> float:
     """Resolve payout R_10 a partir do orch ou fallback Kelly SSOT."""
     rt = load_kelly_runtime_from_settings()
@@ -237,31 +217,22 @@ def apply_direction_fusion(
     metrics["fusion_ev_put"] = ev_put
     metrics["fusion_p_call"] = float(p_effs[TradeDirection.CALL.name])
     metrics["fusion_p_put"] = float(p_effs[TradeDirection.PUT.name])
-    if max(ev_call, ev_put) <= 0.0:
+    tcn_name = str(metrics.get("tcn_direction") or metrics.get("scale_micro_dir") or exec_dir.name).upper()
+    tcn_dir = TradeDirection[tcn_name] if tcn_name in {"CALL", "PUT"} else exec_dir
+    chosen = tcn_dir
+    chosen_ev = float(ev_call if chosen == TradeDirection.CALL else ev_put)
+    metrics["fusion_chosen_ev"] = chosen_ev
+    if chosen_ev <= 0.0:
         metrics["fusion_reason"] = "negative_ev_abstain"
         metrics["execution_candidate_ready"] = False
         metrics["signal_status"] = "SKIP:FUSION_NEGATIVE_EV"
         metrics["gate_reason"] = "fusion_negative_ev"
         metrics["fusion_applied"] = True
         return tcn_dir
-    if abs(ev_call - ev_put) <= 1e-12:
-        chosen = TradeDirection.CALL if float(p_call) + 1e-12 >= 0.5 else TradeDirection.PUT
-        reason = "tie_cal"
-    elif ev_call > ev_put:
-        chosen = TradeDirection.CALL
-        reason = "ev_call"
-    else:
-        chosen = TradeDirection.PUT
-        reason = "ev_put"
-    metrics["fusion_reason"] = reason
+    metrics["fusion_reason"] = "pure_tcn"
     metrics["fusion_p_eff"] = float(p_effs[chosen.name])
-    chosen = _apply_tcn_candle_agree_guard(metrics, vision=vision, tcn_dir=tcn_dir, chosen=chosen, p_effs=p_effs)
     metrics["fusion_applied"] = True
-    if chosen != exec_dir:
-        metrics["fusion_switched"] = True
-        metrics["fusion_from"] = exec_dir.name
-    else:
-        metrics["fusion_switched"] = False
+    metrics["fusion_switched"] = False
     metrics["exec_direction"] = chosen.name
     metrics["resolved_direction"] = chosen.name
     metrics["execution_candidate_ready"] = True

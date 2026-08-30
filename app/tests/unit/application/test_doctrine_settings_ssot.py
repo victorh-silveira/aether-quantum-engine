@@ -176,14 +176,14 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert scale["adapt_majority_include_micro_bar"] is True
     assert scale["fusion_enabled"] is True
     assert scale["fusion_replace_adapt_flip"] is True
-    assert float(scale["fusion_w_macro"]) == pytest.approx(0.45)
-    assert float(scale["fusion_w_micro_bar"]) == pytest.approx(0.10)
-    assert float(scale["fusion_w_mini"]) == pytest.approx(0.05)
-    assert float(scale["fusion_w_mili"]) == pytest.approx(0.02)
-    assert float(scale["fusion_w_tape"]) == pytest.approx(0.45)
-    assert float(scale["fusion_meta_ev_weight"]) == pytest.approx(0.10)
-    assert float(scale["fusion_loss_weight"]) == pytest.approx(0.45)
-    assert float(scale["fusion_tcn_shrink_near_half"]) == pytest.approx(0.25)
+    assert float(scale["fusion_w_macro"]) == pytest.approx(0.0)
+    assert float(scale["fusion_w_micro_bar"]) == pytest.approx(0.0)
+    assert float(scale["fusion_w_mini"]) == pytest.approx(0.0)
+    assert float(scale["fusion_w_mili"]) == pytest.approx(0.0)
+    assert float(scale["fusion_w_tape"]) == pytest.approx(0.0)
+    assert float(scale["fusion_meta_ev_weight"]) == pytest.approx(0.0)
+    assert float(scale["fusion_loss_weight"]) == pytest.approx(0.0)
+    assert float(scale["fusion_tcn_shrink_near_half"]) == pytest.approx(0.0)
     assert scale["fusion_block_when_tcn_pos_edge"] is True
     assert scale["fusion_block_when_tcn_candle_agree"] is False and int(scale["ops_window_bars"]) == 3
     assert scale["fusion_loss_requires_auto_learn"] is True
@@ -205,8 +205,8 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert fusion["fusion_block_when_tcn_candle_agree"] is False
     assert fusion["fusion_loss_requires_auto_learn"] is True
     assert float(fusion["fusion_loss_seed_weight_mult"]) == pytest.approx(0.0)
-    assert float(fusion["fusion_loss_weight"]) == pytest.approx(0.45)
-    assert float(fusion["fusion_tcn_shrink_near_half"]) == pytest.approx(0.25)
+    assert float(fusion["fusion_loss_weight"]) == pytest.approx(0.0)
+    assert float(fusion["fusion_tcn_shrink_near_half"]) == pytest.approx(0.0)
     data = settings["data_handler"]
     assert int(data["micro_granularity"]) == 900
     assert int(data["mini_granularity"]) == 900
