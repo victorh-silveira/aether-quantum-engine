@@ -222,13 +222,6 @@ def apply_direction_fusion(
     chosen = tcn_dir
     chosen_ev = float(ev_call if chosen == TradeDirection.CALL else ev_put)
     metrics["fusion_chosen_ev"] = chosen_ev
-    if chosen_ev <= 0.0:
-        metrics["fusion_reason"] = "negative_ev_abstain"
-        metrics["execution_candidate_ready"] = False
-        metrics["signal_status"] = "SKIP:FUSION_NEGATIVE_EV"
-        metrics["gate_reason"] = "fusion_negative_ev"
-        metrics["fusion_applied"] = True
-        return tcn_dir
     metrics["fusion_reason"] = "pure_tcn"
     metrics["fusion_p_eff"] = float(p_effs[chosen.name])
     metrics["fusion_applied"] = True
@@ -236,10 +229,9 @@ def apply_direction_fusion(
     metrics["exec_direction"] = chosen.name
     metrics["resolved_direction"] = chosen.name
     metrics["execution_candidate_ready"] = True
-    chosen_ev = float(ev_call if chosen == TradeDirection.CALL else ev_put)
-    metrics["fusion_chosen_ev"] = chosen_ev
-    if chosen_ev + 1e-12 < float(vision.get("fusion_min_edge_execute", 0.04)):
-        soft = float(vision.get("fusion_weak_ev_soft_kelly_mult", 0.40))
+    min_edge_exec = float(vision.get("fusion_min_edge_execute", 0.04))
+    if chosen_ev + 1e-12 < min_edge_exec:
+        soft = float(vision.get("fusion_weak_ev_soft_kelly_mult", 0.50))
         apply_kelly_soft(metrics, soft, waived="fusion_weak_ev", flag="fusion_weak_ev_soft")
         metrics["fusion_weak_ev"] = chosen_ev
     return chosen
