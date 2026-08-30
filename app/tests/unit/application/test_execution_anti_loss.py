@@ -33,8 +33,8 @@ def test_parse_anti_loss_knobs_from_ssot():
     assert cfg["anti_loss_seed_discord_enabled"] is True
     assert cfg["anti_loss_p_loss_floor"] == pytest.approx(0.85)
     assert cfg["anti_loss_require_seed"] is True
-    assert cfg["anti_loss_hard_skip"] is False
-    assert float(cfg["anti_loss_soft_kelly_mult"]) == pytest.approx(1.0)
+    assert cfg["anti_loss_hard_skip"] is True
+    assert float(cfg["anti_loss_soft_kelly_mult"]) == pytest.approx(0.50)
     assert cfg["anti_loss_require_tcn_pos_edge"] is True
     assert cfg["anti_loss_min_candle_body"] == pytest.approx(0.02)
     assert cfg["anti_loss_live_weak_candle_enabled"] is False
@@ -179,9 +179,9 @@ def test_anti_loss_soft_when_hard_skip_disabled():
 
 def test_anti_loss_parse_ssot_default_cfg():
     metrics = _base_metrics()
-    assert apply_anti_loss_seed_discord(metrics) is False
-    assert metrics["anti_loss_soft"] is True
-    assert metrics["execution_candidate_ready"] is True
+    assert apply_anti_loss_seed_discord(metrics) is True
+    assert metrics["execution_candidate_ready"] is False
+    assert metrics["signal_status"] == "SKIP:ANTI_LOSS_SEED_DISCORD"
 
 
 def test_anti_loss_live_auto_unstamped_does_not_seed():

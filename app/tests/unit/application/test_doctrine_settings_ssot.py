@@ -150,8 +150,8 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert bool(skip["anti_loss_seed_discord_enabled"]) is True
     assert float(skip["anti_loss_p_loss_floor"]) == pytest.approx(0.85)
     assert bool(skip["anti_loss_require_seed"]) is True
-    assert bool(skip["anti_loss_hard_skip"]) is False
-    assert float(skip["anti_loss_soft_kelly_mult"]) == pytest.approx(1.0)
+    assert bool(skip["anti_loss_hard_skip"]) is True
+    assert float(skip["anti_loss_soft_kelly_mult"]) == pytest.approx(0.50)
     assert bool(skip["anti_loss_require_tcn_pos_edge"]) is True
     assert float(skip["anti_loss_min_candle_body"]) == pytest.approx(0.02)
     assert bool(skip["anti_loss_live_weak_candle_enabled"]) is False
