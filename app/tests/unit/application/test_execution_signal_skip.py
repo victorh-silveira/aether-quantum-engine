@@ -39,7 +39,7 @@ def test_parse_signal_skip_from_ssot():
     assert "calib_gray_margin_floor" not in cfg
     assert "calib_gray_soft_kelly_mult" not in cfg
     assert "calib_gray_max_stake_pct" not in cfg
-    assert cfg["anti_loss_allow_candle_flip"] is False
+    assert cfg["anti_loss_allow_candle_flip"] is True
     for k, v in (
         ("mini_pair_soft_kelly_mult", 0.0),
         ("cal_margin_soft_kelly_mult", 0.0),

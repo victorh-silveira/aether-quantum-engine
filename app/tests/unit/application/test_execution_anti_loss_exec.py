@@ -60,7 +60,9 @@ def test_anti_loss_live_log_side_is_exec_not_tcn():
         "ops_window_stamped": True,
         "kelly_fraction_scale": 1.0,
     }
-    cfg = parse_signal_skip_config({"anti_loss_live_exec_candle_enabled": True, "anti_loss_hard_skip": True})
+    cfg = parse_signal_skip_config(
+        {"anti_loss_live_exec_candle_enabled": True, "anti_loss_allow_candle_flip": False, "anti_loss_hard_skip": True}
+    )
     assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is True
     assert metrics["anti_loss_why"] == "live_exec_discord"
     assert metrics.get("anti_loss_side") == "PUT"

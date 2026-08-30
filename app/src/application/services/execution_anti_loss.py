@@ -167,10 +167,8 @@ def _evaluate_live_anti_loss(
         return _finalize_anti_loss_decision(out, cfg=cfg, reason=why)
     if bool(cfg.get("anti_loss_live_exec_candle_enabled", False)) and candle is not None and anchor.name != candle:
         _stamp_anti_loss_metrics(metrics, tcn=tcn, candle=candle, body=body, reason="live_exec_discord", side=anchor)
-        allow_flip = bool(cfg.get("anti_loss_allow_candle_flip", False)) and bool(
-            metrics.get("anti_loss_allow_candle_flip", False)
-        )
-        if orch is not None and allow_flip and candle in _VALID:
+        allow_flip = bool(cfg.get("anti_loss_allow_candle_flip", False))
+        if allow_flip and candle in _VALID:
             new_side = TradeDirection[candle]
             metrics["exec_direction"], metrics["resolved_direction"] = new_side.name, new_side.name
             metrics["anti_loss_flipped_to_candle"], metrics["anti_loss_why"] = True, "live_exec_flip_to_candle"
