@@ -1,3 +1,9 @@
+## [2.44.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.43.1...v2.44.0) (2026-08-31)
+
+### Funcionalidades
+
+* **config:** calibrar limiares de confianca para selecao de alta conviccao ([3797f54](https://github.com/victorh-silveira/aether-quantum-engine/commit/3797f54e16a8cb5f6da8475d9f7af44aec9cc4ac))
+
 ## [2.43.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.43.0...v2.43.1) (2026-08-31)
 
 ### Correcoes de Bug
