@@ -1,3 +1,9 @@
+## [2.43.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.43.0...v2.43.1) (2026-08-31)
+
+### Correcoes de Bug
+
+* **scripts:** calibrar volume de barras do treino meta para 365 barras ([8f4375b](https://github.com/victorh-silveira/aether-quantum-engine/commit/8f4375b902189a79727f32c925f1656bc02f6333))
+
 ## [2.43.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.42.0...v2.43.0) (2026-08-31)
 
 ### Funcionalidades
