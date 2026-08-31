@@ -113,9 +113,9 @@ def test_sync_state_manager_session_legacy_state_manager_branch(orch_ready):
     orch = orch_ready
     legacy_mgr = StateManagerLegacy()
     orch.state_mgr = legacy_mgr
-    orch.state.balance = 1050.0
+    orch.state.balance = 1010.0
     orch.risk_manager.initial_bankroll = 1000.0
     triggered = _sync_state_manager_session(orch, 50.0, increment_trades=True)
-    assert legacy_mgr.state.current_balance == pytest.approx(1050.0)
+    assert legacy_mgr.state.current_balance == pytest.approx(1010.0)
     assert legacy_mgr.state.total_trades_today == 1
     assert triggered is False

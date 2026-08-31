@@ -17,7 +17,7 @@ from src.domain.risk.executed_stake_reconciliation import (
     reconcile_settlement_profit,
     resolve_executed_buy_stake,
 )
-from src.domain.risk.stop_win_target import resolve_stop_win_target
+from src.domain.risk.stop_win_target import is_stop_win_reached, resolve_stop_win_target
 from src.infrastructure.inference.loss_classifier_pool import learn_loss_via_config_sync
 from src.infrastructure.inference.meta_classifier_pool import learn_meta_via_config_sync
 
@@ -201,14 +201,23 @@ def sync_state_manager_session(orch: Any, target: float, *, increment_trades: bo
     if increment_trades:
         state_mgr.state.total_trades_today += 1
     state_mgr.check_session_limits()
+    risk_cfg = orch.config.get("risk_management", {}) if isinstance(orch.config, dict) else {}
+    profit = getattr(
+        state_mgr.state,
+        "session_profit",
+        float(state_mgr.state.current_balance) - float(state_mgr.state.initial_balance),
+    )
+    if is_stop_win_reached(profit, target, risk_config=risk_cfg):
+        state_mgr.state.stop_win_triggered = True
     return bool(state_mgr.state.stop_win_triggered)
 
 
 def check_session_limits_before_post_settlement(orch: Any) -> bool:
     """True quando o stop-win da sessao ja foi atingido antes do ciclo pos-liquidacao."""
     pnl = orch.risk_manager.total_session_profit
-    target = resolve_stop_win_target(orch.config.get("risk_management", {}), orch.risk_manager.initial_bankroll)
-    if target > 0 and pnl >= target:
+    risk_cfg = orch.config.get("risk_management", {}) if isinstance(orch.config, dict) else {}
+    target = resolve_stop_win_target(risk_cfg, orch.risk_manager.initial_bankroll)
+    if target > 0 and is_stop_win_reached(pnl, target, risk_config=risk_cfg):
         sync_state_manager_session(orch, target, increment_trades=False)
         return True
     if sync_state_manager_session(orch, target, increment_trades=False):
@@ -216,7 +225,7 @@ def check_session_limits_before_post_settlement(orch: Any) -> bool:
     state_mgr = getattr(orch, "state_mgr", None)
     if state_mgr is not None and type(state_mgr).__name__ == "StateManager":
         return bool(state_mgr.state.stop_win_triggered)
-    return target > 0 and pnl >= target
+    return target > 0 and is_stop_win_reached(pnl, target, risk_config=risk_cfg)
 
 
 def update_state_manager_and_check_stop_win(orch: Any, target: float, pnl: float) -> bool:
@@ -226,4 +235,6 @@ def update_state_manager_and_check_stop_win(orch: Any, target: float, pnl: float
     if state_mgr is not None and type(state_mgr).__name__ == "StateManager":
         state_mgr.save_state()
         return triggered
-    return target > 0 and pnl >= target
+    cfg = getattr(orch, "config", {}) or {}
+    risk_cfg = cfg.get("risk_management", {}) if isinstance(cfg, dict) else {}
+    return target > 0 and is_stop_win_reached(pnl, target, risk_config=risk_cfg)

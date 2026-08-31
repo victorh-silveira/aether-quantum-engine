@@ -7,6 +7,7 @@ from src.application.services.execution_symbols import symbols_eligible_for_exec
 from src.application.services.execution_symbols_recovery import pending_recovery_active
 from src.application.services.force_trade_mode import force_trade_from_orch
 from src.application.services.log_dedupe import clear_log_channel, log_info_if_changed
+from src.application.services.orchestrator.graceful_shutdown import graceful_shutdown
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.recovery_hurst_decay import prepare_recovery_skip_counter, reset_recovery_skip_counter_for_orch
 from src.domain.risk.stake_sizing import resolve_stake_conviction
@@ -164,6 +165,10 @@ class ExecutionManager:
                     self.logger.info("[%s] EXEC_PAUSE || %s", cid, block)
                     orders = []
                     self.orch._last_cycle_was_exec_empty = True
+                    if block == "stop_win":
+                        self.orch.shutdown_reason = "stop_win"
+                        asyncio.create_task(graceful_shutdown(self.orch, fast_path=True))
+                        return 0
                 executed_count = await self._execute_orders(orders, inter_delay, bankroll_snapshot)
                 if executed_count > 0:
                     self.orch._last_cycle_was_exec_empty = False

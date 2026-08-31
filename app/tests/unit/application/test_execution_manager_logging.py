@@ -102,11 +102,15 @@ async def test_execute_cluster_logs_exec_pause_on_stop_win(orch_config):
         with (
             patch.object(orch.executor.logger, "info") as mock_info,
             patch.object(orch.executor, "_execute_orders", new_callable=AsyncMock, return_value=0) as mock_exec,
+            patch(
+                "src.application.services.orchestrator.execution_manager.graceful_shutdown", new_callable=AsyncMock
+            ) as mock_shutdown,
         ):
             await orch.executor.execute_cluster(decisions)
-        mock_exec.assert_awaited_once()
-        assert mock_exec.await_args.args[0] == []
+        mock_exec.assert_not_called()
+        mock_shutdown.assert_called_once()
         assert any("EXEC_PAUSE" in str(c) and "stop_win" in str(c) for c in mock_info.call_args_list)
+        assert orch.shutdown_reason == "stop_win"
 
 
 @pytest.mark.asyncio
