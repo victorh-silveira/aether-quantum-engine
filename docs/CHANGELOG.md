@@ -1,3 +1,9 @@
+## [2.45.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.45.1...v2.45.2) (2026-08-31)
+
+### Melhorias de Performance
+
+* **risk:** otimizar damping de proximidade e alinhamento de stop win ([ec74876](https://github.com/victorh-silveira/aether-quantum-engine/commit/ec7487651491fc110ef2371d199c3e605b85502b))
+
 ## [2.45.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.45.0...v2.45.1) (2026-08-31)
 
 ### Correcoes de Bug
