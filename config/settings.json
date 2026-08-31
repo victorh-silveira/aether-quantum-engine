@@ -786,7 +786,8 @@
       "duration": 15,
       "duration_unit": "m",
       "payout_estimate": 0.85,
-      "stake_min": 1.0
+      "stake_min": 1.0,
+      "stop_win_target_tolerance_ratio": 0.95
     },
     "recovery_state": {
       "call_extreme_raw_prob": 0.82,
