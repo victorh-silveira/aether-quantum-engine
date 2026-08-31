@@ -1,3 +1,9 @@
+## [2.45.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.45.0...v2.45.1) (2026-08-31)
+
+### Correcoes de Bug
+
+* **orchestrator:** encerrar motor automaticamente ao disparar stop win ([e19bf99](https://github.com/victorh-silveira/aether-quantum-engine/commit/e19bf9928b0ef8913a7b6de541e8589f3ae95efc))
+
 ## [2.45.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.44.0...v2.45.0) (2026-08-31)
 
 ### Funcionalidades
