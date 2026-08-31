@@ -113,7 +113,7 @@ async def test_schedule_api_maintenance_hibernation_sets_deadline(orch_ready):
     base = loop.time()
     delay = schedule_api_maintenance_hibernation(
         orch,
-        "Trading is not available from 00:00:00 to 00:01:00",
+        "Market is closed for maintenance",
     )
     assert delay == pytest.approx(_API_MAINTENANCE_FALLBACK_SECONDS)
     assert orch._api_maintenance_until - base == pytest.approx(delay, abs=0.05)

@@ -90,7 +90,7 @@ async def test_execute_orders_maintenance_error_schedules_api_hibernation(orch_c
         orch = Orchestrator(orch_config, "token")
         orch._active_cycle_id = 7
         orch.risk_manager.calculate_stake = MagicMock(return_value=2.0)
-        error = RuntimeError("Trading is not available from 00:00:00 to 00:01:00")
+        error = RuntimeError("Market is closed for maintenance")
         orch.executor._place_order = AsyncMock(side_effect=error)
         loop_start = asyncio.get_running_loop().time()
         with patch.object(orch.executor.logger, "warning") as mock_warn:
