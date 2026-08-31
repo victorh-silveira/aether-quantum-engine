@@ -160,14 +160,9 @@ def _evaluate_live_anti_loss(
             metrics, tcn=tcn, candle=candle, body=body, reason="anti_loss_rsi_momentum", side=anchor
         )
         return _finalize_anti_loss_decision(out, cfg=cfg, reason="anti_loss_rsi_momentum")
-    ema_ok, ema_reason = check_mini_ema_trend_and_slope(orch, symbol, anchor, metrics=metrics)
-    if not ema_ok:
-        why = ema_reason or "anti_loss_ema_trend"
-        _stamp_anti_loss_metrics(metrics, tcn=tcn, candle=candle, body=body, reason=why, side=anchor)
-        return _finalize_anti_loss_decision(out, cfg=cfg, reason=why)
+    allow_flip = bool(cfg.get("anti_loss_allow_candle_flip", False))
     if bool(cfg.get("anti_loss_live_exec_candle_enabled", False)) and candle is not None and anchor.name != candle:
         _stamp_anti_loss_metrics(metrics, tcn=tcn, candle=candle, body=body, reason="live_exec_discord", side=anchor)
-        allow_flip = bool(cfg.get("anti_loss_allow_candle_flip", False))
         if allow_flip and candle in _VALID:
             new_side = TradeDirection[candle]
             metrics["exec_direction"], metrics["resolved_direction"] = new_side.name, new_side.name
@@ -182,6 +177,24 @@ def _evaluate_live_anti_loss(
             )
             return out
         return _finalize_anti_loss_decision(out, cfg=cfg, reason="live_exec_discord")
+    ema_ok, ema_reason = check_mini_ema_trend_and_slope(orch, symbol, anchor, metrics=metrics)
+    if not ema_ok:
+        why = ema_reason or "anti_loss_ema_trend"
+        _stamp_anti_loss_metrics(metrics, tcn=tcn, candle=candle, body=body, reason=why, side=anchor)
+        if allow_flip and candle is not None and candle in _VALID and anchor.name != candle:
+            new_side = TradeDirection[candle]
+            metrics["exec_direction"], metrics["resolved_direction"] = new_side.name, new_side.name
+            metrics["anti_loss_flipped_to_candle"], metrics["anti_loss_why"] = True, "live_exec_flip_to_candle"
+            out.update(
+                {
+                    "active": True,
+                    "reason": "live_exec_flip_to_candle",
+                    "soft": True,
+                    "soft_mult": float(cfg.get("anti_loss_soft_kelly_mult", 0.75)),
+                }
+            )
+            return out
+        return _finalize_anti_loss_decision(out, cfg=cfg, reason=why)
     atr_val = metrics.get("atr")
     effective_min_body = (
         max(min_body, float(atr_val) * 0.5) if atr_val is not None and float(atr_val) > 0.0 else min_body

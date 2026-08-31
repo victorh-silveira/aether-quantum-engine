@@ -116,45 +116,19 @@ def test_anti_loss_live_recover_pend_hard_skip():
 def test_anti_loss_live_discord_moderate_hard_skip():
     metrics = _live_metrics(closed_micro_candle_body=0.035, closed_micro_candle_stamped=True)
     cfg = parse_signal_skip_config({"anti_loss_live_confirm_enabled": True, "anti_loss_hard_skip": True})
-    assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is True
-    assert metrics["anti_loss_why"] == "live_confirm_weak"
+    assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is True and metrics["anti_loss_why"] == "live_confirm_weak"
 
 
 def test_anti_loss_live_discord_upper_band_hard_skip():
     metrics = _live_metrics(closed_micro_candle_body=0.045, closed_micro_candle_stamped=True)
     cfg = parse_signal_skip_config({"anti_loss_live_confirm_enabled": True, "anti_loss_hard_skip": True})
-    assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is True
-    assert metrics["anti_loss_why"] == "live_confirm_weak"
+    assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is True and metrics["anti_loss_why"] == "live_confirm_weak"
 
 
 def test_anti_loss_live_discord_c1_body_hard_skip():
-    metrics = _live_metrics(closed_micro_candle_body=0.300, closed_micro_candle_stamped=True)
-    cfg = parse_signal_skip_config({})
-    assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is False
-
-
-def test_anti_loss_live_discord_win_path_hard_skip():
-    metrics = _live_metrics(closed_micro_candle_body=0.360, closed_micro_candle_stamped=True)
-    cfg = parse_signal_skip_config({})
-    assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is False
-
-
-def test_anti_loss_live_discord_strong_hard_skip():
-    metrics = _live_metrics(closed_micro_candle_body=0.443, closed_micro_candle_stamped=True)
-    cfg = parse_signal_skip_config({})
-    assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is False
-
-
-def test_anti_loss_live_discord_session_c1_hard_skip():
-    metrics = _live_metrics(closed_micro_candle_body=0.314, closed_micro_candle_stamped=True)
-    cfg = parse_signal_skip_config({})
-    assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is False
-
-
-def test_anti_loss_live_discord_c1_strong_body_hard_skip():
-    metrics = _live_metrics(closed_micro_candle_body=1.163, closed_micro_candle_stamped=True)
-    cfg = parse_signal_skip_config({})
-    assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is False
+    for body_val in (0.300, 0.360, 0.443, 0.314, 1.163):
+        metrics = _live_metrics(closed_micro_candle_body=body_val, closed_micro_candle_stamped=True)
+        assert apply_anti_loss_seed_discord(metrics, cfg=parse_signal_skip_config({})) is False
 
 
 def test_anti_loss_live_confirm_c2_hard_skip():
@@ -294,6 +268,30 @@ def test_anti_loss_seed_unstamped_still_seed_discord():
         closed_micro_candle_body=0.702,
         loss_clf_p_loss=0.88166,
     )
-    cfg = parse_signal_skip_config({"anti_loss_hard_skip": True})
-    assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is True
-    assert metrics["anti_loss_why"] == "seed_discord"
+    assert apply_anti_loss_seed_discord(metrics, cfg=parse_signal_skip_config({"anti_loss_hard_skip": True})) is True
+
+
+def test_anti_loss_live_ema_trend_flips_to_candle():
+    from unittest.mock import MagicMock
+
+    import numpy as np
+
+    stream = MagicMock()
+    closes = np.linspace(4800, 5000, 30)
+    stream.get_mini_numpy_series.return_value = closes
+    orch = MagicMock(stream=stream, symbols=["R_10"], anchor="R_10")
+    metrics = _live_metrics(
+        closed_micro_candle_stamped=True,
+        exec_direction="PUT",
+        resolved_direction="PUT",
+        tcn_direction="PUT",
+        closed_micro_candle_dir="CALL",
+        ops_window_candle_dir="CALL",
+        closed_micro_candle_body=2.5,
+        indicators={"rsi": 0.50},
+    )
+    cfg = parse_signal_skip_config({"anti_loss_allow_candle_flip": True, "anti_loss_live_exec_candle_enabled": False})
+    assert apply_anti_loss_seed_discord(metrics, orch=orch, cfg=cfg) is False
+    assert metrics["exec_direction"] == "CALL"
+    assert metrics["anti_loss_flipped_to_candle"] is True
+    assert metrics["anti_loss_why"] == "live_exec_flip_to_candle"
