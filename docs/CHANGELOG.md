@@ -1,3 +1,9 @@
+## [2.43.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.42.0...v2.43.0) (2026-08-31)
+
+### Funcionalidades
+
+* **orchestrator:** priorizar inversao para candle em discordancias de EMA ([ceb78a7](https://github.com/victorh-silveira/aether-quantum-engine/commit/ceb78a72b12d0ee0c24d00ef1a9ae0d480321266))
+
 ## [2.42.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.41.0...v2.42.0) (2026-08-30)
 
 ### Funcionalidades
