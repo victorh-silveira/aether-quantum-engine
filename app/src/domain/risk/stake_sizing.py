@@ -185,7 +185,8 @@ def compute_single_strike_kelly_base(
     live_n = int(bag.get("live_n", 0) or 0)
     live_wr = bag.get("live_wr")
     try:
-        wr_ok = live_wr is not None and float(live_wr) >= 0.52
+        wr_floor = 0.50 if live_n <= 4 else 0.52
+        wr_ok = live_wr is not None and float(live_wr) >= wr_floor
     except (TypeError, ValueError):
         wr_ok = False
     live_n_min = max(0, int(kelly_config.get("stop_win_kelly_live_n_min", 40)))
