@@ -1,3 +1,9 @@
+## [2.45.3](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.45.2...v2.45.3) (2026-08-31)
+
+### Correcoes de Bug
+
+* **risk:** calibrar piso de winrate no stop win inicial ([d46eee3](https://github.com/victorh-silveira/aether-quantum-engine/commit/d46eee31b200cb04adc9af076956a11700e070b5))
+
 ## [2.45.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.45.1...v2.45.2) (2026-08-31)
 
 ### Melhorias de Performance
