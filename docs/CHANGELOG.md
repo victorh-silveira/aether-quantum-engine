@@ -1,3 +1,9 @@
+## [2.45.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.44.0...v2.45.0) (2026-08-31)
+
+### Funcionalidades
+
+* **risk:** adicionar tolerancia de 95% para gatilho de stop win ([652f425](https://github.com/victorh-silveira/aether-quantum-engine/commit/652f425f0c08bd03598fab177703c13e4a1c33a2))
+
 ## [2.44.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.43.1...v2.44.0) (2026-08-31)
 
 ### Funcionalidades
