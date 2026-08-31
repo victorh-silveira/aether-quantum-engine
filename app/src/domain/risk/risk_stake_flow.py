@@ -56,7 +56,12 @@ def apply_target_proximity_to_kelly(rm: Any, kelly_base: float, *, apply_stop_wi
         rm.initial_bankroll,
         persisted_target=persisted_session_target(rm),
     )
-    return apply_target_proximity_damping(kelly_base, target, rm.total_session_profit)
+    return apply_target_proximity_damping(
+        kelly_base,
+        target,
+        rm.total_session_profit,
+        kelly_config=rm.kelly_config,
+    )
 
 
 def emit_cycle_stake_log(

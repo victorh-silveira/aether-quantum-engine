@@ -10,7 +10,7 @@ def test_apply_kelly_target_proximity_damping_via_manager(kelly_config):
     target = 10.0
     assert rm.apply_kelly_target_proximity_damping(20.0, target_win=target) == pytest.approx(20.0)
     rm.total_session_profit = 9.0
-    assert rm.apply_kelly_target_proximity_damping(20.0, target_win=target) == pytest.approx(11.0)
+    assert rm.apply_kelly_target_proximity_damping(20.0, target_win=target) == pytest.approx(14.60)
 
 
 def test_apply_kelly_target_proximity_damping_resolves_target_from_config(kelly_config):

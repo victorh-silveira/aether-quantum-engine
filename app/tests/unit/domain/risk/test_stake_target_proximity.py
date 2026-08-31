@@ -14,8 +14,8 @@ def _damping_knobs():
 
 def test_resolve_target_proximity_damping_at_session_start():
     floor, span = _damping_knobs()
-    assert floor == pytest.approx(0.50)
-    assert span == pytest.approx(0.50)
+    assert floor == pytest.approx(0.70)
+    assert span == pytest.approx(0.30)
     assert resolve_target_proximity_damping(101.20, 0.0) == pytest.approx(1.0)
     assert resolve_target_proximity_damping(101.20, 0.0) == pytest.approx(floor + span)
 
