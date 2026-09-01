@@ -1,3 +1,9 @@
+## [2.47.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.46.0...v2.47.0) (2026-09-01)
+
+### Funcionalidades
+
+* **engine:** implementar rotulagem quantum_multi_barrier e barreiras assimetricas ([3ffe09a](https://github.com/victorh-silveira/aether-quantum-engine/commit/3ffe09a3fd50485fc0f386fe2fd1c21db2344586))
+
 ## [2.46.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.45.4...v2.46.0) (2026-09-01)
 
 ### Funcionalidades
