@@ -161,7 +161,7 @@ def test_stake_force_explore_on_scale_flag():
     )
     assert stake > 0.0
     assert stake <= 5000.0 * 0.05 + 1e-9
-    assert stake == pytest.approx(78.95, abs=0.05)
+    assert stake == pytest.approx(28.95, abs=0.05)
 
 
 @pytest.mark.asyncio

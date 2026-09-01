@@ -122,10 +122,10 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert resolved["flip_seed_block_against_closed_candle"] is True
     assert resolved["flip_seed_waive_edge_min"] == pytest.approx(-0.08)
     soft_rec = settings["risk_management"]["soft_recovery"]
-    assert int(soft_rec["amort_cycles_min"]) == 1
-    assert int(soft_rec["amort_cycles_max"]) == 1
-    assert float(soft_rec["cover_multiple"]) == pytest.approx(1.5)
-    assert float(soft_rec["max_safe_stake_pct_linear2"]) == pytest.approx(0.04)
+    assert int(soft_rec["amort_cycles_min"]) == 2
+    assert int(soft_rec["amort_cycles_max"]) == 3
+    assert float(soft_rec["cover_multiple"]) == pytest.approx(1.1)
+    assert float(soft_rec["max_safe_stake_pct_linear2"]) == pytest.approx(0.03)
     assert float(soft_rec["max_safe_stake_pct_linear3"]) == pytest.approx(0.025)
     assert int(soft_rec["fixed_step_linear_max"]) == 4
     assert float(soft_rec["live_evidence_force_explore_wr_max"]) == pytest.approx(0.62)
@@ -158,7 +158,7 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert bool(skip["anti_loss_live_confirm_enabled"]) is False
     assert float(skip["anti_loss_live_confirm_min_body"]) == pytest.approx(0.05)
     assert bool(skip["anti_loss_live_exec_candle_enabled"]) is True
-    assert bool(skip["anti_loss_allow_candle_flip"]) is True
+    assert bool(skip["anti_loss_allow_candle_flip"]) is False
     assert "anti_loss_hard_skip_explore" not in skip and "anti_loss_recover_soft_kelly_mult" not in skip
     assert "calib_gray_margin_floor" not in skip
     assert "calib_gray_soft_kelly_mult" not in skip
@@ -257,11 +257,11 @@ def test_production_loss_classifier_soft_veto_ssot():
     ssp = settings["orchestrator"]["execution"]["sample_size_policy"]
     assert float(ssp["explore_stake_scale_floor"]) == pytest.approx(0.40)
     soft_rec_caps = settings["risk_management"]["soft_recovery"]
-    assert float(soft_rec_caps["max_safe_stake_pct"]) == pytest.approx(0.05)
-    assert float(soft_rec_caps["max_safe_stake_pct_linear2"]) == pytest.approx(0.04)
+    assert float(soft_rec_caps["max_safe_stake_pct"]) == pytest.approx(0.035)
+    assert float(soft_rec_caps["max_safe_stake_pct_linear2"]) == pytest.approx(0.03)
     assert float(soft_rec_caps["max_safe_stake_pct_linear3"]) == pytest.approx(0.025)
     assert float(soft_rec_caps["linear_bankroll_pct"]) == pytest.approx(0.0025)
-    assert float(soft_rec_caps["cover_multiple"]) == pytest.approx(1.5)
+    assert float(soft_rec_caps["cover_multiple"]) == pytest.approx(1.1)
     ssp = settings["orchestrator"]["execution"]["sample_size_policy"]
     assert int(ssp["evidence_n_min"]) == 12
     assert int(ssp["toxic_side_n_min"]) == 4

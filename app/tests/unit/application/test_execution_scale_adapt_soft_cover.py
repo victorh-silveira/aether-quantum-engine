@@ -73,7 +73,7 @@ def test_resolve_dlambert_pending_waives_scale_adapted_uses_soft_cover():
         f_star=0.01,
     )
     assert tag == "D'ALEMBERT"
-    cover = 51.0 / 0.82 / 4.0 * 1.5
+    cover = 51.0 / 0.82 / 4.0 * 1.1
     assert stake == pytest.approx(cover, rel=1e-2)
 
 

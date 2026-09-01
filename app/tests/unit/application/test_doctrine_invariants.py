@@ -37,9 +37,9 @@ def test_load_doctrine_invariants_from_ssot():
     assert inv["watchdog_stale_tick_seconds"] == 300
     assert inv["settlement_tolerance_window_seconds"] == 600
     assert inv["post_settlement_is_trading_wait_seconds"] == 90
-    assert inv["amort_cycles_min"] == 1
-    assert inv["amort_cycles_max"] == 1
-    assert inv["cover_multiple"] == pytest.approx(1.5)
+    assert inv["amort_cycles_min"] == 2
+    assert inv["amort_cycles_max"] == 3
+    assert inv["cover_multiple"] == pytest.approx(1.1)
     assert inv["max_safe_stake_pct_linear3"] == pytest.approx(0.025)
     assert inv["large_account_stop_win_pct"] == pytest.approx(4.31)
     assert inv["min_validation_accuracy_gate"] >= 0.53
@@ -240,7 +240,7 @@ def test_assert_production_rejects_ssot_knobs():
     with pytest.raises(ValueError, match="amort_cycles"):
         assert_production_doctrine(settings)
     settings = copy.deepcopy(load_settings_json())
-    settings["risk_management"]["soft_recovery"]["cover_multiple"] = 2.0
+    settings["risk_management"]["soft_recovery"]["cover_multiple"] = 2.5
     with pytest.raises(ValueError, match="cover_multiple"):
         assert_production_doctrine(settings)
     settings = copy.deepcopy(load_settings_json())

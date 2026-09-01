@@ -251,11 +251,11 @@ def test_apply_soft_recovery_stake_covers_pending_within_bankroll_cap():
 
 
 def test_max_safe_stake_cap_at_five_percent():
-    assert max_safe_stake_cap(11300.0) == pytest.approx(565.0)
+    assert max_safe_stake_cap(11300.0) == pytest.approx(395.5)
 
 
 def test_max_safe_stake_cap_compresses_on_linear_streak():
-    assert max_safe_stake_cap(10000.0, consecutive_losses_linear=2) == pytest.approx(400.0)
+    assert max_safe_stake_cap(10000.0, consecutive_losses_linear=2) == pytest.approx(300.0)
     assert max_safe_stake_cap(10000.0, consecutive_losses_linear=3) == pytest.approx(250.0)
 
 

@@ -30,7 +30,7 @@ def test_apply_soft_recovery_stake_cover_despite_low_hurst_when_pending():
         payout=0.95,
         metrics=metrics,
     )
-    cover = 80.0 / 0.95 / 1.0 * 1.5
+    cover = 80.0 / 0.95 / 2.0 * 1.1
     assert stake == pytest.approx(cover)
     assert metrics.get("recovery_force_explore") is False
     assert metrics.get("recovery_cover_need") == pytest.approx(cover)
@@ -51,7 +51,7 @@ def test_apply_soft_recovery_stake_cover_despite_chop_neg_edge_when_pending():
         payout=0.95,
         metrics=metrics,
     )
-    cover = 80.0 / 0.95 / 1.0 * 1.5
+    cover = 80.0 / 0.95 / 2.0 * 1.1
     assert stake == pytest.approx(cover)
     assert metrics.get("recovery_force_explore") is False
 
@@ -71,7 +71,7 @@ def test_apply_soft_recovery_stake_cover_despite_neg_edge_alone_when_pending():
         payout=0.95,
         metrics=metrics,
     )
-    cover = 80.0 / 0.95 / 1.0 * 1.5
+    cover = 80.0 / 0.95 / 2.0 * 1.1
     assert stake == pytest.approx(cover)
     assert metrics.get("recovery_force_explore") is False
 

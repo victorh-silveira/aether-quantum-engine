@@ -670,7 +670,7 @@
         "anti_loss_live_confirm_enabled": false,
         "anti_loss_live_confirm_min_body": 0.05,
         "anti_loss_live_exec_candle_enabled": true,
-        "anti_loss_allow_candle_flip": true
+        "anti_loss_allow_candle_flip": false
       }
     },
     "idle_cycle_watchdog_seconds": 1200,
@@ -805,8 +805,8 @@
     "small_account_stop_win": 10.0,
     "small_account_threshold": 100.0,
     "soft_recovery": {
-      "amort_cycles_max": 1,
-      "amort_cycles_min": 1,
+      "amort_cycles_max": 3,
+      "amort_cycles_min": 2,
       "coing_redirect_drawdown_threshold": 10.0,
       "dust_pending_clear_max": 0.25,
       "enabled": true,
@@ -815,7 +815,7 @@
       "fixed_step_unit_premium": 0.12,
       "gbdt_waiver_skip_cycles": 20,
       "linear_bankroll_pct": 0.0025,
-      "cover_multiple": 1.5,
+      "cover_multiple": 1.1,
       "infeasible_force_explore": true,
       "pending_waives_scale_explore": true,
       "adapted_force_explore": true,
@@ -825,8 +825,8 @@
       "live_evidence_force_explore_wr_max": 0.62,
       "material_pending_min": 0.5,
       "max_safe_stake_cap": 3.0,
-      "max_safe_stake_pct": 0.05,
-      "max_safe_stake_pct_linear2": 0.04,
+      "max_safe_stake_pct": 0.035,
+      "max_safe_stake_pct_linear2": 0.03,
       "max_safe_stake_pct_linear3": 0.025,
       "micro_residual_bankroll_max": 200.0,
       "micro_residual_gbdt_waiver_skips": 4,
