@@ -99,7 +99,7 @@
     "early_stopping_patience": 17,
     "min_epochs": 15,
     "enabled": true,
-    "focal_gamma": 2.0,
+    "focal_gamma": 2.5,
     "implied_vol_bars": 20,
     "indicators": {
       "congestion": {
@@ -117,8 +117,8 @@
         "enabled": true,
         "keltner_lower": 0.0,
         "keltner_upper": 1.0,
-        "rsi_lower": 0.30,
-        "rsi_upper": 0.70
+        "rsi_lower": 0.38,
+        "rsi_upper": 0.62
       },
       "market_rank": {
         "adx_strong_at_or_above": 0.24,

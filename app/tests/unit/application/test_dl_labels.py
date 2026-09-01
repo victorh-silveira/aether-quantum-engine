@@ -127,3 +127,24 @@ def test_forward_mean_out_of_bounds_and_empty_sequence():
     short_prices = np.array([100.0, 101.0])
     t, m = sequence_labels(short_prices, lookback=10, horizon_bars=1)
     assert len(t) == 0 and len(m) == 0
+
+
+def test_triple_barrier_candlestick_patterns_and_noise_invariance():
+    from src.application.services.deep_learning.dl_labels import (
+        LABEL_MODE_TRIPLE_BARRIER,
+        _triple_barrier_direction,
+    )
+
+    # Forte impulso de alta (Marubozu de alta): atinge barreira superior imediatamente
+    prices_marubozu_bull = np.array([100.0] * 20 + [100.0, 108.0, 115.0])
+    assert _triple_barrier_direction(prices_marubozu_bull, 20, 2) is True
+    assert binary_label_at_index(prices_marubozu_bull, 20, 2, label_mode=LABEL_MODE_TRIPLE_BARRIER) is True
+
+    # Forte rejeição de baixa (Marubozu de baixa): atinge barreira inferior imediatamente
+    prices_marubozu_bear = np.array([100.0] * 20 + [100.0, 92.0, 85.0])
+    assert _triple_barrier_direction(prices_marubozu_bear, 20, 2) is False
+    assert binary_label_at_index(prices_marubozu_bear, 20, 2, label_mode=LABEL_MODE_TRIPLE_BARRIER) is False
+
+    # Candle de indecisão (Doji) com micro ruído: avalia barreira temporal no horizonte
+    prices_doji = np.array([100.0] * 20 + [100.0, 100.01, 100.02])
+    assert _triple_barrier_direction(prices_doji, 20, 2) is True
