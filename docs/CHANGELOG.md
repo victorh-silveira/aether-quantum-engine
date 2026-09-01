@@ -1,3 +1,13 @@
+## [2.46.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.45.4...v2.46.0) (2026-09-01)
+
+### Funcionalidades
+
+* **engine:** otimizar predicao de candlestick e calibrar exhaustion filter ([41e37ab](https://github.com/victorh-silveira/aether-quantum-engine/commit/41e37ab8b5d9ecc2a45515a80cc072fb0d678f8b))
+
+### Documentacao
+
+* **all:** sincronizar rules e AGENTS com novas diretrizes ([7e3b237](https://github.com/victorh-silveira/aether-quantum-engine/commit/7e3b237116aebf20b392b8e02791a889bb1965f4))
+
 ## [2.45.4](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.45.3...v2.45.4) (2026-09-01)
 
 ### Correcoes de Bug
