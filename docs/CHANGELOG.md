@@ -1,3 +1,9 @@
+## [2.45.4](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.45.3...v2.45.4) (2026-09-01)
+
+### Correcoes de Bug
+
+* **risk:** blindar flip anti-loss e calibrar amortizacao de soft recovery ([96c58ca](https://github.com/victorh-silveira/aether-quantum-engine/commit/96c58ca33f895c04c3c15c2ab07ac0f5150914cd))
+
 ## [2.45.3](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.45.2...v2.45.3) (2026-08-31)
 
 ### Correcoes de Bug
