@@ -184,7 +184,7 @@
     "inference_device": "auto",
     "label_horizon_bars": 1,
     "label_ma_window": 3,
-    "label_mode": "triple_barrier",
+    "label_mode": "quantum_multi_barrier",
     "label_smooth_bars": 1,
     "label_smoothing": 0.08,
     "learning_rate": 0.001,

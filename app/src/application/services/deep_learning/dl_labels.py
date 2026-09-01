@@ -11,6 +11,7 @@ LABEL_MODE_SPOT = "spot_forward"
 LABEL_MODE_MA_TREND = "ma_trend"
 LABEL_MODE_SUPERTREND_ATR = "supertrend_atr"
 LABEL_MODE_TRIPLE_BARRIER = "triple_barrier"
+LABEL_MODE_QUANTUM_MULTI_BARRIER = "quantum_multi_barrier"
 
 
 @dataclass(frozen=True)
@@ -107,6 +108,52 @@ def _triple_barrier_direction(
     return bool(final_p >= prices[index])
 
 
+def _quantum_multi_barrier_direction(
+    prices: np.ndarray,
+    index: int,
+    horizon_bars: int,
+    lookback_vol: int = 20,
+    barrier_mult: float = 1.0,
+    asymmetry_factor: float = 0.20,
+    min_viable_delta: float = 0.0002,
+) -> bool:
+    """Quantum Multi-Barrier: barreiras assimetricas de tendencia e filtro de consolidacao."""
+    start_vol = max(0, index - lookback_vol)
+    vol_seg = prices[start_vol : index + 1]
+    if len(vol_seg) > 1:
+        log_rets = np.diff(np.log(np.maximum(vol_seg, 1e-8)))
+        sigma = float(np.std(log_rets)) if len(log_rets) > 0 else 0.001
+    else:
+        sigma = 0.001
+
+    trend_slope = float(prices[index] - prices[start_vol]) / float(max(1, index - start_vol))
+    is_uptrend = trend_slope >= 0.0
+    upper_mult = barrier_mult * (1.0 - asymmetry_factor if is_uptrend else 1.0 + asymmetry_factor)
+    lower_mult = barrier_mult * (1.0 + asymmetry_factor if is_uptrend else 1.0 - asymmetry_factor)
+
+    dyn_upper = max(0.0003, sigma * upper_mult) * float(prices[index])
+    dyn_lower = max(0.0003, sigma * lower_mult) * float(prices[index])
+    upper_barrier = prices[index] + dyn_upper
+    lower_barrier = prices[index] - dyn_lower
+
+    max_check = min(len(prices), index + max(1, int(horizon_bars)) + 1)
+    for step_idx in range(index + 1, max_check):
+        p = prices[step_idx]
+        if p >= upper_barrier:
+            return True
+        if p <= lower_barrier:
+            return False
+
+    final_p = prices[min(len(prices) - 1, index + max(1, int(horizon_bars)))]
+    delta = float(final_p - prices[index])
+    threshold = min_viable_delta * float(prices[index])
+    if delta >= threshold:
+        return True
+    if delta <= -threshold:
+        return False
+    return is_uptrend
+
+
 def binary_label_at_index(
     prices: np.ndarray,
     index: int,
@@ -116,11 +163,13 @@ def binary_label_at_index(
     label_mode: str = LABEL_MODE_SPOT,
     ma_window: int = 5,
 ) -> bool:
-    """Retorna True para CALL conforme modo triple_barrier, supertrend_atr, ma_trend ou spot_forward."""
+    """Retorna True para CALL conforme quantum_multi_barrier, triple_barrier, supertrend_atr ou ma_trend."""
     forward = _forward_mean(prices, index, horizon_bars, smooth_bars)
     if forward is None:
         return False
     mode = str(label_mode).strip().lower()
+    if mode in (LABEL_MODE_QUANTUM_MULTI_BARRIER, "quantum", "multi_barrier", "qmb"):
+        return _quantum_multi_barrier_direction(prices, index, horizon_bars)
     if mode in (LABEL_MODE_TRIPLE_BARRIER, "triple", "barrier"):
         return _triple_barrier_direction(prices, index, horizon_bars)
     if mode == LABEL_MODE_SUPERTREND_ATR:

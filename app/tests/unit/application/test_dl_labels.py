@@ -43,7 +43,11 @@ def test_resolve_label_helpers():
     assert resolve_label_smooth_bars({}) == 1
     assert resolve_label_smooth_bars({"label_smooth_bars": 5}) == 5
     assert resolve_label_ma_window({"label_ma_window": 8}) == 8
-    assert resolve_label_mode({}) == "triple_barrier"
+    assert resolve_label_mode({}) == "quantum_multi_barrier"
+    assert resolve_label_mode({"label_mode": "quantum"}) == "quantum_multi_barrier"
+    assert resolve_label_mode({"label_mode": "quantum_multi_barrier"}) == "quantum_multi_barrier"
+    assert resolve_label_mode({"label_mode": "multi_barrier"}) == "quantum_multi_barrier"
+    assert resolve_label_mode({"label_mode": "qmb"}) == "quantum_multi_barrier"
     assert resolve_label_mode({"label_mode": "triple_barrier"}) == "triple_barrier"
     assert resolve_label_mode({"label_mode": "triple"}) == "triple_barrier"
     assert resolve_label_mode({"label_mode": "spot_forward"}) == "spot_forward"
@@ -148,3 +152,40 @@ def test_triple_barrier_candlestick_patterns_and_noise_invariance():
     # Candle de indecisão (Doji) com micro ruído: avalia barreira temporal no horizonte
     prices_doji = np.array([100.0] * 20 + [100.0, 100.01, 100.02])
     assert _triple_barrier_direction(prices_doji, 20, 2) is True
+
+
+def test_quantum_multi_barrier_direction():
+    from src.application.services.deep_learning.dl_labels import (
+        LABEL_MODE_QUANTUM_MULTI_BARRIER,
+        _quantum_multi_barrier_direction,
+    )
+
+    # Caso 1: Impulso de alta rompendo barreira superior assimétrica
+    prices_up = np.array([100.0] * 20 + [100.0, 105.0, 110.0])
+    assert _quantum_multi_barrier_direction(prices_up, 20, 2) is True
+    assert binary_label_at_index(prices_up, 20, 2, label_mode=LABEL_MODE_QUANTUM_MULTI_BARRIER) is True
+
+    # Caso 2: Impulso de baixa rompendo barreira inferior assimétrica
+    prices_down = np.array([100.0] * 20 + [100.0, 95.0, 90.0])
+    assert _quantum_multi_barrier_direction(prices_down, 20, 2) is False
+    assert binary_label_at_index(prices_down, 20, 2, label_mode=LABEL_MODE_QUANTUM_MULTI_BARRIER) is False
+
+    # Caso 3: Expiração na barreira vertical com deslocamento positivo expressivo sem tocar a barreira dinâmica
+    prices_exp_call = np.array([100.0] * 20 + [100.0, 100.005])
+    assert _quantum_multi_barrier_direction(prices_exp_call, 20, 1, min_viable_delta=0.00001, barrier_mult=50.0) is True
+
+    # Caso 4: Expiração na barreira vertical com deslocamento negativo expressivo sem tocar a barreira dinâmica
+    prices_exp_put = np.array([100.0] * 20 + [100.0, 99.995])
+    assert _quantum_multi_barrier_direction(prices_exp_put, 20, 1, min_viable_delta=0.00001, barrier_mult=50.0) is False
+
+    # Caso 5: Consolidação estagnada (delta < threshold) desempatada pela tendência prévia (alta)
+    prices_flat_uptrend = np.array(list(np.linspace(95.0, 100.0, 20)) + [100.0, 100.0, 100.0])
+    assert _quantum_multi_barrier_direction(prices_flat_uptrend, 20, 2) is True
+
+    # Caso 6: Consolidação estagnada (delta < threshold) desempatada pela tendência prévia (baixa)
+    prices_flat_downtrend = np.array(list(np.linspace(105.0, 100.0, 20)) + [100.0, 100.0, 100.0])
+    assert _quantum_multi_barrier_direction(prices_flat_downtrend, 20, 2) is False
+
+    # Caso 7: Array de volatilidade curto
+    prices_short = np.array([100.0, 100.1])
+    assert _quantum_multi_barrier_direction(prices_short, 0, 1) is True
