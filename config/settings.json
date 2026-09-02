@@ -28,9 +28,9 @@
   },
   "data_handler": {
     "buffer_limit": 262144,
-    "fetch_count": 365,
+    "fetch_count": 500,
     "granularity": 86400,
-    "history_bars": 365,
+    "history_bars": 500,
     "micro_granularity": 300,
     "micro_history_bars": 500,
     "micro_fetch_count": 500,
@@ -226,11 +226,11 @@
     "train_symbols": [
       "1HZ75V"
     ],
-    "train_timeframe": "macro",
+    "train_timeframe": "micro",
     "training_batch_size": 128,
     "training_device": "auto",
     "training_epochs": 300,
-    "training_history_bars": 365,
+    "training_history_bars": 500,
     "training_history_days": 365,
     "training_log_every_n_epochs": 1,
     "val_acc_live_blend": 0.2,
@@ -244,7 +244,7 @@
       "class_balance_enabled": true,
       "class_balance_eps": 0.0,
       "recency_enabled": true,
-      "recency_half_life_n": 365
+      "recency_half_life_n": 500
     },
     "horizon_sweep": {
       "enabled": false,
