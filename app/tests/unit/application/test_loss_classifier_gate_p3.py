@@ -19,45 +19,25 @@ def test_should_retrain_after_learn_loss_forces_when_ready():
     spec.loader.exec_module(mod)
     assert (
         mod.should_retrain_after_learn(
-            label="LOSS",
-            buffer_n=10,
-            retrain_min_n=24,
-            retrain_on_loss_min_n=2,
-            buffer_win=4,
-            buffer_loss=2,
+            label="LOSS", buffer_n=10, retrain_min_n=24, retrain_on_loss_min_n=2, buffer_win=4, buffer_loss=2
         )
         is True
     )
     assert (
         mod.should_retrain_after_learn(
-            label="LOSS",
-            buffer_n=2,
-            retrain_min_n=24,
-            retrain_on_loss_min_n=2,
-            buffer_win=0,
-            buffer_loss=2,
+            label="LOSS", buffer_n=2, retrain_min_n=24, retrain_on_loss_min_n=2, buffer_win=0, buffer_loss=2
         )
         is False
     )
     assert (
         mod.should_retrain_after_learn(
-            label="LOSS",
-            buffer_n=20,
-            retrain_min_n=24,
-            retrain_on_loss_min_n=2,
-            buffer_win=7,
-            buffer_loss=13,
+            label="LOSS", buffer_n=20, retrain_min_n=24, retrain_on_loss_min_n=2, buffer_win=7, buffer_loss=13
         )
         is False
     )
     assert (
         mod.should_retrain_after_learn(
-            label="LOSS",
-            buffer_n=1,
-            retrain_min_n=24,
-            retrain_on_loss_min_n=2,
-            buffer_win=8,
-            buffer_loss=0,
+            label="LOSS", buffer_n=1, retrain_min_n=24, retrain_on_loss_min_n=2, buffer_win=8, buffer_loss=0
         )
         is False
     )
@@ -73,6 +53,19 @@ def test_should_retrain_after_learn_loss_forces_when_ready():
             bootstrap_exit_n=16,
         )
         is False
+    )
+    assert (
+        mod.should_retrain_after_learn(
+            label="LOSS",
+            buffer_n=4,
+            retrain_min_n=24,
+            retrain_on_loss_min_n=2,
+            buffer_win=2,
+            buffer_loss=2,
+            bootstrap_active=True,
+            bootstrap_exit_n=16,
+        )
+        is True
     )
     assert (
         mod.should_retrain_after_learn(
@@ -121,15 +114,15 @@ def test_should_retrain_after_learn_loss_forces_when_ready():
             bootstrap_active=True,
             bootstrap_exit_n=16,
         )
-        == 8
+        == 4
     )
     assert mod.retrain_skipped_reason(
         label="LOSS",
-        buffer_n=4,
+        buffer_n=2,
         retrain_min_n=24,
         retrain_on_loss_min_n=2,
-        buffer_win=2,
-        buffer_loss=2,
+        buffer_win=1,
+        buffer_loss=1,
         bootstrap_active=True,
         bootstrap_exit_n=16,
     ).startswith("bootstrap_wait:")
