@@ -68,16 +68,20 @@ def load_latest_classifier(models_dir: Path) -> tuple[dict[str, Any], Path] | No
 
 def fit_classifier(buffer_x: list[list[float]], buffer_y: list[int]) -> Any:
     n_samples = len(buffer_y)
-    min_child = max(2, min(10, n_samples // 4))
+    min_child = max(2, min(8, n_samples // 4))
     model = lgb.LGBMClassifier(
-        n_estimators=60,
-        learning_rate=0.04,
-        num_leaves=12,
+        n_estimators=50,
+        learning_rate=0.05,
+        num_leaves=10,
+        max_bin=63,
         min_child_samples=min_child,
         class_weight="balanced",
         subsample=0.85,
         colsample_bytree=0.85,
-        reg_lambda=0.1,
+        reg_alpha=0.05,
+        reg_lambda=0.15,
+        extra_trees=True,
+        n_jobs=2,
         verbosity=-1,
         random_state=42,
     )

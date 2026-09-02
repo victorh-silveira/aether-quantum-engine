@@ -42,13 +42,17 @@ def fit_regressor(buffer_x: list[list[float]], buffer_y: list[float]) -> Any:
     n_samples = len(buffer_y)
     min_child = max(2, min(5, n_samples // 3))
     model = lgb.LGBMRegressor(
-        n_estimators=60,
-        learning_rate=0.04,
-        num_leaves=12,
+        n_estimators=50,
+        learning_rate=0.05,
+        num_leaves=10,
+        max_bin=63,
         min_child_samples=min_child,
         subsample=0.85,
         colsample_bytree=0.85,
-        reg_lambda=0.1,
+        reg_alpha=0.05,
+        reg_lambda=0.15,
+        extra_trees=True,
+        n_jobs=2,
         verbosity=-1,
         random_state=42,
     )
