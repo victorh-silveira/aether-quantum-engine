@@ -1,6 +1,6 @@
 # Arquitetura — Aether Quantum Engine
 
-Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (TCN, LSTM ou GRU) no índice **`R_10`**. Metodologia quantitativa: [`medallion.md`](medallion.md). Inventário de módulos: [`structure.md`](structure.md). Infra Docker: [`infra-docker.md`](infra-docker.md).
+Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (TCN, LSTM ou GRU) no índice **`1HZ75V`** (Volatility 75 (1s)). Metodologia quantitativa: [`medallion.md`](medallion.md). Inventário de módulos: [`structure.md`](structure.md). Infra Docker: [`infra-docker.md`](infra-docker.md).
 
 ---
 
@@ -8,33 +8,29 @@ Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (TCN,
 
 | Aspecto | Valor atual (`config/settings.json`) |
 |---------|--------------------------------------|
-| Símbolos | `R_10` (âncora `R_10`) |
-| Granularidade OHLC (DL) | **7200 s** (`data_handler.granularity`; assinatura legado `m15`) |
-| Relógio operacional | **60 s** (`data_handler.micro_granularity`; M1) |
-| Histórico para treino | `training_history_bars` / `history_bars` conforme settings (micro **60 s** / macro **7200 s**) |
-| Lookback | **`deep_learning.lookback`** (settings atuais **480**) → tensor **`[1, lookback, 34]`** |
+| Símbolos | `1HZ75V` (âncora `1HZ75V`) |
+| Granularidade OHLC (DL) | **86400 s** (`data_handler.granularity`; macro D1) |
+| Relógio operacional | **300 s** (`data_handler.micro_granularity`; M5) |
+| Histórico para treino | 365 barras diárias (`training_history_bars: 365` / `history_bars: 500`) |
+| Lookback | **`deep_learning.lookback`** (settings atuais **30**) → tensor **`[1, 30, 34]`** |
 | Features TCN | **34** (`FEATURE_DIM` em `dl_feature_build.py`) |
 | Features meta GBDT | **43** (`META_FEATURE_DIM` = 34 + 4 micro-vol + 3 cross + 2 flow) |
-| Contrato | `RISE_FALL`, duração **5 m** (ops fixo); label TCN **N** velas M1 (N ∈ {15,20,…,60} eleito no launch-train; **SSOT atual N=55**) |
-| Ciclo | **60 s** (`cycle_interval_seconds` / `signature_boundary_seconds`; sync M1) |
-| Execução | `mandatory_trade_each_cycle: false`; `force` off; `invert_exec_side: false`; fusao EV + signal_skip 1.1 (quality gate amplo **fora**) |
+| Contrato | `RISE_FALL`, duração **5 m** (ops fixo); label TCN **N=1** vela M5 (`triple_barrier`) |
+| Ciclo | **120 s** (`cycle_interval_seconds`) / **300 s** (`signature_boundary_seconds`; sync M5) |
+| Execução | `mandatory_trade_each_cycle: false`; `force` off; `invert_exec_side: false`; fusao EV + signal_skip 1.1 + anti-loss M5 |
 | Fail-closed | Meta **opcional** nos settings atuais (`require_meta_for_execution: false`); TCN eager/CUDA local |
-| Label | `label_mode: ma_trend` (`spot_forward` / Triple Barrier via config) |
-| Meta sessão | Stop win **3,00%** (`compounding_rate_daily: 0.03`); stop loss desativado |
+| Label | `label_mode: triple_barrier` (Upper/Lower Log-Vol Barriers + Vertical Expiry) |
+| Meta sessão | Stop win **4,31%** (`compounding_rate_daily: 0.0431`); stop loss desativado |
 
-O mercado é tratado como série temporal ruidosa: a TCN estima `P(CALL)` (thresholds **0.62/0.38**); o meta-regressor LightGBM estima `predicted_payoff_edge`; o ranking usa `tcn × max(0.1, 1+z)`. Com `price_zone` (hoje **off**), BUY alinharia CALL e SELL PUT; edge meta positivo pode **manter** o lado TCN/meta contra a zona (`align_or_keep_meta_side`).
+O mercado é tratado como série temporal ruidosa: a TCN estima `P(CALL)` / `P(PUT)` com calibração e threshold adaptativo; o meta-regressor LightGBM estima `predicted_payoff_edge`; o ranking usa `tcn × max(0.1, 1+z)`. A fusão EV pondera votos direcionais e o filtro anti-loss valida inclinação de EMA 9/21 em barras de 5m, RSI momentum e corpo líquido.
 
-**Invariante temporal:** inferências seguem `signature_boundary_seconds` (fallback `cycle_interval_seconds`, padrão **60 s**) via `get_data_state_signature()` — formato legado `m5`/`m15` alinhado a **60 s** (micro M1) / **7200 s** (macro); ratio macro:micro **1:120**.
+**Invariante temporal:** inferências seguem `signature_boundary_seconds` (**300 s**) via `get_data_state_signature()` — alinhado a **300 s** (micro M5) e **86400 s** (macro D1); ratio macro:micro **1:288**.
 
-**Válvula de starvation:** após **6** ciclos consecutivos bloqueados pelo quality gate, pisos de margem/edge/Z são atenuados (`execution_quality_gate_starvation.py`). O piso de edge meta relaxa a partir de **8** skips (`edge_decay_cycles`) até `edge_decay_floor: 0.0` (passo `0.08`). Em skips extremos (≥30), a válvula GBDT mitiga veto tabular prolongado.
+**Válvula de starvation:** após **6** ciclos consecutivos bloqueados por qualidade, pisos de margem/edge/Z são atenuados. O piso de edge meta relaxa a partir de **8** skips até floor 0.0.
 
-**Gatilho de Convicção Progressiva:** em recovery (`linear > 0`), `min_direction_margin` cai **20% a cada 5** ciclos de inanição (`0.80^(skips//5)`), permitindo sair de loops `EXEC_EMPTY` em mercado lateral.
+**Calibração e Zona Neutra:** Modo `neutral_zone` gera estritamente `SKIP:NEUTRAL_ZONE` com execução desativada. Se `raw_prob` estiver em extremos calibrados, preserva Edge genuíno.
 
-**Dynamic Recovery Relaxation:** com `linear >= 2` e `pending_loss > 0`, os pisos de TCN Margin e Meta Payoff caem linearmente com o passivo (`execution_quality_gate_drawdown.py`); `recovery_relax.edge_floor: -0.55`.
-
-**Calibração (settings atuais):** `neutral_half_width: 0.0` — zona neutra **OFF**; thresholds CALL/PUT **0.62/0.38**. Em `dl_calibration_tolerance` / `dl_predict_build`, se `raw_prob > 0.65` ou `< 0.35`, a TCN macro prevalece sobre a calibração de curto prazo.
-
-**Settlement:** janela de tolerância **600 s** com reconciliação passiva (`portfolio` + Redis); pós-EXEC_EMPTY em recovery alinha a fronteira de assinatura (cap `exec_empty_retry_seconds`).
+**Settlement:** janela de tolerância **600 s** com fila de prioridade Redis (`settlement:queue:priority`) e reconciliação passiva (`portfolio`). Pós-trade, `/v1/learn` alimenta meta-classifier e loss-classifier.
 
 ---
 

@@ -19,21 +19,21 @@ Ler `docs/llm-trading-doctrine.md` antes de concluir. LLM nao decide trade; aval
 
 ## Pre-trade (PlayBook)
 
-1. Qual setup nomeado? (ex.: TCN resolve lado + fusao EV + Kelly; soft SIDE_EQ / scale_vision)
-2. Qual bloqueio tecnico explicito? (`training`/`data`/`deploy`/`predict_error` / stop-win)
-3. Explore ou recover? Ha pending/linear? Recovery = cover pleno (**1.50**, amort **1/1**); damping inicio **1.0** / perto-meta **0.50** (amort=1 nao dilui cover); RECOVER stake ≠ `bankroll×f*` (`f*` so gate). `scale_force_explore` bloqueou RECOVER? `RECOVERY_INFEASIBLE` com PEND deve stake=**CAP** (parcial), nao piso explore. Pending material com `pending_waives_scale_explore` deve liberar soft cover.
+1. Qual setup nomeado? (ex.: TCN resolve lado + fusao EV + Kelly; anti-loss microestrutura M5)
+2. Qual bloqueio tecnico explicito? (`training`/`data`/`deploy`/`predict_error` / `neutral_zone` / stop-win)
+3. Explore ou recover? Ha pending/linear? Recovery = amortização equilibrada em 2 a 3 ciclos (`cover_multiple` **1.10**); RECOVER stake com cap seguro (`max_safe_stake_pct: 0.035`).
 4. Hipotese falsificavel da mudanca de knob (se houver)?
-5. Alvo de negocio: stop-win **3%** composto — progresso de processo, nao “mao quente”
+5. Alvo de negocio: stop-win **4,31%** composto — tacada única M5 com payout ~85%, progresso de processo, nao “mao quente”.
 
 ## During (leitura de log)
 
 Ordem obrigatoria:
 
-1. CLUSTER — Prob / Cal / Margin / Edge (telemetria); TF tipicamente micro **M1** (60 s); anotar `live_n`
-2. SCALE — MACRO/MICRO/MINI/MILI + `tape`/`adapted` (adaptacao sob raw_extreme; soft Kelly; sem SKIP por escala)
-3. GATES — `[GATES] || FUSION` (`ev_c`/`ev_p`/`why`) **antes** de loss-clf; `why=tcn_candle_agree` = TCN==janela ops N=5 (switch bloqueado); depois `LOSS_CLF` SOFT vs FLIP (ref TCN); `FLIP_BLOCK:seed_candle|tcn_edge|seed|scale`; depois `[GATES] || ANTI_LOSS` com microestrutura estrita (EMA slope M5, zero bypass vela M5 contrária, RSI momentum); por fim NEG_EDGE (hard se Cal<=0 ou trava de pânico Z-score bilateral). Caveat: `fusion_loss_weight` nao ve `p_loss` do mesmo ciclo (FLIP apos fusao); seed `loss_bonus=0`. Se `auto=0` e FUSION != TCN com janela==TCN → regressao (seed nao pode puxar lado via loss_bonus). **M1 last-bar = log; confirmacao = janela N=5.**
-4. EXEC / EMPTY / PAUSE / COOLDOWN — `gate_reason` tecnico (`anti_loss_ema_slope`, `anti_loss_rsi_momentum`, `live_exec_discord`, `neg_edge_zscore_panic`) ou `signal_skip` 1.1; SIDE_EQ / scale = soft sizing; stop-win = `EXEC_PAUSE`; cooldown pós-loss = 120s se $L_2+$.
-5. RESOLVED / RISK — pending, linear, pnl_sess vs alvo **3%**; polling de 2.0s em caso de estagnação de liquidação.
+1. CLUSTER — Prob / Cal / Margin / Edge (telemetria); TF micro **M5** (300 s); anotar `live_n`
+2. SCALE — MACRO (D1)/MICRO (M5)/MINI (M5)/MILI (ticks) + `tape`/`adapted` (adaptacao sob raw_extreme; soft Kelly; sem SKIP por escala)
+3. GATES — `[GATES] || FUSION` (`ev_c`/`ev_p`/`why`) **antes** de loss-clf; `why=tcn_candle_agree` = TCN==janela ops N=3 (switch bloqueado); depois `LOSS_CLF` SOFT vs FLIP (ref TCN); `FLIP_BLOCK:seed_candle|tcn_edge|seed|scale`; depois `[GATES] || ANTI_LOSS` com microestrutura estrita (EMA slope M5, zero bypass vela M5 contrária, RSI momentum); por fim NEG_EDGE (hard se Cal<=0 ou trava de pânico Z-score bilateral). Caveat: `fusion_loss_weight` nao ve `p_loss` do mesmo ciclo (FLIP apos fusao); seed `loss_bonus=0`. Se `auto=0` e FUSION != TCN com janela==TCN → regressao (seed nao pode puxar lado via loss_bonus). **M5 last-bar = log; confirmacao = janela N=3.**
+4. EXEC / EMPTY / PAUSE / COOLDOWN — `gate_reason` tecnico (`anti_loss_ema_slope`, `anti_loss_rsi_momentum`, `live_exec_discord`, `neg_edge_zscore_panic`, `neutral_zone`) ou `signal_skip` 1.1; SIDE_EQ / scale = soft sizing; stop-win = `EXEC_PAUSE`; cooldown pós-loss = 1 ciclo (300s) se $L_2+$.
+5. RESOLVED / RISK — pending, linear, pnl_sess vs alvo **4,31%**; polling de 2.0s em caso de estagnação de liquidação.
 
 Marcar cada ciclo como: **processo ok** | **processo falhou** | **inconclusivo (N baixo)**.
 

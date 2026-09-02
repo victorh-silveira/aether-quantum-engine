@@ -4,13 +4,23 @@ globs: app/src/infrastructure/state/**/*.py,app/src/infrastructure/storage/**/*.
 alwaysApply: true
 ---
 
-# Infra
+# Infraestrutura, Banco de Dados, Mensageria & DevOps Sênior
 
-- Motor no host; Redis/Timescale/MinIO/meta/loss via Docker em `127.0.0.1`
-- Profiles: `core` / `ml` — ver `docs/infra-docker.md`
-- Targets: `make docker-up`, `docker-up-core`
-- Inferencia TCN: eager/CUDA local no host (`data/dl`)
-- Timeouts Redis: nao “consertar” lentidao removendo resiliencia
-- State: Redis + JSON; settlement em Redis ZSET
-- MinIO: artefactos/checkpoints; sanity TorchScript no host quando aplicavel
-- Skill: `aether-infra-stack`
+- **Ambiente Híbrido**: Motor assíncrono no host (WSL Linux); Redis, TimescaleDB, MinIO, meta-classifier e loss-classifier isolados em containers Docker.
+- **Isolamento e Segurança de Containers**:
+  - Binds estritamente em loopback `127.0.0.1` (sem exposição externa de portas).
+  - Execução non-root com usuário dedicado (`aether`, UID/GID 10001).
+  - Flags de segurança ativas: `security_opt: [no-new-privileges:true]`, `read_only` root filesystem onde aplicável com volumes temporários dedicados.
+  - Healthchecks determinísticos com `start_period`, `interval` e `retries` calibrados.
+- **Banco de Dados & SQL (TimescaleDB / PostgreSQL 16)**:
+  - Hypertables com particionamento temporal otimizado para séries temporais financeiras (chunks de 1 dia para ticks e microvelas).
+  - Compressão colunar nativa (`compress_segmentby = 'symbol'`, `compress_orderby = 'time DESC'`) e políticas automáticas de retenção.
+  - Conexões assíncronas via pool transacional fail-closed (tratamento de backpressure, reconexão e circuit breakers).
+- **Filas & Estado Distribuído (Redis 7.4-Alpine)**:
+  - Persistência AOF (`appendfsync everysec`) para recuperação de falhas sem perda de estado.
+  - Fila de prioridade de liquidação em Redis ZSET (`settlement:queue:priority`) com score por timestamp e processamento idempotente.
+  - State stores: integridade atômica via pipeline transacional e isolamento com `asyncio.Lock` no core.
+- **Sidecars de Machine Learning (Meta & Loss Classifiers)**:
+  - Containers FastAPI/Uvicorn dedicados (`:8005` e `:8006`) com workers ASGI otimizados.
+  - Retreino online `/v1/learn` atômico com buffer persistido em volumes seguros.
+- **Documentação e Skills**: `docs/infra-docker.md` + skill `aether-infra-stack`.

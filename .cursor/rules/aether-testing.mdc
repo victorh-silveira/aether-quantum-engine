@@ -4,10 +4,14 @@ globs: app/tests/**/*.py
 alwaysApply: true
 ---
 
-# Testing
+# Testes, QA & Garantia de Qualidade Sênior
 
-- Espelhar camada: `tests/unit/{application,domain,infrastructure,presentation,scripts}/`
-- Cobertura **100%** em `app/src`; novo ramo = novo teste
-- Preferir unitario rapido; mock I/O; nao depender de Docker live nos unitarios
-- Ao mudar knobs, atualizar asserts de defaults SSOT
-- Skill: `aether-precommit`
+- **Espelho DDD Rigoroso**: Estrutura de testes espelha rigidamente `app/src/`: `tests/unit/{application,domain,infrastructure,presentation,scripts}/`.
+- **Cobertura Inegociável (100.0%)**: Cobertura total de linhas e branches em `app/src/`. Nenhum commit é aceito abaixo de 100%.
+- **Determinismo & Isolamento**:
+  - Testes unitários executam em memória, sem dependência de I/O de rede ou containers Docker ao vivo.
+  - Mocks estritos e pontuais de WebSocket, Redis, TimescaleDB e chamadas HTTP.
+  - Sementes pseudoaleatórias fixas para reprodutibilidade matemática em cálculos de Kelly, ECE e Deep Learning.
+- **Asserções de SSOT**: Qualquer ajuste em `config/settings.json` deve ser imediatamente validado e testado em `test_doctrine_settings_ssot.py`.
+- **Pre-commit Gate Fail-Closed**: Todo teste roda sob pytest-asyncio com limites de timeout estritos.
+- **Skill**: `aether-precommit`.

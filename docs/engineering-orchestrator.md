@@ -4,19 +4,19 @@ Ciclo operacional do motor. Inventario de arquivos: [`structure.md`](structure.m
 
 ## Relogio e triplo OHLC
 
-- Fronteira / ciclo: **`signature_boundary_seconds` / `cycle_interval_seconds` = 60 s** (sync com fecho da vela M1; contrato Deriv **5 m**); `exec_empty_retry_seconds` **60**
+- Fronteira / ciclo: **`signature_boundary_seconds` = 300 s** / **`cycle_interval_seconds` = 120 s** (sync com fecho da vela M5; contrato Deriv **5 m**); `exec_empty_retry_seconds` **120**
 - Cache DL (`dl_predict_cache`): path **eager** **sempre** re-infere; chaveia `cycle_id` + `boundary_epoch` (nao reusa entry de outro ciclo)
-- Tick live: antes do TCN, `patch_forming_bar_with_live_tick` injeta o ultimo preco do `TickBuffer` no close/high/low da vela M1 em formacao; `patch_forming_bar_microstructure` sobrescreve a ultima linha de micro live; snapshot `_patched_ohlc` alimenta SCALE/flow no mesmo ciclo
+- Tick live: antes do TCN, `patch_forming_bar_with_live_tick` injeta o ultimo preco do `TickBuffer` no close/high/low da vela M5 em formacao; `patch_forming_bar_microstructure` sobrescreve a ultima linha de micro live; snapshot `_patched_ohlc` alimenta SCALE/flow no mesmo ciclo
 - `DL: inferencia em cuda` e `log_device_once` no load do modelo — **nao** um log por ciclo
 - LOSS_CLF: predict HTTP a cada `_finalize`; log dedupe por `loss_clf_*:{cycle_id}`; `feature_dim` **24**; hard FLIP floor SSOT **0.90** + `flip_require_auto_learn` **true**
-- MACRO OHLC: **7200 s** (`data_handler.granularity`)
-- MICRO OHLC (TCN decisor): **60 s** (`data_handler.micro_granularity`) — M1
-- Contrato Deriv RISE_FALL: **5 m** (`risk_management.params.duration`, via `ops_contract_duration_minutes`); label TCN = **N barras** micro (N ∈ {15,20,…,60} eleito no launch-train; **SSOT atual N=55**); gap intencional label vs settle; frequencia maxima ≈ 1 trade / contrato (ciclo bloqueado com contrato aberto)
-- Confirmacao de lado/SKIP: janela `scale_vision.ops_window_bars` **3** (open da 1a M1 fechada → close da ultima); `[CANDLE]` M1 last-bar so telemetria
-- MINI OHLC: **60 s** (`data_handler.mini_granularity`) — alinhado ao M1
+- MACRO OHLC: **86400 s** (`data_handler.granularity` — D1 / 365 barras de histórico)
+- MICRO OHLC (TCN decisor): **300 s** (`data_handler.micro_granularity` — M5 / 500 barras de histórico)
+- Contrato Deriv RISE_FALL: **5 m** (`risk_management.params.duration`); label TCN = **N=1** vela M5 (`triple_barrier`); frequencia maxima ≈ 1 trade / contrato (ciclo bloqueado com contrato aberto)
+- Confirmacao de lado/SKIP: janela `scale_vision.ops_window_bars` **3** (open da 1a M5 fechada → close da ultima = 15m acumulados); `[CANDLE]` M5 last-bar telemetria
+- MINI OHLC: **300 s** (`data_handler.mini_granularity`) — alinhado ao M5
 - MILI: tick flow (velocity/acceleration), nao barra OHLC
 - Sync inicial: `stream_sync_start.py` (historico MACRO+MICRO+MINI + subscribe candles/ticks)
-- Proporcao MACRO:MICRO **120:1** (7200:60)
+- Proporcao MACRO:MICRO **288:1** (86400:300)
 - Pos-settlement: `post_settlement_is_trading_wait_seconds` **90**; `settlement_tolerance_window_seconds` **600**; `post_settlement_cycle_timeout_seconds` **1200**; `watchdog_stale_tick_seconds` **300**
 
 ## Pipeline do ciclo
