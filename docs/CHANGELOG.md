@@ -1,3 +1,13 @@
+## [2.50.3](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.50.2...v2.50.3) (2026-09-02)
+
+### Correcoes de Bug
+
+* **deep_learning:** alinha deploy gate e paciencia para treino em M5 ([a0aec00](https://github.com/victorh-silveira/aether-quantum-engine/commit/a0aec0027fc6b6a330f3d6b8e6ecbca080ce777d))
+
+### Refatoracoes Tecnicas
+
+* **engine:** unificar treinamento DL indicadores e trade duration em M5 ([7268e36](https://github.com/victorh-silveira/aether-quantum-engine/commit/7268e36ed5785046188de551e6890a91d9d46f2a))
+
 ## [2.50.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.50.1...v2.50.2) (2026-09-02)
 
 ### Correcoes de Bug
