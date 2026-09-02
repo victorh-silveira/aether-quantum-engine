@@ -155,3 +155,11 @@ def test_direction_loss_lock_removed_keeps_tcn_side():
     assert metrics["kelly_fraction_scale"] == pytest.approx(0.55)
     assert metrics.get("gate_reason") is None
     assert metrics_block_execution(metrics) is False
+
+
+def test_infer_dl_direction_abstained_on_neutral_zone():
+    from src.application.services.execution_direction_checks import infer_dl_direction
+
+    assert infer_dl_direction({"metrics": {"calibration_mode": "neutral_zone"}}) is None
+    assert infer_dl_direction({"metrics": {"gate_reason": "neutral_zone"}}) is None
+    assert infer_dl_direction({"direction": TradeDirection.CALL, "metrics": {}}) == TradeDirection.CALL

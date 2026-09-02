@@ -33,6 +33,8 @@ def direction_pivot(metrics: dict) -> float:
 def infer_dl_direction(entry: dict) -> TradeDirection | None:
     """Infere CALL/PUT a partir da probabilidade, ou None se indefinido."""
     metrics = entry.get("metrics") or {}
+    if metrics.get("calibration_mode") == "neutral_zone" or metrics.get("gate_reason") == "neutral_zone":
+        return None
     d = entry.get("direction")
     if d is not None:
         return d

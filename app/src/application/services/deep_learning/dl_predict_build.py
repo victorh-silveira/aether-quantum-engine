@@ -216,10 +216,11 @@ def build_prediction_entry(
     )
     if squeeze_congestion:
         side_score = 0.51
+    is_neutral_zone = calibration_mode == "neutral_zone" or resolved_dir is None
     entry = build_decision_entry(
         resolved_dir,
         calibrated_prob,
-        execute=True,
+        execute=not is_neutral_zone,
         val_accuracy=val_accuracy,
         edge=calibrated_edge,
         train_loss=train_loss,
@@ -230,7 +231,10 @@ def build_prediction_entry(
         contract_duration=int(params.get("contract_duration", 180)),
     )
     _ = calibration_mode
-    entry["metrics"]["gate_reason"] = None
+    entry["metrics"]["gate_reason"] = "neutral_zone" if is_neutral_zone else None
+    if is_neutral_zone:
+        entry["metrics"]["signal_status"] = "SKIP:NEUTRAL_ZONE"
+        entry["metrics"]["execution_candidate_ready"] = False
     entry["metrics"]["micro_chop_congestion"] = bool(squeeze_congestion)
     entry["metrics"]["edge_expectancy"] = None
     entry["metrics"]["calibrated_prob"] = calibrated_prob

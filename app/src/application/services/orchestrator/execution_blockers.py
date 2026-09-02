@@ -11,6 +11,7 @@ _TECHNICAL_REASONS = frozenset(
         "data",
         "deploy",
         "predict_error",
+        "neutral_zone",
         "neg_edge",
         "neg_edge_zscore_panic",
         "anti_loss_seed_discord",

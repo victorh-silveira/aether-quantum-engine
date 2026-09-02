@@ -38,6 +38,10 @@ def test_predict_abstains_on_gray_zone_raw_prob():
     assert entry["direction"] is None
     assert entry["metrics"].get("calibration_mode") == "neutral_zone"
     assert entry["metrics"]["calibrated_prob"] == pytest.approx(0.50)
+    assert entry["metrics"]["execute"] is False
+    assert entry["metrics"]["gate_reason"] == "neutral_zone"
+    assert entry["metrics"]["signal_status"] == "SKIP:NEUTRAL_ZONE"
+    assert entry["metrics"]["execution_candidate_ready"] is False
 
 
 def test_predict_executes_on_strong_call():
