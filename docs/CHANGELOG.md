@@ -1,3 +1,9 @@
+## [2.50.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.50.1...v2.50.2) (2026-09-02)
+
+### Correcoes de Bug
+
+* **orchestrator:** ativa hard skip no anti-loss para microestrutura M5 ([7934ce2](https://github.com/victorh-silveira/aether-quantum-engine/commit/7934ce29870d6f7b33c8ebbf1ae5841b10f92c6c))
+
 ## [2.50.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.50.0...v2.50.1) (2026-09-02)
 
 ### Correcoes de Bug
