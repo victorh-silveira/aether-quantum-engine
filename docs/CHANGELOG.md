@@ -1,3 +1,17 @@
+## [2.50.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.50.0...v2.50.1) (2026-09-02)
+
+### Correcoes de Bug
+
+* **domain:** mapeia volatilidade alvo de 75 pct para 1HZ75V ([d54a705](https://github.com/victorh-silveira/aether-quantum-engine/commit/d54a705edd608e6be91045f711bb95d875a78b64))
+
+### Refatoracoes Tecnicas
+
+* **config:** migra operacao e timeframes de M15 para M5 ([6efcbcb](https://github.com/victorh-silveira/aether-quantum-engine/commit/6efcbcb7cb013d886c26e28cdf26f73aa1216a47))
+
+### Documentacao
+
+* **all:** moderniza rules, skills, docs e arquitetura para padrao senior ([a9872e3](https://github.com/victorh-silveira/aether-quantum-engine/commit/a9872e3e5e91fc29c82bfb3f3750d2e6858b9e52))
+
 ## [2.50.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.49.0...v2.50.0) (2026-09-02)
 
 ### Funcionalidades
