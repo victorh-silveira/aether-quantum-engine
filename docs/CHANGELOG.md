@@ -1,3 +1,13 @@
+## [2.50.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.49.0...v2.50.0) (2026-09-02)
+
+### Funcionalidades
+
+* **orchestrator:** aplicar bloqueio estrito de operacao na zona cinzenta ([963302d](https://github.com/victorh-silveira/aether-quantum-engine/commit/963302d5c2ba669be1b44c886ef1a55ac3453c26))
+
+### Correcoes de Bug
+
+* **infra:** adicionar capacidades de troca de usuario para redis alpine ([64db86e](https://github.com/victorh-silveira/aether-quantum-engine/commit/64db86ea3b9551eded216f51ed00803e5474f622))
+
 ## [2.49.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.48.0...v2.49.0) (2026-09-02)
 
 ### Funcionalidades
