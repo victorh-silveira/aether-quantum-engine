@@ -1,3 +1,9 @@
+## [2.48.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.47.0...v2.48.0) (2026-09-02)
+
+### Funcionalidades
+
+* **infra:** otimizar piso de retreino do loss-classifier para 4 amostras ([632497c](https://github.com/victorh-silveira/aether-quantum-engine/commit/632497c8c068fe72b93f680960aecf5e04904b95))
+
 ## [2.47.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.46.0...v2.47.0) (2026-09-01)
 
 ### Funcionalidades
