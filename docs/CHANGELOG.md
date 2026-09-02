@@ -1,3 +1,14 @@
+## [2.49.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.48.0...v2.49.0) (2026-09-02)
+
+### Funcionalidades
+
+* **infra:** implementar blindagem avancada e gestao de processos docker ([4a58107](https://github.com/victorh-silveira/aether-quantum-engine/commit/4a58107391741b8c996a172e92285561d66f937a))
+
+### Melhorias de Performance
+
+* **infra:** acelerar e calibrar treinamento do loss-classifier e meta-regressor ([6f084ca](https://github.com/victorh-silveira/aether-quantum-engine/commit/6f084caab4ce224424effab17e6517ae64207f17))
+* **infra:** otimizar infraestrutura de dados e microservicos ml ([c37ab42](https://github.com/victorh-silveira/aether-quantum-engine/commit/c37ab42620d94627cf099d0d5398b3392151520f))
+
 ## [2.48.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.47.0...v2.48.0) (2026-09-02)
 
 ### Funcionalidades
