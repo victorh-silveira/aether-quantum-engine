@@ -35,7 +35,8 @@ def test_symbol_vol_target_parses_and_defaults():
 
 
 def test_symbol_vol_target_invalid_suffix():
-    assert symbol_vol_target("R_XX") == pytest.approx(0.50)
+    assert symbol_vol_target("R_XX") == pytest.approx(0.75)
+    assert symbol_vol_target("1HZ75V") == pytest.approx(0.75)
 
 
 def test_attach_microstructure_partial_arrays():

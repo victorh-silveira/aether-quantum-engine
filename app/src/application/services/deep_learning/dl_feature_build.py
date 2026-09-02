@@ -33,15 +33,23 @@ FEATURE_DIM = MICRO_FEATURE_DIM + TRADITIONAL_FEATURE_DIM + VOLATILITY_FEATURE_D
 
 
 def symbol_vol_target(symbol: str) -> float:
-    """Volatilidade anualizada alvo por simbolo (Volatility R_* ou legado)."""
+    """Volatilidade anualizada alvo por simbolo (1HZ75V, Volatility R_* ou legado)."""
     key = str(symbol).upper()
-    if key == "R_10":
+    if key in ("1HZ75V", "R_75", "1HZ75", "HZ75V"):
+        return 0.75
+    if key in ("R_10", "1HZ10V"):
         return 0.16
+    if key in ("R_25", "1HZ25V"):
+        return 0.25
+    if key in ("R_50", "1HZ50V"):
+        return 0.50
+    if key in ("R_100", "1HZ100V"):
+        return 1.00
     parts = key.split("_")
     try:
-        return float(parts[-1]) / 100.0 if len(parts) >= 2 else 0.50
+        return float(parts[-1]) / 100.0 if len(parts) >= 2 else 0.75
     except ValueError:
-        return 0.50
+        return 0.75
 
 
 def _default_micro(n: int) -> dict[str, np.ndarray]:

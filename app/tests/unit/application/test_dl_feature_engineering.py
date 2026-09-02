@@ -114,8 +114,11 @@ def test_new_indicators_edge_cases():
 
 
 def test_dl_feature_build_coverage_booster():
-    assert symbol_vol_target("INVALID") == 0.50
-    assert symbol_vol_target("R_INVALID") == 0.50
+    assert symbol_vol_target("1HZ75V") == 0.75
+    assert symbol_vol_target("INVALID") == 0.75
+    assert symbol_vol_target("R_INVALID") == 0.75
+    assert symbol_vol_target("R_25") == 0.25
+    assert symbol_vol_target("R_100") == 1.00
 
     series = {"log_return": np.zeros(10)}
     attach_microstructure(series, None)
