@@ -12,15 +12,19 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY runtime.py learn_policy.py buffer_io.py app.py .
 
-ENV MODELS_DIR=/models
-ENV LOSS_FEATURE_DIM=24
-ENV LOSS_READY_N=8
-ENV LOSS_RETRAIN_MIN_N=1
-ENV LOSS_RETRAIN_ON_LOSS_MIN_N=1
-ENV LOSS_BOOTSTRAP_EXIT_N=8
-ENV LOSS_MIN_WIN_FOR_LOSS_RETRAIN=1
-ENV LOSS_MAX_BUFFER=2000
-ENV LOSS_VETO_P_LOSS_FLOOR=0.65
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    OMP_NUM_THREADS=2 \
+    OPENBLAS_NUM_THREADS=2 \
+    MODELS_DIR=/models \
+    LOSS_FEATURE_DIM=24 \
+    LOSS_READY_N=8 \
+    LOSS_RETRAIN_MIN_N=1 \
+    LOSS_RETRAIN_ON_LOSS_MIN_N=1 \
+    LOSS_BOOTSTRAP_EXIT_N=8 \
+    LOSS_MIN_WIN_FOR_LOSS_RETRAIN=1 \
+    LOSS_MAX_BUFFER=2000 \
+    LOSS_VETO_P_LOSS_FLOOR=0.65
 EXPOSE 8000
 
 USER aether
@@ -28,4 +32,4 @@ USER aether
 HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=10 \
   CMD python -c "import json, urllib.request, sys; response = urllib.request.urlopen('http://127.0.0.1:8000/health'); payload = json.loads(response.read().decode()); sys.exit(0 if response.getcode() == 200 and payload.get('ready') else 1)"
 
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--loop", "uvloop", "--http", "httptools", "--timeout-keep-alive", "30"]
