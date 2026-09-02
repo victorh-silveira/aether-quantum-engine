@@ -35,7 +35,7 @@ Enforcement no core: `doctrine_invariants.py` + testes `test_doctrine_*` / `test
 | Domain models/math/symbols | [structure.md](structure.md) §Domain + [deriv-indices-algorithm.md](deriv-indices-algorithm.md) (`1HZ75V`) | `aether-domain-pure.mdc` | — |
 | Volatility 75 (1s) Index | [deriv-indices-algorithm.md](deriv-indices-algorithm.md) | `aether-v75-market.mdc` | `aether-v75-market-analyst` |
 | Kelly Single-Strike 1% | [medallion.md](medallion.md) + [llm-trading-doctrine.md](llm-trading-doctrine.md) | `aether-risk-sizing.mdc` | `aether-single-strike-risk` |
-| Verificador de Sinais M15 | [binary-senior-playbook.md](binary-senior-playbook.md) | `aether-execution-gates.mdc` | `aether-m15-signal-verifier` |
+| Verificador de Sinais M5 | [binary-senior-playbook.md](binary-senior-playbook.md) | `aether-execution-gates.mdc` | `aether-m5-signal-verifier` |
 
 ## Pastas DDD ↔ matriz
 

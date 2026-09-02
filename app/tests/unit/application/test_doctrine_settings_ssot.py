@@ -46,9 +46,9 @@ def test_production_deploy_gate_armed():
     assert str(dl.get("label_mode")) in ("quantum_multi_barrier", "triple_barrier")
     assert int(dl.get("lookback", 0)) == 30
     assert int(dl.get("label_horizon_bars", 0)) == 1
-    assert int(settings["risk_management"]["params"]["duration"]) == 15
+    assert int(settings["risk_management"]["params"]["duration"]) == 5
     assert str(settings["risk_management"]["params"]["duration_unit"]) == "m"
-    assert int(dl["horizon_sweep"]["ops_contract_duration_minutes"]) == 15
+    assert int(dl["horizon_sweep"]["ops_contract_duration_minutes"]) == 5
     assert float(dl.get("min_edge_execute", 0.0)) == pytest.approx(0.01)
     assert settings["orchestrator"]["execution"]["bypass_deploy_gate"] is False
     assert "quality_gate" not in settings["orchestrator"]["execution"]
@@ -209,8 +209,8 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert float(fusion["fusion_loss_weight"]) == pytest.approx(0.0)
     assert float(fusion["fusion_tcn_shrink_near_half"]) == pytest.approx(0.0)
     data = settings["data_handler"]
-    assert int(data["micro_granularity"]) == 900
-    assert int(data["mini_granularity"]) == 900
+    assert int(data["micro_granularity"]) == 300
+    assert int(data["mini_granularity"]) == 300
     assert int(data["granularity"]) == 86400
     dl = settings["deep_learning"]
     assert bool(dl["online_training"]) is False
@@ -226,16 +226,16 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert int(data["mini_fetch_count"]) == 500
     orch = settings["orchestrator"]
     assert int(orch["cycle_interval_seconds"]) == 120
-    assert int(orch["signature_boundary_seconds"]) == 900
+    assert int(orch["signature_boundary_seconds"]) == 300
     assert int(orch["exec_empty_retry_seconds"]) == 120
     assert int(orch["settlement_tolerance_window_seconds"]) == 600
     assert int(orch["watchdog_stale_tick_seconds"]) == 300
     assert int(orch["post_settlement_is_trading_wait_seconds"]) == 90
-    assert int(settings["risk_management"]["kelly"]["cycle_stake_baseline_seconds"]) == 900
+    assert int(settings["risk_management"]["kelly"]["cycle_stake_baseline_seconds"]) == 300
     assert settings.get("anchor") == "1HZ75V"
     assert list(settings.get("symbols") or []) == ["1HZ75V"]
     assert list(dl.get("train_symbols") or []) == ["1HZ75V"]
-    assert int(settings["risk_management"]["params"]["duration"]) == 15
+    assert int(settings["risk_management"]["params"]["duration"]) == 5
     assert str(settings["risk_management"]["params"]["duration_unit"]) == "m"
     params = settings["risk_management"]["params"]
     assert float(params["payout_estimate"]) == pytest.approx(0.85)
@@ -285,7 +285,7 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert bool(h_sweep["enabled"]) is False
     assert bool(h_sweep["run_in_launch_train"]) is False
     assert bool(h_sweep["auto_promote"]) is False
-    assert int(h_sweep["ops_contract_duration_minutes"]) == 15
+    assert int(h_sweep["ops_contract_duration_minutes"]) == 5
     assert bool(h_sweep["quiet_train_logs"]) is True
     assert int(h_sweep["train_deploy_retries"]) == 1
     assert bool(h_sweep["disable_infra_during_sweep"]) is True
@@ -294,5 +294,5 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert "launch_only" not in h_sweep
     assert float(h_sweep["min_edge_vs_breakeven"]) == pytest.approx(0.03)
     assert list(h_sweep["n_bars"]) == [1, 2, 3, 4]
-    assert list(h_sweep["duration_minutes"]) == [15, 30, 45, 60]
+    assert list(h_sweep["duration_minutes"]) == [5, 10, 15, 20]
     assert list(h_sweep["symbols"]) == ["1HZ75V"]

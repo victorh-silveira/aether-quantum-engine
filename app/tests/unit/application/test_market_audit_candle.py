@@ -123,7 +123,7 @@ def test_log_closed_candle_outcomes_emits_and_fallbacks():
 def test_log_closed_candle_outcomes_five_candles_synthetic():
     candles = [_candle("R_10", 60 * i, 10.0 + i, 10.5 + i) for i in range(1, 7)]
     orch = SimpleNamespace(
-        stream=SimpleNamespace(micro_candles={"R_10": candles}, micro_granularity=900),
+        stream=SimpleNamespace(micro_candles={"R_10": candles}, micro_granularity=300),
         symbols=["R_10"],
         config={},
     )
@@ -131,4 +131,4 @@ def test_log_closed_candle_outcomes_five_candles_synthetic():
     log_closed_candle_outcomes(logger, orch, {"R_10": {}})
     assert logger.info.call_count == 1
     msg = str(logger.info.call_args.args[1])
-    assert "[CANDLE] || M15 || R_10:" in msg
+    assert "[CANDLE] || M5 || R_10:" in msg

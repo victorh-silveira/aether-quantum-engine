@@ -1,6 +1,6 @@
-# Volatility 75 (1s) Index (`1HZ75V`) — M15
+# Volatility 75 (1s) Index (`1HZ75V`) — M5
 
-Universo operacional unico: **`1HZ75V`** (Volatility 75 (1s) Index / Deriv). Ativo sintético contínuo 24/7 com contrato direcional RISE/FALL em M15. Timeframe operacional **M15** (micro/MINI **900 s**), com treinamento em **D1 (86400 s)** em **100 velas diarias**.
+Universo operacional unico: **`1HZ75V`** (Volatility 75 (1s) Index / Deriv). Ativo sintético contínuo 24/7 com contrato direcional RISE/FALL em M5. Timeframe operacional **M5** (micro/MINI **300 s**), com treinamento em **D1 (86400 s)** em **365 velas diarias**.
 
 ---
 
@@ -9,14 +9,14 @@ Universo operacional unico: **`1HZ75V`** (Volatility 75 (1s) Index / Deriv). Ati
 | Item | Valor |
 |------|--------|
 | Simbolo API | `1HZ75V` |
-| Contrato | `RISE_FALL` **15 m** (`duration=15`, `duration_unit=m`, `label_horizon_bars=1`) |
-| Micro / MINI OHLC | **900 s** (M15, 500 velas) |
+| Contrato | `RISE_FALL` **5 m** (`duration=5`, `duration_unit=m`, `label_horizon_bars=1`) |
+| Micro / MINI OHLC | **300 s** (M5, 500 velas) |
 | Macro OHLC | **86400 s** (D1 / 365 velas de treino - 1 ano) |
-| Ciclo / assinatura | **900 s** (alinhado ao fecho da vela M15); `exec_empty_retry` **900 s** |
+| Ciclo / assinatura | **120 s** / **300 s** (alinhado ao fecho da vela M5); `exec_empty_retry` **120 s** |
 | Lookback TCN | **30** barras |
 | Payout SSOT | **0.85** (85% payout base) |
-| Soft Recovery | amort **1/1**, `cover_multiple` **1.50** (cover pleno) |
-| Stop-win | `compounding_rate_daily` **1.0%** / Single-Strike 1 trade |
+| Soft Recovery | amort **2/3**, `cover_multiple` **1.10** |
+| Stop-win | `compounding_rate_daily` **4.31%** / Single-Strike 1 trade |
 | Settle wait / tolerancia | poll **0.5 s** / tolerancia **600 s**; timeout pos-ciclo **1200 s** |
 | Watchdog stale tick | **300 s** |
 

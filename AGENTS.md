@@ -12,12 +12,12 @@ Ponto de entrada para agentes Cursor/LLM neste repositorio.
 ## Universo operacional
 
 - Universo operacional: **1HZ75V** (Volatility 75 (1s) Index / Deriv)
-- Relogio: micro/MINI **900 s** (M15); macro **86400 s** (D1, 365 velas diarias); ciclo/cadência **120 s** (2m); TCN estima deslocamento em **N=1 vela M15** com lookback **30** alinhado ao contrato ops **fixo 15 m (M15)** (`label_horizon_bars=1`, `risk_management.params.duration=15`, `duration_unit="m"`). Rotulagem: **triple_barrier** (Triple Barrier Method: Upper/Lower Log-Vol Barriers + Vertical Expiry Barrier).
+- Relogio: micro/MINI **300 s** (M5); macro **86400 s** (D1, 365 velas diarias); ciclo/cadência **120 s** (2m); TCN estima deslocamento em **N=1 vela M5** com lookback **30** alinhado ao contrato ops **fixo 5 m (M5)** (`label_horizon_bars=1`, `risk_management.params.duration=5`, `duration_unit="m"`). Rotulagem: **triple_barrier** (Triple Barrier Method: Upper/Lower Log-Vol Barriers + Vertical Expiry Barrier).
 - SSOT: `config/settings.json` + `app/src/domain/symbols/drift_symbols.py`
 - Artefactos/treino com granularity/lookback/horizon ≠ settings sao invalidos (gate fail-closed); apos mudar TF/horizonte, retreinar TCN+meta e `make docker-rebuild`
 - Treino DL em velas diarias (D1 com 365 barras de historico), elegendo modelo assertivo com **settle_wr** ≥ be+0.03 ou acc ≥ 0.53; deploy reformulado priorizando Edge real vs Breakeven.
 - Runtime: `online_training` **false** — DEMO usa checkpoint TCN do `launch-train` (sem retreino deferido no settle); loss-clf e meta `/learn` a cada trade (rebuild containers ml apos mudar env)
-- Runtime: `orchestrator.execution.invert_exec_side` **false**. Payout base mercado real: **0.85** (85%). Sizing Kelly: projetado para atingir **4,31% da banca em tacada única M15** (`compounding_rate_daily = 0.0431`, `stop_win_kelly_cycles_target = 1`, `stop_win_kelly_min_fraction = 1.0`, `stop_win_kelly_max_fraction = 1.0`, `max_stake_pct = 0.05`). Ao bater a meta de 4,31% (equivalente a 3% ao dia em 21 dias úteis compostos), encerra a sessão imediatamente com STOP_WIN. Soft Kelly em fusão EV fraca, anti-loss com microestrutura balanceada em barras de 15m.
+- Runtime: `orchestrator.execution.invert_exec_side` **false**. Payout base mercado real: **0.85** (85%). Sizing Kelly: projetado para atingir **4,31% da banca em tacada única M5** (`compounding_rate_daily = 0.0431`, `stop_win_kelly_cycles_target = 1`, `stop_win_kelly_min_fraction = 1.0`, `stop_win_kelly_max_fraction = 1.0`, `max_stake_pct = 0.05`). Ao bater a meta de 4,31% (equivalente a 3% ao dia em 21 dias úteis compostos), encerra a sessão imediatamente com STOP_WIN. Soft Kelly em fusão EV fraca, anti-loss com microestrutura balanceada em barras de 5m.
 
 ## O que o LLM e / nao e
 
@@ -37,7 +37,7 @@ Rules/skills versionadas: [`.cursor/rules/`](.cursor/rules/) e [`.cursor/skills/
 - Cobertura de testes em `app/src` abaixo de **100%**
 - Assunto de commit em ingles; escopo fora do enum commitlint
 
-Nota operacional (**Volatility 75 (1s) M15** + arquitetura continua): micro/mini em 900s; pipeline: SCALE → **fusao EV** → **loss-clf FLIP** → **anti-loss com microestrutura M15** (EMA slope 9/21 em 15m; RSI momentum: CALL vetado se $RSI < 0.38$, PUT vetado se $RSI > 0.62$; confirmação de janela `ops_window_bars = 3`; `anti_loss_allow_candle_flip: false`) → **neg_edge** com trava de pânico Z-score bilateral ($Z < -2.0$ para CALL / $Z > +2.0$ para PUT gerando `SKIP:NEG_EDGE_ZSCORE_PANIC`). Sizing: tacada única para 4,31% da banca $\text{Stake} = \frac{\text{Meta}}{\text{Payout}} = \frac{0.0431 \times \text{Banca}}{0.85} \approx 5,07\% \to \text{cap } 5,0\%$. Soft recovery equilibrado: amortização em 2 a 3 ciclos (`amort_cycles_min: 2`, `amort_cycles_max: 3`, `cover_multiple: 1.10`, `max_safe_stake_pct: 0.035`). Sem revenge sizing pós-loss.
+Nota operacional (**Volatility 75 (1s) M5** + arquitetura continua): micro/mini em 300s; pipeline: SCALE → **fusao EV** → **loss-clf FLIP** → **anti-loss com microestrutura M5** (EMA slope 9/21 em 5m; RSI momentum: CALL vetado se $RSI < 0.38$, PUT vetado se $RSI > 0.62$; confirmação de janela `ops_window_bars = 3`; `anti_loss_allow_candle_flip: false`) → **neg_edge** com trava de pânico Z-score bilateral ($Z < -2.0$ para CALL / $Z > +2.0$ para PUT gerando `SKIP:NEG_EDGE_ZSCORE_PANIC`). Sizing: tacada única para 4,31% da banca $\text{Stake} = \frac{\text{Meta}}{\text{Payout}} = \frac{0.0431 \times \text{Banca}}{0.85} \approx 5,07\% \to \text{cap } 5,0\%$. Soft recovery equilibrado: amortização em 2 a 3 ciclos (`amort_cycles_min: 2`, `amort_cycles_max: 3`, `cover_multiple: 1.10`, `max_safe_stake_pct: 0.035`). Sem revenge sizing pós-loss.
 
 ## Escopos commitlint
 
@@ -73,7 +73,7 @@ Formato: `tipo(escopo): assunto em PT-BR` + corpo obrigatorio.
 | Scaffold / contrato de engenharia | `prompt-model.md` + skill `aether-surface-sync` |
 | Volatility 75 (1s) Index / Sinteticos | `docs/deriv-indices-algorithm.md` + rule `aether-v75-market.mdc` + skill `aether-v75-market-analyst` |
 | Sizing Single-Strike 1% / Payout 0.85 | `docs/medallion.md` + rule `aether-risk-sizing.mdc` + skill `aether-single-strike-risk` |
-| Verificador de Sinais & Microestrutura M15 | `docs/binary-senior-playbook.md` + rule `aether-execution-gates.mdc` + skill `aether-m15-signal-verifier` |
+| Verificador de Sinais & Microestrutura M5 | `docs/binary-senior-playbook.md` + rule `aether-execution-gates.mdc` + skill `aether-m5-signal-verifier` |
 
 Inventario de modulos: [`docs/structure.md`](docs/structure.md)  
 Arquitetura runtime: [`docs/arquitetura.md`](docs/arquitetura.md)

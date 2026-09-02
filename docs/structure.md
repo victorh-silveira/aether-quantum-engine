@@ -487,7 +487,7 @@ flowchart TD
   COL --> RANK[execution_market_rank]
   RANK --> SYM[execution_symbols]
   SYM --> EM[ExecutionManager fractional lots]
-  EM --> TH[TradeHandler RISE_FALL 15m]
+  EM --> TH[TradeHandler RISE_FALL 5m]
   TH --> ENQ[enqueue_contract_settlement]
   ENQ --> WQ[asyncio.Queue worker]
   WQ --> ST[settlement_logic]

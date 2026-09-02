@@ -7,12 +7,12 @@ alwaysApply: true
 # Orchestrator
 
 - **Símbolo Único**: `1HZ75V` (Volatility 75 (1s) Index Deriv).
-- **Timeframes**: Micro/MINI em **900 s** (15m, 500 barras); Macro em **86400 s** (D1 com 365 barras de histórico). Lookback TCN: **30**.
-- **Contrato**: Duração fixa de **15 minutos** (`duration=15`, `duration_unit="m"`); Label TCN **SSOT atual N=1 vela M15**.
+- **Timeframes**: Micro/MINI em **300 s** (5m, 500 barras); Macro em **86400 s** (D1 com 365 barras de histórico). Lookback TCN: **30**.
+- **Contrato**: Duração fixa de **5 minutos** (`duration=5`, `duration_unit="m"`); Label TCN **SSOT atual N=1 vela M5**.
 - Pipeline: warmup → train gate → collect → resolve → execute → settle → post_settlement
 - Lock serializa inferencia, liquidacao e persistencia — nao bypassar
 - `mandatory_trade_each_cycle` **false**; `force_trade_every_cycle` **false**; `invert_exec_side` **false**; `online_training` **false**
-- EXEC_EMPTY pode ser processo correto; stop-win **1.0%** (Kelly Single-Strike) → `EXEC_PAUSE` (nao forcar trade)
+- EXEC_EMPTY pode ser processo correto; stop-win **4.31%** (Kelly Single-Strike) → `EXEC_PAUSE` (nao forcar trade)
 - Watchdog: `watchdog_stale_tick_seconds` **300**; respeitar stale/cooldown
 - Pos-settlement wait **90 s**; tolerancia settle **600 s**; timeout ciclo pos-settle **1200 s**
 - Doc: `docs/engineering-orchestrator.md`; skill: `aether-cycle-debug`

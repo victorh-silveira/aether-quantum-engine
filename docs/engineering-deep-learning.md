@@ -10,9 +10,9 @@ Guia operacional DL para agentes. Detalhe de features: [`arquitetura.md`](arquit
 | Arch | TCN |
 | Lookback | **30** → tensor `[1, 30, 34]` |
 | MACRO OHLC | **86400 s** (D1, 365 velas de treino, `data_handler.granularity`) |
-| MICRO OHLC | **900 s** (M15, 500 velas, `data_handler.micro_granularity`) |
-| Contrato | **15 m** RISE_FALL (ops fixo M15); label TCN **N=1** vela M15 (`supertrend_atr`) |
-| MINI OHLC | **900 s** (`mini_granularity`) |
+| MICRO OHLC | **300 s** (M5, 500 velas, `data_handler.micro_granularity`) |
+| Contrato | **5 m** RISE_FALL (ops fixo M5); label TCN **N=1** vela M5 (`triple_barrier`) |
+| MINI OHLC | **300 s** (`mini_granularity`) |
 | Bootstrap wait | `bootstrap_history_wait_cap_seconds` **30** (nao dorme a granularidade inteira entre retries) |
 | MILI | Tick flow (nao OHLC) |
 | Features | **34D** (`FEATURE_DIM`) |

@@ -7,8 +7,8 @@ alwaysApply: true
 # Deep Learning
 
 - FEATURE_DIM **34**; lookback/granularity/`label_horizon_bars` do checkpoint devem bater com settings
-- Label SSOT `supertrend_atr` (ou `ma_trend`); horizonte **N=1 vela M15**; contrato ops **15 m**; treino em dados diários (**D1 / 86.400 s**, 120 barras)
-- Sweep `horizon_sweep`: grade M15 com $N \in [1, 2, 3, 4]$ barras; `quiet_train_logs` → overlay celula **CRITICAL** + linha cell com `why=` se deploy=0; pos-sweep denso (board/winner/promote/Timescale/meta)
+- Label SSOT `triple_barrier` (ou `supertrend_atr`); horizonte **N=1 vela M5**; contrato ops **5 m**; treino em dados diários (**D1 / 86.400 s**, 365 barras)
+- Sweep `horizon_sweep`: grade M5 com $N \in [1, 2, 3, 4]$ barras; `quiet_train_logs` → overlay celula **CRITICAL** + linha cell com `why=` se deploy=0; pos-sweep denso (board/winner/promote/Timescale/meta)
 - `train.py` vs `run.py`; meta offline em `scripts/operations/train_meta_*`
 - Inferencia TCN = eager/CUDA local; meta HTTP opcional — nao assumir fail-closed sem settings
 - ACC / val_accuracy gate importa; nao ignorar deploy_gate; gate pos-promote tambem aceita settle elegivel

@@ -7,8 +7,8 @@ alwaysApply: true
 # Volatility 75 (1s) Index Rules (`1HZ75V`)
 
 - **Ativo Central**: `1HZ75V` (Volatility 75 (1s) Index / Deriv).
-- **Timeframes**: Operacional em **M15** (`900 s`, 500 barras); Treinamento em diário **D1** (`86400 s`, 365 barras de histórico). Lookback: **30**.
-- **Duração do Contrato**: **15 minutos** fixos (`params.duration = 15`, `params.duration_unit = "m"`).
+- **Timeframes**: Operacional em **M5** (`300 s`, 500 barras); Treinamento em diário **D1** (`86400 s`, 365 barras de histórico). Lookback: **30**.
+- **Duração do Contrato**: **5 minutos** fixos (`params.duration = 5`, `params.duration_unit = "m"`).
 
 ## Particularidades do Índice de Volatilidade 75 (1s)
 
@@ -17,7 +17,7 @@ alwaysApply: true
    - Geração determinística de volatilidade com tick constante de 1 segundo.
 2. **Volatilidade e Momentum**:
    - O ativo simula volatilidade constante com alta velocidade de reversão e tendência fractal.
-   - O indicador `supertrend_atr` e as médias móveis `EMA9/21` em 15m capturam a tendência genuína de fluxo.
+   - O indicador `supertrend_atr` e as médias móveis `EMA9/21` em 5m capturam a tendência genuína de fluxo.
 3. **Payout e Breakeven**:
    - Payout médio da Deriv no `1HZ75V`: **85%** (`0.85`) a **95%**.
    - Breakeven estatístico: $p_{\text{be}} = \frac{1}{1 + 0.85} \approx 0.54054 \implies 54.1\%$.
