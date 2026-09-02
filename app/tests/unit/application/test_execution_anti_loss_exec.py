@@ -40,7 +40,7 @@ def test_anti_loss_replay_c6_confirm_weak_body():
         "loss_clf_p_loss": 0.86117,
         "loss_clf_auto_learn": False,
         "ops_window_candle_dir": "CALL",
-        "ops_window_candle_body": 0.035,
+        "ops_window_candle_body": 0.15,
         "ops_window_stamped": True,
         "kelly_fraction_scale": 1.0,
     }

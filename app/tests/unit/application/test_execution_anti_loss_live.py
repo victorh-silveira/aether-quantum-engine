@@ -68,7 +68,7 @@ def test_anti_loss_live_no_candle_hard_skip():
 
 def test_anti_loss_live_pos_edge_not_required_for_discord():
     metrics = _live_metrics(
-        closed_micro_candle_body=0.035,
+        closed_micro_candle_body=0.15,
         closed_micro_candle_stamped=True,
         exec_direction="CALL",
         fusion_blocked_tcn_pos_edge=False,
@@ -114,13 +114,13 @@ def test_anti_loss_live_recover_pend_hard_skip():
 
 
 def test_anti_loss_live_discord_moderate_hard_skip():
-    metrics = _live_metrics(closed_micro_candle_body=0.035, closed_micro_candle_stamped=True)
+    metrics = _live_metrics(closed_micro_candle_body=0.15, closed_micro_candle_stamped=True)
     cfg = parse_signal_skip_config({"anti_loss_live_confirm_enabled": True, "anti_loss_hard_skip": True})
     assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is True and metrics["anti_loss_why"] == "live_confirm_weak"
 
 
 def test_anti_loss_live_discord_upper_band_hard_skip():
-    metrics = _live_metrics(closed_micro_candle_body=0.045, closed_micro_candle_stamped=True)
+    metrics = _live_metrics(closed_micro_candle_body=0.18, closed_micro_candle_stamped=True)
     cfg = parse_signal_skip_config({"anti_loss_live_confirm_enabled": True, "anti_loss_hard_skip": True})
     assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is True and metrics["anti_loss_why"] == "live_confirm_weak"
 
@@ -134,7 +134,7 @@ def test_anti_loss_live_discord_c1_body_hard_skip():
 def test_anti_loss_live_confirm_c2_hard_skip():
     metrics = _live_metrics(
         closed_micro_candle_dir="PUT",
-        closed_micro_candle_body=0.035,
+        closed_micro_candle_body=0.15,
         closed_micro_candle_stamped=True,
         exec_direction="PUT",
     )
@@ -146,7 +146,7 @@ def test_anti_loss_live_confirm_c2_hard_skip():
 def test_anti_loss_live_confirm_c5_hard_skip():
     metrics = _live_metrics(
         closed_micro_candle_dir="PUT",
-        closed_micro_candle_body=0.045,
+        closed_micro_candle_body=0.15,
         closed_micro_candle_stamped=True,
         exec_direction="PUT",
     )
@@ -169,7 +169,7 @@ def test_anti_loss_live_confirm_c3_noop():
 def test_anti_loss_live_confirm_below_075_hard_skip():
     metrics = _live_metrics(
         closed_micro_candle_dir="PUT",
-        closed_micro_candle_body=0.040,
+        closed_micro_candle_body=0.15,
         closed_micro_candle_stamped=True,
         exec_direction="PUT",
     )
@@ -213,7 +213,7 @@ def test_anti_loss_live_exec_candle_disabled_noop():
 def test_anti_loss_live_c70_fusion_ev_call_discord_skip():
     metrics = _live_metrics(
         closed_micro_candle_dir="CALL",
-        closed_micro_candle_body=0.045,
+        closed_micro_candle_body=0.15,
         closed_micro_candle_stamped=True,
         exec_direction="CALL",
         fusion_blocked_tcn_pos_edge=False,
@@ -227,7 +227,7 @@ def test_anti_loss_live_c70_fusion_ev_call_discord_skip():
 def test_anti_loss_live_invalid_exec_falls_through_confirm():
     metrics = _live_metrics(
         closed_micro_candle_dir="PUT",
-        closed_micro_candle_body=0.040,
+        closed_micro_candle_body=0.15,
         closed_micro_candle_stamped=True,
         exec_direction="SIDE",
     )
@@ -251,7 +251,7 @@ def test_anti_loss_seed_stamped_c2_confirm_weak():
     metrics = _live_metrics(
         loss_clf_auto_learn=False,
         closed_micro_candle_dir="PUT",
-        closed_micro_candle_body=0.035,
+        closed_micro_candle_body=0.15,
         closed_micro_candle_stamped=True,
         exec_direction="PUT",
         loss_clf_p_loss=0.87672,

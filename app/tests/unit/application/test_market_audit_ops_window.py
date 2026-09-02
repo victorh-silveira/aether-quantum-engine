@@ -133,7 +133,7 @@ def test_anti_loss_live_follows_window_not_last_m1():
         "closed_micro_candle_body": 0.617,
         "closed_micro_candle_stamped": True,
         "ops_window_candle_dir": "CALL",
-        "ops_window_candle_body": 0.035,
+        "ops_window_candle_body": 0.15,
         "ops_window_stamped": True,
         "fusion_blocked_tcn_pos_edge": True,
         "kelly_fraction_scale": 1.0,
