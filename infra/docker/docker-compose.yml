@@ -18,8 +18,14 @@ services:
       - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
     mem_limit: 256m
     cpus: 0.50
+    cap_drop:
+      - ALL
     security_opt:
       - no-new-privileges:true
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
     logging: *aether-logging
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -59,6 +65,10 @@ services:
     cpus: 1.0
     security_opt:
       - no-new-privileges:true
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
     logging: *aether-logging
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${AETHER_PG_USER:-aether} -d ${AETHER_PG_DB:-aether}"]
@@ -85,8 +95,14 @@ services:
       - aether_minio_data:/data
     mem_limit: 512m
     cpus: 0.50
+    cap_drop:
+      - ALL
     security_opt:
       - no-new-privileges:true
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
     logging: *aether-logging
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
@@ -104,6 +120,9 @@ services:
     container_name: aether-meta-classifier
     profiles: [ml]
     restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=64M,mode=1777
     ports:
       - "127.0.0.1:8005:8000"
     volumes:
@@ -113,8 +132,18 @@ services:
       META_MAX_BUFFER: "2000"
     mem_limit: 512m
     cpus: 0.75
+    cap_drop:
+      - ALL
     security_opt:
       - no-new-privileges:true
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+      nproc:
+        soft: 4096
+        hard: 4096
+    stop_grace_period: 10s
     logging: *aether-logging
     healthcheck:
       test:
@@ -138,6 +167,9 @@ services:
     container_name: aether-loss-classifier
     profiles: [ml]
     restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=64M,mode=1777
     ports:
       - "127.0.0.1:8006:8000"
     volumes:
@@ -153,8 +185,18 @@ services:
       LOSS_VETO_P_LOSS_FLOOR: "0.65"
     mem_limit: 512m
     cpus: 0.75
+    cap_drop:
+      - ALL
     security_opt:
       - no-new-privileges:true
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+      nproc:
+        soft: 4096
+        hard: 4096
+    stop_grace_period: 10s
     logging: *aether-logging
     healthcheck:
       test:

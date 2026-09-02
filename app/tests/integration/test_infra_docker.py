@@ -27,6 +27,11 @@ def test_compose_base_has_hardening_and_localhost_binds():
     assert "127.0.0.1:8006:8000" in text
     assert "mem_limit: 256m" in text
     assert "no-new-privileges:true" in text
+    assert "cap_drop:" in text
+    assert "- ALL" in text
+    assert "read_only: true" in text
+    assert "tmpfs:" in text
+    assert "nofile:" in text
     assert "gpus:" not in text
     assert "aether-triton" not in text
     assert "profiles: [core]" in text
@@ -45,6 +50,8 @@ def test_meta_dockerfile_non_root_and_healthcheck():
     text = repo_path("infra", "docker", "meta-classifier", "Dockerfile").read_text(encoding="utf-8")
     assert "USER aether" in text
     assert "HEALTHCHECK" in text
+    assert "tini" in text
+    assert 'ENTRYPOINT ["/usr/bin/tini", "--"]' in text
     assert repo_path("infra", "docker", "meta-classifier", ".dockerignore").is_file()
 
 
