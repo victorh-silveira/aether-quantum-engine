@@ -24,7 +24,7 @@ fi
 bashrc="${HOME}/.bashrc"
 if grep -q 'profile.d/conda.sh' "$bashrc" 2>/dev/null; then
   sed -i '/profile\.d\/conda\.sh/,+2d' "$bashrc"
-  echo "Removido bloco conda.sh invalido do Windows em ~/.bashrc"
+  echo "Removido bloco conda.sh invalido do Windows em ${HOME}/.bashrc"
 fi
 
 conda_exe=""
@@ -61,13 +61,13 @@ if ! grep -q "AETHER_QUANTUM_ENGINE_WSL=1" "$bashrc" 2>/dev/null; then
     echo "export AETHER_CONDA_ENV=\"${CONDA_ENV}\""
     echo "export AETHER_QUANTUM_ENGINE_WSL=1"
   } >> "$bashrc"
-  echo "Bloco WSL do projeto adicionado em ~/.bashrc"
+  echo "Bloco WSL do projeto adicionado em ${HOME}/.bashrc"
 else
   appended=0
   if [ -n "$conda_exe" ] && ! grep -q "alias conda=" "$bashrc" 2>/dev/null; then
     echo "alias conda='${conda_exe}'" >> "$bashrc"
     appended=1
-    echo "Alias conda adicionado em ~/.bashrc"
+    echo "Alias conda adicionado em ${HOME}/.bashrc"
   fi
   if [ -n "$env_python" ] && ! grep -q "AETHER_PYTHON=" "$bashrc" 2>/dev/null; then
     {
@@ -75,10 +75,10 @@ else
       echo "aether-py() { \"\${AETHER_PYTHON}\" \"\$@\"; }"
     } >> "$bashrc"
     appended=1
-    echo "Helper aether-py adicionado em ~/.bashrc"
+    echo "Helper aether-py adicionado em ${HOME}/.bashrc"
   fi
   if [ "$appended" -eq 0 ]; then
-    echo "~/.bashrc ja contem configuracao WSL do projeto"
+    echo "${HOME}/.bashrc ja contem configuracao WSL do projeto"
   fi
 fi
 
@@ -101,7 +101,7 @@ if [ -n "$conda_exe" ]; then
 fi
 echo ""
 echo "Proximos passos:"
-echo "  source ~/.bashrc"
+echo "  source ${HOME}/.bashrc"
 echo "  cd ${ROOT} && make install"
 echo "  make test"
 echo ""
