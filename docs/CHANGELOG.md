@@ -1,3 +1,12 @@
+## [2.50.7](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.50.6...v2.50.7) (2026-09-03)
+
+### Correcoes de Bug
+
+* **infra:** corrige falhas do CI Hadolint shellcheck e actionlint ([c839b34](https://github.com/victorh-silveira/aether-quantum-engine/commit/c839b34aa629754ecb7bec5d1d406d75d4808400))
+* **infra:** corrige SC2088 do setup WSL no shellcheck ([182e444](https://github.com/victorh-silveira/aether-quantum-engine/commit/182e444b8409840017acc384bf94ac7347d90fac))
+* **infra:** endurece shellcheck e teste de actionlint no CI ([b3e9c2b](https://github.com/victorh-silveira/aether-quantum-engine/commit/b3e9c2bf0c3ba2071ff0360bda4d417a5b88677c))
+* **infra:** pina conventional-changelog no semantic-release ([505c9dc](https://github.com/victorh-silveira/aether-quantum-engine/commit/505c9dc5771a8cf83fb380a84a0de596e292dfe4))
+
 ## [2.50.6](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.50.5...v2.50.6) (2026-09-03)
 
 ### Correcoes de Bug
