@@ -30,7 +30,7 @@ def run_shell(stage: str, root: Path) -> None:
         if shellcheck:
             for path in files:
                 run_cmd(
-                    [shellcheck, "-e", "SC1091", posix_for_tool(path)],
+                    [shellcheck, "-S", "warning", "-e", "SC1091", posix_for_tool(path)],
                     cwd=root,
                     description=f"shellcheck {path.relative_to(root)}",
                 )

@@ -143,11 +143,15 @@ def test_json_invalid_file(tmp_path: Path):
         run_json("lint", tmp_path)
 
 
-def test_yaml_github_workflow(tmp_path: Path):
+def test_yaml_github_workflow(tmp_path: Path, monkeypatch):
     workflow = tmp_path / ".github" / "workflows"
     workflow.mkdir(parents=True)
-    (workflow / "ci.yml").write_text("name: ci\non: push\njobs: {}\n", encoding="utf-8")
+    (workflow / "ci.yml").write_text(
+        "name: ci\non: push\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo ok\n",
+        encoding="utf-8",
+    )
     run_yaml("lint", tmp_path)
+    monkeypatch.setattr("scripts.operations.qa.yaml_area.require_tool", lambda name, area: None)
     run_yaml("validate", tmp_path)
 
 
@@ -217,6 +221,7 @@ def test_shell_with_script(tmp_path: Path, monkeypatch):
     )
     run_shell("lint", tmp_path)
     assert calls[0][0] == "/usr/bin/shellcheck"
+    assert "-S" in calls[0] and "warning" in calls[0]
     assert "-e" in calls[0] and "SC1091" in calls[0]
     calls.clear()
     monkeypatch.setattr("scripts.operations.qa.shell.which", lambda name: None)
