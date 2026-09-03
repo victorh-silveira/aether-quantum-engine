@@ -12,12 +12,12 @@ description: >-
 ## Passos
 
 1. Ler o trecho FAIL do hook (lint / test / security / commitlint)
-2. Lint: Ruff format/fix; Interrogate docstrings publicas; Vulture dead code; split se >300 linhas
-3. Test: rodar o teste falho; adicionar cobertura dos misses reportados
-4. Security: corrigir Bandit real; Gitleaks no stage `security` via `clean_workspace` (mesmo gate do CI; binario no PATH); nao `# nosec` sem justificativa forte
+2. Lint: Ruff format/fix; Interrogate docstrings publicas; Vulture dead code; split se >300 linhas; bloquear artefatos grandes (`.pt`/`.parquet`)
+3. Test: rodar o teste falho; adicionar cobertura dos misses reportados (linhas e branches; domain sem I/O)
+4. Security: corrigir Bandit real; Gitleaks no stage `security` via `clean_workspace` (mesmo gate do CI; binario no PATH); nao `# nosec` sem justificativa forte; pip-audit CVE HIGH/CRITICAL
 5. Commitlint: tipo+escopo validos; assunto PT-BR; corpo nao vazio
 6. Reexecutar `pre-commit run --all-files` no **WSL**
 
 ## Docs
 
-`docs/engineering-standards.md`, `AGENTS.md`
+`docs/engineering-standards.md`, `docs/engineering-architecture-senior.md`, `AGENTS.md`

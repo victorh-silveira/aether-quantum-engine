@@ -6,13 +6,15 @@ Ponto de entrada para agentes Cursor/LLM neste repositorio.
 
 - Respostas e commits em **PT-BR**
 - Terminal/scripts: **WSL Linux** (nunca CMD/PowerShell nativo)
+- Runtime: motor **Python 3.13** + **asyncio** no **host** (Conda); sidecars Docker `core,ml`
+- Arquitetura: **DDD / hexagonal** — [`docs/engineering-architecture-senior.md`](docs/engineering-architecture-senior.md) + skill `aether-architecture-senior`
 - Sem emojis em codigo, logs ou docs tecnicos
 - Sem comentarios no codigo (docstrings OK)
 
 ## Universo operacional
 
 - Universo operacional: **1HZ75V** (Volatility 75 (1s) Index / Deriv)
-- Relogio: micro/MINI **300 s** (M5); macro **86400 s** (D1, 365 velas diarias); ciclo/cadência **120 s** (2m); TCN estima deslocamento em **N=1 vela M5** com lookback **30** alinhado ao contrato ops **fixo 5 m (M5)** (`label_horizon_bars=1`, `risk_management.params.duration=5`, `duration_unit="m"`). Rotulagem: **triple_barrier** (Triple Barrier Method: Upper/Lower Log-Vol Barriers + Vertical Expiry Barrier).
+- Relogio: micro/MINI **300 s** (M5); macro **86400 s** (D1, 365 velas diarias); ciclo/cadência **120 s** (2m); TCN estima deslocamento em **N=1 vela M5** com lookback **30** alinhado ao contrato ops **fixo 5 m (M5)** (`label_horizon_bars=1`, `risk_management.params.duration=5`, `duration_unit="m"`). Rotulagem: **quantum_multi_barrier** (barreiras assimetricas + expiry; alternativa `triple_barrier`).
 - SSOT: `config/settings.json` + `app/src/domain/symbols/drift_symbols.py`
 - Artefactos/treino com granularity/lookback/horizon ≠ settings sao invalidos (gate fail-closed); apos mudar TF/horizonte, retreinar TCN+meta e `make docker-rebuild`
 - Treino DL em velas diarias (D1 com 365 barras de historico), elegendo modelo assertivo com **settle_wr** ≥ be+0.03 ou acc ≥ 0.53; deploy reformulado priorizando Edge real vs Breakeven.
@@ -54,6 +56,7 @@ Formato: `tipo(escopo): assunto em PT-BR` + corpo obrigatorio.
 | Tarefa | Abrir primeiro |
 |--------|----------------|
 | Qualquer mudanca | este arquivo + `docs/agent-coverage.md` |
+| Arquitetura DDD / host / event loop / sidecars | `docs/engineering-architecture-senior.md` + skill `aether-architecture-senior` |
 | CALL/PUT/SKIP senior | `docs/binary-senior-playbook.md` + skill `aether-binary-senior` |
 | Loss-classifier / Docker ml | `docs/infra-docker.md` + skill `aether-infra-stack` |
 | Risco / logs de sessao | doutrina + skill `aether-session-review` |
@@ -72,8 +75,9 @@ Formato: `tipo(escopo): assunto em PT-BR` + corpo obrigatorio.
 | Fechamento de mudanca (sync superficie) | `docs/engineering-surface-sync.md` + skill `aether-surface-sync` |
 | Scaffold / contrato de engenharia | `prompt-model.md` + skill `aether-surface-sync` |
 | Volatility 75 (1s) Index / Sinteticos | `docs/deriv-indices-algorithm.md` + rule `aether-v75-market.mdc` + skill `aether-v75-market-analyst` |
-| Sizing Single-Strike 1% / Payout 0.85 | `docs/medallion.md` + rule `aether-risk-sizing.mdc` + skill `aether-single-strike-risk` |
-| Verificador de Sinais & Microestrutura M5 | `docs/binary-senior-playbook.md` + rule `aether-execution-gates.mdc` + skill `aether-m5-signal-verifier` |
+| Sizing Single-Strike 4.31% / Payout 0.85 | `docs/medallion.md` + rule `aether-risk-sizing.mdc` + skill `aether-session-review` |
+| Verificador de Sinais & Microestrutura M5 | `docs/binary-senior-playbook.md` + rule `aether-execution-gates.mdc` + skill `aether-binary-senior` |
 
 Inventario de modulos: [`docs/structure.md`](docs/structure.md)  
-Arquitetura runtime: [`docs/arquitetura.md`](docs/arquitetura.md)
+Arquitetura runtime: [`docs/arquitetura.md`](docs/arquitetura.md)  
+Arquitetura senior (host/DDD/ML/infra/QA): [`docs/engineering-architecture-senior.md`](docs/engineering-architecture-senior.md)

@@ -6,8 +6,9 @@ alwaysApply: true
 
 # Deriv API
 
-- Auth hibrida PAT+OTP; trading via WSS
-- Retries Cloudflare/5xx; nao hardcodar tokens em docs/commits
+- Auth hibrida PAT+OTP; trading via WSS (`websockets`); REST via `httpx` com retries Cloudflare/5xx
+- Heartbeat WS + reconexao com backoff/jitter e re-subscribe atomico; backpressure: preferir latest price
+- Nao hardcodar tokens em docs/commits (env/secret store)
 - Stream dual-timeframe micro+macro; tick buffer por barra fechada
-- Guia agentes: `docs/deriv-api-aether.md`; referencia: `docs/deriv-api.md`
+- Guia agentes: `docs/deriv-api-aether.md`; referencia: `docs/deriv-api.md`; arquitetura: `docs/engineering-architecture-senior.md`
 - Skill: `aether-deriv-connect`

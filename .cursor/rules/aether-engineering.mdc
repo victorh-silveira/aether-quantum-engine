@@ -5,10 +5,12 @@ alwaysApply: true
 
 # Engenharia
 
-- Terminal: **WSL** apenas
-- `app/src/**/*.py` ≤ **300** linhas; cobrir 100% com testes
+- Terminal: **WSL** apenas; motor no **host** Python **3.13** (asyncio); Docker so sidecars `core,ml`
+- Arquitetura: DDD/hexagonal — `docs/engineering-architecture-senior.md` + skill `aether-architecture-senior`
+- Event loop: nao bloquear com CUDA/Polars/NumPy pesado no hot path (offload)
+- `app/src/**/*.py` ≤ **300** linhas; cobrir 100% com testes (linhas e branches)
 - Sem comentarios no codigo; docstrings OK; sem emojis
-- Pre-commit: lint + test + security + cleanup; commit-msg commitlint
+- Pre-commit: Ruff + test + Bandit/pip-audit + cleanup; commit-msg commitlint; bloquear artefatos grandes (`.pt`/`.parquet`)
 - Commit: `tipo(escopo): assunto PT-BR` + corpo; escopos em `linters/commitlint.config.mjs`
 - SSOT de agentes: `AGENTS.md` + `docs/agent-coverage.md`
 - Deps Python: `docs/engineering-python-deps.md` + rule `aether-python-deps` (anti-redundancia)

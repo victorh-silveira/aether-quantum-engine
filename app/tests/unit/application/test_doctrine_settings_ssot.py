@@ -43,7 +43,7 @@ def test_production_deploy_gate_armed():
     assert float(dl.get("learning_rate", 0.0)) == pytest.approx(0.001)
     assert int(dl.get("train_deploy_retries", 0)) >= 1
     assert int(dl.get("sample_weighting", {}).get("recency_half_life_n", 0)) == 500
-    assert str(dl.get("label_mode")) in ("quantum_multi_barrier", "triple_barrier")
+    assert str(dl.get("label_mode")) == "quantum_multi_barrier"
     assert int(dl.get("lookback", 0)) == 30
     assert int(dl.get("label_horizon_bars", 0)) == 1
     assert int(settings["risk_management"]["params"]["duration"]) == 5

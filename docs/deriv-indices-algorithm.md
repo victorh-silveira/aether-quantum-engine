@@ -26,7 +26,7 @@ SSOT: `config/settings.json` + `app/src/domain/symbols/drift_symbols.py`.
 
 ## 2. Pipeline
 
-- TCN em barras M1; Cal/Margin; SCALE adapta sem hard SKIP.
+- TCN em barras M5 (300 s); Cal/Margin; SCALE adapta sem hard SKIP.
 - Soft Kelly: `signal_skip` / loss-clf (sem flip de lado pos-LOSS).
 - EXPLORE Kelly / RECOVER cover `pending/payout` (`amort` 2/3, `cover_multiple` **1.10**).
 
@@ -35,8 +35,8 @@ SSOT: `config/settings.json` + `app/src/domain/symbols/drift_symbols.py`.
 ## 3. Migracao
 
 1. Invalidar checkpoints de gran **180** (legado M3) e contratos **3/6/9/15 m** da grade antiga `{1,2,3,5}`.
-2. Re-hidratar Timescale **60/7200**; retreinar TCN/meta/loss-clf (`launch-train` + `make docker-rebuild`).
-3. Confirmar `contracts_for` autenticado: Rise/Fall **15…60 m** (passo 5) disponivel na grade N.
+2. Re-hidratar Timescale **300/86400**; retreinar TCN/meta/loss-clf (`launch-train` + `make docker-rebuild`).
+3. Confirmar `contracts_for` autenticado: Rise/Fall **5/10/15/20 m** (grade sweep N=1..4) disponivel na grade N.
 
 ---
 

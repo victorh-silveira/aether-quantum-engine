@@ -10,10 +10,10 @@ description: >-
 
 ## Passos
 
-1. Credenciais PAT — nao logar segredo; ver `docs/deriv-api-aether.md`
-2. Handshake WSS host/IP; retries Cloudflare/5xx
-3. AUTH saldo/conta; trading via WSS
-4. Stream micro+macro; tick buffer
+1. Credenciais PAT — nao logar segredo; ver `docs/deriv-api-aether.md` (env/secret store)
+2. Handshake WSS host/IP; retries Cloudflare/5xx; heartbeat + reconexao com backoff/jitter
+3. AUTH saldo/conta; trading via WSS; REST via httpx idempotente
+4. Stream micro+macro; tick buffer; backpressure: preferir latest price
 5. Reconnect: backoff settings; nao reduzir open_timeout sem evidencia
 
-Nunca commitar tokens. Referencia longa: `docs/deriv-api.md`
+Nunca commitar tokens. Referencia longa: `docs/deriv-api.md`. Arquitetura: `docs/engineering-architecture-senior.md`

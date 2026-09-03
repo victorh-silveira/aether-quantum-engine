@@ -8,7 +8,7 @@ Rule: `aether-python-deps.mdc`. Skill: `aether-python-deps`.
 
 1. Declarar todo pacote com `import` / `from` em codigo first-party no requirements do ambiente correspondente.
 2. Nao pinar ferramenta so-transitiva ja coberta pelo wrapper (ex.: `coverage` sob `pytest-cov`).
-3. Uma lib por papel; **DataFrame = somente Polars** (`pandas` proibido).
+3. Uma lib por papel; **DataFrame = somente Polars** (`pandas` proibido). Preferir LazyFrame; `POLARS_MAX_THREADS` consciente do event loop (ver [`engineering-architecture-senior.md`](engineering-architecture-senior.md)).
 4. Apos mudar `numpy` / `torch` / `scikit-learn`: smoke import + `pip check` no WSL antes do commit.
 
 ## DataFrame SSOT (Polars-only)

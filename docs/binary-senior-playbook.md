@@ -13,8 +13,8 @@ Hierarquia: TCN Cal/Margin → SCALE dirs → soft `signal_skip` → **fusao EV*
 | CALL | TCN CALL, fusao EV_CALL >= EV_PUT, Preço > EMA9 > EMA21 com EMA21 slope >= 0, RSI_M5 >= 0.35, candle M5 fechado CALL |
 | PUT | TCN PUT, fusao EV_PUT > EV_CALL, Preço < EMA9 < EMA21 com EMA21 slope <= 0, RSI_M5 <= 0.65, candle M5 fechado PUT |
 | SKIP tecnico | `training` / `data` / `deploy` / `predict_error`, warm-up, stop-win, broker; `neg_edge` hard se Edge Cal TCN `<= 0` (`fusion_p_eff` nao libera); `neg_edge_zscore_panic` se CALL com $Z < -2.0$ ou PUT com $Z > +2.0$; `anti_loss_ema_slope` se EMA21 slope M5 for contrária; `anti_loss_rsi_momentum` se RSI M5 fora de faixa; `live_exec_discord` se vela M5 fechar contrária; `anti_loss_seed_discord` sob seed unstamped+`p_loss` alto+pos_edge |
-| Soft sinal 1.1 | `mini_pair_oppose` / `cal_margin` / loss-clf; chop soft; `neg_edge` soft so se `0 < Cal TCN < min_edge_execute`; Kelly usa `fusion_p_eff` so apos Cal TCN passar neg_edge; EV fraco → soft Kelly **0.40** (seed+ambos EV&lt;0 → **0.25**); `invert_exec_side` **false** |
-| Fusao multi-escala | `fusion_enabled`: p_eff (Cal + MACRO/janela ops/MINI/MILI/tape + loss continuo + meta **0.10**); `fusion_loss_weight` **0.45** so com `auto=1` — **nao** incorpora o FLIP do mesmo ciclo; `fusion_block_when_tcn_pos_edge` **true** preserva TCN so se Cal **e** raw +EV; `fusion_block_when_tcn_candle_agree` **false** (fusao livre quando janela ops N=3==TCN); telemetria `[GATES] \|\| FUSION` + `fusion_ev_*` / `fusion_p_eff`. **M5 last-bar = log; confirmacao = janela N=3.** |
+| Soft sinal 1.1 | `mini_pair_oppose` / `cal_margin` / loss-clf; chop soft; `neg_edge` soft so se `0 < Cal TCN < min_edge_execute`; Kelly usa `fusion_p_eff` so apos Cal TCN passar neg_edge; EV fraco → soft Kelly **0.50** (seed+ambos EV&lt;0 → **0.25**); `invert_exec_side` **false** |
+| Fusao multi-escala | `fusion_enabled`: p_eff (Cal + MACRO/janela ops/MINI/MILI/tape + loss continuo + meta **0.0**); `fusion_loss_weight` **0.0** so com `auto=1` — **nao** incorpora o FLIP do mesmo ciclo; `fusion_block_when_tcn_pos_edge` **true** preserva TCN so se Cal **e** raw +EV; `fusion_block_when_tcn_candle_agree` **false** (fusao livre quando janela ops N=3==TCN); telemetria `[GATES] \|\| FUSION` + `fusion_ev_*` / `fusion_p_eff`. **M5 last-bar = log; confirmacao = janela N=3.** |
 | Flip loss-clf | Apos fusao: `p_loss >= hard_p_loss_floor` (**0.90**) e `veto_ready` + `flip_require_auto_learn` (**true**: seed so SOFT; `p_ovr`/`seed_discord` nao FLIP); **bloqueia FLIP** se Edge Cal **e** raw_edge do TCN >= floor **e** tape/janela ops confirmam TCN (`FLIP_BLOCK:tcn_edge`; tape ou janela ≠ TCN → `flip_waive_tcn_pos_edge_on_discord`); Cal+/raw− libera; sob seed, janela == TCN bloqueia (`FLIP_BLOCK:seed_candle`; `p_ovr` nao fura); seed edge min **−0.08**; live `flip_waive_edge_min` **−1.0**; janela no alvo floor **0.85** so se TCN fraco |
 | Chop soft | ADX &lt; **0.22** e (Hurst ∈ [**0.47**, **0.53**] ou SCALE micro=chop) → soft Kelly **0.55**; log `REGIME \|\| CHOP_SOFT` |
 | `majority_votes` | Mais votos PUT ou CALL (tape/mili/RSI vs TCN) → adapta lado (se `fusion_replace_adapt_flip` **false**) |
@@ -61,7 +61,7 @@ Triplo OHLC + ticks: telemetria, **adaptacao de lado** e soft Kelly — **nunca 
 
 Log: `SCALE || … mi_prev=… mi_cur=… tape=… micro=retract|explos|chop adapted=0|1` e no IND `SCALE: tcn=… tape=… votes=C#/P# …`.  
 Adapt: **majority_votes** (TCN/tape/mili/RSI) sem hold Cal; tape sob `raw_extreme`; regimes **retracao** / **explosao** / **mili+tape** (mili+tape **nao** adapta em micro=chop; `adapt_mili_tape_skip_chop`). `adapt_allow_strong_tape` **false**. Kelly `kelly_p_floor` **0.55**; com fusao ancora em `fusion_p_eff` so se Cal TCN ja passou neg_edge; explore piso `neutral_bankroll_pct` **0.25%** + `explore_stake_scale_floor` **0.40**; `fraction` **0.08**; RECOVER cover (`cover_multiple` **1.10**, amort **2/3**; `f*` so gate); damping stop-win inicio **1.0** / perto-meta **0.50**; teto linear3 **3.5%**; payout **0.85**; stop-win Kelly Single-Strike **4.31%**. Sem `kelly_no_edge` / sem SKIP por escala / **sem** zona cinza.
-Contrato Deriv **5 m** (ops fixo); label TCN = **N barras** micro (N ∈ {15,20,…,60} eleito no launch-train; **SSOT atual N=55**). Gap intencional: TCN estima N velas; settle live em 5 min. Sem overlap: ciclo bloqueado com contrato aberto.
+Contrato Deriv **5 m** (ops fixo); label TCN = **N=1 vela M5** (`quantum_multi_barrier`). Ciclo **120 s**; settle live em 5 min. Sem overlap: ciclo bloqueado com contrato aberto.
 
 ## `raw_extreme` (anti-override)
 
@@ -69,7 +69,7 @@ Modo de calibracao `raw_extreme` **substituiu** `tcn_macro_override`: raw extrem
 
 ## Edge Cal (identidade Kelly)
 
-Edge = `p_side * (1 + b) - 1` com **p = Cal** do lado (nunca raw; o gate `neg_edge` tambem nunca usa `fusion_p_eff`). Com `b=0.72`: breakeven `be ≈ 0.581`; floor `min_edge_execute` **0.04** exige Cal ≳ **0.605**. Cal~0.53 → Edge~−0.08 → **hard** `neg_edge` (EV≤0) mesmo se a fusao inflar `p_eff`. Soft Kelly so se `0 < Cal < 0.04`. Kelly pode ancorar em `fusion_p_eff` **depois** desse gate. `[CLUSTER]` inclui `raw_edge` + `be` sempre que Edge e exibido; `[GATES]` sob soft/EXEC repete o gap. So telemetria — raw extremo ≠ Kelly.
+Edge = `p_side * (1 + b) - 1` com **p = Cal** do lado (nunca raw; o gate `neg_edge` tambem nunca usa `fusion_p_eff`). Com `b=0.85`: breakeven `be ≈ 0.541`; floor `min_edge_execute` **0.04** exige Cal ≳ **0.563**. Cal~0.53 → Edge~−0.02 → soft ou hard `neg_edge` conforme piso. Soft Kelly so se `0 < Cal < 0.04`. Kelly pode ancorar em `fusion_p_eff` **depois** desse gate. `[CLUSTER]` inclui `raw_edge` + `be` sempre que Edge e exibido; `[GATES]` sob soft/EXEC repete o gap. So telemetria — raw extremo ≠ Kelly.
 
 ## Vies CALL/PUT (pos-escopo 1)
 
@@ -85,14 +85,14 @@ Viés estrutural de lado **nao** se corrige reintroduzindo veto de sinal nem qua
 
 - `force_trade_every_cycle: false` (proibido como “fix”)
 - `min_validation_accuracy_gate: 0.53` (treino/deploy)
-- Caps Kelly / `max_safe_stake_*` (`max_safe_stake_pct` **0.05**; linear2 **0.04**; linear3 **0.025**)
-- `risk_management.soft_recovery.cover_multiple: 1.10` — RECOVER = cover equilibrado `pending/payout*1.10` em 2–3 ciclos
-- `risk_management.kelly.neutral_bankroll_pct` / `min_stake_pct` **0.0025** — explore piso **0.25%** banca (M1)
+- Caps Kelly / `max_safe_stake_*` (`max_safe_stake_pct` **0.035**; linear2 **0.03**; linear3 **0.025**)
+- `risk_management.soft_recovery.cover_multiple: 1.10` — RECOVER = cover equilibrado `pending/payout*1.10` em 2–3 ciclos (amort **2/3**)
+- `risk_management.kelly.neutral_bankroll_pct` / `min_stake_pct` **0.0025** — explore piso **0.25%** banca (M5)
 - `risk_management.kelly.fraction` **0.08** — Kelly fracionario baixo (alta frequencia)
 - `risk_management.soft_recovery`: cover inviavel com PEND material → stake no **CAP** (parcial), telemetria `RECOVERY_INFEASIBLE`; nao abandona recovery no piso explore
 - `soft_recovery.live_evidence_force_explore_*` — linear≥3 com `live_wr` &lt; **0.62** forca EXPLORE (evita DAL L3+ enquanto ACC de checkpoint ainda passa)
 - `pending_waives_scale_explore: true` — com pending material, soft cover/DAL nao e short-circuitado por discord/adapt
-- `risk_management.soft_recovery.amort_cycles_*` **1/1** — stake RECOVER = cover pleno (sem progressao geometrica); caps `max_safe_stake_*`
+- `risk_management.soft_recovery.amort_cycles_*` **2/3** — stake RECOVER = cover equilibrado (sem progressao geometrica); caps `max_safe_stake_*`
 - `orchestrator.execution.side_equilibrium.enabled: true` (soft sizing only)
 - `orchestrator.execution.scale_vision` (adaptacao de fita + soft sizing; sem SKIP por escala)
 - `orchestrator.execution.signal_skip` (1.1 soft Kelly; sem flip pos-LOSS)

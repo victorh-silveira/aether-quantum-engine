@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
-from aether_paths import repo_path
+import settings_io
+
+
+def load_settings_json() -> dict[str, Any]:
+    """Carrega config/settings.json via bootstrap I/O (fora do dominio puro)."""
+    full = settings_io.load_settings_json()
+    if not isinstance(full, dict):
+        raise ValueError("settings.json invalido")
+    return full
 
 
 def require_mapping(parent: dict[str, Any] | None, key: str, required: tuple[str, ...], path: str) -> dict[str, Any]:
@@ -55,16 +62,6 @@ def deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]
         else:
             merged[key] = value
     return merged
-
-
-def load_settings_json() -> dict[str, Any]:
-    """Carrega config/settings.json como dict raiz."""
-    path = repo_path("config", "settings.json")
-    with path.open(encoding="utf-8") as handle:
-        full = json.load(handle)
-    if not isinstance(full, dict):
-        raise ValueError("settings.json invalido")
-    return full
 
 
 def merge_settings_block(path_keys: tuple[str, ...], override: dict[str, Any] | None) -> dict[str, Any]:

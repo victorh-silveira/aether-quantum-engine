@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
-from aether_paths import repo_path
+import settings_io
 from src.domain.config_knobs import require_float, require_int, require_keys
 
 
@@ -83,9 +82,7 @@ def load_kelly_runtime_from_settings() -> dict[str, Any]:
     cached = _CACHE.get("kelly_runtime")
     if cached is not None:
         return cached
-    path = repo_path("config", "settings.json")
-    with path.open(encoding="utf-8") as handle:
-        full = json.load(handle)
+    full = settings_io.load_settings_json()
     rm = full.get("risk_management") if isinstance(full, dict) else None
     kelly = rm.get("kelly") if isinstance(rm, dict) else None
     resolved = resolve_kelly_runtime_config(kelly if isinstance(kelly, dict) else None)

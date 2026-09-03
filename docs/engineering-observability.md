@@ -11,6 +11,7 @@ Dedupe: `log_dedupe.py`. Inventario: [`engineering-logging-inventory.md`](engine
 - Processo > narrativa: ler `gate_reason` antes do P&L
 - Logger unico do motor: `AETH` via `setup_logger` / `get_logger` (idempotente)
 - Treino: `AETH.meta` / `AETH.train` — sem `print` no caminho critico
+- Rich no terminal nao deve bloquear o event loop; daemon/CI: sem ANSI / logs estruturados (ver [`engineering-architecture-senior.md`](engineering-architecture-senior.md) §9)
 
 ## Knobs SSOT (`logging`)
 

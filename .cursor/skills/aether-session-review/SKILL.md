@@ -1,21 +1,30 @@
 ---
 name: aether-session-review
 description: >-
-  Revisa sessoes live, logs do motor Aether e mudancas de risco/execucao com
-  checklist PlayBook alinhada a doutrina LLM. Use when analyzing engine logs,
-  EXEC_EMPTY, Kelly/recovery PRs, session post-mortems, or when the user mentions
-  doutrina, PlayBook, ou revisao de sessao.
+  Revisa sessoes live, logs do motor Aether, Kelly Single-Strike 4.31% e mudancas
+  de risco/execucao com checklist PlayBook alinhada a doutrina LLM. Use when
+  analyzing engine logs, EXEC_EMPTY, Kelly/recovery PRs, stop-win sizing,
+  session post-mortems, or when the user mentions doutrina, PlayBook, Single-Strike,
+  ou revisao de sessao.
 ---
 
 # Revisao de sessao / risco Aether
 
-Ler `docs/llm-trading-doctrine.md` antes de concluir. LLM nao decide trade; avalia processo.
+Ler `docs/llm-trading-doctrine.md` e `docs/medallion.md` antes de concluir. LLM nao decide trade; avalia processo.
 
 ## Quando usar
 
 - Usuario cola logs CLUSTER / SCALE / EXEC / KELLY / RISK
 - PR ou diff em `execution_*`, `domain/risk`, `sample_size_policy`, `settings.json` de risco
+- Calibracao Single-Strike / stop-win **4.31%**
 - Pedido de pos-mortem ou “por que perdemos”
+
+## Kelly Single-Strike (SSOT)
+
+$$\text{Lucro Alvo} = \text{Banca} \times 0.0431$$
+$$\text{Stake} = \frac{\text{Banca} \times 0.0431}{0.85} \approx 0.0507 \times \text{Banca} \implies \text{cap } 5.0\%$$
+
+Knobs: `compounding_rate_daily` **0.0431**; `payout_estimate` / `default_payout` **0.85**; `stop_win_kelly_cycles_target` **1**; `stop_win_kelly_min/max_fraction` **1.0**; `max_stake_pct` **0.05**; `stop_win_kelly_min_conviction` **0.52**. Meta atingida → `STOP_WIN` / `EXEC_PAUSE`. Soft recovery: `cover_multiple` **1.10**, amort **2/3**, `max_safe_stake_pct` **0.035**. Sem revenge sizing.
 
 ## Pre-trade (PlayBook)
 

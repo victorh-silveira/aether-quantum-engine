@@ -8,7 +8,8 @@ alwaysApply: true
 
 - Declarar o que o codigo importa; nao pinar so-transitivo (`coverage` sob `pytest-cov`)
 - DataFrame SSOT: **somente Polars**; `pandas` / `to_pandas` / dual-stack proibidos; sem 3a lib DF
+- Preferir LazyFrame em features; borda tensorial via `to_numpy` controlado; `POLARS_MAX_THREADS` consciente do event loop
 - Manter `joblib` pin se houver `import joblib` (meta/loss)
 - LightGBM: NumPy na borda via `DataFrame.to_numpy()`
 - Bump `numpy`/`torch`/`sklearn` exige `pip check` + smoke import no WSL
-- Doc: `docs/engineering-python-deps.md`; skill: `aether-python-deps`
+- Doc: `docs/engineering-python-deps.md` + `docs/engineering-architecture-senior.md`; skill: `aether-python-deps`

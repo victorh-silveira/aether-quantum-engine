@@ -10,8 +10,10 @@ alwaysApply: true
 - **Cobertura Inegociável (100.0%)**: Cobertura total de linhas e branches em `app/src/`. Nenhum commit é aceito abaixo de 100%.
 - **Determinismo & Isolamento**:
   - Testes unitários executam em memória, sem dependência de I/O de rede ou containers Docker ao vivo.
+  - Domain: testes determinísticos sem I/O; application com fakes de ports.
   - Mocks estritos e pontuais de WebSocket, Redis, TimescaleDB e chamadas HTTP.
   - Sementes pseudoaleatórias fixas para reprodutibilidade matemática em cálculos de Kelly, ECE e Deep Learning.
 - **Asserções de SSOT**: Qualquer ajuste em `config/settings.json` deve ser imediatamente validado e testado em `test_doctrine_settings_ssot.py`.
-- **Pre-commit Gate Fail-Closed**: Todo teste roda sob pytest-asyncio com limites de timeout estritos.
+- **Pre-commit Gate Fail-Closed**: Ruff + pytest-asyncio + Bandit/pip-audit; bloquear artefatos grandes; timeouts estritos.
+- **Arquitetura**: `docs/engineering-architecture-senior.md` + skill `aether-architecture-senior`.
 - **Skill**: `aether-precommit`.

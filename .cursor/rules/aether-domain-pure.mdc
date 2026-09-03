@@ -8,6 +8,9 @@ alwaysApply: true
 
 - Domain nao importa application nem infrastructure
 - Sem I/O de rede/arquivo em `domain/` (exceto constantes/chaves Redis como strings)
+- Leitura de `settings.json` via `app/settings_io.py` (reexport em `config_knobs`); parsers puros no dominio
+- Preferir entidades/VOs imutaveis ou `__slots__` no hot path; invariantes matematicas e risco vivem aqui
 - Risco Kelly/recovery: tambem seguir `aether-risk-sizing.mdc` e doutrina
 - Analytics: sample_size / SIDE_EQ — ver `aether-sample-size.mdc`
 - Models/math: funcoes puras, testes deterministicos
+- Arquitetura: `aether-architecture-senior.mdc` + `docs/engineering-architecture-senior.md`

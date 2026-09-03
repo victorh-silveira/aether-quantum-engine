@@ -1,6 +1,6 @@
 # Infraestrutura Docker
 
-Stack local **hibrida**: motor no host (Conda/WSL) com inferencia TCN **eager/CUDA local**; persistencia e sidecars ML em containers. SSOT operacional deste doc; atalho em [`infra/docker/README.md`](../infra/docker/README.md).
+Stack local **hibrida**: motor no host (Conda/WSL, Python 3.13, CUDA local) com inferencia TCN **eager** no processo do motor; persistencia e sidecars ML em containers. Doutrina de arquitetura: [`engineering-architecture-senior.md`](engineering-architecture-senior.md). SSOT operacional deste doc; atalho em [`infra/docker/README.md`](../infra/docker/README.md).
 
 ## Servicos
 

@@ -154,8 +154,8 @@ def conviction_stop_win_weight(conviction: float, kelly_config: dict[str, Any]) 
     """Interpola fracao do alvo stop win conforme conviccao do sinal."""
     min_conv = float(kelly_config.get("stop_win_kelly_min_conviction", 0.50))
     strong = float(kelly_config.get("stop_win_kelly_conviction_strong", 0.82))
-    lo_frac = float(kelly_config.get("stop_win_kelly_min_fraction", 0.12))
-    hi_frac = float(kelly_config.get("stop_win_kelly_max_fraction", 0.38))
+    lo_frac = float(kelly_config.get("stop_win_kelly_min_fraction", 1.0))
+    hi_frac = float(kelly_config.get("stop_win_kelly_max_fraction", 1.0))
     if conviction + 1e-9 < min_conv:
         return 0.0
     if conviction >= strong:

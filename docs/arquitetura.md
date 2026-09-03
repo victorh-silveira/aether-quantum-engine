@@ -15,11 +15,11 @@ Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (TCN,
 | Lookback | **`deep_learning.lookback`** (settings atuais **30**) → tensor **`[1, 30, 34]`** |
 | Features TCN | **34** (`FEATURE_DIM` em `dl_feature_build.py`) |
 | Features meta GBDT | **43** (`META_FEATURE_DIM` = 34 + 4 micro-vol + 3 cross + 2 flow) |
-| Contrato | `RISE_FALL`, duração **5 m** (ops fixo); label TCN **N=1** vela M5 (`triple_barrier`) |
+| Contrato | `RISE_FALL`, duração **5 m** (ops fixo); label TCN **N=1** vela M5 (`quantum_multi_barrier`) |
 | Ciclo | **120 s** (`cycle_interval_seconds`) / **300 s** (`signature_boundary_seconds`; sync M5) |
 | Execução | `mandatory_trade_each_cycle: false`; `force` off; `invert_exec_side: false`; fusao EV + signal_skip 1.1 + anti-loss M5 |
 | Fail-closed | Meta **opcional** nos settings atuais (`require_meta_for_execution: false`); TCN eager/CUDA local |
-| Label | `label_mode: triple_barrier` (Upper/Lower Log-Vol Barriers + Vertical Expiry) |
+| Label | `label_mode: quantum_multi_barrier` (barreiras assimetricas + Vertical Expiry; alt. `triple_barrier`) |
 | Meta sessão | Stop win **4,31%** (`compounding_rate_daily: 0.0431`); stop loss desativado |
 
 O mercado é tratado como série temporal ruidosa: a TCN estima `P(CALL)` / `P(PUT)` com calibração e threshold adaptativo; o meta-regressor LightGBM estima `predicted_payoff_edge`; o ranking usa `tcn × max(0.1, 1+z)`. A fusão EV pondera votos direcionais e o filtro anti-loss valida inclinação de EMA 9/21 em barras de 5m, RSI momentum e corpo líquido.
@@ -34,15 +34,47 @@ O mercado é tratado como série temporal ruidosa: a TCN estima `P(CALL)` / `P(P
 
 ---
 
-## 2. Layout e camadas DDD
+## 2. Layout e camadas DDD / hexagonal
+
+Doutrina sênior completa (host 3.13, event loop, CUDA, Polars, sidecars, QA): [`engineering-architecture-senior.md`](engineering-architecture-senior.md).
+
+O motor roda no **host** (WSL/Conda) para acesso direto a CUDA e baixa latência de rede; Redis, Timescale, MinIO, meta e loss ficam em Docker.
+
+```
+                    ┌─────────────────────────┐
+                    │ Presentation / Inbound  │
+                    │ (WS Deriv, Rich UI CLI) │
+                    └────────────┬────────────┘
+                                 │
+                                 ▼
+                     ┌───────────────────────┐
+                     │   Application Layer   │
+                     │  (Trading/Orchestr.)  │
+                     └─────┬───────────┬─────┘
+                           │           │
+         ┌─────────────────┘           └─────────────────┐
+         ▼                                               ▼
+┌──────────────────┐                           ┌───────────────────┐
+│   Domain Layer   │                           │ Outbound Ports    │
+│  (Pure Entities, │                           │ (Interfaces: DB,  │
+│ Value Objects,   │                           │  ML Models, WS)   │
+│ Invariants, Risk)│                           └─────────┬─────────┘
+└──────────────────┘                                     │
+                                                         ▼
+                                               ┌───────────────────┐
+                                               │   Infrastructure  │
+                                               │ (asyncpg, Polars, │
+                                               │ Redis, Sidecars)  │
+                                               └───────────────────┘
+```
 
 ```
 aether-quantum-engine/
 ├── app/                 # Código de produção + testes + scripts
 │   ├── run.py / train.py
 │   ├── aether_asyncio.py
-│   ├── src/             # 246 módulos Python (DDD)
-│   ├── tests/           # 306 arquivos test_*.py (incluindo test_execution_coverage_gaps.py); cobertura 100% em src
+│   ├── src/             # módulos Python (DDD/hexagonal)
+│   ├── tests/           # espelho DDD; cobertura 100% em src
 │   └── scripts/         # operations, monitor, batch
 ├── config/settings.json # Runtime
 ├── data/                # state, session_state, dl/
@@ -52,21 +84,15 @@ aether-quantum-engine/
 
 ```
 
-```
-presentation  →  application  →  domain
-                    ↓
-              infrastructure (adapters)
-```
-
 | Camada | Pasta | Papel |
 |--------|-------|-------|
-| Application | `application/services/` | Orquestração, DL, direção modular, quality gates, meta |
-| Domain | `domain/` | Risco Kelly + Soft Recovery (`soft_recovery_policy`), `RiskPolicy`, modelos, math |
-| Infrastructure | `infrastructure/` | Deriv WS/REST (retry 5xx), Redis, MinIO, Timescale |
-| Presentation | `presentation/` | Logger terminal |
+| Presentation / inbound | `presentation/` + bootstrap WS | Rich CLI, composition root, logs |
+| Application | `application/services/` | Orquestração, DL, direção, quality gates, meta via ports |
+| Domain | `domain/` | Risco Kelly + Soft Recovery, invariantes, modelos, math (sem I/O) |
+| Outbound ports | Protocols na application | Contratos DB, state, ML, market |
+| Infrastructure | `infrastructure/` | Deriv WS/REST, asyncpg, Redis, MinIO, sidecars HTTP |
 
-Regra: **domain** não importa application nem infrastructure. Implementações concretas vêm de `infra_factory.create_infra_services`.
-
+Regra: **domain** não importa application nem infrastructure. Implementações concretas vêm de `infra_factory.create_infra_services`. Event loop: offload de PyTorch/Polars pesado — não bloquear o hot path WS.
 ---
 
 ## 3. Pipeline de runtime
@@ -128,9 +154,9 @@ flowchart TD
 
 | Componente | Função |
 |------------|--------|
-| `m5_boundary_epoch()` | Epoch alinhado ao bloco de **60 s** corrente (nome legado) |
-| Micro | `m5:{sym}@{epoch}` — relógio **60 s** (M1) |
-| Macro | `m15:{sym}@{epoch}` — relógio **7200 s** |
+| `m5_boundary_epoch()` | Epoch alinhado ao bloco de **300 s** corrente (nome legado) |
+| Micro | `m5:{sym}@{epoch}` — relógio **300 s** (M5) |
+| Macro | `m15:{sym}@{epoch}` — relógio **86400 s** (D1) |
 | Formato | `m5b:{boundary};m5:...;m15:...` |
 
 Cache inválido quando a assinatura muda; sem assinatura nova, o ciclo aguarda sem re-inferir.
@@ -163,11 +189,11 @@ Normalização anti-leakage: `fit_norm_stats` **somente** no split de treino (`d
 | TCN | `dl_tcn.TemporalDirectionClassifier` (+ `regression_head` multi-task) |
 | LSTM/GRU | `dl_lstm.py`; `deep_learning.arch` |
 | Perda | Focal assimétrica alta vol (`dl_training_epochs._masked_loss`) |
-| Labels | `dl_labels.LabelSpec` — `spot_forward` / `ma_trend` / `triple_barrier` |
+| Labels | `dl_labels.LabelSpec` — `quantum_multi_barrier` / `triple_barrier` / `spot_forward` / `ma_trend` |
 | Checkpoint | `data/dl/{symbol}.pth` + TorchScript / MinIO |
 | Deploy gate | `dl_deploy_eval` com **`force_local=True`** (avalia modelo em memória) |
 
-Config atual: `arch: tcn`, `lookback: 480`, `label_mode: ma_trend`, thresholds **0.62** / **0.38**, `neutral_half_width: 0.0`.
+Config atual: `arch: tcn`, `lookback: 30`, `label_mode: quantum_multi_barrier`, thresholds **0.62** / **0.38**, `neutral_half_width: 0.0`.
 
 ### 4.3 Treino de sessão
 
@@ -229,7 +255,7 @@ Montagem: `dl_predict_telemetry.prepare_meta_classifier_cross_symbol_bundle` →
 
 ### 5.3 Stacking runtime
 
-1. Bundle cross-symbol + telemetria micro **60 s**
+1. Bundle cross-symbol + telemetria micro **300 s**
 2. Prefetch HTTP → `predicted_payoff_edge`
 3. `attach_payoff_edge_zscore_metrics` (janela adaptativa 15–45)
 4. `apply_meta_regression_edge`: edge > 0 mantém score TCN; edge < −0,15 + squeeze → `trade_score=0.52` (`[D-SQUEEZE]`)
@@ -309,7 +335,7 @@ Em modo mandatário, o quality guard emite telemetria `QUALITY_GUARD` / `EXECUTI
 ### 7.2 ExecutionManager
 
 - Stake via `RiskManager.calculate_stake` → `risk_stake_calc.calculate_stake_for_manager`
-- `TradeHandler.buy_with_parameters`: RISE_FALL **5 m** (ops fixo; label H55)
+- `TradeHandler.buy_with_parameters`: RISE_FALL **5 m** (ops fixo; label N=1 vela M5)
 - Reconciliação de stake downgrade Deriv (`executed_stake_reconciliation`)
 
 ### 7.3 Settlement
@@ -341,7 +367,7 @@ Portões neutralizados em modo mandatário (não bloqueiam ciclo): cooldown pós
 | Side equilibrium (LLN) | `side_equilibrium` / `side_equilibrium_gate` |
 | Consensus entropy | `consensus_stake_penalty.consensus_kelly_retention` (`consensus_penalty_enabled: false`) |
 | Recovery persistente | `pending_loss` + `consecutive_losses_linear` + `last_loss_stake` |
-| Stop win sessão | `StopWinManager` + `compounding_rate_daily: 0.03` |
+| Stop win sessão | `StopWinManager` + `compounding_rate_daily: 0.0431` |
 | Stop loss | Desativado |
 | Policy boot | `RiskPolicy` / `validate_engine_risk_config` |
 | Persistence | `execution_direction_persistence` → flip toxic escape / SKIP / FREEZE |
@@ -350,7 +376,7 @@ Portões neutralizados em modo mandatário (não bloqueiam ciclo): cooldown pós
 
 Facade: `domain/risk/risk_manager.RiskManager.calculate_stake`.
 
-**Sessão:** meta = `session_start_balance × 0.03` (banca ≥ $100) ou **$10** (banca &lt; $100). Log: `SESSAO INICIADA | Alvo de 3.00%: $… | Stop Loss: DESATIVADO`. Reiniciar o processo inicia sessão nova.
+**Sessão:** meta = `session_start_balance × 0.0431` (banca ≥ $100) ou **$10** (banca &lt; $100). Log: `SESSAO INICIADA | Alvo de 4.31%: $… | Stop Loss: DESATIVADO`. Reiniciar o processo inicia sessão nova.
 
 ---
 
@@ -376,13 +402,13 @@ Watchdog: `AetherWatchdog` reconecta stream se ticks estagnarem (`watchdog_stale
 ## 10. Configuração (`config/settings.json`)
 
 ### `data_handler`
-`granularity` (**7200**), `micro_granularity` / `mini_granularity` (**60**), `history_bars` / `training_history_bars` conforme settings (treino tipico **2000** micro M1), `fetch_count`, `buffer_limit`, rate-limits de histórico.
+`granularity` (**86400**), `micro_granularity` / `mini_granularity` (**300**), `history_bars` / `training_history_bars` conforme settings (treino tipico **365** barras D1), `fetch_count`, `buffer_limit`, rate-limits de histórico.
 
 ### `deep_learning`
-`arch`, `lookback` (**480**), `train_symbols`, `confidence_*` (**0.62/0.38**), `calibration.*` (`neutral_half_width: 0.0`), `online_training` (**false**), `deploy_gate.*`, `label_mode` + `label_*`, `tcn.channels`, `training_*`, `model_path_template`, `min_edge_execute`.
+`arch`, `lookback` (**30**), `train_symbols`, `confidence_*` (**0.62/0.38**), `calibration.*` (`neutral_half_width: 0.0`), `online_training` (**false**), `deploy_gate.*`, `label_mode` + `label_*`, `tcn.channels`, `training_*`, `model_path_template`, `min_edge_execute`.
 
 ### `orchestrator` / `orchestrator.execution`
-`cycle_interval_seconds` (**60**), `signature_boundary_seconds` (**60**), `exec_empty_retry_seconds` (**60**), `watchdog_stale_tick_seconds` (**300**), `mandatory_trade_each_cycle` (**false**), `invert_exec_side` (**false**), `require_meta_for_execution` (**false**), `scale_vision.fusion_*` + `signal_skip` 1.1, `settlement_tolerance_window_seconds` (**600**), `post_settlement_is_trading_wait_seconds` (**90**), `warm_up_live_data_timeout_seconds`, `broker_handshake_timeout_seconds`, `state_lock_acquire_timeout_seconds`.
+`cycle_interval_seconds` (**120**), `signature_boundary_seconds` (**300**), `exec_empty_retry_seconds` (**120**), `watchdog_stale_tick_seconds` (**300**), `mandatory_trade_each_cycle` (**false**), `invert_exec_side` (**false**), `require_meta_for_execution` (**false**), `scale_vision.fusion_*` + `signal_skip` 1.1, `settlement_tolerance_window_seconds` (**600**), `post_settlement_is_trading_wait_seconds` (**90**), `warm_up_live_data_timeout_seconds`, `broker_handshake_timeout_seconds`, `state_lock_acquire_timeout_seconds`.
 
 ### `risk_management`
 `kelly.*` (`fraction: 0.08`, explore piso **0.25%**, tetos stop-win Kelly ate **5%**), `soft_recovery.*` (amort **2/3**, cover **1.10**, linear3 **3.5%**), `min_validation_accuracy_gate` (**0.53**), `params.*` (duration **5** m via `ops_contract_duration_minutes`; `label_horizon_bars` **1**, compounding **0.0431**, stake_min, payout_estimate **0.85**), `large_account_stop_win_pct` (**4.31**), `small_account_*`.

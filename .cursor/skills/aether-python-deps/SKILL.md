@@ -14,7 +14,7 @@ description: >-
 2. Grep `import`/`from` do pacote no first-party (`app/`, `infra/docker/`)
 3. Se so-transitivo de wrapper (ex. `coverage` via `pytest-cov`): nao declarar
 4. Se import direto: declarar no requirements do ambiente certo
-5. DataFrame: **somente Polars**; nunca `pandas` / `to_pandas` / dual-stack / 3a lib DF
+5. DataFrame: **somente Polars**; nunca `pandas` / `to_pandas` / dual-stack / 3a lib DF; LazyFrame preferido; `POLARS_MAX_THREADS` consciente do event loop
 6. LightGBM: passar NumPy (`frame.to_numpy()`), nao DataFrame cru
 7. Atualizar `app/requirements.txt` e/ou `requirements-dev.txt` e/ou Docker reqs
 8. WSL: `python -m pip check`
@@ -24,3 +24,5 @@ description: >-
 ## Anti-padroes
 
 Pinar `coverage` junto de `pytest-cov`; reintroduzir `pandas`; remover `joblib` com imports vivos; ignorar falha de ABI apos bump.
+
+Doc: `docs/engineering-python-deps.md` + `docs/engineering-architecture-senior.md`

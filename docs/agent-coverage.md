@@ -10,6 +10,7 @@ Enforcement no core: `doctrine_invariants.py` + testes `test_doctrine_*` / `test
 
 | Superficie | Doc | Rule (`.cursor/rules/`) | Skill (`.cursor/skills/`) |
 |------------|-----|-------------------------|---------------------------|
+| Arquitetura senior (host/DDD/asyncio/ML/infra) | [engineering-architecture-senior.md](engineering-architecture-senior.md) + [arquitetura.md](arquitetura.md) | `aether-architecture-senior.mdc` | `aether-architecture-senior` |
 | Doutrina / sessao | [llm-trading-doctrine.md](llm-trading-doctrine.md) | `aether-llm-doctrine.mdc` | `aether-session-review` |
 | Playbook senior binario | [binary-senior-playbook.md](binary-senior-playbook.md) | `aether-execution-gates.mdc` | `aether-binary-senior` |
 | Risco / Kelly | [medallion.md](medallion.md) + doutrina | `aether-risk-sizing.mdc` | `aether-session-review` |
@@ -34,13 +35,14 @@ Enforcement no core: `doctrine_invariants.py` + testes `test_doctrine_*` / `test
 | Scripts / ops | [structure.md](structure.md) §Scripts | `aether-scripts.mdc` | `aether-ops-runbook` |
 | Domain models/math/symbols | [structure.md](structure.md) §Domain + [deriv-indices-algorithm.md](deriv-indices-algorithm.md) (`1HZ75V`) | `aether-domain-pure.mdc` | — |
 | Volatility 75 (1s) Index | [deriv-indices-algorithm.md](deriv-indices-algorithm.md) | `aether-v75-market.mdc` | `aether-v75-market-analyst` |
-| Kelly Single-Strike 1% | [medallion.md](medallion.md) + [llm-trading-doctrine.md](llm-trading-doctrine.md) | `aether-risk-sizing.mdc` | `aether-single-strike-risk` |
-| Verificador de Sinais M5 | [binary-senior-playbook.md](binary-senior-playbook.md) | `aether-execution-gates.mdc` | `aether-m5-signal-verifier` |
+| Kelly Single-Strike 4.31% | [medallion.md](medallion.md) + [llm-trading-doctrine.md](llm-trading-doctrine.md) | `aether-risk-sizing.mdc` | `aether-session-review` |
+| Verificador de Sinais M5 | [binary-senior-playbook.md](binary-senior-playbook.md) | `aether-execution-gates.mdc` | `aether-binary-senior` |
 
 ## Pastas DDD ↔ matriz
 
 | Pasta | Linha da matriz |
 |-------|-----------------|
+| `app/src/` (camadas + ports) | Arquitetura senior (host/DDD/asyncio/ML/infra) |
 | `app/src/application/services/orchestrator/` | Orchestrator / ciclo |
 | `app/src/application/services/execution_scale_*.py` | Scale vision + adaptacao de fita (lado/sizing) |
 | `app/src/application/services/execution_direction_fusion*.py` | Fusao EV multi-escala |

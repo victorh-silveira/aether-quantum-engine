@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -55,7 +56,8 @@ async def predict_symbol_decision_async(
             micro=micro,
         )
         logger.debug("DL: predict fresh cycle=%d symbol=%s", cycle_id, symbol)
-        direction, prob, raw_prob = eager_local_predict(
+        direction, prob, raw_prob = await asyncio.to_thread(
+            eager_local_predict,
             ctx,
             model=model,
             prices=prices,

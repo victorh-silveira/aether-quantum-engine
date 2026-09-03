@@ -34,6 +34,7 @@ Regras:
 - Formatacao de payload / regras de saida ficam no dominio ou application — nao na CLI/controller.
 - Domain e use case nao emitem logs. Logging semantico fica na presentation e/ou adapters.
 - Composition root (wiring Settings → adapters → use case) fica na presentation.
+- Neste repo de referencia: motor **Python 3.13 + asyncio no host**; sidecars Docker; DataFrame **Polars-only**; inferencia critica CUDA no host; event loop sem bloqueio de CUDA/Polars pesado (offload). Doutrina: `docs/engineering-architecture-senior.md`.
 
 ### Qualidade e estilo
 

@@ -1,5 +1,5 @@
 ---
-description: Orquestrador Aether — ciclo M1, locks, warmup, pos-settlement
+description: Orquestrador Aether — ciclo M5, locks, warmup, pos-settlement
 globs: app/src/application/services/orchestrator/**/*.py
 alwaysApply: true
 ---

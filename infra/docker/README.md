@@ -1,8 +1,9 @@
 # Infraestrutura Docker do Aether
 
-Stack **hibrida**: motor no host; Redis, TimescaleDB, MinIO, meta-classifier e loss-classifier em containers. Inferencia TCN = eager/CUDA local (`data/dl`).
+Stack **hibrida**: motor Python 3.13 + asyncio no host (CUDA local); Redis, TimescaleDB, MinIO, meta-classifier e loss-classifier em containers. Inferencia TCN = eager/CUDA local (`data/dl`).
 
-**Documentacao completa:** [`docs/infra-docker.md`](../../docs/infra-docker.md)
+**Documentacao completa:** [`docs/infra-docker.md`](../../docs/infra-docker.md)  
+**Arquitetura senior:** [`docs/engineering-architecture-senior.md`](../../docs/engineering-architecture-senior.md)
 
 ## Comandos rapidos
 

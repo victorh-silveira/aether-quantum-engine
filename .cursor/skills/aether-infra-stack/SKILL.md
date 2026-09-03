@@ -20,7 +20,8 @@ description: >-
 7. Meta/loss: so exigir no motor se settings `enabled`/`require_*` true
 8. Recarregar ML apos treino: `make docker-rebuild` (rebuild meta/loss, **nao** sanitiza `data/dl`)
 9. Ciclo fresco (apaga TCN/volumes): `make docker-reset` — depois `launch-train`
-10. Inferencia TCN = eager/CUDA local no host (nao ha servidor de inferencia no compose)
+10. Inferencia TCN = eager/CUDA local no host (nao ha servidor de inferencia no compose); meta/loss com timeout/fallback no motor
 11. Nao desligar resiliencia para mascarar rede
+12. Arquitetura senior: `docs/engineering-architecture-senior.md` + skill `aether-architecture-senior`
 
 Skill irma: `aether-settlement-debug` se a fila Redis for o sintoma.

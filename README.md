@@ -13,7 +13,7 @@
 [![CI](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/victorh-silveira/aether-quantum-engine?display_name=tag&label=Release)](https://github.com/victorh-silveira/aether-quantum-engine/releases)
 
-Motor quantitativo assíncrono para a Deriv: decisão por **Deep Learning** (TCN/LSTM/GRU) no índice sintético de volatilidade **Volatility 75 (1s)** (`1HZ75V`), contratos **RISE_FALL** de **5 m (M5)** com label TCN em **N=1 vela M5** (`triple_barrier`), lookback **30**, micro/MINI **300 s** (500 velas) e contexto macro D1 **86400 s** (365 barras diárias de treino), meta-regressor LightGBM (**43D**) de expectativa de retorno contínuo (single-symbol), e **sizing Kelly Single-Strike** (alvo de 4.31% da banca em tacada única M5; Soft Recovery amort **2/3** em RECOVER). Sem Triton: inferência eager/CUDA local; Docker profiles `core,ml`.
+Motor quantitativo assíncrono para a Deriv: decisão por **Deep Learning** (TCN/LSTM/GRU) no índice sintético de volatilidade **Volatility 75 (1s)** (`1HZ75V`), contratos **RISE_FALL** de **5 m (M5)** com label TCN em **N=1 vela M5** (`quantum_multi_barrier`), lookback **30**, micro/MINI **300 s** (500 velas) e contexto macro D1 **86400 s** (365 barras diárias de treino), meta-regressor LightGBM (**43D**) de expectativa de retorno contínuo (single-symbol), e **sizing Kelly Single-Strike** (alvo de 4.31% da banca em tacada única M5; Soft Recovery amort **2/3** em RECOVER). Arquitetura **DDD/hexagonal**: motor **Python 3.13 + asyncio no host** (CUDA local); sidecars Docker profiles `core,ml` (Redis, Timescale, MinIO, meta, loss). DataFrame SSOT **Polars**; inferência TCN eager/CUDA local (sem Triton). Doutrina de arquitetura: [docs/engineering-architecture-senior.md](docs/engineering-architecture-senior.md).
 
 A operação divide-se em duas fases: **FASE TREINO** (nenhuma ordem até checkpoint/sessão prontos; `online_training` **false** no DEMO) e **FASE OPERACAO** continua (`mandatory_trade_each_cycle: false`, `force_trade_every_cycle: false`, `invert_exec_side: false`): o ciclo avalia candidato a cada **300 s** (fechamento da barra M5) via TCN + fusao EV + microestrutura balanceada M5 + signal_skip 1.1. Meta é **opcional** para execução (`require_meta_for_execution: false`); inferência TCN = eager/CUDA local no host.
 
@@ -33,7 +33,7 @@ Layout: `app/` (código e testes), `config/settings.json`, `docs/`, `linters/`. 
 | Meta GBDT | `meta_classifier_client` + `aether-meta-classifier` | Regressão tabular **43D**; `predicted_payoff_edge` contínuo (opcional para execução) |
 | Z-Score payoff | `payoff_edge_zscore` | Janela adaptativa 15–45; `meta_payoff_edge_zscore` |
 | Direção | `execution_direction_*` (resolver + checks + persistence + meta_edge + discordance) | TCN define lado (thresholds **0.46/0.34**); zona neutra **off**; anti-loss microestrutura M5; SIDE_EQ antecipado |
-| Rotulagem DL | `dl_labels` + `LabelSpec` | SSOT `triple_barrier` (horizonte N=1 vela M5) |
+| Rotulagem DL | `dl_labels` + `LabelSpec` | SSOT `quantum_multi_barrier` (horizonte N=1 vela M5) |
 | Quality / starvation | `execution_quality_gate*` | Dual soft TCN+meta; pisos regulares de margem/ADX **0.0**; starvation a partir de **6** skips; edge decay a partir de **8** |
 | Ranking | `execution_market_rank` | Score `tcn × max(0.1, 1+z)` |
 | Execução | `ExecutionManager` + lotes fracionados | Proposta atômica; RISE_FALL **5 m** (ops fixo M5) |
@@ -121,7 +121,7 @@ Copie `cp .env.example .env` e preencha o PAT. Validação Deriv: `python app/sc
 ## Fases, recovery e execução
 
 - **FASE TREINO**: ao iniciar a sessão, todo símbolo retreina pelo menos uma vez. Enquanto qualquer modelo não concluir, nenhuma ordem é enviada.
-- **FASE OPERACAO** continua (`mandatory_trade_each_cycle: false`, `force_trade_every_cycle: false`): a cada fronteira de **60 s** o motor avalia candidato via TCN + fusao EV + signal_skip 1.1 (quality gate amplo **fora**).
+- **FASE OPERACAO** continua (`mandatory_trade_each_cycle: false`, `force_trade_every_cycle: false`): a cada fronteira de **300 s** (assinatura M5) o motor avalia candidato via TCN + fusao EV + signal_skip 1.1 (quality gate amplo **fora**).
 - **Bloqueio absoluto** somente para falhas técnicas: `data`, `predict_error`, `training`, `deploy_ok=false`, e reconciliação pendente.
 - **Ranking TCN × Z-Score**: `market_decision_score = tcn × max(0.1, 1+z)` — LightGBM validado ranqueia acima de TCN bruto degradado.
 - **Gatilho D-SQUEEZE (`[D-SQUEEZE]`)**: quando `predicted_payoff_edge < -0.15` em compressão micro (`bb_width < 0.06` ou `micro_tick_acceleration < 0`), o resolver rebaixa `trade_score` para **0.52**, comprimindo stake — sem inverter a direção da TCN. `bb_width_adaptive_squeeze` está **desabilitado** nos settings atuais.
@@ -131,7 +131,7 @@ Copie `cp .env.example .env` e preencha o PAT. Validação Deriv: `python app/sc
 - **Starvation**: após **6** quality skips, pisos decaem; edge meta relaxa a partir de **8** skips; Convicção Progressiva (−20%/5 skips em recovery).
 - **Persistence / SIDE_EQ**: após 2 losses no mesmo lado tenta flip (toxic escape, edge positivo preservado); SIDE_EQ hard-skip tenta o oposto e pode marcar `side_eq_escape_edge_kept`.
 - **Reconexão**: `release_trading_cycle_after_reconnect` invalida assinatura/epoch e reduz warm-up micro quando há `pending_loss`; log `RECOV: ciclo liberado`.
-- **Assinatura**: gravada somente após cluster executado; quality skip não consome o candle. Prefixos legados `m5`/`m15` mapeiam 60/7200 s.
+- **Assinatura**: gravada somente após cluster executado; quality skip não consome o candle. Prefixos legados `m5`/`m15` mapeiam 300/86400 s.
 - **Watchdog de ingestão**: em modo contínuo, reconecta WebSocket se ticks pararem por >**300 s** (`watchdog_stale_tick_seconds`), persistindo snapshot de risco antes.
 - **Deriv API**: REST/PAT com retry em 502/503/504 e respeito a `retry_after` Cloudflare.
 

@@ -2,7 +2,7 @@
 
 O LLM/Cursor e **copiloto de engenharia e auditoria**. Nao decide CALL/PUT em runtime. A decisao live permanece TCN + meta LightGBM + Kelly/caps + **fusao EV multi-escala** (`execution_direction_fusion`); **escopo 1.1** + arquitetura continua 1HZ75V: catálogo `signal_skip` (`mini_pair_oppose` / `cal_margin` / chop = soft Kelly **0.55**); **neg_edge** le Edge Cal TCN do lado (`CLUSTER`, nao `fusion_p_eff`); soft se `0 < Cal < min_edge_execute` (`neg_edge_hard_skip` **false**, `neg_edge_soft_min_edge` **−1.0**); **hard** se Cal `<= 0` (`fusion_p_eff` nao libera EXEC); **Anti-loss** com microestrutura M5 (ancora hibrida ops N=3 + ultima vela fechada; EMA slope 2-pontos 9/21; RSI 0.35/0.65; cache EMA por ciclo). `invert_exec_side` **false**; `online_training` **false**; stop-win **4.31%** Kelly Single-Strike.
 
-SSOT operacional: [`config/settings.json`](../config/settings.json) — universo **`1HZ75V`** (Volatility 75 (1s) Index), contrato ops **5 m (M5)**, label TCN **N=1** vela M5 (`triple_barrier`), micro/MINI **300 s** (M5), ciclo **120 s**, macro **86400 s** (D1). Metodologia: [`medallion.md`](medallion.md). Sample size: [`sample-size-lln.md`](sample-size-lln.md). Loss ML: [`infra-docker.md`](infra-docker.md) (`aether-loss-classifier`).
+SSOT operacional: [`config/settings.json`](../config/settings.json) — universo **`1HZ75V`** (Volatility 75 (1s) Index), contrato ops **5 m (M5)**, label TCN **N=1** vela M5 (`quantum_multi_barrier`), micro/MINI **300 s** (M5), ciclo **120 s**, macro **86400 s** (D1). Metodologia: [`medallion.md`](medallion.md). Sample size: [`sample-size-lln.md`](sample-size-lln.md). Loss ML: [`infra-docker.md`](infra-docker.md) (`aether-loss-classifier`). Arquitetura senior (host 3.13 / DDD / sidecars): [`engineering-architecture-senior.md`](engineering-architecture-senior.md).
 
 ---
 
@@ -14,7 +14,7 @@ SSOT operacional: [`config/settings.json`](../config/settings.json) — universo
 
 **Regra no Aether:** caps limitam cauda; Cal/Edge sao telemetria; margem fraca via `signal_skip.cal_margin` (floor SSOT **0.022** → soft Kelly, waive pending) — nao quality gate generico.
 
-**Ancoras:** soft recovery caps (`max_safe_stake_pct` **0.05**); Kelly; `force_trade_every_cycle=false`; cover inviavel (`RECOVERY_INFEASIBLE`) com PEND material → stake = **CAP** (cover parcial, DAL); `pending_waives_scale_explore` (pending material libera soft cover sob discord/adapt).
+**Ancoras:** soft recovery caps (`max_safe_stake_pct` **0.035**; linear2 **0.03**; linear3 **0.025**); Kelly; `force_trade_every_cycle=false`; cover inviavel (`RECOVERY_INFEASIBLE`) com PEND material → stake = **CAP** (cover parcial, DAL); `pending_waives_scale_explore` (pending material libera soft cover sob discord/adapt).
 
 ---
 

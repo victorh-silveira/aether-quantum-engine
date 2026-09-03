@@ -11,7 +11,7 @@ Ciclo operacional do motor. Inventario de arquivos: [`structure.md`](structure.m
 - LOSS_CLF: predict HTTP a cada `_finalize`; log dedupe por `loss_clf_*:{cycle_id}`; `feature_dim` **24**; hard FLIP floor SSOT **0.90** + `flip_require_auto_learn` **true**
 - MACRO OHLC: **86400 s** (`data_handler.granularity` — D1 / 365 barras de histórico)
 - MICRO OHLC (TCN decisor): **300 s** (`data_handler.micro_granularity` — M5 / 500 barras de histórico)
-- Contrato Deriv RISE_FALL: **5 m** (`risk_management.params.duration`); label TCN = **N=1** vela M5 (`triple_barrier`); frequencia maxima ≈ 1 trade / contrato (ciclo bloqueado com contrato aberto)
+- Contrato Deriv RISE_FALL: **5 m** (`risk_management.params.duration`); label TCN = **N=1** vela M5 (`quantum_multi_barrier`); frequencia maxima ≈ 1 trade / contrato (ciclo bloqueado com contrato aberto)
 - Confirmacao de lado/SKIP: janela `scale_vision.ops_window_bars` **3** (open da 1a M5 fechada → close da ultima = 15m acumulados); `[CANDLE]` M5 last-bar telemetria
 - MINI OHLC: **300 s** (`data_handler.mini_granularity`) — alinhado ao M5
 - MILI: tick flow (velocity/acceleration), nao barra OHLC
@@ -57,7 +57,7 @@ SSOT: `orchestrator.execution.scale_vision` + `signal_skip` (escopo **1.1**). SC
 | Soft cover | Pending material + `pending_waives_scale_explore` → cover fino; `adapted_force_explore` bloqueia DAL L2+ |
 
 Log: `SCALE || … tape=… micro=… adapted=0|1` e IND: `SCALE: tcn=… tape=… micro=… adapted=…`  
-CLUSTER TF: `resolve_cluster_timeframe` prefere `micro_granularity` → tipicamente **M1**.
+CLUSTER TF: `resolve_cluster_timeframe` prefere `micro_granularity` → tipicamente **M5** (300 s).
 
 Nao confundir com `raw_extreme` (calibracao DL): limiares `tcn_macro_*_override` sao de **raw TCN**, nao da escala MACRO OHLC. Ver [`engineering-deep-learning.md`](engineering-deep-learning.md).
 

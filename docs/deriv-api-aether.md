@@ -1,6 +1,6 @@
 # Deriv API — guia rapido para agentes (Aether)
 
-Referencia completa: [deriv-api.md](deriv-api.md).
+Referencia completa: [deriv-api.md](deriv-api.md). Arquitetura (WS/httpx/backpressure): [engineering-architecture-senior.md](engineering-architecture-senior.md).
 
 Use ONLY this API. Symbol field: `underlying_symbol`.
 

@@ -9,6 +9,7 @@ alwaysApply: true
 - Fila: `settlement:queue:priority` (ZSET); enqueue idempotente por contract_id
 - Tolerancia ~600 s; poll minimo ~2 s; profit_table se estagnado
 - Nao apagar fila Redis sem auditar contratos abertos
+- Nao substituir ZSET por Streams/listas sem mandato e migracao testada
 - Preservar spam filter / dedupe de logs SETTLE
 - Pending/linear soberanos apos WIN parcial
 - Doc: `docs/engineering-settlement.md`; skill: `aether-settlement-debug`

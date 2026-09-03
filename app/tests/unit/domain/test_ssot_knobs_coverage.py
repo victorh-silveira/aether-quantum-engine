@@ -94,7 +94,10 @@ def test_recovery_state_resolve_reset_and_missing(monkeypatch):
     assert resolve_recovery_state_config(None)["micro_unit_floor"] == base["micro_unit_floor"]
     reset_recovery_state_config_cache()
     assert rec_state_mod._CACHE["recovery_state"] is None
-    monkeypatch.setattr(rec_state_mod, "repo_path", lambda *a, **k: _FakePath({"risk_management": {}}))
+    monkeypatch.setattr(
+        "settings_io.load_settings_json",
+        lambda: {"risk_management": {}},
+    )
     with pytest.raises(ValueError, match="recovery_state"):
         load_recovery_state_from_settings()
     reset_recovery_state_config_cache()

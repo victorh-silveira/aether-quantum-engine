@@ -14,6 +14,7 @@ Complementa:
 
 | Mudanca | Superficie tipica |
 |---------|-------------------|
+| Arquitetura / camadas / event loop / host | `engineering-architecture-senior` + rule/skill `aether-architecture-senior` + `arquitetura.md` |
 | Knob / settings | doc settings SSOT + rule `aether-settings-ssot` + skill `aether-settings-change` |
 | Gate / risco / fusao | playbook + doutrina + rules de execucao/risco |
 | DL / horizon / label | `engineering-deep-learning` + rule/skill DL |

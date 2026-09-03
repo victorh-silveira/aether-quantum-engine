@@ -6,21 +6,24 @@ alwaysApply: true
 
 # Infraestrutura, Banco de Dados, Mensageria & DevOps Sênior
 
-- **Ambiente Híbrido**: Motor assíncrono no host (WSL Linux); Redis, TimescaleDB, MinIO, meta-classifier e loss-classifier isolados em containers Docker.
+- **Ambiente Híbrido**: Motor asyncio no host (WSL/Conda, Python 3.13, CUDA local); Redis, TimescaleDB, MinIO, meta-classifier e loss-classifier em Docker (`core,ml`).
+- **Host / WSL**: alinhar driver NVIDIA Windows ↔ CUDA Conda; afinidade de CPU quando necessário; segredos só via env/secret store.
 - **Isolamento e Segurança de Containers**:
   - Binds estritamente em loopback `127.0.0.1` (sem exposição externa de portas).
   - Execução non-root com usuário dedicado (`aether`, UID/GID 10001).
   - Flags de segurança ativas: `security_opt: [no-new-privileges:true]`, `read_only` root filesystem onde aplicável com volumes temporários dedicados.
-  - Healthchecks determinísticos com `start_period`, `interval` e `retries` calibrados.
+  - Healthchecks determinísticos com `start_period`, `interval` e `retries` calibrados; boot com `depends_on` + `service_healthy`.
+  - Limites cgroups (CPU/mem) nos sidecars para não saturar o host do motor; `OMP_NUM_THREADS` calibrado no LightGBM.
 - **Banco de Dados & SQL (TimescaleDB / PostgreSQL 16)**:
   - Hypertables com particionamento temporal otimizado para séries temporais financeiras (chunks de 1 dia para ticks e microvelas).
   - Compressão colunar nativa (`compress_segmentby = 'symbol'`, `compress_orderby = 'time DESC'`) e políticas automáticas de retenção.
-  - Conexões assíncronas via pool transacional fail-closed (tratamento de backpressure, reconexão e circuit breakers).
+  - Conexões assíncronas via pool transacional fail-closed (`asyncpg`); inserts em lote; gravação desacoplada da decisão de trading.
 - **Filas & Estado Distribuído (Redis 7.4-Alpine)**:
   - Persistência AOF (`appendfsync everysec`) para recuperação de falhas sem perda de estado.
-  - Fila de prioridade de liquidação em Redis ZSET (`settlement:queue:priority`) com score por timestamp e processamento idempotente.
+  - Fila de prioridade de liquidação em Redis ZSET (`settlement:queue:priority`) com score por timestamp e processamento idempotente (SSOT; não trocar por Streams sem mandato).
   - State stores: integridade atômica via pipeline transacional e isolamento com `asyncio.Lock` no core.
 - **Sidecars de Machine Learning (Meta & Loss Classifiers)**:
   - Containers FastAPI/Uvicorn dedicados (`:8005` e `:8006`) com workers ASGI otimizados.
-  - Retreino online `/v1/learn` atômico com buffer persistido em volumes seguros.
-- **Documentação e Skills**: `docs/infra-docker.md` + skill `aether-infra-stack`.
+  - Cliente motor: `httpx.AsyncClient` keep-alive, timeout agressivo e fallback se sidecar atrasar.
+  - Retreino online `/v1/learn` atômico com buffer persistido em volumes seguros; artefatos versionados no MinIO.
+- **Documentação e Skills**: `docs/infra-docker.md` + `docs/engineering-architecture-senior.md`; skills `aether-infra-stack` + `aether-architecture-senior`.

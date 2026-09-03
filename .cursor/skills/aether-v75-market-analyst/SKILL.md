@@ -22,5 +22,5 @@ Especialista em dinâmicas do índice sintético Volatility 75 (1s) (`1HZ75V`) p
    - Detecção de regimes de expansão e compressão via ATR.
 2. **Filtros Técnicos M5**:
    - **EMA 9 vs EMA 21**: Alinhamento de tendência nas velas de 5m.
-   - **RSI 14 (M5)**: Sobrevenda extrema (< 38) vetando CALL se momentum for de baixa; Sobrecompra (> 62) vetando PUT se momentum for de alta.
+   - **RSI 14 (M5)**: Anti-loss momentum — CALL vetado se $\text{RSI}_{\text{M5}} < 0.35$; PUT vetado se $\text{RSI}_{\text{M5}} > 0.65$ (`why=anti_loss_rsi_momentum`).
    - **Janela de Confirmação (`ops_window_bars = 3`)**: As últimas 3 velas M5 (15 min acumulados) devem demonstrar deslocamento a favor da direção pretendida.

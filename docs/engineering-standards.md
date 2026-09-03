@@ -4,10 +4,12 @@ Padroes obrigatorios para contribuicao e agentes. Entrada: [`AGENTS.md`](../AGEN
 
 ## Ambiente
 
-- Python **3.13** (conda `deriv-api` / `.python-version`)
+- Python **3.13** (conda `deriv-api` / `.python-version`); motor **asyncio no host**; sidecars Docker `core,ml`
+- Arquitetura DDD/hexagonal: [`engineering-architecture-senior.md`](engineering-architecture-senior.md)
 - Comandos de terminal no **WSL**
 - Codigo sem comentarios inline; docstrings OK
 - Arquivos em `app/src/**/*.py` com no maximo **300 linhas**
+- Event loop: nao bloquear com PyTorch/Polars/NumPy pesado no hot path (offload)
 
 ## Pre-commit
 
@@ -21,7 +23,7 @@ Padroes obrigatorios para contribuicao e agentes. Entrada: [`AGENTS.md`](../AGEN
 | cleanup | caches/artefatos locais | `--stage clean --light-clean` | (local) |
 | commit-msg | commitlint (`linters/commitlint.config.mjs`) | hook | (local) |
 
-Rodar: `make app-pre-commit-run` ou `pre-commit run --all-files` (WSL, raiz do repo). Gitleaks precisa estar no PATH local.
+Rodar: `make app-pre-commit-run` ou `pre-commit run --all-files` (WSL, raiz do repo). Gitleaks precisa estar no PATH local. Detalhe dos hooks: [`../linters/README.md`](../linters/README.md).
 
 ## Commitlint
 
