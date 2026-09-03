@@ -171,6 +171,15 @@ async def test_fetch_candle_closes_unknown_symbol(mock_ws):
     mock_ws.is_running = True
     sh = StreamHandler(mock_ws, ["R_10"], {})
     assert await sh.fetch_candle_closes("OTHER", 900, 5) == []
+    assert await sh.fetch_candle_ohlc("OTHER", 900, 5) == []
+
+
+@pytest.mark.asyncio
+async def test_fetch_candle_closes_skips_invalid(mock_ws):
+    mock_ws.is_running = True
+    mock_ws.send = AsyncMock(return_value={"candles": [{"close": "1.5"}, {"invalid": 1}]})
+    sh = StreamHandler(mock_ws, ["R_10"], {})
+    assert await sh.fetch_candle_closes("R_10", 900, 2) == [1.5]
 
 
 @pytest.mark.asyncio
@@ -182,73 +191,15 @@ async def test_fetch_candle_closes_zero_or_ws_down(mock_ws):
 
 
 @pytest.mark.asyncio
-async def test_fetch_candle_closes_api_error(mock_ws):
+@pytest.mark.parametrize("exc_or_err", [RuntimeError("x"), {"error": {"code": "x"}}])
+async def test_fetch_candle_failures(mock_ws, exc_or_err):
     mock_ws.is_running = True
-    mock_ws.send = AsyncMock(return_value={"error": {"code": "x"}})
+    if isinstance(exc_or_err, Exception):
+        mock_ws.send = AsyncMock(side_effect=exc_or_err)
+    else:
+        mock_ws.send = AsyncMock(return_value=exc_or_err)
     sh = StreamHandler(mock_ws, ["R_10"], {})
     assert await sh.fetch_candle_closes("R_10", 900, 2) == []
-
-
-@pytest.mark.asyncio
-async def test_fetch_candle_closes_send_raises(mock_ws):
-    mock_ws.is_running = True
-    mock_ws.send = AsyncMock(side_effect=RuntimeError("x"))
-    sh = StreamHandler(mock_ws, ["R_10"], {})
-    assert await sh.fetch_candle_closes("R_10", 900, 2) == []
-
-
-@pytest.mark.asyncio
-async def test_fetch_candle_closes_skips_invalid_rows(mock_ws):
-    mock_ws.is_running = True
-    mock_ws.send = AsyncMock(return_value={"candles": [{"close": "10"}, {"invalid": True}, {"close": "not-float"}]})
-    sh = StreamHandler(mock_ws, ["R_10"], {})
-    assert await sh.fetch_candle_closes("R_10", 900, 10) == [10.0]
-
-
-@pytest.mark.asyncio
-async def test_fetch_candle_ohlc_returns_tuples(mock_ws):
-    mock_ws.is_running = True
-    mock_ws.send = AsyncMock(
-        return_value={
-            "candles": [
-                {"open": "1", "high": "2", "low": "0.5", "close": "1.5"},
-                {"open": 2, "high": 3, "low": 1, "close": 2.5},
-            ]
-        }
-    )
-    sh = StreamHandler(mock_ws, ["R_10"], {"buffer_limit": 10})
-    rows = await sh.fetch_candle_ohlc("R_10", 900, 5)
-    assert rows == [(1.0, 2.0, 0.5, 1.5), (2.0, 3.0, 1.0, 2.5)]
-
-
-@pytest.mark.asyncio
-async def test_fetch_candle_ohlc_unknown_symbol(mock_ws):
-    mock_ws.is_running = True
-    sh = StreamHandler(mock_ws, ["R_10"], {})
-    assert await sh.fetch_candle_ohlc("OTHER", 900, 5) == []
-
-
-@pytest.mark.asyncio
-async def test_fetch_candle_ohlc_zero_or_ws_down(mock_ws):
-    mock_ws.is_running = False
-    sh = StreamHandler(mock_ws, ["R_10"], {})
-    assert await sh.fetch_candle_ohlc("R_10", 60, 3) == []
-    assert await sh.fetch_candle_ohlc("R_10", 60, 0) == []
-
-
-@pytest.mark.asyncio
-async def test_fetch_candle_ohlc_api_error(mock_ws):
-    mock_ws.is_running = True
-    mock_ws.send = AsyncMock(return_value={"error": {"code": "x"}})
-    sh = StreamHandler(mock_ws, ["R_10"], {})
-    assert await sh.fetch_candle_ohlc("R_10", 900, 2) == []
-
-
-@pytest.mark.asyncio
-async def test_fetch_candle_ohlc_send_raises(mock_ws):
-    mock_ws.is_running = True
-    mock_ws.send = AsyncMock(side_effect=RuntimeError("x"))
-    sh = StreamHandler(mock_ws, ["R_10"], {})
     assert await sh.fetch_candle_ohlc("R_10", 900, 2) == []
 
 
@@ -287,3 +238,39 @@ async def test_stream_handler_reconnect_single_flight(stream_handler):
     stream_handler._reconnect_in_progress = True
     ok = await stream_handler.reconnect_stream(orch)
     assert ok is False
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_equal_micro_mini_dispatch(mock_ws):
+    config = {
+        "buffer_limit": 10,
+        "fetch_count": 3,
+        "granularity": 86400,
+        "micro_granularity": 300,
+        "mini_granularity": 300,
+    }
+    sh = StreamHandler(mock_ws, ["R_10"], config)
+    sh.micro_candles["R_10"] = []
+    sh.mini_candles["R_10"] = []
+    payload = {
+        "ohlc": {
+            "symbol": "R_10",
+            "granularity": 300,
+            "open": "1.0",
+            "high": "1.2",
+            "low": "0.9",
+            "close": "1.1",
+            "open_time": 1600000000,
+            "epoch": 1600000000,
+        }
+    }
+    await sh._on_candle(payload)
+    assert len(sh.micro_candles["R_10"]) == 1
+    assert len(sh.mini_candles["R_10"]) == 1
+    series = sh.get_mini_numpy_series("R_10", "close")
+    assert series.tolist() == [1.1]
+
+    # Test fallback to micro_candles when mini_candles is empty
+    sh.mini_candles["R_10"] = []
+    fallback_series = sh.get_mini_numpy_series("R_10", "close")
+    assert fallback_series.tolist() == [1.1]

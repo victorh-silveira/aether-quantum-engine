@@ -123,20 +123,13 @@ def _stamp_anti_loss_metrics(
     metrics["anti_loss_why"] = reason
 
 
-def _finalize_anti_loss_decision(
-    out: dict[str, Any],
-    *,
-    cfg: dict[str, Any],
-    reason: str,
-) -> dict[str, Any]:
+def _finalize_anti_loss_decision(out: dict[str, Any], *, cfg: dict[str, Any], reason: str) -> dict[str, Any]:
     """Marca decisao ativa e hard/soft conforme SSOT."""
-    out["active"] = True
-    out["reason"] = reason
+    out["active"], out["reason"] = True, reason
     if bool(cfg.get("anti_loss_hard_skip", True)):
         out["skip"] = True
         return out
-    out["soft"] = True
-    out["soft_mult"] = float(cfg.get("anti_loss_soft_kelly_mult", 0.25))
+    out["soft"], out["soft_mult"] = True, float(cfg.get("anti_loss_soft_kelly_mult", 0.25))
     return out
 
 
@@ -155,7 +148,9 @@ def _evaluate_live_anti_loss(
     out = {"active": False, "skip": False, "soft": False, "reason": None, "soft_mult": None}
     exec_side = _exec_dir(metrics)
     anchor = exec_side if exec_side is not None else tcn
-    if not check_rsi_filter(metrics, anchor):
+    rsi_min = float(cfg.get("anti_loss_rsi_min", 0.35))
+    rsi_max = float(cfg.get("anti_loss_rsi_max", 0.65))
+    if not check_rsi_filter(metrics, anchor, rsi_min=rsi_min, rsi_max=rsi_max):
         _stamp_anti_loss_metrics(
             metrics, tcn=tcn, candle=candle, body=body, reason="anti_loss_rsi_momentum", side=anchor
         )

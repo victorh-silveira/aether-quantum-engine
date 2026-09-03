@@ -670,7 +670,9 @@
         "anti_loss_live_confirm_enabled": true,
         "anti_loss_live_confirm_min_body": 0.25,
         "anti_loss_live_exec_candle_enabled": true,
-        "anti_loss_allow_candle_flip": false
+        "anti_loss_allow_candle_flip": false,
+        "anti_loss_rsi_min": 0.35,
+        "anti_loss_rsi_max": 0.65
       }
     },
     "idle_cycle_watchdog_seconds": 1200,

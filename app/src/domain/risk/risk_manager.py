@@ -57,9 +57,7 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin, ProposalSkipMixin)
         self.contract_stakes: dict[int, float] = {}
         self.contract_requested_stakes: dict[int, float] = {}
         self.init_symbol_loss_cooldown()
-        self._candle_interval_seconds = 60
-        self._cooldown_until_mono = 0.0
-
+        self._candle_interval_seconds, self._cooldown_until_mono = 60, 0.0
         self.active_contract_ids: list[int] = []
         self.contract_to_symbol: dict[int, str] = {}
         self.cluster_results: dict[int, float] = {}
@@ -206,20 +204,13 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin, ProposalSkipMixin)
             )
         return True
 
-    def apply_kelly_target_proximity_damping(
-        self,
-        kelly_stake_raw: float,
-        *,
-        target_win: float | None = None,
-    ) -> float:
+    def apply_kelly_target_proximity_damping(self, kelly_stake_raw: float, *, target_win: float | None = None) -> float:
         """Comprime stake Kelly bruta conforme distancia da meta de stop win da sessao."""
         target = (
             float(target_win)
             if target_win is not None
             else resolve_stop_win_target(
-                self.config,
-                self.initial_bankroll,
-                persisted_target=persisted_session_target(self),
+                self.config, self.initial_bankroll, persisted_target=persisted_session_target(self)
             )
         )
         return apply_target_proximity_damping(kelly_stake_raw, target, self.total_session_profit)

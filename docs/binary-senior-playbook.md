@@ -29,8 +29,8 @@ Hierarquia: TCN Cal/Margin → SCALE dirs → soft `signal_skip` → **fusao EV*
 | `predict_error` | Falha de inferencia |
 | `neg_edge` | **Hard** se Edge Cal TCN do lado `<= 0` (`fusion_p_eff` nao substitui; ou `neg_edge_hard_skip` **true**, ou seed+Cal &lt; `neg_edge_deep_edge_floor` **−0.12**); soft Kelly so se `0 < Cal < min_edge_execute` |
 | `neg_edge_zscore_panic` | Veto de pânico bilateral: CALL vetado se $Z < -2.0$ (faca caindo); PUT vetado se $Z > +2.0$ (explosão compradora) |
-| `anti_loss_ema_slope` | Veto de inclinação de 3 barras na EMA21 M5 (CALL exige $\text{EMA}_{21}[-1] \ge \text{EMA}_{21}[-3]$; PUT exige inverso) |
-| `anti_loss_rsi_momentum` | Veto de fraqueza/momentum: CALL vetado se $\text{RSI} < 0.40$; PUT vetado se $\text{RSI} > 0.60$ |
+| `anti_loss_ema_slope` | Veto de inclinação de 3 barras na EMA21 M5 com tolerância dinâmica por ATR (CALL exige $\text{EMA}_{21}[-1] \ge \text{EMA}_{21}[-3] - \text{tol}$; PUT exige inverso) |
+| `anti_loss_rsi_momentum` | Veto de fraqueza/momentum conforme SSOT: CALL vetado se $\text{RSI} < \text{rsi\_min}$ (default 0.35); PUT vetado se $\text{RSI} > \text{rsi\_max}$ (default 0.65) |
 | `live_exec_discord` | Veto estrito mandatório de vela contrária (sinal CALL com candle M5 PUT, ou inverso) |
 | `anti_loss_seed_discord` | **Seed** unstamped + `p_loss >= anti_loss_p_loss_floor` (**0.85**) + TCN pos_edge: **hard SKIP** se a **janela ops N=3** nao confirma o TCN com corpo minimo **0.10**. **Live** (janela stampada, mesmo `auto=0`): tier fraco se corpo liquido &lt; **0.10** ou ausente. |
 | Kelly `EXEC_PAUSE` | `stop_win` / `bankroll_below_stake_min` (sizing; **sem** `kelly_no_edge`) |

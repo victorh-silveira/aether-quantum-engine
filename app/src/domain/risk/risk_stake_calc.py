@@ -38,25 +38,24 @@ def _metrics_for_conviction(dl_metrics: dict | None, conviction: float) -> dict:
     """Monta metricas para resolver conviccao de sizing."""
     if isinstance(dl_metrics, dict):
         merged = dict(dl_metrics)
-        if "trade_score" not in merged and "conviction" not in merged:
-            merged["trade_score"] = conviction
-            merged["conviction"] = conviction
+        merged.setdefault("trade_score", conviction)
+        merged.setdefault("conviction", conviction)
         return merged
     return {"trade_score": conviction, "conviction": conviction}
 
 
 def _mandatory_trade_flag(kwargs: dict, rm: Any) -> bool:
     """Indica se o ciclo exige entrada obrigatoria independente de conviccao."""
-    return (
-        bool(kwargs.get("mandatory_weak_cap"))
-        or bool(kwargs.get("mandatory_trade_each_cycle"))
-        or bool(rm.config.get("orchestrator", {}).get("execution", {}).get("mandatory_trade_each_cycle", False))
+    orch_exec = rm.config.get("orchestrator", {}).get("execution", {})
+    return bool(
+        kwargs.get("mandatory_weak_cap")
+        or kwargs.get("mandatory_trade_each_cycle")
+        or orch_exec.get("mandatory_trade_each_cycle", False)
     )
 
 
-def check_stake_preconditions_veto(symbol: str, *, apply_stop_win: bool, rm: Any, kwargs: dict) -> bool:
+def check_stake_preconditions_veto(_symbol: str, *, apply_stop_win: bool, rm: Any, **_kwargs) -> bool:
     """Retorna True apenas no veto de stop win; Drift Bias Lock desativado."""
-    _ = (symbol, kwargs)
     return bool(_stop_win_target_reached(rm, apply_stop_win=apply_stop_win))
 
 
@@ -226,6 +225,15 @@ def calculate_stake_for_manager(
     stake_min = float(rm.risk_params.get("stake_min", 1.0))
     if mode_tag == "D'ALEMBERT" and final_stake <= stake_min and not mandatory_flag:
         return 0.0
+    final_stake = enforce_d_squeeze_stake_floor(final_stake, stake_min, dl_metrics, pending_total=loss_to_recover)
+    soft = getattr(rm, "soft_recovery_config", None)
+    final_stake = apply_post_kelly_stake_caps(
+        final_stake,
+        bankroll,
+        dl_metrics if isinstance(dl_metrics, dict) else None,
+        pending_total=float(loss_to_recover),
+        soft_recovery=soft if isinstance(soft, dict) else None,
+    )
     final_stake = finalize_stake_with_min(
         final_stake,
         stake_min,
@@ -247,16 +255,6 @@ def calculate_stake_for_manager(
         dlambert_config=rm.dlambert_config,
         bankroll=bankroll,
         payout=b,
-    )
-    final_stake = enforce_d_squeeze_stake_floor(final_stake, stake_min, dl_metrics, pending_total=loss_to_recover)
-    soft = getattr(rm, "soft_recovery_config", None)
-    metrics_dict = dl_metrics if isinstance(dl_metrics, dict) else None
-    final_stake = apply_post_kelly_stake_caps(
-        final_stake,
-        bankroll,
-        metrics_dict,
-        pending_total=float(loss_to_recover),
-        soft_recovery=soft if isinstance(soft, dict) else None,
     )
     recovery_infeasible = bool(isinstance(dl_metrics, dict) and dl_metrics.get("recovery_infeasible"))
     if recovery_infeasible and not silent:

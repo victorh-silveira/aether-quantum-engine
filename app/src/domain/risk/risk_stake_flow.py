@@ -4,7 +4,11 @@ from typing import Any
 
 from src.domain.risk.stake_sizing import compute_single_strike_kelly_base
 from src.domain.risk.stake_target_proximity import apply_target_proximity_damping
-from src.domain.risk.stop_win_target import persisted_session_target, resolve_stop_win_target
+from src.domain.risk.stop_win_target import (
+    is_stop_win_reached,
+    persisted_session_target,
+    resolve_stop_win_target,
+)
 
 
 def apply_stop_win_kelly_boost(
@@ -117,7 +121,7 @@ def stop_win_target_reached(rm: Any, *, apply_stop_win: bool) -> bool:
         rm.initial_bankroll,
         persisted_target=persisted_session_target(rm),
     )
-    if rm.total_session_profit < target:
+    if not is_stop_win_reached(rm.total_session_profit, target, risk_config=rm.config):
         return False
     rm.logger.info(f"STOP WIN: Meta de ${target:.2f} atingida. Encerrando operações do dia.")
     return True

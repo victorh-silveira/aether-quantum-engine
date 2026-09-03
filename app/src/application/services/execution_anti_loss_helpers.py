@@ -46,17 +46,19 @@ def check_mini_ema_trend_and_slope(
     last_close = float(closes[-1])
     ema21_series = calc_ema_series(closes, 21) if len(closes) >= 21 else None
     base_tol = max(0.50, last_close * 0.001)
+    base_slope_tol = max(0.10, last_close * 0.0002)
     tol = base_tol
+    slope_tol = base_slope_tol
     if metrics is not None:
         atr_val = metrics.get("atr")
         if atr_val is not None and float(atr_val) > 0.0:
             tol = max(base_tol, float(atr_val) * 0.4)
+            slope_tol = max(base_slope_tol, float(atr_val) * 0.15)
     if side == TradeDirection.CALL:
         if last_close < ema9 - tol:
             return False, "anti_loss_ema_trend"
         if ema21_series is not None and len(ema21_series) >= 3:
             ema21_last = float(ema21_series[-1])
-            slope_tol = max(0.10, last_close * 0.0002)
             if ema21_last < float(ema21_series[-3]) - slope_tol:
                 return False, "anti_loss_ema_slope"
     elif side == TradeDirection.PUT:
@@ -64,7 +66,6 @@ def check_mini_ema_trend_and_slope(
             return False, "anti_loss_ema_trend"
         if ema21_series is not None and len(ema21_series) >= 3:
             ema21_last = float(ema21_series[-1])
-            slope_tol = max(0.10, last_close * 0.0002)
             if ema21_last > float(ema21_series[-3]) + slope_tol:
                 return False, "anti_loss_ema_slope"
     return True, None
@@ -73,8 +74,10 @@ def check_mini_ema_trend_and_slope(
 def check_rsi_filter(
     metrics: dict[str, Any],
     side: TradeDirection,
+    rsi_min: float = 0.35,
+    rsi_max: float = 0.65,
 ) -> bool:
-    """True se RSI intradiario for valido: CALL >= 0.32 e PUT <= 0.68."""
+    """True se RSI intradiario for valido dentro dos limites operacionais."""
     indicators = metrics.get("indicators") or {}
     micro = metrics.get("micro_indicators") or {}
     rsi_val = indicators.get("rsi")
@@ -88,6 +91,6 @@ def check_rsi_filter(
             rsi = rsi / 100.0
     except (TypeError, ValueError):
         return True
-    call_blocked = side == TradeDirection.CALL and rsi < 0.32
-    put_blocked = side == TradeDirection.PUT and rsi > 0.68
+    call_blocked = side == TradeDirection.CALL and rsi < rsi_min
+    put_blocked = side == TradeDirection.PUT and rsi > rsi_max
     return not (call_blocked or put_blocked)

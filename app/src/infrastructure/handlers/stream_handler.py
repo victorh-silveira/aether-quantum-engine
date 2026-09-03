@@ -143,9 +143,14 @@ class StreamHandler:
         candle = candle_from_ohlc(symbol, o)
         if gran == self.macro_granularity:
             await self._apply_macro_candle(symbol, candle)
-        elif gran == self.micro_granularity:
+        if gran == self.micro_granularity:
             await self._apply_micro_candle(symbol, candle)
-        elif gran == self.mini_granularity:
+        if (
+            gran == self.mini_granularity
+            and self.mini_granularity != self.micro_granularity
+            or gran == self.micro_granularity
+            and self.mini_granularity == self.micro_granularity
+        ):
             await self._apply_mini_candle(symbol, candle)
 
     async def _apply_macro_candle(self, symbol: str, candle: Candle):
@@ -211,7 +216,10 @@ class StreamHandler:
 
     def get_mini_numpy_series(self, symbol: str, field: str = "close") -> np.ndarray:
         """Retorna serie numpy MINI para visao de tape curto."""
-        return self._series_from_store(self.mini_candles, symbol, field)
+        series = self._series_from_store(self.mini_candles, symbol, field)
+        if len(series) == 0:
+            return self._series_from_store(self.micro_candles, symbol, field)
+        return series
 
     @staticmethod
     def _series_from_store(store: dict[str, list], symbol: str, field: str) -> np.ndarray:

@@ -223,21 +223,13 @@ def fit_training_epochs(
         lr=lr,
     )
     model.train()
-    total_loss = 0.0
-    best_state = None
-    best_sharp_state = None
-    best_val_loss = float("inf")
-    best_val_acc = -1.0
-    best_sharp_acc = -1.0
-    best_sharp_loss = float("inf")
-    patience = max(0, int(early_stopping_patience))
-    patience_counter = 0
-    min_ep = max(0, int(min_epochs))
-    total_epochs = max(1, epochs)
-    epochs_ran = 0
+    total_loss, patience_counter, epochs_ran = 0.0, 0, 0
+    best_state, best_sharp_state = None, None
+    best_val_loss, best_sharp_loss = float("inf"), float("inf")
+    best_val_acc, best_sharp_acc = -1.0, -1.0
+    patience, min_ep, total_epochs = max(0, int(early_stopping_patience)), max(0, int(min_epochs)), max(1, epochs)
     weight_arr = np.asarray(weights, dtype=np.float32)
-    sharp_floor = float(min_oos_sharpness)
-    acc_floor = float(min_val_accuracy)
+    sharp_floor, acc_floor = float(min_oos_sharpness), float(min_val_accuracy)
     for epoch_idx in range(total_epochs):
         epochs_ran = epoch_idx + 1
         mean_epoch_loss, batch_count = _mean_epoch_loss(

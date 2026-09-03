@@ -48,6 +48,8 @@ def parse_signal_skip_config(raw: dict[str, Any] | None = None) -> dict[str, Any
             "anti_loss_live_confirm_min_body",
             "anti_loss_live_exec_candle_enabled",
             "anti_loss_allow_candle_flip",
+            "anti_loss_rsi_min",
+            "anti_loss_rsi_max",
         ),
         "orchestrator.execution.signal_skip",
     )
@@ -90,6 +92,14 @@ def parse_signal_skip_config(raw: dict[str, Any] | None = None) -> dict[str, Any
     hurst_max = require_float(block, "chop_hurst_max")
     if hurst_max < hurst_min:
         raise ValueError("orchestrator.execution.signal_skip.chop_hurst_max deve ser >= chop_hurst_min")
+    rsi_min = require_float(block, "anti_loss_rsi_min")
+    rsi_max = require_float(block, "anti_loss_rsi_max")
+    if rsi_min < 0.0 or rsi_min > 1.0:
+        raise ValueError("orchestrator.execution.signal_skip.anti_loss_rsi_min deve estar em [0, 1]")
+    if rsi_max < 0.0 or rsi_max > 1.0 or rsi_max < rsi_min:
+        raise ValueError(
+            "orchestrator.execution.signal_skip.anti_loss_rsi_max deve estar em [0, 1] e >= anti_loss_rsi_min"
+        )
     return {
         "enabled": require_bool(block, "enabled"),
         "min_direction_margin": require_float(block, "min_direction_margin"),
@@ -122,6 +132,8 @@ def parse_signal_skip_config(raw: dict[str, Any] | None = None) -> dict[str, Any
         "anti_loss_live_confirm_min_body": confirm_min,
         "anti_loss_live_exec_candle_enabled": require_bool(block, "anti_loss_live_exec_candle_enabled"),
         "anti_loss_allow_candle_flip": require_bool(block, "anti_loss_allow_candle_flip"),
+        "anti_loss_rsi_min": rsi_min,
+        "anti_loss_rsi_max": rsi_max,
     }
 
 

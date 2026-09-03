@@ -95,3 +95,8 @@ def test_check_rsi_filter():
     assert check_rsi_filter({"indicators": {"rsi": 70.0}}, TradeDirection.PUT) is False
     assert check_rsi_filter({"indicators": {"rsi": 50.0}}, TradeDirection.PUT) is True
     assert check_rsi_filter({"micro_indicators": {"rsi": 0.25}}, TradeDirection.CALL) is False
+    # Limites customizados
+    assert check_rsi_filter({"indicators": {"rsi": 0.36}}, TradeDirection.CALL, rsi_min=0.38) is False
+    assert check_rsi_filter({"indicators": {"rsi": 0.40}}, TradeDirection.CALL, rsi_min=0.38) is True
+    assert check_rsi_filter({"indicators": {"rsi": 0.63}}, TradeDirection.PUT, rsi_max=0.62) is False
+    assert check_rsi_filter({"indicators": {"rsi": 0.60}}, TradeDirection.PUT, rsi_max=0.62) is True

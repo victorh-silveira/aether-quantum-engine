@@ -53,6 +53,8 @@ def test_parse_signal_skip_from_ssot():
         ("anti_loss_min_candle_body", -0.1),
         ("anti_loss_live_confirm_min_body", 0.01),
         ("chop_hurst_max", 0.40),
+        ("anti_loss_rsi_min", -0.1),
+        ("anti_loss_rsi_max", 1.5),
     ):
         with pytest.raises(ValueError):
             parse_signal_skip_config({"chop_hurst_min": 0.60, k: v} if k == "chop_hurst_max" else {k: v})
