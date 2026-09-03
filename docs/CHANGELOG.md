@@ -1,3 +1,9 @@
+## [2.50.4](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.50.3...v2.50.4) (2026-09-03)
+
+### Correcoes de Bug
+
+* **risk:** unificar stop win tolerance e sanitizar caps de sizing ([fec55cd](https://github.com/victorh-silveira/aether-quantum-engine/commit/fec55cdc1ba494fd6fc3990df7180636ec513762))
+
 ## [2.50.3](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.50.2...v2.50.3) (2026-09-02)
 
 ### Correcoes de Bug
