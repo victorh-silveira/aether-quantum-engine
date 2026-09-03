@@ -217,6 +217,7 @@ def test_shell_with_script(tmp_path: Path, monkeypatch):
     )
     run_shell("lint", tmp_path)
     assert calls[0][0] == "/usr/bin/shellcheck"
+    assert "-e" in calls[0] and "SC1091" in calls[0]
     calls.clear()
     monkeypatch.setattr("scripts.operations.qa.shell.which", lambda name: None)
 

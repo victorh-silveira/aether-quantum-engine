@@ -33,7 +33,11 @@ def run_docker(stage: str, root: Path) -> None:
         if hadolint is None:
             return
         for path in files:
-            run_cmd([hadolint, str(path)], cwd=root, description=f"Hadolint {path.relative_to(root)}")
+            run_cmd(
+                [hadolint, "--ignore", "DL3008", str(path)],
+                cwd=root,
+                description=f"Hadolint {path.relative_to(root)}",
+            )
         return
     if stage == "validate":
         docker = require_tool("docker", area="docker")

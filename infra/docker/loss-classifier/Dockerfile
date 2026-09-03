@@ -12,7 +12,7 @@ COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir -r requirements.txt
 
-COPY runtime.py learn_policy.py buffer_io.py app.py .
+COPY runtime.py learn_policy.py buffer_io.py app.py ./
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \

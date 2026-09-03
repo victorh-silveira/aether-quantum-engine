@@ -42,9 +42,19 @@ def run_yaml(stage: str, root: Path) -> None:
         if not workflows.is_dir():
             skip("python", "workflows ausentes")
             return
+        workflow_files = sorted(path for path in workflows.glob("*.yml") if path.is_file()) + sorted(
+            path for path in workflows.glob("*.yaml") if path.is_file()
+        )
+        if not workflow_files:
+            skip("python", "nenhum workflow yml")
+            return
         actionlint = require_tool("actionlint", area="python")
         if actionlint is None:
             return
-        run_cmd([actionlint], cwd=root, description="Actionlint workflows")
+        run_cmd(
+            [actionlint, *[str(path) for path in workflow_files]],
+            cwd=root,
+            description="Actionlint workflows",
+        )
         return
     skip("python", f"yaml estagio {stage} coberto por gitleaks")
