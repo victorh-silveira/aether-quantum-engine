@@ -1,3 +1,13 @@
+## [2.50.6](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.50.5...v2.50.6) (2026-09-03)
+
+### Correcoes de Bug
+
+* **scripts:** restaurar meta LightGBM com 5000 barras M5 ([f2a5d5f](https://github.com/victorh-silveira/aether-quantum-engine/commit/f2a5d5f1ca839c867f1748f6814db2646635388a))
+
+### Refatoracoes Tecnicas
+
+* **repo:** arquitetura senior, settings_io e sync de superficie ([445db7c](https://github.com/victorh-silveira/aether-quantum-engine/commit/445db7c026ac317bc48db4de810e35a688a1e41e))
+
 ## [2.50.5](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.50.4...v2.50.5) (2026-09-03)
 
 ### Correcoes de Bug
