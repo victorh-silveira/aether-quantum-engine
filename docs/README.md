@@ -51,15 +51,15 @@ Regra: **domain** não importa application nem infrastructure. **Application** o
 | Item | Valor |
 |------|-------|
 | Universo | `1HZ75V` (âncora `1HZ75V`) |
-| DL | TCN, lookback **30**, micro **900 s** (500 velas M15), macro **86400 s** (365 velas D1), `FEATURE_DIM=34`, label `triple_barrier`, tensor `[1, 30, 34]` |
-| Meta | LightGBM HTTP `:8005`, `META_FEATURE_DIM=43` (micro **900 s**); **opcional** para execução |
-| Relógio | Micro/MINI **900 s** (M15) + macro **86400 s** (D1); contrato ops **15 m (M15)**; label TCN **N=1** vela M15; ratio **1:96**; ciclo **900 s** |
-| Ciclo / assinatura | `cycle_interval_seconds` / `signature_boundary_seconds` = **900 s** (sync fecho M15); `exec_empty_retry` **900 s** |
-| Execução | `mandatory_trade_each_cycle: false`; `force_trade_every_cycle: false`; `invert_exec_side: false`; fusao EV + anti-loss microestrutura M15 + signal_skip 1.1 |
+| DL | TCN, lookback **30**, micro **300 s** (500 velas M5), macro **86400 s** (365 velas D1), `FEATURE_DIM=34`, label `triple_barrier`, tensor `[1, 30, 34]` |
+| Meta | LightGBM HTTP `:8005`, `META_FEATURE_DIM=43` (micro **300 s**); **opcional** para execução |
+| Relógio | Micro/MINI **300 s** (M5) + macro **86400 s** (D1); contrato ops **5 m (M5)**; label TCN **N=1** vela M5; ratio **1:288**; ciclo **120 s** |
+| Ciclo / assinatura | `cycle_interval_seconds` / `signature_boundary_seconds` = **300 s** (sync fecho M5); `exec_empty_retry` **120 s** |
+| Execução | `mandatory_trade_each_cycle: false`; `force_trade_every_cycle: false`; `invert_exec_side: false`; fusao EV + anti-loss microestrutura M5 + signal_skip 1.1 |
 | Fail-closed | Meta **opcional** nos settings atuais (`require_meta_for_execution: false`); TCN eager/CUDA local |
 | Calibração | Thresholds CALL/PUT **0.46/0.34**; override TCN macro se raw &gt;0.82 ou &lt;0.18 |
-| Direção | Resolver modular com anti-loss microestrutura M15 (EMA slope 9/21, RSI momentum) |
-| Risco | Kelly Single-Strike 1% (`fraction=0.08`, alvo 1% da banca em payout 0.85 em 1 tacada M15); Soft Recovery RECOVER |
+| Direção | Resolver modular com anti-loss microestrutura M5 (ancora hibrida, EMA slope 9/21, RSI momentum) |
+| Risco | Kelly Single-Strike 4.31% (`fraction=0.08`, alvo 4.31% da banca em payout 0.85 em 1 tacada M5); Soft Recovery RECOVER |
 | Settlement | Tolerância **600 s**, reconciliação passiva; pós-EXEC_EMPTY alinha fronteira |
 | Watchdog | Stale tick **300 s** |
 | Histórico treino | **100** barras diárias D1 |

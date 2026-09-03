@@ -60,7 +60,7 @@ SSOT: `deep_learning.sample_weighting` — modulo `dl_sample_weighting.py`; wire
 | `class_balance_enabled` | true | Repondera CALL/PUT quando a taxa de label sai do equilibrio |
 | `class_balance_eps` | 0.05 | Tolerancia antes de balancear |
 | `recency_enabled` | true | Decai peso de amostras antigas |
-| `recency_half_life_n` | **2000** | Half-life em numero de amostras |
+| `recency_half_life_n` | **500** | Half-life em numero de amostras |
 
 Telemetria de treino: `TrainResult.label_call_frac`, `pred_call_frac`, `minority_recall` (logados em treino bem-sucedido).
 

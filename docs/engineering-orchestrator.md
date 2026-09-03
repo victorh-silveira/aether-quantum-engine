@@ -18,6 +18,7 @@ Ciclo operacional do motor. Inventario de arquivos: [`structure.md`](structure.m
 - Sync inicial: `stream_sync_start.py` (historico MACRO+MICRO+MINI + subscribe candles/ticks)
 - Proporcao MACRO:MICRO **288:1** (86400:300)
 - Pos-settlement: `post_settlement_is_trading_wait_seconds` **90**; `settlement_tolerance_window_seconds` **600**; `post_settlement_cycle_timeout_seconds` **1200**; `watchdog_stale_tick_seconds` **300**
+- Anti-loss EMA: `invalidate_ema_cache(cycle_id)` no inicio de cada ciclo (`trading_cycle_entry.py`); `calc_ema_series` cacheada por ciclo evita recomputacao de EMA9/EMA21; slope EMA21 2-pontos (lag 5 min) + EMA9 slope rapido (`slope_tol * 0.6`); ancora hibrida (`resolve_hybrid_candle_anchor`) combina janela ops N=3 + ultima vela micro fechada
 
 ## Pipeline do ciclo
 

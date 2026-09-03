@@ -29,7 +29,6 @@ class TradingState:
         self.active_contracts: dict[int, Contract] = {}
         self.balance = 0.0
         self.is_trading = False
-        self.is_trading = False
 
     @classmethod
     def reset(cls):

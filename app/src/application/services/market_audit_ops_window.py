@@ -103,6 +103,50 @@ def ops_window_stamped(metrics: dict[str, Any] | None) -> bool:
     return bool(metrics.get("ops_window_stamped"))
 
 
+def resolve_hybrid_candle_anchor(
+    metrics: dict[str, Any] | None,
+) -> tuple[str | None, float | None, bool]:
+    """Ancora hibrida: ops_window primaria + ultima vela fechada como confirmacao.
+
+    Retorna (side, body, agree) onde agree=True se ambas concordam no lado.
+    Regra de desempate:
+      - Ambas concordam → lado forte, body = max(ops_body, last_body)
+      - Discordam → lado da ops_window mantido, body = min(ops_body, last_body)
+      - ops_window incompleta → fallback para ultima vela fechada
+    """
+    if not isinstance(metrics, dict):
+        return None, None, False
+    ops_side = ops_window_candle_side(metrics)
+    ops_body = ops_window_candle_body(metrics)
+    stamped = ops_window_stamped(metrics)
+    last_side = str(metrics.get("closed_micro_candle_dir") or "").strip().upper()
+    last_side = last_side if last_side in _VALID else None
+    raw_last_body = metrics.get("closed_micro_candle_body")
+    last_body: float | None = None
+    if raw_last_body is not None:
+        try:
+            val = float(raw_last_body)
+            if isfinite(val) and val >= 0.0:
+                last_body = val
+        except (TypeError, ValueError):
+            pass
+    if not stamped or ops_side is None:
+        return last_side, last_body, last_side is not None and last_side == ops_side
+    if last_side is None:
+        return ops_side, ops_body, False
+    agree = ops_side == last_side
+    if agree:
+        merged_body = max(ops_body or 0.0, last_body or 0.0) or None
+        return ops_side, merged_body, True
+    merged_body = min(
+        ops_body if ops_body is not None else float("inf"),
+        last_body if last_body is not None else float("inf"),
+    )
+    if merged_body == float("inf"):
+        merged_body = None
+    return ops_side, merged_body, False
+
+
 def stamp_ops_window_metrics(
     metrics: dict[str, Any],
     stream: Any,

@@ -29,3 +29,10 @@ def test_risk_manager_restore_ignores_last_martingale_stake(kelly_config):
     rm.restore_state({"last_martingale_stake": 999.0, "dlambert_unit": 12.0})
     assert rm.dlambert_unit == 12.0
     assert not hasattr(rm, "last_martingale_stake")
+
+
+def test_risk_manager_restore_last_loss_fields(kelly_config):
+    rm = RiskManager(kelly_config)
+    rm.restore_state({"last_loss_symbol": "R_10", "last_loss_direction": "PUT", "dlambert_unit": 11.0})
+    assert rm.last_loss_symbol == "R_10"
+    assert rm.last_loss_direction == "PUT"

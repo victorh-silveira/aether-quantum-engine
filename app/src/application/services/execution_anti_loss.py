@@ -14,6 +14,7 @@ from src.application.services.market_audit_ops_window import (
     ops_window_candle_body,
     ops_window_candle_side,
     ops_window_stamped,
+    resolve_hybrid_candle_anchor,
 )
 from src.domain.models.trade import TradeDirection
 
@@ -220,16 +221,21 @@ def evaluate_anti_loss_seed_discord(
     tcn = _tcn_dir(metrics)
     if tcn is None:
         return out
+    hybrid_side, hybrid_body, hybrid_agree = resolve_hybrid_candle_anchor(metrics)
     candle = ops_window_candle_side(metrics)
     body = ops_window_candle_body(metrics)
     min_body = float(cfg.get("anti_loss_min_candle_body", 0.10))
+    metrics["anti_loss_anchor_mode"] = "hybrid"
+    metrics["anti_loss_ops_dir"] = candle
+    metrics["anti_loss_last_dir"] = str(metrics.get("closed_micro_candle_dir") or "-")
+    metrics["anti_loss_anchor_agree"] = hybrid_agree
     if ops_window_stamped(metrics):
         return _evaluate_live_anti_loss(
             metrics,
             cfg=cfg,
             tcn=tcn,
-            candle=candle,
-            body=body,
+            candle=hybrid_side if hybrid_side is not None else candle,
+            body=hybrid_body if hybrid_body is not None else body,
             min_body=min_body,
             orch=orch,
             symbol=symbol,

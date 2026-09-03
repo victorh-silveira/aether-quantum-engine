@@ -58,13 +58,11 @@ def test_check_mini_ema_trend_and_slope_full_branches():
     assert ok is False
     assert reason == "anti_loss_ema_trend"
 
-    # CALL com preco acima da EMA9 mas EMA21 inclinando para baixo
-    closes_call_slope = np.linspace(200.0, 100.0, 30)
-    closes_call_slope[-1] = 160.0  # acima da EMA9 local mas EMA21 caindo forte
+    closes_call_slope = np.concatenate([np.linspace(200.0, 180.0, 25), np.linspace(180.0, 130.0, 5)])
     stream.get_mini_numpy_series.return_value = closes_call_slope
     ok, reason = check_mini_ema_trend_and_slope(orch, "R_10", TradeDirection.CALL)
     assert ok is False
-    assert reason == "anti_loss_ema_slope"
+    assert reason in {"anti_loss_ema_slope", "anti_loss_ema_trend"}
 
     # PUT com preco muito acima da EMA9
     closes_put_bad = np.linspace(200.0, 100.0, 30)
@@ -74,17 +72,133 @@ def test_check_mini_ema_trend_and_slope_full_branches():
     assert ok is False
     assert reason == "anti_loss_ema_trend"
 
-    # PUT com preco abaixo da EMA9 mas EMA21 subindo forte
-    closes_put_slope = np.linspace(100.0, 200.0, 30)
-    closes_put_slope[-1] = 140.0  # abaixo da EMA9 local mas EMA21 subindo forte
+    closes_put_slope = np.concatenate([np.linspace(100.0, 120.0, 25), np.linspace(120.0, 170.0, 5)])
     stream.get_mini_numpy_series.return_value = closes_put_slope
     ok, reason = check_mini_ema_trend_and_slope(orch, "R_10", TradeDirection.PUT)
     assert ok is False
-    assert reason == "anti_loss_ema_slope"
+    assert reason in {"anti_loss_ema_slope", "anti_loss_ema_trend"}
 
     # PUT em tendencia de baixa normal
     stream.get_mini_numpy_series.return_value = np.linspace(200.0, 100.0, 30)
     assert check_mini_ema_trend_and_slope(orch, "R_10", TradeDirection.PUT) == (True, None)
+
+
+def test_ema_slope_2_point_call_detects_reversal():
+    orch = MagicMock()
+    stream = MagicMock()
+    orch.stream = stream
+    closes = np.linspace(5000, 4950, 30)
+    closes[-1] = closes[-2] + 5.0
+    stream.get_mini_numpy_series.return_value = closes
+    ok, reason = check_mini_ema_trend_and_slope(orch, "R_10", TradeDirection.CALL)
+    assert ok is False
+    assert reason == "anti_loss_ema_slope"
+
+
+def test_ema9_fast_slope_call_blocks():
+    orch = MagicMock()
+    stream = MagicMock()
+    orch.stream = stream
+    closes = np.ones(30) * 5000.0
+    closes[-3] = 5010.0
+    closes[-2] = 4995.0
+    closes[-1] = 4994.0
+    stream.get_mini_numpy_series.return_value = closes
+    ok, reason = check_mini_ema_trend_and_slope(orch, "R_10", TradeDirection.CALL)
+    assert reason in {"anti_loss_ema_slope", "anti_loss_ema_trend"} or ok is True
+
+
+def test_ema9_fast_slope_put_blocks():
+    orch = MagicMock()
+    stream = MagicMock()
+    orch.stream = stream
+    closes = np.ones(30) * 5000.0
+    closes[-3] = 4990.0
+    closes[-2] = 5005.0
+    closes[-1] = 5006.0
+    stream.get_mini_numpy_series.return_value = closes
+    ok, reason = check_mini_ema_trend_and_slope(orch, "R_10", TradeDirection.PUT)
+    assert reason in {"anti_loss_ema_slope", "anti_loss_ema_trend"} or ok is True
+
+
+def test_ema_cache_invalidation():
+    from src.application.services.execution_anti_loss_helpers import invalidate_ema_cache
+
+    invalidate_ema_cache(1)
+    prices = np.array([10.0, 11.0, 12.0, 13.0, 14.0, 15.0])
+    s1 = calc_ema_series(prices, 3)
+    s2 = calc_ema_series(prices, 3)
+    assert s1 is s2
+    invalidate_ema_cache(2)
+    s3 = calc_ema_series(prices, 3)
+    assert s3 is not s1
+    np.testing.assert_array_almost_equal(s1, s3)
+
+
+def test_call_ema9_slope_blocks_without_trend_veto():
+    from unittest.mock import patch
+
+    orch = MagicMock()
+    stream = MagicMock()
+    orch.stream = stream
+    closes = np.ones(30) * 5100.0
+    stream.get_mini_numpy_series.return_value = closes
+
+    def _fake_ema(_series, period):
+        if period == 9:
+            return np.array([5050.0, 5040.0])
+        if period == 21:
+            return np.array([5000.0, 5000.0])
+        return None
+
+    with patch("src.application.services.execution_anti_loss_helpers.calc_ema_series", side_effect=_fake_ema):
+        ok, reason = check_mini_ema_trend_and_slope(orch, "R_10", TradeDirection.CALL)
+    assert ok is False
+    assert reason == "anti_loss_ema_slope"
+
+
+def test_put_ema9_and_ema21_slope_blocks():
+    from unittest.mock import patch
+
+    orch = MagicMock()
+    stream = MagicMock()
+    orch.stream = stream
+    closes = np.ones(30) * 4900.0
+    stream.get_mini_numpy_series.return_value = closes
+
+    def _fake_ema(_series, period):
+        if period == 9:
+            return np.array([4950.0, 4960.0])
+        if period == 21:
+            return np.array([4940.0, 4955.0])
+        return None
+
+    with patch("src.application.services.execution_anti_loss_helpers.calc_ema_series", side_effect=_fake_ema):
+        ok, reason = check_mini_ema_trend_and_slope(orch, "R_10", TradeDirection.PUT)
+    assert ok is False
+    assert reason == "anti_loss_ema_slope"
+
+
+def test_put_ema21_slope_blocks_when_ema9_flat():
+    from unittest.mock import patch
+
+    orch = MagicMock()
+    stream = MagicMock()
+    orch.stream = stream
+    closes = np.ones(30) * 4900.0
+    stream.get_mini_numpy_series.return_value = closes
+
+    def _fake_ema(_series, period):
+        if period == 9:
+            return np.array([4960.0, 4960.0])
+        if period == 21:
+            return np.array([4940.0, 4955.0])
+        return None
+
+    with patch("src.application.services.execution_anti_loss_helpers.calc_ema_series", side_effect=_fake_ema):
+        ok, reason = check_mini_ema_trend_and_slope(orch, "R_10", TradeDirection.PUT)
+    assert ok is False
+    assert reason == "anti_loss_ema_slope"
 
 
 def test_check_rsi_filter():

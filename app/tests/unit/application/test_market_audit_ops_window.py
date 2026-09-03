@@ -150,8 +150,8 @@ def test_anti_loss_live_agree_strong_on_window_put():
         "resolved_direction": "PUT",
         "exec_direction": "PUT",
         "loss_clf_auto_learn": True,
-        "closed_micro_candle_dir": "CALL",
-        "closed_micro_candle_body": 0.05,
+        "closed_micro_candle_dir": "PUT",
+        "closed_micro_candle_body": 0.80,
         "closed_micro_candle_stamped": True,
         "ops_window_candle_dir": "PUT",
         "ops_window_candle_body": 0.80,
@@ -162,6 +162,27 @@ def test_anti_loss_live_agree_strong_on_window_put():
     cfg = parse_signal_skip_config({})
     assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is False
     assert metrics.get("gate_reason") is None
+
+
+def test_anti_loss_live_window_strong_last_candle_discord_reduces_body():
+    metrics = {
+        "execution_candidate_ready": True,
+        "tcn_direction": "PUT",
+        "resolved_direction": "PUT",
+        "exec_direction": "PUT",
+        "loss_clf_auto_learn": True,
+        "closed_micro_candle_dir": "CALL",
+        "closed_micro_candle_body": 0.05,
+        "closed_micro_candle_stamped": True,
+        "ops_window_candle_dir": "PUT",
+        "ops_window_candle_body": 0.80,
+        "ops_window_stamped": True,
+        "fusion_blocked_tcn_pos_edge": True,
+        "kelly_fraction_scale": 1.0,
+    }
+    cfg = parse_signal_skip_config({"anti_loss_hard_skip": True})
+    assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is True
+    assert metrics.get("anti_loss_anchor_agree") is False
 
 
 def test_anti_loss_incomplete_window_does_not_use_m1():

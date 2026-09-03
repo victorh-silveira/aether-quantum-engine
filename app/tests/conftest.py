@@ -4,6 +4,7 @@ import asyncio
 import gc
 from unittest.mock import patch
 
+import numpy as np
 import pytest
 import torch
 
@@ -21,6 +22,12 @@ _TORCH_DEVICE_PATCHES = (
     "src.application.services.deep_learning.dl_symbol_runtime.resolve_torch_device",
     "src.application.services.deep_learning.dl_symbol_train.resolve_torch_device",
 )
+
+
+@pytest.fixture(autouse=True)
+def fixed_numpy_random_seed():
+    """Semente fixa para testes DL com np.random."""
+    np.random.seed(42)
 
 
 @pytest.fixture(autouse=True)

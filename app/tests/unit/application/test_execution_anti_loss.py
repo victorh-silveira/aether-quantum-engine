@@ -274,27 +274,3 @@ def test_anti_loss_rsi_momentum_veto():
     )
     assert apply_anti_loss_seed_discord(metrics_put, cfg=cfg) is True
     assert metrics_put["gate_reason"] == "anti_loss_rsi_momentum"
-
-
-def test_anti_loss_ema_slope_veto():
-    """Testa veto de EMA slope quando EMA21[-1] < EMA21[-3] para CALL."""
-    from unittest.mock import MagicMock
-
-    import numpy as np
-
-    stream = MagicMock()
-    closes = np.linspace(5000, 4800, 30)
-    closes[-1] = closes[-2] + 20.0
-    stream.get_mini_numpy_series.return_value = closes
-    orch = MagicMock(stream=stream, symbols=["R_10"], anchor="R_10")
-    metrics = _base_metrics(
-        ops_window_stamped=True,
-        exec_direction="CALL",
-        resolved_direction="CALL",
-        ops_window_candle_dir="CALL",
-        ops_window_candle_body=0.5,
-        indicators={"rsi": 0.50},
-    )
-    cfg = parse_signal_skip_config({"anti_loss_hard_skip": True})
-    assert apply_anti_loss_seed_discord(metrics, orch=orch, cfg=cfg) is True
-    assert metrics["gate_reason"] in {"anti_loss_ema_slope", "anti_loss_ema_trend"}

@@ -30,7 +30,7 @@ from src.application.services.orchestrator.settlement_outcome import (
 from src.application.services.orchestrator.settlement_queue_ops import (
     push_to_redis_priority_queue,
 )
-from src.domain.risk.recovery_hurst_decay import reset_recovery_skip_counter_for_orch
+from src.application.services.recovery_hurst_store import reset_recovery_skip_counter_for_orch
 from src.domain.risk.stop_win_target import resolve_stop_win_target
 
 

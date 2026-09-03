@@ -38,7 +38,6 @@ def apply_risk_snapshot(manager: Any, data: dict[str, Any]) -> None:
     if not isinstance(data, dict) or not data:
         return
     snapshot = dict(data)
-    snapshot.pop("last_martingale_stake", None)
     _apply_float_fields(
         manager,
         snapshot,

@@ -88,7 +88,7 @@ class PersistenceManager:
                 self._write_temp(data, temp_file)
                 self._publish_temp(temp_file)
             except Exception as e:
-                self.logger.error(f"PERS: Erro critico ao salvar estado: {e}")
+                self.logger.error("PERS: Erro critico ao salvar estado: %s", e)
                 with contextlib.suppress(Exception):
                     if temp_file.exists():
                         temp_file.unlink()
@@ -110,8 +110,8 @@ class PersistenceManager:
             with self.file_path.open("r", encoding="utf-8") as f:
                 return json.load(f)
         except (json.JSONDecodeError, ValueError) as e:
-            self.logger.warning(f"PERS: Arquivo de estado corrompido, iniciando novo: {e}")
+            self.logger.warning("PERS: Arquivo de estado corrompido, iniciando novo: %s", e)
             return None
         except Exception as e:
-            self.logger.error(f"PERS: Erro inesperado ao carregar estado: {e}")
+            self.logger.error("PERS: Erro inesperado ao carregar estado: %s", e)
             return None

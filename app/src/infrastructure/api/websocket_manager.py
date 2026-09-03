@@ -154,7 +154,7 @@ class WebSocketManager:
                         msg_type = "proposal_open_contract"
 
                 if msg_type != "ping":
-                    self.logger.debug(f"WSS: RECV: {msg_type} | {message[:100]}...")
+                    self.logger.debug("WSS: RECV: %s | %s...", msg_type, message[:100])
 
                 req_id = data.get("req_id")
 
@@ -170,14 +170,14 @@ class WebSocketManager:
                         try:
                             await self.subscriptions[m](d)
                         except Exception as e:
-                            self.logger.error(f"WSS: Erro no callback {m}: {e}")
+                            self.logger.error("WSS: Erro no callback %s: %s", m, e)
 
                     asyncio.create_task(safe_callback(data))
         except websockets.ConnectionClosed:
             self.logger.debug("WSS: Conexao fechada pelo broker.")
             self.is_running = False
         except Exception as e:
-            self.logger.error(f"WSS: Erro inesperado: {e}")
+            self.logger.error("WSS: Erro inesperado: %s", e)
             self.is_running = False
 
     async def _ping_loop(self):
@@ -194,7 +194,7 @@ class WebSocketManager:
                         if self.ws:
                             await self.ws.close()
         except Exception as e:
-            self.logger.error(f"WSS: Falha critica no loop de ping: {e}")
+            self.logger.error("WSS: Falha critica no loop de ping: %s", e)
             self.is_running = False
             if self.ws:
                 asyncio.create_task(self.ws.close())
@@ -231,7 +231,12 @@ class WebSocketManager:
             return result
         except TimeoutError:
             if cmd != "ping":
-                self.logger.debug(f"WSS: Timeout na requisicao {self.req_id_counter} ({cmd}) apos {actual_timeout}s")
+                self.logger.debug(
+                    "WSS: Timeout na requisicao %s (%s) apos %ss",
+                    self.req_id_counter,
+                    cmd,
+                    actual_timeout,
+                )
             self.callbacks.pop(self.req_id_counter, None)
             raise
 

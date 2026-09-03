@@ -36,7 +36,14 @@ def stamp_macro_frame_telemetry(orch: Any, symbol: str, metrics: dict[str, Any],
     }
 
 
-def stamp_micro_frame_telemetry(orch: Any, symbol: str, metrics: dict[str, Any], params: dict[str, Any]) -> None:
+def stamp_micro_frame_telemetry(
+    orch: Any,
+    symbol: str,
+    metrics: dict[str, Any],
+    params: dict[str, Any],
+    *,
+    precomputed_series: dict | None = None,
+) -> None:
     """Anexa telemetria micro, fluxo de ticks e desvio Keltner para meta-classificador."""
     stream = getattr(orch, "stream", None)
     if stream is None or not hasattr(stream, "get_micro_numpy_series"):
@@ -55,7 +62,10 @@ def stamp_micro_frame_telemetry(orch: Any, symbol: str, metrics: dict[str, Any],
         low = stream.get_micro_numpy_series(str(symbol), "low")
         open_ = stream.get_micro_numpy_series(str(symbol), "open")
     micro_gran = int(params.get("micro_granularity", 180))
-    series = precompute_price_series(closes, granularity=micro_gran, symbol=str(symbol))
+    if precomputed_series is not None and isinstance(precomputed_series, dict) and len(precomputed_series) > 0:
+        series = precomputed_series
+    else:
+        series = precompute_price_series(closes, granularity=micro_gran, symbol=str(symbol))
     metrics["micro_indicators"] = {
         "rsi": _series_last(series, "rsi"),
         "vol_ratio": _series_last(series, "vol_ratio_short_long"),

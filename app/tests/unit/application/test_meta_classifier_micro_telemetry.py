@@ -55,3 +55,25 @@ def test_stamp_micro_frame_telemetry_prefers_patched_snapshot():
     stamp_micro_frame_telemetry(orch, "R_10", metrics, {"micro_granularity": 120})
     assert "micro_indicators" in metrics
     assert "flow_features" in metrics
+
+
+def test_stamp_micro_frame_telemetry_uses_precomputed_series():
+    from src.application.services.deep_learning.dl_predict_telemetry import stamp_micro_frame_telemetry
+
+    metrics: dict = {}
+    series = {
+        "rsi": [0.4, 0.55],
+        "vol_ratio_short_long": [1.0, 1.2],
+        "micro_bid_ask_spread_momentum": [0.1, 0.2],
+        "micro_bid_ask_spread_momentum_zscore": [0.0, 0.1],
+        "volatility_shadow_ratio": [1.0, 1.1],
+        "volatility_shadow_ratio_zscore": [0.0, 0.05],
+    }
+    stamp_micro_frame_telemetry(
+        _Orch(),
+        "R_10",
+        metrics,
+        {"micro_granularity": 300},
+        precomputed_series=series,
+    )
+    assert metrics["micro_indicators"]["rsi"] == 0.55
