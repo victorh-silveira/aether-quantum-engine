@@ -1,3 +1,9 @@
+## [2.50.8](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.50.7...v2.50.8) (2026-09-03)
+
+### Correcoes de Bug
+
+* **risk:** libera Single-Strike 5% e telemetria Z-score panic ([7fc2911](https://github.com/victorh-silveira/aether-quantum-engine/commit/7fc29118b02709e59449b3fc7e95c48d15d10397))
+
 ## [2.50.7](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.50.6...v2.50.7) (2026-09-03)
 
 ### Correcoes de Bug
